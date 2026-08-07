@@ -11,7 +11,8 @@
     "measured": "A build of that engine was actually RUN against the site and the result recorded in the row's note. The number is the OLDEST build we have run, not the oldest that works — older ones may work and simply have not been tried. This is the only state that outranks a reading of somebody's compat table.",
     "verified": "Checked against MDN browser-compat-data and caniuse on the `updated` date.",
     "derived": "Read off the requirement list and the engine's own history, not run.",
-    "unmeasured": "Nobody has run it. Reported as unknown."
+    "unmeasured": "Nobody has run it. Reported as unknown.",
+    "conservative": "Deliberately HIGHER than the real floor. The number's original derivation was found void (see requirements.es6-baseline) and nobody has run the versions below it, so it is left where it was rather than replaced with a fresh guess. It is safe in one direction only, which is the direction that matters: the preflight's verdict is feature detection and never this table, so a too-high number can only make the sentence on a wall that is already being shown slightly pessimistic — it can never turn a working browser away."
   },
   "sources": [
     "test/browser/e2e-pipe-engines.js and the 2026-08-07 old-engine runs on penguin — the `measured` rows below name their build",
@@ -136,16 +137,16 @@
           "min": "71",
           "since": "2018-12",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, NOT A MEASURED FLOOR. Chrome 71 was requirement arithmetic off globalThis, and globalThis is not a requirement (requirements.es6-baseline records the correction and the Firefox 63 run that exposed it). No Chrome below 137 has been run against the site by us; Chrome 137 was run 2026-08-07 on penguin (test/browser/e2e-pipe-engines.js: the site loads, mesh-pipe.js loads, no RTCRtpScriptTransform so the encoded lane correctly self-disables). The true floor is older than 71 and unmeasured."
         },
         "cast": {
           "state": "supported",
           "min": "71",
           "since": "2018-12",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, NOT A MEASURED FLOOR. Chrome 71 was requirement arithmetic off globalThis, and globalThis is not a requirement (requirements.es6-baseline records the correction and the Firefox 63 run that exposed it). No Chrome below 137 has been run against the site by us; Chrome 137 was run 2026-08-07 on penguin (test/browser/e2e-pipe-engines.js: the site loads, mesh-pipe.js loads, no RTCRtpScriptTransform so the encoded lane correctly self-disables). The true floor is older than 71 and unmeasured."
         },
         "desktop": {
           "state": "unknown",
@@ -166,16 +167,16 @@
           "min": "79",
           "since": "2020-01",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE. 79 is the first CHROMIUM Edge, which is a real boundary — everything older is EdgeHTML, a different engine listed separately as unsupported — so this number survives the globalThis correction on its own merits. No Edge build has been run by us."
         },
         "cast": {
           "state": "supported",
           "min": "79",
           "since": "2020-01",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE. 79 is the first CHROMIUM Edge, which is a real boundary — everything older is EdgeHTML, a different engine listed separately as unsupported — so this number survives the globalThis correction on its own merits. No Edge build has been run by us."
         },
         "desktop": {
           "state": "unknown",
@@ -218,16 +219,16 @@
           "min": "65",
           "since": "2019-01",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, and now bracketed from BELOW by a run. Firefox 65 was requirement arithmetic off globalThis. MEASURED 2026-08-07 on penguin: Firefox 63.0 (Milestone=63.0, headless, against a local copy of the site) has no globalThis, passes the preflight with an EMPTY gap list, paints no wall, and boots run.html to a working meeting UI with the fallback signer engaged (GifOS.ed.engine() === 'js'). Firefox 151 was run the same day and is a full participant including the encoded-passthrough lane. So the true floor is at or below 63; 65 is left standing because seating over a relay was not observed on 63 and we do not lower a number we have not fully run."
         },
         "cast": {
           "state": "supported",
           "min": "65",
           "since": "2019-01",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, and now bracketed from BELOW by a run. Firefox 65 was requirement arithmetic off globalThis. MEASURED 2026-08-07 on penguin: Firefox 63.0 (Milestone=63.0, headless, against a local copy of the site) has no globalThis, passes the preflight with an EMPTY gap list, paints no wall, and boots run.html to a working meeting UI with the fallback signer engaged (GifOS.ed.engine() === 'js'). Firefox 151 was run the same day and is a full participant including the encoded-passthrough lane. So the true floor is at or below 63; 65 is left standing because seating over a relay was not observed on 63 and we do not lower a number we have not fully run."
         },
         "desktop": {
           "state": "unknown",
@@ -247,16 +248,16 @@
           "min": "12.1",
           "since": "2019-03",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, AND THE ONE WE CANNOT RUN. Safari 12.1 was requirement arithmetic off globalThis, which is not a requirement. No Safari below the playwright WebKit build (UA Safari 26.5) has ever been run against the site on any machine here, and Linux cannot host an old one — stock WebKitGTK ships no WebRTC at all (test/README, 2026-08-05). The number stays where it is rather than moving on a fresh guess; real Apple hardware is the only thing that can replace it."
         },
         "cast": {
           "state": "supported",
           "min": "12.1",
           "since": "2019-03",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, AND THE ONE WE CANNOT RUN. Safari 12.1 was requirement arithmetic off globalThis, which is not a requirement. No Safari below the playwright WebKit build (UA Safari 26.5) has ever been run against the site on any machine here, and Linux cannot host an old one — stock WebKitGTK ships no WebRTC at all (test/README, 2026-08-05). The number stays where it is rather than moving on a fresh guess; real Apple hardware is the only thing that can replace it."
         },
         "desktop": {
           "state": "unknown",
@@ -275,16 +276,16 @@
           "min": "12.2",
           "since": "2019-03",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, AND THE ONE WE CANNOT RUN. Same correction as the desktop Safari row: iOS 12.2 was requirement arithmetic off globalThis, which is not a requirement, and no iOS Safari has been run by us. Only a real iPhone can settle this row."
         },
         "cast": {
           "state": "supported",
           "min": "12.2",
           "since": "2019-03",
           "why": "es6-baseline",
-          "confidence": "derived",
-          "note": "Derived from the requirement floor (globalThis + async/await + the WebRTC/WebCrypto set), not from a run — the old native-Ed25519 floor was measured; this fallback-era floor is requirement arithmetic. Real-device verification below the old floor is pending."
+          "confidence": "conservative",
+          "note": "CONSERVATIVE, AND THE ONE WE CANNOT RUN. Same correction as the desktop Safari row: iOS 12.2 was requirement arithmetic off globalThis, which is not a requirement, and no iOS Safari has been run by us. Only a real iPhone can settle this row."
         },
         "desktop": {
           "state": "unknown",
