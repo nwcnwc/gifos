@@ -218,10 +218,35 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
 
   // ---- A. STEADY STATE: primary flows, standby ~zero -----------------------
   const SPAN = 10;
+  // A SAMPLE MUST NOT BE TORN. `avStats()` awaits getStats() across every peer —
+  // tens of milliseconds — and a slot can swap its primary and standby inside
+  // that await. The stats rows then carry the tagging from BEFORE the swap while
+  // the mosaic read afterwards reports the via from AFTER it, and nothing in the
+  // pair says so. Measured 2026-08-07 (pi, DRILL_PIPE=off): a seat whose sdrow:0
+  // primary and standby traded places during the first sample reported
+  // heldBoth=true, no wake, not dark, NO switch in window, demand '=i' at both
+  // ends — and 6615 B/s that were the PRIMARY's, from before the swap. The
+  // window's own rows show it plainly: at t1 the label sat on k_c169's mids 1/2,
+  // at t2 on k_7a62's mids 6/7.
+  // So read the mosaic on BOTH sides of the stats call and name every slot whose
+  // primary/standby identity moved between them. A rate over a torn slot is not
+  // a measurement of anything. `t0` (before the stats call) is also the honest
+  // window start for the lastSwitch test — `t` is tens of ms later, which is
+  // exactly the gap a swap can hide in.
   const sample = (e) => e.page ? e.page.evaluate(async () => {
+    const sig = (mm) => {
+      const o = {};
+      for (const c of (mm.claimVia || [])) o[c.rk] = 'p:' + c.via + '|' + c.sid;
+      for (const s of (mm.standbyVia || [])) o[s.rk] = (o[s.rk] || '') + ' s:' + s.via + '|' + s.sid;
+      return o;
+    };
+    const t0 = Date.now();
+    const m0 = sig(__gifosVideo.mosaic());
     const st = await __gifosVideo.avStats();
     const m = __gifosVideo.mosaic();
-    return { t: Date.now(), st, m };
+    const m1 = sig(m);
+    const torn = [...new Set([...Object.keys(m0), ...Object.keys(m1)])].filter((k) => m0[k] !== m1[k]);
+    return { t0, t: Date.now(), st, m, torn };
   }).catch(() => null) : null;
   // A pipe only counts if it exists in BOTH samples (a rate needs a baseline),
   // so a standby that churned mid-window vanishes from the count — one run
@@ -315,11 +340,12 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
           heldBoth: !!(sv1 && sv2 && sv1.sid === sv2.sid && sv1.via === sv2.via),
           wakeAgeMs: f2.wakeAt ? b.t - f2.wakeAt : (f1.wakeAt ? b.t - f1.wakeAt : null),
           dark: !!(f1.dark || f2.dark),
-          switchInWindowMs: (f2.lastSwitch && f2.lastSwitch > a.t) ? b.t - f2.lastSwitch : null,
+          switchInWindowMs: (f2.lastSwitch && f2.lastSwitch > (a.t0 || a.t)) ? b.t - f2.lastSwitch : null,
+          torn: ((a.torn || []).indexOf(rk) >= 0 ? 't1' : '') + ((b.torn || []).indexOf(rk) >= 0 ? 't2' : '') || null,
           demand: [d1, d2].map((d) => (d ? d.slice(-2) : null)),
         };
         const demandedHot = /=w$/.test(d1 || '') || /=w$/.test(d2 || '');
-        const stable = why.heldBoth && !f1.wakeAt && !f2.wakeAt && !why.dark && why.switchInWindowMs == null && !demandedHot;
+        const stable = why.heldBoth && !f1.wakeAt && !f2.wakeAt && !why.dark && why.switchInWindowMs == null && !demandedHot && !why.torn;
         if (!stable) { stdChurn.push(why); continue; }  // not a parked-pipe measurement at all
         stdPipes++;
         if (bps > 1000) { stdHot++; hotWhy.push(why); }
