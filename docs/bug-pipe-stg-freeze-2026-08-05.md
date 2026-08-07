@@ -151,15 +151,26 @@ keyframe-starved piped copy (why does a hop with bytes never decode?).
   changed to keep sampling after the first hit. (2026-08-06: the FRAME COUNTS
   answer the spirit of it anyway — 4 to 15 decoded frames in 36 seconds means
   the copy is not blipping, it is barely running.)
-- **Mechanism.** Narrowed 2026-08-06, not closed. It is keyframe starvation in
-  shape — bytes arriving, nothing decoding, producer keyframing — but whether
-  the hop-local `sendKeyFrameRequest` never fires, never arrives, or fires and
-  is answered on a stream the receiver has already been re-shipped off, is
-  open. `deny:0` still says no job fell back to transcode. `kfAsk/kdrop/nkDrop`
-  are now captured for the RECEIVER's flow at the moment a stall fires (leg 3
-  reads `kfStats` for `in:<key>`); the next run to red should have them in the
-  failure line, and the pipe worker's own counters at the FORWARDING hop are
-  the piece still missing.
+- **Mechanism.** Narrowed 2026-08-06, not closed — and the first reading with
+  the receiver's own decode counters attached says it is NOT simply "no
+  keyframe ever arrived". The first stall the corrected leg 3 caught on the
+  committed suite reads:
+
+      {"seat":"P0","key":"stg:k_18d8638b","stuckMs":12612,"frames":21,
+       "via":"k_372e3c","sid":"858a8fa1","bytesDuringStall":50787,
+       "kf":{"fdec":4,"kdec":3}}
+
+  **Three of the four frames that flow ever decoded were KEYFRAMES**, while
+  50.8 kB arrived during the freeze. So key content does reach this hop and is
+  decodable; what never decodes is everything BETWEEN the keyframes. That
+  points away from "the hop-local `sendKeyFrameRequest` never fires" and toward
+  the delta frames arriving unusable at this hop — a passthrough/dependency
+  problem in the worker's swap, or a receiver re-shipped onto a container mid
+  GOP often enough (8 claim swaps in that same 36s window) that it only ever
+  survives to the next keyframe. `deny:0` still says no job fell back to
+  transcode. The piece still missing is the pipe worker's own counters
+  (`wrote/dropped/kdrop/nkDrop/swapErr`) at the FORWARDING hop at that instant,
+  which nothing captures yet.
 - **Whether real users hit it.** Chrome 140 has no `RTCRtpScriptTransform`, so every
   browser older than ~141 runs with the lane off and cannot see this. How much of the
   real audience is on an engine new enough to turn the lane on — and therefore new
