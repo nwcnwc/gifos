@@ -6,10 +6,10 @@
 >
 > | # | status | evidence |
 > |---|---|---|
-> | 1 stale guest password splits a room | **ALIVE** | `gifos_vpw_<room>` still per-origin with no expiry; the `gifos_vpwep_` epoch is a §LOCK replay counter, not the expiry this asks for. Host side still silent. `e2e-meet-password.js` covers rotation, NOT this trap. |
+> | ~~1 stale guest password splits a room~~ | **CLOSED 2026-08-06** (`31b7617`) | Reproduced first on the pi (host and guest both at 1 participant forever, guest told "This room is locked" when it was not, host told nothing). A remembered password is now a CANDIDATE: R6 probes the OPEN key once and lets the DOOR adjudicate; a password the room proves wrong is FORGOTTEN; the store is a last-used cache with a 14-day clock (`gifos_vpwat_`); a lock you did not set this session is visible while you are alone. Guarded + mutation-tested in `e2e-meet-password.js`. RESIDUAL: an entry with no stamp gets one TTL window (see the disposition below). |
 > | 2 sim seed-4 FIND/PLACE livelock | **CLOSED 2026-08-06** | Repro re-run on this tree: `CHECK PASS seed=4 [seated=40/40 s1=25 dups=0]`, seeds 1-8 all pass. Killed by the V4/V5 admission waves (healing-laws §V). CAVEAT: `repro-churn-combos.sh` leg C pins seed 5 only, so seed 4 is unpinned. |
-> | 3 sw.js can serve a pre-rename loader that 404s | **ALIVE** | `degrade()` still returns the cached `/index.html` with NO `SHELL_VERSION` check; the guard this entry proposes is absent. Confirmed reachable: `versions/0.9.1/run.html` does not exist. |
-> | 4 loaders with no `gifosPinTarget` hook | **ALIVE (half obsolete)** | `store.html` half is DEAD — it deliberately ships no channel loader now. `sign.html` half STANDS and is in no battery (`runtime-page-name.js` iterates index/boot/run only). The pre-rename wrinkle is moot post-flag-day; the rot pattern is not. |
+> | ~~3 sw.js can serve a pre-rename loader that 404s~~ | **CLOSED 2026-08-06** (`0871dbb`) | Root cause was narrower and worse than the entry said: `degrade()` answered EVERY navigation with the ROOT `/index.html`, so a `/versions/<v>/` navigation got the EDGE shell, whose loader then re-routed by a frozen page map. A degrade now never crosses the channel boundary — a snapshot falls back to its own `index.html` or says the build is not installed. Guarded by `test/unit/sw-degrade.js`, which runs the REAL worker against stub `self`/`caches`/`fetch`; mutation-tested. The `SHELL_VERSION` freshness check the entry proposed was NOT built and is argued against in the code: within a worker generation the cache is already version-keyed, so the check would assert nothing. |
+> | ~~4 loaders with no `gifosPinTarget` hook~~ | **CLOSED 2026-08-06** (`2b71ee7`) | `sign.html` now ships the loader byte-for-byte, and the rot pattern is dead: `test/unit/channel-loader.js` DISCOVERS every `site/*.html` that ships a loader, pins the set, proves all four `pinTarget()` bodies byte-identical, and EXECUTES each page's own copy against the pin/pretty-path/edge/non-prod decisions. `store.html`'s deliberate no-loader exception is recorded there with its reason. Mutation-tested by restoring the pre-fix `sign.html` (7 reds). |
 > | 5 mesh-pipe on Safari live + untested | **ALIVE** | `e2e-pipe.js` is chromium-only by construction (`ignorePins`); the only cross-engine suite tests Ed25519, not the pipe. Needs the real-Apple lane. |
 > | 6 the 7-hour room fork | **ALIVE — but REPRODUCED, WATCHED and GUARDED 2026-08-06** | The live shape now has a drill (`e2e-room-fork-live.js`, in `mesh-churn.sh` + the drills tier, mutation-tested) and a detector the monitor runs on every snapshot (`test/tools/fork-detect.js`). A door-side MECHANISM is now measured too (`door-registry-probe.js`: a stale blobless claim holds the genesis forever) — relay fix REPORTED, not made. See the §6 note below. |
 > | 7 iOS in-app viewers can't grant a camera | **ALIVE (product question)** | No proactive iOS-webview affordance on the join page; "Open in Safari" appears only from the preflight's failure path. |
@@ -207,3 +207,43 @@ argument (a forgeable early-free is an eviction weapon).
   a freeze-moves test hook; never assert 'advertises nothing', which a
   lawful self-compacted head violates.
   Logs: /tmp/release-gate/browser_e2e-deep-pair-heal.log(.retry) on the gate host.
+
+## Dispositions added 2026-08-06 (the low-room-size pass)
+
+- **Entry 1 — what the fix does NOT cover, said plainly.** Three residuals, in
+  descending order of how likely they are to bite:
+  1. **An existing `gifos_vpw_` entry with no `gifos_vpwat_` stamp gets one
+     14-day window**, not an immediate delete. localStorage carries no
+     provenance, so "unstamped" cannot be distinguished from "written five
+     minutes ago by a build without the stamp"; deleting them all would be a
+     flag day that silently drops every deployed remembered password. The
+     dangerous cases are healed anyway (an open room self-corrects, a wrong
+     password is evicted at the door), so the grace only delays the case the
+     TTL alone covers: a stale FOUNDER re-locking a room name. That founder is
+     no longer silent — the status bar says the room is locked with a saved
+     password while she is alone.
+  2. **A stale FOUNDER still locks the room name for the length of the TTL.**
+     Nothing local distinguishes "the password this room really has" from "a
+     password I typed into this name once" at founding time — only time does.
+     The visible-lock line is the mitigation.
+  3. **A genuinely locked room now costs up to three door knocks** for a
+     device that remembers a password and hits R6 (probe the open key →
+     refused → restore). A device that types the password, or is granted it,
+     pays one. The cheap way out is a door hint (`&pwc=1`: "match a lock, but
+     do not create one") plus `locked` in the roster for PLAIN rooms — the
+     relay sends it for admin rooms already. That is a relay change and a
+     coordinated deploy, deliberately not taken here.
+- **Entry 1 — no derivation changed, so no DS bump.** `deriveMeetKey` /
+  `meetPwProof` / `deriveMeet` are untouched; old and new clients still land in
+  the same relay session for the same link. The whole fix is in WHICH password
+  the client offers and how long it remembers it.
+- **The local relay does not mirror production's close CODES.** Production
+  `reject()`s 'password required' with 4003 (a FATAL close: the socket stops
+  retrying and the app re-arms). `test/servers/relay-local.js` closes with no
+  code at all, which is not fatal — and because `steadySocket` resets its
+  backoff on every `onopen`, a locally-refused client re-knocks about twice a
+  second, forever. Measured while reproducing entry 1. Nothing is broken in
+  production, but every browser suite is testing the WRONG reconnect policy
+  for policy rejections, which is exactly the shape of hazard this repo keeps
+  paying for. Not fixed here (test/servers was out of scope for this pass);
+  worth one commit.
