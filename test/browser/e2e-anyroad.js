@@ -18,11 +18,14 @@
 //  2. The world builds: terrain meshes, and road geometry gated on its terrain.
 //  3. The car drives, and the renderer draws something that is not just sky.
 //
+// The world it drives through lives in test/lib/anyroad-fixtures.js — shared
+// with the multiplayer battery, because a fixture that exists twice drifts.
+//
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
 const { chromium, CHROME } = require('../lib/pw');
 const { appGif } = require('../lib/apps');
+const { HOP, FIXTURE_HEIGHT, routeWorld } = require('../lib/anyroad-fixtures');
 const { readFileSync } = require('fs');
-const zlib = require('zlib');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -31,110 +34,6 @@ let failures = 0;
 function check(name, cond, detail) {
   console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : ''));
   if (!cond) failures++;
-}
-
-// ---- fixture: a terrarium elevation tile ------------------------------------
-// terrarium packs metres as height = R*256 + G + B/256 - 32768. We encode a
-// constant, deliberately awkward height so a UTF-8 round-trip could not
-// possibly reproduce it by luck.
-const FIXTURE_HEIGHT = 412.5;
-function terrariumPixel(h) {
-  const v = Math.round((h + 32768) * 256);       // in 1/256 m units
-  return [(v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
-}
-
-const crcTable = (() => {
-  const t = [];
-  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
-  return t;
-})();
-const crc32 = (b) => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
-function pngChunk(type, data) {
-  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-  const td = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
-  return Buffer.concat([len, td, crc]);
-}
-function terrariumTile(size, h) {
-  const [r, g, b] = terrariumPixel(h);
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; ihdr[9] = 2;                      // 8-bit truecolour RGB
-  const row = Buffer.alloc(1 + size * 3);
-  for (let x = 0; x < size; x++) { row[1 + x * 3] = r; row[2 + x * 3] = g; row[3 + x * 3] = b; }
-  const raw = Buffer.concat(Array.from({ length: size }, () => row));
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(raw)), pngChunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-const TILE_PNG = terrariumTile(64, FIXTURE_HEIGHT);
-
-// ---- fixture: an Overpass answer --------------------------------------------
-// One long residential way through the drop point, plus a building, in the
-// `out geom` shape the app parses. Built around the preset it hops to.
-const HOP = { lat: 48.8698, lon: 2.3078 };       // the Paris preset
-function overpassBody() {
-  const geom = [];
-  for (let i = -60; i <= 60; i++) geom.push({ lat: HOP.lat + i * 0.00012, lon: HOP.lon + i * 0.00004 });
-  return JSON.stringify({
-    elements: [
-      { type: 'way', id: 1, tags: { highway: 'residential', name: 'Fixture Street' }, geometry: geom },
-      { type: 'way', id: 2, tags: { highway: 'primary', name: 'Grand Boulevard' },
-        geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon + 0.0009 })) },
-      // A six-lane motorway and a dirt track, far enough out not to be what the
-      // car lands on. OSM tags `surface` and `lanes` on the way and the parser
-      // never looked at either, so a farm track was drawn as asphalt with a
-      // painted centre line and a motorway was as wide as a B road.
-      { type: 'way', id: 4, tags: { highway: 'motorway', lanes: '6', name: 'A1' },
-        geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon + 0.0018 })) },
-      { type: 'way', id: 5, tags: { highway: 'track', surface: 'dirt' },
-        geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon - 0.0015 })) },
-      { type: 'way', id: 6, tags: { highway: 'unclassified', surface: 'gravel' },
-        geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon - 0.0021 })) },
-      { type: 'way', id: 3, tags: { building: 'yes', 'building:levels': '4' }, geometry: [
-        { lat: HOP.lat + 0.0004, lon: HOP.lon + 0.0004 },
-        { lat: HOP.lat + 0.0004, lon: HOP.lon + 0.0007 },
-        { lat: HOP.lat + 0.0007, lon: HOP.lon + 0.0007 },
-        { lat: HOP.lat + 0.0007, lon: HOP.lon + 0.0004 },
-        { lat: HOP.lat + 0.0004, lon: HOP.lon + 0.0004 },
-      ] },
-      { type: 'way', id: 7, tags: { highway: 'residential', name: 'Crossing Lane' }, geometry: [
-        { lat: HOP.lat, lon: HOP.lon - 0.0006 }, { lat: HOP.lat, lon: HOP.lon + 0.0006 },
-      ] },
-      ...mixedStreet(),
-    ],
-  });
-}
-
-// A street with KNOWN building types on it. OSM carries `building=house`,
-// `building=retail`, `building=warehouse` and the rest, and until 2026-08 the
-// parser tested the tag for truthiness and threw the value away — so this
-// fixture exists to hold the classifier to what the data actually said.
-// Houses down one side, a parade of shops, an office and a shed down the other.
-function mixedStreet() {
-  const out = [];
-  let id = 100;
-  const box = (tags, lat, lon, dlat, dlon) => ({
-    type: 'way', id: id++, tags,
-    geometry: [
-      { lat, lon }, { lat, lon: lon + dlon },
-      { lat: lat + dlat, lon: lon + dlon }, { lat: lat + dlat, lon },
-      { lat, lon },
-    ],
-  });
-  const KINDS = [
-    { building: 'retail' },
-    { building: 'commercial', 'building:levels': '5' },
-    { building: 'warehouse' },
-    { building: 'church' },
-  ];
-  for (let i = -6; i < 6; i++) {
-    const lat = HOP.lat + i * 0.00036, lon = HOP.lon + i * 0.00012;
-    out.push(box({ building: 'house' }, lat, lon - 0.00035, 0.00009, 0.00013));
-    out.push(box(KINDS[((i % 4) + 4) % 4], lat, lon + 0.00022, 0.00011, 0.00020));
-  }
-  return out;
 }
 
 (async () => {
@@ -148,25 +47,7 @@ function mixedStreet() {
   });
   const context = await browser.newContext();
 
-  // Intercept every external host the app is allowed to reach. Anything NOT
-  // matched here is aborted, so an unnoticed new dependency fails loudly rather
-  // than quietly reaching the open internet from CI.
-  let terrainHits = 0, overpassHits = 0;
-  await context.route('**://s3.amazonaws.com/**', async (route) => {
-    terrainHits++;
-    await route.fulfill({ status: 200, contentType: 'image/png',
-      headers: { 'Access-Control-Allow-Origin': '*' }, body: TILE_PNG });
-  });
-  await context.route(/overpass/, async (route) => {
-    overpassHits++;
-    await route.fulfill({ status: 200, contentType: 'application/json',
-      headers: { 'Access-Control-Allow-Origin': '*' }, body: overpassBody() });
-  });
-  await context.route('**://nominatim.openstreetmap.org/**', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json',
-      headers: { 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify([{ lat: String(HOP.lat), lon: String(HOP.lon), display_name: 'Fixture Street, Paris' }]) });
-  });
+  const hits = await routeWorld(context);
 
   const page = await context.newPage();
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
@@ -239,7 +120,7 @@ function mixedStreet() {
     if (state.terrain > 0 && state.roadsBuilt > 0) break;
   }
 
-  check('elevation tiles fetched through the bridge', terrainHits > 0, terrainHits + ' requests');
+  check('elevation tiles fetched through the bridge', hits.terrain > 0, hits.terrain + ' requests');
   check('terrain tiles decoded and loaded', state.terrain > 0, state.terrain + ' tiles');
 
   // THE binary-fetch assertion: the height the app reports has to be the height
@@ -248,7 +129,7 @@ function mixedStreet() {
     state.height !== null && Math.abs(state.height - FIXTURE_HEIGHT) < 0.5,
     'got ' + (state.height === null ? 'null' : state.height.toFixed(2)) + ' m, expected ' + FIXTURE_HEIGHT);
 
-  check('Overpass geometry fetched', overpassHits > 0, overpassHits + ' queries');
+  check('Overpass geometry fetched', hits.overpass > 0, hits.overpass + ' queries');
   check('road meshes built on top of the terrain', state.roadsBuilt > 0 && state.roadTris > 0,
     state.roadsBuilt + ' tiles, ' + state.roadTris + ' road indices');
   check('buildings extruded', state.buildingTris > 0, state.buildingTris + ' indices');

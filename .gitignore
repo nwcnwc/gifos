@@ -5,3 +5,5 @@ node_modules/
 test/unit/sample.gif
 .wrangler/
 .claude/
+# recordings from e2e-anyroad-mp (RECORD=1) — artifacts, never sources
+test/out/

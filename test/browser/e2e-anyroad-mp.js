@@ -1,0 +1,347 @@
+// End-to-end: THREE PEOPLE DRIVING TOGETHER.
+//
+// Anyroad's multiplayer (apps/anyroad/mp.js — ghost cars, the player count, a
+// race two points wide) had NO coverage of any kind until this file: the only
+// suite that ever ran the app opened exactly one browser context. That is the
+// state CLAUDE.md warns about — not red, just unguarded, which is how the two
+// app drills stayed dead for months.
+//
+// What a third person proves that a second does not: `others` is a map keyed by
+// player id and `ghosts()` walks it, so a bug that renders "the other player"
+// rather than "every other player" passes at two and fails at three.
+//
+// It is also the only place the runtime's DOWNLOAD POOL is exercised by a real
+// app on real URLs. e2e-pool proves the mechanism with a six-line synthetic
+// app; this proves the thing the mechanism was built for — that three people
+// driving the same street cost the donated Overpass server ONE query per tile
+// rather than three. The count is taken at the route interceptor, which is
+// per-context, so a URL one player fetched is simply never requested by the
+// other two: summing the ledgers counts REAL upstream requests.
+//
+// RECORD=1 records each player's screen to test/out/anyroad-mp/*.webm.
+//
+// Needs: static server on 8099, local relay on 8790. Three Chromiums rendering
+// a 3D world on a software rasteriser is heavy — every assertion here is about
+// STATE (who can see whom, how many queries), never about frame timings, which
+// on one box cannot tell a product bug from a busy kernel.
+const { chromium, CHROME } = require('../lib/pw');
+const { appGif } = require('../lib/apps');
+const { HOP, routeWorld } = require('../lib/anyroad-fixtures');
+const { readFileSync, mkdirSync, existsSync, rmSync, readdirSync, renameSync } = require('fs');
+const path = require('path');
+
+const BASE = process.env.BASE || 'http://127.0.0.1:8099';
+const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
+const RECORD = process.env.RECORD === '1';
+const OUT = path.resolve(__dirname, '../out/anyroad-mp');
+const NAMES = ['Ada', 'Ben', 'Cyd'];
+
+let failures = 0;
+function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : '')); if (!cond) failures++; }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+(async () => {
+  const gifB64 = readFileSync(appGif('anyroad')).toString('base64');
+  if (RECORD) { if (existsSync(OUT)) rmSync(OUT, { recursive: true, force: true }); mkdirSync(OUT, { recursive: true }); }
+
+  const browser = await chromium.launch({
+    executablePath: CHROME,
+    args: [
+      // No GPU on the gate box; without a software rasteriser there is no WebGL
+      // context at all and the app would correctly refuse to run.
+      '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+      '--disable-features=WebRtcHideLocalIpsWithMdns',
+      '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
+      '--autoplay-policy=no-user-gesture-required',
+      // WITHOUT THESE THERE IS NO MULTIPLAYER TO TEST. Chromium throttles a
+      // backgrounded tab's requestAnimationFrame to roughly one frame a second,
+      // and this app IS its animation loop — so only the tab in front drives,
+      // the other two cars sit still, and mp.js's staleness rule (which keys on
+      // a position that CHANGED, not on a heartbeat) correctly stops drawing
+      // them. Measured with the round-robin bringToFront this suite used first:
+      // every player saw exactly one of the other two. That is the harness
+      // starving the app, not a product bug, and it is the difference between
+      // three cars driving together and three tabs taking turns.
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+    ],
+  });
+
+  const players = [];
+  for (const name of NAMES) {
+    const ctx = await browser.newContext(Object.assign(
+      { permissions: ['camera', 'microphone'], viewport: { width: 1000, height: 700 } },
+      RECORD ? { recordVideo: { dir: path.join(OUT, name), size: { width: 1000, height: 700 } } } : {},
+    ));
+    await ctx.addInitScript((v) => {
+      try {
+        localStorage.setItem('gifos_relay', v.relay);
+        localStorage.setItem('gifos_name', v.name);
+        localStorage.setItem('gifos_meet_bar', '0');
+      } catch (e) {}
+    }, { relay: RELAY, name });
+    const hits = await routeWorld(ctx);
+    players.push({ name, ctx, hits });
+  }
+  const [ada, ben, cyd] = players;
+
+  // ---- Ada installs the real built GIF and shares it into a meeting --------
+  const desk = await ada.ctx.newPage();
+  desk.on('pageerror', (e) => console.log('  [Ada desk pageerror]', e.message));
+  await desk.goto(BASE + '/index.html');
+  await desk.waitForSelector('.icon', { timeout: 90000 });
+  const fid = await desk.evaluate(async (b64) => {
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const id = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id, name: 'Anyroad.gif', bytes, kind: 'gif', isApp: true, appId: 'anyroad', mime: 'image/gif' });
+    return id;
+  }, gifB64);
+  check('the built Anyroad GIF installs on the host desktop', !!fid);
+
+  ada.page = await ada.ctx.newPage();
+  ada.page.on('pageerror', (e) => console.log('  [Ada pageerror]', e.message));
+  await ada.page.goto(BASE + '/run.html');
+  await ada.page.locator('#lob-open').click();
+  await ada.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 60000 });
+  const link = await ada.page.evaluate(() => document.getElementById('share-url').value);
+  check('Ada opened a meeting and has an invite link', /run\.html|\/j\//.test(link || ''), link);
+
+  // ---- Ben and Cyd walk in through the link -------------------------------
+  for (const p of [ben, cyd]) {
+    p.page = await p.ctx.newPage();
+    p.page.on('pageerror', (e) => console.log('  [' + p.name + ' pageerror]', e.message));
+    await p.page.goto(link);
+  }
+  // ONE live link, not two. Three nodes do not form a triangle: the stadium's
+  // fabric is a tree plus its lateral links, so the middle of a three-node
+  // section can be the only one with two peers and the ends have one each.
+  // App state still reaches everybody — the sga lane FLOODS across structural
+  // links rather than requiring a direct edge — and demanding a direct edge
+  // here just asserts a topology the mesh never promised.
+  for (const p of players) {
+    await p.page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.liveLinks() >= 1, null, { timeout: 90000 });
+  }
+  const links = await Promise.all(players.map((p) => p.page.evaluate(() => ({
+    live: window.__gifosVideo.liveLinks(), known: window.__gifosVideo.peerCount(),
+  }))));
+  console.log('  [mesh] ' + JSON.stringify(links));
+  check('all three are meshed in one meeting', links.every((l) => l.live >= 1));
+  check('…and each of them knows the other two exist', links.every((l) => l.known >= 2), JSON.stringify(links));
+
+  // ---- Ada runs Anyroad INTO the meeting; the other two mount it live -----
+  await ada.page.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'Anyroad'), fid);
+  for (const p of players) {
+    await p.page.waitForSelector('#appmount iframe', { timeout: 90000 });
+    await p.page.bringToFront();
+    // The declared-network consent sheet stands between the app and the bridge
+    // on every peer independently; a click on one is not a click on the others.
+    await p.page.locator('.perm-modal .done, .perm-box .done').first().click({ timeout: 15000 }).catch(() => {});
+    p.fr = p.page.frameLocator('#appmount iframe');
+    p.body = () => p.fr.locator('body');
+  }
+  check('all three mounted the SAME shared app from the mesh',
+    (await Promise.all(players.map((p) => p.page.evaluate(() => window.__gifosVideo.appActive())))).every(Boolean));
+  check('exactly one of them is the app host',
+    (await Promise.all(players.map((p) => p.page.evaluate(() => window.__gifosVideo.appIsHost())))).filter(Boolean).length === 1);
+
+  for (const p of players) await p.fr.locator('#landing').waitFor({ timeout: 30000 });
+  check('Anyroad booted inside all three sandboxes', true);
+
+  // ---- Ada picks the place. The other two must FOLLOW HER THERE ------------
+  // This is the design claim in mp.js: the invite link alone is enough, because
+  // the host publishes the world point and a guest with no world of its own
+  // adopts it. Nobody tells Ben and Cyd where Paris is.
+  await ada.fr.locator('#presets button', { hasText: 'Paris' }).first().click();
+  for (const p of players) {
+    await p.page.bringToFront();
+    await p.fr.locator('#hud').waitFor({ state: 'visible', timeout: 60000 }).catch(() => {});
+  }
+  const hopped = [];
+  for (const p of players) {
+    await p.page.bringToFront();
+    let ok = false;
+    for (let i = 0; i < 60 && !ok; i++) {
+      ok = await p.body().evaluate(() => !!(window.App && window.App.hasHopped() && window.App.world.frame)).catch(() => false);
+      if (!ok) await sleep(1000);
+    }
+    hopped.push(ok);
+  }
+  check('every player landed in a world, including the two who never chose one', hopped.every(Boolean), JSON.stringify(hopped));
+
+  const geo = [];
+  for (const p of players) {
+    await p.page.bringToFront();
+    geo.push(await p.body().evaluate(() => {
+      const f = window.App.world.frame; const c = window.App.car();
+      return f.toGeo(c.x, c.z);
+    }));
+  }
+  const spread = Math.max(...geo.map((g) => Math.abs(g.lat - HOP.lat))) * 111000;
+  check('…and it is the SAME place on Earth, not three copies of the app',
+    spread < 900, 'furthest car ' + spread.toFixed(0) + ' m from the drop point');
+
+  // ---- Let them drive. No input at all: the car cruises by itself ---------
+  // All three run at once (see the throttling flags above), which is the only
+  // arrangement in which "driving together" means anything.
+  const DRIVE_MS = Number(process.env.DRIVE_MS || 40000);
+  await sleep(DRIVE_MS);
+
+  // ---- Can each of them SEE the other two? --------------------------------
+  // TWO SEPARATE QUESTIONS, asked separately on purpose.
+  //
+  //   Did the record ARRIVE? — pure state. Three rows in the players
+  //   collection or not; a box under load cannot change the answer.
+  //   Is the ghost FRESH? — mp.js drops a car unheard-from for 7 s, measured by
+  //   its position CHANGING. On a software rasteriser a car covers metres per
+  //   minute, so this is partly a statement about the machine. Asserted, but
+  //   asserted second, so a failure here reads as what it is.
+  // POLLED, NOT SAMPLED ONCE. mp.js publishes at 5 Hz, so on a real device a
+  // row is ~200 ms old; measured here, with three software-rasterised worlds
+  // and a sign-and-broadcast round trip between them, rows arrive 2–6 s old
+  // against a 7 s staleness cliff. A single sample therefore passes or fails on
+  // where in that window it lands — the first version of this suite reported a
+  // missing ghost for exactly that reason. What is being claimed is CONVERGENCE
+  // ("everybody ends up seeing everybody"), so poll for it and let the box take
+  // as long as the box takes. A latency number asserted here would be a
+  // statement about this machine, not about the product.
+  const snapshot = async (p) => p.body().evaluate(() => window.Host.db('players').getAll().then((rows) => ({
+      rows: (rows || []).map((r) => r.name).sort(),
+      // THE DISCRIMINATOR when a ghost goes missing. mp.js drops a car whose
+      // position has not CHANGED for 7 s, so "the row is here but the car is
+      // not drawn" has exactly two causes and this tells them apart:
+      //   a stale `t`  → that player's updates are not reaching this tab at all
+      //   a fresh `t`  → they are arriving and the app is not being woken
+      age: (rows || []).reduce((o, r) => (o[r.name] = Date.now() - (r.t || 0), o), {}),
+      count: window.MP.count(),
+      ghosts: window.MP.ghosts().map((g) => ({ name: g.name, x: Math.round(g.x), z: Math.round(g.z), tint: g.tint })),
+      me: (() => { const c = window.App.car(); return { x: Math.round(c.x), z: Math.round(c.z), spd: +c.speed.toFixed(1), odo: Math.round(c.odometer) }; })(),
+    })));
+
+  let view = [];
+  const converged = (v) => v.length === 3 && v.every((x) => x.rows.length === 3 && x.count === 3 && x.ghosts.length === 2);
+  for (let i = 0; i < 30; i++) {
+    view = [];
+    for (const p of players) view.push(await snapshot(p));
+    if (converged(view)) break;
+    await sleep(2000);
+  }
+  players.forEach((p, i) => console.log('  [' + p.name + '] ' + JSON.stringify(view[i])));
+
+  check('all three players\' positions reached every tab (the shared collection has 3 rows)',
+    view.every((v) => v.rows.length === 3), JSON.stringify(view.map((v) => v.rows)));
+  check('every player counts THREE people in the game',
+    view.every((v) => v.count === 3), JSON.stringify(view.map((v) => v.count)));
+  check('every player can see the other TWO cars, not just one',
+    view.every((v) => v.ghosts.length === 2), JSON.stringify(view.map((v) => v.ghosts.length)));
+  // A ghost drawn at the origin is the classic "positions never crossed the
+  // wire" failure — the record arrived, the geo conversion did not.
+  check('the ghosts are at real positions, not stacked on the origin',
+    view.every((v) => v.ghosts.length && v.ghosts.every((g) => Math.hypot(g.x, g.z) > 0.5)),
+    JSON.stringify(view.map((v) => v.ghosts.map((g) => [g.x, g.z]))));
+  // tintFor() derives colour from the player id with no coordination, so the
+  // same car must be the same colour in every tab.
+  const tintOf = (v, n) => (v.ghosts.find((g) => g.name === n) || {}).tint;
+  const adaSeenByBen = tintOf(view[1], NAMES[0]), adaSeenByCyd = tintOf(view[2], NAMES[0]);
+  check('the same car is the same colour in everybody\'s tab',
+    !!adaSeenByBen && JSON.stringify(adaSeenByBen) === JSON.stringify(adaSeenByCyd),
+    JSON.stringify([adaSeenByBen, adaSeenByCyd]));
+  check('the cars actually drove somewhere', view.every((v) => v.me.odo > 0),
+    JSON.stringify(view.map((v) => v.me.odo)) + ' m');
+  check('…all three of them, not just the tab that happened to be in front',
+    view.every((v) => v.me.odo > 0) && Math.min(...view.map((v) => v.me.odo)) > 0,
+    JSON.stringify(view.map((v) => v.me.odo)) + ' m');
+
+  // ---- THE POOL, on a real app's real URLs --------------------------------
+  // Anyroad asks Overpass with a GET whose query string IS the question, so
+  // three players standing in one place ask an identical URL. Without pooling
+  // that is three requests to a donated server; with it, one.
+  const perPlayer = players.map((p) => p.hits.overpass);
+  const total = perPlayer.reduce((a, b) => a + b, 0);
+  const all = players.flatMap((p) => p.hits.urls);
+  const distinct = new Set(all).size;
+  console.log('  [overpass] per-player ' + JSON.stringify(perPlayer) + ' = ' + total + ' request(s), ' + distinct + ' distinct URL(s)');
+  check('…somebody did actually fetch (a pool that fetches nothing is a broken app)',
+    total > 0, total + ' requests');
+  // THE WHOLE CLAIM, in one equality. Every tile the room needed was fetched
+  // from the donated server EXACTLY ONCE, no matter how many people needed it.
+  // Turn the capability off (Abilities → uncheck Pool, i.e. gifos_capoff_anyroad)
+  // and this becomes one request per player per tile — up to 3× this number.
+  check('every tile crossed the wire ONCE for the whole room, not once per player',
+    total === distinct, total + ' requests for ' + distinct + ' distinct URLs');
+  // The equality above could also be produced by two players simply never
+  // needing any roads. So: everyone has BUILT road geometry, and somebody built
+  // it having asked the donated server for less than the world needed. A player
+  // driving on roads it never downloaded is the pool, and nothing else.
+  const built = [];
+  for (const p of players) {
+    built.push(await p.body().evaluate(() => {
+      const w = window.App.world;
+      return Object.keys(w.roads).filter((k) => w.roads[k] && w.roads[k].built).length;
+    }));
+  }
+  console.log('  [roads built] ' + JSON.stringify(built));
+  check('every player is driving on real road geometry, not an empty world',
+    built.every((n) => n > 0), JSON.stringify(built));
+  check('…and at least one of them built it from tiles it never downloaded',
+    Math.min(...perPlayer) < distinct, 'fetched ' + JSON.stringify(perPlayer) + ' of ' + distinct + ' tiles');
+
+  // ---- A race: two points, and everyone sees it --------------------------
+  await ada.page.bringToFront();
+  const raceSeen = [];
+  await ada.body().evaluate(() => {
+    const f = window.App.world.frame, c = window.App.car();
+    const s = f.toGeo(c.x, c.z), e = f.toGeo(c.x + 120, c.z + 120);
+    return window.MP.setRace(s, e);
+  });
+  for (const p of players) {
+    await p.page.bringToFront();
+    let ok = false;
+    for (let i = 0; i < 25 && !ok; i++) {
+      ok = await p.body().evaluate(() => !!(window.MP.hasRace() && window.MP.raceState(window.App.car()))).catch(() => false);
+      if (!ok) await sleep(1000);
+    }
+    raceSeen.push(ok);
+  }
+  check('a race started by one player reaches all three', raceSeen.every(Boolean), JSON.stringify(raceSeen));
+  const countdowns = [];
+  for (const p of players) {
+    await p.page.bringToFront();
+    countdowns.push(await p.body().evaluate(() => {
+      const st = window.MP.raceState(window.App.car());
+      return st ? { toFinish: Math.round(st.toFinish), started: st.countdown === 0 } : null;
+    }));
+  }
+  check('every player is racing to the SAME finish line',
+    countdowns.every((c) => c && Math.abs(c.toFinish - countdowns[0].toFinish) < 250),
+    JSON.stringify(countdowns.map((c) => c && c.toFinish)));
+
+  // ---- close, and collect the recordings ---------------------------------
+  // Playwright names a recording by page GUID and only finalises it on context
+  // close, so the handle is grabbed first and the file renamed after.
+  const vids = RECORD ? players.map((p) => ({ name: p.name, v: p.page.video() })) : [];
+  for (const p of players) await p.ctx.close();
+  await browser.close();
+
+  if (RECORD) {
+    for (const { name, v } of vids) {
+      if (!v) continue;
+      try {
+        const src = await v.path();
+        const dst = path.join(OUT, name.toLowerCase() + '.webm');
+        renameSync(src, dst);
+        console.log('  [video] ' + name + ' → ' + dst);
+      } catch (e) { console.log('  [video] ' + name + ': ' + e.message); }
+    }
+    // Anything left is a page we did not name (Ada's desktop tab); keep it, but
+    // do not pretend it is gameplay.
+    for (const name of NAMES) {
+      const dir = path.join(OUT, name);
+      if (existsSync(dir) && readdirSync(dir).length) console.log('  [video] (extra tab) ' + dir + ': ' + readdirSync(dir).join(', '));
+    }
+  }
+
+  console.log(failures ? '\n' + failures + ' FAILED' : '\nall good');
+  process.exit(failures ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });
