@@ -469,7 +469,12 @@ Roughly three families in one directory:
   restore on return; 13 checks).
 - **AI / network** — `e2e-caps`, `e2e-ai-types`, `e2e-agent`, `e2e-chess-hint`
   (all need fake-ai), `e2e-api`, `e2e-cors-proxy`, `e2e-proxy-cache`,
-  `e2e-fetch-bridge`, `e2e-fluence-setup`, `e2e-fluence`.
+  `e2e-fetch-bridge`, `e2e-fluence-setup`, `e2e-fluence`,
+  `e2e-pool` (capabilities.pool — two peers in one meeting, one URL, and the
+  upstream is asked ONCE; spawns its own counting server on 8801 and asserts
+  the COUNT, not the source, so a cache or a second code path cannot fake it.
+  Also checks the three declaration rules and that the same app without the
+  capability costs two requests).
 
 ## drills/ — self-contained scenario rigs
 

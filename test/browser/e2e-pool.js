@@ -19,13 +19,14 @@
 //                   downloads are shared with the room" is not a detail.
 //
 // Needs: static server on 8099 and the local relay on 8790. Spawns its own
-// counting upstream on 8794 (clear of fake-ai 8791 / keyapi 8792 / proxy 8793).
+// counting upstream on 8801 — clear of the fixtures (fake-ai 8791, keyapi
+// 8792, cors-proxy 8793), of relay-dev's 8794, and of test/mesh's 8795-8799.
 const { chromium, CHROME } = require('../lib/pw');
 const http = require('http');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
-const UP_PORT = Number(process.env.POOL_PORT || 8794);
+const UP_PORT = Number(process.env.POOL_PORT || 8801);
 // A manifest names HOSTS, never host:port — the same vocabulary `network`
 // uses, matched against u.hostname in the bridge.
 const UP = '127.0.0.1';
