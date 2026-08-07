@@ -1099,6 +1099,30 @@
   const API_KEY = 'gifos_api_config';
   const API_PROXY_DEFAULT = 'https://cors-proxy.gifos.app';
   function apiConfig() { try { return JSON.parse(root.localStorage.getItem(API_KEY) || '{}') || {}; } catch (e) { return {}; } }
+
+  /*
+   * Look an API up by name, CASE-INSENSITIVELY, and that is not a nicety.
+   *
+   * Settings stores the row under exactly what the user typed into the name
+   * box; an app asks for exactly what it declared in its manifest. Type
+   * "Maptiler" — which is how MapTiler spell it, and what the permission sheet
+   * shows you — and an app declaring `maptiler` gets NOT_CONFIGURED with the
+   * key sitting right there, saved and tested and working. The player is told
+   * to set up something they have already set up, and there is nothing on
+   * either screen to suggest why.
+   *
+   * The name is a human-typed label for a service, not an identifier anyone
+   * agreed on, so it must not carry meaning in its capitalisation. Read
+   * loosely; keep storing whatever they typed, so Settings still shows their
+   * spelling back to them.
+   */
+  function apiEntry(name) {
+    const cfg = apiConfig();
+    if (cfg[name]) return cfg[name];
+    const want = String(name || '').toLowerCase();
+    for (const k in cfg) if (k.toLowerCase() === want) return cfg[k];
+    return null;
+  }
   function apiAllowed(manifest, name) {
     const list = (manifest && manifest.capabilities && manifest.capabilities.api) || [];
     return Array.isArray(list) && list.indexOf(name) !== -1;
@@ -1165,7 +1189,7 @@
     const name = d.name;
     if (!name || !apiAllowed(manifest, name)) return Promise.reject(new Error('This app did not declare the "' + name + '" third-party API in its manifest.'));
     if (capDisabled(manifest, 'api')) return Promise.reject(new Error(CAP_OFF_MSG('your third-party accounts')));
-    const c = apiConfig()[name];
+    const c = apiEntry(name);
     if (!c || !c.url) { showSystemSetup({ kind: 'api', name: name, hint: d.hint }); return Promise.reject(new Error('NOT_CONFIGURED:' + name)); }
     let baseOrigin;
     const base = String(c.url).replace(/\/+$/, '');
@@ -1312,7 +1336,7 @@
       else if (d.type === 'capture') brokerCapture(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'ai') brokerAI(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'api') brokerApi(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
-      else if (d.type === 'apiReady') { const c = apiConfig()[d.name]; reply({ ok: true, result: apiAllowed(manifest, d.name) && !!(c && c.url) }); }
+      else if (d.type === 'apiReady') { const c = apiEntry(d.name); reply({ ok: true, result: apiAllowed(manifest, d.name) && !!(c && c.url) }); }
       else if (d.type === 'apiSetup') { showSystemSetup({ kind: 'api', name: d.name, hint: d.hint }); reply({ ok: true, result: true }); }
       else if (d.type === 'aiSetup') { showSystemSetup({ kind: 'ai', role: d.role, hint: d.hint }); reply({ ok: true, result: true }); }
       else if (d.type === 'agentChat') brokerAgentChat(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));

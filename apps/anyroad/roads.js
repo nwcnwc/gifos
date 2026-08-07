@@ -104,7 +104,11 @@
       for (var g = 0; g < e.geometry.length; g++) { flat.push(r6(e.geometry[g].lat), r6(e.geometry[g].lon)); }
       var tags = e.tags || {};
       if (tags.highway && ROAD_CLASS[tags.highway]) {
-        ways.push([tags.highway, flat, surfaceOf(tags), laneCount(tags)]);
+        // [4] is the NAME, and it has been in every response we have ever
+        // made — `out geom` returns the way's whole tag set and the parser
+        // took three of them. A road you are driving down that cannot tell
+        // you what it is called is a map with the labels torn off.
+        ways.push([tags.highway, flat, surfaceOf(tags), laneCount(tags), tags.name || '']);
       } else if (tags.building && withBuildings) {
         if (bld.length < MAX_BUILDINGS) bld.push([buildingHeight(tags), flat, classify(tags)]);
       } else if (tags.natural === 'water') {
@@ -705,7 +709,8 @@
       // only — nobody commutes down a farm track, and a service alley full of
       // cars looks like a car park that has escaped.
       if (cls.rank >= 2 && pts.length >= 2) {
-        paths.push({ pts: pts, cruise: cls.cruise, half: width / 2, surface: surf });
+        paths.push({ pts: pts, cruise: cls.cruise, half: width / 2, surface: surf,
+                     name: geom.ways[i][4] || '' });
       }
     }
 
@@ -833,11 +838,15 @@
   // so a linear scan is out. Segments are bucketed into a coarse uniform grid at
   // BUILD time (once per tile) and the query looks only at the car's own cell
   // and its eight neighbours — a couple of dozen segments instead of thousands.
-  var STRIDE = 7;  // x1,z1,x2,z2,halfWidth,cruise,surface
+  var STRIDE = 8;  // x1,z1,x2,z2,halfWidth,cruise,surface,nameId
   var CELL = 64;   // metres; comfortably larger than the longest reasonable step
 
   function buildIndex(frame, geom) {
     var segs = [], map = Object.create(null);
+    // Names live in a per-tile table and the segments carry an INDEX into it.
+    // A Float32Array cannot hold a string, and interning them means the answer
+    // to "what road is this" is one array lookup rather than a string compare.
+    var names = [''], nameOf = Object.create(null);
     function cellKey(cx, cz) { return cx + ',' + cz; }
     for (var w = 0; w < geom.ways.length; w++) {
       var cls = ROAD_CLASS[geom.ways[w][0]];
@@ -846,12 +855,18 @@
       var surf = geom.ways[w][2] || 0;
       var lanes = geom.ways[w][3] || 0;
       var half = (lanes ? Math.max(cls.w * 0.6, lanes * 3.3) : cls.w) / 2;
+      var nm = geom.ways[w][4] || '';
+      var nameId = 0;
+      if (nm) {
+        if (nameOf[nm] === undefined) { nameOf[nm] = names.length; names.push(nm); }
+        nameId = nameOf[nm];
+      }
       for (var i = 0; i + 1 < pts.length; i++) {
         var a = pts[i], b = pts[i + 1];
         var idx = segs.length / STRIDE;
         // The same half width the RIBBON was built with, or "am I on tarmac"
         // answers about a road of a different size from the one being drawn.
-        segs.push(a.x, a.z, b.x, b.z, half, cls.cruise, surf);
+        segs.push(a.x, a.z, b.x, b.z, half, cls.cruise, surf, nameId);
         // Stamp the segment into every cell its bounding box touches, so a long
         // segment is found from anywhere along it.
         var x0 = Math.floor(Math.min(a.x, b.x) / CELL), x1 = Math.floor(Math.max(a.x, b.x) / CELL);
@@ -862,7 +877,42 @@
         }
       }
     }
-    return { segs: new Float32Array(segs), map: map, cell: CELL };
+    return { segs: new Float32Array(segs), map: map, cell: CELL, names: names };
+  }
+
+  // Every DISTINCT named road within a radius, nearest first. This is what
+  // makes a junction announce itself: the road you are on is one name, and a
+  // side street you are passing is another one that was not there a moment ago.
+  // Same bucket walk as nearestRoad, so it costs the same couple of dozen
+  // segment tests.
+  function namesNear(index, x, z, radius, out) {
+    if (!index || !index.names) return out;
+    var cx = Math.floor(x / index.cell), cz = Math.floor(z / index.cell);
+    var r2 = radius * radius;
+    for (var dx = -1; dx <= 1; dx++) for (var dz = -1; dz <= 1; dz++) {
+      var list = index.map[(cx + dx) + ',' + (cz + dz)];
+      if (!list) continue;
+      for (var i = 0; i < list.length; i++) {
+        var o = list[i] * STRIDE;
+        var id = index.segs[o + 7];
+        if (!id) continue;
+        var ax = index.segs[o], az = index.segs[o + 1];
+        var bx = index.segs[o + 2], bz = index.segs[o + 3];
+        var vx = bx - ax, vz = bz - az;
+        var len2 = vx * vx + vz * vz;
+        var t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / len2)) : 0;
+        var px = ax + vx * t - x, pz = az + vz * t - z;
+        var d2 = px * px + pz * pz;
+        if (d2 > r2) continue;
+        var name = index.names[id];
+        var seen = false;
+        for (var k = 0; k < out.length; k++) {
+          if (out[k].name === name) { seen = true; if (d2 < out[k].d2) out[k].d2 = d2; break; }
+        }
+        if (!seen) out.push({ name: name, d2: d2, x: ax + vx * t, z: az + vz * t });
+      }
+    }
+    return out;
   }
 
   // Perpendicular distance from (x,z) to the nearest carriageway, and that
@@ -870,7 +920,7 @@
   function nearestRoad(index, x, z) {
     if (!index) return null;
     var cx = Math.floor(x / index.cell), cz = Math.floor(z / index.cell);
-    var best = Infinity, bestHalf = 0, bestCruise = 14, bestSurf = 0;
+    var best = Infinity, bestHalf = 0, bestCruise = 14, bestSurf = 0, bestName = 0;
     var bestX = 0, bestZ = 0, bestVX = 0, bestVZ = 1;
     for (var dx = -1; dx <= 1; dx++) for (var dz = -1; dz <= 1; dz++) {
       var list = index.map[(cx + dx) + ',' + (cz + dz)];
@@ -887,6 +937,7 @@
         if (d < best) {
           best = d; bestHalf = index.segs[o + 4]; bestCruise = index.segs[o + 5];
           bestSurf = index.segs[o + 6];
+          bestName = index.segs[o + 7];
           // The POINT, not just the distance. The wildlife walks toward the
           // nearest carriageway to cross it, and the unstick rescue puts the
           // car back down on it — both need somewhere to aim, and recomputing
@@ -898,6 +949,7 @@
     }
     return best === Infinity ? null
       : { dist: best, halfWidth: bestHalf, cruise: bestCruise, surface: bestSurf,
+          name: (index.names && index.names[bestName]) || '',
           x: bestX, z: bestZ, dx: bestVX, dz: bestVZ };
   }
 
@@ -1088,7 +1140,7 @@
   root.Roads = {
     TILE_ZOOM: TILE_ZOOM,
     loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
-    nearWalls: nearWalls, segDist: segDist,
+    nearWalls: nearWalls, segDist: segDist, namesNear: namesNear,
     clearCache: function () {
       memory = {};
       return loadIndex().then(function () {

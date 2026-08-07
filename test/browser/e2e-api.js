@@ -22,6 +22,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const API_CFG = JSON.stringify({
   deepgram: { url: API, authType: 'token', key: 'dg-secret-key' },
   deepgramp: { url: API, authType: 'token', key: 'dg-secret-key', proxy: PROXY },
+  // CAPITALISED on purpose. Settings stores the row under exactly what the user
+  // typed into the name box, and an app asks for exactly what it declared in
+  // its manifest — so a player who wrote "Maptiler", which is how MapTiler
+  // spell it and what the permission sheet shows back, got NOT_CONFIGURED from
+  // an app declaring `maptiler`, with a saved, tested, working key sitting
+  // right there. The name is a human label for a service, not an identifier
+  // anyone agreed on; its capitalisation must not carry meaning.
+  Mixedcase: { url: API, authType: 'token', key: 'dg-secret-key' },
 });
 
 (async () => {
@@ -41,7 +49,7 @@ const API_CFG = JSON.stringify({
   await page.locator('#sys-menu-btn').click();
   await page.locator('.ctx button', { hasText: 'Settings' }).click();
   await page.waitForSelector('.api-row', { state: 'attached', timeout: 5000 });
-  check('Settings shows a row for every pre-seeded third-party API', (await page.locator('.api-row').count()) === 2);
+  check('Settings shows a row for every pre-seeded third-party API', (await page.locator('.api-row').count()) === 3);
   await page.locator('summary', { hasText: 'Third-party APIs' }).click();
   await page.waitForSelector('.api-test', { state: 'visible', timeout: 5000 });
   // Test & save the seeded "deepgram" row — the fake host is CORS-open, so the
@@ -74,7 +82,7 @@ const API_CFG = JSON.stringify({
 
   // ＋ Add makes a fresh, empty row.
   await page.locator('#api-add').click();
-  check('＋ Add creates another API row', (await page.locator('.api-row').count()) === 3);
+  check('＋ Add creates another API row', (await page.locator('.api-row').count()) === 4);
   // A row minted AFTER the load-time sweep still gets its eye (focusin delegate).
   const freshKey = page.locator('.api-row').last().locator('.api-f[data-f="key"]');
   await freshKey.focus();
@@ -91,7 +99,7 @@ const API_CFG = JSON.stringify({
 
   // ---- a capability app that calls gifos.api ----
   await page.evaluate(async () => {
-    const html = '<!doctype html><meta charset="utf-8"><div id="ok">…</div><div id="deny">…</div><div id="host">…</div><div id="proxy">…</div>' +
+    const html = '<!doctype html><meta charset="utf-8"><div id="ok">…</div><div id="deny">…</div><div id="host">…</div><div id="proxy">…</div><div id="case">…</div><div id="ready">…</div>' +
       '<script>(async function(){' +
       // 1) declared API round-trips: parsed JSON back, key never visible here.
       '  try { var r = await gifos.api("deepgram", { method:"POST", path:"/v1/listen", query:{ model:"nova-3" }, body:{ audio:"x" }, as:"json" });' +
@@ -109,9 +117,16 @@ const API_CFG = JSON.stringify({
       '        var pw = p && p.json && p.json.results.channels[0].alternatives[0].words;' +
       '        document.getElementById("proxy").textContent = "proxy:" + p.status + ":" + (pw?pw.length:-1); }' +
       '  catch(e){ document.getElementById("proxy").textContent = "proxy:ERR:"+e.message; }' +
+      // 5) a profile saved under a DIFFERENT CASE is the same account.
+      '  try { var m = await gifos.api("mixedcase", { method:"POST", path:"/v1/listen", body:{ audio:"x" }, as:"json" });' +
+      '        document.getElementById("case").textContent = "case:" + m.status; }' +
+      '  catch(e){ document.getElementById("case").textContent = "case:ERR:"+e.message; }' +
+      '  try { var rdy = await gifos.apiReady("mixedcase");' +
+      '        document.getElementById("ready").textContent = "ready:" + rdy; }' +
+      '  catch(e){ document.getElementById("ready").textContent = "ready:ERR:"+e.message; }' +
       '})();<\/script>';
     const bytes = await GifOS.gif.encode({
-      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'apitest', name: 'ApiTest', entry: 'index.html', capabilities: { db: true, api: ['deepgram', 'deepgramp'] } }),
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'apitest', name: 'ApiTest', entry: 'index.html', capabilities: { db: true, api: ['deepgram', 'deepgramp', 'mixedcase'] } }),
       'index.html': html,
     });
     const fid = GifOS.store.uid('file');
@@ -142,6 +157,16 @@ const API_CFG = JSON.stringify({
   await fr.locator('#proxy').filter({ hasText: /proxy:/ }).waitFor({ timeout: 8000 });
   const proxy = await fr.locator('#proxy').textContent();
   check('a proxied API call round-trips through the CORS proxy (key attached, forwarded)', /^proxy:200:3$/.test(proxy), proxy);
+
+  await fr.locator('#case').filter({ hasText: /case:/ }).waitFor({ timeout: 8000 });
+  const cased = await fr.locator('#case').textContent();
+  check('an API saved under a different CASE is the same account, not a missing one',
+    /^case:200$/.test(cased), cased);
+
+  await fr.locator('#ready').filter({ hasText: /ready:/ }).waitFor({ timeout: 8000 });
+  const rdy = await fr.locator('#ready').textContent();
+  check('…and apiReady() agrees, so an app cannot be told to set up what is already set up',
+    /^ready:true$/.test(rdy), rdy);
 
   await app.close();
   await browser.close();

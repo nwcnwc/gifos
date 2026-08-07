@@ -35,6 +35,7 @@
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
      'ctl-wildlife','ctl-traffic','ctl-sound','minimap','mapcanvas','map-scale',
+     'street','passing','recent',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
@@ -51,6 +52,22 @@
     $('btn-hop').addEventListener('click', function () { show(el.landing); });
     $('close-settings').addEventListener('click', function () { hide(el.settings); });
     $('close-race').addEventListener('click', function () { hide(el.race); });
+    // The same close at the BOTTOM of each sheet. On a laptop these panels are
+    // taller than the window, and a header ✕ you have to scroll UP to reach is
+    // a header ✕ you cannot reach at all.
+    $('close-settings-bottom').addEventListener('click', function () { hide(el.settings); });
+    $('close-race-bottom').addEventListener('click', function () { hide(el.race); });
+
+    // Escape closes the topmost panel. Every desktop dialog in the world does
+    // this and its absence is only ever noticed when something else has gone
+    // wrong — which is exactly when it is needed.
+    root.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' && e.key !== 'Esc') return;
+      if (!el.settings.hidden) { hide(el.settings); e.preventDefault(); return; }
+      if (!el.race.hidden) { hide(el.race); e.preventDefault(); return; }
+      if (!el.landing.hidden && hooks.frame() && root.App.hasHopped()) { hide(el.landing); e.preventDefault(); return; }
+      if (mapOn) { toggleMap(); e.preventDefault(); }
+    });
 
     // Pedals: pointer events so a held finger keeps the throttle open and
     // leaving the button releases it (a plain click would be useless here).
@@ -136,6 +153,7 @@
   }
 
   function ready() {
+    loadRecent();
     syncSourceMenus();
     refreshCacheSize();
     renderAttribution();
@@ -143,6 +161,49 @@
 
   function show(node) { node.hidden = false; }
   function hide(node) { node.hidden = true; }
+
+  // ---- places you have been ------------------------------------------------
+  // A search costs a Nominatim request, which their policy rate-limits to one a
+  // second, and typing an address again to go back to it is the most obvious
+  // thing in the app to get wrong. Kept in the same private prefs collection as
+  // everything else, newest first, capped — this is a shortcut, not a history.
+  var RECENT_MAX = 8;
+  var recent = [];
+
+  function loadRecent() {
+    return root.Host.db('prefs').get('recent').then(function (rec) {
+      recent = (rec && rec.list) || [];
+      renderRecent();
+    }).catch(function () {});
+  }
+
+  function rememberPlace(lat, lon, name) {
+    if (!name) return;
+    // Same place twice is one entry, moved to the front — the list is "where
+    // can I go back to", not a log.
+    recent = recent.filter(function (r) {
+      return !(r.name === name || (Math.abs(r.lat - lat) < 1e-4 && Math.abs(r.lon - lon) < 1e-4));
+    });
+    recent.unshift({ lat: lat, lon: lon, name: name, at: Date.now() });
+    if (recent.length > RECENT_MAX) recent.length = RECENT_MAX;
+    renderRecent();
+    root.Host.db('prefs').put({ id: 'recent', list: recent }).catch(function () {});
+  }
+
+  function renderRecent() {
+    if (!el.recent) return;
+    el.recent.innerHTML = '';
+    el.recent.hidden = !recent.length;
+    var label = $('recent-label');
+    if (label) label.hidden = !recent.length;
+    recent.forEach(function (r) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = r.name;
+      b.addEventListener('click', function () { hooks.onHop(r.lat, r.lon, r.name); });
+      el.recent.appendChild(b);
+    });
+  }
 
   function buildPresets() {
     el.presets.innerHTML = '';
@@ -365,6 +426,30 @@
     if (Math.abs(st - (last.steer == null ? 99 : last.steer)) > 0.005) {
       last.steer = st;
       el.wheel.style.transform = 'rotate(' + (st * 120) + 'deg)';
+    }
+
+    // The road under the wheels. Written only when it CHANGES — this is a
+    // string comparison sixty times a second otherwise.
+    if (s.street !== last.street) {
+      last.street = s.street;
+      el.street.textContent = s.street || '';
+      el.street.hidden = !s.street;
+    }
+
+    // …and the ones going past. app.js owns which junctions have been called
+    // out; this owns the fact that a label appears on the side it went by and
+    // then removes itself.
+    if (s.passing && s.passing.length) {
+      for (var pi = 0; pi < s.passing.length; pi++) {
+        var pass = s.passing[pi];
+        if (pass.shown) continue;
+        pass.shown = true;
+        var node = document.createElement('div');
+        node.className = 'pass ' + (pass.side > 0 ? 'right' : 'left');
+        node.textContent = (pass.side > 0 ? '' : '↖ ') + pass.name + (pass.side > 0 ? ' ↗' : '');
+        el.passing.appendChild(node);
+        (function (n) { setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, 3600); })(node);
+      }
     }
 
     // One status line, and only when there is something honest to say.
@@ -816,6 +901,7 @@
     init: init, ready: ready, hud: hud, note: note, fatal: fatal,
     setPlace: setPlace, showDrive: showDrive, dismissCoach: dismissCoach,
     setThrottleMode: setThrottleMode, damage: damage, panelOpen: panelOpen,
+    rememberPlace: rememberPlace, recent: function () { return recent.slice(); },
     showStick: showStick, setScheme: setScheme, clearCracks: clearCracks,
     crackCount: function () { return impacts.length; },
     steerPad: function () { return el.steerpad; },

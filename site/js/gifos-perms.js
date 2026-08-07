@@ -37,6 +37,8 @@
     '.perm-row .cap-set{display:block;margin-top:.3rem;font-size:.78rem;line-height:1.35;word-break:break-word}' +
     '.perm-row .cap-set.on{color:color-mix(in srgb,#4ade80 68%,var(--text,#e0e0f0))}' +
     '.perm-row .cap-set.off{color:color-mix(in srgb,#ff8a3d 66%,var(--text,#e0e0f0))}' +
+    '.perm-row .cap-name{display:block;margin-top:.15rem;opacity:.85;font-size:.74rem}' +
+    '.perm-row .cap-name b{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600}' +
     '.perm-row .cap-set b{font-weight:600}' +
     '.perm-box .foot{color:var(--muted,#6a6a86);font-size:.75rem;line-height:1.5;margin:1rem 0 1.1rem}' +
     '.perm-box .done{padding:.5rem 1.4rem;border-radius:.5rem;border:1px solid var(--accent,#7b5cff);background:var(--accent,#7b5cff);color:var(--onaccent,#fff);cursor:pointer;font:inherit}' +
@@ -70,11 +72,32 @@
   // is the configured model (or the endpoint host if no model was named) — never
   // the key, which the popup must never reveal.
   function aiRoleState(role) { var c = cfgOf('gifos_ai_config')[role] || {}; return { set: !!c.url, label: AI_ROLE_LABELS[role] || role, detail: c.url ? (c.model || hostOf(c.url)) : '' }; }
-  function apiAcctState(name) { var c = cfgOf('gifos_api_config')[name] || {}; return { set: !!c.url, label: name.charAt(0).toUpperCase() + name.slice(1), detail: c.url ? hostOf(c.url) : '' }; }
+  // Case-insensitive, for the same reason the runtime's lookup is (see
+  // apiEntry there): Settings stores the name the user typed and the app asks
+  // for the one it declared. "Maptiler" and "maptiler" are the same account,
+  // and telling someone to set up what they have already set up is the worst
+  // thing this sheet can do.
+  function apiCfgLoose(name) {
+    var all = cfgOf('gifos_api_config');
+    if (all[name]) return all[name];
+    var want = String(name || '').toLowerCase();
+    for (var k in all) if (k.toLowerCase() === want) return all[k];
+    return {};
+  }
+  function apiAcctState(name) { var c = apiCfgLoose(name) || {}; return { set: !!c.url, key: name, label: name.charAt(0).toUpperCase() + name.slice(1), detail: c.url ? hostOf(c.url) : '' }; }
   function capStatusLine(st, whereHtml) {
     return st.set
       ? '<span class="cap-set on">✓ ' + escapeText(st.label) + ' — set to <b>' + escapeText(st.detail) + '</b></span>'
-      : '<span class="cap-set off">• ' + escapeText(st.label) + ' isn’t set up yet — ' + whereHtml + '</span>';
+      // NAME THE ROW EXACTLY. This line used to title-case the app's declared
+      // identifier and print "Maptiler isn't set up yet", which reads as an
+      // instruction to create a row called "Maptiler" — and the lookup was
+      // case-sensitive, so doing precisely what it said produced a saved,
+      // tested, working key that the app still could not see. The lookup is
+      // loose now, and this says which name to use and that its capitalisation
+      // does not matter, so the instruction and the behaviour agree.
+      : '<span class="cap-set off">• ' + escapeText(st.label) + ' isn’t set up yet — ' + whereHtml
+        + '<br><span class="cap-name">Name the entry <b>' + escapeText(st.key || st.label)
+        + '</b> (capitalisation does not matter).</span></span>';
   }
 
   function attach(chipEl, opts) {
@@ -180,7 +203,14 @@
       function lsCfg(key) { try { return JSON.parse(ls().getItem(key) || '{}') || {}; } catch (e) { return {}; } }
       function aiConfigured() { var c = lsCfg('gifos_ai_config'); return Object.keys(c).some(function (k) { return c[k] && c[k].url; }); }
       function aiRoleConfigured(role) { var c = lsCfg('gifos_ai_config')[role]; return !!(c && c.url); }
-      function apiConfigured(name) { var c = lsCfg('gifos_api_config')[name]; return !!(c && c.url); }
+      function apiConfigured(name) {
+        // Loose on case — see apiCfgLoose above. This line is what printed
+        // "Maptiler isn't set up yet" over a saved, tested, working key.
+        var all = lsCfg('gifos_api_config'), c = all[name];
+        if (!c) { var want = String(name || '').toLowerCase();
+          for (var k in all) if (k.toLowerCase() === want) { c = all[k]; break; } }
+        return !!(c && c.url);
+      }
       function titleCase(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
       function missingRequired() {
         var out = [];
@@ -188,7 +218,7 @@
           if (r === 'ai') { if (!aiConfigured()) out.push({ what: 'an AI model', where: 'Settings → AI models' }); }
           else if (AI_ROLE_LABELS[r]) { if (!aiRoleConfigured(r)) out.push({ what: 'the ' + AI_ROLE_LABELS[r] + ' model', where: 'Settings → AI models' }); }
           else if (r === 'microphone' || r === 'camera' || r === 'motion' || r === 'network') { /* granted at use */ }
-          else if (!apiConfigured(r)) out.push({ what: 'your ' + titleCase(r) + ' account', where: 'Settings → Third-party APIs' });
+          else if (!apiConfigured(r)) out.push({ what: 'your ' + titleCase(r) + ' account', name: r, where: 'Settings → Third-party APIs' });
         });
         return out;
       }
@@ -202,7 +232,9 @@
         var appName = (manifest && manifest.name) || 'This app';
         var rows = missing.map(function (m) {
           return '<div class="perm-row"><span><span class="host">Set up ' + escapeText(m.what) + '</span>' +
-            '<br><span class="desc">On your GifOS Home Screen, open <b>' + escapeText(m.where) + '</b>.</span></span></div>';
+            '<br><span class="desc">On your GifOS Home Screen, open <b>' + escapeText(m.where) + '</b>'
+            + (m.name ? ' and name the entry <b>' + escapeText(m.name) + '</b> (capitalisation does not matter)' : '')
+            + '.</span></span></div>';
         }).join('');
         bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' needs setup to run</h3>' +
           '<p class="lead">This app can’t do its job until you set the following up. Your keys stay in this browser — the app never sees them.</p>' +

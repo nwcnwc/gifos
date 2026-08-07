@@ -266,7 +266,14 @@
       // a ridge does, so the slope term doubles as a crease darkener and the
       // hills stop looking inflated.
       '  base *= mix(1.0, 0.86, smoothstep(0.25, 0.75, slope));',
-      '  gl_FragColor = vec4(finish(shade(base, n, normalize(uLightDir))), 1.0);',
+      '  vec3 lit = shade(base, n, normalize(uLightDir));',
+      // A PHOTOGRAPH ALREADY CONTAINS THE SUN THAT TOOK IT. Running our own
+      // directional light over satellite imagery lights it twice — every slope
+      // facing away goes to mud and the shadows in the photo get shadowed
+      // again. Where the drape is on, flatten toward ambient and let the
+      // picture carry its own light.
+      '  vec3 flatLit = base * (uSkyFill + uSunColor * 0.62);',
+      '  gl_FragColor = vec4(finish(mix(lit, flatLit, uHasTex * 0.75)), 1.0);',
       '}',
     ].join('\n'));
 

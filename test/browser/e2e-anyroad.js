@@ -79,14 +79,14 @@ function overpassBody() {
   for (let i = -60; i <= 60; i++) geom.push({ lat: HOP.lat + i * 0.00012, lon: HOP.lon + i * 0.00004 });
   return JSON.stringify({
     elements: [
-      { type: 'way', id: 1, tags: { highway: 'residential' }, geometry: geom },
-      { type: 'way', id: 2, tags: { highway: 'primary' },
+      { type: 'way', id: 1, tags: { highway: 'residential', name: 'Fixture Street' }, geometry: geom },
+      { type: 'way', id: 2, tags: { highway: 'primary', name: 'Grand Boulevard' },
         geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon + 0.0009 })) },
       // A six-lane motorway and a dirt track, far enough out not to be what the
       // car lands on. OSM tags `surface` and `lanes` on the way and the parser
       // never looked at either, so a farm track was drawn as asphalt with a
       // painted centre line and a motorway was as wide as a B road.
-      { type: 'way', id: 4, tags: { highway: 'motorway', lanes: '6' },
+      { type: 'way', id: 4, tags: { highway: 'motorway', lanes: '6', name: 'A1' },
         geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon + 0.0018 })) },
       { type: 'way', id: 5, tags: { highway: 'track', surface: 'dirt' },
         geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon - 0.0015 })) },
@@ -98,6 +98,9 @@ function overpassBody() {
         { lat: HOP.lat + 0.0007, lon: HOP.lon + 0.0007 },
         { lat: HOP.lat + 0.0007, lon: HOP.lon + 0.0004 },
         { lat: HOP.lat + 0.0004, lon: HOP.lon + 0.0004 },
+      ] },
+      { type: 'way', id: 7, tags: { highway: 'residential', name: 'Crossing Lane' }, geometry: [
+        { lat: HOP.lat, lon: HOP.lon - 0.0006 }, { lat: HOP.lat, lon: HOP.lon + 0.0006 },
       ] },
       ...mixedStreet(),
     ],
@@ -990,6 +993,134 @@ function mixedStreet() {
   check('hitting traffic costs condition, and a head-on costs a lot',
     bump.damage > 20 && bump.health < 80,
     '-' + bump.damage.toFixed(1) + ' at ' + bump.rel.toFixed(0) + ' m/s closing, ' + bump.health.toFixed(0) + '% left');
+
+
+  // ---- street names --------------------------------------------------------
+  // `name` has been on every way in every response the app has ever made, and
+  // the parser took the class, the surface and the lane count and left it.
+  const streets = await fr.locator('body').evaluate(() => {
+    const w = window.App.world, car = window.App.car();
+    let onRoad = null, near = [];
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.index) continue;
+      const hit = window.Roads.nearestRoad(r.built.index, car.x, car.z);
+      if (hit && (!onRoad || hit.dist < onRoad.dist)) onRoad = hit;
+      window.Roads.namesNear(r.built.index, car.x, car.z, 400, near);
+    }
+    return { on: onRoad ? onRoad.name : null, hud: car.street || null,
+             near: near.map((n) => n.name).sort() };
+  });
+  check('the map data tells us what the road is CALLED',
+    !!streets.on, 'nearest road: ' + JSON.stringify(streets.on));
+  check('the name reaches the car, so the HUD can show it',
+    streets.hud === streets.on, 'car.street = ' + JSON.stringify(streets.hud));
+  check('other named roads nearby can be found, which is what a junction is',
+    streets.near.length >= 3, streets.near.join(' | '));
+
+  const shown = await fr.locator('body').evaluate(() => {
+    window.UI.hud({ speed: 30, street: 'Rue de Rivoli', passing: [], steer: 0, health: 100,
+                    net: { backoffMs: 0 }, ready: true, players: 1, race: null, odometer: 0 });
+    const a = document.getElementById('street');
+    const named = !a.hidden && a.textContent;
+    window.UI.hud({ speed: 30, street: '', passing: [{ name: 'Side Street', side: -1 }],
+                    steer: 0, health: 100, net: { backoffMs: 0 }, ready: true,
+                    players: 1, race: null, odometer: 0 });
+    return { named, hiddenWhenUnnamed: a.hidden,
+             passing: document.querySelectorAll('#passing .pass').length,
+             passingText: (document.querySelector('#passing .pass') || {}).textContent || '' };
+  });
+  check('the HUD shows the street you are on', shown.named === 'Rue de Rivoli', shown.named);
+  check('…and shows nothing at all on an unnamed road', shown.hiddenWhenUnnamed);
+  check('a street you pass is called out, on the side it went by',
+    shown.passing === 1 && /Side Street/.test(shown.passingText), JSON.stringify(shown.passingText));
+
+  // ---- places you have been ------------------------------------------------
+  // A search costs a Nominatim request, rate-limited to one a second by their
+  // policy, and re-typing an address to go back somewhere is the most obvious
+  // thing in the app to get wrong.
+  const places = await fr.locator('body').evaluate(async () => {
+    window.UI.rememberPlace(48.8698, 2.3078, 'Paris');
+    window.UI.rememberPlace(40.7614, -73.9776, 'Manhattan');
+    window.UI.rememberPlace(48.8698, 2.3078, 'Paris');       // same place twice
+    await new Promise((r) => setTimeout(r, 150));
+    return { list: window.UI.recent().map((r) => r.name),
+             buttons: Array.from(document.querySelectorAll('#recent button')).map((b) => b.textContent) };
+  });
+  check('places you visit are remembered, newest first, without duplicates',
+    places.list.length === 2 && places.list[0] === 'Paris' && places.list[1] === 'Manhattan',
+    places.list.join(' | '));
+  check('…and are offered back on the landing sheet',
+    places.buttons.length === 2 && places.buttons[0] === 'Paris', places.buttons.join(' | '));
+
+
+
+  // ---- a panel you can always close ----------------------------------------
+  // The overlay centred its sheet with align-items:center and then scrolled,
+  // which CLIPS an overflowing top: the sheet is pushed above the scrollable
+  // area and the header ✕ cannot be reached at any scroll position. Settings
+  // grew past a laptop viewport and the only way out was to zoom the browser
+  // out. Guarded at a SHORT viewport, because that is the only place it fails.
+  const wasSize = app.viewportSize();
+  await app.setViewportSize({ width: 900, height: 420 });
+  await fr.locator('#btn-menu').click();
+  await fr.locator('#settings').waitFor({ state: 'visible', timeout: 5000 });
+  const reach = await fr.locator('body').evaluate(() => {
+    const x = document.getElementById('close-settings').getBoundingClientRect();
+    const bottom = document.getElementById('close-settings-bottom');
+    const sheet = document.querySelector('#settings .sheet').getBoundingClientRect();
+    return { headerTop: Math.round(x.top), sheetTop: Math.round(sheet.top),
+             hasBottom: !!bottom, taller: sheet.height > window.innerHeight };
+  });
+  check('a sheet taller than the window does not have its top clipped away',
+    reach.sheetTop >= -1 && reach.headerTop >= -1,
+    'sheet top at ' + reach.sheetTop + 'px, ✕ at ' + reach.headerTop
+      + 'px (sheet ' + (reach.taller ? 'IS' : 'is not') + ' taller than the window)');
+  check('…and there is a second close at the bottom to scroll to', reach.hasBottom);
+  await fr.locator('#close-settings-bottom').click();
+  check('the bottom close actually closes it', await fr.locator('#settings').isHidden());
+
+  await fr.locator('#btn-menu').click();
+  await fr.locator('#settings').waitFor({ state: 'visible', timeout: 5000 });
+  await app.keyboard.press('Escape');
+  await sleep(200);
+  check('Escape closes the topmost panel', await fr.locator('#settings').isHidden());
+  if (wasSize) await app.setViewportSize(wasSize);
+
+  // ---- the satellite drape -------------------------------------------------
+  // Imagery was requested at exactly ONE moment — when a terrain tile finished
+  // loading — so turning the satellite layer on afterwards left every tile
+  // around you with the drape it was born with, and the only way to see a
+  // change was to hop somewhere else. Adding a key and seeing nothing happen
+  // was an accurate report of a real bug. Switching source must reach the
+  // ground that is already down.
+  const drape = await fr.locator('body').evaluate(async () => {
+    const before = window.App.imagery();
+    window.Sources.set({ imagery: 'maptiler' });
+    await new Promise((r) => setTimeout(r, 600));
+    const after = window.App.imagery();
+    window.Sources.set({ imagery: 'none' });
+    await new Promise((r) => setTimeout(r, 300));
+    const off = window.App.imagery();
+    return { before, after, off, tiles: Object.keys(window.App.world.terrain).length };
+  });
+  check('turning the satellite on re-drapes the ground already under you',
+    drape.after.tried > drape.before.tried,
+    drape.before.tried + ' -> ' + drape.after.tried + ' requests for ' + drape.tiles + ' loaded tiles');
+  check('…and turning it off puts the stylised ground back',
+    drape.off.draped === 0, drape.off.draped + ' tiles still textured');
+  // It has no key in here, so it must FAIL — and failing visibly is the point:
+  // an empty catch is why a missing key and a working satellite looked the same.
+  check('a drape that cannot load says so instead of failing silently',
+    !!drape.after.failed, 'reported: ' + JSON.stringify(drape.after.failed));
+  // NOT_CONFIGURED makes the RUNTIME put its own "set it up" sheet over the
+  // whole page — correct behaviour, and it is in the app page rather than the
+  // sandboxed frame, so it covers every later click. Clear it.
+  await app.evaluate(() => {
+    document.querySelectorAll('#gifos-setup-ok').forEach((b) => b.click());
+    document.querySelectorAll('.perm-modal').forEach((m) => m.remove());
+  });
+  await sleep(200);
 
   // ---- the bird's-eye inset ------------------------------------------------
   // Drawn from the same road index the car asks "am I on tarmac" with, so it
