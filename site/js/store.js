@@ -144,9 +144,31 @@
   async function refreshInstalled() {
     installedByAppId = {};
     try {
-      for (const f of await store.allFiles()) if (f.isApp && f.appId) installedByAppId[f.appId] = f.id;
+      for (const f of await store.allFiles()) {
+        if (!f.isApp || !f.appId) continue;
+        // The catalog pins an app to its sha256; hashing the INSTALLED bytes is
+        // what lets a listing say "yours is older" instead of merely
+        // "installed". A store-installed copy is otherwise frozen at
+        // install-day code forever — the seeded-app reseed never touches it
+        // (it only knows sample apps) — so every fix shipped after the install
+        // simply never reached the player. Found by a player whose bugs had
+        // been fixed for a day.
+        let sha = null;
+        try {
+          if (f.bytes && root.crypto && root.crypto.subtle) {
+            const d = new Uint8Array(await root.crypto.subtle.digest('SHA-256', f.bytes));
+            sha = ''; for (const b of d) sha += b.toString(16).padStart(2, '0');
+          }
+        } catch (e) { /* insecure origin: worst case, no Update badge */ }
+        installedByAppId[f.appId] = { id: f.id, sha: sha, name: f.name };
+      }
     } catch (e) { /* a store that won't open just means nothing shows as installed */ }
   }
+  const installedOf = (app) => installedByAppId[app.appId] || null;
+  const outdated = (app) => {
+    const i = installedOf(app);
+    return !!(i && i.sha && app.sha256 && i.sha !== app.sha256);
+  };
 
   // ---------- browse ----------
   function matches(app, q) {
@@ -170,7 +192,7 @@
     const list = catalog.apps.filter((a) => matches(a, q));
     $('empty').style.display = list.length ? 'none' : '';
     $('grid').innerHTML = list.map((a) => {
-      const installed = installedByAppId[a.appId];
+      const installed = installedOf(a);
       return '<button class="card" data-slug="' + esc(a.slug) + '">' +
         // loading="lazy": below-the-fold covers don't even fetch until scrolled to.
         '<img class="shot" src="' + esc(a.cover) + '" alt="" loading="lazy" decoding="async">' +
@@ -178,7 +200,9 @@
           '<h3>' + esc(a.name) + '</h3>' +
           '<div class="tag">' + esc(a.tagline) + '</div>' +
           '<div class="meta">' +
-            (installed ? '<span class="installed">✓ Installed</span>' : '<span>' + esc(human(a.bytes)) + '</span>') +
+            (installed
+              ? (outdated(a) ? '<span class="installed">↑ Update available</span>' : '<span class="installed">✓ Installed</span>')
+              : '<span>' + esc(human(a.bytes)) + '</span>') +
             (a.categories || []).map((c) => '<span class="pill">' + esc(c) + '</span>').join('') +
           '</div>' +
         '</div></button>';
@@ -217,7 +241,9 @@
     root.scrollTo(0, 0);
 
     const caps = capList(app.capabilities);
-    const installedId = installedByAppId[app.appId];
+    const inst = installedOf(app);
+    const installedId = inst && inst.id;
+    const canUpdate = outdated(app);
     detailEl.innerHTML =
       '<button class="back" id="back">← All apps</button>' +
       '<div class="head"><div>' +
@@ -228,7 +254,8 @@
       '<img class="hero" src="' + esc(app.cover) + '" alt="' + esc(app.name) + ' screenshot" decoding="async">' +
       '<div class="actions">' +
         (installedId
-          ? '<a class="btn" href="' + BASE + 'run.html#id=' + encodeURIComponent(installedId) + ns('&db=') + '">Open</a>' +
+          ? (canUpdate ? '<button class="btn" id="update"' + (legacyDesktop ? ' disabled' : '') + '>Update — keeps your data</button>' : '') +
+            '<a class="btn' + (canUpdate ? ' ghost' : '') + '" href="' + BASE + 'run.html#id=' + encodeURIComponent(installedId) + ns('&db=') + '">Open</a>' +
             '<button class="btn ghost" id="install"' + (legacyDesktop ? ' disabled' : '') + '>Install again</button>'
           : '<button class="btn" id="install"' + (legacyDesktop ? ' disabled' : '') + '>Install — free</button>') +
         '<span class="note" id="note">' + esc(human(app.bytes)) + ' download</span>' +
@@ -254,13 +281,19 @@
 
     $('back').onclick = () => showBrowse(true);
     if (!legacyDesktop) $('install').onclick = () => install(app);
+    const up = $('update');
+    if (up && !legacyDesktop) up.onclick = () => install(app, inst);
   }
   const fact = (k, v) => '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>';
 
   // ---------- install ----------
-  // The ONE moment the App GIF crosses the wire.
-  async function install(app) {
-    const btn = $('install'), note = $('note'), prog = $('prog'), err = $('err');
+  // The ONE moment the App GIF crosses the wire. With `into` (the installed
+  // record), this is an UPDATE: the fresh bytes land on the SAME fileId, so
+  // the icon, its placement and the app's saved data (all keyed by fileId)
+  // survive — the code is the only thing that changes. This is exactly the
+  // swap the seeded-app reseed does; store installs finally get it too.
+  async function install(app, into) {
+    const btn = $(into ? 'update' : 'install'), note = $('note'), prog = $('prog'), err = $('err');
     const fail = (msg) => { err.style.display = ''; err.textContent = msg; btn.disabled = false; prog.style.display = 'none'; };
     err.style.display = 'none';
     btn.disabled = true;
@@ -323,8 +356,19 @@
       } catch (e) { /* the hash above already pinned the bytes */ }
     }
 
-    note.textContent = 'Installing…';
+    note.textContent = into ? 'Updating…' : 'Installing…';
     try {
+      if (into) {
+        // Same fileId, same NAME (the player may have renamed their copy) —
+        // new bytes. No placement hand-off: the icon already lives somewhere.
+        await store.putFile({ id: into.id, name: into.name || (app.name + '.gif'), bytes, kind: 'gif',
+          isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif' });
+        await refreshInstalled();
+        await showDetail(app.slug, false);   // re-renders: Update button gone, sha now matches
+        const n2 = $('note');
+        if (n2) n2.textContent = 'Updated ✓ — your saved data is untouched.';
+        return;
+      }
       const fileId = store.uid('file');
       await store.putFile({ id: fileId, name: app.name + '.gif', bytes, kind: 'gif',
         isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif' });

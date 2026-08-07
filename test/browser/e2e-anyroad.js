@@ -1538,6 +1538,34 @@ function check(name, cond, detail) {
     + (hills.below ? ' (worst ' + hills.worstRoad.toFixed(2) + ' m under)' : ''));
   check('HILLS: no tile is left holding terrain-less guesses (rebuilds converged)',
     hills.incomplete === 0, hills.incomplete + ' tile(s) still incomplete');
+
+  // UNASKED REVERSE DIES; ASKED REVERSE LIVES. A rebound (or a slope) used to
+  // shove the car to the reverse floor and leave rolling resistance alone to
+  // argue with it — ten-plus seconds of backwards travel nobody requested,
+  // reported as "the car just wants to drive backwards all the time". Engine
+  // braking now kills undemanded reverse inside two seconds, and the
+  // deliberate path (hold brake at a standstill until reverse arms) must keep
+  // working or the fix has quietly deleted the reverse gear. Driven straight
+  // through Car.update with fixed dt, so the box's frame rate is irrelevant.
+  const gears = await hFr.locator('body').evaluate(() => {
+    const f = window.App.world.frame;
+    // A shove: -5 m/s, no input at all. Two simulated seconds.
+    const c1 = window.Car.create(4, 4, 0.3);
+    c1.y = window.Terrain.heightAt(f, 4, 4) || 0;
+    c1.speed = -5;
+    const idle = window.Car.blankInput();
+    for (let i = 0; i < 40; i++) window.Car.update(c1, idle, 0.05, f);
+    // Deliberate reverse: brake held from a standstill, well past REV_ARM.
+    const c2 = window.Car.create(4, 4, 0.3);
+    c2.y = c1.y;
+    const braking = Object.assign(window.Car.blankInput(), { brake: 1 });
+    for (let i = 0; i < 40; i++) window.Car.update(c2, braking, 0.05, f);
+    return { afterShove: +c1.speed.toFixed(2), deliberate: +c2.speed.toFixed(2) };
+  });
+  check('HILLS: a rebound cannot keep the car reversing (engine braking wins)',
+    gears.afterShove > -0.5, 'speed ' + gears.afterShove + ' m/s two sim-seconds after a -5 m/s shove');
+  check('HILLS: …but deliberate reverse (brake held past the arm) still works',
+    gears.deliberate < -1, 'speed ' + gears.deliberate + ' m/s');
   await hCtx.close();
 
   await browser.close();
