@@ -94,6 +94,13 @@
  *   tiles         #grid tiles shown/total (Channel R) + which composites paint
  *   ghosts        peers with NO fresh status (churn residue)
  *   dups          two peers claiming one coord (a convergence bug)
+ *   door | fork   THE FORK VIEW: who is socketed on my relay session but sits
+ *                 in NO cell of my occupancy, and for how long — one relay
+ *                 session is one stadium, so a peer that stays outside past
+ *                 the dwell (--fork-dwell, default 90s) IS a second tree.
+ *                 Prints the greeterTrace behind it. Every snapshot carries
+ *                 the verdict (`fork` in --jsonl) and both edges are logged
+ *                 to stderr. Bug ledger 2026-08-05 §6 — the 7-hour fork.
  *   chat [msg]    print recent chat, or send a message
  *   cam on|off    turn my camera on/off        mic on|off
  *   PHONE-REALITY LEVERS (the behavior battery; all live in any mode):
@@ -129,6 +136,12 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+// THE FORK WATCH (bug ledger 2026-08-05 §6 — the 7-hour room fork). A peer
+// SOCKETED on my relay session that holds no cell in my occupancy, for longer
+// than any lawful entry dance, is a SECOND TREE on one stadium. Read the file:
+// it explains why the relay roster is the observation that breaks the
+// one-seat-tree symmetry, and why this observer never heals anything.
+const { forkProbeInPage, makeForkWatch, forkLine } = require('../tools/fork-detect.js');
 
 // ---- args -----------------------------------------------------------------
 const args = {};
@@ -190,6 +203,11 @@ const cfg = {
   forkAuto: !args['fork-ask'],
   // --init-script <file>: extra addInitScript, injected last (see join()).
   initScript: args['init-script'] || '',
+  // --fork-dwell <s>: how long a socketed peer may sit OUTSIDE my tree before
+  // it is called a fork (default 90s — see test/tools/fork-detect.js for why
+  // that number). 0 disables the watch entirely.
+  forkDwell: args['fork-dwell'] !== undefined ? Math.max(0, parseFloat(args['fork-dwell'])) * 1000
+    : (process.env.MEET_FORK_DWELL ? Math.max(0, parseFloat(process.env.MEET_FORK_DWELL)) * 1000 : 90000),
 };
 const MODE = args.drive ? 'drive' : args.script !== undefined ? 'script' : args.once !== undefined ? 'once' : (args.watch ? 'watch' : 'repl');
 const LEVELS = { quiet: 0, info: 1, verbose: 2, debug: 3 };
@@ -504,6 +522,9 @@ function streamLine(t, s, level) {
   if (s.err) return `t+${t}s  (${s.err})`;
   const seat = s.coord || (s.state != null ? 'st' + s.state : 'unseated');
   let line = `t+${pad(t, 4)} seat=${pad(seat, 8)} inMtg=${s.inMeeting} occ=${s.occ} links=${s.links} vid=${s.liveVid}/${s.rosterN}${s.relayedN ? ' via=' + s.relayedN : ''}${s.forkPaused ? ' FORK-PAUSED' : ''}`;
+  // The one line the 7-hour fork never had. Loud at EVERY level, including
+  // -q: a room that has silently split is not a detail of the stream.
+  if (s.fork && s.fork.fork) line += `  ***${forkLine(s.fork)}***`;
   if (LEVELS[level] >= 1) line += ` grid=${s.gridShown}/${s.gridTotal} consent=${s.consent} ghosts=${s.ghosts} dups=${s.dups} net{relay:${s.tx.relaySig || 0} dc:${s.tx.dcSig || 0} fwd:${s.tx.fwdSig || 0}}`;
   if (LEVELS[level] >= 2) {
     const mos = s.mosaic || {};
@@ -637,6 +658,10 @@ async function join(room, opts) {
     // first, so an open room stays joinable and gets LOCKED by us — a
     // pre-seeded pw at an open door is a proof mismatch the relay rejects.
     + (cfg.pass && !cfg.ensurePass ? "localStorage.setItem(" + JSON.stringify('gifos_vpw_' + roomKey) + "," + JSON.stringify(cfg.pass) + ");" : '');
+  // A DIFFERENT room is a different stadium: the dwell clocks mean nothing
+  // across it. The SAME room deliberately keeps them (a rejoin does not
+  // absolve a peer that has been outside my tree the whole time).
+  if (roomKey !== lastRoomKey) { forkWatch = makeForkWatch({ dwellMs: cfg.forkDwell }); lastForkVerdict = null; lastForkProbe = null; forkAnnounced = false; }
   lastRoomKey = roomKey;
   await ctx.addInitScript({ content: seed });
   await ctx.addInitScript({ content: batteryInitScript() });
@@ -692,7 +717,36 @@ async function join(room, opts) {
   joined = true;
   armForkAuto();
 }
-const D = () => page.evaluate(snapshotInPage).catch((e) => ({ err: String(e).slice(0, 140) }));
+// ---- the fork watch --------------------------------------------------------
+// One watch per process (the dwell clocks are per SESSION — a rejoin keeps the
+// same relay session, and a peer that has been outside my tree across my own
+// reload is MORE suspicious, not less). Reset only when the room changes.
+let forkWatch = makeForkWatch({ dwellMs: cfg.forkDwell });
+let lastForkProbe = null, lastForkVerdict = null, forkAnnounced = false;
+// A transition is the alarm. Both edges go to stderr, which on the monitor is
+// the durable stderr.log — the 7-hour fork left NOTHING in any log, and one
+// line at 17:31Z would have ended the whole investigation.
+function noteFork(v) {
+  if (!v || !v.ok || !cfg.forkDwell) return;
+  if (v.fork && !forkAnnounced) {
+    forkAnnounced = true;
+    console.error('[FORK] ' + new Date().toISOString() + '  ' + forkLine(v));
+    console.error('[FORK] door trace: ' + JSON.stringify((lastForkProbe && lastForkProbe.trace) || []));
+  } else if (!v.fork && forkAnnounced) {
+    forkAnnounced = false;
+    console.error('[FORK] ' + new Date().toISOString() + '  CLEARED — ' + forkLine(v));
+  }
+}
+const D = async () => {
+  const s = await page.evaluate(snapshotInPage).catch((e) => ({ err: String(e).slice(0, 140) }));
+  if (!s || s.err || !cfg.forkDwell) return s;
+  const p = await page.evaluate(forkProbeInPage).catch((e) => ({ err: String(e).slice(0, 80) }));
+  lastForkProbe = p;
+  lastForkVerdict = forkWatch.feed(p);
+  s.fork = lastForkVerdict;
+  noteFork(lastForkVerdict);
+  return s;
+};
 
 // ---- the A/V feed monitor (`mon`) -----------------------------------------
 // One in-page sample: the monInfo()/avStats() hooks when present (this repo's
@@ -1148,6 +1202,25 @@ async function runCmd(line) {
       console.log('  composites painting: section=' + d.composites.section + ' stadium=' + d.composites.stadium + ' stage=' + d.composites.stage);
       console.log('  live remote video: ' + d.liveVid + '/' + d.rosterN);
       break;
+    // `door` — THE FORK VIEW (bug ledger §6). Who is socketed on my relay
+    // session but holds no cell in my occupancy, how long they have been
+    // there, and what the door itself said (greeterTrace: list length, how
+    // many blobs opened under my room key, the relay's founded flag, and
+    // whether the door ADMITTED my own registrations — adm:false on a seated
+    // Section-1 seat means my half is invisible to every knocker).
+    case 'door': case 'fork': {
+      if (!cfg.forkDwell) { console.log('  the fork watch is OFF (--fork-dwell 0)'); break; }
+      const v = d.fork || lastForkVerdict;
+      if (!v || !v.ok) { console.log('  no fork data yet (' + ((v && v.err) || 'first sample pending') + ')'); break; }
+      console.log('  ' + forkLine(v) + '   (dwell threshold ' + Math.round(forkWatch.dwellMs / 1000) + 's)');
+      console.log('  relay session holds ' + v.reachN + ' socket(s); I am ' + (v.seated ? 'seated at ' + v.coord : 'NOT seated (state ' + v.state + ')')
+        + ' with occ=' + v.occ + ' links=' + v.links);
+      if (!v.orphans.length) console.log('  every socketed peer holds a cell in my occupancy — one tree');
+      for (const o of v.orphans) console.log('    OUTSIDE MY TREE  ' + o.peer + '  for ' + Math.round(o.forMs / 1000) + 's' + (v.dwelled.indexOf(o.peer) !== -1 ? '   <-- past the dwell: this is a second tree, not an entry dance' : ''));
+      console.log('  greeterTrace (last ' + ((lastForkProbe && lastForkProbe.trace) || []).length + '):');
+      for (const t of ((lastForkProbe && lastForkProbe.trace) || [])) console.log('    ' + JSON.stringify(t));
+      break;
+    }
     case 'ghosts': console.log(d.ghostList.length ? '  GHOSTS (no fresh status): ' + d.ghostList.join(', ') : '  no ghosts'); break;
     case 'dups': console.log(d.dupList.length ? d.dupList.map((x) => '  DUP ' + x.coord + ': ' + x.a + ' & ' + x.b).join('\n') : '  no duplicate coords'); break;
     case 'dump': console.log(JSON.stringify(d.me)); console.log(JSON.stringify({ tx: d.tx, mosaic: d.mosaic, ghosts: d.ghostList, dups: d.dupList })); console.log(JSON.stringify(d.roster, null, 1)); break;
@@ -1276,9 +1349,14 @@ function compactJsonl(file) {
       total++;
       let s; try { s = JSON.parse(ln); } catch (e) { out.push(ln); kept++; continue; } // never drop what we can't read
       const t = Date.parse(s._t || '') || 0;
-      const sig = [s.participants, s.inMeeting, s.occ, s.coord, s.state, s.links, s.connY, s.liveVid, s.relayedN, s.ghosts, s.dups,
+      // The fork verdict rides in the SIGNATURE and forces a keep. Compaction
+      // exists to delete boredom, and a forked room is the most boring-LOOKING
+      // state there is (occ=1 links=0, unchanged for hours) — exactly the
+      // lines a shape-only signature would have thrown away.
+      const fk = s.fork && s.fork.ok ? (s.fork.fork ? s.fork.kind + ':' + (s.fork.dwelled || []).join('+') : '') : '';
+      const sig = [s.participants, s.inMeeting, s.occ, s.coord, s.state, s.links, s.connY, s.liveVid, s.relayedN, s.ghosts, s.dups, fk,
         (s.roster || []).map((r) => r.peer + (r.conn ? '+' : '-') + (r.relay || '')).sort().join(',')].join('|');
-      const interesting = (s.participants >= 3) || (s.inMeeting >= 3) || s.dups > 0 || s.relayedN > 0 || sig !== prevSig;
+      const interesting = (s.participants >= 3) || (s.inMeeting >= 3) || s.dups > 0 || s.relayedN > 0 || !!fk || sig !== prevSig;
       const heartbeat = t - lastBeat >= 600000;
       prevSig = sig;
       if (!interesting && !heartbeat) continue;
