@@ -215,7 +215,29 @@ scaling is sub-linear: 6.7x the seats for 1.7x the ticks.
 `test/sim/scale-frontier.sh` reports **SCALE GREEN** with the flag on.
 Split-room legs stay green: repro-headless-row A/B/**C**, repro-hchain E/F.
 
-**Why it is OFF.** It costs TREE COMPACTNESS. Spreading seekers across the
+**T7 MINTS DUPLICATE SEATS AT N=50000 — found 2026-08-06 on the big-N ladder,
+and it is a WORSE reason to keep the flag off than the compaction trade below.**
+
+    N=50000   converged@8512  seated=49986/50000  DUPS 18   CHECK FAIL
+    N=100000  converged@6848  seated=100000/100000  DUPS 0  CHECK PASS
+
+Duplicates are the exact failure class the V4/V5 admission waves were built to
+eliminate (healing-laws § V). The earlier "dups=0 throughout" in this document
+was TRUE of every run then in hand (N=3000, N=5000 on four seeds, N=10000,
+N=20000) and is FALSE in general — do not carry that claim forward.
+
+Note it is NOT monotonic in N: 50k reds, 100k is clean. That shape says a RACE
+whose window depends on topology/timing specifics, not a threshold.
+
+MECHANISM (inferred, verification running): pass 0's `firstHandLive` filter was
+not only selecting a DELIVERABLE admitter — it was implicitly selecting one
+whose `occ` view is FRESH. Letting a reachable-but-unheard admitter serve a
+FIND lets a seat with a stale occupancy view admit into a cell that is already
+taken. If that is right, T7 needs an admission-side freshness check on the
+spread path, not a different trigger — and the fix belongs next to the V4/V5
+evidence waves, which is exactly where the dup family was solved before.
+
+**The other reason it is OFF: it costs TREE COMPACTNESS.** Spreading seekers across the
 child row opens more sections and lone rows than compaction can collapse, and
 `repro-compaction` leg 1 reds. Clean A/B on the same tree:
 
