@@ -146,9 +146,10 @@ The concentration is severe as well as linear: the hottest node alone absorbs
 artifact: `ownerCoordOf` returns false at `pc==0` (`test/sim/mesh_seat.inc:2`,
 JS twin `mesh.js` `ownerCoordOf`), so a probe that finds no shallower slot
 climbs until it reaches Section 1 and terminates there. Every dead chain in the
-room ends on one of the C² = 25 home seats. (The gauge names the hottest node by
-id — 161 at N=20000, 0 and 161 in the N=5000 runs, and seat 161 resolved to
-coord `0/4.0`, a Section-1 head, in the N=5000 run where I queried it.)
+room ends on one of the C² = 25 home seats — and the gauge confirms it directly:
+`framesPerTick_maxAt=161`, and `seat 161` resolves to coord **`/4.0` — a
+Section-1 row head** (occ=30, the full rook degree). The settled N=20000 gauge
+reproduced at 15.016 across two independent runs.
 
 **DERIVED extrapolation to the law's target:** linear in N from the measured
 12 frames/tick at N=2×10⁴ gives ~600 frames/tick at N=10⁶, i.e. **≈1,200
