@@ -226,10 +226,27 @@ async function fallbackRoom(engine, exe, cripple) {
   // one failure shape that looks like silence. Every wait below is clamped to
   // what is left, so the leg always finishes and always says what it got.
   const DEADLINE = Date.now() + parseInt(process.env.PIPE_ROOM_MS || '330000', 10);
-  const left = (cap) => Math.max(2000, Math.min(cap, DEADLINE - Date.now()));
+  // A CLAMP MUST NEVER ISSUE A CALL IT KNOWS CANNOT SUCCEED. The first version
+  // was `Math.max(2000, Math.min(cap, DEADLINE - Date.now()))`, so the moment
+  // the deadline passed the remainder went negative, the floor took over, and
+  // every later goto got a TWO SECOND budget. Measured 2026-08-07 at loadavg
+  // 12: `TimeoutError: page.goto: Timeout 2000ms exceeded` reported as
+  // "leg C: the room runs at all on firefox — FAIL", which reads as a page
+  // that will not load. It was a blown leg deadline wearing a product red.
+  // MIN_USEFUL is the smallest budget worth spending; below it we stop and
+  // say the deadline expired, which is the true statement.
+  const MIN_USEFUL = 8000;
+  const left = (cap) => Math.min(cap, DEADLINE - Date.now());
+  let timedOutBuilding = false;
   try {
     const pages = [];
     for (let i = 0; i < ROOM_N; i++) {
+      if (left(1) < MIN_USEFUL) {
+        timedOutBuilding = true;
+        console.log('  [leg C] deadline expired after ' + i + '/' + ROOM_N
+          + ' seats were booted — stopping rather than issuing a goto that cannot finish');
+        break;
+      }
       // NOTE: no `permissions: ['camera']` — webkit's newContext REJECTS the
       // Chromium permission name outright. The injected camera needs no grant.
       const ctx = await b.newContext();
@@ -339,7 +356,8 @@ async function fallbackRoom(engine, exe, cripple) {
       s.setTimeout(1500); s.once('connect', () => done(true));
       s.once('timeout', () => done(false)); s.once('error', () => done(false));
     });
-    return { coords, enabled, relayStillUp, best: live ? { k: live[0], ...live[1] } : null,
+    return { coords, enabled, relayStillUp, timedOutBuilding, booted: pages.length,
+      best: live ? { k: live[0], ...live[1] } : null,
       painted: [...seen.keys()], claimed: [...claimedAnywhere] };
   } finally { await b.close(); }
 }
@@ -437,15 +455,28 @@ async function fallbackRoom(engine, exe, cripple) {
   catch (err) { check('leg C: the room runs at all on ' + subject.name, false, String(err).slice(0, 300)); room = null; }
   if (room) {
     const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
+    // A BLOWN DEADLINE IS ITS OWN VERDICT, reported before anything that
+    // depends on a room existing. Otherwise the assertions below describe a
+    // room that was never finished being built, and the first of them to fail
+    // is the one that gets believed.
+    check('leg C: the leg built its room inside its own deadline',
+      room.timedOutBuilding !== true, { booted: room.booted, of: ROOM_N, budgetMs: parseInt(process.env.PIPE_ROOM_MS || '330000', 10) },
+      'the leg ran out of time while still booting seats — this is a HOST fact (loadavg, a contended box), not the pipe lane. Re-run on a calm machine or raise PIPE_ROOM_MS; every assertion below describes a half-built room.');
     check('leg C: the relay was STILL THERE when the leg ended (nothing else on this box killed it)',
       room.relayStillUp === true,
       { relayStillUp: room.relayStillUp },
       'relay-local on 8790 died mid-run — every leg C assertion below is about a room with no door, not about the pipe lane. Restart it and re-run before reading anything into them.');
-    const seated = room.coords.every(Boolean);
+    // COUNT FIRST. `[].every(Boolean)` is TRUE and `new Set([]).size === 0`
+    // matches `[].length`, so a room with NO SEATS AT ALL passed this line —
+    // caught 2026-08-07 by forcing PIPE_ROOM_MS=1, which booted nothing and
+    // still printed "PASS — every seat is seated, on distinct coords []".
+    // A vacuous pass is the failure this whole suite exists to stop.
+    const seated = room.coords.length === ROOM_N && room.coords.every(Boolean);
     const distinct = new Set(room.coords.filter(Boolean).map(cstr)).size === room.coords.filter(Boolean).length;
-    check('leg C (' + subject.name + '): every seat is seated, on distinct coords', seated && distinct, room.coords.map(cstr));
-    check('leg C (' + subject.name + '): the pipe lane REPORTS ITSELF OFF at every seat (it cannot run here)',
-      room.enabled.length === ROOM_N && room.enabled.every((x) => x === false), room.enabled);
+    check('leg C (' + subject.name + '): all ' + ROOM_N + ' seats are seated, on distinct coords', seated && distinct,
+      { got: room.coords.map(cstr), want: ROOM_N });
+    check('leg C (' + subject.name + '): the pipe lane REPORTS ITSELF OFF at all ' + ROOM_N + ' seats (it cannot run here)',
+      room.enabled.length === ROOM_N && room.enabled.every((x) => x === false), { got: room.enabled, want: ROOM_N });
     // THE LOAD-BEARING ASSERTION. A composite is a picture PACKED BY ANOTHER
     // SEAT and shipped across the tree; arriving means it decoded to content
     // size and its track is unmuted (media really flowing, not a
