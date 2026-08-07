@@ -43,6 +43,11 @@
 //      the grace must still be taken. Leg 3 catches the same defect end to end,
 //      but only when the race falls the losing way — this drives both halves of
 //      the rule deterministically, on synthetic ids.
+//   7. THE STRUCTURAL FLOOR (added with 6): both delete sites are EVENT-driven,
+//      so an entry that never gets a verdict aimed at it — a far peer heard
+//      only over the flood has none to miss — was reachable by neither and sat
+//      in the map for the life of the page. The sweeper's aged-out sweep must
+//      take a stale unreachable entry AND leave a fresh one alone.
 const { chromium, CHROME } = require('../lib/pw');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -279,6 +284,43 @@ const short = (id) => String(id).slice(0, 8);
       !!clean && clean.indexOf(IVY.id) >= 0 && clean.indexOf(JON.id) >= 0
         && clean.every((i) => i.indexOf('k_tomb') < 0 && i.indexOf('k_flood') < 0),
       { held: (clean || []).map(short) });
+  }
+
+  // ---- 7. THE STRUCTURAL FLOOR: an entry no event can reach still goes ------
+  // Both delete sites are EVENT-driven — dropPeer needs a peers record,
+  // confirmGone needs a verdict aimed at this id. An entry with neither (a far
+  // peer heard only over the room-wide flood has no verdict to miss in the
+  // first place) was unreachable by both and sat in the map for the life of the
+  // page. The sweeper now buries anything with no link, no seat and total
+  // silence past the holdover. Both directions, so the sweep is AGEING and not
+  // a blanket wipe: the stale ghost must go, the fresh one must stay.
+  {
+    const stale = 'k_ghost' + Math.floor(Math.random() * 1e12).toString(16);
+    const fresh = 'k_ghost' + Math.floor(Math.random() * 1e12).toString(16);
+    const put = await HAL.pg.evaluate(([a, b]) => {
+      const V = window.__gifosVideo;
+      return [V._ghostStatus(a, 70000), V._ghostStatus(b, 0)];
+    }, [stale, fresh]);
+    check('two ghosts injected — one aged past the holdover, one brand new', put[0] === true && put[1] === true, { put });
+    const t0 = Date.now();
+    let sweptMs = -1;
+    while (Date.now() - t0 < 12000) {
+      const ids = await statusIds(HAL);
+      if (ids && ids.indexOf(stale) < 0) { sweptMs = Date.now() - t0; break; }
+      await sleep(500);
+    }
+    check('the unreachable STALE entry is swept in '
+      + (sweptMs < 0 ? 'NEVER (>12s)' : (sweptMs / 1000).toFixed(1) + 's')
+      + ' — no link, no seat, no verdict, and it still goes', sweptMs >= 0, { sweptMs });
+    const after = await statusIds(HAL);
+    check('the FRESH entry survived the same sweep — the floor ages, it does not wipe',
+      !!after && after.indexOf(fresh) >= 0, { held: (after || []).map(short) });
+    await HAL.pg.evaluate(([b]) => window.__gifosVideo._corruptStatus(b), [fresh]);
+    const end = await statusIds(HAL);
+    check('and the real room is still exactly itself after both ghost legs',
+      !!end && end.indexOf(IVY.id) >= 0 && end.indexOf(JON.id) >= 0
+        && end.every((i) => i.indexOf('k_ghost') < 0 && i.indexOf('k_tomb') < 0 && i.indexOf('k_flood') < 0),
+      { held: (end || []).map(short) });
   }
 
   check('zero page errors across the whole scenario', errs.length === 0, errs);
