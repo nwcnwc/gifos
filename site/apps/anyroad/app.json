@@ -44,6 +44,11 @@
       "overpass.osm.ch",
       "nominatim.openstreetmap.org"
     ],
+    "pool": [
+      "overpass-api.de",
+      "overpass.kumi.systems",
+      "overpass.osm.ch"
+    ],
     "api": [
       "maptiler"
     ],
@@ -52,7 +57,7 @@
   "cover": "/apps/anyroad/cover.jpg",
   "screenshots": [],
   "gif": "/apps/anyroad/anyroad.gif",
-  "bytes": 276110,
-  "sha256": "8f5a4e4e44267d1ae9bc2f7c8c10050b4639badfa2d71d22949bab2cfa11cc0a",
+  "bytes": 276121,
+  "sha256": "7bfb8d8c463e37225a0d378d975d7c95e03cf8d999de3bf2d8023609a894eef2",
   "signature": null
 }
