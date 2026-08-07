@@ -8,18 +8,19 @@
     "unknown": "We have genuinely not measured it, and we say so rather than guess. For Chromium skins the honest answer lives in their own user-agent, which names the Chrome build they are made of — compare THAT against the Chrome row."
   },
   "confidence": {
+    "measured": "A build of that engine was actually RUN against the site and the result recorded in the row's note. The number is the OLDEST build we have run, not the oldest that works — older ones may work and simply have not been tried. This is the only state that outranks a reading of somebody's compat table.",
     "verified": "Checked against MDN browser-compat-data and caniuse on the `updated` date.",
     "derived": "Read off the requirement list and the engine's own history, not run.",
     "unmeasured": "Nobody has run it. Reported as unknown."
   },
   "sources": [
-    "MDN browser-compat-data javascript/builtins/globalThis.json — the youngest requirement now that Ed25519 has a fallback engine",
+    "test/browser/e2e-pipe-engines.js and the 2026-08-07 old-engine runs on penguin — the `measured` rows below name their build",
     "MDN browser-compat-data api/SubtleCrypto.json — ed25519 sign/verify/importKey/exportKey (the OLD floor, kept for the fallback boundary: native below Chrome 137 / Firefox 129 / Safari 17 is absent and the js engine engages)"
   ],
   "requirements": {
     "es6-baseline": {
-      "label": "Modern JavaScript (Promise, Map, Set, async/await, globalThis)",
-      "why": "The whole runtime is written on it. Missing means the page cannot even parse. NOW THE ONE THAT SETS THE TABLE: with the Ed25519 fallback signer in place (see webcrypto-ed25519), the newest thing a browser must have is the language the site is written in — globalThis (2019) is the youngest piece."
+      "label": "Modern JavaScript (Promise, Map, Set, async/await)",
+      "why": "The whole runtime is written on it. Missing means the page cannot even parse. NOW THE ONE THAT SETS THE TABLE: with the Ed25519 fallback signer in place (see webcrypto-ed25519), the newest thing a browser must have is the language the site is written in. THE ENFORCED LIST IS run.html's syncGaps() AND NOTHING ELSE: Promise/Map/Set, WebSocket, TextEncoder/TextDecoder, crypto.getRandomValues, crypto.subtle with importKey/exportKey/sign/verify/encrypt/decrypt/digest/deriveBits, RTCPeerConnection with createDataChannel. CORRECTION 2026-08-07: this row used to say globalThis (2019) was the youngest piece and the whole table was derived from that. It is not a requirement at all — every occurrence in site/js/*.js and run.html is inside `typeof window !== 'undefined' ? window : globalThis`, so in a browser the window branch always wins and globalThis is never evaluated; syncGaps() never tests for it either. MEASURED: Firefox 63.0 has NO globalThis, passes the preflight with an empty gap list, and boots run.html to a working meeting UI. A version floor read off a feature the product does not require is a guess with a citation."
     },
     "websocket": {
       "label": "WebSocket",

@@ -96,6 +96,52 @@ if (data) {
   check('an in-app browser is listed, since that is where this bites most', !!data.browsers.find((b) => b.id === 'in-app'));
 }
 
+// ---- A MINIMUM MAY ONLY BE JUSTIFIED BY SOMETHING THE PRODUCT REQUIRES -----
+// The failure this exists to prevent, found 2026-08-07: every number in the
+// matrix was derived from `globalThis` ("the youngest requirement"), and
+// globalThis is not a requirement at all. Every occurrence in the shipped site
+// is inside `typeof window !== 'undefined' ? window : globalThis`, so in a
+// browser the window branch always wins and the identifier is never evaluated;
+// run.html's syncGaps() — the ONE list the preflight actually enforces — never
+// tests for it either. Firefox 63, which has no globalThis, passes the
+// preflight with an empty gap list and boots run.html to a working meeting UI.
+// A floor read off a feature nobody needs is a guess wearing a citation.
+//
+// So: mechanically, globalThis may never become a floor by accident. If
+// somebody writes an UNGUARDED globalThis into the shipped site, this goes red
+// and the matrix has to be looked at again on purpose.
+{
+  const SITE = path.join(ROOT, 'site');
+  const files = ['run.html', 'index.html', 'store.html', 'sign.html', 'boot.html']
+    .map((f) => path.join(SITE, f))
+    .concat(fs.readdirSync(path.join(SITE, 'js')).filter((f) => f.endsWith('.js')).map((f) => path.join(SITE, 'js', f)))
+    .filter((f) => fs.existsSync(f));
+  const unguarded = [];
+  for (const f of files) {
+    const src = fs.readFileSync(f, 'utf8');
+    let i = -1;
+    while ((i = src.indexOf('globalThis', i + 1)) !== -1) {
+      // the two shapes the repo actually uses, both of which mean "only if the
+      // real global object has no other name here" — never a bare dependency
+      const before = src.slice(Math.max(0, i - 60), i);
+      // `typeof window !== 'undefined' ? window : globalThis` and
+      // `typeof self !== 'undefined' ? self : globalThis` — in a BROWSER the
+      // first branch always wins, so globalThis is only ever the node/worker
+      // spelling of the same object.
+      if (/typeof\s+(window|self)\s*!==\s*'undefined'\s*\?\s*\1\s*:\s*$/.test(before)) continue;
+      if (/typeof\s+globalThis\s*!==\s*'undefined'\s*\?\s*$/.test(before)) continue;
+      if (/typeof\s+$/.test(before)) continue; // `typeof globalThis` — a probe, not a use
+      unguarded.push(path.relative(ROOT, f) + ':' + src.slice(0, i).split('\n').length);
+    }
+  }
+  check('globalThis is never a hard dependency in the shipped site (so it can never set a floor)',
+    unguarded.length === 0, unguarded.slice(0, 8));
+  const runSrc = fs.readFileSync(RUN, 'utf8');
+  const syncGaps = runSrc.slice(runSrc.indexOf('function syncGaps'), runSrc.indexOf('function syncGaps') + 1800);
+  check("…and the preflight's syncGaps() — the ONE enforced list — does not test for it either",
+    syncGaps.length > 200 && !syncGaps.includes('globalThis'));
+}
+
 // ---- run.html carries exactly ONE table, and it is the generated one --------
 const run = fs.readFileSync(RUN, 'utf8');
 const between = run.slice(run.indexOf('BEGIN GENERATED from site/browser-support.json'), run.indexOf('==== END GENERATED ===='));
