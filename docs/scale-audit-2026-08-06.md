@@ -24,34 +24,65 @@ noted. `site/run.html` — the actual consumer of the flood — is untouched by 
 
 ---
 
-> **V5 UPDATE 2026-08-06 — the first fix attempt is REFUTED, and the trade is
-> now measured.** I read the funnel as "fruitless probes repeat at a fixed
-> period forever, so the aggregate never decays", and added exponential backoff
-> on consecutive misses (reset by a real move and by nearby churn). Measured,
-> same box, same seed, N=20000, room CONVERGED AND SETTLED first (spreadon 1,
-> then `digest reset` + `tick 6000` — the funnel is a settled-room cost, which
-> my first A/B script got wrong by leaving the room unconverged):
+> **V5 SETTLED 2026-08-07 — the audit's attribution was RIGHT, and two fix
+> attempts are refuted. Measured with a per-message-type instrument (branch
+> `v5-mt-instrument`, a136ce3), N=20000, converged and settled, seed 20260714.**
 >
-> | arm | framesPerTick_max |
-> |---|---|
-> | compaction ON, with the backoff | **15.1592** |
-> | compaction OFF | **3.1285** |
-> | (this audit's original ON / OFF) | 15.126 / 3.140 |
+> **What the hot node receives.** Seat 161 = `/4.0` (Section 1, row 4, col 0):
 >
-> The audit's numbers reproduce exactly; the backoff moved nothing. REVERTED —
-> a change that does not do what its comment claims is worse than no change.
-> Whatever sustains the probe rate in a settled room, it is not the fixed
-> period. An untested guess for the next attempt: `compactMiss` was reset on any
-> nearby churn, and at N=20000 there may be enough constant low-level churn that
-> the counter never climbs — measure that before building on it.
+> | type | compaction ON | OFF |
+> |---|---|---|
+> | **FIND (tag=1 probes)** | **72,188 = 12.03/tick, 79.4%** | **0** |
+> | PHONE / PONG / S1SYNC | 6,747 / 6,000 / 6,002 | 6,750 / 6,000 / 6,000 |
+> | total | 90,955 = 15.159/t | 18,771 = 3.128/t |
 >
-> **THE TRADE, NOW MEASURED, AND IT IS THE REAL QUESTION.** Same two runs:
-> lone-row deep sections 1350 (ON) vs 1395 (OFF), convergence 4480 vs 4288
-> ticks. So compaction buys about a **3% reduction in lone-row sections for
-> roughly 5x the hottest node's traffic**, and that node is a Section-1 head —
-> the scarcest position in the room. Before anyone writes a cleverer probe, the
-> question worth answering is whether compaction earns its place ON by default
-> at all.
+> The ON-OFF delta is FIND TO THE FRAME at every N, and FIND is the only type
+> that tracks N: 0.311 / 0.963 / 2.165 / 12.03 per tick at N=500/2k/5k/20k. The
+> 3.13 "floor" is just the heartbeat+rook-sync duty of any S1 seat — all 25 sit
+> at 3.128 in the OFF arm.
+>
+> **Why that seat: position, not role.** `up({pc,r,0}) = {parent,r,lastDigit}`
+> maps every child-section "0" — the first-opened, biggest subtree — onto S1
+> COLUMN-0 cells, and "only a row head decides" makes row-mates forward
+> everything to the head. Measured: row-mates 12-17k FIND each, head 72k ~=
+> their sum. It does ZERO work for them: cAdmits 412->412, cMoves 209->209
+> across the window. Every arrival exists only to die there.
+>
+> **The "cost is the consequence of compaction" hypothesis is KILLED.**
+> PHONE/PONG/S1SYNC are identical ON vs OFF at every N (room totals
+> PHONE = PONG = 15,131,250 in both arms). Moves shift the depth histogram but
+> change no per-node rate — links are C-bounded, so a moved seat carries its
+> O(C) heartbeats rather than stacking them. The cost is the SEARCH.
+>
+> **TWO REFUTED FIXES — do not rebuild either as written.**
+> 1. Exponential backoff on consecutive misses: no effect (15.159 vs 15.126).
+> 2. NOROOMUP walk-down + node suppression (Nathan's design, my implementation):
+>    a NET LOSS. Settled-window probes fell only 2.3% (244,632 vs 250,294) while
+>    adding 210,415 NOROOMUP frames; S1 row-mates rose 39%. An earlier "97% cut"
+>    reported against this was MY ERROR — a cumulative counter compared against a
+>    run that never passed COMPACT_SETTLE.
+>    The design is sound; the implementation was not: the non-head forward branch
+>    never set `lastProbeFrom`, so the walk-down died at the first S1 non-head and
+>    suppression never armed anywhere deep. The leaf handler also set
+>    `compactAt = TICK + 6..12`, retrying SOONER than the normal 90-180.
+>
+> **What a real fix must touch.** The cost is ARRIVALS AT 25 FIXED SEATS, so
+> anything that answers, drops or caches AT THE TOP leaves the bill unpaid.
+> Ranked by what the numbers support:
+> 1. **Gate the probe on evidence that a shallower frontier exists.** The room
+>    already computes the answer: `rootDig.dmin`/`freeC` reaches every seat via
+>    the § G rollup, and the settled room has frontier d0=0, d1=0, d2=2-8 while
+>    250k probes per window ask anyway. "Probe only if dmin < my depth" takes the
+>    settled-room cost to ~0. DOCTRINAL COST: G1 says a digest decides nothing —
+>    this lets it gate an optimisation probe (never admission, never liveness).
+>    **That is Nathan's call, not ours.**
+> 2. Repair the walk-down properly: breadcrumb on EVERY forwarding hop, arm
+>    suppression at S1 heads on origination, leaf backoff >= COMPACT_PERIOD, and
+>    cached re-answering rather than silent drops. Even then it costs one full
+>    climb per subtree per window.
+> 3. Turn compaction off in settled rooms — legitimate: in a fully settled
+>    window it moved 0 seats for 2.23M frames, and its whole measured benefit is
+>    ~3% fewer lone-row sections.
 
 ## The verdict, ranked by how much it actually blocks 1M
 
