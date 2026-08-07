@@ -41,67 +41,116 @@
 # NONDETERMINISTIC — see the note in release.sh: ESCAPED is not raised for an
 # entry carrying this word, because a best-of-N cannot tell "fixed" from "lucky"
 # for a coin-flip suite. Promotion is a HUMAN call; the measured rate above is
-# what to base it on. The behaviour is unchanged from the original entry:
-# build-time claim ordering, plus a multi-hop demand-wake that lands ~1s when it
-# lands at all.
-mirror-drill  NONDETERMINISTIC known-unfixed: ~10/17 green measured 2026-08-02. Build-time claim ORDERING + multi-hop demand-wake reliability. Promote only on a deliberate human read of the rate, never on one green gate.
+# what to base it on.
+#
+# RE-MEASURED 2026-08-06 on an IDLE 8-core box, 18 runs (6 of them an
+# interleaved cameras-on/cameras-off A/B, which made no difference): 16 GREEN,
+# 2 RED — up from 10/17, and the two halves of the old entry no longer describe
+# the same thing:
+#
+#   * BUILD-TIME CLAIM ORDERING never fired once in 18 runs. Every run built
+#     the chain with E holding the sdn PRIMARY via B and the mirror PARKED via
+#     F, and failback on a recoverable outage passed every time. That red is
+#     plausibly dead: it was last measured 2026-08-02, and 87f57e6 (2026-08-04)
+#     rewrote exactly this — min-h shortest chain, sticky ties at equal h,
+#     identity-not-key preference — after that measurement was taken.
+#   * THE MULTI-HOP DEMAND-WAKE is the whole residual, and both reds are one
+#     number: the wake gap after the kill measured 5625ms and 6055ms against
+#     MOS_GRACE = 5000. The cascade dump shows the wake propagating END TO END
+#     in both (every hop demanding 'w', every sdnm job active) — the mechanism
+#     works, it is LATE. The other two reds in each of those runs are its
+#     consequences, not separate faults: the grace linger tears a dead primary
+#     at deadAt+5s, so a 5.6s wake loses the claim by 0.6s, and the final via
+#     then reads null.
+#
+# THAT IS THE SAME QUANTITY known-unfixed.sh already carries for redun-drill:
+# "FAILOVER WAKE MISSES THE ≤5s GRACE BOUND (decided: Nathan, 2026-07-28) —
+# the wake is DETECTION-bound: Chrome reports a killed peer's transport down in
+# ~5-9s ... the GATE keeps asserting wake CORRECTNESS via redun-drill's default
+# mode; the latency BOUND and its twin, claim continuity, live here ... both
+# promote back together with the watchdog." mirror-drill's KILL leg still
+# asserts that bound IN THE GATE, on the same context-close kill, for a wake
+# that has six hops to cross instead of one.
+#
+# So the promotion decision is now a single human call, and it is NOT mine to
+# take unilaterally (moving an assertion into the graveyard must never be the
+# way a result gets out): EITHER apply the 2026-07-28 decision consistently —
+# mirror's ≤GRACE bound and its claim-continuity twin move under a MIRROR_STRICT
+# env into that existing known-unfixed entry, the gate keeps chain-builds,
+# dormancy, failback, wake-completes and rides-a-live-via — after which this
+# suite is expected green and comes off this list; OR leave it here until the
+# receiver-side RTP-silence watchdog lands and the 5s bound is honestly met.
+# Nothing else stands between mirror-drill and the gate.
+mirror-drill  NONDETERMINISTIC known-unfixed: 16/18 green measured 2026-08-06 on an idle 8-core box. Sole residual = the multi-hop wake at 5.6-6.1s against the 5s MOS_GRACE bound (same detection-bound quantity known-unfixed.sh already defers for redun-drill). Build-time claim ordering did not recur. Promote on the human call described above.
 
-# ADDED 2026-08-05, cutting 0.9.2 — argued, measured, and deliberately deferred.
-# The standby-parked leg ("standby pipes are PARKED (~0 B/s)") reds when a woken
-# spare re-parks SLOWER than the drill's two measurement windows: forensics show
-# the hot standby DECAYING (2332 B/s -> 643 B/s across windows) — the ONE-PIPE
-# re-park choreography works but lags. Interleaved 12-run matrix on an idle
-# 8-core box, isolating tonight's two product changes:
-#   knock-first boot + ghost-law mesh   3/3 red   (both, either law form)
-#   knock-first only                    1/3 red
-#   ghost-law only                      1/3 red
-#   neither                             1/3 red   (the pre-existing flake band)
-# So the two changes TOGETHER shift early-room link timing enough to trip a
-# wake, and the re-park lag does the rest. The lane is the NEW redundancy/pipe
-# machinery (parked spares, mirror hops — post-0.9.1), which a small room never
-# touches: no standby pipes exist below stage scale, and tonight's demo-blocker
-# fixes (the knock, the ghost law) are exactly what this trade protects. Same
-# lane as mirror-drill above and docs/bug-pipe-stg-freeze-2026-08-05.md — one
-# cluster, one post-release diagnosis. The drill's other 8 legs stay green;
-# NONDETERMINISTIC — promotion is a human call on a measured rate.
+# PROMOTED 2026-08-06 — redun-drill is back in the gate, and the entry that
+# lived here was wrong about what failed. Recorded so nobody re-adds it blind.
 #
-# THE ENTRY ABOVE NO LONGER DESCRIBES WHAT FAILS — corrected 2026-08-06 from two
-# independent boxes (nvidia-laptop gate at 132fa02; raspberrypi, 3 runs + an
-# interleaved A/B). The suite is still RED, so quarantine is not masking a fixed
-# suite — but do not trust the mechanism written above:
+# The entry described a re-park LAG ("standby pipes are PARKED (~0 B/s)" reds
+# when a woken spare re-parks slower than the drill's windows). The actual red,
+# in every run on three boxes, was the PRECONDITION one leg later — "found a
+# wake target: receiver holding a relayed stg primary + standby" — which guards
+# the whole kill/wake/failover/re-park half behind `if (P >= 0)`. About 8 of the
+# drill's ~14 legs had never executed, so the deferred behaviour was never
+# measured at all.
 #
-#   1. The actual red, in every run on both boxes, is
-#        FAIL — found a wake target: receiver holding a relayed stg primary + standby
-#      a leg this entry never mentions.
-#   2. That leg is a PRECONDITION. test/drills/redun-drill.js:192 guards the whole
-#      kill/wake/failover/re-park half behind `if (P >= 0)`. With no wake target
-#      the drill runs only ~6 of its ~14 legs — so THE RE-PARK LEGS THIS ENTRY IS
-#      ABOUT NEVER EXECUTE. "The drill's other 8 legs stay green" is unverifiable,
-#      not confirmed.
-#   3. The named leg behaved inconsistently and, when it did fail, failed for the
-#      wrong reason: PASSED in one tier pass (stdPipes:1 stdHot:0), FAILED in two
-#      re-runs (stdPipes:2 stdHot:1) — but at the PRE-KILL steady-state baseline,
-#      before any wake happened, which is not the "a woken spare re-parks slowly"
-#      mechanism described above.
+# ROOT CAUSE (d902b0d): run.html boots JOIN-QUIET (muted, camOff) and the camera
+# idle-stop REMOVES the video track 20s later, so sentVideoTrack() is null,
+# mySelfStream() is null, and a stager broadcasts NOTHING — while staged that
+# aux stream is the only way anything leaves the device. Instrumented: the
+# stager's selfMemo empty, not one 'stg:' claim anywhere in the room, the
+# S1 strip fanned down at fr0/w0. With the camera on, every seat holds the feed
+# with 2-3 announcers. Not a regression: identical failure on the 2026-07-30
+# tree (8ce4651, that day's drill AND site), i.e. the drill only ever passed by
+# staging within 20s of boot, which a slower box loses.
 #
-# So the deferred behaviour is not being measured at all. When the redundancy
-# cluster is worked, start at the wake-target precondition, not at re-park lag.
-# Neither box gave a clean rate (nvidia drills tier peaked loadavg 10.78/8cpu;
-# raspberrypi peaked ~29/4cpu) — re-measure on an IDLE host.
-redun-drill  NONDETERMINISTIC known-unfixed: re-park lag behind the drill's windows; 3/3 red only with knock-first+ghost-law combined (1/3 baseline). The redundancy-lane cluster (with mirror-drill + the stg-freeze dossier) is the top post-0.9.2 work item.
+# LEG A was also rewritten (caad252): a rate only measures a role the slot held
+# for the WHOLE window. Both hot standbys the fixed drill produced were role
+# changes inside the window (a wake armed 1.5s earlier with demand '=w'; a
+# stream that had been the PRIMARY for the first 6 of 10 measured seconds), not
+# ONE-PIPE violations. It now counts only role-stable standbys — same standby
+# stream at both ends, no wake armed, not dark, no swap in the window, demand
+# '=i' at both ends — and its retry criterion is "did the window yield a
+# measurable standby", not the old "did the assertion fail".
+#
+# MUTATION-TESTED, both halves: delete the camera click and the drill reds at
+# the three manufacture legs that name it (camera on / self stream built / feed
+# reaches the room), not at the wake target; make the PRODUCT ignore mx-idle so
+# senders never park a spare, and leg A reds 5/5 with every hot standby marked
+# heldBoth, no wake, not dark, no swap, demand '=i' — the exact shape of a real
+# violation.
+#
+# MEASURED after the fix, on idle boxes: 13 of 14 runs GREEN with the final drill —
+# 6/6 on a 6-core box (with a niced sim audit competing for two cores) and 7/8
+# on an idle 8-core box. The single red was not a redundancy leg at all: three
+# of six browsers never seated, i.e. the room never formed, on a box that had
+# just run twelve 8-browser drills back to back. 9c6d76e makes that failure
+# name itself in future (the drill's own relay had its stderr piped and never
+# read, so a relay that dies takes 120s to surface as "all 6 seated" with null
+# coords), and the gate's one-retry rule records such a thing as FLAKY, not RED.
+# If it reds again, that is a REGRESSION to hunt, not a reason to re-add it.
 
-# ADDED 2026-08-05 (third entry, same night, cutting 0.9.2) — argued:
+# ADDED 2026-08-05 (cutting 0.9.2) — argued:
 # e2e-pipe leg 3 (THE FREEZE SHAPE) reds whenever the encoded-passthrough lane
 # actually RUNS — which it only does since ec06c46 gave this suite a real
 # engine (the gate pin Chrome 140 has no RTCRtpScriptTransform; the suite now
-# takes the newest build, Chrome 149, where the lane is live). The freeze is
-# the OPEN, FILED product bug docs/bug-pipe-stg-freeze-2026-08-05.md — proven
-# to belong to the lane by an interleaved A/B (3/3 on, 0/3 off, load excluded)
-# and explicitly split into its own work item on 2026-08-04. The suite's other
-# 17 assertions (module chain, seating, pipe routing, passthrough, no-transcode)
-# were green in this same red run — the ONE red leg is the dossier's bug.
-# Deliberately deferred WITH mirror-drill and redun-drill: one redundancy-lane
-# cluster, one post-0.9.2 investigation. Small rooms never touch this lane.
-# NONDETERMINISTIC — the freeze is intermittent per the dossier; promotion is
-# a human call after the stg-freeze fix lands.
-e2e-pipe  NONDETERMINISTIC known-unfixed: leg 3 is the filed stg-freeze (docs/bug-pipe-stg-freeze-2026-08-05.md), reachable only since the suite got a real engine. Fix rides the redundancy-lane cluster; promote after it lands.
+# takes the newest build, where the lane is live). The freeze is the OPEN,
+# FILED product bug docs/bug-pipe-stg-freeze-2026-08-05.md — proven to belong
+# to the lane by an interleaved A/B (3/3 on, 0/3 off, load excluded).
+#
+# RE-MEASURED AND SHARPENED 2026-08-06 (clawbox, Chrome 151, idle, 3 runs —
+# 0/3 green; dossier updated, detector corrected in cd2efeb):
+#   * The old detector over-reported. feedsInfo().frames is the ELEMENT's
+#     counter, and a claim swap installs a NEW <video> that restarts at zero —
+#     2 of the 3 stalls in run 1 were that, at seats decoding perfectly.
+#   * What remains is real and reds every run: 25-50 kB ARRIVING during each
+#     12-13s freeze, 4-15 frames decoded in the whole 36s window, while the
+#     stager encodes keyframes throughout (kenc 19-22). A decoder starved of a
+#     decodable frame on a pipe that is delivering — not a quiet pipe.
+#   * A second thread, possibly the same one: the stager's own sent track
+#     alternates between two ids (reship 'sig-change', blur:1, pipe:true,
+#     constant camId), re-minting mySelfStream and re-shipping every stg job.
+# Unfixed, and the fix is a media-plane change — so the entry stays and the
+# guard stays red. NONDETERMINISTIC is kept: the suite came up green in the
+# 0.9.4 gate, so a lucky green must not raise ESCAPED.
+e2e-pipe  NONDETERMINISTIC known-unfixed: leg 3 is the filed stg-freeze (docs/bug-pipe-stg-freeze-2026-08-05.md) — bytes arriving, nothing decoding, measured 0/3 green 2026-08-06. Promote after the stg-freeze fix lands.
