@@ -132,8 +132,22 @@ if [ "$BROWSERS" = 1 ]; then
                  continuity at 120ms granularity, live here: the grace linger tears a
                  dead primary at deadAt+5s, so claim survival IS the wake-vs-grace
                  race (a 4.5s wake lost it by a hair, 2026-07-28). Both promote back
-                 together with the watchdog."
+                 together with the watchdog.
+                 MIRROR-DRILL JOINED 2026-08-07 (decided: Nathan — the same decision
+                 applied consistently, promoting mirror-drill out of quarantine): its
+                 SIX-hop demand-wake asserts the same detection-bound quantity on the
+                 same context-close kill. MEASURED 2026-08-06, idle 8-core box, 18
+                 runs: 16 green; both misses were the wake landing at 5625ms and
+                 6055ms against MOS_GRACE=5000 with the cascade propagating end to
+                 end (every hop demanding 'w', every sdnm job active) — the mechanism
+                 works, it is LATE, and a 5.6s wake loses the claim to the deadAt+5s
+                 grace linger by 0.6s. So this entry is a COIN THAT USUALLY LANDS
+                 GREEN (~1 in 9 red at idle): a green run here proves nothing; the
+                 watchdog is what retires it. mirror-drill's default mode gates
+                 chain-builds, dormancy, failback, wake-completes, rides-a-live-via.
+                 All four strict asserts promote back together with the watchdog."
   if REDUN_STRICT=1 run_suite test/drills/redun-drill.js; then green "redun-drill strict wake bound now passes"; else red "redun-drill REDUN_STRICT=1 (wake > 5s grace)"; fi
+  if MIRROR_STRICT=1 run_suite test/drills/mirror-drill.js; then green "mirror-drill strict wake bound passed THIS run (16/18 at idle — green here proves nothing; only the RTP-silence watchdog retires this entry)"; else red "mirror-drill MIRROR_STRICT=1 (multi-hop wake vs 5s grace; measured 5.6-6.1s on its misses)"; fi
 
 else
   printf '\n(skipping browser entries — pass --browsers to include them)\n'

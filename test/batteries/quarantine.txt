@@ -81,7 +81,19 @@
 # suite is expected green and comes off this list; OR leave it here until the
 # receiver-side RTP-silence watchdog lands and the 5s bound is honestly met.
 # Nothing else stands between mirror-drill and the gate.
-mirror-drill  NONDETERMINISTIC known-unfixed: 16/18 green measured 2026-08-06 on an idle 8-core box. Sole residual = the multi-hop wake at 5.6-6.1s against the 5s MOS_GRACE bound (same detection-bound quantity known-unfixed.sh already defers for redun-drill). Build-time claim ordering did not recur. Promote on the human call described above.
+#
+# PROMOTED 2026-08-07 — Nathan took the first option: the 2026-07-28 decision
+# applied consistently. The ≤GRACE bound and its claim-continuity twin moved
+# under MIRROR_STRICT=1 into known-unfixed.sh's existing FAILOVER-WAKE entry
+# (which records the measured number: wake 5.6-6.1s vs MOS_GRACE 5000ms on its
+# 2-in-18 misses, idle 8-core box, 2026-08-06). The drill also adopted
+# redun-drill's stop-at-resume sampler, because the old flat-20s window read
+# the via AFTER failback legitimately re-derived the slot (via: null for a
+# wake that completed correctly) — the same false red redun-drill fixed. The
+# gate now runs the other ~14 legs: chain-builds, dormancy, failback,
+# wake-completes, rides-a-live-via. Both strict asserts promote back together
+# with the receiver-side RTP-silence watchdog. If a DEFAULT-mode leg reds,
+# that is a REGRESSION to hunt, not a reason to re-add it.
 
 # PROMOTED 2026-08-06 — redun-drill is back in the gate, and the entry that
 # lived here was wrong about what failed. Recorded so nobody re-adds it blind.
