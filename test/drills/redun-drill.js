@@ -170,12 +170,12 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   // measured stdPipes=0 with standbys demonstrably held before and after.
   // Measure up to twice: a second window after churn settles is the same
   // assertion, not a softer one.
-  let priPipes = 0, stdPipes = 0, stdHot = 0, priDark = 0;
+  let priPipes = 0, stdPipes = 0, stdHot = 0, priDark = 0, hotWhy = [];
   for (let attempt = 0; attempt < 2; attempt++) {
     const s1 = await Promise.all(pages.map(sample));
     await sleep(SPAN * 1000);
     const s2 = await Promise.all(pages.map(sample));
-    priPipes = 0; stdPipes = 0; stdHot = 0; priDark = 0;
+    priPipes = 0; stdPipes = 0; stdHot = 0; priDark = 0; hotWhy = [];
     const rates = [];
     for (let i = 0; i < N; i++) {
       const a = s1[i], b = s2[i]; if (!a || !b) continue;
@@ -191,7 +191,29 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
         if (!/^(in|std):(sdm|sdx|sdn|sgs|stg:|sdrow:)/.test(slot)) continue;
         rates.push(pages[i].name + ' ' + slot + ' = ' + Math.round(bps) + ' B/s');
         if (slot.indexOf('in:') === 0) { priPipes++; if (bps < 200) priDark++; }
-        else { stdPipes++; if (bps > 1000) stdHot++; }
+        else {
+          stdPipes++;
+          if (bps > 1000) {
+            stdHot++;
+            // WHY is it hot? The law parks every alternate path EXCEPT while a
+            // wake/failback overlap is in flight (make-before-break), so the
+            // only reading of a hot standby that matters is whether a wake was
+            // ARMED for that slot — and if it was, whether it has outlived
+            // WAKE_MAX. Reporting the number alone cannot tell "the ONE-PIPE
+            // law is broken" from "a lawful overlap ran through the window",
+            // and that ambiguity is what put this leg in quarantine.
+            const rk = slot.slice(4);
+            const fb = (b.m.fb || []).find((f) => f.rk === rk) || null;
+            const sv = (b.m.standbyVia || []).find((x) => x.rk === rk) || null;
+            hotWhy.push({
+              seat: pages[i].name, slot, bps: Math.round(bps),
+              wakeAgeMs: fb && fb.wakeAt ? b.t - fb.wakeAt : null,
+              prefSinceMs: fb && fb.prefSince ? b.t - fb.prefSince : null,
+              dark: fb ? !!fb.dark : null, lastSwitchAgeMs: fb && fb.lastSwitch ? b.t - fb.lastSwitch : null,
+              demand: (b.m.demand || []).filter((d) => sv && d.indexOf(sv.via + '|') === 0 && d.indexOf('|' + sv.sid + '=') > 0),
+            });
+          }
+        }
       }
     }
     console.log('per-pipe inbound rates (redundant slots, window ' + (attempt + 1) + '):\n  ' + rates.join('\n  '));
@@ -199,7 +221,8 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     if (attempt === 0) console.log('  (no clean standby window — churn mid-measurement; one re-measure)');
   }
   check('primary pipes flow (redundant slots): ' + (priPipes - priDark) + '/' + priPipes + ' > 0', priPipes > 0 && priDark < priPipes, { priPipes, priDark });
-  check('standby pipes are PARKED (~0 B/s): ' + (stdPipes - stdHot) + '/' + stdPipes, stdPipes > 0 && stdHot === 0, { stdPipes, stdHot });
+  if (hotWhy.length) console.log('  HOT STANDBY forensics: ' + JSON.stringify(hotWhy));
+  check('standby pipes are PARKED (~0 B/s): ' + (stdPipes - stdHot) + '/' + stdPipes, stdPipes > 0 && stdHot === 0, { stdPipes, stdHot, hotWhy });
 
   // ---- B. FAILOVER WAKE on a relayed stg:* copy ----------------------------
   // Find receiver page P whose 'stg:<stager>' primary via is a page B that is
