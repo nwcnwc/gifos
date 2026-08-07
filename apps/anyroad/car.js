@@ -266,6 +266,16 @@
     // Hills. pitch>0 means nose up, so gravity pulls backwards along the body.
     accel -= GRAVITY * Math.sin(car.pitch) * 0.85;
 
+    // Backwards WITHOUT being asked is drift, not driving. A rebound off a
+    // wall or a slope could push the car to the reverse floor and leave it
+    // there, with only rolling resistance (0.45 m/s²) to argue — more than
+    // ten seconds of unasked reverse, which a player reads as "the car just
+    // wants to drive backwards". A real car in gear resists this (engine
+    // braking); ours now does too. Only an ARMED reverse — brake held at a
+    // standstill until revArm winds up — is exempt, so deliberate reversing
+    // is untouched and everything else dies in under two seconds.
+    if (car.speed < -0.1 && car.revArm < REV_ARM) accel += 3.2;
+
     car.speed += accel * dt;
     if (Math.abs(car.speed) < 0.12 && inThrottle === 0) car.speed = 0;
     // The reverse floor is not conditional on HOW you ended up going backwards.

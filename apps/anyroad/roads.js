@@ -220,6 +220,16 @@
   // ---- fetch or recall -----------------------------------------------------
   var memory = {};   // key -> parsed geometry, this session
 
+  // A cached DENSE record (roads-only, because the buildings query once failed
+  // or came back too big) must not be the tile's fate forever. It was: the
+  // cache served it before any fetch was considered, so one bad evening at the
+  // map server took a neighbourhood's buildings away permanently — "my own
+  // address is building-less", from a player whose tile had 504'd once. A
+  // dense record now carries its fetch time and EXPIRES: past the TTL the tile
+  // is re-asked WITH buildings, and only if that fails again does the stale
+  // roads-only copy carry on (degraded service, never a degraded cache).
+  var DENSE_RETRY_MS = 6 * 60 * 60 * 1000;
+
   function loadTile(tile) {
     var key = root.Geo.tileKey(tile);
     if (memory[key]) return Promise.resolve(memory[key]);
@@ -228,10 +238,23 @@
       return db().get('t' + key).catch(function () { return null; });
     }).then(function (rec) {
       if (rec && rec.ways) {
-        var hit = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [], dense: !!rec.dense };
-        memory[key] = hit;
-        index[key] = Date.now(); saveIndex();
-        return hit;
+        // Records saved before `at` existed have no timestamp — treated as
+        // stale, so every player's dense tiles retry once and get stamped.
+        var staleDense = rec.dense && (Date.now() - (rec.at || 0) > DENSE_RETRY_MS)
+          && root.Sources.current.quality !== 'low';
+        if (!staleDense) {
+          var hit = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [], dense: !!rec.dense };
+          memory[key] = hit;
+          index[key] = Date.now(); saveIndex();
+          return hit;
+        }
+        return fetchTile(tile, key).catch(function () {
+          // The retry failed too — the stale roads are still a world to drive.
+          var old = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [], dense: true };
+          memory[key] = old;
+          index[key] = Date.now(); saveIndex();
+          return old;
+        });
       }
       return fetchTile(tile, key);
     });
@@ -263,6 +286,7 @@
       index[key] = Date.now();
       return db().put({
         id: 't' + key, ways: geom.ways, bld: geom.bld, wat: geom.wat, dense: !!geom.dense,
+        at: Date.now(),   // when these bytes were fetched — a dense record expires against this
       }).catch(function () {}).then(evictIfNeeded).then(saveIndex).then(function () { return geom; });
     });
   }
