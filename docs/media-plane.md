@@ -100,6 +100,22 @@ drops away exactly when they take on the fan-up cost. Track swaps mid-stage
 senders — the fresh track reaches the room through the `stg:` ship, which
 re-ships exactly when a track actually changes.
 
+**A stage feed is whatever the stager is broadcasting, and that is often a
+VOICE ALONE.** `mySelfStream()` ships video+audio, audio-only or video-only;
+only "nothing at all" ships nothing. This is not a nicety: join-quiet is the
+default (`muted: true, camOff: true`) and the camera idle-stop removes the
+video track after 20s of camOff, so a camera-off stager has no video to send —
+and because the main senders are parked, a feed that required video meant the
+room could not HEAR them either. It did exactly that until 2026-08-06
+(`test/drills/e2e-stage-voice.js` is the guard; the room went silent ~20s in).
+Two consequences downstream: the S1 strip simply leaves that stager's cell
+dark (the packer skips a zero-dimension source), and the receiver's pipe
+WATCHDOG skips a claim with no video track — every rail there judges a video
+pipe, and a video-less claim would otherwise read as a husk and wake a standby
+forever. The cost of that skip is stated in the code: no dark detection for an
+audio-only slot, so its failover is the announce/grace re-claim rather than a
+sub-second make-before-break wake.
+
 One composited strip for the picture, **not** ≤C separate video streams —
 fan-out is one cheap stream and a fixed panel is what a broadcast tier wants
 (audio is the exception above, and ≤C Opus tracks are near-free). Latency = 1 (to S1) + ~2

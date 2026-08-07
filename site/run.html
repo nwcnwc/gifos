@@ -7510,10 +7510,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // re-grab) — which is exactly when shipMos must re-ship. A fresh
     // MediaStream every sweep used to churn the stg ships with an
     // unship+reship (renegotiation) every 2s.
+    //
+    // A STAGE FEED IS NOT A VIDEO FEED — it is whatever I am broadcasting, and
+    // for most of a meeting that is a VOICE. This function used to bail on
+    // `if (!v) return null`, throwing the audio track it fetched on the very
+    // next line away with it, and the consequence was the worst kind of
+    // meeting bug: a staged member with the camera off went SILENT to the
+    // whole room ~20 seconds in. Join-quiet is the default (`myStatus =
+    // { muted: true, camOff: true }`), the camera idle-stop then STOPS AND
+    // REMOVES the video track after 20s of camOff (reactCamIdle), so
+    // sentVideoTrack() goes null — and while staged this aux stream is the
+    // ONLY way anything leaves the device, because refreshOutbound parks the
+    // main senders ("stagers live on the Stage ONLY"). Measured 2026-08-06,
+    // three seats, stager unmuted with the camera off: at +10s every listener
+    // held the stg feed and heard it (stageEarLevel 1); at +20s the stager's
+    // stg jobs were 0 and the ear was silent; at +30s the listeners had
+    // dropped the claim. The camera-on arm was steady throughout.
+    //
+    // So: ship what exists. Video+audio, audio-only, or video-only — nothing
+    // to broadcast at all is the ONLY case that returns null.
     let selfShipMemo = null;
     const mySelfStream = () => {
-      const v = sentVideoTrack(); if (!v) return null;
+      const v = sentVideoTrack();
       const a = (localStream && localStream.getAudioTracks()[0]) || null;
+      if (!v && !a) return null;   // nothing to broadcast — no feed to ship
       if (!selfShipMemo || selfShipMemo.v !== v || selfShipMemo.a !== a) {
         // WHICH track moved? Rebuilding this memo mints a new MediaStream id,
         // which re-ships every stg job and cascades down the relay tree (each
@@ -7526,9 +7546,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           window.__selfMemoLog.push({
             t: Date.now(),
             why: !selfShipMemo ? 'first'
-              : (selfShipMemo.v !== v ? 'video-track-swapped' : 'audio-track-swapped'),
+              : (selfShipMemo.v !== v
+                ? (!v ? 'video-track-GONE (camera off / idle-stop) — audio-only feed'
+                  : !selfShipMemo.v ? 'video-track-BACK' : 'video-track-swapped')
+                : 'audio-track-swapped'),
             oldV: selfShipMemo && selfShipMemo.v ? String(selfShipMemo.v.id).slice(0, 8) : null,
-            newV: String(v.id).slice(0, 8),
+            newV: v ? String(v.id).slice(0, 8) : null,
             oldA: selfShipMemo && selfShipMemo.a ? String(selfShipMemo.a.id).slice(0, 8) : null,
             newA: a ? String(a.id).slice(0, 8) : null,
             blur: (typeof blurLevelFor === 'function' ? blurLevelFor('me') : -1),
@@ -7539,7 +7562,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           });
           if (window.__selfMemoLog.length > 40) window.__selfMemoLog.shift();
         } catch (e) {}
-        selfShipMemo = { v, a, stream: new MediaStream(a ? [v, a] : [v]) };
+        // The memo is still keyed on the TRACK PAIR, so the stream id changes
+        // only when a track really changes — losing the camera is exactly such
+        // a change (the container goes from two m-lines to one), and it costs
+        // ONE re-ship, not the per-sweep churn the memo exists to prevent.
+        selfShipMemo = { v, a, stream: new MediaStream([v, a].filter(Boolean)) };
       }
       return selfShipMemo.stream;
     };
@@ -8055,6 +8082,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         for (const [rk, pri] of mosIn) {
           if (!isRedun(rk)) continue;
           const fb = mosFb.get(rk); if (!fb) continue; // claimRedun mints it; no claim, no watch
+          // AN AUDIO-ONLY CLAIM IS NOT A HUSK. A staged member with the camera
+          // off broadcasts a video-less stg feed (see mySelfStream), and every
+          // rail below judges a VIDEO pipe: pipeBytes has no video receiver to
+          // read, returns -1, and the hot-void rail reads that as "a hot
+          // primary with ZERO bytes for 12s" — declaring the pipe dark and
+          // demand-waking the standby FOREVER, because -1 can never advance.
+          // That is a ONE-PIPE violation manufactured out of a feed that is
+          // working perfectly. A claim with no video track has no video pipe;
+          // there is nothing here to judge.
+          // COST, STATED: this slot gets no dark detection, so its failover is
+          // not make-before-break. A dead peer still loses the claim through
+          // the announce-ageing/grace path in claimRedun and the next sweep
+          // re-claims a live candidate, so the feed recovers — it just takes
+          // the grace window instead of a sub-second wake. Real flow evidence
+          // for audio (inbound AUDIO bytes here, and the same in claimRedun's
+          // `flowing` test, which today counts decoded video frames) is the
+          // follow-up that would restore it.
+          if (pri.stream && !pri.stream.getVideoTracks().length) continue;
           const bytes = await pipeBytes(pri);
           // Forensics ring (frza17: a husk claim's standby was never woken and
           // no theory survived — record what each sample actually SAW)
