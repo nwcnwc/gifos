@@ -108,6 +108,10 @@
  *   freeze        LONG app-switch: tab lifecycle FROZEN — JS fully stops
  *   thaw [gapS]   return from freeze; optional backdated beat gap (secs)
  *   radio off|on  coverage dropout: WS+DC silent BOTH ways, no close events
+ *   sever <peer>|all [secs]  partition me from that peer (transport closed,
+ *                 frames dropped) while my RELAY socket stays up — run it on
+ *                 both halves and you have manufactured the §6 fork ACROSS
+ *                 BOXES; `door` on each half is then the thing under test
  *   battery <lvl> [charging|drain]   drive the fake battery (drain = losing
  *                 ground while plugged in)
  *   beatgap <s>   backdate the beat clock       idlemin <m>  backdate touch
@@ -1047,6 +1051,26 @@ async function runCmd(line) {
       window.dispatchEvent(new Event(off ? 'offline' : 'online'));
     }, lever.radioOff);
     console.log('  radio → ' + (lever.radioOff ? 'OFF (coverage dropout: WS+DC+onLine dark, no close events)' : 'on (online event fired)'));
+    return true;
+  }
+  // sever <peer-prefix|all> [secs] — a one-sided PARTITION against a named
+  // peer: its transport is closed and every frame to or from it is dropped,
+  // while my relay socket stays attached. The point is the shape it
+  // manufactures ACROSS BOXES: two halves that cannot reach each other yet are
+  // still socketed to ONE relay session — bug ledger §6's live fork. Run it on
+  // both halves for a symmetric partition, and check `door` on each.
+  // DEBUG=on only (the page hook refuses otherwise).
+  if (cmd === 'sever') {
+    const who = (rest[0] || '').trim();
+    const secs = parseFloat(rest[1]) || 60;
+    if (!who) { console.log('  usage: sever <peer-prefix|all> [secs]   (see `roster` for prefixes)'); return true; }
+    const targets = (await page.evaluate(() => window.__gifosVideo.peerIds()).catch(() => []))
+      .filter((p) => who === 'all' || String(p).indexOf(who) === 0);
+    if (!targets.length) { console.log('  no peer matches "' + who + '" — I may not have a pc for it (see `roster`)'); return true; }
+    for (const pid of targets) {
+      const r = await page.evaluate((a) => window.__gifosVideo.severPair(a.pid, a.ms), { pid, ms: Math.round(secs * 1000) }).catch((e) => ({ err: String(e).slice(0, 80) }));
+      console.log('  sever ' + String(pid).slice(0, 12) + ' → ' + JSON.stringify(r));
+    }
     return true;
   }
   if (cmd === 'battery') {
