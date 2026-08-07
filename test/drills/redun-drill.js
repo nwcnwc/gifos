@@ -21,6 +21,13 @@
 //      (Not "demand 'i'": a standby that was never woken has no demand record
 //      at all, which is the strongest parked there is. See leg C.)
 //
+// The drill turns the STAGER'S CAMERA ON before it steps up, and says so in an
+// assertion. That is not decoration: run.html boots join-quiet and the camera
+// idle-stop removes the video track 20s later, at which point mySelfStream() is
+// null and a stager broadcasts nothing at all — so every leg below B was
+// unreachable and the drill spent months reporting a precondition failure as a
+// redundancy defect. See the note at the stage step.
+//
 // Run: node test/drills/redun-drill.js          (ports/chrome overridable via env)
 const { spawn } = require('child_process');
 const path = require('path');
