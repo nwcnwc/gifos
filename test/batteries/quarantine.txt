@@ -138,8 +138,9 @@ mirror-drill  NONDETERMINISTIC known-unfixed: 16/18 green measured 2026-08-06 on
 # FILED product bug docs/bug-pipe-stg-freeze-2026-08-05.md — proven to belong
 # to the lane by an interleaved A/B (3/3 on, 0/3 off, load excluded).
 #
-# RE-MEASURED AND SHARPENED 2026-08-06 (clawbox, Chrome 151, idle, 3 runs —
-# 0/3 green; dossier updated, detector corrected in cd2efeb):
+# RE-MEASURED AND SHARPENED 2026-08-06 (clawbox, Chrome 151, idle: 3 runs with
+# the detector instrumented + 1 run of the committed suite = 0/4 green; dossier
+# updated, detector corrected in cd2efeb):
 #   * The old detector over-reported. feedsInfo().frames is the ELEMENT's
 #     counter, and a claim swap installs a NEW <video> that restarts at zero —
 #     2 of the 3 stalls in run 1 were that, at seats decoding perfectly.
@@ -153,4 +154,4 @@ mirror-drill  NONDETERMINISTIC known-unfixed: 16/18 green measured 2026-08-06 on
 # Unfixed, and the fix is a media-plane change — so the entry stays and the
 # guard stays red. NONDETERMINISTIC is kept: the suite came up green in the
 # 0.9.4 gate, so a lucky green must not raise ESCAPED.
-e2e-pipe  NONDETERMINISTIC known-unfixed: leg 3 is the filed stg-freeze (docs/bug-pipe-stg-freeze-2026-08-05.md) — bytes arriving, nothing decoding, measured 0/3 green 2026-08-06. Promote after the stg-freeze fix lands.
+e2e-pipe  NONDETERMINISTIC known-unfixed: leg 3 is the filed stg-freeze (docs/bug-pipe-stg-freeze-2026-08-05.md) — bytes arriving, nothing decoding, measured 0/4 green 2026-08-06. Promote after the stg-freeze fix lands.
