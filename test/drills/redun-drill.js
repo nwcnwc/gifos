@@ -144,6 +144,23 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     if (stgHolders.length >= 2) break;
     await sleep(2500);
   }
+  if (stgHolders.length < 2) {
+    // WHERE DID THE FEED STOP? Print the lane, hop by hop: what the stager is
+    // shipping ('+' active, '·' parked), what each seat has been ANNOUNCED, and
+    // what it holds. "Nobody holds it" is a symptom with at least three causes
+    // (the stager never shipped / the up-hop never linked / the S1 flood never
+    // spread), and only this tells them apart.
+    for (let i = 0; i < N; i++) {
+      const d = await pages[i].page.evaluate(() => {
+        const m = __gifosVideo.mosaic();
+        return { coord: m.coord ? m.coord.pc + '/' + m.coord.r + '.' + m.coord.i : null,
+          stgJobs: (m.jobsActive || []).filter((x) => x.indexOf('stg:') === 0).map((x) => x.slice(0, 14) + x.slice(-1)),
+          stgAnn: (m.annSid || []).filter((x) => x.indexOf('stg') >= 0).length,
+          claims: (m.claims || []).filter((k) => k.indexOf('stg:') === 0 || k === 'sgs'), up: m.up, stagers: m.stagers };
+      }).catch((e) => String(e).slice(0, 80));
+      console.log('  [' + pages[i].name + (i === stagerIdx ? '*' : ' ') + '] ' + JSON.stringify(d));
+    }
+  }
   check('the stager\'s stg feed reaches the room (>=2 seats hold stg:<stager>)', stgHolders.length >= 2, stgHolders.join(','));
 
   // ---- redundancy settles: some page holds a claim WITH a standby ----------
