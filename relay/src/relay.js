@@ -145,6 +145,13 @@ const GBLOB_CAP = 4096;             // a sealed greeter address — opaque ciphe
 // the forever the old rule granted. NEVER above GREETER_TTL_MS: a blobless
 // claim must be WEAKER than a registered greeter's, never stronger.
 const MINT_GRACE_MS = Math.min(60 * 1000, GREETER_TTL_MS);
+// How long a genesis claim survives WITHOUT a live greeter registration behind
+// it, measured from the registration's EXPIRY. This is E3's re-knock window:
+// mesh-wire re-registers on sock.onopen (~1s, worst case its 8s throttle), so
+// 60s is generous. It must be measured from a fixed point — see genesisHash;
+// the old rule measured from the last KNOCK, which every heartbeat pushed
+// forward, so the window never closed.
+const CLAIM_GRACE_MS = Math.min(60 * 1000, GREETER_TTL_MS);
 
 // Admin-room ban lists ride in socket attachments (2KB serialized cap) —
 // keep entries tiny. Plain rooms have NO ban list at all: exclusion there is
@@ -303,13 +310,44 @@ export class Session {
     // the real genesis can found for real. A socket that HAS registered keeps
     // the old TTL rule untouched — that is the E3 re-knock window, and
     // shortening it would re-open the 2026-07-26 room tear.
+    // THE STALE-REGISTRATION GENESIS (found 2026-08-06 by
+    // test/tools/door-registry-probe.js, 5/5 reproducible; same absorbing shape
+    // as the ghost above, reached through a DIFFERENT door). The rule here used
+    // to be `a.gblob && a.gseen + GREETER_TTL_MS > now` — "registered before,
+    // still knocking". Both halves of that are traps:
+    //   * `a.gblob` is NEVER cleared when the registration expires, so "has a
+    //     blob" outlives "is a greeter" forever, and
+    //   * `a.gseen` is refreshed by EVERY knock (knock() stamps it whenever
+    //     a.gkh is set), INCLUDING blobless ones — which is exactly a seat's
+    //     state after requeue(): same socket, state 0, knocking every ~10s and
+    //     registering nothing.
+    // So the window that was meant to be "one TTL to re-register" renewed itself
+    // on every heartbeat and never closed. Meanwhile greeterList() below demands
+    // `gexp > now`, so that same socket contributed NO blob: the room was
+    // founded by a hash nobody would ever present, with an empty pool, and every
+    // newcomer got {founded:false, admitted:false, list:[]} forever. Worse, the
+    // dead claim RESURRECTED over a legitimate founder that had taken the room
+    // while it was briefly lapsed. That is the 2026-07-29 field signature
+    // (hold-mint-gap, listLen 0, sealed []) and MINT_GRACE_MS does not cover it —
+    // that clause only bounds sockets which NEVER registered.
+    //
+    // The rule is now the one the ghost fix already taught, applied uniformly:
+    // A KNOCK IS PROOF OF LIFE, NEVER PROOF OF GREETING. A genesis claim must be
+    // backed by a LIVE registration, or by a bounded grace measured from a fixed
+    // point that a heartbeat cannot push forward — the mint for a founder still
+    // taking its seat, the EXPIRY for a greeter that has lapsed. E3's re-knock
+    // window survives: a real greeter whose blob has just aged out still holds
+    // the room for CLAIM_GRACE_MS while it re-registers (mesh-wire re-registers
+    // on sock.onopen in ~1s, worst case its 8s throttle), which is what stops the
+    // 2026-07-26 room tear. What does not survive is holding it forever without
+    // ever greeting anyone again.
     const now = Date.now();
     for (const ws of this.members()) {
       const a = this.att(ws);
       if (!a.gkh) continue;
-      if (a.gblob && (a.gexp || 0) > now) return a.gkh;                    // a registered greeter, live
-      if (a.gblob && (a.gseen || 0) + GREETER_TTL_MS > now) return a.gkh;  // registered before, still knocking
-      if (!a.gblob && (a.gmint || 0) + MINT_GRACE_MS > now) return a.gkh;  // a founder still taking its seat
+      if (a.gblob && (a.gexp || 0) > now) return a.gkh;                      // a registered greeter, live
+      if (a.gblob && (a.gexp || 0) + CLAIM_GRACE_MS > now) return a.gkh;     // lapsed — a bounded window to re-register, measured from EXPIRY (a knock cannot extend it)
+      if (!a.gblob && (a.gmint || 0) + MINT_GRACE_MS > now) return a.gkh;    // a founder still taking its seat
     }
     return null;
   }
