@@ -407,6 +407,33 @@
      set; a failsafe timeout guarantees we never stay hidden if a theme file
      404s or hangs. See js/gifos-themes.js. -->
 <style id="theme-gate">html.gifos-booting body{visibility:hidden}html.gifos-booting{background:var(--bg,#0a0a0f)}</style>
+<!-- THE ENTRY DECIDES THE CHROME, AND IT DECIDES IT BEFORE THE FIRST PAINT.
+     `body.solo-app` / `body.app-room` are added by the boot script thousands of
+     lines below, so an app launch used to paint the MEETING chrome — menubar,
+     grid, feed — and then take it away again. Nathan saw the flash launching the
+     App Store, and it is not only ugly: it is layout and paint work for a UI the
+     page has already decided it will not show.
+     ONE RUNTIME says the traits are minted at entry and immutable for the page's
+     life (docs/one-runtime.md), so the hash ALREADY holds the answer here, in
+     <head>, before <body> exists. Stamp the same classes on <html> now; the
+     rules below are written `.solo-app .bar` (descendant), so they match whether
+     the class sits on <html> or on <body>, and the boot script's later
+     body.classList.add stays exactly as it was — this is a paint-time head
+     start, not a second source of truth. -->
+<style id="entry-chrome">html.solo-app .bar,html.solo-app #grid,html.solo-app #feed{display:none!important}</style>
+<script>(function(){try{
+  // SOLO ONLY, deliberately. The three body.solo-app rules below are
+  // unconditional for the page's life, so mirroring them on <html> can never go
+  // stale. The app-room rules are NOT: they read
+  // `body.app-room:not(.call-on)`, and `call-on` is only ever added to <body> —
+  // an <html>.app-room copy would have no such exception and would keep the grid
+  // hidden FOREVER once an app-room call started. A launch from the desktop is
+  // #id=, which is the solo case and the one that flashes.
+  // Read the HASH only: the channel loader carries pathname + hash and DROPS the
+  // query, so #id= is the only form that survives a version redirect.
+  var p=new URLSearchParams((location.hash||'').replace(/^#/,''));
+  if(p.get('id'))document.documentElement.classList.add('solo-app');
+}catch(e){}})();</script>
 <script>(function(){var h=document.documentElement;h.className+=(h.className?' ':'')+'gifos-booting';var shown=0;
 function show(){if(shown)return;shown=1;h.classList.remove('gifos-booting');
 try{var bg=h.style.getPropertyValue('--bg');var m=document.querySelector('meta[name=theme-color]');if(bg&&m)m.setAttribute('content',bg.trim());}catch(e){}}
