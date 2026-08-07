@@ -1025,6 +1025,19 @@ function check(name, cond, detail) {
     window.Blaster.clear();
     window.Blaster.setEnabled(true);
     window.Animals.clear();
+    // TRAFFIC TOO, or the bolt never reaches the deer. This block wires
+    // `traffic: (x,z,r) => Traffic.shootAt(x,z,r)` into the blaster's own ctx,
+    // and the app's rAF loop keeps respawning cars between blocks — measured
+    // 6-7 live at the moment of the shot. Traffic.shootAt's 2m radius plus the
+    // bolt's 1.6m means any car within 3.6m of the 60m line of fire EATS the
+    // bolt; Blaster.update then splices it and `killed` stays null, so the deer
+    // survives to damage the car. That is the exact two-failure signature this
+    // suite flaked with on the 0.9.5 gate (hit:null + health 81.3%), and it is
+    // why the failing run's traffic had spawned at 78m while the green retry's
+    // was at 111m. Not a physics-tick race — the whole block is one synchronous
+    // evaluate and the bolt covers 60m in 16 fixed steps, so there is nothing
+    // to poll. It is test isolation.
+    window.Traffic.clear();
     window.Car.repair(me);
     me.speed = 0;
 
