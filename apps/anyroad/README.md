@@ -115,6 +115,55 @@ horizon band, the road kerb, and the contact shadow — and on the gate's
 rasteriser the sky one returned 1.0 for every pixel, flattening the entire sky.
 Ascending edges, then subtract.
 
+**OSM says what KIND of building it is, and we used to throw that away.** The
+parser tested `tags.building` for truthiness and kept only the height, so
+`building=house`, `building=retail` and `building=warehouse` were the same grey
+extrusion. `classify()` maps the tag (plus `shop`/`office`/`amenity`/`tourism`
+on the same way) into eight classes, which drive the facade, the roof, the
+window module and the default height when nobody tagged one — that last matters
+more than it sounds, because `building=yes` with no height used to be 8 m for
+everything, so a suburb of bungalows and a business park had identical skylines.
+`building=yes` is by far the commonest value and says nothing, so it is resolved
+by FOOTPRINT: 90 m² and two storeys is a house, 4000 m² and two storeys is a
+shed. A tile cached before classes existed simply has no third element in its
+`bld` tuple — that reads as UNKNOWN and the size heuristic picks it up, so old
+caches upgrade themselves.
+
+**A pitched roof is what makes a house a house.** No amount of facade shading
+substitutes for it — a flat-topped box reads as a block of flats at any size.
+The roof is built over a RIDGE, not an apex: an apex over the centroid gives
+every house a pyramid and a street of pyramids is a street of tents. The ridge
+runs along the footprint's long axis, hipped or gabled by the building's own
+seed, and collapses to the old pyramid for a square plan. Then eaves that
+oversail by a third of a metre, and a chimney — four square metres of geometry
+and the second loudest "this is a house" signal there is.
+
+**Shadows are BAKED, because the sun never moves.** A shadow map is the honest
+way and the wrong trade here: a depth pass over the whole world every frame, on
+a phone, for a static sun. Instead `buildShadows()` computes them once per tile
+as flat dark polygons lying on the ground — zero per-frame cost beyond the fill,
+measured at about 5% of frame time. The shape of a shadow is the Minkowski sum
+of the footprint and the segment the sun sweeps it along, which for a convex
+footprint is the convex hull of the footprint and its translated copy. That is
+not aesthetics: overlapping translucent polygons DOUBLE-DARKEN, so a shadow
+drawn as "footprint plus swept quads" gets a black seam down its middle. One
+hull per building has no self-overlap; overlap *between* buildings is why the
+alpha is 0.20 and not the 0.34 it started at.
+
+**The sun's elevation is the whole character of the lighting.** It sits at about
+24°, and each of the three reasons is load-bearing: overhead, every shadow is a
+puddle under its own building and the picture is flat; a low sun models the
+sides of things rather than their tops; and the chase camera only sees about 25°
+above the horizon, so a sun at 40° is a sun nobody ever sees. Tree and building
+shadows live in separate meshes so the tree ones can be dropped at exactly the
+same distance as the trees — a shadow with nothing standing in it is worse than
+no shadow.
+
+**Trees are solid.** The trunks go into the same wall index the buildings use,
+so the car collides with a tree through exactly the same path it collides with a
+building — one collision system, not two. That is the point of putting them
+beside a road: leaving the road should cost something.
+
 **Trees are grown, not fetched.** OSM knows where the woods are, but asking for
 them is another layer in every Overpass query, on donated infrastructure, for
 scenery. Instead `roads.js scatter()` plants a deterministic hash-driven scatter

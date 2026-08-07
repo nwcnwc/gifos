@@ -26,7 +26,7 @@
   // Every GL mesh a built road tile owns. Listed once: a mesh missing from this
   // list is a buffer that is never released, and the leak only shows up as a
   // browser tab that dies after twenty minutes of driving.
-  var MESHES = ['roads', 'buildings', 'water', 'trees'];
+  var MESHES = ['roads', 'buildings', 'water', 'trees', 'shadows', 'treeShadows'];
 
   var world = {
     frame: null,
@@ -480,8 +480,8 @@
     // Assemble the scene from whatever has actually loaded.
     var scene = { eye: [camera.x, camera.y, camera.z], target: [camera.tx, camera.ty, camera.tz],
                   fov: 60 + Math.min(14, Math.abs(car.speed) * 0.35), far: DRAW_DISTANCE, time: clock,
-                  terrain: [], roads: [], buildings: [], water: [], trees: [], cars: [],
-                  animals: root.Animals.drawList() };
+                  terrain: [], roads: [], buildings: [], water: [], trees: [], shadows: [],
+                  cars: [], animals: root.Animals.drawList() };
 
     for (var tk in world.terrain) {
       var slot = world.terrain[tk];
@@ -494,6 +494,7 @@
       scene.roads.push(r.built.roads);
       scene.buildings.push(r.built.buildings);
       scene.water.push(r.built.water);
+      if (r.built.shadows) scene.shadows.push(r.built.shadows);
       // Scenery has its own, much shorter draw distance. Roads and buildings
       // are what you navigate by and must reach the horizon; trees at a
       // kilometre are three hundred draw-calls' worth of fill inside the fog
@@ -501,6 +502,9 @@
       if (r.built.trees && (!r.built.centre
           || Math.hypot(r.built.centre.x - car.x, r.built.centre.z - car.z) < TREE_DISTANCE)) {
         scene.trees.push(r.built.trees);
+        // Their shadows go with them — a shadow with nothing standing in it is
+        // worse than no shadow.
+        if (r.built.treeShadows) scene.shadows.push(r.built.treeShadows);
       }
     }
     if (seaVisible()) scene.water.push(seaMesh());

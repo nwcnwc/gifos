@@ -73,7 +73,7 @@
       if (tags.highway && ROAD_CLASS[tags.highway]) {
         ways.push([tags.highway, flat]);
       } else if (tags.building && withBuildings) {
-        if (bld.length < MAX_BUILDINGS) bld.push([buildingHeight(tags), flat]);
+        if (bld.length < MAX_BUILDINGS) bld.push([buildingHeight(tags), flat, classify(tags)]);
       } else if (tags.natural === 'water') {
         wat.push(flat);
       }
@@ -81,12 +81,72 @@
     return { ways: ways, bld: bld, wat: wat };
   }
 
+  // ---- what KIND of building is this? --------------------------------------
+  // OSM has always told us. `building=house`, `building=retail`,
+  // `building=warehouse` — the value was right there in the response and the
+  // parser tested `tags.building` for TRUTHINESS and threw the value away, so
+  // a terrace of houses, a shopping parade and a distribution shed were the
+  // same grey extrusion at whatever height they happened to have.
+  //
+  // Eight classes, because eight is what the eye can tell apart from a moving
+  // car. They drive the facade, the roof, the default height when nobody
+  // tagged one, and whether the ground floor is a shopfront.
+  var CLS = {
+    UNKNOWN: 0, HOUSE: 1, APARTMENTS: 2, RETAIL: 3,
+    OFFICE: 4, INDUSTRIAL: 5, OUTBUILDING: 6, CIVIC: 7,
+  };
+
+  var BUILDING_CLASS = {
+    // Someone lives here, one household at a time.
+    house: 1, detached: 1, semidetached_house: 1, terrace: 1, terraced_house: 1,
+    bungalow: 1, residential: 1, cabin: 1, static_caravan: 1, houseboat: 1, farm: 1,
+    // Someone lives here, stacked.
+    apartments: 2, dormitory: 2, hotel: 2,
+    // You buy something here — the class that gets a shopfront.
+    retail: 3, supermarket: 3, kiosk: 3, shop: 3, mall: 3,
+    // Someone works here at a desk.
+    commercial: 4, office: 4, government: 4,
+    // Someone works here with a forklift.
+    industrial: 5, warehouse: 5, factory: 5, manufacture: 5, hangar: 5,
+    silo: 5, storage_tank: 5, barn: 5, farm_auxiliary: 5, greenhouse: 5, service: 5,
+    // Too small to be anything: sheds, garages, a roof on posts.
+    garage: 6, garages: 6, shed: 6, hut: 6, roof: 6, carport: 6, cabin_shed: 6,
+    // Everyone's building.
+    church: 7, chapel: 7, cathedral: 7, mosque: 7, synagogue: 7, temple: 7,
+    school: 7, university: 7, college: 7, kindergarten: 7, hospital: 7,
+    civic: 7, public: 7, museum: 7, train_station: 7, sports_centre: 7, stadium: 7,
+  };
+
+  function classify(tags) {
+    var c = BUILDING_CLASS[tags.building];
+    if (c) return c;
+    // The building tag said nothing useful ("yes", by a mile the commonest
+    // value). Other tags on the same way often do — a way carrying shop=* IS a
+    // shop whatever its building tag claims.
+    if (tags.shop) return CLS.RETAIL;
+    if (tags.office) return CLS.OFFICE;
+    if (tags.tourism === 'hotel' || tags.tourism === 'hostel') return CLS.APARTMENTS;
+    if (tags.amenity === 'place_of_worship' || tags.amenity === 'school'
+        || tags.amenity === 'hospital' || tags.amenity === 'townhall'
+        || tags.amenity === 'university' || tags.amenity === 'college') return CLS.CIVIC;
+    if (tags.amenity === 'restaurant' || tags.amenity === 'cafe'
+        || tags.amenity === 'bar' || tags.amenity === 'pub'
+        || tags.amenity === 'fast_food' || tags.amenity === 'bank'
+        || tags.amenity === 'pharmacy') return CLS.RETAIL;
+    return CLS.UNKNOWN;   // resolved by SIZE at build time — see extrude()
+  }
+
+  // Plausible heights when nobody tagged one, per class. This matters more than
+  // it sounds: `building=yes` with no height was 8 m for everything, so a
+  // suburb of bungalows and a business park had identical skylines.
+  var CLASS_HEIGHT = [8, 6.5, 14, 5.5, 15, 9, 3, 12];
+
   function buildingHeight(tags) {
     var h = parseFloat(tags.height);
     if (isFinite(h) && h > 0) return Math.min(300, h);
     var lv = parseFloat(tags['building:levels']);
     if (isFinite(lv) && lv > 0) return Math.min(300, lv * 3.2);
-    return 8;   // a plausible two storeys when nobody said
+    return CLASS_HEIGHT[classify(tags)] || 8;
   }
 
   // ---- persistence ---------------------------------------------------------
@@ -355,7 +415,12 @@
 
   function scatter(frame, tile, geom, roadIndex, wallIndex) {
     var out = { pos: [], nrm: [], col: [], idx: [] };
-    if (!tile) return pack(out, ['pos', 'nrm', 'col']);
+    // Trunks, as collidable segments and as shadow casters. A tree you can
+    // drive through is scenery; a tree you cannot is a hazard, and the whole
+    // point of putting them beside a road is that leaving the road costs
+    // something.
+    var trunks = [], shade = [];
+    if (!tile) return { mesh: pack(out, ['pos', 'nrm', 'col']), trunks: trunks, shade: shade };
     var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
     var c1 = frame.toWorld(b.north, b.west), c2 = frame.toWorld(b.south, b.east);
     var x0 = Math.min(c1.x, c2.x), x1 = Math.max(c1.x, c2.x);
@@ -398,11 +463,103 @@
         var tint = conifer ? [0.16 + r1 * 0.05, 0.30 + r2 * 0.07, 0.20 + r1 * 0.05]
                            : [0.22 + r2 * 0.14, 0.38 + r1 * 0.12, 0.16 + r2 * 0.08];
         if (r2 > 0.93) tint = [0.52, 0.40, 0.16];       // one in fifteen has turned
-        tree(x, y, z, conifer ? h * 1.25 : h, conifer ? rad * 0.62 : rad, tint, out);
+        var th = conifer ? h * 1.25 : h, tr = conifer ? rad * 0.62 : rad;
+        tree(x, y, z, th, tr, tint, out);
+        // The trunk as a small square of wall segments. A single segment would
+        // be a flat plank the car can slide along the edge of; four make a post
+        // that pushes you out whichever way you hit it.
+        var tw = Math.max(0.22, tr * 0.14);
+        trunks.push(x - tw, z - tw, x + tw, z - tw,
+                    x + tw, z - tw, x + tw, z + tw,
+                    x + tw, z + tw, x - tw, z + tw,
+                    x - tw, z + tw, x - tw, z - tw);
+        shade.push(x, y, z, tr, th);
         planted++;
       }
     }
-    return pack(out, ['pos', 'nrm', 'col']);
+    return { mesh: pack(out, ['pos', 'nrm', 'col']), trunks: trunks, shade: shade };
+  }
+
+  // ---- shadows, baked -------------------------------------------------------
+  // A shadow map is the honest way to do this and it is the wrong trade here:
+  // a depth pass over the whole world every frame, on a phone, for a sun that
+  // NEVER MOVES. Static sun, static geometry — so the shadows are computed once
+  // per tile at build time and drawn as flat dark polygons lying on the ground.
+  // Zero per-frame cost beyond the fill.
+  //
+  // The shape of a shadow is the Minkowski sum of the footprint and the segment
+  // the sun sweeps it along, which for a convex footprint is exactly the convex
+  // hull of the footprint and its translated copy. That matters for a reason
+  // that is not aesthetics: OVERLAPPING translucent polygons double-darken, so
+  // a shadow drawn as "footprint + swept quads" gets a visible dark seam down
+  // the middle. One convex hull per building has no overlap at all.
+  var SHADOW_LIFT = 0.14;      // metres above the ground, to beat z-fighting
+
+  function hull(pts) {
+    if (pts.length < 3) return pts;
+    var p = pts.slice().sort(function (a, b) { return a.x === b.x ? a.z - b.z : a.x - b.x; });
+    var cross = function (o, a, b) { return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x); };
+    var lower = [], upper = [], i;
+    for (i = 0; i < p.length; i++) {
+      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p[i]) <= 0) lower.pop();
+      lower.push(p[i]);
+    }
+    for (i = p.length - 1; i >= 0; i--) {
+      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p[i]) <= 0) upper.pop();
+      upper.push(p[i]);
+    }
+    lower.pop(); upper.pop();
+    return lower.concat(upper);
+  }
+
+  // One convex polygon, as a fan, with every vertex dropped onto the terrain.
+  function shadowFan(frame, ring, out) {
+    if (ring.length < 3) return;
+    var v0 = out.pos.length / 3;
+    for (var i = 0; i < ring.length; i++) {
+      out.pos.push(ring[i].x, groundAt(frame, ring[i].x, ring[i].z, SHADOW_LIFT), ring[i].z);
+    }
+    for (var t = 1; t + 1 < ring.length; t++) out.idx.push(v0, v0 + t, v0 + t + 1);
+  }
+
+  // Two meshes, not one: tree shadows have to be dropped at exactly the same
+  // distance as the trees themselves, or the far hillside is covered in shadows
+  // with nothing standing in them.
+  function buildShadows(frame, geom, trees) {
+    var out = { pos: [], idx: [] }, twig = { pos: [], idx: [] };
+    var sun = root.Render && root.Render.sun ? root.Render.sun() : [0.45, 0.78, 0.30];
+    // How far a metre of height throws its shadow, and in which direction.
+    var reach = Math.min(4.0, 1 / Math.max(0.18, sun[1]));
+    var dx = -sun[0] * reach, dz = -sun[2] * reach;
+
+    for (var b = 0; b < geom.bld.length; b++) {
+      var poly = toWorld(frame, geom.bld[b][1]);
+      if (poly.length > 2 && poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
+      if (poly.length < 3) continue;
+      var h = geom.bld[b][0];
+      var pts = [];
+      for (var i = 0; i < poly.length; i++) {
+        pts.push(poly[i]);
+        pts.push({ x: poly[i].x + dx * h, z: poly[i].z + dz * h });
+      }
+      shadowFan(frame, hull(pts), out);
+    }
+
+    // Trees: the same sweep, but the caster is a disc rather than a footprint,
+    // so a hexagon at the trunk and a hexagon at the cast position is plenty.
+    for (var t = 0; t < trees.length; t += 5) {
+      var tx = trees[t], ty = trees[t + 1], tz = trees[t + 2];
+      var rad = trees[t + 3], th = trees[t + 4];
+      var ring = [];
+      for (var k = 0; k < 6; k++) {
+        var a = k * Math.PI / 3;
+        var ox = Math.cos(a) * rad * 0.85, oz = Math.sin(a) * rad * 0.85;
+        ring.push({ x: tx + ox, z: tz + oz });
+        ring.push({ x: tx + ox + dx * th * 0.75, z: tz + oz + dz * th * 0.75 });
+      }
+      shadowFan(frame, hull(ring), twig);
+    }
+    return { buildings: pack(out, ['pos']), trees: pack(twig, ['pos']) };
   }
 
   function tileCentre(frame, tile) {
@@ -426,14 +583,18 @@
       ribbon(frame, toWorld(frame, geom.ways[i][1]), cls.w / 2, 0.18, roads, cls.tone);
     }
 
-    // binfo carries (baseY, seed) per vertex: the shader needs the building's
+    // binfo carries (baseY, seed, class) per vertex: the shader needs the building's
     // own ground level to lay out floors, and a stable per-building seed so a
     // street is not one uniform grey. Neither can be derived in the fragment
     // stage — world Y alone cannot tell a ground floor from a fifth floor on a
     // hill, which is exactly how a terrace ends up with staggered windows.
     var walls = { pos: [], nrm: [], tone: [], binfo: [], idx: [] };
     for (var b = 0; b < geom.bld.length; b++) {
-      extrude(frame, toWorld(frame, geom.bld[b][1]), geom.bld[b][0], walls);
+      // [2] is the class, and a tile cached before classes existed simply has
+      // no third element — undefined becomes UNKNOWN and the size heuristic in
+      // extrude() picks it up. Old caches upgrade themselves; nobody has to
+      // clear anything.
+      extrude(frame, toWorld(frame, geom.bld[b][1]), geom.bld[b][0], walls, geom.bld[b][2] || 0);
     }
 
     var water = { pos: [], idx: [] };
@@ -451,15 +612,26 @@
       for (var ti = 0; ti < tris.length; ti++) water.idx.push(base + tris[ti]);
     }
 
-    // The two indices are built BEFORE the scenery, because the scatter asks
-    // both of them where it may not plant.
+    // The road index and a buildings-only wall index come FIRST, because the
+    // scatter asks both of them where it may not plant. The wall index is then
+    // rebuilt WITH the trunks in it, so the car collides with trees through
+    // exactly the same path it collides with buildings — one collision system,
+    // not two. Bucketing a few hundred segments twice is microseconds at tile
+    // build time and it keeps the ordering honest.
     var roadIndex = buildIndex(frame, geom);
     var wallIndex = buildWallIndex(frame, geom);
+    var scenery = root.Sources.current.quality === 'normal'
+      ? scatter(frame, tile, geom, roadIndex, wallIndex) : null;
+    if (scenery && scenery.trunks.length) wallIndex = buildWallIndex(frame, geom, scenery.trunks);
+    var shadows = buildShadows(frame, geom, scenery ? scenery.shade : []);
+
     return {
       roads: pack(roads, ['pos', 'uv', 'tone']),
       buildings: pack(walls, ['pos', 'nrm', 'tone', 'binfo']),
       water: pack(water, ['pos']),
-      trees: root.Sources.current.quality === 'normal' ? scatter(frame, tile, geom, roadIndex, wallIndex) : null,
+      trees: scenery ? scenery.mesh : null,
+      shadows: shadows.buildings,
+      treeShadows: shadows.trees,
       // Where this tile sits, so the draw loop can drop DISTANT scenery without
       // rebuilding anything. Trees are the most numerous thing in the world and
       // the ones a kilometre away are a green haze the fog eats anyway.
@@ -474,8 +646,25 @@
   // tile can hold a thousand buildings and the car needs an answer every frame,
   // so the only thing a query may touch is the handful of edges in its own cell
   // and the eight around it.
-  function buildWallIndex(frame, geom) {
+  function buildWallIndex(frame, geom, extra) {
     var segs = [], map = Object.create(null);
+    // Anything else that is solid, as flat [x1,z1,x2,z2,…] — tree trunks, so
+    // far. Stamped into the same buckets, so nearWalls answers for them without
+    // knowing they are not buildings.
+    if (extra) {
+      for (var e = 0; e + 3 < extra.length; e += 4) {
+        var ei = segs.length / 4;
+        segs.push(extra[e], extra[e + 1], extra[e + 2], extra[e + 3]);
+        var ex0 = Math.floor(Math.min(extra[e], extra[e + 2]) / CELL);
+        var ex1 = Math.floor(Math.max(extra[e], extra[e + 2]) / CELL);
+        var ez0 = Math.floor(Math.min(extra[e + 1], extra[e + 3]) / CELL);
+        var ez1 = Math.floor(Math.max(extra[e + 1], extra[e + 3]) / CELL);
+        for (var ecx = ex0; ecx <= ex1; ecx++) for (var ecz = ez0; ecz <= ez1; ecz++) {
+          var ek = ecx + ',' + ecz;
+          (map[ek] || (map[ek] = [])).push(ei);
+        }
+      }
+    }
     for (var b = 0; b < geom.bld.length; b++) {
       var poly = toWorld(frame, geom.bld[b][1]);
       if (poly.length > 2 && poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
@@ -578,7 +767,88 @@
       : { dist: best, halfWidth: bestHalf, cruise: bestCruise, x: bestX, z: bestZ, dx: bestVX, dz: bestVZ };
   }
 
-  function extrude(frame, poly, height, out) {
+  // Push every corner radially away from the centroid. Not a true polygon
+  // offset — a true one needs edge intersections and mitre limits — but for the
+  // convex-ish rectangles buildings actually are, it is the same answer.
+  function outset(poly, d) {
+    var cx = cxOf(poly), cz = czOf(poly), out = [];
+    for (var i = 0; i < poly.length; i++) {
+      var dx = poly[i].x - cx, dz = poly[i].z - cz, l = Math.hypot(dx, dz) || 1;
+      out.push({ x: poly[i].x + dx / l * d, z: poly[i].z + dz / l * d });
+    }
+    return out;
+  }
+
+  function cxOf(poly) { var t = 0; for (var i = 0; i < poly.length; i++) t += poly[i].x; return t / poly.length; }
+  function czOf(poly) { var t = 0; for (var i = 0; i < poly.length; i++) t += poly[i].z; return t / poly.length; }
+
+  // A square column between two heights — chimneys, and nothing else so far.
+  function stack(out, x, z, r, y0, y1, base, seed, cls) {
+    var c = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    for (var i = 0; i < 4; i++) {
+      var a = c[i], b = c[(i + 1) % 4];
+      var nx = (a[0] + b[0]) / 2, nz = (a[1] + b[1]) / 2;
+      var v0 = out.pos.length / 3;
+      out.pos.push(x + a[0] * r, y0, z + a[1] * r, x + b[0] * r, y0, z + b[1] * r,
+                   x + a[0] * r, y1, z + a[1] * r, x + b[0] * r, y1, z + b[1] * r);
+      for (var k = 0; k < 4; k++) { out.nrm.push(nx, 0, nz); out.tone.push(0.62); out.binfo.push(base, seed, cls); }
+      out.idx.push(v0, v0 + 2, v0 + 1, v0 + 1, v0 + 2, v0 + 3);
+    }
+    var t0 = out.pos.length / 3;
+    for (var q = 0; q < 4; q++) {
+      out.pos.push(x + c[q][0] * r, y1, z + c[q][1] * r);
+      out.nrm.push(0, 1, 0); out.tone.push(0.55); out.binfo.push(base, seed, cls);
+    }
+    out.idx.push(t0, t0 + 2, t0 + 1, t0, t0 + 3, t0 + 2);
+  }
+
+  // The roof, as a RIDGE rather than a point. An apex over the centroid gives
+  // every house a pyramid, and a street of pyramids is a street of tents — real
+  // roofs run a ridge along the long axis and hip or gable at the ends. The
+  // ridge is a segment through the centroid along the footprint's long axis;
+  // collapse it to zero length and this is the old pyramid, which is still the
+  // right answer for a square plan.
+  function roofOver(poly, base, top, ridge, seed, tone, out) {
+    var cx = cxOf(poly), cz = czOf(poly);
+    var minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (var q = 0; q < poly.length; q++) {
+      minX = Math.min(minX, poly[q].x); maxX = Math.max(maxX, poly[q].x);
+      minZ = Math.min(minZ, poly[q].z); maxZ = Math.max(maxZ, poly[q].z);
+    }
+    var spanX = maxX - minX, spanZ = maxZ - minZ;
+    var alongX = spanX >= spanZ;
+    var long = alongX ? spanX : spanZ, short = alongX ? spanZ : spanX;
+    // GABLE or HIP, by the building's own seed. Both are common, and a street
+    // where every roof is hipped looks as manufactured as one where every roof
+    // is a pyramid.
+    var gable = seed > 0.5;
+    var half = gable ? long / 2 : Math.max(0, (long - short) / 2);
+    var ax = alongX ? cx - half : cx, az = alongX ? cz : cz - half;
+    var bx = alongX ? cx + half : cx, bz = alongX ? cz : cz + half;
+
+    for (var e = 0; e < poly.length; e++) {
+      var p0 = poly[e], p1 = poly[(e + 1) % poly.length];
+      var mx = (p0.x + p1.x) / 2, mz = (p0.z + p1.z) / 2;
+      // Each eave runs up to whichever end of the ridge is nearer.
+      var da = (mx - ax) * (mx - ax) + (mz - az) * (mz - az);
+      var db = (mx - bx) * (mx - bx) + (mz - bz) * (mz - bz);
+      var rx = da < db ? ax : bx, rz = da < db ? az : bz;
+      var ex = p1.x - p0.x, ez = p1.z - p0.z, el = Math.hypot(ex, ez) || 1;
+      var ox = ez / el, oz = -ex / el;              // outward, horizontal
+      var slope = Math.hypot(rx - mx, rz - mz) || 1;
+      var hyp = Math.hypot(slope, ridge);
+      var r0 = out.pos.length / 3;
+      out.pos.push(p0.x, top, p0.z, p1.x, top, p1.z, rx, top + ridge, rz);
+      for (var k = 0; k < 3; k++) {
+        out.nrm.push(ox * slope / hyp, ridge / hyp, oz * slope / hyp);
+        out.tone.push(tone + 0.05);
+        out.binfo.push(base, seed, 8);            // 8 = tile, never a wall
+      }
+      out.idx.push(r0, r0 + 2, r0 + 1);
+    }
+  }
+
+  function extrude(frame, poly, height, out, cls) {
     if (poly.length < 3) return;
     if (poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
     if (poly.length < 3) return;
@@ -603,23 +873,69 @@
     // colour, every time it is rebuilt after a re-pin.
     var seed = Math.abs(Math.sin(poly[0].x * 12.9898 + poly[0].z * 78.233) * 43758.5453) % 1;
 
+    // `building=yes` is by far the commonest value in OSM and says nothing. But
+    // the FOOTPRINT says plenty: 90 m² and two storeys is a house, 4000 m² and
+    // two storeys is a shed, and 300 m² and eleven storeys is an office block.
+    // Guessing from size is not as good as a tag, and it is far better than
+    // painting a whole suburb as the same anonymous grey slab.
+    var area = Math.abs(signed) / 2;
+    if (!cls) {
+      cls = (area < 260 && height <= 9) ? 1                       // HOUSE
+          : (area > 1200 && height <= 12) ? 5                     // INDUSTRIAL: big and flat
+          : (height >= 12) ? 4                                    // OFFICE: tall
+          : 0;
+    }
+    // A pitched roof is the single loudest signal that a thing is a HOUSE, and
+    // no amount of facade shading substitutes for it — a flat-topped box reads
+    // as a block of flats at any size. Hipped from the footprint's centroid:
+    // n triangles, correct for the rectangles most houses are, and merely a bit
+    // fanciful on an L-shape, which is a trade worth taking at 50 km/h.
+    var pitched = (cls === 1 || cls === 6 || cls === 7) && poly.length <= 12 && area < 900;
+    var ridge = 0;
+    if (pitched) {
+      // Pitch scaled to the SHORT span, or a long terrace grows an alpine peak.
+      var minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (var q = 0; q < poly.length; q++) {
+        minX = Math.min(minX, poly[q].x); maxX = Math.max(maxX, poly[q].x);
+        minZ = Math.min(minZ, poly[q].z); maxZ = Math.max(maxZ, poly[q].z);
+      }
+      ridge = Math.max(1.2, Math.min(4.5, Math.min(maxX - minX, maxZ - minZ) * 0.32));
+    }
+
     for (var e = 0; e < poly.length; e++) {
       var a = poly[e], b = poly[(e + 1) % poly.length];
       var dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz) || 1;
       var nx = dz / len, nz = -dx / len;
       var v0 = out.pos.length / 3;
       out.pos.push(a.x, base, a.z, b.x, base, b.z, a.x, top, a.z, b.x, top, b.z);
-      for (var k = 0; k < 4; k++) { out.nrm.push(nx, 0, nz); out.tone.push(tone); out.binfo.push(base, seed); }
+      for (var k = 0; k < 4; k++) { out.nrm.push(nx, 0, nz); out.tone.push(tone); out.binfo.push(base, seed, cls); }
       out.idx.push(v0, v0 + 2, v0 + 1, v0 + 1, v0 + 2, v0 + 3);
     }
-    // Roof.
+
+    if (pitched) {
+      // EAVES. The roof oversails the walls by a third of a metre, which is the
+      // difference between a house and a box with a lid on it — the shadow line
+      // under an overhang is most of what the eye reads as "roof".
+      roofOver(outset(poly, 0.34), base, top, ridge, seed, tone, out);
+      // A chimney is four square metres of geometry and it is the second
+      // loudest "this is a house" signal after the roof itself — a pitched box
+      // with nothing on it still reads as a hut.
+      if (seed > 0.22) {
+        var chx = poly[0].x * 0.35 + cxOf(poly) * 0.65, chz = poly[0].z * 0.35 + czOf(poly) * 0.65;
+        var chTop = top + ridge + 0.7 + seed * 0.5;
+        stack(out, chx, chz, 0.28, top - 0.4, chTop, base, seed, 9);
+      }
+      return;
+    }
+
+    // Flat roof.
     var tris = triangulate(poly);
     var rbase = out.pos.length / 3;
     for (var r = 0; r < poly.length; r++) {
       out.pos.push(poly[r].x, top, poly[r].z);
       out.nrm.push(0, 1, 0);
       out.tone.push(tone + 0.08);
-      out.binfo.push(base, seed);
+      out.binfo.push(base, seed, cls);
     }
     for (var t = 0; t < tris.length; t++) out.idx.push(rbase + tris[t]);
   }
