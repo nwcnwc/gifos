@@ -82,6 +82,16 @@ function overpassBody() {
       { type: 'way', id: 1, tags: { highway: 'residential' }, geometry: geom },
       { type: 'way', id: 2, tags: { highway: 'primary' },
         geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon + 0.0009 })) },
+      // A six-lane motorway and a dirt track, far enough out not to be what the
+      // car lands on. OSM tags `surface` and `lanes` on the way and the parser
+      // never looked at either, so a farm track was drawn as asphalt with a
+      // painted centre line and a motorway was as wide as a B road.
+      { type: 'way', id: 4, tags: { highway: 'motorway', lanes: '6' },
+        geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon + 0.0018 })) },
+      { type: 'way', id: 5, tags: { highway: 'track', surface: 'dirt' },
+        geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon - 0.0015 })) },
+      { type: 'way', id: 6, tags: { highway: 'unclassified', surface: 'gravel' },
+        geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon - 0.0021 })) },
       { type: 'way', id: 3, tags: { building: 'yes', 'building:levels': '4' }, geometry: [
         { lat: HOP.lat + 0.0004, lon: HOP.lon + 0.0004 },
         { lat: HOP.lat + 0.0004, lon: HOP.lon + 0.0007 },
@@ -672,7 +682,12 @@ function mixedStreet() {
       for (let i = 0; i < p.length; i += 3) {
         const g = window.Terrain.heightAt(w.frame, p[i], p[i + 2]);
         samples++;
-        if (g === null || Math.abs(p[i + 1] - g) > 0.9) offGround++;
+        // ABOVE the road, not merely above the terrain. Road ribbons are laid
+        // at terrain + 0.18 to clear the ground, so a shadow lifted less than
+        // that is UNDER the tarmac: the depth test hides it and every shadow
+        // stops dead at the kerb, which is exactly what they did.
+        const lift = g === null ? -1 : p[i + 1] - g;
+        if (lift < 0.19 || lift > 0.9) offGround++;
       }
     }
     // Where the shadows sit versus where the buildings sit. Both centroids are
@@ -703,8 +718,8 @@ function mixedStreet() {
   });
   check('shadows are baked for every built tile', shadow.tiles > 0 && shadow.idx > 0,
     shadow.tiles + ' tiles, ' + shadow.idx + ' indices');
-  check('shadows lie ON the ground, not above or below it', shadow.offGround === 0,
-    shadow.offGround + ' of ' + shadow.samples + ' vertices off the terrain');
+  check('shadows lie on the ground AND clear the road surface', shadow.offGround === 0,
+    shadow.offGround + ' of ' + shadow.samples + ' vertices below the tarmac or floating');
   check('shadows fall away from the sun', shadow.alongSun > 0,
     'offset along the shadow direction: ' + shadow.alongSun.toFixed(1) + ' m');
 
@@ -739,6 +754,41 @@ function mixedStreet() {
   check('houses get a pitched roof, and it is not painted as a wall',
     kinds.pitched > 0, kinds.pitched + ' tile vertices');
   check('houses get a chimney', kinds.stacks > 0, kinds.stacks + ' chimney vertices');
+
+  // ---- a track is not a motorway -------------------------------------------
+  // `surface` and `lanes` were the other two tags sitting unread in the same
+  // Overpass response. Without them a farm track is asphalt with a painted
+  // centre line down it, and a six-lane motorway is exactly as wide as a B road.
+  const surfaces = await fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    const kinds = {}; let maxLanes = 0;
+    let widest = 0, narrowest = Infinity;
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.roads.count) continue;
+      const ri = r.built.roads.rinfo;
+      for (let i = 0; i < ri.length; i += 2) {
+        kinds[ri[i]] = (kinds[ri[i]] || 0) + 1;
+        maxLanes = Math.max(maxLanes, ri[i + 1]);
+      }
+      // Ribbon width, straight off the mesh: each pair of vertices is one
+      // cross-section, so the gap between them IS the carriageway.
+      const p = r.built.roads.positions;
+      for (let i = 0; i + 5 < p.length; i += 6) {
+        const wdt = Math.hypot(p[i] - p[i + 3], p[i + 2] - p[i + 5]);
+        if (wdt > 0.5) { widest = Math.max(widest, wdt); narrowest = Math.min(narrowest, wdt); }
+      }
+    }
+    return { kinds: Object.keys(kinds).map(Number).sort((a, b) => a - b), maxLanes, widest, narrowest };
+  });
+  check('the map tells us what a road is MADE of, and it reaches the mesh',
+    surfaces.kinds.length >= 3, 'surface codes present: ' + surfaces.kinds.join(','));
+  check('a dirt track is carried as unsealed', surfaces.kinds.indexOf(2) >= 0,
+    'codes: ' + surfaces.kinds.join(',') + ' (2 = dirt)');
+  check('the lane count reaches the mesh and widens the road',
+    surfaces.maxLanes >= 6 && surfaces.widest > 17 && surfaces.narrowest < 6,
+    surfaces.maxLanes + ' lanes; widest ' + surfaces.widest.toFixed(1)
+      + ' m vs narrowest ' + surfaces.narrowest.toFixed(1) + ' m');
 
   // The renderer drew a world, not an empty sky. Sample the canvas below the
   // horizon: ground pixels must differ from the sky gradient up top.

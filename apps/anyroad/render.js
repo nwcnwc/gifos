@@ -272,14 +272,15 @@
 
     // --- roads: flat tarmac with a centre line painted from the ribbon's uv ---
     progs.road = program([
-      'attribute vec3 aPos; attribute vec2 aUv; attribute float aTone;',
+      'attribute vec3 aPos; attribute vec2 aUv; attribute float aTone; attribute vec2 aRinfo;',
       'uniform mat4 uViewProj; uniform vec3 uEye;',
-      'varying vec2 vUv; varying float vTone; varying float vDist;',
-      'void main(){ vUv=aUv; vTone=aTone; vDist=length(aPos-uEye); gl_Position=uViewProj*vec4(aPos,1.0); }',
+      'varying vec2 vUv; varying float vTone; varying float vDist; varying vec2 vRinfo;',
+      'void main(){ vUv=aUv; vTone=aTone; vRinfo=aRinfo;',
+      '  vDist=length(aPos-uEye); gl_Position=uViewProj*vec4(aPos,1.0); }',
     ].join('\n'), [
       'precision highp float;',
       'uniform vec3 uLightDir;',
-      'varying vec2 vUv; varying float vTone;',
+      'varying vec2 vUv; varying float vTone; varying vec2 vRinfo;',
       NOISE, FOG, LIGHTING,
       'void main(){',
       // Aggregate speckle, so tarmac at 100 km/h is a surface rather than a
@@ -297,7 +298,33 @@
       '    wear = vnoise(vec2(vUv.x * 0.045, vUv.y * 1.6));',
       '  }',
       '  g = mix(0.5, g, detail); g2 = mix(0.5, g2, detail);',
+      // WHAT THE ROAD IS MADE OF. vRinfo.x is the OSM `surface` tag — sealed,
+      // gravel, dirt or stone — which the parser never used to look at, so a
+      // farm track through a field was drawn as asphalt with a painted centre
+      // line down the middle of it.
+      '  float surf = vRinfo.x;',
+      '  float sealed = 1.0 - step(0.5, surf);',
+      '  float gravel = step(0.5, surf) * step(surf, 1.5);',
+      '  float dirt   = step(1.5, surf) * step(surf, 2.5);',
+      '  float stone  = step(2.5, surf);',
       '  vec3 tarmac = vec3(0.21,0.21,0.23) * (0.62 + vTone) * (0.95 + 0.07 * g + 0.05 * g2);',
+      // Gravel is pale and coarse; dirt is brown and rutted; stone is grey with
+      // a joint pattern. All three take the aggregate noise at a much higher
+      // amplitude than asphalt, because that IS the difference — a loose
+      // surface is visibly made of pieces.
+      '  vec3 loose = vec3(0.52,0.49,0.43) * (0.80 + 0.40 * g + 0.16 * g2);',
+      '  vec3 mud   = vec3(0.40,0.31,0.22) * (0.84 + 0.30 * g + 0.20 * g2);',
+      '  vec3 cobb  = vec3(0.34,0.33,0.34) * (0.86 + 0.26 * g2);',
+      // The joints between setts: a grid at a real size on the ground.
+      '  float joint = step(0.14, fract(vUv.x / 0.22)) * step(0.14, fract((vUv.y * 8.0) + step(0.5, fract(vUv.x / 0.44)) * 0.5));',
+      '  cobb *= mix(0.70, 1.0, mix(1.0, joint, detail));',
+      '  tarmac = mix(tarmac, loose, gravel);',
+      '  tarmac = mix(tarmac, mud, dirt);',
+      '  tarmac = mix(tarmac, cobb, stone);',
+      // Ruts, on an unsealed road only: two bare wheel-worn channels with grass
+      // or loose material between them. This is the shape that says "track".
+      '  float rut = exp(-pow((abs(vUv.y - 0.5) - 0.22) * 9.0, 2.0));',
+      '  tarmac *= mix(1.0, 0.78 + 0.34 * rut, max(gravel, dirt) * detail);',
       // WHEEL TRACKS. Traffic polishes two bands per carriageway and leaves the
       // crown and the gutter rough, and that pattern — not the aggregate — is
       // what the eye uses to read a road as used. Two soft darker strips either
@@ -324,7 +351,19 @@
       '  float edgeLine = (1.0 - smoothstep(0.004, 0.013, abs(abs(vUv.y - 0.5) - 0.455)));',
       '  float mid = 1.0 - smoothstep(0.010, 0.026, abs(vUv.y - 0.5));',
       '  float dash = step(0.42, fract(vUv.x / 9.0));',
-      '  float paint = max(mid * dash * step(0.45, vTone), edgeLine * 0.62);',
+      // LANE DIVIDERS, from the `lanes` tag. A dual carriageway with a single
+      // centre line is a two-lane road that happens to be twenty metres wide;
+      // the lane count is what makes a motorway read as a motorway.
+      '  float lanes = max(vRinfo.y, 1.0);',
+      '  float lanePos = fract(vUv.y * lanes);',
+      '  float inner = 1.0 - step(0.5, abs(vUv.y - 0.5) * 2.0 * lanes / max(lanes - 1.0, 1.0));',
+      '  float divider = (1.0 - smoothstep(0.006, 0.016, min(lanePos, 1.0 - lanePos)))',
+      '                * step(3.0, lanes) * step(0.50, vTone) * step(0.55, fract(vUv.x / 12.0 + 0.5));',
+      '  float paint = max(max(mid * dash * step(0.45, vTone), edgeLine * 0.62), divider * 0.85);',
+      // AND NONE OF IT ON A LOOSE SURFACE. Nobody paints a dashed centre line
+      // down a farm track, and drawing one there was the single most obviously
+      // wrong thing about the roads.
+      '  paint *= sealed;',
       '  vec3 c = mix(tarmac, vec3(0.88,0.86,0.72), clamp(paint, 0.0, 1.0));',
       // Lit by the same sun and the same sky as everything else, with the road
       // surface facing up. Without this the tarmac is the one material in the
@@ -583,10 +622,16 @@
     // genuinely cannot tell whether it is touching the ground.
     progs.shadow = program([
       'attribute vec2 aPos;',
-      'uniform mat4 uViewProj; uniform vec3 uCentre; uniform float uRadius;',
+      'uniform mat4 uViewProj; uniform vec3 uCentre; uniform float uRadius; uniform vec2 uSkew;',
       'varying vec2 vLocal;',
       'void main(){ vLocal = aPos;',
       '  vec3 w = uCentre + vec3(aPos.x * uRadius, 0.0, aPos.y * uRadius * 1.45);',
+      // SKEWED DOWN-SUN. A contact blob centred under the car was right when the
+      // sun was overhead and is wrong now that it is at 24° — everything else in
+      // the world throws a long shadow to one side and the car alone sat on a
+      // neat puddle. The far half of the ellipse is dragged away from the sun,
+      // which turns it into a teardrop that still touches the wheels.
+      '  w.xz += uSkew * (aPos.y * 0.5 + 0.5);',
       '  gl_Position = uViewProj * vec4(w, 1.0); }',
     ].join('\n'), [
       'precision highp float;',
@@ -625,7 +670,7 @@
       // the stacking properly; at this alpha it does not need fixing.
       // Blue, not black — shade is lit by the sky, and a neutral grey shadow is
       // the single most common tell of a fake one.
-      '  gl_FragColor = vec4(0.06, 0.09, 0.18, 0.20 * (1.0 - f));',
+      '  gl_FragColor = vec4(0.08, 0.11, 0.20, 0.15 * (1.0 - f));',
       '}',
     ].join('\n'));
 
@@ -712,7 +757,7 @@
     if (mesh._gl) return mesh._gl;
     var b = { vbo: {}, ibo: gl.createBuffer(), count: mesh.count,
               type: (mesh.indices instanceof Uint32Array) ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT };
-    ['positions', 'normals', 'uvs', 'tone', 'binfo', 'colors'].forEach(function (k) {
+    ['positions', 'normals', 'uvs', 'tone', 'binfo', 'colors', 'rinfo'].forEach(function (k) {
       if (!mesh[k]) return;
       var buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -1051,7 +1096,8 @@
     common(progs.road);
     for (var r = 0; r < scene.roads.length; r++) {
       drawMesh(progs.road, scene.roads[r], {
-        aPos: { src: 'positions', size: 3 }, aUv: { src: 'uvs', size: 2 }, aTone: { src: 'tone', size: 1 },
+        aPos: { src: 'positions', size: 3 }, aUv: { src: 'uvs', size: 2 },
+        aTone: { src: 'tone', size: 1 }, aRinfo: { src: 'rinfo', size: 2 },
       });
     }
 
@@ -1120,12 +1166,19 @@
       gl.bindBuffer(gl.ARRAY_BUFFER, uploadShadow());
       gl.enableVertexAttribArray(progs.shadow.a.aPos);
       gl.vertexAttribPointer(progs.shadow.a.aPos, 2, gl.FLOAT, false, 0, 0);
+      // How far a metre of height throws its shadow, in world x/z. The same
+      // number roads.js bakes the building shadows with, so the car's shadow
+      // and the world's point the same way.
+      var throwX = -sunDir[0] / Math.max(0.18, sunDir[1]);
+      var throwZ = -sunDir[2] / Math.max(0.18, sunDir[1]);
       for (var sc = 0; sc < scene.cars.length; sc++) {
         var s0 = scene.cars[sc];
         // Sit it a few centimetres above the ground the car is standing on, so
-        // it never z-fights with the road surface it is cast onto.
-        gl.uniform3fv(progs.shadow.u.uCentre, [s0.x, (s0.groundY != null ? s0.groundY : s0.y) + 0.06, s0.z]);
+        // it never z-fights with the road surface it is cast onto — and above
+        // the ROAD, which is itself lifted off the terrain (see roads.js).
+        gl.uniform3fv(progs.shadow.u.uCentre, [s0.x, (s0.groundY != null ? s0.groundY : s0.y) + 0.26, s0.z]);
         gl.uniform1f(progs.shadow.u.uRadius, 1.5);
+        gl.uniform2fv(progs.shadow.u.uSkew, [throwX * 0.85, throwZ * 0.85]);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
       // The wildlife gets one too, and it is not decoration: without a contact
@@ -1133,8 +1186,9 @@
       // place in depth is a deer you cannot swerve around.
       for (var sa = 0; sa < animals.length; sa++) {
         var a0 = animals[sa];
-        gl.uniform3fv(progs.shadow.u.uCentre, [a0.x, (a0.groundY != null ? a0.groundY : a0.y) + 0.05, a0.z]);
+        gl.uniform3fv(progs.shadow.u.uCentre, [a0.x, (a0.groundY != null ? a0.groundY : a0.y) + 0.24, a0.z]);
         gl.uniform1f(progs.shadow.u.uRadius, 0.55 * (a0.shape ? a0.shape[2] : 1));
+        gl.uniform2fv(progs.shadow.u.uSkew, [throwX * 0.5, throwZ * 0.5]);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
       gl.disableVertexAttribArray(progs.shadow.a.aPos);

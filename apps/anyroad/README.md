@@ -138,6 +138,23 @@ seed, and collapses to the old pyramid for a square plan. Then eaves that
 oversail by a third of a metre, and a chimney — four square metres of geometry
 and the second loudest "this is a house" signal there is.
 
+**`surface` and `lanes` were sitting unread in the same response.** A
+`highway=track` through a field was drawn as asphalt with a painted centre line
+down it, and a six-lane motorway came out exactly as wide as a B road, because
+the parser kept only the highway class. Surfaces resolve to sealed / gravel /
+dirt / stone — loose surfaces get coarse aggregate, wheel ruts and NO markings,
+since nobody paints a dashed line down a farm track. Lanes set the width
+(`max(class × 0.6, lanes × 3.3)`) and paint lane dividers above three lanes.
+Untagged is not a gap: a `track` is unsealed whatever nobody said about it, and
+`tracktype=grade1` is gravel rather than dirt.
+
+**A shadow lifted 0.14 m is UNDER the road.** Road ribbons are laid at
+terrain + 0.18 so they do not z-fight with the ground, so the first shadows —
+lifted 0.14 above the *terrain* — were four centimetres beneath the tarmac, the
+depth test hid them, and every shadow stopped dead at the kerb. They sit at 0.30
+now, and the guard checks the lift against the terrain rather than merely
+checking the shadow exists.
+
 **Shadows are BAKED, because the sun never moves.** A shadow map is the honest
 way and the wrong trade here: a depth pass over the whole world every frame, on
 a phone, for a static sun. Instead `buildShadows()` computes them once per tile

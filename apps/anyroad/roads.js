@@ -38,8 +38,41 @@
     unclassified:  { w: 6,  tone: 0.46, rank: 2, cruise: 14 },
     living_street: { w: 6,  tone: 0.46, rank: 2, cruise: 14 },
     service:       { w: 4,  tone: 0.42, rank: 1, cruise: 9 },
-    track:         { w: 3.5,tone: 0.38, rank: 1, cruise: 8 },
+    track:         { w: 3.5,tone: 0.38, rank: 1, cruise: 8, unsealed: true },
   };
+
+  // ---- what is this road MADE of? ------------------------------------------
+  // Same story as the buildings: OSM tags `surface` on the way and the parser
+  // never looked. A `highway=track` through a field was drawn as tarmac with a
+  // painted centre line down it, which is not a detail — a dirt track and a
+  // B road are different things to drive on and looked identical.
+  //
+  //   0 sealed (asphalt, concrete, the default)
+  //   1 gravel (compacted, fine_gravel, pebblestone)
+  //   2 dirt   (ground, earth, mud, sand, grass — no markings, ruts)
+  //   3 stone  (cobblestone, sett, paving_stones — old town centres)
+  var SURFACE = {
+    asphalt: 0, concrete: 0, paved: 0, chipseal: 0, 'concrete:plates': 0, metal: 0,
+    gravel: 1, compacted: 1, fine_gravel: 1, pebblestone: 1, shells: 1,
+    unpaved: 2, ground: 2, dirt: 2, earth: 2, mud: 2, sand: 2, grass: 2, woodchips: 2,
+    cobblestone: 3, sett: 3, paving_stones: 3, bricks: 3, 'cobblestone:flattened': 3,
+  };
+
+  function surfaceOf(tags) {
+    var s = SURFACE[tags.surface];
+    if (s !== undefined) return s;
+    if (tags.tracktype) return tags.tracktype === 'grade1' ? 1 : 2;   // graded, or not
+    // Untagged: a track is a track whatever nobody said about it.
+    return ROAD_CLASS[tags.highway] && ROAD_CLASS[tags.highway].unsealed ? 2 : 0;
+  }
+
+  // Lanes widen a road far more honestly than its classification does — a
+  // six-lane primary and a two-lane primary are the same OSM class.
+  function laneCount(tags) {
+    var n = parseFloat(tags.lanes);
+    if (!isFinite(n) || n < 1) return 0;             // 0 = "nobody said"
+    return Math.min(10, Math.round(n));
+  }
 
   function bboxOf(tile) {
     var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
@@ -71,7 +104,7 @@
       for (var g = 0; g < e.geometry.length; g++) { flat.push(r6(e.geometry[g].lat), r6(e.geometry[g].lon)); }
       var tags = e.tags || {};
       if (tags.highway && ROAD_CLASS[tags.highway]) {
-        ways.push([tags.highway, flat]);
+        ways.push([tags.highway, flat, surfaceOf(tags), laneCount(tags)]);
       } else if (tags.building && withBuildings) {
         if (bld.length < MAX_BUILDINGS) bld.push([buildingHeight(tags), flat, classify(tags)]);
       } else if (tags.natural === 'water') {
@@ -242,7 +275,7 @@
   // continuous through a bend instead of showing a wedge of terrain at every
   // corner; the mitre is limited so a hairpin does not fire a spike off to
   // infinity.
-  function ribbon(frame, pts, halfWidth, lift, out, tone) {
+  function ribbon(frame, pts, halfWidth, lift, out, tone, surface, lanes) {
     if (pts.length < 2) return;
     var n = pts.length;
     var left = [], right = [];
@@ -277,6 +310,10 @@
       // ground instead of stretching with the length of the way.
       out.uv.push(along, 0, along, 1);
       out.tone.push(tone, tone);
+      // (surface, lanes) per vertex — what it is made of and how many lanes to
+      // paint on it. Constant along a way, but attributes are the only channel
+      // a ribbon has, and a uniform would mean a draw call per way.
+      out.rinfo.push(surface || 0, lanes || 2, surface || 0, lanes || 2);
     }
     for (var s = 0; s < n - 1; s++) {
       var a = base + s * 2, b = a + 1, c = a + 2, d = a + 3;
@@ -493,7 +530,14 @@
   // that is not aesthetics: OVERLAPPING translucent polygons double-darken, so
   // a shadow drawn as "footprint + swept quads" gets a visible dark seam down
   // the middle. One convex hull per building has no overlap at all.
-  var SHADOW_LIFT = 0.14;      // metres above the ground, to beat z-fighting
+  // ABOVE THE ROAD, not merely above the terrain. Road ribbons are laid at
+  // terrain + 0.18 so they do not z-fight with the ground; a shadow lifted only
+  // 0.14 is therefore four centimetres UNDER the tarmac, the depth test hides
+  // it, and shadows stop dead at the kerb — which is exactly what they did.
+  // 0.30 clears the carriageway by 12 cm and is still far too small a step to
+  // read as a floating decal on open ground.
+  var ROAD_LIFT = 0.18;
+  var SHADOW_LIFT = 0.30;
 
   function hull(pts) {
     if (pts.length < 3) return pts;
@@ -576,11 +620,19 @@
 
   // Build all four meshes for one tile's geometry.
   function build(frame, geom, tile) {
-    var roads = { pos: [], uv: [], tone: [], idx: [] };
+    var roads = { pos: [], uv: [], tone: [], rinfo: [], idx: [] };
     for (var i = 0; i < geom.ways.length; i++) {
       var cls = ROAD_CLASS[geom.ways[i][0]];
       if (!cls) continue;
-      ribbon(frame, toWorld(frame, geom.ways[i][1]), cls.w / 2, 0.18, roads, cls.tone);
+      // [2] surface, [3] lanes — absent on a tile cached before they were
+      // parsed, which reads as sealed and unstated, i.e. exactly the old
+      // behaviour. Old caches keep working and improve as they refresh.
+      var surf = geom.ways[i][2] || 0, lanes = geom.ways[i][3] || 0;
+      // A tagged lane count beats the class width: a six-lane primary and a
+      // two-lane primary are the same OSM class and very much not the same road.
+      var width = lanes ? Math.max(cls.w * 0.6, lanes * 3.3) : cls.w;
+      ribbon(frame, toWorld(frame, geom.ways[i][1]), width / 2, ROAD_LIFT, roads,
+             cls.tone, surf, lanes || Math.max(1, Math.round(cls.w / 3.4)));
     }
 
     // binfo carries (baseY, seed, class) per vertex: the shader needs the building's
@@ -626,7 +678,7 @@
     var shadows = buildShadows(frame, geom, scenery ? scenery.shade : []);
 
     return {
-      roads: pack(roads, ['pos', 'uv', 'tone']),
+      roads: pack(roads, ['pos', 'uv', 'tone', 'rinfo']),
       buildings: pack(walls, ['pos', 'nrm', 'tone', 'binfo']),
       water: pack(water, ['pos']),
       trees: scenery ? scenery.mesh : null,
