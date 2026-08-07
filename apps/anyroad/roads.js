@@ -638,7 +638,7 @@
   root.Roads = {
     TILE_ZOOM: TILE_ZOOM,
     loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
-    nearWalls: nearWalls,
+    nearWalls: nearWalls, segDist: segDist,
     clearCache: function () {
       memory = {};
       return loadIndex().then(function () {

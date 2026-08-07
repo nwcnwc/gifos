@@ -525,21 +525,38 @@ function overpassBody() {
         return best;
       },
     };
+    // The same "is there a building here" question the app asks, so the
+    // in-a-building rejection is exercised rather than skipped.
+    ctx.solid = (x, z) => {
+      const out = [];
+      for (const k in w.roads) {
+        const r = w.roads[k];
+        if (!r || !r.built || !r.built.walls) continue;
+        window.Roads.nearWalls(r.built.walls, x, z, out);
+      }
+      for (let i = 0; i < out.length; i += 4) {
+        if (window.Roads.segDist(x, z, out[i], out[i + 1], out[i + 2], out[i + 3]) < 4) return true;
+      }
+      return false;
+    };
     window.Animals.clear();
-    let closest = Infinity, seen = 0;
+    let closest = Infinity, seen = 0, inWall = 0;
     for (let i = 0; i < 600; i++) {
       window.Animals.update(c, ctx, 0.5);       // big steps: force the spawner to run
       for (const a of window.Animals.drawList()) {
         seen++;
         closest = Math.min(closest, Math.hypot(a.x - c.x, a.z - c.z));
+        if (ctx.solid(a.x, a.z)) inWall++;
       }
       window.Animals.clear();                    // clear so every tick spawns afresh
     }
-    return { closest, seen };
+    return { closest, seen, inWall };
   });
   check('animals never materialise on top of the car',
     spawns.seen > 0 && spawns.closest > 30,
     spawns.seen + ' spawned, nearest ' + (spawns.closest === Infinity ? 'none' : spawns.closest.toFixed(0) + ' m'));
+  check('…nor inside a building', spawns.inWall === 0,
+    spawns.inWall + ' of ' + spawns.seen + ' spawned in a wall');
   await fr.locator('body').evaluate(() => { window.Animals.clear(); window.UI.clearCracks(); });
 
   // ---- scenery -------------------------------------------------------------

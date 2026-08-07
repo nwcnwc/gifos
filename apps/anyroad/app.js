@@ -270,9 +270,28 @@
   // animals.js owns the herd and the collision; this owns what a hit MEANS.
   // The context object is the seam: the module never reaches into world state,
   // it asks two questions — where is the ground, and where is the nearest road.
+  var beastScratch = [];
   var animalCtx = {
     height: function (x, z) { return root.Terrain.heightAt(world.frame, x, z); },
     nearestRoad: nearestRoadPoint,
+    // Is there a building here? Asked at spawn time only. Nothing stops a deer
+    // WALKING through a wall — that would be a second collision system for
+    // something you see from thirty metres — but a sheep that materialises
+    // inside an office block is visible from the road, and in a city that is
+    // most of the verge.
+    solid: function (x, z) {
+      beastScratch.length = 0;
+      for (var k in world.roads) {
+        var r = world.roads[k];
+        if (!r || !r.built || !r.built.walls) continue;
+        root.Roads.nearWalls(r.built.walls, x, z, beastScratch);
+      }
+      for (var i = 0; i < beastScratch.length; i += 4) {
+        if (root.Roads.segDist(x, z, beastScratch[i], beastScratch[i + 1],
+                               beastScratch[i + 2], beastScratch[i + 3]) < 4) return true;
+      }
+      return false;
+    },
   };
 
   function wildlife(dt) {
