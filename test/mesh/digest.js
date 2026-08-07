@@ -55,6 +55,16 @@ const C = net.SCALE.C;
 let fails = 0;
 const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (d !== undefined ? '  ' + JSON.stringify(d) : '')); if (!c) fails++; };
 const run = (env, n) => { for (let t = 0; t < n; t++) H.doTick(env); };
+// Per-leg wall clock, printed as the suite goes. The mesh tier gives a suite
+// 900s (test/batteries/release.sh `run_tier mesh 900`); a leg that quietly
+// grows past that turns a green guard into a timeout, so the budget is
+// reported rather than assumed.
+// (legAt starts NULL, not T0: the first leg() call lands in the same
+// millisecond as T0, so a `legAt !== T0` test reads as "no leg started yet" and
+// swallowed leg 1's duration entirely — measured, and the budget line is only
+// worth printing if it accounts for every leg.)
+const T0 = Date.now(); let legAt = null;
+const leg = (title) => { const now = Date.now(); if (legAt !== null) console.log(`  [leg took ${((now - legAt) / 1000).toFixed(1)}s]`); legAt = now; console.log('\n=== ' + title + ' ==='); };
 
 // ---------------------------------------------------------------------------
 // The observer. No seat could compute any of this — that is the point: the
@@ -100,7 +110,7 @@ function settledRoom(N, opts) {
 }
 
 // ===========================================================================
-console.log('\n=== 1) TRUTH — the root fold equals the room, at every observer ===');
+leg('1) TRUTH — the root fold equals the room, at every observer');
 // N=20 is G8's "small rooms degrade to today": everyone is in Section 1, the
 // tree is one level, near field = the whole room, and rollup ≡ flood. N=150 is
 // a genuinely deep multi-section room where they cannot coincide.
@@ -117,7 +127,7 @@ for (const N of [20, 150]) {
 }
 
 // ===========================================================================
-console.log('\n=== 2) ON == OFF — G0/G1 trajectory identity, frame for frame ===');
+leg('2) ON == OFF — G0/G1 trajectory identity, frame for frame');
 // The strongest statement available about a mechanism that must never actuate:
 // record EVERY emit — tick, sender, recipient, and the frame itself with the
 // digest payload stripped — and require the two logs to be byte-identical
@@ -141,17 +151,28 @@ function canon(m) {
   seen.push(walk(m));
   return JSON.stringify(seen[0]);
 }
-function trajectory(N, digestOn, seed) {
+// MEMORY IS PART OF THE GUARD. The first cut of this leg retained both arms'
+// full frame logs — a quarter of a million strings twice — and on a loaded
+// 6.5GB box the process was killed mid-leg: 12 assertions printed, no error,
+// no verdict. That is the exact state the release doctrine calls the most
+// dangerous there is ("exit non-zero with no assertions ... looks like
+// silence"), and a guard that can die quietly in-gate is not a guard. So the
+// arms are compared by a PER-FRAME 64-BIT FINGERPRINT (two independent FNV-1a
+// words, ~8 bytes a frame instead of ~200; collision odds across 250k frames
+// are ~1e-8), and the divergent frame's TEXT is recovered by re-running both
+// arms capturing only that one index — which happens on the failure path only.
+function fnv(s, seed) { let h = seed >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function trajectory(N, digestOn, seed, wantIdx) {
   H.seedRng(seed);
   const env = H.makeFabric();
   env.DIGEST = digestOn;
-  const log = []; const digOn = { count: 0, types: new Set() };
+  const h1 = [], h2 = []; const digOn = { count: 0, types: new Set() }; let grabbed = null;
   const baseSend = env.send;
   env.send = (from, to, m) => {
-    let carried = null;
-    for (const f of DIG_FIELDS) if (m[f] !== undefined) { carried = carried || []; carried.push(f); }
-    if (carried) { digOn.count++; digOn.types.add(m.t); }
-    log.push(env.TICK + '|' + from + '|' + to + '|' + canon(m));
+    for (const f of DIG_FIELDS) if (m[f] !== undefined) { digOn.count++; digOn.types.add(m.t); break; }
+    const s = env.TICK + '|' + from + '|' + to + '|' + canon(m);
+    if (wantIdx !== undefined && h1.length === wantIdx) grabbed = s;
+    h1.push(fnv(s, 2166136261)); h2.push(fnv(s, 0x811c9dc5 ^ 0x9e3779b9));
     baseSend(from, to, m);
   };
   H.spawn(env, N);
@@ -160,18 +181,23 @@ function trajectory(N, digestOn, seed) {
   const kt = H.converge(env, N - nk, 40000);
   run(env, 600);
   const c = H.counts(env);
-  return { log, jt, kt, nk, c, moves: env.moves, evict: env.evict, digFrames: digOn.count, digTypes: Array.from(digOn.types).sort() };
+  return { h1, h2, n: h1.length, grabbed, jt, kt, nk, c, moves: env.moves, evict: env.evict, digFrames: digOn.count, digTypes: Array.from(digOn.types).sort() };
 }
 for (const seed of [20260714, 7]) {
   const A = trajectory(200, true, seed);
   const B = trajectory(200, false, seed);
-  check(`seed ${seed}: same number of frames (${A.log.length})`, A.log.length === B.log.length, { on: A.log.length, off: B.log.length });
+  check(`seed ${seed}: same number of frames (${A.n})`, A.n === B.n, { on: A.n, off: B.n });
   let firstDiff = -1;
-  for (let i = 0; i < Math.min(A.log.length, B.log.length); i++) if (A.log[i] !== B.log[i]) { firstDiff = i; break; }
+  for (let i = 0; i < Math.min(A.n, B.n); i++) if (A.h1[i] !== B.h1[i] || A.h2[i] !== B.h2[i]) { firstDiff = i; break; }
+  let detail;
+  if (firstDiff >= 0) {   // failure path only: pay a re-run to name the frame
+    const A2 = trajectory(200, true, seed, firstDiff), B2 = trajectory(200, false, seed, firstDiff);
+    detail = { atFrame: firstDiff, on: String(A2.grabbed).slice(0, 220), off: String(B2.grabbed).slice(0, 220) };
+  }
   check(`seed ${seed}: digests ON is BYTE-IDENTICAL to OFF, frame for frame, through join+kill+heal`,
-    firstDiff < 0, firstDiff < 0 ? undefined : { atFrame: firstDiff, on: A.log[firstDiff].slice(0, 220), off: B.log[firstDiff].slice(0, 220) });
+    firstDiff < 0, detail);
   check(`seed ${seed}: same convergence ticks, same moves, same evictions, same outcome`,
-    A.jt === B.jt && A.kt === B.kt && A.moves === B.moves && A.evict === B.evict && JSON.stringify(A.c) === JSON.stringify(B.c),
+    A.jt === B.jt && A.kt === B.kt && A.moves === B.moves && A.evict === B.evict && A.nk === B.nk && JSON.stringify(A.c) === JSON.stringify(B.c),
     { on: { jt: A.jt, kt: A.kt, moves: A.moves, evict: A.evict, c: A.c }, off: { jt: B.jt, kt: B.kt, moves: B.moves, evict: B.evict, c: B.c } });
   // ...and the leg is not vacuous: the ON arm really did carry digests, and on
   // exactly the frames § G names. An equality that passed because the flag did
@@ -183,7 +209,7 @@ for (const seed of [20260714, 7]) {
 }
 
 // ===========================================================================
-console.log('\n=== 3) REFUSALS — G3: exact, unanimous, and failing toward BLUR ===');
+leg('3) REFUSALS — G3: exact, unanimous, and failing toward BLUR');
 {
   const { env } = settledRoom(150);
   const live = () => [...env.seats.values()].filter((s) => s.alive && s.state === 3);
@@ -231,7 +257,7 @@ console.log('\n=== 3) REFUSALS — G3: exact, unanimous, and failing toward BLUR
 }
 
 // ===========================================================================
-console.log('\n=== 4) O(C) GAUGES — flat in N (the V1 law itself) ===');
+leg('4) O(C) GAUGES — flat in N (the V1 law itself)');
 // The bound that matters is N-INDEPENDENCE, so this is a RATIO test between a
 // small room and a much larger one, plus the absolute C-derived cap. Note what
 // framesPerTick counts: EVERY frame a node receives, not just digests — the
@@ -262,7 +288,7 @@ function gauge(N) {
 }
 
 // ===========================================================================
-console.log('\n=== 5) THE LYING AGGREGATOR — G4/G5 ===');
+leg('5) THE LYING AGGREGATOR — G4/G5');
 // `lie = 1` publishes folds AND echoes with the refusals stripped: the
 // strongest suppressor, and the ONE dangerous direction (deflating refusals can
 // unblur a room). What must hold:
@@ -341,5 +367,7 @@ console.log('\n=== 5) THE LYING AGGREGATOR — G4/G5 ===');
   }
 }
 
-console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILED');
+console.log(`  [leg took ${((Date.now() - legAt) / 1000).toFixed(1)}s]`);
+console.log(`\ntotal wall clock ${((Date.now() - T0) / 1000).toFixed(1)}s (mesh tier budget: 900s)`);
+console.log(fails === 0 ? 'ALL PASS' : fails + ' FAILED');
 process.exit(fails === 0 ? 0 : 1);
