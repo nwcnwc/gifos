@@ -11,7 +11,7 @@
 > | 3 sw.js can serve a pre-rename loader that 404s | **ALIVE** | `degrade()` still returns the cached `/index.html` with NO `SHELL_VERSION` check; the guard this entry proposes is absent. Confirmed reachable: `versions/0.9.1/run.html` does not exist. |
 > | 4 loaders with no `gifosPinTarget` hook | **ALIVE (half obsolete)** | `store.html` half is DEAD — it deliberately ships no channel loader now. `sign.html` half STANDS and is in no battery (`runtime-page-name.js` iterates index/boot/run only). The pre-rename wrinkle is moot post-flag-day; the rot pattern is not. |
 > | 5 mesh-pipe on Safari live + untested | **ALIVE** | `e2e-pipe.js` is chromium-only by construction (`ignorePins`); the only cross-engine suite tests Ed25519, not the pipe. Needs the real-Apple lane. |
-> | 6 the 7-hour room fork | **ALIVE / unreproduced** | The sim family is gated (`c-sweep.sh` asserts dups=0 under total partition at all C), but the LIVE shape — two one-seat trees on one relay session — still has no test, and the flap doc's `greeterTrace` observability is unbuilt. |
+> | 6 the 7-hour room fork | **ALIVE — but REPRODUCED, WATCHED and GUARDED 2026-08-06** | The live shape now has a drill (`e2e-room-fork-live.js`, in `mesh-churn.sh` + the drills tier, mutation-tested) and a detector the monitor runs on every snapshot (`test/tools/fork-detect.js`). A door-side MECHANISM is now measured too (`door-registry-probe.js`: a stale blobless claim holds the genesis forever) — relay fix REPORTED, not made. See the §6 note below. |
 > | 7 iOS in-app viewers can't grant a camera | **ALIVE (product question)** | No proactive iOS-webview affordance on the join page; "Open in Safari" appears only from the preflight's failure path. |
 > | 8 standby re-park lag | **ALIVE** | `redun-drill` still quarantined verbatim; part of the one redundancy-lane investigation. |
 > | 9 identity rotation costs a ring window | **ALIVE** | `RING_HOLD = 220` unchanged; no signed "my old self is dead" LEAVE exists in either twin. Still a healing-laws question, not a patch. |
@@ -95,6 +95,41 @@ the sim gate for the family — but the live shape is UNREPRODUCED as a test.
 Watch the monitor after the 0.9.2 deploy; if a fork recurs, capture
 `greeterTrace` + both sides' `seat.state` timelines (the flap doc's missing
 observability, still unbuilt).
+
+**2026-08-06 — the shape is now REPRODUCED, WATCHED and GUARDED. Still ALIVE
+as a product bug; what changed is that it can no longer be invisible.**
+
+- **Reproduced.** `test/drills/e2e-room-fork-live.js` manufactures it with
+  real browsers: two seats in one tree, then a symmetric sever, and each half
+  heals itself into a one-seat tree at `0/0.0` while both sockets stay on the
+  ONE relay session. Measured (raspberrypi, load < 2): forms in 6.7s, both
+  halves read `0/0.0 occ=1 links=0` — this entry's reading, verbatim. 2/2
+  clean runs; mutation-tested (blinding the relay-roster observation reds the
+  five fork legs; forcing "nobody is in my tree" reds the silence leg).
+- **Watched.** The observation that breaks the one-seat-tree symmetry was on
+  the wire all along: the relay's `{t:'roster', peers:[…]}` names every socket
+  on the session whatever tree its owner is in, and `run.html` already exposes
+  it as `relayReach()`. `test/tools/fork-detect.js` + `meet.js` turn that into
+  a verdict on every monitor snapshot (`door`/`fork` command, stderr on both
+  edges, carried through the jsonl compactor). Details and the reasoning:
+  docs/seating-under-flap-2026-08-04.md → "SEEING A FORK".
+- **A mechanism, at the door.** `test/tools/door-registry-probe.js` shows the
+  relay CAN hold two genesis instances on one session, and — worse — that a
+  socket which registered a greeter blob ONCE and thereafter only knocks
+  blobless (a seat's state after `requeue()`) holds the room's genesis
+  FOREVER: `a.gblob` is never cleared on expiry and `a.gseen` is refreshed by
+  every knock. Measured 5/5: a fresh joiner gets `founded:false
+  admitted:false list:[]` forever, and the dead claim resurrects over a
+  legitimate founder. That is a door at which two already-seated halves can
+  never find each other — seven hours of it. **Relay fix reported, not made**
+  (see the flap doc): a genesis claim must require a LIVE registration or an
+  unconverted mint inside the grace.
+- **And a dissolution cliff worth its own look.** The same drill measures the
+  reunion after the partition lifts: a **14s** fork rejoins in **0.7-1.5s**,
+  while a **~100s** fork had NOT rejoined 60s after the lift — with the door
+  already handing each half the other (`fragment-rescue list=1 open=1`).
+  Consistent with §9's arithmetic (RING_HOLD = 220 ticks = 110s). Not
+  asserted anywhere: nobody has established a bound for this shape.
 
 ## 7. iOS in-app viewers still can't grant a camera
 
