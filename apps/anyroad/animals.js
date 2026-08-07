@@ -240,7 +240,7 @@
       var a = herd[i];
       if (a.state === 'hit') continue;
       var d = Math.hypot(a.x - (car ? car.x : 0), a.z - (car ? car.z : 0));
-      if (d > 95) continue;
+      if (d > 150) continue;
       // Weight the panicking ones: they are the ones worth hearing.
       pick.push(a);
       if (a.state === 'flee') { pick.push(a); pick.push(a); callIn = rnd(0.5, 1.6); }

@@ -271,6 +271,34 @@
     return (h === null ? 0 : h) + lift;
   }
 
+  // THE GRASS FLOWING INTO THE ROAD. A ribbon only samples the ground at the
+  // way's OWN nodes, and OSM puts those wherever the road bends — on a straight
+  // they can be a hundred metres apart. The terrain heightfield has a post
+  // every ten. So between two road nodes the tarmac was a straight line in Y
+  // across ground that rises and falls under it, and everywhere the ground won
+  // it came through the surface. It was not a z-fighting problem and no amount
+  // of lift would have fixed it: the road was genuinely below the hill.
+  //
+  // Split every segment so no piece is longer than one terrain post. Costs
+  // vertices on long straights, which is exactly where they were missing.
+  var ROAD_STEP = 8;
+
+  function densify(pts, step) {
+    if (pts.length < 2) return pts;
+    var out = [pts[0]];
+    for (var i = 1; i < pts.length; i++) {
+      var a = pts[i - 1], b = pts[i];
+      var d = Math.hypot(b.x - a.x, b.z - a.z);
+      var n = Math.min(64, Math.floor(d / step));
+      for (var k = 1; k <= n; k++) {
+        var t = k / (n + 1);
+        out.push({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t });
+      }
+      out.push(b);
+    }
+    return out;
+  }
+
   // A polyline to a ribbon. Vertex normals are mitred so the surface stays
   // continuous through a bend instead of showing a wedge of terrain at every
   // corner; the mitre is limited so a hairpin does not fire a spike off to
@@ -319,7 +347,33 @@
       var a = base + s * 2, b = a + 1, c = a + 2, d = a + 3;
       out.idx.push(a, c, b, b, c, d);
     }
+
+    // SKIRTS. Densifying fixes the road following the hill; this covers the
+    // last case, which is the ground rising ACROSS the carriageway — a road cut
+    // into a slope has terrain higher than the tarmac on its uphill side, and
+    // the edge of a flat ribbon leaves a hairline of grass lying over it. A
+    // short vertical band hanging from each kerb hides that from every angle
+    // for two quads per cross-section, and doubles as the kerb face.
+    var skirtBase = out.pos.length / 3;
+    for (var q = 0; q < n; q++) {
+      var lq = left[q], rq = right[q];
+      var ly = groundAt(frame, lq.x, lq.z, lift), ry = groundAt(frame, rq.x, rq.z, lift);
+      out.pos.push(lq.x, ly, lq.z, lq.x, ly - SKIRT, lq.z,
+                   rq.x, ry, rq.z, rq.x, ry - SKIRT, rq.z);
+      for (var m = 0; m < 4; m++) {
+        out.uv.push(0, m < 2 ? 0.02 : 0.98);
+        out.tone.push(tone);
+        out.rinfo.push(surface || 0, lanes || 2);
+      }
+    }
+    for (var t2 = 0; t2 < n - 1; t2++) {
+      var L0 = skirtBase + t2 * 4, L1 = L0 + 1, L2 = L0 + 4, L3 = L0 + 5;
+      out.idx.push(L0, L1, L2, L1, L3, L2);
+      var R0 = L0 + 2, R1 = L0 + 3, R2 = L0 + 6, R3 = L0 + 7;
+      out.idx.push(R0, R2, R1, R1, R2, R3);
+    }
   }
+  var SKIRT = 0.55;   // metres of kerb face hanging below the carriageway
 
   // Ear clipping. Building footprints and lakes are small, simple polygons, so
   // an O(n²) clip is far cheaper than the code to do better.
@@ -537,7 +591,10 @@
   // 0.30 clears the carriageway by 12 cm and is still far too small a step to
   // read as a floating decal on open ground.
   var ROAD_LIFT = 0.18;
-  var SHADOW_LIFT = 0.30;
+  // Above the HIGHEST road: junction z-fighting is settled by lifting each road
+  // a millimetre per class rank, so the tallest carriageway sits at
+  // ROAD_LIFT + 6 * 0.012. A shadow at 0.30 would sink under a motorway.
+  var SHADOW_LIFT = 0.36;
 
   function hull(pts) {
     if (pts.length < 3) return pts;
@@ -633,7 +690,14 @@
       // two-lane primary are the same OSM class and very much not the same road.
       var width = lanes ? Math.max(cls.w * 0.6, lanes * 3.3) : cls.w;
       var pts = toWorld(frame, geom.ways[i][1]);
-      ribbon(frame, pts, width / 2, ROAD_LIFT, roads,
+      // INTERSECTIONS. Two ways crossing lay two ribbons at the same height on
+      // the same ground, and coplanar geometry is the one thing a depth buffer
+      // cannot resolve — junctions were a mess of flickering triangles with the
+      // markings of both roads fighting through each other. A millimetre of
+      // lift per class rank settles it, permanently and in the right order: the
+      // bigger road runs THROUGH the junction and the smaller one stops at it,
+      // which is also how the give-way works in real life.
+      ribbon(frame, densify(pts, ROAD_STEP), width / 2, ROAD_LIFT + cls.rank * 0.012, roads,
              cls.tone, surf, lanes || Math.max(1, Math.round(cls.w / 3.4)));
       // Keep the world-space polyline: traffic drives along it. It is already
       // computed for the ribbon, so this costs a reference rather than the

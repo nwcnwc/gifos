@@ -28,6 +28,7 @@
       contactT: 0,        // seconds of unbroken contact with a wall
       hurtCool: 0,        // seconds until another impact may be charged
       revArm: 0,          // seconds the brake has been held at a standstill
+      halted: false,      // braked to a stop; the cruise stays off until GO
       stillT: 0,          // seconds of going nowhere — what "stuck" is read from
     };
   }
@@ -129,7 +130,7 @@
 
   function repair(car) {
     car.health = 100; car.wrecked = false; car.contactT = 0;
-    car.revArm = 0; car.stillT = 0;
+    car.revArm = 0; car.stillT = 0; car.halted = false;
   }
 
   // Put the car down somewhere clean, facing somewhere sensible, at rest. Used
@@ -141,6 +142,7 @@
     if (yaw != null) car.yaw = yaw;
     car.speed = 0; car.vy = 0;
     car.contactT = 0; car.hurtCool = 0; car.revArm = 0; car.stillT = 0;
+    car.halted = false;
     car.airborne = false;
     return car;
   }
@@ -165,7 +167,7 @@
   // touch, and a replayed ghost. `park` is the whole-car override: a panel is
   // over the screen, so the car is not being driven and must not be creeping
   // into a building while the player reads it.
-  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0, park: false }; }
+  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0, park: false, go: false }; }
 
   function update(car, input, dt, frame) {
     dt = Math.min(dt, 0.05);           // a long frame must not teleport the car
@@ -211,6 +213,21 @@
     var grip = car.onRoad ? 1 : 0.55;
     var power = 11.5 * grip;                            // m/s² at full throttle
     var maxSpeed = (car.onRoad ? 62 : 19);              // ~220 km/h vs ~68 off road
+    // HALTED, and this has to be decided BEFORE the throttle is applied — an
+    // earlier version zeroed inThrottle after the accel had already been
+    // computed from it, so the halt had no effect until the following frame and
+    // the cruise simply drove away anyway.
+    //
+    // "Almost impossible to stop" was never a weak brake: it was that the
+    // instant you let go of it the cruise opened the throttle again. A car that
+    // cannot be left standing is a car you are always fighting. So coming to
+    // rest is a STATE — brake to a standstill and the cruise stays disarmed
+    // until you ask for it back, which is the GO pedal, which appears when you
+    // are halted whatever the throttle mode.
+    if (inBrake > 0 && Math.abs(car.speed) < 0.35 && car.revArm < REV_ARM) car.halted = true;
+    if (input.go || park) car.halted = false;
+    if (car.halted) { inThrottle = 0; autoTarget = 0; }
+
     var accel = 0;
 
     if (inThrottle > 0) {
@@ -238,7 +255,7 @@
       else {
         car.revArm += dt;
         if (car.revArm >= REV_ARM) accel -= 7 * inBrake;   // deliberate reverse
-        else if (car.speed > -0.05) car.speed = Math.max(0, car.speed);  // an ordinary stop
+        else if (car.speed > -0.05) car.speed = 0;   // an ordinary stop IS a stop
       }
     } else car.revArm = 0;
     if (inHand) accel -= Math.sign(car.speed) * 9;
@@ -544,6 +561,11 @@
         var kSteer = ((keys['d'] || keys['arrowright']) ? 1 : 0) - ((keys['a'] || keys['arrowleft']) ? 1 : 0);
         input.brake = Math.max(kBrake, pedal.brake ? 1 : 0);
         input.handbrake = !!keys[' '];
+        // GO is the player ASKING to move, which in auto mode `throttle` cannot
+        // tell you — it sits at 1 the whole time by design. It is the only
+        // thing that releases the halt (see update()), so it has to be the raw
+        // pedal or key, never the cruise.
+        input.go = kThrottle > 0 || !!pedal.throttle;
 
         // Throttle.
         if (mode.scheme === 'stick') {
