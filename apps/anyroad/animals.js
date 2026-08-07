@@ -84,6 +84,7 @@
 
     var y = ctx.height(x, z);
     if (y === null) return null;                 // no ground here yet
+    if (ctx.solid && ctx.solid(x, z)) return null;   // inside a building
 
     var kind = pick(KINDS);
     return {
