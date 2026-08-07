@@ -1123,6 +1123,312 @@
     for (const k in cfg) if (k.toLowerCase() === want) return cfg[k];
     return null;
   }
+  /*
+   * POOLING — a declared MODE, not a hidden optimisation.
+   *
+   * An app may list a SUBSET of its network hosts under capabilities.pool. What
+   * that buys: when the app is in a room with other people, a GET to one of
+   * those hosts is answered from the room if anyone there already has it, and
+   * fetched once and shared if nobody does. Ten people driving the same street
+   * cost a donated map server one Overpass query instead of ten.
+   *
+   * Three rules, enforced here rather than documented:
+   *
+   *  1. POOL ⊆ NETWORK. You cannot pool a host you were not allowed to reach.
+   *     Otherwise `pool` is a second, quieter network allowlist.
+   *  2. NEVER A KEYED HOST. Anything under capabilities.api is refused outright.
+   *     Those responses were bought with someone's key and quota, and re-serving
+   *     them to a room is a licensing decision the app does not get to make on
+   *     the player's behalf. This is the guard, not the guidance.
+   *  3. GET ONLY, AND ONLY WHAT IS CACHEABLE. A pooled answer is content
+   *     addressed by its URL; a POST is not a question with a stable answer.
+   */
+  function poolHosts(manifest) {
+    const caps = (manifest && manifest.capabilities) || {};
+    const want = Array.isArray(caps.pool) ? caps.pool.filter(Boolean) : [];
+    if (!want.length) return [];
+    const net = Array.isArray(caps.network) ? caps.network : [];
+    const keyed = Array.isArray(caps.api) ? caps.api : [];
+    // A keyed API's host is not named in the manifest — the user configures it
+    // in Settings — so the check is "does this app use keyed APIs at all, and
+    // is this host one of their configured bases".
+    // HOSTNAME, never host:port — `network` is matched on u.hostname in
+    // bridgeFetch, and a `pool` list that quietly meant something else would
+    // be a second vocabulary for the same idea (and would silently never match
+    // on any non-default port, which is exactly where the test fixtures live).
+    const keyedHosts = keyed.map((n) => {
+      const c = apiEntry(n);
+      try { return c && c.url ? new URL(c.url).hostname : null; } catch (e) { return null; }
+    }).filter(Boolean);
+    const netN = net.map(normHost).filter(Boolean);
+    // '*' is deliberately unpoolable. An app may ask to reach anywhere — and
+    // the sheet shouts about it — but "share everything you download from
+    // anywhere with the room" is not a thing a manifest gets to say.
+    return want.filter((h) => {
+      const n = normHost(h);
+      return n && n !== '*' && netN.indexOf(n) !== -1 && keyedHosts.indexOf(n) === -1;
+    });
+  }
+
+  function poolable(manifest, d) {
+    if (!d || (d.method && String(d.method).toUpperCase() !== 'GET')) return false;
+    if (capDisabled(manifest, 'pool')) return false;
+    const hosts = poolHosts(manifest).map(normHost);
+    if (!hosts.length) return false;
+    let host;
+    try { host = normHost(new URL(d.url).hostname); } catch (e) { return false; }
+    return hosts.indexOf(host) !== -1;
+  }
+
+  /*
+   * The pool, and the two parts of it that are subtle.
+   *
+   * THE COLD START. "Share what you downloaded" is the easy half and it does
+   * nothing on its own. At the moment a race begins nobody has anything, so
+   * all ten players miss at once, all ten ask the map server, and the sharing
+   * engages after every request it existed to prevent has already been made.
+   * What makes the difference is CLAIMING BEFORE FETCHING: announce the intent,
+   * WAIT OUT A SHORT SETTLE WINDOW, and then the peer whose id sorts lowest
+   * goes while the rest wait for its answer. The window is the whole trick — a
+   * claim that decides instantly decides against an empty room and every peer
+   * still elects itself. SETTLE_MS is one mesh hop's worth of grace, paid only
+   * on a miss, and it is invisible next to an Overpass query.
+   *
+   * THE ANSWER STAMPEDE, which is the same bug wearing the other hat. Once
+   * everybody holds a URL, one latecomer's `want` is answered by ALL of them
+   * at once — N copies of the same payload across the mesh to serve one miss.
+   * So an answer is DAMPED: each holder waits a deterministic slot derived
+   * from its own id and the URL, and cancels the moment it sees somebody
+   * else's answer go by. One reply, no coordinator, and a holder that leaves
+   * mid-slot just means the next slot fires.
+   *
+   * Both election rules have to be able to LOSE. A claimer who leaves, or
+   * whose request hangs, must not stop everyone else loading the world — so a
+   * claim expires, and a wait always ends, in the worst case by doing exactly
+   * what the unpooled app would have done.
+   */
+  const POOL_TTL = 30 * 60 * 1000;      // an answer is good for half an hour
+  const POOL_MAX = 96;                  // entries retained per app session
+  const POOL_BYTES = 3 * 1024 * 1024;   // never RETAIN a response bigger than this
+  // …and never PUSH one bigger than this onto the room's data channels. The
+  // mesh's own history is the argument (see run.html sgaApp): a multi-megabyte
+  // frame on the stage lane starved the signaling that keeps the room alive.
+  // A response over the fan cap is still cached locally and still served on
+  // request — it just never travels unasked.
+  const POOL_FAN_BYTES = 384 * 1024;
+  const CLAIM_MS = 9000;                // a claim nobody honours expires
+  const SETTLE_MS = 300;                // …the window competing claims land in
+  const WAIT_MS = 7000;                 // …and a waiter never waits longer
+  const SERVE_SLOT = 90;                // damping slot per holder, ms
+  const SERVE_SLOTS = 8;
+
+  const poolHave = new Map();           // url -> { bytes, headers, status, at }
+  const poolClaim = new Map();          // url -> { by, at }
+  const poolWaiters = new Map();        // url -> [ {resolve, timer} ]
+  const poolServing = new Map();        // url -> timer for our damped answer
+  let poolSend = null;                  // set when a room bus exists
+  let poolSelf = '';                    // this node's id, for the claim ordering
+  // The pool's account of itself. `self` and `rx` are here because the two ways
+  // this quietly degrades into "everybody fetches anyway" are indistinguishable
+  // from the outside: nobody's frames are crossing (rx stays 0), or every node
+  // is calling itself the same thing so no claim can ever lose (self collides).
+  const poolStats = { self: '', rx: 0, lag: 0, hits: 0, served: 0, fetched: 0, waited: 0, yielded: 0, damped: 0 };
+  const poolAsked = new Map();          // url -> when WE claimed it (lag measurement)
+
+  function poolTrim() {
+    if (poolHave.size <= POOL_MAX) return;
+    const old = [...poolHave.entries()].sort((a, b) => a[1].at - b[1].at);
+    for (let i = 0; i < old.length - POOL_MAX; i++) poolHave.delete(old[i][0]);
+  }
+
+  function poolLocal(url) {
+    const e = poolHave.get(url);
+    if (!e) return null;
+    if (Date.now() - e.at > POOL_TTL) { poolHave.delete(url); return null; }
+    return e;
+  }
+
+  const poolHit = (e) => ({ status: e.status, headers: e.headers, bytes: e.bytes });
+  const poolSize = (b) => (b ? (b.byteLength || b.length || 0) : 0);
+
+  // Release everyone waiting on this URL. entry===null means "nobody is coming"
+  // — the waiter falls back to a real fetch rather than failing the app.
+  function poolSettle(url, entry) {
+    const list = poolWaiters.get(url);
+    if (!list) return;
+    poolWaiters.delete(url);
+    list.forEach((w) => { clearTimeout(w.timer); w.resolve(entry || null); });
+  }
+
+  // A promise for "the room answers this URL", or null after ms. Never rejects:
+  // every caller has a fallback and a rejection here would surface as an app
+  // network error for a request that has not actually failed.
+  function poolAwait(url, ms) {
+    const held = poolLocal(url);
+    if (held) return Promise.resolve(held);
+    return new Promise((resolve) => {
+      const list = poolWaiters.get(url) || [];
+      const w = { resolve: resolve };
+      w.timer = setTimeout(() => {
+        const rest = (poolWaiters.get(url) || []).filter((x) => x !== w);
+        if (rest.length) poolWaiters.set(url, rest); else poolWaiters.delete(url);
+        resolve(null);
+      }, ms);
+      list.push(w);
+      poolWaiters.set(url, list);
+    });
+  }
+
+  // Somebody in the room offered us one. Retain it and release anyone waiting —
+  // this is the same retain-and-fan the app bytes use, keyed by URL instead of
+  // by session. Also cancels our own pending answer: theirs got there first,
+  // which is exactly what the damping window is for.
+  function poolAccept(url, entry) {
+    if (!url || !entry || !poolSize(entry.bytes)) return;
+    poolHave.set(url, { bytes: entry.bytes, headers: entry.headers || {}, status: entry.status || 200, at: Date.now() });
+    poolTrim();
+    poolClaim.delete(url);
+    const t = poolServing.get(url);
+    if (t) { clearTimeout(t); poolServing.delete(url); poolStats.damped++; }
+    poolSettle(url, poolHave.get(url));
+  }
+
+  // Our slot in the answer order. A stable hash of (self, url) — so two holders
+  // pick different slots, and the SAME holder picks the same slot for a URL
+  // every time (no thrash, and a test can predict it).
+  function poolSlot(url) {
+    const s = String(poolSelf) + ' ' + url;
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return (h % SERVE_SLOTS) * SERVE_SLOT;
+  }
+
+  function poolOffer(url) {
+    poolServing.delete(url);
+    const e = poolLocal(url);
+    if (!e || !poolSend) return;
+    if (poolSize(e.bytes) > POOL_FAN_BYTES) return;
+    poolStats.served++;
+    poolSend({ k: 'data', url: url, bytes: e.bytes, headers: e.headers, status: e.status });
+  }
+
+  // Lowest id wins, and a claim only ever moves DOWN within its window — a peer
+  // that claims late cannot displace an earlier lower bidder.
+  //
+  // OUR OWN claim goes through here too, and that is the whole point. It used
+  // to be written straight into the map, which CLOBBERED a lower claim that had
+  // already arrived — so the peer that asked second always re-elected itself,
+  // both peers fetched, and the pool degraded into pure overhead while every
+  // frame still crossed and every log looked healthy. Measured lag was 15ms
+  // against a 300ms window: the window was never the problem.
+  function poolBid(url, by) {
+    const cur = poolClaim.get(url);
+    if (!cur || Date.now() - cur.at > CLAIM_MS || String(by) < String(cur.by)) poolClaim.set(url, { by: by, at: Date.now() });
+  }
+
+  function poolOnFrame(m) {
+    if (!m || typeof m.url !== 'string') return;
+    poolStats.rx++;
+    if (m.k === 'claim') {
+      // How long a competing claim took to reach us. This is the ONE number
+      // that says whether SETTLE_MS is big enough for the room we are actually
+      // in — a settle window shorter than the lag means every peer elects
+      // itself and the pool silently becomes a no-op that still costs frames.
+      if (String(m.by) !== String(poolSelf)) {
+        const t = poolAsked.get(m.url);
+        if (t) poolStats.lag = Math.max(poolStats.lag, Date.now() - t);
+      }
+      poolBid(m.url, m.by);
+    } else if (m.k === 'data') poolAccept(m.url, m);
+    else if (m.k === 'want') {
+      if (poolServing.has(m.url) || !poolLocal(m.url) || !poolSend) return;
+      poolServing.set(m.url, setTimeout(() => poolOffer(m.url), poolSlot(m.url)));
+    }
+  }
+
+  // Did we win the right to fetch? Nobody claimed, or nobody claimed lower.
+  function poolWon(url) {
+    const c = poolClaim.get(url);
+    if (!c || Date.now() - c.at > CLAIM_MS) return true;
+    return String(c.by) >= String(poolSelf);
+  }
+
+  function poolFetch(policy, d, url) {
+    poolStats.fetched++;
+    return bridgeFetch(policy, d)
+      .then((r) => {
+        const kept = poolKeep(url, r);
+        const e = poolLocal(url);
+        if (e && poolSend && poolSize(e.bytes) <= POOL_FAN_BYTES) {
+          poolStats.served++;
+          poolSend({ k: 'data', url: url, bytes: e.bytes, headers: e.headers, status: e.status });
+        }
+        poolSettle(url, e);
+        return kept;
+      })
+      .catch((err) => { poolClaim.delete(url); poolSettle(url, null); throw err; });
+  }
+
+  function pooledFetch(policy, d) {
+    const url = d.url;
+    const local = poolLocal(url);
+    if (local) { poolStats.hits++; return Promise.resolve(poolHit(local)); }
+
+    // Alone in the room: there is nobody to pool with, so this is an ordinary
+    // fetch and must not pay a millisecond for the machinery.
+    if (!poolSend) return bridgeFetch(policy, d).then((r) => poolKeep(url, r));
+
+    poolSend({ k: 'want', url: url });                       // somebody may hold it
+    poolBid(url, poolSelf);
+    poolAsked.set(url, Date.now());
+    poolSend({ k: 'claim', url: url, by: poolSelf });
+
+    return poolAwait(url, SETTLE_MS).then((e) => {
+      if (e) { poolStats.hits++; return poolHit(e); }
+      if (poolWon(url)) return poolFetch(policy, d, url);
+      // Somebody lower claimed it. Wait for their answer — but never for ever:
+      // a claimer who left must cost us a few seconds, not the world.
+      poolStats.yielded++;
+      return poolAwait(url, WAIT_MS).then((e2) => {
+        if (e2) { poolStats.hits++; return poolHit(e2); }
+        poolStats.waited++;
+        poolClaim.delete(url);
+        return poolFetch(policy, d, url);  // exactly what the unpooled app would have done
+      });
+    });
+  }
+
+  function poolKeep(url, r) {
+    const n = poolSize(r && r.bytes);
+    if (r && r.status >= 200 && r.status < 300 && n > 0 && n <= POOL_BYTES) {
+      poolHave.set(url, { bytes: r.bytes, headers: r.headers || {}, status: r.status, at: Date.now() });
+      poolTrim();
+    }
+    poolClaim.delete(url);
+    return r;
+  }
+
+  // The room bus arrives AFTER the app mounts (becomeHost / bootClientBus), so
+  // the pool is wired on attach and unwired on teardown. Everything a departing
+  // bus owns goes with it — a stale claim or a scheduled answer outliving the
+  // room is a frame sent into the dark.
+  function poolAttach(bus, self) {
+    poolSend = (d) => { try { bus.send('pool', d); } catch (e) {} };
+    // A node with no id cannot lose a claim to a node with the same no-id, so
+    // a missing self is not "use a default" — it is a bug that must be loud
+    // rather than a room where everybody quietly fetches everything.
+    if (!self) { poolSend = null; try { console.error('[pool] no node id — pooling stays off'); } catch (e) {} return; }
+    poolSelf = String(self);
+    poolStats.self = poolSelf;
+  }
+  function poolDetach() {
+    poolSend = null; poolSelf = ''; poolStats.self = '';
+    poolClaim.clear();
+    for (const t of poolServing.values()) clearTimeout(t);
+    poolServing.clear();
+    for (const url of [...poolWaiters.keys()]) poolSettle(url, null);
+  }
+
   function apiAllowed(manifest, name) {
     const list = (manifest && manifest.capabilities && manifest.capabilities.api) || [];
     return Array.isArray(list) && list.indexOf(name) !== -1;
@@ -1331,7 +1637,11 @@
       // not an unhandled "reading 'postMessage'" rejection.
       const reply = (p) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*'); };
       if (d.type === 'db') db.op(d.op, d.collection, d.key, d.value).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
-      else if (d.type === 'fetch') bridgeFetch(policy, d).then((r) => reply({ ok: true, result: r })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
+      else if (d.type === 'fetch') {
+        (poolable(manifest, d) ? pooledFetch(policy, d) : bridgeFetch(policy, d))
+          .then((r) => reply({ ok: true, result: r }))
+          .catch((err) => reply({ ok: false, error: String(err.message || err) }));
+      }
       else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'capture') brokerCapture(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'ai') brokerAI(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
@@ -1509,6 +1819,7 @@
         try { h.ws.close(); } catch (e) { /* already closing */ }
       }
       function endSession(reason) {
+        poolDetach(); // the room is gone; a pending claim or answer has nowhere to land
         const gone = liveHost; liveHost = null;
         if (!gone) return Promise.resolve();
         net.seal(gone.key, { t: 'ended', reason })
@@ -1699,9 +2010,17 @@
               if (liveHost) { const gone = liveHost; liveHost = null; if (gone.timer) clearTimeout(gone.timer); try { gone.stop && gone.stop(); } catch (e) {} try { gone.ws.close(); } catch (e) {} }
               return appOwnerLib().then((AO) => AO.createSigner()).then((signer) => {
                 stageSigner = signer; stageBus = bus;
+                // The pool rides the same lane, UNSIGNED and by design: any peer
+                // may answer, and what it answers is content addressed by URL —
+                // an owner signature would say only that the owner relayed it,
+                // which is not a fact worth the owner's main thread. What that
+                // costs is stated plainly in the permission sheet: a pooled
+                // answer comes from a peer, not from the site.
+                if (poolHosts(manifest).length && !capDisabled(manifest, 'pool')) poolAttach(bus, bus.self);
                 stageUnsub = bus.subscribe((m) => {
                   if (!m) return;
                   if (m.kind === 'act') onAct(m.d);
+                  else if (m.kind === 'pool') poolOnFrame(m.d);
                 });
                 // Refresh the retained snapshot (with app bytes) on a debounce,
                 // and push a live delta immediately, on every change.
@@ -1898,6 +2217,10 @@
       const mount = () => {
         if (mounted) return; mounted = true;
         trace('mounted');
+        // Pool AFTER the manifest lands — capabilities.pool is the app's own
+        // declaration, and until the bytes arrive this client does not know
+        // what app it is running, let alone what it is allowed to share.
+        if (poolHosts(manifestRef).length && !capDisabled(manifestRef, 'pool')) poolAttach({ send: send }, params.self);
         iframe = makeIframe(); mountEl.innerHTML = ''; mountEl.appendChild(iframe);
         mountApp(iframe, filesRef, manifestRef, db, appBytes, makeNetPolicy(null, manifestRef));
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes, manifestRef);
@@ -1955,6 +2278,12 @@
 
       const unsub = subscribe((m) => {
         if (!m || m.kind === 'act') return; // client->owner direction
+        // The pool lane is peer-to-peer and UNSIGNED — it must be handled
+        // BEFORE the owner verifier, which exists to make canonical STATE
+        // unforgeable and would (correctly) reject every pool frame. A pooled
+        // answer makes no claim to authority: it is a cache entry addressed by
+        // its URL, offered by whoever has it.
+        if (m.kind === 'pool') { poolOnFrame(m.d); return; }
         Promise.resolve(ver.verify(m.d)).then((r) => {
           if (!r.ok) { try { console.error('[bootClientBus] frame REJECTED kind=' + (m.kind || '?') + ' reason=' + (r && r.reason || '?')); } catch (e2) {} return; } // unsigned / impostor / tampered — NEVER canonical
           takeLead(r.body); // the signed lead fence rides every canonical frame
@@ -1970,7 +2299,7 @@
 
       setStatus('Connected to the shared app · owner-signed over the mesh');
       return {
-        stop: () => { try { unsub && unsub(); } catch (e) {} clearInterval(actSweep); pendingActs.clear(); },
+        stop: () => { try { unsub && unsub(); } catch (e) {} clearInterval(actSweep); pendingActs.clear(); poolDetach(); },
         // ONE RUNTIME (docs/one-runtime.md): the client's mirror is the room's
         // survival story. snapshot() packs app bytes + the owner-verified
         // mirror into a snapshot GIF — the successor adopts it (resilient
@@ -1994,5 +2323,10 @@
     });
   }
 
-  GifOS.runtime = { boot, bootClientBus, buildAppHtml, buildFolderHtml, norm, slug };
+  // poolHosts is EXPORTED because it is the enforcement point for the three
+  // pool rules (⊆ network, never keyed, GET only) and a rule nothing can call
+  // is a rule nothing can test. poolStats is the same argument for the
+  // algorithm: "did the room actually save a fetch" is not visible from
+  // outside otherwise.
+  GifOS.runtime = { boot, bootClientBus, buildAppHtml, buildFolderHtml, norm, slug, poolHosts, poolStats };
 })(typeof window !== 'undefined' ? window : globalThis);

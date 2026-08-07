@@ -10834,6 +10834,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         let meshPk = null;
         if (meshBus) {
           const att = await r.attachStageBus({
+            // self: this node's mesh id. The runtime's download POOL orders its
+            // claims by it — whoever sorts lowest fetches a URL while the rest
+            // wait — so it must be the same id the room already uses to break
+            // every other tie (iInitiate, sgaTargets), not a fresh random.
+            self: myId,
             send: (kind, d) => stageData.broadcast(sess.sid, kind, d),
             subscribe: (cb) => stageData.subscribe(sess.sid, cb),
           });
@@ -10866,6 +10871,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           GifOS.runtime.bootClientBus(appMountEl, {
             s: app.s,
             pk: app.pk || null, // owner pk from the ad — pre-pins the verifier
+            self: myId,         // pool claim ordering (see attachStageBus above)
             send: (kind, d) => stageData.broadcast(app.s, kind, d),
             subscribe: (cb) => stageData.subscribe(app.s, cb),
           }, null, {}).then((c) => {

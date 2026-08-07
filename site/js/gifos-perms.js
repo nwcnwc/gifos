@@ -51,7 +51,7 @@
   }
 
   function escapeText(s) { var d = doc.createElement('div'); d.textContent = s; return d.innerHTML; }
-  var CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with', agent: 'Let an AI assistant operate this app', wasm: 'Run a compiled engine on your device' };
+  var CAP_LABELS = { microphone: 'Record short voice clips', camera: 'Take photos and short videos', motion: 'Sense how you tilt your phone', ai: 'Use your AI', api: 'Use your account with', agent: 'Let an AI assistant operate this app', wasm: 'Run a compiled engine on your device', pool: 'Pool downloads with the room' };
   var CAP_DESC = {
     wasm: 'Lets the app run a compiled (WebAssembly) engine — like a chess engine or a codec — in a background worker on your device, so it can do heavy computation fast without freezing. It still cannot reach the internet: the engine runs entirely offline, sealed inside this app.',
     microphone: 'Lets the app record short audio clips — only when you tap to record, with a recorder shown the whole time. It gets the finished clip, never a live microphone feed.',
@@ -59,9 +59,17 @@
     motion: 'Lets the app read how you tilt and move your device (for tilt games, levels, and the like). It cannot see your camera or your location.',
     ai: 'Lets the app use an AI model you set up in Settings: it sends text and gets an answer back. Your API key stays in this browser — the app never sees it.',
     api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app never sees the key.',
+    pool: 'When you are in a room with other people, this app shares what it downloads from the sites below with them, and uses what they downloaded instead of fetching it again. It is how ten people in one place cost a donated map server one download instead of ten. Two things to know: the others learn WHICH addresses you fetched (in a shared world that is where everyone already is, but it is not nothing), and what arrives comes from them rather than from the site — this app treats it as data, not as instructions. Your keyed accounts are never pooled.',
     agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It only ever touches this one app — never GifOS or your other apps — and never sees your key. You start it, and can stop it any time.'
   };
   var AI_ROLE_LABELS = { smartest: 'Smartest text LLM', cheapest: 'Cheapest text LLM', tts: 'Text → speech', stt: 'Speech → text', image: 'Text → image', image_to_video: 'Image → video', video: 'Text → video' };
+  // Hosts an app has asked to POOL. A subset of its declared network hosts, and
+  // never one of its keyed API hosts — see poolHosts() in runtime.js, which is
+  // where that is enforced rather than merely described.
+  var poolHosts = function (manifest) {
+    var p = manifest && manifest.capabilities && manifest.capabilities.pool;
+    return Array.isArray(p) ? p.filter(Boolean) : [];
+  };
   var apiNames = function (manifest) { var a = manifest && manifest.capabilities && manifest.capabilities.api; return Array.isArray(a) ? a.filter(Boolean) : []; };
   var aiRoles = function (manifest) { var a = manifest && manifest.capabilities && manifest.capabilities.ai; return Array.isArray(a) ? a.filter(function (r) { return AI_ROLE_LABELS[r]; }) : []; };
   function ls() { return root.localStorage; }
@@ -106,12 +114,14 @@
     root.__gifosPermissions = function (policy, manifest) {
       if (!chipEl) return;
       var caps = Object.keys(CAP_LABELS).filter(function (k) {
-        return k === 'api' ? apiNames(manifest).length : (manifest && manifest.capabilities && manifest.capabilities[k]);
+        if (k === 'api') return apiNames(manifest).length;
+        if (k === 'pool') return poolHosts(manifest).length;
+        return manifest && manifest.capabilities && manifest.capabilities[k];
       });
       var hasNet = !!(policy && policy.hasNetwork());
       if (!hasNet && !caps.length) { chipEl.style.display = 'none'; return; }
       var capSig = 'gifos_capack_' + ((manifest && manifest.appId) || 'app');
-      var sig = caps.join(',') + '|' + apiNames(manifest).join(',') + '|' + aiRoles(manifest).join(',');
+      var sig = caps.join(',') + '|' + apiNames(manifest).join(',') + '|' + aiRoles(manifest).join(',') + '|' + poolHosts(manifest).join(',');
       function capAcked() { try { return ls().getItem(capSig) === sig; } catch (e) { return false; } }
       function ackCaps() { try { ls().setItem(capSig, sig); } catch (e) {} }
       function paintChip() {
@@ -155,6 +165,11 @@
             // Per-role: is a model set up, and if so which one? (else where to set it)
             var aiStatus = roles.map(function (r) { return capStatusLine(aiRoleState(r), 'add it in <b>Settings → AI models</b>'); }).join('');
             return capRow('ai', CAP_LABELS.ai + which, CAP_DESC.ai, aiStatus);
+          }
+          if (k === 'pool') {
+            var ph = poolHosts(manifest);
+            return capRow(k, CAP_LABELS.pool, CAP_DESC.pool
+              + '<br><span class="cap-name">Pooled: <b>' + escapeText(ph.join(', ')) + '</b></span>');
           }
           return capRow(k, CAP_LABELS[k], CAP_DESC[k]);
         }).join('');
