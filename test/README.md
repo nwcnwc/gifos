@@ -733,6 +733,23 @@ init-script (can a given browser ENGINE be in a meeting at all — see
 "Other ENGINES" above), `webkitgtk-smoke.js` (the same question asked of the
 distro's own WebKitGTK through `WebKitWebDriver`, outside playwright entirely).
 
+**Fork forensics** (bug ledger 2026-08-05 §6 — two one-seat trees on ONE relay
+session for seven hours, invisible from inside either of them):
+
+- `fork-detect.js` is the OBSERVER, not a test: the in-page probe plus the
+  dwell clock behind `meet.js`'s `door`/`fork` command, its snapshot field and
+  its stderr alarm. A peer socketed on my relay session that holds no cell in
+  my occupancy, past any lawful entry dance, is a second tree — one relay
+  session is one stadium (R2/R3). Read the header before changing the dwell.
+  The guard that exercises it is `drills/e2e-room-fork-live.js`.
+- `door-registry-probe.js` speaks the knock protocol directly — no browser, no
+  mesh — so a greeter-registry state machine can be reproduced exactly, in
+  seconds. `{t:'knock', gk:''}` turns out to be a READ-ONLY door census (it
+  claims nothing and still gets the blob list), and `--relay/--sid` points it
+  at a real door. Its leg B currently DEMONSTRATES a live defect rather than
+  asserting its absence — a stale blobless claim holds a room's genesis
+  forever — which is why it is a tool and not a gate.
+
 ## Known state
 
 **Decided-not-to-fix things live in `batteries/known-unfixed.sh`**, which is
