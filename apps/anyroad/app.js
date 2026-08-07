@@ -76,7 +76,7 @@
       launched++;
       (function (tile, k) {
         root.Terrain.loadTile(tile).then(function (rec) {
-          world.terrain[k] = { rec: rec, mesh: null, texture: null };
+          world.terrain[k] = { rec: rec, tile: tile, mesh: null, texture: null };
           maybeLoadImagery(tile, k);
         }).catch(function (err) {
           world.terrain[k] = { failed: true, error: err };
@@ -239,12 +239,55 @@
     // player for our streaming being slow. Only a known-and-distant road is.
     car.onRoad = best ? best.dist <= best.halfWidth + 1.2 : true;
     car.surface = best && car.onRoad ? best.surface : 2;   // off road IS rough
+    car.street = best && car.onRoad ? (best.name || '') : '';
+    watchStreets(nowMs);
     // Cruise at what this road is for. Off tarmac, a walking-pace-ish amble —
     // it is the same idea as a speed limit, and it makes the class of road you
     // picked actually matter to how the drive feels.
     var target = car.onRoad && best ? best.cruise : 8;
     if (controls && controls.setCruise) controls.setCruise(target);
     car.cruise = target;
+  }
+
+  // ---- street names --------------------------------------------------------
+  // OSM has carried `name` on every way in every response the app has ever
+  // made — the parser took the class, the surface and the lane count and left
+  // it. Driving down a road that cannot tell you what it is called is a map
+  // with the labels torn off.
+  //
+  // Two different things: the road you are ON, which comes free with the "am I
+  // on tarmac" query the car already makes, and the roads you PASS, which is
+  // every other named way whose carriageway comes within a junction's reach.
+  var streetScratch = [];
+  var announced = {};      // name -> when we last called it out
+  var passing = [];        // { name, side, at } — the last few, for the HUD
+
+  function watchStreets(nowMs) {
+    // Only worth doing while actually moving: a parked car should not narrate
+    // the same junction to you every second.
+    if (Math.abs(car.speed) < 2) return;
+    streetScratch.length = 0;
+    for (var k in world.roads) {
+      var r = world.roads[k];
+      if (!r || !r.built || !r.built.index) continue;
+      root.Roads.namesNear(r.built.index, car.x, car.z, 26, streetScratch);
+    }
+    for (var i = 0; i < streetScratch.length; i++) {
+      var s = streetScratch[i];
+      if (!s.name || s.name === car.street) continue;
+      // Once per road per half minute. Without this a long junction, or a road
+      // running parallel to yours, reads out continuously.
+      if (announced[s.name] && nowMs - announced[s.name] < 30000) continue;
+      announced[s.name] = nowMs;
+      // Which side it went by, in the car's own frame.
+      var dx = s.x - car.x, dz = s.z - car.z;
+      var right = Math.sin(car.yaw + Math.PI / 2) * dx + Math.cos(car.yaw + Math.PI / 2) * dz;
+      passing.push({ name: s.name, side: right >= 0 ? 1 : -1, at: nowMs });
+      if (passing.length > 3) passing.shift();
+    }
+    // Forget roads we left a long way behind, so coming back around announces
+    // them again.
+    if (Object.keys(announced).length > 60) announced = {};
   }
 
   // ---- hitting buildings ---------------------------------------------------
@@ -365,19 +408,53 @@
   }
 
   // ---- optional satellite drape -------------------------------------------
+  // Re-drape EVERYTHING that is already loaded. Without this, turning the
+  // satellite on did nothing you could see: imagery was requested at exactly
+  // one moment — when a terrain tile finished loading — so switching source
+  // afterwards left every tile around you with the drape it was born with, and
+  // the only way to see the change was to hop somewhere else. "I added a key
+  // and nothing improved" was the honest report of a real bug.
+  function redrape() {
+    var src = root.Sources.imagery;
+    imagery.tried = 0; imagery.ok = 0; imagery.failed = '';
+    for (var k in world.terrain) {
+      var slot = world.terrain[k];
+      if (!slot || !slot.rec) continue;
+      if (!src || !src.api) { slot.texture = null; continue; }   // back to stylised
+      maybeLoadImagery(slot.tile, k);
+    }
+  }
+
+  // What the drape is actually doing, so the HUD can say so. A satellite layer
+  // that silently does nothing is indistinguishable from one that is switched
+  // off, and that is exactly how this failed.
+  var imagery = { tried: 0, ok: 0, failed: '' };
+
   function maybeLoadImagery(tile, key) {
     var src = root.Sources.imagery;
-    if (!src || !src.api) return;
+    if (!src || !src.api || !tile) return;
+    imagery.tried++;
     root.Net.apiBitmap(src.api, root.Sources.expand(src.path, tile)).then(function (bmp) {
       var slot = world.terrain[key];
       if (!slot || !slot.rec) return;
+      imagery.ok++;
       slot.texture = root.Render.textureFor('img' + key, bmp);
       if (bmp.close) bmp.close();
-    }).catch(function () { /* imagery is a bonus; never block the drive on it */ });
+    }).catch(function (err) {
+      // Imagery is a bonus and must never block the drive — but it must not
+      // fail SILENTLY either. An empty catch here is why a missing key, a
+      // rejected request and a working satellite layer all looked identical
+      // from the driver's seat.
+      imagery.failed = (err && err.message) || 'request failed';
+      if (imagery.tried - imagery.ok <= 1) {
+        root.UI.note('Satellite imagery: ' + imagery.failed + ' — check the key in GifOS Settings.');
+      }
+    });
   }
 
   // ---- hop -----------------------------------------------------------------
   var hopped = false, placedOnRoad = false;
+  var lastImagery = 'none';
 
   function hop(lat, lon, label) {
     hopped = true;
@@ -389,6 +466,7 @@
     releaseWorld();
     root.Terrain.clear();
     root.Animals.clear();          // the herd belongs to the place you left
+    announced = {}; passing.length = 0;
     root.Traffic.clear();          // …and so does the traffic
     // The first tap on a place IS the gesture a browser requires before it will
     // start an audio graph. Nothing is primed before the player has asked for
@@ -407,6 +485,7 @@
     camera.settled = false;
     root.MP.setFrame(world.frame, lat, lon, world.place);
     root.UI.setPlace(world.place);
+    root.UI.rememberPlace(lat, lon, world.place);
     ensureTerrain(); ensureRoads();
     root.UI.showDrive();
     if (!running) { running = true; lastT = 0; requestAnimationFrame(frame); }
@@ -582,6 +661,8 @@
       halted: car.halted,
       steer: input.steer,
       place: world.place,
+      street: car.street || '',
+      passing: passing,
       loading: pendingCount(),
       ready: grounded && roadsBuilt() > 0,
       net: root.Net.stats(),
@@ -664,6 +745,14 @@
       root.UI.ready();
     });
     root.Sources.onChange(applyControlPrefs);
+    // The imagery source is the one setting that must reach tiles ALREADY on
+    // the ground — see redrape().
+    root.Sources.onChange(function () {
+      var now = root.Sources.current.imagery;
+      if (now === lastImagery) return;
+      lastImagery = now;
+      redrape();
+    });
     root.MP.init();
   }
 
@@ -697,6 +786,14 @@
 
   root.App = {
     boot: boot, hop: hop, search: search, world: world, unstick: unstick,
+    redrape: redrape,
+    imagery: function () {
+      return { source: root.Sources.current.imagery, tried: imagery.tried,
+               ok: imagery.ok, failed: imagery.failed,
+               draped: Object.keys(world.terrain).filter(function (k) {
+                 return world.terrain[k] && world.terrain[k].texture;
+               }).length };
+    },
     hasHopped: function () { return hopped; },
     car: function () { return car; },
     // Why the car is or is not moving, in one call. The loop has several gates

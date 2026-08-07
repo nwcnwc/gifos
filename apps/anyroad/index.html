@@ -20,7 +20,11 @@
 <div id="hud" hidden>
   <div class="topbar">
     <button class="chip" id="btn-menu" aria-label="Menu">☰</button>
-    <div class="place" id="place">—</div>
+    <div class="where">
+      <div class="place" id="place">—</div>
+      <!-- The road you are ON. It has always been in the map data. -->
+      <div class="street" id="street" hidden></div>
+    </div>
     <div class="spacer"></div>
     <button class="chip" id="btn-map" aria-label="Map" aria-pressed="false">🗺️</button>
     <button class="chip" id="btn-race" aria-label="Races">🏁<span class="badge" id="race-badge" hidden></span></button>
@@ -63,6 +67,9 @@
   </div>
 
   <div class="status" id="status" hidden></div>
+
+  <!-- Streets you pass, called out as they go by, on the side they went by. -->
+  <div class="passing" id="passing" aria-live="polite"></div>
 
   <div class="racehud" id="racehud" hidden>
     <div class="rh-time" id="rh-time">0.0</div>
@@ -138,6 +145,9 @@
       type-ahead.</p>
 
     <ul id="results" class="results"></ul>
+
+    <p class="recent-label" id="recent-label" hidden>PLACES YOU HAVE BEEN</p>
+    <div class="recent" id="recent" hidden></div>
 
     <div class="presets" id="presets"></div>
 
@@ -248,6 +258,8 @@
     </div>
 
     <p class="attribution" id="attribution2"></p>
+
+    <button class="sheet-close" id="close-settings-bottom">Close<small>or press Esc</small></button>
   </div>
 </div>
 
@@ -271,6 +283,8 @@
     <p class="hint" id="race-hint">Drive to where you want the start, set it, drive to the finish, set that, then start.</p>
 
     <ol class="board" id="board"></ol>
+
+    <button class="sheet-close" id="close-race-bottom">Close<small>or press Esc</small></button>
   </div>
 </div>
 

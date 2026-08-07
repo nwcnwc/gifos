@@ -306,9 +306,16 @@ html, body {
 }
 
 /* ── overlays ────────────────────────────────────────────────────────────── */
+/* CENTRED WITH margin:auto, NOT align-items:center. A flex container that
+   centres its child and then scrolls CLIPS the overflowing top — the child is
+   pushed above the scrollable area and cannot be reached at any scroll
+   position. Settings grew past a laptop's viewport and the ✕ in its header went
+   off the top of the screen with no way back short of zooming the browser out.
+   `margin: auto` centres when there is room and leaves the top reachable when
+   there is not. */
 .overlay {
   position: fixed; inset: 0; z-index: 20;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; justify-content: center;
   padding: 16px; overflow-y: auto;
   background: rgba(5, 7, 13, 0.72);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
@@ -317,6 +324,7 @@ html, body {
 
 .sheet {
   width: 100%; max-width: 460px;
+  margin: auto;                /* see .overlay — this is the centring */
   padding: 20px; border-radius: 18px;
   background: var(--panel); border: 1px solid var(--line);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
@@ -427,3 +435,64 @@ select {
 
 /* Stopped, and staying stopped until you press GO. */
 .speedo.halted span { color: #8fd0ff; }
+
+/* ── where you are ─────────────────────────────────────────────────────────
+   Two lines, because they answer different questions: the PLACE is where you
+   hopped to and rarely changes; the STREET is what is under the wheels right
+   now. */
+.where { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.street {
+  align-self: flex-start; max-width: 52vw;
+  padding: 3px 9px; border-radius: 9px;
+  background: rgba(10, 14, 24, 0.62); border: 1px solid var(--line);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  font-size: 12px; font-weight: 600; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Streets you pass. They arrive on the side they went by and fade on their
+   own — a junction should register the way a road sign does, not stop you. */
+.passing {
+  position: absolute; left: 0; right: 0; top: calc(150px + var(--safe-t));
+  pointer-events: none;
+}
+.pass {
+  position: absolute; white-space: nowrap;
+  padding: 4px 10px; border-radius: 9px;
+  background: rgba(10, 14, 24, 0.6); border: 1px solid var(--line);
+  font-size: 12px; color: var(--ink);
+  animation: passby 3.4s ease-out forwards;
+}
+.pass.left { left: 14px; }
+.pass.right { right: 14px; }
+@keyframes passby {
+  0% { opacity: 0; transform: translateY(-6px); }
+  12% { opacity: 1; transform: translateY(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(16px); }
+}
+
+/* Places you have been. The landing sheet's shortcut back. */
+.recent { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.recent button {
+  padding: 7px 12px; border-radius: 999px;
+  border: 1px solid rgba(140, 200, 255, 0.32);
+  background: rgba(30, 52, 82, 0.5); color: var(--ink);
+  font-size: 12.5px; cursor: pointer;
+}
+.recent-label {
+  margin: 14px 0 0; font-size: 10px; letter-spacing: 0.12em;
+  font-weight: 700; color: var(--dim);
+}
+
+/* A close that is always reachable: the header ✕ is the quick one, this is the
+   one you arrive at having scrolled to the bottom of a long sheet. */
+.sheet-close {
+  display: block; width: 100%; margin-top: 22px;
+  padding: 13px; border-radius: 12px;
+  border: 1px solid rgba(140, 200, 255, 0.34);
+  background: rgba(30, 52, 82, 0.5); color: var(--ink);
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+.sheet-close:active { background: rgba(50, 76, 112, 0.7); }
+.sheet-close small { display: block; margin-top: 3px; font-weight: 400; font-size: 11px; color: var(--dim); }
