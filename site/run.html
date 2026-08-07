@@ -11583,6 +11583,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       awayOf: (id) => peerAway(id),
       // fault injection: simulate lost gossip / a dead transport
       _corruptStatus: (id) => statusOf.delete(id),
+      // SCALE FAULT INJECTION (scale audit V2/V3, test/browser/e2e-status-map.js):
+      // stuff `statusOf` with N synthetic strangers, exactly as a room-wide
+      // status flood at scale would. Nothing else is touched — the point is to
+      // prove that the size of this map cannot move the DIAL SET, which is
+      // linkTo()'s bounded seat arithmetic and reads nothing from here. Writes
+      // fresh `at`/`rx` so the entries are live by every consumer's freshness
+      // rule; a stale injection would prove nothing.
+      _floodStatus: (n) => { const now = Date.now(); const ids = []; for (let i = 0; i < (n | 0); i++) { const id = 'k_flood' + i.toString(16).padStart(12, '0'); ids.push(id); statusOf.set(id, { muted: true, camOff: true, blur: 2, at: now, rx: now }); } return ids.length; },
+      _floodClear: () => { let n = 0; for (const k of Array.from(statusOf.keys())) if (k.indexOf('k_flood') === 0) { statusOf.delete(k); n++; } return n; },
+      peerCount: () => peers.size,
       _corruptSid: (id) => { const p = peers.get(id); if (p) { p.ownSid = null; } },
       _failPeer: (id) => { const p = peers.get(id); if (p) { try { p.pc.close(); } catch (e) {} } },
       // ---- A/V feed monitor hooks (READ-ONLY — test/meet.js `mon`) ----------

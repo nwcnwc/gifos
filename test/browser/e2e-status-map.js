@@ -26,6 +26,17 @@
 //      proving the accessor can see an absence, so assertion 2 is able to fail —
 //      and (b) come BACK on the next pulse — proving statuses are still flowing,
 //      so the dead peer's absence is death and not a silent room.
+//   5. THE V3 CONTAINMENT (added 2026-08-06): the map's SIZE cannot move the
+//      DIAL SET. The audit's V3 claimed the pc dial set was directory-scoped,
+//      so V2's O(N) map fed O(N) connection attempts per node. That is refuted
+//      by the code — every dial-out site is gated on `linkTo()`, which reads
+//      the seat's bounded neighbourhood and nothing else — and this leg pins
+//      the refutation at the real site, in a real browser: stuff `statusOf`
+//      with 10,000 synthetic strangers (`_floodStatus`, exactly the shape a
+//      room-wide flood produces at scale) and assert that not one becomes a
+//      peer, not one is linkable, and the real peers are untouched. The
+//      arithmetic half of the same guard, at sizes no browser can reach, is
+//      test/unit/dial-set-bound.js.
 const { chromium, CHROME } = require('../lib/pw');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -186,6 +197,38 @@ const short = (id) => String(id).slice(0, 8);
         + ' (in ' + (agreeMs < 0 ? 'NEVER (>60s)' : (agreeMs / 1000).toFixed(1) + 's') + ', bound 60s)',
         agreeMs >= 0, { held: (ids || []).map(short) });
     }
+  }
+
+  // ---- 5. V3 CONTAINMENT: statusOf's SIZE cannot move the dial set ---------
+  // The map grows with the room (V2, still true and still uncapped — the cap is
+  // blocked on run.html migrating off the flood, healing-laws § G / scale-audit
+  // sequencing step 4). What must NEVER follow from that growth is a growing
+  // set of RTCPeerConnections. Flood the map far past anything four browsers
+  // could produce and watch the transport plane refuse to notice.
+  {
+    const FLOOD = 10000;
+    const before = await HAL.pg.evaluate(() => ({ peers: window.__gifosVideo.peerCount(), ids: window.__gifosVideo.statusIds().length }));
+    const put = await HAL.pg.evaluate((n) => window.__gifosVideo._floodStatus(n), FLOOD);
+    check(`injected ${put} synthetic statuses (statusOf ${before.ids} -> ${before.ids + put})`, put === FLOOD, { put });
+    // Give the reconcile sweep several passes — this is where a directory-scoped
+    // dialer would have gone to work.
+    await sleep(12000);
+    const after = await HAL.pg.evaluate(() => {
+      const V = window.__gifosVideo;
+      const ids = V.statusIds();
+      const flooded = ids.filter((i) => i.indexOf('k_flood') === 0);
+      return { peers: V.peerCount(), ids: ids.length, flooded: flooded.length,
+        linkable: flooded.filter((i) => V.linkToPeer(i)).length };
+    });
+    check('the flood really is IN the map (so the leg is not vacuous)', after.flooded === FLOOD, { flooded: after.flooded, ids: after.ids });
+    check('NOT ONE of the 10,000 is linkable — linkTo reads the seat, never the map', after.linkable === 0, { linkable: after.linkable });
+    check('the peer connection count did not move at all', after.peers === before.peers, { before: before.peers, after: after.peers });
+    await HAL.pg.evaluate(() => window.__gifosVideo._floodClear());
+    await sleep(2000);
+    const back = await statusIds(HAL);
+    check('after clearing the flood the real room is intact — survivors still held',
+      !!back && back.indexOf(IVY.id) >= 0 && back.indexOf(JON.id) >= 0 && back.every((i) => i.indexOf('k_flood') < 0),
+      { held: (back || []).map(short) });
   }
 
   check('zero page errors across the whole scenario', errs.length === 0, errs);
