@@ -66,6 +66,34 @@ noted. `site/run.html` — the actual consumer of the flood — is untouched by 
 >    suppression never armed anywhere deep. The leaf handler also set
 >    `compactAt = TICK + 6..12`, retrying SOONER than the normal 90-180.
 >
+> **THIRD ATTEMPT REFUTED 2026-08-07 — the dmin gate does nothing, and WHY is
+> the finding.** Gating the probe on `rootDig.dmin < my depth` (option 1 below),
+> measured, N=20000, settled, same seed:
+>
+> | arm | framesPerTick_max |
+> |---|---|
+> | compaction ON, gate OFF (today) | 15.1592 |
+> | compaction ON, **gate ON** | **15.1672** |
+> | compaction OFF (floor) | 3.1285 |
+>
+> Zero effect, and the same output says why: the settled room reports
+> `frontier(d0=0, d1=0, d2=3..31)`. There genuinely ARE a few admissible cells at
+> depth 2, so `rootDig.dmin` is ~2, and nearly every leaf sits at depth 4-5 —
+> "is anything shallower than me free?" is TRUE FOR ALMOST EVERY LEAF. The gate
+> never fires. Same shape that killed digest routing in front 3
+> (`dmin_distinct=1`): a room-wide minimum says "somewhere there is room", which
+> licenses everyone at once.
+>
+> **SO V5 IS A CONTENTION PROBLEM, NOT AN INFORMATION PROBLEM.** Each leaf is
+> probing RATIONALLY — room really does exist shallower than it. There are just
+> ~10,000 leaves competing for 3-31 cells (and the window's 412 admits / 209
+> moves are those cells being won). No better information can fix a question
+> whose answer is legitimately yes for everyone. What the numbers point at is
+> ADMISSION CONTROL ON THE PROBE: let about as many leaves probe per window as
+> there are frontier cells to win. The room already knows `rootDig.freeC` and its
+> own size, so the ratio is computable — but that is a fourth design and it must
+> be MEASURED before it is believed, like the three before it.
+>
 > **What a real fix must touch.** The cost is ARRIVALS AT 25 FIXED SEATS, so
 > anything that answers, drops or caches AT THE TOP leaves the bill unpaid.
 > Ranked by what the numbers support:
