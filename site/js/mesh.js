@@ -95,6 +95,23 @@
   const COMPACT_SETTLE = 300; // test/sim/mesh.cpp COMPACT_SETTLE — quiescence window since seating / last heal / last move / last local churn. ABOVE the healing horizons so a mass-heal fully re-converges before compaction stirs the tree (a shorter window ~2x'd mass-heal convergence and flaked the churn sweep).
   const COMPACT_TTL = 30;    // test/sim/mesh.cpp COMPACT_TTL — up-chain hop budget for a compaction probe
 
+  // ---- V1 ROLLUP DIGEST (healing-laws.md § G) — faithful port of the sim's
+  // digest machinery (test/sim/mesh.cpp Dig + mesh_seat.inc rollup/pubDig/
+  // noteUp/upRefuted/scopeGap). FLAG-GATED, DEFAULT OFF: every digest site is
+  // behind env.DIGEST === true. The sim runs it ON and its gate
+  // (test/sim/repro-digest.sh, 47 assertions) is green; the browser flips it
+  // on only when the small-room e2e is proven byte-identical (scale-audit
+  // sequencing step 4). G0: digests ride EXISTING frames — dgUp on PHONE,
+  // dgPub/dgEcho/dgRoot on PONG, digs on S1SYNC — not one new frame type, no
+  // new timer, no decision. G1: display only — nothing below may evict, seat,
+  // move, admit, heal, or release privacy state. test/mesh/digest.js asserts
+  // the ON≡OFF trajectory identity that makes G0/G1 mechanical.
+  const DIG_TTL = 60;        // test/sim/mesh.cpp DIG_TTL — a report older than this is stale (G3: stale ⇒ fail-closed)
+  const DIG_LOSS_H = 300;    // test/sim/mesh.cpp DIG_LOSS_H — the fail-closed blur horizon (spans RING_HOLD, the longest confirm window)
+  // The digest record (sim struct Dig). by=null is the sim's by=-1; at=-1 means "never computed".
+  const dig0 = () => ({ n: 0, refuse: 0, freeC: 0, at: -1, by: null, dmin: 99, part: 0 });
+  const digFold = (dst, s) => { dst.n += s.n; dst.refuse += s.refuse; dst.freeC += s.freeC; if (s.dmin < dst.dmin) dst.dmin = s.dmin; if (s.part) dst.part = 1; };
+
   // A Section-1 key has pc==0 — its string ckey starts "0_".
   const isS1key = (k) => k.charCodeAt(0) === 48 && k.charCodeAt(1) === 95;
   // ownerCoordOf(c): the coord that owns cell c (its head's up), or null for Section 1.
@@ -185,6 +202,23 @@
       this.compactMoves = 0;     // Q2 observability: how many times I have compacted upward (surfaced via __gifosVideo.debugDump for the swarm live test)
       this.roster = []; this.haveRoster = false; this.lastGreeters = [];
       this.findNc = null;        // 03c: seeker of the serveFind scan in progress (knock-is-evidence phantom scope)
+      // ---- V1 ROLLUP DIGEST state (healing-laws § G; sim mesh.cpp) ----------
+      // Display-only, flag-gated (env.DIGEST) — see the constants block above.
+      this.refuses = false;      // MY OWN first-hand consent state (has NOT consented). Local, never derived from a digest.
+      this.lie = 0;              // adversary knob (tests only): 1 = publish refuse=0/part=0 (SUPPRESS — the one dangerous direction), 2 = inflate n
+      this.myDig = dig0(); this.rowDig = dig0(); this.rootDig = dig0(); // my subtree fold / my row fold (deep heads) / the room fold
+      this.downDig = dig0();     // the ROW digest my down-child head published up to me (my whole owned child row)
+      this.rowKids = new Map();  // head only: each row-mate's subtree digest   (<= C-1)
+      this.s1tab = new Map();    // Section 1 only: per-S1-cell subtree digests (<= C^2)
+      // G4: the ring of reports I published upward (ground truth for the echo
+      // check), and what I actually FOLDED this period (echoed to its authors).
+      this.upLog = []; for (let q = 0; q < 16; q++) this.upLog.push({ at: -1, n: 0, refuse: 0 });
+      this.upLogI = 0; this.upSince = -1; this.lastAgg = null; this.emptyEcho = 0;
+      this.downUsed = dig0(); this.rowUsed = new Map();
+      this.digMismatch = 0;      // refutations I have raised (mine only — no votes, G4)
+      this.digArm = 0;           // which refutation arm last fired (1 echo fidelity, 2 fold monotonicity, 3 omission)
+      this.digGap = 0;           // which scope member I fail-closed on this fold: 1=child row, 2=row-mate, 4=S1 cell
+      this.onDigMismatch = null; // diagnostic hook (the sim's MESH_DIGLOG twin) — display only, never a decision
       // per-seat PRNG (splitmix-ish), seeded from id — matches the sim's per-seat rng role
       let h = 2166136261 >>> 0; const b = 'p' + id;
       for (let k = 0; k < b.length; k++) { h ^= b.charCodeAt(k); h = Math.imul(h, 16777619); }
@@ -812,6 +846,16 @@
       this.confirmSeated(ck(c), this.id);
       for (const kv of nbrs) if (!this.occ.has(kv.k)) { this.setOcc(kv.k, kv.v); this.noteS1(kv.k); }
       this.drainAt = 0; this.seatTries = 0; this.seatedAt = this.TICK; this.rookSeenAt = this.TICK;
+      // § G: a seat change re-parents me — new aggregator, new scope, new child
+      // row. Every digest relationship starts over, including G4's grace
+      // window; carrying the old one over would accuse a brand-new aggregator
+      // of suppressing reports it never received. The ring's CONTENTS too: a
+      // retained pre-move record collides with my cell's PREVIOUS occupant's
+      // stamp and reads as a forged echo (sim: 10 false fires at N=600).
+      // (Display state only — nothing here can move a seat.)
+      this.upLogI = 0; this.upSince = -1; this.lastAgg = null; for (let q = 0; q < 16; q++) this.upLog[q] = { at: -1, n: 0, refuse: 0 };
+      this.downDig = dig0(); this.downUsed = dig0(); this.myDig = dig0(); this.rowDig = dig0(); this.rootDig = dig0();
+      this.rowKids.clear(); this.rowUsed.clear(); if (c.pc !== 0) this.s1tab.clear();
       this.lastAck = this.TICK; this.lastPhone = this.TICK;
       if (owner != null) this.emit(owner, { t: 'CLAIM', ck: ck(c), id: this.id });
       if (c.pc === 0) { this.s1CheckAt = this.TICK + E3_PERIOD + (this.rng() * E3_PERIOD | 0); this.emitRelay(this.genKey); } // E3: a Section-1 seat registers as a greeter on seating
@@ -1418,6 +1462,118 @@
     }
 
     // ---- phone-home / detection (D1) + wiring (W2/W3/W6) ----
+    // ========================================================================
+    // V1 ROLLUP DIGEST — healing-laws.md § G (sim: mesh_seat.inc, same names).
+    // The room folded along the tree instead of flooded: <= C reports in and
+    // ONE out per node per pulse period, riding PHONE (up), PONG (down) and
+    // S1SYNC (the Section-1 root fold). N never appears in any node's work.
+    // ========================================================================
+    digOn() { return this.env.DIGEST === true && this.state === 3; }
+    pubDig(d) {
+      const o = { n: d.n, refuse: d.refuse, freeC: d.freeC, at: d.at, by: d.by, dmin: d.dmin, part: d.part };
+      // The adversary knob (tests only). Mode 1 SUPPRESSES — refusals and the
+      // partial flag stripped: the ONE dangerous direction (G4.2) and the only
+      // one the checker needs to catch; mode 2 inflates n, harmless by G2.
+      if (this.lie === 1) { o.refuse = 0; o.part = 0; }
+      else if (this.lie === 2) { o.n += 1000; }
+      return o;
+    }
+    // G4: remember every report I published upward, keyed by its own stamp —
+    // the ground truth the aggregator's echo is checked against.
+    noteUp(d) { this.upLog[this.upLogI & 15] = { at: d.at, n: d.n, refuse: d.refuse }; this.upLogI++; if (this.upSince < 0) this.upSince = this.TICK; }
+    // G4, THE AUTHOR'S REFUTATION — the only check any node performs, over a
+    // value that node itself authored. No votes (G4.4), no adjudication (G5).
+    // (1) ECHO FIDELITY: what it says it took from me IS what I sent.
+    // (2) FOLD MONOTONICITY: the fold it published contains what it echoed.
+    // (3) ECHO FRESHNESS / OMISSION: consecutive empty echoes past a full
+    //     staleness window of folds, or an ancient acknowledged stamp.
+    // `base` is what the aggregator legitimately adds atop my report — 1 for
+    // an owner folding itself with my row digest, 0 for a head folding my
+    // subtree into its row. (Why an echo and not a history window: the fact
+    // that decides suppression is WHICH of my reports it used — see the sim's
+    // comment block; a bound on my own history false-fires on a settling
+    // aggregator and is blind to a shrinking scope.)
+    upRefuted(pub, echo, base) {
+      this.digArm = 0;
+      if (this.upLogI === 0) return false;
+      if (echo.at < 0) { this.emptyEcho++; this.digArm = 3; return this.emptyEcho > 2 * DIG_TTL / 8; }
+      this.emptyEcho = 0;
+      if (this.TICK - echo.at > 2 * DIG_TTL) { this.digArm = 3; return true; }
+      if (echo.by !== this.id) return false; // the echo names a DIFFERENT author — my cell's previous occupant's report, not mine. Not evidence.
+      let r = null; for (let q = 0; q < 16; q++) { if (this.upLog[q].at === echo.at) { r = this.upLog[q]; break; } }
+      if (!r) return false;                  // older than my ring — no record, so no accusation
+      if (echo.n !== r.n || echo.refuse !== r.refuse) { this.digArm = 1; return true; }             // (1)
+      if (pub.n < base + echo.n || pub.refuse < echo.refuse) { this.digArm = 2; return true; }      // (2)
+      return false;
+    }
+    // G3's fail-closed predicate, FALSIFIABLE and BOUNDED BY THE HEALING
+    // HORIZON: is this scope member a PERSON I have lost (⇒ blur), or a stale
+    // occ echo / unowned ghost (⇒ never — a permanent unclearable blur is the
+    // split-view bug the flood was invented to fix, wearing new clothes). The
+    // fold reads the SAME phantom-aware evidence the admission layer reads
+    // (occIsPhantom, a pure read), and a member blurs only while its loss is
+    // ACTIONABLE — heard first-hand within DIG_LOSS_H. Honest residual: a
+    // member alive, refusing, and severed from its aggregator longer than that
+    // drops out of both n and refuse — that is E3's "we lost that subtree",
+    // not a digest fact.
+    scopeGap(k) {
+      if (!this.occ.has(k) || this.occIsPhantom(k)) return false;
+      const it = this.live.get(k); return it !== undefined && this.TICK - it <= DIG_LOSS_H;
+    }
+    // The fold: once per pulse period, O(C) work. (1) my SUBTREE = me + the
+    // child row I own; (2) a deep ROW HEAD folds its row (its owner is linked
+    // only to it); (3) SECTION 1 folds the ROOT from the C^2 section digests —
+    // each S1 seat computes it independently (no root to fight over, § P).
+    rollup() {
+      if (!this.digOn() || !this.hasCoord) return;
+      const TICK = this.TICK;
+      // occIsPhantom's 03c knock-is-evidence rule is scoped to the FIND scan in
+      // progress — a display fold is not that scan. Clear findNc for the fold
+      // (restored after), keeping the rollup's phantom read independent of a
+      // mid-flight FIND.
+      const svFind = this.findNc; this.findNc = null;
+      try {
+        const d = { n: 1, refuse: this.refuses ? 1 : 0, freeC: 0, at: TICK, by: this.id, dmin: 99, part: 0 };
+        // G7 free-space, MEASURED ONLY: how many of my owned child row's cells
+        // look admissible. Deliberately a PURE read (occ/sitting membership,
+        // never cellReserved — the reservation helpers lazily expire soft
+        // marks, and a display fold must not mutate admission state at all).
+        if (topo.pcDepth(this.coord.pc) < 12) {
+          for (const rc of this.rosterCells()) {
+            const k = ck(rc); if (this.occ.has(k) || this.sitting.has(k)) continue;
+            const dk2 = ck(topo.down(rc)); if (this.occ.has(dk2) || this.sitting.has(dk2)) continue;
+            d.freeC++;
+          }
+          if (d.freeC) d.dmin = topo.pcDepth(this.coord.pc) + 1;
+        }
+        const dk = ck(topo.down(this.coord)); this.digGap = 0; this.downUsed = dig0();
+        if (this.downDig.at >= 0 && TICK - this.downDig.at <= DIG_TTL) { digFold(d, this.downDig); this.downUsed = this.downDig; }
+        else if (this.scopeGap(dk)) { d.part = 1; d.refuse += 1; this.digGap = 1; } // G3 FAIL-CLOSED: a subtree I believe populated but cannot hear counts as REFUSING, never as zero
+        this.myDig = d;
+        if (this.coord.pc !== 0 && this.coord.i === 0) {
+          const r = { n: d.n, refuse: d.refuse, freeC: d.freeC, at: TICK, by: this.id, dmin: d.dmin, part: d.part };
+          this.rowUsed.clear();
+          for (let j = 1; j < C(); j++) {
+            const rk = ck({ pc: this.coord.pc, r: this.coord.r, i: j }); const it = this.rowKids.get(rk);
+            if (it !== undefined && TICK - it.at <= DIG_TTL) { digFold(r, it); this.rowUsed.set(rk, it); }
+            else if (this.scopeGap(rk)) { r.part = 1; r.refuse += 1; this.digGap |= 2; }
+          }
+          this.rowDig = r;
+        }
+        if (this.coord.pc === 0) {
+          const R = { n: 0, refuse: 0, freeC: 0, at: TICK, by: this.id, dmin: 99, part: 0 };
+          for (let r0 = 0; r0 < C(); r0++) for (let i0 = 0; i0 < C(); i0++) {
+            const k = ck({ pc: 0, r: r0, i: i0 });
+            if (this.hasCoord && k === ck(this.coord)) { digFold(R, this.myDig); continue; }
+            const it = this.s1tab.get(k);
+            if (it !== undefined && TICK - it.at <= DIG_TTL) digFold(R, it);
+            else if (this.scopeGap(k)) { R.part = 1; R.refuse += 1; this.digGap |= 4; }
+          }
+          this.rootDig = R;
+        }
+      } finally { this.findNc = svFind; }
+    }
+
     onPhone(m) {
       const TICK = this.TICK;
       if (this.hasCoord && this.moving && m.tock === this.oldCk && m.tock !== ck(this.coord)) { // T1 dual-hold: the OLD seat still answers while the claim is in flight
@@ -1427,6 +1583,16 @@
         this.emit(m.id, { t: 'MOVED', ck: this.leaseCk, mvd: ck(this.coord), id: this.id }); return;
       }
       if (!this.hasCoord || m.tock !== ck(this.coord)) return; // ckey(0,0,0)=="0_0_0" is a REAL coord — always check
+      // § G UP-LEG: the phoner's digest arrives as PAYLOAD on the beat it
+      // already sends (G0). Which scope it names is decided by the phoner's
+      // RELATION to me, read from its coord — never from anything it asserts.
+      if (this.digOn() && m.dgUp && m.dgUp.at >= 0) {
+        const pk = ck(m.coord);
+        if (pk === ck(topo.down(this.coord))) this.downDig = m.dgUp;                       // my down-child head published MY OWNED CHILD ROW
+        else if (this.coord.pc === 0 && m.coord.pc === 0) {                                // a rook peer published ITS SECTION
+          const it = this.s1tab.get(pk); if (it === undefined || it.at <= m.dgUp.at) this.s1tab.set(pk, m.dgUp);
+        } else if (this.coord.pc !== 0 && this.coord.i === 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r) this.rowKids.set(pk, m.dgUp); // a row-mate published ITS SUBTREE
+      }
       const kk = ck(m.coord); const prev = this.occGet(kk);
       // D5: my first-hand hearing of prev ENDS at my own transport loss (an
       // unanswered translost) — a corpse whose last PHONE is still inside the
@@ -1449,14 +1615,41 @@
         for (const [k, v] of this.cousins) cous.push({ k, v });
       }
       // coord+id ride the PONG so the phoner gains FIRST-HAND liveness for me (bidirectional heartbeat)
-      this.emit(m.id, { t: 'PONG', owner, oCk, row, nbrs: cous, coord: this.coord, id: this.id });
+      const pong = { t: 'PONG', owner, oCk, row, nbrs: cous, coord: this.coord, id: this.id };
+      // § G DOWN-LEG (rides the PONG I already send, G0): the room fold, plus
+      // the fold I PUBLISH BACK TO THIS PEER. The published fold is the whole
+      // of G4 — it hands every author the one value it is uniquely qualified
+      // to refute: to my DOWN-CHILD -> my SUBTREE claim (its row digest is the
+      // claim's sole input; that child is already my C3-designated healer); to
+      // a ROW-MATE -> my ROW fold, which must contain that mate's own
+      // contribution. And the ECHO: the report I actually FOLDED from this
+      // peer — downUsed/rowUsed, snapshotted at rollup, NOT what I currently
+      // hold (echoing a newer report that landed since my fold accuses me of
+      // suppression I did not commit — one beat of lag; measured in the sim).
+      // A liar that strips its fold strips the echo too (`lie 1` models it) —
+      // exactly what check (1) catches, since the peer holds the original.
+      if (this.digOn()) {
+        pong.dgRoot = this.rootDig;
+        const isDownKid = kk === ck(topo.down(this.coord));
+        pong.dgPub = this.pubDig(isDownKid ? this.myDig : ((this.coord.pc !== 0 && this.coord.i === 0) ? this.rowDig : this.myDig));
+        if (isDownKid) pong.dgEcho = this.pubDig(this.downUsed);
+        else if (this.coord.pc !== 0 && this.coord.i === 0) { const it = this.rowUsed.get(kk); if (it !== undefined) pong.dgEcho = this.pubDig(it); }
+      }
+      this.emit(m.id, pong);
       if (prev !== m.id) this._gspReplay(m.id); // NEW occupant learned ⇒ hand over the recent gossip backlog
       if (prev != null && prev !== m.id) this.emit(prev, { t: 'YIELD', ck: kk });
     }
     phoneHome() {
       let tc = null; if (this.hasCoord) { if (this.coord.i !== 0) tc = { pc: this.coord.pc, r: this.coord.r, i: 0 }; else tc = this.ownerCoord(); }
       if (!tc) return; const tid = this.occGet(ck(tc)); if (tid == null) return;
-      this.emit(tid, { t: 'PHONE', coord: this.coord, tock: ck(tc), id: this.id, kids: this.hasChildren(), child: this.occGet(ck(topo.down(this.coord))) });
+      const ph = { t: 'PHONE', coord: this.coord, tock: ck(tc), id: this.id, kids: this.hasChildren(), child: this.occGet(ck(topo.down(this.coord))) };
+      // § G UP-LEG (payload on the beat, G0): a deep HEAD contributes its whole
+      // ROW fold (its owner is linked to it and nobody else in that row);
+      // everyone else contributes its own subtree. Section-1 rows do NOT roll
+      // up — every S1 seat is a forest root — so an S1 seat always publishes
+      // its subtree. noteUp: the G4 ground truth for the aggregator's echo.
+      if (this.digOn()) { ph.dgUp = this.pubDig((this.coord.pc !== 0 && this.coord.i === 0) ? this.rowDig : this.myDig); this.noteUp(ph.dgUp); }
+      this.emit(tid, ph);
       // A GHOST PHONE TARGET MUST BE FALSIFIABLE (2026-08-05; sim twin is the
       // origin — churn-combos leg C). An occupant that MOVED before I arrived
       // (its LEAVE went to a then-empty cell, so nobody could address it to me)
@@ -1498,7 +1691,9 @@
       for (const t of topo.ownedLinks(this.coord)) {
         if (t.pc !== 0) continue; // rook (Section-1) links only
         const tid = this.occGet(ck(t)); if (tid == null || tid === this.id) continue;
-        this.emit(tid, { t: 'PHONE', coord: this.coord, tock: ck(t), id: this.id, kids: this.hasChildren(), child: this.occGet(ck(topo.down(this.coord))) });
+        const ph = { t: 'PHONE', coord: this.coord, tock: ck(t), id: this.id, kids: this.hasChildren(), child: this.occGet(ck(topo.down(this.coord))) };
+        if (this.digOn()) ph.dgUp = this.pubDig(this.myDig); // § G: rook peers exchange SECTION digests (no row fold in Section 1 — every S1 seat is a forest root)
+        this.emit(tid, ph);
       }
     }
     s1Sync() {
@@ -1511,7 +1706,20 @@
       const tg = new Set();
       for (const m of topo.rowMates(this.coord)) { const t = this.occGet(ck(m)); if (t != null && t !== this.id) tg.add(t); }
       for (const m of topo.colMates(this.coord)) { const t = this.occGet(ck(m)); if (t != null && t !== this.id) tg.add(t); }
-      for (const t of tg) this.emit(t, { t: 'S1SYNC', ent });
+      // § G ROOT FOLD: the rook has diameter 2, so a Section-1 seat hears
+      // 2(C-1) of the C^2 sections first-hand and needs ONE relay hop for the
+      // rest. S1SYNC is already that relay (it carries the C^2 occupancy
+      // table), so the digest table rides it — no new frame (G0), and the fold
+      // completes in two beats. Relaying another section's digest is
+      // second-hand BY CONSTRUCTION; safe for exactly one reason (G1): a
+      // digest can never actuate. Entries carry their AUTHOR's stamp, relayed
+      // unchanged, so a relayed fold can never look fresher than it is.
+      let digs = null;
+      if (this.digOn()) {
+        digs = [{ k: ck(this.coord), d: this.pubDig(this.myDig) }];
+        for (const [k, d] of this.s1tab) if (k !== ck(this.coord) && TICK - d.at <= DIG_TTL) digs.push({ k, d });
+      }
+      for (const t of tg) { const msg = { t: 'S1SYNC', ent }; if (digs) msg.digs = digs; this.emit(t, msg); }
     }
     rowSweep() {
       // 11a: the head no longer HEALS its row cells (each is healed by its own
@@ -1881,6 +2089,17 @@
         }
         case 'GREETWALK': return; // H6 retired
         case 'S1SYNC': {
+          // § G root fold: merge the relayed section table, freshest AUTHOR
+          // stamp wins. Purely additive display state — it touches nothing
+          // below this block.
+          if (this.digOn() && this.hasCoord && this.coord.pc === 0 && m.digs) {
+            for (const e of m.digs) {
+              if (!isS1key(e.k)) continue;
+              if (this.hasCoord && e.k === ck(this.coord)) continue; // never take a relayed claim about MY OWN section — I fold that first-hand
+              if (TICK - e.d.at > DIG_TTL) continue;
+              const it = this.s1tab.get(e.k); if (it === undefined || it.at < e.d.at) this.s1tab.set(e.k, e.d);
+            }
+          }
           // GOSSIP updates the ROSTER HINT (occ/s1seen) only — it NEVER evicts
           // a seat, NEVER sets `live`, and NEVER overwrites a cell I hold
           // FIRST-HAND. (E2: gossip may inform routing, but liveness is
@@ -1964,6 +2183,36 @@
           if (m.owner != null && this.occGet(m.oCk) !== m.owner) { this.setOcc(m.oCk, m.owner); this.noteS1(m.oCk); }
           for (const e of m.row) { if (this.occGet(e.k) !== e.v) this.setOcc(e.k, e.v); this.noteS1(e.k); if (e.age != null) this.childOf.set(e.k, e.age); }
           for (const kv of m.nbrs) this.cousins.set(kv.k, kv.v); // W: learn the heirs at my future owned-links for relay-free promote-up
+          // ---- § G DOWN-LEG + the AUTHOR'S REFUTATION --------------------
+          // G4: I check ONE thing — that the fold my aggregator published
+          // still contains the contribution I authored. An owner's subtree is
+          // exactly 1 + the row digest I (its down-child) sent it; a head's
+          // row fold must contain my subtree digest. A SHORTFALL below what I
+          // sent is suppression; anything else is staleness or growth, never
+          // evidence. G5: the remedy is a counter and a diagnostic — it
+          // evicts NOTHING (an eviction lever here would hand an attacker
+          // exactly what G1 denies). G4 grace on a CHANGED AGGREGATOR: a
+          // healer just promoted into my owner's/head's cell has folded
+          // nothing from me yet and legitimately echoes nothing — the
+          // relationship, not my history, is what has to be 2*DIG_TTL old.
+          if (this.digOn() && this.hasCoord && this.coord.pc !== 0) {
+            if (m.dgRoot && m.dgRoot.at >= 0 && m.dgRoot.at > this.rootDig.at) this.rootDig = m.dgRoot; // the room fold, one level per period (staleness O(depth x period))
+            if (m.dgPub && m.dgPub.at >= 0 && m.coord) {
+              const oc = this.ownerCoord();
+              const isOwner = this.coord.i === 0 && !!oc && ck(m.coord) === ck(oc);
+              const isHead = this.coord.i > 0 && m.coord.pc === this.coord.pc && m.coord.r === this.coord.r && m.coord.i === 0;
+              if (isOwner || isHead) {
+                if (pid !== this.lastAgg) { this.lastAgg = pid; this.upSince = TICK; this.emptyEcho = 0; }
+                else {
+                  const echo = (m.dgEcho && m.dgEcho.at != null) ? m.dgEcho : dig0();
+                  if (this.upRefuted(m.dgPub, echo, isOwner ? 1 : 0)) {
+                    this.digMismatch++;
+                    if (this.onDigMismatch) { try { this.onDigMismatch({ arm: this.digArm, tick: TICK, meId: this.id, me: { pc: this.coord.pc, r: this.coord.r, i: this.coord.i }, aggId: pid, agg: { pc: m.coord.pc, r: m.coord.r, i: m.coord.i }, pub: m.dgPub, echo }); } catch (e) {} }
+                  }
+                }
+              }
+            }
+          }
           return;
         }
         case 'ROUTE': {
@@ -2040,7 +2289,7 @@
         if (this.anyRookLive()) this.rookSeenAt = TICK;   // fragment detector: reset while I hear anyone
         // D1 over the rook: phone every live row+column neighbour each beat
         // (maintains first-hand liveness across all redundant home paths).
-        if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.s1Heartbeat(); this.s1Sync(); this._gspRefan(); }
+        if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.rollup(); this.s1Heartbeat(); this.s1Sync(); this._gspRefan(); } // § G: ONE fold per node per period, O(C) work, before the beat carries it
         // 11a: every Section-1 cell is refilled by its down-child (VERTICAL);
         // s1Fill is the head's probe-gated LAST-RESORT backstop. While a D5
         // transport-loss observation is pending, check every beat (not every
@@ -2068,7 +2317,7 @@
         if (TICK >= this.s1CheckAt) { this.s1CheckAt = TICK + E3_PERIOD + (this.rng() * E3_PERIOD | 0); this.emitRelay(this.genKey); } // E3 re-knock: Section-1 seats ARE the greeter pool
         this.wake(); return;
       }
-      if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.phoneHome(); this._gspRefan(); }
+      if (TICK - this.lastPhone >= 8) { this.lastPhone = TICK; this.rollup(); this.phoneHome(); this._gspRefan(); } // § G: ONE fold per node per period (<= C reports in, ONE out), then the beat carries it up
       this.tlSweep(); // D5: a confirmed corpse leaves my view early (cleanup, not healing)
       if (this.coord.i === 0 && (TICK % 12) === 0) this.rowSweep();
       // 11a HORIZONTAL: only a CHILDLESS head needs a horizontal healer (its
@@ -2164,5 +2413,5 @@
     }
   }
 
-  GifOS.mesh = { Seat, keyHash, RELAY_TTL, RELAY_CAP, E3_PERIOD, STRAND_TTL, RING_HOLD, EARLY_HOLD, CONFIRM_TTL, LEASE_TTL, isS1key, ownerCoordOf };
+  GifOS.mesh = { Seat, keyHash, RELAY_TTL, RELAY_CAP, E3_PERIOD, STRAND_TTL, RING_HOLD, EARLY_HOLD, CONFIRM_TTL, LEASE_TTL, DIG_TTL, DIG_LOSS_H, isS1key, ownerCoordOf };
 })(typeof window !== 'undefined' ? window : globalThis);

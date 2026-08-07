@@ -131,6 +131,13 @@ run "browser — R5 fork pick-one (real modal)" \
 run "browser — 2-person fork heal (sever, dial-first reunion in seconds)" \
     node test/drills/e2e-fork-heal.js
 
+# The fork that does NOT heal itself is the one that lasted seven hours (bug
+# ledger 2026-08-05 §6). fork-heal above guards the DISSOLUTION; this guards
+# the ALARM — that two one-seat trees on one relay session can never again be
+# invisible from inside either of them.
+run "browser — the live room fork is SEEN while it is happening (ledger §6)" \
+    node test/drills/e2e-room-fork-live.js
+
 run "browser — redundant path failover (redun-drill)" \
     node test/drills/redun-drill.js
 
