@@ -2,6 +2,19 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
+      "version": "0.9.5",
+      "date": "2026-08-07",
+      "headline": "A room that quietly split in two, a voice that went missing, and a door that could jam shut",
+      "notes": [
+        "Two people in the same room could sit there unable to see or hear each other, with nothing on screen to say why. If your browser had ever saved a password for a room name — even a different room, on a different day — it kept using it, and everyone with a different password ended up scrambling their video with a key nobody else could open. GifOS now asks the room itself which password is right instead of guessing, forgets a saved password that turns out to be wrong, and tells you in the status bar when a room you're sitting alone in is locked with a password you didn't set.",
+        "If you were on stage with your camera off, the room stopped hearing you about twenty seconds in. Turning the camera off is the default when you join, so this was one tap away. Your voice now carries on its own, with or without a camera.",
+        "A room could get stuck so that nobody new could ever join it — the door kept believing someone was still greeting people at it long after they had stopped. The door now only trusts a greeter that is genuinely still greeting.",
+        "Opening one of your apps no longer flashes the meeting toolbar for a moment before removing it. The app now paints straight away.",
+        "Someone who leaves a meeting is now properly forgotten. Their last message could arrive a fraction of a second after the room had already said goodbye, which quietly put them back in the room's list of people for over a minute — and, in the worst case, for as long as you kept the page open.",
+        "If you're offline and open a link to a specific saved version of GifOS, you now get that version rather than the newest one."
+      ]
+    },
+    {
       "version": "0.9.4",
       "date": "2026-08-06",
       "headline": "Older phones and computers can join meetings again",
