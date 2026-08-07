@@ -165,15 +165,50 @@ function revalidate(req, cache, ms, pass404) {
   });
 }
 
+// The honest answer when a PINNED build is not on this device and the network
+// cannot supply it. It is deliberately NOT the edge shell (see degrade).
+function notInstalled(v) {
+  return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>Offline</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:12vh auto;max-width:34rem;padding:0 1.5rem}</style>'
+    + '<h1>This computer is offline</h1><p>It is pinned to build <b>' + v + '</b>, and that build is not saved on this device yet.</p>'
+    + '<p>Connect once and reopen — after that it works with no connection at all.</p>',
+    { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
+
 // Last-resort response when nothing is cached AND the network didn't answer
 // (offline / stalled), so a request can NEVER hang the page:
-//  - a navigation → the app shell (its scripts boot from cache/IndexedDB);
+//  - a navigation → the app shell FOR THAT CHANNEL (its scripts boot from
+//    cache/IndexedDB);
 //  - a script/style (e.g. a theme-override the cascade document.writes) → an
 //    EMPTY 200 so the parser-blocking <script> resolves instead of stalling the
 //    tab; a missing override simply falls back to the base;
 //  - anything else → a clean error the caller can handle.
+//
+// A DEGRADE NEVER CROSSES THE CHANNEL BOUNDARY (bug ledger #3, 2026-08-06).
+// This used to answer EVERY navigation with the ROOT /index.html — including a
+// navigation to /versions/<x.y.z>/…, which hands a pinned visitor the EDGE
+// shell. That shell then runs ITS channel loader, which re-routes by whatever
+// page map it was frozen with; when the page names have since moved, the
+// redirect lands on a path that exists nowhere. site/versions/0.9.1/run.html is
+// a hard 404 reachable exactly this way, and it looks like a broken site rather
+// than a device that is offline. A snapshot degrades to ITS OWN index.html or
+// it says plainly that the build is not installed; the root degrades to the
+// root's. Nothing substitutes one channel's shell for the other's.
+//
+// What this deliberately does NOT claim: that the shell it serves is CURRENT.
+// The cache is keyed by SHELL_VERSION and activate() purges every other
+// generation, so a cached page is always from this worker's own shell — but a
+// deploy that changes pages without bumping SHELL_VERSION leaves the previous
+// build's copies in place until a revalidate replaces them. That staleness is
+// the update policy working as designed (an edge revalidate or an opt-in
+// upgrade fixes it); serving it to the WRONG CHANNEL was the bug.
 async function degrade(req, url, cache) {
-  if (req.mode === 'navigate') { var idx = await cache.match('/index.html'); if (idx) return idx; }
+  if (req.mode === 'navigate') {
+    var pin = url.pathname.match(/^\/versions\/([0-9]+\.[0-9]+\.[0-9]+)\//);
+    var idx = await cache.match(pin ? '/versions/' + pin[1] + '/index.html' : '/index.html');
+    if (idx) return idx;
+    if (pin) return notInstalled(pin[1]);
+  }
   if (req.destination === 'script' || /\.m?js(\?|$)/.test(url.pathname)) {
     return new Response('', { status: 200, headers: { 'Content-Type': 'application/javascript' } });
   }
