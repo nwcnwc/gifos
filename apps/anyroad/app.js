@@ -12,6 +12,7 @@
   var TERRAIN_RADIUS = 3000;   // metres of elevation around the car
   var ROAD_RADIUS = 1200;      // metres of OSM geometry — one Overpass query per tile
   var DRAW_DISTANCE = 6000;
+  var TREE_DISTANCE = 1100;    // metres — scenery only, measured to the tile centre
 
   // Hard ceilings on how much world is resident, because a metre radius does
   // NOT imply a tile count. Web Mercator tiles shrink with latitude — the same
@@ -21,6 +22,11 @@
   // tilesAround() sorts nearest-first, so taking a prefix keeps what matters.
   var MAX_TERRAIN_TILES = 25;
   var MAX_ROAD_TILES = 9;
+
+  // Every GL mesh a built road tile owns. Listed once: a mesh missing from this
+  // list is a buffer that is never released, and the leak only shows up as a
+  // browser tab that dies after twenty minutes of driving.
+  var MESHES = ['roads', 'buildings', 'water', 'trees'];
 
   var world = {
     frame: null,
@@ -48,7 +54,7 @@
       var slot = store[k];
       if (slot && slot.rec && slot.rec.mesh && slot.rec.mesh.release) slot.rec.mesh.release();
       if (slot && slot.built) {
-        ['roads', 'buildings', 'water'].forEach(function (m) {
+        MESHES.forEach(function (m) {
           if (slot.built[m] && slot.built[m].release) slot.built[m].release();
         });
       }
@@ -161,6 +167,59 @@
     return true;
   }
 
+  // ---- getting unstuck -----------------------------------------------------
+  // Some footprints are a horseshoe, an archway, or a courtyard with one gap,
+  // and a car that noses into one can be held there for ever: the wall slide
+  // turns it along the wall, the cruise drives it back in, and every escape
+  // route is another wall. Reverse helps and is why it exists — but there are
+  // geometries where reverse is not enough, and there the only honest answer is
+  // to put the car back on the nearest road.
+  //
+  // It uses the SAME road index the car asks "am I on tarmac" with, so it lands
+  // on real carriageway rather than a guess, facing along it.
+  function nearestRoadPoint(x, z) {
+    var best = null;
+    for (var k in world.roads) {
+      var r = world.roads[k];
+      if (!r || !r.built || !r.built.index) continue;
+      var hit = root.Roads.nearestRoad(r.built.index, x, z);
+      if (hit && (!best || hit.dist < best.dist)) best = hit;
+    }
+    return best;
+  }
+
+  function unstick() {
+    if (!world.frame || !car) return false;
+    // Look a little wider than the car's own cell: whatever it is wedged in,
+    // the way out is usually the road it came off.
+    var best = null;
+    for (var ring = 0; ring <= 3 && !best; ring++) {
+      var step = ring * 45;
+      for (var a = 0; a < 8 && !best; a++) {
+        var ang = a * Math.PI / 4;
+        var hit = nearestRoadPoint(car.x + Math.sin(ang) * step, car.z + Math.cos(ang) * step);
+        if (hit && (!best || hit.dist < best.dist)) best = hit;
+        if (ring === 0) break;                   // the first probe is the car itself
+      }
+    }
+    if (best) {
+      // Facing along the carriageway, in whichever direction is closer to the
+      // way the car was already pointing — being rescued into a U-turn is its
+      // own small punishment.
+      var yaw = Math.atan2(best.dx, best.dz);
+      var flip = Math.cos(yaw - car.yaw) < 0;
+      root.Car.place(car, best.x, best.z, flip ? yaw + Math.PI : yaw);
+    } else {
+      // No road data at all: back the car out along its own nose and turn it
+      // around. Not elegant, but it is never a dead end.
+      root.Car.place(car, car.x - Math.sin(car.yaw) * 7, car.z - Math.cos(car.yaw) * 7, car.yaw + Math.PI);
+    }
+    var h = root.Terrain.heightAt(world.frame, car.x, car.z);
+    if (h !== null) car.y = h;
+    root.UI.note(best ? 'Back on the road.' : 'Reversed you out.');
+    return true;
+  }
+
   // ---- on tarmac, or not ---------------------------------------------------
   // Recomputed a few times a second rather than every frame: the answer cannot
   // change meaningfully inside 60 ms even at motorway speed, and the query
@@ -204,7 +263,25 @@
     var hit = root.Car.collide(car, wallScratch, dtNow);
     if (!hit || hit.impact < 0.4) return;
     shake = Math.min(1, Math.max(shake, hit.impact / 16));
-    if (hit.damage > 0) root.UI.damage(car.health, hit.crash);
+    if (hit.damage > 0) root.UI.damage(car.health, hit.crash, hit.damage);
+  }
+
+  // ---- the wildlife --------------------------------------------------------
+  // animals.js owns the herd and the collision; this owns what a hit MEANS.
+  // The context object is the seam: the module never reaches into world state,
+  // it asks two questions — where is the ground, and where is the nearest road.
+  var animalCtx = {
+    height: function (x, z) { return root.Terrain.heightAt(world.frame, x, z); },
+    nearestRoad: nearestRoadPoint,
+  };
+
+  function wildlife(dt) {
+    if (root.Sources.current.wildlife === 'off') { root.Animals.clear(); return; }
+    var hit = root.Animals.update(car, animalCtx, dt);
+    if (!hit) return;
+    shake = Math.min(1, Math.max(shake, 0.25 + hit.damage / 40));
+    root.UI.damage(car.health, true, hit.damage);
+    root.UI.note(hit.label + '! ' + Math.round(hit.damage) + '% off the windscreen.');
   }
 
   // Terrain must be present under a road tile before its mesh can be built.
@@ -225,7 +302,7 @@
       var t = world.roads[k];
       if (!t || t.pending || t.failed || t.built) continue;
       if (!terrainReadyFor(t.tile)) continue;
-      t.built = root.Roads.build(world.frame, t.geom);
+      t.built = root.Roads.build(world.frame, t.geom, t.tile);
       return;
     }
   }
@@ -254,6 +331,7 @@
     // be released explicitly or every hop leaks a few hundred MB of VRAM.
     releaseWorld();
     root.Terrain.clear();
+    root.Animals.clear();          // the herd belongs to the place you left
     world.terrain = {}; world.roads = {};
     world.place = label || (lat.toFixed(4) + ', ' + lon.toFixed(4));
     car = root.Car.create(0, 0, Math.random() * Math.PI * 2);
@@ -338,6 +416,12 @@
     // rAF timestamp shares performance.now()'s origin, so this is exact.
     hopAnim = (t - hopT0) / 1000;
 
+    // A full-screen panel is open, so nobody is driving. THIS is what made the
+    // race sheet feel like it broke the car: the world kept running behind it,
+    // the cruise kept the throttle open, and by the time you closed it you had
+    // driven blind into a building — bounced off backwards, at a speed the HUD
+    // showed as positive. Reading a panel now parks the car.
+    controls.setPark(root.UI.panelOpen());
     var input = controls.sample(dt);
 
     // Still falling: keep trying to put the landing on a road. The descent is
@@ -361,6 +445,7 @@
         root.Car.update(car, input, dt / steps, world.frame);
         collideBuildings(dt / steps);
       }
+      wildlife(dt);
     } else if (grounded) {
       car.y = root.Terrain.heightAt(world.frame, car.x, car.z);
     }
@@ -372,7 +457,8 @@
     // Assemble the scene from whatever has actually loaded.
     var scene = { eye: [camera.x, camera.y, camera.z], target: [camera.tx, camera.ty, camera.tz],
                   fov: 60 + Math.min(14, Math.abs(car.speed) * 0.35), far: DRAW_DISTANCE, time: clock,
-                  terrain: [], roads: [], buildings: [], water: [], cars: [] };
+                  terrain: [], roads: [], buildings: [], water: [], trees: [], cars: [],
+                  animals: root.Animals.drawList() };
 
     for (var tk in world.terrain) {
       var slot = world.terrain[tk];
@@ -385,6 +471,14 @@
       scene.roads.push(r.built.roads);
       scene.buildings.push(r.built.buildings);
       scene.water.push(r.built.water);
+      // Scenery has its own, much shorter draw distance. Roads and buildings
+      // are what you navigate by and must reach the horizon; trees at a
+      // kilometre are three hundred draw-calls' worth of fill inside the fog
+      // band, and dropping them is invisible.
+      if (r.built.trees && (!r.built.centre
+          || Math.hypot(r.built.centre.x - car.x, r.built.centre.z - car.z) < TREE_DISTANCE)) {
+        scene.trees.push(r.built.trees);
+      }
     }
     if (seaVisible()) scene.water.push(seaMesh());
 
@@ -399,6 +493,11 @@
 
     root.UI.hud({
       speed: Math.abs(car.speed) * 3.6,
+      // The read-out was |speed| and nothing else, so a car reversing at 36 km/h
+      // and a car doing 36 km/h up the road were the same number on the screen.
+      // The direction is not a detail — it is the difference between the two
+      // things that can be happening.
+      reverse: car.speed < -0.3,
       steer: input.steer,
       place: world.place,
       loading: pendingCount(),
@@ -406,6 +505,10 @@
       net: root.Net.stats(),
       airborne: car.airborne,
       offRoad: !car.onRoad,
+      // Offered, not forced: 2.5 s of full power going nowhere is stuck, and
+      // the player decides whether to take the rescue.
+      stuck: car.stillT > 2.5,
+      beast: root.Animals.alert(),
       health: car.health,
       wrecked: car.wrecked,
       players: root.MP.count(),
@@ -458,6 +561,7 @@
       onPedal: function (which, on) { controls.setPedal(which, on); },
       onRespawn: function () { if (world.frame) hop(world.frame.lat0, world.frame.lon0, world.place); },
       onRepair: function () { root.Car.repair(car); },
+      onUnstick: unstick,
       car: function () { return car; },
       frame: function () { return world.frame; },
     });
@@ -502,14 +606,14 @@
     for (var rk in world.roads) {
       var r = world.roads[rk];
       if (!r || !r.built) continue;
-      ['roads', 'buildings', 'water'].forEach(function (m) {
+      MESHES.forEach(function (m) {
         if (r.built[m] && r.built[m].release) r.built[m].release();
       });
     }
   }
 
   root.App = {
-    boot: boot, hop: hop, search: search, world: world,
+    boot: boot, hop: hop, search: search, world: world, unstick: unstick,
     hasHopped: function () { return hopped; },
     car: function () { return car; },
     // Why the car is or is not moving, in one call. The loop has several gates

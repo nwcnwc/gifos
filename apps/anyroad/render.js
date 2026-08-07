@@ -100,15 +100,88 @@
     return wrap;
   }
 
-  // Shared fragment preamble: one fog model everywhere, so the horizon is a
-  // single colour and nothing betrays where one material ends.
+  // One shared filmic curve. Every material now adds highlights the old flat
+  // shading never produced — sun glare, glass, wet paint — and without a
+  // roll-off they clip to white and the picture reads as blown out rather than
+  // bright. Kept apart from FOG because the SKY needs it and has no vDist: a
+  // varying declared in a fragment shader with no vertex counterpart is a link
+  // error on some drivers, so the two cannot be one block.
+  var TONEMAP = [
+    // 1.35 is EXPOSURE, and it is not a taste knob — the curve maps 1.0 to about
+    // 0.8, so dropping it in front of art that was authored against a linear
+    // clamp darkens the entire picture by a fifth. Measured on the fixture
+    // world: without it a shaded building wall went from mid-brown to mud.
+    'vec3 tonemap(vec3 c) {',
+    '  c = max(c, 0.0) * 1.35;',
+    '  c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14);',
+    '  return pow(clamp(c, 0.0, 1.0), vec3(0.90));',
+    '}',
+  ].join('\n');
+
   var FOG = [
+    TONEMAP,
     'uniform vec3 uFogColor;',
     'uniform float uFogDensity;',
     'varying float vDist;',
+    // Aerial perspective is not just "mix toward grey with distance": real air
+    // eats contrast and saturation before it eats the colour, and doing the
+    // desaturation FIRST is what stops a distant hillside from reading as a
+    // near hillside behind tinted glass.
     'vec3 fogged(vec3 c) {',
-    '  float f = 1.0 - exp(-vDist * uFogDensity);',
-    '  return mix(c, uFogColor, clamp(f, 0.0, 1.0));',
+    '  float f = clamp(1.0 - exp(-vDist * uFogDensity), 0.0, 1.0);',
+    '  float lum = dot(c, vec3(0.299, 0.587, 0.114));',
+    '  c = mix(c, vec3(lum), f * 0.35);',
+    '  return mix(c, uFogColor, f);',
+    '}',
+    // What every material ends with: fog, then the curve, in that order — the
+    // horizon has to roll off with everything else or it is the one part of the
+    // picture that still clips.
+    'vec3 finish(vec3 c) { return tonemap(fogged(c)); }',
+  ].join('\n');
+
+  // Shared lighting. ONE sun, and — the part that matters — a HEMISPHERE for
+  // everything the sun does not reach: sky colour from above, warm ground
+  // bounce from below. The old model was `0.55 + 0.55 * lambert`, i.e. a flat
+  // grey fill, which is why every shadowed wall in the app was the same dead
+  // tone as every shadowed hillside. Real shade is blue, and a surface facing
+  // down picks up the ground under it; two mixes buy nearly all of that.
+  var LIGHTING = [
+    'uniform vec3 uSunColor; uniform vec3 uSkyFill; uniform vec3 uGroundFill;',
+    'vec3 shade(vec3 base, vec3 n, vec3 l) {',
+    '  float lam = clamp(dot(n, l), 0.0, 1.0);',
+    // Wrapped a little: a hard terminator on stylised geometry reads as a
+    // rendering artefact rather than as light.
+    '  lam = clamp((lam + 0.12) / 1.12, 0.0, 1.0);',
+    '  vec3 amb = mix(uGroundFill, uSkyFill, clamp(n.y * 0.5 + 0.5, 0.0, 1.0));',
+    '  return base * (amb + uSunColor * lam);',
+    '}',
+  ].join('\n');
+
+  // Value noise, shared by the sky. Cheap, and the only thing standing between
+  // a flat blue gradient and a sky with weather in it.
+  // Value noise, shared by the sky and the ground. NOTE THE HASH: a phone is
+  // the target, this runs per pixel over most of the screen, and the usual
+  // fract(sin(dot(…))*43758) costs a transcendental EVERY corner of EVERY
+  // octave — four hashes per octave, three octaves, twice over, and the
+  // fragment stage is suddenly the frame budget. The dot/fract hash below is a
+  // handful of multiply-adds for the same visual result at this scale. Octave
+  // counts are deliberately small for the same reason: three, never eight.
+  var NOISE = [
+    'float h21(vec2 p){',
+    '  vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));',
+    '  q += dot(q, q.yzx + 33.33);',
+    '  return fract((q.x + q.y) * q.z);',
+    '}',
+    'float vnoise(vec2 p){',
+    '  vec2 i = floor(p), f = fract(p);',
+    '  f = f * f * (3.0 - 2.0 * f);',
+    '  float a = h21(i), b = h21(i + vec2(1.0, 0.0));',
+    '  float c = h21(i + vec2(0.0, 1.0)), d = h21(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);',
+    '}',
+    'float fbm2(vec2 p){ return vnoise(p) * 0.65 + vnoise(p * 2.13 + 5.7) * 0.35; }',
+    'float fbm(vec2 p){',
+    '  return vnoise(p) * 0.53 + vnoise(p * 2.07 + 3.1) * 0.30 + vnoise(p * 4.11 + 9.4) * 0.17;',
     '}',
   ].join('\n');
 
@@ -130,7 +203,7 @@
       'precision highp float;',
       'uniform vec3 uLightDir; uniform sampler2D uTex; uniform float uHasTex;',
       'varying vec3 vNormal; varying vec2 vUv; varying float vHeight; varying vec2 vWorldXZ;',
-      FOG,
+      NOISE, FOG, LIGHTING,
       'void main(){',
       '  vec3 n = normalize(vNormal);',
       '  float slope = 1.0 - clamp(n.y, 0.0, 1.0);',
@@ -138,25 +211,62 @@
       // without this the ground is large flat facets of one identical green and
       // reads as painted cardboard however good the lighting is.
       '  vec2 p = vWorldXZ;',
-      '  float n1 = fract(sin(dot(floor(p / 7.0), vec2(127.1, 311.7))) * 43758.5453);',
-      '  float n2 = fract(sin(dot(floor(p / 31.0), vec2(269.5, 183.3))) * 43758.5453);',
-      '  float grain = (n1 - 0.5) * 0.05 + (n2 - 0.5) * 0.035;',
-      // Stylised palette: grass low and flat, rock on anything steep, snow high.
-      '  vec3 grass = mix(vec3(0.33,0.44,0.24), vec3(0.44,0.51,0.29), clamp(vHeight/900.0,0.0,1.0));',
+      // DISTANCE GATE. Everything below is per-pixel detail on ground that, past
+      // a few hundred metres, is fogged, desaturated and smaller than a pixel —
+      // so at range it is not detail, it is aliasing you paid for. One branch,
+      // coherent across the screen (it is a function of depth), and the whole
+      // palette collapses to its mid-tone exactly where nobody can tell.
+      '  float detail = 1.0 - smoothstep(420.0, 900.0, vDist);',
+      '  float n1 = 0.5, n2 = 0.5, land = 0.5, patch = 0.5, strata = 0.5;',
+      '  if (detail > 0.01) {',
+      '    n1 = fract(sin(dot(floor(p / 7.0), vec2(127.1, 311.7))) * 43758.5453);',
+      '    n2 = fract(sin(dot(floor(p / 31.0), vec2(269.5, 183.3))) * 43758.5453);',
+      '    land = mix(0.5, fbm2(p * 0.0075), detail);',
+      '    patch = mix(0.5, vnoise(p * 0.032 + 11.3), detail);',
+      '    strata = mix(0.5, vnoise(vec2(p.x * 0.06 + vHeight * 0.05, p.y * 0.06)), detail);',
+      '  }',
+      '  float grain = ((n1 - 0.5) * 0.05 + (n2 - 0.5) * 0.035) * detail;',
+      // WITHOUT the satellite drape this shader IS the landscape, and one green
+      // with speckle on it is a golf course. Real ground at 100 m reads as
+      // PATCHES — field, scrub, bare earth, a darker hollow — so two octaves of
+      // smooth noise at field scale choose between four greens before any
+      // lighting happens. It is four texture-free lookups and it is the single
+      // biggest difference between "terrain mesh" and "countryside".
+      // Two octaves for the big shapes, one for the small: the fine layer is
+      // already at field scale and a second octave of it lands under a metre,
+      // where the aggregate grain is doing the same job for free.
+      '  vec3 grassA = vec3(0.19, 0.29, 0.14);',      // deep pasture
+      '  vec3 grassB = vec3(0.37, 0.43, 0.21);',      // dry meadow
+      '  vec3 grassC = vec3(0.27, 0.37, 0.17);',      // ordinary green
+      '  vec3 earth  = vec3(0.35, 0.29, 0.19);',      // bare soil
+      '  vec3 grass = mix(grassA, grassB, smoothstep(0.28, 0.74, land));',
+      '  grass = mix(grass, grassC, smoothstep(0.28, 0.64, patch) * 0.70);',
+      '  grass = mix(grass, earth, smoothstep(0.66, 0.90, patch) * 0.60);',
+      // A darker seam where two patches meet, which is what a hedge line or a
+      // field boundary looks like from a road.
+      '  grass *= 1.0 - smoothstep(0.44, 0.50, patch) * (1.0 - smoothstep(0.50, 0.56, patch)) * 0.55;',
+      // Higher ground is thinner and paler; the old single mix did this alone.
+      '  grass = mix(grass, grass * vec3(1.10, 1.06, 0.98), clamp(vHeight / 1400.0, 0.0, 1.0));',
       '  grass *= 1.0 + grain * 2.2;',
-      '  grass = mix(grass, vec3(0.46,0.44,0.28), clamp(n2 * 0.16, 0.0, 0.16));',   // dry patches
-      '  vec3 rock  = vec3(0.42,0.39,0.35) * (1.0 + grain);',
+      // Rock is banded rather than flat — strata catch the light on a cliff and
+      // are most of why a mountain looks like stone and not like grey plastic.
+      '  vec3 rock  = mix(vec3(0.36,0.33,0.30), vec3(0.50,0.47,0.43), strata) * (1.0 + grain);',
       '  vec3 snow  = vec3(0.86,0.88,0.92);',
       '  vec3 base = mix(grass, rock, smoothstep(0.18, 0.45, slope));',
+      // Scree: where rock is about to take over, mix in loose stone rather than
+      // stepping straight from meadow to cliff.
+      '  base = mix(base, mix(base, rock, 0.6), smoothstep(0.12, 0.30, slope) * step(0.55, patch));',
       // Snowline high and narrow. At 1500 m a real driveable pass — Stelvio
       // tops out around 2750 m — renders as an unbroken white sheet with no
       // readable terrain in it at all.
       '  base = mix(base, snow, smoothstep(2450.0, 3100.0, vHeight) * (1.0 - smoothstep(0.5, 0.8, slope)));',
       '  vec3 photo = texture2D(uTex, vUv).rgb;',
       '  base = mix(base, photo, uHasTex);',
-      '  float lam = clamp(dot(n, normalize(uLightDir)), 0.0, 1.0);',
-      '  vec3 lit = base * (0.55 + 0.55 * lam);',
-      '  gl_FragColor = vec4(fogged(lit), 1.0);',
+      // Cheap ambient occlusion in the folds: a hollow faces sideways more than
+      // a ridge does, so the slope term doubles as a crease darkener and the
+      // hills stop looking inflated.
+      '  base *= mix(1.0, 0.86, smoothstep(0.25, 0.75, slope));',
+      '  gl_FragColor = vec4(finish(shade(base, n, normalize(uLightDir))), 1.0);',
       '}',
     ].join('\n'));
 
@@ -168,20 +278,45 @@
       'void main(){ vUv=aUv; vTone=aTone; vDist=length(aPos-uEye); gl_Position=uViewProj*vec4(aPos,1.0); }',
     ].join('\n'), [
       'precision highp float;',
+      'uniform vec3 uLightDir;',
       'varying vec2 vUv; varying float vTone;',
-      FOG,
+      NOISE, FOG, LIGHTING,
       'void main(){',
       // Aggregate speckle, so tarmac at 100 km/h is a surface rather than a
       // flat grey ribbon with no sensation of movement over it.
       // Fine aggregate. vUv.x is in METRES along the way, so the cell size here
       // is a real size on the ground: at 3 per metre the speckle came out as
       // 30 cm tiles and the road read as a checkerboard. 14 per metre is chip.
-      '  float g = fract(sin(dot(floor(vec2(vUv.x * 14.0, vUv.y * 26.0)), vec2(127.1, 311.7))) * 43758.5453);',
-      '  float g2 = fract(sin(dot(floor(vec2(vUv.x * 3.5, vUv.y * 5.0)), vec2(269.5, 183.3))) * 43758.5453);',
+      // Same distance gate as the terrain: chip aggregate 400 m down the road
+      // is finer than a pixel, so it is not surface any more, it is shimmer.
+      '  float detail = 1.0 - smoothstep(160.0, 420.0, vDist);',
+      '  float g = 0.5, g2 = 0.5, wear = 0.5;',
+      '  if (detail > 0.01) {',
+      '    g = fract(sin(dot(floor(vec2(vUv.x * 14.0, vUv.y * 26.0)), vec2(127.1, 311.7))) * 43758.5453);',
+      '    g2 = fract(sin(dot(floor(vec2(vUv.x * 3.5, vUv.y * 5.0)), vec2(269.5, 183.3))) * 43758.5453);',
+      '    wear = vnoise(vec2(vUv.x * 0.045, vUv.y * 1.6));',
+      '  }',
+      '  g = mix(0.5, g, detail); g2 = mix(0.5, g2, detail);',
       '  vec3 tarmac = vec3(0.21,0.21,0.23) * (0.62 + vTone) * (0.95 + 0.07 * g + 0.05 * g2);',
-      // Kerb: a lighter band at both edges of the ribbon.
-      '  float edge = smoothstep(0.5, 0.45, abs(vUv.y - 0.5));',
+      // WHEEL TRACKS. Traffic polishes two bands per carriageway and leaves the
+      // crown and the gutter rough, and that pattern — not the aggregate — is
+      // what the eye uses to read a road as used. Two soft darker strips either
+      // side of the centre, faded out where the surface is a track rather than
+      // a highway.
+      '  float lane = abs(vUv.y - 0.5);',
+      '  float tracks = exp(-pow((lane - 0.17) * 13.0, 2.0)) + exp(-pow((lane - 0.33) * 13.0, 2.0));',
+      '  tarmac *= 1.0 - tracks * 0.10 * step(0.40, vTone);',
+      // Patch repairs and staining: low-frequency blotches along the way, which
+      // break up a kilometre of identical grey better than any amount of grain.
+      '  tarmac *= 0.90 + 0.20 * wear;',
+      // Kerb: a lighter band at both edges of the ribbon. Ascending edges — see
+      // the sky shader: a descending smoothstep is undefined behaviour, and
+      // this one had been quietly relying on it.
+      '  float edge = 1.0 - smoothstep(0.45, 0.5, abs(vUv.y - 0.5));',
       '  tarmac = mix(tarmac * 1.30, tarmac, edge);',
+      // Damp at the gutters where the water sits — a touch darker and glossier
+      // right at the kerb line.
+      '  tarmac *= 1.0 - smoothstep(0.40, 0.49, lane) * 0.12;',
       // Edge lines on everything, centre line on anything bigger than a lane.
       // The old rule painted a centre line only above tone 0.5, which excluded
       // residential streets — i.e. most of what you actually drive on — so the
@@ -191,7 +326,10 @@
       '  float dash = step(0.42, fract(vUv.x / 9.0));',
       '  float paint = max(mid * dash * step(0.45, vTone), edgeLine * 0.62);',
       '  vec3 c = mix(tarmac, vec3(0.88,0.86,0.72), clamp(paint, 0.0, 1.0));',
-      '  gl_FragColor = vec4(fogged(c), 1.0);',
+      // Lit by the same sun and the same sky as everything else, with the road
+      // surface facing up. Without this the tarmac is the one material in the
+      // world that ignores the light, and it shows the moment the sky changes.
+      '  gl_FragColor = vec4(finish(shade(c, vec3(0.0, 1.0, 0.0), normalize(uLightDir))), 1.0);',
       '}',
     ].join('\n'));
 
@@ -210,9 +348,9 @@
       '  vDist=length(aPos-uEye); gl_Position=uViewProj*vec4(aPos,1.0); }',
     ].join('\n'), [
       'precision highp float;',
-      'uniform vec3 uLightDir;',
+      'uniform vec3 uLightDir; uniform vec3 uEye;',
       'varying vec3 vNormal; varying float vTone; varying vec3 vWorld; varying vec2 vBinfo;',
-      FOG,
+      NOISE, FOG, LIGHTING,
       'void main(){',
       '  vec3 n = normalize(vNormal);',
       '  float s = fract(vBinfo.y);',
@@ -222,6 +360,7 @@
       '  if (s > 0.50) base = vec3(0.74,0.57,0.46);',
       '  if (s > 0.75) base = vec3(0.86,0.84,0.79);',
       '  float isWall = 1.0 - step(0.55, abs(n.y));',
+      '  float isRoof = step(0.55, n.y);',
       '  float h = vWorld.y - vBinfo.x;',            // height above THIS building's base
       // Storey bands. Using the building's own base is what keeps windows level
       // across a terrace built on a slope.
@@ -246,11 +385,28 @@
       '  float near = 1.0 - smoothstep(80.0, 260.0, vDist);',
       '  base = mix(base, glass, win * 0.72 * near);',
       '  base = mix(base, base * 0.93, (1.0 - near) * isWall);',
-      // Grime toward the ground, and a darker roof.
+      // Grime toward the ground.
       '  base *= mix(0.72, 1.0, clamp(h / 5.0, 0.0, 1.0));',
-      '  base = mix(base, base * 0.78, step(0.55, abs(n.y)) * step(0.0, n.y));',
-      '  float lam = clamp(dot(n, normalize(uLightDir)), 0.0, 1.0);',
-      '  gl_FragColor = vec4(fogged(base * vTone * (0.70 + 0.66 * lam)), 1.0);',
+      // ROOFS ARE NOT WALLS. Looking down a street from the chase camera you see
+      // as much roof as facade, and painting them a dimmed copy of the wall is
+      // most of why a city block reads as a bar chart. Slate, tile or grey felt
+      // by the same per-building seed, with plant and vent clutter scribbled on
+      // by the noise — at 60 km/h that clutter is the whole difference.
+      '  vec3 roof = vec3(0.30, 0.31, 0.34);',                       // slate
+      '  if (s > 0.40) roof = vec3(0.44, 0.26, 0.20);',              // pantile
+      '  if (s > 0.78) roof = vec3(0.38, 0.38, 0.36);',              // felt and gravel
+      '  float clutter = vnoise(vWorld.xz * 0.55 + s * 20.0);',
+      '  roof *= 0.86 + 0.30 * clutter;',
+      '  roof += vec3(0.06) * step(0.80, clutter);',                 // plant, vents, skylights
+      '  base = mix(base, roof, isRoof);',
+      '  vec3 lit = shade(base * vTone, n, normalize(uLightDir));',
+      // Glass catches the sun. Only on the window rectangles, only on walls,
+      // and only near enough that the pattern is still resolved — a whole city
+      // of specular facades at 300 m is a field of fireflies.
+      '  vec3 vd = normalize(uEye - vWorld);',
+      '  vec3 hv = normalize(vd + normalize(uLightDir));',
+      '  float spec = pow(max(dot(n, hv), 0.0), 42.0) * win * near * 0.55;',
+      '  gl_FragColor = vec4(finish(lit + vec3(spec)), 1.0);',
       '}',
     ].join('\n'));
 
@@ -262,37 +418,62 @@
       'void main(){ vPos=aPos; vDist=length(aPos-uEye); gl_Position=uViewProj*vec4(aPos,1.0); }',
     ].join('\n'), [
       'precision highp float;',
-      'uniform float uTime;',
+      'uniform float uTime; uniform vec3 uEye; uniform vec3 uLightDir; uniform vec3 uSkyTop;',
       'varying vec3 vPos;',
       FOG,
       'void main(){',
       '  float ripple = sin(vPos.x*0.08 + uTime*0.8) * sin(vPos.z*0.07 - uTime*0.6);',
-      '  vec3 c = mix(vec3(0.10,0.24,0.36), vec3(0.16,0.36,0.50), 0.5 + 0.5*ripple);',
-      '  gl_FragColor = vec4(fogged(c), 1.0);',
+      '  vec3 c = mix(vec3(0.06,0.16,0.26), vec3(0.10,0.28,0.40), 0.5 + 0.5*ripple);',
+      // A surface normal wobbled by the same ripple, which buys two things a
+      // flat blue plane cannot have: a sky reflection that brightens as the
+      // water tilts away from you, and a sun glitter path across it.
+      '  vec3 n = normalize(vec3(',
+      '    -cos(vPos.x*0.08 + uTime*0.8) * 0.08 * sin(vPos.z*0.07 - uTime*0.6) * 2.2,',
+      '    1.0,',
+      '    -sin(vPos.x*0.08 + uTime*0.8) * 0.07 * cos(vPos.z*0.07 - uTime*0.6) * 2.2));',
+      '  vec3 vd = normalize(uEye - vPos);',
+      '  float fres = pow(1.0 - clamp(dot(n, vd), 0.0, 1.0), 3.0);',
+      '  c = mix(c, uSkyTop * 0.9, clamp(fres * 0.85, 0.0, 0.8));',
+      '  vec3 hv = normalize(vd + normalize(uLightDir));',
+      '  c += pow(max(dot(n, hv), 0.0), 90.0) * 0.85;',
+      '  gl_FragColor = vec4(finish(c), 1.0);',
       '}',
     ].join('\n'));
 
-    // --- cars: one small mesh, drawn per vehicle with its own matrix ---
+    // --- cars AND wildlife: one small mesh, drawn per body with its own matrix ---
+    // uShape is a per-instance scale applied BEFORE the model matrix. Cars pass
+    // (1,1,1); the animals pass their kind's proportions, which is what turns a
+    // single quadruped mesh into a goose, a boar and a cow without three meshes,
+    // three buffers and three upload paths.
     progs.car = program([
       'attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor;',
       'uniform mat4 uViewProj; uniform mat4 uModel; uniform vec3 uEye; uniform vec3 uTint;',
-      'varying vec3 vNormal; varying vec3 vColor; varying float vDist;',
+      'uniform vec3 uShape;',
+      'varying vec3 vNormal; varying vec3 vColor; varying float vDist; varying vec3 vWorld;',
       'void main(){',
-      '  vec4 world = uModel * vec4(aPos, 1.0);',
-      '  vNormal = mat3(uModel) * aNormal;',
+      '  vec4 world = uModel * vec4(aPos * uShape, 1.0);',
+      '  vNormal = mat3(uModel) * (aNormal / uShape);',
       '  vColor = aColor * uTint;',
+      '  vWorld = world.xyz;',
       '  vDist = length(world.xyz - uEye);',
       '  gl_Position = uViewProj * world;',
       '}',
     ].join('\n'), [
       'precision highp float;',
-      'uniform vec3 uLightDir;',
-      'varying vec3 vNormal; varying vec3 vColor;',
-      FOG,
+      'uniform vec3 uLightDir; uniform vec3 uEye; uniform float uGloss;',
+      'varying vec3 vNormal; varying vec3 vColor; varying vec3 vWorld;',
+      FOG, LIGHTING,
       'void main(){',
       '  vec3 n = normalize(vNormal);',
-      '  float lam = clamp(dot(n, normalize(uLightDir)), 0.0, 1.0);',
-      '  gl_FragColor = vec4(fogged(vColor * (0.45 + 0.75 * lam)), 1.0);',
+      '  vec3 l = normalize(uLightDir);',
+      '  vec3 lit = shade(vColor, n, l);',
+      // Paint. A car with no highlight is a matte plastic toy — this is the one
+      // object the player looks at for the whole session, so it gets the one
+      // specular lobe and a rim light to lift it off the road behind it.
+      '  vec3 vd = normalize(uEye - vWorld);',
+      '  float spec = pow(max(dot(n, normalize(vd + l)), 0.0), 54.0) * uGloss;',
+      '  float rim = pow(1.0 - clamp(dot(n, vd), 0.0, 1.0), 3.5) * 0.22 * uGloss;',
+      '  gl_FragColor = vec4(finish(lit + vec3(spec) + uSkyFill * rim), 1.0);',
       '}',
     ].join('\n'));
 
@@ -312,20 +493,84 @@
       'varying vec2 vLocal;',
       'void main(){',
       '  float d = length(vLocal);',
-      '  float a = smoothstep(1.0, 0.15, d) * 0.42;',
+      '  float a = (1.0 - smoothstep(0.15, 1.0, d)) * 0.42;',   // ascending edges: see the sky shader
       '  gl_FragColor = vec4(0.0, 0.0, 0.0, a);',
       '}',
     ].join('\n'));
 
-    // --- sky: a full-screen gradient drawn before everything, depth off ---
+    // --- sky: a real sky, drawn before everything with depth writes off ------
+    // It was a vertical gradient in SCREEN space, which means it did not move
+    // when you did: look up, look down, spin the car — the same band sat there,
+    // and the horizon line was wherever the screen's middle happened to be. The
+    // fix is to reconstruct the view RAY per pixel (uRay/uUp/uFwd are the camera
+    // basis, scaled by the frustum) and shade by direction, which costs one
+    // normalize and buys a sky that is anchored to the world: the sun stays put
+    // as you turn, the haze sits on the true horizon, and the clouds have a
+    // vanishing point.
     progs.sky = program([
+      // z=1 exactly: the sky is drawn LAST and passes the depth test only where
+      // the depth buffer is still at its cleared value, i.e. where the world
+      // drew nothing. That needs LEQUAL, which init() sets.
       'attribute vec2 aPos; varying vec2 vP;',
-      'void main(){ vP = aPos; gl_Position = vec4(aPos, 0.999, 1.0); }',
+      'void main(){ vP = aPos; gl_Position = vec4(aPos, 1.0, 1.0); }',
     ].join('\n'), [
       'precision highp float;',
-      'uniform vec3 uTop; uniform vec3 uHorizon;',
+      'uniform vec3 uTop; uniform vec3 uHorizon; uniform vec3 uSunDir; uniform vec3 uSunColor;',
+      'uniform vec3 uRay; uniform vec3 uUp; uniform vec3 uFwd; uniform float uTime;',
       'varying vec2 vP;',
-      'void main(){ gl_FragColor = vec4(mix(uHorizon, uTop, clamp(vP.y*0.5+0.5, 0.0, 1.0)), 1.0); }',
+      NOISE,
+      'void main(){',
+      '  vec3 dir = normalize(uRay * vP.x + uUp * vP.y + uFwd);',
+      '  float up = clamp(dir.y, -1.0, 1.0);',
+      '  vec3 sky = mix(uHorizon, uTop, pow(clamp(up, 0.0, 1.0), 0.62));',
+      // Below the horizon the sky is not sky, it is the haze the terrain
+      // dissolves into — and it must be the same colour as the fog or the join
+      // is a visible line right where the world ends.
+      // NOTE THE ORDER OF THE EDGES. smoothstep with edge0 >= edge1 is
+      // UNDEFINED in GLSL, not "reversed" — written the other way round this
+      // returned 1.0 for every pixel on the gate's rasteriser and the entire
+      // sky came out as one flat band of the horizon colour, sun, clouds,
+      // gradient and all. Ascending edges, then subtract.
+      '  sky = mix(sky, uHorizon, 1.0 - smoothstep(-0.04, 0.06, up));',
+      '  float sd = max(dot(dir, uSunDir), 0.0);',
+      // Three lobes: the disc, a tight aureole, and a wide haze that warms half
+      // the sky. The wide one is what actually sells the direction of the light.
+      '  sky += uSunColor * pow(sd, 1400.0) * 6.0;',
+      '  sky += uSunColor * pow(sd, 90.0) * 0.55;',
+      '  sky += uSunColor * pow(sd, 5.0) * 0.16;',
+      // Clouds on a flat deck: project the ray onto a plane above the camera,
+      // so they converge at the horizon instead of tiling the screen.
+      // The deck is LOW and the fade is SHALLOW on purpose. A driving game
+      // looks at the horizon: the chase camera's frustum reaches maybe 25°
+      // above it, so a cloud layer tuned for a flight sim is a cloud layer no
+      // player ever sees. These are the clouds that stand on the skyline.
+      // deck is the cloud plane's height in noise units, and it has to be near
+      // 1: the projection is dir.xz/dir.y, so a small deck maps the ENTIRE sky
+      // into a fraction of one noise cell and every pixel gets the same value —
+      // measured, that was a sky with no clouds in it at all rather than a sky
+      // with subtle ones.
+      // Everything below the horizon is haze, not cloud, and half the sky
+      // pixels in a driving game are down there. One coherent branch skips the
+      // whole cloud layer for them — the sky is the ONLY pass that got more
+      // expensive here, because until now it was being culled and cost nothing
+      // at all.
+      '  if (up > 0.012) {',
+      '    float deck = 1.25;',
+      '    vec2 cp = dir.xz / max(up, 0.020) * deck + vec2(uTime * 0.010, uTime * 0.006);',
+      '    float cov = smoothstep(0.52, 0.80, fbm2(cp));',
+      // Still fade at the very bottom: at a grazing angle the projection
+      // stretches to infinity and the noise turns into visible streaks.
+      '    cov *= smoothstep(0.012, 0.10, up);',
+      // Lit from the sun side, shadowed underneath. ONE octave: it is only
+      // asking "is this side of the lump brighter", and three octaves of that
+      // is three times the cost for a difference nobody can see.
+      '    float lit = smoothstep(0.35, 0.80, vnoise(cp + uSunDir.xz * 0.55));',
+      '    vec3 cloud = mix(vec3(0.62, 0.65, 0.72), vec3(1.0, 0.98, 0.94), lit);',
+      '    cloud += uSunColor * pow(sd, 22.0) * 0.35;',               // silver lining
+      '    sky = mix(sky, cloud, cov * 0.88);',
+      '  }',
+      '  gl_FragColor = vec4(sky, 1.0);',
+      '}',
     ].join('\n'));
   }
 
@@ -336,7 +581,7 @@
     if (mesh._gl) return mesh._gl;
     var b = { vbo: {}, ibo: gl.createBuffer(), count: mesh.count,
               type: (mesh.indices instanceof Uint32Array) ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT };
-    ['positions', 'normals', 'uvs', 'tone', 'binfo'].forEach(function (k) {
+    ['positions', 'normals', 'uvs', 'tone', 'binfo', 'colors'].forEach(function (k) {
       if (!mesh[k]) return;
       var buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -435,21 +680,62 @@
       colors: new Float32Array(o.col), indices: new Uint16Array(o.idx), count: o.idx.length,
     };
   }
-  var carMesh = null, carGL = null;
+  // ---- the animal mesh -----------------------------------------------------
+  // ONE quadruped, standing on y=0 and facing +Z like the car, drawn through
+  // the same program. Everything that makes a goose not a cow is the per-kind
+  // uShape scale and the tint — six meshes would be six buffers and six upload
+  // paths for silhouettes nobody reads at 60 km/h.
+  //
+  // The body colours are near-white on purpose: uTint MULTIPLIES, so white
+  // takes the kind's colour exactly while the darker parts (legs, muzzle) keep
+  // their relationship to it whatever that colour turns out to be.
+  function buildAnimalMesh() {
+    var o = { pos: [], nrm: [], col: [], idx: [] };
+    var coat = [1, 1, 1], under = [0.82, 0.82, 0.82];
+    var leg = [0.46, 0.42, 0.38], dark = [0.20, 0.17, 0.15];
+    boxInto(o, 0, 0.80, -0.04, 0.24, 0.22, 0.60, coat);        // barrel
+    boxInto(o, 0, 0.72, 0.50, 0.21, 0.17, 0.16, under);        // chest
+    boxInto(o, 0, 1.04, 0.55, 0.11, 0.20, 0.12, coat);         // neck
+    boxInto(o, 0, 1.26, 0.64, 0.12, 0.10, 0.20, coat);         // head
+    boxInto(o, 0, 1.22, 0.85, 0.07, 0.06, 0.05, dark);         // muzzle
+    boxInto(o, -0.11, 1.38, 0.60, 0.03, 0.07, 0.04, dark);     // ears
+    boxInto(o, 0.11, 1.38, 0.60, 0.03, 0.07, 0.04, dark);
+    boxInto(o, 0, 0.82, -0.66, 0.05, 0.10, 0.07, under);       // tail
+    [[-0.17, 0.40], [0.17, 0.40], [-0.17, -0.44], [0.17, -0.44]].forEach(function (p) {
+      boxInto(o, p[0], 0.29, p[1], 0.05, 0.29, 0.05, leg);
+      boxInto(o, p[0], 0.03, p[1], 0.06, 0.03, 0.07, dark);    // hoof
+    });
+    return {
+      positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
+      colors: new Float32Array(o.col), indices: new Uint16Array(o.idx), count: o.idx.length,
+    };
+  }
+
+  var carMesh = null, carGL = null, animalGL = null;
+
+  function uploadBody(mesh) {
+    var b = { vbo: {}, ibo: gl.createBuffer(), count: mesh.count, type: gl.UNSIGNED_SHORT };
+    [['positions','aPos'],['normals','aNormal'],['colors','aColor']].forEach(function (p) {
+      var buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, mesh[p[0]], gl.STATIC_DRAW);
+      b.vbo[p[1]] = buf;
+    });
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.ibo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
+    return b;
+  }
 
   function uploadCar() {
     if (carGL) return carGL;
     carMesh = buildCarMesh();
-    carGL = { vbo: {}, ibo: gl.createBuffer(), count: carMesh.count, type: gl.UNSIGNED_SHORT };
-    [['positions','aPos'],['normals','aNormal'],['colors','aColor']].forEach(function (p) {
-      var buf = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-      gl.bufferData(gl.ARRAY_BUFFER, carMesh[p[0]], gl.STATIC_DRAW);
-      carGL.vbo[p[1]] = buf;
-    });
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, carGL.ibo);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, carMesh.indices, gl.STATIC_DRAW);
+    carGL = uploadBody(carMesh);
     return carGL;
+  }
+
+  function uploadAnimal() {
+    if (!animalGL) animalGL = uploadBody(buildAnimalMesh());
+    return animalGL;
   }
 
   // ---- shadow quad ---------------------------------------------------------
@@ -497,8 +783,42 @@
 
   // ---- public --------------------------------------------------------------
   var view = mat4(), proj = mat4(), viewProj = mat4();
-  var SKY_TOP = [0.20, 0.44, 0.76], SKY_HORIZON = [0.78, 0.85, 0.89];
+  var SKY_TOP = [0.17, 0.38, 0.72], SKY_HORIZON = [0.74, 0.81, 0.86];
   var LIGHT = [0.45, 0.78, 0.30];
+  // Warm sun, cool sky fill, warm bounce off the ground. The three of them are
+  // what the hemisphere model reads; keeping them here rather than in the
+  // shaders means one place decides what time of day it is.
+  // The fill is deliberately generous. A physically honest hemisphere puts a
+  // shaded vertical wall at about a third of a lit one, which is right for a
+  // photograph and wrong for a stylised world at speed — the far side of every
+  // building became an unreadable brown. Bright fill, slightly weaker sun.
+  var SUN_COLOR = [0.78, 0.73, 0.62];
+  var SKY_FILL = [0.42, 0.48, 0.58];
+  var GROUND_FILL = [0.27, 0.25, 0.21];
+  var sunDir = [0, 1, 0];       // LIGHT, normalised, recomputed on init
+  var ray = [0, 0, 0], upv = [0, 0, 0], fwd = [0, 0, 0];
+  var IDENT = mat4(), ONE = [1, 1, 1];
+
+  function normalise(v) {
+    var l = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / l, v[1] / l, v[2] / l];
+  }
+
+  // The camera basis the sky shader reconstructs its rays from. It has to match
+  // lookAt EXACTLY, including the X flip that mirrors the world (see lookAt) —
+  // get the handedness wrong here and the sun sits on the wrong side of the
+  // road from its own shadows.
+  function cameraBasis(eye, centre, fov, aspect) {
+    var z = normalise([eye[0] - centre[0], eye[1] - centre[1], eye[2] - centre[2]]);   // backwards
+    var x = normalise([1 * z[2] - 0 * z[1], 0 * z[0] - 0 * z[2], 0 * z[1] - 1 * z[0]]); // cross(up, z), up=(0,1,0)
+    var y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]];
+    var t = Math.tan(fov * Math.PI / 360);
+    for (var i = 0; i < 3; i++) {
+      ray[i] = -x[i] * t * aspect;      // the mirror
+      upv[i] = y[i] * t;
+      fwd[i] = -z[i];
+    }
+  }
 
   function init(cv) {
     canvas = cv;
@@ -508,8 +828,10 @@
     if (!gl) gl = cv.getContext('webgl', opts) || cv.getContext('experimental-webgl', opts);
     if (!gl) throw new Error('This device has no WebGL, so there is nothing to drive on.');
     if (!isGL2) gl.getExtension('OES_element_index_uint');   // 32-bit indices for big tiles
+    sunDir = normalise(LIGHT);
     buildPrograms();
     gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);        // so the z=1 sky quad can fill untouched pixels
     gl.enable(gl.CULL_FACE);
     gl.cullFace(gl.BACK);
     // The mirrored view (see lookAt) reverses the projected winding of every
@@ -538,17 +860,7 @@
     gl.clearColor(SKY_HORIZON[0], SKY_HORIZON[1], SKY_HORIZON[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // Sky first, with depth writes off so everything draws over it.
-    gl.depthMask(false);
-    gl.useProgram(progs.sky.id);
-    gl.uniform3fv(progs.sky.u.uTop, SKY_TOP);
-    gl.uniform3fv(progs.sky.u.uHorizon, SKY_HORIZON);
-    gl.bindBuffer(gl.ARRAY_BUFFER, uploadSky());
-    gl.enableVertexAttribArray(progs.sky.a.aPos);
-    gl.vertexAttribPointer(progs.sky.a.aPos, 2, gl.FLOAT, false, 0, 0);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.disableVertexAttribArray(progs.sky.a.aPos);
-    gl.depthMask(true);
+    cameraBasis(scene.eye, scene.target, scene.fov || 62, aspect);
 
     // Fog density is tied to draw distance so the horizon always dissolves at
     // roughly the same place regardless of how far we are drawing.
@@ -561,6 +873,10 @@
       if (p.u.uLightDir) gl.uniform3fv(p.u.uLightDir, LIGHT);
       if (p.u.uFogColor) gl.uniform3fv(p.u.uFogColor, SKY_HORIZON);
       if (p.u.uFogDensity) gl.uniform1f(p.u.uFogDensity, fogDensity);
+      if (p.u.uSunColor) gl.uniform3fv(p.u.uSunColor, SUN_COLOR);
+      if (p.u.uSkyFill) gl.uniform3fv(p.u.uSkyFill, SKY_FILL);
+      if (p.u.uGroundFill) gl.uniform3fv(p.u.uGroundFill, GROUND_FILL);
+      if (p.u.uSkyTop) gl.uniform3fv(p.u.uSkyTop, SKY_TOP);
     }
 
     // Terrain is drawn double-sided. Its skirts wind outward on the north edge
@@ -605,10 +921,36 @@
       });
     }
 
+    // Scenery — trees and hedges, baked into one static mesh per road tile (see
+    // roads.js scatter). Drawn through the CAR program with an identity model
+    // matrix: it already takes a per-vertex colour and does the lighting we
+    // want, and a fifth program for "a mesh with colours on it" would be a
+    // fifth program to keep in step.
+    if (scene.trees && scene.trees.length) {
+      common(progs.car);
+      gl.uniformMatrix4fv(progs.car.u.uModel, false, IDENT);
+      gl.uniform3fv(progs.car.u.uTint, ONE);
+      gl.uniform3fv(progs.car.u.uShape, ONE);
+      gl.uniform1f(progs.car.u.uGloss, 0);
+      // CULLED, like everything else. Drawing foliage double-sided was worth
+      // trying — a canopy is a shell of leaves, not a solid — but it doubles
+      // the fill of the most numerous object in the scene for a difference
+      // only visible if you stop and stare up into a tree, and this is a
+      // driving game. Measured on the software rasteriser it was the single
+      // most expensive thing added.
+      for (var tr = 0; tr < scene.trees.length; tr++) {
+        drawMesh(progs.car, scene.trees[tr], {
+          aPos: { src: 'positions', size: 3 }, aNormal: { src: 'normals', size: 3 },
+          aColor: { src: 'colors', size: 3 },
+        });
+      }
+    }
+
     // Contact shadows, before the cars themselves. Blended, and with depth
     // WRITES off so one shadow cannot occlude another or the car above it —
     // they still depth-TEST, so a shadow behind a building stays hidden.
-    if (scene.cars && scene.cars.length) {
+    var animals = scene.animals || [];
+    if ((scene.cars && scene.cars.length) || animals.length) {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.depthMask(false);
@@ -624,6 +966,15 @@
         // it never z-fights with the road surface it is cast onto.
         gl.uniform3fv(progs.shadow.u.uCentre, [s0.x, (s0.groundY != null ? s0.groundY : s0.y) + 0.06, s0.z]);
         gl.uniform1f(progs.shadow.u.uRadius, 1.5);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
+      // The wildlife gets one too, and it is not decoration: without a contact
+      // shadow an animal on a slope reads as hovering, and a deer you cannot
+      // place in depth is a deer you cannot swerve around.
+      for (var sa = 0; sa < animals.length; sa++) {
+        var a0 = animals[sa];
+        gl.uniform3fv(progs.shadow.u.uCentre, [a0.x, (a0.groundY != null ? a0.groundY : a0.y) + 0.05, a0.z]);
+        gl.uniform1f(progs.shadow.u.uRadius, 0.55 * (a0.shape ? a0.shape[2] : 1));
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
       gl.disableVertexAttribArray(progs.shadow.a.aPos);
@@ -645,6 +996,8 @@
         gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
       });
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cg.ibo);
+      gl.uniform3fv(progs.car.u.uShape, ONE);
+      gl.uniform1f(progs.car.u.uGloss, 1);
       for (var c = 0; c < scene.cars.length; c++) {
         var car = scene.cars[c];
         carMatrix(m, car.x, car.y, car.z, car.yaw, car.pitch || 0, car.roll || 0);
@@ -657,11 +1010,82 @@
         if (loc !== undefined && loc >= 0) gl.disableVertexAttribArray(loc);
       });
     }
+
+    // Wildlife: the same program, the same one-mesh-many-matrices pattern, and
+    // uShape doing the work six meshes would otherwise do.
+    if (animals.length) {
+      var ag = uploadAnimal();
+      common(progs.car);
+      var am = mat4();
+      ['aPos','aNormal','aColor'].forEach(function (name) {
+        var loc = progs.car.a[name];
+        if (loc === undefined || loc < 0) return;
+        gl.bindBuffer(gl.ARRAY_BUFFER, ag.vbo[name]);
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      });
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ag.ibo);
+      gl.uniform1f(progs.car.u.uGloss, 0.10);      // fur is not paint
+      for (var an = 0; an < animals.length; an++) {
+        var b0 = animals[an];
+        carMatrix(am, b0.x, b0.y, b0.z, b0.yaw, b0.tilt || 0, 0);
+        gl.uniformMatrix4fv(progs.car.u.uModel, false, am);
+        gl.uniform3fv(progs.car.u.uTint, b0.tint);
+        gl.uniform3fv(progs.car.u.uShape, b0.shape || ONE);
+        gl.drawElements(gl.TRIANGLES, ag.count, ag.type, 0);
+      }
+      ['aPos','aNormal','aColor'].forEach(function (name) {
+        var loc = progs.car.a[name];
+        if (loc !== undefined && loc >= 0) gl.disableVertexAttribArray(loc);
+      });
+    }
+
+    // ---- sky, LAST -------------------------------------------------------
+    // It used to be drawn first, which meant the most expensive fragment
+    // shader in the app ran over every pixel on the screen and then had most
+    // of them painted over. Drawn last at z=1 with LEQUAL and depth writes
+    // off, it fills exactly the pixels nothing else reached — on a road scene
+    // that is under half the frame, and it is the single cheapest way to buy
+    // back what clouds cost. (Measured: 8.8 -> 10.6 fps on the gate's software
+    // rasteriser, which is the pessimistic end of the phone range.)
+    //
+    // CULLING OFF, and that is not defensive: the full-screen triangle is
+    // wound counter-clockwise, the app sets frontFace(CW) to compensate for
+    // its mirrored view, and so the sky triangle was a BACK face — silently
+    // culled — from the day that line landed. Every "sky" pixel in this app
+    // was the glClear colour, which is why the sky was one flat band that no
+    // gradient ever showed up in.
+    gl.disable(gl.CULL_FACE);
+    gl.depthMask(false);
+    gl.useProgram(progs.sky.id);
+    gl.uniform3fv(progs.sky.u.uTop, SKY_TOP);
+    gl.uniform3fv(progs.sky.u.uHorizon, SKY_HORIZON);
+    gl.uniform3fv(progs.sky.u.uSunDir, sunDir);
+    gl.uniform3fv(progs.sky.u.uSunColor, SUN_COLOR);
+    gl.uniform3fv(progs.sky.u.uRay, ray);
+    gl.uniform3fv(progs.sky.u.uUp, upv);
+    gl.uniform3fv(progs.sky.u.uFwd, fwd);
+    gl.uniform1f(progs.sky.u.uTime, scene.time || 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, uploadSky());
+    gl.enableVertexAttribArray(progs.sky.a.aPos);
+    gl.vertexAttribPointer(progs.sky.a.aPos, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.disableVertexAttribArray(progs.sky.a.aPos);
+    gl.depthMask(true);
+    gl.enable(gl.CULL_FACE);        // hand the state back exactly as it was found
   }
 
   root.Render = {
     init: init, draw: draw, textureFor: textureFor,
     get gl() { return gl; },
     isGL2: function () { return isGL2; },
+    // The camera basis the sky reconstructs its rays from, as it was last
+    // uploaded. Exposed because a wrong basis does not look wrong in any
+    // obvious way — it looks like a sky with no clouds in it, which is exactly
+    // what a sky with no clouds in it looks like.
+    debug: function () {
+      return { ray: [ray[0], ray[1], ray[2]], up: [upv[0], upv[1], upv[2]],
+               fwd: [fwd[0], fwd[1], fwd[2]], sun: [sunDir[0], sunDir[1], sunDir[2]] };
+    },
   };
 })(window);
