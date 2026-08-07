@@ -5019,8 +5019,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // attributable after the fact. 64 entries: a reconnect loop emits
     // ~2 errors/s, so the ring must span a minute-long incident, not 8s.
     const pwLog = (ev) => { try { const L = (window.__pwLog = window.__pwLog || []); L.push(Date.now() + ' ' + ev); if (L.length > 64) L.shift(); } catch (e) {} };
-    function rekeyRoom() {
-      pwLog('rekey ep=' + pwEpoch + ' pw=' + (roomPw ? 'set' : ''));
+    // rekeyRoom(restarting) — `restarting` means "startMesh() follows, so this
+    // node is about to be THROWN AWAY". NEVER hand a doomed node the new key
+    // (2026-08-07, the 0.9.5 gate flake). setKey re-arms the wire's
+    // policy-rejected socket — the sanctioned credential-change kick — which
+    // opens a FRESH WebSocket handshake; startMesh() then stops that node
+    // milliseconds later and closes the socket MID-HANDSHAKE. Chromium counts
+    // an aborted handshake as a failed one and delays the next handshake to
+    // that address; gifos-net's 8s connect watchdog then aborts THAT one too,
+    // which doubles the delay, and the client never gets a socket again. Seen
+    // as: a guest refused at the door goes silent forever at "1 participant" —
+    // the exact disease §LOCK exists to cure — 25% of runs (2/8 measured).
+    // The re-armed socket was pure waste anyway: the new node dials with the
+    // new key and the new proof one line later.
+    function rekeyRoom(restarting) {
+      pwLog('rekey ep=' + pwEpoch + ' pw=' + (roomPw ? 'set' : '') + (restarting ? ' (node being replaced)' : ''));
       return net.deriveMeetKey(room, av, roomPw).then((k) => {
         if (k && roomE2E && k !== roomE2E) { prevRoomE2E = roomE2E; rekeyAt = Date.now(); } // keep ONE generation for stale-neighbour healing (§LOCK)
         if (k) roomE2E = k;
@@ -5028,7 +5041,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // sealed relay fallback) — hand it the new one, or a Section-1 greeter
         // keeps registering blobs under the OLD key and every new-password
         // newcomer reads R6 "wrong password" forever (see mesh-wire setKey).
-        if (k && meshNode && meshNode.setKey) meshNode.setKey(k);
+        if (!restarting && k && meshNode && meshNode.setKey) meshNode.setKey(k);
         if (typeof clog === 'function') clog('rekey ' + (roomPw ? 'locked' : 'open'));
       });
     }
@@ -5148,13 +5161,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (pwProbe === 'probing' && pwHeld) {
             pwLog('open-key probe refused at the door → the room IS locked; restoring the remembered password');
             pwProbe = 'restored'; roomPw = pwHeld; pwHeld = ''; pwFromStore = false; touchPw();
-            net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; return rekeyRoom(); }).then(() => startMesh());
+            net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; return rekeyRoom(true); }).then(() => startMesh());
             return;
           }
           if (pwProbe === '' && pwFromStore && roomPw) {
             pwLog('R6 holding a REMEMBERED password → probing the open key');
             pwProbe = 'probing'; pwHeld = roomPw; roomPw = '';
-            net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; return rekeyRoom(); }).then(() => startMesh());
+            net.meetPwProof(room, av, roomPw).then((pr) => { pwProof = pr; return rekeyRoom(true); }).then(() => startMesh());
             reactRoomState();
             return;
           }
@@ -5926,7 +5939,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // The relay only ever sees the PROOF of this password, never the text —
         // and the key I read the room with now contains it (§8): a wrong
         // password doesn't just bounce at the courtesy gate, it can't decrypt.
-        Promise.all([net.meetPwProof(room, av, roomPw), rekeyRoom()])
+        Promise.all([net.meetPwProof(room, av, roomPw), rekeyRoom(true)])
           .then(([pr]) => { pwProof = pr; startMesh(); }); // wrong password → bounced right back here
       } else {
         // Clearing the password opens the room — warn that it also deletes any
@@ -7134,7 +7147,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const wasBlocked = pwBlocked;
         // Adopt the new password's KEY too (§8) — this sealed frame arrived
         // under the old key; from here on the room speaks the new one.
-        const rk = rekeyRoom();
+        const rk = rekeyRoom(wasBlocked); // wasBlocked ⇒ startMesh() below replaces this node
         net.meetPwProof(room, av, roomPw).then(async (pr) => {
           pwProof = pr;
           if (wasBlocked) {
