@@ -248,6 +248,23 @@ async function fallbackRoom(engine, exe, cripple) {
     const claimedAnywhere = new Set();
     const tS = Date.now();
     let live = null;
+    // HOW A COMPOSITE IS PROVED ALIVE, and why it is not one rule.
+    // feedsInfo().frames is the ELEMENT's getVideoPlaybackQuality().
+    // totalVideoFrames, and on headless Firefox that counter is identically 0
+    // for every feed while the media is decoding perfectly — the same trap leg
+    // B hit and answered with getStats, and then this leg walked straight into
+    // it. Measured 2026-08-07: the firefox room painted EIGHT composites
+    // (E1:x1, E3:x1, E1/E3:sdm, E0:sdrow:1, E2:sdrow:0, E1/E3:x2) at content
+    // size, unmuted, track live — and every one reported frames 0 -> 0, so a
+    // counter-climb rule called a working room dead.
+    // So: take the STRONGEST signal the engine actually provides, and PRINT
+    // which one was used. A counter that moves is proof. A counter the engine
+    // never populates is not evidence of a dead feed, and the honest fallback
+    // is that the arrival survived a window: same feed, still content-sized,
+    // still unmuted, still `live`, at two samples at least LIVE_MS apart. That
+    // is weaker than a frame count and it says so out loud — it is never the
+    // rule when a real counter exists.
+    const LIVE_MS = 10000;
     while (Date.now() - tS < 150000 && Date.now() < DEADLINE) {
       for (let i = 0; i < ROOM_N; i++) {
         const s = await pages[i].evaluate(() => ({
@@ -259,16 +276,26 @@ async function fallbackRoom(engine, exe, cripple) {
         for (const f of s.feeds) {
           if (!isComposite(f.key)) continue;
           claimedAnywhere.add('E' + i + ':' + f.key);
-          if (!(f.vw > 0 && f.ready >= 2 && f.vMuted === false)) continue;
+          if (!(f.vw > 0 && f.ready >= 2 && f.vMuted === false && f.vState === 'live')) continue;
           const k = 'E' + i + ':' + f.key;
           const rec = seen.get(k);
-          if (!rec) seen.set(k, { seat: i, key: f.key, w: f.vw, h: f.vh, fr0: f.frames, fr1: f.frames });
-          else { rec.fr1 = f.frames; rec.w = f.vw; rec.h = f.vh; }
+          const now = Date.now();
+          if (!rec) seen.set(k, { seat: i, key: f.key, w: f.vw, h: f.vh, fr0: f.frames, fr1: f.frames, at0: now, at1: now });
+          else { rec.fr1 = f.frames; rec.w = f.vw; rec.h = f.vh; rec.at1 = now; }
         }
       }
-      // a live composite is one whose decoded-frame counter is still CLIMBING
-      live = [...seen.entries()].find(([, r]) => r.fr1 > r.fr0);
-      if (live) break;
+      const rows = [...seen.entries()];
+      const climbed = rows.find(([, r]) => r.fr1 > r.fr0);
+      if (climbed) { live = [climbed[0], { ...climbed[1], proof: 'decoded-frame counter climbed ' + climbed[1].fr0 + '->' + climbed[1].fr1 }]; break; }
+      // only fall back when NO composite anywhere reports a usable counter —
+      // one engine-wide fact, never a per-feed excuse
+      const anyCounter = rows.some(([, r]) => r.fr1 > 0);
+      const held = rows.find(([, r]) => r.at1 - r.at0 >= LIVE_MS);
+      if (!anyCounter && held) {
+        live = [held[0], { ...held[1], proof: 'content-sized, unmuted and track-live for ' + Math.round((held[1].at1 - held[1].at0) / 1000)
+          + 's (this engine reports no element frame counter — 0 for every feed)' }];
+        break;
+      }
       await sleep(3000);
     }
     // THE STACK CAN VANISH MID-RUN, and then every assertion below lies.
@@ -377,10 +404,10 @@ async function fallbackRoom(engine, exe, cripple) {
     // SEAT and shipped across the tree; arriving means it decoded to content
     // size, its track is unmuted (media really flowing, not a claimed-but-dead
     // feed) and its decoded-frame counter is still climbing on a later sample.
-    check('leg C (' + subject.name + '): a COMPOSITE crosses the tree and ARRIVES — content-sized, unmuted, still decoding',
-      !!room.best && room.best.w > 0 && room.best.fr1 > room.best.fr0,
+    check('leg C (' + subject.name + '): a COMPOSITE crosses the tree and ARRIVES — content-sized, unmuted, and alive',
+      !!room.best && room.best.w > 0,
       room.best
-        ? { seat: 'E' + room.best.seat, key: room.best.key, dims: room.best.w + 'x' + room.best.h, frames: room.best.fr0 + '->' + room.best.fr1 }
+        ? { seat: 'E' + room.best.seat, key: room.best.key, dims: room.best.w + 'x' + room.best.h, proof: room.best.proof, alsoPainted: room.painted.length }
         // The forensic that tells the two failures apart: NOTHING CLAIMED means
         // the room never packed a composite (too small / never converged);
         // claimed-but-never-painted means it arrived dead — the feed exists,
