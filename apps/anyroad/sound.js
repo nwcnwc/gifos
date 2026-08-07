@@ -350,6 +350,33 @@
     if (c) tone({ type: c.type, f0: c.f0 * 1.5, f1: c.f0 * 0.5, dur: 0.30, gain: 0.18, filter: c.filter });
   }
 
+  // ---- the blaster ---------------------------------------------------------
+  // A falling square through a resonant filter is the whole cliché and it is
+  // the cliché for a reason: the pitch drop IS the sound. Kept short and not
+  // very loud, because it fires four times a second and anything with a tail
+  // turns into a drone.
+  function blast() {
+    if (!started || silent) return;
+    tone({ type: 'square', f0: 1250, f1: 240, dur: 0.14, bend: 0.8, gain: 0.13, filter: 3200, q: 6 });
+    burst({ freq: 2400, q: 2.0, dur: 0.08, gain: 0.07, rate: 1.6 });
+  }
+
+  // What it hit. Meat, metal and masonry are three different noises, and
+  // hearing WHICH from a bolt you fired two hundred metres ago is most of the
+  // feedback the gun gets.
+  function zap(kind) {
+    if (!started || silent) return;
+    if (kind === 'animal') {
+      burst({ freq: 700, q: 1.1, dur: 0.20, gain: 0.16, type: 'lowpass' });
+      tone({ type: 'sawtooth', f0: 420, f1: 120, dur: 0.16, gain: 0.09, filter: 900 });
+    } else if (kind === 'wreck' || kind === 'car') {
+      burst({ freq: 1600, q: 1.4, dur: 0.26, gain: 0.15, rate: 1.3 });
+      tone({ type: 'triangle', f0: 160, f1: 55, dur: 0.28, gain: 0.14, filter: 500 });
+    } else {
+      burst({ freq: 1100, q: 1.8, dur: 0.12, gain: 0.09, rate: 1.1 });
+    }
+  }
+
   function horn() {
     tone({ type: 'sawtooth', f0: 330, dur: 0.45, gain: 0.16, filter: 1800 });
     tone({ type: 'sawtooth', f0: 415, dur: 0.45, gain: 0.13, filter: 1800 });
@@ -380,7 +407,7 @@
 
   root.Sound = {
     unlock: unlock, setMode: setMode, drive: drive, traffic: traffic,
-    crash: crash, scrape: scrape, glass: glass,
+    crash: crash, scrape: scrape, glass: glass, blast: blast, zap: zap,
     call: call, thump: thump, horn: horn,
     ready: function () { return started; },
     // Test seam: the whole point of synthesis is that there is no file to

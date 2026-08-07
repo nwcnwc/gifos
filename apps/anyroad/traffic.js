@@ -277,8 +277,24 @@
     return draw;
   }
 
+  // A car takes a few hits before it goes. One-shotting traffic makes the road
+  // empty faster than it can be refilled, and an empty road is the thing this
+  // module exists to prevent.
+  function shootAt(x, z, radius) {
+    for (var i = 0; i < cars.length; i++) {
+      var c = cars[i];
+      if (Math.hypot(c.x - x, c.z - z) > radius + 2.0) continue;
+      c.hp = (c.hp === undefined ? 3 : c.hp) - 1;
+      c.speed *= 0.6;
+      if (c.hp <= 0) { cars.splice(i, 1); return { destroyed: true, x: c.x, y: c.y, z: c.z }; }
+      return { destroyed: false, x: c.x, y: c.y, z: c.z };
+    }
+    return null;
+  }
+
   root.Traffic = {
     update: update, drawList: drawList, clear: clear, setLevel: setLevel,
+    shootAt: shootAt,
     LEVELS: LEVELS,
     count: function () { return cars.length; },
     level: function () { return level; },

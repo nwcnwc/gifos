@@ -822,10 +822,15 @@ function mixedStreet() {
     return { longest, pieces, below, lifts: Object.keys(lifts).map(Number).sort((a, b) => a - b) };
   });
   check('no piece of road spans more than one terrain post',
-    surfacing.pieces > 0 && surfacing.longest <= 9,
+    surfacing.pieces > 0 && surfacing.longest <= 7,
     'longest cross-section gap ' + surfacing.longest.toFixed(1) + ' m over ' + surfacing.pieces + ' pieces');
-  check('the carriageway has a kerb skirt hanging below it',
-    surfacing.below > 0, surfacing.below + ' skirt vertices below the ground line');
+  // …and the skirt that covers the REST of it — ground rising across a road cut
+  // into a slope — is built only where it is needed. On flat ground it hides
+  // nothing, and building it anyway tripled the road geometry: measured, 12,960
+  // indices a tile became 77,760. The fixture ground is flat, so the correct
+  // answer here is NONE.
+  check('no kerb skirt is built where the ground is flat and there is nothing to hide',
+    surfacing.below === 0, surfacing.below + ' skirt vertices below the ground line');
   // Junctions: two ways crossing lay two ribbons on the same ground, and
   // coplanar geometry is the one thing a depth buffer cannot resolve. A
   // millimetre of lift per class rank settles it in the right order.
@@ -1121,6 +1126,122 @@ function mixedStreet() {
     document.querySelectorAll('.perm-modal').forEach((m) => m.remove());
   });
   await sleep(200);
+
+
+  // ---- the blaster ---------------------------------------------------------
+  // A gun on the roof, on by default. Its job is to be a THIRD option against
+  // the wildlife: until now you could avoid an animal or pay for it, and a
+  // shot one is off the road before you reach it — so you still have to see
+  // the deer and still have to act in time.
+  const gun = await fr.locator('body').evaluate(async () => {
+    const w = window.App.world, me = window.App.car();
+    const ctx = {
+      height: () => null,                       // no ground: bolts fly free
+      walls: (x, z, out) => out,
+      animals: (x, z, r) => window.Animals.shootAt(x, z, r),
+      traffic: (x, z, r) => window.Traffic.shootAt(x, z, r),
+    };
+    window.Blaster.clear();
+    window.Blaster.setEnabled(true);
+    window.Animals.clear();
+    window.Car.repair(me);
+    me.speed = 0;
+
+    // A deer dead ahead, at a distance a bolt has to travel to.
+    const D = 60;
+    const ax = me.x + Math.sin(me.yaw) * D, az = me.z + Math.cos(me.yaw) * D;
+    window.Animals.inject({ kind: 'deer', x: ax, z: az, y: me.y, yaw: me.yaw });
+    const before = window.Animals.drawList().length;
+
+    const fired = window.Blaster.fire(me);
+    const inFlight = window.Blaster.count();
+    let killed = null;
+    for (let i = 0; i < 60 && !killed; i++) {
+      const evs = window.Blaster.update(me, ctx, 0.02);
+      if (evs) killed = evs.find((e) => e.kind === 'animal') || null;
+    }
+    // The animal is knocked over, so it can no longer hurt the car: drive at
+    // the same spot and nothing should happen.
+    const hitCar = window.Car.create(ax - Math.sin(me.yaw) * 2, az - Math.cos(me.yaw) * 2, me.yaw);
+    hitCar.health = 100; hitCar.speed = 25;
+    const bump = window.Animals.update(hitCar, {
+      height: () => me.y, nearestRoad: () => null,
+    }, 0.016);
+
+    // A cooldown, or holding the key is a beam.
+    window.Blaster.clear();
+    const rapid = [window.Blaster.fire(me), window.Blaster.fire(me)];
+
+    // And OFF means off.
+    window.Blaster.setEnabled(false);
+    const whenOff = window.Blaster.fire(me);
+    window.Blaster.setEnabled(true);
+    window.Blaster.clear();
+    window.Animals.clear();
+    return { fired, inFlight, killed: killed ? killed.what.kind : null, before,
+             bumped: !!bump, health: hitCar.health, rapid, whenOff,
+             enabledByDefault: window.Sources.current.blaster };
+  });
+  check('the blaster is fitted by default', gun.enabledByDefault === 'on', gun.enabledByDefault);
+  check('firing sends a bolt', gun.fired && gun.inFlight === 1, 'bolts in flight: ' + gun.inFlight);
+  check('a bolt travels to what it is aimed at and hits it',
+    gun.killed === 'deer', 'hit: ' + JSON.stringify(gun.killed));
+  check('a shot animal cannot damage the car any more',
+    !gun.bumped && gun.health === 100,
+    'drove through it at 25 m/s, health ' + gun.health + '%');
+  check('there is a cooldown — holding fire is not a beam',
+    gun.rapid[0] === true && gun.rapid[1] === false, JSON.stringify(gun.rapid));
+  check('switching the blaster off stops it firing', gun.whenOff === false);
+
+  // It must not shoot through a building: the bolt is tested against the same
+  // wall index the car collides with.
+  const wallStop = await fr.locator('body').evaluate(() => {
+    const me = window.App.car();
+    window.Blaster.clear();
+    window.Blaster.setEnabled(true);
+    // A wall across the muzzle, 20 m ahead.
+    const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw);
+    const cx = me.x + fx * 20, cz = me.z + fz * 20;
+    const wall = [cx - fz * 30, cz + fx * 30, cx + fz * 30, cz - fx * 30];
+    const ctx = { height: () => null, walls: (x, z, out) => { out.push.apply(out, wall); return out; },
+                  animals: () => null, traffic: () => null };
+    window.Blaster.fire(me);
+    let stop = null;
+    for (let i = 0; i < 60 && !stop; i++) {
+      const evs = window.Blaster.update(me, ctx, 0.02);
+      if (evs) stop = evs[0];
+    }
+    window.Blaster.clear();
+    return { kind: stop ? stop.kind : null,
+             dist: stop ? Math.hypot(stop.x - me.x, stop.z - me.z) : -1 };
+  });
+  check('a bolt stops at a wall instead of shooting through the world',
+    wallStop.kind === 'wall' && Math.abs(wallStop.dist - 20) < 3,
+    wallStop.kind + ' at ' + wallStop.dist.toFixed(1) + ' m');
+
+  // Space fires it, and the handbrake moved off space to make room.
+  const keys = await fr.locator('body').evaluate(async () => {
+    // AWAIT A FRAME between pressing and reading. The input object is filled in
+    // by the control layer's sample(), which runs once per frame from the game
+    // loop — reading it in the same tick as the keydown reads the state from
+    // before the key existed.
+    const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const d = () => window.App.debug().input;
+    const press = (k, type) => window.dispatchEvent(new KeyboardEvent(type, { key: k, bubbles: true }));
+    press(' ', 'keydown');
+    await frame();
+    const held = { fire: d().fire, hand: d().handbrake };
+    press(' ', 'keyup');
+    press('x', 'keydown');
+    await frame();
+    const hand = d().handbrake;
+    press('x', 'keyup');
+    await frame();
+    return { held, hand, released: d().handbrake };
+  });
+  check('space fires the blaster', keys.held.fire === true, JSON.stringify(keys.held));
+  check('…and the handbrake moved to X so space could have it',
+    keys.held.hand === false && keys.hand === true && keys.released === false, JSON.stringify(keys));
 
   // ---- the bird's-eye inset ------------------------------------------------
   // Drawn from the same road index the car asks "am I on tarmac" with, so it

@@ -123,7 +123,7 @@
 
   <!-- First-drive coach marks: shown once, dismissed by the first touch. -->
   <div class="coach" id="coach" hidden>
-    <div class="coach-steer">Slide anywhere on this side to steer</div>
+    <div class="coach-steer">Slide anywhere on this side to steer<br><b>Tap</b> to fire the blaster</div>
     <div class="coach-gas" id="coach-gas" hidden>Hold to<br>accelerate</div>
     <div class="coach-brake">Drives itself —<br>hold to slow down</div>
   </div>
@@ -223,6 +223,17 @@
     </label>
 
     <label class="field">
+      <span>Blaster</span>
+      <select id="ctl-blaster">
+        <option value="on">Fitted — space, or tap the screen</option>
+        <option value="off">No blaster</option>
+      </select>
+      <small>A gun on the roof, firing straight ahead. An animal you hit with it
+        is off the road before you get there — so it is a way of dealing with
+        the hazard, not a way of ignoring it. Traffic takes a few.</small>
+    </label>
+
+    <label class="field">
       <span>Wildlife</span>
       <select id="ctl-wildlife">
         <option value="on">Animals on the roads</option>
@@ -307,6 +318,7 @@
 <script src="car.js"></script>
 <script src="animals.js"></script>
 <script src="traffic.js"></script>
+<script src="blaster.js"></script>
 <script src="sound.js"></script>
 <script src="mp.js"></script>
 <script src="ui.js"></script>

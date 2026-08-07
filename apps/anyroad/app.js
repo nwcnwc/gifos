@@ -373,6 +373,42 @@
     },
   };
 
+  // ---- the blaster ---------------------------------------------------------
+  // The gun owns the bolts; this owns what a hit MEANS. Everything it needs is
+  // a function: the same wall index the car collides with, and the two things
+  // that can be shot.
+  var blasterCtx = {
+    height: function (x, z) { return root.Terrain.heightAt(world.frame, x, z); },
+    walls: function (x, z, out) {
+      for (var k in world.roads) {
+        var r = world.roads[k];
+        if (!r || !r.built || !r.built.walls) continue;
+        root.Roads.nearWalls(r.built.walls, x, z, out);
+      }
+      return out;
+    },
+    animals: function (x, z, rad) { return root.Animals.shootAt(x, z, rad); },
+    traffic: function (x, z, rad) { return root.Traffic.shootAt(x, z, rad); },
+  };
+
+  function blaster(input, dt) {
+    root.Blaster.setEnabled(root.Sources.current.blaster !== 'off');
+    if (input.fire && !car.wrecked && root.Blaster.fire(car)) root.Sound.blast();
+    var events = root.Blaster.update(car, blasterCtx, dt);
+    if (!events) return;
+    for (var i = 0; i < events.length; i++) {
+      var e = events[i];
+      root.Sound.zap(e.kind);
+      if (e.kind === 'animal') {
+        hits.animals++;
+        root.UI.note(e.what.label + ' — cleared.');
+      } else if (e.kind === 'wreck') {
+        hits.cars++;
+      }
+    }
+  }
+  var hits = { animals: 0, cars: 0 };
+
   function otherCars(dt) {
     root.Traffic.setLevel(root.Sources.current.traffic);
     var hit = root.Traffic.update(car, trafficCtx, dt);
@@ -468,6 +504,7 @@
     root.Animals.clear();          // the herd belongs to the place you left
     announced = {}; passing.length = 0;
     root.Traffic.clear();          // …and so does the traffic
+    root.Blaster.clear();
     // The first tap on a place IS the gesture a browser requires before it will
     // start an audio graph. Nothing is primed before the player has asked for
     // anything, which is also why there is no sound on the landing sheet.
@@ -592,6 +629,7 @@
       }
       wildlife(dt);
       otherCars(dt);
+      blaster(input, dt);
       root.Sound.drive({
         speed: car.speed, throttle: input.throttle, brake: input.brake > 0,
         onRoad: car.onRoad, surface: car.surface || 0, idle: Math.abs(car.speed) < 0.3,
@@ -608,7 +646,8 @@
     var scene = { eye: [camera.x, camera.y, camera.z], target: [camera.tx, camera.ty, camera.tz],
                   fov: 60 + Math.min(14, Math.abs(car.speed) * 0.35), far: DRAW_DISTANCE, time: clock,
                   terrain: [], roads: [], buildings: [], water: [], trees: [], shadows: [],
-                  cars: [], animals: root.Animals.drawList() };
+                  cars: [], animals: root.Animals.drawList(),
+                  bolts: root.Blaster.drawList() };
 
     for (var tk in world.terrain) {
       var slot = world.terrain[tk];
@@ -637,7 +676,7 @@
     if (seaVisible()) scene.water.push(seaMesh());
 
     scene.cars.push({ x: car.x, y: car.y, z: car.z, yaw: car.yaw, pitch: car.pitch, roll: car.roll,
-                      tint: [0.90, 0.24, 0.22] });
+                      tint: [0.90, 0.24, 0.22], blaster: root.Blaster.enabled() });
     root.MP.ghosts().forEach(function (g) {
       scene.cars.push({ x: g.x, y: g.y, z: g.z, yaw: g.yaw, pitch: 0, roll: 0, tint: g.tint });
     });
@@ -672,6 +711,8 @@
       // the player decides whether to take the rescue.
       stuck: car.stillT > 2.5,
       beast: root.Animals.alert(),
+      blaster: root.Blaster.enabled(),
+      cleared: hits.animals,
       health: car.health,
       wrecked: car.wrecked,
       players: root.MP.count(),

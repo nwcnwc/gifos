@@ -277,8 +277,32 @@
     return draw;
   }
 
+  // ---- shot at -------------------------------------------------------------
+  // The blaster's side of the deal: an animal that has been hit is GONE, and
+  // gone before it can be driven into. Returns what was hit, or null.
+  //
+  // It reuses the knocked-over state rather than deleting outright, so a hit
+  // still tumbles and sinks — vanishing on the frame you shoot reads as a
+  // rendering glitch, not as a hit.
+  function shootAt(x, z, radius) {
+    for (var i = 0; i < herd.length; i++) {
+      var a = herd[i];
+      if (a.state === 'hit') continue;
+      var d = Math.hypot(a.x - x, a.z - z);
+      if (d > radius + a.kind.r) continue;
+      a.state = 'hit';
+      a.gone = 0;
+      a.vy = 4.5;
+      a.speed = 3;
+      a.tilt = 0.2;
+      return { kind: a.kind.id, label: a.kind.label, x: a.x, y: a.y, z: a.z };
+    }
+    return null;
+  }
+
   root.Animals = {
     update: update, drawList: drawList, clear: clear, nextCall: nextCall,
+    shootAt: shootAt,
     KINDS: KINDS,
     count: function () { return herd.length; },
     alert: function () { return lastAlert; },

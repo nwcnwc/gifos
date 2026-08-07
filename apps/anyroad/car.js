@@ -167,7 +167,7 @@
   // touch, and a replayed ghost. `park` is the whole-car override: a panel is
   // over the screen, so the car is not being driven and must not be creeping
   // into a building while the player reads it.
-  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0, park: false, go: false }; }
+  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0, park: false, go: false, fire: false }; }
 
   function update(car, input, dt, frame) {
     dt = Math.min(dt, 0.05);           // a long frame must not teleport the car
@@ -419,6 +419,12 @@
     //
     // Either way the wheel springs back to centre on release.
     var steerTouch = null;    // { id, mode:'pad'|'free'|'stick', startX, startY }
+    // A TAP is a shot; a DRAG is steering. The discrimination has to happen on
+    // release, because at the moment a finger lands the two are identical —
+    // and getting it wrong either way is bad: a steer that fires every time you
+    // touch the wheel, or a tap that does nothing because it moved two pixels.
+    var tapFire = false, rightTap = null;
+    var TAP_MS = 300, TAP_SLOP = 12;
     var DEAD = 0.05;          // fraction of half-width treated as straight ahead
     var stick = { x: 0, y: 0, active: false, ox: 0, oy: 0 };
     var STICK_SPAN = 78;      // px of travel for full deflection
@@ -439,7 +445,8 @@
 
     function steerDown(e, m) {
       if (steerTouch) return;
-      steerTouch = { id: e.pointerId, mode: m, startX: e.clientX, startY: e.clientY };
+      steerTouch = { id: e.pointerId, mode: m, startX: e.clientX, startY: e.clientY,
+                     at: Date.now(), moved: 0 };
       if (m === 'stick') {
         // The stick is born WHERE THE THUMB LANDS — no target to hunt for, and
         // it works anywhere on the screen, which is the whole point.
@@ -463,11 +470,15 @@
         if (opts.onStick) opts.onStick(stick);
         return;
       }
+      steerTouch.moved = Math.max(steerTouch.moved,
+        Math.abs(e.clientX - steerTouch.startX) + Math.abs(e.clientY - steerTouch.startY));
       input.steer = steerTouch.mode === 'pad' ? fromPad(e.clientX) : fromFree(e.clientX);
     }
     function steerUp(e) {
       if (!steerTouch || e.pointerId !== steerTouch.id) return;
       var steerTouchWasStick = steerTouch.mode === 'stick';
+      // Short and still: that was a tap, not a steer.
+      if (steerTouch.moved < TAP_SLOP && Date.now() - steerTouch.at < TAP_MS) tapFire = true;
       steerTouch = null; input.steer = 0;
       // Releasing latches the speed you are ACTUALLY doing, not the one you
       // were still climbing toward. "Let go and it keeps this speed" is the
@@ -489,8 +500,23 @@
       // mode keeps the left half as a look-free steering area, with the right
       // half left alone for the pedal.
       if (mode.scheme === 'stick') { e.preventDefault(); steerDown(e, 'stick'); return; }
-      if (e.clientX < surface.clientWidth / 2) steerDown(e, 'free');
-      else if (onFirstTouch) { onFirstTouch(); onFirstTouch = null; }
+      if (e.clientX < surface.clientWidth / 2) { steerDown(e, 'free'); return; }
+      // The right half steers nothing in wheel mode, so a tap there is
+      // unambiguous — track it on its own so half the screen is not dead.
+      rightTap = { id: e.pointerId, at: Date.now(), x: e.clientX, y: e.clientY, moved: 0 };
+      if (onFirstTouch) { onFirstTouch(); onFirstTouch = null; }
+    });
+    surface.addEventListener('pointermove', function (e) {
+      if (!rightTap || e.pointerId !== rightTap.id) return;
+      rightTap.moved = Math.max(rightTap.moved,
+        Math.abs(e.clientX - rightTap.x) + Math.abs(e.clientY - rightTap.y));
+    });
+    ['pointerup', 'pointercancel'].forEach(function (ev) {
+      surface.addEventListener(ev, function (e) {
+        if (!rightTap || e.pointerId !== rightTap.id) return;
+        if (ev === 'pointerup' && rightTap.moved < TAP_SLOP && Date.now() - rightTap.at < TAP_MS) tapFire = true;
+        rightTap = null;
+      });
     });
     surface.addEventListener('pointermove', steerMove);
     surface.addEventListener('pointerup', steerUp);
@@ -560,7 +586,13 @@
         var kBrake = (keys['s'] || keys['arrowdown']) ? 1 : 0;
         var kSteer = ((keys['d'] || keys['arrowright']) ? 1 : 0) - ((keys['a'] || keys['arrowleft']) ? 1 : 0);
         input.brake = Math.max(kBrake, pedal.brake ? 1 : 0);
-        input.handbrake = !!keys[' '];
+        // SPACE FIRES THE BLASTER, so the handbrake moves to X. Space is the
+        // one key everyone reaches for to shoot, and the handbrake is a control
+        // you use deliberately and rarely — the swap costs the handbrake a key
+        // nobody was pressing by reflex.
+        input.handbrake = !!keys['x'];
+        input.fire = !!keys[' '] || tapFire;
+        tapFire = false;
         // GO is the player ASKING to move, which in auto mode `throttle` cannot
         // tell you — it sits at 1 the whole time by design. It is the only
         // thing that releases the halt (see update()), so it has to be the raw
