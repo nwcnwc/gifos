@@ -189,6 +189,15 @@ async function moduleChain(engine, exe) {
 async function fallbackRoom(engine, exe, cripple) {
   const b = await pw[engine].launch(launchOpts(engine, exe));
   const room = 'pipeng' + Math.random().toString(36).slice(2, 7);
+  // ONE DEADLINE FOR THE WHOLE LEG, not a ceiling per wait. Four webkit web
+  // processes on four cores is the entire box, and the generous per-step
+  // ceilings this leg needs on a busy machine multiply: 4 boots x 2 waits +
+  // seating + the composite window is over 20 minutes end to end, which
+  // overruns release.sh's 600s browser budget and reports as a TIMEOUT — the
+  // one failure shape that looks like silence. Every wait below is clamped to
+  // what is left, so the leg always finishes and always says what it got.
+  const DEADLINE = Date.now() + parseInt(process.env.PIPE_ROOM_MS || '330000', 10);
+  const left = (cap) => Math.max(2000, Math.min(cap, DEADLINE - Date.now()));
   try {
     const pages = [];
     for (let i = 0; i < ROOM_N; i++) {
@@ -207,8 +216,8 @@ async function fallbackRoom(engine, exe, cripple) {
       // before a single seat existed — a host fact wearing a product red.
       // domcontentloaded + the explicit __gifosVideo wait below is both more
       // generous and more meaningful: it waits for the thing we assert on.
-      await p.goto(BASE + '/run.html#v=' + room + '&DEBUG=on', { waitUntil: 'domcontentloaded', timeout: 120000 });
-      await p.waitForFunction(() => !!window.__gifosVideo, null, { timeout: 120000 })
+      await p.goto(BASE + '/run.html#v=' + room + '&DEBUG=on', { waitUntil: 'domcontentloaded', timeout: left(90000) });
+      await p.waitForFunction(() => !!window.__gifosVideo, null, { timeout: left(90000) })
         .catch(() => console.log('  [E' + i + '] __gifosVideo never appeared within 120s'));
       pages.push(p);
       await sleep(1500);
@@ -216,7 +225,11 @@ async function fallbackRoom(engine, exe, cripple) {
     const coordOf = (p) => p.evaluate(() => window.__gifosVideo && __gifosVideo.meshCoord()).catch(() => null);
     let coords = [];
     const t0 = Date.now();
-    while (Date.now() - t0 < 90000) {
+    // 180s, not 90s: four webkit web processes on four cores is the whole box,
+    // and this suite is not measuring join LATENCY — it is measuring whether a
+    // composite ever crosses. A seat wait tight enough to fail under load turns
+    // every busy afternoon into a product red.
+    while (Date.now() - t0 < 180000 && Date.now() < DEADLINE) {
       coords = await Promise.all(pages.map(coordOf));
       if (coords.every(Boolean)) break;
       await sleep(2000);
@@ -235,7 +248,7 @@ async function fallbackRoom(engine, exe, cripple) {
     const claimedAnywhere = new Set();
     const tS = Date.now();
     let live = null;
-    while (Date.now() - tS < 150000) {
+    while (Date.now() - tS < 150000 && Date.now() < DEADLINE) {
       for (let i = 0; i < ROOM_N; i++) {
         const s = await pages[i].evaluate(() => ({
           en: __gifosVideo.pipeInfo().enabled,
@@ -258,7 +271,19 @@ async function fallbackRoom(engine, exe, cripple) {
       if (live) break;
       await sleep(3000);
     }
-    return { coords, enabled, best: live ? { k: live[0], ...live[1] } : null,
+    // THE STACK CAN VANISH MID-RUN, and then every assertion below lies.
+    // Measured 2026-08-07: another session's `stop_all` killed relay-local
+    // while leg C was seating; all four seats stayed null and the suite
+    // reported "the room never formed" — a shared-box fact wearing a product
+    // red. need() only proves the relay was up when the suite STARTED, so the
+    // failure path re-asks, and says which of the two happened.
+    const relayStillUp = await new Promise((res) => {
+      const s = require('net').connect({ port: 8790, host: '127.0.0.1' });
+      const done = (v) => { try { s.destroy(); } catch (e) {} res(v); };
+      s.setTimeout(1500); s.once('connect', () => done(true));
+      s.once('timeout', () => done(false)); s.once('error', () => done(false));
+    });
+    return { coords, enabled, relayStillUp, best: live ? { k: live[0], ...live[1] } : null,
       painted: [...seen.keys()], claimed: [...claimedAnywhere] };
   } finally { await b.close(); }
 }
@@ -332,6 +357,9 @@ async function fallbackRoom(engine, exe, cripple) {
   catch (err) { check('leg C: the room runs at all on ' + subject.name, false, String(err).slice(0, 300)); room = null; }
   if (room) {
     const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
+    check('leg C: the relay was STILL THERE when the leg ended (nothing else on this box killed it)',
+      room.relayStillUp === true,
+      { relayStillUp: room.relayStillUp, note: 'relay-local on 8790 died mid-run — every assertion below is about a room with no door, not about the pipe lane' });
     const seated = room.coords.every(Boolean);
     const distinct = new Set(room.coords.filter(Boolean).map(cstr)).size === room.coords.filter(Boolean).length;
     check('leg C (' + subject.name + '): every seat is seated, on distinct coords', seated && distinct, room.coords.map(cstr));
