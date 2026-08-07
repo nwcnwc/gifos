@@ -20,6 +20,11 @@
       "overpass.osm.ch",
       "nominatim.openstreetmap.org"
     ],
+    "pool": [
+      "overpass-api.de",
+      "overpass.kumi.systems",
+      "overpass.osm.ch"
+    ],
     "api": [
       "maptiler"
     ],
