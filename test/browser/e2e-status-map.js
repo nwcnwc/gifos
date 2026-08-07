@@ -125,8 +125,16 @@ const short = (id) => String(id).slice(0, 8);
   // Then it must REFILL: Jon is alive and pulsing, so the room is not quiet —
   // which is what makes Kim's later disappearance mean death and nothing else.
   {
-    await HAL.pg.evaluate((id) => window.__gifosVideo._corruptStatus(id), JON.id);
-    const holed = await statusIds(HAL);
+    // ONE page turn, not two. The delete and the read used to be separate
+    // evaluates, and Jon pulses every HB — a status landing in the ~30ms gap
+    // between them refilled the hole before it could be read, and the leg failed
+    // saying the map "cannot see an absence" when in fact it had seen it and
+    // healed. Caught mid-mutation-run on a loaded box, 2026-08-07; the assertion
+    // is unchanged, it is only made atomic so it measures the accessor and not
+    // the round trip.
+    const holed = await HAL.pg.evaluate((id) => {
+      const V = window.__gifosVideo; V._corruptStatus(id); return V.statusIds();
+    }, JON.id);
     check('NEG CONTROL: a hand-deleted LIVE entry reads as ABSENT (so assertion 3 can fail)',
       !!holed && holed.indexOf(JON.id) < 0, { held: (holed || []).map(short) });
     const t0 = Date.now();
