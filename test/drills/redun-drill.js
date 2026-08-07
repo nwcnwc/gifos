@@ -168,14 +168,37 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
   // A pipe only counts if it exists in BOTH samples (a rate needs a baseline),
   // so a standby that churned mid-window vanishes from the count — one run
   // measured stdPipes=0 with standbys demonstrably held before and after.
-  // Measure up to twice: a second window after churn settles is the same
-  // assertion, not a softer one.
-  let priPipes = 0, stdPipes = 0, stdHot = 0, priDark = 0, hotWhy = [];
-  for (let attempt = 0; attempt < 2; attempt++) {
+  //
+  // A RATE IS ONLY A MEASUREMENT OF A ROLE THE SLOT HELD FOR THE WHOLE WINDOW.
+  // This is the leg the quarantine entry was written about, and both hot
+  // standbys the fixed drill produced (measured, forensics below) were role
+  // changes inside the window, not ONE-PIPE violations:
+  //   * std:sdrow:1 at 1512 B/s with a wake ARMED 1.5s earlier and demand '=w'
+  //     — a lawful make-before-break overlap, which the law explicitly permits
+  //     ("the standby is parked EXCEPT while a wake/failback overlap is in
+  //     progress"); and
+  //   * std:stg:* at 1167 B/s with NO wake, NO dark, demand already '=i', and
+  //     lastSwitch 4.1s inside a 10s window — i.e. the stream was the PRIMARY
+  //     for the first 6 seconds it was measured over. ~1s of primary stg
+  //     traffic (11 kB/s) smeared across 10s is exactly the 1.1 kB/s seen.
+  // Averaging across a role change and then attributing the average to the role
+  // held at the END is not a stricter test, it is a broken one — it reds on
+  // lawful behaviour and, worse, would let a genuinely hot standby hide behind
+  // "there was a swap somewhere". So COUNT ONLY ROLE-STABLE STANDBYS: the same
+  // standby stream at both ends, no wake armed at either end, not dark, and no
+  // swap inside the window. What remains is unambiguous — bytes on a pipe that
+  // was parked, and demanded parked, for ten seconds.
+  //
+  // The retry criterion changes with it. It used to be `stdHot === 0`, i.e.
+  // re-roll whenever the assertion failed, which is circular; now it is "the
+  // window yielded a measurable, role-stable standby at all" — a manufacture
+  // question, decided independently of the outcome.
+  let priPipes = 0, stdPipes = 0, stdHot = 0, priDark = 0, hotWhy = [], stdChurn = [];
+  for (let attempt = 0; attempt < 3; attempt++) {
     const s1 = await Promise.all(pages.map(sample));
     await sleep(SPAN * 1000);
     const s2 = await Promise.all(pages.map(sample));
-    priPipes = 0; stdPipes = 0; stdHot = 0; priDark = 0; hotWhy = [];
+    priPipes = 0; stdPipes = 0; stdHot = 0; priDark = 0; hotWhy = []; stdChurn = [];
     const rates = [];
     for (let i = 0; i < N; i++) {
       const a = s1[i], b = s2[i]; if (!a || !b) continue;
@@ -190,35 +213,37 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       for (const [slot, bps] of bySlot) {
         if (!/^(in|std):(sdm|sdx|sdn|sgs|stg:|sdrow:)/.test(slot)) continue;
         rates.push(pages[i].name + ' ' + slot + ' = ' + Math.round(bps) + ' B/s');
-        if (slot.indexOf('in:') === 0) { priPipes++; if (bps < 200) priDark++; }
-        else {
-          stdPipes++;
-          if (bps > 1000) {
-            stdHot++;
-            // WHY is it hot? The law parks every alternate path EXCEPT while a
-            // wake/failback overlap is in flight (make-before-break), so the
-            // only reading of a hot standby that matters is whether a wake was
-            // ARMED for that slot — and if it was, whether it has outlived
-            // WAKE_MAX. Reporting the number alone cannot tell "the ONE-PIPE
-            // law is broken" from "a lawful overlap ran through the window",
-            // and that ambiguity is what put this leg in quarantine.
-            const rk = slot.slice(4);
-            const fb = (b.m.fb || []).find((f) => f.rk === rk) || null;
-            const sv = (b.m.standbyVia || []).find((x) => x.rk === rk) || null;
-            hotWhy.push({
-              seat: pages[i].name, slot, bps: Math.round(bps),
-              wakeAgeMs: fb && fb.wakeAt ? b.t - fb.wakeAt : null,
-              prefSinceMs: fb && fb.prefSince ? b.t - fb.prefSince : null,
-              dark: fb ? !!fb.dark : null, lastSwitchAgeMs: fb && fb.lastSwitch ? b.t - fb.lastSwitch : null,
-              demand: (b.m.demand || []).filter((d) => sv && d.indexOf(sv.via + '|') === 0 && d.indexOf('|' + sv.sid + '=') > 0),
-            });
-          }
-        }
+        if (slot.indexOf('in:') === 0) { priPipes++; if (bps < 200) priDark++; continue; }
+        const rk = slot.slice(4);
+        const sv1 = (a.m.standbyVia || []).find((x) => x.rk === rk);
+        const sv2 = (b.m.standbyVia || []).find((x) => x.rk === rk);
+        const f1 = (a.m.fb || []).find((f) => f.rk === rk) || {};
+        const f2 = (b.m.fb || []).find((f) => f.rk === rk) || {};
+        // The standby's OWN demand record (`via|key|streamId=w|i`) at each end.
+        // A wake can arm and lapse INSIDE the window without leaving a swap
+        // behind (fb.wakeAt is cleared the moment wantSwap goes false), so the
+        // fb flags alone cannot see every overlap — the demand can.
+        const demOf = (m, sv) => (sv && (m.demand || []).find((d) => d.indexOf(sv.via + '|') === 0 && d.indexOf('|' + sv.sid + '=') > 0)) || null;
+        const d1 = demOf(a.m, sv1), d2 = demOf(b.m, sv2);
+        const why = {
+          seat: pages[i].name, slot, bps: Math.round(bps),
+          heldBoth: !!(sv1 && sv2 && sv1.sid === sv2.sid && sv1.via === sv2.via),
+          wakeAgeMs: f2.wakeAt ? b.t - f2.wakeAt : (f1.wakeAt ? b.t - f1.wakeAt : null),
+          dark: !!(f1.dark || f2.dark),
+          switchInWindowMs: (f2.lastSwitch && f2.lastSwitch > a.t) ? b.t - f2.lastSwitch : null,
+          demand: [d1, d2].map((d) => (d ? d.slice(-2) : null)),
+        };
+        const demandedHot = /=w$/.test(d1 || '') || /=w$/.test(d2 || '');
+        const stable = why.heldBoth && !f1.wakeAt && !f2.wakeAt && !why.dark && why.switchInWindowMs == null && !demandedHot;
+        if (!stable) { stdChurn.push(why); continue; }  // not a parked-pipe measurement at all
+        stdPipes++;
+        if (bps > 1000) { stdHot++; hotWhy.push(why); }
       }
     }
     console.log('per-pipe inbound rates (redundant slots, window ' + (attempt + 1) + '):\n  ' + rates.join('\n  '));
-    if (stdPipes > 0 && stdHot === 0 && priPipes > 0) break;
-    if (attempt === 0) console.log('  (no clean standby window — churn mid-measurement; one re-measure)');
+    if (stdChurn.length) console.log('  (standbys whose ROLE changed inside the window — not measurable as parked: ' + JSON.stringify(stdChurn) + ')');
+    if (stdPipes > 0 && priPipes > 0) break;   // a measurable window; the verdict is whatever it is
+    if (attempt < 2) console.log('  (no role-stable standby in this window — re-measuring)');
   }
   check('primary pipes flow (redundant slots): ' + (priPipes - priDark) + '/' + priPipes + ' > 0', priPipes > 0 && priDark < priPipes, { priPipes, priDark });
   if (hotWhy.length) console.log('  HOT STANDBY forensics: ' + JSON.stringify(hotWhy));
