@@ -33,8 +33,10 @@
 //   C. THE FALLBACK ROOM (an engine that LACKS the transform).
 //      The lane self-disables and the mosaic must still deliver: seats form ONE
 //      tree over the real relay and a COMPOSITE crosses that tree and ARRIVES
-//      PAINTED — content-sized, unmuted, with its decoded-frame counter still
-//      climbing on a second sample. This is what ships to every Safari below
+//      PAINTED — content-sized, unmuted, and alive (the decoded-frame counter
+//      climbing where the engine populates one; where it does not — headless
+//      Firefox reports 0 for every feed — surviving a 10s window content-sized,
+//      unmuted and track-live, and the PASS line says which). Ships to Safari below
 //      16.4 today, and it is the shape playwright's WebKit gives us natively.
 //      If no installed engine lacks the transform, the leg runs anyway on the
 //      default engine with RTCRtpScriptTransform DELETED before page scripts
@@ -79,7 +81,30 @@ const ORIGIN_PAGE = BASE + '/browser-support.html';
 const ROOM_N = parseInt(process.env.PIPE_ROOM_N || '4', 10);
 
 let failures = 0;
-const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (d !== undefined ? '  ' + JSON.stringify(d) : '')); if (!c) failures++; };
+/*
+ * check(name, cond, data, whyIfFailed)
+ *
+ * The FOURTH argument exists because this suite grew the exact defect it was
+ * written to prevent, twice. A diagnosis written for the failure branch —
+ * "relay-local on 8790 died mid-run", "no installed engine has
+ * RTCRtpScriptTransform" — was passed as `data`, which prints on PASS too. So
+ * the gate host's log carried lines like
+ *
+ *   PASS — leg C: the relay was STILL THERE when the leg ended
+ *     {"relayStillUp":true,"note":"relay-local on 8790 died mid-run — …"}
+ *
+ * A note that contradicts its own verdict is worse than no note: the next
+ * person is reading this log BECAUSE something broke, and that sentence is
+ * exactly what they will believe. `data` must be true whatever the outcome;
+ * anything that is only true when the assertion FAILED goes here, and is
+ * printed only then.
+ */
+const check = (n, c, d, whyIfFailed) => {
+  let tail = (d !== undefined ? '  ' + JSON.stringify(d) : '');
+  if (!c && whyIfFailed) tail += '  ' + JSON.stringify({ note: whyIfFailed });
+  console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + tail);
+  if (!c) failures++;
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Chromium takes the fake-media switches; webkit/firefox REJECT them (their
@@ -400,7 +425,8 @@ async function fallbackRoom(engine, exe, cripple) {
   const known = caps[subject.name];
   const cripple = !(known && known.transform === false);
   check('leg C: the subject engine had its capability actually MEASURED (an unread engine can never be called a native gap)',
-    !!known, { engine: subject.name, note: 'capsOf failed for this engine — leg C is falling back to the SIMULATED gap, which is correct but is not the coverage this box could give' });
+    !!known, { engine: subject.name, transform: known ? known.transform : null },
+    'capsOf never read this engine, so its gap is UNKNOWN. Leg C is simulating, which is the safe choice — but it is not the coverage this box could have given, and on a box with webkit it means the NATIVE gap went unexercised.');
   console.log('  [leg C] engine=' + subject.name + (cripple
     ? '  gap=SIMULATED (RTCRtpScriptTransform deleted before page scripts) because '
       + (!known ? 'this engine\'s capability was never read' : 'this engine HAS the transform')
@@ -413,7 +439,8 @@ async function fallbackRoom(engine, exe, cripple) {
     const cstr = (c) => (c ? c.pc + '/' + c.r + '.' + c.i : '?');
     check('leg C: the relay was STILL THERE when the leg ended (nothing else on this box killed it)',
       room.relayStillUp === true,
-      { relayStillUp: room.relayStillUp, note: 'relay-local on 8790 died mid-run — every assertion below is about a room with no door, not about the pipe lane' });
+      { relayStillUp: room.relayStillUp },
+      'relay-local on 8790 died mid-run — every leg C assertion below is about a room with no door, not about the pipe lane. Restart it and re-run before reading anything into them.');
     const seated = room.coords.every(Boolean);
     const distinct = new Set(room.coords.filter(Boolean).map(cstr)).size === room.coords.filter(Boolean).length;
     check('leg C (' + subject.name + '): every seat is seated, on distinct coords', seated && distinct, room.coords.map(cstr));
@@ -421,8 +448,10 @@ async function fallbackRoom(engine, exe, cripple) {
       room.enabled.length === ROOM_N && room.enabled.every((x) => x === false), room.enabled);
     // THE LOAD-BEARING ASSERTION. A composite is a picture PACKED BY ANOTHER
     // SEAT and shipped across the tree; arriving means it decoded to content
-    // size, its track is unmuted (media really flowing, not a claimed-but-dead
-    // feed) and its decoded-frame counter is still climbing on a later sample.
+    // size and its track is unmuted (media really flowing, not a
+    // claimed-but-dead feed). `proof` in the payload names the liveness signal
+    // that actually carried it — see the LIVE_MS block for why that is not one
+    // fixed rule across engines.
     check('leg C (' + subject.name + '): a COMPOSITE crosses the tree and ARRIVES — content-sized, unmuted, and alive',
       !!room.best && room.best.w > 0,
       room.best
@@ -442,7 +471,8 @@ async function fallbackRoom(engine, exe, cripple) {
   console.log('  [chain leg ran on ] ' + (chainRan.join(', ') || 'NOTHING'));
   console.log('  [room  leg ran on ] ' + subject.name + (cripple ? ' (simulated gap)' : ' (native gap)'));
   check('the module chain ran on at least one engine that has the transform', chainRan.length > 0,
-    { chainRan, note: 'no installed engine has RTCRtpScriptTransform — install a newer chromium (141+) or firefox' });
+    { chainRan, installed: engines.map((e) => e.name) },
+    'no installed engine has RTCRtpScriptTransform, so the encoded lane was never exercised at all — install a newer chromium (141+) or a firefox.');
   check('every installed engine had its contract checked', Object.keys(caps).length === engines.length,
     { checked: Object.keys(caps), installed: engines.map((e) => e.name) });
 
