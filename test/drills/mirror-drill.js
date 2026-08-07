@@ -295,15 +295,38 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     check('the media-only outage was actually applied (B\'s sdn job parked)', !!(parkRes && parkRes.ok), parkRes);
 
     // 1. the mirror takes over while the direct hop carries no media
+    //
+    // FORENSICS, because "primary never left B within 25s" names no mechanism.
+    // Three things have to happen in order — the receiver's pipe watchdog must
+    // declare the primary DARK (MOS_QUALIFY=8 advancing samples earned first,
+    // then MOS_DARK_MS=700ms flat), the parked mirror must be demand-woken, and
+    // it must demonstrably FLOW before the swap — and the manufactured outage
+    // is only FB_PARK long. Record dark/wake/demand each second, and mark the
+    // moment the pin expires, so a failover that was merely SLOWER than the
+    // outage is distinguishable from one that never started.
     let tookOver = null;
     const tF1 = Date.now();
+    const trail = [];
     while (Date.now() - tF1 < 25000) {
       const v = await sdnVia();
+      const el = Date.now() - tF1;
+      if (el > (trail.length ? trail[trail.length - 1].s * 1000 + 900 : -1)) {
+        const st = await pages[OBS].page.evaluate(() => {
+          const m = __gifosVideo.mosaic();
+          const f = (m.fb || []).find((x) => x.rk === 'sdn') || {};
+          return { dark: !!f.dark, wake: !!f.wakeAt, stdFdec: f.stdFdec, d0: f.d0,
+            mirDem: (m.demand || []).filter((d) => d.indexOf('sdnm:') > 0).map((d) => d.slice(-1)).join('') };
+        }).catch(() => null);
+        trail.push({ s: Math.round(el / 1000), pri: v && v.pri ? v.pri.slice(0, 8) : null,
+          pinned: el < FB_PARK, ...(st || {}) });
+      }
       if (v && v.pri && v.pri.indexOf(B8) !== 0) { tookOver = v; break; }
       await sleep(500);
     }
+    console.log('  [failover trail] ' + JSON.stringify(trail));
     check('FAILOVER(media-only): sdn primary left the dark direct hop', !!tookOver,
-      tookOver ? { pri: tookOver.pri.slice(0, 8), std: tookOver.std && tookOver.std.slice(0, 8) } : 'primary never left B within 25s');
+      tookOver ? { pri: tookOver.pri.slice(0, 8), std: tookOver.std && tookOver.std.slice(0, 8), atMs: Date.now() - tF1 }
+        : 'primary never left B within 25s (the media pin lasted ' + FB_PARK + 'ms — see the trail)');
 
     // 2. the pin expires -> the direct hop carries media again -> it is the
     //    PREFERRED path, so it stages as standby, wakes, and after MOS_SETTLE
