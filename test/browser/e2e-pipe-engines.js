@@ -236,12 +236,13 @@ async function fallbackRoom(engine, exe, cripple) {
   // MIN_USEFUL is the smallest budget worth spending; below it we stop and
   // say the deadline expired, which is the true statement.
   const MIN_USEFUL = 8000;
-  const left = (cap) => Math.min(cap, DEADLINE - Date.now());
+  const remaining = () => DEADLINE - Date.now();
+  const left = (cap) => Math.min(cap, remaining());
   let timedOutBuilding = false;
   try {
     const pages = [];
     for (let i = 0; i < ROOM_N; i++) {
-      if (left(1) < MIN_USEFUL) {
+      if (remaining() < MIN_USEFUL) {
         timedOutBuilding = true;
         console.log('  [leg C] deadline expired after ' + i + '/' + ROOM_N
           + ' seats were booted — stopping rather than issuing a goto that cannot finish');
@@ -268,6 +269,10 @@ async function fallbackRoom(engine, exe, cripple) {
       pages.push(p);
       await sleep(1500);
     }
+    // EVERY LOOP BELOW WALKS `pages`, NEVER ROOM_N. The boot loop can stop
+    // early (deadline), and indexing 0..ROOM_N into a short array threw
+    // "Cannot read properties of undefined (reading 'evaluate')" — a crash
+    // where the honest report is "the leg built 0 of 4 seats".
     const coordOf = (p) => p.evaluate(() => window.__gifosVideo && __gifosVideo.meshCoord()).catch(() => null);
     let coords = [];
     const t0 = Date.now();
@@ -312,7 +317,7 @@ async function fallbackRoom(engine, exe, cripple) {
     // rule when a real counter exists.
     const LIVE_MS = 10000;
     while (Date.now() - tS < 150000 && Date.now() < DEADLINE) {
-      for (let i = 0; i < ROOM_N; i++) {
+      for (let i = 0; i < pages.length; i++) {
         const s = await pages[i].evaluate(() => ({
           en: __gifosVideo.pipeInfo().enabled,
           feeds: __gifosVideo.feedsInfo(),
