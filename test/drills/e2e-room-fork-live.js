@@ -22,7 +22,10 @@
 //                one-seat tree at 0/0.0, both still socketed to the SAME relay
 //                session. The watch must fire on BOTH sides, name the other
 //                half, and classify it `solo-fork`.
-//   3. HEALED    the sever lifts, the halves reunite — the watch must CLEAR.
+//   3. CLEARED   the partition lifts (reunion MEASURED, not asserted — see
+//                leg 5), then the other half LEAVES: with nobody outside the
+//                tree the watch must turn off. A light that latches is not an
+//                alarm.
 //
 // The observation under test (test/tools/fork-detect.js): the relay broadcasts
 // {t:'roster', peers:[…]} — every socket on the session, whatever tree its
@@ -155,21 +158,46 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
   console.log('  MEASURE fork-live: formed@' + (forkedAt / 1000).toFixed(1) + 's; seen Ada@' + (seen.Ada ? (seen.Ada.atMs / 1000).toFixed(1) : 'never')
     + 's Bob@' + (seen.Bob ? (seen.Bob.atMs / 1000).toFixed(1) : 'never') + 's after the fork formed (dwell ' + (DWELL_MS / 1000) + 's)');
 
-  // ---- 5. AND IT CLEARS. An alarm that cannot turn off is noise, and a
-  // monitor that cries fork forever teaches everyone to ignore it. Lift the
-  // partition explicitly (expire the sever now) — never by waiting out a
-  // window the observation above might still be inside.
+  // ---- 5. LIFT THE PARTITION — and MEASURE the reunion without asserting a
+  // bound on it. This drill guards the alarm, not the heal; e2e-fork-heal
+  // owns the dissolution clock, and its 12s bound was established for a 22s
+  // partition, which is NOT this shape. Measured here on a quiet 4-core pi:
+  // after a ~100s fork the two 0/0.0 halves had NOT reunited 60s after the
+  // lift, with the door already handing each of them the other
+  // (`fragment-rescue list=1 open=1`) — consistent with ledger §9's arithmetic
+  // (the corpse a confirm leaves is held for a ring window, RING_HOLD = 220
+  // ticks = 110s). Reported, not asserted: inventing a bound nobody has
+  // established would make this drill lie about what it knows.
+  const secs = (ms) => (ms < 0 ? 'NOT within the window' : (ms / 1000).toFixed(1) + 's');
   await ada.page.evaluate((pid) => window.__gifosVideo.severPair(pid, 1), bobId).catch(() => {});
   await bob.page.evaluate((pid) => window.__gifosVideo.severPair(pid, 1), adaId).catch(() => {});
   const tLift = Date.now();
-  let clear = { Ada: -1, Bob: -1 };
-  while (Date.now() - tLift < 60000 && (clear.Ada < 0 || clear.Bob < 0)) {
-    for (const u of [ada, bob]) { const v = await sample(u); if (v.ok && !v.fork && clear[u.name] < 0) clear[u.name] = Date.now() - tLift; }
+  let reunited = -1;
+  while (Date.now() - tLift < 60000 && reunited < 0) {
+    const [sa, sb] = await Promise.all([seatOf(ada), seatOf(bob)]);
+    if ((sa.parts || 0) >= 2 && (sb.parts || 0) >= 2) reunited = Date.now() - tLift;
+    for (const u of [ada, bob]) await sample(u);   // keep the dwell clocks honest across the window
     await sleep(700);
   }
-  const secs = (ms) => (ms < 0 ? 'NEVER (>60s)' : (ms / 1000).toFixed(1) + 's');
-  check('the alarm CLEARS on both sides after the halves reunite (Ada ' + secs(clear.Ada) + ', Bob ' + secs(clear.Bob) + ')',
-    clear.Ada >= 0 && clear.Bob >= 0, { clear, ada: forkLine(ada.last), bob: forkLine(bob.last), adaSeat: await seatOf(ada), bobSeat: await seatOf(bob) });
+  console.log('  MEASURE fork-live reunion: halves rejoined ' + secs(reunited) + ' after a '
+    + Math.round((tLift - tSever) / 1000) + 's partition lifted  (ada ' + forkLine(ada.last) + ')');
+
+  // ---- 6. THE ALARM MUST TURN OFF. A light that latches is not an alarm, and
+  // a monitor that cries fork forever teaches everyone to ignore it. Test the
+  // property DETERMINISTICALLY, with no dependence on the heal: Bob leaves.
+  // His socket goes with him, the relay's next roster no longer names him, and
+  // there is then nobody on Ada's session outside her tree — so the verdict
+  // must clear, and the dwell clock for a departed peer must be forgotten.
+  await bob.page.close(); await bob.ctx.close();
+  const tGone = Date.now();
+  let cleared = -1;
+  while (Date.now() - tGone < 30000 && cleared < 0) {
+    const v = await sample(ada);
+    if (v.ok && !v.fork && !v.orphans.length) cleared = Date.now() - tGone;
+    await sleep(700);
+  }
+  check('the alarm CLEARS when the other half LEAVES the session (' + secs(cleared) + ')',
+    cleared >= 0 && cleared <= 30000, { cleared, ada: forkLine(ada.last), adaSeat: await seatOf(ada) });
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
