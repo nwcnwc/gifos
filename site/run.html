@@ -7993,7 +7993,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // demanded-hot standby with stdFdec=0 — measured twice (battery1
           // runs 1 and 2, 2026-08-08) before the freeze was seen.
           if (meta) cur.meta = meta;
-          if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
+          // BUT AN ANNOUNCE IS A PROMISE OF MEDIA, AND A HUSK MUST STOP
+          // MAKING IT. Two husks that claim EACH OTHER re-announce forever:
+          // both stay live candidates, neither claim ever dies, h never
+          // grows (sticky claims never re-claim), and the room wedges — the
+          // heir-3 zombie class, reproduced at load 5.5 (redun leg B,
+          // NEVER-RESUMED, solo2 2026-08-08) with the claim continuously
+          // held on a via that itself held a trackless feed. The sender is
+          // the ONE party that KNOWS the feed is trackless — so after the
+          // same grace every transient gets, stop refreshing the announce.
+          // The receiver's 12s announce ageing then drops the husk from
+          // candidacy, the cycle breaks ring by ring, and the cascade ends
+          // at the producer's always-fresh real announce. The job survives
+          // throughout: the moment tracks return, the reconcile below
+          // resurrects the SAME sid and the announce resumes.
+          if (!cur.tracklessAt) cur.tracklessAt = Date.now();
+          if (Date.now() - cur.tracklessAt < MOS_GRACE
+            && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
           return jk;
         }
         const ops = [];
@@ -8060,6 +8076,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (window.__mosReship.length > 40) window.__mosReship.shift();
         } catch (e) {}
         cur.sig = stream.id;
+        cur.tracklessAt = 0; // tracks are back — the announce promise is honest again
         if (meta) cur.meta = meta;
         if (!cur.senders.length) { unshipMos(jk, true); return null; }
         // A del-only reconcile leaves NOTHING for hasPendingTx to notice (a
