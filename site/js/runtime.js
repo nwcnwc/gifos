@@ -896,16 +896,28 @@
     // The dialog can be MOVED OUT OF THE WAY: it lands over the middle of the
     // screen, which is often exactly where the text being recorded is. Drag
     // by the grip or any non-interactive part of the box; pointer events so
-    // one path serves mouse and touch alike.
+    // one path serves mouse and touch alike. The position is REMEMBERED per
+    // capture kind (a 42-item recording session opens this dialog 42 times —
+    // parking it once has to be enough), clamped on restore so a spot chosen
+    // on a big screen cannot strand it off a small one.
     (function draggable() {
-      let dx = 0, dy = 0, sx = 0, sy = 0, bx = 0, by = 0, dragging = false;
-      const move = (e) => {
-        if (!dragging) return;
-        dx = bx + (e.clientX - sx); dy = by + (e.clientY - sy);
+      const POS_KEY = 'gifos_capture_pos';
+      const clamp = (x, y) => {
         // keep a graspable corner on-screen
         const w = root.innerWidth || 320, h = root.innerHeight || 480;
-        dx = Math.max(-w / 2 + 40, Math.min(w / 2 - 40, dx));
-        dy = Math.max(-h / 2 + 40, Math.min(h / 2 - 40, dy));
+        return [Math.max(-w / 2 + 40, Math.min(w / 2 - 40, x)),
+                Math.max(-h / 2 + 40, Math.min(h / 2 - 40, y))];
+      };
+      let dx = 0, dy = 0;
+      try {
+        const saved = JSON.parse(root.localStorage.getItem(POS_KEY) || '{}')[kind];
+        if (saved) { [dx, dy] = clamp(saved[0] || 0, saved[1] || 0); }
+      } catch (e) { /* a bad value just means centred */ }
+      if (dx || dy) box.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      let sx = 0, sy = 0, bx = 0, by = 0, dragging = false;
+      const move = (e) => {
+        if (!dragging) return;
+        [dx, dy] = clamp(bx + (e.clientX - sx), by + (e.clientY - sy));
         box.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
       };
       box.addEventListener('pointerdown', (e) => {
@@ -916,7 +928,15 @@
         e.preventDefault();
       });
       box.addEventListener('pointermove', move);
-      const end = () => { dragging = false; };
+      const end = () => {
+        if (!dragging) return;
+        dragging = false;
+        try {
+          const all = JSON.parse(root.localStorage.getItem(POS_KEY) || '{}') || {};
+          all[kind] = [Math.round(dx), Math.round(dy)];
+          root.localStorage.setItem(POS_KEY, JSON.stringify(all));
+        } catch (e) { /* private mode: it still moves, just forgets */ }
+      };
       box.addEventListener('pointerup', end);
       box.addEventListener('pointercancel', end);
     })();
