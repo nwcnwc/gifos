@@ -30,6 +30,23 @@
     });
   }
 
+  // The magic-e endings, recorded live for the same reason the 42 sounds
+  // are. They save into the phoneme bank under their IPA - exactly where the
+  // lookup already asks - so a family recording overrides the shipped one
+  // with no new machinery at all. Two takes: harder than a word, easier
+  // than an isolated consonant.
+  function rimesPlan() {
+    return cur().allRimes().map(([spelling, ipa]) => {
+      const ex = cur().RIME_EXAMPLES[spelling];
+      const how = `“${cur().RIME_VOWEL_HINT[spelling[0]]}” then “${cur().RIME_CONS_HINT[spelling[1]]}”, run together`;
+      return {
+        key: spelling, kind: 'phoneme', ipa, length: 'free', takes: 2,
+        display: spelling,
+        say: `Say the ending “${spelling}”: ${how}` + (ex ? ` — as in “${ex}”` : '') + '. No word around it.',
+      };
+    });
+  }
+
   function storageId(item) {
     const sub = { phoneme: 'phonemes', sentence: 'sentences' }[item.kind] || 'words';
     const key = item.kind === 'phoneme' ? item.ipa : item.key;
@@ -130,7 +147,7 @@
   const playBack = (item) => playBackId(storageId(item));
 
   SIO.studio = {
-    phonemePlan, storageId, doneMap, bankList,
+    phonemePlan, rimesPlan, storageId, doneMap, bankList,
     takeOne, saveBest, remove, removeId, playBack, playBackId, MAX_SECONDS,
   };
 })();

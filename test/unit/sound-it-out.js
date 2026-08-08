@@ -46,6 +46,10 @@ const cur = SIO.curriculum, lib = SIO.library;
     j(cur.splitGraphemes('case')) === j([['c', 'k'], ['ase', 'eɪs']]), cur.splitGraphemes('case'));
   check('digraph + rime: Chase = Ch + ase',
     j(cur.splitGraphemes('Chase')) === j([['Ch', 'tʃ'], ['ase', 'eɪs']]), cur.splitGraphemes('Chase'));
+  check('the rime softens c: face = f + ace said /eɪs/',
+    j(cur.splitGraphemes('face')) === j([['f', 'f'], ['ace', 'eɪs']]), cur.splitGraphemes('face'));
+  check('the rime softens g: cage = c + age said /eɪdʒ/',
+    j(cur.splitGraphemes('cage')) === j([['c', 'k'], ['age', 'eɪdʒ']]), cur.splitGraphemes('cage'));
   check('the voiced-s lexicon wins: is = i + /z/',
     j(cur.wordParts('is')) === j([['i', 'ɪ'], ['s', 'z']]), cur.wordParts('is'));
   for (const w of ['sat', 'case', 'chase', 'is', 'vam', 'ship', 'like']) {
@@ -118,9 +122,8 @@ if (!fs.existsSync(fixturePath)) {
 
 // ---- the two-voice policy ---------------------------------------------------
 // The bundle is the STARTER VOICE and nothing else: the app author's own
-// recordings, shipped so a buildup is never two voices. No synthesis, no
-// text-to-speech. The letters pack must be fully covered by it, and a word
-// whose sounds are not all available must be shown whole, never half-built.
+// recordings - every sound, every rime, every pack word and line - shipped so
+// a buildup is never two voices and every shipped pack is READY on day one.
 {
   const inTable = (table, key) => {
     const t = CLIPS.clips[table];
@@ -128,44 +131,56 @@ if (!fs.existsSync(fixturePath)) {
     if (t[key] !== undefined) return true;
     return (cur.PHONEME_ALIASES[key] || []).some((a) => t[a] !== undefined);
   };
-  const nStarter = Object.keys(CLIPS.clips.phonemes || {}).length;
-  check('the starter voice ships all 42 human sounds', nStarter === 42, nStarter);
   check('the bundle is the starter voice, nothing synthetic',
     /starter/.test(CLIPS.voice || '') && !/kokoro/i.test(CLIPS.voice || ''), CLIPS.voice);
 
-  const letters = lib.packDefs().find((p) => p.id === 'letters').items;
-  const uncovered = letters.filter((l) => {
-    const ipa = cur.CVC_PHONEMES[l.toLowerCase()] || l.toLowerCase();
-    return !inTable('phonemes', ipa);
-  });
-  check('every letters-pack sound is covered by the starter voice',
-    uncovered.length === 0, uncovered);
-
-  // the recording session's 42 = the shipped 42 (aliases allowed)
   const missing42 = cur.PHONEME_ROWS.filter((p) => !inTable('phonemes', p.ipa)).map((p) => p.key);
-  check('every sound the session records has a starter twin to replace',
-    missing42.length === 0, missing42);
+  check('every one of the 42 sounds has a starter clip', missing42.length === 0, missing42);
 
-  // the buildup gate: with every sound available "case" builds up as
-  // c + ase; when /eɪs/ cannot be said it is shown WHOLE instead
+  const rimes = cur.allRimes();
+  check('the magic-e rule produces 65 rimes', rimes.length === 65, rimes.length);
+  const rimeMiss = rimes.filter(([, ipa]) => !inTable('phonemes', ipa)).map(([sp]) => sp);
+  check('every rime sound has a starter clip', rimeMiss.length === 0, rimeMiss);
+
+  // every shipped pack is fully covered: letters, words, lines
+  const missing = [];
+  for (const p of lib.packDefs()) {
+    for (const item of p.items) {
+      const kind = lib.entryKind(item);
+      if (kind === 'letter') {
+        const ipa = cur.CVC_PHONEMES[item.toLowerCase()] || item.toLowerCase();
+        if (!inTable('phonemes', ipa)) missing.push('sound:' + item);
+        continue;
+      }
+      for (const w of lib.uniqueWords(item)) {
+        if (!inTable('words', w.toLowerCase())) missing.push('word:' + w);
+      }
+      if (kind === 'sentence' && !inTable('sentences', cur.sentenceKey(item))) missing.push('line:' + item);
+    }
+  }
+  check('every pack letter, word and line is covered by the starter voice',
+    missing.length === 0, missing.slice(0, 8));
+
+  // the buildup gate: a word whose sounds cannot all be said is shown
+  // WHOLE, never half-built (synthetic gate - the real bundle covers all)
   const yes = cur.oneWord('case', 3, 1.2, () => true);
-  const no = cur.oneWord('case', 3, 1.2,
-    (w) => cur.wordParts(w).every(([, ipa]) => inTable('phonemes', ipa)));
+  const no = cur.oneWord('case', 3, 1.2, () => false);
   check('a fully-voiced word builds up', yes.some((seg) => seg.clip.kind === 'phoneme'));
   check('a word with an unsayable sound is shown whole, never half-built',
     no.every((seg) => seg.clip.kind === 'word'), no.map((seg) => seg.clip.kind));
 
-  // readiness: nothing recorded -> letters ready (starter voice), words and
-  // sentences not; recording flips them
+  // readiness: the starter voice makes pack content ready with NOTHING
+  // recorded; a family's own words wait for the family's voice
   const rows = [{ id: 's', text: 's' }, { id: 'sat', text: 'sat' },
-    { id: 'sam_sat', text: 'Sam sat.' }];
+    { id: 'sam_sat', text: 'Sam sat.' }, { id: 'nana', text: 'Nana' },
+    { id: 'nana_is_here', text: 'Nana is here.' }];
   const cold = lib.statusOf(rows, new Set());
-  check('unrecorded: letter ready, word and sentence not',
-    cold[0].ready === true && cold[1].ready === false && cold[2].ready === false,
+  check('unrecorded: starter-covered entries are ready, family words are not',
+    cold[0].ready && cold[1].ready && cold[2].ready && !cold[3].ready && !cold[4].ready,
     cold.map((r) => r.ready));
-  const warm = lib.statusOf(rows, new Set(['words/sat', 'words/sam', 'sentences/sam_sat']));
-  check('recorded: word and sentence become ready',
-    warm[1].ready === true && warm[2].ready === true, warm.map((r) => r.ready));
+  const warm = lib.statusOf(rows, new Set(['words/nana', 'words/is', 'words/here', 'sentences/nana_is_here']));
+  check('recording a family word and line flips them ready',
+    warm[3].ready && warm[4].ready, warm.map((r) => r.ready));
 }
 
 // ---- packs ------------------------------------------------------------------

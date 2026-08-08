@@ -86,8 +86,8 @@ That rewrites `clips-data.js` (whatever exists under the upstream repo's
 levelled — nothing synthesised) and `tools/curriculum-fixture.json` (the
 parity fixture). Both are generated-but-committed. **No family recording is
 ever bundled** — the starter voice is the author's own, shipped publicly in
-the upstream repo. `tools/starter-recording-list.md` is the checklist of pack
-words and lines waiting to be recorded upstream.
+the upstream repo. `tools/starter-recording-list.md` was the recording
+checklist; upstream 0.5.0 covered all of it.
 
 Then rebuild and refresh the catalog:
 
@@ -96,14 +96,13 @@ node apps/sound-it-out/build.mjs
 node scripts/build-app-catalog.mjs
 ```
 
-## Not in the store yet — deliberately
+## In the store
 
-Upstream is still being actively developed, so this port is **held out of the
-App Store**: the listing lives at `listing.unpublished.json`, which the
-catalog builder ignores. Publishing is one move when upstream settles:
+Published 2026-08-08, against upstream 0.5.0 (the release that shipped the
+complete starter voice: 102 sounds including every magic-e rime, 124 pack
+words, 39 lines — all the author's own). To re-sync after an upstream change:
 
 ```bash
-git mv apps/sound-it-out/listing.unpublished.json apps/sound-it-out/listing.json
 cd ~/projects/sound-it-out && .venv/bin/python \
     ~/projects/gifos/apps/sound-it-out/tools/gen-clips.py
 node test/unit/sound-it-out.js                           # parity must be green
@@ -111,8 +110,7 @@ node apps/sound-it-out/build.mjs
 node scripts/build-app-catalog.mjs
 ```
 
-(update `releaseDate` when cutting; sign at site/sign.html if it should read
-"signed by gifos.app".)
+(sign at site/sign.html if it should read "signed by gifos.app".)
 
 ## Tests
 
