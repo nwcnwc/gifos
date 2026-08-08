@@ -272,7 +272,16 @@ const pfx = (id) => String(id || '').slice(0, 12);
       const want = pick.targets.map((c) => idAtCoord[c]).filter(Boolean).map(pfx);
       let ok = false, waited = 0;
       let lastPairs = null;
-      while (Date.now() - tPlaced < TIGHT_MS + 5000) {
+      // The window must contain the product's own designed recovery, not just
+      // the happy dial. The gate3 2026-08-08 FLAKY froze exactly here with
+      // pc:failed / ice:connected / sig:have-local-offer — a mid-handshake
+      // DTLS death — and the product DELIBERATELY rebuilds such a pc only
+      // after the death has PERSISTED 12s (the 06a transient-teardown lesson,
+      // run.html sweeper), then redials. 15s tight + 12s persistence + ~8s
+      // redial under drill load = one full rebuild cycle; the old +5s margin
+      // asserted a promise the product never made. Green runs still report
+      // their actual `waited`, so a latency regression stays visible.
+      while (Date.now() - tPlaced < TIGHT_MS + 20000) {
         const cs = await snap(au.page).catch(() => null);
         if (cs) {
           lastPairs = cs.pairs;
@@ -282,7 +291,7 @@ const pfx = (id) => String(id || '').slice(0, 12);
         await sleep(500);
       }
       const finalSnap = await snap(au.page).catch(() => null);
-      check('ARRANGED: connected to every SOCKETLESS link target within ' + ((TIGHT_MS + 5000) / 1000) + 's',
+      check('ARRANGED: connected to every SOCKETLESS link target within ' + ((TIGHT_MS + 20000) / 1000) + 's (window covers one designed 12s-persistence rebuild)',
         ok && want.length > 0, ok ? (waited + 'ms, targets=' + want.join(',')) : ('want=[' + want.join(',') + '] '
           + 'pairs=' + JSON.stringify(lastPairs)
           + ' tx=' + JSON.stringify(finalSnap && finalSnap.tx)
