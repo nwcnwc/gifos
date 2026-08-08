@@ -2106,11 +2106,31 @@
       '<button class="widebtn" id="api-add">＋ Add a third-party API</button>' +
       '</details>';
   }
-  // Build the authed target (auth in headers, or on the URL for query auth).
+  // Providers the system knows the shape of. MIRRORS runtime.js KNOWN_APIS —
+  // keep the two in step: the runtime uses these as auth DEFAULTS for entries
+  // that never chose one, and the Test below must probe the way the runtime
+  // will actually fetch, or Test passes on a config that then fails on every
+  // real request. That is precisely what happened with MapTiler: its base URL
+  // answers without auth (Test green), its tiles want ?key= (drape dead), and
+  // the default Bearer header is something it ignores entirely.
+  const KNOWN_API_SHAPES = {
+    deepgram: { auth: 'token' },
+    maptiler: { auth: 'query', authName: 'key', probePath: '/tiles/satellite-v2/tiles.json' },
+  };
+  function knownShape(name) { return KNOWN_API_SHAPES[String(name || '').toLowerCase()] || null; }
+
+  // Build the authed target (auth in headers, or on the URL for query auth) —
+  // resolving auth exactly as runtime.js brokerApi does, known defaults included.
   function apiTarget(c) {
-    const u = new URL(String(c.url).replace(/\/+$/, ''));
+    const known = knownShape(c.name);
+    const u = new URL(String(c.url).replace(/\/+$/, '') +
+      (known && known.probePath ? known.probePath : ''));
     const headers = {};
-    const at = c.authType || 'bearer', an = c.authName || '', key = c.key || '';
+    let at = c.authType || 'bearer', an = c.authName || '';
+    if (known && known.auth && (!c.authType || c.authType === 'bearer')) {
+      at = known.auth; an = c.authName || known.authName || '';
+    }
+    const key = c.key || '';
     if (key) {
       if (at === 'bearer') headers.Authorization = 'Bearer ' + key;
       else if (at === 'token') headers.Authorization = 'Token ' + key;
