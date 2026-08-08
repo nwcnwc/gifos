@@ -381,6 +381,63 @@
     return null;
   }
 
+  // COMING THROUGH THE ROOF.
+  //
+  // Falling into somebody's living room is the best accident this game has, and
+  // it was happening silently — you simply appeared indoors, because building
+  // collision is skipped above 4 m and the roof is not a wall. A crash you do
+  // not hear or feel is not a crash, it is a teleport.
+  //
+  // So the moment the descent crosses a roof plane is caught explicitly and
+  // paid for: slates and dust, a hole punched where you went in, the whole
+  // screen shaking, and enough of your speed left behind that you arrive inside
+  // rather than through the floor.
+  var lastY = null;
+  function roofTopAt(x, z) {
+    for (var k in world.roads) {
+      var r = world.roads[k];
+      if (!r || !r.built || !r.built.roofs) continue;
+      var hit = root.Roads.roofAt(r.built.roofs, x, z);
+      if (hit) {
+        var g = root.Terrain.heightAt(world.frame, x, z);
+        return (g === null ? car.y : g) + hit.height;
+      }
+    }
+    return null;
+  }
+
+  function checkRoofStrike() {
+    if (!world.frame) { lastY = car.y; return; }
+    if (!(car.flying || car.falling) || car.vy >= 0) { lastY = car.y; return; }
+    var top = roofTopAt(car.x, car.z);
+    if (top === null) { lastY = car.y; return; }
+    if (lastY !== null && lastY > top && car.y <= top) {
+      var fall = Math.min(1, Math.abs(car.vy) / 26);
+      // Slates first, then the structural thud underneath it.
+      root.Sound.glass();
+      root.Sound.crash(0.6 + fall * 0.4);
+      shake = Math.min(1, Math.max(shake, 0.55 + fall * 0.45));
+      // Debris: a ring of dust punched outward from the hole, plus the hole.
+      for (var a = 0; a < 7; a++) {
+        var ang = (a / 7) * Math.PI * 2, rad = 1.2 + a * 0.35;
+        puff(car.x + Math.cos(ang) * rad, top + 0.4, car.z + Math.sin(ang) * rad, 1.1 + fall * 1.3);
+      }
+      puff(car.x, top + 0.9, car.z, 3.2 + fall * 2.0);
+      scorches.push({ x: car.x, y: top + 0.05, z: car.z, nx: 0, nz: 1, age: 0 });
+      if (scorches.length > MAX_SCORCH) scorches.shift();
+      // Going through a roof COSTS you. Most of the fall energy is spent on the
+      // structure, so you drop into the room rather than continuing to the
+      // cellar — and the aircraft, if you still had one, does not survive it.
+      car.vy *= 0.28;
+      car.speed *= 0.45;
+      car.flying = false; car.falling = true;
+      car.health = Math.max(0, car.health - (14 + fall * 46));
+      if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+      root.UI.note('Straight through the roof.');
+    }
+    lastY = car.y;
+  }
+
   function updateInWater() {
     var hit = null;
     for (var k in world.roads) {
@@ -1034,6 +1091,7 @@
         var airborne = (car.flying || car.falling) && car.agl > 4;
         if (!airborne) updateInWater(); else { car.inWater = false; car.deepWater = false; }
         root.Car.update(car, input, dt / steps, world.frame);
+        checkRoofStrike();
         if (!airborne) collideBuildings(dt / steps);
       }
       wildlife(dt);

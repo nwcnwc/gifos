@@ -1172,6 +1172,23 @@
   }
   function inWater(index, x, z) { return !!waterAt(index, x, z); }
 
+  // ROOFS, as polygons you can be above or below. The wall index answers "is
+  // there a wall near me", which is the wrong question for something falling
+  // out of the sky — a plane over the middle of a warehouse is nowhere near a
+  // wall and very much over a roof. Same ray cast as landcover; the ring
+  // carries the building's OSM height, and the caller adds the terrain under it
+  // to get the actual height of the roof at that spot.
+  function buildRoofIndex(frame, geom) {
+    var rings = [], src = (geom && geom.bld) || [];
+    for (var i = 0; i < src.length; i++) rings.push([src[i][0] || 8, src[i][1], '']);
+    return buildLandIndex(frame, { land: rings });
+  }
+  // null, or { height } in metres above the building's own base.
+  function roofAt(index, x, z) {
+    var r = (index && index.length) ? landAt(index, x, z) : null;
+    return r ? { height: r.id } : null;
+  }
+
   function scatter(frame, tile, geom, roadIndex, wallIndex, landIndex) {
     var out = { pos: [], nrm: [], col: [], idx: [] };
     // Trunks, as collidable segments and as shadow casters. A tree you can
@@ -1473,6 +1490,7 @@
       paths: paths,
       index: roadIndex,
       wet: buildWaterIndex(frame, geom),
+      roofs: buildRoofIndex(frame, geom),
       walls: wallIndex,
       // How many ground samples had no terrain under them. Zero means every
       // vertex stands on real ground; anything else means parts of this tile
@@ -1967,7 +1985,7 @@
   root.Roads = {
     TILE_ZOOM: TILE_ZOOM,
     loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
-    nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater, waterAt: waterAt, DROWN_AREA: DROWN_AREA,
+    nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater, waterAt: waterAt, DROWN_AREA: DROWN_AREA, roofAt: roofAt,
     // The mirror pool, exported so a suite can watch it route.
     rankMirrors: rankMirrors, mirrorScore: mirrorScore, tileState: tileState,
     noteLatency: noteLatency, noteFail: noteFail,

@@ -604,9 +604,13 @@ select {
 /* It is a top-bar chip like the others, so it inherits their size, hit area
    and phone behaviour. Only its colour says anything extra: amber while the
    wings are on. */
+/* FOURTH placement. On the wheel it was invisible; in the top bar it was not a
+   driver's control; bottom-right put it under the GO pedal. The dash's top-LEFT
+   strip is the one region nothing else claims — the steering pad starts lower,
+   the wheel is centre, the pedals are right. */
 #btn-fly {
   position: absolute;
-  right: 6%; bottom: 7%;
+  left: 4%; bottom: 21%; right: auto;
   width: 3rem; height: 3rem;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
