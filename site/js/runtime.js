@@ -1447,16 +1447,21 @@
   const KNOWN_APIS = {
     deepgram: { label: 'Deepgram', url: 'https://api.deepgram.com', auth: 'token' },
     maptiler: { label: 'MapTiler', url: 'https://api.maptiler.com', auth: 'query', authName: 'key',
+                only: true,   // MapTiler accepts exactly this shape — no entry setting can improve on it
                 probePath: '/tiles/satellite-v2/tiles.json' },
   };
-  // The auth a request should ACTUALLY use: the entry's own choice, unless it
-  // is the generic default and the provider is known to need something else.
-  // ('bearer' for MapTiler is not a choice anyone meant — it cannot work.)
+  // The auth a request should ACTUALLY use. For a provider that accepts
+  // EXACTLY ONE shape (MapTiler reads ?key= and nothing else), the known shape
+  // wins over whatever the entry says — "the app should not care about the
+  // formulation" cuts both ways: the user should not need to get a dropdown
+  // right for their key to count, and a wrong dropdown must not be able to
+  // break a correct key. For providers with several real schemes, the entry's
+  // own explicit choice still stands; only the generic default gives way.
   function resolveAuth(name, c) {
     const known = KNOWN_APIS[String(name || '').toLowerCase()];
     let at = c.authType || 'bearer', an = c.authName || '';
-    if (known && known.auth && (!c.authType || c.authType === 'bearer')) {
-      at = known.auth; an = c.authName || known.authName || '';
+    if (known && known.auth && (known.only || !c.authType || c.authType === 'bearer')) {
+      at = known.auth; an = known.authName || c.authName || '';
     }
     return { at: at, an: an };
   }
