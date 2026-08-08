@@ -759,6 +759,56 @@ function check(name, cond, detail) {
   check('est_height is somebody else\'s measurement and is taken', Math.abs(heights.estimate - 25) < 0.01,
     heights.estimate.toFixed(1) + ' m');
 
+  // ---- what does the ground say grows on it? ------------------------------
+  // A tree's species used to be chosen by ALTITUDE — conifer above 900 m — which
+  // is a guess dressed as a rule, and it plants the same Surrey oak in the
+  // Mojave. OSM has carried the answer all along: natural=wood, landuse=vineyard,
+  // and leaf_type, which NAMES the species group. Verified against live Overpass
+  // while building this: the New Forest returns 36 wood rings of which 32 carry
+  // leaf_type, and Napa returns 11 vineyards.
+  const land = await fr.locator('body').evaluate(() => {
+    const R = window.Roads, G = window.Geo, frame = G.frame(51.5, -0.1);
+    const ring = (lat, lon, m, id, leaf) => {
+      const dLat = m / G.metresPerDegLat(lat), dLon = m / G.metresPerDegLon(lat);
+      return [id, [lat - dLat, lon - dLon, lat - dLat, lon + dLon,
+                   lat + dLat, lon + dLon, lat + dLat, lon - dLon], leaf];
+    };
+    const L = R.LAND;
+    const idx = R.landIndexOf(frame, { land: [
+      ring(51.5000, -0.1000, 300, L.wood.id, 'conifer'),
+      ring(51.5000, -0.1000, 40, L.grassland.id, 'broad'),   // a clearing INSIDE the wood
+      ring(51.5100, -0.1000, 200, L.sand.id, 'broad'),
+      ring(51.4900, -0.1000, 200, L.orchard.id, 'broad'),
+    ] });
+    const at = (lat, lon) => { const w = frame.toWorld(lat, lon); return R.landAt(idx, w.x, w.z); };
+    return {
+      rings: idx.length,
+      clearing: at(51.5000, -0.1000), wood: at(51.5010, -0.1000),
+      sand: at(51.5100, -0.1000), orchard: at(51.4900, -0.1000),
+      untagged: at(51.6000, -0.1000),
+      sandPlants: L.sand.plant, orchardRows: !!L.orchard.orchard, scrubBush: !!L.scrub.bush,
+      emptyCache: R.landIndexOf(frame, {}).length,
+      woodPlants: L.wood.plant,
+    };
+  });
+  check('landcover rings index, smallest first so a clearing beats the wood round it',
+    land.rings === 4 && land.clearing && land.clearing.id === 4,
+    land.rings + ' rings, centre reads class ' + (land.clearing && land.clearing.id));
+  check('…and a step outside the clearing IS the wood',
+    !!land.wood && land.wood.id === 1, JSON.stringify(land.wood && land.wood.id));
+  check('leaf_type reaches the planter, so species is DATA and not altitude',
+    !!land.wood && land.wood.leaf === 'conifer', land.wood && land.wood.leaf);
+  check('ground tagged sand/rock/quarry plants NOTHING',
+    !!land.sand && land.sand.id === 10 && land.sandPlants === 0);
+  check('a vineyard or orchard is flagged as planted in rows', land.orchardRows);
+  check('scrub is a bush, so moorland does not become a maze of bollards', land.scrubBush);
+  // The distinction that matters: "nothing is tagged here" is not "nothing
+  // grows here". The first keeps the fallback scatter, the second suppresses it.
+  check('untagged ground returns null rather than a default landcover',
+    land.untagged === null, JSON.stringify(land.untagged));
+  check('a cache written before landcover existed still indexes cleanly',
+    land.emptyCache === 0, land.emptyCache + ' rings from {}');
+
   // ---- the shape of a pitched roof ----------------------------------------
   // Reported from a real drive: "a lot of the house roofs have very strange and
   // lopsided angular shapes". Two causes, both arithmetic.
