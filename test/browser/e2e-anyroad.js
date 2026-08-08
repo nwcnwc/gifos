@@ -47,6 +47,23 @@ function check(name, cond, detail) {
   });
   const context = await browser.newContext();
 
+  // A MapTiler key saved EXACTLY as a real user saves one: name, url, key —
+  // and no auth choice, because choosing "query, named key" is provider
+  // trivia. The runtime must supply that shape itself (KNOWN_APIS): with the
+  // generic Bearer default the key rides a header MapTiler ignores, the base
+  // URL still answers (so Settings' Test passed), and every actual tile 403s —
+  // satellite selected, key "working", nothing on screen.
+  await context.addInitScript(() => {
+    try { localStorage.setItem('gifos_api_config', JSON.stringify({ maptiler: { url: 'https://api.maptiler.com', key: 'e2e-key-123' } })); } catch (e) {}
+  });
+  const mtSeen = [];
+  await context.route('**://api.maptiler.com/**', async (route) => {
+    const u = new URL(route.request().url());
+    mtSeen.push({ path: u.pathname, keyQ: u.searchParams.get('key'),
+                  bearer: /Bearer/.test(route.request().headers().authorization || '') });
+    await route.fulfill({ status: 404, headers: { 'Access-Control-Allow-Origin': '*' }, body: 'no tile here' });
+  });
+
   const hits = await routeWorld(context);
 
   const page = await context.newPage();
@@ -1227,6 +1244,18 @@ function check(name, cond, detail) {
     !!attrib && attrib.visible && /OpenStreetMap/.test(attrib.text), attrib && attrib.text);
   check('…and the credit line can never eat a steering touch',
     !!attrib && attrib.events === 'none', attrib && attrib.events);
+
+  // ---- the satellite key rides where MapTiler can see it -------------------
+  // Turn the drape on and watch the wire: the key must arrive as ?key= (the
+  // only place MapTiler looks), never as a Bearer header, with NO auth
+  // configuration on the entry — the runtime knows the provider's shape.
+  await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'maptiler' }); window.App.redrape(); });
+  for (let i = 0; i < 15 && mtSeen.length < 2; i++) await sleep(1000);
+  check('selecting satellite actually asks MapTiler for tiles', mtSeen.length > 0, mtSeen.length + ' request(s)');
+  check('the key travels as ?key= — the ONLY place MapTiler looks — with no auth configured',
+    mtSeen.length > 0 && mtSeen.every((m) => m.keyQ === 'e2e-key-123' && !m.bearer),
+    JSON.stringify(mtSeen[0] || null));
+  await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'none' }); window.App.redrape(); });
   await fr.locator('#btn-map').click();
   let bird = null;
   for (let i = 0; i < 24; i++) {                              // poll: dt-clamped sim time, never wall clock

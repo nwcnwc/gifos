@@ -1436,9 +1436,30 @@
   // Known third-party providers — lets the SYSTEM render specific setup guidance
   // (base URL, auth scheme) when an app asks for one that isn't configured, so
   // apps don't hardcode "go to Settings and type https://api.deepgram.com".
+  //
+  // `auth`/`authName` here are also the DEFAULT WIRING for a saved entry that
+  // never chose one. The generic default is a Bearer header, and MapTiler
+  // ignores headers entirely — it wants ?key= on the URL — so a user who saved
+  // their key with the defaults had a key that tested fine (the base URL
+  // answers without auth) and then silently failed on every actual tile. The
+  // system knows the provider; the user should not need to know its trivia.
+  // (desktop.js's Settings Test mirrors these defaults — keep them in step.)
   const KNOWN_APIS = {
-    deepgram: { label: 'Deepgram', url: 'https://api.deepgram.com', auth: 'Token' },
+    deepgram: { label: 'Deepgram', url: 'https://api.deepgram.com', auth: 'token' },
+    maptiler: { label: 'MapTiler', url: 'https://api.maptiler.com', auth: 'query', authName: 'key',
+                probePath: '/tiles/satellite-v2/tiles.json' },
   };
+  // The auth a request should ACTUALLY use: the entry's own choice, unless it
+  // is the generic default and the provider is known to need something else.
+  // ('bearer' for MapTiler is not a choice anyone meant — it cannot work.)
+  function resolveAuth(name, c) {
+    const known = KNOWN_APIS[String(name || '').toLowerCase()];
+    let at = c.authType || 'bearer', an = c.authName || '';
+    if (known && known.auth && (!c.authType || c.authType === 'bearer')) {
+      at = known.auth; an = c.authName || known.authName || '';
+    }
+    return { at: at, an: an };
+  }
   // The AI "types" a manifest can name under capabilities.ai (an array), each a
   // row the user sets up in Settings → AI models. Labels match that screen.
   const AI_ROLE_LABELS = {
@@ -1511,7 +1532,7 @@
     if (u.origin !== baseOrigin) return Promise.reject(new Error('api request must stay on the configured host (' + baseOrigin + ').'));
     const headers = {};
     for (const k in (d.headers || {})) headers[k] = d.headers[k]; // app headers first; auth overwrites below
-    const at = c.authType || 'bearer', an = c.authName || '', key = c.key || '';
+    const auth = resolveAuth(name, c), at = auth.at, an = auth.an, key = c.key || '';
     if (key) {
       if (at === 'bearer') headers.Authorization = 'Bearer ' + key;
       else if (at === 'token') headers.Authorization = 'Token ' + key;      // Deepgram-style

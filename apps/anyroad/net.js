@@ -179,6 +179,12 @@
   function apiBitmap(name, path) {
     return once('A' + name + path, function () {
       return root.Host.api(name, { path: path, as: 'bytes' }).then(function (r) {
+        // Status FIRST. A 403 carries a perfectly decodable error body, and
+        // feeding it to the image decoder turned "your key was rejected" into
+        // "image decode failed" — a message that sent the player to check
+        // their graphics instead of their key.
+        if (r && (r.status === 401 || r.status === 403)) throw new Error('the ' + name + ' key was rejected (' + r.status + ')');
+        if (r && r.status && !r.ok) throw new Error(name + ' returned ' + r.status);
         if (!r || !r.bytes) throw new Error('no image from ' + name);
         return decode(new Blob([r.bytes], { type: r.mime || 'image/jpeg' }));
       });
