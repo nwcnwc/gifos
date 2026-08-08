@@ -516,3 +516,34 @@ select {
   image-rendering: auto;
   flex: 0 0 auto;
 }
+
+/* ---- the cockpit ----------------------------------------------------------
+   Only the TOP of the wheel clears the dash, which is what you see out of a
+   real car — a whole wheel floating in the middle of the screen reads as a
+   sticker. Pointer-events off throughout: this is scenery, and the actual
+   steering control is still the one in the corner. */
+#cockpit {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+#cockpit-wheel {
+  position: absolute;
+  left: 50%;
+  bottom: -30vh;                 /* the dash line: two thirds of it is hidden */
+  width: 62vh; height: 62vh;
+  max-width: 128vw; max-height: 128vw;
+  transform: translateX(-50%) rotate(0deg);
+  transform-origin: 50% 50%;
+  will-change: transform;
+  filter: drop-shadow(0 -6px 14px rgba(0, 0, 0, .45));
+}
+/* The view name next to the camera icon, so the button says what it does. */
+.chip .povname {
+  font-size: .62rem;
+  letter-spacing: .04em;
+  margin-left: .28rem;
+  opacity: .82;
+  text-transform: uppercase;
+}

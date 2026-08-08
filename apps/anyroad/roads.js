@@ -144,11 +144,23 @@
     return b.south + ',' + b.west + ',' + b.north + ',' + b.east;
   }
 
-  function query(tile, withDetail) {
+  // DETAIL LEVELS, shed cheapest-first when a tile is too expensive:
+  //   2  roads + buildings + landcover + pools     (what you want)
+  //   1  roads + buildings                         (drop the scenery data)
+  //   0  roads only                                (last resort)
+  //
+  // This used to be a boolean, and that was a real bug the day landcover and
+  // pools were added to it: the extra rings made the query heavier, more tiles
+  // hit Overpass's cost ceiling, and the ONLY fallback threw away BUILDINGS —
+  // so streets came back with no houses on them. Buildings are the thing you
+  // actually look at; woodland polygons are not worth losing them for.
+  function query(tile, detail) {
     var bb = bboxOf(tile);
     var parts = ['way["highway"~"^(' + Object.keys(ROAD_CLASS).join('|') + ')$"](' + bb + ');'];
-    if (withDetail) {
+    if (detail >= 1) {
       parts.push('way["building"](' + bb + ');');
+    }
+    if (detail >= 2) {
       // Landcover rides the SAME query and is dropped by the SAME fallback: a
       // tile dense enough to blow Overpass's budget on buildings would blow it
       // on woodland too, and two requests where one will do is the abuse the
@@ -173,7 +185,7 @@
   // would be storing noise at real cost.
   function r6(v) { return Math.round(v * 1e6) / 1e6; }
 
-  function parse(json, withBuildings) {
+  function parse(json, detail) {
     var ways = [], bld = [], wat = [], land = [], pool = [];
     var els = (json && json.elements) || [];
     for (var i = 0; i < els.length; i++) {
@@ -188,7 +200,7 @@
         // took three of them. A road you are driving down that cannot tell
         // you what it is called is a map with the labels torn off.
         ways.push([tags.highway, flat, surfaceOf(tags), laneCount(tags), tags.name || '']);
-      } else if (tags.building && withBuildings) {
+      } else if (tags.building && detail >= 1) {
         // [3] is the BRAND, packed as a colour (see packBrand). A cache written
         // before brands existed simply has no fourth element — undefined packs
         // to 0, which means "no sign", so old caches keep working and upgrade
@@ -209,7 +221,7 @@
         pool.push(flat);
       } else if (tags.natural === 'water') {
         wat.push(flat);
-      } else if (withBuildings) {
+      } else if (detail >= 2) {
         // [0] class id, [1] ring, [2] species. Kept as three small numbers and
         // an array rather than the tag soup, because this is cached per tile.
         var lk = LAND[tags.natural] || LAND[tags.landuse]
@@ -218,7 +230,7 @@
         if (lk && land.length < MAX_LAND) land.push([lk.id, flat, leafOf(tags, lk.leaf)]);
       }
     }
-    return { ways: ways, bld: bld, wat: wat, land: land, pool: pool };
+    return { ways: ways, bld: bld, wat: wat, land: land, pool: pool, detail: detail };
   }
 
   // ---- what KIND of building is this? --------------------------------------
@@ -622,7 +634,19 @@
   // dense record now carries its fetch time and EXPIRES: past the TTL the tile
   // is re-asked WITH buildings, and only if that fails again does the stale
   // roads-only copy carry on (degraded service, never a degraded cache).
+  // How long a DEGRADED tile is left degraded before we try for the full thing
+  // again — graded by how much it is missing, because the two cases are not
+  // remotely equally bad to look at.
+  //
+  //   roads only, NO BUILDINGS   ten minutes. A street of houses rendered as
+  //                              bare tarmac is the most visible failure the
+  //                              app has, and six hours of it is unacceptable
+  //                              for what is usually one busy server.
+  //   missing landcover only     six hours. Nobody can see the difference
+  //                              between a guessed tree and a tagged one at
+  //                              50 km/h, so it is not worth re-querying for.
   var DENSE_RETRY_MS = 6 * 60 * 60 * 1000;
+  var NOBLD_RETRY_MS = 10 * 60 * 1000;
 
   function loadTile(tile) {
     var key = root.Geo.tileKey(tile);
@@ -634,7 +658,10 @@
       if (rec && rec.ways) {
         // Records saved before `at` existed have no timestamp — treated as
         // stale, so every player's dense tiles retry once and get stamped.
-        var staleDense = rec.dense && (Date.now() - (rec.at || 0) > DENSE_RETRY_MS)
+        var recDetail = rec.detail != null ? rec.detail
+                      : (rec.dense ? 0 : ((rec.land && rec.land.length) ? 2 : 1));
+        var ttl = recDetail < 1 ? NOBLD_RETRY_MS : DENSE_RETRY_MS;
+        var staleDense = rec.dense && (Date.now() - (rec.at || 0) > ttl)
           && root.Sources.current.quality !== 'low';
         if (!staleDense) {
           // land and pool MUST be read back too. They were added to the write
@@ -644,7 +671,11 @@
           // distinguish from. Re-driving a street was quietly worse than
           // driving it the first time.
           var hit = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [],
-                      land: rec.land || [], pool: rec.pool || [], dense: !!rec.dense };
+                      land: rec.land || [], pool: rec.pool || [], dense: !!rec.dense,
+                      // A record written before levels existed: infer it from
+                      // what is actually in the record rather than guessing.
+                      detail: rec.detail != null ? rec.detail
+                            : (rec.dense ? 0 : ((rec.land && rec.land.length) ? 2 : 1)) };
           memory[key] = hit;
           touch(key); saveIndex();
           return hit;
@@ -652,7 +683,8 @@
         return fetchTile(tile, key).catch(function () {
           // The retry failed too — the stale roads are still a world to drive.
           var old = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [],
-                      land: rec.land || [], pool: rec.pool || [], dense: true };
+                      land: rec.land || [], pool: rec.pool || [], dense: true,
+                      detail: rec.detail != null ? rec.detail : 0 };
           memory[key] = old;
           touch(key); saveIndex();
           return old;
@@ -718,29 +750,29 @@
   }
 
   function fetchTile(tile, key) {
-    var wantBuildings = root.Sources.current.quality !== 'low';
+    var wantDetail = root.Sources.current.quality === 'low' ? 0 : 2;
     var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
     var cLat = (b.north + b.south) / 2, cLon = (b.west + b.east) / 2;
     var ranked = rankMirrors(cLat, cLon);
     if (!ranked.length) return Promise.reject(new Error('no roads mirror covers this place'));
 
-    function ask(src, withBuildings) {
+    function ask(src, detail) {
       var t0 = Date.now();
-      var url = src.url + '?data=' + encodeURIComponent(query(tile, withBuildings));
+      var url = src.url + '?data=' + encodeURIComponent(query(tile, detail));
       // Remembered so the HUD can say WHICH server this tile is waiting on and
       // WHERE in that server's queue it is sitting.
       inflightTile[key] = { url: url, host: root.Net.hostOf(url), mirror: src.name, since: t0 };
       function done() { if (inflightTile[key] && inflightTile[key].url === url) delete inflightTile[key]; }
       return root.Net.json(url)
-        .then(function (json) { noteLatency(src.url, Date.now() - t0); done(); return parse(json, withBuildings); },
+        .then(function (json) { noteLatency(src.url, Date.now() - t0); done(); return parse(json, detail); },
               function (err) { noteFail(src.url); done(); throw err; });
     }
 
     // Walk the ranked mirrors. A busy or broken server hands the tile to the
     // next one INSTEAD OF FAILING THE TILE — which is the difference between
     // "the map server is busy" and "there are no roads here".
-    function attempt(i, withBuildings) {
-      return ask(ranked[i], withBuildings).catch(function (err) {
+    function attempt(i, detail) {
+      return ask(ranked[i], detail).catch(function (err) {
         // Two different ways a dense tile refuses to load, and both mean the
         // same thing — this query is too big for this tile:
         //   "response too large"  the GifOS bridge's own 8 MB response cap
@@ -748,17 +780,30 @@
         // Either way, drop the buildings and take the roads. A 504 is about the
         // QUERY, so retrying it on another mirror just costs somebody else the
         // same timeout; shed the detail on the spot instead.
-        if (withBuildings && (/too large/i.test(err.message || '') || err.status === 504)) {
-          return attempt(i, false).then(function (g) { g.dense = true; return g; });
+        // A 504 IS NOT EVIDENCE ABOUT THE TILE. It is what an overloaded
+        // mirror says, and mirrors are overloaded constantly — measured on one
+        // Californian tile: detail 2 returned 366 buildings in 0.86 MB from one
+        // server while another 504'd on the SMALLER query thirty seconds later.
+        // The old code read that timeout as "this tile is too dense", threw the
+        // buildings away and CACHED the verdict, so a street kept its roads and
+        // lost its houses permanently because one volunteer's server was busy.
+        // Ask somebody else the same question first; only shed detail once
+        // every mirror has refused it.
+        if (err.status === 504 && i + 1 < ranked.length) return attempt(i + 1, detail);
+        // "Response too large" IS about the query — it is our own 8 MB bridge
+        // cap, and no other server will answer it any smaller. Shed a level.
+        if (detail > 0 && (/too large/i.test(err.message || '') || err.status === 504)) {
+          return attempt(0, detail - 1);
         }
         // Anything else — 406, 429, a refused connection — is about the SERVER,
         // so the same query is worth asking somewhere else.
-        if (i + 1 < ranked.length) return attempt(i + 1, withBuildings);
+        if (i + 1 < ranked.length) return attempt(i + 1, detail);
         throw err;
       });
     }
 
-    return attempt(0, wantBuildings).then(function (geom) {
+    return attempt(0, wantDetail).then(function (geom) {
+      geom.dense = (geom.detail || 0) < 2;
       memory[key] = geom;
       // Measured, not guessed: a city tile and a moor tile differ by more than
       // an order of magnitude, and a budget in MB has to mean MB.
@@ -768,7 +813,7 @@
       index[key] = { at: Date.now(), bytes: approx };
       return db().put({
         id: 't' + key, ways: geom.ways, bld: geom.bld, wat: geom.wat, land: geom.land, pool: geom.pool,
-        dense: !!geom.dense,
+        dense: !!geom.dense, detail: geom.detail,
         at: Date.now(),   // when these bytes were fetched — a dense record expires against this
       }).catch(function () {}).then(evictIfNeeded).then(saveIndex).then(function () { return geom; });
     });

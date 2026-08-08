@@ -10,6 +10,19 @@
 <body>
 
 <canvas id="view"></canvas>
+<!-- The wheel you see from the driver's seat. Only the top arc is above the
+     dash, which is what you actually see out of a real car. -->
+<div id="cockpit" hidden aria-hidden="true">
+  <div id="cockpit-wheel">
+    <svg viewBox="0 0 200 200" width="100%" height="100%" aria-hidden="true">
+      <circle cx="100" cy="100" r="86" fill="none" stroke="rgba(18,20,26,.92)" stroke-width="17"/>
+      <circle cx="100" cy="100" r="86" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="2"/>
+      <rect x="92" y="14" width="16" height="26" rx="6" fill="rgba(120,190,255,.85)"/>
+      <path d="M100 100 L28 62 M100 100 L172 62 M100 100 L100 186" stroke="rgba(18,20,26,.92)" stroke-width="15" stroke-linecap="round"/>
+      <circle cx="100" cy="100" r="27" fill="rgba(24,27,34,.95)"/>
+    </svg>
+  </div>
+</div>
 <!-- The windscreen: damage is drawn on the glass you are looking through, not
      only counted in a bar. Never takes a pointer event — it sits over the
      steering area. -->
@@ -27,7 +40,7 @@
     </div>
     <div class="spacer"></div>
     <!-- Bird's eye flies the game camera itself — no inset, no second map. -->
-    <button class="chip" id="btn-map" aria-label="Bird's-eye view" aria-pressed="false">🗺️</button>
+    <button class="chip" id="btn-map" aria-label="Change point of view">🎥<span class="povname" id="pov-name">Chase</span></button>
     <button class="chip" id="btn-race" aria-label="Races">🏁<span class="badge" id="race-badge" hidden></span></button>
     <button class="chip" id="btn-hop" aria-label="Go somewhere else">🌍</button>
     <!-- The loading map. Tiny, north-up, and only on screen while something is
