@@ -595,3 +595,25 @@ select {
   background: linear-gradient(90deg, #78d68e, #cfe06a);
   transition: width .25s ease;
 }
+
+/* ---- the wings button -----------------------------------------------------
+   Lives on the dash, thumb-reachable, and swaps its own glyph: an aeroplane
+   while you are driving, a car while you are flying. It says what pressing it
+   will DO rather than what you currently are, which is the only labelling that
+   works on a control you press without looking. */
+#btn-fly {
+  position: absolute;
+  left: 50%; bottom: 3.2%;
+  transform: translateX(-50%);
+  width: 2.6rem; height: 2.6rem;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(24, 28, 36, .92);
+  color: #cfe0f5;
+  pointer-events: auto;          /* the one thing in #cockpit that is clickable */
+  cursor: pointer;
+  z-index: 3;
+}
+#btn-fly:active { background: rgba(46, 54, 68, .95); }
+#cockpit.flying #btn-fly { color: #ffd08a; }
