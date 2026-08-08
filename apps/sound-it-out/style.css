@@ -4,6 +4,11 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* The overlays set display:flex, which would silently BEAT the hidden
+   attribute's UA display:none — leaving an invisible full-screen layer
+   swallowing every tap. hidden must always win. */
+[hidden] { display: none !important; }
+
 :root {
   --bg: #0a0a0f;
   --panel: #14141d;
