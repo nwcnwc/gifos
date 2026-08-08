@@ -504,6 +504,19 @@
       // you actually read from a car.
       '  vec3 signColour = mix(vec3(0.24,0.42,0.54), vec3(0.56,0.26,0.26), step(0.5, s));',
       '  signColour = mix(signColour, vec3(0.26,0.46,0.32), step(0.78, s));',
+      // A KNOWN BRAND paints its own board. OSM names the business (name,
+      // brand, brand:wikidata) and roads.js packs the sign colour into the
+      // integer part of the seed — 5 bits a channel, which is all a flat
+      // colour at 40 m needs. Colour only, never a logo or a wordmark: those
+      // are trademarks, and the thing you actually recognise from a moving car
+      // is the red-and-yellow on the corner, not the lettering.
+      '  float packed = floor(vBinfo.y);',
+      '  float hasBrand = step(0.5, packed);',
+      '  float pk = packed - 1.0;',
+      '  vec3 brandColour = vec3(floor(pk / 256.0),',
+      '                          floor(mod(pk, 256.0) / 16.0),',
+      '                          mod(pk, 16.0)) / 15.0;',
+      '  signColour = mix(signColour, brandColour, hasBrand);',
       '  base = mix(base, signColour, fascia * near);',
       // Corrugation on a metal shed: vertical ribbing instead of windows, which
       // is the entire visual language of an industrial estate.
