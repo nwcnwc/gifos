@@ -58,6 +58,12 @@ check('a kind appearing/vanishing changes ONE m-line inside the SAME container',
 check('the reconcile records itself in __mosReship with kept:true + ops (forensics stay honest)',
   /why: 'sig-change', kept: true, ops: ops\.join\(','\)/.test(RUN));
 
+// ---- a husk is not a candidate ----------------------------------------------
+check('a trackless job keeps the sid but stops announcing after the grace (husk-cycle breaker)',
+  /if \(!cur\.tracklessAt\) cur\.tracklessAt = Date\.now\(\)/.test(RUN)
+  && /Date\.now\(\) - cur\.tracklessAt < MOS_GRACE/.test(RUN)
+  && /cur\.tracklessAt = 0;/.test(RUN));
+
 // ---- the receiver side follows the object, keeps the claim -----------------
 check('ontrack replaces a same-id corpse in p.incoming, never accumulates',
   /const dup = p\.incoming\.findIndex\(\(s\) => s\.id === stream\.id\)/.test(RUN)
