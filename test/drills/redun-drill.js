@@ -350,6 +350,32 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
         stdPipes++;
         if (bps > 1000) { stdHot++; hotWhy.push(why); }
       }
+      // A NEVER-WOKEN standby has NO stats row at all — Chrome creates
+      // inbound-rtp on the FIRST PACKET, and a pipe parked before any packet
+      // ever flowed is invisible to the byte sweep above. Watchdog v2.1's
+      // faster demand flips made that the COMMON case (fresh ship -> mx-idle
+      // inside one beat), which is why this leg startedredding 0/0 on
+      // manufacture luck (gate3 + battery1, 2026-08-08) while the 90s
+      // formation wait above was passing: the standby was held the whole
+      // time, at zero bytes, rowless. That is not unmeasurable — it is the
+      // STRONGEST parked there is (the leg C doctrine). Count it, at 0 B/s
+      // by construction, under the same role-stability tests.
+      for (const sv1 of ((a.m && a.m.standbyVia) || [])) {
+        const rk = sv1.rk;
+        if (bySlot.has('std:' + rk)) continue;
+        if (!/^(sdm|sdx|sdn|sgs|stg:|sdrow:)/.test(rk)) continue;
+        const sv2 = ((b.m && b.m.standbyVia) || []).find((x) => x.rk === rk);
+        if (!sv2 || sv2.via !== sv1.via || sv2.sid !== sv1.sid) continue;
+        const f1 = (a.m.fb || []).find((f) => f.rk === rk) || {};
+        const f2 = (b.m.fb || []).find((f) => f.rk === rk) || {};
+        const demOf = (m, sv) => (sv && (m.demand || []).find((d) => d.indexOf(sv.via + '|') === 0 && d.indexOf('|' + sv.sid + '=') > 0)) || null;
+        const demandedHot = /=w$/.test(demOf(a.m, sv1) || '') || /=w$/.test(demOf(b.m, sv2) || '');
+        const torn = ((a.torn || []).indexOf(rk) >= 0) || ((b.torn || []).indexOf(rk) >= 0);
+        if (f1.wakeAt || f2.wakeAt || f1.dark || f2.dark || demandedHot || torn) continue;
+        if (f2.lastSwitch && f2.lastSwitch > (a.t0 || a.t)) continue;
+        rates.push(pages[i].name + ' std:' + rk + ' = 0 B/s (no rtp row — never woken)');
+        stdPipes++;
+      }
     }
     console.log('per-pipe inbound rates (redundant slots, window ' + (attempt + 1) + '):\n  ' + rates.join('\n  '));
     if (stdChurn.length) console.log('  (standbys whose ROLE changed inside the window — not measurable as parked: ' + JSON.stringify(stdChurn) + ')');
