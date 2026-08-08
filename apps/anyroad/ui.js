@@ -34,12 +34,13 @@
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
-     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster',
+     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-offline','note-offline',
      'street','passing','recent',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
     buildSourceMenus();
+    buildOfflineMenu();
 
     el.searchform.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -162,6 +163,7 @@
   function ready() {
     loadRecent();
     syncSourceMenus();
+    syncOfflineNote();
     refreshCacheSize();
     renderAttribution();
   }
@@ -424,7 +426,39 @@
 
   function refreshCacheSize() {
     var n = root.Roads.cacheSize();
-    el['cache-size'].textContent = n ? (n + ' map tile' + (n === 1 ? '' : 's')) : 'nothing cached yet';
+    var mb = root.Roads.cacheBytes() / (1024 * 1024);
+    el['cache-size'].textContent = n
+      ? (n + ' map tile' + (n === 1 ? '' : 's') + ' · ' + (mb < 1 ? mb.toFixed(2) : mb.toFixed(1)) + ' MB'
+         + ' of ' + Math.round(root.Sources.offlineBytes() / (1024 * 1024)) + ' MB')
+      : 'nothing cached yet';
+  }
+
+  function buildOfflineMenu() {
+    var sel = el['ctl-offline'];
+    if (!sel) return;
+    sel.innerHTML = '';
+    root.Sources.OFFLINE_MB.forEach(function (mb) {
+      var o = document.createElement('option');
+      o.value = mb; o.textContent = root.Sources.OFFLINE_LABEL[mb];
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function () {
+      root.Sources.set({ offline: this.value });
+      root.Roads.setCacheBudget(root.Sources.offlineBytes());
+      syncOfflineNote();
+      refreshCacheSize();
+      note(root.Sources.fillsAhead()
+        ? 'Filling the map in around you whenever the network is idle.'
+        : 'Only keeping what you drive through.');
+    });
+  }
+
+  function syncOfflineNote() {
+    if (el['ctl-offline']) el['ctl-offline'].value = root.Sources.current.offline;
+    if (!el['note-offline']) return;
+    el['note-offline'].textContent = root.Sources.fillsAhead()
+      ? 'Keeps loading the area around you in the background, but only while the network is idle — your own driving always goes first. Stored on disk; it does not affect frame rate, because only the tiles right around you are drawn.'
+      : 'Only keeps the tiles you actually drive through.';
   }
 
   function openSettings() { syncSourceMenus(); refreshCacheSize(); renderAttribution(); show(el.settings); }

@@ -17,7 +17,18 @@
   'use strict';
 
   var TILE_ZOOM = 15;          // ~1.2 km per tile: small enough that a city tile fits
-  var CACHE_MAX = 48;          // tiles of parsed geometry kept in the db
+  // The disk cache is measured in BYTES, not tiles, because that is the thing
+  // the player is actually being asked about ("how much offline map do you
+  // want to keep?") and because a rural tile and a city tile differ by more
+  // than an order of magnitude.
+  //
+  // Worth being clear what this budget is NOT: it has nothing to do with what
+  // tanks a phone. This is parsed geometry in IndexedDB — disk, and cheap.
+  // What costs is RESIDENCY: MAX_TERRAIN_TILES/MAX_ROAD_TILES in app.js bound
+  // the tiles that hold GL buffers and get redrawn every frame, and those stay
+  // capped however big this gets. Keeping three thousand tiles on disk costs a
+  // phone nothing; drawing forty-nine of them costs it the frame rate.
+  var CACHE_BUDGET = 8 * 1024 * 1024;      // default ~8 MB of offline map
   var MAX_BUILDINGS = 1200;    // per tile, densest-first is not worth the bytes
 
   // Metres of carriageway per OSM highway class, and how light the surface is.
@@ -559,11 +570,41 @@
     return db().put({ id: 'index', map: index }).catch(function () {});
   }
 
+  // An index entry used to be a bare timestamp. It is now { at, bytes }, and a
+  // cache written before that is read as a timestamp with an assumed size —
+  // nobody has to clear anything.
+  // `index` is NULL until loadIndex() has run, and backgroundFill asks these
+  // on every frame from the first one — so each has to survive being called
+  // before the cache index exists.
+  function entryAt(k) { var e = index && index[k]; return typeof e === 'number' ? e : (e && e.at) || 0; }
+  function entryBytes(k) { var e = index && index[k]; return typeof e === 'number' ? 120000 : (e && e.bytes) || 120000; }
+  function cacheBytes() {
+    var t = 0;
+    if (!index) return 0;
+    for (var k in index) t += entryBytes(k);
+    return t;
+  }
+  function setCacheBudget(bytes) { CACHE_BUDGET = Math.max(2 * 1024 * 1024, bytes | 0); }
+  function isCached(key) { return !!(index && index[key]) || !!memory[key]; }
+  // Mark a tile as used WITHOUT forgetting how big it is — the whole point of
+  // a byte budget is that the size survives a cache hit.
+  function touch(key) {
+    if (!index) index = {};
+    var b = index[key] ? entryBytes(key) : 120000;
+    index[key] = { at: Date.now(), bytes: b };
+  }
+
   function evictIfNeeded() {
+    if (!index) return Promise.resolve();
+    var total = cacheBytes();
+    if (total <= CACHE_BUDGET) return Promise.resolve();
     var keys = Object.keys(index);
-    if (keys.length <= CACHE_MAX) return Promise.resolve();
-    keys.sort(function (a, b) { return index[a] - index[b]; });      // oldest first
-    var drop = keys.slice(0, keys.length - CACHE_MAX);
+    keys.sort(function (a, b) { return entryAt(a) - entryAt(b); });   // oldest first
+    var drop = [];
+    for (var i = 0; i < keys.length && total > CACHE_BUDGET; i++) {
+      total -= entryBytes(keys[i]);
+      drop.push(keys[i]);
+    }
     return Promise.all(drop.map(function (k) {
       delete index[k];
       return db().delete('t' + k).catch(function () {});
@@ -596,16 +637,24 @@
         var staleDense = rec.dense && (Date.now() - (rec.at || 0) > DENSE_RETRY_MS)
           && root.Sources.current.quality !== 'low';
         if (!staleDense) {
-          var hit = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [], dense: !!rec.dense };
+          // land and pool MUST be read back too. They were added to the write
+          // and not to the read, so every cache HIT silently returned a tile
+          // with no landcover and no swimming pools — which reads exactly like
+          // "OSM has nothing tagged here", the one thing landcover was built to
+          // distinguish from. Re-driving a street was quietly worse than
+          // driving it the first time.
+          var hit = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [],
+                      land: rec.land || [], pool: rec.pool || [], dense: !!rec.dense };
           memory[key] = hit;
-          index[key] = Date.now(); saveIndex();
+          touch(key); saveIndex();
           return hit;
         }
         return fetchTile(tile, key).catch(function () {
           // The retry failed too — the stale roads are still a world to drive.
-          var old = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [], dense: true };
+          var old = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [],
+                      land: rec.land || [], pool: rec.pool || [], dense: true };
           memory[key] = old;
-          index[key] = Date.now(); saveIndex();
+          touch(key); saveIndex();
           return old;
         });
       }
@@ -711,7 +760,12 @@
 
     return attempt(0, wantBuildings).then(function (geom) {
       memory[key] = geom;
-      index[key] = Date.now();
+      // Measured, not guessed: a city tile and a moor tile differ by more than
+      // an order of magnitude, and a budget in MB has to mean MB.
+      var approx = 0;
+      try { approx = JSON.stringify({ w: geom.ways, b: geom.bld, t: geom.wat, l: geom.land, p: geom.pool }).length; }
+      catch (e) { approx = 120000; }
+      index[key] = { at: Date.now(), bytes: approx };
       return db().put({
         id: 't' + key, ways: geom.ways, bld: geom.bld, wat: geom.wat, land: geom.land, pool: geom.pool,
         dense: !!geom.dense,
@@ -1821,6 +1875,7 @@
       });
     },
     cacheSize: function () { return index ? Object.keys(index).length : 0; },
+    cacheBytes: cacheBytes, setCacheBudget: setCacheBudget, isCached: isCached,
     // Pure decisions, exported so a suite can assert them directly. Guessing a
     // height and recognising a brand both have loud visual consequences and
     // neither is observable from the far end of build(), which only ever hands
