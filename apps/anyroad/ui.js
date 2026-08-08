@@ -36,7 +36,7 @@
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
      'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-offline','note-offline',
      'street','passing','recent','cockpit','cockpit-wheel','pov-eye',
-     'dash-speed','dash-cond-fill','speedo',
+     'dash-speed','dash-cond-fill','speedo','btn-fly','fly-plane','fly-car','dash-unit',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
@@ -61,6 +61,12 @@
       setView(v);
     });
     $('btn-hop').addEventListener('click', function () { show(el.landing); });
+    if (el['btn-fly']) {
+      el['btn-fly'].addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (hooks.onFly) hooks.onFly();
+      });
+    }
     $('close-settings').addEventListener('click', function () { hide(el.settings); });
     $('close-race').addEventListener('click', function () { hide(el.race); });
     // The same close at the BOTTOM of each sheet. On a laptop these panels are
@@ -580,7 +586,19 @@
         el['cockpit-wheel'].style.transform = 'translateX(-50%) rotate(' + deg.toFixed(1) + 'deg)';
         last.povDeg = deg;
       }
-      var dk = Math.round(s.speed);
+      // Flying: the button offers the OTHER vehicle, the readout becomes an
+      // altimeter, and the whole cockpit takes a warmer tint so there is never
+      // a doubt about which one you are in.
+      var fly = !!(s.flying || s.falling);
+      if (fly !== last.flying) {
+        last.flying = fly;
+        if (el.cockpit) el.cockpit.classList.toggle('flying', fly);
+        if (el['fly-plane']) el['fly-plane'].hidden = fly;
+        if (el['fly-car']) el['fly-car'].hidden = !fly;
+        if (el['btn-fly']) el['btn-fly'].setAttribute('aria-label', fly ? 'Be a car again' : 'Take off');
+        if (el['dash-unit']) el['dash-unit'].textContent = fly ? 'm above ground' : 'km/h';
+      }
+      var dk = fly ? (s.agl || 0) : Math.round(s.speed);
       if (dk !== last.dashKph && el['dash-speed']) {
         el['dash-speed'].textContent = dk;
         last.dashKph = dk;

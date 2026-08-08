@@ -799,6 +799,21 @@
     return { rescued: wasWet, x: car.x, z: car.z, inWater: car.inWater };
   }
 
+  // Wings on, wings off. Two separate decisions: taking off is free, and
+  // deciding to be a car again at 300 m is not — you fall, and the landing is
+  // judged on how fast you were going down when you arrived.
+  function toggleFlight() {
+    if (car.flying) {
+      root.Car.beCar(car);
+      root.UI.note('Wings off — brace.');
+      root.Sound.thump && root.Sound.thump(0.5);
+    } else if (!car.falling && !car.wrecked) {
+      root.Car.takeOff(car);
+      root.UI.note('Up. GO climbs, BRAKE descends, steer to turn.');
+    }
+    return !!car.flying;
+  }
+
   // ---- camera --------------------------------------------------------------
   function updateCamera(dt) {
     var back = 8.5, up = 3.4, ahead = 9;
@@ -981,9 +996,13 @@
         // edit and its only caller did not, so every pool on the map was
         // decorative for a day. Anything that reads "you are in water" and is
         // not wired into the loop is dead code that looks alive.
-        updateInWater();
+        // Ground hazards stop applying once you are properly off it. Below a
+        // few metres they still do, which is what makes a low pass over a
+        // street genuinely risky rather than a cheat.
+        var airborne = (car.flying || car.falling) && car.agl > 4;
+        if (!airborne) updateInWater(); else { car.inWater = false; car.deepWater = false; }
         root.Car.update(car, input, dt / steps, world.frame);
-        collideBuildings(dt / steps);
+        if (!airborne) collideBuildings(dt / steps);
       }
       wildlife(dt);
       otherCars(dt);
@@ -1039,7 +1058,8 @@
     // once the blend is mostly there; everyone else's stays.
     if (cockK < 0.6) {
       scene.cars.push({ x: car.x, y: car.y, z: car.z, yaw: car.yaw, pitch: car.pitch, roll: car.roll,
-                        tint: [0.90, 0.24, 0.22], blaster: root.Blaster.enabled() });
+                        tint: [0.90, 0.24, 0.22], blaster: root.Blaster.enabled(),
+                        plane: car.flying || car.falling });
     }
     root.MP.ghosts().forEach(function (g) {
       scene.cars.push({ x: g.x, y: g.y, z: g.z, yaw: g.yaw, pitch: 0, roll: 0, tint: g.tint });
@@ -1127,6 +1147,7 @@
       loading: pendingCount(),
       tiles: tileMap(),
       view: viewName(),
+      flying: car.flying, falling: car.falling, agl: Math.round(car.agl || 0),
       ready: grounded && roadsBuilt() > 0,
       net: root.Net.stats(),
       airborne: car.airborne,
@@ -1191,6 +1212,7 @@
       onRepair: repairAndRescue,
       onUnstick: unstick,
       onView: cycleView,
+      onFly: toggleFlight,
       car: function () { return car; },
       frame: function () { return world.frame; },
       world: function () { return world; },
@@ -1255,7 +1277,7 @@
 
   root.App = {
     boot: boot, hop: hop, search: search, world: world, unstick: unstick,
-    repairAndRescue: repairAndRescue,
+    repairAndRescue: repairAndRescue, toggleFlight: toggleFlight,
     redrape: redrape,
     imagery: function () {
       return { source: root.Sources.current.imagery, tried: imagery.tried,
@@ -1276,7 +1298,8 @@
         input: controls ? JSON.parse(JSON.stringify(controls.input)) : null,
         speed: car.speed, x: car.x, z: car.z, y: car.y,
         camera: { x: camera.x, y: camera.y, z: camera.z },
-        view: viewName(), birdK: birdK, cockK: cockK,
+        view: viewName(),
+      flying: car.flying, falling: car.falling, agl: Math.round(car.agl || 0), birdK: birdK, cockK: cockK,
         scorches: scorches.length, puffs: puffs.length,
       };
     },

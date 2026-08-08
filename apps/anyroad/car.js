@@ -28,6 +28,10 @@
       inWater: false,
       deepWater: false,     // deep drowns you; shallow is a ford
       sink: 0,              // metres the body has settled into water
+      flying: false,        // engine on, wings on, ground optional
+      falling: false,       // wings OFF and gravity winning
+      vy: 0,                // vertical speed, m/s
+      agl: 0,               // metres above the ground under you
       contactT: 0,        // seconds of unbroken contact with a wall
       hurtCool: 0,        // seconds until another impact may be charged
       revArm: 0,          // seconds the brake has been held at a standstill
@@ -134,6 +138,7 @@
   function repair(car) {
     car.health = 100; car.wrecked = false; car.contactT = 0;
     car.inWater = false; car.deepWater = false; car.sink = 0;
+    car.flying = false; car.falling = false; car.vy = 0; car.agl = 0;
     car.revArm = 0; car.stillT = 0; car.halted = false;
   }
 
@@ -239,6 +244,80 @@
     // --- steering: smoothed, and less authoritative the faster you go -------
     var target = park ? 0 : Math.max(-1, Math.min(1, input.steer));
     car.steer += (target - car.steer) * Math.min(1, dt * 9);
+
+    // ---- flight --------------------------------------------------------------
+    // Arcade, not a simulator, and the reason is the controls: this game is
+    // played with one thumb on a phone. So there is no separate pitch axis and
+    // no stall — GO climbs, BRAKE descends, steering turns, and the aircraft
+    // holds its speed. Pitch and roll are DERIVED from what you asked for
+    // rather than flown directly, which is what makes it feel like an aeroplane
+    // without needing a second control surface.
+    // PLACED HERE ON PURPOSE, after park/inThrottle/inBrake/target exist. The
+    // first cut sat above them, so every one was undefined: the yaw update went
+    // NaN, the climb never started, and the aircraft "landed" on the substep it
+    // took off. A block that reads inputs has to live downstream of them.
+    if (car.flying || car.falling) {
+      var gy = frame ? root.Terrain.heightAt(frame, car.x, car.z) : null;
+      var ground = (gy === null ? 0 : gy);
+
+      if (car.flying) {
+        var want = park ? 0 : (inThrottle > 0.1 ? 1 : (inBrake > 0.1 ? -1 : 0));
+        car.vy += (want * 16 - car.vy) * Math.min(1, dt * 1.6);
+        // Air is not tarmac: an aeroplane holds its cruise unless you are
+        // hauling it upwards, which costs you speed the way it should.
+        var cruise = 46 - Math.max(0, car.vy) * 0.55;
+        car.speed += (cruise - car.speed) * Math.min(1, dt * 0.55);
+        car.yaw += target * dt * 0.55;               // bank turns
+        car.roll += (-target * 0.55 - car.roll) * Math.min(1, dt * 3.0);
+        car.pitch += ((car.vy / 26) - car.pitch) * Math.min(1, dt * 2.6);
+      } else {
+        // Wings off. Gravity, a little forward carry, and no authority at all
+        // beyond a lazy roll — pressing "car" in mid-air is a decision you get
+        // to watch happen.
+        car.vy -= 9.81 * dt;
+        car.speed *= Math.max(0, 1 - dt * 0.35);
+        car.yaw += target * dt * 0.18;
+        car.roll += (target * 0.30 - car.roll) * Math.min(1, dt * 1.4);
+        car.pitch += ((-0.6) - car.pitch) * Math.min(1, dt * 0.9);
+      }
+
+      // THE FLARE. Holding BRAKE gives a 16 m/s descent, which is above the
+      // 11 m/s that counts as an accident — so before this, a fully controlled
+      // approach still broke the aircraft and there was no way to land on
+      // purpose at all. With the wings still on, the sink rate is squeezed as
+      // the ground comes up: about 4 m/s at touchdown however hard you were
+      // diving. Deliberately NOT applied while falling — wings off is supposed
+      // to end badly, and that is the whole weight of the decision.
+      if (car.flying && car.vy < 0 && car.agl < 30) {
+        var floor = -(3.5 + car.agl * 0.22);
+        if (car.vy < floor) car.vy = floor;
+      }
+      car.y += car.vy * dt;
+      var dxf = Math.sin(car.yaw) * car.speed * dt, dzf = Math.cos(car.yaw) * car.speed * dt;
+      car.x += dxf; car.z += dzf;
+      car.agl = car.y - ground;
+
+      // Only a DESCENT can land you. Without this the climb-out lands on its
+      // first substep, because you leave the ground from agl 0.
+      if (car.agl <= 0.55 && car.vy <= 0) {
+        // Back on the ground. How hard you arrived decides whether that was a
+        // landing or an accident — and the threshold is vertical speed, which
+        // is the number a real pilot is watching too.
+        car.y = ground;
+        var hard = -car.vy;
+        car.flying = false; car.falling = false;
+        car.vy = 0; car.pitch = 0; car.roll = 0;
+        car.landedHard = hard > 11;
+        if (car.landedHard) {
+          car.health = Math.max(0, car.health - Math.min(90, (hard - 11) * 6));
+          car.speed *= 0.25;
+          if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+        }
+        return car;
+      }
+      return car;
+    }
+
     var v = Math.abs(car.speed);
     // Full lock at a crawl, about a third of it at motorway speed.
     var authority = 1 / (1 + v * 0.055);
@@ -722,5 +801,20 @@
 
   root.Car = { create: create, update: update, controls: controls, blankInput: blankInput,
                collide: collide, repair: repair, place: place,
+               // Take off, or throw the wings away. Two calls, because they are
+               // two different decisions and only one of them is reversible.
+               takeOff: function (car) {
+                 if (car.wrecked) return false;
+                 car.flying = true; car.falling = false;
+                 car.inWater = false; car.deepWater = false; car.sink = 0;
+                 car.vy = Math.max(car.vy, 9);          // a definite hop off the ground
+                 car.speed = Math.max(car.speed, 26);
+                 return true;
+               },
+               beCar: function (car) {
+                 if (!car.flying) return false;
+                 car.flying = false; car.falling = true;
+                 return true;
+               },
                REV_MAX: REV_MAX, REV_ARM: REV_ARM };
 })(window);

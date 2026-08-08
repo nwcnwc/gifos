@@ -1003,7 +1003,33 @@
     };
   }
 
-  var carMesh = null, carGL = null, animalGL = null, blasterGL = null, boltGL = null;
+  // A LITTLE PLANE. Same boxes as the car, same program, same per-instance
+  // matrix — so it inherits pitch and roll for free, which is most of what
+  // makes flying read as flying rather than as a car sliding through the air.
+  // Deliberately toy-shaped: high wing, fat fuselage, big tail. A realistic
+  // airliner at this scale is a grey splinter.
+  function buildPlaneMesh() {
+    var o = { pos: [], nrm: [], col: [], idx: [] };
+    var body = [0.90, 0.26, 0.24], wing = [0.94, 0.94, 0.96];
+    var glass = [0.30, 0.42, 0.55], prop = [0.20, 0.20, 0.24];
+    boxInto(o, 0, 0.55, 0.30, 0.62, 0.62, 2.90, body);      // fuselage
+    boxInto(o, 0, 0.62, -1.55, 0.34, 0.34, 0.70, body);     // tail boom
+    boxInto(o, 0, 0.86, 0.62, 0.52, 0.40, 0.80, glass);     // canopy
+    boxInto(o, 0, 1.02, 0.36, 3.60, 0.10, 0.78, wing);      // high wing
+    boxInto(o, 0, 0.72, -1.86, 1.30, 0.08, 0.42, wing);     // tailplane
+    boxInto(o, 0, 1.12, -1.86, 0.08, 0.64, 0.40, wing);     // fin
+    boxInto(o, 0, 0.55, 1.80, 0.26, 0.26, 0.16, prop);      // spinner
+    boxInto(o, 0, 0.55, 1.86, 1.70, 0.09, 0.05, prop);      // propeller disc
+    boxInto(o, -1.05, 0.16, 0.40, 0.14, 0.52, 0.14, prop);  // gear legs
+    boxInto(o, 1.05, 0.16, 0.40, 0.14, 0.52, 0.14, prop);
+    return { positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
+             colors: new Float32Array(o.col), indices: new Uint16Array(o.idx) };
+  }
+  var carMesh = null, carGL = null, planeGL = null, animalGL = null, blasterGL = null, boltGL = null;
+  function uploadPlane() {
+    if (!planeGL) planeGL = uploadBody(buildPlaneMesh());
+    return planeGL;
+  }
 
   function uploadBody(mesh) {
     var b = { vbo: {}, ibo: gl.createBuffer(), count: mesh.count, type: gl.UNSIGNED_SHORT };
@@ -1420,8 +1446,23 @@
       gl.uniform3fv(progs.car.u.uShape, ONE);
       gl.uniform1f(progs.car.u.uGloss, 1);
       gl.uniform1f(progs.car.u.uEmit, 0);
+      var boundPlane = false;
+      function bindBody(g) {
+        ['aPos','aNormal','aColor'].forEach(function (name) {
+          var loc = progs.car.a[name];
+          if (loc === undefined || loc < 0) return;
+          gl.bindBuffer(gl.ARRAY_BUFFER, g.vbo[name]);
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+        });
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, g.ibo);
+      }
       for (var c = 0; c < scene.cars.length; c++) {
         var car = scene.cars[c];
+        // One program, two meshes. Rebinding only on CHANGE keeps the usual
+        // all-cars case at exactly the cost it had before flight existed.
+        var wantPlane = !!car.plane;
+        if (wantPlane !== boundPlane) { bindBody(wantPlane ? uploadPlane() : cg); boundPlane = wantPlane; }
         carMatrix(m, car.x, car.y, car.z, car.yaw, car.pitch || 0, car.roll || 0);
         gl.uniformMatrix4fv(progs.car.u.uModel, false, m);
         gl.uniform3fv(progs.car.u.uTint, car.tint || [0.85, 0.25, 0.25]);
@@ -1430,7 +1471,8 @@
         var cs = car.scale || 1;
         if (cs !== 1) gl.uniform3fv(progs.car.u.uShape, [cs, cs, cs]);
         if (car.emit) gl.uniform1f(progs.car.u.uEmit, car.emit);
-        gl.drawElements(gl.TRIANGLES, cg.count, cg.type, 0);
+        var gnow = boundPlane ? uploadPlane() : cg;
+        gl.drawElements(gl.TRIANGLES, gnow.count, gnow.type, 0);
         if (cs !== 1) gl.uniform3fv(progs.car.u.uShape, ONE);
         if (car.emit) gl.uniform1f(progs.car.u.uEmit, 0);
       }
