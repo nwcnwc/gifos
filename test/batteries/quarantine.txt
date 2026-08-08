@@ -108,7 +108,25 @@
 # SENDER-side (known-unfixed.sh FAILOVER-WAKE: container identity across
 # reships + a carry guarantee after 'w'); promotion returns when that
 # campaign lands and the zombie class dies.
-mirror-drill  NONDETERMINISTIC known-unfixed: default wake/failover legs red ~1-in-3 at loadavg>9 on the 8-core gate host (zombie-parked-pipe, sender-side class); clean below load ~8. Promote when the container-identity campaign retires the zombie class — see known-unfixed.sh FAILOVER-WAKE.
+#
+# PROMOTED 2026-08-08 EVENING — that campaign LANDED the same day (container
+# identity across reships + the carry guarantee after 'w' + husk-cycle
+# announce expiry; run.html, commits f7db0f5..2ff6e2a), and the entry's own
+# criterion is met: the zombie class is structurally dead (a wake can no
+# longer be sid-mismatch-ignored — sids are per-job constants; a husk stops
+# being a candidate after the grace) and DID NOT RECUR in any post-campaign
+# run — 9 mirror runs + 8 redun runs across clawbox and the gate host,
+# including sdn multi-hop failovers of 2.3-2.4s at loadavg 10.7 (inside the
+# old red band) and 4/4 default-mode green at the final tree. The campaign's
+# OWN two mirror regressions along the way (a trackless-source teardown, and
+# carryHusk pausing mid-chain re-park announces) were each caught by this
+# drill within one battery, fixed, and are pinned in
+# test/unit/container-identity.js. The one >60s residual observed (loadavg
+# 12.61 on the 6-core Jetson) shows the mechanism firing end to end —
+# demand, wake, swap, first frame — and the decoder starving: a box problem,
+# the strict-bound class, which stays in known-unfixed.sh FAILOVER-WAKE.
+# If a default-mode leg reds on an idle box, that is a REGRESSION to hunt,
+# not a reason to re-add this entry.
 
 # PROMOTED 2026-08-06 — redun-drill is back in the gate, and the entry that
 # lived here was wrong about what failed. Recorded so nobody re-adds it blind.
