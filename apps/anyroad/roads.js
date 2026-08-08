@@ -145,6 +145,12 @@
       parts.push('way["natural"~"^(' + LAND_KEYS.join('|') + ')$"](' + bb + ');');
       parts.push('way["landuse"~"^(' + LAND_KEYS.join('|') + ')$"](' + bb + ');');
       parts.push('way["leisure"~"^(park|garden|golf_course)$"](' + bb + ');');
+      // SWIMMING POOLS. A pool is not natural=water — it is leisure=swimming_pool
+      // — so the water query never saw one and gardens full of them came out dry.
+      // Measured in Beverly Hills: 92 pools in a 900 m box, all leisure, median
+      // 72 m². That is car-sized, which is what makes it a hazard worth having.
+      parts.push('way["leisure"="swimming_pool"](' + bb + ');');
+      parts.push('way["amenity"="swimming_pool"](' + bb + ');');
     }
     parts.push('way["natural"="water"](' + bb + ');');
     return '[out:json][timeout:25];(' + parts.join('') + ');out geom;';
@@ -185,7 +191,8 @@
           if (brand && bcls === CLS.UNKNOWN) bcls = CLS.RETAIL;
           bld.push([buildingHeight(tags, ringAreaM2(flat)), flat, bcls, brand]);
         }
-      } else if (tags.natural === 'water') {
+      } else if (tags.natural === 'water'
+                 || tags.leisure === 'swimming_pool' || tags.amenity === 'swimming_pool') {
         wat.push(flat);
       } else if (withBuildings) {
         // [0] class id, [1] ring, [2] species. Kept as three small numbers and
@@ -959,6 +966,16 @@
     return m;
   })();
 
+  // Water the CAR can ask about, as opposed to water it can only look at. Same
+  // rings, same ray cast as landcover — a pool is a polygon either way.
+  function buildWaterIndex(frame, geom) {
+    var rings = [];
+    var src = (geom && geom.wat) || [];
+    for (var i = 0; i < src.length; i++) rings.push([0, src[i], '']);
+    return buildLandIndex(frame, { land: rings });
+  }
+  function inWater(index, x, z) { return !!(index && index.length && landAt(index, x, z)); }
+
   function scatter(frame, tile, geom, roadIndex, wallIndex, landIndex) {
     var out = { pos: [], nrm: [], col: [], idx: [] };
     // Trunks, as collidable segments and as shadow casters. A tree you can
@@ -1250,6 +1267,7 @@
       centre: tileCentre(frame, tile),
       paths: paths,
       index: roadIndex,
+      wet: buildWaterIndex(frame, geom),
       walls: wallIndex,
       // How many ground samples had no terrain under them. Zero means every
       // vertex stands on real ground; anything else means parts of this tile
@@ -1682,7 +1700,7 @@
   root.Roads = {
     TILE_ZOOM: TILE_ZOOM,
     loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
-    nearWalls: nearWalls, segDist: segDist, namesNear: namesNear,
+    nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater,
     clearCache: function () {
       memory = {};
       return loadIndex().then(function () {

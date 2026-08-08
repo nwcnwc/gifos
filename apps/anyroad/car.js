@@ -25,6 +25,8 @@
       odometer: 0,
       health: 100,
       wrecked: false,
+      inWater: false,
+      sink: 0,              // metres the body has settled into water
       contactT: 0,        // seconds of unbroken contact with a wall
       hurtCool: 0,        // seconds until another impact may be charged
       revArm: 0,          // seconds the brake has been held at a standstill
@@ -130,6 +132,7 @@
 
   function repair(car) {
     car.health = 100; car.wrecked = false; car.contactT = 0;
+    car.inWater = false; car.sink = 0;
     car.revArm = 0; car.stillT = 0; car.halted = false;
   }
 
@@ -177,6 +180,31 @@
     // precisely when the car is supposed to be sitting still.
     car.parked = !!input.park;
     if (car.hurtCool > 0) car.hurtCool -= dt;
+
+    // ---- in the water ------------------------------------------------------
+    // A pool is the one hazard on the map you cannot reverse out of, and that
+    // is the point of it. Water kills the drive immediately — throttle and
+    // brake both stop meaning anything — the car settles low, and the engine
+    // drowns over a couple of seconds into the ordinary wrecked state, which
+    // already has a panel and a way out. Deliberately NOT instant death: a
+    // second of sinking with the controls dead reads as "I have made a
+    // terrible mistake", which is funnier and fairer than a cut to black.
+    //
+    // Every water polygon behaves this way, not just pools. Special-casing a
+    // swimming pool while a lake stayed drivable would be the arbitrary rule.
+    if (car.inWater && !car.wrecked) {
+      car.speed *= Math.max(0, 1 - dt * 5.5);          // water is thick
+      if (Math.abs(car.speed) < 0.4) car.speed = 0;
+      car.sink = Math.min(1.35, (car.sink || 0) + dt * 1.6);
+      car.health = Math.max(0, car.health - dt * 42);  // ~2.4 s from full
+      if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+      var dxs = Math.sin(car.yaw) * car.speed * dt, dzs = Math.cos(car.yaw) * car.speed * dt;
+      car.x += dxs; car.z += dzs;
+      settle(car, frame, dt);
+      car.y -= car.sink;
+      return car;
+    }
+    if (car.sink) car.sink = Math.max(0, car.sink - dt * 2.0);
     if (car.wrecked) {
       // Wrecked: no drive, no steering authority, just roll to a halt and sit.
       car.speed *= Math.max(0, 1 - dt * 2.5);

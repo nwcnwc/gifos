@@ -759,6 +759,67 @@ function check(name, cond, detail) {
   check('est_height is somebody else\'s measurement and is taken', Math.abs(heights.estimate - 25) < 0.01,
     heights.estimate.toFixed(1) + ' m');
 
+  // ---- the swimming pool --------------------------------------------------
+  // Pools were invisible for a plain reason: a pool is NOT natural=water, it is
+  // leisure=swimming_pool, so the water query never returned one and a street
+  // of Californian gardens came out dry. Measured against live Overpass while
+  // building this: 92 pools in a 900 m box of Beverly Hills, all leisure, median
+  // 72 m² — which is car-sized, and that is what makes it a hazard worth having.
+  //
+  // And water did nothing anyway: it was drawn and never read, so a lake was
+  // tarmac. Now every water polygon drowns you — a pool that killed while a
+  // lake stayed drivable would be the arbitrary rule.
+  const pool = await fr.locator('body').evaluate(async () => {
+    const R = window.Roads, C = window.Car, G = window.Geo;
+    const frame = G.frame(34.09, -118.40);
+    const ring = (lat, lon, m) => {
+      const dLat = m / G.metresPerDegLat(lat), dLon = m / G.metresPerDegLon(lat);
+      return [lat - dLat, lon - dLon, lat - dLat, lon + dLon,
+              lat + dLat, lon + dLon, lat + dLat, lon - dLon];
+    };
+    // 4.2 m half-extent ≈ 72 m², the Beverly Hills median.
+    const wet = R.landIndexOf(frame, { land: [[0, ring(34.09, -118.40, 4.2), '']] });
+    const c = frame.toWorld(34.09, -118.40);
+    const seen = { centre: R.inWater(wet, c.x, c.z), near: R.inWater(wet, c.x + 2, c.z),
+                   away: R.inWater(wet, c.x + 15, c.z),
+                   noRings: R.inWater(R.landIndexOf(frame, {}), c.x, c.z) };
+    // Drive a healthy car in at speed, with the throttle pinned.
+    const car = C.create(0, 0, 0); car.speed = 18; car.inWater = true;
+    const drive = { throttle: 1, brake: 0, steer: 0, handbrake: false,
+                    autoTarget: 0, park: false, go: false, fire: false, noRev: false };
+    let t = 0, wreckedAt = null, at1s = null, sank = 0;
+    for (let i = 0; i < 400 && wreckedAt === null; i++) {
+      C.update(car, drive, 0.02, frame); t += 0.02;
+      sank = Math.max(sank, car.sink || 0);
+      if (at1s === null && t >= 1) at1s = car.speed;
+      if (car.wrecked) wreckedAt = t;
+    }
+    C.repair(car);
+    const recovered = { wrecked: car.wrecked, health: car.health, sink: car.sink, inWater: car.inWater };
+    // A car on dry land must be completely unaffected by any of this.
+    const dry = C.create(0, 0, 0); dry.speed = 18; dry.inWater = false;
+    for (let i = 0; i < 100; i++) C.update(dry, drive, 0.02, frame);
+    return { seen, at1s, sank, wreckedAt, recovered, dryHealth: dry.health, drySpeed: dry.speed };
+  });
+  check('a median-sized swimming pool is water the car can feel',
+    pool.seen.centre && pool.seen.near && !pool.seen.away && !pool.seen.noRings,
+    JSON.stringify(pool.seen));
+  check('full throttle will not drive you out of it',
+    pool.at1s < 1, pool.at1s.toFixed(2) + ' m/s one second after going in at 18');
+  check('…the car settles into the water rather than floating on it',
+    pool.sank > 0.8, pool.sank.toFixed(2) + ' m');
+  // Not instant, and not never: a second of sinking with dead controls is the
+  // bit that reads as "I have made a terrible mistake".
+  check('…and it drowns in a couple of seconds, not instantly and not never',
+    pool.wreckedAt > 1.5 && pool.wreckedAt < 4, pool.wreckedAt.toFixed(2) + ' s');
+  check('there is a way out — repair clears the wreck, the sink and the water flag',
+    !pool.recovered.wrecked && pool.recovered.health === 100
+    && pool.recovered.sink === 0 && pool.recovered.inWater === false,
+    JSON.stringify(pool.recovered));
+  check('a car on dry land is untouched by any of it',
+    pool.dryHealth === 100 && pool.drySpeed > 10,
+    pool.dryHealth + '% health, ' + pool.drySpeed.toFixed(1) + ' m/s');
+
   // ---- what does the ground say grows on it? ------------------------------
   // A tree's species used to be chosen by ALTITUDE — conifer above 900 m — which
   // is a guess dressed as a rule, and it plants the same Surrey oak in the
