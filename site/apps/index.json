@@ -46,7 +46,8 @@
       ],
       "cover": "/apps/anyroad/cover.jpg",
       "bytes": 336018,
-      "signature": null
+      "signature": null,
+      "sha256": "58da38d8b2dc82627b44160df394cb19bcb4b4ddf186c9cc7311016572598325"
     },
     {
       "slug": "chess-grandmaster",
@@ -83,7 +84,8 @@
         "type": "domain",
         "id": "gifos.app",
         "ts": "2026-08-02"
-      }
+      },
+      "sha256": "5420910218076ec44a40ca1f1b7a8db5cec74d27c4ab29aa23abde26ee02b2bb"
     },
     {
       "slug": "fluence",
@@ -120,7 +122,8 @@
         "type": "domain",
         "id": "gifos.app",
         "ts": "2026-08-02"
-      }
+      },
+      "sha256": "64ac94f9d22876c929a3aed24e005a6bc0e819809f60a2570d5f88b3b49f9f7b"
     },
     {
       "slug": "sound-it-out",
@@ -155,7 +158,8 @@
       ],
       "cover": "/apps/sound-it-out/cover.jpg",
       "bytes": 2426096,
-      "signature": null
+      "signature": null,
+      "sha256": "099379cbb416564f32b5ed550fcfed8821ed1f4295ac551bc1e420b56d6a4425"
     }
   ]
 }
