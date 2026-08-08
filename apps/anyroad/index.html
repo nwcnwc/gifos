@@ -13,6 +13,16 @@
 <!-- The wheel you see from the driver's seat. Only the top arc is above the
      dash, which is what you actually see out of a real car. -->
 <div id="cockpit" hidden aria-hidden="true">
+  <!-- The dash. Its top edge curves down at the sides the way a moulded
+       dashboard does, so it reads as part of the car rather than as a black
+       bar laid over the picture. -->
+  <div id="dash">
+    <div id="dash-cluster">
+      <div id="dash-speed">0</div>
+      <div id="dash-unit">km/h</div>
+      <div id="dash-cond"><i id="dash-cond-fill"></i></div>
+    </div>
+  </div>
   <div id="cockpit-wheel">
     <svg viewBox="0 0 200 200" width="100%" height="100%" aria-hidden="true">
       <circle cx="100" cy="100" r="86" fill="none" stroke="rgba(18,20,26,.92)" stroke-width="17"/>
@@ -40,7 +50,17 @@
     </div>
     <div class="spacer"></div>
     <!-- Bird's eye flies the game camera itself — no inset, no second map. -->
-    <button class="chip" id="btn-map" aria-label="Change point of view">🎥<span class="povname" id="pov-name">Chase</span></button>
+    <button class="chip" id="btn-map" aria-label="Change point of view">
+      <svg id="pov-eye" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="none"
+              stroke="currentColor" stroke-width="1.6" opacity=".75"/>
+        <g id="pov-pupil">
+          <ellipse id="pov-white" cx="12" cy="12" rx="6.4" ry="4.2" fill="none"
+                   stroke="currentColor" stroke-width="1.7"/>
+          <circle id="pov-iris" cx="12" cy="12" r="2.1" fill="currentColor"/>
+        </g>
+      </svg>
+    </button>
     <button class="chip" id="btn-race" aria-label="Races">🏁<span class="badge" id="race-badge" hidden></span></button>
     <button class="chip" id="btn-hop" aria-label="Go somewhere else">🌍</button>
     <!-- The loading map. Tiny, north-up, and only on screen while something is

@@ -35,7 +35,8 @@
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
      'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-offline','note-offline',
-     'street','passing','recent','cockpit','cockpit-wheel','pov-name',
+     'street','passing','recent','cockpit','cockpit-wheel','pov-eye',
+     'dash-speed','dash-cond-fill','speedo',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
@@ -462,11 +463,27 @@
   // steering wheel that only exists from the driver's seat.
   var POV_LABEL = { chase: 'Chase', cockpit: 'Driver', bird: 'Bird' };
   function setView(v) {
-    if (el['pov-name']) el['pov-name'].textContent = POV_LABEL[v] || v;
-    if (el.cockpit) el.cockpit.hidden = (v !== 'cockpit');
+    var cockpit = (v === 'cockpit');
+    if (el.cockpit) el.cockpit.hidden = !cockpit;
+    // The eye states WHICH view by how much of its frame it fills, so the
+    // button needs no word on it — which is the only version that survives a
+    // phone-sized top bar.
     var b = $('btn-map');
-    if (b) b.setAttribute('aria-label', 'Point of view: ' + (POV_LABEL[v] || v) + ' — tap to change');
+    if (b) {
+      b.classList.remove('pov-chase', 'pov-cockpit', 'pov-bird');
+      b.classList.add('pov-' + v);
+      b.setAttribute('aria-label', 'Point of view: ' + (POV_LABEL[v] || v) + ' — tap to change');
+    }
+    // The corner speedo and the dash one are the SAME reading in two places,
+    // so only one may ever be on screen. From the driver's seat the number
+    // belongs on the dashboard.
+    // The corner speedo AND the corner condition bar both move onto the dash
+    // from the driver's seat — two readings of the same number in one view is
+    // clutter, and the dash is where a driver looks for them anyway.
+    if (el.speedo) el.speedo.hidden = cockpit;
+    if (el.health) el.health.hidden = cockpit;
     last.view = v;
+    last.dashKph = null;      // force a rewrite on the next frame
   }
 
   function renderAttribution() {
@@ -562,6 +579,16 @@
       if (deg !== last.povDeg) {
         el['cockpit-wheel'].style.transform = 'translateX(-50%) rotate(' + deg.toFixed(1) + 'deg)';
         last.povDeg = deg;
+      }
+      var dk = Math.round(s.speed);
+      if (dk !== last.dashKph && el['dash-speed']) {
+        el['dash-speed'].textContent = dk;
+        last.dashKph = dk;
+      }
+      var dh = Math.max(0, Math.min(100, s.health == null ? 100 : s.health));
+      if (dh !== last.dashHealth && el['dash-cond-fill']) {
+        el['dash-cond-fill'].style.width = dh + '%';
+        last.dashHealth = dh;
       }
     }
     var kph = Math.round(s.speed);
