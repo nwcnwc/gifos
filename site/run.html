@@ -7969,6 +7969,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // minutes by design and MUST stay claimable).
       const carryHusk = (job, tracks) => {
         if (!job.active) { job.mutedAt = 0; return false; }
+        // The sdnm mirror lane is muted BY DESIGN in every steady state —
+        // born parked, carriers relay parked feeds, and during the failback
+        // RE-PARK a mid-chain hop is legitimately active-with-muted-upstream
+        // for as long as the '=i' cascade takes. The first cut of this rule
+        // paused exactly that hop's announce and broke the re-parked mirror
+        // (measured 2026-08-08: 'mirror standby is DORMANT again before the
+        // kill' red at IDLE on both boxes, a leg that had never failed).
+        // The mirror's true death is the TRACKLESS breaker below; a fruitless
+        // mirror wake is bounded by WAKE_MAX at the receiver. The carry
+        // guarantee's prey is the stg/sdrow husk cycle, and only that.
+        if (String(job.key).indexOf('sdnm:') === 0) { job.mutedAt = 0; return false; }
         if (!(tracks.length > 0 && tracks.every((t) => t.muted))) { job.mutedAt = 0; return false; }
         if (!job.mutedAt) job.mutedAt = Date.now();
         return Date.now() - job.mutedAt > MOS_GRACE;
