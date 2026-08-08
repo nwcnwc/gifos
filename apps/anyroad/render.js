@@ -202,6 +202,7 @@
     ].join('\n'), [
       'precision highp float;',
       'uniform vec3 uLightDir; uniform sampler2D uTex; uniform float uHasTex;',
+      'uniform float uDrapeGround;',
       'varying vec3 vNormal; varying vec2 vUv; varying float vHeight; varying vec2 vWorldXZ;',
       NOISE, FOG, LIGHTING,
       'void main(){',
@@ -261,7 +262,7 @@
       // readable terrain in it at all.
       '  base = mix(base, snow, smoothstep(2450.0, 3100.0, vHeight) * (1.0 - smoothstep(0.5, 0.8, slope)));',
       '  vec3 photo = texture2D(uTex, vUv).rgb;',
-      '  base = mix(base, photo, uHasTex);',
+      '  base = mix(base, photo, uHasTex * uDrapeGround);',
       // Cheap ambient occlusion in the folds: a hollow faces sideways more than
       // a ridge does, so the slope term doubles as a crease darkener and the
       // hills stop looking inflated.
@@ -273,7 +274,7 @@
       // again. Where the drape is on, flatten toward ambient and let the
       // picture carry its own light.
       '  vec3 flatLit = base * (uSkyFill + uSunColor * 0.62);',
-      '  gl_FragColor = vec4(finish(mix(lit, flatLit, uHasTex * 0.75)), 1.0);',
+      '  gl_FragColor = vec4(finish(mix(lit, flatLit, uHasTex * uDrapeGround * 0.75)), 1.0);',
       '}',
     ].join('\n'));
 
@@ -403,6 +404,7 @@
       // rect in world space and the uv falls out of vWorld with no extra vertex
       // attribute to pack, bake or invalidate when the drape is toggled.
       'uniform sampler2D uTex; uniform float uHasTex; uniform vec4 uTileRect;',
+      'uniform float uDrape;',
       'varying vec3 vNormal; varying float vTone; varying vec3 vWorld; varying vec3 vBinfo;',
       NOISE, FOG, LIGHTING,
       'void main(){',
@@ -567,15 +569,11 @@
       // is darker than the same roof lit by our own sun, and a roof that reads
       // darker than the wall under it looks like a hole in the building.
       '  photoRoof *= 1.18;',
-      // 0.55, not 1.0, and the reason is arithmetic rather than taste. At the
-      // terrain tile's z14 the imagery is ~3.1 m per pixel, so a house roof is
-      // two or three texels wide and one bilinear sample spans ~6 m — it takes
-      // in the street and the neighbour's garden along with the roof. Taken at
-      // full strength that turns a row of Paris roofs sage green (measured);
-      // as a tint it moves them off terracotta and toward the zinc they
-      // actually are, which is the win that was available. Raise this the day
-      // imagery is fetched at a zoom where a roof is bigger than a texel.
-      '  float drape = uHasTex * 0.55;',
+      // How far the photograph is allowed to move the roof, 0..1. A uniform
+      // rather than a baked constant so the number can be judged side by side
+      // on ONE frame — rebuilding between strengths re-hops the world and you
+      // end up comparing two different hillsides.
+      '  float drape = uHasTex * uDrape;',
       '  roof = mix(roof, photoRoof, drape);',
       '  vec3 tileHue = photoRoof;',
       '  roof *= 0.86 + 0.30 * clutter;',
@@ -1055,6 +1053,12 @@
   }
 
   // ---- imagery texture -----------------------------------------------------
+  // How strongly the photograph overrides the stylised look, 0..1, separately
+  // for the GROUND and for ROOFS. They want different numbers: at the terrain
+  // tile's z14 the ground is a big smooth surface where the imagery reads well,
+  // while a roof is two or three texels across and takes the street and the
+  // neighbour's garden in with it — so the roof wants the gentler hand.
+  var drapeGround = 1.0, drapeRoof = 0.55;
   var textures = {};
   function textureFor(key, bitmap) {
     if (textures[key]) return textures[key];
@@ -1236,6 +1240,7 @@
       var t = scene.terrain[i];
       gl.bindTexture(gl.TEXTURE_2D, t.texture || blank());
       gl.uniform1f(progs.terrain.u.uHasTex, t.texture ? 1 : 0);
+      gl.uniform1f(progs.terrain.u.uDrapeGround, drapeGround);
       drawMesh(progs.terrain, t.mesh, {
         aPos: { src: 'positions', size: 3 }, aNormal: { src: 'normals', size: 3 }, aUv: { src: 'uvs', size: 2 },
       });
@@ -1290,6 +1295,7 @@
       var btex = bl && bl.texture ? bl.texture : null;
       gl.bindTexture(gl.TEXTURE_2D, btex || blank());
       gl.uniform1f(progs.building.u.uHasTex, btex ? 1 : 0);
+      gl.uniform1f(progs.building.u.uDrape, drapeRoof);
       // A degenerate rect would divide by zero in the shader; the identity here
       // is never sampled because uHasTex is 0 alongside it.
       gl.uniform4fv(progs.building.u.uTileRect, (btex && bl.rect) || [0, 1, 1, 0]);
@@ -1547,6 +1553,12 @@
 
   root.Render = {
     init: init, draw: draw, textureFor: textureFor,
+    // Settable so the two numbers can be judged side by side on ONE frame.
+    setDrape: function (ground, roof) {
+      if (ground != null) drapeGround = Math.max(0, Math.min(1, ground));
+      if (roof != null) drapeRoof = Math.max(0, Math.min(1, roof));
+    },
+    drape: function () { return { ground: drapeGround, roof: drapeRoof }; },
     get gl() { return gl; },
     isGL2: function () { return isGL2; },
     // The sun direction, normalised. roads.js bakes the shadows against it at
