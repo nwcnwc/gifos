@@ -167,7 +167,7 @@
   // touch, and a replayed ghost. `park` is the whole-car override: a panel is
   // over the screen, so the car is not being driven and must not be creeping
   // into a building while the player reads it.
-  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0, park: false, go: false, fire: false }; }
+  function blankInput() { return { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0, park: false, go: false, fire: false, noRev: false }; }
 
   function update(car, input, dt, frame) {
     dt = Math.min(dt, 0.05);           // a long frame must not teleport the car
@@ -251,7 +251,14 @@
     // Brake, and — only when asked for — reverse.
     if (inBrake > 0) {
       if (car.speed > 0.4) { accel -= 16 * inBrake * grip; car.revArm = 0; }
-      else if (park) { car.revArm = 0; if (car.speed > -0.2) car.speed = Math.max(0, car.speed); }
+      else if (park || input.noRev) {
+        // A SYNTHETIC hold (parked panel, or the stick sitting at zero) is a
+        // stop that must never arm the gear — the stick's "hold still" used
+        // to share this wire with "reverse please" and the car drove itself
+        // backwards straight out of the spawn.
+        car.revArm = 0;
+        if (car.speed > -0.2) car.speed = Math.max(0, car.speed);
+      }
       else {
         car.revArm += dt;
         if (car.revArm >= REV_ARM) accel -= 7 * inBrake;   // deliberate reverse
@@ -596,6 +603,10 @@
         var kBrake = (keys['s'] || keys['arrowdown']) ? 1 : 0;
         var kSteer = ((keys['d'] || keys['arrowright']) ? 1 : 0) - ((keys['a'] || keys['arrowleft']) ? 1 : 0);
         input.brake = Math.max(kBrake, pedal.brake ? 1 : 0);
+        // Recomputed every sample — the input object is REUSED, and a noRev
+        // that stuck from a stick-at-zero sample would quietly delete the
+        // reverse gear in every other scheme.
+        input.noRev = false;
         // SPACE FIRES THE BLASTER, so the handbrake moves to X. Space is the
         // one key everyone reaches for to shoot, and the handbrake is a control
         // you use deliberately and rarely — the swap costs the handbrake a key
@@ -620,6 +631,16 @@
           if (setPoint <= 0) {
             input.autoTarget = 0; input.throttle = 0;
             input.brake = Math.max(input.brake, 1);
+            // A set-point of ZERO is a STOP, and it must say so. The stick
+            // expresses "hold still" as a held brake — but a held brake at a
+            // standstill is ALSO the reverse-arming gesture, and the two met
+            // at spawn: roadCruise is 0 until the car is detected on a road,
+            // so the set-point seeded to 0, the synthetic brake armed
+            // reverse, and the car drove itself backwards to the reverse
+            // floor before the player touched anything — 20 km/h, R, straight
+            // out of the load. Only a deliberate pull WELL below zero may
+            // arm the gear.
+            input.noRev = setPoint > -0.5;
           } else {
             input.autoTarget = setPoint;
             input.throttle = (input.brake > 0 || input.handbrake) ? 0 : 1;

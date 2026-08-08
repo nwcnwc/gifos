@@ -1560,12 +1560,23 @@ function check(name, cond, detail) {
     c2.y = c1.y;
     const braking = Object.assign(window.Car.blankInput(), { brake: 1 });
     for (let i = 0; i < 40; i++) window.Car.update(c2, braking, 0.05, f);
-    return { afterShove: +c1.speed.toFixed(2), deliberate: +c2.speed.toFixed(2) };
+    // The STICK'S hold: same held brake, flagged as a stop (noRev). This is
+    // what the stick sends when its set-point sits at zero — which is where
+    // it SPAWNS, because roadCruise is 0 until the car is found on a road.
+    // Without the flag this armed reverse and the car backed itself to the
+    // reverse floor straight out of the load: 20 km/h, R, no input at all.
+    const c3 = window.Car.create(4, 4, 0.3);
+    c3.y = c1.y;
+    const holding = Object.assign(window.Car.blankInput(), { brake: 1, noRev: true });
+    for (let i = 0; i < 60; i++) window.Car.update(c3, holding, 0.05, f);
+    return { afterShove: +c1.speed.toFixed(2), deliberate: +c2.speed.toFixed(2), held: +c3.speed.toFixed(2) };
   });
   check('HILLS: a rebound cannot keep the car reversing (engine braking wins)',
     gears.afterShove > -0.5, 'speed ' + gears.afterShove + ' m/s two sim-seconds after a -5 m/s shove');
   check('HILLS: …but deliberate reverse (brake held past the arm) still works',
     gears.deliberate < -1, 'speed ' + gears.deliberate + ' m/s');
+  check('HILLS: the stick\'s hold-at-zero can NEVER arm reverse (the spawn-in-R bug)',
+    Math.abs(gears.held) < 0.1, 'speed ' + gears.held + ' m/s after three sim-seconds of held stop');
   await hCtx.close();
 
   await browser.close();
