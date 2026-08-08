@@ -94,6 +94,7 @@
   const COMPACT_PERIOD = 90; // test/sim/mesh.cpp COMPACT_PERIOD — min ticks between one leaf's compaction probes
   const COMPACT_SETTLE = 300; // test/sim/mesh.cpp COMPACT_SETTLE — quiescence window since seating / last heal / last move / last local churn. ABOVE the healing horizons so a mass-heal fully re-converges before compaction stirs the tree (a shorter window ~2x'd mass-heal convergence and flaked the churn sweep).
   const COMPACT_TTL = 30;    // test/sim/mesh.cpp COMPACT_TTL — up-chain hop budget for a compaction probe
+  const PROBLVL = 0;         // test/sim/mesh.cpp PROBLVL (`problvl n`) — cap the probe's climb at n levels above the seeker; 0 = unlimited. The V5 funnel fix: at N=20000 settled, problvl 2 takes the hot S1 seat from 13.7-15.1 frames/tick to the 3.13 floor on every seed swept (2026-08-07) while compactness holds. MUST match the sim default — twins never diverge.
 
   // ---- V1 ROLLUP DIGEST (healing-laws.md § G) — faithful port of the sim's
   // digest machinery (test/sim/mesh.cpp Dig + mesh_seat.inc rollup/pubDig/
@@ -1169,6 +1170,11 @@
         }
       }
       // My row is full or not shallower — climb one level toward the home.
+      // V5 CAP (PROBLVL, test/sim/mesh.cpp serveCompact): the funnel IS the
+      // cost — a probe that cannot be served within PROBLVL levels of its
+      // seeker dies here instead of walking to the S1 wall. The leaf just
+      // retries next period.
+      if (PROBLVL > 0 && topo.pcDepth(this.coord.pc) - 1 < sd - PROBLVL) return;
       const o = this.ownerCoord(); if (o) { const oid = this.occGet(ck(o)); if (oid != null && oid !== this.id) this.emit(oid, { t: 'FIND', nc: mm.nc, tag: 1, coord: mm.coord, ttl: mm.ttl - 1 }); }
     }
 
