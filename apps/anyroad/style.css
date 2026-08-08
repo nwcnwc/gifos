@@ -539,11 +539,59 @@ select {
   will-change: transform;
   filter: drop-shadow(0 -6px 14px rgba(0, 0, 0, .45));
 }
-/* The view name next to the camera icon, so the button says what it does. */
-.chip .povname {
-  font-size: .62rem;
-  letter-spacing: .04em;
-  margin-left: .28rem;
-  opacity: .82;
-  text-transform: uppercase;
+/* ---- the point-of-view eye ------------------------------------------------
+   One eye in a frame, at three sizes. How much of the frame the eye fills IS
+   the state: a slit of a thing for the bird high above, ordinary for the chase
+   camera, filling the frame from the driver's seat. No words needed, and it
+   scales to a phone where a word would not. */
+#pov-eye { display: block; }
+#pov-pupil { transform-origin: 12px 12px; transition: transform .22s ease; }
+.pov-bird #pov-pupil    { transform: scale(.48); }
+.pov-chase #pov-pupil   { transform: scale(.78); }
+.pov-cockpit #pov-pupil { transform: scale(1.28); }
+
+/* ---- the dashboard --------------------------------------------------------
+   A moulded shape rather than a black bar: the top edge falls away at the
+   sides, which is what makes it read as the inside of a car instead of a
+   letterbox mask over the render. The instrument cluster sits BEHIND the
+   wheel, where a car puts it, and is legible through the top of the rim. */
+#dash {
+  position: absolute;
+  left: -6%; right: -6%; bottom: 0;
+  height: 27%;
+  background:
+    radial-gradient(120% 150% at 50% 0%, rgba(38, 42, 52, .0) 38%, rgba(20, 23, 30, .97) 62%),
+    linear-gradient(180deg, rgba(26, 30, 38, .96), rgba(12, 14, 19, .99));
+  border-top-left-radius: 46% 88%;
+  border-top-right-radius: 46% 88%;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .07);
+  pointer-events: none;
+}
+/* WHERE THERE IS ACTUALLY ROOM. Dead centre is the wheel; the left third is
+   the steering pad; the bottom right is BRAKE and GO. What is left is the
+   dash above the pedals, so that is where the cluster goes. Two wrong
+   placements before this one, both of which put a speedometer somewhere you
+   could not read it — which is worse than leaving it in the corner. */
+#dash-cluster {
+  position: absolute;
+  left: 76%; top: 8%;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #e9eef6;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+  font-variant-numeric: tabular-nums;
+}
+#dash-speed { font-size: clamp(1.6rem, 4.4vh, 2.4rem); font-weight: 300; line-height: .95; }
+#dash-unit {
+  font-size: .62rem; letter-spacing: .16em; text-transform: uppercase;
+  opacity: .6; margin-top: .15rem;
+}
+#dash-cond {
+  width: 4.2rem; height: 3px; margin: .38rem auto 0;
+  background: rgba(255, 255, 255, .16); border-radius: 2px; overflow: hidden;
+}
+#dash-cond-fill {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, #78d68e, #cfe06a);
+  transition: width .25s ease;
 }

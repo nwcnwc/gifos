@@ -257,6 +257,9 @@
       for (var a = 0; a < 8 && !best; a++) {
         var ang = a * Math.PI / 4;
         var hit = nearestRoadPoint(car.x + Math.sin(ang) * step, car.z + Math.cos(ang) * step);
+        // A rescue that lands you in the pool you just drowned in is not a
+        // rescue. Deep water only: a ford is a legitimate place to be put.
+        if (hit) { var w = waterAtPoint(hit.x, hit.z); if (w && w.deep) hit = null; }
         if (hit && (!best || hit.dist < best.dist)) best = hit;
         if (ring === 0) break;                   // the first probe is the car itself
       }
@@ -270,8 +273,15 @@
       root.Car.place(car, best.x, best.z, flip ? yaw + Math.PI : yaw);
     } else {
       // No road data at all: back the car out along its own nose and turn it
-      // around. Not elegant, but it is never a dead end.
-      root.Car.place(car, car.x - Math.sin(car.yaw) * 7, car.z - Math.cos(car.yaw) * 7, car.yaw + Math.PI);
+      // around. Not elegant, but it is never a dead end. Walk backwards until
+      // the ground is dry, so "reversed you out" of a pool means out of it.
+      var bx = car.x, bz = car.z, back = 0;
+      do {
+        back += 7;
+        bx = car.x - Math.sin(car.yaw) * back;
+        bz = car.z - Math.cos(car.yaw) * back;
+      } while (back < 70 && (function () { var w = waterAtPoint(bx, bz); return w && w.deep; })());
+      root.Car.place(car, bx, bz, car.yaw + Math.PI);
     }
     var h = root.Terrain.heightAt(world.frame, car.x, car.z);
     if (h !== null) car.y = h;
@@ -359,6 +369,18 @@
   // Is the car IN water? Asked per substep, right before the physics, so a fast
   // car cannot skip across a pool between frames the way it used to tunnel
   // through walls.
+  // Is this SPOT water? Same index as updateInWater, but for an arbitrary
+  // point — the rescue needs it to avoid dropping you back in.
+  function waterAtPoint(x, z) {
+    for (var k in world.roads) {
+      var r = world.roads[k];
+      if (!r || !r.built || !r.built.wet) continue;
+      var w = root.Roads.waterAt(r.built.wet, x, z);
+      if (w) return w;
+    }
+    return null;
+  }
+
   function updateInWater() {
     var hit = null;
     for (var k in world.roads) {
@@ -760,6 +782,23 @@
     fillRing = Math.min(8, fillRing + 1);
   }
 
+  // Repair, and get out of whatever you were repaired in. Deliberately app-side
+  // rather than inside the button's handler: repairing IN a pool is a loop —
+  // the panel closes, the water check runs on the very next substep, and you
+  // drown again in two and a half seconds — so the fix is part of what
+  // "repair" means, not a detail of one button, and it has to be testable
+  // without clicking anything.
+  function repairAndRescue() {
+    var wasWet = car.inWater;
+    root.Car.repair(car);
+    if (wasWet) {
+      unstick();
+      car.inWater = false; car.deepWater = false; car.sink = 0;
+      root.UI.note('Fished you out.');
+    }
+    return { rescued: wasWet, x: car.x, z: car.z, inWater: car.inWater };
+  }
+
   // ---- camera --------------------------------------------------------------
   function updateCamera(dt) {
     var back = 8.5, up = 3.4, ahead = 9;
@@ -802,8 +841,35 @@
       camera.y = Math.max(camera.y, car.y + 2.2);
     }
 
+    // DO NOT LET THE HILL EAT THE CAR. The chase camera sits a fixed height
+    // above the ground UNDER ITSELF, which is fine on the flat and wrong on
+    // every incline: driving uphill, the slope between the camera and the car
+    // is higher than both, so the ground swallows the car and you are steering
+    // a dirt bank. Driving downhill the same thing happens over the crest.
+    //
+    // March the line of sight and lift the eye until it clears. For a sample at
+    // fraction t whose ground is g, the ray height there is
+    // lerp(camY, targetY, t), so the eye must satisfy
+    //   camY >= (g + clearance - targetY * t) / (1 - t)
+    // and the answer is the largest such requirement along the line.
+    var aimY = car.y + 1.4;
+    var need = camera.y;
+    for (var si = 1; si <= 6; si++) {
+      var t2 = si / 8;                        // stop short of the car itself
+      var sx = camera.x + (car.x - camera.x) * t2;
+      var sz = camera.z + (car.z - camera.z) * t2;
+      var gy = root.Terrain.heightAt(world.frame, sx, sz);
+      if (gy === null) continue;
+      var req = (gy + 1.6 - aimY * t2) / (1 - t2);
+      if (req > need) need = req;
+    }
+    // Rise fast, fall slow: snapping down the far side of a crest is a lurch,
+    // while being slow to rise means a frame or two of looking at soil.
+    var upRate = need > camera.y ? Math.min(1, dt * 9) : Math.min(1, dt * 2.2);
+    camera.y += (need - camera.y) * upRate;
+
     camera.tx = car.x + fx * ahead;
-    camera.ty = car.y + 1.4;
+    camera.ty = aimY;
     camera.tz = car.z + fz * ahead;
 
     // Impact shake. Decays fast — a long shake reads as a broken camera rather
@@ -1122,7 +1188,7 @@
       onSearch: search,
       onPedal: function (which, on) { controls.setPedal(which, on); },
       onRespawn: function () { if (world.frame) hop(world.frame.lat0, world.frame.lon0, world.place); },
-      onRepair: function () { root.Car.repair(car); },
+      onRepair: repairAndRescue,
       onUnstick: unstick,
       onView: cycleView,
       car: function () { return car; },
@@ -1189,6 +1255,7 @@
 
   root.App = {
     boot: boot, hop: hop, search: search, world: world, unstick: unstick,
+    repairAndRescue: repairAndRescue,
     redrape: redrape,
     imagery: function () {
       return { source: root.Sources.current.imagery, tried: imagery.tried,
