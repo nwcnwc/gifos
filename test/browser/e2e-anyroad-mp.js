@@ -311,6 +311,110 @@ async function run(MODE) {
   check('…and it is the SAME place on Earth, not three copies of the app',
     spread < 900, 'furthest car ' + spread.toFixed(0) + ' m from the drop point');
 
+  // ---- THREE DRIVERS, THREE STEERING METHODS ------------------------------
+  // The schemes (wheel / stick / tilt) are three separate input paths into one
+  // car, and until now every suite drove the default. A scheme nobody exercises
+  // is a scheme that breaks silently — and it breaks for the player who chose
+  // it, who has no way to know the other two work fine.
+  //
+  // Driven through REAL events on the REAL elements: pointer events on the
+  // wheel and on the canvas, DeviceOrientationEvent for tilt. Poking
+  // controls.input directly would prove only that the physics reads a number
+  // somebody set.
+  //
+  // The assertion is deliberately SIGN-RELATIVE — left and right must bend the
+  // car opposite ways — rather than "left decreases yaw". That is true whatever
+  // the handedness convention is, and this app has already shipped one mirrored
+  // world (132fa02); a test that hard-codes a direction would have gone green
+  // through it.
+  const SCHEMES = { Ada: 'wheel', Ben: 'stick', Cyd: 'tilt' };
+  for (const p of players) {
+    await p.page.bringToFront();
+    await p.body().evaluate((s) => window.Sources.set({ scheme: s }), SCHEMES[p.name]);
+  }
+  await sleep(1200);
+  const took = [];
+  for (const p of players) {
+    await p.page.bringToFront();
+    took.push(await p.body().evaluate(() => window.Sources.current.scheme));
+  }
+  check('each driver is on a DIFFERENT steering method',
+    new Set(took).size === 3 && took.join() === NAMES.map((n) => SCHEMES[n]).join(),
+    NAMES.map((n, i) => n + '=' + took[i]).join(', '));
+
+  // Hold a direction for `ms` and report what the input layer and the car did.
+  const steerFor = (p, dir, ms) => p.body().evaluate(async ([dir, ms]) => {
+    const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+    const scheme = window.Sources.current.scheme;
+    const view = document.getElementById('view');
+    const pad = document.getElementById('steerpad') || view;
+    const pe = (el, type, x, y) => el.dispatchEvent(new PointerEvent(type, {
+      pointerId: 7, bubbles: true, cancelable: true, clientX: x, clientY: y,
+      isPrimary: true, pointerType: 'touch', button: 0, buttons: 1,
+    }));
+    const box = (el) => { const b = el.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+    let stop = () => {};
+    if (scheme === 'tilt') {
+      // gamma is the device's left/right tilt; car.js captures the FIRST value
+      // it sees as neutral, so send an upright frame before tilting or the
+      // whole test is measured against an already-turned wheel.
+      const send = (g) => window.dispatchEvent(new DeviceOrientationEvent('deviceorientation',
+        { gamma: g, beta: 0, alpha: 0, absolute: true }));
+      send(0);
+      const t = setInterval(() => send(dir * 34), 50);
+      stop = () => { clearInterval(t); send(0); };
+    } else if (scheme === 'stick') {
+      const [cx, cy] = box(view);
+      pe(view, 'pointerdown', cx, cy);
+      pe(view, 'pointermove', cx + dir * 110, cy);   // sideways only: speed held
+      stop = () => pe(view, 'pointerup', cx + dir * 110, cy);
+    } else {
+      const [cx, cy] = box(pad);
+      pe(pad, 'pointerdown', cx, cy);
+      pe(pad, 'pointermove', cx + dir * 90, cy);
+      stop = () => pe(pad, 'pointerup', cx + dir * 90, cy);
+    }
+    const yaw0 = window.App.car().yaw;
+    let peakSteer = 0;
+    const t1 = Date.now();
+    while (Date.now() - t1 < ms) {
+      await new Promise((r) => setTimeout(r, 60));
+      const d = window.App.debug();
+      if (d.input && Math.abs(d.input.steer) > Math.abs(peakSteer)) peakSteer = d.input.steer;
+    }
+    const out = { scheme, steer: peakSteer, dYaw: wrap(window.App.car().yaw - yaw0), speed: window.App.debug().speed };
+    stop();
+    return out;
+  }, [dir, ms]);
+
+  const steering = [];
+  for (const p of players) {
+    await p.page.bringToFront();
+    const left = await steerFor(p, -1, 3000);
+    await sleep(400);
+    const right = await steerFor(p, +1, 3000);
+    await sleep(400);
+    steering.push({ name: p.name, left, right });
+  }
+  for (const s of steering) {
+    const d = `${s.left.scheme}: steer ${s.left.steer.toFixed(2)}/${s.right.steer.toFixed(2)}, ` +
+              `yaw ${s.left.dYaw.toFixed(2)}/${s.right.dYaw.toFixed(2)} rad, ` +
+              `speed ${s.right.speed.toFixed(1)} m/s`;
+    check(s.name + ' — the ' + s.left.scheme + ' reaches the car at all',
+      Math.abs(s.left.steer) > 0.15 && Math.abs(s.right.steer) > 0.15, d);
+    check(s.name + ' — the ' + s.left.scheme + ' steers BOTH ways, not just one',
+      Math.sign(s.left.steer) === -Math.sign(s.right.steer) && s.left.steer !== 0, d);
+    check(s.name + ' — and the car actually turns, in opposite directions',
+      Math.sign(s.left.dYaw) === -Math.sign(s.right.dYaw)
+      && Math.abs(s.left.dYaw) > 0.05 && Math.abs(s.right.dYaw) > 0.05, d);
+    // "Feels right" is not a frame timing on this box — but a car that is
+    // stationary, reversing or supersonic while being steered is not a
+    // judgement call, and any of them means the drive under test was not a
+    // drive at all.
+    check(s.name + ' — was genuinely driving forward while steering',
+      s.right.speed > 2 && s.right.speed < 70, s.right.speed.toFixed(1) + ' m/s');
+  }
+
   // ---- Let them drive. No input at all: the car cruises by itself ---------
   // All three run at once (see the throttling flags above), which is the only
   // arrangement in which "driving together" means anything.
