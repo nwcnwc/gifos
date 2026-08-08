@@ -1022,10 +1022,25 @@ function check(name, cond, detail) {
   // was an accurate report of a real bug. Switching source must reach the
   // ground that is already down.
   const drape = await fr.locator('body').evaluate(async () => {
+    // SETTLE, do not sleep. tried/ok/failed are module-level counters that
+    // redrape() RESETS, so a fixed wait that ends while requests are still in
+    // flight hands the next phase the previous phase's answers: a first run of
+    // this block read ok 0/25 for the good path and 25/25 for the @2x one —
+    // perfectly inverted — because 600 ms was not enough for 25 decodes on a
+    // software rasteriser and round one's successes landed inside round two's
+    // window. Each phase must be quiescent (every request accounted for)
+    // before the next one starts.
+    const settled = async (ms) => {
+      for (let i = 0; i < ms / 100; i++) {
+        const s = window.App.imagery();
+        if (s.tried > 0 && (s.ok === s.tried || s.failed)) return s;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return window.App.imagery();
+    };
     const before = window.App.imagery();
     window.Sources.set({ imagery: 'maptiler' });
-    await new Promise((r) => setTimeout(r, 600));
-    const after = window.App.imagery();
+    const after = await settled(30000);
 
     // Now ask for the path the app USED to ask for. The stub answers exactly as
     // the live API does, so this is the real 404 and not a staged one — it
@@ -1035,8 +1050,7 @@ function check(name, cond, detail) {
     const good = src.path;
     src.path = '/tiles/satellite-v2/{z}/{x}/{y}@2x.jpg';
     window.App.redrape();
-    await new Promise((r) => setTimeout(r, 600));
-    const wrong = window.App.imagery();
+    const wrong = await settled(30000);
     src.path = good;
 
     window.Sources.set({ imagery: 'none' });
