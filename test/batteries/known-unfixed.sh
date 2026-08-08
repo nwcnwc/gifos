@@ -118,39 +118,38 @@ if [ "$BROWSERS" = 1 ]; then
     if run_suite "$s"; then green "$s now passes"; else red "$s"; fi
   done
 
-  hdr "FAILOVER WAKE MISSES THE ≤5s GRACE BOUND  (decided: Nathan, 2026-07-28; re-diagnosed 2026-08-07)"
-  why "MOSTLY no longer detection-bound. Pipe watchdog v2.1 (2026-08-08:
-                 counter-regression re-baseline + penalty cap/decay + forensics)
-                 fires darkness 46-940ms after a kill on a QUALIFIED pipe, and the
-                 disarmed control reds 4/4 (gaps 6.2s to >60s). TWO residuals:
-                 (0) the QUALIFICATION WINDOW: a kill landing before 8 advancing
-                 samples (~7.2s at the watchable cadence) after a claim/swap still
-                 falls to the 5-9s ICE lottery — the 2-in-18 strict-miss class.
-                 Wall-clock qualification was built and PULLED the same night
-                 (2400ms, then 7200ms): elapsed time qualifies rarely-advancing
-                 pipes an advance count never would, and the extra wake/park
-                 cycling raised the mirror zombie rate (ABAB: old 3/3, wall-clock
-                 4/6). Do not rebuild it before wake cycling is safe.
-                 And the SENDER side after topology churn, two faces of one class:
-                 (a) redun/stg — a kill's RESHIP STORM invalidates every pre-kill
-                 streamId (each carrier re-ships with a NEW container id when its
-                 source changes), so the woken standby's sender job is already
-                 dead and the room renegotiates ~6s (measured 6.0-6.6s resumes
-                 with dark armed at +46..+917ms, 3-in-6 at idle);
-                 (b) mirror — the ZOMBIE-PARKED-PIPE (the drill's own 2026-07-28
-                 heir-3 class): a demanded-hot chain that delivers nothing
-                 (observed: 18s of stdFdec=0 under an active 'w' demand, ~1 in 20
-                 tonight). Same family as docs/bug-pipe-stg-freeze-2026-08-05.md
-                 and the stage-onerow ONE-stream-id red."
-  cost "CONTAINER IDENTITY ACROSS RESHIPS (a carrier re-shipping into the SAME
-                 container/senders keeps downstream sids stable — kills the reship
-                 storm, likely the stage-onerow red, maybe the stg freeze) plus a
-                 sender-side carry guarantee after 'w'. That is the next media-plane
-                 campaign. The GATE keeps asserting wake CORRECTNESS (completes,
+  hdr "FAILOVER WAKE MISSES THE ≤5s GRACE BOUND  (decided: Nathan, 2026-07-28; campaign landed 2026-08-08)"
+  why "The SENDER-SIDE CAMPAIGN LANDED 2026-08-08 (container identity
+                 across reships + the carry guarantee after 'w' + the husk-cycle
+                 announce expiry + born-parked explicit negotiation) and both of
+                 the 2026-08-07 sender faces are DEAD AS CLASSES: no reship storm
+                 (sids are per-job constants, a kill renegotiates NOTHING on
+                 surviving hops) and no zombie-parked-pipe (a wake can no longer
+                 be sid-mismatch-ignored, and a husk stops being a candidate).
+                 Measured that day, clawbox + gate host, 17 drill runs: typical
+                 post-kill resumes 0.8-2.4s — INSIDE the bound — including sdn
+                 multi-hop at loadavg 10.7. What still misses ≤5s, and why this
+                 entry stays:
+                 (a) the QUALIFICATION WINDOW / ICE lottery, unchanged from
+                 2026-08-07: a kill landing on a never-qualified pipe still
+                 resumes at 6.0-6.1s (2-of-4 strict redun runs);
+                 (b) the ANNOUNCE-EXPIRY CASCADE when a kill husks multiple
+                 carrier rings at once: bounded now (19s and 58s measured, was
+                 NEVER-RESUMED), but far over grace — each ring costs husk-grace
+                 (5s) + announce ageing (12s);
+                 (c) small-box delivery starvation at loadavg >12 (mechanism
+                 fires end to end — demand, wake, swap, first frame — and the
+                 decoder starves; a box problem wearing a product label).
+                 The wall-clock qualification remains REFUTED (2026-08-08 ABAB:
+                 2400ms and 7200ms both raised the zombie rate) — do not rebuild
+                 it before wake cycling is safe."
+  cost "the RECEIVER-SIDE RTP-SILENCE WATCHDOG (offered 2026-08-07): react
+                 to media-stopped-arriving instead of claim/announce machinery —
+                 it collapses (a) outright and shortcuts (b)'s ring walk. Then
+                 the ≤5s bound is honestly met and all four asserts promote
+                 together. The GATE keeps asserting wake CORRECTNESS (completes,
                  via switches, re-parks) via both drills' default modes — the
-                 latency BOUNDS and their claim-continuity twins live here.
-                 All four promote back together when the sender-side campaign
-                 lands."
+                 latency BOUNDS and their claim-continuity twins live here."
   if REDUN_STRICT=1 run_suite test/drills/redun-drill.js; then green "redun-drill strict wake bound now passes"; else red "redun-drill REDUN_STRICT=1 (wake > 5s grace)"; fi
   if MIRROR_STRICT=1 run_suite test/drills/mirror-drill.js; then green "mirror-drill strict wake bound passed THIS run (16/18 at idle — green here proves nothing; only the RTP-silence watchdog retires this entry)"; else red "mirror-drill MIRROR_STRICT=1 (multi-hop wake vs 5s grace; measured 5.6-6.1s on its misses)"; fi
 
