@@ -604,5 +604,19 @@ select {
 /* It is a top-bar chip like the others, so it inherits their size, hit area
    and phone behaviour. Only its colour says anything extra: amber while the
    wings are on. */
-#btn-fly { color: #cfe0f5; }
-#btn-fly.flying { color: #ffd08a; }
+#btn-fly {
+  position: absolute;
+  right: 6%; bottom: 7%;
+  width: 3rem; height: 3rem;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .30);
+  background: rgba(38, 44, 56, .96);
+  color: #cfe0f5;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .5);
+  pointer-events: auto;        /* the only clickable thing inside #cockpit */
+  cursor: pointer;
+  z-index: 4;
+}
+#btn-fly:active { background: rgba(58, 68, 84, .98); }
+#btn-fly.flying { color: #ffd08a; border-color: rgba(255, 208, 138, .55); }

@@ -1022,8 +1022,15 @@
     boxInto(o, 0, 0.55, 1.86, 1.70, 0.09, 0.05, prop);      // propeller disc
     boxInto(o, -1.05, 0.16, 0.40, 0.14, 0.52, 0.14, prop);  // gear legs
     boxInto(o, 1.05, 0.16, 0.40, 0.14, 0.52, 0.14, prop);
+    // count, like every other mesh in this file. uploadBody() reads mesh.count
+    // and passes it straight to drawElements — leave it off and the plane is
+    // drawn with `undefined` indices, which is not an error, just garbage: the
+    // aeroplane came out as a handful of white shards scattered over the
+    // field, which is exactly what "I don't see any wings" looks like from the
+    // driving seat.
     return { positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
-             colors: new Float32Array(o.col), indices: new Uint16Array(o.idx) };
+             colors: new Float32Array(o.col), indices: new Uint16Array(o.idx),
+             count: o.idx.length };
   }
   var carMesh = null, carGL = null, planeGL = null, animalGL = null, blasterGL = null, boltGL = null;
   function uploadPlane() {

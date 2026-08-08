@@ -788,15 +788,37 @@
   // drown again in two and a half seconds — so the fix is part of what
   // "repair" means, not a detail of one button, and it has to be testable
   // without clicking anything.
+  // Is the car WEDGED — inside a building, or hard against one? Repairing in
+  // there is the same trap as repairing in a pool: the panel closes, you are
+  // still surrounded by wall, and the next nudge kills you again. Crashing
+  // through a roof and ending up in someone's living room is a great thing to
+  // happen; being unable to leave is not.
+  var wedgeScratch = [];
+  function wedgedInGeometry() {
+    wedgeScratch.length = 0;
+    for (var k in world.roads) {
+      var r = world.roads[k];
+      if (!r || !r.built || !r.built.walls) continue;
+      root.Roads.nearWalls(r.built.walls, car.x, car.z, wedgeScratch);
+    }
+    for (var w = 0; w < wedgeScratch.length; w += 4) {
+      if (root.Roads.segDist(car.x, car.z, wedgeScratch[w], wedgeScratch[w + 1],
+                             wedgeScratch[w + 2], wedgeScratch[w + 3]) < 2.6) return true;
+    }
+    return false;
+  }
+
   function repairAndRescue() {
     var wasWet = car.inWater;
+    var wasWedged = !wasWet && wedgedInGeometry();
     root.Car.repair(car);
-    if (wasWet) {
+    if (wasWet || wasWedged) {
       unstick();
       car.inWater = false; car.deepWater = false; car.sink = 0;
-      root.UI.note('Fished you out.');
+      root.UI.note(wasWet ? 'Fished you out.' : 'Towed you out.');
     }
-    return { rescued: wasWet, x: car.x, z: car.z, inWater: car.inWater };
+    return { rescued: wasWet || wasWedged, wedged: wasWedged,
+             x: car.x, z: car.z, inWater: car.inWater };
   }
 
   // Wings on, wings off. Two separate decisions: taking off is free, and
@@ -820,6 +842,14 @@
     // Pull the camera out and up with speed, so fast feels fast.
     var v = Math.abs(car.speed);
     back += v * 0.09; up += v * 0.02;
+    // FLYING IS A DIFFERENT CHASE. A car's camera is tuned for 15 m/s near the
+    // ground; an aeroplane cruises at 46 and the same rules put it a speck away
+    // down the middle of the screen. Hold it closer, a little above, and stop
+    // scaling the distance with speed — in the air, speed is read from the
+    // ground going past, not from how small your own aircraft looks.
+    if (car.flying || car.falling) {
+      back = 13; up = 4.2; ahead = 26;
+    }
 
     var fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);
     var wantX = car.x - fx * back, wantZ = car.z - fz * back;
@@ -869,7 +899,9 @@
     // and the answer is the largest such requirement along the line.
     var aimY = car.y + 1.4;
     var need = camera.y;
-    for (var si = 1; si <= 6; si++) {
+    // No terrain lifting while airborne: the ground is hundreds of metres below
+    // and the clearance walk would shove the eye up with it for no reason.
+    for (var si = 1; si <= 6 && !(car.flying || car.falling); si++) {
       var t2 = si / 8;                        // stop short of the car itself
       var sx = camera.x + (car.x - camera.x) * t2;
       var sz = camera.z + (car.z - camera.z) * t2;
@@ -1059,7 +1091,12 @@
     if (cockK < 0.6) {
       scene.cars.push({ x: car.x, y: car.y, z: car.z, yaw: car.yaw, pitch: car.pitch, roll: car.roll,
                         tint: [0.90, 0.24, 0.22], blaster: root.Blaster.enabled(),
-                        plane: car.flying || car.falling });
+                        plane: car.flying || car.falling,
+                        // The shadow falls where the GROUND is, not where the
+                        // aircraft is. Without this it defaulted to s0.y and
+                        // flew along at altitude with the plane, which reads as
+                        // the shadow being in the wrong place because it is.
+                        groundY: root.Terrain.heightAt(world.frame, car.x, car.z) });
     }
     root.MP.ghosts().forEach(function (g) {
       scene.cars.push({ x: g.x, y: g.y, z: g.z, yaw: g.yaw, pitch: 0, roll: 0, tint: g.tint });
