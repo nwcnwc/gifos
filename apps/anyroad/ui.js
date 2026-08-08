@@ -471,8 +471,8 @@
   function setView(v) {
     var cockpit = (v === 'cockpit');
     if (el.cockpit) el.cockpit.hidden = !cockpit;
-    // Wings are a driver's-seat control, so the chip only exists there.
-    if (el['btn-fly']) el['btn-fly'].hidden = !cockpit;
+    // It lives inside #cockpit now, so it appears and disappears with the
+    // dashboard itself — no separate hiding to keep in step.
     // The eye states WHICH view by how much of its frame it fills, so the
     // button needs no word on it — which is the only version that survives a
     // phone-sized top bar.

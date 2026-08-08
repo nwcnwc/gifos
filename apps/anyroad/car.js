@@ -32,6 +32,7 @@
       falling: false,       // wings OFF and gravity winning
       vy: 0,                // vertical speed, m/s
       agl: 0,               // metres above the ground under you
+      targetAgl: null,      // the height it flies to and HOLDS
       contactT: 0,        // seconds of unbroken contact with a wall
       hurtCool: 0,        // seconds until another impact may be charged
       revArm: 0,          // seconds the brake has been held at a standstill
@@ -138,7 +139,7 @@
   function repair(car) {
     car.health = 100; car.wrecked = false; car.contactT = 0;
     car.inWater = false; car.deepWater = false; car.sink = 0;
-    car.flying = false; car.falling = false; car.vy = 0; car.agl = 0;
+    car.flying = false; car.falling = false; car.vy = 0; car.agl = 0; car.targetAgl = null;
     car.revArm = 0; car.stillT = 0; car.halted = false;
   }
 
@@ -261,8 +262,34 @@
       var ground = (gy === null ? 0 : gy);
 
       if (car.flying) {
-        var want = park ? 0 : (inThrottle > 0.1 ? 1 : (inBrake > 0.1 ? -1 : 0));
-        car.vy += (want * 16 - car.vy) * Math.min(1, dt * 1.6);
+        // ALTITUDE HOLD, not a climb rate. The first model made GO mean "climb
+        // while held", so releasing it levelled you off wherever you happened
+        // to be — and since take-off is a brief hop, letting go left you
+        // skimming at two metres. Measured: four seconds after take-off with no
+        // input, agl was 2. That is not an aeroplane, it is a very fast car.
+        //
+        // Now GO and BRAKE move a TARGET height above the ground, and the
+        // aircraft flies to it and stays there. Let go and it holds. Because
+        // the target is above GROUND rather than sea level, it also climbs over
+        // a hill on its own instead of flying into it.
+        var trim = park ? 0 : (inThrottle > 0.1 ? 1 : (inBrake > 0.1 ? -1 : 0));
+        if (car.targetAgl == null) car.targetAgl = 120;
+        // Floor of ZERO, not 12. A floor above the ground means BRAKE can
+        // never finish the job: the aircraft settles at exactly 12 m and hovers
+        // there for as long as you hold it, and there is no way to land at all.
+        // Descending to 0 is what "down" has to mean; the flare below keeps the
+        // arrival gentle.
+        car.targetAgl = Math.max(0, Math.min(2600, car.targetAgl + trim * 70 * dt));
+        // LEASH THE TARGET TO WHERE YOU ACTUALLY ARE. Without this, holding GO
+        // for six seconds sets a target 540 m up while the aircraft is still at
+        // 230 — so you let go and it carries on climbing for another twenty
+        // seconds, which feels like the controls have stopped answering.
+        // Keeping the target within 90 m of the current height means GO climbs
+        // steadily while held and levels off promptly when released.
+        car.targetAgl = Math.max(car.agl - 90, Math.min(car.agl + 90, car.targetAgl));
+        var err = car.targetAgl - car.agl;
+        var want = Math.max(-1, Math.min(1, err / 55));
+        car.vy += (want * 22 - car.vy) * Math.min(1, dt * 1.6);
         // Air is not tarmac: an aeroplane holds its cruise unless you are
         // hauling it upwards, which costs you speed the way it should.
         var cruise = 46 - Math.max(0, car.vy) * 0.55;
@@ -818,6 +845,9 @@
                  car.inWater = false; car.deepWater = false; car.sink = 0;
                  car.vy = Math.max(car.vy, 9);          // a definite hop off the ground
                  car.speed = Math.max(car.speed, 26);
+                 // A take-off that does not climb is a hop. Aim for something
+                 // you can see the world from, and let the player trim down.
+                 car.targetAgl = Math.max(120, (car.agl || 0) + 120);
                  return true;
                },
                beCar: function (car) {
