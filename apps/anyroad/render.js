@@ -510,9 +510,12 @@
       // colour at 40 m needs. Colour only, never a logo or a wordmark: those
       // are trademarks, and the thing you actually recognise from a moving car
       // is the red-and-yellow on the corner, not the lettering.
-      '  float packed = floor(vBinfo.y);',
-      '  float hasBrand = step(0.5, packed);',
-      '  float pk = packed - 1.0;',
+      // NOT `packed` — that is a RESERVED WORD in GLSL ES 1.00 and the shader
+      // fails to compile with "Illegal use of reserved word". Render.init then
+      // throws at boot and the app never starts.
+      '  float signPack = floor(vBinfo.y);',
+      '  float hasBrand = step(0.5, signPack);',
+      '  float pk = signPack - 1.0;',
       '  vec3 brandColour = vec3(floor(pk / 256.0),',
       '                          floor(mod(pk, 256.0) / 16.0),',
       '                          mod(pk, 16.0)) / 15.0;',
