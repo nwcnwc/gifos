@@ -63,6 +63,11 @@ check('a trackless job keeps the sid but stops announcing after the grace (husk-
   /if \(!cur\.tracklessAt\) cur\.tracklessAt = Date\.now\(\)/.test(RUN)
   && /Date\.now\(\) - cur\.tracklessAt < MOS_GRACE/.test(RUN)
   && /cur\.tracklessAt = 0;/.test(RUN));
+check('the carry guarantee after w: a demanded-hot all-muted source pauses the announce; parked spares exempt',
+  /const carryHusk = \(job, tracks\) =>/.test(RUN)
+  && /if \(!job\.active\) \{ job\.mutedAt = 0; return false; \}/.test(RUN)
+  && (RUN.match(/!carryHusk\(cur, want\) && p\.dc/g) || []).length >= 1
+  && /!carryHusk\(cur, want\) && p && p\.dc/.test(RUN));
 
 // ---- the receiver side follows the object, keeps the claim -----------------
 check('ontrack replaces a same-id corpse in p.incoming, never accumulates',
