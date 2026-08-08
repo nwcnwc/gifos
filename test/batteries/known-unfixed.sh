@@ -119,13 +119,19 @@ if [ "$BROWSERS" = 1 ]; then
   done
 
   hdr "FAILOVER WAKE MISSES THE ≤5s GRACE BOUND  (decided: Nathan, 2026-07-28; re-diagnosed 2026-08-07)"
-  why "NO LONGER detection-bound. The RTP-silence watchdog landed 2026-08-07
-                 (wall-clock qualification, counter-regression re-baseline, penalty
-                 decay, husk-immune swap evidence — run.html pipe watchdog v2.1):
-                 darkness now fires 46-940ms after a kill on a qualified pipe,
-                 measured across every armed run that night, and the disarmed
-                 control reds 4/4 (gaps 6.2s to >60s). What MISSES the bound now is
-                 the SENDER side after topology churn, two faces of one class:
+  why "MOSTLY no longer detection-bound. Pipe watchdog v2.1 (2026-08-08:
+                 counter-regression re-baseline + penalty cap/decay + forensics)
+                 fires darkness 46-940ms after a kill on a QUALIFIED pipe, and the
+                 disarmed control reds 4/4 (gaps 6.2s to >60s). TWO residuals:
+                 (0) the QUALIFICATION WINDOW: a kill landing before 8 advancing
+                 samples (~7.2s at the watchable cadence) after a claim/swap still
+                 falls to the 5-9s ICE lottery — the 2-in-18 strict-miss class.
+                 Wall-clock qualification was built and PULLED the same night
+                 (2400ms, then 7200ms): elapsed time qualifies rarely-advancing
+                 pipes an advance count never would, and the extra wake/park
+                 cycling raised the mirror zombie rate (ABAB: old 3/3, wall-clock
+                 4/6). Do not rebuild it before wake cycling is safe.
+                 And the SENDER side after topology churn, two faces of one class:
                  (a) redun/stg — a kill's RESHIP STORM invalidates every pre-kill
                  streamId (each carrier re-ships with a NEW container id when its
                  source changes), so the woken standby's sender job is already
