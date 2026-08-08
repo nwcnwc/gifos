@@ -7985,6 +7985,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // re-announce); when the source re-claims, the reconcile below
           // swaps the live tracks into the SAME container and the sid never
           // moved.
+          // AND TAKE THE FRESH META. The husk-cycle escape (frza4) works by
+          // min-h: carriers re-claiming each other's dead copies announce a
+          // GROWING hop count until the producer's real chain wins. This
+          // branch's first cut froze cur.meta, so h never grew, no seat
+          // could escape the cycle, and redun leg B sat NEVER-RESUMED at a
+          // demanded-hot standby with stdFdec=0 — measured twice (battery1
+          // runs 1 and 2, 2026-08-08) before the freeze was seen.
+          if (meta) cur.meta = meta;
           if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
           return jk;
         }
