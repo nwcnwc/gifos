@@ -381,6 +381,23 @@ async function run(MODE) {
       pe(pad, 'pointermove', cx + dir * 90, cy);
       stop = () => pe(pad, 'pointerup', cx + dir * 90, cy);
     }
+    // WAIT FOR THE INPUT TO REGISTER before opening the frame window (the
+    // 2026-08-08 gate FLAKY, 'steer -1.00/-1.00'): under load the previous
+    // leg's full lock is still draining out of the input when this window
+    // opens, peak-|steer| latches the OLD sign, and the strict '>' below
+    // never lets an equal-magnitude opposite sign replace it. The car is
+    // fine; the window opened early. So: don't count frames until the
+    // commanded sign is demonstrably in the input (bounded — a control that
+    // never registers still runs the window and reds the reach assert).
+    if (dir !== 0) {
+      const tReg = Date.now();
+      while (Date.now() - tReg < 4000) {
+        const d0 = window.App.debug();
+        const st = (d0.input && d0.input.steer) || 0;
+        if (Math.sign(st) === Math.sign(dir) && Math.abs(st) > 0.15) break;
+        await new Promise((r) => setTimeout(r, 30));
+      }
+    }
     // HOLD FOR FRAMES, NOT FOR SECONDS. The physics advances per rendered
     // frame with dt clamped at 50 ms, so a wall-clock window measures how many
     // frames the BOX managed, not what the car does: the same half-lock turn
@@ -419,9 +436,15 @@ async function run(MODE) {
     // would report that as a broken control scheme. unstick() is the app's own
     // "put me back on the road" button — the same one a player reaches for.
     const ready = async () => p.body().evaluate(async () => {
+      // Unstick REPEATEDLY, not once (the 2026-08-08 gate FLAKY, 'speed 0.0
+      // m/s, yaw 0.00/0.00'): one unstick at i=8 then 8 more seconds of
+      // silent waiting delivered a PARKED car to the steering legs on a
+      // loaded box, and the suite reported the park as a broken control
+      // scheme. The car has to be moving before a steering measurement means
+      // anything; keep reaching for the app's own recovery button.
       for (let i = 0; i < 40; i++) {
         if (window.App.debug().speed > 4) return window.App.debug().speed;
-        if (i === 8) window.App.unstick();
+        if (i % 8 === 7) window.App.unstick();
         await new Promise((r) => setTimeout(r, 250));
       }
       return window.App.debug().speed;
