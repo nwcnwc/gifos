@@ -22,7 +22,8 @@
     return cur().PHONEME_ROWS.map((p) => {
       const hold = p.length === 'hold';
       return {
-        key: p.key, kind: 'phoneme', display: p.display, ipa: p.ipa, length: p.length,
+        key: p.key, kind: 'phoneme', display: p.display, ipa: p.ipa,
+        example: p.example, length: p.length,
         say: `Say the “${p.display}” sound, as in “${p.example}” - `
           + (hold ? 'hold it for about two seconds.'
             : p.length === 'crisp' ? 'keep it short and crisp.' : 'say it naturally.'),
