@@ -627,6 +627,14 @@
           // brake, so one thumb covers accelerate, hold, slow and stop.
           if (setPoint === null) setPoint = Math.max(0, roadCruise);
           if (stick.active) setPoint += stick.y * TRIM_RATE * dt;
+          // Pushing the stick UP is the player ASKING TO MOVE, and it has to
+          // say so in `go` — the halt latch listens to nothing else. Without
+          // this line the fix that stopped the stick's parking brake from
+          // arming reverse produced a politer failure: the synthetic brake
+          // latched the halt at spawn, the halt waited for a GO that only the
+          // pedal and the W key could send, and the car sat at 0 with the
+          // stick pinned to the top — "the car will not move at all".
+          if (stick.active && stick.y > 0.05) input.go = true;
           setPoint = Math.max(-3, Math.min(62, setPoint));
           if (setPoint <= 0) {
             input.autoTarget = 0; input.throttle = 0;
