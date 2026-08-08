@@ -1,0 +1,26 @@
+{
+  "tagline": "Looping phonics videos for a child learning to read — in your own voice.",
+  "description": "Made for one boy with Down syndrome learning to read, and shared for every family like his. Sound It Out makes calm, looping videos for a TV or tablet: one word at a time in a big literacy font, each letter lit up as its sound is spoken, then the whole word said together. No cartoons, no rewards, no distractions — just words, sounds, and repetition, which is how it sticks.\n\nThe order follows the reading research for Down syndrome rather than ordinary phonics-first schemes: sight words come first — starting with the words a child already cares about, their people, their pets, Paw Patrol — and sounding-out arrives only once a bank of confident words is there to build on. Twelve levels run from whole-word favourites through letter sounds, two-sound blends and three-letter words up to sentences, pasted-in text, sentences built from your own word list, and a story that grows as more letters are learned. Sounding out uses successive blending: the sounds are repeated with the gap shrinking each time, so they audibly become the word rather than being replaced by it.\n\nThe voice is the heart of it. Record yourself once, right in the app — each sound is checked as you say it, and the classic mistake (an “uh” on the end of a consonant, which teaches the wrong sound) is caught on the spot, not discovered later. Everything you record is used exactly as you said it, and it never leaves your device: recordings live inside the app's own icon, not in the copy anyone else downloads. Until then, a built-in voice ships inside the app — every sound already prepared so that isolated letters are clean, held, and schwa-free. And if you add new words later, an optional text-to-speech model (set up in GifOS Settings) can read whole words and sentences until you record them; isolated sounds are never sent to a model.\n\nEdit one word list and it does two jobs: it is the recording checklist, and it is what appears on screen. Give a word a colour and it shows in that colour — each pup's name in its own kit colour. Pick a theme (deep night, paper, or maximum contrast), how long, how many repeats, and how much thinking time between words; then play it straight on the screen, or save it as a video file for a USB stick.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-08",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "phonics",
+    "reading",
+    "down-syndrome",
+    "literacy",
+    "sight-words",
+    "kids",
+    "speech",
+    "accessibility"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/sound-it-out",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
