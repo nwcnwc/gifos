@@ -323,6 +323,21 @@
   // of garbage that shows up as periodic stutter on a phone.
   var wallScratch = [];
   var shake = 0;
+
+  // Is the car IN water? Asked per substep, right before the physics, so a fast
+  // car cannot skip across a pool between frames the way it used to tunnel
+  // through walls.
+  function updateInWater() {
+    var wet = false;
+    for (var k in world.roads) {
+      var r = world.roads[k];
+      if (!r || !r.built || !r.built.wet) continue;
+      if (root.Roads.inWater(r.built.wet, car.x, car.z)) { wet = true; break; }
+    }
+    if (wet && !car.inWater) root.UI.note('In the water — you are not driving out of this one.');
+    car.inWater = wet;
+  }
+
   function collideBuildings(dtNow) {
     wallScratch.length = 0;
     for (var k in world.roads) {
