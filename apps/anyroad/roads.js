@@ -74,16 +74,78 @@
     return Math.min(10, Math.round(n));
   }
 
+  // ---- what is the ground actually MADE of? --------------------------------
+  // Until now a tree's species was chosen by ALTITUDE — conifer above 900 m,
+  // broadleaf below — which is a guess dressed as a rule, and it plants the
+  // same Surrey oak in the Mojave. OSM has been carrying the answer the whole
+  // time: `natural=wood`, `landuse=forest`, `natural=scrub`, and best of all
+  // `leaf_type=broadleaved|needleleaved|mixed`, which NAMES the tree rather
+  // than inferring it from height above sea level.
+  //
+  // Free, no key, properly typed, and it works for every player rather than
+  // only the ones who set up imagery. Satellite can refine this later where OSM
+  // is silent; it should not be the first source when a tag exists.
+  //
+  // `plant` is trees per candidate site (0..1), `bush` makes them low and wide,
+  // and `leaf` is the default species where no leaf_type is tagged.
+  var LAND = {
+    wood:      { id: 1, plant: 0.95, leaf: 'mixed' },
+    forest:    { id: 1, plant: 0.95, leaf: 'mixed' },
+    scrub:     { id: 2, plant: 0.80, leaf: 'bush', bush: true },
+    heath:     { id: 3, plant: 0.30, leaf: 'bush', bush: true },
+    grassland: { id: 4, plant: 0.06, leaf: 'broad' },
+    meadow:    { id: 4, plant: 0.06, leaf: 'broad' },
+    grass:     { id: 4, plant: 0.05, leaf: 'broad' },
+    village_green:     { id: 4, plant: 0.18, leaf: 'broad' },
+    recreation_ground: { id: 4, plant: 0.12, leaf: 'broad' },
+    park:      { id: 4, plant: 0.35, leaf: 'broad' },
+    farmland:  { id: 5, plant: 0.02, leaf: 'broad' },
+    orchard:   { id: 6, plant: 0.90, leaf: 'broad', orchard: true },
+    vineyard:  { id: 6, plant: 0.55, leaf: 'bush', bush: true, orchard: true },
+    residential: { id: 7, plant: 0.22, leaf: 'broad' },
+    industrial:  { id: 8, plant: 0.04, leaf: 'broad' },
+    retail:      { id: 8, plant: 0.04, leaf: 'broad' },
+    commercial:  { id: 8, plant: 0.06, leaf: 'broad' },
+    allotments:  { id: 9, plant: 0.10, leaf: 'bush', bush: true },
+    // Ground that grows nothing. Named rather than merely absent, because
+    // "no tag here" and "bare rock here" are different facts and only one of
+    // them should suppress the fallback scatter.
+    sand:      { id: 10, plant: 0 }, beach: { id: 10, plant: 0 },
+    bare_rock: { id: 10, plant: 0 }, scree: { id: 10, plant: 0 },
+    shingle:   { id: 10, plant: 0 }, glacier: { id: 10, plant: 0 },
+    wetland:   { id: 11, plant: 0.05, leaf: 'bush', bush: true },
+    quarry:    { id: 10, plant: 0 }, landfill: { id: 10, plant: 0 },
+  };
+  var LAND_KEYS = Object.keys(LAND);
+
+  // leaf_type is the tag that actually names the species group.
+  function leafOf(tags, dflt) {
+    var lt = tags['leaf_type'];
+    if (lt === 'needleleaved') return 'conifer';
+    if (lt === 'broadleaved') return 'broad';
+    if (lt === 'mixed') return 'mixed';
+    return dflt || 'mixed';
+  }
+
   function bboxOf(tile) {
     var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
     // Overpass wants south,west,north,east.
     return b.south + ',' + b.west + ',' + b.north + ',' + b.east;
   }
 
-  function query(tile, withBuildings) {
+  function query(tile, withDetail) {
     var bb = bboxOf(tile);
     var parts = ['way["highway"~"^(' + Object.keys(ROAD_CLASS).join('|') + ')$"](' + bb + ');'];
-    if (withBuildings) parts.push('way["building"](' + bb + ');');
+    if (withDetail) {
+      parts.push('way["building"](' + bb + ');');
+      // Landcover rides the SAME query and is dropped by the SAME fallback: a
+      // tile dense enough to blow Overpass's budget on buildings would blow it
+      // on woodland too, and two requests where one will do is the abuse the
+      // per-IP policy exists to stop.
+      parts.push('way["natural"~"^(' + LAND_KEYS.join('|') + ')$"](' + bb + ');');
+      parts.push('way["landuse"~"^(' + LAND_KEYS.join('|') + ')$"](' + bb + ');');
+      parts.push('way["leisure"~"^(park|garden|golf_course)$"](' + bb + ');');
+    }
     parts.push('way["natural"="water"](' + bb + ');');
     return '[out:json][timeout:25];(' + parts.join('') + ');out geom;';
   }
@@ -95,7 +157,7 @@
   function r6(v) { return Math.round(v * 1e6) / 1e6; }
 
   function parse(json, withBuildings) {
-    var ways = [], bld = [], wat = [];
+    var ways = [], bld = [], wat = [], land = [];
     var els = (json && json.elements) || [];
     for (var i = 0; i < els.length; i++) {
       var e = els[i];
@@ -125,9 +187,16 @@
         }
       } else if (tags.natural === 'water') {
         wat.push(flat);
+      } else if (withBuildings) {
+        // [0] class id, [1] ring, [2] species. Kept as three small numbers and
+        // an array rather than the tag soup, because this is cached per tile.
+        var lk = LAND[tags.natural] || LAND[tags.landuse]
+              || (tags.leisure === 'park' || tags.leisure === 'garden' ? LAND.park : null)
+              || (tags.leisure === 'golf_course' ? LAND.grassland : null);
+        if (lk && land.length < MAX_LAND) land.push([lk.id, flat, leafOf(tags, lk.leaf)]);
       }
     }
-    return { ways: ways, bld: bld, wat: wat };
+    return { ways: ways, bld: bld, wat: wat, land: land };
   }
 
   // ---- what KIND of building is this? --------------------------------------
@@ -558,7 +627,8 @@
       memory[key] = geom;
       index[key] = Date.now();
       return db().put({
-        id: 't' + key, ways: geom.ways, bld: geom.bld, wat: geom.wat, dense: !!geom.dense,
+        id: 't' + key, ways: geom.ways, bld: geom.bld, wat: geom.wat, land: geom.land,
+        dense: !!geom.dense,
         at: Date.now(),   // when these bytes were fetched — a dense record expires against this
       }).catch(function () {}).then(evictIfNeeded).then(saveIndex).then(function () { return geom; });
     });
@@ -780,6 +850,7 @@
   // landscape does not look like. It is also why it is one static mesh per
   // tile: 300 trees as 300 draw calls would cost more than everything else in
   // the frame put together.
+  var MAX_LAND = 400;          // landcover rings per tile — a ceiling on cache bytes
   var TREE_STEP = 34;          // metres between candidate sites
   var TREE_MAX = 240;          // per tile — a hard ceiling on bytes AND on fill
   var TREE_CLEAR = 4.0;        // metres of clearance from a carriageway edge
@@ -839,7 +910,56 @@
     }
   }
 
-  function scatter(frame, tile, geom, roadIndex, wallIndex) {
+  // Landcover in WORLD metres, with a bbox per ring so a point test is a
+  // handful of comparisons before any ray casting. Rings are small and few
+  // (capped at MAX_LAND) so a flat list beats a grid here.
+  function buildLandIndex(frame, geom) {
+    var list = [];
+    var src = (geom && geom.land) || [];        // old cache: simply no landcover
+    for (var i = 0; i < src.length; i++) {
+      var rec = src[i], flat = rec[1];
+      if (!flat || flat.length < 6) continue;
+      var xs = [], zs = [], minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (var j = 0; j < flat.length; j += 2) {
+        var w = frame.toWorld(flat[j], flat[j + 1]);
+        xs.push(w.x); zs.push(w.z);
+        if (w.x < minX) minX = w.x; if (w.x > maxX) maxX = w.x;
+        if (w.z < minZ) minZ = w.z; if (w.z > maxZ) maxZ = w.z;
+      }
+      list.push({ id: rec[0], leaf: rec[2], xs: xs, zs: zs,
+                  minX: minX, maxX: maxX, minZ: minZ, maxZ: maxZ,
+                  area: (maxX - minX) * (maxZ - minZ) });
+    }
+    // Smallest first: a garden inside a park should win over the park.
+    list.sort(function (a, b) { return a.area - b.area; });
+    return list;
+  }
+
+  // Which landcover is this point standing on? Ray casting, smallest ring
+  // first. Returns null where OSM says nothing at all — which is NOT the same
+  // as bare rock, and the caller treats the two differently.
+  function landAt(index, x, z) {
+    for (var i = 0; i < index.length; i++) {
+      var r = index[i];
+      if (x < r.minX || x > r.maxX || z < r.minZ || z > r.maxZ) continue;
+      var inside = false, xs = r.xs, zs = r.zs, n = xs.length;
+      for (var a = 0, b = n - 1; a < n; b = a++) {
+        if (((zs[a] > z) !== (zs[b] > z))
+            && (x < (xs[b] - xs[a]) * (z - zs[a]) / ((zs[b] - zs[a]) || 1e-9) + xs[a])) inside = !inside;
+      }
+      if (inside) return r;
+    }
+    return null;
+  }
+
+  // id -> the LAND record, so scatter can read plant/bush/orchard back out.
+  var LAND_BY_ID = (function () {
+    var m = {};
+    for (var k in LAND) if (!m[LAND[k].id]) m[LAND[k].id] = LAND[k];
+    return m;
+  })();
+
+  function scatter(frame, tile, geom, roadIndex, wallIndex, landIndex) {
     var out = { pos: [], nrm: [], col: [], idx: [] };
     // Trunks, as collidable segments and as shadow casters. A tree you can
     // drive through is scenery; a tree you cannot is a hazard, and the whole
@@ -883,19 +1003,45 @@
         var yn = root.Terrain.heightAt(frame, x + 6, z), ye = root.Terrain.heightAt(frame, x, z + 6);
         if (yn !== null && ye !== null && Math.max(Math.abs(yn - y), Math.abs(ye - y)) > 4.2) continue;
 
+        // WHAT DOES OSM SAY IS HERE? A tagged ring decides both whether
+        // anything grows and what it is. Where OSM is silent we keep the old
+        // altitude guess, which is the honest fallback: most of the planet is
+        // untagged and a world with trees only inside mapped woodland looks
+        // stranger than one guessing.
+        var lc = landIndex && landIndex.length ? landAt(landIndex, x, z) : null;
+        var rule = lc ? LAND_BY_ID[lc.id] : null;
+        var bush = false, orchard = false, species = null;
+        if (rule) {
+          if (!rule.plant) continue;                       // sand, rock, quarry
+          if (hash2(gx * 3.1 + 11.7, gz * 4.9 - 3.3) > rule.plant) continue;
+          bush = !!rule.bush; orchard = !!rule.orchard; species = lc.leaf;
+        }
         var h = 5.5 + r1 * 7.5, rad = 1.7 + r2 * 2.1;
         // Conifer above the treeline-ish, broadleaf below, and a few dying back
-        // to autumn either way.
+        // to autumn either way — the guess, used only where nothing is tagged.
         var conifer = y > 900 || r3 < 0.06;
+        if (species === 'conifer') conifer = true;
+        else if (species === 'broad') conifer = false;
+        else if (species === 'mixed') conifer = r3 < 0.45;   // a real mixed wood
+        // Scrub and heath are waist-high and wide, not small trees. Getting
+        // this wrong is what makes moorland look like a nursery.
+        if (bush) { h = 1.1 + r1 * 1.3; rad = 1.3 + r2 * 1.4; conifer = false; }
+        // An orchard is PLANTED, and the giveaway is that it is in rows.
+        if (orchard) { h = bush ? h : 4.2 + r1 * 1.6; rad = bush ? rad : 2.0 + r2 * 0.7; }
         var tint = conifer ? [0.16 + r1 * 0.05, 0.30 + r2 * 0.07, 0.20 + r1 * 0.05]
                            : [0.22 + r2 * 0.14, 0.38 + r1 * 0.12, 0.16 + r2 * 0.08];
         if (r2 > 0.93) tint = [0.52, 0.40, 0.16];       // one in fifteen has turned
         var th = conifer ? h * 1.25 : h, tr = conifer ? rad * 0.62 : rad;
+        if (bush) { th = h; tr = rad; }
         tree(x, y, z, th, tr, tint, out);
         // The trunk as a small square of wall segments. A single segment would
         // be a flat plank the car can slide along the edge of; four make a post
         // that pushes you out whichever way you hit it.
+        // A BUSH IS NOT A BOLLARD. Scrub you cannot drive through turns open
+        // moorland into a maze, and the point of a trunk is that leaving the
+        // road costs something — a gorse bush does not.
         var tw = Math.max(0.22, tr * 0.14);
+        if (bush) { shade.push(x, y, z, tr, th); planted++; continue; }
         trunks.push(x - tw, z - tw, x + tw, z - tw,
                     x + tw, z - tw, x + tw, z + tw,
                     x + tw, z + tw, x - tw, z + tw,
@@ -1085,8 +1231,9 @@
     // build time and it keeps the ordering honest.
     var roadIndex = buildIndex(frame, geom);
     var wallIndex = buildWallIndex(frame, geom);
+    var landIndex = buildLandIndex(frame, geom);
     var scenery = root.Sources.current.quality === 'normal'
-      ? scatter(frame, tile, geom, roadIndex, wallIndex) : null;
+      ? scatter(frame, tile, geom, roadIndex, wallIndex, landIndex) : null;
     if (scenery && scenery.trunks.length) wallIndex = buildWallIndex(frame, geom, scenery.trunks);
     var shadows = buildShadows(frame, geom, scenery ? scenery.shade : []);
 
@@ -1556,5 +1703,9 @@
     // a ridge runs the length of a house is to read the vertices. From the far
     // end of build() it is an undifferentiated triangle soup.
     roofOver: roofOver,
+    // Landcover: which ring is this point standing on, and what does the ring
+    // say grows there. Both pure, and neither observable from the far end of
+    // build() — by then a wood and a car park are the same triangles.
+    landIndexOf: buildLandIndex, landAt: landAt, LAND: LAND,
   };
 })(window);
