@@ -1,0 +1,37 @@
+{
+  "gifos": "1.0",
+  "appId": "sound-it-out",
+  "name": "Sound It Out",
+  "shortName": "SoundItOut",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "accent": [
+    255,
+    209,
+    102
+  ],
+  "capabilities": {
+    "db": true,
+    "microphone": true,
+    "ai": [
+      "tts"
+    ]
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "words": {
+      "visibility": "private"
+    },
+    "recordings": {
+      "visibility": "private"
+    },
+    "recmeta": {
+      "visibility": "private"
+    },
+    "ttscache": {
+      "visibility": "private"
+    }
+  }
+}
