@@ -7956,10 +7956,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const want = stream.getTracks().filter((t) => t.readyState !== 'ended');
       const sameSet = !!(cur && cur.srcTracks && cur.srcTracks.length === want.length
         && want.every((t) => cur.srcTracks.indexOf(t) >= 0));
+      // THE CARRY GUARANTEE AFTER 'w' (the second half of the FAILOVER-WAKE
+      // campaign). A DEMANDED-HOT job whose entire source is MUTED past the
+      // grace is a zombie: its upstream is parked/dark, it ships nothing,
+      // and its announce keeps a receiver claimed on a pipe that provably
+      // cannot carry — the muted twin of the trackless husk below (measured:
+      // redun-strict wedge, annForSlot 2 alive at 75s, both husks holding
+      // each other's MUTED tracks, battery1 2026-08-08). Pause the announce
+      // until the source unmutes or the job re-parks. A PARKED spare is
+      // exempt by construction (active=false — silence is its whole job:
+      // sdnm mirror chains and ^x cross copies hold muted sources for
+      // minutes by design and MUST stay claimable).
+      const carryHusk = (job, tracks) => {
+        if (!job.active) { job.mutedAt = 0; return false; }
+        if (!(tracks.length > 0 && tracks.every((t) => t.muted))) { job.mutedAt = 0; return false; }
+        if (!job.mutedAt) job.mutedAt = Date.now();
+        return Date.now() - job.mutedAt > MOS_GRACE;
+      };
       if (cur && sameSet && !orphaned) { // live job — re-announce (idempotent, heals a lost frame)
         cur.sig = stream.id;
         if (meta) cur.meta = meta; // counts change while the stream id doesn't — the fresh {n, cols} must ride each re-announce
-        if (p && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
+        if (!carryHusk(cur, want) && p && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
         return jk;
       }
       // The source under an ESTABLISHED job changed. This used to be the
@@ -8087,7 +8104,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // change (add/del/relane — swap and reroute don't touch m-lines)
         // renegotiates explicitly; perfect negotiation absorbs glare.
         if (ops.some((o) => o.indexOf('swap') !== 0 && o.indexOf('reroute') !== 0)) renegotiate(p);
-        if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
+        // the carry guarantee gates ONLY the announce — the track surgery and
+        // its renegotiation above always land, so the job is ready the moment
+        // its source unmutes
+        if (!carryHusk(cur, want) && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
         compKick(to);
         return jk;
       }
