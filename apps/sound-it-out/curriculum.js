@@ -323,8 +323,10 @@
               // follows immediately below.
             }
           }
+          // The arrival, once per growing pass - inside the rep loop, so
+          // every repetition of the growth ends on the whole word.
+          segs.push(whole(word, wordClip(word), pause + 1.4));
         }
-        segs.push(whole(word, wordClip(word), pause + 1.4));
       }
 
       // 3. Grow the chapter's sentence, one word at a time.
