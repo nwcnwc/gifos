@@ -295,7 +295,7 @@
     aldi: '00549F', q125054: '00549F',
     lidl: '0050AA', q151954: '0050AA',
     sainsburys: 'F06C00', asda: '68A80D', morrisons: '007A3D',
-    waitrose: '5A9E3C', marksandspencer: '00543D', mands: '00543D',
+    waitrose: '5A9E3C', marksandspencer: '00543D', mands: '00543D', marksspencer: '00543D',
     coop: '00B1E7', iceland: 'E4002B', poundland: 'E4002B',
     boots: '05054B', superdrug: 'E4002B', hollandandbarrett: '00543D',
     greggs: '00263E', q3403981: '00263E',
@@ -1333,33 +1333,82 @@
   // ridge is a segment through the centroid along the footprint's long axis;
   // collapse it to zero length and this is the old pyramid, which is still the
   // right answer for a square plan.
+  // A pitched roof, hipped or gabled, over an arbitrary footprint.
+  //
+  // The first version of this laid the ridge along the NORTH/EAST bounding box
+  // and fanned every eave up to whichever of the ridge's two ENDPOINTS was
+  // nearer. Both parts are wrong for real buildings and together they are what
+  // made so many house roofs lopsided and spiky:
+  //
+  //   1. OSM buildings are not axis-aligned. A house rotated 30 degrees has an
+  //      AABB far larger than itself, so spanX/spanZ describe the box and not
+  //      the house — the "long axis" could come out perpendicular to the actual
+  //      ridge, and the ridge could run outside the footprint entirely.
+  //   2. With only two possible apexes, adjacent edges could pick DIFFERENT
+  //      endpoints in a non-contiguous order. Neighbouring triangles then rise
+  //      to points metres apart and the surface tears — visible as the sharp
+  //      angular creases, and as triangles crossing straight through each other.
+  //
+  // Now: the ridge runs along the footprint's OWN principal axis (2x2 PCA of
+  // the corners, which is exact for the rectangles most houses are), and each
+  // eave rises to the nearest point ON the ridge segment rather than to an end
+  // of it. That is what a hip roof actually is — two long slopes meeting a
+  // ridge line, two ends folding in to its tips — and because the apex now
+  // varies continuously along the ridge, adjacent triangles share an edge
+  // instead of arguing about it.
   function roofOver(poly, base, top, ridge, seed, tone, out) {
     var cx = cxOf(poly), cz = czOf(poly);
-    var minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    // Principal axis, from the second moments about the centroid. The closed
+    // form for the dominant eigenvector of a symmetric 2x2 is one atan2.
+    var sxx = 0, szz = 0, sxz = 0;
     for (var q = 0; q < poly.length; q++) {
-      minX = Math.min(minX, poly[q].x); maxX = Math.max(maxX, poly[q].x);
-      minZ = Math.min(minZ, poly[q].z); maxZ = Math.max(maxZ, poly[q].z);
+      var dx = poly[q].x - cx, dz = poly[q].z - cz;
+      sxx += dx * dx; szz += dz * dz; sxz += dx * dz;
     }
-    var spanX = maxX - minX, spanZ = maxZ - minZ;
-    var alongX = spanX >= spanZ;
-    var long = alongX ? spanX : spanZ, short = alongX ? spanZ : spanX;
+    var theta = 0.5 * Math.atan2(2 * sxz, sxx - szz);
+    var ux = Math.cos(theta), uz = Math.sin(theta);      // along the ridge
+    var vx = -uz, vz = ux;                                // across it
+    // Extents in the building's own frame, not the world's.
+    var uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
+    for (var w = 0; w < poly.length; w++) {
+      var ex = poly[w].x - cx, ez = poly[w].z - cz;
+      var pu = ex * ux + ez * uz, pv = ex * vx + ez * vz;
+      if (pu < uMin) uMin = pu; if (pu > uMax) uMax = pu;
+      if (pv < vMin) vMin = pv; if (pv > vMax) vMax = pv;
+    }
+    var long = uMax - uMin, short = vMax - vMin;
+    // If PCA picked the SHORT side (it can, on a footprint that is nearly
+    // square or strongly L-shaped), swap — a ridge should run the long way.
+    if (short > long) {
+      var t0 = ux; ux = vx; vx = -t0;
+      var t1 = uz; uz = vz; vz = -t1;
+      var t2 = long; long = short; short = t2;
+      var t3 = uMin; uMin = vMin; vMin = t3;
+      var t4 = uMax; uMax = vMax; vMax = t4;
+    }
     // GABLE or HIP, by the building's own seed. Both are common, and a street
     // where every roof is hipped looks as manufactured as one where every roof
-    // is a pyramid.
+    // is a pyramid. The ridge is centred on the footprint's own extent rather
+    // than on the centroid, which matters for an L: the centroid of an L is not
+    // half way along it.
     var gable = seed > 0.5;
+    var mid = (uMin + uMax) / 2;
     var half = gable ? long / 2 : Math.max(0, (long - short) / 2);
-    var ax = alongX ? cx - half : cx, az = alongX ? cz : cz - half;
-    var bx = alongX ? cx + half : cx, bz = alongX ? cz : cz + half;
+    var rax = cx + ux * (mid - half), raz = cz + uz * (mid - half);
+    var rbx = cx + ux * (mid + half), rbz = cz + uz * (mid + half);
 
     for (var e = 0; e < poly.length; e++) {
       var p0 = poly[e], p1 = poly[(e + 1) % poly.length];
       var mx = (p0.x + p1.x) / 2, mz = (p0.z + p1.z) / 2;
-      // Each eave runs up to whichever end of the ridge is nearer.
-      var da = (mx - ax) * (mx - ax) + (mz - az) * (mz - az);
-      var db = (mx - bx) * (mx - bx) + (mz - bz) * (mz - bz);
-      var rx = da < db ? ax : bx, rz = da < db ? az : bz;
-      var ex = p1.x - p0.x, ez = p1.z - p0.z, el = Math.hypot(ex, ez) || 1;
-      var ox = ez / el, oz = -ex / el;              // outward, horizontal
+      // The nearest point ON the ridge segment: project, then clamp to its
+      // ends. A long side gets an apex directly inboard of itself; only the
+      // two hip ends reach a tip.
+      var t = (mx - rax) * (rbx - rax) + (mz - raz) * (rbz - raz);
+      var len2 = (rbx - rax) * (rbx - rax) + (rbz - raz) * (rbz - raz);
+      t = len2 > 1e-6 ? Math.max(0, Math.min(1, t / len2)) : 0;
+      var rx = rax + (rbx - rax) * t, rz = raz + (rbz - raz) * t;
+      var edx = p1.x - p0.x, edz = p1.z - p0.z, el = Math.hypot(edx, edz) || 1;
+      var ox = edz / el, oz = -edx / el;              // outward, horizontal
       var slope = Math.hypot(rx - mx, rz - mz) || 1;
       var hyp = Math.hypot(slope, ridge);
       var r0 = out.pos.length / 3;
@@ -1503,5 +1552,9 @@
     // back triangles — by then a two-storey house and a five-storey office are
     // the same array of numbers.
     heightOf: buildingHeight, brandOf: packBrand, areaOf: ringAreaM2,
+    // roofOver too: a roof's SHAPE is geometry, and the only way to see whether
+    // a ridge runs the length of a house is to read the vertices. From the far
+    // end of build() it is an undifferentiated triangle soup.
+    roofOver: roofOver,
   };
 })(window);

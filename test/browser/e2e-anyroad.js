@@ -759,6 +759,70 @@ function check(name, cond, detail) {
   check('est_height is somebody else\'s measurement and is taken', Math.abs(heights.estimate - 25) < 0.01,
     heights.estimate.toFixed(1) + ' m');
 
+  // ---- the shape of a pitched roof ----------------------------------------
+  // Reported from a real drive: "a lot of the house roofs have very strange and
+  // lopsided angular shapes". Two causes, both arithmetic.
+  //
+  // The ridge was laid along the NORTH/EAST bounding box. Rotate a 16 x 6 m
+  // house by 45 degrees and its AABB is 15.56 x 15.56 — square — so
+  // half = max(0, (long - short) / 2) collapsed to ZERO, the ridge became a
+  // single point at the centroid, and the roof was a pyramid. And each eave
+  // fanned to whichever of the ridge's two ENDPOINTS was nearer, so adjacent
+  // edges could pick different ends out of order and the surface tore.
+  //
+  // Now the ridge follows the footprint's own principal axis and each eave
+  // rises to the nearest point ON the ridge segment. Asserted as geometry,
+  // because from the far end of build() a roof is triangle soup.
+  const roofs = await fr.locator('body').evaluate(() => {
+    const R = window.Roads;
+    const house = (deg, L = 16, W = 6) => {
+      const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      return [[-L / 2, -W / 2], [L / 2, -W / 2], [L / 2, W / 2], [-L / 2, W / 2]]
+        .map(([x, z]) => ({ x: x * c - z * s, z: x * s + z * c }));
+    };
+    const apexes = (poly, seed) => {
+      const out = { pos: [], nrm: [], tone: [], binfo: [], idx: [] };
+      R.roofOver(poly, 0, 5, 2.2, seed, 0.6, out);
+      const A = [];
+      for (let i = 0; i < out.pos.length; i += 9) A.push({ x: out.pos[i + 6], z: out.pos[i + 8] });
+      return A;
+    };
+    // Worst perpendicular deviation of the apexes from a single straight line.
+    const bend = (A) => {
+      const n = A.length, mx = A.reduce((a, p) => a + p.x, 0) / n, mz = A.reduce((a, p) => a + p.z, 0) / n;
+      let sxx = 0, szz = 0, sxz = 0;
+      for (const p of A) { const dx = p.x - mx, dz = p.z - mz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }
+      const th = 0.5 * Math.atan2(2 * sxz, sxx - szz), ax = Math.cos(th), az = Math.sin(th);
+      let worst = 0;
+      for (const p of A) worst = Math.max(worst, Math.abs(-(p.x - mx) * az + (p.z - mz) * ax));
+      return worst;
+    };
+    const rot = [];
+    for (const deg of [0, 15, 30, 45, 60, 75, 90]) {
+      const A = apexes(house(deg), 0.2);
+      const ux = Math.cos(deg * Math.PI / 180), uz = Math.sin(deg * Math.PI / 180);
+      let along = 0, across = 0;
+      for (const p of A) {
+        along = Math.max(along, Math.abs(p.x * ux + p.z * uz));
+        across = Math.max(across, Math.abs(-p.x * uz + p.z * ux));
+      }
+      rot.push({ deg, along: +along.toFixed(2), across: +across.toFixed(3) });
+    }
+    const L = [{ x: 0, z: 0 }, { x: 14, z: 0 }, { x: 14, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 12 }, { x: 0, z: 12 }];
+    return { rot,
+             bendRect: bend(apexes(house(30), 0.2)),
+             bendGable: bend(apexes(house(30), 0.9)),
+             bendL: bend(apexes(L, 0.2)) };
+  });
+  check('a pitched roof\'s ridge runs the LENGTH of the house at every rotation',
+    roofs.rot.every((r) => r.along > 2 && r.across < 0.05),
+    roofs.rot.map((r) => r.deg + '°:' + r.along + '/' + r.across).join(' '));
+  check('…and its apexes lie on ONE ridge line, not scattered points',
+    roofs.bendRect < 0.01 && roofs.bendGable < 0.01,
+    'hip ' + roofs.bendRect.toFixed(4) + ' m, gable ' + roofs.bendGable.toFixed(4) + ' m off a straight line');
+  check('…including on an L-shaped footprint, which used to be the worst case',
+    roofs.bendL < 0.01, roofs.bendL.toFixed(4) + ' m');
+
   // ---- whose shop is it? ---------------------------------------------------
   // The sign colour is the one thing about a business that reads from a moving
   // car. OSM names them and the parser used to discard the name entirely.
