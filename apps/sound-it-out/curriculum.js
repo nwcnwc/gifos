@@ -43,6 +43,9 @@
   // be taught WRONG as long ones). "nose"-type /z/ words are irregular.
   const MAGIC_E = /[aeiou][bcdfgklmnpstz]e$/;
   const LONG_VOWELS = { a: 'eɪ', e: 'iː', i: 'aɪ', o: 'əʊ', u: 'uː' };
+  // Inside a rime the e also softens c and g: "face" is /eɪs/, "cage" is
+  // /eɪdʒ/. Everywhere else c stays /k/ and g stays /ɡ/.
+  const RIME_CONS = { c: 's', g: 'dʒ' };
 
   // Buildable exceptions the letter rules cannot produce: the s in these is
   // voiced. Small and explicit beats a clever rule that misfires.
@@ -77,8 +80,9 @@
     if (low.length >= 3 && MAGIC_E.test(low)) {
       const head = word.length > 3 ? splitGraphemes(word.slice(0, -3)) : [];
       const v = low[low.length - 3], c = low[low.length - 2];
-      const rime = LONG_VOWELS[v] + (CVC_PHONEMES[c] !== undefined ? CVC_PHONEMES[c] : c);
-      return head.concat([[word.slice(-3), rime]]);
+      const cons = RIME_CONS[c] !== undefined ? RIME_CONS[c]
+        : (CVC_PHONEMES[c] !== undefined ? CVC_PHONEMES[c] : c);
+      return head.concat([[word.slice(-3), LONG_VOWELS[v] + cons]]);
     }
     const out = [];
     let i = 0;
@@ -200,6 +204,54 @@
   ];
   const PHONEME_ROWS = _ROWS.flat().map(([key, display, example, ipa, length]) =>
     ({ key, display, example, ipa, length }));
+
+  // Every (spelling, ipa) rime the magic-e rule can produce. The spelling
+  // doubles as the recording prompt ("ase", "ike", "ome" read aloud ARE the
+  // rimes); the ipa is the key the phoneme lookup asks for.
+  function allRimes() {
+    const out = [];
+    for (const v of 'aeiou') {
+      for (const c of 'bcdfgklmnpstz') {
+        const cons = RIME_CONS[c] !== undefined ? RIME_CONS[c] : CVC_PHONEMES[c];
+        out.push([v + c + 'e', LONG_VOWELS[v] + cons]);
+      }
+    }
+    return out;
+  }
+
+  // A real word carrying each rime's SOUND, so the prompt can always say
+  // "as in…". Where no same-spelled everyday word exists, a sound-alike
+  // anchors it - the anchor is for the ear, not the spelling.
+  const RIME_EXAMPLES = {
+    abe: 'babe', ace: 'face', ade: 'made', afe: 'safe',
+    age: 'page', ake: 'cake', ale: 'tale', ame: 'name',
+    ane: 'plane', ape: 'tape', ase: 'case', ate: 'gate',
+    aze: 'maze',
+    ebe: 'Beebe', ece: 'niece', ede: 'Swede', efe: 'beef',
+    ege: 'siege', eke: 'week', ele: 'eel', eme: 'theme',
+    ene: 'gene', epe: 'deep', ese: 'geese', ete: 'Pete',
+    eze: 'sneeze',
+    ibe: 'tribe', ice: 'nice', ide: 'ride', ife: 'life',
+    ige: 'oblige', ike: 'like', ile: 'smile', ime: 'time',
+    ine: 'nine', ipe: 'pipe', ise: 'rice', ite: 'kite',
+    ize: 'prize',
+    obe: 'robe', oce: 'dose', ode: 'rode', ofe: 'loaf',
+    oge: 'doge', oke: 'joke', ole: 'hole', ome: 'home',
+    one: 'bone', ope: 'hope', ose: 'dose', ote: 'note',
+    oze: 'doze',
+    ube: 'tube', uce: 'spruce', ude: 'rude', ufe: 'roof',
+    uge: 'huge', uke: 'duke', ule: 'rule', ume: 'zoom',
+    une: 'June', upe: 'soup', use: 'goose', ute: 'flute',
+    uze: 'snooze',
+  };
+  // How each half of a rime is said, in plain letters a non-linguist can
+  // read aloud. The vowel says its NAME (that is what the magic e does).
+  const RIME_VOWEL_HINT = { a: 'ay', e: 'ee', i: 'eye', o: 'oh', u: 'oo' };
+  const RIME_CONS_HINT = {
+    b: 'b', c: 'sss', d: 'd', f: 'fff', g: 'j', k: 'k',
+    l: 'lll', m: 'mmm', n: 'nnn', p: 'p', s: 'sss', t: 't',
+    z: 'zzz',
+  };
 
   // The same sound written two ways; a recording of one satisfies the other.
   const PHONEME_ALIASES = {
@@ -341,6 +393,7 @@
     MAGIC_E, LONG_VOWELS, WORD_SOUNDS, IRREGULAR_WORDS,
     LADDER, DIGRAPH_WORDS, SENTENCES,
     cleanWord, splitGraphemes, wordParts, decodable,
+    RIME_CONS, allRimes, RIME_EXAMPLES, RIME_VOWEL_HINT, RIME_CONS_HINT,
     PHONEME_ROWS, PHONEME_ALIASES, sentenceKey,
     APPROACH_FLOOR, approach, oneWord, library,
   };

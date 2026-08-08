@@ -188,12 +188,11 @@
     const c = cur();
     const ladder = [];
     for (const ch of c.LADDER) ladder.push(...ch.words, ch.sentence);
+    // No invented "first words" pack: the personally-meaningful words - their
+    // name, Mum, the pets - are exactly the ones a family types in themselves
+    // and records in their own voice. Every pack shipped here is fully
+    // covered by the starter voice on day one.
     return [
-      { id: 'starter-words', group: 'favourites', name: 'First words',
-        description: 'Names, family and everyday things to start from - the words a child already cares about are the ones learned first. Edit after adding: swap in your real names.',
-        items: ['Mum', 'Dad', 'Nana', 'Grandad', 'home', 'bed', 'dog', 'cat',
-          'ball', 'book', 'park', 'I', 'me', 'you', 'go', 'stop', 'yes', 'no',
-          'more', 'look', 'love', 'up', 'down'] },
       { id: 'paw-patrol', group: 'favourites', name: 'Paw Patrol',
         description: 'The pups and their lines.',
         items: [

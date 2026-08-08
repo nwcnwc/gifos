@@ -349,7 +349,9 @@
 
   const studio = { queue: [], index: 0, takes: [], busy: false, onDone: null };
 
-  function takesNeeded(item) { return item.kind === 'phoneme' ? 3 : 1; }
+  function takesNeeded(item) {
+    return item.takes || (item.kind === 'phoneme' ? 3 : 1);
+  }
 
   function openStudio(items, onDone) {
     if (!SIO.store.inGifOS()) { alert('Recording needs this app to be open inside GifOS.'); return; }
@@ -562,6 +564,9 @@
     const plan = SIO.studio.phonemePlan();
     const n = plan.filter((it) => done.has(SIO.studio.storageId(it))).length;
     $('count-phonemes').textContent = n ? `${n} of ${plan.length} recorded` : `${plan.length} to record`;
+    const rimes = SIO.studio.rimesPlan();
+    const nr = rimes.filter((it) => done.has(SIO.studio.storageId(it))).length;
+    $('count-rimes').textContent = nr ? `${nr} of ${rimes.length} recorded` : `${rimes.length}, starter voice for now`;
     const bank = await SIO.studio.bankList();
     $('count-bank').textContent = bank.length ? `${bank.length} words` : 'empty so far';
 
@@ -623,6 +628,26 @@
       body.appendChild(wrap);
       $('script').hidden = false;
       openOverlay(closeScript);
+    });
+    $('rimes-record').addEventListener('click', async () => {
+      const done = await SIO.studio.doneMap();
+      const items = SIO.studio.rimesPlan().filter((it) => !done.has(SIO.studio.storageId(it)));
+      openStudio(items);
+    });
+    $('rimes-review').addEventListener('click', async () => {
+      const done = await SIO.studio.doneMap();
+      const rows = SIO.studio.rimesPlan().map((it) => {
+        const id = SIO.studio.storageId(it);
+        const meta = done.get(id);
+        return {
+          id,
+          display: it.display + (SIO.curriculum.RIME_EXAMPLES[it.key] ? '  (as in ' + SIO.curriculum.RIME_EXAMPLES[it.key] + ')' : ''),
+          meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's' : '',
+          missing: !meta,
+        };
+      });
+      openReview('Listen back — the word endings',
+        'Tap one to hear your recording. Unrecorded ones use the starter voice.', rows);
     });
     $('bank-review').addEventListener('click', async () => {
       const bank = await SIO.studio.bankList();

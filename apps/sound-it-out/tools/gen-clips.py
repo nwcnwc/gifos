@@ -62,10 +62,22 @@ def mp3_bytes(a: np.ndarray, q: int = 7) -> bytes:
         return mp3.read_bytes()
 
 
+def _unsafe(stem: str) -> str:
+    """Undo gen/voice._safe's filename encoding (uXXXX per non-alnum char):
+    the studio saves sentences as e.g. chaseu005fis…, and the lookup key is
+    the decoded form. Only accepted when it round-trips, so a real word that
+    happens to contain u+hex is never mangled."""
+    import re
+
+    decoded = re.sub(r"u([0-9a-f]{4})", lambda m: chr(int(m.group(1), 16)), stem)
+    safe = "".join(f"u{ord(c):04x}" if not c.isalnum() else c for c in decoded)
+    return decoded if safe == stem else stem
+
+
 def pack_dir(sub: str) -> dict:
-    """Transcode one starter-voice directory, keyed by filename stem (the
-    phoneme files are named by their IPA; words by the word; sentences by
-    their sentence_key). Levelled with the pipeline's own loud()."""
+    """Transcode one starter-voice directory, keyed by decoded filename stem
+    (phonemes by their IPA, words by the word, sentences by their
+    sentence_key). Levelled with the pipeline's own loud()."""
     out = {}
     src = STARTER_VOICE / sub
     if not src.exists():
@@ -74,7 +86,7 @@ def pack_dir(sub: str) -> dict:
         a, sr = sf.read(str(f), dtype="float32")
         if sr != SR:
             raise SystemExit(f"{f}: rate {sr}, expected {SR}")
-        out[f.stem] = base64.b64encode(mp3_bytes(loud(a))).decode()
+        out[_unsafe(f.stem)] = base64.b64encode(mp3_bytes(loud(a))).decode()
     return out
 
 
@@ -93,6 +105,8 @@ FIXTURE_LIBRARY = [
     "is",
     "the",
     "vam",
+    "face",
+    "cage",
     "happy",
     "Sam sat.",
     "Chase is on the case.",
