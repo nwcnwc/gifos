@@ -94,6 +94,21 @@
 # wake-completes, rides-a-live-via. Both strict asserts promote back together
 # with the receiver-side RTP-silence watchdog. If a DEFAULT-mode leg reds,
 # that is a REGRESSION to hunt, not a reason to re-add it.
+#
+# RE-ADDED 2026-08-08, SAME DAY, ARGUED — the promotion was measured on the
+# 2026-08-06 idle-box data (default legs 18/18) and the 0.9.6 overnight showed
+# a different reality at DRILL-TIER LOADS: the ZOMBIE-PARKED-PIPE class (a
+# demanded-hot chain that delivers nothing — heir-3, 2026-07-28) reds the
+# default wake/failover legs at roughly 1-in-3 when loadavg exceeds ~9 on the
+# 8-core gate host, and 0-in-8-ish below that, ON EVERY BUILD TESTED that
+# night INCLUDING the pre-delta 7b14caa tree (ABAB old 3/3 green at load
+# 10-12 in one round, then reds clustered at load 11.8-12.4 in the next —
+# load-band nondeterminism, not a code regression; the one hunt with per-leg
+# forensics showed 18s of stdFdec=0 under a live 'w' demand). The residual is
+# SENDER-side (known-unfixed.sh FAILOVER-WAKE: container identity across
+# reships + a carry guarantee after 'w'); promotion returns when that
+# campaign lands and the zombie class dies.
+mirror-drill  NONDETERMINISTIC known-unfixed: default wake/failover legs red ~1-in-3 at loadavg>9 on the 8-core gate host (zombie-parked-pipe, sender-side class); clean below load ~8. Promote when the container-identity campaign retires the zombie class — see known-unfixed.sh FAILOVER-WAKE.
 
 # PROMOTED 2026-08-06 — redun-drill is back in the gate, and the entry that
 # lived here was wrong about what failed. Recorded so nobody re-adds it blind.
