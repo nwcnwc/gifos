@@ -330,7 +330,10 @@ async function run(MODE) {
   const SCHEMES = { Ada: 'wheel', Ben: 'stick', Cyd: 'tilt' };
   for (const p of players) {
     await p.page.bringToFront();
-    await p.body().evaluate((s) => window.Sources.set({ scheme: s }), SCHEMES[p.name]);
+    // locator.evaluate hands the ELEMENT in first: the argument is the SECOND
+    // parameter. Written as (s) => … the scheme was set to an HTMLBodyElement,
+    // which sailed through Sources.set and took the app's frame down with it.
+    await p.body().evaluate((el, s) => window.Sources.set({ scheme: s }), SCHEMES[p.name]);
   }
   await sleep(1200);
   const took = [];
@@ -343,7 +346,7 @@ async function run(MODE) {
     NAMES.map((n, i) => n + '=' + took[i]).join(', '));
 
   // Hold a direction for `ms` and report what the input layer and the car did.
-  const steerFor = (p, dir, ms) => p.body().evaluate(async ([dir, ms]) => {
+  const steerFor = (p, dir, ms) => p.body().evaluate(async (el, [dir, ms]) => {
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const scheme = window.Sources.current.scheme;
     const view = document.getElementById('view');
