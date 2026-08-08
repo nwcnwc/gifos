@@ -222,9 +222,47 @@
     esso: [0.83, 0.14, 0.16], total: [0.90, 0.30, 0.10], texaco: [0.85, 0.12, 0.14],
     // everything else that paints its whole shopfront one colour
     ikea: [0.00, 0.35, 0.68], decathlon: [0.00, 0.45, 0.65], boots: [0.00, 0.23, 0.55],
+
+    // NORTH AMERICA. The list above was written from a British high street —
+    // Greggs, Costa, Morrisons, Boots — which is a fine list and the wrong one
+    // for most of the planet's drivers. Keyed by NAME rather than
+    // brand:wikidata: the Q-ids above are ones I could verify, and a guessed
+    // Q-id is worse than no Q-id because it silently paints the wrong brand's
+    // colour on somebody's corner. Names are matched normalised (lowercased,
+    // punctuation stripped), so both "In-N-Out" and "In-N-Out Burger" land.
+    innout: [0.87, 0.16, 0.20], innoutburger: [0.87, 0.16, 0.20],
+    chickfila: [0.86, 0.14, 0.20], tacobell: [0.44, 0.16, 0.49],
+    wendys: [0.79, 0.11, 0.16], dunkin: [0.95, 0.44, 0.10],
+    dunkindonuts: [0.95, 0.44, 0.10], chipotle: [0.60, 0.18, 0.13],
+    fiveguys: [0.79, 0.10, 0.24], whataburger: [0.94, 0.35, 0.06],
+    jackinthebox: [0.85, 0.15, 0.20], sonic: [0.90, 0.25, 0.15],
+    sonicdrivein: [0.90, 0.25, 0.15], popeyes: [0.94, 0.42, 0.09],
+    arbys: [0.80, 0.14, 0.18], dairyqueen: [0.85, 0.13, 0.19],
+    pandaexpress: [0.83, 0.13, 0.16], shakeshack: [0.42, 0.72, 0.55],
+    // groceries and pharmacy
+    traderjoes: [0.79, 0.13, 0.15], safeway: [0.83, 0.13, 0.16],
+    kroger: [0.00, 0.34, 0.65], albertsons: [0.00, 0.36, 0.63],
+    publix: [0.13, 0.42, 0.21], costco: [0.88, 0.13, 0.18],
+    wholefoods: [0.00, 0.42, 0.24], wholefoodsmarket: [0.00, 0.42, 0.24],
+    cvs: [0.80, 0.10, 0.14], cvspharmacy: [0.80, 0.10, 0.14],
+    walgreens: [0.80, 0.10, 0.14],
+    // fuel — the sign you look for when the tank is low, US edition
+    chevron: [0.00, 0.31, 0.62], exxon: [0.85, 0.13, 0.16],
+    mobil: [0.85, 0.13, 0.16], arco: [0.00, 0.35, 0.66],
+    valero: [0.00, 0.40, 0.68], circlek: [0.90, 0.36, 0.10],
+    '7eleven': [0.85, 0.16, 0.18],
+    // hardware and big box
+    homedepot: [0.95, 0.42, 0.06], lowes: [0.00, 0.29, 0.62],
+    bestbuy: [0.00, 0.33, 0.71],
   };
 
-  function normBrand(s) { return String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  // Lowercase, strip everything that is not a letter or digit, and drop a
+  // leading "the" — OSM carries "The Home Depot" and "The Range" exactly as the
+  // company writes them, and a table keyed on homedepot would miss every one.
+  function normBrand(s) {
+    var n = String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+    return n.replace(/^the(?=.{3})/, '');
+  }
 
   // Pack an RGB into ONE float's integer part: 4 bits a channel, 0-15 each.
   // Sixteen levels is coarse and a sign is a flat colour at 40 m, so nothing
