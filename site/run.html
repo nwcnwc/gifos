@@ -3989,7 +3989,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         } catch (e) {}
         if (!stream) return;
         p.incoming = p.incoming || [];
-        if (!p.incoming.includes(stream)) p.incoming.push(stream);
+        if (!p.incoming.includes(stream)) {
+          // CONTAINER IDENTITY: a sid is a per-job constant now, so a rebuilt
+          // transport (or an all-m-lines-stopped rebirth) can deliver the
+          // SAME id in a NEW remote stream object. Two same-id entries would
+          // make every find-by-id below resolve the CORPSE first — replace,
+          // never accumulate.
+          const dup = p.incoming.findIndex((s) => s.id === stream.id);
+          if (dup >= 0) p.incoming.splice(dup, 1);
+          p.incoming.push(stream);
+        }
         // Cap dead renegotiation leftovers — but a busy mosaic link legitimately
         // carries MANY live aux streams (sdm + sdx + sdxc + sgs + stg:* + the
         // camera); the old cap of 8 evicted still-LIVE streams, which made
@@ -7864,6 +7873,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // video only, the one rule), transcode otherwise. The single place a
     // job's sender is born: the fresh-ship loop and the reconcile path both
     // come through here, so the lane decision can never fork between them.
+    // trackList holds the CARRIER for a piped slot — dormancy (setJobActive)
+    // replaceTracks it back on wake; re-attaching the remote track would
+    // re-enter the transcode path with the pipe transform still on the
+    // sender. stg:* (CAMERA-origin) rides the pipe lane too — RE-SCOPED
+    // 2026-08-04 after the freeze was decomposed across devices
+    // (pipe-freeze-probe, frza runs; the 9bf885d scope-out records the
+    // original observation). What the freeze actually was: WebRTC emits NO
+    // periodic keyframes, so a pipe going hot mid-GOP starved for key
+    // content; the mx-kf DC walk answered by NUDGING THE PRODUCER'S CAPTURE,
+    // and when the producer was a blur pipe (the self stream's privacy
+    // steady state) the 1px canvas resize stalled its encoder 10-20s —
+    // freezing every receiver of every copy at once, recurring as each
+    // starving hop re-fired the walk. Camera-origin content only ever
+    // surfaced it because stg is the one lane whose producer isn't a
+    // self-restoring packer canvas. The fix is structural, not stg-specific:
+    // keyframe recovery is hop-local RTCP (the tap's sendKeyFrameRequest,
+    // chaining hop-by-hop to the producer's real encoder — mesh-pipe.js
+    // header), and the fallback mx-kf producer lever is a sender-side
+    // scaleResolutionDownBy jiggle that never touches capture.
     function mosAttach(job, jk, p, tr) {
       if (tr.kind === 'video' && pipeEnabled() && !pipeDeny.has(jk) && !pipeJobs.has(jk)) {
         try {
@@ -7920,83 +7948,132 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Cheap: identity check of one sender against the live pc.
       const orphaned = !!(cur && cur.senders && cur.senders.length && p && p.pc
         && typeof p.pc.getSenders === 'function' && !p.pc.getSenders().includes(cur.senders[0]));
-      if (cur && cur.sig === stream.id && !orphaned) { // live job — re-announce (idempotent, heals a lost frame)
+      // Identity is the TRACK SET, not the source stream's id: an upstream
+      // that swaps its container around an unchanged pair of tracks changed
+      // nothing this job ships, and an upstream that mutates its container
+      // in place (regrabCamera; every hop, now) changes the tracks while the
+      // id stands still. Comparing sig alone got BOTH cases wrong.
+      const want = stream.getTracks().filter((t) => t.readyState !== 'ended');
+      const sameSet = !!(cur && cur.srcTracks && cur.srcTracks.length === want.length
+        && want.every((t) => cur.srcTracks.indexOf(t) >= 0));
+      if (cur && sameSet && !orphaned) { // live job — re-announce (idempotent, heals a lost frame)
+        cur.sig = stream.id;
         if (meta) cur.meta = meta; // counts change while the stream id doesn't — the fresh {n, cols} must ride each re-announce
         if (p && p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
         return jk;
       }
-      // WHY did an established job re-ship? A re-ship mints a NEW container id,
-      // so every receiver sees the feed's stream id change under it and its
-      // decoder resets — the "stage feed keeps ONE stream id" red. Only two
-      // things can cause it here, and they mean completely different bugs:
-      // the SOURCE stream changed identity (sig-change — someone upstream
-      // handed us a fresh MediaStream) or the senders left the pc (orphaned).
-      // Record which, with the source-side state that decides it, because after
-      // the fact the two are indistinguishable from the receiver's side.
+      // The source under an ESTABLISHED job changed. This used to be the
+      // teardown+re-mint point — the "stage feed keeps ONE stream id" red,
+      // the reship storm, the zombie parked pipe — and is now the RECONCILE
+      // point (the container-identity law above): diff the tracks per kind
+      // and update the live job in place; the container, the announced sid,
+      // and everything downstream keyed on it survive.
+      if (cur && !orphaned) {
+        if (!p || !p.pc || !p.connected) { unshipMos(jk, false); return null; } // link died under the job
+        if (!want.length) { unshipMos(jk, true); return null; } // nothing left to ship — a real end, announced as one
+        const ops = [];
+        const haveIdx = (kind) => { const out = []; for (let i = 0; i < cur.srcTracks.length; i++) if (cur.srcTracks[i].kind === kind) out.push(i); return out; };
+        for (const kind of ['audio', 'video']) {
+          const wantK = want.filter((t) => t.kind === kind);
+          let have = haveIdx(kind);
+          // shrink: the source lost a track of this kind — ONE m-line stops,
+          // the container (and the receiver's claim on it) lives on.
+          while (have.length > wantK.length) { mosDetach(cur, jk, p, have[have.length - 1]); ops.push('del:' + kind); have = haveIdx(kind); }
+          // swap: a paired slot's source track moved. (Aux feeds carry at most
+          // one track per kind, so the pairing below is exact in practice and
+          // merely defensive beyond.)
+          for (let k = 0; k < have.length; k++) {
+            const i = have[k], nt = wantK[k];
+            if (nt === cur.srcTracks[i]) continue;
+            const pj = pipeJobs.get(jk);
+            if (pj && cur.trackList[i] === pj.carrier.track) {
+              // piped slot: repoint the worker's route at the new source's tap
+              // — sender, carrier and m-line never move. (Every inbound video
+              // receiver is tapped at ontrack already; a codec change surfaces
+              // as the ordinary mismatch -> pipeDeny -> transcode re-lane.)
+              let rr = false;
+              try {
+                const rcv = pipeEnabled() && !pipeDeny.has(jk) && MPipe.receiverForTrack(nt, [...peers.values()].map((q) => q.pc).filter(Boolean));
+                const srcId = rcv && 'rx:' + nt.id;
+                if (rcv && MPipe.tapReceiver(rcv, srcId)) {
+                  MPipe.reroute(jk, pj.srcId, srcId);
+                  pj.srcId = srcId; pj.srcTrack = nt; pj.w0 = null; pj.stale = 0;
+                  cur.srcTracks[i] = nt; rr = true; ops.push('reroute');
+                }
+              } catch (e) {}
+              if (!rr) { mosDetach(cur, jk, p, i); mosAttach(cur, jk, p, nt); ops.push('relane:' + kind); have = haveIdx(kind); }
+              continue;
+            }
+            // transcode slot. If the NEW source belongs on the pipe lane
+            // (remote-receiver video), re-lane it; otherwise a pure
+            // replaceTrack — no renegotiation, invisible to the receiver
+            // (its track object persists and only the content changes).
+            const wantsPipe = kind === 'video' && pipeEnabled() && !pipeDeny.has(jk) && !pipeJobs.has(jk)
+              && (() => { try { return !!MPipe.receiverForTrack(nt, [...peers.values()].map((q) => q.pc).filter(Boolean)); } catch (e) { return false; } })();
+            if (wantsPipe) { mosDetach(cur, jk, p, i); mosAttach(cur, jk, p, nt); ops.push('relane:' + kind); have = haveIdx(kind); continue; }
+            if (cur.active) { try { cur.senders[i].replaceTrack(nt); } catch (e) {} }
+            cur.trackList[i] = nt; cur.srcTracks[i] = nt; ops.push('swap:' + kind);
+          }
+          // grow: the source gained a track of this kind — a fresh m-line
+          // INSIDE the same container (addAux guarantees the receiver an
+          // ontrack, and that ontrack carries the SAME stream it already
+          // claimed).
+          for (let k = have.length; k < wantK.length; k++) { if (mosAttach(cur, jk, p, wantK[k])) ops.push('add:' + kind); }
+        }
+        try {
+          if (!window.__mosReship) window.__mosReship = [];
+          const cam = localStream && localStream.getVideoTracks()[0];
+          window.__mosReship.push({
+            t: Date.now(), key, to: String(to).slice(0, 8),
+            why: 'sig-change', kept: true, ops: ops.join(',') || 'none',
+            oldSig: String(cur.sig).slice(0, 8), newSig: String(stream.id).slice(0, 8),
+            streamId: String(cur.streamId).slice(0, 8),
+            blur: (typeof blurLevelFor === 'function' ? blurLevelFor('me') : -1),
+            pipe: !!(typeof blurPipe !== 'undefined' && blurPipe),
+            camId: cam ? String(cam.id).slice(0, 8) : null,
+          });
+          if (window.__mosReship.length > 40) window.__mosReship.shift();
+        } catch (e) {}
+        cur.sig = stream.id;
+        if (meta) cur.meta = meta;
+        if (!cur.senders.length) { unshipMos(jk, true); return null; }
+        if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
+        compKick(to);
+        return jk;
+      }
+      // ORPHANED teardown (the one true re-ship left): the senders' pc is
+      // gone, so fresh m-lines are unavoidable — but the container comes from
+      // the registry, so even THIS ships the same sid and the receiver's
+      // claim survives the transport swap.
       if (cur) {
         try {
           if (!window.__mosReship) window.__mosReship = [];
           const cam = localStream && localStream.getVideoTracks()[0];
           window.__mosReship.push({
             t: Date.now(), key, to: String(to).slice(0, 8),
-            why: orphaned ? 'orphaned' : 'sig-change',
+            why: 'orphaned', kept: false,
             oldSig: String(cur.sig).slice(0, 8), newSig: String(stream.id).slice(0, 8),
             oldStreamId: String(cur.streamId).slice(0, 8),
             blur: (typeof blurLevelFor === 'function' ? blurLevelFor('me') : -1),
-            pipe: !!(typeof blurPipe !== 'undefined' && blurPipe) ,
+            pipe: !!(typeof blurPipe !== 'undefined' && blurPipe),
             camId: cam ? String(cam.id).slice(0, 8) : null,
           });
           if (window.__mosReship.length > 40) window.__mosReship.shift();
         } catch (e) {}
+        unshipMos(jk, false);
       }
-      if (cur) unshipMos(jk, false);
       if (!p || !p.pc || !p.connected) return null; // not linked yet — next sweep retries
-      const container = new MediaStream();
-      const senders = [];
-      const trackList = [];
-      for (const tr of stream.getTracks()) {
-        // PASSTHROUGH lane: remote video forwards ship a template carrier and
-        // the worker swaps in the tapped content bytes (see the block above).
-        // trackList holds the CARRIER — dormancy (setJobActive) replaceTracks
-        // it back on wake; re-attaching the remote track would re-enter the
-        // transcode path with the pipe transform still on the sender.
-        // stg:* (CAMERA-origin) rides the pipe lane too — RE-SCOPED 2026-08-04
-        // after the freeze was decomposed across devices (pipe-freeze-probe,
-        // frza runs; the 9bf885d scope-out records the original observation).
-        // What the freeze actually was: WebRTC emits NO periodic keyframes, so
-        // a pipe going hot mid-GOP starved for key content; the mx-kf DC walk
-        // answered by NUDGING THE PRODUCER'S CAPTURE, and when the producer
-        // was a blur pipe (the self stream's privacy steady state) the 1px
-        // canvas resize stalled its encoder 10-20s — freezing every receiver
-        // of every copy at once, recurring as each starving hop re-fired the
-        // walk. Camera-origin content only ever surfaced it because stg is
-        // the one lane whose producer isn't a self-restoring packer canvas.
-        // The fix is structural, not stg-specific: keyframe recovery is now
-        // hop-local RTCP (the tap's sendKeyFrameRequest, chaining hop-by-hop
-        // to the producer's real encoder — mesh-pipe.js header), and the
-        // fallback mx-kf producer lever is a sender-side
-        // scaleResolutionDownBy jiggle that never touches capture.
-        if (tr.kind === 'video' && pipeEnabled() && !pipeDeny.has(jk)) {
-          try {
-            const rcv = MPipe.receiverForTrack(tr, [...peers.values()].map((q) => q.pc).filter(Boolean));
-            const srcId = rcv && 'rx:' + tr.id;
-            if (rcv && MPipe.tapReceiver(rcv, srcId)) {
-              const carrier = MPipe.makeCarrier();
-              const sd = addAux(p.pc, carrier.track, container);
-              if (MPipe.pipeSender(sd, srcId, jk, carrier)) {
-                pipeJobs.set(jk, { srcId, carrier, srcTrack: tr, w0: null, stale: 0 });
-                senders.push(sd); trackList.push(carrier.track);
-                continue;
-              }
-              carrier.stop();
-            }
-          } catch (e) {}
-        }
-        try { senders.push(addAux(p.pc, tr, container)); trackList.push(tr); } catch (e) {}
-      }
-      if (!senders.length) return null;
-      mosJobs.set(jk, { senders, trackList, active: true, sig: stream.id, streamId: container.id, to, key, meta: meta || null });
-      if (isStageJob(key)) for (const sd of senders) stageSenders.add(sd); // budget lane — adapt() caps these at the room's stage ceiling, not the fold constant
+      const container = shipContainers.get(jk) || new MediaStream();
+      shipContainers.set(jk, container);
+      // (The PASSTHROUGH lane decision — template carrier for remote-receiver
+      // video, transcode otherwise, stg:* included per the 2026-08-04 frza
+      // re-scope — lives in mosAttach above: the single birth point for a
+      // job's senders, so fresh ship and reconcile can never fork lanes.
+      // mosAttach's comment carries the freeze history.)
+      const job = { senders: [], trackList: [], srcTracks: [], container, active: true, sig: stream.id, streamId: container.id, to, key, meta: meta || null };
+      mosJobs.set(jk, job);
+      for (const tr of want) mosAttach(job, jk, p, tr);
+      if (!job.senders.length) { mosJobs.delete(jk); return null; }
       if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: container.id }, meta || {}));
       // Mirror-chain hops are BORN PARKED (Phase 2): the whole sdn mirror is
       // negotiated end-to-end at zero media and only demand-woken on failure.
@@ -8584,13 +8661,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
       }
       // Refresh primary meta from its own announcer (counts change, id doesn't).
-      if (pri) { const own = cand.find((x) => x.from === pri.via && x.sid === pri.streamId); if (own) pri.meta = annMeta(own.ann); }
+      // And refresh the OBJECT: with sids per-job constants, a transport
+      // rebuild can resolve the same (via, sid) to a NEW remote stream — a
+      // claim pinning the corpse would stay "live" by id while painting a
+      // dead stream forever, with the grace never arming. Re-bind in place.
+      if (pri) {
+        const own = cand.find((x) => x.from === pri.via && x.sid === pri.streamId);
+        if (own) {
+          pri.meta = annMeta(own.ann);
+          if (own.st && own.st !== pri.stream) {
+            pri.stream = own.st;
+            try { pri.el.srcObject = own.st; const pr = pri.el.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) {}
+            repaintRedun(rk, pri.stream);
+          }
+        }
+      }
       // STANDBY SELECTION (parked): the preferred path when the primary is not
       // it (failback staging), else any live candidate on a DIFFERENT path.
       const wantStd = (pref && pri && !priIsPref && !(pri.via === pref.from && pri.streamId === pref.sid))
         ? pref
         : cand.find((x) => x.live && !(pri && x.from === pri.via && x.sid === pri.streamId));
-      if (pri && wantStd && (!std || std.via !== wantStd.from || std.streamId !== wantStd.sid)) {
+      if (pri && wantStd && (!std || std.via !== wantStd.from || std.streamId !== wantStd.sid || std.stream !== wantStd.st)) {
         if (std) dropStandby(rk);
         std = { via: wantStd.from, key: wantStd.key, streamId: wantStd.sid, stream: wantStd.st, el: mosVideo(wantStd.st), meta: annMeta(wantStd.ann) };
         mosStandby.set(rk, std); fb.wakeAt = 0; fb.d0 = -1; fb.stdFdec = -1; // fresh standby — the watchdog re-baselines its flow evidence
@@ -8697,9 +8788,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (isRedun(rk)) { let a = redun.get(rk); if (!a) { a = []; redun.set(rk, a); } a.push({ from, key, ann }); continue; }
         const cur = mosIn.get(rk);
         // STICKY single claim for structural relay slots: keep the live source,
-        // only its own announcer refreshes meta.
+        // only its own announcer refreshes meta. Same corpse-rebind rule as
+        // claimRedun: a constant sid can resolve to a NEW object after a
+        // transport rebuild — follow the object, keep the claim.
         if (cur && mosLive(cur.via, cur.streamId)) {
-          if (cur.via === from && cur.streamId === ann.streamId) cur.meta = annMeta(ann);
+          if (cur.via === from && cur.streamId === ann.streamId) {
+            cur.meta = annMeta(ann);
+            const vp2 = peers.get(cur.via);
+            const st2 = vp2 && vp2.incoming ? vp2.incoming.find((s) => s.id === cur.streamId && s.id !== vp2.ownSid) : null;
+            if (st2 && cur.stream !== st2) {
+              cur.stream = st2;
+              try { cur.el.srcObject = st2; const pr = cur.el.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) {}
+            }
+          }
           continue;
         }
         const p = peers.get(from);
@@ -8768,6 +8869,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function reconcileMosaic() {
       const s = meshSeat(), c = meshCoord();
+      // Container-registry hygiene: a job key's forever-container survives
+      // unship ON PURPOSE (same sid on re-ship), but a container whose PEER
+      // has left the room can never be shipped again — reap those, bounded
+      // by churn. (An id holder costs ~nothing; this is tidiness, not memory
+      // pressure.)
+      for (const cjk of shipContainers.keys()) {
+        if (mosJobs.has(cjk)) continue;
+        if (!peers.has(cjk.slice(cjk.lastIndexOf('>') + 1))) shipContainers.delete(cjk);
+      }
       // ACTIVE whenever the room extends beyond my row: section-mates in other
       // rows (Section channel), deep members (Stadium), or stagers (Stage).
       // A room that IS just my row costs nothing here — the row mesh shows it.

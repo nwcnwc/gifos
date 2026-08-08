@@ -96,7 +96,9 @@ check('STAGE_MAXW is defined and wider than the secondary cap',
 check('stage senders have their own budget lane (stageSenders)',
   /const stageSenders = new Set\(\)/.test(RUN) && /stageSenders\.has\(sender\)/.test(RUN));
 check('the lane is populated by job key in shipMos, and cleared in unshipMos',
-  /isStageJob\(key\)\)\s*for \(const sd of senders\) stageSenders\.add\(sd\)/.test(RUN)
+  // moved into mosAttach/mosDetach (container-identity, 2026-08-08) — every
+  // sender birth/death goes through them, so the lane can never miss one
+  /if \(isStageJob\(job\.key\)\) stageSenders\.add\(sd\)/.test(RUN)
   && /stageSenders\.delete\(sd\)/.test(RUN));
 check("isStageJob covers both the per-stager feeds and the composited strip",
   /isStageJob = \(k\) =>[^\n]*'sgs'[^\n]*'stg:'/.test(RUN));

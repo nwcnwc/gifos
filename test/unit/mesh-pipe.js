@@ -29,7 +29,7 @@ const check = (n, c, x) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 
 // ---- Node-safe surface ------------------------------------------------------
 check('module exports the plumbing API', !!MP
-  && ['supported', 'tapReceiver', 'pipeSender', 'unpipe', 'makeCarrier', 'receiverForTrack', 'stats', 'on'].every((k) => typeof MP[k] === 'function'));
+  && ['supported', 'tapReceiver', 'pipeSender', 'reroute', 'unpipe', 'makeCarrier', 'receiverForTrack', 'stats', 'on'].every((k) => typeof MP[k] === 'function'));
 check('supported() is false under Node (no RTCRtpScriptTransform, no DOM)', MP.supported() === false);
 check('makeCarrier degrades to null without DOM', MP.makeCarrier() === null);
 check('tapReceiver / pipeSender refuse cleanly when unsupported',
@@ -72,7 +72,8 @@ check('run.html loads mesh-pipe.js beside the media engine', /<script src="js\/m
 check('shipMos pipes by the one rule: remote-receiver video only',
   /receiverForTrack\(tr,/.test(RUN) && /pipeEnabled\(\) && !pipeDeny\.has\(jk\)/.test(RUN));
 check('trackList holds the CARRIER for piped jobs (dormancy wake law)',
-  /senders\.push\(sd\); trackList\.push\(carrier\.track\);/.test(RUN));
+  // moved into mosAttach (container-identity, 2026-08-08) — same law, one birth point
+  /job\.senders\.push\(sd\); job\.trackList\.push\(carrier\.track\); job\.srcTracks\.push\(tr\);/.test(RUN));
 check('unshipMos unroutes the pipe and stops the carrier mint',
   /pipeJobs\.delete\(jk\); try \{ MPipe\.unpipe/.test(RUN));
 check('codec mismatch falls back per-job via pipeDeny + unship',
