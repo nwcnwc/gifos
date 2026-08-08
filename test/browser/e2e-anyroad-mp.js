@@ -357,7 +357,10 @@ async function run(MODE) {
     }));
     const box = (el) => { const b = el.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
     let stop = () => {};
-    if (scheme === 'tilt') {
+    if (dir === 0) {
+      // The baseline: touch nothing. Any held control here would be measuring
+      // the control, which is the opposite of the point.
+    } else if (scheme === 'tilt') {
       // gamma is the device's left/right tilt; car.js captures the FIRST value
       // it sees as neutral, so send an upright frame before tilting or the
       // whole test is measured against an already-turned wheel.
@@ -393,11 +396,21 @@ async function run(MODE) {
   const steering = [];
   for (const p of players) {
     await p.page.bringToFront();
+    // A BASELINE FIRST: how far does the car's heading wander over the same
+    // window with NO input at all? Yaw-per-wall-second is a statement about
+    // how many frames this box managed to render — three software-rasterised
+    // worlds, and a starved tab turns less for the same held input. Measured:
+    // the same full-lock command produced 0.11 rad in one tab and 0.02 in
+    // another on one run. Comparing the turn against this tab's OWN straight
+    // line cancels the frame rate out and leaves the product claim, which is
+    // simply that steering bends the car and not steering does not.
+    const straight = await steerFor(p, 0, 3000);
+    await sleep(400);
     const left = await steerFor(p, -1, 3000);
     await sleep(400);
     const right = await steerFor(p, +1, 3000);
     await sleep(400);
-    steering.push({ name: p.name, left, right });
+    steering.push({ name: p.name, straight, left, right });
   }
   for (const s of steering) {
     const d = `${s.left.scheme}: steer ${s.left.steer.toFixed(2)}/${s.right.steer.toFixed(2)}, ` +
@@ -407,9 +420,14 @@ async function run(MODE) {
       Math.abs(s.left.steer) > 0.15 && Math.abs(s.right.steer) > 0.15, d);
     check(s.name + ' — the ' + s.left.scheme + ' steers BOTH ways, not just one',
       Math.sign(s.left.steer) === -Math.sign(s.right.steer) && s.left.steer !== 0, d);
+    // Against this tab's own straight line, not against a fixed number of
+    // radians. `drift` is what the road and the terrain do to a car nobody is
+    // steering; a real turn has to beat it by a wide margin in BOTH directions.
+    const drift = Math.max(0.01, Math.abs(s.straight.dYaw));
     check(s.name + ' — and the car actually turns, in opposite directions',
       Math.sign(s.left.dYaw) === -Math.sign(s.right.dYaw)
-      && Math.abs(s.left.dYaw) > 0.05 && Math.abs(s.right.dYaw) > 0.05, d);
+      && Math.abs(s.left.dYaw) > drift * 3 && Math.abs(s.right.dYaw) > drift * 3,
+      d + ', straight-line drift ' + s.straight.dYaw.toFixed(3));
     // "Feels right" is not a frame timing on this box — but a car that is
     // stationary, reversing or supersonic while being steered is not a
     // judgement call, and any of them means the drive under test was not a
