@@ -110,7 +110,19 @@
         // you what it is called is a map with the labels torn off.
         ways.push([tags.highway, flat, surfaceOf(tags), laneCount(tags), tags.name || '']);
       } else if (tags.building && withBuildings) {
-        if (bld.length < MAX_BUILDINGS) bld.push([buildingHeight(tags), flat, classify(tags)]);
+        // [3] is the BRAND, packed as a colour (see packBrand). A cache written
+        // before brands existed simply has no fourth element — undefined packs
+        // to 0, which means "no sign", so old caches keep working and upgrade
+        // themselves as tiles are re-fetched.
+        if (bld.length < MAX_BUILDINGS) {
+          var brand = packBrand(tags), bcls = classify(tags);
+          // Only a shopfront paints a sign board, and a building carrying a
+          // recognised retail brand IS a shop however it was tagged — a Tesco
+          // mapped as `building=yes` with nothing but `brand=Tesco` would
+          // otherwise render as an anonymous grey box with the sign suppressed.
+          if (brand && bcls === CLS.UNKNOWN) bcls = CLS.RETAIL;
+          bld.push([buildingHeight(tags, ringAreaM2(flat)), flat, bcls, brand]);
+        }
       } else if (tags.natural === 'water') {
         wat.push(flat);
       }
@@ -169,21 +181,167 @@
     if (tags.amenity === 'restaurant' || tags.amenity === 'cafe'
         || tags.amenity === 'bar' || tags.amenity === 'pub'
         || tags.amenity === 'fast_food' || tags.amenity === 'bank'
-        || tags.amenity === 'pharmacy') return CLS.RETAIL;
+        || tags.amenity === 'pharmacy' || tags.amenity === 'fuel'
+        || tags.amenity === 'fuel_station') return CLS.RETAIL;
     return CLS.UNKNOWN;   // resolved by SIZE at build time — see extrude()
   }
 
-  // Plausible heights when nobody tagged one, per class. This matters more than
-  // it sounds: `building=yes` with no height was 8 m for everything, so a
-  // suburb of bungalows and a business park had identical skylines.
-  var CLASS_HEIGHT = [8, 6.5, 14, 5.5, 15, 9, 3, 12];
+  // ---- whose shop is it? ---------------------------------------------------
+  // OSM names businesses — `name=McDonald's`, `brand=Aldi`, and increasingly a
+  // `brand:wikidata` that is language-proof — and the parser threw all of it
+  // away. What comes back is the one thing that reads from a moving car: the
+  // COLOUR OF THE SIGN. A red-and-yellow fascia on the corner is recognisable
+  // at a distance where lettering is still four unreadable pixels.
+  //
+  // Deliberately colours and NOT logos or wordmarks. Those are trademarks, and
+  // reproducing them inside a game is a different question from colouring a
+  // band; a sign board in a company's own colours is what a filmed street
+  // looks like anyway.
+  //
+  // Keyed by brand:wikidata where there is one (it survives translation and
+  // spelling), then by a normalised name.
+  var BRAND_COLOUR = {
+    // fast food
+    'q38076': [0.85, 0.16, 0.11], mcdonalds: [0.85, 0.16, 0.11],
+    'q177054': [0.79, 0.13, 0.16], burgerking: [0.79, 0.13, 0.16],
+    'q524757': [0.90, 0.11, 0.14], kfc: [0.90, 0.11, 0.14],
+    'q244457': [0.05, 0.42, 0.24], subway: [0.05, 0.42, 0.24],
+    'q37158': [0.00, 0.44, 0.29], starbucks: [0.00, 0.44, 0.29],
+    'q608845': [0.42, 0.11, 0.27], costa: [0.42, 0.11, 0.27], costacoffee: [0.42, 0.11, 0.27],
+    'q3403981': [0.00, 0.24, 0.63], greggs: [0.00, 0.24, 0.63],
+    'q1141226': [0.88, 0.08, 0.14], dominos: [0.88, 0.08, 0.14], dominospizza: [0.88, 0.08, 0.14],
+    // groceries
+    'q487494': [0.00, 0.33, 0.62], tesco: [0.00, 0.33, 0.62],
+    'q125054': [0.00, 0.30, 0.60], aldi: [0.00, 0.30, 0.60],
+    'q151954': [0.00, 0.31, 0.62], lidl: [0.00, 0.31, 0.62],
+    sainsburys: [0.94, 0.45, 0.09], asda: [0.00, 0.44, 0.75], morrisons: [0.00, 0.40, 0.24],
+    carrefour: [0.00, 0.35, 0.68], walmart: [0.00, 0.44, 0.75], target: [0.80, 0.10, 0.15],
+    // fuel — the sign you look for when the tank is low
+    'q154950': [0.95, 0.76, 0.05], shell: [0.95, 0.76, 0.05],
+    'q152057': [0.00, 0.47, 0.24], bp: [0.00, 0.47, 0.24],
+    esso: [0.83, 0.14, 0.16], total: [0.90, 0.30, 0.10], texaco: [0.85, 0.12, 0.14],
+    // everything else that paints its whole shopfront one colour
+    ikea: [0.00, 0.35, 0.68], decathlon: [0.00, 0.45, 0.65], boots: [0.00, 0.23, 0.55],
+  };
 
-  function buildingHeight(tags) {
-    var h = parseFloat(tags.height);
+  function normBrand(s) { return String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+  // Pack an RGB into ONE float's integer part: 4 bits a channel, 0-15 each.
+  // Sixteen levels is coarse and a sign is a flat colour at 40 m, so nothing
+  // that matters is lost — and it means the brand rides inside the seed the
+  // shader already carries, with no new vertex attribute, no change to the
+  // packed mesh format and no cache migration.
+  //
+  // FOUR bits, not five, for a numeric reason: seed is stored in a Float32Array
+  // and the brand occupies its integer part, so every bit the brand takes is a
+  // bit of fractional precision the seed loses. Capped at 4095 the seed keeps
+  // ~12 fractional bits; at 5 bits a channel it would keep 9, and the seed
+  // drives window jitter and palette choice across every building on screen.
+  function packRgb(c) {
+    var r = Math.round(c[0] * 15), g = Math.round(c[1] * 15), b = Math.round(c[2] * 15);
+    return (r * 256 + g * 16 + b) + 1;       // +1 so a black sign is not "no sign"
+  }
+
+  function packBrand(tags) {
+    var c = BRAND_COLOUR[normBrand(tags['brand:wikidata'] || '')]
+         || BRAND_COLOUR[normBrand(tags.brand || '')]
+         || BRAND_COLOUR[normBrand(tags.name || '')]
+         || BRAND_COLOUR[normBrand(tags.operator || '')];
+    return c ? packRgb(c) : 0;
+  }
+
+  // ---- how tall is it? -----------------------------------------------------
+  // Most buildings in OSM carry no height at all, so most of what you drive
+  // past is a GUESS, and the guess used to be made from the class alone:
+  // `building=commercial` meant 15 m, which is five storeys, invented out of
+  // silence. A large two-storey house next door to a mapper becomes an office
+  // block, and there is no tag anywhere that said so.
+  //
+  // Two changes. First, read more of what OSM does say — heights come tagged
+  // in feet, with units, and split across roof and body. Second, when there is
+  // genuinely nothing, guess from the FOOTPRINT as well as the class, because
+  // area constrains height in the real world: nobody builds five storeys on
+  // 3000 m² of ground, and a 2000 m² "commercial" building is a big shed with
+  // a car park, not a tower.
+
+  // Metres, from the several ways OSM writes a length: "12", "12 m", "40'",
+  // "40 ft", "12.5m". Feet matter — US buildings are tagged in them and
+  // parseFloat("40'") is 40 METRES if nobody looks at the quote.
+  function metresFrom(v) {
+    if (v == null) return NaN;
+    var s = String(v).trim();
+    var n = parseFloat(s);
+    if (!isFinite(n) || n <= 0) return NaN;
+    if (/('|ft|feet)\s*$/i.test(s)) return n * 0.3048;
+    return n;
+  }
+
+  // Storeys → metres. A storey is not one number: a warehouse's single storey
+  // is taller than a whole house.
+  var STOREY = [3.1, 2.9, 3.0, 3.6, 3.7, 6.0, 2.6, 3.8];
+
+  // Storeys to ASSUME per class when nothing is tagged, and the footprint area
+  // (m²) above which that assumption drops by one — the big-footprint form of
+  // the same building is always the flatter one. `null` means area never
+  // changes the answer: a shed is a shed at any size.
+  var GUESS = [
+    { levels: 2, wide: 500,  min: 1 },   // 0 unknown  — the commonest case by far
+    { levels: 2, wide: null, min: 2 },   // 1 house    — two storeys, however grand
+    { levels: 4, wide: 1200, min: 3 },   // 2 flats
+    { levels: 2, wide: 700,  min: 1 },   // 3 retail   — big box is one tall storey
+    { levels: 3, wide: 1200, min: 2 },   // 4 office   — WAS 15 m flat; that was the bug
+    { levels: 1, wide: null, min: 1 },   // 5 industrial
+    { levels: 1, wide: null, min: 1 },   // 6 outbuilding
+    { levels: 2, wide: 1800, min: 1 },   // 7 civic
+  ];
+
+  // areaM2 is optional: callers that have not measured the footprint get the
+  // class's plain assumption, which is what the old behaviour was.
+  function buildingHeight(tags, areaM2) {
+    // 1. An explicit height, in whatever unit it was written.
+    var h = metresFrom(tags.height) || metresFrom(tags['building:height']);
     if (isFinite(h) && h > 0) return Math.min(300, h);
+    // 2. Storeys. `building:levels` counts the BODY; a tagged roof adds to it.
+    var cls = classify(tags);
     var lv = parseFloat(tags['building:levels']);
-    if (isFinite(lv) && lv > 0) return Math.min(300, lv * 3.2);
-    return CLASS_HEIGHT[classify(tags)] || 8;
+    if (isFinite(lv) && lv > 0) {
+      var body = lv * STOREY[cls];
+      var roof = metresFrom(tags['roof:height']);
+      var roofLv = parseFloat(tags['roof:levels']);
+      if (isFinite(roof) && roof > 0) body += roof;
+      else if (isFinite(roofLv) && roofLv > 0) body += roofLv * 2.2;
+      return Math.min(300, body);
+    }
+    // 3. Someone's estimate is still worth more than ours.
+    var est = metresFrom(tags.est_height);
+    if (isFinite(est) && est > 0) return Math.min(300, est);
+    // 4. Nothing. Guess — conservatively, and with the footprint in hand.
+    var g = GUESS[cls] || GUESS[0];
+    var levels = g.levels;
+    if (g.wide && isFinite(areaM2) && areaM2 > g.wide) {
+      // Every doubling past the threshold takes another storey off, never
+      // below the class's floor. Inventing storeys is the expensive mistake:
+      // a building drawn too short reads as a building, one drawn too tall
+      // reads as a different building.
+      levels = Math.max(g.min, levels - Math.floor(Math.log(areaM2 / g.wide) / Math.LN2) - 1);
+    }
+    return levels * STOREY[cls];
+  }
+
+  // Footprint area in m², from a flat [lat,lon,lat,lon,…] ring. The shoelace on
+  // degrees scaled at the ring's own latitude — good to a fraction of a percent
+  // at building scale, and it costs one cos().
+  function ringAreaM2(flat) {
+    if (flat.length < 6) return NaN;
+    var latSum = 0, n = flat.length / 2;
+    for (var i = 0; i < flat.length; i += 2) latSum += flat[i];
+    var mLat = root.Geo.metresPerDegLat(latSum / n), mLon = root.Geo.metresPerDegLon(latSum / n);
+    var a = 0;
+    for (var j = 0; j < flat.length; j += 2) {
+      var k = (j + 2) % flat.length;
+      a += (flat[j + 1] * mLon) * (flat[k] * mLat) - (flat[k + 1] * mLon) * (flat[j] * mLat);
+    }
+    return Math.abs(a) / 2;
   }
 
   // ---- persistence ---------------------------------------------------------
@@ -785,7 +943,8 @@
       // no third element — undefined becomes UNKNOWN and the size heuristic in
       // extrude() picks it up. Old caches upgrade themselves; nobody has to
       // clear anything.
-      extrude(frame, toWorld(frame, geom.bld[b][1]), geom.bld[b][0], walls, geom.bld[b][2] || 0);
+      extrude(frame, toWorld(frame, geom.bld[b][1]), geom.bld[b][0], walls,
+              geom.bld[b][2] || 0, geom.bld[b][3] || 0);
     }
 
     var water = { pos: [], idx: [] };
@@ -1099,7 +1258,7 @@
     }
   }
 
-  function extrude(frame, poly, height, out, cls) {
+  function extrude(frame, poly, height, out, cls, brand) {
     if (poly.length < 3) return;
     if (poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
     if (poly.length < 3) return;
@@ -1123,6 +1282,13 @@
     // A stable seed from the footprint's first corner — same building, same
     // colour, every time it is rebuilt after a re-pin.
     var seed = Math.abs(Math.sin(poly[0].x * 12.9898 + poly[0].z * 78.233) * 43758.5453) % 1;
+    // The brand's sign colour rides in the INTEGER part of the same float. The
+    // shader has always read this component as fract(), so the whole integer
+    // range was sitting there unused — which is why a brand needs no new vertex
+    // attribute, no change to the packed mesh format and no cache migration.
+    // Only a shopfront ever paints it, so carrying it on every vertex of every
+    // building costs nothing.
+    seed += (brand || 0);
 
     // `building=yes` is by far the commonest value in OSM and says nothing. But
     // the FOOTPRINT says plenty: 90 m² and two storeys is a house, 4000 m² and
@@ -1131,7 +1297,7 @@
     // painting a whole suburb as the same anonymous grey slab.
     var area = Math.abs(signed) / 2;
     if (!cls) {
-      cls = (area < 260 && height <= 9) ? 1                       // HOUSE
+      cls = (area < 440 && height <= 9) ? 1                       // HOUSE
           : (area > 1200 && height <= 12) ? 5                     // INDUSTRIAL: big and flat
           : (height >= 12) ? 4                                    // OFFICE: tall
           : 0;
@@ -1216,5 +1382,11 @@
       });
     },
     cacheSize: function () { return index ? Object.keys(index).length : 0; },
+    // Pure decisions, exported so a suite can assert them directly. Guessing a
+    // height and recognising a brand both have loud visual consequences and
+    // neither is observable from the far end of build(), which only ever hands
+    // back triangles — by then a two-storey house and a five-storey office are
+    // the same array of numbers.
+    heightOf: buildingHeight, brandOf: packBrand, areaOf: ringAreaM2,
   };
 })(window);

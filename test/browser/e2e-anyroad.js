@@ -704,6 +704,94 @@ function check(name, cond, detail) {
     kinds.pitched > 0, kinds.pitched + ' tile vertices');
   check('houses get a chimney', kinds.stacks > 0, kinds.stacks + ' chimney vertices');
 
+  // ---- how tall is a building nobody measured? -----------------------------
+  // Most OSM buildings carry no height, so most of what you drive past is a
+  // GUESS — and the guess used to come from the class alone: `building=commercial`
+  // meant 15 m, five storeys invented out of silence. A neighbour's large
+  // two-storey house rendered as a five-storey office block, from a tag that
+  // never said so. Guessing is fine; guessing TALL is not, because a building
+  // drawn too short still reads as a building and one drawn too tall reads as
+  // a different building. Asserted through the pure exports because by the far
+  // end of build() a house and an office block are the same array of numbers.
+  const heights = await fr.locator('body').evaluate(() => {
+    const R = window.Roads, G = window.Geo;
+    const square = (m2, lat = 48.85) => {
+      const side = Math.sqrt(m2);
+      const dLat = side / G.metresPerDegLat(lat), dLon = side / G.metresPerDegLon(lat);
+      return [lat, 0, lat, dLon, lat + dLat, dLon, lat + dLat, 0];
+    };
+    const h = (tags, m2) => R.heightOf(tags, m2);
+    return {
+      area: R.areaOf(square(1000)),
+      bigCommercial: h({ building: 'commercial' }, 2000),
+      smallCommercial: h({ building: 'commercial' }, 300),
+      bigHouse: h({ building: 'house' }, 380),
+      bigBox: h({ building: 'retail' }, 1800),
+      untaggedHuge: h({ building: 'yes' }, 4000),
+      feet: h({ building: 'yes', height: "40'" }, 200),
+      metresUnit: h({ building: 'yes', height: '12 m' }, 200),
+      levels: h({ building: 'office', 'building:levels': '12' }, 400),
+      estimate: h({ building: 'yes', est_height: '25' }, 200),
+    };
+  });
+  check('the footprint area maths is right', Math.abs(heights.area - 1000) < 20,
+    heights.area.toFixed(0) + ' m² for a 1000 m² square');
+  // THE regression. 15 m was five storeys of pure invention.
+  check('a big-footprint commercial building is not guessed five storeys tall',
+    heights.bigCommercial < 9, heights.bigCommercial.toFixed(1) + ' m for 2000 m² of `building=commercial`');
+  check('…and a small-footprint one is still allowed to be taller',
+    heights.smallCommercial > heights.bigCommercial,
+    heights.smallCommercial.toFixed(1) + ' m at 300 m² vs ' + heights.bigCommercial.toFixed(1) + ' m at 2000 m²');
+  check('a large house is still a two-storey house',
+    heights.bigHouse < 8, heights.bigHouse.toFixed(1) + ' m for a 380 m² house');
+  check('a big-box shop is one tall storey, not a block of flats',
+    heights.bigBox < 6, heights.bigBox.toFixed(1) + ' m for 1800 m² of retail');
+  check('an untagged giant footprint is guessed flat',
+    heights.untaggedHuge < 5, heights.untaggedHuge.toFixed(1) + ' m for 4000 m² of `building=yes`');
+  // A tagged height is a measurement and must always beat the guess. Feet are
+  // the trap: parseFloat("40'") is 40 METRES to anyone who does not look.
+  check("a height tagged in FEET is not read as metres", Math.abs(heights.feet - 12.19) < 0.2,
+    "40' → " + heights.feet.toFixed(2) + ' m');
+  check('a height tagged with a unit is read', Math.abs(heights.metresUnit - 12) < 0.01,
+    '"12 m" → ' + heights.metresUnit.toFixed(2) + ' m');
+  check('building:levels beats any guess', heights.levels > 35,
+    '12 levels → ' + heights.levels.toFixed(1) + ' m');
+  check('est_height is somebody else\'s measurement and is taken', Math.abs(heights.estimate - 25) < 0.01,
+    heights.estimate.toFixed(1) + ' m');
+
+  // ---- whose shop is it? ---------------------------------------------------
+  // The sign colour is the one thing about a business that reads from a moving
+  // car. OSM names them and the parser used to discard the name entirely.
+  const brands = await fr.locator('body').evaluate(() => {
+    const R = window.Roads;
+    const unpack = (p) => { const k = p - 1; return [Math.floor(k / 256), Math.floor((k % 256) / 16), k % 16]; };
+    const of = (t) => { const p = R.brandOf(t); return p ? unpack(p) : null; };
+    return {
+      mcd: of({ name: "McDonald's" }),
+      wikidata: of({ 'brand:wikidata': 'Q487494' }),   // Tesco, spelling-proof
+      punctuation: of({ brand: 'M C Donalds' }),       // normalisation
+      operator: of({ operator: 'Aldi' }),
+      unknown: of({ name: 'Nathans Corner Shop' }),
+      // The seed shares a float with the brand; it must survive that.
+      seedKeepsPrecision: (() => {
+        const f = new Float32Array(1); let worst = 0;
+        for (let i = 0; i < 500; i++) { const s = i / 500; f[0] = 4096 + s; worst = Math.max(worst, Math.abs((f[0] - 4096) - s)); }
+        return worst;
+      })(),
+    };
+  });
+  check('a known brand resolves to its own sign colour', !!brands.mcd && brands.mcd[0] > brands.mcd[1],
+    "McDonald's → rgb4 " + JSON.stringify(brands.mcd) + ' (red dominant)');
+  check('brand:wikidata works, so a brand survives translation', !!brands.wikidata,
+    'Q487494 → rgb4 ' + JSON.stringify(brands.wikidata));
+  check('punctuation and spacing do not defeat the match', !!brands.punctuation,
+    '"M C Donalds" → rgb4 ' + JSON.stringify(brands.punctuation));
+  check('operator counts as a brand too', !!brands.operator, 'Aldi → rgb4 ' + JSON.stringify(brands.operator));
+  check('an unknown business gets NO branded sign, not a wrong one',
+    brands.unknown === null, JSON.stringify(brands.unknown));
+  check('the seed survives sharing a float with the brand',
+    brands.seedKeepsPrecision < 0.001, 'worst error ' + brands.seedKeepsPrecision.toExponential(2));
+
   // ---- the grass flowing into the road -------------------------------------
   // A ribbon samples the ground at the way's OWN nodes, and OSM puts those
   // wherever the road bends — on a straight they can be a hundred metres apart,
