@@ -8147,7 +8147,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: container.id }, meta || {}));
       // Mirror-chain hops are BORN PARKED (Phase 2): the whole sdn mirror is
       // negotiated end-to-end at zero media and only demand-woken on failure.
-      if (key.indexOf('sdnm:') === 0) setJobActive(jk, false);
+      // The negotiation must be EXPLICIT: parking nulls the sender's track
+      // before the m-line ever negotiated, hasPendingTx (which requires a
+      // live sender track) can no longer see it, and compKick goes silent —
+      // so formation used to ride SIBLING ships' renegotiations. The
+      // container-identity law removed most of those (that was the point),
+      // and the mirror stopped forming on the quiet room (measured: drills
+      // tier 2026-08-08, 'E holds sdn PRIMARY + mirror STANDBY' red on a
+      // room that renegotiates almost never).
+      if (key.indexOf('sdnm:') === 0) { setJobActive(jk, false); renegotiate(p); }
       compKick(to);
       return jk;
     }
