@@ -759,6 +759,60 @@ function check(name, cond, detail) {
   check('est_height is somebody else\'s measurement and is taken', Math.abs(heights.estimate - 25) < 0.01,
     heights.estimate.toFixed(1) + ' m');
 
+  // ---- the mirror pool ----------------------------------------------------
+  // The registry always listed several Overpass mirrors and then used exactly
+  // ONE of them, chosen by hand, for a whole drive: one server carrying the load
+  // while identical ones sat idle, and one server's bad day being the app's bad
+  // day. Tiles now spread across every mirror that covers where you are, ranked
+  // by measured health, with failover to the next one instead of a dead tile.
+  //
+  // What it deliberately does NOT do is race the same query on all of them and
+  // take the winner — that is triple load on donated servers for one answer, and
+  // it is what got this address 406'd out of overpass-api.de for minutes on
+  // 2026-08-07.
+  const mirrors = await fr.locator('body').evaluate(() => {
+    const R = window.Roads, S = window.Sources;
+    const was = S.current.roads;
+    const ids = (a) => a.map((s) => s.id);
+    S.set({ roads: 'auto' });
+    const london = ids(S.roadsPool(51.52, -0.16));
+    const zurich = ids(S.roadsPool(47.38, 8.54));
+    const poolFor = ids(S.roadsFor(51.52, -0.16));
+    S.set({ roads: 'overpass-kumi' });
+    const pinned = ids(S.roadsFor(51.52, -0.16));
+    S.set({ roads: 'overpass-ch' });
+    const chOutside = S.roadsCover(51.52, -0.16);
+    S.set({ roads: 'auto' });
+    // Rank cold, then after timing, then after failures on the fast one.
+    const cold = ids(R.rankMirrors(51.52, -0.16));
+    R.noteLatency('https://overpass-api.de/api/interpreter', 9000);
+    R.noteLatency('https://overpass.private.coffee/api/interpreter', 300);
+    R.noteLatency('https://overpass.kumi.systems/api/interpreter', 2500);
+    const bySpeed = ids(R.rankMirrors(51.52, -0.16));
+    for (let i = 0; i < 3; i++) R.noteFail('https://overpass.private.coffee/api/interpreter');
+    const afterFails = ids(R.rankMirrors(51.52, -0.16));
+    S.set({ roads: was });
+    return { london, zurich, poolFor, pinned, chOutside, cold, bySpeed, afterFails,
+             deflt: 'auto' === 'auto' };
+  });
+  check('a drive spreads across every WORLDWIDE mirror, not one chosen by hand',
+    mirrors.london.length === 3 && mirrors.london.indexOf('overpass-ch') === -1
+    && mirrors.london.indexOf('auto') === -1, mirrors.london.join(', '));
+  // bounds earns its keep in both directions: it keeps the Swiss extract out of
+  // a London drive AND puts that fast local server into a Zurich one.
+  check('…and in Switzerland the fast local extract JOINS the pool',
+    mirrors.zurich.indexOf('overpass-ch') !== -1 && mirrors.zurich.length === 4,
+    mirrors.zurich.join(', '));
+  check('pinning a single mirror by hand still works',
+    mirrors.pinned.length === 1 && mirrors.pinned[0] === 'overpass-kumi', mirrors.pinned.join(', '));
+  check('…and a pinned regional mirror still warns outside its own country',
+    mirrors.chOutside === false);
+  check('the fastest MEASURED mirror is tried first',
+    mirrors.bySpeed[0] === 'overpass-coffee' && mirrors.bySpeed[2] === 'overpass-de',
+    mirrors.cold.join(' > ') + '  →  ' + mirrors.bySpeed.join(' > '));
+  check('…and one that keeps failing is demoted even though it is the fastest',
+    mirrors.afterFails[0] !== 'overpass-coffee', mirrors.afterFails.join(' > '));
+
   // ---- the swimming pool --------------------------------------------------
   // Pools were invisible for a plain reason: a pool is NOT natural=water, it is
   // leisure=swimming_pool, so the water query never returned one and a street

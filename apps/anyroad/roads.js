@@ -613,28 +613,87 @@
     });
   }
 
+  // ---- which mirror should THIS tile go to? --------------------------------
+  //
+  // The registry has always listed several mirrors and then used exactly one of
+  // them, chosen by hand, for an entire drive. That is one server carrying the
+  // whole load while identical ones sit idle, and it means one server's bad day
+  // is the app's bad day.
+  //
+  // So: DIFFERENT tiles to DIFFERENT mirrors, concurrently. Nine tiles at a
+  // crossing become three each on three servers instead of nine queued behind
+  // one, and net.js's per-host gap and concurrency cap still apply to each — so
+  // every individual server sees a POLITER stream than before, not a busier one.
+  //
+  // What this deliberately does NOT do is race the same query on every mirror
+  // and take the winner. That triples the load on donated infrastructure to
+  // answer one question, and it is precisely the behaviour that got this
+  // address 406'd out of overpass-api.de for minutes at a time on 2026-08-07.
+  // Fast is not worth taking three servers' time to get one answer.
+  //
+  // Health is measured, not assumed: an exponential moving average of how long
+  // each mirror took, plus whatever backoff net.js has already imposed on it.
+  var mirrorStat = {};
+  function statFor(url) {
+    var h = root.Net.hostOf(url);
+    if (!mirrorStat[h]) mirrorStat[h] = { host: h, lat: 1500, n: 0, fails: 0 };
+    return mirrorStat[h];
+  }
+  function noteLatency(url, ms) {
+    var st = statFor(url);
+    st.lat = st.n ? st.lat * 0.7 + ms * 0.3 : ms;    // EMA, first sample wins outright
+    st.n++; st.fails = 0;
+  }
+  function noteFail(url) { statFor(url).fails++; }
+
+  // Lower is better. Backoff dominates everything — a server that has told us
+  // to go away is not a candidate at any latency — then queue depth, then speed.
+  function mirrorScore(src) {
+    var st = statFor(src.url), q = root.Net.hostState(st.host);
+    return q.busyMs * 10 + (q.pending + q.active) * 800 + st.lat + st.fails * 4000;
+  }
+  function rankMirrors(lat, lon) {
+    var pool = root.Sources.roadsFor(lat, lon).filter(function (s) { return !!s.url; });
+    return pool.slice().sort(function (a, b) { return mirrorScore(a) - mirrorScore(b); });
+  }
+
   function fetchTile(tile, key) {
     var wantBuildings = root.Sources.current.quality !== 'low';
-    var url = root.Sources.roads.url;
+    var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
+    var cLat = (b.north + b.south) / 2, cLon = (b.west + b.east) / 2;
+    var ranked = rankMirrors(cLat, cLon);
+    if (!ranked.length) return Promise.reject(new Error('no roads mirror covers this place'));
 
-    function ask(withBuildings) {
-      return root.Net.json(url + '?data=' + encodeURIComponent(query(tile, withBuildings)))
-        .then(function (json) { return parse(json, withBuildings); });
+    function ask(src, withBuildings) {
+      var t0 = Date.now();
+      return root.Net.json(src.url + '?data=' + encodeURIComponent(query(tile, withBuildings)))
+        .then(function (json) { noteLatency(src.url, Date.now() - t0); return parse(json, withBuildings); },
+              function (err) { noteFail(src.url); throw err; });
     }
 
-    return ask(wantBuildings).catch(function (err) {
-      // Two different ways a dense tile refuses to load, and both mean the same
-      // thing — this query is too big for this tile:
-      //   "response too large"  the GifOS bridge's own 8 MB response cap
-      //   HTTP 504              Overpass gave up on the query's cost
-      // Either way, drop the buildings and take the roads. Without the 504 case
-      // a city centre retries the identical too-expensive query forever, which
-      // reads to the player as an app that simply never finishes loading.
-      if (wantBuildings && (/too large/i.test(err.message || '') || err.status === 504)) {
-        return ask(false).then(function (g) { g.dense = true; return g; });
-      }
-      throw err;
-    }).then(function (geom) {
+    // Walk the ranked mirrors. A busy or broken server hands the tile to the
+    // next one INSTEAD OF FAILING THE TILE — which is the difference between
+    // "the map server is busy" and "there are no roads here".
+    function attempt(i, withBuildings) {
+      return ask(ranked[i], withBuildings).catch(function (err) {
+        // Two different ways a dense tile refuses to load, and both mean the
+        // same thing — this query is too big for this tile:
+        //   "response too large"  the GifOS bridge's own 8 MB response cap
+        //   HTTP 504              Overpass gave up on the query's cost
+        // Either way, drop the buildings and take the roads. A 504 is about the
+        // QUERY, so retrying it on another mirror just costs somebody else the
+        // same timeout; shed the detail on the spot instead.
+        if (withBuildings && (/too large/i.test(err.message || '') || err.status === 504)) {
+          return attempt(i, false).then(function (g) { g.dense = true; return g; });
+        }
+        // Anything else — 406, 429, a refused connection — is about the SERVER,
+        // so the same query is worth asking somewhere else.
+        if (i + 1 < ranked.length) return attempt(i + 1, withBuildings);
+        throw err;
+      });
+    }
+
+    return attempt(0, wantBuildings).then(function (geom) {
       memory[key] = geom;
       index[key] = Date.now();
       return db().put({
@@ -1732,6 +1791,10 @@
     TILE_ZOOM: TILE_ZOOM,
     loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
     nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater, waterAt: waterAt, DROWN_AREA: DROWN_AREA,
+    // The mirror pool, exported so a suite can watch it route.
+    rankMirrors: rankMirrors, mirrorScore: mirrorScore,
+    noteLatency: noteLatency, noteFail: noteFail,
+    mirrorStats: function () { return mirrorStat; },
     clearCache: function () {
       memory = {};
       return loadIndex().then(function () {
