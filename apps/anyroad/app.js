@@ -47,6 +47,18 @@
   // Drop everything the car has driven away from. Without this the resident set
   // only ever grows: drive ten kilometres and you are still drawing — and still
   // holding GL buffers for — the tiles you started on.
+  //
+  // hopGen: which world a tile load belongs to. A hop empties world.terrain and
+  // world.roads, but a request already in flight knows nothing about that — it
+  // resolves seconds later and writes the OLD city into the NEW maps. One such
+  // Paris record arriving during the Tokyo descent was enough to superimpose
+  // the two cities: snapToRoad snapped the fresh car onto the Paris way
+  // (12,000 km from the Tokyo origin), and from there the streaming want-list —
+  // which follows the car — asked for more Paris tiles, evict kept them, and
+  // the world locked itself to the wrong city with the right name on the HUD.
+  // Every load captures the generation it was launched under and a resolution
+  // from a previous generation is discarded unread.
+  var hopGen = 0;
   function evict(store, want) {
     var keep = {};
     for (var i = 0; i < want.length; i++) keep[root.Geo.tileKey(want[i])] = 1;
@@ -75,8 +87,9 @@
       if (world.terrain[key]) continue;
       world.terrain[key] = { pending: true };
       launched++;
-      (function (tile, k) {
+      (function (tile, k, gen) {
         root.Terrain.loadTile(tile).then(function (rec) {
+          if (gen !== hopGen) return;      // a hop happened; this is the old city
           world.terrain[k] = { rec: rec, tile: tile, mesh: null, texture: null };
           // New ground exists. Any road tile built while THIS was missing has
           // geometry pinned at y≈0 under it — the epoch is what tells
@@ -84,10 +97,11 @@
           world.terrainEpoch++;
           maybeLoadImagery(tile, k);
         }).catch(function (err) {
+          if (gen !== hopGen) return;
           world.terrain[k] = { failed: true, error: err };
           root.UI.note('Elevation tile failed: ' + err.message);
         });
-      })(want[i], key);
+      })(want[i], key, hopGen);
     }
   }
 
@@ -103,17 +117,19 @@
       if (world.roads[key]) continue;
       world.roads[key] = { pending: true, tile: want[i] };
       launched++;
-      (function (tile, k) {
+      (function (tile, k, gen) {
         root.Roads.loadTile(tile).then(function (geom) {
+          if (gen !== hopGen) return;      // a hop happened; this is the old city
           world.roads[k] = { geom: geom, tile: tile, built: null };
         }).catch(function (err) {
+          if (gen !== hopGen) return;
           // A busy Overpass is not a bug and must not look like one: drop the
           // record so the tile is retried once the backoff expires.
           world.roads[k] = err.busy ? null : { failed: true, tile: tile };
           if (err.busy) delete world.roads[k];
           root.UI.note(err.busy ? 'Map server busy — retrying' : 'Roads failed: ' + err.message);
         });
-      })(want[i], key);
+      })(want[i], key, hopGen);
     }
   }
 
@@ -150,7 +166,13 @@
   // any road geometry exists.
   function snapToRoad() {
     if (!world.frame) return false;
-    var best = null, bestD = Infinity;
+    // The snap is a NUDGE, never a journey. Unbounded, it once carried the car
+    // to the nearest road ANYWHERE in world.roads — which, when a stale tile
+    // from the previous city slipped in mid-descent, was 12,000 km away. Past
+    // this radius the honest answer is "you asked for the middle of nowhere",
+    // and the car lands exactly where the player pointed.
+    var SNAP_MAX = 2000 * 2000;
+    var best = null, bestD = SNAP_MAX;
     for (var k in world.roads) {
       var r = world.roads[k];
       if (!r || !r.geom) continue;
@@ -547,6 +569,7 @@
 
   function hop(lat, lon, label) {
     hopped = true;
+    hopGen++;                      // orphan every tile load still in flight
     placedOnRoad = false;
     world.sea = null;
     world.frame = root.Geo.frame(lat, lon);
