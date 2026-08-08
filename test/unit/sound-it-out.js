@@ -1,18 +1,18 @@
 // THE SOUND-IT-OUT PORT IS HELD AGAINST ITS PYTHON ORIGINAL, MECHANICALLY.
 //
-// apps/sound-it-out is a port of the sound-it-out desktop app's curriculum
-// (gen/levels.py), and a port of a curriculum is exactly the kind of code that
-// rots invisibly: a wrong pad or a missing highlight is not a crash, it is a
-// subtly worse video that nobody re-watches frame by frame. So the desktop
-// pipeline writes a fixture (tools/gen-clips.py -> curriculum-fixture.json:
-// every segment gen/levels.py produces for the fixed levels, parts,
-// highlights, pads, clip requests and all) and this suite replays the SAME
-// levels through the shipped curriculum.js and compares segment by segment.
+// apps/sound-it-out is a port of the sound-it-out desktop app (0.4.x: the
+// sentence-library design), and a port of a curriculum is exactly the kind of
+// code that rots invisibly: a wrong pad or a missing highlight is not a
+// crash, it is a subtly worse video that nobody re-watches frame by frame.
+// The desktop pipeline writes a fixture (tools/gen-clips.py: every segment
+// gen/levels.py's library builder produces for a canonical library) and this
+// suite replays the SAME library through the shipped curriculum.js and
+// compares segment by segment.
 //
-// It also guards the bundle-completeness invariant the whole voice design
-// rests on: every clip the curriculum can request from the built-in tier must
-// exist in clips-data.js — phonemes are never synthesised at runtime, so a
-// missing bundled phoneme is a silently mute letter, forever.
+// It also guards the bundle-completeness invariant the voice design rests
+// on: every clip the starter packs can request must exist in clips-data.js -
+// phonemes are never synthesised at runtime, so a missing bundled phoneme is
+// a silently mute letter, forever.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -29,23 +29,35 @@ const check = (n, c, extra) => {
 // ---- load the shipped modules exactly as the GIF would run them -------------
 const sandbox = { window: {}, atob, btoa, console };
 vm.createContext(sandbox);
-for (const f of ['fonts-data.js', 'clips-data.js', 'wordlist.js', 'curriculum.js', 'openended.js', 'dsp.js', 'storyboard.js']) {
+for (const f of ['fonts-data.js', 'clips-data.js', 'curriculum.js', 'library.js', 'dsp.js', 'store.js', 'voice.js', 'storyboard.js']) {
   vm.runInContext(fs.readFileSync(path.join(APP, f), 'utf8'), sandbox, { filename: f });
 }
 const SIO = sandbox.window.SIO;
 const CLIPS = sandbox.window.SIO_CLIPS;
-check('modules load and attach window.SIO', !!(SIO && SIO.curriculum && SIO.wordlist && SIO.openended && SIO.dsp && SIO.storyboard));
+check('modules load and attach window.SIO',
+  !!(SIO && SIO.curriculum && SIO.library && SIO.dsp && SIO.storyboard));
 
-const groups = SIO.wordlist.parse(SIO.wordlist.DEFAULT_TEXT);
+const cur = SIO.curriculum, lib = SIO.library;
 
-// ---- word list parser -------------------------------------------------------
-check('default list parses into the four groups',
-  groups.map((g) => g.name).join('|') === 'Paw Patrol|People|Home|First words',
-  groups.map((g) => g.name));
-check('default list has the expected word count', SIO.wordlist.allWords(groups).length === 53,
-  SIO.wordlist.allWords(groups).length);
-check('per-word colours survive parsing', SIO.wordlist.colors(groups).Chase === '#4da6ff');
-check('placeholder names are detected', SIO.wordlist.placeholders(groups).length >= 5);
+// ---- word mechanics ---------------------------------------------------------
+{
+  const j = (x) => JSON.stringify(x);
+  check('magic-e splits onset + rime: case = c + ase',
+    j(cur.splitGraphemes('case')) === j([['c', 'k'], ['ase', 'eɪs']]), cur.splitGraphemes('case'));
+  check('digraph + rime: Chase = Ch + ase',
+    j(cur.splitGraphemes('Chase')) === j([['Ch', 'tʃ'], ['ase', 'eɪs']]), cur.splitGraphemes('Chase'));
+  check('the voiced-s lexicon wins: is = i + /z/',
+    j(cur.wordParts('is')) === j([['i', 'ɪ'], ['s', 'z']]), cur.wordParts('is'));
+  for (const w of ['sat', 'case', 'chase', 'is', 'vam', 'ship', 'like']) {
+    check(`decodable: ${w}`, cur.decodable(w) === true);
+  }
+  for (const w of ['the', 'said', 'have', 'happy', 'one', 'nose', 'care']) {
+    check(`NOT decodable (taught whole): ${w}`, cur.decodable(w) === false);
+  }
+  check('entry kinds: letter / word / sentence',
+    lib.entryKind('s') === 'letter' && lib.entryKind('Chase') === 'word'
+    && lib.entryKind('Sam sat.') === 'sentence' && lib.entryKind('a') === 'letter');
+}
 
 // ---- curriculum parity with gen/levels.py -----------------------------------
 const fixturePath = path.join(APP, 'tools', 'curriculum-fixture.json');
@@ -56,109 +68,145 @@ if (!fs.existsSync(fixturePath)) {
   const clipTuple = (c) => {
     if (c.kind === 'phoneme') return ['phoneme', c.ipa];
     if (c.kind === 'word') return ['word', c.text.toLowerCase(), !!c.slow];
-    if (c.kind === 'blend') return ['blend', c.ipas.join('')];
-    if (c.kind === 'sentence') return ['sentence', SIO.curriculum.sentenceKey(c.text)];
+    if (c.kind === 'sentence') return ['sentence', cur.sentenceKey(c.text)];
     return ['?'];
   };
-  const opts = { reps: 3, pauseSeconds: 1.2, nonsense: true };
-  for (const key of Object.keys(fixture)) {
-    const m = /^(\d+)(?:\/stage(\d))?$/.exec(key);
-    const level = Number(m[1]);
-    const o = m[2] ? Object.assign({}, opts, { stage: Number(m[2]) }) : opts;
-    let segs;
-    try {
-      segs = SIO.curriculum.build(level, o, groups);
-    } catch (e) {
-      check(`level ${key}: builds`, false, String(e.message));
+  // Expand the JS builder's output to the Python fixture's shape: the
+  // read-along marker becomes one slice row per word.
+  const segs = cur.library(fixture.library, fixture.opts);
+  const expanded = [];
+  for (const seg of segs) {
+    if (!seg.readalong) {
+      expanded.push({
+        parts: seg.parts.map(([t, h]) => [t, !!h]),
+        pad: seg.pad, scale: seg.scale || 1, color: seg.color || null,
+        itemEnd: !!seg.itemEnd, clip: clipTuple(seg.clip),
+      });
       continue;
     }
-    const want = fixture[key];
-    let mismatch = null;
-    if (segs.length !== want.length) {
-      mismatch = { reason: 'segment count', js: segs.length, py: want.length };
-    } else {
-      for (let i = 0; i < segs.length && !mismatch; i++) {
-        const s = segs[i], w = want[i];
-        const jsParts = JSON.stringify(s.parts.map(([t, h]) => [t, !!h]));
-        if (jsParts !== JSON.stringify(w.parts)) mismatch = { i, reason: 'parts', js: s.parts, py: w.parts };
-        else if (Math.abs(s.pad - w.pad) > 1e-3) mismatch = { i, reason: 'pad', js: s.pad, py: w.pad };
-        else if (Math.abs((s.scale || 1) - w.scale) > 1e-9) mismatch = { i, reason: 'scale', js: s.scale, py: w.scale };
-        else if ((s.color || null) !== (w.color || null)) mismatch = { i, reason: 'color', js: s.color, py: w.color };
-        else if (!!s.itemEnd !== !!w.itemEnd) mismatch = { i, reason: 'itemEnd', js: s.itemEnd, py: w.itemEnd };
-        else if (JSON.stringify(clipTuple(s.clip)) !== JSON.stringify(w.clip)) mismatch = { i, reason: 'clip', js: clipTuple(s.clip), py: w.clip };
-      }
-    }
-    check(`level ${key}: ${want.length} segments match gen/levels.py exactly`, !mismatch, mismatch);
+    const words = seg.readalong.text.split(/\s+/).filter(Boolean);
+    words.forEach((w, i) => {
+      const parts = [];
+      words.forEach((other, j) => {
+        if (j) parts.push([' ', false]);
+        parts.push([other, j === i]);
+      });
+      const last = i === words.length - 1;
+      expanded.push({
+        parts, pad: last ? seg.pad : 0, scale: seg.readalong.scale, color: null,
+        itemEnd: last ? !!seg.itemEnd : false, clip: ['slice'],
+      });
+    });
   }
-}
-
-// ---- bundle completeness ----------------------------------------------------
-// Re-enumerate from the shipped curriculum (never trust a stale requests.json)
-// and demand every request resolves in clips-data.js.
-{
-  const missing = [];
-  const seen = new Set();
-  const collect = (segs) => {
-    for (const seg of segs) {
-      const c = seg.clip;
-      let table, key;
-      if (c.kind === 'phoneme') { table = 'phonemes'; key = c.ipa; }
-      else if (c.kind === 'word') { table = c.slow ? 'wordsSlow' : 'words'; key = c.text.toLowerCase(); }
-      else if (c.kind === 'blend') { table = 'blends'; key = c.ipas.join(''); }
-      else { table = 'sentences'; key = SIO.curriculum.sentenceKey(c.text); }
-      const sk = table + '/' + key;
-      if (seen.has(sk)) continue;
-      seen.add(sk);
-      if (!CLIPS.clips[table] || CLIPS.clips[table][key] === undefined) missing.push(sk);
+  const want = fixture.segments;
+  let mismatch = null;
+  if (expanded.length !== want.length) {
+    mismatch = { reason: 'segment count', js: expanded.length, py: want.length };
+  } else {
+    for (let i = 0; i < expanded.length && !mismatch; i++) {
+      const s = expanded[i], w = want[i];
+      if (JSON.stringify(s.parts) !== JSON.stringify(w.parts)) mismatch = { i, reason: 'parts', js: s.parts, py: w.parts };
+      else if (Math.abs(s.pad - w.pad) > 1e-3) mismatch = { i, reason: 'pad', js: s.pad, py: w.pad };
+      else if (Math.abs(s.scale - w.scale) > 1e-9) mismatch = { i, reason: 'scale', js: s.scale, py: w.scale };
+      else if ((s.color || null) !== (w.color || null)) mismatch = { i, reason: 'color', js: s.color, py: w.color };
+      else if (s.itemEnd !== !!w.itemEnd) mismatch = { i, reason: 'itemEnd', js: s.itemEnd, py: w.itemEnd };
+      else if (JSON.stringify(s.clip) !== JSON.stringify(w.clip)) mismatch = { i, reason: 'clip', js: s.clip, py: w.clip };
     }
-  };
-  const opts = { reps: 3, pauseSeconds: 1.2, nonsense: true };
-  for (let level = 1; level <= 9; level++) collect(SIO.curriculum.build(level, opts, groups));
-  for (const stage of [1, 2, 3]) collect(SIO.curriculum.build(12, Object.assign({}, opts, { stage }), groups));
-  check(`every curriculum clip request (${seen.size}) is in the bundle`, missing.length === 0, missing.slice(0, 8));
-  check('bundle is the built-in voice, not a placeholder', !/placeholder/.test(CLIPS.voice || ''), CLIPS.voice);
-  const b64ish = Object.values(CLIPS.clips.phonemes)[0] || '';
-  check('bundled clips look like base64 mp3 payloads', b64ish.length > 500 && /^[A-Za-z0-9+/=]+$/.test(b64ish.slice(0, 100)));
+  }
+  check(`library builder: ${want.length} segments match gen/levels.py exactly`, !mismatch, mismatch);
 }
 
-// ---- open-ended levels ------------------------------------------------------
+// ---- the two-voice policy ---------------------------------------------------
+// The bundle is the STARTER VOICE and nothing else: the app author's own
+// recordings, shipped so a buildup is never two voices. No synthesis, no
+// text-to-speech. The letters pack must be fully covered by it, and a word
+// whose sounds are not all available must be shown whole, never half-built.
 {
-  const oe = SIO.openended;
-  check('splitSentences: empty in, empty out', oe.splitSentences('').length === 0);
-  const long = oe.splitSentences('one two three four five six seven eight nine ten eleven twelve thirteen fourteen.');
-  check('splitSentences: an over-long line is chopped, never dropped',
-    long.length >= 2 && long.every((l) => l.split(/\s+/).length <= oe.MAX_WORDS), long);
-  const s1 = oe.storySoFar(1), s2 = oe.storySoFar(2), s3 = oe.storySoFar(3);
-  check('the story grows with the stages', s1.length > 0 && s1.length < s2.length && s2.length < s3.length,
-    [s1.length, s2.length, s3.length]);
-  const taught1 = oe.taughtLetters(1);
-  check('stage 1 lines use only taught letters',
-    s1.every((line) => [...line.toLowerCase().replace(/[^a-z]/g, '')].every((c) => taught1.has(c))));
-  const a = oe.fromWordlist(groups), b = oe.fromWordlist(groups);
-  check('level 11 is deterministic for the same word list',
-    a.length > 0 && JSON.stringify(a) === JSON.stringify(b));
+  const inTable = (table, key) => {
+    const t = CLIPS.clips[table];
+    if (!t) return false;
+    if (t[key] !== undefined) return true;
+    return (cur.PHONEME_ALIASES[key] || []).some((a) => t[a] !== undefined);
+  };
+  const nStarter = Object.keys(CLIPS.clips.phonemes || {}).length;
+  check('the starter voice ships all 42 human sounds', nStarter === 42, nStarter);
+  check('the bundle is the starter voice, nothing synthetic',
+    /starter/.test(CLIPS.voice || '') && !/kokoro/i.test(CLIPS.voice || ''), CLIPS.voice);
+
+  const letters = lib.packDefs().find((p) => p.id === 'letters').items;
+  const uncovered = letters.filter((l) => {
+    const ipa = cur.CVC_PHONEMES[l.toLowerCase()] || l.toLowerCase();
+    return !inTable('phonemes', ipa);
+  });
+  check('every letters-pack sound is covered by the starter voice',
+    uncovered.length === 0, uncovered);
+
+  // the recording session's 42 = the shipped 42 (aliases allowed)
+  const missing42 = cur.PHONEME_ROWS.filter((p) => !inTable('phonemes', p.ipa)).map((p) => p.key);
+  check('every sound the session records has a starter twin to replace',
+    missing42.length === 0, missing42);
+
+  // the buildup gate: with every sound available "case" builds up as
+  // c + ase; when /eɪs/ cannot be said it is shown WHOLE instead
+  const yes = cur.oneWord('case', 3, 1.2, () => true);
+  const no = cur.oneWord('case', 3, 1.2,
+    (w) => cur.wordParts(w).every(([, ipa]) => inTable('phonemes', ipa)));
+  check('a fully-voiced word builds up', yes.some((seg) => seg.clip.kind === 'phoneme'));
+  check('a word with an unsayable sound is shown whole, never half-built',
+    no.every((seg) => seg.clip.kind === 'word'), no.map((seg) => seg.clip.kind));
+
+  // readiness: nothing recorded -> letters ready (starter voice), words and
+  // sentences not; recording flips them
+  const rows = [{ id: 's', text: 's' }, { id: 'sat', text: 'sat' },
+    { id: 'sam_sat', text: 'Sam sat.' }];
+  const cold = lib.statusOf(rows, new Set());
+  check('unrecorded: letter ready, word and sentence not',
+    cold[0].ready === true && cold[1].ready === false && cold[2].ready === false,
+    cold.map((r) => r.ready));
+  const warm = lib.statusOf(rows, new Set(['words/sat', 'words/sam', 'sentences/sam_sat']));
+  check('recorded: word and sentence become ready',
+    warm[1].ready === true && warm[2].ready === true, warm.map((r) => r.ready));
 }
 
-// ---- fitting (gen/service.py port) ------------------------------------------
+// ---- packs ------------------------------------------------------------------
 {
-  const mk = (n) => { // n items, each 2 segments of 5s
-    const segs = [];
-    for (let i = 0; i < n; i++) {
-      segs.push({ id: i + 'a', itemEnd: false }, { id: i + 'b', itemEnd: true });
-    }
-    return segs;
-  };
-  const durOf = () => 5;
-  const cut = SIO.storyboard.wholeItemsUpto(mk(5), durOf, 25, false);
-  check('trim cuts at item ends, landing nearest the target', cut.length === 4, cut.length);
-  const tiny = SIO.storyboard.wholeItemsUpto(mk(5), durOf, 3, false);
-  check('a request shorter than one item still keeps the first item whole', tiny.length === 2, tiny.length);
-  const empty = SIO.storyboard.wholeItemsUpto(mk(5), durOf, 3, true);
-  check('allowEmpty may return nothing', empty.length === 0, empty.length);
-  const o6 = SIO.storyboard.levelOpts(6, { minutes: 30, reps: 3 });
-  check('level 6 stretches reps instead of repeating', o6.reps === 4, o6.reps);
-  check('other levels keep their reps', SIO.storyboard.levelOpts(5, { minutes: 30, reps: 3 }).reps === 3);
+  const packs = lib.packDefs();
+  check('packs exist in both groups',
+    packs.some((p) => p.group === 'favourites') && packs.some((p) => p.group === 'skills'));
+  check('no pack is empty', packs.every((p) => p.items.length > 0));
+  const letterPack = packs.find((p) => p.id === 'letters');
+  check('the letters pack is single letters',
+    letterPack.items.every((i) => lib.entryKind(i) === 'letter'));
 }
+
+// ---- read-along timing ------------------------------------------------------
+{
+  const n = 1000;
+  const audio = new Float32Array(n);
+  for (let i = 100; i < 900; i++) audio[i] = 0.5;
+  const spans = lib.wordSpans(audio, ['the', 'dog'], [300, 300]);
+  check('wordSpans tiles the audio exactly',
+    spans[0][0] === 0 && spans[spans.length - 1][1] === n
+    && spans.every((s, i) => i === 0 || s[0] === spans[i - 1][1]), spans);
+  check('function words are discounted ("the" gets the smaller slice)',
+    (spans[0][1] - spans[0][0]) < (spans[1][1] - spans[1][0]), spans);
+  check('no words -> one span', JSON.stringify(lib.wordSpans(audio, [], [])) === JSON.stringify([[0, n]]));
+}
+
+// ---- the estimate -----------------------------------------------------------
+{
+  const short = lib.estimateSeconds(['s'], 3, 1.5);
+  const sent = lib.estimateSeconds(['Chase is on the case.'], 3, 1.5);
+  check('estimate: a letter costs less than a sentence', short > 0 && sent > short, [short, sent]);
+  const slower = lib.estimateSeconds(['Chase is on the case.'], 3, 2.5);
+  check('estimate tracks the gap option', slower > sent, [sent, slower]);
+}
+
+// ---- the neutral-pad rule ---------------------------------------------------
+check('the highlight goes out on long pads (NEUTRAL_PAD ported)',
+  SIO.storyboard.NEUTRAL_PAD === 0.35, SIO.storyboard.NEUTRAL_PAD);
+check('the approach floor pressed closer (50ms)',
+  cur.APPROACH_FLOOR === 0.05, cur.APPROACH_FLOOR);
 
 // ---- the DSP port -----------------------------------------------------------
 {
@@ -169,13 +217,11 @@ if (!fs.existsSync(fixturePath)) {
   const sil = dsp.scoreTake(silence, sr, { kind: 'phoneme', ipa: 's', length: 'hold' });
   check('digital silence is fatal, never scored', !!sil.fatal);
 
-  // a clean 2s held tone with room-tone either side
   const clean = new Float32Array(Math.round(sr * 2.4));
   for (let i = 0; i < sr * 2; i++) clean[Math.round(sr * 0.2) + i] = 0.4 * Math.sin((2 * Math.PI * 440 * i) / sr);
   const good = dsp.scoreTake(clean, sr, { kind: 'phoneme', ipa: 's', length: 'hold' });
   check('a clean held take scores high', !good.fatal && good.value > 80, { fatal: good.fatal, value: good.value });
 
-  // a "fricative" (white noise, centroid ~ sr/4) with a low "uh" tail
   const n = Math.round(sr * 0.65);
   const schwa = new Float32Array(n);
   let seed = 42;
@@ -183,8 +229,7 @@ if (!fs.existsSync(fixturePath)) {
   for (let i = 0; i < Math.round(sr * 0.45); i++) schwa[i] = 0.3 * rnd();
   for (let i = Math.round(sr * 0.45); i < n; i++) schwa[i] = 0.35 * Math.sin((2 * Math.PI * 300 * i) / sr);
   check('the schwa detector hears an "uh" after a fricative', dsp.schwaTail(schwa, sr, 's') !== null);
-  const noTail = schwa.slice(0, Math.round(sr * 0.45));
-  check('…and stays quiet when there is none', dsp.schwaTail(noTail, sr, 's') === null);
+  check('…and stays quiet when there is none', dsp.schwaTail(schwa.slice(0, Math.round(sr * 0.45)), sr, 's') === null);
 
   const st = dsp.stretch(new Float32Array(sr).fill(0.1), sr, 0.8);
   check('the time-stretch lands within 1% of the asked-for length',

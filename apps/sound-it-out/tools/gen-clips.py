@@ -1,25 +1,25 @@
 #!/usr/bin/env python
-"""Build the GifOS port's bundled voice + the curriculum parity fixture.
+"""Build the GifOS port's bundled starter voice + the parity fixture.
 
-Runs INSIDE the sound-it-out desktop repo's venv, because it uses the real
-pipeline - Kokoro, the schwa shaping, the rubberband stretch - so the built-in
-voice in the browser is bit-for-bit the desktop app's fallback voice:
+Runs INSIDE the sound-it-out desktop repo's venv (it imports gen/ for the
+fixture and reads the starter voice from the repo's assets):
 
     cd ~/projects/sound-it-out && .venv/bin/python \
         ~/projects/gifos/apps/sound-it-out/tools/gen-clips.py
 
-Inputs:  tools/requests.json   (from tools/enumerate-requests.mjs - the same
-                                curriculum.js that ships enumerates what it
-                                can ask for)
-Outputs: ../clips-data.js          GENERATED but COMMITTED (store-catalog
-                                   doctrine: Pages has no build step)
-         tools/curriculum-fixture.json  what gen/levels.py produces for the
-                                   fixed levels, for test/unit/sound-it-out.js
-                                   to hold the JS port against
+Outputs: ../clips-data.js               GENERATED but COMMITTED.
+         tools/curriculum-fixture.json  gen/levels.py's library builder over a
+                                        canonical library, for
+                                        test/unit/sound-it-out.js.
 
-Everything is synthesised with prefer_recordings=False: the family's own
-recordings must never leave their device, so the bundle is the built-in voice
-only, always.
+THE BUNDLE IS THE STARTER VOICE AND NOTHING ELSE - the app author's own
+recordings, shipped so a buildup is never two voices. No synthesis: a Kokoro
+word arriving after human phonemes is jarring enough to make the buildup not
+worth doing (the author's words). Whatever exists under assets/starter-voice/
+{phonemes,words,sentences} is transcoded and packed; today that is the 42
+phoneme clips, and when the author records the pack words and sentences
+upstream, rerunning this picks them up with no code change. The FAMILY's
+recordings are never touched - they live only in their own device's app.
 """
 from __future__ import annotations
 
@@ -33,15 +33,14 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 APP = HERE.parent
 
-# must run from the sound-it-out repo root (its venv, its gen package)
 sys.path.insert(0, str(Path.cwd()))
 try:
     import numpy as np
     import soundfile as sf
-    from gen import levels, wordlists
-    from gen.paths import RESOURCES
-    from gen.soundout import SR
-    from gen.voice import VoiceSource, sentence_key
+    from gen import levels, sentences as slib
+    from gen.paths import STARTER_VOICE
+    from gen.soundout import SR, loud
+    from gen.voice import sentence_key
 except ImportError as e:  # pragma: no cover
     raise SystemExit(
         f"Run this from the sound-it-out repo root with its venv:\n"
@@ -50,7 +49,6 @@ except ImportError as e:  # pragma: no cover
 
 
 def mp3_bytes(a: np.ndarray, q: int = 7) -> bytes:
-    """float32 @ SR -> mono mp3 bytes via ffmpeg/libmp3lame."""
     with tempfile.TemporaryDirectory() as td:
         wav = Path(td) / "in.wav"
         mp3 = Path(td) / "out.mp3"
@@ -64,35 +62,43 @@ def mp3_bytes(a: np.ndarray, q: int = 7) -> bytes:
         return mp3.read_bytes()
 
 
-def build_clips() -> tuple[dict, float]:
-    requests = json.loads((HERE / "requests.json").read_text())
-    vs = VoiceSource(prefer_recordings=False)
-    tables = {"phonemes": {}, "words": {}, "wordsSlow": {}, "blends": {}, "sentences": {}}
-    total_s = 0.0
-    for i, r in enumerate(requests, 1):
-        kind = r["kind"]
-        if kind == "phoneme":
-            a = vs.phoneme(r["key"])
-            table, key = "phonemes", r["key"]
-        elif kind == "word":
-            a = vs.word(r["text"], slow=r.get("slow", False))
-            table, key = ("wordsSlow" if r.get("slow") else "words"), r["key"]
-        elif kind == "blend":
-            a = vs.blend(r["ipas"])
-            table, key = "blends", r["key"]
-        elif kind == "sentence":
-            a = vs.sentence(r["text"])
-            table, key = "sentences", r["key"]
-        else:
-            raise ValueError(f"unknown kind {kind}")
-        total_s += len(a) / SR
-        tables[table][key] = base64.b64encode(mp3_bytes(a)).decode()
-        if i % 25 == 0 or i == len(requests):
-            print(f"  {i}/{len(requests)} clips, {total_s:.0f}s of audio")
-    return tables, total_s
+def pack_dir(sub: str) -> dict:
+    """Transcode one starter-voice directory, keyed by filename stem (the
+    phoneme files are named by their IPA; words by the word; sentences by
+    their sentence_key). Levelled with the pipeline's own loud()."""
+    out = {}
+    src = STARTER_VOICE / sub
+    if not src.exists():
+        return out
+    for f in sorted(src.glob("*.wav")):
+        a, sr = sf.read(str(f), dtype="float32")
+        if sr != SR:
+            raise SystemExit(f"{f}: rate {sr}, expected {SR}")
+        out[f.stem] = base64.b64encode(mp3_bytes(loud(a))).decode()
+    return out
 
 
 # ---------------------------------------------------------- parity fixture
+
+# A canonical library covering every mechanic: letters, a sight name that IS
+# decodable (Chase = ch + ase), CVC, magic-e, the voiced-s lexicon, an
+# irregular word, a nonsense word, and sentences with punctuation and
+# repeated words.
+FIXTURE_LIBRARY = [
+    "s",
+    "a",
+    "Chase",
+    "sat",
+    "case",
+    "is",
+    "the",
+    "vam",
+    "happy",
+    "Sam sat.",
+    "Chase is on the case.",
+    "A duck sat on the rock.",
+]
+
 
 class Tagged(np.ndarray):
     req: tuple
@@ -105,9 +111,6 @@ def tag(req) -> Tagged:
 
 
 class StubVoice:
-    """Returns silence tagged with the request, so the fixture records WHICH
-    clip each segment asked for without synthesising anything."""
-
     def word(self, text, slow=False):
         return tag(("word", text.lower(), bool(slow)))
 
@@ -121,58 +124,60 @@ class StubVoice:
         return tag(("sentence", sentence_key(text)))
 
 
-def build_fixture() -> dict:
-    # The DEFAULT word list, never the family's own copy: the fixture is
-    # committed to a public repo, and sight-words.txt may hold real names.
-    default = RESOURCES / "wordlists" / "sight-words.default.txt"
-    orig_load = wordlists.load
-    wordlists.load = lambda path=None: orig_load(default)
+def build_fixture() -> list:
+    orig_load = slib.load
+    slib.load = lambda: list(FIXTURE_LIBRARY)
     try:
-        fixture = {}
-        opts = {"reps": 3, "pauseSeconds": 1.2, "nonsense": True}
-        runs = [(lv, dict(opts)) for lv in range(1, 10)]
-        runs += [(12, dict(opts, stage=s)) for s in (1, 2, 3)]
-        for level, o in runs:
-            segs = levels.build(level, StubVoice(), o)
-            fixture[f"{level}" + (f"/stage{o['stage']}" if level == 12 else "")] = [
-                {
-                    "parts": [[t, bool(h)] for t, h in s.parts],
-                    "pad": round(s.pad, 4),
-                    "scale": s.scale,
-                    "color": s.color,
-                    "itemEnd": bool(s.item_end),
-                    "clip": list(s.audio.req),
-                }
-                for s in segs
-            ]
-        return fixture
+        segs = levels.build(13, StubVoice(), {"reps": 3, "pauseSeconds": 1.2})
+        rows = []
+        for s in segs:
+            req = getattr(s.audio, "req", None)
+            rows.append({
+                "parts": [[t, bool(h)] for t, h in s.parts],
+                "pad": round(s.pad, 4),
+                "scale": s.scale,
+                "color": s.color,
+                "itemEnd": bool(s.item_end),
+                # read-along slices carry raw audio, not a request
+                "clip": list(req) if req is not None else ["slice"],
+            })
+        return rows
     finally:
-        wordlists.load = orig_load
+        slib.load = orig_load
 
 
 def main():
-    print("fixture: running gen/levels.py against the default word list…")
-    fixture = build_fixture()
-    n = sum(len(v) for v in fixture.values())
-    (HERE / "curriculum-fixture.json").write_text(json.dumps(fixture))
-    print(f"  wrote tools/curriculum-fixture.json ({n} segments across {len(fixture)} runs)")
+    print("fixture: running gen/levels.py's library builder…")
+    rows = build_fixture()
+    (HERE / "curriculum-fixture.json").write_text(json.dumps(
+        {"library": FIXTURE_LIBRARY, "opts": {"reps": 3, "pauseSeconds": 1.2},
+         "segments": rows}))
+    print(f"  wrote tools/curriculum-fixture.json ({len(rows)} segments)")
 
-    print("clips: synthesising with the desktop pipeline (built-in voice only)…")
-    tables, total_s = build_clips()
-    payload = json.dumps({"format": "mp3",
-                          "voice": "Kokoro af_heart via the Sound It Out desktop pipeline",
-                          "clips": tables}, ensure_ascii=False)
+    print("starter voice: transcoding assets/starter-voice/…")
+    tables = {
+        "phonemes": pack_dir("phonemes"),
+        "words": pack_dir("words"),
+        "sentences": pack_dir("sentences"),
+    }
+    for k, v in tables.items():
+        print(f"  {k}: {len(v)} clips")
+
+    payload = json.dumps({
+        "format": "mp3",
+        "voice": "the starter voice - the app author's own recordings, and nothing synthetic",
+        "clips": tables,
+    }, ensure_ascii=False)
     out = (
-        "// GENERATED by tools/gen-clips.py - the desktop app's built-in voice\n"
-        "// (Kokoro af_heart, schwa-stripped and sustained by gen/soundout.py,\n"
-        "// slowed variants pre-stretched with rubberband), one mp3 per clip the\n"
-        "// curriculum can request. prefer_recordings=False always: no family\n"
-        "// recording is ever bundled. Regenerate: see tools/ in this app's README.\n"
+        "// GENERATED by tools/gen-clips.py - the STARTER VOICE: the app\n"
+        "// author's own recordings from the sound-it-out repo's\n"
+        "// assets/starter-voice/, transcoded. Nothing synthetic is bundled -\n"
+        "// a buildup must never be two voices - and no family recording is\n"
+        "// ever touched. Regenerate: see the README.\n"
         f"window.SIO_CLIPS = {payload};\n"
     )
     (APP / "clips-data.js").write_text(out)
-    kb = len(out) / 1024
-    print(f"  wrote clips-data.js: {kb:.0f} KB for {total_s:.0f}s of audio")
+    print(f"  wrote clips-data.js: {len(out) / 1024:.0f} KB")
 
 
 if __name__ == "__main__":

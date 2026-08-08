@@ -1,130 +1,292 @@
-// All the tab wiring. app.js boots, loads state, then calls SIO.ui.init().
+// The two screens. app.js boots, loads state, then calls SIO.ui.init().
 (function () {
   const SIO = (window.SIO = window.SIO || {});
   const $ = (id) => document.getElementById(id);
 
-  // GifOS-standard row-delete glyph (button.row-del): trash, never ✕ — ✕ is
-  // reserved for close/dismiss.
+  // GifOS-standard row-delete glyph (button.row-del): trash, never ✕.
   const TRASH_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 
   const state = {
-    prefs: { level: 1, theme: 'night', minutes: 10, reps: 3, pause: 1.5, nonsense: true, stage: 3, text: '' },
-    wordsText: '',
-    savedWordsText: '',
-    groups: [],
-    caps: { recordings: false, recordedSentences: false, tts: false, wordlistReady: false },
+    prefs: { theme: 'night', pause: 1.5, unticked: [] },
+    rows: [],       // library rows {id, text, order}
+    status: [],     // statusOf() result, same order
+    done: new Map(),
     building: false,
   };
-  const overlays = []; // stack of close functions, for Back
-
-  // ------------------------------------------------------------- helpers
+  const unticked = () => new Set(state.prefs.unticked || []);
+  const overlays = [];
 
   async function savePrefs() {
     await SIO.store.db('prefs').put(Object.assign({ id: 'prefs' }, state.prefs));
   }
 
-  function parseWords() {
-    state.groups = SIO.wordlist.parse(state.wordsText);
-  }
-
-  async function refreshCaps() {
-    const meta = await SIO.store.db('recmeta').getAll();
-    state.caps.recordings = (meta || []).some((m) => !m.id.endsWith('/previous'));
-    state.caps.recordedSentences = (meta || []).some((m) => m.part === 'sentences');
-    const oe = SIO.openended;
-    state.caps.wordlistReady = SIO.openended.fromWordlist(state.groups, 1).length > 0;
-    state.caps.tts = false;
-    if (window.gifos && window.gifos.ai) {
-      try {
-        const m = await window.gifos.ai.models();
-        state.caps.tts = !!(m && m.available && m.available.includes('tts'));
-      } catch (e) { /* not configured is not an error */ }
-    }
-  }
-
   function switchTab(name) {
-    document.querySelectorAll('.tab').forEach((t) => {
-      t.setAttribute('aria-selected', String(t.dataset.screen === name));
-    });
-    for (const s of ['words', 'make', 'voice', 'about']) {
-      $('screen-' + s).hidden = s !== name;
+    document.querySelectorAll('.tab').forEach((t) =>
+      t.setAttribute('aria-selected', String(t.dataset.screen === name)));
+    $('screen-sentences').hidden = name !== 'sentences';
+    $('screen-setup').hidden = name !== 'setup';
+    if (name === 'setup') renderSetup();
+  }
+
+  // ------------------------------------------------------------ the library
+
+  async function refreshLibrary() {
+    state.rows = await SIO.library.load();
+    state.done = await SIO.studio.doneMap();
+    state.status = SIO.library.statusOf(state.rows, new Set(state.done.keys()));
+    renderList();
+    renderPacks();
+    updateSummary();
+  }
+
+  // Only READY entries can enter a video: an entry with sounds nobody can
+  // say would play half-voiced, which teaches worse than leaving it out.
+  function tickedReady() {
+    const off = unticked();
+    return state.status.filter((s) => !off.has(s.key) && s.ready);
+  }
+  function tickedUnready() {
+    const off = unticked();
+    return state.status.filter((s) => !off.has(s.key) && !s.ready);
+  }
+
+  function stateLine(s) {
+    if (s.kind === 'letter') {
+      return s.ready ? 'Uses the sounds from Setup.' : 'Uses the sounds from Setup - not recorded yet.';
     }
-    if (name === 'make') renderMake();
-    if (name === 'voice') renderVoiceTab();
-    if (name === 'about') renderAbout();
+    const bits = [];
+    if (s.words === 1) {
+      bits.push(s.missing.length
+        ? (s.ready ? 'Starter voice until you record it.' : 'Not recorded yet.')
+        : 'In your voice.');
+    } else {
+      bits.push(`${s.recordedWords} of ${s.words} words in your voice.`);
+      bits.push(s.lineRecorded ? 'Line recorded.' : 'Line still to read.');
+    }
+    if (!s.ready) bits.push('Record it to include it in the video.');
+    return bits.join(' ');
   }
 
-  // --------------------------------------------------------- words tab
-
-  function renderWordsTab() {
-    $('wordlist').value = state.wordsText;
-    renderPreview();
-    renderNudge();
-  }
-
-  function renderPreview() {
-    const groups = SIO.wordlist.parse($('wordlist').value);
-    const words = SIO.wordlist.allWords(groups);
-    $('word-count').textContent = words.length
-      ? `${words.length} words, roughly ${Math.max(1, Math.floor(words.length * 12 / 60))} minutes to record`
-      : 'No words yet';
-    const box = $('groups');
+  function renderList() {
+    const box = $('sentence-list');
     box.innerHTML = '';
-    for (const g of groups) {
-      const name = document.createElement('div');
-      name.className = 'group-name';
-      name.textContent = g.name;
-      box.appendChild(name);
-      const chips = document.createElement('div');
-      chips.className = 'word-chips';
-      for (const [w, c] of g.words) {
-        const chip = document.createElement('span');
-        chip.className = 'word-chip';
-        chip.textContent = w;
-        if (c) chip.style.color = c;
-        chips.appendChild(chip);
+    if (!state.status.length) {
+      const p = document.createElement('p');
+      p.className = 'hint empty-note';
+      p.textContent = 'Nothing here yet. Add something above, or open a starter pack.';
+      box.appendChild(p);
+      return;
+    }
+    const off = unticked();
+    for (const s of state.status) {
+      const row = document.createElement('div');
+      row.className = 'sentence-row' + (off.has(s.key) ? ' is-out' : '');
+
+      const label = document.createElement('label');
+      label.className = 'sentence-tick';
+      const tick = document.createElement('input');
+      tick.type = 'checkbox';
+      tick.checked = !off.has(s.key);
+      tick.setAttribute('aria-label', `Include "${s.text}" in the video`);
+      tick.addEventListener('change', async () => {
+        const o = unticked();
+        if (tick.checked) o.delete(s.key); else o.add(s.key);
+        state.prefs.unticked = [...o];
+        await savePrefs();
+        row.classList.toggle('is-out', !tick.checked);
+        updateSummary();
+      });
+      label.appendChild(tick);
+
+      const body = document.createElement('div');
+      body.className = 'sentence-body';
+      const text = document.createElement('div');
+      text.className = 'sentence-text' + (s.kind === 'letter' ? ' is-letter' : '');
+      text.textContent = s.text;
+      const meta = document.createElement('div');
+      meta.className = 'sentence-meta' + (s.ready ? ' is-ready' : '');
+      meta.textContent = stateLine(s);
+      body.appendChild(text);
+      body.appendChild(meta);
+
+      const actions = document.createElement('div');
+      actions.className = 'sentence-actions';
+      if (s.kind !== 'letter' && (s.missing.length || !s.lineRecorded)) {
+        const rec = document.createElement('button');
+        rec.className = 'btn btn-primary btn-small';
+        rec.textContent = 'Record';
+        rec.addEventListener('click', () => recordEntry(s));
+        actions.appendChild(rec);
       }
-      box.appendChild(chips);
+      if (s.kind !== 'letter') {
+        const listen = document.createElement('button');
+        listen.className = 'btn btn-quiet btn-small';
+        listen.textContent = 'Listen';
+        listen.addEventListener('click', () => openEntryListen(s));
+        actions.appendChild(listen);
+      }
+      const del = document.createElement('button');
+      del.className = 'row-del';
+      del.innerHTML = TRASH_SVG;
+      del.setAttribute('aria-label', 'Remove "' + s.text + '" from the list');
+      del.addEventListener('click', async () => {
+        // Recordings are kept: the words belong to the shared bank, and the
+        // line clip is precious if she re-adds the sentence.
+        await SIO.library.remove(s.key);
+        refreshLibrary();
+      });
+      actions.appendChild(del);
+
+      row.appendChild(label);
+      row.appendChild(body);
+      row.appendChild(actions);
+      box.appendChild(row);
     }
   }
 
-  function renderNudge() {
-    const ph = SIO.wordlist.placeholders(SIO.wordlist.parse($('wordlist').value));
-    $('people-nudge').hidden = !ph.length;
-    if (ph.length) {
-      $('people-nudge-text').innerHTML =
-        `The <b>People</b> group still has example names in it (${ph.join(', ')}).`;
+  async function renderPacks() {
+    const packs = await SIO.library.packs();
+    const box = $('packs');
+    box.innerHTML = '';
+    for (const group of ['favourites', 'skills']) {
+      const h = document.createElement('h3');
+      h.textContent = group === 'favourites' ? 'Stories and favourites' : 'Learning to sound out';
+      box.appendChild(h);
+      for (const p of packs.filter((x) => x.group === group)) {
+        const row = document.createElement('div');
+        row.className = 'pack-row';
+        const body = document.createElement('div');
+        body.className = 'pack-body';
+        body.innerHTML = `<b>${p.name}</b> <span class="pack-count">${p.added ? p.added + ' of ' + p.count + ' added' : p.count + ' entries'}</span><br><span class="hint">${p.description}</span>`;
+        const add = document.createElement('button');
+        add.className = 'btn btn-second btn-small';
+        add.textContent = p.added >= p.count ? 'Added' : 'Add';
+        add.disabled = p.added >= p.count;
+        add.addEventListener('click', async () => {
+          await SIO.library.addPack(p.id);
+          refreshLibrary();
+        });
+        row.appendChild(body);
+        row.appendChild(add);
+        box.appendChild(row);
+      }
     }
   }
 
-  function wireWordsTab() {
-    const ta = $('wordlist');
-    ta.addEventListener('input', () => {
-      $('dirty-dot').hidden = ta.value === state.savedWordsText;
-      $('save-state').textContent = '';
-      renderPreview();
-      renderNudge();
-    });
-    $('save-words').addEventListener('click', async () => {
-      state.wordsText = ta.value;
-      state.savedWordsText = ta.value;
-      parseWords();
-      await SIO.store.db('words').put({ id: 'wordlist', text: ta.value });
-      $('dirty-dot').hidden = true;
-      $('save-state').textContent = SIO.store.inGifOS()
-        ? 'Saved on this device, inside this app.'
-        : 'Kept for this visit only - open inside GifOS to keep it for good.';
-      renderNudge();
-    });
-    $('revert-words').addEventListener('click', () => {
-      ta.value = state.savedWordsText;
-      $('dirty-dot').hidden = true;
-      renderPreview();
-      renderNudge();
-    });
+  // The length is told, not asked for: nobody can guess what an entry costs
+  // in buildup time, so the summary does the sums after every tick.
+  function updateSummary() {
+    const ready = tickedReady();
+    const waiting = tickedUnready();
+    const total = state.status.length;
+    if (!ready.length) {
+      $('make-summary').textContent = !total ? ' '
+        : waiting.length
+          ? 'Nothing recorded yet - the video needs at least one recorded (or letter) entry.'
+          : 'Nothing ticked - tick at least one entry.';
+      return;
+    }
+    const secs = SIO.library.estimateSeconds(ready.map((s) => s.text), 3, state.prefs.pause);
+    const mins = secs / 60;
+    const len = mins < 1.4 ? 'About a minute long'
+      : `About ${Math.round(mins)} minutes long`;
+    $('make-summary').textContent =
+      `${ready.length} of ${total} entries ready and ticked` +
+      (waiting.length ? ` (${waiting.length} more waiting on recording)` : '') +
+      `. ${len}, then it starts again.`;
   }
 
-  // ---------------------------------------------------------- make tab
+  // ----------------------------------------------------------- make / play
+
+  async function buildPlanWithProgress() {
+    const ready = tickedReady();
+    const skipped = tickedUnready();
+    const texts = ready.map((s) => s.text);
+    if (!texts.length) {
+      throw new Error(skipped.length
+        ? 'Nothing here is recorded yet. Record an entry first - or add the Letter sounds pack, which needs no recording.'
+        : 'Tick at least one entry first.');
+    }
+    state.building = true;
+    $('make-progress').hidden = false;
+    $('btn-play').disabled = true;
+    $('btn-export').disabled = true;
+    $('voice-note').hidden = true;
+    $('make-progress-text').textContent = 'Working out the sounds…';
+    $('make-progress-fill').style.width = '0%';
+    try {
+      const voice = new SIO.VoiceSource();
+      const plan = await SIO.storyboard.buildPlan(
+        texts, { reps: 3, pauseSeconds: state.prefs.pause }, voice,
+        (done, totalN) => {
+          $('make-progress-text').textContent = `Preparing the sounds… ${done} of ${totalN}`;
+          $('make-progress-fill').style.width = Math.round((done / totalN) * 100) + '%';
+        });
+      const note = $('voice-note');
+      let html = `<b>Voices:</b> ${plan.voiceSummary}.`;
+      if (skipped.length) {
+        html += ` <br><b>Left out (not recorded yet):</b> `
+          + skipped.slice(0, 5).map((s) => s.text).join(' · ')
+          + (skipped.length > 5 ? ' …' : '')
+          + ' — record them from the list above.';
+        note.classList.add('warn');
+      } else note.classList.remove('warn');
+      note.innerHTML = html;
+      note.hidden = false;
+      return plan;
+    } finally {
+      state.building = false;
+      $('make-progress').hidden = true;
+      $('btn-cancel-export').hidden = true;
+      $('btn-play').disabled = false;
+      $('btn-export').disabled = false;
+    }
+  }
+
+  function wireMake() {
+    $('btn-play').addEventListener('click', async () => {
+      if (state.building) return;
+      try {
+        const plan = await buildPlanWithProgress();
+        const theme = SIO.frames.THEMES[state.prefs.theme] || SIO.frames.THEMES.night;
+        openOverlay(SIO.player.openPlayer(plan, theme).close);
+      } catch (e) {
+        alert(e && e.message || 'That did not work.');
+      }
+    });
+
+    $('btn-export').addEventListener('click', async () => {
+      if (state.building) return;
+      if (!SIO.exporter.supported()) {
+        alert('This browser cannot record video files. Playing on this screen still works.');
+        return;
+      }
+      $('export-note').hidden = false;
+      try {
+        const plan = await buildPlanWithProgress();
+        const theme = SIO.frames.THEMES[state.prefs.theme] || SIO.frames.THEMES.night;
+        $('make-progress').hidden = false;
+        $('btn-cancel-export').hidden = false;
+        $('btn-play').disabled = true;
+        $('btn-export').disabled = true;
+        const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+        const blob = await SIO.exporter.exportVideo(plan, theme, (t, total) => {
+          $('make-progress-text').textContent = `Saving… ${fmt(t)} of ${fmt(total)} (runs in real time)`;
+          $('make-progress-fill').style.width = Math.round((t / total) * 100) + '%';
+        });
+        SIO.exporter.download(blob, `sound-it-out-${state.prefs.theme}.webm`);
+        $('make-progress-text').textContent = 'Saved.';
+      } catch (e) {
+        if (String(e && e.message) !== 'cancelled') alert(e && e.message || 'That did not work.');
+      } finally {
+        $('make-progress').hidden = true;
+        $('btn-cancel-export').hidden = true;
+        $('btn-play').disabled = false;
+        $('btn-export').disabled = false;
+      }
+    });
+    $('btn-cancel-export').addEventListener('click', () => SIO.exporter.cancel());
+  }
 
   function segmented(el, options, value, onPick) {
     el.innerHTML = '';
@@ -143,61 +305,11 @@
     }
   }
 
-  function renderMake() {
-    // levels
-    const statuses = SIO.curriculum.levelStatus(state.caps);
-    const box = $('levels');
-    box.innerHTML = '';
-    for (const st of statuses) {
-      const label = document.createElement('label');
-      label.className = 'choice' + (st.id === state.prefs.level ? ' selected' : '') + (st.available ? '' : ' unavailable');
-      const input = document.createElement('input');
-      input.type = 'radio';
-      input.name = 'level';
-      input.value = st.id;
-      input.checked = st.id === state.prefs.level;
-      input.disabled = !st.available;
-      input.addEventListener('change', () => {
-        state.prefs.level = st.id;
-        savePrefs();
-        renderMake();
-      });
-      const name = document.createElement('span');
-      name.className = 'choice-name';
-      name.textContent = `${st.id}. ${st.name}`;
-      const desc = document.createElement('div');
-      desc.className = 'choice-desc';
-      desc.textContent = st.description;
-      label.appendChild(input);
-      label.appendChild(name);
-      label.appendChild(desc);
-      if (st.reason) {
-        const r = document.createElement('div');
-        r.className = 'choice-reason';
-        r.textContent = st.reason;
-        label.appendChild(r);
-      }
-      box.appendChild(label);
-    }
+  function renderOptions() {
+    segmented($('pause'), [
+      { value: 1.0, label: 'Short' }, { value: 1.5, label: 'Medium' }, { value: 2.5, label: 'Long' },
+    ], state.prefs.pause, (v) => { state.prefs.pause = v; savePrefs(); updateSummary(); });
 
-    // open-ended extras
-    const lvl = state.prefs.level;
-    $('level-text-wrap').hidden = lvl !== 10;
-    $('level-stage-wrap').hidden = lvl !== 12;
-    if (lvl === 10) {
-      $('level-text').value = state.prefs.text || '';
-      updateTextCount();
-    }
-    if (lvl === 12) {
-      segmented($('stage'), [
-        { value: 1, label: 's a t p i n' },
-        { value: 2, label: '+ m d g o c k' },
-        { value: 3, label: '+ e u r h b f l' },
-      ], state.prefs.stage, (v) => { state.prefs.stage = v; savePrefs(); updateStageNote(); });
-      updateStageNote();
-    }
-
-    // themes
     const themes = SIO.frames.THEMES;
     const tl = $('themes');
     tl.innerHTML = '';
@@ -206,197 +318,46 @@
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'theme-card' + (key === state.prefs.theme ? ' selected' : '');
-      const sw = document.createElement('div');
-      sw.className = 'theme-swatch';
-      sw.style.background = t.bg;
-      sw.innerHTML = `<span style="color:${t.fg}">s<span style="color:${t.highlight}">a</span>t</span>`;
-      const nm = document.createElement('div');
-      nm.className = 'theme-name';
-      nm.textContent = t.name;
-      card.appendChild(sw);
-      card.appendChild(nm);
-      card.addEventListener('click', () => { state.prefs.theme = key; savePrefs(); renderMake(); });
+      card.innerHTML = `<div class="theme-swatch" style="background:${t.bg}">`
+        + `<span style="color:${t.fg}">s<span style="color:${t.highlight}">a</span>t</span></div>`
+        + `<div class="theme-name">${t.name}</div>`;
+      card.addEventListener('click', () => { state.prefs.theme = key; savePrefs(); renderOptions(); });
       tl.appendChild(card);
     }
-
-    // how it plays
-    segmented($('minutes'), [5, 10, 20, 30].map((v) => ({ value: v, label: v + ' min' })),
-      state.prefs.minutes, (v) => { state.prefs.minutes = v; savePrefs(); updateSummary(); });
-    segmented($('reps'), [2, 3, 4].map((v) => ({ value: v, label: v + '×' })),
-      state.prefs.reps, (v) => { state.prefs.reps = v; savePrefs(); updateSummary(); });
-    segmented($('pause'), [
-      { value: 1.0, label: 'Short' }, { value: 1.5, label: 'Medium' }, { value: 2.5, label: 'Long' },
-    ], state.prefs.pause, (v) => { state.prefs.pause = v; savePrefs(); updateSummary(); });
-
-    updateSummary();
   }
 
-  function updateTextCount() {
-    const lines = SIO.openended.splitSentences($('level-text').value);
-    $('level-text-count').textContent = lines.length
-      ? `${lines.length} line${lines.length === 1 ? '' : 's'} to read.`
-      : '';
-  }
-
-  function updateStageNote() {
-    const p = SIO.openended.storyProgress(state.prefs.stage);
-    $('stage-note').textContent =
-      `With ${p.letters.length} letters, ${p.lines} of the story's ${p.total} lines can be read.`;
-  }
-
-  function updateSummary() {
-    const lv = SIO.curriculum.LEVELS.find((l) => l.id === state.prefs.level);
-    $('make-summary').textContent =
-      `Level ${state.prefs.level} (${lv ? lv.name : ''}), ${state.prefs.minutes} minutes, ` +
-      `${state.prefs.theme} theme, each word ${state.prefs.reps}×.`;
-  }
-
-  function buildOpts() {
-    return {
-      minutes: state.prefs.minutes,
-      reps: state.prefs.reps,
-      pauseSeconds: state.prefs.pause,
-      nonsense: state.prefs.nonsense,
-      stage: state.prefs.stage,
-      text: state.prefs.text,
-    };
-  }
-
-  async function buildPlanWithProgress() {
-    state.building = true;
-    $('make-progress').hidden = false;
-    $('btn-play').disabled = true;
-    $('btn-export').disabled = true;
-    $('voice-note').hidden = true;
-    $('make-progress-text').textContent = 'Working out the sounds…';
-    $('make-progress-fill').style.width = '0%';
-    try {
-      const voice = new SIO.VoiceSource();
-      const plan = await SIO.storyboard.buildPlan(
-        state.prefs.level, buildOpts(), state.groups, voice,
-        (done, total) => {
-          $('make-progress-text').textContent = `Preparing the sounds… ${done} of ${total}`;
-          $('make-progress-fill').style.width = Math.round((done / total) * 100) + '%';
-        });
-      const note = $('voice-note');
-      let html = `<b>Voices:</b> ${plan.voiceSummary}.`;
-      if (plan.missing.length) {
-        const labels = [...new Set(plan.missing.map((m) => m.label))];
-        const shown = labels.slice(0, 6).join(', ') + (labels.length > 6 ? '…' : '');
-        html += ` <br><b>No voice yet for:</b> ${shown} — record them on the Your&nbsp;voice tab` +
-          (state.caps.tts ? '.' : ', or set up a Text-to-speech model in GifOS Settings → AI models.');
-        note.classList.add('warn');
-      } else {
-        note.classList.remove('warn');
-      }
-      note.innerHTML = html;
-      note.hidden = false;
-      return plan;
-    } finally {
-      state.building = false;
-      $('make-progress').hidden = true;
-      $('btn-cancel-export').hidden = true;
-      $('btn-play').disabled = false;
-      $('btn-export').disabled = false;
-    }
-  }
-
-  function wireMakeTab() {
-    $('level-text').addEventListener('input', () => {
-      state.prefs.text = $('level-text').value;
-      updateTextCount();
-    });
-    $('level-text').addEventListener('change', savePrefs);
-
-    $('btn-play').addEventListener('click', async () => {
-      if (state.building) return;
+  function wireAdd() {
+    $('sentence-add').addEventListener('click', async () => {
+      const err = $('sentence-error');
+      err.hidden = true;
       try {
-        const plan = await buildPlanWithProgress();
-        const theme = SIO.frames.THEMES[state.prefs.theme] || SIO.frames.THEMES.night;
-        const colors = SIO.wordlist.colors(state.groups);
-        openOverlay(SIO.player.openPlayer(plan, theme, colors).close);
+        const added = await SIO.library.add($('sentence-input').value);
+        $('sentence-input').value = '';
+        $('sentence-added').textContent = added.length
+          ? (added.length === 1 ? 'Added.' : `Added ${added.length}.`)
+          : 'Already on the list.';
+        setTimeout(() => { $('sentence-added').textContent = ''; }, 2500);
+        refreshLibrary();
       } catch (e) {
-        alert(e && e.message || 'That did not work.');
+        err.textContent = (e && e.message) || 'That did not work.';
+        err.hidden = false;
       }
     });
-
-    $('btn-export').addEventListener('click', async () => {
-      if (state.building) return;
-      if (!SIO.exporter.supported()) {
-        alert('This browser cannot record video files. Playing on this screen still works.');
-        return;
-      }
-      $('export-note').hidden = false;
-      try {
-        const plan = await buildPlanWithProgress();
-        const theme = SIO.frames.THEMES[state.prefs.theme] || SIO.frames.THEMES.night;
-        const colors = SIO.wordlist.colors(state.groups);
-        $('make-progress').hidden = false;
-        $('btn-cancel-export').hidden = false;
-        $('btn-play').disabled = true;
-        $('btn-export').disabled = true;
-        const blob = await SIO.exporter.exportVideo(plan, theme, colors, (t, total) => {
-          $('make-progress-text').textContent =
-            `Saving… ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')} of ` +
-            `${Math.floor(total / 60)}:${String(Math.floor(total % 60)).padStart(2, '0')} (runs in real time)`;
-          $('make-progress-fill').style.width = Math.round((t / total) * 100) + '%';
-        });
-        SIO.exporter.download(blob, `sound-it-out-level-${state.prefs.level}-${state.prefs.theme}.webm`);
-        $('make-progress-text').textContent = 'Saved.';
-      } catch (e) {
-        if (String(e && e.message) !== 'cancelled') alert(e && e.message || 'That did not work.');
-      } finally {
-        $('make-progress').hidden = true;
-        $('btn-cancel-export').hidden = true;
-        $('btn-play').disabled = false;
-        $('btn-export').disabled = false;
-      }
-    });
-
-    $('btn-cancel-export').addEventListener('click', () => SIO.exporter.cancel());
   }
 
-  // --------------------------------------------------------- voice tab
+  // ------------------------------------------------------------ the studio
 
-  async function renderVoiceTab() {
-    const done = await SIO.studio.doneMap();
-    for (const part of ['phonemes', 'words', 'sentences']) {
-      const items = SIO.studio.plan(part, state.groups);
-      const n = items.filter((it) => done.has(SIO.studio.storageId(it))).length;
-      $('count-' + part).textContent = n ? `${n} of ${items.length} recorded` : `${items.length} to record`;
-    }
-    if (!SIO.store.inGifOS()) {
-      $('voice-foot').textContent = 'Recording needs this app to be open inside GifOS (it does the microphone part).';
-    } else {
-      $('voice-foot').textContent = '';
-    }
-  }
+  const studio = { queue: [], index: 0, takes: [], busy: false, onDone: null };
 
-  function wireVoiceTab() {
-    document.querySelectorAll('.vpart-record').forEach((b) =>
-      b.addEventListener('click', () => openStudio(b.dataset.part)));
-    document.querySelectorAll('.vpart-review').forEach((b) =>
-      b.addEventListener('click', () => openReview(b.dataset.part)));
-    document.querySelectorAll('.vpart-script').forEach((b) =>
-      b.addEventListener('click', () => openScript(b.dataset.part)));
-  }
+  function takesNeeded(item) { return item.kind === 'phoneme' ? 3 : 1; }
 
-  // ------------------------------------------------------------ studio
-
-  const studio = { part: null, queue: [], index: 0, takes: [], busy: false };
-
-  async function openStudio(part) {
+  function openStudio(items, onDone) {
     if (!SIO.store.inGifOS()) { alert('Recording needs this app to be open inside GifOS.'); return; }
-    const done = await SIO.studio.doneMap();
-    const items = SIO.studio.plan(part, state.groups);
-    studio.part = part;
-    studio.queue = items.filter((it) => !done.has(SIO.studio.storageId(it)));
+    if (!items.length) { alert('Everything here is recorded. Use “Listen back & redo” to change one.'); return; }
+    studio.queue = items;
     studio.index = 0;
     studio.takes = [];
-    if (!studio.queue.length) {
-      alert('Everything in this part is recorded. Use “Listen back & redo” to change one.');
-      return;
-    }
+    studio.onDone = onDone || null;
     $('studio').hidden = false;
     openOverlay(closeStudio);
     renderStudioItem();
@@ -404,8 +365,9 @@
 
   function closeStudio() {
     $('studio').hidden = true;
-    renderVoiceTab();
-    refreshCaps();
+    if (studio.onDone) studio.onDone();
+    refreshLibrary();
+    renderSetup();
   }
 
   function renderStudioItem() {
@@ -422,13 +384,13 @@
     $('studio-redo').hidden = true;
     studio.takes = [];
     renderTakeDots(it);
-    const need = SIO.dsp.takesFor(studio.part);
+    const need = takesNeeded(it);
     $('studio-go').textContent = need > 1 ? `Record (take 1 of ${need})` : 'Record';
     $('studio-go').disabled = false;
   }
 
   function renderTakeDots(it) {
-    const need = SIO.dsp.takesFor(studio.part);
+    const need = takesNeeded(it);
     const box = $('studio-takes');
     box.innerHTML = '';
     if (need <= 1) return;
@@ -442,7 +404,7 @@
   async function studioRecordOnce() {
     if (studio.busy) return;
     const it = studio.queue[studio.index];
-    const need = SIO.dsp.takesFor(studio.part);
+    const need = takesNeeded(it);
     studio.busy = true;
     $('studio-go').disabled = true;
     $('studio-state').textContent = 'Recording — GifOS is listening. Stop when you have said it.';
@@ -459,7 +421,6 @@
         $('studio-go').textContent = `Record (take ${studio.takes.length + 1} of ${need})`;
         return;
       }
-      // enough takes: choose, save, show the reason, move on
       const result = await SIO.studio.saveBest(it, studio.takes);
       const res = $('studio-result');
       res.hidden = false;
@@ -488,7 +449,7 @@
   function studioAdvance() {
     if ($('studio').hidden) return;
     if (studio.index + 1 >= studio.queue.length) {
-      $('studio-say').textContent = 'That is everything in this part. Done!';
+      $('studio-say').textContent = 'That is everything here. Done!';
       $('studio-word').textContent = '✓';
       $('studio-state').textContent = '';
       $('studio-result').hidden = true;
@@ -503,7 +464,6 @@
   }
 
   async function studioRedo() {
-    // wipe what was just saved for this item and record it afresh
     const it = studio.queue[studio.index];
     await SIO.studio.remove(it);
     renderStudioItem();
@@ -518,108 +478,104 @@
     $('script-close').addEventListener('click', () => closeOverlay(closeScript));
   }
 
-  // ------------------------------------------------------------ review
-
-  async function openReview(part) {
+  // The walk-through for one entry: its unrecorded words, then the line.
+  async function recordEntry(s) {
     const done = await SIO.studio.doneMap();
-    const items = SIO.studio.plan(part, state.groups)
-      .filter((it) => done.has(SIO.studio.storageId(it)));
-    $('review-title').textContent = 'Listen back — ' + { phonemes: 'the sounds', words: 'the words', sentences: 'the sentences' }[part];
-    $('review-hint').textContent = items.length
-      ? 'Tap one to hear it. Deleting one puts it back in the recording queue — that is how you redo it.'
-      : 'Nothing recorded in this part yet.';
+    const items = SIO.library.walkthroughItems(s.text)
+      .filter((it) => !done.has(SIO.studio.storageId(it)));
+    openStudio(items);
+  }
+
+  // ------------------------------------------------------------- listen back
+
+  // rows: [{id, display, meta, missing}] - missing rows show as still-to-do.
+  function openReview(title, hint, rows, recordRemainder) {
+    $('review-title').textContent = title;
+    $('review-hint').textContent = hint;
     const list = $('review-list');
     list.innerHTML = '';
-    for (const it of items) {
-      const meta = done.get(SIO.studio.storageId(it));
+    for (const r of rows) {
       const row = document.createElement('div');
-      row.className = 'review-row';
+      row.className = 'review-row' + (r.missing ? ' is-missing' : '');
       const play = document.createElement('button');
       play.className = 'btn btn-quiet';
       play.textContent = '▶';
-      play.setAttribute('aria-label', 'Play ' + it.display);
-      play.addEventListener('click', () => SIO.studio.playBack(it));
+      play.disabled = !!r.missing;
+      play.setAttribute('aria-label', 'Play ' + r.display);
+      play.addEventListener('click', () => SIO.studio.playBackId(r.id));
       const word = document.createElement('span');
       word.className = 'rv-word';
-      word.textContent = it.display;
+      word.textContent = r.display;
       const metaEl = document.createElement('span');
       metaEl.className = 'rv-meta';
-      metaEl.textContent = meta && meta.seconds ? meta.seconds.toFixed(1) + 's' : '';
-      const noteEl = document.createElement('span');
-      noteEl.className = 'rv-note';
-      noteEl.textContent = meta && meta.notes && meta.notes.length ? meta.notes.join(', ') : '';
-      const del = document.createElement('button');
-      del.className = 'row-del';
-      del.innerHTML = TRASH_SVG;
-      del.setAttribute('aria-label', 'Delete the recording of ' + it.display);
-      del.addEventListener('click', async () => {
-        await SIO.studio.remove(it);
-        row.remove();
-        renderVoiceTab();
-      });
+      metaEl.textContent = r.missing ? 'still to record' : (r.meta || '');
       row.appendChild(play);
       row.appendChild(word);
       row.appendChild(metaEl);
-      row.appendChild(noteEl);
-      row.appendChild(del);
+      if (!r.missing) {
+        const del = document.createElement('button');
+        del.className = 'row-del';
+        del.innerHTML = TRASH_SVG;
+        del.setAttribute('aria-label', 'Delete the recording of ' + r.display);
+        del.addEventListener('click', async () => {
+          await SIO.studio.removeId(r.id);
+          row.classList.add('is-missing');
+          play.disabled = true;
+          metaEl.textContent = 'still to record';
+          del.remove();
+          refreshLibrary();
+          renderSetup();
+        });
+        row.appendChild(del);
+      }
       list.appendChild(row);
     }
-    $('review-clear').onclick = async () => {
-      if (!confirm('Delete every recording in this part, so it can be done again?')) return;
-      await SIO.studio.clearPart(part, state.groups);
-      closeOverlay(closeReview);
-      renderVoiceTab();
-    };
+    const rec = $('review-record');
+    rec.hidden = !recordRemainder;
+    rec.onclick = recordRemainder ? () => { closeOverlay(closeReview); recordRemainder(); } : null;
     $('review').hidden = false;
     openOverlay(closeReview);
   }
-
   function closeReview() { $('review').hidden = true; }
 
-  // ------------------------------------------------------------ script
-
-  async function openScript(part) {
+  // Every clip behind one entry: each word, then the line.
+  async function openEntryListen(s) {
     const done = await SIO.studio.doneMap();
-    const items = SIO.studio.plan(part, state.groups);
-    $('script-title').textContent = 'What to say — ' + { phonemes: 'the sounds', words: 'the words', sentences: 'the sentences' }[part];
-    const body = $('script-body');
-    body.innerHTML = '';
-    const wrap = document.createElement('div');
-    wrap.className = 'script-group';
-    items.forEach((it, i) => {
-      const div = document.createElement('div');
-      div.className = 'script-item';
-      const isDone = done.has(SIO.studio.storageId(it));
-      div.innerHTML = `${isDone ? '<span class="done">✓</span>' : ''}${i + 1}. <b>${it.display}</b>` +
-        (it.kind === 'phoneme' ? ` <span class="rv-meta">(${it.say.replace(/^Say the /, 'the ')})</span>` : '');
-      wrap.appendChild(div);
+    const rows = SIO.library.walkthroughItems(s.text).map((it) => {
+      const id = SIO.studio.storageId(it);
+      const meta = done.get(id);
+      return {
+        id, display: it.display,
+        meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's' : '',
+        missing: !meta,
+      };
     });
-    body.appendChild(wrap);
-    $('script').hidden = false;
-    openOverlay(closeScript);
+    openReview('Listen back — ' + s.text,
+      'Each word, then the whole line. Deleting one puts it back in the recording queue.',
+      rows, () => recordEntry(s));
   }
 
-  function closeScript() { $('script').hidden = true; }
+  // ------------------------------------------------------------------ setup
 
-  // ------------------------------------------------------------- about
-
-  async function renderAbout() {
+  async function renderSetup() {
     const done = await SIO.studio.doneMap();
-    const counts = { phonemes: 0, words: 0, sentences: 0 };
-    for (const m of done.values()) if (counts[m.part] !== undefined) counts[m.part] += 1;
-    const clips = window.SIO_CLIPS && window.SIO_CLIPS.clips;
-    const nClips = clips ? Object.values(clips).reduce((s, t) => s + Object.keys(t).length, 0) : 0;
+    const plan = SIO.studio.phonemePlan();
+    const n = plan.filter((it) => done.has(SIO.studio.storageId(it))).length;
+    $('count-phonemes').textContent = n ? `${n} of ${plan.length} recorded` : `${plan.length} to record`;
+    const bank = await SIO.studio.bankList();
+    $('count-bank').textContent = bank.length ? `${bank.length} words` : 'empty so far';
+
+    const C = window.SIO_CLIPS && window.SIO_CLIPS.clips;
+    const nStP = C && C.phonemes ? Object.keys(C.phonemes).length : 0;
+    const nStW = C && C.words ? Object.keys(C.words).length : 0;
+    const nStS = C && C.sentences ? Object.keys(C.sentences).length : 0;
     const rows = [
-      [true, `Built-in voice: ${nClips} prepared clips packed inside this app.`],
-      [counts.phonemes > 0, `Your sounds: ${counts.phonemes} of 42 recorded.`],
-      [counts.words > 0, `Your words: ${counts.words} recorded.`],
-      [counts.sentences > 0, `Your sentences: ${counts.sentences} recorded.`],
-      [state.caps.tts, state.caps.tts
-        ? 'Text-to-speech model: set up (used for words nobody recorded).'
-        : 'Text-to-speech model: not set up. Optional — only needed for new words nobody recorded (GifOS Settings → AI models).'],
+      [n > 0, `Your sounds: ${n} of ${plan.length} recorded.`],
+      [bank.length > 0, `Your word bank: ${bank.length} words.`],
+      [nStP > 0, `Starter voice: ${nStP} sounds` + (nStW + nStS ? `, ${nStW} words, ${nStS} lines` : '') + ' — the app author’s real voice, shipped with the app.'],
       [SIO.store.inGifOS(), SIO.store.inGifOS()
-        ? 'Running inside GifOS: recordings and words are saved on this device.'
-        : 'Opened outside GifOS: nothing can be saved or recorded. Install it from the GifOS App Store.'],
+        ? 'Running inside GifOS: everything is saved on this device.'
+        : 'Opened outside GifOS: nothing can be saved or recorded.'],
     ];
     const ul = $('capabilities');
     ul.innerHTML = '';
@@ -630,12 +586,63 @@
     }
   }
 
-  function wireAbout() {
+  function wireSetup() {
+    $('sounds-record').addEventListener('click', async () => {
+      const done = await SIO.studio.doneMap();
+      const items = SIO.studio.phonemePlan().filter((it) => !done.has(SIO.studio.storageId(it)));
+      openStudio(items);
+    });
+    $('sounds-review').addEventListener('click', async () => {
+      const done = await SIO.studio.doneMap();
+      const rows = SIO.studio.phonemePlan().map((it) => {
+        const id = SIO.studio.storageId(it);
+        const meta = done.get(id);
+        return {
+          id, display: it.display + '  (as in ' + it.example + ')',
+          meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's' : '',
+          missing: !meta,
+        };
+      });
+      openReview('Listen back — the sounds',
+        'Tap one to hear it. Deleting one puts it back in the recording queue.', rows);
+    });
+    $('sounds-script').addEventListener('click', async () => {
+      const done = await SIO.studio.doneMap();
+      const body = $('script-body');
+      body.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.className = 'script-group';
+      SIO.studio.phonemePlan().forEach((it, i) => {
+        const div = document.createElement('div');
+        div.className = 'script-item';
+        const isDone = done.has(SIO.studio.storageId(it));
+        div.innerHTML = `${isDone ? '<span class="done">✓</span>' : ''}${i + 1}. <b>${it.display}</b> `
+          + `<span class="rv-meta">as in “${it.example}” — ${it.length === 'hold' ? 'hold it' : it.length === 'crisp' ? 'short and crisp' : 'naturally'}</span>`;
+        wrap.appendChild(div);
+      });
+      body.appendChild(wrap);
+      $('script').hidden = false;
+      openOverlay(closeScript);
+    });
+    $('bank-review').addEventListener('click', async () => {
+      const bank = await SIO.studio.bankList();
+      const rows = bank.map((m) => ({
+        id: m.id, display: m.display || m.key,
+        meta: (m.seconds ? m.seconds.toFixed(1) + 's' : '')
+          + (m.notes && m.notes.length ? ' · ' + m.notes.join(', ') : ''),
+        missing: false,
+      }));
+      openReview('Listen back — your word bank',
+        rows.length ? 'Every word on record, from every sentence. Deleting one puts it back in the queue of whatever uses it.'
+          : 'Nothing in the bank yet - record an entry on the Sentences tab.', rows);
+    });
     $('btn-backup').addEventListener('click', () => {
       if (window.gifos && window.gifos.save) window.gifos.save();
       else alert('Open this app inside GifOS to save a backup.');
     });
   }
+
+  function closeScript() { $('script').hidden = true; }
 
   // ------------------------------------------------------- overlay stack
 
@@ -645,42 +652,27 @@
     if (i >= 0) overlays.splice(i, 1);
     closeFn();
   }
-
   function backPressed() {
     const top = overlays.pop();
     if (top) top();
-    // else swallowed: a reflex Back press never closes the app
   }
-
-  // player calls this when it closes itself
-  function playerClosed() {
-    // the player's close is on the stack; drop it without re-running
-    overlays.pop();
-  }
+  function playerClosed() { overlays.pop(); }
 
   // --------------------------------------------------------------- init
 
   async function init(loaded) {
     state.prefs = Object.assign(state.prefs, loaded.prefs || {});
-    state.wordsText = loaded.wordsText;
-    state.savedWordsText = loaded.wordsText;
-    parseWords();
-    await refreshCaps();
-
     document.querySelectorAll('.tab').forEach((t) =>
       t.addEventListener('click', () => switchTab(t.dataset.screen)));
-
-    wireWordsTab();
-    wireMakeTab();
-    wireVoiceTab();
+    wireAdd();
+    wireMake();
     wireStudio();
-    wireAbout();
-
-    renderWordsTab();
-    switchTab('words');
-
+    wireSetup();
+    renderOptions();
+    await refreshLibrary();
+    switchTab('sentences');
     if (window.gifos && window.gifos.onBack) window.gifos.onBack(backPressed);
   }
 
-  SIO.ui = { init, playerClosed, refreshCaps, state };
+  SIO.ui = { init, playerClosed, state };
 })();

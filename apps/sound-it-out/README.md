@@ -1,70 +1,93 @@
 # Sound It Out — GifOS app
 
 A full port of the [sound-it-out](https://github.com/nwcnwc/sound-it-out)
-desktop app (Electron + Python sidecar) to a sandboxed GifOS app. Made for a
-boy with Down syndrome learning to read: calm looping phonics videos in a big
-literacy font, each grapheme highlighted as its sound plays, in the reading
-order the Down syndrome research recommends (sight words first, phonics after
-~50 confident words).
+desktop app (0.4.x, the **sentence-library** design) to a sandboxed GifOS app.
+Made for a boy with Down syndrome learning to read: calm looping videos where
+every word is built up from its sounds, sentences grow word by word, and the
+line ends in the parent's own read with the highlight following her voice.
 
 The desktop app needed PyInstaller, onnxruntime, espeak-ng, rubberband and
-ffmpeg — which is exactly what was failing on the family's old Intel Mac. This
-port needs a browser tab. Everything native was either deleted or moved to
-build time.
+ffmpeg — exactly what was failing on the family's old Intel Mac. This port
+needs a browser tab. Everything native was either deleted or moved to build
+time.
+
+## The shape (upstream 0.4.x, mirrored here)
+
+Two screens. **Sentences**: one list holds everything that gets read — a
+single letter (plays its sound from the phoneme bank, nothing to record), a
+single word (sounded out when `decodable()` says the letter rules can honestly
+say it, shown whole when they cannot), a sentence (each word met on its own,
+the line grown word by word, then the whole read as a karaoke read-along).
+Starter packs — Paw Patrol lines, VeggieTales, God's world, Around home, plus
+the skill packs (letter sounds, the building-up ladder, nonsense practice,
+letter teams, first sentences) — are one tap that adds ordinary entries.
+Each entry has a tick (include in the video), its recording state, and a
+Record walk-through. The video's length is **told, not asked for** ("About 6
+minutes long"). **Setup**: the 42-sound session, the shared word bank, and
+the backup story.
+
+Rules ported exactly: the absolute highlight rule (colour = "being said right
+now"; the grey dim is gone; long pads show the text neutral —
+`NEUTRAL_PAD 0.35s`), magic-e onset+rime buildup (`c + ase`), the voiced-s
+lexicon (is/his/has/as), `IRREGULAR_WORDS` shown whole, the 50ms approach
+floor, function-word-discounted read-along timing (`word_spans`), and clip
+loudness levelling (`loud()`, RMS 0.09) with a master gain + limiter standing
+in for the encoder's `loudnorm` −14 LUFS.
 
 ## How the port replaces the native stack
 
 | Desktop | GifOS port |
 | --- | --- |
-| Kokoro-82M ONNX + espeak-ng g2p at runtime (340 MB) | the curriculum is finite, so every clip it can request is synthesised **offline** by the real desktop pipeline and packed into the GIF (`clips-data.js`, ~mp3 per clip) |
-| rubberband time-stretch (schwa shaping, slow words) | done offline for bundled clips; a small WSOLA stretch in `dsp.js` covers slowing the parent's own recordings at runtime |
-| AudioWorklet mic capture + Python scoring | brokered `gifos.recordAudio` clips, scored in-app by the ported detector (schwa, clipping, SNR, length classes, steadiness) |
-| headless-Chromium PNG frames + ffmpeg MP4 encode | the storyboard is rendered **live** on a canvas against the timeline (no frames, no encode); "save as a file" is a realtime `MediaRecorder` WebM capture of the same renderer |
-| voice cloning (Chatterbox, 3 GB, separate venv) | dropped. Its niche (words nobody recorded) is covered by `gifos.ai.tts` — words and sentences only, **never** isolated phonemes |
-| files on disk | `gifos.db`: `prefs`, `words`, `recordings` (+ `recmeta`), `ttscache` — all **private**; recordings never enter the shipped GIF, and `gifos.save()` is the backup story |
+| Kokoro-82M ONNX + espeak-ng g2p at runtime (340 MB) | deleted outright — the port ships no synthetic voice at all (see the policy below) |
+| the shipped starter voice (42 human phoneme wavs) | same clips, transcoded into the GIF — and the ONLY bundled audio: a buildup must never be two voices, so nothing synthetic ships. When the author records the pack words/sentences upstream (assets/starter-voice/words/, sentences/), regeneration packs them with no code change |
+| AudioWorklet mic capture + Python scoring | brokered `gifos.recordAudio` clips, scored in-app by the ported detector (schwa, clipping, SNR, length classes) |
+| headless-Chromium PNG frames + ffmpeg MP4 encode | the storyboard renders **live** on a canvas; "save as a file" is a realtime `MediaRecorder` WebM capture of the same renderer |
+| voice cloning (Chatterbox, 3 GB) | dropped, along with every synthetic tier — see the voice policy below |
+| wordlists/sentences.txt on disk | `gifos.db`: `library`, `prefs`, `recordings` (+ `recmeta`, the word bank's catalog) — all **private**; recordings never enter the shipped GIF; `gifos.save()` is the backup |
 
-Voice resolution per item (port of `gen/voice.py`): **parent's recording**
-(verbatim, with the /a/↔/æ/ alias table) → **bundled built-in clip** →
-**text-to-speech** (words/sentences only) → silent-with-visual + an honest
-"no voice yet for…" note after the build.
+**The two-voice policy** (stricter than upstream's tiering, at the author's
+direction): **her recording** (verbatim, levelled) → **the starter voice**
+(the author's recordings) → honestly MISSING. No Kokoro, no text-to-speech: a
+buildup where the sounds and the word are different voices is jarring enough
+to not be worth doing. Entries with unsayable clips are left out of the video
+(named in an honest note), and a word whose sounds are not all available —
+a magic-e rime outside the 42, say — is shown whole rather than half-built.
 
 ## Source layout
 
-- `curriculum.js` — port of `gen/levels.py` + the 42-sound table from
-  `gen/recordings.py`: all 12 levels, ladder, graphemes, successive-blending
-  approach. Guarded segment-by-segment against the Python original by
-  `test/unit/sound-it-out.js` via `tools/curriculum-fixture.json`.
-- `openended.js` — port of `gen/openended.py` (pasted text, wordlist
-  templates, the growing story).
-- `wordlist.js` — the word-list format, default list included.
-- `dsp.js` — measurement + scoring ports (`_schwa_tail`, `score_take`), plus
-  the WSOLA stretch.
-- `voice.js` / `storyboard.js` — clip resolution tiers; whole-item fitting
-  (port of `gen/service.py`'s trim/repeat/level-6-stretch).
-- `frames.js` / `player.js` / `exporter.js` — themes, canvas auto-fit renderer
-  (never breaks a word), playback engine, WebM export.
-- `studio.js` / `ui.js` / `app.js` / `index.html` / `style.css` — the four-tab
-  UI, recording studio, review, script.
+- `curriculum.js` — word mechanics (graphemes, magic-e, lexicon, irregulars,
+  `decodable`, `wordParts`) + the library segment builders (`approach`,
+  `oneWord`, `library`). Guarded segment-by-segment against `gen/levels.py`
+  by `test/unit/sound-it-out.js` via `tools/curriculum-fixture.json`.
+- `library.js` — port of `gen/sentences.py`: entry kinds, the db-backed
+  library, walk-through items, starter packs, the length estimate,
+  `wordSpans` read-along timing.
+- `dsp.js` — measurement + scoring ports, WSOLA stretch.
+- `voice.js` / `storyboard.js` — the two voice tiers + `loud()` + the
+  buildup coherence gate; neutral-pad frame expansion, read-along slicing.
+- `frames.js` / `player.js` / `exporter.js` — themes (two colours only),
+  canvas auto-fit renderer, playback engine, mastering chain, WebM export.
+- `studio.js` / `ui.js` / `app.js` — scoring flow over `gifos.recordAudio`,
+  the two screens.
 - `fonts-data.js` — GENERATED: Andika Bold woff2 (SIL OFL), base64.
-- `clips-data.js` — GENERATED: the built-in voice. See below.
+- `clips-data.js` — GENERATED: the starter voice, and nothing else. See below.
 
-## Regenerating the built-in voice
+## Regenerating the bundled voices
 
-Needs a checkout of the sound-it-out desktop repo with its venv (Kokoro model
-+ ffmpeg with rubberband and libmp3lame):
+Needs a checkout of the sound-it-out desktop repo with its venv:
 
 ```bash
-node apps/sound-it-out/tools/enumerate-requests.mjs   # curriculum -> requests.json
 cd ~/projects/sound-it-out && .venv/bin/python \
     ~/projects/gifos/apps/sound-it-out/tools/gen-clips.py
 ```
 
-That rewrites `clips-data.js` (every clip, mp3, base64) and
-`tools/curriculum-fixture.json` (the parity fixture). Both are
-generated-but-committed, same doctrine as the store catalog. The generator
-always runs with `prefer_recordings=False`: **no family recording is ever
-bundled** — the shipped voice is Kokoro's, shaped by the desktop pipeline's
-schwa-stripping and sustain.
+That rewrites `clips-data.js` (whatever exists under the upstream repo's
+`assets/starter-voice/{phonemes,words,sentences}`, transcoded to mp3 and
+levelled — nothing synthesised) and `tools/curriculum-fixture.json` (the
+parity fixture). Both are generated-but-committed. **No family recording is
+ever bundled** — the starter voice is the author's own, shipped publicly in
+the upstream repo. `tools/starter-recording-list.md` is the checklist of pack
+words and lines waiting to be recorded upstream.
 
 Then rebuild and refresh the catalog:
 
@@ -75,15 +98,12 @@ node scripts/build-app-catalog.mjs
 
 ## Not in the store yet — deliberately
 
-The upstream desktop app is still being actively developed, so this port is
-**held out of the App Store**: the listing lives at `listing.unpublished.json`,
-which the catalog builder ignores (no `listing.json` ⇒ not in the store, per
-`apps/README.md`). The port itself is complete and green; publishing is one
-move when upstream settles:
+Upstream is still being actively developed, so this port is **held out of the
+App Store**: the listing lives at `listing.unpublished.json`, which the
+catalog builder ignores. Publishing is one move when upstream settles:
 
 ```bash
 git mv apps/sound-it-out/listing.unpublished.json apps/sound-it-out/listing.json
-node apps/sound-it-out/tools/enumerate-requests.mjs      # re-sync with upstream
 cd ~/projects/sound-it-out && .venv/bin/python \
     ~/projects/gifos/apps/sound-it-out/tools/gen-clips.py
 node test/unit/sound-it-out.js                           # parity must be green
@@ -91,21 +111,20 @@ node apps/sound-it-out/build.mjs
 node scripts/build-app-catalog.mjs
 ```
 
-(update `releaseDate` in the listing when cutting, and sign at site/sign.html
-if it should read "signed by gifos.app".)
+(update `releaseDate` when cutting; sign at site/sign.html if it should read
+"signed by gifos.app".)
 
 ## Tests
 
-`test/unit/sound-it-out.js` (runs in the release gate's unit tier):
-curriculum parity with the Python fixture, bundle completeness (every clip the
-curriculum can request exists in `clips-data.js` — a missing phoneme is a
-silently mute letter), word-list parsing, open-ended level invariants, the
-fitting rules, and the DSP ports (schwa detector on synthetic audio, scoring,
-stretch). Browser-level e2e (launch the GIF, build a plan, play) has not been
-written yet — it needs a gate host with working Chromium.
+`test/unit/sound-it-out.js` (release gate, unit tier): segment-exact parity
+with the Python library builder, the word-mechanics vectors (magic-e,
+lexicon, irregulars), bundle completeness across every pack (a missing
+phoneme is a silently mute letter), read-along span tiling, the estimate,
+and the DSP ports on synthetic audio. Browser e2e still needs a gate host
+with working Chromium.
 
 ## Capabilities used
 
-`db` (all collections private), `microphone` (`gifos.recordAudio` per take),
-`ai: ["tts"]` (optional — the app launches and works without it; it only reads
-words nobody recorded). No network capability: the app runs entirely offline.
+`db` (all collections private) and `microphone` (`gifos.recordAudio` per
+take). No AI, no network: the app runs entirely offline, and no voice in it
+is ever synthetic.
