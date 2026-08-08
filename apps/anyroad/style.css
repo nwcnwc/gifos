@@ -502,3 +502,17 @@ select {
 }
 .sheet-close:active { background: rgba(50, 76, 112, 0.7); }
 .sheet-close small { display: block; margin-top: 3px; font-weight: 400; font-size: 11px; color: var(--dim); }
+
+/* ---- the loading map ------------------------------------------------------
+   Sits in the top bar with the other chips, same size as one, and disappears
+   the moment everything nearby has landed. It answers one question — "which
+   way has roads in it yet?" — and answering it badly (a permanent minimap) is
+   how you end up with a driving game people watch instead of drive. */
+#tilemap {
+  width: 2.6rem; height: 2.6rem;
+  border-radius: .5rem;
+  background: rgba(10, 14, 20, .55);
+  border: 1px solid rgba(255, 255, 255, .16);
+  image-rendering: auto;
+  flex: 0 0 auto;
+}

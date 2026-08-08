@@ -662,6 +662,34 @@
     if (!running) { running = true; lastT = 0; requestAnimationFrame(frame); }
   }
 
+  // What every road tile around the car is doing, for the loading map. The
+  // want-list is already sorted nearest-first by the streamer, so this costs a
+  // walk over at most MAX_ROAD_TILES entries.
+  //
+  // Worth the pixels because the loader is otherwise INVISIBLE: through a
+  // windscreen, "empty countryside" and "third in a queue behind two city
+  // tiles" look exactly the same, and the player has no way to choose the
+  // direction that will actually have roads in it.
+  function tileMap() {
+    if (!world.frame) return null;
+    var here = root.Geo.tilesAround(world.frame, car.x, car.z, 1, root.Roads.TILE_ZOOM)[0];
+    if (!here) return null;
+    var want = world.wanted.roads, out = [];
+    for (var i = 0; i < want.length; i++) {
+      var t = want[i], k = root.Geo.tileKey(t), slot = world.roads[k];
+      var st = 'want';
+      if (slot && slot.built) st = 'ready';
+      else if (slot && slot.geom) st = 'building';
+      else if (slot && slot.failed) st = 'failed';
+      else if (slot && slot.pending) st = 'loading';
+      var q = root.Roads.tileState(k);
+      out.push({ dx: t.x - here.x, dy: t.y - here.y, state: st,
+                 queue: q ? q.queue : -1, running: !!(q && q.running),
+                 mirror: q ? q.mirror : '' });
+    }
+    return out;
+  }
+
   // ---- camera --------------------------------------------------------------
   function updateCamera(dt) {
     var back = 8.5, up = 3.4, ahead = 9;
@@ -922,6 +950,7 @@
       street: car.street || '',
       passing: passing,
       loading: pendingCount(),
+      tiles: tileMap(),
       ready: grounded && roadsBuilt() > 0,
       net: root.Net.stats(),
       airborne: car.airborne,

@@ -30,6 +30,9 @@
     <button class="chip" id="btn-map" aria-label="Bird's-eye view" aria-pressed="false">🗺️</button>
     <button class="chip" id="btn-race" aria-label="Races">🏁<span class="badge" id="race-badge" hidden></span></button>
     <button class="chip" id="btn-hop" aria-label="Go somewhere else">🌍</button>
+    <!-- The loading map. Tiny, north-up, and only on screen while something is
+         still coming in — a permanent one would be clutter. -->
+    <canvas id="tilemap" width="72" height="72" aria-label="Map tiles loading around you" hidden></canvas>
   </div>
 
   <div class="speedo" id="speedo">

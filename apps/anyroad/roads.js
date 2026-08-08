@@ -634,6 +634,17 @@
   // Health is measured, not assumed: an exponential moving average of how long
   // each mirror took, plus whatever backoff net.js has already imposed on it.
   var mirrorStat = {};
+  var inflightTile = {};        // tile key -> which mirror it is waiting on
+
+  // What is happening to this tile RIGHT NOW, for the loading map. null once it
+  // has landed (or before it was ever asked for).
+  function tileState(key) {
+    var f = inflightTile[key];
+    if (!f) return null;
+    var pos = root.Net.positionOf(f.url);
+    return { mirror: f.mirror, host: f.host, queue: pos > 0 ? pos : 0,
+             running: pos === 0, waited: Date.now() - f.since };
+  }
   function statFor(url) {
     var h = root.Net.hostOf(url);
     if (!mirrorStat[h]) mirrorStat[h] = { host: h, lat: 1500, n: 0, fails: 0 };
@@ -666,9 +677,14 @@
 
     function ask(src, withBuildings) {
       var t0 = Date.now();
-      return root.Net.json(src.url + '?data=' + encodeURIComponent(query(tile, withBuildings)))
-        .then(function (json) { noteLatency(src.url, Date.now() - t0); return parse(json, withBuildings); },
-              function (err) { noteFail(src.url); throw err; });
+      var url = src.url + '?data=' + encodeURIComponent(query(tile, withBuildings));
+      // Remembered so the HUD can say WHICH server this tile is waiting on and
+      // WHERE in that server's queue it is sitting.
+      inflightTile[key] = { url: url, host: root.Net.hostOf(url), mirror: src.name, since: t0 };
+      function done() { if (inflightTile[key] && inflightTile[key].url === url) delete inflightTile[key]; }
+      return root.Net.json(url)
+        .then(function (json) { noteLatency(src.url, Date.now() - t0); done(); return parse(json, withBuildings); },
+              function (err) { noteFail(src.url); done(); throw err; });
     }
 
     // Walk the ranked mirrors. A busy or broken server hands the tile to the
@@ -1792,7 +1808,7 @@
     loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
     nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater, waterAt: waterAt, DROWN_AREA: DROWN_AREA,
     // The mirror pool, exported so a suite can watch it route.
-    rankMirrors: rankMirrors, mirrorScore: mirrorScore,
+    rankMirrors: rankMirrors, mirrorScore: mirrorScore, tileState: tileState,
     noteLatency: noteLatency, noteFail: noteFail,
     mirrorStats: function () { return mirrorStat; },
     clearCache: function () {
