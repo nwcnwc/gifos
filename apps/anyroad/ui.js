@@ -34,7 +34,7 @@
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
-     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-offline','note-offline',
+     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-offline','note-offline','race-dist',
      'street','passing','recent','cockpit','cockpit-wheel','pov-eye',
      'dash-speed','dash-cond-fill','speedo','btn-fly','fly-plane','fly-car','dash-unit',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
@@ -107,11 +107,8 @@
       root.Roads.clearCache().then(function () { refreshCacheSize(); note('Cached map data cleared.'); });
     });
 
-    $('set-start').addEventListener('click', function () { markRace('start'); });
-    $('set-finish').addEventListener('click', function () { markRace('finish'); });
     $('start-race').addEventListener('click', startRace);
     $('clear-race').addEventListener('click', function () {
-      pending.start = null; pending.finish = null;
       root.MP.clearRace(); updateRacePanel(); note('Race cleared.');
     });
 
@@ -546,21 +543,30 @@
   function openSettings() { syncSourceMenus(); refreshCacheSize(); renderAttribution(); show(el.settings); }
 
   // ---- race ----------------------------------------------------------------
-  var pending = { start: null, finish: null };
 
-  function markRace(which) {
-    var car = hooks.car(), frame = hooks.frame();
-    if (!car || !frame) return;
-    pending[which] = frame.toGeo(car.x, car.z);
-    note(which === 'start' ? 'Start line set here.' : 'Finish line set here.');
-    updateRacePanel();
-  }
-
+  // ONE DECISION: how far. The old panel asked you to drive to the start, mark
+  // it, drive to the finish, mark that, and only then race — which means
+  // driving the entire course before you are allowed to race it. Nobody could
+  // work out what it wanted because what it wanted made no sense.
+  //
+  // Now the computer drops a flag somewhere random at the distance you choose,
+  // everybody starts from wherever they already are, and first to the flag
+  // wins.
   function startRace() {
-    if (!pending.start || !pending.finish) { note('Set a start and a finish first.'); return; }
-    root.MP.setRace(pending.start, pending.finish).then(function () {
+    var car = hooks.car(), frame = hooks.frame();
+    if (!car || !frame) { note('Land somewhere first.'); return; }
+    var metres = parseInt(el['race-dist'].value, 10) || 2500;
+    var here = frame.toGeo(car.x, car.z);
+    // A random bearing, and the distance you asked for. Straight-line: the
+    // ROADS decide how long it really takes, which is the interesting part —
+    // two people the same distance away can be very differently placed.
+    var bearing = Math.random() * Math.PI * 2;
+    var dx = Math.sin(bearing) * metres, dz = Math.cos(bearing) * metres;
+    var flag = frame.toGeo(car.x + dx, car.z + dz);
+    root.MP.setRace(here, flag).then(function () {
       hide(el.race);
-      note('Race starting…');
+      note('Flag dropped ' + (metres >= 1000 ? (metres / 1000) + ' km' : metres + ' m') +
+           ' away. Follow the arrow — first there wins.');
     });
   }
 
@@ -569,11 +575,10 @@
     el['mp-status'].textContent = n > 1
       ? (n + ' drivers in this world.')
       : 'Driving alone — invite someone and they land right here.';
-    var ok = !!(pending.start && pending.finish);
-    $('start-race').disabled = !ok;
-    el['race-hint'].textContent = ok
-      ? 'Start and finish are set. Press Start race — everyone gets a three-second countdown.'
-      : 'Drive to where you want the start, set it, drive to the finish, set that, then start.';
+    $('start-race').disabled = false;
+    el['race-hint'].textContent = root.MP.hasRace()
+      ? 'A race is running. The arrow on the HUD points at the flag; Clear stops it.'
+      : 'A flag is dropped somewhere random at that distance. Everyone starts from where they are — first to reach it wins.';
     el['race-badge'].hidden = !root.MP.hasRace();
   }
 
