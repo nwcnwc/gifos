@@ -111,6 +111,57 @@ noted. `site/run.html` — the actual consumer of the flood — is untouched by 
 > 3. Turn compaction off in settled rooms — legitimate: in a fully settled
 >    window it moved 0 seats for 2.23M frames, and its whole measured benefit is
 >    ~3% fewer lone-row sections.
+>
+> **V5 RESOLVED 2026-08-07 — Nathan's design, measured, kills it to the floor.**
+> The fix is NOT admission control and NOT any of the three refuted designs:
+> **cap the probe's climb at 2 levels above the seeker** (`problvl 2`,
+> mesh.cpp + mesh.js PROBLVL). The funnel was the climb — every unservable
+> probe walking 12 levels to the S1 wall; capped, no node can receive more
+> than its 2-level subtree's probes, so per-node arrivals stop being a
+> function of N at all. N=20000, spreadon 1, settled 6000-tick window,
+> framesPerTick_max, four seeds:
+>
+> | seed | today | problvl 2 | + offeron | floor (off) |
+> |---|---|---|---|---|
+> | 11 | 13.67 | 3.136 | 3.136 | 3.129 |
+> | 12 | 12.70 | 3.143 | 3.143 | 3.129 |
+> | 13 | 14.28 | 3.136 | 3.136 | 3.129 |
+> | 20260714 | 15.15 | 3.143 | 3.136 | 3.129 |
+>
+> 99.8%+ of the excess above the floor is gone on every seed (the outlier seed
+> reproduces this audit's 15.15 exactly); windowed S1 probe arrivals fell
+> 866k -> 325 (cAtS1, a counter this work brought to life); settled-room
+> compactness is equal or better than today's; CHECK PASS dups=0 everywhere.
+> **THE DEFAULT DID NOT FLIP THIS RELEASE — one dominance question is open.**
+> repro-compaction's deep-shrink leg reds at problvl 2 on SEED 2 ONLY
+> (capped+offers 17 sections / 8 lone vs the OFF control's 14/4; seeds 3/4/5
+> pass, several BETTER than control; aggregates dominate: 64 vs 78 sections,
+> 21 vs 37 lone). Root-caused as far as the mechanism goes: at the shrink
+> fixed point the remaining stragglers have FULL ancestor-chain rows while
+> free cells sit in COUSIN branches — unreachable by probe or offer, capped
+> or uncapped (both are chain-scoped by design), so the seed-2 delta vs
+> uncapped (17 vs ~15) is move-order chaos at the battery's floor, the exact
+> class its own history notes forced onto aggregate rules twice. Two walk
+> bugs found and fixed on the way (offers dead-ending on childless
+> non-rightmost seats; laterals emitted to corpse occ entries — the FINDLEAF
+> first-hand-live discipline applied). NEXT CAMPAIGN: settle seed 2 with a
+> replicated sweep (capped-vs-uncapped at N reruns, aggregate rules), then
+> flip both twins — problvl 2 + offeron 1, or probeon 0 offers-instead if its
+> shrink dominance also holds.
+>
+> **AND THE PROBE MAY NOT NEED TO EXIST AT ALL.** Nathan's insight: heal always
+> worked owner-initiated (FINDLEAF pulls a leaf up into a confirmed-dead hole);
+> compaction never had that side — the probe exists because of that missing
+> symmetry. `offeron 1` builds it (a row head with a first-hand free densifying
+> slot OFFERs it down its subtree; an eligible mover answers with a ttl=3
+> targeted probe; the admit stays first-hand in serveCompact). Measured
+> OFFERS-ONLY (`probeon 0 offeron 1`), same regime, all four seeds:
+> **57-151 probes per window instead of 450,000-485,000** (a ~8,500x frame
+> reduction), offer->move conversion up to 98%, framesPerTick_max = the floor
+> to four decimals (3.1285-3.1357), cAtS1 = 0, CHECK PASS dups=0, compactness
+> in the same band (mixed ±5% per seed vs today). Shipped default-OFF; the
+> flip to offers-instead is a one-verb decision once compactness dominance is
+> swept at repro-compaction's standard.
 
 ## The verdict, ranked by how much it actually blocks 1M
 
@@ -118,7 +169,7 @@ noted. `site/run.html` — the actual consumer of the flood — is untouched by 
 |---|---|---|---|---|
 | 1 | **V1 — the status pulse floods the room** | status | **ALIVE in the browser**; sim rollup DONE + gauged; JS-twin port in flight (flag OFF); run.html not migrated | ~10⁴ (derived) |
 | 2 | **V2 — statusOf and its satellite maps grow O(N)** | status/memory | ALIVE; follows from V1; lifecycle now gate-tested (no cap asserted) | ~10⁵ memory, ~10⁴ CPU (derived) |
-| 3 | **V5 (NEW) — the Q2 compaction probe funnels into Section 1, LINEARLY in N** | healing/Q2 | ALIVE in both twins, ON by default in production. **MEASURED by clean A/B** | ~10⁵–10⁶ (measured trend + derived) |
+| 3 | **V5 — the Q2 compaction probe funnels into Section 1, LINEARLY in N** | healing/Q2 | **FIX PROVEN 2026-08-07, default not yet flipped** — problvl 2 takes the hot seat to the floor on every seed (offers-instead floor-flat too); ships default-OFF pending the seed-2 shrink-dominance sweep (see the V5 blocks above) | ~10⁵–10⁶ until the flip; then none measured |
 | 4 | **V4 — mass-join convergence ceiling** | seating | **SOLVED-BUT-UNSHIPPABLE**: T7 converges N=20000; ships OFF (compactness trade) | mass-join only; steady rooms unaffected |
 | 5 | **V6 (NEW, named) — the front-door admission funnel** | relay/join | inherent serialization: 30 sockets/session + S1 admitters | wall-clock of a 1M mass join, not per-node cost |
 | — | V3 (dial set O(N)) | transport | **DEAD — kill it.** Dial-out is `linkTo()`-gated everywhere. Stop re-auditing it. | — |

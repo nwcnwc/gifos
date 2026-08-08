@@ -118,34 +118,33 @@ if [ "$BROWSERS" = 1 ]; then
     if run_suite "$s"; then green "$s now passes"; else red "$s"; fi
   done
 
-  hdr "FAILOVER WAKE MISSES THE ≤5s GRACE BOUND  (decided: Nathan, 2026-07-28 — cut 0.8.6, fix by design)"
-  why "the wake is DETECTION-bound, not wake-bound: Chrome reports a killed
-                 peer's transport down in ~5-9s (DC close never fires on a context
-                 kill; ICE 'failed' is Chrome's mood), and the standby then flows ~1s
-                 later. Measured 2.9-13.3s across 7 runs; the PIPE-DARK fix (5e577e9)
-                 removed the 12s announce-ageing tail but cannot beat ICE."
-  cost "a receiver-side RTP-silence watchdog (inbound bytes flat >700ms on a
-                 claimed primary => speculative demand-wake; make-before-break makes a
-                 false alarm harmless). Design task filed 2026-07-28. The GATE keeps
-                 asserting wake CORRECTNESS (completes, via switches, re-parks) via
-                 redun-drill's default mode — the latency BOUND and its twin, claim
-                 continuity at 120ms granularity, live here: the grace linger tears a
-                 dead primary at deadAt+5s, so claim survival IS the wake-vs-grace
-                 race (a 4.5s wake lost it by a hair, 2026-07-28). Both promote back
-                 together with the watchdog.
-                 MIRROR-DRILL JOINED 2026-08-07 (decided: Nathan — the same decision
-                 applied consistently, promoting mirror-drill out of quarantine): its
-                 SIX-hop demand-wake asserts the same detection-bound quantity on the
-                 same context-close kill. MEASURED 2026-08-06, idle 8-core box, 18
-                 runs: 16 green; both misses were the wake landing at 5625ms and
-                 6055ms against MOS_GRACE=5000 with the cascade propagating end to
-                 end (every hop demanding 'w', every sdnm job active) — the mechanism
-                 works, it is LATE, and a 5.6s wake loses the claim to the deadAt+5s
-                 grace linger by 0.6s. So this entry is a COIN THAT USUALLY LANDS
-                 GREEN (~1 in 9 red at idle): a green run here proves nothing; the
-                 watchdog is what retires it. mirror-drill's default mode gates
-                 chain-builds, dormancy, failback, wake-completes, rides-a-live-via.
-                 All four strict asserts promote back together with the watchdog."
+  hdr "FAILOVER WAKE MISSES THE ≤5s GRACE BOUND  (decided: Nathan, 2026-07-28; re-diagnosed 2026-08-07)"
+  why "NO LONGER detection-bound. The RTP-silence watchdog landed 2026-08-07
+                 (wall-clock qualification, counter-regression re-baseline, penalty
+                 decay, husk-immune swap evidence — run.html pipe watchdog v2.1):
+                 darkness now fires 46-940ms after a kill on a qualified pipe,
+                 measured across every armed run that night, and the disarmed
+                 control reds 4/4 (gaps 6.2s to >60s). What MISSES the bound now is
+                 the SENDER side after topology churn, two faces of one class:
+                 (a) redun/stg — a kill's RESHIP STORM invalidates every pre-kill
+                 streamId (each carrier re-ships with a NEW container id when its
+                 source changes), so the woken standby's sender job is already
+                 dead and the room renegotiates ~6s (measured 6.0-6.6s resumes
+                 with dark armed at +46..+917ms, 3-in-6 at idle);
+                 (b) mirror — the ZOMBIE-PARKED-PIPE (the drill's own 2026-07-28
+                 heir-3 class): a demanded-hot chain that delivers nothing
+                 (observed: 18s of stdFdec=0 under an active 'w' demand, ~1 in 20
+                 tonight). Same family as docs/bug-pipe-stg-freeze-2026-08-05.md
+                 and the stage-onerow ONE-stream-id red."
+  cost "CONTAINER IDENTITY ACROSS RESHIPS (a carrier re-shipping into the SAME
+                 container/senders keeps downstream sids stable — kills the reship
+                 storm, likely the stage-onerow red, maybe the stg freeze) plus a
+                 sender-side carry guarantee after 'w'. That is the next media-plane
+                 campaign. The GATE keeps asserting wake CORRECTNESS (completes,
+                 via switches, re-parks) via both drills' default modes — the
+                 latency BOUNDS and their claim-continuity twins live here.
+                 All four promote back together when the sender-side campaign
+                 lands."
   if REDUN_STRICT=1 run_suite test/drills/redun-drill.js; then green "redun-drill strict wake bound now passes"; else red "redun-drill REDUN_STRICT=1 (wake > 5s grace)"; fi
   if MIRROR_STRICT=1 run_suite test/drills/mirror-drill.js; then green "mirror-drill strict wake bound passed THIS run (16/18 at idle — green here proves nothing; only the RTP-silence watchdog retires this entry)"; else red "mirror-drill MIRROR_STRICT=1 (multi-hop wake vs 5s grace; measured 5.6-6.1s on its misses)"; fi
 

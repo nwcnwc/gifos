@@ -8192,11 +8192,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (pri.stream && !pri.stream.getVideoTracks().length) continue;
           const bytes = await pipeBytes(pri);
           // Forensics ring (frza17: a husk claim's standby was never woken and
-          // no theory survived — record what each sample actually SAW)
-          if (rk.indexOf('stg:') === 0 || rk === 'sgs') {
+          // no theory survived — record what each sample actually SAW). Widened
+          // 2026-08-07 from stg/sgs to EVERY redundant key, and records the
+          // continuity clock: the strict-bound tail hunt needed to know whether
+          // a pipe was QUALIFIED at kill time, and only this ring can say.
+          {
             const dl = (window.__dogLog = window.__dogLog || []);
             dl.push({ t: now, rk: rk.slice(0, 14), b: (bytes < 0 ? -1 : bytes.b), q: fb.q || 0,
               la: fb.lastAdvanceAt ? now - fb.lastAdvanceAt : -1, ca: fb.claimAt ? now - fb.claimAt : -1,
+              fs: fb.flowSince ? now - fb.flowSince : -1, fp: fb.fp || 0,
               dark: !!fb.dark, wk: !!fb.wakeAt, std: !!mosStandby.get(rk) });
             if (dl.length > 400) dl.shift();
           }
@@ -8213,26 +8217,56 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             }
             continue;
           }
-          if (fb.lastBytes === -1 || bytes.b > fb.lastBytes) {
+          if (!fb.dark && fb.lastBytes !== -1 && bytes.b < fb.lastBytes) {
+            // COUNTER REGRESSION: a renegotiated/rebuilt receiver restarts
+            // bytesReceived near zero — the standby sampler below learned this
+            // (the d0 re-baseline); the primary rail lacked it, so a qualified
+            // pipe read "no advance" until the counter re-crossed the old
+            // high-water mark: a FALSE dark inside 700ms, then an fp penalty
+            // charged for the "recovery". Re-baseline: no advance credit, no
+            // fire, no penalty — continuity restarts from here.
+            fb.lastBytes = bytes.b; fb.lastAdvanceAt = now; fb.q = 0; fb.flowSince = 0;
+          } else if (fb.lastBytes === -1 || bytes.b > fb.lastBytes) {
+            // CONTINUITY CLOCK (2026-08-07): qualification is WALL-CLOCK flow,
+            // not a sample count. MOS_QUALIFY counted 8 advancing samples and
+            // was sized against the original 300ms loop (~2.4s) — but the
+            // adaptive cadence made watchable slots 900ms, so every fresh or
+            // just-swapped primary went UNPROTECTED for 7.2s and a kill in
+            // that window fell back to the 5-9s ICE lottery (mirror-drill's
+            // 2-in-18 strict misses at 5.6-6.1s were exactly this). The epoch
+            // breaks ONLY at the MOS_FLOWED_RECENT horizon or an explicit
+            // reset — the same gap tolerance the old q-counter had. A first
+            // cut restarted it on any >1400ms gap, and under loadavg 10 a
+            // healthy-but-bursty pipe (the v2b comment's own case) never
+            // re-qualified: the media-only failover leg red with the primary
+            // pinned dark for 25s because the watchdog was blind.
+            if (!fb.flowSince) fb.flowSince = now;
             fb.lastBytes = bytes.b; fb.lastAdvanceAt = now;
-            fb.q = Math.min(64, (fb.q || 0) + 1);
+            fb.q = Math.min(64, (fb.q || 0) + 1); // forensics only — the gate below is flowSince
+            // A clean qualified minute earns one penalty step back: a slot that
+            // false-fired long ago must not stay half-armed forever (fp=4 used
+            // to out-bar the q cap — 128 > 64 — permanent inertness, no decay).
+            if ((fb.fp || 0) > 0 && now - (fb.fpDecayAt || fb.flowSince) > 60000) { fb.fp--; fb.fpDecayAt = now; }
             if (fb.dark) {
               // Primary recovered — the freeze was a FALSE fire, not a death.
               // The sweep re-parks the woken standby; the pipe pays a penalty:
               // it must re-earn the watchdog from zero, at a doubled bar. A
-              // chronically freeze-cycling pipe goes inert in two rounds; a
+              // chronically freeze-cycling pipe goes inert in a few rounds; a
               // killed pipe never recovers, so real failovers never pay.
-              fb.dark = false; fb.q = 0; fb.fp = Math.min(4, (fb.fp || 0) + 1);
+              fb.dark = false; fb.q = 0; fb.flowSince = 0; fb.fp = Math.min(3, (fb.fp || 0) + 1); fb.fpDecayAt = now;
               schedReconcile();
             }
-          } else if (!fb.dark && (fb.q || 0) >= (MOS_QUALIFY << (fb.fp || 0))) {
-            // QUALIFICATION (v2b — the gate-box bench conviction): some healthy
-            // pipes freeze bytes for SECONDS while alive (a throttled
-            // producer's canvas repack, a carrier copy, low-fps shares) —
-            // byte-freeze is only death evidence on a pipe that was flowing
-            // CONTINUOUSLY (MOS_QUALIFY consecutive advancing samples).
-            // Without this the watchdog itself woke standbys in steady state —
-            // a chronic one-pipe violation (redun-drill stdHot 2/2, v2 bench).
+          } else if (!fb.dark && fb.flowSince && fb.lastAdvanceAt
+              && fb.lastAdvanceAt - fb.flowSince >= (MOS_QUALIFY_MS << Math.min(3, fb.fp || 0))) {
+            // QUALIFICATION (v2b — the gate-box bench conviction, preserved):
+            // some healthy pipes freeze bytes for SECONDS while alive (a
+            // throttled producer's canvas repack, a carrier copy, low-fps
+            // shares) — byte-freeze is only death evidence on a pipe that was
+            // flowing CONTINUOUSLY for MOS_QUALIFY_MS (doubled per false
+            // fire), measured up to the LAST advance so the current freeze
+            // earns nothing. Without this the watchdog itself woke standbys in
+            // steady state — a chronic one-pipe violation (redun-drill stdHot
+            // 2/2, v2 bench).
             const std = mosStandby.get(rk);
             if (std && std.key && fb.lastAdvanceAt
                 && now - fb.lastAdvanceAt > MOS_DARK_MS
@@ -8251,8 +8285,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // redun-drill caught it as a hot standby (ONE-PIPE violation) at
           // loadavg 22. A slow pipe is not a dead pipe; only qualification-
           // backed darkness or a dead transport may move a claim.)
-          } else if (!fb.dark && now - fb.lastAdvanceAt > MOS_FLOWED_RECENT && fb.q) {
-            fb.q = 0; // frozen past the horizon without a fire — re-earn from zero
+          } else if (!fb.dark && now - fb.lastAdvanceAt > MOS_FLOWED_RECENT && (fb.q || fb.flowSince)) {
+            fb.q = 0; fb.flowSince = 0; // frozen past the horizon without a fire — re-earn from zero
           } else if (!fb.dark && !(fb.q || 0) && fb.claimAt
               && now - fb.claimAt > HOT_VOID_MS
               && now - Math.max(fb.lastAdvanceAt || 0, fb.claimAt) > HOT_VOID_MS) {
@@ -8284,9 +8318,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               // counters restarted — re-baseline, or the advance test can
               // never pass and the dark swap wedges (seen live: d0=16, fdec=13).
               if (fb.d0 === -1 || s.d < fb.d0) { fb.d0 = s.d; fb.b0 = s.b; }
-              fb.stdFdec = s.d;
+              fb.stdFdec = s.d; fb.stdB = s.b;
             }
-          } else if (fb.d0 !== -1 || fb.stdFdec !== -1) { fb.d0 = -1; fb.stdFdec = -1; }
+          } else if (fb.d0 !== -1 || fb.stdFdec !== -1) { fb.d0 = -1; fb.stdFdec = -1; fb.stdB = -1; }
         }
         // ADAPTIVE CADENCE (2026-07-30 power work). This loop was a flat
         // 300ms getStats() sweep, forever, on every device — 3.3 wakeups/sec
@@ -8367,10 +8401,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the 3-13s ICE-detection lottery into a sub-second wake.
     const MOS_DARK_MS = 700;   // no byte advance on a previously-flowing hot pipe = dark
     const MOS_FLOWED_RECENT = 10000; // "previously flowing" horizon — never fires on a pipe that never delivered
-    const MOS_QUALIFY = 8;     // consecutive advancing ~300ms samples (~2.4s of continuous flow) before a pipe earns the watchdog
+    const MOS_QUALIFY_MS = 2400; // wall-clock CONTINUOUS flow before a pipe earns the watchdog (doubled per false fire). Was MOS_QUALIFY=8 samples sized against the 300ms loop — a sample count silently stretches when the cadence adapts (8×900ms = 7.2s unprotected), which was the strict-bound miss tail.
     const HOT_VOID_MS = 12000; // hot-and-VOID: a hot primary with ZERO bytes this long is a husk, not a slow pipe (frza5)
-    const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch, dark, lastBytes, lastAdvanceAt, q, fp, b0, d0, stdFdec, claimAt } (wake/failback/watchdog state)
-    const mkFb = () => ({ wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastBytes: -1, lastAdvanceAt: 0, q: 0, fp: 0, b0: -1, d0: -1, stdFdec: -1, claimAt: 0 });
+    const mosFb = new Map(); // rk -> { wakeAt, f0, prefSince, lastSwitch, dark, lastBytes, lastAdvanceAt, q, fp, fpDecayAt, flowSince, b0, d0, stdFdec, claimAt } (wake/failback/watchdog state)
+    const mkFb = () => ({ wakeAt: 0, f0: 0, prefSince: 0, lastSwitch: 0, dark: false, lastBytes: -1, lastAdvanceAt: 0, q: 0, fp: 0, fpDecayAt: 0, flowSince: 0, b0: -1, d0: -1, stdFdec: -1, stdB: -1, claimAt: 0 });
     // The PREFERRED announcer of a redundant slot: the tree-direct path the
     // media plane names as the producer's own leg. Failback aims here; any
     // other live path is a legitimate carrier but only a stand-in.
@@ -8479,7 +8513,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const pick = pref || cand.find((x) => x.live);
         if (pick) {
           pri = mkEnt(pick); mosIn.set(rk, pri); repaintRedun(rk, pri.stream);
-          fb.claimAt = now; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; // fresh primary — the watchdog re-baselines
+          fb.claimAt = now; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.flowSince = 0; // fresh primary — the watchdog re-baselines
           if (std && std.via === pri.via && std.streamId === pri.streamId) { dropStandby(rk); std = null; }
         }
       }
@@ -8507,17 +8541,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (wantSwap) {
         if (!fb.wakeAt) { fb.wakeAt = now; fb.f0 = frames(std.el); }
         if (stdIsPref && !fb.prefSince) fb.prefSince = now;
-        // A DARK-initiated swap (primary transport still alive) demands STRICT
-        // flow evidence: the standby's stats-side framesDecoded advancing since
-        // wake. The rendered-frames/videoWidth gate is a lie exactly here — a
-        // camOff stager's woken standby holds a STALE last frame (videoWidth>0)
-        // while delivering nothing, and v1 swapped on it, breaking re-park.
-        // A dead-transport failover keeps the old gate: its standby never has
-        // a stale frame to lie with, and the videoWidth fallback covers els
-        // the render path hasn't started counting yet.
+        // EVERY swap demands evidence the standby is genuinely CARRYING —
+        // never a bare stale frame. Three ladders, each load-bearing:
+        //   1. render-path frames advanced (frames > f0) — the plain case;
+        //   2. stats-side framesDecoded past the wake baseline — decode path,
+        //      immune to render throttling (the dark-swap standard);
+        //   3. videoWidth>0 after 1.5s, but ONLY corroborated by the standby's
+        //      bytesReceived ADVANCING since wake (network path — throttle-
+        //      immune AND husk-immune). The old unconditional videoWidth gate
+        //      promoted a reship-invalidated HUSK at a kill (redun hunt hr2:
+        //      the promotion reset the watchdog, consumed the standby, resume
+        //      10.6s via announce); removing it outright then stalled the
+        //      FAILBACK leg 60s+ (vm1/vm3): a parked standby's element is
+        //      render-throttled, so frames(el) lies low on a pipe that really
+        //      flows. Bytes discriminate: a husk never advances them.
+        const stdReceiving = fb.b0 >= 0 && (fb.stdB || -1) > fb.b0;
         const flowing = (fb.dark && priLive)
           ? (fb.d0 >= 0 && fb.stdFdec > fb.d0)
-          : (frames(std.el) > fb.f0 || (std.el && std.el.videoWidth > 0 && now - fb.wakeAt > 1500));
+          : (frames(std.el) > fb.f0 || (fb.d0 >= 0 && fb.stdFdec > fb.d0)
+             || (stdReceiving && std.el && std.el.videoWidth > 0 && now - fb.wakeAt > 1500));
         // A dead-or-dark primary swaps the moment the standby flows; a live one
         // (pure failback) additionally waits out the settle window — hysteresis
         // (dark skips it: dark IS a failover, and MOS_SETTLE on lastSwitch
@@ -8527,7 +8569,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const old = pri;
           mosIn.set(rk, std); mosStandby.delete(rk); pri = std; std = null;
           pri.deadAt = 0; fb.lastSwitch = now; fb.wakeAt = 0; fb.prefSince = 0;
-          fb.dark = false; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.fp = 0; fb.b0 = -1; fb.d0 = -1; fb.stdFdec = -1; fb.claimAt = now; // fresh primary — the watchdog re-baselines and the penalty clears
+          fb.dark = false; fb.lastBytes = -1; fb.lastAdvanceAt = 0; fb.q = 0; fb.flowSince = 0; fb.fp = 0; fb.fpDecayAt = 0; fb.b0 = -1; fb.d0 = -1; fb.stdFdec = -1; fb.claimAt = now; // fresh primary — the watchdog re-baselines and the penalty clears
           repaintRedun(rk, pri.stream);
           if (inCand(old)) { std = { via: old.via, key: old.key, streamId: old.streamId, stream: old.stream, el: old.el, meta: old.meta }; mosStandby.set(rk, std); } // failback: the loser re-parks as the standby
           else { try { old.el.srcObject = null; old.el.remove(); } catch (e) {} }
@@ -11562,7 +11604,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         claimVia: [...mosIn.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
         standbyVia: [...mosStandby.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
         // wake/failback forensics: per-slot wake-in-progress + settle stamps
-        fb: [...mosFb.entries()].map(([rk, f]) => ({ rk, wakeAt: f.wakeAt, prefSince: f.prefSince, lastSwitch: f.lastSwitch, dark: !!f.dark, lastAdvanceAt: f.lastAdvanceAt || 0, lastBytes: f.lastBytes != null ? f.lastBytes : -1, d0: f.d0 != null ? f.d0 : -1, stdFdec: f.stdFdec != null ? f.stdFdec : -1 })),
+        fb: [...mosFb.entries()].map(([rk, f]) => ({ rk, wakeAt: f.wakeAt, prefSince: f.prefSince, lastSwitch: f.lastSwitch, dark: !!f.dark, lastAdvanceAt: f.lastAdvanceAt || 0, lastBytes: f.lastBytes != null ? f.lastBytes : -1, d0: f.d0 != null ? f.d0 : -1, stdFdec: f.stdFdec != null ? f.stdFdec : -1, flowSince: f.flowSince || 0, q: f.q || 0, fp: f.fp || 0 })),
         prod: prodPack && prodPack.stats(), sd: sdPack && sdPack.stats(),
         rowFaces: dbgRowFaces.slice(), // which pid the packer drew at each of my row's seats (test observability, 2026-07-29 stale-seat dup)
         tile: (() => { const v = stadiumEl.querySelector('[data-row="sd"] video'); return v ? { live: v.videoWidth > 0, w: v.videoWidth } : null; })(),
