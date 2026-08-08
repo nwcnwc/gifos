@@ -7836,6 +7836,75 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }).catch(() => {});
     }, 5000);
 
+    // THE CONTAINER-IDENTITY LAW (2026-08-08 — the sender-side campaign the
+    // FAILOVER-WAKE graveyard entry names). A job's announced container id is
+    // minted ONCE per (key,to) per page life and NEVER changes. Before this,
+    // ANY source change — the camera idle-stop re-minting mySelfStream, a
+    // blur flip, an upstream carrier's own re-ship arriving as a fresh
+    // p.incoming stream, a pipe codec failback, the MOS_GRACE unship/re-want
+    // cycle — tore the job down and re-shipped a brand-new MediaStream.
+    // Every downstream seat then saw the feed's stream id change under it:
+    // its decoder reset, its claim raced the 5s grace (the stage-voice
+    // 20.23s claim drop), demand-wakes aimed at the pre-reship sid were
+    // silently ignored by the mx-want sid check (the ZOMBIE PARKED PIPE),
+    // and each carrier re-shipped in turn — the RESHIP STORM (~6s room
+    // renegotiation after every kill). Now the container is a per-job
+    // constant (shipContainers, kept across unship) and a source change
+    // RECONCILES tracks in place inside shipMos: a same-kind swap is a pure
+    // replaceTrack (no renegotiation — the receiver's track object persists
+    // and it never even sees the swap) or a pipe re-route (worker repoints
+    // the route; sender, carrier and m-line never move); a kind appearing/
+    // vanishing adds/removes ONE m-line inside the same container, so the
+    // announced sid — and every claim, standby and demand keyed on it —
+    // survives. regrabCamera has mutated localStream in place for exactly
+    // this reason ("its id is what we announce... must never change
+    // mid-meeting"); this generalizes that law to every outbound ship.
+    const shipContainers = new Map(); // jk -> the job's forever-container (an id holder; costs nothing)
+    // Attach ONE source track to a job — the pipe lane first (remote-receiver
+    // video only, the one rule), transcode otherwise. The single place a
+    // job's sender is born: the fresh-ship loop and the reconcile path both
+    // come through here, so the lane decision can never fork between them.
+    function mosAttach(job, jk, p, tr) {
+      if (tr.kind === 'video' && pipeEnabled() && !pipeDeny.has(jk) && !pipeJobs.has(jk)) {
+        try {
+          const rcv = MPipe.receiverForTrack(tr, [...peers.values()].map((q) => q.pc).filter(Boolean));
+          const srcId = rcv && 'rx:' + tr.id;
+          if (rcv && MPipe.tapReceiver(rcv, srcId)) {
+            const carrier = MPipe.makeCarrier();
+            const sd = addAux(p.pc, carrier.track, job.container);
+            if (MPipe.pipeSender(sd, srcId, jk, carrier)) {
+              pipeJobs.set(jk, { srcId, carrier, srcTrack: tr, w0: null, stale: 0 });
+              job.senders.push(sd); job.trackList.push(carrier.track); job.srcTracks.push(tr);
+              if (isStageJob(job.key)) stageSenders.add(sd);
+              if (!job.active) { try { sd.replaceTrack(null); } catch (e) {} try { MPipe.pausePipe(jk, true); } catch (e) {} }
+              return sd;
+            }
+            carrier.stop();
+          }
+        } catch (e) {}
+      }
+      try {
+        const sd = addAux(p.pc, tr, job.container);
+        job.senders.push(sd); job.trackList.push(tr); job.srcTracks.push(tr);
+        if (isStageJob(job.key)) stageSenders.add(sd);
+        if (!job.active) { try { sd.replaceTrack(null); } catch (e) {} }
+        return sd;
+      } catch (e) {}
+      return null;
+    }
+    // Detach ONE sender from a job — the m-line stops (bounded SDP, same as
+    // unshipMos) but the job and its container live on.
+    function mosDetach(job, jk, p, idx) {
+      const sd = job.senders[idx];
+      auxSenders.delete(sd); stageSenders.delete(sd);
+      const pj = pipeJobs.get(jk);
+      if (pj && job.trackList[idx] === pj.carrier.track) { pipeJobs.delete(jk); try { MPipe.unpipe(pj.srcId, jk); } catch (e) {} }
+      if (p && p.pc) {
+        try { p.pc.removeTrack(sd); } catch (e) {}
+        try { const tx = p.pc.getTransceivers().find((t) => t.sender === sd); if (tx && tx.stop && !tx.stopped) tx.stop(); } catch (e) {}
+      }
+      job.senders.splice(idx, 1); job.trackList.splice(idx, 1); job.srcTracks.splice(idx, 1);
+    }
     function shipMos(key, to, stream, meta) {
       if (!to || !stream) return null;
       const p = peers.get(to);
@@ -10876,7 +10945,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let appClientStop = null; // live client mount's teardown (unsubscribes its sga lane)
     let appClientCtl = null;  // the client mount's control: snapshot() + setFrozen() (one-runtime freeze/succession)
     let appHostCtl = null;    // the host boot's control: save/steal (one-runtime chrome)
-    function clearAppView() {
+    // APP-MOUNT FORENSICS (__appRemounts) — the app lane's __mosReship. Every
+    // mount/clear edge, WITH ITS REASON, ring-buffered: a remount loop (the
+    // e2e-chess-mp gate red — board/iframe re-rendering continuously, zero
+    // page errors) is invisible after the fact without this, because each
+    // individual edge is legitimate. Read raw by suites (like __mosReship).
+    const appEv = (ev, x) => { try {
+      if (!window.__appRemounts) window.__appRemounts = [];
+      window.__appRemounts.push(Object.assign({ t: Date.now(), ev, mode: appMode, key: appKey ? String(appKey).slice(0, 8) : null }, x || {}));
+      if (window.__appRemounts.length > 60) window.__appRemounts.shift();
+    } catch (e) {} };
+    function clearAppView(why) {
+      appEv('clear', { why: why || 'unstated' });
       if (appClientStop) { try { appClientStop(); } catch (e) {} appClientStop = null; }
       appClientCtl = null; appHostCtl = null;
       refreshStealBtn();
@@ -10898,6 +10978,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!window.GifOS || !GifOS.runtime || !GifOS.store) return;
       if (!canIRunApp()) { setStatus('🛡 Only this room\u2019s admins — or people they allow — can run an app here.'); return; }
       appBooting = true;
+      appEv('runApp', { fid: String(fileId).slice(0, 12) });
       try {
         // Taking over from a client mount: unsubscribe its lane before the
         // host boot replaces the DOM (the iframe goes with it either way).
@@ -10953,11 +11034,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           ts: Math.max(Date.now(), ((appStops.get(sess.sid) || {}).at || 0) + 1), byName: myName() };
         broadcastStatus();
         warnRecorderNewApp(); // a tiles recording won't capture the app I just shared
-      } catch (e) { clearAppView(); myStatus.app = null; broadcastStatus(); setStatus('Could not run the app: ' + (e && e.message || e)); }
+      } catch (e) { clearAppView('runApp-error'); myStatus.app = null; broadcastStatus(); setStatus('Could not run the app: ' + (e && e.message || e)); }
       appBooting = false;
       reconcileApp(); // now with my ad in play (or, on failure, the room's old one)
     }
     function mountClientApp(app) {
+      appEv('client-mount', { s: String(app.s).slice(0, 8), ts: app.ts || 0, by: app.byName || null });
       appMode = 'client'; appKey = app.s;
       showAppPane(app.name, '· shared with the meeting' + (app.byName ? ' by ' + app.byName : ''));
       try {
@@ -10984,14 +11066,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // (the relay-star bootClient fallback died with run.html — one-runtime step 6;
         // every ad is mesh:true now, and non-mesh ads no longer exist)
       }
-      catch (e) { clearAppView(); }
+      catch (e) { clearAppView('client-mount-error'); }
     }
     function stopApp() { // withdraw MY OWN share
       const wasHost = appMode === 'host' || !!myStatus.app;
       if (myStatus.app && myStatus.app.s) stageData.drop(myStatus.app.s);
       myStatus.app = null;
       appLeadSet = null; appLeadable = false; appLeadOn = false;
-      clearAppView();
+      clearAppView('stop-app');
       if (wasHost) broadcastStatus(); // tell the room the shared app is gone
       reconcileApp(); // someone else's share may be waiting underneath
     }
@@ -11069,20 +11151,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const mine = myStatus.app;
         myStatus.app = null;
         appLeadSet = null; appLeadable = false; appLeadOn = false;
-        if (appKey === mine.s) clearAppView();
+        if (appKey === mine.s) clearAppView(want ? 'my-ad-lost-race' : 'my-ad-stopped');
         broadcastStatus();
         const stop = appStops.get(mine.s);
         setStatus(want ? '🧩 ' + esc(want.byName || 'Someone') + ' shared a newer app — yours left the stage.'
           : (stop ? '🧩 ' + esc(stop.by || 'Someone') + ' stopped your shared app.' : '🧩 Your app left the stage.'));
       }
       if (want && want.s === appHiddenSid) { // personally hidden — stage stays clear for ME only
-        if (appKey === want.s) clearAppView();
+        if (appKey === want.s) clearAppView('hidden');
         updateAppButtons(want);
         return;
       }
       if (want && want.s !== appKey) {
         if (myStatus.app && myStatus.app.s === want.s) { updateAppButtons(want); return; } // I'm the host; already mounted
-        clearAppView();
+        clearAppView('switch-to-' + String(want.s).slice(0, 8));
         mountClientApp(want);
         warnRecorderNewApp(); // someone shared an app — a tiles recording won't capture it
       } else if (!want && appKey && appMode === 'client') {
@@ -11092,7 +11174,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // deterministic SUCCESSION. Meetings keep today's behavior (the app
         // was furniture; it clears).
         if (ROOM.appPinned) ownerAway();
-        else clearAppView(); // the sharer stopped or left, or their authority went
+        else clearAppView('ad-gone'); // the sharer stopped or left, or their authority went
       } else if (want && ROOM.appPinned && appFrozen) {
         // the owner (or a successor) is back — thaw
         appFrozen = false;
@@ -11112,6 +11194,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     let appFrozen = false, succT = null;
     function ownerAway() {
       if (!appFrozen) {
+        appEv('owner-away-freeze');
         appFrozen = true;
         if (appClientCtl && appClientCtl.setFrozen) appClientCtl.setFrozen(true);
         document.getElementById('appwho').textContent = '⏸ paused — the host is away';
@@ -11132,6 +11215,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const fid = GifOS.store.uid('file');
           return GifOS.store.putFile({ id: fid, name: nm + '.gif', bytes: bytes, kind: 'gif', isApp: true, mime: 'image/gif' })
             .then(() => {
+              appEv('succession');
               setStatus('🧩 The host left — you are keeping ' + esc(nm) + ' going from your copy.');
               ROOM.fileId = fid;
               appFrozen = false;

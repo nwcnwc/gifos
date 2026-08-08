@@ -109,12 +109,55 @@ async function clickMove(frame, orient, uci) {
   await sleep(1500);
   check('commentary toggle syncs to both peers', (await matchState(bFrame)).commentary === true && (await matchState(aFrame)).commentary === true);
 
+  // FORENSICS FOR THE GATE RED (2026-08-08, blocker 1): the first move click
+  // loops "element detached" ONLY in gate/tier context (aged shared servers),
+  // green standalone — so the one chance to see the mechanism is to dump the
+  // state AT the failing click. Three suspects, three probes:
+  //   - remount loop (reconcileApp/succession churn) -> __appRemounts (page)
+  //     + __appJoinTrace restarting near ms=0;
+  //   - dual-manager presence storm (app-side: diverged cgm-pres makes BOTH
+  //     peers manager -> conflicting 'm' writes -> render storm) -> presence
+  //     record ages + manager view from BOTH frames;
+  //   - plain render churn rate -> a 3s MutationObserver count on #fBoard.
+  const boardChurn = (frame) => frame.evaluate(() => new Promise((res) => {
+    const bd = document.getElementById('fBoard'); if (!bd) { res(-1); return; }
+    let n = 0; const mo = new MutationObserver((muts) => { n += muts.length; });
+    mo.observe(bd, { childList: true });
+    setTimeout(() => { mo.disconnect(); res(n); }, 3000);
+  })).catch(() => 'frame-gone');
+  const dumpApp = async (tag, page, frame) => {
+    const pg = await page.evaluate(() => ({
+      remounts: (window.__appRemounts || []).slice(-25),
+      joinTrace: (window.__appJoinTrace || []).slice(-12),
+      isHost: !!(window.__gifosVideo && __gifosVideo.appIsHost && __gifosVideo.appIsHost()),
+    })).catch((e) => ({ err: String(e && e.message || e) }));
+    const fr = await frame.evaluate(async () => {
+      const now = Date.now();
+      const pres = (await gifos.db('cgm-pres').getAll()).map((r) => ({ id: String(r.id).slice(0, 8), age: now - (r.ts || 0) }));
+      const all = await gifos.db('cgm-mp').getAll(); const m = all.find((x) => x.id === 'm');
+      const me = await gifos.me();
+      return { me: String(me.id).slice(0, 8), pres, m: m ? { w: m.seats && String(m.seats.w).slice(0, 8), b: m.seats && String(m.seats.b).slice(0, 8), moves: m.game.moves.length, no: m.game.no } : null };
+    }).catch((e) => ({ err: String(e && e.message || e) }));
+    console.log('  FORENSICS[' + tag + '] page=' + JSON.stringify(pg));
+    console.log('  FORENSICS[' + tag + '] frame=' + JSON.stringify(fr) + ' boardChurn3s=' + JSON.stringify(await boardChurn(frame)));
+  };
+  // healthy-baseline churn BEFORE the first move, so the failing number has a control
+  console.log('  MEASURE pre-move boardChurn3s: A=' + JSON.stringify(await boardChurn(aFrame)) + ' B=' + JSON.stringify(await boardChurn(bFrame)));
+
   // Fool's mate: 1. f3 e5 2. g4 Qh4#  (Black wins)
   const line = [['w', 'f2f3'], ['b', 'e7e5'], ['w', 'g2g4'], ['b', 'd8h4']];
   for (const [side, uci] of line) {
     const peer = side === 'w' ? whitePeer : blackPeer;
     const before = (await matchState(aFrame)).moves;
-    await clickMove(peer, side, uci);
+    try {
+      await clickMove(peer, side, uci);
+    } catch (e) {
+      console.log('  MOVE CLICK FAILED (' + side + ' ' + uci + '): ' + String(e && e.message || e).split('\n')[0]);
+      await dumpApp('alice', aRun, aFrame);
+      await dumpApp('bob', bRun, bFrame);
+      check('move click ' + uci + ' lands (element stayed attached)', false, 'see FORENSICS above');
+      break;
+    }
     await aFrame.evaluate((n) => new Promise((res) => { const t = setInterval(async () => { const all = await gifos.db('cgm-mp').getAll(); const m = all.find((x) => x.id === 'm'); if (m && m.game.moves.length > n) { clearInterval(t); res(); } }, 200); setTimeout(() => { clearInterval(t); res(); }, 10000); }), before);
   }
   const afterMate = await matchState(aFrame);
