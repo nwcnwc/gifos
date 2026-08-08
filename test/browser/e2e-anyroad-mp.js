@@ -346,7 +346,8 @@ async function run(MODE) {
     NAMES.map((n, i) => n + '=' + took[i]).join(', '));
 
   // Hold a direction for `ms` and report what the input layer and the car did.
-  const steerFor = (p, dir, ms) => p.body().evaluate(async (el, [dir, ms]) => {
+  const FRAME_WINDOW = Number(process.env.STEER_FRAMES || 90);
+  const steerFor = (p, dir, ms) => p.body().evaluate(async (el, [dir, ms, frameWindow]) => {
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const scheme = window.Sources.current.scheme;
     const view = document.getElementById('view');
@@ -380,18 +381,28 @@ async function run(MODE) {
       pe(pad, 'pointermove', cx + dir * 90, cy);
       stop = () => pe(pad, 'pointerup', cx + dir * 90, cy);
     }
+    // HOLD FOR FRAMES, NOT FOR SECONDS. The physics advances per rendered
+    // frame with dt clamped at 50 ms, so a wall-clock window measures how many
+    // frames the BOX managed, not what the car does: the same half-lock turn
+    // came out 0.07 rad on eight cores and 0.01 rad on four. Counting frames
+    // makes the window a fixed slice of simulated time, and the radians below
+    // become a property of the car on any machine. Wall clock survives only as
+    // a safety net so a stalled tab cannot hang the battery.
     const yaw0 = window.App.car().yaw;
+    const frames0 = window.App.debug().frames;
     let peakSteer = 0;
-    const t1 = Date.now();
-    while (Date.now() - t1 < ms) {
-      await new Promise((r) => setTimeout(r, 60));
+    const deadline = Date.now() + ms;
+    while (window.App.debug().frames - frames0 < frameWindow && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 30));
       const d = window.App.debug();
       if (d.input && Math.abs(d.input.steer) > Math.abs(peakSteer)) peakSteer = d.input.steer;
     }
-    const out = { scheme, steer: peakSteer, dYaw: wrap(window.App.car().yaw - yaw0), speed: window.App.debug().speed };
+    const framesRun = window.App.debug().frames - frames0;
+    const out = { scheme, steer: peakSteer, dYaw: wrap(window.App.car().yaw - yaw0),
+                  speed: window.App.debug().speed, frames: framesRun };
     stop();
     return out;
-  }, [dir, ms]);
+  }, [dir, ms, FRAME_WINDOW]);
 
   const steering = [];
   for (const p of players) {
@@ -404,18 +415,32 @@ async function run(MODE) {
     // another on one run. Comparing the turn against this tab's OWN straight
     // line cancels the frame rate out and leaves the product claim, which is
     // simply that steering bends the car and not steering does not.
-    const straight = await steerFor(p, 0, 3000);
+    // A car wedged against a wall by the previous turn steers nothing, and
+    // would report that as a broken control scheme. unstick() is the app's own
+    // "put me back on the road" button — the same one a player reaches for.
+    const ready = async () => p.body().evaluate(async () => {
+      for (let i = 0; i < 40; i++) {
+        if (window.App.debug().speed > 4) return window.App.debug().speed;
+        if (i === 8) window.App.unstick();
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return window.App.debug().speed;
+    });
+    await ready();
+    const straight = await steerFor(p, 0, 12000);
     await sleep(400);
-    const left = await steerFor(p, -1, 3000);
+    await ready();
+    const left = await steerFor(p, -1, 12000);
     await sleep(400);
-    const right = await steerFor(p, +1, 3000);
+    await ready();
+    const right = await steerFor(p, +1, 12000);
     await sleep(400);
     steering.push({ name: p.name, straight, left, right });
   }
   for (const s of steering) {
     const d = `${s.left.scheme}: steer ${s.left.steer.toFixed(2)}/${s.right.steer.toFixed(2)}, ` +
               `yaw ${s.left.dYaw.toFixed(2)}/${s.right.dYaw.toFixed(2)} rad, ` +
-              `speed ${s.right.speed.toFixed(1)} m/s`;
+              `speed ${s.right.speed.toFixed(1)} m/s, ${s.right.frames} frames`;
     check(s.name + ' — the ' + s.left.scheme + ' reaches the car at all',
       Math.abs(s.left.steer) > 0.15 && Math.abs(s.right.steer) > 0.15, d);
     check(s.name + ' — the ' + s.left.scheme + ' steers BOTH ways, not just one',
@@ -423,11 +448,15 @@ async function run(MODE) {
     // Against this tab's own straight line, not against a fixed number of
     // radians. `drift` is what the road and the terrain do to a car nobody is
     // steering; a real turn has to beat it by a wide margin in BOTH directions.
-    const drift = Math.max(0.01, Math.abs(s.straight.dYaw));
+    // Both tests now: several times the car's own straight-line wander, AND a
+    // floor in radians — which only means anything because the window is a
+    // fixed number of frames rather than a fixed number of seconds.
+    const drift = Math.abs(s.straight.dYaw);
     check(s.name + ' — and the car actually turns, in opposite directions',
       Math.sign(s.left.dYaw) === -Math.sign(s.right.dYaw)
-      && Math.abs(s.left.dYaw) > drift * 3 && Math.abs(s.right.dYaw) > drift * 3,
-      d + ', straight-line drift ' + s.straight.dYaw.toFixed(3));
+      && Math.abs(s.left.dYaw) > Math.max(0.04, drift * 3)
+      && Math.abs(s.right.dYaw) > Math.max(0.04, drift * 3),
+      d + ', drift ' + s.straight.dYaw.toFixed(3) + ' over ' + s.straight.frames + ' frames');
     // "Feels right" is not a frame timing on this box — but a car that is
     // stationary, reversing or supersonic while being steered is not a
     // judgement call, and any of them means the drive under test was not a
