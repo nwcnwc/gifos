@@ -603,15 +603,24 @@ void Seat::serveOffer(Msg& mm){
     OFFERLOG("not-mover cool=%d deeper=%d elig=%d mov=%d kids=%d rmost=%d ageS=%lld ageH=%lld ageC=%lld",
       (int)(TICK-lastProbeTick<12),(int)(pcDepth(coord.pc)>pcDepth(mm.coord.pc)),(int)compactEligible(),
       (int)moving,(int)hasChildren(),(int)rm,(long long)(TICK-seatedAt),(long long)(TICK-healAt),(long long)(TICK-lastChurn)); }
-  // Not the mover. A head hands the offer to its row's RIGHTMOST occupant (a
-  // first-hand row link; that seat's lateral target is itself, so no bounce);
-  // anyone else descends to a random live down-child under their row.
-  if(coord.i==0){
-    int rm=-1; for(int j=C-1;j>=1;j--){ int x=occGet(ckey({coord.pc,coord.r,(uint8_t)j})); if(x>=0&&x!=id){ rm=x; break; } }
-    if(rm>=0){ OFFERLOG("lateral -> %d",rm); Msg m2=mm; m2.ttl=mm.ttl-1; emit(rm,m2); return; }
-  }
-  vector<int> kids;
-  for(int j=0;j<C;j++){ int x=occGet(ckey(down({coord.pc,coord.r,(uint8_t)j}))); if(x>=0&&x!=id) kids.push_back(x); }
+  // Not the mover. Hand the offer RIGHTWARD along my row toward the rightmost
+  // occupant — the ONE seat whose departure keeps the row clean (C2). ANY seat
+  // laterals, not only heads: the first cut let a mid-row landing (stale-occ
+  // lateral, descent) dead-end on a childless non-rightmost seat — measured
+  // seed-2 shrink: 463 of 466 offers died exactly there, zero fires, while 43
+  // free cells sat at depth 1. Strictly increasing column, so laterals
+  // terminate in <C hops; the rightmost-by-own-view seat descends instead.
+  // Lateral targets must be FIRST-HAND LIVE — the FINDLEAF discipline, same
+  // bug class: after a shrink, stale row occ points at corpses, an emit to a
+  // corpse vanishes silently, and every walk died there (seed-2 again: 700
+  // laterals, 7 live arrivals, 0 fires, 36 free depth-1 cells unreachable).
+  { int rm=-1; for(int j=C-1;j>coord.i;j--){ uint64_t k=ckey({coord.pc,coord.r,(uint8_t)j}); int x=occGet(k); if(x>=0&&x!=id&&firstHandLive(k)){ rm=x; break; } }
+    if(rm>=0){ OFFERLOG("lateral -> %d",rm); Msg m2=mm; m2.ttl=mm.ttl-1; emit(rm,m2); return; } }
+  // Descend live-first for the same reason; fall back to any (a rare corpse
+  // descent just drops the offer — the head re-offers next period).
+  vector<int> kids, kAny;
+  for(int j=0;j<C;j++){ uint64_t dk=ckey(down({coord.pc,coord.r,(uint8_t)j})); int x=occGet(dk); if(x>=0&&x!=id){ kAny.push_back(x); if(firstHandLive(dk)) kids.push_back(x); } }
+  if(kids.empty()) kids=kAny;
   if(kids.empty()){ OFFERLOG("drop no-kids"); return; }
   int tgt=kids[(int)(rng()*kids.size())];
   OFFERLOG("descend -> %d",tgt);
