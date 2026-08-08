@@ -8037,6 +8037,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         cur.sig = stream.id;
         if (meta) cur.meta = meta;
         if (!cur.senders.length) { unshipMos(jk, true); return null; }
+        // A del-only reconcile leaves NOTHING for hasPendingTx to notice (a
+        // removed sender's track is null), so compKick alone never
+        // renegotiates and the receiver keeps a dark video track with frozen
+        // dimensions forever — measured on stage-voice ARM A first try:
+        // vTracks 1, vw stuck at 854, past the idle-stop. Any STRUCTURAL
+        // change (add/del/relane — swap and reroute don't touch m-lines)
+        // renegotiates explicitly; perfect negotiation absorbs glare.
+        if (ops.some((o) => o.indexOf('swap') !== 0 && o.indexOf('reroute') !== 0)) renegotiate(p);
         if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
         compKick(to);
         return jk;

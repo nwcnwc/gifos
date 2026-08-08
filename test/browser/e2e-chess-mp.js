@@ -141,8 +141,13 @@ async function clickMove(frame, orient, uci) {
     console.log('  FORENSICS[' + tag + '] page=' + JSON.stringify(pg));
     console.log('  FORENSICS[' + tag + '] frame=' + JSON.stringify(fr) + ' boardChurn3s=' + JSON.stringify(await boardChurn(frame)));
   };
-  // healthy-baseline churn BEFORE the first move, so the failing number has a control
-  console.log('  MEASURE pre-move boardChurn3s: A=' + JSON.stringify(await boardChurn(aFrame)) + ' B=' + JSON.stringify(await boardChurn(bFrame)));
+  // NO pre-move baseline measurement: the first cut sampled 3s×2 of churn
+  // right here and the tier run promptly went GREEN for the first time in
+  // five tier-context runs — the added settle sits exactly on the suspected
+  // startup-race window, so the probe was plausibly masking the bug. The
+  // click path must stay timing-identical to the failing gates; churn is
+  // measured only in the failure dump (and the healthy number is simply the
+  // app's HB_MS=3000 presence beat, ~2 rebuilds per 3s per peer).
 
   // Fool's mate: 1. f3 e5 2. g4 Qh4#  (Black wins)
   const line = [['w', 'f2f3'], ['b', 'e7e5'], ['w', 'g2g4'], ['b', 'd8h4']];
