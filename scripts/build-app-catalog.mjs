@@ -222,6 +222,19 @@ const index = {
     releaseDate: r.releaseDate, updated: r.updated,
     categories: r.categories, tags: r.tags, accent: r.accent,
     cover: r.cover, bytes: r.bytes, signature: r.signature,
+    // sha256 BELONGS IN THE INDEX, not only in each app.json. store.js decides
+    // "yours is older" by hashing the installed bytes and comparing to
+    // app.sha256 — and the GRID calls outdated() on an INDEX entry. Without
+    // this field that comparison read `undefined` for every app, so the grid
+    // could only ever say "Installed" and never "Update available". The detail
+    // page worked (it loads app.json, which has the hash), so the bug looked
+    // like "the store does not know about updates" while the machinery for
+    // knowing was right there, one fetch away.
+    //
+    // It costs 64 bytes an app in a file that is already fetched once per
+    // store visit, and it is the difference between a player getting fixes and
+    // a player being frozen at install-day code forever.
+    sha256: r.sha256,
   })),
 };
 writeOut(path.join(OUT, 'index.json'), JSON.stringify(index, null, 2) + '\n');
