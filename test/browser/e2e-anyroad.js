@@ -47,20 +47,25 @@ function check(name, cond, detail) {
   });
   const context = await browser.newContext();
 
-  // A MapTiler key saved EXACTLY as a real user saves one: name, url, key —
-  // and no auth choice, because choosing "query, named key" is provider
-  // trivia. The runtime must supply that shape itself (KNOWN_APIS): with the
-  // generic Bearer default the key rides a header MapTiler ignores, the base
-  // URL still answers (so Settings' Test passed), and every actual tile 403s —
+  // A MapTiler key saved with a DELIBERATELY WRONG formulation — header auth
+  // under a made-up name — which is stronger than saving none: the provider
+  // accepts exactly one shape (?key=), so the system must use it no matter
+  // what the entry says. "The app should not care about the formulation" cuts
+  // both ways: the user never needs to get a dropdown right for their key to
+  // count, and a wrong dropdown cannot break a correct key. With the generic
+  // Bearer default the key rode a header MapTiler ignores, the base URL still
+  // answered (so Settings' Test passed), and every actual tile 403'd —
   // satellite selected, key "working", nothing on screen.
   await context.addInitScript(() => {
-    try { localStorage.setItem('gifos_api_config', JSON.stringify({ maptiler: { url: 'https://api.maptiler.com', key: 'e2e-key-123' } })); } catch (e) {}
+    try { localStorage.setItem('gifos_api_config', JSON.stringify({ maptiler: { url: 'https://api.maptiler.com', key: 'e2e-key-123', authType: 'header', authName: 'x-totally-wrong' } })); } catch (e) {}
   });
   const mtSeen = [];
   await context.route('**://api.maptiler.com/**', async (route) => {
     const u = new URL(route.request().url());
+    const h = route.request().headers();
     mtSeen.push({ path: u.pathname, keyQ: u.searchParams.get('key'),
-                  bearer: /Bearer/.test(route.request().headers().authorization || '') });
+                  bearer: /Bearer/.test(h.authorization || ''),
+                  wrongHeader: 'x-totally-wrong' in h });
     await route.fulfill({ status: 404, headers: { 'Access-Control-Allow-Origin': '*' }, body: 'no tile here' });
   });
 
@@ -1252,8 +1257,8 @@ function check(name, cond, detail) {
   await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'maptiler' }); window.App.redrape(); });
   for (let i = 0; i < 15 && mtSeen.length < 2; i++) await sleep(1000);
   check('selecting satellite actually asks MapTiler for tiles', mtSeen.length > 0, mtSeen.length + ' request(s)');
-  check('the key travels as ?key= — the ONLY place MapTiler looks — with no auth configured',
-    mtSeen.length > 0 && mtSeen.every((m) => m.keyQ === 'e2e-key-123' && !m.bearer),
+  check('the key travels as ?key= — the ONLY place MapTiler looks — whatever the entry says',
+    mtSeen.length > 0 && mtSeen.every((m) => m.keyQ === 'e2e-key-123' && !m.bearer && !m.wrongHeader),
     JSON.stringify(mtSeen[0] || null));
   await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'none' }); window.App.redrape(); });
   await fr.locator('#btn-map').click();

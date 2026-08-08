@@ -2115,20 +2115,22 @@
   // the default Bearer header is something it ignores entirely.
   const KNOWN_API_SHAPES = {
     deepgram: { auth: 'token' },
-    maptiler: { auth: 'query', authName: 'key', probePath: '/tiles/satellite-v2/tiles.json' },
+    maptiler: { auth: 'query', authName: 'key', only: true, probePath: '/tiles/satellite-v2/tiles.json' },
   };
   function knownShape(name) { return KNOWN_API_SHAPES[String(name || '').toLowerCase()] || null; }
 
   // Build the authed target (auth in headers, or on the URL for query auth) —
-  // resolving auth exactly as runtime.js brokerApi does, known defaults included.
+  // resolving auth exactly as runtime.js brokerApi does, known defaults
+  // included. `only` means the provider accepts exactly one shape, so it wins
+  // over any dropdown choice: a wrong setting must not break a correct key.
   function apiTarget(c) {
     const known = knownShape(c.name);
     const u = new URL(String(c.url).replace(/\/+$/, '') +
       (known && known.probePath ? known.probePath : ''));
     const headers = {};
     let at = c.authType || 'bearer', an = c.authName || '';
-    if (known && known.auth && (!c.authType || c.authType === 'bearer')) {
-      at = known.auth; an = c.authName || known.authName || '';
+    if (known && known.auth && (known.only || !c.authType || c.authType === 'bearer')) {
+      at = known.auth; an = known.authName || c.authName || '';
     }
     const key = c.key || '';
     if (key) {
