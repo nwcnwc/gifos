@@ -709,16 +709,24 @@
     var want = world.wanted.roads, out = [];
     for (var i = 0; i < want.length; i++) {
       var t = want[i], k = root.Geo.tileKey(t), slot = world.roads[k];
-      var st = 'want';
-      if (slot && slot.built) st = 'ready';
+      var st = 'want', detail = 2;
+      if (slot && slot.built) {
+        // READY IS NOT ONE THING. A tile whose query was too expensive comes
+        // back with less in it — and the worst case, roads with no buildings,
+        // looks from the driving seat exactly like a street of empty lots.
+        // Calling that "done" in green was a lie the map was telling.
+        detail = slot.geom && slot.geom.detail != null ? slot.geom.detail : 2;
+        st = detail >= 2 ? 'ready' : (detail === 1 ? 'partial' : 'roadsonly');
+      }
       else if (slot && slot.geom) st = 'building';
       else if (slot && slot.failed) st = 'failed';
       else if (slot && slot.pending) st = 'loading';
       var q = root.Roads.tileState(k);
-      out.push({ dx: t.x - here.x, dy: t.y - here.y, state: st,
+      out.push({ dx: t.x - here.x, dy: t.y - here.y, state: st, detail: detail,
                  queue: q ? q.queue : -1, running: !!(q && q.running),
                  mirror: q ? q.mirror : '' });
     }
+    out.heading = car.yaw;
     return out;
   }
 
@@ -818,7 +826,25 @@
     // geometry for free — the eye trails the car's yaw, so forward stays
     // roughly screen-up, which is the only orientation a windscreen instrument
     // makes sense in.
-    birdK += ((birdWant ? 1 : 0) - birdK) * Math.min(1, dt * 2.4);
+    // COCKPIT: the eye goes where the driver's head is — behind the wheel,
+    // just right of centre, at eye height — and looks along the bonnet. The
+    // near plane would slice through the car's own bodywork from in here, so
+    // the player's car is not drawn in this view at all (see the scene build).
+    cockK += ((viewName() === 'cockpit' ? 1 : 0) - cockK) * Math.min(1, dt * 5.0);
+    if (cockK > 0.001) {
+      var rx = Math.cos(car.yaw), rz = -Math.sin(car.yaw);     // the car's right
+      var cex = car.x + fx * 0.15 + rx * 0.34;
+      var cez = car.z + fz * 0.15 + rz * 0.34;
+      var cey = car.y + 1.18;
+      camera.x += (cex - camera.x) * cockK;
+      camera.y += (cey - camera.y) * cockK;
+      camera.z += (cez - camera.z) * cockK;
+      camera.tx += ((car.x + fx * 40) - camera.tx) * cockK;
+      camera.ty += ((car.y + 1.05) - camera.ty) * cockK;
+      camera.tz += ((car.z + fz * 40) - camera.tz) * cockK;
+    }
+
+    birdK += ((viewName() === 'bird' ? 1 : 0) - birdK) * Math.min(1, dt * 2.4);
     if (birdK > 0.001) {
       var H = 235 + v * 2.2;                 // higher when faster: see further ahead
       var bex = car.x - fx * H * 0.30, bez = car.z - fz * H * 0.30;
@@ -832,8 +858,16 @@
       camera.tz += (btz - camera.tz) * birdK;
     }
   }
-  var birdWant = false, birdK = 0;
-  function toggleBirdseye() { birdWant = !birdWant; return birdWant; }
+  // THREE points of view on one button: chase, cockpit, bird. Each is the same
+  // camera in a different place — there is still exactly one renderer and one
+  // world, which is the rule that killed the old inset minimap.
+  var VIEWS = ['chase', 'cockpit', 'bird'];
+  var viewIdx = 0, birdK = 0, cockK = 0;
+  function cycleView() {
+    viewIdx = (viewIdx + 1) % VIEWS.length;
+    return VIEWS[viewIdx];
+  }
+  function viewName() { return VIEWS[viewIdx]; }
 
   // ---- frame ---------------------------------------------------------------
   function frame(t) {
@@ -874,6 +908,14 @@
       var travel = Math.abs(car.speed) * dt;
       var steps = Math.min(4, Math.max(1, Math.ceil(travel / 0.6)));
       for (var st = 0; st < steps; st++) {
+        // Asked per SUBSTEP, before the physics: a fast car must not skip
+        // across an 8 m pool between frames the way it used to tunnel walls.
+        //
+        // This call went missing once already — the function survived a later
+        // edit and its only caller did not, so every pool on the map was
+        // decorative for a day. Anything that reads "you are in water" and is
+        // not wired into the loop is dead code that looks alive.
+        updateInWater();
         root.Car.update(car, input, dt / steps, world.frame);
         collideBuildings(dt / steps);
       }
@@ -926,8 +968,13 @@
     }
     if (seaVisible()) scene.water.push(seaMesh());
 
-    scene.cars.push({ x: car.x, y: car.y, z: car.z, yaw: car.yaw, pitch: car.pitch, roll: car.roll,
-                      tint: [0.90, 0.24, 0.22], blaster: root.Blaster.enabled() });
+    // From the driver's seat you are INSIDE the bodywork, and the near plane
+    // would cut it into a wall of triangles across the view. Drop your own car
+    // once the blend is mostly there; everyone else's stays.
+    if (cockK < 0.6) {
+      scene.cars.push({ x: car.x, y: car.y, z: car.z, yaw: car.yaw, pitch: car.pitch, roll: car.roll,
+                        tint: [0.90, 0.24, 0.22], blaster: root.Blaster.enabled() });
+    }
     root.MP.ghosts().forEach(function (g) {
       scene.cars.push({ x: g.x, y: g.y, z: g.z, yaw: g.yaw, pitch: 0, roll: 0, tint: g.tint });
     });
@@ -1013,6 +1060,7 @@
       passing: passing,
       loading: pendingCount(),
       tiles: tileMap(),
+      view: viewName(),
       ready: grounded && roadsBuilt() > 0,
       net: root.Net.stats(),
       airborne: car.airborne,
@@ -1076,7 +1124,7 @@
       onRespawn: function () { if (world.frame) hop(world.frame.lat0, world.frame.lon0, world.place); },
       onRepair: function () { root.Car.repair(car); },
       onUnstick: unstick,
-      onBirdseye: toggleBirdseye,
+      onView: cycleView,
       car: function () { return car; },
       frame: function () { return world.frame; },
       world: function () { return world; },
@@ -1161,7 +1209,7 @@
         input: controls ? JSON.parse(JSON.stringify(controls.input)) : null,
         speed: car.speed, x: car.x, z: car.z, y: car.y,
         camera: { x: camera.x, y: camera.y, z: camera.z },
-        birdseye: birdWant, birdK: birdK,
+        view: viewName(), birdK: birdK, cockK: cockK,
         scorches: scorches.length, puffs: puffs.length,
       };
     },

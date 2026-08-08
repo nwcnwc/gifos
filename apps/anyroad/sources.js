@@ -171,9 +171,13 @@
   // race gets their own sources (and their own key), never the host's.
   var DEFAULTS = {
     terrain: 'aws-terrarium', roads: 'auto', imagery: 'none', quality: 'normal',
-    // 'auto' = cruise, no throttle control at all. The default, because a
-    // throttle you must hold is the thumb that should be steering.
-    throttle: 'auto',
+    // MANUAL by default. The argument for cruise is still true — a throttle you
+    // must hold is the thumb that should be steering — but it loses to a worse
+    // problem: landing in a strange city already in motion, before you have
+    // found the controls, is alarming rather than convenient. You now arrive
+    // stopped, and GO is the first thing you press. Cruise is one tap away in
+    // Settings for anyone who prefers it.
+    throttle: 'manual',
     steering: 'touch',      // legacy; superseded by `scheme`
     scheme: 'wheel',        // 'wheel' | 'stick' | 'tilt'
     wildlife: 'on',         // deer, sheep, geese — and the damage they cost

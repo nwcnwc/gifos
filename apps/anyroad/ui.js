@@ -35,7 +35,7 @@
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
      'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-offline','note-offline',
-     'street','passing','recent',
+     'street','passing','recent','cockpit','cockpit-wheel','pov-name',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
@@ -56,8 +56,8 @@
       // painted garbage strokes hundreds of metres wide, and ate the frame
       // rate doing it. The world already has a renderer; this now just flies
       // its eye up (toggleBirdseye in app.js) and back down.
-      var on = hooks.onBirdseye ? hooks.onBirdseye() : false;
-      $('btn-map').setAttribute('aria-pressed', String(on));
+      var v = hooks.onView ? hooks.onView() : 'chase';
+      setView(v);
     });
     $('btn-hop').addEventListener('click', function () { show(el.landing); });
     $('close-settings').addEventListener('click', function () { hide(el.settings); });
@@ -360,15 +360,29 @@
   //   loading   blue     — in flight right now
   //   want N    dim + N  — queued, and N is the place in the queue
   //   failed    red      — that mirror gave up; the streamer will retry
-  // North-up rather than heading-up on purpose: the point is to compare
-  // DIRECTIONS ("more is ready to the east"), and a map that spins under you
-  // while you turn is the wrong tool for that.
+  // HEADING-UP, corrected from north-up. I argued for north-up on the grounds
+  // that you are comparing directions — but the instrument sits in a windscreen
+  // next to a steering wheel, and every other thing in that view is relative to
+  // where the car is pointing. A north-up square in that context reads as a
+  // grid that has nothing to do with you, which is exactly the confusion it
+  // caused. Forward is now up, and the marker in the middle is an arrow rather
+  // than a dot so the orientation is stated rather than implied.
+  // A tile is not simply "done": several layers come from the map server and a
+  // busy tile can arrive with only some of them. Roads-with-no-buildings is the
+  // one that matters — through a windscreen it is indistinguishable from a
+  // street of empty lots, and it was being painted the same green as a complete
+  // tile. Three shades of done, so the map stops lying:
+  //   ready      green    roads, buildings, woodland, pools — everything
+  //   partial    lime     roads and buildings; scenery data was too expensive
+  //   roadsonly  orange   ROADS ONLY — the buildings are missing, not absent
   var TILE_COL = {
-    ready:    'rgba(120, 214, 150, .92)',
-    building: 'rgba(232, 180,  92, .92)',
-    loading:  'rgba( 92, 178, 255, .92)',
-    want:     'rgba(255, 255, 255, .16)',
-    failed:   'rgba(226, 106, 106, .85)',
+    ready:     'rgba(120, 214, 150, .92)',
+    partial:   'rgba(196, 214, 110, .92)',
+    roadsonly: 'rgba(232, 150,  70, .92)',
+    building:  'rgba(232, 180,  92, .92)',
+    loading:   'rgba( 92, 178, 255, .92)',
+    want:      'rgba(255, 255, 255, .16)',
+    failed:    'rgba(226, 106, 106, .85)',
   };
   var tilePulse = 0;
   function renderTileMap(tiles) {
@@ -376,7 +390,13 @@
     if (!cv) return;
     // Only while something is still coming. A permanent minimap is clutter in a
     // game whose whole point is the windscreen.
-    var busy = tiles && tiles.some(function (t) { return t.state !== 'ready'; });
+    // Stay on screen while anything is still coming — and also while any tile
+    // is ROADS ONLY, because that is a missing layer the player can act on by
+    // driving somewhere else. A merely 'partial' tile (no woodland data) is not
+    // worth holding the instrument open for.
+    var busy = tiles && tiles.some(function (t) {
+      return t.state !== 'ready' && t.state !== 'partial';
+    });
     if (!busy) { cv.hidden = true; return; }
     cv.hidden = false;
     var g = cv.getContext('2d');
@@ -387,8 +407,17 @@
     for (var i = 0; i < tiles.length; i++) {
       span = Math.max(span, Math.abs(tiles[i].dx), Math.abs(tiles[i].dy));
     }
-    var n = span * 2 + 1, cell = Math.floor(Math.min(W, H) / n), pad = 1;
+    // Room for the rotation: a square grid turned 45 degrees needs sqrt(2) of
+    // its own width, so shrink the cells rather than let the corners clip.
+    var n = span * 2 + 1, cell = Math.floor(Math.min(W, H) / (n * 1.45)), pad = 1;
     var ox = (W - cell * n) / 2, oy = (H - cell * n) / 2;
+    // Screen y runs down and tile y runs south, so a heading measured east-of-
+    // north turns the grid clockwise; rotating the CONTENT by -heading is what
+    // leaves the car's forward direction pointing up.
+    g.save();
+    g.translate(W / 2, H / 2);
+    g.rotate(-(tiles.heading || 0));
+    g.translate(-W / 2, -H / 2);
     tilePulse = (tilePulse + 0.08) % (Math.PI * 2);
     var pulse = 0.55 + 0.45 * Math.sin(tilePulse);
     for (var j = 0; j < tiles.length; j++) {
@@ -406,10 +435,38 @@
         g.fillText(String(t.queue), x + cell / 2, y + cell / 2 + 0.5);
       }
     }
-    // You are here.
-    g.fillStyle = 'rgba(255,255,255,.95)';
-    var cx = ox + span * cell + cell / 2, cy = oy + span * cell + cell / 2;
-    g.beginPath(); g.arc(cx, cy, Math.max(1.6, cell * 0.13), 0, Math.PI * 2); g.fill();
+    // NORTH, on the rotating layer so it genuinely points north. A heading-up
+    // map without one leaves you with no absolute reference at all, which is
+    // fine for "which way is loaded" and useless for "which way is home".
+    var rad = Math.min(W, H) / 2 - 3;
+    g.fillStyle = 'rgba(255, 120, 120, .95)';
+    g.beginPath();
+    g.moveTo(W / 2, H / 2 - rad);
+    g.lineTo(W / 2 - 3.4, H / 2 - rad + 7);
+    g.lineTo(W / 2 + 3.4, H / 2 - rad + 7);
+    g.closePath(); g.fill();
+    g.restore();
+    // You are here, pointing up — drawn AFTER the restore so the arrow itself
+    // never rotates. It is the fixed thing the map turns around.
+    var cx = W / 2, cy = H / 2, r = Math.max(3, cell * 0.30);
+    g.fillStyle = 'rgba(255,255,255,.96)';
+    g.beginPath();
+    g.moveTo(cx, cy - r);
+    g.lineTo(cx + r * 0.62, cy + r * 0.72);
+    g.lineTo(cx, cy + r * 0.30);
+    g.lineTo(cx - r * 0.62, cy + r * 0.72);
+    g.closePath(); g.fill();
+  }
+
+  // Which point of view are we in? Names the button and shows or hides the
+  // steering wheel that only exists from the driver's seat.
+  var POV_LABEL = { chase: 'Chase', cockpit: 'Driver', bird: 'Bird' };
+  function setView(v) {
+    if (el['pov-name']) el['pov-name'].textContent = POV_LABEL[v] || v;
+    if (el.cockpit) el.cockpit.hidden = (v !== 'cockpit');
+    var b = $('btn-map');
+    if (b) b.setAttribute('aria-label', 'Point of view: ' + (POV_LABEL[v] || v) + ' — tap to change');
+    last.view = v;
   }
 
   function renderAttribution() {
@@ -498,6 +555,15 @@
   // ---- per-frame -----------------------------------------------------------
   function hud(s) {
     renderTileMap(s.tiles);
+    if (s.view !== last.view) setView(s.view);
+    // The wheel turns with the steering, and only while it is on screen.
+    if (s.view === 'cockpit' && el['cockpit-wheel']) {
+      var deg = Math.max(-1, Math.min(1, s.steer || 0)) * 135;
+      if (deg !== last.povDeg) {
+        el['cockpit-wheel'].style.transform = 'translateX(-50%) rotate(' + deg.toFixed(1) + 'deg)';
+        last.povDeg = deg;
+      }
+    }
     var kph = Math.round(s.speed);
     if (kph !== last.kph) { el.speed.textContent = kph; last.kph = kph; }
 
