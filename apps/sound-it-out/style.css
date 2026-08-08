@@ -283,3 +283,6 @@ button.row-del:hover { color: var(--bad); border-color: var(--bad); }
   .vpart { flex-direction: column; }
   .script-body { columns: 1; }
 }
+
+/* review selection (the 0.5.1 redo fix): tick rows, re-record over the top */
+.rv-pick { width: 19px; height: 19px; accent-color: var(--accent); flex: 0 0 auto; }

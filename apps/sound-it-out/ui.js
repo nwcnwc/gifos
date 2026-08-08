@@ -465,9 +465,9 @@
     renderStudioItem();
   }
 
-  async function studioRedo() {
-    const it = studio.queue[studio.index];
-    await SIO.studio.remove(it);
+  function studioRedo() {
+    // Record over the top: nothing is deleted up front, and saveBest keeps
+    // the previous take as a backup - so quitting half way loses nothing.
     renderStudioItem();
   }
 
@@ -490,15 +490,42 @@
 
   // ------------------------------------------------------------- listen back
 
-  // rows: [{id, display, meta, missing}] - missing rows show as still-to-do.
+  // rows: [{id, display, meta, missing, item}] - missing rows show as
+  // still-to-do. Rows carrying their studio `item` can be SELECTED and
+  // re-recorded exactly (0.5.1's redo fix): nothing is deleted up front, the
+  // studio queues precisely the selection and records over the top, with the
+  // previous take kept as a backup - so quitting half way loses nothing.
   function openReview(title, hint, rows, recordRemainder) {
     $('review-title').textContent = title;
     $('review-hint').textContent = hint;
     const list = $('review-list');
     list.innerHTML = '';
+    const selectable = rows.some((r) => r.item);
+    const selected = new Map(); // id -> item
+    const redoBtn = $('review-redo');
+    const allBtn = $('review-selectall');
+    const boxes = [];
+    const syncButtons = () => {
+      redoBtn.disabled = selected.size === 0;
+      redoBtn.textContent = selected.size
+        ? `Re-record selected (${selected.size})` : 'Re-record selected';
+      allBtn.textContent = selected.size === boxes.length && boxes.length ? 'Select none' : 'Select all';
+    };
     for (const r of rows) {
       const row = document.createElement('div');
       row.className = 'review-row' + (r.missing ? ' is-missing' : '');
+      if (selectable && r.item) {
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.className = 'rv-pick';
+        box.setAttribute('aria-label', 'Select ' + r.display + ' for re-recording');
+        box.addEventListener('change', () => {
+          if (box.checked) selected.set(r.id, r.item); else selected.delete(r.id);
+          syncButtons();
+        });
+        boxes.push(box);
+        row.appendChild(box);
+      }
       const play = document.createElement('button');
       play.className = 'btn btn-quiet';
       play.textContent = '▶';
@@ -532,6 +559,22 @@
       }
       list.appendChild(row);
     }
+    allBtn.hidden = !selectable;
+    redoBtn.hidden = !selectable;
+    syncButtons();
+    allBtn.onclick = () => {
+      const all = selected.size !== boxes.length;
+      selected.clear();
+      rows.forEach((r) => { if (r.item && all) selected.set(r.id, r.item); });
+      boxes.forEach((b) => { b.checked = all; });
+      syncButtons();
+    };
+    redoBtn.onclick = () => {
+      if (!selected.size) return;
+      const items = rows.filter((r) => selected.has(r.id)).map((r) => r.item);
+      closeOverlay(closeReview);
+      openStudio(items);
+    };
     const rec = $('review-record');
     rec.hidden = !recordRemainder;
     rec.onclick = recordRemainder ? () => { closeOverlay(closeReview); recordRemainder(); } : null;
@@ -547,13 +590,13 @@
       const id = SIO.studio.storageId(it);
       const meta = done.get(id);
       return {
-        id, display: it.display,
+        id, display: it.display, item: it,
         meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's' : '',
         missing: !meta,
       };
     });
     openReview('Listen back — ' + s.text,
-      'Each word, then the whole line. Deleting one puts it back in the recording queue.',
+      'Each word, then the whole line. Tick what to redo — it records over the top, and the old take is kept.',
       rows, () => recordEntry(s));
   }
 
@@ -603,13 +646,13 @@
         const id = SIO.studio.storageId(it);
         const meta = done.get(id);
         return {
-          id, display: it.display + '  (as in ' + it.example + ')',
+          id, display: it.display + '  (as in ' + it.example + ')', item: it,
           meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's' : '',
           missing: !meta,
         };
       });
       openReview('Listen back — the sounds',
-        'Tap one to hear it. Deleting one puts it back in the recording queue.', rows);
+        'Tap one to hear it. Tick what to redo — it records over the top, and the old take is kept.', rows);
     });
     $('sounds-script').addEventListener('click', async () => {
       const done = await SIO.studio.doneMap();
@@ -640,25 +683,27 @@
         const id = SIO.studio.storageId(it);
         const meta = done.get(id);
         return {
-          id,
+          id, item: it,
           display: it.display + (SIO.curriculum.RIME_EXAMPLES[it.key] ? '  (as in ' + SIO.curriculum.RIME_EXAMPLES[it.key] + ')' : ''),
           meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's' : '',
           missing: !meta,
         };
       });
       openReview('Listen back — the word endings',
-        'Tap one to hear your recording. Unrecorded ones use the starter voice.', rows);
+        'Tap one to hear your recording. Unrecorded ones use the starter voice; tick any to record your own over the top.', rows);
     });
     $('bank-review').addEventListener('click', async () => {
       const bank = await SIO.studio.bankList();
       const rows = bank.map((m) => ({
         id: m.id, display: m.display || m.key,
+        item: { key: m.key, kind: 'word', display: m.display || m.key, length: 'free',
+          say: 'Say it normally, the way you would in a sentence.' },
         meta: (m.seconds ? m.seconds.toFixed(1) + 's' : '')
           + (m.notes && m.notes.length ? ' · ' + m.notes.join(', ') : ''),
         missing: false,
       }));
       openReview('Listen back — your word bank',
-        rows.length ? 'Every word on record, from every sentence. Deleting one puts it back in the queue of whatever uses it.'
+        rows.length ? 'Every word on record, from every sentence. Tick what to redo — it records over the top, and the old take is kept.'
           : 'Nothing in the bank yet - record an entry on the Sentences tab.', rows);
     });
     $('btn-backup').addEventListener('click', () => {
