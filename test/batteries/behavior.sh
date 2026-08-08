@@ -31,7 +31,11 @@ cd "$(dirname "$0")/../.."
 # assumption that rots silently, and it is a 3-minute scenario. On a box with no
 # playwright firefox it prints one SKIP line naming the install command — loud,
 # and never a red pretending to be a product bug.
-CORE="00 01a 01b 01c 02a 03a 04a 04b 05a 06a 07a 08a 09a 10a 11a 12a 14a 16a 17a 18a 20a 21a 24a 25a"
+# 26a is in CORE for the same reason 25a is: it is the ONLY place the three
+# steering schemes are driven at once, and "the tilt option still works" is
+# exactly the kind of claim that rots without anybody noticing — it breaks for
+# whichever player chose it while the other two are fine.
+CORE="00 01a 01b 01c 02a 03a 04a 04b 05a 06a 07a 08a 09a 10a 11a 12a 14a 16a 17a 18a 20a 21a 24a 25a 26a"
 LOGDIR=/tmp/behavior-battery
 mkdir -p "$LOGDIR"
 
