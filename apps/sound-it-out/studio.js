@@ -15,7 +15,11 @@
   const cur = () => SIO.curriculum;
   const dsp = () => SIO.dsp;
 
-  const MAX_SECONDS = { hold: 7, crisp: 5, free: 5, line: 12 };
+  // Generous ceilings, not targets — the recorder stops when SHE stops, and
+  // the scorer judges the length afterwards. 12s for a line was too tight:
+  // reading a sentence slowly, the way you would to your child, takes as
+  // long as it takes.
+  const MAX_SECONDS = { hold: 10, crisp: 6, free: 8, line: 30 };
 
   // Setup's session: the 42 sounds, in RECORDING.md's printed order.
   function phonemePlan() {
