@@ -522,6 +522,7 @@ bool Seat::compactEligible(){
   return true;
 }
 void Seat::tryCompact(){
+  if(!PROBEON) return;                                   // offers-only arm (V5 arm E) — the periodic self-probe off, everything else alive
   if(TICK<compactAt) return;                             // rate limit / hysteresis
   if(!compactEligible()) return;
   compactAt=TICK+COMPACT_PERIOD+(long long)(rng()*COMPACT_PERIOD);

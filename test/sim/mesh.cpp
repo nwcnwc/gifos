@@ -109,6 +109,14 @@ static int PROBLVL=0;
 // FRONTIER (cells that can be won), not to N (leaves that want them) — the
 // admission-control reframe of the same audit.
 static bool OFFERON=false;
+// `probeon 0|1` (default ON): the periodic leaf self-probe of Q2. Exists to
+// measure Nathan's strong hypothesis (2026-08-07): owner-initiated OFFERs may
+// SUBSUME the probe entirely — heal always worked owner-initiated (FINDLEAF);
+// compaction never had that side, and the probe (with its S1 funnel) may only
+// exist because of that missing symmetry. probeon 0 disables ONLY tryCompact's
+// periodic probe; serveCompact still serves (offers answer with targeted
+// probes) and offers still flow.
+static bool PROBEON=true;
 // T7 SPREAD-AFTER-NOROOM — front 3's fix, DEFAULT OFF (`spreadon 0|1`).
 // It converges rooms that have never converged (N=5000 3076-stuck -> 5000/5000
 // in 3200 ticks; N=20000 in 4480; all seeds; dups=0) but it COSTS TREE
@@ -1329,6 +1337,7 @@ int main(int argc,char**argv){
     else if(op=="compacton"){ COMPACTION=(tk.size()<2)||(tk[1]!="0"); printf("OK compaction=%d\n",(int)COMPACTION); }
     else if(op=="problvl"){ PROBLVL=(tk.size()>1)?atoi(tk[1].c_str()):0; printf("OK problvl=%d\n",PROBLVL); }
     else if(op=="offeron"){ OFFERON=(tk.size()<2)||(tk[1]!="0"); printf("OK offeron=%d\n",(int)OFFERON); }
+    else if(op=="probeon"){ PROBEON=(tk.size()<2)||(tk[1]!="0"); printf("OK probeon=%d\n",(int)PROBEON); }
     else if(op=="spreadon"){ SPREAD=(tk.size()<2)||(tk[1]!="0"); printf("OK spread=%d\n",(int)SPREAD); }
     // descstat [reset] — FRONT 3. Needs MESH_DESC=1 in the environment; without
     // it every counter is zero and the verb says so rather than printing a
