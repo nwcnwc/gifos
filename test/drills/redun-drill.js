@@ -432,8 +432,13 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
     const framesOf = () => pages[P].page.evaluate((rk) => {
       const f = (__gifosVideo.feedsInfo() || []).find((x) => x.key === rk);
       const m = __gifosVideo.mosaic();
+      // fb state rides every sample: the strict-bound tail hunt needs to know
+      // whether the pipe was QUALIFIED (flowSince old enough) when the kill
+      // landed, and whether the dark rail armed at all.
+      const fb = (m.fb || []).find((x) => x.rk === rk) || {};
       return { t: Date.now(), frames: f ? f.frames : -1, held: !!f, via: (m.claimVia.find((x) => x.rk === rk) || {}).via || null,
-        sdTile: !!m.tile, claims: m.claims.length };
+        sdTile: !!m.tile, claims: m.claims.length,
+        dark: !!fb.dark, fs: fb.flowSince ? Date.now() - fb.flowSince : -1, q: fb.q || 0, fp: fb.fp || 0 };
     }, slotRk).catch(() => null);
     const pre = await framesOf();
     console.log('killing ' + pages[B].name + ' (supplies ' + pages[P].name + "'s " + slotRk + ' primary); loadavg=' + loadNow());
@@ -506,6 +511,17 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       check('B: pipe RESUMED after primary death (wake completed)', gap != null, 'freeze gap = ' + (gap == null ? 'NEVER RESUMED in ' + (SAMPLE_CAP / 1000) + 's' : gap + 'ms'));
     }
     if (stallStart != null) console.log('   MEASURE freeze gap on ' + slotRk + ': ' + (gap == null ? '>' + SAMPLE_CAP : gap) + 'ms (law target ≤2000, grace ' + GRACE_MS + '; detection-bound today — strict bound lives in known-unfixed.sh) loadavg=' + loadNow());
+    // WATCHDOG FORENSICS (2026-08-07, the strict-bound tail hunt): was the pipe
+    // QUALIFIED at the kill, and did the dark rail arm? fs = age of the
+    // continuity clock (-1 = unqualified/reset), sampled every ~120ms.
+    {
+      const atKill = series[0] || {};
+      const firstDark = series.find((s) => s.dark);
+      console.log('   WDOG at-kill fs=' + (atKill.fs != null ? atKill.fs : '?') + 'ms q=' + (atKill.q || 0) + ' fp=' + (atKill.fp || 0)
+        + '  dark ' + (firstDark ? 'ARMED at +' + (firstDark.t - tKill) + 'ms' : 'NEVER ARMED in the window'));
+      const dl = await pages[P].page.evaluate((rk) => (window.__dogLog || []).filter((e) => rk.indexOf(e.rk) === 0).slice(-30), slotRk).catch(() => null);
+      if (dl) console.log('   WDOG dogLog tail: ' + dl.map((e) => 'la' + e.la + '/fs' + e.fs + (e.dark ? 'D' : '') + (e.std ? '' : '!nostd')).join(' '));
+    }
     // Claim continuity at 120ms granularity is the SAME guarantee as the ≤5s
     // wake: the grace linger tears a dead primary down at deadAt+5s, so
     // whether the claim survives is exactly the race between the (detection-
