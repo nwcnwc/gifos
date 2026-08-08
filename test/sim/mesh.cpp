@@ -18,7 +18,7 @@ using namespace std;
 typedef unordered_map<uint64_t,int> Occ;
 
 // ---- message ----
-enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST,MOVED,SITPING,SITPONG,SITXFER };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message. MOVED: law-T3 forwarding tombstone — a vacated cell answers with where the mover went. SITPING/SITPONG: V4 probe-gated check-back — the assigner falsifies a silent vouch by asking the admittee itself; the pong carries NO occupancy payload beyond the vouched cell.
+enum MT { GREETERS,WHOHOME,HOME,FIND,FINDLEAF,PLACE,NOROOM,HELLO,YIELD,CLAIM,LEAVE,GREETWALK,S1SYNC,DRAIN,CHALLENGE,CONFIRM,PHONE,PONG,ROUTE,ROUTED,KNOCK,TRANSLOST,MOVED,SITPING,SITPONG,SITXFER,OFFER };   // TRANSLOST: a fabric EVENT (from=-1) — "MY transport to seat m.id died" (D5), never a peer message. MOVED: law-T3 forwarding tombstone — a vacated cell answers with where the mover went. SITPING/SITPONG: V4 probe-gated check-back — the assigner falsifies a silent vouch by asking the admittee itself; the pong carries NO occupancy payload beyond the vouched cell.
 struct KV { uint64_t k; int v; };
 // ---- V1 ROLLUP DIGEST (healing-laws.md § G) ---------------------------------
 // A fixed-size summary of a SCOPE (a seat's subtree, a head's row, or the whole
@@ -87,8 +87,28 @@ struct Msg {
 static int N; static double LEAVEFRAC=0; static int W=1;
 static long long TICK=0; static long long MOVES=0, EVICTIONS=0;
 static long long COMPACT_PROBES=0, COMPACT_MOVES=0, COMPACT_ADMITS=0, COMPACT_PLACES=0, COMPACT_ATS1=0, COMPACT_SWEEP=0;   // Q2 diagnostics
+static long long COMPACT_OFFERS=0, COMPACT_OFFERFIRES=0;   // V5 head-offer diagnostics (`offeron`)
 static bool HEALING=true;
 static bool COMPACTION=true;   // Q2 A/B toggle (`compacton 0|1`)
+// V5 — THE PROBE FUNNEL (docs/scale-audit-2026-08-06.md § 1.3). Both DEFAULT
+// OFF: today's behavior is the reference until the A/B decides otherwise.
+// `problvl n`: cap the compaction probe's climb at n levels above the seeker
+// (0 = unlimited = today). The funnel cost is ARRIVALS AT 25 FIXED S1 SEATS
+// (up() maps every child-"0" onto S1 column 0; FIND was 79.4% of the hot
+// seat's traffic and the only per-node cost that tracks N). A cap makes
+// per-node arrivals a function of LOCAL geometry, independent of N — most
+// empties sit in the deepest levels of a C-ary tree anyway, and chained moves
+// (a d4 seat taking a d2 cell frees a d4 cell for a d5 leaf) still compact
+// fully, just over more windows.
+static int PROBLVL=0;
+// `offeron 0|1`: deeper-than-cap compaction INVERTED — a row head with a
+// first-hand-known free densifying slot OFFERs it down its subtree; an
+// eligible deep leaf answers with a TARGETED probe at the offering head, and
+// the admit itself stays first-hand in serveCompact (a stale offer degrades
+// to a no-op, never a stale admit). Work per window is proportional to the
+// FRONTIER (cells that can be won), not to N (leaves that want them) — the
+// admission-control reframe of the same audit.
+static bool OFFERON=false;
 // T7 SPREAD-AFTER-NOROOM — front 3's fix, DEFAULT OFF (`spreadon 0|1`).
 // It converges rooms that have never converged (N=5000 3076-stuck -> 5000/5000
 // in 3200 ticks; N=20000 in 4480; all seeds; dups=0) but it COSTS TREE
@@ -327,6 +347,8 @@ struct Seat {
   Occ holdOcc, holdSeen, holdCous;            // rollback snapshots
   uint64_t leaseCk=0; long long leaseUntil=-1; // T3: forwarding tombstone for my just-vacated cell
   long long compactAt=0;                       // Q2: next tick this leaf may probe for a shallower seat
+  long long offerAt=0;                         // V5: next tick this row head may OFFER a free slot down its subtree
+  long long lastProbeTick=-999;                // V5: last tick I fired a tag==1 probe (one outstanding at a time)
   int lastChurn=0;                             // Q2 hysteresis: last tick my neighbourhood churned (a LEAVE/heal/move nearby) — compaction waits for local quiescence
   vector<KV> roster; bool haveRoster=false; vector<int> lastGreeters;
   int greetersAt=-1, resumeTries=0;           // ENTRY RESUME: when lastGreeters landed; consecutive knockless retries (mesh.js parity)
@@ -576,6 +598,9 @@ struct Seat {
   void serveCompact(Msg& m);   // Q2: the up-chain compaction walk (tag==1 FINDs)
   void admit(Coord c,Msg& f);   // f = the FIND being served (nc/ttl, and Q2: tag==1 ⇒ seeker is a SEATED compactor, route the PLACE back)
   void tryCompact();            // Q2: a settled deep leaf probes the home for a strictly-shallower seat
+  bool compactEligible();       // Q2/V5: the mover gates (leaf, rightmost, settled, quiescent) shared by tryCompact and serveOffer
+  void tryOffer();              // V5: a row head with a free densifying slot offers it down its subtree (`offeron`)
+  void serveOffer(Msg& m);      // V5: the OFFER down-walk — an eligible deep leaf answers with a targeted probe
   void onPhone(Msg& m);
   void phoneHome(); void s1Heartbeat(); void s1Sync(); void rowSweep(); void s1Fill(); void attack(); void tlSweep();
   bool ringConfirmDead(Coord h);   // H1-S1: true only after home cell h is unreachable via ALL rook paths for the full ring window (probe-gated)
@@ -1302,6 +1327,8 @@ int main(int argc,char**argv){
       printf("HOLES %d %s\n",n,ex.c_str()); }
     else if(op=="watch"){ int id=tk.size()>1?atoi(tk[1].c_str()):-1; int n=tk.size()>2?atoi(tk[2].c_str()):200; const char* st[]={"j","a","s","S"}; for(int q=0;q<n;q++){ doTick(); TICK++; if(id>=0&&id<nextId){ Seat*se=seats[id]; fprintf(stderr,"  t=%lld seat%d %s coord=%s\n",TICK,id,st[se->state],se->hasCoord?coordStr(se->coord).c_str():"-"); } } printf("OK watched %d\n",n); }
     else if(op=="compacton"){ COMPACTION=(tk.size()<2)||(tk[1]!="0"); printf("OK compaction=%d\n",(int)COMPACTION); }
+    else if(op=="problvl"){ PROBLVL=(tk.size()>1)?atoi(tk[1].c_str()):0; printf("OK problvl=%d\n",PROBLVL); }
+    else if(op=="offeron"){ OFFERON=(tk.size()<2)||(tk[1]!="0"); printf("OK offeron=%d\n",(int)OFFERON); }
     else if(op=="spreadon"){ SPREAD=(tk.size()<2)||(tk[1]!="0"); printf("OK spread=%d\n",(int)SPREAD); }
     // descstat [reset] — FRONT 3. Needs MESH_DESC=1 in the environment; without
     // it every counter is zero and the verb says so rather than printing a
@@ -1508,7 +1535,7 @@ int main(int argc,char**argv){
       printf("COMPACT seats=%d occSections=%d maxDepth=%d minDepth=%d loneRowDeepSections=%d byDepth=",
         seatN,occSections,maxDepth,minDepth,loneDeep);
       for(int d=0;d<=maxDepth;d++) printf("%s%d:%d",d?",":"",d,byDepth.count(d)?byDepth[d]:0);
-      printf(" frontier(d0=%d,d1=%d,d2=%d) cProbes=%lld cAdmits=%lld cPlaces=%lld cMoves=%lld\n",fr[0],fr[1],fr[2],COMPACT_PROBES,COMPACT_ADMITS,COMPACT_PLACES,COMPACT_MOVES); }
+      printf(" frontier(d0=%d,d1=%d,d2=%d) cProbes=%lld cAdmits=%lld cPlaces=%lld cMoves=%lld cAtS1=%lld cOffers=%lld cOfferFires=%lld\n",fr[0],fr[1],fr[2],COMPACT_PROBES,COMPACT_ADMITS,COMPACT_PLACES,COMPACT_MOVES,COMPACT_ATS1,COMPACT_OFFERS,COMPACT_OFFERFIRES); }
     else printf("ERR unknown: %s\n",op.c_str());
   }
   return 0;
