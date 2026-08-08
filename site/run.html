@@ -7970,7 +7970,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // and everything downstream keyed on it survive.
       if (cur && !orphaned) {
         if (!p || !p.pc || !p.connected) { unshipMos(jk, false); return null; } // link died under the job
-        if (!want.length) { unshipMos(jk, true); return null; } // nothing left to ship — a real end, announced as one
+        if (!want.length) {
+          // The source went TRACKLESS under a live job — its peer died
+          // mid-grace, or every track ended at once. This is exactly what
+          // "grace, not teardown" exists for: the pipe goes dark, the
+          // RECEIVER's watchdog + standby machinery run the failover, and
+          // the reaper unships a job nobody re-wants after MOS_GRACE. The
+          // first cut unshipped here (mx-end mid-death-window) and DESTROYED
+          // the very standby the room was about to wake — measured battery1
+          // 2026-08-08: redun leg B "NEVER RESUMED in 60s", mirror-default
+          // red, where the old teardown-happy code resumed in ~6s. Keep the
+          // job, keep announcing (the old fast path did exactly this — the
+          // dead source kept its stream id, so death rode the idempotent
+          // re-announce); when the source re-claims, the reconcile below
+          // swaps the live tracks into the SAME container and the sid never
+          // moved.
+          if (p.dc && p.dc.readyState === 'open') dcSend(p, Object.assign({ k: 'mx', key, streamId: cur.streamId }, cur.meta || {}));
+          return jk;
+        }
         const ops = [];
         const haveIdx = (kind) => { const out = []; for (let i = 0; i < cur.srcTracks.length; i++) if (cur.srcTracks[i].kind === kind) out.push(i); return out; };
         for (const kind of ['audio', 'video']) {
