@@ -200,67 +200,144 @@
   //
   // Keyed by brand:wikidata where there is one (it survives translation and
   // spelling), then by a normalised name.
-  var BRAND_COLOUR = {
-    // fast food
-    'q38076': [0.85, 0.16, 0.11], mcdonalds: [0.85, 0.16, 0.11],
-    'q177054': [0.79, 0.13, 0.16], burgerking: [0.79, 0.13, 0.16],
-    'q524757': [0.90, 0.11, 0.14], kfc: [0.90, 0.11, 0.14],
-    'q244457': [0.05, 0.42, 0.24], subway: [0.05, 0.42, 0.24],
-    'q37158': [0.00, 0.44, 0.29], starbucks: [0.00, 0.44, 0.29],
-    'q608845': [0.42, 0.11, 0.27], costa: [0.42, 0.11, 0.27], costacoffee: [0.42, 0.11, 0.27],
-    'q3403981': [0.00, 0.24, 0.63], greggs: [0.00, 0.24, 0.63],
-    'q1141226': [0.88, 0.08, 0.14], dominos: [0.88, 0.08, 0.14], dominospizza: [0.88, 0.08, 0.14],
-    // groceries
-    'q487494': [0.00, 0.33, 0.62], tesco: [0.00, 0.33, 0.62],
-    'q125054': [0.00, 0.30, 0.60], aldi: [0.00, 0.30, 0.60],
-    'q151954': [0.00, 0.31, 0.62], lidl: [0.00, 0.31, 0.62],
-    sainsburys: [0.94, 0.45, 0.09], asda: [0.00, 0.44, 0.75], morrisons: [0.00, 0.40, 0.24],
-    carrefour: [0.00, 0.35, 0.68], walmart: [0.00, 0.44, 0.75], target: [0.80, 0.10, 0.15],
-    // fuel — the sign you look for when the tank is low
-    'q154950': [0.95, 0.76, 0.05], shell: [0.95, 0.76, 0.05],
-    'q152057': [0.00, 0.47, 0.24], bp: [0.00, 0.47, 0.24],
-    esso: [0.83, 0.14, 0.16], total: [0.90, 0.30, 0.10], texaco: [0.85, 0.12, 0.14],
-    // everything else that paints its whole shopfront one colour
-    ikea: [0.00, 0.35, 0.68], decathlon: [0.00, 0.45, 0.65], boots: [0.00, 0.23, 0.55],
-
-    // NORTH AMERICA. The list above was written from a British high street —
-    // Greggs, Costa, Morrisons, Boots — which is a fine list and the wrong one
-    // for most of the planet's drivers. Keyed by NAME rather than
-    // brand:wikidata: the Q-ids above are ones I could verify, and a guessed
-    // Q-id is worse than no Q-id because it silently paints the wrong brand's
-    // colour on somebody's corner. Names are matched normalised (lowercased,
-    // punctuation stripped), so both "In-N-Out" and "In-N-Out Burger" land.
-    innout: [0.87, 0.16, 0.20], innoutburger: [0.87, 0.16, 0.20],
-    chickfila: [0.86, 0.14, 0.20], tacobell: [0.44, 0.16, 0.49],
-    wendys: [0.79, 0.11, 0.16], dunkin: [0.95, 0.44, 0.10],
-    dunkindonuts: [0.95, 0.44, 0.10], chipotle: [0.60, 0.18, 0.13],
-    fiveguys: [0.79, 0.10, 0.24], whataburger: [0.94, 0.35, 0.06],
-    jackinthebox: [0.85, 0.15, 0.20], sonic: [0.90, 0.25, 0.15],
-    sonicdrivein: [0.90, 0.25, 0.15], popeyes: [0.94, 0.42, 0.09],
-    arbys: [0.80, 0.14, 0.18], dairyqueen: [0.85, 0.13, 0.19],
-    pandaexpress: [0.83, 0.13, 0.16], shakeshack: [0.42, 0.72, 0.55],
-    // groceries and pharmacy
-    traderjoes: [0.79, 0.13, 0.15], safeway: [0.83, 0.13, 0.16],
-    kroger: [0.00, 0.34, 0.65], albertsons: [0.00, 0.36, 0.63],
-    publix: [0.13, 0.42, 0.21], costco: [0.88, 0.13, 0.18],
-    wholefoods: [0.00, 0.42, 0.24], wholefoodsmarket: [0.00, 0.42, 0.24],
-    cvs: [0.80, 0.10, 0.14], cvspharmacy: [0.80, 0.10, 0.14],
-    walgreens: [0.80, 0.10, 0.14],
-    // fuel — the sign you look for when the tank is low, US edition
-    chevron: [0.00, 0.31, 0.62], exxon: [0.85, 0.13, 0.16],
-    mobil: [0.85, 0.13, 0.16], arco: [0.00, 0.35, 0.66],
-    valero: [0.00, 0.40, 0.68], circlek: [0.90, 0.36, 0.10],
-    '7eleven': [0.85, 0.16, 0.18],
-    // hardware and big box
-    homedepot: [0.95, 0.42, 0.06], lowes: [0.00, 0.29, 0.62],
-    bestbuy: [0.00, 0.33, 0.71],
+  // Brand colours as HEX, because that is how a company publishes the one it
+  // paints its building. Parsed to floats once at load.
+  //
+  // Keys are NORMALISED names (lowercase, punctuation stripped, a leading "the"
+  // dropped), plus brand:wikidata Q-ids where I could verify them. A guessed
+  // Q-id is worse than none: it silently paints one company's colour on
+  // another's corner and nothing ever complains.
+  //
+  // Roughly the top ~120 signs a driver passes, weighted to North America and
+  // then western Europe. This list is the whole feature — the shader just reads
+  // it — so adding a brand is one line and needs no rebuild of anything else.
+  var BRAND_HEX = {
+    // ---- fast food & coffee: North America ----
+    mcdonalds: 'DA291C', q38076: 'DA291C',
+    burgerking: 'D62300', q177054: 'D62300',
+    kfc: 'A8171C', q524757: 'A8171C',
+    subway: '008C15', q244457: '008C15',
+    starbucks: '00704A', q37158: '00704A',
+    innout: 'E4002B', innoutburger: 'E4002B',
+    chickfila: 'DD0031', tacobell: '702082', wendys: 'E2203D',
+    dunkin: 'FF671F', dunkindonuts: 'FF671F',
+    chipotle: 'A81612', fiveguys: 'ED174F', whataburger: 'FF5A00',
+    jackinthebox: 'E1251B', sonic: '1D57A5', sonicdrivein: '1D57A5',
+    popeyes: 'FF7900', arbys: 'C8102E', dairyqueen: 'D6001C',
+    pandaexpress: 'D4212D', shakeshack: '4BAE55',
+    pizzahut: 'EE3124', papajohns: 'C8102E', littlecaesars: 'FF6000',
+    dominos: '006491', q1141226: '006491',
+    wingstop: '00543D', raisingcanes: 'B01E24', culvers: '003DA5',
+    deltaco: 'D8232A', carlsjr: 'E4002B', hardees: 'E4002B',
+    bojangles: 'E4002B', zaxbys: 'EE3124', churchschicken: 'C8102E',
+    elpolloloco: 'FFC72C', qdoba: 'A6192E', panera: '6D9B4A',
+    panerabread: '6D9B4A', sweetgreen: '00543D', jimmyjohns: 'E4002B',
+    jerseymikes: '005596', firehousesubs: 'E4002B', potbelly: 'C8102E',
+    dutchbros: '003DA5', peets: '6D2077', peetscoffee: '6D2077',
+    caribou: '003DA5', cariboucoffee: '003DA5', timhortons: 'C8102E',
+    krispykreme: '009639', cinnabon: 'B25C25', auntieannes: '002F6C',
+    baskinrobbins: 'E5257A', coldstonecreamery: 'A6192E',
+    jamba: '6A2C91', jambajuice: '6A2C91', smoothieking: 'E4002B',
+    // ---- sit-down chains ----
+    dennys: 'FFC72C', ihop: '0033A0', wafflehouse: 'FFC72C',
+    crackerbarrel: '6E4C1E', applebees: 'E4002B', chilis: 'E4002B',
+    olivegarden: '4C8B2B', redlobster: 'E4002B', outback: 'A6192E',
+    texasroadhouse: 'A6192E', buffalowildwings: 'FFC72C',
+    whitecastle: '005EB8', steaknshake: 'E4002B', longjohnsilvers: '003DA5',
+    // ---- groceries: North America ----
+    traderjoes: 'C8102E', safeway: 'D71E28', kroger: '004990',
+    albertsons: '005DAA', publix: '227A3D', costco: 'E31837',
+    wholefoods: '00674B', wholefoodsmarket: '00674B',
+    walmart: '0071CE', target: 'CC0000', sprouts: '6CB33F',
+    heb: 'E1251B', wegmans: 'C8102E', meijer: 'E1251B',
+    giantfood: 'E4002B', stopandshop: 'E4002B', foodlion: '00A94F',
+    winndixie: 'E4002B', harristeeter: '00843D', vons: 'E4002B',
+    ralphs: 'E4002B', kingsoopers: 'E4002B', jewelosco: 'E4002B',
+    shoprite: 'E4002B', groceryoutlet: 'FFC72C',
+    // ---- pharmacy ----
+    cvs: 'CC0000', cvspharmacy: 'CC0000', walgreens: 'E31837',
+    riteaid: '004B87',
+    // ---- fuel & convenience ----
+    shell: 'F2B705', q154950: 'F2B705',
+    bp: '007A33', q152057: '007A33',
+    exxon: 'D82C20', mobil: 'D82C20', exxonmobil: 'D82C20',
+    chevron: '0054A4', arco: '0057B8', valero: '0067B1',
+    texaco: 'D82231', esso: 'D42121', total: 'E63312',
+    circlek: 'E8781E', '7eleven': 'DA291C', sunoco: 'FFC72C',
+    citgo: 'E4002B', phillips66: 'E4002B', conoco: 'E4002B',
+    marathon: '003DA5', speedway: 'E4002B', wawa: 'C8102E',
+    sheetz: 'E4002B', quiktrip: 'E4002B', racetrac: 'E4002B',
+    caseys: 'E4002B', pilot: '003DA5', loves: 'FFC72C',
+    bucees: 'FFC72C', kwiktrip: 'E4002B', maverik: '003DA5',
+    gulf: 'FF6600', sinclair: '00843D', '76': '003DA5',
+    // ---- big box, hardware, specialty ----
+    homedepot: 'F96302', lowes: '004990', bestbuy: '0046BE',
+    ikea: '0058A3', menards: '005DAA', acehardware: 'E4002B',
+    harborfreight: 'E4002B', tractorsupply: 'C8102E',
+    autozone: 'F6893C', oreillyautoparts: '007A33',
+    advanceautoparts: 'E4002B', napaautoparts: '003DA5', pepboys: 'E4002B',
+    dollargeneral: 'FFC72C', dollartree: '00853F', familydollar: 'E4002B',
+    ross: '003DA5', tjmaxx: 'E4002B', marshalls: '003DA5',
+    kohls: '8E2043', macys: 'E4002B', jcpenney: 'E4002B',
+    petco: '003DA5', petsmart: '003DA5', staples: 'CC0000',
+    officedepot: 'E4002B', michaels: 'E4002B', hobbylobby: '005DAA',
+    barnesandnoble: '00704A', gamestop: 'E4002B',
+    verizon: 'E4002B', tmobile: 'E20074', att: '009FDB',
+    // ---- banks: a branch is a shopfront too ----
+    chase: '117ACA', bankofamerica: 'E31837', wellsfargo: 'D71E28',
+    citibank: '003B70', usbank: '0C2074', pnc: 'F58025',
+    capitalone: '004977', tdbank: '00A651',
+    // ---- hotels ----
+    marriott: 'A6192E', hilton: '104C97', holidayinn: '0C7C3C',
+    motel6: '003DA5', bestwestern: '003DA5',
+    // ---- western Europe & UK ----
+    tesco: '00539F', q487494: '00539F',
+    aldi: '00549F', q125054: '00549F',
+    lidl: '0050AA', q151954: '0050AA',
+    sainsburys: 'F06C00', asda: '68A80D', morrisons: '007A3D',
+    waitrose: '5A9E3C', marksandspencer: '00543D', mands: '00543D',
+    coop: '00B1E7', iceland: 'E4002B', poundland: 'E4002B',
+    boots: '05054B', superdrug: 'E4002B', hollandandbarrett: '00543D',
+    greggs: '00263E', q3403981: '00263E',
+    costa: '6C1D45', costacoffee: '6C1D45', caffenero: '003D2B',
+    pretamanger: '8C1D40', nandos: '2E2E2E', pizzaexpress: '003DA5',
+    cafenero: '003D2B',
+    wagamama: 'E4002B', wetherspoon: '00543D',
+    argos: 'E4002B', currys: '003DA5', screwfix: '003DA5',
+    wickes: '003DA5', bandq: 'FF6600', bq: 'FF6600', homebase: '007A3D',
+    halfords: '003DA5', wilko: 'E4002B', johnlewis: '000000',
+    next: '000000', tkmaxx: 'E4002B', primark: '00539F',
+    carrefour: '004E9F', auchan: 'E4002B', leclerc: '0055A4',
+    intermarche: 'E4002B', monoprix: '000000',
+    rewe: 'CC071E', edeka: 'FFD100', kaufland: 'E10915',
+    netto: 'FFE500', penny: 'CC0000', spar: 'EC1C24',
+    dm: '003D7C', rossmann: 'E4002B', mediamarkt: 'E4002B',
+    mercadona: '009640', migros: 'FF6600', billa: 'E4002B',
+    decathlon: '0082C3', zara: '000000', handm: 'E4002B', hm: 'E4002B',
+    uniqlo: 'FF0000', premierinn: '5C2D91', travelodge: '00539F',
   };
+
+  // Hex to the [0..1] triple the packer wants. One pass at load, never again.
+  var BRAND_COLOUR = (function () {
+    var out = {};
+    for (var k in BRAND_HEX) {
+      var h = BRAND_HEX[k];
+      out[k] = [parseInt(h.slice(0, 2), 16) / 255,
+                parseInt(h.slice(2, 4), 16) / 255,
+                parseInt(h.slice(4, 6), 16) / 255];
+    }
+    return out;
+  })();
 
   // Lowercase, strip everything that is not a letter or digit, and drop a
   // leading "the" — OSM carries "The Home Depot" and "The Range" exactly as the
   // company writes them, and a table keyed on homedepot would miss every one.
   function normBrand(s) {
-    var n = String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Strip DIACRITICS before stripping punctuation, or "Caffè Nero" loses the
+    // è entirely and normalises to caffnero — a miss that looks exactly like an
+    // unlisted brand. NFD splits the accent into a combining mark we can drop.
+    var n = String(s).normalize ? String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '') : String(s);
+    n = n.toLowerCase().replace(/[^a-z0-9]/g, '');
     return n.replace(/^the(?=.{3})/, '');
   }
 
