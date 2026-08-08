@@ -110,6 +110,9 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('the Steal chrome shows for the guest', await c.evaluate(() => document.getElementById('appsteal').style.display !== 'none'));
   await c.evaluate(() => document.getElementById('appsteal').click());
   await c.waitForFunction(() => /Yours now/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+  // The confirmation must be AT THE BUTTON, not only in the far-end status
+  // span — a successful steal read as silence there (reported 2026-08-08).
+  check('the Steal button itself confirms the steal', await c.evaluate(() => /Stolen/.test(document.getElementById('appsteal').textContent)));
   const stolen = await c.evaluate(async () => {
     const fs = await GifOS.store.allFiles();
     return fs.some((f) => f.isApp && !f.isDefault);

@@ -11137,9 +11137,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     };
     document.getElementById('appsteal').onclick = () => {
       if (!(appClientCtl && appClientCtl.stealToDesktop)) return;
+      // The confirmation lives ON THE BUTTON. The status line is a span at
+      // the far end of the top bar, and a successful steal read as SILENCE
+      // at the point of click (reported 2026-08-08: the copy was saved,
+      // nothing said so where the user was looking). The button is where
+      // their eyes already are — morph it, hold it, restore it.
+      const b = document.getElementById('appsteal');
+      const label = b.textContent;
+      b.disabled = true; b.textContent = 'Stealing…';
       appClientCtl.stealToDesktop()
-        .then(() => setStatus('🥷 Yours now — saved to your desktop’s Stolen Apps, data and all.'))
-        .catch((e) => setStatus('Could not steal: ' + (e && e.message || e)));
+        .then(() => {
+          b.textContent = '🥷 Stolen ✓';
+          setStatus('🥷 Yours now — saved to your desktop’s Stolen Apps, data and all.');
+          setTimeout(() => { b.textContent = label; b.disabled = false; }, 4000);
+        })
+        .catch((e) => { b.textContent = label; b.disabled = false; setStatus('Could not steal: ' + (e && e.message || e)); });
     };
     let appClientStop = null; // live client mount's teardown (unsubscribes its sga lane)
     let appClientCtl = null;  // the client mount's control: snapshot() + setFrozen() (one-runtime freeze/succession)
