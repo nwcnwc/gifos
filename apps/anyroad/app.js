@@ -541,6 +541,29 @@
   // off, and that is exactly how this failed.
   var imagery = { tried: 0, ok: 0, failed: '' };
 
+  // Hand a road tile's buildings the photograph they are standing in, so their
+  // ROOFS can take their colour from it. Roads are z15 and terrain z14, so a
+  // road tile is always exactly one quadrant of ONE terrain tile — there is no
+  // ambiguity about which image a building belongs to, and no need to split a
+  // mesh across two of them.
+  //
+  // Deliberately NOT cached: the rectangle is in world metres, and world
+  // metres are relative to a frame that moves on every hop and every re-pin.
+  // A cached rect outlives its frame and drapes the roofs of one city in the
+  // photograph of another; recomputing it is two multiplies per tile per frame.
+  function drapedBuildings(r) {
+    var built = r.built.buildings;
+    var src = root.Sources.imagery;
+    if (!built || !src || !src.api || !r.tile || !world.frame) return built;
+    var px = r.tile.x >> 1, py = r.tile.y >> 1;
+    var slot = world.terrain[root.Geo.tileKey({ z: root.Terrain.TILE_ZOOM, x: px, y: py })];
+    if (!slot || !slot.texture) return built;      // no photo yet: procedural roofs
+    var b = root.Geo.tileBounds(root.Terrain.TILE_ZOOM, px, py);
+    var nw = world.frame.toWorld(b.north, b.west);
+    var se = world.frame.toWorld(b.south, b.east);
+    return { mesh: built, texture: slot.texture, rect: [nw.x, nw.z, se.x, se.z] };
+  }
+
   function maybeLoadImagery(tile, key) {
     var src = root.Sources.imagery;
     if (!src || !src.api || !tile) return;
@@ -769,7 +792,7 @@
       var r = world.roads[rk];
       if (!r || !r.built) continue;
       scene.roads.push(r.built.roads);
-      scene.buildings.push(r.built.buildings);
+      scene.buildings.push(drapedBuildings(r));
       scene.water.push(r.built.water);
       if (r.built.shadows) scene.shadows.push(r.built.shadows);
       // Scenery has its own, much shorter draw distance. Roads and buildings
