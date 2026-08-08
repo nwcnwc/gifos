@@ -599,6 +599,15 @@
     root.MP.setFrame(world.frame, lat, lon, world.place);
     root.UI.setPlace(world.place);
     root.UI.rememberPlace(lat, lon, world.place);
+    // Say it BEFORE the empty world arrives. A regional Overpass answers 200
+    // with no elements outside its extract, which renders as terrain with no
+    // roads on it — indistinguishable from open country, and the player has no
+    // way to guess that the source they picked simply does not hold this part
+    // of the planet.
+    if (!root.Sources.roadsCover(lat, lon)) {
+      root.UI.note('The road source "' + root.Sources.roads.name + '" does not cover here — ' +
+                   'there will be no roads. Pick a worldwide one in Settings.');
+    }
     ensureTerrain(); ensureRoads();
     root.UI.showDrive();
     if (!running) { running = true; lastT = 0; requestAnimationFrame(frame); }
