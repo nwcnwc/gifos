@@ -76,6 +76,19 @@ how an app stays unlisted while it's being built.
   all in `gifos.db`. Picture-description drills render a scene with
   `gifos.ai.image`. Finished GIF: [`site/apps/fluence/fluence.gif`](../site/apps/fluence/fluence.gif). The first app to
   exercise the generic third-party-API capability.
+- **[sound-it-out](sound-it-out/)** — looping phonics videos for a child
+  learning to read (full port of the sound-it-out desktop app, built for a boy
+  with Down syndrome). Twelve levels from sight words to a growing story, each
+  grapheme lit as its sound plays; the parent records the clip library in-app
+  via brokered `gifos.recordAudio` with take scoring (the schwa detector caught
+  in-app), recordings stay **private** in `gifos.db`, and a built-in voice —
+  the desktop pipeline's Kokoro clips, schwa-shaped offline and packed into the
+  GIF — covers day one. `gifos.ai.tts` (optional) reads unrecorded words;
+  isolated phonemes never go to a model. Playback renders the storyboard live
+  on canvas; export is a realtime WebM capture. **Not in the store yet** —
+  upstream is still moving; `listing.unpublished.json` holds the listing
+  (see its README for the publish move). Guarded by
+  `test/unit/sound-it-out.js`: segment-exact parity with the Python original.
 - **[chess-grandmaster](chess-grandmaster/)** — play **full-strength Stockfish**
   (real engine, NNUE) running entirely offline in the sandbox. Pick a level from
   ~1320 Elo to the unshackled engine, with a live win/draw/loss read-out and

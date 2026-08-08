@@ -73,6 +73,27 @@ node apps/sound-it-out/build.mjs
 node scripts/build-app-catalog.mjs
 ```
 
+## Not in the store yet — deliberately
+
+The upstream desktop app is still being actively developed, so this port is
+**held out of the App Store**: the listing lives at `listing.unpublished.json`,
+which the catalog builder ignores (no `listing.json` ⇒ not in the store, per
+`apps/README.md`). The port itself is complete and green; publishing is one
+move when upstream settles:
+
+```bash
+git mv apps/sound-it-out/listing.unpublished.json apps/sound-it-out/listing.json
+node apps/sound-it-out/tools/enumerate-requests.mjs      # re-sync with upstream
+cd ~/projects/sound-it-out && .venv/bin/python \
+    ~/projects/gifos/apps/sound-it-out/tools/gen-clips.py
+node test/unit/sound-it-out.js                           # parity must be green
+node apps/sound-it-out/build.mjs
+node scripts/build-app-catalog.mjs
+```
+
+(update `releaseDate` in the listing when cutting, and sign at site/sign.html
+if it should read "signed by gifos.app".)
+
 ## Tests
 
 `test/unit/sound-it-out.js` (runs in the release gate's unit tier):
