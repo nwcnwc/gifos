@@ -3,7 +3,7 @@
   "appId": "sound-it-out",
   "name": "Sound It Out",
   "shortName": "SoundItOut",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "entry": "index.html",
   "accent": [
     255,
@@ -12,20 +12,24 @@
   ],
   "capabilities": {
     "db": true,
-    "microphone": true
+    "microphone": true,
+    "multiplayer": true
   },
   "data": {
     "prefs": {
       "visibility": "private"
     },
     "library": {
-      "visibility": "private"
-    },
-    "recordings": {
-      "visibility": "private"
+      "visibility": "read-write"
     },
     "recmeta": {
-      "visibility": "private"
+      "visibility": "read-only"
+    },
+    "recordings": {
+      "visibility": "read-only"
+    },
+    "presence": {
+      "visibility": "read-write"
     }
   }
 }

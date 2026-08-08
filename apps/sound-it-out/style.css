@@ -286,3 +286,10 @@ button.row-del:hover { color: var(--bad); border-color: var(--bad); }
 
 /* review selection (the 0.5.1 redo fix): tick rows, re-record over the top */
 .rv-pick { width: 19px; height: 19px; accent-color: var(--accent); flex: 0 0 auto; }
+
+/* who is here right now (invited family) */
+.presence {
+  margin-left: auto; color: var(--good); font-size: 0.85rem; font-weight: 600;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px;
+  padding: 4px 12px;
+}

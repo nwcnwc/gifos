@@ -45,9 +45,9 @@
         255
       ],
       "cover": "/apps/anyroad/cover.jpg",
-      "bytes": 338442,
+      "bytes": 340278,
       "signature": null,
-      "sha256": "1f2064f2b572c28c0223528aa56319883a0c064e80b361dca5a63a21dd36fe77"
+      "sha256": "b49b6d6cf3965264f137afeac149d1ac87a80aca3f60f6fc0a2b65f9066fbe4e"
     },
     {
       "slug": "chess-grandmaster",
@@ -130,7 +130,7 @@
       "appId": "sound-it-out",
       "name": "Sound It Out",
       "shortName": "SoundItOut",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "tagline": "Any sentence they love, built up from its sounds — in your own voice.",
       "author": {
         "name": "GifOS",
@@ -157,9 +157,9 @@
         102
       ],
       "cover": "/apps/sound-it-out/cover.jpg",
-      "bytes": 2426096,
+      "bytes": 2427519,
       "signature": null,
-      "sha256": "099379cbb416564f32b5ed550fcfed8821ed1f4295ac551bc1e420b56d6a4425"
+      "sha256": "6d5b621d0b04f246a173b376b82c57557a370aedacddefc373b8046407473019"
     }
   ]
 }
