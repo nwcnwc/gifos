@@ -767,10 +767,21 @@
     noteTimer = setTimeout(function () { el.note.hidden = true; }, 2600);
   }
 
+  // The ONE function that must work before anything else does. app.js calls it
+  // out of boot()'s catch, and boot() runs Render.init() BEFORE UI.init() has
+  // populated `el` — so on the single failure that matters most, an unstartable
+  // renderer, this threw "cannot set textContent of undefined" and buried the
+  // real message. A GLSL compile error became a blank screen and a lie. Look
+  // the elements up directly, and say it to the console either way, so the
+  // cause survives even if there is no DOM left to say it in.
   function fatal(msg) {
-    el['fatal-msg'].textContent = msg;
-    show(el.fatal);
-    hide(el.landing);
+    try { console.error('Anyroad — fatal:', msg); } catch (e) {}
+    var box = el.fatal || document.getElementById('fatal');
+    var slot = el['fatal-msg'] || document.getElementById('fatal-msg');
+    if (slot) slot.textContent = msg;
+    if (box) { box.hidden = false; box.style.display = ''; }
+    var land = el.landing || document.getElementById('landing');
+    if (land) land.hidden = true;
   }
 
   function openRace() { updateRacePanel(); show(el.race); }
