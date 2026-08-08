@@ -196,13 +196,18 @@ const loadNow = () => { try { return parseFloat(require('fs').readFileSync('/pro
       { peaks: heard.map((l) => Math.round(l * 1000) / 1000), afterMs: Date.now() - tE });
 
     // ---- and the fix must not have bought this with churn ------------------
-    // Losing the camera legitimately re-ships ONCE (the container goes from two
-    // m-lines to one). The memo exists to stop per-sweep re-minting, so the
-    // count is the guard: 'first', plus at most the video-gone transition.
+    // The SOURCE may legitimately change identity (the memo logs 'first' plus
+    // the video-gone transition), but under the CONTAINER-IDENTITY LAW
+    // (2026-08-08) none of that reaches a listener: the ship reconciles
+    // tracks in place and the announced container id is a per-job constant.
+    // EXACTLY ONE sid, ever — this used to allow 2 (the sanctioned idle-stop
+    // re-ship), and that sanctioned re-ship is precisely the claim/grace race
+    // that dropped listeners at t=20.23s in the gate. Mutation-tested: a
+    // scratch copy re-minting per ship reds this line in both arms.
     const memo = await pages[0].evaluate(() => (__gifosVideo.mosaic().selfMemo || []).map((x) => x.why)).catch(() => []);
     check('[' + tag + '] the self stream is not churning (<=3 identity changes in the whole run)', memo.length <= 3, memo);
     for (let i = 1; i < N; i++) {
-      check('[' + tag + '] listener P' + i + ' saw at most 2 container ids for the feed', sids[i - 1].size <= 2, [...sids[i - 1]]);
+      check('[' + tag + '] listener P' + i + ' saw EXACTLY ONE container id for the feed (container-identity law)', sids[i - 1].size === 1, [...sids[i - 1]]);
     }
     for (const p of pages) { try { await p.context().close(); } catch (e) {} }
   }
