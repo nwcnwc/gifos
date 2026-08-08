@@ -19,8 +19,8 @@ const manifest = JSON.parse(read('manifest.json'));
 // ones after it read what came before. index.html lists them in the same
 // order. fonts-data.js and clips-data.js are GENERATED (see tools/) and
 // committed, same doctrine as the store catalog.
-const SCRIPTS = ['fonts-data.js', 'clips-data.js', 'wordlist.js', 'curriculum.js',
-                 'openended.js', 'dsp.js', 'store.js', 'voice.js', 'storyboard.js',
+const SCRIPTS = ['fonts-data.js', 'clips-data.js', 'curriculum.js', 'library.js',
+                 'dsp.js', 'store.js', 'voice.js', 'storyboard.js',
                  'frames.js', 'player.js', 'exporter.js', 'studio.js', 'ui.js', 'app.js'];
 
 const files = { 'manifest.json': JSON.stringify(manifest),

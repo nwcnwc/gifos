@@ -8,14 +8,17 @@
 (function () {
   const SIO = (window.SIO = window.SIO || {});
 
-  // Visual treatment. These are the variables the family gives feedback on.
+  // Visual treatment. Two states only: being said (highlight) or not
+  // (neutral). There used to be a third - unsaid letters dimmed to grey
+  // whenever anything was highlighted - and three colours meaning two things
+  // read as noise, even to an adult.
   const THEMES = {
     // Deep navy, warm cream text. Easy on the eyes for long loops in a dim room.
-    night: { name: 'night', bg: '#0d1b2a', fg: '#f8f4e9', highlight: '#ffd166', dim: '#5c6b7a', weight: 700 },
+    night: { name: 'night', bg: '#0d1b2a', fg: '#f8f4e9', highlight: '#ffd166', weight: 700 },
     // Warm off-white, like a book page. Closest to print he'll meet elsewhere.
-    paper: { name: 'paper', bg: '#fdfaf3', fg: '#2b2b2b', highlight: '#d62828', dim: '#b8b2a7', weight: 700 },
+    paper: { name: 'paper', bg: '#fdfaf3', fg: '#2b2b2b', highlight: '#d62828', weight: 700 },
     // Maximum contrast. The accessibility-safe default.
-    contrast: { name: 'contrast', bg: '#000000', fg: '#ffffff', highlight: '#4cc9f0', dim: '#4a4a4a', weight: 700 },
+    contrast: { name: 'contrast', bg: '#000000', fg: '#ffffff', highlight: '#4cc9f0', weight: 700 },
   };
 
   // The frame is always composed at TV resolution and scaled to whatever is
@@ -104,17 +107,14 @@
     return { px, lines };
   }
 
-  // Draw one visual state. `colors` is the word list's per-word colour map
-  // (Paw Patrol kit colours), applied to a whole shown word exactly as the
-  // original theme.word_colors was.
-  function drawFrame(ctx, seg, theme, colors) {
+  // Draw one visual state. Colour has exactly one meaning: highlight = "this
+  // is being said right now", neutral = everything else.
+  function drawFrame(ctx, seg, theme) {
     ctx.save();
     ctx.fillStyle = theme.bg;
     ctx.fillRect(0, 0, W, H);
 
-    const anyHl = seg.parts.some(([, on]) => on);
-    const fullText = seg.parts.map(([t]) => t).join('').trim();
-    const baseColor = seg.color || (colors && colors[fullText]) || theme.fg;
+    const baseColor = seg.color || theme.fg;
 
     const { px, lines } = fit(ctx, seg, theme.weight);
     ctx.font = fontFor(theme.weight, px);
@@ -128,7 +128,7 @@
       let x = SAFE.x + (SAFE.w - line.width) / 2;
       for (const { t, w } of line.tokens) {
         if (!t.isSpace) {
-          ctx.fillStyle = t.hl ? theme.highlight : (anyHl ? theme.dim : baseColor);
+          ctx.fillStyle = t.hl ? theme.highlight : baseColor;
           ctx.fillText(t.text, x, y);
         }
         x += w;

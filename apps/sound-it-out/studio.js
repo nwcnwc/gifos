@@ -1,12 +1,15 @@
-// Record the clip library in the app, one item at a time. Port of
-// gen/studio.py, re-plumbed for the sandbox: the app never holds the live
-// microphone - each take is a brokered gifos.recordAudio() clip, captured by
-// GifOS behind its own indicator and scored the moment it lands. Best take
-// kept; a schwa on /t/ is discovered NOW, not after the session.
+// Recording, one item at a time, scored the moment it lands. Port of
+// gen/studio.py's scoring flow, re-plumbed for the sandbox: each take is a
+// brokered gifos.recordAudio() clip, captured by GifOS behind its own
+// indicator. Two callers share it: Setup's 42-sound session (best of three),
+// and each library entry's walk-through (its unrecorded words, then the whole
+// line - see library.walkthroughItems).
 //
-// What is stored: the recorder's own compressed bytes (b64) in `recordings`,
-// with the measured trim window alongside - never re-encoded - plus a
-// blob-free row in `recmeta` so progress and review lists stay cheap.
+// Stored: the recorder's own compressed bytes in `recordings` with the
+// measured trim window - never re-encoded - plus a blob-free row in `recmeta`
+// (the shared word BANK's catalog: every word on record, listed from what is
+// stored rather than from any curriculum list, because the bank holds words
+// recorded through sentences that appear on no list anywhere).
 (function () {
   const SIO = (window.SIO = window.SIO || {});
   const cur = () => SIO.curriculum;
@@ -14,63 +17,17 @@
 
   const MAX_SECONDS = { hold: 7, crisp: 5, free: 5, line: 12 };
 
-  // ------------------------------------------------------------------ plan
-
-  // The ordered list of things to record, with on-screen guidance.
-  function plan(part, groups) {
-    const items = [];
-    if (part === 'phonemes') {
-      for (const p of cur().PHONEME_ROWS) {
-        const hold = p.length === 'hold';
-        items.push({
-          key: p.key, kind: 'phoneme', display: p.display, ipa: p.ipa, length: p.length,
-          // "as in", not "at the start of": nearly every vowel example has the
-          // sound in the middle or at the end (oo in moon, ar in car).
-          say: `Say the “${p.display}” sound, as in “${p.example}” - `
-            + (hold ? 'hold it for about two seconds.'
-              : p.length === 'crisp' ? 'keep it short and crisp.' : 'say it naturally.'),
-        });
-      }
-    } else if (part === 'sentences') {
-      // Every whole line any level reads out. About ten, and they take a
-      // minute; without them the sentence read is the one thing that can
-      // never be your voice however much else you record.
-      const seen = new Set();
-      const texts = cur().LADDER.map((ch) => ch.sentence).concat(cur().SENTENCES);
-      for (const text of texts) {
-        const key = cur().sentenceKey(text);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        items.push({
-          key, kind: 'sentence', display: text, length: 'line',
-          say: 'Read the whole line the way you would to your child - not word by word.',
-        });
-      }
-    } else {
-      // Your own list first, then every word the fixed levels teach that is
-      // not already in it - without these, the build-up level was 32% real
-      // voice even after a full recording session.
-      const seen = new Set(), order = [];
-      const add = (w) => {
-        const k = w.toLowerCase();
-        if (!seen.has(k)) { seen.add(k); order.push(w); }
+  // Setup's session: the 42 sounds, in RECORDING.md's printed order.
+  function phonemePlan() {
+    return cur().PHONEME_ROWS.map((p) => {
+      const hold = p.length === 'hold';
+      return {
+        key: p.key, kind: 'phoneme', display: p.display, ipa: p.ipa, length: p.length,
+        say: `Say the “${p.display}” sound, as in “${p.example}” - `
+          + (hold ? 'hold it for about two seconds.'
+            : p.length === 'crisp' ? 'keep it short and crisp.' : 'say it naturally.'),
       };
-      for (const w of SIO.wordlist.allWords(groups)) add(w);
-      for (const ch of cur().LADDER) {
-        for (const w of ch.words) add(w);
-        for (const w of ch.sentence.split(/\s+/)) add(w.replace(/[.,!?]+$/g, ''));
-      }
-      for (const w of cur().DIGRAPH_WORDS) add(w);
-      for (const w of cur().CLUSTER_WORDS) add(w);
-      for (const sent of cur().SENTENCES) for (const w of sent.split(/\s+/)) add(w.replace(/[.,!?]+$/g, ''));
-      for (const w of order) {
-        items.push({
-          key: w.toLowerCase(), kind: 'word', display: w, length: 'free',
-          say: 'Say it normally, the way you would in a sentence.',
-        });
-      }
-    }
-    return items;
+    });
   }
 
   function storageId(item) {
@@ -81,13 +38,19 @@
 
   async function doneMap() {
     const meta = await SIO.store.db('recmeta').getAll();
-    return new Map((meta || []).map((m) => [m.id, m]));
+    return new Map((meta || []).filter((m) => !m.id.endsWith('/previous')).map((m) => [m.id, m]));
   }
 
-  // ---------------------------------------------------------------- record
+  // The shared word bank, listed from what is actually stored.
+  async function bankList() {
+    const meta = await doneMap();
+    return [...meta.values()].filter((m) => m.part === 'words')
+      .sort((a, b) => String(a.key).localeCompare(String(b.key)));
+  }
 
-  // One brokered take -> { audio: Float32Array, sr, bytes, mime } or null if
-  // the user cancelled the capture.
+  // One brokered take. Returns { audio, sr, bytes, mime }, null if the user
+  // cancelled, or throws with directions when the microphone path is walled
+  // off (the desktop app's dead-mic lesson: a silent failure looks alive).
   async function takeOne(item) {
     if (!window.gifos || !window.gifos.recordAudio) {
       throw new Error('Recording needs this app to be open inside GifOS.');
@@ -96,7 +59,10 @@
     try {
       clip = await window.gifos.recordAudio({ maxSeconds: MAX_SECONDS[item.length] || 6 });
     } catch (e) {
-      if (/denied|cancel/i.test(String(e && e.message))) return null;
+      if (/denied/i.test(String(e && e.message))) {
+        throw new Error('The microphone was refused. Allow it for this site in the browser, then try again - nothing needs restarting.');
+      }
+      if (/cancel/i.test(String(e && e.message))) return null;
       throw e;
     }
     if (!clip || !clip.bytes) return null;
@@ -105,8 +71,6 @@
     return { audio: data, sr, bytes: clip.bytes, mime: clip.mime || 'audio/webm' };
   }
 
-  // Score a set of takes, save the chosen one, and report back in the words
-  // the original used. `takes` come from takeOne().
   async function saveBest(item, takes) {
     const sr = takes[0].sr;
     const result = dsp().choose(takes.map((t) => t.audio), sr, item);
@@ -144,23 +108,14 @@
 
   // Deleting a clip is the redo: progress is read from what is stored, so
   // removing one puts exactly that item back in the queue.
-  async function remove(item) {
-    const id = storageId(item);
+  async function removeId(id) {
     await SIO.store.db('recordings').delete(id);
     await SIO.store.db('recordings').delete(id + '/previous');
     await SIO.store.db('recmeta').delete(id);
   }
+  const remove = (item) => removeId(storageId(item));
 
-  async function clearPart(part, groups) {
-    for (const item of plan(part, groups)) {
-      const id = storageId(item);
-      const meta = await SIO.store.db('recmeta').get(id);
-      if (meta) await remove(item);
-    }
-  }
-
-  async function playBack(item) {
-    const id = storageId(item);
+  async function playBackId(id) {
     const rec = await SIO.store.db('recordings').get(id);
     if (!rec || !rec.b64) return false;
     const buf = await dsp().decodeBytes(dsp().b64ToBytes(rec.b64));
@@ -172,6 +127,10 @@
     src.start();
     return true;
   }
+  const playBack = (item) => playBackId(storageId(item));
 
-  SIO.studio = { plan, storageId, doneMap, takeOne, saveBest, remove, clearPart, playBack, MAX_SECONDS };
+  SIO.studio = {
+    phonemePlan, storageId, doneMap, bankList,
+    takeOne, saveBest, remove, removeId, playBack, playBackId, MAX_SECONDS,
+  };
 })();

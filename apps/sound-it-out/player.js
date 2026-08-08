@@ -6,6 +6,27 @@
 (function () {
   const SIO = (window.SIO = window.SIO || {});
 
+  // Master the output the way the desktop encoder does with loudnorm: the
+  // clips are already levelled individually (voice.js loud(), RMS 0.09 ≈
+  // -21 dBFS), and streaming loudness sits around -14 LUFS, so one static
+  // gain closes the gap and a hard limiter catches the peaks (TP -1 dB).
+  // Before this the videos were a sixteen-decibel apology delivered through
+  // every family's volume button.
+  const MASTER_GAIN = 2.2;
+  function masterChain(ctx, dest) {
+    const gain = ctx.createGain();
+    gain.gain.value = MASTER_GAIN;
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -2;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.15;
+    gain.connect(limiter);
+    limiter.connect(dest);
+    return gain; // sources connect here
+  }
+
   // plan -> per-entry start offsets within one cycle.
   function cueTimes(plan) {
     const cues = [];
@@ -103,7 +124,7 @@
   // A takeover overlay, not the Fullscreen API: the sandboxed app frame has no
   // fullscreen permission, and GifOS itself can be fullscreened around us. The
   // canvas letterboxes at 16:9 inside whatever window the app has.
-  function openPlayer(plan, theme, colors) {
+  function openPlayer(plan, theme) {
     const dsp = SIO.dsp;
     const F = SIO.frames;
 
@@ -124,9 +145,9 @@
 
     const engine = new Engine(plan, {
       ctx: actx,
-      dest: actx.destination,
+      dest: masterChain(actx, actx.destination),
       loop: true,
-      draw: (seg) => F.drawFrame(cctx, seg, theme, colors),
+      draw: (seg) => F.drawFrame(cctx, seg, theme),
     });
     engine.start();
 
@@ -152,5 +173,5 @@
     return { close };
   }
 
-  SIO.player = { Engine, openPlayer, cueTimes };
+  SIO.player = { Engine, openPlayer, cueTimes, masterChain };
 })();

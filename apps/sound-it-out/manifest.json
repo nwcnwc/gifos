@@ -12,25 +12,19 @@
   ],
   "capabilities": {
     "db": true,
-    "microphone": true,
-    "ai": [
-      "tts"
-    ]
+    "microphone": true
   },
   "data": {
     "prefs": {
       "visibility": "private"
     },
-    "words": {
+    "library": {
       "visibility": "private"
     },
     "recordings": {
       "visibility": "private"
     },
     "recmeta": {
-      "visibility": "private"
-    },
-    "ttscache": {
       "visibility": "private"
     }
   }

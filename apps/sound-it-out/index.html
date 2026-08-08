@@ -21,272 +21,181 @@
     <span class="brand-text">Sound It Out</span>
   </div>
   <nav class="tabs" role="tablist" aria-label="Sections">
-    <button class="tab" role="tab" id="tab-words" aria-selected="true" data-screen="words">Words</button>
-    <button class="tab" role="tab" id="tab-make" aria-selected="false" data-screen="make">Make a video</button>
-    <button class="tab" role="tab" id="tab-voice" aria-selected="false" data-screen="voice">Your voice</button>
-    <button class="tab" role="tab" id="tab-about" aria-selected="false" data-screen="about">About</button>
+    <button class="tab" role="tab" id="tab-sentences" aria-selected="true" data-screen="sentences">Sentences</button>
+    <button class="tab" role="tab" id="tab-setup" aria-selected="false" data-screen="setup">Setup</button>
   </nav>
 </header>
 
 <main id="main">
 
-  <!-- ============================================================ WORDS -->
-  <section class="screen" id="screen-words">
+  <!-- ======================================================== SENTENCES
+       The whole app on one screen: what gets read, recording it, and making
+       the video. A library entry can be a sentence, a single word, or a
+       single letter - it is the ONLY list there is. -->
+  <section class="screen" id="screen-sentences">
     <div class="page-head">
-      <h1>Their words</h1>
+      <h1>What gets read</h1>
       <p class="lede">
-        This one list does two jobs: it's the list of words you'll be asked to record,
-        and it's what your child sees on the screen. Change it whenever you like.
-      </p>
-    </div>
-
-    <div class="notice" id="people-nudge" hidden>
-      <h2>Start with your real names</h2>
-      <p id="people-nudge-text">The <b>People</b> group still has the example names in it.</p>
-      <p>
-        Add the real ones &mdash; brothers and sisters, pets, anyone they see every day.
-        This group matters more than all the others put together: the words a child
-        already cares about are the ones they'll learn first, and by a long way.
+        Add anything &mdash; a name, a word, a whole sentence. Record it in a couple of
+        minutes, tick what to include, and make the video: the sounds build into words,
+        the words into sentences, ending with your own read &mdash; each word lighting
+        up as you say it.
       </p>
     </div>
 
     <div class="field">
-      <div class="field-head">
-        <label for="wordlist">Your word list</label>
-        <span class="dirty-dot" id="dirty-dot" hidden>Not saved yet</span>
-      </div>
-      <textarea id="wordlist" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      <label for="sentence-input">Something to add</label>
+      <textarea id="sentence-input" rows="2" spellcheck="false" autocapitalize="sentences"
+                placeholder="Alex went to the park with Nana."></textarea>
       <p class="hint">
-        One word per line. <code># notes</code> are ignored, <code>[Brackets]</code> start a group,
-        and an optional colour like <code>Skye&nbsp;&nbsp;#ff8fc7</code> shows that word in that colour.
+        A single word is fine. Paste a few sentences at once if you like &mdash; they are
+        split up sentence by sentence.
       </p>
     </div>
-
     <div class="rowbar">
-      <button class="btn btn-primary" id="save-words" type="button">Save my words</button>
-      <button class="btn btn-quiet" id="revert-words" type="button">Undo my changes</button>
-      <span class="save-state" id="save-state" role="status" aria-live="polite"></span>
+      <button class="btn btn-primary" id="sentence-add" type="button">Add to the list</button>
+      <span class="save-state" id="sentence-added" role="status" aria-live="polite"></span>
     </div>
+    <p class="error-line" id="sentence-error" role="alert" hidden></p>
 
-    <div class="panel">
-      <div class="panel-head">
-        <h2>What they'll see</h2>
-        <p class="count" id="word-count">&nbsp;</p>
-      </div>
-      <div id="groups" class="groups"></div>
-    </div>
-  </section>
-
-  <!-- ============================================================= MAKE -->
-  <section class="screen" id="screen-make" hidden>
-    <div class="page-head">
-      <h1>Make a video</h1>
-      <p class="lede">Play it on this screen, or save it as a file you can put on a USB stick.</p>
-    </div>
-
-    <fieldset class="block">
-      <legend><span class="step">1</span> Where they're up to</legend>
-      <p class="hint block-hint">
-        Each level builds on the one before. Stay on a level until it's easy &mdash;
-        there's no rush, and repeating is the point.
-      </p>
-      <div class="choice-list" id="levels"></div>
-
-      <div class="level-extra" id="level-text-wrap" hidden>
-        <label class="setting-label" for="level-text">What would you like read?</label>
+    <details class="packs-box">
+      <summary>Add a starter pack &mdash; Paw Patrol, letter sounds, and more</summary>
+      <div class="packs-body">
         <p class="hint">
-          Paste anything &mdash; a page of a book, a message from a relative, what you did
-          today. It is read a word at a time, then the whole line.
+          These follow the reading research: personally meaningful words first, then
+          letter sounds, then sounding out, then sentences. Add a pack when they are
+          ready for it &mdash; each one is just entries on the list; remove any you like.
         </p>
-        <textarea id="level-text" rows="5" spellcheck="false"
-                  placeholder="Alex went to the park with Nana. They saw a big brown dog."></textarea>
-        <p class="hint" id="level-text-count"></p>
+        <div id="packs" class="packs"></div>
       </div>
+    </details>
 
-      <div class="level-extra" id="level-stage-wrap" hidden>
-        <span class="setting-label" id="lbl-stage">How many letters do they know?</span>
-        <div class="segmented" role="radiogroup" aria-labelledby="lbl-stage" id="stage"></div>
-        <p class="hint" id="stage-note"></p>
-      </div>
-    </fieldset>
+    <div id="sentence-list" class="sentence-list" aria-live="polite"></div>
 
-    <fieldset class="block">
-      <legend><span class="step">2</span> How it looks</legend>
-      <div class="theme-list" id="themes"></div>
-    </fieldset>
+    <fieldset class="block make-block">
+      <legend>Make the video</legend>
+      <p class="summary" id="make-summary" role="status" aria-live="polite">&nbsp;</p>
 
-    <fieldset class="block">
-      <legend><span class="step">3</span> How it plays</legend>
       <div class="settings-grid">
-        <div class="setting">
-          <span class="setting-label" id="lbl-minutes">How long</span>
-          <div class="segmented" role="radiogroup" aria-labelledby="lbl-minutes" id="minutes"></div>
-          <p class="hint">Then it starts again from the beginning.</p>
-        </div>
-        <div class="setting">
-          <span class="setting-label" id="lbl-reps">Each word shown</span>
-          <div class="segmented" role="radiogroup" aria-labelledby="lbl-reps" id="reps"></div>
-          <p class="hint">Repetition is how it sticks. Three is a good place to start.</p>
-        </div>
         <div class="setting">
           <span class="setting-label" id="lbl-pause">Gap between words</span>
           <div class="segmented" role="radiogroup" aria-labelledby="lbl-pause" id="pause"></div>
           <p class="hint">Long enough for them to have a go before the next one.</p>
         </div>
+        <div class="setting">
+          <span class="setting-label" id="lbl-themes">How it looks</span>
+          <div class="theme-list" id="themes"></div>
+        </div>
+      </div>
+
+      <div class="makebar">
+        <div class="makebar-buttons">
+          <button class="btn btn-primary btn-big" id="btn-play" type="button">▶&nbsp; Play on this screen</button>
+          <button class="btn btn-second btn-big" id="btn-export" type="button">⬇&nbsp; Save as a video file</button>
+        </div>
+        <p class="hint" id="export-note" hidden>
+          Saving performs the video once in real time &mdash; a 6 minute video takes 6
+          minutes; leave the app open. The file is WebM; for a TV, playing on this
+          screen is usually the easier way.
+        </p>
+        <div class="progress" id="make-progress" hidden>
+          <p id="make-progress-text"></p>
+          <div class="bar"><div class="bar-fill" id="make-progress-fill" style="width:0%"></div></div>
+          <button class="btn btn-quiet" id="btn-cancel-export" type="button" hidden>Stop</button>
+        </div>
+        <p class="voice-note" id="voice-note" hidden></p>
       </div>
     </fieldset>
-
-    <div class="makebar">
-      <p class="summary" id="make-summary" role="status" aria-live="polite">&nbsp;</p>
-      <div class="makebar-buttons">
-        <button class="btn btn-primary btn-big" id="btn-play" type="button">▶&nbsp; Play on this screen</button>
-        <button class="btn btn-second btn-big" id="btn-export" type="button">⬇&nbsp; Save as a video file</button>
-      </div>
-      <p class="hint" id="export-note" hidden>
-        Saving performs the video once in real time, so a 10 minute video takes 10 minutes
-        to save &mdash; leave the app open while it runs. The file is WebM; for a TV, playing
-        on this screen is usually the easier way.
-      </p>
-      <div class="progress" id="make-progress" hidden>
-        <p id="make-progress-text"></p>
-        <div class="bar"><div class="bar-fill" id="make-progress-fill" style="width:0%"></div></div>
-        <button class="btn btn-quiet" id="btn-cancel-export" type="button" hidden>Stop</button>
-      </div>
-      <p class="voice-note" id="voice-note" hidden></p>
-    </div>
   </section>
 
-  <!-- ============================================================ VOICE -->
-  <section class="screen" id="screen-voice" hidden>
+  <!-- ============================================================ SETUP
+       Everything done once: the 42 sounds, the shared word bank, keeping the
+       recordings safe. -->
+  <section class="screen" id="screen-setup" hidden>
     <div class="page-head">
-      <h1>Your voice</h1>
+      <h1>Setup</h1>
       <p class="lede">
-        Record yourself once, and your child hears you instead of the computer &mdash;
-        for everything in the early levels, exactly as you said it.
+        Done once, shared by everything: the letter sounds, and the bank of words
+        you have recorded.
       </p>
     </div>
 
-    <div class="voice-intro">
-      <p>
-        <b>The sounds are the part only you can do.</b> An isolated &ldquo;t&rdquo; is exactly
-        what a computer voice gets wrong, and a wrong sound teaches the wrong thing.
-        Forty-two of them, about ten minutes.
-      </p>
-      <p>
-        The words and sentences are worth recording if you have the time &mdash; a real voice
-        is always better &mdash; but until then the app uses its built-in voice, and if you set
-        up a Text-to-speech model in GifOS Settings it can also read words you add later.
-      </p>
-      <p class="hint">
-        Each item is recorded here, one at a time, with the app checking as you go &mdash;
-        it tells you straight away if something needs another go. GifOS does the actual
-        recording and shows its own microphone indicator.
-      </p>
-    </div>
-
-    <ol class="vparts" id="vparts">
+    <ol class="vparts">
       <li class="vpart" data-part="phonemes">
         <div class="vpart-num">1</div>
         <div class="vpart-body">
           <h2>The sounds <span class="vpart-count" id="count-phonemes"></span></h2>
-          <p>The 42 letter sounds &mdash; <i>sss</i>, <i>mmm</i>, <i>t</i>. These are what
-             sounding-out is built from, so they matter most.</p>
+          <p><b>The part only you can do.</b> The 42 letter sounds &mdash; <i>sss</i>,
+             <i>mmm</i>, <i>t</i>. Sounding-out is built from these, and an isolated
+             &ldquo;t&rdquo; is exactly what a computer voice gets wrong. About ten
+             minutes. Until then, the app uses a real human starter voice for the
+             sounds &mdash; never a computer guess.</p>
           <div class="rowbar">
-            <button class="btn btn-primary vpart-record" type="button" data-part="phonemes">Record these here</button>
-            <button class="btn btn-second vpart-review" type="button" data-part="phonemes">Listen back &amp; redo</button>
-            <button class="btn btn-quiet vpart-script" type="button" data-part="phonemes">Show what to say</button>
+            <button class="btn btn-primary" id="sounds-record" type="button">Record these here</button>
+            <button class="btn btn-second" id="sounds-review" type="button">Listen back &amp; redo</button>
+            <button class="btn btn-quiet" id="sounds-script" type="button">Show what to say</button>
           </div>
         </div>
       </li>
-      <li class="vpart" data-part="words">
+
+      <li class="vpart" data-part="bank">
         <div class="vpart-num">2</div>
         <div class="vpart-body">
-          <h2>The words <span class="vpart-count" id="count-words"></span></h2>
-          <p>Your word list, plus every word the levels teach, read normally. Worth doing
-             if you have the time &mdash; your real voice beats a generated one.</p>
+          <h2>Your word bank <span class="vpart-count" id="count-bank"></span></h2>
+          <p>Every word you have recorded, shared by every sentence that uses it &mdash;
+             so each sentence you add gets cheaper to record than the one before.
+             Words get recorded where the sentences live, on the Sentences tab; this is
+             where to listen back and redo any of them.</p>
           <div class="rowbar">
-            <button class="btn btn-primary vpart-record" type="button" data-part="words">Record these here</button>
-            <button class="btn btn-second vpart-review" type="button" data-part="words">Listen back &amp; redo</button>
-            <button class="btn btn-quiet vpart-script" type="button" data-part="words">Show what to say</button>
+            <button class="btn btn-second" id="bank-review" type="button">Listen back &amp; redo</button>
           </div>
         </div>
       </li>
-      <li class="vpart" data-part="sentences">
+
+      <li class="vpart" data-part="keep">
         <div class="vpart-num">3</div>
         <div class="vpart-body">
-          <h2>The sentences <span class="vpart-count" id="count-sentences"></span></h2>
-          <p><b>Worth the minute it takes.</b> Ten short lines, read the way you would to
-             your child. A sentence has stress and melody across the whole line, and
-             joined-up word clips have neither &mdash; so these cannot be built from the
-             single words, only recorded or generated.</p>
+          <h2>Keeping it safe</h2>
+          <p>Recordings live on this device, inside this app's icon &mdash; not on a
+             server, and never in the app anyone else would download. Recording takes a
+             while and cannot be redone exactly, so the one copy worth making is a
+             backup: a single GIF file with your recordings and your list inside it.
+             Dropping it onto any GifOS Home Screen brings everything back.</p>
           <div class="rowbar">
-            <button class="btn btn-primary vpart-record" type="button" data-part="sentences">Record these here</button>
-            <button class="btn btn-second vpart-review" type="button" data-part="sentences">Listen back &amp; redo</button>
-            <button class="btn btn-quiet vpart-script" type="button" data-part="sentences">Show what to say</button>
+            <button class="btn btn-primary" id="btn-backup" type="button">Save a backup copy of this app</button>
           </div>
         </div>
       </li>
     </ol>
 
-    <p class="voice-foot" id="voice-foot" role="status" aria-live="polite"></p>
-  </section>
-
-  <!-- ============================================================ ABOUT -->
-  <section class="screen" id="screen-about" hidden>
-    <div class="page-head">
-      <h1>About</h1>
-      <p class="lede">There isn't much here on purpose.</p>
-    </div>
-
-    <fieldset class="block">
-      <legend>What's ready</legend>
-      <ul class="ready-list" id="capabilities"></ul>
-    </fieldset>
-
-    <fieldset class="block">
-      <legend>Your recordings</legend>
-      <p>
-        Recordings are saved on this device, inside this app's icon. They never leave it:
-        not to a server, not into the app you'd share. The one copy worth making is a
-        backup &mdash; recording takes a while and cannot be redone exactly.
-      </p>
-      <div class="rowbar">
-        <button class="btn btn-primary" id="btn-backup" type="button">Save a backup copy of this app</button>
-      </div>
-      <p class="hint">
-        The backup is a single GIF file with your recordings and word list inside it.
-        Keep it on a memory stick or in your cloud drive; dropping it onto any GifOS
-        Home Screen brings everything back.
-      </p>
-    </fieldset>
-
     <fieldset class="block">
       <legend>The voices, honestly</legend>
       <p>
-        Three tiers, in order: <b>your recordings</b> are used exactly as you said them,
-        never altered. The <b>built-in voice</b> ships inside this app &mdash; each sound
-        was prepared offline with the schwa (&ldquo;tuh&rdquo; for /t/) measured and removed,
-        because a wrong sound teaches the wrong thing. And for words nobody recorded and
-        nothing bundled &mdash; names you add later, pasted text &mdash; a
-        <b>Text-to-speech model</b> from GifOS Settings reads whole words and sentences
-        only. Isolated sounds are never sent to a model: that is exactly what they get wrong.
+        Two voices exist, and nothing else: <b>your recordings</b>, used exactly as you
+        said them &mdash; levelled to TV volume, never otherwise altered &mdash; and the
+        <b>starter voice</b>, the app author's own recordings shipped with the app, used
+        for anything you have not recorded yet. Your recording always wins. There is no
+        computer voice anywhere: a word built up from sounds only makes sense when the
+        sounds and the word are the <i>same voice</i>, so an entry nobody has recorded
+        is left out of the video rather than faked.
       </p>
+      <ul class="ready-list" id="capabilities"></ul>
     </fieldset>
 
     <fieldset class="block">
       <legend>Credits</legend>
       <p class="hint">
         Letters are set in Andika (SIL, OFL licence), designed for beginner readers.
-        The built-in voice was generated with the Kokoro speech model and shaped by the
-        Sound It Out pipeline. MIT licensed; part of the GifOS project.
+        The built-in voice was generated with the Kokoro speech model and shaped by
+        the Sound It Out pipeline. MIT licensed; part of the GifOS project.
       </p>
     </fieldset>
   </section>
 
 </main>
 
-<!-- The recording studio: a takeover overlay, because reading aloud from a
-     prompt needs the whole screen and nothing else competing for attention. -->
+<!-- The recording studio: one item at a time, full screen. Serves both the
+     42-sound session and each entry's walk-through. -->
 <div class="studio" id="studio" hidden>
   <div class="studio-bar">
     <span class="studio-progress" id="studio-progress"></span>
@@ -307,13 +216,14 @@
   </div>
 </div>
 
-<!-- Listen back and redo. Deleting a clip is the redo: progress is read from
-     what is stored, so removing one puts exactly that item back in the queue. -->
+<!-- Listen back and redo: a list of clips with play and delete. Deleting one
+     puts exactly that item back in the recording queue. Serves the sounds,
+     the word bank, and each entry's own clips. -->
 <div class="review" id="review" hidden>
   <div class="studio-bar">
     <h2 id="review-title">Listen back</h2>
     <div class="rowbar">
-      <button class="btn btn-quiet" id="review-clear" type="button">Start this part again</button>
+      <button class="btn btn-second" id="review-record" type="button" hidden>Record the rest</button>
       <button class="btn btn-quiet" id="review-close" type="button">Close</button>
     </div>
   </div>
@@ -321,7 +231,7 @@
   <div class="review-list" id="review-list"></div>
 </div>
 
-<!-- The script: what will be asked for, in order, for reading ahead. -->
+<!-- The script: what the sounds session will ask for, in order. -->
 <div class="script" id="script" hidden>
   <div class="studio-bar">
     <h2 id="script-title">What to say</h2>
@@ -332,9 +242,8 @@
 
 <script src="fonts-data.js"></script>
 <script src="clips-data.js"></script>
-<script src="wordlist.js"></script>
 <script src="curriculum.js"></script>
-<script src="openended.js"></script>
+<script src="library.js"></script>
 <script src="dsp.js"></script>
 <script src="store.js"></script>
 <script src="voice.js"></script>

@@ -29,7 +29,7 @@
   }
 
   // Perform the plan once and resolve with a Blob. onTick(seconds, total).
-  function exportVideo(plan, theme, colors, onTick) {
+  function exportVideo(plan, theme, onTick) {
     return new Promise((resolve, reject) => {
       if (!supported()) { reject(new Error('This browser cannot record video.')); return; }
       const dsp = SIO.dsp, F = SIO.frames;
@@ -56,9 +56,11 @@
       let tickTimer = 0;
       const engine = new SIO.player.Engine(plan, {
         ctx: actx,
-        dest,
+        // mastered exactly like the on-screen player, so the file and the
+        // screen are the same loudness
+        dest: SIO.player.masterChain(actx, dest),
         loop: false,
-        draw: (seg) => F.drawFrame(cctx, seg, theme, colors),
+        draw: (seg) => F.drawFrame(cctx, seg, theme),
         onDone: () => {
           clearInterval(tickTimer);
           // let the last frame land before the recorder closes
