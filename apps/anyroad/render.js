@@ -395,6 +395,14 @@
     ].join('\n'), [
       'precision highp float;',
       'uniform vec3 uLightDir; uniform vec3 uEye;',
+      // The satellite drape, for ROOFS ONLY. Nadir imagery photographs roofs and
+      // nothing else — there is not one pixel of facade in it — so this is the
+      // only part of a building it can honestly colour. uTileRect is the parent
+      // terrain tile's world-space rectangle (xWest, zNorth, xEast, zSouth);
+      // the frame maps lat/lon to metres linearly, so a tile IS an axis-aligned
+      // rect in world space and the uv falls out of vWorld with no extra vertex
+      // attribute to pack, bake or invalidate when the drape is toggled.
+      'uniform sampler2D uTex; uniform float uHasTex; uniform vec4 uTileRect;',
       'varying vec3 vNormal; varying float vTone; varying vec3 vWorld; varying vec3 vBinfo;',
       NOISE, FOG, LIGHTING,
       'void main(){',
@@ -530,6 +538,30 @@
       '  if (s > 0.40) roof = vec3(0.44, 0.26, 0.20);',              // pantile
       '  if (s > 0.78) roof = vec3(0.38, 0.38, 0.36);',              // felt and gravel
       '  float clutter = vnoise(vWorld.xz * 0.55 + s * 20.0);',
+      // Take the HUE from the photograph and keep the procedural detail as a
+      // modulation on top of it, rather than replacing one with the other: the
+      // imagery knows that Amalfi is terracotta and Montmartre is zinc, and it
+      // does NOT know where the vents and rooflights are — at 3 m per pixel it
+      // could not. Not a full mix, because a single roof is a handful of texels
+      // and going all the way there makes a street of them read as one smear.
+      '  vec2 tuv = vec2((vWorld.x - uTileRect.x) / (uTileRect.z - uTileRect.x),',
+      '                  (uTileRect.y - vWorld.z) / (uTileRect.y - uTileRect.w));',
+      '  vec3 photoRoof = texture2D(uTex, clamp(tuv, 0.0, 1.0)).rgb;',
+      // Lift it away from the shadow the photo was taken in: a satellite roof
+      // is darker than the same roof lit by our own sun, and a roof that reads
+      // darker than the wall under it looks like a hole in the building.
+      '  photoRoof *= 1.18;',
+      // 0.55, not 1.0, and the reason is arithmetic rather than taste. At the
+      // terrain tile's z14 the imagery is ~3.1 m per pixel, so a house roof is
+      // two or three texels wide and one bilinear sample spans ~6 m — it takes
+      // in the street and the neighbour's garden along with the roof. Taken at
+      // full strength that turns a row of Paris roofs sage green (measured);
+      // as a tint it moves them off terracotta and toward the zinc they
+      // actually are, which is the win that was available. Raise this the day
+      // imagery is fetched at a zoom where a roof is bigger than a texel.
+      '  float drape = uHasTex * 0.55;',
+      '  roof = mix(roof, photoRoof, drape);',
+      '  vec3 tileHue = photoRoof;',
       '  roof *= 0.86 + 0.30 * clutter;',
       '  roof += vec3(0.06) * step(0.80, clutter);',                 // plant, vents, skylights
       // A PITCHED roof is tile or slate, and it is a sloping surface — so it is
@@ -537,6 +569,10 @@
       // Rows of tiles run across the slope; without them a hip roof is a smooth
       // coloured cone and reads as a circus tent.
       '  vec3 tile = mix(vec3(0.48,0.26,0.19), vec3(0.34,0.33,0.35), step(0.55, s));',
+      // A pitched roof gets the same treatment — it is the one the eye reads
+      // first on a house, and leaving it procedural while the flat roofs went
+      // real would make a suburb look sorted into two unrelated towns.
+      '  tile = mix(tile, tileHue, drape);',
       '  float course = 0.90 + 0.14 * step(0.5, fract(h / 0.34));',
       '  tile *= course;',
       '  base = mix(base, roof, isRoof * (1.0 - isTile));',
@@ -1226,8 +1262,22 @@
     }
 
     common(progs.building);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(progs.building.u.uTex, 0);
     for (var b = 0; b < scene.buildings.length; b++) {
-      drawMesh(progs.building, scene.buildings[b], {
+      // An entry is { mesh, texture, rect } when the drape is on and a bare
+      // mesh otherwise — accepting both keeps every other caller (and every
+      // test that hands this a mesh directly) working unchanged.
+      var bl = scene.buildings[b];
+      var bmesh = bl && bl.mesh ? bl.mesh : bl;
+      if (!bmesh) continue;
+      var btex = bl && bl.texture ? bl.texture : null;
+      gl.bindTexture(gl.TEXTURE_2D, btex || blank());
+      gl.uniform1f(progs.building.u.uHasTex, btex ? 1 : 0);
+      // A degenerate rect would divide by zero in the shader; the identity here
+      // is never sampled because uHasTex is 0 alongside it.
+      gl.uniform4fv(progs.building.u.uTileRect, (btex && bl.rect) || [0, 1, 1, 0]);
+      drawMesh(progs.building, bmesh, {
         aPos: { src: 'positions', size: 3 }, aNormal: { src: 'normals', size: 3 },
         aTone: { src: 'tone', size: 1 }, aBinfo: { src: 'binfo', size: 3 },
       });
