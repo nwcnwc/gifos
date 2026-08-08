@@ -1716,37 +1716,85 @@
     // is a pyramid. The ridge is centred on the footprint's own extent rather
     // than on the centroid, which matters for an L: the centroid of an L is not
     // half way along it.
-    var gable = seed > 0.5;
+    // A RIDGE ONLY WORKS OVER A QUAD, and that is geometry rather than taste.
+    // The two slopes meet along the ridge only if opposite sides project onto
+    // the SAME span of it. For a four-cornered footprint they do. For an L or a
+    // hexagon they do not — each side lands on its own stretch of ridge, the
+    // two slopes never share an edge, and the roof comes apart into open flaps
+    // with gaps along the top. Closing that properly needs a straight skeleton,
+    // which is a real algorithm and not one to half-build.
+    //
+    // So anything that is not a quad gets a PYRAMID: half = 0 collapses both
+    // ridge ends onto one point, every face becomes a triangle to that apex,
+    // and a cone over a polygon is closed by construction whatever its shape.
+    // A hipped L would be nicer; an L with holes in its roof is not.
+    var gable = seed > 0.5 && poly.length === 4;
     var mid = (uMin + uMax) / 2;
-    var half = gable ? long / 2 : Math.max(0, (long - short) / 2);
+    var half = poly.length === 4
+      ? (gable ? long / 2 : Math.max(0, (long - short) / 2))
+      : 0;
     var rax = cx + ux * (mid - half), raz = cz + uz * (mid - half);
     var rbx = cx + ux * (mid + half), rbz = cz + uz * (mid + half);
 
-    for (var e = 0; e < poly.length; e++) {
-      var p0 = poly[e], p1 = poly[(e + 1) % poly.length];
-      var mx = (p0.x + p1.x) / 2, mz = (p0.z + p1.z) / 2;
-      // The nearest point ON the ridge segment: project, then clamp to its
-      // ends. A long side gets an apex directly inboard of itself; only the
-      // two hip ends reach a tip.
-      var t = (mx - rax) * (rbx - rax) + (mz - raz) * (rbz - raz);
+    // Project a footprint CORNER onto the ridge segment, clamped to its ends.
+    // Corners, not edge midpoints — that distinction is the whole of whether
+    // the roof is a closed surface. Projecting midpoints gives every edge its
+    // OWN apex, so two neighbouring triangles meet at a single corner point
+    // with a wedge-shaped hole between them, and the roof reads as a set of
+    // loose flaps rather than a lid. Projecting corners means the face for
+    // edge (p0,p1) and the face for (p1,p2) share BOTH the corner p1 and its
+    // ridge point, which is a shared edge, which is a closed surface.
+    function onRidge(px, pz) {
+      var t = (px - rax) * (rbx - rax) + (pz - raz) * (rbz - raz);
       var len2 = (rbx - rax) * (rbx - rax) + (rbz - raz) * (rbz - raz);
       t = len2 > 1e-6 ? Math.max(0, Math.min(1, t / len2)) : 0;
-      var rx = rax + (rbx - rax) * t, rz = raz + (rbz - raz) * t;
-      var edx = p1.x - p0.x, edz = p1.z - p0.z, el = Math.hypot(edx, edz) || 1;
-      var ox = edz / el, oz = -edx / el;              // outward, horizontal
-      var slope = Math.hypot(rx - mx, rz - mz) || 1;
-      var hyp = Math.hypot(slope, ridge);
+      return { x: rax + (rbx - rax) * t, z: raz + (rbz - raz) * t };
+    }
+
+    for (var e = 0; e < poly.length; e++) {
+      var p0 = poly[e], p1 = poly[(e + 1) % poly.length];
+      var a0 = onRidge(p0.x, p0.z), a1 = onRidge(p1.x, p1.z);
+      // A hip END collapses both corners onto the same ridge tip, so the quad
+      // degenerates to the triangle a hip end actually is.
+      var same = Math.abs(a0.x - a1.x) < 1e-4 && Math.abs(a0.z - a1.z) < 1e-4;
+      // Face normal from the real geometry rather than from the eave direction:
+      // with a sloping ridge line the two are not the same, and lighting that
+      // disagrees with the surface is what makes a roof look faceted.
+      var ux = p1.x - p0.x, uy = 0, uz2 = p1.z - p0.z;
+      var vx2 = a0.x - p0.x, vy2 = ridge, vz2 = a0.z - p0.z;
+      var nx2 = uy * vz2 - uz2 * vy2, ny2 = uz2 * vx2 - ux * vz2, nz2 = ux * vy2 - uy * vx2;
+      var nl = Math.hypot(nx2, ny2, nz2) || 1;
+      nx2 /= nl; ny2 /= nl; nz2 /= nl;
+      if (ny2 < 0) { nx2 = -nx2; ny2 = -ny2; nz2 = -nz2; }   // roofs face up
       var r0 = out.pos.length / 3;
-      out.pos.push(p0.x, top, p0.z, p1.x, top, p1.z, rx, top + ridge, rz);
-      for (var k = 0; k < 3; k++) {
-        out.nrm.push(ox * slope / hyp, ridge / hyp, oz * slope / hyp);
+      out.pos.push(p0.x, top, p0.z, p1.x, top, p1.z, a1.x, top + ridge, a1.z);
+      if (!same) out.pos.push(a0.x, top + ridge, a0.z);
+      var vcount = same ? 3 : 4;
+      for (var k = 0; k < vcount; k++) {
+        out.nrm.push(nx2, ny2, nz2);
         out.tone.push(tone + 0.05);
         out.binfo.push(base, seed, 8);            // 8 = tile, never a wall
       }
       out.idx.push(r0, r0 + 2, r0 + 1);
+      if (!same) out.idx.push(r0, r0 + 3, r0 + 2);
     }
   }
 
+  // How far a roof oversails its walls. Not decoration — it is a CORRECTION.
+  //
+  // OSM building outlines are overwhelmingly traced from aerial imagery, and
+  // what an aerial photograph shows is the ROOF, eaves included. So the mapped
+  // polygon is the roof outline, not the wall line, and extruding walls
+  // straight up it draws every building slightly too big — consistently, in
+  // every town, in a way that shows up as streets feeling narrower than they
+  // are and gaps between houses closing up.
+  //
+  // So the walls are INSET from the traced ring and the roof keeps it. That
+  // gets both facts right at once: the building is the size the survey implies,
+  // and the eave overhang (with its shadow line, which is most of what the eye
+  // reads as "roof") comes out of the same number instead of being invented on
+  // top of an already-too-large box.
+  var OVERHANG = 0.4;
   function extrude(frame, poly, height, out, cls, brand) {
     if (poly.length < 3) return;
     if (poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
@@ -1761,6 +1809,19 @@
       signed += pa.x * pb.z - pb.x * pa.z;
     }
     if (signed < 0) poly.reverse();
+    // The traced ring is the ROOF. Keep it, and stand the walls inside it.
+    // Tiny footprints (a bin store, a porch) would invert under an inset, so
+    // they keep their outline and simply have no eaves.
+    var roofRing = poly;
+    if (Math.abs(signed) / 2 > 12) {
+      var shrunk = outset(poly, -OVERHANG);
+      var sa = 0;
+      for (var si = 0; si < shrunk.length; si++) {
+        var sb = shrunk[(si + 1) % shrunk.length];
+        sa += shrunk[si].x * sb.z - sb.x * shrunk[si].z;
+      }
+      if (sa > 0) poly = shrunk;      // still wound the right way: it did not invert
+    }
     // One ground height for the whole footprint: a building does not follow the
     // hill, it sits on it (and per-corner heights make walls visibly skew).
     var base = Infinity;
@@ -1822,7 +1883,7 @@
       // EAVES. The roof oversails the walls by a third of a metre, which is the
       // difference between a house and a box with a lid on it — the shadow line
       // under an overhang is most of what the eye reads as "roof".
-      roofOver(outset(poly, 0.34), base, top, ridge, seed, tone, out);
+      roofOver(roofRing, base, top, ridge, seed, tone, out);
       // A chimney is four square metres of geometry and it is the second
       // loudest "this is a house" signal after the roof itself — a pitched box
       // with nothing on it still reads as a hut.
@@ -1834,11 +1895,12 @@
       return;
     }
 
-    // Flat roof.
-    var tris = triangulate(poly);
+    // Flat roof — also drawn on the TRACED ring, so it oversails the walls by
+    // the same overhang a pitched one does.
+    var tris = triangulate(roofRing);
     var rbase = out.pos.length / 3;
-    for (var r = 0; r < poly.length; r++) {
-      out.pos.push(poly[r].x, top, poly[r].z);
+    for (var r = 0; r < roofRing.length; r++) {
+      out.pos.push(roofRing[r].x, top, roofRing[r].z);
       out.nrm.push(0, 1, 0);
       out.tone.push(tone + 0.08);
       out.binfo.push(base, seed, cls);
