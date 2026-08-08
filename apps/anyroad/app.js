@@ -328,14 +328,25 @@
   // car cannot skip across a pool between frames the way it used to tunnel
   // through walls.
   function updateInWater() {
-    var wet = false;
+    var hit = null;
     for (var k in world.roads) {
       var r = world.roads[k];
       if (!r || !r.built || !r.built.wet) continue;
-      if (root.Roads.inWater(r.built.wet, car.x, car.z)) { wet = true; break; }
+      hit = root.Roads.waterAt(r.built.wet, car.x, car.z);
+      if (hit) break;
     }
-    if (wet && !car.inWater) root.UI.note('In the water — you are not driving out of this one.');
-    car.inWater = wet;
+    var was = car.inWater;
+    car.inWater = !!hit;
+    car.deepWater = !!(hit && hit.deep);
+    // One splash on ENTRY, scaled by how fast you hit it — arriving at 100 km/h
+    // is a different noise from rolling in. The deep variant carries the gulp
+    // underneath it, which is the only warning you get after the fact.
+    if (car.inWater && !was) {
+      root.Sound.splash(Math.min(1, Math.abs(car.speed) / 22), car.deepWater);
+      root.UI.note(car.deepWater
+        ? 'In deep — you are not driving out of this one.'
+        : 'Through the shallows.');
+    }
   }
 
   function collideBuildings(dtNow) {
@@ -794,7 +805,7 @@
     // Assemble the scene from whatever has actually loaded.
     var scene = { eye: [camera.x, camera.y, camera.z], target: [camera.tx, camera.ty, camera.tz],
                   fov: 60 + Math.min(14, Math.abs(car.speed) * 0.35), far: DRAW_DISTANCE, time: clock,
-                  terrain: [], roads: [], buildings: [], water: [], trees: [], shadows: [],
+                  terrain: [], roads: [], buildings: [], water: [], pools: [], trees: [], shadows: [],
                   cars: [], animals: root.Animals.drawList(),
                   bolts: root.Blaster.drawList() };
 
@@ -809,6 +820,7 @@
       scene.roads.push(r.built.roads);
       scene.buildings.push(drapedBuildings(r));
       scene.water.push(r.built.water);
+      if (r.built.pools) scene.pools.push(r.built.pools);
       if (r.built.shadows) scene.shadows.push(r.built.shadows);
       // Scenery has its own, much shorter draw distance. Roads and buildings
       // are what you navigate by and must reach the horizon; trees at a

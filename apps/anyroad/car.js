@@ -26,6 +26,7 @@
       health: 100,
       wrecked: false,
       inWater: false,
+      deepWater: false,     // deep drowns you; shallow is a ford
       sink: 0,              // metres the body has settled into water
       contactT: 0,        // seconds of unbroken contact with a wall
       hurtCool: 0,        // seconds until another impact may be charged
@@ -132,7 +133,7 @@
 
   function repair(car) {
     car.health = 100; car.wrecked = false; car.contactT = 0;
-    car.inWater = false; car.sink = 0;
+    car.inWater = false; car.deepWater = false; car.sink = 0;
     car.revArm = 0; car.stillT = 0; car.halted = false;
   }
 
@@ -192,7 +193,11 @@
     //
     // Every water polygon behaves this way, not just pools. Special-casing a
     // swimming pool while a lake stayed drivable would be the arbitrary rule.
-    if (car.inWater && !car.wrecked) {
+    // DEEP water ends the drive. Shallow water is a hazard you can blast
+    // through, and the player cannot reliably tell which is which before
+    // committing — that guesswork is the feature, not a rough edge. The one
+    // honest signal is colour: a turquoise pool is always deep.
+    if (car.inWater && car.deepWater && !car.wrecked) {
       car.speed *= Math.max(0, 1 - dt * 5.5);          // water is thick
       if (Math.abs(car.speed) < 0.4) car.speed = 0;
       car.sink = Math.min(1.35, (car.sink || 0) + dt * 1.6);
@@ -204,7 +209,14 @@
       car.y -= car.sink;
       return car;
     }
-    if (car.sink) car.sink = Math.max(0, car.sink - dt * 2.0);
+    // Shallow: a ford, not a grave. Heavy drag and the body wades a little,
+    // but the throttle still works and you can drive out the far side.
+    if (car.inWater && !car.deepWater) {
+      car.speed *= Math.max(0, 1 - dt * 1.5);
+      car.sink = Math.min(0.42, (car.sink || 0) + dt * 1.2);
+    } else if (car.sink) {
+      car.sink = Math.max(0, car.sink - dt * 2.0);
+    }
     if (car.wrecked) {
       // Wrecked: no drive, no steering authority, just roll to a halt and sit.
       car.speed *= Math.max(0, 1 - dt * 2.5);

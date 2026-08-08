@@ -405,9 +405,25 @@
     return true;
   }
 
+  // Hitting water. A broadband burst that falls in pitch (the cavity closing
+  // over), plus a longer hiss of spray. `deep` adds the swallow underneath —
+  // the difference between blasting through a puddle and going under.
+  function splash(force, deep) {
+    if (!started || silent) return;
+    var f = Math.max(0.25, Math.min(1, force));
+    burst({ freq: 1400, q: 0.5, dur: 0.28 * f + 0.12, gain: 0.30 * f, rate: 1.2 });
+    burst({ freq: 420, q: 0.7, dur: 0.45 * f + 0.2, gain: 0.26 * f, type: 'lowpass' });
+    tone({ type: 'sine', f0: 300 * f, f1: 70, dur: 0.40, gain: 0.20 * f, filter: 700 });
+    if (deep) {
+      // The gulp: low, slow, and it keeps going after the spray has stopped.
+      tone({ type: 'sine', f0: 120, f1: 38, dur: 1.1, gain: 0.26, filter: 320 });
+      burst({ freq: 220, q: 1.2, dur: 1.0, gain: 0.16, type: 'lowpass' });
+    }
+  }
+
   root.Sound = {
     unlock: unlock, setMode: setMode, drive: drive, traffic: traffic,
-    crash: crash, scrape: scrape, glass: glass, blast: blast, zap: zap,
+    crash: crash, scrape: scrape, glass: glass, blast: blast, zap: zap, splash: splash,
     call: call, thump: thump, horn: horn,
     ready: function () { return started; },
     // Test seam: the whole point of synthesis is that there is no file to
