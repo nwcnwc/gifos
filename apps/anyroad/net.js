@@ -57,9 +57,21 @@
   function schedule(url, run) {
     var host = hostOf(url);
     return new Promise(function (resolve, reject) {
-      queueFor(host).pending.push({ run: run, resolve: resolve, reject: reject });
+      // The url rides along so a caller can ask where its own request sits.
+      queueFor(host).pending.push({ run: run, resolve: resolve, reject: reject, url: url });
       pump(host);
     });
+  }
+
+  // 1-based place in this host's queue, 0 if it is already running, -1 if this
+  // host has never been asked. A driving game's loader is invisible by default
+  // and that invisibility is a UI problem: "nothing here yet" and "third in
+  // line behind two city tiles" look identical through a windscreen.
+  function positionOf(url) {
+    var q = queues[hostOf(url)];
+    if (!q) return -1;
+    for (var i = 0; i < q.pending.length; i++) if (q.pending[i].url === url) return i + 1;
+    return 0;
   }
 
   // A 429 (or a 504 from an Overpass that ran out of room) means back off for
@@ -215,7 +227,7 @@
 
   root.Net = {
     json: json, text: text, pixels: pixels, bitmap: bitmap, apiBitmap: apiBitmap,
-    hostState: hostState, hostOf: hostOf,
+    hostState: hostState, hostOf: hostOf, positionOf: positionOf,
     // Exposed so the HUD can say "waiting on the map" honestly rather than
     // leaving the player wondering whether the app has hung.
     stats: function () {

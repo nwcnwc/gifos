@@ -29,7 +29,7 @@
     hooks = h;
     ['view','hud','landing','settings','race','note','fatal','place','speed','speedo','status',
      'racehud','rh-time','rh-dist','rh-arrow','q','results','presets','attribution',
-     'attribution2','board','mp-status','race-badge','race-hint','cache-size',
+     'attribution2','board','mp-status','race-badge','race-hint','cache-size','tilemap',
      'src-terrain','src-roads','src-imagery','src-quality','note-terrain','note-imagery',
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
@@ -350,6 +350,66 @@
     el['note-imagery'].textContent = root.Sources.imagery.note || '';
   }
 
+  // ---- the loading map ------------------------------------------------------
+  // A tile is one of five things and each gets a colour a driver can read at a
+  // glance without stopping to interpret a legend:
+  //   ready     solid    — roads are down, drive here
+  //   building  amber    — the data arrived, geometry is being made
+  //   loading   blue     — in flight right now
+  //   want N    dim + N  — queued, and N is the place in the queue
+  //   failed    red      — that mirror gave up; the streamer will retry
+  // North-up rather than heading-up on purpose: the point is to compare
+  // DIRECTIONS ("more is ready to the east"), and a map that spins under you
+  // while you turn is the wrong tool for that.
+  var TILE_COL = {
+    ready:    'rgba(120, 214, 150, .92)',
+    building: 'rgba(232, 180,  92, .92)',
+    loading:  'rgba( 92, 178, 255, .92)',
+    want:     'rgba(255, 255, 255, .16)',
+    failed:   'rgba(226, 106, 106, .85)',
+  };
+  var tilePulse = 0;
+  function renderTileMap(tiles) {
+    var cv = el.tilemap;
+    if (!cv) return;
+    // Only while something is still coming. A permanent minimap is clutter in a
+    // game whose whole point is the windscreen.
+    var busy = tiles && tiles.some(function (t) { return t.state !== 'ready'; });
+    if (!busy) { cv.hidden = true; return; }
+    cv.hidden = false;
+    var g = cv.getContext('2d');
+    var W = cv.width, H = cv.height;
+    g.clearRect(0, 0, W, H);
+    // Fit whatever spread the streamer actually wants, so this never clips.
+    var span = 1;
+    for (var i = 0; i < tiles.length; i++) {
+      span = Math.max(span, Math.abs(tiles[i].dx), Math.abs(tiles[i].dy));
+    }
+    var n = span * 2 + 1, cell = Math.floor(Math.min(W, H) / n), pad = 1;
+    var ox = (W - cell * n) / 2, oy = (H - cell * n) / 2;
+    tilePulse = (tilePulse + 0.08) % (Math.PI * 2);
+    var pulse = 0.55 + 0.45 * Math.sin(tilePulse);
+    for (var j = 0; j < tiles.length; j++) {
+      var t = tiles[j];
+      var x = ox + (t.dx + span) * cell, y = oy + (t.dy + span) * cell;
+      g.globalAlpha = (t.state === 'loading') ? pulse : 1;
+      g.fillStyle = TILE_COL[t.state] || TILE_COL.want;
+      g.fillRect(x + pad, y + pad, cell - pad * 2, cell - pad * 2);
+      g.globalAlpha = 1;
+      // The queue position, which is the bit that lets you choose a direction.
+      if (t.state === 'want' && t.queue > 0 && cell >= 14) {
+        g.fillStyle = 'rgba(255,255,255,.72)';
+        g.font = Math.floor(cell * 0.5) + 'px system-ui, sans-serif';
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(String(t.queue), x + cell / 2, y + cell / 2 + 0.5);
+      }
+    }
+    // You are here.
+    g.fillStyle = 'rgba(255,255,255,.95)';
+    var cx = ox + span * cell + cell / 2, cy = oy + span * cell + cell / 2;
+    g.beginPath(); g.arc(cx, cy, Math.max(1.6, cell * 0.13), 0, Math.PI * 2); g.fill();
+  }
+
   function renderAttribution() {
     var lines = root.Sources.attribution();
     lines.push('Search: Nominatim / OpenStreetMap');
@@ -403,6 +463,7 @@
 
   // ---- per-frame -----------------------------------------------------------
   function hud(s) {
+    renderTileMap(s.tiles);
     var kph = Math.round(s.speed);
     if (kph !== last.kph) { el.speed.textContent = kph; last.kph = kph; }
 
