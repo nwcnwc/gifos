@@ -46,14 +46,40 @@
   // Public instances are rate-limited per client IP, which in our case means
   // per player — the one place the distributed-origin argument genuinely helps.
   // Several mirrors so load spreads and one bad day is not fatal.
+  //
+  // `bounds` ([W,S,E,N]) is the one piece of metadata a mirror list cannot do
+  // without, because NOT EVERY OVERPASS INSTANCE CARRIES THE WHOLE PLANET, and
+  // a regional one does not say so — it answers 200 with an empty element list,
+  // which is exactly what a genuine stretch of empty countryside looks like.
+  // Measured 2026-08-07: overpass.osm.ch returns 0 ways for London, Paris,
+  // Milan and New York, and full data for Zurich, Geneva and a German town 5 km
+  // over the border. It was listed here as a general mirror, so switching to it
+  // — the entire point of having a registry — silently produced a world with no
+  // roads in it. A source that cannot serve where you are standing must be
+  // knowable BEFORE it is asked, not inferred from a plausible-looking nothing.
   var ROADS = [
     { id: 'overpass-de', name: 'overpass-api.de', url: 'https://overpass-api.de/api/interpreter',
+      note: 'The main instance. Busiest, and the first to refuse a burst.',
       attribution: 'Roads: © OpenStreetMap contributors (ODbL)' },
     { id: 'overpass-kumi', name: 'Kumi Systems', url: 'https://overpass.kumi.systems/api/interpreter',
+      note: 'Worldwide mirror.',
+      attribution: 'Roads: © OpenStreetMap contributors (ODbL)' },
+    { id: 'overpass-coffee', name: 'private.coffee', url: 'https://overpass.private.coffee/api/interpreter',
+      note: 'Worldwide mirror.',
       attribution: 'Roads: © OpenStreetMap contributors (ODbL)' },
     { id: 'overpass-ch', name: 'overpass.osm.ch', url: 'https://overpass.osm.ch/api/interpreter',
+      note: 'Switzerland and its border regions ONLY — fast there, empty everywhere else.',
+      bounds: [5.5, 45.6, 11.0, 48.0],
       attribution: 'Roads: © OpenStreetMap contributors (ODbL)' },
   ];
+
+  // Can the chosen roads source serve this point at all? A source with no
+  // `bounds` claims the planet and is taken at its word.
+  function roadsCover(lat, lon) {
+    var b = byId(ROADS, current.roads).bounds;
+    if (!b) return true;
+    return lon >= b[0] && lon <= b[2] && lat >= b[1] && lat <= b[3];
+  }
 
   // ---- imagery: the optional satellite drape -------------------------------
   // Routed through gifos.api, so the key lives in GifOS Settings and the app
@@ -62,12 +88,29 @@
   var IMAGERY = [
     { id: 'none', name: 'Stylised (no imagery)', api: null,
       note: 'Flat-shaded terrain. No key, nothing to set up.', attribution: '' },
+    // The path is the TILES api, not the MAPS api, and that distinction is the
+    // whole bug this line used to carry. `@2x` is a Maps-API feature
+    // (/maps/{id}/{size}/{z}/{x}/{y}@2x.png); on /tiles/ it is a 404 for every
+    // tileset that exists. So a player with a perfectly good key got 404 on
+    // every tile and a HUD note reading "check the key in GifOS Settings" —
+    // sent to inspect the one thing that was fine. Verified against the live
+    // API: `.jpg` answers 200, `@2x.jpg` answers 404, and satellite-v2's own
+    // tiles.json advertises exactly this template. It needs no @2x because the
+    // tileset is ALREADY retina — tiles.json says scale 2, and the bytes are
+    // 512x512.
+    //
+    // Two further traps, both settled by measurement rather than by the docs:
+    // MapTiler's current documentation shows `satellite-v4`, which does not
+    // exist on a live account ("Tileset with this identifier does not exist");
+    // and tiles.json declares "schema":"tms", which would flip Y — it does not
+    // apply to the served URL. The TMS-flipped tile for Baker Street comes back
+    // as 2.8 KB of empty ocean, the XYZ one as 73 KB of Marylebone.
     { id: 'maptiler', name: 'MapTiler Satellite', api: 'maptiler',
-      path: '/tiles/satellite-v2/{z}/{x}/{y}@2x.jpg',
+      path: '/tiles/satellite-v2/{z}/{x}/{y}.jpg',
       note: 'Needs your own MapTiler key (free tier is generous). Add it in GifOS Settings → Third-party APIs, then pick it HERE — the key alone changes nothing until this layer is selected.',
       hint: 'Create a free key at maptiler.com, then set the base URL to https://api.maptiler.com',
       attribution: 'Imagery: © MapTiler © OpenStreetMap contributors',
-      maxZoom: 18 },
+      maxZoom: 22 },
   ];
 
   function byId(list, id) {
@@ -135,6 +178,7 @@
   root.Sources = {
     TERRAIN: TERRAIN, ROADS: ROADS, IMAGERY: IMAGERY,
     load: load, set: set, expand: expand, attribution: attribution,
+    roadsCover: roadsCover,
     onChange: function (cb) { listeners.push(cb); },
     get current() { return current; },
     get terrain() { return byId(TERRAIN, current.terrain); },

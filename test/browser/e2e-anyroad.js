@@ -24,7 +24,7 @@
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
 const { chromium, CHROME } = require('../lib/pw');
 const { appGif } = require('../lib/apps');
-const { HOP, FIXTURE_HEIGHT, routeWorld, overpassBody } = require('../lib/anyroad-fixtures');
+const { HOP, FIXTURE_HEIGHT, TILE_PNG, routeWorld, overpassBody } = require('../lib/anyroad-fixtures');
 const { readFileSync } = require('fs');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -59,14 +59,33 @@ function check(name, cond, detail) {
   await context.addInitScript(() => {
     try { localStorage.setItem('gifos_api_config', JSON.stringify({ maptiler: { url: 'https://api.maptiler.com', key: 'e2e-key-123', authType: 'header', authName: 'x-totally-wrong' } })); } catch (e) {}
   });
+  // This stub used to fulfil EVERY api.maptiler.com URL with a flat 404, and
+  // assert only that the drape failed VISIBLY. That is green whether the app
+  // asks for the right path or a wrong one — so it guarded nothing about the
+  // path, and the app shipped asking for one that does not exist, 404ing on
+  // every tile while telling the player to check a key that was fine.
+  //
+  // So the stub now answers the way the live API does. Verified against
+  // api.maptiler.com on 2026-08-07 with a real key:
+  //   /tiles/satellite-v2/{z}/{x}/{y}.jpg  + ?key=  → 200, a 512x512 JPEG
+  //   …the same path with @2x                       → 404 (@2x is a /maps/ feature)
+  //   /tiles/satellite-v4/…  (what the docs show)   → 404, no such tileset
+  //   any of them with no key                       → 403 "Missing key"
+  // The bytes are a PNG because this suite already builds valid ones and the
+  // drape is format-agnostic — the dimension under test is the PATH.
+  const MT_TILE = /^\/tiles\/satellite-v2\/\d+\/\d+\/\d+\.jpg$/;
   const mtSeen = [];
   await context.route('**://api.maptiler.com/**', async (route) => {
     const u = new URL(route.request().url());
     const h = route.request().headers();
-    mtSeen.push({ path: u.pathname, keyQ: u.searchParams.get('key'),
+    const key = u.searchParams.get('key');
+    mtSeen.push({ path: u.pathname, keyQ: key,
                   bearer: /Bearer/.test(h.authorization || ''),
                   wrongHeader: 'x-totally-wrong' in h });
-    await route.fulfill({ status: 404, headers: { 'Access-Control-Allow-Origin': '*' }, body: 'no tile here' });
+    const cors = { 'Access-Control-Allow-Origin': '*' };
+    if (!key) return route.fulfill({ status: 403, headers: cors, body: 'Missing key' });
+    if (!MT_TILE.test(u.pathname)) return route.fulfill({ status: 404, headers: cors, body: 'Not found' });
+    await route.fulfill({ status: 200, headers: cors, contentType: 'image/png', body: TILE_PNG });
   });
 
   const hits = await routeWorld(context);
@@ -1007,20 +1026,48 @@ function check(name, cond, detail) {
     window.Sources.set({ imagery: 'maptiler' });
     await new Promise((r) => setTimeout(r, 600));
     const after = window.App.imagery();
+
+    // Now ask for the path the app USED to ask for. The stub answers exactly as
+    // the live API does, so this is the real 404 and not a staged one — it
+    // proves the suite can tell a right path from a wrong one, which is the
+    // property it lacked when the wrong path shipped.
+    const src = window.Sources.IMAGERY.filter((s) => s.id === 'maptiler')[0];
+    const good = src.path;
+    src.path = '/tiles/satellite-v2/{z}/{x}/{y}@2x.jpg';
+    window.App.redrape();
+    await new Promise((r) => setTimeout(r, 600));
+    const wrong = window.App.imagery();
+    src.path = good;
+
     window.Sources.set({ imagery: 'none' });
     await new Promise((r) => setTimeout(r, 300));
     const off = window.App.imagery();
-    return { before, after, off, tiles: Object.keys(window.App.world.terrain).length };
+    return { before, after, wrong, off, path: good, tiles: Object.keys(window.App.world.terrain).length };
   });
   check('turning the satellite on re-drapes the ground already under you',
     drape.after.tried > drape.before.tried,
     drape.before.tried + ' -> ' + drape.after.tried + ' requests for ' + drape.tiles + ' loaded tiles');
+  // THE guard. The app asked for a path MapTiler does not serve, so every tile
+  // 404'd while the HUD blamed the key; nothing here could tell, because the
+  // stub 404'd everything. Assert the tiles actually ARRIVE.
+  check('the satellite path is one MapTiler actually serves',
+    drape.after.ok > 0 && !drape.after.failed,
+    drape.path + ' → ok ' + drape.after.ok + '/' + drape.after.tried +
+    (drape.after.failed ? ', failed: ' + drape.after.failed : ''));
+  check('…and the ground is genuinely textured with it',
+    drape.after.draped > 0, drape.after.draped + ' of ' + drape.tiles + ' tiles draped');
+  // @2x is a /maps/ feature; on /tiles/ it is a 404 for every tileset. If this
+  // ever passes, the stub has stopped discriminating and the guard above is
+  // hollow again.
+  check('an @2x path on the tiles endpoint is refused, as the live API refuses it',
+    drape.wrong.ok === 0 && /404/.test(drape.wrong.failed || ''),
+    'ok ' + drape.wrong.ok + '/' + drape.wrong.tried + ', reported: ' + JSON.stringify(drape.wrong.failed));
+  // Failing visibly is the point: an empty catch is why a missing key and a
+  // working satellite looked the same from the driver's seat.
+  check('a drape that cannot load says so instead of failing silently',
+    !!drape.wrong.failed, 'reported: ' + JSON.stringify(drape.wrong.failed));
   check('…and turning it off puts the stylised ground back',
     drape.off.draped === 0, drape.off.draped + ' tiles still textured');
-  // It has no key in here, so it must FAIL — and failing visibly is the point:
-  // an empty catch is why a missing key and a working satellite looked the same.
-  check('a drape that cannot load says so instead of failing silently',
-    !!drape.after.failed, 'reported: ' + JSON.stringify(drape.after.failed));
   // NOT_CONFIGURED makes the RUNTIME put its own "set it up" sheet over the
   // whole page — correct behaviour, and it is in the app page rather than the
   // sandboxed frame, so it covers every later click. Clear it.

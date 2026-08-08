@@ -41,12 +41,14 @@
       "s3.amazonaws.com",
       "overpass-api.de",
       "overpass.kumi.systems",
+      "overpass.private.coffee",
       "overpass.osm.ch",
       "nominatim.openstreetmap.org"
     ],
     "pool": [
       "overpass-api.de",
       "overpass.kumi.systems",
+      "overpass.private.coffee",
       "overpass.osm.ch"
     ],
     "api": [
@@ -57,7 +59,7 @@
   "cover": "/apps/anyroad/cover.jpg",
   "screenshots": [],
   "gif": "/apps/anyroad/anyroad.gif",
-  "bytes": 285539,
-  "sha256": "7ee8327ad09d17345539cd11b1bb3303f8fff3c5103c55a2a3c515b67d3a2e3c",
+  "bytes": 287839,
+  "sha256": "a3d16d850b596c1f2c03fa5968ec260ad3b05cde1fbdb91460c7daf18cab9392",
   "signature": null
 }

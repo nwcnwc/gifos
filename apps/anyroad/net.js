@@ -21,6 +21,7 @@
     'nominatim.openstreetmap.org': { gap: 1200, conc: 1 },   // policy: max 1 req/sec
     'overpass-api.de':             { gap: 1000, conc: 2 },
     'overpass.kumi.systems':       { gap: 1000, conc: 2 },
+    'overpass.private.coffee':     { gap: 1000, conc: 2 },
     'overpass.osm.ch':             { gap: 1000, conc: 2 },
     's3.amazonaws.com':            { gap: 0,    conc: 8 },   // open data, built for it
     _default:                      { gap: 0,    conc: 4 },
@@ -63,6 +64,17 @@
 
   // A 429 (or a 504 from an Overpass that ran out of room) means back off for
   // real. Doubling per consecutive refusal, capped, cleared by any success.
+  //
+  // 406 belongs in that set too, however little it looks like it. overpass-api.de
+  // answers a sustained series of requests from one address with `406 Not
+  // Acceptable` — not 429 — and once it starts it does not stop for a good while.
+  // Measured 2026-08-07: two 200s, then 406 to every request from both curl and
+  // node for the next several minutes, while /api/status kept cheerfully
+  // reporting "2 slots available". Treated as an ordinary error it earns no
+  // penalty at all, so the loader — which asks for nine tiles at a tile crossing
+  // — keeps firing into a host that is refusing it, which is both rude and
+  // useless. Backing off is the only response that can help.
+  var BUSY_STATUS = { 406: 1, 429: 1, 504: 1 };
   function penalise(host, status) {
     var q = queueFor(host);
     q.strikes = (q.strikes || 0) + 1;
@@ -92,7 +104,7 @@
     var host = hostOf(url);
     return schedule(url, function () {
       return root.Host.fetch(url, opts).then(function (r) {
-        if (r.status === 429 || r.status === 504) {
+        if (BUSY_STATUS[r.status]) {
           var wait = penalise(host, r.status);
           var e = new Error('busy: ' + host + ' returned ' + r.status + ', backing off ' + Math.round(wait / 1000) + 's');
           e.busy = true; e.status = r.status;
