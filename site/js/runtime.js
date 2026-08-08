@@ -865,13 +865,19 @@
     const withPreview = kind !== 'audio';
     const bg = doc.createElement('div');
     bg.setAttribute('data-gifos-capture', '1');
-    bg.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.62);font:15px system-ui;color:#fff;padding:16px;box-sizing:border-box';
+    // Audio keeps the page READABLE: a mic capture is often a prompt the user
+    // is reading aloud (a recording studio, a karaoke line), and a 62% dim
+    // over the very text being read defeats the capture. The indicator box —
+    // the unfakeable part — stays; only the darkness goes. Camera kinds keep
+    // the full dim: the preview is the thing to look at there.
+    bg.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,' + (withPreview ? '.62' : '.15') + ');font:15px system-ui;color:#fff;padding:16px;box-sizing:border-box';
     const box = doc.createElement('div');
-    box.style.cssText = 'background:#141018;border:1px solid #ff5c5c;border-radius:14px;padding:16px 18px;max-width:' + (withPreview ? '380px' : '320px') + ';width:100%;text-align:center;box-sizing:border-box';
+    box.style.cssText = 'background:#141018;border:1px solid #ff5c5c;border-radius:14px;padding:16px 18px;max-width:' + (withPreview ? '380px' : '320px') + ';width:100%;text-align:center;box-sizing:border-box;box-shadow:0 12px 40px rgba(0,0,0,.5)';
     const noun = kind === 'photo' ? 'a photo' : kind;
     const dev = kind === 'audio' ? 'mic' : 'camera';
     box.innerHTML =
-      (withPreview
+      '<div id="gc-grip" style="color:#8a8a9a;font-size:12px;letter-spacing:2px;margin:-6px 0 6px;cursor:grab;user-select:none;touch-action:none">⠿ drag to move</div>'
+      + (withPreview
         ? '<div style="position:relative;margin-bottom:12px">'
           + '<video id="gc-prev" autoplay playsinline muted style="width:100%;max-height:44vh;border-radius:10px;background:#000;display:block"></video>'
           + (opts.onFlip ? '<button id="gc-flip" title="Switch camera" style="position:absolute;top:8px;right:8px;width:40px;height:40px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:18px;line-height:40px;cursor:pointer">🔄</button>' : '')
@@ -887,6 +893,33 @@
       + (opts.onCancel ? '<button id="gc-cancel" style="padding:9px 16px;border:1px solid #3a3a48;border-radius:9px;background:transparent;color:#c8c8dc;font:inherit;cursor:pointer">Cancel</button>' : '')
       + '</div>';
     bg.appendChild(box); doc.body.appendChild(bg);
+    // The dialog can be MOVED OUT OF THE WAY: it lands over the middle of the
+    // screen, which is often exactly where the text being recorded is. Drag
+    // by the grip or any non-interactive part of the box; pointer events so
+    // one path serves mouse and touch alike.
+    (function draggable() {
+      let dx = 0, dy = 0, sx = 0, sy = 0, bx = 0, by = 0, dragging = false;
+      const move = (e) => {
+        if (!dragging) return;
+        dx = bx + (e.clientX - sx); dy = by + (e.clientY - sy);
+        // keep a graspable corner on-screen
+        const w = root.innerWidth || 320, h = root.innerHeight || 480;
+        dx = Math.max(-w / 2 + 40, Math.min(w / 2 - 40, dx));
+        dy = Math.max(-h / 2 + 40, Math.min(h / 2 - 40, dy));
+        box.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      };
+      box.addEventListener('pointerdown', (e) => {
+        const t = e.target;
+        if (t && (t.closest && t.closest('button,video,a,input'))) return;
+        dragging = true; sx = e.clientX; sy = e.clientY; bx = dx; by = dy;
+        try { box.setPointerCapture(e.pointerId); } catch (err) {}
+        e.preventDefault();
+      });
+      box.addEventListener('pointermove', move);
+      const end = () => { dragging = false; };
+      box.addEventListener('pointerup', end);
+      box.addEventListener('pointercancel', end);
+    })();
     let t0 = Date.now(); const tEl = box.querySelector('#gc-t');
     const iv = kind === 'photo' ? null : setInterval(() => {
       const s = Math.floor((Date.now() - t0) / 1000);
