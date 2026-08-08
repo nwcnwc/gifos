@@ -514,6 +514,8 @@
     $('studio-skip').addEventListener('click', () => { if (!studio.busy) studioAdvance(); });
     $('studio-redo').addEventListener('click', studioRedo);
     $('studio-close').addEventListener('click', () => closeOverlay(closeStudio));
+    $('review-close').addEventListener('click', () => closeOverlay(closeReview));
+    $('script-close').addEventListener('click', () => closeOverlay(closeScript));
   }
 
   // ------------------------------------------------------------ review
