@@ -12,6 +12,11 @@
     status: [],     // statusOf() result, same order
     done: new Map(),
     building: false,
+    // Joined through an invite: the library and her voice are visible and
+    // audible (read-only), the list is editable, but RECORDING stays on the
+    // host's device - the microphone follows the owner, not the link.
+    guest: false,
+    me: null,
   };
   const unticked = () => new Set(state.prefs.unticked || []);
   const overlays = [];
@@ -54,16 +59,21 @@
     if (s.kind === 'letter') {
       return s.ready ? 'Uses the sounds from Setup.' : 'Uses the sounds from Setup - not recorded yet.';
     }
+    const voice = state.guest ? 'recorded' : 'in your voice';
     const bits = [];
     if (s.words === 1) {
       bits.push(s.missing.length
-        ? (s.ready ? 'Starter voice until you record it.' : 'Not recorded yet.')
-        : 'In your voice.');
+        ? (s.ready ? (state.guest ? 'Starter voice for now.' : 'Starter voice until you record it.') : 'Not recorded yet.')
+        : (state.guest ? 'Recorded.' : 'In your voice.'));
     } else {
-      bits.push(`${s.recordedWords} of ${s.words} words in your voice.`);
+      bits.push(`${s.recordedWords} of ${s.words} words ${voice}.`);
       bits.push(s.lineRecorded ? 'Line recorded.' : 'Line still to read.');
     }
-    if (!s.ready) bits.push('Record it to include it in the video.');
+    if (!s.ready) {
+      bits.push(state.guest
+        ? 'Waiting on the owner’s recording to join the video.'
+        : 'Record it to include it in the video.');
+    }
     return bits.join(' ');
   }
 
@@ -111,7 +121,7 @@
 
       const actions = document.createElement('div');
       actions.className = 'sentence-actions';
-      if (s.kind !== 'letter' && (s.missing.length || !s.lineRecorded)) {
+      if (!state.guest && s.kind !== 'letter' && (s.missing.length || !s.lineRecorded)) {
         const rec = document.createElement('button');
         rec.className = 'btn btn-primary btn-small';
         rec.textContent = 'Record';
@@ -355,6 +365,7 @@
 
   function openStudio(items, onDone) {
     if (!SIO.store.inGifOS()) { alert('Recording needs this app to be open inside GifOS.'); return; }
+    if (state.guest) { alert('Recording happens on the owner’s device — the microphone follows them, not the link.'); return; }
     if (!items.length) { alert('Everything here is recorded. Use “Listen back & redo” to change one.'); return; }
     studio.queue = items;
     studio.index = 0;
@@ -482,6 +493,7 @@
 
   // The walk-through for one entry: its unrecorded words, then the line.
   async function recordEntry(s) {
+    if (state.guest) { alert('Recording happens on the owner’s device — the microphone follows them, not the link.'); return; }
     const done = await SIO.studio.doneMap();
     const items = SIO.library.walkthroughItems(s.text)
       .filter((it) => !done.has(SIO.studio.storageId(it)));
@@ -497,9 +509,12 @@
   // previous take kept as a backup - so quitting half way loses nothing.
   function openReview(title, hint, rows, recordRemainder) {
     $('review-title').textContent = title;
-    $('review-hint').textContent = hint;
+    $('review-hint').textContent = state.guest
+      ? 'Tap one to hear it. Recording and redoing happen on the owner’s device.' : hint;
     const list = $('review-list');
     list.innerHTML = '';
+    // Guests listen; only the owner records, redoes or deletes.
+    if (state.guest) rows = rows.map((r) => Object.assign({}, r, { item: null, noDelete: true }));
     const selectable = rows.some((r) => r.item);
     const selected = new Map(); // id -> item
     const redoBtn = $('review-redo');
@@ -541,7 +556,7 @@
       row.appendChild(play);
       row.appendChild(word);
       row.appendChild(metaEl);
-      if (!r.missing) {
+      if (!r.missing && !r.noDelete) {
         const del = document.createElement('button');
         del.className = 'row-del';
         del.innerHTML = TRASH_SVG;
@@ -597,7 +612,7 @@
     });
     openReview('Listen back — ' + s.text,
       'Each word, then the whole line. Tick what to redo — it records over the top, and the old take is kept.',
-      rows, () => recordEntry(s));
+      rows, state.guest ? null : () => recordEntry(s));
   }
 
   // ------------------------------------------------------------------ setup
@@ -728,10 +743,42 @@
   }
   function playerClosed() { overlays.pop(); }
 
+  // ---------------------------------------------------------- presence
+  // A tiny read-write collection so an invite is VISIBLE: everyone puts a
+  // heartbeat row, everyone renders everyone else's. Kept lean - a few tens
+  // of bytes per participant - because subscribers re-download a collection
+  // on every change.
+  const PRESENCE_FRESH_MS = 2 * 60 * 1000;
+
+  function startPresence() {
+    if (!SIO.store.inGifOS() || !state.me) return;
+    const beat = () => SIO.store.db('presence')
+      .put({ id: 'p/' + state.me.id, name: state.me.name || 'someone', when: Date.now() })
+      .catch(() => { /* a missed heartbeat is invisible, not an error */ });
+    beat();
+    setInterval(beat, 45 * 1000);
+    SIO.store.db('presence').subscribe((rows) => {
+      const now = Date.now();
+      const others = (rows || []).filter((r) =>
+        r && r.id !== 'p/' + state.me.id && now - (r.when || 0) < PRESENCE_FRESH_MS);
+      const chip = $('presence');
+      if (!others.length) { chip.hidden = true; return; }
+      chip.textContent = '● ' + others.map((r) => r.name).join(', ') + (others.length === 1 ? ' is here' : ' are here');
+      chip.hidden = false;
+    });
+  }
+
   // --------------------------------------------------------------- init
 
   async function init(loaded) {
     state.prefs = Object.assign(state.prefs, loaded.prefs || {});
+    if (window.gifos) {
+      try {
+        const info = await window.gifos.info();
+        state.guest = !!(info && info.owner === false);
+      } catch (e) { /* standalone/host */ }
+      try { state.me = await window.gifos.me(); } catch (e) { /* anonymous */ }
+    }
     document.querySelectorAll('.tab').forEach((t) =>
       t.addEventListener('click', () => switchTab(t.dataset.screen)));
     wireAdd();
@@ -742,6 +789,16 @@
     await refreshLibrary();
     switchTab('sentences');
     if (window.gifos && window.gifos.onBack) window.gifos.onBack(backPressed);
+    startPresence();
+    // Live for everyone connected: a sentence added at one end, or a word
+    // recorded at the other, appears without a reload. Debounced - the two
+    // subscriptions fire together on connect.
+    if (SIO.store.inGifOS()) {
+      let t = 0;
+      const poke = () => { clearTimeout(t); t = setTimeout(refreshLibrary, 300); };
+      SIO.store.db('library').subscribe(poke);
+      SIO.store.db('recmeta').subscribe(poke);
+    }
   }
 
   SIO.ui = { init, playerClosed, state };
