@@ -339,15 +339,20 @@
       place and drives the same world. Use <b>Invite</b> in the GifOS menu to
       send the link.</p>
 
+    <label class="field">
+      <span>How far away should the flag be?</span>
+      <select id="race-dist">
+        <option value="800">Just up the road — 800 m</option>
+        <option value="2500" selected>A proper drive — 2.5 km</option>
+        <option value="6000">A long one — 6 km</option>
+        <option value="15000">An expedition — 15 km</option>
+      </select>
+    </label>
     <div class="racebuttons">
-      <button id="set-start" class="ghost">Set start here</button>
-      <button id="set-finish" class="ghost">Set finish here</button>
-    </div>
-    <div class="racebuttons">
-      <button id="start-race">Start race</button>
+      <button id="start-race">Drop a flag and race</button>
       <button id="clear-race" class="ghost">Clear</button>
     </div>
-    <p class="hint" id="race-hint">Drive to where you want the start, set it, drive to the finish, set that, then start.</p>
+    <p class="hint" id="race-hint">A flag is dropped somewhere random at that distance. Everyone starts from where they are — first to reach it wins.</p>
 
     <ol class="board" id="board"></ol>
 
