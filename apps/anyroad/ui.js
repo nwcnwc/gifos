@@ -471,6 +471,8 @@
   function setView(v) {
     var cockpit = (v === 'cockpit');
     if (el.cockpit) el.cockpit.hidden = !cockpit;
+    // Wings are a driver's-seat control, so the chip only exists there.
+    if (el['btn-fly']) el['btn-fly'].hidden = !cockpit;
     // The eye states WHICH view by how much of its frame it fills, so the
     // button needs no word on it — which is the only version that survives a
     // phone-sized top bar.
@@ -593,6 +595,7 @@
       if (fly !== last.flying) {
         last.flying = fly;
         if (el.cockpit) el.cockpit.classList.toggle('flying', fly);
+        if (el['btn-fly']) el['btn-fly'].classList.toggle('flying', fly);
         if (el['fly-plane']) el['fly-plane'].hidden = fly;
         if (el['fly-car']) el['fly-car'].hidden = !fly;
         if (el['btn-fly']) el['btn-fly'].setAttribute('aria-label', fly ? 'Be a car again' : 'Take off');

@@ -771,6 +771,10 @@
           } else {
             input.autoTarget = setPoint;
             input.throttle = (input.brake > 0 || input.handbrake) ? 0 : 1;
+            // UP ARROW / W still means "more", even in stick mode. The stick
+            // owns the set-point, but a keyboard driver has no stick to drag
+            // and was left with a speed they could not change.
+            if (kThrottle > 0 && !stick.active) setPoint = Math.min(62, setPoint + TRIM_RATE * dt);
             // Overshooting the set-point (downhill, or after trimming down)
             // should ease off, and brake if it is a long way over.
             var over = Math.abs(carSpeedRef()) - setPoint;
@@ -788,10 +792,15 @@
           input.throttle = Math.max(kThrottle, pedal.throttle ? 1 : 0);
         }
 
-        // Steering precedence: finger, then tilt, then keys, then centre.
+        // Steering precedence: finger, then a PRESSED KEY, then tilt, then
+        // centre. Keys sat below tilt before, which meant that in tilt mode a
+        // phone lying perfectly still — or a desktop with no orientation events
+        // at all, where tilt.value is permanently 0 — beat the arrow keys and
+        // the car simply could not be steered from a keyboard. A key is only
+        // consulted when it is actually held, so it never fights a real tilt.
         if (steerTouch) { /* the finger owns it */ }
-        else if (mode.tilt) input.steer = tilt.value;
         else if (kSteer !== 0) input.steer = kSteer;
+        else if (mode.tilt) input.steer = tilt.value;
         else input.steer = 0;
         return input;
       },
