@@ -203,8 +203,19 @@
     });
   }
 
+  // How is ONE host doing right now? The scheduler in roads.js needs this to
+  // route a tile away from a server that is backing us off, rather than queueing
+  // behind it and calling the result "the network is slow".
+  function hostState(host) {
+    var q = queues[host];
+    if (!q) return { busyMs: 0, pending: 0, active: 0, strikes: 0 };
+    return { busyMs: Math.max(0, q.until - Date.now()),
+             pending: q.pending.length, active: q.active, strikes: q.strikes || 0 };
+  }
+
   root.Net = {
     json: json, text: text, pixels: pixels, bitmap: bitmap, apiBitmap: apiBitmap,
+    hostState: hostState, hostOf: hostOf,
     // Exposed so the HUD can say "waiting on the map" honestly rather than
     // leaving the player wondering whether the app has hung.
     stats: function () {

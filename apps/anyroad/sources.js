@@ -58,6 +58,14 @@
   // roads in it. A source that cannot serve where you are standing must be
   // knowable BEFORE it is asked, not inferred from a plausible-looking nothing.
   var ROADS = [
+    // THE DEFAULT, and the only one most people should ever touch. Picking a
+    // single mirror by hand means one server carries a player's whole drive
+    // while two identical ones sit idle, and when that one has a bad day the
+    // app has a bad day. `pool` spreads DIFFERENT tiles across every mirror
+    // that covers where you are, and routes around the sick ones.
+    { id: 'auto', name: 'Automatic — spread across mirrors', url: null, pool: true,
+      note: 'Uses every worldwide mirror at once, one tile each, and routes around whichever is busy. Leave this alone unless you have a reason.',
+      attribution: 'Roads: © OpenStreetMap contributors (ODbL)' },
     { id: 'overpass-de', name: 'overpass-api.de', url: 'https://overpass-api.de/api/interpreter',
       note: 'The main instance. Busiest, and the first to refuse a burst.',
       attribution: 'Roads: © OpenStreetMap contributors (ODbL)' },
@@ -74,11 +82,36 @@
   ];
 
   // Can the chosen roads source serve this point at all? A source with no
-  // `bounds` claims the planet and is taken at its word.
+  // `bounds` claims the planet and is taken at its word. The pool always can,
+  // because it only ever picks mirrors that cover the point.
   function roadsCover(lat, lon) {
-    var b = byId(ROADS, current.roads).bounds;
+    var src = byId(ROADS, current.roads);
+    if (src.pool) return roadsPool(lat, lon).length > 0;
+    var b = src.bounds;
     if (!b) return true;
     return lon >= b[0] && lon <= b[2] && lat >= b[1] && lat <= b[3];
+  }
+
+  // Every mirror that can actually serve this point. `bounds` earns its keep
+  // twice here: it keeps a Switzerland-only extract out of a London drive, and
+  // it puts that same fast local extract INTO a Zurich one.
+  function roadsPool(lat, lon) {
+    var out = [];
+    for (var i = 0; i < ROADS.length; i++) {
+      var s = ROADS[i];
+      if (s.pool || !s.url) continue;
+      var b = s.bounds;
+      if (b && !(lon >= b[0] && lon <= b[2] && lat >= b[1] && lat <= b[3])) continue;
+      out.push(s);
+    }
+    return out;
+  }
+
+  // What a tile fetch should actually use: the pool when 'auto', otherwise the
+  // single mirror the player pinned.
+  function roadsFor(lat, lon) {
+    var src = byId(ROADS, current.roads);
+    return src.pool ? roadsPool(lat, lon) : [src];
   }
 
   // ---- imagery: the optional satellite drape -------------------------------
@@ -127,7 +160,7 @@
   // Persisted in the 'prefs' collection, which is PRIVATE: a guest joining a
   // race gets their own sources (and their own key), never the host's.
   var DEFAULTS = {
-    terrain: 'aws-terrarium', roads: 'overpass-de', imagery: 'none', quality: 'normal',
+    terrain: 'aws-terrarium', roads: 'auto', imagery: 'none', quality: 'normal',
     // 'auto' = cruise, no throttle control at all. The default, because a
     // throttle you must hold is the thumb that should be steering.
     throttle: 'auto',
@@ -178,7 +211,7 @@
   root.Sources = {
     TERRAIN: TERRAIN, ROADS: ROADS, IMAGERY: IMAGERY,
     load: load, set: set, expand: expand, attribution: attribution,
-    roadsCover: roadsCover,
+    roadsCover: roadsCover, roadsPool: roadsPool, roadsFor: roadsFor,
     onChange: function (cb) { listeners.push(cb); },
     get current() { return current; },
     get terrain() { return byId(TERRAIN, current.terrain); },
