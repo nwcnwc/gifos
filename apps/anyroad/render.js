@@ -615,11 +615,19 @@
     ].join('\n'), [
       'precision highp float;',
       'uniform float uTime; uniform vec3 uEye; uniform vec3 uLightDir; uniform vec3 uSkyTop;',
+      // 1 for a swimming pool. Chlorinated water is a completely different
+      // colour from a lake — bright turquoise because the bottom is painted and
+      // close, where open water is dark because it is deep and full of silt.
+      // This is also the player's ONLY warning: turquoise always drowns you,
+      // everything else is a gamble.
+      'uniform float uPool;',
       'varying vec3 vPos;',
       FOG,
       'void main(){',
       '  float ripple = sin(vPos.x*0.08 + uTime*0.8) * sin(vPos.z*0.07 - uTime*0.6);',
-      '  vec3 c = mix(vec3(0.06,0.16,0.26), vec3(0.10,0.28,0.40), 0.5 + 0.5*ripple);',
+      '  vec3 lake = mix(vec3(0.06,0.16,0.26), vec3(0.10,0.28,0.40), 0.5 + 0.5*ripple);',
+      '  vec3 pool = mix(vec3(0.09,0.52,0.56), vec3(0.20,0.76,0.76), 0.5 + 0.5*ripple);',
+      '  vec3 c = mix(lake, pool, uPool);',
       // A surface normal wobbled by the same ripple, which buys two things a
       // flat blue plane cannot have: a sky reflection that brightens as the
       // water tilts away from you, and a sun glitter path across it.
@@ -1251,9 +1259,15 @@
     // only opaque geometry that reliably occludes.
     common(progs.water);
     gl.uniform1f(progs.water.u.uTime, scene.time || 0);
+    gl.uniform1f(progs.water.u.uPool, 0);
     for (var w = 0; w < scene.water.length; w++) {
       drawMesh(progs.water, scene.water[w], { aPos: { src: 'positions', size: 3 } });
     }
+    gl.uniform1f(progs.water.u.uPool, 1);
+    for (var pw = 0; pw < (scene.pools || []).length; pw++) {
+      drawMesh(progs.water, scene.pools[pw], { aPos: { src: 'positions', size: 3 } });
+    }
+    gl.uniform1f(progs.water.u.uPool, 0);
 
     gl.enable(gl.CULL_FACE);
     common(progs.road);

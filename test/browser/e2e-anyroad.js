@@ -772,53 +772,84 @@ function check(name, cond, detail) {
   const pool = await fr.locator('body').evaluate(async () => {
     const R = window.Roads, C = window.Car, G = window.Geo;
     const frame = G.frame(34.09, -118.40);
+    const half = (area) => Math.sqrt(area) / 2;
     const ring = (lat, lon, m) => {
       const dLat = m / G.metresPerDegLat(lat), dLon = m / G.metresPerDegLon(lat);
       return [lat - dLat, lon - dLon, lat - dLat, lon + dLon,
               lat + dLat, lon + dLon, lat + dLat, lon - dLon];
     };
-    // 4.2 m half-extent ≈ 72 m², the Beverly Hills median.
-    const wet = R.landIndexOf(frame, { land: [[0, ring(34.09, -118.40, 4.2), '']] });
-    const c = frame.toWorld(34.09, -118.40);
-    const seen = { centre: R.inWater(wet, c.x, c.z), near: R.inWater(wet, c.x + 2, c.z),
-                   away: R.inWater(wet, c.x + 15, c.z),
-                   noRings: R.inWater(R.landIndexOf(frame, {}), c.x, c.z) };
-    // Drive a healthy car in at speed, with the throttle pinned.
-    const car = C.create(0, 0, 0); car.speed = 18; car.inWater = true;
+    // The builder's own rule, driven through the public exports: open water is
+    // deep past DROWN_AREA, a pool is deep at any size.
+    const open = [ring(34.0910, -118.40, half(400)), ring(34.0920, -118.40, half(9000))];
+    const pools = [ring(34.0900, -118.40, half(72))];       // the Beverly Hills median
+    const rings = open.map((f) => [R.areaOf(f) > R.DROWN_AREA ? 1 : 0, f, ''])
+                      .concat(pools.map((f) => [1, f, '']));
+    const idx = R.landIndexOf(frame, { land: rings });
+    const at = (lat, lon) => { const w = frame.toWorld(lat, lon); return R.waterAt(idx, w.x, w.z); };
     const drive = { throttle: 1, brake: 0, steer: 0, handbrake: false,
                     autoTarget: 0, park: false, go: false, fire: false, noRev: false };
+    // Deep: drive in at speed with the throttle pinned and see how long it takes.
+    const deep = C.create(0, 0, 0); deep.speed = 18; deep.inWater = true; deep.deepWater = true;
     let t = 0, wreckedAt = null, at1s = null, sank = 0;
     for (let i = 0; i < 400 && wreckedAt === null; i++) {
-      C.update(car, drive, 0.02, frame); t += 0.02;
-      sank = Math.max(sank, car.sink || 0);
-      if (at1s === null && t >= 1) at1s = car.speed;
-      if (car.wrecked) wreckedAt = t;
+      C.update(deep, drive, 0.02, frame); t += 0.02;
+      sank = Math.max(sank, deep.sink || 0);
+      if (at1s === null && t >= 1) at1s = deep.speed;
+      if (deep.wrecked) wreckedAt = t;
     }
-    C.repair(car);
-    const recovered = { wrecked: car.wrecked, health: car.health, sink: car.sink, inWater: car.inWater };
-    // A car on dry land must be completely unaffected by any of this.
-    const dry = C.create(0, 0, 0); dry.speed = 18; dry.inWater = false;
+    C.repair(deep);
+    const recovered = { wrecked: deep.wrecked, health: deep.health, sink: deep.sink,
+                        inWater: deep.inWater, deepWater: deep.deepWater };
+    // Shallow: the same three seconds, and you drive out the far side.
+    const ford = C.create(0, 0, 0); ford.speed = 18; ford.inWater = true; ford.deepWater = false;
+    for (let i = 0; i < 150; i++) C.update(ford, drive, 0.02, frame);
+    const wading = { speed: ford.speed, health: ford.health, wrecked: ford.wrecked, sink: ford.sink };
+    ford.inWater = false;
+    for (let i = 0; i < 120; i++) C.update(ford, drive, 0.02, frame);
+    const driedOut = { speed: ford.speed, sink: ford.sink };
+    // Dry land, untouched by any of it.
+    const dry = C.create(0, 0, 0); dry.speed = 18;
     for (let i = 0; i < 100; i++) C.update(dry, drive, 0.02, frame);
-    return { seen, at1s, sank, wreckedAt, recovered, dryHealth: dry.health, drySpeed: dry.speed };
+    return { threshold: R.DROWN_AREA,
+             pool: at(34.0900, -118.40), pond: at(34.0910, -118.40), lake: at(34.0920, -118.40),
+             land: at(34.0800, -118.40),
+             at1s, sank, wreckedAt, recovered, wading, driedOut,
+             dryHealth: dry.health, drySpeed: dry.speed,
+             hasSplash: typeof window.Sound.splash === 'function' };
   });
-  check('a median-sized swimming pool is water the car can feel',
-    pool.seen.centre && pool.seen.near && !pool.seen.away && !pool.seen.noRings,
-    JSON.stringify(pool.seen));
-  check('full throttle will not drive you out of it',
+  check('a swimming pool is water, and DEEP at any size',
+    !!pool.pool && pool.pool.deep === true, JSON.stringify(pool.pool));
+  // The gamble. Driving into water must NOT be a lookup the player can perform
+  // from the driving seat — a small pond lets you through, a lake does not, and
+  // the threshold is a number nobody can eyeball.
+  check('a small pond is water you can drive through, not a grave',
+    !!pool.pond && pool.pond.deep === false,
+    '400 m² pond vs a ' + pool.threshold + ' m² threshold');
+  check('…while open water past the threshold still swallows you',
+    !!pool.lake && pool.lake.deep === true, '9000 m² lake');
+  check('dry land is not water', pool.land === null);
+  check('full throttle will not drive you out of the deep',
     pool.at1s < 1, pool.at1s.toFixed(2) + ' m/s one second after going in at 18');
-  check('…the car settles into the water rather than floating on it',
+  check('…the car settles into it rather than floating on it',
     pool.sank > 0.8, pool.sank.toFixed(2) + ' m');
-  // Not instant, and not never: a second of sinking with dead controls is the
-  // bit that reads as "I have made a terrible mistake".
   check('…and it drowns in a couple of seconds, not instantly and not never',
     pool.wreckedAt > 1.5 && pool.wreckedAt < 4, pool.wreckedAt.toFixed(2) + ' s');
-  check('there is a way out — repair clears the wreck, the sink and the water flag',
-    !pool.recovered.wrecked && pool.recovered.health === 100
-    && pool.recovered.sink === 0 && pool.recovered.inWater === false,
+  check('there is a way out — repair clears the wreck, the sink and both water flags',
+    !pool.recovered.wrecked && pool.recovered.health === 100 && pool.recovered.sink === 0
+    && pool.recovered.inWater === false && pool.recovered.deepWater === false,
     JSON.stringify(pool.recovered));
+  check('a ford slows you hard but you keep driving, and it does no damage',
+    pool.wading.speed > 3 && pool.wading.health === 100 && !pool.wading.wrecked,
+    pool.wading.speed.toFixed(1) + ' m/s after 3 s, ' + pool.wading.health + '% health');
+  check('…the body wades a little, and only a little',
+    pool.wading.sink > 0.2 && pool.wading.sink < 0.6, pool.wading.sink.toFixed(2) + ' m');
+  check('…and it dries out and speeds up on the far side',
+    pool.driedOut.speed > 12 && pool.driedOut.sink === 0,
+    pool.driedOut.speed.toFixed(1) + ' m/s, sink ' + pool.driedOut.sink);
   check('a car on dry land is untouched by any of it',
     pool.dryHealth === 100 && pool.drySpeed > 10,
     pool.dryHealth + '% health, ' + pool.drySpeed.toFixed(1) + ' m/s');
+  check('hitting water makes a noise', pool.hasSplash);
 
   // ---- what does the ground say grows on it? ------------------------------
   // A tree's species used to be chosen by ALTITUDE — conifer above 900 m — which

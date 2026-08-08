@@ -163,7 +163,7 @@
   function r6(v) { return Math.round(v * 1e6) / 1e6; }
 
   function parse(json, withBuildings) {
-    var ways = [], bld = [], wat = [], land = [];
+    var ways = [], bld = [], wat = [], land = [], pool = [];
     var els = (json && json.elements) || [];
     for (var i = 0; i < els.length; i++) {
       var e = els[i];
@@ -191,8 +191,12 @@
           if (brand && bcls === CLS.UNKNOWN) bcls = CLS.RETAIL;
           bld.push([buildingHeight(tags, ringAreaM2(flat)), flat, bcls, brand]);
         }
-      } else if (tags.natural === 'water'
-                 || tags.leisure === 'swimming_pool' || tags.amenity === 'swimming_pool') {
+      } else if (tags.leisure === 'swimming_pool' || tags.amenity === 'swimming_pool') {
+        // Their OWN list: a pool is drawn turquoise rather than lake-blue, and
+        // it is ALWAYS deep. That is the one water on the map you can be sure
+        // about, and everything else is the gamble.
+        pool.push(flat);
+      } else if (tags.natural === 'water') {
         wat.push(flat);
       } else if (withBuildings) {
         // [0] class id, [1] ring, [2] species. Kept as three small numbers and
@@ -203,7 +207,7 @@
         if (lk && land.length < MAX_LAND) land.push([lk.id, flat, leafOf(tags, lk.leaf)]);
       }
     }
-    return { ways: ways, bld: bld, wat: wat, land: land };
+    return { ways: ways, bld: bld, wat: wat, land: land, pool: pool };
   }
 
   // ---- what KIND of building is this? --------------------------------------
@@ -634,7 +638,7 @@
       memory[key] = geom;
       index[key] = Date.now();
       return db().put({
-        id: 't' + key, ways: geom.ways, bld: geom.bld, wat: geom.wat, land: geom.land,
+        id: 't' + key, ways: geom.ways, bld: geom.bld, wat: geom.wat, land: geom.land, pool: geom.pool,
         dense: !!geom.dense,
         at: Date.now(),   // when these bytes were fetched — a dense record expires against this
       }).catch(function () {}).then(evictIfNeeded).then(saveIndex).then(function () { return geom; });
@@ -968,13 +972,31 @@
 
   // Water the CAR can ask about, as opposed to water it can only look at. Same
   // rings, same ray cast as landcover — a pool is a polygon either way.
+  // Deep enough to drown in, or shallow enough to splash through?
+  //
+  // A POOL IS ALWAYS DEEP: walled, three metres down, and no way out but the
+  // steps. Open water goes by SIZE — a farm pond you can blast across, a lake
+  // you cannot — and the threshold is deliberately a number you cannot eyeball.
+  // That is the point: driving into water should be a gamble you take, not a
+  // lookup you perform. Rivers and streams come in as small polygons or not at
+  // all (we never ask for waterway lines), so they land on the driveable side.
+  var DROWN_AREA = 2000;        // m² of open water past which it swallows you
   function buildWaterIndex(frame, geom) {
     var rings = [];
-    var src = (geom && geom.wat) || [];
-    for (var i = 0; i < src.length; i++) rings.push([0, src[i], '']);
+    var open = (geom && geom.wat) || [];
+    for (var i = 0; i < open.length; i++) {
+      rings.push([ringAreaM2(open[i]) > DROWN_AREA ? 1 : 0, open[i], '']);
+    }
+    var pools = (geom && geom.pool) || [];
+    for (var j = 0; j < pools.length; j++) rings.push([1, pools[j], '']);
     return buildLandIndex(frame, { land: rings });
   }
-  function inWater(index, x, z) { return !!(index && index.length && landAt(index, x, z)); }
+  // null | { deep }. The caller needs the difference; a boolean cannot carry it.
+  function waterAt(index, x, z) {
+    var r = (index && index.length) ? landAt(index, x, z) : null;
+    return r ? { deep: r.id === 1 } : null;
+  }
+  function inWater(index, x, z) { return !!waterAt(index, x, z); }
 
   function scatter(frame, tile, geom, roadIndex, wallIndex, landIndex) {
     var out = { pos: [], nrm: [], col: [], idx: [] };
@@ -1225,20 +1247,28 @@
               geom.bld[b][2] || 0, geom.bld[b][3] || 0);
     }
 
-    var water = { pos: [], idx: [] };
-    for (var w = 0; w < geom.wat.length; w++) {
-      var poly = toWorld(frame, geom.wat[w]);
-      if (poly.length > 2 && poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
-      var tris = triangulate(poly);
-      var base = water.pos.length / 3;
-      // Water sits at the lowest ground under its own outline, so a lake reads
-      // as filling a basin rather than draped over one.
-      var low = Infinity;
-      for (var pi = 0; pi < poly.length; pi++) low = Math.min(low, groundAt(frame, poly[pi].x, poly[pi].z, 0));
-      if (!isFinite(low)) low = 0;
-      for (var pj = 0; pj < poly.length; pj++) water.pos.push(poly[pj].x, low + 0.3, poly[pj].z);
-      for (var ti = 0; ti < tris.length; ti++) water.idx.push(base + tris[ti]);
+    // Lakes and pools are the same geometry with a different colour, so this
+    // runs twice rather than existing twice.
+    function waterMesh(rings) {
+      var m = { pos: [], idx: [] };
+      for (var w = 0; w < rings.length; w++) {
+        var poly = toWorld(frame, rings[w]);
+        if (poly.length > 2 && poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
+        if (poly.length < 3) continue;
+        var tris = triangulate(poly);
+        var base = m.pos.length / 3;
+        // Water sits at the lowest ground under its own outline, so a lake reads
+        // as filling a basin rather than draped over one.
+        var low = Infinity;
+        for (var pi = 0; pi < poly.length; pi++) low = Math.min(low, groundAt(frame, poly[pi].x, poly[pi].z, 0));
+        if (!isFinite(low)) low = 0;
+        for (var pj = 0; pj < poly.length; pj++) m.pos.push(poly[pj].x, low + 0.3, poly[pj].z);
+        for (var ti = 0; ti < tris.length; ti++) m.idx.push(base + tris[ti]);
+      }
+      return m;
     }
+    var water = waterMesh(geom.wat || []);
+    var poolWater = waterMesh(geom.pool || []);
 
     // The road index and a buildings-only wall index come FIRST, because the
     // scatter asks both of them where it may not plant. The wall index is then
@@ -1258,6 +1288,7 @@
       roads: pack(roads, ['pos', 'uv', 'tone', 'rinfo']),
       buildings: pack(walls, ['pos', 'nrm', 'tone', 'binfo']),
       water: pack(water, ['pos']),
+      pools: pack(poolWater, ['pos']),
       trees: scenery ? scenery.mesh : null,
       shadows: shadows.buildings,
       treeShadows: shadows.trees,
@@ -1700,7 +1731,7 @@
   root.Roads = {
     TILE_ZOOM: TILE_ZOOM,
     loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
-    nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater,
+    nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater, waterAt: waterAt, DROWN_AREA: DROWN_AREA,
     clearCache: function () {
       memory = {};
       return loadIndex().then(function () {
