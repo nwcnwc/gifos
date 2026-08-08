@@ -456,6 +456,7 @@ void Seat::serveFind(Msg& mm){
 void Seat::serveCompact(Msg& mm){
   if(!hasCoord||state!=3||mm.ttl<=0) return;
   int sd = pcDepth(mm.coord.pc);
+  if(coord.pc==0) COMPACT_ATS1++;   // V5 funnel gauge: probes that reached a Section-1 seat
   // Only a ROW HEAD decides — it holds the whole row FIRST-HAND (row-mates are
   // meshed), so its frontier view is fresh (unlike an S1 seat's stale view of a
   // deep row). A non-head hands the probe to its own row head (a direct link).
@@ -476,6 +477,14 @@ void Seat::serveCompact(Msg& mm){
   }
   // My row is full or not shallower than the seeker — climb one level toward the
   // home and let a shallower ancestor row take it.
+  // V5 CAP (`problvl n`, default 0=unlimited): the probe may not climb above
+  // n levels over its seeker. The funnel cost is the CLIMB — every unservable
+  // probe walking to the S1 wall aggregates the whole room onto 25 fixed
+  // seats. Dying here instead leaves the leaf to retry next period, and
+  // deeper-than-cap compaction arrives via `offeron` (frontier-proportional)
+  // and chained moves. My owner sits one level up: forward only if that level
+  // is still within the cap.
+  if(PROBLVL>0 && pcDepth(coord.pc)-1 < sd-PROBLVL) return;
   Coord o; if(ownerCoord(o)){ int oid=occGet(ckey(o)); if(oid>=0&&oid!=id){ Msg m=mm; m.ttl=mm.ttl-1; emit(oid,m); } }
 }
 
@@ -486,22 +495,37 @@ void Seat::serveCompact(Msg& mm){
 // boundary never sloshes; strict-improvement makes depth a monotone potential ⇒
 // MOVES provably settle. Never a Section-1 seat (already shallowest; greeter
 // role) and never a non-leaf (would strand its subtree).
-void Seat::tryCompact(){
-  if(!COMPACTION) return;
-  if(!hasCoord||state!=3||coord.pc==0||moving) return;   // S1 is the top; a mover finishes first
-  if(TICK<compactAt) return;                             // rate limit / hysteresis
+// Q2/V5 — the MOVER GATES, shared by tryCompact (periodic self-probe) and
+// serveOffer (a head's invitation): am I a seat whose departure is safe and
+// whose neighbourhood is quiet enough to move? Everything here is the original
+// tryCompact logic, factored so an OFFER cannot recruit a mover the periodic
+// probe would have refused.
+bool Seat::compactEligible(){
+  if(!COMPACTION) return false;
+  if(!hasCoord||state!=3||coord.pc==0||moving) return false;   // S1 is the top; a mover finishes first
+  // NOTE: the compactAt PERIOD lives in tryCompact, not here — it is the
+  // self-probe's backoff, and an eligible leaf re-arms it the instant it
+  // expires, so gating an OFFER on it would refuse every invitation ever
+  // (measured: 6 offers, 0 fires). serveOffer carries its own
+  // one-outstanding-probe guard (lastProbeTick) instead.
   // HYSTERESIS: compact only from a QUIESCENT neighbourhood. A LEAVE/heal/move I
   // saw nearby resets lastChurn, so during a heal storm compaction lies dormant
   // region-wide and only wakes once the dust settles — this is what stops
   // compaction from sloshing seats while a heal is still converging.
-  if(TICK-seatedAt<COMPACT_SETTLE || TICK-healAt<COMPACT_SETTLE || TICK-lastChurn<COMPACT_SETTLE) return;
-  if(hasChildren()) return;                              // P: only a leaf may move
+  if(TICK-seatedAt<COMPACT_SETTLE || TICK-healAt<COMPACT_SETTLE || TICK-lastChurn<COMPACT_SETTLE) return false;
+  if(hasChildren()) return false;                              // P: only a leaf may move
   // CLEAN-DEPARTURE gate: only the RIGHTMOST occupant of my row may compact, so
   // my leaving shortens the row (a trailing hole, C2) and never orphans a
   // row-mate into a headless row. In a lone-row section this drains it right-to-
   // left, the head (col 0) leaving LAST — minimal, churn-free collapse.
-  for(int j=coord.i+1;j<C;j++) if(occGet(ckey({coord.pc,coord.r,(uint8_t)j}))>=0) return;
+  for(int j=coord.i+1;j<C;j++) if(occGet(ckey({coord.pc,coord.r,(uint8_t)j}))>=0) return false;
+  return true;
+}
+void Seat::tryCompact(){
+  if(TICK<compactAt) return;                             // rate limit / hysteresis
+  if(!compactEligible()) return;
   compactAt=TICK+COMPACT_PERIOD+(long long)(rng()*COMPACT_PERIOD);
+  lastProbeTick=TICK;
   // Send a compaction probe UP my own chain: to my row head (a direct row link),
   // or, if I AM a childless head, straight to my owner. Every hop rides an ALIVE
   // link, so the probe never depends on routing across a fragmented mesh or on a
@@ -513,6 +537,84 @@ void Seat::tryCompact(){
   if(up1<0||up1==id) return;
   COMPACT_PROBES++;
   Msg m; m.t=FIND; m.nc=id; m.tag=1; m.coord=coord; m.ttl=COMPACT_TTL; emit(up1,m);
+}
+// V5 — HEAD OFFER (`offeron`, default OFF). The inversion of the probe: instead
+// of ~N leaves asking "any room shallower?", the few heads that OWN a free cell
+// say so. A row head with a first-hand-known free densifying slot sends one
+// OFFER down its subtree per period; work per window is proportional to the
+// FRONTIER, not to N. The offer is an INVITATION ONLY — the mover answers with
+// a targeted tag==1 probe at the offering head, and serveCompact/admit re-check
+// everything first-hand at admit time, so a stale offer (cell taken, head
+// moved) degrades to a dropped probe, never a bad admit. Depth still strictly
+// decreases at admit (serveCompact's `< sd`), so the monotone-potential
+// termination argument is untouched.
+void Seat::tryOffer(){
+  if(!COMPACTION||!OFFERON) return;
+  if(!hasCoord||state!=3||coord.i!=0||coord.pc==0||moving) return;   // deep ROW HEADS only — S1 never seats a compactor
+  if(TICK<offerAt) return;
+  // Same quiescence as the probe: never stir a region a heal is still settling.
+  if(TICK-seatedAt<COMPACT_SETTLE || TICK-healAt<COMPACT_SETTLE || TICK-lastChurn<COMPACT_SETTLE) return;
+  offerAt=TICK+COMPACT_PERIOD+(long long)(rng()*COMPACT_PERIOD);
+  // A free DENSIFYING slot in my row, known first-hand — the exact scan
+  // serveCompact serves from (free + down-child empty, so the mover lands a
+  // childless leaf and never displaces a healer).
+  bool slot=false;
+  for(int j=1;j<C;j++){ Coord cell={coord.pc,coord.r,(uint8_t)j};
+    if(occ.count(ckey(cell))) continue;
+    if(occGet(ckey(down(cell)))>=0) continue;
+    slot=true; break; }
+  if(!slot) return;
+  // Send it DOWN: to a random live down-child head under my row. The walk
+  // (serveOffer) descends until it finds an eligible mover.
+  vector<int> kids;
+  for(int j=0;j<C;j++){ int x=occGet(ckey(down({coord.pc,coord.r,(uint8_t)j}))); if(x>=0&&x!=id) kids.push_back(x); }
+  if(kids.empty()) return;
+  COMPACT_OFFERS++;
+  Msg m; m.t=OFFER; m.id=id; m.coord=coord; m.ttl=14; emit(kids[(int)(rng()*kids.size())],m);
+}
+// The OFFER down-walk. Strictly downward (plus at most one lateral hop per row,
+// head -> its rightmost occupant — the only cell whose departure keeps the row
+// clean), so no cycle is possible and ttl bounds the walk. Every hop is cheap
+// and unprivileged; only the eventual admit carries authority, and that stays
+// at the offering head, first-hand.
+#define OFFERLOG(fmt,...) do{ if(getenv("MESH_OFFERLOG")) fprintf(stderr,"OFFERLOG t=%lld me=%d@%u/%d.%d ttl=%d " fmt "\n",(long long)TICK,id,(unsigned)coord.pc,(int)coord.r,(int)coord.i,mm.ttl,##__VA_ARGS__); }while(0)
+void Seat::serveOffer(Msg& mm){
+  if(!COMPACTION||!OFFERON) return;
+  if(!hasCoord||state!=3||mm.ttl<=0){ OFFERLOG("drop unseated-or-ttl"); return; }
+  // Eligible mover: STRICTLY deeper than the offered row (the same strict
+  // improvement serveCompact enforces again at admit), and every tryCompact
+  // gate. Answer with a TARGETED probe — small ttl: the offering head serves
+  // it from its own row or it dies; a capped climb must not reopen the funnel.
+  // One outstanding probe at a time: 12 ticks comfortably covers the probe's
+  // serve + routed-PLACE round trip, so a second fire can only happen once the
+  // first is resolved (a won move flips `moving`, which compactEligible
+  // refuses). 45 was over-cautious and refused the only eligible mover the
+  // shrink trace found — the leaf had just fired its own periodic probe.
+  if(TICK-lastProbeTick>=12 && pcDepth(coord.pc)>pcDepth(mm.coord.pc) && compactEligible()){
+    compactAt=TICK+COMPACT_PERIOD+(long long)(rng()*COMPACT_PERIOD);
+    lastProbeTick=TICK;
+    COMPACT_PROBES++; COMPACT_OFFERFIRES++;
+    OFFERLOG("FIRE targeted probe at %d (offer depth %d, mine %d)",mm.id,pcDepth(mm.coord.pc),pcDepth(coord.pc));
+    Msg f; f.t=FIND; f.nc=id; f.tag=1; f.coord=coord; f.ttl=3; emit(mm.id,f);
+    return;
+  }
+  { bool rm=true; for(int j=coord.i+1;j<C;j++) if(occGet(ckey({coord.pc,coord.r,(uint8_t)j}))>=0){ rm=false; break; }
+    OFFERLOG("not-mover cool=%d deeper=%d elig=%d mov=%d kids=%d rmost=%d ageS=%lld ageH=%lld ageC=%lld",
+      (int)(TICK-lastProbeTick<12),(int)(pcDepth(coord.pc)>pcDepth(mm.coord.pc)),(int)compactEligible(),
+      (int)moving,(int)hasChildren(),(int)rm,(long long)(TICK-seatedAt),(long long)(TICK-healAt),(long long)(TICK-lastChurn)); }
+  // Not the mover. A head hands the offer to its row's RIGHTMOST occupant (a
+  // first-hand row link; that seat's lateral target is itself, so no bounce);
+  // anyone else descends to a random live down-child under their row.
+  if(coord.i==0){
+    int rm=-1; for(int j=C-1;j>=1;j--){ int x=occGet(ckey({coord.pc,coord.r,(uint8_t)j})); if(x>=0&&x!=id){ rm=x; break; } }
+    if(rm>=0){ OFFERLOG("lateral -> %d",rm); Msg m2=mm; m2.ttl=mm.ttl-1; emit(rm,m2); return; }
+  }
+  vector<int> kids;
+  for(int j=0;j<C;j++){ int x=occGet(ckey(down({coord.pc,coord.r,(uint8_t)j}))); if(x>=0&&x!=id) kids.push_back(x); }
+  if(kids.empty()){ OFFERLOG("drop no-kids"); return; }
+  int tgt=kids[(int)(rng()*kids.size())];
+  OFFERLOG("descend -> %d",tgt);
+  Msg m2=mm; m2.ttl=mm.ttl-1; emit(tgt,m2);
 }
 void Seat::heal(Coord hole){
   if(!hasCoord||state!=3||TICK-healAt<12) return;
@@ -1277,7 +1379,8 @@ void Seat::recv(Msg& m){
       if(state==1){ if(m.roster.empty()){ retryAt=(int)TICK-10; return; } roster=m.roster; haveRoster=true; lastReach=(int)TICK; seatTries=0; resumeTries=0; int t=pickRoster(); if(t>=0)askSeat(t); else retryAt=(int)TICK-10; }   // reached a greeter (HOME roster came back): note it for R6; a landed HOME re-arms the resume budget. genesis is ONLY via an empty greeter LIST.
       else if(state==3&&m.roster.size()){ roster=m.roster; haveRoster=true; }   // E3 stripped: store the roster (a draining DEEP seat re-seats against it via E1) but do NO Section-1 self-audit
       return; }
-    case FIND: if(m.tag==1) serveCompact(m); else { findNc=m.nc; serveFind(m); findNc=-1; } return;   // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
+    case FIND: if(m.tag==1) serveCompact(m); else { findNc=m.nc; serveFind(m); findNc=-1; } return;
+    case OFFER: serveOffer(m); return;   // V5: a head's free-slot invitation walking down (`offeron`)   // Q2: tag==1 is a compaction probe (up-chain walk), never newcomer admission. Untagged: the seeker is at the door for the whole scan (knock-is-evidence phantom scope — 03c)
     case FINDLEAF: findLeaf(m.hole,m.nbrs,m.ttl); return;
     case PLACE:
       if(state==2){ take(m.coord,m.owner,m.nbrs); return; }
@@ -1605,6 +1708,6 @@ void Seat::tick(){
   // genuinely orphaned seat whose anchor died without a deliverable LEAVE.
   bool ancDead=false; if(hasCoord){ Coord anc; if(coord.i!=0){ ancDead = occGet(ckey({coord.pc,coord.r,0}))<0; } else if(ownerCoord(anc)){ ancDead = occGet(ckey(anc))<0; } }
   if(!didHeal && TICK-lastAck>80 && (ancDead || TICK-lastAck>220)) drainOrReenter();
-  else if(!didHeal) tryCompact();   // Q2: only when not draining/healing this tick — pack the tree upward when settled
+  else if(!didHeal){ tryCompact(); tryOffer(); }   // Q2: only when not draining/healing this tick — pack the tree upward when settled (V5: heads also offer known slots down)
   wake(id);
 }
