@@ -59,12 +59,26 @@
   // Every load captures the generation it was launched under and a resolution
   // from a previous generation is discarded unread.
   var hopGen = 0;
-  function evict(store, want) {
+  // RETAIN is the hysteresis: a tile stays resident out to this multiple of the
+  // load radius after it leaves the want-list. Without it, a car wobbling over
+  // a tile boundary destroys and rebuilds the same meshes repeatedly — the data
+  // is cached so nothing is re-fetched, but the triangulation is paid again
+  // every time, and that is a frame hitch on exactly the boundary you are
+  // driving across.
+  var RETAIN = 1.5;
+  function evict(store, want, keepNear) {
     var keep = {};
     for (var i = 0; i < want.length; i++) keep[root.Geo.tileKey(want[i])] = 1;
+    if (keepNear) for (var j = 0; j < keepNear.length; j++) keep[root.Geo.tileKey(keepNear[j])] = 1;
     for (var k in store) {
       if (keep[k]) continue;
       var slot = store[k];
+      // NEVER drop a tile that is still in flight. Evicting it deletes the
+      // marker, a later frame sees no record and asks for the same tile again,
+      // and the answer that does arrive is written into a world that has
+      // already moved on. That is the abandonment you can watch on the loading
+      // map: a queue that never drains because its work keeps being cancelled.
+      if (slot && slot.pending) continue;
       if (slot && slot.rec && slot.rec.mesh && slot.rec.mesh.release) slot.rec.mesh.release();
       if (slot && slot.built) {
         MESHES.forEach(function (m) {
@@ -75,12 +89,27 @@
     }
   }
 
+  // Where to centre the streaming window. Not on the car — AHEAD of it, by a
+  // distance that grows with speed. A disc centred on a car doing 30 m/s spends
+  // half its budget on ground already behind the windscreen, and the tile you
+  // are about to need is the one at the edge that never gets loaded in time.
+  // Capped so that stopping does not leave the world lopsided.
+  function lookAhead(radius) {
+    var lead = Math.min(radius * 0.55, Math.abs(car.speed) * 18);
+    return { x: car.x + Math.sin(car.yaw) * lead, z: car.z + Math.cos(car.yaw) * lead };
+  }
+
   function ensureTerrain() {
     if (!world.frame) return;
-    var want = root.Geo.tilesAround(world.frame, car.x, car.z, TERRAIN_RADIUS, root.Terrain.TILE_ZOOM)
+    var eye = lookAhead(TERRAIN_RADIUS);
+    var want = root.Geo.tilesAround(world.frame, eye.x, eye.z, TERRAIN_RADIUS, root.Terrain.TILE_ZOOM)
       .slice(0, MAX_TERRAIN_TILES);
     world.wanted.terrain = want;
-    evict(world.terrain, want);
+    // Hysteresis is measured from the CAR, not from the look-ahead point:
+    // what must not be destroyed is the ground you can still see behind you.
+    evict(world.terrain, want,
+          root.Geo.tilesAround(world.frame, car.x, car.z, TERRAIN_RADIUS * RETAIN, root.Terrain.TILE_ZOOM)
+            .slice(0, Math.round(MAX_TERRAIN_TILES * RETAIN)));
     var launched = 0;
     for (var i = 0; i < want.length && launched < 3; i++) {
       var key = root.Geo.tileKey(want[i]);
@@ -107,10 +136,13 @@
 
   function ensureRoads() {
     if (!world.frame) return;
-    var want = root.Geo.tilesAround(world.frame, car.x, car.z, ROAD_RADIUS, root.Roads.TILE_ZOOM)
+    var eye = lookAhead(ROAD_RADIUS);
+    var want = root.Geo.tilesAround(world.frame, eye.x, eye.z, ROAD_RADIUS, root.Roads.TILE_ZOOM)
       .slice(0, MAX_ROAD_TILES);
     world.wanted.roads = want;
-    evict(world.roads, want);
+    evict(world.roads, want,
+          root.Geo.tilesAround(world.frame, car.x, car.z, ROAD_RADIUS * RETAIN, root.Roads.TILE_ZOOM)
+            .slice(0, Math.round(MAX_ROAD_TILES * RETAIN)));
     var launched = 0;
     for (var i = 0; i < want.length && launched < 2; i++) {
       var key = root.Geo.tileKey(want[i]);
@@ -690,6 +722,36 @@
     return out;
   }
 
+  // ---- filling the map in around you ---------------------------------------
+  // Only ever writes to DISK. A filled tile is parsed geometry in IndexedDB; it
+  // is NOT made resident, gets no GL buffers and is never drawn, so the frame
+  // cost of this is zero and the phone-killing residency caps are untouched.
+  //
+  // Politeness first, and it is not optional with donated servers: this runs
+  // only when the network is completely idle — nothing queued, nothing in
+  // flight, no mirror backing us off — and asks for exactly one tile at a time.
+  // The player's own driving always wins, because their tiles are already in
+  // the queue this waits on.
+  var fillRing = 2;
+  function backgroundFill() {
+    if (!world.frame || !root.Sources.fillsAhead()) return;
+    var st = root.Net.stats();
+    if (st.pending || st.active || st.backoffMs) return;
+    if (root.Roads.cacheBytes() >= root.Sources.offlineBytes()) return;
+    // Work outwards in rings from the car, taking the first tile that is
+    // neither resident nor already on disk.
+    var want = root.Geo.tilesAround(world.frame, car.x, car.z,
+                                    ROAD_RADIUS * fillRing, root.Roads.TILE_ZOOM);
+    for (var i = 0; i < want.length; i++) {
+      var t = want[i], k = root.Geo.tileKey(t);
+      if (world.roads[k] || root.Roads.isCached(k)) continue;
+      root.Roads.loadTile(t).catch(function () {});
+      return;
+    }
+    // That whole ring is on disk. Widen, up to a sane horizon.
+    fillRing = Math.min(8, fillRing + 1);
+  }
+
   // ---- camera --------------------------------------------------------------
   function updateCamera(dt) {
     var back = 8.5, up = 3.4, ahead = 9;
@@ -827,7 +889,7 @@
     }
 
     updateCamera(dt);
-    ensureTerrain(); ensureRoads(); buildPending();
+    ensureTerrain(); ensureRoads(); buildPending(); backgroundFill();
     root.MP.tick(car, dt);
 
     // Assemble the scene from whatever has actually loaded.
@@ -1032,6 +1094,9 @@
 
     root.Sources.load().then(function () {
       applyControlPrefs();
+      // The saved offline size has to reach the cache before the first tile
+      // lands, or the first drive of every session evicts against the default.
+      root.Roads.setCacheBudget(root.Sources.offlineBytes());
       root.UI.ready();
     });
     root.Sources.onChange(applyControlPrefs);

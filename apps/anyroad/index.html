@@ -260,6 +260,12 @@
         which makes busy cities load faster.</small>
     </label>
 
+    <label class="field">
+      <span>Offline map</span>
+      <select id="ctl-offline"></select>
+      <small id="note-offline"></small>
+    </label>
+
     <div class="field">
       <span>Cached map data</span>
       <div class="row">
@@ -267,8 +273,9 @@
         <button id="clear-cache" class="ghost">Clear</button>
       </div>
       <small>Road geometry is kept on this device so re-driving an area needs no
-        network. It is stored inside the app's own GIF, so it is capped — clear
-        it if the file gets large.</small>
+        network. This is DISK, not memory: how much you keep has no effect on
+        how smoothly the game runs, because only the tiles right around you are
+        ever drawn.</small>
     </div>
 
     <p class="attribution" id="attribution2"></p>

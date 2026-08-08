@@ -146,6 +146,16 @@
       maxZoom: 22 },
   ];
 
+  // Megabytes of offline map to keep. '8' is the old fixed cache and does no
+  // background filling; anything larger fills ahead while the network is idle.
+  var OFFLINE_MB = ['8', '50', '200', '1000'];
+  var OFFLINE_LABEL = {
+    '8':    'Just what I drive through (~8 MB)',
+    '50':   'Fill in around me — 50 MB',
+    '200':  'Fill in around me — 200 MB',
+    '1000': 'Fill in around me — 1 GB',
+  };
+
   function byId(list, id) {
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return list[0];
@@ -170,6 +180,10 @@
     traffic: 'normal',      // 'none' | 'light' | 'normal' | 'heavy'
     sound: 'on',            // engine, tyres, traffic, animals. No music.
     blaster: 'on',          // the gun on the roof, and space/tap to fire it
+    // How much offline map to keep, in megabytes, and whether to keep filling
+    // it in while you drive. DISK, not memory: parsed geometry in IndexedDB.
+    // The drawn set stays capped whatever this says — see MAX_TERRAIN_TILES.
+    offline: '8',
   };
   var current = Object.assign({}, DEFAULTS);
   var listeners = [];
@@ -190,6 +204,7 @@
         if (['none', 'light', 'normal', 'heavy'].indexOf(rec.traffic) >= 0) current.traffic = rec.traffic;
         if (rec.sound === 'on' || rec.sound === 'off') current.sound = rec.sound;
         if (rec.blaster === 'on' || rec.blaster === 'off') current.blaster = rec.blaster;
+        if (OFFLINE_MB.indexOf(rec.offline) >= 0) current.offline = rec.offline;
       }
       return current;
     }).catch(function () { return current; });
@@ -212,6 +227,9 @@
     TERRAIN: TERRAIN, ROADS: ROADS, IMAGERY: IMAGERY,
     load: load, set: set, expand: expand, attribution: attribution,
     roadsCover: roadsCover, roadsPool: roadsPool, roadsFor: roadsFor,
+    OFFLINE_MB: OFFLINE_MB, OFFLINE_LABEL: OFFLINE_LABEL,
+    offlineBytes: function () { return parseInt(current.offline, 10) * 1024 * 1024; },
+    fillsAhead: function () { return current.offline !== '8'; },
     onChange: function (cb) { listeners.push(cb); },
     get current() { return current; },
     get terrain() { return byId(TERRAIN, current.terrain); },
