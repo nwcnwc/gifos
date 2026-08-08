@@ -24,7 +24,7 @@
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
 const { chromium, CHROME } = require('../lib/pw');
 const { appGif } = require('../lib/apps');
-const { HOP, FIXTURE_HEIGHT, routeWorld } = require('../lib/anyroad-fixtures');
+const { HOP, FIXTURE_HEIGHT, routeWorld, overpassBody } = require('../lib/anyroad-fixtures');
 const { readFileSync } = require('fs');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -1453,6 +1453,137 @@ function check(name, cond, detail) {
   // fix: throttle stayed 0 while steer showed 0.047.
   check('typing driving letters into search does not drive the car',
     leaked.brake === 0 && !leaked.hand && leaked.steer === 0, JSON.stringify(leaked));
+
+  // ---- the stick's full arc: stop, STAY stopped, and GO again --------------
+  // Three bugs lived on this one thumb, each fix exposing the next. The
+  // stick's at-zero hold armed reverse (the spawn-in-R screenshot); fixing
+  // that left the synthetic brake latching the HALT, which listened only for
+  // the GO pedal and the W key — so a stick pinned to the top moved nothing,
+  // at 0 km/h forever ("the car will not move at all"). The stick's upward
+  // deflection now speaks `go`. This drives the REAL pointer path on the real
+  // canvas: down-drag to a stop, release, hold up, and the car must pull away.
+  //
+  // The typing test above left the LANDING SHEET open, and an open panel PARKS
+  // the car (panelOpen -> setPark) — with it up, the whole arc "passes" its
+  // stop checks and fails its go check against a car that was parked the
+  // entire time, blaming the stick for the sheet. Close it, and PROVE the car
+  // is unparked before trusting anything the arc measures.
+  await app.keyboard.press('Escape');
+  await fr.locator('#landing').waitFor({ state: 'hidden', timeout: 3000 });
+  const arcPark = await fr.locator('body').evaluate(async () => {
+    for (let i = 0; i < 20 && window.App.debug().input.park; i++) await new Promise((r) => setTimeout(r, 100));
+    return window.App.debug().input.park;
+  });
+  check('the landing sheet is closed and the car unparked before the stick arc', arcPark === false, 'park=' + arcPark);
+  // The search box may still hold focus with its results dropdown over the
+  // scheme pill — switch schemes through the DOM; the pointer ARC below is the
+  // thing under test, not this button.
+  await fr.locator('body').evaluate(() => {
+    document.getElementById('q').blur();
+    document.querySelector('#schemes button[data-scheme="stick"]').click();
+  });
+  const stickArc = await fr.locator('body').evaluate(async () => {
+    const cv = window.Render.gl.canvas;
+    const r = cv.getBoundingClientRect();
+    const cx = r.left + r.width * 0.7, cy = r.top + r.height * 0.6;
+    const ev = (type, x, y) => cv.dispatchEvent(new PointerEvent(type, {
+      pointerId: 9, clientX: x, clientY: y, bubbles: true, isPrimary: true }));
+    const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+    // 1. drag DOWN and hold: trim the set-point to zero, brake to a stop.
+    ev('pointerdown', cx, cy); ev('pointermove', cx, cy + 130);
+    for (let i = 0; i < 40 && Math.abs(window.App.car().speed) > 0.3; i++) await wait(500);
+    ev('pointerup', cx, cy + 130);
+    const stopped = window.App.car().speed;
+    // 2. sit for a moment: the stop must HOLD (no reverse creep).
+    await wait(2500);
+    const held = window.App.car().speed;
+    // 3. drag UP and hold: the stick asks to move, and the halt must let go.
+    ev('pointerdown', cx, cy); ev('pointermove', cx, cy - 140);
+    let moving = 0;
+    for (let i = 0; i < 40; i++) { await wait(500); moving = window.App.car().speed; if (moving > 1.5) break; }
+    ev('pointerup', cx, cy - 140);
+    return { stopped: +stopped.toFixed(2), held: +held.toFixed(2), moving: +moving.toFixed(2) };
+  });
+  check('stick down-drag brakes the car to a stop', Math.abs(stickArc.stopped) < 0.3, stickArc.stopped + ' m/s');
+  check('…the stop HOLDS — no reverse creep while parked at zero', stickArc.held > -0.3, stickArc.held + ' m/s');
+  check('…and pushing the stick UP releases the halt and the car pulls away',
+    stickArc.moving > 1.5, stickArc.moving + ' m/s');
+  await fr.locator('body').evaluate(() => document.querySelector('#schemes button[data-scheme="wheel"]').click());
+
+  // ==== THE TWO-CITY CODA ===================================================
+  // "I went to Paris then Tokyo and the map was glitching hugely with Paris
+  // street names." A hop empties world.roads, but a road tile already in
+  // flight knows nothing about that: it resolved seconds into the Tokyo
+  // descent and wrote a Paris record into the fresh map. snapToRoad — then
+  // unbounded — snapped the new car onto that Paris way, 12,000 km from the
+  // Tokyo origin, and from there the streaming want-list (which follows the
+  // car) asked for MORE Paris tiles and evict kept them: both cities built
+  // against one frame, Paris names on a HUD that said Tokyo, and float32
+  // vertices at 1.2e7 metres doing the "glitching hugely". Guarded by hop
+  // generations (a stale resolution is discarded unread) and a 2 km snap cap.
+  //
+  // Reproduce it exactly: force fresh Paris tile requests, DELAY them so they
+  // are still in flight when the hop lands, then hop to Tokyo and hold the
+  // world to the fix. Runs LAST on this page — it leaves the world in Tokyo.
+  const TOKYO = { lat: 35.6812, lon: 139.7671 };
+  const tokyoBody = () => {
+    const geom = [];
+    for (let i = -60; i <= 60; i++) geom.push({ lat: TOKYO.lat + i * 0.00012, lon: TOKYO.lon + i * 0.00004 });
+    return JSON.stringify({ elements: [
+      { type: 'way', id: 1, tags: { highway: 'residential', name: 'Sumida Fixture Street' }, geometry: geom },
+      { type: 'way', id: 2, tags: { highway: 'primary', name: 'Ginza Fixture Boulevard' },
+        geometry: geom.map((p) => ({ lat: p.lat, lon: p.lon + 0.0009 })) },
+    ] });
+  };
+  // Registered AFTER routeWorld's handler, so it wins (Playwright matches
+  // newest-first). Paris answers (bbox south of 40°N is Tokyo, north is Paris)
+  // now take 1.5 s — the in-flight window the bug needs.
+  await context.route(/overpass/, async (route) => {
+    const m = decodeURIComponent(route.request().url()).match(/\((-?\d+\.?\d*),/);
+    const paris = m && parseFloat(m[1]) > 40;
+    if (paris) await sleep(1500);
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: paris ? overpassBody() : tokyoBody() });
+  });
+  // Fresh Paris wants: shove the car a tile sideways so ensureRoads launches
+  // new (now slow) Paris requests, give them a beat to get airborne, then hop.
+  await fr.locator('body').evaluate(() => { window.App.car().x += 700; });
+  await sleep(400);
+  await fr.locator('body').evaluate((el, t) => window.App.hop(t.lat, t.lon, 'Tokyo'), TOKYO);
+  let hopState = null;
+  for (let i = 0; i < 30; i++) {
+    await sleep(1000);
+    hopState = await fr.locator('body').evaluate(() => {
+      const w = window.App.world, c = window.App.car();
+      const names = [];
+      for (const k in w.roads) {
+        const r = w.roads[k];
+        if (r && r.built && r.built.index && r.built.index.names) names.push(...r.built.index.names.filter(Boolean));
+      }
+      const near = [];
+      for (const k in w.roads) {
+        const r = w.roads[k];
+        if (r && r.built && r.built.index) window.Roads.namesNear(r.built.index, c.x, c.z, 60, near);
+      }
+      return { place: w.place, dist: Math.hypot(c.x, c.z),
+               built: Object.keys(w.roads).filter((k) => w.roads[k] && w.roads[k].built).length,
+               names: [...new Set(names)], near: near.map((n) => n.name) };
+    });
+    // Settled: Tokyo streets built, and long enough for a straggler to land.
+    if (hopState.built >= 4 && i >= 6) break;
+  }
+  check('TWO CITIES: after the hop the world builds the NEW city', hopState.built >= 4,
+    hopState.built + ' road tile(s) built, place=' + hopState.place);
+  check('TWO CITIES: the car stays at the new origin — never snapped to the old city',
+    hopState.dist < 3000, Math.round(hopState.dist) + ' m from the drop point');
+  const parisNames = hopState.names.filter((n) =>
+    n === 'Fixture Street' || n === 'Grand Boulevard' || n === 'A1' || n === 'Crossing Lane');
+  check('TWO CITIES: no road record from the old city survives the hop (stale in-flight tiles discarded)',
+    parisNames.length === 0, parisNames.length ? 'leaked: ' + parisNames.join(', ') : 'names: ' + hopState.names.join(', '));
+  check('TWO CITIES: the streets NAMED around the car are the new city\'s',
+    hopState.near.length > 0 && hopState.near.every((n) => n.includes('Sumida') || n.includes('Ginza')),
+    JSON.stringify(hopState.near));
 
   // ==== THE HILLS CODA ======================================================
   // Everything above runs on a FLAT fixture, and a flat world cannot catch the
