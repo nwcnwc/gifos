@@ -146,6 +146,18 @@ onmessage = (e) => {
     const p = pipes.get(m.pipeId);
     if (p && !p.paused && p.srcId) { p.kick = (p.kick || 0) + 1; askKey(p.srcId, m.pipeId); }
   }
+  else if (m.op === 'reroute') {
+    // CONTAINER IDENTITY (2026-08-08): a live pipe's SOURCE moved (the
+    // upstream claim swapped vias, or the producer's track swapped) — repoint
+    // the route; the sender, carrier and downstream m-line never move. The
+    // pipe restarts clean at the next key (needKey), never mid-GOP; a codec
+    // change surfaces as the ordinary mismatch and the page re-lanes.
+    const s0 = taps.get(m.oldSrcId); if (s0) { s0.delete(m.pipeId); if (!s0.size) { taps.delete(m.oldSrcId); tapTs.delete(m.oldSrcId); } }
+    let s = taps.get(m.srcId); if (!s) { s = new Set(); taps.set(m.srcId, s); } s.add(m.pipeId);
+    const p = pipeFor(m.pipeId);
+    p.srcId = m.srcId; p.q.length = 0; p.needKey = true; p.nkDrop = 0; p.mime = null;
+    askKey(m.srcId, m.pipeId);
+  }
   else if (m.op === 'unroute') { const s = taps.get(m.srcId); if (s) { s.delete(m.pipeId); if (!s.size) { taps.delete(m.srcId); tapTs.delete(m.srcId); } } pipes.delete(m.pipeId); }
   else if (m.op === 'stats') {
     const out = {};
@@ -374,6 +386,10 @@ onrtctransform = (e) => {
     } catch (e) { return false; }
   }
   function pausePipe(pipeId, paused) { if (worker) worker.postMessage({ op: paused ? 'pause' : 'unpause', pipeId }); }
+  // Repoint a live pipe at a new tapped source (container identity: the
+  // sender, carrier and downstream m-line never move; only the route does).
+  // The caller taps the new receiver first — reroute is just the table flip.
+  function reroute(pipeId, oldSrcId, srcId) { if (worker) worker.postMessage({ op: 'reroute', oldSrcId, srcId, pipeId }); }
   // The page-side half of the keykick (see the worker's 'keykick' comment):
   // ask upstream for key content AND mint a key-typed template to pair with
   // it when it lands. Rate-limit at the caller (the pipe watchdog's 5s beat).
@@ -410,5 +426,5 @@ onrtctransform = (e) => {
     return null;
   }
 
-  GifOS.meshPipe = { supported, tapReceiver, pipeSender, pausePipe, keyKick, unpipe, makeCarrier, receiverForTrack, stats, chain, on };
+  GifOS.meshPipe = { supported, tapReceiver, pipeSender, pausePipe, keyKick, reroute, unpipe, makeCarrier, receiverForTrack, stats, chain, on };
 })(typeof window !== 'undefined' ? window : globalThis);
