@@ -1511,15 +1511,20 @@ function check(name, cond, detail) {
     c.yaw = Math.PI / 2;               // +x: straight at the wall
     c.speed = 0;
     const before = window.App.debug().breaches;
-    for (let i = 0; i < 7; i++) {      // three hits open it; fire spare rounds
-      // Reposition IMMEDIATELY before each shot: between shots the cruise
-      // drives the parked car toward the wall, and a drifting firing pose
-      // scatters the impacts wider than the breach cluster radius — the
-      // flake where "three bolts into one spot" opened nothing.
+    // COUNT SUCCESSFUL FIRES, don't count attempts. The cooldown is 0.16
+    // SIMULATED seconds, and on the software rasteriser sim time runs at a
+    // third of wall time — a fixed number of fixed-interval attempts fires
+    // three bolts on a quiet box and one on a loaded one, which was this
+    // test's coin-flip. fire() says whether it fired; take five real shots
+    // however long the box needs. Reposition IMMEDIATELY before each shot:
+    // between shots the cruise drags the pose and scatters the impacts.
+    let shots = 0;
+    for (let i = 0; i < 80 && shots < 5; i++) {
       c.x = wallN.x - 9; c.z = wallN.z; c.yaw = Math.PI / 2; c.speed = 0;
-      window.Blaster.fire(c);
-      await wait(320);                 // > cooldown, and time for the bolt to land
+      if (window.Blaster.fire(c)) shots++;
+      await wait(150);
     }
+    await wait(800);                   // let the last bolt land and the events run
     for (let i = 0; i < 20 && window.App.debug().breaches === before; i++) await wait(250);
     const opened = window.App.debug().breaches;
     // Now DRIVE at the hole. A solid wall stops this cold within a metre.
