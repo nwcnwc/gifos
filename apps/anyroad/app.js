@@ -658,15 +658,16 @@
     for (var k in world.roads) {
       var t = world.roads[k];
       if (!t || t.pending || t.failed) continue;
-      if (t.built && !(t.built.incomplete && t.epoch !== world.terrainEpoch)) continue;
+      if (t.built && !(t.built.incomplete && t.epoch !== world.terrainEpoch) && !t.coverStale) continue;
       if (!t.built && !terrainReadyFor(t.tile)) continue;
       if (t.built) {
         MESHES.forEach(function (m) {
           if (t.built[m] && t.built[m].release) t.built[m].release();
         });
       }
-      t.built = root.Roads.build(world.frame, t.geom, t.tile);
+      t.built = root.Roads.build(world.frame, t.geom, t.tile, coverAt);
       t.epoch = world.terrainEpoch;
+      t.coverStale = false;
       return;
     }
   }
@@ -684,7 +685,15 @@
     for (var k in world.terrain) {
       var slot = world.terrain[k];
       if (!slot || !slot.rec) continue;
-      if (!src || !src.api) { slot.texture = null; continue; }   // back to stylised
+      if (!src || !src.api) {
+        // Back to stylised — and back to OSM-only planting. A forest grown
+        // from a photograph the player has since switched off would be
+        // scenery with no source; the stale-mark sends those tiles back
+        // through the scatter without their masks.
+        slot.texture = null;
+        if (slot.cover) { slot.cover = null; markCoverStale(slot.tile); }
+        continue;
+      }
       maybeLoadImagery(slot.tile, k);
     }
   }
@@ -717,6 +726,66 @@
     return { mesh: built, texture: slot.texture, rect: [nw.x, nw.z, se.x, se.z] };
   }
 
+  // ---- satellite tree cover -------------------------------------------------
+  // "Areas that are clearly forests from the satellite photos" should grow
+  // forest — even where OSM never had the polygon, which in most of the world
+  // is most of the forest. The photograph is already here (the drape), so the
+  // classifier is one 64x64 readback per imagery tile: canopy is the DARK
+  // green — darker than grass, darker than crops, green where water is blue
+  // and shadow is grey. The mask feeds the same scatter that plants tagged
+  // woodland (roads.js), and OSM tags still win wherever they exist: this
+  // only speaks where the map is silent.
+  var COVER_N = 64;
+  var coverCanvas = null;
+  function treeCoverOf(bmp) {
+    try {
+      if (!coverCanvas) coverCanvas = document.createElement('canvas');
+      coverCanvas.width = COVER_N; coverCanvas.height = COVER_N;
+      var g = coverCanvas.getContext('2d', { willReadFrequently: true });
+      g.drawImage(bmp, 0, 0, COVER_N, COVER_N);
+      var d = g.getImageData(0, 0, COVER_N, COVER_N).data;
+      var mask = new Uint8Array(COVER_N * COVER_N), any = 0;
+      for (var i = 0; i < mask.length; i++) {
+        var r = d[i * 4], gr = d[i * 4 + 1], b = d[i * 4 + 2];
+        var lum = 0.30 * r + 0.59 * gr + 0.11 * b;
+        if (gr > r + 4 && gr > b + 10 && lum < 118) { mask[i] = 1; any = 1; }
+      }
+      return any ? mask : null;      // an empty mask changes nothing — skip the rebuilds
+    } catch (e) { return null; }     // a zero-size or unreadable bitmap is not a forest
+  }
+
+  // Tree cover under a world point, 0..1, or null where no photograph has
+  // arrived (and the scatter falls back to guessing). 3x3 cells averaged so a
+  // single dark pixel is a fraction, not a forest.
+  function coverAt(x, z) {
+    if (!world.frame) return null;
+    var geo = world.frame.toGeo(x, z);
+    var tz = root.Terrain.TILE_ZOOM;
+    var tx = root.Geo.lonToTileX(geo.lon, tz), ty = root.Geo.latToTileY(geo.lat, tz);
+    var slot = world.terrain[root.Geo.tileKey({ z: tz, x: Math.floor(tx), y: Math.floor(ty) })];
+    if (!slot || !slot.cover) return null;
+    var cx = Math.min(COVER_N - 1, Math.floor((tx - Math.floor(tx)) * COVER_N));
+    var cy = Math.min(COVER_N - 1, Math.floor((ty - Math.floor(ty)) * COVER_N));
+    var sum = 0, n = 0;
+    for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+      var px = cx + dx, py = cy + dy;
+      if (px < 0 || py < 0 || px >= COVER_N || py >= COVER_N) continue;
+      sum += slot.cover[py * COVER_N + px]; n++;
+    }
+    return n ? sum / n : null;
+  }
+
+  // A photograph just landed, so every road tile under it was built against a
+  // world that did not yet know where its trees were. Mark exactly those tiles
+  // (a z15 road tile sits under the z14 imagery tile at x>>1, y>>1) and let
+  // buildPending rebuild them at its usual one-per-frame pace.
+  function markCoverStale(tile) {
+    for (var k in world.roads) {
+      var t = world.roads[k];
+      if (t && t.tile && (t.tile.x >> 1) === tile.x && (t.tile.y >> 1) === tile.y) t.coverStale = true;
+    }
+  }
+
   function maybeLoadImagery(tile, key) {
     var src = root.Sources.imagery;
     if (!src || !src.api || !tile) return;
@@ -725,7 +794,9 @@
       var slot = world.terrain[key];
       if (!slot || !slot.rec) return;
       imagery.ok++;
+      slot.cover = treeCoverOf(bmp);   // read the pixels BEFORE the GPU owns them
       slot.texture = root.Render.textureFor('img' + key, bmp);
+      if (slot.cover) markCoverStale(tile);
       if (bmp.close) bmp.close();
     }).catch(function (err) {
       // Imagery is a bonus and must never block the drive — but it must not

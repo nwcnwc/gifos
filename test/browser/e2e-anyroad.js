@@ -24,7 +24,7 @@
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
 const { chromium, CHROME } = require('../lib/pw');
 const { appGif } = require('../lib/apps');
-const { HOP, FIXTURE_HEIGHT, TILE_PNG, routeWorld, overpassBody } = require('../lib/anyroad-fixtures');
+const { HOP, FIXTURE_HEIGHT, TILE_PNG, routeWorld, overpassBody, solidTile } = require('../lib/anyroad-fixtures');
 const { readFileSync } = require('fs');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
@@ -75,6 +75,12 @@ function check(name, cond, detail) {
   // drape is format-agnostic — the dimension under test is the PATH.
   const MT_TILE = /^\/tiles\/satellite-v2\/\d+\/\d+\/\d+\.jpg$/;
   const mtSeen = [];
+  // Flipped to true for the satellite-forest coda: from then on every
+  // "photograph" is solid dark canopy, and untagged ground must grow woods.
+  // Until then tiles are the terrarium PNG, whose grey-green reads as NOT
+  // canopy — the drape tests run with the classifier finding nothing.
+  let mtForest = false;
+  const FOREST_PNG = solidTile(64, 30, 72, 28);
   await context.route('**://api.maptiler.com/**', async (route) => {
     const u = new URL(route.request().url());
     const h = route.request().headers();
@@ -85,7 +91,8 @@ function check(name, cond, detail) {
     const cors = { 'Access-Control-Allow-Origin': '*' };
     if (!key) return route.fulfill({ status: 403, headers: cors, body: 'Missing key' });
     if (!MT_TILE.test(u.pathname)) return route.fulfill({ status: 404, headers: cors, body: 'Not found' });
-    await route.fulfill({ status: 200, headers: cors, contentType: 'image/png', body: TILE_PNG });
+    await route.fulfill({ status: 200, headers: cors, contentType: 'image/png',
+      body: mtForest ? FOREST_PNG : TILE_PNG });
   });
 
   const hits = await routeWorld(context);
@@ -641,6 +648,35 @@ function check(name, cond, detail) {
     scenery.tiles + ' tiles, ' + scenery.idx + ' indices');
   check('no tree is planted in the middle of the road', scenery.onRoad === 0,
     scenery.onRoad + ' trunks on tarmac');
+
+  // ---- a tagged wood is THICK ----------------------------------------------
+  // The fixture carries a natural=wood ring (way 8). Mapped woodland used to
+  // come out at parkland density: the copse-clump filter vetoed half the
+  // candidate sites before the tag was consulted, and the per-tile tree cap
+  // was tuned for guessed copses. Count what actually grew inside the ring —
+  // a vertex census, 21 vertices per tree, because the mesh is the one thing
+  // the player sees. The ring is ~267 m × 111 m; sites every 34 m give ~24
+  // first-pass trees, and the densifying pass must roughly double that.
+  const woodland = await fr.locator('body').evaluate(() => {
+    const w = window.App.world, f = w.frame;
+    const HOP = { lat: 48.8698, lon: 2.3078 };
+    const a = f.toWorld(HOP.lat - 0.0012, HOP.lon - 0.0044);
+    const b = f.toWorld(HOP.lat + 0.0012, HOP.lon - 0.0030);
+    const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
+    const z0 = Math.min(a.z, b.z), z1 = Math.max(a.z, b.z);
+    let verts = 0;
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.trees) continue;
+      const p = r.built.trees.positions;
+      for (let i = 0; i < p.length; i += 3) {
+        if (p[i] >= x0 && p[i] <= x1 && p[i + 2] >= z0 && p[i + 2] <= z1) verts++;
+      }
+    }
+    return { trees: Math.round(verts / 21) };
+  });
+  check('a tagged wood grows a THICK wood, not a parkland scatter',
+    woodland.trees >= 40, woodland.trees + ' trees inside the fixture\'s natural=wood ring');
 
   // ---- trees are solid -----------------------------------------------------
   // A tree you can drive through is scenery. The whole reason for putting them
@@ -1760,10 +1796,20 @@ function check(name, cond, detail) {
     view: window.App.debug().view,
     dash: !!(document.getElementById('cockpit') && !document.getElementById('cockpit').hidden),
     pov: document.getElementById('btn-map').className,
+    pad: document.getElementById('steerpad').hidden,
+    // The dash speed must WIN the paint order against the wheel: on a phone
+    // the vh-sized wheel is nearly as wide as the screen and its rim swept
+    // straight across the cluster — 77 km/h, legible on every desktop,
+    // hidden behind the dash on every phone.
+    clusterZ: getComputedStyle(document.getElementById('dash-cluster')).zIndex,
   }));
   check('one tap of the eye enters the COCKPIT, and the dashboard appears',
     cockpitStop.view === 'cockpit' && cockpitStop.dash && /pov-cockpit/.test(cockpitStop.pov),
     JSON.stringify(cockpitStop));
+  check('from the driver\'s seat the corner steering pad hides — the drawn wheel IS the wheel',
+    cockpitStop.pad === true, 'steerpad.hidden=' + cockpitStop.pad);
+  check('the dash speed paints ABOVE the wheel rim (phones: the rim crosses the cluster)',
+    parseInt(cockpitStop.clusterZ, 10) >= 3, 'z-index=' + cockpitStop.clusterZ);
   await fr.locator('#btn-map').click();                       // cockpit -> bird
   let bird = null;
   for (let i = 0; i < 24; i++) {                              // poll: dt-clamped sim time, never wall clock
@@ -1798,6 +1844,8 @@ function check(name, cond, detail) {
   }
   check('one more tap completes the cycle back to the chase, and the camera comes down',
     down.view === 'chase' && down.up < 40, down.up.toFixed(0) + ' m above the car, view=' + down.view);
+  const padBack = await fr.locator('body').evaluate(() => document.getElementById('steerpad').hidden);
+  check('…and the steering pad comes back with the chase view', padBack === false, 'steerpad.hidden=' + padBack);
 
   // ---- sound ---------------------------------------------------------------
   // Everything is synthesised — the app is a GIF and a minute of audio is
@@ -2055,6 +2103,11 @@ function check(name, cond, detail) {
   // new (now slow) Paris requests, give them a beat to get airborne, then hop.
   await fr.locator('body').evaluate(() => { window.App.car().x += 700; });
   await sleep(400);
+  // From here every satellite tile is solid canopy, and the drape goes ON —
+  // Tokyo's terrain will fetch photographs as it streams in, and the
+  // satellite-forest checks after the hop assertions read what grew from them.
+  mtForest = true;
+  await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'maptiler' }); });
   await fr.locator('body').evaluate((el, t) => window.App.hop(t.lat, t.lon, 'Tokyo'), TOKYO);
   let hopState = null;
   for (let i = 0; i < 30; i++) {
@@ -2089,6 +2142,40 @@ function check(name, cond, detail) {
   check('TWO CITIES: the streets NAMED around the car are the new city\'s',
     hopState.near.length > 0 && hopState.near.every((n) => n.includes('Sumida') || n.includes('Ginza')),
     JSON.stringify(hopState.near));
+
+  // ---- the photograph plants the forest -------------------------------------
+  // "Areas that are clearly forests from the satellite photos" must grow
+  // forest even though tokyoBody() maps NOTHING but two roads — no landuse,
+  // no natural=wood. Every imagery tile has been solid canopy since the hop
+  // (mtForest above), so once the cover masks land and the stale tiles
+  // rebuild, untagged ground must fill in at forest density. Without the
+  // classifier the same ground grows the old guessed copses — roughly half
+  // the sites — so the per-tile average is the discriminating number:
+  // ~460 guessed vs the ~1000-tree ceiling with the photograph speaking.
+  let satForest = null;
+  for (let i = 0; i < 40; i++) {
+    await sleep(1000);
+    satForest = await fr.locator('body').evaluate(() => {
+      const w = window.App.world;
+      let verts = 0, tiles = 0, covered = 0;
+      for (const k in w.terrain) {
+        const s = w.terrain[k];
+        if (s && s.cover) covered++;
+      }
+      for (const k in w.roads) {
+        const r = w.roads[k];
+        if (!r || !r.built || !r.built.trees) continue;
+        tiles++; verts += r.built.trees.positions.length / 3;
+      }
+      return { covered, tiles, perTile: tiles ? Math.round(verts / 21 / tiles) : 0 };
+    });
+    if (satForest.covered > 0 && satForest.tiles >= 4 && satForest.perTile >= 700) break;
+  }
+  check('the satellite classifier reads the drape (cover masks exist)',
+    !!satForest && satForest.covered > 0, JSON.stringify(satForest));
+  check('untagged ground under a forest PHOTOGRAPH grows a forest',
+    !!satForest && satForest.perTile >= 700,
+    satForest && (satForest.perTile + ' trees/tile across ' + satForest.tiles + ' tile(s), vs ~460 guessed'));
 
   // ==== THE HILLS CODA ======================================================
   // Everything above runs on a FLAT fixture, and a flat world cannot catch the

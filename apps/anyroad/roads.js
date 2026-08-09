@@ -1037,8 +1037,16 @@
   // the frame put together.
   var MAX_LAND = 400;          // landcover rings per tile — a ceiling on cache bytes
   var TREE_STEP = 34;          // metres between candidate sites
-  var TREE_MAX = 240;          // per tile — a hard ceiling on bytes AND on fill
+  // 240 was tuned for guessed copses and it is why mapped WOODLAND came out as
+  // parkland: a z15 tile has ~800 candidate sites, a tagged forest wants nearly
+  // all of them plus infill, and the ceiling was hit a third of the way across
+  // the tile. 1000 trees is ~0.9 MB of static mesh; nine resident tiles put the
+  // worst case under 9 MB, all in one draw call per tile.
+  var TREE_MAX = 1000;         // per tile — a hard ceiling on bytes AND on fill
   var TREE_CLEAR = 4.0;        // metres of clearance from a carriageway edge
+  // How much of the satellite classifier's 3x3 neighbourhood must read as
+  // canopy before untagged ground grows forest. Below this, the old guesses.
+  var COVER_WOOD = 0.45;
 
   function hash2(x, z) {
     var h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
@@ -1189,7 +1197,7 @@
     return r ? { height: r.id } : null;
   }
 
-  function scatter(frame, tile, geom, roadIndex, wallIndex, landIndex) {
+  function scatter(frame, tile, geom, roadIndex, wallIndex, landIndex, coverAt) {
     var out = { pos: [], nrm: [], col: [], idx: [] };
     // Trunks, as collidable segments and as shadow casters. A tree you can
     // drive through is scenery; a tree you cannot is a hazard, and the whole
@@ -1204,34 +1212,75 @@
     var planted = 0;
     var probe = [];
 
+    // One tree, all checks included: road clearance, building clearance,
+    // ground, slope, species, mesh, trunk, shadow. Returns whether it grew.
+    // `dense` marks a closed-canopy wood, where most trees skip the baked
+    // shadow — under a real canopy the floor is one shade, and a thousand
+    // overlapping shadow polygons per tile is fill-rate spent proving it.
+    function plantAt(x, z, rA, rB, rC, species, bush, orchard, dense) {
+      var road = nearestRoad(roadIndex, x, z);
+      if (road && road.dist < road.halfWidth + TREE_CLEAR) return false;
+      probe.length = 0;
+      nearWalls(wallIndex, x, z, probe);
+      for (var w = 0; w < probe.length; w += 4) {
+        // Anything within a few metres of a footprint edge is a courtyard, a
+        // pavement or the inside of the building itself.
+        if (segDist(x, z, probe[w], probe[w + 1], probe[w + 2], probe[w + 3]) < 5) return false;
+      }
+      var y = root.Terrain.heightAt(frame, x, z);
+      if (y === null) { groundMisses++; return false; }   // not loaded — the tile is a guess
+      if (y < 0.6) return false;                          // in the sea
+      // No trees on a cliff: sample the slope the same way the car does.
+      var yn = root.Terrain.heightAt(frame, x + 6, z), ye = root.Terrain.heightAt(frame, x, z + 6);
+      if (yn !== null && ye !== null && Math.max(Math.abs(yn - y), Math.abs(ye - y)) > 4.2) return false;
+
+      var h = 5.5 + rA * 7.5, rad = 1.7 + rB * 2.1;
+      // Conifer above the treeline-ish, broadleaf below, and a few dying back
+      // to autumn either way — the guess, used only where nothing is tagged.
+      var conifer = y > 900 || rC < 0.06;
+      if (species === 'conifer') conifer = true;
+      else if (species === 'broad') conifer = false;
+      else if (species === 'mixed') conifer = rC < 0.45;   // a real mixed wood
+      // Scrub and heath are waist-high and wide, not small trees. Getting
+      // this wrong is what makes moorland look like a nursery.
+      if (bush) { h = 1.1 + rA * 1.3; rad = 1.3 + rB * 1.4; conifer = false; }
+      // An orchard is PLANTED, and the giveaway is that it is in rows.
+      if (orchard) { h = bush ? h : 4.2 + rA * 1.6; rad = bush ? rad : 2.0 + rB * 0.7; }
+      // Closed canopy: taller, broader crowns that actually meet. The gap
+      // between neighbours is what read as "parkland" before.
+      if (dense && !bush && !orchard) { h = 7.0 + rA * 9.0; rad = 2.2 + rB * 2.6; }
+      var tint = conifer ? [0.16 + rA * 0.05, 0.30 + rB * 0.07, 0.20 + rA * 0.05]
+                         : [0.22 + rB * 0.14, 0.38 + rA * 0.12, 0.16 + rB * 0.08];
+      if (rB > 0.93) tint = [0.52, 0.40, 0.16];       // one in fifteen has turned
+      var th = conifer ? h * 1.25 : h, tr = conifer ? rad * 0.62 : rad;
+      if (bush) { th = h; tr = rad; }
+      tree(x, y, z, th, tr, tint, out);
+      // The trunk as a small square of wall segments. A single segment would
+      // be a flat plank the car can slide along the edge of; four make a post
+      // that pushes you out whichever way you hit it.
+      // A BUSH IS NOT A BOLLARD. Scrub you cannot drive through turns open
+      // moorland into a maze, and the point of a trunk is that leaving the
+      // road costs something — a gorse bush does not.
+      var tw = Math.max(0.22, tr * 0.14);
+      if (!bush) {
+        trunks.push(x - tw, z - tw, x + tw, z - tw,
+                    x + tw, z - tw, x + tw, z + tw,
+                    x + tw, z + tw, x - tw, z + tw,
+                    x - tw, z + tw, x - tw, z - tw);
+      }
+      if (!dense || rC < 0.4) shade.push(x, y, z, tr, th);
+      planted++;
+      return true;
+    }
+
+    // Wood sites that took, remembered for the densifying pass below.
+    var woodSites = [];
+
     for (var gx = Math.floor(x0 / TREE_STEP); gx * TREE_STEP < x1 && planted < TREE_MAX; gx++) {
       for (var gz = Math.floor(z0 / TREE_STEP); gz * TREE_STEP < z1 && planted < TREE_MAX; gz++) {
         var r1 = hash2(gx, gz), r2 = hash2(gx + 91.3, gz - 47.9), r3 = hash2(gx * 1.7, gz * 2.3 + 5.1);
-        // Clumping: trees come in copses, and a uniform scatter is the one
-        // arrangement no landscape on Earth has.
-        var clump = hash2(Math.floor(gx / 4) * 3.7, Math.floor(gz / 4) * 5.9);
-        if (r3 > 0.20 + clump * 0.72) continue;
         var x = (gx + r1) * TREE_STEP, z = (gz + r2) * TREE_STEP;
         if (x < x0 || x > x1 || z < z0 || z > z1) continue;
-
-        var road = nearestRoad(roadIndex, x, z);
-        if (road && road.dist < road.halfWidth + TREE_CLEAR) continue;
-        probe.length = 0;
-        nearWalls(wallIndex, x, z, probe);
-        var blocked = false;
-        for (var w = 0; w < probe.length; w += 4) {
-          // Anything within a few metres of a footprint edge is a courtyard, a
-          // pavement or the inside of the building itself.
-          if (segDist(x, z, probe[w], probe[w + 1], probe[w + 2], probe[w + 3]) < 5) { blocked = true; break; }
-        }
-        if (blocked) continue;
-
-        var y = root.Terrain.heightAt(frame, x, z);
-        if (y === null) { groundMisses++; continue; }   // not loaded — the tile is a guess
-        if (y < 0.6) continue;                          // in the sea
-        // No trees on a cliff: sample the slope the same way the car does.
-        var yn = root.Terrain.heightAt(frame, x + 6, z), ye = root.Terrain.heightAt(frame, x, z + 6);
-        if (yn !== null && ye !== null && Math.max(Math.abs(yn - y), Math.abs(ye - y)) > 4.2) continue;
 
         // WHAT DOES OSM SAY IS HERE? A tagged ring decides both whether
         // anything grows and what it is. Where OSM is silent we keep the old
@@ -1240,44 +1289,62 @@
         // stranger than one guessing.
         var lc = landIndex && landIndex.length ? landAt(landIndex, x, z) : null;
         var rule = lc ? LAND_BY_ID[lc.id] : null;
-        var bush = false, orchard = false, species = null;
+        var dense = false;
         if (rule) {
           if (!rule.plant) continue;                       // sand, rock, quarry
+          // The tag's own density and NOTHING ELSE. The copse-clump filter
+          // below used to run first and veto half of every mapped wood before
+          // the tag was even consulted — which is why a tagged forest came out
+          // at the density of a park with the density of a golf course.
           if (hash2(gx * 3.1 + 11.7, gz * 4.9 - 3.3) > rule.plant) continue;
-          bush = !!rule.bush; orchard = !!rule.orchard; species = lc.leaf;
+          dense = rule.plant >= 0.8 && !rule.bush && !rule.orchard;
+        } else if (coverAt && (coverAt(x, z) || 0) >= COVER_WOOD) {
+          // OSM is silent but THE PHOTOGRAPH IS NOT: the drape's classifier
+          // says closed canopy here (app.js treeCoverOf), so grow the same
+          // forest a natural=wood tag would have grown. This is what turns
+          // "clearly a forest on the satellite, bare grass in the game" into
+          // a wood — most of the world's forest has no OSM polygon.
+          dense = true;
+        } else {
+          // Clumping: trees come in copses, and a uniform scatter is the one
+          // arrangement no landscape on Earth has. Guessed ground only.
+          var clump = hash2(Math.floor(gx / 4) * 3.7, Math.floor(gz / 4) * 5.9);
+          if (r3 > 0.20 + clump * 0.72) continue;
         }
-        var h = 5.5 + r1 * 7.5, rad = 1.7 + r2 * 2.1;
-        // Conifer above the treeline-ish, broadleaf below, and a few dying back
-        // to autumn either way — the guess, used only where nothing is tagged.
-        var conifer = y > 900 || r3 < 0.06;
-        if (species === 'conifer') conifer = true;
-        else if (species === 'broad') conifer = false;
-        else if (species === 'mixed') conifer = r3 < 0.45;   // a real mixed wood
-        // Scrub and heath are waist-high and wide, not small trees. Getting
-        // this wrong is what makes moorland look like a nursery.
-        if (bush) { h = 1.1 + r1 * 1.3; rad = 1.3 + r2 * 1.4; conifer = false; }
-        // An orchard is PLANTED, and the giveaway is that it is in rows.
-        if (orchard) { h = bush ? h : 4.2 + r1 * 1.6; rad = bush ? rad : 2.0 + r2 * 0.7; }
-        var tint = conifer ? [0.16 + r1 * 0.05, 0.30 + r2 * 0.07, 0.20 + r1 * 0.05]
-                           : [0.22 + r2 * 0.14, 0.38 + r1 * 0.12, 0.16 + r2 * 0.08];
-        if (r2 > 0.93) tint = [0.52, 0.40, 0.16];       // one in fifteen has turned
-        var th = conifer ? h * 1.25 : h, tr = conifer ? rad * 0.62 : rad;
-        if (bush) { th = h; tr = rad; }
-        tree(x, y, z, th, tr, tint, out);
-        // The trunk as a small square of wall segments. A single segment would
-        // be a flat plank the car can slide along the edge of; four make a post
-        // that pushes you out whichever way you hit it.
-        // A BUSH IS NOT A BOLLARD. Scrub you cannot drive through turns open
-        // moorland into a maze, and the point of a trunk is that leaving the
-        // road costs something — a gorse bush does not.
-        var tw = Math.max(0.22, tr * 0.14);
-        if (bush) { shade.push(x, y, z, tr, th); planted++; continue; }
-        trunks.push(x - tw, z - tw, x + tw, z - tw,
-                    x + tw, z - tw, x + tw, z + tw,
-                    x + tw, z + tw, x - tw, z + tw,
-                    x - tw, z + tw, x - tw, z - tw);
-        shade.push(x, y, z, tr, th);
-        planted++;
+        if (plantAt(x, z, r1, r2, r3, lc && lc.leaf, !!(rule && rule.bush),
+                    !!(rule && rule.orchard), dense) && dense) {
+          woodSites.push(x, z, (lc && lc.leaf) || '');
+        }
+      }
+    }
+
+    // THE DENSIFYING PASS. A candidate every 34 m is a tree every ~40 m, and
+    // no amount of tagging makes that a forest — it is the spacing of a car
+    // park. Each wood site now grows satellites around it, ROUND-ROBIN across
+    // the whole tile rather than site-by-site, so when the tile cap bites the
+    // entire wood thins evenly instead of the east half going bald. Offsets
+    // hash off the WORLD position like everything else here, so a rebuilt tile
+    // grows the same wood in the same place.
+    var SATELLITES = 2;
+    for (var pass = 0; pass < SATELLITES && planted < TREE_MAX; pass++) {
+      for (var s = 0; s < woodSites.length && planted < TREE_MAX; s += 3) {
+        var wx = woodSites[s], wz = woodSites[s + 1], wleaf = woodSites[s + 2] || null;
+        var sa = hash2(wx * 0.371 + pass * 13.7, wz * 0.533 - pass * 7.1);
+        var sb = hash2(wx * 0.713 - pass * 3.9, wz * 0.291 + pass * 11.3);
+        var sc = hash2(wx * 0.157 + pass * 5.3, wz * 0.947 - pass * 2.7);
+        var ang = sa * Math.PI * 2, dist = 8 + sb * 9;
+        var px = wx + Math.cos(ang) * dist, pz = wz + Math.sin(ang) * dist;
+        if (px < x0 || px > x1 || pz < z0 || pz > z1) continue;
+        // The satellite must still be standing IN the wood — a ring edge is a
+        // real edge, and trees marching out of it onto tagged meadow or sand
+        // would erase the very boundary the mapper drew. Photographed forest
+        // (no ring, mask says canopy) counts as being in the wood too.
+        var plc = landAt(landIndex, px, pz);
+        var prule = plc ? LAND_BY_ID[plc.id] : null;
+        var inWood = prule ? (prule.plant >= 0.8 && !prule.bush && !prule.orchard)
+                           : !!(coverAt && (coverAt(px, pz) || 0) >= COVER_WOOD);
+        if (!inWood) continue;
+        plantAt(px, pz, sb, sc, sa, (plc && plc.leaf) || wleaf, false, false, true);
       }
     }
     return { mesh: pack(out, ['pos', 'nrm', 'col']), trunks: trunks, shade: shade };
@@ -1388,7 +1455,7 @@
   }
 
   // Build all four meshes for one tile's geometry.
-  function build(frame, geom, tile) {
+  function build(frame, geom, tile, coverAt) {
     groundMisses = 0;
     var roads = { pos: [], uv: [], tone: [], rinfo: [], idx: [] };
     var paths = [];
@@ -1471,7 +1538,7 @@
     var wallIndex = buildWallIndex(frame, geom);
     var landIndex = buildLandIndex(frame, geom);
     var scenery = root.Sources.current.quality === 'normal'
-      ? scatter(frame, tile, geom, roadIndex, wallIndex, landIndex) : null;
+      ? scatter(frame, tile, geom, roadIndex, wallIndex, landIndex, coverAt) : null;
     if (scenery && scenery.trunks.length) wallIndex = buildWallIndex(frame, geom, scenery.trunks);
     var shadows = buildShadows(frame, geom, scenery ? scenery.shade : []);
 
