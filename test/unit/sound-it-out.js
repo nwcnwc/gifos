@@ -29,7 +29,7 @@ const check = (n, c, extra) => {
 // ---- load the shipped modules exactly as the GIF would run them -------------
 const sandbox = { window: {}, atob, btoa, console };
 vm.createContext(sandbox);
-for (const f of ['fonts-data.js', 'clips-data.js', 'dictionary-data.js', 'dictionary.js', 'curriculum.js', 'library.js', 'dsp.js', 'store.js', 'voice.js', 'storyboard.js']) {
+for (const f of ['fonts-data.js', 'clips-data.js', 'dictionary-data.js', 'dictionary.js', 'curriculum.js', 'library.js', 'dsp.js', 'store.js', 'voice.js', 'studio.js', 'storyboard.js']) {
   vm.runInContext(fs.readFileSync(path.join(APP, f), 'utf8'), sandbox, { filename: f });
 }
 const SIO = sandbox.window.SIO;
@@ -217,6 +217,45 @@ if (!fs.existsSync(fixturePath)) {
   const letterPack = packs.find((p) => p.id === 'letters');
   check('the letters pack is single letters',
     letterPack.items.every((i) => lib.entryKind(i) === 'letter'));
+}
+
+// ---- the sound bank (0.6.1 + 0.7.0) -----------------------------------------
+{
+  // caps budget PER SOUND: grandma's an=/æn/ carries two sounds and must
+  // get twice one sound's time - trimming it to one amputated her /n/
+  check('soundsIn counts a chunk\'s sounds', cur.soundsIn('æn') === 2 && cur.soundsIn('s') === 1);
+  const segs = cur.approach([['gr', 'ɡɹ'], ['an', 'æn'], ['d', 'd']], 1.5, 2).filter((x) => x.clip);
+  const capOf = (ipa) => segs.find((x) => x.clip.ipa === ipa).clip.cap;
+  check('approach caps multiply by the chunk\'s sound count',
+    Math.abs(capOf('æn') / capOf('d') - 2) < 1e-9, [capOf('æn'), capOf('d')]);
+
+  const cat = SIO.dictionary.catalog();
+  check('the chunk catalog is substantial and most-useful-first',
+    cat.length > 300 && cat[0].words >= cat[Math.floor(cat.length / 2)].words, cat.length);
+  check('every catalog entry carries spelling + example',
+    cat.every((c) => c.spelling && c.example));
+  const catIpas = new Set(cat.map((c) => c.ipa));
+  const rimeMiss = cur.allRimes().filter(([, ipa]) => !catIpas.has(ipa));
+  check('rime sounds stay listed in the catalog (recordings never invisible)',
+    rimeMiss.length === 0, rimeMiss.slice(0, 5));
+
+  check('the recipe spells a chunk out in plain words',
+    /ant/.test(SIO.studio.soundRecipe('æn')) && /nnn/.test(SIO.studio.soundRecipe('æn')),
+    SIO.studio.soundRecipe('æn'));
+
+  // walk-through order: the line FIRST, then words, then chunks, then singles
+  const items = lib.walkthroughItems('Grandma is here.', new Set());
+  const kinds = items.map((it) => it.kind);
+  check('walk-through: line first, then words, then sound pieces',
+    kinds[0] === 'sentence' && kinds[1] === 'word'
+    && kinds.lastIndexOf('word') < kinds.indexOf('phoneme'), kinds);
+  const pieces = items.filter((it) => it.kind === 'phoneme');
+  const firstSingle = pieces.findIndex((it) => SIO.dictionary.tokens(it.ipa).length === 1);
+  const lastChunk = pieces.map((it) => SIO.dictionary.tokens(it.ipa).length > 1).lastIndexOf(true);
+  check('pieces queue chunks before singles',
+    pieces.length > 0 && (firstSingle === -1 || lastChunk < firstSingle));
+  check('a recorded piece leaves the queue',
+    lib.pieceItems('Grandma is here.', new Set(['phonemes/æn'])).every((it) => it.ipa !== 'æn'));
 }
 
 // ---- chunk speakability -----------------------------------------------------

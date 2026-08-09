@@ -22,7 +22,8 @@
   </div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" id="tab-sentences" aria-selected="true" data-screen="sentences">Sentences</button>
-    <button class="tab" role="tab" id="tab-setup" aria-selected="false" data-screen="setup">Setup</button>
+    <button class="tab" role="tab" id="tab-setup" aria-selected="false" data-screen="setup">Sound Bank</button>
+    <button class="tab" role="tab" id="tab-settings" aria-selected="false" data-screen="settings">Settings</button>
   </nav>
   <span class="presence" id="presence" role="status" aria-live="polite" hidden></span>
 </header>
@@ -117,10 +118,11 @@
        recordings safe. -->
   <section class="screen" id="screen-setup" hidden>
     <div class="page-head">
-      <h1>Setup</h1>
+      <h1>Sound Bank</h1>
       <p class="lede">
-        Done once, shared by everything: the letter sounds, and the bank of words
-        you have recorded.
+        The whole voice on one screen: the sounds, the letter teams, and the words.
+        Everything starts covered &mdash; your recordings replace the defaults one
+        breath at a time.
       </p>
     </div>
 
@@ -142,16 +144,19 @@
         </div>
       </li>
 
-      <li class="vpart" data-part="rimes">
+      <li class="vpart" data-part="chunks">
         <div class="vpart-num">2</div>
         <div class="vpart-body">
-          <h2>The word endings <span class="vpart-count" id="count-rimes"></span></h2>
-          <p>The magic-e endings &mdash; <i>ase</i> as in case, <i>ike</i> as in like,
-             <i>ome</i> as in home &mdash; so words like &ldquo;Chase&rdquo; can build up
-             as c&nbsp;+&nbsp;ase. Optional: the starter voice covers them until you do.</p>
+          <h2>The letter teams <span class="vpart-count" id="count-chunks"></span></h2>
+          <p>Every chunk sound the dictionary uses &mdash; <i>an</i> as in ant,
+             <i>ing</i> as in bring, the magic-e endings &mdash; most useful first.
+             Each one already plays as an automatic blend of the sounds above;
+             recording one replaces the blend with a single human breath, everywhere
+             that sound appears. Optional, and endless &mdash; do a few of the top
+             ones whenever you feel like it.</p>
           <div class="rowbar">
-            <button class="btn btn-primary" id="rimes-record" type="button">Record these here</button>
-            <button class="btn btn-second" id="rimes-review" type="button">Listen back &amp; redo</button>
+            <button class="btn btn-primary" id="chunks-record" type="button">Record some here</button>
+            <button class="btn btn-second" id="chunks-review" type="button">Listen &amp; preview</button>
           </div>
         </div>
       </li>
@@ -170,8 +175,19 @@
         </div>
       </li>
 
+    </ol>
+  </section>
+
+  <!-- ========================================================= SETTINGS -->
+  <section class="screen" id="screen-settings" hidden>
+    <div class="page-head">
+      <h1>Settings</h1>
+      <p class="lede">There isn't much here on purpose.</p>
+    </div>
+
+    <ol class="vparts">
       <li class="vpart" data-part="keep">
-        <div class="vpart-num">4</div>
+        <div class="vpart-num">1</div>
         <div class="vpart-body">
           <h2>Keeping it safe</h2>
           <p>Recordings live on this device, inside this app's icon &mdash; not on a

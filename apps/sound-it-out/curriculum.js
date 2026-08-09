@@ -308,6 +308,11 @@
   const APPROACH_FLOOR = 0.02;
   const TOUCH_HOLD = 0.40, TOUCH_EDGE_MS = 20, TOUCH_XFADE_MS = 30, TOUCH_BREATH = 0.3;
 
+  // How many single sounds a chunk's sound carries (an=/æn/ carries two).
+  function soundsIn(ipa) {
+    return Math.max(1, SIO.dictionary ? SIO.dictionary.tokens(ipa).length : 1);
+  }
+
   function approachStart(passes) {
     return Math.min(0.5, Math.max(0.20, 0.15 * (passes - 1)));
   }
@@ -327,10 +332,13 @@
       // The SOUNDS compress along with the gaps - that is what blending is.
       // Uncapped, the highlight camped on long holds and blinked past short
       // stops ("scrambled", reported on Grandma, whose m dwarfed its d).
+      // The budget is PER SOUND, not per chunk: a dictionary chunk like
+      // an=/æn/ carries two sounds, and capping it to one sound's length
+      // amputated the second - Grandma again, this time missing her /n/.
       const hold = 0.5 * Math.pow(1.1 / 0.5, frac);
       parts.forEach(([, ipa], j) => {
         const shown = parts.map(([g], k) => [g, k === j]);
-        segs.push(Segment(shown, phonemeClip(ipa, hold), gap));
+        segs.push(Segment(shown, phonemeClip(ipa, hold * soundsIn(ipa)), gap));
       });
     }
     segs.push({ touching: { parts }, parts: null, clip: null, pad: 0, scale: 1.0, color: null, itemEnd: false });
@@ -434,6 +442,6 @@
     RIME_CONS, allRimes, RIME_EXAMPLES, RIME_VOWEL_HINT, RIME_CONS_HINT,
     PHONEME_ROWS, PHONEME_ALIASES, sentenceKey,
     APPROACH_FLOOR, TOUCH_HOLD, TOUCH_EDGE_MS, TOUCH_XFADE_MS, TOUCH_BREATH,
-    approachStart, approach, oneWord, library,
+    soundsIn, approachStart, approach, oneWord, library,
   };
 })();
