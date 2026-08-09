@@ -58,6 +58,11 @@ const cur = SIO.curriculum, lib = SIO.library;
   check('a nonsense name reads zor-bul instead of being refused: Zorble',
     cur.decodable('zorble') === true
     && j(cur.splitGraphemes('Zorble').slice(-1)) === j([['le', 'əl']]), cur.splitGraphemes('Zorble'));
+  check('names follow the syllable rules: Zuma = Z-u(oo)-m-a(uh) (0.7.9)',
+    j(cur.splitGraphemes('Zuma')) === j([['Z', 'z'], ['u', 'uː'], ['m', 'm'], ['a', 'ə']]),
+    cur.splitGraphemes('Zuma'));
+  check('closed syllables stay short: vam is untouched',
+    j(cur.splitGraphemes('vam')) === j([['v', 'v'], ['a', 'æ'], ['m', 'm']]), cur.splitGraphemes('vam'));
   check('doubled consonants are one sound: zoss = z-o-ss',
     j(cur.splitGraphemes('zoss')) === j([['z', 'z'], ['o', 'ɒ'], ['ss', 's']]), cur.splitGraphemes('zoss'));
   // The aligned dictionary answers first (0.6.0): it knows how real words
