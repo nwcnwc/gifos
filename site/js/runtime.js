@@ -2359,9 +2359,19 @@
           mount();
         });
       };
+      // "As I joined": the first FULL state this client ever adopted, kept
+      // aside so a steal can take the room as it stood when you walked in —
+      // the third of the three steal choices. structuredClone, not JSON: the
+      // mirror can carry real Uint8Array blobs (My Media's video).
+      let connectState = null;
+      const captureConnect = () => {
+        if (connectState) return;
+        try { connectState = structuredClone(mirror); }
+        catch (e) { try { connectState = JSON.parse(JSON.stringify(mirror)); } catch (e2) {} }
+      };
       const onSnap = (body) => {
         trace('snap');
-        if (body && body.state && body.state.collections) { mirror = body.state; reconcilePending(); }
+        if (body && body.state && body.state.collections) { mirror = body.state; captureConnect(); reconcilePending(); }
         if (!mounted && body && body.app) return mountFromB64(body.app, body.name); // legacy in-snap bytes
         notify('*');
       };
@@ -2380,7 +2390,7 @@
           if (r.kind === 'app') return mountFromB64(r.body && r.body.app, r.body && r.body.name);
           if (r.kind === 'snap') return onSnap(r.body);
           if (r.kind === 'delta') {
-            if (r.body && r.body.state && r.body.state.collections) { mirror = r.body.state; notify('*'); }
+            if (r.body && r.body.state && r.body.state.collections) { mirror = r.body.state; captureConnect(); notify('*'); }
             else if (r.body && r.body.collection && r.body.items) { AO.applyDelta(mirror, r.body); notify(r.body.collection); }
             reconcilePending();
           }
@@ -2400,19 +2410,25 @@
           ? packSnapshot(appBytes, filesRef, manifestRef, mirror)
           : Promise.reject(new Error('app not loaded yet')),
         // Steal from a client mount, filed into this desktop's Stolen Apps —
-        // same folder, same ritual. opts.data chooses WHICH copy:
+        // same folder, same ritual. opts.data chooses WHICH copy — the same
+        // three the engine has always had (stealApp), restored to the person:
         //   'current' (default) — app + the owner-verified mirror, data and all
+        //   'connect'           — app + the room as it stood WHEN YOU JOINED
         //   'none'              — a clean copy: the app alone, nothing shared
-        // Both are legitimate wants (take the game AND the scoreboard, or take
-        // just the game), so the caller asks the person rather than deciding.
         stealToDesktop: (opts) => {
           if (!(appBytes && manifestRef)) return Promise.reject(new Error('app not loaded yet'));
-          const clean = !!(opts && opts.data === 'none');
+          const dmode = (opts && opts.data) || 'current';
+          const clean = dmode === 'none';
+          const state = clean ? null
+            : dmode === 'connect' ? (connectState || mirror)   // joined pre-snap: honest best
+              : mirror;
           return Promise.all([
             clean && filesRef ? stripState(appBytes, filesRef) : Promise.resolve(appBytes),
             ensureStolenFolder(),
-          ]).then(([bytes, folder]) => saveAppToDesktop(bytes, manifestRef, clean ? null : mirror, folder));
+          ]).then(([bytes, folder]) => saveAppToDesktop(bytes, manifestRef, state, folder));
         },
+        // The live mirror, for suites to watch convergence without stealing.
+        mirrorState: () => mirror,
         setFrozen: (f) => { frozen = !!f; },
         // The mounted app's GIF bytes (null until they land). The app bar
         // renders these as the thumbnail — seeing it IS seeing that a Steal

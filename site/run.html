@@ -11147,7 +11147,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const label = b.textContent;
       const fold = () => {
         delete b.dataset.armed;
-        [d1, d2].forEach((x) => x.remove());
+        [d1, d2, d3].forEach((x) => x.remove());
         b.style.display = '';
       };
       // The confirmation lives ON THE BUTTON. The status line is a span at
@@ -11156,7 +11156,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // nothing said so where the user was looking). The button is where
       // their eyes already are — morph it, hold it, restore it.
       const go = (data, btn) => {
-        [d1, d2].forEach((x) => { x.disabled = true; });
+        [d1, d2, d3].forEach((x) => { x.disabled = true; });
         btn.textContent = 'Stealing…';
         appClientCtl.stealToDesktop({ data })
           .then(() => {
@@ -11165,7 +11165,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             b.disabled = true;
             setStatus(data === 'none'
               ? '🥷 Yours now — a clean copy in your desktop’s Stolen Apps, none of the room’s data.'
-              : '🥷 Yours now — saved to your desktop’s Stolen Apps, data and all.');
+              : data === 'connect'
+                ? '🥷 Yours now — the room as it stood when you joined, in your Stolen Apps.'
+                : '🥷 Yours now — saved to your desktop’s Stolen Apps, data and all.');
             setTimeout(() => { b.textContent = label; b.disabled = false; }, 4000);
           })
           .catch((e) => { fold(); setStatus('Could not steal: ' + (e && e.message || e)); });
@@ -11178,8 +11180,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return x;
       };
       b.style.display = 'none';
-      // Insertion order: data-first reads left-to-right as written.
-      const d2 = mk('app only', 'A clean copy — the app alone, none of the room’s data', 'none');
+      // Insertion order: reversed, since each lands at b.nextSibling —
+      // reads left-to-right as: + data · as I joined · app only.
+      const d3 = mk('app only', 'A clean copy — the app alone, none of the room’s data', 'none');
+      const d2 = mk('as I joined', 'The app and the room as it stood when you came in', 'connect');
       const d1 = mk('+ data', 'The app and everything in it right now', 'current');
     };
     let appClientStop = null; // live client mount's teardown (unsubscribes its sga lane)
@@ -11198,7 +11202,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function clearAppView(why) {
       appEv('clear', { why: why || 'unstated' });
       if (appClientStop) { try { appClientStop(); } catch (e) {} appClientStop = null; }
-      appClientCtl = null; appHostCtl = null;
+      appClientCtl = null; appHostCtl = null; try { delete window.__appClientCtl; } catch (e) {}
       refreshStealBtn();
       appMountEl.innerHTML = '';
       document.body.classList.remove('has-app');
@@ -11299,7 +11303,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             // keep the teardown so a later clear/takeover unsubscribes the lane;
             // if this mount was already superseded while booting, stop it now.
             if (!c || typeof c.stop !== 'function') return;
-            if (appMode === 'client' && appKey === sidNow) { appClientStop = c.stop; appClientCtl = c; }
+            if (appMode === 'client' && appKey === sidNow) { appClientStop = c.stop; appClientCtl = c; window.__appClientCtl = c; /* suite probe */ }
             else { try { c.stop(); } catch (e) {} }
           }).catch(() => {});
         }
