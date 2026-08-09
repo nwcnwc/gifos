@@ -421,10 +421,36 @@
     }
   }
 
+  // SOMEBODY WON. A rising major arpeggio with a shimmer on top, then a couple
+  // of cracks for the fireworks. Everyone in the room hears it, including the
+  // people who lost — a finish nobody else notices is not an event.
+  function fanfare(place) {
+    if (!started || silent) return;
+    var root0 = place === 1 ? 392 : 330;            // G for a win, E otherwise
+    var notes = [0, 4, 7, 12, 16];
+    for (var i = 0; i < notes.length; i++) {
+      (function (i) {
+        setTimeout(function () {
+          var f = root0 * Math.pow(2, notes[i] / 12);
+          tone({ type: 'triangle', f0: f, f1: f, dur: 0.42, gain: 0.22, filter: 4200 });
+          tone({ type: 'sine', f0: f * 2, f1: f * 2, dur: 0.30, gain: 0.10, filter: 6000 });
+        }, i * 110);
+      })(i);
+    }
+    for (var k = 0; k < 4; k++) {
+      (function (k) {
+        setTimeout(function () {
+          burst({ freq: 900 + k * 400, q: 0.5, dur: 0.35, gain: 0.20, rate: 1.3 });
+          tone({ type: 'sine', f0: 160, f1: 50, dur: 0.30, gain: 0.16, filter: 500 });
+        }, 420 + k * 230);
+      })(k);
+    }
+  }
+
   root.Sound = {
     unlock: unlock, setMode: setMode, drive: drive, traffic: traffic,
     crash: crash, scrape: scrape, glass: glass, blast: blast, zap: zap, splash: splash,
-    call: call, thump: thump, horn: horn,
+    call: call, thump: thump, horn: horn, fanfare: fanfare,
     ready: function () { return started; },
     // Test seam: the whole point of synthesis is that there is no file to
     // assert about, so a suite has to be able to see the graph.

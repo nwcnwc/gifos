@@ -1032,6 +1032,52 @@
              colors: new Float32Array(o.col), indices: new Uint16Array(o.idx),
              count: o.idx.length };
   }
+  // THE FINISH FLAG. Built to be seen, not to be tasteful.
+  //
+  // The first race had no marker in the world AT ALL — the only sign you had
+  // arrived was the HUD arrow vanishing. So this is deliberately enormous: a
+  // 34 m mast with a 14 m banner, a chequered plinth at the base so it reads
+  // from close up, and a translucent BEACON column climbing 220 m above it.
+  // The beacon is the part that matters — over rolling terrain a flag on the
+  // ground is hidden by the first hill between you and it, and the whole point
+  // is to be visible from the far side of the map.
+  function buildFlagMesh() {
+    var o = { pos: [], nrm: [], col: [], idx: [] };
+    var white = [0.97, 0.97, 0.99], black = [0.08, 0.08, 0.10];
+    var pole = [0.86, 0.86, 0.90], gold = [1.00, 0.82, 0.22];
+    boxInto(o, 0, 17, 0, 0.42, 17, 0.42, pole);              // the mast
+    boxInto(o, 0, 34.6, 0, 0.9, 0.9, 0.9, gold);             // finial
+    // The banner: a chequerboard of blocks so it reads as a chequered flag
+    // rather than a grey rectangle, at any distance.
+    for (var r = 0; r < 4; r++) {
+      for (var c = 0; c < 7; c++) {
+        boxInto(o, 7.4 - c * 2.0, 30.2 - r * 1.9, 0.0, 1.0, 0.95, 0.16,
+                ((r + c) % 2) ? white : black);
+      }
+    }
+    // A plinth you cannot drive past without noticing.
+    for (var q = 0; q < 12; q++) {
+      var a = q / 12 * Math.PI * 2;
+      boxInto(o, Math.cos(a) * 6.2, 0.55, Math.sin(a) * 6.2, 1.1, 0.55, 1.1,
+              (q % 2) ? white : black);
+    }
+    return { positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
+             colors: new Float32Array(o.col), indices: new Uint16Array(o.idx),
+             count: o.idx.length };
+  }
+  // The beacon is drawn separately because it is BLENDED — a solid column that
+  // tall would be a wall across the horizon.
+  function buildBeaconMesh() {
+    var o = { pos: [], nrm: [], col: [], idx: [] };
+    boxInto(o, 0, 160, 0, 4.5, 160, 4.5, [1.00, 0.86, 0.30]);
+    return { positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
+             colors: new Float32Array(o.col), indices: new Uint16Array(o.idx),
+             count: o.idx.length };
+  }
+  var flagGL = null, beaconGL = null;
+  function uploadFlag() { if (!flagGL) flagGL = uploadBody(buildFlagMesh()); return flagGL; }
+  function uploadBeacon() { if (!beaconGL) beaconGL = uploadBody(buildBeaconMesh()); return beaconGL; }
+
   var carMesh = null, carGL = null, planeGL = null, animalGL = null, blasterGL = null, boltGL = null;
   function uploadPlane() {
     if (!planeGL) planeGL = uploadBody(buildPlaneMesh());
@@ -1350,6 +1396,69 @@
         aPos: { src: 'positions', size: 3 }, aNormal: { src: 'normals', size: 3 },
         aTone: { src: 'tone', size: 1 }, aBinfo: { src: 'binfo', size: 3 },
       });
+    }
+
+    // THE FINISH FLAG, drawn through the car program (one more body with a
+    // matrix) so it inherits the same lighting and fog as everything else and
+    // needs no shader of its own. Drawn in EVERY point of view — chase,
+    // cockpit and bird — because "where is the finish" is the one question all
+    // three have in common.
+    if (scene.flag) {
+      var fm = mat4();
+      common(progs.car);
+      var fg = uploadFlag();
+      ['aPos','aNormal','aColor'].forEach(function (name) {
+        var loc = progs.car.a[name];
+        if (loc === undefined || loc < 0) return;
+        gl.bindBuffer(gl.ARRAY_BUFFER, fg.vbo[name]);
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      });
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, fg.ibo);
+      gl.uniform3fv(progs.car.u.uShape, ONE);
+      gl.uniform1f(progs.car.u.uGloss, 0.2);
+      // Emissive, so it stays bright in fog and at dusk rather than fading into
+      // the hillside behind it.
+      gl.uniform1f(progs.car.u.uEmit, 0.55);
+      carMatrix(fm, scene.flag.x, scene.flag.y, scene.flag.z, scene.flag.spin || 0, 0, 0);
+      gl.uniformMatrix4fv(progs.car.u.uModel, false, fm);
+      gl.uniform3fv(progs.car.u.uTint, [1, 1, 1]);
+      // The mast grows with distance too, but far more gently — it should read
+      // as a big flag a long way off, not as a skyscraper.
+      var fs = scene.flag.grow || 1;
+      gl.uniform3fv(progs.car.u.uShape, [fs, fs, fs]);
+      gl.drawElements(gl.TRIANGLES, fg.count, fg.type, 0);
+      gl.uniform3fv(progs.car.u.uShape, ONE);
+
+      // The beacon is SOLID, not additive. Additive light against a bright
+      // daytime sky is exactly where additive fails — it washed out to a hazy
+      // smear at 400 m, which is how a marker fails at the one job it has.
+      // A saturated opaque column reads at any distance and against anything,
+      // and at a dozen metres wide it is a pillar rather than a wall.
+      var bg = uploadBeacon();
+      gl.depthMask(false);
+      ['aPos','aNormal','aColor'].forEach(function (name) {
+        var loc = progs.car.a[name];
+        if (loc === undefined || loc < 0) return;
+        gl.bindBuffer(gl.ARRAY_BUFFER, bg.vbo[name]);
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      });
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bg.ibo);
+      gl.uniform1f(progs.car.u.uEmit, 0.85);
+      gl.uniform3fv(progs.car.u.uTint, [1.0, 0.30, 0.12]);   // hazard orange-red
+      // A MINIMUM ON-SCREEN WIDTH. A fixed-width column is a hairline at
+      // 400 m — measured, and it is the difference between "I never saw a
+      // flag" and a landmark. Widening with distance keeps the beam roughly
+      // constant on screen, which is what a marker has to do; the height is
+      // left alone so it does not become a wall up close.
+      var beam = scene.flag.beam || 1;
+      gl.uniform3fv(progs.car.u.uShape, [beam, 1, beam]);
+      gl.drawElements(gl.TRIANGLES, bg.count, bg.type, 0);
+      gl.uniform3fv(progs.car.u.uShape, ONE);
+      gl.depthMask(true);
+      gl.uniform1f(progs.car.u.uEmit, 0);
+      gl.uniform1f(progs.car.u.uGloss, 1);
     }
 
     // Decals — scorch marks on the walls just drawn, smoke over whatever is

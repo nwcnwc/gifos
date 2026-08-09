@@ -728,18 +728,37 @@
       if (!el.racehud.hidden) el.racehud.hidden = true;
     } else {
       el.racehud.hidden = false;
+      // THE CLOCK KEEPS RUNNING once you are home. It used to freeze on your
+      // own time, which is the one moment a race becomes interesting to watch:
+      // your friends are still out there and the gap is the whole story.
       var t = r.countdown > 0 ? Math.ceil(r.countdown / 1000)
-            : r.done ? (r.myTime / 1000).toFixed(1)
             : (r.elapsed / 1000).toFixed(1);
       if (t !== last.rt) { el['rh-time'].textContent = t; last.rt = t; }
-      var d = r.done ? 'finished' : Math.round(r.toFinish) + ' m to go';
+      // Standings, live, for everyone — not a private "finished". Your own
+      // place first if you have one, then whoever else is home.
+      var d;
+      if (r.done) {
+        var mine = 0;
+        for (var q = 0; q < (r.results || []).length; q++) {
+          if (r.results[q].ms === r.myTime) { mine = q + 1; break;
+          }
+        }
+        var ord = ['', '1st', '2nd', '3rd', '4th', '5th', '6th'][mine] || (mine + 'th');
+        d = (mine ? ord + ' · ' : 'home · ') + (r.myTime / 1000).toFixed(1) + 's'
+          + (r.results.length > 1 ? ' · ' + r.results.length + ' home' : '');
+      } else {
+        d = Math.round(r.toFinish) + ' m to go'
+          + (r.results && r.results.length ? ' · ' + r.results.length + ' already home' : '');
+      }
       if (d !== last.rd) { el['rh-dist'].textContent = d; last.rd = d; }
       // Point the arrow at the finish, relative to where the car is facing.
       var car = hooks.car();
       var bearing = Math.atan2(r.finish.x - car.x, r.finish.z - car.z) - car.yaw;
       el['rh-arrow'].style.transform = 'rotate(' + (bearing * 180 / Math.PI) + 'deg)';
       el['rh-arrow'].style.visibility = r.done ? 'hidden' : 'visible';
-      if (r.done && r.results && r.results.length !== last.results) {
+      // The board updates for EVERYONE as each driver comes in, not only once
+      // you are done yourself.
+      if (r.results && r.results.length !== last.results) {
         last.results = r.results.length;
         renderBoard(r.results);
       }
