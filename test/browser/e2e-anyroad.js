@@ -2272,8 +2272,12 @@ function check(name, cond, detail) {
   check('the landing sheet is closed and the car unparked before the stick arc', arcPark === false, 'park=' + arcPark);
   // The search box may still hold focus with its results dropdown over the
   // scheme pill — switch schemes through the DOM; the pointer ARC below is the
-  // thing under test, not this button.
+  // thing under test, not this button. And REPAIR first: the arc asserts the
+  // CONTROLS, and a session's worth of accumulated damage now legitimately
+  // slows the pull-away (the limp) — 1.5 m/s against a >1.5 threshold was
+  // this check failing on the engine, not the stick.
   await fr.locator('body').evaluate(() => {
+    window.Car.repair(window.App.car());
     document.getElementById('q').blur();
     document.querySelector('#schemes button[data-scheme="stick"]').click();
   });
