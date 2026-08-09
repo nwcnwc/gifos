@@ -71,10 +71,17 @@
   // either her voice or the starter voice? The buildup gate reads this - a
   // word whose sounds cannot all be said is shown whole instead, because a
   // half-voiced buildup is worse than none.
-  VoiceSource.prototype.phonemeAvailable = function (ipa) {
+  VoiceSource.prototype._soundAvailable = function (ipa) {
     const keys = [ipa].concat(cur().PHONEME_ALIASES[ipa] || []);
     if (this._recIndex && keys.some((k) => this._recIndex.has(recId('phonemes', k)))) return true;
     return starterTable('phonemes', ipa) !== null;
+  };
+  VoiceSource.prototype.phonemeAvailable = function (ipa) {
+    if (this._soundAvailable(ipa)) return true;
+    // A chunk sound ("eɪk", "æn") is speakable when every member sound is -
+    // it will be concatenated from real recordings at resolve time.
+    const parts = SIO.dictionary ? SIO.dictionary.tokens(ipa) : [ipa];
+    return parts.length > 1 && parts.every((p) => this._soundAvailable(p));
   };
 
   VoiceSource.prototype._recorded = async function (kind, key) {
@@ -130,10 +137,39 @@
           const cut = dsp().capData(data, sr, req.cap);
           return cut === data ? buf : dsp().bufferFrom(cut, sr);
         };
-        const rec = await this._recorded('phonemes', req.ipa);
-        if (rec) { this.used.recorded++; return capped(rec); }
-        const st = starterTable('phonemes', req.ipa);
-        if (st) { this.used.starter++; return capped(await this._decode(st)); }
+        const oneSound = async (ipa) => {
+          const rec = await this._recorded('phonemes', ipa);
+          if (rec) return { buf: rec, tier: 'recorded' };
+          const st = starterTable('phonemes', ipa);
+          if (st) return { buf: await this._decode(st), tier: 'starter' };
+          return null;
+        };
+        const hit = await oneSound(req.ipa);
+        if (hit) { this.used[hit.tier]++; return capped(hit.buf); }
+        // A chunk sound with no clip of its own - "eɪk", "æn" - is said by
+        // running its member sounds together, each from a real recording.
+        // This is what makes every aligned dictionary chunk speakable
+        // without anyone recording ten thousand of them.
+        const parts = SIO.dictionary ? SIO.dictionary.tokens(req.ipa) : [req.ipa];
+        if (parts.length > 1) {
+          const clips = [];
+          let tier = 'recorded';
+          for (const p of parts) {
+            const h = await oneSound(p);
+            if (!h) { clips.length = 0; break; }
+            if (h.tier === 'starter') tier = 'starter';
+            const m = dsp().toMono(h.buf);
+            clips.push({ data: dsp().capData(m.data, m.sr, 0.45), sr: m.sr });
+          }
+          if (clips.length) {
+            let out = clips[0].data;
+            const sr = clips[0].sr;
+            const n = Math.round(sr * 0.03);
+            for (const c of clips.slice(1)) out = dsp().xfadeData(out, c.data, n);
+            this.used[tier]++;
+            return capped(dsp().bufferFrom(out, sr));
+          }
+        }
         this.used.missing++;
         this.missing.push({ kind, label: 'the sound /' + req.ipa + '/' });
         return null;
