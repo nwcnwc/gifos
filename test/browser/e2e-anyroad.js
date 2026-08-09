@@ -1469,7 +1469,7 @@ function check(name, cond, detail) {
     wreckage.fresh < 0.01 && wreckage.mangled > 0.5,
     'crumple ' + wreckage.fresh.toFixed(2) + ' at 100% vs ' + wreckage.mangled.toFixed(2) + ' at 15%');
   check('…and at 15% the engine LIMPS but still drives',
-    wreckage.weakV > 4 && wreckage.weakV < wreckage.strongV * 0.75,
+    wreckage.weakV > 4 && wreckage.weakV < wreckage.strongV * 0.6,
     wreckage.weakV.toFixed(1) + ' m/s limping vs ' + wreckage.strongV.toFixed(1) + ' healthy');
 
   // ---- shooting a door into a building --------------------------------------
@@ -1485,6 +1485,7 @@ function check(name, cond, detail) {
     const wallN = f.toWorld(HOP.lat + 0.00055, HOP.lon + 0.0004);   // mid-height of the west face
     const c = window.App.car();
     const keepH = c.health;
+    const keepPos = { x: c.x, z: c.z, yaw: c.yaw };
     c.x = wallN.x - 9; c.z = wallN.z; c.y = window.Terrain.heightAt(f, c.x, c.z) || c.y;
     c.yaw = Math.PI / 2;               // +x: straight at the wall
     c.speed = 0;
@@ -1506,10 +1507,21 @@ function check(name, cond, detail) {
       if (c.x - startX > 9) break;
     }
     const through = c.x - startX;
-    // …and a bolt follows the car through the same hole: fired from the hole
-    // line, it must NOT report a wall strike at the breach.
-    const res = { opened: opened - before, through, health: c.health };
+    const res = { opened: opened - before, through };
+    // CLEAN UP AFTER THE DEMOLITION. The drive-through leaves the car parked
+    // INSIDE the building; left there, the app loop grinds it against the
+    // interior walls to 0% within seconds, the WRECKED overlay comes up, and
+    // every later test's click dies against it — which is exactly how this
+    // suite once timed out at 162 checks. Back onto the street, repaired,
+    // overlay down.
+    c.x = keepPos.x; c.z = keepPos.z; c.yaw = keepPos.yaw;
+    c.y = window.Terrain.heightAt(f, c.x, c.z) || c.y;
+    c.speed = 0;
+    window.Car.repair(c);
     c.health = keepH;
+    window.UI.clearCracks();
+    const ov = document.getElementById('wrecked');
+    if (ov) ov.hidden = true;
     return res;
   });
   check('three bolts into one spot BREACH the wall', breach.opened >= 1, breach.opened + ' breach(es) opened');

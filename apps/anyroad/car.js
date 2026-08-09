@@ -381,11 +381,17 @@
       // rather than a rocket with a speed clamp.
       accel += power * inThrottle * Math.max(0.08, 1 - v / maxSpeed);
       // THE LIMP. Below a third of the condition bar the engine is part of
-      // the wreckage: power fades with the last of the health, so a car
-      // that has crumpled its way down a mountainside arrives at the bottom
-      // still DRIVING — wheezing along at jogging pace — instead of flipping
-      // straight from fine to dead. Brakes and steering stay whole.
-      if (car.health < 34) accel *= 0.30 + 0.70 * (car.health / 34);
+      // the wreckage: power fades AND tops out — a fraction of the shove was
+      // not enough on its own, because top speed is a drag equilibrium and
+      // 30% power still cruised at 75% pace. Now a car that has crumpled its
+      // way down a mountainside arrives at the bottom still DRIVING —
+      // wheezing along, hard-capped by what is left of the engine — instead
+      // of flipping straight from fine to dead. Brakes and steering stay
+      // whole, and gravity can still carry you past the cap downhill.
+      if (car.health < 34) {
+        accel *= 0.30 + 0.70 * (car.health / 34);
+        if (car.speed > 4 + car.health * 0.5) accel = 0;
+      }
       // Auto-throttle eases off near the target instead of bouncing off it, so
       // cruising is steady rather than a sawtooth between full power and none.
       //
