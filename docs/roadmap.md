@@ -1143,8 +1143,10 @@ live; only the IAP rail below is still unbuilt.
     **STATUS 2026-08-09: realized first-party as Anyroad** rather than ported —
     drive (and now fly) anywhere on Earth; OSM roads/buildings + AWS terrarium
     elevation + satellite-classified forests; races, wildlife, blaster,
-    breachable walls; multiplayer via app rooms; in the store, signed, with
-    progression that survives updates. The port idea is retired — Hop.Earth
+    breachable walls; multiplayer via app rooms; in the store, with
+    progression that survives updates. (NOT yet domain-signed — Chess and
+    Fluence are; Anyroad, Sound It Out and Offline TTS still install with no
+    pill. Worth closing before it is the app we point strangers at.) The port idea is retired — Hop.Earth
     keeps the credit as the proof-of-demand that started it. What remains
     portable from its playbook is marketing shape, not code: one-click "Hop
     Here" from a shared link into a race is still the demo that explains
