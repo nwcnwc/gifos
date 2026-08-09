@@ -28,6 +28,8 @@
   var worldRec = null;
   var acc = 0;
   var myResult = null;
+  var celebrated = {};      // finishes already announced, so a republish is quiet
+  var finishCb = null;
   var listeners = [];
 
   function db(n) { return root.Host.db(n); }
@@ -75,11 +77,36 @@
     });
 
     db('race').subscribe(function (list) {
+      var prevStart = raceRec && raceRec.startedAt;
+      var prevResults = (raceRec && raceRec.results || []).length;
       raceRec = null; worldRec = null;
       (list || []).forEach(function (r) {
         if (r.id === 'race') raceRec = r;
         if (r.id === 'world') worldRec = r;
       });
+      // A NEW RACE CLEARS YOUR RESULT. myResult was only ever reset on a hop,
+      // so once you crossed a finish line you were "finished" forever: start
+      // another race and the arrow never came back, because your own copy still
+      // believed you had already done it. Keyed on startedAt, which is minted
+      // fresh by setRace.
+      if (raceRec && raceRec.startedAt !== prevStart) {
+        myResult = null;
+        celebrated = {};
+      }
+      // Somebody crossed the line. Everyone should know — a race where only the
+      // winner finds out is not an event, it is a private notification.
+      if (raceRec && finishCb) {
+        var res = raceRec.results || [];
+        if (res.length > prevResults) {
+          for (var i = prevResults; i < res.length; i++) {
+            var r2 = res[i];
+            if (!r2 || celebrated[r2.id + ':' + r2.ms]) continue;
+            celebrated[r2.id + ':' + r2.ms] = 1;
+            finishCb({ name: r2.name, ms: r2.ms, place: i + 1,
+                       mine: r2.id === me.id, total: res.length });
+          }
+        }
+      }
       // A guest who opened the invite link has no world of their own yet: take
       // the host's. This is what makes the link alone enough to join.
       if (worldRec && !root.App.hasHopped()) {
@@ -242,6 +269,7 @@
     init: init, setFrame: setFrame, tick: tick, ghosts: ghosts, count: count,
     setRace: setRace, clearRace: clearRace, raceState: raceState, snapFinish: snapFinish,
     shoot: shoot, onHit: function (cb) { hitCb = cb; },
+    onFinish: function (cb) { finishCb = cb; },
     hasRace: function () { return !!raceRec; },
     onChange: function (cb) { listeners.push(cb); },
     me: function () { return me; },

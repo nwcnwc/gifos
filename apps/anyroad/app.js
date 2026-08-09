@@ -920,6 +920,7 @@
   // is shared read-write and two players nudging the flag at each other would
   // never settle.
   var flagAsked = null, flagBusy = false;
+  var fireworks = 0;          // seconds of celebration left to draw
   function snapRaceFlag() {
     if (!world.frame || !root.MP.hasRace() || flagBusy) return;
     var st = root.MP.raceState(car);
@@ -1203,6 +1204,38 @@
     }
     if (seaVisible()) scene.water.push(seaMesh());
 
+    // The flag stands in the world for as long as the race exists — it does not
+    // vanish when YOU finish, because the other drivers are still coming and
+    // because "where was it?" is a fair question afterwards. It moves only when
+    // a new race drops a new one.
+    var rs = root.MP.hasRace() ? root.MP.raceState(car) : null;
+    if (rs && rs.finish) {
+      var fy = root.Terrain.heightAt(world.frame, rs.finish.x, rs.finish.z);
+      var fdx = rs.finish.x - camera.x, fdz = rs.finish.z - camera.z;
+      var fdist = Math.hypot(fdx, fdz);
+      scene.flag = { x: rs.finish.x, y: (fy === null ? car.y : fy), z: rs.finish.z,
+                     spin: clock * 0.25,
+                     // Both clamped: at close range they are their true size,
+                     // and far away they hold a legible width instead of
+                     // dwindling to a hairline.
+                     beam: Math.max(1, Math.min(9, fdist / 150)),
+                     grow: Math.max(1, Math.min(3.2, fdist / 420)) };
+      // Fireworks over the flag when somebody crosses the line. Reuses the puff
+      // system, thrown upward and outward so it reads as a burst rather than
+      // as smoke.
+      if (fireworks > 0) {
+        fireworks -= dt;
+        if (Math.random() < 0.55) {
+          var fa = Math.random() * Math.PI * 2, fr = Math.random() * 26;
+          puff(scene.flag.x + Math.cos(fa) * fr,
+               scene.flag.y + 30 + Math.random() * 55,
+               scene.flag.z + Math.sin(fa) * fr, 5 + Math.random() * 7);
+        }
+      }
+    } else {
+      fireworks = 0;
+    }
+
     // From the driver's seat you are INSIDE the bodywork, and the near plane
     // would cut it into a wall of triangles across the view. Drop your own car
     // once the blend is mostly there; everyone else's stays.
@@ -1402,6 +1435,16 @@
     root.MP.init();
     // Somebody shot at you. Your browser decides what that costs — nobody has
     // authority over your car but you. Small, on purpose.
+    // ANYONE finishing is an event for EVERYONE. Fireworks over the flag, a
+    // fanfare, and a line saying who it was and where they came.
+    root.MP.onFinish(function (f) {
+      var ord = ['', '1st', '2nd', '3rd', '4th', '5th', '6th'][f.place] || (f.place + 'th');
+      root.Sound.fanfare(f.place);
+      fireworks = 3.4;
+      root.UI.note(f.mine
+        ? 'FINISHED — ' + ord + ' in ' + (f.ms / 1000).toFixed(1) + 's'
+        : f.name + ' finished ' + ord + ' — ' + (f.ms / 1000).toFixed(1) + 's');
+    });
     root.MP.onHit(function (n) {
       if (car.wrecked) return;
       car.health = Math.max(0, car.health - 6 * n);
