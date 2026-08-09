@@ -50,6 +50,16 @@ const cur = SIO.curriculum, lib = SIO.library;
     j(cur.splitGraphemes('face')) === j([['f', 'f'], ['ace', 'eɪs']]), cur.splitGraphemes('face'));
   check('the rime softens g: cage = c + age said /eɪdʒ/',
     j(cur.splitGraphemes('cage')) === j([['c', 'k'], ['age', 'eɪdʒ']]), cur.splitGraphemes('cage'));
+  check('consonant-le is its own little syllable: Rubble = R-u-bb-le (0.7.8)',
+    j(cur.splitGraphemes('Rubble')) === j([['R', 'ɹ'], ['u', 'ʌ'], ['bb', 'b'], ['le', 'əl']]),
+    cur.splitGraphemes('Rubble'));
+  check('the dictionary agrees: rubble = ru-bb-le',
+    j(cur.wordParts('rubble')) === j([['ru', 'ɹʌ'], ['bb', 'b'], ['le', 'əl']]), cur.wordParts('rubble'));
+  check('a nonsense name reads zor-bul instead of being refused: Zorble',
+    cur.decodable('zorble') === true
+    && j(cur.splitGraphemes('Zorble').slice(-1)) === j([['le', 'əl']]), cur.splitGraphemes('Zorble'));
+  check('doubled consonants are one sound: zoss = z-o-ss',
+    j(cur.splitGraphemes('zoss')) === j([['z', 'z'], ['o', 'ɒ'], ['ss', 's']]), cur.splitGraphemes('zoss'));
   // The aligned dictionary answers first (0.6.0): it knows how real words
   // actually chunk, including the taught exceptions.
   check('the dictionary parsed', SIO.dictionary.load().size > 100000, SIO.dictionary.load().size);
