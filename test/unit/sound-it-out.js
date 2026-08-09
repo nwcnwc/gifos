@@ -29,7 +29,7 @@ const check = (n, c, extra) => {
 // ---- load the shipped modules exactly as the GIF would run them -------------
 const sandbox = { window: {}, atob, btoa, console };
 vm.createContext(sandbox);
-for (const f of ['fonts-data.js', 'clips-data.js', 'curriculum.js', 'library.js', 'dsp.js', 'store.js', 'voice.js', 'storyboard.js']) {
+for (const f of ['fonts-data.js', 'clips-data.js', 'dictionary-data.js', 'dictionary.js', 'curriculum.js', 'library.js', 'dsp.js', 'store.js', 'voice.js', 'storyboard.js']) {
   vm.runInContext(fs.readFileSync(path.join(APP, f), 'utf8'), sandbox, { filename: f });
 }
 const SIO = sandbox.window.SIO;
@@ -50,14 +50,28 @@ const cur = SIO.curriculum, lib = SIO.library;
     j(cur.splitGraphemes('face')) === j([['f', 'f'], ['ace', 'eɪs']]), cur.splitGraphemes('face'));
   check('the rime softens g: cage = c + age said /eɪdʒ/',
     j(cur.splitGraphemes('cage')) === j([['c', 'k'], ['age', 'eɪdʒ']]), cur.splitGraphemes('cage'));
-  check('the voiced-s lexicon wins: is = i + /z/',
-    j(cur.wordParts('is')) === j([['i', 'ɪ'], ['s', 'z']]), cur.wordParts('is'));
-  for (const w of ['sat', 'case', 'chase', 'is', 'vam', 'ship', 'like']) {
+  // The aligned dictionary answers first (0.6.0): it knows how real words
+  // actually chunk, including the taught exceptions.
+  check('the dictionary parsed', SIO.dictionary.load().size > 100000, SIO.dictionary.load().size);
+  check('said builds as s-ai-d with ai saying /ɛ/',
+    j(cur.wordParts('said')) === j([['s', 's'], ['ai', 'ɛ'], ['d', 'd']]), cur.wordParts('said'));
+  check('the builds as th-e', j(cur.wordParts('the')) === j([['th', 'ð'], ['e', 'ə']]), cur.wordParts('the'));
+  check('nose keeps its /z/', j(cur.wordParts('nose')) === j([['n', 'n'], ['ose', 'əʊz']]), cur.wordParts('nose'));
+  check('is is one chunk now - the dictionary outranks the lexicon',
+    j(cur.wordParts('is')) === j([['is', 'ɪz']]), cur.wordParts('is'));
+  check('the rules still serve nonsense: vam',
+    j(cur.wordParts('vam')) === j([['v', 'v'], ['a', 'æ'], ['m', 'm']]), cur.wordParts('vam'));
+  check('chunk sounds split into recordable phonemes: eɪk -> eɪ + k',
+    j(SIO.dictionary.tokens('eɪk')) === j(['eɪ', 'k']) && j(SIO.dictionary.tokens('æn')) === j(['æ', 'n']));
+  check('the schwa answers to the recorded /ʌ/',
+    (cur.PHONEME_ALIASES['ə'] || []).includes('ʌ'));
+  for (const w of ['sat', 'case', 'chase', 'is', 'vam', 'ship', 'like',
+    'the', 'said', 'nose', 'have', 'happy', 'care', 'grandma']) {
     check(`decodable: ${w}`, cur.decodable(w) === true);
   }
-  for (const w of ['the', 'said', 'have', 'happy', 'one', 'nose', 'care']) {
-    check(`NOT decodable (taught whole): ${w}`, cur.decodable(w) === false);
-  }
+  check('one is still refused - its spelling lies, and it shows whole',
+    cur.decodable('one') === false && SIO.dictionary.chunks('one') === null);
+  check('an invented y-name is still shown whole: blorky', cur.decodable('blorky') === false);
   check('entry kinds: letter / word / sentence',
     lib.entryKind('s') === 'letter' && lib.entryKind('Chase') === 'word'
     && lib.entryKind('Sam sat.') === 'sentence' && lib.entryKind('a') === 'letter');
@@ -203,6 +217,15 @@ if (!fs.existsSync(fixturePath)) {
   const letterPack = packs.find((p) => p.id === 'letters');
   check('the letters pack is single letters',
     letterPack.items.every((i) => lib.entryKind(i) === 'letter'));
+}
+
+// ---- chunk speakability -----------------------------------------------------
+{
+  const vs = new SIO.VoiceSource();
+  vs._recIndex = new Set(); // nothing recorded: starter voice only
+  check('a chunk sound is speakable when its members are: /æn/, /eɪk/',
+    vs.phonemeAvailable('æn') && vs.phonemeAvailable('eɪk'));
+  check('…and not when a member is missing', vs.phonemeAvailable('qqx') === false);
 }
 
 // ---- read-along timing ------------------------------------------------------

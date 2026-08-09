@@ -106,8 +106,15 @@
     return out;
   }
 
-  // The (letters, sound) pairs a word is built up from, lexicon first.
+  // The (letters, sound) pairs a word is built up from. The aligned
+  // dictionary answers first - it knows how 110,000 real words actually
+  // chunk, including the taught exceptions (said is s-ai-d with ai saying
+  // /ɛ/). The lexicon and the spelling rules serve what no dictionary
+  // knows: names, nonsense words, whatever a family invents.
   function wordParts(word) {
+    const clean = cleanWord(word);
+    const aligned = SIO.dictionary && SIO.dictionary.chunks(clean);
+    if (aligned && aligned.length) return aligned;
     const lex = WORD_SOUNDS[cleanWord(word).toLowerCase()];
     if (lex) {
       const out = [];
@@ -126,8 +133,15 @@
   // the cost of a false yes is a child taught wrong sounds.
   function decodable(word) {
     const w = cleanWord(word).toLowerCase();
+    // A word the aligned dictionary vouches for is buildable by definition:
+    // every chunk in its entry is a teachable correspondence, and every
+    // chunk's sound can be spoken (from the bank, or concatenated from it).
+    const aligned = SIO.dictionary && SIO.dictionary.chunks(w);
+    if (aligned && aligned.length) return true;
     if (WORD_SOUNDS[w]) return true;
     if (!w || !/^[a-z]+$/.test(w)) return false;
+    // From here down: words no dictionary knows. The hand lists and rules
+    // only govern names and nonsense now.
     if (IRREGULAR_WORDS.has(w)) return false;
     // Magic-e outside the safe rime pattern: "have", "care" - the rule cannot
     // say these, so they are read whole.
@@ -258,6 +272,11 @@
     'æ': ['a'], a: ['æ'],
     'ɛ': ['e'], e: ['ɛ'],
     'ɡ': ['g'], g: ['ɡ'],
+    // The schwa. No phonics session records an isolated /ə/ - it is the
+    // unstressed "uh", and teachers SAY "uh" - so the recorded /ʌ/ answers
+    // for it. An exact ə recording, if anyone ever makes one, still wins,
+    // because aliases are only consulted after the exact name misses.
+    'ə': ['ʌ'],
   };
 
   function sentenceKey(text) {
