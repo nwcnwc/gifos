@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pocket Voice</title>
+<style>
+  :root { --bg:#0a0a12; --surface:#14141f; --border:#2a2a3f; --text:#e8e8f4; --muted:#9a9ab5; --accent:#7b5cff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,sans-serif; min-height:100vh; }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 1.4rem 1.2rem 3rem; }
+  h1 { font-size: 1.5rem; margin: .4rem 0 .2rem; }
+  h1 .chip { font-size:.62rem; vertical-align:.35em; margin-left:.5rem; background:var(--accent); color:#fff; border-radius:.35rem; padding:.2rem .45rem; letter-spacing:.08em; font-weight:800; }
+  .lead { color: var(--muted); margin: 0 0 1.1rem; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:.8rem; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+  .card h2 { font-size:.95rem; margin:0 0 .5rem; }
+  .card p { margin:.35rem 0; font-size:.88rem; color:var(--muted); }
+  .card p b { color: var(--text); }
+  ol { margin:.4rem 0 .2rem; padding-left:1.2rem; font-size:.88rem; color:var(--muted); }
+  ol b { color: var(--text); }
+  textarea { width:100%; min-height:5.5rem; background:var(--bg); border:1px solid var(--border); border-radius:.55rem; color:var(--text); font:inherit; padding:.6rem .7rem; resize:vertical; }
+  .row { display:flex; gap:.5rem; margin-top:.6rem; align-items:center; }
+  select { background:var(--bg); border:1px solid var(--border); border-radius:.5rem; color:var(--text); font:inherit; padding:.45rem .55rem; }
+  button { background:var(--accent); border:none; border-radius:.55rem; color:#fff; font:inherit; font-weight:600; padding:.5rem 1.3rem; cursor:pointer; }
+  button:disabled { opacity:.55; cursor:wait; }
+  #status { font-size:.82rem; color:var(--muted); margin-top:.5rem; min-height:1.2em; }
+  .foot { font-size:.75rem; color:var(--muted); opacity:.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🗣️ Pocket Voice<span class="chip">PROVIDER</span></h1>
+  <p class="lead">A voice for your whole computer — text-to-speech that runs entirely on this device. No account, no key, nothing sent anywhere.</p>
+
+  <div class="card">
+    <h2>This app serves your OS</h2>
+    <p>Pocket Voice is a <b>Provider app</b>: instead of doing a job on its own screen, it gives GifOS an ability — the <b>Text → speech</b> AI type. Every app that asks the computer to speak (like <b>Reader</b> in the Tools folder) will use it.</p>
+    <ol>
+      <li>Keep its icon in the <b>Providers</b> folder on your Home Screen — a provider only works from there (anywhere else it wears a red ✕).</li>
+      <li>Open <b>Settings → AI models</b> and set <b>Text → speech</b> to <b>📦 Pocket Voice</b>.</li>
+      <li>That's it. Apps that speak now speak with this voice, offline.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Try the voice</h2>
+    <textarea id="text">Hello! I am Pocket Voice. I live in a GIF, I serve this whole computer, and nothing I say ever leaves your device.</textarea>
+    <div class="row">
+      <select id="voice">
+        <option value="">Default</option>
+        <option value="nova">Nova (female 1)</option>
+        <option value="shimmer">Shimmer (female 2)</option>
+        <option value="fable">Fable (female 3)</option>
+        <option value="echo">Echo (male 1)</option>
+        <option value="onyx">Onyx (male 2)</option>
+        <option value="alloy">Alloy (male 3)</option>
+        <option value="whisper">Whisper</option>
+      </select>
+      <button id="speak">🔊 Speak</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <p class="foot">Engine: eSpeak (speak.js / meSpeak build), GPLv3 — compiled to JavaScript, sealed in this app's sandbox with no network access. The engine and voice data are downloaded once at install, hash-verified by GifOS.</p>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

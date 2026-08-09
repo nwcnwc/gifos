@@ -132,6 +132,43 @@
       "sha256": "64ac94f9d22876c929a3aed24e005a6bc0e819809f60a2570d5f88b3b49f9f7b"
     },
     {
+      "slug": "pocket-voice",
+      "appId": "pocket-voice",
+      "name": "Pocket Voice",
+      "shortName": "PocketVoice",
+      "version": "1.0",
+      "tagline": "Give your computer a voice — offline text-to-speech that serves every app, no key, no cloud.",
+      "author": "GifOS",
+      "releaseDate": "2026-08-09",
+      "updated": "2026-08-09",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "provider",
+        "tts",
+        "text-to-speech",
+        "offline",
+        "accessibility",
+        "ai"
+      ],
+      "accent": [
+        123,
+        92,
+        255
+      ],
+      "cover": "/apps/pocket-voice/cover.jpg",
+      "bytes": 172610,
+      "download": 5625316,
+      "provides": {
+        "ai": [
+          "tts"
+        ]
+      },
+      "signature": null,
+      "sha256": "01a0ed38776ffe57e38c7be1ce8bffc5ef9e8f07d1e9401f761d829208fb7286"
+    },
+    {
       "slug": "sound-it-out",
       "appId": "sound-it-out",
       "name": "Sound It Out",
