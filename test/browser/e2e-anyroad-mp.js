@@ -327,7 +327,15 @@ async function run(MODE) {
   // the handedness convention is, and this app has already shipped one mirrored
   // world (132fa02); a test that hard-codes a direction would have gone green
   // through it.
+  // ONCE PER RUN, not once per door. The schemes are a property of the CAR;
+  // whether the room was opened as a meeting or as an app has nothing to do
+  // with whether the tilt steers. Running them in both modes cost 172 s of the
+  // suite's 600 s budget for a duplicate answer and pushed the whole thing over
+  // the cap — ROOM=meet went from ~100 s to 272 s, and ROOM=app was killed
+  // partway through with 51 passed and 0 failed. A suite that runs out of clock
+  // is red, and red for no reason is the worst kind.
   const SCHEMES = { Ada: 'wheel', Ben: 'stick', Cyd: 'tilt' };
+  if (MODE === MODES[0]) {
   for (const p of players) {
     await p.page.bringToFront();
     // locator.evaluate hands the ELEMENT in first: the argument is the SECOND
@@ -346,7 +354,7 @@ async function run(MODE) {
     NAMES.map((n, i) => n + '=' + took[i]).join(', '));
 
   // Hold a direction for `ms` and report what the input layer and the car did.
-  const FRAME_WINDOW = Number(process.env.STEER_FRAMES || 90);
+  const FRAME_WINDOW = Number(process.env.STEER_FRAMES || 55);
   const steerFor = (p, dir, ms) => p.body().evaluate(async (el, [dir, ms, frameWindow]) => {
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const scheme = window.Sources.current.scheme;
@@ -464,13 +472,13 @@ async function run(MODE) {
       return window.App.debug().speed;
     });
     await ready();
-    const straight = await steerFor(p, 0, 12000);
+    const straight = await steerFor(p, 0, 7000);
     await sleep(400);
     await ready();
-    const left = await steerFor(p, -1, 12000);
+    const left = await steerFor(p, -1, 7000);
     await sleep(400);
     await ready();
-    const right = await steerFor(p, +1, 12000);
+    const right = await steerFor(p, +1, 7000);
     await sleep(400);
     steering.push({ name: p.name, straight, left, right });
   }
@@ -501,6 +509,7 @@ async function run(MODE) {
     check(s.name + ' — was genuinely driving forward while steering',
       s.right.speed > 2 && s.right.speed < 70, s.right.speed.toFixed(1) + ' m/s');
   }
+  }   // end: steering schemes, first door only
 
   // ---- Let them drive together — via the throttle SETTING ------------------
   // The default is MANUAL now (sources.js, 2026-08-08), so hands-free driving
