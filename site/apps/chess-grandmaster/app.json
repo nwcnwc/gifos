@@ -40,6 +40,8 @@
   "screenshots": [],
   "gif": "/apps/chess-grandmaster/chess-grandmaster.gif",
   "bytes": 8318670,
+  "download": 0,
+  "provides": null,
   "sha256": "5420910218076ec44a40ca1f1b7a8db5cec74d27c4ab29aa23abde26ee02b2bb",
   "signature": {
     "type": "domain",

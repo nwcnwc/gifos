@@ -155,6 +155,32 @@ async function buildApp(slug) {
   for (const c of l.categories || []) if (!CATEGORIES.includes(c)) fail(slug + ': unknown category "' + c + '" (known: ' + CATEGORIES.join(', ') + ')');
   if (l.tagline && l.tagline.length > 120) fail(slug + ': tagline is ' + l.tagline.length + ' chars — keep it under 120, it has to fit a card');
 
+  // Install-time assets (site/js/gifos-assets.js): validate the manifest's
+  // declaration, and for origin-relative URLs prove the pinned file really
+  // sits inside the publish boundary with EXACTLY the declared hash — the
+  // catalog must never list an install that cannot complete, and a re-uploaded
+  // asset whose manifest pin wasn't updated is a drift this catches at build.
+  let download = 0;
+  if (m.assets && !Array.isArray(m.assets)) fail(slug + ': manifest.assets must be an array');
+  for (const a of (Array.isArray(m.assets) ? m.assets : [])) {
+    const tag = slug + ' asset "' + ((a && a.path) || '?') + '"';
+    if (!a || typeof a !== 'object') { fail(slug + ': malformed assets entry'); continue; }
+    if (!a.path || String(a.path).includes('..') || String(a.path)[0] === '/') fail(tag + ': path must be a bare relative name');
+    if (!/^[0-9a-f]{64}$/.test(String(a.sha256 || '').toLowerCase())) fail(tag + ': sha256 must be 64 hex chars');
+    const url = String(a.url || '');
+    const rel = /^\/[^/]/.test(url);
+    if (!rel && !/^https:\/\//.test(url)) { fail(tag + ': url must be https:// or origin-relative /…'); continue; }
+    if (rel) {
+      const p = path.join(ROOT, 'site', url);
+      if (!fs.existsSync(p)) { fail(tag + ': pinned file missing at site' + url); continue; }
+      const b = fs.readFileSync(p);
+      const hex = crypto.createHash('sha256').update(b).digest('hex');
+      if (hex !== String(a.sha256).toLowerCase()) fail(tag + ': site' + url + ' does not match the pinned sha256 — re-pin the manifest or restore the file');
+      if (a.bytes && Number(a.bytes) !== b.length) fail(tag + ': declared bytes ' + a.bytes + ' ≠ actual ' + b.length);
+      download += b.length;
+    } else download += Number(a.bytes) || 0;
+  }
+
   // Cover art: the master PNG lives with the source; the store gets a JPEG.
   const coverSrc = path.join(dir, l.cover || 'screenshot.png');
   const coverOut = path.join(outDir, 'cover.jpg');
@@ -184,6 +210,10 @@ async function buildApp(slug) {
     screenshots: (l.screenshots || []).map((_, i) => '/apps/' + slug + '/shot-' + (i + 1) + '.jpg'),
     gif: '/apps/' + slug + '/' + slug + '.gif',
     bytes: gifBytes.length,
+    // Extra install-time download the OS fetches and seals (0 for most apps) —
+    // the store can honestly say "+N MB download" before Install.
+    download,
+    provides: m.provides || null,
     sha256: crypto.createHash('sha256').update(gifBytes).digest('hex'),
     signature: signatureClaim(gifBytes),
   };
@@ -221,7 +251,7 @@ const index = {
     version: r.version, tagline: r.tagline, author: r.author,
     releaseDate: r.releaseDate, updated: r.updated,
     categories: r.categories, tags: r.tags, accent: r.accent,
-    cover: r.cover, bytes: r.bytes, signature: r.signature,
+    cover: r.cover, bytes: r.bytes, download: r.download, provides: r.provides, signature: r.signature,
     // sha256 BELONGS IN THE INDEX, not only in each app.json. store.js decides
     // "yours is older" by hashing the installed bytes and comparing to
     // app.sha256 — and the GRID calls outdated() on an INDEX entry. Without

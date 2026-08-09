@@ -46,6 +46,8 @@
       ],
       "cover": "/apps/anyroad/cover.jpg",
       "bytes": 362247,
+      "download": 0,
+      "provides": null,
       "signature": null,
       "sha256": "202670e08b0a30dcf1cb03d64a6004f57dcf75cb67e0eb1334674fc948ab57d3"
     },
@@ -80,6 +82,8 @@
       ],
       "cover": "/apps/chess-grandmaster/cover.jpg",
       "bytes": 8318670,
+      "download": 0,
+      "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
@@ -118,6 +122,8 @@
       ],
       "cover": "/apps/fluence/cover.jpg",
       "bytes": 158329,
+      "download": 0,
+      "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
@@ -158,6 +164,8 @@
       ],
       "cover": "/apps/sound-it-out/cover.jpg",
       "bytes": 3879858,
+      "download": 0,
+      "provides": null,
       "signature": null,
       "sha256": "2aa34e04985b97747701e1dd99ac9fe5154fdbecb1ebdc3ec9cfb13500970343"
     }

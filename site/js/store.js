@@ -153,9 +153,14 @@
         // (it only knows sample apps) — so every fix shipped after the install
         // simply never reached the player. Found by a player whose bugs had
         // been fixed for a day.
-        let sha = null;
+        // An install that sealed downloaded assets into the GIF no longer
+        // hashes to the catalog's sha256 (the catalog pins the SLIM file), so
+        // installs record the catalog hash they came from as storeSha and the
+        // comparison prefers it. Hashing the bytes stays as the fallback for
+        // installs that predate the field.
+        let sha = f.storeSha || null;
         try {
-          if (f.bytes && root.crypto && root.crypto.subtle) {
+          if (!sha && f.bytes && root.crypto && root.crypto.subtle) {
             const d = new Uint8Array(await root.crypto.subtle.digest('SHA-256', f.bytes));
             sha = ''; for (const b of d) sha += b.toString(16).padStart(2, '0');
           }
@@ -356,6 +361,17 @@
       } catch (e) { /* the hash above already pinned the bytes */ }
     }
 
+    // Install-time assets (gifos-assets.js): the OS downloads each pinned URL
+    // FOR the app, verifies its hash, and seals the bytes into the GIF under
+    // .assets/ — download-then-seal. The app itself never touches the network;
+    // a failed or tampered download installs nothing.
+    if (GifOS.assets && GifOS.assets.missing(archive.files, m).length) {
+      try {
+        await GifOS.assets.ensure(archive.files, m, (s) => { note.textContent = s; });
+        bytes = await gif.repack(bytes, archive.files);
+      } catch (e) { return fail('Couldn’t fetch the app’s data files — ' + (e.message || e)); }
+    }
+
     note.textContent = into ? 'Updating…' : 'Installing…';
     try {
       // The store remembers which fileId each appId lived at — because ALL of
@@ -380,7 +396,8 @@
         // Same fileId, same NAME (the player may have renamed their copy) —
         // new bytes. No placement hand-off: the icon already lives somewhere.
         await store.putFile({ id: into.id, name: into.name || (app.name + '.gif'), bytes, kind: 'gif',
-          isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif' });
+          isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif',
+          storeSha: app.sha256 || null });
         await rememberInstall(into.id);
         await refreshInstalled();
         await showDetail(app.slug, false);   // re-renders: Update button gone, sha now matches
@@ -394,7 +411,8 @@
       const past = remembered[m.appId];
       if (past && !(await store.getFile(past).catch(() => null))) fileId = past;
       await store.putFile({ id: fileId, name: app.name + '.gif', bytes, kind: 'gif',
-        isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif' });
+        isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif',
+        storeSha: app.sha256 || null });
       await rememberInstall(fileId);
       // Hand the placement to desktop.js's saveItem — the only writer of items.
       // Relative, so a frozen build's store finishes on that same build's

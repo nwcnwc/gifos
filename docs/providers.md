@@ -99,6 +99,37 @@ role resolves to. When it resolves to a provider the sheet names the app:
 this browser)**". Both parties of the data flow are on the one sheet the user
 actually reads, and the claim is *stronger* than the endpoint case, not weaker.
 
+## Install-time assets: DOWNLOAD-THEN-SEAL (gifos-assets.js)
+
+Real model weights don't always fit a GIF. An app (provider or not) may
+declare, in its manifest:
+
+```json
+"assets": [{ "url": "/apps/pocket-voice/assets/espeak.js",
+             "sha256": "<64-hex>", "path": "espeak.js", "bytes": 4900000 }]
+```
+
+The **OS** — a trusted first-party page, never the sandbox — downloads each
+pinned URL (App Store at install; run.html / the provider mount as a backfill
+for hand-dropped slim GIFs), verifies the SHA-256, and **seals the bytes into
+the GIF under `.assets/<path>`** (repack + putFile, so it happens once per
+computer). The app reads them with `gifos.assets(path)` and never touches the
+network itself.
+
+Why this coexists with the network-less hard rule: the URL is fixed in the
+manifest and the hash pins the exact bytes, so the download can neither carry
+data out (no app-controlled parameters; it completes before the app sees any
+consumer data) nor bring surprise bytes in. It is the author's shipped payload
+arriving by a second route — the same trust as the GIF itself. Relative URLs
+resolve against the serving origin (gifos.app in prod, the local server in
+tests); `build-app-catalog.mjs` verifies a relative asset actually exists in
+`site/` with exactly the pinned hash, so the catalog can never list an install
+that cannot complete. `.assets/**` joins `.state/**` outside the signing
+digest (the signed manifest already pins each asset by hash), snapshots and
+exports carry the sealed assets (a shared installed GIF is complete), and the
+store records the catalog sha at install (`storeSha`) so a sealed install
+doesn't read as forever-outdated.
+
 ## What this deliberately does NOT do
 
 - Providers cannot add new capability TYPES to the permission vocabulary. The
@@ -115,8 +146,9 @@ actually reads, and the claim is *stronger* than the endpoint case, not weaker.
 
 - **Pocket Voice** (`apps/pocket-voice/`, App Store) — the proof: offline TTS
   (eSpeak/meSpeak, GPL — same licensing posture as Chess Grandmaster's
-  Stockfish), `provides: { ai: ["tts"] }`, no network, engine + voice packed in
-  the GIF.
+  Stockfish), `provides: { ai: ["tts"] }`, no network. The GIF ships slim; the
+  engine + voice arrive as install-time `assets` (download-then-seal, above)
+  from `site/apps/pocket-voice/assets/`.
 - **Reader** (default app, Tools folder) — the consumer: paste text, hear it
   read via `gifos.ai.tts`, whoever serves it.
 - Guards: `test/browser/e2e-providers.js` (recognition-by-place, red ✕,

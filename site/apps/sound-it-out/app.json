@@ -42,6 +42,8 @@
   "screenshots": [],
   "gif": "/apps/sound-it-out/sound-it-out.gif",
   "bytes": 3879858,
+  "download": 0,
+  "provides": null,
   "sha256": "2aa34e04985b97747701e1dd99ac9fe5154fdbecb1ebdc3ec9cfb13500970343",
   "signature": null
 }
