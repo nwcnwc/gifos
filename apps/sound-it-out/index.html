@@ -178,6 +178,30 @@
         </div>
       </li>
 
+      <li class="vpart" data-part="sight">
+        <div class="vpart-num">4</div>
+        <div class="vpart-body">
+          <h2>Sight words <span class="vpart-count" id="count-sight"></span></h2>
+          <p>Words that are read <b>whole, never sounded out</b>. Anything on this list
+             is never broken into its sounds on the Sentences tab &mdash; not in the
+             recording walk-through, and not in the video: it is shown and said as one
+             word, the way names and tricky words should be. Just type them in.</p>
+          <div class="field">
+            <label for="sight-input">The list</label>
+            <textarea id="sight-input" rows="4" spellcheck="false" autocapitalize="off"
+                      placeholder="Chase&#10;Nana&#10;Bluey"></textarea>
+            <p class="hint">
+              One word per line, or a few on a line with spaces between &mdash; either
+              works. Capitals don&rsquo;t matter.
+            </p>
+          </div>
+          <div class="rowbar">
+            <button class="btn btn-primary" id="sight-save" type="button">Save the list</button>
+            <span class="save-state" id="sight-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </li>
+
     </ol>
   </section>
 

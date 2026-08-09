@@ -15,7 +15,9 @@
     // persists and is restored on launch. A fresh install starts with
     // nothing ticked; a newly added entry arrives ticked, because adding
     // something is the strongest signal of wanting it.
-    prefs: { theme: 'night', reps: 3, ticked: [] },
+    // sightWords is the typed sight-word list (Sound Bank section 4): words
+    // read whole, never sounded out. Stored as typed; parsed on apply.
+    prefs: { theme: 'night', reps: 3, ticked: [], sightWords: '' },
     rows: [],       // library rows {id, text, order}
     status: [],     // statusOf() result, same order
     done: new Map(),
@@ -690,6 +692,15 @@
     const bank = await SIO.studio.bankList();
     $('count-bank').textContent = bank.length ? `${bank.length} words` : 'empty so far';
 
+    const sightWords = SIO.curriculum.parseSightWords(state.prefs.sightWords);
+    $('count-sight').textContent = sightWords.length
+      ? `${sightWords.length} word${sightWords.length === 1 ? '' : 's'}` : 'none yet';
+    // Never clobber typing in progress - only refill the box when it is idle.
+    const sightBox = $('sight-input');
+    if (document.activeElement !== sightBox) {
+      sightBox.value = state.prefs.sightWords || '';
+    }
+
     const C = window.SIO_CLIPS && window.SIO_CLIPS.clips;
     const nStP = C && C.phonemes ? Object.keys(C.phonemes).length : 0;
     const nStW = C && C.words ? Object.keys(C.words).length : 0;
@@ -789,6 +800,19 @@
       if (window.gifos && window.gifos.save) window.gifos.save();
       else alert('Open this app inside GifOS to save a backup.');
     });
+    $('sight-save').addEventListener('click', async () => {
+      const words = SIO.curriculum.parseSightWords($('sight-input').value);
+      state.prefs.sightWords = words.join('\n');
+      SIO.curriculum.setSightWords(words);
+      await savePrefs();
+      $('sight-status').textContent = words.length
+        ? `Saved — ${words.length} word${words.length === 1 ? '' : 's'}, read whole.`
+        : 'Saved — the list is empty, so every word is sounded out where it can be.';
+      await renderSetup();
+      // What the walk-through asks for and the video's length just changed:
+      // the rows on the Sentences tab count their missing sound pieces.
+      await refreshLibrary();
+    });
   }
 
   function closeScript() { $('script').hidden = true; }
@@ -836,6 +860,9 @@
 
   async function init(loaded) {
     state.prefs = Object.assign(state.prefs, loaded.prefs || {});
+    // Apply the sight-word list before anything computes a status or an
+    // estimate - both consult it through the curriculum.
+    SIO.curriculum.setSightWords(SIO.curriculum.parseSightWords(state.prefs.sightWords));
     // migration from the old inverted model: everything was ticked except
     // the remembered unticks
     if (loaded.prefs && loaded.prefs.unticked && !loaded.prefs.ticked) {

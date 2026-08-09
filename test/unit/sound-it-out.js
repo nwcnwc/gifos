@@ -94,6 +94,40 @@ const cur = SIO.curriculum, lib = SIO.library;
     && lib.entryKind('Sam sat.') === 'sentence' && lib.entryKind('a') === 'letter');
 }
 
+// ---- the sight-word list: read whole, never sounded out ---------------------
+// The parent's override of decodable(): a word on the list must never be
+// decomposed into chunks or phonemes - not in the walk-through (no sound
+// pieces queued) and not in the video plan (shown and said whole).
+{
+  check('the list parses anything a human types',
+    JSON.stringify(cur.parseSightWords('Chase, Marshall\n  Skye\n# a note\nNana!'))
+    === JSON.stringify(['Chase', 'Marshall', 'Skye', 'Nana']));
+
+  cur.setSightWords([]);
+  const soundedOut = cur.oneWord('dog', 3, 1.2);
+  check('off the list, a decodable word is sounded out',
+    soundedOut.some((s) => (s.parts && s.parts.length > 1) || s.touching));
+  const piecesBefore = lib.pieceItems('The dog ran.', new Set());
+  check('off the list, its pieces queue in the walk-through',
+    piecesBefore.some((p) => (p.say || '').includes('dog')));
+  const estBefore = lib.estimateSeconds(['dog'], 3, 1.5);
+
+  cur.setSightWords(cur.parseSightWords('dog'));
+  check('membership ignores case and punctuation',
+    cur.isSight('Dog') && cur.isSight('dog,') && !cur.isSight('ran'));
+  const whole = cur.oneWord('dog', 3, 1.2);
+  check('on the list, every segment shows the whole word - no decomposition',
+    whole.every((s) => s.parts && s.parts.length === 1 && s.parts[0][0] === 'dog'), whole);
+  const piecesAfter = lib.pieceItems('The dog ran.', new Set());
+  check('on the list, no piece derived from it queues - other words still do',
+    piecesAfter.length > 0 && piecesAfter.every((p) => !(p.say || '').includes('“dog”')),
+    piecesAfter.map((p) => p.say));
+  check('the estimate prices it as a whole word',
+    lib.estimateSeconds(['dog'], 3, 1.5) < estBefore);
+
+  cur.setSightWords([]); // leave the mechanics untouched for the parity replay
+}
+
 // ---- curriculum parity with gen/levels.py -----------------------------------
 const fixturePath = path.join(APP, 'tools', 'curriculum-fixture.json');
 if (!fs.existsSync(fixturePath)) {

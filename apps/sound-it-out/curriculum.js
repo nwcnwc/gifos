@@ -394,14 +394,47 @@
     return segs;
   }
 
+  // The sight-word list: the parent's override of decodable(). Words typed
+  // in on the Sound Bank screen are read WHOLE everywhere - never decomposed
+  // into chunks or phonemes, not in the walk-through and not in the video.
+  // decodable() decides what CAN honestly be sounded out; this list decides
+  // what SHOULD NOT be, and it wins ("Chase" the pup is a sight word even
+  // though c-ase builds). ui.js loads it from prefs and keeps it applied.
+  // Mirrors upstream gen/sightwords.py.
+  const SIGHT = new Set();
+  function setSightWords(words) {
+    SIGHT.clear();
+    for (const w of words || []) SIGHT.add(cleanWord(String(w)).toLowerCase());
+    SIGHT.delete('');
+  }
+  function isSight(word) {
+    return SIGHT.has(cleanWord(String(word)).toLowerCase());
+  }
+  // The words in some typed text, in order, de-duplicated - tolerant of
+  // anything a human types: one per line, commas, several on a line.
+  function parseSightWords(text) {
+    const out = [], seen = new Set();
+    for (const line of String(text || '').split(/\r?\n/)) {
+      if (line.trim().startsWith('#')) continue;
+      for (const raw of line.split(/[\s,;]+/)) {
+        const w = cleanWord(raw);
+        if (!w || !/[a-z]/i.test(w)) continue;
+        const k = w.toLowerCase();
+        if (!seen.has(k)) { seen.add(k); out.push(w); }
+      }
+    }
+    return out;
+  }
+
   // A single word met on its own: sounded out with the gaps closing if the
-  // grapheme table can honestly say it, shown and spoken whole if it cannot.
+  // grapheme table can honestly say it, shown and spoken whole if it cannot
+  // - or if the parent put it on the sight-word list, which wins.
   // `buildable` is the runtime's extra gate - a buildup must never be half
   // voiced, so a word whose sounds cannot all actually be said (a magic-e
   // rime outside the recorded 42, say) is shown whole too.
   function oneWord(word, reps, pause, buildable) {
     const segs = [];
-    if (decodable(word) && (!buildable || buildable(word))) {
+    if (decodable(word) && !isSight(word) && (!buildable || buildable(word))) {
       segs.push(...approach(wordParts(word), pause, Math.max(2, reps)));
       segs.push(whole(word, wordClip(word), pause + 1.0));
     } else {
@@ -492,5 +525,6 @@
     PHONEME_ROWS, PHONEME_ALIASES, sentenceKey,
     APPROACH_FLOOR, TOUCH_HOLD, TOUCH_EDGE_MS, TOUCH_XFADE_MS, TOUCH_BREATH,
     soundsIn, approachStart, approach, oneWord, library,
+    setSightWords, isSight, parseSightWords,
   };
 })();

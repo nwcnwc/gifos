@@ -171,7 +171,9 @@
   function pieceItems(text, recorded) {
     const seen = new Set(), chunksOut = [], singles = [];
     for (const w of uniqueWords(text)) {
-      if (!cur().decodable(w)) continue;
+      // A sight word is recorded and shown whole - its buildup never
+      // happens, so its pieces are never needed.
+      if (!cur().decodable(w) || cur().isSight(w)) continue;
       for (const [g, ipa] of cur().wordParts(w)) {
         if (seen.has(ipa)) continue;
         seen.add(ipa);
@@ -322,7 +324,7 @@
     const gap = 0.12; // mean of the (now brisk) shrinking approach gaps
 
     const wordCost = (w) => {
-      if (c.decodable(w)) {
+      if (c.decodable(w) && !c.isSight(w)) {
         const n = c.wordParts(w).length;
         return passes * n * (PH + gap) + WORD + pause + 1.0;
       }
