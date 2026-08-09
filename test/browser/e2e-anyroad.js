@@ -80,15 +80,21 @@ function check(name, cond, detail) {
   // Until then tiles are the terrarium PNG, whose grey-green reads as NOT
   // canopy — the drape tests run with the classifier finding nothing.
   let mtForest = false;
+  // Flipped for the dead-network check: the host stops answering entirely, the
+  // way it does in airplane mode — and the app must say THAT, not "check the
+  // key". no-store on every response so a re-fetch always reaches this stub
+  // instead of the browser cache quietly succeeding.
+  let mtDead = false;
   const FOREST_PNG = solidTile(64, 30, 72, 28);
   await context.route('**://api.maptiler.com/**', async (route) => {
+    if (mtDead) return route.abort('internetdisconnected');
     const u = new URL(route.request().url());
     const h = route.request().headers();
     const key = u.searchParams.get('key');
     mtSeen.push({ path: u.pathname, keyQ: key,
                   bearer: /Bearer/.test(h.authorization || ''),
                   wrongHeader: 'x-totally-wrong' in h });
-    const cors = { 'Access-Control-Allow-Origin': '*' };
+    const cors = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
     if (!key) return route.fulfill({ status: 403, headers: cors, body: 'Missing key' });
     if (!MT_TILE.test(u.pathname)) return route.fulfill({ status: 404, headers: cors, body: 'Not found' });
     await route.fulfill({ status: 200, headers: cors, contentType: 'image/png',
@@ -1786,6 +1792,33 @@ function check(name, cond, detail) {
   check('the key travels as ?key= — the ONLY place MapTiler looks — whatever the entry says',
     mtSeen.length > 0 && mtSeen.every((m) => m.keyQ === 'e2e-key-123' && !m.bearer && !m.wrongHeader),
     JSON.stringify(mtSeen[0] || null));
+
+  // ---- a dead network is not a missing key ----------------------------------
+  // Offline, the imagery pipeline used to relay fetch's bare "Failed to fetch"
+  // with "— check the key in GifOS Settings" bolted on: a player whose key was
+  // saved, tested and fine got sent to Settings to fix it. The runtime now
+  // names network-level failures (OFFLINE:/UNREACHABLE:), and the HUD note
+  // says the key IS set. Kill the host, redrape, and hold both layers to it.
+  mtDead = true;
+  await fr.locator('body').evaluate(() => window.App.redrape());
+  let deadNet = null;
+  const satNotes = [];
+  for (let i = 0; i < 50; i++) {
+    await sleep(300);
+    const s = await fr.locator('body').evaluate(() => ({
+      note: (() => { const n = document.getElementById('note'); return (n && !n.hidden) ? n.textContent : ''; })(),
+      failed: window.App.imagery().failed,
+    }));
+    if (/Satellite imagery/.test(s.note) && !satNotes.includes(s.note)) satNotes.push(s.note);
+    if (s.failed) deadNet = s.failed;
+    if (deadNet && satNotes.length) break;
+  }
+  check('a dead network is reported as a NETWORK failure, never as a key problem',
+    !!deadNet && /^(OFFLINE|UNREACHABLE):/.test(deadNet), JSON.stringify(deadNet));
+  check('…and the HUD note says the key IS SET instead of sending you to re-enter it',
+    satNotes.length > 0 && satNotes.every((t) => /key is set/.test(t) && !/check the key/.test(t)),
+    JSON.stringify(satNotes));
+  mtDead = false;
   await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'none' }); window.App.redrape(); });
   // THE EYE IS A CYCLER NOW, not a toggle (the 2026-08-08 dash rework:
   // chase -> cockpit -> bird -> chase), and it states WHICH view with a

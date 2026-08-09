@@ -805,7 +805,16 @@
       // from the driver's seat.
       imagery.failed = (err && err.message) || 'request failed';
       if (imagery.tried - imagery.ok <= 1) {
-        root.UI.note('Satellite imagery: ' + imagery.failed + ' — check the key in GifOS Settings.');
+        // SAY WHICH FAILURE IT IS. "Check the key" on a dead network sent a
+        // player to re-enter a key that was saved and fine — the runtime
+        // marks network-level failures (OFFLINE:/UNREACHABLE:), and the
+        // browser knows airplane mode outright. Only an ANSWERED rejection
+        // is allowed to blame the key.
+        var netDown = /^(OFFLINE|UNREACHABLE):/.test(imagery.failed)
+                   || (root.navigator && root.navigator.onLine === false);
+        root.UI.note(netDown
+          ? 'Satellite imagery: no connection — your key is set; tiles return with the network.'
+          : 'Satellite imagery: ' + imagery.failed + ' — check the key in GifOS Settings.');
       }
     });
   }

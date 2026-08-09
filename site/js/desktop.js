@@ -2190,6 +2190,17 @@
         if (direct.keyRejected) return setSt(st, '✗ key rejected — check your key', 'bad');
         saveOne(c, undefined); return setSt(st, '✓ saved · direct', 'ok');
       }
+      // NOT REACHED is not NOT SET. Offline, this used to walk the whole
+      // ladder and end on a generic can't-reach — which reads as "your
+      // config is wrong" to someone whose key is saved, tested and fine.
+      // The browser knows the network is down; say that, and say the saved
+      // entry is untouched.
+      if (navigator.onLine === false) {
+        const saved = !!apiCfgAll()[c.name];
+        return setSt(st, '✗ you appear to be offline — ' + (saved
+          ? 'this API is still set up; test again when the connection returns'
+          : 'connect to test and save'), 'bad');
+      }
       // Blocked directly (CORS/network) — retry through the proxy (custom or default).
       const pbase = c.customProxy || API_PROXY_DEFAULT;
       setSt(st, 'blocked directly — trying the CORS proxy…');
@@ -2198,7 +2209,9 @@
         if (viaProxy.keyRejected) return setSt(st, '✗ key rejected — check your key', 'bad');
         saveOne(c, c.customProxy || 'default'); return setSt(st, '✓ saved · via proxy', 'ok');
       }
-      setSt(st, '✗ can’t reach it directly or through the proxy', 'bad');
+      setSt(st, navigator.onLine === false
+        ? '✗ you appear to be offline — ' + (apiCfgAll()[c.name] ? 'this API is still set up; test again when the connection returns' : 'connect to test and save')
+        : '✗ can’t reach it directly or through the proxy — network or CORS, not your key', 'bad');
     }
 
     const wireRow = (row) => {
