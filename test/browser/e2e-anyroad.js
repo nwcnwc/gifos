@@ -195,28 +195,38 @@ function check(name, cond, detail) {
   });
   check('the drop lands on a road, not in a field', snapped < 12, 'nearest road ' + snapped.toFixed(1) + ' m');
 
-  // Drive: hold the throttle and confirm the car actually moves over ground.
+  // Drive. THE DEFAULT IS MANUAL (sources.js DEFAULTS.throttle, 2026-08-08):
+  // you ARRIVE STOPPED — landing in a strange city already in motion, before
+  // you have found the controls, is alarming rather than convenient — and GO
+  // is the first thing you press. Cruise still exists, one tap away in
+  // Settings, and is tested as a SETTING further down. (This leg asserted
+  // cruise-by-default until 2026-08-08; the default flipped and the suite now
+  // guards the flip in BOTH directions.)
   const before = await fr.locator('body').evaluate(() => {
     const c = window.App.car(); return { x: c.x, z: c.z, odo: c.odometer };
   });
-  // NO INPUT AT ALL. The throttle was removed: the car cruises by itself at
-  // whatever the road under it is built for, which is the whole point of the
-  // control redesign. If this needs a button pressed, the redesign regressed.
+  await sleep(3000);
+  const still = await fr.locator('body').evaluate(() => {
+    const c = window.App.car(); return { x: c.x, z: c.z, speed: c.speed };
+  });
+  const drifted = Math.hypot(still.x - before.x, still.z - before.z);
+  check('the default is MANUAL: an untouched car stays put',
+    drifted < 0.5 && Math.abs(still.speed) < 0.5,
+    drifted.toFixed(1) + ' m drifted, ' + still.speed.toFixed(1) + ' m/s');
+  // …and holding GO moves it. Guard the MECHANISM, not a magnitude: dt is
+  // clamped at 50 ms for stability, so simulated time trails wall clock by a
+  // factor set entirely by frame rate — on a 4-core box under load the same
+  // build covered 4.0 m one run and 1.2 m the next. Tuning the threshold to
+  // the good runs just buys a flake; the failure mode this guards is 0.0 m.
+  await fr.locator('#pedal-gas').hover();
+  await app.mouse.down();
   await sleep(6000);
   const after = await fr.locator('body').evaluate(() => {
     const c = window.App.car(); return { x: c.x, z: c.z, odo: c.odometer, y: c.y, speed: c.speed };
   });
+  await app.mouse.up();
   const moved = Math.hypot(after.x - before.x, after.z - before.z);
-  // Deliberately loose. dt is clamped at 50 ms for stability, so on the gate's
-  // software rasteriser simulated time runs behind wall clock and three seconds
-  // of throttle covers less ground than it would on a GPU. The signal being
-  // guarded is "throttle produces motion" — the failure mode this caught was
-  // 0.0 m, not a metre or two either side.
-  // Guard the MECHANISM, not a magnitude. dt is clamped at 50 ms for stability,
-  // so simulated time trails wall clock by a factor set entirely by frame rate —
-  // and on a 4-core box under load the same build covered 4.0 m one run and
-  // 1.2 m the next. Tuning the threshold to the good runs just buys a flake.
-  check('the car cruises with no input at all', moved > 0.5 && after.speed > 1,
+  check('holding GO moves the car', moved > 0.5 && after.speed > 1,
     moved.toFixed(1) + ' m travelled, now at ' + after.speed.toFixed(1) + ' m/s');
 
   // …and the brake is the one control that stops it. This is the other half of
@@ -247,28 +257,79 @@ function check(name, cond, detail) {
     braked < midBrake.speed && braked < after.speed,
     after.speed.toFixed(1) + ' -> ' + midBrake.speed.toFixed(1) + ' -> ' + braked.toFixed(2) + ' m/s');
 
-  // The throttle pedal must be absent in the default mode — a GO button that
-  // does nothing is worse than no button.
-  // GO is hidden while the car is DRIVING in the default scheme — a button that
-  // does nothing is worse than no button. It appears when you are stopped, and
-  // that case is guarded with the halt below.
-  const goWhileMoving = await fr.locator('body').evaluate(() => {
-    const c = window.App.car();
-    c.halted = false;
-    window.UI.hud({ speed: 40, halted: false, steer: 0, health: 100, net: { backoffMs: 0 },
-                    ready: true, players: 1, race: null, odometer: 0 });
-    return document.getElementById('pedal-gas').hidden;
-  });
-  check('no throttle pedal in the default control scheme while moving', goWhileMoving);
-  const goWhenStopped = await fr.locator('body').evaluate(() => {
-    window.UI.hud({ speed: 0, halted: true, steer: 0, health: 100, net: { backoffMs: 0 },
-                    ready: true, players: 1, race: null, odometer: 0 });
-    return !document.getElementById('pedal-gas').hidden;
-  });
-  check('…and GO appears the moment you are stopped, so there is a way to move off',
-    goWhenStopped);
+  // The GO pedal is PRESENT in the default (manual) mode — it IS the
+  // throttle. Its auto-mode behaviour (hidden while cruising, back at the
+  // halt) is guarded in the throttle-setting leg below, against REAL state
+  // rather than a synthetic hud() call.
+  const goVisible = await fr.locator('body').evaluate(() => !document.getElementById('pedal-gas').hidden);
+  check('the GO pedal is present in the default (manual) scheme', goVisible);
   check('the car sits on the fetched terrain, not at zero',
     Math.abs(after.y - FIXTURE_HEIGHT) < 3, 'car y = ' + after.y.toFixed(1) + ' m');
+
+  // ---- the throttle SETTING: cruise is one tap away ------------------------
+  // Settings are product. Flip throttle to AUTO through the REAL control (the
+  // settings select + change event — the exact handler a user's tap runs): the
+  // car must drive itself, the GO pedal must leave (a button that does nothing
+  // is worse than none), the halt must latch at a braked standstill with GO
+  // returning as the one way off it, and GO must actually release it — in
+  // auto mode input.go is only ever the pedal or W, never the cruise, so a GO
+  // that failed here would strand the car at 0 forever with the pedal
+  // showing. Flip back and the pedal returns: that round-trip also guards the
+  // live re-apply wiring (Sources.onChange -> applyControlPrefs) — a
+  // persisted-but-never-applied setting is the classic silent break.
+  await fr.locator('body').evaluate(() => { window.App.unstick(); }); // a wedged car would measure the wall, not the setting
+  await fr.locator('body').evaluate(() => {
+    const s = document.getElementById('ctl-throttle');
+    s.value = 'auto'; s.dispatchEvent(new Event('change'));
+  });
+  const beforeAuto = await fr.locator('body').evaluate(() => { const c = window.App.car(); return { x: c.x, z: c.z }; });
+  await sleep(6000);
+  const afterAuto = await fr.locator('body').evaluate(() => { const c = window.App.car(); return { x: c.x, z: c.z, speed: c.speed }; });
+  const movedAuto = Math.hypot(afterAuto.x - beforeAuto.x, afterAuto.z - beforeAuto.z);
+  check('throttle=auto: the car drives itself (cruise as a setting)',
+    movedAuto > 0.5 && afterAuto.speed > 1, movedAuto.toFixed(1) + ' m, ' + afterAuto.speed.toFixed(1) + ' m/s');
+  check('throttle=auto: the GO pedal is gone while cruising',
+    await fr.locator('body').evaluate(() => document.getElementById('pedal-gas').hidden));
+  // Brake to a STANDSTILL: coming to rest is a STATE (car.halted) — the
+  // cruise stays disarmed until asked for, whatever the throttle mode.
+  await fr.locator('#pedal-brake').hover();
+  await app.mouse.down();
+  let haltA = null;
+  for (let i = 0; i < 40; i++) {
+    await sleep(400);
+    haltA = await fr.locator('body').evaluate(() => ({
+      halted: window.App.car().halted, speed: window.App.car().speed,
+      goShown: !document.getElementById('pedal-gas').hidden,
+    }));
+    if (haltA.halted) break;
+  }
+  await app.mouse.up();
+  await sleep(600);
+  const held = await fr.locator('body').evaluate(() => ({
+    halted: window.App.car().halted, speed: window.App.car().speed,
+    goShown: !document.getElementById('pedal-gas').hidden,
+  }));
+  check('throttle=auto: braking to a standstill LATCHES the halt (the car can be left standing)',
+    !!haltA && haltA.halted === true && held.halted === true && Math.abs(held.speed) < 0.5, JSON.stringify(held));
+  check('…and GO reappears at the halt, in auto mode too — the one way to move off', held.goShown === true);
+  await fr.locator('#pedal-gas').hover();
+  await app.mouse.down();
+  await sleep(1500);
+  await app.mouse.up();
+  let resumed = null;
+  for (let i = 0; i < 25; i++) {
+    await sleep(400);
+    resumed = await fr.locator('body').evaluate(() => ({ speed: window.App.car().speed, halted: window.App.car().halted }));
+    if (!resumed.halted && resumed.speed > 1) break;
+  }
+  check('throttle=auto: GO releases the halt and the cruise resumes unheld',
+    !!resumed && !resumed.halted && resumed.speed > 1, JSON.stringify(resumed));
+  await fr.locator('body').evaluate(() => {
+    const s = document.getElementById('ctl-throttle');
+    s.value = 'manual'; s.dispatchEvent(new Event('change'));
+  });
+  check('back to manual through the same control: the GO pedal returns',
+    await fr.locator('body').evaluate(() => !document.getElementById('pedal-gas').hidden));
 
   // ---- buildings are solid -------------------------------------------------
   // Two things, tested two ways.
@@ -416,14 +477,20 @@ function check(name, cond, detail) {
     if (parked.park && Math.abs(parked.speed) < 0.001) break;
   }
   await fr.locator('#close-race').click();
+  await sleep(600);
+  // Under the manual default "hands the car back" means the CONTROLS work
+  // again, not that it drives off by itself — hold GO and expect motion.
+  await fr.locator('#pedal-gas').hover();
+  await app.mouse.down();
   await sleep(2500);
   const unparked = await fr.locator('body').evaluate(() => ({
     park: window.App.debug().input.park, speed: window.App.car().speed,
   }));
+  await app.mouse.up();
   check('a full-screen panel parks the car instead of driving it blind',
     parked.park === true && Math.abs(parked.speed) < 0.001,
     'park=' + parked.park + ' speed=' + parked.speed.toFixed(3));
-  check('closing the panel hands the car back',
+  check('closing the panel hands the car back (GO moves it again)',
     unparked.park === false && unparked.speed > 0.5,
     'park=' + unparked.park + ' speed=' + unparked.speed.toFixed(2));
 

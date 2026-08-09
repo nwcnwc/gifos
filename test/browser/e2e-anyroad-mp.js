@@ -357,10 +357,19 @@ async function run(MODE) {
       isPrimary: true, pointerType: 'touch', button: 0, buttons: 1,
     }));
     const box = (el) => { const b = el.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
-    let stop = () => {};
+    // The throttle is MANUAL by default (2026-08-08) — hold W for the whole
+    // window, in EVERY leg including the straight-line baseline: the baseline
+    // measures what the road does to a MOVING unsteered car, and an
+    // unthrottled car is a parked one. W is scheme-safe: full power on the
+    // wheel, the manual throttle under tilt, and in stick mode it only trims
+    // the set-point while the stick is untouched (the stick's own seeded
+    // set-point carries the active legs).
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    const unthrottle = () => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'w' }));
+    let stop = () => unthrottle();
     if (dir === 0) {
-      // The baseline: touch nothing. Any held control here would be measuring
-      // the control, which is the opposite of the point.
+      // The baseline: steer nothing. Any held steering control here would be
+      // measuring the control, which is the opposite of the point.
     } else if (scheme === 'tilt') {
       // gamma is the device's left/right tilt; car.js captures the FIRST value
       // it sees as neutral, so send an upright frame before tilting or the
@@ -369,17 +378,17 @@ async function run(MODE) {
         { gamma: g, beta: 0, alpha: 0, absolute: true }));
       send(0);
       const t = setInterval(() => send(dir * 34), 50);
-      stop = () => { clearInterval(t); send(0); };
+      stop = () => { clearInterval(t); send(0); unthrottle(); };
     } else if (scheme === 'stick') {
       const [cx, cy] = box(view);
       pe(view, 'pointerdown', cx, cy);
       pe(view, 'pointermove', cx + dir * 110, cy);   // sideways only: speed held
-      stop = () => pe(view, 'pointerup', cx + dir * 110, cy);
+      stop = () => { pe(view, 'pointerup', cx + dir * 110, cy); unthrottle(); };
     } else {
       const [cx, cy] = box(pad);
       pe(pad, 'pointerdown', cx, cy);
       pe(pad, 'pointermove', cx + dir * 90, cy);
-      stop = () => pe(pad, 'pointerup', cx + dir * 90, cy);
+      stop = () => { pe(pad, 'pointerup', cx + dir * 90, cy); unthrottle(); };
     }
     // WAIT FOR THE INPUT TO REGISTER before opening the frame window (the
     // 2026-08-08 gate FLAKY, 'steer -1.00/-1.00'): under load the previous
@@ -442,11 +451,16 @@ async function run(MODE) {
       // loaded box, and the suite reported the park as a broken control
       // scheme. The car has to be moving before a steering measurement means
       // anything; keep reaching for the app's own recovery button.
+      // AND HOLD THE THROTTLE while waiting: the default is MANUAL now
+      // (sources.js, 2026-08-08) — an unthrottled car legitimately sits at 0
+      // forever, which is the product working, not a car to measure.
       for (let i = 0; i < 40; i++) {
-        if (window.App.debug().speed > 4) return window.App.debug().speed;
+        if (window.App.debug().speed > 4) { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'w' })); return window.App.debug().speed; }
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
         if (i % 8 === 7) window.App.unstick();
         await new Promise((r) => setTimeout(r, 250));
       }
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'w' }));
       return window.App.debug().speed;
     });
     await ready();
@@ -488,11 +502,32 @@ async function run(MODE) {
       s.right.speed > 2 && s.right.speed < 70, s.right.speed.toFixed(1) + ' m/s');
   }
 
-  // ---- Let them drive. No input at all: the car cruises by itself ---------
-  // All three run at once (see the throttling flags above), which is the only
-  // arrangement in which "driving together" means anything.
+  // ---- Let them drive together — via the throttle SETTING ------------------
+  // The default is MANUAL now (sources.js, 2026-08-08), so hands-free driving
+  // is a SETTING — and settings are per-player prefs. Flip every player to
+  // AUTO through the REAL control (the settings select + change event, the
+  // handler a user's tap runs), and assert each car actually cruises: this is
+  // the old drive-together section AND the per-player setting exercised at
+  // once, and it feeds the ghost-freshness legs below exactly as before
+  // (mp.js drops a car whose position stops CHANGING, so parked cars would
+  // fail those legs while the product worked).
   const DRIVE_MS = Number(process.env.DRIVE_MS || 40000);
+  const preDrive = [];
+  for (const p of players) {
+    await p.body().evaluate(() => {
+      window.App.unstick(); // a wedged car would measure the wall, not the setting
+      const s = document.getElementById('ctl-throttle');
+      s.value = 'auto'; s.dispatchEvent(new Event('change'));
+    });
+    preDrive.push(await p.body().evaluate(() => { const c = window.App.car(); return { x: c.x, z: c.z }; }));
+  }
   await sleep(DRIVE_MS);
+  for (let i = 0; i < players.length; i++) {
+    const cur = await players[i].body().evaluate(() => { const c = window.App.car(); return { x: c.x, z: c.z, speed: c.speed }; });
+    const d = Math.hypot(cur.x - preDrive[i].x, cur.z - preDrive[i].z);
+    check(players[i].name + ' — throttle=auto (their own setting): the car cruises hands-free',
+      d > 0.5, d.toFixed(1) + ' m in ' + (DRIVE_MS / 1000) + 's, now ' + cur.speed.toFixed(1) + ' m/s');
+  }
 
   // ---- Can each of them SEE the other two? --------------------------------
   // TWO SEPARATE QUESTIONS, asked separately on purpose.
