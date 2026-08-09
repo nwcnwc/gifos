@@ -47,6 +47,8 @@
   "screenshots": [],
   "gif": "/apps/fluence/fluence.gif",
   "bytes": 158329,
+  "download": 0,
+  "provides": null,
   "sha256": "64ac94f9d22876c929a3aed24e005a6bc0e819809f60a2570d5f88b3b49f9f7b",
   "signature": {
     "type": "domain",

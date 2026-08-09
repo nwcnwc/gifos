@@ -57,10 +57,16 @@
   //  - visualBytes = the GIF with the GIFOS1.0 and GIFOSSIG blocks removed
   //    (i.e. every pixel/palette/animation byte), and
   //  - filesDigest = SHA256 over the sorted list of "path\0sha256(bytes)" for
-  //    every app file EXCEPT .state/** .
+  //    every app file EXCEPT .state/** and .assets/** .
   // Consequence: saving app state (which only rewrites .state inside GIFOS1.0)
   // changes neither term, so the signature survives; changing app code or
-  // artwork changes one of them, so it (correctly) breaks.
+  // artwork changes one of them, so it (correctly) breaks. `.assets/**` are
+  // the install-time downloads the OS seals in (gifos-assets.js): excluded so
+  // installing them voids nothing, and SAFE to exclude because the SIGNED
+  // manifest already pins each asset by sha256 — the excluded bytes are still
+  // hash-committed, just one hop away. (Builds before 2026-08-09 would count
+  // .assets/ files into the digest and call such a signed app tampered; no
+  // signed app carried assets before this line existed.)
   function stripBlock(bytes, marker) {
     const span = gif.findAppExtSpan(bytes, marker);
     if (!span) return bytes;
@@ -77,7 +83,8 @@
     if (archive && archive.files) {
       const parts = [];
       for (const path of Object.keys(archive.files).sort()) {
-        if (path.indexOf('.state/') === 0) continue; // volatile — never signed
+        if (path.indexOf('.state/') === 0) continue;  // volatile — never signed
+        if (path.indexOf('.assets/') === 0) continue; // OS-sealed downloads — pinned by the signed manifest instead
         parts.push(te(path + '\0'));
         parts.push(await sha256(archive.files[path]));
         parts.push(te('\n'));
