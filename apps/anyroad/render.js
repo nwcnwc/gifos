@@ -1069,7 +1069,13 @@
   // tall would be a wall across the horizon.
   function buildBeaconMesh() {
     var o = { pos: [], nrm: [], col: [], idx: [] };
-    boxInto(o, 0, 160, 0, 4.5, 160, 4.5, [1.00, 0.86, 0.30]);
+    // 120 m, down from 320. I read a screenshot and concluded the beacon was
+    // too SMALL; in the real world it went most of a mile into the sky. The
+    // lesson is not about the number — it is that a still frame from a fixture
+    // world was the wrong instrument, and the person driving it was the right
+    // one. 120 m clears every building and most hills while still looking like
+    // a marker rather than a space elevator.
+    boxInto(o, 0, 60, 0, 4.5, 60, 4.5, [1.00, 0.86, 0.30]);
     return { positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
              colors: new Float32Array(o.col), indices: new Uint16Array(o.idx),
              count: o.idx.length };
