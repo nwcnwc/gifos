@@ -80,6 +80,17 @@ if (!fs.existsSync(fixturePath)) {
   const segs = cur.library(fixture.library, fixture.opts);
   const expanded = [];
   for (const seg of segs) {
+    if (seg.touching) {
+      const parts = seg.touching.parts;
+      parts.forEach((pt, j) => {
+        expanded.push({
+          parts: parts.map(([t], k) => [t, k === j]),
+          pad: j === parts.length - 1 ? cur.TOUCH_BREATH : 0,
+          scale: seg.scale || 1, color: null, itemEnd: false, clip: ['slice'],
+        });
+      });
+      continue;
+    }
     if (!seg.readalong) {
       expanded.push({
         parts: seg.parts.map(([t, h]) => [t, !!h]),
@@ -220,16 +231,29 @@ if (!fs.existsSync(fixturePath)) {
 // ---- the neutral-pad rule ---------------------------------------------------
 check('the highlight goes out on long pads (NEUTRAL_PAD ported)',
   SIO.storyboard.NEUTRAL_PAD === 0.35, SIO.storyboard.NEUTRAL_PAD);
-check('the approach floor pressed closer (50ms)',
-  cur.APPROACH_FLOOR === 0.05, cur.APPROACH_FLOOR);
+check('the approach floor is two hundredths (0.5.4)',
+  cur.APPROACH_FLOOR === 0.02, cur.APPROACH_FLOOR);
+check('the count sets where the journey starts: 0.2 / 0.3 / 0.45',
+  Math.abs(cur.approachStart(2) - 0.20) < 1e-9 && Math.abs(cur.approachStart(3) - 0.30) < 1e-9
+  && Math.abs(cur.approachStart(4) - 0.45) < 1e-9,
+  [cur.approachStart(2), cur.approachStart(3), cur.approachStart(4)]);
 
 // ---- the cap curve (0.5.3: the sounds compress with the gaps) ---------------
 {
   const segs = cur.approach([['s', 's'], ['a', 'æ'], ['t', 't']], 1.5, 3);
-  const caps = [...new Set(segs.map((seg) => Math.round(seg.clip.cap * 1000) / 1000))];
-  check('approach caps sounds on the shrinking curve: 1.1s down to 0.5s',
-    Math.abs(caps[0] - 1.1) < 1e-9 && Math.abs(caps[caps.length - 1] - 0.5) < 1e-9
-    && caps.length === 3 && caps[0] > caps[1] && caps[1] > caps[2], caps);
+  const gapSegs = segs.filter((seg) => seg.clip);
+  const caps = [...new Set(gapSegs.map((seg) => Math.round(seg.clip.cap * 1000) / 1000))];
+  check('the gap passes cap sounds on the shrinking curve, starting at 1.1s',
+    caps.length === 2 && Math.abs(caps[0] - 1.1) < 1e-9 && caps[0] > caps[1], caps);
+  const last = segs[segs.length - 1];
+  check('the final pass is the TOUCHING pass (crossfaded, no silence)',
+    !!last.touching && last.touching.parts.length === 3 && gapSegs.length === 6);
+  const a1 = new Float32Array(1000).fill(0.5), b1 = new Float32Array(1000).fill(0.5);
+  const merged = SIO.dsp.xfadeData(a1, b1, 100);
+  const mid = merged[950];
+  check('the crossfade is equal-power and gapless',
+    merged.length === 1900 && Math.abs(mid - 0.5 * (Math.cos(Math.PI / 4) + Math.sin(Math.PI / 4))) < 0.02,
+    [merged.length, mid]);
 
   const sr = 24000;
   const long = new Float32Array(Math.round(sr * 2.6)).fill(0.4);

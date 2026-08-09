@@ -33,11 +33,18 @@
     const segments = cur.library(texts, built);
 
     // Resolve every unique clip once (read-along markers resolve their line;
-    // their word timings reuse the word clips the buildup already needed).
+    // touching markers resolve their capped phonemes; word timings reuse the
+    // word clips the buildup already needed).
     const uniq = new Map();
+    const want = (req) => {
+      const k = JSON.stringify(req);
+      if (!uniq.has(k)) uniq.set(k, req);
+    };
     for (const seg of segments) {
-      const k = JSON.stringify(seg.clip);
-      if (!uniq.has(k)) uniq.set(k, seg.clip);
+      if (seg.clip) want(seg.clip);
+      if (seg.touching) {
+        for (const [, ipa] of seg.touching.parts) want({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD });
+      }
     }
     const buffers = new Map();
     let done = 0;
@@ -68,6 +75,47 @@
     };
 
     for (const seg of segments) {
+      if (seg.touching) {
+        // The final pass TOUCHES (upstream 0.5.4): the sounds are shortened,
+        // edge-trimmed, and joined with an equal-power crossfade into one
+        // continuous utterance - no silence inside it - so the last thing
+        // heard before the whole word is almost the word. The highlight
+        // still sweeps letter by letter: the merged audio is sliced back
+        // apart at each crossfade's midpoint, and the slices concatenate to
+        // exactly the merged audio, so sound and light cannot drift. One
+        // held breath sits between the blend and the word that answers it.
+        const parts = seg.touching.parts;
+        const shownAt = (j) => parts.map(([t], k) => [t, k === j]);
+        const clips = parts.map(([, ipa]) => bufFor({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD }));
+        if (clips.some((b) => !b)) {
+          // a sound nobody can say: per-letter fallback, still no long gaps
+          parts.forEach(([, ipa], j) => {
+            emit({ parts: shownAt(j), pad: j === parts.length - 1 ? cur.TOUCH_BREATH : 0, scale: seg.scale, color: null },
+              bufFor({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD }));
+          });
+          continue;
+        }
+        let sr = 0, merged = null;
+        const cuts = [];
+        const xn = () => Math.round(sr * cur.TOUCH_XFADE_MS / 1000);
+        for (const b of clips) {
+          const m = dsp.toMono(b);
+          sr = m.sr;
+          const e = Math.min(Math.round(sr * cur.TOUCH_EDGE_MS / 1000), Math.trunc(m.data.length * 0.15));
+          const d = (e && m.data.length > 4 * e) ? m.data.subarray(e, m.data.length - e) : m.data;
+          if (merged === null) { merged = d; continue; }
+          const eff = Math.min(xn(), merged.length, d.length);
+          cuts.push(merged.length - eff + Math.trunc(eff / 2));
+          merged = dsp.xfadeData(merged, d, xn());
+        }
+        merged = dsp.fadeTail(merged, sr, 40);
+        const bounds = [0, ...cuts, merged.length];
+        parts.forEach((p, j) => {
+          emit({ parts: shownAt(j), pad: j === parts.length - 1 ? cur.TOUCH_BREATH : 0, scale: seg.scale, color: null },
+            dsp.bufferFrom(merged.subarray(bounds[j], bounds[j + 1]), sr));
+        });
+        continue;
+      }
       if (!seg.readalong) { emit(seg, bufFor(seg.clip)); continue; }
 
       // The read-along: her whole read once, sliced at estimated word

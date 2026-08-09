@@ -285,7 +285,7 @@
     const c = cur();
     const PH = 0.75, WORD = 0.55, LINE = 2.6;
     const passes = Math.max(2, reps);
-    const gap = pause * 0.4; // mean of the shrinking approach gaps
+    const gap = 0.12; // mean of the (now brisk) shrinking approach gaps
 
     const wordCost = (w) => {
       if (c.decodable(w)) {

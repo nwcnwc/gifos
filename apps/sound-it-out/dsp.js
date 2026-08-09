@@ -108,6 +108,30 @@
     return a.subarray(lo, hi);
   }
 
+  // gen/soundout._xfade(): join two clips with an equal-power crossfade, to
+  // avoid a seam click. Returns the merged array (a new buffer).
+  function xfadeData(a, b, n) {
+    const eff = Math.min(n, a.length, b.length);
+    const out = new Float32Array(a.length + b.length - eff);
+    out.set(a.subarray(0, a.length - eff), 0);
+    for (let i = 0; i < eff; i++) {
+      const r = eff < 2 ? 1 : i / (eff - 1);
+      out[a.length - eff + i] = a[a.length - eff + i] * Math.cos(r * Math.PI / 2)
+        + b[i] * Math.sin(r * Math.PI / 2);
+    }
+    out.set(b.subarray(eff), a.length);
+    return out;
+  }
+
+  // gen/soundout._fade(): linear fade-out over the last ms (copies).
+  function fadeTail(a, sr, ms) {
+    const n = Math.min(Math.round(sr * ms / 1000), a.length);
+    if (n <= 1) return a;
+    const out = Float32Array.from(a);
+    for (let i = 0; i < n; i++) out[out.length - n + i] *= 1 - i / (n - 1);
+    return out;
+  }
+
   // gen/soundout.cap(): shorten a clip with a fade, or return it untouched.
   // The fade keeps a trimmed hold sounding like a shorter hold, not a cut.
   function capData(a, sr, seconds, fadeMs) {
@@ -430,7 +454,7 @@
   SIO.dsp = {
     VOWELS, STOPS, SONORANTS, phonemeClass,
     b64ToBytes, bytesToB64, audioContext, decodeBytes, toMono, bufferFrom,
-    peakOf, rmsOf, trim, trimBounds, capData, buckets, schwaTail, sonorantTail,
+    peakOf, rmsOf, trim, trimBounds, capData, xfadeData, fadeTail, buckets, schwaTail, sonorantTail,
     LENGTH_TARGET, TAKES, takesFor, ADVICE, scoreTake, choose, stretch,
   };
 })();
