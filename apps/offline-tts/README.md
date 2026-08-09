@@ -1,4 +1,4 @@
-# Pocket Voice
+# Offline Text to Speech
 
 The first **Provider app** (see `docs/providers.md`): it doesn't do a job on
 its own screen — it gives the OS an ability. Installed and assigned in
@@ -28,7 +28,7 @@ offline: no network capability, no key, nothing leaves the device.
 
 The vendored engine source lives in `vendor/` (the app's source tree, like
 chess-grandmaster's `sf-src.js` + `stockfish.wasm`); the committed GIF under
-`site/apps/pocket-voice/` is the built artifact.
+`site/apps/offline-tts/` is the built artifact.
 
 ## Licensing
 
@@ -40,7 +40,7 @@ the staged assets; the engine files carry their original notices.
 ## Rebuild
 
 ```bash
-node apps/pocket-voice/build.mjs        # packs the slim GIF into site/apps/pocket-voice/
+node apps/offline-tts/build.mjs        # packs the slim GIF into site/apps/offline-tts/
 node scripts/build-app-catalog.mjs      # refresh the store catalog
 ```
 

@@ -2800,7 +2800,7 @@ document.getElementById('f').onsubmit=async e=>{
 
   // Reader — paste anything, the computer reads it aloud via the brokered
   // Text → speech role (gifos.ai.tts). It neither knows nor cares WHO serves
-  // the role: a cloud endpoint, or a Provider app like Pocket Voice answering
+  // the role: a cloud endpoint, or a Provider app like Offline Text to Speech answering
   // entirely on-device (docs/providers.md) — the consumer side of the
   // provider story. Long text is read in sentence chunks with one chunk of
   // lookahead synthesis, so speech starts fast and never stutters.
@@ -2877,7 +2877,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   const m=await gifos.ai.models().catch(()=>({available:[]}));
   if(!(m.available||[]).includes('tts')){
     note.style.display='';
-    note.innerHTML='No <b>Text → speech</b> is set up yet. Easiest fix: install <b>Pocket Voice</b> from the App Store — a free Provider app that speaks entirely on this device (no account, no key). Or add an OpenAI-compatible endpoint under <b>Settings → AI models</b>. Then come back.';
+    note.innerHTML='No <b>Text → speech</b> is set up yet. Easiest fix: install <b>Offline Text to Speech</b> from the App Store — a free Provider app that speaks entirely on this device (no account, no key). Or add an OpenAI-compatible endpoint under <b>Settings → AI models</b>. Then come back.';
   }
 })();
 </script>`;
@@ -3359,7 +3359,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
         app('Ask AI', 'askai', [123, 92, 255], ASKAI_HTML, { capabilities: { db: true, ai: true, network: [] } }),
         // The consumer half of the Provider story (docs/providers.md): reads
         // any pasted text through the brokered Text → speech role — served by
-        // an endpoint OR an installed Provider app (e.g. Pocket Voice),
+        // an endpoint OR an installed Provider app (e.g. Offline Text to Speech),
         // interchangeably. Saved text is personal, never shared.
         app('Reader', 'reader', [255, 170, 90], READER_HTML, { capabilities: { db: true, ai: ['tts'], network: [] }, data: { texts: PRIV } }),
       ] },

@@ -13,7 +13,7 @@
 //     even from inside the folder.
 //  5. The consumer's acknowledgement sheet NAMES the provider app.
 //  6. Reader (the seeded consumer) lives in the Tools folder.
-//  7. The REAL Pocket Voice GIF: engine IN-GIF (no assets — 5.6 MB raw is
+//  7. The REAL Offline Text to Speech GIF: engine IN-GIF (no assets — 5.6 MB raw is
 //     under the assets floor), boots in the hidden mount, and a real RIFF
 //     WAV comes back through gifos.ai.tts with no repack of the stored file.
 //  8. The install-time assets machinery (gifos-assets.js) stays guarded while
@@ -160,16 +160,16 @@ async function runConsumer(page, context, label, outTimeout) {
     await app.close();
   }
 
-  // ---- 5 + 7. the REAL Pocket Voice: engine in-GIF, install and speak -------
-  const pvBytes = fs.readFileSync(appGif('pocket-voice'));
-  check('the committed Pocket Voice GIF CARRIES its engine (in-GIF, no assets)', pvBytes.length > 1e6 && pvBytes.length < 8e6, pvBytes.length + ' bytes');
+  // ---- 5 + 7. the REAL Offline TTS provider: engine in-GIF, install, speak --
+  const pvBytes = fs.readFileSync(appGif('offline-tts'));
+  check('the committed Offline TTS GIF CARRIES its engine (in-GIF, no assets)', pvBytes.length > 1e6 && pvBytes.length < 8e6, pvBytes.length + ' bytes');
   const pvFid = await page.evaluate(async (b64) => {
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const fid = GifOS.store.uid('file');
-    await GifOS.store.putFile({ id: fid, name: 'Pocket Voice.gif', bytes, kind: 'gif', isApp: true, appId: 'pocket-voice', mime: 'image/gif' });
-    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Pocket Voice.gif', parent: 'sys_providers', x: 230, y: 90, iconSize: 64 });
-    localStorage.setItem('gifos_ai_config', JSON.stringify({ tts: { app: fid, appId: 'pocket-voice', appName: 'Pocket Voice' } }));
+    await GifOS.store.putFile({ id: fid, name: 'Offline Text to Speech.gif', bytes, kind: 'gif', isApp: true, appId: 'offline-tts', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Offline Text to Speech.gif', parent: 'sys_providers', x: 230, y: 90, iconSize: 64 });
+    localStorage.setItem('gifos_ai_config', JSON.stringify({ tts: { app: fid, appId: 'offline-tts', appName: 'Offline Text to Speech' } }));
     // The consumer acked its abilities on an earlier run and the ack persists
     // per capability-signature — clear it so the sheet shows again, because
     // the point of the next check is what the sheet SAYS about the provider.
@@ -179,9 +179,9 @@ async function runConsumer(page, context, label, outTimeout) {
   {
     // Engine download (5.6 MB from the static server) + boot + synthesis.
     const { app, ack, out } = await runConsumer(page, context, 'TtsUser.gif', 90000);
-    check('the consumer acknowledgement NAMES the provider app', /Pocket Voice/.test(ack) && /on this device/.test(ack), ack.slice(0, 160));
+    check('the consumer acknowledgement NAMES the provider app', /Offline Text to Speech/.test(ack) && /on this device/.test(ack), ack.slice(0, 160));
     const m = /^ok:(....):(\d+):(.*)$/.exec(out) || [];
-    check('Pocket Voice answers gifos.ai.tts with a real WAV', m[1] === 'RIFF' && Number(m[2]) > 20000 && m[3] === 'audio/wav', out.slice(0, 120));
+    check('Offline Text to Speech answers gifos.ai.tts with a real WAV', m[1] === 'RIFF' && Number(m[2]) > 20000 && m[3] === 'audio/wav', out.slice(0, 120));
     await app.close();
   }
   // No manifest.assets → no backfill, no repack: the stored file must still

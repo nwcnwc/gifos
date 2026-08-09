@@ -1,5 +1,5 @@
 /*
- * Pocket Voice — the driver. The eSpeak core (speak.js / meSpeak build,
+ * Offline Text to Speech — the driver. The eSpeak core (speak.js / meSpeak build,
  * GPLv3) plus its config + en-us voice ride INSIDE this GIF (engine.js /
  * engine-data.js / voice-data.js, packed by build.mjs — ~5.6 MB raw, ~1.6 MB
  * deflated, comfortably in-GIF; the install-time assets pattern is reserved
