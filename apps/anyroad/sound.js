@@ -351,14 +351,18 @@
   }
 
   // ---- the blaster ---------------------------------------------------------
-  // A falling square through a resonant filter is the whole cliché and it is
-  // the cliché for a reason: the pitch drop IS the sound. Kept short and not
-  // very loud, because it fires four times a second and anything with a tail
-  // turns into a drone.
+  // Four layers, because one is a ping and a ping is what this used to be. A
+  // real report is mostly NOISE with a shape: the crack (a few milliseconds
+  // of hot highs), the chest (a low thump that carries the weight), the sweep
+  // (the energy-weapon signature, now UNDER the noise instead of instead of
+  // it), and a whisper of tail. Each layer short and modest, because it fires
+  // four times a second and anything with a real tail turns into a drone.
   function blast() {
     if (!started || silent) return;
-    tone({ type: 'square', f0: 1250, f1: 240, dur: 0.14, bend: 0.8, gain: 0.13, filter: 3200, q: 6 });
-    burst({ freq: 2400, q: 2.0, dur: 0.08, gain: 0.07, rate: 1.6 });
+    burst({ freq: 3400, q: 0.8, dur: 0.055, gain: 0.20, type: 'highpass', attack: 0.001 });  // the crack
+    burst({ freq: 300, q: 1.1, dur: 0.15, gain: 0.19, attack: 0.002 });                      // the chest
+    tone({ type: 'sawtooth', f0: 950, f1: 130, dur: 0.13, bend: 0.75, gain: 0.09, filter: 2400, q: 4 });
+    burst({ freq: 170, q: 0.7, dur: 0.30, gain: 0.05, attack: 0.03 });                       // the room
   }
 
   // What it hit. Meat, metal and masonry are three different noises, and
