@@ -82,6 +82,22 @@ async function runConsumer(page, context, label, outTimeout) {
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext();
+
+  // THIS SUITE IS OFFLINE, and now says so mechanically. The BitNet provider
+  // pins ~1 GB of weights in its manifest, so the provider mount's asset
+  // backfill would otherwise reach for huggingface.co on every run — turning a
+  // hermetic gate into a slow, network-dependent one (and, in a headless
+  // profile, a QuotaExceededError). Blocking everything off-origin keeps the
+  // suite honest AND exercises exactly the case we must not regress: the
+  // weights have NOT been downloaded, so the provider must still serve from
+  // its labeled in-GIF self-test model.
+  let offOriginBlocked = 0;
+  await context.route('**/*', (route) => {
+    const u = route.request().url();
+    if (/^https?:\/\/(127\.0\.0\.1|localhost)[:/]/.test(u) || /^(data|blob):/.test(u)) return route.continue();
+    offOriginBlocked++;
+    return route.abort();
+  });
   const page = await context.newPage();
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
   await page.goto(BASE + '/index.html');
@@ -279,6 +295,14 @@ async function runConsumer(page, context, label, outTimeout) {
     const reply = await fr.locator('.m.ai').last().textContent();
     check('Ask AI (the seeded cheapest consumer) is answered by llama.cpp in the provider sandbox',
       /\[self-test model — token soup/.test(reply) && reply.length > 60, reply.slice(0, 120));
+    // The provider PINS ~1 GB of weights it could not fetch here (all
+    // off-origin traffic is blocked above). It still answered, from the
+    // in-GIF self-test model, honestly labeled. Guards the regression where a
+    // failed asset backfill made the broker refuse to serve at all, pre-empting
+    // the app's own fallback.
+    check('a pinned-asset provider still serves its self-test model when the download has NOT happened',
+      offOriginBlocked > 0 && /\[self-test model — token soup/.test(reply),
+      offOriginBlocked + ' off-origin request(s) blocked');
     await askai.close();
   }
 

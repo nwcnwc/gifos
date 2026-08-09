@@ -1296,10 +1296,18 @@
         // downloads once per computer, never per tab.
         const A = GifOS.assets;
         const cache = A ? A.assetCache(store, c.app) : null;
+        // A failed backfill is NOT fatal to the serve. An app that pins weights
+        // may still have an honest degraded mode (Offline Cheap Text LLM
+        // BitNet boots its labeled self-test model when gifos.assets() misses),
+        // and only the app knows that. Refusing here pre-empted the app's own
+        // fallback and made a pinned provider unusable offline / on a small
+        // storage quota. The miss is still reported clearly at READ time by
+        // gifos.assets(path), which names the fix; an app that genuinely cannot
+        // work without its asset surfaces that message instead of this one.
         const prep = A
           ? A.missing(arc.files, m, cache).then((need) => need.length
               ? A.ensure(arc.files, m, null, cache)
-                .catch((e) => { throw new Error(name + ' needs its model download to finish before it can serve — ' + (e && e.message || e)); })
+                .catch((e) => { try { console.warn(name + ': asset download did not complete — the app will run in whatever degraded mode it offers. ' + (e && e.message || e)); } catch (_) {} return null; })
               : null)
           : Promise.resolve();
         return prep.then(() => providerService(c.app, arc.files, m)).then((svc) => svc.call(role, req));

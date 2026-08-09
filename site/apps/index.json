@@ -132,6 +132,44 @@
       "sha256": "64ac94f9d22876c929a3aed24e005a6bc0e819809f60a2570d5f88b3b49f9f7b"
     },
     {
+      "slug": "offline-llm-bitnet",
+      "appId": "offline-llm-bitnet",
+      "name": "Offline Cheap Text LLM BitNet",
+      "shortName": "BitNet LLM",
+      "version": "0.9",
+      "tagline": "A cheap text brain for your whole computer — BitNet b1.58 running entirely on your device.",
+      "author": "GifOS",
+      "releaseDate": "2026-08-09",
+      "updated": "2026-08-09",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "provider",
+        "llm",
+        "bitnet",
+        "chat",
+        "offline",
+        "ai",
+        "llama.cpp"
+      ],
+      "accent": [
+        92,
+        220,
+        180
+      ],
+      "cover": "/apps/offline-llm-bitnet/cover.jpg",
+      "bytes": 10222979,
+      "download": 1105874048,
+      "provides": {
+        "ai": [
+          "cheapest"
+        ]
+      },
+      "signature": null,
+      "sha256": "bb83426e96287435280003748b9c8e61a852ff4642b856aafc841177c678b5ce"
+    },
+    {
       "slug": "offline-tts",
       "appId": "offline-tts",
       "name": "Offline Text to Speech",
