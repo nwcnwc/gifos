@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline Cheap Text LLM BitNet</title>
+<style>
+  :root { --bg:#0a0a12; --surface:#14141f; --border:#2a2a3f; --text:#e8e8f4; --muted:#9a9ab5; --accent:#5cdcb4; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,sans-serif; min-height:100vh; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 1.4rem 1.2rem 3rem; }
+  h1 { font-size: 1.4rem; margin: .4rem 0 .2rem; }
+  h1 .chip { font-size:.6rem; vertical-align:.35em; margin-left:.5rem; background:var(--accent); color:#04251b; border-radius:.35rem; padding:.2rem .45rem; letter-spacing:.08em; font-weight:800; }
+  .lead { color: var(--muted); margin: 0 0 1.1rem; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:.8rem; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+  .card h2 { font-size:.95rem; margin:0 0 .5rem; }
+  .card p { margin:.35rem 0; font-size:.88rem; color:var(--muted); }
+  .card p b { color: var(--text); }
+  ol { margin:.4rem 0 .2rem; padding-left:1.2rem; font-size:.88rem; color:var(--muted); }
+  ol b { color: var(--text); }
+  #model-live { font-size:.85rem; font-weight:600; }
+  textarea { width:100%; min-height:3.6rem; background:var(--bg); border:1px solid var(--border); border-radius:.55rem; color:var(--text); font:inherit; padding:.6rem .7rem; resize:vertical; }
+  .row { display:flex; gap:.5rem; margin-top:.6rem; align-items:center; }
+  button { background:var(--accent); border:none; border-radius:.55rem; color:#04251b; font:inherit; font-weight:700; padding:.5rem 1.3rem; cursor:pointer; }
+  button:disabled { opacity:.55; cursor:wait; }
+  #a { white-space:pre-wrap; background:var(--bg); border:1px solid var(--border); border-radius:.55rem; padding:.6rem .7rem; margin-top:.6rem; min-height:2.2rem; font-size:.88rem; overflow-wrap:anywhere; }
+  #status { font-size:.82rem; color:var(--muted); margin-top:.5rem; min-height:1.2em; }
+  .foot { font-size:.75rem; color:var(--muted); opacity:.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🧠 Offline Cheap Text LLM BitNet<span class="chip">PROVIDER</span></h1>
+  <p class="lead">A cheap text brain for your whole computer — a real LLM answering entirely on this device. No account, no key, nothing sent anywhere.</p>
+
+  <div class="card">
+    <h2>This app serves your OS</h2>
+    <p>This is a <b>Provider app</b>: it gives GifOS the <b>Cheapest text LLM</b> AI type. Every app that asks the computer for cheap text — Ask AI, Chat drafts, game hints — will use it.</p>
+    <ol>
+      <li>Keep its icon in the <b>Providers</b> folder (a provider only works from there — anywhere else it wears a red ✕).</li>
+      <li>Open <b>Settings → AI models</b> and set <b>Cheapest text LLM</b> to <b>📦 BitNet LLM</b>.</li>
+      <li>The <b>BitNet b1.58</b> ternary weights (Microsoft Research, ~1&nbsp;GB) arrive as a hash-pinned download at install and are cached on this computer — after that, everything is offline.</li>
+    </ol>
+    <p id="model-live">● Engine starting…</p>
+  </div>
+
+  <div class="card">
+    <h2>Try it</h2>
+    <textarea id="q">Say hello in five words.</textarea>
+    <div class="row"><button id="ask">Ask</button></div>
+    <div id="a"></div>
+    <div id="status"></div>
+  </div>
+
+  <p class="foot">Engine: llama.cpp via wllama (MIT), compiled to WebAssembly, sealed in this app's sandbox — the worker and wasm load from the app's own bytes, and the sandbox has no network path. Weights: BitNet b1.58 (MIT, Microsoft Research), ternary (−1/0/+1), downloaded once and hash-verified by GifOS. The built-in self-test model is a few MB of deliberately random weights that prove the plumbing without the download.</p>
+</div>
+<script src="wllama-lib.js"></script>
+<script src="wllama-wasm.js"></script>
+<script src="demo-model-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
