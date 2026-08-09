@@ -242,7 +242,13 @@
         var sx = car.x - c.x, sz = car.z - c.z;
         var lon = Math.abs(sx * Math.sin(c.yaw) + sz * Math.cos(c.yaw));
         var lat = Math.abs(sx * Math.cos(c.yaw) - sz * Math.sin(c.yaw));
-        if (lat < HIT_LAT && lon < HIT_LON) {
+        // …and a collision needs VERTICAL overlap. The box test lives in x/z,
+        // which was fine while nothing left the ground — the moment the wings
+        // went on, a plane at altitude "hit" the traffic on the road below it
+        // and the damage read as invisible birds. Two car bodies overlap
+        // within a couple of metres; a low pass under that is still a crash.
+        var alt = Math.abs((car.y || 0) - (c.y || 0));
+        if (alt < 2.4 && lat < HIT_LAT && lon < HIT_LON) {
           var relx = c.vx - Math.sin(car.yaw) * car.speed;
           var relz = c.vz - Math.cos(car.yaw) * car.speed;
           var rel = Math.hypot(relx, relz);

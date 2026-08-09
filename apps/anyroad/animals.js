@@ -192,7 +192,12 @@
       if (a.state === 'hit') continue;
 
       var v = Math.abs(car.speed);
-      if (!hit && v > HURT_AT && !car.wrecked && hitTest(a, car)) {
+      // The centreline test lives in x/z, so without the height term a plane
+      // at altitude kept "hitting" the deer on the road far below — damage
+      // out of a clear sky that read as invisible birds. Three metres covers
+      // bonnet-height meeting animal-height; a genuinely low pass still pays.
+      if (!hit && v > HURT_AT && !car.wrecked
+          && Math.abs((car.y || 0) - (a.y || 0)) < 3.0 && hitTest(a, car)) {
         a.state = 'hit';
         a.gone = 0;
         a.vy = 3.0 + v * 0.12;

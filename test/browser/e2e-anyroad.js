@@ -1392,6 +1392,52 @@ function check(name, cond, detail) {
     bump.damage > 20 && bump.health < 80,
     '-' + bump.damage.toFixed(1) + ' at ' + bump.rel.toFixed(0) + ' m/s closing, ' + bump.health.toFixed(0) + '% left');
 
+  // ---- the sky is empty ----------------------------------------------------
+  // Both hazard tests lived in x/z, which was fine while nothing left the
+  // ground — the moment the wings went on, a plane at altitude "hit" the
+  // deer and the traffic on the road far below, and the damage read as
+  // invisible birds. A collision needs vertical overlap: the same overflight
+  // that is free at 60 m is still a crash at bumper height.
+  const skyStrike = await fr.locator('body').evaluate(() => {
+    const road = { pts: [{ x: 0, z: 0 }, { x: 0, z: 200 }], cruise: 14, half: 3.5, surface: 0 };
+    const ctx = { height: () => 0, paths: () => [road], nearestRoad: () => null };
+    const out = {};
+    // Traffic, directly underneath a plane at 60 m…
+    window.Traffic.clear();
+    window.Traffic.inject({ path: road, i: 0, t: 0.25, dir: 1, speed: 10, x: 0, z: 50, y: 0, yaw: 0 });
+    const plane = window.Car.create(0, 50, 0);
+    plane.y = 60; plane.speed = 30; plane.flying = true;
+    out.highTraffic = (window.Traffic.update(plane, ctx, 0.016) || { damage: 0 }).damage;
+    // …and the same pass at bumper height is still a crash.
+    window.Traffic.clear();
+    window.Traffic.inject({ path: road, i: 0, t: 0.25, dir: 1, speed: 0, x: 0, z: 50, y: 0, yaw: 0 });
+    const low = window.Car.create(0, 50, 0);
+    low.y = 0.5; low.speed = 30;
+    out.lowTraffic = (window.Traffic.update(low, ctx, 0.016) || { damage: 0 }).damage;
+    window.Traffic.clear();
+    // A deer, directly underneath…
+    window.Animals.clear();
+    window.Animals.inject({ kind: 'deer', x: 0, z: 50, y: 0, yaw: 0 });
+    const plane2 = window.Car.create(0, 50, 0);
+    plane2.y = 60; plane2.speed = 25; plane2.flying = true;
+    out.highDeer = (window.Animals.update(plane2, ctx, 0.016) || { damage: 0 }).damage;
+    // …and the same deer at bonnet height is still a windscreen.
+    window.Animals.clear();
+    window.Animals.inject({ kind: 'deer', x: 0, z: 50, y: 0, yaw: 0 });
+    const low2 = window.Car.create(0, 50, 0);
+    low2.y = 0.5; low2.speed = 25;
+    out.lowDeer = (window.Animals.update(low2, ctx, 0.016) || { damage: 0 }).damage;
+    window.Animals.clear();
+    return out;
+  });
+  check('a plane at altitude cannot strike the traffic on the road below it',
+    skyStrike.highTraffic === 0, '-' + skyStrike.highTraffic + ' at 60 m');
+  check('…nor the wildlife — there are no invisible birds',
+    skyStrike.highDeer === 0, '-' + skyStrike.highDeer + ' at 60 m');
+  check('…but the SAME pass at bumper height still costs metal',
+    skyStrike.lowTraffic > 0 && skyStrike.lowDeer > 0,
+    '-' + skyStrike.lowTraffic.toFixed(1) + ' traffic, -' + skyStrike.lowDeer.toFixed(1) + ' deer');
+
 
   // ---- street names --------------------------------------------------------
   // `name` has been on every way in every response the app has ever made, and
