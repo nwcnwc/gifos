@@ -1468,6 +1468,27 @@ function check(name, cond, detail) {
   check('a fresh car shows no crumple; a battered one visibly wears it',
     wreckage.fresh < 0.01 && wreckage.mangled > 0.5,
     'crumple ' + wreckage.fresh.toFixed(2) + ' at 100% vs ' + wreckage.mangled.toFixed(2) + ' at 15%');
+
+  // ---- the mountain charges for the ride ------------------------------------
+  // "I just tumbled down mount everest and didn't see any crumple damage."
+  // Right: the driving branch's touchdown zeroed vy silently — only the
+  // AEROPLANE's landings ever hurt. A tumble is a series of ground slams,
+  // and each one above ~8 m/s of descent now takes its bite (settle()).
+  const tumble = await fr.locator('body').evaluate(() => {
+    const w = window.App.world, f = w.frame, c = window.App.car();
+    const drop = (height) => {
+      const k = window.Car.create(c.x, c.z, c.yaw);
+      const gy = window.Terrain.heightAt(f, c.x, c.z) || 0;
+      k.y = gy + height; k.vy = 0; k.airborne = true; k.speed = 12;
+      const inp = window.Car.blankInput();
+      for (let i = 0; i < 80; i++) window.Car.update(k, inp, 0.05, f);   // 4 sim-s: falls and lands
+      return k.health;
+    };
+    return { small: drop(1.5), cliff: drop(14) };
+  });
+  check('a kerb hop is free, a cliff drop is NOT — ground slams cost condition',
+    tumble.small === 100 && tumble.cliff < 90,
+    'after 1.5 m: ' + tumble.small + '%, after 14 m: ' + tumble.cliff + '%');
   check('…and at 15% the engine LIMPS but still drives',
     wreckage.weakV > 4 && wreckage.weakV < wreckage.strongV * 0.6,
     wreckage.weakV.toFixed(1) + ' m/s limping vs ' + wreckage.strongV.toFixed(1) + ' healthy');
@@ -1491,9 +1512,13 @@ function check(name, cond, detail) {
     c.speed = 0;
     const before = window.App.debug().breaches;
     for (let i = 0; i < 7; i++) {      // three hits open it; fire spare rounds
+      // Reposition IMMEDIATELY before each shot: between shots the cruise
+      // drives the parked car toward the wall, and a drifting firing pose
+      // scatters the impacts wider than the breach cluster radius — the
+      // flake where "three bolts into one spot" opened nothing.
+      c.x = wallN.x - 9; c.z = wallN.z; c.yaw = Math.PI / 2; c.speed = 0;
       window.Blaster.fire(c);
       await wait(320);                 // > cooldown, and time for the bolt to land
-      c.x = wallN.x - 9; c.z = wallN.z; c.yaw = Math.PI / 2; c.speed = 0;   // hold the firing line
     }
     for (let i = 0; i < 20 && window.App.debug().breaches === before; i++) await wait(250);
     const opened = window.App.debug().breaches;

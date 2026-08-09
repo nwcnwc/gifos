@@ -1336,6 +1336,15 @@
         checkRoofStrike();
         if (!airborne) collideBuildings(dt / steps);
       }
+      // A slammed landing (settle() charged it) needs to be FELT, not just
+      // subtracted: the shake and the thump are how a tumble down a
+      // mountainside reads as a tumble instead of a quiet number going down.
+      if (car.slam) {
+        shake = Math.min(1, Math.max(shake, car.slam / 22));
+        root.Sound.crash(Math.min(1, car.slam / 26));
+        root.UI.damage(car.health, car.slamDamage > 10, car.slamDamage);
+        car.slam = 0; car.slamDamage = 0;
+      }
       wildlife(dt);
       otherCars(dt);
       blaster(input, dt);

@@ -22,6 +22,8 @@
       onRoad: true,
       airborne: false,
       vy: 0,
+      slam: 0,             // last landing's descent speed, for the frame to feel
+      slamDamage: 0,
       odometer: 0,
       health: 100,
       wrecked: false,
@@ -502,7 +504,24 @@
       car.airborne = true;
       car.vy -= GRAVITY * dt;
       car.y += car.vy * dt;
-      if (car.y <= groundY) { car.y = groundY; car.vy = 0; car.airborne = false; }
+      if (car.y <= groundY) {
+        // TOUCHDOWN COSTS WHAT IT COSTS. This line used to swallow the fall
+        // silently — you could tumble all the way down Everest, slamming
+        // into every ledge at twenty metres a second, and arrive showroom-
+        // fresh; the only landings that ever hurt were the aeroplane's. Above
+        // ~8 m/s of descent (a three-metre drop) each slam takes a bite,
+        // scrubs speed, and reports itself (car.slam) so the frame can shake
+        // and thump. A tumble is a SERIES of these — which is the crumple.
+        var slam = -car.vy;
+        car.y = groundY; car.vy = 0; car.airborne = false;
+        if (slam > 8) {
+          var dmg = Math.min(30, (slam - 8) * 2.2);
+          car.health = Math.max(0, car.health - dmg);
+          car.speed *= Math.max(0.55, 1 - slam * 0.02);
+          car.slam = slam; car.slamDamage = dmg;
+          if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+        }
+      }
     } else {
       // A little suspension travel, so kerbs and ruts do not snap the body.
       car.y += (groundY - car.y) * Math.min(1, dt * 14);
