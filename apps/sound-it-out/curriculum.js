@@ -113,7 +113,23 @@
   // knows: names, nonsense words, whatever a family invents.
   function wordParts(word) {
     const clean = cleanWord(word);
-    const aligned = SIO.dictionary && SIO.dictionary.chunks(clean);
+    let aligned = SIO.dictionary && SIO.dictionary.chunks(clean);
+    if (aligned && aligned.length === 1 && clean.length > 1) {
+      // A whole word bundled into one chunk has no journey: the buildup of
+      // "is=ɪz" is just "is" said three times, which is what happened - to
+      // 239 words including am, an, at, in, it and up, the first words a
+      // child meets. The lexicon splits the notorious ones by hand;
+      // otherwise, when the letters and sounds pair one to one, pair them.
+      if (WORD_SOUNDS[clean.toLowerCase()]) {
+        aligned = null; // fall through to the lexicon path below
+      } else {
+        const [g, s] = aligned[0];
+        const toks = SIO.dictionary.tokens(s);
+        if (toks.length === g.length) {
+          aligned = [...g].map((ch, i) => [ch, toks[i]]);
+        }
+      }
+    }
     if (aligned && aligned.length) return aligned;
     const lex = WORD_SOUNDS[cleanWord(word).toLowerCase()];
     if (lex) {
@@ -306,7 +322,10 @@
   // three at 0.3, four at 0.45; the floor before the touching pass is two
   // hundredths either way.
   const APPROACH_FLOOR = 0.02;
-  const TOUCH_HOLD = 0.40, TOUCH_EDGE_MS = 20, TOUCH_XFADE_MS = 30, TOUCH_BREATH = 0.3;
+  // The held breath before the whole word answers the blend: seven tenths,
+  // not three - a beat was a beat, an invitation is room for the child to
+  // say the word FIRST, which is the whole game.
+  const TOUCH_HOLD = 0.40, TOUCH_EDGE_MS = 20, TOUCH_XFADE_MS = 30, TOUCH_BREATH = 0.7;
 
   // How many single sounds a chunk's sound carries (an=/æn/ carries two).
   function soundsIn(ipa) {
@@ -340,6 +359,10 @@
         const shown = parts.map(([g], k) => [g, k === j]);
         segs.push(Segment(shown, phonemeClip(ipa, hold * soundsIn(ipa)), gap));
       });
+      // A breath between rounds: each pass is its own attempt at the word,
+      // and the boundary should be audible - within-round gaps alone made
+      // one pass run into the next.
+      segs[segs.length - 1].pad = gap + 0.5;
     }
     segs.push({ touching: { parts }, parts: null, clip: null, pad: 0, scale: 1.0, color: null, itemEnd: false });
     return segs;

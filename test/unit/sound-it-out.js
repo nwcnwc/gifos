@@ -57,8 +57,10 @@ const cur = SIO.curriculum, lib = SIO.library;
     j(cur.wordParts('said')) === j([['s', 's'], ['ai', 'ɛ'], ['d', 'd']]), cur.wordParts('said'));
   check('the builds as th-e', j(cur.wordParts('the')) === j([['th', 'ð'], ['e', 'ə']]), cur.wordParts('the'));
   check('nose keeps its /z/', j(cur.wordParts('nose')) === j([['n', 'n'], ['ose', 'əʊz']]), cur.wordParts('nose'));
-  check('is is one chunk now - the dictionary outranks the lexicon',
-    j(cur.wordParts('is')) === j([['is', 'ɪz']]), cur.wordParts('is'));
+  check('is builds again - the lexicon splits the notorious single-chunkers (0.7.5)',
+    j(cur.wordParts('is')) === j([['i', 'ɪ'], ['s', 'z']]), cur.wordParts('is'));
+  check('a one-chunk word with matching letters and sounds pairs them: ab',
+    j(cur.wordParts('ab')) === j([['a', 'æ'], ['b', 'b']]), cur.wordParts('ab'));
   check('the rules still serve nonsense: vam',
     j(cur.wordParts('vam')) === j([['v', 'v'], ['a', 'æ'], ['m', 'm']]), cur.wordParts('vam'));
   check('chunk sounds split into recordable phonemes: eɪk -> eɪ + k',
@@ -334,6 +336,15 @@ check('the highlight goes out on long pads (NEUTRAL_PAD ported)',
   SIO.storyboard.NEUTRAL_PAD === 0.35, SIO.storyboard.NEUTRAL_PAD);
 check('the approach floor is two hundredths (0.5.4)',
   cur.APPROACH_FLOOR === 0.02, cur.APPROACH_FLOOR);
+check('the blend hangs seven tenths before the word answers (0.7.7)',
+  cur.TOUCH_BREATH === 0.7, cur.TOUCH_BREATH);
+{
+  const segs = cur.approach([['s', 's'], ['a', 'æ']], 1.5, 3).filter((x) => x.clip);
+  const roundEnds = [segs[1], segs[3]];
+  check('a breath between rounds: each pass ends with +0.5s (0.7.6)',
+    roundEnds.every((x) => x.pad > 0.5) && segs[0].pad < 0.5,
+    segs.map((x) => Math.round(x.pad * 100) / 100));
+}
 check('the count sets where the journey starts: 0.2 / 0.3 / 0.45',
   Math.abs(cur.approachStart(2) - 0.20) < 1e-9 && Math.abs(cur.approachStart(3) - 0.30) < 1e-9
   && Math.abs(cur.approachStart(4) - 0.45) < 1e-9,
