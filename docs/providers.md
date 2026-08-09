@@ -171,8 +171,21 @@ bytes ever diverge from the catalog's.
   Stockfish), `provides: { ai: ["tts"] }`, no network. Engine + voice ride
   **inside the GIF** (~1.6 MB deflated) — at 5.6 MB raw it sits well under
   the assets floor, so download-then-seal would only add a failure mode.
-- **Reader** (default app, Tools folder) — the consumer: paste text, hear it
-  read via `gifos.ai.tts`, whoever serves it.
+- **Offline Cheap Text LLM BitNet** (`apps/offline-llm-bitnet/`, UNPUBLISHED
+  until its weights pin is finalized — see its README) — the gigabyte-tier
+  proof: llama.cpp compiled to wasm (wllama, MIT; ternary TQ quants compiled
+  in) serves `cheapest` from inside the sandbox. The GIF carries the ENGINE
+  (+ a labeled few-MB self-test model, so the pipeline is provable offline
+  and in the gate); the BitNet b1.58 2B-4T weights (~0.7–1.2 GB) arrive by
+  manifest pin into the asset store. Named so siblings can follow
+  ("Offline Cheap Text LLM …"). Two sandbox findings are load-bearing and
+  encoded in its build: Chromium refuses `{type:'module'}` blob workers in
+  opaque origins (rewritten to classic), and emscripten loaders need the
+  wasm hatch's `connect-src blob:`.
+- **Reader** (default app, Tools folder) — the tts consumer: paste text, hear
+  it read via `gifos.ai.tts`, whoever serves it. **Ask AI** (also Tools) is
+  the seeded `cheapest`/`smartest` consumer — its declaration is typed, so
+  its ack sheet names the serving provider per role.
 - Guards: `test/browser/e2e-providers.js` (recognition-by-place, red ✕,
   network-less rule, brokered end-to-end synthesis), wired into the release
   battery.

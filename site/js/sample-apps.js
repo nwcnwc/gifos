@@ -3356,7 +3356,10 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
         // Showcases the brokered capabilities: a mic clip analysed on-device,
         // and the computer's own AI models. Both declare what they use.
         app('Speech Coach', 'speechcoach', [123, 92, 255], SPEECHCOACH_HTML, { capabilities: { db: true, microphone: true, network: [] } }),
-        app('Ask AI', 'askai', [123, 92, 255], ASKAI_HTML, { capabilities: { db: true, ai: true, network: [] } }),
+        // Typed ai declaration (it uses exactly these two roles): the ack
+        // sheet then shows a status line PER ROLE — including naming a
+        // Provider app when one serves it — instead of the bare generic row.
+        app('Ask AI', 'askai', [123, 92, 255], ASKAI_HTML, { capabilities: { db: true, ai: ['cheapest', 'smartest'], network: [] } }),
         // The consumer half of the Provider story (docs/providers.md): reads
         // any pasted text through the brokered Text → speech role — served by
         // an endpoint OR an installed Provider app (e.g. Offline Text to Speech),
