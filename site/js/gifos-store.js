@@ -20,7 +20,7 @@
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
-  const DB_VERSION = 2;
+  const DB_VERSION = 3; // v3: + appassets (install-time model weights, Blob-backed)
 
   const reqP = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 
@@ -89,6 +89,14 @@
           // instead of rewriting the whole app state. The composite key sorts
           // records by (app, collection, id) for O(range) reads — see appRange().
           if (!db.objectStoreNames.contains('apprecords')) db.createObjectStore('apprecords', { keyPath: ['fileId', 'collection', 'id'] });
+          // appassets: install-time downloads (gifos-assets.js) — model weights
+          // and other big pinned files, one row per [fileId, path], bytes kept
+          // as a Blob so the browser can page them to disk instead of RAM.
+          // These are a CACHE of publicly-pinned downloads, so they are
+          // deliberately NOT part of a whole-computer backup (a gigabyte model
+          // would burst the GIF format's base64/JSON string limits — and the
+          // manifest pin re-downloads it on the restored computer instead).
+          if (!db.objectStoreNames.contains('appassets')) db.createObjectStore('appassets', { keyPath: ['fileId', 'path'] });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -226,8 +234,17 @@
         })),
       appDelete: (fileId, coll, id) => tx('apprecords', 'readwrite', (os) => reqP(os.delete([fileId, coll, id]))),
       allFiles: () => tx('files', 'readonly', (os) => reqP(os.getAll())),
+      // ---- install-time assets (gifos-assets.js) — Blob-backed, per icon ----
+      // The bytes arrive as a Blob and STAY a Blob end to end: IndexedDB can
+      // keep Blobs on disk, so caching a 1 GB model never holds a 1 GB copy in
+      // RAM the way an ArrayBuffer row would.
+      putAsset: (fileId, path, blob) => tx('appassets', 'readwrite', (os) => reqP(os.put({ fileId, path, blob, bytes: blob && blob.size || 0, updatedAt: nowISO() }))),
+      getAsset: (fileId, path) => tx('appassets', 'readonly', (os) => reqP(os.get([fileId, path])).then((r) => (r ? r.blob : null))),
+      hasAsset: (fileId, path) => tx('appassets', 'readonly', (os) => reqP(os.getKey([fileId, path])).then((k) => k != null)),
+      deleteAssets: (fileId) => tx('appassets', 'readwrite', (os) =>
+        reqP(os.getAllKeys(IDBKeyRange.bound([fileId], [fileId, []]))).then((keys) => { for (const k of keys || []) os.delete(k); return true; })),
       // ---- misc ----
-      clearAll: () => open().then(() => Promise.all(['files', 'items', 'appstate', 'apprecords'].map((s) =>
+      clearAll: () => open().then(() => Promise.all(['files', 'items', 'appstate', 'apprecords', 'appassets'].map((s) =>
         tx(s, 'readwrite', (os) => reqP(os.clear()))))),
     };
 
