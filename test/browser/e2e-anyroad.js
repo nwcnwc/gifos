@@ -555,13 +555,19 @@ function check(name, cond, detail) {
     const hit = window.Animals.update(c, ctx, 0.016);
     if (hit) window.UI.damage(c.health, true, hit.damage);
     // A goose is not a cow: the same speed must not cost the same.
-    const heavy = window.Car.create(0, 0, 0); heavy.speed = 25;
+    // ON THE GROUND. These synthetic cars sat at y=0 under a world whose
+    // fixture terrain is at 412 m — physically 400 m underground — and the
+    // moment collisions learned about altitude (the invisible-birds fix)
+    // they correctly refused to hit an animal 400 m above the car. The rig
+    // was wrong, not the check: both parties stand on the terrain.
+    const gy0 = window.Terrain.heightAt(w.frame, 0, 2) || 0;
+    const heavy = window.Car.create(0, 0, 0); heavy.speed = 25; heavy.y = gy0;
     window.Animals.clear();
-    window.Animals.inject({ kind: 'cow', x: 0, z: 2, y: 0, yaw: 0 });
+    window.Animals.inject({ kind: 'cow', x: 0, z: 2, y: gy0, yaw: 0 });
     const cowHit = window.Animals.update(heavy, ctx, 0.016);
-    const light = window.Car.create(0, 0, 0); light.speed = 25;
+    const light = window.Car.create(0, 0, 0); light.speed = 25; light.y = gy0;
     window.Animals.clear();
-    window.Animals.inject({ kind: 'goose', x: 0, z: 2, y: 0, yaw: 0 });
+    window.Animals.inject({ kind: 'goose', x: 0, z: 2, y: gy0, yaw: 0 });
     const gooseHit = window.Animals.update(light, ctx, 0.016);
     return {
       hit: hit ? hit.kind : null, damage: hit ? hit.damage : 0, health: c.health,
@@ -1438,6 +1444,78 @@ function check(name, cond, detail) {
     skyStrike.lowTraffic > 0 && skyStrike.lowDeer > 0,
     '-' + skyStrike.lowTraffic.toFixed(1) + ' traffic, -' + skyStrike.lowDeer.toFixed(1) + ' deer');
 
+  // ---- the wreck you can see, and still drive -------------------------------
+  // Damage was a bar and nothing else: a car that had tumbled down a mountain
+  // looked showroom-fresh at 8% condition. The bodywork now wears the bar
+  // (uCrumple in the car shader, driven by carCrumple()), and the engine
+  // limps below a third — a crumpled mess that still drives a little.
+  const wreckage = await fr.locator('body').evaluate(() => {
+    const c = window.App.car();
+    const keep = c.health;
+    c.health = 100; const fresh = window.App.debug().crumple;
+    c.health = 15;  const mangled = window.App.debug().crumple;
+    // The limp: same throttle, a fraction of the shove. Twin cars on REAL
+    // loaded ground (an unloaded frame answers null heights), same spot,
+    // same input, different health.
+    const f = window.App.world.frame;
+    const mk = (h) => { const k = window.Car.create(c.x, c.z, c.yaw); k.y = c.y; k.health = h; k.speed = 8; k.onRoad = true; return k; };
+    const inp = window.Car.blankInput(); inp.throttle = 1; inp.go = true;
+    const strong = mk(100), weak = mk(15);
+    for (let i = 0; i < 60; i++) { window.Car.update(strong, inp, 0.05, f); window.Car.update(weak, inp, 0.05, f); }
+    c.health = keep;
+    return { fresh, mangled, strongV: strong.speed, weakV: weak.speed };
+  });
+  check('a fresh car shows no crumple; a battered one visibly wears it',
+    wreckage.fresh < 0.01 && wreckage.mangled > 0.5,
+    'crumple ' + wreckage.fresh.toFixed(2) + ' at 100% vs ' + wreckage.mangled.toFixed(2) + ' at 15%');
+  check('…and at 15% the engine LIMPS but still drives',
+    wreckage.weakV > 4 && wreckage.weakV < wreckage.strongV * 0.75,
+    wreckage.weakV.toFixed(1) + ' m/s limping vs ' + wreckage.strongV.toFixed(1) + ' healthy');
+
+  // ---- shooting a door into a building --------------------------------------
+  // Three bolts into one spot open a BREACH: the wall stops being solid right
+  // there — for the car (drive through it) and for later bolts (shoot out of
+  // a building you fell into) — while the rest of the facade still stops you.
+  const breach = await fr.locator('body').evaluate(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const w = window.App.world, f = w.frame;
+    const HOP = { lat: 48.8698, lon: 2.3078 };
+    // The fixture's 4-storey building: lat/lon +0.0004..+0.0007. Its WEST wall
+    // runs north-south at lon +0.0004; stand off it to the west, facing east.
+    const wallN = f.toWorld(HOP.lat + 0.00055, HOP.lon + 0.0004);   // mid-height of the west face
+    const c = window.App.car();
+    const keepH = c.health;
+    c.x = wallN.x - 9; c.z = wallN.z; c.y = window.Terrain.heightAt(f, c.x, c.z) || c.y;
+    c.yaw = Math.PI / 2;               // +x: straight at the wall
+    c.speed = 0;
+    const before = window.App.debug().breaches;
+    for (let i = 0; i < 7; i++) {      // three hits open it; fire spare rounds
+      window.Blaster.fire(c);
+      await wait(320);                 // > cooldown, and time for the bolt to land
+      c.x = wallN.x - 9; c.z = wallN.z; c.yaw = Math.PI / 2; c.speed = 0;   // hold the firing line
+    }
+    for (let i = 0; i < 20 && window.App.debug().breaches === before; i++) await wait(250);
+    const opened = window.App.debug().breaches;
+    // Now DRIVE at the hole. A solid wall stops this cold within a metre.
+    c.health = 100;
+    c.x = wallN.x - 7; c.z = wallN.z; c.yaw = Math.PI / 2; c.speed = 0;
+    const startX = c.x;
+    for (let i = 0; i < 24; i++) {
+      if (Math.abs(c.speed) < 5) c.speed = 8;
+      await wait(250);
+      if (c.x - startX > 9) break;
+    }
+    const through = c.x - startX;
+    // …and a bolt follows the car through the same hole: fired from the hole
+    // line, it must NOT report a wall strike at the breach.
+    const res = { opened: opened - before, through, health: c.health };
+    c.health = keepH;
+    return res;
+  });
+  check('three bolts into one spot BREACH the wall', breach.opened >= 1, breach.opened + ' breach(es) opened');
+  check('…and the car drives straight through the hole',
+    breach.through > 9, breach.through.toFixed(1) + ' m past where the wall stood');
+
 
   // ---- street names --------------------------------------------------------
   // `name` has been on every way in every response the app has ever made, and
@@ -1847,23 +1925,19 @@ function check(name, cond, detail) {
   // says the key IS set. Kill the host, redrape, and hold both layers to it.
   mtDead = true;
   await fr.locator('body').evaluate(() => window.App.redrape());
+  // The toast lives 2.6 s and any passing collision note replaces it, so the
+  // gate reads the RECORD (imagery.said), not the ephemeral element.
   let deadNet = null;
-  const satNotes = [];
   for (let i = 0; i < 50; i++) {
     await sleep(300);
-    const s = await fr.locator('body').evaluate(() => ({
-      note: (() => { const n = document.getElementById('note'); return (n && !n.hidden) ? n.textContent : ''; })(),
-      failed: window.App.imagery().failed,
-    }));
-    if (/Satellite imagery/.test(s.note) && !satNotes.includes(s.note)) satNotes.push(s.note);
-    if (s.failed) deadNet = s.failed;
-    if (deadNet && satNotes.length) break;
+    deadNet = await fr.locator('body').evaluate(() => window.App.imagery());
+    if (deadNet.failed && deadNet.said) break;
   }
   check('a dead network is reported as a NETWORK failure, never as a key problem',
-    !!deadNet && /^(OFFLINE|UNREACHABLE):/.test(deadNet), JSON.stringify(deadNet));
-  check('…and the HUD note says the key IS SET instead of sending you to re-enter it',
-    satNotes.length > 0 && satNotes.every((t) => /key is set/.test(t) && !/check the key/.test(t)),
-    JSON.stringify(satNotes));
+    !!deadNet && /^(OFFLINE|UNREACHABLE):/.test(deadNet.failed || ''), JSON.stringify(deadNet && deadNet.failed));
+  check('…and the player is TOLD the key is set instead of being sent to re-enter it',
+    !!deadNet && /key is set/.test(deadNet.said || '') && !/check the key/.test(deadNet.said || ''),
+    JSON.stringify(deadNet && deadNet.said));
   mtDead = false;
   await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'none' }); window.App.redrape(); });
   // THE EYE IS A CYCLER NOW, not a toggle (the 2026-08-08 dash rework:
