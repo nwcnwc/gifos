@@ -488,6 +488,7 @@
     if (el.speedo) el.speedo.hidden = cockpit;
     if (el.health) el.health.hidden = cockpit;
     last.view = v;
+    updateSteerpad();         // the pad hides from the driver's seat
     last.dashKph = null;      // force a rewrite on the next frame
   }
 
@@ -953,9 +954,19 @@
     Array.prototype.forEach.call(el.schemes.querySelectorAll('button'), function (b) {
       b.setAttribute('aria-checked', String(b.dataset.scheme === name));
     });
-    // The wheel is only meaningful when a wheel is what you are using.
-    el.steerpad.hidden = (name !== 'wheel');
+    last.scheme = name;
+    updateSteerpad();
     if (name !== 'stick') el.stick.hidden = true;
+  }
+
+  // The pad is the wheel's stand-in for views where you cannot see one. From
+  // the driver's seat the drawn wheel is RIGHT THERE turning with your input,
+  // so the pad is a second wheel floating over the picture — and hiding it
+  // costs nothing, because in wheel scheme the whole left half of the screen
+  // steers (car.js), pad or no pad. Every other scheme never shows the pad.
+  function updateSteerpad() {
+    if (!el.steerpad) return;
+    el.steerpad.hidden = (last.scheme !== 'wheel') || last.view === 'cockpit';
   }
 
   function setPlace(p) { el.place.textContent = p || '—'; }

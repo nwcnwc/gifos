@@ -580,6 +580,13 @@ select {
   color: #e9eef6;
   text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
   font-variant-numeric: tabular-nums;
+  /* ABOVE THE WHEEL RIM. The wheel is sized in vh and capped in vw, so on a
+     tall phone it is nearly as wide as the screen and its rim sweeps right
+     across the cluster's spot — the speed was legible on every desktop and
+     hidden behind the dash on every phone. The cluster is an instrument;
+     instruments read THROUGH the wheel. (#dash creates no stacking context,
+     so this z-index competes directly with the wheel inside #cockpit.) */
+  z-index: 3;
 }
 #dash-speed { font-size: clamp(1.6rem, 4.4vh, 2.4rem); font-weight: 300; line-height: .95; }
 #dash-unit {
