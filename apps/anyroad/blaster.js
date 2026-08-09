@@ -116,6 +116,12 @@
         if (beast) hit = { kind: 'animal', what: beast, x: beast.x, y: beast.y + 0.8, z: beast.z };
       }
       // Then traffic.
+      // ANOTHER PLAYER. Checked before traffic so a friend sitting in a line
+      // of AI cars is still the thing you hit.
+      if (!hit && ctx.players) {
+        var who = ctx.players(nx, nz, HIT_R);
+        if (who) hit = { kind: 'player', what: who, x: nx, y: b.y, z: nz };
+      }
       if (!hit && ctx.traffic) {
         var veh = ctx.traffic(nx, nz, HIT_R);
         if (veh) hit = { kind: veh.destroyed ? 'wreck' : 'car', what: veh, x: veh.x, y: veh.y + 0.9, z: veh.z };

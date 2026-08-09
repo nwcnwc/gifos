@@ -51,6 +51,7 @@
     }).catch(function () { me.id = 'local'; });
 
     db('players').subscribe(function (list) {
+      drainHits(list || []);
       var now = Date.now();
       var seen = {};
       (list || []).forEach(function (p) {
@@ -104,10 +105,51 @@
     db('players').put({
       id: me.id, name: me.name, lat: g.lat, lon: g.lon,
       yaw: car.yaw, spd: Math.abs(car.speed), t: Date.now(),
+      // Shots I have FIRED, on my own row. Nobody ever writes to anybody
+      // else's record: every player owns exactly one row and reads the rest,
+      // which is the same shape the ghosts already use and needs no authority
+      // to arbitrate. You claim a hit; the other browser decides what to do
+      // about it. Among friends over a link that is the right trade — anyone
+      // running a modified copy can ignore it, and nothing else breaks.
+      hits: myShots,
     }).catch(function () {});
   }
 
   // Other cars, in MY world frame, interpolated toward their latest sample.
+  // Shots I have fired recently, kept short — this rides on every publish at
+  // 5 Hz, so it is a rolling window and not a log.
+  var myShots = [];
+  function shoot(targetId) {
+    if (!targetId) return;
+    myShots.push({ t: targetId, at: Date.now() });
+    if (myShots.length > 6) myShots.shift();
+  }
+
+  // Hits fired AT ME that I have not applied yet. Keyed on the shot's own
+  // timestamp so a row republished five times a second cannot land the same
+  // shot five times.
+  var seenShot = {}, hitCb = null;
+  function drainHits(rows) {
+    if (!hitCb || !me.id) return;
+    var landed = 0, now = Date.now();
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || r.id === me.id || !r.hits) continue;
+      for (var h = 0; h < r.hits.length; h++) {
+        var s = r.hits[h];
+        if (!s || s.t !== me.id) continue;
+        var key = r.id + ':' + s.at;
+        if (seenShot[key]) continue;
+        // Ignore anything stale: a row that arrives late must not replay a
+        // volley from a minute ago the moment you reconnect.
+        if (now - s.at > 15000) { seenShot[key] = 1; continue; }
+        seenShot[key] = 1;
+        landed++;
+      }
+    }
+    if (landed) hitCb(landed);
+  }
+
   function ghosts() {
     if (!frame) return [];
     var now = Date.now(), out = [];
@@ -199,6 +241,7 @@
   root.MP = {
     init: init, setFrame: setFrame, tick: tick, ghosts: ghosts, count: count,
     setRace: setRace, clearRace: clearRace, raceState: raceState, snapFinish: snapFinish,
+    shoot: shoot, onHit: function (cb) { hitCb = cb; },
     hasRace: function () { return !!raceRec; },
     onChange: function (cb) { listeners.push(cb); },
     me: function () { return me; },

@@ -1022,6 +1022,19 @@
     rememberPlace: rememberPlace, recent: function () { return recent.slice(); },
     showStick: showStick, setScheme: setScheme, clearCracks: clearCracks,
     crackCount: function () { return impacts.length; },
+    // SOMEBODY SHOT YOU. The whole screen jolts white and you are left looking
+    // through a fresh hole — same chip machinery the wildlife uses, so it
+    // deteriorates with the glass and clears with a repair like everything
+    // else. Severity is deliberately low: this is friends messing about, and a
+    // windscreen that shatters on the first shot ends the game rather than
+    // decorating it.
+    bulletHole: function () {
+      addImpact(0.55);
+      drawCracks();
+      el['damage-flash'].classList.remove('hit');
+      void el['damage-flash'].offsetWidth;
+      el['damage-flash'].classList.add('hit');
+    },
     steerPad: function () { return el.steerpad; },
   };
 })(window);
