@@ -1988,6 +1988,10 @@
     nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater, waterAt: waterAt, DROWN_AREA: DROWN_AREA, roofAt: roofAt,
     // The mirror pool, exported so a suite can watch it route.
     rankMirrors: rankMirrors, mirrorScore: mirrorScore, tileState: tileState,
+    // The road index, buildable from any fetched geometry — the race flag needs
+    // to ask "where is the nearest road" about a tile it has no mesh for and is
+    // nowhere near.
+    buildIndex: buildIndex,
     noteLatency: noteLatency, noteFail: noteFail,
     mirrorStats: function () { return mirrorStat; },
     clearCache: function () {

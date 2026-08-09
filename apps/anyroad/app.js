@@ -893,6 +893,49 @@
     return !!car.flying;
   }
 
+  // ---- put the flag on a road ----------------------------------------------
+  // The flag is dropped on a random bearing at the distance the player asked
+  // for, which means it lands wherever it lands: a lake, a cliff, the wrong
+  // side of a river. A race nobody can finish is not a race.
+  //
+  // So the tile under the flag is FETCHED — one query, straight away, rather
+  // than waiting for somebody to drive fifteen kilometres — and the flag is
+  // moved to the nearest road in it. Once, and marked, because the race record
+  // is shared read-write and two players nudging the flag at each other would
+  // never settle.
+  var flagAsked = null, flagBusy = false;
+  function snapRaceFlag() {
+    if (!world.frame || !root.MP.hasRace() || flagBusy) return;
+    var st = root.MP.raceState(car);
+    if (!st || st.snapped) return;
+    var geo = world.frame.toGeo(st.finish.x, st.finish.z);
+    var tile = { z: root.Roads.TILE_ZOOM,
+                 x: Math.floor(root.Geo.lonToTileX(geo.lon, root.Roads.TILE_ZOOM)),
+                 y: Math.floor(root.Geo.latToTileY(geo.lat, root.Roads.TILE_ZOOM)) };
+    var key = root.Geo.tileKey(tile);
+    if (flagAsked === key && !root.Roads.isCached(key)) return;   // already asked, still coming
+    flagAsked = key;
+    flagBusy = true;
+    root.Roads.loadTile(tile).then(function (geom) {
+      var idx = root.Roads.buildIndex(world.frame, geom);
+      var hit = root.Roads.nearestRoad(idx, st.finish.x, st.finish.z);
+      // Only accept a road that is actually NEAR the flag. nearestRoad answers
+      // from whatever is in the index, and an index with one lonely track in a
+      // corner would drag the flag half a tile.
+      if (hit && hit.dist < 400) {
+        root.MP.snapFinish(world.frame.toGeo(hit.x, hit.z)).then(function (moved) {
+          if (moved) root.UI.note('Flag moved to the nearest road — ' + Math.round(hit.dist) + ' m.');
+        });
+      } else {
+        // Nothing driveable within 400 m: leave it where it is rather than
+        // teleport it somewhere arbitrary, and say so.
+        root.MP.snapFinish(geo);
+        root.UI.note('No road near the flag — it stays where it fell.');
+      }
+    }).catch(function () { /* busy server: try again next time round */ })
+      .then(function () { flagBusy = false; });
+  }
+
   // ---- camera --------------------------------------------------------------
   function updateCamera(dt) {
     var back = 8.5, up = 3.4, ahead = 9;
@@ -1108,6 +1151,7 @@
     updateCamera(dt);
     ensureTerrain(); ensureRoads(); buildPending(); backgroundFill();
     root.MP.tick(car, dt);
+    snapRaceFlag();
 
     // Assemble the scene from whatever has actually loaded.
     var scene = { eye: [camera.x, camera.y, camera.z], target: [camera.tx, camera.ty, camera.tz],
