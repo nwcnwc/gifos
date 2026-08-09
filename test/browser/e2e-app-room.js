@@ -111,62 +111,69 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await c.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 15000 });
   check('joining reveals the grid for the client', true);
 
-  // ---- steal: a guest takes a copy — WITH the data, or clean ---------------
-  // "Take the game and the scoreboard" and "take just the game" are different
-  // wants, so the first press splits the button into the two choices.
+  // ---- steal: a guest takes a copy — three ways -----------------------------
+  // The engine has always had three modes and the modal that offered them was
+  // lost somewhere along the way. First press splits the button into the
+  // choices; each choice is proven by what lands: '+ data' carries everything
+  // including a record written AFTER this guest joined, 'as I joined' carries
+  // only what the room held at join, 'app only' carries nothing.
   check('the Steal chrome shows for the guest', await c.evaluate(() => document.getElementById('appsteal').style.display !== 'none'));
+  // A record written after the guest joined, pushed through the host app's own
+  // change channel so the room actually syncs it.
+  await h.evaluate(async (fid) => {
+    await GifOS.store.appAdd(fid, 'e2e', { id: 'late', v: 'after join' });
+    new BroadcastChannel(GifOS.store.appChannel(fid)).postMessage({ collection: 'e2e' });
+  }, appId);
+  await c.waitForFunction(() => {
+    const ctl = window.__appClientCtl;
+    if (!ctl || !ctl.mirrorState) return false;
+    const col = ctl.mirrorState().collections.e2e;
+    return !!(col && col.items && col.items.late);
+  }, null, { timeout: 20000 });
+  check('the late record converged to the guest before the steals', true);
+
+  const stealOne = async (optText) => {
+    await c.waitForFunction(() => !document.getElementById('appsteal').disabled, null, { timeout: 15000 });
+    await c.evaluate(() => document.getElementById('appsteal').click());
+    await c.evaluate((t) => {
+      const b = document.getElementById('appsteal');
+      let n = b.nextSibling; while (n && n.textContent !== t) n = n.nextSibling;
+      n.click();
+    }, optText);
+    await c.waitForFunction(() => /Yours now/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+  };
   await c.evaluate(() => document.getElementById('appsteal').click());
   const choices = await c.evaluate(() => {
     const b = document.getElementById('appsteal');
     let n = b.nextSibling, texts = [];
     while (n && n.tagName === 'BUTTON') { texts.push(n.textContent); n = n.nextSibling; }
-    return { armed: !!b.dataset.armed, hidden: b.style.display === 'none', texts };
+    n = b.nextSibling; // fold it back for the real steals below
+    const kids = texts.length; for (let i = 0; i < kids; i++) { const x = b.nextSibling; x.remove(); }
+    delete b.dataset.armed; b.style.display = '';
+    return texts;
   });
-  check('the first press asks WHICH copy — with data, or app only',
-    choices.armed && choices.hidden && choices.texts.length === 2, JSON.stringify(choices.texts));
-  // Take the data-and-all copy.
-  await c.evaluate(() => { document.getElementById('appsteal').nextSibling.click(); });
-  await c.waitForFunction(() => /Yours now/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
-  // The confirmation must be AT THE BUTTON, not only in the far-end status
-  // span — a successful steal read as silence there (reported 2026-08-08).
-  check('the Steal button itself confirms the steal', await c.evaluate(() => /Stolen/.test(document.getElementById('appsteal').textContent)));
-  const stolen = await c.evaluate(async () => {
-    const fs = await GifOS.store.allFiles();
-    const mine = fs.filter((f) => f.isApp && !f.isDefault);
-    // Did the shared data come with it? The stolen copy's state lives beside
-    // the icon, keyed by its fileId.
-    let withData = false;
-    for (const f of mine) {
-      const st = await GifOS.store.getState(f.id).catch(() => null);
-      if (st && st.collections && Object.keys(st.collections).length) withData = true;
-    }
-    return { count: mine.length, withData };
-  });
-  check('the stolen copy landed on the guest’s desktop', stolen.count >= 1);
-  check('…and the data-and-all choice actually brought the room’s data', stolen.withData);
-  // Steal AGAIN, clean this time: a second copy with NO shared data in it.
-  await c.waitForFunction(() => !document.getElementById('appsteal').disabled, null, { timeout: 15000 });
-  await c.evaluate(() => document.getElementById('appsteal').click());
-  await c.evaluate(() => {
-    const b = document.getElementById('appsteal');
-    let n = b.nextSibling; while (n && !/app only/.test(n.textContent)) n = n.nextSibling;
-    n.click();
-  });
-  await c.waitForFunction(() => /clean copy/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
-  const cleanSteal = await c.evaluate(async () => {
-    // allFiles order is key order, not age — classify every stolen copy
-    // instead of guessing which one is newest. One copy must carry the
-    // room's data and one must be empty: the two choices, both honoured.
+  check('the first press asks WHICH copy — the three choices, restored',
+    choices.length === 3 && choices.join('|') === '+ data|as I joined|app only', JSON.stringify(choices));
+
+  await stealOne('+ data');
+  await stealOne('as I joined');
+  await stealOne('app only');
+  const kinds = await c.evaluate(async () => {
     const fs = (await GifOS.store.allFiles()).filter((f) => f.isApp && !f.isDefault);
-    let dataful = 0, empty = 0;
+    const out = { copies: fs.length, current: 0, connect: 0, clean: 0 };
     for (const f of fs) {
-      const st = await GifOS.store.getState(f.id).catch(() => null);
-      if (st && st.collections && Object.keys(st.collections).length) dataful++; else empty++;
+      const marker = await GifOS.store.appGet(f.id, 'e2e', 'marker').catch(() => null);
+      const late = await GifOS.store.appGet(f.id, 'e2e', 'late').catch(() => null);
+      if (marker && late) out.current++;
+      else if (marker && !late) out.connect++;
+      else if (!marker && !late) out.clean++;
     }
-    return { copies: fs.length, dataful, empty };
+    return out;
   });
-  check('stealing "app only" leaves the room’s data behind',
-    cleanSteal.copies >= 2 && cleanSteal.dataful >= 1 && cleanSteal.empty >= 1, JSON.stringify(cleanSteal));
+  check('the three copies are the three different things they claim to be',
+    kinds.copies === 3 && kinds.current === 1 && kinds.connect === 1 && kinds.clean === 1,
+    JSON.stringify(kinds));
+  check('the Steal button itself confirms the steal', await c.evaluate(() => /Stolen/.test(document.getElementById('appsteal').textContent)));
 
   // ---- succession (resilient room): the owner vanishes -----------------------
   // The sole remaining member is the deterministic successor: the app never
