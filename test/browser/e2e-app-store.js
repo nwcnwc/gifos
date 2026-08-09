@@ -263,8 +263,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const oldId = await page.evaluate(async (appId) => {
     const files = await GifOS.store.allFiles();
     const f = files.find((x) => x.appId === appId);
-    // A marker standing in for the player's saved places.
-    await GifOS.store.setState(f.id, { collections: { prefs: [{ id: 'marker', v: 'survived the reinstall' }] } });
+    // A marker standing in for the player's saved places — written through
+    // the SAME per-record path a running app's gifos.db uses (makeLocalDb →
+    // appAdd), not a hand-rolled state blob whose shape the assembler owns.
+    await GifOS.store.appAdd(f.id, 'prefs', { id: 'marker', v: 'survived the reinstall' });
     const items = await GifOS.store.allItems();
     for (const i of items.filter((it) => it.fileId === f.id)) await GifOS.store.deleteItem(i.id);
     await GifOS.store.deleteFile(f.id);
@@ -278,12 +280,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const rebirth = await page.evaluate(async (appId) => {
     const files = await GifOS.store.allFiles();
     const f = files.find((x) => x.appId === appId);
-    // Collection state is exploded per-record and reassembled, so the rows
-    // may come back as an array or an id-keyed map — accept either shape.
-    const st = f ? await GifOS.store.getState(f.id) : null;
-    const rows = st && st.collections && st.collections.prefs;
-    const list = Array.isArray(rows) ? rows : (rows ? Object.values(rows) : []);
-    const marker = list.find((r) => r && r.id === 'marker');
+    // Read back through the same per-record path the app itself would use.
+    const marker = f ? await GifOS.store.appGet(f.id, 'prefs', 'marker') : null;
     return { id: f && f.id, marker: marker ? marker.v : null };
   }, target.appId);
   check('a reinstall resurrects the app\'s old identity (same fileId)',
