@@ -167,9 +167,16 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('the first press asks WHICH copy — the three choices, restored',
     choices.length === 3 && choices.join('|') === '+ data|as I joined|app only', JSON.stringify(choices));
 
+  // THE WHOLE POINT OF THE RITUAL: every byte a steal needs — the app, the
+  // live mirror, the join-time snapshot — already arrived when you joined.
+  // So steal with the network UNPLUGGED: if any of the three modes secretly
+  // re-fetched anything, it would fail right here.
+  await cCtx.setOffline(true);
   await stealOne('+ data');
   await stealOne('as I joined');
   await stealOne('app only');
+  await cCtx.setOffline(false);
+  check('all three steals completed with the network UNPLUGGED — no re-fetch, ever', true);
   const kinds = await c.evaluate(async () => {
     const fs = (await GifOS.store.allFiles()).filter((f) => f.isApp && !f.isDefault);
     const out = { copies: fs.length, current: 0, connect: 0, clean: 0 };
