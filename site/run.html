@@ -11135,23 +11135,52 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       else if (appHostCtl) appHostCtl.save();
       else if (appClientCtl && appClientCtl.snapshot) dl(appClientCtl.snapshot());
     };
+    // Steal is TWO different wants — take the game AND the scoreboard, or
+    // take just the game — so the first press asks which, right where the
+    // finger already is: the button splits into the two choices, and Esc-like
+    // second thoughts (clicking anything else) fold it back.
     document.getElementById('appsteal').onclick = () => {
       if (!(appClientCtl && appClientCtl.stealToDesktop)) return;
+      const b = document.getElementById('appsteal');
+      if (b.dataset.armed) return;
+      b.dataset.armed = '1';
+      const label = b.textContent;
+      const fold = () => {
+        delete b.dataset.armed;
+        [d1, d2].forEach((x) => x.remove());
+        b.style.display = '';
+      };
       // The confirmation lives ON THE BUTTON. The status line is a span at
       // the far end of the top bar, and a successful steal read as SILENCE
       // at the point of click (reported 2026-08-08: the copy was saved,
       // nothing said so where the user was looking). The button is where
       // their eyes already are — morph it, hold it, restore it.
-      const b = document.getElementById('appsteal');
-      const label = b.textContent;
-      b.disabled = true; b.textContent = 'Stealing…';
-      appClientCtl.stealToDesktop()
-        .then(() => {
-          b.textContent = '🥷 Stolen ✓';
-          setStatus('🥷 Yours now — saved to your desktop’s Stolen Apps, data and all.');
-          setTimeout(() => { b.textContent = label; b.disabled = false; }, 4000);
-        })
-        .catch((e) => { b.textContent = label; b.disabled = false; setStatus('Could not steal: ' + (e && e.message || e)); });
+      const go = (data, btn) => {
+        [d1, d2].forEach((x) => { x.disabled = true; });
+        btn.textContent = 'Stealing…';
+        appClientCtl.stealToDesktop({ data })
+          .then(() => {
+            fold();
+            b.textContent = '🥷 Stolen ✓';
+            b.disabled = true;
+            setStatus(data === 'none'
+              ? '🥷 Yours now — a clean copy in your desktop’s Stolen Apps, none of the room’s data.'
+              : '🥷 Yours now — saved to your desktop’s Stolen Apps, data and all.');
+            setTimeout(() => { b.textContent = label; b.disabled = false; }, 4000);
+          })
+          .catch((e) => { fold(); setStatus('Could not steal: ' + (e && e.message || e)); });
+      };
+      const mk = (txt, title, data) => {
+        const x = document.createElement('button');
+        x.textContent = txt; x.title = title; x.className = b.className;
+        x.onclick = () => go(data, x);
+        b.parentNode.insertBefore(x, b.nextSibling);
+        return x;
+      };
+      b.style.display = 'none';
+      // Insertion order: data-first reads left-to-right as written.
+      const d2 = mk('app only', 'A clean copy — the app alone, none of the room’s data', 'none');
+      const d1 = mk('+ data', 'The app and everything in it right now', 'current');
     };
     let appClientStop = null; // live client mount's teardown (unsubscribes its sga lane)
     let appClientCtl = null;  // the client mount's control: snapshot() + setFrozen() (one-runtime freeze/succession)

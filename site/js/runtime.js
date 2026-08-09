@@ -2399,11 +2399,20 @@
         snapshot: () => (appBytes && filesRef && manifestRef)
           ? packSnapshot(appBytes, filesRef, manifestRef, mirror)
           : Promise.reject(new Error('app not loaded yet')),
-        // Steal from a client mount: app + the owner-verified mirror, filed
-        // into this desktop's Stolen Apps — same folder, same ritual.
-        stealToDesktop: () => (appBytes && manifestRef)
-          ? ensureStolenFolder().then((folder) => saveAppToDesktop(appBytes, manifestRef, mirror, folder))
-          : Promise.reject(new Error('app not loaded yet')),
+        // Steal from a client mount, filed into this desktop's Stolen Apps —
+        // same folder, same ritual. opts.data chooses WHICH copy:
+        //   'current' (default) — app + the owner-verified mirror, data and all
+        //   'none'              — a clean copy: the app alone, nothing shared
+        // Both are legitimate wants (take the game AND the scoreboard, or take
+        // just the game), so the caller asks the person rather than deciding.
+        stealToDesktop: (opts) => {
+          if (!(appBytes && manifestRef)) return Promise.reject(new Error('app not loaded yet'));
+          const clean = !!(opts && opts.data === 'none');
+          return Promise.all([
+            clean && filesRef ? stripState(appBytes, filesRef) : Promise.resolve(appBytes),
+            ensureStolenFolder(),
+          ]).then(([bytes, folder]) => saveAppToDesktop(bytes, manifestRef, clean ? null : mirror, folder));
+        },
         setFrozen: (f) => { frozen = !!f; },
         // The mounted app's GIF bytes (null until they land). The app bar
         // renders these as the thumbnail — seeing it IS seeing that a Steal
