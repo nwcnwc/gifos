@@ -279,29 +279,42 @@
   const wordClip = (text, slow) => ({ kind: 'word', text, slow: !!slow });
   const sentenceClip = (text) => ({ kind: 'sentence', text });
 
-  // The gap never quite reaches zero - a few hundredths of a second keeps a
-  // seam from clicking - but by the final pass the sounds should all but
-  // touch: the closer they land to the blended word, the smaller the leap.
-  const APPROACH_FLOOR = 0.05;
+  // Gaps WITHIN a word are not a setting - they are a CONSEQUENCE. The one
+  // choice that matters is how many times the word is sounded out before it
+  // is said, and the count sets the journey: the final pass always touches
+  // (the sounds crossfade into almost-the-word), so more passes simply means
+  // starting wider to have further to travel. Two passes opens at 0.2s,
+  // three at 0.3, four at 0.45; the floor before the touching pass is two
+  // hundredths either way.
+  const APPROACH_FLOOR = 0.02;
+  const TOUCH_HOLD = 0.40, TOUCH_EDGE_MS = 20, TOUCH_XFADE_MS = 30, TOUCH_BREATH = 0.3;
+
+  function approachStart(passes) {
+    return Math.min(0.5, Math.max(0.20, 0.15 * (passes - 1)));
+  }
 
   // Successive blending: the sounds over and over, the gap shrinking each
   // time, so they audibly become the word instead of being replaced by it.
+  // The last pass is not a faster version of the others - it is a different
+  // thing (see the touching marker): sounds trimmed and crossfaded into one
+  // continuous utterance, sliced back apart for the letter-by-letter
+  // highlight, then a held breath before the word answers it.
   function approach(parts, pause, passes) {
     const segs = [];
-    for (let r = 0; r < passes; r++) {
+    const start = approachStart(passes);
+    for (let r = 0; r < passes - 1; r++) {
       const frac = (passes - 1 - r) / Math.max(1, passes - 1);
-      const gap = APPROACH_FLOOR * Math.pow(Math.max(pause, APPROACH_FLOOR * 2) / APPROACH_FLOOR, frac);
+      const gap = APPROACH_FLOOR * Math.pow(start / APPROACH_FLOOR, frac);
       // The SOUNDS compress along with the gaps - that is what blending is.
-      // It also evens the rhythm: recorded holds range from 0.2s to 2.6s,
-      // and uncapped, the highlight camped on the long sounds and blinked
-      // past the short ones - "it highlighted the wrong letters and skipped
-      // some", reported on Grandma, whose m dwarfed its d.
+      // Uncapped, the highlight camped on long holds and blinked past short
+      // stops ("scrambled", reported on Grandma, whose m dwarfed its d).
       const hold = 0.5 * Math.pow(1.1 / 0.5, frac);
       parts.forEach(([, ipa], j) => {
         const shown = parts.map(([g], k) => [g, k === j]);
         segs.push(Segment(shown, phonemeClip(ipa, hold), gap));
       });
     }
+    segs.push({ touching: { parts }, parts: null, clip: null, pad: 0, scale: 1.0, color: null, itemEnd: false });
     return segs;
   }
 
@@ -401,6 +414,7 @@
     cleanWord, splitGraphemes, wordParts, decodable,
     RIME_CONS, allRimes, RIME_EXAMPLES, RIME_VOWEL_HINT, RIME_CONS_HINT,
     PHONEME_ROWS, PHONEME_ALIASES, sentenceKey,
-    APPROACH_FLOOR, approach, oneWord, library,
+    APPROACH_FLOOR, TOUCH_HOLD, TOUCH_EDGE_MS, TOUCH_XFADE_MS, TOUCH_BREATH,
+    approachStart, approach, oneWord, library,
   };
 })();

@@ -7,7 +7,10 @@
   const TRASH_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 
   const state = {
-    prefs: { theme: 'night', pause: 1.5, unticked: [] },
+    // The one pacing choice: how many times through the letters before the
+    // word (the final pass always touches). The between-items pause is a
+    // constant, not a question.
+    prefs: { theme: 'night', reps: 3, unticked: [] },
     rows: [],       // library rows {id, text, order}
     status: [],     // statusOf() result, same order
     done: new Map(),
@@ -196,7 +199,7 @@
           : 'Nothing ticked - tick at least one entry.';
       return;
     }
-    const secs = SIO.library.estimateSeconds(ready.map((s) => s.text), 3, state.prefs.pause);
+    const secs = SIO.library.estimateSeconds(ready.map((s) => s.text), state.prefs.reps, PAUSE);
     const mins = secs / 60;
     const len = mins < 1.4 ? 'About a minute long'
       : `About ${Math.round(mins)} minutes long`;
@@ -227,7 +230,7 @@
     try {
       const voice = new SIO.VoiceSource();
       const plan = await SIO.storyboard.buildPlan(
-        texts, { reps: 3, pauseSeconds: state.prefs.pause }, voice,
+        texts, { reps: state.prefs.reps, pauseSeconds: PAUSE }, voice,
         (done, totalN) => {
           $('make-progress-text').textContent = `Preparing the sounds… ${done} of ${totalN}`;
           $('make-progress-fill').style.width = Math.round((done / totalN) * 100) + '%';
@@ -315,10 +318,12 @@
     }
   }
 
+  const PAUSE = 1.5; // between items - a constant now, not a question
+
   function renderOptions() {
-    segmented($('pause'), [
-      { value: 1.0, label: 'Short' }, { value: 1.5, label: 'Medium' }, { value: 2.5, label: 'Long' },
-    ], state.prefs.pause, (v) => { state.prefs.pause = v; savePrefs(); updateSummary(); });
+    segmented($('reps'), [
+      { value: 2, label: 'Twice' }, { value: 3, label: '3 times' }, { value: 4, label: '4 times' },
+    ], state.prefs.reps, (v) => { state.prefs.reps = v; savePrefs(); updateSummary(); });
 
     const themes = SIO.frames.THEMES;
     const tl = $('themes');
@@ -357,7 +362,7 @@
 
   // ------------------------------------------------------------ the studio
 
-  const studio = { queue: [], index: 0, takes: [], busy: false, onDone: null };
+  const studio = { queue: [], index: 0, takes: [], busy: false, onDone: null, advanceTimer: 0 };
 
   function takesNeeded(item) {
     return item.takes || (item.kind === 'phoneme' ? 3 : 1);
@@ -377,6 +382,7 @@
   }
 
   function closeStudio() {
+    clearTimeout(studio.advanceTimer);
     $('studio').hidden = true;
     if (studio.onDone) studio.onDone();
     refreshLibrary();
@@ -450,7 +456,10 @@
       res.className = 'studio-result ' + (result.weak ? 'bad' : 'good');
       res.textContent = result.reason + (result.weak ? ' (' + result.advice.join('; ') + ' — kept anyway; redo it from Listen back if you like.)' : '');
       $('studio-redo').hidden = false;
-      setTimeout(studioAdvance, result.weak ? 2200 : 900);
+      // long enough to READ the verdict and decide you did not like the
+      // take (upstream 0.5.6: 1.4s was enough to read, not to decide)
+      clearTimeout(studio.advanceTimer);
+      studio.advanceTimer = setTimeout(studioAdvance, 3000);
     } catch (e) {
       $('studio-state').textContent = (e && e.message) || 'That did not work.';
     } finally {
@@ -479,6 +488,9 @@
   function studioRedo() {
     // Record over the top: nothing is deleted up front, and saveBest keeps
     // the previous take as a backup - so quitting half way loses nothing.
+    // Cancel the pending auto-advance, which used to keep ticking and race
+    // the retake.
+    clearTimeout(studio.advanceTimer);
     renderStudioItem();
   }
 

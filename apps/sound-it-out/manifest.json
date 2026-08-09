@@ -3,7 +3,7 @@
   "appId": "sound-it-out",
   "name": "Sound It Out",
   "shortName": "SoundItOut",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "entry": "index.html",
   "accent": [
     255,

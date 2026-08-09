@@ -161,6 +161,19 @@ def build_fixture() -> list:
 
 
 def main():
+    # The fixture must reflect RELEASED upstream code, not a work in
+    # progress: a dirty gen/ silently bakes unreleased behaviour into the
+    # parity guard (it happened - an uncommitted dictionary rewrite changed
+    # how "Chase" chunks, and the fixture faithfully recorded it).
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--", "gen", "assets/starter-voice"],
+        capture_output=True, text=True).stdout.strip()
+    if dirty:
+        print("!" * 66)
+        print("! WARNING: this checkout has uncommitted changes under gen/ or")
+        print("! assets/starter-voice/ - the fixture will capture UNRELEASED")
+        print("! behaviour. Generate from a clean checkout (git worktree add).")
+        print("!" * 66)
     print("fixture: running gen/levels.py's library builder…")
     rows = build_fixture()
     (HERE / "curriculum-fixture.json").write_text(json.dumps(
