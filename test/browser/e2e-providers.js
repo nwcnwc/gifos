@@ -269,8 +269,13 @@ async function runConsumer(page, context, label, outTimeout) {
     await fr.locator('#t').fill('hello');
     await fr.locator('#f button').click();
     // First call boots llama.cpp in the hidden mount (10 MB GIF decode + wasm
-    // init + model load) — generous timeout, one honest wait.
-    await fr.locator('.m.ai').filter({ hasText: /self-test model/ }).waitFor({ timeout: 120000 });
+    // init + model load) — generous timeout, one honest wait. On timeout,
+    // SAY WHAT THE APP SHOWED (an error bubble reads as a silent hang
+    // otherwise — that's how the module-worker bug hid).
+    await fr.locator('.m.ai').filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async (e) => {
+      const shown = await fr.locator('.m.ai').last().textContent().catch(() => '(no ai bubble)');
+      throw new Error('Ask AI never got the self-test answer; the app shows: ' + String(shown).slice(0, 300));
+    });
     const reply = await fr.locator('.m.ai').last().textContent();
     check('Ask AI (the seeded cheapest consumer) is answered by llama.cpp in the provider sandbox',
       /\[self-test model — token soup/.test(reply) && reply.length > 60, reply.slice(0, 120));
