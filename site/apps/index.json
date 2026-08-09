@@ -130,7 +130,7 @@
       "appId": "sound-it-out",
       "name": "Sound It Out",
       "shortName": "SoundItOut",
-      "version": "1.4.1",
+      "version": "1.4.2",
       "tagline": "Any sentence they love, built up from its sounds — in your own voice.",
       "author": {
         "name": "GifOS",
@@ -157,9 +157,9 @@
         102
       ],
       "cover": "/apps/sound-it-out/cover.jpg",
-      "bytes": 3869544,
+      "bytes": 3870226,
       "signature": null,
-      "sha256": "0cf711d5c8125e38aeb18288ba82cacfaab7484376a78d90766d27cdf8eb4bf9"
+      "sha256": "0c69124fafc03b648a6eb2ec2076f9c773be5efd653ed40fe5a2d357cda642f1"
     }
   ]
 }
