@@ -111,7 +111,20 @@
       }
       if (!matched) {
         const ch = low[i];
-        out.push([word[i], CVC_PHONEMES[ch] !== undefined ? CVC_PHONEMES[ch] : ch]);
+        // These rules serve NAMES - real words come from the dictionary -
+        // and names follow the syllable rules children are taught: an open
+        // syllable's vowel says its long sound (Zu-ma is "zoo", not "zuh"),
+        // and a final -a is the soft "uh" of Zuma, Nala, grandma.
+        if ('aeiou'.includes(ch) && i + 2 < word.length
+            && !'aeiou'.includes(low[i + 1])
+            && GRAPHEMES[low.slice(i + 1, i + 3)] === undefined
+            && 'aeiouy'.includes(low[i + 2])) {
+          out.push([word[i], LONG_VOWELS[ch]]);
+        } else if (ch === 'a' && i === word.length - 1 && i >= 2) {
+          out.push([word[i], 'ə']);
+        } else {
+          out.push([word[i], CVC_PHONEMES[ch] !== undefined ? CVC_PHONEMES[ch] : ch]);
+        }
         i += 1;
       }
     }

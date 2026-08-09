@@ -118,15 +118,26 @@
           const hi = m.data.length - (endsHard[i] ? 0 : e);
           const d = (hi - lo > 2 * e) ? m.data.subarray(lo, hi) : m.data;
           if (merged === null) { merged = d; return; }
-          // Crossfading INTO a stop fades its burst in from zero, which
-          // deletes the one thing that makes it a /d/ and not a gap. A stop
-          // lands clean after the briefest close - a 4ms butt-joint taper,
-          // the same closure a mouth makes. Same when a stop just ended.
-          const tap = Math.round(sr * 0.004);
-          const jn = (startsHard[i] || endsHard[i - 1]) ? tap : Math.round(sr * cur.TOUCH_XFADE_MS / 1000);
-          const eff = Math.min(jn, merged.length, d.length);
-          cuts.push(merged.length - eff + Math.trunc(eff / 2));
-          merged = dsp.xfadeData(merged, d, jn);
+          if (startsHard[i] || endsHard[i - 1]) {
+            // A stop boundary is not a crossfade - it is what a mouth does:
+            // the voice fades over ~35ms as the lips close, a moment of
+            // true silence while they are closed, then the burst,
+            // untouched. The 4ms butt-joint chopped a voiced vowel flat,
+            // and cutting a voiced waveform that fast is audible as a
+            // clack between Ru and bb.
+            merged = dsp.fadeTail(merged, sr, 35);
+            cuts.push(merged.length); // the closure belongs to the stop
+            const closure = Math.round(sr * 0.03);
+            const out = new Float32Array(merged.length + closure + d.length);
+            out.set(merged, 0);
+            out.set(d, merged.length + closure);
+            merged = out;
+          } else {
+            const jn = Math.round(sr * cur.TOUCH_XFADE_MS / 1000);
+            const eff = Math.min(jn, merged.length, d.length);
+            cuts.push(merged.length - eff + Math.trunc(eff / 2));
+            merged = dsp.xfadeData(merged, d, jn);
+          }
         });
         merged = dsp.fadeTail(merged, sr, 40);
         const bounds = [0, ...cuts, merged.length];
