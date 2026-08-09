@@ -151,6 +151,9 @@
       return {
         key: row.id, text: row.text, kind,
         words: words.length, missing, uncovered,
+        // Buildup sound pieces not yet in the family's own voice - the
+        // walk-through queues these after the line and the words.
+        missingSounds: kind === 'letter' ? 0 : pieceItems(row.text, recorded).length,
         // The shared bank makes recording quietly cheap, and quiet reads as
         // broken - the row says where the other words came from.
         recordedWords: words.length - missing.length,
@@ -160,23 +163,54 @@
     });
   }
 
-  // What to record for one entry: its words, then the whole line - the line
-  // last, so the words are fresh in her voice when she reads them joined up.
-  // Words already in the shared bank show as done and the walk-through
-  // resumes past them.
-  function walkthroughItems(text) {
+  // The sound pieces of this entry's buildups the family has NOT recorded
+  // themselves: chunks first, then single sounds. These queue in the
+  // walk-through so a sentence can become fully hers, and they shrink to
+  // nothing as the shared bank fills - pieces are keyed by sound, recorded
+  // once, used everywhere. `recorded` is the recmeta id set.
+  function pieceItems(text, recorded) {
+    const seen = new Set(), chunksOut = [], singles = [];
+    for (const w of uniqueWords(text)) {
+      if (!cur().decodable(w)) continue;
+      for (const [g, ipa] of cur().wordParts(w)) {
+        if (seen.has(ipa)) continue;
+        seen.add(ipa);
+        const keys = [ipa].concat(cur().PHONEME_ALIASES[ipa] || []);
+        if (keys.some((k) => recorded.has(SIO.recId('phonemes', k)))) continue;
+        const many = SIO.dictionary.tokens(ipa).length > 1;
+        const item = {
+          key: ipa, kind: 'phoneme', display: g.toLowerCase(), ipa,
+          length: 'free', takes: many ? 2 : 3,
+          say: `From “${cur().cleanWord(w)}”: say “${g.toLowerCase()}” — ${SIO.studio.soundRecipe(ipa)}`
+            + (many ? ', run together' : '') + `. No word around it. (/${ipa}/)`,
+        };
+        (many ? chunksOut : singles).push(item);
+      }
+    }
+    return chunksOut.concat(singles);
+  }
+
+  // What to record for one entry: the whole line FIRST, then its words, then
+  // whatever sound pieces of the buildup are not yet in the family's own
+  // voice - chunks, then single sounds. Missing means "not recorded by you":
+  // the shipped starter voice only ever fills gaps at video time.
+  // A single word skips the line (the word IS the line); a letter entry
+  // records nothing here - its sound belongs to the Sound Bank.
+  function walkthroughItems(text, recorded) {
     const kind = entryKind(text);
     if (kind === 'letter') return [];
-    const items = uniqueWords(text).map((w) => ({
-      key: w.toLowerCase(), kind: 'word', display: w, length: 'free',
-      say: 'Say it normally, the way you would in a sentence.',
-    }));
+    const items = [];
     if (kind === 'sentence') {
       items.push({
         key: cur().sentenceKey(text), kind: 'sentence', display: text, length: 'line',
         say: 'Read the whole line the way you would to your child - not word by word.',
       });
     }
+    items.push(...uniqueWords(text).map((w) => ({
+      key: w.toLowerCase(), kind: 'word', display: w, length: 'free',
+      say: 'Say it normally, the way you would in a sentence.',
+    })));
+    items.push(...pieceItems(text, recorded || new Set()));
     return items;
   }
 
@@ -349,7 +383,7 @@
   SIO.library = {
     FUNCTION_WORDS, FUNCTION_DISCOUNT,
     entryKind, uniqueWords, splitSentences,
-    load, add, remove, statusOf, walkthroughItems, wordId, lineId,
+    load, add, remove, statusOf, walkthroughItems, pieceItems, wordId, lineId,
     packDefs, packs, addPack, estimateSeconds, wordSpans,
   };
 })();

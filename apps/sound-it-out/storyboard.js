@@ -43,7 +43,9 @@
     for (const seg of segments) {
       if (seg.clip) want(seg.clip);
       if (seg.touching) {
-        for (const [, ipa] of seg.touching.parts) want({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD });
+        for (const [, ipa] of seg.touching.parts) {
+          want({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD * cur.soundsIn(ipa) });
+        }
       }
     }
     const buffers = new Map();
@@ -86,12 +88,12 @@
         // held breath sits between the blend and the word that answers it.
         const parts = seg.touching.parts;
         const shownAt = (j) => parts.map(([t], k) => [t, k === j]);
-        const clips = parts.map(([, ipa]) => bufFor({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD }));
+        const clips = parts.map(([, ipa]) => bufFor({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD * cur.soundsIn(ipa) }));
         if (clips.some((b) => !b)) {
           // a sound nobody can say: per-letter fallback, still no long gaps
           parts.forEach(([, ipa], j) => {
             emit({ parts: shownAt(j), pad: j === parts.length - 1 ? cur.TOUCH_BREATH : 0, scale: seg.scale, color: null },
-              bufFor({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD }));
+              bufFor({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD * cur.soundsIn(ipa) }));
           });
           continue;
         }

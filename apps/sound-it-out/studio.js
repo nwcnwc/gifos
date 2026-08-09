@@ -21,6 +21,44 @@
   // long as it takes.
   const MAX_SECONDS = { hold: 10, crisp: 6, free: 8, line: 30 };
 
+  // Every sound, in words a non-linguist can read aloud. Used to spell out
+  // what a chunk is made of: "an" is “a as in ant” then “nnn”.
+  const SOUND_HINTS = {
+    'æ': '“a” as in ant', 'ɑː': '“ah” as in father', 'ɒ': '“o” as in hot',
+    'ɔː': '“aw” as in saw', 'aʊ': '“ow” as in cow', 'aɪ': '“igh” as in high',
+    'ʌ': '“u” as in cup', 'ə': 'a light “uh”', 'ɛ': '“e” as in egg',
+    'ɜː': '“er” as in her', 'eɪ': '“ay” as in day', 'iː': '“ee” as in see',
+    'ɪ': '“i” as in sit', 'əʊ': '“oh” as in go', 'ɔɪ': '“oy” as in boy',
+    'ʊ': '“oo” as in book', 'uː': '“oo” as in moon', 'eə': '“air”',
+    'ɪə': '“ear”', b: '“b”', d: '“d”', 'ð': 'soft “th” as in this',
+    f: '“fff”', 'ɡ': '“g”', h: '“h”', 'dʒ': '“j” as in jam',
+    k: '“k”', l: '“lll”', m: '“mmm”', n: '“nnn”',
+    'ŋ': '“ng” as in ring', p: '“p”', 'ɹ': '“rrr”', s: '“sss”',
+    'ʃ': '“sh” as in ship', t: '“t”', 'tʃ': '“ch” as in chip',
+    'θ': 'hard “th” as in thin', v: '“vvv”', w: '“w”',
+    j: '“y” as in yes', z: '“zzz”', 'ʒ': '“zh” as in treasure',
+  };
+
+  // The spoken recipe for a sound: its pieces, in plain words.
+  function soundRecipe(ipa) {
+    return SIO.dictionary.tokens(ipa)
+      .map((t) => SOUND_HINTS[t] || ('“' + t + '”')).join(' then ');
+  }
+
+  // Every letter-team sound the dictionary uses, most useful first. Each
+  // already PLAYS as an automatic blend of the recorded sounds; recording
+  // one replaces the blend with a single human breath, for this sound
+  // everywhere it appears. Saved under the sound's own name in phonemes/,
+  // same as the 42 - which is also why rime recordings made before this
+  // list existed appear here as done.
+  function chunksPlan() {
+    return SIO.dictionary.catalog().map((c) => ({
+      key: c.ipa, kind: 'phoneme', display: c.spelling, ipa: c.ipa,
+      length: 'free', takes: 2, example: c.example, words: c.words,
+      say: `Say “${c.spelling}” as in “${c.example}”: ${soundRecipe(c.ipa)}, run together. (/${c.ipa}/)`,
+    }));
+  }
+
   // Setup's session: the 42 sounds, in RECORDING.md's printed order.
   function phonemePlan() {
     return cur().PHONEME_ROWS.map((p) => {
@@ -152,7 +190,8 @@
   const playBack = (item) => playBackId(storageId(item));
 
   SIO.studio = {
-    phonemePlan, rimesPlan, storageId, doneMap, bankList,
+    phonemePlan, rimesPlan, chunksPlan, soundRecipe, SOUND_HINTS,
+    storageId, doneMap, bankList,
     takeOne, saveBest, remove, removeId, playBack, playBackId, MAX_SECONDS,
   };
 })();

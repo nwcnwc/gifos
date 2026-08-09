@@ -223,8 +223,14 @@ def main():
               "// dictionary.js.\n"
               f"window.SIO_DICT = {json.dumps(text, ensure_ascii=False)};\n")
         (APP / "dictionary-data.js").write_text(dj)
+        common = aligned.parent / "common.txt"
+        ctext = common.read_text(encoding="utf-8") if common.exists() else ""
+        dj = dj.replace("window.SIO_DICT =",
+                        f"window.SIO_COMMON = {json.dumps(ctext)};\nwindow.SIO_DICT =")
+        (APP / "dictionary-data.js").write_text(dj)
         n = sum(1 for l in text.splitlines() if l and not l.startswith("#"))
-        print(f"  wrote dictionary-data.js: {len(dj) / 1048576:.1f} MB, {n} words")
+        print(f"  wrote dictionary-data.js: {len(dj) / 1048576:.1f} MB, {n} words"
+              f" + {len(ctext.split())} common")
     else:
         print("  NOTE: no assets/dictionary/aligned.txt here - dictionary-data.js unchanged")
 

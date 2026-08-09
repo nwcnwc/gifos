@@ -33,7 +33,8 @@
       t.setAttribute('aria-selected', String(t.dataset.screen === name)));
     $('screen-sentences').hidden = name !== 'sentences';
     $('screen-setup').hidden = name !== 'setup';
-    if (name === 'setup') renderSetup();
+    $('screen-settings').hidden = name !== 'settings';
+    if (name === 'setup' || name === 'settings') renderSetup();
   }
 
   // ------------------------------------------------------------ the library
@@ -71,6 +72,9 @@
     } else {
       bits.push(`${s.recordedWords} of ${s.words} words ${voice}.`);
       bits.push(s.lineRecorded ? 'Line recorded.' : 'Line still to read.');
+    }
+    if (!state.guest && s.ready && s.missingSounds > 0) {
+      bits.push(`${s.missingSounds} buildup sound${s.missingSounds === 1 ? '' : 's'} still the starter voice’s.`);
     }
     if (!s.ready) {
       bits.push(state.guest
@@ -383,6 +387,7 @@
 
   function closeStudio() {
     clearTimeout(studio.advanceTimer);
+    resetPreview();
     $('studio').hidden = true;
     if (studio.onDone) studio.onDone();
     refreshLibrary();
@@ -507,10 +512,27 @@
   async function recordEntry(s) {
     if (state.guest) { alert('Recording happens on the owner’s device — the microphone follows them, not the link.'); return; }
     const done = await SIO.studio.doneMap();
-    const items = SIO.library.walkthroughItems(s.text)
+    const items = SIO.library.walkthroughItems(s.text, new Set(done.keys()))
       .filter((it) => !done.has(SIO.studio.storageId(it)));
     openStudio(items);
   }
+
+  // Play a sound the way the video would say it right now: her clip if one
+  // exists, else the starter clip, else the automatic blend of the sounds.
+  let previewVoice = null;
+  async function playBlend(ipa) {
+    if (!previewVoice) previewVoice = new SIO.VoiceSource();
+    const buf = await previewVoice.resolve({ kind: 'phoneme', ipa });
+    if (!buf) return;
+    const actx = SIO.dsp.audioContext();
+    if (actx.state === 'suspended') actx.resume();
+    const src = actx.createBufferSource();
+    src.buffer = buf;
+    src.connect(actx.destination);
+    src.start();
+  }
+  // A recording invalidates the preview cache, so Listen plays the new take.
+  function resetPreview() { previewVoice = null; }
 
   // ------------------------------------------------------------- listen back
 
@@ -556,9 +578,12 @@
       const play = document.createElement('button');
       play.className = 'btn btn-quiet';
       play.textContent = '▶';
-      play.disabled = !!r.missing;
+      play.disabled = !!r.missing && !r.preview;
       play.setAttribute('aria-label', 'Play ' + r.display);
-      play.addEventListener('click', () => SIO.studio.playBackId(r.id));
+      play.addEventListener('click', () => {
+        if (r.missing && r.preview) r.preview();
+        else SIO.studio.playBackId(r.id);
+      });
       const word = document.createElement('span');
       word.className = 'rv-word';
       word.textContent = r.display;
@@ -613,13 +638,15 @@
   // Every clip behind one entry: each word, then the line.
   async function openEntryListen(s) {
     const done = await SIO.studio.doneMap();
-    const rows = SIO.library.walkthroughItems(s.text).map((it) => {
+    const rows = SIO.library.walkthroughItems(s.text, new Set()).map((it) => {
       const id = SIO.studio.storageId(it);
       const meta = done.get(id);
       return {
         id, display: it.display, item: it,
-        meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's' : '',
+        meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's'
+          : (it.kind === 'phoneme' ? 'plays as a blend' : ''),
         missing: !meta,
+        preview: it.kind === 'phoneme' ? () => playBlend(it.ipa) : null,
       };
     });
     openReview('Listen back — ' + s.text,
@@ -634,9 +661,9 @@
     const plan = SIO.studio.phonemePlan();
     const n = plan.filter((it) => done.has(SIO.studio.storageId(it))).length;
     $('count-phonemes').textContent = n ? `${n} of ${plan.length} recorded` : `${plan.length} to record`;
-    const rimes = SIO.studio.rimesPlan();
-    const nr = rimes.filter((it) => done.has(SIO.studio.storageId(it))).length;
-    $('count-rimes').textContent = nr ? `${nr} of ${rimes.length} recorded` : `${rimes.length}, starter voice for now`;
+    const chunks = SIO.studio.chunksPlan();
+    const nc = chunks.filter((it) => done.has(SIO.studio.storageId(it))).length;
+    $('count-chunks').textContent = nc ? `${nc} of ${chunks.length} in your voice` : `${chunks.length}, playing as blends`;
     const bank = await SIO.studio.bankList();
     $('count-bank').textContent = bank.length ? `${bank.length} words` : 'empty so far';
 
@@ -699,25 +726,27 @@
       $('script').hidden = false;
       openOverlay(closeScript);
     });
-    $('rimes-record').addEventListener('click', async () => {
+    $('chunks-record').addEventListener('click', async () => {
       const done = await SIO.studio.doneMap();
-      const items = SIO.studio.rimesPlan().filter((it) => !done.has(SIO.studio.storageId(it)));
+      const items = SIO.studio.chunksPlan().filter((it) => !done.has(SIO.studio.storageId(it)));
       openStudio(items);
     });
-    $('rimes-review').addEventListener('click', async () => {
+    $('chunks-review').addEventListener('click', async () => {
       const done = await SIO.studio.doneMap();
-      const rows = SIO.studio.rimesPlan().map((it) => {
+      const rows = SIO.studio.chunksPlan().map((it) => {
         const id = SIO.studio.storageId(it);
         const meta = done.get(id);
         return {
           id, item: it,
-          display: it.display + (SIO.curriculum.RIME_EXAMPLES[it.key] ? '  (as in ' + SIO.curriculum.RIME_EXAMPLES[it.key] + ')' : ''),
-          meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's' : '',
+          display: it.display + '  (as in ' + it.example + ')  /' + it.ipa + '/',
+          meta: meta && meta.seconds ? meta.seconds.toFixed(1) + 's — yours'
+            : (it.words ? 'blend · in ' + it.words + ' words' : 'blend'),
           missing: !meta,
+          preview: () => playBlend(it.ipa),
         };
       });
-      openReview('Listen back — the word endings',
-        'Tap one to hear your recording. Unrecorded ones use the starter voice; tick any to record your own over the top.', rows);
+      openReview('The letter teams — most useful first',
+        'Every row plays: your recording if you made one, the automatic blend if not. Tick any to record it as one breath.', rows);
     });
     $('bank-review').addEventListener('click', async () => {
       const bank = await SIO.studio.bankList();
