@@ -781,6 +781,15 @@
           // pedal and the W key could send, and the car sat at 0 with the
           // stick pinned to the top — "the car will not move at all".
           if (stick.active && stick.y > 0.05) input.go = true;
+          // UP ARROW / W still means "more", even in stick mode — and it has
+          // to be trimmed HERE, before the <=0 branch below. It used to live
+          // in the else, which means it only worked once the set-point was
+          // already positive: a keyboard driver whose set-point seeded to 0
+          // (spawn, before road detection) was locked out of the very key
+          // this line exists to serve — W held for a minute moved nothing,
+          // the synthetic brake held, and the car sat at 0 forever (measured:
+          // e2e-anyroad-mp, Ben/stick, 0.0 m/s in every leg, 2026-08-08).
+          if (kThrottle > 0 && !stick.active) setPoint = Math.min(62, setPoint + TRIM_RATE * dt);
           setPoint = Math.max(-3, Math.min(62, setPoint));
           if (setPoint <= 0) {
             input.autoTarget = 0; input.throttle = 0;
@@ -798,10 +807,7 @@
           } else {
             input.autoTarget = setPoint;
             input.throttle = (input.brake > 0 || input.handbrake) ? 0 : 1;
-            // UP ARROW / W still means "more", even in stick mode. The stick
-            // owns the set-point, but a keyboard driver has no stick to drag
-            // and was left with a speed they could not change.
-            if (kThrottle > 0 && !stick.active) setPoint = Math.min(62, setPoint + TRIM_RATE * dt);
+            // (the W trim moved ABOVE the <=0 branch — see the note there)
             // Overshooting the set-point (downhill, or after trimming down)
             // should ease off, and brake if it is a long way over.
             var over = Math.abs(carSpeedRef()) - setPoint;
