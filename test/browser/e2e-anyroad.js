@@ -1810,6 +1810,53 @@ function check(name, cond, detail) {
     cockpitStop.pad === true, 'steerpad.hidden=' + cockpitStop.pad);
   check('the dash speed paints ABOVE the wheel rim (phones: the rim crosses the cluster)',
     parseInt(cockpitStop.clusterZ, 10) >= 3, 'z-index=' + cockpitStop.clusterZ);
+
+  // ---- the dash carries real instruments ------------------------------------
+  // The dash is mostly empty moulding, and the one control on it was the
+  // smallest thing there. Take-off is a decision made at speed: the wings
+  // button must be thumb-sized, and IN FLIGHT the altimeter is its own
+  // instrument — the speedometer used to swap to metres, which blanked the
+  // airspeed at exactly the moment you were managing height AND speed.
+  const dashGear = await fr.locator('body').evaluate(() => {
+    const fly = document.getElementById('btn-fly');
+    const r = fly.getBoundingClientRect();
+    return { flyW: r.width, altHidden: document.getElementById('dash-alt').hidden };
+  });
+  check('the wings button is sized for a thumb, not a corner chip', dashGear.flyW >= 65,
+    dashGear.flyW.toFixed(0) + 'px wide');
+  check('on the ground the altimeter is dark (a number about nothing)',
+    dashGear.altHidden === true, 'dash-alt.hidden=' + dashGear.altHidden);
+  await fr.locator('#btn-fly').click();
+  let aloft = null;
+  for (let i = 0; i < 30; i++) {
+    await sleep(500);
+    aloft = await fr.locator('body').evaluate(() => {
+      const d = window.App.debug();
+      return { flying: !!d.flying, agl: d.agl || 0,
+               altHidden: document.getElementById('dash-alt').hidden,
+               altText: document.getElementById('dash-alt-m').textContent,
+               unit: document.getElementById('dash-unit').textContent };
+    });
+    if (aloft.flying && !aloft.altHidden && parseInt(aloft.altText, 10) > 3) break;
+  }
+  check('take off and the altimeter lights up with real metres',
+    !!aloft && aloft.flying && !aloft.altHidden && parseInt(aloft.altText, 10) > 3,
+    JSON.stringify(aloft));
+  check('…while the speedometer STAYS a speedometer (km/h, not metres)',
+    !!aloft && aloft.unit === 'km/h', aloft && aloft.unit);
+  await fr.locator('#btn-fly').click();                       // wings off…
+  let landed = null;
+  for (let i = 0; i < 40; i++) {                              // …and wait out the fall
+    await sleep(500);
+    landed = await fr.locator('body').evaluate(() => {
+      const d = window.App.debug();
+      return { flying: !!d.flying, falling: !!d.falling,
+               altHidden: document.getElementById('dash-alt').hidden };
+    });
+    if (!landed.flying && !landed.falling) break;
+  }
+  check('back on the ground the altimeter goes dark again',
+    !!landed && !landed.flying && !landed.falling && landed.altHidden, JSON.stringify(landed));
   await fr.locator('#btn-map').click();                       // cockpit -> bird
   let bird = null;
   for (let i = 0; i < 24; i++) {                              // poll: dt-clamped sim time, never wall clock
