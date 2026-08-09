@@ -430,6 +430,9 @@ details.adv h4 { margin-top: .8rem; }
 .ai-status.ok { color: color-mix(in srgb, #34c759 60%, var(--text)); }
 .ai-status.bad { color: color-mix(in srgb, #ff5c5c 62%, var(--text)); }
 .ai-2 { display: flex; gap: .4rem; }
+/* Per-role source select: your own endpoint vs an installed Provider app */
+.modal.wide .ai-row .ai-src { width: 100%; box-sizing: border-box; margin-bottom: .4rem; padding: .45rem .6rem;
+  border-radius: .5rem; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; font-size: .85rem; }
 .modal.wide .ai-row input { margin-bottom: .4rem; }
 .modal.wide .ai-row .ai-2 input { margin-bottom: 0; }
 

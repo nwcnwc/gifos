@@ -57,7 +57,7 @@
     microphone: 'Lets the app record short audio clips — only when you tap to record, with a recorder shown the whole time. It gets the finished clip, never a live microphone feed.',
     camera: 'Lets the app take a photo or short video — only when you tap, with an indicator shown while it happens. It gets the finished shot, never a live camera feed.',
     motion: 'Lets the app read how you tilt and move your device (for tilt games, levels, and the like). It cannot see your camera or your location.',
-    ai: 'Lets the app use an AI model you set up in Settings: it sends text and gets an answer back. Your API key stays in this browser — the app never sees it.',
+    ai: 'Lets the app use an AI model you set up in Settings: it sends text and gets an answer back. Your API key stays in this browser — the app never sees it. A role assigned to a Provider app is answered entirely on this device.',
     api: 'Lets the app use one of your own accounts you set up in Settings. GifOS attaches your key and sends the request only to that service — the app never sees the key.',
     pool: 'When you are in a room with other people, this app shares what it downloads from the sites below with them, and uses what they downloaded instead of fetching it again. It is how ten people in one place cost a donated map server one download instead of ten. Two things to know: the others learn WHICH addresses you fetched (in a shared world that is where everyone already is, but it is not nothing), and what arrives comes from them rather than from the site — this app treats it as data, not as instructions. Your keyed accounts are never pooled.',
     agent: 'Adds a GifOS assistant bar that can read and click/type on <b>this app’s screen</b> for you (driven by your Smartest AI). It only ever touches this one app — never GifOS or your other apps — and never sees your key. You start it, and can stop it any time.'
@@ -78,8 +78,15 @@
   // Current state of a settings-backed ability, so the consent popup can say
   // whether it's set, what to, and (if not) where to set it. "what it's set to"
   // is the configured model (or the endpoint host if no model was named) — never
-  // the key, which the popup must never reveal.
-  function aiRoleState(role) { var c = cfgOf('gifos_ai_config')[role] || {}; return { set: !!c.url, label: AI_ROLE_LABELS[role] || role, detail: c.url ? (c.model || hostOf(c.url)) : '' }; }
+  // the key, which the popup must never reveal. A role may instead be served by
+  // a PROVIDER APP (docs/providers.md) — then the sheet names the app, because
+  // that's the third party the user's data flows into, and makes the stronger
+  // on-device claim the network-less rule earns.
+  function aiRoleState(role) {
+    var c = cfgOf('gifos_ai_config')[role] || {};
+    if (c.app) return { set: true, label: AI_ROLE_LABELS[role] || role, detail: (c.appName || 'a Provider app') + ' — an app on this device; nothing leaves this browser' };
+    return { set: !!c.url, label: AI_ROLE_LABELS[role] || role, detail: c.url ? (c.model || hostOf(c.url)) : '' };
+  }
   // Case-insensitive, for the same reason the runtime's lookup is (see
   // apiEntry there): Settings stores the name the user typed and the app asks
   // for the one it declared. "Maptiler" and "maptiler" are the same account,
@@ -216,8 +223,9 @@
       // ---- REQUIRED capabilities gate (settings-backed only) ----
       var requires = (manifest && Array.isArray(manifest.requires)) ? manifest.requires : [];
       function lsCfg(key) { try { return JSON.parse(ls().getItem(key) || '{}') || {}; } catch (e) { return {}; } }
-      function aiConfigured() { var c = lsCfg('gifos_ai_config'); return Object.keys(c).some(function (k) { return c[k] && c[k].url; }); }
-      function aiRoleConfigured(role) { var c = lsCfg('gifos_ai_config')[role]; return !!(c && c.url); }
+      // A role served by a Provider app (c.app) is configured, same as an endpoint.
+      function aiConfigured() { var c = lsCfg('gifos_ai_config'); return Object.keys(c).some(function (k) { return c[k] && (c[k].url || c[k].app); }); }
+      function aiRoleConfigured(role) { var c = lsCfg('gifos_ai_config')[role]; return !!(c && (c.url || c.app)); }
       function apiConfigured(name) {
         // Loose on case — see apiCfgLoose above. This line is what printed
         // "Maptiler isn't set up yet" over a saved, tested, working key.
