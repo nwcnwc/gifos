@@ -129,12 +129,18 @@
     try {
       if (kind === 'phoneme') {
         // req.cap: the buildup's per-pass ceiling (see curriculum.approach) -
-        // sliced here so each pass gets its own compressed variant, cached
-        // separately by the request key.
+        // applied phonetics-first (gen/levels._hard_clip): every clip is
+        // trimmed to its sustained content, a sound ending in a stop keeps a
+        // window centred on its LOCATED burst, and a real burst is levelled
+        // by peak so it survives beside levelled sustains.
+        const endsStop = () => {
+          const toks = SIO.dictionary ? SIO.dictionary.tokens(req.ipa) : [req.ipa];
+          return dsp().STOPS.has(toks[toks.length - 1]);
+        };
         const capped = (buf) => {
           if (!req.cap || !buf) return buf;
           const { data, sr } = dsp().toMono(buf);
-          const cut = dsp().capData(data, sr, req.cap);
+          const cut = dsp().hardClipData(data, sr, req.cap, endsStop());
           return cut === data ? buf : dsp().bufferFrom(cut, sr);
         };
         const oneSound = async (ipa) => {
@@ -158,8 +164,10 @@
             const h = await oneSound(p);
             if (!h) { clips.length = 0; break; }
             if (h.tier === 'starter') tier = 'starter';
+            // condition each member first: a swelling vowel capped raw
+            // keeps its swell and loses its voice (lollipop's op)
             const m = dsp().toMono(h.buf);
-            clips.push({ data: dsp().capData(m.data, m.sr, 0.45), sr: m.sr });
+            clips.push({ data: dsp().capData(dsp().contentData(m.data, m.sr), m.sr, 0.45, 'start'), sr: m.sr });
           }
           if (clips.length) {
             let out = clips[0].data;

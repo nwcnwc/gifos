@@ -10,7 +10,12 @@
     // The one pacing choice: how many times through the letters before the
     // word (the final pass always touches). The between-items pause is a
     // constant, not a question.
-    prefs: { theme: 'night', reps: 3, unticked: [] },
+    //
+    // The ticks are yours, and they stay where you left them: the selection
+    // persists and is restored on launch. A fresh install starts with
+    // nothing ticked; a newly added entry arrives ticked, because adding
+    // something is the strongest signal of wanting it.
+    prefs: { theme: 'night', reps: 3, ticked: [] },
     rows: [],       // library rows {id, text, order}
     status: [],     // statusOf() result, same order
     done: new Map(),
@@ -21,7 +26,14 @@
     guest: false,
     me: null,
   };
-  const unticked = () => new Set(state.prefs.unticked || []);
+  const tickedSet = () => new Set(state.prefs.ticked || []);
+  async function tickKeys(keys) {
+    if (!keys.length) return;
+    const t = tickedSet();
+    keys.forEach((k) => t.add(k));
+    state.prefs.ticked = [...t];
+    await savePrefs();
+  }
   const overlays = [];
 
   async function savePrefs() {
@@ -51,12 +63,12 @@
   // Only READY entries can enter a video: an entry with sounds nobody can
   // say would play half-voiced, which teaches worse than leaving it out.
   function tickedReady() {
-    const off = unticked();
-    return state.status.filter((s) => !off.has(s.key) && s.ready);
+    const on = tickedSet();
+    return state.status.filter((s) => on.has(s.key) && s.ready);
   }
   function tickedUnready() {
-    const off = unticked();
-    return state.status.filter((s) => !off.has(s.key) && !s.ready);
+    const on = tickedSet();
+    return state.status.filter((s) => on.has(s.key) && !s.ready);
   }
 
   function stateLine(s) {
@@ -84,7 +96,15 @@
     return bits.join(' ');
   }
 
+  function syncTickAll() {
+    $('list-tools').hidden = !state.status.length;
+    const on = tickedSet();
+    const all = state.status.length && state.status.every((s) => on.has(s.key));
+    $('tick-all').textContent = all ? 'Untick all' : 'Tick all';
+  }
+
   function renderList() {
+    syncTickAll();
     const box = $('sentence-list');
     box.innerHTML = '';
     if (!state.status.length) {
@@ -94,24 +114,25 @@
       box.appendChild(p);
       return;
     }
-    const off = unticked();
+    const on = tickedSet();
     for (const s of state.status) {
       const row = document.createElement('div');
-      row.className = 'sentence-row' + (off.has(s.key) ? ' is-out' : '');
+      row.className = 'sentence-row' + (on.has(s.key) ? '' : ' is-out');
 
       const label = document.createElement('label');
       label.className = 'sentence-tick';
       const tick = document.createElement('input');
       tick.type = 'checkbox';
-      tick.checked = !off.has(s.key);
+      tick.checked = on.has(s.key);
       tick.setAttribute('aria-label', `Include "${s.text}" in the video`);
       tick.addEventListener('change', async () => {
-        const o = unticked();
-        if (tick.checked) o.delete(s.key); else o.add(s.key);
-        state.prefs.unticked = [...o];
+        const t = tickedSet();
+        if (tick.checked) t.add(s.key); else t.delete(s.key);
+        state.prefs.ticked = [...t];
         await savePrefs();
         row.classList.toggle('is-out', !tick.checked);
         updateSummary();
+        syncTickAll();
       });
       label.appendChild(tick);
 
@@ -180,7 +201,8 @@
         add.textContent = p.added >= p.count ? 'Added' : 'Add';
         add.disabled = p.added >= p.count;
         add.addEventListener('click', async () => {
-          await SIO.library.addPack(p.id);
+          const added = await SIO.library.addPack(p.id);
+          await tickKeys(added.map((r) => r.id));
           refreshLibrary();
         });
         row.appendChild(body);
@@ -351,6 +373,7 @@
       err.hidden = true;
       try {
         const added = await SIO.library.add($('sentence-input').value);
+        await tickKeys(added.map((r) => r.id));
         $('sentence-input').value = '';
         $('sentence-added').textContent = added.length
           ? (added.length === 1 ? 'Added.' : `Added ${added.length}.`)
@@ -813,6 +836,14 @@
 
   async function init(loaded) {
     state.prefs = Object.assign(state.prefs, loaded.prefs || {});
+    // migration from the old inverted model: everything was ticked except
+    // the remembered unticks
+    if (loaded.prefs && loaded.prefs.unticked && !loaded.prefs.ticked) {
+      const off = new Set(loaded.prefs.unticked);
+      state.prefs.ticked = (await SIO.library.load()).map((r) => r.id).filter((k) => !off.has(k));
+      delete state.prefs.unticked;
+      await savePrefs();
+    }
     if (window.gifos) {
       try {
         const info = await window.gifos.info();
@@ -822,6 +853,14 @@
     }
     document.querySelectorAll('.tab').forEach((t) =>
       t.addEventListener('click', () => switchTab(t.dataset.screen)));
+    $('tick-all').addEventListener('click', async () => {
+      const on = tickedSet();
+      const all = state.status.length && state.status.every((s) => on.has(s.key));
+      state.prefs.ticked = all ? [] : state.status.map((s) => s.key);
+      await savePrefs();
+      renderList();
+      updateSummary();
+    });
     wireAdd();
     wireMake();
     wireStudio();
