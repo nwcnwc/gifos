@@ -161,7 +161,21 @@
           else refresh(d.collection);
         }
         if(d.type==='back'){ backCbs.forEach(function(cb){ try { cb(); } catch(e){} }); }
+        // Provider service plumbing (docs/providers.md): when this app is
+        // mounted as a hidden provider service, the runtime forwards brokered
+        // AI calls here as provider-request; the handler registered via
+        // gifos.provider.serve answers, and the result crosses back as
+        // provider-result. In a normal app mount these never arrive.
+        if(d.type==='provider-request'){
+          var h = provHandlers && provHandlers[d.role];
+          var send = function(p){ parent.postMessage(Object.assign({ ns:'gifos', type:'provider-result', id:d.id }, p), '*'); };
+          if (typeof h !== 'function') { send({ ok:false, error:'This provider does not serve "'+d.role+'".' }); return; }
+          Promise.resolve().then(function(){ return h(d.req || {}); })
+            .then(function(result){ send({ ok:true, result:result }); })
+            .catch(function(err){ send({ ok:false, error:String(err && err.message || err) }); });
+        }
       });
+      var provHandlers = null;
       // Android Chrome only lets the container's Back trap "stick" once the page
       // has real user activation, and the user touches the APP, not the frame
       // around it — those gestures never reach the parent. Ping the container on
@@ -264,6 +278,17 @@
         // its Smartest-model calls through here so the KEY never enters this
         // sandbox. Not part of the public app API.
         _agentChat: function(messages){ return rpc({type:'agentChat', messages:messages}); },
+        // Provider apps (manifest "provides", docs/providers.md): register the
+        // role handlers this app serves when the OS mounts it as a service.
+        // Keyed by AI role ('tts', 'smartest', …); each handler takes the
+        // request and returns the same shape the endpoint broker would
+        // ({ bytes, mime } for tts, { text } for chat/stt, …). Calling this in
+        // a normal (visible) mount is harmless — requests only ever arrive in
+        // a service mount.
+        provider: {
+          serve: function(handlers){ provHandlers = handlers || {};
+            try { parent.postMessage({ ns:'gifos', type:'provider-ready', roles:Object.keys(provHandlers) }, '*'); } catch(e){} }
+        },
         // The container traps the browser Back button so an app is never blown
         // away by a reflex press. By default the press is swallowed; register a
         // callback to make Back meaningful (close a modal, back out a screen).
@@ -1084,11 +1109,15 @@
     if (!hasCap(manifest, 'ai')) return Promise.reject(new Error('This app did not declare the "ai" capability.'));
     if (capDisabled(manifest, 'ai')) return Promise.reject(new Error(CAP_OFF_MSG('AI')));
     const cfg = aiConfig();
-    if (d.op === 'models') return Promise.resolve({ available: Object.keys(cfg).filter((k) => cfg[k] && cfg[k].url) });
+    // A role counts as available whether an endpoint or a provider app serves it.
+    if (d.op === 'models') return Promise.resolve({ available: Object.keys(cfg).filter((k) => cfg[k] && (cfg[k].url || cfg[k].app)) });
     const role = d.op === 'chat' ? (d.model === 'smartest' ? 'smartest' : 'cheapest') : d.op;
     if (!aiAllowed(manifest, role)) return Promise.reject(new Error('This app did not declare the "' + role + '" AI type in its manifest (capabilities.ai).'));
     const c = cfg[role];
-    if (!c || !c.url) { showSystemSetup({ kind: 'ai', role: role, hint: d.hint }); return Promise.reject(new Error('NOT_CONFIGURED:ai:' + role)); }
+    if (!c || (!c.url && !c.app)) { showSystemSetup({ kind: 'ai', role: role, hint: d.hint }); return Promise.reject(new Error('NOT_CONFIGURED:ai:' + role)); }
+    // Served by an installed Provider app (docs/providers.md) — the guard,
+    // hidden mount and request shape all live in providerCall/providerReq.
+    if (c.app) return providerCall(c, role, providerReq(role, d.op, d));
     const url = aiEndpoint(c, d.op);
     const auth = c.key ? { Authorization: 'Bearer ' + c.key } : {};
     const asError = (r) => r.text().then((t) => { throw new Error('AI error ' + r.status + (t ? ': ' + t.slice(0, 300) : '')); });
@@ -1139,6 +1168,128 @@
         const ct = r.headers.get('content-type') || '';
         return /json/.test(ct) ? r.json().then((raw) => ({ raw })) : r.arrayBuffer().then((buf) => ({ bytes: buf, mime: ct || 'video/mp4' }));
       });
+  }
+
+  // ---- Provider apps: an installed app SERVES an AI role -------------------
+  // docs/providers.md. Settings may assign an AI role to an installed app
+  // instead of an endpoint: gifos_ai_config[role] = { app:<fileId>, appId,
+  // appName }. The provider runs as a HIDDEN sandboxed iframe inside THIS
+  // consumer tab (per fileId, lazily, cached for the tab's life) — same
+  // buildAppHtml pipeline, same opaque origin, no db/fetch/capture: a pure
+  // request→response engine. Three refusals guard the mount, in order:
+  //   1. the manifest must list the role under `provides.ai`;
+  //   2. THE HARD RULE — a provider may not declare capabilities.network or
+  //      capabilities.api. Every consumer's prompts flow into this sandbox,
+  //      and connect-src 'none' is what makes that safe to promise; a
+  //      networked provider would be an exfiltration machine, so it is
+  //      refused mechanically, not consented to.
+  //   3. recognition is a PLACE — the icon must sit DIRECTLY in the desktop's
+  //      Providers folder (sys_providers). Outside it the desktop paints the
+  //      red ✕ and this broker refuses, so the folder is the one honest
+  //      answer to "what code answers my apps' AI calls?".
+  const PROVIDER_BOOT_MS = 30000;   // engine load (a WASM voice/model takes a while)
+  const PROVIDER_CALL_MS = 180000;  // per request; big models are slow, but not forever
+  const provArchives = new Map();   // fileId -> Promise<{files, manifest} | null>
+  const providerServices = new Map(); // fileId -> Promise<{ call }>
+  function providesRoles(manifest) {
+    const p = manifest && manifest.provides && manifest.provides.ai;
+    return Array.isArray(p) ? p.filter(Boolean).map(String) : [];
+  }
+  function providerNetworky(manifest) {
+    const caps = (manifest && manifest.capabilities) || {};
+    const some = (v) => Array.isArray(v) ? v.length > 0 : !!v;
+    return some(caps.network) || some(caps.api);
+  }
+  function providerArchive(fileId) {
+    if (!provArchives.has(fileId)) {
+      provArchives.set(fileId, store.getFile(fileId).then((rec) => {
+        if (!rec || !rec.bytes) return null;
+        const bytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
+        return gif.decode(bytes).then((arc) => arc ? { files: arc.files, manifest: gif.readManifest(arc) || {} } : null);
+      }).catch(() => null));
+    }
+    return provArchives.get(fileId);
+  }
+  function providerService(fileId, files, manifest) {
+    if (providerServices.has(fileId)) return providerServices.get(fileId);
+    const label = manifest.name || manifest.appId || 'The provider app';
+    const p = new Promise((resolve, reject) => {
+      const doc = root.document;
+      if (!doc || !doc.body) { reject(new Error('No page to run the provider in.')); return; }
+      const iframe = makeIframe();
+      // Hidden, not display:none — some engines size a canvas/context at boot.
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;border:0;visibility:hidden';
+      iframe.setAttribute('data-gifos-provider', manifest.appId || '');
+      const pending = new Map();
+      let ready = false, idSeq = 0;
+      const fail = (err) => { root.removeEventListener('message', handler); try { iframe.remove(); } catch (e) {} reject(err); };
+      const bootTimer = setTimeout(() => { if (!ready) fail(new Error(label + ' did not start serving (no gifos.provider.serve call) — it may not be a working provider.')); }, PROVIDER_BOOT_MS);
+      const handler = (e) => {
+        if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
+        const d = e.data; if (!d || d.ns !== 'gifos') return;
+        if (d.type === 'provider-ready') { ready = true; clearTimeout(bootTimer); resolve(service); }
+        else if (d.type === 'provider-result') {
+          const pend = pending.get(d.id); if (!pend) return;
+          pending.delete(d.id); clearTimeout(pend.timer);
+          d.ok ? pend.res(d.result) : pend.rej(new Error(d.error || (label + ' failed to answer.')));
+        }
+        // The service mount answers info (apps use it to label themselves) and
+        // REFUSES everything else loudly — a hung promise inside the provider
+        // would otherwise look like a broken engine.
+        else if (d.type === 'info') { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version, provider: true } }, '*'); }
+        else if (d.id) { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: false, error: 'Not available in a provider service mount.' }, '*'); }
+      };
+      const service = {
+        call: (role, req) => new Promise((res, rej) => {
+          const w = iframe.contentWindow;
+          if (!w) { rej(new Error(label + ' is not running.')); return; }
+          const id = 'p' + (++idSeq);
+          const timer = setTimeout(() => { pending.delete(id); rej(new Error(label + ' timed out answering.')); }, PROVIDER_CALL_MS);
+          pending.set(id, { res, rej, timer });
+          w.postMessage({ ns: 'gifos', type: 'provider-request', id, role, req }, '*');
+        }),
+      };
+      root.addEventListener('message', handler);
+      doc.body.appendChild(iframe);
+      iframe.srcdoc = buildAppHtml(files, manifest);
+    });
+    providerServices.set(fileId, p);
+    p.catch(() => providerServices.delete(fileId)); // a failed boot may be retried
+    return p;
+  }
+  function providerCall(c, role, req) {
+    const cfgName = c.appName || 'Your provider app';
+    return providerArchive(c.app).then((arc) => {
+      if (!arc || !arc.files) {
+        showSystemSetup({ kind: 'provider', name: cfgName, role, problem: 'missing' });
+        return Promise.reject(new Error('PROVIDER_MISSING: ' + cfgName + ' is assigned to this AI type but its file is no longer on this computer. Re-install it, or pick another model in Settings → AI models.'));
+      }
+      const m = arc.manifest || {};
+      const name = m.name || cfgName;
+      if (providesRoles(m).indexOf(role) < 0) {
+        return Promise.reject(new Error(name + ' does not provide the "' + role + '" AI type (its manifest lists: ' + (providesRoles(m).join(', ') || 'none') + ').'));
+      }
+      if (providerNetworky(m)) {
+        return Promise.reject(new Error(name + ' declares network access, and a provider must be network-less — every app’s AI requests flow into it. Refused.'));
+      }
+      return store.allItems().then((its) => {
+        const it = (its || []).find((i) => i && i.fileId === c.app);
+        if (!it || it.parent !== 'sys_providers') {
+          showSystemSetup({ kind: 'provider', name, role, problem: 'outside' });
+          return Promise.reject(new Error('PROVIDER_NOT_IN_FOLDER: ' + name + ' only works from inside the Providers folder on your Home Screen. Move its icon back there (it wears a red ✕ anywhere else).'));
+        }
+        return providerService(c.app, arc.files, m).then((svc) => svc.call(role, req));
+      });
+    });
+  }
+  // The sanitized request a provider sees — the broker's own vocabulary, never
+  // the raw bridge message (no ids, no model names, no stray fields).
+  function providerReq(role, op, d) {
+    if (op === 'chat') return { op, role, messages: d.messages || [{ role: 'user', content: String(d.prompt || '') }], temperature: d.temperature, maxTokens: d.maxTokens };
+    if (op === 'tts') return { op, role, text: String(d.text || ''), voice: d.voice, format: d.format, speed: d.speed, pitch: d.pitch };
+    if (op === 'stt') return { op, role, bytes: d.bytes || d.audio || null, mime: d.mime, language: d.language };
+    if (op === 'image') return { op, role, prompt: String(d.prompt || ''), size: d.size };
+    return { op, role, prompt: d.prompt, image: d.image, size: d.size, seconds: d.seconds };
   }
 
   // ---- brokered third-party APIs (Deepgram, Schwab, …) ----------------------
@@ -1549,6 +1700,15 @@
         title = (label || 'An AI model') + ' isn’t set up yet';
         body = 'This app uses an AI model you provide. In GifOS <b>Settings → AI models</b>, set up ' +
           (label ? 'the <b>' + escHtml(label) + '</b> model' : 'a text model') + ' — any OpenAI-compatible endpoint and key.';
+      } else if (opts.kind === 'provider') {
+        // A Provider APP is assigned to this role but can't serve right now.
+        const label = AI_ROLE_LABELS[opts.role];
+        title = escHtml(opts.name || 'Your provider app') + ' can’t answer right now';
+        body = opts.problem === 'outside'
+          ? '<b>' + escHtml(opts.name) + '</b> serves ' + (label ? 'your <b>' + escHtml(label) + '</b>' : 'an AI type') +
+            ', but its icon isn’t in the <b>Providers</b> folder on your Home Screen. A provider only works from inside that folder (it wears a red ✕ anywhere else) — move it back, or pick another model in <b>Settings → AI models</b>.'
+          : '<b>' + escHtml(opts.name) + '</b> is assigned to ' + (label ? 'your <b>' + escHtml(label) + '</b>' : 'an AI type') +
+            ', but its file is no longer on this computer. Re-install it from the App Store, or pick another model in <b>Settings → AI models</b>.';
       } else {
         const k = KNOWN_APIS[String(opts.name || '').toLowerCase()];
         title = (k ? k.label : opts.name) + ' isn’t set up yet';
@@ -1645,7 +1805,11 @@
     if (!hasCap(manifest, 'agent')) return Promise.reject(new Error('This app did not declare the "agent" capability.'));
     if (capDisabled(manifest, 'agent')) return Promise.reject(new Error(CAP_OFF_MSG('the AI assistant')));
     const c = aiConfig().smartest;
-    if (!c || !c.url) { showSystemSetup({ kind: 'ai', role: 'smartest' }); return Promise.reject(new Error('NOT_CONFIGURED:ai:smartest')); }
+    if (!c || (!c.url && !c.app)) { showSystemSetup({ kind: 'ai', role: 'smartest' }); return Promise.reject(new Error('NOT_CONFIGURED:ai:smartest')); }
+    if (c.app) {
+      return providerCall(c, 'smartest', { op: 'chat', role: 'smartest', messages: d.messages || [], temperature: 0.1, maxTokens: d.maxTokens })
+        .then((r) => ({ text: (r && r.text) || '' }));
+    }
     const url = aiEndpoint(c, 'chat');
     const auth = c.key ? { Authorization: 'Bearer ' + c.key } : {};
     const body = { model: c.model || 'gpt-4o', messages: d.messages || [], stream: false, temperature: 0.1 };
