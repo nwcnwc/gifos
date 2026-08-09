@@ -275,7 +275,7 @@
   function whole(text, clip, pad, scale, color) {
     return Segment([[text, true]], clip, pad, scale, color);
   }
-  const phonemeClip = (ipa) => ({ kind: 'phoneme', ipa });
+  const phonemeClip = (ipa, cap) => (cap ? { kind: 'phoneme', ipa, cap } : { kind: 'phoneme', ipa });
   const wordClip = (text, slow) => ({ kind: 'word', text, slow: !!slow });
   const sentenceClip = (text) => ({ kind: 'sentence', text });
 
@@ -291,9 +291,15 @@
     for (let r = 0; r < passes; r++) {
       const frac = (passes - 1 - r) / Math.max(1, passes - 1);
       const gap = APPROACH_FLOOR * Math.pow(Math.max(pause, APPROACH_FLOOR * 2) / APPROACH_FLOOR, frac);
+      // The SOUNDS compress along with the gaps - that is what blending is.
+      // It also evens the rhythm: recorded holds range from 0.2s to 2.6s,
+      // and uncapped, the highlight camped on the long sounds and blinked
+      // past the short ones - "it highlighted the wrong letters and skipped
+      // some", reported on Grandma, whose m dwarfed its d.
+      const hold = 0.5 * Math.pow(1.1 / 0.5, frac);
       parts.forEach(([, ipa], j) => {
         const shown = parts.map(([g], k) => [g, k === j]);
-        segs.push(Segment(shown, phonemeClip(ipa), gap));
+        segs.push(Segment(shown, phonemeClip(ipa, hold), gap));
       });
     }
     return segs;
