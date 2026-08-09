@@ -8,13 +8,5 @@
   "entry": "index.html",
   "accent": [123, 92, 255],
   "capabilities": {},
-  "provides": { "ai": ["tts"] },
-  "assets": [
-    { "url": "/apps/pocket-voice/assets/espeak.js", "path": "espeak.js", "bytes": 4939850,
-      "sha256": "ba15bb9e9656802bcd038b49b7d3e73613efe8c7871e88058fedbeff4e03d6ed" },
-    { "url": "/apps/pocket-voice/assets/mespeak-config.json", "path": "mespeak-config.json", "bytes": 570492,
-      "sha256": "3041a3a2998ec6ea903d463f63b6c4da940e52ca148997b46835074d1ef99835" },
-    { "url": "/apps/pocket-voice/assets/voice-en-us.json", "path": "voice-en-us.json", "bytes": 114974,
-      "sha256": "c62c78474883a675f1230bf2ccbc2546ef290dadab83a66187a68d8a5745570b" }
-  ]
+  "provides": { "ai": ["tts"] }
 }

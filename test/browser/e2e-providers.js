@@ -13,10 +13,13 @@
 //     even from inside the folder.
 //  5. The consumer's acknowledgement sheet NAMES the provider app.
 //  6. Reader (the seeded consumer) lives in the Tools folder.
-//  7. The REAL Pocket Voice GIF: slim install → assets backfilled from the
-//     static server (hash-verified, sealed via repack — the stored file
-//     grows), engine boots in the hidden mount, and a real RIFF WAV comes
-//     back through gifos.ai.tts.
+//  7. The REAL Pocket Voice GIF: engine IN-GIF (no assets — 5.6 MB raw is
+//     under the assets floor), boots in the hidden mount, and a real RIFF
+//     WAV comes back through gifos.ai.tts with no repack of the stored file.
+//  8. The install-time assets machinery (gifos-assets.js) stays guarded while
+//     no catalog app uses it: a synthetic provider pins a file on the static
+//     server; the provider mount backfills it (hash-verified), SEALS it into
+//     the stored GIF under .assets/, and serves its bytes back.
 //
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
 const fs = require('fs');
@@ -157,9 +160,9 @@ async function runConsumer(page, context, label, outTimeout) {
     await app.close();
   }
 
-  // ---- 5 + 7. the REAL Pocket Voice: install slim, assets backfill, speak ---
+  // ---- 5 + 7. the REAL Pocket Voice: engine in-GIF, install and speak -------
   const pvBytes = fs.readFileSync(appGif('pocket-voice'));
-  check('the committed Pocket Voice GIF is SLIM (assets ride the download-then-seal path)', pvBytes.length < 1e6, pvBytes.length + ' bytes');
+  check('the committed Pocket Voice GIF CARRIES its engine (in-GIF, no assets)', pvBytes.length > 1e6 && pvBytes.length < 8e6, pvBytes.length + ' bytes');
   const pvFid = await page.evaluate(async (b64) => {
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -181,10 +184,48 @@ async function runConsumer(page, context, label, outTimeout) {
     check('Pocket Voice answers gifos.ai.tts with a real WAV', m[1] === 'RIFF' && Number(m[2]) > 20000 && m[3] === 'audio/wav', out.slice(0, 120));
     await app.close();
   }
-  // The GIF payload is deflate-compressed, so 5.6 MB of asm.js seals to
-  // ~1.6 MB — assert "grew far past the slim install", not the raw sum.
-  const sealed = await page.evaluate(async (fid) => (await GifOS.store.getFile(fid)).bytes.byteLength || (await GifOS.store.getFile(fid)).bytes.length, pvFid);
-  check('the downloaded assets were SEALED into the stored GIF (repack + putFile)', sealed > 1e6, sealed + ' bytes');
+  // No manifest.assets → no backfill, no repack: the stored file must still
+  // be byte-for-byte the committed GIF (a rewrite here would mean the asset
+  // path fired for an app that doesn't declare any).
+  const pvStored = await page.evaluate(async (fid) => { const f = await GifOS.store.getFile(fid); return f.bytes.byteLength || f.bytes.length; }, pvFid);
+  check('an assets-free app is never repacked (stored bytes = committed bytes)', pvStored === pvBytes.length, pvStored + ' vs ' + pvBytes.length);
+
+  // ---- 8. download-then-seal, guarded via a synthetic asset provider --------
+  // Pins a file the 8099 static server actually serves; hash computed here
+  // from the same bytes the server reads. The 8 MB catalog floor is store
+  // POLICY (build-app-catalog.mjs) — the loader itself is size-agnostic,
+  // which is what lets this guard run on a small file.
+  const assetSrc = fs.readFileSync(require.resolve('../../site/js/gifos-net.js'));
+  const assetSha = require('crypto').createHash('sha256').update(assetSrc).digest('hex');
+  await page.evaluate(async ({ sha, size }) => {
+    const html = '<!doctype html><meta charset="utf-8"><script>' +
+      'gifos.provider.serve({ tts: function(){' +
+      '  return gifos.assets("blob.bin").then(function(b){ return { bytes:b, mime:"application/octet-stream" }; });' +
+      '} });<\/script>';
+    const bytes = await GifOS.gif.encode({
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'assetprov', name: 'Asset Prov', entry: 'index.html', capabilities: {},
+        provides: { ai: ['tts'] },
+        assets: [{ url: '/js/gifos-net.js', sha256: sha, path: 'blob.bin', bytes: size }] }),
+      'index.html': html,
+    });
+    const fid = GifOS.store.uid('file');
+    window.__assetFid = fid;
+    await GifOS.store.putFile({ id: fid, name: 'Asset Prov.gif', bytes, kind: 'gif', isApp: true, appId: 'assetprov', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Asset Prov.gif', parent: 'sys_providers', x: 300, y: 90, iconSize: 64 });
+    localStorage.setItem('gifos_ai_config', JSON.stringify({ tts: { app: fid, appId: 'assetprov', appName: 'Asset Prov' } }));
+  }, { sha: assetSha, size: assetSrc.length });
+  {
+    const { app, out } = await runConsumer(page, context, 'TtsUser.gif', 30000);
+    check('the provider mount BACKFILLS a pinned asset and serves its bytes', out.indexOf(':' + assetSrc.length + ':') >= 0, out.slice(0, 120));
+    await app.close();
+  }
+  const sealedLen = await page.evaluate(async () => {
+    const f = await GifOS.store.getFile(window.__assetFid);
+    const arc = await GifOS.gif.decode(f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes));
+    const a = arc && arc.files && arc.files['.assets/blob.bin'];
+    return a ? a.length : -1;
+  });
+  check('the fetched asset was SEALED into the stored GIF under .assets/', sealedLen === assetSrc.length, sealedLen + ' vs ' + assetSrc.length);
 
   // ---- 6. Reader (the seeded consumer) lives in Tools -----------------------
   await page.locator('.icon', { hasText: 'Tools' }).dblclick();
