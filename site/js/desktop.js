@@ -2825,11 +2825,28 @@
   // window.open would be popup-blocked). Non-app GIFs (folders, backups, plain)
   // are still filed in; only real app GIFs auto-run.
   async function handleRunParam() {
-    let raw = '';
-    try { raw = new URLSearchParams(location.search).get('run') || ''; } catch (e) {}
+    let raw = '', fromHash = false;
+    try {
+      raw = new URLSearchParams(location.search).get('run') || '';
+      // …or from the HASH. The query is what today's frozen snapshots read,
+      // so the loader carries that; the hash form is accepted too so a
+      // pretty-router path (404.html folds query into hash) can carry a
+      // run-link without a second special case.
+      if (!raw) { raw = new URLSearchParams(location.hash.slice(1)).get('run') || ''; fromHash = !!raw; }
+    } catch (e) {}
     if (!raw) return;
-    // Strip ?run= from the address bar first, so a refresh/back never re-runs it.
-    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    // Strip run= from the address bar first — from WHEREVER it came — so a
+    // refresh or a back never re-runs it.
+    try {
+      let rest = location.hash;
+      if (fromHash) {
+        const h = new URLSearchParams(location.hash.slice(1));
+        h.delete('run');
+        const q = h.toString();
+        rest = q ? '#' + q : '';
+      }
+      history.replaceState(null, '', location.pathname + rest);
+    } catch (e) {}
     const r = await fetchGifFromUrl(raw);
     if (r.error) { showModal('Couldn’t run that link', escapeHtml(r.error)); return; }
     const archive = await gif.decode(r.bytes).catch(() => null);
