@@ -55,7 +55,10 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // only distinguishable if the room actually HAS data — a sample app that
   // never writes leaves both copies identically empty and the check proves
   // nothing. Written through the same per-record path the app's db uses.
-  await d.evaluate((fid) => GifOS.store.appAdd(fid, 'e2e', { id: 'marker', v: 'room data' }), appId);
+  // _vis: an undeclared collection defaults to PRIVATE and is filtered from
+  // everything guests see — per-record visibility is how a bare test record
+  // rides the guest lane like a real app's shared data would.
+  await d.evaluate((fid) => GifOS.store.appAdd(fid, 'e2e', { id: 'marker', v: 'room data', _vis: 'read-only' }), appId);
   await d.close();
   const h = await hCtx.newPage();
   h.on('pageerror', (e) => console.log('  [host] ' + e.message));
@@ -121,7 +124,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // A record written after the guest joined, pushed through the host app's own
   // change channel so the room actually syncs it.
   await h.evaluate(async (fid) => {
-    await GifOS.store.appAdd(fid, 'e2e', { id: 'late', v: 'after join' });
+    await GifOS.store.appAdd(fid, 'e2e', { id: 'late', v: 'after join', _vis: 'read-only' });
     new BroadcastChannel(GifOS.store.appChannel(fid)).postMessage({ collection: 'e2e' });
   }, appId);
   await c.waitForFunction(() => {
@@ -134,12 +137,21 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 
   const stealOne = async (optText) => {
     await c.waitForFunction(() => !document.getElementById('appsteal').disabled, null, { timeout: 15000 });
-    await c.evaluate(() => document.getElementById('appsteal').click());
-    await c.evaluate((t) => {
+    // Open the chooser and pick the option in ONE evaluate: the top bar can
+    // re-render between round trips (room events land continuously) and take
+    // the freshly inserted choice buttons with it.
+    const picked = await c.evaluate((t) => {
       const b = document.getElementById('appsteal');
-      let n = b.nextSibling; while (n && n.textContent !== t) n = n.nextSibling;
-      n.click();
+      delete b.dataset.armed;
+      b.click();
+      let n = b.nextSibling; const seen = [];
+      while (n) {
+        if (n.textContent === t) { n.click(); return { ok: true }; }
+        seen.push(n.textContent || n.nodeName); n = n.nextSibling;
+      }
+      return { ok: false, seen };
     }, optText);
+    if (!picked.ok) throw new Error('steal option "' + optText + '" not found; siblings: ' + JSON.stringify(picked.seen));
     await c.waitForFunction(() => /Yours now/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
   };
   await c.evaluate(() => document.getElementById('appsteal').click());
