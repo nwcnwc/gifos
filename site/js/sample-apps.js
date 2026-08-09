@@ -2798,6 +2798,90 @@ document.getElementById('f').onsubmit=async e=>{
 };
 </script>`;
 
+  // Reader — paste anything, the computer reads it aloud via the brokered
+  // Text → speech role (gifos.ai.tts). It neither knows nor cares WHO serves
+  // the role: a cloud endpoint, or a Provider app like Pocket Voice answering
+  // entirely on-device (docs/providers.md) — the consumer side of the
+  // provider story. Long text is read in sentence chunks with one chunk of
+  // lookahead synthesis, so speech starts fast and never stutters.
+  const READER_HTML = `<!doctype html><meta charset="utf-8">
+<style>
+  *{box-sizing:border-box} html,body{height:100%}
+  body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column}
+  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#7b5cff;display:flex;align-items:center;gap:10px}
+  header .sp{flex:1}
+  #text{flex:1;margin:14px 18px 8px;padding:12px 13px;border:1px solid #2a2a3f;border-radius:10px;background:#1c1c2b;color:#e0e0f0;font:inherit;line-height:1.55;resize:none}
+  .bar{display:flex;gap:8px;align-items:center;padding:10px 18px 14px}
+  select{padding:9px 10px;border:1px solid #2a2a3f;border-radius:9px;background:#14141f;color:#e0e0f0;font:inherit}
+  .bar button{padding:11px 16px;border:0;border-radius:9px;background:#7b5cff;color:#fff;font-weight:700;cursor:pointer}
+  .bar button:disabled{opacity:.5;cursor:default}
+  .bar button.ghost{background:#14141f;border:1px solid #2a2a3f;color:#e0e0f0;font-weight:400}
+  #status{color:#8888aa;font-size:.82rem;padding:0 18px 12px;min-height:1.1em}
+  .note{color:#8888aa;font-size:.88rem;padding:0 18px 12px;line-height:1.5}
+</style>
+<header>📖 Reader<span class="sp"></span></header>
+<textarea id="text" placeholder="Paste or type anything here, then press Read aloud."></textarea>
+<div class="bar">
+  <select id="voice"><option value="">Default voice</option><option value="nova">Nova</option><option value="shimmer">Shimmer</option><option value="fable">Fable</option><option value="echo">Echo</option><option value="onyx">Onyx</option><option value="alloy">Alloy</option></select>
+  <button id="read">🔊 Read aloud</button>
+  <button id="stop" class="ghost" style="display:none">■ Stop</button>
+</div>
+<div id="status"></div>
+<div class="note" id="note" style="display:none"></div>
+<script>
+const T=document.getElementById('text'), V=document.getElementById('voice');
+const readBtn=document.getElementById('read'), stopBtn=document.getElementById('stop');
+const status=document.getElementById('status'), note=document.getElementById('note');
+let db=null, playing=false, session=0;
+function say(m){ status.textContent=m||''; }
+// Sentence-ish chunks (~600 chars) so the first audio arrives fast and long
+// reads never hit a provider's per-request ceiling.
+function chunksOf(text){
+  const parts=String(text).split(/(?<=[.!?\\n])\\s+/); const out=[]; let cur='';
+  for(const p of parts){ if((cur+' '+p).length>600&&cur){ out.push(cur); cur=p; } else cur=cur?cur+' '+p:p; }
+  if(cur.trim()) out.push(cur);
+  return out.filter(c=>c.trim());
+}
+function playBytes(r){ return new Promise((res,rej)=>{
+  const url=URL.createObjectURL(new Blob([r.bytes],{type:r.mime||'audio/mpeg'}));
+  const a=new Audio(url); window.__cur=a;
+  a.onended=()=>{ URL.revokeObjectURL(url); res(); };
+  a.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('could not play the audio')); };
+  a.play().catch(rej);
+}); }
+async function readAloud(){
+  const text=T.value.trim(); if(!text){ say('Nothing to read yet.'); return; }
+  const my=++session; playing=true; readBtn.style.display='none'; stopBtn.style.display='';
+  if(db) db.put({id:'current',text:text}).catch(()=>{});
+  const chunks=chunksOf(text);
+  const speak=(c)=>gifos.ai.tts(Object.assign({text:c},V.value?{voice:V.value}:{}));
+  try{
+    let next=speak(chunks[0]);
+    for(let i=0;i<chunks.length&&playing&&my===session;i++){
+      say('Reading '+(i+1)+' of '+chunks.length+'…');
+      const audio=await next;
+      next=(i+1<chunks.length)?speak(chunks[i+1]):null; // synthesize ahead while playing
+      if(!playing||my!==session) break;
+      await playBytes(audio);
+    }
+    if(playing&&my===session) say('Done.');
+  }catch(err){ say('⚠ '+((err&&err.message)||err)); }
+  playing=false; readBtn.style.display=''; stopBtn.style.display='none';
+}
+readBtn.onclick=readAloud;
+stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__cur.pause(); }catch(e){} } say('Stopped.'); readBtn.style.display=''; stopBtn.style.display='none'; };
+(async()=>{
+  if(!window.gifos||!gifos.ai){ note.style.display=''; note.innerHTML='Open this inside GifOS to use it.'; return; }
+  db=gifos.db('texts');
+  db.get('current').then(d=>{ if(d&&d.text&&!T.value) T.value=d.text; }).catch(()=>{});
+  const m=await gifos.ai.models().catch(()=>({available:[]}));
+  if(!(m.available||[]).includes('tts')){
+    note.style.display='';
+    note.innerHTML='No <b>Text → speech</b> is set up yet. Easiest fix: install <b>Pocket Voice</b> from the App Store — a free Provider app that speaks entirely on this device (no account, no key). Or add an OpenAI-compatible endpoint under <b>Settings → AI models</b>. Then come back.';
+  }
+})();
+</script>`;
+
   function manifest(appId, name, accent, extra) {
     return JSON.stringify(Object.assign({
       gifos: '1.0', appId, name, version: '0.2.0', entry: 'index.html', accent,
@@ -3273,6 +3357,11 @@ document.getElementById('f').onsubmit=async e=>{
         // and the computer's own AI models. Both declare what they use.
         app('Speech Coach', 'speechcoach', [123, 92, 255], SPEECHCOACH_HTML, { capabilities: { db: true, microphone: true, network: [] } }),
         app('Ask AI', 'askai', [123, 92, 255], ASKAI_HTML, { capabilities: { db: true, ai: true, network: [] } }),
+        // The consumer half of the Provider story (docs/providers.md): reads
+        // any pasted text through the brokered Text → speech role — served by
+        // an endpoint OR an installed Provider app (e.g. Pocket Voice),
+        // interchangeably. Saved text is personal, never shared.
+        app('Reader', 'reader', [255, 170, 90], READER_HTML, { capabilities: { db: true, ai: ['tts'], network: [] }, data: { texts: PRIV } }),
       ] },
       { name: 'Social', apps: [
         app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML, { data: { entries: RW } }),
