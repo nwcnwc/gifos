@@ -102,8 +102,8 @@ main { max-width: 860px; margin: 0 auto; padding: 18px 14px 80px; }
 
 /* ---------- sentences tab ---------- */
 
-.field label { font-weight: 700; }
-#sentence-input {
+.field label { font-weight: 700; display: block; }
+.field textarea {
   width: 100%; margin-top: 6px;
   background: var(--panel); color: var(--text);
   border: 1px solid var(--line); border-radius: var(--radius);
