@@ -1621,6 +1621,17 @@
       const meta = { status: r.status, ok: r.ok, contentType: ct };
       if (as === 'bytes') return r.arrayBuffer().then((buf) => Object.assign(meta, { bytes: buf, mime: ct }));
       return r.text().then((t) => { if (as === 'json') { try { return Object.assign(meta, { json: JSON.parse(t) }); } catch (e) { /* not json */ } } return Object.assign(meta, { text: t }); });
+    }).catch((e) => {
+      // A dead network is not a missing key. fetch throws the same bare
+      // TypeError ("Failed to fetch") for airplane mode, a down host and a
+      // CORS block — and apps relayed it to players as "check your key",
+      // sending them to re-enter a credential that was saved, tested and
+      // fine. Name the actual failure, and keep a machine-readable prefix so
+      // apps can tell "network down" from "key wrong" without string-guessing.
+      if (root.navigator && root.navigator.onLine === false) {
+        throw new Error('OFFLINE: you are offline — "' + name + '" is set up; it will work when the connection returns.');
+      }
+      throw new Error('UNREACHABLE: could not reach ' + baseOrigin + ' — the "' + name + '" entry is set up; this is a network problem, not a key problem.');
     });
   }
 
