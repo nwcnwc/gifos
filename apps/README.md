@@ -89,6 +89,16 @@ how an app stays unlisted while it's being built.
   upstream is still moving; `listing.unpublished.json` holds the listing
   (see its README for the publish move). Guarded by
   `test/unit/sound-it-out.js`: segment-exact parity with the Python original.
+- **[pocket-voice](pocket-voice/)** — offline text-to-speech for the whole
+  computer, and the first **Provider app** (docs/providers.md): kept in the
+  Providers folder and assigned in Settings → AI models, it serves the
+  **Text → speech** AI role to every app via `gifos.provider.serve`. The GIF
+  ships slim; the eSpeak engine + voice arrive by the **install-time assets**
+  pattern (`gifos-assets.js` download-then-seal, pinned by sha256 in the
+  manifest) from [`site/apps/pocket-voice/assets/`](../site/apps/pocket-voice/assets/).
+  **GPLv3** (it embeds eSpeak via meSpeak/speak.js — see
+  [`pocket-voice/COPYING-espeak.txt`](pocket-voice/COPYING-espeak.txt)).
+  Finished GIF: [`site/apps/pocket-voice/pocket-voice.gif`](../site/apps/pocket-voice/pocket-voice.gif) (~170 KB + 5.6 MB assets).
 - **[chess-grandmaster](chess-grandmaster/)** — play **full-strength Stockfish**
   (real engine, NNUE) running entirely offline in the sandbox. Pick a level from
   ~1320 Elo to the unshackled engine, with a live win/draw/loss read-out and
