@@ -1,0 +1,12 @@
+{
+  "gifos": "1.0",
+  "appId": "offline-llm-bitnet",
+  "name": "Offline Cheap Text LLM BitNet",
+  "shortName": "BitNet LLM",
+  "version": "0.9",
+  "description": "A cheap text brain for your whole computer, running entirely on your device. A Provider app: put it in your Providers folder, assign it to Cheapest text LLM in Settings → AI models, and every app that asks for cheap text uses it — no account, no key, nothing leaves your device. Built on llama.cpp (wllama) with Microsoft's BitNet b1.58 ternary weights arriving as a hash-pinned download.",
+  "entry": "index.html",
+  "accent": [92, 220, 180],
+  "capabilities": { "wasm": true },
+  "provides": { "ai": ["cheapest"] }
+}
