@@ -43,7 +43,12 @@
         : Promise.resolve({ blob: new Blob([b64ToU8(window.LLM_DEMO_B64)]), kind: 'selftest', ctx: 512 });
       return getModel.then(function (m) {
         say(m.kind === 'bitnet' ? 'Loading BitNet weights (this can take a minute)…' : 'Loading the self-test model…');
-        return wllama.loadModel([m.blob], { n_ctx: m.ctx }).then(function () {
+        // skip_chat_parsing: this provider returns PLAIN TEXT — it never wants
+        // llama.cpp's structured chat parser (tool calls, reasoning blocks).
+        // That parser THROWS on anything it can't parse, and the self-test
+        // model emits token soup by design, so leaving it on makes the
+        // self-test path fail outright ("Failed to parse input at pos 0: …").
+        return wllama.loadModel([m.blob], { n_ctx: m.ctx, skip_chat_parsing: true }).then(function () {
           live.kind = m.kind;
           live.model = wllama;
           say('');
