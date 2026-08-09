@@ -121,9 +121,9 @@ async function openApp(page, ctx, folder, label) {
   await page.waitForSelector('.icon', { timeout: 8000 });
   await sleep(400);
   const labels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('desktop root has folders + Welcome + Meeting + Broadcast + App Store + Trash + Stolen Apps + My Media', labels.length === 12); // Broadcast.gif (Meeting's sibling skin) joined the default root seed
+  check('desktop root has folders + Welcome + Meeting + Broadcast + App Store + Trash + Stolen Apps + Providers + My Media', labels.length === 13); // Providers system folder joined the left column (docs/providers.md)
   check('App Store is a root icon (where more apps come from)', labels.includes('App Store.gif'));
-  check('has Games / Studio / Tools / Social / IRL Games / Stolen Apps folders', ['Games', 'Studio', 'Tools', 'Social', 'IRL Games', 'Stolen Apps'].every((f) => labels.includes(f)));
+  check('has Games / Studio / Tools / Social / IRL Games / Stolen Apps / Providers folders', ['Games', 'Studio', 'Tools', 'Social', 'IRL Games', 'Stolen Apps', 'Providers'].every((f) => labels.includes(f)));
   check('Stolen Apps wears its treasure-chest GIF (not the bare 📁 glyph)',
     await page.locator('.icon', { hasText: /^Stolen Apps$/ }).locator('.thumb img').count() === 1);
   check('has Welcome.gif at root', labels.includes('Welcome.gif'));
@@ -947,7 +947,7 @@ async function openApp(page, ctx, folder, label) {
   await sys.waitForSelector('.icon');
   await sleep(600);
   const freshLabels = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 12 && !freshLabels.includes('Resume.gif')); // 12 root items now (Broadcast.gif added as Meeting's sibling)
+  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 13 && !freshLabels.includes('Resume.gif')); // 13 root items now (Providers system folder joined the left column, docs/providers.md)
 
   await sys.setInputFiles('#restore-input', backupPath);
   await sys.locator('.modal-actions button', { hasText: 'Replace Home Screen' }).click();

@@ -434,14 +434,16 @@
     const sysSpot = { x: GRID.origin, y: GRID.origin + 3 * GRID.pitch };
     // FRESH SEED (pendingStoreApp held by seedIfEmpty): the left column is
     // laid out deterministically — Welcome / My Media / Stolen Apps / App
-    // Store / Trash — so the store sits RIGHT BELOW the chest (user decision
-    // 2026-08-02: the store and the loot live together). Existing desktops
-    // keep their arrangement: the aims below only apply to items that do not
-    // exist yet, and saveItem still resolves every aim to a free cell.
+    // Store / Providers / Trash — so the store sits RIGHT BELOW the chest
+    // (user decision 2026-08-02: the store and the loot live together; the
+    // store's own aim is chest+1 = row 3, which is why Providers takes row 4).
+    // Existing desktops keep their arrangement: the aims below only apply to
+    // items that do not exist yet, and saveItem still resolves every aim to a
+    // free cell.
     const fresh = !!pendingStoreApp;
     const rowAt = (r) => ({ x: GRID.origin, y: GRID.origin + r * GRID.rowPitch });
     if (!items.find((i) => i.id === TRASH_ID)) {
-      const at = fresh ? rowAt(4) : sysSpot;
+      const at = fresh ? rowAt(5) : sysSpot;
       await saveItem({ id: TRASH_ID, kind: 'folder', name: 'Trash', parent: null,
         x: at.x, y: at.y, iconSize: 64 }, { at });
       await load();
@@ -470,11 +472,11 @@
     // 'sys_providers' — where Provider apps LIVE to be recognized
     // (docs/providers.md). The runtime broker and the Settings picker only
     // honour direct children of this folder; anywhere else a provider icon
-    // wears the red ✕. Created below the chest so the two system racks read
-    // as one column on a fresh desktop.
+    // wears the red ✕. Fresh seed: row 4 of the left system column (right
+    // under the App Store, which itself aims for the cell under the chest).
     let providers = items.find((i) => i.id === 'sys_providers');
     if (!providers) {
-      const at = fresh ? rowAt(3) : sysSpot;
+      const at = fresh ? rowAt(4) : sysSpot;
       providers = { id: 'sys_providers', kind: 'folder', name: 'Providers', parent: null,
         x: at.x, y: at.y, iconSize: 64 };
       await saveItem(providers, { at });
