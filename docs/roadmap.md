@@ -1134,15 +1134,21 @@ live; only the IAP rail below is still unbuilt.
   self-contained browser apps and games that are one packaging step away from
   being App GIFs. Batch-port a curated set (license permitting, credited,
   linked back) and list them.
-  - **The example that sets the bar: Hop.Earth** (@DVLPLONDON, announcement at
+  - **The example that set the bar: Hop.Earth** (@DVLPLONDON, announcement at
     3.9M views): a browser three.js driving game where the world is generated
     around you in real time from OpenStreetMap data + satellite elevation —
     click anywhere on the planet, "Hop Here", and drive. Single-player is
     exactly our solo app posture; its multiplayer mode is *"Create race →
-    share the link → friends race you"* — which IS the GifOS invite flow, so
-    a port gets lobby/link/mesh for free from the runtime instead of running
-    its own share plumbing. An app like this in the store is the demo that
-    explains GifOS in one install.
+    share the link → friends race you"* — which IS the GifOS invite flow.
+    **STATUS 2026-08-09: realized first-party as Anyroad** rather than ported —
+    drive (and now fly) anywhere on Earth; OSM roads/buildings + AWS terrarium
+    elevation + satellite-classified forests; races, wildlife, blaster,
+    breachable walls; multiplayer via app rooms; in the store, signed, with
+    progression that survives updates. The port idea is retired — Hop.Earth
+    keeps the credit as the proof-of-demand that started it. What remains
+    portable from its playbook is marketing shape, not code: one-click "Hop
+    Here" from a shared link into a race is still the demo that explains
+    GifOS in one install (see §11 for where Anyroad goes next).
   - **Second example: putt.day** (by ell.dev, models Kenney CC0) — Wordle for
     minigolf. One hole a day, the same for the whole world, only your first
     attempt counts; slingshot input; a shareable Wordle-style score card;
@@ -2021,3 +2027,91 @@ to GifOS's native unit of exchange: the **App GIF**.
 - **Relation to §6/§7.** This is a **transport**, orthogonal to the store
   (§6, catalog + download) and the ONE-runtime unification (§7, sessions). It
   neither needs nor blocks them; it can ship as a standalone client feature.
+
+---
+
+## 11. Anyroad takes off properly: the flight sim, and who pays for the planet
+
+**What.** Grow Anyroad's aeroplane from a toy into the second half of the app: a
+real flight model, aerodromes that exist because OSM says they do, instruments
+that mean something at altitude, and long-haul flight over ground the app is
+already good at drawing. Anyroad flies today — wings, an altimeter, hard-landing
+damage, roof strikes — but it flies like a car that stopped touching the ground.
+
+**Why now.** worldflightsim.com (built with Claude Code; Three.js + CesiumJS,
+306K views on the 2026-08-09 announcement) is the same demand Hop.Earth proved
+for driving: *fly anywhere on the real Earth, in a browser, no install.* We are
+one app away from it, on a runtime whose whole pitch is "no install" — and the
+gap between the two products is not graphics, it is **who pays for the planet.**
+
+### 11a. The bill is the architecture
+
+World Flight Sim gets its photorealism from **Google's Photorealistic 3D
+Tiles** (Map Tiles API). Checked 2026-08-09: that needs a Google Cloud billing
+account and an API key, the free tier is **1,000 root tile requests/month**, and
+past it the meter runs from **$6.00 per 1,000 requests**. The flat $200 monthly
+credit that used to paper over this is gone, replaced by per-SKU caps. So a
+*popular* photoreal Earth app has exactly three futures: stay tiny, have an
+operator who pays, or ride a preview SKU until it prices.
+
+None of those are available to us, and that is a feature, not a wound. GifOS has
+**no operator who can hold a key** — an app is a GIF that runs on your computer,
+so a central credential would be both a server we don't have and a bill nobody
+signed up for. The doctrine Anyroad already implements is the answer, and it
+should be written down as the rule for every "planet-scale data" app:
+
+- **Open data is the default, and it must stand alone.** OSM for roads,
+  buildings, water, landcover; AWS terrarium for elevation. Both open, both
+  free, both good enough that the app is complete without anyone's key. Today's
+  flight over stylised terrain is not a degraded mode — it is the product.
+- **Metered imagery is BYOK, always.** The satellite drape goes through
+  `gifos.api`, so the key lives in the player's Settings, the quota is the
+  player's own, and the app never sees the credential. The same shape extends
+  to Google's 3D Tiles the day someone wants photoreal: a `google3d` entry in
+  `KNOWN_APIS`, their key, their bill, their choice. **The app must never ship
+  a key, and must never require one.**
+- **Pooling is our unfair advantage.** Anyroad already declares
+  `capabilities.pool`: in a room, a tile fetched by one player answers everyone
+  (measured in `e2e-anyroad-mp`: 9 tiles, 9 upstream requests, three players).
+  Against a *metered* API that stops being politeness to a donated server and
+  becomes real money — ten friends on a formation flight burn one player's
+  quota once, not ten times. Nobody with a central key can offer that, because
+  a central key has nobody to pool with.
+- **If it must be paid, pay it the account-free way (§2).** x402 per-player
+  metering is the only shape that fits: a wallet signature, not a subscription
+  we administer.
+
+### 11b. What the flight itself needs
+
+- **A flight model worth the name.** Lift/drag/stall against airspeed and angle
+  of attack, not the current "car with a vertical axis". Trim, throttle, flaps;
+  a stall that drops the nose and can be recovered. The cockpit instruments are
+  already there to read it (§ dash rework, 2026-08-09).
+- **Aerodromes, from the map we already parse.** OSM carries
+  `aeroway=aerodrome|runway|taxiway|apron` with surface and orientation — the
+  same `out geom` query that draws streets can draw runways with numbers on
+  them. That turns "fly anywhere" into "fly *somewhere*": take off from the
+  strip nearest you, land at a real one across the water.
+- **Distance.** Driving needs 6 km of draw; flight needs a horizon, which means
+  a coarse far-field LOD (a low-zoom terrain skirt beyond the detailed set)
+  rather than raising `DRAW_DISTANCE` and asking a phone to draw a county at
+  full detail. This is the one genuinely new rendering problem.
+- **Air traffic and the reason to fly.** The tweet's modes (free roam, ATC
+  challenges, ring runs, career progression) are the shape players expect.
+  Rings and timed legs ride the race machinery Anyroad already has; multiplayer
+  formation flight and shared legs ride app rooms, for free, the way races do.
+
+**Open questions.**
+- **Does photoreal actually beat stylised at 200 knots?** Photogrammetry mesh is
+  gorgeous at 300 m and mush at 3,000. Our stylised world may simply be the
+  better *flight* look — worth an A/B before treating 3D Tiles as the goal.
+- **Where does the flight model live?** A second physics module beside `car.js`,
+  or one vehicle module with two regimes? The wings are currently bolted onto
+  the car and that seam is already showing.
+- **Runway data quality.** OSM aerodrome coverage is excellent for airliners and
+  patchy for grass strips; decide the honest fallback when the nearest "runway"
+  is a mapped centreline with no surface tag.
+- **One app or two?** Anyroad-with-wings keeps one install, one cache, one set
+  of remembered places — but a flight sim's settings, HUD and controls are a
+  different product wearing the same map. Lean one app, two modes; revisit if
+  the settings sheet becomes two sheets in a trenchcoat.
