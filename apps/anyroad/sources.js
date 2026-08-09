@@ -146,14 +146,27 @@
       maxZoom: 22 },
   ];
 
-  // Megabytes of offline map to keep. '8' is the old fixed cache and does no
-  // background filling; anything larger fills ahead while the network is idle.
-  var OFFLINE_MB = ['8', '50', '200', '1000'];
-  var OFFLINE_LABEL = {
-    '8':    'Just what I drive through (~8 MB)',
-    '50':   'Fill in around me — 50 MB',
-    '200':  'Fill in around me — 200 MB',
-    '1000': 'Fill in around me — 1 GB',
+  // TWO offline-map dials, because one dial was answering two questions.
+  // KEEP is the budget for map you have actually driven or searched through —
+  // your own trail, the part you meant when you said "remember where I've
+  // been". FILL is EXTRA map fetched ahead around you while the network is
+  // idle — a different bargain (bandwidth now for coverage later), so it gets
+  // its own switch instead of hiding inside the keep number. Both are DISK,
+  // not memory: parsed geometry in IndexedDB. The drawn set stays capped
+  // whatever these say — see MAX_TERRAIN_TILES.
+  var KEEP_MB = ['8', '20', '50', '200'];
+  var KEEP_LABEL = {
+    '8':   'Light — 8 MB',
+    '20':  'Roomy — 20 MB',
+    '50':  'Generous — 50 MB',
+    '200': 'A whole region — 200 MB',
+  };
+  var FILL_MB = ['off', '50', '200', '1000'];
+  var FILL_LABEL = {
+    off:    'Off — only where I drive',
+    '50':   'A little ahead — 50 MB',
+    '200':  'Well ahead — 200 MB',
+    '1000': 'The whole area — 1 GB',
   };
 
   function byId(list, id) {
@@ -184,10 +197,8 @@
     traffic: 'normal',      // 'none' | 'light' | 'normal' | 'heavy'
     sound: 'on',            // engine, tyres, traffic, animals. No music.
     blaster: 'on',          // the gun on the roof, and space/tap to fire it
-    // How much offline map to keep, in megabytes, and whether to keep filling
-    // it in while you drive. DISK, not memory: parsed geometry in IndexedDB.
-    // The drawn set stays capped whatever this says — see MAX_TERRAIN_TILES.
-    offline: '8',
+    keep: '20',             // MB of driven-through map remembered (see KEEP_MB)
+    fill: 'off',            // MB of extra map built out ahead (see FILL_MB)
   };
   var current = Object.assign({}, DEFAULTS);
   var listeners = [];
@@ -208,7 +219,15 @@
         if (['none', 'light', 'normal', 'heavy'].indexOf(rec.traffic) >= 0) current.traffic = rec.traffic;
         if (rec.sound === 'on' || rec.sound === 'off') current.sound = rec.sound;
         if (rec.blaster === 'on' || rec.blaster === 'off') current.blaster = rec.blaster;
-        if (OFFLINE_MB.indexOf(rec.offline) >= 0) current.offline = rec.offline;
+        if (KEEP_MB.indexOf(rec.keep) >= 0) current.keep = rec.keep;
+        if (FILL_MB.indexOf(rec.fill) >= 0) current.fill = rec.fill;
+        // The old single `offline` dial, migrated: its number was really the
+        // FILL amount (anything past 8 filled ahead), and '8' was the forced
+        // default nobody chose — those players get the new roomier keep.
+        if (rec.keep == null && rec.fill == null && rec.offline != null) {
+          if (rec.offline === '8') { current.keep = '20'; current.fill = 'off'; }
+          else if (FILL_MB.indexOf(rec.offline) >= 0) { current.keep = '50'; current.fill = rec.offline; }
+        }
       }
       return current;
     }).catch(function () { return current; });
@@ -231,9 +250,17 @@
     TERRAIN: TERRAIN, ROADS: ROADS, IMAGERY: IMAGERY,
     load: load, set: set, expand: expand, attribution: attribution,
     roadsCover: roadsCover, roadsPool: roadsPool, roadsFor: roadsFor,
-    OFFLINE_MB: OFFLINE_MB, OFFLINE_LABEL: OFFLINE_LABEL,
-    offlineBytes: function () { return parseInt(current.offline, 10) * 1024 * 1024; },
-    fillsAhead: function () { return current.offline !== '8'; },
+    KEEP_MB: KEEP_MB, KEEP_LABEL: KEEP_LABEL, FILL_MB: FILL_MB, FILL_LABEL: FILL_LABEL,
+    keepBytes: function () { return parseInt(current.keep, 10) * 1024 * 1024; },
+    fillBytes: function () { return current.fill === 'off' ? 0 : parseInt(current.fill, 10) * 1024 * 1024; },
+    // The cache holds BOTH: your trail and whatever the filler brought in —
+    // one eviction budget, so the filler can never evict your trail below its
+    // own keep number.
+    totalBytes: function () {
+      return parseInt(current.keep, 10) * 1024 * 1024
+           + (current.fill === 'off' ? 0 : parseInt(current.fill, 10) * 1024 * 1024);
+    },
+    fillsAhead: function () { return current.fill !== 'off'; },
     onChange: function (cb) { listeners.push(cb); },
     get current() { return current; },
     get terrain() { return byId(TERRAIN, current.terrain); },

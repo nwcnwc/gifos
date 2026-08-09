@@ -2275,6 +2275,24 @@ function check(name, cond, detail) {
     stickArc.moving > 1.5, stickArc.moving + ' m/s');
   await fr.locator('body').evaluate(() => document.querySelector('#schemes button[data-scheme="wheel"]').click());
 
+  // ---- the offline map has two dials ----------------------------------------
+  // One dropdown answered two questions — how much of YOUR TRAIL to remember,
+  // and how much EXTRA to build out ahead — so you could not keep a bigger
+  // trail without signing up for background download. Two dials now, and the
+  // trail default is 20 MB, not the old 8.
+  const dials = await fr.locator('body').evaluate(() => ({
+    keep: document.getElementById('ctl-keep') && document.getElementById('ctl-keep').value,
+    fill: document.getElementById('ctl-fill') && document.getElementById('ctl-fill').value,
+    keepOpts: document.getElementById('ctl-keep') ? document.getElementById('ctl-keep').options.length : 0,
+    fillOpts: document.getElementById('ctl-fill') ? document.getElementById('ctl-fill').options.length : 0,
+    totalMB: Math.round(window.Sources.totalBytes() / 1048576),
+    fills: window.Sources.fillsAhead(),
+  }));
+  check('the offline map is TWO dials — your trail and the build-out — defaulting to a 20 MB trail, no fill',
+    dials.keep === '20' && dials.fill === 'off' && dials.keepOpts >= 4 && dials.fillOpts >= 4
+    && dials.totalMB === 20 && dials.fills === false,
+    JSON.stringify(dials));
+
   // ==== THE TWO-CITY CODA ===================================================
   // "I went to Paris then Tokyo and the map was glitching hugely with Paris
   // street names." A hop empties world.roads, but a road tile already in

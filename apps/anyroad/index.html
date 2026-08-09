@@ -315,9 +315,17 @@
         which makes busy cities load faster.</small>
     </label>
 
+    <!-- Two dials, two questions. KEEP is your own trail — the map you have
+         actually driven and searched through. FILL is extra map fetched ahead
+         while the network is idle. They were one dropdown, which forced the
+         two decisions to travel together. -->
     <label class="field">
-      <span>Offline map</span>
-      <select id="ctl-offline"></select>
+      <span>Remember where I&rsquo;ve driven</span>
+      <select id="ctl-keep"></select>
+    </label>
+    <label class="field">
+      <span>Build out the map around me</span>
+      <select id="ctl-fill"></select>
       <small id="note-offline"></small>
     </label>
 
