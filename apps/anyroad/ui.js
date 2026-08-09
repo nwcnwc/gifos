@@ -37,6 +37,7 @@
      'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-offline','note-offline','race-dist',
      'street','passing','recent','cockpit','cockpit-wheel','pov-eye',
      'dash-speed','dash-cond-fill','speedo','btn-fly','fly-plane','fly-car','dash-unit',
+     'dash-alt','dash-alt-m',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
@@ -594,9 +595,12 @@
         el['cockpit-wheel'].style.transform = 'translateX(-50%) rotate(' + deg.toFixed(1) + 'deg)';
         last.povDeg = deg;
       }
-      // Flying: the button offers the OTHER vehicle, the readout becomes an
-      // altimeter, and the whole cockpit takes a warmer tint so there is never
-      // a doubt about which one you are in.
+      // Flying: the button offers the OTHER vehicle, the ALTIMETER lights up
+      // as its own instrument, and the whole cockpit takes a warmer tint so
+      // there is never a doubt about which one you are in. The speedometer
+      // stays a speedometer — it used to swap to metres mid-flight, which
+      // blanked your airspeed at exactly the moment you were managing height
+      // AND speed at once.
       var fly = !!(s.flying || s.falling);
       if (fly !== last.flying) {
         last.flying = fly;
@@ -605,9 +609,13 @@
         if (el['fly-plane']) el['fly-plane'].hidden = fly;
         if (el['fly-car']) el['fly-car'].hidden = !fly;
         if (el['btn-fly']) el['btn-fly'].setAttribute('aria-label', fly ? 'Be a car again' : 'Take off');
-        if (el['dash-unit']) el['dash-unit'].textContent = fly ? 'm above ground' : 'km/h';
+        if (el['dash-alt']) el['dash-alt'].hidden = !fly;
       }
-      var dk = fly ? (s.agl || 0) : Math.round(s.speed);
+      if (fly && el['dash-alt-m']) {
+        var da = Math.round(s.agl || 0);
+        if (da !== last.dashAlt) { el['dash-alt-m'].textContent = da; last.dashAlt = da; }
+      }
+      var dk = Math.round(s.speed);
       if (dk !== last.dashKph && el['dash-speed']) {
         el['dash-speed'].textContent = dk;
         last.dashKph = dk;
