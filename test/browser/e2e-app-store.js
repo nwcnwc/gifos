@@ -278,9 +278,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const rebirth = await page.evaluate(async (appId) => {
     const files = await GifOS.store.allFiles();
     const f = files.find((x) => x.appId === appId);
+    // Collection state is exploded per-record and reassembled, so the rows
+    // may come back as an array or an id-keyed map — accept either shape.
     const st = f ? await GifOS.store.getState(f.id) : null;
-    const marker = st && st.collections && st.collections.prefs
-      && st.collections.prefs.find((r) => r.id === 'marker');
+    const rows = st && st.collections && st.collections.prefs;
+    const list = Array.isArray(rows) ? rows : (rows ? Object.values(rows) : []);
+    const marker = list.find((r) => r && r.id === 'marker');
     return { id: f && f.id, marker: marker ? marker.v : null };
   }, target.appId);
   check('a reinstall resurrects the app\'s old identity (same fileId)',
