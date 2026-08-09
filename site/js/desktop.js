@@ -158,7 +158,9 @@
   // Folders are all the one classic manila tan — no per-folder colours. The
   // treasure chest ('Stolen Apps') keeps its own gold, since it isn't a folder.
   const MANILA = [227, 197, 122];
-  const FOLDER_ACCENTS = { 'Stolen Apps': [255, 200, 80] };
+  // …and the Providers rack keeps electric violet: it isn't storage, it's the
+  // socket board the OS plugs abilities into (docs/providers.md).
+  const FOLDER_ACCENTS = { 'Stolen Apps': [255, 200, 80], Providers: [123, 92, 255] };
   function accentFor(name) {
     return FOLDER_ACCENTS[name] || MANILA;
   }
@@ -465,6 +467,30 @@
         await load();
       } catch (e) { /* falls back to the 📁 glyph */ }
     }
+    // 'sys_providers' — where Provider apps LIVE to be recognized
+    // (docs/providers.md). The runtime broker and the Settings picker only
+    // honour direct children of this folder; anywhere else a provider icon
+    // wears the red ✕. Created below the chest so the two system racks read
+    // as one column on a fresh desktop.
+    let providers = items.find((i) => i.id === 'sys_providers');
+    if (!providers) {
+      const at = fresh ? rowAt(3) : sysSpot;
+      providers = { id: 'sys_providers', kind: 'folder', name: 'Providers', parent: null,
+        x: at.x, y: at.y, iconSize: 64 };
+      await saveItem(providers, { at });
+      await load();
+      providers = items.find((i) => i.id === 'sys_providers') || providers;
+    }
+    if (!providers.fileId) {
+      try {
+        const fileId = store.uid('file');
+        const bytes = await makeFolderGif('Providers', FOLDER_ACCENTS.Providers, 'plug');
+        await store.putFile({ id: fileId, name: 'Providers.gif', bytes, kind: 'gif', isApp: false, mime: 'image/gif' });
+        providers.fileId = fileId;
+        await saveItem(providers);                 // same cell — only the art changed
+        await load();
+      } catch (e) { /* falls back to the 📁 glyph */ }
+    }
   }
 
   // ---------- rendering ----------
@@ -495,8 +521,9 @@
     if (appMetaCache.has(fileId)) return appMetaCache.get(fileId);
     const p = gif.decode(bytes).then((arc) => {
       const m = arc ? (gif.readManifest(arc) || {}) : {};
-      return { shortName: (m.shortName || m.name || '').toString().trim(), version: (m.version || '').toString().trim() };
-    }).catch(() => ({ shortName: '', version: '' }));
+      const prov = m.provides && Array.isArray(m.provides.ai) ? m.provides.ai.filter(Boolean) : [];
+      return { shortName: (m.shortName || m.name || '').toString().trim(), version: (m.version || '').toString().trim(), provides: prov };
+    }).catch(() => ({ shortName: '', version: '', provides: [] }));
     appMetaCache.set(fileId, p);
     return p;
   }
@@ -543,11 +570,14 @@
   function iconKey(it, file, fresh, meta) {
     const trash = it.id === TRASH_ID ? (items.some((i) => i.parent === TRASH_ID) ? 'full' : 'empty') : '';
     const verdict = (sigVerdicts.get(it.fileId) || {}).status || '';
-    const idpill = meta ? (meta.shortName + '@' + meta.version) : '';
+    const idpill = meta && meta.signed ? (meta.shortName + '@' + meta.version) : '';
+    // A Provider app outside its folder wears the red ✕ — position is part of
+    // the LOOK, so the flag lives in the key and a move repaints immediately.
+    const provX = (meta && meta.provides && meta.provides.length && (it.parent || null) !== 'sys_providers') ? 'provX' : '';
     // Joined with a control char (U+0001) that can't appear in names/ids, so
     // distinct field combinations can never collide into the same key.
     return [it.fileId || '', it.name, it.x | 0, it.y | 0, it.iconSize || 64, it.kind,
-      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : '', idpill].join('');
+      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : '', idpill, provX].join('');
   }
 
   const FILE_EMOJI = { gif: '🖼️', other: '📄' };
@@ -571,14 +601,18 @@
       if (!f || !f.isApp || SYSTEM_LAUNCHERS[f.appId]) return false;
       return Promise.resolve(store.getState(it.fileId)).then((st) => !stateHasData(st)).catch(() => false);
     }));
-    // Identity pill (short name + version) for SIGNED app tiles only — decoding
-    // the manifest is cached per fileId, and unsigned/non-app tiles never decode.
+    // Per-tile manifest meta (cached decode per fileId), two consumers: the
+    // identity pill (SIGNED tiles only — buildIcon gates on meta.signed) and
+    // the Provider red-✕ (any tile whose manifest carries `provides` and whose
+    // icon is outside the Providers folder — docs/providers.md).
     const metas = await Promise.all(visible.map((it, i) => {
       const f = files[i];
       if (!f || !f.isApp || f.kind !== 'gif' || !f.bytes) return null;
       const bytes = f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes);
-      if (!GifOS.sign || !GifOS.sign.readSig(bytes)) return null;
-      return getAppMeta(it.fileId, bytes).then((m) => (m && (m.shortName || m.version)) ? m : null).catch(() => null);
+      const signed = !!(GifOS.sign && GifOS.sign.readSig(bytes));
+      return getAppMeta(it.fileId, bytes)
+        .then((m) => (m && (m.shortName || m.version || (m.provides && m.provides.length))) ? Object.assign({ signed }, m) : null)
+        .catch(() => null);
     }));
     // Synced-mirror flag per tile: a copy bound to an eternal link (carries a
     // <fileId>::mirror binding). Drives the "MIRROR" band across the icon.
@@ -722,7 +756,7 @@
           sys.textContent = 'SYS';
           sys.title = SYSTEM_LAUNCHERS[file.appId];
           thumb.appendChild(sys);
-        } else if (meta && (meta.shortName || meta.version)) {
+        } else if (meta && meta.signed && (meta.shortName || meta.version)) {
           // Identity pill (top-center, like SYSTEM): the signed app's own short
           // name + version. Only signed tiles reach here — see render().
           const idp = document.createElement('span');
@@ -732,6 +766,17 @@
           if (meta.version) { const s = document.createElement('span'); s.className = 'ver'; s.textContent = (nm ? ' ' : '') + 'v' + meta.version; idp.appendChild(s); }
           idp.title = (meta.shortName ? meta.shortName + ' ' : '') + (meta.version ? 'version ' + meta.version : '') + ' — the app’s own name and version, shown because this app is signed.';
           thumb.appendChild(idp);
+        }
+        // Provider app outside the Providers folder: big red ✕ over the tile.
+        // The GIF is intact and shareable — the ✕ means "inert here": the OS
+        // only recognizes a provider whose icon sits DIRECTLY in Providers
+        // (docs/providers.md), so nothing ever serves from a random folder.
+        if (meta && meta.provides && meta.provides.length && (it.parent || null) !== 'sys_providers') {
+          const px = document.createElement('span');
+          px.className = 'provider-x';
+          px.textContent = '✕';
+          px.title = 'This is a Provider app — it can serve abilities (like AI models) to your whole computer, but ONLY from inside the Providers folder. Move it there to activate it; out here it does nothing.';
+          thumb.appendChild(px);
         }
       } else {
         thumb.textContent = FILE_EMOJI[file ? file.kind : 'other'] || '📄';
@@ -2746,13 +2791,25 @@
     // Already on the desktop (a double-back, a re-shared link): show it, don't
     // add a second icon for the same file.
     if (items.some((i) => i.fileId === fileId)) { render(); return; }
+    // A Provider app (manifest `provides`, docs/providers.md) files itself
+    // into the Providers folder — recognition is a PLACE, and a store install
+    // should land active, not wearing the red ✕ on the Home Screen.
+    let isProvider = false;
+    try {
+      const bytes = f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes);
+      const m = await getAppMeta(fileId, bytes);
+      isProvider = !!(m && m.provides && m.provides.length);
+    } catch (e) { /* not decodable — plain install */ }
+    if (isProvider) await ensureSystemItems(); // the folder must exist to land in
     await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: f.name,
-      parent: null, iconSize: 64 });
+      parent: isProvider ? 'sys_providers' : null, iconSize: 64 });
     await load();
     render();
     const name = (f.name || 'The app').replace(/\.gif$/i, ''); // showConfirm escapes the title; labels are textContent
     showConfirm(name + ' is installed',
-      'It’s on your Home Screen now — a GIF file you own. Copy it anywhere; it runs anywhere.',
+      isProvider
+        ? 'It’s in your <b>Providers</b> folder — it can now serve your computer. Assign it to an AI type in <b>Settings → AI models</b> and every app that asks for that ability will use it.'
+        : 'It’s on your Home Screen now — a GIF file you own. Copy it anywhere; it runs anywhere.',
       [
         { label: 'Open ' + name, fn: () => { location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); } },
         from === 'store' ? { label: 'Back to the Store', fn: () => { location.href = 'store.html' + (nsParam('#db=') || ''); } } : null,

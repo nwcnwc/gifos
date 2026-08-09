@@ -237,6 +237,18 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
   background: #62627a; color: #e6e6f0;
 }
 
+/* Big red ✕ across a PROVIDER app anywhere outside the Providers folder
+   (docs/providers.md): the OS only recognizes providers living directly in
+   that folder, so out here the app is inert and the tile says so at full
+   size — not a badge, a veto. The GIF underneath stays visible (it's intact
+   and shareable); pointer-events on, so the tooltip explains the fix. */
+.provider-x {
+  position: absolute; inset: -4px; display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--isize, 64px) * 0.95); font-weight: 800; line-height: 1;
+  color: #ff3b30; text-shadow: 0 0 6px rgba(0,0,0,.65), 0 0 2px rgba(0,0,0,.9);
+  pointer-events: auto; cursor: help; user-select: none;
+}
+
 /* "MIRROR" band straight across the middle of a synced-mirror icon — a bright
    cyan ribbon (its own colour, distinct from NEW/SYSTEM/identity) that reads at
    a glance as "this copy tracks a master elsewhere". */
