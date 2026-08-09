@@ -223,6 +223,30 @@ check('the highlight goes out on long pads (NEUTRAL_PAD ported)',
 check('the approach floor pressed closer (50ms)',
   cur.APPROACH_FLOOR === 0.05, cur.APPROACH_FLOOR);
 
+// ---- the cap curve (0.5.3: the sounds compress with the gaps) ---------------
+{
+  const segs = cur.approach([['s', 's'], ['a', 'æ'], ['t', 't']], 1.5, 3);
+  const caps = [...new Set(segs.map((seg) => Math.round(seg.clip.cap * 1000) / 1000))];
+  check('approach caps sounds on the shrinking curve: 1.1s down to 0.5s',
+    Math.abs(caps[0] - 1.1) < 1e-9 && Math.abs(caps[caps.length - 1] - 0.5) < 1e-9
+    && caps.length === 3 && caps[0] > caps[1] && caps[1] > caps[2], caps);
+
+  const sr = 24000;
+  const long = new Float32Array(Math.round(sr * 2.6)).fill(0.4);
+  const cut = SIO.dsp.capData(long, sr, 0.5);
+  check('capData trims a 2.6s hold to 0.5s and fades the tail to silence',
+    cut.length === Math.trunc(sr * 0.5) && Math.abs(cut[cut.length - 1]) < 1e-6
+    && Math.abs(cut[0] - 0.4) < 1e-6, [cut.length, cut[cut.length - 1], cut[0]]);
+  const short = new Float32Array(Math.round(sr * 0.2)).fill(0.4);
+  check('capData leaves a short crisp stop untouched', SIO.dsp.capData(short, sr, 0.5) === short);
+
+  // 0.5.2: a real mouth's hold (median 1.22s) must score well now
+  const a = new Float32Array(Math.round(sr * 1.6));
+  for (let i = 0; i < sr * 1.2; i++) a[Math.round(sr * 0.2) + i] = 0.4 * Math.sin((2 * Math.PI * 440 * i) / sr);
+  const sc = SIO.dsp.scoreTake(a, sr, { kind: 'phoneme', ipa: 's', length: 'hold' });
+  check('a 1.2s hold - what real mouths produce - scores high', !sc.fatal && sc.value > 90, sc.value);
+}
+
 // ---- the DSP port -----------------------------------------------------------
 {
   const dsp = SIO.dsp;

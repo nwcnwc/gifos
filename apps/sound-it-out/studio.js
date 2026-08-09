@@ -29,7 +29,7 @@
         key: p.key, kind: 'phoneme', display: p.display, ipa: p.ipa,
         example: p.example, length: p.length,
         say: `Say the “${p.display}” sound, as in “${p.example}” - `
-          + (hold ? 'hold it for about two seconds.'
+          + (hold ? 'hold it for a second or two.'
             : p.length === 'crisp' ? 'keep it short and crisp.' : 'say it naturally.'),
       };
     });

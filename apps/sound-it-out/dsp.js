@@ -108,6 +108,17 @@
     return a.subarray(lo, hi);
   }
 
+  // gen/soundout.cap(): shorten a clip with a fade, or return it untouched.
+  // The fade keeps a trimmed hold sounding like a shorter hold, not a cut.
+  function capData(a, sr, seconds, fadeMs) {
+    const n = Math.trunc(seconds * sr);
+    if (a.length <= n) return a;
+    const out = Float32Array.from(a.subarray(0, n));
+    const f = Math.min(Math.round(sr * (fadeMs || 60) / 1000), out.length);
+    for (let i = 0; i < f; i++) out[out.length - f + i] *= 1 - i / (f - 1 || 1);
+    return out;
+  }
+
   // Radix-2 FFT (real input, magnitude out), zero-padded to a power of two.
   // The Python original uses an exact-length rfft; zero-padding shifts the
   // spectral centroid by a hair, which is irrelevant against a 2200 Hz
@@ -235,8 +246,12 @@
   // ---- take scoring (gen/studio.py) ----------------------------------------
 
   // Per class, the length a take should be: [min, max, ideal] seconds.
+  // The hold ideal is 1.3s, not the 2.0 it used to be: measured against
+  // guidance that said "about two seconds", a motivated adult held a MEDIAN
+  // of 1.22s - the scorer was docking every normal take for missing a target
+  // nobody hits. The videos prefer shorter holds anyway.
   const LENGTH_TARGET = {
-    hold: [1.0, 3.0, 2.0],
+    hold: [0.7, 3.0, 1.3],
     crisp: [0.05, 0.60, 0.20],
     free: [0.08, 1.50, 0.40],
     line: [0.8, 6.0, 2.2],
@@ -415,7 +430,7 @@
   SIO.dsp = {
     VOWELS, STOPS, SONORANTS, phonemeClass,
     b64ToBytes, bytesToB64, audioContext, decodeBytes, toMono, bufferFrom,
-    peakOf, rmsOf, trim, trimBounds, buckets, schwaTail, sonorantTail,
+    peakOf, rmsOf, trim, trimBounds, capData, buckets, schwaTail, sonorantTail,
     LENGTH_TARGET, TAKES, takesFor, ADVICE, scoreTake, choose, stretch,
   };
 })();

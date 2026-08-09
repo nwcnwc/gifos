@@ -121,10 +121,19 @@
     const kind = req.kind;
     try {
       if (kind === 'phoneme') {
+        // req.cap: the buildup's per-pass ceiling (see curriculum.approach) -
+        // sliced here so each pass gets its own compressed variant, cached
+        // separately by the request key.
+        const capped = (buf) => {
+          if (!req.cap || !buf) return buf;
+          const { data, sr } = dsp().toMono(buf);
+          const cut = dsp().capData(data, sr, req.cap);
+          return cut === data ? buf : dsp().bufferFrom(cut, sr);
+        };
         const rec = await this._recorded('phonemes', req.ipa);
-        if (rec) { this.used.recorded++; return rec; }
+        if (rec) { this.used.recorded++; return capped(rec); }
         const st = starterTable('phonemes', req.ipa);
-        if (st) { this.used.starter++; return this._decode(st); }
+        if (st) { this.used.starter++; return capped(await this._decode(st)); }
         this.used.missing++;
         this.missing.push({ kind, label: 'the sound /' + req.ipa + '/' });
         return null;
