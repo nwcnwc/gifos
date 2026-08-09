@@ -2300,6 +2300,37 @@ function check(name, cond, detail) {
     stickArc.moving > 1.5, stickArc.moving + ' m/s');
   await fr.locator('body').evaluate(() => document.querySelector('#schemes button[data-scheme="wheel"]').click());
 
+  // ---- a cache written by an old build upgrades itself ----------------------
+  // "My pool disappeared from my backyard. It used to be there a few versions
+  // back." Every feature parse() has grown had this failure: a tile cached by
+  // an OLDER build lacks the new field, and a non-dense cached record was
+  // served forever — so pools (landcover, names, brands…) never appeared
+  // exactly where the player had already driven. Records now carry the
+  // parser's version (pv); an old stamp forces one re-fetch. Seed a poolless,
+  // stampless record — the old-build shape — and ask for the tile.
+  const upgraded = await fr.locator('body').evaluate(async () => {
+    const f = window.App.world.frame;
+    const HOP = { lat: 48.8698, lon: 2.3078 };
+    // A tile inside the fixture's coverage but away from the resident set, so
+    // loadTile's memory cache has never seen it.
+    const tx = Math.floor(window.Geo.lonToTileX(HOP.lon + 0.05, window.Roads.TILE_ZOOM));
+    const ty = Math.floor(window.Geo.latToTileY(HOP.lat + 0.05, window.Roads.TILE_ZOOM));
+    const tile = { z: window.Roads.TILE_ZOOM, x: tx, y: ty };
+    const key = window.Geo.tileKey(tile);
+    await window.Host.db('roadcache').put({
+      id: 't' + key,
+      ways: [['residential', [HOP.lat + 0.05, HOP.lon + 0.05, HOP.lat + 0.051, HOP.lon + 0.051], 0, 0, 'Old Cache Road']],
+      bld: [],   // no wat, no land, no pool, no detail, no pv — the old shape
+    });
+    const geom = await window.Roads.loadTile(tile);
+    return { pools: (geom.pool || []).length, land: (geom.land || []).length,
+             ways: geom.ways.length, detail: geom.detail };
+  });
+  check('a tile cached by an OLD build re-fetches and gains what the parser learned since',
+    upgraded.pools > 0 && upgraded.detail === 2,
+    upgraded.pools + ' pool(s), ' + upgraded.land + ' land ring(s), detail ' + upgraded.detail
+    + ' — from a record that had none of it');
+
   // ---- the offline map has two dials ----------------------------------------
   // One dropdown answered two questions — how much of YOUR TRAIL to remember,
   // and how much EXTRA to build out ahead — so you could not keep a bigger

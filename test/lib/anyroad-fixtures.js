@@ -145,6 +145,17 @@ function overpassBody() {
       { type: 'way', id: 7, tags: { highway: 'residential', name: 'Crossing Lane' }, geometry: [
         { lat: HOP.lat, lon: HOP.lon - 0.0006 }, { lat: HOP.lat, lon: HOP.lon + 0.0006 },
       ] },
+      // A BACKYARD POOL, east of the buildings — the thing that "disappeared
+      // a few versions back" when an old-build cache record was served
+      // forever. The cache-upgrade e2e refetches a stampless record and must
+      // find this in the fresh parse.
+      { type: 'way', id: 9, tags: { leisure: 'swimming_pool' }, geometry: [
+        { lat: HOP.lat + 0.0002, lon: HOP.lon + 0.0024 },
+        { lat: HOP.lat + 0.0002, lon: HOP.lon + 0.0025 },
+        { lat: HOP.lat + 0.00028, lon: HOP.lon + 0.0025 },
+        { lat: HOP.lat + 0.00028, lon: HOP.lon + 0.0024 },
+        { lat: HOP.lat + 0.0002, lon: HOP.lon + 0.0024 },
+      ] },
       // A TAGGED WOOD, west of everything, clear of every road. natural=wood
       // is the tag that must come out as closed canopy — the e2e counts the
       // trees inside this exact ring, because "forest rendered as parkland"

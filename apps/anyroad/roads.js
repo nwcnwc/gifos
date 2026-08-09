@@ -648,6 +648,18 @@
   var DENSE_RETRY_MS = 6 * 60 * 60 * 1000;
   var NOBLD_RETRY_MS = 10 * 60 * 1000;
 
+  // THE PARSER'S OWN VERSION, stamped into every cached record. Every feature
+  // this file has grown — building classes, brands, surfaces, lane counts,
+  // street names, landcover, swimming pools — has had the same quiet failure:
+  // a tile cached by an OLDER build simply lacks the new field, and a cached
+  // record that is not flagged dense was served forever, so the new feature
+  // never appeared exactly where the player had already driven. "My pool
+  // disappeared from my backyard. It used to be there a few versions back."
+  // — cached before pools were parsed, kept indefinitely after. A record
+  // whose stamp is not TODAY'S is re-fetched once (and kept as the fallback
+  // if that fetch fails); bump this whenever parse() learns a new trick.
+  var PARSE_V = 2;
+
   function loadTile(tile) {
     var key = root.Geo.tileKey(tile);
     if (memory[key]) return Promise.resolve(memory[key]);
@@ -663,7 +675,11 @@
         var ttl = recDetail < 1 ? NOBLD_RETRY_MS : DENSE_RETRY_MS;
         var staleDense = rec.dense && (Date.now() - (rec.at || 0) > ttl)
           && root.Sources.current.quality !== 'low';
-        if (!staleDense) {
+        // A record parsed by an older build lacks whatever the parser has
+        // learned since (see PARSE_V) — re-fetch it once, old bytes as the
+        // fallback, exactly like a stale dense record.
+        var outdated = rec.pv !== PARSE_V && root.Sources.current.quality !== 'low';
+        if (!staleDense && !outdated) {
           // land and pool MUST be read back too. They were added to the write
           // and not to the read, so every cache HIT silently returned a tile
           // with no landcover and no swimming pools — which reads exactly like
@@ -814,6 +830,7 @@
       return db().put({
         id: 't' + key, ways: geom.ways, bld: geom.bld, wat: geom.wat, land: geom.land, pool: geom.pool,
         dense: !!geom.dense, detail: geom.detail,
+        pv: PARSE_V,      // which parser wrote this — an old stamp forces one re-fetch
         at: Date.now(),   // when these bytes were fetched — a dense record expires against this
       }).catch(function () {}).then(evictIfNeeded).then(saveIndex).then(function () { return geom; });
     });
