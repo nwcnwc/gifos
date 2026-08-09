@@ -156,6 +156,19 @@
 
   function clearRace() { return db('race').delete('race'); }
 
+  // Move the flag onto the nearest road, ONCE. A flag dropped on a random
+  // bearing lands wherever it lands — the middle of a lake, a cliff, the wrong
+  // side of a river — and a race that cannot be finished is not a race. Marked
+  // `snapped` so the first player whose copy manages it settles the question
+  // for everyone: this is a shared read-write record and two players nudging
+  // the flag at each other would never converge.
+  function snapFinish(geo) {
+    if (!raceRec || raceRec.snapped) return Promise.resolve(false);
+    return db('race').put(Object.assign({}, raceRec, {
+      fLat: geo.lat, fLon: geo.lon, snapped: true,
+    })).then(function () { return true; });
+  }
+
   function raceState(car) {
     if (!raceRec || !frame) return null;
     var now = Date.now();
@@ -168,6 +181,7 @@
       finish: fin,
       start: frame.toWorld(raceRec.sLat, raceRec.sLon),
       results: raceRec.results || [],
+      snapped: !!raceRec.snapped,
       done: !!myResult,
       myTime: myResult,
     };
@@ -184,7 +198,7 @@
 
   root.MP = {
     init: init, setFrame: setFrame, tick: tick, ghosts: ghosts, count: count,
-    setRace: setRace, clearRace: clearRace, raceState: raceState,
+    setRace: setRace, clearRace: clearRace, raceState: raceState, snapFinish: snapFinish,
     hasRace: function () { return !!raceRec; },
     onChange: function (cb) { listeners.push(cb); },
     me: function () { return me; },
