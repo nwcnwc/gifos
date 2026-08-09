@@ -26,6 +26,14 @@ Record walk-through. The video's length is **told, not asked for** ("About 6
 minutes long"). **Setup**: the 42-sound session, the shared word bank, and
 the backup story.
 
+**Sight words** (1.5.0, mirrors upstream `gen/sightwords.py`): section 4 of
+the Sound Bank is a typed list of words read WHOLE, never sounded out — the
+parent's override of `decodable()`. A listed word queues no chunk/phoneme
+pieces in the walk-through and is shown and said as one word in the video.
+Stored as typed in `prefs.sightWords`; applied via
+`curriculum.setSightWords()`, consulted by `oneWord`, `pieceItems` and
+`estimateSeconds`. Guarded in `test/unit/sound-it-out.js`.
+
 Rules ported exactly: the absolute highlight rule (colour = "being said right
 now"; the grey dim is gone; long pads show the text neutral —
 `NEUTRAL_PAD 0.35s`), magic-e onset+rime buildup (`c + ase`), the voiced-s
