@@ -553,6 +553,18 @@
     },
     animals: function (x, z, rad) { return root.Animals.shootAt(x, z, rad); },
     traffic: function (x, z, rad) { return root.Traffic.shootAt(x, z, rad); },
+    // Other PLAYERS, from the same ghost list the renderer draws. A ghost is
+    // an interpolated position, so this is aiming at where you SEE them —
+    // which is the only fair thing to aim at, and means a laggy friend is hard
+    // to hit rather than mysteriously invulnerable.
+    players: function (x, z, rad) {
+      var gs = root.MP.ghosts();
+      for (var i = 0; i < gs.length; i++) {
+        var g = gs[i];
+        if (Math.hypot(g.x - x, g.z - z) < rad + 1.4) return g;
+      }
+      return null;
+    },
   };
 
   function blaster(input, dt) {
@@ -563,7 +575,11 @@
     for (var i = 0; i < events.length; i++) {
       var e = events[i];
       root.Sound.zap(e.kind);
-      if (e.kind === 'animal') {
+      if (e.kind === 'player') {
+        // Claim it on my own row; their browser decides what it costs them.
+        root.MP.shoot(e.what.id);
+        root.UI.note('Hit ' + (e.what.name || 'them') + '.');
+      } else if (e.kind === 'animal') {
         hits.animals++;
         root.UI.note(e.what.label + ' — cleared.');
       } else if (e.kind === 'wreck') {
@@ -1384,6 +1400,16 @@
       redrape();
     });
     root.MP.init();
+    // Somebody shot at you. Your browser decides what that costs — nobody has
+    // authority over your car but you. Small, on purpose.
+    root.MP.onHit(function (n) {
+      if (car.wrecked) return;
+      car.health = Math.max(0, car.health - 6 * n);
+      root.UI.bulletHole();
+      root.Sound.zap('player');
+      shake = Math.min(1, Math.max(shake, 0.30));
+      if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+    });
   }
 
   function applyControlPrefs() {
