@@ -145,6 +145,17 @@ function overpassBody() {
       { type: 'way', id: 7, tags: { highway: 'residential', name: 'Crossing Lane' }, geometry: [
         { lat: HOP.lat, lon: HOP.lon - 0.0006 }, { lat: HOP.lat, lon: HOP.lon + 0.0006 },
       ] },
+      // A TAGGED WOOD, west of everything, clear of every road. natural=wood
+      // is the tag that must come out as closed canopy — the e2e counts the
+      // trees inside this exact ring, because "forest rendered as parkland"
+      // is a bug that no road or building assertion will ever notice.
+      { type: 'way', id: 8, tags: { natural: 'wood', leaf_type: 'broadleaved' }, geometry: [
+        { lat: HOP.lat - 0.0012, lon: HOP.lon - 0.0044 },
+        { lat: HOP.lat - 0.0012, lon: HOP.lon - 0.0030 },
+        { lat: HOP.lat + 0.0012, lon: HOP.lon - 0.0030 },
+        { lat: HOP.lat + 0.0012, lon: HOP.lon - 0.0044 },
+        { lat: HOP.lat - 0.0012, lon: HOP.lon - 0.0044 },
+      ] },
       ...mixedStreet(),
     ],
   });
@@ -179,4 +190,22 @@ async function routeWorld(context, opts) {
   return hits;
 }
 
-module.exports = { HOP, FIXTURE_HEIGHT, TILE_PNG, HILLS_PNG, terrariumTile, terrariumHills, overpassBody, mixedStreet, routeWorld };
+// A solid-colour PNG — the satellite-imagery fixture. Dark green reads as
+// closed canopy to the app's tree-cover classifier (app.js treeCoverOf);
+// anything grey or bright does not. Solid on purpose: the classifier's
+// thresholds are the app's business, and a fixture that straddles them would
+// test the fixture.
+function solidTile(size, r, g, b) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; ihdr[9] = 2;
+  const row = Buffer.alloc(1 + size * 3);
+  for (let x = 0; x < size; x++) { row[1 + x * 3] = r; row[2 + x * 3] = g; row[3 + x * 3] = b; }
+  const raw = Buffer.concat(Array.from({ length: size }, () => row));
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(raw)), pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+module.exports = { HOP, FIXTURE_HEIGHT, TILE_PNG, HILLS_PNG, terrariumTile, terrariumHills, overpassBody, mixedStreet, routeWorld, solidTile };
