@@ -588,14 +588,35 @@ select {
      so this z-index competes directly with the wheel inside #cockpit.) */
   z-index: 3;
 }
-#dash-speed { font-size: clamp(1.6rem, 4.4vh, 2.4rem); font-weight: 300; line-height: .95; }
+/* The dash is MOSTLY EMPTY SPACE and instruments were sized like afterthoughts
+   in the corner of it. A dashboard's job is to be read at a glance from a
+   moving car: the numbers get the space the moulding was wasting. */
+#dash-speed { font-size: clamp(2.2rem, 6.4vh, 3.6rem); font-weight: 275; line-height: .95; }
 #dash-unit {
-  font-size: .62rem; letter-spacing: .16em; text-transform: uppercase;
+  font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
   opacity: .6; margin-top: .15rem;
 }
 #dash-cond {
-  width: 4.2rem; height: 3px; margin: .38rem auto 0;
+  width: 5.6rem; height: 4px; margin: .42rem auto 0;
   background: rgba(255, 255, 255, .16); border-radius: 2px; overflow: hidden;
+}
+/* The altimeter, on the stretch of dash left of the wheel that held nothing.
+   Amber like the rest of the flying trim, and only present in the air — on
+   the ground it is a number about nothing. */
+#dash-alt {
+  position: absolute;
+  left: 27%; top: 8%;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #ffd9a0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+  font-variant-numeric: tabular-nums;
+  z-index: 3;                    /* through the wheel, same as the cluster */
+}
+#dash-alt-m { font-size: clamp(2.2rem, 6.4vh, 3.6rem); font-weight: 275; line-height: .95; }
+.dash-alt-label {
+  font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+  opacity: .65; margin-top: .15rem;
 }
 #dash-cond-fill {
   display: block; height: 100%; width: 100%;
@@ -618,7 +639,10 @@ select {
 #btn-fly {
   position: absolute;
   left: 4%; bottom: 21%; right: auto;
-  width: 3rem; height: 3rem;
+  /* The one control on the dash, and it was the smallest thing there — a
+     3rem chip beside acres of empty moulding. Take off is a decision you
+     make at speed; the button is sized for a thumb that cannot aim. */
+  width: 4.6rem; height: 4.6rem;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, .30);
@@ -629,5 +653,6 @@ select {
   cursor: pointer;
   z-index: 4;
 }
+#btn-fly svg { width: 58%; height: 58%; }
 #btn-fly:active { background: rgba(58, 68, 84, .98); }
 #btn-fly.flying { color: #ffd08a; border-color: rgba(255, 208, 138, .55); }
