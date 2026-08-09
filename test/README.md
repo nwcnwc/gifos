@@ -468,7 +468,11 @@ Roughly three families in one directory:
   video they send it — PiP float source excepted, audio never parks, full
   restore on return; 13 checks).
 - **AI / network** — `e2e-caps`, `e2e-ai-types`, `e2e-agent`, `e2e-chess-hint`
-  (all need fake-ai), `e2e-api`, `e2e-cors-proxy`, `e2e-proxy-cache`,
+  (all need fake-ai), `e2e-providers` (Provider apps + install-time assets,
+  docs/providers.md: recognition-is-a-place with the red ✕, the network-less
+  hard rule, ack sheet naming the provider, and the real Pocket Voice speaking
+  a WAV through gifos.ai.tts after its assets backfill-and-seal; needs only
+  the 8099 static site), `e2e-api`, `e2e-cors-proxy`, `e2e-proxy-cache`,
   `e2e-fetch-bridge`, `e2e-fluence-setup`, `e2e-fluence`,
   `e2e-anyroad-mp` (THREE people driving one Anyroad, through BOTH doors:
   `ROOM=meet` a meeting with the app on its stage, `ROOM=app` the app invited
