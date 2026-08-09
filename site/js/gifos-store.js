@@ -20,7 +20,15 @@
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
-  const DB_VERSION = 3; // v3: + appassets (install-time model weights, Blob-backed)
+  // DO NOT BUMP. Every archived build under /versions/ opens THIS database at
+  // THIS version on the same origin, and IndexedDB hard-fails (VersionError)
+  // when a database is newer than the version requested — so a bump bricks
+  // every archived desktop the moment the latest build touches the DB,
+  // exactly the trap the "oldest archived build boots" guard in e2e.js
+  // exists to catch (it caught this line going to 3 on 2026-08-09). New
+  // storage gets its own SIBLING database instead (see the assets DB below):
+  // old builds never open a database they've never heard of.
+  const DB_VERSION = 2;
 
   const reqP = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 
@@ -89,14 +97,6 @@
           // instead of rewriting the whole app state. The composite key sorts
           // records by (app, collection, id) for O(range) reads — see appRange().
           if (!db.objectStoreNames.contains('apprecords')) db.createObjectStore('apprecords', { keyPath: ['fileId', 'collection', 'id'] });
-          // appassets: install-time downloads (gifos-assets.js) — model weights
-          // and other big pinned files, one row per [fileId, path], bytes kept
-          // as a Blob so the browser can page them to disk instead of RAM.
-          // These are a CACHE of publicly-pinned downloads, so they are
-          // deliberately NOT part of a whole-computer backup (a gigabyte model
-          // would burst the GIF format's base64/JSON string limits — and the
-          // manifest pin re-downloads it on the restored computer instead).
-          if (!db.objectStoreNames.contains('appassets')) db.createObjectStore('appassets', { keyPath: ['fileId', 'path'] });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -108,6 +108,37 @@
       return open().then((db) => new Promise((resolve, reject) => {
         const t = db.transaction(store, mode);
         const os = t.objectStore(store);
+        let result;
+        Promise.resolve(fn(os)).then((r) => { result = r; }, reject);
+        t.oncomplete = () => resolve(result);
+        t.onerror = () => reject(t.error);
+        t.onabort = () => reject(t.error);
+      }));
+    }
+
+    // The SIBLING assets database — '<dbName>::assets', its own version line,
+    // one 'assets' store keyed [fileId, path]. Separate on purpose: archived
+    // builds pin the MAIN database's version (see DB_VERSION above), so new
+    // storage must arrive as a database they never open, not a new store in
+    // one they do. Namespaced with the computer, like everything else.
+    let adbp = null;
+    function openAssets() {
+      if (adbp) return adbp;
+      adbp = new Promise((resolve, reject) => {
+        const req = indexedDB.open(dbName + '::assets', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('assets')) db.createObjectStore('assets', { keyPath: ['fileId', 'path'] });
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      return adbp;
+    }
+    function atx(mode, fn) {
+      return openAssets().then((db) => new Promise((resolve, reject) => {
+        const t = db.transaction('assets', mode);
+        const os = t.objectStore('assets');
         let result;
         Promise.resolve(fn(os)).then((r) => { result = r; }, reject);
         t.oncomplete = () => resolve(result);
@@ -237,15 +268,26 @@
       // ---- install-time assets (gifos-assets.js) — Blob-backed, per icon ----
       // The bytes arrive as a Blob and STAY a Blob end to end: IndexedDB can
       // keep Blobs on disk, so caching a 1 GB model never holds a 1 GB copy in
-      // RAM the way an ArrayBuffer row would.
-      putAsset: (fileId, path, blob) => tx('appassets', 'readwrite', (os) => reqP(os.put({ fileId, path, blob, bytes: blob && blob.size || 0, updatedAt: nowISO() }))),
-      getAsset: (fileId, path) => tx('appassets', 'readonly', (os) => reqP(os.get([fileId, path])).then((r) => (r ? r.blob : null))),
-      hasAsset: (fileId, path) => tx('appassets', 'readonly', (os) => reqP(os.getKey([fileId, path])).then((k) => k != null)),
-      deleteAssets: (fileId) => tx('appassets', 'readwrite', (os) =>
+      // RAM the way an ArrayBuffer row would. These live in a SIBLING database
+      // ('<dbName>::assets'), NOT a new store in the main one — see the
+      // DB_VERSION comment: archived builds open the main DB at their own
+      // pinned version, and IndexedDB VersionErrors on a newer database, so
+      // adding a store there bricks every archived desktop. A database old
+      // builds never open is invisible to them. They are a CACHE of
+      // publicly-pinned downloads: not in whole-computer backups (a gigabyte
+      // model would burst the GIF's base64/JSON string limits; the manifest
+      // pin re-downloads on the restored computer), cleared with the computer.
+      putAsset: (fileId, path, blob) => atx('readwrite', (os) => reqP(os.put({ fileId, path, blob, bytes: (blob && blob.size) || 0, updatedAt: nowISO() }))),
+      getAsset: (fileId, path) => atx('readonly', (os) => reqP(os.get([fileId, path])).then((r) => (r ? r.blob : null))),
+      hasAsset: (fileId, path) => atx('readonly', (os) => reqP(os.getKey([fileId, path])).then((k) => k != null)),
+      deleteAssets: (fileId) => atx('readwrite', (os) =>
         reqP(os.getAllKeys(IDBKeyRange.bound([fileId], [fileId, []]))).then((keys) => { for (const k of keys || []) os.delete(k); return true; })),
       // ---- misc ----
-      clearAll: () => open().then(() => Promise.all(['files', 'items', 'appstate', 'apprecords', 'appassets'].map((s) =>
-        tx(s, 'readwrite', (os) => reqP(os.clear()))))),
+      clearAll: () => Promise.all([
+        open().then(() => Promise.all(['files', 'items', 'appstate', 'apprecords'].map((s) =>
+          tx(s, 'readwrite', (os) => reqP(os.clear()))))),
+        atx('readwrite', (os) => reqP(os.clear())).catch(() => {}), // erase wipes the model cache too
+      ]),
     };
 
     store.nowISO = nowISO;
