@@ -460,6 +460,78 @@
     }
   }
 
+  // ---- wall breaches -------------------------------------------------------
+  // Enough blaster fire opens a HOLE: the wall stops being solid exactly
+  // there, for the car and for later bolts alike — which is what lets you
+  // shoot your way OUT of a building you crashed into through the roof.
+  // The drawn wall is untouched (cutting tile meshes for a 2 m hole would buy
+  // a rebuild per shot); the breach decal marks where the solid stopped.
+  var breaches = [];       // open holes: { x, z, r }
+  var breachWork = [];     // spots under fire: { x, z, shots }
+  var MAX_BREACH = 24, BREACH_R = 2.1, BREACH_SHOTS = 3;
+  function addWallHit(x, z) {
+    for (var i = 0; i < breaches.length; i++) {
+      if (Math.hypot(breaches[i].x - x, breaches[i].z - z) < breaches[i].r) return null;
+    }
+    for (var j = 0; j < breachWork.length; j++) {
+      var wsp = breachWork[j];
+      if (Math.hypot(wsp.x - x, wsp.z - z) < 1.6) {
+        wsp.shots++;
+        wsp.x = (wsp.x + x) / 2; wsp.z = (wsp.z + z) / 2;
+        if (wsp.shots < BREACH_SHOTS) return null;
+        breachWork.splice(j, 1);
+        var hole = { x: wsp.x, z: wsp.z, r: BREACH_R };
+        breaches.push(hole);
+        if (breaches.length > MAX_BREACH) breaches.shift();
+        return hole;
+      }
+    }
+    breachWork.push({ x: x, z: z, shots: 1 });
+    if (breachWork.length > 40) breachWork.shift();
+    return null;
+  }
+
+  // Split wall segments against the open holes: a 2 m breach in a 20 m wall
+  // is a GAP, never a missing wall — the rest of the facade still stops you.
+  // Fast path first: with no breaches this returns the input array untouched,
+  // which keeps the every-frame cost of the feature at one length check.
+  function cutBreaches(segs) {
+    if (!breaches.length || !segs.length) return segs;
+    var out = [];
+    for (var i = 0; i + 3 < segs.length; i += 4) {
+      var pieces = [[segs[i], segs[i + 1], segs[i + 2], segs[i + 3]]];
+      for (var b = 0; b < breaches.length && pieces.length; b++) {
+        var next = [];
+        for (var p = 0; p < pieces.length; p++) {
+          var s = pieces[p], hole = breaches[b];
+          var vx = s[2] - s[0], vz = s[3] - s[1];
+          var len2 = vx * vx + vz * vz;
+          if (!len2) continue;
+          var t = ((hole.x - s[0]) * vx + (hole.z - s[1]) * vz) / len2;
+          var dp = Math.hypot(hole.x - (s[0] + vx * t), hole.z - (s[1] + vz * t));
+          if (dp >= hole.r) { next.push(s); continue; }
+          var half = Math.sqrt(hole.r * hole.r - dp * dp) / Math.sqrt(len2);
+          var t0 = t - half, t1 = t + half;
+          if (t1 <= 0 || t0 >= 1) { next.push(s); continue; }
+          if (t0 > 0.02) next.push([s[0], s[1], s[0] + vx * t0, s[1] + vz * t0]);
+          if (t1 < 0.98) next.push([s[0] + vx * t1, s[1] + vz * t1, s[2], s[3]]);
+        }
+        pieces = next;
+      }
+      for (var q = 0; q < pieces.length; q++) out.push(pieces[q][0], pieces[q][1], pieces[q][2], pieces[q][3]);
+    }
+    return out;
+  }
+
+  // The bodywork WEARS the damage bar: every hit dents it further, and a
+  // tumble down a mountainside arrives at the bottom as a crumpled mess that
+  // still limps (car.js caps the power, not the steering). Squared so the
+  // first scrapes barely show and the last third of the bar visibly wrecks
+  // the shell. The renderer turns this one number into dents (uCrumple).
+  function carCrumple() {
+    return Math.pow(1 - Math.max(0, car.health) / 100, 2) * 1.15;
+  }
+
   function collideBuildings(dtNow) {
     wallScratch.length = 0;
     for (var k in world.roads) {
@@ -468,7 +540,7 @@
       root.Roads.nearWalls(r.built.walls, car.x, car.z, wallScratch);
     }
     if (!wallScratch.length) return;
-    var hit = root.Car.collide(car, wallScratch, dtNow);
+    var hit = root.Car.collide(car, cutBreaches(wallScratch), dtNow);
     if (!hit || hit.impact < 0.4) return;
     shake = Math.min(1, Math.max(shake, hit.impact / 16));
     if (hit.crash) root.Sound.crash(Math.min(1, hit.impact / 18));
@@ -549,6 +621,14 @@
         if (!r || !r.built || !r.built.walls) continue;
         root.Roads.nearWalls(r.built.walls, x, z, out);
       }
+      // Bolts see the SAME holes the car drives through — one answer to "is
+      // this wall solid", or a breach you can drive through but not shoot
+      // through would be two.
+      if (breaches.length && out.length) {
+        var cut = cutBreaches(out);
+        out.length = 0;
+        for (var ci = 0; ci < cut.length; ci++) out.push(cut[ci]);
+      }
       return out;
     },
     animals: function (x, z, rad) { return root.Animals.shootAt(x, z, rad); },
@@ -594,6 +674,17 @@
         scorches.push({ x: e.x, y: e.y, z: e.z, nx: e.nx || 0, nz: e.nz || 1, age: 0 });
         if (scorches.length > MAX_SCORCH) scorches.shift();
         puff(e.x, e.y, e.z, 0.35);
+        // …and enough shots in one spot stop being marks and start being a
+        // DOOR. The breach decal is bigger and darker than a scorch, and the
+        // hole it draws is the hole the collision system now has.
+        var opened = addWallHit(e.x, e.z);
+        if (opened) {
+          scorches.push({ x: opened.x, y: e.y, z: opened.z, nx: e.nx || 0, nz: e.nz || 1, age: 0, breach: true });
+          if (scorches.length > MAX_SCORCH) scorches.shift();
+          puff(opened.x, e.y, opened.z, 1.4);
+          root.Sound.crash(0.5);
+          root.UI.note('Wall breached — you can drive through.');
+        }
       } else if (e.kind === 'ground') {
         puff(e.x, e.y + 0.3, e.z, 0.3);
       }
@@ -681,7 +772,7 @@
   // and nothing improved" was the honest report of a real bug.
   function redrape() {
     var src = root.Sources.imagery;
-    imagery.tried = 0; imagery.ok = 0; imagery.failed = ''; imagery.fails = 0;
+    imagery.tried = 0; imagery.ok = 0; imagery.failed = ''; imagery.fails = 0; imagery.said = '';
     for (var k in world.terrain) {
       var slot = world.terrain[k];
       if (!slot || !slot.rec) continue;
@@ -701,7 +792,7 @@
   // What the drape is actually doing, so the HUD can say so. A satellite layer
   // that silently does nothing is indistinguishable from one that is switched
   // off, and that is exactly how this failed.
-  var imagery = { tried: 0, ok: 0, failed: '', fails: 0 };
+  var imagery = { tried: 0, ok: 0, failed: '', fails: 0, said: '' };
 
   // Hand a road tile's buildings the photograph they are standing in, so their
   // ROOFS can take their colour from it. Roads are z15 and terrain z14, so a
@@ -818,9 +909,13 @@
         // is allowed to blame the key.
         var netDown = /^(OFFLINE|UNREACHABLE):/.test(imagery.failed)
                    || (root.navigator && root.navigator.onLine === false);
-        root.UI.note(netDown
+        // Kept on the state (imagery.said) as well as toasted: the toast
+        // lives 2.6 s and can be replaced by a passing collision note, which
+        // makes it unobservable to the gate — the state is the record.
+        imagery.said = netDown
           ? 'Satellite imagery: no connection — your key is set; tiles return with the network.'
-          : 'Satellite imagery: ' + imagery.failed + ' — check the key in GifOS Settings.');
+          : 'Satellite imagery: ' + imagery.failed + ' — check the key in GifOS Settings.';
+        root.UI.note(imagery.said);
       }
     });
   }
@@ -843,6 +938,7 @@
     announced = {}; passing.length = 0;
     root.Traffic.clear();          // …and so does the traffic
     root.Blaster.clear();
+    breaches.length = 0; breachWork.length = 0;   // the holes belong to the walls you left
     // The first tap on a place IS the gesture a browser requires before it will
     // start an audio graph. Nothing is primed before the player has asked for
     // anything, which is also why there is no sound on the landing sheet.
@@ -1328,6 +1424,7 @@
     if (cockK < 0.6) {
       scene.cars.push({ x: car.x, y: car.y, z: car.z, yaw: car.yaw, pitch: car.pitch, roll: car.roll,
                         tint: [0.90, 0.24, 0.22], blaster: root.Blaster.enabled(),
+                        crumple: carCrumple(),
                         plane: car.flying || car.falling,
                         // The shadow falls where the GROUND is, not where the
                         // aircraft is. Without this it defaulted to s0.y and
@@ -1342,7 +1439,7 @@
     // program, one matrix each. Thirty of them is thirty uniform writes.
     root.Traffic.drawList().forEach(function (t) {
       var entry = { x: t.x, y: t.y, z: t.z, yaw: t.yaw, pitch: 0, roll: 0,
-                    tint: t.tint, groundY: t.groundY };
+                    tint: t.tint, groundY: t.groundY, crumple: t.crumple || 0 };
       if (t.boom != null) {
         // The death, staged: a flash (emissive spike), then the wreck chars,
         // shrinks and sinks until the ground takes it. Scale and emit ride the
@@ -1366,8 +1463,9 @@
       for (var sc2 = 0; sc2 < scorches.length; sc2++) {
         var s2 = scorches[sc2];
         // A quad on the wall plane, nudged out along the normal so it wins the
-        // depth test against the face it marks.
-        var rx = -s2.nz, rz = s2.nx, hw = 0.62;
+        // depth test against the face it marks. A BREACH is the same quad
+        // grown to hole size and near-black — the darkness IS the doorway.
+        var rx = -s2.nz, rz = s2.nx, hw = s2.breach ? 2.0 : 0.62;
         decals.push({
           corners: [
             s2.x - rx * hw + s2.nx * 0.06, s2.y - hw * 0.9, s2.z - rz * hw + s2.nz * 0.06,
@@ -1375,7 +1473,8 @@
             s2.x + rx * hw + s2.nx * 0.06, s2.y + hw * 1.1, s2.z + rz * hw + s2.nz * 0.06,
             s2.x - rx * hw + s2.nx * 0.06, s2.y + hw * 1.1, s2.z - rz * hw + s2.nz * 0.06,
           ],
-          tint: [0.07, 0.06, 0.06], alpha: 0.78 * Math.min(1, s2.age * 6),
+          tint: s2.breach ? [0.015, 0.013, 0.015] : [0.07, 0.06, 0.06],
+          alpha: (s2.breach ? 0.96 : 0.78) * Math.min(1, s2.age * 6),
         });
       }
       if (puffs.length) {
@@ -1575,7 +1674,7 @@
     redrape: redrape,
     imagery: function () {
       return { source: root.Sources.current.imagery, tried: imagery.tried,
-               ok: imagery.ok, failed: imagery.failed,
+               ok: imagery.ok, failed: imagery.failed, said: imagery.said,
                draped: Object.keys(world.terrain).filter(function (k) {
                  return world.terrain[k] && world.terrain[k].texture;
                }).length };
@@ -1594,7 +1693,8 @@
         camera: { x: camera.x, y: camera.y, z: camera.z },
         view: viewName(),
       flying: car.flying, falling: car.falling, agl: Math.round(car.agl || 0), birdK: birdK, cockK: cockK,
-        scorches: scorches.length, puffs: puffs.length,
+        scorches: scorches.length, puffs: puffs.length, breaches: breaches.length,
+        crumple: carCrumple(),
       };
     },
   };

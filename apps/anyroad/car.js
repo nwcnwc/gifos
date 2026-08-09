@@ -380,6 +380,12 @@
       // Falls off as you approach top speed, so acceleration feels like a car
       // rather than a rocket with a speed clamp.
       accel += power * inThrottle * Math.max(0.08, 1 - v / maxSpeed);
+      // THE LIMP. Below a third of the condition bar the engine is part of
+      // the wreckage: power fades with the last of the health, so a car
+      // that has crumpled its way down a mountainside arrives at the bottom
+      // still DRIVING — wheezing along at jogging pace — instead of flipping
+      // straight from fine to dead. Brakes and steering stay whole.
+      if (car.health < 34) accel *= 0.30 + 0.70 * (car.health / 34);
       // Auto-throttle eases off near the target instead of bouncing off it, so
       // cruising is steady rather than a sawtooth between full power and none.
       //
