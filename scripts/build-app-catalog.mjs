@@ -286,10 +286,22 @@ writeOut(path.join(OUT, 'index.json'), JSON.stringify(index, null, 2) + '\n');
 
 // A stray directory under site/apps with no source tree is a leftover: it would
 // still be published, and still be installable, with nobody maintaining it.
+// EXCEPTION — an UNPUBLISHED app (source tree with listing.unpublished.json,
+// the sound-it-out pattern): its built GIF may sit in the publish boundary
+// (tests exercise it; direct links work) while it stays out of the store —
+// but it must not carry a stale app.json/cover from a previously-listed life,
+// or the store's detail route would keep serving a delisted page.
 if (fs.existsSync(OUT)) {
   for (const d of fs.readdirSync(OUT)) {
     if (!fs.statSync(path.join(OUT, d)).isDirectory()) continue;
-    if (!records.find((r) => r.slug === d)) fail('site/apps/' + d + ' has no source tree in apps/ — delete it, or add apps/' + d + '/listing.json');
+    if (records.find((r) => r.slug === d)) continue;
+    if (fs.existsSync(path.join(SRC, d, 'listing.unpublished.json'))) {
+      for (const leftover of ['app.json', 'cover.jpg']) {
+        if (fs.existsSync(path.join(OUT, d, leftover))) fail('site/apps/' + d + '/' + leftover + ' lingers but the app is unpublished — delete it (the store must not serve a delisted detail page)');
+      }
+      continue;
+    }
+    fail('site/apps/' + d + ' has no source tree in apps/ — delete it, or add apps/' + d + '/listing.json');
   }
 }
 

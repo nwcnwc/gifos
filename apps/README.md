@@ -98,6 +98,16 @@ how an app stays unlisted while it's being built.
   model weights). **GPLv3** (it embeds eSpeak via meSpeak/speak.js — see
   [`offline-tts/COPYING-espeak.txt`](offline-tts/COPYING-espeak.txt)).
   Finished GIF: [`site/apps/offline-tts/offline-tts.gif`](../site/apps/offline-tts/offline-tts.gif) (~1.6 MB).
+- **[offline-llm-bitnet](offline-llm-bitnet/)** — **Offline Cheap Text LLM
+  BitNet**: a Provider app serving the **Cheapest text LLM** role with
+  llama.cpp compiled to WebAssembly (wllama, MIT) entirely in the sandbox.
+  The GIF carries the engine + a labeled self-test model; Microsoft's
+  **BitNet b1.58 2B-4T** ternary weights ride the **gigabyte asset tier**
+  (manifest pin → Blob store cache). **Not in the store yet** — the weights
+  pin needs finalizing from a machine that can reach Hugging Face
+  (`listing.unpublished.json` holds the listing; the README has the exact
+  procedure). Finished GIF:
+  [`site/apps/offline-llm-bitnet/offline-llm-bitnet.gif`](../site/apps/offline-llm-bitnet/offline-llm-bitnet.gif) (~10 MB).
 - **[chess-grandmaster](chess-grandmaster/)** — play **full-strength Stockfish**
   (real engine, NNUE) running entirely offline in the sandbox. Pick a level from
   ~1320 Elo to the unshackled engine, with a live win/draw/loss read-out and

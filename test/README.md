@@ -471,9 +471,11 @@ Roughly three families in one directory:
   (all need fake-ai), `e2e-providers` (Provider apps + install-time assets,
   docs/providers.md: recognition-is-a-place with the red ✕, the network-less
   hard rule, ack sheet naming the provider, the real Offline Text to Speech provider speaking a
-  WAV through gifos.ai.tts with its engine in-GIF, and a synthetic provider
-  keeping the assets download-then-seal machinery guarded while no catalog
-  app is big enough to need it; needs only the 8099 static site),
+  WAV through gifos.ai.tts with its engine in-GIF, a synthetic provider
+  proving the assets download-verify-cache tier (Blob store hit, GIF
+  byte-identical), and the real Offline Cheap Text LLM BitNet provider
+  booting llama.cpp in the hidden mount to answer the SEEDED Ask AI app;
+  needs only the 8099 static site),
   `e2e-api`, `e2e-cors-proxy`, `e2e-proxy-cache`,
   `e2e-fetch-bridge`, `e2e-fluence-setup`, `e2e-fluence`,
   `e2e-anyroad-mp` (THREE people driving one Anyroad, through BOTH doors:

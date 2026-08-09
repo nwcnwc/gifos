@@ -21,6 +21,11 @@
 //     provider mount backfills it (hash-verified) into the computer's ASSET
 //     STORE (Blob-backed appassets — the gigabyte tier; never sealed into
 //     the GIF, which stays byte-identical), and serves its bytes back.
+//  9. The REAL Offline Cheap Text LLM BitNet provider: llama.cpp (wllama)
+//     boots inside the hidden provider mount — classic worker from blob,
+//     wasm from a self-minted blob: URL, in-GIF self-test model — and
+//     answers a 'cheapest' chat from the SEEDED Ask AI app, honestly
+//     labeled as self-test output.
 //
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
 const fs = require('fs');
@@ -230,11 +235,47 @@ async function runConsumer(page, context, label, outTimeout) {
   const expectedGifLen = await page.evaluate(() => window.__assetGifLen);
   check('…and the stored GIF stayed byte-identical (weights live beside it, not in it)', assetState.gifLen === expectedGifLen, assetState.gifLen + ' vs ' + expectedGifLen);
 
+  // ---- 9. the REAL BitNet LLM provider serves the seeded Ask AI app ---------
+  // llama.cpp (wllama) boots inside the hidden provider mount and answers a
+  // 'cheapest' chat from Ask AI — the DEFAULT app that wants this role. The
+  // in-GIF self-test model makes this run offline and fast; the handler
+  // prefixes its token soup with a self-test label, which is exactly what we
+  // assert (a real reply that is honestly labeled).
+  const llmBytes = fs.readFileSync(appGif('offline-llm-bitnet'));
+  await page.evaluate(async (b64) => {
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const fid = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fid, name: 'Offline Cheap Text LLM BitNet.gif', bytes, kind: 'gif', isApp: true, appId: 'offline-llm-bitnet', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Offline Cheap Text LLM BitNet.gif', parent: 'sys_providers', x: 370, y: 90, iconSize: 64 });
+    localStorage.setItem('gifos_ai_config', JSON.stringify({ cheapest: { app: fid, appId: 'offline-llm-bitnet', appName: 'Offline Cheap Text LLM BitNet' } }));
+  }, llmBytes.toString('base64'));
+
   // ---- 6. Reader (the seeded consumer) lives in Tools -----------------------
   await page.locator('.icon', { hasText: 'Tools' }).dblclick();
   await sleep(500);
   const toolLabels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
   check('Reader is seeded in the Tools folder', toolLabels.includes('Reader.gif'), toolLabels.join(','));
+
+  {
+    const [askai] = await Promise.all([context.waitForEvent('page'), page.locator('.icon', { hasText: 'Ask AI.gif' }).dblclick()]);
+    askai.on('pageerror', (e) => console.log('  [askai pageerror]', e.message));
+    await askai.waitForSelector('iframe', { timeout: 10000 });
+    const ackBox = askai.locator('.perm-box', { hasText: 'would like to' });
+    let ack = '';
+    try { await ackBox.waitFor({ timeout: 5000 }); ack = await ackBox.textContent(); await ackBox.locator('.done').click(); } catch (e) { /* already acked */ }
+    check('Ask AI’s ack sheet names the BitNet provider', /Offline Cheap Text LLM BitNet/.test(ack) && /on this device/.test(ack), ack.slice(0, 160));
+    const fr = askai.frameLocator('#appmount iframe');
+    await fr.locator('#t').fill('hello');
+    await fr.locator('#f button').click();
+    // First call boots llama.cpp in the hidden mount (10 MB GIF decode + wasm
+    // init + model load) — generous timeout, one honest wait.
+    await fr.locator('.m.ai').filter({ hasText: /self-test model/ }).waitFor({ timeout: 120000 });
+    const reply = await fr.locator('.m.ai').last().textContent();
+    check('Ask AI (the seeded cheapest consumer) is answered by llama.cpp in the provider sandbox',
+      /\[self-test model — token soup/.test(reply) && reply.length > 60, reply.slice(0, 120));
+    await askai.close();
+  }
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
