@@ -1,168 +1,181 @@
 {
-  "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
-  "entries": [
-    {
-      "version": "0.9.5",
-      "date": "2026-08-07",
-      "headline": "A room that quietly split in two, a voice that went missing, and a door that could jam shut",
-      "notes": [
-        "Two people in the same room could sit there unable to see or hear each other, with nothing on screen to say why. If your browser had ever saved a password for a room name — even a different room, on a different day — it kept using it, and everyone with a different password ended up scrambling their video with a key nobody else could open. GifOS now asks the room itself which password is right instead of guessing, forgets a saved password that turns out to be wrong, and tells you in the status bar when a room you're sitting alone in is locked with a password you didn't set.",
-        "If you were on stage with your camera off, the room stopped hearing you about twenty seconds in. Turning the camera off is the default when you join, so this was one tap away. Your voice now carries on its own, with or without a camera.",
-        "A room could get stuck so that nobody new could ever join it — the door kept believing someone was still greeting people at it long after they had stopped. The door now only trusts a greeter that is genuinely still greeting.",
-        "Opening one of your apps no longer flashes the meeting toolbar for a moment before removing it. The app now paints straight away.",
-        "Someone who leaves a meeting is now properly forgotten. Their last message could arrive a fraction of a second after the room had already said goodbye, which quietly put them back in the room's list of people for over a minute — and, in the worst case, for as long as you kept the page open.",
-        "If you're offline and open a link to a specific saved version of GifOS, you now get that version rather than the newest one."
-      ]
-    },
-    {
-      "version": "0.9.4",
-      "date": "2026-08-06",
-      "headline": "Older phones and computers can join meetings again",
-      "notes": [
-        "Meetings now work on much older browsers. Until this release, joining needed a very new browser (Chrome 137, Firefox 129, Safari 17 and up) because of the signature every participant uses to prove who they are — which meant an iPhone that can no longer update was simply turned away. GifOS now carries its own copy of that signature code and uses it when the browser doesn't have its own. Nothing about the security changes: everyone in a room is still cryptographically signed, and old and new browsers sit in exactly the same room, verifying each other.",
-        "Opening one of your own apps no longer asks anything of your browser. Tapping an app on your Home Screen runs it on your device, with no network at all, so it works on any browser that can run the page — the old “too old for meetings” message could appear over a perfectly working app, and it no longer can. If you then choose to share that app live, that is when the browser check happens, and you can dismiss it and keep using the app.",
-        "When a browser genuinely can't do something, the explanation now says why in plain language — that meetings go straight between people with no server in the middle, or that everything is scrambled on your own device — instead of only naming a missing piece of technology.",
-        "The Home Screen badge on built-in apps like Meeting, Broadcast and the App Store is smaller and quieter, so it stops competing with the app's own name."
-      ]
-    },
-    {
-      "version": "0.9.3",
-      "date": "2026-08-05",
-      "headline": "Old browsers get a straight answer, and big rooms seat far more reliably",
-      "notes": [
-        "A browser that's too old for meetings now gets told exactly that — which browser, which version it needs, and how to open the link in a newer one — instead of a spinner that never ends. It turns out the real minimums are Chrome 137, Firefox 129 and Safari 17 (the meeting security layer needs them), and a new Browsers page linked from About lays out what works, what doesn't, and what we haven't measured yet.",
-        "Seating in large, fast-filling rooms is much more reliable: several ways a room could hand the same seat to two people at once are fixed at the root, and a room of thousands that used to jam partway through a mass join now fills completely in our tests.",
-        "A seat vouched for someone still walking in can no longer be stolen out from under them by a stale goodbye from the previous occupant.",
-        "Firefox is now a first-class citizen in our test fleet — a Firefox participant joins, sees video both ways, and runs shared apps."
-      ]
-    },
-    {
-      "version": "0.9.2",
-      "date": "2026-08-05",
-      "critical": true,
-      "headline": "Joining works again — the demo-night failure, fixed at the root",
-      "notes": [
-        "Joining no longer waits on the camera prompt: you get your seat immediately, and the camera joins in whenever you allow it. A prompt that never settles (common inside iPhone in-app browsers) used to silently block the join forever.",
-        "One person's bad link can no longer knock a bystander out of their seat — and a dropped phone rejoins in seconds, not minutes.",
-        "Share links minted on the newest build now open correctly on phones that have never visited before.",
-        "Meeting and Broadcast keep separate Recent & saved lists, and a broadcast link reopens as a broadcast.",
-        "Plainer words everywhere people hit trouble: connection errors, passwords, blur, and the privacy explainer."
-      ]
-    },
-    {
-      "version": "0.9.1",
-      "date": "2026-08-03",
-      "critical": false,
-      "headline": "Three meeting bugs that hid behind flaky tests",
-      "notes": [
-        "Stopping a shared app now sticks for everyone — a room could wedge half-stopped if people were joining or leaving at that exact moment.",
-        "Video that stayed frozen after a split room came back together now recovers on its own.",
-        "Joining right as your connection blips no longer wedges your seat."
-      ]
-    },
-    {
-      "version": "0.9.0",
-      "date": "2026-08-02",
-      "critical": true,
-      "headline": "Apps and meetings became one thing — and an App Store to fill them",
-      "notes": [
-        "Everyone needs this build to meet: rooms changed how they're addressed, so a computer pinned to 0.8.8 or older lands in a different room and won't see you.",
-        "An App Store on your Home Screen: browse apps, install one, and it's yours — the app crosses the wire once, on Install.",
-        "Every app is now a room. Send one link and someone joins you inside the running app, with video, exactly like a meeting.",
-        "Share your screen into a room.",
-        "An app you've opened alone gets the whole window — one thin bar instead of meeting chrome.",
-        "Home Screen icons are locked until you choose Arrange — scrolling a phone no longer drops apps into folders.",
-        "The camera stops flipping sideways, and keeps the shape your device actually gives it.",
-        "If the person hosting an app wanders off, the room freezes rather than losing your work, and hands over cleanly."
-      ]
-    },
-    {
-      "version": "0.8.8",
-      "date": "2026-07-31",
-      "critical": false,
-      "headline": "Longer phone battery in big meetings",
-      "notes": [
-        "Two lighter video rungs (down to 144p) so a phone low on battery in a crowded room stops draining.",
-        "An all-muted room wakes far less often — quiet meetings cost less power."
-      ]
-    },
-    {
-      "version": "0.8.7",
-      "date": "2026-07-30",
-      "critical": false,
-      "headline": "Deeper phone power savings",
-      "notes": [
-        "Phones now run video one to two rungs lighter in every state, so a call no longer outdrinks the charger."
-      ]
-    },
-    {
-      "version": "0.8.6",
-      "date": "2026-07-29",
-      "critical": false,
-      "headline": "Build badge on every page",
-      "notes": [
-        "A small corner badge shows which build you're running, so you no longer have to read the address bar.",
-        "Restored the version-pinning safeguard a loader redesign had quietly broken."
-      ]
-    },
-    {
-      "version": "0.8.5",
-      "date": "2026-07-26",
-      "critical": true,
-      "headline": "Invite links and room names fixed",
-      "notes": [
-        "Invite links (/meet, /call, /join) open the meeting again instead of the Home Screen.",
-        "Room names keep their capital letters, so the same link always lands everyone in the same meeting.",
-        "Sharing an app into a meeting works for guests again.",
-        "The build number in the Version panel counts correctly again."
-      ]
-    },
-    {
-      "version": "0.8.4",
-      "date": "2026-07-26",
-      "critical": false,
-      "headline": "Fullscreen view and a smoother join",
-      "notes": [
-        "New fullscreen view: one feed big, every other feed as floating thumbs.",
-        "Joining now shows a veil until your seat is real — no flash of an empty room.",
-        "Meetings start easing video quality down to match your device's battery."
-      ]
-    },
-    {
-      "version": "0.8.3",
-      "date": "2026-07-25",
-      "critical": false,
-      "headline": "Honest video, camera flip, fullscreen, votes",
-      "notes": [
-        "Tiles show your whole camera frame, not a cropped square.",
-        "Flip between front and back cameras.",
-        "A real fullscreen button (Esc or tap to exit).",
-        "Recordings carry a burned-in \"Recording — name\" badge.",
-        "Vote someone onto the stage, off it, or out of the room."
-      ]
-    },
-    {
-      "version": "0.8.2",
-      "date": "2026-07-25",
-      "critical": true,
-      "headline": "A relay blip can't split a room",
-      "notes": [
-        "Greeters re-register the instant they reconnect, so a relay hiccup no longer strands joiners or spawns a duplicate room.",
-        "Diagnostics show when someone's media is arriving via a friend-relay."
-      ]
-    },
-    {
-      "version": "0.8.1",
-      "date": "2026-07-22",
-      "critical": false,
-      "headline": "First public release",
-      "notes": [
-        "Every app is a real animated GIF you own — drop it on your Home Screen and it runs; share the file, share the app with its data inside.",
-        "Peer-to-peer meetings that scale on a self-healing mesh, with no server in the middle — run any app live inside one.",
-        "Any app goes multiplayer with one invite link.",
-        "Fully offline-capable; back up a whole computer as one GIF and boot it anywhere.",
-        "Ten themed computers, provenance signing, and per-person AI/API keys apps can use but never see."
-      ]
-    }
-  ]
+ "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
+ "entries": [
+  {
+   "version": "0.9.6",
+   "date": "2026-08-08",
+   "headline": "Video that heals in a heartbeat, a car that waits for you, and an app that sounds words out in your own voice",
+   "notes": [
+    "When someone's connection dropped or their camera changed over, everyone downstream of them used to pay for it: the picture froze for six seconds, and once in a while it never came back at all — every hop along the way tore down what it was carrying and started again from nothing. A feed now keeps its identity from the moment it starts to the moment it truly ends, whatever happens along the way. The room routes around a lost member in about a second, usually less, and a feed that provably can't deliver anything stops pretending it can — so the room stops waiting for it and finds one that can.",
+    "If you were listening to someone on stage who had their camera off, their feed could quietly vanish for you about twenty seconds in — their side legitimately reshuffled once as the idle camera let go, and your side mistook that reshuffle for a disappearance. Nothing reshuffles any more; the feed you hold is the feed you keep.",
+    "Anyroad grew wings: press the aeroplane and the car becomes one — climb out over the roofs, hold your cruise, and pay for altitude the way a real plane does. Come down badly and you will hear it, occasionally through somebody's ceiling. Races put one flag on a real road for everybody, with a beacon you can steer toward and a finish that lets you race again.",
+    "Anyroad also drives differently, on purpose: you arrive STOPPED, and GO is the first thing you press — landing in a strange city already in motion was alarming rather than convenient. The car that drives itself is one tap away in Settings. And a keyboard driver using the stick can no longer be stranded at a standstill: W always means “more”, even from zero, which used to be exactly the speed it couldn't budge.",
+    "New in the store: Sound It Out — learning to read, out loud. Made for one boy with Down syndrome learning to read, and shared for every family like his: any name, word, or sentence they love, built up from its sounds in your own recorded voice, each letter lighting up as its sound plays until the sounds become the word.",
+    "Smaller mendings: stealing an app now says so right on the button you pressed, instead of only in a corner you weren't looking at; the recording indicator can be dragged out of the way and remembers where you parked it, and recording audio no longer dims the very page you're reading from; and the App Store grid can finally tell you an app has an update, instead of knowing and not saying."
+   ]
+  },
+  {
+   "version": "0.9.5",
+   "date": "2026-08-07",
+   "headline": "A room that quietly split in two, a voice that went missing, and a door that could jam shut",
+   "notes": [
+    "Two people in the same room could sit there unable to see or hear each other, with nothing on screen to say why. If your browser had ever saved a password for a room name — even a different room, on a different day — it kept using it, and everyone with a different password ended up scrambling their video with a key nobody else could open. GifOS now asks the room itself which password is right instead of guessing, forgets a saved password that turns out to be wrong, and tells you in the status bar when a room you're sitting alone in is locked with a password you didn't set.",
+    "If you were on stage with your camera off, the room stopped hearing you about twenty seconds in. Turning the camera off is the default when you join, so this was one tap away. Your voice now carries on its own, with or without a camera.",
+    "A room could get stuck so that nobody new could ever join it — the door kept believing someone was still greeting people at it long after they had stopped. The door now only trusts a greeter that is genuinely still greeting.",
+    "Opening one of your apps no longer flashes the meeting toolbar for a moment before removing it. The app now paints straight away.",
+    "Someone who leaves a meeting is now properly forgotten. Their last message could arrive a fraction of a second after the room had already said goodbye, which quietly put them back in the room's list of people for over a minute — and, in the worst case, for as long as you kept the page open.",
+    "If you're offline and open a link to a specific saved version of GifOS, you now get that version rather than the newest one."
+   ]
+  },
+  {
+   "version": "0.9.4",
+   "date": "2026-08-06",
+   "headline": "Older phones and computers can join meetings again",
+   "notes": [
+    "Meetings now work on much older browsers. Until this release, joining needed a very new browser (Chrome 137, Firefox 129, Safari 17 and up) because of the signature every participant uses to prove who they are — which meant an iPhone that can no longer update was simply turned away. GifOS now carries its own copy of that signature code and uses it when the browser doesn't have its own. Nothing about the security changes: everyone in a room is still cryptographically signed, and old and new browsers sit in exactly the same room, verifying each other.",
+    "Opening one of your own apps no longer asks anything of your browser. Tapping an app on your Home Screen runs it on your device, with no network at all, so it works on any browser that can run the page — the old “too old for meetings” message could appear over a perfectly working app, and it no longer can. If you then choose to share that app live, that is when the browser check happens, and you can dismiss it and keep using the app.",
+    "When a browser genuinely can't do something, the explanation now says why in plain language — that meetings go straight between people with no server in the middle, or that everything is scrambled on your own device — instead of only naming a missing piece of technology.",
+    "The Home Screen badge on built-in apps like Meeting, Broadcast and the App Store is smaller and quieter, so it stops competing with the app's own name."
+   ]
+  },
+  {
+   "version": "0.9.3",
+   "date": "2026-08-05",
+   "headline": "Old browsers get a straight answer, and big rooms seat far more reliably",
+   "notes": [
+    "A browser that's too old for meetings now gets told exactly that — which browser, which version it needs, and how to open the link in a newer one — instead of a spinner that never ends. It turns out the real minimums are Chrome 137, Firefox 129 and Safari 17 (the meeting security layer needs them), and a new Browsers page linked from About lays out what works, what doesn't, and what we haven't measured yet.",
+    "Seating in large, fast-filling rooms is much more reliable: several ways a room could hand the same seat to two people at once are fixed at the root, and a room of thousands that used to jam partway through a mass join now fills completely in our tests.",
+    "A seat vouched for someone still walking in can no longer be stolen out from under them by a stale goodbye from the previous occupant.",
+    "Firefox is now a first-class citizen in our test fleet — a Firefox participant joins, sees video both ways, and runs shared apps."
+   ]
+  },
+  {
+   "version": "0.9.2",
+   "date": "2026-08-05",
+   "critical": true,
+   "headline": "Joining works again — the demo-night failure, fixed at the root",
+   "notes": [
+    "Joining no longer waits on the camera prompt: you get your seat immediately, and the camera joins in whenever you allow it. A prompt that never settles (common inside iPhone in-app browsers) used to silently block the join forever.",
+    "One person's bad link can no longer knock a bystander out of their seat — and a dropped phone rejoins in seconds, not minutes.",
+    "Share links minted on the newest build now open correctly on phones that have never visited before.",
+    "Meeting and Broadcast keep separate Recent & saved lists, and a broadcast link reopens as a broadcast.",
+    "Plainer words everywhere people hit trouble: connection errors, passwords, blur, and the privacy explainer."
+   ]
+  },
+  {
+   "version": "0.9.1",
+   "date": "2026-08-03",
+   "critical": false,
+   "headline": "Three meeting bugs that hid behind flaky tests",
+   "notes": [
+    "Stopping a shared app now sticks for everyone — a room could wedge half-stopped if people were joining or leaving at that exact moment.",
+    "Video that stayed frozen after a split room came back together now recovers on its own.",
+    "Joining right as your connection blips no longer wedges your seat."
+   ]
+  },
+  {
+   "version": "0.9.0",
+   "date": "2026-08-02",
+   "critical": true,
+   "headline": "Apps and meetings became one thing — and an App Store to fill them",
+   "notes": [
+    "Everyone needs this build to meet: rooms changed how they're addressed, so a computer pinned to 0.8.8 or older lands in a different room and won't see you.",
+    "An App Store on your Home Screen: browse apps, install one, and it's yours — the app crosses the wire once, on Install.",
+    "Every app is now a room. Send one link and someone joins you inside the running app, with video, exactly like a meeting.",
+    "Share your screen into a room.",
+    "An app you've opened alone gets the whole window — one thin bar instead of meeting chrome.",
+    "Home Screen icons are locked until you choose Arrange — scrolling a phone no longer drops apps into folders.",
+    "The camera stops flipping sideways, and keeps the shape your device actually gives it.",
+    "If the person hosting an app wanders off, the room freezes rather than losing your work, and hands over cleanly."
+   ]
+  },
+  {
+   "version": "0.8.8",
+   "date": "2026-07-31",
+   "critical": false,
+   "headline": "Longer phone battery in big meetings",
+   "notes": [
+    "Two lighter video rungs (down to 144p) so a phone low on battery in a crowded room stops draining.",
+    "An all-muted room wakes far less often — quiet meetings cost less power."
+   ]
+  },
+  {
+   "version": "0.8.7",
+   "date": "2026-07-30",
+   "critical": false,
+   "headline": "Deeper phone power savings",
+   "notes": [
+    "Phones now run video one to two rungs lighter in every state, so a call no longer outdrinks the charger."
+   ]
+  },
+  {
+   "version": "0.8.6",
+   "date": "2026-07-29",
+   "critical": false,
+   "headline": "Build badge on every page",
+   "notes": [
+    "A small corner badge shows which build you're running, so you no longer have to read the address bar.",
+    "Restored the version-pinning safeguard a loader redesign had quietly broken."
+   ]
+  },
+  {
+   "version": "0.8.5",
+   "date": "2026-07-26",
+   "critical": true,
+   "headline": "Invite links and room names fixed",
+   "notes": [
+    "Invite links (/meet, /call, /join) open the meeting again instead of the Home Screen.",
+    "Room names keep their capital letters, so the same link always lands everyone in the same meeting.",
+    "Sharing an app into a meeting works for guests again.",
+    "The build number in the Version panel counts correctly again."
+   ]
+  },
+  {
+   "version": "0.8.4",
+   "date": "2026-07-26",
+   "critical": false,
+   "headline": "Fullscreen view and a smoother join",
+   "notes": [
+    "New fullscreen view: one feed big, every other feed as floating thumbs.",
+    "Joining now shows a veil until your seat is real — no flash of an empty room.",
+    "Meetings start easing video quality down to match your device's battery."
+   ]
+  },
+  {
+   "version": "0.8.3",
+   "date": "2026-07-25",
+   "critical": false,
+   "headline": "Honest video, camera flip, fullscreen, votes",
+   "notes": [
+    "Tiles show your whole camera frame, not a cropped square.",
+    "Flip between front and back cameras.",
+    "A real fullscreen button (Esc or tap to exit).",
+    "Recordings carry a burned-in \"Recording — name\" badge.",
+    "Vote someone onto the stage, off it, or out of the room."
+   ]
+  },
+  {
+   "version": "0.8.2",
+   "date": "2026-07-25",
+   "critical": true,
+   "headline": "A relay blip can't split a room",
+   "notes": [
+    "Greeters re-register the instant they reconnect, so a relay hiccup no longer strands joiners or spawns a duplicate room.",
+    "Diagnostics show when someone's media is arriving via a friend-relay."
+   ]
+  },
+  {
+   "version": "0.8.1",
+   "date": "2026-07-22",
+   "critical": false,
+   "headline": "First public release",
+   "notes": [
+    "Every app is a real animated GIF you own — drop it on your Home Screen and it runs; share the file, share the app with its data inside.",
+    "Peer-to-peer meetings that scale on a self-healing mesh, with no server in the middle — run any app live inside one.",
+    "Any app goes multiplayer with one invite link.",
+    "Fully offline-capable; back up a whole computer as one GIF and boot it anywhere.",
+    "Ten themed computers, provenance signing, and per-person AI/API keys apps can use but never see."
+   ]
+  }
+ ]
 }
