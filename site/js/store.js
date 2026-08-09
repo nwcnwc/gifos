@@ -361,16 +361,20 @@
       } catch (e) { /* the hash above already pinned the bytes */ }
     }
 
-    // Install-time assets (gifos-assets.js): the OS downloads each pinned URL
-    // FOR the app, verifies its hash, and seals the bytes into the GIF under
-    // .assets/ — download-then-seal. The app itself never touches the network;
-    // a failed or tampered download installs nothing.
-    if (GifOS.assets && GifOS.assets.missing(archive.files, m).length) {
+    // Install-time assets (gifos-assets.js): after the file lands we download
+    // each pinned URL FOR the app, verify its hash, and cache the bytes in the
+    // computer's asset store (Blob-backed, keyed by the installed fileId — big
+    // model weights never go inside the GIF). The app itself never touches the
+    // network. Best-effort here: a failed download leaves a working install
+    // that the runtime backfills on first launch.
+    const fetchAssets = async (fid) => {
+      const A = GifOS.assets; if (!A) return;
       try {
-        await GifOS.assets.ensure(archive.files, m, (s) => { note.textContent = s; });
-        bytes = await gif.repack(bytes, archive.files);
-      } catch (e) { return fail('Couldn’t fetch the app’s data files — ' + (e.message || e)); }
-    }
+        const cache = A.assetCache(store, fid);
+        const need = await A.missing(archive.files, m, cache);
+        if (need.length) await A.ensure(archive.files, m, (s) => { note.textContent = s; }, cache);
+      } catch (e) { note.textContent = '⚠ ' + (e.message || e) + ' — the app will retry when you open it.'; }
+    };
 
     note.textContent = into ? 'Updating…' : 'Installing…';
     try {
@@ -399,6 +403,7 @@
           isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif',
           storeSha: app.sha256 || null });
         await rememberInstall(into.id);
+        await fetchAssets(into.id);
         await refreshInstalled();
         await showDetail(app.slug, false);   // re-renders: Update button gone, sha now matches
         const n2 = $('note');
@@ -414,6 +419,7 @@
         isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif',
         storeSha: app.sha256 || null });
       await rememberInstall(fileId);
+      await fetchAssets(fileId);
       // Hand the placement to desktop.js's saveItem — the only writer of items.
       // Relative, so a frozen build's store finishes on that same build's
       // desktop; in the hash, so the channel loader can't drop it.

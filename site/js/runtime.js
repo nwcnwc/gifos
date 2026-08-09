@@ -334,17 +334,22 @@
     //  which is not supported across all browsers.)
   ].join('; ');
 
-  // The "wasm hatch": an app that declares capabilities.wasm gets exactly two
-  // relaxations and nothing more — 'wasm-unsafe-eval' so it can instantiate a
-  // WebAssembly module (Chrome refuses WASM under a bare 'unsafe-inline'
-  // script-src), and worker-src blob: so it can spin up the Web Worker that
-  // heavy WASM engines (a chess engine, a codec) run on to keep the UI alive.
-  // Crucially connect-src STAYS 'none': the worker and the WASM get zero
-  // network — same airtight sandbox, just allowed to compute. The hatch is
-  // gated by the manifest and surfaced in the abilities acknowledgement, so a
-  // user always sees that an app runs a compiled engine before it does.
+  // The "wasm hatch": an app that declares capabilities.wasm gets exactly
+  // three relaxations and nothing more — 'wasm-unsafe-eval' so it can
+  // instantiate a WebAssembly module (Chrome refuses WASM under a bare
+  // 'unsafe-inline' script-src), worker-src blob: so it can spin up the Web
+  // Worker that heavy WASM engines (a chess engine, an LLM) run on to keep
+  // the UI alive, and connect-src blob: data: so emscripten-style loaders
+  // can fetch() the wasm binary / worker code the app minted from its OWN
+  // bytes as a blob:/data: URL (wllama does exactly this). Crucially the
+  // NETWORK stays unreachable: blob: and data: fetches carry no origin and
+  // touch no wire — this is same-process plumbing, not connectivity. The
+  // hatch is gated by the manifest and surfaced in the abilities
+  // acknowledgement, so a user always sees that an app runs a compiled
+  // engine before it does.
   const APP_CSP_WASM = APP_CSP
     .replace("script-src 'unsafe-inline'", "script-src 'unsafe-inline' 'wasm-unsafe-eval'")
+    .replace("connect-src 'none'", 'connect-src blob: data:')
     .replace("object-src 'none'", "worker-src blob:; object-src 'none'");
   const appCsp = (manifest) => hasCap(manifest, 'wasm') ? APP_CSP_WASM : APP_CSP;
 
@@ -1242,7 +1247,7 @@
         // REFUSES everything else loudly — a hung promise inside the provider
         // would otherwise look like a broken engine.
         else if (d.type === 'info') { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version, provider: true } }, '*'); }
-        else if (d.type === 'asset') { const w = iframe.contentWindow; if (w) replyAsset(files, d, (p) => w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*')); }
+        else if (d.type === 'asset') { replyAsset(files, fileId, d, (p, t) => { const w = iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); }); }
         else if (d.id) { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: false, error: 'Not available in a provider service mount.' }, '*'); }
       };
       const service = {
@@ -1284,33 +1289,39 @@
           showSystemSetup({ kind: 'provider', name, role, problem: 'outside' });
           return Promise.reject(new Error('PROVIDER_NOT_IN_FOLDER: ' + name + ' only works from inside the Providers folder on your Home Screen. Move its icon back there (it wears a red ✕ anywhere else).'));
         }
-        // Install-time assets (gifos-assets.js): the store normally sealed
+        // Install-time assets (gifos-assets.js): the store normally cached
         // them at install, but a hand-dropped or shared slim GIF arrives
-        // without — backfill from the pinned URLs and PERSIST (repack into
-        // the icon's file), so the engine downloads once, not per tab.
+        // without — backfill from the pinned URLs into the computer's asset
+        // store (Blob-backed IndexedDB, keyed by this icon), so a model
+        // downloads once per computer, never per tab.
         const A = GifOS.assets;
-        const prep = (A && A.missing(arc.files, m).length)
-          ? A.ensure(arc.files, m)
-            .then(() => store.getFile(c.app))
-            .then((rec) => {
-              if (!rec || !rec.bytes) return null;
-              const orig = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
-              return Promise.resolve(gif.repack(orig, arc.files)).then((nb) => store.putFile(Object.assign({}, rec, { bytes: nb })));
-            })
-            .catch((e) => { throw new Error(name + ' needs its model download to finish before it can serve — ' + (e && e.message || e)); })
+        const cache = A ? A.assetCache(store, c.app) : null;
+        const prep = A
+          ? A.missing(arc.files, m, cache).then((need) => need.length
+              ? A.ensure(arc.files, m, null, cache)
+                .catch((e) => { throw new Error(name + ' needs its model download to finish before it can serve — ' + (e && e.message || e)); })
+              : null)
           : Promise.resolve();
         return prep.then(() => providerService(c.app, arc.files, m)).then((svc) => svc.call(role, req));
       });
     });
   }
   // gifos.assets(path) — hand an app the bytes the OS downloaded for it at
-  // install (sealed under .assets/ — gifos-assets.js). Serves from the packed
-  // filesystem only; a miss names the fix instead of hanging.
-  function replyAsset(files, d, reply) {
-    const k = '.assets/' + String(d.path || '').replace(/^\.?\/+/, '');
-    const u8 = files[k];
-    if (u8 && u8.buffer) { reply({ ok: true, result: { bytes: u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) } }); return; }
-    reply({ ok: false, error: 'Asset not available: ' + (d.path || '?') + ' — its install-time download hasn’t completed on this computer. Reopen the app while online (or reinstall it from the App Store).' });
+  // install (gifos-assets.js). Serves a hand-sealed .assets/ file from the
+  // packed filesystem first, else the computer's asset store (Blob-backed,
+  // keyed by the icon's fileId). Gigabyte-friendly: the ArrayBuffer crosses
+  // as a TRANSFER (zero-copy move), never a structured clone — post(payload,
+  // transferList). A miss names the fix instead of hanging.
+  function replyAsset(files, fileId, d, post) {
+    const p = String(d.path || '').replace(/^\.?\/+/, '');
+    const u8 = files['.assets/' + p];
+    if (u8 && u8.buffer) { post({ ok: true, result: { bytes: u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) } }); return; }
+    const miss = () => post({ ok: false, error: 'Asset not available: ' + (d.path || '?') + ' — its install-time download hasn’t completed on this computer. Reopen the app while online (or reinstall it from the App Store).' });
+    if (!fileId) { miss(); return; }
+    store.getAsset(fileId, p).then((blob) => {
+      if (!blob) { miss(); return; }
+      return blob.arrayBuffer().then((buf) => post({ ok: true, result: { bytes: buf } }, [buf]));
+    }).catch(() => miss());
   }
 
   // The sanitized request a provider sees — the broker's own vocabulary, never
@@ -1910,8 +1921,9 @@
 "})();";
   }
 
-  function mountApp(iframe, files, manifest, db, originalBytes, policy) {
+  function mountApp(iframe, files, manifest, db, originalBytes, policy, mountFileId) {
     policy = policy || makeNetPolicy(null, manifest); // client-run: session-only
+    mountFileId = mountFileId || null; // set for host mounts — lets gifos.assets() serve the icon's asset cache
     armBackTrap(() => iframe);
     const handler = (e) => {
       if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
@@ -1939,7 +1951,7 @@
       // change visibility (setVisibility). A guest view is not the owner.
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version, owner: !!(db && db.owner) } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
-      else if (d.type === 'asset') replyAsset(files, d, reply);
+      else if (d.type === 'asset') replyAsset(files, mountFileId, d, (p, t) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
       else if (d.type === 'storage') {
         const est = root.navigator && root.navigator.storage && root.navigator.storage.estimate;
@@ -2353,21 +2365,21 @@
         }
       }).then(() => netPolicy.load()).then(() => {
         // Install-time assets backfill (gifos-assets.js): a store install
-        // sealed these already; a hand-dropped or shared SLIM GIF fetches its
-        // pinned downloads on first run here and persists them into the icon's
-        // file. SOFT on failure — the app still mounts (offline it can at
-        // least explain itself); its gifos.assets() calls name the fix.
+        // cached these already; a hand-dropped or shared SLIM GIF fetches its
+        // pinned downloads on first run here into the computer's asset store.
+        // SOFT on failure — the app still mounts (offline it can at least
+        // explain itself); its gifos.assets() calls name the fix.
         const A = GifOS.assets;
-        if (!A || !A.missing(files, manifest).length) return;
-        return A.ensure(files, manifest, setStatus)
-          .then(() => Promise.resolve(gif.repack(appBytes, files)))
-          .then((nb) => { appBytes = nb; return store.putFile(Object.assign({}, rec, { bytes: nb })); })
-          .catch((e) => setStatus('App data download failed — ' + (e && e.message || e)));
+        if (!A) return;
+        const cache = A.assetCache(store, fileId);
+        return A.missing(files, manifest, cache).then((need) => need.length
+          ? A.ensure(files, manifest, setStatus, cache).catch((e) => setStatus('App data download failed — ' + (e && e.message || e)))
+          : null);
       }).then(() => Promise.resolve(db.getFullState())).then((connectState) => {
         // Snapshot the state AT LOAD once, so the corner app-GIF and a
         // "data at connect time" steal share the same (memoized) bytes.
         const stealCtx = { connectState: connectState, cache: { bytes: null } };
-        mountApp(iframe, files, manifest, db, appBytes, netPolicy);
+        mountApp(iframe, files, manifest, db, appBytes, netPolicy, fileId);
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes, manifest);
         announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');

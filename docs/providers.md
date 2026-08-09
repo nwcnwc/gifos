@@ -121,10 +121,20 @@ An app that truly needs it declares, in its manifest:
 
 The **OS** — a trusted first-party page, never the sandbox — downloads each
 pinned URL (App Store at install; run.html / the provider mount as a backfill
-for hand-dropped slim GIFs), verifies the SHA-256, and **seals the bytes into
-the GIF under `.assets/<path>`** (repack + putFile, so it happens once per
-computer). The app reads them with `gifos.assets(path)` and never touches the
-network itself.
+for hand-dropped slim GIFs), verifies the SHA-256, and **caches the bytes in
+the computer's asset store** (`appassets` in IndexedDB, Blob-backed so the
+browser keeps them on disk, keyed by the icon's fileId — once per computer,
+never per tab). The app reads them with `gifos.assets(path)` — served with a
+zero-copy ArrayBuffer transfer, so a gigabyte model crosses the bridge
+without a structured-clone copy — and never touches the network itself.
+
+**Why a store, not sealed into the GIF:** the GIF payload is base64-inside-
+JSON, so a 1.2 GB model would base64 past the engine's maximum string length
+before the encoder ran — and it's the right distribution story anyway: a
+shared or exported GIF stays slim, and the receiving computer re-downloads
+from the SAME manifest pin. The public host is the canonical storage; GifOS
+holds a verified local cache (excluded from whole-computer backups, deleted
+with the icon).
 
 Why this coexists with the network-less hard rule: the URL is fixed in the
 manifest and the hash pins the exact bytes, so the download can neither carry
@@ -135,11 +145,12 @@ must be https (public model hosts are the intended shape); origin-relative
 URLs resolve against the serving origin and are what the harness uses
 (`e2e-providers` pins a small local file to keep the machinery guarded while
 no catalog app needs it — the 8 MB floor is catalog policy, not a mechanical
-limit of the loader). `.assets/**` joins `.state/**` outside the signing
-digest (the signed manifest already pins each asset by hash), snapshots and
-exports carry the sealed assets (a shared installed GIF is complete), and the
-store records the catalog sha at install (`storeSha`) so a sealed install
-doesn't read as forever-outdated.
+limit of the loader). A hand-sealed `.assets/**` file inside a GIF still
+serves (and stays outside the signing digest, like `.state/**` — the signed
+manifest already pins each asset by hash), but nothing writes that path
+anymore; the cache is where downloads land. The store also records the
+catalog sha at install (`storeSha`) — belt-and-braces for any install whose
+bytes ever diverge from the catalog's.
 
 ## What this deliberately does NOT do
 

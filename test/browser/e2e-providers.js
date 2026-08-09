@@ -16,10 +16,11 @@
 //  7. The REAL Offline Text to Speech GIF: engine IN-GIF (no assets — 5.6 MB raw is
 //     under the assets floor), boots in the hidden mount, and a real RIFF
 //     WAV comes back through gifos.ai.tts with no repack of the stored file.
-//  8. The install-time assets machinery (gifos-assets.js) stays guarded while
-//     no catalog app uses it: a synthetic provider pins a file on the static
-//     server; the provider mount backfills it (hash-verified), SEALS it into
-//     the stored GIF under .assets/, and serves its bytes back.
+//  8. The install-time assets machinery (gifos-assets.js) is guarded end to
+//     end: a synthetic provider pins a file on the static server; the
+//     provider mount backfills it (hash-verified) into the computer's ASSET
+//     STORE (Blob-backed appassets — the gigabyte tier; never sealed into
+//     the GIF, which stays byte-identical), and serves its bytes back.
 //
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
 const fs = require('fs');
@@ -210,6 +211,7 @@ async function runConsumer(page, context, label, outTimeout) {
     });
     const fid = GifOS.store.uid('file');
     window.__assetFid = fid;
+    window.__assetGifLen = bytes.length;
     await GifOS.store.putFile({ id: fid, name: 'Asset Prov.gif', bytes, kind: 'gif', isApp: true, appId: 'assetprov', mime: 'image/gif' });
     await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Asset Prov.gif', parent: 'sys_providers', x: 300, y: 90, iconSize: 64 });
     localStorage.setItem('gifos_ai_config', JSON.stringify({ tts: { app: fid, appId: 'assetprov', appName: 'Asset Prov' } }));
@@ -219,13 +221,14 @@ async function runConsumer(page, context, label, outTimeout) {
     check('the provider mount BACKFILLS a pinned asset and serves its bytes', out.indexOf(':' + assetSrc.length + ':') >= 0, out.slice(0, 120));
     await app.close();
   }
-  const sealedLen = await page.evaluate(async () => {
+  const assetState = await page.evaluate(async () => {
+    const blob = await GifOS.store.getAsset(window.__assetFid, 'blob.bin');
     const f = await GifOS.store.getFile(window.__assetFid);
-    const arc = await GifOS.gif.decode(f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes));
-    const a = arc && arc.files && arc.files['.assets/blob.bin'];
-    return a ? a.length : -1;
+    return { cached: blob ? blob.size : -1, gifLen: f.bytes.byteLength || f.bytes.length };
   });
-  check('the fetched asset was SEALED into the stored GIF under .assets/', sealedLen === assetSrc.length, sealedLen + ' vs ' + assetSrc.length);
+  check('the fetched asset was CACHED in the computer’s asset store (Blob tier)', assetState.cached === assetSrc.length, assetState.cached + ' vs ' + assetSrc.length);
+  const expectedGifLen = await page.evaluate(() => window.__assetGifLen);
+  check('…and the stored GIF stayed byte-identical (weights live beside it, not in it)', assetState.gifLen === expectedGifLen, assetState.gifLen + ' vs ' + expectedGifLen);
 
   // ---- 6. Reader (the seeded consumer) lives in Tools -----------------------
   await page.locator('.icon', { hasText: 'Tools' }).dblclick();

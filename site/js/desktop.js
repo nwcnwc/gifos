@@ -1574,6 +1574,7 @@
       await store.deleteFile(it.fileId);
       await store.deleteState(it.fileId);
       await store.deleteState(it.fileId + '::session');
+      if (store.deleteAssets) await store.deleteAssets(it.fileId).catch(() => {}); // cached model weights go with the icon
       if (blobUrls.has(it.fileId)) { URL.revokeObjectURL(blobUrls.get(it.fileId)); blobUrls.delete(it.fileId); }
     }
     await store.deleteItem(it.id);
