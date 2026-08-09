@@ -288,6 +288,9 @@
       var c = cars[i];
       draw.push({ id: c.id, x: c.x, y: c.y, z: c.z, yaw: c.yaw, tint: c.tint,
                   speed: c.speed, vx: c.vx, vz: c.vz, groundY: c.y,
+                  // Bolts that connected but did not kill leave dents — a car
+                  // you have winged twice should look winged twice.
+                  crumple: c.hp === undefined ? 0 : Math.min(0.7, (3 - c.hp) * 0.3),
                   // seconds into the death animation, or undefined while alive —
                   // the renderer turns this into flash, shrink and smoke.
                   boom: c.dying });

@@ -652,11 +652,29 @@
     progs.car = program([
       'attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor;',
       'uniform mat4 uViewProj; uniform mat4 uModel; uniform vec3 uEye; uniform vec3 uTint;',
-      'uniform vec3 uShape;',
+      'uniform vec3 uShape; uniform float uCrumple;',
       'varying vec3 vNormal; varying vec3 vColor; varying float vDist; varying vec3 vWorld;',
+      // CRUMPLE, in the shader, because the mesh is shared: one hatchback
+      // buffer serves the player, every ghost and all the traffic, so the
+      // damage cannot live in the vertices — it rides a per-draw uniform and
+      // a hash of each vertex's REST position. Same position, same dent, every
+      // frame: the wreck holds its shape instead of shimmering, and touching
+      // panels tear along their seams (separate boxes drift apart), which is
+      // exactly what crumpled bodywork does.
+      'float dent(vec3 p, float s){ return fract(sin(dot(p * 37.7, vec3(127.1 + s, 311.7, 74.7))) * 43758.5453) - 0.5; }',
       'void main(){',
-      '  vec4 world = uModel * vec4(aPos * uShape, 1.0);',
-      '  vNormal = mat3(uModel) * (aNormal / uShape);',
+      '  vec3 shaped = aPos * uShape;',
+      '  vec3 nrm = aNormal / uShape;',
+      '  if (uCrumple > 0.001) {',
+      // Tyres keep their shape — a car on square wheels reads as a render bug,
+      // not as damage. They are the one near-black part of the palette.
+      '    float bodyish = step(0.12, max(aColor.r, max(aColor.g, aColor.b)));',
+      '    vec3 j = vec3(dent(aPos, 0.0), dent(aPos, 5.1), dent(aPos, 9.7));',
+      '    shaped += j * uCrumple * vec3(0.40, 0.34, 0.46) * bodyish;',
+      '    nrm = nrm + j * uCrumple * 1.6 * bodyish;',
+      '  }',
+      '  vec4 world = uModel * vec4(shaped, 1.0);',
+      '  vNormal = mat3(uModel) * nrm;',
       '  vColor = aColor * uTint;',
       '  vWorld = world.xyz;',
       '  vDist = length(world.xyz - uEye);',
@@ -1593,10 +1611,12 @@
         var cs = car.scale || 1;
         if (cs !== 1) gl.uniform3fv(progs.car.u.uShape, [cs, cs, cs]);
         if (car.emit) gl.uniform1f(progs.car.u.uEmit, car.emit);
+        if (car.crumple) gl.uniform1f(progs.car.u.uCrumple, car.crumple);
         var gnow = boundPlane ? uploadPlane() : cg;
         gl.drawElements(gl.TRIANGLES, gnow.count, gnow.type, 0);
         if (cs !== 1) gl.uniform3fv(progs.car.u.uShape, ONE);
         if (car.emit) gl.uniform1f(progs.car.u.uEmit, 0);
+        if (car.crumple) gl.uniform1f(progs.car.u.uCrumple, 0);
       }
       ['aPos','aNormal','aColor'].forEach(function (name) {
         var loc = progs.car.a[name];
