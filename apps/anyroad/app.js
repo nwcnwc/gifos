@@ -681,7 +681,7 @@
   // and nothing improved" was the honest report of a real bug.
   function redrape() {
     var src = root.Sources.imagery;
-    imagery.tried = 0; imagery.ok = 0; imagery.failed = '';
+    imagery.tried = 0; imagery.ok = 0; imagery.failed = ''; imagery.fails = 0;
     for (var k in world.terrain) {
       var slot = world.terrain[k];
       if (!slot || !slot.rec) continue;
@@ -701,7 +701,7 @@
   // What the drape is actually doing, so the HUD can say so. A satellite layer
   // that silently does nothing is indistinguishable from one that is switched
   // off, and that is exactly how this failed.
-  var imagery = { tried: 0, ok: 0, failed: '' };
+  var imagery = { tried: 0, ok: 0, failed: '', fails: 0 };
 
   // Hand a road tile's buildings the photograph they are standing in, so their
   // ROOFS can take their colour from it. Roads are z15 and terrain z14, so a
@@ -804,7 +804,13 @@
       // rejected request and a working satellite layer all looked identical
       // from the driver's seat.
       imagery.failed = (err && err.message) || 'request failed';
-      if (imagery.tried - imagery.ok <= 1) {
+      imagery.fails = (imagery.fails || 0) + 1;
+      // Note on the FIRST FAILURE, not the first attempt. The old guard
+      // (tried - ok <= 1) assumed tiles trickle in one at a time; redrape
+      // launches the whole neighbourhood at once, so by the first failure
+      // `tried` was 25 and the player who switched satellite on while
+      // offline was told NOTHING at all.
+      if (imagery.fails === 1) {
         // SAY WHICH FAILURE IT IS. "Check the key" on a dead network sent a
         // player to re-enter a key that was saved and fine — the runtime
         // marks network-level failures (OFFLINE:/UNREACHABLE:), and the
