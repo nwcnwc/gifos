@@ -51,6 +51,11 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
     return f ? f.id : null;
   }, SYS);
+  // Seed a record into the app's state BEFORE it boots: the steal choices are
+  // only distinguishable if the room actually HAS data — a sample app that
+  // never writes leaves both copies identically empty and the check proves
+  // nothing. Written through the same per-record path the app's db uses.
+  await d.evaluate((fid) => GifOS.store.appAdd(fid, 'e2e', { id: 'marker', v: 'room data' }), appId);
   await d.close();
   const h = await hCtx.newPage();
   h.on('pageerror', (e) => console.log('  [host] ' + e.message));
