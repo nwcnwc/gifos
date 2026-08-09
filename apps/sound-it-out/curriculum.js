@@ -30,6 +30,10 @@
   // unit, because that is what it is.
   const GRAPHEMES = {
     igh: 'aɪ', air: 'eə', ear: 'ɪə', tch: 'tʃ',
+    // doubled consonants are one sound
+    bb: 'b', cc: 'k', dd: 'd', ff: 'f', gg: 'ɡ', ll: 'l',
+    mm: 'm', nn: 'n', pp: 'p', rr: 'ɹ', ss: 's', tt: 't',
+    zz: 'z',
     sh: 'ʃ', ch: 'tʃ', th: 'θ', ng: 'ŋ', ck: 'k',
     ph: 'f', wh: 'w', qu: 'kw',
     ai: 'eɪ', ay: 'eɪ', ee: 'iː', ea: 'iː', oa: 'əʊ',
@@ -75,8 +79,16 @@
   const PUNCT = /^[.,!?;:‘’“”'"]+|[.,!?;:‘’“”'"]+$/g;
   const cleanWord = (w) => w.replace(PUNCT, '');
 
+  const consLe = (w) => w.length >= 4 && w.endsWith('le') && !'aeiou'.includes(w[w.length - 3]);
+
   function splitGraphemes(word) {
     const low = word.toLowerCase();
+    // Consonant-le: the -ble/-dle/-tle family ends in its own little
+    // syllable, /əl/. "Rubble" is r-u-bb-le, the way every phonics
+    // programme teaches it.
+    if (consLe(low)) {
+      return splitGraphemes(word.slice(0, -2)).concat([[word.slice(-2), 'əl']]);
+    }
     if (low.length >= 3 && MAGIC_E.test(low)) {
       const head = word.length > 3 ? splitGraphemes(word.slice(0, -3)) : [];
       const v = low[low.length - 3], c = low[low.length - 2];
@@ -159,9 +171,10 @@
     // From here down: words no dictionary knows. The hand lists and rules
     // only govern names and nonsense now.
     if (IRREGULAR_WORDS.has(w)) return false;
-    // Magic-e outside the safe rime pattern: "have", "care" - the rule cannot
-    // say these, so they are read whole.
-    if (/[aeiou][b-df-hj-np-tv-z]+e$/.test(w) && !MAGIC_E.test(w)) return false;
+    // Magic-e outside the safe rime pattern: "have", "care" - the rule
+    // cannot say these, so they are read whole. Consonant-le words have
+    // their own rule, so they pass through.
+    if (/[aeiou][b-df-hj-np-tv-z]+e$/.test(w) && !MAGIC_E.test(w) && !consLe(w)) return false;
     // "happy", "pony": final y as a vowel sound the table does not model.
     if (w.length > 2 && /[b-df-hj-np-tv-z]y$/.test(w)) return false;
     return true;
