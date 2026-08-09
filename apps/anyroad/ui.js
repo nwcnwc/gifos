@@ -34,7 +34,7 @@
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
-     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-offline','note-offline','race-dist',
+     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-keep','ctl-fill','note-offline','race-dist',
      'street','passing','recent','cockpit','cockpit-wheel','pov-eye',
      'dash-speed','dash-cond-fill','speedo','btn-fly','fly-plane','fly-car','dash-unit',
      'dash-alt','dash-alt-m',
@@ -510,36 +510,51 @@
     var mb = root.Roads.cacheBytes() / (1024 * 1024);
     el['cache-size'].textContent = n
       ? (n + ' map tile' + (n === 1 ? '' : 's') + ' · ' + (mb < 1 ? mb.toFixed(2) : mb.toFixed(1)) + ' MB'
-         + ' of ' + Math.round(root.Sources.offlineBytes() / (1024 * 1024)) + ' MB')
+         + ' of ' + Math.round(root.Sources.totalBytes() / (1024 * 1024)) + ' MB')
       : 'nothing cached yet';
   }
 
+  // Two dials, two questions: how much of YOUR TRAIL to remember, and how
+  // much EXTRA to build out ahead. They were one dropdown, which meant you
+  // could not keep a big trail without also signing up for background
+  // download — or fill ahead without a bigger trail than you wanted.
   function buildOfflineMenu() {
-    var sel = el['ctl-offline'];
-    if (!sel) return;
-    sel.innerHTML = '';
-    root.Sources.OFFLINE_MB.forEach(function (mb) {
+    var keepSel = el['ctl-keep'], fillSel = el['ctl-fill'];
+    if (!keepSel || !fillSel) return;
+    keepSel.innerHTML = ''; fillSel.innerHTML = '';
+    root.Sources.KEEP_MB.forEach(function (mb) {
       var o = document.createElement('option');
-      o.value = mb; o.textContent = root.Sources.OFFLINE_LABEL[mb];
-      sel.appendChild(o);
+      o.value = mb; o.textContent = root.Sources.KEEP_LABEL[mb];
+      keepSel.appendChild(o);
     });
-    sel.addEventListener('change', function () {
-      root.Sources.set({ offline: this.value });
-      root.Roads.setCacheBudget(root.Sources.offlineBytes());
-      syncOfflineNote();
-      refreshCacheSize();
+    root.Sources.FILL_MB.forEach(function (mb) {
+      var o = document.createElement('option');
+      o.value = mb; o.textContent = root.Sources.FILL_LABEL[mb];
+      fillSel.appendChild(o);
+    });
+    keepSel.addEventListener('change', function () {
+      root.Sources.set({ keep: this.value });
+      root.Roads.setCacheBudget(root.Sources.totalBytes());
+      syncOfflineNote(); refreshCacheSize();
+      note('Remembering up to ' + this.value + ' MB of the map you drive through.');
+    });
+    fillSel.addEventListener('change', function () {
+      root.Sources.set({ fill: this.value });
+      root.Roads.setCacheBudget(root.Sources.totalBytes());
+      syncOfflineNote(); refreshCacheSize();
       note(root.Sources.fillsAhead()
         ? 'Filling the map in around you whenever the network is idle.'
-        : 'Only keeping what you drive through.');
+        : 'Not fetching ahead - only where you drive.');
     });
   }
 
   function syncOfflineNote() {
-    if (el['ctl-offline']) el['ctl-offline'].value = root.Sources.current.offline;
+    if (el['ctl-keep']) el['ctl-keep'].value = root.Sources.current.keep;
+    if (el['ctl-fill']) el['ctl-fill'].value = root.Sources.current.fill;
     if (!el['note-offline']) return;
     el['note-offline'].textContent = root.Sources.fillsAhead()
-      ? 'Keeps loading the area around you in the background, but only while the network is idle — your own driving always goes first. Stored on disk; it does not affect frame rate, because only the tiles right around you are drawn.'
-      : 'Only keeps the tiles you actually drive through.';
+      ? 'Keeps loading the area around you in the background, but only while the network is idle - your own driving always goes first. Stored on disk; it does not affect frame rate, because only the tiles right around you are drawn.'
+      : 'Only fetches the tiles you actually drive through; the keep dial says how many of them are remembered.';
   }
 
   function openSettings() { syncSourceMenus(); refreshCacheSize(); renderAttribution(); show(el.settings); }

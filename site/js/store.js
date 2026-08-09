@@ -358,20 +358,44 @@
 
     note.textContent = into ? 'Updating…' : 'Installing…';
     try {
+      // The store remembers which fileId each appId lived at — because ALL of
+      // an app's saved data (recent places, map cache, preferences) is keyed
+      // by fileId, and a fresh id is a fresh, empty life. Recorded on every
+      // install so a later delete-and-reinstall can pick the same identity
+      // back up: deleteFile orphans the app's state rather than destroying
+      // it, and re-using the id is what re-attaches it.
+      const remembered = (await store.getState('sys::store-installs').catch(() => null)) || {};
+      const rememberInstall = async (fid) => {
+        remembered[m.appId] = fid;
+        await store.setState('sys::store-installs', remembered).catch(() => {});
+      };
+      // A live copy always takes the UPDATE path, whatever button was showing
+      // — installing a second copy of the same app next to the first would
+      // fork its data for no reason anyone ever wants from a store.
+      if (!into) {
+        const live = installedOf(app);
+        if (live) into = { id: live.id, name: live.name };
+      }
       if (into) {
         // Same fileId, same NAME (the player may have renamed their copy) —
         // new bytes. No placement hand-off: the icon already lives somewhere.
         await store.putFile({ id: into.id, name: into.name || (app.name + '.gif'), bytes, kind: 'gif',
           isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif' });
+        await rememberInstall(into.id);
         await refreshInstalled();
         await showDetail(app.slug, false);   // re-renders: Update button gone, sha now matches
         const n2 = $('note');
         if (n2) n2.textContent = 'Updated ✓ — your saved data is untouched.';
         return;
       }
-      const fileId = store.uid('file');
+      // Resurrect the app's old identity if its file is gone: the orphaned
+      // state (searched places, driven-through map) re-attaches by id.
+      let fileId = store.uid('file');
+      const past = remembered[m.appId];
+      if (past && !(await store.getFile(past).catch(() => null))) fileId = past;
       await store.putFile({ id: fileId, name: app.name + '.gif', bytes, kind: 'gif',
         isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif' });
+      await rememberInstall(fileId);
       // Hand the placement to desktop.js's saveItem — the only writer of items.
       // Relative, so a frozen build's store finishes on that same build's
       // desktop; in the hash, so the channel loader can't drop it.

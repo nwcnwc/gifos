@@ -253,6 +253,41 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('an installed listing offers Open (pointing at the icon you own)', /run\.html#id=/.test(openHref || ''), openHref || 'none');
   check('re-opening the store STILL fetches no App GIF', gifHits.length === 1, gifHits.length + ' total');
 
+  // ---- delete, reinstall, and the app REMEMBERS -----------------------------
+  // Every byte an app saves — searched places, driven-through map cache,
+  // preferences — is keyed by its fileId, so a reinstall under a fresh id is
+  // a fresh, empty life ("the places I've driven are not being remembered").
+  // Deleting a file ORPHANS its state rather than destroying it, and the
+  // store records which fileId each appId lived at — so a delete-and-
+  // reinstall resurrects the same identity and the state re-attaches.
+  const oldId = await page.evaluate(async (appId) => {
+    const files = await GifOS.store.allFiles();
+    const f = files.find((x) => x.appId === appId);
+    // A marker standing in for the player's saved places.
+    await GifOS.store.setState(f.id, { collections: { prefs: [{ id: 'marker', v: 'survived the reinstall' }] } });
+    const items = await GifOS.store.allItems();
+    for (const i of items.filter((it) => it.fileId === f.id)) await GifOS.store.deleteItem(i.id);
+    await GifOS.store.deleteFile(f.id);
+    return f.id;
+  }, target.appId);
+  await page.goto(BASE + '/store.html#app=' + target.slug);
+  await page.waitForSelector('#install', { timeout: 15000 });
+  await page.locator('#install').click();
+  await page.waitForURL(/index\.html/, { timeout: 60000 });
+  await page.waitForSelector('.modal', { timeout: 30000 });
+  const rebirth = await page.evaluate(async (appId) => {
+    const files = await GifOS.store.allFiles();
+    const f = files.find((x) => x.appId === appId);
+    const st = f ? await GifOS.store.getState(f.id) : null;
+    const marker = st && st.collections && st.collections.prefs
+      && st.collections.prefs.find((r) => r.id === 'marker');
+    return { id: f && f.id, marker: marker ? marker.v : null };
+  }, target.appId);
+  check('a reinstall resurrects the app\'s old identity (same fileId)',
+    rebirth.id === oldId, rebirth.id + ' vs ' + oldId);
+  check('…so the data saved before the delete is still there',
+    rebirth.marker === 'survived the reinstall', JSON.stringify(rebirth.marker));
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

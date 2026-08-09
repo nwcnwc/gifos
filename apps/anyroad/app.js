@@ -1022,7 +1022,7 @@
     if (!world.frame || !root.Sources.fillsAhead()) return;
     var st = root.Net.stats();
     if (st.pending || st.active || st.backoffMs) return;
-    if (root.Roads.cacheBytes() >= root.Sources.offlineBytes()) return;
+    if (root.Roads.cacheBytes() >= root.Sources.totalBytes()) return;
     // Work outwards in rings from the car, taking the first tile that is
     // neither resident nor already on disk.
     var want = root.Geo.tilesAround(world.frame, car.x, car.z,
@@ -1605,7 +1605,7 @@
       applyControlPrefs();
       // The saved offline size has to reach the cache before the first tile
       // lands, or the first drive of every session evicts against the default.
-      root.Roads.setCacheBudget(root.Sources.offlineBytes());
+      root.Roads.setCacheBudget(root.Sources.totalBytes());
       root.UI.ready();
     });
     root.Sources.onChange(applyControlPrefs);
