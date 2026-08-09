@@ -1,5 +1,5 @@
-// Pack apps/pocket-voice/ source into the finished, downloadable
-// site/apps/pocket-voice/pocket-voice.gif (see apps/README.md).
+// Pack apps/offline-tts/ source into the finished, downloadable
+// site/apps/offline-tts/offline-tts.gif (see apps/README.md).
 //
 // The engine rides INSIDE the GIF — chess-grandmaster's pattern exactly:
 //   engine.js       → the eSpeak core (vendor/espeak.js: speak.js/meSpeak
@@ -14,9 +14,9 @@
 // here: it is reserved for weights too big to live in a GIF at all
 // (docs/providers.md — think multi-tens-of-MB model files on a public host).
 //
-// Run:  node apps/pocket-voice/build.mjs
+// Run:  node apps/offline-tts/build.mjs
 import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
-import { pocketVoiceIcon } from './icon.mjs';
+import { offlineTtsIcon } from './icon.mjs';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -26,7 +26,7 @@ const gif = globalThis.GifOS.gif;
 const read = (p) => readFileSync(join(dir, p), 'utf8');
 
 const manifest = JSON.parse(read('manifest.json'));
-if (manifest.assets) throw new Error('pocket-voice packs its engine in-GIF — a manifest.assets declaration here is a mistake (docs/providers.md: assets are for far bigger weights).');
+if (manifest.assets) throw new Error('offline-tts packs its engine in-GIF — a manifest.assets declaration here is a mistake (docs/providers.md: assets are for far bigger weights).');
 
 const core = read('vendor/espeak.js');
 if (!/window\.__ESpeak\s*=/.test(core)) throw new Error('vendor/espeak.js is not the wrapped core (expected window.__ESpeak = …).');
@@ -48,9 +48,9 @@ const files = {
   'COPYING-espeak.txt': read('COPYING-espeak.txt'),
 };
 
-const bytes = await gif.encode(files, { preview: pocketVoiceIcon(), accent: manifest.accent });
-const out = join(dir, '..', '..', 'site', 'apps', 'pocket-voice', 'pocket-voice.gif');
+const bytes = await gif.encode(files, { preview: offlineTtsIcon(), accent: manifest.accent });
+const out = join(dir, '..', '..', 'site', 'apps', 'offline-tts', 'offline-tts.gif');
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
-console.log('wrote site/apps/pocket-voice/pocket-voice.gif —', (bytes.length / 1e6).toFixed(2), 'MB from', Object.keys(files).length, 'files (engine in-GIF)');
+console.log('wrote site/apps/offline-tts/offline-tts.gif —', (bytes.length / 1e6).toFixed(2), 'MB from', Object.keys(files).length, 'files (engine in-GIF)');
 console.log('now refresh the store catalog: node scripts/build-app-catalog.mjs');

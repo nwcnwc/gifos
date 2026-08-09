@@ -1,4 +1,4 @@
-// Procedural icon for Pocket Voice: a violet rounded card with a white
+// Procedural icon for Offline Text to Speech: a violet rounded card with a white
 // speaker whose sound waves pulse outward frame by frame. Pure Node (no
 // canvas), same super-sample → box-downsample → small-palette pipeline as
 // chess-grandmaster/icon.mjs. Deterministic, so builds reproduce.
@@ -77,7 +77,7 @@ function frameIndices(pal, phase) {
   return idx;
 }
 
-export function pocketVoiceIcon() {
+export function offlineTtsIcon() {
   const pal = buildPalette();
   const frames = [];
   for (let f = 0; f < FRAMES; f++) frames.push(frameIndices(pal, f / (FRAMES - 1)));

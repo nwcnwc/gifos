@@ -4,7 +4,7 @@
  * An app whose payload is too big (or too separately-licensed) to ride inside
  * its GIF declares it in the manifest instead:
  *
- *   "assets": [{ "url": "/apps/pocket-voice/assets/espeak.js",
+ *   "assets": [{ "url": "https://…/model-q4.bin",
  *                "sha256": "<64-hex of the exact bytes>",
  *                "path": "espeak.js", "bytes": 4900000 }]
  *

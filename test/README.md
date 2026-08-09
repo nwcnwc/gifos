@@ -470,7 +470,7 @@ Roughly three families in one directory:
 - **AI / network** — `e2e-caps`, `e2e-ai-types`, `e2e-agent`, `e2e-chess-hint`
   (all need fake-ai), `e2e-providers` (Provider apps + install-time assets,
   docs/providers.md: recognition-is-a-place with the red ✕, the network-less
-  hard rule, ack sheet naming the provider, the real Pocket Voice speaking a
+  hard rule, ack sheet naming the provider, the real Offline Text to Speech provider speaking a
   WAV through gifos.ai.tts with its engine in-GIF, and a synthetic provider
   keeping the assets download-then-seal machinery guarded while no catalog
   app is big enough to need it; needs only the 8099 static site),

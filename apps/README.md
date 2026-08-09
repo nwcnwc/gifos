@@ -89,15 +89,15 @@ how an app stays unlisted while it's being built.
   upstream is still moving; `listing.unpublished.json` holds the listing
   (see its README for the publish move). Guarded by
   `test/unit/sound-it-out.js`: segment-exact parity with the Python original.
-- **[pocket-voice](pocket-voice/)** — offline text-to-speech for the whole
-  computer, and the first **Provider app** (docs/providers.md): kept in the
+- **[offline-tts](offline-tts/)** — **Offline Text to Speech**: the first
+  **Provider app** (docs/providers.md): kept in the
   Providers folder and assigned in Settings → AI models, it serves the
   **Text → speech** AI role to every app via `gifos.provider.serve`. The
   eSpeak engine + en-us voice ride **inside the GIF** (chess-grandmaster's
   pattern; the install-time assets pattern is reserved for far bigger public
   model weights). **GPLv3** (it embeds eSpeak via meSpeak/speak.js — see
-  [`pocket-voice/COPYING-espeak.txt`](pocket-voice/COPYING-espeak.txt)).
-  Finished GIF: [`site/apps/pocket-voice/pocket-voice.gif`](../site/apps/pocket-voice/pocket-voice.gif) (~1.6 MB).
+  [`offline-tts/COPYING-espeak.txt`](offline-tts/COPYING-espeak.txt)).
+  Finished GIF: [`site/apps/offline-tts/offline-tts.gif`](../site/apps/offline-tts/offline-tts.gif) (~1.6 MB).
 - **[chess-grandmaster](chess-grandmaster/)** — play **full-strength Stockfish**
   (real engine, NNUE) running entirely offline in the sandbox. Pick a level from
   ~1320 Elo to the unshackled engine, with a live win/draw/loss read-out and

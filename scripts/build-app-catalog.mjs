@@ -166,7 +166,7 @@ async function buildApp(slug) {
   // hosted model files in the tens of MB and up (Hugging Face-style pinned
   // URLs). Anything smaller belongs IN the GIF (deflate makes it cheap, and
   // in-GIF means the shared file is complete with no second fetch to fail) —
-  // Pocket Voice's 5.6 MB engine and Chess Grandmaster's Stockfish both do.
+  // Offline Text to Speech's 5.6 MB engine and Chess Grandmaster's Stockfish both do.
   // Enforced here so the doctrine can't erode one convenient listing at a
   // time; the floor is mechanical, the 40 MB+ guidance is judgement.
   const ASSET_MIN_BYTES = 8 * 1024 * 1024;

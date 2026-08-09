@@ -95,7 +95,7 @@ state, that's a deliberate extension, not a default.
 
 The consumer's "would like to…" ack sheet already prints, per AI role, what the
 role resolves to. When it resolves to a provider the sheet names the app:
-"✓ Text → speech — set to **Pocket Voice (app on this device — nothing leaves
+"✓ Text → speech — set to **Offline Text to Speech (app on this device — nothing leaves
 this browser)**". Both parties of the data flow are on the one sheet the user
 actually reads, and the claim is *stronger* than the endpoint case, not weaker.
 
@@ -105,7 +105,7 @@ actually reads, and the claim is *stronger* than the endpoint case, not weaker.
 2026-08-09): publicly hosted model files in the **tens of MB and up** — a
 Whisper model, a quantized LLM, the kind of file that already lives on
 Hugging Face behind a stable, CORS-served URL. Anything smaller rides
-**inside** the GIF like Chess Grandmaster's Stockfish and Pocket Voice's
+**inside** the GIF like Chess Grandmaster's Stockfish and Offline Text to Speech's
 eSpeak (5.6 MB raw deflates to ~1.6 MB in-GIF): the shared file stays
 complete with no second fetch to fail, which is strictly better whenever it
 fits. `build-app-catalog.mjs` enforces a hard 8 MB floor per asset so the
@@ -155,7 +155,7 @@ doesn't read as forever-outdated.
 
 ## Shipped with this feature
 
-- **Pocket Voice** (`apps/pocket-voice/`, App Store) — the proof: offline TTS
+- **Offline Text to Speech** (`apps/offline-tts/`, App Store) — the proof: offline TTS
   (eSpeak/meSpeak, GPL — same licensing posture as Chess Grandmaster's
   Stockfish), `provides: { ai: ["tts"] }`, no network. Engine + voice ride
   **inside the GIF** (~1.6 MB deflated) — at 5.6 MB raw it sits well under
