@@ -132,15 +132,81 @@
     return out;
   }
 
-  // gen/soundout.cap(): shorten a clip with a fade, or return it untouched.
-  // The fade keeps a trimmed hold sounding like a shorter hold, not a cut.
-  function capData(a, sr, seconds, fadeMs) {
+  // gen/soundout.cap(): shorten a clip, or return it untouched. `keep`
+  // decides WHICH end survives, and it matters enormously: a held sound's
+  // identity is at its start, so keep='start' fades the tail; a stop's
+  // identity is its release BURST, which many people record at the end of a
+  // long voiced closure - keep='end' discards leading closure instead of
+  // amputating the burst, which is how Grandma lost her /d/ twice.
+  function capData(a, sr, seconds, keep) {
     const n = Math.trunc(seconds * sr);
     if (a.length <= n) return a;
+    if (keep === 'end') {
+      const out = Float32Array.from(a.subarray(a.length - n));
+      const m = Math.min(Math.round(sr * 0.012), out.length);
+      for (let i = 0; i < m; i++) out[i] *= m > 1 ? i / (m - 1) : 1;
+      return out;
+    }
     const out = Float32Array.from(a.subarray(0, n));
-    const f = Math.min(Math.round(sr * (fadeMs || 60) / 1000), out.length);
+    const f = Math.min(Math.round(sr * 60 / 1000), out.length);
     for (let i = 0; i < f; i++) out[out.length - f + i] *= 1 - i / (f - 1 || 1);
     return out;
+  }
+
+  // gen/soundout.content(): trim a clip to its sustained content before any
+  // window decision. Real recordings arrive with slow swells and breathy
+  // tails - an /iː/ that fades in over half a second reads as silence to a
+  // keep-the-start cap, which is how lollipop lost its i. Content is where
+  // the energy is: 20ms windows above a tenth of the clip's own loudest (a
+  // tenth, not more - a quiet vowel NEXT TO a loud burst must stay).
+  function contentData(a, sr, keepMs) {
+    if (a.length < Math.trunc(sr / 10)) return a;
+    const w = Math.trunc(sr * 0.02);
+    const n = Math.trunc(a.length / w);
+    const rms = [];
+    for (let i = 0; i < n; i++) rms.push(rmsOf(a, i * w, (i + 1) * w));
+    const top = Math.max(...rms);
+    if (top <= 0) return a;
+    const on = rms.map((r) => r > top * 0.10);
+    if (!on.some(Boolean)) return a;
+    const i0 = on.indexOf(true);
+    const i1 = n - [...on].reverse().indexOf(true);
+    const pad = Math.trunc(sr * (keepMs === undefined ? 15 : keepMs) / 1000);
+    return a.subarray(Math.max(0, i0 * w - pad), Math.min(a.length, i1 * w + pad));
+  }
+
+  // gen/levels._hard_clip's window+booster half: a sound ending in a stop
+  // keeps a window CENTRED ON ITS BURST - located, not assumed - with the
+  // body before it and the release after. The burst is levelled by peak only
+  // when it IS a burst (peak well above the window's own rms): boosting a
+  // window with no transient just manufactures static.
+  function hardClipData(a, sr, seconds, endsStop) {
+    let c = contentData(a, sr);
+    const n = Math.trunc(seconds * sr);
+    if (!endsStop) return capData(c, sr, seconds, 'start');
+    if (c.length > n) {
+      let b = 0, best = -1;
+      for (let i = 0; i < c.length; i++) {
+        const v = Math.abs(c[i]);
+        if (v > best) { best = v; b = i; }
+      }
+      const lo = Math.max(0, Math.min(b - Math.trunc(n * 0.6), c.length - n));
+      const out = Float32Array.from(c.subarray(lo, lo + n));
+      const m = Math.min(Math.round(sr * 0.012), out.length);
+      if (lo > 0 && m > 1) for (let i = 0; i < m; i++) out[i] *= i / (m - 1);
+      c = out;
+    }
+    if (c.length) {
+      const peak = peakOf(c);
+      const wrms = rmsOf(c) || 1e-6;
+      if (peak > 0 && peak < 0.75 && peak > 4.0 * wrms) {
+        const g = Math.min(0.85 / peak, 4.0);
+        const out = Float32Array.from(c);
+        for (let i = 0; i < out.length; i++) out[i] *= g;
+        c = out;
+      }
+    }
+    return c;
   }
 
   // Radix-2 FFT (real input, magnitude out), zero-padded to a power of two.
@@ -454,7 +520,7 @@
   SIO.dsp = {
     VOWELS, STOPS, SONORANTS, phonemeClass,
     b64ToBytes, bytesToB64, audioContext, decodeBytes, toMono, bufferFrom,
-    peakOf, rmsOf, trim, trimBounds, capData, xfadeData, fadeTail, buckets, schwaTail, sonorantTail,
+    peakOf, rmsOf, trim, trimBounds, capData, contentData, hardClipData, xfadeData, fadeTail, buckets, schwaTail, sonorantTail,
     LENGTH_TARGET, TAKES, takesFor, ADVICE, scoreTake, choose, stretch,
   };
 })();

@@ -258,6 +258,45 @@ if (!fs.existsSync(fixturePath)) {
     lib.pieceItems('Grandma is here.', new Set(['phonemes/æn'])).every((it) => it.ipa !== 'æn'));
 }
 
+// ---- clip conditioning (0.7.1-0.7.4) ----------------------------------------
+{
+  const dsp = SIO.dsp;
+  const sr = 24000;
+
+  // a swelling /iː/: half a second of fade-in, then half a second of voice.
+  // content() must find the voice, not report the swell.
+  const swell = new Float32Array(sr);
+  for (let i = 0; i < sr / 2; i++) swell[i] = 0.02 * Math.sin((2 * Math.PI * 300 * i) / sr);
+  for (let i = sr / 2; i < sr; i++) swell[i] = 0.4 * Math.sin((2 * Math.PI * 300 * i) / sr);
+  const kept = dsp.contentData(swell, sr);
+  check('content() drops a slow swell and keeps the voice (lollipop\'s i)',
+    kept.length < swell.length * 0.7 && dsp.peakOf(kept) > 0.3,
+    [kept.length, swell.length]);
+
+  // a /d/ recorded as long voiced closure with the burst at the END
+  const d = new Float32Array(Math.round(sr * 0.6));
+  for (let i = 0; i < d.length; i++) d[i] = 0.05 * Math.sin((2 * Math.PI * 150 * i) / sr);
+  for (let i = d.length - Math.round(sr * 0.03); i < d.length; i++) d[i] = 0.7 * Math.sin((2 * Math.PI * 900 * i) / sr);
+  check('cap keep=end preserves a trailing burst (the lost /d/)',
+    dsp.peakOf(dsp.capData(d, sr, 0.2, 'end')) > 0.6
+    && dsp.peakOf(dsp.capData(d, sr, 0.2, 'start')) < 0.1);
+  check('hardClip centres a stop\'s window on its located burst',
+    dsp.peakOf(dsp.hardClipData(d, sr, 0.2, true)) > 0.6);
+
+  // booster gating: a window with no transient must NOT be amplified
+  const flat = new Float32Array(Math.round(sr * 0.3));
+  for (let i = 0; i < flat.length; i++) flat[i] = 0.1 * Math.sin((2 * Math.PI * 200 * i) / sr);
+  const out = dsp.hardClipData(flat, sr, 0.2, true);
+  check('the burst booster only fires on real transients (no manufactured static)',
+    Math.abs(dsp.peakOf(out) - 0.1) < 0.02, dsp.peakOf(out));
+}
+
+// ---- the ticks are yours (0.7.3) --------------------------------------------
+{
+  check('addPack returns the added rows so they can arrive ticked',
+    typeof lib.addPack === 'function' && typeof lib.add === 'function');
+}
+
 // ---- chunk speakability -----------------------------------------------------
 {
   const vs = new SIO.VoiceSource();

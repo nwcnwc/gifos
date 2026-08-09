@@ -302,8 +302,8 @@
   async function addPack(packId) {
     const p = packDefs().find((x) => x.id === packId);
     if (!p) throw new Error('No such pack.');
-    let added = 0;
-    for (const item of p.items) added += (await add(item)).length ? 1 : 0;
+    const added = [];
+    for (const item of p.items) added.push(...await add(item));
     return added;
   }
 

@@ -88,6 +88,16 @@
         // held breath sits between the blend and the word that answers it.
         const parts = seg.touching.parts;
         const shownAt = (j) => parts.map(([t], k) => [t, k === j]);
+        // The blend knows its phonetics: a chunk that starts or ends on a
+        // stop keeps every sample of that edge - a stop is nothing but a
+        // burst, and fading a burst in is deleting it ("the d gets
+        // completely lost").
+        const toksOf = (ipa) => (SIO.dictionary ? SIO.dictionary.tokens(ipa) : [ipa]);
+        const startsHard = parts.map(([, ipa]) => dsp.STOPS.has(toksOf(ipa)[0]));
+        const endsHard = parts.map(([, ipa]) => {
+          const t = toksOf(ipa);
+          return dsp.STOPS.has(t[t.length - 1]);
+        });
         const clips = parts.map(([, ipa]) => bufFor({ kind: 'phoneme', ipa, cap: cur.TOUCH_HOLD * cur.soundsIn(ipa) }));
         if (clips.some((b) => !b)) {
           // a sound nobody can say: per-letter fallback, still no long gaps
@@ -99,17 +109,25 @@
         }
         let sr = 0, merged = null;
         const cuts = [];
-        const xn = () => Math.round(sr * cur.TOUCH_XFADE_MS / 1000);
-        for (const b of clips) {
+        clips.forEach((b, i) => {
           const m = dsp.toMono(b);
           sr = m.sr;
           const e = Math.min(Math.round(sr * cur.TOUCH_EDGE_MS / 1000), Math.trunc(m.data.length * 0.15));
-          const d = (e && m.data.length > 4 * e) ? m.data.subarray(e, m.data.length - e) : m.data;
-          if (merged === null) { merged = d; continue; }
-          const eff = Math.min(xn(), merged.length, d.length);
+          // hard edges keep every sample they have
+          const lo = startsHard[i] ? 0 : e;
+          const hi = m.data.length - (endsHard[i] ? 0 : e);
+          const d = (hi - lo > 2 * e) ? m.data.subarray(lo, hi) : m.data;
+          if (merged === null) { merged = d; return; }
+          // Crossfading INTO a stop fades its burst in from zero, which
+          // deletes the one thing that makes it a /d/ and not a gap. A stop
+          // lands clean after the briefest close - a 4ms butt-joint taper,
+          // the same closure a mouth makes. Same when a stop just ended.
+          const tap = Math.round(sr * 0.004);
+          const jn = (startsHard[i] || endsHard[i - 1]) ? tap : Math.round(sr * cur.TOUCH_XFADE_MS / 1000);
+          const eff = Math.min(jn, merged.length, d.length);
           cuts.push(merged.length - eff + Math.trunc(eff / 2));
-          merged = dsp.xfadeData(merged, d, xn());
-        }
+          merged = dsp.xfadeData(merged, d, jn);
+        });
         merged = dsp.fadeTail(merged, sr, 40);
         const bounds = [0, ...cuts, merged.length];
         parts.forEach((p, j) => {
