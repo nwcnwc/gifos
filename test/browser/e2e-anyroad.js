@@ -1046,8 +1046,22 @@ function check(name, cond, detail) {
     const apexes = (poly, seed) => {
       const out = { pos: [], nrm: [], tone: [], binfo: [], idx: [] };
       R.roofOver(poly, 0, 5, 2.2, seed, 0.6, out);
-      const A = [];
-      for (let i = 0; i < out.pos.length; i += 9) A.push({ x: out.pos[i + 6], z: out.pos[i + 8] });
+      // REPRESENTATION-AGNOSTIC. This used to walk pos at stride 9 and take
+      // each triangle's third vertex as the apex — true of the old pure
+      // triangle soup, and NaN the day the closed-lids rework (2026-08-08)
+      // stopped emitting exactly that layout. An apex is a VERTEX AT RIDGE
+      // HEIGHT whatever the primitive plumbing: collect by y, deduped, and
+      // every geometric claim below is unchanged.
+      let maxY = -Infinity;
+      for (let i = 1; i < out.pos.length; i += 3) maxY = Math.max(maxY, out.pos[i]);
+      const A = []; const seen = new Set();
+      for (let i = 0; i + 2 < out.pos.length; i += 3) {
+        if (out.pos[i + 1] < maxY - 0.05) continue;
+        const key = out.pos[i].toFixed(3) + '|' + out.pos[i + 2].toFixed(3);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        A.push({ x: out.pos[i], z: out.pos[i + 2] });
+      }
       return A;
     };
     // Worst perpendicular deviation of the apexes from a single straight line.
@@ -1737,38 +1751,53 @@ function check(name, cond, detail) {
     mtSeen.length > 0 && mtSeen.every((m) => m.keyQ === 'e2e-key-123' && !m.bearer && !m.wrongHeader),
     JSON.stringify(mtSeen[0] || null));
   await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'none' }); window.App.redrape(); });
-  await fr.locator('#btn-map').click();
+  // THE EYE IS A CYCLER NOW, not a toggle (the 2026-08-08 dash rework:
+  // chase -> cockpit -> bird -> chase), and it states WHICH view with a
+  // pov-<view> class + aria-label instead of aria-pressed — a cycler has no
+  // pressed state. Walk the cycle and hold each stop to its contract.
+  await fr.locator('#btn-map').click();                       // chase -> cockpit
+  const cockpitStop = await fr.locator('body').evaluate(() => ({
+    view: window.App.debug().view,
+    dash: !!(document.getElementById('cockpit') && !document.getElementById('cockpit').hidden),
+    pov: document.getElementById('btn-map').className,
+  }));
+  check('one tap of the eye enters the COCKPIT, and the dashboard appears',
+    cockpitStop.view === 'cockpit' && cockpitStop.dash && /pov-cockpit/.test(cockpitStop.pov),
+    JSON.stringify(cockpitStop));
+  await fr.locator('#btn-map').click();                       // cockpit -> bird
   let bird = null;
   for (let i = 0; i < 24; i++) {                              // poll: dt-clamped sim time, never wall clock
     await sleep(500);
     bird = await fr.locator('body').evaluate(() => {
       const d = window.App.debug();
-      return { on: d.birdseye, up: d.camera.y - d.y,
-               pressed: document.getElementById('btn-map').getAttribute('aria-pressed') };
+      return { view: d.view, up: d.camera.y - d.y,
+               pov: document.getElementById('btn-map').className,
+               label: document.getElementById('btn-map').getAttribute('aria-label') || '' };
     });
     if (bird.up > 150) break;
   }
-  check('the bird\'s-eye toggle flies the REAL camera up', bird.on && bird.up > 150,
-    bird.up.toFixed(0) + ' m above the car, pressed=' + bird.pressed);
-  check('…and the chip shows pressed', bird.pressed === 'true');
+  check('the bird\'s-eye stop flies the REAL camera up', bird.view === 'bird' && bird.up > 150,
+    bird.up.toFixed(0) + ' m above the car, view=' + bird.view);
+  check('…and the eye SAYS which view (pov class + label), since a cycler has no pressed state',
+    /pov-bird/.test(bird.pov) && /bird/i.test(bird.label), bird.pov + ' / ' + bird.label);
   const birdDrive = await fr.locator('body').evaluate(() => {
     const d = window.App.debug();
     return { running: d.running, speed: Math.abs(d.speed) };
   });
   check('the world keeps running under the bird — a view, not a pause',
     birdDrive.running, JSON.stringify(birdDrive));
-  await fr.locator('#btn-map').click();
+  await fr.locator('#btn-map').click();                       // bird -> chase
   let down = null;
   for (let i = 0; i < 24; i++) {
     await sleep(500);
     down = await fr.locator('body').evaluate(() => {
       const d = window.App.debug();
-      return { on: d.birdseye, up: d.camera.y - d.y };
+      return { view: d.view, up: d.camera.y - d.y };
     });
-    if (!down.on && down.up < 40) break;
+    if (down.view === 'chase' && down.up < 40) break;
   }
-  check('toggling again brings the camera back down to the chase',
-    !down.on && down.up < 40, down.up.toFixed(0) + ' m above the car');
+  check('one more tap completes the cycle back to the chase, and the camera comes down',
+    down.view === 'chase' && down.up < 40, down.up.toFixed(0) + ' m above the car, view=' + down.view);
 
   // ---- sound ---------------------------------------------------------------
   // Everything is synthesised — the app is a GIF and a minute of audio is
