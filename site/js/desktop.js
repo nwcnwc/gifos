@@ -522,8 +522,14 @@
     const p = gif.decode(bytes).then((arc) => {
       const m = arc ? (gif.readManifest(arc) || {}) : {};
       const prov = m.provides && Array.isArray(m.provides.ai) ? m.provides.ai.filter(Boolean) : [];
-      return { shortName: (m.shortName || m.name || '').toString().trim(), version: (m.version || '').toString().trim(), provides: prov };
-    }).catch(() => ({ shortName: '', version: '', provides: [] }));
+      const caps = m.capabilities || {};
+      const some = (v) => Array.isArray(v) ? v.length > 0 : !!v;
+      return { shortName: (m.shortName || m.name || '').toString().trim(), version: (m.version || '').toString().trim(),
+        provides: prov,
+        // THE HARD RULE (docs/providers.md): a provider may not reach the
+        // network. The Settings picker uses this to refuse the assignment.
+        networky: some(caps.network) || some(caps.api) };
+    }).catch(() => ({ shortName: '', version: '', provides: [], networky: false }));
     appMetaCache.set(fileId, p);
     return p;
   }
@@ -2044,16 +2050,23 @@
     const cfg = aiCfgAll();
     const rows = AI_TYPES.map((t) => {
       const c = cfg[t.key] || {};
+      // Source select: "your own endpoint" vs an installed Provider app
+      // (docs/providers.md). The provider options are filled in async by
+      // wireAiSection (scanning the Providers folder needs the store); a
+      // role already assigned to a provider renders its saved option
+      // immediately so the select never lies while the scan runs.
+      const savedApp = c.app ? '<option value="' + escapeHtml(c.app) + '" selected>📦 ' + escapeHtml(c.appName || 'Provider app') + ' — app on this device</option>' : '';
       return '<div class="ai-row" data-ai="' + t.key + '">' +
         '<div class="ai-head"><b>' + t.label + '</b><button class="ai-test" data-ai="' + t.key + '">Test</button>' +
         '<span class="ai-status" data-ai="' + t.key + '"></span></div>' +
+        '<select class="ai-src" data-ai="' + t.key + '"><option value="">Your own endpoint (URL + key)</option>' + savedApp + '</select>' +
         '<input class="ai-f" data-ai="' + t.key + '" data-f="url" placeholder="Base URL — e.g. https://api.openai.com/v1" value="' + escapeHtml(c.url || '') + '">' +
         '<div class="ai-2"><input class="ai-f" data-ai="' + t.key + '" data-f="key" type="password" placeholder="API key" value="' + escapeHtml(c.key || '') + '">' +
         '<input class="ai-f" data-ai="' + t.key + '" data-f="model" placeholder="Model — ' + escapeHtml(t.ph) + '" value="' + escapeHtml(c.model || '') + '"></div>' +
         '</div>';
     }).join('');
     return '<details class="adv"><summary>AI models</summary>' +
-      '<p class="add-help">Wire up your own OpenAI-compatible endpoints. Any app that asks for the <b>ai</b> ability can use these — it sends prompts and gets results, and <b>never sees your keys</b> (they stay in this browser and aren’t included in a shared computer backup). The endpoint must allow browser (CORS) requests — Test tells you.</p>' +
+      '<p class="add-help">Wire up your own OpenAI-compatible endpoints — or assign a <b>Provider app</b> from your Providers folder, which answers <b>on this device</b> with no key at all. Any app that asks for the <b>ai</b> ability uses whatever you pick here; with an endpoint it <b>never sees your keys</b> (they stay in this browser and aren’t included in a shared computer backup; the endpoint must allow browser/CORS requests — Test tells you).</p>' +
       rows + '</details>';
   }
   function aiTinyWav() {
@@ -2084,6 +2097,28 @@
       return { ok: false, msg: '⚠ reached, but returned ' + r.status };
     }).catch(() => ({ ok: false, msg: '✗ can’t reach (network or CORS blocked)' }));
   }
+  // Installed, RECOGNIZED provider apps — direct children of sys_providers
+  // whose manifest carries provides.ai and no network/api capability
+  // (docs/providers.md). This is the Settings picker's option list; the
+  // runtime broker re-checks all of it at serve time, so the picker is UX,
+  // not the enforcement.
+  async function scanProviders() {
+    const out = [];
+    try {
+      const files = await store.allFiles();
+      const fileById = {}; for (const f of files) fileById[f.id] = f;
+      for (const it of items) {
+        if ((it.parent || null) !== 'sys_providers' || it.kind !== 'file' || !it.fileId) continue;
+        const f = fileById[it.fileId];
+        if (!f || !f.isApp || f.kind !== 'gif' || !f.bytes) continue;
+        const bytes = f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes);
+        const m = await getAppMeta(it.fileId, bytes).catch(() => null);
+        if (!m || !m.provides || !m.provides.length || m.networky) continue;
+        out.push({ fileId: it.fileId, appId: f.appId || '', name: (f.name || 'Provider').replace(/\.gif$/i, ''), roles: m.provides });
+      }
+    } catch (e) { /* no providers to offer */ }
+    return out;
+  }
   function wireAiSection(box) {
     const readRow = (key) => {
       const o = {};
@@ -2092,10 +2127,49 @@
     };
     const saveAi = () => {
       const cfg = {};
-      AI_TYPES.forEach((t) => { const o = readRow(t.key); if (o.url) cfg[t.key] = o; });
+      AI_TYPES.forEach((t) => {
+        const sel = box.querySelector('.ai-src[data-ai="' + t.key + '"]');
+        const pv = sel ? sel.value : '';
+        if (pv) {
+          // Assigned to a Provider app: store the fileId + display identity —
+          // the ack sheet and setup prompts name the app without a DB read.
+          const prev = aiCfgAll()[t.key] || {};
+          const p = (box._providers || []).find((x) => x.fileId === pv);
+          cfg[t.key] = { app: pv, appId: (p && p.appId) || prev.appId || '', appName: (p && p.name) || prev.appName || 'Provider app' };
+          return;
+        }
+        const o = readRow(t.key); if (o.url) cfg[t.key] = o;
+      });
       try { root.localStorage.setItem(AI_LS, JSON.stringify(cfg)); } catch (e) {}
     };
     box._saveAi = saveAi;
+    // Provider-vs-endpoint source: hide the endpoint fields (and Test — there
+    // is no endpoint to probe) while a provider is selected.
+    const applySrc = (key) => {
+      const row = box.querySelector('.ai-row[data-ai="' + key + '"]'); if (!row) return;
+      const sel = row.querySelector('.ai-src');
+      const viaApp = !!(sel && sel.value);
+      row.querySelectorAll('.ai-f').forEach((i) => { i.style.display = viaApp ? 'none' : ''; });
+      const two = row.querySelector('.ai-2'); if (two) two.style.display = viaApp ? 'none' : '';
+      const tb = row.querySelector('.ai-test'); if (tb) tb.style.display = viaApp ? 'none' : '';
+    };
+    AI_TYPES.forEach((t) => {
+      const sel = box.querySelector('.ai-src[data-ai="' + t.key + '"]');
+      if (sel) sel.onchange = () => applySrc(t.key);
+      applySrc(t.key);
+    });
+    scanProviders().then((list) => {
+      box._providers = list;
+      AI_TYPES.forEach((t) => {
+        const sel = box.querySelector('.ai-src[data-ai="' + t.key + '"]'); if (!sel) return;
+        list.filter((p) => p.roles.indexOf(t.key) >= 0).forEach((p) => {
+          for (const o of sel.options) if (o.value === p.fileId) return; // saved option already there
+          const o = document.createElement('option');
+          o.value = p.fileId; o.textContent = '📦 ' + p.name + ' — app on this device';
+          sel.appendChild(o);
+        });
+      });
+    });
     box.querySelectorAll('.ai-test').forEach((btn) => {
       btn.onclick = () => {
         const key = btn.getAttribute('data-ai');

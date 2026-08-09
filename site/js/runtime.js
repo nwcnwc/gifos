@@ -1730,7 +1730,7 @@
         const label = AI_ROLE_LABELS[opts.role];
         title = (label || 'An AI model') + ' isn’t set up yet';
         body = 'This app uses an AI model you provide. In GifOS <b>Settings → AI models</b>, set up ' +
-          (label ? 'the <b>' + escHtml(label) + '</b> model' : 'a text model') + ' — any OpenAI-compatible endpoint and key.';
+          (label ? 'the <b>' + escHtml(label) + '</b> model' : 'a text model') + ' — any OpenAI-compatible endpoint and key, or a <b>Provider app</b> from your Providers folder (answers on this device, no key).';
       } else if (opts.kind === 'provider') {
         // A Provider APP is assigned to this role but can't serve right now.
         const label = AI_ROLE_LABELS[opts.role];
