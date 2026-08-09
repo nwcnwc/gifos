@@ -1,8 +1,10 @@
 /*
- * Pocket Voice — the driver. Loads the eSpeak core (speak.js / meSpeak build,
- * GPLv3) plus its config + en-us voice from install-time assets
- * (gifos.assets — the OS downloaded and hash-verified them at install), then
- * serves the computer's **Text → speech** AI role via gifos.provider.serve.
+ * Pocket Voice — the driver. The eSpeak core (speak.js / meSpeak build,
+ * GPLv3) plus its config + en-us voice ride INSIDE this GIF (engine.js /
+ * engine-data.js / voice-data.js, packed by build.mjs — ~5.6 MB raw, ~1.6 MB
+ * deflated, comfortably in-GIF; the install-time assets pattern is reserved
+ * for far bigger weights, docs/providers.md). This serves the computer's
+ * **Text → speech** AI role via gifos.provider.serve.
  *
  * Derived from meSpeak v2 (N.Landsteiner / speak.js / eSpeak, GNU GPL) —
  * trimmed to the raw-WAV path: no audio pools, no playback, no queues. The
@@ -39,7 +41,6 @@
     return out;
   }
   function strToArr(s) { var out = new Array(s.length); for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; }
-  function decodeText(buf) { return new TextDecoder().decode(new Uint8Array(buf)); }
 
   // Build a fresh engine instance and load its virtual filesystem. Cheap-ish
   // (~100ms) — also the recovery path when the 2011-era emscripten FS trips.
@@ -66,23 +67,16 @@
 
   function ensureEngine(onStatus) {
     if (enginePromise) return enginePromise;
-    if (onStatus) onStatus('Loading the voice engine…');
-    enginePromise = Promise.all([
-      gifos.assets('espeak.js'),
-      gifos.assets('mespeak-config.json'),
-      gifos.assets('voice-en-us.json'),
-    ]).then(function (r) {
-      // Execute the core via inline <script> injection — allowed by the app
-      // CSP ('unsafe-inline'), no eval involved. The bytes were hash-pinned
-      // by the manifest and verified by the OS before we ever see them.
-      if (!window.__ESpeak) {
-        var s = document.createElement('script');
-        s.textContent = decodeText(r[0]);
-        document.head.appendChild(s);
-      }
+    if (onStatus) onStatus('Warming up the voice engine…');
+    enginePromise = Promise.resolve().then(function () {
+      // engine.js defined window.__ESpeak; engine-data.js / voice-data.js
+      // carry the config + voice as JSON strings (chess-grandmaster's
+      // strModule pattern). All three were inlined from this GIF's own
+      // filesystem by the runtime — nothing was fetched from anywhere.
       if (!window.__ESpeak) throw new Error('The voice engine core failed to load.');
-      cfgData = JSON.parse(decodeText(r[1]));
-      voiceData = JSON.parse(decodeText(r[2]));
+      if (!window.PV_CONFIG_JSON || !window.PV_VOICE_JSON) throw new Error('The voice data failed to load.');
+      cfgData = JSON.parse(window.PV_CONFIG_JSON);
+      voiceData = JSON.parse(window.PV_VOICE_JSON);
       bootInstance();
       if (onStatus) onStatus('');
       return true;

@@ -140,8 +140,10 @@ app.gif
 - `assets` (optional) — **install-time downloads, sealed by the OS**
   (`[{ url, sha256, path, bytes }]`): the trusted origin fetches each pinned
   URL at install (or first run), verifies the hash, seals the bytes into the
-  GIF under `.assets/`, and hands them to the app via `gifos.assets(path)` —
-  how a slim GIF carries a multi-megabyte engine. Also in
+  GIF under `.assets/`, and hands them to the app via `gifos.assets(path)`.
+  Reserved for weights genuinely too big to ride in-GIF — public model files
+  in the tens of MB and up (the catalog enforces an 8 MB per-asset floor);
+  anything smaller packs into the GIF instead. Details in
   [providers.md](./providers.md).
 - `system` (optional) — names a **system app**. Live camera/microphone can't run in the sandbox (WebRTC is neutered there and an opaque origin can't be granted camera permission), so a manifest like `{ "system": "meet" }` makes the runtime route the icon to a trusted first-party page instead of mounting the sandbox. The mapping is a **whitelist in the runtime** (`meet → run.html`); a manifest cannot route to arbitrary URLs. The icon is still a real GIF — shareable, downloadable, with its own artwork — and carries a fallback `index.html` for non-GifOS environments.
 

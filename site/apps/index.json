@@ -158,15 +158,15 @@
         255
       ],
       "cover": "/apps/pocket-voice/cover.jpg",
-      "bytes": 172610,
-      "download": 5625316,
+      "bytes": 1636055,
+      "download": 0,
       "provides": {
         "ai": [
           "tts"
         ]
       },
       "signature": null,
-      "sha256": "01a0ed38776ffe57e38c7be1ce8bffc5ef9e8f07d1e9401f761d829208fb7286"
+      "sha256": "8b2581802c8b9d259174bc0a013330048906cf748bf70e82aecb2f36b50ff955"
     },
     {
       "slug": "sound-it-out",

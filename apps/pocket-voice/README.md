@@ -8,15 +8,16 @@ offline: no network capability, no key, nothing leaves the device.
 
 ## How it's put together
 
-- **The GIF is slim** (~60 KB): UI + driver only. The engine arrives by the
-  **install-time assets** pattern (`gifos-assets.js`, download-then-seal):
-  the manifest pins three files by URL + SHA-256 —
-  `espeak.js` (the eSpeak core compiled to JS, from meSpeak/speak.js),
-  `mespeak-config.json`, and `voice-en-us.json` — which the OS downloads
-  from `site/apps/pocket-voice/assets/` at install, verifies, and seals
-  into the GIF under `.assets/`. The app reads them back with
-  `gifos.assets(path)` and executes the core via inline-script injection
-  (no eval, no wasm hatch needed — it's plain asm.js-era JavaScript).
+- **Everything rides in the GIF** (~1.6 MB deflated), Chess Grandmaster's
+  pattern: `build.mjs` packs `vendor/espeak.js` (the eSpeak core compiled to
+  JS, from meSpeak/speak.js, pre-wrapped to `window.__ESpeak`) as an
+  executable `engine.js`, and the config + en-us voice as JS string modules
+  (`engine-data.js` / `voice-data.js`). No eval, no wasm hatch — it's plain
+  asm.js-era JavaScript the runtime inlines like any other app file. The
+  install-time **assets** pattern is deliberately NOT used: at 5.6 MB raw
+  the engine sits well under the 8 MB floor `build-app-catalog.mjs`
+  enforces — that pattern is reserved for genuinely huge public model
+  weights (docs/providers.md).
 - `app.js` is a compact driver derived from meSpeak's raw-WAV path
   (VFS setup → argstack → `run()` → read `wav.wav`), with the known
   every-~80th-call FS hiccup handled by a rebuild-and-retry.
@@ -25,10 +26,9 @@ offline: no network capability, no key, nothing leaves the device.
   `speed` accepts the OpenAI 0.25–4 multiplier; returns 22.05 kHz mono WAV
   as `{ bytes, mime: 'audio/wav' }`.
 
-The single copy of the engine assets lives in `site/apps/pocket-voice/assets/`
-(the publish boundary — no duplicate under `apps/`); `build.mjs` and
-`scripts/build-app-catalog.mjs` both verify the manifest pins match those
-files byte-for-byte.
+The vendored engine source lives in `vendor/` (the app's source tree, like
+chess-grandmaster's `sf-src.js` + `stockfish.wasm`); the committed GIF under
+`site/apps/pocket-voice/` is the built artifact.
 
 ## Licensing
 
