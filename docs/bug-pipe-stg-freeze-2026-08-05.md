@@ -543,3 +543,44 @@ Note this is still clawbox-only: the identical suite and engine on
 raspberrypi is 3/3 green (see above), so whatever discards the frames is
 box-conditioned, which fits an encoder/pacer difference rather than a
 protocol error.
+
+**BWE is ruled out too.** At a later stall the starved forward's own m-line
+reported `targetBitrate 1,250,000` against `availableOutgoingBitrate
+4,217,714`, `qlim: none`, `framesDropped 0`. There was four times the headroom
+it was asking for.
+
+### A REAL DEFECT FOUND IN THE WAKE PATH — named, argued, NOT shipped
+
+At that same stall the second forward had **`mid: null`** — no transceiver
+carried its carrier track, i.e. its sender had been `replaceTrack(null)`'d.
+The job was PARKED at the sender while the receiver was demanding it HOT
+(measured: `=w`, re-asserted every 6s). Reading the handler explains how that
+state can persist:
+
+```js
+} else if (m.k === 'mx-want' && ...) {
+  const jw = mosJobs.get(m.key + '>' + p.id);
+  if (jw && (!m.streamId || jw.streamId === m.streamId)) setJobActive(..., true);
+```
+
+**A want whose `streamId` does not equal the sender's CURRENT job container is
+silently dropped.** The job stays parked, the receiver re-asserts the same
+stale want every 6s, and nothing tells it to stop. Recovery exists only
+indirectly — the stale announce ages out at ~12s, the claim is torn down and
+re-made against the new sid — which is exactly the 12-15s stall duration this
+leg measures.
+
+The guard itself is right: `mx-idle` must keep it, or a stale demand blacks
+out a live ship (the dark-primary inversion the redun-drill caught). The
+asymmetry is the point — **waking is the safe direction, parking is not.**
+
+**Why it is not shipped here.** The obvious patch (wake anyway on a stale sid)
+risks pinning a job HOT that a stale-sid `mx-idle` then cannot park — trading
+a starve for a ONE-PIPE violation. The safer repair is for the sender to
+RE-ANNOUNCE that job to that peer when it drops a stale-sid want, so the
+receiver learns the current id and re-demands correctly, converging in one
+round trip instead of a 12s teardown. That is a media-plane change and this
+session could not verify it against the repro, so it is written down rather
+than guessed at. Note also that one red run recorded ZERO container swaps and
+still stalled, so this mechanism may explain some stalls and not all — verify
+before believing it is the whole story.
