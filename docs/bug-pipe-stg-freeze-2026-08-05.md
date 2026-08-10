@@ -574,7 +574,27 @@ The guard itself is right: `mx-idle` must keep it, or a stale demand blacks
 out a live ship (the dark-primary inversion the redun-drill caught). The
 asymmetry is the point — **waking is the safe direction, parking is not.**
 
-**Why it is not shipped here.** The obvious patch (wake anyway on a stale sid)
+**SHIPPED, AND MEASURED DEFENSIVE — it does NOT fix the freeze.** The sender
+now answers a stale-sid want by re-announcing its current id (an idempotent
+message already re-sent every sweep, so no state changes on either side). A
+cross-seat guard went in with it: for every seat demanding a feed HOT, the
+peer it demands FROM must have that job active, sustained over three samples.
+
+Measured on the clawbox repro, and the result is negative:
+
+| build | leg 3 | the new guard |
+|---|---|---|
+| with the fix | 1 green, 1 RED | PASS, `judged` 62 / 59 |
+| fix REVERTED | 1 green, 2 RED | PASS, `judged` 58 / 57 / 51 |
+
+The guard is heavily exercised (50-60 observations a run) and clean in BOTH
+arms, so the parked-while-wanted state does not occur here at all — with or
+without the change. The silent drop is a real hole in the code with no
+recovery but a 12s teardown, and closing it is cheap and safe, but **it is not
+the freeze**. Recorded as defensive rather than curative so nobody reads the
+commit and believes the freeze was addressed.
+
+**Why the other patch was not shipped.** The obvious patch (wake anyway on a stale sid)
 risks pinning a job HOT that a stale-sid `mx-idle` then cannot park — trading
 a starve for a ONE-PIPE violation. The safer repair is for the sender to
 RE-ANNOUNCE that job to that peer when it drops a stale-sid want, so the
