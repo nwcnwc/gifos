@@ -176,8 +176,8 @@
     {
       "slug": "offline-llm-gemma",
       "appId": "offline-llm-gemma",
-      "name": "Offline Cheap Text LLM Gemma",
-      "shortName": "Gemma LLM",
+      "name": "Offline Cheap Text LLM Gemma 3",
+      "shortName": "Gemma 3 LLM",
       "version": "1.0",
       "tagline": "A cheap text brain for your whole computer — Google's Gemma 3 running entirely on your device.",
       "author": "GifOS",
@@ -203,7 +203,7 @@
         247
       ],
       "cover": "/apps/offline-llm-gemma/cover.jpg",
-      "bytes": 10223097,
+      "bytes": 10223108,
       "download": 806058240,
       "provides": {
         "ai": [
@@ -211,7 +211,48 @@
         ]
       },
       "signature": null,
-      "sha256": "8a63cee3099e06baaa207379a38a26d812ddaa3667b32ad0590e3640fa97093f"
+      "sha256": "6901436bd30fe904f117b3d9e4f575c36cd8227e7dcbd9211c379b91fb4357ce"
+    },
+    {
+      "slug": "offline-llm-gemma4",
+      "appId": "offline-llm-gemma4",
+      "name": "Offline Cheap Text LLM Gemma 4",
+      "shortName": "Gemma 4 LLM",
+      "version": "1.0",
+      "tagline": "A cheap text brain for your whole computer — Google's Gemma 4, Apache-2.0, entirely on your device.",
+      "author": "GifOS",
+      "releaseDate": "2026-08-09",
+      "updated": "2026-08-09",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "provider",
+        "llm",
+        "gemma",
+        "gemma4",
+        "google",
+        "apache-2.0",
+        "chat",
+        "offline",
+        "ai",
+        "llama.cpp"
+      ],
+      "accent": [
+        167,
+        139,
+        250
+      ],
+      "cover": "/apps/offline-llm-gemma4/cover.jpg",
+      "bytes": 10223499,
+      "download": 1875742368,
+      "provides": {
+        "ai": [
+          "cheapest"
+        ]
+      },
+      "signature": null,
+      "sha256": "1d3b59d2a9b8966697b7613b696270446386c3764894f6483357af2a545c4c8f"
     },
     {
       "slug": "offline-tts",

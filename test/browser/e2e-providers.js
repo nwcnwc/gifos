@@ -306,7 +306,7 @@ async function runConsumer(page, context, label, outTimeout) {
     await askai.close();
   }
 
-  // ---- 10. THE SIBLING PROVIDER: Offline Cheap Text LLM Gemma --------------
+  // ---- 10. THE SIBLING PROVIDER: Offline Cheap Text LLM Gemma 3 ------------
   // Two apps now provide the SAME 'cheapest' role (docs/providers.md: no
   // auto-assignment — the user picks). Guard that the second one boots its own
   // engine in the hidden provider mount and answers, honestly labeled with ITS
@@ -317,11 +317,11 @@ async function runConsumer(page, context, label, outTimeout) {
       const bin = atob(b64); const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const fid = GifOS.store.uid('file');
-      await GifOS.store.putFile({ id: fid, name: 'Offline Cheap Text LLM Gemma.gif', bytes, kind: 'gif', isApp: true, appId: 'offline-llm-gemma', mime: 'image/gif' });
-      await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Offline Cheap Text LLM Gemma.gif', parent: 'sys_providers', x: 470, y: 90, iconSize: 64 });
+      await GifOS.store.putFile({ id: fid, name: 'Offline Cheap Text LLM Gemma 3.gif', bytes, kind: 'gif', isApp: true, appId: 'offline-llm-gemma', mime: 'image/gif' });
+      await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Offline Cheap Text LLM Gemma 3.gif', parent: 'sys_providers', x: 470, y: 90, iconSize: 64 });
       // Reassign the role to the sibling — the switch the user makes in
       // Settings -> AI models.
-      localStorage.setItem('gifos_ai_config', JSON.stringify({ cheapest: { app: fid, appId: 'offline-llm-gemma', appName: 'Offline Cheap Text LLM Gemma' } }));
+      localStorage.setItem('gifos_ai_config', JSON.stringify({ cheapest: { app: fid, appId: 'offline-llm-gemma', appName: 'Offline Cheap Text LLM Gemma 3' } }));
     }, gemmaBytes.toString('base64'));
 
     const [askai2] = await Promise.all([context.waitForEvent('page'), page.locator('.icon', { hasText: 'Ask AI.gif' }).dblclick()]);
@@ -337,9 +337,42 @@ async function runConsumer(page, context, label, outTimeout) {
     });
     const reply2 = await fr2.locator('.m.ai').last().textContent();
     check('the SIBLING provider (Gemma) serves the same cheapest role from its own GIF',
-      /\[self-test model — token soup/.test(reply2) && /Install the Gemma weights/.test(reply2),
+      /\[self-test model — token soup/.test(reply2) && /Install the Gemma 3 weights/.test(reply2),
       reply2.slice(0, 110));
     await askai2.close();
+  }
+
+  // ---- 11. THE THIRD PROVIDER: Offline Cheap Text LLM Gemma 4 -------------
+  // Three apps now provide 'cheapest'. Same guard as the Gemma 3 step: its own
+  // GIF, its own engine boot, its own honest label. Each sibling carries a
+  // DIFFERENT prompt format, so a shared-code regression would surface here.
+  {
+    const g4 = fs.readFileSync(appGif('offline-llm-gemma4'));
+    await page.evaluate(async (b64) => {
+      const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const fid = GifOS.store.uid('file');
+      await GifOS.store.putFile({ id: fid, name: 'Offline Cheap Text LLM Gemma 4.gif', bytes, kind: 'gif', isApp: true, appId: 'offline-llm-gemma4', mime: 'image/gif' });
+      await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Offline Cheap Text LLM Gemma 4.gif', parent: 'sys_providers', x: 570, y: 90, iconSize: 64 });
+      localStorage.setItem('gifos_ai_config', JSON.stringify({ cheapest: { app: fid, appId: 'offline-llm-gemma4', appName: 'Offline Cheap Text LLM Gemma 4' } }));
+    }, g4.toString('base64'));
+
+    const [askai3] = await Promise.all([context.waitForEvent('page'), page.locator('.icon', { hasText: 'Ask AI.gif' }).dblclick()]);
+    await askai3.waitForSelector('iframe', { timeout: 10000 });
+    const ackBox3 = askai3.locator('.perm-box', { hasText: 'would like to' });
+    try { await ackBox3.waitFor({ timeout: 5000 }); await ackBox3.locator('.done').click(); } catch (e) { /* already acked */ }
+    const fr3 = askai3.frameLocator('#appmount iframe');
+    await fr3.locator('#t').fill('hello');
+    await fr3.locator('#f button').click();
+    await fr3.locator('.m.ai').filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async () => {
+      const shown = await fr3.locator('.m.ai').last().textContent().catch(() => '(no ai bubble)');
+      throw new Error('Gemma 4 provider never answered; the app shows: ' + String(shown).slice(0, 300));
+    });
+    const reply3 = await fr3.locator('.m.ai').last().textContent();
+    check('the THIRD provider (Gemma 4) serves the same cheapest role from its own GIF',
+      /\[self-test model — token soup/.test(reply3) && /Install the Gemma 4 weights/.test(reply3),
+      reply3.slice(0, 110));
+    await askai3.close();
   }
 
   await browser.close();
