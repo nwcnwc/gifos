@@ -12,7 +12,8 @@ a default** (seeded from `site/js/sample-apps.js`) if it earns its place.
 apps/
   <name>/           ← the project SOURCE for that app
     index.html      ← (or a small multi-file project: app.js, style.css, …)
-    manifest.json   ← the app's manifest: appId, names, version, capabilities
+    manifest.json   ← the app's manifest: appId, names, version, minBuild,
+                      capabilities
     listing.json    ← its STORE listing: author, tagline, description,
                       releaseDate, categories, tags, license
     screenshot.png  ← the master cover art the store's cover.jpg is made from
@@ -43,6 +44,56 @@ node scripts/build-app-catalog.mjs --check  # verify it's current (what CI runs)
 
 A source tree with **no `listing.json` is simply not in the store** — that is
 how an app stays unlisted while it's being built.
+
+## `minBuild` — the oldest GifOS an app runs on
+
+Every listed manifest MUST declare `minBuild`: the oldest **build number** the
+app actually works on. The store reads it, tells the player what the app needs,
+and refuses an install onto a computer that is older — because an app is not
+free to install when installing it costs a gigabyte of weights and ends in an
+icon that opens onto nothing.
+
+This exists because it happened. Offline Cheap Text LLM BitNet needs the
+install-time asset tier (`site/js/gifos-assets.js`), which is in NO release cut
+so far — not even 0.9.5, the release most visitors run. The store happily
+offered it to them, downloaded it, and installed something that could never
+work.
+
+Build numbers, not release numbers, because the build number is the thing that
+is monotonic and always present: `site/js/build.js` carries the running build,
+and `site/version.json`'s `builds` map turns each release into the edge build it
+was cut from, so the store can translate the requirement into "release 0.9.6 and
+up" for a human. A requirement newer than every release is a legitimate and
+important state to be able to say — it is the state BitNet is in today.
+
+Derive the number; do not guess it:
+
+1. Find the newest OS feature the app needs and the commit that landed it.
+2. `echo $((825 + $(git rev-list --count b4ada94..<sha> -- site)))` — the same
+   anchored arithmetic `.github/workflows/pages.yml` and
+   `scripts/archive-version.sh` use to stamp a build. (Re-anchor here too if
+   those are ever re-anchored.)
+3. An app needing nothing newer than the store itself declares **947**, the
+   build the App Store shipped in. That is the floor `build-app-catalog.mjs`
+   enforces: a build with no store cannot install from the store, so a lower
+   claim is not generous, it is untrue.
+
+`build-app-catalog.mjs` also knows the build a few manifest features arrived in
+(`provides` 1177, `assets` 1178, `capabilities.pool` 1089) and fails a manifest
+that asks for one while claiming an older floor. That table only catches the
+obviously wrong; the number is still yours to justify.
+
+Over-stating costs a player an update they did not strictly need. Under-stating
+costs them an app that does not work. **When in doubt, state the higher.**
+
+One honest limit: the store gates on the catalog, which reads
+`apps/<slug>/manifest.json` directly, so a floor takes effect the moment the
+catalog is rebuilt — no GIF rebuild needed. The copy of the manifest *inside*
+the built GIF only picks the field up at the app's next build, so a GIF that
+arrives by some route other than the store (dropped on a desktop, passed
+between people) is not yet gated. That is why the number lives in the manifest
+rather than the listing: it rides into the GIF on the next build, where the
+runtime can eventually enforce it for every route.
 
 ## What "certified" means here
 

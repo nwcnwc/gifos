@@ -53,6 +53,13 @@ const CATEGORIES = [
 
 const CATALOG_VERSION = '1.0';
 
+// The edge build the App Store itself shipped in (site/store.html's first
+// commit). It is the floor for every listing's minBuild, because a build with
+// no store cannot install from the store — a listing claiming to run on build
+// 300 is not generous, it is untrue. Bump this only if the store is ever
+// rewritten in a way that invalidates older installs.
+const STORE_BUILD = 947;
+
 let errors = 0;
 const fail = (msg) => { console.error('  ✗ ' + msg); errors++; };
 
@@ -149,6 +156,51 @@ async function buildApp(slug) {
   }
   if (!m.appId) fail(slug + ': manifest.json has no appId');
   if (!m.version) fail(slug + ': manifest.json has no version');
+
+  // MIN BUILD — the oldest GifOS build this app actually runs on, as a build
+  // number (the monotonic counter in site/js/build.js; version.json maps each
+  // release to the edge build it was cut from).
+  //
+  // This is REQUIRED, and it is required for the same reason browser-support's
+  // honesty rules are: an app that says nothing is indistinguishable from an
+  // app whose author never thought about it, and the store then offers an
+  // install it knows will not work. That is not hypothetical — Offline Cheap
+  // Text LLM BitNet needs the install-time asset tier, which does not exist in
+  // 0.9.5, the release most visitors are running. Without a declared floor the
+  // store downloads a gigabyte of weights onto a computer that cannot read
+  // them, and the player is left with an icon that opens onto nothing.
+  //
+  // Derive it, don't guess it: take the build in which the NEWEST OS feature
+  // the app needs landed (git log the site/ change, then
+  // ANCHOR_BUILD + `git rev-list --count <anchor>..<sha> -- site`), and for an
+  // app that needs nothing newer than the store itself, STORE_BUILD. Over-
+  // stating costs a player an update they did not strictly need; under-stating
+  // costs them an app that does not work, so when in doubt, state the higher.
+  if (!Number.isInteger(m.minBuild)) {
+    fail(slug + ': manifest.json must declare "minBuild" — the oldest GifOS build this app runs on (an integer; see apps/README.md). The store cannot warn a player off an app their computer cannot run without it.');
+  } else if (m.minBuild < STORE_BUILD) {
+    fail(slug + ': minBuild ' + m.minBuild + ' predates the App Store itself (build ' + STORE_BUILD + ') — a build with no store cannot install from it, so that floor is not true.');
+  } else {
+    // The part of the floor a human should not have to remember. Each entry is
+    // an OS feature a manifest can ASK FOR, next to the build it first existed
+    // in — so a manifest that asks for it and claims to run on an older build
+    // is caught here instead of in a player's hands. Judgement still sets the
+    // number; this only stops it being obviously wrong.
+    const FEATURE_BUILD = [
+      // Provider apps serving AI roles: runtime 1176, Providers folder 1177.
+      ['provides', (x) => !!x.provides, 1177],
+      // Install-time assets (site/js/gifos-assets.js) — absent from every
+      // release cut so far, which is exactly why this field exists.
+      ['assets', (x) => Array.isArray(x.assets) && x.assets.length > 0, 1178],
+      // capabilities.pool: a room fetches a map tile once, not once per player.
+      ['capabilities.pool', (x) => !!(x.capabilities || {}).pool, 1089],
+    ];
+    for (const [what, uses, since] of FEATURE_BUILD) {
+      if (uses(m) && m.minBuild < since) {
+        fail(slug + ': manifest uses ' + what + ', which arrived in build ' + since + ', but claims minBuild ' + m.minBuild + ' — raise the floor.');
+      }
+    }
+  }
   if (!isoDate(l.releaseDate)) fail(slug + ': releaseDate must be YYYY-MM-DD');
   if (l.updated && !isoDate(l.updated)) fail(slug + ': updated must be YYYY-MM-DD');
   if (!Array.isArray(l.categories) || !l.categories.length) fail(slug + ': categories must be a non-empty array');
@@ -210,6 +262,7 @@ async function buildApp(slug) {
     name: m.name || slug,
     shortName: m.shortName || m.name || slug,
     version: m.version,
+    minBuild: m.minBuild,
     tagline: l.tagline,
     description: l.description,
     author: l.author,
@@ -264,6 +317,13 @@ const index = {
   apps: records.map((r) => ({
     slug: r.slug, appId: r.appId, name: r.name, shortName: r.shortName,
     version: r.version, tagline: r.tagline, author: r.author,
+    // minBuild belongs in the INDEX, not only in each app.json, for the same
+    // reason sha256 does (see below): the GRID has to be able to say "needs a
+    // newer GifOS" on the card. Learning it only on the detail page would mean
+    // the player finds out one press before Install, having already been sold
+    // on it — and the grid would go on advertising an app their computer
+    // cannot run as though it were ready to install.
+    minBuild: r.minBuild,
     releaseDate: r.releaseDate, updated: r.updated,
     categories: r.categories, tags: r.tags, accent: r.accent,
     cover: r.cover, bytes: r.bytes, download: r.download, provides: r.provides, signature: r.signature,

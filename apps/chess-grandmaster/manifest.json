@@ -4,6 +4,7 @@
   "name": "Chess Grandmaster",
   "shortName": "Chess",
   "version": "1.0.0",
+  "minBuild": 947,
   "entry": "index.html",
   "accent": [201, 162, 75],
   "capabilities": {

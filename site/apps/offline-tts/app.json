@@ -5,6 +5,7 @@
   "name": "Offline Text to Speech",
   "shortName": "Offline TTS",
   "version": "1.0",
+  "minBuild": 1177,
   "tagline": "Give your computer a voice — offline text-to-speech that serves every app, no key, no cloud.",
   "description": "Offline Text to Speech is a PROVIDER app: install it, keep it in your Providers folder, and assign it to the Text → speech AI type in Settings → AI models. From then on, every app that asks GifOS to speak — Reader, games, anything using the ai ability — is answered by this app, entirely on your device.\n\nThe voice is eSpeak, the classic compact formant synthesizer, compiled to JavaScript and packed INSIDE this GIF — engine, dictionary and English (US) voice, sealed in the GifOS sandbox with zero network access. Copy the file anywhere and the voice goes with it; it works on a plane, in a basement, anywhere.\n\nSeven voice variants respond to the familiar names apps already use (nova, shimmer, fable, echo, onyx, alloy, whisper). It is not a neural voice — it is the honest, robotic, instant kind that never bills you and never hears you.",
   "author": "GifOS",
