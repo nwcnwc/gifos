@@ -400,8 +400,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                   pktS: (a.dec && r.dec) ? +(((r.dec.pktRx - a.dec.pktRx) / 2)).toFixed(1) : null,
                   rx: r.dec, forwards: rates };
               });
+              // IS THE CLAIM AIMED AT THE PEER THAT IS ACTUALLY SENDING?
+              // Derived from the chain already captured, so it costs nothing.
+              // A claim whose via holds no live forward to this seat would make
+              // every sender-side number look healthy while the claimant
+              // starves — and would explain the encoded-vs-received deficit as
+              // an artifact of pairing a sender with a receiver it never fed.
+              const meId = seatIds[i];
+              const hasFwdToMe = (row) => Object.entries(row.forwards || {})
+                .filter(([d, v]) => meId && String(meId).indexOf(String(d).slice(0, 6)) === 0 && !v.paused && v.wrote > 0)
+                .map(([d, v]) => ({ to: d, wrote: v.wrote, fenc: v.out && v.out.fenc }));
+              const senders = [];
+              for (const row of chain) { const f2 = hasFwdToMe(row); if (f2.length) senders.push({ seat: row.seat, id: row.me, fwd: f2 }); }
+              const viaSeatIdx = seatOf(f.via);
+              const attribution = {
+                via: f.via, viaSeat: viaSeatIdx >= 0 ? 'P' + viaSeatIdx : null,
+                viaIsAForwarderToMe: senders.some((x) => String(x.id || '').indexOf(String(f.via)) === 0 || String(f.via).indexOf(String(x.id || '')) === 0),
+                actualForwardersToMe: senders };
               stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at,
-                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up, chain });
+                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up, chain, attribution });
             }
           }
         }
