@@ -103,6 +103,7 @@ app.gif
   "name": "Chess Grandmaster",
   "shortName": "Chess",
   "version": "1.0",
+  "minBuild": 947,
   "description": "Two-player chess over the relay",
   "icon": "assets/icon.png",
   "entry": "index.html",
@@ -120,6 +121,15 @@ app.gif
 ```
 
 - `name` / `shortName` / `version` — **display identity**. `name` is the full title (the tile's label). `shortName` is a compact label (≤ ~14 chars, e.g. `"Chess"` for `"Chess Grandmaster"`) and `version` a short string (`"1.0"`, `"2.3"`). GifOS renders `shortName` + `version` together as an **identity pill** — "Chess v1.0", styled like the `SYSTEM` marker — on the app's desktop tile *and* in its runtime header, **but only when the app is signed**. An unsigned GIF can claim any name, so GifOS never shows an identity pill for one; the pill's presence means "this signed author declares this is Chess v1.0."
+- `minBuild` — **the oldest GifOS build this app runs on**, as a build number
+  (`site/js/build.js`). The `window.gifos` API is add-only, which means an old
+  build can always read a new build's *data* but cannot necessarily run a new
+  *app* — an app written against a capability added last month does not work on
+  a release cut before it. Stating the floor is how the App Store knows to say
+  "needs a newer GifOS" instead of selling an install that ends in an icon
+  opening onto nothing. Required for anything listed in the store
+  (`apps/README.md` has the derivation); the doctrine is in
+  `docs/versioning.md`.
 - `capabilities.db` — the app wants the runtime database library.
 - `capabilities.multiplayer` — the app can host/join sessions over the relay.
 - `data` — **collection visibility, the sharing axis**. Privacy-first: an invite shares *nothing* unless the manifest declares it, so `data` maps each shared collection to a `{ "visibility": <level> }` default. Three levels: **`read-write`** (guests see *and* write it — collaborative state; an **undeclared** collection is not shared, so multiplayer silently breaks without this), **`read-only`** (guests see it, only the host writes — broadcast state like a shared cursor), and **`private`** (never leaves the owner's tab — each participant keeps their *own* copy: personal prefs, a private library; this is the **default** for any collection you don't list). Enforcement is **host-side and absolute**: the host filters `private` records out of every guest read/steal, refuses guest writes to anything not `read-write`, and strips any guest-supplied visibility — a DOM-tampered guest can be *refused* but never *override*. A single record overrides its collection default via a reserved `_vis` field, set only through `db.setVisibility(id, level)` (owner-only; refused on a guest) — this is how "make this item visible" (a private library item opted into `read-only`) and live leadership work. On a guest, a `private` collection is a hybrid: writes stay in an in-tab map (never sent), reads merge that map with whatever the host opted in.

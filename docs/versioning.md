@@ -150,6 +150,49 @@ Consequences:
 - A change that *can't* be additive is a **data flag day**: it bumps `minData`
   and forfeits clean rollback across that line. Those must be rare and loud.
 
+### The other direction: old builds and new apps (`minBuild`)
+
+Add-only cuts one way. It guarantees an **old build can still read a new
+build's data** — it guarantees nothing at all about an old build running a
+**new app**, because "add-only" is precisely the promise that new capabilities
+keep arriving. An app written against one of those additions simply does not
+work on a build cut before it.
+
+That asymmetry was invisible until the App Store made it purchasable. Offline
+Cheap Text LLM BitNet needs the install-time asset tier
+(`site/js/gifos-assets.js`), which exists in no release cut so far — not 0.9.5,
+the release most visitors run. The store offered it to them, downloaded a
+gigabyte of weights, and left an icon that opened onto nothing. Nothing lied;
+nobody had ever written down what the app needed.
+
+So an app **states its floor**: `manifest.minBuild`, the oldest build number it
+runs on, carried into the published catalog by
+`scripts/build-app-catalog.mjs` (details and how to derive the number:
+`apps/README.md`). The store resolves which build owns the visitor's Home
+Screen — a pin, the release the default channel points at, or the edge build —
+turns it into a build number through `version.json`'s `builds` map, and
+refuses an install below the floor, saying which build is needed and which one
+you have.
+
+Two properties matter for it to be usable:
+
+- **Build numbers, not release numbers.** The build counter is monotonic and
+  always present (`site/js/build.js`); releases are sparse points along it, and
+  edge builds have no release number at all. `builds` maps a release back to
+  the build it was cut from whenever a human needs to hear "release 0.9.6 and
+  up".
+- **It must be able to say "newer than every release there is."** That is not
+  an edge case, it is the normal state of a freshly built app and the exact
+  state BitNet is in today. A floor no release meets sends the player to the
+  edge build, never to "update" — that player would open the Version panel and
+  find every release on offer still too old.
+
+The store gates on the CATALOG, which reads the source manifest, so a floor
+takes effect as soon as the catalog is rebuilt. The copy of the manifest inside
+the built GIF picks the field up at the app's next build, which is why it lives
+in the manifest rather than the listing: it rides into the GIF, where the
+runtime can eventually enforce it for GIFs that arrive by other routes.
+
 ## Meetings: detect and prompt, never silently fail
 
 Meetings are P2P over the relay, with the session id derived from the room +
