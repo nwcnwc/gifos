@@ -2,12 +2,12 @@
   "catalog": "1.0",
   "slug": "offline-llm-gemma",
   "appId": "offline-llm-gemma",
-  "name": "Offline Cheap Text LLM Gemma",
-  "shortName": "Gemma LLM",
+  "name": "Offline Cheap Text LLM Gemma 3",
+  "shortName": "Gemma 3 LLM",
   "version": "1.0",
   "minBuild": 1189,
   "tagline": "A cheap text brain for your whole computer — Google's Gemma 3 running entirely on your device.",
-  "description": "Offline Cheap Text LLM Gemma is a PROVIDER app: install it, keep it in your Providers folder, and assign it to Cheapest text LLM in Settings → AI models. From then on, every app that asks the computer for cheap text — Ask AI, Chat drafts, game hints — is answered on this device. No account, no key, nothing leaves your machine.\n\nThe engine is llama.cpp compiled to WebAssembly (wllama, MIT), sealed in the GifOS sandbox with zero network access. The brain is Google's Gemma 3 1B Instruct, 4-bit quantized — downloaded once at install (~769 MB, hash-verified by GifOS) and cached on this computer.\n\nThis is the sibling of Offline Cheap Text LLM BitNet: same engine, different brain, and both provide the same Cheapest text LLM role. Gemma 3 is a smaller, denser download that answers more crisply on short questions; BitNet b1.58 is a 2-billion-parameter ternary model. Install either or both and switch between them in Settings.\n\nA built-in few-MB self-test model proves the whole pipeline instantly (clearly labeled — it speaks token soup, not answers) while the real weights download.\n\nNote on licensing: the ENGINE is MIT, but the Gemma WEIGHTS are not open-source-licensed — they are governed by Google's Gemma Terms of Use, which carry use restrictions that follow the model. GifOS does not host or redistribute them; they are downloaded from Hugging Face on your own device.",
+  "description": "Offline Cheap Text LLM Gemma 3 is a PROVIDER app: install it, keep it in your Providers folder, and assign it to Cheapest text LLM in Settings → AI models. From then on, every app that asks the computer for cheap text — Ask AI, Chat drafts, game hints — is answered on this device. No account, no key, nothing leaves your machine.\n\nThe engine is llama.cpp compiled to WebAssembly (wllama, MIT), sealed in the GifOS sandbox with zero network access. The brain is Google's Gemma 3 1B Instruct, 4-bit quantized — downloaded once at install (~769 MB, hash-verified by GifOS) and cached on this computer.\n\nThis is one of three siblings that provide the same Cheapest text LLM role — the others are Offline Cheap Text LLM BitNet and Offline Cheap Text LLM Gemma 4. This one is the SMALLEST and FASTEST of the three: ~769 MB against BitNet’s 1.03 GB and Gemma 4’s 1.75 GB, which matters a lot because the engine runs single-threaded in the browser. Pick it when you want quick answers; pick Gemma 4 when you want Apache-2.0 weights. Install any or all and switch in Settings.\n\nA built-in few-MB self-test model proves the whole pipeline instantly (clearly labeled — it speaks token soup, not answers) while the real weights download.\n\nNote on licensing: the ENGINE is MIT, but the Gemma WEIGHTS are not open-source-licensed — they are governed by Google's Gemma Terms of Use, which carry use restrictions that follow the model. GifOS does not host or redistribute them; they are downloaded from Hugging Face on your own device.",
   "author": "GifOS",
   "releaseDate": "2026-08-09",
   "updated": "2026-08-09",
@@ -37,13 +37,13 @@
   "cover": "/apps/offline-llm-gemma/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-llm-gemma/offline-llm-gemma.gif",
-  "bytes": 10223097,
+  "bytes": 10223108,
   "download": 806058240,
   "provides": {
     "ai": [
       "cheapest"
     ]
   },
-  "sha256": "8a63cee3099e06baaa207379a38a26d812ddaa3667b32ad0590e3640fa97093f",
+  "sha256": "6901436bd30fe904f117b3d9e4f575c36cd8227e7dcbd9211c379b91fb4357ce",
   "signature": null
 }
