@@ -308,3 +308,52 @@ one not, is a difference that has to be visible in the mint.
 
 Do NOT go near the keyframe path or the demand/park bookkeeping first. Both are
 measured innocent.
+
+### The carrier answer: OVER-MINT IS A SYMPTOM, AND THE DRAINER IS INNOCENT
+
+`__gifosVideo.pipeChain()` exposes `{wants, mints}` per destination carrier.
+The first look was striking — at one stall, three legs of the same feed:
+
+| leg | wants | mints | ratio | decoded |
+|---|---|---|---|---|
+| P5 -> P2 | 29 | 29 | **1.00** | 29 of 29 |
+| P2 -> P3 | 31 | 32 | 1.03 | 15 of 31 |
+| P2 -> P0 | 31 | 39 | **1.26** | 4 of 30 |
+
+The only thing that mints beyond 1-for-1 demand is **the drainer** (frza11): a
+33 ms tick that mints an extra delta template whenever a pipe reports a backlog.
+Its comment claims an over-minted delta is "dropped free at the worker's
+idle-queue gate" — but dropping it in the WORKER does not un-mint the canvas
+frame, and Chrome still encodes and sends it carrying no swapped payload. That
+is a textbook broken reference chain, and it matches the symptom exactly.
+
+**It is not the cause.** `gifos_pipe_drain=off` disables the drainer;
+`PIPE_DRAIN=off` sets it for the suite. Interleaved ABAB, three pairs, clawbox,
+brain stopped, Chrome 151:
+
+| arm | drainer | result |
+|---|---|---|
+| A1 | on | green |
+| B1 | **off** | RED — 3 stalls, one at `fdec: 0` |
+| A2 | on | RED |
+| B2 | **off** | green |
+| A3 | on | RED |
+| B3 | **off** | RED |
+
+**1 of 3 green in BOTH arms.** And the lever demonstrably works: in the B arm
+EVERY carrier reported `mints == wants`, ratio 1.00 across the board, with the
+A arm reproducing 1.04-1.23 in the same session. So the freeze happens with
+over-minting entirely eliminated.
+
+Over-mint therefore CO-VARIES with the freeze rather than causing it — a
+backlogged pipe both over-mints and delivers badly, because the backlog is the
+common cause. The correlation was real and the inference from it was wrong,
+which is precisely what an interleaved A/B is for.
+
+**Ruled out so far, each by measurement:** keyframe starvation, the parked
+forward, container churn, and now carrier over-mint and the drainer. The
+remaining shape is unchanged and still unexplained: one sender, one source
+pipe, one feed, two destinations — bytes cross to both, one decodes and one
+returns keyframes only. Next place to look is the RECEIVER side of the losing
+leg (inbound codec/resolution and the decoder's own error counters), since
+every sender-side explanation now has a measurement against it.
