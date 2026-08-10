@@ -409,6 +409,38 @@
   // desktops converge one deploy later. A dev checkout is 'edge:0' forever — no
   // churn. A pinned snapshot's stamp never changes — frozen builds never
   // reseed. Best-effort: a failed rebuild must never block boot.
+  // A system folder's art is BAKED into a GIF when the folder is first created,
+  // and it is only ever given art `if (!it.fileId)`. That is right for a user's
+  // own folders and wrong for ours: when OUR drawing improves, every computer
+  // that already has the folder keeps the old picture forever, with no way to
+  // ask for the new one short of deleting a system folder.
+  //
+  // Which is not hypothetical — the Providers folder shipped before its art
+  // existed, so it baked the LETTERED FALLBACK ("P", the first letter of the
+  // subject name) into a GIF on every desktop that has one, and no update
+  // would ever have replaced it.
+  //
+  // Re-baked on the same trigger as the default apps (the build moved under
+  // this desktop) and in place, so the icon keeps its cell and its name and
+  // only the picture changes. store.putFile forgets the cached art for that
+  // fileId, so the repaint is automatic.
+  async function refreshSystemFolderArt() {
+    if (!GifOS.icons) return 0;
+    let n = 0;
+    for (const [id, name, subject] of [['sys_stolen', 'Stolen Apps', 'chest'], ['sys_providers', 'Providers', 'plug']]) {
+      const it = items.find((i) => i.id === id);
+      if (!it || !it.fileId) continue;          // absent or bare — ensureSystemItems draws it fresh
+      const f = await store.getFile(it.fileId).catch(() => null);
+      if (!f) continue;
+      try {
+        const bytes = await makeFolderGif(name, FOLDER_ACCENTS[name], subject);
+        await store.putFile(Object.assign({}, f, { bytes }));
+        n++;
+      } catch (e) { /* keep the picture we already have */ }
+    }
+    return n;
+  }
+
   async function reseedDefaultsIfNeeded() {
     const stamp = (root.GIFOS_VERSION || 'edge') + ':' + (Number(root.GIFOS_BUILD) || 0);
     let flagged = false, stored = null;
@@ -423,7 +455,8 @@
       const seed = await GifOS.samples.build();
       const { updated, added, purged } = await rebuildDefaultApps(seed);
       const moved = await placeBroadcastBelowMeeting();
-      if (updated || added || purged || moved) await load();
+      const redrawn = await refreshSystemFolderArt();
+      if (updated || added || purged || moved || redrawn) await load();
     } catch (e) { /* never block boot */ }
   }
 
