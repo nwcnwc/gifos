@@ -166,8 +166,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const mesh = await pages[idx].evaluate(() => {
         const m = window.__gifosVideo.mosaic() || {};
         return { coord: m.coord, me: m.me, up: m.up, down: m.down,
-          claims: m.claims, ann: m.ann, jobs: m.jobs,
+          claims: m.claims, ann: (m.ann || []).map((a) => String(a).slice(0, 10) + '|' + String(a).slice(String(a).indexOf('|') + 1, String(a).indexOf('|') + 18)),
+          jobs: m.jobs,
           claimVia: (m.claimVia || []).map((c) => ({ rk: c.rk, sid: String(c.sid).slice(0, 8) })),
+          // Only the stage announcers matter here, and only WHY they are not
+          // candidates: announced id vs the ids that peer actually has.
+          stgCands: (m.cands || []).filter((c) => c.key.indexOf('stg:') === 0 || c.key === 'sgs'),
           stageIds: (window.__gifosVideo.stageIds && window.__gifosVideo.stageIds()) || null };
       }).catch((e) => ({ err: String(e).slice(0, 100) }));
       return { ok: false,
