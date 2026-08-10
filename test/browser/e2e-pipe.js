@@ -136,6 +136,37 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const cam = document.getElementById('cam'); if (cam && cam.classList.contains('off')) cam.click();
       }).catch(() => {});
     }
+    // OPTIONAL RAW-CAMERA REGIME (PIPE_CLEAR=1). Without a room password
+    // blurLevelFor floors everyone at blur 1 — deliberately, a passwordless
+    // room must never show clear video — so this suite has ALWAYS measured a
+    // BLUR CANVAS source, capped at 12fps and 250kbps, and never a raw camera.
+    // That is not the regime a staged speaker is in inside a locked room, and
+    // it may be why the producer only encodes ~1.5fps. A password plus consent
+    // flips the room to raw at full rung, which splits the stg freeze cleanly:
+    // gone here means the bug is in the blur-pipe SOURCE path, still here means
+    // the pipe lane owns it. Default OFF, so the suite's normal meaning is
+    // untouched. (Flow copied from e2e-video.)
+    if (process.env.PIPE_CLEAR === '1') {
+      try {
+        await pages[0].locator('#pwbtn').click();
+        await pages[0].locator('#pw-new').fill('pipeclear');
+        await pages[0].locator('#pw-save').click();
+        let got = 0;
+        for (const p of pages) {
+          const ok = await p.waitForFunction(() => window.__gifosVideo.roomPw() === 'pipeclear', null, { timeout: 15000 }).then(() => true).catch(() => false);
+          if (ok) got++;
+        }
+        await sleep(1500);
+        let raw = 0;
+        for (const p of pages) {
+          const ok = await p.waitForFunction(() => window.__gifosVideo.outboundKind() === 'raw', null, { timeout: 25000 }).then(() => true).catch(() => false);
+          if (ok) raw++;
+        }
+        console.log('   MEASURE PIPE_CLEAR: password on ' + got + '/' + N + ', outbound RAW at ' + raw + '/' + N);
+        check('PIPE_CLEAR: the room actually went CLEAR (raw camera, not the blur canvas)', raw === N, { got, raw });
+      } catch (e) { check('PIPE_CLEAR: the room actually went CLEAR', false, { err: String(e).slice(0, 140) }); }
+    }
+
     // every seat's Stadium must go live — the pipe must never cost the picture
     const live = new Array(N).fill(false);
     const tS = Date.now();
