@@ -389,6 +389,91 @@ async function runConsumer(page, context, label, outTimeout) {
     await askai3.close();
   }
 
+  // ---- 11. deleting a Provider takes its WEIGHTS with it --------------------
+  // A Provider's cached download is the largest thing on the computer by an
+  // order of magnitude — hundreds of megabytes to a gigabyte — and it lives in
+  // a sibling database no user can see or open. If a delete leaves it behind,
+  // the space is gone forever with nothing on screen to explain it, and no
+  // amount of "I deleted that app" will get it back.
+  //
+  // Driven through the REAL journey (icon menu → Move to Trash → Empty Trash),
+  // because that is where a regression would actually land: purgeItem drops
+  // the assets, and a menu rewired to some other deletion would look fine.
+  {
+    const fid = await page.evaluate(() => window.__assetFid);
+    // Onto the Home Screen root so the journey is drivable — the icon lives in
+    // the Providers folder, which is the provider tests' business, not this
+    // one's. Placement is setup here, not the thing under test.
+    await page.evaluate(async (id) => {
+      const all = await GifOS.store.allItems();
+      const it = all.find((i) => i.fileId === id);
+      it.parent = null; it.x = 520; it.y = 380;
+      await GifOS.store.putItem(it);
+    }, fid);
+    await page.reload();
+    await page.waitForSelector('.icon', { timeout: 20000 });
+    await sleep(800);
+
+    const before = await page.evaluate(async (id) => {
+      const blob = await GifOS.store.getAsset(id, 'blob.bin');
+      return { asset: blob ? blob.size : 0, bytes: await GifOS.store.assetBytes(id) };
+    }, fid);
+    check('setup: the provider still holds its cached asset before we delete it',
+      before.asset === assetSrc.length && before.bytes === assetSrc.length, JSON.stringify(before));
+
+    const icon = page.locator('.icon', { hasText: 'Asset Prov.gif' });
+    await icon.click({ button: 'right' });
+    await page.locator('.ctx >> text=Move to Trash').click();
+    await sleep(600);
+    await page.locator('.icon', { hasText: 'Trash' }).click({ button: 'right' });
+    await page.locator('.ctx >> text=Empty Trash').click();
+    await page.waitForSelector('.modal', { timeout: 10000 });
+    const confirmText = (await page.locator('.modal p').textContent()) || '';
+    // The reclaimed space is SAID, because "did that really remove the 800 MB?"
+    // is otherwise unanswerable from anywhere in the UI.
+    check('emptying the Trash says how much downloaded model data it frees',
+      /frees the .*(KB|MB|GB) of downloaded model data/.test(confirmText), confirmText.slice(0, 160));
+    await page.locator('.modal-actions button.danger').click();
+    await sleep(1500);
+
+    const after = await page.evaluate(async (id) => ({
+      file: !!(await GifOS.store.getFile(id).catch(() => null)),
+      asset: !!(await GifOS.store.getAsset(id, 'blob.bin').catch(() => null)),
+      bytes: await GifOS.store.assetBytes(id),
+    }), fid);
+    check('deleting a Provider removes its GIF', !after.file);
+    check('DELETING A PROVIDER ALSO FREES ITS SIDELOADED WEIGHTS', !after.asset && after.bytes === 0, JSON.stringify(after));
+  }
+
+  // ---- 12. and a leak that got past everything is swept up at boot ----------
+  // The belt to that braces. Every deletion route drops its own assets today,
+  // so this finds nothing on a healthy computer — it exists because what is
+  // being leaked is a gigabyte, invisibly: a route added later that forgets, a
+  // delete interrupted half way, or an icon removed by a build that predates
+  // the asset tier all end the same way.
+  {
+    const ghost = await page.evaluate(async () => {
+      const id = 'file_ghost_no_such_icon';
+      await GifOS.store.putAsset(id, 'orphan.bin', new Blob([new Uint8Array(4096)]));
+      const live = GifOS.store.uid('file');
+      await GifOS.store.putFile({ id: live, name: 'Keeper.gif', bytes: new Uint8Array([71, 73, 70]), kind: 'gif', mime: 'image/gif' });
+      await GifOS.store.putAsset(live, 'kept.bin', new Blob([new Uint8Array(2048)]));
+      return { id, live, orphan: await GifOS.store.assetBytes(id), keeper: await GifOS.store.assetBytes(live) };
+    });
+    check('setup: an orphaned asset row exists alongside a live one',
+      ghost.orphan === 4096 && ghost.keeper === 2048, JSON.stringify(ghost));
+
+    await page.reload();
+    await page.waitForSelector('.icon', { timeout: 20000 });
+    await sleep(2000);                                    // the sweep runs after first paint
+    const swept = await page.evaluate(async (g) => ({
+      orphan: await GifOS.store.assetBytes(g.id),
+      keeper: await GifOS.store.assetBytes(g.live),
+    }), ghost);
+    check('a boot sweeps assets whose icon is gone', swept.orphan === 0, JSON.stringify(swept));
+    check('…and NEVER touches assets whose icon is still there', swept.keeper === 2048, JSON.stringify(swept));
+  }
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);

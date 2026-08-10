@@ -1579,21 +1579,44 @@
     }
     await store.deleteItem(it.id);
   }
-  function confirmDeletePermanently(it) {
+  // What a set of doomed icons is holding in cached downloads, in words — 0
+  // for everything except a Provider, and hundreds of megabytes for those. A
+  // player deleting a model has no other way to learn the space came back, and
+  // "did that actually remove the 800 MB?" is exactly the doubt that makes
+  // people delete it twice.
+  async function freedBytesLine(doomed) {
+    if (!store.assetBytes) return '';
+    let total = 0;
+    for (const d of doomed) if (d.fileId) total += (await store.assetBytes(d.fileId).catch(() => 0)) || 0;
+    if (!total) return '';
+    // KB matters here: rounding a small cache to "0 MB" would turn the
+    // reassurance into a puzzle.
+    const size = total >= 1e9 ? (total / 1e9).toFixed(2) + ' GB'
+      : total >= 1e6 ? Math.round(total / 1e6) + ' MB'
+        : Math.max(1, Math.round(total / 1e3)) + ' KB';
+    return ' This also frees the <b>' + size + '</b> of downloaded model data on this device.';
+  }
+
+  async function confirmDeletePermanently(it) {
     const doomed = [it, ...descendantsOf(it.id)];
+    const freed = await freedBytesLine(doomed);
     showConfirm('Delete permanently?',
       'This deletes <b>' + escapeHtml(it.name) + '</b>' + (doomed.length > 1 ? ' and ' + (doomed.length - 1) + ' item(s) inside it' : '') +
-      ' forever. There is no undo.',
+      ' forever. There is no undo.' + freed,
       [{ label: 'Delete forever', danger: true, fn: async () => {
         for (const d of doomed) await purgeItem(d);
         await load(); render();
       } }]);
   }
-  function emptyTrash() {
+  async function emptyTrash() {
     const doomed = items.filter((i) => isInTrash(i));
     if (!doomed.length) { showModal('Trash is empty', 'Nothing to delete.'); return; }
+    // A Provider dragged to the Trash still holds its weights until this
+    // moment — the Trash is a holding pen, not a delete — so this is where
+    // the reclaimed gigabyte gets announced.
+    const freed = await freedBytesLine(doomed);
     showConfirm('Empty Trash?',
-      'Permanently delete <b>' + doomed.length + ' item(s)</b>? There is no undo.',
+      'Permanently delete <b>' + doomed.length + ' item(s)</b>? There is no undo.' + freed,
       [{ label: 'Empty Trash', danger: true, fn: async () => {
         for (const d of doomed) await purgeItem(d);
         await load(); render();
@@ -3074,9 +3097,20 @@
     });
   }
 
+  // Reclaim cached downloads left behind by an icon that no longer exists.
+  // purgeItem already drops them at every delete, so on a healthy computer
+  // this finds nothing — it is here because the leak it catches is measured in
+  // GIGABYTES and is completely invisible: storage held forever by an app the
+  // user believes they deleted. Fire-and-forget AFTER first paint, so a sweep
+  // never costs a millisecond of boot, and silent because "nothing to do" is
+  // the expected answer.
+  function reclaimOrphanAssets() {
+    try { if (store.pruneAssets) store.pruneAssets().catch(() => {}); } catch (e) {}
+  }
+
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate);
+  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets);
 
   GifOS.desktop = { render, load, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);

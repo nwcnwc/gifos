@@ -282,6 +282,42 @@
       hasAsset: (fileId, path) => atx('readonly', (os) => reqP(os.getKey([fileId, path])).then((k) => k != null)),
       deleteAssets: (fileId) => atx('readwrite', (os) =>
         reqP(os.getAllKeys(IDBKeyRange.bound([fileId], [fileId, []]))).then((keys) => { for (const k of keys || []) os.delete(k); return true; })),
+      // How much disk one icon's cached downloads are holding. A Provider's
+      // weights are the largest thing on the whole computer by an order of
+      // magnitude, so "delete this" should be able to say what it frees.
+      assetBytes: (fileId) => atx('readonly', (os) =>
+        reqP(os.getAll(IDBKeyRange.bound([fileId], [fileId, []])))
+          .then((rows) => (rows || []).reduce((n, r) => n + (Number(r && r.bytes) || (r && r.blob && r.blob.size) || 0), 0))).catch(() => 0),
+      // Reclaim cached downloads whose ICON IS GONE.
+      //
+      // Every deletion route already drops its own assets (desktop.js's
+      // purgeItem is the single one, and erase clears the whole store), so on a
+      // healthy computer this finds nothing. It exists because the thing being
+      // leaked is a GIGABYTE: a route added later that forgets, a delete
+      // interrupted between the file and the asset rows, or an icon removed by
+      // a build that predates the asset tier all end the same way — storage
+      // consumed forever by an app the user believes they deleted, invisible
+      // in a folder they cannot open.
+      //
+      // Takes NO argument on purpose. An earlier shape took the live ids from
+      // the caller, which meant a caller whose file list failed to load would
+      // hand over an empty list and wipe every asset on the computer. It reads
+      // the files store itself, so it cannot be misled into that.
+      pruneAssets: () => atx('readonly', (os) => reqP(os.getAllKeys())).then((keys) => {
+        const ids = Array.from(new Set((keys || []).map((k) => k && k[0]).filter(Boolean)));
+        if (!ids.length) return 0;
+        return tx('files', 'readonly', (fos) =>
+          Promise.all(ids.map((id) => reqP(fos.getKey(id)).then((k) => (k == null ? id : null)))))
+          .then((res) => {
+            const dead = (res || []).filter(Boolean);
+            if (!dead.length) return 0;
+            return atx('readwrite', (os2) => reqP(os2.getAllKeys()).then((all) => {
+              let n = 0;
+              for (const k of all || []) if (k && dead.indexOf(k[0]) >= 0) { os2.delete(k); n++; }
+              return n;
+            }));
+          });
+      }),
       // ---- misc ----
       clearAll: () => Promise.all([
         open().then(() => Promise.all(['files', 'items', 'appstate', 'apprecords'].map((s) =>
