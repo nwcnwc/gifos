@@ -354,7 +354,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                     paused: r.pipes[d].paused, needKey: r.pipes[d].needKey, dropped: r.pipes[d].dropped,
                     wrote: r.pipes[d].wrote };
                 }
-                return { seat: r.seat, fdec: r.dec && r.dec.fdec, kdec: r.dec && r.dec.kdec,
+                return { seat: r.seat, me: r.me, fdec: r.dec && r.dec.fdec, kdec: r.dec && r.dec.kdec,
                   decS: (a.dec && r.dec) ? +(((r.dec.fdec - a.dec.fdec) / 2)).toFixed(1) : null,
                   forwards: rates };
               });
