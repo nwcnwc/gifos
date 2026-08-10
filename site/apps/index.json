@@ -23,6 +23,7 @@
         "name": "GifOS",
         "url": "https://gifos.app"
       },
+      "minBuild": 1089,
       "releaseDate": "2026-08-06",
       "updated": "2026-08-07",
       "categories": [
@@ -62,6 +63,7 @@
         "name": "GifOS",
         "url": "https://gifos.app"
       },
+      "minBuild": 947,
       "releaseDate": "2026-07-09",
       "updated": "2026-07-11",
       "categories": [
@@ -102,6 +104,7 @@
         "name": "GifOS",
         "url": "https://gifos.app"
       },
+      "minBuild": 947,
       "releaseDate": "2026-07-09",
       "updated": "2026-07-20",
       "categories": [
@@ -139,6 +142,7 @@
       "version": "0.9",
       "tagline": "A cheap text brain for your whole computer — BitNet b1.58 running entirely on your device.",
       "author": "GifOS",
+      "minBuild": 1189,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
@@ -216,6 +220,7 @@
       "version": "1.0",
       "tagline": "Give your computer a voice — offline text-to-speech that serves every app, no key, no cloud.",
       "author": "GifOS",
+      "minBuild": 1177,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
@@ -256,6 +261,7 @@
         "name": "GifOS",
         "url": "https://gifos.app"
       },
+      "minBuild": 947,
       "releaseDate": "2026-08-08",
       "updated": "2026-08-09",
       "categories": [

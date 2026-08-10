@@ -4,6 +4,7 @@
   "name": "Fluence",
   "shortName": "Fluence",
   "version": "1.0.0",
+  "minBuild": 947,
   "entry": "index.html",
   "accent": [123, 92, 255],
   "capabilities": {

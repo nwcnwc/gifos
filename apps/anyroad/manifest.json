@@ -4,6 +4,7 @@
   "name": "Anyroad",
   "shortName": "Anyroad",
   "version": "1.0.0",
+  "minBuild": 1089,
   "entry": "index.html",
   "accent": [
     92,
