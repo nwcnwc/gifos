@@ -110,7 +110,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const pages = [];
     for (let i = 0; i < N; i++) {
       const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
-      await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; window.GIFOS_SCALE={C:2};` });
+      // PIPE_DRAIN=off disables the carrier catch-up drainer for an A/B against
+      // the stg freeze (docs/bug-pipe-stg-freeze-2026-08-05.md). Default unset
+      // = the shipped behaviour, so an ordinary gate run is untouched.
+      const drain = process.env.PIPE_DRAIN === 'off' ? `try{localStorage.setItem('gifos_pipe_drain','off')}catch(e){};` : '';
+      await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; ${drain} window.GIFOS_SCALE={C:2};` });
       const page = await ctx.newPage();
       page.on('pageerror', (e) => console.log(`  [P${i}] PAGEERROR`, String(e).slice(0, 200)));
       await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on');

@@ -300,7 +300,19 @@ onrtctransform = (e) => {
   // Idle safety: a report older than 1s is stale (content stopped — its wants
   // stopped too); an over-minted delta template is dropped free at the
   // worker's idle-queue gate.
+  // MEASUREMENT LEVER (2026-08-10, docs/bug-pipe-stg-freeze-2026-08-05.md).
+  // The drainer is the only thing that mints BEYOND 1-for-1 demand, and the
+  // stg-freeze chain profile found the over-mint ratio tracking decode failure
+  // almost perfectly: at one stall, mints/wants of 1.00 decoded 29 of 29, 1.03
+  // decoded 15 of 31, and 1.26 decoded 4 of 30. Dropping an over-minted delta
+  // in the WORKER does not un-mint the canvas frame — Chrome still encodes and
+  // sends it, carrying no swapped payload — so the suspicion is that catch-up
+  // mints corrupt the receiver's reference chain. `gifos_pipe_drain=off`
+  // disables it so that can be measured as an interleaved A/B rather than
+  // argued. Default is unchanged (on).
+  const drainOn = () => { try { return localStorage.getItem('gifos_pipe_drain') !== 'off'; } catch (e) { return true; } };
   setInterval(() => {
+    if (!drainOn()) return;
     const now = Date.now();
     for (const [pid, w] of lastWant) {
       if (w.q > 2 && now - w.at < 1000) { const cr = carriers.get(pid); if (cr) { cr.mint(false); w.q--; } }
