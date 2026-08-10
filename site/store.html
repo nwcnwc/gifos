@@ -104,6 +104,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .btn.ghost { background: transparent; color: var(--text, #e0e0f0); border: 1px solid var(--border, #2a2a3f); font-weight: 600; }
   .prog { height: .4rem; border-radius: 999px; background: var(--border, #2a2a3f); overflow: hidden; width: 12rem; }
   .prog i { display: block; height: 100%; width: 0; background: var(--accent, #7b5cff); transition: width .15s linear; }
+  /* The SECOND download — install-time assets (model weights). Its own row,
+     because it is its own file: the app GIF's bar finishing has nothing to do
+     with how far along a 769 MB model is. */
+  .dl { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin: -.8rem 0 1.4rem; }
+  /* Indeterminate: a phase with nothing honest to count (verifying a gigabyte,
+     or a server that never sent a content-length). It MOVES so it can't be
+     read as "finished", which is precisely how a parked full bar was read. */
+  .prog.busy i { background: linear-gradient(90deg, transparent 0%, var(--accent, #7b5cff) 50%, transparent 100%);
+                 animation: dlsweep 1.1s linear infinite; }
+  @keyframes dlsweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: reduce) { .prog.busy i { animation: none; opacity: .55; } }
   .note { color: var(--muted, #8888aa); font-size: .87rem; }
   .err { color: #ff6b8a; font-size: .9rem; }
   .desc { white-space: pre-wrap; color: var(--muted, #a9a9c5); max-width: 42rem; margin-bottom: 1.6rem; }

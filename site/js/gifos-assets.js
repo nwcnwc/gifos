@@ -89,24 +89,83 @@
 
   const fmtMB = (n) => (n >= 1e9 ? (n / 1e9).toFixed(2) + ' GB' : (n / 1e6).toFixed(1) + ' MB');
 
+  // Read a response body to a Blob while REPORTING PROGRESS.
+  //
+  // r.blob() is one line and tells you nothing until it is finished, which is
+  // how an 806 MB model came to download behind a bar that was already full
+  // (left over from the App GIF) with no way to tell a stalled download from a
+  // slow one. So we pump the stream ourselves and count bytes.
+  //
+  // The catch, and why this is not just chunks.push(): holding every chunk as
+  // a Uint8Array would put the WHOLE asset in the JS heap, which is exactly the
+  // thing this module exists to avoid — the weights are Blob-backed end to end
+  // precisely so a gigabyte model never becomes a gigabyte of heap. So chunks
+  // are folded into Blob PARTS every few MB: the browser can spill a Blob to
+  // disk, so the heap holds only the current part. Peak stays ~PART_BYTES
+  // instead of ~filesize.
+  //
+  // No content-length (a chunked transfer, or a CORS response that doesn't
+  // expose it) means no honest fraction — report null and let the caller show
+  // an indeterminate bar rather than invent a number.
+  const PART_BYTES = 4 * 1024 * 1024;
+  function readWithProgress(r, declaredBytes, onBytes) {
+    if (!(r.body && r.body.getReader)) return r.blob();
+    const total = Number(r.headers.get('content-length')) || Number(declaredBytes) || 0;
+    const reader = r.body.getReader();
+    const parts = [];
+    let pending = [], pendingLen = 0, got = 0;
+    const flush = () => { if (pendingLen) { parts.push(new Blob(pending)); pending = []; pendingLen = 0; } };
+    const pump = () => reader.read().then(({ done, value }) => {
+      if (done) { flush(); return new Blob(parts); }
+      pending.push(value); pendingLen += value.length; got += value.length;
+      if (pendingLen >= PART_BYTES) flush();
+      if (onBytes) { try { onBytes(got, total); } catch (e) {} }
+      return pump();
+    });
+    return pump();
+  }
+
   // Download every missing asset, hash-verified, into the cache. Serial on
   // purpose: these are big files and the progress line should read one honest
-  // name at a time. Memory note: the response lands as a Blob (disk-backed),
-  // but hashing needs one transient ArrayBuffer of the whole file — the peak
-  // is ~2× the asset size, released as soon as the digest is done.
+  // name at a time. Memory note: the response streams into Blob parts
+  // (disk-backed), but hashing needs one transient ArrayBuffer of the whole
+  // file — the peak is ~1× the asset size, released as soon as the digest is
+  // done.
+  //
+  // onStatus(text, frac) — frac is 0..1 while bytes are arriving, and null for
+  // a phase with no measurable progress (verifying, or a download whose length
+  // the server never declared). A caller that only wants the words can ignore
+  // the second argument, and every existing one does.
   function ensure(files, manifest, onStatus, cache) {
     return missing(files, manifest, cache).then((need) => {
       let chain = Promise.resolve();
       need.forEach((a, i) => {
         chain = chain.then(() => {
-          const label = a.path.split('/').pop() + (a.bytes ? ' (' + fmtMB(a.bytes) + ')' : '');
-          if (onStatus) { try { onStatus('Downloading ' + label + (need.length > 1 ? ' — ' + (i + 1) + '/' + need.length : '') + '…'); } catch (e) {} }
+          const name = a.path.split('/').pop();
+          const label = name + (a.bytes ? ' (' + fmtMB(a.bytes) + ')' : '');
+          const ofN = need.length > 1 ? ' — ' + (i + 1) + '/' + need.length : '';
+          const say = (text, frac) => { if (onStatus) { try { onStatus(text, frac); } catch (e) {} } };
+          say('Downloading ' + label + ofN + '…', 0);
           const url = /^https:\/\//.test(a.url) ? a.url : root.location.origin + a.url;
           return fetch(url, { credentials: 'omit', redirect: 'follow' })
-            .then((r) => { if (!r.ok) throw new Error('the download failed (' + r.status + ')'); return r.blob(); })
+            .then((r) => {
+              if (!r.ok) throw new Error('the download failed (' + r.status + ')');
+              return readWithProgress(r, a.bytes, (got, total) => {
+                // The size in the label comes from the SERVER when it says so,
+                // and from the manifest otherwise — a download that quietly
+                // ran long should show it, not keep quoting the pin.
+                const shown = total ? fmtMB(total) : (a.bytes ? fmtMB(a.bytes) : '');
+                say('Downloading ' + name + (shown ? ' (' + fmtMB(got) + ' of ' + shown + ')' : '') + ofN + '…',
+                  total ? Math.min(1, got / total) : null);
+              });
+            })
             .then((blob) => {
               if (blob.size > MAX_ASSET_BYTES) throw new Error('the file exceeds the 2 GB per-asset ceiling');
-              if (onStatus) { try { onStatus('Verifying ' + a.path.split('/').pop() + '…'); } catch (e) {} }
+              // Hashing a gigabyte is not instant and has no sub-steps to
+              // report, so the bar goes indeterminate rather than sitting at a
+              // full 100% pretending the work is done — the exact lie this
+              // whole change exists to stop telling.
+              say('Verifying ' + name + '…', null);
               return blob.arrayBuffer()
                 .then((buf) => sha256Hex(buf))
                 .then((hex) => {

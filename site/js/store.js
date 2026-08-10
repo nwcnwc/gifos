@@ -369,6 +369,11 @@
     // Install: swapping in bytes this computer can't run would break a working
     // icon, which is worse than leaving it on the old version.
     const stop = blocked(app) ? ' disabled' : '';
+    // The button carries the reason whichever button it is. An app you already
+    // own can become too old for your computer (it raised its floor, or you
+    // moved to an older build), and "Install again", greyed out and silent, is
+    // the same dead end as a silent "Install — free".
+    const why = (normal) => (tooOld(app) ? 'Needs a newer GifOS' : normal);
     detailEl.innerHTML =
       '<button class="back" id="back">← All apps</button>' +
       '<div class="head"><div>' +
@@ -379,13 +384,24 @@
       '<img class="hero" src="' + esc(app.cover) + '" alt="' + esc(app.name) + ' screenshot" decoding="async">' +
       '<div class="actions">' +
         (installedId
-          ? (canUpdate ? '<button class="btn" id="update"' + stop + '>Update — keeps your data</button>' : '') +
+          ? (canUpdate ? '<button class="btn" id="update"' + stop + '>' + why('Update — keeps your data') + '</button>' : '') +
             '<a class="btn' + (canUpdate ? ' ghost' : '') + '" href="' + BASE + 'run.html#id=' + encodeURIComponent(installedId) + ns('&db=') + '">Open</a>' +
-            '<button class="btn ghost" id="install"' + stop + '>Install again</button>'
-          : '<button class="btn" id="install"' + stop + '>' +
-            (tooOld(app) ? 'Needs a newer GifOS' : 'Install — free') + '</button>') +
-        '<span class="note" id="note">' + esc(human(app.bytes)) + ' download</span>' +
+            '<button class="btn ghost" id="install"' + stop + '>' + why('Install again') + '</button>'
+          : '<button class="btn" id="install"' + stop + '>' + why('Install — free') + '</button>') +
+        '<span class="note" id="note">' + esc(human(app.bytes)) + ' download' +
+          // An app whose weights arrive separately is TWO downloads, and the
+          // second one dwarfs the first. Say so before the press, not after.
+          (app.download ? ' + ' + esc(human(app.download)) + ' model' : '') + '</span>' +
         '<span class="prog" id="prog" style="display:none"><i></i></span>' +
+      '</div>' +
+      // The SECOND download, with its own bar. It used to have none: the app
+      // GIF's bar finished at 100% and simply stayed there through an 806 MB
+      // model, so the one part of the install worth watching was the part with
+      // no progress at all. Two bars, because they are two files — the first
+      // one staying full is then honest rather than misleading.
+      '<div class="dl" id="dl2" style="display:none">' +
+        '<span class="note" id="note2"></span>' +
+        '<span class="prog" id="prog2"><i></i></span>' +
       '</div>' +
       (legacyDesktop ? legacyNotice() : '') +
       (tooOld(app) ? tooOldNotice(app) : '') +
@@ -519,11 +535,32 @@
     // that the runtime backfills on first launch.
     const fetchAssets = async (fid) => {
       const A = GifOS.assets; if (!A) return;
+      const dl2 = $('dl2'), note2 = $('note2'), bar2 = $('prog2');
       try {
         const cache = A.assetCache(store, fid);
         const need = await A.missing(archive.files, m, cache);
-        if (need.length) await A.ensure(archive.files, m, (s) => { note.textContent = s; }, cache);
-      } catch (e) { note.textContent = '⚠ ' + (e.message || e) + ' — the app will retry when you open it.'; }
+        if (!need.length) return;
+        // The first line has finished its job; let it say so, so the moving
+        // line below is unambiguously the one still working.
+        note.textContent = 'App file ✓';
+        dl2.style.display = '';
+        bar2.firstChild.style.width = '0';
+        await A.ensure(archive.files, m, (s, frac) => {
+          note2.textContent = s;
+          // A phase with nothing to count (verifying a gigabyte, or a server
+          // that never declared a length) says so by MOVING — an indeterminate
+          // sweep — rather than parking at a number it cannot justify.
+          if (frac == null) { bar2.classList.add('busy'); bar2.firstChild.style.width = '100%'; }
+          else { bar2.classList.remove('busy'); bar2.firstChild.style.width = Math.round(frac * 100) + '%'; }
+        }, cache);
+        bar2.classList.remove('busy');
+        bar2.firstChild.style.width = '100%';
+        note2.textContent = 'Model ready ✓';
+      } catch (e) {
+        if (bar2) bar2.classList.remove('busy');
+        if (dl2) dl2.style.display = '';
+        if (note2) note2.textContent = '⚠ ' + (e.message || e) + ' — the app will retry when you open it.';
+      }
     };
 
     note.textContent = into ? 'Updating…' : 'Installing…';
