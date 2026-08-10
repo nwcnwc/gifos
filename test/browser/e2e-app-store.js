@@ -60,6 +60,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       (rec.categories || []).length > 0 && rec.categories.every((c) => index.categories.includes(c)));
     check(a.slug + ': carries the long and short descriptions a listing needs',
       !!rec.tagline && !!rec.description && rec.description.length > rec.tagline.length);
+    // The floor an app runs on has to survive the trip from the manifest into
+    // BOTH published files. It is in the index because the GRID has to say it;
+    // an index that dropped the field would read as minBuild 0 — "runs
+    // anywhere" — and every card would go back to advertising an app the
+    // player's computer cannot run.
+    const src = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', a.slug, 'manifest.json'), 'utf8'));
+    check(a.slug + ': states the oldest GifOS build it runs on, in the manifest',
+      Number.isInteger(src.minBuild) && src.minBuild >= 947, String(src.minBuild));
+    check(a.slug + ': …carried through to app.json AND the grid index unchanged',
+      rec.minBuild === src.minBuild && a.minBuild === src.minBuild,
+      'manifest ' + src.minBuild + ' / app.json ' + rec.minBuild + ' / index ' + a.minBuild);
   }
 
   // Nothing outside the store may reference an App GIF as an image.
@@ -175,7 +186,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('opening a listing pushes its shareable /store/<slug> link',
     new URL(page.url()).pathname === '/store/' + target.slug, page.url());
   const facts = (await page.locator('.facts').textContent()) || '';
-  for (const want of ['Version', 'Author', 'Released', 'Category', 'Size', 'License', 'Signature']) {
+  for (const want of ['Version', 'Author', 'Released', 'Category', 'Size', 'License', 'Signature', 'Requires']) {
     check('the listing states its ' + want, facts.includes(want));
   }
   check('the listing shows the app\'s declared abilities before you install', /Abilities/.test(facts));
@@ -288,6 +299,117 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     rebirth.id === oldId, rebirth.id + ' vs ' + oldId);
   check('…so the data saved before the delete is still there',
     rebirth.marker === 'survived the reinstall', JSON.stringify(rebirth.marker));
+
+  // ---- an app that outruns this computer ------------------------------------
+  // The store used to sell apps it knew could not run. Offline Cheap Text LLM
+  // BitNet needs the install-time asset tier that no release has been cut with:
+  // on 0.9.5 the download completed, the weights had nowhere to go, and the
+  // player was left an icon that opened onto nothing. An app now states the
+  // oldest build it runs on and the store acts on it.
+  //
+  // THE FLOOR IS FAKED ON PURPOSE. Reading it off whichever app happens to be
+  // the most demanding today would make this guard evaporate the day every
+  // listing fits the current release — a test that guards nothing, quietly.
+  // So one REAL listing's minBuild is raised past every build there is, over
+  // the wire, and everything else about it stays real.
+  const versionDoc = JSON.parse(fs.readFileSync(path.join(SITE, 'version.json'), 'utf8'));
+  const pinRel = versionDoc.current;                       // the release most visitors run
+  const pinBuild = (versionDoc.builds || {})[pinRel];
+  check('version.json maps the live release to the build it was cut from',
+    Number.isInteger(pinBuild), pinRel + ' → ' + pinBuild);
+
+  // Smallest floor, then smallest file: if this stub ever stops applying, the
+  // checks below fail loudly, and the app they fail on is a 150 KB one rather
+  // than the 8 MB engine.
+  const byFloor = index.apps.slice().sort((a, b) => (a.minBuild - b.minBuild) || (a.bytes - b.bytes));
+  const guinea = byFloor[0];                               // the one we make unreachable
+  const reachable = byFloor.find((a) => a.slug !== guinea.slug && a.minBuild <= pinBuild);
+  const UNREACHABLE = 999999;
+
+  // Patched at the page's own fetch, NOT with ctx.route: these pages register a
+  // service worker, which answers the catalog request itself, and a route on
+  // the context never sees it — the first cut of this block failed exactly
+  // that way, silently serving the real floor while claiming to serve a fake
+  // one. Only the catalog BYTES change; every line of store.js under test is
+  // the shipping one.
+  await page.addInitScript((cfg) => {
+    const orig = window.fetch;
+    window.fetch = async function (input, init) {
+      const res = await orig.call(this, input, init);
+      const url = String((input && input.url) || input);
+      if (!/\/apps\/(index\.json|[^/]+\/app\.json)/.test(url)) return res;
+      try {
+        const body = await res.clone().json();
+        if (Array.isArray(body.apps)) { for (const a of body.apps) if (a.slug === cfg.slug) a.minBuild = cfg.floor; }
+        else if (body.slug === cfg.slug) body.minBuild = cfg.floor;
+        return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+      } catch (e) { return res; }
+    };
+  }, { slug: guinea.slug, floor: UNREACHABLE });
+
+  // A pin is the honest way to be a release visitor here: it is what the store
+  // reads to decide which computer an install has to reach, and version.json
+  // turns it into that build's number.
+  await page.evaluate((rel) => localStorage.setItem('gifos_pin', rel), pinRel);
+  const gifsBefore = gifHits.length;
+  await page.goto(BASE + '/store.html');
+  await page.waitForSelector('.card', { timeout: 15000 });
+
+  // The redirect that used to happen here handed the listing to the SNAPSHOT'S
+  // OWN store — code frozen before the app it is describing existed, which
+  // cannot know an app needs a build newer than itself. It read the live
+  // catalog and offered the install anyway. If it ever comes back, every
+  // assertion below is being made about a page no release visitor sees.
+  check('a release visitor keeps the CURRENT store — no redirect into a frozen one',
+    !/\/versions\//.test(page.url()), page.url());
+  const owner = await page.evaluate(() => ({ build: GifOS.storeBuild.build, name: GifOS.storeBuild.name, legacy: GifOS.storeBuild.legacy }));
+  check('the store resolves the visitor to the BUILD that will run the app',
+    owner.build === pinBuild, JSON.stringify(owner));
+  check('a release that has a store is not flagged legacy', !owner.legacy);
+
+  check('the grid warns on the card, where the size (an invitation) would be',
+    (await page.locator('.card[data-slug="' + guinea.slug + '"] .needs').count()) === 1);
+  if (reachable) {
+    check('…and only there — an app this build CAN run is untouched',
+      (await page.locator('.card[data-slug="' + reachable.slug + '"] .needs').count()) === 0, reachable.slug);
+  }
+
+  await page.goto(BASE + '/store.html#app=' + guinea.slug);
+  await page.waitForSelector('#install', { timeout: 10000 });
+  const gate = await page.evaluate(() => ({
+    disabled: document.getElementById('install').disabled,
+    label: document.getElementById('install').textContent,
+    facts: (document.querySelector('.facts') || {}).textContent || '',
+    notice: Array.from(document.querySelectorAll('.err')).map((e) => e.textContent).join(' ').replace(/\s+/g, ' '),
+  }));
+  check('the listing states the requirement as a build number',
+    gate.facts.includes('Requires') && gate.facts.includes('build ' + UNREACHABLE), gate.facts.slice(0, 120));
+  check('Install is dead on a listing this computer cannot run', gate.disabled, gate.label);
+  check('…and the button says why rather than still saying "free"', /Needs a newer GifOS/.test(gate.label), gate.label);
+  check('the notice names the build needed AND the build you have',
+    gate.notice.includes(String(UNREACHABLE)) && gate.notice.includes(String(pinBuild)), gate.notice.slice(0, 200));
+  // Two different endings, and sending the wrong one is a dead end: told to
+  // "update", a player whose requirement no release meets goes to the Version
+  // panel and finds every release on offer still too old.
+  check('a floor no release meets sends you to the edge build, not to "update"',
+    /[Ee]dge build/.test(gate.notice) && !/Move to release/.test(gate.notice), gate.notice.slice(-140));
+
+  // The promise is about the WIRE, not about a grey button — the same promise
+  // the cover rule makes, measured the same way.
+  await page.evaluate(() => { const b = document.getElementById('install'); b.disabled = false; b.click(); });
+  await sleep(2500);
+  check('FORCING THE PRESS STILL DOWNLOADS NOTHING — install() enforces the floor',
+    gifHits.length === gifsBefore, gifHits.slice(gifsBefore).join(', '));
+  check('…and the refusal explains itself where the progress bar would be',
+    /needs GifOS build/.test((await page.locator('#err').textContent()) || ''));
+
+  if (reachable) {
+    await page.goto(BASE + '/store.html#app=' + reachable.slug);
+    await page.waitForSelector('#install', { timeout: 10000 });
+    check('the gate blocks ONLY what it must — a fitting app still installs',
+      !(await page.locator('#install').isDisabled()), reachable.slug + ' minBuild ' + reachable.minBuild);
+  }
+  await page.evaluate(() => localStorage.removeItem('gifos_pin'));
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
