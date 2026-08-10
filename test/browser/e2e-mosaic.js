@@ -228,6 +228,41 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   check('every seat agrees on the stage set', agree === N, { agree });
 
+  // NO SEAT MAY SIT ON ANNOUNCERS IT HAS TOLD TO STAY PARKED.
+  //
+  // claimRedun only claims an announcer whose stream has already arrived, and
+  // it only demands a candidate HOT if it is the primary or a waking standby.
+  // With no primary those two sets are empty, so every announcer for the slot
+  // was sent mx-IDLE — and a parked sender never delivers the stream that
+  // would let the slot claim. The seat then holds announcers, no feed, and
+  // starves every seat beneath it, permanently, with nothing in the loop ever
+  // asking again. (Found 2026-08-10: a mid-tree seat with TWO stg announcers
+  // and an empty claim list while the stage set was known and its up-link was
+  // healthy.)
+  //
+  // The invariant is slot-local and true of every seat at every instant, so
+  // assert it directly rather than waiting for the picture to go missing: a
+  // slot that has candidates and NO claim must be demanding at least one of
+  // them hot. Reads only the debug API, so it costs nothing.
+  const parkedDeadlocks = [];
+  for (let i = 0; i < N; i++) {
+    const d = await pages[i].evaluate(() => {
+      const m = window.__gifosVideo.mosaic() || {};
+      return { me: m.me, claims: m.claims || [], cands: m.cands || [], demand: m.demand || [] };
+    }).catch(() => null);
+    if (!d) continue;
+    const bySlot = new Map();
+    for (const c of d.cands) { if (!bySlot.has(c.key)) bySlot.set(c.key, []); bySlot.get(c.key).push(c); }
+    for (const [rk, cs] of bySlot) {
+      if (d.claims.indexOf(rk) >= 0) continue;              // claimed — not the case under test
+      const hot = cs.some((c) => d.demand.some((e) => e.indexOf(c.from) === 0 && e.indexOf('|' + rk + '|') > 0 && /=w$/.test(e)));
+      if (!hot) parkedDeadlocks.push({ seat: 'P' + i, me: d.me, slot: rk, announcers: cs.length,
+        demands: d.demand.filter((e) => e.indexOf('|' + rk + '|') > 0) });
+    }
+  }
+  check('a slot with announcers and no claim is demanding one of them HOT (never all idle)',
+    parkedDeadlocks.length === 0, parkedDeadlocks.slice(0, 4));
+
   for (let i = 0; i < N; i++) {
     if (i === stagerIdx) continue;
     // 120s, and the reason is measured, not guessed. A seat DEEP IN A

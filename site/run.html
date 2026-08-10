@@ -8863,6 +8863,40 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const hot = new Set();
       if (pri && inCand(pri)) hot.add(pri.via + '|' + pri.streamId);
       if (std && ((fb.wakeAt && !wakeStale) || fb.dark)) hot.add(std.via + '|' + std.streamId);
+      // YOU CANNOT CLAIM WHAT YOU HAVE TOLD THE SENDER NOT TO SEND.
+      //
+      // With no primary, `hot` was EMPTY, so every announcer for this slot was
+      // sent mx-IDLE — "park it, I don't want it". The sender parks
+      // (replaceTrack(null)), the stream therefore never lands in p.incoming,
+      // so the candidate never goes `live`, so claimRedun's first-claim
+      // (`cand.find(x => x.live)`) never fires, so there is still no primary
+      // and the next sweep sends mx-idle again. A seat that has not claimed
+      // yet actively guarantees it never will.
+      //
+      // It hides in the common case because a fresh ship starts ACTIVE at the
+      // sender ("so first claims flow"), so the track is usually already there
+      // when the announce arrives. It bites when the track is LATE (announce
+      // ahead of renegotiation) or was parked by an earlier idle — and then it
+      // is permanent, because nothing in the loop ever asks again. Measured
+      // 2026-08-10 in e2e-mosaic: a mid-tree seat sat on TWO stg announcers
+      // with an empty claim list, up-link healthy and the stage set known,
+      // while every seat BELOW it starved with no announcer of its own to
+      // explain why.
+      //
+      // So when a slot has no primary, demand ONE candidate hot. That is the
+      // only way the stream it needs can ever arrive. The ONE-PIPE law is
+      // intact: exactly one entry is added, and only while there is no primary
+      // at all — the moment it lands the normal preference logic takes over.
+      // The seed is chosen deterministically (shortest announced chain, then
+      // peer id) so repeated sweeps ask the SAME peer instead of rotating.
+      if (!pri && cand.length) {
+        const seed = cand.slice().sort((a, b) => {
+          const ha = (a.ann && typeof a.ann.h === 'number') ? a.ann.h : 998;
+          const hb = (b.ann && typeof b.ann.h === 'number') ? b.ann.h : 998;
+          return ha !== hb ? ha - hb : String(a.from).localeCompare(String(b.from));
+        })[0];
+        if (seed) hot.add(seed.from + '|' + seed.sid);
+      }
       for (const x of cand) demand(x.from, x.key, x.sid, hot.has(x.from + '|' + x.sid));
     }
     function claimMos() {
