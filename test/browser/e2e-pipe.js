@@ -339,7 +339,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                     const r = (await __gifosVideo.kfStats()).find((x) => x.dir === 'in' && x.slot === 'in:' + key);
                     return r ? { fdec: r.fdec, kdec: r.kdec } : null;
                   }, f.key).catch(() => null);
-                  rows.push({ seat: 'P' + s, me: seatIds[s], dec, pipes: mine });
+                  // The per-DESTINATION carrier behind each forward. Two peers
+                  // fed from one source pipe differ only here, so this is where
+                  // a 26-of-32 leg and a 1-of-32 leg have to diverge.
+                  const car = await pages[s].evaluate((key) => {
+                    const c = (window.__gifosVideo.pipeChain && window.__gifosVideo.pipeChain()) || {};
+                    const mine = {};
+                    for (const jk in c) if (jk.indexOf(key) === 0) mine[jk.slice(key.length + 1, key.length + 9)] = c[jk];
+                    return mine;
+                  }, f.key).catch(() => ({}));
+                  rows.push({ seat: 'P' + s, me: seatIds[s], dec, pipes: mine, car });
                 }
                 return rows;
               };
@@ -352,7 +361,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                   const before = a.pipes[d];
                   rates[d] = { wroteS: before ? +(((r.pipes[d].wrote - before.wrote) / 2)).toFixed(1) : null,
                     paused: r.pipes[d].paused, needKey: r.pipes[d].needKey, dropped: r.pipes[d].dropped,
-                    wrote: r.pipes[d].wrote };
+                    wrote: r.pipes[d].wrote,
+                    carrier: (r.car && r.car[d]) || null,
+                    mintsS: (a.car && a.car[d] && r.car && r.car[d]) ? +(((r.car[d].mints - a.car[d].mints) / 2)).toFixed(1) : null };
                 }
                 return { seat: r.seat, me: r.me, fdec: r.dec && r.dec.fdec, kdec: r.dec && r.dec.kdec,
                   decS: (a.dec && r.dec) ? +(((r.dec.fdec - a.dec.fdec) / 2)).toFixed(1) : null,

@@ -11634,6 +11634,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // bytes instead of re-encoding them.
       pipeInfo: () => ({ enabled: pipeEnabled(), jobs: [...pipeJobs.keys()], deny: [...pipeDeny] }),
       pipeStats: () => (MPipe ? MPipe.stats() : Promise.resolve({})),
+      // Per-DESTINATION carrier state. A sender forwards one feed to several
+      // peers through a carrier minted per destination, so two peers can be fed
+      // from one source pipe and only one of them work — measured 2026-08-10:
+      // 32 frames written to each of two peers, 26 decoded at one and 1 at the
+      // other (docs/bug-pipe-stg-freeze-2026-08-05.md). Whatever differs has to
+      // be in the mint, and nothing exposed it.
+      pipeChain: () => {
+        if (!MPipe) return {};
+        const out = {};
+        for (const jk of pipeJobs.keys()) { try { out[jk] = MPipe.chain(jk); } catch (e) { out[jk] = { err: String(e).slice(0, 60) }; } }
+        return out;
+      },
       liveLinks: () => Array.from(peers.values()).filter((p) => p.connected).length,
       // ICE AND an open DataChannel — the gate every data-path assertion must
       // use: a half-open pair passes liveLinks and carries nothing (pair-probe.js).
