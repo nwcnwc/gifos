@@ -426,6 +426,50 @@ Note also the standing caveat: all of this is six browsers on one Jetson. Every
 quantity here is real, but the RATE at which the freeze appears is not a product
 number until it is rebuilt across devices.
 
+## THE REGIME THIS BUG HAS ALWAYS BEEN MEASURED IN (2026-08-10)
+
+**Leg 3 has never once measured a raw camera feed.** `blurLevelFor` floors the
+level at 1 unless the room is `clear`, and `clear` requires a ROOM PASSWORD:
+
+```js
+const clear = !!roomPw && !blocked && (hasAdminRoom() ? … : allConsent());
+if (clear) return 0;
+return Math.max(1, blurLevel(st.blur));      // ← floor of 1, no password
+```
+
+`e2e-pipe` never sets a password. So however many times the suite clicks
+`blur-none` — and it does, on every page — every participant stays at blur 1.
+That is deliberate and legally motivated (a passwordless room must never show
+clear video), and `e2e-video` covers the rule explicitly ("blurred until this
+room has a password"). It is NOT a defect. But three consequences land on this
+bug, and none of them were in the dossier:
+
+1. the stager's outbound source is the **blur canvas**, not the camera;
+2. `myBlurLvl > 0` caps the sender's rung at **12 fps** (min blur; 8 at max);
+3. the bitrate sweep caps a blurred feed at **250 kbps**
+   (`blurred ? Math.min(q.kbps, 250) * 1000`).
+
+So every measurement in this file — the ~1.5 fps producer, the starved
+templates, the 30 kbps carrier, the bright freezes — was taken on a blurred,
+12fps-capped, 250kbps-capped CANVAS source. That is a different regime from
+the raw camera feed a real staged speaker sends in a password-locked room, and
+it may be the whole story: it explains the producer's low frame rate directly,
+without needing any of the nine hypotheses this file has already buried.
+
+It also resolves the puzzle the 2026-08-06 round left open — "the arm that
+clicked blur-none still reported blur: 1" — which was read then as a
+room/guest blur "outranking" the user and suspected of causing oscillation.
+It is not an override race. It is the password rule, working as designed.
+
+**THE EXPERIMENT THAT SPLITS IT, and it is cheap:** run the same six-seat
+shape with a room password set and every seat consenting, so `clear` is true
+and the stage feed is the RAW CAMERA at full rung. If the freeze vanishes, the
+bug lives in the blur-pipe source path (a canvas repainted at 12fps feeding a
+demand-minted carrier) and not in the pipe lane at all. If it survives, the
+pipe lane is implicated on its own terms and every measurement here applies to
+the real regime after all. `e2e-video` already contains the password+consent
+flow to copy.
+
 > **THE CROSS-DEVICE SECTION BELOW IS RETRACTED — read this first.**
 > Leg 3 can only fire on a BRIGHT feed (`vw>0 && live && !muted`), and it never
 > reported how many feeds it was able to judge. Instrumented (`e7e7511`), the
