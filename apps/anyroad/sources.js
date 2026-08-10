@@ -197,6 +197,7 @@
     traffic: 'normal',      // 'none' | 'light' | 'normal' | 'heavy'
     sound: 'on',            // engine, tyres, traffic, animals. No music.
     blaster: 'on',          // the gun on the roof, and space/tap to fire it
+    labels: 'on',           // street names floating over the roads themselves
     keep: '20',             // MB of driven-through map remembered (see KEEP_MB)
     fill: 'off',            // MB of extra map built out ahead (see FILL_MB)
   };
@@ -219,6 +220,7 @@
         if (['none', 'light', 'normal', 'heavy'].indexOf(rec.traffic) >= 0) current.traffic = rec.traffic;
         if (rec.sound === 'on' || rec.sound === 'off') current.sound = rec.sound;
         if (rec.blaster === 'on' || rec.blaster === 'off') current.blaster = rec.blaster;
+        if (rec.labels === 'on' || rec.labels === 'off') current.labels = rec.labels;
         if (KEEP_MB.indexOf(rec.keep) >= 0) current.keep = rec.keep;
         if (FILL_MB.indexOf(rec.fill) >= 0) current.fill = rec.fill;
         // The old single `offline` dial, migrated: its number was really the

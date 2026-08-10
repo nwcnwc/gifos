@@ -2383,6 +2383,125 @@ function check(name, cond, detail) {
     upgraded.pools + ' pool(s), ' + upgraded.land + ' land ring(s), detail ' + upgraded.detail
     + ' — from a record that had none of it');
 
+  // ---- street names, in the world -------------------------------------------
+  // The names have always been in the data and only ever reached a HUD chip
+  // telling you what you are ON. Floating them over their own carriageways is
+  // what turns "a road" into "that road" — and it is a NEW GL program, the
+  // category where a mistake takes the frame loop down rather than looking
+  // wrong, so this checks the app is still drawing after they appear.
+  const labels = await fr.locator('body').evaluate(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    window.Sources.set({ labels: 'on' });
+    let d = null;
+    for (let i = 0; i < 30; i++) { await wait(300); d = window.App.debug(); if (d.labels.length) break; }
+    const on = d.labels.slice();
+    const framesA = d.frames;
+    window.Sources.set({ labels: 'off' });
+    for (let i = 0; i < 20; i++) { await wait(200); d = window.App.debug(); if (!d.labels.length) break; }
+    const off = d.labels.length;
+    await wait(600);
+    const framesB = window.App.debug().frames;
+    window.Sources.set({ labels: 'on' });
+    return { on, off, running: framesB > framesA };
+  });
+  check('street names float in the world, named from the map data',
+    labels.on.length > 0 && labels.on.some((n) => /Fixture Street|Grand Boulevard|Crossing Lane/.test(n)),
+    JSON.stringify(labels.on));
+  check('…never more than a handful — a junction of a dozen names is wallpaper',
+    labels.on.length <= 6, labels.on.length + ' on screen');
+  check('…the setting genuinely turns them off', labels.off === 0, labels.off + ' left');
+  check('…and the frame loop survived a brand-new GL program', labels.running, 'frames advanced');
+
+  // ---- the flare ------------------------------------------------------------
+  // "Need ways for players to find each other quickly." One timestamp on your
+  // own row; everything else is derived from the position it marks, so it
+  // cannot point somewhere you are not.
+  const flare = await fr.locator('body').evaluate(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    window.MP.sendFlare();
+    let d = null;
+    for (let i = 0; i < 20; i++) { await wait(200); d = window.App.debug(); if (d.flares > 0) break; }
+    const lit = d.flares;
+    const mine = window.MP.flares(window.App.car());
+    return { lit, count: mine.length, life: mine[0] ? +mine[0].life.toFixed(2) : 0,
+             onMe: mine[0] ? Math.hypot(mine[0].x - window.App.car().x, mine[0].z - window.App.car().z) < 1 : false };
+  });
+  check('a flare goes up, and it burns from full', flare.lit > 0 && flare.life > 0.9,
+    JSON.stringify(flare));
+  check('…and it marks where you actually are', flare.onMe, 'at the car');
+
+  // ---- the tile map explains itself -----------------------------------------
+  // The loader always knew why a tile was missing and threw it away a frame
+  // later. Tapping the map is the question; this is the answer being there.
+  const wstat = await fr.locator('body').evaluate(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const r = window.App.worldReport();
+    const map = document.getElementById('tilemap');
+    const clickable = getComputedStyle(map).pointerEvents !== 'none';
+    map.hidden = false;                       // it only shows while busy; the click path is the point
+    map.click();
+    await wait(400);
+    const sheet = document.getElementById('worldstat');
+    const open = !sheet.hidden;
+    const txt = document.getElementById('ws-tiles').textContent || '';
+    const sum = document.getElementById('ws-summary').textContent || '';
+    document.getElementById('close-worldstat').click();
+    return { clickable, open, rows: r ? r.rows.length : 0, mirrors: r ? r.mirrors.length : 0,
+             closed: document.getElementById('worldstat').hidden,
+             saysTiles: /tiles/.test(sum), listed: txt.length > 20 };
+  });
+  check('the tile map is a BUTTON (the HUD is pointer-transparent; it had to opt in)',
+    wstat.clickable, 'pointer-events');
+  check('…tapping it opens a report naming every tile and mirror',
+    wstat.open && wstat.rows > 0 && wstat.mirrors > 0 && wstat.listed && wstat.saysTiles,
+    JSON.stringify(wstat));
+  check('…and it closes again', wstat.closed);
+
+  // ---- the place name is the way home ---------------------------------------
+  const home = await fr.locator('body').evaluate(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const c = window.App.car();
+    const place = document.getElementById('place');
+    const clickable = getComputedStyle(place).pointerEvents !== 'none';
+    c.x = 900; c.z = -700;                    // a long way from the drop point
+    place.click();
+    await wait(500);
+    const back = Math.hypot(window.App.car().x, window.App.car().z);
+    return { clickable, back: Math.round(back) };
+  });
+  check('the place name is clickable (a div in a pointer-transparent HUD)', home.clickable);
+  check('…and it puts you back at the spawn point, not 1.1 km away',
+    home.back < 120, home.back + ' m from the drop point');
+
+  // ---- a spawn is never inside a building -----------------------------------
+  // A drop point is a coordinate, and coordinates land in living rooms: you
+  // arrive walled in with the unstick rescue as the only way out, which you
+  // have not been told about. Hop DIRECTLY onto the fixture's 4-storey block
+  // and demand the app put you outside it.
+  const spawnOut = await fr.locator('body').evaluate(async (el, hop) => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const inside = () => {
+      const w = window.App.world, c = window.App.car();
+      for (const k in w.roads) {
+        const r = w.roads[k];
+        if (r && r.built && r.built.roofs && window.Roads.roofAt(r.built.roofs, c.x, c.z)) return true;
+      }
+      return false;
+    };
+    // The middle of the building (lat/lon +0.0004..+0.0007).
+    window.App.hop(hop.lat + 0.00055, hop.lon + 0.00055, 'Inside the block');
+    let landed = false;
+    for (let i = 0; i < 60; i++) {
+      await wait(500);
+      const d = window.App.debug();
+      if (d.grounded && d.hopAnim > 3.2) { landed = true; break; }
+    }
+    await wait(1200);
+    return { landed, inside: inside() };
+  }, HOP);
+  check('a spawn on top of a building steps out of it, rather than walling you in',
+    spawnOut.landed && spawnOut.inside === false, JSON.stringify(spawnOut));
+
   // ---- the offline map has two dials ----------------------------------------
   // One dropdown answered two questions — how much of YOUR TRAIL to remember,
   // and how much EXTRA to build out ahead — so you could not keep a bigger

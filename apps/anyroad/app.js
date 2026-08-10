@@ -12,6 +12,9 @@
   var TERRAIN_RADIUS = 3000;   // metres of elevation around the car
   var ROAD_RADIUS = 1200;      // metres of OSM geometry — one Overpass query per tile
   var DRAW_DISTANCE = 6000;
+  var lastLabels = [], lastFlares = 0;   // what the last frame actually drew, for the gate
+  var LABEL_RANGE = 170;      // metres — how far a floating street name carries
+  var MAX_LABELS = 6;         // a junction has many names; six is orientation, twelve is wallpaper
   var TREE_DISTANCE = 1100;    // metres — scenery only, measured to the tile centre
 
   // Hard ceilings on how much world is resident, because a metre radius does
@@ -1607,6 +1610,58 @@
       scene.cars.push(entry);
     });
 
+    // STREET NAMES, IN THE WORLD. namesNear already returns the closest point
+    // on each named road — the exact spot a sign would stand — so the label
+    // costs a lookup we were already making for the HUD chip. Nearest few
+    // only: a city junction can have a dozen names inside 150 m and all of
+    // them at once is wallpaper, not orientation.
+    if (root.Sources.current.labels === 'off') lastLabels = [];
+    if (root.Sources.current.labels !== 'off') {
+      var lnames = [];
+      for (var lk in world.roads) {
+        var lr = world.roads[lk];
+        if (!lr || !lr.built || !lr.built.index) continue;
+        root.Roads.namesNear(lr.built.index, car.x, car.z, LABEL_RANGE, lnames);
+      }
+      lastLabels = [];
+      if (lnames.length) {
+        lnames.sort(function (p, q) { return p.d2 - q.d2; });
+        scene.labels = [];
+        for (var li = 0; li < lnames.length && scene.labels.length < MAX_LABELS; li++) {
+          var L2 = lnames[li];
+          if (!L2.name) continue;
+          var lgy = root.Terrain.heightAt(world.frame, L2.x, L2.z);
+          if (lgy === null) continue;
+          // Fade the furthest ones rather than popping them: the set changes
+          // as you drive and a label snapping into existence reads as a bug.
+          var far2 = Math.sqrt(L2.d2) / LABEL_RANGE;
+          scene.labels.push({ x: L2.x, y: lgy + 3.2, z: L2.z, text: L2.name,
+                              alpha: Math.max(0, Math.min(1, (1 - far2) * 2.2)) });
+          lastLabels.push(L2.name);
+        }
+      }
+    }
+
+    // Flares, in the same beam the finish flag uses. Ground-anchored (a signal
+    // floating at car height is invisible over the smallest rise) and widened
+    // with distance so it holds a legible width across a city.
+    var fl = root.MP.flares(car);
+    lastFlares = fl.length;
+    if (fl.length) {
+      scene.flares = [];
+      for (var fq = 0; fq < fl.length; fq++) {
+        var F = fl[fq];
+        var fgy = root.Terrain.heightAt(world.frame, F.x, F.z);
+        var fdist2 = Math.hypot(F.x - car.x, F.z - car.z);
+        scene.flares.push({
+          x: F.x, y: (fgy === null ? car.y : fgy), z: F.z,
+          life: Math.max(0, F.life),
+          beam: Math.max(1, Math.min(9, fdist2 / 150)),
+          tint: F.tint || [1.0, 0.55, 0.15],
+        });
+      }
+    }
+
     // Decals: scorch marks on the walls, and the smoke of anything currently
     // exploding. One batched draw; corners are computed here because only the
     // app knows the camera (for billboards) and the wall normals (for marks).
@@ -1850,6 +1905,7 @@
         view: viewName(),
       flying: car.flying, falling: car.falling, agl: Math.round(car.agl || 0), birdK: birdK, cockK: cockK,
         scorches: scorches.length, puffs: puffs.length, breaches: breaches.length,
+        labels: lastLabels.slice(), flares: lastFlares,
         crumple: carCrumple(),
       };
     },

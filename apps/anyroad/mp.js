@@ -31,6 +31,7 @@
   var celebrated = {};      // finishes already announced, so a republish is quiet
   var finishCb = null;
   var noteCb = null;   // room-level news the player must be told (a followed hop)
+  var myFlare = 0;     // when I last sent one up (ms); rides my own row
   var listeners = [];
 
   function db(n) { return root.Host.db(n); }
@@ -70,6 +71,7 @@
         var moved = !cur || cur.lat !== p.lat || cur.lon !== p.lon || cur.stamp !== p.t;
         others[p.id] = {
           lat: p.lat, lon: p.lon, yaw: p.yaw, spd: p.spd || 0, name: p.name || 'Driver',
+          flare: p.flare || 0,
           stamp: p.t, seen: moved ? now : cur.seen, t: now, tint: tintFor(p.id),
           prev: cur ? { lat: cur.lat, lon: cur.lon, yaw: cur.yaw, t: cur.t } : null,
         };
@@ -174,6 +176,10 @@
       // about it. Among friends over a link that is the right trade — anyone
       // running a modified copy can ignore it, and nothing else breaks.
       hits: myShots,
+      // A FLARE IS A TIMESTAMP. Everything else about it — where, what colour,
+      // how long it has left — is derived from the row it rides on, so it
+      // costs one number and cannot disagree with the position it marks.
+      flare: myFlare || 0,
     }).catch(function () {});
   }
 
@@ -235,6 +241,28 @@
       // level, which in hilly terrain is a car hanging in the sky.
       if (h === null) continue;
       out.push({ x: w.x, y: h, z: w.z, yaw: yaw, tint: o.tint, name: o.name });
+    }
+    return out;
+  }
+
+  // Every flare currently burning, in MY frame — mine included, because the
+  // person who fired it should see what everyone else is being shown. Sorted
+  // out here rather than in the renderer: only this module knows where other
+  // people are.
+  var FLARE_MS = 45000;
+  function sendFlare() { myFlare = Date.now(); return true; }
+  function flares(car) {
+    var now = Date.now(), out = [];
+    if (myFlare && now - myFlare < FLARE_MS && car) {
+      out.push({ x: car.x, z: car.z, life: 1 - (now - myFlare) / FLARE_MS, mine: true, tint: [1.0, 0.85, 0.35] });
+    }
+    if (!frame) return out;
+    for (var id in others) {
+      var o = others[id];
+      if (!o.flare || now - o.flare > FLARE_MS) continue;
+      var w = frame.toWorld(o.lat, o.lon);
+      out.push({ x: w.x, z: w.z, life: 1 - (now - o.flare) / FLARE_MS,
+                 mine: false, name: o.name, tint: o.tint });
     }
     return out;
   }
@@ -304,6 +332,7 @@
     init: init, setFrame: setFrame, tick: tick, ghosts: ghosts, count: count,
     setRace: setRace, clearRace: clearRace, raceState: raceState, snapFinish: snapFinish,
     shoot: shoot, onHit: function (cb) { hitCb = cb; },
+    sendFlare: sendFlare, flares: flares, FLARE_MS: FLARE_MS,
     onFinish: function (cb) { finishCb = cb; },
     onNote: function (cb) { noteCb = cb; },
     // Test seam: the inputs the follow decision is made from. "The room did
