@@ -331,6 +331,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
               //                           would never recover on its own)
               //   wrote climbing       -> the loss is on the carrier between
               //                           the two hops, not in either worker
+              // What the upstream's own m-line actually SENT for this pipe.
+              const upWire = (async () => {
+                const u = seatOf(f.via);
+                if (u < 0 || u === i) return null;
+                return pages[u].evaluate(async (key) => {
+                  const w = await (window.__gifosVideo.pipeWire ? window.__gifosVideo.pipeWire() : Promise.resolve({}));
+                  const mine = {};
+                  for (const jk in w) if (jk.indexOf(key) === 0) mine[jk.slice(key.length + 1, key.length + 9)] = w[jk];
+                  return mine;
+                }, f.key).catch((e) => ({ err: String(e).slice(0, 70) }));
+              })();
               const ui = seatOf(f.via);
               let up = null;
               if (ui >= 0 && ui !== i) {
@@ -436,7 +447,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                 viaIsAForwarderToMe: senders.some((x) => String(x.id || '').indexOf(String(f.via)) === 0 || String(f.via).indexOf(String(x.id || '')) === 0),
                 actualForwardersToMe: senders };
               stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at,
-                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up, chain, attribution, dem });
+                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up, chain, attribution, dem,
+                upWire: await upWire });
             }
           }
         }
