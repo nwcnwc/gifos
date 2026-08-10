@@ -11703,10 +11703,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               if (s.type === 'outbound-rtp' && s.kind === 'video' && String(s.mid) === rec.mid) {
                 rec.row = { fenc: s.framesEncoded || 0, fsent: s.framesSent || 0, pkt: s.packetsSent || 0,
                   bytes: s.bytesSent || 0, fps: s.framesPerSecond || 0, ret: s.retransmittedPacketsSent || 0,
-                  qlim: s.qualityLimitationReason || null, fw: s.frameWidth || 0, fh: s.frameHeight || 0 };
+                  qlim: s.qualityLimitationReason || null, fw: s.frameWidth || 0, fh: s.frameHeight || 0,
+                  // targetBitrate is what the PACER was told this stream may
+                  // use. A collapsed target with qualityLimitationReason 'none'
+                  // is BWE starving one m-line without the encoder ever calling
+                  // itself limited — the shape that would explain frames
+                  // encoded but never packetized.
+                  target: s.targetBitrate || 0, drop: s.framesDropped || 0,
+                  encDelay: +(s.totalEncodeTime || 0).toFixed(3) };
               }
             });
           } catch (e) { rec.err = String(e).slice(0, 60); }
+          // The whole transport's headroom, shared by every m-line to this peer.
+          try {
+            const rep2 = await p.pc.getStats();
+            rep2.forEach((s) => { if (s.type === 'candidate-pair' && s.nominated && s.availableOutgoingBitrate) rec.avail = s.availableOutgoingBitrate; });
+          } catch (e) {}
           out[jk] = rec;
         }
         return out;
