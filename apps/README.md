@@ -128,17 +128,22 @@ runtime can eventually enforce it for every route.
   `gifos.ai.image`. Finished GIF: [`site/apps/fluence/fluence.gif`](../site/apps/fluence/fluence.gif). The first app to
   exercise the generic third-party-API capability.
 - **[sound-it-out](sound-it-out/)** — looping phonics videos for a child
-  learning to read (full port of the sound-it-out desktop app, built for a boy
-  with Down syndrome). Twelve levels from sight words to a growing story, each
-  grapheme lit as its sound plays; the parent records the clip library in-app
-  via brokered `gifos.recordAudio` with take scoring (the schwa detector caught
-  in-app), recordings stay **private** in `gifos.db`, and a built-in voice —
-  the desktop pipeline's Kokoro clips, schwa-shaped offline and packed into the
-  GIF — covers day one. `gifos.ai.tts` (optional) reads unrecorded words;
-  isolated phonemes never go to a model. Playback renders the storyboard live
-  on canvas; export is a realtime WebM capture. **Not in the store yet** —
-  upstream is still moving; `listing.unpublished.json` holds the listing
-  (see its README for the publish move). Guarded by
+  learning to read (full port of the sound-it-out desktop app's 0.4.x
+  sentence-library design, built for a boy with Down syndrome). One list holds
+  everything that gets read — letters, words, sentences; starter packs (Paw
+  Patrol lines, letter sounds, the building-up ladder…) add entries with one
+  tap. Words build up from their sounds (magic-e as onset+rime, irregulars
+  shown whole), sentences end in the parent's own read with the highlight
+  following her voice — timed by arithmetic over her word clips, no aligner.
+  Recording is a per-entry walk-through over brokered `gifos.recordAudio`
+  with take scoring (the schwa detector caught in-app); words land in a
+  shared bank so each sentence gets cheaper; everything stays **private** in
+  `gifos.db`. The GIF ships the desktop app's human starter voice (42
+  phonemes) plus Kokoro-built pack clips; `gifos.ai.tts` (optional) reads
+  unrecorded words — isolated phonemes never go to a model. Playback renders
+  the storyboard live on canvas; export is a realtime WebM capture. **Not in
+  the store yet** — upstream is still moving; `listing.unpublished.json`
+  holds the listing (see its README for the publish move). Guarded by
   `test/unit/sound-it-out.js`: segment-exact parity with the Python original.
 - **[offline-tts](offline-tts/)** — **Offline Text to Speech**: the first
   **Provider app** (docs/providers.md): kept in the
