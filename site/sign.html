@@ -56,7 +56,18 @@
         ? '/run.html#v=' + pm[1] + (pm[2] ? '&av=' + pm[2].toLowerCase() : '') + (/^\/cast\//.test(pathname) ? '&bc=1' : '')
         : '/run.html#' + (pm[2] && pm[3] ? 's=' + pm[1] + '.' + pm[2].toLowerCase() + '&k=' + pm[3] : 'j=' + pm[1]);
     } else {
-      here = pathname + hash; // carry the page + invite hash across (snapshots ship run.html too — flag day above)
+      // Carry the page + invite hash across (snapshots ship run.html too —
+      // flag day above) AND THE QUERY. The query used to be dropped here,
+      // which silently broke the one link built for strangers:
+      // gifos.app/?run=<gif url> ("open this app"). A first visit is exactly
+      // when the release redirect fires, so the visitor most likely to follow
+      // a shared run-link was the one guaranteed to lose it — they landed on
+      // a bare Home Screen with nothing said. It must be the QUERY and not
+      // the hash (the usual doctrine) for one decisive reason: released
+      // snapshots are immutable, and 0.9.5's desktop.js reads ?run= from
+      // location.search. Carrying the hash instead would fix nothing until
+      // the NEXT release, for links sent today.
+      here = pathname + search + hash;
     }
     function to(v) { return { redirect: '/versions/' + v + here }; }
     if (pin && pin !== window.GIFOS_VERSION) return to(pin);  // pinned to a DIFFERENT snapshot
