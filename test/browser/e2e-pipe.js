@@ -228,6 +228,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     //    bytes without a decodable frame, not a pipe that went quiet.
     {
       const stalls = [];
+      const brightSeen = new Set();   // (seat,feed) pairs the detector could judge
+      const everSeen = new Set();     // (seat,feed) pairs that existed at all
       const swaps = [];       // container changes seen (the churn, printed not asserted)
       const last = new Map(); // `${i}:${key}` -> { fr, at, via, sid, b0 }
       const tW0 = Date.now();
@@ -273,6 +275,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
             const k = i + ':' + f.key;
             const rec = last.get(k);
             const bright = f.vw > 0 && f.state === 'live' && f.muted === false;
+            // COVERAGE. This leg can ONLY fire on a bright feed, so a run where
+            // nothing ever goes bright has judged nothing and a green from it
+            // means nothing. Count what the detector was actually able to look
+            // at — the same discipline the other guards in this repo carry, and
+            // the one thing leg 3 never reported about itself.
+            if (bright) brightSeen.add(i + ':' + f.key);
+            everSeen.add(i + ':' + f.key);
             if (!rec) { last.set(k, { fr: f.fr, at: Date.now(), via: f.via, sid: f.sid, b0: f.b }); continue; }
             if (rec.via !== f.via || rec.sid !== f.sid) {   // new container: a new decoder, a new baseline
               swaps.push({ seat: 'P' + i, key: f.key.slice(0, 14), atS: Math.round((Date.now() - tW0) / 1000),
@@ -468,7 +477,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       }
       console.log('   MEASURE container swaps on stg/sgs claims during the 36s window: ' + swaps.length
         + (swaps.length ? '  ' + JSON.stringify(swaps) : ''));
-      check('THE FREEZE SHAPE: no stg/sgs feed bright-stalls >=12s at any seat over 36s', stalls.length === 0, { stalls });
+      console.log('   MEASURE leg-3 coverage: ' + brightSeen.size + ' of ' + everSeen.size
+        + ' (seat,feed) pairs ever went BRIGHT'
+        + (brightSeen.size === 0 ? '  — VACUOUS: this leg could not judge anything, a green here proves nothing' : ''));
+      check('THE FREEZE SHAPE: no stg/sgs feed bright-stalls >=12s at any seat over 36s', stalls.length === 0,
+        { stalls, bright: brightSeen.size, feeds: everSeen.size });
 
       // NO JOB MAY STAY PARKED WHILE ITS RECEIVER IS DEMANDING IT HOT.
       //
