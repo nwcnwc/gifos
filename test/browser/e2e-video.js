@@ -9,7 +9,7 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 
 let failures = 0;
-function check(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; }
+function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : '')); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
@@ -234,12 +234,40 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ========== STREAM IDENTITY: every tile provably shows its OWN person ======
   // (The live bug: a tile showed a DIFFERENT participant's camera.) A tile's
   // stream id must equal the sid its peer announced — on every page, every tile.
-  const identityOk = async (pg) => pg.evaluate(() => window.__gifosVideo.peerIds().every((id) => {
+  // A tile's sid and its peer's ANNOUNCED sid are eventually consistent, not
+  // instantaneously so — the check immediately below this one says as much,
+  // giving a lost announcement 12s to re-prove itself through the heartbeat.
+  // This one used to sample the pair in a single instant, and it did it right
+  // after the heartbeat had just healed a deliberately corrupted status, so it
+  // could catch a mid-re-announce window and report it as a misattribution:
+  // RED once and 133/133 on the immediate retry in the 0.9.6 gate, with no
+  // payload to say which page, which peer, or which two sids disagreed.
+  //
+  // The invariant that MATTERS is that no tile is LEFT showing another
+  // person's stream. So hold every page to reaching it within a bound — a
+  // permanent misattribution still fails, hard, after 10s — and when it does
+  // fail, name the offender instead of printing a bare sentence.
+  const identityProbe = () => window.__gifosVideo.peerIds().map((id) => {
+    const shown = window.__gifosVideo.tileSid(id);
+    const announced = window.__gifosVideo.announcedSid(id);
+    return (!shown || shown === announced) ? null : { id, shown, announced };
+  }).filter(Boolean);
+  const identitySettled = (pg) => pg.waitForFunction(() => window.__gifosVideo.peerIds().every((id) => {
     const shown = window.__gifosVideo.tileSid(id);
     return !shown || shown === window.__gifosVideo.announcedSid(id);
-  }));
+  }), null, { timeout: 10000 }).then(() => true).catch(() => false);
+  const identityOk = (await identitySettled(aPage)) && (await identitySettled(bPage))
+    && (await identitySettled(cPage));
+  let identityBad = '';
+  if (!identityOk) {
+    for (const [nm, pg] of [['Ada', aPage], ['Bob', bPage], ['Cai', cPage]]) {
+      for (const m of await pg.evaluate(identityProbe)) {
+        identityBad += (identityBad ? '; ' : '') + nm + '/' + m.id + ' shows ' + m.shown + ' but announced ' + m.announced;
+      }
+    }
+  }
   check('STREAM IDENTITY: every tile on every page shows the announced stream — no guessing',
-    (await identityOk(aPage)) && (await identityOk(bPage)) && (await identityOk(cPage)));
+    identityOk, identityBad);
   // Even when a peer's announcement is LOST, the tile must never fall back to
   // guessing — and the heartbeat re-announces the sid, restoring the claim.
   await aPage.evaluate((pid) => window.__gifosVideo._corruptSid(pid), bobPidOnAda);
