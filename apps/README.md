@@ -141,9 +141,8 @@ runtime can eventually enforce it for every route.
   `gifos.db`. The GIF ships the desktop app's human starter voice (42
   phonemes) plus Kokoro-built pack clips; `gifos.ai.tts` (optional) reads
   unrecorded words — isolated phonemes never go to a model. Playback renders
-  the storyboard live on canvas; export is a realtime WebM capture. **Not in
-  the store yet** — upstream is still moving; `listing.unpublished.json`
-  holds the listing (see its README for the publish move). Guarded by
+  the storyboard live on canvas; export is a realtime WebM capture. **In the
+  store** as of 0.9.6. Guarded by
   `test/unit/sound-it-out.js`: segment-exact parity with the Python original.
 - **[offline-tts](offline-tts/)** — **Offline Text to Speech**: the first
   **Provider app** (docs/providers.md): kept in the
@@ -159,11 +158,19 @@ runtime can eventually enforce it for every route.
   llama.cpp compiled to WebAssembly (wllama, MIT) entirely in the sandbox.
   The GIF carries the engine + a labeled self-test model; Microsoft's
   **BitNet b1.58 2B-4T** ternary weights ride the **gigabyte asset tier**
-  (manifest pin → Blob store cache). **Not in the store yet** — the weights
-  pin needs finalizing from a machine that can reach Hugging Face
-  (`listing.unpublished.json` holds the listing; the README has the exact
-  procedure). Finished GIF:
+  (manifest pin → Blob store cache). **In the store** as of 0.9.6, against a
+  verified community TQ1_0 pin. Finished GIF:
   [`site/apps/offline-llm-bitnet/offline-llm-bitnet.gif`](../site/apps/offline-llm-bitnet/offline-llm-bitnet.gif) (~10 MB).
+- **[offline-llm-gemma](offline-llm-gemma/)** — **Offline Cheap Text LLM
+  Gemma 3**: the same engine as BitNet, a different brain — Google's
+  **Gemma 3 1B Instruct**, hash-pinned to the gigabyte tier. Installing both
+  is fine: GifOS never auto-assigns a role, so the user picks in
+  Settings → AI models and can switch.
+- **[offline-llm-gemma4](offline-llm-gemma4/)** — **Offline Cheap Text LLM
+  Gemma 4**: a third `provides.ai: ["cheapest"]` provider, **Apache-2.0**,
+  on Gemma 4 E2B QAT weights (~1.9 GB, hash-pinned). Same `minBuild` floor
+  as its sibling — both need the Provider runtime (1177) and the asset
+  tier (1178+).
 - **[chess-grandmaster](chess-grandmaster/)** — play **full-strength Stockfish**
   (real engine, NNUE) running entirely offline in the sandbox. Pick a level from
   ~1320 Elo to the unshackled engine, with a live win/draw/loss read-out and
