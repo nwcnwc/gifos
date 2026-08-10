@@ -426,7 +426,34 @@ Note also the standing caveat: all of this is six browsers on one Jetson. Every
 quantity here is real, but the RATE at which the freeze appears is not a product
 number until it is rebuilt across devices.
 
-### ACROSS DEVICES (2026-08-10) — it does not reproduce on a second box
+> **THE CROSS-DEVICE SECTION BELOW IS RETRACTED — read this first.**
+> Leg 3 can only fire on a BRIGHT feed (`vw>0 && live && !muted`), and it never
+> reported how many feeds it was able to judge. Instrumented (`e7e7511`), the
+> comparison collapses:
+>
+> | box | verdict | coverage |
+> |---|---|---|
+> | clawbox | RED | **7 of 7** pairs bright |
+> | raspberrypi | **RED** | 4 of 7, then 4 of 9 |
+> | raspberrypi, hours later | RED | 1 of 5, 1 of 4 (load 20 on 4 cores — DNF-shaped) |
+>
+> **The freeze reproduces on the Pi too.** Its earlier 3/3 green was measured
+> on a fresh box with UNKNOWN coverage, and at ~4-of-7 it was judging barely
+> half the feeds clawbox was. So "box-conditioned, not contention" was never
+> soundly established — the greens were partly vacuous and partly luck.
+>
+> Also checked, because it would have been my own fault: does the claimRedun
+> seed fix (which demands one candidate hot when a slot has no primary, so
+> MORE pipes go hot) redden this suite? Interleaved on the Pi, HEAD vs the seed
+> reverted: both red, coverage 1-of-5 and 1-of-4. Equally bad, so no regression
+> signal — but on a box that degraded, so it is weak evidence either way.
+>
+> **What survives:** the freeze is real, well-covered on clawbox (7/7), and NOT
+> explained by contention, engine, keys, parks, churn, over-mint, decode, loss,
+> BWE, or a transform gap. What does NOT survive is the claim that one box is
+> immune.
+
+### ACROSS DEVICES (2026-08-10) — RETRACTED, see the box above
 
 The standing caveat, discharged. Same suite, same tree, a DIFFERENT machine:
 
