@@ -425,6 +425,39 @@ check('the count sets where the journey starts: 0.2 / 0.3 / 0.45',
   const short = new Float32Array(Math.round(sr * 0.2)).fill(0.4);
   check('capData leaves a short crisp stop untouched', SIO.dsp.capData(short, sr, 0.5) === short);
 
+  // The blend must LOOK for the sound before deciding what to keep. Round 3
+  // of "Ezra" lit r, then a, with nothing audible under either: the sound in
+  // those clips started 0.38s in, behind a breath too loud for contentData
+  // to strip, and the blend's cap is 0.40s - so the window it kept was the
+  // breath. Rounds 1 and 2 cap at 1.10s / 0.74s and reached past it.
+  {
+    const rms = (x) => Math.sqrt(x.reduce((t, v) => t + v * v, 0) / (x.length || 1));
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff) * 2 - 1;
+    const late = new Float32Array(Math.round(sr * 0.83));
+    const lead = Math.round(sr * 0.38);
+    for (let i = 0; i < lead; i++) late[i] = rnd() * 0.15;                       // a breath
+    for (let i = lead; i < late.length; i++) late[i] = 0.9 * Math.sin((2 * Math.PI * 180 * (i - lead)) / sr);
+    const blended = SIO.dsp.hardClipData(late, sr, 0.40, false);
+    check('a sound that starts late is still heard in the blend (0.40s cap)',
+      rms(blended) > 0.5 * (0.9 / Math.SQRT2) && rms(blended) > 5 * (0.15 / Math.sqrt(3)),
+      { rms: Math.round(rms(blended) * 1000) / 1000, breath: 0.15 / Math.sqrt(3) });
+
+    // The shape this must NOT touch: an /iː/ that fades in over half a second
+    // also starts late, and cutting its swell is how lollipop lost its i.
+    const swell = new Float32Array(Math.round(sr * 1.0));
+    for (let i = 0; i < swell.length; i++) {
+      const ramp = Math.min(1, i / (sr * 0.5));
+      swell[i] = ramp * 0.9 * Math.sin((2 * Math.PI * 180 * i) / sr);
+    }
+    check('a swelling vowel is not slid forward',
+      SIO.dsp.ontoTheSound(swell, sr, Math.trunc(sr * 0.40)) === swell);
+    const fromZero = new Float32Array(Math.round(sr * 0.9));
+    for (let i = 0; i < fromZero.length; i++) fromZero[i] = 0.9 * Math.sin((2 * Math.PI * 180 * i) / sr);
+    check('a clip that starts on its sound is left alone',
+      SIO.dsp.ontoTheSound(fromZero, sr, Math.trunc(sr * 0.40)) === fromZero);
+  }
+
   // 0.5.2: a real mouth's hold (median 1.22s) must score well now
   const a = new Float32Array(Math.round(sr * 1.6));
   for (let i = 0; i < sr * 1.2; i++) a[Math.round(sr * 0.2) + i] = 0.4 * Math.sin((2 * Math.PI * 440 * i) / sr);
