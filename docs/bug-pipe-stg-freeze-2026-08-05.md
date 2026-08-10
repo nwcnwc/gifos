@@ -463,3 +463,44 @@ Three seats believe the room holds 4, one believes 6, section 2 believes 3 —
 for 100+ seconds, with `FORK[split]` firing and section 2's seats at `conn=1`
 and `conn=0`. No dup coords, no orphans, so the TREE is sound; what diverges is
 what each seat knows is in it. Seen only across devices; not investigated.
+
+### The demand/park trap is RULED OUT, and the deficit is real after all
+
+A seventh hypothesis, and it was worth testing because a sibling of it turned
+out to be a genuine bug elsewhere (`claimRedun`'s first-claim deadlock, fixed
+2026-08-10): `mx-idle` runs `setJobActive(false)`, which `replaceTrack(null)`s
+every sender AND `pausePipe()`s the worker — and a paused pipe is skipped by
+the 2s key re-ask loop. Total blackout with the track still `live` and `vw>0`
+from the last frame, which is exactly this leg's bright-freeze shape. And the
+hot set only keeps a primary demanded while `inCand(pri)` holds, so a claim
+that momentarily stops resolving would be demanded idle and could never
+recover.
+
+**Measured at a real stall: it is not that.** The stalled seat is demanding its
+own claim HOT:
+
+    STALL P0  claimed=true  fdec=17  stuck=15451ms
+    demands: [ …|a2154bca…=w , …|1f08557e…=w ]
+
+(Two hot entries is make-before-break — a wake was armed — not a ONE-PIPE
+violation.)
+
+**What the same record DOES establish, with clean attribution on both sides:**
+
+    upstream P2 -> P0:  wrote=33  paused=false  sinceWrite=337ms
+    P0 (stalled):       frecv=17  fdec=17  pkt=46   recv/s=0
+    P2 (itself):        frecv=34  fdec=34
+
+The worker's `wrote` is per-pipeId and the receiver's row is per-inbound-slot,
+so unlike the earlier retracted figure neither side is a conflated label. P2
+decoded 34 frames of this feed and wrote 33 toward P0; P0 assembled 17, while
+P2's forward to it is unpaused and wrote 337 ms ago.
+
+**So the question is now exactly one thing: where do frames written into an
+ACTIVE forward's carrier go, between `writer.write()` returning and the
+receiver's depacketizer completing a frame?** Everything either side of that
+is measured healthy — no rejection, no loss, no congestion, no park, no key
+starvation, no churn, no over-mint. The next instrument is the sender's own
+`outbound-rtp` for THAT pipe's m-line specifically (resolved by transceiver,
+not by the `out:key>to6` label, which conflates senders of one job — the trap
+that produced the earlier retracted deficit).
