@@ -523,8 +523,25 @@ needs at least one. The worker reports `wrote: 42` on that leg with
 
 With a SENDER-side `RTCRtpScriptTransform`, `framesEncoded`/`framesSent` count
 the carrier encoder's output BEFORE the transform, while `packetsSent` counts
-what actually left the box. So the loss is inside the transform → packetizer
-step: frames the worker successfully writes are not becoming RTP. Everything
+what actually left the box.
+
+> **RETRACTED 2026-08-10, same day — this is NOT loss, it is the design.**
+> Reading the whole transform loop instead of its last line: a minted template
+> with no content queued is DROPPED (`if (!p.q.length) … continue`), and so is
+> a key-content/delta-template mismatch, and a key-template/delta-queue one.
+> Only a swapped frame is ever written — that is the `frza12` rule against
+> shipping 48px carrier junk, which itself caused a four-minute freeze once.
+> So `framesSent 49` against `packetsSent 13` is EXPECTED: the carrier encoder
+> minted 49 templates and our own worker forwarded the 13 that had real
+> content. **There is no gap between the transform and the packetizer.** Do
+> not hunt one.
+>
+> What the number actually says is the opposite of loss: **the pipe had
+> nothing to forward.** The content queue was empty for ~36 of 49 templates,
+> so the question moves back UP the chain — why is the tap receiving so little
+> content? — and the same seat's own inbound claim was itself starved
+> (P2 decoded 34 against a producer at 62). The starvation propagates
+> downward from the source rather than being introduced at any one hop. Everything
 upstream (tap, queue, key state, carrier mint, encoder, bitrate cap — `stg:`
 rides `stageBudget`, not the aux budget) and everything downstream (packets,
 assembly, decode) is measured healthy, and the sibling forward from the SAME
