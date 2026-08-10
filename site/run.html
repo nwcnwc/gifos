@@ -11674,6 +11674,43 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // 32 frames written to each of two peers, 26 decoded at one and 1 at the
       // other (docs/bug-pipe-stg-freeze-2026-08-05.md). Whatever differs has to
       // be in the mint, and nothing exposed it.
+      // THE WIRE UNDER ONE PIPE, resolved by TRANSCEIVER rather than by label.
+      // kfStats tags an outbound row 'out:'+key+'>'+to.slice(0,6), and a job can
+      // own several senders, so that label conflates m-lines — which is exactly
+      // what produced (and then retracted) a phantom frame deficit on
+      // 2026-08-10. A pipe's carrier track identifies its sender uniquely, so
+      // go through it: match the transceiver whose sender carries THIS pipe's
+      // carrier track, then read the outbound-rtp row for that mid alone.
+      // Answers the one open question in docs/bug-pipe-stg-freeze-2026-08-05.md:
+      // frames written into an active forward vs frames that actually left.
+      pipeWire: async () => {
+        const out = {};
+        for (const [jk, pj] of pipeJobs) {
+          const to = jk.slice(jk.indexOf('>') + 1);
+          const p = peers.get(to);
+          const rec = { to: String(to).slice(0, 8), mid: null, row: null,
+            track: !!(pj.carrier && pj.carrier.track), live: !!(pj.carrier && pj.carrier.track && pj.carrier.track.readyState === 'live') };
+          if (!p || !p.pc) { rec.err = 'no pc'; out[jk] = rec; continue; }
+          try {
+            for (const t of p.pc.getTransceivers()) {
+              if (t.sender && pj.carrier && t.sender.track && t.sender.track === pj.carrier.track) { rec.mid = t.mid != null ? String(t.mid) : null; break; }
+            }
+          } catch (e) {}
+          if (rec.mid == null) { rec.err = 'no transceiver carries this carrier track (parked?)'; out[jk] = rec; continue; }
+          try {
+            const rep = await p.pc.getStats();
+            rep.forEach((s) => {
+              if (s.type === 'outbound-rtp' && s.kind === 'video' && String(s.mid) === rec.mid) {
+                rec.row = { fenc: s.framesEncoded || 0, fsent: s.framesSent || 0, pkt: s.packetsSent || 0,
+                  bytes: s.bytesSent || 0, fps: s.framesPerSecond || 0, ret: s.retransmittedPacketsSent || 0,
+                  qlim: s.qualityLimitationReason || null, fw: s.frameWidth || 0, fh: s.frameHeight || 0 };
+              }
+            });
+          } catch (e) { rec.err = String(e).slice(0, 60); }
+          out[jk] = rec;
+        }
+        return out;
+      },
       pipeChain: () => {
         if (!MPipe) return {};
         const out = {};
