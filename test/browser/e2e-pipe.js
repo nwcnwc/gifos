@@ -480,6 +480,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       console.log('   MEASURE leg-3 coverage: ' + brightSeen.size + ' of ' + everSeen.size
         + ' (seat,feed) pairs ever went BRIGHT'
         + (brightSeen.size === 0 ? '  — VACUOUS: this leg could not judge anything, a green here proves nothing' : ''));
+      // A GREEN THAT JUDGED NOTHING IS NOT A PASS. This leg can only fire on a
+      // bright feed, so a run where none ever went bright has tested nothing at
+      // all — and reporting that as green is precisely the failure CLAUDE.md
+      // names ("a test that guards nothing is worse than no test"). It cost
+      // real time on 2026-08-10: raspberrypi greens taken at face value became
+      // a whole "the freeze is box-conditioned" conclusion, and the box was
+      // simply judging half the feeds clawbox was. Fail loudly instead, and say
+      // it is coverage rather than the product, so nobody hunts a phantom.
+      check('leg 3 could actually JUDGE something (a bright feed existed to watch)',
+        brightSeen.size > 0,
+        { bright: brightSeen.size, feeds: everSeen.size,
+          why: brightSeen.size === 0 ? 'NO feed ever went bright — this is COVERAGE, not the product: the room never delivered a decodable stage feed to any seat, so the freeze detector had nothing to watch. Re-run on an idle box before reading anything into it.' : undefined });
       check('THE FREEZE SHAPE: no stg/sgs feed bright-stalls >=12s at any seat over 36s', stalls.length === 0,
         { stalls, bright: brightSeen.size, feeds: everSeen.size });
 
