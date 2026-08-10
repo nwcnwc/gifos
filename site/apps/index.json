@@ -181,6 +181,7 @@
       "version": "1.0",
       "tagline": "A cheap text brain for your whole computer — Google's Gemma 3 running entirely on your device.",
       "author": "GifOS",
+      "minBuild": 1189,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
