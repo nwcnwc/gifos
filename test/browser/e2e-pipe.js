@@ -148,9 +148,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // untouched. (Flow copied from e2e-video.)
     if (process.env.PIPE_CLEAR === '1') {
       try {
-        await pages[0].locator('#pwbtn').click();
-        await pages[0].locator('#pw-new').fill('pipeclear');
-        await pages[0].locator('#pw-save').click();
+        // DOM clicks, not Playwright's actionability-checked ones: in this
+        // suite's mosaic layout #pwbtn is present but not "visible" enough for
+        // locator.click, which timed out at 3000ms and left the arm silently
+        // measuring the BLURRED regime it was meant to replace — a control that
+        // does not control is worse than no control.
+        await pages[0].evaluate(() => { const b = document.getElementById('pwbtn'); if (b) b.click(); });
+        await sleep(400);
+        await pages[0].evaluate(() => {
+          const i = document.getElementById('pw-new');
+          if (i) { i.value = 'pipeclear'; i.dispatchEvent(new Event('input', { bubbles: true })); }
+          const s2 = document.getElementById('pw-save'); if (s2) s2.click();
+        });
         let got = 0;
         for (const p of pages) {
           const ok = await p.waitForFunction(() => window.__gifosVideo.roomPw() === 'pipeclear', null, { timeout: 15000 }).then(() => true).catch(() => false);
