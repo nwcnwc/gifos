@@ -247,6 +247,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // Sampled over a WINDOW, not once: an unclaimed-slot moment is exactly the
   // transient this bug lives in, so a single snapshot taken while everything
   // happens to be claimed would pass vacuously and guard nothing.
+  // COUNT WHAT WE ACTUALLY GOT TO JUDGE. A pass with no unclaimed-but-announced
+  // slot has not exercised this invariant at all, and reporting that as PASS is
+  // the "test that guards nothing" failure. The count is asserted below, so a
+  // vacuous run says so instead of scoring green.
+  let judged = 0;
   const parkedDeadlocks = [];
   for (let pass = 0; pass < 12; pass++) {
     for (let i = 0; i < N; i++) {
@@ -269,6 +274,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         // permanent red in the gate.
         if (!/^(sdm|sdx|sdn|sgs)$/.test(rk) && rk.indexOf('stg:') !== 0 && rk.indexOf('sdrow:') !== 0) continue;
         if (d.claims.indexOf(rk) >= 0) continue;            // claimed — not the case under test
+        judged++;
         const hot = cs.some((c) => d.demand.some((e) => e.indexOf(c.from) === 0 && e.indexOf('|' + rk + '|') > 0 && /=w$/.test(e)));
         if (hot) continue;
         const sig = i + ':' + rk;
@@ -281,7 +287,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await sleep(900);
   }
   check('a slot with announcers and no claim is demanding one of them HOT (never all idle)',
-    parkedDeadlocks.length === 0, parkedDeadlocks.slice(0, 4));
+    parkedDeadlocks.length === 0, { violations: parkedDeadlocks.slice(0, 4), judged });
+  console.log('   MEASURE unclaimed-but-announced slot observations judged: ' + judged
+    + (judged === 0 ? '  (VACUOUS — the invariant was never exercised in this run)' : ''));
 
   for (let i = 0; i < N; i++) {
     if (i === stagerIdx) continue;
