@@ -198,3 +198,68 @@ from a busy kernel, the honest next move is to rebuild this shape across DEVICES
 (`test/swarm/meet.js`, one or two clients per box) with the lane on, and capture
 `kfStats`/`feedsInfo` at the moment of the stall — the A/B above proves the lane
 owns the failure, but not yet why.
+
+---
+
+## 2026-08-10: KEYFRAME STARVATION IS REFUTED, and the churn thread is dead
+
+Leg 3 now records the receiving seat's own pipe-worker counters at the instant a
+stall fires (`__gifosVideo.pipeStats()` — the worker has carried them all along
+and nothing read them here). Two runs on clawbox, `clawbox-brain` stopped,
+Chrome 151, lane live: **RUN1 green (17/17), RUN2 red (16/1)** — the entry's
+documented nondeterminism, but a better rate than the 0/4 of 2026-08-06.
+
+**1. The churn thread is GONE.** `container swaps during the 36s window: 0` in
+BOTH runs, against 7 and 4 in the 2026-08-06 runs. The container-identity
+campaign (f7db0f5..2ff6e2a) closed it, exactly as predicted. Everything below is
+the OTHER thread, alone and unobscured.
+
+**2. The lane is not starving for keys.** This was the leading hypothesis and it
+is now refutable from the source as well as the data. `mesh-pipe.js` already
+fires BOTH levers on every ask — hop-local `sendKeyFrameRequest` for the RTCP
+side and the `mx-kf` DC walk for piped hops (SKR cannot cross those: Chromium
+will not latch a PLI into a demand-minted carrier) — rate-limits each, and
+re-asks every 2s for a tap receiving nothing. The counters agree with the code.
+At P0's stalled feed, the pipe that was actually writing shows:
+
+    needKey: false   dropped: 0   nkDrop: 0   kdrop: 0   swapErr: 0
+    mime: video/VP8  tmplMime: video/VP8   wrote: 10   sinceWriteMs: 6249
+
+Nothing is being discarded for want of a key, and the payload swap is clean.
+
+**3. The decoder is not refusing content — it is barely being given any.**
+`kf: {fdec: 5, kdec: 3}` over the whole window. **Three of the five frames the
+decoder produced were KEYFRAMES.** So the dossier's framing above — "a decoder
+starved of a decodable frame" — is wrong in an important way: keys ARE arriving
+and decoding, and almost nothing arrives between them. Against a producer at
+`fenc 57, kenc 19`, roughly a sixth of the keyframes and essentially none of the
+deltas are landing. The 26 kB that crosses during a 12.7s stall is about the
+weight of one or two keyframes, which is consistent.
+
+**4. The machinery is healthy for other feeds AT THE SAME INSTANT.** At P1,
+while the stg feed is frozen, a different source is writing normally through the
+same worker: `x2>k_0721…  wrote: 68, dropped: 1, needKey: false, sinceWriteMs: 15`.
+So this is not the worker, the transform, or the carrier being broken.
+
+**5. THE SHAPE THAT IS LEFT.** At both stalled seats, every pipe carrying this
+stg feed toward the seat's claimed `via` is **parked and has never written a
+frame** — `paused: true, wrote: 0, mime: null`. A paused pipe clears its queue
+and is explicitly skipped by the 2s re-ask timer
+(`if (!p.paused && p.needKey && p.srcId)`), so it neither forwards nor asks.
+Meanwhile the tap on the seat's own inbound copy goes silent for 6.2s while
+bytes keep arriving on the wire.
+
+**THE NEXT MEASUREMENT, and it is one hop away.** These counters are the stalled
+seat's OUTBOUND forwards; they cannot say what the seat's UPSTREAM was doing.
+The trickle-not-starvation shape points at the hop feeding it. Capture
+`pipeStats()` at the seat named by `via` for the same feed at the same instant —
+pipe id `stg:<feed>><thisSeat>` — and the question becomes a fact:
+
+  * upstream's pipe to us `paused: true` or `wrote` flat -> the forward was
+    parked while we still demanded it (a demand/park bookkeeping bug, and the
+    same `paused`-skips-the-re-ask hole would explain why it never recovers)
+  * upstream `wrote` climbing while our `fdec` stays at 5 -> the loss is on the
+    carrier between the two hops, not in either worker
+
+Until that is measured, do not patch the keyframe path — it is demonstrably not
+the lever. The entry stays in `quarantine.txt` and leg 3 stays red.
