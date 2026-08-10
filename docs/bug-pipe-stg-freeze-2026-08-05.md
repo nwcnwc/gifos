@@ -357,3 +357,71 @@ pipe, one feed, two destinations — bytes cross to both, one decodes and one
 returns keyframes only. Next place to look is the RECEIVER side of the losing
 leg (inbound codec/resolution and the decoder's own error counters), since
 every sender-side explanation now has a measurement against it.
+
+### The receiver side: NOTHING IS EVER REJECTED, and the headline number is wrong
+
+`kfStats` gained `framesReceived` (frames the depacketizer completed) beside
+`framesDecoded`, plus `packetsReceived`, freeze counters and
+`framesAssembledFromMultiplePackets`. The result is unambiguous and it inverts
+the dossier's reading:
+
+| seat | fdec | frecv | pktRx | lost | drop |
+|---|---|---|---|---|---|
+| **P0 (stalled)** | 2 | **2** | **4** | 0 | 0 |
+| P1 | 5 | 5 | 11 | 0 | 0 |
+| P2 | 30 | 30 | 49 | 0 | 0 |
+| P4 | 31 | 31 | 50 | 0 | 0 |
+
+**`framesReceived == framesDecoded` at EVERY seat, in every run measured.** No
+decoder anywhere rejects anything, drops anything, or loses a packet. The
+"decoder starved of a decodable frame" framing at the top of this dossier is
+wrong, and so is the keyframe-reference-chain theory that replaced it.
+
+**The headline number is a measurement artifact.** "25-50 kB arriving during
+each 12-13s freeze" cannot be reconciled with FOUR packets received on the same
+flow — that would be ~6 kB per packet, far above MTU. The bytes come from
+`avStats`'s slot attribution and the packets from the `inbound-rtp` row; they do
+not describe the same thing. **Do not quote the byte figure again without
+re-deriving it.**
+
+### The whole path, end to end
+
+Leg 3 now records, per forward: frames the worker WROTE, the carrier's mints,
+the sender's `framesEncoded`/`keyFramesEncoded` for that destination, and the
+receiver's `framesReceived`/`framesDecoded`.
+
+| leg | wrote | fenc | kenc | fps | receiver frecv/fdec |
+|---|---|---|---|---|---|
+| P2 -> P4 | 34 | 37 | 14 | 2 | 19 / 19 |
+| P2 -> P0 | 35 | 35 | 12 | 2 | 10 / 10 |
+
+- **Writes become encoded frames** (`fenc ≈ wrote`), so the carrier and encoder
+  are doing their job. `qlim: none` — no bandwidth or CPU limitation. `48x48` is
+  the carrier's own size, as designed.
+- **The lane runs at ~2 fps with a THIRD to a HALF of frames as keyframes** —
+  and this is true in PASSING runs too (the producer measured `fenc 42/kenc 17`
+  in a red run and `fenc 47/kenc 23` in a green one). So the keyframe fraction
+  is this lane's normal operating point on this box, not the fault. It was worth
+  checking and it is not the discriminator.
+- **What remains unexplained is a deficit**: 37 frames encoded toward a seat,
+  19 received, with zero loss and no limitation.
+
+### The next lead is ATTRIBUTION, and it is a different bug
+
+In the last red run the stalled seat claimed `via: k_c41489` — and that id
+appears NOWHERE among the peers forwarding that feed. Earlier stalls had a via
+that did match a real forwarder. If a seat can hold a claim pointing at a peer
+that is not the one actually sending it, then "the feed is frozen" is the
+symptom of a claim aimed at the wrong place, everything measured above is
+consistent (the real sender's numbers look fine because it is feeding SOMEONE
+ELSE), and the deficit is an artifact of comparing a sender to a receiver that
+were never paired.
+
+**Check that first**: assert, at every seat, that `claimVia[rk].via` is a peer
+with a live forward of that feed to this seat, and dump both sides when it is
+not. It is cheap, and if it holds it removes the last reason to distrust the
+numbers above.
+
+Note also the standing caveat: all of this is six browsers on one Jetson. Every
+quantity here is real, but the RATE at which the freeze appears is not a product
+number until it is rebuilt across devices.
