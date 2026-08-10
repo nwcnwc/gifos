@@ -30,6 +30,7 @@
   var myResult = null;
   var celebrated = {};      // finishes already announced, so a republish is quiet
   var finishCb = null;
+  var noteCb = null;   // room-level news the player must be told (a followed hop)
   var listeners = [];
 
   function db(n) { return root.Host.db(n); }
@@ -109,18 +110,52 @@
       }
       // A guest who opened the invite link has no world of their own yet: take
       // the host's. This is what makes the link alone enough to join.
-      if (worldRec && !root.App.hasHopped()) {
+      if (worldRec && isFinite(worldRec.lat) && isFinite(worldRec.lon) && !root.App.hasHopped()) {
         root.App.hop(worldRec.lat, worldRec.lon, worldRec.place);
+        myWorld = { lat: worldRec.lat, lon: worldRec.lon };
+      } else if (worldRec && isFinite(worldRec.lat) && isFinite(worldRec.lon)
+                 && worldRec.byId && worldRec.byId !== me.id && myWorld
+                 && farFrom(myWorld, worldRec) && root.App.hasHopped()) {
+        // …AND THE ROOM MOVES TOGETHER AFTER THAT. This only ever ran for a
+        // player who had never hopped, so the moment BOTH had, a teleport by
+        // one silently stranded the other: their ghost is drawn from lat/lon
+        // in MY frame, which after their hop is thousands of kilometres away,
+        // where no terrain is loaded — so ghosts() skipped them forever while
+        // count() (which has no terrain test) still said two players. "Not
+        // able to see the other player after a while… may have been after
+        // teleporting." Following is what "we are driving together" means.
+        //
+        // LOOP-SAFE: hop() publishes the world again under MY id, the other
+        // side sees coordinates it already has, farFrom() is false, and the
+        // exchange stops. The distance gate is what does it — not a flag.
+        myWorld = { lat: worldRec.lat, lon: worldRec.lon };
+        root.App.hop(worldRec.lat, worldRec.lon, worldRec.place);
+        if (noteCb) noteCb((worldRec.by || 'They') + ' hopped to ' + (worldRec.place || 'somewhere else') + ' — following.');
       }
       listeners.forEach(function (cb) { try { cb(); } catch (e) {} });
     });
   }
 
-  // Publish where the world is, so joiners land here too.
+  // Publish where the world is, so joiners land here too — and so everyone
+  // already here can FOLLOW (see the race subscription). `byId` is what keeps
+  // that from being a hall of mirrors: a client never follows its own write.
+  var myWorld = null;
   function setFrame(f, lat, lon, place) {
     frame = f;
     myResult = null;
-    db('race').put({ id: 'world', lat: lat, lon: lon, place: place || '' }).catch(function () {});
+    myWorld = { lat: lat, lon: lon };
+    db('race').put({ id: 'world', lat: lat, lon: lon, place: place || '',
+                     by: me.name, byId: me.id, at: Date.now() }).catch(function () {});
+  }
+
+  // Two worlds are "the same place" if you could plausibly drive between them.
+  // A hop is a teleport — cities apart — so anything under a kilometre is the
+  // same world re-published (a re-pin, a rejoin) and must not move anybody.
+  function farFrom(a, b) {
+    if (!a || !b || b.lat == null || b.lon == null) return false;
+    var dLat = (b.lat - a.lat) * 111320;
+    var dLon = (b.lon - a.lon) * 111320 * Math.cos(a.lat * Math.PI / 180);
+    return Math.sqrt(dLat * dLat + dLon * dLon) > 1000;
   }
 
   function tick(car, dt) {
@@ -270,6 +305,15 @@
     setRace: setRace, clearRace: clearRace, raceState: raceState, snapFinish: snapFinish,
     shoot: shoot, onHit: function (cb) { hitCb = cb; },
     onFinish: function (cb) { finishCb = cb; },
+    onNote: function (cb) { noteCb = cb; },
+    // Test seam: the inputs the follow decision is made from. "The room did
+    // not follow" has five possible causes and no way to tell them apart from
+    // outside — this makes the guess unnecessary.
+    worldState: function () {
+      return { rec: worldRec ? { lat: worldRec.lat, lon: worldRec.lon, place: worldRec.place,
+                                 by: worldRec.by, byId: worldRec.byId } : null,
+               myWorld: myWorld, meId: me.id, hopped: !!(root.App && root.App.hasHopped()) };
+    },
     hasRace: function () { return !!raceRec; },
     onChange: function (cb) { listeners.push(cb); },
     me: function () { return me; },

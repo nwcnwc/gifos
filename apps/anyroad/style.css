@@ -656,3 +656,33 @@ select {
 #btn-fly svg { width: 58%; height: 58%; }
 #btn-fly:active { background: rgba(58, 68, 84, .98); }
 #btn-fly.flying { color: #ffd08a; border-color: rgba(255, 208, 138, .55); }
+
+/* ---- the world status sheet ------------------------------------------------
+   A table, not a dashboard. Every row is one tile and one sentence about why
+   it is or is not here; the colours only ever repeat what the words say, so
+   the panel still works for anyone who cannot tell red from green. */
+.ws-tab {
+  width: 100%; border-collapse: collapse; margin: .5rem 0 1rem;
+  font-size: .82rem; line-height: 1.35;
+}
+.ws-tab th {
+  text-align: left; font-weight: 600; opacity: .55; font-size: .72rem;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: .2rem .5rem .2rem 0; border-bottom: 1px solid rgba(255,255,255,.12);
+}
+.ws-tab td {
+  padding: .28rem .5rem .28rem 0; vertical-align: top;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.ws-tab .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; opacity: .75; white-space: nowrap; }
+.ws-tab .ok   { color: #86e08f; }
+.ws-tab .warn { color: #ffd08a; }
+.ws-tab .bad  { color: #ff9d8a; }
+#ws-tiles { max-height: 46vh; overflow-y: auto; }
+
+/* The HUD is pointer-transparent so the whole screen can steer, and only
+   BUTTONS opt back in (#hud button). These two are not buttons — a div and a
+   canvas — so wiring click handlers to them did nothing at all until they
+   asked for pointer events by name. */
+.place { pointer-events: auto; cursor: pointer; }
+#tilemap { pointer-events: auto; cursor: pointer; }

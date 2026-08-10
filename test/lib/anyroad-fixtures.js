@@ -145,6 +145,27 @@ function overpassBody() {
       { type: 'way', id: 7, tags: { highway: 'residential', name: 'Crossing Lane' }, geometry: [
         { lat: HOP.lat, lon: HOP.lon - 0.0006 }, { lat: HOP.lat, lon: HOP.lon + 0.0006 },
       ] },
+      // WATER — a river and a lake, the render path that had NO fixture at
+      // all until "water in rivers and oceans shows as white and is super
+      // glitchy, flashing constantly" was reported from the road. Placed
+      // SOUTH of the drop point and clear of the carriageways: it must be
+      // drawable without being drivable, or every other test in this suite
+      // starts drowning. natural=water is the tag; a pool is leisure=* and
+      // is a different colour and a different rule (see way 9).
+      { type: 'way', id: 10, tags: { natural: 'water', name: 'Fixture River' }, geometry: [
+        { lat: HOP.lat - 0.0060, lon: HOP.lon - 0.0040 },
+        { lat: HOP.lat - 0.0058, lon: HOP.lon + 0.0040 },
+        { lat: HOP.lat - 0.0052, lon: HOP.lon + 0.0040 },
+        { lat: HOP.lat - 0.0054, lon: HOP.lon - 0.0040 },
+        { lat: HOP.lat - 0.0060, lon: HOP.lon - 0.0040 },
+      ] },
+      { type: 'way', id: 11, tags: { natural: 'water', name: 'Fixture Lake' }, geometry: [
+        { lat: HOP.lat - 0.0090, lon: HOP.lon - 0.0020 },
+        { lat: HOP.lat - 0.0090, lon: HOP.lon + 0.0020 },
+        { lat: HOP.lat - 0.0070, lon: HOP.lon + 0.0020 },
+        { lat: HOP.lat - 0.0070, lon: HOP.lon - 0.0020 },
+        { lat: HOP.lat - 0.0090, lon: HOP.lon - 0.0020 },
+      ] },
       // A BACKYARD POOL, east of the buildings — the thing that "disappeared
       // a few versions back" when an old-build cache record was served
       // forever. The cache-upgrade e2e refetches a stampless record and must

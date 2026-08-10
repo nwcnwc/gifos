@@ -667,6 +667,74 @@ async function run(MODE) {
     countdowns.every((c) => c && Math.abs(c.toFinish - countdowns[0].toFinish) < 250),
     JSON.stringify(countdowns.map((c) => c && c.toFinish)));
 
+  // ---- ONE PLAYER HOPS, AND THE ROOM GOES WITH THEM ----------------------
+  // "Was in a 2 player game and was not able to see the other player after a
+  // while — may have been after teleporting." It was. The shared world record
+  // was only ever adopted by a player who had NEVER hopped (the joining
+  // guest), so once everyone had hopped once, a teleport by one left the
+  // others behind: the traveller's ghost is drawn from lat/lon in the OTHERS'
+  // frame, which is now continents away, where no terrain is loaded — so
+  // ghosts() dropped them silently while count() (no terrain test) still
+  // reported a full room. Two players, nobody visible, no explanation.
+  const TOKYO = { lat: 35.6812, lon: 139.7671 };
+  await ada.page.bringToFront();
+  // (el, arg) — a LOCATOR evaluate passes the element first. Written as (t)
+  // this hopped Ada to `undefined, undefined`, which is not a no-op: it built
+  // a NaN frame, published a world record with no coordinates, and took the
+  // host's world with it. The follow could not fire because there was nothing
+  // coherent to follow, and I read that as the product being broken.
+  await ada.body().evaluate((el, t) => window.App.hop(t.lat, t.lon, 'Tokyo'), TOKYO);
+  const followed = [];
+  for (const p of players) {
+    await p.page.bringToFront();
+    let st = null;
+    for (let i = 0; i < 40; i++) {
+      st = await p.body().evaluate(() => {
+        const f = window.App.world.frame;
+        return { place: window.App.world.place, lat: f && f.lat0, lon: f && f.lon0 };
+      }).catch(() => null);
+      if (st && Math.abs(st.lat - 35.6812) < 0.5) break;
+      await sleep(1000);
+    }
+    followed.push(st);
+  }
+  // When this fails, say WHY: the follow has five inputs and "it didn't move"
+  // names none of them.
+  const why = [];
+  for (const p of players) {
+    await p.page.bringToFront();
+    why.push(await p.body().evaluate(() => window.MP.worldState()).catch((e) => String(e)));
+  }
+  check('a hop by ONE player carries the whole room — nobody is left in the old city',
+    followed.every((s) => s && Math.abs(s.lat - TOKYO.lat) < 0.5 && Math.abs(s.lon - TOKYO.lon) < 0.5),
+    JSON.stringify(followed.map((s) => s && [s.place, s.lat, s.lon])) + '  inputs=' + JSON.stringify(why));
+  // …and having followed, they can SEE each other again — the whole point.
+  const reunited = [];
+  for (const p of players) {
+    await p.page.bringToFront();
+    let n = 0;
+    for (let i = 0; i < 30; i++) {
+      n = await p.body().evaluate(() => window.MP.ghosts().length).catch(() => 0);
+      if (n >= 2) break;
+      await sleep(1000);
+    }
+    reunited.push(n);
+  }
+  check('…and after the hop everyone can see everyone again',
+    reunited.every((n) => n >= 2), JSON.stringify(reunited));
+  // The follow must not ping-pong: each side republishes the world under its
+  // own id, and the distance gate — not a flag — is what stops the exchange.
+  const settled = [];
+  for (const p of players) {
+    await p.page.bringToFront();
+    const a = await p.body().evaluate(() => window.App.world.frame.lat0);
+    await sleep(3000);
+    const b = await p.body().evaluate(() => window.App.world.frame.lat0);
+    settled.push(a === b);
+  }
+  check('…and the room STOPS moving — a followed hop does not ping-pong',
+    settled.every(Boolean), JSON.stringify(settled));
+
   // ---- close, and collect the recordings ---------------------------------
   // Playwright names a recording by page GUID and only finalises it on context
   // close, so the handle is grabbed first and the file renamed after.

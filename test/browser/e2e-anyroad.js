@@ -1440,6 +1440,49 @@ function check(name, cond, detail) {
     skyStrike.highTraffic === 0, '-' + skyStrike.highTraffic + ' at 60 m');
   check('…nor the wildlife — there are no invisible birds',
     skyStrike.highDeer === 0, '-' + skyStrike.highDeer + ' at 60 m');
+  // ---- a building is solid at altitude too ----------------------------------
+  // "Able to fly thru buildings when should hit them." Right: the ground path
+  // skips collideBuildings entirely above 4 m AGL (a plane must not scrape
+  // kerbs) and the roof check only ever fired on a DESCENDING pass through a
+  // roof — so a tower hit head-on at cruising height was fog. Fly level, at
+  // speed, straight at the fixture's 4-storey block and demand it hurt.
+  const towerHit = await fr.locator('body').evaluate(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const f = window.App.world.frame, c = window.App.car();
+    const HOP = { lat: 48.8698, lon: 2.3078 };
+    // The fixture building spans lat +0.0004..+0.0007, lon +0.0004..+0.0007
+    // and is 4 storeys (~12 m). Line up west of it, level, at mid-height.
+    const mid = f.toWorld(HOP.lat + 0.00055, HOP.lon + 0.00055);
+    const gy = window.Terrain.heightAt(f, mid.x, mid.z) || 0;
+    const start = { x: c.x, z: c.z, yaw: c.yaw };
+    window.Car.repair(c);
+    c.x = mid.x - 40; c.z = mid.z; c.yaw = Math.PI / 2;   // +x, straight at it
+    c.y = gy + 6; c.vy = 0; c.flying = true; c.falling = false; c.speed = 45;
+    const before = c.health;
+    let hit = false;
+    for (let i = 0; i < 40; i++) {
+      await wait(120);
+      if (c.health < before) { hit = true; break; }
+      if (c.x > mid.x + 60) break;                       // sailed clean through
+      // Hold the cruise level and pointed at the block.
+      if (c.flying) { c.y = gy + 6; c.vy = 0; c.yaw = Math.PI / 2; if (c.speed < 30) c.speed = 45; }
+    }
+    const res = { hit, lost: +(before - c.health).toFixed(1), x: +(c.x - mid.x).toFixed(1), flying: !!c.flying };
+    // PUT THE CAR BACK ON ITS ROAD. Parking it 120 m out in a field was enough
+    // to fail the three street-name checks that run next — they ask what road
+    // the car is on, and it was on none. A test that relocates the player owes
+    // the next test the world it found.
+    window.Car.repair(c);
+    c.flying = false; c.falling = false; c.speed = 0;
+    c.x = start.x; c.z = start.z; c.yaw = start.yaw;
+    c.y = window.Terrain.heightAt(f, c.x, c.z) || gy;
+    return res;
+  });
+  check('flying into a building HURTS — a tower is not fog',
+    towerHit.hit && towerHit.lost > 15, JSON.stringify(towerHit));
+  check('…and it ends the flight rather than carrying you through the far wall',
+    towerHit.hit && !towerHit.flying, 'flying=' + towerHit.flying);
+
   check('…but the SAME pass at bumper height still costs metal',
     skyStrike.lowTraffic > 0 && skyStrike.lowDeer > 0,
     '-' + skyStrike.lowTraffic.toFixed(1) + ' traffic, -' + skyStrike.lowDeer.toFixed(1) + ' deer');

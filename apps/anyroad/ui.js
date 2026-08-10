@@ -32,6 +32,7 @@
      'attribution2','board','mp-status','race-badge','race-hint','cache-size','tilemap',
      'src-terrain','src-roads','src-imagery','src-quality','note-terrain','note-imagery',
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
+     'worldstat','ws-summary','ws-mirrors','ws-tiles',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
      'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-keep','ctl-fill','note-offline','race-dist',
@@ -74,6 +75,25 @@
     // taller than the window, and a header ✕ you have to scroll UP to reach is
     // a header ✕ you cannot reach at all.
     $('close-settings-bottom').addEventListener('click', function () { hide(el.settings); });
+    // THE TILE MAP IS A BUTTON. It has always shown WHICH tiles are missing and
+    // never WHY, which is the only half a waiting player actually wants.
+    // THE PLACE NAME IS A WAY BACK. You drive twenty minutes out, get lost,
+    // and the only route home is the hop sheet and typing the address again.
+    // It is already labelled with where you started; make it do that.
+    if (el.place) {
+      el.place.style.cursor = 'pointer';
+      el.place.setAttribute('title', 'Back to where you arrived');
+      el.place.addEventListener('click', function () {
+        if (panelOpen()) return;
+        root.App.returnToSpawn();
+      });
+    }
+    if (el.tilemap) {
+      el.tilemap.style.cursor = 'pointer';
+      el.tilemap.addEventListener('click', openWorldStat);
+    }
+    $('close-worldstat').addEventListener('click', function () { hide(el.worldstat); });
+    $('close-worldstat-bottom').addEventListener('click', function () { hide(el.worldstat); });
     $('close-race-bottom').addEventListener('click', function () { hide(el.race); });
 
     // Escape closes the topmost panel. Every desktop dialog in the world does
@@ -81,6 +101,7 @@
     // wrong — which is exactly when it is needed.
     root.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' && e.key !== 'Esc') return;
+      if (!el.worldstat.hidden) { hide(el.worldstat); e.preventDefault(); return; }
       if (!el.settings.hidden) { hide(el.settings); e.preventDefault(); return; }
       if (!el.race.hidden) { hide(el.race); e.preventDefault(); return; }
       if (!el.landing.hidden && hooks.frame() && root.App.hasHopped()) { hide(el.landing); e.preventDefault(); return; }
@@ -116,6 +137,7 @@
     // Back closes the topmost panel instead of doing nothing.
     root.Host.onBack(function () {
       if (!el.fatal.hidden) return;
+      if (!el.worldstat.hidden) { hide(el.worldstat); return; }
       if (!el.settings.hidden) { hide(el.settings); return; }
       if (!el.race.hidden) { hide(el.race); return; }
       if (!el.landing.hidden && hooks.frame() && root.App.hasHopped()) { hide(el.landing); return; }
@@ -555,6 +577,78 @@
     el['note-offline'].textContent = root.Sources.fillsAhead()
       ? 'Keeps loading the area around you in the background, but only while the network is idle - your own driving always goes first. Stored on disk; it does not affect frame rate, because only the tiles right around you are drawn.'
       : 'Only fetches the tiles you actually drive through; the keep dial says how many of them are remembered.';
+  }
+
+  // ---- the world status sheet ----------------------------------------------
+  // Every refusal the loader already knew about, said out loud. A tile that is
+  // "not building" is always one of a small number of things — queued behind a
+  // politeness gap, waiting on a mirror, refused with a status, or shed down
+  // the detail ladder because the query was too big — and each of those has a
+  // different answer for the player ("wait", "drive on", "it is the server").
+  var wsTimer = null;
+  function fmtMs(ms) { return ms > 950 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms'; }
+  function fmtMB(b) { return (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB'; }
+
+  function renderWorldStat() {
+    var r = root.App.worldReport();
+    if (!r) return;
+    var ready = 0, poor = 0, waiting = 0, failed = 0;
+    r.rows.forEach(function (t) {
+      if (t.state === 'ready') ready++;
+      else if (t.state === 'no scenery' || t.state === 'roads only') poor++;
+      else if (t.state === 'failed') failed++;
+      else waiting++;
+    });
+    var lines = [ready + ' of ' + r.rows.length + ' tiles complete'];
+    if (poor) lines.push(poor + ' arrived with less in them');
+    if (waiting) lines.push(waiting + ' still coming');
+    if (failed) lines.push(failed + ' refused');
+    if (r.net.backoffMs > 0) lines.push('backing off for ' + fmtMs(r.net.backoffMs));
+    el['ws-summary'].textContent = lines.join(' · ') + '. Cached: '
+      + r.cache.tiles + ' tiles, ' + fmtMB(r.cache.bytes) + ' of ' + fmtMB(r.cache.budget) + '.';
+
+    var mh = '<table class="ws-tab"><tr><th>Map server</th><th>Speed</th><th>Queue</th><th>State</th></tr>';
+    r.mirrors.forEach(function (m) {
+      var state = m.backoffMs > 0 ? '<b class="bad">backing off ' + fmtMs(m.backoffMs) + '</b>'
+                : m.fails ? '<b class="warn">' + m.fails + ' recent failure' + (m.fails === 1 ? '' : 's') + '</b>'
+                : '<b class="ok">ready</b>';
+      mh += '<tr><td>' + escapeHtml(m.name) + '</td><td>' + (m.lat ? fmtMs(m.lat) : '—')
+          + '</td><td>' + (m.pending + m.active) + '</td><td>' + state + '</td></tr>';
+    });
+    el['ws-mirrors'].innerHTML = mh + '</table>';
+
+    var th = '<table class="ws-tab"><tr><th>Tile</th><th>State</th><th>Where it is</th></tr>';
+    r.rows.forEach(function (t) {
+      var why = '';
+      if (t.state === 'fetching' || t.state === 'queued') {
+        why = t.mirror ? ('on ' + escapeHtml(t.mirror)
+              + (t.queue > 0 ? ', ' + t.queue + ' ahead of it' : ', in flight')
+              + (t.waited ? ', ' + t.waited + ' s so far' : ''))
+            : 'waiting for a free slot';
+      } else if (t.state === 'roads only' || t.state === 'no scenery') {
+        why = 'the query was too big for the server, so it came back with less';
+      } else if (t.state === 'ready') { why = 'done'; }
+      if (t.err) {
+        why += (why ? ' — ' : '') + (t.err.busy ? 'server asked us to slow down'
+              : t.err.status ? ('server said ' + t.err.status) : escapeHtml(t.err.msg))
+             + ' (' + t.err.ago + ' s ago)';
+      }
+      var cls = t.state === 'ready' ? 'ok' : (t.state === 'failed' ? 'bad' : 'warn');
+      th += '<tr><td class="mono">' + escapeHtml(t.key) + '</td><td class="' + cls + '">'
+          + escapeHtml(t.state) + '</td><td>' + why + '</td></tr>';
+    });
+    el['ws-tiles'].innerHTML = th + '</table>';
+  }
+
+  function openWorldStat() {
+    renderWorldStat();
+    show(el.worldstat);
+    // Live: the whole point is watching a queue drain (or not).
+    clearInterval(wsTimer);
+    wsTimer = setInterval(function () {
+      if (el.worldstat.hidden) { clearInterval(wsTimer); wsTimer = null; return; }
+      renderWorldStat();
+    }, 700);
   }
 
   function openSettings() { syncSourceMenus(); refreshCacheSize(); renderAttribution(); show(el.settings); }
@@ -1064,6 +1158,7 @@
   // the app is dead, and a dead app must not still be driving.
   function panelOpen() {
     return !!(el.landing && !el.landing.hidden) || !!(el.settings && !el.settings.hidden)
+        || !!(el.worldstat && !el.worldstat.hidden)
         || !!(el.race && !el.race.hidden) || !!(el.fatal && !el.fatal.hidden)
         || !!(el.wrecked && !el.wrecked.hidden);
   }
