@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "offline-llm-gemma",
+  "name": "Offline Cheap Text LLM Gemma",
+  "shortName": "Gemma LLM",
+  "version": "1.0",
+  "description": "A cheap text brain for your whole computer, running entirely on your device. A Provider app: put it in your Providers folder, assign it to Cheapest text LLM in Settings → AI models, and every app that asks for cheap text uses it — no account, no key, nothing leaves your device. Built on llama.cpp (wllama) with Google's Gemma 3 1B Instruct weights arriving as a hash-pinned download.",
+  "entry": "index.html",
+  "accent": [122, 162, 247],
+  "capabilities": { "wasm": true },
+  "provides": { "ai": ["cheapest"] },
+  "assets": [
+    {
+      "url": "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
+      "sha256": "8ccc5cd1f1b3602548715ae25a66ed73fd5dc68a210412eea643eb20eb75a135",
+      "path": "model.gguf",
+      "bytes": 806058240
+    }
+  ]
+}

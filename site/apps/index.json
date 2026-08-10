@@ -170,6 +170,45 @@
       "sha256": "ed1b9db7c632992ae9122e791cc5e2af1988ad5cd84bef4f08c5338b52215471"
     },
     {
+      "slug": "offline-llm-gemma",
+      "appId": "offline-llm-gemma",
+      "name": "Offline Cheap Text LLM Gemma",
+      "shortName": "Gemma LLM",
+      "version": "1.0",
+      "tagline": "A cheap text brain for your whole computer — Google's Gemma 3 running entirely on your device.",
+      "author": "GifOS",
+      "releaseDate": "2026-08-09",
+      "updated": "2026-08-09",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "provider",
+        "llm",
+        "gemma",
+        "google",
+        "chat",
+        "offline",
+        "ai",
+        "llama.cpp"
+      ],
+      "accent": [
+        122,
+        162,
+        247
+      ],
+      "cover": "/apps/offline-llm-gemma/cover.jpg",
+      "bytes": 10223097,
+      "download": 806058240,
+      "provides": {
+        "ai": [
+          "cheapest"
+        ]
+      },
+      "signature": null,
+      "sha256": "8a63cee3099e06baaa207379a38a26d812ddaa3667b32ad0590e3640fa97093f"
+    },
+    {
       "slug": "offline-tts",
       "appId": "offline-tts",
       "name": "Offline Text to Speech",
