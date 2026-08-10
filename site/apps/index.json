@@ -142,7 +142,7 @@
       "version": "0.9",
       "tagline": "A cheap text brain for your whole computer — BitNet b1.58 running entirely on your device.",
       "author": "GifOS",
-      "minBuild": 1189,
+      "minBuild": 1205,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
@@ -163,7 +163,7 @@
         180
       ],
       "cover": "/apps/offline-llm-bitnet/cover.jpg",
-      "bytes": 10222979,
+      "bytes": 10223618,
       "download": 1105874048,
       "provides": {
         "ai": [
@@ -171,7 +171,7 @@
         ]
       },
       "signature": null,
-      "sha256": "ed1b9db7c632992ae9122e791cc5e2af1988ad5cd84bef4f08c5338b52215471"
+      "sha256": "1c76905722fb8225034c9f289c96077fe4bb9d6fde5997e19d8fa025198b21cf"
     },
     {
       "slug": "offline-llm-gemma",
@@ -181,7 +181,7 @@
       "version": "1.0",
       "tagline": "A cheap text brain for your whole computer — Google's Gemma 3 running entirely on your device.",
       "author": "GifOS",
-      "minBuild": 1189,
+      "minBuild": 1205,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
@@ -203,7 +203,7 @@
         247
       ],
       "cover": "/apps/offline-llm-gemma/cover.jpg",
-      "bytes": 10223108,
+      "bytes": 10223707,
       "download": 806058240,
       "provides": {
         "ai": [
@@ -211,7 +211,7 @@
         ]
       },
       "signature": null,
-      "sha256": "6901436bd30fe904f117b3d9e4f575c36cd8227e7dcbd9211c379b91fb4357ce"
+      "sha256": "d0e42fcde4ae9cfa22dfc25b1b9a737a4dcc9134177a27c4523dd6c0700afbc7"
     },
     {
       "slug": "offline-llm-gemma4",
@@ -221,7 +221,7 @@
       "version": "1.0",
       "tagline": "A cheap text brain for your whole computer — Google's Gemma 4, Apache-2.0, entirely on your device.",
       "author": "GifOS",
-      "minBuild": 1189,
+      "minBuild": 1205,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
@@ -245,7 +245,7 @@
         250
       ],
       "cover": "/apps/offline-llm-gemma4/cover.jpg",
-      "bytes": 10223499,
+      "bytes": 10223847,
       "download": 1875742368,
       "provides": {
         "ai": [
@@ -253,7 +253,7 @@
         ]
       },
       "signature": null,
-      "sha256": "1d3b59d2a9b8966697b7613b696270446386c3764894f6483357af2a545c4c8f"
+      "sha256": "fbc558e6568bb14fc24ebfff2b16b578a4cd99ab224051ac1b566aff75e44033"
     },
     {
       "slug": "offline-tts",

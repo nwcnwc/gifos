@@ -281,6 +281,17 @@ async function runConsumer(page, context, label, outTimeout) {
     let ack = '';
     try { await ackBox.waitFor({ timeout: 5000 }); ack = await ackBox.textContent(); await ackBox.locator('.done').click(); } catch (e) { /* already acked */ }
     check('Ask AI’s ack sheet names the BitNet provider', /Offline Cheap Text LLM BitNet/.test(ack) && /on this device/.test(ack), ack.slice(0, 160));
+    // Watch the provider heartbeat cross into the broker. A provider answering
+    // an on-device model can take minutes, so the broker's timeout is IDLE and
+    // these pings are what re-arm it; if they stop flowing, long answers start
+    // dying at the timeout again (which is exactly what shipped once).
+    await askai.evaluate(() => {
+      window.__provPings = 0;
+      window.addEventListener('message', (e) => {
+        const d = e.data;
+        if (d && d.ns === 'gifos' && d.type === 'provider-progress') window.__provPings++;
+      });
+    });
     const fr = askai.frameLocator('#appmount iframe');
     await fr.locator('#t').fill('hello');
     await fr.locator('#f button').click();
@@ -300,6 +311,9 @@ async function runConsumer(page, context, label, outTimeout) {
     // in-GIF self-test model, honestly labeled. Guards the regression where a
     // failed asset backfill made the broker refuse to serve at all, pre-empting
     // the app's own fallback.
+    const provPings = await askai.evaluate(() => window.__provPings);
+    check('the provider heartbeats while it works (idle timeout re-arms, so slow answers are not killed)',
+      provPings > 0, provPings + ' provider-progress ping(s)');
     check('a pinned-asset provider still serves its self-test model when the download has NOT happened',
       offOriginBlocked > 0 && /\[self-test model — token soup/.test(reply),
       offOriginBlocked + ' off-origin request(s) blocked');

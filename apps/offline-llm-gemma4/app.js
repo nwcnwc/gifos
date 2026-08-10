@@ -88,7 +88,18 @@
     return out + T_OPEN + 'model\n';
   }
 
-  function chatHandler(req) {
+  function chatHandler(req, ctx) {
+    // KEEPALIVE. The OS times a provider out on SILENCE, not on total time, so
+    // a slow answer survives and a wedged one still fails. Everything here can
+    // legitimately take minutes on a single-threaded wasm engine — including
+    // the FIRST call, which also loads the weights (up to ~1.8 GB) before a
+    // single token exists — so the ping runs from the very start, not just
+    // once generation begins.
+    var beat = function () { if (ctx && typeof ctx.progress === 'function') { try { ctx.progress(); } catch (e) {} } };
+    beat(); // at once: "request received, working" — before any weights load
+    var alive = ctx && typeof ctx.progress === 'function' ? setInterval(beat, 5000) : null;
+    var done = function (v) { if (alive) clearInterval(alive); return v; };
+    var died = function (e) { if (alive) clearInterval(alive); throw e; };
     return bootEngine().then(function (wllama) {
       var messages = Array.isArray(req.messages) && req.messages.length
         ? req.messages.map(function (m) { return { role: String(m.role || 'user'), content: String(m.content || '') }; })
@@ -102,12 +113,24 @@
       var params = {
         prompt: buildPrompt(messages),
         max_tokens: maxTokens,
-        stream: false,
         stop: [T_CLOSE, T_OPEN],
       };
       if (req.temperature != null) params.temperature = Number(req.temperature);
-      return wllama.createCompletion(params).then(function (res) {
-        var text = (res && res.choices && res.choices[0] && res.choices[0].text) || '';
+      // STREAM, so the OS can tell "slow" from "stuck". The broker's timeout is
+      // an IDLE one: every chunk pings it, so a long answer is never cut off
+      // mid-generation, while a genuinely wedged engine still fails. Before
+      // this, a short essay on a 2B model hit a flat 3-minute cap and the
+      // user's wait was thrown away.
+      var acc = '';
+      params.stream = true;
+      params.onData = function (chunk) {
+        try {
+          var t = chunk && chunk.choices && chunk.choices[0] && chunk.choices[0].text;
+          if (t) acc += t;
+        } catch (e) { /* a malformed chunk must not kill the generation */ }
+      };
+      return wllama.createCompletion(params).then(function () {
+        var text = acc;
         text = String(text).split(T_CLOSE)[0].split(T_OPEN)[0].replace(/^\s+/, '');
         if (live.kind === 'selftest') {
           // Never let random-weights output masquerade as an answer.
@@ -115,7 +138,7 @@
         }
         return { text: text };
       });
-    });
+    }).then(done, died);
   }
 
   if (window.gifos && gifos.provider && gifos.provider.serve) {
