@@ -728,54 +728,75 @@
     return { defs, art, shadowRx: 38 };
   };
 
-  // Providers — an ability being handed to the COMPUTER. A glossy accent
-  // module comes down into the socket on the machine's face; the instant it
-  // seats, light floods out of the socket and the three service lamps come up
-  // one after another, left to right.
+  // Providers — a REQUEST GOING OUT AND AN ANSWER COMING BACK, six frames, on
+  // a loop. The computer asks (a pale chevron rising), the provider takes the
+  // question and thinks (it lights, the machine goes dim and waiting), then the
+  // answer comes back down — bright, accent, bigger than the question — and
+  // lands on the machine's lamps.
   //
-  // That is the whole point of this folder in one picture, and the reason it
-  // could not stay a lettered "P": what lives in here does not run FOR YOU
-  // like an app, it plugs INTO your computer and serves every other app —
-  // and a folder whose contents behave unlike anything else on the Home
-  // Screen has to look unlike anything else too.
+  // It is deliberately NOT a plug going into a socket. Docking is a one-time
+  // act of installation, and installation is the least interesting thing about
+  // this folder; what makes a Provider unlike every other app is that it ANSWERS
+  // — over and over, to whatever asks. So the two bodies never touch: they are
+  // two parties in a conversation, and the loop never resolves into a finished
+  // state because the service is the exchange, not the connection.
   ART.plug = (a, f) => {
     const base = toHex(candy(a));
-    const g1 = grad(), g2 = grad(), sh = grad(), sh2 = grad();
-    const dock = [11, 8, 4.5, 1.5, 0, 0][f];        // the module coming down…
-    const lit = [0, 0.06, 0.18, 0.55, 1, 0.78][f];  // …and the machine taking it
+    const g1 = grad(), g2 = grad(), sh = grad(), sh2 = grad(), bm = grad();
+    // The round trip. 0→2 the question climbs; 2→3 the provider works; 3→5 the
+    // answer falls. Frame 5 hands back to frame 0, so it reads as continuous
+    // service rather than a thing that happens once.
+    // The travel is confined to the OPEN GAP between the two bodies (40→66).
+    // A chevron that strays over either one stops reading as something in
+    // flight and starts reading as a marking on the box it is crossing.
+    const ask = [60, 53, 46, 0, 0, 0][f];            // question, rising
+    const ans = [0, 0, 0, 46, 53, 60][f];            // answer, falling
+    const think = [0.08, 0.2, 0.75, 1, 0.6, 0.25][f]; // the provider working
+    const got = [0.55, 0.25, 0.1, 0.1, 0.45, 1][f];   // the machine's lamps
+    const bob = [0, -1, -2, -2, -1, 0][f];           // the provider, breathing
     // The machine is a LIGHTER slate than the usual ink: a near-black box is
     // invisible on a dark desktop, and this icon has to read on both.
     const defs = bodyGrad(g1, base) + sheenGrad(sh) + sheenGrad(sh2)
-      + lg(g2, [[0, '#7d74a8'], [0.45, '#4e4677'], [1, '#2b2547']]);
-    // Lamps light in sequence, so the last frames read as "and now it serves".
+      + lg(g2, [[0, '#7d74a8'], [0.45, '#4e4677'], [1, '#2b2547']])
+      // Stop-opacity, not 8-digit hex — the third stop field exists precisely
+      // so a fade doesn't depend on #rrggbbaa support in the SVG rasterizer.
+      + lg(bm, [[0, base, 0], [0.5, base, 1], [1, base, 0]]);
+    // Lamps light left to right as the answer lands.
     const lamp = (i) => {
-      const on = Math.max(0, Math.min(1, lit * 3 - i));
+      const on = Math.max(0, Math.min(1, got * 3 - i));
       return "<circle cx='" + (46 + i * 18) + "' cy='88' r='3.6' fill='" + (on > 0.15 ? base : '#3b3560') + "'"
         + " opacity='" + (0.3 + on * 0.7).toFixed(2) + "'/>";
     };
     const art =
-      // the machine
-      "<path d='" + rr(22, 60, 84, 42, 13) + "' fill='url(#" + g2 + ")'/>"
-      + "<path d='" + rr(22, 60, 84, 14, 13) + "' fill='url(#" + sh2 + ")' opacity='.45'/>"
-      // the socket, and the light it takes
-      + "<ellipse cx='64' cy='64' rx='" + (20 + lit * 26) + "' ry='" + (7 + lit * 12) + "' fill='" + base + "' opacity='" + (lit * 0.85).toFixed(2) + "' filter='url(#fglow)'/>"
-      + "<path d='" + rr(48, 58, 32, 12, 6) + "' fill='#15112a'/>"
-      + "<path d='" + rr(51, 61, 26, 6, 3) + "' fill='" + base + "' opacity='" + (0.22 + lit * 0.78).toFixed(2) + "'/>"
+      // The open channel between them — faint on the way up, alive on the way
+      // back, so the DIRECTION of the traffic is legible even in a still frame.
+      "<rect x='60' y='40' width='8' height='26' rx='4' fill='url(#" + bm + ")' opacity='" + (ans ? 0.5 : 0.16) + "'/>"
+      // the machine, waiting
+      + "<path d='" + rr(22, 66, 84, 36, 13) + "' fill='url(#" + g2 + ")'/>"
+      + "<path d='" + rr(22, 66, 84, 13, 13) + "' fill='url(#" + sh2 + ")' opacity='.45'/>"
+      + "<path d='" + rr(46, 62, 36, 10, 5) + "' fill='#15112a'/>"
+      + "<path d='" + rr(49, 64, 30, 4.5, 2.2) + "' fill='" + base + "' opacity='" + (0.25 + got * 0.75).toFixed(2) + "'/>"
       + range(3).map(lamp).join('')
-      // the module, coming down into it
-      + "<g transform='translate(0,-" + dock + ")'>"
-      + "<path d='M56 46 h6 v16 h-6 z M66 46 h6 v16 h-6 z' fill='#cfd6ff' opacity='.92'/>"
-      + "<path d='" + rr(42, 20, 44, 30, 10) + "' fill='url(#" + g1 + ")'/>"
-      + "<path d='" + rr(42, 20, 44, 13, 10) + "' fill='url(#" + sh + ")'/>"
-      + spec(54, 30, 7, 3.5, 0.45)
+      // the provider, thinking
+      + "<g transform='translate(0," + bob + ")'>"
+      + "<ellipse cx='64' cy='24' rx='" + (20 + think * 14) + "' ry='" + (12 + think * 8) + "' fill='" + base + "' opacity='" + (think * 0.55).toFixed(2) + "' filter='url(#fglow)'/>"
+      + "<path d='" + rr(42, 8, 44, 32, 11) + "' fill='url(#" + g1 + ")'/>"
+      + "<path d='" + rr(42, 8, 44, 14, 11) + "' fill='url(#" + sh + ")'/>"
+      + spec(54, 19, 7, 3.5, 0.45)
+      // three thinking pips on its face, cycling — the only thing that says
+      // "working on it" rather than "idle box".
+      + range(3).map((i) => "<circle cx='" + (56 + i * 8) + "' cy='31' r='2.1' fill='#fff' opacity='"
+        + (0.25 + (f % 3 === i ? 0.7 : 0) * think).toFixed(2) + "'/>").join('')
       + '</g>'
-      // Light ESCAPING past the module — drawn last, so the contact reads as a
-      // flash at the seam rather than a lamp hidden behind the thing docking.
-      + (lit > 0.2
-        ? "<ellipse cx='64' cy='" + (62 - dock / 2) + "' rx='" + (26 + lit * 14) + "' ry='" + (4 + lit * 6) + "' fill='#fff' opacity='"
-          + (lit * 0.38).toFixed(2) + "' filter='url(#fglow)'/>"
-        : '')
-      + sparkle(102, 34, 1, f);
+      // THE QUESTION — small, pale, hollow: an ask carries almost nothing.
+      + (ask ? "<path d='M57 " + (ask + 6) + " L64 " + ask + " L71 " + (ask + 6) + "' fill='none' stroke='#cfd6ff' stroke-width='3.4'"
+        + " stroke-linecap='round' stroke-linejoin='round' opacity='.85'/>" : '')
+      // THE ANSWER — bigger, filled, glowing: what comes back is the substance.
+      + (ans ? "<g filter='url(#fglow)' opacity='.75'><path d='M54 " + (ans - 7) + " L64 " + (ans + 2) + " L74 " + (ans - 7) + "' fill='none' stroke='"
+        + base + "' stroke-width='9' stroke-linecap='round' stroke-linejoin='round'/></g>"
+        + "<path d='M55 " + (ans - 6) + " L64 " + (ans + 2) + " L73 " + (ans - 6) + "' fill='none' stroke='#fff' stroke-width='4.4'"
+        + " stroke-linecap='round' stroke-linejoin='round'/>" : '')
+      + sparkle(102, 26, 1, f);
     return { defs, art, shadowRx: 42 };
   };
 
