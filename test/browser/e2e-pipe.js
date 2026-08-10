@@ -321,8 +321,45 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
               } else {
                 up = { seat: ui, note: 'via did not resolve to a seat in this room', via: f.via, seatIds };
               }
+              // THE WHOLE CHAIN, AS A RATE. `wrote` is cumulative since a pipe
+              // was created, so a low total cannot tell a STARVED pipe from a
+              // YOUNG one — and the first upstream capture showed totals of 4
+              // and 14 against a producer encoding ~57, which is ambiguous in
+              // exactly that way. Sample every seat's pipes for THIS feed
+              // twice, 2s apart, and report frames-written-per-second at each
+              // hop alongside that seat's own decode count. Wherever the rate
+              // collapses along the chain is the hop that owns the freeze.
+              const chainOf = async () => {
+                const rows = [];
+                for (let s = 0; s < N; s++) {
+                  const st = await pipeStatsAt(s);
+                  const mine = {};
+                  for (const id in st) if (id.indexOf(f.key) === 0) mine[id.slice(f.key.length + 1, f.key.length + 9)] = st[id];
+                  const dec = await pages[s].evaluate(async (key) => {
+                    const r = (await __gifosVideo.kfStats()).find((x) => x.dir === 'in' && x.slot === 'in:' + key);
+                    return r ? { fdec: r.fdec, kdec: r.kdec } : null;
+                  }, f.key).catch(() => null);
+                  rows.push({ seat: 'P' + s, me: seatIds[s], dec, pipes: mine });
+                }
+                return rows;
+              };
+              const c1 = await chainOf();
+              await sleep(2000);
+              const c2 = await chainOf();
+              const chain = c2.map((r, s) => {
+                const a = c1[s], rates = {};
+                for (const d in r.pipes) {
+                  const before = a.pipes[d];
+                  rates[d] = { wroteS: before ? +(((r.pipes[d].wrote - before.wrote) / 2)).toFixed(1) : null,
+                    paused: r.pipes[d].paused, needKey: r.pipes[d].needKey, dropped: r.pipes[d].dropped,
+                    wrote: r.pipes[d].wrote };
+                }
+                return { seat: r.seat, fdec: r.dec && r.dec.fdec, kdec: r.dec && r.dec.kdec,
+                  decS: (a.dec && r.dec) ? +(((r.dec.fdec - a.dec.fdec) / 2)).toFixed(1) : null,
+                  forwards: rates };
+              });
               stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at,
-                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up });
+                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up, chain });
             }
           }
         }
