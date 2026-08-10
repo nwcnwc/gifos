@@ -170,7 +170,8 @@
           var h = provHandlers && provHandlers[d.role];
           var send = function(p){ parent.postMessage(Object.assign({ ns:'gifos', type:'provider-result', id:d.id }, p), '*'); };
           if (typeof h !== 'function') { send({ ok:false, error:'This provider does not serve "'+d.role+'".' }); return; }
-          Promise.resolve().then(function(){ return h(d.req || {}); })
+          var ctx = { progress: function(){ try { parent.postMessage({ ns:'gifos', type:'provider-progress', id:d.id }, '*'); } catch(e){} } };
+          Promise.resolve().then(function(){ return h(d.req || {}, ctx); })
             .then(function(result){ send({ ok:true, result:result }); })
             .catch(function(err){ send({ ok:false, error:String(err && err.message || err) }); });
         }
@@ -1238,6 +1239,10 @@
         if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
         const d = e.data; if (!d || d.ns !== 'gifos') return;
         if (d.type === 'provider-ready') { ready = true; clearTimeout(bootTimer); resolve(service); }
+        // A provider that is still generating says so; each ping re-arms the
+        // idle clock. Cheap (one postMessage per token) and it cannot mask a
+        // hang, because a hung provider stops pinging.
+        else if (d.type === 'provider-progress') { const pend = pending.get(d.id); if (pend && pend.bump) pend.bump(); }
         else if (d.type === 'provider-result') {
           const pend = pending.get(d.id); if (!pend) return;
           pending.delete(d.id); clearTimeout(pend.timer);
@@ -1255,8 +1260,19 @@
           const w = iframe.contentWindow;
           if (!w) { rej(new Error(label + ' is not running.')); return; }
           const id = 'p' + (++idSeq);
-          const timer = setTimeout(() => { pending.delete(id); rej(new Error(label + ' timed out answering.')); }, PROVIDER_CALL_MS);
-          pending.set(id, { res, rej, timer });
+          // IDLE timeout, not a total budget. An on-device LLM legitimately
+          // takes minutes — the engine runs single-threaded in the browser
+          // (Pages cannot set COOP/COEP), so a few hundred tokens is a long
+          // wall-clock wait and the answer is still worth having. Killing it
+          // at a fixed 3 minutes just threw away work the user was waiting for.
+          // What must still fail fast is a WEDGED provider, so the clock is
+          // reset by every provider-progress ping the provider sends as it
+          // generates: silence for PROVIDER_CALL_MS means stuck, not slow.
+          const entry = { res, rej, timer: null };
+          const arm = () => setTimeout(() => { pending.delete(id); rej(new Error(label + ' stopped responding while answering (no progress for ' + Math.round(PROVIDER_CALL_MS / 1000) + 's).')); }, PROVIDER_CALL_MS);
+          entry.timer = arm();
+          entry.bump = () => { clearTimeout(entry.timer); entry.timer = arm(); };
+          pending.set(id, entry);
           w.postMessage({ ns: 'gifos', type: 'provider-request', id, role, req }, '*');
         }),
       };

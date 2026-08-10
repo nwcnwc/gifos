@@ -5,7 +5,7 @@
   "name": "Offline Cheap Text LLM BitNet",
   "shortName": "BitNet LLM",
   "version": "0.9",
-  "minBuild": 1189,
+  "minBuild": 1205,
   "tagline": "A cheap text brain for your whole computer — BitNet b1.58 running entirely on your device.",
   "description": "Offline Cheap Text LLM BitNet is a PROVIDER app: install it, keep it in your Providers folder, and assign it to Cheapest text LLM in Settings → AI models. From then on, every app that asks the computer for cheap text — Ask AI, Chat drafts, game hints — is answered on this device. No account, no key, nothing leaves your machine.\n\nThe engine is llama.cpp compiled to WebAssembly (wllama, MIT), sealed in the GifOS sandbox with zero network access. The brain is Microsoft Research's BitNet b1.58 2B-4T — a 2-billion-parameter model whose weights are ternary (−1, 0, +1) — downloaded once at install (~1.03 GB, hash-verified by GifOS) and cached on this computer.\n\nA built-in few-MB self-test model proves the whole pipeline instantly (clearly labeled — it speaks token soup, not answers) while the real weights download.",
   "author": "GifOS",
@@ -36,13 +36,13 @@
   "cover": "/apps/offline-llm-bitnet/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-llm-bitnet/offline-llm-bitnet.gif",
-  "bytes": 10222979,
+  "bytes": 10223618,
   "download": 1105874048,
   "provides": {
     "ai": [
       "cheapest"
     ]
   },
-  "sha256": "ed1b9db7c632992ae9122e791cc5e2af1988ad5cd84bef4f08c5338b52215471",
+  "sha256": "1c76905722fb8225034c9f289c96077fe4bb9d6fde5997e19d8fa025198b21cf",
   "signature": null
 }
