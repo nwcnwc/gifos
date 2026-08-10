@@ -12268,6 +12268,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
                 fdec: s.framesDecoded || 0, kdec: s.keyFramesDecoded || 0,
                 pliTx: s.pliCount || 0, nackTx: s.nackCount || 0,
                 drop: s.framesDropped || 0, lost: s.packetsLost || 0,
+                // ASSEMBLED vs DECODED is the split that fdec alone cannot make,
+                // and it is the whole question for the stg freeze: bytes arrive
+                // and almost nothing decodes, which is either "the depacketizer
+                // never completed a frame" (frecv stays flat -> packets are
+                // arriving but frames are not) or "frames completed and the
+                // decoder refused them" (frecv climbs while fdec does not).
+                // Those are opposite bugs and cost opposite fixes.
+                frecv: s.framesReceived || 0, pktRx: s.packetsReceived || 0,
+                freeze: s.freezeCount || 0, frzMs: Math.round((s.totalFreezesDuration || 0) * 1000),
+                asm: s.framesAssembledFromMultiplePackets || 0,
                 fw: s.frameWidth || 0, fh: s.frameHeight || 0, fps: s.framesPerSecond || 0,
                 mime: codecMime.get(s.codecId) || null, impl: s.decoderImplementation || null });
             } else if (s.type === 'outbound-rtp' && s.kind === 'video') {

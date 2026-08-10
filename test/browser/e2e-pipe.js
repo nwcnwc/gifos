@@ -341,7 +341,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                   for (const id in st) if (id.indexOf(f.key) === 0) mine[id.slice(f.key.length + 1, f.key.length + 9)] = st[id];
                   const dec = await pages[s].evaluate(async (key) => {
                     const r = (await __gifosVideo.kfStats()).find((x) => x.dir === 'in' && x.slot === 'in:' + key);
-                    return r ? { fdec: r.fdec, kdec: r.kdec } : null;
+                    return r ? { fdec: r.fdec, kdec: r.kdec, frecv: r.frecv, pktRx: r.pktRx, lost: r.lost,
+                      drop: r.drop, asm: r.asm, freeze: r.freeze, frzMs: r.frzMs, pliTx: r.pliTx, nackTx: r.nackTx,
+                      fw: r.fw, fh: r.fh, mime: r.mime, impl: r.impl } : null;
                   }, f.key).catch(() => null);
                   // The per-DESTINATION carrier behind each forward. Two peers
                   // fed from one source pipe differ only here, so this is where
@@ -371,7 +373,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                 }
                 return { seat: r.seat, me: r.me, fdec: r.dec && r.dec.fdec, kdec: r.dec && r.dec.kdec,
                   decS: (a.dec && r.dec) ? +(((r.dec.fdec - a.dec.fdec) / 2)).toFixed(1) : null,
-                  forwards: rates };
+                  // Rates for the receiver side too: assembled-per-second beside
+                  // decoded-per-second is the assembled-vs-decoded split.
+                  recvS: (a.dec && r.dec) ? +(((r.dec.frecv - a.dec.frecv) / 2)).toFixed(1) : null,
+                  pktS: (a.dec && r.dec) ? +(((r.dec.pktRx - a.dec.pktRx) / 2)).toFixed(1) : null,
+                  rx: r.dec, forwards: rates };
               });
               stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at,
                 frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up, chain });
