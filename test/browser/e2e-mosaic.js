@@ -244,21 +244,31 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // assert it directly rather than waiting for the picture to go missing: a
   // slot that has candidates and NO claim must be demanding at least one of
   // them hot. Reads only the debug API, so it costs nothing.
+  // Sampled over a WINDOW, not once: an unclaimed-slot moment is exactly the
+  // transient this bug lives in, so a single snapshot taken while everything
+  // happens to be claimed would pass vacuously and guard nothing.
   const parkedDeadlocks = [];
-  for (let i = 0; i < N; i++) {
-    const d = await pages[i].evaluate(() => {
-      const m = window.__gifosVideo.mosaic() || {};
-      return { me: m.me, claims: m.claims || [], cands: m.cands || [], demand: m.demand || [] };
-    }).catch(() => null);
-    if (!d) continue;
-    const bySlot = new Map();
-    for (const c of d.cands) { if (!bySlot.has(c.key)) bySlot.set(c.key, []); bySlot.get(c.key).push(c); }
-    for (const [rk, cs] of bySlot) {
-      if (d.claims.indexOf(rk) >= 0) continue;              // claimed — not the case under test
-      const hot = cs.some((c) => d.demand.some((e) => e.indexOf(c.from) === 0 && e.indexOf('|' + rk + '|') > 0 && /=w$/.test(e)));
-      if (!hot) parkedDeadlocks.push({ seat: 'P' + i, me: d.me, slot: rk, announcers: cs.length,
-        demands: d.demand.filter((e) => e.indexOf('|' + rk + '|') > 0) });
+  for (let pass = 0; pass < 12; pass++) {
+    for (let i = 0; i < N; i++) {
+      const d = await pages[i].evaluate(() => {
+        const m = window.__gifosVideo.mosaic() || {};
+        return { me: m.me, claims: m.claims || [], cands: m.cands || [], demand: m.demand || [] };
+      }).catch(() => null);
+      if (!d) continue;
+      const bySlot = new Map();
+      for (const c of d.cands) { if (!bySlot.has(c.key)) bySlot.set(c.key, []); bySlot.get(c.key).push(c); }
+      for (const [rk, cs] of bySlot) {
+        if (d.claims.indexOf(rk) >= 0) continue;            // claimed — not the case under test
+        const hot = cs.some((c) => d.demand.some((e) => e.indexOf(c.from) === 0 && e.indexOf('|' + rk + '|') > 0 && /=w$/.test(e)));
+        if (hot) continue;
+        const sig = i + ':' + rk;
+        if (!parkedDeadlocks.some((x) => x.sig === sig)) {
+          parkedDeadlocks.push({ sig, seat: 'P' + i, me: d.me, slot: rk, announcers: cs.length, atPass: pass,
+            demands: d.demand.filter((e) => e.indexOf('|' + rk + '|') > 0) });
+        }
+      }
     }
+    await sleep(900);
   }
   check('a slot with announcers and no claim is demanding one of them HOT (never all idle)',
     parkedDeadlocks.length === 0, parkedDeadlocks.slice(0, 4));
