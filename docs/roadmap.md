@@ -2117,3 +2117,73 @@ should be written down as the rule for every "planet-scale data" app:
   of remembered places — but a flight sim's settings, HUD and controls are a
   different product wearing the same map. Lean one app, two modes; revisit if
   the settings sheet becomes two sheets in a trenchcoat.
+
+## 12. The status service: the fourth app service the mesh doesn't have
+
+**Full write-up: [`docs/app-services.md`](app-services.md).** This entry is the
+roadmap stub; the doc is where the argument and the open questions live.
+
+**What.** An OS-level service for **per-participant live state** — each
+participant's own small, frequently-changing record, which every other
+participant wants a view of. Player position and heading, hand-raise, talking
+state, cursor, health, anything of that shape. Today no such service exists, so
+apps push it through the **DB service** (owner-signed full-state snap/delta),
+which is designed for authoritative shared state with real write contention and
+is exactly the wrong tool: a status record has one legitimate author and no
+contention at all.
+
+**Why it fits.** The mesh already gives an app three services it never has to
+implement — the **blob** swarm that distributes the app GIF, the **pool** that
+collapses a room's third-party fetches into one, and the **DB** that replicates
+authoritative state. All three are transparent: Anyroad implements none of them.
+Status is the missing fourth, and its absence is currently a **platform** cap on
+every multiplayer app, not an app bug. Anyroad tops out around a couple of dozen
+players on a seating protocol the sim converges at a million
+(`docs/scale-1m-2026-08-07.md`); the gap is entirely this.
+
+**Why it is not a small port of the Stadium fold.** We have folded two things
+along the mosaic and neither transfers. Video is bounded because pixels
+**downscale**; votes are bounded because a tally is a **reduction**
+(`docs/vote-scale.md`). A set of N distinct records is neither — it is bounded
+only by throwing away precision, freshness, or membership. Status *can* trade
+freshness in a way video never can (each node patches its own table as fragments
+land, so nobody needs a coherent snapshot), and that is the cheapest knob we
+have. But which combination of the three, over which topology, is **not
+decided** — the doc lays out a tree fold and an anti-entropy gossip as
+candidates without picking one.
+
+**Sketch.** Deliberately not a build plan yet:
+
+1. **Settle whether the global view is wanted at all** (`app-services.md` Q1).
+   If an app's real need is only the *local* view, the global service reduces to
+   per-cell counts — a reduction, and therefore already solved by the
+   `vote-scale.md` shape. A yes and a no build completely different things, so
+   this comes first.
+2. **Pick a mechanism** against the arithmetic in §3.4 of the doc — at a
+   million participants and one video stream's worth of budget, hearing about a
+   specific stranger lands around 30 s (raw) or 2m 40s (per-record signed), and
+   that 5× signature overhead is itself an open question.
+3. **Sim-first**, the same gate votes have (`vote-scale.md` §5): budget
+   saturation, deep-subtree starvation, liar/censoring head, churn mid-fold,
+   C-sweep — green in `test/sim/mesh.cpp` before run.html learns anything.
+4. **Then a transparent API**, the way the pool is transparent: an app declares
+   a status schema in its manifest and reads a table, and never sees the
+   transport.
+
+**Open questions.** Six of them, stated properly in `app-services.md` §3.6 —
+the shape is: is the global view even wanted; does staleness-ordering bound
+worst-case staleness through a tree; how much relevance can be declarative
+rather than app code running on other people's devices; what the trust model is
+once per-record signatures cost 5× the budget; whether a declared typed-tuple
+schema buys generic quantization; and what the real record budget is.
+
+**And a related open question that is not this service (§5 of the doc).** A
+global status view cannot also be a local one, at any budget — the fold tells
+you roughly where everyone is, and something else must tell you what the people
+*around* you are doing. Three candidates: **cell-keyed ad-hoc rows** (a Row, not
+a child stadium — which would need simultaneous membership in several meshes,
+something nothing in the codebase does today), **subrooms** (§4d — a migration
+with a whole stadium of overhead per room, right for humans taking a breakout
+and wrong for a car crossing a street), and **swap pools**
+(`mmog-ideas.md` §4 — bounded by that document's own "topology is weather"
+doctrine, and unable to track continuous motion).
