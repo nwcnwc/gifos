@@ -306,6 +306,42 @@ async function runConsumer(page, context, label, outTimeout) {
     await askai.close();
   }
 
+  // ---- 10. THE SIBLING PROVIDER: Offline Cheap Text LLM Gemma --------------
+  // Two apps now provide the SAME 'cheapest' role (docs/providers.md: no
+  // auto-assignment — the user picks). Guard that the second one boots its own
+  // engine in the hidden provider mount and answers, honestly labeled with ITS
+  // model's name. Without this the Gemma app would ship with nothing testing it.
+  {
+    const gemmaBytes = fs.readFileSync(appGif('offline-llm-gemma'));
+    await page.evaluate(async (b64) => {
+      const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const fid = GifOS.store.uid('file');
+      await GifOS.store.putFile({ id: fid, name: 'Offline Cheap Text LLM Gemma.gif', bytes, kind: 'gif', isApp: true, appId: 'offline-llm-gemma', mime: 'image/gif' });
+      await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Offline Cheap Text LLM Gemma.gif', parent: 'sys_providers', x: 470, y: 90, iconSize: 64 });
+      // Reassign the role to the sibling — the switch the user makes in
+      // Settings -> AI models.
+      localStorage.setItem('gifos_ai_config', JSON.stringify({ cheapest: { app: fid, appId: 'offline-llm-gemma', appName: 'Offline Cheap Text LLM Gemma' } }));
+    }, gemmaBytes.toString('base64'));
+
+    const [askai2] = await Promise.all([context.waitForEvent('page'), page.locator('.icon', { hasText: 'Ask AI.gif' }).dblclick()]);
+    await askai2.waitForSelector('iframe', { timeout: 10000 });
+    const ackBox2 = askai2.locator('.perm-box', { hasText: 'would like to' });
+    try { await ackBox2.waitFor({ timeout: 5000 }); await ackBox2.locator('.done').click(); } catch (e) { /* already acked */ }
+    const fr2 = askai2.frameLocator('#appmount iframe');
+    await fr2.locator('#t').fill('hello');
+    await fr2.locator('#f button').click();
+    await fr2.locator('.m.ai').filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async () => {
+      const shown = await fr2.locator('.m.ai').last().textContent().catch(() => '(no ai bubble)');
+      throw new Error('Gemma provider never answered; the app shows: ' + String(shown).slice(0, 300));
+    });
+    const reply2 = await fr2.locator('.m.ai').last().textContent();
+    check('the SIBLING provider (Gemma) serves the same cheapest role from its own GIF',
+      /\[self-test model — token soup/.test(reply2) && /Install the Gemma weights/.test(reply2),
+      reply2.slice(0, 110));
+    await askai2.close();
+  }
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
