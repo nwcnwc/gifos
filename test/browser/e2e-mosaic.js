@@ -258,6 +258,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const bySlot = new Map();
       for (const c of d.cands) { if (!bySlot.has(c.key)) bySlot.set(c.key, []); bySlot.get(c.key).push(c); }
       for (const [rk, cs] of bySlot) {
+        // ONLY the slots claimRedun actually governs. `isRedun` in run.html is
+        // sdm/sdx/sdn/sgs/stg:*/sdrow:* — those are the ones whose demand is
+        // decided by the hot set this invariant is about. Everything else
+        // (sub:, x1:, x2:, sdnm:) takes the plain sticky-claim path and is
+        // demanded by other machinery entirely (sdnm rides the mx-want relay),
+        // so "no claim and not hot" is an ordinary state there, not a deadlock.
+        // Measured: without this scope the guard reds on sdnm:1_1_0 in a
+        // perfectly healthy room — a false positive that would have put a
+        // permanent red in the gate.
+        if (!/^(sdm|sdx|sdn|sgs)$/.test(rk) && rk.indexOf('stg:') !== 0 && rk.indexOf('sdrow:') !== 0) continue;
         if (d.claims.indexOf(rk) >= 0) continue;            // claimed — not the case under test
         const hot = cs.some((c) => d.demand.some((e) => e.indexOf(c.from) === 0 && e.indexOf('|' + rk + '|') > 0 && /=w$/.test(e)));
         if (hot) continue;
