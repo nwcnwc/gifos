@@ -187,6 +187,20 @@
   </div>
 </div>
 
+<!-- ── the world status sheet ────────────────────────────────────────────
+     What every tile around you is doing, and why it is not here yet. Opened
+     by tapping the tile map: the map shows the shape of the problem, this
+     shows the reason. -->
+<div id="worldstat" class="overlay" hidden>
+  <div class="sheet">
+    <div class="sheet-head"><h2>Building the world</h2><button class="close" id="close-worldstat" aria-label="Close">✕</button></div>
+    <p class="add-help" id="ws-summary"></p>
+    <div id="ws-mirrors"></div>
+    <div id="ws-tiles"></div>
+    <button class="sheet-close" id="close-worldstat-bottom">Close<small>or press Esc</small></button>
+  </div>
+</div>
+
 <!-- ── landing / hop ─────────────────────────────────────────────────────── -->
 <div id="landing" class="overlay">
   <div class="sheet">

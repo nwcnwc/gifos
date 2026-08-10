@@ -1128,6 +1128,41 @@
     return carGL;
   }
 
+  // ---- the fish mesh -------------------------------------------------------
+  // A shark is not a cow with different proportions. The quadruped mesh has
+  // FOUR LEGS, and no amount of uShape squashing hides them — stretched flat
+  // it reads as roadkill, not as something swimming. So swimmers get their own
+  // small mesh: a body that tapers both ways, a vertical tail fin and a dorsal
+  // fin. Facing +Z like everything else, sitting on y=0 so the waterline cuts
+  // it at the same place the car's wheels touch the road.
+  function buildFishMesh() {
+    var o = { pos: [], nrm: [], col: [], idx: [] };
+    var body = [1, 1, 1], fin = [0.86, 0.88, 0.92];
+    // Three stacked boxes of falling width make a taper cheaply — a real
+    // spindle would be a lathe and a normal-smoothing pass for a shape you
+    // mostly see as a silhouette against water.
+    boxInto(o, 0, 0.42, 0.55,  0.30, 0.26, 0.62, body);   // shoulders
+    boxInto(o, 0, 0.42, -0.30, 0.22, 0.20, 0.42, body);   // waist
+    boxInto(o, 0, 0.42, -0.86, 0.10, 0.12, 0.22, body);   // peduncle
+    boxInto(o, 0, 0.44, 1.16,  0.16, 0.15, 0.30, body);   // snout
+    // Tail: a vertical blade, taller than it is thick.
+    boxInto(o, 0, 0.52, -1.16, 0.05, 0.42, 0.20, fin);
+    // Dorsal fin — the one part you actually see from a car.
+    boxInto(o, 0, 0.82, 0.35,  0.05, 0.30, 0.26, fin);
+    // Pectorals, low and swept.
+    boxInto(o, -0.30, 0.34, 0.45, 0.22, 0.04, 0.14, fin);
+    boxInto(o,  0.30, 0.34, 0.45, 0.22, 0.04, 0.14, fin);
+    return {
+      positions: new Float32Array(o.pos), normals: new Float32Array(o.nrm),
+      colors: new Float32Array(o.col), indices: new Uint16Array(o.idx), count: o.idx.length,
+    };
+  }
+  var fishGL = null;
+  function uploadFish() {
+    if (!fishGL) fishGL = uploadBody(buildFishMesh());
+    return fishGL;
+  }
+
   function uploadAnimal() {
     if (!animalGL) animalGL = uploadBody(buildAnimalMesh());
     return animalGL;
@@ -1700,13 +1735,38 @@
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ag.ibo);
       gl.uniform1f(progs.car.u.uGloss, 0.10);      // fur is not paint
       gl.uniform1f(progs.car.u.uEmit, 0);
+      // Two meshes, one program, rebinding only on CHANGE — the same trick the
+      // car/aeroplane pair uses. Swimmers are wet, so they get a real
+      // highlight; fur does not.
+      // Its OWN binder: bindBody above lives inside the cars block, and this
+      // file is strict, so a block-scoped function declaration is genuinely
+      // out of scope here — borrowing it would throw the first time a fish
+      // swam past.
+      var bindAnimal = function (g) {
+        ['aPos','aNormal','aColor'].forEach(function (name) {
+          var loc = progs.car.a[name];
+          if (loc === undefined || loc < 0) return;
+          gl.bindBuffer(gl.ARRAY_BUFFER, g.vbo[name]);
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+        });
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, g.ibo);
+      };
+      var boundFish = false;
       for (var an = 0; an < animals.length; an++) {
         var b0 = animals[an];
+        var wantFish = !!b0.swim;
+        if (wantFish !== boundFish) {
+          bindAnimal(wantFish ? uploadFish() : ag);
+          gl.uniform1f(progs.car.u.uGloss, wantFish ? 0.75 : 0.10);
+          boundFish = wantFish;
+        }
         carMatrix(am, b0.x, b0.y, b0.z, b0.yaw, b0.tilt || 0, 0);
         gl.uniformMatrix4fv(progs.car.u.uModel, false, am);
         gl.uniform3fv(progs.car.u.uTint, b0.tint);
         gl.uniform3fv(progs.car.u.uShape, b0.shape || ONE);
-        gl.drawElements(gl.TRIANGLES, ag.count, ag.type, 0);
+        var gnow2 = boundFish ? uploadFish() : ag;
+        gl.drawElements(gl.TRIANGLES, gnow2.count, gnow2.type, 0);
       }
       ['aPos','aNormal','aColor'].forEach(function (name) {
         var loc = progs.car.a[name];

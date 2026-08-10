@@ -406,11 +406,49 @@
     return null;
   }
 
+  // Was the aircraft inside a building's volume last frame? The SIDE strike
+  // below fires on the crossing, and only the crossing.
+  var wasInside = false;
+
   function checkRoofStrike() {
-    if (!world.frame) { lastY = car.y; return; }
-    if (!(car.flying || car.falling) || car.vy >= 0) { lastY = car.y; return; }
+    if (!world.frame || !(car.flying || car.falling)) { lastY = car.y; wasInside = false; return; }
     var top = roofTopAt(car.x, car.z);
-    if (top === null) { lastY = car.y; return; }
+    var inside = top !== null && car.y < top;
+
+    // ---- FLYING INTO THE SIDE OF A BUILDING --------------------------------
+    // The ground path skips collideBuildings entirely above 4 m AGL (a plane
+    // must not scrape kerbs), and the roof check below only ever fired on a
+    // DESCENDING pass through a roof — so a tower hit head-on at altitude was
+    // fog. You flew through the Shard and out the other side, undamaged.
+    //
+    // The wall index is 2-D and cannot answer "is this wall tall enough",
+    // which is why it was skipped rather than height-filtered. The ROOF index
+    // can: it carries each footprint's height, so "inside the footprint AND
+    // below its roof" IS "inside the building". Fire on the frame you cross
+    // in — substepping already runs this often enough that a fast aircraft
+    // cannot step over a facade.
+    if (inside && !wasInside && !(lastY !== null && lastY > top)) {
+      var v = Math.abs(car.speed);
+      var dmg = Math.min(80, 12 + v * 1.5);
+      root.Sound.glass();
+      root.Sound.crash(Math.min(1, 0.55 + v / 60));
+      shake = Math.min(1, Math.max(shake, 0.6 + Math.min(0.4, v / 70)));
+      for (var wa = 0; wa < 6; wa++) {
+        var wang = (wa / 6) * Math.PI * 2;
+        puff(car.x + Math.cos(wang) * 1.6, car.y + 0.5, car.z + Math.sin(wang) * 1.6, 1.2);
+      }
+      puff(car.x, car.y + 0.6, car.z, 2.6);
+      car.speed *= 0.18;                 // a facade is not something you carry on through
+      car.flying = false; car.falling = true;
+      car.health = Math.max(0, car.health - dmg);
+      if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+      root.UI.damage(car.health, true, dmg);
+      root.UI.note('Straight into the building.');
+      lastY = car.y; wasInside = true;
+      return;
+    }
+
+    if (top === null || car.vy >= 0) { lastY = car.y; wasInside = inside; return; }
     if (lastY !== null && lastY > top && car.y <= top) {
       var fall = Math.min(1, Math.abs(car.vy) / 26);
       // Slates first, then the structural thud underneath it.
@@ -434,8 +472,11 @@
       car.health = Math.max(0, car.health - (14 + fall * 46));
       if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
       root.UI.note('Straight through the roof.');
+      lastY = car.y; wasInside = true;
+      return;
     }
     lastY = car.y;
+    wasInside = inside;
   }
 
   function updateInWater() {
@@ -561,6 +602,16 @@
     // something you see from thirty metres — but a sheep that materialises
     // inside an office block is visible from the road, and in a city that is
     // most of the verge.
+    // Is this spot WET? The same index the car drowns in, so the wildlife and
+    // the player agree about where the river is.
+    water: function (x, z) {
+      for (var k in world.roads) {
+        var r = world.roads[k];
+        if (!r || !r.built || !r.built.wet) continue;
+        if (root.Roads.inWater(r.built.wet, x, z)) return true;
+      }
+      return false;
+    },
     solid: function (x, z) {
       beastScratch.length = 0;
       for (var k in world.roads) {
@@ -921,10 +972,20 @@
   }
 
   // ---- hop -----------------------------------------------------------------
-  var hopped = false, placedOnRoad = false;
+  var hopped = false, placedOnRoad = false, spawnChecked = false;
   var lastImagery = 'none';
 
   function hop(lat, lon, label) {
+    // A HOP TO NOWHERE IS NOT A NO-OP. Called with undefined (a malformed
+    // search result, a peer's world record written by an older build, a typo
+    // in a probe) this built a frame around NaN: every toWorld/heightAt
+    // downstream returned NaN, the car had no position, and — because the
+    // world record is republished on every hop — it took the whole ROOM's
+    // idea of where everyone was with it. Refuse, loudly, and stay put.
+    if (!isFinite(lat) || !isFinite(lon)) {
+      root.UI.note('That place has no coordinates — staying put.');
+      return;
+    }
     hopped = true;
     hopGen++;                      // orphan every tile load still in flight
     placedOnRoad = false;
@@ -1005,6 +1066,43 @@
     }
     out.heading = car.yaw;
     return out;
+  }
+
+  // EVERYTHING THE APP KNOWS ABOUT WHY THE WORLD IS NOT HERE YET, in one
+  // object. The tile map has always shown the SHAPE of the problem (a red
+  // square) and never the reason, so "waiting for tiles that never build" was
+  // a question only a developer with a console could answer. Every field here
+  // already existed somewhere; none of it was reachable.
+  function worldReport() {
+    if (!world.frame) return null;
+    var net = root.Net.stats();
+    var want = world.wanted.roads || [];
+    var rows = [];
+    for (var i = 0; i < want.length; i++) {
+      var t = want[i], k = root.Geo.tileKey(t), slot = world.roads[k];
+      var live = root.Roads.tileState(k), err = root.Roads.tileError(k);
+      var detail = (slot && slot.geom && slot.geom.detail != null) ? slot.geom.detail : null;
+      var state = 'queued';
+      if (slot && slot.built) state = detail >= 2 ? 'ready' : (detail === 1 ? 'no scenery' : 'roads only');
+      else if (slot && slot.geom) state = 'building';
+      else if (slot && slot.failed) state = 'failed';
+      else if (slot && slot.pending) state = 'fetching';
+      rows.push({
+        key: k, dx: t.x - want[0].x, dy: t.y - want[0].y, state: state, detail: detail,
+        mirror: live ? live.mirror : (err ? err.mirror : ''),
+        queue: live ? live.queue : -1, waited: live ? Math.round(live.waited / 100) / 10 : 0,
+        err: err ? { status: err.status, busy: err.busy, msg: err.msg, detail: err.detail,
+                     ago: Math.round((Date.now() - err.at) / 1000) } : null,
+      });
+    }
+    var c = world.frame.toGeo(car.x, car.z);
+    return {
+      place: world.place, rows: rows,
+      net: { pending: net.pending, active: net.active, backoffMs: net.backoffMs },
+      mirrors: root.Roads.mirrorHealth(c.lat, c.lon),
+      cache: { tiles: root.Roads.cacheSize(), bytes: root.Roads.cacheBytes(),
+               budget: root.Sources.totalBytes() },
+    };
   }
 
   // ---- filling the map in around you ---------------------------------------
@@ -1133,6 +1231,49 @@
       }
     }).catch(function () { /* busy server: try again next time round */ })
       .then(function () { flagBusy = false; });
+  }
+
+  // ---- spawning where a car can actually be --------------------------------
+  // The drop point is a coordinate, and coordinates land inside buildings:
+  // you arrive in somebody's living room, every wall in reach, and the only
+  // way out is the unstick rescue you have not been told about. A footprint
+  // is exactly what the roof index answers for, so ask it and step out.
+  function insideBuilding(x, z) { return roofTopAt(x, z) !== null; }
+
+  function stepOutOfBuilding() {
+    if (!insideBuilding(car.x, car.z)) return false;
+    // Outward in rings: the nearest free ground, not a random shove. Twelve
+    // directions is enough — a footprint you cannot escape in 60 m of any of
+    // them is a city block, and the road snap below is the answer to that.
+    for (var r = 4; r <= 60; r += 4) {
+      for (var a = 0; a < 12; a++) {
+        var ang = a * Math.PI / 6;
+        var x = car.x + Math.cos(ang) * r, z = car.z + Math.sin(ang) * r;
+        if (!insideBuilding(x, z)) {
+          car.x = x; car.z = z;
+          var g = root.Terrain.heightAt(world.frame, x, z);
+          if (g !== null) car.y = g;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Back to where this place started, WITHOUT rebuilding the world. The frame
+  // origin IS the spawn point, so this is a move, not a hop: instant, and the
+  // streets you already loaded stay loaded.
+  function returnToSpawn() {
+    if (!world.frame) return false;
+    car.x = 0; car.z = 0; car.speed = 0; car.vy = 0;
+    car.flying = false; car.falling = false; car.halted = false;
+    snapToRoad();
+    stepOutOfBuilding();
+    var g = root.Terrain.heightAt(world.frame, car.x, car.z);
+    if (g !== null) car.y = g;
+    shake = 0;
+    root.UI.note('Back at ' + (world.place || 'the start') + '.');
+    return true;
   }
 
   // ---- camera --------------------------------------------------------------
@@ -1306,6 +1447,9 @@
     // the budget for this — by the time control is handed over, either a road
     // was found or this is genuinely the middle of nowhere.
     if (!placedOnRoad && hopAnim < 2.6) placedOnRoad = snapToRoad();
+    // The descent is over and the tiles that were going to arrive have: this
+    // is the last honest moment to notice we landed inside a building.
+    if (!spawnChecked && hopAnim > 2.6) { spawnChecked = true; stepOutOfBuilding(); }
 
     // Nothing responds until the ground exists — otherwise the first two
     // seconds are spent driving an invisible car across a void.
@@ -1631,6 +1775,8 @@
     // authority over your car but you. Small, on purpose.
     // ANYONE finishing is an event for EVERYONE. Fireworks over the flag, a
     // fanfare, and a line saying who it was and where they came.
+    // Room-level news: somebody moved the world and we went with them.
+    root.MP.onNote(function (msg) { root.UI.note(msg); });
     root.MP.onFinish(function (f) {
       var ord = ['', '1st', '2nd', '3rd', '4th', '5th', '6th'][f.place] || (f.place + 'th');
       root.Sound.fanfare(f.place);
@@ -1693,6 +1839,7 @@
     // Why the car is or is not moving, in one call. The loop has several gates
     // (ground loaded, descent finished, input) and from the outside every one
     // of them looks identical: a stationary car.
+    worldReport: worldReport, returnToSpawn: returnToSpawn,
     debug: function () {
       return {
         running: running, hopAnim: hopAnim, frames: frames,

@@ -44,6 +44,23 @@
     { id: 'goose', size: 0.42, r: 0.38, mass: 0.18, walk: 1.0, run: 5.0, tint: [0.93, 0.92, 0.88], shape: [0.75, 1.35, 0.80], label: 'A goose' },
   ];
 
+  // WHAT LIVES IN THE WATER. "I drove into the Hudson River and there were
+  // animals running around on the bottom of the river" — cows and dogs, because
+  // trySpawn tested the ground and the buildings and never asked whether the
+  // spot was wet. Land animals are now kept on dry land, and the water gets its
+  // own list: these spawn ONLY where there is water, and never anywhere else.
+  // `swim` also picks the mesh (render.js) — a shark is not a cow with
+  // different proportions; the quadruped has four legs and no scaling hides
+  // them.
+  var SWIMMERS = [
+    { id: 'fish',    size: 0.55, r: 0.45, mass: 0.10, walk: 1.6, run: 5.5, tint: [0.55, 0.62, 0.66], shape: [1.00, 1.00, 1.00], label: 'A fish', swim: true },
+    { id: 'dolphin', size: 1.10, r: 0.85, mass: 0.60, walk: 2.4, run: 9.0, tint: [0.42, 0.48, 0.55], shape: [1.00, 1.00, 1.25], label: 'A dolphin', swim: true },
+    { id: 'shark',   size: 1.55, r: 1.15, mass: 1.30, walk: 1.8, run: 10.5, tint: [0.36, 0.40, 0.44], shape: [1.05, 1.05, 1.45], label: 'A shark', swim: true },
+    // Big enough that meeting one is an event, slow enough that it is your
+    // fault if you hit it.
+    { id: 'whale',   size: 3.40, r: 3.00, mass: 3.20, walk: 1.2, run: 3.4, tint: [0.30, 0.34, 0.40], shape: [1.10, 0.95, 1.70], label: 'A whale', swim: true },
+  ];
+
   var MAX = 7;                 // alive at once
   var SPAWN_NEAR = 60;         // metres — never closer than this to the car
   var SPAWN_FAR = 165;
@@ -90,10 +107,17 @@
     if (y === null) return null;                 // no ground here yet
     if (ctx.solid && ctx.solid(x, z)) return null;   // inside a building
 
-    var kind = pick(KINDS);
+    // WET OR DRY decides WHAT, not whether. The road rule above exists so you
+    // can see them from the carriageway; a river runs where it runs, so a
+    // water spot that failed the road test is still worth a fish.
+    var wet = !!(ctx.water && ctx.water(x, z));
+    var kind = pick(wet ? SWIMMERS : KINDS);
     return {
-      id: ++seq, kind: kind,
-      x: x, z: z, y: y, yaw: rnd(0, Math.PI * 2),
+      id: ++seq, kind: kind, swim: wet,
+      // A swimmer rides AT the surface — terrarium elevation over open water
+      // is the water surface, not the bed, so a little above it puts a back
+      // and a fin where you can see them instead of on the bottom.
+      x: x, z: z, y: wet ? y + 0.15 : y, yaw: rnd(0, Math.PI * 2),
       state: 'graze', t: rnd(1, 4), speed: 0,
       bob: rnd(0, 6.28), tilt: 0, vy: 0, gone: 0,
     };
@@ -156,10 +180,23 @@
     var want = a.state === 'flee' ? a.kind.run : a.state === 'cross' ? a.kind.walk * 2.2 : a.kind.walk;
     if (a.state === 'graze' && Math.random() < 0.4 * dt) want = 0;   // heads down
     a.speed += (want - a.speed) * Math.min(1, dt * 3.5);
+    // THE SHORELINE IS A WALL, both ways. A deer that wanders into the river
+    // is the bug that started this; a shark that swims up the bank is the same
+    // bug wearing a fin. Step, test, and turn back if the ground changed
+    // state — cheaper and steadier than steering along a normal we do not have.
+    var px = a.x, pz = a.z;
     a.x += Math.sin(a.yaw) * a.speed * dt;
     a.z += Math.cos(a.yaw) * a.speed * dt;
+    if (ctx.water) {
+      var wetNow = !!ctx.water(a.x, a.z);
+      if (wetNow !== !!a.kind.swim) {
+        a.x = px; a.z = pz;
+        a.yaw += Math.PI * 0.6 + rnd(-0.4, 0.4);   // sheer away from the edge
+        a.t = Math.min(a.t, 0.6);
+      }
+    }
     var h = ctx.height(a.x, a.z);
-    if (h !== null) a.y = h;
+    if (h !== null) a.y = a.kind.swim ? h + 0.15 : h;
     a.bob += dt * (2.5 + a.speed * 1.6);
   }
 
@@ -279,6 +316,7 @@
         x: a.x, y: a.y + bob - sink, z: a.z, yaw: a.yaw,
         shape: [a.kind.shape[0] * s, a.kind.shape[1] * s, a.kind.shape[2] * s],
         tint: a.kind.tint,
+        swim: !!a.kind.swim,            // picks the fish mesh in render.js
         tilt: a.state === 'hit' ? a.tilt : moving * 0.10,
         groundY: a.y - sink,
       });

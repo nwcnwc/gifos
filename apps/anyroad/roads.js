@@ -696,7 +696,27 @@
           touch(key); saveIndex();
           return hit;
         }
-        return fetchTile(tile, key).catch(function () {
+        return fetchTile(tile, key).then(function (fresh) {
+          // A REFETCH MAY NEVER MAKE A TILE POORER. The detail ladder sheds
+          // buildings when a mirror is busy (504 / too-large), and until now a
+          // shed answer was simply saved — so a tile that HAD buildings could
+          // come back roads-only and stay that way. That was survivable while
+          // only roads-only records were ever retried; the parser-version
+          // refetch (pv) made every rich tile a candidate, which turns one
+          // busy evening into "I teleported around and stopped getting
+          // buildings anywhere". Keep the better record, and re-stamp it so
+          // this does not re-ask on every visit.
+          if ((fresh.detail || 0) >= recDetail) return fresh;
+          var kept = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [],
+                       land: rec.land || [], pool: rec.pool || [],
+                       dense: !!rec.dense, detail: recDetail };
+          memory[key] = kept;
+          db().put({ id: 't' + key, ways: kept.ways, bld: kept.bld, wat: kept.wat,
+                     land: kept.land, pool: kept.pool, dense: kept.dense,
+                     detail: kept.detail, pv: PARSE_V, at: Date.now() }).catch(function () {});
+          touch(key); saveIndex();
+          return kept;
+        }).catch(function () {
           // The retry failed too — the stale roads are still a world to drive.
           var old = { ways: rec.ways, bld: rec.bld || [], wat: rec.wat || [],
                       land: rec.land || [], pool: rec.pool || [], dense: true,
@@ -731,7 +751,8 @@
   // Health is measured, not assumed: an exponential moving average of how long
   // each mirror took, plus whatever backoff net.js has already imposed on it.
   var mirrorStat = {};
-  var inflightTile = {};        // tile key -> which mirror it is waiting on
+  var inflightTile = {};
+  var lastErr = {};        // tileKey -> the last refusal, for the status panel
 
   // What is happening to this tile RIGHT NOW, for the loading map. null once it
   // has landed (or before it was ever asked for).
@@ -780,8 +801,17 @@
       inflightTile[key] = { url: url, host: root.Net.hostOf(url), mirror: src.name, since: t0 };
       function done() { if (inflightTile[key] && inflightTile[key].url === url) delete inflightTile[key]; }
       return root.Net.json(url)
-        .then(function (json) { noteLatency(src.url, Date.now() - t0); done(); return parse(json, detail); },
-              function (err) { noteFail(src.url); done(); throw err; });
+        .then(function (json) { noteLatency(src.url, Date.now() - t0); done(); delete lastErr[key]; return parse(json, detail); },
+              function (err) {
+                noteFail(src.url); done();
+                // REMEMBER WHY. "Waiting for tiles that never build" is a
+                // question the app could always answer and never did — the
+                // refusal was known here and thrown away one frame later.
+                lastErr[key] = { status: err.status || 0, busy: !!err.busy, detail: detail,
+                                 mirror: src.name, msg: String(err.message || err).slice(0, 90),
+                                 at: Date.now() };
+                throw err;
+              });
     }
 
     // Walk the ranked mirrors. A busy or broken server hands the tile to the
@@ -2072,6 +2102,24 @@
     nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater, waterAt: waterAt, DROWN_AREA: DROWN_AREA, roofAt: roofAt,
     // The mirror pool, exported so a suite can watch it route.
     rankMirrors: rankMirrors, mirrorScore: mirrorScore, tileState: tileState,
+    // Why a tile is not here yet, and how each mirror is behaving. The status
+    // panel reads these; nothing else may need them, and that is fine — an
+    // app that cannot explain itself is an app you argue with.
+    tileError: function (key) { return lastErr[key] || null; },
+    // The mirrors that would serve THIS spot, in the order the router would
+    // pick them — the same rankMirrors the fetcher uses, so the panel cannot
+    // describe a policy the app does not follow.
+    mirrorHealth: function (lat, lon) {
+      var pool = rankMirrors(lat, lon);
+      var out = [];
+      for (var i = 0; i < pool.length; i++) {
+        var src = pool[i];
+        var st = statFor(src.url), q = root.Net.hostState(st.host);
+        out.push({ name: src.name, host: st.host, lat: Math.round(st.lat), fails: st.fails,
+                   backoffMs: q.busyMs, pending: q.pending, active: q.active, strikes: q.strikes });
+      }
+      return out;
+    },
     // The road index, buildable from any fetched geometry — the race flag needs
     // to ask "where is the nearest road" about a tile it has no mesh for and is
     // nowhere near.
