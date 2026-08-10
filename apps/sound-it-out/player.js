@@ -61,6 +61,11 @@
     this.loop = !!opts.loop;
     this.draw = opts.draw;
     this.onDone = opts.onDone || null;
+    // An externally clocked engine does not start its own requestAnimationFrame
+    // loop - the caller calls tick(). The exporter needs this: rAF stops dead
+    // in a background tab, and a save runs in real time, so the tab WILL be in
+    // the background. See exporter.js.
+    this.external = !!opts.external;
     this.cues = cueTimes(plan);
     this.sources = [];
     this.raf = 0;
@@ -70,39 +75,48 @@
     this.stopped = false;
   }
 
+  // One step of the clock: advance the cycle, redraw if the state changed.
+  // Safe to call at any rate - the state is read from the audio clock, never
+  // accumulated, so a slow or irregular caller is late, never wrong.
+  Engine.prototype.tick = function () {
+    if (this.stopped) return;
+    const t = this.ctx.currentTime - this.cycleStart;
+    if (t >= this.plan.duration) {
+      if (this.loop) {
+        // the next cycle was scheduled below; roll the clock forward
+        this.cycleStart += this.plan.duration;
+        this.nextScheduled = false;
+        this.lastIndex = -1;
+      } else {
+        this.stop();
+        if (this.onDone) this.onDone();
+        return;
+      }
+    } else if (this.loop && !this.nextScheduled && t > this.plan.duration - 1.5) {
+      this.sources = this.sources.concat(
+        scheduleCycle(this.ctx, this.dest, this.plan, this.cycleStart + this.plan.duration));
+      this.nextScheduled = true;
+    }
+    const idx = this.indexAt(Math.max(0, this.ctx.currentTime - this.cycleStart));
+    if (idx !== this.lastIndex && idx < this.plan.entries.length) {
+      this.lastIndex = idx;
+      this.draw(this.plan.entries[idx].seg);
+    }
+  };
+
   Engine.prototype.start = function () {
     const now = this.ctx.currentTime;
     this.cycleStart = now + 0.15;
     this.sources = scheduleCycle(this.ctx, this.dest, this.plan, this.cycleStart);
-    const tick = () => {
-      if (this.stopped) return;
-      const t = this.ctx.currentTime - this.cycleStart;
-      if (t >= this.plan.duration) {
-        if (this.loop) {
-          // the next cycle was scheduled below; roll the clock forward
-          this.cycleStart += this.plan.duration;
-          this.nextScheduled = false;
-          this.lastIndex = -1;
-        } else {
-          this.stop();
-          if (this.onDone) this.onDone();
-          return;
-        }
-      } else if (this.loop && !this.nextScheduled && t > this.plan.duration - 1.5) {
-        this.sources = this.sources.concat(
-          scheduleCycle(this.ctx, this.dest, this.plan, this.cycleStart + this.plan.duration));
-        this.nextScheduled = true;
-      }
-      const idx = this.indexAt(Math.max(0, this.ctx.currentTime - this.cycleStart));
-      if (idx !== this.lastIndex && idx < this.plan.entries.length) {
-        this.lastIndex = idx;
-        this.draw(this.plan.entries[idx].seg);
-      }
-      this.raf = requestAnimationFrame(tick);
-    };
     // paint the first frame immediately, before audio starts
     if (this.plan.entries.length) this.draw(this.plan.entries[0].seg);
-    this.raf = requestAnimationFrame(tick);
+    if (this.external) return;
+    const loop = () => {
+      if (this.stopped) return;
+      this.tick();
+      if (!this.stopped) this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
   };
 
   Engine.prototype.indexAt = function (t) {

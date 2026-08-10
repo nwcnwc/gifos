@@ -54,30 +54,93 @@
       rec.onstop = () => resolve(new Blob(chunks, { type: rec.mimeType || 'video/webm' }));
 
       let tickTimer = 0;
+      // The picture is not a side effect of the sound here, it IS the video
+      // track: captureStream only emits a frame when the canvas is PAINTED.
+      // Painting only on state change gave a 14 second video 14 frames, and
+      // ended the video track at the last visual change - the closing pause
+      // was simply missing from the file, audio outlasting video by seconds.
+      // So the export repaints the current frame at the capture rate, right
+      // through every pad, until the plan is over.
+      let lastSeg = null;
+      const paint = (seg) => { lastSeg = seg; F.drawFrame(cctx, seg, theme); };
       const engine = new SIO.player.Engine(plan, {
         ctx: actx,
         // mastered exactly like the on-screen player, so the file and the
         // screen are the same loudness
         dest: SIO.player.masterChain(actx, dest),
         loop: false,
-        draw: (seg) => F.drawFrame(cctx, seg, theme),
+        external: true, // clocked by the pump below, never by rAF
+        draw: paint,
         onDone: () => {
           clearInterval(tickTimer);
+          stopPump();
           // let the last frame land before the recorder closes
           setTimeout(() => { try { rec.stop(); } catch (e) { /* already stopped */ } }, 300);
         },
       });
 
+      // The clock. NOT requestAnimationFrame and NOT setInterval: a save runs
+      // in real time - ten minutes of video is ten minutes of waiting - so the
+      // tab is in the background for almost all of it, where rAF stops dead
+      // and timers are throttled to a crawl. Audio is the one thing a hidden
+      // tab keeps running at full rate (that is why music plays in background
+      // tabs), so the export is driven by an audio callback. Before this, a
+      // backgrounded save recorded a frozen picture over correct sound - and
+      // never finished at all, because the engine's own end-of-plan check
+      // rode on the same stalled loop.
+      const pump = actx.createScriptProcessor ? actx.createScriptProcessor(2048, 1, 1) : null;
+      const mute = actx.createGain();
+      mute.gain.value = 0;
+      let lastPaint = -1;
+      function stopPump() {
+        if (!pump) return;
+        pump.onaudioprocess = null;
+        try { pump.disconnect(); mute.disconnect(); } catch (e) { /* already gone */ }
+      }
+      // A beat of the opening frame before anything happens, because the
+      // recorder's first chunk carries the first 1920x1080 keyframe and
+      // encoding it stalls the capture for the best part of a second -
+      // measured at 0.65-0.93s on a software encoder, always right at the
+      // start, and it survives dropping the chunk timeslice. Landing that on a
+      // still frame costs a second of held picture; landing it on the plan
+      // ate the first highlight change out of the file entirely.
+      const WARMUP = 2.5;
+      let planStarted = 0; // the audio-clock moment the plan itself began
+      const beginPlan = () => { planStarted = actx.currentTime; engine.start(); };
+      if (pump) {
+        const t0 = actx.currentTime;
+        pump.onaudioprocess = () => {
+          const now = actx.currentTime;
+          if (!planStarted && now - t0 >= WARMUP) beginPlan();
+          if (planStarted) engine.tick();
+          if (lastSeg && (lastPaint < 0 || now - lastPaint >= 1 / 15)) {
+            lastPaint = now;
+            F.drawFrame(cctx, lastSeg, theme);
+          }
+        };
+        pump.connect(mute);
+        mute.connect(dest); // silent, but the graph must be pulled for it to fire
+      }
+
+      // the opening frame exists from the first captured frame, warm-up or not
+      if (plan.entries.length) paint(plan.entries[0].seg);
       rec.start(1000);
-      engine.start();
-      const started = actx.currentTime;
+      if (!pump) { // no ScriptProcessor: fall back to the rAF loop rather than nothing
+        engine.external = false;
+        beginPlan();
+        const loop = () => { if (engine.stopped) return; engine.tick(); requestAnimationFrame(loop); };
+        requestAnimationFrame(loop);
+      }
       if (onTick) {
-        tickTimer = setInterval(() => onTick(Math.min(actx.currentTime - started, plan.duration), plan.duration), 500);
+        // progress is measured from the plan, not from the warm-up
+        tickTimer = setInterval(() => onTick(
+          Math.min(planStarted ? actx.currentTime - planStarted : 0, plan.duration), plan.duration), 500);
       }
 
       // hand back a cancel
       SIO.exporter._cancel = () => {
         clearInterval(tickTimer);
+        stopPump();
         engine.stop();
         try { rec.stop(); } catch (e) { /* fine */ }
         reject(new Error('cancelled'));

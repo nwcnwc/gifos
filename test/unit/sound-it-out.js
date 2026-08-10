@@ -29,7 +29,7 @@ const check = (n, c, extra) => {
 // ---- load the shipped modules exactly as the GIF would run them -------------
 const sandbox = { window: {}, atob, btoa, console };
 vm.createContext(sandbox);
-for (const f of ['fonts-data.js', 'clips-data.js', 'dictionary-data.js', 'dictionary.js', 'curriculum.js', 'library.js', 'dsp.js', 'store.js', 'voice.js', 'studio.js', 'storyboard.js']) {
+for (const f of ['fonts-data.js', 'clips-data.js', 'dictionary-data.js', 'dictionary.js', 'curriculum.js', 'library.js', 'dsp.js', 'store.js', 'voice.js', 'studio.js', 'storyboard.js', 'player.js']) {
   vm.runInContext(fs.readFileSync(path.join(APP, f), 'utf8'), sandbox, { filename: f });
 }
 const SIO = sandbox.window.SIO;
@@ -463,6 +463,67 @@ check('the count sets where the journey starts: 0.2 / 0.3 / 0.45',
   for (let i = 0; i < sr * 1.2; i++) a[Math.round(sr * 0.2) + i] = 0.4 * Math.sin((2 * Math.PI * 440 * i) / sr);
   const sc = SIO.dsp.scoreTake(a, sr, { kind: 'phoneme', ipa: 's', length: 'hold' });
   check('a 1.2s hold - what real mouths produce - scores high', !sc.fatal && sc.value > 90, sc.value);
+}
+
+// ---- the export clock -------------------------------------------------------
+// "Save as a video file" performs the plan in real time, and a save that takes
+// as long as the video is a save the tab spends in the BACKGROUND, where
+// requestAnimationFrame stops dead. The engine's whole clock used to ride on
+// rAF, so a backgrounded save recorded a frozen picture over correct sound and
+// never finished at all - the end-of-plan check was on the stalled loop too.
+// An externally clocked engine must therefore: never touch rAF, advance purely
+// from the audio clock, and reach its end on its own.
+{
+  const seg = (name) => ({ parts: [[name, true]], pad: 0 });
+  const plan = {
+    duration: 3.0,
+    entries: [
+      { seg: seg('a'), buffer: null, duration: 1.0 },
+      { seg: seg('b'), buffer: null, duration: 1.0 },
+      { seg: seg('c'), buffer: null, duration: 1.0 },
+    ],
+  };
+  let rafCalls = 0;
+  const realRaf = sandbox.requestAnimationFrame;
+  sandbox.requestAnimationFrame = () => { rafCalls++; return 0; };
+  sandbox.cancelAnimationFrame = () => {};
+  const ctx = { currentTime: 100 };
+  const drawn = [];
+  const eng = new SIO.player.Engine(plan, {
+    ctx,
+    dest: {},
+    loop: false,
+    external: true,
+    draw: (s) => drawn.push(s.parts[0][0]),
+    onDone: () => drawn.push('DONE'),
+  });
+  // repainting the SAME state is free and expected (the exporter leans on it);
+  // what matters is the sequence of states the picture actually passes through
+  const states = () => drawn.filter((s, i) => s !== drawn[i - 1]).join('');
+  eng.start();
+  check('an externally clocked engine never asks for an animation frame', rafCalls === 0, rafCalls);
+  check('...and paints its opening frame at once', states() === 'a', drawn);
+  // nothing advances without the clock, however many times it is ticked
+  for (let i = 0; i < 20; i++) eng.tick();
+  check('...and does not advance on its own', states() === 'a', drawn);
+  ctx.currentTime = 100.15 + 1.05; eng.tick();
+  ctx.currentTime = 100.15 + 2.05; eng.tick();
+  check('...and follows the audio clock when ticked', states() === 'abc', drawn);
+  ctx.currentTime = 100.15 + 3.01; eng.tick();
+  check('...and reaches the end of the plan by itself', states() === 'abcDONE', drawn);
+  check('...leaving nothing scheduled', eng.stopped === true);
+  sandbox.requestAnimationFrame = realRaf;
+
+  // The exporter is the reason the option exists: it must clock from audio,
+  // which keeps running in a hidden tab, and repaint through every pad so the
+  // video track does not end at the last visual change (it did: a 14 second
+  // save held 14 frames and 3.4 fewer seconds of video than audio).
+  const exporterSrc = fs.readFileSync(path.join(APP, 'exporter.js'), 'utf8');
+  check('the exporter clocks the engine externally, from an audio callback',
+    /external:\s*true/.test(exporterSrc) && /createScriptProcessor/.test(exporterSrc)
+    && /onaudioprocess/.test(exporterSrc));
+  check('the exporter repaints on a cadence, not only on state change',
+    /1\s*\/\s*15/.test(exporterSrc) && /lastSeg/.test(exporterSrc));
 }
 
 // ---- the DSP port -----------------------------------------------------------
