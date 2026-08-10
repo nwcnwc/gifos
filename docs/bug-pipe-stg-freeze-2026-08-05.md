@@ -263,3 +263,48 @@ pipe id `stg:<feed>><thisSeat>` — and the question becomes a fact:
 
 Until that is measured, do not patch the keyframe path — it is demonstrably not
 the lever. The entry stays in `quarantine.txt` and leg 3 stays red.
+
+### The upstream answer, same day: THE FORWARD IS FINE
+
+Measured. At both stalls the seat named by `via` had its forward to the stalled
+seat **paused: false, needKey: false, dropped: 0, swapErr: 0**, template mime
+matching, with a write **15 ms** and **1280 ms** old. So the parked-forward
+branch above is dead too: the upstream was actively forwarding while the
+downstream sat frozen.
+
+### THE CHAIN PROFILE — one leg is broken and its sibling is not
+
+`wrote` is cumulative, so a low total cannot tell a starved pipe from a young
+one. Leg 3 now samples every seat's pipes for the stalled feed twice, 2 s apart,
+and reports each hop's write rate beside that seat's own decode count. One red
+run (clawbox, brain stopped, Chrome 151, lane live), stager = P4 `k_403aba`,
+feed `stg:k_403aba48`, stalled seat P0 `k_13ebf5` claiming via P2 `k_b12201`:
+
+| hop | frames the sender WROTE | frames the receiver DECODED |
+|---|---|---|
+| P5 -> P2 | 33 | **33** |
+| P2 -> P3 | 32 | **26** |
+| P3 -> P1 | 8 | **5** |
+| **P2 -> P0** | **32** | **1** (kdec 1) |
+
+**P2 feeds two peers, from one worker, one source pipe, one feed — and one of
+them works.** P3 decodes 26 of the 32 P2 wrote it. P0 decodes ONE of the 32 P2
+wrote it, while 25 kB crosses the wire to P0 during the freeze.
+
+That eliminates every remaining upstream explanation at once. The source is not
+starved (P5->P2 is 33/33). The sender's worker is not broken (its other forward
+is healthy at the same instant). The lane is not key-starved (needKey false,
+dropped 0, all the way along). What is left is **one destination's carrier**:
+frames are written into it, the bytes arrive, and the receiver decodes a single
+keyframe and nothing after it — the signature of a decoder that cannot follow
+the reference chain it is being handed.
+
+**NEXT, and it is now a narrow question:** compare the WORKING carrier against
+the BROKEN one from the same sender — `MPipe.chain(pipeId)` already reports
+`{wants, mints}` per carrier. Capture that for `P2->P3` and `P2->P0` together,
+plus the receiver-side inbound codec/resolution at each, at the same instant.
+Two carriers minted by the same sender for the same content, one decodable and
+one not, is a difference that has to be visible in the mint.
+
+Do NOT go near the keyframe path or the demand/park bookkeeping first. Both are
+measured innocent.
