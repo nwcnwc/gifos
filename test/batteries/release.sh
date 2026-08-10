@@ -221,11 +221,43 @@ reap_browsers() {
   done
 }
 
+# WAIT FOR THE KERNEL TO CALM DOWN before handing the next suite a stopwatch.
+#
+# reap_browsers kills the processes; it does not wait for the box to recover
+# from having run them. run_one then slept ONE SECOND and started the next
+# suite, so a drill asserting a SIX SECOND bound could begin with loadavg still
+# in double digits from eight browsers that were alive a moment ago. That is the
+# gate measuring latency on a machine that cannot currently measure latency —
+# CLAUDE.md's "one box cannot tell a bug from a busy kernel", inside the gate
+# itself.
+#
+# Measured 2026-08-10: e2e-vanish-browser's "gone from every survivor" leg
+# (design target <=3s, asserted <=6s for CI headroom) came in at 6.68s during
+# the drills tier and 42s-clean on a freshly booted box. Nothing about the
+# product changed between those two runs.
+#
+# This is deliberately a CEILING, not a barrier: it waits up to ~60s for the
+# 1-minute load to fall under the core count, then proceeds regardless. A gate
+# that could be blocked forever by a busy box is worse than a slow one, and the
+# suites still have their own timeouts. ~$(nproc) is the right bar rather than a
+# fixed number: 2.0 is idle on a 16-core box and hopeless on a Pi.
+settle_box() {
+  local cores; cores=$(nproc 2>/dev/null || echo 4)
+  local i l
+  for i in $(seq 1 20); do
+    l=$(cut -d' ' -f1 /proc/loadavg 2>/dev/null || echo 0)
+    awk -v l="$l" -v c="$cores" 'BEGIN{exit !(l+0 < c+0)}' && return 0
+    sleep 3
+  done
+  echo "  (settle: load still $l on ${cores} cores after 60s — proceeding anyway)"
+  return 0
+}
+
 run_one() {
   local f="$1" to="$2" tier="$3"
   local name; name=$(basename "$f" .js)
   local log="$LOGDIR/${tier}_${name}.log"
-  if [ "$tier" = browser ] || [ "$tier" = drills ]; then reap_browsers; sleep 1; fi
+  if [ "$tier" = browser ] || [ "$tier" = drills ]; then reap_browsers; sleep 1; settle_box; fi
   local start; start=$(date +%s)
   # -k: escalate to SIGKILL 45s after SIGTERM. Plain `timeout` only sends TERM
   # and then waits FOREVER if the child ignores it — a Playwright suite holding
