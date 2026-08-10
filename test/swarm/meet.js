@@ -36,6 +36,12 @@
  *
  * CONNECT:
  *   --room <name>     room to join                 (REPL `join <name>` also works)
+ *   --app <code>      join an APP ROOM instead of a meeting — the code from a
+ *                     gifos.app/join/<code> link (run.html#j=). For an OWNED
+ *                     app link (/join/<room>/<verifier>/<secret>) pass
+ *                     --app <room> --av <verifier> --k <secret>. Without this
+ *                     the CLI can only address MEETINGS, and a /join/ link
+ *                     quietly seats you in an empty meeting of the same name.
  *   --pass <pw>       room password (locked rooms)
  *   --relay <ws(s)>   relay URL                     (default: the site's relay)
  *   --base <url>      site origin                   (default: https://gifos.app)
@@ -163,6 +169,17 @@ const cfg = {
   relay: args.relay || '',
   base: (args.base || 'https://gifos.app').replace(/\/$/, ''),
   av: args.av || '',
+  // --app <code> [--k <secret>]: join an APP ROOM — the room that IS an app,
+  // shared as gifos.app/join/<code> (self-healing: the code is the whole
+  // capability) or /join/<room>/<verifier>/<secret> (OWNED: only the
+  // creator's app may host it). Until this existed the CLI could only ever
+  // build '#v=' — a MEETING — so pointing it at a /join/ link silently
+  // seated it in an empty meeting that merely shared the name, and the app
+  // lane (anyroad multiplayer, chess, every Provider app) had no debug
+  // surface at all. The router in 404.html is the spec these three forms
+  // mirror; keep them in step.
+  app: args.app || '',
+  appKey: args.k || '',
   // --bc: join wearing the BROADCAST skin (run.html#bc=1 — the Broadcast
   // app). Only meaningful with an admin room (av); a viewer joining with it
   // never calls getUserMedia at all.
@@ -714,7 +731,14 @@ async function join(room, opts) {
   page.on('pageerror', (e) => { if (LEVELS[cfg.level] >= 3) console.error('  [pageerror] ' + String(e).slice(0, 200)); });
   page.on('crash', () => console.error('  [CRASH] the renderer process died — a first-class flakiness cause (rtp_sender CHECK class); everything this page carried is gone'));
   page.on('console', (m) => { if (LEVELS[cfg.level] >= 3 && m.type() === 'error' && !/404|blocked by client/i.test(m.text())) console.error('  [cerr] ' + m.text().slice(0, 160)); });
-  const url = cfg.base + '/run.html' + (cfg.edge ? '?edge' : '') + '#v=' + room + (cfg.av ? '&av=' + cfg.av : '') + (cfg.bc ? '&bc=1' : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
+  // WHICH DOOR. A meeting is '#v=<room>'; an APP ROOM is '#j=<code>' (self-
+  // healing) or '#s=<room>.<verifier>&k=<secret>' (owned) — the same three
+  // forms site/404.html's pretty router mints, and the reason a /join/ link
+  // could not be inspected before: everything here used to be '#v='.
+  const hash = cfg.app
+    ? (cfg.av && cfg.appKey ? '#s=' + cfg.app + '.' + cfg.av + '&k=' + cfg.appKey : '#j=' + cfg.app)
+    : '#v=' + room + (cfg.av ? '&av=' + cfg.av : '');
+  const url = cfg.base + '/run.html' + (cfg.edge ? '?edge' : '') + hash + (cfg.bc ? '&bc=1' : '') + (cfg.relay ? '&relay=' + encodeURIComponent(cfg.relay) : '') + '&DEBUG=on'; // the CLI IS the debug surface
   console.error('[meet] joining ' + url + ' as "' + cfg.name + '" [' + ENGINE + ']' + (cfg.pass ? ' (locked)' : '') + (cfg.videoIdx !== null ? ' +video' : cfg.solidCam ? ' +cam' : ' (observer)'));
   await page.goto(url, { waitUntil: 'domcontentloaded' }).catch((e) => console.error('[goto] ' + e.message));
   await page.waitForFunction(() => !!(window.__gifosVideo && window.__gifosVideo.debugDump), null, { timeout: 30000 }).catch(() => {});
@@ -1489,8 +1513,8 @@ function startEnsurePass() {
   }
 
   if (MODE === 'watch' || MODE === 'once' || MODE === 'script') {
-    if (!cfg.room) { console.error('need --room (and usually --pass/--relay) for --watch/--once/--script'); process.exit(1); }
-    await join(cfg.room);
+    if (!cfg.room && !cfg.app) { console.error('need --room (a meeting) or --app <code> (an app room, the gifos.app/join/<code> form) for --watch/--once/--script'); process.exit(1); }
+    await join(cfg.room || cfg.app);
     // wait for a seat (up to 60s) so the first output is meaningful
     const t0 = Date.now();
     while (Date.now() - t0 < 60000) { const c = await page.evaluate(() => { try { return window.__gifosVideo.meshCoord(); } catch (e) { return null; } }).catch(() => null); if (c) { console.error('[meet] seated at ' + c.pc + '/' + c.r + '.' + c.i); break; } await sleep(1500); }
