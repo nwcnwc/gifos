@@ -35,16 +35,50 @@ function portOpen(port) {
   });
 }
 
+// Servers THIS scenario started, and only those. Someone else's stack on these
+// ports is theirs to keep — the same rule release.sh follows, for the same
+// reason: a run that knifes a stack it did not bring up invents failures in
+// whatever was using it.
+const spawned = [];
+process.on('exit', () => { for (const c of spawned) { try { c.kill('SIGKILL'); } catch (e) {} } });
+
+// Bring the stack up if it is idle, exactly as lib/cast.js's ensureStack does
+// for every OTHER scenario in this battery.
+//
+// This scenario does not use cast (see the note above), so it inherited none of
+// that and simply declared the prerequisite and skipped. That was wrong in a
+// way that costs the next person a green gate: behavior.sh exits NON-ZERO when
+// anything skips, so a scenario that quietly declines turns the whole behavior
+// tier red — and a red behavior tier can never satisfy the release gate. It was
+// filed as a "sanctioned skip" for two releases; it is not sanctioned, it is
+// unwired. Started by hand the scenario PASSES (423s, 2026-08-10).
+//
+// A skip remains possible for a fixture we genuinely cannot create — that path
+// still announces itself as SKIP rather than looking like a product red.
+async function ensureStack() {
+  if (!(await portOpen(BASE_PORT))) {
+    console.log('  site :' + BASE_PORT + ' idle — spawning python http.server');
+    spawned.push(spawn('python3', ['-m', 'http.server', String(BASE_PORT), '-d', 'site'],
+      { cwd: ROOT, stdio: 'ignore' }));
+  }
+  if (!(await portOpen(RELAY_PORT))) {
+    // RELAY_DEV=1 matches cast.js and release.sh: the shared dev relay lifts the
+    // production per-IP socket cap that silently starves multi-client suites.
+    console.log('  relay :' + RELAY_PORT + ' idle — spawning relay-local (RELAY_DEV=1)');
+    spawned.push(spawn(process.execPath, [path.join(ROOT, 'test', 'servers', 'relay-local.js')],
+      { env: Object.assign({}, process.env, { RELAY_DEV: '1' }), stdio: 'ignore' }));
+  }
+  for (let i = 0; i < 30; i++) {
+    if ((await portOpen(BASE_PORT)) && (await portOpen(RELAY_PORT))) return true;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
 (async () => {
-  // A missing fixture must announce itself as a missing fixture. The battery
-  // reads a leading "SKIP:" and counts it apart from a pass — the one thing it
-  // must never do is look like a product red.
-  for (const [port, what] of [[BASE_PORT, 'a static server on 8099 (python3 -m http.server 8099 -d site)'],
-                              [RELAY_PORT, 'the local relay on 8790 (node test/servers/relay-local.js)']]) {
-    if (!(await portOpen(port))) {
-      console.log('SKIP: ' + what + ' is not up');
-      process.exit(0);
-    }
+  if (!(await ensureStack())) {
+    console.log('SKIP: the stack (:' + BASE_PORT + ' + :' + RELAY_PORT + ') was idle and would not start here');
+    process.exit(0);
   }
 
   // ROOM=app: the app IS the room, invited from a desktop icon with no call
