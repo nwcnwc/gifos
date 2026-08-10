@@ -304,6 +304,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
               //     decoder rejects (payload swap / mime mismatch)
               //   swapErr or a codec mismatch     -> the swap itself failing
               const pw = await pipeStatsAt(i);
+              // IS THIS SEAT DEMANDING ITS OWN CLAIM IDLE? setJobActive(false)
+              // — which mx-idle triggers — replaceTrack(null)s every sender AND
+              // pausePipe()s the worker, and a paused pipe is skipped by the 2s
+              // key re-ask loop. That is a total blackout of the feed with the
+              // track still 'live' and vw>0 from the last frame: a BRIGHT
+              // freeze, exactly this leg's shape. The hot set only keeps a
+              // primary demanded while `inCand(pri)` — i.e. while it still
+              // RESOLVES — so a claim that momentarily stops resolving is
+              // demanded idle, and a parked sender can never restore the
+              // liveness that would make it hot again.
+              const dem = await pages[i].evaluate((key) => {
+                const m = window.__gifosVideo.mosaic() || {};
+                const mine = (m.claimVia || []).find((c) => c.rk === key) || null;
+                return { claim: mine,
+                  demands: (m.demand || []).filter((e) => e.indexOf('|' + key + '|') > 0),
+                  claimed: (m.claims || []).indexOf(key) >= 0 };
+              }, f.key).catch(() => null);
               // ONE HOP UPSTREAM, at the same instant. Our own counters are
               // OUTBOUND forwards and cannot say what fed us. The seat named by
               // `via` owns the forward pointing AT us — pipe id `<feed>><myId>`
@@ -419,7 +436,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                 viaIsAForwarderToMe: senders.some((x) => String(x.id || '').indexOf(String(f.via)) === 0 || String(f.via).indexOf(String(x.id || '')) === 0),
                 actualForwardersToMe: senders };
               stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at,
-                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up, chain, attribution });
+                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up, chain, attribution, dem });
             }
           }
         }
