@@ -332,6 +332,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
               //   wrote climbing       -> the loss is on the carrier between
               //                           the two hops, not in either worker
               // What the upstream's own m-line actually SENT for this pipe.
+              // The SENDER's own job identity for this feed, to compare against
+              // the sid the receiver is demanding. mx-want is dropped silently
+              // when they differ, so a divergence here IS the starve.
+              const upJobs = (async () => {
+                const u = seatOf(f.via);
+                if (u < 0 || u === i) return null;
+                return pages[u].evaluate((key) => {
+                  const m = window.__gifosVideo.mosaic() || {};
+                  return { jobSig: (m.jobSig || []).filter((x) => x.indexOf(key.slice(0, 18)) === 0),
+                    jobsActive: (m.jobsActive || []).filter((x) => x.indexOf(key.slice(0, 18)) === 0) };
+                }, f.key).catch(() => null);
+              })();
               const upWire = (async () => {
                 const u = seatOf(f.via);
                 if (u < 0 || u === i) return null;
@@ -448,7 +460,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                 actualForwardersToMe: senders };
               stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at,
                 frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up, chain, attribution, dem,
-                upWire: await upWire });
+                upWire: await upWire, upJobs: await upJobs });
             }
           }
         }
