@@ -367,7 +367,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                     const rows = (await __gifosVideo.kfStats()).filter((x) => x.dir === 'out' && x.slot && x.slot.indexOf('out:' + key + '>') === 0);
                     const o = {};
                     for (const r of rows) o[r.slot.slice(('out:' + key + '>').length)] =
-                      { fenc: r.fenc, kenc: r.kenc, pliRx: r.pliRx, nackRx: r.nackRx, fps: r.fps,
+                      { fenc: r.fenc, kenc: r.kenc, pktTx: r.pktTx, bytesTx: r.bytesTx, fsent: r.fsent,
+                        pliRx: r.pliRx, nackRx: r.nackRx, fps: r.fps,
                         fw: r.fw, fh: r.fh, qlim: r.qlim, impl: r.impl };
                     return o;
                   }, f.key).catch(() => ({}));

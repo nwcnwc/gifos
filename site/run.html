@@ -12284,6 +12284,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               out.push({ pid: String(pid).slice(0, 6), dir: 'out',
                 slot: (s.mid != null ? (midOut.get(String(s.mid)) || null) : null),
                 fenc: s.framesEncoded || 0, kenc: s.keyFramesEncoded || 0,
+                // SENT vs RECEIVED settles transport against accounting. If
+                // packetsSent matches the peer's packetsReceived the frames DID
+                // arrive and any frame-count deficit is a labelling artifact;
+                // if it does not, the wire is dropping what the encoder made.
+                pktTx: s.packetsSent || 0, bytesTx: s.bytesSent || 0,
+                fsent: s.framesSent || 0,
                 pliRx: s.pliCount || 0, nackRx: s.nackCount || 0,
                 fw: s.frameWidth || 0, fh: s.frameHeight || 0, fps: s.framesPerSecond || 0,
                 qlim: s.qualityLimitationReason || null,
