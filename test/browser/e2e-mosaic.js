@@ -150,9 +150,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       if (!decoding) await sleep(1000);
     }
     if (!decoding) {
+      // WHICH LINK IN THE CHAIN. "No stage feed at this seat" is three
+      // different bugs wearing one sentence, and the seat has already told us
+      // it agrees on the stage SET (that check passes above, upstream of here)
+      // — so membership gossip arrived and only the media did not. Splitting it
+      // further needs the mesh's own view at the moment the wait expires:
+      //   ann empty            -> no announcer for the stage feed ever reached
+      //                           this seat (the fan-down never got here)
+      //   ann set, claims empty-> announcers arrived, the claim never resolved
+      //                           (nothing picked, or every candidate's stream
+      //                           failed to resolve — claimRedun's `live` gate)
+      //   claims set, feeds [] -> claimed, but no stream object ever landed
+      // up/down say whether this seat's tree links were even usable, which is
+      // what six browsers on one box actually threatens.
+      const mesh = await pages[idx].evaluate(() => {
+        const m = window.__gifosVideo.mosaic() || {};
+        return { coord: m.coord, me: m.me, up: m.up, down: m.down,
+          claims: m.claims, ann: m.ann, jobs: m.jobs,
+          claimVia: (m.claimVia || []).map((c) => ({ rk: c.rk, sid: String(c.sid).slice(0, 8) })),
+          stageIds: (window.__gifosVideo.stageIds && window.__gifosVideo.stageIds()) || null };
+      }).catch((e) => ({ err: String(e).slice(0, 100) }));
       return { ok: false,
         stage: seen && seen.length ? 'the stage feed arrived but its frames never advanced' : 'no stage feed ever arrived at this seat',
-        feeds: seen || [], waited: waited() };
+        feeds: seen || [], waited: waited(), mesh };
     }
 
     // 2. PAINT. The feed is decoding, so this is the renderer's half alone.
