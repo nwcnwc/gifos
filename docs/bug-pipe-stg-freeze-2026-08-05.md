@@ -425,3 +425,41 @@ numbers above.
 Note also the standing caveat: all of this is six browsers on one Jetson. Every
 quantity here is real, but the RATE at which the freeze appears is not a product
 number until it is rebuilt across devices.
+
+### ACROSS DEVICES (2026-08-10) — it does not reproduce on a second box
+
+The standing caveat, discharged. Same suite, same tree, a DIFFERENT machine:
+
+| box | engine | cores | runs | leg 3 |
+|---|---|---|---|---|
+| clawbox (Jetson) | Chrome 151 | 6 | many | freezes ~1 in 2 at load 7-11 |
+| **raspberrypi** | **Chrome 149** | **4** | **4** | **3 GREEN + 1 DNF, at load 21-24** |
+
+The Pi ran the identical six-browser suite at **twice to three times clawbox's
+load** and leg 3 never fired once. The DNF is not a verdict — every leg failed
+including "the stager is still encoding" returning `[]`, which is fleet death.
+
+**So the freeze is not simply CPU contention** — the more starved box is the one
+that does not show it. What differs is the box AND the engine (Chrome 151 on an
+aarch64 Jetson vs 149 on a Pi), and either could own it. That is now the sharpest
+question about this bug, and it is cheap to split: run the suite on a THIRD
+engine/box pair, or pin clawbox to an older chromium revision and re-measure.
+Until then, do not describe this as a general product freeze — it is a freeze
+observed on one box with one engine.
+
+### A separate thing DEBUG mode showed, worth its own hunt
+
+While building the cross-device room (`test/swarm/meet.js --mesh-c 2`, four seats
+split across clawbox and raspberrypi, then a fifth and sixth), the census came
+back structurally clean but with occupancy knowledge SPLIT and staying split:
+
+    === MESH CENSUS: 6 seats replied ===
+    0/0.0 CB1  occ=4  links=2 conn=2      0/1.1 RP2  occ=6  links=3 conn=3
+    0/0.1 RP1  occ=4  links=2 conn=2      2/1.0 STG  occ=3  links=2 conn=1
+    0/1.0 CB2  occ=4  links=2 conn=2      2/1.1 CEN  occ=3  links=2 conn=0
+    totals: 6 replied · 0 unseated · 0 dup-coords · 0 orphaned refs
+
+Three seats believe the room holds 4, one believes 6, section 2 believes 3 —
+for 100+ seconds, with `FORK[split]` firing and section 2's seats at `conn=1`
+and `conn=0`. No dup coords, no orphans, so the TREE is sound; what diverges is
+what each seat knows is in it. Seen only across devices; not investigated.
