@@ -300,6 +300,130 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('…so the data saved before the delete is still there',
     rebirth.marker === 'survived the reinstall', JSON.stringify(rebirth.marker));
 
+  // ---- the SECOND download: install-time assets get their own bar -----------
+  // An app whose weights arrive separately is two downloads, and the second
+  // dwarfs the first. The app GIF's bar used to finish at 100% and then simply
+  // STAY there through an 806 MB model — the one part of the install worth
+  // watching was the part with no progress at all, and a stalled download was
+  // indistinguishable from a slow one. So: its own bar, fed by a streamed read.
+  //
+  // Run on its own page so the main one's state (and its addInitScript) stays
+  // clean, and with an asset that is NOT an App GIF — site/og.png, 744 KB, big
+  // enough to arrive in many chunks — because the cover rule's counter watches
+  // /apps/<x>/<y>.gif and an asset there would read as a store download.
+  {
+    const ogBytes = fs.readFileSync(path.join(SITE, 'og.png'));
+    const ogSha = require('crypto').createHash('sha256').update(ogBytes).digest('hex');
+    const at = index.apps.slice().sort((a, b) => a.bytes - b.bytes)[0];
+
+    const maker = await ctx.newPage();
+    await maker.goto(BASE + '/store.html');
+    await maker.waitForSelector('.card', { timeout: 15000 });
+    // A real App GIF with a manifest that pins a real, local asset. Everything
+    // downstream — decode, manifest read, appId match, hash check — is the
+    // shipping path; only the bytes the catalog points at are ours.
+    const built = await maker.evaluate(async (cfg) => {
+      const files = {
+        'manifest.json': JSON.stringify({ gifos: '1.0', appId: cfg.appId, name: 'Asset Probe', entry: 'index.html',
+          capabilities: {}, assets: [{ url: '/og.png', sha256: cfg.sha, path: 'model.bin', bytes: cfg.len }] }),
+        'index.html': '<h1>probe</h1>',
+      };
+      const bytes = await GifOS.gif.encode(files, { accent: [123, 92, 255] });
+      const d = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+      let hex = ''; for (const b of d) hex += b.toString(16).padStart(2, '0');
+      return { bytes: Array.from(bytes), sha: hex };
+    }, { appId: at.appId, sha: ogSha, len: ogBytes.length });
+    await maker.close();
+
+    const ap = await ctx.newPage();
+    ap.on('pageerror', (e) => console.log('  [pageerror]', e.message));
+    await ap.addInitScript((cfg) => {
+      const gifBytes = new Uint8Array(cfg.bytes);
+      const orig = window.fetch;
+      window.fetch = async function (input, init) {
+        const url = String((input && input.url) || input);
+        if (new RegExp('/apps/' + cfg.slug + '/' + cfg.slug + '\\.gif').test(url)) {
+          return new Response(gifBytes, { status: 200, headers: { 'content-type': 'image/gif', 'content-length': String(gifBytes.length) } });
+        }
+        const res = await orig.call(this, input, init);
+        if (!/\/apps\/(index\.json|[^/]+\/app\.json)/.test(url)) return res;
+        try {
+          const b = await res.clone().json();
+          // signature: null — the real listing claims gifos.app, and our bytes
+          // are not signed by it. The store is RIGHT to refuse a signed listing
+          // whose signature doesn't verify; we're testing assets, not that.
+          const fix = (a) => { if (a.slug === cfg.slug) { a.sha256 = cfg.sha; a.signature = null; a.download = cfg.len; } };
+          if (Array.isArray(b.apps)) b.apps.forEach(fix); else fix(b);
+          return new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
+        } catch (e) { return res; }
+      };
+    }, { slug: at.slug, sha: built.sha, bytes: built.bytes, len: ogBytes.length });
+
+    await ap.goto(BASE + '/store.html#app=' + at.slug);
+    await ap.waitForSelector('#install', { timeout: 15000 });
+    check('a listing quotes the extra model download BEFORE you press install',
+      /model/.test((await ap.locator('#note').textContent()) || ''), await ap.locator('#note').textContent());
+    check('the asset bar is a SECOND bar, not the app GIF\'s bar reused',
+      (await ap.locator('#prog').count()) === 1 && (await ap.locator('#dl2 #prog2').count()) === 1);
+
+    // Mirrored through localStorage: a fresh install navigates to the Home
+    // Screen on completion and would take an in-page recording with it.
+    await ap.evaluate(() => {
+      const S = { widths: [], notes: [], busy: 0 };
+      try { localStorage.removeItem('__dl2'); } catch (e) {}
+      new MutationObserver(() => {
+        const bar = document.querySelector('#prog2 i'), n2 = document.getElementById('note2'), p2 = document.getElementById('prog2');
+        if (bar) { const w = bar.style.width; if (S.widths[S.widths.length - 1] !== w) S.widths.push(w); }
+        if (p2 && p2.classList.contains('busy')) S.busy++;
+        if (n2 && n2.textContent) { const t = n2.textContent; if (S.notes[S.notes.length - 1] !== t) S.notes.push(t); }
+        try { localStorage.setItem('__dl2', JSON.stringify(S)); } catch (e) {}
+      }).observe(document.getElementById('detail'), { subtree: true, childList: true, attributes: true, characterData: true });
+    });
+
+    const gifsBeforeAsset = gifHits.length;
+    // A completed install HANDS OFF to the Home Screen, so every read after
+    // the click races a navigation. Retry through it rather than sampling once
+    // and blaming the product for a torn-down context.
+    const settled = async (fn, tries) => {
+      for (let i = 0; i < (tries || 6); i++) {
+        try { const v = await fn(); if (v != null) return v; } catch (e) { /* context replaced mid-read */ }
+        await sleep(800);
+      }
+      return null;
+    };
+    await ap.locator('#install').click();
+    await ap.waitForFunction(() => {
+      try { return /Model ready|⚠/.test(localStorage.getItem('__dl2') || ''); } catch (e) { return false; }
+    }, null, { timeout: 90000 }).catch(() => {});
+    const rec = await settled(() => ap.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem('__dl2') || 'null'); } catch (e) { return null; }
+    }));
+
+    const widths = (rec && rec.widths) || [];
+    const nums = widths.filter((w) => /%$/.test(w)).map((w) => parseFloat(w));
+    check('the asset bar STARTS EMPTY — it does not inherit the app GIF\'s full bar',
+      nums.length > 0 && nums[0] === 0, JSON.stringify(widths.slice(0, 4)));
+    check('…climbs through real intermediate progress…',
+      nums.some((n) => n > 0 && n < 100), JSON.stringify(nums));
+    check('…and finishes full', nums[nums.length - 1] === 100, JSON.stringify(nums.slice(-3)));
+    const notes = (rec && rec.notes) || [];
+    check('the label counts real bytes as they land, not just a file name',
+      notes.some((t) => / of /.test(t)), JSON.stringify(notes.slice(0, 3)));
+    check('verifying goes INDETERMINATE rather than parking at a full bar',
+      (rec && rec.busy) > 0 && notes.some((t) => /^Verifying/.test(t)), JSON.stringify(notes.slice(-2)));
+
+    const cached = await settled(() => ap.evaluate(async (appId) => {
+      const files = await GifOS.store.allFiles();
+      const f = files.find((x) => x.appId === appId);
+      const blob = f ? await GifOS.store.getAsset(f.id, 'model.bin') : null;
+      return blob ? blob.size : null;
+    }, at.appId));
+    check('the asset really landed in the computer\'s asset store', cached === ogBytes.length, cached + ' vs ' + ogBytes.length);
+    check('watching an asset download still fetches no App GIF over the wire',
+      gifHits.length === gifsBeforeAsset, gifHits.slice(gifsBeforeAsset).join(', '));
+    await ap.close();
+  }
+
   // ---- an app that outruns this computer ------------------------------------
   // The store used to sell apps it knew could not run. Offline Cheap Text LLM
   // BitNet needs the install-time asset tier that no release has been cut with:
