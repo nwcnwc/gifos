@@ -386,7 +386,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                     paused: r.pipes[d].paused, needKey: r.pipes[d].needKey, dropped: r.pipes[d].dropped,
                     wrote: r.pipes[d].wrote,
                     carrier: (r.car && r.car[d]) || null,
-                    out: (r.outr && r.outr[d]) || null,
+                    // the outbound slot label truncates the destination to SIX chars
+                    // (kfStats: 'out:'+key+'>'+String(j.to).slice(0,6)) while pipe ids
+                    // carry eight — match both rather than silently reading null.
+                    out: (r.outr && (r.outr[d] || r.outr[String(d).slice(0, 6)])) || null,
                     mintsS: (a.car && a.car[d] && r.car && r.car[d]) ? +(((r.car[d].mints - a.car[d].mints) / 2)).toFixed(1) : null };
                 }
                 return { seat: r.seat, me: r.me, fdec: r.dec && r.dec.fdec, kdec: r.dec && r.dec.kdec,
