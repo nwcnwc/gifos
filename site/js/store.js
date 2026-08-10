@@ -417,9 +417,16 @@
       '</dl>';
 
     $('back').onclick = () => showBrowse(true);
-    if (!blocked(app)) $('install').onclick = () => install(app);
+    // Bound even when the floor is unmet, and the button left disabled beside
+    // it. The two are not the same statement: `disabled` is how the player is
+    // told, install()'s own refusal is what actually holds. Leaving the handler
+    // off instead would make that refusal unreachable — dead code pretending to
+    // be a guard, which is the worse of the two ways to be wrong. A legacy
+    // desktop is different: it cannot receive ANY install, so nothing here is
+    // wired at all.
+    if (!legacyDesktop) $('install').onclick = () => install(app);
     const up = $('update');
-    if (up && !blocked(app)) up.onclick = () => install(app, inst);
+    if (up && !legacyDesktop) up.onclick = () => install(app, inst);
   }
   const fact = (k, v) => '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>';
 
