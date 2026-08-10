@@ -175,15 +175,52 @@
     return a.subarray(Math.max(0, i0 * w - pad), Math.min(a.length, i1 * w + pad));
   }
 
+  // gen/levels._onto_the_sound(): slide a keep-the-start window onto the
+  // sound, if it has missed it. contentData strips a lead-in only while it
+  // stays under a tenth of the clip's loudest window, and a breath, a lip
+  // smack or a live room sits above that - so the sound can begin a third of
+  // a second in with the lead-in still there. A long cap reaches past it and
+  // nobody notices; the blend's cap is 0.40s, and 0.40s of held breath is a
+  // letter that lights in silence (round 3 of "Ezra" lit r and then a with
+  // nothing audible under either, while the same clips played fine in the
+  // longer rounds before it).
+  //
+  // Two conditions, both required, because the shape this must NOT touch is
+  // a swelling vowel: an /iː/ that fades in over half a second also starts
+  // late, and cutting its swell is how lollipop lost its i. So the window
+  // moves only when the sound starts beyond the window's first 60% AND the
+  // material in front is a STEP rather than a rise - a swell walks up to its
+  // onset, a breath sits flat and then the mouth starts.
+  function ontoTheSound(c, sr, n) {
+    if (c.length <= n || n <= 0) return c;
+    const w = Math.trunc(sr * 0.02);
+    if (c.length < w * 2) return c;
+    const wins = [];
+    for (let i = 0; i < Math.trunc(c.length / w); i++) wins.push(rmsOf(c, i * w, (i + 1) * w));
+    const top = Math.max(...wins);
+    if (!(top > 0)) return c;
+    const onset = wins.findIndex((r) => r >= top * 0.5);
+    if (onset < 0 || onset * w < 0.6 * n) return c; // the sound is in the window already
+    if (wins[onset - 1] >= 0.5 * wins[onset]) return c; // it rose into the sound: a swell
+    const lo = Math.max(0, Math.min(onset * w - w, c.length - n)); // 20ms of air before it
+    if (lo <= 0) return c;
+    const out = Float32Array.from(c.subarray(lo));
+    const m = Math.min(Math.round(sr * 0.012), out.length);
+    if (m > 1) for (let i = 0; i < m; i++) out[i] *= i / (m - 1);
+    return out;
+  }
+
   // gen/levels._hard_clip's window+booster half: a sound ending in a stop
   // keeps a window CENTRED ON ITS BURST - located, not assumed - with the
   // body before it and the release after. The burst is levelled by peak only
   // when it IS a burst (peak well above the window's own rms): boosting a
-  // window with no transient just manufactures static.
+  // window with no transient just manufactures static. A sustain keeps its
+  // START - identity is the onset - but the start of the CLIP is not always
+  // the start of the SOUND, so the window is slid onto it first.
   function hardClipData(a, sr, seconds, endsStop) {
     let c = contentData(a, sr);
     const n = Math.trunc(seconds * sr);
-    if (!endsStop) return capData(c, sr, seconds, 'start');
+    if (!endsStop) return capData(ontoTheSound(c, sr, n), sr, seconds, 'start');
     if (c.length > n) {
       let b = 0, best = -1;
       for (let i = 0; i < c.length; i++) {
@@ -520,7 +557,7 @@
   SIO.dsp = {
     VOWELS, STOPS, SONORANTS, phonemeClass,
     b64ToBytes, bytesToB64, audioContext, decodeBytes, toMono, bufferFrom,
-    peakOf, rmsOf, trim, trimBounds, capData, contentData, hardClipData, xfadeData, fadeTail, buckets, schwaTail, sonorantTail,
+    peakOf, rmsOf, trim, trimBounds, capData, contentData, ontoTheSound, hardClipData, xfadeData, fadeTail, buckets, schwaTail, sonorantTail,
     LENGTH_TARGET, TAKES, takesFor, ADVICE, scoreTake, choose, stretch,
   };
 })();
