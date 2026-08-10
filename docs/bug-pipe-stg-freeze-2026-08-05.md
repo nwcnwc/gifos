@@ -504,3 +504,42 @@ starvation, no churn, no over-mint. The next instrument is the sender's own
 `outbound-rtp` for THAT pipe's m-line specifically (resolved by transceiver,
 not by the `out:key>to6` label, which conflates senders of one job — the trap
 that produced the earlier retracted deficit).
+
+### ANSWERED: the frames die between the transform and the packetizer
+
+`__gifosVideo.pipeWire()` resolves each pipe's OWN sender by matching the
+transceiver whose sender carries that pipe's carrier track, so there is no
+label conflation. At a stall on clawbox, ONE sender, ONE feed, TWO
+destinations, both `paused:false` with live carrier tracks:
+
+| forward | mid | fenc | fsent | **packetsSent** | bytes | qlim |
+|---|---|---|---|---|---|---|
+| -> k_264f5a | 9 | 51 | 51 | **46** | 29816 | none |
+| -> k_e4239f | 14 | 49 | 49 | **13** | 10385 | none |
+
+**Forty-nine frames cannot travel in thirteen packets** — every video frame
+needs at least one. The worker reports `wrote: 42` on that leg with
+`sinceWrite: 129ms`, so the transform is writing; the receiver decodes 4.
+
+With a SENDER-side `RTCRtpScriptTransform`, `framesEncoded`/`framesSent` count
+the carrier encoder's output BEFORE the transform, while `packetsSent` counts
+what actually left the box. So the loss is inside the transform → packetizer
+step: frames the worker successfully writes are not becoming RTP. Everything
+upstream (tap, queue, key state, carrier mint, encoder, bitrate cap — `stg:`
+rides `stageBudget`, not the aux budget) and everything downstream (packets,
+assembly, decode) is measured healthy, and the sibling forward from the SAME
+sender at the SAME instant is fine at ~1 packet per frame.
+
+**That is the bug, and it is one step wide.** It is NOT fixed. What it needs
+next is why the packetizer discards a written frame — the obvious candidates
+being a swapped payload whose structure the packetizer rejects (dependency
+descriptor / frame marking mismatch after the swap) or an m-line whose BWE
+allocation collapsed without setting `qualityLimitationReason`. Both are
+checkable: dump the written frame's `type`/`timestamp`/metadata against a
+working leg's at the same instant, and read `getStats()` outbound
+`targetBitrate` per mid.
+
+Note this is still clawbox-only: the identical suite and engine on
+raspberrypi is 3/3 green (see above), so whatever discards the frames is
+box-conditioned, which fits an encoder/pacer difference rather than a
+protocol error.
