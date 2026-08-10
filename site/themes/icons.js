@@ -728,6 +728,57 @@
     return { defs, art, shadowRx: 38 };
   };
 
+  // Providers — an ability being handed to the COMPUTER. A glossy accent
+  // module comes down into the socket on the machine's face; the instant it
+  // seats, light floods out of the socket and the three service lamps come up
+  // one after another, left to right.
+  //
+  // That is the whole point of this folder in one picture, and the reason it
+  // could not stay a lettered "P": what lives in here does not run FOR YOU
+  // like an app, it plugs INTO your computer and serves every other app —
+  // and a folder whose contents behave unlike anything else on the Home
+  // Screen has to look unlike anything else too.
+  ART.plug = (a, f) => {
+    const base = toHex(candy(a));
+    const g1 = grad(), g2 = grad(), sh = grad(), sh2 = grad();
+    const dock = [11, 8, 4.5, 1.5, 0, 0][f];        // the module coming down…
+    const lit = [0, 0.06, 0.18, 0.55, 1, 0.78][f];  // …and the machine taking it
+    // The machine is a LIGHTER slate than the usual ink: a near-black box is
+    // invisible on a dark desktop, and this icon has to read on both.
+    const defs = bodyGrad(g1, base) + sheenGrad(sh) + sheenGrad(sh2)
+      + lg(g2, [[0, '#7d74a8'], [0.45, '#4e4677'], [1, '#2b2547']]);
+    // Lamps light in sequence, so the last frames read as "and now it serves".
+    const lamp = (i) => {
+      const on = Math.max(0, Math.min(1, lit * 3 - i));
+      return "<circle cx='" + (46 + i * 18) + "' cy='88' r='3.6' fill='" + (on > 0.15 ? base : '#3b3560') + "'"
+        + " opacity='" + (0.3 + on * 0.7).toFixed(2) + "'/>";
+    };
+    const art =
+      // the machine
+      "<path d='" + rr(22, 60, 84, 42, 13) + "' fill='url(#" + g2 + ")'/>"
+      + "<path d='" + rr(22, 60, 84, 14, 13) + "' fill='url(#" + sh2 + ")' opacity='.45'/>"
+      // the socket, and the light it takes
+      + "<ellipse cx='64' cy='64' rx='" + (20 + lit * 26) + "' ry='" + (7 + lit * 12) + "' fill='" + base + "' opacity='" + (lit * 0.85).toFixed(2) + "' filter='url(#fglow)'/>"
+      + "<path d='" + rr(48, 58, 32, 12, 6) + "' fill='#15112a'/>"
+      + "<path d='" + rr(51, 61, 26, 6, 3) + "' fill='" + base + "' opacity='" + (0.22 + lit * 0.78).toFixed(2) + "'/>"
+      + range(3).map(lamp).join('')
+      // the module, coming down into it
+      + "<g transform='translate(0,-" + dock + ")'>"
+      + "<path d='M56 46 h6 v16 h-6 z M66 46 h6 v16 h-6 z' fill='#cfd6ff' opacity='.92'/>"
+      + "<path d='" + rr(42, 20, 44, 30, 10) + "' fill='url(#" + g1 + ")'/>"
+      + "<path d='" + rr(42, 20, 44, 13, 10) + "' fill='url(#" + sh + ")'/>"
+      + spec(54, 30, 7, 3.5, 0.45)
+      + '</g>'
+      // Light ESCAPING past the module — drawn last, so the contact reads as a
+      // flash at the seam rather than a lamp hidden behind the thing docking.
+      + (lit > 0.2
+        ? "<ellipse cx='64' cy='" + (62 - dock / 2) + "' rx='" + (26 + lit * 14) + "' ry='" + (4 + lit * 6) + "' fill='#fff' opacity='"
+          + (lit * 0.38).toFixed(2) + "' filter='url(#fglow)'/>"
+        : '')
+      + sparkle(102, 34, 1, f);
+    return { defs, art, shadowRx: 42 };
+  };
+
   // ---- letter fallback: a glossy candy tile with the initial ----------------
   function fallbackArt(letter, a, f) {
     const base = toHex(candy(a));

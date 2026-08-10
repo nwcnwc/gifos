@@ -151,6 +151,67 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   });
   check('the one-shot migration slots Broadcast directly below Meeting, nothing overlapping', slot.ok, slot.detail);
 
+  // ---- a system folder's ART refreshes on the same trigger ------------------
+  // A folder's picture is baked into a GIF when the folder is created, and a
+  // system folder is only ever GIVEN art `if (!it.fileId)`. So an improved
+  // drawing could never reach a desktop that already had the folder — which is
+  // not hypothetical: the Providers folder shipped before its art existed, so
+  // every computer with one baked the LETTERED FALLBACK ("P", the first letter
+  // of the subject name) into a GIF, and no update would ever have replaced it.
+  const drawn = await p.evaluate(() => ({
+    plug: !!(GifOS.icons && GifOS.icons.has('plug')),
+    chest: !!(GifOS.icons && GifOS.icons.has('chest')),
+  }));
+  check('the active pack really DRAWS the Providers subject (not a lettered tile)', drawn.plug);
+  check('…and the Stolen Apps subject alongside it', drawn.chest);
+
+  const folderBefore = await p.evaluate(async () => {
+    const it = (await GifOS.store.allItems()).find((i) => i.id === 'sys_providers');
+    if (!it || !it.fileId) return null;
+    const f = await GifOS.store.getFile(it.fileId);
+    // Stand in for a desktop carrying an older build's picture.
+    await GifOS.store.putFile(Object.assign({}, f, { bytes: new Uint8Array([71, 73, 70, 1, 2, 3]) }));
+    localStorage.setItem('gifos_reseed_build', 'edge:999995');
+    return { itemId: it.id, fileId: it.fileId, x: it.x, y: it.y, name: it.name };
+  });
+  check('setup: the Providers folder exists with baked art', !!folderBefore, JSON.stringify(folderBefore));
+
+  await p.reload();
+  await p.waitForSelector('.icon', { timeout: 30000 });
+  await new Promise((r) => setTimeout(r, 1500));
+  const folderAfter = await p.evaluate(async (before) => {
+    const it = (await GifOS.store.allItems()).find((i) => i.id === 'sys_providers');
+    const f = it && it.fileId ? await GifOS.store.getFile(it.fileId) : null;
+    const b = f && f.bytes;
+    return {
+      len: b ? (b.byteLength || b.length) : 0,
+      isGif: !!(b && b[0] === 71 && b[1] === 73 && b[2] === 70),
+      sameFile: !!(it && it.fileId === before.fileId),
+      sameCell: !!(it && it.x === before.x && it.y === before.y && it.name === before.name),
+    };
+  }, folderBefore);
+  check('a build move RE-BAKES the Providers folder art', folderAfter.isGif && folderAfter.len > 500, JSON.stringify(folderAfter));
+  check('…in place: same file, same cell, same name', folderAfter.sameFile && folderAfter.sameCell, JSON.stringify(folderAfter));
+
+  // And the no-churn half, which is the whole reason this is gated on a build
+  // move rather than run every boot.
+  const settledArt = await p.evaluate(async () => {
+    const it = (await GifOS.store.allItems()).find((i) => i.id === 'sys_providers');
+    const f = await GifOS.store.getFile(it.fileId);
+    const mark = new Uint8Array(f.bytes.byteLength || f.bytes.length);
+    mark.set(f.bytes); mark[3] = 0x5a;                      // a fingerprint we can look for
+    await GifOS.store.putFile(Object.assign({}, f, { bytes: mark }));
+    return { fileId: it.fileId };
+  });
+  await p.reload();
+  await p.waitForSelector('.icon', { timeout: 30000 });
+  await new Promise((r) => setTimeout(r, 1500));
+  const untouched = await p.evaluate(async (s) => {
+    const f = await GifOS.store.getFile(s.fileId);
+    return f.bytes[3] === 0x5a;
+  }, settledArt);
+  check('a settled desktop does NOT re-bake folder art every boot', untouched);
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
