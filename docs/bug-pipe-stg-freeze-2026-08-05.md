@@ -591,6 +591,43 @@ The guard itself is right: `mx-idle` must keep it, or a stale demand blacks
 out a live ship (the dark-primary inversion the redun-drill caught). The
 asymmetry is the point — **waking is the safe direction, parking is not.**
 
+### THE CARRIER IS SIZED TO THE ALLOCATOR'S FLOOR — real, and still not the freeze
+
+Measured at a stall (clawbox, 2026-08-10), the upstream's own carrier m-line:
+
+    wire   mid=6  fenc=2  fsent=2  PKT=18  targetBitrate=30000  avail=515459
+    worker        wrote=2  paused=false    sinceWrite=14233ms
+
+`targetBitrate` is the **30 kbps floor** with half a megabit available. Not
+congestion, not loss: Chrome sizes the encoder from what it can SEE, and what
+it sees is a 48x48 nearly-static canvas. At 30 kbps it stops encoding most of
+the frames we mint, so `framesEncoded` is 2 across the window, the worker has
+nothing to swap onto, its last write is 14.2s old, and everything downstream
+is bright-frozen. **A pipe carrier's pixels are discarded — it needs FRAMES,
+not quality — and nothing tells the allocator that.**
+
+`degradationPreference: 'maintain-framerate'` on the carrier sender lifts it,
+and the numbers move exactly as predicted:
+
+| | target | framesEncoded |
+|---|---|---|
+| before | 30,000 | 2 |
+| after | **1,250,000** | **19** |
+
+**And leg 3 went 0/4 green with it, against 2/3 green in the runs immediately
+before — so it was REVERTED** (`51abb0d`). n is small and that is not proof of
+a regression, but it is the opposite of evidence for a cure, and a media-plane
+change that leaves the gate redder is not a trade this repo makes.
+
+The lesson is worth more than the patch: the carrier's bitrate starvation is
+REAL and reproducible, and raising the target from 30k to 1.25M — letting the
+encoder mint 19 templates instead of 2 — did **not** stop seats bright-freezing,
+with the worker writing 158 ms before the sample. **So the binding constraint
+is downstream of template production**, and any future attempt that starts by
+making the carrier produce more frames should expect the same result.
+
+### The stale-sid want drop
+
 **SHIPPED, AND MEASURED DEFENSIVE — it does NOT fix the freeze.** The sender
 now answers a stale-sid want by re-announcing its current id (an idempotent
 message already re-sent every sweep, so no state changes on either side). A
