@@ -644,6 +644,32 @@
       '}',
     ].join('\n'));
 
+    // --- street name labels: textured billboards --------------------------
+    // The only text this renderer draws in the WORLD. Everything else is
+    // geometry, and the street name has lived in a HUD chip that tells you
+    // what you are on and nothing about what is around you. A label floating
+    // over its own carriageway is the difference between reading a map and
+    // recognising a place.
+    progs.label = program([
+      'attribute vec3 aPos; attribute vec2 aUv;',
+      'uniform mat4 uViewProj; uniform vec3 uEye;',
+      'varying vec2 vUv; varying float vDist;',
+      'void main(){ vUv = aUv; vDist = length(aPos - uEye); gl_Position = uViewProj * vec4(aPos, 1.0); }',
+    ].join('\n'), [
+      'precision highp float;',
+      'uniform sampler2D uTex; uniform float uFogDensity; uniform float uAlpha;',
+      'varying vec2 vUv; varying float vDist;',
+      'void main(){',
+      '  vec4 t = texture2D(uTex, vUv);',
+      // Fade into the fog like everything else, so a name does not hang
+      // bright and legible over ground you cannot see.
+      '  float f = clamp(1.0 - exp(-vDist * uFogDensity * 0.8), 0.0, 1.0);',
+      '  float a = t.a * uAlpha * (1.0 - f);',
+      '  if (a < 0.01) discard;',
+      '  gl_FragColor = vec4(t.rgb, a);',
+      '}',
+    ].join('\n'));
+
     // --- cars AND wildlife: one small mesh, drawn per body with its own matrix ---
     // uShape is a per-instance scale applied BEFORE the model matrix. Cars pass
     // (1,1,1); the animals pass their kind's proportions, which is what turns a
@@ -1218,6 +1244,96 @@
     textures[key] = t;
     return t;
   }
+  // A street name, rasterised once and kept. Cached by the string itself:
+  // the same road is asked for every frame it is on screen, and a canvas per
+  // frame would be a garbage-collection pause every time you drive.
+  var labelTex = {};
+  function labelFor(text) {
+    var hit = labelTex[text];
+    if (hit) return hit;
+    var pad = 14, fs = 34;
+    var cv = document.createElement('canvas');
+    var g2 = cv.getContext('2d');
+    g2.font = '600 ' + fs + 'px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    var w = Math.ceil(g2.measureText(text).width) + pad * 2;
+    var h = fs + pad * 2;
+    // Powers of two are not required (this is CLAMP_TO_EDGE with LINEAR and no
+    // mips) but keeping the canvas modest is: a long street name is a wide
+    // texture, and there is one per road on screen.
+    cv.width = Math.min(1024, w); cv.height = h;
+    g2 = cv.getContext('2d');
+    g2.font = '600 ' + fs + 'px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    g2.textBaseline = 'middle';
+    // A dark plate behind the text, because a street name has to stay legible
+    // over a bright road, a dark building and the sky in the same second.
+    g2.fillStyle = 'rgba(8, 12, 20, 0.72)';
+    var r = 12;
+    g2.beginPath();
+    g2.moveTo(r, 0); g2.lineTo(cv.width - r, 0); g2.quadraticCurveTo(cv.width, 0, cv.width, r);
+    g2.lineTo(cv.width, cv.height - r); g2.quadraticCurveTo(cv.width, cv.height, cv.width - r, cv.height);
+    g2.lineTo(r, cv.height); g2.quadraticCurveTo(0, cv.height, 0, cv.height - r);
+    g2.lineTo(0, r); g2.quadraticCurveTo(0, 0, r, 0);
+    g2.closePath(); g2.fill();
+    g2.fillStyle = '#eaf0fa';
+    g2.fillText(text, pad, cv.height / 2 + 1);
+    var rec = { tex: textureFor('lbl:' + text, cv), aspect: cv.width / cv.height };
+    labelTex[text] = rec;
+    return rec;
+  }
+
+  var labelBuf = null;
+  function drawLabels(labels, eye, target, fogDensity) {
+    if (!labels || !labels.length) return;
+    var p = progs.label;
+    gl.useProgram(p.id);
+    gl.uniformMatrix4fv(p.u.uViewProj, false, viewProj);
+    gl.uniform3fv(p.u.uEye, eye);
+    gl.uniform1f(p.u.uFogDensity, fogDensity);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    gl.disable(gl.CULL_FACE);
+    if (!labelBuf) labelBuf = gl.createBuffer();
+    // Billboard basis from the camera, computed once for the whole batch.
+    var fx = target[0] - eye[0], fy = target[1] - eye[1], fz = target[2] - eye[2];
+    var fl = Math.hypot(fx, fy, fz) || 1; fx /= fl; fy /= fl; fz /= fl;
+    var rx = fz, rz = -fx;
+    var rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+    for (var i = 0; i < labels.length; i++) {
+      var L = labels[i];
+      var rec = labelFor(L.text);
+      // Hold a roughly constant on-screen size: a name that shrinks with
+      // distance is unreadable exactly when you need it to orient.
+      var d = Math.hypot(L.x - eye[0], L.z - eye[2]);
+      var hgt = Math.max(2.2, Math.min(14, d * 0.055));
+      var wid = hgt * rec.aspect;
+      var hw = wid / 2;
+      var x0 = L.x - rx * hw, z0 = L.z - rz * hw;
+      var x1 = L.x + rx * hw, z1 = L.z + rz * hw;
+      var yb = L.y, yt = L.y + hgt;
+      var data = new Float32Array([
+        x0, yb, z0, 0, 1,  x1, yb, z1, 1, 1,  x1, yt, z1, 1, 0,
+        x0, yb, z0, 0, 1,  x1, yt, z1, 1, 0,  x0, yt, z0, 0, 0,
+      ]);
+      gl.bindBuffer(gl.ARRAY_BUFFER, labelBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(p.a.aPos);
+      gl.vertexAttribPointer(p.a.aPos, 3, gl.FLOAT, false, 20, 0);
+      gl.enableVertexAttribArray(p.a.aUv);
+      gl.vertexAttribPointer(p.a.aUv, 2, gl.FLOAT, false, 20, 12);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, rec.tex);
+      gl.uniform1i(p.u.uTex, 0);
+      gl.uniform1f(p.u.uAlpha, L.alpha == null ? 1 : L.alpha);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+    gl.disableVertexAttribArray(p.a.aPos);
+    gl.disableVertexAttribArray(p.a.aUv);
+    gl.depthMask(true);
+    gl.enable(gl.CULL_FACE);
+    gl.disable(gl.BLEND);
+  }
+
   var blankTex = null;
   function blank() {
     if (blankTex) return blankTex;
@@ -1518,6 +1634,54 @@
       gl.depthMask(true);
       gl.uniform1f(progs.car.u.uEmit, 0);
       gl.uniform1f(progs.car.u.uGloss, 1);
+    }
+
+    // FLARES. The same column the race finish uses, in each player's own
+    // colour, wherever they fired it — the answer to "we are in the same city
+    // and cannot find each other". Drawn after the world and before the
+    // decals, depth-writes off like the finish beacon so it never carves a
+    // hole in anything it passes behind.
+    var flares = scene.flares || [];
+    if (flares.length) {
+      var fbg = uploadBeacon();
+      common(progs.car);
+      var flm = mat4();
+      ['aPos','aNormal','aColor'].forEach(function (name) {
+        var loc = progs.car.a[name];
+        if (loc === undefined || loc < 0) return;
+        gl.bindBuffer(gl.ARRAY_BUFFER, fbg.vbo[name]);
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      });
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, fbg.ibo);
+      gl.depthMask(false);
+      gl.uniform1f(progs.car.u.uGloss, 0);
+      for (var fi = 0; fi < flares.length; fi++) {
+        var fl = flares[fi];
+        // Brightest at the moment it goes up, then burning down — a flare that
+        // never fades is a landmark, not a signal.
+        gl.uniform1f(progs.car.u.uEmit, 0.5 + 1.3 * (fl.life || 1));
+        gl.uniform3fv(progs.car.u.uTint, fl.tint || [1.0, 0.55, 0.15]);
+        var fbeam = fl.beam || 1;
+        gl.uniform3fv(progs.car.u.uShape, [fbeam, 1.6, fbeam]);
+        carMatrix(flm, fl.x, fl.y, fl.z, 0, 0, 0);
+        gl.uniformMatrix4fv(progs.car.u.uModel, false, flm);
+        gl.drawElements(gl.TRIANGLES, fbg.count, fbg.type, 0);
+      }
+      gl.uniform3fv(progs.car.u.uShape, ONE);
+      gl.uniform1f(progs.car.u.uEmit, 0);
+      gl.uniform1f(progs.car.u.uGloss, 1);
+      gl.depthMask(true);
+      ['aPos','aNormal','aColor'].forEach(function (name) {
+        var loc = progs.car.a[name];
+        if (loc !== undefined && loc >= 0) gl.disableVertexAttribArray(loc);
+      });
+    }
+
+    // Street names, floating over their own carriageways. After the world so
+    // they read against it, before the decals so smoke still drifts in front.
+    if (scene.labels && scene.labels.length) {
+      drawLabels(scene.labels, scene.eye, scene.target, fogDensity);
     }
 
     // Decals — scorch marks on the walls just drawn, smoke over whatever is

@@ -32,10 +32,10 @@
      'attribution2','board','mp-status','race-badge','race-hint','cache-size','tilemap',
      'src-terrain','src-roads','src-imagery','src-quality','note-terrain','note-imagery',
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
-     'worldstat','ws-summary','ws-mirrors','ws-tiles',
+     'worldstat','ws-summary','ws-mirrors','ws-tiles','btn-flare',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
      'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
-     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-keep','ctl-fill','note-offline','race-dist',
+     'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-keep','ctl-fill','ctl-labels','note-offline','race-dist',
      'street','passing','recent','cockpit','cockpit-wheel','pov-eye',
      'dash-speed','dash-cond-fill','speedo','btn-fly','fly-plane','fly-car','dash-unit',
      'dash-alt','dash-alt-m',
@@ -52,6 +52,7 @@
 
     $('btn-menu').addEventListener('click', function () { openSettings(); });
     $('btn-race').addEventListener('click', function () { openRace(); });
+    $('btn-flare').addEventListener('click', function () { hooks.onFlare(); });
     $('btn-map').addEventListener('click', function () {
       // Bird's eye is a CAMERA MOVE now, not an inset. The old canvas minimap
       // was a second renderer over a second read of the world, and it rotted
@@ -283,6 +284,12 @@
     el['src-terrain'].addEventListener('change', function () { pick('terrain', this.value); });
     el['src-roads'].addEventListener('change', function () { pick('roads', this.value); });
     el['src-imagery'].addEventListener('change', function () { pick('imagery', this.value); });
+    if (el['ctl-labels']) {
+      el['ctl-labels'].addEventListener('change', function () {
+        root.Sources.set({ labels: this.value });
+        note(this.value === 'on' ? 'Street names float over the roads.' : 'Street names stay in the HUD.');
+      });
+    }
     el['src-quality'].addEventListener('change', function () {
       root.Sources.set({ quality: this.value });
       note('Applies to map tiles loaded from here on.');
@@ -366,6 +373,7 @@
     el['src-roads'].value = root.Sources.current.roads;
     el['src-imagery'].value = root.Sources.current.imagery;
     el['src-quality'].value = root.Sources.current.quality;
+    if (el['ctl-labels']) el['ctl-labels'].value = root.Sources.current.labels;
     el['ctl-throttle'].value = root.Sources.current.throttle;
     el['ctl-steering'].value = root.Sources.current.steering;
     el['ctl-wildlife'].value = root.Sources.current.wildlife;
@@ -681,7 +689,14 @@
     });
   }
 
+  // The flare is for finding PEOPLE, so it appears when there are people. A
+  // button that does nothing visible is worse than no button.
+  function updateFlareBtn() {
+    if (el['btn-flare']) el['btn-flare'].hidden = root.MP.count() < 2;
+  }
+
   function updateRacePanel() {
+    updateFlareBtn();
     var n = root.MP.count();
     el['mp-status'].textContent = n > 1
       ? (n + ' drivers in this world.')

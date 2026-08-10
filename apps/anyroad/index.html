@@ -84,6 +84,9 @@
       </svg>
     </button>
     <button class="chip" id="btn-race" aria-label="Races">🏁<span class="badge" id="race-badge" hidden></span></button>
+    <!-- Send up a flare. Only worth a slot in the top bar when there is
+         somebody to see it, so it appears with the second player. -->
+    <button class="chip" id="btn-flare" aria-label="Send up a flare" hidden>🔆</button>
     <button class="chip" id="btn-hop" aria-label="Go somewhere else">🌍</button>
     <!-- The loading map. Tiny, north-up, and only on screen while something is
          still coming in — a permanent one would be clutter. -->
@@ -333,6 +336,15 @@
          actually driven and searched through. FILL is extra map fetched ahead
          while the network is idle. They were one dropdown, which forced the
          two decisions to travel together. -->
+    <label class="field">
+      <span>Street names in the world</span>
+      <select id="ctl-labels">
+        <option value="on">Float them over the roads</option>
+        <option value="off">Off — just the HUD</option>
+      </select>
+      <small>Names sit over the carriageway they belong to, nearest few only.</small>
+    </label>
+
     <label class="field">
       <span>Remember where I&rsquo;ve driven</span>
       <select id="ctl-keep"></select>
