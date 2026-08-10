@@ -103,19 +103,75 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     for (let i2 = 0; i2 < d.length; i2 += step) sig.push(d[i2]);
     return { w: v.videoWidth, h: v.videoHeight, mean: +(sum / (d.length / 4) / 765).toFixed(4), max: +(mx / 765).toFixed(3), sig: sig.join(',') };
   }).catch((e) => ({ err: String(e).slice(0, 120) }));
-  // live = non-black AND the pixel signature CHANGES between two samples.
+  // The stage feed as the PRODUCT sees it — the same signal framesAdvance uses
+  // below, read at the observing seat.
+  const stageFeeds = (pg) => pg.evaluate(() => (window.__gifosVideo.feedsInfo() || [])
+    .filter((f) => f.key === 'sgs' || f.key.indexOf('stg:') === 0)
+    .map((f) => ({ key: f.key.slice(0, 14), frames: f.frames, vw: f.vw }))).catch(() => []);
+
+  // live = the feed ARRIVED and is DECODING, and then the strip actually PAINTS.
+  //
+  // This used to poll pixels only, and that raced two independent things at
+  // once: the feed crossing the mesh (composited at Section 1, fanned down the
+  // other section's subtree — the longest path in the room) and Chrome painting
+  // it (which the render path throttles for small or offscreen elements, as
+  // framesAdvance's own comment records). With six browsers on one box the
+  // ARRIVAL leg alone has legitimately exceeded 60s, which is why this budget
+  // was raised 60 -> 120s once already. It then flaked again AT 120s, reporting
+  // the single opaque string 'no strip video' — which cannot distinguish "never
+  // arrived" from "arrived and froze" from "decoding but black", so a third
+  // raise would have been guessing at which one it was.
+  //
+  // So ask the product first. A stage feed whose decoded-frame counter CLIMBS
+  // has provably crossed the mesh and is decoding — that is the claim this
+  // check exists to make, and it is observable directly instead of inferred
+  // from a canvas. Pixels then confirm what is actually on screen, on a short
+  // budget, because by that point the only question left is paint. The bar is
+  // unchanged: non-black AND the signature changes between two samples.
   const stripLiveAt = async (idx, secs) => {
-    const t2 = Date.now(); let a = null, b = null;
-    while (Date.now() - t2 < secs * 1000) {
+    const t2 = Date.now(), deadline = t2 + secs * 1000;
+    const waited = () => ((Date.now() - t2) / 1000).toFixed(0) + 's';
+
+    // 1. ARRIVAL + DECODE. Same rule as framesAdvance: the same feed key seen
+    //    twice with a frame count that grew. (A claim swap installs a new
+    //    <video> whose counter restarts, so growth is compared per key against
+    //    that key's own earlier sample, never against a different container's.)
+    let prev = null, seen = null, decoding = null;
+    while (Date.now() < deadline && !decoding) {
+      const now = await stageFeeds(pages[idx]);
+      if (now.length) seen = now;
+      if (prev) {
+        for (const b2 of now) {
+          const a2 = prev.find((x) => x.key === b2.key);
+          if (a2 && b2.frames > a2.frames && b2.frames > 0) { decoding = b2; break; }
+        }
+      }
+      prev = now.length ? now : prev;
+      if (!decoding) await sleep(1000);
+    }
+    if (!decoding) {
+      return { ok: false,
+        stage: seen && seen.length ? 'the stage feed arrived but its frames never advanced' : 'no stage feed ever arrived at this seat',
+        feeds: seen || [], waited: waited() };
+    }
+
+    // 2. PAINT. The feed is decoding, so this is the renderer's half alone.
+    const pixBudget = Math.min(30000, Math.max(8000, deadline - Date.now()));
+    const tp = Date.now(); let a = null, b = null;
+    while (Date.now() - tp < pixBudget) {
       a = await pixSample(pages[idx]);
       if (!a.err && a.max > 0.05) {
         await sleep(1200);
         b = await pixSample(pages[idx]);
-        if (!b.err && b.max > 0.05 && b.sig !== a.sig) return { ok: true, mean: b.mean };
+        if (!b.err && b.max > 0.05 && b.sig !== a.sig) return { ok: true, mean: b.mean, decoding, waited: waited() };
       }
       await sleep(1500);
     }
-    return { ok: false, a: a && { err: a.err, mean: a.mean, max: a.max }, b: b && { err: b.err, mean: b.mean, max: b.max } };
+    return { ok: false,
+      stage: 'the stage feed is decoding (' + decoding.key + ' @' + decoding.frames + ' frames) but the strip never painted moving pixels',
+      a: a && { err: a.err, mean: a.mean, max: a.max },
+      b: b && { err: b.err, mean: b.mean, max: b.max },
+      feeds: seen, waited: waited() };
   };
   // decoded frames must ADVANCE for the stage feed (sgs at deep seats,
   // stg:* at Section-1) — the flag-proof decode-liveness bar.
