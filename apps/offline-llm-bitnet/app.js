@@ -43,12 +43,7 @@
         : Promise.resolve({ blob: new Blob([b64ToU8(window.LLM_DEMO_B64)]), kind: 'selftest', ctx: 512 });
       return getModel.then(function (m) {
         say(m.kind === 'bitnet' ? 'Loading BitNet weights (this can take a minute)…' : 'Loading the self-test model…');
-        // skip_chat_parsing: this provider returns PLAIN TEXT — it never wants
-        // llama.cpp's structured chat parser (tool calls, reasoning blocks).
-        // That parser THROWS on anything it can't parse, and the self-test
-        // model emits token soup by design, so leaving it on makes the
-        // self-test path fail outright ("Failed to parse input at pos 0: …").
-        return wllama.loadModel([m.blob], { n_ctx: m.ctx, skip_chat_parsing: true }).then(function () {
+        return wllama.loadModel([m.blob], { n_ctx: m.ctx }).then(function () {
           live.kind = m.kind;
           live.model = wllama;
           say('');
@@ -60,16 +55,45 @@
     return enginePromise;
   }
 
+  // BitNet b1.58 2B-4T's prompt format, which is also what the GGUF's
+  // tokenizer.chat_template renders:
+  //   User: <text><|eot_id|>Assistant: <text><|eot_id|>…  then "Assistant: "
+  var EOT = '<|eot_id|>';
+  function buildPrompt(messages) {
+    var out = '';
+    for (var i = 0; i < messages.length; i++) {
+      var role = messages[i].role === 'assistant' ? 'Assistant'
+        : messages[i].role === 'system' ? 'System' : 'User';
+      out += role + ': ' + String(messages[i].content).trim() + EOT;
+    }
+    return out + 'Assistant: ';
+  }
+
   function chatHandler(req) {
     return bootEngine().then(function (wllama) {
       var messages = Array.isArray(req.messages) && req.messages.length
         ? req.messages.map(function (m) { return { role: String(m.role || 'user'), content: String(m.content || '') }; })
         : [{ role: 'user', content: 'Hello' }];
       var maxTokens = Math.min(Math.max(1, Number(req.maxTokens) || 256), 1024);
-      var params = { messages: messages, max_tokens: maxTokens, stream: false };
+      // RAW completion, deliberately NOT createChatCompletion. The chat path
+      // runs llama.cpp's PEG chat parser, which requires the model's output to
+      // begin with the generation-prompt literal and THROWS when it doesn't —
+      // and `skip_chat_parsing` does not save you: force_pure_content still
+      // builds `literal(generation_prompt) << content(rest)`. The self-test
+      // model emits random tokens, so that parse failed ~half the time, at
+      // random, which is exactly the kind of flake a release gate cannot carry.
+      // This provider only ever returns plain text, so it formats the prompt
+      // itself and takes the raw completion.
+      var params = {
+        prompt: buildPrompt(messages),
+        max_tokens: maxTokens,
+        stream: false,
+        stop: [EOT, '\nUser:', 'User:'],
+      };
       if (req.temperature != null) params.temperature = Number(req.temperature);
-      return wllama.createChatCompletion(params).then(function (res) {
-        var text = (res && res.choices && res.choices[0] && res.choices[0].message && res.choices[0].message.content) || '';
+      return wllama.createCompletion(params).then(function (res) {
+        var text = (res && res.choices && res.choices[0] && res.choices[0].text) || '';
+        text = String(text).split(EOT)[0].replace(/^\s+/, '');
         if (live.kind === 'selftest') {
           // Never let random-weights output masquerade as an answer.
           text = '[self-test model — token soup, not intelligence. Install the BitNet weights for real answers.]\n' + text;

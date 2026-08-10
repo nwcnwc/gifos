@@ -8,5 +8,13 @@
   "entry": "index.html",
   "accent": [92, 220, 180],
   "capabilities": { "wasm": true },
-  "provides": { "ai": ["cheapest"] }
+  "provides": { "ai": ["cheapest"] },
+  "assets": [
+    {
+      "url": "https://huggingface.co/ihtesham0345/bitnet-b1.58-2B-4T-llamakind/resolve/main/bitnet-b1.58-2B-4T-tq1_0.gguf",
+      "sha256": "db8852edfaa08476ab8476052c7777990cf73df16f2618604115a2c954e06f3a",
+      "path": "model.gguf",
+      "bytes": 1105874048
+    }
+  ]
 }
