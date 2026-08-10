@@ -11943,6 +11943,26 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // per-slot primary/standby VIA (peer id) — lets a probe kill the exact
         // feeding peer and watch the hot standby promote with no black-out.
         claimVia: [...mosIn.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
+        // WHY AN ANNOUNCER IS NOT A CANDIDATE. claimRedun only claims from an
+        // announcer whose announced streamId resolves to one of that peer's
+        // INCOMING streams (`live`), and when nothing resolves it claims
+        // NOTHING — the seat holds announcers, has no feed, and every seat
+        // below it starves with no announcer of its own to explain why.
+        // Measured 2026-08-10 (e2e-mosaic): a mid-tree seat sat on TWO stg
+        // announcers with an empty claim list, and nothing anywhere could say
+        // which half of the resolution failed. This recomputes it and reports
+        // the comparison itself: what was announced, against the stream ids
+        // that peer actually has.
+        cands: [...mosAnn.entries()].map(([k, v]) => {
+          const bar = k.indexOf('|'), from = k.slice(0, bar), key = k.slice(bar + 1);
+          const p = peers.get(from);
+          const inc = (p && p.incoming) ? p.incoming.map((s) => String(s.id).slice(0, 8)) : null;
+          const want = String(v && v.streamId).slice(0, 8);
+          return { key, from: from.slice(0, 8), want,
+            peer: !!p, conn: !!(p && p.connected), own: String(p && p.ownSid).slice(0, 8),
+            incoming: inc,
+            live: !!(p && p.incoming && p.incoming.find((s) => s.id === (v && v.streamId) && s.id !== p.ownSid)) };
+        }),
         standbyVia: [...mosStandby.entries()].map(([rk, c]) => ({ rk, via: c.via, sid: c.streamId })),
         // wake/failback forensics: per-slot wake-in-progress + settle stamps
         fb: [...mosFb.entries()].map(([rk, f]) => ({ rk, wakeAt: f.wakeAt, prefSince: f.prefSince, lastSwitch: f.lastSwitch, dark: !!f.dark, lastAdvanceAt: f.lastAdvanceAt || 0, lastBytes: f.lastBytes != null ? f.lastBytes : -1, d0: f.d0 != null ? f.d0 : -1, stdFdec: f.stdFdec != null ? f.stdFdec : -1, flowSince: f.flowSince || 0, q: f.q || 0, fp: f.fp || 0 })),
