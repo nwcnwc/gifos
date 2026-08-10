@@ -354,7 +354,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                     for (const jk in c) if (jk.indexOf(key) === 0) mine[jk.slice(key.length + 1, key.length + 9)] = c[jk];
                     return mine;
                   }, f.key).catch(() => ({}));
-                  rows.push({ seat: 'P' + s, me: seatIds[s], dec, pipes: mine, car });
+                  // THE MISSING LINK. The receiver's inbound row showed
+                  // frecv == fdec at every seat — nothing is ever rejected —
+                  // while the stalled seat had FOUR packets against 30+ frames
+                  // its sender's worker had written. So the loss is between
+                  // writer.write() succeeding and RTP leaving the box. The
+                  // sender's OUTBOUND row per destination closes it: framesEncoded
+                  // near the write count means the frames were encoded and the
+                  // wire lost them; framesEncoded near zero means the writes
+                  // never became encoded frames at all, and the carrier is the gap.
+                  const outr = await pages[s].evaluate(async (key) => {
+                    const rows = (await __gifosVideo.kfStats()).filter((x) => x.dir === 'out' && x.slot && x.slot.indexOf('out:' + key + '>') === 0);
+                    const o = {};
+                    for (const r of rows) o[r.slot.slice(('out:' + key + '>').length)] =
+                      { fenc: r.fenc, kenc: r.kenc, pliRx: r.pliRx, nackRx: r.nackRx, fps: r.fps,
+                        fw: r.fw, fh: r.fh, qlim: r.qlim, impl: r.impl };
+                    return o;
+                  }, f.key).catch(() => ({}));
+                  rows.push({ seat: 'P' + s, me: seatIds[s], dec, pipes: mine, car, outr });
                 }
                 return rows;
               };
@@ -369,6 +386,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                     paused: r.pipes[d].paused, needKey: r.pipes[d].needKey, dropped: r.pipes[d].dropped,
                     wrote: r.pipes[d].wrote,
                     carrier: (r.car && r.car[d]) || null,
+                    out: (r.outr && r.outr[d]) || null,
                     mintsS: (a.car && a.car[d] && r.car && r.car[d]) ? +(((r.car[d].mints - a.car[d].mints) / 2)).toFixed(1) : null };
                 }
                 return { seat: r.seat, me: r.me, fdec: r.dec && r.dec.fdec, kdec: r.dec && r.dec.kdec,
