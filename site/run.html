@@ -7938,6 +7938,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             const carrier = MPipe.makeCarrier();
             const sd = addAux(p.pc, carrier.track, job.container);
             if (MPipe.pipeSender(sd, srcId, jk, carrier)) {
+              // A CARRIER NEEDS FRAMES, NOT QUALITY — its pixels are thrown
+              // away. The worker swaps every template's payload for the real
+              // content bytes, so the 48px canvas is pure pacing: one template
+              // minted = one content frame forwarded. Chrome does not know
+              // that. It sizes the encoder's target from what it SEES — a
+              // 48x48 nearly-static source — and lands on the 30 kbps floor,
+              // at which point it stops bothering to encode most of the frames
+              // we mint. Measured at a stall (clawbox, 2026-08-10):
+              // targetBitrate 30000 with 515459 available, framesEncoded 2 over
+              // the window, the worker's last write 14.2s earlier, and the
+              // receiving seat bright-frozen — starvation at the carrier's
+              // allocation, not loss anywhere downstream.
+              // maintain-framerate says the right thing to the allocator: keep
+              // the frames coming and give up resolution instead. Resolution is
+              // exactly what a carrier has to spare.
+              try {
+                const prm = sd.getParameters();
+                if (prm.encodings && prm.encodings.length) {
+                  prm.degradationPreference = 'maintain-framerate';
+                  sd.setParameters(prm).catch(() => {});
+                }
+              } catch (e) {}
               pipeJobs.set(jk, { srcId, carrier, srcTrack: tr, w0: null, stale: 0 });
               job.senders.push(sd); job.trackList.push(carrier.track); job.srcTracks.push(tr);
               if (isStageJob(job.key)) stageSenders.add(sd);
