@@ -4,6 +4,7 @@
   "name": "Offline Cheap Text LLM Gemma 4",
   "shortName": "Gemma 4 LLM",
   "version": "1.0",
+  "minBuild": 1189,
   "description": "A cheap text brain for your whole computer, running entirely on your device. A Provider app: put it in your Providers folder, assign it to Cheapest text LLM in Settings → AI models, and every app that asks for cheap text uses it — no account, no key, nothing leaves your device. Built on llama.cpp (wllama) with Google's Gemma 4 E2B weights — Apache-2.0 — arriving as a hash-pinned download.",
   "entry": "index.html",
   "accent": [167, 139, 250],
