@@ -11901,6 +11901,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       },
       mosaic: () => { const c = meshCoord(); const T = net.topo; const tgt = (co) => { if (!co) return null; const pid = occPid(co); const p = pid && peers.get(pid); return { pid: (pid||'').slice(0,6), has: !!p, conn: p && p.connected, dc: !!(p && p.dc && p.dc.readyState === 'open') }; };
         return { multi: multiSection(), coord: c, head: c && c.i === 0, s1: c && c.pc === 0,
+        // WHO AM I, in the same 8-char form feedsInfo() reports `via` in. A
+        // receiver can see which peer it is claiming FROM, but nothing let an
+        // observer turn that back into a seat — so a stall could never be
+        // followed one hop upstream to ask what the sender was doing. Needed to
+        // resolve pipeStats() across seats (the stg-freeze hunt,
+        // docs/bug-pipe-stg-freeze-2026-08-05.md).
+        me: String(myId || '').slice(0, 8),
         up: c ? tgt(T.up(c)) : null, down: c ? tgt(T.down(c)) : null,
         prodStream: !!(prodPack && prodPack.stream), sdStream: !!(sdPack && sdPack.stream),
         jobs: [...mosJobs.keys()], claims: [...mosIn.keys()], ann: [...mosAnn.keys()],

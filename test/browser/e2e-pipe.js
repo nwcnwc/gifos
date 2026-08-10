@@ -227,6 +227,31 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const swaps = [];       // container changes seen (the churn, printed not asserted)
       const last = new Map(); // `${i}:${key}` -> { fr, at, via, sid, b0 }
       const tW0 = Date.now();
+      // WHO IS WHICH SEAT. feedsInfo() reports the claim's `via` as an 8-char
+      // peer id; mosaic().me reports this seat's own in the same form. Together
+      // they turn "P0 is stalled on a feed it claims via k_61a740" into "ask
+      // P4, one hop upstream, what its forward to P0 was doing at that instant"
+      // — which is the measurement the 2026-08-10 dossier round asked for and
+      // could not take.
+      const seatIds = await Promise.all(pages.map((p) =>
+        p.evaluate(() => (window.__gifosVideo.mosaic() || {}).me || null).catch(() => null)));
+      const seatOf = (via) => {
+        if (!via) return -1;
+        const v = String(via);
+        return seatIds.findIndex((id) => id && (id === v || id.indexOf(v) === 0 || v.indexOf(id) === 0));
+      };
+      const pipeStatsAt = (i) => pages[i].evaluate(async () => {
+        const s = await __gifosVideo.pipeStats();
+        const out = {};
+        for (const id in s) {
+          const p = s[id];
+          out[id] = { wrote: p.wrote, dropped: p.dropped, nkDrop: p.nkDrop, kdrop: p.kdrop,
+            q: p.q, needKey: p.needKey, paused: p.paused, swapErr: p.swapErr,
+            kfAsk: p.kfAsk, skr: p.skr, mime: p.mime, tmplMime: p.tmplMime,
+            sinceWriteMs: p.lastWriteAt ? Date.now() - p.lastWriteAt : null };
+        }
+        return out;
+      }).catch((e) => ({ err: String(e).slice(0, 80) }));
       const snap = (i) => pages[i].evaluate(async () => {
         const m = __gifosVideo.mosaic();
         const sidOf = new Map((m.claimVia || []).map((c) => [c.rk, String(c.sid).slice(0, 8)]));
@@ -274,20 +299,30 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
               //   wrote climbing + fdec flat      -> we ARE writing frames the
               //     decoder rejects (payload swap / mime mismatch)
               //   swapErr or a codec mismatch     -> the swap itself failing
-              const pw = await pages[i].evaluate(async () => {
-                const s = await __gifosVideo.pipeStats();
-                const out = {};
-                for (const id in s) {
-                  const p = s[id];
-                  out[id] = { wrote: p.wrote, dropped: p.dropped, nkDrop: p.nkDrop, kdrop: p.kdrop,
-                    q: p.q, needKey: p.needKey, paused: p.paused, swapErr: p.swapErr,
-                    kfAsk: p.kfAsk, skr: p.skr, mime: p.mime, tmplMime: p.tmplMime,
-                    sinceWriteMs: p.lastWriteAt ? Date.now() - p.lastWriteAt : null };
-                }
-                return out;
-              }).catch((e) => ({ err: String(e).slice(0, 80) }));
+              const pw = await pipeStatsAt(i);
+              // ONE HOP UPSTREAM, at the same instant. Our own counters are
+              // OUTBOUND forwards and cannot say what fed us. The seat named by
+              // `via` owns the forward pointing AT us — pipe id `<feed>><myId>`
+              // — and its state splits the remaining question in two:
+              //   paused / wrote flat  -> the forward was parked while we still
+              //                           demanded it (and a paused pipe is
+              //                           skipped by the 2s re-ask loop, so it
+              //                           would never recover on its own)
+              //   wrote climbing       -> the loss is on the carrier between
+              //                           the two hops, not in either worker
+              const ui = seatOf(f.via);
+              let up = null;
+              if (ui >= 0 && ui !== i) {
+                const all = await pipeStatsAt(ui);
+                const mine = seatIds[i];
+                const toMe = {};
+                for (const id in all) if (!mine || id.indexOf('>' + mine) >= 0 || id.indexOf(mine) > 0) toMe[id] = all[id];
+                up = { seat: 'P' + ui, forwardsToMe: toMe, allPipeIds: Object.keys(all).map((s) => s.slice(0, 24)) };
+              } else {
+                up = { seat: ui, note: 'via did not resolve to a seat in this room', via: f.via, seatIds };
+              }
               stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at,
-                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw });
+                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw, up });
             }
           }
         }
