@@ -363,7 +363,19 @@ if want browser; then
       # spawns its OWN server on 8791 — fake-ai must be down for it, up after
       e2e-fetch-bridge) pkill -f fake-ai.js; sleep 1; run_one "$f" 600 browser
                         nohup node test/servers/fake-ai.js >/dev/null 2>&1 & sleep 2 ;;
-      e2e|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip) run_one "$f" 900 browser ;;
+      # e2e-anyroad is the heaviest suite in the gate — 218 checks over TWO full
+      # browser boots (the second is the HILLS CODA: a fresh context, a
+      # re-install of the App GIF, and up to 50s waiting for a hilly world to
+      # build). It went GREEN under a 700s budget on this box on 2026-08-09
+      # (~/gate-logs/anyroad-verify7.log) and then GREW — street names, the
+      # flare, the tile-map report, the satellite forest classifier — so at 600s
+      # the gate killed it mid-run TWICE at 208/218 checks with ZERO failures
+      # and called that a product red. Nothing here softens an assertion: every
+      # check still has to pass, the suite just gets the clock the other heavy
+      # suites already have. If it outgrows 900s too, SPLIT THE CODA into its
+      # own file rather than raising this again — the tier discovers files, so a
+      # new suite is gated the day it lands.
+      e2e|e2e-anyroad|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip) run_one "$f" 900 browser ;;
       *) run_one "$f" 600 browser ;;
     esac
   done
