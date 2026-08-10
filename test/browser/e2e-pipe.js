@@ -258,8 +258,36 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                 const r = (await __gifosVideo.kfStats()).find((x) => x.dir === 'in' && x.slot === 'in:' + key);
                 return r ? { fdec: r.fdec, kdec: r.kdec } : null;
               }, f.key).catch(() => null);
+              // 3. SAY WHAT THIS SEAT'S OWN PIPE WORKER WAS DOING (2026-08-10).
+              // Bytes + framesDecoded proved the pipe was delivering and the
+              // decoder producing nothing, but not WHY, and the dossier's
+              // leading guess — that the lane lacks keyframe recovery — is
+              // wrong: mesh-pipe.js already fires BOTH levers (hop-local
+              // sendKeyFrameRequest and the mx-kf walk) plus a 2s re-ask timer
+              // for the dark-tap hole. So the question is narrower than "ask
+              // for a key", and the worker has carried the answer all along in
+              // counters nothing ever read at stall time. These three shapes
+              // are mutually exclusive and each names a different bug:
+              //   dropped climbing + needKey true -> keys are asked for and
+              //     never arrive (the ask is not crossing, or content arrives
+              //     with no key to anchor it)
+              //   wrote climbing + fdec flat      -> we ARE writing frames the
+              //     decoder rejects (payload swap / mime mismatch)
+              //   swapErr or a codec mismatch     -> the swap itself failing
+              const pw = await pages[i].evaluate(async () => {
+                const s = await __gifosVideo.pipeStats();
+                const out = {};
+                for (const id in s) {
+                  const p = s[id];
+                  out[id] = { wrote: p.wrote, dropped: p.dropped, nkDrop: p.nkDrop, kdrop: p.kdrop,
+                    q: p.q, needKey: p.needKey, paused: p.paused, swapErr: p.swapErr,
+                    kfAsk: p.kfAsk, skr: p.skr, mime: p.mime, tmplMime: p.tmplMime,
+                    sinceWriteMs: p.lastWriteAt ? Date.now() - p.lastWriteAt : null };
+                }
+                return out;
+              }).catch((e) => ({ err: String(e).slice(0, 80) }));
               stalls.push({ seat: 'P' + i, key: f.key.slice(0, 14), stuckMs: Date.now() - rec.at,
-                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf });
+                frames: f.fr, via: f.via, sid: f.sid, bytesDuringStall: f.b - rec.b0, kf, pipe: pw });
             }
           }
         }
