@@ -469,6 +469,59 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       console.log('   MEASURE container swaps on stg/sgs claims during the 36s window: ' + swaps.length
         + (swaps.length ? '  ' + JSON.stringify(swaps) : ''));
       check('THE FREEZE SHAPE: no stg/sgs feed bright-stalls >=12s at any seat over 36s', stalls.length === 0, { stalls });
+
+      // NO JOB MAY STAY PARKED WHILE ITS RECEIVER IS DEMANDING IT HOT.
+      //
+      // mx-want carrying a streamId the sender no longer ships is refused (it
+      // must be — a stale demand must never flip a live ship), and before
+      // 2026-08-10 it was refused SILENTLY: the job stayed parked while the
+      // receiver re-asserted the same stale want every 6s, recovering only when
+      // the announce aged out at ~12s and the claim was re-made. That is a
+      // 12-15s blackout of a feed both ends want, and it is this leg's shape.
+      // The sender now answers a stale want by re-announcing its current id.
+      //
+      // The invariant is cross-seat and cheap: for every seat demanding a feed
+      // HOT, the peer it is demanding FROM must have that job active. Sampled
+      // over a window, because a momentary park during a re-ship is legitimate
+      // — only a SUSTAINED one is the bug.
+      const wantParked = [];
+      let wpJudged = 0;
+      const seen = new Map();   // 'seat->to|key' -> consecutive samples parked
+      for (let pass = 0; pass < 8; pass++) {
+        const snapAll = [];
+        for (let s2 = 0; s2 < N; s2++) {
+          snapAll.push(await pages[s2].evaluate(() => {
+            const m = window.__gifosVideo.mosaic() || {};
+            return { me: m.me, demand: m.demand || [], jobsActive: m.jobsActive || [] };
+          }).catch(() => null));
+        }
+        for (let s2 = 0; s2 < N; s2++) {
+          const me = snapAll[s2]; if (!me) continue;
+          for (const e of me.demand) {
+            if (!/=w$/.test(e)) continue;                     // only HOT demands
+            const bar = e.indexOf('|'); if (bar < 0) continue;
+            const from = e.slice(0, bar), rest = e.slice(bar + 1);
+            const key = rest.slice(0, rest.lastIndexOf('|'));
+            if (key.indexOf('stg:') !== 0 && key !== 'sgs') continue;
+            const ui = snapAll.findIndex((x) => x && x.me && String(from).indexOf(x.me) === 0);
+            if (ui < 0) continue;                             // sender not in this room's sample
+            wpJudged++;
+            // jobsActive entries are `${key}>${to}` + ('+' active | '·' dormant)
+            const mine = (snapAll[ui].jobsActive || []).find((j) => j.indexOf(key + '>') === 0 && j.indexOf(me.me) > 0);
+            const active = mine ? mine.slice(-1) === '+' : null;
+            const id = 'P' + s2 + '<-P' + ui + '|' + key.slice(0, 14);
+            if (active === false) {
+              const n = (seen.get(id) || 0) + 1; seen.set(id, n);
+              if (n >= 3 && !wantParked.some((x) => x.id === id)) wantParked.push({ id, samples: n, demand: e.slice(0, 80), job: mine });
+            } else seen.set(id, 0);
+          }
+        }
+        await sleep(1500);
+      }
+      check('no job stays PARKED while its receiver demands it HOT (the stale-sid want drop)',
+        wantParked.length === 0, { violations: wantParked.slice(0, 4), judged: wpJudged });
+      console.log('   MEASURE want-vs-parked observations judged: ' + wpJudged
+        + (wpJudged === 0 ? '  (VACUOUS — no hot demand resolved to a seat in this sample)' : ''));
       // and the stager's own stg encode never parks into silence while staged
       const stEnc = await pages[deepIdx0].evaluate(async () => {
         const rows = (await __gifosVideo.kfStats()).filter((r) => r.dir === 'out' && r.slot && r.slot.indexOf('out:stg:') === 0);

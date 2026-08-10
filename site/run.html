@@ -7065,6 +7065,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // the redun-drill caught).
         const jw = mosJobs.get(m.key + '>' + p.id);
         if (jw && (!m.streamId || jw.streamId === m.streamId)) setJobActive(m.key + '>' + p.id, true);
+        else if (jw && m.streamId && jw.streamId !== m.streamId) {
+          // STALE SID ON A WANT — ANSWER IT, DO NOT JUST DROP IT.
+          //
+          // The receiver wants this feed and is asking under a container id I
+          // no longer ship. The guard above is right to refuse the WAKE (a
+          // stale demand must never flip a live ship — the dark-primary
+          // inversion the redun-drill caught), but dropping it in silence
+          // leaves my job PARKED while the receiver re-asserts the same stale
+          // want every 6s forever. Nothing tells it that its id is out of
+          // date, so the only way out is the announce ageing out at ~12s and
+          // the claim being torn down and re-made — which is exactly the
+          // 12-15s bright freeze e2e-pipe leg 3 measures
+          // (docs/bug-pipe-stg-freeze-2026-08-05.md).
+          //
+          // So re-announce THIS job to THAT peer. The announce is idempotent
+          // and already re-sent every sweep, so this changes no state on
+          // either side — it just delivers the current id now instead of up to
+          // a sweep later, and the receiver re-demands correctly on the next
+          // pass. Deliberately NOT "wake it anyway": that would risk pinning a
+          // job hot which a stale-sid mx-idle then could not park, trading a
+          // starve for a ONE-PIPE violation.
+          if (p.dc && p.dc.readyState === 'open') {
+            dcSend(p, Object.assign({ k: 'mx', key: m.key, streamId: jw.streamId }, jw.meta || {}));
+          }
+        }
         // Mirror-chain wake propagates END-TO-END IN ONE PASS (Phase 2): a
         // woken hop immediately demands its OWN upstream hop awake, so the
         // wake ripples producer-ward as one cascade of DC frames — never one
