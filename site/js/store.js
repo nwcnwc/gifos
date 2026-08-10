@@ -74,6 +74,22 @@
   let activeCat = 'All';
   let legacyDesktop = null;    // set to the release name when this visitor's
                                // Home Screen predates the store (see below)
+  let ownerBuild = null;       // the BUILD NUMBER that will run what we install
+  let ownerName = '';          // …said in words a player recognises
+  let versions = null;         // version.json, once it has landed
+
+  // version.json, fetched at most once. It answers both version questions this
+  // page has: which release the default channel points at, and which edge build
+  // each release was cut from — the map that turns an app's minBuild into
+  // "release 0.9.6 and up" instead of a bare number nobody can act on.
+  let versionsP = null;
+  function versionJson() {
+    if (!versionsP) {
+      versionsP = fetch('/version.json?ts=' + Date.now(), { cache: 'no-store' })
+        .then((r) => r.json()).then((v) => (versions = v)).catch(() => null);
+    }
+    return versionsP;
+  }
 
   // ---------- which build owns this visitor's Home Screen? -------------------
   // This page has NO channel loader, unlike every other entry page: a release
@@ -93,6 +109,12 @@
   // wins everywhere, including localhost — that snapshot is the user's computer
   // and an install has to reach it. Only the DEFAULT channel is gated on the
   // real domain, because off it the root is what you're developing.
+  //
+  // The answer is also a BUILD NUMBER, via version.json's release→build map,
+  // and that number is what the minBuild gate below compares against. It must
+  // describe the computer that will RUN the app, not the page you are reading:
+  // a visitor on release 0.9.5 is a build-1095 computer however new the store
+  // page they are standing in happens to be.
   async function effectiveRelease() {
     if (FROZEN) return null;                                    // already inside a snapshot
     let pin = null, chan = null, cur = null;
@@ -110,35 +132,122 @@
     // resolve the release pointer here, so we do too; skipping it would treat
     // them as an edge user and hand their install to a desktop that is about
     // to redirect itself into a snapshot.
-    try {
-      const r = await fetch('/version.json?ts=' + Date.now(), { cache: 'no-store' });
-      const v = (await r.json()).current || '';
-      return v || null;
-    } catch (e) { return null; }
+    const v = await versionJson();
+    return (v && v.current) || null;
   }
 
+  // WHY THIS NO LONGER REDIRECTS INTO THE SNAPSHOT'S OWN STORE. It used to: a
+  // release visitor was sent to /versions/<current>/store.html so the whole
+  // install happened inside one build. That handed the listing to a FROZEN
+  // store — code cut before the app it is being asked to describe existed. A
+  // frozen store cannot know an app needs a build newer than itself; it read
+  // the live catalog, said "Install — free", and installed something that
+  // could never run. Freezing the store froze its ignorance along with it.
+  //
+  // Nothing was lost by staying here. The hand-off does not need this page to
+  // live inside the snapshot: index.html's channel loader carries pathname AND
+  // hash across its redirect, so /index.html#place=<id> lands in the pinned
+  // build's desktop exactly as /versions/<rel>/index.html#place=<id> did, and
+  // Open's /run.html#id=<id> the same way. What IS lost by redirecting is the
+  // one thing this page must be able to do: tell the truth about a build that
+  // is older than the app in front of it.
+  //
+  // The store.html probe stays, for the question it was always really asking —
+  // does that build's desktop know what to do with #place= — since a build with
+  // no store has no handler and cannot receive an install at all.
   async function resolveBuild() {
+    if (FROZEN) {
+      // A snapshot's build.js is stamped at the cut, so this IS that build.
+      ownerBuild = Number(root.GIFOS_BUILD) || null;
+      const v = (location.pathname.match(/\/versions\/([^/]+)\//) || [])[1] || '';
+      ownerName = v ? 'release ' + v : 'this build';
+      await versionJson();
+      return;
+    }
     const rel = await effectiveRelease();
-    if (!rel) return;                                           // the root build owns this visitor
+    if (!rel) {                                                 // the root build owns this visitor
+      // 0 is a local checkout (build.js ships 0; pages.yml bakes the real
+      // number at deploy). Unknown, not ancient — never gate on it.
+      ownerBuild = Number(root.GIFOS_BUILD) || null;
+      ownerName = 'the edge build' + (ownerBuild ? ' (build ' + ownerBuild + ')' : '');
+      await versionJson();
+      return;
+    }
+    const v = await versionJson();
+    ownerBuild = Number(v && v.builds && v.builds[rel]) || null;
+    ownerName = 'release ' + rel + (ownerBuild ? ' (build ' + ownerBuild + ')' : '');
     let has = false;
     try {
       const r = await fetch('/versions/' + encodeURIComponent(rel) + '/store.html', { method: 'HEAD' });
       has = !!(r && r.ok);
     } catch (e) { /* offline: treat as "no", and say so rather than half-install */ }
-    if (has) { location.replace('/versions/' + encodeURIComponent(rel) + '/store.html' + location.hash); return 'redirected'; }
-    legacyDesktop = rel;
+    if (!has) legacyDesktop = rel;
+  }
+
+  // ---------- does this visitor's build meet the app's floor? ----------------
+  // An app states the oldest build it runs on (manifest.minBuild, carried into
+  // the catalog by scripts/build-app-catalog.mjs). Installing below it is not a
+  // degraded experience, it is a dead icon — Offline Cheap Text LLM BitNet
+  // needs the install-time asset tier no release has yet, so on 0.9.5 the
+  // download completes, the weights have nowhere to go, and the app opens onto
+  // nothing. A store that cannot say "not for this computer" has no business
+  // saying "free".
+  const needsBuild = (app) => Number(app && app.minBuild) || 0;
+  // Deliberately false when ownerBuild is unknown: refusing an install because
+  // we could not read version.json would be worse than the thing we're guarding
+  // against. We block on knowledge, never on the absence of it.
+  const tooOld = (app) => !!(ownerBuild && needsBuild(app) > ownerBuild);
+  // Buttons that write to this computer are dead for either reason.
+  const blocked = (app) => !!legacyDesktop || tooOld(app);
+
+  // The oldest RELEASE that carries a given build, so a requirement can be
+  // stated as something a player recognises. null when no release has it yet —
+  // which is not an error but the normal state of a freshly built app, and the
+  // state that has to be sayable out loud.
+  function releaseWith(build) {
+    const map = (versions && versions.builds) || {};
+    let best = null;
+    for (const rel of Object.keys(map)) {
+      const b = Number(map[rel]);
+      if (b >= build && (best === null || b < best.b)) best = { rel, b };
+    }
+    return best && best.rel;
   }
 
   // Exposed so the decision can be tested directly rather than inferred from
   // what the page happens to render — the same reason the channel loader
   // exports gifosPinTarget. That hook once vanished in a redesign and took
   // five version-pinning assertions with it, silently.
-  GifOS.storeBuild = { effectiveRelease, resolveBuild, get legacy() { return legacyDesktop; } };
+  GifOS.storeBuild = {
+    effectiveRelease, resolveBuild, releaseWith,
+    get legacy() { return legacyDesktop; },
+    get build() { return ownerBuild; },
+    get name() { return ownerName; },
+    tooOld,
+  };
 
   function legacyNotice() {
     return '<p class="err">Your Home Screen is running release ' + esc(legacyDesktop) +
       ', which was built before the App Store existed — it can’t receive an install yet. ' +
       'Update from <b>GifOS ▾ → Settings → Advanced → Version</b>, then come back.</p>';
+  }
+
+  // Said in full on the listing, where the decision is made. Two genuinely
+  // different endings: an app whose floor some release already meets is one
+  // update away, and an app whose floor NO release meets yet is only in the
+  // edge build — telling that player to "update" would send them to a Version
+  // panel where every release on offer is still too old.
+  function tooOldNotice(app) {
+    const need = needsBuild(app);
+    const rel = releaseWith(need);
+    return '<p class="err"><b>' + esc(app.name) + ' needs GifOS build ' + need + ' or newer.</b> ' +
+      'Your Home Screen runs ' + esc(ownerName) + ', so this app can’t run there yet — ' +
+      'installing it would leave you an icon that opens onto nothing. ' +
+      (rel
+        ? 'Move to release ' + esc(rel) + ' or later in <b>GifOS ▾ → Settings → Advanced → Version</b>, then come back.'
+        : 'No release has it yet — it is only in the unreleased edge build. Pick <b>Edge build</b> in ' +
+          '<b>GifOS ▾ → Settings → Advanced → Version</b>, or wait for the next release.') +
+      '</p>';
   }
 
   async function refreshInstalled() {
@@ -205,9 +314,15 @@
           '<h3>' + esc(a.name) + '</h3>' +
           '<div class="tag">' + esc(a.tagline) + '</div>' +
           '<div class="meta">' +
-            (installed
-              ? (outdated(a) ? '<span class="installed">↑ Update available</span>' : '<span class="installed">✓ Installed</span>')
-              : '<span>' + esc(human(a.bytes)) + '</span>') +
+            // The card says "needs a newer GifOS" INSTEAD of the size, because
+            // the size is an invitation and this app is not yet installable
+            // here. Learning it on the detail page only would mean finding out
+            // one press before Install, already sold on it.
+            (tooOld(a)
+              ? '<span class="needs">Needs a newer GifOS</span>'
+              : installed
+                ? (outdated(a) ? '<span class="installed">↑ Update available</span>' : '<span class="installed">✓ Installed</span>')
+                : '<span>' + esc(human(a.bytes)) + '</span>') +
             (a.categories || []).map((c) => '<span class="pill">' + esc(c) + '</span>').join('') +
           '</div>' +
         '</div></button>';
@@ -249,6 +364,11 @@
     const inst = installedOf(app);
     const installedId = inst && inst.id;
     const canUpdate = outdated(app);
+    // An app may RAISE its floor in a later version, so an already-installed
+    // copy can be the thing that no longer fits. Update is gated as hard as
+    // Install: swapping in bytes this computer can't run would break a working
+    // icon, which is worse than leaving it on the old version.
+    const stop = blocked(app) ? ' disabled' : '';
     detailEl.innerHTML =
       '<button class="back" id="back">← All apps</button>' +
       '<div class="head"><div>' +
@@ -259,14 +379,16 @@
       '<img class="hero" src="' + esc(app.cover) + '" alt="' + esc(app.name) + ' screenshot" decoding="async">' +
       '<div class="actions">' +
         (installedId
-          ? (canUpdate ? '<button class="btn" id="update"' + (legacyDesktop ? ' disabled' : '') + '>Update — keeps your data</button>' : '') +
+          ? (canUpdate ? '<button class="btn" id="update"' + stop + '>Update — keeps your data</button>' : '') +
             '<a class="btn' + (canUpdate ? ' ghost' : '') + '" href="' + BASE + 'run.html#id=' + encodeURIComponent(installedId) + ns('&db=') + '">Open</a>' +
-            '<button class="btn ghost" id="install"' + (legacyDesktop ? ' disabled' : '') + '>Install again</button>'
-          : '<button class="btn" id="install"' + (legacyDesktop ? ' disabled' : '') + '>Install — free</button>') +
+            '<button class="btn ghost" id="install"' + stop + '>Install again</button>'
+          : '<button class="btn" id="install"' + stop + '>' +
+            (tooOld(app) ? 'Needs a newer GifOS' : 'Install — free') + '</button>') +
         '<span class="note" id="note">' + esc(human(app.bytes)) + ' download</span>' +
         '<span class="prog" id="prog" style="display:none"><i></i></span>' +
       '</div>' +
       (legacyDesktop ? legacyNotice() : '') +
+      (tooOld(app) ? tooOldNotice(app) : '') +
       '<div class="err" id="err" style="display:none"></div>' +
       '<div class="desc">' + esc(app.description) + '</div>' +
       '<dl class="facts">' +
@@ -277,6 +399,16 @@
         (app.updated && app.updated !== app.releaseDate ? fact('Updated', esc(niceDate(app.updated))) : '') +
         fact('Category', (app.categories || []).map((c) => '<span class="pill">' + esc(c) + '</span>').join(' ')) +
         fact('Size', esc(human(app.bytes))) +
+        // Stated on EVERY listing, not only the ones that fail here. What an
+        // app requires is a fact about the app, the same as its size — a
+        // reader on a new computer still deserves to know before they pass the
+        // link to someone on an old one.
+        fact('Requires', needsBuild(app)
+          ? 'GifOS build ' + needsBuild(app) + ' or newer' +
+            (releaseWith(needsBuild(app))
+              ? ' <span class="pill">release ' + esc(releaseWith(needsBuild(app))) + ' and up</span>'
+              : ' <span class="pill">no release yet — edge build</span>')
+          : 'not stated') +
         fact('License', esc(app.license)) +
         fact('Signature', app.signature && app.signature.id
           ? '✓ signed by ' + esc(app.signature.id) : 'not signed') +
@@ -285,9 +417,9 @@
       '</dl>';
 
     $('back').onclick = () => showBrowse(true);
-    if (!legacyDesktop) $('install').onclick = () => install(app);
+    if (!blocked(app)) $('install').onclick = () => install(app);
     const up = $('update');
-    if (up && !legacyDesktop) up.onclick = () => install(app, inst);
+    if (up && !blocked(app)) up.onclick = () => install(app, inst);
   }
   const fact = (k, v) => '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>';
 
@@ -300,6 +432,17 @@
   async function install(app, into) {
     const btn = $(into ? 'update' : 'install'), note = $('note'), prog = $('prog'), err = $('err');
     const fail = (msg) => { err.style.display = ''; err.textContent = msg; btn.disabled = false; prog.style.display = 'none'; };
+    // The floor, enforced where the download actually happens rather than only
+    // where the button is drawn. A disabled attribute is a rendering decision
+    // and rendering decisions drift; the promise being kept here is that an App
+    // GIF never crosses the wire onto a computer that cannot run it, which is
+    // the same promise the cover rule makes and is measured the same way — by
+    // counting requests in e2e-app-store.js.
+    if (tooOld(app)) {
+      err.style.display = ''; err.innerHTML = tooOldNotice(app);
+      btn.disabled = true;
+      return;
+    }
     err.style.display = 'none';
     btn.disabled = true;
     prog.style.display = ''; prog.firstChild.style.width = '0';
@@ -444,9 +587,9 @@
   }
 
   (async function boot() {
-    // Settle the build question before anything renders — it decides whether we
-    // stay here at all, and whether Install is offered.
-    if (await resolveBuild() === 'redirected') return;
+    // Settle the build question before anything renders — every card and every
+    // Install button is drawn against it.
+    await resolveBuild();
     try {
       const r = await fetch('/apps/index.json', { cache: 'no-cache' });
       catalog = await r.json();
