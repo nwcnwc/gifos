@@ -389,6 +389,97 @@ async function runConsumer(page, context, label, outTimeout) {
     await askai3.close();
   }
 
+  // ---- 10b. the OS says what a provider is doing while you wait -------------
+  // An on-device model loads hundreds of megabytes before it can produce a
+  // single token — minutes on a phone — and the OS used to say NOTHING for the
+  // whole of it. The asking app sat on a promise, the user sat on a blank
+  // answer, and a model warming up was indistinguishable from a computer that
+  // had given up. ctx.progress() existed but carried no words: it only re-armed
+  // the idle timer, so the one party that knew what was happening had no way to
+  // say it.
+  //
+  // Driven with a SYNTHETIC provider that reports a known phase and fraction,
+  // so this asserts the plumbing rather than the timing of somebody's laptop.
+  {
+    await page.evaluate(async () => {
+      const html = '<!doctype html><meta charset="utf-8"><script>' +
+        'gifos.provider.serve({ tts: function(req, ctx){' +
+        '  ctx.progress("Loading the test brain…", 0.42);' +
+        '  return new Promise(function(res){ setTimeout(function(){' +
+        '    ctx.progress("Writing the answer… (7 tokens)");' +
+        '    setTimeout(function(){ res({ bytes: new Uint8Array([82,73,70,70]).buffer, mime: "audio/wav" }); }, 900);' +
+        '  }, 900); });' +
+        '} });<\/script>';
+      const bytes = await GifOS.gif.encode({
+        'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'slowprov', name: 'Slow Prov', entry: 'index.html',
+          capabilities: {}, provides: { ai: ['tts'] } }),
+        'index.html': html,
+      });
+      const fid = GifOS.store.uid('file');
+      await GifOS.store.putFile({ id: fid, name: 'Slow Prov.gif', bytes, kind: 'gif', isApp: true, appId: 'slowprov', mime: 'image/gif' });
+      await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Slow Prov.gif', parent: 'sys_providers', x: 420, y: 90, iconSize: 64 });
+      localStorage.setItem('gifos_ai_config', JSON.stringify({ tts: { app: fid, appId: 'slowprov', appName: 'Slow Prov' } }));
+      window.__slowFid = fid;
+    });
+
+    const app = await context.newPage();
+    app.on('pageerror', (e) => console.log('  [app pageerror] ' + e.message));
+    const consumerId = await page.evaluate(async () => {
+      const f = (await GifOS.store.allFiles()).find((x) => x.appId === 'ttsuser');
+      return f && f.id;
+    });
+    // Sample the pill continuously, ARMED BEFORE THE PAGE LOADS. The consumer
+    // fires its AI call the moment it mounts, so a recorder installed after
+    // navigation races the very thing it is trying to watch — the first cut of
+    // this block spent four seconds waiting on an abilities prompt that had
+    // been acknowledged earlier in the suite, and by the time it looked, the
+    // whole answer had come and gone. Asserting on whatever happens to be on
+    // screen at one arbitrary moment is the other half of the same mistake.
+    await app.addInitScript(() => {
+      window.__said = [];
+      setInterval(() => {
+        const el = document.getElementById('gifos-provider-busy');
+        if (!el) return;
+        const t = el.textContent.replace(/\s+/g, ' ').trim();
+        if (window.__said[window.__said.length - 1] !== t) window.__said.push(t);
+      }, 100);
+    });
+    await app.goto(BASE + '/run.html#id=' + consumerId);
+    await app.waitForSelector('iframe', { timeout: 15000 });
+    const ackBox = app.locator('.perm-box', { hasText: 'would like to' });
+    try { await ackBox.waitFor({ timeout: 4000 }); await ackBox.locator('.done').click(); } catch (e) { /* already acked */ }
+
+    await app.frameLocator('#appmount iframe').locator('#out').filter({ hasText: /ok:|err:/ }).waitFor({ timeout: 60000 });
+    await sleep(600);
+    const said = await app.evaluate(() => window.__said);
+    const all = said.join(' ~ ');
+
+    check('the OS shows a status while a provider is working', said.length > 0, all.slice(0, 160));
+    check('…carrying the PROVIDER’S OWN words, not a generic spinner',
+      /Loading the test brain/.test(all), all.slice(0, 200));
+    check('…and following it to the next phase', /Writing the answer/.test(all), all.slice(-120));
+    check('…with the elapsed time, so a long wait is legible as progress',
+      /\ds so far/.test(all), all.slice(0, 120));
+    check('the status is GONE once the answer arrives',
+      !(await app.evaluate(() => !!document.getElementById('gifos-provider-busy'))));
+
+    // How long it took is remembered, so the NEXT wait can carry a number
+    // instead of asking the user to guess. Cold and warm are separate: they
+    // differ by orders of magnitude and quoting the warm one during a load
+    // would make the wait feel broken.
+    const timing = await app.evaluate(async (fid) => (await GifOS.store.getState('sys::provider-timing') || {})[fid], await page.evaluate(() => window.__slowFid));
+    check('the OS remembers how long the COLD call took', !!(timing && timing.cold > 0), JSON.stringify(timing));
+
+    await app.reload();                                  // a fresh tab = cold again, but now MEASURED (the recorder re-arms itself on load)
+    await app.waitForSelector('iframe', { timeout: 15000 });
+    try { await ackBox.waitFor({ timeout: 4000 }); await ackBox.locator('.done').click(); } catch (e) {}
+    await app.frameLocator('#appmount iframe').locator('#out').filter({ hasText: /ok:|err:/ }).waitFor({ timeout: 60000 });
+    const said2 = (await app.evaluate(() => window.__said || [])).join(' ~ ');
+    check('a second cold run quotes the measured wait instead of guessing',
+      /usually about/.test(said2), said2.slice(0, 200));
+    await app.close();
+  }
+
   // ---- 11. deleting a Provider takes its WEIGHTS with it --------------------
   // A Provider's cached download is the largest thing on the computer by an
   // order of magnitude — hundreds of megabytes to a gigabyte — and it lives in

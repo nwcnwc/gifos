@@ -30,7 +30,7 @@
 
   function bootEngine(onStatus) {
     if (enginePromise) return enginePromise;
-    var say = function (m) { if (onStatus) { try { onStatus(m); } catch (e) {} } };
+    var say = function (m, frac) { if (onStatus) { try { onStatus(m, frac); } catch (e) {} } };
     enginePromise = Promise.resolve().then(function () {
       if (!window.WllamaLib || !window.WllamaLib.Wllama) throw new Error('The engine library failed to load.');
       if (!window.LLM_WASM_B64) throw new Error('The engine wasm failed to load.');
@@ -46,8 +46,17 @@
             function () { return { blob: new Blob([b64ToU8(window.LLM_DEMO_B64)]), kind: 'selftest', ctx: 512 }; })
         : Promise.resolve({ blob: new Blob([b64ToU8(window.LLM_DEMO_B64)]), kind: 'selftest', ctx: 512 });
       return getModel.then(function (m) {
-        say(m.kind === 'gemma4' ? 'Loading Gemma 4 weights (this can take a minute)…' : 'Loading the self-test model…');
-        return wllama.loadModel([m.blob], { n_ctx: m.ctx }).then(function () {
+        var loadingLabel = m.kind === 'gemma4' ? 'Loading Gemma 4 weights (this can take a minute)…' : 'Loading the self-test model…';
+        say(loadingLabel);
+        return wllama.loadModel([m.blob], { n_ctx: m.ctx,
+          // The OS shows this while the user waits. Loading a
+          // gigabyte of weights through a single-threaded wasm engine
+          // is the longest wait GifOS ever asks anyone to sit through,
+          // and it is the one part that can be honestly measured.
+          progressCallback: function (pr) {
+            if (!pr || !pr.total) return;
+            say(loadingLabel, pr.loaded / pr.total);
+          } }).then(function () {
           live.kind = m.kind;
           live.model = wllama;
           say('');
@@ -95,12 +104,12 @@
     // the FIRST call, which also loads the weights (up to ~1.8 GB) before a
     // single token exists — so the ping runs from the very start, not just
     // once generation begins.
-    var beat = function () { if (ctx && typeof ctx.progress === 'function') { try { ctx.progress(); } catch (e) {} } };
+    var beat = function (note, frac) { if (ctx && typeof ctx.progress === 'function') { try { ctx.progress(note, frac); } catch (e) {} } };
     beat(); // at once: "request received, working" — before any weights load
     var alive = ctx && typeof ctx.progress === 'function' ? setInterval(beat, 5000) : null;
     var done = function (v) { if (alive) clearInterval(alive); return v; };
     var died = function (e) { if (alive) clearInterval(alive); throw e; };
-    return bootEngine().then(function (wllama) {
+    return bootEngine(beat).then(function (wllama) {
       var messages = Array.isArray(req.messages) && req.messages.length
         ? req.messages.map(function (m) { return { role: String(m.role || 'user'), content: String(m.content || '') }; })
         : [{ role: 'user', content: 'Hello' }];
@@ -123,10 +132,18 @@
       // user's wait was thrown away.
       var acc = '';
       params.stream = true;
+      var tok = 0;
       params.onData = function (chunk) {
         try {
           var t = chunk && chunk.choices && chunk.choices[0] && chunk.choices[0].text;
-          if (t) acc += t;
+          if (t) {
+            acc += t;
+            // Tell the OS we are past loading and actually writing, then keep a
+            // running count. Not every token: the note is for a human reading a
+            // line of text, and repainting it 30 times a second is not reading.
+            tok++;
+            if (tok === 1 || tok % 16 === 0) beat('Writing the answer… (' + tok + ' tokens)');
+          }
         } catch (e) { /* a malformed chunk must not kill the generation */ }
       };
       return wllama.createCompletion(params).then(function () {
