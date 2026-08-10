@@ -170,7 +170,15 @@
           var h = provHandlers && provHandlers[d.role];
           var send = function(p){ parent.postMessage(Object.assign({ ns:'gifos', type:'provider-result', id:d.id }, p), '*'); };
           if (typeof h !== 'function') { send({ ok:false, error:'This provider does not serve "'+d.role+'".' }); return; }
-          var ctx = { progress: function(){ try { parent.postMessage({ ns:'gifos', type:'provider-progress', id:d.id }, '*'); } catch(e){} } };
+          // ctx.progress(note, frac) — re-arms the OS's idle clock AND says what
+          // is happening. The note is shown to the user by the OS, not by the
+          // asking app: an on-device model can take minutes to warm up, and
+          // every app that asks for AI would otherwise have to grow its own
+          // "please wait" out of nothing. Both arguments are optional; a bare
+          // progress() is still just a heartbeat.
+          var ctx = { progress: function(note, frac){ try { parent.postMessage({ ns:'gifos', type:'provider-progress', id:d.id,
+            note: note == null ? '' : String(note).slice(0, 120),
+            frac: (typeof frac === 'number' && isFinite(frac)) ? Math.max(0, Math.min(1, frac)) : null }, '*'); } catch(e){} } };
           Promise.resolve().then(function(){ return h(d.req || {}, ctx); })
             .then(function(result){ send({ ok:true, result:result }); })
             .catch(function(err){ send({ ok:false, error:String(err && err.message || err) }); });
@@ -1242,7 +1250,12 @@
         // A provider that is still generating says so; each ping re-arms the
         // idle clock. Cheap (one postMessage per token) and it cannot mask a
         // hang, because a hung provider stops pinging.
-        else if (d.type === 'provider-progress') { const pend = pending.get(d.id); if (pend && pend.bump) pend.bump(); }
+        else if (d.type === 'provider-progress') {
+          const pend = pending.get(d.id);
+          if (pend && pend.bump) pend.bump();
+          // …and the note the provider attached rides straight to the user.
+          if (pend && pend.onNote && (d.note || d.frac != null)) pend.onNote(d.note || '', d.frac);
+        }
         else if (d.type === 'provider-result') {
           const pend = pending.get(d.id); if (!pend) return;
           pending.delete(d.id); clearTimeout(pend.timer);
@@ -1256,7 +1269,7 @@
         else if (d.id) { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: false, error: 'Not available in a provider service mount.' }, '*'); }
       };
       const service = {
-        call: (role, req) => new Promise((res, rej) => {
+        call: (role, req, onNote) => new Promise((res, rej) => {
           const w = iframe.contentWindow;
           if (!w) { rej(new Error(label + ' is not running.')); return; }
           const id = 'p' + (++idSeq);
@@ -1268,7 +1281,7 @@
           // What must still fail fast is a WEDGED provider, so the clock is
           // reset by every provider-progress ping the provider sends as it
           // generates: silence for PROVIDER_CALL_MS means stuck, not slow.
-          const entry = { res, rej, timer: null };
+          const entry = { res, rej, timer: null, onNote };
           const arm = () => setTimeout(() => { pending.delete(id); rej(new Error(label + ' stopped responding while answering (no progress for ' + Math.round(PROVIDER_CALL_MS / 1000) + 's).')); }, PROVIDER_CALL_MS);
           entry.timer = arm();
           entry.bump = () => { clearTimeout(entry.timer); entry.timer = arm(); };
@@ -1320,13 +1333,31 @@
         // storage quota. The miss is still reported clearly at READ time by
         // gifos.assets(path), which names the fix; an app that genuinely cannot
         // work without its asset surfaces that message instead of this one.
-        const prep = A
-          ? A.missing(arc.files, m, cache).then((need) => need.length
-              ? A.ensure(arc.files, m, null, cache)
-                .catch((e) => { try { console.warn(name + ': asset download did not complete — the app will run in whatever degraded mode it offers. ' + (e && e.message || e)); } catch (_) {} return null; })
-              : null)
-          : Promise.resolve();
-        return prep.then(() => providerService(c.app, arc.files, m)).then((svc) => svc.call(role, req));
+        // COLD means the service is not mounted, so this call pays for the
+        // engine boot and the weight load. It is the difference between "a
+        // moment" and "a couple of minutes", so the indicator is told which
+        // one it is, and the two are timed separately.
+        const cold = !providerServices.has(c.app);
+        const t0 = Date.now();
+        return loadTimings().then((tt) => {
+          const rec = tt[c.app] || {};
+          busyStart(name, { cold, expect: cold ? rec.cold : rec.warm });
+          const prep = A
+            ? A.missing(arc.files, m, cache).then((need) => need.length
+              // The weights are the biggest wait there is and the OS is the one
+              // fetching them — before this, gigabytes downloaded behind a
+              // completely silent screen because ensure() was handed a null.
+                ? A.ensure(arc.files, m, (s, frac) => busyNote(s, frac), cache)
+                  .catch((e) => { try { console.warn(name + ': asset download did not complete — the app will run in whatever degraded mode it offers. ' + (e && e.message || e)); } catch (_) {} return null; })
+                : null)
+            : Promise.resolve();
+          return prep
+            .then(() => { if (cold) busyNote('Starting ' + name + '…', null); return providerService(c.app, arc.files, m); })
+            .then((svc) => svc.call(role, req, (note, frac) => busyNote(note, frac)))
+            .then(
+              (out) => { recordTiming(c.app, cold, Date.now() - t0); busyEnd(); return out; },
+              (err) => { busyEnd(); throw err; });          // a failed run teaches nothing about timing
+        });
       });
     });
   }
@@ -1756,6 +1787,137 @@
   // the call, or via gifos.apiSetup / gifos.aiSetup) but never author its generic
   // text — GifOS does, consistently. Apps may pass a `hint` with app-specific
   // extras (e.g. "new accounts include free credit"), appended below.
+  // ---- the warm-up indicator (system-owned) ---------------------------------
+  // An on-device provider has to load its weights before it can say anything —
+  // hundreds of megabytes through a single-threaded wasm engine, which is
+  // minutes on a phone. Until now the OS said NOTHING while that happened: the
+  // asking app sat on a promise, the user sat on a blank answer, and there was
+  // no way to tell a model warming up from a computer that had given up.
+  //
+  // It belongs to the OS, not the app. Every app that asks for AI would
+  // otherwise have to grow its own "please wait" out of nothing, and each one
+  // would guess differently — while the only party that knows a Provider is
+  // mounting, that its weights are still downloading, or that it has been
+  // 90 seconds, is the broker doing the work.
+  //
+  // Non-blocking on purpose: a pill at the bottom of the screen, over whatever
+  // app is running, never a modal. You are waiting for an answer, not being
+  // interrupted.
+  const busy = { n: 0, el: null, noteEl: null, subEl: null, barEl: null, t0: 0, tick: null, show: null, name: '', note: '', expect: 0, frac: null };
+
+  const fmtDur = (ms) => {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return s < 60 ? s + 's' : Math.floor(s / 60) + 'm' + (s % 60 ? ' ' + (s % 60) + 's' : '');
+  };
+
+  function busyPaint() {
+    if (!busy.el) return;
+    const ms = Date.now() - busy.t0;
+    // A cold call is warming up; a warm one is thinking. Saying "warming up"
+    // for a model already in memory would train people to expect the long wait
+    // every time.
+    busy.noteEl.textContent = busy.note || (busy.name + (busy.cold ? ' is warming up…' : ' is thinking…'));
+    // Elapsed ALWAYS; the expectation only when we have actually measured it
+    // before on this computer. "Usually about a minute" invented on the first
+    // run is a guess, and a guess that turns out short is worse than silence.
+    let sub = fmtDur(ms) + ' so far';
+    if (busy.expect > 0) {
+      sub += ms < busy.expect * 1.35
+        ? ' · usually about ' + fmtDur(busy.expect)
+        : ' · longer than its usual ' + fmtDur(busy.expect);
+    } else if (busy.cold) {
+      sub += ' · first answer loads the model, so it is the slow one';
+    }
+    busy.subEl.textContent = sub;
+    // A known fraction drives the bar; otherwise it sweeps, for the same reason
+    // the store's asset bar does — a bar parked at a number it cannot justify
+    // reads as finished.
+    if (busy.frac == null) { busy.barEl.parentNode.setAttribute('data-busy', '1'); busy.barEl.style.width = '100%'; }
+    else { busy.barEl.parentNode.removeAttribute('data-busy'); busy.barEl.style.width = Math.round(busy.frac * 100) + '%'; }
+  }
+
+  function busyMount() {
+    const doc = root.document;
+    if (!doc || !doc.body || busy.el) return;
+    if (!doc.getElementById('gifos-busy-css')) {
+      const st = doc.createElement('style'); st.id = 'gifos-busy-css';
+      st.textContent = '@keyframes gifosBusySweep{from{transform:translateX(-100%)}to{transform:translateX(100%)}}'
+        + '#gifos-provider-busy .bar[data-busy] i{background:linear-gradient(90deg,transparent,#7b5cff,transparent);animation:gifosBusySweep 1.1s linear infinite}'
+        + '@media (prefers-reduced-motion:reduce){#gifos-provider-busy .bar[data-busy] i{animation:none;opacity:.55}}';
+      doc.head.appendChild(st);
+    }
+    const el = doc.createElement('div');
+    el.id = 'gifos-provider-busy';
+    el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+    el.setAttribute('style', 'position:fixed;left:50%;bottom:1rem;transform:translateX(-50%);z-index:70;max-width:min(26rem,92vw);'
+      + 'background:#14141f;color:#e8e8f4;border:1px solid #2a2a3f;border-radius:.7rem;padding:.6rem .85rem;'
+      + 'box-shadow:0 .5rem 1.6rem rgba(0,0,0,.45);font:14px/1.4 system-ui,-apple-system,sans-serif;pointer-events:none');
+    el.innerHTML = '<div id="gifos-busy-note" style="font-weight:600"></div>'
+      + '<div id="gifos-busy-sub" style="color:#9a9ab5;font-size:.82rem;margin-top:.15rem"></div>'
+      + '<div class="bar" style="height:.28rem;border-radius:999px;background:#2a2a3f;overflow:hidden;margin-top:.45rem">'
+      + '<i style="display:block;height:100%;width:0;background:#7b5cff;transition:width .2s linear"></i></div>';
+    doc.body.appendChild(el);
+    busy.el = el;
+    busy.noteEl = el.querySelector('#gifos-busy-note');
+    busy.subEl = el.querySelector('#gifos-busy-sub');
+    busy.barEl = el.querySelector('.bar i');
+    busyPaint();
+    busy.tick = setInterval(busyPaint, 1000);
+  }
+
+  // Held back briefly: a warm provider answers in a few hundred ms, and
+  // flashing a "please wait" for that is noise, not information.
+  const BUSY_DELAY_MS = 600;
+  function busyStart(name, opts) {
+    busy.n++;
+    if (busy.n > 1) return;                       // one pill, whoever is asking
+    busy.name = name || 'The provider';
+    busy.note = ''; busy.frac = null;
+    busy.cold = !!(opts && opts.cold);
+    busy.expect = (opts && opts.expect) || 0;
+    busy.t0 = Date.now();
+    busy.show = setTimeout(() => { busy.show = null; busyMount(); }, BUSY_DELAY_MS);
+  }
+  function busyNote(note, frac) {
+    if (!busy.n) return;
+    if (note) busy.note = String(note);
+    busy.frac = (typeof frac === 'number' && isFinite(frac)) ? frac : null;
+    busyPaint();
+  }
+  function busyEnd() {
+    busy.n = Math.max(0, busy.n - 1);
+    if (busy.n) return;
+    if (busy.show) { clearTimeout(busy.show); busy.show = null; }
+    if (busy.tick) { clearInterval(busy.tick); busy.tick = null; }
+    if (busy.el) { try { busy.el.remove(); } catch (e) {} busy.el = null; }
+  }
+  // Exposed so the indicator can be asserted directly rather than inferred from
+  // a screenshot — same reason the store exports its build decision.
+  GifOS.providerBusy = { start: busyStart, note: busyNote, end: busyEnd, get showing() { return !!busy.el; }, get text() { return busy.el ? busy.noteEl.textContent + ' | ' + busy.subEl.textContent : ''; } };
+
+  // How long this provider took last time, so "warming up" can carry a number
+  // instead of asking the user to guess. Cold (weights not loaded yet) and warm
+  // are recorded separately because they differ by orders of magnitude, and
+  // quoting the warm figure while the model loads would be a lie that makes the
+  // wait feel broken. Smoothed, so one slow run under memory pressure doesn't
+  // become "usually".
+  const TIMING_KEY = 'sys::provider-timing';
+  let timings = null;
+  function loadTimings() {
+    if (timings) return Promise.resolve(timings);
+    return store.getState(TIMING_KEY).then((t) => (timings = t || {}), () => (timings = {}));
+  }
+  function recordTiming(fileId, cold, ms) {
+    if (!fileId || !(ms > 0)) return;
+    return loadTimings().then((t) => {
+      const rec = t[fileId] || {};
+      const k = cold ? 'cold' : 'warm';
+      rec[k] = rec[k] > 0 ? Math.round(rec[k] * 0.6 + ms * 0.4) : Math.round(ms);
+      t[fileId] = rec;
+      return store.setState(TIMING_KEY, t).catch(() => {});
+    });
+  }
+
   function showSystemSetup(opts) {
     try {
       const doc = root.document; if (!doc || !doc.body) return;

@@ -91,6 +91,38 @@ The provider iframe gets NO db, no fetch, no capture — it is a pure
 request→response engine. If a future provider genuinely needs its own saved
 state, that's a deliberate extension, not a default.
 
+### Saying what is happening: `ctx.progress(note, frac)`
+
+Each handler receives `(req, ctx)`. `ctx.progress()` re-arms the OS's idle
+clock — that is what lets a slow answer survive while a wedged one still fails
+(see the timeout note above). Both arguments are optional and both go to the
+USER:
+
+- `note` — a short line the OS shows while the request is in flight
+  ("Loading Gemma 3 weights…", "Writing the answer… (128 tokens)").
+- `frac` — 0..1 when there is something honest to count. Omit it and the bar
+  sweeps instead of parking at a number it cannot justify.
+
+**The OS shows it, not the app that asked.** An on-device model loads hundreds
+of megabytes before it can produce a token — minutes on a phone — and for a
+long time GifOS said nothing at all for the whole of it: the asking app sat on
+a promise, the user sat on a blank answer, and a model warming up looked exactly
+like a computer that had given up. Making that the consumer's problem would mean
+every app that asks for AI growing its own "please wait" out of nothing, each
+guessing differently, while the only party that knows a provider is mounting,
+that weights are still downloading, or that it has been ninety seconds, is the
+broker doing the work.
+
+So `runtime.js` owns a non-blocking status pill and drives it through the
+phases it can see itself — reading the app GIF, downloading pinned assets,
+starting the provider — then hands the words to the provider's own
+`ctx.progress` once the handler is running. It also times each provider and
+remembers the result (`sys::provider-timing`, cold and warm kept apart, since
+they differ by orders of magnitude), so the second wait can say "usually about
+1m 40s" instead of asking the user to guess. The estimate appears only once it
+has actually been measured on that computer: a number invented on the first run
+is a guess, and a guess that turns out short is worse than silence.
+
 ## Naming the provider to the consumer (gifos-perms.js)
 
 The consumer's "would like to…" ack sheet already prints, per AI role, what the

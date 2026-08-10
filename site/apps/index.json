@@ -163,7 +163,7 @@
         180
       ],
       "cover": "/apps/offline-llm-bitnet/cover.jpg",
-      "bytes": 10223618,
+      "bytes": 10223815,
       "download": 1105874048,
       "provides": {
         "ai": [
@@ -171,7 +171,7 @@
         ]
       },
       "signature": null,
-      "sha256": "1c76905722fb8225034c9f289c96077fe4bb9d6fde5997e19d8fa025198b21cf"
+      "sha256": "06b64fdce99fdbb7a3a61177c78c967dacd7e6a51b77c5dfd4c07b56ffbb1c63"
     },
     {
       "slug": "offline-llm-gemma",
@@ -203,7 +203,7 @@
         247
       ],
       "cover": "/apps/offline-llm-gemma/cover.jpg",
-      "bytes": 10223707,
+      "bytes": 10223898,
       "download": 806058240,
       "provides": {
         "ai": [
@@ -211,7 +211,7 @@
         ]
       },
       "signature": null,
-      "sha256": "d0e42fcde4ae9cfa22dfc25b1b9a737a4dcc9134177a27c4523dd6c0700afbc7"
+      "sha256": "a6dcb345e01dbde75f911a100ec2eaca6c6c65749a68df164ed7e6c38789dca5"
     },
     {
       "slug": "offline-llm-gemma4",
@@ -245,7 +245,7 @@
         250
       ],
       "cover": "/apps/offline-llm-gemma4/cover.jpg",
-      "bytes": 10223847,
+      "bytes": 10224028,
       "download": 1875742368,
       "provides": {
         "ai": [
@@ -253,7 +253,7 @@
         ]
       },
       "signature": null,
-      "sha256": "fbc558e6568bb14fc24ebfff2b16b578a4cd99ab224051ac1b566aff75e44033"
+      "sha256": "541567f6602f3542ff822c1c8fb97c0f6f43d9d17283e43ffe3a8b208a670ed9"
     },
     {
       "slug": "offline-tts",
