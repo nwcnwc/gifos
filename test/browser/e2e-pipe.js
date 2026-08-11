@@ -122,7 +122,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       // that killed the blur hypothesis. Re-run it COVERAGE-GATED: if lane-off
       // also freezes at 7/7, the lane never owned this bug.
       const lane = process.env.PIPE_OFF === '1' ? `try{localStorage.setItem('gifos_pipe','off')}catch(e){};` : '';
-      await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; ${drain} ${lane} window.GIFOS_SCALE={C:2};` });
+      // CARRIER=big bisects the lane's own internals: a 320px carrier instead
+      // of the 48px one, which is the single knob that changes the encoder's
+      // regime (a 48x48 near-static source was measured at the 30kbps floor).
+      const carrier = process.env.CARRIER === 'big' ? `try{localStorage.setItem('gifos_pipe_carrier','big')}catch(e){};` : '';
+      await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; ${drain} ${lane} ${carrier} window.GIFOS_SCALE={C:2};` });
       const page = await ctx.newPage();
       page.on('pageerror', (e) => console.log(`  [P${i}] PAGEERROR`, String(e).slice(0, 200)));
       await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on');
