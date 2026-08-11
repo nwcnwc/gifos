@@ -109,13 +109,36 @@ function askKey(srcId, pipeId) {
   // the sender-side jiggle) is the mechanism that crosses piped hops — it is
   // NOT a fallback, it is the primary for deep chains. Fire both; the page
   // rate-limits the walk per key (2s) and skrLast bounds the RTCP side.
+  // ONE TAP FEEDS MANY PIPES, AND THE WALK IS PER PIPE.
+  //
+  // skrLast is keyed by srcId — the TAP — which is right for the RTCP side: one
+  // PLI upstream serves every pipe hanging off that tap, so bounding it per tap
+  // is the whole point. It was ALSO gating the kf-need walk, which is per PIPE,
+  // by returning before it. That breaks the promise made three lines above
+  // ("Fire both"), and it breaks it DETERMINISTICALLY:
+  //
+  // the dark-tap timer below iterates every pipe SYNCHRONOUSLY in one tick, so
+  // all siblings on a tap call in the same millisecond. The first sets skrLast;
+  // every other one hits the 250ms guard and returns, firing neither the PLI
+  // (fine — shared) nor its own walk (not fine — its own). Map iteration is
+  // insertion order, so the SAME pipe wins every tick forever and a sibling
+  // that needs a key can never ask for one. It stays needKey, drops all delta
+  // content, and its receiver bright-freezes while the winner plays perfectly.
+  //
+  // That is the shape measured all along: one sender, one feed, two
+  // destinations, 26-of-32 frames decoded at one and 1-of-32 at the other; and
+  // it is why LEG 1 (a single pipe on a tap) has always passed while LEG 3
+  // (many) fails — the bug needs a sibling to exist.
   const now = Date.now();
+  const p = pipeId && pipes.get(pipeId); if (p) p.skr = (p.skr || 0) + 1;
+  // PER-PIPE: always. The page rate-limits this walk per key (2s) already, so
+  // it cannot storm, and it is the only ask that crosses a piped upstream.
+  if (pipeId) postMessage({ op: 'kf-need', pipeId });
+  // PER-TAP: bounded, because one RTCP PLI covers every pipe on this tap.
   if (now - (skrLast.get(srcId) || 0) < 250) return;
   skrLast.set(srcId, now);
-  const p = pipeId && pipes.get(pipeId); if (p) p.skr = (p.skr || 0) + 1;
   const t = tapTs.get(srcId);
   if (t && t.sendKeyFrameRequest) { try { const pr = t.sendKeyFrameRequest(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) {} }
-  if (pipeId) postMessage({ op: 'kf-need', pipeId });
 }
 // THE DARK-TAP HOLE (frza4): every ask site below is FRAME-driven, so a pipe
 // whose tap receives NOTHING asked exactly once (at route) and then fell
