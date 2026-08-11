@@ -1,0 +1,31 @@
+{
+  "gifos": "1.0",
+  "appId": "offline-tts-neural",
+  "name": "Offline Neural Text to Speech",
+  "shortName": "Neural TTS",
+  "version": "1.0",
+  "minBuild": 1205,
+  "description": "A natural-sounding voice for your whole computer, running entirely on your device. A Provider app: put it in your Providers folder, assign it to Text → speech in Settings → AI models, and every app that speaks uses it — no account, no key, nothing leaves your device. Eight voices, built on KittenTTS Nano (Apache-2.0), whose weights arrive once as a hash-pinned 24 MB download. Much better than the robotic Offline Text to Speech, and noticeably slower to start — keep both and pick per task.",
+  "entry": "index.html",
+  "accent": [
+    255,
+    138,
+    76
+  ],
+  "capabilities": {
+    "wasm": true
+  },
+  "provides": {
+    "ai": [
+      "tts"
+    ]
+  },
+  "assets": [
+    {
+      "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8-int8/resolve/main/kitten_tts_nano_v0_8.onnx",
+      "sha256": "f7b0afcbee92870b32b8e0276d855b954dc25470c9f051b376ac7eee537c76fc",
+      "path": "kitten.onnx",
+      "bytes": 24369971
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline Neural Text to Speech</title>
+<style>
+  :root { --bg:#0d0a08; --surface:#1b1512; --border:#3a2c24; --text:#f4ece8; --muted:#b5a49a; --accent:#ff8a4c; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,sans-serif; min-height:100vh; }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 1.4rem 1.2rem 3rem; }
+  h1 { font-size: 1.5rem; margin: .4rem 0 .2rem; }
+  h1 .chip { font-size:.62rem; vertical-align:.35em; margin-left:.5rem; background:var(--accent); color:#241009; border-radius:.35rem; padding:.2rem .45rem; letter-spacing:.08em; font-weight:800; }
+  .lead { color: var(--muted); margin: 0 0 1.1rem; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:.8rem; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+  .card h2 { font-size:.95rem; margin:0 0 .5rem; }
+  .card p { margin:.35rem 0; font-size:.88rem; color:var(--muted); }
+  .card p b { color: var(--text); }
+  ol { margin:.4rem 0 .2rem; padding-left:1.2rem; font-size:.88rem; color:var(--muted); }
+  ol b { color: var(--text); }
+  textarea { width:100%; min-height:5.5rem; background:var(--bg); border:1px solid var(--border); border-radius:.55rem; color:var(--text); font:inherit; padding:.6rem .7rem; resize:vertical; }
+  .row { display:flex; gap:.5rem; margin-top:.6rem; align-items:center; flex-wrap:wrap; }
+  select { background:var(--bg); border:1px solid var(--border); border-radius:.5rem; color:var(--text); font:inherit; padding:.45rem .55rem; }
+  button { background:var(--accent); border:none; border-radius:.55rem; color:#241009; font:inherit; font-weight:700; padding:.5rem 1.3rem; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid var(--border); color:var(--muted); font-weight:600; }
+  button:disabled { opacity:.55; cursor:wait; }
+  #status { font-size:.82rem; color:var(--muted); margin-top:.5rem; min-height:1.2em; }
+  .foot { font-size:.75rem; color:var(--muted); opacity:.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎙️ Offline Neural Text to Speech<span class="chip">PROVIDER</span></h1>
+  <p class="lead">A natural-sounding voice for your whole computer — running entirely on this device. No account, no key, nothing sent anywhere.</p>
+
+  <div class="card">
+    <h2>This app serves your OS</h2>
+    <p>It is a <b>Provider app</b>: instead of doing a job on its own screen, it gives GifOS an ability — the <b>Text → speech</b> AI type. Every app that asks the computer to speak (like <b>Reader</b> in the Tools folder) will use it.</p>
+    <ol>
+      <li>Keep its icon in the <b>Providers</b> folder on your Home Screen — a provider only works from there (anywhere else it wears a red ✕).</li>
+      <li>Open <b>Settings → AI models</b> and set <b>Text → speech</b> to <b>📦 Offline Neural Text to Speech</b>.</li>
+      <li>That's it. Apps that speak now speak with this voice, offline.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Two voices, and you keep both</h2>
+    <p><b>Offline Text to Speech</b> (the other one) is 1.6 MB, starts instantly, and sounds like a robot. <b>This</b> one sounds like a person, but downloads 24 MB once and takes noticeably longer to start talking.</p>
+    <p>Neither replaces the other — they are separate providers. Switch between them any time in Settings → AI models, whichever suits what you're doing.</p>
+  </div>
+
+  <div class="card">
+    <h2>Try the voice</h2>
+    <textarea id="text">Hello! I am your offline voice. I live in a GIF, I serve this whole computer, and nothing I say ever leaves your device.</textarea>
+    <div class="row">
+      <select id="voice"></select>
+      <button id="speak">🔊 Speak</button>
+      <button id="selftest" class="ghost" title="Runs the tiny built-in test model instead of the voice — proves the engine works without the 24 MB download">Self-test</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <p class="foot">Voice model: <b>KittenTTS Nano 0.8 int8</b> (Apache-2.0), 24 MB, downloaded once and checked against a SHA-256 pinned in this app. Engine: <b>ONNX Runtime Web</b> (MIT) and the <b>espeak-ng</b> phonemizer (GPLv3; the phonemizer.js wrapper is Apache-2.0), both packed <b>inside this GIF</b> and sealed in the app sandbox with no network access.</p>
+</div>
+<script src="ort.js"></script>
+<script src="ort-wasm.js"></script>
+<script src="phonemizer.js"></script>
+<script src="voice-data.js"></script>
+<script src="selftest-model.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,7 +1,10 @@
 # A second, higher-quality Text → speech provider
 
-**Status: PLAN, not built.** Researched 2026-08-11. Nothing in `apps/` yet, on
-purpose — a directory there without a manifest fails the catalog build.
+**Status: BUILT and in the catalog** — `apps/offline-tts-neural/`, 2026-08-11.
+Researched and built the same day. This document is the design record; the
+build notes, the pin, and the four things that turned out differently from the
+plan are in that app's README.md. The corrections are folded in below, marked
+**BUILT:**, rather than left to read as though they were still open questions.
 
 ## The question
 
@@ -63,13 +66,20 @@ Three things make it the right pick rather than merely a possible one:
 | Piece | Size | Where it lives |
 |---|---|---|
 | `kitten-tts-nano` int8 `.onnx` | ~24–25 MB | **pinned asset** (downloaded at install, hash-verified) |
-| voice embeddings JSON | small | in-GIF |
+| voice embeddings | **3.3 MB**, not "small" | in-GIF (under the 8 MB asset floor) |
 | `onnxruntime-web` WASM (MIT) | ~10–11 MB | in-GIF |
 | espeak-ng phonemizer (`phonemizer`, npm) | ~2.6 MB packed | in-GIF |
 
 So **~35–40 MB all in**, not 15–25. The reference browser demo quotes ~50 MB of
 model files total. Say this plainly in the listing rather than quoting the
 model size and letting the download surprise someone.
+
+**BUILT: 12.4 MB GIF + 24 MB pinned model = ~37 MB, inside that estimate.** The
+voice table is 8 x 400 x 256 float32 and deflates by only 8%, which is most of
+why the GIF is 12.4 MB rather than the ~10 MB the three LLM providers weigh.
+Halving it to float16 is the obvious saving and is **wrong**: a 0.097% change to
+the style vector moves the output waveform by 5.1 dB SNR. Measured, not
+reasoned about. Leave it alone.
 
 The split follows `docs/providers.md` exactly as the three LLMs do: engine
 in-GIF, weights pinned by URL + sha256. A ~10 MB GIF is a shape this repo
@@ -90,6 +100,28 @@ driven to emit phoneme strings instead is the question that decides the design:
   way — it just has to be stated correctly.
 
 Settle this first. It is cheap to test and it changes the app tree.
+
+**BUILT: "yes, and it does not matter" — it is the second branch.** Our eSpeak
+*can* emit IPA (`-q --ipa --phonout=<file>` writes it straight into the
+emscripten FS, no stdout capture needed). But it is eSpeak **1.45.04**, and it
+drops the final vowel of every `-ly` word — `quickly` -> `kwˈɪkl`, `entirely` ->
+`ɛntˈaɪəɹl`, and `usually` -> `jˈuːʒuːəLl`, with a literal capital L that the
+model's vocabulary happily tokenizes as a letter. 11 of 12 `-ly` words differed
+from espeak-ng; `-x` shows the same loss so it is the phoneme analysis, not the
+IPA rendering. Too common a suffix to feed a neural voice, so the app vendors
+npm `phonemizer` (real espeak-ng, asm.js, data embedded — no wasm, no worker,
+no fetch).
+
+**BUILT: the licence question, answered.** The npm package is Apache-2.0 *for
+the wrapper*; the espeak-ng it embeds is GPLv3 and a repackaging cannot
+relicense it. Both notices ship in the GIF. This qualifies the "Apache-2.0 is
+cleaner than what we ship today" claim above: the MODEL is permissive, the
+PHONEMIZER is still GPLv3.
+
+**BUILT: espeak-ng drops punctuation and the model needs it.** The reference's
+`preserve_punctuation=True` is wrapper behaviour, not an espeak flag — split
+the text around the marks, phonemize the spans, put the marks back. The marks
+are in the model's vocabulary and its prosody was trained with them.
 
 ## Build outline
 
@@ -130,26 +162,26 @@ If someone later times the first sentence on a real phone, that measured figure
 can go in — the same way the LLM warnings now quote a measured 362 s instead of
 an adjective.
 
+**BUILT: the hedge was right, and the 2–3× was optimistic.** Measured warm, one
+thread, on a 4-core desktop: **0.80× real time** — slower than real time, ~4x
+off the reference figure. In the browser, first call including the 24 MB
+download and session creation: 14.1 s of audio in 21.4 s. Still perfectly
+usable behind Reader's chunked-with-lookahead playback, which is the point, but
+nothing here is a number to put in a listing.
+
 This app does **not** need the EXPERIMENTAL treatment the three LLMs just got.
 A 25 MB download for a neural voice that starts talking in about a second is a
 defensible everyday trade; six minutes for a paragraph is not.
 
-## What blocks building it today
+## What blocked building it (resolved)
 
-`huggingface.co` is refused by this environment's egress proxy (403 on
-CONNECT). npm is allowed, so `onnxruntime-web` (MIT) and `phonemizer`
-(Apache-2.0) can be vendored right now. The model cannot — and the pin is not
-something that can be guessed, because `apps/offline-llm-gemma4/README.md`
-sets the rule: *"the sha256 above is of the exact hosted bytes, downloaded and
-hashed here."*
+`huggingface.co` was refused by the egress proxy (403 on CONNECT), and the pin
+cannot be guessed — `apps/offline-llm-gemma4/README.md` sets the rule: *"the
+sha256 above is of the exact hosted bytes, downloaded and hashed here."*
 
-To unblock, either allowlist `huggingface.co`, or run these two locally and
-hand back the results:
-
-```sh
-curl -sL <model-url> -o kitten.onnx
-shasum -a 256 kitten.onnx && wc -c kitten.onnx
-```
+**Resolved 2026-08-11:** huggingface.co answers 200 from this environment now.
+The bytes were downloaded and hashed here; the pin is in
+`apps/offline-tts-neural/manifest.json` and repeated in its README.
 
 ## Risks, stated plainly
 
@@ -161,3 +193,11 @@ shasum -a 256 kitten.onnx && wc -c kitten.onnx
 - **ORT-Web is a big dependency** for one app, and its WASM is the largest
   in-GIF piece. If a second ONNX app ever appears, that is 10 MB carried twice —
   the moment to think about a shared engine, not before.
+- **BUILT: two sandbox traps, both paid.** ORT's small 49 KB build loads its
+  emscripten glue with a dynamic `import()` and cannot work in an opaque origin
+  with no network; the app ships the bundle build and rewrites `import.meta.url`
+  away, because module-only syntax is a SyntaxError in the inline classic
+  script the runtime injects. And two minified bundles in one script scope both
+  declare `const ne` — the second dies with "Identifier 'ne' has already been
+  declared", so each is wrapped in an IIFE. Both are asserted in `build.mjs`
+  rather than remembered.
