@@ -139,13 +139,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       && document.querySelector('.tile.me').classList.contains('cam-off')));
   check('you join at Max blur (hidden by default)',
     await bPage.evaluate(() => window.__gifosVideo.myBlur() === 2 && document.getElementById('blur-max').classList.contains('sel')));
-  await aPage.locator('.tile:not(.me)', { hasText: 'Bob' }).locator('.chips span', { hasText: 'camera off' }).waitFor({ timeout: 10000 });
+  await aPage.locator('.tile:not(.me)').filter({ has: aPage.locator('.name', { hasText: /^Bob$/ }) }).locator('.chips span', { hasText: 'camera off' }).waitFor({ timeout: 10000 });
   check('everyone sees Bob\'s muted/camera-off status on his tile', true);
 
   // Bob turns his camera on → still Max-blurred on Ada's screen (join default).
   await bPage.locator('#cam').click();
   await aPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Bob');
     return t && !t.classList.contains('cam-off') && t.querySelector('video').classList.contains('blur2');
   }, null, { timeout: 10000 });
   check('camera on, but everyone still sees Bob at Max blur (blur2)', true);
@@ -159,7 +159,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('picking Min on the slider steps blur down to plain',
     (await bPage.evaluate(() => window.__gifosVideo.myBlur())) === 1);
   await aPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Bob');
     return t && t.querySelector('video').classList.contains('blur1');
   }, null, { timeout: 10000 });
   check('plain blur shows as blur1 on every other screen', true);
@@ -175,7 +175,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       && /blurred until this room has a password/i.test(document.getElementById('status').textContent)));
   await sleep(400);
   check('and with no password the tile stays blurred everywhere', await aPage.evaluate(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Bob');
     return t && t.querySelector('video').classList.contains('blur1');
   }));
   check('…and Bob still BROADCASTS blurred pixels (rule is sender-enforced)',
@@ -190,7 +190,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a room password propagates to everyone', true);
   await sleep(800); // let gossip settle
   check('one person ready is not enough — Bob still shows blurred on every screen', await aPage.evaluate(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Bob');
     return t && t.querySelector('video').classList.contains('blur1');
   }));
   check('…and Bob still BROADCASTS blurred pixels', (await bPage.evaluate(() => window.__gifosVideo.outboundKind())) === 'blurred');
@@ -199,7 +199,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await cPage.evaluate(() => document.getElementById('blur-none').click());
   await bPage.waitForFunction(() => window.__gifosVideo.consensus() === true, null, { timeout: 10000 });
   await aPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Bob');
     return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
   }, null, { timeout: 10000 });
   check('with a password AND everyone ready, the whole room goes clear', true);
@@ -285,7 +285,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await aPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Cai');
     return t && /stepped away/.test(t.textContent) && !/firewall/.test(t.textContent);
   }, null, { timeout: 10000 });
   check('a backgrounded phone shows "stepped away" — never the firewall warning', true);
@@ -295,7 +295,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await aPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Cai');
     return t && !/stepped away/.test(t.textContent);
   }, null, { timeout: 10000 });
   check('coming back clears the away label everywhere', true);
@@ -303,11 +303,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // MODERATOR BLOCK: a per-tile blur overrides the owner's None on EVERY
   // screen, and lifting it returns the tile to clear immediately (the owner
   // still consents) — no re-consent dance.
-  const bobTileOnAda = aPage.locator('.tile:not(.me)', { hasText: 'Bob' });
+  const bobTileOnAda = aPage.locator('.tile:not(.me)').filter({ has: aPage.locator('.name', { hasText: /^Bob$/ }) });
   await bobTileOnAda.hover();
   await bobTileOnAda.locator('button[data-mod="blur"]').click(); // Ada blurs Bob for everyone
   await cPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Bob');
     const v = t && t.querySelector('video');
     return v && (v.classList.contains('blur1') || v.classList.contains('blur2'));
   }, null, { timeout: 10000 });
@@ -317,7 +317,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bobTileOnAda.hover();
   await bobTileOnAda.locator('button[data-mod="blur"]').click(); // Ada lifts it
   await cPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Bob'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Bob');
     return t && !t.querySelector('video').classList.contains('blur1') && !t.querySelector('video').classList.contains('blur2');
   }, null, { timeout: 10000 });
   check('lifting the block returns the consenting tile to clear immediately', true);
@@ -328,17 +328,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await bPage.locator('#pw-new').fill('');
   await bPage.locator('#pw-save').click();
   await bPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Ada'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Ada');
     return t && t.querySelector('video').classList.contains('blur1');
   }, null, { timeout: 8000 });
   check('removing the password re-blurs everyone at once (no clear video without it)', true);
 
   // Ada mutes Cai FOR EVERYONE — enforced on each receiver, attributed to Ada.
-  const caiTileOnAda = aPage.locator('.tile:not(.me)', { hasText: 'Cai' });
+  const caiTileOnAda = aPage.locator('.tile:not(.me)').filter({ has: aPage.locator('.name', { hasText: /^Cai$/ }) });
   await caiTileOnAda.hover();
   await caiTileOnAda.locator('button[data-mod="mute"]').click();
   await bPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Cai');
     // Group mute lands on the tile's COMPANION audio — the <video> itself is
     // always muted (picture-only) so hidden tabs can't silence the meeting.
     const v = t && t.querySelector('video');
@@ -356,11 +356,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     && /another participant has to lift it/.test(await cPage.locator('#status').textContent()));
 
   // And Bob (not Ada!) can lift it — anyone moderates, always attributed.
-  const caiTileOnBob = bPage.locator('.tile:not(.me)', { hasText: 'Cai' });
+  const caiTileOnBob = bPage.locator('.tile:not(.me)').filter({ has: bPage.locator('.name', { hasText: /^Cai$/ }) });
   await caiTileOnBob.hover();
   await caiTileOnBob.locator('button[data-mod="mute"]').click();
   await aPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cai'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Cai');
     const v = t && t.querySelector('video');
     return v && v._aud && !v._aud.muted;
   }, null, { timeout: 10000 });
@@ -376,7 +376,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return o['Cai'] < o['Bob'] && o['Bob'] < o['Ada (you)'];
   }, null, { timeout: 10000 });
   check('raised hands float to the top of everyone\'s grid, in raise order', true);
-  check('the hand shows as a chip on the tile', /hand raised/.test(await aPage.locator('.tile', { hasText: 'Cai' }).textContent()));
+  check('the hand shows as a chip on the tile', /hand raised/.test(await aPage.locator('.tile').filter({ has: aPage.locator('.name', { hasText: /^Cai$/ }) }).textContent()));
   await cPage.locator('#hand').click(); await bPage.locator('#hand').click(); // hands down
 
   // ---------- fullscreen: the tile button opens the FILMSTRIP view ----------
@@ -388,7 +388,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // described the behaviour before the filmstrip landed. The second press could
   // never work again either: the tile is behind a full-viewport overlay, so the
   // click was intercepted by #fsmain and the suite hung retrying it for 30s.
-  const bobTile = aPage.locator('.tile:not(.me)', { hasText: 'Bob' });
+  const bobTile = aPage.locator('.tile:not(.me)').filter({ has: aPage.locator('.name', { hasText: /^Bob$/ }) });
   await bobTile.locator('.maxbtn').click();
   await aPage.locator('#fsview.on').waitFor({ timeout: 8000 });
   check('the tile button opens the fullscreen filmstrip on that feed', true);
@@ -458,8 +458,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // box the post-click "scheduled navigations" wait can outlive the 30s cap
   // while MediaRecorder + canvas compositing spin up.
   await aPage.locator('#ro-start').click({ noWaitAfter: true });
+  // ON ADA'S OWN TILE, identified by its .name span. Matching the whole tile's
+  // text for 'Ada' would have accepted the chip on somebody ELSE's tile — every
+  // relayed tile says "📡 via Ada" — so the attribution this check exists to
+  // prove could have been wrong while it passed.
   await bPage.waitForFunction(() => Array.from(document.querySelectorAll('.tile'))
-    .some((t) => t.textContent.includes('Ada') && /recording this meeting/.test(t.textContent)), null, { timeout: 90000 });
+    .some((t) => (t.querySelector('.name') || {}).textContent === 'Ada'
+      && /recording this meeting/.test(t.textContent)), null, { timeout: 90000 });
   check('everyone sees WHO is recording (chip on the recorder\'s tile)', true);
   await sleep(3500);
   // Generous windows, measured: while an 'all'-scope recording runs (15fps
@@ -493,7 +498,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     .some((l) => l === 'Ada: hello transcript world'), null, { timeout: 15000 });
   check('transcript lines reach every phone, attributed to the speaker', true);
   check('the line shows as a live caption on the speaker\'s tile', await bPage.evaluate(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Ada'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Ada');
     const c = t && t.querySelector('.cap');
     return !!(c && c.classList.contains('show') && /hello transcript world/.test(c.textContent));
   }));
@@ -745,7 +750,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await hPage.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 20000 });
   // …and after the grace period the tile SAYS why there's no video.
   await hPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Cubicle'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Cubicle');
     return t && /connect straight to them/.test(t.textContent) && t.classList.contains('noroute') && parseInt(t.style.order || '0', 10) >= 100000;
   }, null, { timeout: 30000 });
   check('with NO possible route or relayer, the tile sinks to the bottom, labeled', true);
@@ -821,7 +826,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // budgeted at 90s for two dc-watchdog rebuilds, so it cannot honestly be
   // budgeted for less. A pair that never relays still fails — later, honestly.
     await bIslePage.waitForFunction(() => {
-      const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('RightIsle'));
+      const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'RightIsle');
       const v = t && t.querySelector('video');
       return t && /via Hub/.test(t.textContent) && !t.classList.contains('noroute') && v && v.srcObject && v.videoWidth > 0;
     }, null, { timeout: 90000 });
@@ -829,7 +834,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a mutual friend relays live media between a blocked pair (video frames flow)', true);
   try {
     await cIslePage.waitForFunction(() => {
-      const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('LeftIsle'));
+      const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'LeftIsle');
       const v = t && t.querySelector('video');
       return t && /via Hub/.test(t.textContent) && v && v.srcObject && v.videoWidth > 0;
     }, null, { timeout: 90000 });
@@ -1378,13 +1383,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     (await pat.evaluate(() => getComputedStyle(document.querySelector('#votebtn')).display)) !== 'none');
   // Pat votes Vic off — one vote, not enough (majority of 3 is 2); progress shows.
   await armKick(pat);
-  const vicTileOnPat = pat.locator('.tile:not(.me)', { hasText: 'Vic' });
+  const vicTileOnPat = pat.locator('.tile:not(.me)').filter({ has: pat.locator('.name', { hasText: /^Vic$/ }) });
   await vicTileOnPat.locator('.votedot').click();
   await pat.waitForFunction(() => window.__gifosVideo.voteNeed() >= 2, null, { timeout: 6000 });
   check('one vote is not enough to remove someone', !(await vic.evaluate(() => window.__gifosVideo.bannedOut())));
   // Quinn also votes Vic off → majority reached → Vic is kicked.
   await armKick(quinn);
-  const vicTileOnQuinn = quinn.locator('.tile:not(.me)', { hasText: 'Vic' });
+  const vicTileOnQuinn = quinn.locator('.tile:not(.me)').filter({ has: quinn.locator('.name', { hasText: /^Vic$/ }) });
   await vicTileOnQuinn.locator('.votedot').click();
   await vic.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
   check('a majority voting someone off removes them', true);
@@ -1408,15 +1413,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await pat2.waitForFunction(() => window.__gifosVideo.participants() >= 2, null, { timeout: 12000 });
   await sleep(2500); // let any (non-)vote gossip settle
   check('a vote from another room does NOT follow the device — the new room starts clean',
-    !(await pat2.evaluate(() => { const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Vic')); return !!(t && /to remove/.test(t.textContent)); })));
+    !(await pat2.evaluate(() => { const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Vic'); return !!(t && /to remove/.test(t.textContent)); })));
   check('and the device is admitted normally into the new room', !(await vicB.evaluate(() => window.__gifosVideo.bannedOut())));
   // A fresh majority IN THIS room still removes them — per-room vote-off works.
   await armKick(pat2);
-  await pat2.locator('.tile:not(.me)', { hasText: 'Vic' }).locator('.votedot').click();
+  await pat2.locator('.tile:not(.me)').filter({ has: pat2.locator('.name', { hasText: /^Vic$/ }) }).locator('.votedot').click();
   const quinn2 = await openRoom(quinnCtx, 'quinn-b', v2Hash);
   await quinn2.waitForFunction(() => window.__gifosVideo.participants() >= 3, null, { timeout: 12000 });
   await armKick(quinn2);
-  await quinn2.locator('.tile:not(.me)', { hasText: 'Vic' }).locator('.votedot').click();
+  await quinn2.locator('.tile:not(.me)').filter({ has: quinn2.locator('.name', { hasText: /^Vic$/ }) }).locator('.votedot').click();
   await vicB.waitForFunction(() => window.__gifosVideo.bannedOut(), null, { timeout: 12000 });
   check('a fresh majority in the new room removes them (per-room vote-off still works)', true);
   await vicB.close();

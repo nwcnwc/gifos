@@ -108,7 +108,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   };
   try {
     await aPage.waitForFunction(() => {
-      const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Mia'));
+      const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Mia');
       if (!t || t.classList.contains('cam-off')) return false;
       const v = t.querySelector('video');
       return v && v.videoWidth > 0;
@@ -159,7 +159,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('B: self-view is bright again after the automatic restart', true);
   // ...and his real video reaches Ada.
   await aPage.waitForFunction(() => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes('Don'));
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === 'Don');
     if (!t || t.classList.contains('cam-off')) return false;
     const v = t.querySelector('video');
     return v && v.videoWidth > 0;
