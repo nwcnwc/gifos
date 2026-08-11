@@ -361,7 +361,16 @@ async function run(MODE) {
   // crawling, and on such a box we would rather wait than publish a verdict
   // about a car that never moved.
   const STEER_CAP_MS = Number(process.env.STEER_CAP_MS || 25000);
-  const steerFor = (p, dir, ms) => p.body().evaluate(async (el, [dir, ms, frameWindow]) => {
+  // The SMALLEST window that can still carry a verdict. Filling all 55 frames
+  // is ideal; on a 6-core box running three swiftshader worlds the tab renders
+  // at about 1 fps and 55 frames simply cannot arrive inside any sane cap
+  // (measured 2026-08-11: 23-30 of 55 at a 25s cap, on every player). Judging
+  // 8 frames is dishonest; refusing to judge 25 is useless. So: score a window
+  // of at least MIN_FRAMES, and scale the absolute radian floor by how much of
+  // the window actually rendered — the drift comparison beside it already
+  // self-scales, since drift is measured over the same window.
+  const MIN_FRAMES = Number(process.env.STEER_MIN_FRAMES || 20);
+  const steerFor = (p, dir, ms) => p.body().evaluate(async (el, [dir, ms, frameWindow, MIN_FRAMES]) => {
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const scheme = window.Sources.current.scheme;
     const view = document.getElementById('view');
@@ -412,9 +421,14 @@ async function run(MODE) {
     // fine; the window opened early. So: don't count frames until the
     // commanded sign is demonstrably in the input (bounded — a control that
     // never registers still runs the window and reds the reach assert).
+    // …and BOUND THAT WAIT IN FRAMES TOO. It was 4s of wall clock, which on a
+    // tab rendering at ~1 fps is about four frames — so on a slow box the
+    // window opened with the input still unregistered, which is exactly how a
+    // full-lock right turn came back `yaw 0.00` while its left twin read 0.64.
     if (dir !== 0) {
       const tReg = Date.now();
-      while (Date.now() - tReg < 4000) {
+      const fReg = window.App.debug().frames;
+      while (Date.now() - tReg < 15000 && window.App.debug().frames - fReg < 12) {
         const d0 = window.App.debug();
         const st = (d0.input && d0.input.steer) || 0;
         if (Math.sign(st) === Math.sign(dir) && Math.abs(st) > 0.15) break;
@@ -462,10 +476,10 @@ async function run(MODE) {
                   speed: window.App.debug().speed, frames: framesRun,
                   // Judging steering on a window that never filled is judging
                   // the box. The caller refuses to score an unfilled leg.
-                  filled: framesRun >= frameWindow, want: frameWindow };
+                  filled: framesRun >= MIN_FRAMES, want: frameWindow, min: MIN_FRAMES };
     stop();
     return out;
-  }, [dir, ms, FRAME_WINDOW]);
+  }, [dir, ms, FRAME_WINDOW, MIN_FRAMES]);
 
   const steering = [];
   for (const p of players) {
@@ -523,7 +537,7 @@ async function run(MODE) {
     const legs = [s.straight, s.left, s.right];
     if (!legs.every((l) => l.filled)) {
       check(s.name + ' — the steering window FILLED (this is about the box, not the car)', false,
-        legs.map((l) => l.frames + '/' + l.want).join(' , ') + ' frames — the tab could not render the '
+        legs.map((l) => l.frames + '/' + l.want).join(' , ') + ' frames (need ' + legs[0].min + ') — the tab could not render the '
         + 'window inside ' + Math.round(Number(process.env.STEER_CAP_MS || 25000) / 1000) + 's, so the '
         + 'steering numbers below would be a measurement of this machine. Re-run on an idle box.');
       continue;
@@ -539,11 +553,16 @@ async function run(MODE) {
     // floor in radians — which only means anything because the window is a
     // fixed number of frames rather than a fixed number of seconds.
     const drift = Math.abs(s.straight.dYaw);
+    // The floor is per-window: 0.04 rad is what a full-lock turn clears over a
+    // FULL 55 frames, so over a short window it must be scaled or it is asking
+    // the car to turn further than the simulated time allows.
+    const frac = Math.min(1, Math.min(s.left.frames, s.right.frames) / s.left.want);
+    const floor = 0.04 * frac;
     check(s.name + ' — and the car actually turns, in opposite directions',
       Math.sign(s.left.dYaw) === -Math.sign(s.right.dYaw)
-      && Math.abs(s.left.dYaw) > Math.max(0.04, drift * 3)
-      && Math.abs(s.right.dYaw) > Math.max(0.04, drift * 3),
-      d + ', drift ' + s.straight.dYaw.toFixed(3) + ' over ' + s.straight.frames + ' frames');
+      && Math.abs(s.left.dYaw) > Math.max(floor, drift * 3)
+      && Math.abs(s.right.dYaw) > Math.max(floor, drift * 3),
+      d + ', drift ' + s.straight.dYaw.toFixed(3) + ' over ' + s.straight.frames + ' frames, floor ' + floor.toFixed(3));
     // "Feels right" is not a frame timing on this box — but a car that is
     // stationary, reversing or supersonic while being steered is not a
     // judgement call, and any of them means the drive under test was not a
