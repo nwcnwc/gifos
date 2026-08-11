@@ -1573,11 +1573,27 @@ function check(name, cond, detail) {
     // Now DRIVE at the hole. A solid wall stops this cold within a metre.
     c.health = 100;
     c.x = wallN.x - 7; c.z = wallN.z; c.yaw = Math.PI / 2; c.speed = 0;
+    // DRIVE UNTIL IT IS THROUGH, OR UNTIL IT HAS STOPPED — never for a fixed
+    // number of seconds. This was 24 × 250 ms and it flaked the 0.9.7 gate at
+    // "8.9 m past where the wall stood", one tenth of a metre short: the car
+    // moves per RENDERED FRAME, so six seconds of wall clock on a box running a
+    // software rasteriser is however many metres that box could manage.
+    //
+    // The claim being tested does not mention seconds. A solid wall stops this
+    // car COLD within a metre, so "still moving" versus "stopped" is the whole
+    // question, and it is directly observable. A blocked car now settles the
+    // matter in ~3s (faster than the old loop), and a slow box keeps crawling
+    // through the hole instead of being timed out one tenth of a metre short.
     const startX = c.x;
-    for (let i = 0; i < 24; i++) {
+    let lastX = c.x, movedAt = Date.now();
+    const cap = Date.now() + 30000;
+    for (;;) {
       if (Math.abs(c.speed) < 5) c.speed = 8;
       await wait(250);
-      if (c.x - startX > 9) break;
+      if (c.x - startX > 9) break;                    // through the hole
+      if (c.x - lastX > 0.25) { lastX = c.x; movedAt = Date.now(); }
+      else if (Date.now() - movedAt > 3000) break;    // stopped: the wall held
+      if (Date.now() > cap) break;
     }
     const through = c.x - startX;
     const res = { opened: opened - before, through };
