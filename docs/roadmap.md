@@ -1634,14 +1634,23 @@ the GifOS payload inside it is ciphertext.
 
 ## 9. Media plane: stop transcoding every hop (mushiness, log N latency, watts)
 
-> **OPEN BUG blocking §9a's guard:** with the encoded-passthrough lane actually
-> running, one staged feed bright-freezes at every receiver at once for ≥12s while
-> the producer keeps encoding — `e2e-pipe` leg 3, the guard `87f57e6` left behind.
-> Proven to belong to the lane (interleaved A/B, 3/3 on, 0/3 off, load excluded)
-> and NOT to a busy box. It was invisible until 2026-08-05 because the gate's
-> pinned Chrome 140 has no `RTCRtpScriptTransform`, so the lane disabled itself
-> and the guard never exercised it. Full evidence and what is still unknown:
-> **`docs/bug-pipe-stg-freeze-2026-08-05.md`**.
+> **FIXED 2026-08-10 (`a65a278`) — §9a's guard is back in the gate.** With the
+> lane running, one staged feed used to bright-freeze at every receiver at once
+> for ≥12s while the producer kept encoding — `e2e-pipe` leg 3, the guard
+> `87f57e6` left behind, quarantined since 0.9.2.
+>
+> **The tap copied each content frame ONCE and shared that `ArrayBuffer` across
+> every sibling pipe's queue, and writing a frame DETACHES the buffer it is
+> handed.** The first pipe on a tap to write a frame neutered it for its
+> siblings, which then shipped zero-length payloads: the packetizer emitted
+> nothing and their receivers bright-froze, while `wrote` climbed and
+> `dropped`/`swapErr`/loss stayed at zero and the receiver reported
+> `frecv == fdec`. Nothing was ever rejected — the frames never left the box.
+> The fan is the one shape leg 1 could not see (one pipe per tap), which is why
+> it passed 100% while leg 3 failed; `e2e-pipe` LEG 1B now guards it in
+> isolation. Ten whole-suite greens at full coverage across two boxes and two
+> engines, mutation-tested against the repro. The hunt, and the twelve
+> hypotheses buried on the way: **`docs/bug-pipe-stg-freeze-2026-08-05.md`**.
 
 Everything in this section follows from **one fact**, established 2026-08-04
 while asking whether the Settings video-quality knob reaches the Stage:
