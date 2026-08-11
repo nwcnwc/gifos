@@ -38,6 +38,16 @@ let failures = 0;
 function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : '')); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Ask AI keeps its conversation across opens (e2e-askai.js guards that). Each
+// provider step below wants a COLD conversation, so it clears one first. The
+// button is a no-op on an empty conversation, so the note may never appear —
+// hence the swallowed timeout rather than a wait we insist on.
+async function newChat(fr) {
+  await fr.locator('#new').click().catch(() => {});
+  await fr.locator('.note', { hasText: 'New conversation' }).waitFor({ timeout: 5000 }).catch(() => {});
+  await sleep(200);
+}
+
 // A consumer app that declares ai:['tts'] and reports what one tts call did.
 const CONSUMER_HTML = '<!doctype html><meta charset="utf-8"><div id="out">…</div>' +
   '<script>(async function(){' +
@@ -299,7 +309,7 @@ async function runConsumer(page, context, label, outTimeout) {
     // init + model load) — generous timeout, one honest wait. On timeout,
     // SAY WHAT THE APP SHOWED (an error bubble reads as a silent hang
     // otherwise — that's how the module-worker bug hid).
-    await fr.locator('.m.ai').filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async (e) => {
+    await fr.locator('.m.ai').last().filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async (e) => {
       const shown = await fr.locator('.m.ai').last().textContent().catch(() => '(no ai bubble)');
       throw new Error('Ask AI never got the self-test answer; the app shows: ' + String(shown).slice(0, 300));
     });
@@ -343,9 +353,14 @@ async function runConsumer(page, context, label, outTimeout) {
     const ackBox2 = askai2.locator('.perm-box', { hasText: 'would like to' });
     try { await ackBox2.waitFor({ timeout: 5000 }); await ackBox2.locator('.done').click(); } catch (e) { /* already acked */ }
     const fr2 = askai2.frameLocator('#appmount iframe');
+    // Ask AI REMEMBERS its conversation now, so a second open arrives carrying
+    // the BitNet exchange above. Reset it: this step is about what THIS
+    // provider answers cold, and feeding it the previous provider's token soup
+    // would make the two runs incomparable (and grow the prompt every round).
+    await newChat(fr2);
     await fr2.locator('#t').fill('hello');
     await fr2.locator('#f button').click();
-    await fr2.locator('.m.ai').filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async () => {
+    await fr2.locator('.m.ai').last().filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async () => {
       const shown = await fr2.locator('.m.ai').last().textContent().catch(() => '(no ai bubble)');
       throw new Error('Gemma provider never answered; the app shows: ' + String(shown).slice(0, 300));
     });
@@ -376,9 +391,10 @@ async function runConsumer(page, context, label, outTimeout) {
     const ackBox3 = askai3.locator('.perm-box', { hasText: 'would like to' });
     try { await ackBox3.waitFor({ timeout: 5000 }); await ackBox3.locator('.done').click(); } catch (e) { /* already acked */ }
     const fr3 = askai3.frameLocator('#appmount iframe');
+    await newChat(fr3);                     // same reason as the Gemma 3 step
     await fr3.locator('#t').fill('hello');
     await fr3.locator('#f button').click();
-    await fr3.locator('.m.ai').filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async () => {
+    await fr3.locator('.m.ai').last().filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async () => {
       const shown = await fr3.locator('.m.ai').last().textContent().catch(() => '(no ai bubble)');
       throw new Error('Gemma 4 provider never answered; the app shows: ' + String(shown).slice(0, 300));
     });

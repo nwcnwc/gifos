@@ -62,9 +62,15 @@ const server = http.createServer((req, res) => {
         // test can prove the CONVERSATION crossed the wire rather than just the
         // latest question. Anything else keeps its old answer.
         const last = msgs.length ? msgs[msgs.length - 1] : null;
-        if (last && typeof last.content === 'string' && last.content.trim() === 'ctx?') {
+        const lastTxt = (last && typeof last.content === 'string') ? last.content.trim() : '';
+        if (lastTxt === 'ctx?') {
           const firstUser = msgs.filter((m) => m.role === 'user')[0];
           text = 'ctx=' + msgs.length + ' first=' + String((firstUser && firstUser.content) || '');
+        } else if (lastTxt === 'stream?') {
+          // Ten known words. A streaming guard needs an answer long enough to
+          // be caught HALF-drawn — 'pong' arrives as one chunk and proves
+          // nothing about incremental rendering.
+          text = 'One two three four five six seven eight nine ten.';
         } else if (/Legal moves:/i.test(blob)) {
           // The default Chess app's Hint: pick the first move from the exact
           // legal list it hands us, so the reply is always a real, legal move.
