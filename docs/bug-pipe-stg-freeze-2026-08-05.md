@@ -483,7 +483,43 @@ So the encoded-passthrough lane really does own this bug, the nine hypotheses
 in this file were aimed at the right subsystem, and the original 2026-08-05
 measurement stands — now on far better footing than when it was taken.
 
-## THE FREEZE IS DETERMINISTIC. THE INTERMITTENCY WAS COVERAGE.
+## THE SIBLING KEYFRAME-WALK STARVATION — real bug, NOT this freeze
+
+`askKey`'s rate limit is keyed by `srcId` (the TAP), which is correct for the
+RTCP PLI since one PLI serves every pipe on that tap. It was ALSO gating the
+`kf-need` WALK, which is per PIPE, by returning before it — breaking the
+promise made three lines above it ("Fire both"), and breaking it
+deterministically: the dark-tap timer iterates every pipe synchronously in one
+tick, so siblings land in the same millisecond, the first sets `skrLast`, and
+every other returns having fired neither. Map order is insertion order, so the
+same pipe wins forever and a sibling that needs a key can never ask for one.
+
+Fixed in `8f84c2f` (walk fires unconditionally, PLI stays bounded per tap).
+
+**It does not fix the freeze.** Mutation-verified on the repro, fix against
+fix-reverted, interleaved:
+
+| arm | runs | froze |
+|---|---|---|
+| fix applied | 3 | 2 |
+| fix REVERTED | 3 | 2 |
+
+Identical. The starvation is genuine and the fix is kept on its own merits —
+it makes the code do what it says and removes a real path by which a sibling
+pipe can be starved of keyframes forever, with no measured regression — but it
+is the SEVENTH hypothesis this dossier has buried. Do not re-derive it.
+
+## COVERAGE DOMINATES, BUT IT IS NOT FULLY DETERMINISTIC — a correction
+
+An earlier 15-run session showed 8-of-8 freezes at 7/7 coverage and 0 at lower
+coverage, and this file briefly claimed the freeze was deterministic. A later
+6-run session at the same coverage froze only 2 of 4 at 7/7. **So coverage
+strongly gates whether the freeze is OBSERVABLE — that part holds and explains
+the historical 0/4, 1/2, 2/3, 3/3 noise — but "always fires at 7/7" was an
+over-claim from a single session.** Treat coverage as a necessary condition
+for seeing it, not a sufficient one for producing it.
+
+## THE COVERAGE FINDING (still stands as the gate on observability)
 
 **This supersedes every "flaky / nondeterministic / N-of-M green" statement in
 this file, including `quarantine.txt`'s.**
