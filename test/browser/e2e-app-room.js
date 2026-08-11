@@ -135,13 +135,32 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   }, null, { timeout: 20000 });
   check('the late record converged to the guest before the steals', true);
 
-  const stealOne = async (optText) => {
-    await c.waitForFunction(() => !document.getElementById('appsteal').disabled, null, { timeout: 15000 });
+  // WAIT FOR *THIS* STEAL, NOT FOR ANY STEAL. All three confirmations open
+  // "🥷 Yours now — ", so a bare /Yours now/ matches the PREVIOUS steal's
+  // message, which is still on screen (setStatus holds it 4s). Measured: the
+  // 'as I joined' steal "completed" 11ms after its click, on the '+ data'
+  // message, while its own steal was still in flight (armed=1, chooser still
+  // open). The next steal then raced the real completion, and when it lost, its
+  // b.click() landed during the 4s '🥷 Stolen ✓' lockout — a click on a
+  // DISABLED button is a silent no-op, so the chooser never opened and the
+  // option "was not found". That is the whole flake; the product was fine.
+  //
+  // So: each mode waits for its OWN wording, and then for the button to come
+  // all the way back to rest before the next one starts. Both are STRICTER
+  // than what was here — the resting-state wait newly pins that the button
+  // restores its label and re-enables itself after every steal.
+  const REST = "b.textContent === 'Steal' && !b.disabled && !b.dataset.armed";
+  const atRest = () => c.waitForFunction(
+    '(() => { const b = document.getElementById("appsteal"); return ' + REST + '; })()',
+    null, { timeout: 15000 });
+  const stealOne = async (optText, mine) => {
+    await atRest();
     // Open the chooser and pick the option in ONE evaluate: the top bar can
     // re-render between round trips (room events land continuously) and take
     // the freshly inserted choice buttons with it.
     const picked = await c.evaluate((t) => {
       const b = document.getElementById('appsteal');
+      if (b.disabled) return { ok: false, seen: [], why: 'the Steal button was disabled — click() would be a silent no-op' };
       delete b.dataset.armed;
       b.click();
       let n = b.nextSibling; const seen = [];
@@ -149,10 +168,18 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
         if (n.textContent === t) { n.click(); return { ok: true }; }
         seen.push(n.textContent || n.nodeName); n = n.nextSibling;
       }
-      return { ok: false, seen };
+      return { ok: false, seen, why: 'the chooser did not open' };
     }, optText);
-    if (!picked.ok) throw new Error('steal option "' + optText + '" not found; siblings: ' + JSON.stringify(picked.seen));
-    await c.waitForFunction(() => /Yours now/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+    if (!picked.ok) throw new Error('steal option "' + optText + '" not picked (' + picked.why + '); siblings: ' + JSON.stringify(picked.seen));
+    await c.waitForFunction((frag) => document.getElementById('status').textContent.includes(frag),
+      mine, { timeout: 15000 });
+    // THE CONFIRMATION IS ON THE BUTTON (the 2026-08-08 report: the copy saved
+    // and the point of click said nothing). Read it HERE, in the same beat the
+    // status lands — run.html sets the label, disables, and calls setStatus in
+    // one synchronous block, so this cannot race. It used to be checked once
+    // after all three steals, which only ever passed by outrunning the 4s
+    // restore timer.
+    return c.evaluate(() => /Stolen/.test(document.getElementById('appsteal').textContent));
   };
   await c.evaluate(() => document.getElementById('appsteal').click());
   const choices = await c.evaluate(() => {
@@ -172,11 +199,14 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // So steal with the network UNPLUGGED: if any of the three modes secretly
   // re-fetched anything, it would fail right here.
   await cCtx.setOffline(true);
-  await stealOne('+ data');
-  await stealOne('as I joined');
-  await stealOne('app only');
+  const confirmed = [];
+  confirmed.push(await stealOne('+ data', 'data and all'));
+  confirmed.push(await stealOne('as I joined', 'as it stood when you joined'));
+  confirmed.push(await stealOne('app only', 'a clean copy'));
+  await atRest(); // the third steal must restore the button too
   await cCtx.setOffline(false);
   check('all three steals completed with the network UNPLUGGED — no re-fetch, ever', true);
+  check('and the Steal button came back to rest after every one', true);
   const kinds = await c.evaluate(async () => {
     const fs = (await GifOS.store.allFiles()).filter((f) => f.isApp && !f.isDefault);
     const out = { copies: fs.length, current: 0, connect: 0, clean: 0 };
@@ -192,7 +222,8 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('the three copies are the three different things they claim to be',
     kinds.copies === 3 && kinds.current === 1 && kinds.connect === 1 && kinds.clean === 1,
     JSON.stringify(kinds));
-  check('the Steal button itself confirms the steal', await c.evaluate(() => /Stolen/.test(document.getElementById('appsteal').textContent)));
+  check('the Steal button itself confirms EVERY steal, at the point of click',
+    confirmed.length === 3 && confirmed.every(Boolean), JSON.stringify(confirmed));
 
   // ---- succession (resilient room): the owner vanishes -----------------------
   // The sole remaining member is the deterministic successor: the app never
