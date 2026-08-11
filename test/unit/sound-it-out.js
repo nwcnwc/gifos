@@ -554,5 +554,49 @@ check('the count sets where the journey starts: 0.2 / 0.3 / 0.45',
     Math.abs(st.length - sr / 0.8) < sr * 0.01, st.length);
 }
 
+// ---- WHAT IS SHARED, AND WHAT IS NOT ---------------------------------------
+// The curriculum tests above prove the sight-word list changes what gets
+// sounded out. That is exactly why WHERE IT IS STORED is a correctness
+// question, and it was wrong: the list lived in `prefs`, which the manifest
+// declares private, so it never reached a guest at all. Host and guest then
+// rendered the SAME shared sentence differently — one building a word sound by
+// sound while the other showed it whole — and the per-row "4 of 4 words
+// recorded" counts disagreed between screens.
+//
+// runtime.js is emphatic that an UNDECLARED collection is private, so a
+// collection this app opens but forgets to declare fails silently and exactly
+// this way. Hold every collection against the manifest.
+{
+  const manifest = JSON.parse(fs.readFileSync(path.join(APP, 'manifest.json'), 'utf8'));
+  const data = manifest.data || {};
+  const src = ['app.js', 'ui.js', 'library.js', 'studio.js', 'voice.js']
+    .map((f) => fs.readFileSync(path.join(APP, f), 'utf8')).join('\n');
+  const opened = new Set();
+  for (const m of src.matchAll(/\bdb\(\s*'([a-z]+)'\s*\)/g)) opened.add(m[1]);
+  check('every collection the app opens is declared in the manifest',
+    [...opened].every((c) => data[c]), [...opened].filter((c) => !data[c]));
+
+  // The list is curriculum — the whole room's — not a per-device preference.
+  const sightColl = [...src.matchAll(/db\(\s*'([a-z]+)'\s*\)\.put\(\{\s*id:\s*SIGHT_ID/g)].map((m) => m[1]);
+  check('the sight-word list is written to exactly one collection', sightColl.length === 1, sightColl);
+  const vis = (c) => (data[c] || {}).visibility || 'private';
+  check('…and that collection is SHARED, not private',
+    !!sightColl[0] && vis(sightColl[0]) !== 'private', sightColl[0] + ' = ' + vis(sightColl[0]));
+  check('…and writable by a guest, who may mark a sight word too',
+    vis(sightColl[0]) === 'read-write', vis(sightColl[0]));
+  // savePrefs() persists state.prefs wholesale, so the list is back in a
+  // private record the moment either of these two things is true again.
+  const prefsDefault = (src.match(/\bprefs:\s*\{[^}]*\}/) || [''])[0];
+  check('the prefs record does not declare the sight-word list',
+    !!prefsDefault && !/sight/i.test(prefsDefault), prefsDefault);
+  check('…and nothing assigns one into it',
+    !/\bprefs\.sightWords\s*=[^=]/.test(src));
+
+  // The counterweight: prefs must STAY private. theme/reps/ticked are one
+  // person's screen, and sharing them would yank a guest's theme around.
+  check('prefs stays private', vis('prefs') === 'private');
+  check('the sound bank stays shared', vis('recordings') !== 'private' && vis('recmeta') !== 'private');
+}
+
 console.log(failures ? `${failures} FAILURES` : 'ALL PASS');
 process.exit(failures ? 1 : 0);

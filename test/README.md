@@ -453,7 +453,10 @@ Roughly three families in one directory:
   the rule that browsing must fetch ZERO App GIFs),
   `e2e-join-prettyurl`, `e2e-perms-share`, `e2e-owned-app`, `e2e-mymedia`,
   `e2e-mymedia-share`, `e2e-theme-wallpaper`, `e2e-invite-lifetime`,
-  `e2e-wasm`, `e2e-irl`, `e2e-bible-nav`, `e2e-mirror`.
+  `e2e-wasm`, `e2e-irl`, `e2e-bible-nav`, `e2e-mirror`,
+  `e2e-sound-it-out-share` (what a shared app shares: the sight-word list is
+  CURRICULUM and must reach a guest both ways, while private prefs must never
+  appear in the mirror — it lived in private prefs and silently did not cross).
 - **meeting** — `e2e-meet-lobby`, `e2e-meet-invite`, `e2e-meet-prettyurl`,
   `e2e-meet-quiet`, `e2e-meet-record-app`, `e2e-meet-mod` (blur/mute/undo,
   stage, vote, admin rooms — 48 checks), `e2e-meet-password`, `e2e-video`,

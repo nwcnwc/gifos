@@ -16,9 +16,13 @@
 
   async function boot() {
     await installFont();
-    let prefs = null;
+    let prefs = null, curriculum = null;
     try { prefs = await SIO.store.db('prefs').get('prefs'); } catch (e) { /* fresh */ }
-    await SIO.ui.init({ prefs: prefs || {} });
+    // The shared half of the setup: the sight-word list. Separate from prefs
+    // because prefs is private per device and this is the whole room's
+    // curriculum (see ui.js state.sightWords).
+    try { curriculum = await SIO.store.db('curriculum').get('sight'); } catch (e) { /* fresh */ }
+    await SIO.ui.init({ prefs: prefs || {}, curriculum: curriculum || null });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

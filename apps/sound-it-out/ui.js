@@ -15,9 +15,20 @@
     // persists and is restored on launch. A fresh install starts with
     // nothing ticked; a newly added entry arrives ticked, because adding
     // something is the strongest signal of wanting it.
-    // sightWords is the typed sight-word list (Sound Bank section 4): words
-    // read whole, never sounded out. Stored as typed; parsed on apply.
-    prefs: { theme: 'night', reps: 3, ticked: [], sightWords: '' },
+    prefs: { theme: 'night', reps: 3, ticked: [] },
+    // The typed sight-word list (Sound Bank section 4): words read whole,
+    // never sounded out. Stored as typed; parsed on apply.
+    //
+    // THIS IS CURRICULUM, NOT A PREFERENCE, so it lives in its own SHARED
+    // collection and not in private prefs. It used to sit in prefs, which the
+    // manifest declares private — meaning it never reached a guest, and a
+    // guest's own edit died with the tab. That is not a missing convenience:
+    // isSight() overrides decodable(), so host and guest rendered THE SAME
+    // shared sentence differently (one building a word sound by sound while
+    // the other showed it whole) and the "4 of 4 words recorded" counts on the
+    // Sentences tab disagreed between screens. theme/reps/ticked genuinely are
+    // per-device and stay where they are.
+    sightWords: '',
     rows: [],       // library rows {id, text, order}
     status: [],     // statusOf() result, same order
     done: new Map(),
@@ -40,6 +51,17 @@
 
   async function savePrefs() {
     await SIO.store.db('prefs').put(Object.assign({ id: 'prefs' }, state.prefs));
+  }
+
+  // One record, so every device in the session reads the same list.
+  const SIGHT_ID = 'sight';
+  async function saveSightWords() {
+    await SIO.store.db('curriculum').put({ id: SIGHT_ID, words: state.sightWords });
+  }
+  // Apply the list to the curriculum, which is what actually changes what gets
+  // sounded out. Called on load, on save, and whenever a peer changes it.
+  function applySightWords() {
+    SIO.curriculum.setSightWords(SIO.curriculum.parseSightWords(state.sightWords));
   }
 
   function switchTab(name) {
@@ -692,13 +714,13 @@
     const bank = await SIO.studio.bankList();
     $('count-bank').textContent = bank.length ? `${bank.length} words` : 'empty so far';
 
-    const sightWords = SIO.curriculum.parseSightWords(state.prefs.sightWords);
+    const sightWords = SIO.curriculum.parseSightWords(state.sightWords);
     $('count-sight').textContent = sightWords.length
       ? `${sightWords.length} word${sightWords.length === 1 ? '' : 's'}` : 'none yet';
     // Never clobber typing in progress - only refill the box when it is idle.
     const sightBox = $('sight-input');
     if (document.activeElement !== sightBox) {
-      sightBox.value = state.prefs.sightWords || '';
+      sightBox.value = state.sightWords || '';
     }
 
     const C = window.SIO_CLIPS && window.SIO_CLIPS.clips;
@@ -802,9 +824,9 @@
     });
     $('sight-save').addEventListener('click', async () => {
       const words = SIO.curriculum.parseSightWords($('sight-input').value);
-      state.prefs.sightWords = words.join('\n');
-      SIO.curriculum.setSightWords(words);
-      await savePrefs();
+      state.sightWords = words.join('\n');
+      applySightWords();
+      await saveSightWords();
       $('sight-status').textContent = words.length
         ? `Saved — ${words.length} word${words.length === 1 ? '' : 's'}, read whole.`
         : 'Saved — the list is empty, so every word is sounded out where it can be.';
@@ -860,9 +882,20 @@
 
   async function init(loaded) {
     state.prefs = Object.assign(state.prefs, loaded.prefs || {});
+    state.sightWords = (loaded.curriculum && loaded.curriculum.words) || '';
+    // Migration: the list used to live in private prefs (see state.sightWords
+    // above). Lift a saved one into the shared collection the first time this
+    // build opens a desktop that has one, and drop the private copy so the two
+    // can never disagree. A guest cannot write during init, so it only fires
+    // where it can land: the owner's device.
+    if (!state.sightWords && loaded.prefs && loaded.prefs.sightWords) {
+      state.sightWords = loaded.prefs.sightWords;
+      try { await saveSightWords(); } catch (e) { /* a guest's mirror is read at boot, not written */ }
+    }
+    if (state.prefs.sightWords !== undefined) { delete state.prefs.sightWords; await savePrefs(); }
     // Apply the sight-word list before anything computes a status or an
     // estimate - both consult it through the curriculum.
-    SIO.curriculum.setSightWords(SIO.curriculum.parseSightWords(state.prefs.sightWords));
+    applySightWords();
     // migration from the old inverted model: everything was ticked except
     // the remembered unticks
     if (loaded.prefs && loaded.prefs.unticked && !loaded.prefs.ticked) {
@@ -905,6 +938,18 @@
       const poke = () => { clearTimeout(t); t = setTimeout(refreshLibrary, 300); };
       SIO.store.db('library').subscribe(poke);
       SIO.store.db('recmeta').subscribe(poke);
+      // A sight word added at one end changes what gets sounded out at the
+      // other, and with it every row's count of missing sound pieces - so it
+      // has to reach the curriculum and the list, not just the input box.
+      SIO.store.db('curriculum').subscribe((rows) => {
+        const rec = (rows || []).find((r) => r && r.id === SIGHT_ID);
+        const words = (rec && rec.words) || '';
+        if (words === state.sightWords) return;
+        state.sightWords = words;
+        applySightWords();
+        poke();
+        renderSetup().catch(() => { /* the tab repaints when it is opened */ });
+      });
     }
   }
 
