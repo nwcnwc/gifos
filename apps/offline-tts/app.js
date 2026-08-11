@@ -149,4 +149,55 @@
         .then(function () { $('speak').disabled = false; });
     };
   }
+
+  // ---- a link that asks this computer to say something ----------------------
+  //
+  //   gifos.app/?run=offline-tts&go.say=Your%20lift%20is%20here&go.voice=nova
+  //
+  // Click it on a computer that has never seen GifOS and it speaks — which is
+  // only a reasonable thing to exist because the OS gets there first: it shows
+  // the message, says it came from whoever sent the link and not from this app,
+  // and hands it over only if the person says yes (runtime.js declaredLaunch).
+  // We are the last step of a decision already made, not the first.
+  //
+  // The tap that answered that sheet is also the gesture a browser wants before
+  // it will make a sound, and the runtime delegates autoplay to a mount a link
+  // asked something of. A stricter browser can still refuse — and a refusal
+  // must not read as "the voice is broken", so it becomes ONE button holding
+  // audio that is already synthesised and one tap from playing.
+  function speakFromLink(args) {
+    if (!args || !args.say) return;
+    var text = String(args.say);
+    var voice = String(args.voice || '');
+    var card = $('linkcard'), btn = $('linkplay');
+    var say = function (m) { var el = $('linkstatus'); if (el) el.textContent = m || ''; };
+    if (card) { card.hidden = false; $('linkmsg').textContent = '“' + text + '”'; }
+    // Put it in the Try box too: after it has spoken, the obvious next thing a
+    // person wants is to hear it again, or change it.
+    if ($('text')) $('text').value = text;
+    if (voice && $('voice')) $('voice').value = voice;
+
+    var play = null;
+    say('Warming up the voice…');
+    ensureEngine(say)
+      .then(function () { return ttsHandler({ text: text, voice: voice }); })
+      .then(function (r) {
+        var url = URL.createObjectURL(new Blob([r.bytes], { type: r.mime }));
+        var audio = new Audio(url);
+        audio.onended = function () { URL.revokeObjectURL(url); };
+        play = function () { return audio.play(); };
+        say('Speaking — on this device, out of a GIF, with nothing sent anywhere.');
+        return audio.play();
+      })
+      .then(function () { if (btn) btn.hidden = true; })
+      .catch(function (e) {
+        if (!play) { say('⚠ ' + (e && e.message || e)); return; }
+        if (btn) {
+          btn.hidden = false;
+          btn.onclick = function () { btn.hidden = true; say('Speaking…'); play(); };
+        }
+        say('Ready to speak — your browser wants one tap before it will make a sound.');
+      });
+  }
+  if (window.gifos && gifos.launch) gifos.launch().then(speakFromLink, function () {});
 })();

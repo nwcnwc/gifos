@@ -23,7 +23,9 @@
   select { background:var(--bg); border:1px solid var(--border); border-radius:.5rem; color:var(--text); font:inherit; padding:.45rem .55rem; }
   button { background:var(--accent); border:none; border-radius:.55rem; color:#fff; font:inherit; font-weight:600; padding:.5rem 1.3rem; cursor:pointer; }
   button:disabled { opacity:.55; cursor:wait; }
-  #status { font-size:.82rem; color:var(--muted); margin-top:.5rem; min-height:1.2em; }
+  #status, #linkstatus { font-size:.82rem; color:var(--muted); margin-top:.5rem; min-height:1.2em; }
+  .quote { font-size:1.05rem; color:var(--text); line-height:1.45; margin:.3rem 0 .2rem; word-break:break-word; }
+  #linkcard { border-color:var(--accent); }
   .foot { font-size:.75rem; color:var(--muted); opacity:.8; }
 </style>
 </head>
@@ -31,6 +33,17 @@
 <div class="wrap">
   <h1>🗣️ Offline Text to Speech<span class="chip">PROVIDER</span></h1>
   <p class="lead">A voice for your whole computer — text-to-speech that runs entirely on this device. No account, no key, nothing sent anywhere.</p>
+
+  <!-- Shown only when a LINK asked this computer to say something. GifOS has
+       already shown the message and asked, so this is the receipt, not the
+       request: what was said, and a tap to hear it again if the browser
+       refused to make a sound unasked. -->
+  <div class="card" id="linkcard" hidden>
+    <h2>A link asked your computer to say this</h2>
+    <p class="quote" id="linkmsg"></p>
+    <div class="row"><button id="linkplay" hidden>🔊 Tap to hear it</button></div>
+    <div id="linkstatus"></div>
+  </div>
 
   <div class="card">
     <h2>This app serves your OS</h2>
