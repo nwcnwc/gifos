@@ -261,6 +261,31 @@ async function launchResult(page) {
     await context.close();
   }
 
+  // ---- the SECOND tts provider takes the same link --------------------------
+  // The neural one (KittenTTS Nano) speaks far better and cannot be made to
+  // speak here: its voice is a 24 MB hash-pinned download, and a gate that
+  // fetches model weights is a gate that fails when a model host has a bad day.
+  // So this asserts the part that is ours — the ask reaches the app and the app
+  // says what it was asked to say, BEFORE any synthesis is attempted — and
+  // deliberately asserts nothing about the audio. It also keeps the 12 MB GIF
+  // honest: an app that stopped mounting would fail right here.
+  {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const MSG = 'Dinner is ready.';
+    await page.goto(BASE + '/index.html?run=offline-tts-neural&go.say=' + encodeURIComponent(MSG));
+    await page.waitForURL(/run\.html#id=/, { timeout: 120000 });
+    await page.waitForSelector('.perm-modal', { timeout: 60000 });
+    check('the neural provider\'s sheet quotes the message too',
+      (await page.locator('.perm-box').innerText()).includes(MSG));
+    await page.locator('#perm-go').click();
+    const fr = page.frameLocator('iframe');
+    await fr.locator('#linkcard').waitFor({ state: 'visible', timeout: 60000 });
+    check('the neural provider shows what the link asked it to say',
+      (await fr.locator('#linkmsg').textContent()).includes(MSG));
+    await context.close();
+  }
+
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILED' : '\nall green');
   process.exit(failures ? 1 : 0);
