@@ -2880,17 +2880,38 @@
   // shareable "open this app" link. Same-tab redirect to run.html (a boot-time
   // window.open would be popup-blocked). Non-app GIFs (folders, backups, plain)
   // are still filed in; only real app GIFs auto-run.
+  // A catalog SLUG instead of a URL: ?run=anyroad. The store's own layout is
+  // the rule (site/apps/<slug>/<slug>.gif, one copy, nowhere else), so this
+  // resolves rather than invents — and it is what makes a run-link something a
+  // person can type and read: /?run=anyroad&go.at=Grand%20Canyon&go.fly=1.
+  // Anything with a scheme, a dot, or a slash is left alone as a plain URL.
+  function resolveRunTarget(raw) {
+    return /^[a-z0-9][a-z0-9-]{0,63}$/i.test(raw)
+      ? location.origin + '/apps/' + raw.toLowerCase() + '/' + raw.toLowerCase() + '.gif'
+      : raw;
+  }
+
   async function handleRunParam() {
     let raw = '', fromHash = false;
+    // go.<key>=<value> — what the link asks the app to OPEN ON, carried through
+    // to run.html untouched. Read from wherever run= came from, because the two
+    // halves of one link must never take different paths. The runtime drops any
+    // key the app's manifest didn't declare and asks before delivering the rest
+    // (runtime.js declaredLaunch), so nothing here needs to judge them.
+    const launch = [];
+    const collect = (sp) => { sp.forEach((v, k) => { if (k.length > 3 && k.slice(0, 3) === 'go.') launch.push([k, v]); }); };
     try {
-      raw = new URLSearchParams(location.search).get('run') || '';
+      const q = new URLSearchParams(location.search);
+      raw = q.get('run') || '';
       // …or from the HASH. The query is what today's frozen snapshots read,
       // so the loader carries that; the hash form is accepted too so a
       // pretty-router path (404.html folds query into hash) can carry a
       // run-link without a second special case.
       if (!raw) { raw = new URLSearchParams(location.hash.slice(1)).get('run') || ''; fromHash = !!raw; }
+      collect(fromHash ? new URLSearchParams(location.hash.slice(1)) : q);
     } catch (e) {}
     if (!raw) return;
+    raw = resolveRunTarget(raw);
     // Strip run= from the address bar first — from WHEREVER it came — so a
     // refresh or a back never re-runs it.
     try {
@@ -2898,6 +2919,7 @@
       if (fromHash) {
         const h = new URLSearchParams(location.hash.slice(1));
         h.delete('run');
+        for (const [k] of launch) h.delete(k);
         const q = h.toString();
         rest = q ? '#' + q : '';
       }
@@ -2913,7 +2935,11 @@
     await ensureSystemItems(); // guarantees the 'sys_stolen' folder exists
     await saveItem({ id: store.uid('item'), kind: 'file', fileId, name: r.name, parent: 'sys_stolen', iconSize: 64 });
     await load();
-    if (isApp) { location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db='); return; }
+    if (isApp) {
+      const go = launch.map(([k, v]) => '&' + k + '=' + encodeURIComponent(v)).join('');
+      location.href = 'run.html#id=' + encodeURIComponent(fileId) + nsParam('&db=') + go;
+      return;
+    }
     render();
     showModal('Added to Stolen Apps', escapeHtml(r.name) + ' was added to your Stolen Apps. (It isn’t a runnable app GIF, so it wasn’t launched.)');
   }

@@ -1509,6 +1509,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // receiver-side moderation — is the admin room's, enforced as ever.
     // BC_INTENT alone (bare meet.html#bc=1) opens the broadcast-flavored lobby.
     const BC_INTENT = params.has('bc');
+    // ---- LINK-BORNE LAUNCH ARGUMENTS: #id=<file>&go.<key>=<value> -----------
+    // "Open Anyroad" is a link anyone can already send. This is how a link says
+    // WHERE to open it — go.at=36.06,-112.14&go.fly=1 — without becoming a
+    // second, weaker way to run code: the values are inert strings, the runtime
+    // drops every key the app's manifest did not declare, and nothing reaches
+    // the app until the consent sheet is answered (runtime.js declaredLaunch /
+    // gifos-perms.js). SOLO ONLY, enforced at the boot call below: in a joined
+    // room the app is somebody else's mount and my URL must not arm it.
+    // In the hash for the usual reason — the version channel drops the query.
+    const LAUNCH = (() => {
+      const out = {}; let n = 0;
+      params.forEach((v, k) => { if (k.length > 3 && k.slice(0, 3) === 'go.') { out[k.slice(3)] = v; n++; } });
+      return n ? out : null;
+    })();
     const BROADCAST = BC_INTENT && !!params.get('v') && /^[a-f0-9]{16,64}$/.test((params.get('av') || '').toLowerCase());
     if (BROADCAST) document.body.classList.add('broadcast');
     // The HOST is whoever holds this room's stored admin key — known before
@@ -6665,7 +6679,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if (P && typeof P.requireMeeting === 'function') P.requireMeeting(inviteFromSolo);
           else inviteFromSolo();
         };
-        return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl).then((ctl) => { soloCtl = ctl; });
+        return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl, ROOM.solo ? LAUNCH : null).then((ctl) => { soloCtl = ctl; });
       }).catch((e) => setStatus('Could not open the app: ' + (e && e.message || e)));
     }
 

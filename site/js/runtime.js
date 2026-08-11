@@ -256,6 +256,14 @@
         assets: function(path){ return rpc({type:'asset', path:path}).then(function(r){ return r.bytes; }); },
         info: function(){ return rpc({type:'info'}); },
         me: function(){ return rpc({type:'me'}); },
+        // What the LINK that opened this app asked for — an object of the
+        // arguments declared in this app's manifest "launch" block, or null if
+        // the link said nothing (the ordinary case) or the person declined.
+        // It RESOLVES LATE on purpose: the OS is showing the "this link would
+        // like to…" sheet, and the answer arrives when they tap. So call it at
+        // boot, and treat null as "open normally" — never wait for it before
+        // drawing something.
+        launch: function(){ return rpc({type:'launch'}); },
         setName: function(n){ return rpc({type:'setName', name:n}); },
         // Brokered device capture. The app never touches the camera/mic: it asks
         // the GifOS computer for a CLIP, which records it behind a visible
@@ -2246,9 +2254,55 @@
 "})();";
   }
 
-  function mountApp(iframe, files, manifest, db, originalBytes, policy, mountFileId) {
+  // ---- link-borne launch arguments (docs/architecture.md "the go. link") ----
+  // A link may ask an app to open ON something: a place, a message, a document.
+  // Two rules make that safe enough to hand a stranger, and both are enforced
+  // here rather than described anywhere:
+  //
+  // 1. AN APP ONLY EVER HEARS WHAT IT PUBLISHED A NAME FOR. The manifest's
+  //    "launch" block declares each argument and the words the consent sheet
+  //    says about it. An undeclared key is DROPPED — a link cannot reach a knob
+  //    the app never offered, so adding a URL surface is a deliberate act by the
+  //    app author, not an ambient consequence of being mountable.
+  // 2. NOTHING IS DELIVERED UNTIL THE PERSON SAYS SO. The values sit in a gate
+  //    that only the consent sheet can open (see gifos-perms.js). No chrome to
+  //    ask with = no delivery, which is why the gate DENIES rather than hangs
+  //    when __gifosPermissions is absent: a silent grant is the one outcome a
+  //    link-borne instruction must never have.
+  //
+  // Values are strings, capped — a launch argument is an intention, not a
+  // payload. Anything bigger belongs in the app's own data.
+  const LAUNCH_VALUE_MAX = 2000;
+  function declaredLaunch(manifest, raw) {
+    const spec = manifest && manifest.launch;
+    if (!raw || !spec || typeof spec !== 'object') return [];
+    const out = [];
+    for (const key of Object.keys(spec)) {
+      if (!Object.prototype.hasOwnProperty.call(raw, key)) continue;
+      const v = raw[key];
+      if (v == null) continue;
+      const d = spec[key] || {};
+      out.push({
+        key,
+        value: String(v).slice(0, LAUNCH_VALUE_MAX),
+        label: String(d.label || key),
+        detail: String(d.detail || ''),
+      });
+    }
+    return out;
+  }
+
+  function mountApp(iframe, files, manifest, db, originalBytes, policy, mountFileId, launch) {
     policy = policy || makeNetPolicy(null, manifest); // client-run: session-only
     mountFileId = mountFileId || null; // set for host mounts — lets gifos.assets() serve the icon's asset cache
+    // The gate: gifos.launch() answers from here, and only once someone has
+    // said yes. asked=[] resolves null immediately, so an app that always calls
+    // launch() never waits for a sheet that isn't coming.
+    const asked = declaredLaunch(manifest, launch);
+    let openGate = null;
+    const launchGate = asked.length
+      ? new Promise((res) => { openGate = res; })
+      : Promise.resolve(null);
     armBackTrap(() => iframe);
     const handler = (e) => {
       if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
@@ -2282,6 +2336,9 @@
       // change visibility (setVisibility). A guest view is not the owner.
       else if (d.type === 'info') reply({ ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version, owner: !!(db && db.owner) } });
       else if (d.type === 'me') reply({ ok: true, result: identity() });
+      // The app asking what its link said. Answers once — and only once — the
+      // person has confirmed; null if nothing was asked, or if they declined.
+      else if (d.type === 'launch') launchGate.then((result) => reply({ ok: true, result }));
       else if (d.type === 'asset') replyAsset(files, mountFileId, d, (p, t) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
       else if (d.type === 'storage') {
@@ -2294,7 +2351,17 @@
     root.addEventListener('message', handler);
     // Hand the chrome (run.html) this app's network policy so it can show the
     // launch acknowledgement and the tab control. Fires for every mount path.
-    if (root.__gifosPermissions) { try { root.__gifosPermissions(policy, manifest); } catch (e) { /* no chrome */ } }
+    // The launch request rides along: the sheet is the only thing that can open
+    // the gate, and if there is no sheet — a mount with no chrome — the gate
+    // CLOSES. Fail shut: an unattended page must not act on a link's say-so.
+    const launchReq = asked.length ? {
+      asked,
+      grant: () => { if (openGate) { openGate(asked.reduce((o, a) => (o[a.key] = a.value, o), {})); openGate = null; } },
+      deny: () => { if (openGate) { openGate(null); openGate = null; } },
+    } : null;
+    if (root.__gifosPermissions) {
+      try { root.__gifosPermissions(policy, manifest, launchReq); } catch (e) { if (launchReq) launchReq.deny(); }
+    } else if (launchReq) launchReq.deny();
     // Motion sensors are delegated to the sandbox via the iframe allow-policy
     // (the events fire INSIDE the app frame). Camera/mic are NOT delegated —
     // those are captured by the trusted parent and handed back as clips.
@@ -2358,7 +2425,11 @@
   // is gone; app state rides the room mesh lane, owner-signed. docs/one-runtime.md)
 
   // ---- standalone / host boot ----------------------------------------------
-  function boot(mountEl, fileId, statusEl) {
+  // launch — the raw `go.<key>=<value>` bag off the opening link, or null. It
+  // is only ever passed for a SOLO mount of MY OWN icon (run.html #id=): an app
+  // I joined over somebody else's link is their mount, and their URL has no
+  // business arming my copy. declaredLaunch() filters it against the manifest.
+  function boot(mountEl, fileId, statusEl, launch) {
     const setStatus = (m) => { if (statusEl) statusEl.textContent = m; };
     const noop = { save: () => Promise.resolve(null), becomeHost: () => Promise.reject(new Error('nothing running')) };
     return store.getFile(fileId).then((rec) => {
@@ -2710,7 +2781,7 @@
         // Snapshot the state AT LOAD once, so the corner app-GIF and a
         // "data at connect time" steal share the same (memoized) bytes.
         const stealCtx = { connectState: connectState, cache: { bytes: null } };
-        mountApp(iframe, files, manifest, db, appBytes, netPolicy, fileId);
+        mountApp(iframe, files, manifest, db, appBytes, netPolicy, fileId, launch);
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes, manifest);
         announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');
