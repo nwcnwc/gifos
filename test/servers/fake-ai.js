@@ -21,9 +21,14 @@ function send(res, code, type, body) {
 // streamed answer from a single-shot one if the fragments are OBSERVABLY
 // separated in time, and a whole answer flushed in one packet would sail past
 // a guard that meant to prove incremental rendering.
-function sendStream(res, text, gapMs) {
+// `ctype` exists so a test can serve a REAL stream under a LYING Content-Type.
+// Several OpenAI-shaped gateways label their server-sent events
+// application/json, and a broker that sniffs the header instead of reading the
+// body buffers those whole — the answer then lands in one lump at the end,
+// which is exactly what a user reports as "it doesn't stream".
+function sendStream(res, text, gapMs, ctype) {
   res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
+    'Content-Type': ctype || 'text/event-stream',
     'Cache-Control': 'no-cache',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': '*',
@@ -52,7 +57,7 @@ const server = http.createServer((req, res) => {
       // drill generation, coach, weekly review, picture scenes) get well-formed
       // JSON. Anything unrecognized still returns 'pong' (keeps e2e-caps green).
       let text = 'pong';
-      let stream = false;
+      let stream = false, ctype = null;
       try {
         const body = JSON.parse(raw || '{}');
         stream = !!body.stream;
@@ -71,6 +76,10 @@ const server = http.createServer((req, res) => {
           // be caught HALF-drawn — 'pong' arrives as one chunk and proves
           // nothing about incremental rendering.
           text = 'One two three four five six seven eight nine ten.';
+        } else if (lastTxt === 'mislabeled?') {
+          // Same ten words, same real SSE — served as application/json.
+          text = 'One two three four five six seven eight nine ten.';
+          ctype = 'application/json';
         } else if (/Legal moves:/i.test(blob)) {
           // The default Chess app's Hint: pick the first move from the exact
           // legal list it hands us, so the reply is always a real, legal move.
@@ -104,7 +113,7 @@ const server = http.createServer((req, res) => {
           text = JSON.stringify({ prompt: 'Explain a everyday process to a curious ten-year-old.', params });
         }
       } catch (e) { /* fall through to pong */ }
-      if (stream) return sendStream(res, text, process.env.FAKE_AI_GAP_MS ? +process.env.FAKE_AI_GAP_MS : 120);
+      if (stream) return sendStream(res, text, process.env.FAKE_AI_GAP_MS ? +process.env.FAKE_AI_GAP_MS : 120, ctype);
       return send(res, 200, 'application/json', JSON.stringify({ choices: [{ message: { role: 'assistant', content: text } }] }));
     }
     if (url.endsWith('/audio/speech')) {

@@ -2766,6 +2766,13 @@ recBtn.onclick=async()=>{
   // Ordering is by an explicit `seq`, never by record id — the store's
   // auto-ids sort lexicographically, so chat_10 would land before chat_2.
   //
+  // NOTHING IS EVER DELETED EXCEPT BY THE DELETE BUTTON. "＋ New chat" used to
+  // erase the conversation it was leaving; now it only moves on. Every message
+  // carries the id of the conversation it belongs to (`conv`), so the history
+  // is DERIVED from the messages themselves — there is no second collection to
+  // fall out of step with them, and the only way a chat leaves this computer is
+  // the trash button in History, behind an explicit confirm.
+  //
   // Everything carries a wall-clock stamp, and an answer also carries what it
   // cost you in time: time-to-first-word (only meaningful when the endpoint
   // streams) and the total. A slow model is then legible as slow rather than
@@ -2778,10 +2785,11 @@ recBtn.onclick=async()=>{
   const ASKAI_HTML = `<!doctype html><meta charset="utf-8">
 <style>
   *{box-sizing:border-box} html,body{height:100%}
-  body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column}
-  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#7b5cff;display:flex;align-items:center;gap:10px}
+  body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;position:relative}
+  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#7b5cff;display:flex;align-items:center;gap:8px}
   header .sp{flex:1}
   header button{padding:6px 11px;border-radius:999px;border:1px solid #2a2a3f;background:#14141f;color:#8888aa;font:inherit;font-size:.78rem;font-weight:400;cursor:pointer}
+  header button:hover{color:#e0e0f0}
   #log{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px}
   .row{display:flex;flex-direction:column;gap:3px;max-width:85%}
   .row.you{align-self:flex-end;align-items:flex-end}
@@ -2799,19 +2807,46 @@ recBtn.onclick=async()=>{
   input{flex:1;padding:11px 12px;border:1px solid #2a2a3f;border-radius:9px;background:#1c1c2b;color:#e0e0f0;font:inherit}
   form button{padding:11px 16px;border:0;border-radius:9px;background:#7b5cff;color:#fff;font-weight:700;cursor:pointer}
   form button:disabled{opacity:.5;cursor:default}
+  /* History — every chat you ever had, searchable, and deletable ONLY here. */
+  #hist{position:absolute;inset:0;background:#0a0a0f;display:none;flex-direction:column;z-index:5}
+  #hist.on{display:flex}
+  .hbar{display:flex;gap:8px;align-items:center;padding:12px 18px;border-bottom:1px solid #2a2a3f}
+  .hbar b{color:#7b5cff;white-space:nowrap}
+  .hbar button{padding:9px 13px;border-radius:9px;border:1px solid #2a2a3f;background:#14141f;color:#e0e0f0;font:inherit;cursor:pointer}
+  #hlist{flex:1;overflow-y:auto;padding:4px 12px 16px}
+  .hrow{display:flex;align-items:center;gap:4px;border-bottom:1px solid #14141f}
+  .hopen{flex:1;min-width:0;text-align:left;background:none;border:0;color:#e0e0f0;font:inherit;cursor:pointer;padding:9px 8px;border-radius:8px}
+  .hopen:hover{background:#14141f}
+  .htitle{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hmeta{display:block;color:#8888aa;font-size:.74rem;font-variant-numeric:tabular-nums;margin-top:3px}
+  .hrow.cur .hmeta{color:#7b5cff}
+  button.row-del{background:none;border:0;color:#8888aa;cursor:pointer;padding:.4rem .45rem;line-height:0;border-radius:.35rem;flex:0 0 auto}
+  button.row-del:hover{color:#ff5caa;background:#14141f}
+  .hconfirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 8px;font-size:.86rem;color:#8888aa}
+  .hconfirm button{padding:5px 11px;border-radius:8px;border:1px solid #2a2a3f;background:#14141f;color:#e0e0f0;font:inherit;font-size:.82rem;cursor:pointer}
+  .hconfirm button.yes{border-color:#ff5caa;color:#ff5caa}
+  .hempty{color:#8888aa;padding:18px 8px;line-height:1.5}
 </style>
-<header>Ask AI<span class="sp"></span><button id="new" title="Forget this conversation and start a new one">＋ New chat</button></header>
+<header>Ask AI<span class="sp"></span><button id="histbtn" title="Every chat you have had, searchable">🕘 History</button><button id="new" title="Start a new chat — this one is kept in History">＋ New chat</button></header>
 <div id="log"></div>
 <div class="pick"><button data-m="cheapest" class="on">Cheapest</button><button data-m="smartest">Smartest</button></div>
 <form id="f"><input id="t" placeholder="Ask anything…" autocomplete="off"><button id="send">Send</button></form>
+<div id="hist"><div class="hbar"><b>Your chats</b><input id="hq" placeholder="Search by keyword…" autocomplete="off"><button id="hclose">Close</button></div><div id="hlist"></div></div>
 <script>
 const log=document.getElementById('log'), input=document.getElementById('t'), sendBtn=document.getElementById('send');
+const histBox=document.getElementById('hist'), hlist=document.getElementById('hlist'), hq=document.getElementById('hq');
 const CTX_MAX=40;                       // turns of memory handed back to the model
-let model='cheapest', hist=[], db=null, prefs=null, seq=0, busy=false;
+const DEL='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+let model='cheapest', db=null, prefs=null, busy=false;
+let all=[];                             // every message ever, across every chat
+let hist=[], conv=null, seq=0;          // the chat on screen, and its id
+let pendingDel=null;                    // the chat whose delete is awaiting a yes
 const pad=n=>(n<10?'0':'')+n;
 function stamp(ts){ const d=new Date(ts);
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
+function stampMin(ts){ return stamp(ts).slice(0,16); }
 function secs(ms){ return ms<1000?(Math.round(ms)+'ms'):((ms/1000).toFixed(1)+'s'); }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function metaOf(r){
   const bits=[stamp(r.ts)];
   if(r.role==='assistant'){
@@ -2831,8 +2866,10 @@ function draw(r){
   return {bubble:b, stamp:s};
 }
 function note(html){ const d=document.createElement('div'); d.className='note'; d.innerHTML=html; log.appendChild(d); bottom(); return d; }
-function uid(){ return 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
-function save(r){ if(db) db.put(r).catch(()=>{}); }
+function uid(p){ return (p||'m')+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+// One write path. all[] is the in-memory mirror of the collection, so the
+// history list and the search see a message the instant it is sent.
+function save(r){ all.push(r); if(db) db.put(r).catch(()=>{}); }
 // What the model is told. Failed turns are shown but never sent — an error
 // bubble is this app talking, not the assistant, and feeding it back would
 // teach the model to apologise for GifOS.
@@ -2843,27 +2880,116 @@ function setModel(m){
   model=(m==='smartest')?'smartest':'cheapest';
   document.querySelectorAll('.pick button').forEach(x=>x.classList.toggle('on',x.dataset.m===model));
 }
-document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>{
-  setModel(b.dataset.m); if(prefs) prefs.put({id:'askai',model:model}).catch(()=>{});
-});
-document.getElementById('new').onclick=async()=>{
-  if(busy||!hist.length) return;
-  const old=hist; hist=[]; seq=0; log.innerHTML='';
-  for(const r of old){ try{ await db.delete(r.id); }catch(e){} }
-  note('New conversation. The previous '+old.length+' message'+(old.length===1?'':'s')+' '+(old.length===1?'was':'were')+' erased from this computer.');
+function remember(){ if(prefs) prefs.put({id:'askai',model:model,conv:conv}).catch(()=>{}); }
+document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>{ setModel(b.dataset.m); remember(); });
+
+// ---- the history, derived from the messages -------------------------------
+// Grouped by conv, newest first. Messages written before conversations
+// existed carry no id; they are one chat, stamped 'c0' once at boot.
+function conversations(){
+  const by={};
+  for(const r of all){ const c=r.conv||'c0'; (by[c]||(by[c]=[])).push(r); }
+  return Object.keys(by).map(id=>{
+    const msgs=by[id].slice().sort((a,b)=>(a.seq||0)-(b.seq||0)||(a.ts-b.ts));
+    return {id:id, msgs:msgs, started:msgs[0].ts, updated:msgs[msgs.length-1].ts};
+  }).sort((a,b)=>b.updated-a.updated);
+}
+// The list shows the opening words, because that is what you remember a chat by.
+function titleOf(c){
+  const first=c.msgs.filter(m=>m.role==='user'&&m.content)[0]||c.msgs[0];
+  const t=String((first&&first.content)||'').replace(/\\s+/g,' ').trim();
+  return t?(t.length>72?t.slice(0,72)+'…':t):'Empty chat';
+}
+// Search reads the WHOLE chat, not just its title: you look for the answer you
+// half-remember as often as for the question you asked. Every word must appear.
+function matches(c,words){
+  if(!words.length) return true;
+  const h=(titleOf(c)+' '+c.msgs.map(m=>m.content||'').join(' ')).toLowerCase();
+  return words.every(w=>h.indexOf(w)>=0);
+}
+function renderHistory(){
+  const words=hq.value.trim().toLowerCase().split(/\\s+/).filter(Boolean);
+  const list=conversations().filter(c=>matches(c,words));
+  if(!list.length){
+    hlist.innerHTML='<div class="hempty">'+(words.length
+      ? 'No chat mentions “'+esc(hq.value.trim())+'”.'
+      : 'No chats yet. Everything you ask is kept here until you delete it.')+'</div>';
+    return;
+  }
+  hlist.innerHTML=list.map(c=>{
+    const n=c.msgs.length+' message'+(c.msgs.length===1?'':'s');
+    if(pendingDel===c.id) return '<div class="hrow" data-c="'+esc(c.id)+'"><div class="hconfirm">'+
+      '<span>Delete this chat and its '+n+'?</span>'+
+      '<button class="yes" data-del="'+esc(c.id)+'">Delete</button><button class="no">Keep it</button></div></div>';
+    return '<div class="hrow'+(c.id===conv?' cur':'')+'" data-c="'+esc(c.id)+'">'+
+      '<button class="hopen" data-open="'+esc(c.id)+'">'+
+        '<span class="htitle">'+esc(titleOf(c))+'</span>'+
+        '<span class="hmeta">'+stampMin(c.updated)+' · '+n+(c.id===conv?' · open now':'')+'</span></button>'+
+      '<button class="row-del" data-ask="'+esc(c.id)+'" title="Delete this chat">'+DEL+'</button></div>';
+  }).join('');
+}
+function openHistory(){ pendingDel=null; hq.value=''; renderHistory(); histBox.classList.add('on'); try{ hq.focus(); }catch(e){} }
+function closeHistory(){ histBox.classList.remove('on'); pendingDel=null; }
+document.getElementById('histbtn').onclick=()=>histBox.classList.contains('on')?closeHistory():openHistory();
+document.getElementById('hclose').onclick=closeHistory;
+hq.oninput=renderHistory;
+hlist.onclick=async e=>{
+  const open=e.target.closest('[data-open]'); if(open){ closeHistory(); openConv(open.dataset.open); return; }
+  const ask=e.target.closest('[data-ask]'); if(ask){ pendingDel=ask.dataset.ask; renderHistory(); return; }
+  const del=e.target.closest('[data-del]'); if(del){ await deleteConv(del.dataset.del); pendingDel=null; renderHistory(); return; }
+  if(e.target.closest('.no')){ pendingDel=null; renderHistory(); }
+};
+function openConv(id){
+  const c=conversations().filter(x=>x.id===id)[0]; if(!c) return;
+  conv=id; hist=c.msgs.slice(); seq=0;
+  for(const r of hist) seq=Math.max(seq,r.seq||0);
+  log.innerHTML=''; hist.forEach(draw);
+  note('Reopened this chat from '+stampMin(c.started)+' — keep typing and it carries on.');
+  remember();
+}
+// The ONLY thing in this app that erases anything, and it is one button click
+// plus a confirm away from nothing happening.
+async function deleteConv(id){
+  const gone=all.filter(r=>(r.conv||'c0')===id);
+  all=all.filter(r=>(r.conv||'c0')!==id);
+  for(const r of gone){ try{ await db.delete(r.id); }catch(e){} }
+  if(id===conv) startNew(true);
+}
+function startNew(quiet){
+  conv=uid('c'); hist=[]; seq=0; log.innerHTML=''; remember();
+  if(!quiet) note('New chat. The one you were in is saved — press <b>🕘 History</b> to find it again.');
+}
+document.getElementById('new').onclick=()=>{
+  if(busy) return;
+  if(!hist.length){ note('This chat is already empty — ask something.'); return; }
+  startNew();
 };
 (async()=>{
   if(!window.gifos||!gifos.ai){ note('Open this inside GifOS to use AI.'); return; }
   db=gifos.db('chat'); prefs=gifos.db('prefs');
-  try{
-    const all=await db.getAll();
-    hist=(all||[]).filter(r=>r&&r.role&&r.ts!=null).sort((a,b)=>(a.seq||0)-(b.seq||0)||(a.ts-b.ts));
-    for(const r of hist) seq=Math.max(seq,r.seq||0);
-    hist.forEach(draw);
-    if(hist.length) note('Picking up where you left off — '+hist.length+' message'+(hist.length===1?'':'s')+' remembered from '+stamp(hist[0].ts)+'.');
-  }catch(e){ note('Couldn’t read the saved conversation: '+((e&&e.message)||e)); }
   const p=await prefs.get('askai').catch(()=>null);
   if(p&&p.model) setModel(p.model);
+  let convs=[];
+  try{
+    const raw=await db.getAll();
+    all=(raw||[]).filter(r=>r&&r.role&&r.ts!=null);
+    // Records from before this app had a history belong to one chat. Stamp them
+    // in place, once, so that chat has a stable id like any other.
+    for(const r of all){ if(!r.conv){ r.conv='c0'; try{ await db.put(r); }catch(e){} } }
+    convs=conversations();
+    const want=(p&&p.conv)||null;
+    // A remembered id with no messages is a chat the user started and left
+    // empty — honour it rather than dragging the previous one back.
+    const pick=want?(convs.filter(c=>c.id===want)[0]||null):(convs[0]||null);
+    conv=want||(pick?pick.id:uid('c'));
+    if(pick){ hist=pick.msgs.slice(); for(const r of hist) seq=Math.max(seq,r.seq||0); hist.forEach(draw); }
+  }catch(e){ note('Couldn’t read your saved chats: '+((e&&e.message)||e)); }
+  if(!conv) conv=uid('c');
+  const others=convs.length-(hist.length?1:0);
+  if(hist.length) note('Picking up where you left off — '+hist.length+' message'+(hist.length===1?'':'s')+' from '+stampMin(hist[0].ts)+'.'+
+    (others>0?' '+others+' other chat'+(others===1?'':'s')+' in <b>🕘 History</b>.':''));
+  else if(others>0) note('New chat. Your '+others+' earlier chat'+(others===1?'':'s')+' '+(others===1?'is':'are')+' in <b>🕘 History</b>.');
+  remember();
   const m=await gifos.ai.models().catch(()=>({available:[]}));
   if(!(m.available||[]).includes('cheapest')&&!(m.available||[]).includes('smartest'))
     note('No AI model is set up yet. On your GifOS Home Screen open <b>Settings → AI models</b>, add an OpenAI-compatible endpoint + key for “Cheapest text LLM” or “Smartest text LLM”, press <b>Test</b>, then come back. Your key stays in your browser — this app never sees it.');
@@ -2871,9 +2997,9 @@ document.getElementById('new').onclick=async()=>{
 document.getElementById('f').onsubmit=async e=>{
   e.preventDefault(); const q=input.value.trim(); if(!q||busy)return; input.value='';
   busy=true; sendBtn.disabled=true;
-  const u={id:uid(),seq:++seq,role:'user',content:q,ts:Date.now()};
+  const u={id:uid(),conv:conv,seq:++seq,role:'user',content:q,ts:Date.now()};
   hist.push(u); draw(u); save(u);
-  const a={id:uid(),seq:++seq,role:'assistant',content:'',ts:Date.now(),model:model};
+  const a={id:uid(),conv:conv,seq:++seq,role:'assistant',content:'',ts:Date.now(),model:model};
   const el=draw(a); el.bubble.textContent='…';
   const t0=Date.now(); let first=null, streamed='';
   try{
