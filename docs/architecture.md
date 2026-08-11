@@ -351,6 +351,53 @@ can download + `＋ Add` instead. The app still runs sandboxed and shows the
 capability acknowledgement — `?run=` is a convenience over "download then add",
 not a new trust path.
 
+`run=` also takes a **catalog slug** instead of a URL: `?run=anyroad` resolves
+through the store's own layout (`site/apps/<slug>/<slug>.gif`, the one place a
+built App GIF lives), which is what makes a run-link short enough for a person
+to read and type.
+
+### `go.<key>=<value>` — a link that says WHAT to open the app on
+
+A run-link says *which* app. `go.` says what to do once it is up:
+
+```
+https://gifos.app/?run=anyroad&go.at=36.0640,-112.1400&go.fly=1
+https://gifos.app/?run=offline-tts&go.say=Your%20lift%20is%20here
+```
+
+The first drops a first-time visitor into the Grand Canyon with the wings out;
+the second makes their computer say a sentence out loud, offline. The bag is
+carried `index.html?run=…&go.*` → `run.html#id=<file>&go.*` (in the hash: the
+version channel drops the query) → `gifos.launch()` inside the sandbox.
+
+Three rules make a stranger's link safe enough to click, each enforced in code:
+
+1. **An app only ever hears what it published a name for.** The manifest's
+   `launch` block declares each argument and the words the consent sheet uses
+   for it; `declaredLaunch()` in `runtime.js` drops every other key. A URL
+   surface is a deliberate act by the app author, not a property of being
+   mountable.
+2. **Nothing is delivered until the person says so.** The values sit in a gate
+   only the consent sheet can open (`gifos-perms.js`), so `gifos.launch()` is a
+   promise that resolves *late* — when they tap — and resolves `null` when they
+   decline. The sheet leads with the ask, quoted as data, attributed to whoever
+   sent the link rather than to the app, and it opens **every** time: a stored
+   abilities acknowledgement says nothing about what today's link wants.
+3. **The gate fails shut.** No chrome to ask with, a throwing hook, a dismissed
+   sheet, a backdrop click, or walking out of the required-setup gate all deny.
+   A silent grant is the one outcome a link-borne instruction must never have.
+
+Solo mounts only (`#id=`, your own icon). In a joined room the app is somebody
+else's mount and your URL has no business arming it.
+
+A mount that a link asked something of also gets `allow="autoplay"` — the tap
+that answered the sheet is the gesture a browser wants, but it lands in the
+container's document rather than in the app's sandboxed frame. It grants sound
+and nothing else. Set at mount because a permissions policy is fixed at
+navigation, which is why it cannot wait for the yes.
+
+Guarded end to end by `test/browser/e2e-launch-args.js`.
+
 Flow when a friend opens the link:
 
 ```
