@@ -90,10 +90,51 @@ style vector to fp16 changes the input by 0.097% and the output waveform by
 **5.1 dB SNR** (peak difference 0.80 on a ±1 signal). The model is extremely
 sensitive to this input. Do not "optimize" it.
 
-**4. Speed is not quotable.** Measured warm, one thread, on a 4-core desktop:
-**0.80× real time** — the doc's 2–3× came from someone else's desktop demo. In
-the browser, first call including the 24 MB download and session creation:
-14.1 s of audio in 21.4 s. That is why the listing carries no speed number.
+**4. Speed is not quotable, and it sets the whole feel of the app.** Measured
+warm, one thread, on a 4-core desktop: **0.80× real time** — the doc's 2–3×
+came from someone else's desktop demo.
+
+That ratio is the reason for everything in the next section, because it is
+almost exactly linear in how much text is asked for at once:
+
+| chars in one call | audio out | wait before ANY sound |
+|---|---|---|
+| 150 | 14.7 s | 19.4 s |
+| 400 | 37.4 s | 47.3 s |
+| 600 | 55.1 s | 67.9 s |
+| 1200 | 108.8 s | 133.4 s |
+
+## Starting to talk before it has finished thinking
+
+A neural voice cannot begin speaking until the passage it is working on is
+finished, so **the wait before the first sound is just however much audio was
+asked for in one go**. Ask for 600 characters and that is 68 seconds of silence,
+which is indistinguishable from a hang. This is the single thing that most
+affects how the app feels, and it is not fixed by making the model faster.
+
+Two places deal with it, and they are different problems:
+
+- **This app's own page** synthesises passage by passage and starts playing the
+  first while the second is still being made. It is not going through the
+  broker, so nothing stops it. Time-to-first-sound stops depending on the length
+  of the text at all: measured 5.9 s for 150 characters, 6.0 s for 600, and
+  5.9 s for 1800.
+- **A consumer app cannot be helped from in here.** A provider handler must
+  return one finished WAV — the OS's tts contract has no audio channel to stream
+  down (`ctx.delta` is text; docs/providers.md). So the bite size is the
+  CONSUMER's decision, and Reader now measures the voice that answers and sizes
+  its passages accordingly (`sample-apps.js`, guarded by
+  `test/unit/reader-chunking.js`). Reading a 1800-character article through
+  Reader: first sound at **16.3 s** instead of ~79 s, 11 s of that being the
+  one-time engine load. The formant provider is untouched by the change — 1.7 s
+  to first sound, back to full 600-character passages by the third.
+
+What this does NOT fix: at 0.80× real time the voice generates slower than it
+plays, so a long article still pauses between passages. Sizing them small turns
+one 14-second hole into short even ones; nothing short of a faster model removes
+them. Synthesis also blocks the app's main thread, so the page is unresponsive
+while a passage is being made (audio playback is unaffected — it runs off-thread,
+which is what makes the overlap real).
 
 ## Two sandbox traps, both paid
 

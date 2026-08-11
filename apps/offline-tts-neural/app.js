@@ -2,10 +2,9 @@
  * Offline Neural Text to Speech — the driver. Serves the computer's
  * **Text → speech** AI role via gifos.provider.serve (docs/providers.md).
  *
- * This is the SECOND tts provider, not a replacement for the first. Offline
- * Text to Speech (eSpeak) stays the tiny, instant, zero-download option; this
- * one sounds like a person and costs a 24 MB download and a slower start. The
- * user keeps both and picks in Settings → AI models.
+ * A neural voice, so it costs a 24 MB download and a warm-up before the first
+ * words — the trade it exists to offer. Which provider serves the role is the
+ * user's choice in Settings → AI models.
  *
  * What rides where (docs/tts-neural.md, docs/providers.md):
  *   IN THE GIF   onnxruntime-web's WASM build (MIT), the espeak-ng phonemizer
@@ -25,7 +24,7 @@
 
   var SR = 24000;              // the model's output rate
   var TAIL_TRIM = 5000;        // the reference trims this tail off every chunk
-  var MAX_CHARS = 20000;       // same ceiling as the eSpeak provider
+  var MAX_CHARS = 20000;       // ceiling on one request
   var CHUNK_CHARS = 400;       // reference chunk_text(); also the style table's height
 
   // The eight voices, and their speed priors, from the model's own config.json.
@@ -53,11 +52,12 @@
   // could reach through it would be the wrong trade entirely; a named voice
   // rides the channel that already exists.
   var SELFTEST_VOICE = 'self-test';
+  // The names a consumer app written against a cloud TTS already uses. Every
+  // tts provider should answer to them, so that changing which one serves the
+  // role never changes what a voice name means to an app.
   var OPENAI_MAP = {
     alloy: 'expr-voice-5-m', echo: 'expr-voice-3-m', fable: 'expr-voice-3-f',
     onyx: 'expr-voice-2-m', nova: 'expr-voice-4-f', shimmer: 'expr-voice-5-f',
-    // eSpeak's provider accepts these too; keep the vocabulary identical so
-    // swapping providers in Settings never changes what a voice name means.
     whisper: 'expr-voice-2-f'
   };
   function resolveVoice(want) {
@@ -333,20 +333,67 @@
         sel.appendChild(o);
       });
     }
+    // START TALKING BEFORE IT HAS FINISHED THINKING.
+    //
+    // Synthesis runs at about 0.8x real time, so the wait before ANY sound is
+    // just however much audio was asked for at once. Measured in this app:
+    // 150 chars -> 14.7s of audio after 19.4s; 600 chars -> 55.1s after 67.9s;
+    // 1200 chars -> 108.8s after 133.4s. Handing the whole box to one call
+    // therefore means a minute or more of silence that reads as a hang.
+    //
+    // A provider handler cannot avoid that — it must return one finished WAV,
+    // because the OS's tts contract has no audio channel to stream down (see
+    // docs/providers.md: ctx.delta is text). But THIS page is not going through
+    // the broker, so it does what any player does: synthesize passage by
+    // passage and start playing the first one while the second is still being
+    // made. Time-to-first-sound stops depending on how much text there is.
+    //
+    // Playback is unaffected by the fact that inference blocks the main thread
+    // — decoding and output run off it — so the overlap is real, not cosmetic.
+    var playWav = function (buf) {
+      return new Promise(function (res) {
+        var url = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+        var a = new Audio(url);
+        var done = function () { URL.revokeObjectURL(url); res(); };
+        a.onended = done; a.onerror = done;
+        a.play().then(null, done);
+      });
+    };
     var speak = function (selftest) {
       $('speak').disabled = true; $('selftest').disabled = true;
       setStatus(selftest ? 'Running the self-test…' : 'Warming up…');
-      var t0 = Date.now();
-      ttsHandler({ text: $('text').value, voice: sel ? sel.value : '', selftest: selftest },
-        { progress: function (note) { if (note) setStatus(note); } })
-        .then(function (r) {
-          var secs = (r.bytes.byteLength - 44) / 2 / SR;
-          var url = URL.createObjectURL(new Blob([r.bytes], { type: r.mime }));
-          var audio = new Audio(url);
-          audio.onended = function () { URL.revokeObjectURL(url); };
-          setStatus((selftest ? 'Self-test tone — NOT the voice. ' : 'Spoken on this device — ')
-            + secs.toFixed(1) + 's of audio in ' + ((Date.now() - t0) / 1000).toFixed(1) + 's, zero network.');
-          return audio.play();
+      var t0 = Date.now(), firstAt = 0, totalAudio = 0;
+      var text = String($('text').value || '');
+      var req = { text: text, voice: sel ? sel.value : '', selftest: selftest };
+      var voiceId = resolveVoice(selftest ? DEFAULT_VOICE : req.voice);
+      var speed = priorOf(voiceId);
+      ensureEngine(function (n) { if (n) setStatus(n); }, selftest || String(req.voice).toLowerCase() === SELFTEST_VOICE)
+        .then(function (sess) {
+          var chunks = chunkText(text);
+          if (!chunks.length) chunks = [ensurePunctuation(text)];
+          var playChain = Promise.resolve();
+          var step = function (i) {
+            if (i >= chunks.length) return playChain;
+            setStatus('Speaking… (' + (i + 1) + ' of ' + chunks.length + ')');
+            return synthChunk(sess, chunks[i], voiceId, speed).then(function (a) {
+              if (!a.length) return step(i + 1);
+              totalAudio += a.length / SR;
+              if (!firstAt) {
+                firstAt = (Date.now() - t0) / 1000;
+                setStatus((selftest ? 'Self-test tone — NOT the voice. ' : '')
+                  + 'Talking after ' + firstAt.toFixed(1) + 's'
+                  + (chunks.length > 1 ? ' — still making the rest as it plays.' : '.'));
+              }
+              playChain = playChain.then(function () { return playWav(toWav([a])); });
+              return step(i + 1);
+            });
+          };
+          return step(0).then(function () {
+            setStatus((selftest ? 'Self-test tone — NOT the voice. ' : 'Spoken on this device — ')
+              + totalAudio.toFixed(1) + 's of audio, first sound after ' + firstAt.toFixed(1)
+              + 's, all of it made here — zero network.');
+            return playChain;
+          });
         })
         .catch(function (e) { setStatus('⚠ ' + (e && e.message || e)); })
         .then(function () { $('speak').disabled = false; $('selftest').disabled = false; });
@@ -359,9 +406,9 @@
   //
   //   gifos.app/?run=offline-tts-neural&go.say=Your%20lift%20is%20here
   //
-  // Same contract as the eSpeak provider (apps/offline-tts/app.js, where the
-  // reasoning is written out): GifOS shows the message, names who is asking,
-  // and only hands it over on a yes. One difference that matters here — the
+  // The OS-wide launch-args contract (docs/launch-args.md): GifOS shows the
+  // message, names who is asking, and only hands it over on a yes. One
+  // difference that matters for a neural voice — the
   // weights are a 24 MB pinned download, so a first click can be a wait rather
   // than a voice. Say so, with the engine's own progress notes, instead of
   // sitting silent for a minute and reading as broken.

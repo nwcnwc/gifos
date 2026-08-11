@@ -3062,12 +3062,6 @@ let db=null, playing=false, session=0;
 function say(m){ status.textContent=m||''; }
 // Sentence-ish chunks (~600 chars) so the first audio arrives fast and long
 // reads never hit a provider's per-request ceiling.
-function chunksOf(text){
-  const parts=String(text).split(/(?<=[.!?\\n])\\s+/); const out=[]; let cur='';
-  for(const p of parts){ if((cur+' '+p).length>600&&cur){ out.push(cur); cur=p; } else cur=cur?cur+' '+p:p; }
-  if(cur.trim()) out.push(cur);
-  return out.filter(c=>c.trim());
-}
 function playBytes(r){ return new Promise((res,rej)=>{
   const url=URL.createObjectURL(new Blob([r.bytes],{type:r.mime||'audio/mpeg'}));
   const a=new Audio(url); window.__cur=a;
@@ -3075,20 +3069,63 @@ function playBytes(r){ return new Promise((res,rej)=>{
   a.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('could not play the audio')); };
   a.play().catch(rej);
 }); }
+// LEARN HOW FAST THIS VOICE IS, then size the passages to suit it. Reader
+// cannot know who serves Text -> speech — a cloud endpoint, a formant
+// synthesiser, or a neural model on this very device — and those differ by two
+// ORDERS OF MAGNITUDE. So do not guess: time the first passage, and pick the
+// budget from what actually came back.
+// A chunk's synthesis time is dead air at the end of the previous one, so the
+// budget targets ~15s of work per passage: fast providers land on the 600-char
+// cap and read in long, well-shaped runs, while a provider running near real
+// time settles around 150 and trades one long silence for short, even ones.
+let msPerChar=0;                     // measured, EMA over the passages so far
+function budgetNow(first){
+  if(first) return 1;                // the first passage is ONE SENTENCE: the
+                                     // whole point is to start talking early
+  if(!msPerChar) return 120;         // second passage, speed still unknown, so
+                                     // take the SMALLEST bite: it costs a fast
+                                     // provider one extra trivial call and
+                                     // saves a slow one a 20s hole (measured:
+                                     // a 200-char second passage left a 19s
+                                     // silence after the opening sentence)
+  return Math.max(120,Math.min(600,Math.round(15000/msPerChar)));
+}
+function sentencesOf(text){ return String(text).split(/(?<=[.!?\\n])\\s+/).filter(s=>s.trim()); }
+function takeChunk(sents,i,first){
+  const budget=budgetNow(first); let cur='';
+  while(i<sents.length&&(!cur||(cur+' '+sents[i]).length<=budget)){ cur=cur?cur+' '+sents[i]:sents[i]; i++; }
+  return {text:cur,next:i};
+}
 async function readAloud(){
   const text=T.value.trim(); if(!text){ say('Nothing to read yet.'); return; }
   const my=++session; playing=true; readBtn.style.display='none'; stopBtn.style.display='';
   if(db) db.put({id:'current',text:text}).catch(()=>{});
-  const chunks=chunksOf(text);
-  const speak=(c)=>gifos.ai.tts(Object.assign({text:c},V.value?{voice:V.value}:{}));
+  const sents=sentencesOf(text); msPerChar=0;
+  // THE FIRST CALL IS NOT A SPEED SAMPLE. It also pays for mounting the
+  // provider and loading its model — measured at ~11s for an on-device neural
+  // voice — so timing it says the voice is ~370 ms/character when the truth is
+  // ~120, and every later passage comes out as a 40-character fragment that
+  // reads badly. Warm calls only, hence the modest 200 for the second passage
+  // while nothing is known yet.
+  const speak=(c,cold)=>{
+    const t0=Date.now(), chars=c.length;
+    return gifos.ai.tts(Object.assign({text:c},V.value?{voice:V.value}:{})).then(r=>{
+      if(!cold){ const per=(Date.now()-t0)/Math.max(1,chars); msPerChar=msPerChar?(msPerChar*0.5+per*0.5):per; }
+      return r;
+    });
+  };
   try{
-    let next=speak(chunks[0]);
-    for(let i=0;i<chunks.length&&playing&&my===session;i++){
-      say('Reading '+(i+1)+' of '+chunks.length+'…');
+    let cut=takeChunk(sents,0,true);
+    let next=speak(cut.text,true), n=0;
+    while(playing&&my===session){
       const audio=await next;
-      next=(i+1<chunks.length)?speak(chunks[i+1]):null; // synthesize ahead while playing
+      const after=takeChunk(sents,cut.next,false);      // sized by what we just learned
+      next=after.text?speak(after.text):null;           // synthesize ahead while playing
+      cut=after; n++;
       if(!playing||my!==session) break;
+      say('Reading… ('+n+(next?' of '+(n+1)+'+':' — last')+')');
       await playBytes(audio);
+      if(!next) break;
     }
     if(playing&&my===session) say('Done.');
   }catch(err){ say('⚠ '+((err&&err.message)||err)); }
