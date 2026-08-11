@@ -109,7 +109,7 @@ async function run(MODE) {
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
   ];
-  const boxes = await openFleet(fleet.hosts.slice(0, NAMES.length), { args: LAUNCH_ARGS });
+  const boxes = await openFleet(fleet.hosts.slice(0, NAMES.length), { args: LAUNCH_ARGS, origin: BASE });
 
   const players = [];
   for (let pi = 0; pi < NAMES.length; pi++) {
