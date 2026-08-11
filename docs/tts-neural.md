@@ -164,10 +164,30 @@ an adjective.
 
 **BUILT: the hedge was right, and the 2–3× was optimistic.** Measured warm, one
 thread, on a 4-core desktop: **0.80× real time** — slower than real time, ~4x
-off the reference figure. In the browser, first call including the 24 MB
-download and session creation: 14.1 s of audio in 21.4 s. Still perfectly
-usable behind Reader's chunked-with-lookahead playback, which is the point, but
-nothing here is a number to put in a listing.
+off the reference figure.
+
+**BUILT: and "Reader already chunks, so it starts fast" was NOT true enough.**
+The claim above — that the architecture which makes this tolerable is already
+built — was half right. Reader did chunk with one chunk of lookahead, but at a
+FLAT 600 characters, a constant chosen when the only provider ran ~100× faster
+than real time. At 0.80× that is 55 s of speech taking 68 s to make: over a
+minute of silence before the first word. Time-to-first-sound is set by the
+CONSUMER's bite size, not by the provider, and a provider cannot fix it from
+its side — the tts contract returns one finished WAV and has no audio channel
+to stream down.
+
+So Reader now opens with a single sentence, then MEASURES the voice that
+answered and sizes later passages to about 15 s of work each — a fast provider
+climbs back to the 600-char cap, a near-real-time one settles near 150. First
+sound on an 1800-character article went from ~79 s to **16.3 s** (11 s of that
+being the one-time engine load); the formant provider was unaffected at 1.7 s.
+Guarded by `test/unit/reader-chunking.js`. The app's own page, which does not
+go through the broker, plays each passage as it is made and starts in ~6 s
+regardless of length.
+
+Residual, and honest: below 1.0× real time the voice cannot keep up with
+playback, so a long article still pauses between passages. Small passages turn
+one long hole into short even ones; only a faster model removes them.
 
 This app does **not** need the EXPERIMENTAL treatment the three LLMs just got.
 A 25 MB download for a neural voice that starts talking in about a second is a
