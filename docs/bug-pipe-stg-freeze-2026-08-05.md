@@ -461,6 +461,28 @@ clicked blur-none still reported blur: 1" — which was read then as a
 room/guest blur "outranking" the user and suspected of causing oscillation.
 It is not an override race. It is the password rule, working as designed.
 
+## THE LANE OWNS IT — re-confirmed COVERAGE-GATED (2026-08-10)
+
+The founding A/B in this file (0/3 lane-off vs 3/3 lane-on) predates the
+coverage discovery below, so it had to be re-run before anything could rest on
+it — the same confound had just destroyed the blur hypothesis. Interleaved
+ABAB, rebooted clawbox, Chrome 149, load-settled before every run,
+`PIPE_OFF=1` disabling the lane:
+
+| lane | runs | coverage | froze |
+|---|---|---|---|
+| **ON** (as shipped) | 4 | 7, 7, 6, 7 | **4** |
+| **OFF** (transcode) | 4 | 6, 7, 7, 7 | **0** |
+
+**4-0 against 0-4 at matched coverage.** The lane-off arm reached FULL 7/7
+coverage three times and never froze; the lane-on arm froze at 6/6 as well as
+7/7, which also rules out "the freeze needs seven feeds". Under a null of no
+effect this split is p ≈ 0.004.
+
+So the encoded-passthrough lane really does own this bug, the nine hypotheses
+in this file were aimed at the right subsystem, and the original 2026-08-05
+measurement stands — now on far better footing than when it was taken.
+
 ## THE FREEZE IS DETERMINISTIC. THE INTERMITTENCY WAS COVERAGE.
 
 **This supersedes every "flaky / nondeterministic / N-of-M green" statement in
