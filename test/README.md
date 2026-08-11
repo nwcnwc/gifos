@@ -139,6 +139,41 @@ verdict, one log. Everything else should SPREAD across whatever boxes are up:
 | is the room ONE room? | distinct coords + agreeing population (`drills/adversary-room.js` asserts both) |
 
 
+## NEVER LET A WALL CLOCK DECIDE A VERDICT
+
+**Every flake this gate has produced is one of two bugs, and both are in the
+test.** Written out because four of them were fixed in a single sitting on
+2026-08-11 and they were the same bug wearing four hats.
+
+**1. A deadline standing in for a correctness claim.** Ask whether the number
+is a PROMISE. "A burst join converges" is the claim; "within 40s" is not
+something we ship, and on a box running 160 other suites it is a measurement of
+the box. Wait for the STATE instead, and fail on the absence of PROGRESS:
+
+| suite | was | is |
+|---|---|---|
+| `mesh/flood` | flat 40s ceiling → red at seated 19/20 | wait while the census improves; deadlock = STILL for 15s (a real deadlock now fails in 19s, not 40) |
+| `e2e-anyroad` | 24 × 250 ms drive → red at "8.9 m" of a 9 m wall | drive until through, or until it has not moved 25 cm for 3s — "a solid wall stops it cold" is the actual claim |
+| `26a` / `e2e-anyroad-mp` | 55-frame window with a 7s net → net fired at 8 frames | end on frames, or on 5s of no frames; an UNFILLED window is never scored |
+
+The third one carries the sharpest lesson: physics advances per RENDERED FRAME,
+so a wall-clock window measures how many frames the box managed. If a window
+cannot fill, say so in those words and refuse the verdict — do not publish
+numbers about a car that never moved.
+
+**2. A locator or sample taken at one instant of something eventually
+consistent.** `e2e-video` matched a meeting tile with `hasText: 'Bob'`, and a
+tile's chips QUOTE OTHER PEOPLE BY NAME — `📡 via Bob`, `🔇 muted for everyone
+by Bob`. When Cai's feed happened to route via Bob, Cai's tile matched too.
+Whether it does is a property of the mesh topology that run. Match the identity
+hook (`<span class="name">`), never the whole element's text; `test/unit/
+tile-locators.js` now fails any suite that forgets.
+
+The retry in `release.sh` is a DIAGNOSTIC that separates "deterministically
+broken" from "lost a timing lottery". It is not a licence to leave a FLAKY line
+alone: every one of them is a bug with a known address.
+
+
 ## ONE BOX CANNOT ANSWER "is this a real bug?" — go multi-box
 
 **The trap, hit repeatedly.** Every browser suite runs the host, the guests AND
