@@ -55,7 +55,7 @@ mkdir -p "$LOGDIR"; : > "$RESULTS"
 
 want() { [ -z "$ONLY" ] && return 0; case ",$ONLY," in *",$1,"*) return 0;; esac; return 1; }
 
-green=0; red=0; dead=0; skipped_tiers=""; quar=0; escaped=""; flaky=0; flakes=""
+green=0; red=0; dead=0; skipped_tiers=""; quar=0; escaped=""; flaky=0; flakes=""; needfleet=0; needlist=""
 
 # ---- quarantine ---------------------------------------------------------------
 # The ONLY reds the gate tolerates: behaviours deliberately not fixed, listed in
@@ -280,6 +280,18 @@ run_one() {
   # the stopwatch), or a locator/sample taken at one instant of a process that
   # is only eventually consistent. Both are fixable in the suite, and fixing
   # them is the work — not tuning this retry.
+  # EXIT 3 = NEEDS-FLEET (test/lib/fleet.js): the suite REFUSED to render a
+  # verdict because it was not given the isolated machines its assertions
+  # require. Never retried — running it again on the same one box is the same
+  # lie twice — and never dressed up as a product red.
+  if [ "$rc" -eq 3 ]; then
+    verdict=NEEDSFLEET
+    reason="$(grep -m1 -E '^NEEDS-FLEET' "$log" | cut -c1-120)"
+    needfleet=$((needfleet+1)); needlist="$needlist $tier/$name"
+    printf 'NEEDS-FLEET\t%s\t%s\t%s\n' "$tier/$name" "${secs}s" "$reason" >> "$RESULTS"
+    printf '%-5s %-38s %6s  %s\n' FLEET "$tier/$name" "${secs}s" "$reason"
+    return
+  fi
   if [ "$rc" -ne 0 ] && ! is_quarantined "$name"; then
     reap_browsers; sleep 1
     timeout -k 45 "$to" node "$f" > "$log.retry" 2>&1
@@ -550,7 +562,7 @@ fi
 # ---- verdict -----------------------------------------------------------------
 echo
 echo "=================== RELEASE GATE ==================="
-printf '  GREEN %d   FLAKY %d   RED %d   DEAD %d   QUARANTINED %d\n' "$green" "$flaky" "$red" "$dead" "$quar"
+printf '  GREEN %d   FLAKY %d   RED %d   DEAD %d   QUARANTINED %d   NEEDS-FLEET %d\n' "$green" "$flaky" "$red" "$dead" "$quar" "$needfleet"
 if [ "$flaky" -gt 0 ]; then
   echo
   echo "  FLAKY — red once, green on the immediate retry (NOT blocking, but each is a"
@@ -561,6 +573,14 @@ if [ "$red" -gt 0 ] || [ "$dead" -gt 0 ]; then
   echo
   echo "  BLOCKING:"
   awk -F'\t' '$1=="RED"||$1=="DEAD" {printf "    %-5s %-34s %s\n", $1, $2, $4}' "$RESULTS"
+fi
+if [ "$needfleet" -gt 0 ]; then
+  echo
+  echo "  NEEDS-FLEET — these REFUSED to render a verdict on one box, on purpose."
+  echo "  Their assertions are about timing or a simulation, and one machine cannot"
+  echo "  tell a product bug from a busy kernel. Run them on the fleet; a guard"
+  echo "  nobody ran is a guard nobody has, so this BLOCKS a cut:$needlist"
+  awk -F'\t' '$1=="NEEDS-FLEET" {printf "    %-34s %s\n", $2, $4}' "$RESULTS"
 fi
 if [ -n "$escaped" ]; then
   echo
@@ -579,6 +599,9 @@ echo "===================================================="
 if [ "$LIST" = 1 ]; then exit 0; fi
 if [ "$red" -gt 0 ] || [ "$dead" -gt 0 ] || [ -n "$escaped" ]; then
   echo "DO NOT CUT — the gate is red."; exit 1
+fi
+if [ "$needfleet" -gt 0 ]; then
+  echo "DO NOT CUT — $needfleet suite(s) never ran: they need isolated machines."; exit 1
 fi
 if [ -n "$skipped_tiers" ] || [ -n "$ONLY" ]; then
   echo "GATE NOT SATISFIED — everything run was green, but not everything ran."; exit 2
