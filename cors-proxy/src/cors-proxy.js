@@ -32,6 +32,9 @@ const ALLOW_HOSTS = new Set([
   // Public Bible text for the default "Bible Browser" app. Sends no CORS
   // headers, so the app reads it through this proxy (gifos.fetch{proxy:true}).
   'text.recoveryversion.bible',
+  // Ollama Cloud (OpenAI-compatible at https://ollama.com/v1) for the "Smartest
+  // text LLM" provider. Server-only API, no CORS headers — needs the proxy.
+  'ollama.com',
 ]);
 
 // Abuse/cost guards. Cloudflare bills request-count + CPU-ms (never bandwidth),
