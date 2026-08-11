@@ -223,6 +223,44 @@ async function launchResult(page) {
     await context.close();
   }
 
+  // ---- the other half of the ask: a link that makes the computer TALK -------
+  {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
+    const MSG = 'Your lift is here.';
+    await page.goto(BASE + '/index.html?run=offline-tts&go.say=' + encodeURIComponent(MSG));
+    await page.waitForURL(/run\.html#id=/, { timeout: 60000 });
+    await page.waitForSelector('.perm-modal', { timeout: 30000 });
+    check('the sheet quotes the message before anything is spoken',
+      (await page.locator('.perm-box').innerText()).includes(MSG));
+
+    // THE MECHANISM, not the outcome: autoplay is delegated to this mount, so
+    // the tap that answered the sheet is the gesture and no second tap is
+    // needed. Asserting "did sound come out" would be asserting the box's
+    // audio stack; asserting the policy is asserting ours.
+    check('a link-carrying mount is allowed to make a sound without a second tap',
+      /autoplay/.test(await page.locator('iframe').getAttribute('allow') || ''));
+    await page.locator('#perm-go').click();
+
+    const fr = page.frameLocator('iframe');
+    await fr.locator('#linkcard').waitFor({ state: 'visible', timeout: 30000 });
+    check('the app shows what it was asked to say',
+      (await fr.locator('#linkmsg').textContent()).includes(MSG));
+    let status = '';
+    for (let i = 0; i < 80; i++) {
+      status = (await fr.locator('#linkstatus').textContent()) || '';
+      if (/Speaking|Ready to speak|⚠/.test(status)) break;
+      await sleep(250);
+    }
+    // Either it is playing, or it is synthesised and one labelled tap away.
+    // Both are the feature working; a warning is the engine having failed.
+    check('the message is synthesised on the device, offline', /Speaking|Ready to speak/.test(status), status);
+    check('…and the Try box is left holding it, to hear again or change',
+      (await fr.locator('#text').inputValue()).includes(MSG));
+    await context.close();
+  }
+
   await browser.close();
   console.log(failures ? '\n' + failures + ' FAILED' : '\nall green');
   process.exit(failures ? 1 : 0);

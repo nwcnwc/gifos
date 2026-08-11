@@ -354,4 +354,47 @@
     $('speak').onclick = function () { speak(false); };
     $('selftest').onclick = function () { speak(true); };
   }
+
+  // ---- a link that asks this computer to say something ----------------------
+  //
+  //   gifos.app/?run=offline-tts-neural&go.say=Your%20lift%20is%20here
+  //
+  // Same contract as the eSpeak provider (apps/offline-tts/app.js, where the
+  // reasoning is written out): GifOS shows the message, names who is asking,
+  // and only hands it over on a yes. One difference that matters here — the
+  // weights are a 24 MB pinned download, so a first click can be a wait rather
+  // than a voice. Say so, with the engine's own progress notes, instead of
+  // sitting silent for a minute and reading as broken.
+  function speakFromLink(args) {
+    if (!args || !args.say) return;
+    var text = String(args.say);
+    var voice = String(args.voice || '');
+    var card = $('linkcard'), btn = $('linkplay');
+    var say = function (m) { var el = $('linkstatus'); if (el) el.textContent = m || ''; };
+    if (card) { card.hidden = false; $('linkmsg').textContent = '“' + text + '”'; }
+    if ($('text')) $('text').value = text;
+    if (voice && $('voice')) $('voice').value = voice;
+
+    var play = null;
+    say('Warming up the voice…');
+    ttsHandler({ text: text, voice: voice }, { progress: function (note) { if (note) say(note); } })
+      .then(function (r) {
+        var url = URL.createObjectURL(new Blob([r.bytes], { type: r.mime }));
+        var audio = new Audio(url);
+        audio.onended = function () { URL.revokeObjectURL(url); };
+        play = function () { return audio.play(); };
+        say('Speaking — on this device, with nothing sent anywhere.');
+        return audio.play();
+      })
+      .then(function () { if (btn) btn.hidden = true; })
+      .catch(function (e) {
+        if (!play) { say('⚠ ' + (e && e.message || e)); return; }
+        if (btn) {
+          btn.hidden = false;
+          btn.onclick = function () { btn.hidden = true; say('Speaking…'); play(); };
+        }
+        say('Ready to speak — your browser wants one tap before it will make a sound.');
+      });
+  }
+  if (window.gifos && gifos.launch) gifos.launch().then(speakFromLink, function () {});
 })();

@@ -289,7 +289,7 @@
         255
       ],
       "cover": "/apps/offline-tts/cover.jpg",
-      "bytes": 1628425,
+      "bytes": 1630336,
       "download": 0,
       "provides": {
         "ai": [
@@ -297,7 +297,7 @@
         ]
       },
       "signature": null,
-      "sha256": "aa19c32b839b4352c744758fa913e3ff0e8038406d73e271bfb88d6053d1d63f"
+      "sha256": "d78925dd9894d5e6dae2b05e6b896e0b4b92a22ec18953cc5e7e01ae5ce2866b"
     },
     {
       "slug": "offline-tts-neural",
@@ -328,7 +328,7 @@
         76
       ],
       "cover": "/apps/offline-tts-neural/cover.jpg",
-      "bytes": 12419297,
+      "bytes": 12420651,
       "download": 24369971,
       "provides": {
         "ai": [
@@ -336,7 +336,7 @@
         ]
       },
       "signature": null,
-      "sha256": "cbc08b7ea761a55c57bd46faf299becf563c693303024de80593bee28b345f9a"
+      "sha256": "6ef3c9c0092cf0bbf4de1536d2f4fbc8ee4d27120078cd48f2d2d228e743037d"
     },
     {
       "slug": "sound-it-out",

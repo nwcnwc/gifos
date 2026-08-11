@@ -15,6 +15,16 @@
   "capabilities": {
     "wasm": true
   },
+  "launch": {
+    "say": {
+      "label": "Say something out loud on this device",
+      "detail": "The voice is synthesised here, offline — nothing is sent anywhere, and nothing is saved. The first time, the 24 MB voice has to download."
+    },
+    "voice": {
+      "label": "…in a particular voice",
+      "detail": "One of the app's eight voice names."
+    }
+  },
   "provides": {
     "ai": [
       "tts"

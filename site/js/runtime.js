@@ -2365,7 +2365,20 @@
     // Motion sensors are delegated to the sandbox via the iframe allow-policy
     // (the events fire INSIDE the app frame). Camera/mic are NOT delegated —
     // those are captured by the trusted parent and handed back as clips.
-    if (hasCap(manifest, 'motion') && !capDisabled(manifest, 'motion')) { try { iframe.setAttribute('allow', 'gyroscope; accelerometer; magnetometer'); } catch (e) {} }
+    //
+    // AUTOPLAY rides along for a mount a LINK asked something of, and only
+    // that mount. "Click this link and your computer says the message" has a
+    // gesture behind it — the tap that answered the sheet — but it happens in
+    // THIS document, and a sandboxed frame is a different one, so without the
+    // delegation the app is left asking for a second tap to do the exact thing
+    // that was just agreed to. What it buys is sound: an app cannot reach the
+    // camera, the microphone, or the network any differently for having it.
+    // Set here because a permissions policy is fixed at navigation — after
+    // srcdoc lands it is too late, which is why this cannot wait for the yes.
+    const allow = [];
+    if (hasCap(manifest, 'motion') && !capDisabled(manifest, 'motion')) allow.push('gyroscope', 'accelerometer', 'magnetometer');
+    if (asked.length) allow.push('autoplay');
+    if (allow.length) { try { iframe.setAttribute('allow', allow.join('; ')); } catch (e) {} }
     iframe.srcdoc = buildAppHtml(files, manifest);
     return () => root.removeEventListener('message', handler);
   }

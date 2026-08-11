@@ -13,6 +13,16 @@
     255
   ],
   "capabilities": {},
+  "launch": {
+    "say": {
+      "label": "Say something out loud on this device",
+      "detail": "The voice is synthesised here, offline — nothing is sent anywhere, and nothing is saved."
+    },
+    "voice": {
+      "label": "…in a particular voice",
+      "detail": "One of the app's voice names (nova, echo, onyx, fable, alloy, shimmer, whisper)."
+    }
+  },
   "provides": {
     "ai": [
       "tts"

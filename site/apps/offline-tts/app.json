@@ -33,13 +33,13 @@
   "cover": "/apps/offline-tts/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-tts/offline-tts.gif",
-  "bytes": 1628425,
+  "bytes": 1630336,
   "download": 0,
   "provides": {
     "ai": [
       "tts"
     ]
   },
-  "sha256": "aa19c32b839b4352c744758fa913e3ff0e8038406d73e271bfb88d6053d1d63f",
+  "sha256": "d78925dd9894d5e6dae2b05e6b896e0b4b92a22ec18953cc5e7e01ae5ce2866b",
   "signature": null
 }
