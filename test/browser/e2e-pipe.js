@@ -487,6 +487,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
                   rates[d] = { wroteS: before ? +(((r.pipes[d].wrote - before.wrote) / 2)).toFixed(1) : null,
                     paused: r.pipes[d].paused, needKey: r.pipes[d].needKey, dropped: r.pipes[d].dropped,
                     wrote: r.pipes[d].wrote,
+                    // ONE copy of each content frame is shared by every sibling
+                    // pipe on a tap; a write detaches it. `detached` counts the
+                    // swaps that handed the sink an already-neutered buffer.
+                    detached: r.pipes[d].detached, lastBytes: r.pipes[d].lastBytes,
                     carrier: (r.car && r.car[d]) || null,
                     // the outbound slot label truncates the destination to SIX chars
                     // (kfStats: 'out:'+key+'>'+String(j.to).slice(0,6)) while pipe ids
