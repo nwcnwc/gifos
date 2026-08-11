@@ -16,6 +16,29 @@ function send(res, code, type, body) {
   res.end(body);
 }
 
+// stream:true — answer as OpenAI-shaped server-sent events, one word per
+// chunk with a gap between them. The gap is the point: a test can only tell a
+// streamed answer from a single-shot one if the fragments are OBSERVABLY
+// separated in time, and a whole answer flushed in one packet would sail past
+// a guard that meant to prove incremental rendering.
+function sendStream(res, text, gapMs) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  });
+  const parts = String(text).split(/(?<=\s)/);
+  let i = 0;
+  const tick = () => {
+    if (i >= parts.length) { res.write('data: [DONE]\n\n'); res.end(); return; }
+    res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: parts[i++] } }] }) + '\n\n');
+    setTimeout(tick, gapMs);
+  };
+  tick();
+}
+
 const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, 'text/plain', '');
   const auth = req.headers['authorization'] || '';
@@ -29,10 +52,20 @@ const server = http.createServer((req, res) => {
       // drill generation, coach, weekly review, picture scenes) get well-formed
       // JSON. Anything unrecognized still returns 'pong' (keeps e2e-caps green).
       let text = 'pong';
+      let stream = false;
       try {
         const body = JSON.parse(raw || '{}');
-        const blob = (body.messages || []).map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n');
-        if (/Legal moves:/i.test(blob)) {
+        stream = !!body.stream;
+        const msgs = body.messages || [];
+        const blob = msgs.map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n');
+        // MEMORY PROBE. Says back exactly what the caller sent as context, so a
+        // test can prove the CONVERSATION crossed the wire rather than just the
+        // latest question. Anything else keeps its old answer.
+        const last = msgs.length ? msgs[msgs.length - 1] : null;
+        if (last && typeof last.content === 'string' && last.content.trim() === 'ctx?') {
+          const firstUser = msgs.filter((m) => m.role === 'user')[0];
+          text = 'ctx=' + msgs.length + ' first=' + String((firstUser && firstUser.content) || '');
+        } else if (/Legal moves:/i.test(blob)) {
           // The default Chess app's Hint: pick the first move from the exact
           // legal list it hands us, so the reply is always a real, legal move.
           const mm = blob.match(/Legal moves:\s*([a-h1-8 ]+)/i);
@@ -65,6 +98,7 @@ const server = http.createServer((req, res) => {
           text = JSON.stringify({ prompt: 'Explain a everyday process to a curious ten-year-old.', params });
         }
       } catch (e) { /* fall through to pong */ }
+      if (stream) return sendStream(res, text, process.env.FAKE_AI_GAP_MS ? +process.env.FAKE_AI_GAP_MS : 120);
       return send(res, 200, 'application/json', JSON.stringify({ choices: [{ message: { role: 'assistant', content: text } }] }));
     }
     if (url.endsWith('/audio/speech')) {

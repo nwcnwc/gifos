@@ -140,9 +140,14 @@
         try { Object.defineProperty(window, k, { value: undefined, configurable: false, writable: false }); } catch(e){ try { window[k] = undefined; } catch(e2){} }
       });
       var pending = {}, subs = {}, backCbs = [];
-      function rpc(msg){ return new Promise(function(res, rej){
+      // onPart: an OPTIONAL callback kept on THIS side of the wall. A function
+      // cannot cross postMessage, so the app hands it to rpc() and the runtime
+      // sends back plain 'part' messages carrying the id — the callback is
+      // looked up here and called. Used by streaming chat (gifos.ai.chat's
+      // onDelta); the promise still resolves once, with the whole answer.
+      function rpc(msg, onPart){ return new Promise(function(res, rej){
         var id = 'r'+Math.random().toString(36).slice(2);
-        pending[id] = { res: res, rej: rej };
+        pending[id] = { res: res, rej: rej, part: typeof onPart === 'function' ? onPart : null };
         parent.postMessage(Object.assign({ ns:'gifos', id:id }, msg), '*');
       }); }
       function refresh(collection){
@@ -155,6 +160,11 @@
         if(d.type==='reply' && pending[d.id]){
           d.ok ? pending[d.id].res(d.result) : pending[d.id].rej(new Error(d.error));
           delete pending[d.id];
+        }
+        // A partial result for a call still in flight. Never resolves and never
+        // rejects: a stream that dies mid-answer still lands on the reply.
+        if(d.type==='part' && pending[d.id] && pending[d.id].part){
+          try { pending[d.id].part(d.text || ''); } catch(err){}
         }
         if(d.type==='db-change'){
           if(d.collection==='*'){ Object.keys(subs).forEach(refresh); }
@@ -260,7 +270,16 @@
         // "ai" capability. model is a role: 'smartest'|'cheapest' for text, etc.
         ai: {
           models: function(){ return rpc({type:'ai',op:'models'}); },
-          chat:   function(o){ return rpc(Object.assign({type:'ai',op:'chat'}, o||{})); },
+          // chat(o) — o.onDelta(piece) is OPTIONAL. Pass it and the computer
+          // streams the answer token by token as it arrives; the promise still
+          // resolves once with the complete { text }. An endpoint that ignores
+          // stream:true, or a Provider app (which answers in one piece), simply
+          // never calls onDelta — so an app that renders deltas AND writes
+          // r.text at the end works either way. Nothing else changes.
+          chat:   function(o){ o = o || {}; var onDelta = o.onDelta;
+                    var msg = Object.assign({type:'ai',op:'chat'}, o); delete msg.onDelta;
+                    if (typeof onDelta === 'function') msg.stream = true;
+                    return rpc(msg, onDelta); },
           tts:    function(o){ return rpc(Object.assign({type:'ai',op:'tts'}, o||{})); },
           stt:    function(o){ return rpc(Object.assign({type:'ai',op:'stt'}, o||{})); },
           image:  function(o){ return rpc(Object.assign({type:'ai',op:'image'}, o||{})); },
@@ -1124,7 +1143,61 @@
   }
   function b64ToBuf(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
   function bufToB64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s); }
-  function brokerAI(manifest, d) {
+  // ---- streaming chat: SSE in, deltas out ----------------------------------
+  // OpenAI-shaped streaming is server-sent events whose data: lines each carry
+  // one choices[0].delta.content fragment (plus a final "[DONE]"). Two shapes
+  // are tolerated on purpose — delta.content for a real stream, message.content
+  // for a server that answers a stream request with one complete chunk.
+  function chatPiece(payload) {
+    let j; try { j = JSON.parse(payload); } catch (e) { return ''; }
+    const ch = (j.choices && j.choices[0]) || {};
+    const p = (ch.delta && ch.delta.content) || (ch.message && ch.message.content) || '';
+    return typeof p === 'string' ? p : '';
+  }
+  function sseLines(buf, onPiece) { // consumes whole lines, returns the remainder
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).replace(/\r$/, '').trim();
+      buf = buf.slice(i + 1);
+      if (!line || line.charAt(0) === ':' || line.slice(0, 5) !== 'data:') continue;
+      const payload = line.slice(5).trim();
+      if (payload === '[DONE]') continue;
+      const piece = chatPiece(payload);
+      if (piece) onPiece(piece);
+    }
+    return buf;
+  }
+  function readChatStream(reader, emit) {
+    const dec = new TextDecoder();
+    let buf = '', text = '';
+    const take = (piece) => { text += piece; try { emit(piece); } catch (e) {} };
+    const pump = () => reader.read().then(({ done, value }) => {
+      if (done) { sseLines(buf + '\n', take); return text; }
+      buf = sseLines(buf + dec.decode(value, { stream: true }), take);
+      return pump();
+    });
+    // A stream that dies mid-answer keeps what already arrived: the app has
+    // already PAINTED those tokens, so throwing here would blank a visible
+    // answer. Half an answer, honestly returned, beats an error over the top.
+    return pump().catch(() => text);
+  }
+  // A body we asked to stream but got in one piece: plain JSON, or an SSE
+  // transcript we could not read incrementally. Either way, one final text.
+  function parseChatBody(t) {
+    try {
+      const j = JSON.parse(t);
+      return { text: (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '', raw: j };
+    } catch (e) {
+      let text = '';
+      sseLines(String(t || '') + '\n', (piece) => { text += piece; });
+      return { text, raw: null };
+    }
+  }
+
+  // emit(piece) — set when the asking app passed an onDelta to gifos.ai.chat.
+  // Optional by construction: every caller that does not want a stream passes
+  // nothing and gets exactly the old single-shot behaviour.
+  function brokerAI(manifest, d, emit) {
     if (!hasCap(manifest, 'ai')) return Promise.reject(new Error('This app did not declare the "ai" capability.'));
     if (capDisabled(manifest, 'ai')) return Promise.reject(new Error(CAP_OFF_MSG('AI')));
     const cfg = aiConfig();
@@ -1142,12 +1215,30 @@
     const asError = (r) => r.text().then((t) => { throw new Error('AI error ' + r.status + (t ? ': ' + t.slice(0, 300) : '')); });
 
     if (d.op === 'chat') {
-      const body = { model: c.model || d.modelName || 'gpt-4o-mini', messages: d.messages || [{ role: 'user', content: String(d.prompt || '') }], stream: false };
+      const wantStream = !!(d.stream && emit);
+      const body = { model: c.model || d.modelName || 'gpt-4o-mini', messages: d.messages || [{ role: 'user', content: String(d.prompt || '') }], stream: wantStream };
       if (d.temperature != null) body.temperature = d.temperature;
       if (d.maxTokens != null) body.max_tokens = d.maxTokens;
-      return root.fetch(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify(body) })
-        .then((r) => r.ok ? r.json() : asError(r))
-        .then((j) => ({ text: (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '', raw: j }));
+      const post = root.fetch(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, auth), body: JSON.stringify(body) });
+      if (!wantStream) {
+        return post.then((r) => r.ok ? r.json() : asError(r))
+          .then((j) => ({ text: (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '', raw: j, streamed: false }));
+      }
+      return post.then((r) => {
+        if (!r.ok) return asError(r);
+        // An endpoint is free to ignore stream:true and answer with one JSON
+        // body — several OpenAI-shaped servers do. Detect that by the content
+        // type and take the plain path; the app's onDelta simply never fires,
+        // which is what "degrades honestly" means here.
+        const ct = r.headers.get('content-type') || '';
+        if (/application\/json/.test(ct) || !r.body || !r.body.getReader) {
+          return r.text().then((t) => {
+            const j = parseChatBody(t);
+            return { text: j.text, raw: j.raw, streamed: false };
+          });
+        }
+        return readChatStream(r.body.getReader(), emit).then((text) => ({ text, streamed: true }));
+      });
     }
     if (d.op === 'tts') {
       const body = { model: c.model || 'tts-1', input: String(d.text || ''), voice: d.voice || c.voice || 'alloy' };
@@ -2127,7 +2218,13 @@
       }
       else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'capture') brokerCapture(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
-      else if (d.type === 'ai') brokerAI(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      // Streaming chat: each fragment rides back as a 'part' carrying this
+      // call's id, and the single 'reply' still closes it out. Same guard as
+      // reply() — an app torn out mid-stream must not be posted to.
+      else if (d.type === 'ai') {
+        const emit = d.stream ? (text) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'part', id: d.id, text }, '*'); } : null;
+        brokerAI(manifest, d, emit).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      }
       else if (d.type === 'api') brokerApi(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'apiReady') { const c = apiEntry(d.name); reply({ ok: true, result: apiAllowed(manifest, d.name) && !!(c && c.url) }); }
       else if (d.type === 'apiSetup') { showSystemSetup({ kind: 'api', name: d.name, hint: d.hint }); reply({ ok: true, result: true }); }

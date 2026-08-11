@@ -2758,15 +2758,39 @@ recBtn.onclick=async()=>{
 
   // Ask AI — showcases gifos.ai. Uses the models the user wired in Settings; the
   // app never sees a key, and it feature-detects so it degrades honestly.
+  //
+  // The conversation is REMEMBERED: every turn is a record in the private
+  // 'chat' collection (undeclared ⇒ private by default — a conversation is
+  // nobody else's business), so closing the app and opening it tomorrow picks
+  // up where you left off, and the model gets the history back as context.
+  // Ordering is by an explicit `seq`, never by record id — the store's
+  // auto-ids sort lexicographically, so chat_10 would land before chat_2.
+  //
+  // Everything carries a wall-clock stamp, and an answer also carries what it
+  // cost you in time: time-to-first-word (only meaningful when the endpoint
+  // streams) and the total. A slow model is then legible as slow rather than
+  // as broken.
+  //
+  // Streaming is the OPTIONAL onDelta on gifos.ai.chat. An endpoint that
+  // ignores stream:true, and a Provider app (which answers in one piece),
+  // simply never call it — the final r.text is painted either way, so the app
+  // is correct on all three paths.
   const ASKAI_HTML = `<!doctype html><meta charset="utf-8">
 <style>
   *{box-sizing:border-box} html,body{height:100%}
   body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column}
-  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#7b5cff}
+  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#7b5cff;display:flex;align-items:center;gap:10px}
+  header .sp{flex:1}
+  header button{padding:6px 11px;border-radius:999px;border:1px solid #2a2a3f;background:#14141f;color:#8888aa;font:inherit;font-size:.78rem;font-weight:400;cursor:pointer}
   #log{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px}
-  .m{max-width:85%;padding:9px 13px;border-radius:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
-  .m.you{align-self:flex-end;background:#14141f;border:1px solid #7b5cff}
-  .m.ai{align-self:flex-start;background:#14141f;border:1px solid #2a2a3f}
+  .row{display:flex;flex-direction:column;gap:3px;max-width:85%}
+  .row.you{align-self:flex-end;align-items:flex-end}
+  .row.ai{align-self:flex-start;align-items:flex-start}
+  .m{padding:9px 13px;border-radius:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+  .m.you{background:#14141f;border:1px solid #7b5cff}
+  .m.ai{background:#14141f;border:1px solid #2a2a3f}
+  .m.err{border-color:#ff5caa}
+  .stamp{color:#8888aa;font-size:.72rem;padding:0 4px;font-variant-numeric:tabular-nums}
   .note{color:#8888aa;font-size:.88rem;padding:16px 18px;line-height:1.5}
   .pick{display:flex;gap:6px;padding:0 18px 8px}
   .pick button{padding:6px 12px;border-radius:999px;border:1px solid #2a2a3f;background:#14141f;color:#8888aa;font-size:.8rem;cursor:pointer}
@@ -2774,27 +2798,99 @@ recBtn.onclick=async()=>{
   form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid #2a2a3f}
   input{flex:1;padding:11px 12px;border:1px solid #2a2a3f;border-radius:9px;background:#1c1c2b;color:#e0e0f0;font:inherit}
   form button{padding:11px 16px;border:0;border-radius:9px;background:#7b5cff;color:#fff;font-weight:700;cursor:pointer}
+  form button:disabled{opacity:.5;cursor:default}
 </style>
-<header>Ask AI</header>
+<header>Ask AI<span class="sp"></span><button id="new" title="Forget this conversation and start a new one">＋ New chat</button></header>
 <div id="log"></div>
 <div class="pick"><button data-m="cheapest" class="on">Cheapest</button><button data-m="smartest">Smartest</button></div>
-<form id="f"><input id="t" placeholder="Ask anything…" autocomplete="off"><button>Send</button></form>
+<form id="f"><input id="t" placeholder="Ask anything…" autocomplete="off"><button id="send">Send</button></form>
 <script>
-const log=document.getElementById('log'); let model='cheapest', msgs=[];
-function add(role,txt){ const d=document.createElement('div'); d.className='m '+(role==='user'?'you':'ai'); d.textContent=txt; log.appendChild(d); log.scrollTop=log.scrollHeight; return d; }
-document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>{ model=b.dataset.m; document.querySelectorAll('.pick button').forEach(x=>x.classList.toggle('on',x===b)); });
+const log=document.getElementById('log'), input=document.getElementById('t'), sendBtn=document.getElementById('send');
+const CTX_MAX=40;                       // turns of memory handed back to the model
+let model='cheapest', hist=[], db=null, prefs=null, seq=0, busy=false;
+const pad=n=>(n<10?'0':'')+n;
+function stamp(ts){ const d=new Date(ts);
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
+function secs(ms){ return ms<1000?(Math.round(ms)+'ms'):((ms/1000).toFixed(1)+'s'); }
+function metaOf(r){
+  const bits=[stamp(r.ts)];
+  if(r.role==='assistant'){
+    if(r.model) bits.push(r.model);
+    if(r.firstMs!=null) bits.push('first word '+secs(r.firstMs));
+    if(r.ms!=null) bits.push(secs(r.ms)+' total');
+  }
+  return bits.join(' · ');
+}
+function bottom(){ log.scrollTop=log.scrollHeight; }
+function draw(r){
+  const row=document.createElement('div'); row.className='row '+(r.role==='user'?'you':'ai');
+  const b=document.createElement('div'); b.className='m '+(r.role==='user'?'you':'ai'); if(r.error) b.classList.add('err');
+  b.textContent=r.content||'';
+  const s=document.createElement('div'); s.className='stamp'; s.textContent=metaOf(r);
+  row.appendChild(b); row.appendChild(s); log.appendChild(row); bottom();
+  return {bubble:b, stamp:s};
+}
+function note(html){ const d=document.createElement('div'); d.className='note'; d.innerHTML=html; log.appendChild(d); bottom(); return d; }
+function uid(){ return 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function save(r){ if(db) db.put(r).catch(()=>{}); }
+// What the model is told. Failed turns are shown but never sent — an error
+// bubble is this app talking, not the assistant, and feeding it back would
+// teach the model to apologise for GifOS.
+function context(){
+  return hist.filter(r=>!r.error&&r.content).slice(-CTX_MAX).map(r=>({role:r.role,content:r.content}));
+}
+function setModel(m){
+  model=(m==='smartest')?'smartest':'cheapest';
+  document.querySelectorAll('.pick button').forEach(x=>x.classList.toggle('on',x.dataset.m===model));
+}
+document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>{
+  setModel(b.dataset.m); if(prefs) prefs.put({id:'askai',model:model}).catch(()=>{});
+});
+document.getElementById('new').onclick=async()=>{
+  if(busy||!hist.length) return;
+  const old=hist; hist=[]; seq=0; log.innerHTML='';
+  for(const r of old){ try{ await db.delete(r.id); }catch(e){} }
+  note('New conversation. The previous '+old.length+' message'+(old.length===1?'':'s')+' '+(old.length===1?'was':'were')+' erased from this computer.');
+};
 (async()=>{
-  if(!window.gifos||!gifos.ai){ log.innerHTML='<div class="note">Open this inside GifOS to use AI.</div>'; return; }
+  if(!window.gifos||!gifos.ai){ note('Open this inside GifOS to use AI.'); return; }
+  db=gifos.db('chat'); prefs=gifos.db('prefs');
+  try{
+    const all=await db.getAll();
+    hist=(all||[]).filter(r=>r&&r.role&&r.ts!=null).sort((a,b)=>(a.seq||0)-(b.seq||0)||(a.ts-b.ts));
+    for(const r of hist) seq=Math.max(seq,r.seq||0);
+    hist.forEach(draw);
+    if(hist.length) note('Picking up where you left off — '+hist.length+' message'+(hist.length===1?'':'s')+' remembered from '+stamp(hist[0].ts)+'.');
+  }catch(e){ note('Couldn’t read the saved conversation: '+((e&&e.message)||e)); }
+  const p=await prefs.get('askai').catch(()=>null);
+  if(p&&p.model) setModel(p.model);
   const m=await gifos.ai.models().catch(()=>({available:[]}));
   if(!(m.available||[]).includes('cheapest')&&!(m.available||[]).includes('smartest'))
-    log.innerHTML='<div class="note">No AI model is set up yet. On your GifOS Home Screen open <b>Settings → AI models</b>, add an OpenAI-compatible endpoint + key for “Cheapest text LLM” or “Smartest text LLM”, press <b>Test</b>, then come back. Your key stays in your browser — this app never sees it.</div>';
+    note('No AI model is set up yet. On your GifOS Home Screen open <b>Settings → AI models</b>, add an OpenAI-compatible endpoint + key for “Cheapest text LLM” or “Smartest text LLM”, press <b>Test</b>, then come back. Your key stays in your browser — this app never sees it.');
 })();
 document.getElementById('f').onsubmit=async e=>{
-  e.preventDefault(); const t=document.getElementById('t'); const q=t.value.trim(); if(!q)return; t.value='';
-  add('user',q); msgs.push({role:'user',content:q}); const holder=add('ai','…');
-  try{ const r=await gifos.ai.chat({model:model,messages:msgs}); holder.textContent=r.text||'(no answer)'; msgs.push({role:'assistant',content:r.text||''}); }
-  catch(err){ holder.textContent='⚠ '+((err&&err.message)||err); }
-  log.scrollTop=log.scrollHeight;
+  e.preventDefault(); const q=input.value.trim(); if(!q||busy)return; input.value='';
+  busy=true; sendBtn.disabled=true;
+  const u={id:uid(),seq:++seq,role:'user',content:q,ts:Date.now()};
+  hist.push(u); draw(u); save(u);
+  const a={id:uid(),seq:++seq,role:'assistant',content:'',ts:Date.now(),model:model};
+  const el=draw(a); el.bubble.textContent='…';
+  const t0=Date.now(); let first=null, streamed='';
+  try{
+    const r=await gifos.ai.chat({model:model,messages:context(),onDelta:piece=>{
+      if(first===null){ first=Date.now()-t0; a.firstMs=first; el.bubble.textContent=''; }
+      streamed+=piece; el.bubble.textContent=streamed; el.stamp.textContent=metaOf(a); bottom();
+    }});
+    a.content=((r&&r.text)||streamed||'(no answer)');
+    a.ms=Date.now()-t0;
+    el.bubble.textContent=a.content;
+  }catch(err){
+    a.error=true; a.content='⚠ '+((err&&err.message)||err); a.ms=Date.now()-t0;
+    el.bubble.classList.add('err'); el.bubble.textContent=a.content;
+  }
+  el.stamp.textContent=metaOf(a);
+  hist.push(a); save(a); bottom();
+  busy=false; sendBtn.disabled=false; input.focus();
 };
 </script>`;
 
