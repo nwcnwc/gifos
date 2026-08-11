@@ -103,6 +103,97 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await page.context().close();
   }
 
+  // ---- LEG 1B: ONE TAP, TWO PIPES — the fan-out leg 1 could never see -------
+  //
+  // Leg 1 runs a SINGLE pipe on a tap and has passed 100% forever. The whole
+  // point of the lane is the one-encoder fan (§9b): N forwards of one feed off
+  // ONE tap. That fan had no isolated guard at all, and a bug living in it was
+  // only ever visible through leg 3's six-browser mesh — where it took twelve
+  // hypotheses and two retracted findings to corner, because in a mesh every
+  // number is contestable (docs/bug-pipe-stg-freeze-2026-08-05.md).
+  //
+  // The bug: the tap copies each content frame ONCE and shared that ArrayBuffer
+  // across every sibling's queue, and writing a frame DETACHES it — so the
+  // first pipe to write neutered the frame for its siblings, which then shipped
+  // zero-length payloads with every counter reading healthy. Measured here,
+  // before the fix: 247 writes -> 42 packets -> 23 frames decoded on one leg,
+  // against 225 -> 237 -> 225 on its sibling.
+  //
+  // This leg is deterministic (no room, no relay, no coverage lottery) and it
+  // reds hard on the unfixed module. Any future change to the tap's queueing or
+  // the pipe's swap answers to it.
+  {
+    const page = await (await browser.newContext()).newPage();
+    await page.goto(BASE + '/');
+    await page.addScriptTag({ url: '/js/mesh-pipe.js' });
+    const r = await page.evaluate(async () => {
+      const MP = GifOS.meshPipe;
+      if (!MP || !MP.supported()) return { unsupported: true };
+      const sleep2 = (ms) => new Promise((r2) => setTimeout(r2, ms));
+      const pair = (a, b) => { a.onicecandidate = (e) => e.candidate && b.addIceCandidate(e.candidate).catch(() => {}); b.onicecandidate = (e) => e.candidate && a.addIceCandidate(e.candidate).catch(() => {}); };
+      const connect = async (a, b) => { const of = await a.createOffer(); await a.setLocalDescription(of); await b.setRemoteDescription(of); const an = await b.createAnswer(); await b.setLocalDescription(an); await a.setRemoteDescription(an); };
+      const src = document.createElement('canvas'); src.width = 320; src.height = 180;
+      const sctx = src.getContext('2d'); let n = 0;
+      setInterval(() => { sctx.fillStyle = '#123a5e'; sctx.fillRect(0, 0, src.width, src.height); sctx.fillStyle = '#fff'; sctx.font = '20px monospace'; sctx.fillText(String(n++), 8, 28); sctx.fillStyle = 'hsl(' + (n * 17 % 360) + ',80%,50%)'; sctx.fillRect((n * 7) % 300, (n * 11) % 160, 20, 20); }, 66);
+      setInterval(() => { src.width = (src.width === 320 ? 322 : 320); }, 2500);
+      const srcTrack = src.captureStream(15).getVideoTracks()[0];
+      const pcA = new RTCPeerConnection(), pcB = new RTCPeerConnection();
+      pair(pcA, pcB);
+      pcA.addTransceiver(srcTrack, { direction: 'sendonly' });
+      pcB.ontrack = (e) => { MP.tapReceiver(e.receiver, 'fan1'); };
+      await connect(pcA, pcB);
+      const legs = [];
+      for (let i = 0; i < 2; i++) {
+        const up = new RTCPeerConnection(), down = new RTCPeerConnection();
+        pair(up, down);
+        const carrier = MP.makeCarrier();
+        const tx = up.addTransceiver(carrier.track, { direction: 'sendonly' });
+        const pipeId = 'fan' + (i + 1);
+        MP.pipeSender(tx.sender, 'fan1', pipeId, carrier);
+        const v = document.createElement('video'); v.muted = true; v.autoplay = true; document.body.appendChild(v);
+        down.ontrack = (e) => { v.srcObject = new MediaStream([e.track]); v.play().catch(() => {}); };
+        await connect(up, down);
+        legs.push({ pipeId, v, down });
+      }
+      await sleep2(12000);
+      const f0 = legs.map((l) => l.v.getVideoPlaybackQuality().totalVideoFrames);
+      await sleep2(4000);
+      const st = await MP.stats();
+      const out = [];
+      for (let i = 0; i < legs.length; i++) {
+        const l = legs[i];
+        let inb = null;
+        try { (await l.down.getStats()).forEach((s) => { if (s.type === 'inbound-rtp' && s.kind === 'video') inb = { frecv: s.framesReceived, fdec: s.framesDecoded, pkt: s.packetsReceived, lost: s.packetsLost }; }); } catch (e) {}
+        out.push({ pipeId: l.pipeId, decoded4s: l.v.getVideoPlaybackQuality().totalVideoFrames - f0[i],
+          vw: l.v.videoWidth, vh: l.v.videoHeight, w: st[l.pipeId] || null, inb });
+      }
+      return { legs: out };
+    });
+    const L = (r.legs || []);
+    check('fan-out (2 pipes, 1 tap): both siblings attach and write content',
+      L.length === 2 && L.every((x) => x.w && x.w.wrote > 50 && x.w.swapErr === 0),
+      r.unsupported ? r : L.map((x) => ({ id: x.pipeId, wrote: x.w && x.w.wrote, swapErr: x.w && x.w.swapErr })));
+    // THE ROOT CAUSE, ASSERTED DIRECTLY. A swap that hands the sink an
+    // already-detached buffer ships an empty payload and is silent everywhere
+    // else — no drop, no error, no loss. Count it, and allow none.
+    check('fan-out: no sibling ever swaps a DETACHED buffer (one owner per frame)',
+      L.length === 2 && L.every((x) => x.w && x.w.detached === 0),
+      L.map((x) => ({ id: x.pipeId, detached: x.w && x.w.detached, wrote: x.w && x.w.wrote })));
+    // The consequence, measured end to end at BOTH consumers: what the worker
+    // wrote has to reach a decoder. The broken arm delivered 9% on one leg and
+    // 100% on its sibling, so a per-leg ratio is the discriminator — a mean
+    // would have passed.
+    check('fan-out: every sibling DELIVERS — frames written reach a decoder at both consumers',
+      L.length === 2 && L.every((x) => x.inb && x.w && x.w.wrote > 0 && x.inb.fdec / x.w.wrote > 0.5),
+      L.map((x) => ({ id: x.pipeId, wrote: x.w && x.w.wrote, frecv: x.inb && x.inb.frecv,
+        fdec: x.inb && x.inb.fdec, pkt: x.inb && x.inb.pkt,
+        ratio: x.inb && x.w && +(x.inb.fdec / x.w.wrote).toFixed(2) })));
+    check('fan-out: both consumers keep decoding CONTENT, not the carrier',
+      L.length === 2 && L.every((x) => x.decoded4s > 20 && x.vw >= 300 && x.vh >= 170),
+      L.map((x) => ({ id: x.pipeId, decoded4s: x.decoded4s, vw: x.vw, vh: x.vh })));
+    await page.context().close();
+  }
+
   // ---- LEG 2: the real mesh -------------------------------------------------
   {
     const N = 6;
