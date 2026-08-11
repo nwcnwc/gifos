@@ -36,13 +36,13 @@
   "cover": "/apps/offline-tts-neural/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-tts-neural/offline-tts-neural.gif",
-  "bytes": 12421686,
+  "bytes": 12421647,
   "download": 24369971,
   "provides": {
     "ai": [
       "tts"
     ]
   },
-  "sha256": "0724b966f26ff82c5a6357b430d8b3f17450edd24bf85cff7c669a08ac1a1b62",
+  "sha256": "17ff3907c4311227aa8f447f2ffc94d845ec8ccaee25ce98ac46a7bcb38ef294",
   "signature": null
 }

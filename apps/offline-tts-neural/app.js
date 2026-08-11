@@ -158,7 +158,8 @@
   // ---- the engine -----------------------------------------------------------
   var VOICE_INDEX = null, VOICE_DATA = null;   // Float32Array, [voice][row][256]
   var enginePromise = null;
-  var loadedKind = null;                       // 'kitten' | 'selftest'
+  var loadedKind = null;                       // 'kitten' | 'selftest' — what IS loaded
+  var wantedKind = null;                       // …and what the in-flight boot is for
 
   function styleRow(voiceId, row) {
     var vi = VOICE_INDEX.voices.indexOf(voiceId);
@@ -180,9 +181,16 @@
   }
 
   function ensureEngine(beat, wantSelftest) {
-    // A self-test boot and a real boot are different sessions; never hand back
-    // a tone because a previous call happened to warm the stand-in.
-    if (enginePromise && (loadedKind === 'kitten' || wantSelftest)) return enginePromise;
+    // KEY THE CACHE ON WHAT WAS ASKED FOR. The first cut kept one session and
+    // reused it whenever `loadedKind === 'kitten' || wantSelftest`, which meant
+    // that once the real weights were warm, asking for the self-test handed
+    // back the REAL engine and it answered in the real voice — a check that
+    // silently stopped checking anything. Compare against the requested kind,
+    // and track it separately from loadedKind so a boot still in flight is not
+    // started twice.
+    var want = wantSelftest ? 'selftest' : 'kitten';
+    if (enginePromise && wantedKind === want) return enginePromise;
+    wantedKind = want;
     enginePromise = Promise.resolve().then(function () {
       if (!window.ort) throw new Error('The inference engine failed to load.');
       if (!window.Phonemizer) throw new Error('The pronunciation engine failed to load.');
@@ -229,7 +237,7 @@
           .then(function (sess) { loadedKind = m.kind; return sess; });
       });
     });
-    enginePromise.catch(function () { enginePromise = null; loadedKind = null; }); // retryable
+    enginePromise.catch(function () { enginePromise = null; loadedKind = null; wantedKind = null; }); // retryable
     return enginePromise;
   }
 
@@ -281,7 +289,7 @@
     var text = String(req.text || '').slice(0, MAX_CHARS);
     if (!text.trim()) return Promise.reject(new Error('Nothing to say — empty text.'));
     var asked = String(req.voice || '').trim().toLowerCase();
-    var selftest = req.selftest === true || asked === SELFTEST_VOICE || asked === 'selftest';
+    var selftest = asked === SELFTEST_VOICE || asked === 'selftest';
     var voiceId = resolveVoice(selftest ? DEFAULT_VOICE : req.voice);
     var mult = Number(req.speed);
     var speed = (mult >= 0.25 && mult <= 4 ? mult : 1) * priorOf(voiceId);
@@ -359,15 +367,14 @@
         a.play().then(null, done);
       });
     };
-    var speak = function (selftest) {
-      $('speak').disabled = true; $('selftest').disabled = true;
-      setStatus(selftest ? 'Running the self-test…' : 'Warming up…');
+    var speak = function () {
+      $('speak').disabled = true;
+      setStatus('Warming up…');
       var t0 = Date.now(), firstAt = 0, totalAudio = 0;
       var text = String($('text').value || '');
-      var req = { text: text, voice: sel ? sel.value : '', selftest: selftest };
-      var voiceId = resolveVoice(selftest ? DEFAULT_VOICE : req.voice);
+      var voiceId = resolveVoice(sel ? sel.value : '');
       var speed = priorOf(voiceId);
-      ensureEngine(function (n) { if (n) setStatus(n); }, selftest || String(req.voice).toLowerCase() === SELFTEST_VOICE)
+      ensureEngine(function (n) { if (n) setStatus(n); }, false)
         .then(function (sess) {
           var chunks = chunkText(text);
           if (!chunks.length) chunks = [ensurePunctuation(text)];
@@ -380,8 +387,7 @@
               totalAudio += a.length / SR;
               if (!firstAt) {
                 firstAt = (Date.now() - t0) / 1000;
-                setStatus((selftest ? 'Self-test tone — NOT the voice. ' : '')
-                  + 'Talking after ' + firstAt.toFixed(1) + 's'
+                setStatus('Talking after ' + firstAt.toFixed(1) + 's'
                   + (chunks.length > 1 ? ' — still making the rest as it plays.' : '.'));
               }
               playChain = playChain.then(function () { return playWav(toWav([a])); });
@@ -389,17 +395,16 @@
             });
           };
           return step(0).then(function () {
-            setStatus((selftest ? 'Self-test tone — NOT the voice. ' : 'Spoken on this device — ')
-              + totalAudio.toFixed(1) + 's of audio, first sound after ' + firstAt.toFixed(1)
+            setStatus('Spoken on this device — ' + totalAudio.toFixed(1)
+              + 's of audio, first sound after ' + firstAt.toFixed(1)
               + 's, all of it made here — zero network.');
             return playChain;
           });
         })
         .catch(function (e) { setStatus('⚠ ' + (e && e.message || e)); })
-        .then(function () { $('speak').disabled = false; $('selftest').disabled = false; });
+        .then(function () { $('speak').disabled = false; });
     };
-    $('speak').onclick = function () { speak(false); };
-    $('selftest').onclick = function () { speak(true); };
+    $('speak').onclick = speak;
   }
 
   // ---- a link that asks this computer to say something ----------------------

@@ -162,8 +162,18 @@ have no WebGPU kernels.
 The provider **fails with a fixable message** rather than falling back to the
 self-test tone. A consumer app handed a beep instead of speech cannot tell the
 difference, and the user would hear a defect instead of an instruction. The
-self-test runs only when asked for explicitly (`{ selftest: true }` — the page's
-Self-test button, and `e2e-providers`).
+self-test runs only when asked for by name — the reserved voice `self-test`,
+which is how `e2e-providers` proves the whole pipeline on a machine that has
+never downloaded the weights.
+
+**It is not a button, deliberately.** The page had one and it was removed
+(2026-08-11): the app already lets you hear the engine by picking any of the
+eight voices and pressing Speak, so a second button only added a thing to
+explain. It was also *wrong* — `ensureEngine` reused the cached session
+whenever `loadedKind === 'kitten' || wantSelftest`, so once the real weights
+were warm the Self-test button handed back the real engine and answered in the
+real voice. A check that silently stops checking is worse than no check; the
+cache is now keyed on the kind that was actually requested.
 
 ## Building
 
