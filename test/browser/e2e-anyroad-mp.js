@@ -360,7 +360,7 @@ async function run(MODE) {
   // rendering (5s of no frames). This only bounds a box so starved it is
   // crawling, and on such a box we would rather wait than publish a verdict
   // about a car that never moved.
-  const STEER_CAP_MS = Number(process.env.STEER_CAP_MS || 25000);
+  const STEER_CAP_MS = Number(process.env.STEER_CAP_MS || 12000);
   // The SMALLEST window that can still carry a verdict. Filling all 55 frames
   // is ideal; on a 6-core box running three swiftshader worlds the tab renders
   // at about 1 fps and 55 frames simply cannot arrive inside any sane cap
@@ -428,7 +428,7 @@ async function run(MODE) {
     if (dir !== 0) {
       const tReg = Date.now();
       const fReg = window.App.debug().frames;
-      while (Date.now() - tReg < 15000 && window.App.debug().frames - fReg < 12) {
+      while (Date.now() - tReg < 8000 && window.App.debug().frames - fReg < 12) {
         const d0 = window.App.debug();
         const st = (d0.input && d0.input.steer) || 0;
         if (Math.sign(st) === Math.sign(dir) && Math.abs(st) > 0.15) break;
@@ -511,12 +511,12 @@ async function run(MODE) {
       // parked car and blames the control scheme. Keep going while frames are
       // still arriving, up to a real ceiling.
       const f0 = window.App.debug().frames;
-      const tEnd = Date.now() + 30000;
+      const tEnd = Date.now() + 15000;
       for (let i = 0; Date.now() < tEnd; i++) {
         if (window.App.debug().speed > 4) { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'w' })); return window.App.debug().speed; }
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
         if (i % 8 === 7) window.App.unstick();
-        if (window.App.debug().frames - f0 > 240) break;   // plenty of frames, still parked
+        if (window.App.debug().frames - f0 > 120) break;   // plenty of frames, still parked
         await new Promise((r) => setTimeout(r, 250));
       }
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'w' }));
@@ -559,7 +559,7 @@ async function run(MODE) {
     if (!legs.every((l) => l.filled)) {
       check(s.name + ' — the steering window FILLED (this is about the box, not the car)', false,
         legs.map((l) => l.frames + '/' + l.want).join(' , ') + ' frames (need ' + legs[0].min + ') — the tab could not render the '
-        + 'window inside ' + Math.round(Number(process.env.STEER_CAP_MS || 25000) / 1000) + 's, so the '
+        + 'window inside ' + Math.round(STEER_CAP_MS / 1000) + 's, so the '
         + 'steering numbers below would be a measurement of this machine. Re-run on an idle box.');
       continue;
     }
