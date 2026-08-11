@@ -355,6 +355,12 @@ async function run(MODE) {
 
   // Hold a direction for `ms` and report what the input layer and the car did.
   const FRAME_WINDOW = Number(process.env.STEER_FRAMES || 55);
+  // The backstop for ONE steering leg. Not a budget for the measurement — the
+  // window ends when the frames arrive (usually ~2s) or when the tab stops
+  // rendering (5s of no frames). This only bounds a box so starved it is
+  // crawling, and on such a box we would rather wait than publish a verdict
+  // about a car that never moved.
+  const STEER_CAP_MS = Number(process.env.STEER_CAP_MS || 25000);
   const steerFor = (p, dir, ms) => p.body().evaluate(async (el, [dir, ms, frameWindow]) => {
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const scheme = window.Sources.current.scheme;
@@ -422,18 +428,41 @@ async function run(MODE) {
     // makes the window a fixed slice of simulated time, and the radians below
     // become a property of the car on any machine. Wall clock survives only as
     // a safety net so a stalled tab cannot hang the battery.
+    // …and the WALL CLOCK MUST NOT BE THE THING THAT ENDS THE WINDOW.
+    //
+    // It was a flat 7s net, and that is what flaked the 0.9.7 gate: the tilt
+    // leg reported `yaw -0.64/0.00 rad, speed 0.4 m/s, 8 frames`. EIGHT of the
+    // 55 frames — the tab was rendering at about 1 fps with three browsers
+    // driving a 3D world on a loaded box, so the net fired first, the car had
+    // advanced 0.4s of simulated time instead of 2.75s, and the assertions
+    // below solemnly judged a window that never happened.
+    //
+    // The net exists for ONE thing: a tab that has stopped rendering must not
+    // hang the battery. That is a stall, and it is detectable directly — so
+    // wait as long as frames keep ARRIVING, and give up only when they stop.
+    // A starved box now fills its window slowly instead of reporting a car
+    // that would not turn, and a hung tab still fails in ~5s instead of 7.
     const yaw0 = window.App.car().yaw;
     const frames0 = window.App.debug().frames;
     let peakSteer = 0;
-    const deadline = Date.now() + ms;
-    while (window.App.debug().frames - frames0 < frameWindow && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 30));
+    const STALL_MS = 5000;
+    const cap = Date.now() + ms;
+    let seen = frames0, advancedAt = Date.now();
+    for (;;) {
       const d = window.App.debug();
       if (d.input && Math.abs(d.input.steer) > Math.abs(peakSteer)) peakSteer = d.input.steer;
+      if (d.frames - frames0 >= frameWindow) break;
+      if (d.frames > seen) { seen = d.frames; advancedAt = Date.now(); }
+      else if (Date.now() - advancedAt > STALL_MS) break;   // the tab stopped rendering
+      if (Date.now() > cap) break;                          // absolute backstop
+      await new Promise((r) => setTimeout(r, 30));
     }
     const framesRun = window.App.debug().frames - frames0;
     const out = { scheme, steer: peakSteer, dYaw: wrap(window.App.car().yaw - yaw0),
-                  speed: window.App.debug().speed, frames: framesRun };
+                  speed: window.App.debug().speed, frames: framesRun,
+                  // Judging steering on a window that never filled is judging
+                  // the box. The caller refuses to score an unfilled leg.
+                  filled: framesRun >= frameWindow, want: frameWindow };
     stop();
     return out;
   }, [dir, ms, FRAME_WINDOW]);
@@ -472,13 +501,13 @@ async function run(MODE) {
       return window.App.debug().speed;
     });
     await ready();
-    const straight = await steerFor(p, 0, 7000);
+    const straight = await steerFor(p, 0, STEER_CAP_MS);
     await sleep(400);
     await ready();
-    const left = await steerFor(p, -1, 7000);
+    const left = await steerFor(p, -1, STEER_CAP_MS);
     await sleep(400);
     await ready();
-    const right = await steerFor(p, +1, 7000);
+    const right = await steerFor(p, +1, STEER_CAP_MS);
     await sleep(400);
     steering.push({ name: p.name, straight, left, right });
   }
@@ -486,6 +515,19 @@ async function run(MODE) {
     const d = `${s.left.scheme}: steer ${s.left.steer.toFixed(2)}/${s.right.steer.toFixed(2)}, ` +
               `yaw ${s.left.dYaw.toFixed(2)}/${s.right.dYaw.toFixed(2)} rad, ` +
               `speed ${s.right.speed.toFixed(1)} m/s, ${s.right.frames} frames`;
+    // A WINDOW THAT NEVER FILLED CANNOT BE JUDGED. Every threshold below is a
+    // property of the car over a FIXED slice of simulated time; on a leg that
+    // rendered 8 of its 55 frames they describe the box instead, which is
+    // exactly the false red this suite produced in the 0.9.7 gate. Say so, in
+    // those words, and do not pretend to a verdict about steering.
+    const legs = [s.straight, s.left, s.right];
+    if (!legs.every((l) => l.filled)) {
+      check(s.name + ' — the steering window FILLED (this is about the box, not the car)', false,
+        legs.map((l) => l.frames + '/' + l.want).join(' , ') + ' frames — the tab could not render the '
+        + 'window inside ' + Math.round(Number(process.env.STEER_CAP_MS || 25000) / 1000) + 's, so the '
+        + 'steering numbers below would be a measurement of this machine. Re-run on an idle box.');
+      continue;
+    }
     check(s.name + ' — the ' + s.left.scheme + ' reaches the car at all',
       Math.abs(s.left.steer) > 0.15 && Math.abs(s.right.steer) > 0.15, d);
     check(s.name + ' — the ' + s.left.scheme + ' steers BOTH ways, not just one',
