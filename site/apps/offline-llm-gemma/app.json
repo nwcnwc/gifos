@@ -37,13 +37,13 @@
   "cover": "/apps/offline-llm-gemma/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-llm-gemma/offline-llm-gemma.gif",
-  "bytes": 10223898,
+  "bytes": 10224245,
   "download": 806058240,
   "provides": {
     "ai": [
       "cheapest"
     ]
   },
-  "sha256": "a6dcb345e01dbde75f911a100ec2eaca6c6c65749a68df164ed7e6c38789dca5",
+  "sha256": "0cb64c807d4bb33e79dd6a9f392c447810d95c0bec3406d22441b00de6686626",
   "signature": null
 }

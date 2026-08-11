@@ -2852,6 +2852,10 @@ function metaOf(r){
   if(r.role==='assistant'){
     if(r.model) bits.push(r.model);
     if(r.firstMs!=null) bits.push('first word '+secs(r.firstMs));
+    // A finished answer that never sent a first word did not stream. Say so:
+    // silence here is how "GifOS is broken" and "this model answers in one
+    // piece" became the same thing to look at.
+    else if(r.ms!=null&&!r.error) bits.push('no streaming from this model');
     if(r.ms!=null) bits.push(secs(r.ms)+' total');
   }
   return bits.join(' · ');

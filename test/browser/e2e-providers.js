@@ -25,7 +25,11 @@
 //     boots inside the hidden provider mount — classic worker from blob,
 //     wasm from a self-minted blob: URL, in-GIF self-test model — and
 //     answers a 'cheapest' chat from the SEEDED Ask AI app, honestly
-//     labeled as self-test output.
+//     labeled as self-test output. AND it STREAMS: the answer is caught
+//     half-drawn in Ask AI. The provider generated token by token all along,
+//     but the protocol had no channel for those tokens, so they piled up
+//     privately and arrived in one lump — an on-device model that takes six
+//     minutes showed nothing whatever for six minutes.
 //
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
 const fs = require('fs');
@@ -44,7 +48,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // hence the swallowed timeout rather than a wait we insist on.
 async function newChat(fr) {
   await fr.locator('#new').click().catch(() => {});
-  await fr.locator('.note', { hasText: 'New conversation' }).waitFor({ timeout: 5000 }).catch(() => {});
+  await fr.locator('.note', { hasText: 'New chat' }).waitFor({ timeout: 5000 }).catch(() => {});
   await sleep(200);
 }
 
@@ -295,24 +299,47 @@ async function runConsumer(page, context, label, outTimeout) {
     // an on-device model can take minutes, so the broker's timeout is IDLE and
     // these pings are what re-arm it; if they stop flowing, long answers start
     // dying at the timeout again (which is exactly what shipped once).
+    // …and the ANSWER ITSELF as it is written (provider-delta, ctx.delta). The
+    // tokens always existed inside the provider; until there was a channel for
+    // them they were accumulated privately and handed over in one lump, so a
+    // six-minute on-device answer showed nothing at all for six minutes.
     await askai.evaluate(() => {
-      window.__provPings = 0;
+      window.__provPings = 0; window.__provDeltas = 0;
       window.addEventListener('message', (e) => {
         const d = e.data;
-        if (d && d.ns === 'gifos' && d.type === 'provider-progress') window.__provPings++;
+        if (!d || d.ns !== 'gifos') return;
+        if (d.type === 'provider-progress') window.__provPings++;
+        if (d.type === 'provider-delta') window.__provDeltas++;
       });
     });
     const fr = askai.frameLocator('#appmount iframe');
     await fr.locator('#t').fill('hello');
     await fr.locator('#f button').click();
+    // Poll the bubble WHILE it answers: a streamed answer is caught half-drawn,
+    // which is the only way to tell it from one that lands complete at the end.
+    const growth = [];
+    let watchOn = true;
+    const watching = (async () => {
+      while (watchOn) {
+        const t = await fr.locator('.m.ai').last().textContent().catch(() => null);
+        if (t != null && t !== '…' && growth[growth.length - 1] !== t) growth.push(t);
+        await sleep(120);
+      }
+    })();
     // First call boots llama.cpp in the hidden mount (10 MB GIF decode + wasm
     // init + model load) — generous timeout, one honest wait. On timeout,
     // SAY WHAT THE APP SHOWED (an error bubble reads as a silent hang
     // otherwise — that's how the module-worker bug hid).
     await fr.locator('.m.ai').last().filter({ hasText: /self-test model/ }).waitFor({ timeout: 150000 }).catch(async (e) => {
+      watchOn = false;
       const shown = await fr.locator('.m.ai').last().textContent().catch(() => '(no ai bubble)');
       throw new Error('Ask AI never got the self-test answer; the app shows: ' + String(shown).slice(0, 300));
     });
+    // The turn ends on the total time, not on the last token (e2e-askai.js
+    // paid for that lesson) — keep watching until the stamp says so.
+    await fr.locator('.row.ai').last().locator('.stamp').filter({ hasText: /total/ }).waitFor({ timeout: 60000 }).catch(() => {});
+    watchOn = false;
+    await watching;
     const reply = await fr.locator('.m.ai').last().textContent();
     check('Ask AI (the seeded cheapest consumer) is answered by llama.cpp in the provider sandbox',
       /\[self-test model — token soup/.test(reply) && reply.length > 60, reply.slice(0, 120));
@@ -324,6 +351,19 @@ async function runConsumer(page, context, label, outTimeout) {
     const provPings = await askai.evaluate(() => window.__provPings);
     check('the provider heartbeats while it works (idle timeout re-arms, so slow answers are not killed)',
       provPings > 0, provPings + ' provider-progress ping(s)');
+
+    // An ON-DEVICE answer streams exactly like a hosted one.
+    const provDeltas = await askai.evaluate(() => window.__provDeltas);
+    check('the provider streams the answer as it writes it (ctx.delta → provider-delta)',
+      provDeltas > 1, provDeltas + ' provider-delta fragment(s)');
+    const partials = growth.filter((t) => t !== reply);
+    check('…so Ask AI paints an on-device answer BEING WRITTEN, not only when it is finished',
+      partials.length >= 3, growth.length + ' frame(s), ' + partials.length + ' partial(s)');
+    check('…each frame grows from the last, and the self-test label leads (soup never masquerades)',
+      partials.every((t, i) => (i === 0 || t.startsWith(partials[i - 1])) && /^\[self-test model/.test(t)),
+      JSON.stringify(partials.slice(0, 2)).slice(0, 200));
+    check('…and the answer it lands on is the one that was being written',
+      reply.startsWith(partials.length ? partials[partials.length - 1] : reply), reply.slice(0, 80));
     check('a pinned-asset provider still serves its self-test model when the download has NOT happened',
       offOriginBlocked > 0 && /\[self-test model — token soup/.test(reply),
       offOriginBlocked + ' off-origin request(s) blocked');

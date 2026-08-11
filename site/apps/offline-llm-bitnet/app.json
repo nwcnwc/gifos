@@ -36,13 +36,13 @@
   "cover": "/apps/offline-llm-bitnet/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-llm-bitnet/offline-llm-bitnet.gif",
-  "bytes": 10223815,
+  "bytes": 10224182,
   "download": 1105874048,
   "provides": {
     "ai": [
       "cheapest"
     ]
   },
-  "sha256": "06b64fdce99fdbb7a3a61177c78c967dacd7e6a51b77c5dfd4c07b56ffbb1c63",
+  "sha256": "72b15f3404fb39b117dd55f1c0e34002be06ea20194eaa0a895d5ebb83d67cc3",
   "signature": null
 }

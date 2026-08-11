@@ -186,9 +186,21 @@
           // every app that asks for AI would otherwise have to grow its own
           // "please wait" out of nothing. Both arguments are optional; a bare
           // progress() is still just a heartbeat.
+          //
+          // ctx.delta(text) — the ANSWER as it is written, one fragment at a
+          // time. A provider that generates token by token (all three offline
+          // LLMs do) had nowhere to put those tokens: they were accumulated
+          // privately and handed over in one lump at the end, so an on-device
+          // model that took six minutes showed nothing for six minutes. This is
+          // the same fragment channel a streaming HTTP endpoint gets — it comes
+          // out of the asking app's gifos.ai.chat onDelta, indistinguishable
+          // from a cloud stream. Optional: a provider that never calls it is
+          // exactly as correct as before, just silent until it finishes.
           var ctx = { progress: function(note, frac){ try { parent.postMessage({ ns:'gifos', type:'provider-progress', id:d.id,
             note: note == null ? '' : String(note).slice(0, 120),
-            frac: (typeof frac === 'number' && isFinite(frac)) ? Math.max(0, Math.min(1, frac)) : null }, '*'); } catch(e){} } };
+            frac: (typeof frac === 'number' && isFinite(frac)) ? Math.max(0, Math.min(1, frac)) : null }, '*'); } catch(e){} },
+            delta: function(text){ if (text == null || text === '') return;
+              try { parent.postMessage({ ns:'gifos', type:'provider-delta', id:d.id, text: String(text) }, '*'); } catch(e){} } };
           Promise.resolve().then(function(){ return h(d.req || {}, ctx); })
             .then(function(result){ send({ ok:true, result:result }); })
             .catch(function(err){ send({ ok:false, error:String(err && err.message || err) }); });
@@ -1216,7 +1228,17 @@
     if (!c || (!c.url && !c.app)) { showSystemSetup({ kind: 'ai', role: role, hint: d.hint }); return Promise.reject(new Error('NOT_CONFIGURED:ai:' + role)); }
     // Served by an installed Provider app (docs/providers.md) — the guard,
     // hidden mount and request shape all live in providerCall/providerReq.
-    if (c.app) return providerCall(c, role, providerReq(role, d.op, d));
+    // A chat the app wanted streamed streams here too: the provider's ctx.delta
+    // fragments ride the same channel a cloud endpoint's SSE frames do.
+    if (c.app) {
+      // `streamed` reports what ACTUALLY happened, not what was asked for: a
+      // provider that never calls ctx.delta answers in one piece and says so.
+      let streamed = false;
+      const relay = (d.op === 'chat' && d.stream && emit) ? (t) => { streamed = true; emit(t); } : null;
+      return providerCall(c, role, providerReq(role, d.op, d), relay)
+        .then((out) => (d.op === 'chat' && out && typeof out === 'object')
+          ? Object.assign({}, out, { streamed: streamed }) : out);
+    }
     const url = aiEndpoint(c, d.op);
     const auth = c.key ? { Authorization: 'Bearer ' + c.key } : {};
     const asError = (r) => r.text().then((t) => { throw new Error('AI error ' + r.status + (t ? ': ' + t.slice(0, 300) : '')); });
@@ -1362,6 +1384,15 @@
           // …and the note the provider attached rides straight to the user.
           if (pend && pend.onNote && (d.note || d.frac != null)) pend.onNote(d.note || '', d.frac);
         }
+        // A fragment of the answer itself (ctx.delta). It is progress too — it
+        // proves the engine is writing — so it re-arms the idle clock on the
+        // same terms, and then goes on to the app that asked.
+        else if (d.type === 'provider-delta') {
+          const pend = pending.get(d.id);
+          if (!pend) return;
+          if (pend.bump) pend.bump();
+          if (pend.onDelta && d.text) { try { pend.onDelta(String(d.text)); } catch (e) {} }
+        }
         else if (d.type === 'provider-result') {
           const pend = pending.get(d.id); if (!pend) return;
           pending.delete(d.id); clearTimeout(pend.timer);
@@ -1375,7 +1406,7 @@
         else if (d.id) { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: false, error: 'Not available in a provider service mount.' }, '*'); }
       };
       const service = {
-        call: (role, req, onNote) => new Promise((res, rej) => {
+        call: (role, req, onNote, onDelta) => new Promise((res, rej) => {
           const w = iframe.contentWindow;
           if (!w) { rej(new Error(label + ' is not running.')); return; }
           const id = 'p' + (++idSeq);
@@ -1387,7 +1418,7 @@
           // What must still fail fast is a WEDGED provider, so the clock is
           // reset by every provider-progress ping the provider sends as it
           // generates: silence for PROVIDER_CALL_MS means stuck, not slow.
-          const entry = { res, rej, timer: null, onNote };
+          const entry = { res, rej, timer: null, onNote, onDelta };
           const arm = () => setTimeout(() => { pending.delete(id); rej(new Error(label + ' stopped responding while answering (no progress for ' + Math.round(PROVIDER_CALL_MS / 1000) + 's).')); }, PROVIDER_CALL_MS);
           entry.timer = arm();
           entry.bump = () => { clearTimeout(entry.timer); entry.timer = arm(); };
@@ -1403,7 +1434,9 @@
     p.catch(() => providerServices.delete(fileId)); // a failed boot may be retried
     return p;
   }
-  function providerCall(c, role, req) {
+  // `emit` is the asking app's onDelta, or null. It reaches the provider's
+  // ctx.delta and comes back out fragment by fragment.
+  function providerCall(c, role, req, emit) {
     const cfgName = c.appName || 'Your provider app';
     return providerArchive(c.app).then((arc) => {
       if (!arc || !arc.files) {
@@ -1459,7 +1492,7 @@
             : Promise.resolve();
           return prep
             .then(() => { if (cold) busyNote('Starting ' + name + '…', null); return providerService(c.app, arc.files, m); })
-            .then((svc) => svc.call(role, req, (note, frac) => busyNote(note, frac)))
+            .then((svc) => svc.call(role, req, (note, frac) => busyNote(note, frac), emit || null))
             .then(
               (out) => { recordTiming(c.app, cold, Date.now() - t0); busyEnd(); return out; },
               (err) => { busyEnd(); throw err; });          // a failed run teaches nothing about timing

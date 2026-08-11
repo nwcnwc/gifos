@@ -115,14 +115,44 @@
       // mid-generation, while a genuinely wedged engine still fails. Before
       // this, a short essay on a 2B model hit a flat 3-minute cap and the
       // user's wait was thrown away.
+      // ONE definition of what the answer is, used by the stream and by the
+      // final result — two copies would be two answers.
+      var cleanUp = function (raw) { return String(raw).split(EOT)[0].replace(/^\s+/, ''); };
       var acc = '';
       params.stream = true;
       var tok = 0;
+      // The ANSWER AS IT IS WRITTEN, not just a token count. Every fragment goes
+      // to ctx.delta, which the OS hands to the asking app's onDelta — the same
+      // channel a streaming cloud endpoint uses, so Ask AI paints an on-device
+      // answer exactly the way it paints a hosted one. Before this the tokens
+      // existed here and had nowhere to go: they were accumulated privately and
+      // delivered in one lump, so a six-minute answer showed nothing for six
+      // minutes and then everything at once.
+      //
+      // What is streamed is the CLEANED text — the same trimming the final
+      // answer gets — so you never watch template scaffolding being typed and
+      // then see it vanish. `sent` is how much of it has already gone.
+      // Self-test output is token soup and must NEVER masquerade as an answer,
+      // so its label is streamed FIRST — before a single token of soup — rather
+      // than being prepended once the whole thing is already on screen.
+      var label = live.kind === 'selftest'
+        ? '[self-test model — token soup, not intelligence. Install the BitNet weights for real answers.]\n' : '';
+      var canDelta = ctx && typeof ctx.delta === 'function';
+      var sent = 0, labeled = false;
+      var stream = function () {
+        if (!canDelta) return;
+        var clean = cleanUp(acc);
+        if (clean.length <= sent) return;
+        if (label && !labeled) { ctx.delta(label); labeled = true; }
+        ctx.delta(clean.slice(sent));
+        sent = clean.length;
+      };
       params.onData = function (chunk) {
         try {
           var t = chunk && chunk.choices && chunk.choices[0] && chunk.choices[0].text;
           if (t) {
             acc += t;
+            stream();
             // Tell the OS we are past loading and actually writing, then keep a
             // running count. Not every token: the note is for a human reading a
             // line of text, and repainting it 30 times a second is not reading.
@@ -132,13 +162,8 @@
         } catch (e) { /* a malformed chunk must not kill the generation */ }
       };
       return wllama.createCompletion(params).then(function () {
-        var text = acc;
-        text = String(text).split(EOT)[0].replace(/^\s+/, '');
-        if (live.kind === 'selftest') {
-          // Never let random-weights output masquerade as an answer.
-          text = '[self-test model — token soup, not intelligence. Install the BitNet weights for real answers.]\n' + text;
-        }
-        return { text: text };
+        // Same label, same text, whether it was watched arriving or not.
+        return { text: label + cleanUp(acc) };
       });
     }).then(done, died);
   }
