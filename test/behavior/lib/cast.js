@@ -451,16 +451,45 @@ class Check {
   assert(cond, desc, detail) { cond ? this._pass(desc) : this._fail(desc, detail); return !!cond; }
 
   // poll an async predicate until truthy — the workhorse
+  // A DEFAULT DEADLINE IS A WAIT. AN EXPLICIT ONE IS AN ASSERTION.
+  //
+  // 09a-standup-triple-burst red-ed the gate TWICE with `replies=4/5 seated=4
+  // dup=false connOrphans=0 [load 6.21/6cpu]` — five browsers on a six-core
+  // box, one of them not answering the census inside 60s. Nothing was broken:
+  // no dups, no orphans, the four that answered were all seated. The room was
+  // still coming up and the clock ran out.
+  //
+  // So when the caller did NOT name a deadline, the 60s default is not a
+  // promise and this keeps waiting WHILE THE PICTURE IS STILL CHANGING —
+  // the same rule the mesh/flood and anyroad fixes use. Progress is measured
+  // on the failure detail itself, which is exactly the thing that reads
+  // `4/5` and then `5/5`. When it stops changing for STALL_MS the wait is
+  // genuinely stuck and fails IMMEDIATELY, which is faster than today.
+  //
+  // A caller that passes `within` is asserting a BOUND (57 scenarios do, some
+  // as tight as 10s — the failover-wake grace among them). Those are never
+  // extended, or this would quietly soften the very numbers they exist to
+  // hold. `grace: true` opts an explicit deadline in.
   async until(desc, fn, o) {
     o = o || {};
+    const elastic = (o.within == null) || o.grace === true;
     const within = (o.within || 60) * 1000, every = (o.every || 2.5) * 1000, t0 = Date.now();
-    let last;
-    while (Date.now() - t0 < within) {
+    const STALL_MS = 20000, CEIL = within * 3;
+    let last, lastKey = null, changedAt = Date.now(), why = '';
+    for (;;) {
       try { last = await fn(); if (last) { this._pass(desc + ' (' + ((Date.now() - t0) / 1000).toFixed(0) + 's)'); return true; } }
       catch (e) { last = String(e).slice(0, 200); }
+      const key = typeof last === 'string' ? last : JSON.stringify(last && last.detail || last || null);
+      if (key !== lastKey) { lastKey = key; changedAt = Date.now(); }
+      const el = Date.now() - t0;
+      if (el >= within) {
+        if (!elastic) { why = ''; break; }
+        if (Date.now() - changedAt >= STALL_MS) { why = ' — STALLED (nothing changed for ' + (STALL_MS / 1000) + 's, so this is not a slow box)'; break; }
+        if (el >= CEIL) { why = ' — still changing at the ' + (CEIL / 1000) + 's ceiling'; break; }
+      }
       await sleep(every);
     }
-    this._fail(desc + ' (>' + (within / 1000) + 's)', typeof last === 'string' ? last : JSON.stringify(last && last.detail || last || null));
+    this._fail(desc + ' (>' + ((Date.now() - t0) / 1000).toFixed(0) + 's)' + why, typeof last === 'string' ? last : JSON.stringify(last && last.detail || last || null));
     return false;
   }
 
