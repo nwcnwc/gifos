@@ -74,9 +74,36 @@ function startOne(h, port, opts) {
   });
 }
 
+// A REMOTE BROWSER LOADS THE SITE OVER THE NETWORK, AND THAT IS NOT A SECURE
+// CONTEXT. Loopback is privileged, a tailnet IP over http is not — so the very
+// first fleet run of e2e-anyroad-mp died on a click that never landed:
+//
+//   <div id="oldbrowser" data-gaps="secure context (https)"> intercepts pointer events
+//
+// GifOS's own preflight was correctly telling the browser it lacked the
+// platform it needs, and the banner sat over the page. This is the
+// insecure-origin trap test/README lists for multi-box work; every existing
+// multi-box tool carries these flags by hand (swarm/meet.js, tools/approom-*,
+// tools/pipe-freeze-probe). Fleet suites get them automatically instead.
+const PNA = 'LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests';
+function secureOriginArgs(args, origin) {
+  if (!origin || !/^http:/i.test(origin) || /\/\/(127\.0\.0\.1|localhost|\[::1\])[:/]/i.test(origin)) return args;
+  const out = [];
+  let merged = false;
+  for (const a of args || []) {
+    // Chrome does not merge two --disable-features flags; fold ours into the
+    // caller's rather than letting one silently win.
+    if (a.indexOf('--disable-features=') === 0) { out.push(a + ',' + PNA); merged = true; } else out.push(a);
+  }
+  if (!merged) out.push('--disable-features=' + PNA);
+  out.push('--unsafely-treat-insecure-origin-as-secure=' + new URL(origin).origin);
+  return out;
+}
+
 /** Start a browser server per host and connect to each. */
 async function openFleet(hosts, opts) {
   opts = opts || {};
+  opts = Object.assign({}, opts, { args: secureOriginArgs(opts.args, opts.origin) });
   const started = [];
   try {
     for (let i = 0; i < hosts.length; i++) {

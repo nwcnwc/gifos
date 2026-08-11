@@ -117,8 +117,26 @@ function check(h, engine) {
       return resolve({ h, ok: false, why: 'orchestrator (no ssh) — it must not run browsers; set weight 0' });
     }
     if (!bin) return resolve({ h, ok: false, why: 'no ' + engine + ' path in the hosts entry' });
-    execFile('ssh', ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', h.ssh, 'test -x ' + JSON.stringify(bin)],
-      { timeout: 15000 }, (err) => resolve(err ? { h, ok: false, why: 'unreachable, or ' + bin + ' is not executable there' } : { h, ok: true }));
+    // ISOLATED MEANS IDLE, and that has to be measured too. pi-16gb passed
+    // every other check and then delivered 17-21 of 55 frames, because it runs
+    // a resident 7 GB model over roughly three of its four cores (test/README
+    // says so, and the file said nothing). A busy box in the fleet is the same
+    // contention we left the one-box world to escape — it just moved.
+    const probe = 'test -x ' + JSON.stringify(bin) + ' && echo OK $(cut -d" " -f1 /proc/loadavg) $(nproc)';
+    execFile('ssh', ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', h.ssh, probe],
+      { timeout: 20000 }, (err, out) => {
+        if (err) return resolve({ h, ok: false, why: 'unreachable, or ' + bin + ' is not executable there' });
+        const m = String(out).match(/OK ([\d.]+) (\d+)/);
+        if (!m) return resolve({ h, ok: false, why: 'could not read its load' });
+        const load = parseFloat(m[1]), cores = parseInt(m[2], 10);
+        const ceiling = (h.maxLoad != null ? h.maxLoad : 0.5) * cores;
+        if (load > ceiling) {
+          return resolve({ h, ok: false, why: 'BUSY — load ' + load.toFixed(2) + ' on ' + cores
+            + ' cores (ceiling ' + ceiling.toFixed(1) + '). A loaded box is not an isolated box; stop what is running there,'
+            + ' or raise "maxLoad" in the hosts entry if that load is expected and harmless.' });
+        }
+        resolve({ h, ok: true, load: load, cores: cores });
+      });
   });
 }
 
@@ -136,8 +154,9 @@ module.exports = async function needFleet(n, o) {
   const dead = seen.filter((r) => !r.ok);
   for (const d of dead) console.log('  FLEET: skipping ' + (d.h.name || d.h.ssh) + ' — ' + d.why);
   if (live.length < n) refuse(n, live.length, o);
+  const shown = seen.filter((r) => r.ok).map((r) => (r.h.name || r.h.ssh) + ' (load ' + r.load.toFixed(2) + '/' + r.cores + ')');
   console.log('  FLEET: ' + n + ' isolated ' + engine + ' host(s) required, '
-    + live.length + ' verified — ' + live.map((h) => h.name || h.ssh).join(', '));
+    + live.length + ' verified — ' + shown.join(', '));
   return { fleet: fleet, hosts: live, file: FLEET_FILE };
 };
 module.exports.FLEET_FILE = FLEET_FILE;
