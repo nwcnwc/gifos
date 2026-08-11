@@ -37,14 +37,20 @@
 // STATE (who can see whom, how many queries), never about frame timings, which
 // on one box cannot tell a product bug from a busy kernel.
 const { chromium, CHROME } = require('../lib/pw');
+const needFleet = require('../lib/fleet');
+const { openFleet, closeFleet } = require('../lib/fleet-browsers');
 const { appGif } = require('../lib/apps');
 const { HOP, routeWorld } = require('../lib/anyroad-fixtures');
 const need = require('../lib/need');   // a missing fixture must never look like a product bug
 const { readFileSync, mkdirSync, existsSync, rmSync, readdirSync, renameSync } = require('fs');
 const path = require('path');
 
-const BASE = process.env.BASE || 'http://127.0.0.1:8099';
-const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
+// The browsers are on OTHER MACHINES, so the stack address cannot be
+// loopback: they dial the orchestrator over the network, at the base/relay in
+// the hosts file. Env still wins for a hand-driven run.
+const FLEETCFG = needFleet.load() || {};
+const BASE = process.env.BASE || FLEETCFG.base || 'http://127.0.0.1:8099';
+const RELAY = process.env.RELAY || FLEETCFG.relay || 'ws://127.0.0.1:8790';
 const RECORD = process.env.RECORD === '1';
 // 'meet' = a meeting running an app; 'app' = the app IS the room, no call
 // layer. BOTH run by default, one after the other: they are different products
@@ -70,9 +76,20 @@ async function run(MODE) {
   const gifB64 = readFileSync(appGif('anyroad')).toString('base64');
   if (RECORD) { if (existsSync(OUT)) rmSync(OUT, { recursive: true, force: true }); mkdirSync(OUT, { recursive: true }); }
 
-  const browser = await chromium.launch({
-    executablePath: CHROME,
-    args: [
+  // THIS SUITE REQUIRES THREE ISOLATED MACHINES, one per driver, and refuses
+  // to render a verdict without them. Its steering assertions read a physics
+  // simulation that advances per RENDERED FRAME; three Chromiums driving 3D
+  // through a software rasteriser on ONE box render at about 1 fps, and every
+  // number this file produces there is a number about that box. That is not a
+  // theory: the same block was "fixed" three times (2026-08-08 twice,
+  // 2026-08-11) and cornered on the third — generous waits TIME OUT at 600s,
+  // tight waits cannot render enough frames to measure, and no setting exists
+  // between them. See test/lib/fleet.js.
+  const fleet = await needFleet(3, {
+    why: 'each driver needs its own CPU — the steering assertions read a physics sim that advances per RENDERED FRAME, and three 3D browsers on one box render at ~1 fps',
+    roles: NAMES.map((n) => n.toLowerCase()),
+  });
+  const LAUNCH_ARGS = [
       // No GPU on the gate box; without a software rasteriser there is no WebGL
       // context at all and the app would correctly refuse to run.
       '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
@@ -91,12 +108,14 @@ async function run(MODE) {
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
-    ],
-  });
+  ];
+  const boxes = await openFleet(fleet.hosts.slice(0, NAMES.length), { args: LAUNCH_ARGS });
 
   const players = [];
-  for (const name of NAMES) {
-    const ctx = await browser.newContext(Object.assign(
+  for (let pi = 0; pi < NAMES.length; pi++) {
+    const name = NAMES[pi];
+    const box = boxes[pi];                       // Ada, Ben and Cyd, each on their own machine
+    const ctx = await box.browser.newContext(Object.assign(
       { permissions: ['camera', 'microphone'], viewport: { width: 1000, height: 700 } },
       RECORD ? { recordVideo: { dir: path.join(OUT, name), size: { width: 1000, height: 700 } } } : {},
     ));
@@ -115,9 +134,10 @@ async function run(MODE) {
       if (md && md.getUserMedia) { const real = md.getUserMedia.bind(md); md.getUserMedia = (c) => { window.__gumCount++; return real(c); }; }
     });
     const hits = await routeWorld(ctx);
-    players.push({ name, ctx, hits });
+    players.push({ name, ctx, hits, box: box.host.name || box.host.ssh });
   }
   const [ada, ben, cyd] = players;
+  console.log('  FLEET placement: ' + players.map((p) => p.name + '@' + p.box).join('  '));
 
   // ---- Ada installs the real built GIF and shares it into a meeting --------
   const desk = await ada.ctx.newPage();
@@ -822,7 +842,7 @@ async function run(MODE) {
   // close, so the handle is grabbed first and the file renamed after.
   const vids = RECORD ? players.map((p) => ({ name: p.name, v: p.page.video() })) : [];
   for (const p of players) await p.ctx.close();
-  await browser.close();
+  await closeFleet(boxes);
 
   if (RECORD) {
     for (const { name, v } of vids) {
