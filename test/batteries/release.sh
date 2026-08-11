@@ -502,14 +502,20 @@ if want behavior; then
     # battery would cost another ~50 minutes, and behavior.sh already takes
     # scenario prefixes, so re-run just the names it reported.
     #
-    # Measured 2026-08-02 on an IDLE 8-core box: 08a-techsupport-reload-mash is
-    # 8/12 green on main. It is NOT starvation (it fails at loadavg 0.58) and it
-    # is NOT a regression from this release — the same scenario run from the
-    # 0.8.8 CUT COMMIT's own tree is 3/4, i.e. the shipped release has the same
-    # race. It is the open fast-rejoin race (#2) the scenario was written to
-    # catch, still open. A scenario like that must be reported LOUDLY as FLAKY —
-    # a standing work queue — not silently absorbed, and not allowed to block a
+    # A scenario that fails on an IDLE box is reported LOUDLY as FLAKY — a
+    # standing work queue — not silently absorbed, and not allowed to block a
     # release on a coin flip either.
+    #
+    # The example this rule was written for was 08a-techsupport-reload-mash,
+    # measured 8/12 green on 2026-08-02 at loadavg 0.58: the open fast-rejoin
+    # race (#2), reproducing identically from the 0.8.8 cut commit's own tree.
+    # RE-MEASURED 2026-08-11 on two idle boxes: 8 of 8 green, 8 assertions
+    # each, including both fragment checks and the final one-tree census. Under
+    # the old rate eight straight greens land about 4% of the time, so the race
+    # is very likely dead — killed somewhere in the container-identity campaign
+    # and the claimRedun first-claim fix, both of which landed after the old
+    # measurement. Not declared fixed on 8 runs alone; if it reds again, it is
+    # that race and the number to beat is 8/8.
     behretry=0
     if [ $rc -ne 0 ]; then
       failed_scen=$(grep -m1 '^failed:' "$LOGDIR/behavior.log" | cut -d: -f2-)
