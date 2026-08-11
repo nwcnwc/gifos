@@ -391,9 +391,19 @@ onrtctransform = (e) => {
   function makeCarrier() {
     if (typeof document === 'undefined') return null;
     const c = document.createElement('canvas');
-    c.width = 48; c.height = 48;
+    // CARRIER SIZE IS A BISECT LEVER (gifos_pipe_carrier=big). The carrier's
+    // pixels are never seen, so 48px is the cheapest possible encode — but a
+    // 48x48 nearly-static source is also what Chrome sizes the encoder from,
+    // and it was measured landing on the 30 kbps allocator floor with half a
+    // megabit free. The whole lane is isolated as the freeze's owner
+    // (docs/bug-pipe-stg-freeze-2026-08-05.md, 4-0 vs 0-4 coverage-gated), so
+    // its internals are what is left to bisect, and size is the one that
+    // changes the encoder's whole regime. Default unchanged.
+    const BIG = (() => { try { return localStorage.getItem('gifos_pipe_carrier') === 'big'; } catch (e) { return false; } })();
+    const SIDE = BIG ? 320 : 48;
+    c.width = SIDE; c.height = SIDE;
     const ctx = c.getContext('2d');
-    let n = 0, kside = 48;
+    let n = 0, kside = SIDE;
     const paint = () => { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, c.width, c.height); ctx.fillStyle = '#111'; ctx.fillRect(++n % 40, (n >> 3) % 40, 2, 2); };
     paint();
     const stream = c.captureStream(0);
@@ -402,7 +412,7 @@ onrtctransform = (e) => {
       track,
       mint(key) {
         this.mints = (this.mints || 0) + 1;
-        if (key) { kside = kside === 48 ? 47 : 48; c.width = kside; c.height = kside; }
+        if (key) { kside = kside === SIDE ? SIDE - 1 : SIDE; c.width = kside; c.height = kside; }
         paint();
         try { track.requestFrame ? track.requestFrame() : stream.requestFrame(); } catch (e) {}
       },
