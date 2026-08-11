@@ -48,7 +48,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(2000); // device tags gossip on the pulse
 
   const arm = async (pg, mode) => { await pg.locator('#votebtn').click(); await pg.locator('#vote-modal [data-vm="' + mode + '"]').click(); };
-  const benOn = (pg) => pg.locator('.tile:not(.me)', { hasText: 'Ben' });
+  const benOn = (pg) => pg.locator('.tile:not(.me)').filter({ has: pg.locator('.name', { hasText: /^Ben$/ }) });
 
   // ---- 1: one vote → chip, no action ---------------------------------------
   await arm(A, 'up');

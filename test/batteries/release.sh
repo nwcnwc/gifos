@@ -270,14 +270,16 @@ run_one() {
   reap_browsers
   local pass fail verdict reason flaked=0
   pass=$(grep -cE '^ *PASS' "$log"); fail=$(grep -cE '^ *FAIL' "$log")
-  # ONE retry for a red/dead browser-class suite (Nathan, 2026-07-28): five
-  # full gates never went green while every red re-validated green standalone
-  # — ~110 suites of timing-sensitive waits on one box make single-shot
-  # all-green a coin-flip stack, which was gating the RELEASE on the weakest
-  # wait in the flakiest suite. A red that goes green on its second run is
-  # recorded loudly as FLAKY — a distinct verdict, listed in the summary —
-  # so a deterministic red still blocks absolutely (it fails twice) and the
-  # flake list is a standing work queue instead of invisible noise.
+  # ONE retry for a red/dead browser-class suite. This is a DIAGNOSTIC, not a
+  # licence: it separates "deterministically broken" (fails twice, blocks the
+  # gate absolutely) from "lost a timing lottery" (FLAKY, named in the summary).
+  #
+  # It is NOT a reason to leave a flake alone. Every FLAKY line is a BUG with a
+  # known address, and the fix is nearly always one of two things: a wall-clock
+  # deadline standing in for a correctness claim (assert the state change, not
+  # the stopwatch), or a locator/sample taken at one instant of a process that
+  # is only eventually consistent. Both are fixable in the suite, and fixing
+  # them is the work — not tuning this retry.
   if [ "$rc" -ne 0 ] && ! is_quarantined "$name"; then
     reap_browsers; sleep 1
     timeout -k 45 "$to" node "$f" > "$log.retry" 2>&1
@@ -494,9 +496,9 @@ if want behavior; then
     if [ "$BEHAVIOR" = full ]; then bash test/batteries/behavior.sh > "$LOGDIR/behavior.log" 2>&1
     else bash test/batteries/behavior.sh --core > "$LOGDIR/behavior.log" 2>&1; fi
     rc=$?; secs=$(( $(date +%s) - start ))
-    # ONE RETRY, of the FAILED SCENARIOS ONLY — the same policy every other tier
-    # has had since 2026-07-28, and behavior was the only tier without it despite
-    # being the most timing-sensitive thing in the gate. Retrying the whole
+    # ONE RETRY, of the FAILED SCENARIOS ONLY — the same diagnostic every other
+    # tier gets, and behavior needs it most, being the most timing-sensitive
+    # thing in the gate. It does not excuse a flake. Retrying the whole
     # battery would cost another ~50 minutes, and behavior.sh already takes
     # scenario prefixes, so re-run just the names it reported.
     #

@@ -119,7 +119,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const needNow = await A.evaluate(() => window.__gifosVideo.stageVoteNeed());
   check('need dropped to the engaged majority (2, not 3)', needNow === 2, needNow);
   const arm = async (pg, mode) => { await pg.locator('#votebtn').click(); await pg.locator('#vote-modal [data-vm="' + mode + '"]').click(); };
-  const benOn = (pg) => pg.locator('.tile:not(.me)', { hasText: 'Ben' });
+  const benOn = (pg) => pg.locator('.tile:not(.me)').filter({ has: pg.locator('.name', { hasText: /^Ben$/ }) });
   await arm(A, 'up'); await benOn(A).locator('.votedot').click();
   await arm(C, 'up'); await benOn(C).locator('.votedot').click();
   await B.waitForFunction(() => window.__gifosVideo.stageIds().length === 1, null, { timeout: 20000 });
