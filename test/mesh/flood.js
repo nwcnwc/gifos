@@ -50,15 +50,34 @@ function census(nodes) {
   // flood is REAL" and still scored GREEN, so the burst-join guard could never
   // fail the release gate and reported 0 assertions while doing it. Record the
   // verdict and exit on it.
-  let converged = false, last = null;
-  for (let t = 0; t < 40; t++) {
+  // WAIT FOR PROGRESS TO STOP, NOT FOR A CLOCK TO RUN OUT.
+  //
+  // This used to be a flat 40s ceiling, and it flaked the 0.9.7 gate at
+  // seated=19/20 — one node short, on a box that was running ~160 other suites.
+  // 40 seconds is not a product promise; nobody ships "a burst join converges
+  // inside 40s". The claim is that it converges AT ALL, and the failure this
+  // suite is named for is a DEADLOCK — a flood that has stopped making
+  // progress. So measure that directly: keep waiting while the census is still
+  // improving, and declare deadlock only once it has been STILL for STALL_S.
+  //
+  // Strictly sharper in both directions. A real deadlock now fails in ~15s
+  // instead of 40, and a slow box converges instead of reporting a deadlock
+  // that is not there. CEILING_S is only a forward-progress backstop.
+  const STALL_S = 15, CEILING_S = 180;
+  let converged = false, last = null, best = -1, stillFor = 0;
+  for (let t = 0; t < CEILING_S; t++) {
     await sleep(1000);
     const c = census(nodes); last = c;
     const gks = new Set(nodes.map((n) => n.seat.genKey)); gks.delete(null);
-    console.log('t+' + (t + 1) + 's  seated=' + c.seated + '/' + N + ' unseated=' + c.unseated + ' dups=' + c.dups + ' genKeys=' + gks.size);
+    // "Progress" is the whole census getting closer to converged, not just the
+    // seat count: collapsing rival genesis keys and shedding dups both count.
+    const score = c.seated - c.dups - (gks.size > 1 ? gks.size : 0);
+    if (score > best) { best = score; stillFor = 0; } else { stillFor++; }
+    console.log('t+' + (t + 1) + 's  seated=' + c.seated + '/' + N + ' unseated=' + c.unseated + ' dups=' + c.dups + ' genKeys=' + gks.size + (stillFor ? '  (still for ' + stillFor + 's)' : ''));
     // One genesis key, or the burst founded rival rooms — a split-brain the old
     // seated/dups check alone would have called convergence.
     if (c.seated === N && c.dups === 0 && gks.size === 1) { converged = true; console.log('\nCONVERGED — the flood is survivable, no stagger needed.'); break; }
+    if (stillFor >= STALL_S) { console.log('\nSTALLED — no progress for ' + STALL_S + 's; this is the deadlock, not a slow box.'); break; }
   }
   for (const n of nodes) n.stop();
   relay.kill();
@@ -66,6 +85,7 @@ function census(nodes) {
     console.log('PASS — all ' + N + ' burst-joined seats took, no duplicates, one genesis key');
     process.exit(0);
   }
-  console.log('FAIL — DEADLOCK: seated=' + last.seated + '/' + N + ' unseated=' + last.unseated + ' dups=' + last.dups + ' after 40s. The flood is REAL.');
+  console.log('FAIL — DEADLOCK: seated=' + last.seated + '/' + N + ' unseated=' + last.unseated + ' dups=' + last.dups
+    + ' — and STILL for ' + STALL_S + 's, so it is not a slow box. The flood is REAL.');
   process.exit(1);
 })();
