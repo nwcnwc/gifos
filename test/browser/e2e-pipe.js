@@ -114,7 +114,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       // the stg freeze (docs/bug-pipe-stg-freeze-2026-08-05.md). Default unset
       // = the shipped behaviour, so an ordinary gate run is untouched.
       const drain = process.env.PIPE_DRAIN === 'off' ? `try{localStorage.setItem('gifos_pipe_drain','off')}catch(e){};` : '';
-      await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; ${drain} window.GIFOS_SCALE={C:2};` });
+      // PIPE_OFF=1 disables the encoded-passthrough lane entirely, so every
+      // forward falls back to transcode. This file's FOUNDING claim is that the
+      // lane owns the freeze (0/3 lane-off against 3/3 lane-on, 2026-08-05) —
+      // but that A/B predates the discovery that leg 3 only fires on a BRIGHT
+      // feed and that coverage swings run to run, which is exactly the confound
+      // that killed the blur hypothesis. Re-run it COVERAGE-GATED: if lane-off
+      // also freezes at 7/7, the lane never owned this bug.
+      const lane = process.env.PIPE_OFF === '1' ? `try{localStorage.setItem('gifos_pipe','off')}catch(e){};` : '';
+      await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; ${drain} ${lane} window.GIFOS_SCALE={C:2};` });
       const page = await ctx.newPage();
       page.on('pageerror', (e) => console.log(`  [P${i}] PAGEERROR`, String(e).slice(0, 200)));
       await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on');
