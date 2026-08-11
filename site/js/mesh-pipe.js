@@ -322,13 +322,13 @@ onrtctransform = (e) => {
           continue;
         }
         p.q.shift(); p.kfAsk = 0; p.kdrop = 0;
-        // SIBLING-DETACHMENT PROBE (the stg freeze, 2026-08-10). The tap makes
-        // ONE copy of each content frame and pushes that SAME ArrayBuffer into
-        // every routed sibling's queue; writing a frame DETACHES its data (this
-        // file's own header records the measurement). So if Chromium detaches
-        // the buffer we ASSIGN, the first sibling to write a frame neuters it
-        // for all the others, which would ship empty payloads from a pipe whose
-        // every counter reads healthy. Count it before believing it.
+        // THE DETACHMENT COUNTER — the invariant that closed the stg freeze
+        // (2026-08-10), kept because it is the only place the failure was ever
+        // visible. Writing a frame DETACHES the buffer handed to the sink, so a
+        // buffer with two owners ships an empty payload from the second one:
+        // no drop, no error, no loss, `wrote` still climbing, and the receiver
+        // bright-frozen. Sharing is now prevented at the tap; this counts any
+        // recurrence, and e2e-pipe LEG 1B fails on the first one.
         if (head.bytes.byteLength === 0) p.detached = (p.detached || 0) + 1;
         else p.lastBytes = head.bytes.byteLength;
         try { frame.data = head.bytes; writer.write(frame).then(() => { p.wrote++; p.lastWriteAt = Date.now(); }, () => { p.swapErr++; }); }
