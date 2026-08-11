@@ -467,7 +467,15 @@ Roughly three families in one directory:
   `e2e-vis-park` (hidden-viewer dormancy: a hidden tab's mates park the main
   video they send it — PiP float source excepted, audio never parks, full
   restore on return; 13 checks).
-- **AI / network** — `e2e-caps`, `e2e-ai-types`, `e2e-agent`, `e2e-chess-hint`
+- **AI / network** — `e2e-caps`, `e2e-ai-types`, `e2e-agent`, `e2e-chess-hint`,
+  `e2e-askai` (the seeded Ask AI app + the streaming contract under it:
+  `gifos.ai.chat({onDelta})` delivers fragments spread over time that join to
+  exactly `r.text` while the same call without `onDelta` stays one shot; the
+  app is caught painting an answer HALF-DRAWN, stamps every message with a
+  wall-clock datetime, reports first-word and total time, keeps the
+  conversation across close-and-reopen and hands it back to the model as
+  context — proved by the fake endpoint reporting how many messages it was
+  actually given, not by reading the app's own screen)
   (all need fake-ai), `e2e-providers` (Provider apps + install-time assets,
   docs/providers.md: recognition-is-a-place with the red ✕, the network-less
   hard rule, ack sheet naming the provider, the real Offline Text to Speech provider speaking a
