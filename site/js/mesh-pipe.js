@@ -184,7 +184,7 @@ onmessage = (e) => {
   else if (m.op === 'unroute') { const s = taps.get(m.srcId); if (s) { s.delete(m.pipeId); if (!s.size) { taps.delete(m.srcId); tapTs.delete(m.srcId); } } pipes.delete(m.pipeId); }
   else if (m.op === 'stats') {
     const out = {};
-    for (const [id, p] of pipes) out[id] = { q: p.q.length, wrote: p.wrote, seen: p.seen || 0, tmpl: p.tmpl || 0, primed: p.primed || 0, dropped: p.dropped, swapErr: p.swapErr, kfAsk: p.kfAsk, kdrop: p.kdrop || 0, nkDrop: p.nkDrop || 0, skr: p.skr || 0, paused: !!p.paused, needKey: !!p.needKey, lastWriteAt: p.lastWriteAt, mime: p.mime, tmplMime: p.tmplMime };
+    for (const [id, p] of pipes) out[id] = { q: p.q.length, wrote: p.wrote, seen: p.seen || 0, tmpl: p.tmpl || 0, primed: p.primed || 0, dropped: p.dropped, swapErr: p.swapErr, kfAsk: p.kfAsk, kdrop: p.kdrop || 0, nkDrop: p.nkDrop || 0, skr: p.skr || 0, paused: !!p.paused, needKey: !!p.needKey, lastWriteAt: p.lastWriteAt, mime: p.mime, tmplMime: p.tmplMime, detached: p.detached || 0, lastBytes: p.lastBytes || 0 };
     postMessage({ op: 'stats', stats: out });
   }
 };
@@ -301,6 +301,15 @@ onrtctransform = (e) => {
           continue;
         }
         p.q.shift(); p.kfAsk = 0; p.kdrop = 0;
+        // SIBLING-DETACHMENT PROBE (the stg freeze, 2026-08-10). The tap makes
+        // ONE copy of each content frame and pushes that SAME ArrayBuffer into
+        // every routed sibling's queue; writing a frame DETACHES its data (this
+        // file's own header records the measurement). So if Chromium detaches
+        // the buffer we ASSIGN, the first sibling to write a frame neuters it
+        // for all the others, which would ship empty payloads from a pipe whose
+        // every counter reads healthy. Count it before believing it.
+        if (head.bytes.byteLength === 0) p.detached = (p.detached || 0) + 1;
+        else p.lastBytes = head.bytes.byteLength;
         try { frame.data = head.bytes; writer.write(frame).then(() => { p.wrote++; p.lastWriteAt = Date.now(); }, () => { p.swapErr++; }); }
         catch (err) { p.swapErr++; }
       } else writer.write(frame);
