@@ -40,6 +40,7 @@
     '.perm-row .cap-name{display:block;margin-top:.15rem;opacity:.85;font-size:.74rem}' +
     '.perm-row .cap-name b{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600}' +
     '.perm-row .cap-set b{font-weight:600}' +
+    '.perm-row .launch-val{color:var(--text,#e0e0f0);word-break:break-word}' +
     '.perm-box .foot{color:var(--muted,#6a6a86);font-size:.75rem;line-height:1.5;margin:1rem 0 1.1rem}' +
     '.perm-box .done{padding:.5rem 1.4rem;border-radius:.5rem;border:1px solid var(--accent,#7b5cff);background:var(--accent,#7b5cff);color:var(--onaccent,#fff);cursor:pointer;font:inherit}' +
     '.perm-btns{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.1rem}' +
@@ -118,15 +119,27 @@
   function attach(chipEl, opts) {
     opts = opts || {};
     injectCss();
-    root.__gifosPermissions = function (policy, manifest) {
-      if (!chipEl) return;
+    root.__gifosPermissions = function (policy, manifest, launchReq) {
+      // What the LINK asked the app to do (runtime.js declaredLaunch). This
+      // sheet is the ONLY thing that can release it, so every path out of here
+      // that does not reach the buttons must deny — including "there is no chip
+      // to hang the sheet on". Fail shut, always.
+      var asked = (launchReq && launchReq.asked) || [];
+      var launchDone = false;
+      function grantLaunch() { if (launchReq && !launchDone) { launchDone = true; launchReq.grant(); } }
+      function denyLaunch() { if (launchReq && !launchDone) { launchDone = true; launchReq.deny(); } }
+      if (!chipEl) { denyLaunch(); return; }
       var caps = Object.keys(CAP_LABELS).filter(function (k) {
         if (k === 'api') return apiNames(manifest).length;
         if (k === 'pool') return poolHosts(manifest).length;
         return manifest && manifest.capabilities && manifest.capabilities[k];
       });
       var hasNet = !!(policy && policy.hasNetwork());
-      if (!hasNet && !caps.length) { chipEl.style.display = 'none'; return; }
+      // An app with no abilities and no network still gets the sheet when a
+      // link is asking it to do something — that ask is the whole reason the
+      // sheet exists here, and it is never covered by a stored acknowledgement
+      // (the words are different every time, so consent has to be too).
+      if (!hasNet && !caps.length && !asked.length) { chipEl.style.display = 'none'; return; }
       var capSig = 'gifos_capack_' + ((manifest && manifest.appId) || 'app');
       var sig = caps.join(',') + '|' + apiNames(manifest).join(',') + '|' + aiRoles(manifest).join(',') + '|' + poolHosts(manifest).join(',');
       function capAcked() { try { return ls().getItem(capSig) === sig; } catch (e) { return false; } }
@@ -198,10 +211,31 @@
           ? '<div class="warn"><b>Careful.</b> This one wants to reach <b>any</b> website, so it could quietly send what it sees to a stranger. Only leave this on for something you really trust — otherwise uncheck it below.</div>'
           : '';
         var netBlock = hasNet ? unsafeNote + rows : '';
-        bg.innerHTML = '<div class="perm-box"><h3>' + escapeText(appName) + ' would like to…</h3>' +
-          capBlock() + netBlock +
+        // THE LINK'S ASK, FIRST AND IN ITS OWN WORDS. Whoever sent the link
+        // wrote these values, so they are shown as quoted DATA — the app's
+        // manifest supplies the sentence around them, the link only fills the
+        // blank. Nothing here is a checkbox: this is one yes-or-no, and the
+        // "no" still opens the app, which is why it is a button and not an X.
+        var launchBlock = asked.length
+          ? '<div class="warn" id="perm-launch"><b>The link you followed is asking for this.</b> ' +
+              'It comes from whoever sent you here, not from ' + escapeText(appName) + '.</div>' +
+            asked.map(function (a) {
+              return '<div class="perm-row"><span><span class="host">' + escapeText(a.label) + '</span>' +
+                '<br><span class="desc">' + (a.detail ? escapeText(a.detail) + ' ' : '') +
+                'The link says: <b class="launch-val">' + escapeText(a.value) + '</b></span></span></div>';
+            }).join('')
+          : '';
+        var buttons = asked.length
+          ? '<div class="perm-btns"><button class="ghost" id="perm-plain">Just open it</button>' +
+            '<button class="done" id="perm-go">Yes, do that</button></div>'
+          : '<button class="done">Confirm &amp; Save</button>';
+        var title = asked.length
+          ? escapeText(appName) + ' is about to open on something'
+          : escapeText(appName) + ' would like to…';
+        bg.innerHTML = '<div class="perm-box"><h3>' + title + '</h3>' +
+          launchBlock + capBlock() + netBlock +
           '<p class="foot">You’re in control. It only ever gets the <b>result</b> — a clip, a photo, an answer — never your live camera, microphone, or keys. You can change this later from the app’s Abilities chip.</p>' +
-          '<button class="done">Confirm &amp; Save</button></div>';
+          buttons + '</div>';
         doc.body.appendChild(bg);
         bg.addEventListener('change', function (ev) {
           var cb = ev.target; if (!cb || cb.type !== 'checkbox') return;
@@ -210,14 +244,25 @@
           Promise.resolve(policy.set(cb.getAttribute('data-host'), cb.checked)).then(paintChip);
           paintChip();
         });
-        function close() { if (hasNet) Promise.resolve(policy.acknowledge()).catch(function () {}); ackCaps(); bg.remove(); }
-        bg.querySelector('.done').onclick = close;
+        // close() settles the ABILITIES question (network + capabilities). The
+        // link's ask is settled separately by whichever button was pressed —
+        // and a dismissal (backdrop, or reopening the sheet later from the
+        // chip) is a NO, because "they tapped somewhere else" is not consent to
+        // act on a stranger's instruction.
+        function close() { if (hasNet) Promise.resolve(policy.acknowledge()).catch(function () {}); ackCaps(); denyLaunch(); bg.remove(); }
+        var go = bg.querySelector('#perm-go');
+        if (go) {
+          go.onclick = function () { grantLaunch(); close(); };
+          bg.querySelector('#perm-plain').onclick = close;
+        } else bg.querySelector('.done').onclick = close;
         bg.addEventListener('click', function (ev) { if (ev.target === bg) close(); });
       }
       function proceed() {
         paintChip();
         chipEl.onclick = openModal;
-        if ((hasNet && !policy.acknowledged()) || (caps.length && !capAcked())) openModal();
+        // A link's ask ALWAYS opens the sheet — an acknowledgement stored for
+        // this app's abilities says nothing about what today's link wants.
+        if (asked.length || (hasNet && !policy.acknowledged()) || (caps.length && !capAcked())) openModal();
       }
 
       // ---- REQUIRED capabilities gate (settings-backed only) ----
@@ -270,7 +315,7 @@
         }
         function onVis() { if (!doc.hidden) recheck(); }
         bg.querySelector('#req-recheck').onclick = recheck;
-        bg.querySelector('#req-leave').onclick = function () { doc.removeEventListener('visibilitychange', onVis); bg.remove(); (opts.onLeave || defaultLeave)(); };
+        bg.querySelector('#req-leave').onclick = function () { doc.removeEventListener('visibilitychange', onVis); bg.remove(); denyLaunch(); (opts.onLeave || defaultLeave)(); };
         doc.addEventListener('visibilitychange', onVis);
       }
 
