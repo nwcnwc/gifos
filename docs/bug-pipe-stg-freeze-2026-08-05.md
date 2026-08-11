@@ -461,7 +461,33 @@ clicked blur-none still reported blur: 1" — which was read then as a
 room/guest blur "outranking" the user and suspected of causing oscillation.
 It is not an override race. It is the password rule, working as designed.
 
-**THE EXPERIMENT THAT SPLITS IT, and it is cheap:** run the same six-seat
+**THE EXPERIMENT, RUN — the strongest lead in this file.**
+`PIPE_CLEAR=1` sets a room password and waits for every seat to go raw, so the
+same six-seat shape runs on the CAMERA instead of the blur canvas. Interleaved
+ABAB on a freshly rebooted clawbox, Chrome 149, every run's coverage verified:
+
+| arm | regime | control | result |
+|---|---|---|---|
+| A1 | blurred (as shipped) | — | **RED**, 7/7 covered |
+| B1 | RAW | password 6/6, raw 6/6 | **GREEN**, 7/7 covered |
+| A2 | blurred | — | GREEN, 7/7 covered |
+| B2 | RAW | password 6/6, raw 6/6 | **GREEN**, 7/7 covered |
+
+Blurred 1-of-2 green, raw 2-of-2 green, both fully covered. **Suggestive and
+NOT established**: 2/2 against 1/2 proves nothing alone, and a follow-up batch
+of four more pairs produced B arms at `0 of 0` coverage — vacuous, caught by
+the new coverage gate — on a box that had degraded again after six runs. The
+raw regime therefore sometimes brings the room up cleanly and sometimes yields
+no bright feed at all, and that instability must be sorted before the
+comparison can carry weight.
+
+**START HERE NEXT SESSION, on a rebooted box:** run the ABAB to 6+ COVERED
+pairs per arm. If raw stays clean while blurred keeps freezing, the bug lives
+in the BLUR-PIPE SOURCE PATH — a canvas repainted at the 12fps blur cap
+feeding a demand-minted carrier — and not in the pipe lane at all, which would
+explain why nine hypotheses aimed at the lane all came back negative.
+
+The original framing of this experiment: run the same six-seat
 shape with a room password set and every seat consenting, so `clear` is true
 and the stage feed is the RAW CAMERA at full rung. If the freeze vanishes, the
 bug lives in the blur-pipe source path (a canvas repainted at 12fps feeding a
