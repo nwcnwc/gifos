@@ -300,6 +300,45 @@
       "sha256": "aa19c32b839b4352c744758fa913e3ff0e8038406d73e271bfb88d6053d1d63f"
     },
     {
+      "slug": "offline-tts-neural",
+      "appId": "offline-tts-neural",
+      "name": "Offline Neural Text to Speech",
+      "shortName": "Neural TTS",
+      "version": "1.0",
+      "tagline": "A natural-sounding voice for every app on your computer — offline, no key, no cloud.",
+      "author": "GifOS",
+      "minBuild": 1205,
+      "releaseDate": "2026-08-11",
+      "updated": "2026-08-11",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "provider",
+        "tts",
+        "text-to-speech",
+        "neural",
+        "offline",
+        "accessibility",
+        "ai"
+      ],
+      "accent": [
+        255,
+        138,
+        76
+      ],
+      "cover": "/apps/offline-tts-neural/cover.jpg",
+      "bytes": 12419297,
+      "download": 24369971,
+      "provides": {
+        "ai": [
+          "tts"
+        ]
+      },
+      "signature": null,
+      "sha256": "cbc08b7ea761a55c57bd46faf299becf563c693303024de80593bee28b345f9a"
+    },
+    {
       "slug": "sound-it-out",
       "appId": "sound-it-out",
       "name": "Sound It Out",

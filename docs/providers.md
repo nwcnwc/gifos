@@ -239,6 +239,19 @@ bytes ever diverge from the catalog's.
   Stockfish), `provides: { ai: ["tts"] }`, no network. Engine + voice ride
   **inside the GIF** (~1.6 MB deflated) — at 5.6 MB raw it sits well under
   the assets floor, so download-then-seal would only add a failure mode.
+- **Offline Neural Text to Speech** (`apps/offline-tts-neural/`, App Store) —
+  the SECOND tts provider, proving a role can have more than one and that the
+  user chooses: eSpeak stays the 1.6 MB instant robot, this is a 15M-parameter
+  neural voice (KittenTTS Nano, Apache-2.0). The split is the same as the LLMs
+  — engine in-GIF (ONNX Runtime Web + the espeak-ng phonemizer + 8 style
+  tables, 12.4 MB), 24 MB of weights by manifest pin. Design and the four
+  measured surprises: docs/tts-neural.md and the app's README.
+  Note what it does NOT do when its weights are missing: it fails with a
+  fixable message instead of falling back to its in-GIF self-test tone. The
+  LLM providers can honestly label token soup as a self-test in the text they
+  return; audio has no such channel, and a consumer handed a beep cannot tell
+  it from speech. The self-test runs only when asked for by name (the reserved
+  voice `self-test`).
 - **Offline Cheap Text LLM BitNet** (`apps/offline-llm-bitnet/`, UNPUBLISHED
   until its weights pin is finalized — see its README) — the gigabyte-tier
   proof: llama.cpp compiled to wasm (wllama, MIT; ternary TQ quants compiled

@@ -21,7 +21,15 @@
 //     provider mount backfills it (hash-verified) into the computer's ASSET
 //     STORE (Blob-backed appassets — the gigabyte tier; never sealed into
 //     the GIF, which stays byte-identical), and serves its bytes back.
-//  9. The REAL Offline Cheap Text LLM BitNet provider: llama.cpp (wllama)
+//  9. The SECOND tts provider, Offline Neural Text to Speech: the engine rides
+//     in-GIF but its 24 MB KittenTTS weights are a manifest pin, so in this
+//     hermetic suite they can never arrive — which pins both halves of that
+//     case. A plain tts call must FAIL with a fixable message rather than
+//     quietly substituting the built-in tone (a consumer handed a beep cannot
+//     tell it from speech), while the reserved voice "self-test" still returns
+//     a real RIFF WAV, proving phonemizer + tokenizer + style table + ORT/WASM
+//     + WAV encoder + the provider bridge entirely offline.
+// 10. The REAL Offline Cheap Text LLM BitNet provider: llama.cpp (wllama)
 //     boots inside the hidden provider mount — classic worker from blob,
 //     wasm from a self-minted blob: URL, in-GIF self-test model — and
 //     answers a 'cheapest' chat from the SEEDED Ask AI app, honestly
@@ -53,33 +61,45 @@ async function newChat(fr) {
 }
 
 // A consumer app that declares ai:['tts'] and reports what one tts call did.
-const CONSUMER_HTML = '<!doctype html><meta charset="utf-8"><div id="out">…</div>' +
+// `extra` merges into the request — gifos.ai.tts passes arbitrary fields
+// through to the provider, which is how the neural case below asks for the
+// self-test model by name instead of the weights it cannot download here.
+const consumerHtml = (extra) => '<!doctype html><meta charset="utf-8"><div id="out">…</div>' +
   '<script>(async function(){' +
   '  var el=document.getElementById("out");' +
-  '  try { var r=await gifos.ai.tts({ text:"hello there" });' +
+  '  try { var r=await gifos.ai.tts(Object.assign({ text:"hello there" }, ' + JSON.stringify(extra || {}) + '));' +
   '    var u=new Uint8Array(r.bytes||new ArrayBuffer(0));' +
   '    var head=String.fromCharCode(u[0]||0,u[1]||0,u[2]||0,u[3]||0);' +
   '    el.textContent="ok:"+head+":"+u.length+":"+(r.mime||"");' +
   '  } catch(e){ el.textContent="err:"+e.message; }' +
   '})();<\/script>';
+const CONSUMER_HTML = consumerHtml();
 
-async function seedConsumer(page, appId, name) {
-  await page.evaluate(async ({ appId, name, html }) => {
+// `at` matters: putItem writes the cell VERBATIM (it is not saveItem, which
+// would place around an occupant), so two consumers seeded at one spot sit on
+// top of each other and the upper one silently swallows the lower one's
+// dblclick — "…NeuralUser.gif… intercepts pointer events", 180s of nothing.
+async function seedConsumer(page, appId, name, extra, at) {
+  await page.evaluate(async ({ appId, name, html, at }) => {
     const bytes = await GifOS.gif.encode({
       'manifest.json': JSON.stringify({ gifos: '1.0', appId, name, entry: 'index.html', capabilities: { db: true, ai: ['tts'] } }),
       'index.html': html,
     });
     const fid = GifOS.store.uid('file');
     await GifOS.store.putFile({ id: fid, name: name + '.gif', bytes, kind: 'gif', isApp: true, appId, mime: 'image/gif' });
-    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: name + '.gif', parent: null, x: 620, y: 460, iconSize: 64 });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: name + '.gif', parent: null, x: (at && at.x) || 620, y: (at && at.y) || 460, iconSize: 64 });
     await GifOS.desktop.load(); await GifOS.desktop.render();
-  }, { appId, name, html: CONSUMER_HTML });
+  }, { appId, name, html: consumerHtml(extra), at });
+  // render() REPLACES every icon element. A dblclick that lands while they are
+  // being swapped hits a detached node and opens nothing — the tab never
+  // appears and the wait burns its whole timeout looking like a broken app.
+  await sleep(600);
 }
 
 // Open a desktop icon in its app tab and return the result line from the
 // consumer's #out div (dismissing the abilities acknowledgement on the way).
-async function runConsumer(page, context, label, outTimeout) {
-  const [app] = await Promise.all([context.waitForEvent('page'), page.locator('.icon', { hasText: label }).dblclick()]);
+async function runConsumer(page, context, label, outTimeout, openTimeout) {
+  const [app] = await Promise.all([context.waitForEvent('page', { timeout: openTimeout || 30000 }), page.locator('.icon', { hasText: label }).dblclick()]);
   app.on('pageerror', (e) => console.log('  [app pageerror]', e.message));
   await app.waitForSelector('iframe', { timeout: 10000 });
   const ackBox = app.locator('.perm-box', { hasText: 'would like to' });
@@ -225,6 +245,67 @@ async function runConsumer(page, context, label, outTimeout) {
   // path fired for an app that doesn't declare any).
   const pvStored = await page.evaluate(async (fid) => { const f = await GifOS.store.getFile(fid); return f.bytes.byteLength || f.bytes.length; }, pvFid);
   check('an assets-free app is never repacked (stored bytes = committed bytes)', pvStored === pvBytes.length, pvStored + ' vs ' + pvBytes.length);
+
+  // ---- 5b. the SECOND tts provider: Offline Neural Text to Speech -----------
+  // Same brokered loop, different trade: the engine (ORT + espeak-ng + the
+  // style tables) rides in-GIF, and the 24 MB KittenTTS weights arrive by
+  // manifest pin. This suite is hermetic, so those weights are exactly what
+  // CANNOT arrive — which makes it the right place to pin both halves of the
+  // behaviour that matters when a download hasn't happened:
+  //
+  //   * a plain tts call FAILS, with a message that tells the user what to do.
+  //     It must never quietly fall back to the self-test tone: a consumer app
+  //     handed a beep cannot tell it from speech, and the user would hear a
+  //     defect instead of an instruction.
+  //   * the RESERVED voice "self-test" still returns a real RIFF WAV, so the
+  //     whole pipeline — phonemizer, tokenizer, style table, ORT/WASM session,
+  //     WAV encoder, provider bridge — is proven offline and in the gate
+  //     rather than only on a machine with huggingface.co reachable.
+  const nnBytes = fs.readFileSync(appGif('offline-tts-neural'));
+  check('the committed Neural TTS GIF carries its engine in-GIF', nnBytes.length > 8e6 && nnBytes.length < 20e6, nnBytes.length + ' bytes');
+  {
+    const mf = JSON.parse(fs.readFileSync(require('path').join(__dirname, '../../apps/offline-tts-neural/manifest.json'), 'utf8'));
+    check('…and pins its weights by url + sha256 + bytes',
+      !!(mf.assets && mf.assets[0] && /^https:\/\/huggingface\.co\//.test(mf.assets[0].url)
+         && /^[a-f0-9]{64}$/.test(mf.assets[0].sha256) && mf.assets[0].bytes > 8 * 1024 * 1024),
+      JSON.stringify(mf.assets && mf.assets[0]));
+    check('…declares tts and NO network capability (the provider hard rule)',
+      mf.provides && mf.provides.ai.indexOf('tts') === 0 && !mf.capabilities.network && !mf.capabilities.api,
+      JSON.stringify(mf.capabilities));
+  }
+  await page.evaluate(async (b64) => {
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const fid = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fid, name: 'Offline Neural Text to Speech.gif', bytes, kind: 'gif', isApp: true, appId: 'offline-tts-neural', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Offline Neural Text to Speech.gif', parent: 'sys_providers', x: 90, y: 200, iconSize: 64 });
+    localStorage.setItem('gifos_ai_config', JSON.stringify({ tts: { app: fid, appId: 'offline-tts-neural', appName: 'Offline Neural Text to Speech' } }));
+    localStorage.removeItem('gifos_capack_ttsneural');
+    localStorage.removeItem('gifos_capack_ttsneuralst');
+  }, nnBytes.toString('base64'));
+
+  await seedConsumer(page, 'ttsneural', 'NeuralUser', null, { x: 470, y: 460 });
+  {
+    // Booting an 11 MB wasm runtime out of a 12 MB GIF is slower than eSpeak's
+    // 5.6 MB, hence the longer budget — this is a real engine start, not a stub.
+    const { app, ack, out } = await runConsumer(page, context, 'NeuralUser.gif', 180000);
+    check('the consumer ack NAMES the neural provider', /Offline Neural Text to Speech/.test(ack) && /on this device/.test(ack), ack.slice(0, 160));
+    check('with its weights undownloadable, the neural provider FAILS rather than beeping',
+      /^err:/.test(out) && /voice weights are not on this device/i.test(out), out.slice(0, 200));
+    await app.close();
+  }
+  // A voice name, not a flag: providerReq forwards a fixed whitelist (text,
+  // voice, format, speed, pitch) and drops anything else, so a bespoke field
+  // would never reach the provider at all.
+  await seedConsumer(page, 'ttsneuralst', 'NeuralSelfTest', { voice: 'self-test' }, { x: 320, y: 460 });
+  {
+    const { app, out } = await runConsumer(page, context, 'NeuralSelfTest.gif', 180000, 180000);
+    const m = /^ok:(....):(\d+):(.*)$/.exec(out) || [];
+    check('the neural provider answers gifos.ai.tts with a real WAV (self-test model, fully offline)',
+      m[1] === 'RIFF' && Number(m[2]) > 20000 && m[3] === 'audio/wav', out.slice(0, 120));
+    check('…which means ORT, espeak-ng, the style table and the WAV encoder all ran in the sandbox', m[1] === 'RIFF');
+    await app.close();
+  }
 
   // ---- 8. download-then-seal, guarded via a synthetic asset provider --------
   // Pins a file the 8099 static server actually serves; hash computed here
