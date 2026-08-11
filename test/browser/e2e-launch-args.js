@@ -220,7 +220,44 @@ async function launchResult(page) {
 
     // The link is spent: a refresh must not re-install and re-fly.
     check('run= is stripped from the address bar', !/[?&]run=/.test(page.url()), page.url());
+
+    // ---- and the app can MINT one: "Copy a link to here" -------------------
+    // The round trip is the point. A share button whose output the app itself
+    // will not accept is the most plausible way this rots, and it would rot
+    // silently — the button would keep saying "Copied."
+    await fr.locator('#btn-menu').click();
+    await fr.locator('#share-field').waitFor({ state: 'visible', timeout: 10000 });
+    const minted = await fr.locator('#share-url').inputValue();
+    check('the button mints a link to where you actually are',
+      minted.indexOf('?run=anyroad') > 0 && minted.indexOf('go.at=' + HOP.lat.toFixed(5) + ',' + HOP.lon.toFixed(5)) > 0,
+      minted);
+    check('…and carries the flying, because that is part of "here"', /go\.fly=1/.test(minted), minted);
     await context.close();
+
+    // Follow what it minted — against this server, since the app always mints
+    // the public gifos.app address (a sandbox has an opaque origin and cannot
+    // know where it is running).
+    const ctx2 = await browser.newContext();
+    await routeWorld(ctx2);
+    const p2 = await ctx2.newPage();
+    await p2.goto(minted.replace('https://gifos.app/', BASE + '/'));
+    await p2.waitForURL(/run\.html#id=/, { timeout: 60000 });
+    await p2.waitForSelector('.perm-modal', { timeout: 30000 });
+    await p2.locator('#perm-go').click();
+    const fr2 = p2.frameLocator('iframe');
+    await fr2.locator('#hud').waitFor({ state: 'visible', timeout: 60000 });
+    let same = '';
+    for (let i = 0; i < 60; i++) {
+      await sleep(500);
+      same = await fr2.locator('body').evaluate(() => {
+        const f = window.App && window.App.world && window.App.world.frame;
+        return window.App && window.App.hasHopped() && f ? f.lat0.toFixed(3) + ',' + f.lon0.toFixed(3) : '';
+      });
+      if (same) break;
+    }
+    check('a second person following that link arrives in the same place',
+      same === HOP.lat.toFixed(3) + ',' + HOP.lon.toFixed(3), same);
+    await ctx2.close();
   }
 
   // ---- the other half of the ask: a link that makes the computer TALK -------
