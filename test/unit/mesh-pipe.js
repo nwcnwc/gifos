@@ -57,8 +57,15 @@ check('TYPE-MATCH: key content never rides a delta template (and vice versa)',
 // the demand KEY MINT makes the original cold-start deadlock unreachable).
 check('NO PRIMER: an idle-queue template never passes through; the first write is a paired real content key',
   /NO PRIMER, EVER/.test(SRC) && !/p\.primed = \(p\.primed \|\| 0\) \+ 1; writer\.write/.test(SRC));
+// The 48/47/48 literals became a SIDE constant when the carrier grew a size
+// switch (gifos_pipe_carrier=big, 20e6dec). The rule is unchanged — a key is
+// minted by toggling the carrier one pixel — so the scan follows the constant
+// rather than the literal. It went stale unnoticed because this suite could
+// not LAUNCH: a stray backtick inside WORKER_SRC's template literal made
+// mesh-pipe.js unparseable, so `require` threw before assertion one.
 check('DEMAND MINT: carrier is captureStream(0) + requestFrame, keyed by a 1px resize',
-  /captureStream\(0\)/.test(SRC) && /requestFrame/.test(SRC) && /kside === 48 \? 47 : 48/.test(SRC));
+  /captureStream\(0\)/.test(SRC) && /requestFrame/.test(SRC)
+  && /kside = kside === SIDE \? SIDE - 1 : SIDE/.test(SRC) && /const SIDE = BIG \? \d+ : \d+/.test(SRC));
 check('CODEC GUARD: per-pipe mimeType comparison reports mismatch to the page',
   /p\.mime !== p\.tmplMime/.test(SRC) && /codec-mismatch/.test(SRC));
 check('FIFO, never skip: reference chains survive (queue shifts from the head only)',
