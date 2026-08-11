@@ -1,5 +1,66 @@
 # BUG: the staged feed bright-freezes at every receiver when the pipe lane is ON
 
+> # SOLVED 2026-08-10 — SIBLING PIPES SHARED ONE BUFFER, AND A WRITE DETACHES IT
+>
+> **Root cause.** The tap copies each content frame **once** and pushes that
+> same `ArrayBuffer` into **every** routed sibling's queue; the swap assigns it
+> to a template frame and writes it, and Chromium **detaches the buffer it is
+> handed**. So the first pipe on a tap to write a given frame neuters it for
+> every sibling: they swap in a zero-length payload, the packetizer emits
+> nothing, and their receivers bright-freeze.
+>
+> It hid behind every instrument this file used. `wrote` climbs, `dropped 0`,
+> `swapErr 0`, `needKey false`, `paused false`, mimes match, `qlim none`, zero
+> packet loss and `frecv == fdec` at the receiver — nothing is ever rejected
+> anywhere, because the frames never leave the box. And it needs a **sibling**,
+> which is why LEG 1 (one pipe per tap) passed 100% while LEG 3 (many) failed.
+>
+> **The one number that was always visible and always explained away** is the
+> packet deficit: "49 frames cannot travel in 13 packets". That reading was
+> right, and its retraction ("expected — only swapped frames are written") was
+> wrong. `wrote 42` against `packetsSent 13` was never reconcilable with the
+> design; it was 29 empty payloads.
+>
+> **Measured, isolated** — two pipes on one tap, no mesh, no relay, 16s
+> (`e2e-pipe` LEG 1B, which now guards it):
+>
+> | pipe | wrote | detached | packetsSent | receiver frecv/fdec |
+> |---|---|---|---|---|
+> | job1 | 247 | **224** | **42** | 23 / 23 |
+> | job2 | 225 | 0 | 237 | 225 / 225 |
+>
+> After the fix, both legs: `detached 0`, ~1 packet per frame, 244/244 and
+> 240/240.
+>
+> **Fix** (`a65a278`): a queued frame is never shared — the first pipe to queue
+> it takes the original, every sibling gets its own slice. A single-pipe tap
+> copies nothing extra.
+>
+> **Verified against the repro**, interleaved ABAB on a settled clawbox,
+> Chrome 151, arm B = the fix reverted, coverage counted every run:
+>
+> | round | arm | coverage | leg 3 | LEG 1B fan-out |
+> |---|---|---|---|---|
+> | 1 | fix | **7 of 7** | GREEN | pass |
+> | 1 | reverted | 6 of 6 | **RED** | FAIL — `fan2 detached 230, frecv 0, pkt 13` |
+> | 2 | fix | **7 of 7** | GREEN | pass |
+> | 2 | reverted | 5 of 5 | green (low coverage) | FAIL — `fan1 detached 234, ratio 0.04` |
+> | 3 | fix | **7 of 7** | GREEN | pass |
+> | 3 | reverted | 6 of 6 | **RED** | FAIL |
+>
+> Against this file's own history — the lane-on arm froze 4 of 4 at 6-7
+> coverage, and one session measured 8 of 8 at 7/7 — three full-coverage greens
+> in a row is the first time that has happened. The fan-out leg is the harder
+> evidence: it is deterministic, 3/3 red reverted and 3/3 green fixed, and it
+> asserts the mechanism itself.
+>
+> Everything below is the hunt, kept for the record. Twelve hypotheses were
+> buried on the way, each by measurement, and the two lessons worth carrying
+> are: **the numbers were right and one inference from them was retracted too
+> eagerly**, and **the fan had no isolated guard at all** — the lane's whole
+> purpose is N forwards off one tap, and the only test of that shape was a
+> six-browser mesh where every number is contestable.
+
 
 > **STILL ALIVE as of 2026-08-06 (ce294be).** Re-verified against the tree: `e2e-pipe`
 > remains in `test/batteries/quarantine.txt` with the entry naming THIS
