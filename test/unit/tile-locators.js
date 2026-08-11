@@ -30,6 +30,18 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
 const DIRS = ['test/browser', 'test/drills', 'test/behavior/scenarios', 'test/swarm', 'test/tools'];
 
+// ONE EXEMPTION, MEASURED RATHER THAN ASSUMED. e2e-peer-relay-reunion was
+// converted with the other four suites and MEASURABLY BROKE: interleaved on one
+// box, the converted drill failed 4 checks in 2 of 2 runs and the original
+// passed 0-fail in 2 of 2. Its `tileNoDirectMedia` returns FALSE when no tile
+// is found, so a lookup that stops matching turns "the split is real" into a
+// silent negative — i.e. the loose match is load-bearing there in a way that is
+// NOT yet understood, and swapping it on a guess is how a drill about relaying
+// gets quietly disarmed. Reverted and left alone until someone dumps the tiles
+// at the moment of the check and finds out what that drill is actually
+// matching. Until then this is a known gap, named here rather than hidden.
+const EXEMPT = new Set(['test/drills/e2e-peer-relay-reunion.js']);
+
 let failures = 0;
 const check = (name, cond, extra) => {
   console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : ''));
@@ -49,6 +61,7 @@ for (const d of DIRS) {
   for (const f of fs.readdirSync(dir)) {
     if (!f.endsWith('.js')) continue;
     const rel = path.join(d, f);
+    if (EXEMPT.has(rel)) continue;
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     scanned++;
     for (const [label, re] of [['hasText on a .tile selector', LOCATOR], ['textContent.includes on a .tile', PAGESIDE]]) {

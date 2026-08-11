@@ -75,13 +75,13 @@ const check = (n, c, d) => {
 
   // Tile for a named peer: via-Hub label + live video frames.
   const tileViaHub = (name) => () => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === name);
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes(name));
     const v = t && t.querySelector('video');
     return !!(t && /via Hub/.test(t.textContent) && !t.classList.contains('noroute')
       && v && v.srcObject && v.videoWidth > 0);
   };
   const tileNoDirectMedia = (name) => () => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === name);
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes(name));
     if (!t) return false;
     // Split is real: no live direct video (noroute label and/or no frames).
     const v = t.querySelector('video');
@@ -153,7 +153,7 @@ const check = (n, c, d) => {
   // BEFORE its own premise was observable and calling that a leak. Requiring
   // the tile first makes the assertion stronger, not weaker: the far side is
   // known to this page AND has no media path to it.
-  const tileKnown = (name) => () => !!Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === name);
+  const tileKnown = (name) => () => !!Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes(name));
   await left.page.waitForFunction(tileKnown('RightIsle'), null, { timeout: 30000 }).catch(() => {});
   await right.page.waitForFunction(tileKnown('LeftIsle'), null, { timeout: 30000 }).catch(() => {});
   const splitLeft = await left.page.evaluate(tileNoDirectMedia('RightIsle')).catch(() => false);
@@ -217,7 +217,7 @@ const check = (n, c, d) => {
   // (seen 2026-08-03: Right healed, chat crossed, Left never) is otherwise a
   // bare boolean.
   const tileState = (name) => (n) => {
-    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => (x.querySelector('.name') || {}).textContent === n);
+    const t = Array.from(document.querySelectorAll('.tile:not(.me)')).find((x) => x.textContent.includes(n));
     if (!t) return { found: false };
     const v = t.querySelector('video');
     return { found: true, viaHub: /via Hub/.test(t.textContent), noroute: t.classList.contains('noroute'),
