@@ -123,6 +123,42 @@ they differ by orders of magnitude), so the second wait can say "usually about
 has actually been measured on that computer: a number invented on the first run
 is a guess, and a guess that turns out short is worse than silence.
 
+### Streaming the answer: `ctx.delta(text)`
+
+`ctx.progress` says *that* work is happening. `ctx.delta(fragment)` shows *the
+work itself* — the answer as it is written, one fragment at a time. Each
+fragment crosses to the OS as `provider-delta` and comes back out of the asking
+app's `gifos.ai.chat({ onDelta })`, the same channel a streaming HTTP endpoint's
+server-sent events use. A consumer cannot tell the two apart, and does not need
+to: it renders fragments and paints `r.text` at the end, and that is correct
+whether the answer came from a phone or a datacentre.
+
+It is OPTIONAL, and a provider that never calls it is exactly as correct as one
+that does — the promise still resolves once with the whole answer, and
+`r.streamed` is then `false`, which the consumer may show. What is NOT
+acceptable is a provider that generates incrementally and keeps it to itself.
+All three offline LLMs did precisely that: `wllama`'s `onData` fired per token,
+the tokens were accumulated in a private string, and the caller got one lump at
+the end. A six-minute answer on a phone showed nothing at all for six minutes,
+then everything at once — and from the user's chair that is indistinguishable
+from a computer that has hung. The tokens were always there. There was nowhere
+to put them.
+
+Two rules learned building it:
+
+- **Stream what you will return, not what you have.** The offline LLMs trim
+  the raw completion at its stop markers before returning it. Streaming the raw
+  accumulation instead would type template scaffolding onto the screen and then
+  silently delete it. One `cleanUp()` feeds both the fragments and the final
+  text, so the answer being watched IS the answer that lands.
+- **A disclaimer streams FIRST.** The self-test models emit token soup, and the
+  handler labels it as such. Prepending that label at the end means the user
+  reads soup as though it were an answer for the whole generation. The label
+  goes out as the first fragment, before a single token of it.
+
+`ctx.delta` also re-arms the idle clock, exactly as `ctx.progress` does: a
+provider writing tokens is self-evidently not wedged.
+
 ## Naming the provider to the consumer (gifos-perms.js)
 
 The consumer's "would like to…" ack sheet already prints, per AI role, what the
