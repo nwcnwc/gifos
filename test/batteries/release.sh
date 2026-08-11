@@ -409,7 +409,15 @@ if want browser; then
       # suites already have. If it outgrows 900s too, SPLIT THE CODA into its
       # own file rather than raising this again — the tier discovers files, so a
       # new suite is gated the day it lands.
-      e2e|e2e-anyroad|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip) run_one "$f" 900 browser ;;
+      # e2e-anyroad-mp joins the 900s list for the same reason its sibling did,
+      # and it earned it the same way: it TIMED OUT TWICE at 600s with 68
+      # passed and 0 failed — no assertion in trouble, just a suite doing TWO
+      # full doors (a meeting showing an app, then the app AS the room) with
+      # THREE browsers each over a software rasteriser, plus a steering block
+      # that must wait for real frames. Nothing here softens an assertion. The
+      # standing answer for both anyroad suites is the same: SPLIT THE DOORS
+      # rather than raise this again.
+      e2e|e2e-anyroad|e2e-anyroad-mp|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip) run_one "$f" 900 browser ;;
       *) run_one "$f" 600 browser ;;
     esac
   done
