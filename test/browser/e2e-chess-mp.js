@@ -40,12 +40,44 @@ async function matchState(frame) {
   });
 }
 function idx(orient, x, y) { return orient === 'w' ? y * 8 + x : (7 - y) * 8 + (7 - x); }
+// CLICK A SQUARE ON A BOARD THAT REBUILDS UNDER YOU.
+//
+// The app rebuilds #fBoard wholesale on its HB_MS=3000 presence beat — by
+// design, ~2 rebuilds per 3s per peer — so every .sq node is replaced on a
+// timer. Playwright's actionability gate requires an element to be STABLE (the
+// same bounding box across two consecutive animation frames) before it will
+// click, and on a busy box the rebuilds and the animation frames interleave
+// such that the gate never opens: `frame.click` spends its whole 30s budget
+// waiting and throws Timeout without ever dispatching a click.
+//
+// That is exactly how this suite red-ed the 0.9.7 gate (RED TWICE, both runs
+// "frame.click: Timeout 30000ms exceeded" on the FIRST move, churn 195 and 650
+// against a healthy ~130). It is NOT a regression: measured as an interleaved
+// A/B on one box, HEAD and the shipped 0.9.6 tree behave identically — 2/2
+// green each on an idle box, 3/3 red each under a synthetic full-core load.
+// The suite is simply unable to click a periodically-rebuilt board once the
+// box is busy.
+//
+// So the click tolerates the rebuild, and NOTHING about what is asserted
+// changes: the move must still land, still sync to the peer, still produce
+// checkmate and commentary. A forced click skips the stability wait only —
+// the element must still exist and resolve — and if the square genuinely
+// cannot be clicked, the move never registers and the assertions below fail
+// exactly as they did before.
+async function clickSq(frame, n) {
+  const sel = '#fBoard .sq >> nth=' + n;
+  try { await frame.click(sel, { timeout: 5000 }); return; }
+  catch (e) { if (!/Timeout|not stable|detached/i.test(String(e && e.message))) throw e; }
+  // Second attempt, no stability gate. Real mouse events at the square's
+  // centre, so a rebuild between resolve and dispatch lands on the new node
+  // occupying the same square.
+  await frame.click(sel, { timeout: 5000, force: true });
+}
 async function clickMove(frame, orient, uci) {
   const f = 'abcdefgh'; const fx = f.indexOf(uci[0]), fy = 8 - +uci[1], tx = f.indexOf(uci[2]), ty = 8 - +uci[3];
-  const F = frame.locator || null; // frame is a Frame; use frameLocator via page
-  await frame.click('#fBoard .sq >> nth=' + idx(orient, fx, fy));
+  await clickSq(frame, idx(orient, fx, fy));
   await sleep(120);
-  await frame.click('#fBoard .sq >> nth=' + idx(orient, tx, ty));
+  await clickSq(frame, idx(orient, tx, ty));
 }
 
 (async () => {
