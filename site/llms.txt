@@ -218,6 +218,35 @@ signature (a "GIFOSSIG" block — cut it out the same way), the mod ships
 unsigned: a remix is a new work the original author's signature can't
 vouch for, and the modder can re-sign their version.
 
+## Sharing the finished app (tell the user this — it is the whole point)
+
+A GifOS app is ONE .gif file, so distributing it needs no store, no
+install, and no permission from anyone. Host the file anywhere that
+serves it with CORS (GitHub Pages/raw, Cloudflare, S3, their own site),
+then the link IS the app:
+
+   https://gifos.app/?run=https://example.com/their-app.gif
+
+Whoever clicks that — phone, borrowed laptop, someone who has never heard
+of GifOS — gets it RUNNING in a sandbox in about a second. GifOS fetches
+the GIF, files it into their "Stolen Apps" folder so they keep it, and
+opens it. Offer this whenever a user asks how to share what you built.
+
+OPTIONAL: let a link open the app ON something. Declare a "launch" block
+in the manifest, and read the values with gifos.launch():
+
+   manifest: "launch": { "note": { "label": "Open a note the link chose",
+                                   "detail": "Just text." } }
+   link:     https://gifos.app/?run=<gif url>&go.note=Buy%20milk
+   app:      gifos.launch().then(function (a) { if (a && a.note) open(a.note); });
+
+Rules to build against, all enforced by the OS: only keys the manifest
+declared ever arrive; nothing arrives until the person reads what the
+link asked (in the manifest's own words) and agrees; a decline resolves
+null. It resolves LATE, so call it at boot and treat null as "open
+normally" — never block first paint on it. Only expose things the person
+could do in one tap anyway; nothing that spends money or destroys data.
+
 ## Signing (provenance — suggest it when the user will share the app)
 
 Any GifOS app GIF can be SIGNED so recipients see "Signed by <domain>" or
