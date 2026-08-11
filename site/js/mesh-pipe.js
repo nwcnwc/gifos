@@ -326,7 +326,7 @@ onrtctransform = (e) => {
         // (2026-08-10), kept because it is the only place the failure was ever
         // visible. Writing a frame DETACHES the buffer handed to the sink, so a
         // buffer with two owners ships an empty payload from the second one:
-        // no drop, no error, no loss, `wrote` still climbing, and the receiver
+        // no drop, no error, no loss, p.wrote still climbing, and the receiver
         // bright-frozen. Sharing is now prevented at the tap; this counts any
         // recurrence, and e2e-pipe LEG 1B fails on the first one.
         if (head.bytes.byteLength === 0) p.detached = (p.detached || 0) + 1;
