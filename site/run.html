@@ -694,6 +694,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #appbar .perms.unsafe { border-color: #ff8a3d; color: color-mix(in srgb, #ff8a3d 60%, var(--text, #e0e0f0)); box-shadow: 0 0 12px rgba(255,138,61,.3); }
   #appmount { flex: 1; min-height: 0; background: var(--bg, #0a0a0f); }
   #appmount iframe { width: 100%; height: 100%; border: 0; }
+  /* The guest's wait while the App GIF crosses the mesh (APP-COPY PROGRESS). */
+  #appcopy { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .7rem; padding: 1.5rem; text-align: center; }
+  #appcopy .appcopy-t { font-size: 1.05rem; }
+  #appcopy .appcopy-bar { width: min(22rem, 80%); height: 6px; border-radius: 3px; background: rgba(127, 127, 145, .28); overflow: hidden; }
+  #appcopy .appcopy-b { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent, #7b5cff); transition: width .25s linear; }
+  #appcopy .appcopy-h { font-size: .82rem; opacity: .68; max-width: 26rem; line-height: 1.45; }
   #app-list button { display: block; width: 100%; text-align: left; margin-bottom: .35rem; padding: .5rem .7rem;
     border-radius: .5rem; border: 1px solid var(--border, #2a2a3f); background: var(--surface, #1c1c2b);
     color: var(--text, #e0e0f0); cursor: pointer; font: inherit; }
@@ -3478,7 +3484,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Chains keep the async crypto from ever reordering a sender's frames;
     // the shared defrag reassembles fragmented ciphertext from either path.
     const txm = net.makeChain(), rxm = net.makeChain();
-    const meshDefrag = net.makeDefrag(null);
+    // appCopyPart draws the guest's "copying the app" progress from this very
+    // count — see APP-COPY PROGRESS below. It is a hoisted declaration, so it
+    // is safe to name here and define beside the app machinery it serves.
+    const meshDefrag = net.makeDefrag(appCopyPart);
     // TEST HOOK (fault injection): a page may pre-declare peers whose ICE is
     // dropped both ways (window.__gifosBlockIce = ['*'|peerId…]) — simulates a
     // firewalled pair. Sealing hid ICE from the e2e suite's old WS-sniffing
@@ -6750,6 +6759,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // nothing) — reconcile on the tick so owner-away is TIME-driven, not
       // only event-driven. Idempotent when nothing changed.
       try { reconcileApp(); } catch (e) {}
+      // Keep the copy placeholder honest even when no fragment arrives: a
+      // holder that leaves mid-transfer must stop showing a frozen percentage.
+      try { appCopyPaint(); } catch (e) {}
       // Guest thumbnail: the app bytes land asynchronously over the lane —
       // paint the bar's GIF the first tick they exist (no-op afterwards).
       if (!appGifUrl && appClientCtl && appClientCtl.gifBytes) {
@@ -11150,6 +11162,85 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     if (window.GifOS && GifOS.perms) GifOS.perms.attach(document.getElementById('appperms'), { onLeave: function () { stopApp(); } });
     let appMode = null;      // 'host' | 'client' | null
     let appKey = null;       // sid of the app session currently mounted here
+
+    // ---- APP-COPY PROGRESS (the guest's wait) --------------------------------
+    // A guest's app bytes arrive as ONE owner-signed 'app' frame — 6.0MB of
+    // base64 for Sound It Out's 3.9MB App GIF — which sendChunked splits into
+    // ~62 fragments of FRAG_PART each. Measured on a wired desktop against
+    // production: snap@0.3s, app-frame@7.1s, mounted@8.9s. For those seven
+    // seconds mountClientApp has ALREADY painted the app's chrome (its name,
+    // Save, Steal) over an empty #appmount, which reads as a broken app rather
+    // than a loading one — and it is far worse on a phone.
+    //
+    // makeDefrag has counted every fragment since it was written; run.html
+    // passed null and threw the count away. Now it draws it. The placeholder
+    // needs no teardown: the runtime's mount() does `mountEl.innerHTML = ''`,
+    // so the arriving app removes it as it lands.
+    //
+    // WE FOLLOW THE BIGGEST STREAM, NOT THE SUM. The first cut added up every
+    // in-flight stream, and the measured result was a bar that walked BACKWARDS
+    // (86% -> 54%) and a size that GREW as it went (9.3MB -> 17.4MB), because a
+    // state snap carrying the app's own blobs starts arriving alongside the app
+    // frame. Only one of those bodies is what the mount is waiting on — the
+    // biggest — and a progress bar that retreats is worse than none. The shown
+    // percentage is additionally clamped non-decreasing WITHIN one stream (it
+    // must reset when we switch: keyed to nothing, the clamp carried a small
+    // stream's 83% onto the app frame's first fragment, claiming almost-done
+    // for a transfer that had not started).
+    const appCopy = { streams: new Map(), paintedAt: 0, fid: null, shown: 0 };
+    function appCopyPart(fid, got, n) {
+      // ~1.6MB sealed. Below this the body lands inside a second or two, and a
+      // bar for it is noise that can only get in the app frame's way — which is
+      // precisely what happened: a 12-fragment state body grabbed the bar first.
+      if (n < 16) return;
+      if (appMode !== 'client') return; // a host already holds its own bytes
+      appCopy.streams.set(fid, { got: got, n: n, at: Date.now() });
+      if (Date.now() - appCopy.paintedAt < 150) return; // ~62 parts in 7s; don't thrash layout
+      appCopyPaint();
+    }
+    // Also driven by the app-room beat below, so a copy that STOPS (the holder
+    // left mid-transfer) stops claiming to be in progress.
+    function appCopyPaint() {
+      appCopy.paintedAt = Date.now();
+      const el = document.getElementById('appcopy');
+      const done = !appMountEl || appMountEl.querySelector('iframe') || appMode !== 'client';
+      if (done) { if (el) el.remove(); appCopy.streams.clear(); appCopy.fid = null; appCopy.shown = 0; return; }
+      let big = null, bigFid = null;
+      for (const [fid, s] of appCopy.streams) {
+        if (appCopy.paintedAt - s.at > 30000) { appCopy.streams.delete(fid); continue; } // matches defrag's own sweep
+        if (!big || s.n > big.n) { big = s; bigFid = fid; }
+      }
+      if (!big) { if (el) el.remove(); appCopy.fid = null; appCopy.shown = 0; return; }
+      if (bigFid !== appCopy.fid) { appCopy.fid = bigFid; appCopy.shown = 0; }
+      const got = big.got, n = big.n;
+      const box = el || (() => {
+        const d = document.createElement('div');
+        d.id = 'appcopy';
+        d.innerHTML = '<div class="appcopy-t"></div><div class="appcopy-bar"><i class="appcopy-b"></i></div><div class="appcopy-h"></div>';
+        appMountEl.appendChild(d);
+        return d;
+      })();
+      const name = document.getElementById('appname').textContent || 'the app';
+      // Every fragment is in, but b64decode + GIF decode still run (1.8s of the
+      // 8.9s measured above). Saying 100% and then sitting there is the same
+      // lie as saying nothing, so the last phase gets its own word.
+      const whole = got >= n;
+      appCopy.shown = Math.max(appCopy.shown, Math.max(1, Math.min(99, Math.round((got / n) * 100))));
+      const pct = appCopy.shown;
+      // n × FRAG_PART is the SEALED wire size (the app's base64 is ciphertext-
+      // base64'd again on top), so it reads larger than the App GIF on disk.
+      // Say "crossing", not the app's size — the wire cost is the honest number
+      // here, and the decoded size is not knowable until the bytes land.
+      const mb = (n * net.FRAG_PART) / (1024 * 1024);
+      box.querySelector('.appcopy-t').textContent = whole
+        ? 'Opening ' + name + '…'
+        : 'Copying ' + name + ' — ' + pct + '%';
+      box.querySelector('.appcopy-b').style.width = (whole ? 100 : pct) + '%';
+      box.querySelector('.appcopy-h').textContent = whole
+        ? 'Unpacking it on this device.'
+        : 'About ' + mb.toFixed(1) + ' MB crossing from someone already in the room — it comes over once, then it is yours.';
+    }
+
     let appHiddenSid = null; // personal opt-out: this sid stays off MY stage only
     let appLeadSet = null, appLeadOn = false, appLeadable = false; // sharer's led-records switch
     myStatus.app = null;     // { s, k, relay, name, ts, byName } while THIS phone shares
