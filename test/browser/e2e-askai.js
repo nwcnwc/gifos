@@ -6,18 +6,27 @@
 // already been said, nothing carried a time, and the whole answer landed in
 // one lump after an unexplained wait.
 //
-// Five things are guarded here, in the order a user meets them:
+// Six things are guarded here, in the order a user meets them:
 //   1. the RUNTIME contract — gifos.ai.chat({onDelta}) delivers fragments and
 //      still resolves once with the whole answer; the SAME call without
 //      onDelta is unchanged (streamed:false). Driven from a synthetic app, so
 //      the API is guarded independently of what any one app does with it.
+//      Including a REAL stream served under a LYING application/json header:
+//      sniffing Content-Type instead of reading the body buffered those whole,
+//      and one lump at the end is precisely what "it doesn't stream" looks
+//      like from the user's chair.
 //   2. Ask AI paints an answer AS IT ARRIVES (caught half-drawn, not inferred).
 //   3. every message carries a wall-clock datetime stamp, and an answer also
 //      carries first-word + total time.
 //   4. the conversation survives closing and reopening the app — AND is sent
 //      back to the model as context (proved by the fake endpoint saying how
 //      many messages it received).
-//   5. "＋ New chat" erases it, and the erasure survives a reopen too.
+//   5. "＋ New chat" KEEPS the old chat: it lands in History, which is
+//      searchable by keyword and reopens intact. (It used to erase it — a
+//      conversation was destroyed by a button whose name says nothing about
+//      destroying anything.)
+//   6. the trash button — and ONLY the trash button, behind a confirm — deletes
+//      a chat, and that deletion survives a reopen.
 //
 // Needs: static server on 8099, and test/servers/fake-ai.js on 8791.
 const { chromium, CHROME } = require('../lib/pw');
@@ -99,7 +108,7 @@ function settled(fr, budgetMs) {
   // Two calls, same endpoint, differing only in whether onDelta was passed.
   {
     await page.evaluate(async () => {
-      const html = '<!doctype html><meta charset="utf-8"><div id="out">…</div><div id="plain">…</div>' +
+      const html = '<!doctype html><meta charset="utf-8"><div id="out">…</div><div id="plain">…</div><div id="lied">…</div>' +
         '<script>(async function(){' +
         '  var parts=[], gaps=[], t=Date.now();' +
         '  try{ var r=await gifos.ai.chat({ model:"cheapest", messages:[{role:"user",content:"stream?"}],' +
@@ -110,6 +119,11 @@ function settled(fr, budgetMs) {
         '  try{ var r2=await gifos.ai.chat({ model:"cheapest", messages:[{role:"user",content:"stream?"}] });' +
         '    document.getElementById("plain").textContent="streamed="+r2.streamed+" text="+r2.text; }' +
         '  catch(e){ document.getElementById("plain").textContent="err:"+e.message; }' +
+        '  var lp=[];' +
+        '  try{ var r3=await gifos.ai.chat({ model:"cheapest", messages:[{role:"user",content:"mislabeled?"}],' +
+        '         onDelta:function(p){ lp.push(p); } });' +
+        '    document.getElementById("lied").textContent="deltas="+lp.length+" streamed="+r3.streamed+" text="+r3.text; }' +
+        '  catch(e){ document.getElementById("lied").textContent="err:"+e.message; }' +
         '})();<\/script>';
       const bytes = await GifOS.gif.encode({
         'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'streamprobe', name: 'Stream Probe', entry: 'index.html', capabilities: { db: true, ai: ['cheapest'] } }),
@@ -137,6 +151,13 @@ function settled(fr, budgetMs) {
     const plain = await pf.locator('#plain').textContent();
     check('the SAME call without onDelta is unchanged — one shot, streamed:false',
       /streamed=false/.test(plain) && plain.indexOf('text=' + TEN) > 0, plain.slice(0, 160));
+
+    // A real stream wearing an application/json Content-Type. The body is what
+    // decides, never the header — a broker that sniffs buffers this whole.
+    await pf.locator('#lied').filter({ hasText: /deltas=|err:/ }).waitFor({ timeout: 20000 });
+    const lied = await pf.locator('#lied').textContent();
+    check('a REAL stream mislabeled application/json still arrives in fragments',
+      /deltas=10\b/.test(lied) && /streamed=true/.test(lied) && lied.indexOf('text=' + TEN) > 0, lied.slice(0, 160));
     await probe.close();
   }
 
@@ -172,7 +193,7 @@ function settled(fr, budgetMs) {
   check('reopening the app shows the conversation it had before',
     kept.length === 2 && kept[0] === 'stream?' && kept[1] === TEN, JSON.stringify(kept).slice(0, 140));
   check('…and says so, rather than silently looking like a fresh app',
-    /remembered/.test(await fr2.locator('.note').first().textContent().catch(() => '')));
+    /Picking up where you left off/.test(await fr2.locator('.note').first().textContent().catch(() => '')));
 
   // The endpoint answers with what it was actually given. Three messages
   // (the old pair + this question) means the memory really crossed the wire —
@@ -185,17 +206,84 @@ function settled(fr, budgetMs) {
     /^ctx=3 /.test(ctxReply), ctxReply.slice(0, 120));
   check('…with the original question intact, in order', /first=stream\?$/.test(ctxReply), ctxReply.slice(0, 120));
 
-  // ---- 5. New chat erases, and the erasure sticks --------------------------
+  // ---- 5. New chat KEEPS the old one, and History finds it again -----------
   await fr2.locator('#new').click();
-  await fr2.locator('.note', { hasText: 'New conversation' }).waitFor({ timeout: 8000 });
-  check('“＋ New chat” clears the conversation on screen', (await fr2.locator('.row').count()) === 0);
+  await fr2.locator('.note', { hasText: 'New chat' }).waitFor({ timeout: 8000 });
+  check('“＋ New chat” clears the screen', (await fr2.locator('.row').count()) === 0);
+
+  // Give the second chat its own words, so a keyword search has something to
+  // tell the two apart by.
+  await fr2.locator('#t').fill('pineapple upside-down cake');
+  await fr2.locator('#send').click();
+  await settled(fr2, 20000);
+
+  await fr2.locator('#histbtn').click();
+  await fr2.locator('#hlist .hrow').first().waitFor({ timeout: 8000 });
+  check('the chat you left is NOT gone — History lists both',
+    (await fr2.locator('.hrow').count()) === 2, String(await fr2.locator('.hrow').count()));
+  const titles = await fr2.locator('.htitle').allTextContents();
+  check('…each row shows the opening words of that chat',
+    titles.some((t) => t === 'pineapple upside-down cake') && titles.some((t) => t === 'stream?'), JSON.stringify(titles));
+  const metas = await fr2.locator('.hmeta').allTextContents();
+  check('…and a date, a time and how many messages it holds',
+    metas.length === 2 && metas.every((m) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} · \d+ messages?/.test(m)), JSON.stringify(metas));
+
+  // Search reads the whole chat, not just the title: 'ctx' was a QUESTION in
+  // the older chat, and 'ten' only ever appeared in an ANSWER.
+  await fr2.locator('#hq').fill('ctx');
+  await sleep(150);
+  check('searching a keyword narrows the list to the chat that used it',
+    (await fr2.locator('.hrow').count()) === 1 && (await fr2.locator('.htitle').first().textContent()) === 'stream?',
+    String(await fr2.locator('.hrow').count()));
+  await fr2.locator('#hq').fill('pineapple');
+  await sleep(150);
+  check('…and a keyword from the OTHER chat finds that one instead',
+    (await fr2.locator('.hrow').count()) === 1 && (await fr2.locator('.htitle').first().textContent()) === 'pineapple upside-down cake');
+  await fr2.locator('#hq').fill('aardvark');
+  await sleep(150);
+  check('…a keyword nobody used finds nothing, and says so',
+    (await fr2.locator('.hrow').count()) === 0 && /No chat mentions/.test(await fr2.locator('.hempty').textContent()));
+
+  // Reopen the older chat — every message must still be there.
+  await fr2.locator('#hq').fill('ctx');
+  await sleep(150);
+  await fr2.locator('.hopen').first().click();
+  await fr2.locator('.note', { hasText: 'Reopened this chat' }).waitFor({ timeout: 8000 });
+  const back = await fr2.locator('.row .m').allTextContents();
+  check('opening a chat from History brings back every message it had',
+    back.length === 4 && back[0] === 'stream?' && back[1] === TEN && back[2] === 'ctx?', JSON.stringify(back).slice(0, 160));
   await app2.close();
 
   const app3 = await openAskAI(context, page);
   const fr3 = app3.frameLocator('#appmount iframe');
-  await sleep(1200); // the boot read is async — give it time to redraw anything left
-  check('…and the erasure survives reopening the app', (await fr3.locator('.row').count()) === 0);
+  await fr3.locator('#histbtn').click();
+  await fr3.locator('#hlist .hrow').first().waitFor({ timeout: 8000 });
+  check('…and both chats are still there after closing and reopening the app',
+    (await fr3.locator('.hrow').count()) === 2, String(await fr3.locator('.hrow').count()));
+
+  // ---- 6. only the trash button deletes, and only after a confirm ----------
+  await fr3.locator('.hrow', { hasText: 'pineapple' }).locator('.row-del').click();
+  await fr3.locator('.hconfirm').waitFor({ timeout: 5000 });
+  check('the trash button asks before it destroys anything',
+    /Delete this chat and its 2 messages\?/.test(await fr3.locator('.hconfirm').textContent()));
+  await fr3.locator('.hconfirm .no').click();
+  await sleep(150);
+  check('…and “Keep it” keeps it', (await fr3.locator('.hrow').count()) === 2);
+
+  await fr3.locator('.hrow', { hasText: 'pineapple' }).locator('.row-del').click();
+  await fr3.locator('.hconfirm .yes').click();
+  await sleep(300);
+  const left = await fr3.locator('.htitle').allTextContents();
+  check('…confirming removes exactly that one chat', left.length === 1 && left[0] === 'stream?', JSON.stringify(left));
   await app3.close();
+
+  const app4 = await openAskAI(context, page);
+  const fr4 = app4.frameLocator('#appmount iframe');
+  await fr4.locator('#histbtn').click();
+  await fr4.locator('#hlist .hrow').first().waitFor({ timeout: 8000 });
+  const after = await fr4.locator('.htitle').allTextContents();
+  check('…and the deletion survives reopening the app', after.length === 1 && after[0] === 'stream?', JSON.stringify(after));
+  await app4.close();
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');

@@ -1167,19 +1167,26 @@
     }
     return buf;
   }
+  // Reads the body incrementally and reports what it turned out to be:
+  // { text, streamed, raw }. `raw` is kept ONLY while nothing has streamed yet
+  // — a body that never yields a single SSE fragment is not a stream at all,
+  // and the caller re-reads those same bytes as one plain JSON answer.
   function readChatStream(reader, emit) {
     const dec = new TextDecoder();
-    let buf = '', text = '';
-    const take = (piece) => { text += piece; try { emit(piece); } catch (e) {} };
+    let buf = '', text = '', raw = '', streamed = false;
+    const take = (piece) => { streamed = true; text += piece; try { emit(piece); } catch (e) {} };
     const pump = () => reader.read().then(({ done, value }) => {
-      if (done) { sseLines(buf + '\n', take); return text; }
-      buf = sseLines(buf + dec.decode(value, { stream: true }), take);
+      if (done) { sseLines(buf + '\n', take); return; }
+      const chunk = dec.decode(value, { stream: true });
+      if (!streamed) raw += chunk;
+      buf = sseLines(buf + chunk, take);
       return pump();
     });
+    const out = () => ({ text: text, streamed: streamed, raw: raw });
     // A stream that dies mid-answer keeps what already arrived: the app has
     // already PAINTED those tokens, so throwing here would blank a visible
     // answer. Half an answer, honestly returned, beats an error over the top.
-    return pump().catch(() => text);
+    return pump().then(out, out);
   }
   // A body we asked to stream but got in one piece: plain JSON, or an SSE
   // transcript we could not read incrementally. Either way, one final text.
@@ -1226,18 +1233,26 @@
       }
       return post.then((r) => {
         if (!r.ok) return asError(r);
-        // An endpoint is free to ignore stream:true and answer with one JSON
-        // body — several OpenAI-shaped servers do. Detect that by the content
-        // type and take the plain path; the app's onDelta simply never fires,
-        // which is what "degrades honestly" means here.
-        const ct = r.headers.get('content-type') || '';
-        if (/application\/json/.test(ct) || !r.body || !r.body.getReader) {
+        // NEVER decide by Content-Type. Plenty of OpenAI-shaped gateways answer
+        // stream:true with real server-sent events but label them
+        // application/json; sniffing the header buffered those whole and made
+        // the answer land in one lump at the end — indistinguishable, from the
+        // outside, from "this build does not stream". So read the body
+        // incrementally ALWAYS. An endpoint that genuinely ignores stream:true
+        // yields no SSE fragment at all, and its bytes are then parsed as the
+        // one plain JSON answer they are — the app's onDelta simply never
+        // fires, which is what "degrades honestly" means here.
+        if (!r.body || !r.body.getReader) {
           return r.text().then((t) => {
             const j = parseChatBody(t);
             return { text: j.text, raw: j.raw, streamed: false };
           });
         }
-        return readChatStream(r.body.getReader(), emit).then((text) => ({ text, streamed: true }));
+        return readChatStream(r.body.getReader(), emit).then((s) => {
+          if (s.streamed) return { text: s.text, streamed: true };
+          const j = parseChatBody(s.raw);
+          return { text: j.text, raw: j.raw, streamed: false };
+        });
       });
     }
     if (d.op === 'tts') {
