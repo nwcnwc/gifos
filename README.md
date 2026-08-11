@@ -19,6 +19,10 @@ Visit [gifos.app](https://gifos.app) and you land on your **Home Screen** — ic
 
 No installs. No accounts. No app servers. Just files on a desktop.
 
+**Built something?** Host the `.gif` anywhere and share
+`gifos.app/?run=<url-to-your-gif>` — one click runs it for anyone, with no
+install and no store. See [Ship Your App by Sending a Link](#ship-your-app-by-sending-a-link).
+
 ## The Home Screen
 
 - **Drop any file** onto the Home Screen — it becomes an icon. GIFs animate right in the icon.
@@ -46,6 +50,62 @@ Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four,
 **Or let your AI do the whole thing.** Point any code-capable AI (Claude, etc.) at [`gifos.app/llms.txt`](site/llms.txt) and just say *"build me a habit tracker for GifOS"* — the guide teaches it to write the app, design a pixel-art animated icon, and pack it all into a **finished `.gif` file** with a short Python recipe, which it attaches for you to drop on your Home Screen. AIs that can't run code produce paste-into-＋Add HTML instead. No connector, no server, nothing to sign up for — the format is a public spec.
 
 **Mod anyone's app — encouraged.** Apps are files, and files get remixed. Hand any GifOS app GIF to an AI — *"add a dark mode"*, *"make the buttons bigger"*, *"turn this counter into a tracker"* — and get a modified `.gif` back: the `llms.txt` recipe opens everything inside, splices the changes back into the **same GIF**, so the animation survives byte-for-byte and saved data rides along. See an app you like in a friend's session? **Steal App** drops a fresh copy into your *Stolen Apps* treasure chest to hack on. A modified app ships unsigned — a remix is a new work, and the modder can sign their version.
+
+## Ship Your App by Sending a Link
+
+**Your app is one `.gif`. Put it on the web anywhere, and a link runs it.**
+
+```
+https://gifos.app/?run=https://example.com/my-app.gif
+```
+
+That is the whole distribution story. Whoever clicks it — on a phone, on a
+borrowed laptop, someone who has never heard of GifOS — gets your app **running
+in a sandbox, in about a second**. No install, no account, no store submission,
+no review, no App GIF to email around and explain. GifOS fetches your GIF, files
+it into their **Stolen Apps** folder so they keep it, and opens it.
+
+You host the file. Anywhere that serves it with CORS works — GitHub
+Pages/raw, Cloudflare, S3, a `python3 -m http.server`, your own site. There is
+nothing to register: the URL *is* the app, and the link is a plain query
+parameter you can paste into a chat, a QR code, a slide, or a README badge.
+
+```
+?run=<url-to-your-gif>   your own GIF, hosted anywhere with CORS
+?run=<slug>              a certified app from the store, e.g. ?run=anyroad
+```
+
+**Open it *on* something.** If your app declares a `launch` block in its
+manifest, a link can also say what to do once it is up:
+
+```
+https://gifos.app/?run=anyroad&go.at=36.0640,-112.1400&go.fly=1
+https://gifos.app/?run=offline-tts&go.say=Your%20lift%20is%20here
+```
+
+The first puts a first-time visitor into the Grand Canyon with the wings out.
+The second makes their computer say a sentence out loud, offline. Read the
+values with `gifos.launch()`; GifOS shows the person exactly what the link is
+asking for — in the words *your* manifest supplies — and only hands them over
+if they agree. An app only ever receives keys it declared, so a link can never
+reach a knob you did not publish. Full recipe:
+[`apps/README.md`](apps/README.md#launch--letting-a-link-say-what-to-open-on).
+
+Three things worth knowing before you paste a link into the world:
+
+- **It stays sandboxed.** A run-link is a convenience over "download, then
+  Add" — not a shortcut past anything. Your app runs in the same opaque-origin
+  iframe with the same strict CSP, and the person still sees the capability
+  sheet naming every host you asked to reach.
+- **They keep it.** The GIF lands on their Home Screen as a file they own. It
+  works offline afterwards, and they can copy it to a friend — which is the
+  point of the format.
+- **Sign it if you're sharing widely.** [`gifos.app/sign.html`](https://gifos.app/sign.html)
+  gets your app a **✓ Signed by yourdomain.com** and makes tampering visible.
+
+Prefer a store listing? Certified apps live at `gifos.app/store/<slug>` — but
+the store is a *catalog*, not a gate. Nothing about publishing a GifOS app
+requires our permission or our servers.
 
 ## Multiplayer: Any Browser Can Be the Server
 
