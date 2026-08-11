@@ -461,6 +461,45 @@ clicked blur-none still reported blur: 1" — which was read then as a
 room/guest blur "outranking" the user and suspected of causing oscillation.
 It is not an override race. It is the password rule, working as designed.
 
+## THE FREEZE IS DETERMINISTIC. THE INTERMITTENCY WAS COVERAGE.
+
+**This supersedes every "flaky / nondeterministic / N-of-M green" statement in
+this file, including `quarantine.txt`'s.**
+
+Leg 3 can only fire on a BRIGHT feed, and how many (seat,feed) pairs go bright
+varies enormously run to run. Once that is counted, the picture collapses to
+something simple. Interleaved ABAB, 15 runs, freshly rebooted clawbox, Chrome
+149, load-settled before every run — A = as shipped (blurred canvas), B =
+`PIPE_CLEAR=1` (raw camera, control verified `outbound RAW at 6/6` every time):
+
+| coverage | runs | froze |
+|---|---|---|
+| **7 of 7** | **8** (6 blurred + 2 raw) | **8 — every single one** |
+| 5 or 6 | 2 | 0 |
+| 0 or 1 | 5 | 0 |
+
+**At full coverage the freeze is 8/8, in BOTH regimes.** It is not flaky, not
+nondeterministic, and not blur-related. A run "passes" exactly when too few
+feeds come up for the detector to watch — which is why the historical rates
+(0/4, 1/2, 2/3, 3/3) never settled and why raspberrypi looked immune at 4-of-7.
+
+Two consequences, and they matter more than any of the nine hypotheses buried
+in this file:
+
+1. **The bug reproduces on demand.** Ensure the room brings all seven
+   (seat,feed) pairs up and it fires every time. No more coin-flip hunting.
+2. **`quarantine.txt`'s NONDETERMINISTIC classification is wrong** and its
+   promotion rule ("a best-of-N cannot tell fixed from lucky") rests on it.
+   The entry should be re-argued against a coverage-gated measurement.
+
+**The raw-camera hypothesis is REFUTED.** The blurred regime finding stands as
+a description — leg 3 does normally measure a 12fps/250kbps canvas source, and
+that is worth knowing — but it is NOT the cause: at 7/7 coverage the raw camera
+froze 2 out of 2. The earlier "raw 2/2 green" was the low-coverage confound,
+flagged before the data came in and then confirmed by it.
+
+### The superseded framing, kept for the record
+
 **THE EXPERIMENT, RUN — the strongest lead in this file.**
 `PIPE_CLEAR=1` sets a room password and waits for every seat to go raw, so the
 same six-seat shape runs on the CAMERA instead of the blur canvas. Interleaved
