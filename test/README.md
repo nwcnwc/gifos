@@ -963,6 +963,16 @@ init-script (can a given browser ENGINE be in a meeting at all — see
 "Other ENGINES" above), `webkitgtk-smoke.js` (the same question asked of the
 distro's own WebKitGTK through `WebKitWebDriver`, outside playwright entirely).
 
+`stage-solo-lag.js` answers "why does the Stage feel laggy with ONE person in
+the room" with a COUNTING CAMERA: a faked getUserMedia paints a flat luminance
+code stamped with `performance.now()`, and the page decodes it back out of the
+me tile and of the composited Stage strip, so the two videos' delay behind
+capture is a subtraction. Legal on one box precisely because a solo room has no
+topology and no network in the path — the whole chain (blur pipe → strip packer
+→ `captureStream`) is inside the tab, and the me tile is the control on the
+same clock. It also prints `mosaic().jobs`, which in a room of one is `[]`: the
+strip is composited for an audience of nobody.
+
 **Fork forensics** (bug ledger 2026-08-05 §6 — two one-seat trees on ONE relay
 session for seven hours, invisible from inside either of them):
 
