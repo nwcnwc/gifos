@@ -100,6 +100,29 @@
     return function () { root.removeEventListener('deviceorientation', cb); };
   }
 
+  // ---- what the link asked for ---------------------------------------------
+  // GifOS hands over the `go.<key>` arguments off the link that opened us —
+  // filtered to the ones this app's manifest declared, and only once the player
+  // has answered the sheet. So it RESOLVES LATE, and resolves null when there
+  // was nothing to ask or they said no. An older GifOS build has no launch() at
+  // all: that reads as null too, and the app opens the ordinary way.
+  //
+  // In dev there is no OS and no sheet, so the same names are read straight off
+  // our own query string — a link can be exercised without repacking a GIF.
+  function launch() {
+    if (inGifOS) {
+      if (!root.gifos.launch) return Promise.resolve(null);
+      return root.gifos.launch().catch(function () { return null; });
+    }
+    var out = {}, n = 0;
+    try {
+      new root.URLSearchParams(root.location.search).forEach(function (v, k) {
+        if (k.length > 3 && k.slice(0, 3) === 'go.') { out[k.slice(3)] = v; n++; }
+      });
+    } catch (e) { /* no URL API worth failing a boot over */ }
+    return Promise.resolve(n ? out : null);
+  }
+
   // ---- back button ---------------------------------------------------------
   // The GifOS shell swallows Back by default; registering makes it mean
   // "close the panel that is open" instead of nothing.
@@ -113,6 +136,7 @@
     api: api,
     apiReady: apiReady,
     apiSetup: apiSetup,
+    launch: launch,
     onBack: onBack,
     motion: motion,
   };

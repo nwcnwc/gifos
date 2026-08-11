@@ -33,6 +33,20 @@
     ],
     "motion": true
   },
+  "launch": {
+    "at": {
+      "label": "Open at a place the link picked",
+      "detail": "Anyroad normally starts by asking you where to go; this link answers for you. A place name or a lat,lon."
+    },
+    "fly": {
+      "label": "Arrive in the aeroplane, already in the air",
+      "detail": "You take off on landing instead of starting on the road."
+    },
+    "label": {
+      "label": "Call that place something",
+      "detail": "Only the name shown on the HUD — it does not change where you go."
+    }
+  },
   "data": {
     "prefs": {
       "visibility": "private"

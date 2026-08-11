@@ -1177,6 +1177,42 @@
              x: car.x, z: car.z, inWater: car.inWater };
   }
 
+  // ---- what the link asked for ---------------------------------------------
+  // A link can open this app ON somewhere: /?run=anyroad&go.at=36.06,-112.14
+  // &go.fly=1 puts a first-time visitor over the Grand Canyon with the wings
+  // already out. Nothing here is a new power — `at` is the search box and
+  // `fly` is the ▲ button, both performed for you — and GifOS has already
+  // shown the player what the link asked and got a yes before we are called
+  // (runtime.js declaredLaunch / gifos-perms.js). null = open normally.
+  var pendingFly = false;
+
+  function applyLaunch(args) {
+    if (!args) return;
+    // "1"/"true"/"yes" — a link is typed by hand, so read what people write.
+    pendingFly = /^(1|true|yes|on)$/i.test(String(args.fly || ''));
+    var at = String(args.at || '').trim();
+    if (!at) return;
+    // A hop that nobody tapped for. The audio graph will not start without a
+    // gesture, so the engine would be silent for the entire flight — take the
+    // first touch the player DOES make and start it then.
+    var wake = function () { try { root.Sound.unlock(root.Sources.current.sound); } catch (e) {} };
+    root.addEventListener('pointerdown', wake, { once: true });
+    root.addEventListener('keydown', wake, { once: true });
+
+    var m = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(at);
+    if (m) { hop(parseFloat(m[1]), parseFloat(m[2]), args.label ? String(args.label).slice(0, 60) : null); return; }
+    // Not coordinates — a NAME, resolved through the same search the box uses.
+    // It costs one Nominatim call, and a miss leaves the landing sheet up
+    // rather than dropping the player somewhere arbitrary.
+    root.UI.note('Finding “' + at + '”…');
+    search(at).then(function (list) {
+      if (!list.length) { root.UI.note('Couldn’t find “' + at + '” — pick a place to start.'); return; }
+      hop(list[0].lat, list[0].lon, list[0].name.split(',')[0]);
+    }).catch(function (e) {
+      root.UI.note('Couldn’t look that place up (' + (e && e.message || e) + ') — pick a place to start.');
+    });
+  }
+
   // Wings on, wings off. Two separate decisions: taking off is free, and
   // deciding to be a car again at 300 m is not — you fall, and the landing is
   // judged on how fast you were going down when you arrived.
@@ -1453,6 +1489,15 @@
     // The descent is over and the tiles that were going to arrive have: this
     // is the last honest moment to notice we landed inside a building.
     if (!spawnChecked && hopAnim > 2.6) { spawnChecked = true; stepOutOfBuilding(); }
+    // The link said to arrive flying. It has to wait for the drop to finish —
+    // taking off mid-descent fights the arrival animation for the same vy, and
+    // the aircraft ends up planted in the ground it was still falling towards.
+    // Gated on hopAnim, not on spawnChecked: that flag only ever fires for the
+    // FIRST arrival of a session, and this must work on any of them.
+    if (pendingFly && hopped && hopAnim > 2.6) {
+      pendingFly = false;
+      if (!car.flying) toggleFlight();
+    }
 
     // Nothing responds until the ground exists — otherwise the first two
     // seconds are spent driving an invisible car across a void.
@@ -1808,6 +1853,11 @@
       onStick: function (st) { root.UI.showStick(st); },
     });
     controls.bindSpeed(function () { return car.speed; });
+
+    // What the link that opened us asked for, if anything. Late and optional:
+    // the landing sheet is already up by now, and stays up unless this answers
+    // with somewhere to go.
+    root.Host.launch().then(applyLaunch).catch(function () {});
 
     root.Sources.load().then(function () {
       applyControlPrefs();
