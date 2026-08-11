@@ -118,6 +118,28 @@
     return { priv: { sk: kp.secretKey }, pubRaw: kp.publicKey };
   }
 
+  // ---- a key that can sign and can NEVER be read -----------------------------
+  // For MONEY (docs/payments.md). keysFromSeed() mints extractable keys on
+  // purpose: an identity must be portable, exportable, restorable. A payment
+  // key is the opposite — it must be impossible to exfiltrate, so an XSS in
+  // the OS page becomes a bounded signing oracle instead of permanent theft.
+  //
+  // WebCrypto's generateKey sets `extractable` on the PRIVATE key only; the
+  // public key stays exportable, which is how we still learn the address.
+  //
+  // The js (tweetnacl) engine cannot honour this — its secret key is a plain
+  // Uint8Array by construction — so this REFUSES rather than silently handing
+  // back a readable key. Payments therefore require WebCrypto Ed25519, which
+  // is already the mesh floor (Chrome 137 / Firefox 129 / Safari 17).
+  async function generateSealed() {
+    if ((await engine()) !== 'native') {
+      throw new Error('gifos-ed: a sealed (non-extractable) key needs WebCrypto Ed25519 — this browser falls back to the js engine, where a secret key is readable bytes. Payments are refused here rather than pretending the key is sealed.');
+    }
+    const kp = await subtle().generateKey('Ed25519', false, ['sign', 'verify']);
+    const pubRaw = new Uint8Array(await subtle().exportKey('raw', kp.publicKey));
+    return { priv: kp.privateKey, pubRaw };
+  }
+
   // ---- sign ------------------------------------------------------------------
   // Dispatch on the KEY's shape: a js key always signs js, a CryptoKey always
   // signs native — an engine race can never strand a key it cannot use.
@@ -143,5 +165,5 @@
     } catch (e) { return false; }
   }
 
-  GifOS.ed = { engine, keysFromSeed, sign, verify };
+  GifOS.ed = { engine, keysFromSeed, generateSealed, sign, verify };
 })(typeof window !== 'undefined' ? window : globalThis);
