@@ -3,7 +3,7 @@
   "appId": "sound-it-out",
   "name": "Sound It Out",
   "shortName": "SoundItOut",
-  "version": "1.5.3",
+  "version": "1.6.0",
   "minBuild": 947,
   "entry": "index.html",
   "accent": [
@@ -21,6 +21,9 @@
       "visibility": "private"
     },
     "library": {
+      "visibility": "read-write"
+    },
+    "curriculum": {
       "visibility": "read-write"
     },
     "recmeta": {
