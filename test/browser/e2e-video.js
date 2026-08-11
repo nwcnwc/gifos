@@ -900,12 +900,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return via && shown && mapped && shown === mapped;
   }, tiaPid, { timeout: 60000 });
   check('a friend-relay takes over the dead link, hands-free', true);
-  // wait for the forwarded stream to actually paint, then prove identity
+  // Wait for the forwarded stream to actually paint, then prove identity.
+  //
+  // 60s, matching the takeover wait immediately above it. This was 30 and it
+  // flaked the full gate with a bare TimeoutError: the relay takeover had
+  // already succeeded (the check above passed), and what had not finished in
+  // half the time was the SLOWER half — a re-routed stream arriving and
+  // painting a first frame on a box running the whole browser tier. Giving the
+  // paint less clock than the negotiation that must precede it was arbitrary,
+  // and nothing here is softened: the frame must still arrive, and the identity
+  // proof below still has to hold.
   await samPage.waitForFunction((pid) => {
     const t = Array.from(document.querySelectorAll('.tile')).find((x) => x.dataset.peer === pid);
     const v = t && t.querySelector('video');
     return !!(v && v.videoWidth > 0);
-  }, tiaPid, { timeout: 30000 });
+  }, tiaPid, { timeout: 60000 });
   const idProof = await samPage.evaluate((pid) => {
     const via = window.__gifosVideo.relayedVia(pid);
     return {
