@@ -483,6 +483,23 @@ So the encoded-passthrough lane really does own this bug, the nine hypotheses
 in this file were aimed at the right subsystem, and the original 2026-08-05
 measurement stands — now on far better footing than when it was taken.
 
+## CARRIER SIZE IS NOT IT EITHER (2026-08-10)
+
+With the lane isolated as the owner, its internals are what remains, and
+carrier size is the knob that changes the encoder's whole regime (a 48x48
+near-static source was measured at the 30 kbps allocator floor).
+`gifos_pipe_carrier=big` runs a 320px carrier instead. Interleaved, coverage
+verified:
+
+| carrier | runs | froze |
+|---|---|---|
+| 48px (as shipped) | 2 | 2 |
+| 320px | 2 | 2 |
+
+No difference. The lever stays in the tree (default unchanged) because it is
+the natural first knob for anyone bisecting the lane, and now it is a knob
+with a recorded answer instead of an untested idea.
+
 ## THE SIBLING KEYFRAME-WALK STARVATION — real bug, NOT this freeze
 
 `askKey`'s rate limit is keyed by `srcId` (the TAP), which is correct for the
