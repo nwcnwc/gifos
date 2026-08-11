@@ -1944,7 +1944,18 @@ function check(name, cond, detail) {
       else aged = t.boom;
     }
     return { traffic: list.length, destroyed: !!(res && res.destroyed),
-             stays: !!(dyingNow && dyingNow.boom != null), ghostHit: ghost && Math.hypot(ghost.x - t0.x, ghost.z - t0.z) < 4,
+             // A GHOST HIT IS THE DYING CAR ITSELF, NOT A NEIGHBOUR.
+             // This was `< 4` metres of t0's ORIGINAL position and it flaked
+             // the gate: traffic DRIVES, so on a busy box another car drifts
+             // into that radius between the kill and this shot, gets hit
+             // legitimately, and the suite reports a double-kill. The product
+             // makes a real ghost hit impossible by construction — shootAt
+             // skips any car with `dying != null` — so the only thing worth
+             // asserting is that whatever was hit is not this stationary
+             // wreck, and a killed car has speed 0 and does not move.
+             stays: !!(dyingNow && dyingNow.boom != null),
+             ghostHit: !!(ghost && dyingNow && Math.hypot(ghost.x - dyingNow.x, ghost.z - dyingNow.z) < 0.01),
+             ghostAt: ghost ? { dx: +(ghost.x - t0.x).toFixed(2), dz: +(ghost.z - t0.z).toFixed(2) } : null,
              aged: aged, gone: gone };
   });
   if (boom.traffic === 0) {
