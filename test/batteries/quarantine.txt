@@ -199,4 +199,36 @@
 # Unfixed, and the fix is a media-plane change — so the entry stays and the
 # guard stays red. NONDETERMINISTIC is kept: the suite came up green in the
 # 0.9.4 gate, so a lucky green must not raise ESCAPED.
-e2e-pipe  NONDETERMINISTIC known-unfixed: leg 3 is the filed stg-freeze (docs/bug-pipe-stg-freeze-2026-08-05.md) — bytes arriving, nothing decoding, measured 0/4 green 2026-08-06. Promote after the stg-freeze fix lands.
+#
+# PROMOTED 2026-08-10 — the entry's own criterion is met: THE STG-FREEZE FIX
+# LANDED (a65a278). Root cause: the pipe worker's tap copies each content frame
+# ONCE and pushed that same ArrayBuffer into every routed sibling's queue, and
+# writing a frame DETACHES the buffer it is handed — so the first pipe on a tap
+# to write a frame neutered it for its siblings, which shipped zero-length
+# payloads while every counter on the path read healthy (wrote climbing,
+# dropped 0, swapErr 0, needKey false, no loss, frecv == fdec). It needed a
+# SIBLING to exist, which is why leg 1 always passed and leg 3 always failed.
+#
+# NONDETERMINISTIC was never the right word and the dossier already said so:
+# leg 3 can only fire on a BRIGHT feed, and the historical 0/4, 1/2, 2/3, 3/3
+# noise was COVERAGE, not the product. The suite now MEASURES and prints its
+# coverage and fails loudly at zero, so a vacuous green cannot be mistaken for
+# a fix — which is what makes the promotion measurable at all.
+#
+# MEASURED, mutation-tested, coverage-gated, two boxes and two engines:
+#   * interleaved ABAB on clawbox (Chrome 151), arm B = the fix reverted:
+#     fix 3/3 GREEN at full 7-of-7 coverage; reverted 2/3 RED (its one green
+#     was at 5-of-5, the coverage confound), and the new deterministic fan-out
+#     leg failed 3/3 reverted with `detached 230, frecv 0, pkt 13`.
+#   * fixed tree, whole suite, exit 0 every run: clawbox 7/7 runs green
+#     (Chrome 151, 6-core Jetson) and the GATE HOST nvidia-laptop 3/3 runs
+#     green (Chrome 149, 8 cores) — ten runs, every one at FULL 7-of-7
+#     coverage. Before the fix the lane-on arm froze 4 of 4 at that coverage.
+# The gate host can host the lane: it has chromium-1228 = Chrome 149, and this
+# suite ignores MEET_CHROME on purpose.
+#
+# The blind spot is closed too, not just the bug: e2e-pipe LEG 1B now tests the
+# FAN (two pipes on one tap) in isolation — no room, no relay, no coverage
+# lottery — and asserts the mechanism directly. The lane's whole purpose is N
+# forwards off one tap and that shape had no isolated guard at all.
+# If leg 3 reds again, that is a REGRESSION to hunt, not a reason to re-add it.
