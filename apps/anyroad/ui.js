@@ -38,7 +38,7 @@
      'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-keep','ctl-fill','ctl-labels','note-offline','race-dist',
      'street','passing','recent','cockpit','cockpit-wheel','pov-eye',
      'dash-speed','dash-cond-fill','speedo','btn-fly','fly-plane','fly-car','dash-unit',
-     'dash-alt','dash-alt-m',
+     'dash-alt','dash-alt-m','share-url','share-note','btn-share',
      'wheel','stick','stick-base','stick-knob','stick-axis','schemes'].forEach(function (id) { el[id] = $(id); });
 
     buildPresets();
@@ -51,6 +51,10 @@
     });
 
     $('btn-menu').addEventListener('click', function () { openSettings(); });
+    $('btn-share').addEventListener('click', copyShareLink);
+    // Tapping the box selects the whole link — on a phone, dragging a text
+    // selection across a monospace URL is a fight nobody should have to win.
+    $('share-url').addEventListener('focus', function () { this.select(); });
     $('btn-race').addEventListener('click', function () { openRace(); });
     $('btn-flare').addEventListener('click', function () { hooks.onFlare(); });
     $('btn-map').addEventListener('click', function () {
@@ -659,7 +663,72 @@
     }, 700);
   }
 
-  function openSettings() { syncSourceMenus(); refreshCacheSize(); renderAttribution(); show(el.settings); }
+  function openSettings() { syncSourceMenus(); refreshCacheSize(); renderAttribution(); refreshShareLink(); show(el.settings); }
+
+  // ---- share where you are -------------------------------------------------
+  // A link that carries the app AND the place: /?run=anyroad&go.at=…&go.fly=1.
+  // Whoever opens it arrives exactly here with nothing installed — the same
+  // arguments the app already reads at boot (app.js applyLaunch), minted from
+  // where you actually are rather than typed by hand.
+  //
+  // ALWAYS gifos.app, never "this origin". An app runs in a sandbox with an
+  // opaque origin: it genuinely does not know whether it is on gifos.app,
+  // 7.gifos.app or a laptop, and a share link is for the public computer in
+  // every one of those cases.
+  var SHARE_BASE = 'https://gifos.app/?run=anyroad';
+
+  function shareLink() {
+    var f = hooks.frame && hooks.frame();
+    if (!f || !isFinite(f.lat0) || !isFinite(f.lon0)) return '';
+    // 5 decimals is a metre — more is noise in a URL people paste into chats.
+    var url = SHARE_BASE + '&go.at=' + f.lat0.toFixed(5) + ',' + f.lon0.toFixed(5);
+    var w = hooks.world && hooks.world();
+    // The NAME is what the recipient's HUD will read. Send the one on screen,
+    // not the coordinates again — "Grand Canyon" is the point of the link.
+    if (w && w.place && !/^-?\d/.test(w.place)) url += '&go.label=' + encodeURIComponent(w.place.slice(0, 60));
+    var car = hooks.car && hooks.car();
+    // Flying is part of "here": a link sent from the air should arrive there.
+    if (car && car.flying) url += '&go.fly=1';
+    return url;
+  }
+
+  function refreshShareLink() {
+    if (!el['share-url']) return;
+    var url = shareLink();
+    el['share-url'].value = url;
+    // Before the first hop there is no "here" to link to, and a button that
+    // copies a link to nowhere is worse than one that is plainly not ready.
+    el['btn-share'].disabled = !url;
+    if (!url) setShareNote('Go somewhere first — then this becomes a link to it.');
+    else setShareNote('Whoever opens it lands right here — even if they have never used GifOS.');
+  }
+  function setShareNote(m) { if (el['share-note']) el['share-note'].textContent = m; }
+
+  // Copying from a sandboxed app is not a given: the async Clipboard API needs
+  // a permission an opaque origin is not granted, and execCommand is deprecated
+  // but still the one that works there. Try both, and if both are refused say
+  // so and point at the box — a "Copied!" that silently did not is the one
+  // outcome worth engineering against.
+  function copyShareLink() {
+    var url = shareLink();
+    if (!url) return;
+    el['share-url'].value = url;
+    var done = function () { setShareNote('Copied. Paste it anywhere — it opens Anyroad right here.'); };
+    var manual = function () {
+      try { el['share-url'].focus(); el['share-url'].select(); } catch (e) {}
+      setShareNote('Your browser will not let an app copy for you — the link is selected above, copy it by hand.');
+    };
+    var legacy = function () {
+      try {
+        el['share-url'].focus(); el['share-url'].select();
+        if (root.document.execCommand && root.document.execCommand('copy')) { done(); return; }
+      } catch (e) { /* fall through to manual */ }
+      manual();
+    };
+    if (root.navigator.clipboard && root.navigator.clipboard.writeText) {
+      root.navigator.clipboard.writeText(url).then(done, legacy);
+    } else legacy();
+  }
 
   // ---- race ----------------------------------------------------------------
 

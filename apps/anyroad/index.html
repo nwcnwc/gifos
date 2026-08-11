@@ -235,6 +235,19 @@
   <div class="sheet">
     <div class="sheet-head"><h2>Settings</h2><button class="close" id="close-settings" aria-label="Close">✕</button></div>
 
+    <!-- SHARE WHERE YOU ARE. The link carries the app AND the place: whoever
+         opens it arrives at this spot, in the aeroplane if you are flying,
+         with nothing installed and nothing to find in a store. The box under
+         the button always holds the link too — a sandboxed app cannot count on
+         reaching the clipboard, and "copied!" that silently did not is worse
+         than no button at all. -->
+    <div class="field" id="share-field">
+      <span>Share where you are</span>
+      <div class="row"><button type="button" id="btn-share">🔗 Copy a link to here</button></div>
+      <input id="share-url" type="text" readonly spellcheck="false" autocomplete="off" aria-label="A link to this place">
+      <small id="share-note">Whoever opens it lands right here — even if they have never used GifOS.</small>
+    </div>
+
     <label class="field">
       <span>Elevation</span>
       <select id="src-terrain"></select>

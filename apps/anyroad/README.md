@@ -244,6 +244,27 @@ cannot identify itself that way. Nominatim accepts a `Referer` instead, which is
 why it is in and raster OSM tiles are out (their policy also forbids the
 prefetching a driving game does by definition).
 
+**A link can open the app somewhere, and the app can mint one.** The manifest
+declares `at`, `fly` and `label` (see [`apps/README.md`](../README.md)), so
+`gifos.app/?run=anyroad&go.at=36.0640,-112.1400&go.fly=1` drops a first-time
+visitor into the Grand Canyon with the wings out — `at` goes through the same
+Nominatim call as the search box, `fly` is the ▲ button, and both are performed
+only after GifOS has shown the person what the link asked for. Take-off waits
+for the 3.2 s arrival descent to finish (gated on `hopAnim`, deliberately not on
+`spawnChecked` — that flag only ever fires for the session's first arrival), and
+because a hop nobody tapped for cannot start an audio graph, the first touch the
+player does make unlocks the engine.
+
+Settings → **Copy a link to here** mints one from where you actually are,
+flying included. It always writes `https://gifos.app/…`: an app runs on an
+opaque origin and genuinely cannot know whether it is on gifos.app, a numbered
+computer or a laptop, and the public computer is the right target in all three.
+The link is left in a selectable box under the button because a sandboxed app
+cannot count on reaching the clipboard — the async Clipboard API needs a
+permission an opaque origin is not granted, `execCommand` is deprecated but
+still works there, and a "Copied!" that silently did not is the outcome worth
+engineering against.
+
 ## Data
 
 - Elevation — Tilezen / AWS Open Data terrain tiles (SRTM, ASTER and others)
