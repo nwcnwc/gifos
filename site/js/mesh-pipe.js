@@ -210,6 +210,25 @@ onrtctransform = (e) => {
           // COPY EARLY: the passthrough write below detaches frame.data.
           let bytes = null, ts = 0, mime = null;
           try { bytes = frame.data.slice(0); const md = frame.getMetadata(); ts = md.rtpTimestamp; mime = md.mimeType || null; } catch (err) {}
+          // ONE OWNER PER BUFFER (the stg freeze, root-caused 2026-08-10).
+          // The copy above is made ONCE per content frame, and the swap below
+          // hands it straight to the sender's sink — where Chromium DETACHES
+          // it (the header's "COPY EARLY" measurement is about exactly this,
+          // and it applies to the buffer we ASSIGN, not only to the one we
+          // read). Shared across siblings, the first pipe to write a frame
+          // neuters it for every other pipe on the tap: they swap in a
+          // zero-length payload, the packetizer emits nothing, and their
+          // receivers bright-freeze while every counter on the path reads
+          // healthy. Measured on a two-pipe fan: 247 writes -> 42 packets ->
+          // 23 frames decoded on the losing leg, against 225/237/225 on its
+          // sibling, with dropped 0 / swapErr 0 / needKey false on both.
+          //
+          // So a queued frame is never shared. The first pipe to queue it
+          // takes the original; every sibling gets its own slice. A tap with
+          // one pipe (leg 1, always green) therefore copies nothing extra —
+          // and the cost when it does is a memcpy of a few kB against the
+          // transcode this whole lane exists to avoid.
+          let handedOut = false;
           if (bytes) for (const pid of routed) {
             const p = pipeFor(pid);
             if (p.paused) continue; // a parked job's minted frames die at its detached track — queueing is waste and trips the watchdog
@@ -238,7 +257,9 @@ onrtctransform = (e) => {
               p.nkDrop = (p.nkDrop || 0) + 1;
               if (p.nkDrop === 3 || p.nkDrop % 30 === 0) askKey(o.srcId, pid);
             }
-            else { if (frame.type === 'key') { p.needKey = false; p.nkDrop = 0; } p.q.push({ bytes, ts, type: frame.type });
+            else { if (frame.type === 'key') { p.needKey = false; p.nkDrop = 0; }
+              const own = handedOut ? bytes.slice(0) : bytes; handedOut = true;
+              p.q.push({ bytes: own, ts, type: frame.type });
               // DEMAND-MINT: one template per queued frame, typed by the head.
               // q rides along so the page can CATCH UP: at healthy fps the
               // want->postMessage->main-thread->requestFrame round trip lags
