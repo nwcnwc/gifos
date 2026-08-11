@@ -5,7 +5,7 @@
   "shortName": "BitNet LLM",
   "version": "0.9",
   "minBuild": 1205,
-  "description": "A cheap text brain for your whole computer, running entirely on your device. A Provider app: put it in your Providers folder, assign it to Cheapest text LLM in Settings → AI models, and every app that asks for cheap text uses it — no account, no key, nothing leaves your device. Built on llama.cpp (wllama) with Microsoft's BitNet b1.58 ternary weights arriving as a hash-pinned download.",
+  "description": "EXPERIMENTAL TECHNOLOGY DEMO — NOT FOR EVERYDAY USE. The engine is single-threaded in the browser, so answers take MINUTES, not seconds (362s for one question, measured on a phone), after a 1.03 GB download. It exists to prove a real LLM can run sealed in a GIF with no network path at all. For a usable assistant, point Cheapest text LLM at a hosted endpoint instead. A cheap text brain for your whole computer, running entirely on your device. A Provider app: put it in your Providers folder, assign it to Cheapest text LLM in Settings → AI models, and every app that asks for cheap text uses it — no account, no key, nothing leaves your device. Built on llama.cpp (wllama) with Microsoft's BitNet b1.58 ternary weights arriving as a hash-pinned download.",
   "entry": "index.html",
   "accent": [92, 220, 180],
   "capabilities": { "wasm": true },

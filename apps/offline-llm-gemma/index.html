@@ -11,6 +11,10 @@
   .wrap { max-width: 640px; margin: 0 auto; padding: 1.4rem 1.2rem 3rem; }
   h1 { font-size: 1.4rem; margin: .4rem 0 .2rem; }
   h1 .chip { font-size:.6rem; vertical-align:.35em; margin-left:.5rem; background:var(--accent); color:#0b1533; border-radius:.35rem; padding:.2rem .45rem; letter-spacing:.08em; font-weight:800; }
+  h1 .chip.warn { background:#ffb86b; color:#3a2400; }
+  .card.warn { border-color:#ffb86b; background:#211a10; }
+  .card.warn h2 { color:#ffb86b; }
+  .card.warn p { color:#e8dcc8; }
   .lead { color: var(--muted); margin: 0 0 1.1rem; }
   .card { background:var(--surface); border:1px solid var(--border); border-radius:.8rem; padding: 1rem 1.1rem; margin-bottom: 1rem; }
   .card h2 { font-size:.95rem; margin:0 0 .5rem; }
@@ -30,8 +34,16 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>✨ Offline Cheap Text LLM Gemma 3<span class="chip">PROVIDER</span></h1>
+  <h1>✨ Offline Cheap Text LLM Gemma 3<span class="chip">PROVIDER</span><span class="chip warn">EXPERIMENTAL</span></h1>
   <p class="lead">A cheap text brain for your whole computer — a real LLM answering entirely on this device. No account, no key, nothing sent anywhere.</p>
+  <div class="card warn">
+    <h2>⚠ Experimental — a demo, not a usable assistant</h2>
+    <p>It exists to prove a real language model can ship <b>inside a GIF</b>, run sealed in the sandbox, and answer with <b>nothing whatever leaving this device</b>. As a chat assistant its speed is <b>not acceptable for common use</b>, and it is not trying to be.</p>
+    <p><b>How slow, concretely.</b> The engine runs <b>single-threaded</b> in the browser — GitHub Pages cannot send the COOP/COEP headers that would let it use more than one core — so it writes at about the pace of slow typing. Measured on a phone, one of these three took <b>362 seconds — six minutes</b> — for a single ordinary question. This one is the fastest of the three — which still means minutes. The first answer of a session is slower again: it loads the weights before writing a word.</p>
+    <p><b>Before it says anything</b> it wants a 769&nbsp;MB download, kept on this device.</p>
+    <p><b>What you get for that</b> is privacy that is structural rather than promised — not “we don’t look”, but “there is nowhere for it to go”. If you want a fast, capable assistant instead, point <b>Settings → AI models → Cheapest text LLM</b> at a hosted endpoint; every app that asks for cheap text will use that, and answer in seconds.</p>
+  </div>
+
 
   <div class="card">
     <h2>This app serves your OS</h2>
