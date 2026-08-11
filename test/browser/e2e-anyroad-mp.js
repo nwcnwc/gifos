@@ -505,25 +505,33 @@ async function run(MODE) {
       // AND HOLD THE THROTTLE while waiting: the default is MANUAL now
       // (sources.js, 2026-08-08) — an unthrottled car legitimately sits at 0
       // forever, which is the product working, not a car to measure.
-      for (let i = 0; i < 40; i++) {
+      // COUNT THE CHANCES IN FRAMES, NOT TICKS. The car accelerates per
+      // rendered frame, so 40 x 250 ms gives a 60 fps tab ~600 frames to get
+      // moving and a 1 fps tab about ten — and then the leg runs anyway on a
+      // parked car and blames the control scheme. Keep going while frames are
+      // still arriving, up to a real ceiling.
+      const f0 = window.App.debug().frames;
+      const tEnd = Date.now() + 30000;
+      for (let i = 0; Date.now() < tEnd; i++) {
         if (window.App.debug().speed > 4) { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'w' })); return window.App.debug().speed; }
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
         if (i % 8 === 7) window.App.unstick();
+        if (window.App.debug().frames - f0 > 240) break;   // plenty of frames, still parked
         await new Promise((r) => setTimeout(r, 250));
       }
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'w' }));
       return window.App.debug().speed;
     });
-    await ready();
+    const r0 = await ready();
     const straight = await steerFor(p, 0, STEER_CAP_MS);
     await sleep(400);
-    await ready();
+    const r1 = await ready();
     const left = await steerFor(p, -1, STEER_CAP_MS);
     await sleep(400);
-    await ready();
+    const r2 = await ready();
     const right = await steerFor(p, +1, STEER_CAP_MS);
     await sleep(400);
-    steering.push({ name: p.name, straight, left, right });
+    steering.push({ name: p.name, straight, left, right, ready: [r0, r1, r2] });
   }
   for (const s of steering) {
     const d = `${s.left.scheme}: steer ${s.left.steer.toFixed(2)}/${s.right.steer.toFixed(2)}, ` +
@@ -534,6 +542,19 @@ async function run(MODE) {
     // rendered 8 of its 55 frames they describe the box instead, which is
     // exactly the false red this suite produced in the 0.9.7 gate. Say so, in
     // those words, and do not pretend to a verdict about steering.
+    // A LEG THAT STARTED PARKED IS NOT A STEERING MEASUREMENT. ready() holds
+    // the throttle and hammers the app's own unstick() until the car is above
+    // 4 m/s; when it gives up, the car is wedged or the tab is starved, and
+    // steering a stationary car tells you nothing about the control scheme.
+    // This is the residual flake behind 'was genuinely driving forward while
+    // steering (1.7 m/s)' and its -2.2 m/s twin, and it reproduces on the tree
+    // BEFORE the frame-window work as well as after (measured, interleaved).
+    if ((s.ready || []).some((v) => !(v > 4))) {
+      check(s.name + ' — the car was MOVING when each window opened (about the box, not the car)', false,
+        'speeds at window open: ' + (s.ready || []).map((v) => Number(v).toFixed(1)).join(' , ')
+        + ' m/s — ready() could not get it above 4 m/s, so it is wedged or starved. Re-run on an idle box.');
+      continue;
+    }
     const legs = [s.straight, s.left, s.right];
     if (!legs.every((l) => l.filled)) {
       check(s.name + ' — the steering window FILLED (this is about the box, not the car)', false,
