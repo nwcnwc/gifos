@@ -5,8 +5,13 @@
  * inside a meeting (all one page now: run.html) — so the challenge, and the
  * per-app opt-out checkboxes, look and behave identically wherever the app is
  * mounted. The runtime calls
- * window.__gifosPermissions(policy, manifest) on every mount; this module wires
- * that hook to a chip button in the host page's header.
+ * window.__gifosPermissions(policy, manifest, launchReq) on every mount; this
+ * module wires that hook to a chip button in the host page's header.
+ *
+ * launchReq is what the opening LINK asked the app to do (go.<key>=<value>,
+ * runtime.js declaredLaunch) — { asked, grant(), deny() } — or null, which is
+ * the ordinary case. This sheet is the ONLY thing that can call grant(), so
+ * every path out of here that does not reach the buttons must deny().
  *
  *   GifOS.perms.attach(chipEl, { onLeave })
  *     chipEl  — the header button to use as the Abilities/Internet chip.
@@ -197,6 +202,11 @@
       function openModal() {
         var bg = doc.createElement('div'); bg.className = 'perm-modal';
         var appName = (manifest && manifest.name) || 'This app';
+        // A link is asked about ONCE. Reopening this sheet later from the
+        // Abilities chip is a person reviewing what the app can do — showing
+        // them a settled ask again would read as the link asking twice, over
+        // buttons that can no longer decide anything.
+        var ask = launchDone ? [] : asked;
         var rows = (hasNet ? policy.list() : []).map(function (e) {
           var any = e.host === '*';
           var desc = any
@@ -216,20 +226,20 @@
         // manifest supplies the sentence around them, the link only fills the
         // blank. Nothing here is a checkbox: this is one yes-or-no, and the
         // "no" still opens the app, which is why it is a button and not an X.
-        var launchBlock = asked.length
+        var launchBlock = ask.length
           ? '<div class="warn" id="perm-launch"><b>The link you followed is asking for this.</b> ' +
               'It comes from whoever sent you here, not from ' + escapeText(appName) + '.</div>' +
-            asked.map(function (a) {
+            ask.map(function (a) {
               return '<div class="perm-row"><span><span class="host">' + escapeText(a.label) + '</span>' +
                 '<br><span class="desc">' + (a.detail ? escapeText(a.detail) + ' ' : '') +
                 'The link says: <b class="launch-val">' + escapeText(a.value) + '</b></span></span></div>';
             }).join('')
           : '';
-        var buttons = asked.length
+        var buttons = ask.length
           ? '<div class="perm-btns"><button class="ghost" id="perm-plain">Just open it</button>' +
             '<button class="done" id="perm-go">Yes, do that</button></div>'
           : '<button class="done">Confirm &amp; Save</button>';
-        var title = asked.length
+        var title = ask.length
           ? escapeText(appName) + ' is about to open on something'
           : escapeText(appName) + ' would like to…';
         bg.innerHTML = '<div class="perm-box"><h3>' + title + '</h3>' +
@@ -249,7 +259,15 @@
         // and a dismissal (backdrop, or reopening the sheet later from the
         // chip) is a NO, because "they tapped somewhere else" is not consent to
         // act on a stranger's instruction.
-        function close() { if (hasNet) Promise.resolve(policy.acknowledge()).catch(function () {}); ackCaps(); denyLaunch(); bg.remove(); }
+        function close() {
+          if (hasNet) Promise.resolve(policy.acknowledge()).catch(function () {});
+          ackCaps(); denyLaunch(); bg.remove();
+          // An app with no abilities and no network was only ever shown a chip
+          // so the link's ask had somewhere to live. Settled, it has nothing
+          // to say, and a permanent "Abilities" button that opens an empty
+          // sheet is worse than no button.
+          if (!hasNet && !caps.length) chipEl.style.display = 'none';
+        }
         var go = bg.querySelector('#perm-go');
         if (go) {
           go.onclick = function () { grantLaunch(); close(); };
