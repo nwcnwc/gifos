@@ -3012,7 +3012,10 @@
         '<button id="ad-url-go">Add</button>' +
       '</div>' +
       '<p class="add-help" id="ad-url-msg"></p>' +
-      '<p class="add-help">Share a one-tap link: <span class="mono">gifos.app/?run=&lt;gif link&gt;</span> opens that app and saves it to your <b>Stolen Apps</b>.</p>' +
+      '<p class="add-help">Share a one-tap link: <span class="mono">gifos.app/?run=&lt;gif link&gt;</span> — or a store name, ' +
+        '<span class="mono">gifos.app/?run=anyroad</span> — opens that app and saves it to your <b>Stolen Apps</b>. ' +
+        'Some apps can be opened <i>on something</i>: <span class="mono">?run=anyroad&amp;go.at=Grand Canyon&amp;go.fly=1</span>. ' +
+        'Whoever follows it sees what the link is asking for, and decides.</p>' +
       '<div class="add-sep"></div>' +
       '<h4>Ask an AI to build you an app</h4>' +
       '<p class="add-help">Copy this prompt into any AI (Claude, ChatGPT, Gemini…). It asks what you want, then hands you back a <b>finished .gif file</b> — add it with ＋ Add file(s) above, or just drop it on your Home Screen.</p>' +

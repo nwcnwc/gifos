@@ -95,6 +95,44 @@ between people) is not yet gated. That is why the number lives in the manifest
 rather than the listing: it rides into the GIF on the next build, where the
 runtime can eventually enforce it for every route.
 
+## `launch` — letting a LINK say what to open on
+
+An app that declares a `launch` block can be opened *on something* by URL:
+
+```json
+"launch": {
+  "at":  { "label": "Open at a place the link picked",
+           "detail": "A place name or a lat,lon." },
+  "fly": { "label": "Arrive in the aeroplane, already in the air" }
+}
+```
+
+```
+https://gifos.app/?run=anyroad&go.at=36.0640,-112.1400&go.fly=1
+```
+
+Read them with `gifos.launch()`, which resolves to an object of the declared
+keys — **or `null`**, which is the ordinary case and must always be a working
+app. It resolves *late*: GifOS is showing the person what the link asked for,
+in the `label`/`detail` words above, and the answer arrives when they tap. So
+call it at boot and treat null as "open normally"; never block first paint on
+it. Undeclared keys never arrive, and a decline is `null`, not an error.
+
+Two things to get right on the app side:
+
+- **Only expose what a stranger may safely trigger.** The rule of thumb that
+  has held so far: if it is something the person could do in one tap once the
+  app is open, a link may ask for it. Anyroad's `at` is its search box and
+  `fly` is its ▲ button. Nothing that spends money, deletes data, or is hard to
+  undo belongs here.
+- **Say what happened.** A link-launched app is one a person arrived at with no
+  context, so show the ask — Offline Text to Speech puts the sentence on screen
+  before speaking it.
+
+Not a `minBuild` feature: an older GifOS has no `gifos.launch()` at all, which
+reads as `null`, and the app opens the ordinary way. A floor here would cost
+people an update they do not need — see the rule above.
+
 ## What "certified" means here
 
 - **First-party**: lives in this repo, built by us, and **signed with the

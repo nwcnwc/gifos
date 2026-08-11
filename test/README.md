@@ -449,6 +449,10 @@ Roughly three families in one directory:
 - **desktop / apps** — `e2e.js` (the big one), `e2e-boot`, `e2e-store`,
   `e2e-version`, `e2e-required`, `e2e-visibility`, `e2e-contrast`,
   `e2e-icon-rotate`, `e2e-add-url`, `e2e-run-param`, `e2e-update-erase`,
+  `e2e-launch-args` (a LINK saying what to open an app on — `?run=anyroad&`
+  `go.at=…&go.fly=1`: declared-only, consent-gated, fail-shut with no sheet to
+  ask with, then the real link end to end until a first-time visitor is
+  airborne, and a link making the TTS provider speak),
   `e2e-app-store` (the store catalog, its listings, and Install — including
   the rule that browsing must fetch ZERO App GIFs),
   `e2e-join-prettyurl`, `e2e-perms-share`, `e2e-owned-app`, `e2e-mymedia`,
