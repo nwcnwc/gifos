@@ -139,6 +139,44 @@ verdict, one log. Everything else should SPREAD across whatever boxes are up:
 | is the room ONE room? | distinct coords + agreeing population (`drills/adversary-room.js` asserts both) |
 
 
+## SOME SUITES REQUIRE ISOLATED MACHINES, AND NOW THEY SAY SO
+
+A suite whose verdict depends on real per-client hardware calls
+`await needFleet(n, {why, roles})` (`test/lib/fleet.js`) and **exits 3 having
+asserted nothing** when it is not given them. `test/lib/fleet-browsers.js`
+starts a Playwright browser server per host over ssh so each actor gets a
+MACHINE. Config is the same `~/.gifos-behavior-hosts.json` the behaviour
+battery uses.
+
+**This changes the shape of a gate.** `release.sh` reports `NEEDS-FLEET` as its
+own verdict — never retried, never a product red — and it BLOCKS a cut, because
+a guard nobody ran is a guard nobody has. So a full certification is now:
+
+| where | what |
+|---|---|
+| gate host | `release.sh --behavior=skip` — reports NEEDS-FLEET for fleet suites |
+| behaviour box | `release.sh --only=behavior` |
+| **the orchestrator** | **the fleet suites, from the box holding the hosts file** |
+
+It verifies rather than trusting the file, and every check has caught something
+real: the orchestrator listed with `weight: 1` (it must be 0 — it serves the
+stack and runs no browsers), a Playwright version gap that makes `connect()`
+refuse (a host may name a matching install with `pwPath`), and a host that is
+merely BUSY — **isolated means idle**, and pi-16gb's resident 7 GB model made it
+useless while every other check passed.
+
+Two traps it now handles for you: a remote browser is **not a secure context**
+(http on a tailnet IP — GifOS's own `#oldbrowser` banner eats the clicks), and
+ports must be **ephemeral** or a killed run's leftover server collides with the
+next one.
+
+Worked example: `e2e-anyroad-mp` went from "times out at 600s, or refuses to
+judge" on one box to **40 pass / 0 fail in 321s** with a driver per machine. Its
+behaviour-battery caller (26a) sets `ANYROAD_MP_LOCAL=1` to run the app-room
+WIRING on one box and skip the physics block, so the battery never demands a
+fleet from every host it runs on.
+
+
 ## NEVER LET A WALL CLOCK DECIDE A VERDICT
 
 **Every flake this gate has produced is one of two bugs, and both are in the
