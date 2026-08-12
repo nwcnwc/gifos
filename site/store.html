@@ -116,6 +116,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   @keyframes dlsweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
   @media (prefers-reduced-motion: reduce) { .prog.busy i { animation: none; opacity: .55; } }
   .note { color: var(--muted, #8888aa); font-size: .87rem; }
+  /* The shared link, revealed after a copy (so it is checkable) and the whole
+     feature where there is no clipboard API. Monospace and full-width: this is
+     a thing to read carefully and select, not decoration. */
+  .sharebox { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: -.8rem 0 1.4rem; max-width: 42rem; }
+  .sharebox input { flex: 1 1 20rem; min-width: 0; font: inherit; font-size: .85rem;
+                    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                    padding: .5rem .6rem; border-radius: .5rem; color: var(--text, #e0e0f0);
+                    background: var(--surface, #15151f); border: 1px solid var(--border, #2a2a3f); }
   .err { color: #ff6b8a; font-size: .9rem; }
   .desc { white-space: pre-wrap; color: var(--muted, #a9a9c5); max-width: 42rem; margin-bottom: 1.6rem; }
   .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .9rem 1.4rem; max-width: 42rem; margin-bottom: 1.6rem; }

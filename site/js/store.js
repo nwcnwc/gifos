@@ -336,6 +336,18 @@
     ? BASE + 'store.html#app=' + encodeURIComponent(slug) + ns('&db=')
     : '/store/' + encodeURIComponent(slug) + (ns('#db=') || ''));
 
+  // The link you SEND SOMEONE, which is not the URL you happen to be reading.
+  // Two things are deliberately dropped:
+  //   - ns(), the alternate-database suffix. It is a local dev/test scope, and
+  //     pushing a friend into your private database is never what "share" means.
+  //   - the /versions/ prefix. From a frozen snapshot detailUrl points INTO that
+  //     snapshot, and sharing it would pin someone to an old build forever. You
+  //     are sharing the app, not the build you are standing on, so this is always
+  //     the canonical root path.
+  // Absolute, because a relative path is useless once it is pasted somewhere.
+  // Origin-relative rather than hard-coded, so a custom deployment shares itself.
+  const shareUrl = (slug) => new URL('/store/' + encodeURIComponent(slug), location.href).href;
+
   function showBrowse(push) {
     detailEl.style.display = 'none';
     browseEl.style.display = '';
@@ -388,6 +400,10 @@
             '<a class="btn' + (canUpdate ? ' ghost' : '') + '" href="' + BASE + 'run.html#id=' + encodeURIComponent(installedId) + ns('&db=') + '">Open</a>' +
             '<button class="btn ghost" id="install"' + stop + '>' + why('Install again') + '</button>'
           : '<button class="btn" id="install"' + stop + '>' + why('Install — free') + '</button>') +
+        // Share is NEVER gated by the build floor. A listing this computer
+        // cannot install from is still worth sending to someone whose computer
+        // can — that is most of the point of having a link.
+        '<button class="btn ghost" id="share" data-url="' + esc(shareUrl(app.slug)) + '">Share</button>' +
         '<span class="note" id="note">' + esc(human(app.bytes)) + ' download' +
           // An app whose weights arrive separately is TWO downloads, and the
           // second one dwarfs the first. Say so before the press, not after.
@@ -402,6 +418,13 @@
       '<div class="dl" id="dl2" style="display:none">' +
         '<span class="note" id="note2"></span>' +
         '<span class="prog" id="prog2"><i></i></span>' +
+      '</div>' +
+      // What got copied, shown rather than promised. A button that says "copied"
+      // and nothing else is unverifiable, and on the browsers with no clipboard
+      // API at all this row IS the share: the link, selectable, ready to copy.
+      '<div class="sharebox" id="sharebox" style="display:none">' +
+        '<label class="note" for="shareurl">Send this link:</label>' +
+        '<input id="shareurl" readonly value="' + esc(shareUrl(app.slug)) + '">' +
       '</div>' +
       (legacyDesktop ? legacyNotice() : '') +
       (tooOld(app) ? tooOldNotice(app) : '') +
@@ -443,6 +466,56 @@
     if (!legacyDesktop) $('install').onclick = () => install(app);
     const up = $('update');
     if (up && !legacyDesktop) up.onclick = () => install(app, inst);
+    wireShare(app);
+  }
+
+  // ---------- share ----------
+  // Three tiers, best first, and every one of them ends with the link somewhere
+  // the person can actually use:
+  //   1. navigator.share — the OS share sheet. On a phone this is the whole
+  //      feature: straight into Messages/WhatsApp/mail.
+  //   2. clipboard.writeText — copied, and the link revealed so it is checkable.
+  //   3. neither (older browsers, or a non-secure origin, where BOTH of the
+  //      above are undefined) — reveal and select the link. Never a dead button.
+  function wireShare(app) {
+    const btn = $('share');
+    if (!btn) return;
+    const url = btn.dataset.url;
+    const box = $('sharebox');
+    const field = $('shareurl');
+    const reveal = (select) => {
+      box.style.display = '';
+      if (select) { try { field.focus(); field.select(); } catch (e) { /* no selection API */ } };
+    };
+    const said = (msg) => {
+      btn.textContent = msg;
+      setTimeout(() => { btn.textContent = 'Share'; }, 2400);
+    };
+    btn.onclick = async () => {
+      // The share sheet wants a real title and text — a bare URL in a message
+      // thread says nothing about what it is.
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: app.name, text: app.tagline || app.name, url });
+          return;
+        } catch (e) {
+          // AbortError is the person closing the sheet, which is not a failure
+          // and must not turn into an error or a fallback they did not ask for.
+          if (e && e.name === 'AbortError') return;
+          // Anything else (no permission, unsupported target) falls through.
+        }
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(url);
+          said('✓ Link copied');
+          reveal(false);
+          return;
+        } catch (e) { /* denied or no focus — the row below still works */ }
+      }
+      reveal(true);
+      said('Copy this link');
+    };
   }
   const fact = (k, v) => '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>';
 
