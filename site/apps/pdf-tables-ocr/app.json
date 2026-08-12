@@ -42,9 +42,9 @@
   "cover": "/apps/pdf-tables-ocr/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pdf-tables-ocr/pdf-tables-ocr.gif",
-  "bytes": 27918508,
+  "bytes": 27919043,
   "download": 0,
   "provides": null,
-  "sha256": "52d146562598c211856742dd40088d30abdee2e6fd3a568bb4fa1b62f251eaf9",
+  "sha256": "cc8c7012beb0e3b9ce5f9ca5cc15efc60ea44d202a2a5751affecc0d3cacce28",
   "signature": null
 }

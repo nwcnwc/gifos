@@ -89,7 +89,20 @@
         if (y > 0 && bin[p - w] && !label[p - w]) { label[p - w] = id; stack[sp++] = p - w; }
         if (y < h - 1 && bin[p + w] && !label[p + w]) { label[p + w] = id; stack[sp++] = p + w; }
       }
-      if (px.length >= minArea) out.push({ px: px, minX: minX, minY: minY, maxX: maxX, maxY: maxY });
+      if (px.length < minArea) continue;
+      // Keep the BOUNDARY pixels separately, because that is all the convex hull
+      // needs: a pixel with all four orthogonal neighbours inside the component
+      // is the midpoint of two of them, so it can never be a hull vertex. For
+      // text this changes little, but a scanner's black page border arrives as
+      // one blob of hundreds of thousands of pixels, and hulling its area rather
+      // than its outline means sorting all of them.
+      var edge = [];
+      for (var k = 0; k < px.length; k++) {
+        var q = px[k], qy = (q / w) | 0, qx = q - qy * w;
+        if (qx === 0 || qx === w - 1 || qy === 0 || qy === h - 1 ||
+          label[q - 1] !== id || label[q + 1] !== id || label[q - w] !== id || label[q + w] !== id) edge.push(q);
+      }
+      out.push({ px: px, edge: edge, minX: minX, minY: minY, maxX: maxX, maxY: maxY });
     }
     return out;
   }
@@ -219,8 +232,8 @@
         var score = compScore(prob, comp);
         if (score < DET.boxThresh) continue;
         var pts = [];
-        for (var k = 0; k < comp.px.length; k++) {
-          var p = comp.px[k], y = (p / pw) | 0, x = p - y * pw;
+        for (var k = 0; k < comp.edge.length; k++) {
+          var p = comp.edge[k], y = (p / pw) | 0, x = p - y * pw;
           pts.push([x, y]);
         }
         var rect = normalizeRect(minAreaRect(pts));
