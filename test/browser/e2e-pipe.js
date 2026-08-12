@@ -358,7 +358,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     //    announcer re-shipping a new container) installs a NEW <video> whose
     //    counter restarts at zero. The old rule then waited for the new element
     //    to climb past the OLD element's total — tens of seconds at 15fps —
-    //    and called that a 12s bright freeze. Measured on clawbox: of three
+    //    and called that a 12s bright freeze. Measured on <behavior-box>: of three
     //    stalls reported in one run, TWO were exactly this, at seats that were
     //    decoding perfectly on a fresh container. So key the baseline by
     //    (via, streamId) and re-baseline when the container changes.
@@ -631,9 +631,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       // bright feed, so a run where none ever went bright has tested nothing at
       // all — and reporting that as green is precisely the failure CLAUDE.md
       // names ("a test that guards nothing is worse than no test"). It cost
-      // real time on 2026-08-10: raspberrypi greens taken at face value became
+      // real time on 2026-08-10: <monitor-pi> greens taken at face value became
       // a whole "the freeze is box-conditioned" conclusion, and the box was
-      // simply judging half the feeds clawbox was. Fail loudly instead, and say
+      // simply judging half the feeds <behavior-box> was. Fail loudly instead, and say
       // it is coverage rather than the product, so nobody hunts a phantom.
       check('leg 3 could actually JUDGE something (a bright feed existed to watch)',
         brightSeen.size > 0,

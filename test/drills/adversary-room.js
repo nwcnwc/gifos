@@ -6,7 +6,7 @@
 //   cannot cope — must never prevent OTHER people from joining the meeting or
 //   from continuing it.
 //
-// This is not hypothetical. A weak box in our own fleet (penguin) seats fine
+// This is not hypothetical. A weak box in our own fleet (<orchestrator>) seats fine
 // and then fails to complete its DataChannels once it runs out of headroom.
 // That is an "unintentional adversary", and it is indistinguishable from a
 // hostile one to everybody else in the room: from the outside both look like a
@@ -23,7 +23,7 @@
 // PROFILES (each an ordinary client, no patched build — that is the point; a
 // real attacker does not need our source):
 //   dark    __gifosBlockIce=['*'] — seats, then can never complete ANY P2P
-//           connection. The penguin case, and the firewalled-user case.
+//           connection. The <orchestrator> case, and the firewalled-user case.
 //   mute    seats and then stops sending status entirely (frozen tab / asleep)
 //   churn   joins and reloads repeatedly, thrashing occupancy
 //

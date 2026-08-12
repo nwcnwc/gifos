@@ -162,7 +162,7 @@ It verifies rather than trusting the file, and every check has caught something
 real: the orchestrator listed with `weight: 1` (it must be 0 — it serves the
 stack and runs no browsers), a Playwright version gap that makes `connect()`
 refuse (a host may name a matching install with `pwPath`), and a host that is
-merely BUSY — **isolated means idle**, and pi-16gb's resident 7 GB model made it
+merely BUSY — **isolated means idle**, and <llm-box>'s resident 7 GB model made it
 useless while every other check passed.
 
 Two traps it now handles for you: a remote browser is **not a secure context**
@@ -317,8 +317,8 @@ were burned in the 0.9.0 cut on exactly this.
 
 **Worked example (2026-08-02).** `e2e-perms-share` measured the guest's app
 mount at 9-32 ms five runs in six and 32,899 ms on the sixth, on one box. Was it
-real? Rebuilt across three machines — host on raspberrypi, guest on an idle
-pi-16gb, site+relay on penguin — it reproduced and was far WORSE: 1.6s / 7.7s /
+real? Rebuilt across three machines — host on <monitor-pi>, guest on an idle
+<llm-box>, site+relay on <orchestrator> — it reproduced and was far WORSE: 1.6s / 7.7s /
 7.7s / 20.7s / 36.5s, later 48.5s. Real bug, two causes, both fixed
 (`FIX both remaining legs of the slow app-room join`). Afterwards: max 6.1s.
 
@@ -369,8 +369,8 @@ them apart — guessing without this trace cost two wrong diagnoses in one day.
 * **INTERLEAVE every A/B** (O,N,O,N…), never all-old-then-all-new. Box load
   drifts upward across a session, and a sequential A/B reported a phantom
   regression twice in one day. See the `power-lever-refutations` discipline.
-* **Background services skew a pi.** raspberrypi runs MonitorBot
-  (`systemctl --user stop gifos-meet-monitor.service`), pi-16gb runs the Home
+* **Background services skew a pi.** <monitor-pi> runs MonitorBot
+  (`systemctl --user stop gifos-meet-monitor.service`), <llm-box> runs the Home
   Privacy Machine (`sudo systemctl stop hpm-app.service`, ~3 of its 4 cores).
   Stop them for a clean measurement and **start them again afterwards**. The
   behaviour box's own resident GPU model is the same trap in MEMORY rather than

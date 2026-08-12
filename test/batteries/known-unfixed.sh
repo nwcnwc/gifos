@@ -126,7 +126,7 @@ if [ "$BROWSERS" = 1 ]; then
                  (sids are per-job constants, a kill renegotiates NOTHING on
                  surviving hops) and no zombie-parked-pipe (a wake can no longer
                  be sid-mismatch-ignored, and a husk stops being a candidate).
-                 Measured that day, clawbox + gate host, 17 drill runs: typical
+                 Measured that day, <behavior-box> + gate host, 17 drill runs: typical
                  post-kill resumes 0.8-2.4s — INSIDE the bound — including sdn
                  multi-hop at loadavg 10.7. What still misses ≤5s, and why this
                  entry stays:

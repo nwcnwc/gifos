@@ -12,9 +12,11 @@
   var TERRAIN_RADIUS = 3000;   // metres of elevation around the car
   var ROAD_RADIUS = 1200;      // metres of OSM geometry — one Overpass query per tile
   var DRAW_DISTANCE = 6000;
-  var lastLabels = [], lastFlares = 0;   // what the last frame actually drew, for the gate
+  var lastLabels = [], lastLabelGeom = [], lastFlares = 0;   // what the last frame actually drew, for the gate
   var LABEL_RANGE = 170;      // metres — how far a floating street name carries
   var MAX_LABELS = 6;         // a junction has many names; six is orientation, twelve is wallpaper
+  var LABEL_MIN_DIST = 14;    // metres — nearer than this a name is on top of the car, not beside the road
+  var LABEL_MIN_SEP = 0.13;   // radians (~7.5°) of bearing between two labels, so they cannot stack up
   var TREE_DISTANCE = 1100;    // metres — scenery only, measured to the tile centre
 
   // Hard ceilings on how much world is resident, because a metre radius does
@@ -29,7 +31,12 @@
   // Every GL mesh a built road tile owns. Listed once: a mesh missing from this
   // list is a buffer that is never released, and the leak only shows up as a
   // browser tab that dies after twenty minutes of driving.
-  var MESHES = ['roads', 'buildings', 'water', 'trees', 'shadows', 'treeShadows'];
+  // 'pools' was missing here while roads.js has been packing one since pools
+  // existed (its `pools:` mesh), so every swimming pool's vertex buffer was
+  // leaked on every tile evict and every rebuild — and a tile with unsampled
+  // terrain rebuilds on EVERY elevation arrival, so it is not a one-off. Exactly
+  // the failure the note above describes: nothing looks wrong until the tab dies.
+  var MESHES = ['roads', 'buildings', 'water', 'pools', 'trees', 'shadows', 'treeShadows'];
 
   var world = {
     frame: null,
@@ -1660,7 +1667,7 @@
     // costs a lookup we were already making for the HUD chip. Nearest few
     // only: a city junction can have a dozen names inside 150 m and all of
     // them at once is wallpaper, not orientation.
-    if (root.Sources.current.labels === 'off') lastLabels = [];
+    if (root.Sources.current.labels === 'off') { lastLabels = []; lastLabelGeom = []; }
     if (root.Sources.current.labels !== 'off') {
       var lnames = [];
       for (var lk in world.roads) {
@@ -1669,20 +1676,54 @@
         root.Roads.namesNear(lr.built.index, car.x, car.z, LABEL_RANGE, lnames);
       }
       lastLabels = [];
+      lastLabelGeom = [];
       if (lnames.length) {
         lnames.sort(function (p, q) { return p.d2 - q.d2; });
         scene.labels = [];
+        var takenBearing = [];
         for (var li = 0; li < lnames.length && scene.labels.length < MAX_LABELS; li++) {
           var L2 = lnames[li];
           if (!L2.name) continue;
+          // Nearer than LABEL_MIN_DIST the label is ON the car rather than
+          // beside the road: namesNear returns the closest point on each road,
+          // so the road you are DRIVING on reports ~0 m and its name lands on
+          // top of the largest thing on screen — naming the one street the
+          // player is least in doubt about, since the HUD chip already says it.
+          // Distance alone covers that case, so there is no need to special-case
+          // car.street by name.
+          var ldist = Math.sqrt(L2.d2);
+          if (ldist < LABEL_MIN_DIST) continue;
           var lgy = root.Terrain.heightAt(world.frame, L2.x, L2.z);
           if (lgy === null) continue;
+          // Behind the camera is not a place a sign can be read. namesNear is a
+          // radius, so half of what it returns is behind you; those consumed
+          // MAX_LABELS slots that a readable name ahead could have used.
+          var bx = L2.x - car.x, bz = L2.z - car.z;
+          if (Math.sin(car.yaw) * bx + Math.cos(car.yaw) * bz < -ldist * 0.35) continue;
+          // Keep them off each other. These are billboards of near-constant
+          // angular size, so bearing separation IS screen separation — two
+          // names on the same bearing overlap however far apart they are, and
+          // near the horizon they overlap exactly.
+          var bearing = Math.atan2(bx, bz);
+          var clash = false;
+          for (var bi = 0; bi < takenBearing.length; bi++) {
+            var dab = Math.abs(bearing - takenBearing[bi]);
+            if (dab > Math.PI) dab = Math.PI * 2 - dab;
+            if (dab < LABEL_MIN_SEP) { clash = true; break; }
+          }
+          if (clash) continue;
+          takenBearing.push(bearing);
           // Fade the furthest ones rather than popping them: the set changes
           // as you drive and a label snapping into existence reads as a bug.
-          var far2 = Math.sqrt(L2.d2) / LABEL_RANGE;
-          scene.labels.push({ x: L2.x, y: lgy + 3.2, z: L2.z, text: L2.name,
+          var far2 = ldist / LABEL_RANGE;
+          // Lift with distance. At a flat 3.2 m a far name sits within a pixel
+          // or two of the horizon line, tangled in the haze and the skyline;
+          // rising with distance keeps it clear of both while still reading as
+          // standing over its own carriageway.
+          scene.labels.push({ x: L2.x, y: lgy + 3.0 + ldist * 0.028, z: L2.z, text: L2.name,
                               alpha: Math.max(0, Math.min(1, (1 - far2) * 2.2)) });
           lastLabels.push(L2.name);
+          lastLabelGeom.push(scene.labels[scene.labels.length - 1]);
         }
       }
     }
@@ -1955,7 +1996,11 @@
         view: viewName(),
       flying: car.flying, falling: car.falling, agl: Math.round(car.agl || 0), birdK: birdK, cockK: cockK,
         scorches: scorches.length, puffs: puffs.length, breaches: breaches.length,
-        labels: lastLabels.slice(), flares: lastFlares,
+        labels: lastLabels.slice(),
+        // Positions too: the name list said a label existed while the sky was
+        // erasing it, and said nothing about it sitting on top of the car.
+        labelGeom: lastLabelGeom.map(function (L) { return { x: L.x, y: L.y, z: L.z, text: L.text, alpha: L.alpha }; }),
+        flares: lastFlares,
         crumple: carCrumple(),
       };
     },

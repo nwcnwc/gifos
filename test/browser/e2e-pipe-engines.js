@@ -26,7 +26,7 @@
 //      consumer decodes CONTENT-sized frames (never the carrier's 48px), the
 //      decode counter ADVANCES, the worker wrote content frames with zero swap
 //      errors, and content/template mime agree.
-//      MEASURED 2026-08-07 on penguin: Firefox 151 (Gecko) passes this in full
+//      MEASURED 2026-08-07 on <orchestrator>: Firefox 151 (Gecko) passes this in full
 //      — wrote 122 / swapErr 0 / VP8==VP8, consumer framesDecoded 94 -> 123 at
 //      322x180. The lane is NOT a Blink-only feature; that had never been run.
 //

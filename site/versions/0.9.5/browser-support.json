@@ -15,7 +15,7 @@
     "conservative": "Deliberately HIGHER than the real floor. The number's original derivation was found void (see requirements.es6-baseline) and nobody has run the versions below it, so it is left where it was rather than replaced with a fresh guess. It is safe in one direction only, which is the direction that matters: the preflight's verdict is feature detection and never this table, so a too-high number can only make the sentence on a wall that is already being shown slightly pessimistic — it can never turn a working browser away."
   },
   "sources": [
-    "test/browser/e2e-pipe-engines.js and the 2026-08-07 old-engine runs on penguin — the `measured` rows below name their build",
+    "test/browser/e2e-pipe-engines.js and the 2026-08-07 old-engine runs — the `measured` rows below name their build",
     "MDN browser-compat-data api/SubtleCrypto.json — ed25519 sign/verify/importKey/exportKey (the OLD floor, kept for the fallback boundary: native below Chrome 137 / Firefox 129 / Safari 17 is absent and the js engine engages)"
   ],
   "requirements": {
@@ -138,7 +138,7 @@
           "since": "2018-12",
           "why": "es6-baseline",
           "confidence": "conservative",
-          "note": "CONSERVATIVE, NOT A MEASURED FLOOR. Chrome 71 was requirement arithmetic off globalThis, and globalThis is not a requirement (requirements.es6-baseline records the correction and the Firefox 63 run that exposed it). No Chrome below 137 has been run against the site by us; Chrome 137 was run 2026-08-07 on penguin (test/browser/e2e-pipe-engines.js: the site loads, mesh-pipe.js loads, no RTCRtpScriptTransform so the encoded lane correctly self-disables). The true floor is older than 71 and unmeasured."
+          "note": "CONSERVATIVE, NOT A MEASURED FLOOR. Chrome 71 was requirement arithmetic off globalThis, and globalThis is not a requirement (requirements.es6-baseline records the correction and the Firefox 63 run that exposed it). No Chrome below 137 has been run against the site by us; Chrome 137 was run 2026-08-07 (test/browser/e2e-pipe-engines.js: the site loads, mesh-pipe.js loads, no RTCRtpScriptTransform so the encoded lane correctly self-disables). The true floor is older than 71 and unmeasured."
         },
         "cast": {
           "state": "supported",
@@ -146,7 +146,7 @@
           "since": "2018-12",
           "why": "es6-baseline",
           "confidence": "conservative",
-          "note": "CONSERVATIVE, NOT A MEASURED FLOOR. Chrome 71 was requirement arithmetic off globalThis, and globalThis is not a requirement (requirements.es6-baseline records the correction and the Firefox 63 run that exposed it). No Chrome below 137 has been run against the site by us; Chrome 137 was run 2026-08-07 on penguin (test/browser/e2e-pipe-engines.js: the site loads, mesh-pipe.js loads, no RTCRtpScriptTransform so the encoded lane correctly self-disables). The true floor is older than 71 and unmeasured."
+          "note": "CONSERVATIVE, NOT A MEASURED FLOOR. Chrome 71 was requirement arithmetic off globalThis, and globalThis is not a requirement (requirements.es6-baseline records the correction and the Firefox 63 run that exposed it). No Chrome below 137 has been run against the site by us; Chrome 137 was run 2026-08-07 (test/browser/e2e-pipe-engines.js: the site loads, mesh-pipe.js loads, no RTCRtpScriptTransform so the encoded lane correctly self-disables). The true floor is older than 71 and unmeasured."
         },
         "desktop": {
           "state": "unknown",
@@ -220,7 +220,7 @@
           "since": "2019-01",
           "why": "es6-baseline",
           "confidence": "conservative",
-          "note": "CONSERVATIVE, and now bracketed from BELOW by a run. Firefox 65 was requirement arithmetic off globalThis. MEASURED 2026-08-07 on penguin: Firefox 63.0 (Milestone=63.0, headless, against a local copy of the site) has no globalThis, passes the preflight with an EMPTY gap list, paints no wall, and boots run.html to a working meeting UI with the fallback signer engaged (GifOS.ed.engine() === 'js'). Firefox 151 was run the same day and is a full participant including the encoded-passthrough lane. So the true floor is at or below 63; 65 is left standing because seating over a relay was not observed on 63 and we do not lower a number we have not fully run."
+          "note": "CONSERVATIVE, and now bracketed from BELOW by a run. Firefox 65 was requirement arithmetic off globalThis. MEASURED 2026-08-07: Firefox 63.0 (Milestone=63.0, headless, against a local copy of the site) has no globalThis, passes the preflight with an EMPTY gap list, paints no wall, and boots run.html to a working meeting UI with the fallback signer engaged (GifOS.ed.engine() === 'js'). Firefox 151 was run the same day and is a full participant including the encoded-passthrough lane. So the true floor is at or below 63; 65 is left standing because seating over a relay was not observed on 63 and we do not lower a number we have not fully run."
         },
         "cast": {
           "state": "supported",
@@ -228,7 +228,7 @@
           "since": "2019-01",
           "why": "es6-baseline",
           "confidence": "conservative",
-          "note": "CONSERVATIVE, and now bracketed from BELOW by a run. Firefox 65 was requirement arithmetic off globalThis. MEASURED 2026-08-07 on penguin: Firefox 63.0 (Milestone=63.0, headless, against a local copy of the site) has no globalThis, passes the preflight with an EMPTY gap list, paints no wall, and boots run.html to a working meeting UI with the fallback signer engaged (GifOS.ed.engine() === 'js'). Firefox 151 was run the same day and is a full participant including the encoded-passthrough lane. So the true floor is at or below 63; 65 is left standing because seating over a relay was not observed on 63 and we do not lower a number we have not fully run."
+          "note": "CONSERVATIVE, and now bracketed from BELOW by a run. Firefox 65 was requirement arithmetic off globalThis. MEASURED 2026-08-07: Firefox 63.0 (Milestone=63.0, headless, against a local copy of the site) has no globalThis, passes the preflight with an EMPTY gap list, paints no wall, and boots run.html to a working meeting UI with the fallback signer engaged (GifOS.ed.engine() === 'js'). Firefox 151 was run the same day and is a full participant including the encoded-passthrough lane. So the true floor is at or below 63; 65 is left standing because seating over a relay was not observed on 63 and we do not lower a number we have not fully run."
         },
         "desktop": {
           "state": "unknown",

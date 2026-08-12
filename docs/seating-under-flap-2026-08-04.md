@@ -163,8 +163,8 @@ is FOR), so:
   unchanged for hours), i.e. exactly what a shape-only signature deletes.
   `sever <peer> [secs]` manufactures the shape between REAL boxes.
 - `test/drills/e2e-room-fork-live.js` — the guard, in `mesh-churn.sh` and the
-  release gate's drills tier. Measured (raspberrypi, load < 1, and
-  nvidia-laptop): the fork forms in 6.6-6.7s and both halves see it 6.4s
+  release gate's drills tier. Measured (<monitor-pi>, load < 1, and
+  <gate-host>): the fork forms in 6.6-6.7s and both halves see it 6.4s
   later, at `0/0.0 occ=1 links=0` — the ledger's reading, verbatim. A HEALTHY
   room stays silent for twice the dwell, which is the leg that makes the
   others mean anything.

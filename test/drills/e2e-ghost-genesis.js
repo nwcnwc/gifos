@@ -45,7 +45,7 @@
 // the next knocker — a member with the real key, or a fresh joiner — founds it
 // for real.
 //
-// MEASURED, with real browsers (nvidia-laptop, 8 cpu, load < 2). Three clients;
+// MEASURED, with real browsers (<gate-host>, 8 cpu, load < 2). Three clients;
 // two reach the relay through test/servers/pause-forwarder.js, one direct.
 // Park the third at mesh state 1 by SIGUSR1'ing the forwarder (its greeter
 // list stays non-empty but nothing in it can answer), then drop the forwarder

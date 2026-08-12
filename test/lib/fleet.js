@@ -104,7 +104,7 @@ function refuse(n, have, o) {
 
 // VERIFY THE HOSTS, DO NOT TRUST THE FILE. The hosts file is hand-written and
 // goes stale: the very first one read here listed the ORCHESTRATOR with
-// weight 1 (penguin, which has no playwright chromium at all — it scores DEAD
+// weight 1 (<orchestrator>, which has no playwright chromium at all — it scores DEAD
 // on every browser tier), and a pi whose chrome path pointed at a directory
 // layout that had moved. A requirement satisfied on paper, with the browser
 // then launching somewhere it cannot, is the same lie in a new place.
@@ -117,7 +117,7 @@ function check(h, engine) {
       return resolve({ h, ok: false, why: 'orchestrator (no ssh) — it must not run browsers; set weight 0' });
     }
     if (!bin) return resolve({ h, ok: false, why: 'no ' + engine + ' path in the hosts entry' });
-    // ISOLATED MEANS IDLE, and that has to be measured too. pi-16gb passed
+    // ISOLATED MEANS IDLE, and that has to be measured too. <llm-box> passed
     // every other check and then delivered 17-21 of 55 frames, because it runs
     // a resident 7 GB model over roughly three of its four cores (test/README
     // says so, and the file said nothing). A busy box in the fleet is the same
