@@ -73,10 +73,34 @@ hand that key to everyone it was ever shared with. So:
 - `gifos.pay` exposes **no** export, no `getPrivateKey`, no raw-sign primitive.
   The only thing an app can cause is a payment inside its budget.
 
-The honest cost: **non-extractable means unrecoverable.** There is no seed
-phrase, and funds cannot be moved to another device. That is deliberate. This
-is a transit account you top up, not a savings account, and the UI says so in
-those words. (Note `gifos-sign.js` generates *identity* keys with
+The honest cost: **non-extractable means the KEY cannot be moved or backed
+up** — no seed phrase, no import, no copy to a second device. Be precise about
+what that does and does not mean, because the first draft of this file
+overstated it: **the funds are not trapped.** The key can always sign a
+transfer, so the balance can be swept anywhere at any time, including to
+another device's address. What is lost if the browser profile is lost is the
+key itself, and with it any balance still sitting in that account at that
+moment. This is a transit account you top up, not a savings account, and the
+UI says so in those words.
+
+**Prior art we should steal from, not ignore.** Coinbase's answer to the same
+problem is better on two axes: their Smart Wallet is an ERC-4337 contract
+account owned by **passkeys** (secp256r1, verified on-chain via webauthn-sol),
+so the key is hardware-backed in a Secure Enclave/TPM rather than merely
+browser-held, and passkeys SYNC, which removes the single-device failure above
+entirely. Smart accounts can pay x402 on the standard path — USDC's
+FiatTokenV2_2 implements ERC-7598, routing the signature to the payer's
+EIP-1271 `isValidSignature`, so `transferWithAuthorization` is not EOA-only.
+
+We do not adopt it wholesale for two reasons: ERC-4337 needs an EntryPoint, a
+bundler and a paymaster, none of which a static site on GitHub Pages has or can
+host; and a passkey demands a **user gesture per signature**, which is fatal to
+silent sub-cap micropayments — the entire point of the budget model above.
+
+What we DO adopt: a passkey (WebAuthn) gate on the consequential actions —
+raising a budget, and any single payment above the per-call cap — so the moves
+that can actually hurt require a user-present, phishing-resistant confirmation,
+while small payments stay silent under the sealed key. (Note `gifos-sign.js` generates *identity* keys with
 `extractable: true` — right for identity, which must be portable; wrong for
 money, which must not be.)
 
