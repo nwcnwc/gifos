@@ -260,7 +260,10 @@ bytes ever diverge from the catalog's.
   weights arrive by manifest pin into the asset store — a community TQ1_0
   conversion, 1,105,874,048 bytes, verified bit-for-bit against our own
   conversion of Microsoft's official checkpoint before pinning (see its
-  README). Named so siblings could follow, and they did:
+  README). Two sandbox findings are load-bearing and encoded in its build:
+  Chromium refuses `{type:'module'}` blob workers in opaque origins (rewritten
+  to classic), and emscripten loaders need the wasm hatch's `connect-src
+  blob:`. Named so siblings could follow, and they did:
 - **Offline Cheap Text LLM Gemma 3** (`apps/offline-llm-gemma/`) — same engine,
   Google's Gemma 3 1B Instruct Q4_K_M, 806,058,240 bytes. The SMALLEST and
   FASTEST of the three, which matters because the engine runs single-threaded
