@@ -149,6 +149,17 @@ a .zip for multi-file apps). GifOS packs the GIF there.
      (WebAssembly.instantiate / Module.wasmBinary) — never fetch. Shown to the
      user as "runs a compiled engine on your device." (See apps/chess-grandmaster,
      which bundles full-strength Stockfish and plays entirely offline.)
+   - gpu: declare capabilities.gpu:true to use WebGPU (navigator.gpu) for fast
+     on-device compute — AI inference, image, physics. The sandbox hides
+     navigator.gpu by default; this delegates the WebGPU permission to the app
+     frame and NOTHING else. No CSP change: WebGPU has no network path, so
+     connect-src stays 'none' and everything runs offline sealed in the app.
+     Pair it with wasm when your engine is WASM (transformers.js / ONNX Runtime
+     Web / WebLLM): the .wasm + weights still ride INSIDE the app (bundled bytes
+     or the install-time asset cache), never fetched. ALWAYS feature-detect
+     (navigator.gpu && await navigator.gpu.requestAdapter()) and fall back to
+     CPU/WASM when there is no adapter — many devices have a real GPU, the ones
+     that do not run fine on CPU. Shown as "uses your device's graphics chip."
    ALWAYS feature-detect and never fake a result. You do NOT need to write your
    own "how to set up X" instructions: when a gifos.api / gifos.ai call hits
    missing config, GIFOS ITSELF shows a setup prompt (it knows the provider's URL

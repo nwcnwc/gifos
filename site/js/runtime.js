@@ -2377,6 +2377,13 @@
     // srcdoc lands it is too late, which is why this cannot wait for the yes.
     const allow = [];
     if (hasCap(manifest, 'motion') && !capDisabled(manifest, 'motion')) allow.push('gyroscope', 'accelerometer', 'magnetometer');
+    // WebGPU is a Permissions-Policy feature, so a sandboxed (opaque-origin)
+    // frame gets navigator.gpu only if the parent delegates it here — same hatch
+    // as motion, and fixed at navigation for the same reason. It needs NO CSP
+    // relaxation: WebGPU opens no network path (connect-src 'none' still holds),
+    // it runs a compute/render pipeline on the device's GPU. The engine still
+    // has to reach the sandbox as bytes; capabilities.wasm remains the way in.
+    if (hasCap(manifest, 'gpu') && !capDisabled(manifest, 'gpu')) allow.push('webgpu');
     if (asked.length) allow.push('autoplay');
     if (allow.length) { try { iframe.setAttribute('allow', allow.join('; ')); } catch (e) {} }
     iframe.srcdoc = buildAppHtml(files, manifest);
