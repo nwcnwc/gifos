@@ -771,12 +771,37 @@ async function run(MODE) {
     await p.page.bringToFront();
     countdowns.push(await p.body().evaluate(() => {
       const st = window.MP.raceState(window.App.car());
-      return st ? { toFinish: Math.round(st.toFinish), started: st.countdown === 0 } : null;
+      if (!st) return null;
+      // THE FINISH AS A POINT, IN GEO. raceState gives `finish` in WORLD
+      // coordinates, and each player's world frame is anchored where THEY
+      // loaded, so world x/z is not comparable between them either. Geo is.
+      const g = window.App.world.frame.toGeo(st.finish.x, st.finish.z);
+      return { toFinish: Math.round(st.toFinish), started: st.countdown === 0, lat: g.lat, lon: g.lon };
     }));
   }
+  // ONE FINISH LINE, NOT THREE SIMILAR DISTANCES.
+  //
+  // This compared each car's OWN distance to the finish and demanded they
+  // agree within 250 m — which is not the claim. Three people racing are in
+  // three different places, so their distances differ by exactly as much as
+  // they have driven apart. It only ever passed because on one shared box the
+  // cars were too starved to go anywhere; the first run with a machine each
+  // produced [131, 489, 540] and called a perfectly good race a failure.
+  //
+  // The claim is that everyone is racing to the SAME POINT, so compare the
+  // point. Distances are kept in the message because they are useful
+  // forensics, never as the verdict.
+  const fin0 = countdowns[0];
+  const metresApart = (a, b) => {
+    if (!a || !b) return Infinity;
+    const mLat = 111320, mLon = 111320 * Math.cos((a.lat || 0) * Math.PI / 180);
+    return Math.hypot((a.lat - b.lat) * mLat, (a.lon - b.lon) * mLon);
+  };
+  const finApart = countdowns.map((c) => metresApart(c, fin0));
   check('every player is racing to the SAME finish line',
-    countdowns.every((c) => c && Math.abs(c.toFinish - countdowns[0].toFinish) < 250),
-    JSON.stringify(countdowns.map((c) => c && c.toFinish)));
+    countdowns.every((c) => c) && finApart.every((m) => m < 25),
+    JSON.stringify({ apartFromFirst_m: finApart.map((m) => Math.round(m)),
+      toFinish_m: countdowns.map((c) => c && c.toFinish) }));
 
   // ---- ONE PLAYER HOPS, AND THE ROOM GOES WITH THEM ----------------------
   // "Was in a 2 player game and was not able to see the other player after a
