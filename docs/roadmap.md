@@ -1898,7 +1898,7 @@ buy back quality and latency by making each hop free, not by removing hops.
   puts H264 first on every pc wherever decode caps exist, so capable rooms
   converge on one codec by construction. Not yet run: the powered-USB watt
   A/B against docs/phone-power-* baselines (needs the meter rig on the
-  raspberrypi Motos).
+  <monitor-pi> Motos).
 - **Browser support and fallback.** Chrome/Safari/Firefox all ship encoded
   transforms, but details differ; a seat that cannot do passthrough must fall
   back to today's transcode path without splitting the tree.

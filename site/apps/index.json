@@ -46,11 +46,11 @@
         255
       ],
       "cover": "/apps/anyroad/cover.jpg",
-      "bytes": 384470,
+      "bytes": 386948,
       "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "69cf8a566605adc83b497daa11ded3f3f9e12b6f4e23814b43c05b191df488db"
+      "sha256": "0adcc36b1f477bc8d0ea1cb15dca592b9e432f3349577b85466d8459ca7ec595"
     },
     {
       "slug": "chess-grandmaster",

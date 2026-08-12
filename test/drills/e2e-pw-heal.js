@@ -40,7 +40,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     // The full drill arg set (same as mirror-drill) — especially the mdns
     // feature kills: WITHOUT WebRtcHideLocalIpsWithMdns disabled, loopback
     // ICE depends on headless mdns resolution, which wedges pair (re)forms
-    // for 40-90s+ on the gate box (~every other link event; penguin mostly
+    // for 40-90s+ on the gate box (~every other link event; <orchestrator> mostly
     // resolves). Every re-link wait in this drill hit it before this.
     args: ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage', '--no-sandbox',
       '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
@@ -187,7 +187,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // `python3 -m http.server`, so a reload that has to re-fetch run.html and its
   // whole asset set queues behind whatever the other context is doing — on a
   // loaded box that is lawfully tens of seconds, not fifteen. Measured on
-  // clawbox at loadavg 2-3: this exact wait threw a raw TimeoutError in roughly
+  // <behavior-box> at loadavg 2-3: this exact wait threw a raw TimeoutError in roughly
   // one run in four, IDENTICALLY in this tree and in the pre-password-work
   // baseline — so it is the harness's own server, not the product. A raw throw
   // there also loses every later check and prints no state at all, which is the

@@ -26,6 +26,7 @@ const { launchAnyroadBrowser, openAnyroad } = require('../lib/anyroad-app');
 const { appGif } = require('../lib/apps');
 const { HOP, FIXTURE_HEIGHT, overpassBody } = require('../lib/anyroad-fixtures');
 const { readFileSync } = require('fs');
+const { decodePng } = require('../lib/png');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -172,8 +173,17 @@ function check(name, cond, detail) {
   check('the brake input reaches the car and overrides the cruise',
     midBrake.brake === 1 && midBrake.throttle === 0,
     'brake=' + midBrake.brake + ' throttle=' + midBrake.throttle);
+  // Non-increasing on the second leg, not strictly falling, and that is the same
+  // frame-rate argument as above taken one step further: a loaded software
+  // rasteriser runs FEWER frames with a bigger clamped dt each, so a whole
+  // braking impulse can land between two samples and the car is already at a
+  // standstill by the middle one. Then `braked < midBrake.speed` is 0 < 0 and the
+  // suite reports a product failure over a car that braked perfectly
+  // (measured 2026-08-12 on a 4-core box at loadavg 6: 4.3 -> 0.0 -> 0.00).
+  // Speed still has to FALL from where it started; it just cannot be required to
+  // keep falling after it has run out of speed to lose.
   check('speed falls while the brake is held',
-    braked < midBrake.speed && braked < after.speed,
+    braked <= midBrake.speed && braked < after.speed,
     after.speed.toFixed(1) + ' -> ' + midBrake.speed.toFixed(1) + ' -> ' + braked.toFixed(2) + ' m/s');
 
   // The GO pedal is PRESENT in the default (manual) mode — it IS the
@@ -2338,12 +2348,93 @@ function check(name, cond, detail) {
     return { on, off, running: framesB > framesA };
   });
   check('street names float in the world, named from the map data',
-    labels.on.length > 0 && labels.on.some((n) => /Fixture Street|Grand Boulevard|Crossing Lane/.test(n)),
+    labels.on.length > 0 && labels.on.some((n) => /Fixture Street|Grand Boulevard|Crossing Lane|A1/.test(n)),
     JSON.stringify(labels.on));
   check('…never more than a handful — a junction of a dozen names is wallpaper',
     labels.on.length <= 6, labels.on.length + ' on screen');
   check('…the setting genuinely turns them off', labels.off === 0, labels.off + ' left');
   check('…and the frame loop survived a brand-new GL program', labels.running, 'frames advanced');
+
+  // ---- where the labels are, and whether the sky eats them ------------------
+  // Three defects lived here at once and only one of them was visible in the
+  // name list, which is all the checks above can see.
+  //
+  // Park facing a known name so the camera is deterministic, then assert the
+  // placement rules AND read the pixels back. The pixel leg is the one that
+  // matters: a label writes no depth, and the sky is drawn last at z=1 with
+  // LEQUAL, so it used to pass the depth test on every label pixel standing over
+  // sky and paint straight over it. Facing Grand Boulevard the whole label sits
+  // above the horizon, so the sky did not "clip" it — it erased it completely,
+  // and the name list still said it was there.
+  const placed = await fr.locator('body').evaluate(() => {
+    const w = window.App.world, car = window.App.car();
+    const cands = [];
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.index) continue;
+      window.Roads.namesNear(r.built.index, car.x, car.z, 170, cands);
+    }
+    const gb = cands.find((c) => /Grand Boulevard/.test(c.name));
+    if (!gb) return { err: 'Grand Boulevard not in the fixture within 170 m' };
+    window.Car.place(car, car.x, car.z, Math.atan2(gb.x - car.x, gb.z - car.z));
+    return { faced: gb.name, dist: Math.sqrt(gb.d2) };
+  });
+  check('the fixture offers a named road to park facing', !placed.err, placed.err || (placed.faced + ' at ' + placed.dist.toFixed(0) + ' m'));
+  await sleep(1400);
+
+  const geom = await fr.locator('body').evaluate(() => {
+    const car = window.App.car();
+    const out = (window.App.debug().labelGeom || []).map((L) => {
+      const bx = L.x - car.x, bz = L.z - car.z;
+      return { text: L.text, dist: Math.hypot(bx, bz), bearing: Math.atan2(bx, bz),
+               ahead: Math.sin(car.yaw) * bx + Math.cos(car.yaw) * bz };
+    });
+    return { labels: out, street: car.street };
+  });
+  check('the name you are parked facing is one of the floating labels',
+    geom.labels.some((L) => /Grand Boulevard/.test(L.text)), JSON.stringify(geom.labels.map((L) => L.text)));
+  // The "poorly placed" half: a label at ~0 m is pinned to the car, and one
+  // behind you cannot be read at all — both used to consume a slot.
+  check('no label is pinned on top of the car',
+    geom.labels.every((L) => L.dist >= 13), JSON.stringify(geom.labels.map((L) => +L.dist.toFixed(1))));
+  check('no label is stranded behind the camera',
+    geom.labels.every((L) => L.ahead > -L.dist * 0.4), JSON.stringify(geom.labels.map((L) => +L.ahead.toFixed(1))));
+  // Constant angular size means bearing separation IS screen separation, so two
+  // names on one bearing overlap however far apart they are in the world.
+  let closest = Math.PI;
+  for (let i = 0; i < geom.labels.length; i++) {
+    for (let j = i + 1; j < geom.labels.length; j++) {
+      let d = Math.abs(geom.labels[i].bearing - geom.labels[j].bearing);
+      if (d > Math.PI) d = Math.PI * 2 - d;
+      closest = Math.min(closest, d);
+    }
+  }
+  check('no two labels stack up on the same bearing',
+    geom.labels.length < 2 || closest >= 0.12, closest.toFixed(3) + ' rad apart');
+
+  // THE SKY LEG. Same parked camera, labels on then off: everything in frame is
+  // identical except the labels, so differencing the dark plate pixels isolates
+  // them and no scenery has to be excluded by hand.
+  const SKYCLIP = { x: 180, y: 90, width: 640, height: 220 };
+  const platePixels = async () => {
+    const png = await app.screenshot({ clip: SKYCLIP });
+    const { width, height, rgba } = decodePng(png);
+    let n = 0;
+    for (let i = 0; i < width * height; i++) {
+      const r = rgba[i * 4], g = rgba[i * 4 + 1], b = rgba[i * 4 + 2];
+      if (r < 90 && g < 100 && b < 120) n++;     // the label's dark plate over sky
+    }
+    return n;
+  };
+  await fr.locator('body').evaluate(() => window.Sources.set({ labels: 'on' }));
+  await sleep(1200);
+  const darkOn = await platePixels();
+  await fr.locator('body').evaluate(() => window.Sources.set({ labels: 'off' }));
+  await sleep(1200);
+  const darkOff = await platePixels();
+  await fr.locator('body').evaluate(() => window.Sources.set({ labels: 'on' }));
+  check('a street name ABOVE THE HORIZON survives the sky pass',
+    darkOn - darkOff > 600, darkOn + ' plate px with labels on vs ' + darkOff + ' off (delta ' + (darkOn - darkOff) + ')');
 
   // ---- the flare ------------------------------------------------------------
   // "Need ways for players to find each other quickly." One timestamp on your

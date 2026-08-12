@@ -36,7 +36,7 @@
 > it takes the original, every sibling gets its own slice. A single-pipe tap
 > copies nothing extra.
 >
-> **Verified against the repro**, interleaved ABAB on a settled clawbox,
+> **Verified against the repro**, interleaved ABAB on a settled <behavior-box>,
 > Chrome 151, arm B = the fix reverted, coverage counted every run:
 >
 > | round | arm | coverage | leg 3 | LEG 1B fan-out |
@@ -70,7 +70,7 @@
 > Still one investigation with mirror-drill and redun-drill.
 >
 > **RE-MEASURED 2026-08-06 EVENING, and the shape is now specific — see
-> "What it actually is" below.** Three runs on clawbox (Chrome 151, lane live,
+> "What it actually is" below.** Three runs on <behavior-box> (Chrome 151, lane live,
 > idle box): leg 3 red in 3/3. The detector was also over-reporting, and that
 > is fixed in `cd2efeb` — the freeze is smaller than it looked, and much more
 > pointed than it looked.
@@ -126,7 +126,7 @@ failing. **The engine fix did not cause the freeze; it made the freeze reachable
 
 The obvious confound is CPU: `e2e-pipe` runs six browsers, the lane costs real work,
 and a starved box freezes video for reasons that have nothing to do with the
-protocol. So it was run as an INTERLEAVED A/B on ONE box (clawbox, 6 cores),
+protocol. So it was run as an INTERLEAVED A/B on ONE box (<behavior-box>, 6 cores),
 ABABAB, varying only the lane:
 
 | round | arm | engine | pipe lane | leg-3 freeze | loadavg |
@@ -150,7 +150,7 @@ outcomes; the lane does.
 
 Independently reproduced 2/2 in ad-hoc runs before the A/B, same signature.
 
-## What it actually is (measured 2026-08-06, clawbox, Chrome 151, idle)
+## What it actually is (measured 2026-08-06, <behavior-box>, Chrome 151, idle)
 
 Leg 3 was instrumented to run its own rule and a container-aware one side by
 side, and to record, at the instant a stall fires, the slot's inbound BYTES
@@ -266,7 +266,7 @@ owns the failure, but not yet why.
 
 Leg 3 now records the receiving seat's own pipe-worker counters at the instant a
 stall fires (`__gifosVideo.pipeStats()` — the worker has carried them all along
-and nothing read them here). Two runs on clawbox, `clawbox-brain` stopped,
+and nothing read them here). Two runs on <behavior-box>, `<resident-model>` stopped,
 Chrome 151, lane live: **RUN1 green (17/17), RUN2 red (16/1)** — the entry's
 documented nondeterminism, but a better rate than the 0/4 of 2026-08-06.
 
@@ -338,7 +338,7 @@ downstream sat frozen.
 `wrote` is cumulative, so a low total cannot tell a starved pipe from a young
 one. Leg 3 now samples every seat's pipes for the stalled feed twice, 2 s apart,
 and reports each hop's write rate beside that seat's own decode count. One red
-run (clawbox, brain stopped, Chrome 151, lane live), stager = P4 `k_403aba`,
+run (<behavior-box>, brain stopped, Chrome 151, lane live), stager = P4 `k_403aba`,
 feed `stg:k_403aba48`, stalled seat P0 `k_13ebf5` claiming via P2 `k_b12201`:
 
 | hop | frames the sender WROTE | frames the receiver DECODED |
@@ -389,7 +389,7 @@ frame, and Chrome still encodes and sends it carrying no swapped payload. That
 is a textbook broken reference chain, and it matches the symptom exactly.
 
 **It is not the cause.** `gifos_pipe_drain=off` disables the drainer;
-`PIPE_DRAIN=off` sets it for the suite. Interleaved ABAB, three pairs, clawbox,
+`PIPE_DRAIN=off` sets it for the suite. Interleaved ABAB, three pairs, <behavior-box>,
 brain stopped, Chrome 151:
 
 | arm | drainer | result |
@@ -527,7 +527,7 @@ It is not an override race. It is the password rule, working as designed.
 The founding A/B in this file (0/3 lane-off vs 3/3 lane-on) predates the
 coverage discovery below, so it had to be re-run before anything could rest on
 it — the same confound had just destroyed the blur hypothesis. Interleaved
-ABAB, rebooted clawbox, Chrome 149, load-settled before every run,
+ABAB, rebooted <behavior-box>, Chrome 149, load-settled before every run,
 `PIPE_OFF=1` disabling the lane:
 
 | lane | runs | coverage | froze |
@@ -604,7 +604,7 @@ this file, including `quarantine.txt`'s.**
 
 Leg 3 can only fire on a BRIGHT feed, and how many (seat,feed) pairs go bright
 varies enormously run to run. Once that is counted, the picture collapses to
-something simple. Interleaved ABAB, 15 runs, freshly rebooted clawbox, Chrome
+something simple. Interleaved ABAB, 15 runs, freshly rebooted <behavior-box>, Chrome
 149, load-settled before every run — A = as shipped (blurred canvas), B =
 `PIPE_CLEAR=1` (raw camera, control verified `outbound RAW at 6/6` every time):
 
@@ -617,7 +617,7 @@ something simple. Interleaved ABAB, 15 runs, freshly rebooted clawbox, Chrome
 **At full coverage the freeze is 8/8, in BOTH regimes.** It is not flaky, not
 nondeterministic, and not blur-related. A run "passes" exactly when too few
 feeds come up for the detector to watch — which is why the historical rates
-(0/4, 1/2, 2/3, 3/3) never settled and why raspberrypi looked immune at 4-of-7.
+(0/4, 1/2, 2/3, 3/3) never settled and why <monitor-pi> looked immune at 4-of-7.
 
 Two consequences, and they matter more than any of the nine hypotheses buried
 in this file:
@@ -639,7 +639,7 @@ flagged before the data came in and then confirmed by it.
 **THE EXPERIMENT, RUN — the strongest lead in this file.**
 `PIPE_CLEAR=1` sets a room password and waits for every seat to go raw, so the
 same six-seat shape runs on the CAMERA instead of the blur canvas. Interleaved
-ABAB on a freshly rebooted clawbox, Chrome 149, every run's coverage verified:
+ABAB on a freshly rebooted <behavior-box>, Chrome 149, every run's coverage verified:
 
 | arm | regime | control | result |
 |---|---|---|---|
@@ -678,13 +678,13 @@ flow to copy.
 >
 > | box | verdict | coverage |
 > |---|---|---|
-> | clawbox | RED | **7 of 7** pairs bright |
-> | raspberrypi | **RED** | 4 of 7, then 4 of 9 |
-> | raspberrypi, hours later | RED | 1 of 5, 1 of 4 (load 20 on 4 cores — DNF-shaped) |
+> | <behavior-box> | RED | **7 of 7** pairs bright |
+> | <monitor-pi> | **RED** | 4 of 7, then 4 of 9 |
+> | <monitor-pi>, hours later | RED | 1 of 5, 1 of 4 (load 20 on 4 cores — DNF-shaped) |
 >
 > **The freeze reproduces on the Pi too.** Its earlier 3/3 green was measured
 > on a fresh box with UNKNOWN coverage, and at ~4-of-7 it was judging barely
-> half the feeds clawbox was. So "box-conditioned, not contention" was never
+> half the feeds <behavior-box> was. So "box-conditioned, not contention" was never
 > soundly established — the greens were partly vacuous and partly luck.
 >
 > Also checked, because it would have been my own fault: does the claimRedun
@@ -693,7 +693,7 @@ flow to copy.
 > reverted: both red, coverage 1-of-5 and 1-of-4. Equally bad, so no regression
 > signal — but on a box that degraded, so it is weak evidence either way.
 >
-> **What survives:** the freeze is real, well-covered on clawbox (7/7), and NOT
+> **What survives:** the freeze is real, well-covered on <behavior-box> (7/7), and NOT
 > explained by contention, engine, keys, parks, churn, over-mint, decode, loss,
 > BWE, or a transform gap. What does NOT survive is the claim that one box is
 > immune.
@@ -704,10 +704,10 @@ The standing caveat, discharged. Same suite, same tree, a DIFFERENT machine:
 
 | box | engine | cores | runs | leg 3 |
 |---|---|---|---|---|
-| clawbox (Jetson) | Chrome 151 | 6 | many | freezes ~1 in 2 at load 7-11 |
-| **raspberrypi** | **Chrome 149** | **4** | **4** | **3 GREEN + 1 DNF, at load 21-24** |
+| <behavior-box> (Jetson) | Chrome 151 | 6 | many | freezes ~1 in 2 at load 7-11 |
+| **<monitor-pi>** | **Chrome 149** | **4** | **4** | **3 GREEN + 1 DNF, at load 21-24** |
 
-The Pi ran the identical six-browser suite at **twice to three times clawbox's
+The Pi ran the identical six-browser suite at **twice to three times <behavior-box>'s
 load** and leg 3 never fired once. The DNF is not a verdict — every leg failed
 including "the stager is still encoding" returning `[]`, which is fleet death.
 
@@ -715,14 +715,14 @@ including "the stager is still encoding" returning `[]`, which is fleet death.
 that does not show it. What differs is the box AND the engine (Chrome 151 on an
 aarch64 Jetson vs 149 on a Pi), and either could own it. That is now the sharpest
 question about this bug, and it is cheap to split: run the suite on a THIRD
-engine/box pair, or pin clawbox to an older chromium revision and re-measure.
+engine/box pair, or pin <behavior-box> to an older chromium revision and re-measure.
 Until then, do not describe this as a general product freeze — it is a freeze
 observed on one box with one engine.
 
 ### A separate thing DEBUG mode showed, worth its own hunt
 
 While building the cross-device room (`test/swarm/meet.js --mesh-c 2`, four seats
-split across clawbox and raspberrypi, then a fifth and sixth), the census came
+split across <behavior-box> and <monitor-pi>, then a fifth and sixth), the census came
 back structurally clean but with occupancy knowledge SPLIT and staying split:
 
     === MESH CENSUS: 6 seats replied ===
@@ -781,7 +781,7 @@ that produced the earlier retracted deficit).
 
 `__gifosVideo.pipeWire()` resolves each pipe's OWN sender by matching the
 transceiver whose sender carries that pipe's carrier track, so there is no
-label conflation. At a stall on clawbox, ONE sender, ONE feed, TWO
+label conflation. At a stall on <behavior-box>, ONE sender, ONE feed, TWO
 destinations, both `paused:false` with live carrier tracks:
 
 | forward | mid | fenc | fsent | **packetsSent** | bytes | qlim |
@@ -828,8 +828,8 @@ checkable: dump the written frame's `type`/`timestamp`/metadata against a
 working leg's at the same instant, and read `getStats()` outbound
 `targetBitrate` per mid.
 
-Note this is still clawbox-only: the identical suite and engine on
-raspberrypi is 3/3 green (see above), so whatever discards the frames is
+Note this is still <behavior-box>-only: the identical suite and engine on
+<monitor-pi> is 3/3 green (see above), so whatever discards the frames is
 box-conditioned, which fits an encoder/pacer difference rather than a
 protocol error.
 
@@ -865,7 +865,7 @@ asymmetry is the point — **waking is the safe direction, parking is not.**
 
 ### THE CARRIER IS SIZED TO THE ALLOCATOR'S FLOOR — real, and still not the freeze
 
-Measured at a stall (clawbox, 2026-08-10), the upstream's own carrier m-line:
+Measured at a stall (<behavior-box>, 2026-08-10), the upstream's own carrier m-line:
 
     wire   mid=6  fenc=2  fsent=2  PKT=18  targetBitrate=30000  avail=515459
     worker        wrote=2  paused=false    sinceWrite=14233ms
@@ -906,7 +906,7 @@ message already re-sent every sweep, so no state changes on either side). A
 cross-seat guard went in with it: for every seat demanding a feed HOT, the
 peer it demands FROM must have that job active, sustained over three samples.
 
-Measured on the clawbox repro, and the result is negative:
+Measured on the <behavior-box> repro, and the result is negative:
 
 | build | leg 3 | the new guard |
 |---|---|---|

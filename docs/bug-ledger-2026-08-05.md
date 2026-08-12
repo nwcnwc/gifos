@@ -167,7 +167,7 @@ Apple hardware.** The lane is `test/browser/e2e-pipe-engines.js` (three legs:
 the engine CONTRACT on every engine installed, the MODULE CHAIN wherever the
 transform exists, the FALLBACK ROOM where it does not).
 
-*What was measured, on penguin:*
+*What was measured, on <orchestrator>:*
 
 - **The pipe lane is NOT Blink-only.** Firefox 151 (Gecko) runs the module
   chain in full: both transforms attach, the worker swapped 122-159 content
@@ -200,8 +200,8 @@ was worth re-testing and why the negative control matters.**
 
 *Still open, and now cheap to close:* the encoded lane on a real Safari
 engine. The demo iPhone is the instrument; nothing on Linux substitutes.
-`penguin is the ONLY box in the fleet with a playwright WebKit build` —
-clawbox, nvidia-laptop, raspberrypi and pi-16gb have chromium + firefox and
+`<orchestrator> is the ONLY box in the fleet with a playwright WebKit build` —
+<behavior-box>, <gate-host>, <monitor-pi> and <llm-box> have chromium + firefox and
 no webkit at all — so leg C runs its NATIVE gap only there and its SIMULATED
 gap (transform deleted before page scripts) everywhere else.
 
@@ -223,7 +223,7 @@ as a product bug; what changed is that it can no longer be invisible.**
 - **Reproduced.** `test/drills/e2e-room-fork-live.js` manufactures it with
   real browsers: two seats in one tree, then a symmetric sever, and each half
   heals itself into a one-seat tree at `0/0.0` while both sockets stay on the
-  ONE relay session. Measured (raspberrypi, load < 2): forms in 6.7s, both
+  ONE relay session. Measured (<monitor-pi>, load < 2): forms in 6.7s, both
   halves read `0/0.0 occ=1 links=0` — this entry's reading, verbatim. 2/2
   clean runs; mutation-tested (blinding the relay-roster observation reds the
   five fork legs; forcing "nobody is in my tree" reds the silence leg).

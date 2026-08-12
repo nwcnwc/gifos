@@ -1,15 +1,15 @@
 # Driving a real phone in a real meeting (the instrument interface)
 
-Two Motos on the raspberrypi are the only instruments that answer "does a phone
+Two Motos on the <monitor-pi> are the only instruments that answer "does a phone
 gain or lose charge in a meeting". This is how to drive and read them without
 believing things that are not true. Every trap below cost real time.
 
 ## Wiring up
 
 ```bash
-adb devices -l                                    # ZT322P8ZJ3 · ZT322QJ3S8
-adb -s ZT322P8ZJ3 forward tcp:9222 localabstract:chrome_devtools_remote
-adb -s ZT322QJ3S8 forward tcp:9223 localabstract:chrome_devtools_remote
+adb devices -l                                    # <phone-a-serial> · <phone-b-serial>
+adb -s <phone-a-serial> forward tcp:9222 localabstract:chrome_devtools_remote
+adb -s <phone-b-serial> forward tcp:9223 localabstract:chrome_devtools_remote
 curl -s http://127.0.0.1:9222/json/version        # must answer, or Chrome is not running
 ```
 
@@ -99,15 +99,15 @@ work.** Before believing any measurement, confirm `camOff()===false`,
 
 ## Where bots may run
 
-Bots are Chromium instances and they are heavy. **penguin (4 cores) cannot host
+Bots are Chromium instances and they are heavy. **<orchestrator> (4 cores) cannot host
 them** — 3 bots took it to loadavg 23, the bots forked (two claiming the same
 seat, `occ=1`, `links=0`), and the data was garbage. It is also the box Nathan
 talks to Claude on, so loading it makes the session laggy. Put bots on
-**nvidia-laptop (8 cores)**; pi-16gb is available but runs a privacy stack that
+**<gate-host> (8 cores)**; <llm-box> is available but runs a privacy stack that
 must be restored. Always check `nproc` and `/proc/loadavg` before believing a
 red, and `pkill -f "headless_shel[l]"` (bracketed) to clean up.
 
-MonitorBot is a systemd user unit on the raspberrypi in room `test` — it shows
+MonitorBot is a systemd user unit on the <monitor-pi> in room `test` — it shows
 up as `meet.js --room test`. Never broad-pkill there; target your own room.
 
 ## Power sampling

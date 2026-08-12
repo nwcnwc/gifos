@@ -13,7 +13,7 @@ is what this rewrite exists to avoid. Every number is tagged **MEASURED** (I ran
 it, command given) or **DERIVED** (read off the code, arithmetic shown).
 Sim: `g++ -O2 -std=c++17 -o mesh test/sim/mesh.cpp` (md5 `4f83acec…`), service
 mode, `--det`, **single-threaded** (see the harness caveat at the end). Runs
-at N ≤ 5000 on penguin, N = 20000 on clawbox — identical source, identical
+at N ≤ 5000 on <orchestrator>, N = 20000 on <behavior-box> — identical source, identical
 seeds, same numbers where they overlap.
 
 **A moving-tree note:** while this audit ran, an uncommitted +213-line diff in
@@ -235,7 +235,7 @@ room: **O(N/C²) frames per S1 seat**, forever.
 
 **MEASURED — a clean A/B at N=20000** (`compacton 0|1`, same seed 20260714,
 same `spreadon 1`, same 500-tick gauge window after convergence, single-thread,
-clawbox):
+<behavior-box>):
 
 | N=20000 | converged@ | framesPerTick_max | framesPerTick_p50 | cProbes |
 |---|---|---|---|---|
@@ -632,8 +632,8 @@ The original caveat, kept for the record:
 
 `./mesh --service --threads=4` **core-dumps on the TELEPORT assertion** — a
 YIELD frame routed to a seat the sender has no path to — at N=2000, tick 128,
-deterministically. Reproduced on **two different machines** (penguin 4-core,
-clawbox 6-core), with and without `--det`, with digests on and off: 5/5 crashes.
+deterministically. Reproduced on **two different machines** (<orchestrator> 4-core,
+<behavior-box> 6-core), with and without `--det`, with digests on and off: 5/5 crashes.
 The identical seed converges **clean 5/5 single-threaded** (N=500 … 20000).
 Every number in this audit is therefore single-threaded.
 

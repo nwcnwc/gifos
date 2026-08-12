@@ -115,7 +115,7 @@
 # criterion is met: the zombie class is structurally dead (a wake can no
 # longer be sid-mismatch-ignored — sids are per-job constants; a husk stops
 # being a candidate after the grace) and DID NOT RECUR in any post-campaign
-# run — 9 mirror runs + 8 redun runs across clawbox and the gate host,
+# run — 9 mirror runs + 8 redun runs across <behavior-box> and the gate host,
 # including sdn multi-hop failovers of 2.3-2.4s at loadavg 10.7 (inside the
 # old red band) and 4/4 default-mode green at the final tree. The campaign's
 # OWN two mirror regressions along the way (a trackless-source teardown, and
@@ -183,7 +183,7 @@
 # FILED product bug docs/bug-pipe-stg-freeze-2026-08-05.md — proven to belong
 # to the lane by an interleaved A/B (3/3 on, 0/3 off, load excluded).
 #
-# RE-MEASURED AND SHARPENED 2026-08-06 (clawbox, Chrome 151, idle: 3 runs with
+# RE-MEASURED AND SHARPENED 2026-08-06 (<behavior-box>, Chrome 151, idle: 3 runs with
 # the detector instrumented + 1 run of the committed suite = 0/4 green; dossier
 # updated, detector corrected in cd2efeb):
 #   * The old detector over-reported. feedsInfo().frames is the ELEMENT's
@@ -216,12 +216,12 @@
 # a fix — which is what makes the promotion measurable at all.
 #
 # MEASURED, mutation-tested, coverage-gated, two boxes and two engines:
-#   * interleaved ABAB on clawbox (Chrome 151), arm B = the fix reverted:
+#   * interleaved ABAB on <behavior-box> (Chrome 151), arm B = the fix reverted:
 #     fix 3/3 GREEN at full 7-of-7 coverage; reverted 2/3 RED (its one green
 #     was at 5-of-5, the coverage confound), and the new deterministic fan-out
 #     leg failed 3/3 reverted with `detached 230, frecv 0, pkt 13`.
-#   * fixed tree, whole suite, exit 0 every run: clawbox 7/7 runs green
-#     (Chrome 151, 6-core Jetson) and the GATE HOST nvidia-laptop 3/3 runs
+#   * fixed tree, whole suite, exit 0 every run: <behavior-box> 7/7 runs green
+#     (Chrome 151, 6-core Jetson) and the GATE HOST 3/3 runs
 #     green (Chrome 149, 8 cores) — ten runs, every one at FULL 7-of-7
 #     coverage. Before the fix the lane-on arm froze 4 of 4 at that coverage.
 # The gate host can host the lane: it has chromium-1228 = Chrome 149, and this

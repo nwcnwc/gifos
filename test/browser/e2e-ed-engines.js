@@ -22,7 +22,7 @@
 // know. The vector below was generated from node's native WebCrypto Ed25519
 // (an independent implementation) and is checked against it in the unit suite.
 //
-// MEASURED 2026-08-06 (penguin): WebKit (Safari's own engine, the iPhone's
+// MEASURED 2026-08-06 (<orchestrator>): WebKit (Safari's own engine, the iPhone's
 // family) and Firefox both produce byte-identical public keys and signatures,
 // and both verify a signature made natively elsewhere.
 //

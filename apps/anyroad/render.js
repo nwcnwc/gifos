@@ -1251,12 +1251,17 @@
   function labelFor(text) {
     var hit = labelTex[text];
     if (hit) return hit;
-    var pad = 14, fs = 34;
+    // Padding is per-axis on purpose. It used to be 14 on both, which on a 34px
+    // font made the plate 62px tall with only 55% of it glyph — so the thing
+    // that read as "the label is too big" was mostly empty plate. Tight
+    // vertically, roomy horizontally: 71% glyph, and the quad in the world can
+    // then be smaller for the same legible text.
+    var padX = 13, padY = 7, fs = 34;
     var cv = document.createElement('canvas');
     var g2 = cv.getContext('2d');
     g2.font = '600 ' + fs + 'px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-    var w = Math.ceil(g2.measureText(text).width) + pad * 2;
-    var h = fs + pad * 2;
+    var w = Math.ceil(g2.measureText(text).width) + padX * 2;
+    var h = fs + padY * 2;
     // Powers of two are not required (this is CLAMP_TO_EDGE with LINEAR and no
     // mips) but keeping the canvas modest is: a long street name is a wide
     // texture, and there is one per road on screen.
@@ -1275,7 +1280,7 @@
     g2.lineTo(0, r); g2.quadraticCurveTo(0, 0, r, 0);
     g2.closePath(); g2.fill();
     g2.fillStyle = '#eaf0fa';
-    g2.fillText(text, pad, cv.height / 2 + 1);
+    g2.fillText(text, padX, cv.height / 2 + 1);
     var rec = { tex: textureFor('lbl:' + text, cv), aspect: cv.width / cv.height };
     labelTex[text] = rec;
     return rec;
@@ -1303,14 +1308,24 @@
       var L = labels[i];
       var rec = labelFor(L.text);
       // Hold a roughly constant on-screen size: a name that shrinks with
-      // distance is unreadable exactly when you need it to orient.
+      // distance is unreadable exactly when you need it to orient. Height
+      // proportional to distance IS that — it fixes the angle the label
+      // subtends — so the clamps are what break it, and the lower one was the
+      // "far too large" bug: a world-space floor of 2.2 m meant a name 5 m away
+      // subtended 2.2/5 rad, about 25 degrees, a quarter of the screen. The
+      // floor is gone; scale alone is honest at every distance. The upper clamp
+      // stays only as a guard for a label somehow beyond LABEL_RANGE (at 170 m
+      // the scale gives 6.8 m, so it never binds in normal play).
       var d = Math.hypot(L.x - eye[0], L.z - eye[2]);
-      var hgt = Math.max(2.2, Math.min(14, d * 0.055));
+      var hgt = Math.min(8, d * 0.040);
       var wid = hgt * rec.aspect;
       var hw = wid / 2;
       var x0 = L.x - rx * hw, z0 = L.z - rz * hw;
       var x1 = L.x + rx * hw, z1 = L.z + rz * hw;
-      var yb = L.y, yt = L.y + hgt;
+      // Grow from the anchor UPWARD, but centred vertically on it rather than
+      // sitting on it: a plate that only ever grows up drifts further above the
+      // road the closer you get, which is the "badly placed" half of this.
+      var yb = L.y - hgt * 0.25, yt = yb + hgt;
       var data = new Float32Array([
         x0, yb, z0, 0, 1,  x1, yb, z1, 1, 1,  x1, yt, z1, 1, 0,
         x0, yb, z0, 0, 1,  x1, yt, z1, 1, 0,  x0, yt, z0, 0, 0,
@@ -1678,11 +1693,8 @@
       });
     }
 
-    // Street names, floating over their own carriageways. After the world so
-    // they read against it, before the decals so smoke still drifts in front.
-    if (scene.labels && scene.labels.length) {
-      drawLabels(scene.labels, scene.eye, scene.target, fogDensity);
-    }
+    // (Street names used to be drawn HERE, and were sliced along the horizon by
+    // the sky. They are now drawn after it — see the end of this function.)
 
     // Decals — scorch marks on the walls just drawn, smoke over whatever is
     // burning. Depth TEST on (a mark behind a wall stays behind it), depth
@@ -1971,6 +1983,24 @@
     gl.disableVertexAttribArray(progs.sky.a.aPos);
     gl.depthMask(true);
     gl.enable(gl.CULL_FACE);        // hand the state back exactly as it was found
+
+    // ---- street names, AFTER THE SKY ---------------------------------------
+    // They have to come last, and the reason is the sky's own trick above. A
+    // label writes no depth (it is film, not geometry), so every label pixel
+    // standing over sky still holds the CLEARED depth of 1.0. The sky triangle
+    // is drawn at exactly z=1 with LEQUAL — so it passed the test on those
+    // pixels and painted straight over them. The label was sliced along the
+    // horizon line, in the haze colour, which reads as a clipping rectangle
+    // rather than as the sky winning a depth comparison.
+    //
+    // Drawn here the depth TEST still does its job (the buffer is untouched by
+    // the sky, so terrain and buildings still occlude a label properly, and a
+    // tree in front of a name still hides it) — the only thing that changes is
+    // that nothing is left to paint over the part above the horizon, which is
+    // exactly where a distant street name lives.
+    if (scene.labels && scene.labels.length) {
+      drawLabels(scene.labels, scene.eye, scene.target, fogDensity);
+    }
   }
 
   root.Render = {

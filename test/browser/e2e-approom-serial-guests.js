@@ -1,8 +1,8 @@
 // e2e-approom-serial-guests.js — GUESTS ARRIVING ONE AFTER ANOTHER MUST ALL GET
 // THE APP.
 //
-// The bug, measured 2026-08-02 across THREE MACHINES (host on raspberrypi,
-// guests on pi-16gb, site+relay on penguin — see test/README.md "ONE BOX CANNOT
+// The bug, measured 2026-08-02 across THREE MACHINES (host on <monitor-pi>,
+// guests on <llm-box>, site+relay on <orchestrator> — see test/README.md "ONE BOX CANNOT
 // ANSWER..."): fourteen guests joined one owned app room in sequence and only
 // TEN ever saw the app.
 //

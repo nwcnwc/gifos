@@ -105,8 +105,10 @@ Every browser suite runs the host, the guests AND the relay on ONE machine —
 not a shape that exists in real life. When a timing number looks bad there, you
 cannot tell a product bug from that kernel scheduling three Chromiums, and
 guessing has burned whole sessions. **Rebuild the topology across DEVICES, one
-or two clients per box** (penguin, nvidia-laptop, pi-16gb, raspberrypi, the
-Moto over adb) and the answer is unambiguous.
+or two clients per box** — the fleet's boxes plus a phone over adb — and the
+answer is unambiguous. Which machine is which lives in the LOCAL, never-committed
+hosts file (`~/.gifos-behavior-hosts.json`), not here: this repo is public and
+machine names, addresses and chat ids do not belong in it.
 
 The harnesses already exist — `test/swarm/meet.js` for meetings/topology, and
 `test/tools/approom-host.js` + `test/tools/approom-join.js` for app-room join
