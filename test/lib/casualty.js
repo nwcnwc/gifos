@@ -88,7 +88,7 @@ function memRemote(ssh) {
     setTimeout(() => { try { p.kill(); } catch (e) {} res({}); }, 12000).unref();
   });
 }
-// one line per box: "clawbox: 5 browser(s) · 0 MB available (need ~1950) · load
+// one line per box: "behaviour-box: 5 browser(s) · 0 MB available (need ~1950) · load
 // 5.4/6 · swap free 9359 MB — SHORT BY 1950 MB: …"
 function capacityLine(host, n, m) {
   const need = n * MEM_PER_BROWSER_MB;
