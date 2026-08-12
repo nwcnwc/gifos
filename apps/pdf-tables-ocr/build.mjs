@@ -153,6 +153,13 @@ const REC_CLASSES = recDict.length + 2;      // blank + dict + space
 const TABLE_CLASSES = tableDict.length + 2;  // sos + dict + eos
 if (REC_CLASSES !== 97) throw new Error('vendor/en_dict.txt has ' + recDict.length + ' entries -> ' + REC_CLASSES + ' classes; the recognition head is 97. Wrong dictionary.');
 if (TABLE_CLASSES !== 30) throw new Error('vendor/table_structure_dict.txt has ' + tableDict.length + ' entries -> ' + TABLE_CLASSES + ' classes; the structure head is 30. Wrong dictionary.');
+// merge_no_span_structure (this SLANet's own inference.yml sets it) rewrites the
+// dictionary before indexing: '<td>' out, '<td></td>' appended. ocr.js does the
+// same rewrite, and it MUST stay in step — the class count is identical either
+// way, so a mismatch is invisible except that every token past '<td>' decodes as
+// the wrong string. Assert the file is still the pre-merge form ocr.js expects.
+if (!tableDict.includes('<td>')) throw new Error('vendor/table_structure_dict.txt no longer contains "<td>" — it looks pre-merged, but ocr.js applies merge_no_span_structure itself and would drop nothing and append a 31st token.');
+if (tableDict.includes('<td></td>')) throw new Error('vendor/table_structure_dict.txt already contains "<td></td>" — it is the merged dictionary, so ocr.js must not merge it again.');
 
 const recOut = lastDims('vendor/rec.onnx');
 if (!recOut.includes(REC_CLASSES)) throw new Error('vendor/rec.onnx outputs ' + JSON.stringify(recOut) + ' classes, not ' + REC_CLASSES + ' — this model does not match en_dict.txt, and the CTC decode would produce garbage.');
