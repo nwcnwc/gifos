@@ -71,7 +71,7 @@ const AI_CFG = JSON.stringify({
       '  window.__vid = function(){ return gifos.recordVideo({ maxSeconds: 30 }).then(function(v){ document.getElementById("rec").textContent = "vid:" + (v.bytes?v.bytes.byteLength:-1) + ":" + v.mime; }, function(e){ document.getElementById("rec").textContent = "VERR:"+e.message; }); };' +
       '})();<\/script>';
     const bytes = await GifOS.gif.encode({
-      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'captest', name: 'CapTest', entry: 'index.html', capabilities: { db: true, ai: true, microphone: true, camera: true, motion: true } }),
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'captest', name: 'CapTest', entry: 'index.html', capabilities: { db: true, ai: true, microphone: true, camera: true, motion: true, gpu: true } }),
       'index.html': html,
     });
     const fid = GifOS.store.uid('file');
@@ -89,6 +89,10 @@ const AI_CFG = JSON.stringify({
   // motion capability → the app frame carries the sensor allow-policy
   const allow = await app.locator('iframe').getAttribute('allow');
   check('motion capability delegates the sensor allow-policy to the app frame', /gyroscope/.test(allow || ''), allow || '(none)');
+
+  // gpu capability → the app frame carries the webgpu allow-policy (so a
+  // sandboxed opaque-origin app can reach navigator.gpu). Same hatch as motion.
+  check('gpu capability delegates the webgpu allow-policy to the app frame', /webgpu/.test(allow || ''), allow || '(none)');
 
   const fr = app.frameLocator('iframe');
   await fr.locator('#models').filter({ hasText: /models:/ }).waitFor({ timeout: 8000 });

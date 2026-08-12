@@ -55,7 +55,7 @@
   // part of its listing: you should know before you install, not at first use.
   const CAP_WORDS = {
     db: 'Saves data in the icon', multiplayer: 'Multiplayer', microphone: 'Microphone',
-    camera: 'Camera', wasm: 'Runs WebAssembly', ai: 'AI', api: 'Third-party API', network: 'Network',
+    camera: 'Camera', wasm: 'Runs WebAssembly', gpu: 'Uses the GPU', ai: 'AI', api: 'Third-party API', network: 'Network',
   };
   function capList(caps) {
     const out = [];
