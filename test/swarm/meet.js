@@ -124,6 +124,8 @@
  *   poke          simulate a touch/speech       pulses off|on  halt pulses
  *   reload        full page reload → rejoin     waitseat [s]  block til seated
  *   leave         clean exit (pagehide LEAVE)   die  SIGKILL the browser
+ *   crash         the renderer dies UNINVITED (chrome://crash) — not a lever
+ *                 the scenario "pulled": cast.js scores it a CASUALTY
  *   app run [id] | app stop | app state   share a store app into the meeting
  *                 (the sharer needs --seed-desktop: first-visits index.html so
  *                 the profile's store holds the sample apps; ~90s, CPU-bound)
@@ -1155,6 +1157,18 @@ async function runCmd(line) {
     try { await ctx.close(); } catch (e) {}
     ctx = null; page = null; joined = false;
     console.log('  left (clean pagehide LEAVE)');
+    return true;
+  }
+  // THE UNINVITED DEATH. `die` is a lever the scenario pulled; this is the tab
+  // dying on its own — a loaded phone's renderer hitting an OOM or a CHECK,
+  // which is what actually happened to 03a on 2026-08-11. intentionalKill
+  // stays FALSE on purpose: this must read as a CASUALTY (cast.js renders NO
+  // VERDICT), and test/drills/casualty-noverdict.js proves it does.
+  if (cmd === 'crash') {
+    if (!IS_CR) { console.log('  crash: chromium only (chrome://crash)'); return true; }
+    page.goto('chrome://crash', { timeout: 4000 }).catch(() => {}); // never resolves cleanly — the renderer is gone
+    await sleep(1200);
+    console.log('  renderer CRASHED on purpose — nothing was retired, so this is a casualty');
     return true;
   }
   if (cmd === 'die') { // the battery hit 0% / the OS killed the app: SIGKILL, no goodbyes
