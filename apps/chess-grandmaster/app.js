@@ -226,30 +226,79 @@
   }
 
   // ---- board rendering ----
+  //
+  // A BOARD IS BUILT ONCE AND PAINTED IN PLACE. It used to be `innerHTML = ''`
+  // plus 64 fresh divs on every render, and the multiplayer board renders on
+  // the PRESENCE BEAT (HB_MS = 3000, and each peer's own beat lands here too,
+  // so about two full rebuilds every three seconds) — not only when the
+  // position changes. That means every square is a different DOM node twice a
+  // second: on a loaded phone a finger that goes down just before a rebuild is
+  // lifted over a node that no longer exists, and the move is silently lost.
+  //
+  // It cost the release gate too: Playwright will not click an element that has
+  // not been stable across two consecutive animation frames, so e2e-chess-mp
+  // came up RED TWICE on 2026-08-11 with `frame.click: Timeout 30000ms` on the
+  // very first move — measured identical on the shipped 0.9.6 tree, so it was
+  // never a regression, it was this. The suite works around it; this removes
+  // the reason for the workaround.
+  //
+  // Reusing the nodes also means a tap handler cannot be a fresh closure over
+  // (x, y): the handler reads the square's CURRENT coordinates, which is what
+  // lets the board flip for Black without replacing a single node.
+  function boardCells(el, onTap) {
+    if (el._cells && el._cells.length === 64 && el.firstChild) return el._cells;
+    el.innerHTML = '';
+    const cells = [];
+    for (let i = 0; i < 64; i++) {
+      const sq = document.createElement('div');
+      // the piece is a TEXT NODE, not textContent: setting textContent would
+      // wipe the marker and coordinate spans that live in the same square
+      sq._glyph = document.createTextNode('');
+      sq._mark = document.createElement('span');   // '' = no ring, no dot
+      sq._rc = document.createElement('span'); sq._rc.className = 'coord r';
+      sq._fc = document.createElement('span'); sq._fc.className = 'coord f';
+      sq.appendChild(sq._glyph); sq.appendChild(sq._mark); sq.appendChild(sq._rc); sq.appendChild(sq._fc);
+      sq.onclick = function () { onTap(sq._x, sq._y); };
+      el.appendChild(sq); cells.push(sq);
+    }
+    el._cells = cells;
+    return cells;
+  }
+  // innerHTML, but only when it changed. Compared against what we LAST SET, not
+  // against el.innerHTML, which the browser has normalised and would never match.
+  function setHtml(el, html) { if (el._h !== html) { el._h = html; el.innerHTML = html; } }
+  // Write only what differs. A no-op render must touch nothing at all, or the
+  // browser still recalculates style for 64 elements twice a second.
+  function paintSq(sq, x, y, cls, glyph, mark, rank, file) {
+    sq._x = x; sq._y = y;
+    if (sq.className !== cls) sq.className = cls;
+    if (sq._glyph.nodeValue !== glyph) sq._glyph.nodeValue = glyph;
+    if (sq._mark.className !== mark) sq._mark.className = mark;
+    if (sq._rc.textContent !== rank) sq._rc.textContent = rank;
+    if (sq._fc.textContent !== file) sq._fc.textContent = file;
+  }
   function bxy(r, c) { return state.orient === 'w' ? [c, r] : [7 - c, 7 - r]; }
 
   function render() { renderBoard(); renderEvalOnly(); renderMoves(); }
 
   function renderBoard() {
-    board.innerHTML = '';
     const s = state.s; if (!s) return;
+    const cells = boardCells(board, onSquare);
     const chkKing = (C.status(s) === 'check' || C.status(s) === 'checkmate') ? kingSq(s.board, s.turn === 'w') : null;
     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-      const [x, y] = bxy(r, c); const sq = document.createElement('div');
-      sq.className = 'sq ' + (((x + y) % 2) ? 'd' : 'l');
+      const [x, y] = bxy(r, c);
       const p = s.board[y * 8 + x];
-      if (p !== '.') { sq.textContent = GLYPH[p.toLowerCase()]; sq.classList.add(p >= 'A' && p <= 'Z' ? 'pw' : 'pb'); }
-      if (state.lastMove && ((state.lastMove.from[0] === x && state.lastMove.from[1] === y) || (state.lastMove.to[0] === x && state.lastMove.to[1] === y))) sq.classList.add('last');
-      if (state.sel && state.sel[0] === x && state.sel[1] === y) sq.classList.add('sel');
-      if (state.legalFromSel.some((m) => m.to[0] === x && m.to[1] === y)) { const d = document.createElement('span'); d.className = (p !== '.') ? 'ring' : 'dotm'; sq.appendChild(d); }
-      if (state.hint && ((state.hint.from[0] === x && state.hint.from[1] === y))) sq.classList.add('hintf');
-      if (state.hint && ((state.hint.to[0] === x && state.hint.to[1] === y))) sq.classList.add('hintt');
-      if (chkKing && chkKing[0] === x && chkKing[1] === y) sq.classList.add('chk');
-      // edge coordinates
-      if (c === 0) { const rc = document.createElement('span'); rc.className = 'coord r'; rc.textContent = 8 - y; sq.appendChild(rc); }
-      if (r === 7) { const fc = document.createElement('span'); fc.className = 'coord f'; fc.textContent = 'abcdefgh'[x]; sq.appendChild(fc); }
-      sq.onclick = (function (cx, cy) { return function () { onSquare(cx, cy); }; })(x, y);
-      board.appendChild(sq);
+      let cls = 'sq ' + (((x + y) % 2) ? 'd' : 'l');
+      if (p !== '.') cls += (p >= 'A' && p <= 'Z') ? ' pw' : ' pb';
+      if (state.lastMove && ((state.lastMove.from[0] === x && state.lastMove.from[1] === y) || (state.lastMove.to[0] === x && state.lastMove.to[1] === y))) cls += ' last';
+      if (state.sel && state.sel[0] === x && state.sel[1] === y) cls += ' sel';
+      if (state.hint && state.hint.from[0] === x && state.hint.from[1] === y) cls += ' hintf';
+      if (state.hint && state.hint.to[0] === x && state.hint.to[1] === y) cls += ' hintt';
+      if (chkKing && chkKing[0] === x && chkKing[1] === y) cls += ' chk';
+      const legal = state.legalFromSel.some((m) => m.to[0] === x && m.to[1] === y);
+      paintSq(cells[r * 8 + c], x, y, cls, p === '.' ? '' : GLYPH[p.toLowerCase()],
+        legal ? (p !== '.' ? 'ring' : 'dotm') : '',
+        c === 0 ? String(8 - y) : '', r === 7 ? 'abcdefgh'[x] : '');
     }
   }
   function kingSq(bd, w) { const i = bd.indexOf(w ? 'K' : 'k'); return i < 0 ? null : [i % 8, (i / 8) | 0]; }
@@ -548,15 +597,26 @@
   // ---- render ----
   function mpRender() {
     if (!mp.on) return; const M = mp.M;
+    // A RENDER COUNTER, on purpose. The claim this board has to keep is "it
+    // repaints on every presence beat WITHOUT replacing a node", and without a
+    // witness that renders are still happening, "zero DOM churn" is also what a
+    // dead app looks like. e2e-chess-mp reads this next to a MutationObserver on
+    // #fBoard: renders must advance, mutations must not.
+    window.__cgmRenders = (window.__cgmRenders || 0) + 1;
     const seats = $('fSeats'), status = $('fStatus');
-    if (!M) { seats.innerHTML = ''; status.textContent = 'Setting up the table…'; return; }
+    // setHtml, not innerHTML: it remembers what it last wrote, and a raw write
+    // behind its back would make the NEXT identical write a no-op over an empty
+    // element.
+    if (!M) { setHtml(seats, ''); status.textContent = 'Setting up the table…'; return; }
     const g = M.game, name = function (id) { return id ? esc(M.names[id] || 'Player') : '<span class="open">open</span>'; };
     const mine = mySeat2();
-    seats.innerHTML =
+    // …and the same rule for the panels around the board: write the markup only
+    // when it differs, so a beat that changed nothing changes nothing.
+    setHtml(seats,
       '<div class="seat' + (mine === 'w' ? ' me' : '') + (g.state.turn === 'w' && !g.winner ? ' turn' : '') + '">⚪ ' + name(M.seats.w) + '</div>' +
-      '<div class="seat' + (mine === 'b' ? ' me' : '') + (g.state.turn === 'b' && !g.winner ? ' turn' : '') + '">⚫ ' + name(M.seats.b) + '</div>';
+      '<div class="seat' + (mine === 'b' ? ' me' : '') + (g.state.turn === 'b' && !g.winner ? ' turn' : '') + '">⚫ ' + name(M.seats.b) + '</div>');
     const waiting = M.queue.filter(function (id) { return id !== M.seats.w && id !== M.seats.b; });
-    $('fQueue').innerHTML = waiting.length ? 'In line: ' + waiting.map(function (id) { return esc(M.names[id] || 'Player'); }).join(', ') : '';
+    setHtml($('fQueue'), waiting.length ? 'In line: ' + waiting.map(function (id) { return esc(M.names[id] || 'Player'); }).join(', ') : '');
     $('fComment').checked = !!M.commentary;
     document.querySelector('.ftoggle').style.opacity = mine ? '1' : '.5';
     const cbox = $('fCommentBox');
@@ -573,24 +633,29 @@
     // board
     const orient = mine === 'b' ? 'b' : 'w', s = g.state, sel = mp.sel, legalSel = mp.legalSel || [];
     const chk = (C.status(s) === 'check' || C.status(s) === 'checkmate') ? (function () { const i = s.board.indexOf(s.turn === 'w' ? 'K' : 'k'); return i < 0 ? null : [i % 8, (i / 8) | 0]; })() : null;
-    const bd = $('fBoard'); bd.innerHTML = '';
+    const cells = boardCells($('fBoard'), mpOnSquare);
     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
       const x = orient === 'w' ? c : 7 - c, y = orient === 'w' ? r : 7 - r;
-      const sq = document.createElement('div'); sq.className = 'sq ' + (((x + y) % 2) ? 'd' : 'l');
       const p = s.board[y * 8 + x];
-      if (p !== '.') { sq.textContent = GLYPH[p.toLowerCase()]; sq.classList.add(p >= 'A' && p <= 'Z' ? 'pw' : 'pb'); }
-      if (g.lastMove && ((g.lastMove.from[0] === x && g.lastMove.from[1] === y) || (g.lastMove.to[0] === x && g.lastMove.to[1] === y))) sq.classList.add('last');
-      if (sel.length && sel[0] === x && sel[1] === y) sq.classList.add('sel');
-      if (legalSel.some(function (m) { return m.to[0] === x && m.to[1] === y; })) { const d = document.createElement('span'); d.className = (p !== '.') ? 'ring' : 'dotm'; sq.appendChild(d); }
-      if (chk && chk[0] === x && chk[1] === y) sq.classList.add('chk');
-      if (c === 0) { const rc = document.createElement('span'); rc.className = 'coord r'; rc.textContent = 8 - y; sq.appendChild(rc); }
-      if (r === 7) { const fc = document.createElement('span'); fc.className = 'coord f'; fc.textContent = 'abcdefgh'[x]; sq.appendChild(fc); }
-      sq.onclick = (function (cx, cy) { return function () { mpOnSquare(cx, cy); }; })(x, y);
-      bd.appendChild(sq);
+      let cls = 'sq ' + (((x + y) % 2) ? 'd' : 'l');
+      if (p !== '.') cls += (p >= 'A' && p <= 'Z') ? ' pw' : ' pb';
+      if (g.lastMove && ((g.lastMove.from[0] === x && g.lastMove.from[1] === y) || (g.lastMove.to[0] === x && g.lastMove.to[1] === y))) cls += ' last';
+      if (sel.length && sel[0] === x && sel[1] === y) cls += ' sel';
+      if (chk && chk[0] === x && chk[1] === y) cls += ' chk';
+      const legal = legalSel.some(function (m) { return m.to[0] === x && m.to[1] === y; });
+      paintSq(cells[r * 8 + c], x, y, cls, p === '.' ? '' : GLYPH[p.toLowerCase()],
+        legal ? (p !== '.' ? 'ring' : 'dotm') : '',
+        c === 0 ? String(8 - y) : '', r === 7 ? 'abcdefgh'[x] : '');
     }
-    const ml = $('fMoves'); ml.innerHTML = '';
-    for (let i = 0; i < g.moves.length; i += 2) { const n = document.createElement('span'); n.className = 'n'; n.textContent = (i / 2 + 1) + '.'; ml.appendChild(n); [i, i + 1].forEach(function (j) { if (g.moves[j] === undefined) return; const w = document.createElement('span'); w.className = 'mv'; w.textContent = g.moves[j]; ml.appendChild(w); }); }
-    ml.scrollTop = ml.scrollHeight;
+    // The move list is rebuilt only when a move actually lands. Rebuilt every
+    // beat it also forced the scroll to the bottom twice a second, so a
+    // spectator could never look back at move 3.
+    const ml = $('fMoves');
+    if (ml._n !== g.moves.length) {
+      ml._n = g.moves.length; ml.innerHTML = '';
+      for (let i = 0; i < g.moves.length; i += 2) { const n = document.createElement('span'); n.className = 'n'; n.textContent = (i / 2 + 1) + '.'; ml.appendChild(n); [i, i + 1].forEach(function (j) { if (g.moves[j] === undefined) return; const w = document.createElement('span'); w.className = 'mv'; w.textContent = g.moves[j]; ml.appendChild(w); }); }
+      ml.scrollTop = ml.scrollHeight;
+    }
     $('fResign').style.display = (mine && !g.winner && g.moves.length) ? '' : 'none';
   }
 
