@@ -583,6 +583,31 @@ function armForkAuto() {
   }, 4000);
 }
 let intentionalKill = false; // die/quit set this — an EXPECTED browser death
+// ---- A DEAD BROWSER IS NOT A VERDICT --------------------------------------
+// In drive mode the orchestrator owns actor lifecycles, so an unexpected
+// browser death used to return early from the handlers below and say NOTHING
+// on stdout — the renderer's death went to stderr, into a per-run cast.log
+// nobody reads, and the battery kept interrogating the corpse.
+//
+// MEASURED 2026-08-11, 03a-classmates-serial-pip on the behaviour box: em
+// seated at t+42.6s, its renderer crashed at t+44.9s, and the scenario spent
+// the next 250 seconds producing FOUR reds about the mesh — "the room never
+// loses anyone" among them — from a room that really did have four members.
+// The only trace of the cause was one stderr line in the run dir.
+//
+// So the death is announced on the channel the orchestrator actually reads.
+// cast.js turns '@@dead' into a NO-VERDICT (exit 4): not green, not a product
+// red, and it blocks a cut, because a scenario that lost a browser measured
+// the box, not GifOS.
+// `stale` guards the LATE EVENT: `die` SIGKILLs the browser tree and nulls the
+// handles synchronously, so a disconnect/crash event that lands after a rejoin
+// has already replaced them must not be reported as the new browser's death.
+let deathSaid = false;
+function noteActorDeath(why, stale) {
+  if (MODE !== 'drive' || intentionalKill || deathSaid || stale) return;
+  deathSaid = true;
+  console.log('@@dead ' + String(why).slice(0, 200));
+}
 // BB_ACTOR=1 rides in the browser process environment in drive mode — the
 // engine-neutral replacement for the --bb-actor marker switch (see the engine
 // resolution block). Inherited by every renderer/content child.
@@ -610,7 +635,9 @@ async function ensureBrowser() {
       ENGINE_EXE ? { executablePath: ENGINE_EXE } : {},
       ffPrefs ? { firefoxUserPrefs: ffPrefs } : {},
       launchEnv() ? { env: launchEnv() } : {}));
+    const thisBrowser = browser;
     browser.on('disconnected', () => {
+      noteActorDeath('browser process vanished (' + ENGINE + ')', thisBrowser !== browser);
       if (MODE === 'drive' || intentionalKill) return;
       console.error('[meet] browser died unexpectedly — exiting so the supervisor respawns');
       process.exit(1);
@@ -645,7 +672,9 @@ async function ensureBrowser() {
   // Outside drive mode (where the orchestrator owns actor lifecycles and
   // `die` is a lever), an unexpected browser death is fatal ON PURPOSE — the
   // supervisor loop is the recovery.
+  const thisBrowser = browser;
   browser.on('disconnected', () => {
+    noteActorDeath('browser process vanished (chromium)', thisBrowser !== browser);
     if (MODE === 'drive' || intentionalKill) return;
     console.error('[meet] browser died unexpectedly — exiting so the supervisor respawns');
     process.exit(1);
@@ -659,6 +688,10 @@ async function join(room, opts) {
   if (opts.bc !== undefined) cfg.bc = opts.bc;
   if (opts.video) { cfg.videoIdx = -1; }
   cfg.room = room;
+  // A fresh join is a fresh browser: an earlier `die` must not silence the
+  // report of a LATER, unintended death (the stale guard above keeps the old
+  // browser's late events from being blamed on this one).
+  intentionalKill = false; deathSaid = false;
   await ensureBrowser();
   if (ctx) { try { await ctx.close(); } catch (e) {} }
   const phone = cfg.profile === 'phone';
@@ -729,7 +762,11 @@ async function join(room, opts) {
   cdp = null; // stale CDP session dies with the old page
   page.on('load', () => { reapplyLevers(); }); // levers survive reloads (incl. the self-heal reload)
   page.on('pageerror', (e) => { if (LEVELS[cfg.level] >= 3) console.error('  [pageerror] ' + String(e).slice(0, 200)); });
-  page.on('crash', () => console.error('  [CRASH] the renderer process died — a first-class flakiness cause (rtp_sender CHECK class); everything this page carried is gone'));
+  const thisPage = page;
+  page.on('crash', () => {
+    console.error('  [CRASH] the renderer process died — a first-class flakiness cause (rtp_sender CHECK class); everything this page carried is gone');
+    noteActorDeath('renderer crashed — the page and everything it carried is gone', thisPage !== page);
+  });
   page.on('console', (m) => { if (LEVELS[cfg.level] >= 3 && m.type() === 'error' && !/404|blocked by client/i.test(m.text())) console.error('  [cerr] ' + m.text().slice(0, 160)); });
   // WHICH DOOR. A meeting is '#v=<room>'; an APP ROOM is '#j=<code>' (self-
   // healing) or '#s=<room>.<verifier>&k=<secret>' (owned) — the same three
@@ -1490,6 +1527,7 @@ function startEnsurePass() {
     // Machine mode for the behavior battery (lib/cast.js): command lines in on
     // stdin, exactly one '@@done' / '@@err <msg>' sentinel out per command;
     // 'jstate'/'probe' additionally emit '@@state'/'@@probe' payload lines.
+    // '@@dead <why>' is UNSOLICITED: the browser died and nobody asked it to.
     // No prompt, no auto-join — the cast script drives everything, including
     // `join <room>`. stdin EOF = the cast is gone: shut down.
     const rl = readline.createInterface({ input: process.stdin, terminal: false });
@@ -1501,13 +1539,15 @@ function startEnsurePass() {
         try {
           const cont = await runCmd(line);
           console.log('@@done');
-          if (!cont) { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); }
+          // `quit` is a lever too: closing the browser ourselves must not
+          // report itself as a casualty on the way out.
+          if (!cont) { intentionalKill = true; try { if (browser) await browser.close(); } catch (e) {} process.exit(0); }
         } catch (e) { console.log('@@err ' + String(e && e.message || e).slice(0, 300)); }
       }
       busy = false;
     };
     rl.on('line', (l) => { if (l.trim() && !l.trim().startsWith('#')) { q.push(l.trim()); pump(); } });
-    rl.on('close', async () => { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
+    rl.on('close', async () => { intentionalKill = true; try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
     console.log('@@ready');
     return;
   }

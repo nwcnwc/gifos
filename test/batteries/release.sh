@@ -55,7 +55,7 @@ mkdir -p "$LOGDIR"; : > "$RESULTS"
 
 want() { [ -z "$ONLY" ] && return 0; case ",$ONLY," in *",$1,"*) return 0;; esac; return 1; }
 
-green=0; red=0; dead=0; skipped_tiers=""; quar=0; escaped=""; flaky=0; flakes=""; needfleet=0; needlist=""
+green=0; red=0; dead=0; skipped_tiers=""; quar=0; escaped=""; flaky=0; flakes=""; needfleet=0; needlist=""; novrd=0; novlist=""
 
 # ---- quarantine ---------------------------------------------------------------
 # The ONLY reds the gate tolerates: behaviours deliberately not fixed, listed in
@@ -290,6 +290,19 @@ run_one() {
     needfleet=$((needfleet+1)); needlist="$needlist $tier/$name"
     printf 'NEEDS-FLEET\t%s\t%s\t%s\n' "$tier/$name" "${secs}s" "$reason" >> "$RESULTS"
     printf '%-5s %-38s %6s  %s\n' FLEET "$tier/$name" "${secs}s" "$reason"
+    return
+  fi
+  # EXIT 4 = NO VERDICT (cast.js "THE CASUALTY GATE"): a browser the suite was
+  # driving DIED, so it refused to turn a room that is genuinely short a member
+  # into a claim about the mesh. Same doctrine as NEEDS-FLEET, one layer lower:
+  # not green, not a product red, never retried (the box does not get roomier on
+  # the second run), and it BLOCKS a cut.
+  if [ "$rc" -eq 4 ]; then
+    verdict=NOVERDICT
+    reason="$(grep -m1 'CASUALTY:' "$log" | sed 's/^ *//' | cut -c1-120)"
+    novrd=$((novrd+1)); novlist="$novlist $tier/$name"
+    printf 'NO-VERDICT\t%s\t%s\t%s\n' "$tier/$name" "${secs}s" "$reason" >> "$RESULTS"
+    printf '%-5s %-38s %6s  %s\n' NOVER "$tier/$name" "${secs}s" "$reason"
     return
   fi
   if [ "$rc" -ne 0 ] && ! is_quarantined "$name"; then
@@ -537,7 +550,9 @@ if want behavior; then
     # measurement. Not declared fixed on 8 runs alone; if it reds again, it is
     # that race and the number to beat is 8/8.
     behretry=0
-    if [ $rc -ne 0 ]; then
+    # rc 4 = a scenario lost a BROWSER (behavior.sh's NOVER branch). Retrying it
+    # is the same lie twice on the same box, so it goes straight to the verdict.
+    if [ $rc -ne 0 ] && [ $rc -ne 4 ]; then
       failed_scen=$(grep -m1 '^failed:' "$LOGDIR/behavior.log" | cut -d: -f2-)
       if [ -n "$failed_scen" ]; then
         echo "  behavior: retrying only:$failed_scen"
@@ -552,8 +567,16 @@ if want behavior; then
     if [ $rc -eq 0 ] && [ $behretry -eq 1 ]; then
       v=FLAKY; flaky=$((flaky+1)); flakes="$flakes behavior/$failed_scen"
       tally="GREEN on RETRY of$failed_scen — first pass red ($tally); fix the race"
-    elif [ $rc -eq 0 ]; then v=GREEN; green=$((green+1)); else v=RED; red=$((red+1)); fi
-    printf '%s\t%s\t%s\t%s\n' "$v" "behavior/$BEHAVIOR" "${secs}s" "$tally" >> "$RESULTS"
+    elif [ $rc -eq 0 ]; then v=GREEN; green=$((green+1))
+    elif [ $rc -eq 4 ]; then
+      nov_scen=$(grep -m1 '^no-verdict:' "$LOGDIR/behavior.log" | cut -d: -f2-)
+      v=NOVER; novrd=$((novrd+1)); novlist="$novlist behavior/$nov_scen"
+      tally="NO VERDICT —$nov_scen lost a BROWSER ($tally); the box could not hold the cast"
+    else v=RED; red=$((red+1)); fi
+    # the machine-readable column carries the full verdict name; the console
+    # column is 5 wide, so NO-VERDICT prints as NOVER there
+    vt="$v"; [ "$v" = NOVER ] && vt=NO-VERDICT
+    printf '%s\t%s\t%s\t%s\n' "$vt" "behavior/$BEHAVIOR" "${secs}s" "$tally" >> "$RESULTS"
     printf '%-5s %-38s %6s  %s\n' "$v" "behavior/$BEHAVIOR" "${secs}s" "$tally"
     grep -E '^FAIL' "$LOGDIR/behavior.log" | head -8 | sed 's/^/        /'
   fi
@@ -562,7 +585,7 @@ fi
 # ---- verdict -----------------------------------------------------------------
 echo
 echo "=================== RELEASE GATE ==================="
-printf '  GREEN %d   FLAKY %d   RED %d   DEAD %d   QUARANTINED %d   NEEDS-FLEET %d\n' "$green" "$flaky" "$red" "$dead" "$quar" "$needfleet"
+printf '  GREEN %d   FLAKY %d   RED %d   DEAD %d   QUARANTINED %d   NEEDS-FLEET %d   NO-VERDICT %d\n' "$green" "$flaky" "$red" "$dead" "$quar" "$needfleet" "$novrd"
 if [ "$flaky" -gt 0 ]; then
   echo
   echo "  FLAKY — red once, green on the immediate retry (NOT blocking, but each is a"
@@ -581,6 +604,15 @@ if [ "$needfleet" -gt 0 ]; then
   echo "  tell a product bug from a busy kernel. Run them on the fleet; a guard"
   echo "  nobody ran is a guard nobody has, so this BLOCKS a cut:$needlist"
   awk -F'\t' '$1=="NEEDS-FLEET" {printf "    %-34s %s\n", $2, $4}' "$RESULTS"
+fi
+if [ "$novrd" -gt 0 ]; then
+  echo
+  echo "  NO-VERDICT — a BROWSER these were driving DIED, so they refused to turn a"
+  echo "  room that was genuinely short a member into a claim about the mesh. Read the"
+  echo "  CASUALTY line: if the box was short of RAM, give the cast a box that can hold"
+  echo "  it or spread it over the farm; if the box was idle and roomy, the crash IS the"
+  echo "  bug. Not retried, and it BLOCKS a cut:$novlist"
+  awk -F'\t' '$1=="NO-VERDICT" {printf "    %-34s %s\n", $2, $4}' "$RESULTS"
 fi
 if [ -n "$escaped" ]; then
   echo
@@ -602,6 +634,9 @@ if [ "$red" -gt 0 ] || [ "$dead" -gt 0 ] || [ -n "$escaped" ]; then
 fi
 if [ "$needfleet" -gt 0 ]; then
   echo "DO NOT CUT — $needfleet suite(s) never ran: they need isolated machines."; exit 1
+fi
+if [ "$novrd" -gt 0 ]; then
+  echo "DO NOT CUT — $novrd suite(s) rendered NO VERDICT: a browser they were driving died."; exit 1
 fi
 if [ -n "$skipped_tiers" ] || [ -n "$ONLY" ]; then
   echo "GATE NOT SATISFIED — everything run was green, but not everything ran."; exit 2
