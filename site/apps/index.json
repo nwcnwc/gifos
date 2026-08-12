@@ -57,7 +57,7 @@
       "appId": "chess-grandmaster",
       "name": "Chess Grandmaster",
       "shortName": "Chess",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tagline": "Full-strength Stockfish, running offline inside the sandbox.",
       "author": {
         "name": "GifOS",
@@ -65,7 +65,7 @@
       },
       "minBuild": 947,
       "releaseDate": "2026-07-09",
-      "updated": "2026-07-11",
+      "updated": "2026-08-12",
       "categories": [
         "Games",
         "Learning"
@@ -83,15 +83,11 @@
         75
       ],
       "cover": "/apps/chess-grandmaster/cover.jpg",
-      "bytes": 8318670,
+      "bytes": 8320202,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-02"
-      },
-      "sha256": "5420910218076ec44a40ca1f1b7a8db5cec74d27c4ab29aa23abde26ee02b2bb"
+      "signature": null,
+      "sha256": "0f0aa1f0801c14a45aed0598de77138fa439525f55445b7234d3d8fafdf0cfee"
     },
     {
       "slug": "fluence",

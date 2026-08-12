@@ -67,7 +67,13 @@ function idx(orient, x, y) { return orient === 'w' ? y * 8 + x : (7 - y) * 8 + (
 async function clickSq(frame, n) {
   const sel = '#fBoard .sq >> nth=' + n;
   try { await frame.click(sel, { timeout: 5000 }); return; }
-  catch (e) { if (!/Timeout|not stable|detached/i.test(String(e && e.message))) throw e; }
+  catch (e) {
+    if (!/Timeout|not stable|detached/i.test(String(e && e.message))) throw e;
+    // The app paints the board in place now, so this fallback should never be
+    // needed. Say so when it is: a silent fallback is how the rebuild hid.
+    console.log('  NOTE: square ' + n + ' was not stable — falling back to a forced click'
+      + ' (the board should no longer be rebuilt; see the steady-state checks at the end)');
+  }
   // Second attempt, no stability gate. Real mouse events at the square's
   // centre, so a rebuild between resolve and dispatch lands on the new node
   // occupying the same square.
@@ -209,6 +215,40 @@ async function clickMove(frame, orient, uci) {
   await aFrame.evaluate(() => new Promise((res) => { const t = setInterval(async () => { const all = await gifos.db('cgm-mp').getAll(); const m = all.find((x) => x.id === 'm'); if (m && m.game.winner === null && m.game.moves.length === 0 && m.game.no >= 2) { clearInterval(t); res(); } }, 300); setTimeout(() => { clearInterval(t); res(); }, 12000); }));
   const rot = await matchState(aFrame);
   check('winner-stays: a fresh game starts with both seats filled', rot.w && rot.b && rot.winner === null && rot.moves === 0, JSON.stringify(rot));
+
+  // ---- THE BOARD MUST NOT BE REBUILT UNDER A FINGER ----------------------
+  // Measured LAST, deliberately: sampling before the moves adds a settle that
+  // sits on the startup-race window this suite once masked (see the note above
+  // the move loop). By here every move has landed, so a 4-second window — one
+  // full HB_MS=3000 beat and change — can only see the steady state.
+  //
+  // The app used to do `#fBoard.innerHTML = ''` plus 64 fresh divs on EVERY
+  // render, and it renders on every presence beat, so every square was a
+  // different DOM node about twice a second. On a loaded phone a finger that
+  // goes down just before a rebuild lifts over a node that no longer exists and
+  // the move is lost; Playwright's stability gate has the same problem, which is
+  // how this suite spent its whole 30s click budget and red-ed the 0.9.7 gate
+  // twice. The board is painted in place now.
+  //
+  // NOT VACUOUS: zero DOM churn is also what a dead app looks like, so the
+  // renders must be counted in the same window and must ADVANCE.
+  const steady = await aFrame.evaluate(() => new Promise((res) => {
+    const bd = document.getElementById('fBoard');
+    if (!bd) { res({ err: 'no #fBoard' }); return; }
+    const first = bd.firstElementChild;
+    const r0 = window.__cgmRenders || 0;
+    let muts = 0;
+    const mo = new MutationObserver((ms) => { for (const m of ms) muts += m.addedNodes.length + m.removedNodes.length; });
+    mo.observe(bd, { childList: true, subtree: true });
+    setTimeout(() => {
+      mo.disconnect();
+      res({ muts: muts, renders: (window.__cgmRenders || 0) - r0, kept: bd.firstElementChild === first, squares: bd.querySelectorAll('.sq').length });
+    }, 4000);
+  })).catch((e) => ({ err: String(e && e.message || e) }));
+  check('the presence beat still renders the board (the window was not measuring a dead app)',
+    steady.renders >= 2, JSON.stringify(steady));
+  check('…and NOT ONE square node is replaced by it (a tap can never land on a node about to die)',
+    steady.muts === 0 && steady.kept === true && steady.squares === 64, JSON.stringify(steady));
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
