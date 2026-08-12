@@ -1,7 +1,13 @@
 # Payments — the OS pays, the app never holds a key
 
-**Status: Phase 2 (Solana devnet only). No mainnet asset is reachable by this
-code path.** Ratified 2026-08-11.
+**Status: Phase 2 (Base Sepolia testnet only). No mainnet asset is reachable by
+this code path.** Ratified 2026-08-11.
+
+**Platform decision, Nathan, 2026-08-11: we use Coinbase's stack, or we do no
+payments at all.** Base, the Base Account (Coinbase Smart Wallet), and
+Coinbase's x402 facilitator. This is not a technical finding, it is a choice
+about which ecosystem GifOS lives in, and it settles the chain question that the
+rest of this file previously argued from custody alone.
 
 GifOS apps can buy things — an API call, an article, a model download — without
 ever seeing a private key or a balance. **Every purchase is authenticated by a
@@ -32,90 +38,98 @@ This is the same shape as the two brokered capabilities that came before:
 `gifos.capture` (the OS holds the camera, the app gets bytes) and `gifos.ai`
 (the OS holds the provider, the app gets an answer).
 
-## SOLANA, and why not Base — this is a custody decision, not a taste one
+## BASE FIRST, via the Base Account — Solana comes after
 
-x402's largest deployment is Base, and the obvious move was to follow it. We
-did not, for one mechanical reason:
+**Order of work, not a rejection.** Coinbase's stack ships first and completely.
+Solana is a nice-to-have AFTER Base is fully supported, and the Solana
+groundwork already in the tree stays: `site/js/gifos-pay.js` (base58, address
+derivation, integer base units) and `gifos-ed.js`'s `generateSealed()` are
+tested, green, and waiting for that phase. Nothing about choosing Coinbase makes
+them wrong — they are simply not the current phase.
 
-| | signing curve | WebCrypto support | what GifOS must store |
-|---|---|---|---|
-| Base / EVM (EIP-3009) | secp256k1 | **none** | raw private key bytes |
-| Solana (`exact` SVM) | **Ed25519** | yes, incl. `extractable: false` | a handle that cannot be read |
+The custody argument that first pointed at Solana — EVM signs with secp256k1,
+WebCrypto has no secp256k1, so a browser EVM wallet must keep raw key bytes that
+any XSS steals forever — was correct, **and it is moot here**, because with a
+Base Account we are not building a wallet at all.
 
-WebCrypto has no secp256k1 and never has. An EVM wallet in a browser therefore
-keeps its key as raw bytes in IndexedDB, where any XSS in the OS page can
-exfiltrate it and drain every account it controls, forever. On Solana the key
-is a **non-extractable `CryptoKey`**: the page can ask it to sign, and cannot
-read it — a compromise becomes a bounded signing oracle for as long as the
-attacker holds the page, not a permanent theft of the key.
+A **Base Account** is a passkey-owned smart contract account. The key is a
+WebAuthn credential in the device's Secure Enclave / TPM, the account verifies
+secp256r1 signatures on-chain, and the signing happens in Coinbase's own
+account surface — not in GifOS. So:
 
-GifOS already depends on WebCrypto Ed25519 (it is mandatory at every mesh join
-and sets the browser floor — Chrome 137 / Firefox 129 / Safari 17), so this
-adds no new platform requirement.
+- **GifOS stores no private key.** Not sealed, not raw, not anywhere. There is
+  no key to exfiltrate from the OS page, which is a strictly better posture
+  than the sealed-key design this file used to describe.
+- **The passkey is hardware-backed and syncs**, so it survives losing this
+  browser profile — the single-device failure of the old design is gone.
+- **A smart account can pay x402 on the standard path.** USDC's FiatTokenV2_2
+  implements ERC-7598, so `transferWithAuthorization` routes the signature to
+  the payer contract's EIP-1271 `isValidSignature`. No changes at the merchant
+  or facilitator.
 
-The Solana `exact` scheme also happens to need *less* from us: the client
-builds a transaction, signs it, and hands over a **partially signed**
-transaction; the sponsor adds the `feePayer` signature and pays the network
-fee. The payer needs **no SOL** and never touches an RPC node to broadcast.
-What GifOS must produce is exactly one Ed25519 signature over a message it
-fully inspected first.
+What GifOS does instead of custody: it holds a *connection* to the user's Base
+Account, builds the payment from the 402 challenge, shows the human what they
+are about to pay, and asks the account to sign it.
 
-## What the OS holds, and where it must never go
+### Spend Permissions and Sub Accounts — SUPPORTED
 
-One keypair per computer, generated on first use, stored in IndexedDB as a
-non-extractable `CryptoKey`.
+Coinbase provides Sub Accounts and **Spend Permissions**: the user signs, once
+and with their passkey, a scoped allowance — a cap, an asset, a period, an
+expiry, revocable — and an app-scoped Sub Account may then spend inside that
+envelope without prompting again. **If Coinbase built it, GifOS supports it.**
 
-**It is never inside a GIF.** This is the rule everything else protects.
-GifOS app state travels *inside the app's GIF* — a first run with an embedded
-`.state/db.json` hydrates the icon's DB — and sharing or exporting a GIF is the
-entire distribution story. A wallet app that kept its key in `gifos.db` would
-hand that key to everyone it was ever shared with. So:
+This does not weaken the human-authentication rule below, and it is worth being
+exact about why. The human still authenticates, cryptographically, with a
+hardware-backed passkey; what they authenticate is a **bounded envelope**
+rather than each request inside it. Nothing can be spent that a human did not
+sign for, the limit is enforced on-chain rather than by our JavaScript, and the
+permission can be revoked at any time. That is a stronger guarantee than the
+"budget in localStorage" the first draft of this file proposed, precisely
+because it is not our code enforcing it.
 
-- the key is OS-level, not app-level: no app, provider, or GIF can reach it;
-- it is excluded from backup, restore, and whole-computer export, exactly like
-  the install-time asset cache;
-- `gifos.pay` exposes **no** export, no `getPrivateKey`, no raw-sign primitive.
-  The only thing an app can cause is a payment inside its budget.
+So GifOS offers both, and the user chooses per app:
 
-The honest cost: **non-extractable means the KEY cannot be moved or backed
-up** — no seed phrase, no import, no copy to a second device. Be precise about
-what that does and does not mean, because the first draft of this file
-overstated it: **the funds are not trapped.** The key can always sign a
-transfer, so the balance can be swept anywhere at any time, including to
-another device's address. What is lost if the browser profile is lost is the
-key itself, and with it any balance still sitting in that account at that
-moment. This is a transit account you top up, not a savings account, and the
-UI says so in those words.
+- **Ask every time** — no permission granted; each payment raises the account's
+  passkey prompt. The default for a newly installed app.
+- **Spend Permission** — the user grants a capped, expiring allowance to that
+  app's Sub Account, and payments inside it settle without a prompt.
 
-**Prior art we should steal from, not ignore.** Coinbase's answer to the same
-problem is better on two axes: their Smart Wallet is an ERC-4337 contract
-account owned by **passkeys** (secp256r1, verified on-chain via webauthn-sol),
-so the key is hardware-backed in a Secure Enclave/TPM rather than merely
-browser-held, and passkeys SYNC, which removes the single-device failure above
-entirely. Smart accounts can pay x402 on the standard path — USDC's
-FiatTokenV2_2 implements ERC-7598, routing the signature to the payer's
-EIP-1271 `isValidSignature`, so `transferWithAuthorization` is not EOA-only.
+The OS shows amount, asset and recipient before *any* passkey prompt, including
+the one that grants a permission — a WebAuthn dialog says only "use your
+passkey", so the trusted display of what is being authorised is ours either way.
+Granted permissions are listed in Settings with their cap, spend-to-date and
+expiry, and a one-click revoke.
 
-We do not adopt it wholesale for two reasons: ERC-4337 needs an EntryPoint, a
-bundler and a paymaster, none of which a static site on GitHub Pages has or can
-host; and a passkey demands a **user gesture per signature**, which is fatal to
-silent sub-cap micropayments — the entire point of the budget model above.
+## What the OS holds — a connection, not a key
 
-What we DO adopt: **the passkey, on every payment** — see Consent below. The
-objection recorded here against passkeys ("a user gesture per signature is
-fatal to silent sub-cap micropayments") is void: silent micropayments are not a
-thing GifOS will do. Only the infrastructure objection survives, and Solana's
-secp256r1 precompile answers even that. (Note `gifos-sign.js` generates *identity* keys with
-`extractable: true` — right for identity, which must be portable; wrong for
-money, which must not be.)
+The OS page holds the Base Account connection and the spend ledger. Nothing
+secret. The rules that used to protect a key now protect the connection and the
+ledger:
 
-## Consent — EVERY payment is authenticated by a human. No exceptions.
+- **Nothing payment-related is ever inside a GIF.** App state travels inside the
+  app's GIF — a first run with an embedded `.state/db.json` hydrates the icon's
+  DB — and sharing a GIF is the whole distribution story. No account address, no
+  session, no ledger entry may live in app storage where sharing would leak it.
+- `gifos.pay` exposes **no** signing primitive to the sandbox. The only thing an
+  app can cause is a payment the human then authenticates.
+- The Base Account SDK runs **only on the OS page**, never in an app frame, and
+  is vendored and hash-pinned like `js/vendor/nacl-fast.js` — no CDN at runtime,
+  consistent with the rest of the site.
+
+**The dependency is accepted deliberately.** Payments now require Coinbase's
+account service to be reachable and working. If it is down, GifOS does no
+payments — which is the stated preference over building our own custody.
+
+## Consent — nothing spends without a human passkey signature behind it
 
 **Ratified 2026-08-11 by Nathan, overriding the first draft of this file.**
-There is no silent payment, no "small enough not to ask", no pre-authorised
-budget that spends while nobody is looking. Every single transaction requires a
-human authentication gesture. If that makes a use case impossible, the use case
-does not ship.
+No payment happens that a human did not authenticate with a passkey. Either the
+human authenticates *that payment*, or they previously signed a **Spend
+Permission** that bounds it — a capped, expiring, on-chain, revocable envelope
+(above). What is dead is the first draft's model: an unsigned "budget" in our
+own storage, enforced by our own JavaScript, spending while nobody is looking.
+If a use case needs spending with no human signature anywhere in its chain of
+authority, it does not ship.
 
 The first draft got this wrong, and the way it got it wrong is worth recording
 so it is not re-derived. It copied x402's "agentic payments" framing —
@@ -129,15 +143,17 @@ What replaces it:
 
 - `capabilities.pay` in the manifest, named plainly in the acknowledgement
   sheet like every other capability;
-- **a WebAuthn (passkey) assertion per payment.** Hardware-backed on any modern
-  device — Secure Enclave / TPM / Android Keystore — so the gesture is a real
-  biometric or PIN, not a checkbox that gets clicked through;
+- **a WebAuthn (passkey) signature behind every spend** — either per payment, or
+  the Spend Permission that authorised it. Hardware-backed on any modern device
+  (Secure Enclave / TPM / Android Keystore), so it is a real biometric or PIN,
+  not a checkbox that gets clicked through;
 - the OS's own sheet shows **amount, asset and recipient BEFORE the prompt**.
   This matters: a WebAuthn prompt says only "use your passkey", it does not
   display what is being paid. Authentication is not comprehension. The trusted
   display is ours, and it must be correct or the gesture is theatre;
-- a per-app and per-call **ceiling** still exists, but as a hard limit on what a
-  human is even allowed to approve for that app — not as licence to skip them;
+- a per-app and per-call **ceiling** still exists as a hard limit on what may be
+  approved for that app, and for permissioned apps it is the cap the human
+  actually signed;
 - every payment lands in a spend ledger in Settings, per app, with revoke.
 
 **Providers may not pay at all.** A provider runs in a hidden mount with no
@@ -171,18 +187,21 @@ badly-behaved apps, not against an attacker who reaches the OS page.
 
 ## What this does NOT do
 
-- **No mainnet.** Phase 2 is devnet-only and the network is pinned in code, not
-  configurable by an app or a manifest.
+- **No mainnet.** Phase 2 is Base Sepolia only and the chain is pinned in
+  code, not configurable by an app or a manifest.
 - **No arbitrary signing.** There is no "sign this message" primitive. The only
   signable object is a transaction the OS itself constructed from a 402
   challenge and re-inspected after building.
-- **No refunds, and no pretending otherwise.** Payments are final. A buggy app
-  in a retry loop cannot spend anything, because each attempt stops at a human
-  gesture — which is the strongest argument for the rule above.
-- **No swaps, no merchant QR, no Jupiter integration.** Those need a real
-  wallet with SOL, an RPC path and probably an external wallet rather than an
-  in-OS key. Deliberately out of scope.
-- **No key import/export**, per above.
+- **No refunds, and no pretending otherwise.** Payments are final. Ask-every-time
+  apps cannot burn value in a retry loop, because each attempt stops at a
+  gesture; a permissioned app CAN burn up to its signed cap, which is the real
+  cost of frictionless mode and why the cap and expiry are the safety and must
+  be shown plainly when granting.
+- **No swaps, no merchant QR, no Jupiter integration.** Out of scope.
+- **No silent spend WITHOUT a signed permission.** Spend Permissions are
+  supported; what is refused is spending with no human signature anywhere in
+  the chain of authority.
+- **No key handling of any kind** — there is no key here to import or export.
 
 ## Threat model, stated plainly
 
