@@ -42,7 +42,7 @@ A red suite is not information you carry around; it is a release blocker. If a
 test is wrong, FIX THE TEST and say so in the commit. Never soften an assertion
 to make it green, and never cut with a red you plan to explain afterwards.
 
-Two mechanical rules that follow from this:
+Three mechanical rules that follow from this:
 
 - **A suite that cannot LAUNCH is red, not absent.** Exit non-zero with no
   assertions is the most dangerous state there is — it looks like silence. Check
@@ -50,6 +50,13 @@ Two mechanical rules that follow from this:
 - **A test that guards nothing is worse than no test.** Every regression guard
   must be reachable from a battery in `test/batteries/`. If it is in no battery,
   no gate runs it and it will rot — that is how the two app drills stayed dead.
+- **A suite that could not MEASURE must refuse to judge, not guess.** There are
+  now two ways to say so, both exiting with no assertions and both BLOCKING a
+  cut without ever being a product red: `NEEDS-FLEET` (exit 3,
+  `test/lib/fleet.js` — the verdict needs real per-client hardware) and
+  `NO-VERDICT` (exit 4 — a browser the suite was driving DIED; see test/README
+  "A DEAD BROWSER IS NOT A VERDICT"). Neither is retried. A red you cannot
+  attribute is worse than a refusal you can.
 
 The ONE sanctioned red is `test/batteries/known-unfixed.sh`: the graveyard of
 behaviours we deliberately decided not to fix. It is expected RED end to end, is

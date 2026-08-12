@@ -155,7 +155,7 @@ a guard nobody ran is a guard nobody has. So a full certification is now:
 | where | what |
 |---|---|
 | gate host | `release.sh --behavior=skip` — reports NEEDS-FLEET for fleet suites |
-| behaviour box | `release.sh --only=behavior` |
+| behaviour box | `release.sh --only=behavior` — and it must have the RAM to hold a 5-browser cast, or expect NO-VERDICT |
 | **the orchestrator** | **the fleet suites, from the box holding the hosts file** |
 
 It verifies rather than trusting the file, and every check has caught something
@@ -179,9 +179,11 @@ fleet from every host it runs on.
 
 ## NEVER LET A WALL CLOCK DECIDE A VERDICT
 
-**Every flake this gate has produced is one of two bugs, and both are in the
-test.** Written out because four of them were fixed in a single sitting on
-2026-08-11 and they were the same bug wearing four hats.
+**Almost every flake this gate has produced is one of two bugs, and both are in
+the test.** Written out because four of them were fixed in a single sitting on
+2026-08-11 and they were the same bug wearing four hats. Check these two first —
+and if neither fits, read the next section, because the 2026-08-11 gate's LAST
+remaining flake was neither: its client had died.
 
 **1. A deadline standing in for a correctness claim.** Ask whether the number
 is a PROMISE. "A burst join converges" is the claim; "within 40s" is not
@@ -210,6 +212,67 @@ tile-locators.js` now fails any suite that forgets.
 The retry in `release.sh` is a DIAGNOSTIC that separates "deterministically
 broken" from "lost a timing lottery". It is not a licence to leave a FLAKY line
 alone: every one of them is a bug with a known address.
+
+
+## A DEAD BROWSER IS NOT A VERDICT
+
+**The third flake family, and it is not a wait at all: the client was gone.**
+`03a-classmates-serial-pip` was the 0.9.7 gate's one FLAKY. Root-caused
+2026-08-12, and there is nothing wrong with the scenario:
+
+```
+t+42.6  em |   seated at 0/0.4
+t+44.9  em !   [CRASH] the renderer process died — everything this page carried is gone
+t+50.6  em > jstate          … and every 2.5s for the next 250 seconds
+```
+
+Four reds followed, every one of them about the mesh — `room converges to 5 for
+everyone`, `the room never loses anyone while 4/5 are hidden` (18 violating
+samples), `reunion whole after the waves`, `census … replies=4/5`. **All four
+statements were TRUE of a room with four live members, and none of them was a
+defect.** The box: 7.6 GB of RAM with **49 MB available** (about 6.5 GB held by
+a resident GPU model) and five Chromiums living in swap. A 5-phone cast costs
+~1950 MB resident — measured on an idle box, ~390 MB per browser — so that box
+could never hold it.
+
+The signal was not missing. meet.js printed the crash to **stderr**, which
+cast.js files into the per-run `cast.log` that nobody reads unless they already
+suspect the answer, and in drive mode the browser-death handlers returned early
+on purpose ("the orchestrator owns actor lifecycles"). The orchestrator was
+never told, so it interrogated the corpse.
+
+**So the rule, third leg of the same doctrine as NEEDS-FLEET:** a scenario that
+loses a browser it did not ask to lose renders **NO VERDICT**, exit **4**.
+
+- `meet.js` says `@@dead <why>` on the *sentinel channel* — from `page.on('crash')`
+  and `browser.on('disconnected')` — never only to stderr. `die`, `leave`,
+  `quit` and teardown are exempt (`intentionalKill`), and a stale-handle guard
+  keeps a late event from a killed browser from being blamed on its replacement.
+- `cast.js` stops **at once** and prints the CASUALTY, the box's capacity at the
+  moment of death, and what it had at the start. Not green, not a red, **never
+  retried** (the box does not get roomier on the second run), and it **blocks a
+  cut** — a scenario nobody could run is a guard nobody has.
+- Every cast logs `capacity <box>: N browser(s) · X MB available (need ~Y)`
+  before it spawns, and says `SHORT BY … : this cast runs from SWAP and a
+  casualty is likely`. That is evidence, not a gate: 24 of 25 scenarios do
+  survive on swap. It exists so the first question a casualty raises is already
+  answered in the log.
+- `crash` is a lever (`chrome://crash`, chromium only): the death nobody asked
+  for, as opposed to `die`. It is how the gate is provable.
+
+Guards: `test/unit/behavior-casualty.js` holds the whole chain — classifier,
+the deliberate-death exemption, the capacity line, and the fact that meet.js,
+cast.js, behavior.sh and release.sh each still handle it (the bug was a signal
+shouted into a channel with nobody at the other end, so every link is pinned).
+`test/drills/casualty-noverdict.js` proves it with real browsers, both
+directions: a crashed renderer must exit 4 with ZERO `✘`, and a deliberate
+`die` must still render a verdict — a hair-trigger gate would refuse to judge
+`12b-team-car-death`, whose whole subject is somebody vanishing.
+
+**When you see NO-VERDICT:** read the CASUALTY line. Short of RAM → give the
+cast a box that can hold it, or spread it over the farm (FLEET mode, below).
+Idle and roomy → **the crash itself is the bug**, and the run dir has the
+renderer's last words.
 
 
 ## ONE BOX CANNOT ANSWER "is this a real bug?" — go multi-box
@@ -422,7 +485,7 @@ needs whatever they need. Run one before pushing a change in its area.
 
 | battery | gate |
 |---|---|
-| `behavior.sh` | the BEHAVIOR battery: `test/behavior/scenarios/*` run SERIALLY — 25 use cases / 57 persona scripts driving `meet.js --drive` actors through phone realities (dropouts, hidden+frozen tabs, battery states, parked phones, reload churn, relay deploys, and one MIXED-ENGINE room). `--core` = the 24-script core (~1.5h); full = several hours. 04b/16b are the post-deploy WHOHOME repro; they were fixed by 95ca143 and both PASS (verified 2026-08-06 on a full 58/58 run) — this line used to say they stay RED, which was stale, and behavior.sh's own header is the authority. Needs `relay-dev.sh` up for the deploy scenarios (else they SKIP); 25a needs a playwright firefox (else it SKIPs). A SKIP is a failure of the run, not a pass — check for them explicitly. Discovery is a glob, so a new `scenarios/*.js` is gated the moment it lands. Prefer an idle multi-core box — or better, give it a `BEHAVIOR_HOSTS` fleet and put 1-2 actors per machine: 5-browser scenarios saturate 4 cores and starvation reads as flapping (fails are stamped with loadavg for exactly this reason). |
+| `behavior.sh` | the BEHAVIOR battery: `test/behavior/scenarios/*` run SERIALLY — 25 use cases / 57 persona scripts driving `meet.js --drive` actors through phone realities (dropouts, hidden+frozen tabs, battery states, parked phones, reload churn, relay deploys, and one MIXED-ENGINE room). `--core` = the 24-script core (~1.5h); full = several hours. 04b/16b are the post-deploy WHOHOME repro; they were fixed by 95ca143 and both PASS (verified 2026-08-06 on a full 58/58 run) — this line used to say they stay RED, which was stale, and behavior.sh's own header is the authority. Needs `relay-dev.sh` up for the deploy scenarios (else they SKIP); 25a needs a playwright firefox (else it SKIPs). A SKIP is a failure of the run, not a pass — check for them explicitly. Discovery is a glob, so a new `scenarios/*.js` is gated the moment it lands. Prefer an idle multi-core box — or better, give it a `BEHAVIOR_HOSTS` fleet and put 1-2 actors per machine: 5-browser scenarios saturate 4 cores and starvation reads as flapping (fails are stamped with loadavg for exactly this reason), and a 5-phone cast needs ~1950 MB of *available* RAM (each scenario now logs `capacity` before it spawns). Exit codes: 1 = a red, **4 = NO VERDICT** — a scenario's browser died, see "A DEAD BROWSER IS NOT A VERDICT" — 0 = green. |
 | `join.sh` | everything that must stay true about **JOINING** — arrival patterns (burst/serial/batch/window, seating AND H7 shape), loss wedge, atomic-move / cascade scooch, churn combos, adversary fabrics, compaction, H-CHAIN / headless-row, `mesh.js` harness + flood + wire, browser link-completeness ladders, adversary-room + late-join drills. `--quick` skips the browser ladders. |
 | `c-sweep.sh` | **The multi-section confidence battery.** Rebuilds the sim at C in {2,3,4,5} (`-DGIFOS_C`) and drives rooms big enough to form DEEP multi-section trees, checking the invariants that must hold however the tree branches: all seated, ZERO duplicate cells, zero stranded, full Section 1, and no split-brain under partition. Production is C=5, where a second section needs >25 people; low C reaches deep trees with a handful of seats, so C=2/3/4 exercise cross-section seating/heal/churn/partition/compaction cheaply. Verdict gates on C>=4 (incl. production C=5); C=2/3 duplicate-minting under stress is a known degenerate-tiny-section finding (see `known-unfixed.sh`). Sim-only, seconds per C. |
 | `known-unfixed.sh` | **THE GRAVEYARD — every check in it is EXPECTED TO FAIL.** Behaviours we understood and DECIDED not to fix: too hard, not worth it, or a rule we want to keep would have to change. Not a gate, not run by CI, not called by any battery. Run it only when **we change our mind** and want to try again. RED is correct; a GREEN entry means someone fixed it — promote that check back into its real gate and delete it from here. Never soften an assertion to make it green. |
@@ -490,6 +553,7 @@ what the mesh/relay/drill suites spawn. `fake-ai.js`, `fake-keyapi.js` and
 | `meet-seal.js` | the meeting seal / derived-key surface |
 | `node-roundtrip.js` | GIF encode→decode roundtrip (writes `sample.gif`) |
 | `frag-size.js` | wire fragment sizing |
+| `behavior-casualty.js` | the CASUALTY chain end to end in source + logic: what counts as a browser death, that a deliberate `leave`/`die`/`quit` never does, the capacity line, and that meet.js → cast.js → behavior.sh → release.sh each still carry exit 4. Pins every link because the original bug was a signal shouted into a channel with nobody at the other end |
 
 ## mesh/ — control plane and wire
 
@@ -592,6 +656,7 @@ Each spawns its own relay and its own static server for THIS checkout's
 | `redun-drill.js` | ONE pipe moves bits — every alternate path parked, then failover wake. Turns the stager's CAMERA ON before it steps up: join-quiet + the 20s camera idle-stop leave `mySelfStream()` null, and a stager who broadcasts nothing makes every failover leg unreachable (2026-08-06). **`DRILL_PIPE=off` runs the GATE's media plane** — see below |
 | `e2e-stage-voice.js` | THE ROOM CAN HEAR A CAMERA-OFF STAGER. Three seats, one steps up on the join-quiet default (muted, camera off), and past the 20s camera idle-stop the feed must still be shipped, still be held by every listener as an AUDIO-ONLY stream, and be HEARD (`stageEarLevel`) the moment it unmutes — plus a camera-ON control arm proving the video path is untouched, and a churn bound on the self-stream identity. Guards the 2026-08-06 fix to `mySelfStream()`, which threw the audio track away with the video one |
 | `e2e-vanish-browser.js` | the browser half of D5: pagehide→instant LEAVE, `dc.onclose`→`transportLost`→probe-gated early confirm, with a SIGKILLed victim browser |
+| `casualty-noverdict.js` | THE HARNESS MAY NOT INVENT A DEFECT OUT OF A DEAD CLIENT. Crashes one actor's renderer for real (`crash` → `chrome://crash`) and requires exit **4**, a CASUALTY line, and **zero `✘`** — the checks sitting one line past the crash must never even be reached. Then the other direction: a DELIBERATE `die` must still render a verdict (exit 0), because a hair-trigger gate would refuse to judge `12b-team-car-death`. See "A DEAD BROWSER IS NOT A VERDICT" |
 | `e2e-meet-app-prettyurl.js` | an app shared into a meeting STAYS mounted under the pretty `/meet/<room>` URL. Forces the gifos.app-only pretty-URL rewrite locally (route-patches `pretty=true`, blocks the SW) so the document base moves as it does on prod, then asserts the runtime does not 404 `app-owner.js` and the app is not torn down ~1s after mount. Guards the prod-only regression where a relative dynamic script load broke under the moved base |
 | `e2e-meet-app-guest-perms.js` | a GUEST of a meeting mounts a shared network-capable app (the Bible Browser) AND is shown its "reach the internet" challenge, under the pretty `/meet/<room>` base. Same pretty-forcing as above, two participants: guards the CLIENT-side face of the `app-owner.js` moved-base 404 — where `bootClientBus` threw before `mountApp` (so no iframe, no `__gifosPermissions`) and the guest saw a blank space with no challenge |
 
