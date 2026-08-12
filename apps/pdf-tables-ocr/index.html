@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scanned PDF Tables → Excel</title>
+<!--
+  DELIBERATELY no <link>/<img> pointing at the packed models. The runtime builds
+  this app's document by inlining its scripts and rewriting any src/href that
+  names a packed file into a data: URL — so referencing 40 MB of weights from
+  here would put ~54 MB of base64 into a single srcdoc attribute and crash the
+  tab before any app code runs. The models ride under `.assets/` in the GIF and
+  app.js pulls them across with gifos.assets(), which transfers the buffers
+  instead of stringifying them. Keep this page's own references small.
+-->
+<style>
+  :root { --bg:#080d16; --surface:#101a2a; --border:#233a5c; --text:#eef3fb; --muted:#9db2cd; --accent:#3a86eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,sans-serif; min-height:100vh; }
+  .wrap { max-width: 760px; margin:0 auto; padding:1.4rem 1.2rem 3rem; }
+  h1 { font-size:1.5rem; margin:.4rem 0 .2rem; }
+  .lead { color:var(--muted); margin:0 0 1.1rem; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:.8rem; padding:1rem 1.1rem; margin-bottom:1rem; }
+  #drop { border:2px dashed var(--border); border-radius:.8rem; padding:2.2rem 1rem; text-align:center; color:var(--muted); cursor:pointer; transition:border-color .15s, background .15s; }
+  #drop.over, #drop:hover { border-color:var(--accent); background:rgba(58,134,235,.07); color:var(--text); }
+  #drop b { color:var(--text); }
+  .row { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-top:.8rem; }
+  button { background:var(--accent); border:none; border-radius:.55rem; color:#04101f; font:inherit; font-weight:700; padding:.55rem 1.4rem; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #status { font-size:.85rem; color:var(--muted); margin-top:.7rem; min-height:1.2em; }
+  #engine { font-size:.75rem; color:var(--muted); opacity:.9; margin-top:.35rem; min-height:1em; }
+  #engine b { color:var(--accent); }
+  .bar { height:4px; background:var(--border); border-radius:2px; overflow:hidden; margin-top:.6rem; display:none; }
+  .bar.on { display:block; }
+  .bar i { display:block; height:100%; width:0; background:var(--accent); transition:width .25s; }
+  #preview { margin-top:.4rem; }
+  .pg { margin:.9rem 0; }
+  .cap { font-size:.8rem; color:var(--muted); margin-bottom:.35rem; }
+  .cap .tag { display:inline-block; font-size:.7rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:.1rem .4rem; border-radius:.3rem; margin-left:.4rem; }
+  .tag.ocr { background:rgba(58,134,235,.2); color:#8fbaf6; }
+  .tag.text { background:rgba(46,160,112,.2); color:#7fd3ab; }
+  table { border-collapse:collapse; width:100%; font-size:.78rem; display:block; overflow-x:auto; }
+  td { border:1px solid var(--border); padding:.22rem .4rem; white-space:nowrap; max-width:16rem; overflow:hidden; text-overflow:ellipsis; }
+  .more { font-size:.75rem; color:var(--muted); margin-top:.25rem; }
+  .foot { font-size:.75rem; color:var(--muted); opacity:.85; }
+  input[type=file] { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔍→📊 Scanned PDF Tables → Excel</h1>
+  <p class="lead">Turn a PDF's tables into an Excel workbook — including a <b>scanned</b> one, read by OCR on your own GPU. Nothing is uploaded, ever.</p>
+
+  <div class="card">
+    <div id="drop">
+      <div style="font-size:2rem">📄</div>
+      <div><b>Drop a PDF here</b> or tap to choose</div>
+      <div style="font-size:.8rem;margin-top:.3rem">Text pages are read exactly; scanned pages go through OCR. One sheet per page.</div>
+    </div>
+    <input type="file" id="file" accept="application/pdf,.pdf">
+    <div class="bar" id="bar"><i id="barfill"></i></div>
+    <div class="row">
+      <button id="download" disabled>⬇ Download .xlsx</button>
+    </div>
+    <div id="status"></div>
+    <div id="engine"></div>
+  </div>
+
+  <div id="preview"></div>
+
+  <p class="foot">Text pages are read with <b>pdf.js</b>; scanned pages are read by <b>PP-OCR</b> — text detection (DBNet), text recognition (SVTR) and table structure (SLANet), all Apache-2.0 — running on <b>ONNX Runtime</b> over WebGPU, falling back to the CPU where there is no GPU. The spreadsheet is written with <b>SheetJS</b>. Every model is packed inside this GIF and the app is sealed in a sandbox with no network access: the PDF you drop in, and the Excel file that comes out, never leave this device.</p>
+</div>
+<script src="pdf.js"></script>
+<script src="pdf-worker.js"></script>
+<script src="xlsx.js"></script>
+<script src="ort.js"></script>
+<script src="ocr.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
