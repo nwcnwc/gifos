@@ -88,7 +88,13 @@ async function run(MODE) {
   // 2026-08-11) and cornered on the third — generous waits TIME OUT at 600s,
   // tight waits cannot render enough frames to measure, and no setting exists
   // between them. See test/lib/fleet.js.
-  const fleet = await needFleet(3, {
+  // WIRING-ONLY MODE, for the behaviour battery. 26a runs this file to prove
+  // the app-room door works with three drivers; it is not the place the
+  // steering PHYSICS is judged, and it must not demand a fleet from every box
+  // the battery runs on. So ANYROAD_MP_LOCAL=1 keeps the door, the ghosts, the
+  // download pool and the race — and skips the physics block, out loud.
+  const LOCAL = process.env.ANYROAD_MP_LOCAL === '1';
+  const fleet = LOCAL ? null : await needFleet(3, {
     why: 'each driver needs its own CPU — the steering assertions read a physics sim that advances per RENDERED FRAME, and three 3D browsers on one box render at ~1 fps',
     roles: NAMES.map((n) => n.toLowerCase()),
   });
@@ -112,13 +118,15 @@ async function run(MODE) {
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
   ];
-  const boxes = await openFleet(fleet.hosts.slice(0, NAMES.length), { args: LAUNCH_ARGS, origin: BASE });
+  const boxes = LOCAL ? null : await openFleet(fleet.hosts.slice(0, NAMES.length), { args: LAUNCH_ARGS, origin: BASE });
+  const localBrowser = LOCAL ? await chromium.launch({ executablePath: CHROME, args: LAUNCH_ARGS }) : null;
+  if (LOCAL) console.log('  WIRING-ONLY (ANYROAD_MP_LOCAL=1): one box, and the steering PHYSICS block is SKIPPED — it needs a machine per driver (test/lib/fleet.js).');
 
   const players = [];
   for (let pi = 0; pi < NAMES.length; pi++) {
     const name = NAMES[pi];
-    const box = boxes[pi];                       // Ada, Ben and Cyd, each on their own machine
-    const ctx = await box.browser.newContext(Object.assign(
+    const box = LOCAL ? null : boxes[pi];        // Ada, Ben and Cyd, each on their own machine
+    const ctx = await (box ? box.browser : localBrowser).newContext(Object.assign(
       { permissions: ['camera', 'microphone'], viewport: { width: 1000, height: 700 } },
       RECORD ? { recordVideo: { dir: path.join(OUT, name), size: { width: 1000, height: 700 } } } : {},
     ));
@@ -137,7 +145,7 @@ async function run(MODE) {
       if (md && md.getUserMedia) { const real = md.getUserMedia.bind(md); md.getUserMedia = (c) => { window.__gumCount++; return real(c); }; }
     });
     const hits = await routeWorld(ctx);
-    players.push({ name, ctx, hits, box: box.host.name || box.host.ssh });
+    players.push({ name, ctx, hits, box: box ? (box.host.name || box.host.ssh) : 'local' });
   }
   const [ada, ben, cyd] = players;
   console.log('  FLEET placement: ' + players.map((p) => p.name + '@' + p.box).join('  '));
@@ -358,7 +366,7 @@ async function run(MODE) {
   // partway through with 51 passed and 0 failed. A suite that runs out of clock
   // is red, and red for no reason is the worst kind.
   const SCHEMES = { Ada: 'wheel', Ben: 'stick', Cyd: 'tilt' };
-  if (MODE === MODES[0]) {
+  if (MODE === MODES[0] && !LOCAL) {
   for (const p of players) {
     await p.page.bringToFront();
     // locator.evaluate hands the ELEMENT in first: the argument is the SECOND
@@ -879,7 +887,7 @@ async function run(MODE) {
   // close, so the handle is grabbed first and the file renamed after.
   const vids = RECORD ? players.map((p) => ({ name: p.name, v: p.page.video() })) : [];
   for (const p of players) await p.ctx.close();
-  await closeFleet(boxes);
+  if (localBrowser) await localBrowser.close(); else await closeFleet(boxes);
 
   if (RECORD) {
     for (const { name, v } of vids) {

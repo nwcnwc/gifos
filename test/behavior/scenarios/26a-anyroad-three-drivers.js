@@ -85,6 +85,12 @@ async function ensureStack() {
   // layer. That is the door a group of friends actually uses for a game — the
   // meeting door is covered by the release gate, which runs both.
   const env = Object.assign({}, process.env, { ROOM: 'app' });
+  // WIRING, NOT PHYSICS. This scenario proves the app-room door carries three
+  // drivers and that each steering scheme REACHES its car; whether the car
+  // then turns by the right number of radians is a measurement that needs a
+  // machine per driver, and e2e-anyroad-mp asserts it there (test/lib/fleet.js).
+  // Without this the battery would demand a fleet from every box it runs on.
+  env.ANYROAD_MP_LOCAL = '1';
   const child = spawn('node', ['test/browser/e2e-anyroad-mp.js'], { cwd: ROOT, env });
 
   let out = '';
