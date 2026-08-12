@@ -70,7 +70,10 @@ async function run(MODE) {
   // room…" until a 90 s locator gives up somewhere deep in the mount. That is
   // the failure mode need.js exists for — cost an hour of chasing the app-room
   // path before this line was here.
-  await need({ 8099: 'a static server on 8099 (python3 -m http.server 8099 -d site)', 8790: 'relay-local' });
+  // The stack lives wherever the fleet's browsers can reach it — check THERE,
+  // not on loopback, or a healthy remote stack is refused as missing.
+  await need({ 8099: 'a static server on 8099 (python3 -m http.server 8099 -d site)', 8790: 'relay-local' },
+    new URL(BASE).hostname);
   const t0 = Date.now();
   console.log('=== ROOM=' + MODE + (MODE === 'app' ? '  (app-pinned — no call layer)' : '  (meeting with an app on the stage)'));
   const gifB64 = readFileSync(appGif('anyroad')).toString('base64');
