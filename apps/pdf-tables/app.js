@@ -175,7 +175,7 @@
       var bytes = new Uint8Array(reader.result);
       extract(bytes, function (m, f) { setStatus(m); }).then(function (result) {
         if (!result.textRuns) {
-          setStatus('This looks like a SCANNED PDF — it has no text to extract, only an image. A version that reads scanned tables with the GPU is coming; for now this tool handles the text-based rate PDFs SERFF exports.', true);
+          setStatus('This looks like a SCANNED PDF — it has no text to extract, only an image. Its sibling app, “Scanned PDF Tables → Excel”, reads pages like this with OCR on your GPU; install it from the App Store. This tool stays the small, exact one for the text-based rate PDFs SERFF exports.', true);
           renderPreview({ pages: [] });
           return;
         }
