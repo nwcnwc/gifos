@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "pdf-tables-ocr",
+  "name": "Scanned PDF Tables → Excel",
+  "shortName": "Scanned PDF Tables",
+  "version": "1.0",
+  "minBuild": 1250,
+  "description": "Drop any PDF — text OR scanned — and get an Excel workbook of its tables, one sheet per page, entirely on your device. Text pages are read exactly from the PDF's own text. Scanned (image-only) pages go through real OCR on your GPU: PP-OCR text detection and recognition plus SLANet table-structure analysis, running on ONNX Runtime over WebGPU and falling back to the CPU where there is no GPU. Built for SERFF insurance rate/rule filings, which mix born-digital rate tables with scanned exhibits. Every model is packed inside this GIF; there is no network access at all, so the filing and the spreadsheet never leave this device. Its smaller sibling, PDF Tables → Excel, stays the tiny text-only option.",
+  "entry": "index.html",
+  "accent": [
+    58,
+    134,
+    235
+  ],
+  "capabilities": {
+    "wasm": true,
+    "gpu": true
+  }
+}
