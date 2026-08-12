@@ -1,0 +1,52 @@
+{
+  "catalog": "1.0",
+  "slug": "offline-tts-kokoro",
+  "appId": "offline-tts-kokoro",
+  "name": "Offline Neural TTS (Kokoro, GPU)",
+  "shortName": "Kokoro TTS",
+  "version": "1.0",
+  "minBuild": 1250,
+  "tagline": "A higher-quality neural voice for every app — GPU-accelerated on-device, no key, no cloud.",
+  "description": "Offline Neural TTS (Kokoro) is a PROVIDER app: install it, keep it in your Providers folder, and assign it to the Text → speech AI type in Settings → AI models. From then on every app that asks GifOS to speak — Reader, games, anything using the ai ability — is answered by this app, entirely on your device.\n\nThe voice is Kokoro-82M (Apache-2.0), an 82-million-parameter neural model with eight voices: Heart, Bella, Nicole, Sarah, Michael, Fenrir, Emma and George. It also answers to the familiar cloud names (nova, shimmer, fable, echo, onyx, alloy), so anything written for a cloud voice works unchanged.\n\nGPU WHEN YOU HAVE ONE. Kokoro is a transformer whose maths runs well on a graphics chip, so this provider declares the GPU ability and runs on WebGPU where your device exposes one — and falls back to the CPU (WebAssembly) where it doesn't. Same voice either way; a real GPU just makes it think faster. Its tiny sibling, Offline Neural Text to Speech (KittenTTS), stays the instant, always-CPU option — pick whichever you prefer in Settings.\n\nWHAT IT COSTS, PLAINLY. The engine rides inside the GIF, but the 163 MB fp16 voice model is downloaded once, checked against a SHA-256 fixed in the app, and kept on your computer. Because it is a neural model it thinks before it speaks: it generates a passage of audio before that passage can start playing, so there is a pause at the beginning of each one — shorter on a GPU, longer on a CPU, and longer the more text it is handed at once.\n\nOnce the voice is on your device it never asks the network again. The app itself cannot: a Provider app is refused any network capability at all, so nothing you ask it to say can leave this browser.",
+  "author": "GifOS",
+  "releaseDate": "2026-08-11",
+  "updated": "2026-08-11",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "provider",
+    "tts",
+    "text-to-speech",
+    "neural",
+    "kokoro",
+    "webgpu",
+    "gpu",
+    "offline",
+    "accessibility",
+    "ai"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/offline-tts-kokoro",
+  "accent": [
+    124,
+    92,
+    255
+  ],
+  "capabilities": {
+    "wasm": true,
+    "gpu": true
+  },
+  "cover": "/apps/offline-tts-kokoro/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/offline-tts-kokoro/offline-tts-kokoro.gif",
+  "bytes": 18535543,
+  "download": 163234740,
+  "provides": {
+    "ai": [
+      "tts"
+    ]
+  },
+  "sha256": "ff3e03d6f4aeb84088023479171b5f6dd519803d0799c5a6c4b4d7004b33a3c0",
+  "signature": null
+}

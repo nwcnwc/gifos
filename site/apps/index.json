@@ -300,6 +300,48 @@
       "sha256": "d78925dd9894d5e6dae2b05e6b896e0b4b92a22ec18953cc5e7e01ae5ce2866b"
     },
     {
+      "slug": "offline-tts-kokoro",
+      "appId": "offline-tts-kokoro",
+      "name": "Offline Neural TTS (Kokoro, GPU)",
+      "shortName": "Kokoro TTS",
+      "version": "1.0",
+      "tagline": "A higher-quality neural voice for every app — GPU-accelerated on-device, no key, no cloud.",
+      "author": "GifOS",
+      "minBuild": 1250,
+      "releaseDate": "2026-08-11",
+      "updated": "2026-08-11",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "provider",
+        "tts",
+        "text-to-speech",
+        "neural",
+        "kokoro",
+        "webgpu",
+        "gpu",
+        "offline",
+        "accessibility",
+        "ai"
+      ],
+      "accent": [
+        124,
+        92,
+        255
+      ],
+      "cover": "/apps/offline-tts-kokoro/cover.jpg",
+      "bytes": 18535543,
+      "download": 163234740,
+      "provides": {
+        "ai": [
+          "tts"
+        ]
+      },
+      "signature": null,
+      "sha256": "ff3e03d6f4aeb84088023479171b5f6dd519803d0799c5a6c4b4d7004b33a3c0"
+    },
+    {
       "slug": "offline-tts-neural",
       "appId": "offline-tts-neural",
       "name": "Offline Neural Text to Speech",

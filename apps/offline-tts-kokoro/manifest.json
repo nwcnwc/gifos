@@ -1,0 +1,42 @@
+{
+  "gifos": "1.0",
+  "appId": "offline-tts-kokoro",
+  "name": "Offline Neural TTS (Kokoro, GPU)",
+  "shortName": "Kokoro TTS",
+  "version": "1.0",
+  "minBuild": 1250,
+  "description": "A higher-quality neural voice for your whole computer, running entirely on your device — and GPU-accelerated where the device has a GPU. A Provider app: put it in your Providers folder, assign it to Text → speech in Settings → AI models, and every app that speaks uses it. Eight voices, built on Kokoro-82M (Apache-2.0), whose fp16 weights arrive once as a hash-pinned 163 MB download. It runs on WebGPU when the device exposes one and falls back to CPU (WebAssembly) otherwise — faster on a real GPU, and it still works everywhere. Its tiny sibling, Offline Neural Text to Speech (KittenTTS), stays the instant, always-CPU option; pick one in Settings.",
+  "entry": "index.html",
+  "accent": [
+    124,
+    92,
+    255
+  ],
+  "capabilities": {
+    "wasm": true,
+    "gpu": true
+  },
+  "launch": {
+    "say": {
+      "label": "Say something out loud on this device",
+      "detail": "The voice is synthesised here, offline — nothing is sent anywhere, and nothing is saved. The first time, the 163 MB voice has to download."
+    },
+    "voice": {
+      "label": "…in a particular voice",
+      "detail": "One of the app's eight voice names."
+    }
+  },
+  "provides": {
+    "ai": [
+      "tts"
+    ]
+  },
+  "assets": [
+    {
+      "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/onnx/model_fp16.onnx",
+      "sha256": "ba4527a874b42b21e35f468c10d326fdff3c7fc8cac1f85e9eb6c0dfc35c334a",
+      "path": "kokoro.onnx",
+      "bytes": 163234740
+    }
+  ]
+}

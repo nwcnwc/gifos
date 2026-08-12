@@ -307,6 +307,43 @@ async function runConsumer(page, context, label, outTimeout, openTimeout) {
     await app.close();
   }
 
+  // ---- 9b. the Kokoro GPU provider — same offline pipeline, WebGPU-capable ---
+  // The GPU sibling. Headless Chromium has no WebGPU, so this exercises the CPU
+  // fallback path: it proves the JSEP ORT bundle, espeak-ng, the Kokoro vocab +
+  // style table and the WAV encoder all boot and run in the sandbox from the
+  // self-test model — the same guarantee as the neural provider, on the build
+  // that CAN place ops on a GPU where one exists (capabilities.gpu).
+  const kkBytes = fs.readFileSync(appGif('offline-tts-kokoro'));
+  check('the committed Kokoro TTS GIF carries its WebGPU engine in-GIF', kkBytes.length > 14e6 && kkBytes.length < 30e6, kkBytes.length + ' bytes');
+  {
+    const mf = JSON.parse(fs.readFileSync(require('path').join(__dirname, '../../apps/offline-tts-kokoro/manifest.json'), 'utf8'));
+    check('…and pins its Kokoro weights by url + sha256 + bytes',
+      !!(mf.assets && mf.assets[0] && /^https:\/\/huggingface\.co\//.test(mf.assets[0].url)
+         && /^[a-f0-9]{64}$/.test(mf.assets[0].sha256) && mf.assets[0].bytes > 100 * 1024 * 1024),
+      JSON.stringify(mf.assets && mf.assets[0]));
+    check('…declares tts + gpu + wasm and NO network (the provider hard rule)',
+      mf.provides && mf.provides.ai.indexOf('tts') === 0 && !!mf.capabilities.gpu && !!mf.capabilities.wasm && !mf.capabilities.network && !mf.capabilities.api,
+      JSON.stringify(mf.capabilities));
+  }
+  await page.evaluate(async (b64) => {
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const fid = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fid, name: 'Offline Neural TTS (Kokoro, GPU).gif', bytes, kind: 'gif', isApp: true, appId: 'offline-tts-kokoro', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Offline Neural TTS (Kokoro, GPU).gif', parent: 'sys_providers', x: 90, y: 300, iconSize: 64 });
+    localStorage.setItem('gifos_ai_config', JSON.stringify({ tts: { app: fid, appId: 'offline-tts-kokoro', appName: 'Offline Neural TTS (Kokoro, GPU)' } }));
+    localStorage.removeItem('gifos_capack_ttskokst');
+  }, kkBytes.toString('base64'));
+  await seedConsumer(page, 'ttskokst', 'KokoroSelfTest', { voice: 'self-test' }, { x: 170, y: 460 });
+  {
+    const { app, out } = await runConsumer(page, context, 'KokoroSelfTest.gif', 180000, 180000);
+    const m = /^ok:(....):(\d+):(.*)$/.exec(out) || [];
+    check('the Kokoro provider answers gifos.ai.tts with a real WAV (self-test model, fully offline)',
+      m[1] === 'RIFF' && Number(m[2]) > 20000 && m[3] === 'audio/wav', out.slice(0, 120));
+    check('…which means the JSEP ORT bundle, espeak-ng, the Kokoro vocab/style and the WAV encoder all ran in the sandbox', m[1] === 'RIFF');
+    await app.close();
+  }
+
   // ---- 8. download-then-seal, guarded via a synthetic asset provider --------
   // Pins a file the 8099 static server actually serves; hash computed here
   // from the same bytes the server reads. The 8 MB catalog floor is store
