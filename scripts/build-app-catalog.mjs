@@ -194,6 +194,9 @@ async function buildApp(slug) {
       ['assets', (x) => Array.isArray(x.assets) && x.assets.length > 0, 1178],
       // capabilities.pool: a room fetches a map tile once, not once per player.
       ['capabilities.pool', (x) => !!(x.capabilities || {}).pool, 1089],
+      // capabilities.gpu (WebGPU allow-policy on the app frame) landed after
+      // the 0.9.7 cut (build 1249), so the first build that grants it is 1250.
+      ['capabilities.gpu', (x) => !!(x.capabilities || {}).gpu, 1250],
     ];
     for (const [what, uses, since] of FEATURE_BUILD) {
       if (uses(m) && m.minBuild < since) {
