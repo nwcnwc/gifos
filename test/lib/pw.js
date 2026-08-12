@@ -139,4 +139,37 @@ function findEngine(name) {
 }
 
 const pw = loadPlaywright();
-module.exports = { ...pw, chromium: pw.chromium, CHROME: findChrome(), findChrome, findEngine };
+
+/*
+ * ---- A DEAD BROWSER IS NOT A VERDICT (see test/lib/casualty.js) ------------
+ *
+ * 98 suites resolve their chromium through this file, and every one of them
+ * used to report a dead browser as a product defect: 'page.evaluate: Target
+ * crashed' arrives dressed as a failing assertion, and there is nothing in the
+ * message to say the client is simply GONE. That is how 03a-classmates-serial-
+ * pip spent 301 seconds interrogating a corpse and reported four reds about
+ * the mesh (test/README -> "A DEAD BROWSER IS NOT A VERDICT").
+ *
+ * So `chromium.launch()` here returns a WATCHED browser: if its process
+ * vanishes, or a renderer of its crashes, the suite prints NO VERDICT and
+ * exits 4 — never a red, never retried, and it blocks a cut. Wrapping this one
+ * function arms the whole browser and drills tier at once.
+ *
+ * A death you MEANT to cause must be declared first — `deathExpected(browser)`
+ * — which e2e-vanish-browser does before SIGKILLing its victim's tree.
+ *
+ * `connect()` (fleet-browsers) is deliberately NOT wrapped: those browsers live
+ * on other boxes with their own supervised lifecycle, and fleet-browsers
+ * already fails loudly when one goes away.
+ */
+const casualty = require('./casualty');
+const chromium = new Proxy(pw.chromium, {
+  get(target, prop) {
+    if (prop === 'launch') return (...a) => target.launch(...a).then(casualty.watchBrowser);
+    const v = target[prop];
+    return typeof v === 'function' ? v.bind(target) : v;
+  },
+});
+
+module.exports = { ...pw, chromium, CHROME: findChrome(), findChrome, findEngine,
+  deathExpected: casualty.deathExpected, casualty };

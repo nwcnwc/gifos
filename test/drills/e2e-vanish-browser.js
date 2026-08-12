@@ -14,7 +14,7 @@
 // site/ (8816) — safe to run from a worktree.
 const { spawn } = require('child_process');
 const path = require('path');
-const { chromium, CHROME } = require('../lib/pw');
+const { chromium, CHROME, deathExpected } = require('../lib/pw');
 
 
 const RELAY_PORT = 8814, SITE_PORT = 8816;
@@ -81,6 +81,11 @@ const LAUNCH_ARGS = ['--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
   // processes (this playwright build has no browser.process()).
   const MARK = '--gifos-vanish-victim=' + process.pid;
   const victimBrowser = await chromium.launch({ executablePath: CHROME, headless: true, args: LAUNCH_ARGS.concat([MARK]) });
+  // THIS browser's death is the drill. pw.js watches every browser it launches
+  // and refuses to render a verdict when one dies unasked (test/lib/
+  // casualty.js) — declaring it here is what separates "the client vanished, as
+  // I arranged" from "the client vanished, so my verdict is worthless".
+  deathExpected(victimBrowser);
   const victim = await join(victimBrowser, 'victim');
   {
     const t0 = Date.now();

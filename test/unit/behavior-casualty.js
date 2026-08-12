@@ -123,6 +123,53 @@ check('a box that can hold the cast does not cry wolf', !/SHORT BY/.test(roomy),
 check('the per-browser cost is a MEASURED number, not a guess',
   cast.MEM_PER_BROWSER_MB > 200 && cast.MEM_PER_BROWSER_MB < 800, cast.MEM_PER_BROWSER_MB);
 
+// ---- 4b. the SAME gate for the 98 direct-Playwright suites ----------------
+// The behaviour battery is not where most of the browsers are. `test/lib/pw.js`
+// resolves chromium for 98 suites in test/browser and test/drills, and every one
+// of them used to report 'page.evaluate: Target crashed' as a failing
+// assertion — the identical bug, in 98 more places. Wrapping launch() arms them
+// all, so it is tested here with a stub browser: no chromium required, which
+// matters because this file must run on every box.
+const cas = require('../lib/casualty');
+function fakeBrowser() {
+  const h = {};
+  return {
+    __h: h,
+    on: (ev, fn) => { h[ev] = fn; },
+    close: () => Promise.resolve(),
+    newContext: () => Promise.resolve({ on: () => {}, pages: () => [] }),
+    newPage: () => Promise.resolve({ on: () => {}, url: () => 'about:blank' }),
+    contexts: () => [],
+  };
+}
+// fire a watched browser's death with process.exit and console.log captured
+function deathOf(b, ev) {
+  const realExit = process.exit, realLog = console.log;
+  let code = null; const logs = [];
+  process.exit = (c) => { code = c; throw new Error('__exited__'); };
+  console.log = (...a) => logs.push(a.join(' '));
+  try { b.__h[ev](); } catch (e) { if (!/__exited__/.test(String(e))) throw e; }
+  finally { process.exit = realExit; console.log = realLog; }
+  return { code, logs: logs.join('\n') };
+}
+
+const b1 = cas.watchBrowser(fakeBrowser());
+check('pw.js arms the handlers a death arrives on', typeof b1.__h.disconnected === 'function');
+const d1 = deathOf(b1, 'disconnected');
+check('a launched browser that vanishes exits 4, saying NO VERDICT',
+  d1.code === 4 && /NO VERDICT — a BROWSER THIS SUITE WAS DRIVING DIED/.test(d1.logs), { code: d1.code });
+check('the report tells the reader what the box had', /THE BOX: {2}local: \d+ browser\(s\)/.test(d1.logs));
+check('and that the crash itself may BE the bug on a roomy box', /THE CRASH IS THE BUG/.test(d1.logs));
+
+const b2 = cas.watchBrowser(fakeBrowser());
+cas.deathExpected(b2);
+check('a DECLARED death renders no report (e2e-vanish-browser SIGKILLs on purpose)',
+  deathOf(b2, 'disconnected').code === null);
+
+const b3 = cas.watchBrowser(fakeBrowser());
+b3.close();
+check('a browser we closed ourselves is not a casualty', deathOf(b3, 'disconnected').code === null);
+
 // ---- 5. THE CHANNEL. Every link, or the signal goes nowhere again. --------
 const meet = read('test/swarm/meet.js');
 const castSrc = read('test/behavior/lib/cast.js');
@@ -151,6 +198,16 @@ check('cast.js logs the capacity of every box before spawning',
 
 // The batteries have to KNOW about exit 4, or a no-verdict is silently a red
 // again (behavior.sh) or silently retried until it happens to pass (release.sh).
+const pwSrc = read('test/lib/pw.js');
+check('pw.js returns a WATCHED browser from launch (all 98 suites at once)',
+  /prop === 'launch'[\s\S]{0,160}?casualty\.watchBrowser/.test(pwSrc));
+check('pw.js hands suites the way to declare a death they meant to cause',
+  /deathExpected: casualty\.deathExpected/.test(pwSrc));
+check('e2e-vanish-browser DECLARES its victim (its whole subject is a vanishing browser)',
+  /deathExpected\(victimBrowser\)/.test(read('test/drills/e2e-vanish-browser.js')));
+check('cast.js and pw.js share ONE definition of a browser death',
+  /require\('\.\.\/\.\.\/lib\/casualty'\)/.test(castSrc) && !/const CASUALTY_RE =/.test(castSrc));
+
 check('behavior.sh has an exit-4 branch and propagates it',
   /rc -eq 4/.test(behSh) && /nov -ne 0 \] && exit 4/.test(behSh));
 check('behavior.sh never puts a no-verdict scenario on the RETRY list',

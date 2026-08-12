@@ -111,18 +111,14 @@ const VERBOSE = !!process.env.BEHAVIOR_VERBOSE;
 // itself SIGKILLed). Either way the scenario stops AT ONCE and exits
 // NO_VERDICT — not green, not a red, and it blocks a cut, because a scenario
 // that lost a browser measured the kernel.
-const NO_VERDICT = 4;
-const CASUALTY_RE = /Target crashed|renderer crashed|browser process vanished|browser has been closed|Browser closed|Target page, context or browser has been closed|killed: SIG(KILL|ABRT|SEGV|BUS)/i;
-const isCasualty = (err) => !!err && CASUALTY_RE.test(String(err));
+// The vocabulary is shared with the direct-Playwright suites — test/lib/
+// casualty.js owns what counts as a death, the exit code, and the capacity
+// arithmetic, so the two halves of the battery cannot drift on it.
+const { NO_VERDICT, isCasualty, MEM_PER_BROWSER_MB, parseMeminfo, memLocal, memRemote, capacityLine } = require('../../lib/casualty');
 // Commands that RETIRE an actor on purpose. After one of these its browser is
 // SUPPOSED to be gone (12b's car death, 18b's abrupt exit, every teardown), so
 // nothing it reports afterwards is a casualty.
 const RETIRING_RE = /^(leave|die|quit|exit|q)\b/;
-// Per-browser resident cost, MEASURED 2026-08-12 on an idle 16 GB box: a
-// 5-phone cast (55 chrome processes) took MemAvailable from 14839 MB to
-// 12888 MB — 1951 MB for five, ~390 MB each. Used only to say, in the log and
-// in the casualty report, whether the box could ever have held the cast.
-const MEM_PER_BROWSER_MB = 390;
 
 const shq = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
 const urlHostPort = (u) => { const m = /^\w+:\/\/([^/:]+):(\d+)/.exec(u); return m ? { host: m[1], port: parseInt(m[2], 10) } : { host: '127.0.0.1', port: 80 }; };
@@ -154,52 +150,6 @@ function portUp(port, host) {
     s.once('error', () => done(false));
     setTimeout(() => done(false), 1500).unref();
   });
-}
-
-// ---- what the box actually has ---------------------------------------------
-// MemAvailable, deliberately NOT free+cached and NOT swap. A browser paged out
-// to a Jetson's swapfile is precisely the client that gets OOM-killed halfway
-// through a scenario, so counting swap as capacity would hide the one number
-// that predicts a casualty. Never throws: this is evidence, not a gate.
-function parseMeminfo(txt) {
-  const g = (k) => { const m = new RegExp('^' + k + ':\\s+(\\d+)', 'm').exec(txt || ''); return m ? Math.round(parseInt(m[1], 10) / 1024) : null; };
-  return { totalMb: g('MemTotal'), availMb: g('MemAvailable'), swapFreeMb: g('SwapFree') };
-}
-function memLocal() {
-  try {
-    const m = parseMeminfo(fs.readFileSync('/proc/meminfo', 'utf8'));
-    m.cores = require('os').cpus().length;
-    m.load = parseFloat(fs.readFileSync('/proc/loadavg', 'utf8').split(' ')[0]);
-    return m;
-  } catch (e) { return {}; }
-}
-function memRemote(ssh) {
-  return new Promise((res) => {
-    const p = spawn('ssh', ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', ssh,
-      'cat /proc/meminfo; echo LOAD $(cut -d" " -f1 /proc/loadavg) $(nproc)'], { stdio: ['ignore', 'pipe', 'ignore'] });
-    let out = '';
-    p.stdout.on('data', (d) => { out += d; });
-    const done = () => {
-      const m = parseMeminfo(out);
-      const l = /LOAD ([\d.]+) (\d+)/.exec(out);
-      if (l) { m.load = parseFloat(l[1]); m.cores = parseInt(l[2], 10); }
-      res(m);
-    };
-    p.on('exit', done);
-    p.on('error', () => res({}));
-    setTimeout(() => { try { p.kill(); } catch (e) {} res({}); }, 12000).unref();
-  });
-}
-// one line per box: "clawbox: 5 browsers · 0 MB available (need ~1950) · load
-// 5.4/6 · swap free 9359 MB — RUNNING FROM SWAP, a casualty is likely"
-function capacityLine(host, n, m) {
-  const need = n * MEM_PER_BROWSER_MB;
-  if (m.availMb == null) return host + ': ' + n + ' browser(s) · memory unknown';
-  const short = m.availMb < need;
-  return host + ': ' + n + ' browser(s) · ' + m.availMb + ' MB available (need ~' + need + ')'
-    + (m.load != null ? ' · load ' + m.load.toFixed(2) + '/' + (m.cores || '?') : '')
-    + (m.swapFreeMb != null ? ' · swap free ' + m.swapFreeMb + ' MB' : '')
-    + (short ? '  — SHORT BY ' + (need - m.availMb) + ' MB: this cast runs from SWAP and a casualty is likely' : '');
 }
 
 // ---------------------------------------------------------------- Actor ----
