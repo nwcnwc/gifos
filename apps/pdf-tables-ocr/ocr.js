@@ -347,11 +347,24 @@
   // ---- 3. table structure: SLANet ------------------------------------------
   var TABLE_SIDE = 488;
 
-  // ['sos'] + dict(28) + ['eos'] — 30 classes, asserted at build time.
+  // ['sos'] + dict + ['eos'] — 30 classes, asserted at build time.
+  //
+  // The dictionary file is NOT the model's vocabulary as written. This SLANet was
+  // exported with merge_no_span_structure on (its own inference.yml says so),
+  // and PaddleOCR's TableLabelDecode applies that to the dictionary before
+  // indexing: it REMOVES '<td>' and APPENDS the merged empty-cell token
+  // '<td></td>' at the end. The count is unchanged, so a wrong mapping here is
+  // silent — every index past '<td>' shifts by one and the model's output reads
+  // as fluent nonsense. (Before this was fixed, a clean 4x3 table decoded as
+  // '<thead><tr> rowspan="10" rowspan="10" rowspan="10"</td>…' — plausible
+  // enough to look like a model that could not see the table, when in fact it
+  // saw it perfectly.)
   function buildStructureTokens(dictText) {
     var lines = dictText.split('\n').map(function (l) { return l.replace(/\r$/, ''); });
     if (lines.length && lines[lines.length - 1] === '') lines.pop();
-    return ['<sos>'].concat(lines).concat(['<eos>']);
+    var merged = lines.filter(function (l) { return l !== '<td>'; });
+    merged.push('<td></td>');
+    return ['<sos>'].concat(merged).concat(['<eos>']);
   }
 
   // Resize so the LONGEST side is 488, then pad to a 488x488 square. The padding
@@ -428,7 +441,10 @@
       var tok = seq[i].token;
       if (tok === '<tr>') { r++; col = 0; continue; }
       if (tok === '</tr>' || tok === '<thead>' || tok === '</thead>' || tok === '<tbody>' || tok === '</tbody>') continue;
-      if (tok === '<td>') {                        // a plain cell, no spans
+      // '<td></td>' is the merged single token for an unspanned cell (see
+      // buildStructureTokens); '<td>' is its unmerged form, kept for a model
+      // exported without merge_no_span_structure.
+      if (tok === '<td></td>' || tok === '<td>') {
         if (r < 0) { r = 0; col = 0; }
         place({ colspan: 1, rowspan: 1, box: seq[i].box, text: [] });
         continue;

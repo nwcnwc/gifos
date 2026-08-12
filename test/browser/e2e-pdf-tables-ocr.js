@@ -109,8 +109,18 @@ const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
   preview = norm(await fr.locator('#preview').textContent());
   // (No \b before OCR: normalising the preview glues the caption to the badge,
-  // so the text reads "…4 rows × 3 colsOCR, rows and columns by position".)
+  // so the text reads "…4 rows × 3 colsOCR + table structure".)
   check('the OCR page is tagged as OCR, not as an exact read', /OCR/.test(preview) && !/read exactly from the PDF text/.test(preview), preview.slice(0, 120));
+
+  // SLANet must be the thing that produced this grid, not the geometric
+  // fallback. This is the guard for the structure dictionary: PaddleOCR applies
+  // merge_no_span_structure to it before indexing ('<td>' out, '<td></td>' in),
+  // and getting that wrong shifts every token past '<td>' by one — the model
+  // decodes as fluent nonsense, no cells lay out, and the app quietly falls back
+  // to clustering by position. The output still looks right for a simple table,
+  // which is exactly why this has to be asserted rather than eyeballed.
+  check('the grid came from the SLANet table-structure model, not the positional fallback',
+    /OCR \+ table structure/.test(preview), preview.slice(0, 120));
 
   // The recovered cells. This is the real assertion: the three insurers, their
   // NAIC codes and their rates, read out of a picture of a table.
