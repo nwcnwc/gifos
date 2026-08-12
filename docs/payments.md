@@ -4,7 +4,8 @@
 code path.** Ratified 2026-08-11.
 
 GifOS apps can buy things — an API call, an article, a model download — without
-ever seeing a private key, a balance, or even knowing a payment happened. The
+ever seeing a private key or a balance. **Every purchase is authenticated by a
+human**; there is no unattended spending in GifOS (see Consent). The
 mechanism is [x402](https://www.x402.org/): the resource server answers a plain
 HTTP request with `402 Payment Required` and a challenge, the payer signs, and
 the request is retried. This document is the doctrine; `site/js/gifos-pay.js`
@@ -19,10 +20,13 @@ belongs exactly where the network capability already lives — in the broker —
 and not in the sandbox.
 
 The consequence is the whole design in one line: **the app fetches, the OS
-pays.** An app that declares `capabilities.pay` and calls
-`gifos.fetch('https://…/paid-thing')` gets back a `200` and the bytes. It never
-receives the key, the signature, the address, or the balance. It cannot be
-tricked into leaking what it was never given.
+asks the human, and the OS pays.** An app that declares `capabilities.pay` and
+calls `gifos.fetch('https://…/paid-thing')` gets back either a `200` and the
+bytes, or a refusal — and in between, a human authenticated the payment with a
+passkey. The app never receives the key, the signature, the address, or the
+balance, and cannot pay without a person present. It cannot be tricked into
+leaking what it was never given, and cannot spend what it was never allowed to
+spend alone.
 
 This is the same shape as the two brokered capabilities that came before:
 `gifos.capture` (the OS holds the camera, the app gets bytes) and `gifos.ai`
@@ -97,33 +101,73 @@ bundler and a paymaster, none of which a static site on GitHub Pages has or can
 host; and a passkey demands a **user gesture per signature**, which is fatal to
 silent sub-cap micropayments — the entire point of the budget model above.
 
-What we DO adopt: a passkey (WebAuthn) gate on the consequential actions —
-raising a budget, and any single payment above the per-call cap — so the moves
-that can actually hurt require a user-present, phishing-resistant confirmation,
-while small payments stay silent under the sealed key. (Note `gifos-sign.js` generates *identity* keys with
+What we DO adopt: **the passkey, on every payment** — see Consent below. The
+objection recorded here against passkeys ("a user gesture per signature is
+fatal to silent sub-cap micropayments") is void: silent micropayments are not a
+thing GifOS will do. Only the infrastructure objection survives, and Solana's
+secp256r1 precompile answers even that. (Note `gifos-sign.js` generates *identity* keys with
 `extractable: true` — right for identity, which must be portable; wrong for
 money, which must not be.)
 
-## Consent — a budget, not a prompt per payment
+## Consent — EVERY payment is authenticated by a human. No exceptions.
 
-A confirmation dialog per micropayment defeats the point of micropayments, and
-users click through repeated prompts anyway. So consent is granted as a
-**budget**, in advance, per app:
+**Ratified 2026-08-11 by Nathan, overriding the first draft of this file.**
+There is no silent payment, no "small enough not to ask", no pre-authorised
+budget that spends while nobody is looking. Every single transaction requires a
+human authentication gesture. If that makes a use case impossible, the use case
+does not ship.
+
+The first draft got this wrong, and the way it got it wrong is worth recording
+so it is not re-derived. It copied x402's "agentic payments" framing —
+machine-to-machine, silent, sub-cap — from the protocol's marketing, *after*
+our own research had already established that framing is mostly fiction: about
+85% of x402 settlements are operators paying themselves, and the one genuine
+demand spike (PING) was **humans** clicking a mint button. Designing for an
+absent human was both unsafe and a solution to a problem nobody has.
+
+What replaces it:
 
 - `capabilities.pay` in the manifest, named plainly in the acknowledgement
   sheet like every other capability;
-- the user sets a **per-app budget** and a **per-call cap**; both default to
-  zero, so a freshly installed app can spend nothing until the user says so;
-- under the per-call cap, payment is automatic and silent — that is the point;
-- over it, the OS shows a sheet naming the amount, the asset and the recipient;
-- every payment is written to a spend ledger visible in Settings, per app, with
-  a one-click revoke.
+- **a WebAuthn (passkey) assertion per payment.** Hardware-backed on any modern
+  device — Secure Enclave / TPM / Android Keystore — so the gesture is a real
+  biometric or PIN, not a checkbox that gets clicked through;
+- the OS's own sheet shows **amount, asset and recipient BEFORE the prompt**.
+  This matters: a WebAuthn prompt says only "use your passkey", it does not
+  display what is being paid. Authentication is not comprehension. The trusted
+  display is ours, and it must be correct or the gesture is theatre;
+- a per-app and per-call **ceiling** still exists, but as a hard limit on what a
+  human is even allowed to approve for that app — not as licence to skip them;
+- every payment lands in a spend ledger in Settings, per app, with revoke.
 
-**Providers may not pay.** A provider runs in a hidden mount with no visible
-window; a background thing that can spend money is the wrong shape for the same
-reason a background thing that can hear you is. `capabilities.pay` is refused
-in a provider mount mechanically, alongside the existing refusals of
-`capabilities.network` and `capabilities.api`.
+**Providers may not pay at all.** A provider runs in a hidden mount with no
+visible window, so there is no surface on which to show a human what they are
+approving. Refused mechanically, alongside `capabilities.network` and
+`capabilities.api`.
+
+### Where the gesture is enforced — pick deliberately
+
+Two levels, and the difference is whether an attacker who owns the page can
+skip the human:
+
+1. **Local gate (weaker).** The sealed Ed25519 key stays the on-chain
+   authority; the OS demands a WebAuthn assertion, bound to a challenge that is
+   the hash of the exact transaction, before it will sign. Honest code cannot
+   pay without a human. **But enforcement is our own JavaScript**, so an XSS in
+   the OS page can simply call the signer and skip the check. The gesture is a
+   policy, not a proof.
+2. **On-chain (stronger).** The passkey itself is the spending authority,
+   verified by Solana's **secp256r1 precompile (SIMD-0075, Implemented)** —
+   which is why this is possible on Solana without an ERC-4337 stack. A payment
+   is invalid on-chain unless it carries a fresh passkey signature, so a
+   compromised page **cannot** move funds at all. The cost is a wallet
+   *program*: the precompile verifies a signature, it does not by itself make a
+   passkey the owner of a token account, so funds must sit under a program that
+   checks it.
+
+Level 2 is what "every transaction requires human authentication" actually
+means when written down honestly. Level 1 only achieves it against bugs and
+badly-behaved apps, not against an attacker who reaches the OS page.
 
 ## What this does NOT do
 
@@ -133,8 +177,8 @@ in a provider mount mechanically, alongside the existing refusals of
   signable object is a transaction the OS itself constructed from a 402
   challenge and re-inspected after building.
 - **No refunds, and no pretending otherwise.** Payments are final. A buggy app
-  in a retry loop spends real value up to its budget — the cap is the only
-  defence, which is why the cap is mandatory and defaults to zero.
+  in a retry loop cannot spend anything, because each attempt stops at a human
+  gesture — which is the strongest argument for the rule above.
 - **No swaps, no merchant QR, no Jupiter integration.** Those need a real
   wallet with SOL, an RPC path and probably an external wallet rather than an
   in-OS key. Deliberately out of scope.
