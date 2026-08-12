@@ -260,6 +260,17 @@ loses a browser it did not ask to lose renders **NO VERDICT**, exit **4**.
 - `crash` is a lever (`chrome://crash`, chromium only): the death nobody asked
   for, as opposed to `die`. It is how the gate is provable.
 
+**And it is not only the behaviour battery.** 98 suites in `test/browser` and
+`test/drills` drive Playwright directly and resolve chromium through
+`test/lib/pw.js`, where `chromium.launch()` now returns a **watched** browser —
+same report, same exit 4 — so the identical bug is closed in 98 more places from
+one wrapper. `test/lib/casualty.js` holds the shared vocabulary (what counts as
+a death, the exit code, the capacity arithmetic) so the two halves cannot drift.
+**A death you MEANT to cause must be declared:** `deathExpected(browser)` before
+you kill one. `e2e-vanish-browser` SIGKILLs a victim's whole process tree — that
+is the drill — and it is the only suite in the repo that kills a browser on
+purpose.
+
 Guards: `test/unit/behavior-casualty.js` holds the whole chain — classifier,
 the deliberate-death exemption, the capacity line, and the fact that meet.js,
 cast.js, behavior.sh and release.sh each still handle it (the bug was a signal
