@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Tables → Excel</title>
+<style>
+  :root { --bg:#08120d; --surface:#10201a; --border:#244034; --text:#eef7f2; --muted:#9dc3b2; --accent:#2ea070; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,sans-serif; min-height:100vh; }
+  .wrap { max-width: 720px; margin:0 auto; padding:1.4rem 1.2rem 3rem; }
+  h1 { font-size:1.5rem; margin:.4rem 0 .2rem; }
+  .lead { color:var(--muted); margin:0 0 1.1rem; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:.8rem; padding:1rem 1.1rem; margin-bottom:1rem; }
+  #drop { border:2px dashed var(--border); border-radius:.8rem; padding:2.2rem 1rem; text-align:center; color:var(--muted); cursor:pointer; transition:border-color .15s, background .15s; }
+  #drop.over, #drop:hover { border-color:var(--accent); background:rgba(46,160,112,.06); color:var(--text); }
+  #drop b { color:var(--text); }
+  .row { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-top:.8rem; }
+  button { background:var(--accent); border:none; border-radius:.55rem; color:#04120c; font:inherit; font-weight:700; padding:.55rem 1.4rem; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #status { font-size:.85rem; color:var(--muted); margin-top:.7rem; min-height:1.2em; }
+  #preview { margin-top:.4rem; }
+  .pg { margin:.9rem 0; }
+  .cap { font-size:.8rem; color:var(--muted); margin-bottom:.35rem; }
+  table { border-collapse:collapse; width:100%; font-size:.78rem; display:block; overflow-x:auto; }
+  td { border:1px solid var(--border); padding:.22rem .4rem; white-space:nowrap; max-width:16rem; overflow:hidden; text-overflow:ellipsis; }
+  .more { font-size:.75rem; color:var(--muted); margin-top:.25rem; }
+  .foot { font-size:.75rem; color:var(--muted); opacity:.85; }
+  input[type=file] { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📄→📊 PDF Tables → Excel</h1>
+  <p class="lead">Turn a text-based PDF's tables into an Excel workbook — right here on your device, nothing uploaded. Built for SERFF insurance rate filings.</p>
+
+  <div class="card">
+    <div id="drop">
+      <div style="font-size:2rem">📄</div>
+      <div><b>Drop a PDF here</b> or tap to choose</div>
+      <div style="font-size:.8rem;margin-top:.3rem">One sheet per page. The file never leaves this device.</div>
+    </div>
+    <input type="file" id="file" accept="application/pdf,.pdf">
+    <div class="row">
+      <button id="download" disabled>⬇ Download .xlsx</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <div id="preview"></div>
+
+  <p class="foot">Reads the PDF with <b>pdf.js</b> (Apache-2.0) and writes the spreadsheet with <b>SheetJS</b> (Apache-2.0), both packed inside this GIF and sealed in the app sandbox with no network access. Born-digital PDFs are read exactly; a scanned (image-only) PDF is reported rather than guessed at.</p>
+</div>
+<script src="pdf.js"></script>
+<script src="pdf-worker.js"></script>
+<script src="xlsx.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

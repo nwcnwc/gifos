@@ -381,6 +381,43 @@
       "sha256": "17ff3907c4311227aa8f447f2ffc94d845ec8ccaee25ce98ac46a7bcb38ef294"
     },
     {
+      "slug": "pdf-tables",
+      "appId": "pdf-tables",
+      "name": "PDF Tables → Excel",
+      "shortName": "PDF Tables",
+      "version": "1.0",
+      "tagline": "Turn a text-based PDF's tables into an Excel workbook — on your device, nothing uploaded.",
+      "author": "GifOS",
+      "minBuild": 1205,
+      "releaseDate": "2026-08-12",
+      "updated": "2026-08-12",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "pdf",
+        "excel",
+        "xlsx",
+        "tables",
+        "spreadsheet",
+        "converter",
+        "offline",
+        "serff",
+        "insurance"
+      ],
+      "accent": [
+        46,
+        160,
+        112
+      ],
+      "cover": "/apps/pdf-tables/cover.jpg",
+      "bytes": 1247066,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "380ea77f72cc3b80cc143b667c9ee5d6541638976f089c073a4ad4ce764fa503"
+    },
+    {
       "slug": "sound-it-out",
       "appId": "sound-it-out",
       "name": "Sound It Out",
