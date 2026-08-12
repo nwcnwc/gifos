@@ -385,7 +385,7 @@
       "appId": "pdf-tables",
       "name": "PDF Tables → Excel",
       "shortName": "PDF Tables",
-      "version": "1.0",
+      "version": "1.1",
       "tagline": "Turn a text-based PDF's tables into an Excel workbook — on your device, nothing uploaded.",
       "author": "GifOS",
       "minBuild": 1205,
@@ -411,11 +411,51 @@
         112
       ],
       "cover": "/apps/pdf-tables/cover.jpg",
-      "bytes": 1247066,
+      "bytes": 1247129,
       "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "380ea77f72cc3b80cc143b667c9ee5d6541638976f089c073a4ad4ce764fa503"
+      "sha256": "5ab606ce8aa21d51a07bcfb70a661d67a815cb98074d0671af6f5f2829d0a628"
+    },
+    {
+      "slug": "pdf-tables-ocr",
+      "appId": "pdf-tables-ocr",
+      "name": "Scanned PDF Tables → Excel",
+      "shortName": "Scanned PDF Tables",
+      "version": "1.0",
+      "tagline": "Scanned or text, its tables come out as Excel — read by OCR on your own GPU, nothing uploaded.",
+      "author": "GifOS",
+      "minBuild": 1250,
+      "releaseDate": "2026-08-12",
+      "updated": "2026-08-12",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "pdf",
+        "ocr",
+        "excel",
+        "xlsx",
+        "tables",
+        "spreadsheet",
+        "scanned",
+        "gpu",
+        "webgpu",
+        "offline",
+        "serff",
+        "insurance"
+      ],
+      "accent": [
+        58,
+        134,
+        235
+      ],
+      "cover": "/apps/pdf-tables-ocr/cover.jpg",
+      "bytes": 27918508,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "52d146562598c211856742dd40088d30abdee2e6fd3a568bb4fa1b62f251eaf9"
     },
     {
       "slug": "sound-it-out",

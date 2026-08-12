@@ -15,7 +15,8 @@
 // text-showing operator, so pdf.js getTextContent() returns nothing. That means
 // this suite proves the real mechanics (render → DBNet → SVTR → SLANet →
 // SheetJS) against known-correct expected text, which a photograph of a real
-// filing could never do deterministically.
+// filing could never do deterministically. Regenerate it (byte-identically) with
+//   node apps/pdf-tables-ocr/tools/make-scan-fixture.mjs
 //
 // What would fail HERE rather than in a user's hands:
 //   - ONNX Runtime not starting under the app CSP (no eval, no network), or the

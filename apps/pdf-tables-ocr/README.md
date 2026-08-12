@@ -1,65 +1,111 @@
-# PDF Tables → Excel
+# Scanned PDF Tables → Excel
 
-Drop a **born-digital** PDF, get an `.xlsx` of its tables — one sheet per page —
-entirely in the app sandbox, with **no network access**. Built for **SERFF**
-insurance rate/rule filings (the ones the `serff-scraper` project pulls), which
-are exported from actuarial software, so their tables are real text with real
-positions and can be reconstructed **exactly** — no OCR, no guessing.
+Drop any PDF — text **or scanned** — and get an `.xlsx` of its tables, one sheet
+per page, entirely on the device. Built for SERFF insurance rate and rule
+filings, which mix born-digital rate tables with scanned exhibits bound in from
+a photocopier.
 
-## How it works
+This is the GPU sibling of [`pdf-tables`](../pdf-tables). That app stays the
+small, exact, text-only one (1.2 MB); this one is a superset that adds real OCR.
 
-```
-PDF bytes -> pdf.js getTextContent (each run's x/y/width)
-          -> cluster runs into rows (by y) and columns (by recurring left-x)
-          -> 2-D grid per page
-          -> SheetJS workbook (one sheet per page) -> .xlsx
-```
+## What it does, per PAGE
 
-The row/column reconstruction (`app.js`) derives its tolerances from the
-document's own median glyph height and width, so it scales with the filing's
-font size rather than a magic constant. A **scanned** (image-only) PDF has no
-text runs — the app says so plainly instead of exporting an empty sheet.
+The choice is made per page, not per document, because a mixed filing is the
+common case — page 3 is a text rate table and page 4 is a photocopy of one.
 
-## Why these library choices (the sandbox constraints)
+| Page has… | Path | Fidelity |
+| --- | --- | --- |
+| a real text layer (≥ 8 runs) | pdf.js `getTextContent` → row/column clustering | **exact** — the numbers are read, not guessed |
+| no text layer | render to canvas → OCR | a reading, reported as such |
 
-Everything rides **in the GIF** — no asset pin, no network:
+Sheets are named `Page 3` or `Page 4 (OCR)`, so an OCR reading is never mistaken
+for an exact one after the file leaves here.
 
-- **pdf.js 2.16 legacy** (Apache-2.0), NOT 4.x. 4.x uses dynamic `import()`, and
-  the app CSP has no `blob:`/host in `script-src`, so it cannot load. 2.16 is
-  classic scripts. The app runs it with **`isEvalSupported: false`** so its
-  `new Function`/`eval` fast-paths (which the CSP also forbids) are never taken,
-  and hands pdf.js a **real `Worker` built from a `blob:` URL** via `workerPort`
-  — `worker-src blob:` is exactly what `capabilities.wasm` opens, and doing it
-  ourselves avoids pdf.js's fake-worker path, which tries to load the worker as
-  a `<script>` (blocked by `script-src`).
-- **SheetJS** (`xlsx`, Apache-2.0), pure JS — writes the real `.xlsx`.
+## The OCR pipeline
 
-So the app declares only `capabilities.wasm` (for the blob worker) — no network,
-no assets, no GPU. The PDF you drop and the Excel that comes out never leave the
-browser.
+Three ONNX models on ONNX Runtime over **WebGPU**, falling back to the CPU
+(WebAssembly) where the device exposes no adapter. Which one actually ran is
+reported on screen.
 
-## Scope
+1. **Detection** — `en_PP-OCRv3_det` (DBNet, 2.4 MB) emits a per-pixel text
+   probability map. Post-processing is plain JavaScript, because the sandbox has
+   no OpenCV and no network to fetch one: threshold → connected components →
+   convex hull → min-area rectangle by rotating calipers → "unclip" (grow the box
+   back out, since DB shrinks its training targets).
+2. **Recognition** — `en_PP-OCRv3_rec` (SVTR-LCNet, 9.0 MB) reads each crop at
+   height 48; CTC greedy decode over 97 classes (blank + 95 `en_dict` entries +
+   space).
+3. **Table structure** — `en_ppstructure_mobile_v2.0_SLANet` (7.7 MB) sees the
+   whole page at 488×488 and emits up to 501 steps of (30-way HTML token,
+   4-value cell box). The `<tr>`/`<td>` stream lays out into a real grid with
+   `colspan`/`rowspan`, and the recognized text is matched into cells by box
+   overlap.
 
-Phase one: **born-digital** PDFs — the large majority of SERFF filings, read
-exactly. A **scanned** page needs OCR; that path is a separate build on top of
-`capabilities.gpu` (WebGPU document OCR → table structure → SheetJS) and reports
-"scanned" for now. Merged/nested cells are reconstructed as an aligned grid, not
-a spanning layout.
+If the structure model finds no usable grid — a page of prose, a form, a table
+whose rules it cannot see — the app falls back to clustering the OCR boxes by
+position, which is the same algorithm the born-digital path uses. The preview
+says which of the two produced the grid.
 
-## Build & test
+## Two things that will bite whoever touches this next
+
+**The models cannot travel in the app document.** `buildAppHtml` inlines every
+`<script src>` and rewrites any `src`/`href` naming a packed file into a `data:`
+URL. Referencing the weights from `index.html` therefore put 54 MB of base64 into
+a single `srcdoc` attribute, and the renderer **crashed** before a line of app
+code ran (measured: `srcdocLen` 56,876,416, then the tab died). The models ride
+under `.assets/` instead, where `gifos.assets(path)` hands them over as a
+zero-copy `ArrayBuffer` transfer — same GIF, still no network, `srcdoc` back down
+to 2.6 MB. `build.mjs` fails the build if `index.html` references a packed file
+by `src`/`href`, so this cannot come back by accident.
+
+**The structure dictionary is not the file on disk.** PaddleOCR's
+`TableLabelDecode` rewrites it before indexing whenever
+`merge_no_span_structure` is set, and this export's own `inference.yml` sets it:
+`<td>` comes out, the merged `<td></td>` goes on the end. The class count is 30
+either way, so getting it wrong is silent — every token past `<td>` resolves one
+entry off, the model's perfectly good output decodes as fluent nonsense, and the
+app quietly falls back to positional clustering with output that still looks
+right on a simple table. `build.mjs` asserts the file is still the pre-merge
+form, and the e2e requires the grid to come from the structure model.
+
+## Build
 
 ```bash
-node apps/pdf-tables/build.mjs        # → site/apps/pdf-tables/pdf-tables.gif (~1.25 MB)
-node scripts/build-app-catalog.mjs    # refresh the store catalog
-node test/browser/e2e-pdf-tables.js   # mounts the GIF, drops test/fixtures/rate-table.pdf,
-                                      # checks the extracted grid + a round-tripped .xlsx
+node apps/pdf-tables-ocr/build.mjs      # -> site/apps/pdf-tables-ocr/pdf-tables-ocr.gif
+node scripts/build-app-catalog.mjs      # refresh the store catalog
 ```
 
-`e2e-pdf-tables.js` is the guard: it proves pdf.js loads and runs under the app
-CSP (the CSP-compatible recipe above), the grid reconstruction is exact, and
-SheetJS serialises a real workbook — all in the sandbox.
+43.6 MB raw packs to a 27.9 MB app. Everything is in-GIF: pdf.js 2.16 (legacy
+UMD — 4.x uses dynamic `import()`, which the sandbox CSP cannot load), SheetJS,
+the ORT WebGPU bundle, the JSEP wasm, all three models and both dictionaries.
+There is no asset pin and no network path at all.
+
+The build asserts the **decoder contract** against the model files themselves, by
+reading output shapes out of the ONNX protobuf: the recognition head must be 97
+classes and the structure head 30, with a 4-wide box head. A model swapped for
+one with a different vocabulary would otherwise decode into convincing garbage
+instead of failing.
+
+## Test
+
+```bash
+python3 -m http.server 8099 -d site
+node test/browser/e2e-pdf-tables-ocr.js
+```
+
+Drives both fixtures through the real sandbox. `rate-table.pdf` must still be
+read exactly — this app is a superset and that path must never regress — and
+`rate-table-scanned.pdf` (the same table rasterized at 200 DPI and wrapped as a
+DCTDecode image XObject: one page, no font, no text-showing operator) must come
+back with all 12 cells, laid out by the structure model. It also asserts
+`allow="webgpu"` is on the app iframe, since `capabilities.gpu` is one attribute
+whose absence just means "silently slower".
+
+A real scanned SERFF filing is the quality test this cannot be: a fixture with
+known-correct expected text is the only way to assert cell-for-cell in a gate.
 
 ## Licences
 
-- **pdf.js** — Apache-2.0 (`vendor/LICENSE-pdfjs.txt`).
-- **SheetJS (xlsx)** — Apache-2.0 (`vendor/LICENSE-sheetjs.txt`).
+pdf.js (Apache-2.0), SheetJS (Apache-2.0), ONNX Runtime (MIT), PaddleOCR models
+and dictionaries (Apache-2.0) — full texts in `vendor/`, and all of them packed
+into the GIF alongside the code.

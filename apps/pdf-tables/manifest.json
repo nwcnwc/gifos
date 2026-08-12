@@ -3,9 +3,9 @@
   "appId": "pdf-tables",
   "name": "PDF Tables → Excel",
   "shortName": "PDF Tables",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 1205,
-  "description": "Drop a text-based PDF and get an Excel workbook of its tables — one sheet per page — entirely on your device. Built for SERFF insurance rate/rule filings, which are born-digital, so the numbers are read exactly (no OCR, no guessing) and nothing is ever sent anywhere. Reads the PDF with pdf.js, reconstructs the row/column grid from the text positions, and writes a real .xlsx with SheetJS. A scanned (image-only) PDF is reported honestly rather than exported empty.",
+  "description": "Drop a text-based PDF and get an Excel workbook of its tables — one sheet per page — entirely on your device. Built for SERFF insurance rate/rule filings, which are born-digital, so the numbers are read exactly (no OCR, no guessing) and nothing is ever sent anywhere. Reads the PDF with pdf.js, reconstructs the row/column grid from the text positions, and writes a real .xlsx with SheetJS. A scanned (image-only) PDF is reported honestly rather than exported empty — its sibling app, Scanned PDF Tables → Excel, reads those with OCR on your GPU.",
   "entry": "index.html",
   "accent": [
     46,
