@@ -509,7 +509,7 @@
     // A fingerprint of what the app is ASKING for. It only changes when the app
     // itself changes (a new/removed host in its manifest), so we can prompt once
     // and stay quiet until the request actually changes.
-    const fingerprint = () => declared.slice().sort().join('');
+    const fingerprint = () => declared.slice().sort().join('\x01');
     const persist = () => (key ? store.setState(key, { denied: Object.keys(denied), ack }) : Promise.resolve());
     return {
       declared: () => declared.slice(),
@@ -1745,7 +1745,7 @@
   // pick different slots, and the SAME holder picks the same slot for a URL
   // every time (no thrash, and a test can predict it).
   function poolSlot(url) {
-    const s = String(poolSelf) + ' ' + url;
+    const s = String(poolSelf) + '\u0000' + url;
     let h = 5381;
     for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
     return (h % SERVE_SLOTS) * SERVE_SLOT;
