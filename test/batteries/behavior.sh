@@ -21,7 +21,9 @@
 #
 # Output: one PASS/FAIL/SKIP line per scenario + a final tally; full logs in
 # /tmp/behavior-battery/<scenario>.log, per-role forensics in /tmp/behavior/.
-# Exit: non-zero if anything failed. (The one-time KNOWN-REDs are history:
+# Exit: 1 if anything failed, 4 if nothing failed but something rendered NO
+# VERDICT (an actor's browser died — see the exit-4 branch below), 0 otherwise.
+# (The one-time KNOWN-REDs are history:
 # 04b/16b — the post-deploy WHOHOME stall — went green with the fork
 # false-positive fix 95ca143 and stay in as its regression guards.)
 set -u
@@ -77,7 +79,7 @@ reap_browsers() {
   return 0
 }
 
-pass=0; fail=0; skip=0; failed=""
+pass=0; fail=0; skip=0; failed=""; nov=0; novlist=""
 for f in test/behavior/scenarios/*.js; do
   name=$(basename "$f" .js)
   match "$name" || continue
@@ -89,6 +91,14 @@ for f in test/behavior/scenarios/*.js; do
   secs=$(( $(date +%s) - start ))
   if grep -q '^SKIP:' "$log"; then
     skip=$((skip+1)); echo "SKIP  $name (${secs}s) — $(grep '^SKIP:' "$log" | head -1 | cut -c6-)"
+  # EXIT 4 = NO VERDICT (cast.js "THE CASUALTY GATE"): an actor's BROWSER died,
+  # so the scenario refused to render a verdict instead of reporting a room that
+  # is genuinely short a member as a mesh defect. Never retried — the box does
+  # not get roomier on the second run — and never counted as a product red.
+  # It still blocks a cut: a scenario nobody could run is a guard nobody has.
+  elif [ $rc -eq 4 ]; then
+    nov=$((nov+1)); novlist="$novlist $name"
+    echo "NOVER $name (${secs}s) — $(grep -m1 'CASUALTY:' "$log" | sed 's/^ *CASUALTY: *//' | cut -c1-110)"
   elif [ $rc -eq 0 ]; then
     pass=$((pass+1)); echo "PASS  $name (${secs}s)"
   else
@@ -99,6 +109,10 @@ for f in test/behavior/scenarios/*.js; do
 done
 
 echo
-echo "BEHAVIOR BATTERY: $pass passed, $fail failed, $skip skipped"
+echo "BEHAVIOR BATTERY: $pass passed, $fail failed, $skip skipped, $nov no-verdict"
 [ -n "$failed" ] && echo "failed:$failed"
-[ $fail -eq 0 ]
+[ -n "$novlist" ] && echo "no-verdict:$novlist"
+# A red outranks a no-verdict: if something actually failed, that is the news.
+[ $fail -ne 0 ] && exit 1
+[ $nov -ne 0 ] && exit 4
+exit 0

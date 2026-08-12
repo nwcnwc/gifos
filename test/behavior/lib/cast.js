@@ -2,8 +2,14 @@
 /*
  * cast.js — the behavior battery's orchestrator. Spawns one test/swarm/meet.js
  * per ROLE (--drive machine mode: commands in on stdin, @@done/@@err/@@state/
- * @@probe sentinels out), feeds each a timed story, and checks the LAWS across
- * the whole cast. See test/behavior/README.md for the catalog it serves.
+ * @@probe sentinels out, plus the unsolicited @@dead), feeds each a timed
+ * story, and checks the LAWS across the whole cast. See
+ * test/behavior/README.md for the catalog it serves.
+ *
+ * EXIT CODES: 0 = every check green. 1 = a red (or the watchdog). 4 = NO
+ * VERDICT — an actor's browser DIED, so the scenario refused to render one; see
+ * "CASUALTY" below. A `SKIP:` line with exit 0 is a missing dependency
+ * (an engine, the relay-dev harness).
  *
  * A scenario file is:
  *
@@ -84,6 +90,40 @@ const INSECURE_ORIGINS = /^http:\/\/(?!127\.0\.0\.1|localhost)/.test(BASE) ? BAS
 const HEADFUL = !!process.env.BEHAVIOR_HEADFUL;
 const VERBOSE = !!process.env.BEHAVIOR_VERBOSE;
 
+// ---- CASUALTY: a dead browser is an ENVIRONMENT fact, never a verdict ------
+// The battery's whole job is to say something about GifOS. A scenario whose
+// actor's BROWSER died says something about the box, and it must not be
+// allowed to launder that into a claim about the mesh.
+//
+// THE MEASUREMENT THAT PUT THIS HERE. 03a-classmates-serial-pip, the behaviour
+// box, 2026-08-11: em seated at t+42.6s and its renderer crashed at t+44.9s.
+// meet.js knew — it printed '[CRASH] the renderer process died' — but only to
+// stderr, which lands in the per-run cast.log nobody reads. The scenario then
+// polled the corpse every 2.5s for 250 more seconds and reported FOUR reds:
+// "room converges to 5 for everyone", "the room never loses anyone while 4/5
+// are hidden" (18 violating samples), "reunion whole after the waves", and the
+// one-tree census. Every one of them true of a room with four members, and
+// none of them a defect. The box: 7.6 GB of RAM with 0 MB AVAILABLE, five
+// Chromiums running entirely out of swap.
+//
+// meet.js now says '@@dead <why>' on the sentinel channel; the patterns below
+// are the backstop for the death nobody got to announce (the actor process
+// itself SIGKILLed). Either way the scenario stops AT ONCE and exits
+// NO_VERDICT — not green, not a red, and it blocks a cut, because a scenario
+// that lost a browser measured the kernel.
+const NO_VERDICT = 4;
+const CASUALTY_RE = /Target crashed|renderer crashed|browser process vanished|browser has been closed|Browser closed|Target page, context or browser has been closed|killed: SIG(KILL|ABRT|SEGV|BUS)/i;
+const isCasualty = (err) => !!err && CASUALTY_RE.test(String(err));
+// Commands that RETIRE an actor on purpose. After one of these its browser is
+// SUPPOSED to be gone (12b's car death, 18b's abrupt exit, every teardown), so
+// nothing it reports afterwards is a casualty.
+const RETIRING_RE = /^(leave|die|quit|exit|q)\b/;
+// Per-browser resident cost, MEASURED 2026-08-12 on an idle 16 GB box: a
+// 5-phone cast (55 chrome processes) took MemAvailable from 14839 MB to
+// 12888 MB — 1951 MB for five, ~390 MB each. Used only to say, in the log and
+// in the casualty report, whether the box could ever have held the cast.
+const MEM_PER_BROWSER_MB = 390;
+
 const shq = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
 const urlHostPort = (u) => { const m = /^\w+:\/\/([^/:]+):(\d+)/.exec(u); return m ? { host: m[1], port: parseInt(m[2], 10) } : { host: '127.0.0.1', port: 80 }; };
 
@@ -116,12 +156,59 @@ function portUp(port, host) {
   });
 }
 
+// ---- what the box actually has ---------------------------------------------
+// MemAvailable, deliberately NOT free+cached and NOT swap. A browser paged out
+// to a Jetson's swapfile is precisely the client that gets OOM-killed halfway
+// through a scenario, so counting swap as capacity would hide the one number
+// that predicts a casualty. Never throws: this is evidence, not a gate.
+function parseMeminfo(txt) {
+  const g = (k) => { const m = new RegExp('^' + k + ':\\s+(\\d+)', 'm').exec(txt || ''); return m ? Math.round(parseInt(m[1], 10) / 1024) : null; };
+  return { totalMb: g('MemTotal'), availMb: g('MemAvailable'), swapFreeMb: g('SwapFree') };
+}
+function memLocal() {
+  try {
+    const m = parseMeminfo(fs.readFileSync('/proc/meminfo', 'utf8'));
+    m.cores = require('os').cpus().length;
+    m.load = parseFloat(fs.readFileSync('/proc/loadavg', 'utf8').split(' ')[0]);
+    return m;
+  } catch (e) { return {}; }
+}
+function memRemote(ssh) {
+  return new Promise((res) => {
+    const p = spawn('ssh', ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', ssh,
+      'cat /proc/meminfo; echo LOAD $(cut -d" " -f1 /proc/loadavg) $(nproc)'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    p.stdout.on('data', (d) => { out += d; });
+    const done = () => {
+      const m = parseMeminfo(out);
+      const l = /LOAD ([\d.]+) (\d+)/.exec(out);
+      if (l) { m.load = parseFloat(l[1]); m.cores = parseInt(l[2], 10); }
+      res(m);
+    };
+    p.on('exit', done);
+    p.on('error', () => res({}));
+    setTimeout(() => { try { p.kill(); } catch (e) {} res({}); }, 12000).unref();
+  });
+}
+// one line per box: "clawbox: 5 browsers · 0 MB available (need ~1950) · load
+// 5.4/6 · swap free 9359 MB — RUNNING FROM SWAP, a casualty is likely"
+function capacityLine(host, n, m) {
+  const need = n * MEM_PER_BROWSER_MB;
+  if (m.availMb == null) return host + ': ' + n + ' browser(s) · memory unknown';
+  const short = m.availMb < need;
+  return host + ': ' + n + ' browser(s) · ' + m.availMb + ' MB available (need ~' + need + ')'
+    + (m.load != null ? ' · load ' + m.load.toFixed(2) + '/' + (m.cores || '?') : '')
+    + (m.swapFreeMb != null ? ' · swap free ' + m.swapFreeMb + ' MB' : '')
+    + (short ? '  — SHORT BY ' + (need - m.availMb) + ' MB: this cast runs from SWAP and a casualty is likely' : '');
+}
+
 // ---------------------------------------------------------------- Actor ----
 class Actor {
   constructor(cast, role, spec) {
     this.cast = cast; this.role = role; this.spec = spec || {};
     this.name = this.spec.name || role.charAt(0).toUpperCase() + role.slice(1);
     this.av = null; this.alive = false; this.joined = false;
+    this.retired = false; // a deliberate leave/die/quit — its death is expected
     this._q = Promise.resolve();
   }
   // BEHAVIOR_ENGINE re-engines a scenario WITHOUT editing it — the lever that
@@ -189,7 +276,9 @@ class Actor {
     // actor to a SIGKILL while the box was at loadavg 26 on 4 cores.
     this.child.on('exit', (code, signal) => {
       this.alive = false;
-      this._resolvePending({ err: 'actor exited ' + code + (signal ? ' [killed: ' + signal + ']' : '') });
+      const why = 'actor exited ' + code + (signal ? ' [killed: ' + signal + ']' : '');
+      if (signal) this.cast.noteCasualty(this, why); // the actor itself was killed — nobody got to announce it
+      this._resolvePending({ err: why });
       this._readyRes(); // an ssh/spawn failure must fail FAST, not hang up()
     });
     this._pending = null; this._payload = undefined; this._out = []; this._staleDone = 0;
@@ -205,6 +294,9 @@ class Actor {
   }
   _onLine(l) {
     if (l === '@@ready') { this._readyRes(); return; }
+    // UNSOLICITED, and it arrives the moment the browser dies rather than 60s
+    // later dressed as a failing assertion.
+    if (l.startsWith('@@dead ')) { this.cast.logRaw(this.role + ' | ' + l); this.cast.noteCasualty(this, l.slice(7)); return; }
     if (l.startsWith('@@state ') || l.startsWith('@@probe ')) {
       try { this._payload = JSON.parse(l.slice(8)); } catch (e) { this._payload = null; }
       return;
@@ -236,7 +328,12 @@ class Actor {
       }, timeoutMs || 90000);
       this.child.stdin.write(line + '\n');
     }).then((r) => {
-      if (line === 'leave' || line === 'die') this.joined = false;
+      if (RETIRING_RE.test(line)) { this.joined = false; this.retired = true; }
+      // BACKSTOP for the death that never got announced: '@@dead' covers a
+      // browser that dies while meet.js still lives, but a Playwright call can
+      // also come back "Target crashed" first, and an ssh-killed remote actor
+      // says nothing at all. A retired actor is exempt by definition.
+      else if (isCasualty(r.err)) this.cast.noteCasualty(this, r.err);
       return r;
     });
     this._q = this._q.then(run, run);
@@ -308,6 +405,8 @@ class Cast {
     this.children = []; // spawned stack servers
     this.relay = DEFAULT_RELAY;
     this.t0 = Date.now();
+    this.casualties = []; this.tearing = false; this._aborting = false;
+    this.mem = new Map(); // host name -> the capacity snapshot taken at up()
   }
   get(role) { const a = this.actors.get(role); if (!a) throw new Error('no actor ' + role); return a; }
   all() { return [...this.actors.values()]; }
@@ -315,6 +414,64 @@ class Cast {
   logRaw(line) { this.logFile.write('t+' + ((Date.now() - this.t0) / 1000).toFixed(1) + ' ' + line + '\n'); if (VERBOSE) console.log('    ' + line); }
   log(msg) { const t = 't+' + ((Date.now() - this.t0) / 1000).toFixed(0) + 's'; console.log('  [' + t + '] ' + msg); this.logFile.write(t + ' == ' + msg + '\n'); }
   async sleep(secs, why) { this.log('… ' + secs + 's' + (why ? ' — ' + why : '')); await sleep(secs * 1000); }
+
+  // how many browsers this cast puts on each box (the capacity denominator)
+  hostCounts() {
+    const c = new Map();
+    for (const a of this.all()) { const n = (a.host && a.host.name) || 'local'; c.set(n, (c.get(n) || 0) + 1); }
+    return c;
+  }
+
+  // ---- THE CASUALTY GATE ---------------------------------------------------
+  // One of the cast's browsers died and nobody asked it to. Everything after
+  // this moment is a measurement of a room that is short a member, so the
+  // scenario stops HERE and renders NO VERDICT rather than a red.
+  noteCasualty(actor, why) {
+    if (this.tearing || actor.retired) return;
+    if (this.casualties.some((c) => c.role === actor.role)) return;
+    this.casualties.push({
+      role: actor.role, host: (actor.host && actor.host.name) || 'local',
+      why: String(why).slice(0, 200), at: ((Date.now() - this.t0) / 1000).toFixed(1),
+    });
+    this.logRaw('!! CASUALTY ' + actor.role + ' — ' + why);
+    if (this._aborting) return;
+    this._aborting = true;
+    this.abortNoVerdict().catch((e) => { console.error(String(e)); process.exit(NO_VERDICT); });
+  }
+
+  async abortNoVerdict() {
+    const c = this.casualties[0];
+    const n = this.hostCounts().get(c.host) || 1;
+    // Re-read the box NOW: what it had at up() is interesting, what it had at
+    // the moment of death is the evidence.
+    const at = this.all().find((a) => a.role === c.role);
+    const m = (at && at.host && at.host.ssh) ? await memRemote(at.host.ssh) : memLocal();
+    console.log('');
+    console.log('NO VERDICT — an actor\'s BROWSER DIED, so nothing here is a claim about GifOS.');
+    console.log('');
+    console.log('  CASUALTY: ' + c.role + ' on ' + c.host + ' at t+' + c.at + 's — ' + c.why);
+    console.log('  THE BOX:  ' + capacityLine(c.host, n, m));
+    const was = this.mem.get(c.host);
+    if (was && was.availMb != null) console.log('  AT START: ' + was.availMb + ' MB available'
+      + (was.load != null ? ', load ' + was.load.toFixed(2) : ''));
+    console.log('');
+    console.log('  A browser that dies mid-scenario takes its seat, its tracks and its');
+    console.log('  answers with it, and every later check reads a room that is genuinely');
+    console.log('  short a member. Those reds would be TRUE and MEANINGLESS — which is');
+    console.log('  how 03a spent 301s reporting "the room never loses anyone" as a mesh');
+    console.log('  defect while its fifth renderer had been dead since t+44.9s.');
+    console.log('');
+    console.log('  This is NOT a product failure and NOT a flake, so it is not retried.');
+    console.log('  Give the cast a box that can hold it — free the RAM, or spread the');
+    console.log('  actors over the farm (test/README -> "The BEHAVIOR battery in FLEET');
+    console.log('  mode"). If the box was idle and roomy, the crash itself is the bug:');
+    console.log('  the run dir below has the renderer\'s last words.');
+    console.log('');
+    console.log('NO-VERDICT ' + this.name + ' — 0 PASSED, 0 FAILED, no verdict was reached, on purpose.');
+    console.log('  run dir: ' + this.runDir);
+    await this.down(false);
+    process.exit(NO_VERDICT);
+  }
 
   async ensureStack() {
     // relay-dev requirement / opportunity first — it decides this.relay
@@ -382,6 +539,20 @@ class Cast {
     needEngines(...new Set(this.all().filter((a) => !(a.host && a.host.ssh)).map((a) => a.engine())));
     await this.ensureStack();
     await this.syncFleet();
+    // CAPACITY, ON THE RECORD, BEFORE ANYTHING RUNS. Not a gate — a box that is
+    // short still gets to try, because 24 of 25 scenarios do survive on swap —
+    // but when one of them loses a renderer, the reader must not have to guess
+    // whether the box could ever have held the cast. It is one line, and it is
+    // the line that was missing on 2026-08-11.
+    const counts = this.hostCounts();
+    const snaps = await Promise.all([...counts.keys()].map(async (name) => {
+      const h = this.all().map((a) => a.host).find((x) => ((x && x.name) || 'local') === name);
+      return [name, (h && h.ssh) ? await memRemote(h.ssh) : memLocal()];
+    }));
+    for (const [name, m] of snaps) {
+      this.mem.set(name, m);
+      this.log('capacity ' + capacityLine(name, counts.get(name), m));
+    }
     for (const a of this.all()) a.spawnChild();
     await Promise.all(this.all().map((a) => a._ready));
     this.log('cast up: ' + this.all().map((a) => a.role + '(' + (a.spec.profile || 'desktop')
@@ -423,6 +594,7 @@ class Cast {
   }
 
   async down(failed) {
+    this.tearing = true; // from here every browser death is one we asked for
     if (failed) {
       for (const a of this.all()) if (a.alive && a.joined && !(await a.state()).err) {
         await a.cmd('shot ' + path.join(this.runDir, a.role + '-fail.png'), 30000);
@@ -642,4 +814,5 @@ function scenario(name, spec, fn, opts) {
   })().catch((e) => { console.error('FATAL ' + (e && e.stack || e)); process.exit(1); });
 }
 
-module.exports = { scenario, Cast, Check, sleep, BASE, needEngines, engineAvailable };
+module.exports = { scenario, Cast, Check, sleep, BASE, needEngines, engineAvailable,
+  isCasualty, RETIRING_RE, parseMeminfo, capacityLine, NO_VERDICT, MEM_PER_BROWSER_MB };
