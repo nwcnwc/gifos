@@ -306,6 +306,11 @@ badly-behaved apps, not against an attacker who reaches the OS page.
 
 ## Testing
 
+Three tiers, spelled out in [payments-testing.md](payments-testing.md): pure
+unit, a hermetic browser gate, and a deliberate human-run pass on Base Sepolia
+using Coinbase's own faucet and facilitator. Only the first two may run in the
+gate.
+
 Real money must never be required to run the gate. `test/servers/fake-x402.js`
 plays both the resource server (issues a 402, verifies the payment header,
 serves the content) and the sponsor (checks the client signature). The suite
