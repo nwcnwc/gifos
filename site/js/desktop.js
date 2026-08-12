@@ -618,7 +618,7 @@
     // Joined with a control char (U+0001) that can't appear in names/ids, so
     // distinct field combinations can never collide into the same key.
     return [it.fileId || '', it.name, it.x | 0, it.y | 0, it.iconSize || 64, it.kind,
-      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : '', idpill, provX].join('');
+      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : '', idpill, provX].join('\x01');
   }
 
   const FILE_EMOJI = { gif: '🖼️', other: '📄' };

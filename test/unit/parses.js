@@ -54,5 +54,30 @@ for (const f of files) {
 }
 check('every script the site serves parses', broken.length === 0, broken.join(' | ') || files.length + ' file(s) clean');
 
+// AND NO SHIPPED SCRIPT CONTAINS A RAW CONTROL BYTE. A single NUL turns the
+// whole file "binary" to grep, ripgrep, GitHub's blob view and most diff tools —
+// they report NOTHING rather than a match, so a search for a symbol in that file
+// silently comes back empty and you conclude the code is not there.
+//
+// runtime.js carried one for at least three releases (it is still in the 0.9.5,
+// 0.9.6 and 0.9.7 snapshots): poolSlot's field separator between poolSelf and
+// the URL, typed as a literal 0x00 instead of '\u0000'. The separator is right
+// and deliberate — it stops ("ab","c") hashing like ("a","bc") — but as a raw
+// byte it cost every future reader of that 196 KB file their search tools, and
+// nobody noticed until 2026-08-12. Write control characters as escapes; the
+// evaluated string is identical and the source stays greppable.
+const CONTROL = /[\x00-\x08\x0b\x0c\x0e-\x1f]/;   // allow \t \n \r
+const dirty = [];
+for (const f of files) {
+  const src = fs.readFileSync(f, 'latin1');
+  const m = CONTROL.exec(src);
+  if (m) {
+    dirty.push(path.relative(ROOT, f) + ' — 0x' + m[0].charCodeAt(0).toString(16).padStart(2, '0') +
+      ' at line ' + (src.slice(0, m.index).split('\n').length));
+  }
+}
+check('no shipped script hides a raw control byte from grep', dirty.length === 0,
+  dirty.join(' | ') || files.length + ' file(s) clean');
+
 console.log(fails ? ('\n' + fails + ' FAILURE(S)') : '\nALL PASS');
 process.exit(fails ? 1 : 0);
