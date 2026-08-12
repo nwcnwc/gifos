@@ -116,8 +116,8 @@ const m2 = (a, b) => Object.assign({}, a, b);
 const MEMINFO = 'MemTotal:        7802536 kB\nMemFree:          123456 kB\nMemAvailable:      49784 kB\nSwapFree:       11111060 kB\n';
 const m = cast.parseMeminfo(MEMINFO);
 check('meminfo parses to MB', m.totalMb === 7620 && m.availMb === 49 && m.swapFreeMb === 10851, m);
-const tight = cast.capacityLine('clawbox', 5, m2(m, { load: 5.36, cores: 6 }));
-const roomy = cast.capacityLine('nvidia-laptop', 5, { totalMb: 16072, availMb: 14839, swapFreeMb: 8000, load: 0.1, cores: 8 });
+const tight = cast.capacityLine('behaviour-box', 5, m2(m, { load: 5.36, cores: 6 }));
+const roomy = cast.capacityLine('gate-host', 5, { totalMb: 16072, availMb: 14839, swapFreeMb: 8000, load: 0.1, cores: 8 });
 check('a box that cannot hold the cast says so', /SHORT BY \d+ MB/.test(tight) && /SWAP/.test(tight), tight);
 check('a box that can hold the cast does not cry wolf', !/SHORT BY/.test(roomy), roomy);
 check('the per-browser cost is a MEASURED number, not a guess',
