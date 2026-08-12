@@ -252,17 +252,32 @@ bytes ever diverge from the catalog's.
   return; audio has no such channel, and a consumer handed a beep cannot tell
   it from speech. The self-test runs only when asked for by name (the reserved
   voice `self-test`).
-- **Offline Cheap Text LLM BitNet** (`apps/offline-llm-bitnet/`, UNPUBLISHED
-  until its weights pin is finalized — see its README) — the gigabyte-tier
-  proof: llama.cpp compiled to wasm (wllama, MIT; ternary TQ quants compiled
-  in) serves `cheapest` from inside the sandbox. The GIF carries the ENGINE
-  (+ a labeled few-MB self-test model, so the pipeline is provable offline
-  and in the gate); the BitNet b1.58 2B-4T weights (~0.7–1.2 GB) arrive by
-  manifest pin into the asset store. Named so siblings can follow
-  ("Offline Cheap Text LLM …"). Two sandbox findings are load-bearing and
-  encoded in its build: Chromium refuses `{type:'module'}` blob workers in
-  opaque origins (rewritten to classic), and emscripten loaders need the
-  wasm hatch's `connect-src blob:`.
+- **Offline Cheap Text LLM BitNet** (`apps/offline-llm-bitnet/`) — the
+  gigabyte-tier proof, and now SHIPPED: llama.cpp compiled to wasm (wllama,
+  MIT; ternary TQ quants compiled in) serves `cheapest` from inside the
+  sandbox. The GIF carries the ENGINE (+ a labeled few-MB self-test model, so
+  the pipeline is provable offline and in the gate); the BitNet b1.58 2B-4T
+  weights arrive by manifest pin into the asset store — a community TQ1_0
+  conversion, 1,105,874,048 bytes, verified bit-for-bit against our own
+  conversion of Microsoft's official checkpoint before pinning (see its
+  README). Named so siblings could follow, and they did:
+- **Offline Cheap Text LLM Gemma 3** (`apps/offline-llm-gemma/`) — same engine,
+  Google's Gemma 3 1B Instruct Q4_K_M, 806,058,240 bytes. The SMALLEST and
+  FASTEST of the three, which matters because the engine runs single-threaded
+  in the browser. Weights are under the **Gemma Terms of Use**, not an
+  open-source licence — stated in the listing rather than buried.
+- **Offline Cheap Text LLM Gemma 4** (`apps/offline-llm-gemma4/`) — same
+  engine, Gemma 4 E2B from Google's own QAT-mobile checkpoint, 1,875,742,368
+  bytes, **Apache-2.0**. Pick it for the licence, Gemma 3 for speed. It is a
+  reasoning model run deliberately WITHOUT its thinking mode: on a
+  single-threaded engine every reasoning token is wall-clock, and it was
+  measured returning EMPTY content when thinking ate the caller's whole token
+  budget.
+
+  All three provide the SAME `cheapest` role. GifOS never auto-assigns, so a
+  user installs any or all and switches in Settings → AI models. Each carries
+  a different prompt format, and each is guarded independently in
+  `e2e-providers.js`.
 - **Reader** (default app, Tools folder) — the tts consumer: paste text, hear
   it read via `gifos.ai.tts`, whoever serves it. **Ask AI** (also Tools) is
   the seeded `cheapest`/`smartest` consumer — its declaration is typed, so
