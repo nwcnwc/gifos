@@ -31,16 +31,20 @@ function probe(port, host) {
 
 // Returns a promise so a suite can `await need({...})`, but ALSO works when
 // called without await: the process exits before the suite gets anywhere.
-module.exports = async function need(map) {
+// `host` (optional 2nd arg): a FLEET suite's browsers live on other machines
+// and dial the orchestrator by address, so the stack it needs is not
+// necessarily on loopback. Probing 127.0.0.1 there refuses a perfectly good
+// remote stack — measured, on the first three-box run.
+module.exports = async function need(map, host) {
   const missing = [];
   for (const port of Object.keys(map)) {
     // eslint-disable-next-line no-await-in-loop
-    if (!(await probe(parseInt(port, 10)))) missing.push({ port, name: map[port] });
+    if (!(await probe(parseInt(port, 10), host))) missing.push({ port, name: map[port] });
   }
   if (!missing.length) return true;
   const lines = missing.map((m) => '  node test/servers/' + m.name + '.js   # port ' + m.port);
   console.error('\nMISSING FIXTURE SERVER' + (missing.length > 1 ? 'S' : '') + ' — this suite cannot run:\n'
-    + missing.map((m) => '  ' + m.name + ' is not listening on ' + m.port).join('\n')
+    + missing.map((m) => '  ' + m.name + ' is not listening on ' + (host ? host + ':' : '') + m.port).join('\n')
     + '\n\nStart them and re-run:\n' + lines.join('\n')
     + '\n  (or test/servers/dev.sh --all, which starts every fixture)\n'
     + '\nNot a product failure. Refusing to run rather than time out inside the app\n'
