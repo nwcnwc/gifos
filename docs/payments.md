@@ -1,4 +1,4 @@
-# Payments — the OS pays, the app never holds a key
+# Payments — the app asks, the human approves, the OS moves the money
 
 **Status: Phase 2 (Base Sepolia testnet only). No mainnet asset is reachable by
 this code path.** Ratified 2026-08-11.
@@ -9,9 +9,21 @@ Coinbase's x402 facilitator. This is not a technical finding, it is a choice
 about which ecosystem GifOS lives in, and it settles the chain question that the
 rest of this file previously argued from custody alone.
 
-GifOS apps can buy things — an API call, an article, a model download — without
-ever seeing a private key or a balance. **Every purchase is authenticated by a
-human**; there is no unattended spending in GifOS (see Consent). The
+There are TWO directions, and they are different products. Keep them apart.
+
+**A. Apps that SELL — the one we are building.** An app charges its own user:
+unlock, per-item purchase, tip, subscription. The money goes to the app's
+AUTHOR. See "Apps that sell" below.
+
+**B. Apps that BUY** — an app pays an HTTP resource server for something it
+fetched (the x402 protocol). Groundwork exists (`site/js/gifos-x402.js`, the
+wire format and its refusals, `test/servers/fake-x402.js`), but it is PARKED:
+it is not the capability that was asked for. Nothing in it is wasted — the
+wallet, the approval sheet and the ledger are shared with A — and the sections
+below on custody and consent apply to both.
+
+Common to both: **every payment is authenticated by a human**, and no app ever
+sees a key or a balance. The
 mechanism is [x402](https://www.x402.org/): the resource server answers a plain
 HTTP request with `402 Payment Required` and a challenge, the payer signs, and
 the request is retried. This document is the doctrine; `site/js/gifos-pay.js`
@@ -25,8 +37,8 @@ response *already crosses into trusted first-party code*. Payment therefore
 belongs exactly where the network capability already lives — in the broker —
 and not in the sandbox.
 
-The consequence is the whole design in one line: **the app fetches, the OS
-asks the human, and the OS pays.** An app that declares `capabilities.pay` and
+The consequence is the whole design in one line: **the app asks, the OS asks
+the human, and the OS moves the money.** An app that declares `capabilities.pay` and
 calls `gifos.fetch('https://…/paid-thing')` gets back either a `200` and the
 bytes, or a refusal — and in between, a human authenticated the payment with a
 passkey. The app never receives the key, the signature, the address, or the
@@ -119,6 +131,77 @@ ledger:
 **The dependency is accepted deliberately.** Payments now require Coinbase's
 account service to be reachable and working. If it is down, GifOS does no
 payments — which is the stated preference over building our own custody.
+
+## Apps that sell — `gifos.charge()`
+
+An app asks for money; the OS asks the human; the money goes to the author. The
+app is never told the payer's address, never handles funds, and cannot move
+money on its own.
+
+### The payee lives in the SIGNED payload, or there is no payment
+
+The payout address is a field in `manifest.json`. That matters because app GIFs
+are **shared, downloaded and remixed** — that is the whole distribution model —
+so an address sitting in a file anyone can edit is an invitation to redirect
+another developer's revenue.
+
+`gifos-sign.js` already solves this. Its canonical hash covers the app's files
+(including `manifest.json`) and EXCLUDES the signature block and `.state/**`,
+so saving app state never voids a signature but changing the payout address
+does. Its verdicts are honest: **signed / unsigned / TAMPERED**. Therefore:
+
+- **An app may charge only when it verifies as `signed`.** `unsigned` and
+  `TAMPERED` cannot charge at all — not with a warning, not with a scary
+  colour. Refused.
+- The approval sheet names the **verified identity**, not a hex string: "paying
+  **nathan@example.com** (verified)". Signing identity is a domain (key at
+  `https://<domain>/gifos.key`) or an email (public keyserver), so "signed by
+  X" is exactly as strong as controlling X.
+- **Remixing a paid app does not inherit its revenue.** Editing anything breaks
+  the signature, so the remix cannot charge until the remixer signs it with
+  their own identity and their own address. That is the correct outcome, and it
+  falls out of the existing design rather than needing a new rule.
+
+### Entitlements are held by the OS, never by the app
+
+The same trap as the key, in a new coat: **app state travels inside the GIF.**
+If an app recorded "this user bought the pro unlock" in its own `gifos.db`,
+then sharing that GIF would hand the purchase to everyone who received it.
+
+So what was bought is recorded by the **OS**, per computer, keyed by
+`(appId, sku)`, excluded from GIF export exactly like the asset cache. The app
+asks, it does not remember:
+
+```js
+await gifos.entitled('pro')        // -> true | false        (OS-held)
+await gifos.charge({ sku: 'pro', amount: '2000000',
+                     reason: 'Unlock the full app' })        // -> receipt
+```
+
+An app that wants to keep its own copy for convenience may, but the OS's answer
+is the authority, and the OS's copy is the one that does not travel.
+
+### The four shapes, and how they map
+
+| what the app wants | how |
+|---|---|
+| one-off unlock | `charge({sku, amount})`, then `entitled(sku)` forever on this computer |
+| per-item purchase | the same call with a different `sku`, one approval each |
+| tip / pay what you want | `charge({amount: suggested, editable: true})`, no `sku`, no entitlement |
+| subscription | a **Spend Permission** scoped to the app's payee address, with a cap and an expiry, plus a renewal charge inside it |
+
+The first three are one primitive and ship together. **Subscriptions are
+deliberately last**: recurring money is the only one of the four where a user
+can be charged without being present, so it needs the Spend Permission path,
+a visible "what you are agreeing to" sheet, and a cancel that works from
+Settings — and nothing on-chain cancels it for you when a user simply walks
+away.
+
+### What the app never gets
+
+No key, no balance, no payer address, no ability to charge without an approval,
+and no way to raise its own ceiling. A charge the human declines returns a
+refusal the app must handle — declining is a normal outcome, not an error.
 
 ## Consent — nothing spends without a human passkey signature behind it
 
