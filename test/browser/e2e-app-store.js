@@ -192,6 +192,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the listing shows the app\'s declared abilities before you install', /Abilities/.test(facts));
   check('opening a listing still fetches no App GIF', gifHits.length === 0, gifHits.join(', '));
 
+  // ---- Share ----------------------------------------------------------------
+  // The button exists to hand someone the PRETTY link, and what it puts on the
+  // clipboard is the whole feature — so read the clipboard back rather than
+  // trusting the label. Two things must NOT be in there: the ns() alternate-
+  // database suffix (a local scope; sharing it drags a friend into your test db)
+  // and any /versions/ prefix (which would pin them to a frozen old build).
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+  const shareBtn = page.locator('#share');
+  check('a listing offers a Share button', await shareBtn.count() === 1);
+  check('…and Share is not gated by the build floor', !(await shareBtn.isDisabled()));
+  await shareBtn.click();
+  await sleep(300);
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const shown = await page.locator('#shareurl').inputValue();
+  const u = new URL(copied);
+  check('Share copies the pretty /store/<slug> link', u.pathname === '/store/' + target.slug, copied);
+  check('…absolute, so it still works once pasted somewhere', /^https?:\/\//.test(copied) && !!u.host);
+  check('…with no alternate-database suffix and no frozen /versions/ prefix',
+    !/[?#&]db=/.test(copied) && !/\/versions\//.test(copied), copied);
+  check('…and the link is shown on screen, not just promised', shown === copied, shown);
+  check('…the button confirms it copied', /copied/i.test((await shareBtn.textContent()) || ''),
+    await shareBtn.textContent());
+
   // Back, and the deep link the 404 router produces.
   await page.locator('#back').click();
   await sleep(300);
