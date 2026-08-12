@@ -476,7 +476,13 @@ async function run(MODE) {
     // wait as long as frames keep ARRIVING, and give up only when they stop.
     // A starved box now fills its window slowly instead of reporting a car
     // that would not turn, and a hung tab still fails in ~5s instead of 7.
-    const yaw0 = window.App.car().yaw;
+    // ACCUMULATE THE TURN, DO NOT SUBTRACT TWO HEADINGS. wrap() folds into
+    // (-pi, pi], so a turn of MORE than half a circle comes back with the
+    // opposite sign — and the sign test then reports a car that turned hard
+    // the right way as turning the wrong way. Invisible while the car was
+    // starved on a shared box; the first run on its own machine turned fast
+    // enough to wrap, and read 'yaw -2.57/-2.60' for a left and a right.
+    let yawPrev = window.App.car().yaw, yawAcc = 0;
     const frames0 = window.App.debug().frames;
     let peakSteer = 0;
     const STALL_MS = 5000;
@@ -485,6 +491,8 @@ async function run(MODE) {
     for (;;) {
       const d = window.App.debug();
       if (d.input && Math.abs(d.input.steer) > Math.abs(peakSteer)) peakSteer = d.input.steer;
+      const yNow = window.App.car().yaw;
+      yawAcc += wrap(yNow - yawPrev); yawPrev = yNow;   // per-sample, so it never wraps
       if (d.frames - frames0 >= frameWindow) break;
       if (d.frames > seen) { seen = d.frames; advancedAt = Date.now(); }
       else if (Date.now() - advancedAt > STALL_MS) break;   // the tab stopped rendering
@@ -492,7 +500,8 @@ async function run(MODE) {
       await new Promise((r) => setTimeout(r, 30));
     }
     const framesRun = window.App.debug().frames - frames0;
-    const out = { scheme, steer: peakSteer, dYaw: wrap(window.App.car().yaw - yaw0),
+    yawAcc += wrap(window.App.car().yaw - yawPrev);
+    const out = { scheme, steer: peakSteer, dYaw: yawAcc,
                   speed: window.App.debug().speed, frames: framesRun,
                   // Judging steering on a window that never filled is judging
                   // the box. The caller refuses to score an unfilled leg.
