@@ -22,12 +22,11 @@
 // with the multiplayer battery, because a fixture that exists twice drifts.
 //
 // Needs: static server on 8099 (python3 -m http.server 8099 -d site).
-const { chromium, CHROME } = require('../lib/pw');
+const { launchAnyroadBrowser, openAnyroad } = require('../lib/anyroad-app');
 const { appGif } = require('../lib/apps');
-const { HOP, FIXTURE_HEIGHT, TILE_PNG, routeWorld, overpassBody, solidTile } = require('../lib/anyroad-fixtures');
+const { HOP, FIXTURE_HEIGHT, overpassBody } = require('../lib/anyroad-fixtures');
 const { readFileSync } = require('fs');
 
-const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let failures = 0;
@@ -39,90 +38,14 @@ function check(name, cond, detail) {
 (async () => {
   const gifB64 = readFileSync(appGif('anyroad')).toString('base64');
 
-  const browser = await chromium.launch({
-    executablePath: CHROME,
-    // The gate box has no GPU; without a software rasteriser there is no WebGL
-    // context at all and the app would correctly refuse to run.
-    args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-  });
-  const context = await browser.newContext();
-
-  // A MapTiler key saved with a DELIBERATELY WRONG formulation — header auth
-  // under a made-up name — which is stronger than saving none: the provider
-  // accepts exactly one shape (?key=), so the system must use it no matter
-  // what the entry says. "The app should not care about the formulation" cuts
-  // both ways: the user never needs to get a dropdown right for their key to
-  // count, and a wrong dropdown cannot break a correct key. With the generic
-  // Bearer default the key rode a header MapTiler ignores, the base URL still
-  // answered (so Settings' Test passed), and every actual tile 403'd —
-  // satellite selected, key "working", nothing on screen.
-  await context.addInitScript(() => {
-    try { localStorage.setItem('gifos_api_config', JSON.stringify({ maptiler: { url: 'https://api.maptiler.com', key: 'e2e-key-123', authType: 'header', authName: 'x-totally-wrong' } })); } catch (e) {}
-  });
-  // This stub used to fulfil EVERY api.maptiler.com URL with a flat 404, and
-  // assert only that the drape failed VISIBLY. That is green whether the app
-  // asks for the right path or a wrong one — so it guarded nothing about the
-  // path, and the app shipped asking for one that does not exist, 404ing on
-  // every tile while telling the player to check a key that was fine.
-  //
-  // So the stub now answers the way the live API does. Verified against
-  // api.maptiler.com on 2026-08-07 with a real key:
-  //   /tiles/satellite-v2/{z}/{x}/{y}.jpg  + ?key=  → 200, a 512x512 JPEG
-  //   …the same path with @2x                       → 404 (@2x is a /maps/ feature)
-  //   /tiles/satellite-v4/…  (what the docs show)   → 404, no such tileset
-  //   any of them with no key                       → 403 "Missing key"
-  // The bytes are a PNG because this suite already builds valid ones and the
-  // drape is format-agnostic — the dimension under test is the PATH.
-  const MT_TILE = /^\/tiles\/satellite-v2\/\d+\/\d+\/\d+\.jpg$/;
-  const mtSeen = [];
-  // Flipped to true for the satellite-forest coda: from then on every
-  // "photograph" is solid dark canopy, and untagged ground must grow woods.
-  // Until then tiles are the terrarium PNG, whose grey-green reads as NOT
-  // canopy — the drape tests run with the classifier finding nothing.
-  let mtForest = false;
-  // Flipped for the dead-network check: the host stops answering entirely, the
-  // way it does in airplane mode — and the app must say THAT, not "check the
-  // key". no-store on every response so a re-fetch always reaches this stub
-  // instead of the browser cache quietly succeeding.
-  let mtDead = false;
-  const FOREST_PNG = solidTile(64, 30, 72, 28);
-  await context.route('**://api.maptiler.com/**', async (route) => {
-    if (mtDead) return route.abort('internetdisconnected');
-    const u = new URL(route.request().url());
-    const h = route.request().headers();
-    const key = u.searchParams.get('key');
-    mtSeen.push({ path: u.pathname, keyQ: key,
-                  bearer: /Bearer/.test(h.authorization || ''),
-                  wrongHeader: 'x-totally-wrong' in h });
-    const cors = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
-    if (!key) return route.fulfill({ status: 403, headers: cors, body: 'Missing key' });
-    if (!MT_TILE.test(u.pathname)) return route.fulfill({ status: 404, headers: cors, body: 'Not found' });
-    await route.fulfill({ status: 200, headers: cors, contentType: 'image/png',
-      body: mtForest ? FOREST_PNG : TILE_PNG });
-  });
-
-  const hits = await routeWorld(context);
-
-  const page = await context.newPage();
-  page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
-
-  await page.goto(BASE + '/index.html');
-  // Generous: this suite renders a 3D world in a second tab, so it tends to run
-  // on machines already doing something. A contended 4-core box took 20 s to
-  // paint the Home Screen — which is slow, not broken, and a tight timeout here
-  // reports it as a product failure.
-  await page.waitForSelector('.icon', { timeout: 45000 });
-  await sleep(400);
-
-  // Install the built GIF exactly as a downloaded app would land.
-  await page.evaluate(async (b64) => {
-    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const fid = GifOS.store.uid('file');
-    await GifOS.store.putFile({ id: fid, name: 'Anyroad.gif', bytes, kind: 'gif', isApp: true, appId: 'anyroad', mime: 'image/gif' });
-    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Anyroad.gif', parent: null, x: 620, y: 320, iconSize: 64 });
-    await GifOS.desktop.load(); await GifOS.desktop.render();
-  }, gifB64);
+  const browser = await launchAnyroadBrowser();
+  // The boot — install the packed GIF, open it, reach into the sandbox — and the
+  // MapTiler key-and-stub arrangement now live in test/lib/anyroad-app.js,
+  // because the rolling-hills coda at the bottom of this file needs the same
+  // sequence by hand and a boot that exists twice drifts. `mt` carries the
+  // request log and the two one-way flips (forest, dead) the map sections use.
+  const boot = await openAnyroad(browser);
+  const { context, desk: page, app, fr, hits, mt } = boot;
 
   check('the built GIF is a valid GifOS app', await page.evaluate(async (b64) => {
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
@@ -130,30 +53,13 @@ function check(name, cond, detail) {
     return GifOS.gif.looksLikeGifosGif(bytes);
   }, gifB64));
 
-  const [app] = await Promise.all([
-    context.waitForEvent('page'),
-    page.locator('.icon', { hasText: 'Anyroad.gif' }).dblclick(),
-  ]);
-  app.on('pageerror', (e) => console.log('  [app pageerror]', e.message));
-  // A backgrounded tab has its requestAnimationFrame throttled to roughly a
-  // frame a second, and this app IS its animation loop — the world would render
-  // but the car would advance about a twentieth of a second of simulation per
-  // wall-clock second and read as "the throttle does nothing".
-  await app.bringToFront();
-  await app.waitForSelector('iframe', { timeout: 10000 });
-  // Acknowledge the declared-network / capability prompt the runtime shows.
-  await app.locator('.perm-modal .done, .perm-box .done').first().click({ timeout: 5000 }).catch(() => {});
-  const fr = app.frameLocator('iframe');
-
-  await fr.locator('#landing').waitFor({ timeout: 10000 });
   check('Anyroad boots inside the sandbox', await fr.locator('h1').textContent() === 'Anyroad');
 
   const hasGL = await fr.locator('body').evaluate(() => !!(window.Render && window.Render.gl));
   check('a WebGL context exists', hasGL);
 
   // Hop to the preset the fixtures are built around.
-  await fr.locator('#presets button', { hasText: 'Paris' }).first().click();
-  await fr.locator('#hud').waitFor({ state: 'visible', timeout: 8000 });
+  await boot.land();
 
   // Wait for the world to stream in from the fixtures.
   let state = null;
@@ -2023,11 +1929,11 @@ function check(name, cond, detail) {
   // only place MapTiler looks), never as a Bearer header, with NO auth
   // configuration on the entry — the runtime knows the provider's shape.
   await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'maptiler' }); window.App.redrape(); });
-  for (let i = 0; i < 15 && mtSeen.length < 2; i++) await sleep(1000);
-  check('selecting satellite actually asks MapTiler for tiles', mtSeen.length > 0, mtSeen.length + ' request(s)');
+  for (let i = 0; i < 15 && mt.seen.length < 2; i++) await sleep(1000);
+  check('selecting satellite actually asks MapTiler for tiles', mt.seen.length > 0, mt.seen.length + ' request(s)');
   check('the key travels as ?key= — the ONLY place MapTiler looks — whatever the entry says',
-    mtSeen.length > 0 && mtSeen.every((m) => m.keyQ === 'e2e-key-123' && !m.bearer && !m.wrongHeader),
-    JSON.stringify(mtSeen[0] || null));
+    mt.seen.length > 0 && mt.seen.every((m) => m.keyQ === 'e2e-key-123' && !m.bearer && !m.wrongHeader),
+    JSON.stringify(mt.seen[0] || null));
 
   // ---- a dead network is not a missing key ----------------------------------
   // Offline, the imagery pipeline used to relay fetch's bare "Failed to fetch"
@@ -2035,7 +1941,7 @@ function check(name, cond, detail) {
   // saved, tested and fine got sent to Settings to fix it. The runtime now
   // names network-level failures (OFFLINE:/UNREACHABLE:), and the HUD note
   // says the key IS set. Kill the host, redrape, and hold both layers to it.
-  mtDead = true;
+  mt.setDead(true);
   await fr.locator('body').evaluate(() => window.App.redrape());
   // The toast lives 2.6 s and any passing collision note replaces it, so the
   // gate reads the RECORD (imagery.said), not the ephemeral element.
@@ -2050,7 +1956,7 @@ function check(name, cond, detail) {
   check('…and the player is TOLD the key is set instead of being sent to re-enter it',
     !!deadNet && /key is set/.test(deadNet.said || '') && !/check the key/.test(deadNet.said || ''),
     JSON.stringify(deadNet && deadNet.said));
-  mtDead = false;
+  mt.setDead(false);
   await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'none' }); window.App.redrape(); });
   // THE EYE IS A CYCLER NOW, not a toggle (the 2026-08-08 dash rework:
   // chase -> cockpit -> bird -> chase), and it states WHICH view with a
@@ -2590,7 +2496,7 @@ function check(name, cond, detail) {
   // From here every satellite tile is solid canopy, and the drape goes ON —
   // Tokyo's terrain will fetch photographs as it streams in, and the
   // satellite-forest checks after the hop assertions read what grew from them.
-  mtForest = true;
+  mt.setForest(true);
   await fr.locator('body').evaluate(() => { window.Sources.set({ imagery: 'maptiler' }); });
   await fr.locator('body').evaluate((el, t) => window.App.hop(t.lat, t.lon, 'Tokyo'), TOKYO);
   let hopState = null;
@@ -2631,7 +2537,7 @@ function check(name, cond, detail) {
   // "Areas that are clearly forests from the satellite photos" must grow
   // forest even though tokyoBody() maps NOTHING but two roads — no landuse,
   // no natural=wood. Every imagery tile has been solid canopy since the hop
-  // (mtForest above), so once the cover masks land and the stale tiles
+  // (mt.setForest above), so once the cover masks land and the stale tiles
   // rebuild, untagged ground must fill in at forest density. Without the
   // classifier the same ground grows the old guessed copses — roughly half
   // the sites — so the per-tile average is the discriminating number:
@@ -2678,33 +2584,11 @@ function check(name, cond, detail) {
   //    the old town should be.
   //
   // So: a second boot on ROLLING HILLS, asserting the invariants themselves.
-  const hCtx = await browser.newContext();
-  const hHits = await routeWorld(hCtx, { hills: true });
-  void hHits;
-  const hDesk = await hCtx.newPage();
-  hDesk.on('pageerror', (e) => console.log('  [hills desk pageerror]', e.message));
-  await hDesk.goto(BASE + '/index.html');
-  await hDesk.waitForSelector('.icon', { timeout: 45000 });
-  await hDesk.evaluate(async (b64) => {
-    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const fid = GifOS.store.uid('file');
-    await GifOS.store.putFile({ id: fid, name: 'Anyroad.gif', bytes, kind: 'gif', isApp: true, appId: 'anyroad', mime: 'image/gif' });
-    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Anyroad.gif', parent: null, x: 620, y: 320, iconSize: 64 });
-    await GifOS.desktop.load(); await GifOS.desktop.render();
-  }, gifB64);
-  const [hApp] = await Promise.all([
-    hCtx.waitForEvent('page'),
-    hDesk.locator('.icon', { hasText: 'Anyroad.gif' }).dblclick(),
-  ]);
-  hApp.on('pageerror', (e) => console.log('  [hills app pageerror]', e.message));
-  await hApp.bringToFront();
-  await hApp.waitForSelector('iframe', { timeout: 10000 });
-  await hApp.locator('.perm-modal .done, .perm-box .done').first().click({ timeout: 5000 }).catch(() => {});
-  const hFr = hApp.frameLocator('iframe');
-  await hFr.locator('#landing').waitFor({ timeout: 10000 });
-  await hFr.locator('#presets button', { hasText: 'Paris' }).first().click();
-  await hFr.locator('#hud').waitFor({ state: 'visible', timeout: 8000 });
+  // maptiler: false ON PURPOSE — this boot saves no key, and handing it the
+  // stub would make satellite quietly available in a test about terrain.
+  const hills0 = await openAnyroad(browser, { world: { hills: true }, maptiler: false, tag: 'hills' });
+  const hCtx = hills0.context, hFr = hills0.fr;
+  await hills0.land();
   let hState = null;
   for (let i = 0; i < 50; i++) {
     await sleep(1000);
