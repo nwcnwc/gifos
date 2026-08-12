@@ -285,6 +285,27 @@ cast a box that can hold it, or spread it over the farm (FLEET mode, below).
 Idle and roomy → **the crash itself is the bug**, and the run dir has the
 renderer's last words.
 
+### A RESIDENT MODEL IS NOT SPARE CAPACITY — stop it for the run
+
+The behaviour box's shortage was invisible in every process: `ps` accounted for
+about 500 MB of the 7.6 GB, and `MemAvailable` said 49 MB. The missing 6.5 GB was
+a **resident GPU LLM service** (llama.cpp with `-ngl 99 -c 32768`), and on a
+unified-memory board the GPU's memory IS system memory — held through nvmap, so
+it appears in no RSS at all. `free` and `top` both look innocent.
+
+**Measured, one command:**
+
+| resident model | MemAvailable | 03a, 3 consecutive runs |
+|---|---|---|
+| running | ~490 MB | pass, pass, **NO-VERDICT** (em's renderer, t+45.6s) |
+| stopped | **5508 MB** | pass, pass, pass |
+
+So: stop the resident model before a behaviour run and start it again after.
+Nothing else on that box changed, and the cast went from 1464 MB short to 3558 MB
+of headroom. If a box has a resident model, an LLM runtime or any other GPU
+tenant, treat it as **occupied**, not idle — `fleet.js` already refuses a host
+whose *load* is high, and this is the same lesson one resource over.
+
 
 ## ONE BOX CANNOT ANSWER "is this a real bug?" — go multi-box
 
@@ -351,7 +372,9 @@ them apart — guessing without this trace cost two wrong diagnoses in one day.
 * **Background services skew a pi.** raspberrypi runs MonitorBot
   (`systemctl --user stop gifos-meet-monitor.service`), pi-16gb runs the Home
   Privacy Machine (`sudo systemctl stop hpm-app.service`, ~3 of its 4 cores).
-  Stop them for a clean measurement and **start them again afterwards**.
+  Stop them for a clean measurement and **start them again afterwards**. The
+  behaviour box's own resident GPU model is the same trap in MEMORY rather than
+  CPU, and it hides better — see "A RESIDENT MODEL IS NOT SPARE CAPACITY".
 * **Never `pkill chrome` broadly over ssh** — it took down the ssh session
   itself. Kill the harness by its own bracketed name.
 
