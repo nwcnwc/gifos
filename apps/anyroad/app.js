@@ -570,7 +570,28 @@
     wasInside = inside;
   }
 
+  // Are we on a deck that stands ABOVE the ground here — a bridge, a viaduct?
+  // Not the same question as "is there a deck": a tunnel's deck is below the
+  // ground and a road on an embankment barely leaves it.
+  function onRaisedDeck() {
+    var d = deckHeight(car.x, car.z);
+    if (d === null) return false;
+    var t = root.Terrain.heightAt(world.frame, car.x, car.z);
+    if (t === null) return false;
+    return d > t + 1.5 && car.y >= d - DECK_REACH;
+  }
+
   function updateInWater() {
+    // A BRIDGE OVER A RIVER IS NOT A RIVER. Water is a 2-D ray cast with no idea
+    // how high anything is, so the moment bridges became rideable, crossing one
+    // over water meant driving INTO the water it spans: at Niagara the car would
+    // cross the Rainbow Bridge fifty metres up and be told "In deep — you are not
+    // driving out of this one". This is the cost of making the deck real, and it
+    // is paid here rather than by giving up the deck.
+    if (onRaisedDeck()) {
+      if (car.inWater || car.deepWater) { car.inWater = false; car.deepWater = false; }
+      return;
+    }
     var hit = null;
     for (var k in world.roads) {
       var r = world.roads[k];
@@ -2084,6 +2105,10 @@
     // rule that keeps a bridge from teleporting you up and a tunnel from
     // swallowing you: with no reference height the surface always wins.
     groundAt: groundHeight,
+    // Whether the car is on a deck standing above the ground. Exported because the
+    // DANGEROUS direction is this being true when it should not be: it suppresses
+    // water, so a stuck flag turns every lake in the world into tarmac.
+    onRaisedDeck: onRaisedDeck,
     car: function () { return car; },
     // Why the car is or is not moving, in one call. The loop has several gates
     // (ground loaded, descent finished, input) and from the outside every one

@@ -1046,6 +1046,16 @@ function check(name, cond, detail) {
   check('nobody is teleported underground: with no reference height the surface wins',
     tun.noRefIsSurface !== null && tun.ground !== null && tun.noRefIsSurface >= tun.ground - 0.5,
     'groundAt(no ref) = ' + tun.noRefIsSurface + ' vs surface ' + tun.ground);
+
+  // A bridge over a river must not drown you — water is a 2-D ray cast that has
+  // no idea how high anything is, so a rideable deck over water meant "In deep"
+  // fifty metres up. That is suppressed while on a RAISED deck, and the dangerous
+  // direction of that suppression is the one worth guarding: true when it should
+  // be false turns every lake on the map into tarmac.
+  const raised = await fr.locator('body').evaluate(() => ({
+    onDeck: window.App.onRaisedDeck(), y: +window.App.car().y.toFixed(1) }));
+  check('on ordinary ground the car is NOT on a raised deck (or water stops working)',
+    raised.onDeck === false, 'onRaisedDeck()=' + raised.onDeck + ' at y=' + raised.y);
   // The gamble. Driving into water must NOT be a lookup the player can perform
   // from the driving seat — a small pond lets you through, a lake does not, and
   // the threshold is a number nobody can eyeball.
