@@ -965,6 +965,46 @@ function check(name, cond, detail) {
   check('a bridge tag reaches the builder instead of being discarded',
     stitch.carryBridge === 1 && stitch.carryNone === 0 && stitch.carryEmbank === 3,
     'bridge=' + stitch.carryBridge + ' no=' + stitch.carryNone + ' embankment=' + stitch.carryEmbank);
+
+  // ---- a bridge you can SEE is a bridge you can DRIVE ON --------------------
+  // The deck was drawn over the gorge while the car went on taking its height
+  // from the heightfield, so the Rainbow Bridge was scenery you fell through.
+  // Two halves have to hold: the deck must reach the COLLISION INDEX (a mesh
+  // nobody can stand on is decoration), and the car must actually be asking that
+  // index (measured on live Niagara data: 52.9 m above the gorge floor at
+  // mid-span). Losing either one restores the old behaviour silently.
+  const deck = await fr.locator('body').evaluate(() => {
+    const R = window.Roads, G = window.Geo, w = window.App.world;
+    const frame = w.frame;
+    // One way, tagged as a bridge, through the fixture's flat ground.
+    const a = frame.toWorld ? null : null;
+    const lat = 48.8566, lon = 2.3522;
+    const dLon = 120 / G.metresPerDegLon(lat);
+    const way = ['secondary', [lat, lon, lat, lon + dLon], 0, 2, 'Test Span', 1];
+    const built = R.build(frame, { ways: [way], bld: [], wat: [], land: [], pool: [], detail: 2 }, null, null);
+    const mid = frame.toWorld(lat, lon + dLon / 2);
+    const hit = R.nearestDeck(built.index, mid.x, mid.z);
+    const ground = window.Terrain.heightAt(frame, mid.x, mid.z);
+    // …and beside it there must be no deck at all, or every field is a bridge.
+    const beside = R.nearestDeck(built.index, mid.x + 60, mid.z + 60);
+    const car = window.App.car();
+    return { hasDeck: !!hit, deckY: hit ? +hit.deckY.toFixed(1) : null,
+             ground: ground === null ? null : +ground.toFixed(1),
+             besideIsDeck: !!beside,
+             providerWired: typeof car.groundFn === 'function',
+             providerAnswer: typeof car.groundFn === 'function'
+               ? (function () { const v = car.groundFn(mid.x, mid.z, car.y); return v === null ? null : +v.toFixed(1); })() : null };
+  });
+  check('a bridge deck reaches the collision index, not just the mesh',
+    deck.hasDeck && deck.deckY !== null, JSON.stringify(deck));
+  check('…at the height of the carriageway, not the sea',
+    deck.ground !== null && Math.abs(deck.deckY - deck.ground) < 3,
+    'deck ' + deck.deckY + ' m vs ground ' + deck.ground + ' m');
+  check('…and only ON the structure — the field beside it is not a bridge',
+    !deck.besideIsDeck);
+  check('the car asks for ground through the deck-aware provider',
+    deck.providerWired && deck.providerAnswer !== null,
+    'groundFn=' + deck.providerWired + ' answer=' + deck.providerAnswer);
   // The gamble. Driving into water must NOT be a lookup the player can perform
   // from the driving seat — a small pond lets you through, a lake does not, and
   // the threshold is a number nobody can eyeball.
