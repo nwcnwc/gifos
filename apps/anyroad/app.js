@@ -10,6 +10,8 @@
   'use strict';
 
   var TERRAIN_RADIUS = 3000;   // metres of elevation around the car
+  var TERRAIN_RETRY = 6;       // seconds before a failed elevation tile is asked for again
+  var TERRAIN_TRIES = 4;       // …and how many times, before the wall is real and named
   var ROAD_RADIUS = 1200;      // metres of OSM geometry — one Overpass query per tile
   var DRAW_DISTANCE = 6000;
   var lastLabels = [], lastLabelGeom = [], lastFlares = 0;   // what the last frame actually drew, for the gate
@@ -50,6 +52,7 @@
   var car = null, controls = null, canvas = null;
   var camera = { x: 0, y: 40, z: -30, tx: 0, ty: 0, tz: 0, settled: false };
   var running = false, lastT = 0, clock = 0, frames = 0;
+  var voidHeld = 0, voidSaidAt = -99;   // how long the car has been held by missing ground, and when we last said so
   var hopAnim = 0;   // seconds of WALL CLOCK since the drop began; drives the descent
   var hopT0 = 0;
 
@@ -123,8 +126,20 @@
     var launched = 0;
     for (var i = 0; i < want.length && launched < 3; i++) {
       var key = root.Geo.tileKey(want[i]);
-      if (world.terrain[key]) continue;
-      world.terrain[key] = { pending: true };
+      var have = world.terrain[key];
+      // A FAILED TILE IS AN INVISIBLE WALL, and it used to be a permanent one.
+      // Physics is skipped entirely where heightAt() has no answer (see the
+      // `grounded` gate in the frame loop), so the edge of a tile that never
+      // arrived is a perfectly straight line the car cannot cross — with nothing
+      // on screen to say why. `if (world.terrain[key]) continue` counted a
+      // failure as an answer, and eviction only reconsiders tiles you have driven
+      // AWAY from, which is exactly what you cannot do when the wall is in front
+      // of you. One dropped request and that ground was gone for the session.
+      // Retried on a backoff instead, a few times, so a blip heals itself.
+      if (have && have.failed) {
+        if (have.tries >= TERRAIN_TRIES || (clock - have.failedAt) < TERRAIN_RETRY) continue;
+      } else if (have) continue;
+      world.terrain[key] = { pending: true, tries: (have && have.tries) || 0 };
       launched++;
       (function (tile, k, gen) {
         root.Terrain.loadTile(tile).then(function (rec) {
@@ -137,8 +152,12 @@
           maybeLoadImagery(tile, k);
         }).catch(function (err) {
           if (gen !== hopGen) return;
-          world.terrain[k] = { failed: true, error: err };
-          root.UI.note('Elevation tile failed: ' + err.message);
+          var tries = ((world.terrain[k] && world.terrain[k].tries) || 0) + 1;
+          world.terrain[k] = { failed: true, error: err, tries: tries, failedAt: clock };
+          // Only say so once per tile. Retrying behind a note that fires every
+          // few seconds would read as the app being broken rather than patient.
+          if (tries === 1) root.UI.note('Elevation tile failed: ' + err.message + ' — retrying');
+          else if (tries >= TERRAIN_TRIES) root.UI.note('No elevation for the ground ahead after ' + tries + ' tries — the world stops here until you turn back.');
         });
       })(want[i], key, hopGen);
     }
@@ -1554,6 +1573,19 @@
     } else if (grounded) {
       car.y = root.Terrain.heightAt(world.frame, car.x, car.z);
     }
+
+    // AND SAY SO WHEN THE GROUND IS WHY NOTHING HAPPENS. Freezing is the right
+    // call — driving an invisible car across a void is worse — but frozen and
+    // silent is indistinguishable from a wall, or from the controls being broken,
+    // and the player is usually holding the throttle down while it happens. The
+    // note waits a moment so a normal streaming hitch says nothing at all.
+    if (!grounded && hopped && hopAnim > 2.6) {
+      voidHeld += dt;
+      if (voidHeld > 1.2 && clock - voidSaidAt > 6) {
+        voidSaidAt = clock;
+        root.UI.note('Waiting for the ground here to load — the car cannot move until it does.');
+      }
+    } else { voidHeld = 0; }
 
     updateCamera(dt);
     ensureTerrain(); ensureRoads(); buildPending(); backgroundFill();

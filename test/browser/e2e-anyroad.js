@@ -904,6 +904,67 @@ function check(name, cond, detail) {
   });
   check('a swimming pool is water, and DEEP at any size',
     !!pool.pool && pool.pool.deep === true, JSON.stringify(pool.pool));
+
+  // ---- water that is actually WHERE THE WATER IS ---------------------------
+  // A drive at Niagara Falls had no river in it, and the river was not missing:
+  // it was drawn 175 m underneath the terrain. waterMesh levelled each polygon at
+  // Math.min of the ground under EVERY vertex, `out geom` returns whole ways tens
+  // of kilometres long, and groundAt() answers 0 for a vertex with no terrain
+  // loaded — so one unsampled vertex 20 km away pinned an entire river at y=0.3
+  // while the ground it belonged to was at 171 m. These two guard that directly.
+  const wlevel = await fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    let verts = 0, atZero = 0, worst = 0, tiles = 0;
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      const m = r && r.built && r.built.water;
+      if (!m || !m.positions || !m.positions.length) continue;
+      tiles++;
+      for (let i = 0; i < m.positions.length; i += 3) {
+        const x = m.positions[i], y = m.positions[i + 1], z = m.positions[i + 2];
+        const g = window.Terrain.heightAt(w.frame, x, z);
+        if (g === null) continue;
+        verts++;
+        if (Math.abs(y) < 5 && g > 50) atZero++;          // the exact old failure
+        worst = Math.max(worst, Math.abs(y - g));
+      }
+    }
+    return { tiles, verts, atZero, worst: +worst.toFixed(1),
+             ground: window.Terrain.heightAt(w.frame, 0, 0) };
+  });
+  check('water is drawn on this fixture at all', wlevel.verts > 0, JSON.stringify(wlevel));
+  check('…and never pinned at sea level under ground that is hundreds of metres up',
+    wlevel.atZero === 0, wlevel.atZero + ' of ' + wlevel.verts + ' vertices near y=0 (ground ' + wlevel.ground + ' m)');
+  check('…so every water surface sits within a plausible distance of its own ground',
+    wlevel.worst < 60, 'worst |water - ground| = ' + wlevel.worst + ' m');
+
+  // A MULTIPOLYGON MEMBER IS NOT A RING, and treating one as a ring is how a
+  // clifftop becomes deep water: landAt() closes an open ring implicitly, so the
+  // phantom edge swallows everything between the fragment's two ends. Big rivers
+  // and lakes are exactly the features that arrive as relations, so this is the
+  // guard on the fix that stopped the car drowning 78 m above the Niagara river.
+  const stitch = await fr.locator('body').evaluate(() => {
+    const R = window.Roads;
+    // Four fragments of one square, deliberately in the wrong order and with two
+    // of them reversed — which is how OSM hands them over.
+    const A = [0, 0, 0, 1], B = [1, 1, 1, 0], C = [0, 1, 1, 1], D = [1, 0, 0, 0];
+    const closed = R.assembleRings([A, C, B, D]);
+    // And a chain that cannot close: the phantom-lake case.
+    const openChain = R.assembleRings([[0, 0, 0, 1], [0, 1, 1, 1]]);
+    return { closedCount: closed.length, closedLen: closed[0] ? closed[0].length : 0,
+             firstIsClosed: closed[0] ? (closed[0][0] === closed[0][closed[0].length - 2]
+                                      && closed[0][1] === closed[0][closed[0].length - 1]) : false,
+             openCount: openChain.length,
+             carryBridge: R.carryOf({ bridge: 'yes' }), carryNone: R.carryOf({ bridge: 'no' }),
+             carryEmbank: R.carryOf({ embankment: 'yes' }) };
+  });
+  check('scattered multipolygon fragments are stitched into one closed ring',
+    stitch.closedCount === 1 && stitch.firstIsClosed, JSON.stringify(stitch));
+  check('…and fragments that cannot close are DROPPED, not left as phantom lakes',
+    stitch.openCount === 0, stitch.openCount + ' unclosed ring(s) kept');
+  check('a bridge tag reaches the builder instead of being discarded',
+    stitch.carryBridge === 1 && stitch.carryNone === 0 && stitch.carryEmbank === 3,
+    'bridge=' + stitch.carryBridge + ' no=' + stitch.carryNone + ' embankment=' + stitch.carryEmbank);
   // The gamble. Driving into water must NOT be a lookup the player can perform
   // from the driving seat — a small pond lets you through, a lake does not, and
   // the threshold is a number nobody can eyeball.

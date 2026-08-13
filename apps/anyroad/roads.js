@@ -175,7 +175,26 @@
       parts.push('way["leisure"="swimming_pool"](' + bb + ');');
       parts.push('way["amenity"="swimming_pool"](' + bb + ');');
     }
+    // WATER IS NOT ONE TAG, and asking only for natural=water is why a drive at
+    // Niagara Falls had no river in it. The forms that matter:
+    //   natural=water        the common area form (lakes, ponds, most of them)
+    //   waterway=riverbank   how large rivers are still very widely mapped
+    //   landuse=reservoir    a dammed body, in LAND under no key at all, so
+    //                        nothing fetched it — not even the landcover clause
+    // Cheap, same shape as the clauses above, and water is a HAZARD you can
+    // drown in, so it stays at every detail level rather than being shed.
     parts.push('way["natural"="water"](' + bb + ');');
+    parts.push('way["waterway"="riverbank"](' + bb + ');');
+    parts.push('way["landuse"~"^(reservoir|basin)$"](' + bb + ');');
+    // And the big ones are RELATIONS. A river or lake too large to be one closed
+    // way is a multipolygon, and its member ways carry no water tag of their own
+    // — so every clause above misses it and the largest water on earth was
+    // invisible to this app. Behind detail>=1 because a relation costs more to
+    // assemble and the last-resort level exists to keep roads coming at all.
+    if (detail >= 1) {
+      parts.push('relation["natural"="water"](' + bb + ');');
+      parts.push('relation["waterway"="riverbank"](' + bb + ');');
+    }
     return '[out:json][timeout:25];(' + parts.join('') + ');out geom;';
   }
 
@@ -185,21 +204,115 @@
   // would be storing noise at real cost.
   function r6(v) { return Math.round(v * 1e6) / 1e6; }
 
+  // Every AREA form of water, in one place, because the answer was spread across
+  // four tags and the parser only knew one of them.
+  function isWater(tags) {
+    return tags.natural === 'water' || tags.waterway === 'riverbank'
+        || tags.landuse === 'reservoir' || tags.landuse === 'basin';
+  }
+
+  // What a carriageway is CARRIED ON, which the drape has to stop ignoring.
+  // 0 none · 1 bridge · 2 tunnel · 3 embankment · 4 cutting
+  var CARRY = { NONE: 0, BRIDGE: 1, TUNNEL: 2, EMBANK: 3, CUTTING: 4 };
+  function carryOf(tags) {
+    var no = function (v) { return !v || v === 'no'; };
+    if (!no(tags.bridge) || tags.man_made === 'bridge') return CARRY.BRIDGE;
+    if (!no(tags.tunnel)) return CARRY.TUNNEL;
+    if (!no(tags.embankment)) return CARRY.EMBANK;
+    if (!no(tags.cutting)) return CARRY.CUTTING;
+    return CARRY.NONE;
+  }
+
+  // A MULTIPOLYGON MEMBER IS NOT A RING. The outer boundary of a big river or
+  // lake is stitched together from many member ways, each one an open fragment,
+  // and every consumer here treats a ring as CLOSED: triangulate() fills it, and
+  // the point-in-polygon test in landAt() closes it implicitly with a straight
+  // line from its last point back to its first. Hand it a fragment and that
+  // phantom edge can run for kilometres, so a huge wedge of dry land reads as
+  // "inside the water" — which is a car that drowns on a clifftop, and an
+  // invisible wall with no water anywhere near it.
+  //
+  // So fragments are joined end to end into closed rings first, and anything that
+  // will not close is DROPPED. Coordinates are rounded identically (r6) and
+  // shared nodes are the same node, so endpoints match exactly.
+  function assembleRings(frags) {
+    var rings = [], pool = frags.slice();
+    var head = function (f) { return f[0] + ',' + f[1]; };
+    var tail = function (f) { return f[f.length - 2] + ',' + f[f.length - 1]; };
+    var reverse = function (f) {
+      var out = [];
+      for (var i = f.length - 2; i >= 0; i -= 2) out.push(f[i], f[i + 1]);
+      return out;
+    };
+    while (pool.length) {
+      var cur = pool.shift();
+      // Bounded: a malformed relation must not spin here.
+      for (var guard = 0; guard < 400 && head(cur) !== tail(cur) && pool.length; guard++) {
+        var hit = -1, joined = null;
+        for (var i = 0; i < pool.length; i++) {
+          var p = pool[i];
+          if (tail(cur) === head(p)) { joined = cur.concat(p.slice(2)); hit = i; break; }
+          if (tail(cur) === tail(p)) { joined = cur.concat(reverse(p).slice(2)); hit = i; break; }
+          if (head(cur) === tail(p)) { joined = p.concat(cur.slice(2)); hit = i; break; }
+          if (head(cur) === head(p)) { joined = reverse(p).concat(cur.slice(2)); hit = i; break; }
+        }
+        if (hit < 0) break;                 // nothing else connects to this chain
+        pool.splice(hit, 1);
+        cur = joined;
+      }
+      if (head(cur) === tail(cur) && cur.length >= 8) rings.push(cur);
+    }
+    return rings;
+  }
+
   function parse(json, detail) {
     var ways = [], bld = [], wat = [], land = [], pool = [];
     var els = (json && json.elements) || [];
     for (var i = 0; i < els.length; i++) {
       var e = els[i];
+      var rtags = e.tags || {};
+      // A MULTIPOLYGON RELATION. `out geom` hands back each member's coordinates,
+      // so the rings are already here — they just have to be taken off the
+      // members instead of off the element. Outer rings only: an island in a lake
+      // is a hole, and this mesher has no holes, so filling it would be a worse
+      // lie than leaving the island wet. An empty role is treated as outer, which
+      // is what a sloppily-tagged multipolygon means in practice.
+      if (e.type === 'relation' && e.members && isWater(rtags)) {
+        var frags = [];
+        for (var mi = 0; mi < e.members.length; mi++) {
+          var mem = e.members[mi];
+          if (!mem || !mem.geometry || mem.geometry.length < 2) continue;
+          if (mem.role && mem.role !== 'outer') continue;   // an island is a hole; this mesher has none
+          var mflat = [], gap = false;
+          for (var mg = 0; mg < mem.geometry.length; mg++) {
+            var mp = mem.geometry[mg];
+            // A member the bbox cut through comes back with holes in it. Its
+            // endpoints are then meaningless for stitching, so it is not a
+            // fragment we can trust — drop it rather than join across the gap.
+            if (!mp) { gap = true; break; }
+            mflat.push(r6(mp.lat), r6(mp.lon));
+          }
+          if (!gap && mflat.length >= 4) frags.push(mflat);
+        }
+        var built = assembleRings(frags);
+        for (var bi = 0; bi < built.length; bi++) wat.push(built[bi]);
+        continue;
+      }
       if (!e.geometry || e.geometry.length < 2) continue;
       var flat = [];
       for (var g = 0; g < e.geometry.length; g++) { flat.push(r6(e.geometry[g].lat), r6(e.geometry[g].lon)); }
-      var tags = e.tags || {};
+      var tags = rtags;
       if (tags.highway && ROAD_CLASS[tags.highway]) {
         // [4] is the NAME, and it has been in every response we have ever
         // made — `out geom` returns the way's whole tag set and the parser
         // took three of them. A road you are driving down that cannot tell
         // you what it is called is a map with the labels torn off.
-        ways.push([tags.highway, flat, surfaceOf(tags), laneCount(tags), tags.name || '']);
+        // [5] is what CARRIES it — bridge, tunnel, embankment, cutting. Another
+        // tag that has been in every response we ever made and was thrown away,
+        // which is why a bridge followed the river bed it crosses. A cache written
+        // before this has no sixth element; undefined packs to 0 ("on the
+        // ground"), so old caches keep working and upgrade as tiles re-fetch.
+        ways.push([tags.highway, flat, surfaceOf(tags), laneCount(tags), tags.name || '', carryOf(tags)]);
       } else if (tags.building && detail >= 1) {
         // [3] is the BRAND, packed as a colour (see packBrand). A cache written
         // before brands existed simply has no fourth element — undefined packs
@@ -219,7 +332,7 @@
         // it is ALWAYS deep. That is the one water on the map you can be sure
         // about, and everything else is the gamble.
         pool.push(flat);
-      } else if (tags.natural === 'water') {
+      } else if (isWater(tags)) {
         wat.push(flat);
       } else if (detail >= 2) {
         // [0] class id, [1] ring, [2] species. Kept as three small numbers and
@@ -923,7 +1036,81 @@
   // continuous through a bend instead of showing a wedge of terrain at every
   // corner; the mitre is limited so a hairpin does not fire a spike off to
   // infinity.
-  function ribbon(frame, pts, halfWidth, lift, out, tone, surface, lanes) {
+  // A CARRIAGEWAY THAT IS NOT ON THE GROUND. Everything above drapes the tarmac
+  // onto the heightfield, which is right for an ordinary road and wrong for every
+  // road that was BUILT to ignore the ground — and OSM has always said which is
+  // which, in tags this parser threw away. Draped, the Rainbow Bridge at Niagara
+  // dives sixty metres down one wall of the gorge, along the river bed, and back
+  // up the other side; an embankment across a valley ripples with every DEM post
+  // instead of running level, which is the "strange slopes" you see everywhere.
+  //
+  // The profile is the straight line between the two ENDS, because the ends are
+  // where the structure meets the ground and therefore the only honest samples on
+  // it. That single rule is a level bridge, a constant-grade embankment and a
+  // cutting that does not climb the hill it was dug through.
+  var CARRY_MAX = { 1: 200, 2: 120, 3: 30, 4: 30 };   // metres a structure may deviate from the ground
+  // The steepest end-to-end grade each kind is ever BUILT to. Only used to catch a
+  // terrain sample that cannot be true (see carryProfile); a tunnel is left alone
+  // because it genuinely follows whatever the road does underground.
+  var MAX_GRADE = { 1: 0.08, 3: 0.12, 4: 0.12 };
+  function endGround(frame, pts, from, dir) {
+    // The abutment first, then a few steps inward: an endpoint can land just
+    // outside the loaded terrain while the rest of the span is over it.
+    for (var k = 0; k < 6 && k < pts.length; k++) {
+      var p = pts[from + dir * k];
+      if (!p) break;
+      var h = root.Terrain.heightAt(frame, p.x, p.z);
+      if (h !== null) return h;
+    }
+    return null;
+  }
+  function carryProfile(frame, pts, lift, kind) {
+    var n = pts.length;
+    if (n < 2) return null;
+    var s = [0];
+    for (var i = 1; i < n; i++) s.push(s[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
+    var total = s[n - 1];
+    if (!(total > 1)) return null;
+    var ha = endGround(frame, pts, 0, 1), hb = endGround(frame, pts, n - 1, -1);
+    // No ground under either abutment yet: fall back to the drape rather than
+    // inventing a height, and let the tile rebuild when the terrain lands.
+    if (ha === null || hb === null) { groundMisses++; return null; }
+    // AN ABUTMENT SAMPLE CAN BE A LIE, and over a gorge it usually is. The DEM is
+    // ~9.5 m posts, so a 50 m ravine is smeared across two of them and the rim is
+    // rounded off — the endpoint that should sit on the clifftop samples a height
+    // already well down the slope. Measured at Niagara: the Whirlpool Rapids
+    // Bridge came back with ends at 159.8 m and 93.8 m over 121 m, a 55% grade
+    // into the river, which is the old dive with a straight edge on it.
+    //
+    // What rescues it is that these things are ENGINEERED. A road bridge is built
+    // to a gentle grade, so a grade steeper than roads are ever built to is
+    // evidence about the terrain sample, not about the bridge: keep the higher end
+    // (rims are what get rounded DOWN, not up) and let the deck fall away from it
+    // at no more than a plausible slope.
+    var grade = MAX_GRADE[kind];
+    if (grade && Math.abs(ha - hb) > total * grade) {
+      var top = Math.max(ha, hb), drop = total * grade;
+      if (ha < hb) ha = top - drop; else hb = top - drop;
+    }
+    var cap = CARRY_MAX[kind] || 30;
+    var deck = [];
+    for (var k2 = 0; k2 < n; k2++) {
+      var y = ha + (hb - ha) * (s[k2] / total);
+      var g = root.Terrain.heightAt(frame, pts[k2].x, pts[k2].z);
+      if (g !== null) {
+        // A bridge may not sink into a hill and a tunnel may not surface over
+        // one; both stay within a plausible distance of the ground so one bad tag
+        // cannot launch a road into the sky.
+        if (kind === 1) y = Math.min(Math.max(y, g), g + cap);
+        else if (kind === 2) y = Math.max(Math.min(y, g), g - cap);
+        else y = Math.min(Math.max(y, g - cap), g + cap);
+      }
+      deck.push(y + lift);
+    }
+    return deck;
+  }
+
+  function ribbon(frame, pts, halfWidth, lift, out, tone, surface, lanes, deck) {
     if (pts.length < 2) return;
     var n = pts.length;
     var left = [], right = [];
@@ -950,8 +1137,13 @@
     for (var k = 0; k < n; k++) {
       if (k > 0) along += Math.hypot(pts[k].x - pts[k - 1].x, pts[k].z - pts[k - 1].z);
       var l = left[k], r = right[k];
-      out.pos.push(l.x, groundAt(frame, l.x, l.z, lift), l.z);
-      out.pos.push(r.x, groundAt(frame, r.x, r.z, lift), r.z);
+      // On a structure both kerbs take the SAME height — a deck is level across
+      // its width, and sampling the ground under each kerb separately is what
+      // gave a bridge a cross-fall following the valley wall beneath it.
+      var yl = deck ? deck[k] : groundAt(frame, l.x, l.z, lift);
+      var yr = deck ? deck[k] : groundAt(frame, r.x, r.z, lift);
+      out.pos.push(l.x, yl, l.z);
+      out.pos.push(r.x, yr, r.z);
       // v runs ACROSS the ribbon (0 at one kerb, 1 at the other) so the shader
       // can paint a centre line and kerb edges with no extra geometry; u runs
       // ALONG it in metres, which is what makes the dashes a fixed size on the
@@ -1489,6 +1681,45 @@
     return { buildings: pack(out, ['pos']), trees: pack(twig, ['pos']) };
   }
 
+  // Sutherland-Hodgman against the four edges of an axis-aligned rectangle. The
+  // classic caveat — a concave polygon clipped this way can come back with edges
+  // running along the clip boundary where two separate pieces get joined — is
+  // harmless for what it is used for here: those edges lie exactly on a tile
+  // border, and the neighbouring tile fills the other side with water at its own
+  // level, so the join is under water either way.
+  function clipToRect(poly, r) {
+    var edges = [
+      function (p) { return p.x >= r.minX; }, function (p) { return p.x <= r.maxX; },
+      function (p) { return p.z >= r.minZ; }, function (p) { return p.z <= r.maxZ; },
+    ];
+    // Where the segment a->b crosses the boundary this edge tests.
+    var cuts = [
+      function (a, b) { return { t: (r.minX - a.x) / (b.x - a.x), axis: 'x', at: r.minX }; },
+      function (a, b) { return { t: (r.maxX - a.x) / (b.x - a.x), axis: 'x', at: r.maxX }; },
+      function (a, b) { return { t: (r.minZ - a.z) / (b.z - a.z), axis: 'z', at: r.minZ }; },
+      function (a, b) { return { t: (r.maxZ - a.z) / (b.z - a.z), axis: 'z', at: r.maxZ }; },
+    ];
+    var out = poly;
+    for (var e = 0; e < 4 && out.length; e++) {
+      var inside = edges[e], cut = cuts[e], next = [];
+      for (var i = 0; i < out.length; i++) {
+        var a = out[i], b = out[(i + 1) % out.length];
+        var ain = inside(a), bin = inside(b);
+        if (ain) next.push(a);
+        if (ain !== bin) {
+          var c = cut(a, b);
+          if (isFinite(c.t)) {
+            next.push(c.axis === 'x'
+              ? { x: c.at, z: a.z + (b.z - a.z) * c.t }
+              : { x: a.x + (b.x - a.x) * c.t, z: c.at });
+          }
+        }
+      }
+      out = next;
+    }
+    return out;
+  }
+
   function tileCentre(frame, tile) {
     if (!tile) return null;
     var b = root.Geo.tileBounds(tile.z, tile.x, tile.y);
@@ -1524,8 +1755,14 @@
       // lift per class rank settles it, permanently and in the right order: the
       // bigger road runs THROUGH the junction and the smaller one stops at it,
       // which is also how the give-way works in real life.
-      ribbon(frame, densify(pts, ROAD_STEP), width / 2, ROAD_LIFT + cls.rank * 0.012, roads,
-             cls.tone, surf, lanes || Math.max(1, Math.round(cls.w / 3.4)));
+      // [5] is what carries it. Absent on a tile cached before that was parsed,
+      // which reads as 0 — on the ground — i.e. exactly the old behaviour.
+      var carry = geom.ways[i][5] || 0;
+      var dpts = densify(pts, ROAD_STEP);
+      var liftFor = ROAD_LIFT + cls.rank * 0.012;
+      var deck = carry ? carryProfile(frame, dpts, liftFor, carry) : null;
+      ribbon(frame, dpts, width / 2, liftFor, roads,
+             cls.tone, surf, lanes || Math.max(1, Math.round(cls.w / 3.4)), deck);
       // Keep the world-space polyline: traffic drives along it. It is already
       // computed for the ribbon, so this costs a reference rather than the
       // work, and it means traffic needs no road graph of its own. Real roads
@@ -1554,20 +1791,63 @@
 
     // Lakes and pools are the same geometry with a different colour, so this
     // runs twice rather than existing twice.
+    //
+    // TWO BUGS LIVED HERE, and together they are why a drive at Niagara Falls had
+    // no river in it.
+    //
+    // 1. The level was Math.min of the ground under EVERY vertex of the ring, and
+    //    `out geom` returns whole ways — a river polygon is tens of kilometres
+    //    long, so most of its vertices lie outside any terrain this app will ever
+    //    load. groundAt() answers `lift` (zero) for those, Math.min took the zero,
+    //    and the water was meshed at y=0.3 while the ground at Niagara is ~175 m.
+    //    It was not missing; it was rendered a hundred and seventy-five metres
+    //    underneath the terrain and depth-tested away.
+    // 2. Even with every tile loaded, ONE flat level per polygon cannot describe
+    //    a river that falls fifty metres down a waterfall. The minimum is the
+    //    gorge floor, so the whole upper river would be buried under its own bank.
+    //
+    // So the ring is CLIPPED TO THIS TILE first and levelled from what is under
+    // that piece. Clipping is what makes per-tile levels legal: without it every
+    // tile meshes the whole river and the copies sit at different heights,
+    // stacking sheets of water across the landscape. With it, the crest and the
+    // gorge below it are different tiles and each gets its own honest surface.
+    var tb = tile ? root.Geo.tileBounds(tile.z, tile.x, tile.y) : null;
+    var tileRect = null;
+    if (tb) {
+      var c1 = frame.toWorld(tb.north, tb.west), c2 = frame.toWorld(tb.south, tb.east);
+      // A margin, so neighbouring tiles' pieces overlap by a hair instead of
+      // leaving a seam of dry ground along every tile border.
+      var pad = 4;
+      tileRect = { minX: Math.min(c1.x, c2.x) - pad, maxX: Math.max(c1.x, c2.x) + pad,
+                   minZ: Math.min(c1.z, c2.z) - pad, maxZ: Math.max(c1.z, c2.z) + pad };
+    }
+
     function waterMesh(rings) {
       var m = { pos: [], idx: [] };
       for (var w = 0; w < rings.length; w++) {
         var poly = toWorld(frame, rings[w]);
         if (poly.length > 2 && poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
         if (poly.length < 3) continue;
+        if (tileRect) poly = clipToRect(poly, tileRect);
+        if (poly.length < 3) continue;              // this tile holds none of it
+        // Level it from the ground under THIS piece, ignoring vertices with no
+        // terrain rather than reading them as sea level. A low percentile instead
+        // of the strict minimum: one vertex that happens to sit on a steep bank
+        // should not drag the whole surface down a cliff.
+        var hs = [];
+        for (var pi = 0; pi < poly.length; pi++) {
+          var h = root.Terrain.heightAt(frame, poly[pi].x, poly[pi].z);
+          if (h !== null) hs.push(h);
+        }
+        // Fewer than three real samples is not a water level, it is a guess. Skip
+        // it and say so, so the tile is rebuilt when the ground arrives — drawing
+        // it at zero is what buried Niagara.
+        if (hs.length < 3) { groundMisses++; continue; }
+        hs.sort(function (a, b) { return a - b; });
+        var level = hs[Math.floor(hs.length * 0.2)];
         var tris = triangulate(poly);
         var base = m.pos.length / 3;
-        // Water sits at the lowest ground under its own outline, so a lake reads
-        // as filling a basin rather than draped over one.
-        var low = Infinity;
-        for (var pi = 0; pi < poly.length; pi++) low = Math.min(low, groundAt(frame, poly[pi].x, poly[pi].z, 0));
-        if (!isFinite(low)) low = 0;
-        for (var pj = 0; pj < poly.length; pj++) m.pos.push(poly[pj].x, low + 0.3, poly[pj].z);
+        for (var pj = 0; pj < poly.length; pj++) m.pos.push(poly[pj].x, level + 0.3, poly[pj].z);
         for (var ti = 0; ti < tris.length; ti++) m.idx.push(base + tris[ti]);
       }
       return m;
@@ -2151,5 +2431,9 @@
     // say grows there. Both pure, and neither observable from the far end of
     // build() — by then a wood and a car park are the same triangles.
     landIndexOf: buildLandIndex, landAt: landAt, LAND: LAND,
+    // Exported so a suite can drive the multipolygon stitcher directly: a ring
+    // that does not close is a PHANTOM LAKE (landAt closes it with a straight
+    // line across the map), and that is a car drowning on dry land.
+    assembleRings: assembleRings, carryOf: carryOf,
   };
 })(window);
