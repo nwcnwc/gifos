@@ -335,7 +335,7 @@
   // below would be a teleport. You only take the deck if you are already at about
   // its level, which you are when you drive on from the abutment (where the deck
   // meets the ground) and are not when you are in the gorge beneath it.
-  var DECK_REACH = 2.5;         // metres below the deck that still counts as ON it
+  var DECK_REACH = 2.5;         // metres away from a deck that still counts as ON it
   function deckHeight(x, z) {
     var best = null;
     for (var k in world.roads) {
@@ -346,12 +346,43 @@
     }
     return best ? best.deckY : null;
   }
+  var deckHeldAt = -99;         // when a below-ground deck last answered
+  var DECK_HOLD = 10;           // seconds of grace before a lost tunnel gives you up
   function groundHeight(x, z, refY) {
     var t = root.Terrain.heightAt(world.frame, x, z);
     var d = deckHeight(x, z);
-    if (d === null) return t;
-    if (refY != null && isFinite(refY) && refY < d - DECK_REACH) return t;   // underneath it
-    return t === null ? d : Math.max(t, d);
+    if (d === null) {
+      // NO DECK HERE — but if we were under the mountain a moment ago, this is
+      // almost certainly a road tile that has not finished building rather than
+      // the end of the tunnel. Surfacing the car through a kilometre of rock
+      // because of a streaming hitch is unrecoverable: it lands on the mountain
+      // above, and from there it is nowhere near deck level, so it can never get
+      // back in. Hold the height instead and let the tile arrive. The grace runs
+      // out so a genuinely lost tunnel cannot strand anyone underground.
+      if (refY != null && isFinite(refY) && t !== null
+          && refY < t - 2 && (clock - deckHeldAt) < DECK_HOLD) return refY;
+      return t;
+    }
+    if (t === null) return d;
+    var known = refY != null && isFinite(refY);
+    if (d >= t - 0.05) {
+      // A structure at or ABOVE the ground — a bridge, an embankment. You ride it
+      // from at or above its level, which is also how an aircraft lands on one;
+      // from underneath (in the gorge) you stay on the ground, or a viaduct would
+      // teleport you fifty metres up as you drove beneath it.
+      return (!known || refY >= d - DECK_REACH) ? d : t;
+    }
+    // BELOW the ground: a tunnel or a cutting, and this is the half that used to
+    // be refused outright — so a tunnel was a hill you drove over the top of.
+    // Symmetric rule, one extra condition: you have to actually BE down there.
+    // Entering is legal because at the portal the deck meets the ground, so you
+    // arrive already at its level and then follow it under; standing on the
+    // hillside above, the surface is further from the deck than DECK_REACH and you
+    // stay on the surface. With no reference height at all (a rescue, a respawn,
+    // a shadow) the surface is the honest answer — nobody should be teleported
+    // into a tunnel.
+    if (known && Math.abs(refY - d) <= DECK_REACH) { deckHeldAt = clock; return d; }
+    return t;
   }
 
   function updateOnRoad(nowMs) {
@@ -2049,6 +2080,10 @@
                }).length };
     },
     hasHopped: function () { return hopped; },
+    // The ground the CAR gets, decks included. Exported so a suite can assert the
+    // rule that keeps a bridge from teleporting you up and a tunnel from
+    // swallowing you: with no reference height the surface always wins.
+    groundAt: groundHeight,
     car: function () { return car; },
     // Why the car is or is not moving, in one call. The loop has several gates
     // (ground loaded, descent finished, input) and from the outside every one

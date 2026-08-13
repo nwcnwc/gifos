@@ -1048,11 +1048,16 @@
   // where the structure meets the ground and therefore the only honest samples on
   // it. That single rule is a level bridge, a constant-grade embankment and a
   // cutting that does not climb the hill it was dug through.
-  var CARRY_MAX = { 1: 200, 2: 120, 3: 30, 4: 30 };   // metres a structure may deviate from the ground
-  // The steepest end-to-end grade each kind is ever BUILT to. Only used to catch a
-  // terrain sample that cannot be true (see carryProfile); a tunnel is left alone
-  // because it genuinely follows whatever the road does underground.
-  var MAX_GRADE = { 1: 0.08, 3: 0.12, 4: 0.12 };
+  // Metres a structure may deviate from the ground. A tunnel gets a lot, because
+  // being a long way under a mountain is what a tunnel IS — clamped at 120 the
+  // deck was dragged up to follow the summit profile, so "through the mountain"
+  // came out as a climb over it 120 m down.
+  var CARRY_MAX = { 1: 200, 2: 1500, 3: 30, 4: 30 };
+  // The steepest end-to-end grade each kind is ever BUILT to, used to catch a
+  // terrain sample that cannot be true (see carryEnds). Tunnels are in here too:
+  // they are as engineered as bridges, and with a deep one the far portal is the
+  // sample most likely to be wrong, so an implausible grade must not be believed.
+  var MAX_GRADE = { 1: 0.08, 2: 0.08, 3: 0.12, 4: 0.12 };
   function endGround(frame, pts, from, dir) {
     // The abutment first, then a few steps inward: an endpoint can land just
     // outside the loaded terrain while the rest of the span is over it.
@@ -1076,11 +1081,36 @@
     for (var i = 1; i < n; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
     if (!(total > 1)) return null;
     var ha = endGround(frame, pts, 0, 1), hb = endGround(frame, pts, n - 1, -1);
+    // ONE END IS ENOUGH. A long structure runs clean out of the loaded world — a
+    // road tunnel can be ten kilometres of way against a 3 km terrain radius — and
+    // demanding both portals meant every tunnel worth the name fell back to the
+    // drape and became a mountain you drove over. With one end known, hold that
+    // height: level is the right guess for a tunnel and close enough for a span,
+    // and the tile rebuilds if the other portal ever loads.
+    if (ha === null && hb !== null) ha = hb;
+    else if (hb === null && ha !== null) hb = ha;
     if (ha === null || hb === null) { groundMisses++; return null; }
     var grade = MAX_GRADE[kind];
     if (grade && Math.abs(ha - hb) > total * grade) {
-      var top = Math.max(ha, hb), drop = total * grade;
-      if (ha < hb) ha = top - drop; else hb = top - drop;
+      // WHICH END TO BELIEVE depends on which way the bad sample errs, and that is
+      // opposite for the two cases.
+      //
+      // Above ground (a bridge) the suspect end is the one reading LOW: the DEM
+      // rounds a gorge rim downward, so the abutment samples part-way down the
+      // cliff. Keep the higher end.
+      //
+      // Below ground (a tunnel) the suspect end reads HIGH, and for a mundane
+      // reason: `out geom` CLIPS a long way at the query bbox, so the "endpoint"
+      // of a 7.5 km tunnel is not a portal at all — it is a point under the
+      // mountain, and the terrain there is the summit. Measured on the Tunnel du
+      // Mont Blanc: portals reported as 1352 m and 3422 m, the second being the
+      // roof of the Alps. Keeping the higher end there dragged the whole deck up
+      // the mountain and the tunnel became the surface road again. Keep the lower.
+      var deep = kind === 2;
+      var keep = deep ? Math.min(ha, hb) : Math.max(ha, hb);
+      var step = total * grade;
+      if (deep) { if (ha > hb) ha = keep + step; else hb = keep + step; }
+      else { if (ha < hb) ha = keep - step; else hb = keep - step; }
     }
     return { ha: ha, hb: hb, total: total, kind: kind };
   }
