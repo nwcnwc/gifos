@@ -60,9 +60,9 @@
   "cover": "/apps/anyroad/cover.jpg",
   "screenshots": [],
   "gif": "/apps/anyroad/anyroad.gif",
-  "bytes": 386948,
+  "bytes": 395572,
   "download": 0,
   "provides": null,
-  "sha256": "0adcc36b1f477bc8d0ea1cb15dca592b9e432f3349577b85466d8459ca7ec595",
+  "sha256": "92fc7a3f677ebd0a70a1e6a6d998a211a59b6671be3431753861e02e31addadd",
   "signature": null
 }
