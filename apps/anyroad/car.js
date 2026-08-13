@@ -260,7 +260,9 @@
     // NaN, the climb never started, and the aircraft "landed" on the substep it
     // took off. A block that reads inputs has to live downstream of them.
     if (car.flying || car.falling) {
-      var gy = frame ? root.Terrain.heightAt(frame, car.x, car.z) : null;
+      // Deck-aware too, so an aircraft can put down on a bridge instead of
+      // sinking through it to the river bed.
+      var gy = frame ? groundOf(car, frame, car.x, car.z, car.y) : null;
       var ground = (gy === null ? 0 : gy);
 
       if (car.flying) {
@@ -482,15 +484,26 @@
   // Put the car on the terrain and orient it to the slope. Ground height is
   // sampled at four points around the wheelbase rather than one, so the car
   // leans into a camber instead of pivoting about its centre.
+  // GROUND IS NOT ALWAYS THE TERRAIN. A bridge deck is ground too, and taking the
+  // height from the heightfield is why a bridge you could see was a bridge you
+  // fell through — the deck was drawn fifty metres over the gorge while the car
+  // asked the DEM and drove down to the river. The caller supplies the answer
+  // because only it knows the road index; with no provider this is exactly the
+  // old behaviour, which is what the unit-level suites drive.
+  function groundOf(car, frame, x, z, refY) {
+    if (car.groundFn) return car.groundFn(x, z, refY);
+    return root.Terrain.heightAt(frame, x, z);
+  }
+
   function settle(car, frame, dt) {
-    var h = root.Terrain.heightAt(frame, car.x, car.z);
+    var h = groundOf(car, frame, car.x, car.z, car.y);
     if (h === null) return;                    // ground not loaded: hold still
 
     var fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);
     var rx = Math.cos(car.yaw), rz = -Math.sin(car.yaw);
     var L = 1.5, W = 0.9;
     function at(ox, oz) {
-      var s = root.Terrain.heightAt(frame, car.x + ox, car.z + oz);
+      var s = groundOf(car, frame, car.x + ox, car.z + oz, car.y);
       return s === null ? h : s;
     }
     var front = at(fx * L, fz * L), back = at(-fx * L, -fz * L);

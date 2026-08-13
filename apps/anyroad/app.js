@@ -312,7 +312,9 @@
       } while (back < 70 && (function () { var w = waterAtPoint(bx, bz); return w && w.deep; })());
       root.Car.place(car, bx, bz, car.yaw + Math.PI);
     }
-    var h = root.Terrain.heightAt(world.frame, car.x, car.z);
+    // No reference height: a rescue is meant to put you ON the road, and if that
+    // road is a bridge then the deck is where the road is.
+    var h = groundHeight(car.x, car.z, null);
     if (h !== null) car.y = h;
     root.UI.note(best ? 'Back on the road.' : 'Reversed you out.');
     return true;
@@ -323,6 +325,35 @@
   // change meaningfully inside 60 ms even at motorway speed, and the query
   // touches every loaded tile's index.
   var roadCheckAt = 0;
+  // GROUND, INCLUDING THE GROUND WE BUILT. The terrain heightfield is the answer
+  // almost everywhere, but a bridge deck is ground you can drive on and it is not
+  // in the heightfield at all — the whole reason a visible bridge used to be a
+  // bridge you fell through. Handed to the car so settle() lands on the deck.
+  //
+  // The reference height is what stops it becoming a trap: standing UNDER a
+  // viaduct you are inside its 2-D footprint, and snapping up onto the deck from
+  // below would be a teleport. You only take the deck if you are already at about
+  // its level, which you are when you drive on from the abutment (where the deck
+  // meets the ground) and are not when you are in the gorge beneath it.
+  var DECK_REACH = 2.5;         // metres below the deck that still counts as ON it
+  function deckHeight(x, z) {
+    var best = null;
+    for (var k in world.roads) {
+      var r = world.roads[k];
+      if (!r || !r.built || !r.built.index) continue;
+      var hit = root.Roads.nearestDeck(r.built.index, x, z);
+      if (hit && (!best || hit.dist < best.dist)) best = hit;
+    }
+    return best ? best.deckY : null;
+  }
+  function groundHeight(x, z, refY) {
+    var t = root.Terrain.heightAt(world.frame, x, z);
+    var d = deckHeight(x, z);
+    if (d === null) return t;
+    if (refY != null && isFinite(refY) && refY < d - DECK_REACH) return t;   // underneath it
+    return t === null ? d : Math.max(t, d);
+  }
+
   function updateOnRoad(nowMs) {
     if (nowMs - roadCheckAt < 120) return;
     roadCheckAt = nowMs;
@@ -1334,7 +1365,7 @@
     car.flying = false; car.falling = false; car.halted = false;
     snapToRoad();
     stepOutOfBuilding();
-    var g = root.Terrain.heightAt(world.frame, car.x, car.z);
+    var g = groundHeight(car.x, car.z, null);
     if (g !== null) car.y = g;
     shake = 0;
     root.UI.note('Back at ' + (world.place || 'the start') + '.');
@@ -1527,7 +1558,10 @@
 
     // Nothing responds until the ground exists — otherwise the first two
     // seconds are spent driving an invisible car across a void.
-    var grounded = root.Terrain.heightAt(world.frame, car.x, car.z) !== null;
+    // The car takes its ground through groundHeight from here on, so a deck is
+    // ground. Set every frame rather than once: world.frame changes on a hop.
+    car.groundFn = groundHeight;
+    var grounded = groundHeight(car.x, car.z, car.y) !== null;
     if (grounded && hopAnim > 2.6) {
       updateOnRoad(t);
       // SUBSTEP when the car would cross more ground in one frame than the
@@ -1571,7 +1605,7 @@
         onRoad: car.onRoad, surface: car.surface || 0, idle: Math.abs(car.speed) < 0.3,
       });
     } else if (grounded) {
-      car.y = root.Terrain.heightAt(world.frame, car.x, car.z);
+      car.y = groundHeight(car.x, car.z, car.y);
     }
 
     // AND SAY SO WHEN THE GROUND IS WHY NOTHING HAPPENS. Freezing is the right
@@ -1670,7 +1704,9 @@
                         // aircraft is. Without this it defaulted to s0.y and
                         // flew along at altitude with the plane, which reads as
                         // the shadow being in the wrong place because it is.
-                        groundY: root.Terrain.heightAt(world.frame, car.x, car.z) });
+                        // Deck included, or an aircraft over a bridge casts its
+                        // shadow on the river instead of on the bridge.
+                        groundY: groundHeight(car.x, car.z, null) });
     }
     root.MP.ghosts().forEach(function (g) {
       scene.cars.push({ x: g.x, y: g.y, z: g.z, yaw: g.yaw, pitch: 0, roll: 0, tint: g.tint });

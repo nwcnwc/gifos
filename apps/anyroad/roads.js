@@ -1064,48 +1064,49 @@
     }
     return null;
   }
-  function carryProfile(frame, pts, lift, kind) {
+  // The profile as two end heights and a length — computed once and used by BOTH
+  // the mesh and the collision index, so what you see and what you drive on
+  // cannot disagree. (They did: the deck was drawn over the gorge while the car
+  // went on taking its height from the terrain, so a bridge you could see was a
+  // bridge you fell through.)
+  function carryEnds(frame, pts, kind) {
     var n = pts.length;
     if (n < 2) return null;
-    var s = [0];
-    for (var i = 1; i < n; i++) s.push(s[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
-    var total = s[n - 1];
+    var total = 0;
+    for (var i = 1; i < n; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
     if (!(total > 1)) return null;
     var ha = endGround(frame, pts, 0, 1), hb = endGround(frame, pts, n - 1, -1);
-    // No ground under either abutment yet: fall back to the drape rather than
-    // inventing a height, and let the tile rebuild when the terrain lands.
     if (ha === null || hb === null) { groundMisses++; return null; }
-    // AN ABUTMENT SAMPLE CAN BE A LIE, and over a gorge it usually is. The DEM is
-    // ~9.5 m posts, so a 50 m ravine is smeared across two of them and the rim is
-    // rounded off — the endpoint that should sit on the clifftop samples a height
-    // already well down the slope. Measured at Niagara: the Whirlpool Rapids
-    // Bridge came back with ends at 159.8 m and 93.8 m over 121 m, a 55% grade
-    // into the river, which is the old dive with a straight edge on it.
-    //
-    // What rescues it is that these things are ENGINEERED. A road bridge is built
-    // to a gentle grade, so a grade steeper than roads are ever built to is
-    // evidence about the terrain sample, not about the bridge: keep the higher end
-    // (rims are what get rounded DOWN, not up) and let the deck fall away from it
-    // at no more than a plausible slope.
     var grade = MAX_GRADE[kind];
     if (grade && Math.abs(ha - hb) > total * grade) {
       var top = Math.max(ha, hb), drop = total * grade;
       if (ha < hb) ha = top - drop; else hb = top - drop;
     }
-    var cap = CARRY_MAX[kind] || 30;
-    var deck = [];
-    for (var k2 = 0; k2 < n; k2++) {
-      var y = ha + (hb - ha) * (s[k2] / total);
-      var g = root.Terrain.heightAt(frame, pts[k2].x, pts[k2].z);
-      if (g !== null) {
-        // A bridge may not sink into a hill and a tunnel may not surface over
-        // one; both stay within a plausible distance of the ground so one bad tag
-        // cannot launch a road into the sky.
-        if (kind === 1) y = Math.min(Math.max(y, g), g + cap);
-        else if (kind === 2) y = Math.max(Math.min(y, g), g - cap);
-        else y = Math.min(Math.max(y, g - cap), g + cap);
-      }
-      deck.push(y + lift);
+    return { ha: ha, hb: hb, total: total, kind: kind };
+  }
+
+  // The deck height at arc length `s` along the structure, clamped so a bridge
+  // never sinks into a hill and a tunnel never surfaces over one.
+  function carryYAt(prof, frame, x, z, s, lift) {
+    var y = prof.ha + (prof.hb - prof.ha) * (s / prof.total);
+    var g = root.Terrain.heightAt(frame, x, z);
+    var cap = CARRY_MAX[prof.kind] || 30;
+    if (g !== null) {
+      if (prof.kind === 1) y = Math.min(Math.max(y, g), g + cap);
+      else if (prof.kind === 2) y = Math.max(Math.min(y, g), g - cap);
+      else y = Math.min(Math.max(y, g - cap), g + cap);
+    }
+    return y + lift;
+  }
+
+  // The per-vertex deck for the MESH, from the same profile the index uses.
+  function carryProfile(frame, pts, lift, kind) {
+    var prof = carryEnds(frame, pts, kind);
+    if (!prof) return null;                    // no ground under an abutment yet — drape it
+    var deck = [], s = 0;
+    for (var k = 0; k < pts.length; k++) {
+      if (k > 0) s += Math.hypot(pts[k].x - pts[k - 1].x, pts[k].z - pts[k - 1].z);
+      deck.push(carryYAt(prof, frame, pts[k].x, pts[k].z, s, lift));
     }
     return deck;
   }
@@ -1959,7 +1960,14 @@
   // so a linear scan is out. Segments are bucketed into a coarse uniform grid at
   // BUILD time (once per tile) and the query looks only at the car's own cell
   // and its eight neighbours — a couple of dozen segments instead of thousands.
-  var STRIDE = 8;  // x1,z1,x2,z2,halfWidth,cruise,surface,nameId
+  // x1,z1,x2,z2,halfWidth,cruise,surface,nameId,deckY1,deckY2
+  // The last two are the height of the CARRIAGEWAY at each end of the segment
+  // where the road is a structure, and NO_DECK where it is ordinary ground. That
+  // is what lets the car ride a bridge it can see: without it the deck was drawn
+  // over the gorge while the car went on asking the terrain how high it was, so
+  // you drove through the bridge and down to the river.
+  var STRIDE = 10;
+  var NO_DECK = -1e9;   // a sentinel that always loses a Math.max against real ground
   var CELL = 64;   // metres; comfortably larger than the longest reasonable step
 
   function buildIndex(frame, geom) {
@@ -1982,12 +1990,26 @@
         if (nameOf[nm] === undefined) { nameOf[nm] = names.length; names.push(nm); }
         nameId = nameOf[nm];
       }
+      // The deck, from the SAME profile the mesh is built from, so the surface you
+      // drive on is the surface you see. ROAD_LIFT is deliberately not added here:
+      // that millimetre exists to stop coplanar tarmac z-fighting, not to raise
+      // the road the car sits on.
+      var carry = geom.ways[w][5] || 0;
+      var prof = carry ? carryEnds(frame, pts, carry) : null;
+      var sAlong = 0;
       for (var i = 0; i + 1 < pts.length; i++) {
         var a = pts[i], b = pts[i + 1];
         var idx = segs.length / STRIDE;
+        var segLen = Math.hypot(b.x - a.x, b.z - a.z);
+        var dy1 = NO_DECK, dy2 = NO_DECK;
+        if (prof) {
+          dy1 = carryYAt(prof, frame, a.x, a.z, sAlong, 0);
+          dy2 = carryYAt(prof, frame, b.x, b.z, sAlong + segLen, 0);
+        }
+        sAlong += segLen;
         // The same half width the RIBBON was built with, or "am I on tarmac"
         // answers about a road of a different size from the one being drawn.
-        segs.push(a.x, a.z, b.x, b.z, half, cls.cruise, surf, nameId);
+        segs.push(a.x, a.z, b.x, b.z, half, cls.cruise, surf, nameId, dy1, dy2);
         // Stamp the segment into every cell its bounding box touches, so a long
         // segment is found from anywhere along it.
         var x0 = Math.floor(Math.min(a.x, b.x) / CELL), x1 = Math.floor(Math.max(a.x, b.x) / CELL);
@@ -2038,6 +2060,37 @@
 
   // Perpendicular distance from (x,z) to the nearest carriageway, and that
   // road's half width. Returns null when this tile has nothing near.
+  // The nearest CARRIAGEWAY DECK, if you are standing on one. Separate from
+  // nearestRoad because the nearest road is usually not the structure: at the
+  // mouth of a bridge the slip road alongside is closer, and answering with that
+  // would report no deck at all. Only segments that actually carry one are
+  // considered, and only while you are within the width of the thing.
+  function nearestDeck(index, x, z) {
+    if (!index) return null;
+    var cx = Math.floor(x / index.cell), cz = Math.floor(z / index.cell);
+    var best = Infinity, bestY = 0, bestHalf = 0;
+    for (var dx = -1; dx <= 1; dx++) for (var dz = -1; dz <= 1; dz++) {
+      var list = index.map[(cx + dx) + ',' + (cz + dz)];
+      if (!list) continue;
+      for (var i = 0; i < list.length; i++) {
+        var o = list[i] * STRIDE;
+        var y1 = index.segs[o + 8];
+        if (y1 <= NO_DECK / 2) continue;              // ordinary ground
+        var ax = index.segs[o], az = index.segs[o + 1];
+        var bx = index.segs[o + 2], bz = index.segs[o + 3];
+        var vx = bx - ax, vz = bz - az;
+        var len2 = vx * vx + vz * vz;
+        var t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / len2)) : 0;
+        var px = ax + vx * t, pz = az + vz * t;
+        var d = Math.hypot(x - px, z - pz);
+        var half = index.segs[o + 4];
+        if (d > half + 1.0) continue;                 // beside it, not on it
+        if (d < best) { best = d; bestHalf = half; bestY = y1 + (index.segs[o + 9] - y1) * t; }
+      }
+    }
+    return best === Infinity ? null : { dist: best, halfWidth: bestHalf, deckY: bestY };
+  }
+
   function nearestRoad(index, x, z) {
     if (!index) return null;
     var cx = Math.floor(x / index.cell), cz = Math.floor(z / index.cell);
@@ -2379,6 +2432,7 @@
   root.Roads = {
     TILE_ZOOM: TILE_ZOOM,
     loadTile: loadTile, build: build, ROAD_CLASS: ROAD_CLASS, nearestRoad: nearestRoad,
+    nearestDeck: nearestDeck,
     nearWalls: nearWalls, segDist: segDist, namesNear: namesNear, inWater: inWater, waterAt: waterAt, DROWN_AREA: DROWN_AREA, roofAt: roofAt,
     // The mirror pool, exported so a suite can watch it route.
     rankMirrors: rankMirrors, mirrorScore: mirrorScore, tileState: tileState,
