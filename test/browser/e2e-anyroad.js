@@ -1005,6 +1005,47 @@ function check(name, cond, detail) {
   check('the car asks for ground through the deck-aware provider',
     deck.providerWired && deck.providerAnswer !== null,
     'groundFn=' + deck.providerWired + ' answer=' + deck.providerAnswer);
+
+  // ---- tunnels: underground is a place you can drive ------------------------
+  // A tunnel is the mirror of a bridge and was refused outright, so "through the
+  // mountain" came out as a climb over the top of it. The deck is allowed to win
+  // below ground now, with one extra condition — you have to actually be down
+  // there — because the surface above a shallow tunnel is inside its own 2-D
+  // footprint and would otherwise swallow anyone driving over it.
+  //
+  // The fixture's ground is FLAT, so it cannot express a mountain; what it can
+  // guard is the mechanism and the direction of every rule. The buried case is
+  // verified against live data (Tunnel du Mont Blanc, 7.5 km: the car travels
+  // more than a kilometre beneath the surface instead of over the summit).
+  const tun = await fr.locator('body').evaluate(() => {
+    const R = window.Roads, G = window.Geo, w = window.App.world;
+    const frame = w.frame;
+    const lat = 48.857, lon = 2.354;
+    const dLon = 150 / G.metresPerDegLon(lat);
+    const way = ['trunk', [lat, lon, lat, lon + dLon], 0, 2, 'Test Bore', 2];
+    const built = R.build(frame, { ways: [way], bld: [], wat: [], land: [], pool: [], detail: 2 }, null, null);
+    const mid = frame.toWorld(lat, lon + dLon / 2);
+    const hit = R.nearestDeck(built.index, mid.x, mid.z);
+    const g = window.Terrain.heightAt(frame, mid.x, mid.z);
+    // The rule itself, on the live world: with no reference height nobody may be
+    // put below the surface, and a deck far above you must not reel you in.
+    const gNone = window.App.groundAt(mid.x, mid.z, null);
+    return { carryTunnel: R.carryOf({ tunnel: 'yes' }),
+             carryBuilding: R.carryOf({ tunnel: 'building_passage' }),
+             hasDeck: !!hit, deckY: hit ? +hit.deckY.toFixed(1) : null,
+             ground: g === null ? null : +g.toFixed(1),
+             noRefIsSurface: gNone === null ? null : +gNone.toFixed(1) };
+  });
+  check('a tunnel tag is carried through as a tunnel', tun.carryTunnel === 2 && tun.carryBuilding === 2,
+    'tunnel=' + tun.carryTunnel + ' building_passage=' + tun.carryBuilding);
+  check('a tunnel gets a deck in the collision index, like a bridge does',
+    tun.hasDeck, JSON.stringify(tun));
+  check('…and it never floats ABOVE the ground it bores through',
+    tun.deckY !== null && tun.ground !== null && tun.deckY <= tun.ground + 0.5,
+    'deck ' + tun.deckY + ' m vs ground ' + tun.ground + ' m');
+  check('nobody is teleported underground: with no reference height the surface wins',
+    tun.noRefIsSurface !== null && tun.ground !== null && tun.noRefIsSurface >= tun.ground - 0.5,
+    'groundAt(no ref) = ' + tun.noRefIsSurface + ' vs surface ' + tun.ground);
   // The gamble. Driving into water must NOT be a lookup the player can perform
   // from the driving seat — a small pond lets you through, a lake does not, and
   // the threshold is a number nobody can eyeball.
