@@ -914,7 +914,7 @@ function check(name, cond, detail) {
   // while the ground it belonged to was at 171 m. These two guard that directly.
   const wlevel = await fr.locator('body').evaluate(() => {
     const w = window.App.world;
-    let verts = 0, atZero = 0, worst = 0, tiles = 0;
+    let verts = 0, atZero = 0, worst = 0, above = 0, tiles = 0;
     for (const k in w.roads) {
       const r = w.roads[k];
       const m = r && r.built && r.built.water;
@@ -927,9 +927,10 @@ function check(name, cond, detail) {
         verts++;
         if (Math.abs(y) < 5 && g > 50) atZero++;          // the exact old failure
         worst = Math.max(worst, Math.abs(y - g));
+        above = Math.max(above, y - g);                  // water standing ON TOP of land
       }
     }
-    return { tiles, verts, atZero, worst: +worst.toFixed(1),
+    return { tiles, verts, atZero, worst: +worst.toFixed(1), above: +above.toFixed(1),
              ground: window.Terrain.heightAt(w.frame, 0, 0) };
   });
   check('water is drawn on this fixture at all', wlevel.verts > 0, JSON.stringify(wlevel));
@@ -937,6 +938,37 @@ function check(name, cond, detail) {
     wlevel.atZero === 0, wlevel.atZero + ' of ' + wlevel.verts + ' vertices near y=0 (ground ' + wlevel.ground + ' m)');
   check('…so every water surface sits within a plausible distance of its own ground',
     wlevel.worst < 60, 'worst |water - ground| = ' + wlevel.worst + ' m');
+  // THE FLOOD GUARD, and it is directional on purpose. Water below the ground
+  // beside it is ordinary — a river is lower than its banks. Water ABOVE the
+  // ground is a lie, and it is the lie a polygon clipper produced: clipping a
+  // concave river ring to the tile joined disjoint pieces along the boundary and
+  // filled 75% of a tile at 163 m over a gorge at 100 m, which is a teal sheet
+  // across the valley with trees standing in it and fish above it.
+  check('…and water never stands ON TOP of the land (the flood)',
+    wlevel.above < 2, 'highest water above its own ground = ' + wlevel.above + ' m');
+
+  // Nothing may be planted in the river either. The sea was guarded by a height
+  // test and inland water by nothing, which only became visible once water was
+  // actually being fetched.
+  const treesWet = await fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    let sampled = 0, wet = 0, tilesWithWater = 0;
+    for (const k in w.roads) {
+      const r = w.roads[k];
+      if (!r || !r.built || !r.built.wet || !r.built.wet.length) continue;
+      tilesWithWater++;
+      const sc = r.built.trees;
+      if (!sc || !sc.positions) continue;
+      for (let i = 0; i < sc.positions.length; i += 3 * 40) {
+        sampled++;
+        if (window.Roads.waterAt(r.built.wet, sc.positions[i], sc.positions[i + 2])) wet++;
+      }
+    }
+    return { sampled, wet, tilesWithWater };
+  });
+  check('no tree grows out of the water', treesWet.wet === 0,
+    treesWet.wet + ' of ' + treesWet.sampled + ' sampled tree vertices inside a water ring, over '
+      + treesWet.tilesWithWater + ' tile(s) that have water');
 
   // A MULTIPOLYGON MEMBER IS NOT A RING, and treating one as a ring is how a
   // clifftop becomes deep water: landAt() closes an open ring implicitly, so the

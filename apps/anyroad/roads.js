@@ -1106,11 +1106,18 @@
       // Mont Blanc: portals reported as 1352 m and 3422 m, the second being the
       // roof of the Alps. Keeping the higher end there dragged the whole deck up
       // the mountain and the tunnel became the surface road again. Keep the lower.
+      // LEVEL at the end we trust, not a gentle slope away from it. Sloping was
+      // splitting the difference with a sample we have just decided is a lie, and
+      // it shows: OSM splits the Rainbow Bridge at the international border, so
+      // each half has one real abutment on the rim (163 m) and one INTERIOR end
+      // out over the river, where the terrain is the gorge floor (98 m). Allowing
+      // each half to fall 8% over 230 m sagged the deck 19 m toward the water and
+      // the bridge still dipped into the valley. A span whose ends cannot both be
+      // believed is level at the believable one — which is also what the real
+      // bridge is, rim to rim.
       var deep = kind === 2;
       var keep = deep ? Math.min(ha, hb) : Math.max(ha, hb);
-      var step = total * grade;
-      if (deep) { if (ha > hb) ha = keep + step; else hb = keep + step; }
-      else { if (ha < hb) ha = keep - step; else hb = keep - step; }
+      ha = keep; hb = keep;
     }
     return { ha: ha, hb: hb, total: total, kind: kind };
   }
@@ -1467,7 +1474,7 @@
     return r ? { height: r.id } : null;
   }
 
-  function scatter(frame, tile, geom, roadIndex, wallIndex, landIndex, coverAt) {
+  function scatter(frame, tile, geom, roadIndex, wallIndex, landIndex, coverAt, wetIndex) {
     var out = { pos: [], nrm: [], col: [], idx: [] };
     // Trunks, as collidable segments and as shadow casters. A tree you can
     // drive through is scenery; a tree you cannot is a hazard, and the whole
@@ -1500,6 +1507,12 @@
       var y = root.Terrain.heightAt(frame, x, z);
       if (y === null) { groundMisses++; return false; }   // not loaded — the tile is a guess
       if (y < 0.6) return false;                          // in the sea
+      // NOTHING GROWS IN THE RIVER. The sea was guarded by that height test and
+      // inland water by nothing at all, so every lake and river grew a forest out
+      // of it — invisible while water was barely fetched, obvious the moment it
+      // was. A pool is water too, and a tree in someone's swimming pool is the
+      // same bug.
+      if (wetIndex && wetIndex.length && waterAt(wetIndex, x, z)) return false;
       // No trees on a cliff: sample the slope the same way the car does.
       var yn = root.Terrain.heightAt(frame, x + 6, z), ye = root.Terrain.heightAt(frame, x, z + 6);
       if (yn !== null && ye !== null && Math.max(Math.abs(yn - y), Math.abs(ye - y)) > 4.2) return false;
@@ -1712,43 +1725,18 @@
     return { buildings: pack(out, ['pos']), trees: pack(twig, ['pos']) };
   }
 
-  // Sutherland-Hodgman against the four edges of an axis-aligned rectangle. The
-  // classic caveat — a concave polygon clipped this way can come back with edges
-  // running along the clip boundary where two separate pieces get joined — is
-  // harmless for what it is used for here: those edges lie exactly on a tile
-  // border, and the neighbouring tile fills the other side with water at its own
-  // level, so the join is under water either way.
-  function clipToRect(poly, r) {
-    var edges = [
-      function (p) { return p.x >= r.minX; }, function (p) { return p.x <= r.maxX; },
-      function (p) { return p.z >= r.minZ; }, function (p) { return p.z <= r.maxZ; },
-    ];
-    // Where the segment a->b crosses the boundary this edge tests.
-    var cuts = [
-      function (a, b) { return { t: (r.minX - a.x) / (b.x - a.x), axis: 'x', at: r.minX }; },
-      function (a, b) { return { t: (r.maxX - a.x) / (b.x - a.x), axis: 'x', at: r.maxX }; },
-      function (a, b) { return { t: (r.minZ - a.z) / (b.z - a.z), axis: 'z', at: r.minZ }; },
-      function (a, b) { return { t: (r.maxZ - a.z) / (b.z - a.z), axis: 'z', at: r.maxZ }; },
-    ];
-    var out = poly;
-    for (var e = 0; e < 4 && out.length; e++) {
-      var inside = edges[e], cut = cuts[e], next = [];
-      for (var i = 0; i < out.length; i++) {
-        var a = out[i], b = out[(i + 1) % out.length];
-        var ain = inside(a), bin = inside(b);
-        if (ain) next.push(a);
-        if (ain !== bin) {
-          var c = cut(a, b);
-          if (isFinite(c.t)) {
-            next.push(c.axis === 'x'
-              ? { x: c.at, z: a.z + (b.z - a.z) * c.t }
-              : { x: a.x + (b.x - a.x) * c.t, z: c.at });
-          }
-        }
-      }
-      out = next;
+  // Does this ring reach into the rectangle at all? Bounding boxes only, which is
+  // all a cull needs: a ring that overlaps is meshed whole, and one that does not
+  // is somebody else's tile. (This replaced a real polygon clip — see waterMesh
+  // for why clipping the geometry flooded the valley.)
+  function touchesRect(poly, r) {
+    var minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (var i = 0; i < poly.length; i++) {
+      var p = poly[i];
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
     }
-    return out;
+    return maxX >= r.minX && minX <= r.maxX && maxZ >= r.minZ && minZ <= r.maxZ;
   }
 
   function tileCentre(frame, tile) {
@@ -1859,20 +1847,27 @@
         var poly = toWorld(frame, rings[w]);
         if (poly.length > 2 && poly[0].x === poly[poly.length - 1].x && poly[0].z === poly[poly.length - 1].z) poly.pop();
         if (poly.length < 3) continue;
-        if (tileRect) poly = clipToRect(poly, tileRect);
-        if (poly.length < 3) continue;              // this tile holds none of it
-        // Level it from the ground under THIS piece, ignoring vertices with no
-        // terrain rather than reading them as sea level. A low percentile instead
-        // of the strict minimum: one vertex that happens to sit on a steep bank
-        // should not drag the whole surface down a cliff.
+        // CULL, not clip. Clipping the ring to the tile was a flood: Sutherland-
+        // Hodgman on a CONCAVE polygon joins disjoint pieces with edges along the
+        // clip boundary, and I claimed that was harmless for water. It is not —
+        // measured at Niagara, one river ring came back covering 902 x 899 m, 75%
+        // of its tile, meshed at 163 m over a gorge that drops to 100 m. That is
+        // the teal sheet across the whole valley with trees standing in it.
+        //
+        // So the tile rect only decides WHETHER this tile draws the ring, and the
+        // ring is meshed whole. Every tile holding part of a river then draws the
+        // same geometry at the same height — duplicated fill, but identical, so
+        // nothing fights and nothing floods.
+        if (tileRect && !touchesRect(poly, tileRect)) continue;
+        // Levelled from the WHOLE ring for that reason: a per-tile level would
+        // give each copy a different height and stack sheets of water instead.
+        // Unsampled vertices are skipped rather than read as sea level — that was
+        // the bug that pinned rivers at y=0.3 under 171 m of ground.
         var hs = [];
         for (var pi = 0; pi < poly.length; pi++) {
           var h = root.Terrain.heightAt(frame, poly[pi].x, poly[pi].z);
           if (h !== null) hs.push(h);
         }
-        // Fewer than three real samples is not a water level, it is a guess. Skip
-        // it and say so, so the tile is rebuilt when the ground arrives — drawing
-        // it at zero is what buried Niagara.
         if (hs.length < 3) { groundMisses++; continue; }
         hs.sort(function (a, b) { return a - b; });
         var level = hs[Math.floor(hs.length * 0.2)];
@@ -1895,8 +1890,12 @@
     var roadIndex = buildIndex(frame, geom);
     var wallIndex = buildWallIndex(frame, geom);
     var landIndex = buildLandIndex(frame, geom);
+    // Built BEFORE the scatter, because the scatter has to ask it where not to
+    // plant. It used to be created down in the return block, i.e. after every
+    // tree had already been placed.
+    var wetIndex = buildWaterIndex(frame, geom);
     var scenery = root.Sources.current.quality === 'normal'
-      ? scatter(frame, tile, geom, roadIndex, wallIndex, landIndex, coverAt) : null;
+      ? scatter(frame, tile, geom, roadIndex, wallIndex, landIndex, coverAt, wetIndex) : null;
     if (scenery && scenery.trunks.length) wallIndex = buildWallIndex(frame, geom, scenery.trunks);
     var shadows = buildShadows(frame, geom, scenery ? scenery.shade : []);
 
@@ -1914,7 +1913,7 @@
       centre: tileCentre(frame, tile),
       paths: paths,
       index: roadIndex,
-      wet: buildWaterIndex(frame, geom),
+      wet: wetIndex,
       roofs: buildRoofIndex(frame, geom),
       walls: wallIndex,
       // How many ground samples had no terrain under them. Zero means every
