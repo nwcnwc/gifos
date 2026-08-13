@@ -966,6 +966,41 @@ function check(name, cond, detail) {
     }
     return { sampled, wet, tilesWithWater };
   });
+  // ---- an aircraft is never inside the world --------------------------------
+  // Flight had no contact with terrain: fly at a canyon wall and you entered the
+  // rock, and because the heightfield is drawn double-sided you then looked at the
+  // UNDERSIDE of the world — the landscape hanging upside down overhead. Reported
+  // from the Grand Canyon with the altimeter reading -131 m. Escape was not
+  // reliable either: targetAgl is floored at 0 and leashed to within 90 m of the
+  // current agl, so underground it climbs to exactly agl 0 and skims the surface,
+  // and rising ground (or a held BRAKE) puts it straight back under.
+  const inRock = await fr.locator('body').evaluate(async () => {
+    const w = window.App.world, car = window.App.car();
+    const g0 = window.Terrain.heightAt(w.frame, car.x, car.z);
+    if (g0 === null) return { err: 'no ground under the car' };
+    const keep = { x: car.x, z: car.z, y: car.y, flying: car.flying };
+    window.Car.repair(car);
+    if (!car.flying) window.Car.takeOff(car);
+    car.y = g0 - 120; car.vy = 0; car.speed = 30; car.agl = -120;   // 120 m inside the rock
+    const input = { throttle: 0, brake: 0, steer: 0, handbrake: false, autoTarget: 0,
+                    park: false, go: false, fire: false, noRev: false };
+    let worst = 0;
+    for (let i = 0; i < 300; i++) {
+      window.Car.update(car, input, 0.02, w.frame);
+      const g = window.Terrain.heightAt(w.frame, car.x, car.z);
+      if (g !== null) worst = Math.min(worst, car.y - g);
+    }
+    // Put the car back where the rest of the suite expects it.
+    car.flying = keep.flying; car.falling = false; car.vy = 0; car.speed = 0;
+    window.Car.repair(car);
+    window.Car.place(car, keep.x, keep.z, car.yaw);
+    car.y = keep.y;
+    return { worstBelowGround: +worst.toFixed(1) };
+  });
+  check('an aircraft is never left inside the ground (no inverted world)',
+    !inRock.err && inRock.worstBelowGround > -0.5,
+    inRock.err || ('deepest it got below the surface after one step: ' + inRock.worstBelowGround + ' m'));
+
   check('no tree grows out of the water', treesWet.wet === 0,
     treesWet.wet + ' of ' + treesWet.sampled + ' sampled tree vertices inside a water ring, over '
       + treesWet.tilesWithWater + ' tile(s) that have water');

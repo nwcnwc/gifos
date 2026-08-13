@@ -326,6 +326,34 @@
       car.y += car.vy * dt;
       var dxf = Math.sin(car.yaw) * car.speed * dt, dzf = Math.cos(car.yaw) * car.speed * dt;
       car.x += dxf; car.z += dzf;
+
+      // AN AIRCRAFT MAY NOT BE INSIDE THE GROUND. Flight had no contact with
+      // terrain at all: fly at a canyon wall and you simply entered the rock, and
+      // because the heightfield is drawn double-sided you then looked at the
+      // underside of the world — a landscape hanging upside down over your head.
+      // Reported from the Grand Canyon at an altimeter reading of -131 m.
+      //
+      // It was not even reliably escapable. targetAgl is floored at zero and then
+      // LEASHED to within 90 m of the current agl, so underground the aircraft
+      // climbs to exactly agl 0 and levels off skimming the surface — and if the
+      // ground ahead rises faster than it climbs, or you are holding BRAKE, it
+      // goes straight back under.
+      //
+      // Contact instead, through the same slam the landing path uses, so hitting a
+      // mountain costs what hitting anything else costs and never leaves the
+      // camera inside the world.
+      if (car.y < ground) {
+        var strike = Math.max(0, -car.vy);
+        car.y = ground;
+        if (car.vy < 0) car.vy = 0;
+        if (strike > 8) {
+          var sdmg = Math.min(30, (strike - 8) * 2.2);
+          car.health = Math.max(0, car.health - sdmg);
+          car.speed *= Math.max(0.55, 1 - strike * 0.02);
+          car.slam = strike; car.slamDamage = sdmg;
+          if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+        }
+      }
       car.agl = car.y - ground;
 
       // Only a DESCENT can land you. Without this the climb-out lands on its
