@@ -1,205 +1,219 @@
 {
- "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
- "entries": [
-  {
-   "version": "0.9.7",
-   "date": "2026-08-11",
-   "headline": "A link that arrives already doing something, a chat that keeps every word, and a second voice worth listening to",
-   "notes": [
-    "A link can now arrive with the first move already made. Send someone gifos.app/?run=anyroad&go.at=36.0640,-112.1400&go.fly=1 and they land in the Grand Canyon with the wings already out — no install to understand, no place to pick, no Take off button to find. Send them a text-to-speech link and their computer says the thing out loud. GifOS shows what the link is asking for first, in the app's own words, and says plainly that it came from whoever sent the link and not from the app; nothing happens until you say yes. An app decides for itself what a link may ask for, and the rule it follows is simple: only things you could have done in one tap once the app was open. Nothing that spends money, deletes anything, or is hard to undo. Older computers are unaffected — a link like this just opens the app the ordinary way. Anyroad can also make one for you: the ☰ sheet copies a link to wherever you are standing (or flying), so \"come and see this\" is one tap instead of reading coordinates off the screen.",
-    "This is also the answer to \"I built an app, how do people get it?\" — you host the .gif anywhere and share a link. No store submission, no review, no account. That was always true and was buried in a footnote; it now has its own section in the README and in the file that teaches an AI to build one of these.",
-    "Ask AI keeps every conversation. \"＋ New chat\" used to destroy the one you were leaving — a button whose name says nothing about deleting anything quietly erased everything you had asked, and the first you heard of it was the note afterwards. Now nothing leaves this computer except through the trash button, behind a confirm. There is a History (🕘) listing every chat newest-first with its opening words, the time, and how many messages it holds, and the search box reads the WHOLE conversation, not just the title — because you look for the answer you half-remember at least as often as the question you asked. Click a row and you are back in that chat, carrying on where you stopped.",
-    "Answers arrive word by word instead of all at once — including from the brains that run on your own device. One report was six minutes of blank screen followed by everything at once; the tokens had existed the whole time, generated one at a time, with nowhere to put them. They have somewhere now. A stream also survives a server that mislabels it, which used to look exactly like \"this build doesn't stream\".",
-    "A second, better voice: Offline Neural Text to Speech (KittenTTS Nano). Eight voices, all speaking on your device with nothing leaving it. The original eSpeak voice stays exactly as it was — 1.6 MB, speaking about a second after you tap, and robotic — so the choice is yours in Settings → AI models: instant and plain, or a 24 MB download and a voice you would actually put in front of someone.",
-    "The three offline brains now warn you BEFORE you install them, not four screens down. \"EXPERIMENTAL, and SLOW — minutes per answer, not seconds\" is on the card you read before tapping and at the top of the detail page. Downloading up to 1.75 GB and then waiting six minutes for a sentence is not a trade anyone should walk into unprepared.",
-    "When you join someone's app, you can see it arriving. The app crosses the mesh from whoever already has it, which on a phone can take ten seconds or more, and until now you stared at an empty stage with the app's name above it — indistinguishable from broken. There is now a bar that says which app is copying, how far along it is, and when it moves on to opening it.",
-    "A staged speaker's video no longer freezes for the people watching through someone else. When a feed was relayed onward to several people at once, some of them could sit on a frozen picture for twelve seconds or more while everything reported itself perfectly healthy. Everyone downstream now sees what the speaker is actually doing.",
-    "In Sound It Out, the sight-word list is shared with whoever you are working with, as curriculum should be. It used to be private to whoever set it, so a host and a guest looking at THE SAME sentence saw it differently — one sounding a word out letter by letter while the other was shown it whole — and the two screens disagreed about how many words had been recorded."
-   ]
-  },
-  {
-   "version": "0.9.6",
-   "date": "2026-08-10",
-   "headline": "Video that heals in a heartbeat, a computer you can teach new abilities, and words sounded out in your own voice",
-   "notes": [
-    "When someone's connection dropped or their camera changed over, everyone downstream of them used to pay for it: the picture froze for six seconds, and once in a while it never came back at all — every hop along the way tore down what it was carrying and started again from nothing. A feed now keeps its identity from the moment it starts to the moment it truly ends, whatever happens along the way. The room routes around a lost member in about a second, usually less, and a feed that provably can't deliver anything stops pretending it can — so the room stops waiting for it and finds one that can.",
-    "If you were listening to someone on stage who had their camera off, their feed could quietly vanish for you about twenty seconds in — their side legitimately reshuffled once as the idle camera let go, and your side mistook that reshuffle for a disappearance. Nothing reshuffles any more; the feed you hold is the feed you keep.",
-    "Apps can now hand the whole computer a new ability, instead of keeping it to themselves. Put a Provider app in the new Providers folder, give it a job in Settings → AI models, and every other app that asks for that job quietly uses it — no account, no key, nothing to set up twice. Four arrived with it: Offline Text to Speech reads anything aloud, and three small text brains — BitNet, Gemma 3 and Gemma 4 — answer the cheap questions apps ask. All of them run entirely on your device. Nothing you type or say leaves it, and they keep working with the network unplugged. They are not fast, and they are honest about it now: a small brain thinking on your own machine can take minutes over a long answer, so the words appear as they are written instead of arriving all at once at the end. A long wait is no longer mistaken for a breakdown — only a provider that has genuinely gone silent is given up on.",
-    "Some of those brains are the better part of two gigabytes, far more than an app can carry inside itself. Big files now arrive as their own download, checked against a fingerprint before they are kept, stored once, reused by every launch after that, and thrown away with the icon they belong to. They stay out of whole-computer backups on purpose, so backing up stays quick.",
-    "Anyroad grew wings: press the aeroplane and the car becomes one — climb out over the roofs, hold your cruise, and pay for altitude the way a real plane does. Come down badly and you will hear it, occasionally through somebody's ceiling. Races put one flag on a real road for everybody, with a beacon you can steer toward and a finish that lets you race again.",
-    "Anyroad also drives differently, on purpose: you arrive STOPPED, and GO is the first thing you press — landing in a strange city already in motion was alarming rather than convenient. The car that drives itself is one tap away in Settings. And a keyboard driver using the stick can no longer be stranded at a standstill: W always means “more”, even from zero, which used to be exactly the speed it couldn't budge.",
-    "Anyroad kept building out. Streets carry their names, a flare goes up when you want to be found, and woods are thick even where the map forgot them — planted from the photograph when nobody wrote them down. The dash reads through the wheel with a real speedometer and an altimeter, climbing costs you, a crumpled car still drives you home, and you can shoot at your friends (it barely hurts). Your trail and the world building itself are separate questions now, and reinstalling keeps the places you saved.",
-    "The calculator grew a graph. Type an expression and it draws as you go — curves, polar shapes, implicit ones, shaded inequalities, labelled points, and functions you name once and use a line later. Type “a = 1” and you get a slider, and every other row answers while you drag it. Plain arithmetic still just gives you the number. A room graphs together; the part of the page you are looking at stays yours.",
-    "New in the store: Sound It Out — learning to read, out loud. Made for one boy with Down syndrome learning to read, and shared for every family like his: any name, word, or sentence they love, built up from its sounds in your own recorded voice, each letter lighting up as its sound plays until the sounds become the word.",
-    "Sound It Out also learned sight words — a typed list of the words you want known on sight, shown whole and never sounded out — and names now read like names rather than letters.",
-    "The one link built for a stranger was the one link that broke. Sending somebody who has never used GifOS a one-tap link to open an app worked everywhere except on their very first visit — the hop to the current release dropped the app off the end of it, and they landed on an empty Home Screen with nothing said. It carries now, including for links already sent.",
-    "The store stopped offering what your computer cannot run. Every app now states the oldest GifOS it works on, and the grid says so on the card — not one press before Install, after you have already been sold on it. If you are on an older release it names the one you would need, in words rather than a build number.",
-    "Stealing an app asks what you meant: the game and the scoreboard, or just the game. The clean copy opens fresh, and a steal now works with the cable pulled.",
-    "Smaller mendings: stealing an app now says so right on the button you pressed, instead of only in a corner you weren't looking at; the recording indicator can be dragged out of the way and remembers where you parked it, and recording audio no longer dims the very page you're reading from; and the App Store grid can finally tell you an app has an update, instead of knowing and not saying."
-   ]
-  },
-  {
-   "version": "0.9.5",
-   "date": "2026-08-07",
-   "headline": "A room that quietly split in two, a voice that went missing, and a door that could jam shut",
-   "notes": [
-    "Two people in the same room could sit there unable to see or hear each other, with nothing on screen to say why. If your browser had ever saved a password for a room name — even a different room, on a different day — it kept using it, and everyone with a different password ended up scrambling their video with a key nobody else could open. GifOS now asks the room itself which password is right instead of guessing, forgets a saved password that turns out to be wrong, and tells you in the status bar when a room you're sitting alone in is locked with a password you didn't set.",
-    "If you were on stage with your camera off, the room stopped hearing you about twenty seconds in. Turning the camera off is the default when you join, so this was one tap away. Your voice now carries on its own, with or without a camera.",
-    "A room could get stuck so that nobody new could ever join it — the door kept believing someone was still greeting people at it long after they had stopped. The door now only trusts a greeter that is genuinely still greeting.",
-    "Opening one of your apps no longer flashes the meeting toolbar for a moment before removing it. The app now paints straight away.",
-    "Someone who leaves a meeting is now properly forgotten. Their last message could arrive a fraction of a second after the room had already said goodbye, which quietly put them back in the room's list of people for over a minute — and, in the worst case, for as long as you kept the page open.",
-    "If you're offline and open a link to a specific saved version of GifOS, you now get that version rather than the newest one."
-   ]
-  },
-  {
-   "version": "0.9.4",
-   "date": "2026-08-06",
-   "headline": "Older phones and computers can join meetings again",
-   "notes": [
-    "Meetings now work on much older browsers. Until this release, joining needed a very new browser (Chrome 137, Firefox 129, Safari 17 and up) because of the signature every participant uses to prove who they are — which meant an iPhone that can no longer update was simply turned away. GifOS now carries its own copy of that signature code and uses it when the browser doesn't have its own. Nothing about the security changes: everyone in a room is still cryptographically signed, and old and new browsers sit in exactly the same room, verifying each other.",
-    "Opening one of your own apps no longer asks anything of your browser. Tapping an app on your Home Screen runs it on your device, with no network at all, so it works on any browser that can run the page — the old “too old for meetings” message could appear over a perfectly working app, and it no longer can. If you then choose to share that app live, that is when the browser check happens, and you can dismiss it and keep using the app.",
-    "When a browser genuinely can't do something, the explanation now says why in plain language — that meetings go straight between people with no server in the middle, or that everything is scrambled on your own device — instead of only naming a missing piece of technology.",
-    "The Home Screen badge on built-in apps like Meeting, Broadcast and the App Store is smaller and quieter, so it stops competing with the app's own name."
-   ]
-  },
-  {
-   "version": "0.9.3",
-   "date": "2026-08-05",
-   "headline": "Old browsers get a straight answer, and big rooms seat far more reliably",
-   "notes": [
-    "A browser that's too old for meetings now gets told exactly that — which browser, which version it needs, and how to open the link in a newer one — instead of a spinner that never ends. It turns out the real minimums are Chrome 137, Firefox 129 and Safari 17 (the meeting security layer needs them), and a new Browsers page linked from About lays out what works, what doesn't, and what we haven't measured yet.",
-    "Seating in large, fast-filling rooms is much more reliable: several ways a room could hand the same seat to two people at once are fixed at the root, and a room of thousands that used to jam partway through a mass join now fills completely in our tests.",
-    "A seat vouched for someone still walking in can no longer be stolen out from under them by a stale goodbye from the previous occupant.",
-    "Firefox is now a first-class citizen in our test fleet — a Firefox participant joins, sees video both ways, and runs shared apps."
-   ]
-  },
-  {
-   "version": "0.9.2",
-   "date": "2026-08-05",
-   "critical": true,
-   "headline": "Joining works again — the demo-night failure, fixed at the root",
-   "notes": [
-    "Joining no longer waits on the camera prompt: you get your seat immediately, and the camera joins in whenever you allow it. A prompt that never settles (common inside iPhone in-app browsers) used to silently block the join forever.",
-    "One person's bad link can no longer knock a bystander out of their seat — and a dropped phone rejoins in seconds, not minutes.",
-    "Share links minted on the newest build now open correctly on phones that have never visited before.",
-    "Meeting and Broadcast keep separate Recent & saved lists, and a broadcast link reopens as a broadcast.",
-    "Plainer words everywhere people hit trouble: connection errors, passwords, blur, and the privacy explainer."
-   ]
-  },
-  {
-   "version": "0.9.1",
-   "date": "2026-08-03",
-   "critical": false,
-   "headline": "Three meeting bugs that hid behind flaky tests",
-   "notes": [
-    "Stopping a shared app now sticks for everyone — a room could wedge half-stopped if people were joining or leaving at that exact moment.",
-    "Video that stayed frozen after a split room came back together now recovers on its own.",
-    "Joining right as your connection blips no longer wedges your seat."
-   ]
-  },
-  {
-   "version": "0.9.0",
-   "date": "2026-08-02",
-   "critical": true,
-   "headline": "Apps and meetings became one thing — and an App Store to fill them",
-   "notes": [
-    "Everyone needs this build to meet: rooms changed how they're addressed, so a computer pinned to 0.8.8 or older lands in a different room and won't see you.",
-    "An App Store on your Home Screen: browse apps, install one, and it's yours — the app crosses the wire once, on Install.",
-    "Every app is now a room. Send one link and someone joins you inside the running app, with video, exactly like a meeting.",
-    "Share your screen into a room.",
-    "An app you've opened alone gets the whole window — one thin bar instead of meeting chrome.",
-    "Home Screen icons are locked until you choose Arrange — scrolling a phone no longer drops apps into folders.",
-    "The camera stops flipping sideways, and keeps the shape your device actually gives it.",
-    "If the person hosting an app wanders off, the room freezes rather than losing your work, and hands over cleanly."
-   ]
-  },
-  {
-   "version": "0.8.8",
-   "date": "2026-07-31",
-   "critical": false,
-   "headline": "Longer phone battery in big meetings",
-   "notes": [
-    "Two lighter video rungs (down to 144p) so a phone low on battery in a crowded room stops draining.",
-    "An all-muted room wakes far less often — quiet meetings cost less power."
-   ]
-  },
-  {
-   "version": "0.8.7",
-   "date": "2026-07-30",
-   "critical": false,
-   "headline": "Deeper phone power savings",
-   "notes": [
-    "Phones now run video one to two rungs lighter in every state, so a call no longer outdrinks the charger."
-   ]
-  },
-  {
-   "version": "0.8.6",
-   "date": "2026-07-29",
-   "critical": false,
-   "headline": "Build badge on every page",
-   "notes": [
-    "A small corner badge shows which build you're running, so you no longer have to read the address bar.",
-    "Restored the version-pinning safeguard a loader redesign had quietly broken."
-   ]
-  },
-  {
-   "version": "0.8.5",
-   "date": "2026-07-26",
-   "critical": true,
-   "headline": "Invite links and room names fixed",
-   "notes": [
-    "Invite links (/meet, /call, /join) open the meeting again instead of the Home Screen.",
-    "Room names keep their capital letters, so the same link always lands everyone in the same meeting.",
-    "Sharing an app into a meeting works for guests again.",
-    "The build number in the Version panel counts correctly again."
-   ]
-  },
-  {
-   "version": "0.8.4",
-   "date": "2026-07-26",
-   "critical": false,
-   "headline": "Fullscreen view and a smoother join",
-   "notes": [
-    "New fullscreen view: one feed big, every other feed as floating thumbs.",
-    "Joining now shows a veil until your seat is real — no flash of an empty room.",
-    "Meetings start easing video quality down to match your device's battery."
-   ]
-  },
-  {
-   "version": "0.8.3",
-   "date": "2026-07-25",
-   "critical": false,
-   "headline": "Honest video, camera flip, fullscreen, votes",
-   "notes": [
-    "Tiles show your whole camera frame, not a cropped square.",
-    "Flip between front and back cameras.",
-    "A real fullscreen button (Esc or tap to exit).",
-    "Recordings carry a burned-in \"Recording — name\" badge.",
-    "Vote someone onto the stage, off it, or out of the room."
-   ]
-  },
-  {
-   "version": "0.8.2",
-   "date": "2026-07-25",
-   "critical": true,
-   "headline": "A relay blip can't split a room",
-   "notes": [
-    "Greeters re-register the instant they reconnect, so a relay hiccup no longer strands joiners or spawns a duplicate room.",
-    "Diagnostics show when someone's media is arriving via a friend-relay."
-   ]
-  },
-  {
-   "version": "0.8.1",
-   "date": "2026-07-22",
-   "critical": false,
-   "headline": "First public release",
-   "notes": [
-    "Every app is a real animated GIF you own — drop it on your Home Screen and it runs; share the file, share the app with its data inside.",
-    "Peer-to-peer meetings that scale on a self-healing mesh, with no server in the middle — run any app live inside one.",
-    "Any app goes multiplayer with one invite link.",
-    "Fully offline-capable; back up a whole computer as one GIF and boot it anywhere.",
-    "Ten themed computers, provenance signing, and per-person AI/API keys apps can use but never see."
-   ]
-  }
- ]
+  "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
+  "entries": [
+    {
+      "version": "0.9.8",
+      "date": "2026-08-14",
+      "headline": "A scanned filing becomes a spreadsheet, a voice that never leaves your computer, and a drive that stays smooth however long you drive",
+      "notes": [
+        "A PDF full of tables can now become a spreadsheet. Two apps, because there are two kinds of PDF and they are not the same problem. PDF Tables handles the ordinary kind, where the numbers are really text inside the file: it finds the tables, keeps the rows and columns as you see them, and writes an Excel file. PDF Tables OCR handles the harder kind — a SCAN, where the page is only a picture of a table and there is no text in the file at all. It reads the picture, using your computer's graphics chip to do it in a reasonable amount of time, and writes the same kind of Excel file out of it. Both run entirely on your machine, inside the sandbox: the document is never uploaded anywhere, which is the whole point when the thing you are reading is a filing, a statement, or a medical form.",
+        "A neural voice that runs on your own computer. The new offline text-to-speech provider uses your graphics chip to produce a voice that sounds like a person rather than a machine, with nothing sent to any company's server and no key to sign up for. Pick it in Settings alongside the voices your browser already had.",
+        "Apps can ask for the graphics chip. This is what makes the two above possible: an app may now request GPU access, you see it asked for in the app's own words before anything happens, and you can refuse or revoke it like every other permission. Older computers and browsers without it simply see the app say it cannot run, rather than failing halfway through.",
+        "Anyroad no longer bogs down on a long drive. A long flight could end with the engine still droning, the picture frozen, and the tab hard to close. Two causes, both fixed: the map pictures the app had finished with were never actually released to the graphics chip, so they piled up for as long as the tab was open; and every jump to a new place stranded the map squares that were still arriving, which then could never be cleared. Memory now rises and falls as you travel instead of only ever rising.",
+        "Anyroad drives Niagara properly. Rivers and lakes are drawn where they actually are rather than as a white sheet flickering over the valley, bridges are things you drive ACROSS rather than fall through, tunnels are places you drive THROUGH rather than into, and street names no longer get erased by the sky behind them.",
+        "The App Store has a Share button that hands over the tidy link to an app, so recommending one is a tap rather than copying an address out of the bar.",
+        "Chess repaints the board in place, so pieces no longer flicker or jump while your finger is still on them."
+      ]
+    },
+    {
+      "version": "0.9.7",
+      "date": "2026-08-11",
+      "headline": "A link that arrives already doing something, a chat that keeps every word, and a second voice worth listening to",
+      "notes": [
+        "A link can now arrive with the first move already made. Send someone gifos.app/?run=anyroad&go.at=36.0640,-112.1400&go.fly=1 and they land in the Grand Canyon with the wings already out — no install to understand, no place to pick, no Take off button to find. Send them a text-to-speech link and their computer says the thing out loud. GifOS shows what the link is asking for first, in the app's own words, and says plainly that it came from whoever sent the link and not from the app; nothing happens until you say yes. An app decides for itself what a link may ask for, and the rule it follows is simple: only things you could have done in one tap once the app was open. Nothing that spends money, deletes anything, or is hard to undo. Older computers are unaffected — a link like this just opens the app the ordinary way. Anyroad can also make one for you: the ☰ sheet copies a link to wherever you are standing (or flying), so \"come and see this\" is one tap instead of reading coordinates off the screen.",
+        "This is also the answer to \"I built an app, how do people get it?\" — you host the .gif anywhere and share a link. No store submission, no review, no account. That was always true and was buried in a footnote; it now has its own section in the README and in the file that teaches an AI to build one of these.",
+        "Ask AI keeps every conversation. \"＋ New chat\" used to destroy the one you were leaving — a button whose name says nothing about deleting anything quietly erased everything you had asked, and the first you heard of it was the note afterwards. Now nothing leaves this computer except through the trash button, behind a confirm. There is a History (🕘) listing every chat newest-first with its opening words, the time, and how many messages it holds, and the search box reads the WHOLE conversation, not just the title — because you look for the answer you half-remember at least as often as the question you asked. Click a row and you are back in that chat, carrying on where you stopped.",
+        "Answers arrive word by word instead of all at once — including from the brains that run on your own device. One report was six minutes of blank screen followed by everything at once; the tokens had existed the whole time, generated one at a time, with nowhere to put them. They have somewhere now. A stream also survives a server that mislabels it, which used to look exactly like \"this build doesn't stream\".",
+        "A second, better voice: Offline Neural Text to Speech (KittenTTS Nano). Eight voices, all speaking on your device with nothing leaving it. The original eSpeak voice stays exactly as it was — 1.6 MB, speaking about a second after you tap, and robotic — so the choice is yours in Settings → AI models: instant and plain, or a 24 MB download and a voice you would actually put in front of someone.",
+        "The three offline brains now warn you BEFORE you install them, not four screens down. \"EXPERIMENTAL, and SLOW — minutes per answer, not seconds\" is on the card you read before tapping and at the top of the detail page. Downloading up to 1.75 GB and then waiting six minutes for a sentence is not a trade anyone should walk into unprepared.",
+        "When you join someone's app, you can see it arriving. The app crosses the mesh from whoever already has it, which on a phone can take ten seconds or more, and until now you stared at an empty stage with the app's name above it — indistinguishable from broken. There is now a bar that says which app is copying, how far along it is, and when it moves on to opening it.",
+        "A staged speaker's video no longer freezes for the people watching through someone else. When a feed was relayed onward to several people at once, some of them could sit on a frozen picture for twelve seconds or more while everything reported itself perfectly healthy. Everyone downstream now sees what the speaker is actually doing.",
+        "In Sound It Out, the sight-word list is shared with whoever you are working with, as curriculum should be. It used to be private to whoever set it, so a host and a guest looking at THE SAME sentence saw it differently — one sounding a word out letter by letter while the other was shown it whole — and the two screens disagreed about how many words had been recorded."
+      ]
+    },
+    {
+      "version": "0.9.6",
+      "date": "2026-08-10",
+      "headline": "Video that heals in a heartbeat, a computer you can teach new abilities, and words sounded out in your own voice",
+      "notes": [
+        "When someone's connection dropped or their camera changed over, everyone downstream of them used to pay for it: the picture froze for six seconds, and once in a while it never came back at all — every hop along the way tore down what it was carrying and started again from nothing. A feed now keeps its identity from the moment it starts to the moment it truly ends, whatever happens along the way. The room routes around a lost member in about a second, usually less, and a feed that provably can't deliver anything stops pretending it can — so the room stops waiting for it and finds one that can.",
+        "If you were listening to someone on stage who had their camera off, their feed could quietly vanish for you about twenty seconds in — their side legitimately reshuffled once as the idle camera let go, and your side mistook that reshuffle for a disappearance. Nothing reshuffles any more; the feed you hold is the feed you keep.",
+        "Apps can now hand the whole computer a new ability, instead of keeping it to themselves. Put a Provider app in the new Providers folder, give it a job in Settings → AI models, and every other app that asks for that job quietly uses it — no account, no key, nothing to set up twice. Four arrived with it: Offline Text to Speech reads anything aloud, and three small text brains — BitNet, Gemma 3 and Gemma 4 — answer the cheap questions apps ask. All of them run entirely on your device. Nothing you type or say leaves it, and they keep working with the network unplugged. They are not fast, and they are honest about it now: a small brain thinking on your own machine can take minutes over a long answer, so the words appear as they are written instead of arriving all at once at the end. A long wait is no longer mistaken for a breakdown — only a provider that has genuinely gone silent is given up on.",
+        "Some of those brains are the better part of two gigabytes, far more than an app can carry inside itself. Big files now arrive as their own download, checked against a fingerprint before they are kept, stored once, reused by every launch after that, and thrown away with the icon they belong to. They stay out of whole-computer backups on purpose, so backing up stays quick.",
+        "Anyroad grew wings: press the aeroplane and the car becomes one — climb out over the roofs, hold your cruise, and pay for altitude the way a real plane does. Come down badly and you will hear it, occasionally through somebody's ceiling. Races put one flag on a real road for everybody, with a beacon you can steer toward and a finish that lets you race again.",
+        "Anyroad also drives differently, on purpose: you arrive STOPPED, and GO is the first thing you press — landing in a strange city already in motion was alarming rather than convenient. The car that drives itself is one tap away in Settings. And a keyboard driver using the stick can no longer be stranded at a standstill: W always means “more”, even from zero, which used to be exactly the speed it couldn't budge.",
+        "Anyroad kept building out. Streets carry their names, a flare goes up when you want to be found, and woods are thick even where the map forgot them — planted from the photograph when nobody wrote them down. The dash reads through the wheel with a real speedometer and an altimeter, climbing costs you, a crumpled car still drives you home, and you can shoot at your friends (it barely hurts). Your trail and the world building itself are separate questions now, and reinstalling keeps the places you saved.",
+        "The calculator grew a graph. Type an expression and it draws as you go — curves, polar shapes, implicit ones, shaded inequalities, labelled points, and functions you name once and use a line later. Type “a = 1” and you get a slider, and every other row answers while you drag it. Plain arithmetic still just gives you the number. A room graphs together; the part of the page you are looking at stays yours.",
+        "New in the store: Sound It Out — learning to read, out loud. Made for one boy with Down syndrome learning to read, and shared for every family like his: any name, word, or sentence they love, built up from its sounds in your own recorded voice, each letter lighting up as its sound plays until the sounds become the word.",
+        "Sound It Out also learned sight words — a typed list of the words you want known on sight, shown whole and never sounded out — and names now read like names rather than letters.",
+        "The one link built for a stranger was the one link that broke. Sending somebody who has never used GifOS a one-tap link to open an app worked everywhere except on their very first visit — the hop to the current release dropped the app off the end of it, and they landed on an empty Home Screen with nothing said. It carries now, including for links already sent.",
+        "The store stopped offering what your computer cannot run. Every app now states the oldest GifOS it works on, and the grid says so on the card — not one press before Install, after you have already been sold on it. If you are on an older release it names the one you would need, in words rather than a build number.",
+        "Stealing an app asks what you meant: the game and the scoreboard, or just the game. The clean copy opens fresh, and a steal now works with the cable pulled.",
+        "Smaller mendings: stealing an app now says so right on the button you pressed, instead of only in a corner you weren't looking at; the recording indicator can be dragged out of the way and remembers where you parked it, and recording audio no longer dims the very page you're reading from; and the App Store grid can finally tell you an app has an update, instead of knowing and not saying."
+      ]
+    },
+    {
+      "version": "0.9.5",
+      "date": "2026-08-07",
+      "headline": "A room that quietly split in two, a voice that went missing, and a door that could jam shut",
+      "notes": [
+        "Two people in the same room could sit there unable to see or hear each other, with nothing on screen to say why. If your browser had ever saved a password for a room name — even a different room, on a different day — it kept using it, and everyone with a different password ended up scrambling their video with a key nobody else could open. GifOS now asks the room itself which password is right instead of guessing, forgets a saved password that turns out to be wrong, and tells you in the status bar when a room you're sitting alone in is locked with a password you didn't set.",
+        "If you were on stage with your camera off, the room stopped hearing you about twenty seconds in. Turning the camera off is the default when you join, so this was one tap away. Your voice now carries on its own, with or without a camera.",
+        "A room could get stuck so that nobody new could ever join it — the door kept believing someone was still greeting people at it long after they had stopped. The door now only trusts a greeter that is genuinely still greeting.",
+        "Opening one of your apps no longer flashes the meeting toolbar for a moment before removing it. The app now paints straight away.",
+        "Someone who leaves a meeting is now properly forgotten. Their last message could arrive a fraction of a second after the room had already said goodbye, which quietly put them back in the room's list of people for over a minute — and, in the worst case, for as long as you kept the page open.",
+        "If you're offline and open a link to a specific saved version of GifOS, you now get that version rather than the newest one."
+      ]
+    },
+    {
+      "version": "0.9.4",
+      "date": "2026-08-06",
+      "headline": "Older phones and computers can join meetings again",
+      "notes": [
+        "Meetings now work on much older browsers. Until this release, joining needed a very new browser (Chrome 137, Firefox 129, Safari 17 and up) because of the signature every participant uses to prove who they are — which meant an iPhone that can no longer update was simply turned away. GifOS now carries its own copy of that signature code and uses it when the browser doesn't have its own. Nothing about the security changes: everyone in a room is still cryptographically signed, and old and new browsers sit in exactly the same room, verifying each other.",
+        "Opening one of your own apps no longer asks anything of your browser. Tapping an app on your Home Screen runs it on your device, with no network at all, so it works on any browser that can run the page — the old “too old for meetings” message could appear over a perfectly working app, and it no longer can. If you then choose to share that app live, that is when the browser check happens, and you can dismiss it and keep using the app.",
+        "When a browser genuinely can't do something, the explanation now says why in plain language — that meetings go straight between people with no server in the middle, or that everything is scrambled on your own device — instead of only naming a missing piece of technology.",
+        "The Home Screen badge on built-in apps like Meeting, Broadcast and the App Store is smaller and quieter, so it stops competing with the app's own name."
+      ]
+    },
+    {
+      "version": "0.9.3",
+      "date": "2026-08-05",
+      "headline": "Old browsers get a straight answer, and big rooms seat far more reliably",
+      "notes": [
+        "A browser that's too old for meetings now gets told exactly that — which browser, which version it needs, and how to open the link in a newer one — instead of a spinner that never ends. It turns out the real minimums are Chrome 137, Firefox 129 and Safari 17 (the meeting security layer needs them), and a new Browsers page linked from About lays out what works, what doesn't, and what we haven't measured yet.",
+        "Seating in large, fast-filling rooms is much more reliable: several ways a room could hand the same seat to two people at once are fixed at the root, and a room of thousands that used to jam partway through a mass join now fills completely in our tests.",
+        "A seat vouched for someone still walking in can no longer be stolen out from under them by a stale goodbye from the previous occupant.",
+        "Firefox is now a first-class citizen in our test fleet — a Firefox participant joins, sees video both ways, and runs shared apps."
+      ]
+    },
+    {
+      "version": "0.9.2",
+      "date": "2026-08-05",
+      "critical": true,
+      "headline": "Joining works again — the demo-night failure, fixed at the root",
+      "notes": [
+        "Joining no longer waits on the camera prompt: you get your seat immediately, and the camera joins in whenever you allow it. A prompt that never settles (common inside iPhone in-app browsers) used to silently block the join forever.",
+        "One person's bad link can no longer knock a bystander out of their seat — and a dropped phone rejoins in seconds, not minutes.",
+        "Share links minted on the newest build now open correctly on phones that have never visited before.",
+        "Meeting and Broadcast keep separate Recent & saved lists, and a broadcast link reopens as a broadcast.",
+        "Plainer words everywhere people hit trouble: connection errors, passwords, blur, and the privacy explainer."
+      ]
+    },
+    {
+      "version": "0.9.1",
+      "date": "2026-08-03",
+      "critical": false,
+      "headline": "Three meeting bugs that hid behind flaky tests",
+      "notes": [
+        "Stopping a shared app now sticks for everyone — a room could wedge half-stopped if people were joining or leaving at that exact moment.",
+        "Video that stayed frozen after a split room came back together now recovers on its own.",
+        "Joining right as your connection blips no longer wedges your seat."
+      ]
+    },
+    {
+      "version": "0.9.0",
+      "date": "2026-08-02",
+      "critical": true,
+      "headline": "Apps and meetings became one thing — and an App Store to fill them",
+      "notes": [
+        "Everyone needs this build to meet: rooms changed how they're addressed, so a computer pinned to 0.8.8 or older lands in a different room and won't see you.",
+        "An App Store on your Home Screen: browse apps, install one, and it's yours — the app crosses the wire once, on Install.",
+        "Every app is now a room. Send one link and someone joins you inside the running app, with video, exactly like a meeting.",
+        "Share your screen into a room.",
+        "An app you've opened alone gets the whole window — one thin bar instead of meeting chrome.",
+        "Home Screen icons are locked until you choose Arrange — scrolling a phone no longer drops apps into folders.",
+        "The camera stops flipping sideways, and keeps the shape your device actually gives it.",
+        "If the person hosting an app wanders off, the room freezes rather than losing your work, and hands over cleanly."
+      ]
+    },
+    {
+      "version": "0.8.8",
+      "date": "2026-07-31",
+      "critical": false,
+      "headline": "Longer phone battery in big meetings",
+      "notes": [
+        "Two lighter video rungs (down to 144p) so a phone low on battery in a crowded room stops draining.",
+        "An all-muted room wakes far less often — quiet meetings cost less power."
+      ]
+    },
+    {
+      "version": "0.8.7",
+      "date": "2026-07-30",
+      "critical": false,
+      "headline": "Deeper phone power savings",
+      "notes": [
+        "Phones now run video one to two rungs lighter in every state, so a call no longer outdrinks the charger."
+      ]
+    },
+    {
+      "version": "0.8.6",
+      "date": "2026-07-29",
+      "critical": false,
+      "headline": "Build badge on every page",
+      "notes": [
+        "A small corner badge shows which build you're running, so you no longer have to read the address bar.",
+        "Restored the version-pinning safeguard a loader redesign had quietly broken."
+      ]
+    },
+    {
+      "version": "0.8.5",
+      "date": "2026-07-26",
+      "critical": true,
+      "headline": "Invite links and room names fixed",
+      "notes": [
+        "Invite links (/meet, /call, /join) open the meeting again instead of the Home Screen.",
+        "Room names keep their capital letters, so the same link always lands everyone in the same meeting.",
+        "Sharing an app into a meeting works for guests again.",
+        "The build number in the Version panel counts correctly again."
+      ]
+    },
+    {
+      "version": "0.8.4",
+      "date": "2026-07-26",
+      "critical": false,
+      "headline": "Fullscreen view and a smoother join",
+      "notes": [
+        "New fullscreen view: one feed big, every other feed as floating thumbs.",
+        "Joining now shows a veil until your seat is real — no flash of an empty room.",
+        "Meetings start easing video quality down to match your device's battery."
+      ]
+    },
+    {
+      "version": "0.8.3",
+      "date": "2026-07-25",
+      "critical": false,
+      "headline": "Honest video, camera flip, fullscreen, votes",
+      "notes": [
+        "Tiles show your whole camera frame, not a cropped square.",
+        "Flip between front and back cameras.",
+        "A real fullscreen button (Esc or tap to exit).",
+        "Recordings carry a burned-in \"Recording — name\" badge.",
+        "Vote someone onto the stage, off it, or out of the room."
+      ]
+    },
+    {
+      "version": "0.8.2",
+      "date": "2026-07-25",
+      "critical": true,
+      "headline": "A relay blip can't split a room",
+      "notes": [
+        "Greeters re-register the instant they reconnect, so a relay hiccup no longer strands joiners or spawns a duplicate room.",
+        "Diagnostics show when someone's media is arriving via a friend-relay."
+      ]
+    },
+    {
+      "version": "0.8.1",
+      "date": "2026-07-22",
+      "critical": false,
+      "headline": "First public release",
+      "notes": [
+        "Every app is a real animated GIF you own — drop it on your Home Screen and it runs; share the file, share the app with its data inside.",
+        "Peer-to-peer meetings that scale on a self-healing mesh, with no server in the middle — run any app live inside one.",
+        "Any app goes multiplayer with one invite link.",
+        "Fully offline-capable; back up a whole computer as one GIF and boot it anywhere.",
+        "Ten themed computers, provenance signing, and per-person AI/API keys apps can use but never see."
+      ]
+    }
+  ]
 }
