@@ -93,6 +93,13 @@
       // map: a queue that never drains because its work keeps being cancelled.
       if (slot && slot.pending) continue;
       if (slot && slot.rec && slot.rec.mesh && slot.rec.mesh.release) slot.rec.mesh.release();
+      // AND THE PHOTOGRAPH, not just the mesh. Eviction released a tile's
+      // geometry and left its imagery texture on the GPU for ever — the mesh is
+      // the cheap half. Nothing ever deleted a GL texture in this app, so a long
+      // drive accumulated one per tile visited until the tab died; measured on a
+      // fleet box, a quarter of an hour of flying was enough to see the frame rate
+      // halve. The key is the one maybeLoadImagery used.
+      if (slot && root.Render && root.Render.dropTexture) root.Render.dropTexture('img' + k);
       if (slot && slot.built) {
         MESHES.forEach(function (m) {
           if (slot.built[m] && slot.built[m].release) slot.built[m].release();
