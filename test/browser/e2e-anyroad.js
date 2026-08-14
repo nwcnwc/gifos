@@ -2607,6 +2607,36 @@ function check(name, cond, detail) {
   check('…the setting genuinely turns them off', labels.off === 0, labels.off + ' left');
   check('…and the frame loop survived a brand-new GL program', labels.running, 'frames advanced');
 
+  // ---- the share link is WHERE YOU ARE ------------------------------------
+  // The ☰ sheet's whole promise is "a link to wherever you are standing", and
+  // it was minted from f.lat0/lon0 — the frame ORIGIN, i.e. the point hop()
+  // dropped you at. Reported from the Grand Canyon: a link made at the Colorado
+  // River, after driving six kilometres down from the rim, came back pointing
+  // at Grand Canyon Village, and following it took you nowhere near the water.
+  // The bug is invisible until you have travelled, which is why nothing caught
+  // it: at the drop point the two answers are identical.
+  const share = await fr.locator('body').evaluate(() => {
+    const readLink = () => {
+      document.getElementById('btn-menu').click();
+      const v = document.getElementById('share-url').value;
+      document.getElementById('close-settings').click();
+      return v;
+    };
+    const before = readLink();
+    const c = window.App.car(), f = window.App.world.frame;
+    const x0 = c.x, z0 = c.z;
+    c.x += 3000; c.z += 1200;                    // 3.2 km away, as down a canyon
+    const at = f.toGeo(c.x, c.z);
+    const after = readLink();
+    c.x = x0; c.z = z0;                          // leave the car where we found it
+    return { before, after, origin: f.lat0.toFixed(5) + ',' + f.lon0.toFixed(5),
+             car: at.lat.toFixed(5) + ',' + at.lon.toFixed(5) };
+  });
+  check('the share link carries a place at all', /go\.at=-?\d/.test(share.before), share.before);
+  check('…and after driving away it points at the CAR, not the drop point',
+    share.after.indexOf(share.car) >= 0 && share.after.indexOf(share.origin) < 0,
+    'origin ' + share.origin + ', car ' + share.car + ' -> ' + share.after.split('go.at=')[1]);
+
   // ---- the plate cache is CAPPED, and the GPU follows ----------------------
   // Every distinct street name rasterises to a canvas and a GL texture, and
   // street names are unbounded — a long drive meets thousands. They were kept
