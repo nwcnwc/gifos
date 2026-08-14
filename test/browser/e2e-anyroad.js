@@ -2586,6 +2586,61 @@ function check(name, cond, detail) {
   check('…the setting genuinely turns them off', labels.off === 0, labels.off + ' left');
   check('…and the frame loop survived a brand-new GL program', labels.running, 'frames advanced');
 
+  // ---- the plate cache is CAPPED, and the GPU follows ----------------------
+  // Every distinct street name rasterises to a canvas and a GL texture, and
+  // street names are unbounded — a long drive meets thousands. They were kept
+  // for the life of the tab, on the GPU, where nothing collects them. The fix
+  // is an LRU capped at 160 with a real gl.deleteTexture behind it.
+  //
+  // It went a week UNPROVEN because it is only reachable from the frame loop:
+  // the soak drove a car around and reported labels=1, since the fixture put
+  // every road at the Paris preset and a hop leaves them hundreds of km behind
+  // the car. Rather than drive past 160 real streets and hope, ask the cache
+  // directly — 700 names is a long afternoon's driving and takes a second here.
+  //
+  // Two claims, and the second is the one that was actually broken: the map
+  // being capped means nothing if the TEXTURES it dropped stayed on the GPU.
+  const LABEL_CAP = 160;
+  const lru = await fr.locator('body').evaluate((cap) => {
+    const base = window.Render.stats();
+    for (let i = 0; i < 500; i++) window.Render.labelFor('Cap Street ' + i);
+    const at500 = window.Render.stats();
+    for (let i = 500; i < 700; i++) window.Render.labelFor('Cap Street ' + i);
+    const at700 = window.Render.stats();
+    // A name still in use must SURVIVE the sweep that evicts the cold ones —
+    // an LRU that drops the road you are standing on rebuilds it every frame,
+    // which is the garbage-collection pause the cache exists to prevent.
+    window.Render.labelFor('Hot Lane');
+    const hotBefore = window.Render.stats().labels;
+    for (let i = 700; i < 900; i++) {
+      window.Render.labelFor('Cap Street ' + i);
+      window.Render.labelFor('Hot Lane');            // touched throughout: always hot
+    }
+    const afterHot = window.Render.stats();
+    // If 'Hot Lane' had been evicted this re-creates it and the count climbs.
+    const beforeReask = afterHot.labels;
+    window.Render.labelFor('Hot Lane');
+    const afterReask = window.Render.stats().labels;
+    return { base, at500, at700, afterHot, hotBefore, beforeReask, afterReask, cap };
+  }, LABEL_CAP);
+  check('the street-name cache holds at its cap, however many names go past',
+    lru.at500.labels <= LABEL_CAP && lru.at700.labels <= LABEL_CAP,
+    '500 names -> ' + lru.at500.labels + ' cached, 700 -> ' + lru.at700.labels
+    + ' (cap ' + LABEL_CAP + ')');
+  // THE LEAK ITSELF. The map can be capped while every texture it evicted is
+  // still on the GPU — that is exactly the state this app shipped in, and no
+  // count of cache ENTRIES can see it.
+  check('…and the GL textures go with them, rather than piling up on the GPU',
+    lru.at700.textures - lru.base.textures <= LABEL_CAP,
+    '700 names added ' + (lru.at700.textures - lru.base.textures) + ' textures'
+    + ' — one per name would be 700');
+  check('…so 200 more names cost no more GPU than the first 500 did',
+    lru.at700.textures <= lru.at500.textures,
+    lru.at500.textures + ' textures at 500 names, ' + lru.at700.textures + ' at 700');
+  check('…while a name still in use survives the sweep that evicts the cold ones',
+    lru.afterReask === lru.beforeReask,
+    'cache ' + lru.beforeReask + ' -> ' + lru.afterReask + ' on re-asking for the hot name');
+
   // ---- where the labels are, and whether the sky eats them ------------------
   // Three defects lived here at once and only one of them was visible in the
   // name list, which is all the checks above can see.
