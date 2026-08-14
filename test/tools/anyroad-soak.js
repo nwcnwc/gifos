@@ -215,9 +215,22 @@ const PLACES = [
     // passed enough streets — flat at 160 while the world offered thousands of
     // names is the fix working, not the leak. Only judge it against what it was
     // actually offered.
-    if (k === 'labels' && served > LABEL_CACHE_MAX && peakLabels <= LABEL_CACHE_MAX) {
-      console.log('OK       labels held at or under the ' + LABEL_CACHE_MAX + ' cap (peak '
-        + peakLabels + ') while the world served ' + served + ' distinct street names');
+    // Say WHICH of the two happened, because they are different claims and only
+    // one of them is about the LRU. Reaching the cap and stopping there is the
+    // eviction working. Never reaching it is the cache simply never filling —
+    // true, reassuring, and NOT evidence that eviction works. Conflating them
+    // would let this tool report a working LRU on a run that never evicted
+    // anything, which is the exact overclaim it spent a week making already.
+    if (k === 'labels' && served > LABEL_CACHE_MAX && peakLabels >= LABEL_CACHE_MAX) {
+      console.log('OK       labels held AT the ' + LABEL_CACHE_MAX + ' cap (peak ' + peakLabels
+        + ') while the world served ' + served + ' distinct street names — the LRU evicted');
+      continue;
+    }
+    if (k === 'labels' && peakLabels < LABEL_CACHE_MAX) {
+      console.log('OK       labels peaked at ' + peakLabels + ', below the ' + LABEL_CACHE_MAX
+        + ' cap, out of ' + served + ' distinct names the world served — bounded, but this run'
+        + ' never filled the cache, so it says NOTHING about eviction. That is proven'
+        + ' directly in e2e-anyroad (700 names -> 160 held, 156 textures).');
       continue;
     }
     if (k === 'labels' && served <= LABEL_CACHE_MAX) {
