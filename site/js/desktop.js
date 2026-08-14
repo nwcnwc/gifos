@@ -529,9 +529,41 @@
   }
 
   // ---------- rendering ----------
+  // THE ICON'S PICTURE, AND NOTHING ELSE.
+  //
+  // An app is a GIF with a whole filesystem inside it and can run to hundreds of
+  // megabytes, of which the icon shows only the animation — usually a 32px
+  // sticker of a few kilobytes. Handing the whole file to an <img> copies every
+  // one of those megabytes into a Blob and then decodes past them, once per app
+  // on screen, which is most of what a Home Screen full of apps costs to paint.
+  //
+  // So the picture is built from the animation ALONE — normally the ornament
+  // that putFile cut when the file was written, handed in by render(). The
+  // strip here is the BACKSTOP for the paths that have no ornament (a page
+  // without the codec, a file mid-migration): it is idempotent, so an ornament
+  // passes straight through, and it makes the invariant absolute rather than
+  // conventional — nothing with an app inside it ever reaches an <img>.
+  //
+  // Either way it removes the GifOS Application Extension whole, which every
+  // GIF decoder was skipping anyway, leaving every pixel byte identical — same
+  // frames, same palette, same timing. Nothing about how the icon LOOKS changes.
+  //
+  // This is a DISPLAY-LEVEL change and must stay one. These bytes are not the
+  // app: they do not decode, they hold no manifest, no saved state, no
+  // signature, and their hash is not the app's hash. Every other path —
+  // run, install, export, share, sign, verify, back up, putFile — reads the
+  // original bytes from the store and must continue to. That is why the strip
+  // lives HERE, at the one function whose output is an <img> src, and not in
+  // getFile or anywhere near the store.
   function blobUrlFor(fileId, bytes) {
     if (blobUrls.has(fileId)) return blobUrls.get(fileId);
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
+    let art = bytes;
+    // Never let a picture optimisation cost us a picture: on anything
+    // unexpected stripForDisplay returns the original, and if it throws we
+    // still show the file exactly as it is.
+    try { if (GifOS.gif && GifOS.gif.stripForDisplay) art = GifOS.gif.stripForDisplay(bytes); }
+    catch (e) { art = bytes; }
+    const url = URL.createObjectURL(new Blob([art], { type: 'image/gif' }));
     blobUrls.set(fileId, url);
     return url;
   }
@@ -547,6 +579,39 @@
     if (!fileId) return Promise.resolve(null);
     if (fileCache.has(fileId)) return Promise.resolve(fileCache.get(fileId));
     return store.getFile(fileId).then((f) => { const v = f || null; fileCache.set(fileId, v); return v; });
+  }
+  // The ORNAMENT per fileId: the animation alone, with no app inside it. Read
+  // from the '::art' sibling database, where putFile cut it when the file was
+  // written — so the common path never deserialises an app to paint its icon.
+  //
+  // A file written before ornaments existed has none; rather than make that a
+  // permanent slow path, cut it here on first sight and store it, so a desktop
+  // migrates itself one icon at a time. `srcLen` catches an ornament left
+  // behind by bytes that changed without going through putFile.
+  const artCache = new Map(); // fileId -> Uint8Array (animation only) or null
+  function getArtCached(fileId, file) {
+    if (!fileId) return Promise.resolve(null);
+    if (artCache.has(fileId)) return Promise.resolve(artCache.get(fileId));
+    const cut = () => {
+      if (!file || file.kind !== 'gif' || !file.bytes) return null;
+      const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+      try {
+        const a = (GifOS.gif && GifOS.gif.stripForDisplay) ? GifOS.gif.stripForDisplay(bytes) : bytes;
+        if (store.putArt) Promise.resolve(store.putArt(file)).catch(() => {});
+        return a;
+      } catch (e) { return bytes; }   // never let this cost us the picture
+    };
+    return Promise.resolve(store.getArt ? store.getArt(fileId) : null).then((rec) => {
+      let a = null;
+      if (rec && rec.art) {
+        const stored = rec.art instanceof Uint8Array ? rec.art : new Uint8Array(rec.art);
+        const fresh = !file || !file.bytes || rec.srcLen === file.bytes.length;
+        if (fresh) a = stored;
+      }
+      if (!a) a = cut();
+      artCache.set(fileId, a);
+      return a;
+    }).catch(() => { const a = cut(); artCache.set(fileId, a); return a; });
   }
   // The signed app's declared short name + version (for the identity pill on its
   // tile). Reading it means decoding the GIF's manifest, so we do it once per
@@ -574,6 +639,7 @@
     if (!fileId) return;
     fileCache.delete(fileId);
     appMetaCache.delete(fileId);
+    artCache.delete(fileId);
     if (blobUrls.has(fileId)) { URL.revokeObjectURL(blobUrls.get(fileId)); blobUrls.delete(fileId); }
     for (const [id, e] of iconCache) if (e.fileId === fileId) iconCache.delete(id);
   }
@@ -582,6 +648,7 @@
   function dropRenderCaches() {
     fileCache.clear();
     appMetaCache.clear();
+    artCache.clear();
     iconCache.clear();
     for (const url of blobUrls.values()) URL.revokeObjectURL(url);
     blobUrls.clear();
@@ -601,7 +668,7 @@
     if (blobUrls.size > CACHE_CAP) {
       for (const [id, url] of blobUrls) {
         if (blobUrls.size <= CACHE_CAP) break;
-        if (!keepFileIds.has(id)) { URL.revokeObjectURL(url); blobUrls.delete(id); }
+        if (!keepFileIds.has(id)) { URL.revokeObjectURL(url); blobUrls.delete(id); artCache.delete(id); }
       }
     }
   }
@@ -634,6 +701,13 @@
     const visible = items.filter((it) => (it.parent || null) === currentFolder);
     // One batched, cached read instead of a serial getFile() per icon per paint.
     const files = await Promise.all(visible.map((it) => getFileCached(it.fileId)));
+    // THE PICTURES, SEPARATELY FROM THE APPS THEY CAME FROM. Each is the
+    // animation alone, stripped once when the file was written (store.putFile
+    // -> the '::art' sibling database), so what reaches the DOM is a few
+    // kilobytes of sticker rather than a copy of an entire app. A file written
+    // by an older build has no ornament yet: getArtCached cuts one on first
+    // sight and stores it, so a desktop migrates itself as it paints.
+    const arts = await Promise.all(visible.map((it, i) => getArtCached(it.fileId, files[i])));
     // "NEW" freshness per tile (an app with no saved data yet). Batched with the
     // file read; system launchers and non-apps are never fresh (no NEW badge).
     // Folded into the icon key so a tile rebuilds the moment its app gains data.
@@ -674,7 +748,7 @@
       const key = iconKey(it, files[i], fresh[i], metas[i]) + (mirrors[i] ? '|mir' : '');
       let entry = iconCache.get(it.id);
       if (!entry || entry.key !== key) {
-        entry = { el: buildIcon(it, files[i], fresh[i], metas[i], mirrors[i]), key, fileId: it.fileId };
+        entry = { el: buildIcon(it, files[i], fresh[i], metas[i], mirrors[i], arts[i]), key, fileId: it.fileId };
         iconCache.set(it.id, entry);
       } else {
         // Reuse the node, but re-assert its authoritative position/selection —
@@ -749,7 +823,7 @@
     }, { once: true });
     return img;
   }
-  function buildIcon(it, file, fresh, meta, isMirror) {
+  function buildIcon(it, file, fresh, meta, isMirror, art) {
     const el = document.createElement('div');
     el.className = 'icon' + (it.kind === 'folder' ? ' folder' : '') + (it.id === selectedId ? ' selected' : '');
     el.style.left = (it.x || 16) + 'px';
@@ -766,16 +840,16 @@
       // folders are GIFs too — the icon IS the folder's own animated GIF
       if (file) {
         const fbytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
-        thumb.appendChild(thumbImg(it.fileId, fbytes, it.name));
+        thumb.appendChild(thumbImg(it.fileId, art || fbytes, it.name));
         signableFiles.add(it.fileId);
-        addSigBadge(thumb, it, fbytes);
+        addSigBadge(thumb, it, fbytes);   // the SIGNATURE needs the real file
       } else {
         thumb.textContent = '📁'; // system folders (Trash, Stolen Apps) have no GIF
       }
     } else {
       if (file && file.kind === 'gif') {
         const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
-        thumb.appendChild(thumbImg(it.fileId, bytes, it.name));
+        thumb.appendChild(thumbImg(it.fileId, art || bytes, it.name));
         signableFiles.add(it.fileId); // it's a GIF — signing/verifying applies
         addSigBadge(thumb, it, bytes); // shield if the GIF carries a signature
         // "NEW" tag (bottom-left, opposite the shield) on apps you haven't put

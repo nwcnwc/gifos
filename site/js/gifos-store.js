@@ -116,6 +116,70 @@
       }));
     }
 
+    // The SIBLING ornament database — '<dbName>::art', its own version line,
+    // one 'art' store keyed by fileId. Sibling for the same reason as assets:
+    // DB_VERSION above must not move, so new storage arrives as a database old
+    // builds never open.
+    //
+    // WHAT IT HOLDS, and why it is worth a database. An app is a GIF with a
+    // whole filesystem inside it — hundreds of megabytes — and the only part a
+    // Home Screen ever shows is the animation, typically a few kilobytes of
+    // sticker. Painting used to read the FILE record for every icon, which
+    // means IndexedDB deserialises the entire app to reach two flags and a
+    // picture, and then the picture is copied again into a Blob for the <img>.
+    // A desktop of ten apps paid that ten times, on every repaint.
+    //
+    // So the ornament is stripped ONCE, when the file is written, and kept
+    // here beside the handful of fields an icon actually needs. A repaint then
+    // touches kilobytes instead of the whole computer.
+    //
+    // IT IS A CACHE, NOT THE FILE. `art` will not decode, holds no manifest, no
+    // saved state and no signature, and its hash is not the app's hash. Nothing
+    // may run, install, export, share, sign or verify from it — those all read
+    // the real bytes through getFile(), as they always did. Deleting this whole
+    // database costs a repaint and nothing else.
+    let rdbp = null;
+    function openArt() {
+      if (rdbp) return rdbp;
+      rdbp = new Promise((resolve, reject) => {
+        const req = indexedDB.open(dbName + '::art', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('art')) db.createObjectStore('art', { keyPath: 'fileId' });
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      return rdbp;
+    }
+    function rtx(mode, fn) {
+      return openArt().then((db) => new Promise((resolve, reject) => {
+        const t = db.transaction('art', mode);
+        const os = t.objectStore('art');
+        let result;
+        Promise.resolve(fn(os)).then((r) => { result = r; }, reject);
+        t.oncomplete = () => resolve(result);
+        t.onerror = () => reject(t.error);
+        t.onabort = () => reject(t.error);
+      }));
+    }
+    // Build the ornament record for a file. Returns null when there is nothing
+    // to show (not a gif) or the codec is not loaded on this page — both mean
+    // "paint the old way", never "fail".
+    function ornamentOf(rec) {
+      if (!rec || !rec.bytes || rec.kind !== 'gif') return null;
+      const codec = (root.GifOS || {}).gif;
+      if (!codec || !codec.stripForDisplay) return null;
+      let art;
+      // A picture optimisation may never cost us the picture: on anything
+      // unexpected the strip returns the original, and if it throws we simply
+      // store no ornament and the icon falls back to the file.
+      try { art = codec.stripForDisplay(rec.bytes); } catch (e) { return null; }
+      return { fileId: rec.id, art: art, srcLen: rec.bytes.length,
+               name: rec.name || '', kind: rec.kind, mime: rec.mime || 'image/gif',
+               isApp: !!rec.isApp, appId: rec.appId || null, updatedAt: nowISO() };
+    }
+
     // The SIBLING assets database — '<dbName>::assets', its own version line,
     // one 'assets' store keyed [fileId, path]. Separate on purpose: archived
     // builds pin the MAIN database's version (see DB_VERSION above), so new
@@ -215,9 +279,30 @@
       uid,
       dbName,
       // ---- files ----
-      putFile: (rec) => tx('files', 'readwrite', (os) => reqP(os.put(rec))).then(() => rec),
+      // THE ONE PLACE A FILE'S BYTES ARE WRITTEN, which is why the ornament is
+      // stripped here: install, seed, import, rename and an app saving its own
+      // state all land on putFile, so none of them can forget to refresh the
+      // picture, and none of them has to know the picture exists. The strip
+      // costs milliseconds even on a very large app (it steps over the payload
+      // by its sub-block lengths rather than reading it) and it happens once
+      // per WRITE, against a repaint that used to pay for the whole file every
+      // time. A failure to store the ornament is never a failure to store the
+      // FILE — the icon just falls back to reading bytes, as it always did.
+      putFile: (rec) => tx('files', 'readwrite', (os) => reqP(os.put(rec)))
+        .then(() => {
+          const orn = ornamentOf(rec);
+          if (!orn) return rtx('readwrite', (os) => reqP(os.delete(rec.id))).catch(() => {});
+          return rtx('readwrite', (os) => reqP(os.put(orn))).catch(() => {});
+        })
+        .then(() => rec),
       getFile: (id) => tx('files', 'readonly', (os) => reqP(os.get(id))),
-      deleteFile: (id) => tx('files', 'readwrite', (os) => reqP(os.delete(id))),
+      deleteFile: (id) => tx('files', 'readwrite', (os) => reqP(os.delete(id)))
+        .then(() => rtx('readwrite', (os) => reqP(os.delete(id))).catch(() => {})),
+      // ---- the icon's ornament: the animation, and the few fields an icon
+      // needs, WITHOUT deserialising the app it was cut from. Display only.
+      getArt: (id) => rtx('readonly', (os) => reqP(os.get(id))).catch(() => null),
+      putArt: (rec) => rtx('readwrite', (os) => reqP(os.put(ornamentOf(rec) || { fileId: rec.id }))).catch(() => null),
+      deleteArt: (id) => rtx('readwrite', (os) => reqP(os.delete(id))).catch(() => null),
       // ---- desktop items ----
       putItem: (rec) => tx('items', 'readwrite', (os) => reqP(os.put(rec))).then(() => rec),
       getItem: (id) => tx('items', 'readonly', (os) => reqP(os.get(id))),
