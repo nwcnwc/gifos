@@ -78,7 +78,12 @@ const PLACES = [
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
   });
   const context = await browser.newContext({ viewport: { width: 900, height: 560 } });
-  await FIX.routeWorld(context);
+  // perTile: the world follows the tile that was ASKED FOR, with street names
+  // unique to it. Without this the fixture pins every road to the Paris preset,
+  // so the moment the soak hops the roads land hundreds of km from the car,
+  // nothing is inside LABEL_RANGE, and the label cache is never touched at all
+  // — which is why this tool reported labels=1 for its whole first week.
+  const hits = await FIX.routeWorld(context, { perTile: true });
   // Imagery too, and it is the whole point: a solid PNG per tile is still a
   // texture per tile. With the drape off nothing creates one and the soak is
   // blind to the leak it exists to find.
@@ -187,12 +192,34 @@ const PLACES = [
     console.log(k.padEnd(13), String(first[k]).padStart(8), '->', String(last[k]).padStart(8), '  peak', String(peak).padStart(8));
   }
   // The verdict a reader wants: did anything only ever go up?
+  const LABEL_CACHE_MAX = 160;   // render.js labelFor()
+  const served = hits.names.size;
+  const peakLabels = rows.reduce((m, r) => Math.max(m, r.labels), 0);
   for (const k of ['textures', 'labels', 'terrainSlots', 'heapMB']) {
     let fell = false;
     for (let i = 1; i < rows.length; i++) if (rows[i][k] < rows[i - 1][k]) { fell = true; break; }
+    // A CAP IS NOT A LEAK, and "never fell" cannot tell them apart on its own.
+    // The label cache is SUPPOSED to sit at its ceiling once a long drive has
+    // passed enough streets — flat at 160 while the world offered thousands of
+    // names is the fix working, not the leak. Only judge it against what it was
+    // actually offered.
+    if (k === 'labels' && served > LABEL_CACHE_MAX && peakLabels <= LABEL_CACHE_MAX) {
+      console.log('OK       labels held at or under the ' + LABEL_CACHE_MAX + ' cap (peak '
+        + peakLabels + ') while the world served ' + served + ' distinct street names');
+      continue;
+    }
+    if (k === 'labels' && served <= LABEL_CACHE_MAX) {
+      console.log('UNPROVEN labels — the world only ever served ' + served + ' distinct names, '
+        + 'below the ' + LABEL_CACHE_MAX + ' cap, so this run cannot judge the LRU');
+      continue;
+    }
     console.log((fell ? 'OK       ' : 'SUSPECT  ') + k
       + (fell ? ' came back down at least once (a bounded working set)'
               : ' NEVER fell across ' + rows.length + ' samples — that is the shape of a leak'));
+  }
+  if (peakLabels > LABEL_CACHE_MAX) {
+    console.log('SUSPECT  labels PEAKED AT ' + peakLabels + ', above the ' + LABEL_CACHE_MAX
+      + ' cap — the LRU is not evicting');
   }
   console.log('\nwrote ' + OUT);
   await browser.close();
