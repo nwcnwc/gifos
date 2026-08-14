@@ -150,7 +150,16 @@
       launched++;
       (function (tile, k, gen) {
         root.Terrain.loadTile(tile).then(function (rec) {
-          if (gen !== hopGen) return;      // a hop happened; this is the old city
+        // THE ANSWER IS FOR A WORLD THAT NO LONGER EXISTS, and returning here
+        // used to leave the {pending:true} marker behind for ever. evict() skips
+        // pending slots on purpose — never drop a tile that is still in flight —
+        // so a stranded marker is a slot that can never be evicted and never
+        // resolved. Every hop stranded whatever was in the air, the store grew
+        // monotonically, and because each live slot owns a texture the GPU grew
+        // with it. Measured: terrain slots 25 -> 37 over nine minutes of hopping,
+        // against a cap of 25. Nothing is in flight once the promise has settled,
+        // so clearing the marker restores the invariant instead of breaking it.
+          if (gen !== hopGen) { if (world.terrain[k] && world.terrain[k].pending) delete world.terrain[k]; return; }
           world.terrain[k] = { rec: rec, tile: tile, mesh: null, texture: null };
           // New ground exists. Any road tile built while THIS was missing has
           // geometry pinned at y≈0 under it — the epoch is what tells
@@ -158,7 +167,7 @@
           world.terrainEpoch++;
           maybeLoadImagery(tile, k);
         }).catch(function (err) {
-          if (gen !== hopGen) return;
+          if (gen !== hopGen) { if (world.terrain[k] && world.terrain[k].pending) delete world.terrain[k]; return; }
           var tries = ((world.terrain[k] && world.terrain[k].tries) || 0) + 1;
           world.terrain[k] = { failed: true, error: err, tries: tries, failedAt: clock };
           // Only say so once per tile. Retrying behind a note that fires every
@@ -187,10 +196,11 @@
       launched++;
       (function (tile, k, gen) {
         root.Roads.loadTile(tile).then(function (geom) {
-          if (gen !== hopGen) return;      // a hop happened; this is the old city
+          // Same stranding as the terrain loader above, same fix.
+          if (gen !== hopGen) { if (world.roads[k] && world.roads[k].pending) delete world.roads[k]; return; }
           world.roads[k] = { geom: geom, tile: tile, built: null };
         }).catch(function (err) {
-          if (gen !== hopGen) return;
+          if (gen !== hopGen) { if (world.roads[k] && world.roads[k].pending) delete world.roads[k]; return; }
           // A busy Overpass is not a bug and must not look like one: drop the
           // record so the tile is retried once the backoff expires.
           world.roads[k] = err.busy ? null : { failed: true, tile: tile };
