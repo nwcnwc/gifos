@@ -1729,15 +1729,25 @@ function check(name, cond, detail) {
     // no movement across FRAMES THAT WERE ACTUALLY DRAWN, and a box too busy to
     // draw simply contributes no evidence either way.
     const startX = c.x;
-    let lastX = c.x, stillFrames = 0;
-    const cap = Date.now() + 60000;
+    let stillFrames = 0;
+    const cap = Date.now() + 90000;
     for (;;) {
       if (Math.abs(c.speed) < 5) c.speed = 8;
-      const f0 = window.App.debug().frames;
+      const f0 = window.App.debug().frames, x0 = c.x;
       await wait(250);
       const drawn = window.App.debug().frames - f0;
       if (c.x - startX > 9) break;                    // through the hole
-      if (c.x - lastX > 0.25) { lastX = c.x; stillFrames = 0; }
+      // METRES PER RENDERED FRAME. Distance per unit of WALL CLOCK cannot tell
+      // a held car from a starved one — that is the whole bug — and neither can
+      // distance per window with a frame-counted timeout, which is what the
+      // first attempt at this did: a car crawling 0.2 m per 250 ms window is
+      // DRIVING, but read as stopped against a 0.25 m threshold, and it broke
+      // off at "7.2 m past where the wall stood". Per FRAME the two are far
+      // apart and stay apart at any frame rate: a car the wall is holding makes
+      // ~0, a driving car makes ~0.4 even where the box draws two frames a
+      // second. A window that drew NO frames contributes no evidence either way.
+      const perFrame = drawn > 0 ? (c.x - x0) / drawn : 0;
+      if (perFrame > 0.05) stillFrames = 0;
       else stillFrames += drawn;
       if (stillFrames > 45) break;                    // stopped: the wall held
       if (Date.now() > cap) break;
