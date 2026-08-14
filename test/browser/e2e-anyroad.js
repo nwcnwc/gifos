@@ -182,8 +182,19 @@ function check(name, cond, detail) {
   // (measured 2026-08-12 on a 4-core box at loadavg 6: 4.3 -> 0.0 -> 0.00).
   // Speed still has to FALL from where it started; it just cannot be required to
   // keep falling after it has run out of speed to lose.
+  // …and compared as FORWARD speed, because the quantity that must fall
+  // monotonically is how fast the car is going forwards, not its signed
+  // velocity. The same big clamped dt can carry a braking car THROUGH zero to
+  // a small negative in one step, after which the reverse arm — which
+  // deliberately refuses to reverse from a standstill until the brake has been
+  // held past it — pulls it back to 0. That reads as speed RISING (-0.4 -> 0.00)
+  // and failed a car that had braked perfectly (measured on a 4-core box at
+  // loadavg 6: 4.3 -> -0.4 -> 0.00). Reverse is not unguarded by this: it has
+  // its own assertions further down, both that a dab at rest does NOT reverse
+  // and that holding past the arm DOES.
+  const fwd = (v) => Math.max(0, v);
   check('speed falls while the brake is held',
-    braked <= midBrake.speed && braked < after.speed,
+    fwd(braked) <= fwd(midBrake.speed) && fwd(braked) < after.speed,
     after.speed.toFixed(1) + ' -> ' + midBrake.speed.toFixed(1) + ' -> ' + braked.toFixed(2) + ' m/s');
 
   // The GO pedal is PRESENT in the default (manual) mode — it IS the
