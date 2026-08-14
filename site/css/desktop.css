@@ -170,6 +170,12 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
 }
 .icon .thumb img {
   width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;
+  /* The thumb's font-size is sized for emoji glyphs (62% of the icon), and an
+     <img> that has not decoded yet renders its ALT TEXT at that size — a
+     filename flashed at 40px on a normal icon and 119px on a large one. The
+     alt is empty (the name is in the .label below), so this is the belt to
+     that braces: nothing in a thumb may ever paint text at glyph size. */
+  font-size: 10px; line-height: 1.1; overflow: hidden;
   filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .45));
   transition: transform .16s ease;
 }

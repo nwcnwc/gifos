@@ -907,7 +907,16 @@
   function thumbImg(fileId, bytes, alt) {
     const img = document.createElement('img');
     img.src = blobUrlFor(fileId, bytes);
-    img.alt = alt;
+    // DECORATIVE, on purpose. The icon's name is already on screen in the
+    // .label directly below this image, so alt text here says the same thing
+    // twice — and in the moment before the picture decodes, a browser RENDERS
+    // that text inside the thumb, which is sized for emoji glyphs
+    // (font-size: 62% of the icon). At 64px that flashed the filename at 40px;
+    // on a 192px icon, at 119px. Now that icons paint immediately instead of
+    // waiting on their apps, that flash is the first thing you see.
+    // An empty alt also stops a screen reader announcing the name twice.
+    img.alt = '';
+    if (alt) img.title = alt;
     img.draggable = false; // pointer-drag the icon, not the image
     img.loading = 'lazy';
     img.decoding = 'async';
