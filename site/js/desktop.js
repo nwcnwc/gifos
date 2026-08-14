@@ -588,32 +588,117 @@
   // permanent slow path, cut it here on first sight and store it, so a desktop
   // migrates itself one icon at a time. `srcLen` catches an ornament left
   // behind by bytes that changed without going through putFile.
-  const artCache = new Map(); // fileId -> Uint8Array (animation only) or null
-  function getArtCached(fileId, file) {
+  const artCache = new Map(); // fileId -> ornament record (or null)
+  function getArtCached(fileId) {
     if (!fileId) return Promise.resolve(null);
     if (artCache.has(fileId)) return Promise.resolve(artCache.get(fileId));
-    const cut = () => {
-      if (!file || file.kind !== 'gif' || !file.bytes) return null;
-      const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
-      try {
-        const a = (GifOS.gif && GifOS.gif.stripForDisplay) ? GifOS.gif.stripForDisplay(bytes) : bytes;
-        if (store.putArt) Promise.resolve(store.putArt(file)).catch(() => {});
-        return a;
-      } catch (e) { return bytes; }   // never let this cost us the picture
-    };
-    return Promise.resolve(store.getArt ? store.getArt(fileId) : null).then((rec) => {
-      let a = null;
-      if (rec && rec.art) {
-        const stored = rec.art instanceof Uint8Array ? rec.art : new Uint8Array(rec.art);
-        const fresh = !file || !file.bytes || rec.srcLen === file.bytes.length;
-        if (fresh) a = stored;
-      }
-      if (!a) a = cut();
-      artCache.set(fileId, a);
-      return a;
-    }).catch(() => { const a = cut(); artCache.set(fileId, a); return a; });
+    return Promise.resolve(store.getArt ? store.getArt(fileId) : null)
+      .then((rec) => { const v = (rec && rec.art) ? rec : null; artCache.set(fileId, v); return v; })
+      .catch(() => { artCache.set(fileId, null); return null; });
   }
-  // The signed app's declared short name + version (for the identity pill on its
+
+  // ---------- decorations: everything an icon wears that costs a read --------
+  //
+  // The shield, the identity pill, the Provider ✕, the NEW tag and the MIRROR
+  // band all answer questions that can only be settled by reading the app —
+  // and reading an app means pulling hundreds of megabytes out of IndexedDB and
+  // inflating its filesystem. Doing that before the first icon appears is what
+  // made a return visit take 4.7 seconds to show a desktop that was otherwise
+  // ready at 183 ms.
+  //
+  // So they are learned AFTER the paint, one tile at a time, yielding between
+  // each, and the expensive half (signature + manifest) is written back into
+  // the ornament so it is learned once per computer rather than once per tab.
+  // `decor` is what render() reads; an absent entry means "not learned yet",
+  // which paints a plain, correct icon.
+  const decor = new Map();   // fileId -> { fresh, mirror, meta, signed, sigId }
+  let decorTimer = null, decorQueue = null, decorRunning = false;
+  function scheduleDecorate(visible) {
+    decorQueue = visible;
+    if (decorTimer || decorRunning) return;
+    decorTimer = setTimeout(() => {
+      decorTimer = null;
+      const q = decorQueue; decorQueue = null;
+      if (q) decorate(q);
+    }, 0);
+  }
+  function factsInto(d, facts) {
+    d.signed = !!facts.signed;
+    d.sigId = facts.sigId || '';
+    const rich = facts.shortName || facts.version || (facts.provides && facts.provides.length);
+    d.meta = rich ? { signed: !!facts.signed, shortName: facts.shortName || '',
+                      version: facts.version || '', provides: facts.provides || [],
+                      networky: !!facts.networky } : null;
+  }
+  async function decorate(visible) {
+    const seq = renderSeq;
+    decorRunning = true;
+    let changed = false;
+    const idle = () => new Promise((r) => {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(() => r(), { timeout: 300 });
+      else setTimeout(r, 0);
+    });
+    try {
+      for (const it of visible) {
+        const fileId = it.fileId;
+        if (!fileId) continue;
+        await idle();
+        if (renderSeq !== seq) return;          // the view moved on; its own pass will run
+        let rec = await getArtCached(fileId);
+        // A file written before ornaments existed. Cut one now — this is the
+        // ONE place the slow path still happens, and it happens once, here,
+        // where nothing is waiting on it.
+        if (!rec) {
+          const f = await Promise.resolve(store.getFile(fileId)).catch(() => null);
+          if (!f || f.kind !== 'gif' || !f.bytes) continue;
+          await Promise.resolve(store.putArt(f)).catch(() => {});
+          artCache.delete(fileId);
+          rec = await getArtCached(fileId);
+          changed = true;
+        }
+        if (!rec) continue;
+        const d = Object.assign({}, decor.get(fileId) || {});
+        if (rec.isApp && rec.kind === 'gif') {
+          if (rec.facts && rec.factsFor === rec.srcLen) {
+            if (!d.factsDone) { factsInto(d, rec.facts); d.factsDone = true; changed = true; }
+          } else {
+            // Learn them once. store.getFile rather than getFileCached: holding
+            // the whole app in the paint cache afterwards is the very cost this
+            // is here to avoid.
+            const f = await Promise.resolve(store.getFile(fileId)).catch(() => null);
+            if (f && f.bytes) {
+              const bytes = f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes);
+              const sig = GifOS.sign ? GifOS.sign.readSig(bytes) : null;
+              const m = await getAppMeta(fileId, bytes).catch(() => null);
+              const facts = { signed: !!sig, sigId: sig ? sig.id : '',
+                              shortName: m ? m.shortName : '', version: m ? m.version : '',
+                              provides: m ? m.provides : [], networky: m ? m.networky : false };
+              await Promise.resolve(store.putArtFacts(fileId, facts, rec.srcLen)).catch(() => {});
+              rec.facts = facts; rec.factsFor = rec.srcLen;
+              factsInto(d, facts); d.factsDone = true; changed = true;
+            }
+          }
+        }
+        // The NEW tag and the MIRROR band are about SAVED STATE, not bytes, so
+        // they are cheap — but they are still not worth withholding a desktop
+        // for, and they can change under us, so they are re-read per pass.
+        if (rec.isApp && !SYSTEM_LAUNCHERS[rec.appId]) {
+          const st = await Promise.resolve(store.getState(fileId)).catch(() => null);
+          const fr = !stateHasData(st);
+          if (fr !== !!d.fresh) { d.fresh = fr; changed = true; }
+        }
+        if (rec.isApp && rec.kind === 'gif') {
+          const mr = await Promise.resolve(store.getState(fileId + '::mirror')).catch(() => null);
+          const on = !!(mr && mr.s);
+          if (on !== !!d.mirror) { d.mirror = on; changed = true; }
+        }
+        decor.set(fileId, d);
+      }
+    } finally { decorRunning = false; }
+    if (changed && renderSeq === seq) render();
+  }
+
+  // The signed app's declared short name + version   // (for the identity pill on its
   // tile). Reading it means decoding the GIF's manifest, so we do it once per
   // fileId and cache the promise; bytes changing calls forgetFile, which clears it.
   const appMetaCache = new Map(); // fileId -> Promise<{ shortName, version }>
@@ -675,7 +760,7 @@
   // Everything that changes how an icon LOOKS or WHERE it sits. Bytes aren't in
   // the key — forgetFile() evicts the node directly when bytes change — so a
   // repaint after a mere selection/drag reuses the untouched nodes.
-  function iconKey(it, file, fresh, meta) {
+  function iconKey(it, file, fresh, meta, hasArt) {
     const trash = it.id === TRASH_ID ? (items.some((i) => i.parent === TRASH_ID) ? 'full' : 'empty') : '';
     const verdict = (sigVerdicts.get(it.fileId) || {}).status || '';
     const idpill = meta && meta.signed ? (meta.shortName + '@' + meta.version) : '';
@@ -684,8 +769,14 @@
     const provX = (meta && meta.provides && meta.provides.length && (it.parent || null) !== 'sys_providers') ? 'provX' : '';
     // Joined with a control char (U+0001) that can't appear in names/ids, so
     // distinct field combinations can never collide into the same key.
+    // `art` and `shield` are in the key because both arrive AFTER the first
+    // paint — the picture when its ornament is cut, the shield when decorate()
+    // learns there is a signature — and a tile that did not rebuild for them
+    // would stay blank or bare for ever.
+    const shield = (decor.get(it.fileId) || {}).signed ? 'sig' : '';
     return [it.fileId || '', it.name, it.x | 0, it.y | 0, it.iconSize || 64, it.kind,
-      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : '', idpill, provX].join('\x01');
+      file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : '',
+      idpill, provX, hasArt ? 'art' : '', shield].join('\x01');
   }
 
   const FILE_EMOJI = { gif: '🖼️', other: '📄' };
@@ -696,47 +787,49 @@
   // render bails before touching the DOM, so no duplicate icons.
   let renderSeq = 0;
   let renderStats = null;
+  // THE CRITICAL PATH IS THE ORNAMENTS AND NOTHING ELSE.
+  //
+  // This used to read every visible icon's FILE — the whole app, hundreds of
+  // megabytes of it — and then inflate each one's filesystem to read two lines
+  // of manifest.json for the identity pill, and scan each for a signature, and
+  // ask the state store twice per tile, and it awaited ALL of that before
+  // appending a single icon. Measured on a return visit with 50 MB of apps
+  // installed: the page was ready at 183 ms and the first icon appeared at
+  // 4749 ms. Every one of those reads was for a BADGE.
+  //
+  // So the paint now reads only what an icon IS — its position and name from
+  // the item, its picture and kind from the ornament beside it — and puts the
+  // icons on screen. Everything that can only be learned by reading the app
+  // (the signature shield, the identity pill, the Provider ✕, the NEW tag, the
+  // MIRROR band) is a DECORATION, applied by decorate() once the screen is up,
+  // and remembered so the next visit does not learn it again.
+  //
+  // A decoration arriving a moment after the icon is the correct behaviour, not
+  // a compromise: it is the difference between a desktop that appears and one
+  // that is withheld until every app on it has been decompressed.
   async function render() {
     const seq = ++renderSeq;
     const visible = items.filter((it) => (it.parent || null) === currentFolder);
-    // One batched, cached read instead of a serial getFile() per icon per paint.
-    const files = await Promise.all(visible.map((it) => getFileCached(it.fileId)));
-    // THE PICTURES, SEPARATELY FROM THE APPS THEY CAME FROM. Each is the
-    // animation alone, stripped once when the file was written (store.putFile
-    // -> the '::art' sibling database), so what reaches the DOM is a few
-    // kilobytes of sticker rather than a copy of an entire app. A file written
-    // by an older build has no ornament yet: getArtCached cuts one on first
-    // sight and stores it, so a desktop migrates itself as it paints.
-    const arts = await Promise.all(visible.map((it, i) => getArtCached(it.fileId, files[i])));
-    // "NEW" freshness per tile (an app with no saved data yet). Batched with the
-    // file read; system launchers and non-apps are never fresh (no NEW badge).
-    // Folded into the icon key so a tile rebuilds the moment its app gains data.
-    const fresh = await Promise.all(visible.map((it, i) => {
-      const f = files[i];
-      if (!f || !f.isApp || SYSTEM_LAUNCHERS[f.appId]) return false;
-      return Promise.resolve(store.getState(it.fileId)).then((st) => !stateHasData(st)).catch(() => false);
-    }));
-    // Per-tile manifest meta (cached decode per fileId), two consumers: the
-    // identity pill (SIGNED tiles only — buildIcon gates on meta.signed) and
-    // the Provider red-✕ (any tile whose manifest carries `provides` and whose
-    // icon is outside the Providers folder — docs/providers.md).
-    const metas = await Promise.all(visible.map((it, i) => {
-      const f = files[i];
-      if (!f || !f.isApp || f.kind !== 'gif' || !f.bytes) return null;
-      const bytes = f.bytes instanceof Uint8Array ? f.bytes : new Uint8Array(f.bytes);
-      const signed = !!(GifOS.sign && GifOS.sign.readSig(bytes));
-      return getAppMeta(it.fileId, bytes)
-        .then((m) => (m && (m.shortName || m.version || (m.provides && m.provides.length))) ? Object.assign({ signed }, m) : null)
-        .catch(() => null);
-    }));
-    // Synced-mirror flag per tile: a copy bound to an eternal link (carries a
-    // <fileId>::mirror binding). Drives the "MIRROR" band across the icon.
-    const mirrors = await Promise.all(visible.map((it, i) => {
-      const f = files[i];
-      if (!f || !f.isApp || f.kind !== 'gif') return false;
-      return Promise.resolve(store.getState(it.fileId + '::mirror')).then((m) => !!(m && m.s)).catch(() => false);
-    }));
+    // The ornaments: picture + the handful of fields an icon needs. No file is
+    // read here, ever — not even for a file that has no ornament yet, which
+    // paints plain and is repaired in the background by decorate().
+    const arts = await Promise.all(visible.map((it) => getArtCached(it.fileId)));
     if (seq !== renderSeq) return; // a newer render started — abandon this one
+    // What we know about each tile WITHOUT having read its app. `decor` is
+    // filled in by decorate(); undefined simply means "not learned yet", and
+    // the tile wears no badges until it is.
+    const files = visible.map((it, i) => {
+      const a = arts[i];
+      if (!a) return null;
+      // Stands in for the file record everywhere the paint used one. It carries
+      // no bytes, on purpose: nothing on this path may need them.
+      return { id: it.fileId, name: a.name, kind: a.kind, mime: a.mime,
+               isApp: a.isApp, appId: a.appId };
+    });
+    const dec = visible.map((it) => decor.get(it.fileId) || null);
+    const fresh = dec.map((d) => !!(d && d.fresh));
+    const metas = dec.map((d) => (d && d.meta) || null);
+    const mirrors = dec.map((d) => !!(d && d.mirror));
     // Reconcile: reuse the cached node when its key matches, rebuild only what
     // changed, and keep selection in sync on the survivors.
     const keep = new Set();
@@ -745,10 +838,10 @@
       // Stash what openItem needs to decide SYNCHRONOUSLY (in the tap gesture) —
       // an app GIF must open without an await first, or iOS blocks the tab.
       it._isApp = !!(files[i] && files[i].isApp && files[i].kind === 'gif');
-      const key = iconKey(it, files[i], fresh[i], metas[i]) + (mirrors[i] ? '|mir' : '');
+      const key = iconKey(it, files[i], fresh[i], metas[i], !!arts[i]) + (mirrors[i] ? '|mir' : '');
       let entry = iconCache.get(it.id);
       if (!entry || entry.key !== key) {
-        entry = { el: buildIcon(it, files[i], fresh[i], metas[i], mirrors[i], arts[i]), key, fileId: it.fileId };
+        entry = { el: buildIcon(it, files[i], fresh[i], metas[i], mirrors[i], arts[i] && arts[i].art), key, fileId: it.fileId };
         iconCache.set(it.id, entry);
       } else {
         // Reuse the node, but re-assert its authoritative position/selection —
@@ -782,7 +875,10 @@
     // reused vs. rebuilt, and current cache sizes. Read from the console via
     // GifOS.desktop.stats to validate the reconciler on a real desktop.
     renderStats = { icons: visible.length, rebuilt: els.length - reused, reused,
-      fileCache: fileCache.size, iconCache: iconCache.size, blobUrls: blobUrls.size };
+      fileCache: fileCache.size, iconCache: iconCache.size, blobUrls: blobUrls.size,
+      artCache: artCache.size, decorated: decor.size };
+    // The screen is up. NOW go and learn what the badges should say.
+    scheduleDecorate(visible.slice());
   }
 
   // The upper-left cell inside every folder is a HOLE back up to the parent:
@@ -838,20 +934,21 @@
       thumb.textContent = items.some((i) => i.parent === TRASH_ID) ? '🗑️' : '🗑';
     } else if (it.kind === 'folder') {
       // folders are GIFs too — the icon IS the folder's own animated GIF
-      if (file) {
-        const fbytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
-        thumb.appendChild(thumbImg(it.fileId, art || fbytes, it.name));
+      if (art) {
+        thumb.appendChild(thumbImg(it.fileId, art, it.name));
         signableFiles.add(it.fileId);
-        addSigBadge(thumb, it, fbytes);   // the SIGNATURE needs the real file
+        addSigBadge(thumb, it);
       } else {
-        thumb.textContent = '📁'; // system folders (Trash, Stolen Apps) have no GIF
+        // No GIF at all (system folders), or its ornament has not been cut yet —
+        // the glyph stands in for a moment rather than the paint waiting.
+        thumb.textContent = '📁';
       }
     } else {
       if (file && file.kind === 'gif') {
-        const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
-        thumb.appendChild(thumbImg(it.fileId, art || bytes, it.name));
+        if (art) thumb.appendChild(thumbImg(it.fileId, art, it.name));
+        else thumb.textContent = FILE_EMOJI.gif;   // until its ornament is cut
         signableFiles.add(it.fileId); // it's a GIF — signing/verifying applies
-        addSigBadge(thumb, it, bytes); // shield if the GIF carries a signature
+        addSigBadge(thumb, it); // shield, once decorate() has learned there is one
         // "NEW" tag (bottom-left, opposite the shield) on apps you haven't put
         // anything into yet — freshly seeded defaults, or a just-stolen empty
         // copy. `fresh` is computed in render() and baked into the icon key.
@@ -925,10 +1022,16 @@
   const signedFiles = new Set();   // fileId carries a GIFOSSIG block
   const SIG_ICON = { valid: '✓', tampered: '⚠', unverified: '🛡', pending: '🛡' };
   const SIG_CLASS = { valid: 'sig-ok', tampered: 'sig-bad', unverified: 'sig-unk', pending: 'sig-unk' };
-  function addSigBadge(thumb, it, bytes) {
+  // Reads the LEARNED fact, not the file. Scanning a whole app for its
+  // signature block is a decoration's cost, and decorate() has already paid it
+  // once and written the answer beside the picture. Before it has run, a tile
+  // simply wears no shield yet — which is the same thing every progressive
+  // interface does, and a great deal better than an empty screen.
+  function addSigBadge(thumb, it) {
     if (!GifOS.sign) return;
-    const sig = GifOS.sign.readSig(bytes);
-    if (!sig) { signedFiles.delete(it.fileId); return; }
+    const d = decor.get(it.fileId);
+    if (!d || !d.signed) { if (d) signedFiles.delete(it.fileId); return; }
+    const sig = { id: d.sigId || '' };
     signedFiles.add(it.fileId);
     const cached = sigVerdicts.get(it.fileId);
     const state = cached ? cached.status : 'pending';

@@ -53,6 +53,7 @@ function check(name, cond, detail) {
     await GifOS.desktop.load(); await GifOS.desktop.render();
     return fid;
   }, gifB64);
+  await page.evaluate((fid) => { window.__ornFileId = fid; }, fileId);
   await sleep(600);
 
   // ---- the ornament exists, and it is only the picture ----------------------
@@ -224,6 +225,50 @@ function check(name, cond, detail) {
     migrated.fileLen + ' -> ' + migrated.artLen + ' bytes');
   check('…recording that it ran, so it is once and not every boot',
     migrated.stamp === '1' && migrated.secondPass === false);
+
+  // ---- THE PAINT NEVER READS AN APP, AND THE BADGES STILL ARRIVE ----------
+  // The point of the restructure: icons go up from ornaments alone, and every
+  // badge that needs the app is learned afterwards. Both halves are load-
+  // bearing — a fast paint that permanently loses the shield is a regression,
+  // not an optimisation.
+  const paint = await page.evaluate(async () => {
+    // Count reads of the FILES store during a full repaint.
+    let fileReads = 0;
+    const orig = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function () {
+      if (this.name === 'files') fileReads++;
+      return orig.apply(this, arguments);
+    };
+    await GifOS.desktop.render();
+    IDBObjectStore.prototype.get = orig;
+    return { fileReads, icons: document.querySelectorAll('.icon').length };
+  });
+  check('a repaint reads NO app files at all — the ornaments are the paint',
+    paint.fileReads === 0, paint.fileReads + ' reads of the files store, '
+      + paint.icons + ' icons painted');
+
+  const badge = await page.evaluate(async () => {
+    // Sign the installed app, then let the decoration pass notice.
+    const file = await GifOS.store.getFile(window.__ornFileId);
+    const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+    return { signedInFile: !!(GifOS.sign && GifOS.sign.readSig(bytes)) };
+  });
+  // The fixture app is unsigned, so assert the mechanism rather than a shield:
+  // decorate() must have LEARNED and STORED the facts, so no later visit reads
+  // the app again to find them out.
+  const learned = await page.evaluate(async (fid) => {
+    for (let i = 0; i < 60; i++) {
+      const rec = await GifOS.store.getArt(fid);
+      if (rec && rec.facts) return { facts: rec.facts, factsFor: rec.factsFor, srcLen: rec.srcLen };
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return null;
+  }, fileId);
+  check('the decoration pass learns the app\'s facts and writes them beside the picture',
+    !!learned && learned.facts && learned.factsFor === learned.srcLen,
+    learned ? 'signed=' + learned.facts.signed + ' stamped for ' + learned.factsFor + ' bytes'
+            : 'never learned');
+  check('…and they agree with the real file', !!learned && learned.facts.signed === badge.signedInFile);
 
   await browser.close();
   console.log('');
