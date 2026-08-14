@@ -303,6 +303,28 @@
       getArt: (id) => rtx('readonly', (os) => reqP(os.get(id))).catch(() => null),
       putArt: (rec) => rtx('readwrite', (os) => reqP(os.put(ornamentOf(rec) || { fileId: rec.id }))).catch(() => null),
       deleteArt: (id) => rtx('readwrite', (os) => reqP(os.delete(id))).catch(() => null),
+      // The facts an icon wears that can only be learned by READING the app —
+      // whether it is signed, and the short name / version / provides from its
+      // manifest. Learning them means inflating the whole filesystem, so it is
+      // done ONCE, off the paint path, and remembered here beside the picture.
+      // Stamped with the srcLen they were read from, so bytes that change take
+      // their facts with them. NOT written by putFile: a save must not pay for
+      // a decode of everything it just wrote.
+      // READ AND WRITE IN SEPARATE TRANSACTIONS, deliberately. Doing the put
+      // inside the get's own transaction reads naturally and does not survive:
+      // an IndexedDB transaction auto-commits once control returns to the event
+      // loop with nothing pending, and the promise continuation that issues the
+      // put can land after that — so the write is silently lost, the facts are
+      // never stored, and every tab open re-learns them by inflating the app
+      // again. It cost three full app reads per visit before it was measured.
+      // Two transactions can race a concurrent write; this is a CACHE stamped
+      // with the srcLen it was learned from, so the loser is simply re-learned.
+      putArtFacts: (id, facts, srcLen) => rtx('readonly', (os) => reqP(os.get(id)))
+        .then((rec) => {
+          if (!rec) return null;
+          rec.facts = facts; rec.factsFor = srcLen;
+          return rtx('readwrite', (os) => reqP(os.put(rec)));
+        }).catch(() => null),
       // ---- desktop items ----
       putItem: (rec) => tx('items', 'readwrite', (os) => reqP(os.put(rec))).then(() => rec),
       getItem: (id) => tx('items', 'readonly', (os) => reqP(os.get(id))),
