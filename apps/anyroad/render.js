@@ -2040,6 +2040,11 @@
 
   root.Render = {
     init: init, draw: draw, textureFor: textureFor, dropTexture: dropTexture,
+    // Exported for the same reason as stats(): the LRU that keeps street-name
+    // plates bounded is reachable ONLY from the frame loop, so proving it caps
+    // meant driving a car past 160 real streets and hoping. A cap you cannot
+    // address is a cap you cannot test.
+    labelFor: labelFor,
     // What the renderer is HOLDING. Exported because a leak here is invisible
     // from outside: textures and label plates live in plain objects keyed by
     // tile/name, and nothing about the frame rate says which of them is growing.

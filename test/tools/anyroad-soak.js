@@ -45,11 +45,23 @@
  * Backgrounding over ssh is fiddly: use `nohup setsid ... </dev/null` and exit 0,
  * or the redirect dies with the session and you get an empty log.
  *
- * WHAT IT DOES NOT COVER, and both are live gaps:
- *   - THE STREET-NAME PLATE CACHE. labelTex is LRU-capped at 160 with real
- *     deletion, but this soak reports labels=1 for the whole run because the
- *     fixture serves one name. Making test/lib/anyroad-fixtures.js emit VARIED
- *     names per tile would exercise it; that half of the fix is unproven.
+ * THE STREET-NAME PLATE CACHE, and why this tool is the wrong shape for it.
+ * labelTex is LRU-capped at 160 with real deletion. This soak reported labels=1
+ * for its whole first week, which was read as "the fixture serves one name". The
+ * truth was worse: hop() re-origins the world and the fixture pinned every road
+ * to the Paris preset, so after one hop nothing was within LABEL_RANGE and the
+ * cache was never touched AT ALL. routeWorld({perTile:true}) now builds a named
+ * street grid around whichever tile was asked for, and labels climb.
+ *
+ * But they climb at the rate the CAR PASSES STREETS — a few a minute, so a
+ * ten-minute soak offers the cache well under its 160 cap and can only report
+ * UNPROVEN. That is the honest verdict and it is deliberately left that way:
+ * the cap is proven DETERMINISTICALLY in e2e-anyroad, which asks the cache for
+ * 700 names directly (Render.labelFor) and asserts both that the map holds at
+ * 160 and that the evicted TEXTURES left the GPU. What this soak adds is the
+ * in-situ half: labels rising while textures do not track them one-for-one.
+ *
+ * WHAT IT STILL DOES NOT COVER:
  *   - A REAL PHONE. This reproduces the accumulation and shows it flattened; it
  *     cannot tell you a phone's GPU budget. The Moto-over-adb harness is the box
  *     for that, and Render.stats() reports the same two numbers there.
