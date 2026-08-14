@@ -194,6 +194,22 @@ new; then build freely if the bug needs machinery that isn't there.
   unknown with a number is a guess). The floor today is set by WebCrypto
   Ed25519 (mandatory at every join, `mesh-wire.js` S4): Chrome/Edge 137,
   Firefox 129, Safari 17.
+- An icon's picture is an **ORNAMENT**, and it is NOT the file. An app GIF
+  carries a whole filesystem (hundreds of MB); the Home Screen shows only the
+  animation. `GifOS.gif.stripForDisplay()` cuts the GifOS Application Extension
+  out whole, `store.putFile` stores the result in the `<db>::art` SIBLING
+  database (never a new store in the main one — `DB_VERSION` must not move),
+  and `desktop.js` paints from that. **Those bytes do not decode, carry no
+  manifest, no saved state and no signature, and their hash is not the app's
+  hash.** Anything that runs, installs, exports, shares, signs, verifies or
+  backs up an app reads the real bytes through `getFile()`. `e2e-icon-ornament.js`
+  guards both halves.
+  The paint's critical path may NEVER read a file: icons go up from ornaments
+  alone, and everything learned by reading an app (shield, identity pill,
+  Provider ✕, NEW tag, MIRROR band) is a decoration applied by `decorate()`
+  afterwards and cached back into the ornament as `facts`. Adding a byte read
+  to `render()` costs seconds — it was 4749 ms to first icon before this split,
+  352 ms after, and the suite asserts a repaint reads ZERO files.
 - Row-delete buttons are standardized: `button.row-del` + the shared inline
   trash SVG (defined per-surface, identical glyph). ✕ is reserved for
   close/dismiss, never delete.
