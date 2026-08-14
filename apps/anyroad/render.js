@@ -1232,6 +1232,22 @@
   // neighbour's garden in with it — so the roof wants the gentler hand.
   var drapeGround = 1.0, drapeRoof = 0.55;
   var textures = {};
+  // A GL TEXTURE IS NOT GARBAGE-COLLECTED. Nothing in this file ever called
+  // gl.deleteTexture, so every tile of imagery and every street-name plate ever
+  // created stayed on the GPU for the life of the tab — the app evicts a terrain
+  // tile's MESH when you drive away from it and leaves its photograph behind.
+  // Drive or fly far enough and that is thousands of textures. Reported from a
+  // phone: a long flight ended in a hang with the engine note still playing (the
+  // audio graph has its own thread, so a wedged main thread sounds exactly like
+  // that) and lag bad enough that closing the tab was hard.
+  function dropTexture(key) {
+    var t = textures[key];
+    if (!t) return false;
+    gl.deleteTexture(t);
+    delete textures[key];
+    return true;
+  }
+
   function textureFor(key, bitmap) {
     if (textures[key]) return textures[key];
     var t = gl.createTexture();
@@ -1247,10 +1263,28 @@
   // A street name, rasterised once and kept. Cached by the string itself:
   // the same road is asked for every frame it is on screen, and a canvas per
   // frame would be a garbage-collection pause every time you drive.
+  // CAPPED, because street names are unbounded. One canvas and one GL texture per
+  // distinct name is fine for a city and not fine for a continent — a long drive
+  // meets thousands of names and every one of them used to be kept for ever.
+  // Least-recently-used out, and the texture actually deleted rather than just
+  // dropped from the map.
+  var LABEL_CACHE_MAX = 160;
   var labelTex = {};
+  var labelUsed = [];            // names, oldest first
+  function labelTouch(text) {
+    var at = labelUsed.indexOf(text);
+    if (at >= 0) labelUsed.splice(at, 1);
+    labelUsed.push(text);
+    while (labelUsed.length > LABEL_CACHE_MAX) {
+      var old = labelUsed.shift();
+      if (old === text) continue;
+      var rec = labelTex[old];
+      if (rec) { dropTexture('lbl:' + old); delete labelTex[old]; }
+    }
+  }
   function labelFor(text) {
     var hit = labelTex[text];
-    if (hit) return hit;
+    if (hit) { labelTouch(text); return hit; }
     // Padding is per-axis on purpose. It used to be 14 on both, which on a 34px
     // font made the plate 62px tall with only 55% of it glyph — so the thing
     // that read as "the label is too big" was mostly empty plate. Tight
@@ -1283,6 +1317,7 @@
     g2.fillText(text, padX, cv.height / 2 + 1);
     var rec = { tex: textureFor('lbl:' + text, cv), aspect: cv.width / cv.height };
     labelTex[text] = rec;
+    labelTouch(text);
     return rec;
   }
 
@@ -2004,7 +2039,7 @@
   }
 
   root.Render = {
-    init: init, draw: draw, textureFor: textureFor,
+    init: init, draw: draw, textureFor: textureFor, dropTexture: dropTexture,
     // What the renderer is HOLDING. Exported because a leak here is invisible
     // from outside: textures and label plates live in plain objects keyed by
     // tile/name, and nothing about the frame rate says which of them is growing.
