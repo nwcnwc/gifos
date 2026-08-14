@@ -122,18 +122,45 @@ function check(h, engine) {
     // a resident 7 GB model over roughly three of its four cores (test/README
     // says so, and the file said nothing). A busy box in the fleet is the same
     // contention we left the one-box world to escape — it just moved.
-    const probe = 'test -x ' + JSON.stringify(bin) + ' && echo OK $(cut -d" " -f1 /proc/loadavg) $(nproc)';
+    // ONE SAMPLE OF THE 1-MINUTE AVERAGE IS NOT "IDLE", and that gap cost a
+    // whole run. A box here was hosting a 24-hour meeting MONITOR — a bot that
+    // wakes every 5 minutes, drives a browser, and sleeps. Between its cycles
+    // the 1-minute average reads ~0.1, so it certified as isolated while
+    // carrying eleven resident Chromiums; the driver placed on it managed
+    // 1.4 m/s against a floor of 2 and the suite reported a PRODUCT failure,
+    // which is precisely the misattribution this whole file exists to abolish.
+    //
+    // A workload that comes and goes still owns the box, so ask three things:
+    // the 1-minute average (busy right now), the 15-minute average (busy in the
+    // recent past — this is what catches the periodic bot), and whether any
+    // browser is ALREADY RUNNING there (someone else's engine, or leftovers
+    // from a suite that did not clean up — CLAUDE.md's chrome-pile-up trap).
+    const probe = 'test -x ' + JSON.stringify(bin)
+      + ' && echo OK $(cut -d" " -f1,2,3 /proc/loadavg) $(nproc) $(pgrep -c chrome 2>/dev/null || echo 0)';
     execFile('ssh', ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', h.ssh, probe],
       { timeout: 20000 }, (err, out) => {
         if (err) return resolve({ h, ok: false, why: 'unreachable, or ' + bin + ' is not executable there' });
-        const m = String(out).match(/OK ([\d.]+) (\d+)/);
+        const m = String(out).match(/OK ([\d.]+) ([\d.]+) ([\d.]+) (\d+) (\d+)/);
         if (!m) return resolve({ h, ok: false, why: 'could not read its load' });
-        const load = parseFloat(m[1]), cores = parseInt(m[2], 10);
+        const load = parseFloat(m[1]), load15 = parseFloat(m[3]);
+        const cores = parseInt(m[4], 10), browsers = parseInt(m[5], 10);
         const ceiling = (h.maxLoad != null ? h.maxLoad : 0.5) * cores;
         if (load > ceiling) {
           return resolve({ h, ok: false, why: 'BUSY — load ' + load.toFixed(2) + ' on ' + cores
             + ' cores (ceiling ' + ceiling.toFixed(1) + '). A loaded box is not an isolated box; stop what is running there,'
             + ' or raise "maxLoad" in the hosts entry if that load is expected and harmless.' });
+        }
+        if (load15 > ceiling) {
+          return resolve({ h, ok: false, why: 'BUSY RECENTLY — 15-min load ' + load15.toFixed(2)
+            + ' on ' + cores + ' cores (ceiling ' + ceiling.toFixed(1) + ') while the 1-min reads '
+            + load.toFixed(2) + '. Something periodic owns this box between its own cycles;'
+            + ' a lull is not an idle machine.' });
+        }
+        if (browsers > 0) {
+          return resolve({ h, ok: false, why: 'NOT FREE — ' + browsers + ' browser process(es) are already'
+            + ' running there. That is either somebody else\'s engine (leave it alone) or a suite that did'
+            + ' not clean up after itself; either way this box is not isolated. Clear them, or point the'
+            + ' fleet at a different host with GIFOS_FLEET.' });
         }
         resolve({ h, ok: true, load: load, cores: cores });
       });
