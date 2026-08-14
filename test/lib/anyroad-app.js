@@ -120,6 +120,22 @@ async function openAnyroad(browser, opts) {
   const o = opts || {};
   const tag = o.tag ? o.tag + ' ' : '';
   const context = await browser.newContext();
+  // THE SAME ARGUMENT AS THE 45 s BELOW, APPLIED WHERE IT WAS MISSING.
+  // Playwright's default action timeout is 30 s, and every locator call in
+  // these suites inherited it — including in-page evaluates that deliberately
+  // await (the audio block samples the engine note across five 70 ms ticks and
+  // a 400 ms ramp, ~750 ms of intended waiting). On a box whose main thread is
+  // already rendering a 3D world through a software rasteriser, page timers
+  // stretch by orders of magnitude, and that block blew 30 s on a contended
+  // 4-core machine. It did not fail an assertion: it threw, which ABORTS the
+  // suite and takes every check after it with it — 190 of 245 ran, and the
+  // remaining 55 guards simply did not happen. A suite that dies partway is
+  // worse than a red, because the tally still looks like a tally.
+  //
+  // 90 s is not a claim that anything should take 90 s. It is a refusal to
+  // encode a guess about the machine into every locator call in the file; the
+  // suite's real bound is the gate's own per-suite timeout.
+  context.setDefaultTimeout(90000);
   const mt = (o.maptiler === false) ? null : await routeMapTiler(context);
   const hits = await routeWorld(context, o.world);
 
