@@ -184,6 +184,47 @@ function check(name, cond, detail) {
     plain.artLen === plain.srcLen && plain.fileLen === plain.srcLen,
     plain.srcLen + ' bytes, unchanged');
 
+  // ---- THE MIGRATION: computers that predate ornaments -------------------
+  // Every app installed before this change has no ornament. Two things must
+  // repair that without anyone doing anything: the paint path, for a tile that
+  // is shown, and a one-time sweep, for everything else — an app in a folder
+  // nobody opens would otherwise pay the old cost for ever.
+  const migrated = await page.evaluate(async () => {
+    const out = {};
+    // An app in a folder that is NOT the current view, with its ornament
+    // deleted: exactly the state an existing computer boots into.
+    const g = await GifOS.gif.encode({
+      'manifest.json': JSON.stringify({ gifos: '1.0', appId: 'buried', name: 'Buried', entry: 'index.html' }),
+      'index.html': '<!doctype html><h1>buried</h1>',
+      'pad.bin': new Uint8Array(120000),
+    }, {});
+    const fid = GifOS.store.uid('file');
+    await GifOS.store.putFile({ id: fid, name: 'Buried.gif', bytes: g, kind: 'gif',
+                                isApp: true, appId: 'buried', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid,
+                                name: 'Buried.gif', parent: 'nonexistent-folder', x: 16, y: 16 });
+    await GifOS.store.deleteArt(fid);                       // pretend it predates ornaments
+    out.beforeSweep = !!(await GifOS.store.getArt(fid));
+    localStorage.removeItem('gifos_art_backfill');           // pretend the sweep never ran
+    await GifOS.desktop.backfillOrnaments();
+    const rec = await GifOS.store.getArt(fid);
+    out.afterSweep = !!(rec && rec.art);
+    out.artLen = rec && rec.art ? rec.art.length : 0;
+    out.fileLen = g.length;
+    out.stamp = localStorage.getItem('gifos_art_backfill');
+    // …and it must not do it twice.
+    await GifOS.store.deleteArt(fid);
+    await GifOS.desktop.backfillOrnaments();                 // stamp is set — no-op
+    out.secondPass = !!(await GifOS.store.getArt(fid));
+    return out;
+  });
+  check('an app that predates ornaments has none', migrated.beforeSweep === false);
+  check('…and the one-time sweep gives it one, unprompted, even unpainted',
+    migrated.afterSweep === true,
+    migrated.fileLen + ' -> ' + migrated.artLen + ' bytes');
+  check('…recording that it ran, so it is once and not every boot',
+    migrated.stamp === '1' && migrated.secondPass === false);
+
   await browser.close();
   console.log('');
   console.log(failures ? failures + ' FAILED' : 'ALL PASS');

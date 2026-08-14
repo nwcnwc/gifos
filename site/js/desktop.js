@@ -3244,9 +3244,64 @@
     try { if (store.pruneAssets) store.pruneAssets().catch(() => {}); } catch (e) {}
   }
 
+  // ---------- ornaments for computers that predate them ----------
+  // Every app installed before ornaments existed has none, and the icon path
+  // falls back to reading the whole app to paint it. getArtCached repairs that
+  // for a tile the moment it is PAINTED — but only for tiles that are painted,
+  // so an app sitting in a folder nobody has opened keeps paying the old cost
+  // indefinitely, and pays it in full the first time it is finally shown.
+  //
+  // So sweep once, and once only, marked by a stamp the same way the default
+  // reseed is. What it is NOT is an eager migration at boot: reading every file
+  // means deserialising every app, which is precisely the cost this whole change
+  // exists to remove — doing it all at startup would make the first boot after
+  // an update the slowest thing the computer ever did. Instead it runs AFTER
+  // the first paint, when the screen is already up, one file at a time, yielding
+  // between each so a big computer stays responsive throughout.
+  //
+  // Idempotent and safe to abandon: an interrupted sweep simply does not set the
+  // stamp and runs again next boot, and any file it never reaches is still
+  // repaired on sight by getArtCached. Nothing here writes a FILE — only the
+  // '::art' cache beside it.
+  const ART_SWEEP_KEY = 'gifos_art_backfill';
+  const ART_SWEEP_V = '1';
+  async function backfillOrnaments() {
+    if (!store.getArt || !store.putArt) return;
+    try { if (localStorage.getItem(ART_SWEEP_KEY) === ART_SWEEP_V) return; } catch (e) { return; }
+    const idle = () => new Promise((r) => {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(() => r(), { timeout: 500 });
+      else setTimeout(r, 16);
+    });
+    try {
+      const all = await store.allItems();
+      const seen = new Set();
+      const ids = [];
+      for (const it of all) {
+        if (!it || !it.fileId || seen.has(it.fileId)) continue;
+        seen.add(it.fileId);
+        ids.push(it.fileId);
+      }
+      let made = 0;
+      for (const fileId of ids) {
+        await idle();
+        const have = await store.getArt(fileId).catch(() => null);
+        if (have && have.art) continue;
+        // One file in memory at a time, and dropped before the next: a sweep
+        // that held them all would be a worse memory spike than the paint it
+        // is fixing.
+        const file = await store.getFile(fileId).catch(() => null);
+        if (!file || file.kind !== 'gif' || !file.bytes) continue;
+        await Promise.resolve(store.putArt(file)).catch(() => {});
+        made++;
+      }
+      try { localStorage.setItem(ART_SWEEP_KEY, ART_SWEEP_V); } catch (e) {}
+      if (made) console.info('[gifos] ornaments backfilled for ' + made + ' file(s)');
+    } catch (e) { /* leave the stamp unset — it will try again next boot */ }
+  }
+
   // ---------- boot ----------
   requestPersistence();
-  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets);
+  load().then(seedIfEmpty).then(reseedDefaultsIfNeeded).then(ensureSystemItems).then(render).then(handleRunParam).then(handlePlaceParam).then(checkForUpdate).then(reclaimOrphanAssets).then(backfillOrnaments);
 
-  GifOS.desktop = { render, load, get stats() { return renderStats; } };
+  GifOS.desktop = { render, load, backfillOrnaments, get stats() { return renderStats; } };
 })(typeof window !== 'undefined' ? window : globalThis);
