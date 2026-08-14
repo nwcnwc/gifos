@@ -680,13 +680,22 @@
   function shareLink() {
     var f = hooks.frame && hooks.frame();
     if (!f || !isFinite(f.lat0) || !isFinite(f.lon0)) return '';
+    var car = hooks.car && hooks.car();
+    // WHERE THE CAR IS, NOT WHERE THE WORLD BEGAN. (lat0, lon0) is the frame
+    // ORIGIN — the point hop() dropped you at — and the car's position is metres
+    // from it, so this link used to hand back your starting point however far
+    // you had driven. Reported from the Grand Canyon: a link minted at the
+    // Colorado River, after driving six kilometres down from the rim, came back
+    // pointing at Grand Canyon Village. The whole promise of the ☰ sheet is
+    // "wherever you are standing", and it was sending "wherever you arrived".
+    var at = (car && isFinite(car.x) && isFinite(car.z)) ? f.toGeo(car.x, car.z)
+                                                         : { lat: f.lat0, lon: f.lon0 };
     // 5 decimals is a metre — more is noise in a URL people paste into chats.
-    var url = SHARE_BASE + '&go.at=' + f.lat0.toFixed(5) + ',' + f.lon0.toFixed(5);
+    var url = SHARE_BASE + '&go.at=' + at.lat.toFixed(5) + ',' + at.lon.toFixed(5);
     var w = hooks.world && hooks.world();
     // The NAME is what the recipient's HUD will read. Send the one on screen,
     // not the coordinates again — "Grand Canyon" is the point of the link.
     if (w && w.place && !/^-?\d/.test(w.place)) url += '&go.label=' + encodeURIComponent(w.place.slice(0, 60));
-    var car = hooks.car && hooks.car();
     // Flying is part of "here": a link sent from the air should arrive there.
     if (car && car.flying) url += '&go.fly=1';
     return url;
