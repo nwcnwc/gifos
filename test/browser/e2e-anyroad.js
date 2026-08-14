@@ -1719,15 +1719,27 @@ function check(name, cond, detail) {
     // question, and it is directly observable. A blocked car now settles the
     // matter in ~3s (faster than the old loop), and a slow box keeps crawling
     // through the hole instead of being timed out one tenth of a metre short.
+    // …and "stopped" is counted in RENDERED FRAMES, not seconds, for the same
+    // reason the fixed loop was wrong. The car advances per frame by a CLAMPED
+    // dt (the anti-tunnelling clamp), so on a software rasteriser at ~2 fps it
+    // covers a few tenths of a metre per 250 ms of wall clock — under the old
+    // 0.25 m-per-window movement test, which then declared the wall had held
+    // and stopped the drive at "4.1 m past where the wall stood". A busy box
+    // and a solid wall looked identical. They are not: a wall that held shows
+    // no movement across FRAMES THAT WERE ACTUALLY DRAWN, and a box too busy to
+    // draw simply contributes no evidence either way.
     const startX = c.x;
-    let lastX = c.x, movedAt = Date.now();
-    const cap = Date.now() + 30000;
+    let lastX = c.x, stillFrames = 0;
+    const cap = Date.now() + 60000;
     for (;;) {
       if (Math.abs(c.speed) < 5) c.speed = 8;
+      const f0 = window.App.debug().frames;
       await wait(250);
+      const drawn = window.App.debug().frames - f0;
       if (c.x - startX > 9) break;                    // through the hole
-      if (c.x - lastX > 0.25) { lastX = c.x; movedAt = Date.now(); }
-      else if (Date.now() - movedAt > 3000) break;    // stopped: the wall held
+      if (c.x - lastX > 0.25) { lastX = c.x; stillFrames = 0; }
+      else stillFrames += drawn;
+      if (stillFrames > 45) break;                    // stopped: the wall held
       if (Date.now() > cap) break;
     }
     const through = c.x - startX;
