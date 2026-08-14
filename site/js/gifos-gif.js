@@ -355,6 +355,100 @@
     return Promise.resolve(parseArchive(payload)); // legacy uncompressed JSON
   }
 
+  // ---- display-only: the animation, without the filesystem ------------------
+  //
+  // A GifOS app is a GIF with an entire filesystem inside it, and that can be
+  // hundreds of megabytes. A Home Screen icon shows only the ANIMATION — every
+  // GIF decoder on earth skips our Application Extension block — so handing the
+  // whole file to an <img> copies those megabytes into a Blob and then walks
+  // them looking for pixels that are not in them.
+  //
+  // Removing the block is EXACT, not approximate. It is a complete Application
+  // Extension (introducer 0x21, label 0xFF, block size 11, identifier, auth,
+  // sub-blocks, terminator), and the GIF grammar permits one anywhere a block
+  // may appear — so deleting it whole leaves every pixel byte identical: header,
+  // logical screen descriptor, palettes, NETSCAPE loop, graphic controls, image
+  // descriptors, trailer. Same animation, frame for frame, byte for byte.
+  //
+  // *** THESE BYTES ARE NOT THE FILE. *** They will not decode(), they carry no
+  // manifest, no saved state and no signature, and their hash is NOT the app's
+  // hash. Anything that RUNS, installs, exports, shares, signs, verifies,
+  // backs up or stores an app must use the original bytes. The only sanctioned
+  // caller is the icon's <img> src — desktop.js blobUrlFor().
+  //
+  // WALKED, NOT SEARCHED. findAppExtSpan scans byte by byte from zero, which is
+  // fine for a file you are already parsing and ruinous here: on a 300 MB app it
+  // would cost more than the copy it is trying to save, and on an ordinary big
+  // GIF with no marker at all it would walk every byte to conclude nothing.
+  // This follows the block structure instead, stepping over the payload in
+  // 255-byte sub-blocks by their own length bytes, so the cost tracks the number
+  // of blocks rather than the size of the file.
+  //
+  // Anything unexpected returns the ORIGINAL bytes. A GIF we do not fully
+  // understand must still be shown exactly as it is; the saving is an
+  // optimisation, and correctness of the picture is not negotiable for it.
+  function stripForDisplay(bytes) {
+    if (!bytes || bytes.length < 14) return bytes;
+    if (bytes[0] !== 0x47 || bytes[1] !== 0x49 || bytes[2] !== 0x46) return bytes;
+    const marker = textToBytes(GIFOS_MARKER);
+    const spans = [];
+    let p = 6;                                    // past "GIF89a"
+    const packed = bytes[p + 4];
+    p += 7;                                       // logical screen descriptor
+    if (packed & 0x80) p += 3 * (1 << ((packed & 0x07) + 1));   // global colour table
+    // Skip a run of length-prefixed sub-blocks; returns the index past the
+    // terminating zero, or -1 if the file ends mid-run (truncated).
+    const skipSubBlocks = (q) => {
+      while (q < bytes.length) {
+        const size = bytes[q];
+        if (size === 0) return q + 1;
+        q += 1 + size;
+      }
+      return -1;
+    };
+    while (p < bytes.length) {
+      const introducer = bytes[p];
+      if (introducer === 0x3b) break;             // trailer — end of the stream
+      if (introducer === 0x21) {                  // extension
+        const label = bytes[p + 1];
+        let q;
+        if (label === 0xff && bytes[p + 2] === 0x0b) {
+          let mine = true;
+          for (let i = 0; i < 8; i++) if (bytes[p + 3 + i] !== marker[i]) { mine = false; break; }
+          q = skipSubBlocks(p + 3 + 11);
+          if (q < 0) return bytes;
+          if (mine) spans.push({ start: p, end: q });
+        } else {
+          q = skipSubBlocks(p + 2);
+          if (q < 0) return bytes;
+        }
+        p = q;
+      } else if (introducer === 0x2c) {           // image descriptor
+        const lp = bytes[p + 9];
+        let q = p + 10;
+        if (lp & 0x80) q += 3 * (1 << ((lp & 0x07) + 1));       // local colour table
+        q += 1;                                   // LZW minimum code size
+        q = skipSubBlocks(q);
+        if (q < 0) return bytes;
+        p = q;
+      } else {
+        return bytes;                             // not a shape we understand
+      }
+    }
+    if (!spans.length) return bytes;              // an ordinary GIF, or already stripped
+    let drop = 0;
+    for (let i = 0; i < spans.length; i++) drop += spans[i].end - spans[i].start;
+    const out = new Uint8Array(bytes.length - drop);
+    let w = 0, from = 0;
+    for (let i = 0; i < spans.length; i++) {
+      out.set(bytes.subarray(from, spans[i].start), w);
+      w += spans[i].start - from;
+      from = spans[i].end;
+    }
+    out.set(bytes.subarray(from), w);
+    return out;
+  }
+
   // ---- helpers ------------------------------------------------------------
   // Cheap sync check: valid GIF header + GIFOS marker present (no payload parse).
   function looksLikeGifosGif(bytes) {
@@ -381,7 +475,7 @@
   GifOS.gif = {
     encode, decode, repack, embed, looksLikeGifosGif, readManifest,
     b64encode, b64decode, textToBytes, bytesToText,
-    findAppExtSpan, appExtBlock,
+    findAppExtSpan, appExtBlock, stripForDisplay,
     MARKER: GIFOS_MARKER,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
