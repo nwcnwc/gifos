@@ -2005,6 +2005,15 @@
 
   root.Render = {
     init: init, draw: draw, textureFor: textureFor,
+    // What the renderer is HOLDING. Exported because a leak here is invisible
+    // from outside: textures and label plates live in plain objects keyed by
+    // tile/name, and nothing about the frame rate says which of them is growing.
+    stats: function () {
+      var t = 0, l = 0;
+      for (var k in textures) t++;
+      for (var k2 in labelTex) l++;
+      return { textures: t, labels: l };
+    },
     // Settable so the two numbers can be judged side by side on ONE frame.
     setDrape: function (ground, roof) {
       if (ground != null) drapeGround = Math.max(0, Math.min(1, ground));
