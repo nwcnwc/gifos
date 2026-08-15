@@ -34,7 +34,7 @@
      'searchform','fatal-msg','steerpad','steer-knob','coach','controls',
      'worldstat','ws-summary','ws-mirrors','ws-tiles','btn-flare',
      'ctl-steering','ctl-throttle','note-steering','coach-gas','pedal-gas',
-     'health','health-fill','damage-flash','wrecked','gear','stuck','cracks',
+     'health','health-fill','damage-flash','wrecked','wrecked-why','gear','stuck','cracks',
      'ctl-wildlife','ctl-traffic','ctl-sound','ctl-blaster','ctl-keep','ctl-fill','ctl-labels','note-offline','race-dist',
      'street','passing','recent','cockpit','cockpit-wheel','pov-eye',
      'dash-speed','dash-cond-fill','speedo','btn-fly','fly-plane','fly-car','dash-unit',
@@ -926,6 +926,15 @@
     if (!!s.wrecked !== !!last.wrecked) {
       last.wrecked = !!s.wrecked;
       el.wrecked.hidden = !s.wrecked;
+      // Say what actually happened. This was a fixed string blaming a building
+      // whatever killed you, which is its own small lie every time you drown.
+      if (el['wrecked-why']) {
+        el['wrecked-why'].textContent =
+          s.wreckedBy === 'water'  ? 'You drowned.'
+          : s.wreckedBy === 'animal' ? 'That animal won.'
+          : s.wreckedBy === 'ground' ? 'The ground won.'
+          : 'That building won.';
+      }
     }
 
     if (s.players !== last.players) {

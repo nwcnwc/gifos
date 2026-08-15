@@ -245,7 +245,7 @@
         var damage = Math.min(45, (v - HURT_AT) * 0.72 * a.kind.mass + 2.5 * a.kind.mass);
         car.health = Math.max(0, car.health - damage);
         car.speed *= Math.max(0.35, 1 - 0.10 * a.kind.mass);
-        if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+        if (car.health <= 0) { car.wrecked = true; car.speed = 0; car.wreckedBy = 'animal'; }
         hit = { kind: a.kind.id, label: a.kind.label, damage: damage, speed: v, health: car.health };
       } else if (away < 55 && v > 6) {
         // Roughly in front of us and close: worth a word in the status line.
