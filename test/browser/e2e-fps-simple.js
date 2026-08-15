@@ -74,9 +74,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // the same code path; 'medium' on a software rasteriser spends minutes building
 // scenery nothing then looks at.
 //
-// DEATHMATCH lets each device choose, as a player's device would. That is what
-// the fleet was asked for: a box per player, running the game at the quality it
-// would really run it at. Pinning there would be measuring the pin.
+// DEATHMATCH pins 'low' as well, and it is worth being exact about why that is
+// not a cop-out. The fleet is asked for ISOLATION — a CPU per player, so that
+// "did the presence arrive" is not really "was the kernel scheduling two 3D
+// browsers". It is not asked for FIDELITY: nothing in this half looks at the
+// street, and a peer may be a Raspberry Pi rendering through swiftshader, which
+// at 'medium' never finishes building a world at all. What the frame rate
+// actually is on real hardware is a different question with a different tool,
+// and answering it by making this suite slow enough to time out answers neither.
+// Override to measure something else.
 const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RELAY + "');" +
   "localStorage.setItem('gifos_name','" + name + "')}catch(e){};" +
   ((process.env.GIFOS_FPS_QUALITY || quality)
@@ -339,7 +345,7 @@ async function deathmatch() {
 
     /* ---- Alice, on her own machine, mints the room ---- */
     const aCtx = await boxes[0].browser.newContext({ viewport: { width: 1100, height: 720 } });
-    await aCtx.addInitScript({ content: setup('Alice') });
+    await aCtx.addInitScript({ content: setup('Alice', 'low') });
     const aDesk = await aCtx.newPage();
     aDesk.on('pageerror', (e) => console.log('  [Alice err] ' + e.message.slice(0, 200)));
     await install(aDesk);
@@ -387,7 +393,7 @@ async function deathmatch() {
 
     /* ---- Bob, on a DIFFERENT machine, opens the link ---- */
     const bCtx = await boxes[1].browser.newContext({ viewport: { width: 1100, height: 720 } });
-    await bCtx.addInitScript({ content: setup('Bob') });
+    await bCtx.addInitScript({ content: setup('Bob', 'low') });
     const bRun = await bCtx.newPage();
     await bRun.goto(shareUrl);
     const bFrame = await ready(bRun, 'Bob', 240000);
@@ -408,8 +414,13 @@ async function deathmatch() {
       waitFor(aFrame, () => window.Net && window.Net.count() >= 2, 180000),
       waitFor(bFrame, () => window.Net && window.Net.count() >= 2, 180000),
     ]);
+    const roomState = async () => (await Promise.all([aFrame, bFrame].map((f) => f.evaluate(() => ({
+      count: window.Net ? window.Net.count() : 'no Net',
+      others: window.Net ? Object.keys(window.Net.others()) : [],
+      me: window.Net && window.Net.me() ? window.Net.me().id : null,
+    })).catch((e) => ({ err: String(e).slice(0, 60) }))))).map((r, i) => (i ? 'bob' : 'alice') + '=' + JSON.stringify(r)).join(' ');
     check('both peers see two players in the room', aSees && bSees,
-      'alice=' + aSees + ' bob=' + bSees);
+      aSees && bSees ? 'alice=true bob=true' : await roomState());
 
     // A BODY, not just a row: remote.js has to put something shootable in the
     // world, or the other player is a name on a scoreboard and nothing else.
@@ -533,12 +544,21 @@ async function deathmatch() {
     check('and it is scored to exactly ONE player',
       await aFrame.evaluate(() => window.Net.roster().reduce((n, r) => n + (r.k > 0 ? 1 : 0), 0)) === 1, roster);
 
+    // ASKED OF THE APP, NOT INFERRED FROM A NUMBER. "Alive" is a thing this app
+    // decides and publishes (doRespawn clears `dead` and pushes it); health is a
+    // value that is restored around the same moment and regenerates besides, so
+    // reading health raced the respawn and reported a corpse that had already
+    // stood up somewhere else.
     const respawned = await waitFor(bFrame, () => {
-      const p = window.__FPS__.player;
-      return !!(p && p.health && p.health.value > 0);
-    }, 30000);
+      const mine = window.Net.roster().find((r) => r.me);
+      return !!(mine && mine.alive);
+    }, 60000);
+    const respawnHp = await bFrame.evaluate(() => {
+      const p = window.__FPS__ && window.__FPS__.player;
+      return p && p.health ? p.health.value : null;
+    }).catch(() => null);
     const bobSpawnAfter = await feetOf(bFrame);
-    check('the target respawns, alive again', respawned);
+    check('the target respawns, alive again', respawned, 'health ' + respawnHp);
     check('...somewhere else, not on the spot it died',
       !!bobSpawnBefore && !!bobSpawnAfter &&
       (Math.abs(bobSpawnBefore[0] - bobSpawnAfter[0]) + Math.abs(bobSpawnBefore[1] - bobSpawnAfter[1])) > 1,
