@@ -1964,6 +1964,7 @@
       cleared: hits.animals,
       health: car.health,
       wrecked: car.wrecked,
+      wreckedBy: car.wreckedBy,
       players: root.MP.count(),
       race: root.MP.raceState(car),
       odometer: car.odometer,

@@ -27,6 +27,7 @@
       odometer: 0,
       health: 100,
       wrecked: false,
+      wreckedBy: null,      // 'wall' | 'water' | 'ground' | 'animal'
       inWater: false,
       deepWater: false,     // deep drowns you; shallow is a ford
       sink: 0,              // metres the body has settled into water
@@ -133,13 +134,13 @@
       car.hurtCool = 1.0;
       damage = (best - HURT_AT) * 2.6;
       car.health = Math.max(0, car.health - damage);
-      if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+      if (car.health <= 0) { car.wrecked = true; car.speed = 0; car.wreckedBy = 'wall'; }
     }
     return { impact: fresh ? best : 0, damage: damage, crash: !scrape };
   }
 
   function repair(car) {
-    car.health = 100; car.wrecked = false; car.contactT = 0;
+    car.health = 100; car.wrecked = false; car.wreckedBy = null; car.contactT = 0;
     car.inWater = false; car.deepWater = false; car.sink = 0;
     car.flying = false; car.falling = false; car.vy = 0; car.agl = 0; car.targetAgl = null;
     car.revArm = 0; car.stillT = 0; car.halted = false;
@@ -210,7 +211,10 @@
       if (Math.abs(car.speed) < 0.4) car.speed = 0;
       car.sink = Math.min(1.35, (car.sink || 0) + dt * 1.6);
       car.health = Math.max(0, car.health - dt * 42);  // ~2.4 s from full
-      if (car.health <= 0) { car.wrecked = true; car.speed = 0; }
+      // WHAT KILLED YOU IS NOT ALWAYS A BUILDING. The wreck panel's text was a
+      // fixed string that blamed one every time — reported from the Grand
+      // Canyon, drowning in a river with no building in sight.
+      if (car.health <= 0) { car.wrecked = true; car.speed = 0; car.wreckedBy = 'water'; }
       var dxs = Math.sin(car.yaw) * car.speed * dt, dzs = Math.cos(car.yaw) * car.speed * dt;
       car.x += dxs; car.z += dzs;
       settle(car, frame, dt);

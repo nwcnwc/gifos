@@ -3077,6 +3077,91 @@ function check(name, cond, detail) {
   check('CANYON: …and still never stands on top of the land',
     cWater.verts > 0 && cWater.above < 6,
     'highest water above its own ground = ' + cWater.above + ' m');
+  // ---- THE SURFACE BETWEEN THE BANKS, AND WHAT THE HAZARD THINKS ---------
+  // The checks above sample water VERTICES, which sit on the ring itself — and
+  // per-vertex levelling makes those right almost by construction. What a
+  // player actually looks at is the surface BETWEEN them, and what kills them
+  // is a separate 2D test that never consults height at all
+  // (Roads.landAt(index, x, z)). Reported from the canyon and still true:
+  // the river reads as land, fish stand on it, and the car drowns on dry rock.
+  //
+  // These sample the TRIANGLES, not the corners, and then ask the hazard and
+  // the picture to agree. They are expected to be the honest measure of §14b.
+  const cSurf = await canyon0.fr.locator('body').evaluate(() => {
+    const w = window.App.world, f = w.frame;
+    let tris = 0, worstCentre = 0, badCentres = 0, span = 0;
+    let drownDry = 0, drownChecked = 0;
+    for (const k in w.roads) {
+      const t = w.roads[k];
+      if (!t || !t.built || !t.built.water || !t.built.water.positions) continue;
+      const P = t.built.water.positions, I = t.built.water.idx || t.built.water.index;
+      if (!I) continue;
+      for (let i = 0; i + 2 < I.length; i += 3) {
+        const a = I[i] * 3, b = I[i + 1] * 3, c = I[i + 2] * 3;
+        const cx = (P[a] + P[b] + P[c]) / 3;
+        const cy = (P[a + 1] + P[b + 1] + P[c + 1]) / 3;
+        const cz = (P[a + 2] + P[b + 2] + P[c + 2]) / 3;
+        // How far apart are this triangle's own corners in height? A sheet
+        // stretched between distant parts of a river is the shape that cuts
+        // through hillsides.
+        const ys = [P[a + 1], P[b + 1], P[c + 1]];
+        span = Math.max(span, Math.max.apply(null, ys) - Math.min.apply(null, ys));
+        const g = window.Terrain.heightAt(f, cx, cz);
+        if (g == null) continue;
+        tris++;
+        const d = cy - g;
+        if (Math.abs(d) > Math.abs(worstCentre)) worstCentre = d;
+        if (Math.abs(d) > 15) badCentres++;
+      }
+    }
+    // Does the hazard agree with the picture? Walk a grid over the water's own
+    // footprint: wherever landAt says "you drown", water should be DRAWN at
+    // roughly that ground height.
+    const surfaceAt = (x, z) => {
+      let best = null;
+      for (const k in w.roads) {
+        const t = w.roads[k];
+        if (!t || !t.built || !t.built.water || !t.built.water.positions) continue;
+        const P = t.built.water.positions;
+        for (let i = 0; i < P.length; i += 3) {
+          const dx = P[i] - x, dz = P[i + 2] - z;
+          const d2 = dx * dx + dz * dz;
+          if (best === null || d2 < best.d2) best = { d2: d2, y: P[i + 1] };
+        }
+      }
+      return best;
+    };
+    for (const k in w.roads) {
+      const t = w.roads[k];
+      if (!t || !t.built || !t.built.wet) continue;
+      const r = t.built.wet;
+      for (let s = 0; s < r.length && drownChecked < 40; s++) {
+        const ring = r[s];
+        const x = (ring.minX + ring.maxX) / 2, z = (ring.minZ + ring.maxZ) / 2;
+        const hit = window.Roads.waterAt(t.built.wet, x, z);
+        if (!hit) continue;
+        drownChecked++;
+        const g = window.Terrain.heightAt(f, x, z);
+        const su = surfaceAt(x, z);
+        // Drowning where the nearest drawn water is far above/below the ground
+        // you are standing on is the "drowned on dry rock" report.
+        if (g == null || !su || Math.abs(su.y - g) > 15) drownDry++;
+      }
+    }
+    return { tris, worstCentre: +worstCentre.toFixed(1), badCentres, span: +span.toFixed(1),
+             drownChecked, drownDry };
+  });
+  check('CANYON: the water surface BETWEEN the banks stays near its ground',
+    cSurf.tris > 0 && Math.abs(cSurf.worstCentre) < 15,
+    cSurf.tris + ' triangles, worst centre |water - ground| = ' + cSurf.worstCentre
+      + ' m, ' + cSurf.badCentres + ' over 15 m');
+  check('CANYON: no water triangle is stretched across a hillside',
+    cSurf.tris > 0 && cSurf.span < 40,
+    'tallest single triangle spans ' + cSurf.span + ' m of height');
+  check('CANYON: where the car DROWNS, water is actually drawn there',
+    cSurf.drownChecked > 0 && cSurf.drownDry === 0,
+    cSurf.drownDry + ' of ' + cSurf.drownChecked + ' drowning spots had no water drawn near that ground');
+
   await canyon0.close();
 
   const hills0 = await openAnyroad(browser, { world: { hills: true }, maptiler: false, tag: 'hills' });
