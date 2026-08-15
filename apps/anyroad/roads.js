@@ -1863,15 +1863,57 @@
         // give each copy a different height and stack sheets of water instead.
         // Unsampled vertices are skipped rather than read as sea level — that was
         // the bug that pinned rivers at y=0.3 under 171 m of ground.
+        // A RIVER IS NOT A FEW HUNDRED POINTS. The Colorado through the Grand
+        // Canyon arrives as one multipolygon of thousands of vertices, and this
+        // function used to walk every one of them TWICE — once sampling the
+        // ground under it, once ear-clipping it — for EVERY TILE that touches
+        // the ring, on the main thread.
+        //
+        // Measured from a DevTools trace of the reported 45-second freeze
+        // (2026-08-14, driving to the river): of 92.7 s of non-idle CPU,
+        // triangulate + its nested cross/inside took 29.9 s and terrain height
+        // sampling took 36.7 s. Two thirds of everything the app did, in here,
+        // on one river. Chrome showed "Page Unresponsive"; the engine note kept
+        // playing because audio is on its own thread.
+        //
+        // Neither loop needs full resolution:
+        //
+        //   THE LEVEL is a 20th percentile. Two hundred samples estimate a
+        //   percentile as well as five thousand do — that is what a percentile
+        //   IS — so sample on a stride instead of exhaustively.
+        //
+        //   THE SURFACE is a flat sheet of water. Ear-clipping is quadratic in
+        //   the vertex count on a concave ring (and a river bank is nothing but
+        //   concave), so a ring is decimated to a bounded number of points
+        //   before it is filled. At these scales the dropped vertices are far
+        //   below a pixel; what they cost was seconds.
+        //
+        // Both bounds are per RING, so a lake with 40 points is untouched and
+        // only the monsters are cut down.
+        var LEVEL_SAMPLES = 220;   // enough for a percentile
+        var FILL_MAX = 600;        // ear-clipping is quadratic past here
         var hs = [];
-        for (var pi = 0; pi < poly.length; pi++) {
+        var hstep = Math.max(1, Math.ceil(poly.length / LEVEL_SAMPLES));
+        for (var pi = 0; pi < poly.length; pi += hstep) {
           var h = root.Terrain.heightAt(frame, poly[pi].x, poly[pi].z);
           if (h !== null) hs.push(h);
         }
         if (hs.length < 3) { groundMisses++; continue; }
         hs.sort(function (a, b) { return a - b; });
         var level = hs[Math.floor(hs.length * 0.2)];
-        var tris = triangulate(poly);
+        // Decimate for the DRAWN SURFACE only. This is a local copy of the
+        // ring; the parsed geometry in geom.wat is untouched, so the wet index,
+        // the drown test and everything else that asks "am I in water" still
+        // read the real bank at full precision. Only the sheet you look at is
+        // coarser, and only when the ring is enormous.
+        var fill = poly;
+        if (poly.length > FILL_MAX) {
+          var fstep = poly.length / FILL_MAX;
+          fill = [];
+          for (var fi = 0; fi < FILL_MAX; fi++) fill.push(poly[Math.floor(fi * fstep)]);
+        }
+        var tris = triangulate(fill);
+        poly = fill;
         var base = m.pos.length / 3;
         for (var pj = 0; pj < poly.length; pj++) m.pos.push(poly[pj].x, level + 0.3, poly[pj].z);
         for (var ti = 0; ti < tris.length; ti++) m.idx.push(base + tris[ti]);
