@@ -50,6 +50,7 @@
   var appliedTotal = 0;       // how many DISTINCT claims we have ever accepted
   var acc = 0;
   var onHit = null;           // (dmg, headshot, fromId, fromName) -> void
+  var onKill = null;          // (victimName, headshot) -> void, when I am credited
   var onRoster = null;        // (list) -> void, for the scoreboard
   var lastPublished = 0;
   var self = { hp: 100, k: 0, d: 0, alive: true, spawn: 0, lastKilledBy: null, killAck: {} };
@@ -119,9 +120,23 @@
       };
       // They are telling the room I killed them. Count it once — the ack key
       // stops a redelivered row scoring the same kill again and again.
+      //
+      // This is also the ONLY moment the shooter learns the shot was fatal, and
+      // so the only place the kill can be reported. The shooter cannot know it
+      // at the time it fires: it claims damage, and the target decides what that
+      // costs it and whether it died (see the header). Upstream's own kill
+      // feedback rides `damage:dealt.killed`, which is set by the AI system when
+      // an agent it owns dies locally — a net body never dies locally, by
+      // design, so that flag is never set for a person and the shooter would
+      // otherwise get no hitmarker, no banner and no killfeed line for the one
+      // kill in the game that was against a human being.
       if (p.lastKilledBy && p.lastKilledBy.by === me.id) {
         var ak = p.id + ':' + p.lastKilledBy.at;
-        if (!self.killAck[ak]) { self.killAck[ak] = 1; self.k++; publish(true); }
+        if (!self.killAck[ak]) {
+          self.killAck[ak] = 1; self.k++;
+          if (onKill) onKill(p.name || 'Player', !!p.lastKilledBy.hs);
+          publish(true);
+        }
       }
     }
     for (var id in others) {
@@ -176,7 +191,7 @@
   function setSelf(s) {
     self.hp = s.hp; self.alive = s.alive; self.spawn = s.spawn;
     if (s.deaths != null) self.d = s.deaths;
-    if (s.killedBy) self.lastKilledBy = { by: s.killedBy, at: s.spawn };
+    if (s.killedBy) self.lastKilledBy = { by: s.killedBy, at: s.spawn, hs: !!s.killedByHeadshot };
   }
 
   function publish(force) {
@@ -258,6 +273,7 @@
     // a guard that cannot see it is a guard that passes when it breaks.
     appliedTotal: function () { return appliedTotal; },
     onHit: function (fn) { onHit = fn; },
+    onKill: function (fn) { onKill = fn; },
     onRoster: function (fn) { onRoster = fn; },
   };
 })(window);

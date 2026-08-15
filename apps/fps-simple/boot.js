@@ -24,9 +24,21 @@
 
   var RESPAWN_MS = 3200;
 
+  // How long a bullet stays responsible for you. Death is reported by the
+  // engine as one event with no cause, so the killer is whoever shot you most
+  // recently — which without a window means the player who winged you at the
+  // start of a life is credited when you walk off a roof three minutes later.
+  var KILL_CREDIT_MS = 8000;
+
   var engine = null, ctx = null, player = null, ui = null, touch = null;
   var db = null, prefs = { quality: null, sensitivity: null, invertY: null, fov: null };
-  var spawnSeq = 1, dead = false, respawnAt = 0, killedBy = '';
+  var spawnSeq = 1, dead = false, respawnAt = 0;
+  // Who last shot us, BY ID. Matching the killer back by name (which this did)
+  // credits the wrong player whenever two people share one — and the default
+  // name for someone who never set one is "Player", so an unnamed room credited
+  // every kill to whichever unnamed player the roster happened to iterate first,
+  // and credited nobody at all once the killer's row went stale.
+  var killedBy = '', killedById = null, killedByHs = false, killedAt = 0;
   var deaths = 0;
   var gate = document.getElementById('gate');
   var bar = document.getElementById('gate-bar');
@@ -91,6 +103,7 @@
   NetplaySystem.prototype.init = function (context) {
     root.Remote.init(context);
     root.Net.onHit(onIncomingHit);
+    root.Net.onKill(onScoredKill);
     root.Net.onRoster(renderScore);
     context.events.on('player:death', onDeath);
   };
@@ -105,14 +118,35 @@
 
   // Somebody's browser says they shot me. We are the authority on what that
   // costs us — see the note in net.js about why the target decides.
+  // The wound arrives already scaled — the shooter's collider multiplier (which
+  // is where the headshot bonus lives) and the range falloff are both applied
+  // before it goes on the wire, so what is left for us is to take it.
   function onIncomingHit(dmg, headshot, fromId, fromName) {
     if (!player || dead) return;
     var o = root.Net.others()[fromId];
     var from = null;
     if (o) { from = new root.COD.THREE.Vector3(o.x, o.y + 1.4, o.z); }
-    player.applyDamage(dmg * (headshot ? 1 : 1), from, { type: 'bullet' });
-    killedBy = fromName;
+    player.applyDamage(dmg, from, { type: 'bullet' });
+    killedBy = fromName; killedById = fromId; killedByHs = !!headshot;
+    killedAt = Date.now();
     pushSelf();
+  }
+
+  // Somebody's row says I killed them — the only moment a shooter can be told,
+  // because the target is what decides that it died (see net.js). Report it the
+  // way upstream reports a kill on a bot, so shooting a person feels the same.
+  function onScoredKill(victim, headshot) {
+    if (!ui) return;
+    try {
+      ui.hitmarker('kill');
+      if (ui.banner) ui.banner.show('Enemy Eliminated', headshot ? 'HEADSHOT' : '');
+      if (ui.killfeed) ui.killfeed.push({ attacker: 'YOU', victim: victim, headshot: !!headshot, mine: true });
+      // Upstream posts its OWN killfeed row from `actor:death` when the body
+      // falls a frame later, and dedupes that against a recent local kill with
+      // this timestamp. Setting it is how we tell it the kill it is about to
+      // report is the one we just reported — otherwise every kill reads twice.
+      if (ctx && ctx.time) ui._lastKillAt = ctx.time.elapsed;
+    } catch (e) { /* feedback that fails is not worth losing the kill over */ }
   }
 
   function onDeath() {
@@ -121,20 +155,26 @@
     deaths++;
     respawnAt = Date.now() + RESPAWN_MS;
     player.setControlEnabled(false);
-    root.Net.setSelf({ hp: 0, alive: false, spawn: spawnSeq, deaths: deaths, killedBy: lastKillerId() });
+    var by = lastKillerId();
+    root.Net.setSelf({
+      hp: 0, alive: false, spawn: spawnSeq, deaths: deaths,
+      killedBy: by, killedByHeadshot: by ? killedByHs : false,
+    });
     root.Net.publish(true);
-    banner(killedBy ? 'Killed by ' + killedBy : 'You died', true);
+    banner(by ? 'Killed by ' + killedBy : 'You died', true);
   }
 
+  // The player who is credited: the last one to shoot us, and only if they did
+  // so recently enough to be the reason we are dead. A fall, a grenade, or the
+  // garrison killing us is nobody's kill.
   function lastKillerId() {
-    var others = root.Net.others();
-    for (var id in others) if (others[id].name === killedBy) return id;
-    return null;
+    if (!killedById || Date.now() - killedAt > KILL_CREDIT_MS) return null;
+    return killedById;
   }
 
   function doRespawn() {
     dead = false;
-    killedBy = '';
+    killedBy = ''; killedById = null; killedByHs = false; killedAt = 0;
     spawnSeq++;
     // A different spawn point each time, or a room of three keeps landing on
     // each other's heads at the same corner.
@@ -149,10 +189,11 @@
 
   function pushSelf() {
     if (!player) return;
+    var by = dead ? lastKillerId() : null;
     root.Net.setSelf({
       hp: player.health ? player.health.value : 100,
       alive: !dead, spawn: spawnSeq, deaths: deaths,
-      killedBy: dead ? lastKillerId() : null,
+      killedBy: by, killedByHeadshot: by ? killedByHs : false,
     });
   }
 
@@ -194,6 +235,35 @@
   }
 
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+  /* ------------------------------------------------------------------ */
+  /* Tab belongs to the scoreboard                                      */
+  /* ------------------------------------------------------------------ */
+
+  // Upstream binds Tab to swapWeapon, alongside Digit1 and Digit2. We bind it
+  // to the scoreboard — and the app TELLS the player to hold it — so holding Tab
+  // to read the scores also swapped your rifle for your sidearm, and let go of
+  // it to swap back. In a firefight, which is the only time you check the
+  // scores, that is the whole game.
+  //
+  // preventDefault() on our own keydown does not help: both listeners are real
+  // listeners on the same event and neither cancels the other. The binding table
+  // is a module-level constant inside the bundle with no way in, so the two
+  // methods that read it are wrapped instead, and only for this one action.
+  // Digit1/Digit2 still swap, which is what the gate card now says.
+  function freeTheTabKey(input) {
+    if (!input || !input.action || !input.actionPressed) return;
+    var action = input.action.bind(input);
+    var actionPressed = input.actionPressed.bind(input);
+    input.action = function (name) {
+      if (name === 'swapWeapon') return input.held('Digit1') || input.held('Digit2');
+      return action(name);
+    };
+    input.actionPressed = function (name) {
+      if (name === 'swapWeapon') return input.pressed('Digit1') || input.pressed('Digit2');
+      return actionPressed(name);
+    };
+  }
 
   /* ------------------------------------------------------------------ */
   /* boot                                                               */
@@ -258,6 +328,7 @@
           ? 'Playing solo against the garrison. <b>Invite someone</b> and it becomes a deathmatch.'
           : 'Deathmatch — <b>' + roster.length + ' in the room</b>.';
 
+        freeTheTabKey(engine.input);
         touch = root.Touch.init(engine.input, ui);
         root.__FPS_POSE__ = pose;
         // A handle on the running game, for the suites and for anyone poking at
@@ -309,7 +380,35 @@
     // Same click, so it still counts as the user gesture both of these need.
     engine.input.requestPointerLock();
     if (root.__AUDIO__ && root.__AUDIO__.start) root.__AUDIO__.start().catch(function () {});
+    checkAiming();
   });
+
+  // WHEN THE POINTER IS NOT OURS TO TAKE. `capabilities.pointer` is revocable —
+  // the Abilities sheet says "Uncheck to turn this off for this app" and means
+  // it, so the frame can mount without allow-pointer-lock. The engine asks for
+  // the lock inside a try/catch and the browser's refusal is a SecurityError
+  // thrown in here, where nobody sees it: the game starts, renders, sounds
+  // right, and the view will not turn. A first-person game that silently cannot
+  // look around reads as a broken game, not as a setting, so say which it is.
+  //
+  // Detected by the OUTCOME rather than by asking whether the capability is on,
+  // which also covers a browser that refuses the lock for its own reasons.
+  function checkAiming() {
+    if (matchMedia('(pointer: coarse)').matches) return;   // a thumb needs no lock
+    setTimeout(function () {
+      if (document.pointerLockElement) return;
+      var n = document.createElement('div');
+      n.id = 'no-pointer';
+      n.innerHTML = 'The mouse pointer is switched off for this app, so you can move but not aim.<br>' +
+        'Turn on <b>“Take over the mouse pointer while you play”</b> in Abilities, then reopen FPS Simple.';
+      document.body.appendChild(n);
+      // If it is ever granted — the player fixed it, or the browser simply took
+      // a second click — the warning has stopped being true. Take it down.
+      document.addEventListener('pointerlockchange', function () {
+        if (document.pointerLockElement && n.parentNode) n.remove();
+      });
+    }, 900);
+  }
 
   /* ---- scoreboard on Tab ------------------------------------------------ */
   addEventListener('keydown', function (e) {

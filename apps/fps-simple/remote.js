@@ -62,9 +62,26 @@
       if (!id) return;
       var rec = bodies[id];
       if (!rec || rec.dead) return;
-      root.Net.claimHit(id, e.amount, !!e.headshot, rec.spawn);
+      root.Net.claimHit(id, damageFor(e), !!e.headshot, rec.spawn);
     });
     return true;
+  }
+
+  // WHAT A PERSON COSTS, versus what a bot costs. `damage:dealt` carries the
+  // raw wound — barrel damage scaled by the collider that was hit, which is
+  // where the headshot multiplier already lives. It does NOT carry range: the
+  // AI system applies its own distance falloff (full damage inside 22 m, tapering
+  // to 0.45x by 77 m) when it hands the wound to an agent, and that step is the
+  // one a net body skips, because a net body never takes damage locally.
+  //
+  // Claiming e.amount raw therefore made a PERSON take up to 2.2x what a BOT
+  // takes from the identical shot at the identical range, so a rifle killed a
+  // friend across the market square in two hits and a soldier standing next to
+  // them in five. Ask the AI system for the same number it would have used.
+  function damageFor(e) {
+    var k = 1;
+    try { if (ai && typeof ai._falloff === 'function') k = ai._falloff(e.point); } catch (err) {}
+    return e.amount * (k > 0 && k <= 1 ? k : 1);
   }
 
   /* ------------------------------------------------------------------ */
@@ -139,6 +156,11 @@
     }
     // Posed, not thinking — and never a source of damage to anyone.
     a.staged = { net: true, id: id, noDamage: true };
+    // Upstream's killfeed reads `actor.name` off the body that fell, and an
+    // agent has no name — every death of a real person read "ENEMY killed
+    // OPERATOR". Name the puppet after the player wearing it and upstream's own
+    // feed says who actually died, with nothing else changed.
+    a.name = o.name || 'Player';
     // The puppet cannot be killed locally: its owner decides that. Without this,
     // a hit we THINK landed would drop a body the other player never conceded.
     a.applyDamage = function () { return false; };
