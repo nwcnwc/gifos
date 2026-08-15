@@ -47,6 +47,7 @@
   var seq = 0;                // my hit-claim sequence, monotonic within a session
   var pendingHits = [];       // claims I have made recently, riding on my row
   var appliedClaims = {};     // "shooterId:seq" -> when we applied it
+  var appliedTotal = 0;       // how many DISTINCT claims we have ever accepted
   var acc = 0;
   var onHit = null;           // (dmg, headshot, fromId, fromName) -> void
   var onRoster = null;        // (list) -> void, for the scoreboard
@@ -149,6 +150,7 @@
       var key = p.id + ':' + h.n;
       if (appliedClaims[key]) continue;
       appliedClaims[key] = now();
+      appliedTotal++;
       // A claim that predates my current life is a shot fired at the body I was
       // wearing before I respawned. It must not follow me into the new one.
       if (h.sp != null && h.sp !== self.spawn) continue;
@@ -251,6 +253,10 @@
     me: function () { return me; },
     count: function () { var n = 0; for (var k in others) n++; return n + 1; },
     live: function () { return !!api && !!me.id; },
+    // Distinct claims paid, ever. The dedupe is invisible from the outside —
+    // health regenerates, so a duplicate hit can be masked within seconds — and
+    // a guard that cannot see it is a guard that passes when it breaks.
+    appliedTotal: function () { return appliedTotal; },
     onHit: function (fn) { onHit = fn; },
     onRoster: function (fn) { onRoster = fn; },
   };

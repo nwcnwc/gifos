@@ -260,6 +260,10 @@
 
         touch = root.Touch.init(engine.input, ui);
         root.__FPS_POSE__ = pose;
+        // A handle on the running game, for the suites and for anyone poking at
+        // it in a console. Upstream's own entry exposes window.__ENGINE__ for
+        // the same reason; we do not use that entry, so this is where it lives.
+        root.__FPS__ = { engine: engine, ctx: ctx, player: player, ui: ui, net: root.Net, remote: root.Remote };
         pushSelf();
 
         // Settings the player changes in the pause menu, kept for next time.
