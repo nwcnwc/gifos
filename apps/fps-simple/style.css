@@ -119,3 +119,21 @@ body.touch #gate-keys { display: none; }
    rather than leave a bar that looks busy under an enabled Play button. */
 #gate.ready #gate-load::after { animation: none; opacity: 0; }
 @media (prefers-reduced-motion: reduce) { #gate-load::after { animation: none; } }
+
+/* ---- what the keys do, when somebody asks by pressing a stray one -------- */
+/* Deliberately not a modal: it must never take a click, never take focus, and
+   never need dismissing — you asked a question mid-firefight, not opened a
+   dialog. It fades itself out. */
+#keyhelp {
+  position: fixed; z-index: 30; left: 50%; bottom: 12%;
+  transform: translateX(-50%) translateY(6px);
+  max-width: min(40rem, 94vw); text-align: center;
+  font-size: .82rem; line-height: 1.75; color: #e8e8f0;
+  background: rgba(8,8,12,.82); border: 1px solid rgba(255,255,255,.13);
+  border-radius: .6rem; padding: .6rem 1rem; backdrop-filter: blur(6px);
+  pointer-events: none; opacity: 0;
+  transition: opacity .18s ease, transform .18s ease;
+}
+#keyhelp.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+#keyhelp b { color: var(--accent, #d6ac4e); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { #keyhelp { transition: none; } }

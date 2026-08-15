@@ -361,6 +361,31 @@ async function solo() {
       await frame.evaluate(() => !window.__FPS_AUTO__ && window.__FPS__.ctx.config.quality === 'low'),
       'quality=' + await frame.evaluate(() => window.__FPS__.ctx.config.quality));
 
+    // A STRAY KEY ASKS WHAT THE KEYS ARE, and the answer must know which keys
+    // are real. The bound set is probed from the engine's own table at boot
+    // rather than copied into the app, so this checks the probe actually found
+    // it: if it silently returned nothing, every key would look stray and the
+    // help would flash on W.
+    const keys = await frame.evaluate(() => {
+      const b = window.__FPS_BOUND__ || {};
+      const fire = (code) => {
+        document.getElementById('keyhelp') && document.getElementById('keyhelp').classList.remove('on');
+        dispatchEvent(new KeyboardEvent('keydown', { code: code, bubbles: true }));
+        const el = document.getElementById('keyhelp');
+        return !!(el && el.classList.contains('on'));
+      };
+      return {
+        movement: ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft'].filter((c) => b[c]).length,
+        ours: !!b.Tab && !!b.Escape,
+        strayFlashes: fire('KeyM'),
+        boundStaysQuiet: !fire('KeyW'),
+      };
+    });
+    check('the engine\'s own key bindings were found, not guessed at',
+      keys.movement === 6 && keys.ours, JSON.stringify(keys));
+    check('a stray key flashes the controls, a real one does not',
+      keys.strayFlashes && keys.boundStaysQuiet, JSON.stringify(keys));
+
     check('it reached the network ZERO times — the manifest declares no hosts',
       external.length === 0, external.slice(0, 3).join(' '));
   } finally {
