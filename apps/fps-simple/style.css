@@ -79,3 +79,14 @@ body.touch #gate-keys { display: none; }
   padding: .3rem .7rem; border-radius: .5rem; pointer-events: auto; cursor: pointer;
 }
 #tally[hidden] { display: none; }
+
+/* ---- pointer capability switched off ----------------------------------- */
+/* Shown only when the app asked for the pointer and was refused, so the player
+   is told why the view will not turn instead of concluding the game is broken. */
+#no-pointer {
+  position: fixed; z-index: 36; left: 50%; bottom: max(1.2rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%); max-width: min(34rem, 92vw); text-align: center;
+  font-size: .85rem; line-height: 1.5; color: #f0e2d6;
+  background: rgba(90,38,26,.92); border: 1px solid rgba(255,150,120,.35);
+  border-radius: .7rem; padding: .7rem 1rem; backdrop-filter: blur(6px);
+}
