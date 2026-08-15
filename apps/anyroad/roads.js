@@ -1914,8 +1914,62 @@
         }
         var tris = triangulate(fill);
         poly = fill;
+        // ONE SHEET CANNOT BE A RIVER. `level` above is a single height for the
+        // whole ring, and the Colorado drops well over a kilometre inside one
+        // multipolygon. Drawn flat, the surface is under the ground for most of
+        // its length: the river READS AS LAND, the fish that spawn at water
+        // level stand on that land, and — because the drown test (landAt) is a
+        // pure 2D point-in-polygon with no height in it at all — the car still
+        // drowns on what looks like dry rock. Reported from the canyon,
+        // 2026-08-14, as three symptoms; they are this one fact.
+        //
+        // So a vertex gets its level from the ground NEAR IT along the ring
+        // rather than from the whole ring. Neighbouring vertices are
+        // neighbouring points on the bank, so a window along the ring is a
+        // window in space, and the surface follows the valley down.
+        //
+        // Computed from the RING, never from the tile — which is what the
+        // comment above warns about. Every tile that draws this ring computes
+        // the same per-vertex heights and lays down identical geometry, so
+        // nothing stacks and nothing fights.
+        //
+        // A LAKE IS STILL FLAT. Following the ground is right for a river and
+        // wrong for still water, so it only happens where the ring's own ground
+        // actually descends — past SLOPED_M of spread. A pond, a reservoir, a
+        // harbour keeps exactly the single level it has always had.
+        var SLOPED_M = 40;
+        var levels = null;
+        if (hs[hs.length - 1] - hs[0] > SLOPED_M) {
+          var gy = [], gi;
+          for (gi = 0; gi < fill.length; gi++) {
+            gy.push(root.Terrain.heightAt(frame, fill[gi].x, fill[gi].z));
+          }
+          // A vertex over unloaded terrain borrows the nearest known height
+          // rather than reading as sea level — the bug that once pinned rivers
+          // at y≈0.3 under 171 m of ground.
+          var lastKnown = null;
+          for (gi = 0; gi < gy.length; gi++) if (gy[gi] !== null) { lastKnown = gy[gi]; break; }
+          if (lastKnown === null) lastKnown = level;
+          for (gi = 0; gi < gy.length; gi++) {
+            if (gy[gi] === null) gy[gi] = lastKnown; else lastKnown = gy[gi];
+          }
+          var win = Math.max(3, Math.round(fill.length * 0.03));
+          levels = [];
+          for (gi = 0; gi < gy.length; gi++) {
+            var acc = [];
+            for (var wj = -win; wj <= win; wj++) {
+              acc.push(gy[(gi + wj + gy.length * 2) % gy.length]);
+            }
+            acc.sort(function (a, b) { return a - b; });
+            // The same 20th percentile as before, just taken locally: low
+            // enough to sit in the channel, not so low it cuts under the bank.
+            levels.push(acc[Math.floor(acc.length * 0.2)]);
+          }
+        }
         var base = m.pos.length / 3;
-        for (var pj = 0; pj < poly.length; pj++) m.pos.push(poly[pj].x, level + 0.3, poly[pj].z);
+        for (var pj = 0; pj < poly.length; pj++) {
+          m.pos.push(poly[pj].x, (levels ? levels[pj] : level) + 0.3, poly[pj].z);
+        }
         for (var ti = 0; ti < tris.length; ti++) m.idx.push(base + tris[ti]);
       }
       return m;
