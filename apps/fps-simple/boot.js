@@ -40,6 +40,7 @@
   // and credited nobody at all once the killer's row went stale.
   var killedBy = '', killedById = null, killedByHs = false, killedAt = 0;
   var deaths = 0;
+  var garrisonRetired = false;
   var gate = document.getElementById('gate');
   var bar = document.getElementById('gate-bar');
   var note = document.getElementById('gate-note');
@@ -111,6 +112,12 @@
     if (touch) touch.tick();
     if (!root.Net.live()) return;
     root.Remote.sync();
+    // The moment this stops being a solo game, the soldiers go. See
+    // Remote.retireGarrison — the host of a room almost always booted alone.
+    if (!garrisonRetired && root.Net.count() >= 2) {
+      garrisonRetired = true;
+      root.Remote.retireGarrison();
+    }
     root.Net.tick();
     if (dead && Date.now() >= respawnAt) doRespawn();
     updateTally();

@@ -209,5 +209,42 @@
   /** Drop every body — used when the room empties, and on teardown. */
   function clear() { for (var id in bodies) removeBody(id); }
 
-  root.Remote = { init: init, sync: sync, clear: clear, count: function () { var n = 0; for (var k in bodies) n++; return n; } };
+  // SEND THE GARRISON HOME. Whether a garrison spawns is decided once, at boot,
+  // from whether the room was empty — which is right for a guest opening a link
+  // and wrong for everybody else, because the ordinary way a deathmatch starts
+  // is that somebody playing ALONE invites a friend. The host booted alone, so
+  // the host has soldiers; the guest booted into a room, so the guest has none.
+  // They are generated per client from a local RNG and stand in different
+  // places, so the host was left shooting at, taking fire from, and dying to
+  // people the guest could not see anywhere — which is precisely what the
+  // garrison rule exists to prevent, arriving through the front door.
+  //
+  // So the rule is enforced when it becomes true rather than only at boot. It
+  // is one-way: if the room empties again the soldiers do not come back, because
+  // a player who leaves and rejoins would otherwise repopulate a street the
+  // others are still standing in.
+  function retireGarrison() {
+    if (!ai || !ai.agents) return 0;
+    var gone = 0;
+    // Backwards: both removal paths splice this array.
+    for (var i = ai.agents.length - 1; i >= 0; i--) {
+      var a = ai.agents[i];
+      if (byAgent.has(a)) continue;         // that one is a person
+      try { ai.remove ? ai.remove(a) : despawn(a); gone++; } catch (e) {}
+    }
+    ai.populate = function () { return 0; };  // and no reinforcements
+    return gone;
+  }
+
+  root.Remote = {
+    init: init, sync: sync, clear: clear, retireGarrison: retireGarrison,
+    count: function () { var n = 0; for (var k in bodies) n++; return n; },
+    // Soldiers still standing, for the suites: in a room this must be zero.
+    garrison: function () {
+      if (!ai || !ai.agents) return 0;
+      var n = 0;
+      for (var i = 0; i < ai.agents.length; i++) if (!byAgent.has(ai.agents[i])) n++;
+      return n;
+    },
+  };
 })(window);
