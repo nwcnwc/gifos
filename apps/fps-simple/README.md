@@ -76,6 +76,25 @@ publishes its own health. Nobody ever writes to anybody else's row (anyroad's
 rule — it means there is no authority to arbitrate). Claims ride on the
 shooter's own row and are deduped on `(shooter, sequence)`.
 
+"The same code as shooting a bot" has one seam, and it has to be sewn by hand.
+`damage:dealt` carries the wound already scaled by the collider that was hit —
+which is where the headshot multiplier lives — but not by RANGE: the AI system
+applies its own distance falloff (full damage inside 22 m, tapering to 0.45x by
+77 m) at the moment it hands the wound to an agent, and a net body never takes
+that path because it never takes damage locally. Claiming the raw number made a
+person cost less than half what a soldier costs at the far end of the street.
+`remote.js` asks the AI system for the same falloff, so a person and a bot are
+worth the same shot.
+
+The other seam is the kill. Upstream reports one from `damage:dealt.killed`,
+set when an agent dies locally — and a net body, by design, never does. The
+shooter genuinely cannot know: it claims damage and the target decides whether
+that was fatal. So the kill is reported at the only moment the shooter can
+learn it, when the target's own row comes back naming its killer, and it is
+credited by ID. (It was credited by NAME once. Two players called "Player" —
+which is the default for anyone who never set one — and the kill went to
+whichever the roster reached first.)
+
 ## Honest limits
 
 - **6 Hz.** A subscriber re-downloads the whole collection on every change, so
@@ -88,6 +107,10 @@ shooter's own row and are deduped on `(shooter, sequence)`.
   could decline to die. The room is people you sent a link to; the simple design
   is the right one, and pretending otherwise would need a server there isn't.
 - **One map.** See `WORLD_SEED` above.
+- **Tab is the scoreboard, not the weapon swap.** Upstream binds Tab to
+  swapWeapon alongside 1 and 2; this app binds it to the scoreboard and tells
+  you to hold it, so the two readers of upstream's binding table are wrapped to
+  drop Tab from that one action. 1 and 2 still swap.
 - **Solo or deathmatch, not both.** The garrison is generated locally by each
   client, so in a shared room two players would each see private soldiers
   standing in different places — one player shooting at something the other
@@ -103,9 +126,20 @@ node apps/fps-simple/build.mjs       # -> site/apps/fps-simple/fps-simple.gif
 node scripts/build-app-catalog.mjs   # refresh the store catalog
 ```
 
-Guarded by `test/browser/e2e-fps-simple.js` (boots from the real GIF, locks the
-pointer, and runs a two-peer deathmatch over the local relay) and
+Guarded by `test/browser/e2e-fps-simple.js` (its solo half boots from the real
+GIF and locks the pointer anywhere; its deathmatch half declares **NEEDS-FLEET**
+and takes a machine per player, because presence is published from the engine's
+own update and two 3D browsers on one box render at about a frame a second —
+every timing it depends on would otherwise be a timing about that box),
+`test/browser/e2e-fps-touch.js` (the thumb controls) and
 `test/browser/e2e-pointer-lock.js` (the capability itself).
+
+**What no suite can answer, and a person has to.** Whether 6 Hz feels like
+gliding or like lag when you try to lead a shot; whether the left pad sits
+under a thumb on a phone with a notch, in both orientations, and whether
+`LOOK_GAIN` (1.7) is right for a real finger; whether Esc releases the pointer
+on Safari 17 and Firefox as reliably as it does on Chrome. The suites guard the
+mechanisms underneath all three.
 
 ## Licences
 

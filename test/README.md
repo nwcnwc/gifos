@@ -631,6 +631,14 @@ Roughly three families in one directory:
   the Abilities sheet refuses it again — the sandbox is fixed at navigation, so
   a veto that is only honoured where the brokers honour theirs would be a
   checkbox that moves and changes nothing),
+  `e2e-fps-touch` (the thumb controls FPS Simple adds to an engine that has
+  none: a real touchstart reveals them and a mouse machine never sees them, then
+  a thumb reaches `input.stick` / `_rawLook` / the button queues and the
+  player's yaw actually turns. NOTE, the trap this suite paid for: once
+  `engine.start()` owns requestAnimationFrame, `waitForFunction` cannot run in
+  the app frame AT ALL — even `() => true` times out — while `evaluate` of the
+  same expression is correct. Poll from outside; a broken waiter reports a
+  working app as a TimeoutError),
   `e2e-join-prettyurl`, `e2e-perms-share`, `e2e-owned-app`, `e2e-mymedia`,
   `e2e-mymedia-share`, `e2e-theme-wallpaper`, `e2e-invite-lifetime`,
   `e2e-wasm`, `e2e-irl`, `e2e-bible-nav`, `e2e-mirror`,
@@ -675,15 +683,23 @@ Roughly three families in one directory:
   end to end, and is where the download pool is proven on a real app: nine
   tiles, nine upstream requests, players driving on roads they never
   downloaded. `RECORD=1` writes a per-player screen recording to `test/out/`),
-  `e2e-fps-simple` (the FPS Simple port, from its real built GIF: it boots in
-  the sandbox, LOCKS THE POINTER through a real manifest, and reaches the
-  network zero times — then two peers in one room must see each other, SPAWN A
-  BODY for each other (a name on a scoreboard is not something you can shoot),
-  and a claimed hit must cross the wire and be paid ONCE, not once per
-  redelivery of the row. Every multiplayer assertion here guards code with
-  nothing else watching it: upstream Claude of Duty has no networking at all.
-  Pins `GIFOS_FPS_QUALITY=low`, or a software rasteriser spends ~35 s per peer
-  building scenery the suite never looks at),
+  `e2e-fps-simple` (the FPS Simple port, from its real built GIF. TWO HALVES
+  ASKING FOR DIFFERENT HARDWARE. **Solo** runs anywhere — it boots in the
+  sandbox, LOCKS THE POINTER through a real manifest, keeps Tab for the
+  scoreboard instead of the weapon swap upstream binds it to, and reaches the
+  network zero times; all state, so a slow box answers the same as a fast one,
+  and it pins `GIFOS_FPS_QUALITY=low` because a software rasteriser otherwise
+  spends ~35 s building scenery it never looks at. **Deathmatch** DECLARES
+  NEEDS-FLEET and takes a machine per player: two peers in one room must see
+  each other, build the SAME street from the shared seed on two different
+  machines, SPAWN A BODY for each other (a name on a scoreboard is not something
+  you can shoot), pay a claimed hit ONCE rather than once per redelivery of the
+  row, and then actually KILL — the target concedes its own death, the kill is
+  credited BY ID to the player who fired it, and a claim against the previous
+  life does not follow the target into the new one. It lets each device pick its
+  own quality, which is the point of asking for the boxes. Every multiplayer
+  assertion guards code with nothing else watching it: upstream Claude of Duty
+  has no networking at all),
   `e2e-pool` (capabilities.pool — two peers in one meeting, one URL, and the
   upstream is asked ONCE; spawns its own counting server on 8801 and asserts
   the COUNT, not the source, so a cache or a second code path cannot fake it.
