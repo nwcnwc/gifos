@@ -220,7 +220,10 @@
     // (run.html, "THE STAGE IS NOT A SECONDARY TILE"); everything else inherits.
     let cellPref = opts.cell || 110; // composite face cell px — small secondary tiles, keep encode/ship cheap (was COMP_W/C=151)
     const maxW = opts.maxW || 640; // cap composite canvas width — bounds encode CPU + bandwidth at scale (was 1080)
-    const fps = opts.fps || (net && net.SCALE.COMP_FPS) || 12;
+    // THE RATE IS A CEILING AT start(), A DIAL AFTERWARDS (see setFps): opts.fps
+    // is what captureStream is told, and the paint loop may only run at or below
+    // it. Construct at the highest rate this packer will ever want.
+    let fps = opts.fps || (net && net.SCALE.COMP_FPS) || 12;
     const canvas = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
     const ctx = canvas ? canvas.getContext('2d') : null;
     const tiles = new Map(); // id -> { ord, el, streamId, n, cols }
@@ -373,6 +376,25 @@
       // re-derives the canvas from cellPref each frame, so this is enough; a
       // no-op guard keeps a per-sweep call from touching anything.
       setCell(px) { const v = Math.max(6, px | 0); if (v && v !== cellPref) { cellPref = v; lastSig = ''; } },
+      // Same doctrine as setCell, for the other number the power tier moves:
+      // the paint RATE. captureStream's rate is fixed at start() and is a
+      // CEILING, not a promise — a canvas that paints slower simply emits
+      // fewer frames (WebRTC is happy with variable frame rate, and the
+      // still-frame skip above already suppresses byte-identical repaints).
+      // So a live packer can be slowed and re-quickened up to its ceiling
+      // without a rebuild — and a rebuild is what we are avoiding, because it
+      // mints a new stream id and re-ships to every receiver.
+      // Junk is REFUSED, not clamped: `v | 0` would turn a NaN from an
+      // un-initialised power tier into 1fps — a frozen-looking broadcast that
+      // no caller ever asked for. Only a real, positive rate moves the dial.
+      setFps(v) {
+        const n = Math.round(Number(v));
+        if (!isFinite(n) || n <= 0) return;
+        const q = Math.max(1, Math.min(60, n));
+        if (q === fps) return;
+        fps = q;
+        if (timer) { clearInterval(timer); timer = setInterval(paint, Math.max(20, 1000 / fps)); }
+      },
       clearTiles() { for (const id of [...tiles.keys()]) pk.delTile(id); },
       ids: () => [...tiles.keys()],
       count: total, cols: () => G, rows: () => R,
@@ -398,7 +420,7 @@
       // still not know the Stage was going out at 110px. The cross-device
       // harnesses (test/README.md, "ONE BOX CANNOT ANSWER…") are where stage
       // sizing has to be confirmed, and they can only report what stats() says.
-      stats() { return { drawn, dropped, still, cost: Math.round(cost * 10) / 10, faces: total(), cols: G, rows: R, w: canvas ? canvas.width : 0, h: canvas ? canvas.height : 0 }; },
+      stats() { return { drawn, dropped, still, cost: Math.round(cost * 10) / 10, faces: total(), cols: G, rows: R, fps, active, w: canvas ? canvas.width : 0, h: canvas ? canvas.height : 0 }; },
     };
     return pk;
   }

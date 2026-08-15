@@ -150,10 +150,15 @@ const MEASURE = ([sel, ms]) => new Promise((resolve) => {
   const s0 = await page.evaluate(() => __gifosVideo.stageInfo().strip);
   console.log('stage strip ', await page.evaluate(MEASURE, ['[data-row="sgs"] video', 8000]));
   const s1 = await page.evaluate(() => __gifosVideo.stageInfo().strip);
-  console.log('packer      ', s1);
-  console.log('  over 8s:  drawn/s=' + Math.round((s1.drawn - s0.drawn) / 8 * 10) / 10
-    + '  dropped/s=' + Math.round((s1.dropped - s0.dropped) / 8 * 10) / 10
-    + '  still/s=' + Math.round((s1.still - s0.still) / 8 * 10) / 10);
+  // NO PACKER AT ALL is the healthy reading in a room of one: nobody to ship a
+  // strip to, and a stager must not watch itself through its own composite.
+  if (!s1 || !s0) console.log('packer      none — the solo strip is not built (no consumer)');
+  else {
+    console.log('packer      ', s1);
+    console.log('  over 8s:  drawn/s=' + Math.round((s1.drawn - s0.drawn) / 8 * 10) / 10
+      + '  dropped/s=' + Math.round((s1.dropped - s0.dropped) / 8 * 10) / 10
+      + '  still/s=' + Math.round((s1.still - s0.still) / 8 * 10) / 10);
+  }
   console.log('mosaic      ', await page.evaluate(() => { const m = __gifosVideo.mosaic(); return { outboundJobs: m.jobs, claims: m.claims, stagers: m.stagers }; }).catch((e) => String(e)));
   console.log('on screen   ', await page.evaluate(() => ({
     meTileStillShown: !!document.querySelector('.tile.me'),
