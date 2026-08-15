@@ -237,6 +237,9 @@
         // Seventeen of these run back to back inside world init, and they are
         // the longest unbroken stretch of the whole boot. Report each one.
         getTextureSet(name, opts) {
+          // Wrapped here, not in init(): the forge is lazy, and by the time a
+          // texture is asked for it exists. Idempotent per forge.
+          if (useCache) { try { root.TexCache.wrap(this); } catch (e) {} }
           var set = super.getTextureSet(name, opts);
           initStep(BAKE_W / BAKES_EXPECTED);
           return set;
@@ -460,7 +463,16 @@
     var COD = root.COD;
     var canvas = document.getElementById('game');
 
-    loadPrefs().then(function () {
+    // The cache must be in memory before the engine starts: the forge builds
+    // synchronously and cannot wait on a database mid-bake.
+    // An off switch, because this cache is the newest and least proven thing
+    // here and it writes pixels the world is drawn from. `GIFOS_FPS_NOCACHE=1`
+    // in the console before opening the app bakes everything fresh, which is
+    // how you tell a cache bug from a game bug in one step.
+    var useCache = !root.GIFOS_FPS_NOCACHE;
+    Promise.all([loadPrefs(), useCache ? root.TexCache.preload(root.gifos) : 0]).then(function (pre) {
+      var cached = (pre && pre[1]) || 0;
+      if (cached) { try { console.info('[fps] texture cache: ' + cached + ' surfaces available'); } catch (e) {} }
       // MEASURE THE DEVICE, unless somebody has already decided for it: a
       // saved preference is a player's own choice and outranks any probe, and
       // GIFOS_FPS_QUALITY is the suites' hatch (same shape as GIFOS_CONN in the
@@ -561,6 +573,7 @@
     }).then(function () {
       say('Ready', 1);
       gate.classList.add('ready');
+      if (useCache) { try { root.TexCache.flush(); } catch (e) {} }   // nobody waits on this now
       go.disabled = false;
       go.focus();
     }).catch(function (err) {
