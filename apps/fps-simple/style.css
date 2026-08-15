@@ -90,3 +90,32 @@ body.touch #gate-keys { display: none; }
   background: rgba(90,38,26,.92); border: 1px solid rgba(255,150,120,.35);
   border-radius: .7rem; padding: .7rem 1rem; backdrop-filter: blur(6px);
 }
+
+
+/* ---- a loading bar that keeps moving while the main thread does not ------ */
+/* THE PROBLEM, MEASURED. Building the street is ONE synchronous block of
+   JavaScript — timestamps from inside the page show the bar's own style
+   attribute untouched from 12.9 s to 44.4 s, with every mutation in between
+   coalesced into a single record. Nothing script-driven can animate there,
+   because script is exactly what is not running. On a slow device that reads as
+   a hang, and it is the first thing anybody sees.
+
+   A `transform` animation is handled by the COMPOSITOR, not the main thread, so
+   it keeps going through a block that freezes everything else. The determinate
+   fill still tells the truth about how far along we are; the stripes tell the
+   player the machine has not died. */
+#gate-load { position: relative; overflow: hidden; }
+#gate-load::after {
+  content: ''; position: absolute; inset: 0;
+  background: repeating-linear-gradient(115deg,
+    rgba(255,255,255,.00) 0 10px, rgba(255,255,255,.13) 10px 20px);
+  background-size: 200% 100%;
+  animation: gate-stripes 1.1s linear infinite;
+  will-change: transform;
+  pointer-events: none;
+}
+@keyframes gate-stripes { from { transform: translateX(-28px); } to { transform: translateX(0); } }
+/* Once the world is up there is nothing left to wait for, so stop the motion
+   rather than leave a bar that looks busy under an enabled Play button. */
+#gate.ready #gate-load::after { animation: none; opacity: 0; }
+@media (prefers-reduced-motion: reduce) { #gate-load::after { animation: none; } }

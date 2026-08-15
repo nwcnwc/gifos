@@ -6,14 +6,22 @@
   "version": "0.9.0",
   "minBuild": 1285,
   "entry": "index.html",
-  "accent": [214, 172, 78],
+  "accent": [
+    214,
+    172,
+    78
+  ],
   "capabilities": {
     "db": true,
     "multiplayer": true,
     "pointer": true
   },
   "data": {
-    "prefs": { "visibility": "private" },
-    "players": { "visibility": "read-write" }
+    "prefs": {
+      "visibility": "private"
+    },
+    "players": {
+      "visibility": "read-write"
+    }
   }
 }
