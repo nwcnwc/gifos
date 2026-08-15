@@ -137,3 +137,13 @@ body.touch #gate-keys { display: none; }
 #keyhelp.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 #keyhelp b { color: var(--accent, #d6ac4e); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { #keyhelp { transition: none; } }
+
+/* ---- what the device probe found, said out loud -------------------------- */
+/* The app measures the machine and acts on it; from the outside that is
+   indistinguishable from never having looked. This is the sentence that makes
+   the difference visible, and it stays up for the whole build. */
+#gate-device {
+  margin: .5rem 0 .3rem; font-size: .78rem; line-height: 1.5;
+  color: #b9b9cc; text-align: left;
+  border-left: 2px solid var(--accent, #d6ac4e); padding-left: .6rem;
+}

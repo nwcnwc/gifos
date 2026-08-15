@@ -182,8 +182,20 @@
         if (ms >= 8 || passes >= 512 || performance.now() - t0 > 400) break;
         passes *= 2;
       }
-      out.score = (passes * 256 * 256 / 1e6) / ms * 1000;
-      out.ms = Math.round(ms);
+      // BEST OF THREE, NOT ONE. The same machine measured 0.001, 0.24 and 1.76
+      // across runs — a factor of 1700 — because a box doing something else
+      // makes a fast device look slow, never the reverse. Contention can only
+      // ADD time, so the quickest batch is the closest to the truth and the
+      // median of noise is still noise. Cheap: the batch is sized to ~8 ms.
+      var best = ms;
+      for (var r = 0; r < 2 && performance.now() - t0 < 600; r++) {
+        var s2 = performance.now();
+        batch(passes);
+        var m2 = performance.now() - s2;
+        if (m2 < best) best = m2;
+      }
+      out.score = (passes * 256 * 256 / 1e6) / best * 1000;
+      out.ms = Math.round(best);
     } catch (e) { /* a probe that throws must not stop the game starting */ }
     // Hand the context back rather than leaving it against the browser's limit.
     try { var lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); } catch (e) {}
@@ -202,6 +214,23 @@
     var p = probeGpu();
     var s = { quality: 'medium', renderScale: null, probe: p };
     if (!p.ok) { s.quality = 'low'; s.renderScale = 0.5; return s; }
+    // The driver string decides FIRST and cannot be overruled by the number. A
+    // software rasteriser that happens to time well on one lucky batch is still
+    // a software rasteriser, and a score is the noisier of the two signals.
+    // THE BURDEN OF PROOF IS ON THE DEVICE.
+    //
+    // The old thresholds handed 'medium' to anything scoring 2, which is barely
+    // twice a low-end phone GPU, and 'high' at 8. That is backwards for this
+    // engine: the street is 1.7 million triangles across 212 draw calls, so a
+    // weak integrated chip clears the "not software" bar comfortably and then
+    // cannot actually draw the thing. Reported from exactly that machine —
+    // integrated graphics, four cores — as still looking full quality, because
+    // by these numbers it WAS being given full quality.
+    //
+    // So a device gets LOW unless it can show it is genuinely fast. The player
+    // can raise it in the pause menu in two clicks and that choice is kept; what
+    // nobody should have to do is discover the pause menu to get a game that
+    // runs. Calibration points: SwiftShader ~0.01-0.2, Mali-G52 ~1.0.
     if (p.software || p.score < 0.5) {
       s.quality = 'low'; s.renderScale = 0.25; s.texCap = 128;
       // SHADOWS ARE GEOMETRY, AND GEOMETRY IS WHAT THIS DEVICE HAS NONE OF.
@@ -214,11 +243,53 @@
               particleBudget: 120, decalBudget: 8, bloom: false,
               taa: false, gtao: false, ssr: false, volumetrics: false,
               motionBlur: false, anisotropy: 1 };
-    } else if (p.score < 2) { s.quality = 'low'; s.renderScale = 0.6; s.texCap = 512; s.q = { cascades: 2 }; }
-    else if (p.score < 8) { s.quality = 'medium'; }
-    else if (p.score < 25) { s.quality = 'high'; }
+    } else if (p.score < 6) {
+      // A phone GPU, or integrated graphics. Plays, but only if asked politely.
+      s.quality = 'low'; s.renderScale = 0.5; s.texCap = 256;
+      s.q = { cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
+              taa: false, gtao: false, ssr: false, volumetrics: false, motionBlur: false };
+    } else if (p.score < 25) {
+      // Decent integrated, or an older discrete card.
+      s.quality = 'low'; s.renderScale = 0.8; s.texCap = 512; s.q = { cascades: 2, ssr: false };
+    } else if (p.score < 60) { s.quality = 'medium'; }
+    else if (p.score < 120) { s.quality = 'high'; }
     else { s.quality = 'ultra'; }
     return s;
+  }
+
+  // SAY WHAT WAS FOUND AND WHAT IS BEING BUILT FROM IT.
+  //
+  // The app measures the device and then quietly acts on it, which from the
+  // outside is indistinguishable from not measuring at all: the gate said
+  // "Building the world…" for minutes and never mentioned that it had looked,
+  // what it saw, or why it chose what it chose. A player watching a slow bar
+  // deserves to know the machine was asked.
+  function describeDevice(a) {
+    if (!a || !a.probe) return '';
+    var p = a.probe;
+    var scale = a.renderScale ? Math.round(a.renderScale * 100) + '%' : 'full';
+    if (!p.ok) return 'Could not measure this device — building at ' + a.quality.toUpperCase() + '.';
+    if (p.software) {
+      return 'No graphics chip found — this device draws every pixel on the processor. '
+        + 'Building a ' + a.quality.toUpperCase() + '-detail street at ' + scale + ' resolution.';
+    }
+    var name = (p.renderer.match(/\(([^,()]+),\s*([^,()]+)/) || [])[2] || p.renderer || 'a graphics chip';
+    return 'Graphics: ' + name.trim() + ' (speed ' + p.score.toFixed(1) + ') — '
+      + 'building a ' + a.quality.toUpperCase() + '-detail street at ' + scale + ' resolution.';
+  }
+
+  var deviceEl = null;
+  function showDevice(a) {
+    var text = describeDevice(a);
+    if (!text) return;
+    if (!deviceEl) {
+      deviceEl = document.createElement('div');
+      deviceEl.id = 'gate-device';
+      var load = document.getElementById('gate-load');
+      if (load && load.parentNode) load.parentNode.insertBefore(deviceEl, load);
+      else document.querySelector('.gate-box').appendChild(deviceEl);
+    }
+    deviceEl.textContent = text;
   }
 
   // THE OTHER QUADRATIC, and on a slow device it is the expensive one.
@@ -598,7 +669,9 @@
       // you get ULTRA's look with a software rasteriser's budget, because the
       // alternative is a slideshow that honours a menu.
       var chosen = root.GIFOS_FPS_QUALITY || prefs.quality;
+      say('Checking what this device can draw…', 0.08);
       var auto = pickSettings();
+      showDevice(auto);
       var config = COD.createConfig({ quality: chosen || auto.quality });
       // The render target is width * pixelRatio * renderScale, so this is the
       // lever with a square on it. Set BEFORE the engine is built, because the
@@ -640,7 +713,7 @@
       // The first launch on a machine without a graphics chip is minutes, and a
       // player who was told that waits; a player who was not closes the tab.
       say(auto.probe && auto.probe.software
-        ? 'Building the street… the first time on this device takes a few minutes'
+        ? 'Building the street… on this device that takes a few minutes'
         : 'Building the street…', 0.15);
       // Join the room BEFORE init, because whether we are alone decides whether
       // the AI garrison is spawned at all (see below) and that is decided during
@@ -691,16 +764,39 @@
         ctx.events.on('ui:fov', savePrefs);
         ctx.events.on('ui:setting', savePrefs);
 
-        say('Compiling shaders…', 0.55);
-        // Prewarm is not optional. Without it the first 30 seconds of play are
-        // punctuated by 700-1200 ms freezes as 34+ WebGL programs compile
-        // lazily, mid-firefight — upstream measured exactly this.
-        return COD.prewarm(engine, {
-          onProgress: function (p) { say(null, 0.55 + Math.max(0, Math.min(1, p && p.t != null ? p.t : 0)) * 0.4); },
+        // PREWARM STOPS BLOCKING THE DOOR.
+        //
+        // It compiles the 34+ shader programs up front so the first half minute
+        // of play is not punctuated by 700-1200 ms freezes — upstream measured
+        // those, they are real, and this still does it. What changed is that it
+        // no longer happens BEFORE the Play button lights up.
+        //
+        // Measured on a machine with no graphics chip: 44 of the ~110 seconds
+        // to the gate were this, and it is pure front-loading — every one of
+        // those programs would otherwise compile on first use anyway. Making a
+        // player watch a progress bar for work that has not been needed yet is
+        // the most expensive kind of waiting there is: the kind with nothing at
+        // the end of it. So the world is what gates Play; the shaders warm
+        // behind it, and carry on warming while the player reads the card or
+        // walks down the street.
+        //
+        // On a device that can compile them quickly this is invisible either
+        // way. On the device that needs it, it is 44 seconds.
+        var warm = COD.prewarm(engine, {
+          onProgress: function (p) {
+            if (!go.disabled) return;                 // already in; stop narrating
+            say(null, 0.55 + Math.max(0, Math.min(1, p && p.t != null ? p.t : 0)) * 0.4);
+          },
         });
+        if (warm && warm.catch) warm.catch(function () {});
+        // Wait for the shaders only if this device compiles them fast enough
+        // that waiting is cheaper than stuttering.
+        return (auto.probe && auto.probe.software) ? null : warm;
       });
     }).then(function () {
-      say('Ready', 1);
+      say(auto.probe && auto.probe.software
+        ? 'Ready — the street is built. Shaders keep warming as you play.'
+        : 'Ready', 1);
       gate.classList.add('ready');
       if (useCache) { try { root.TexCache.flush(); } catch (e) {} }   // nobody waits on this now
       go.disabled = false;
