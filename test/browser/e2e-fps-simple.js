@@ -395,30 +395,60 @@ async function deathmatch() {
 
     // No bringToFront anywhere below. Each browser is alone on its box with
     // nothing to be backgrounded BY — that is what the fleet bought.
-    const aSees = await waitFor(aFrame, () => window.Net && window.Net.count() >= 2, 60000);
-    const bSees = await waitFor(bFrame, () => window.Net && window.Net.count() >= 2, 60000);
+    //
+    // BOTH CLOCKS START TOGETHER. Waiting on Alice and then on Bob spends
+    // Alice's whole budget before Bob's begins, so the second peer is judged on
+    // a stopwatch that has been running since before it was asked anything.
+    // Measured: Alice reported false at 60 s and was demonstrably seeing Bob a
+    // moment later — she goes on to spawn his body, shoot him and score the
+    // kill. The first join into a freshly minted room over a real relay is the
+    // slowest thing here, so it is given room and both are timed from the same
+    // instant.
+    const [aSees, bSees] = await Promise.all([
+      waitFor(aFrame, () => window.Net && window.Net.count() >= 2, 180000),
+      waitFor(bFrame, () => window.Net && window.Net.count() >= 2, 180000),
+    ]);
     check('both peers see two players in the room', aSees && bSees,
       'alice=' + aSees + ' bob=' + bSees);
 
     // A BODY, not just a row: remote.js has to put something shootable in the
     // world, or the other player is a name on a scoreboard and nothing else.
-    const aBody = await waitFor(aFrame, () => window.Remote && window.Remote.count() >= 1, 60000);
-    const bBody = await waitFor(bFrame, () => window.Remote && window.Remote.count() >= 1, 60000);
+    const [aBody, bBody] = await Promise.all([
+      waitFor(aFrame, () => window.Remote && window.Remote.count() >= 1, 60000),
+      waitFor(bFrame, () => window.Remote && window.Remote.count() >= 1, 60000),
+    ]);
     check('each peer spawns a BODY for the other, in the world', aBody && bBody,
       'alice=' + aBody + ' bob=' + bBody);
 
     // THE SAME STREET. One shared seed, nothing sent — so if the world were
     // being built differently on two machines, two players would be taking
-    // cover behind buildings the other cannot see. Compared by the world's own
-    // spawn points, which are placed from the seeded RNG after every prop.
+    // cover behind buildings the other cannot see.
+    //
+    // COMPARED ON THE BUILDINGS, and asserted to be non-empty first. The first
+    // version of this read `spawnPoints[i].x`, and a spawn point is
+    // `{position, yaw, tag}` — so every coordinate came out `NaN`, both sides
+    // produced the identical string of NaNs, and it PASSED while comparing
+    // nothing at all. Spawn points were the wrong thing to read anyway: they
+    // are a fixed table run through the level transform, so they would match
+    // even if the two clients had seeded different worlds. The buildings are
+    // what the RNG actually places, which is what "same cover" means.
     const worldOf = (f) => f.evaluate(() => {
       const w = window.__FPS__.ctx.peek('world');
-      const pts = (w && w.spawnPoints) || [];
-      return pts.map((p) => [Math.round(p.x * 100), Math.round((p.z != null ? p.z : 0) * 100)].join(',')).join(' ');
+      const out = [];
+      const walk = (v, d) => {
+        if (out.length > 600 || d > 4) return;
+        if (typeof v === 'number') { if (Number.isFinite(v)) out.push(Math.round(v * 100)); return; }
+        if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) walk(v[i], d + 1); return; }
+        if (v && typeof v === 'object') { const k = Object.keys(v).sort(); for (let i = 0; i < k.length; i++) walk(v[k[i]], d + 1); }
+      };
+      walk((w && w.buildings) || [], 0);
+      return out.join(',');
     });
     const aWorld = await worldOf(aFrame), bWorld = await worldOf(bFrame);
+    check('the street is real geometry to compare, not an empty read',
+      aWorld.length > 50, aWorld.length + ' numbers');
     check('two different machines built the SAME street from the shared seed',
-      !!aWorld && aWorld === bWorld, aWorld ? aWorld.slice(0, 70) + '…' : '(no spawn points to compare)');
+      !!aWorld && aWorld === bWorld, aWorld.slice(0, 60) + '…');
 
     /* ---- a hit crosses the wire and is paid ---- */
     const bobHealthBefore = await bFrame.evaluate(() => {
