@@ -3027,37 +3027,56 @@ function check(name, cond, detail) {
   // follows its own ground instead of averaging it away.
   const canyon0 = await openAnyroad(browser, { world: { canyon: true }, maptiler: false, tag: 'canyon' });
   await canyon0.land();
-  const cWater = await canyon0.fr.locator('body').evaluate(() => {
-    const w = window.App.world, f = w.frame;
-    let verts = 0, worst = 0, above = 0, relief = 0, lo = Infinity, hi = -Infinity;
-    for (const k in w.roads) {
-      const t = w.roads[k];
-      if (!t || !t.built || !t.built.water || !t.built.water.positions) continue;
-      const P = t.built.water.positions;
-      for (let i = 0; i < P.length; i += 3) {
-        const g = window.Terrain.heightAt(f, P[i], P[i + 2]);
-        if (g == null) continue;
-        verts++;
-        lo = Math.min(lo, g); hi = Math.max(hi, g);
-        const d = P[i + 1] - g;                     // water minus its own ground
-        if (Math.abs(d) > Math.abs(worst)) worst = d;
-        if (d > above) above = d;
+  // WAIT FOR WATER, and fail loudly if it never comes. Water tiles finish
+  // building well after the world lands — measured: zero water vertices right
+  // after land(), sixteen once the suite has driven a while — so asserting
+  // immediately measured an empty world and PASSED over nothing. Two of these
+  // checks did exactly that on their first run: "worst |water - ground| = 0 m
+  // over 0 m of relief" is not a green, it is a suite with nothing in front of
+  // it, and this file exists to stop that shape of lie.
+  const cWater = await canyon0.fr.locator('body').evaluate(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const measure = () => {
+      const w = window.App.world, f = w.frame;
+      let verts = 0, worst = 0, above = 0, lo = Infinity, hi = -Infinity;
+      for (const k in w.roads) {
+        const t = w.roads[k];
+        if (!t || !t.built || !t.built.water || !t.built.water.positions) continue;
+        const P = t.built.water.positions;
+        for (let i = 0; i < P.length; i += 3) {
+          const g = window.Terrain.heightAt(f, P[i], P[i + 2]);
+          if (g == null) continue;
+          verts++;
+          lo = Math.min(lo, g); hi = Math.max(hi, g);
+          const d = P[i + 1] - g;
+          if (Math.abs(d) > Math.abs(worst)) worst = d;
+          if (d > above) above = d;
+        }
       }
+      return { verts, worst: +worst.toFixed(1), above: +above.toFixed(1),
+               relief: +((hi > lo) ? hi - lo : 0).toFixed(1) };
+    };
+    let m = measure();
+    for (let i = 0; i < 60 && (m.verts === 0 || m.relief < 100); i++) {
+      await wait(1000);
+      m = measure();
     }
-    relief = (hi > lo) ? hi - lo : 0;
-    return { verts, worst: +worst.toFixed(1), above: +above.toFixed(1), relief: +relief.toFixed(1) };
+    return m;
   });
+  check('CANYON: water is drawn over a canyon at all (or this cannot judge)',
+    cWater.verts > 0, cWater.verts + ' water vertices');
   check('CANYON: the ground under the water really does descend',
     cWater.relief > 100, cWater.relief + ' m of relief beneath the water surface');
-  check('CANYON: water is drawn over a canyon at all',
-    cWater.verts > 0, cWater.verts + ' water vertices');
   // THE ONE THAT WOULD HAVE CAUGHT IT. A single sheet over a 1355 m descent
-  // puts hundreds of metres between the surface and the ground under it.
+  // leaves hundreds of metres between the surface and the ground under it.
+  // Gated on coverage so it can never report a green about an empty world.
   check('CANYON: the surface FOLLOWS its own ground rather than averaging it',
-    Math.abs(cWater.worst) < 60,
-    'worst |water - ground| = ' + cWater.worst + ' m over ' + cWater.relief + ' m of relief');
+    cWater.verts > 0 && cWater.relief > 100 && Math.abs(cWater.worst) < 60,
+    'worst |water - ground| = ' + cWater.worst + ' m over ' + cWater.relief
+      + ' m of relief, ' + cWater.verts + ' vertices');
   check('CANYON: …and still never stands on top of the land',
-    cWater.above < 6, 'highest water above its own ground = ' + cWater.above + ' m');
+    cWater.verts > 0 && cWater.above < 6,
+    'highest water above its own ground = ' + cWater.above + ' m');
   await canyon0.close();
 
   const hills0 = await openAnyroad(browser, { world: { hills: true }, maptiler: false, tag: 'hills' });
