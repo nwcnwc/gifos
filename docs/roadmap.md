@@ -2253,3 +2253,110 @@ whether the whole thing loses to simply making the cold load cheaper.
 **Not a daemon, whatever we build.** No browser gives a process that outlives
 the tabs — close every GifOS tab and the model is gone. "Warm across tabs" can
 only ever mean "while at least one tab lives".
+## 14. Anyroad in the Grand Canyon: the 45-second freeze, and the river that is not there
+
+Two live defects, both reported from gifos.app edge at Grand Canyon Village on
+2026-08-14, both still OPEN at the 0.9.8 cut. Written down with the measurements
+already taken — including the hypotheses that were KILLED — so the next attempt
+starts where this one stopped rather than repeating it.
+
+### 14a. The main thread freezes for 45 s at a time
+
+**What.** Driving from the South Rim down to the Colorado, the page stops
+responding for tens of seconds at a stretch, repeatedly. Chrome raises its
+**"Page Unresponsive"** dialog, so the renderer's main thread is genuinely
+blocked — not a stalled rAF. The engine note keeps playing throughout (the audio
+graph is on its own thread, which is exactly how the 2026-08-13 phone report
+sounded too). It recovers on its own; opening DevTools appeared to help but did
+not — the reporter confirmed the recovery was not immediate after Ctrl+Shift+C,
+so the long task simply finished.
+
+**RULED OUT, by measurement — do not re-chase these:**
+
+| hypothesis | measurement | verdict |
+|---|---|---|
+| `triangulate()` is super-linear on a long river ring | 800-point river-shaped ring → **11.8 ms** | not it |
+| Rebuild storm — `built.incomplete` tiles re-meshing on every `terrainEpoch` bump | 90 s flying into the canyon: **7 builds, 357 ms total, worst 119 ms**, and `incomplete: 0` (every tile converged) | not it |
+| Water buried under terrain by the one-level-per-ring bug | `waterVerts: 0` — no water mesh exists there at all | not it |
+
+**Why it is still open.** It cannot be attributed on a box without a GPU. Under
+swiftshader every frame becomes a 1.5–2.6 s NATIVE task (98% of CPU-profile
+samples land in `(program)`, not JS), which mimics the symptom and masks it. A
+75 s profile at the village recorded 31 long tasks over 1 s, worst 6328 ms — all
+of it software rasterisation, none of it the reporter's bug. **The next
+measurement must come from a machine with a real GPU.**
+
+**Sketch.** Get a DevTools Performance recording, or long-task + phase timings,
+from the reporting machine across one freeze — wrapping `Roads.build`,
+`Roads.loadTile`, `Terrain.loadTile`, `Terrain.meshFor` and `Render.draw`. The
+JS that did appear under the native noise, in self-time order, was
+`tree`/`plantAt`/`scatter`, `heightAtGeo`, `nearestRoad`, `buildWallIndex`,
+`hull` and `ribbon` — the scatter and the wall index are the two that scale with
+canyon-sized geometry and are worth suspecting first, but suspicion is not
+evidence and this list is a starting point, not a finding.
+
+**Open question.** Whether the freeze and 13b share a cause: both appear where
+Overpass is refusing the tile (below), and a client that is retrying huge
+queries is doing work the profile above never sampled.
+
+### 14b. The Colorado River renders as no water at all
+
+**What.** At the river the water is not blue, has no surface, and cannot be
+driven on — but **fish spawn in it**, which means the water RINGS reached the
+client and the wet index was built from them. So the data arrived and the
+SURFACE did not draw. (Distinct from what this investigation could reproduce —
+see below.)
+
+**What was measured.** Hopping to `36.0997,-112.0947` (car y 753 m, versus
+2118 m on the rim) put the app on the river, and every road tile stayed
+`pending` indefinitely. The app's own `Roads.tileError` said why:
+
+    15/6180/12856: status 504, busy, detail 2, mirror private.coffee,
+                   "busy: overpass.private.coffee returned 504, backing off 16s"
+    mirrors: overpass-api.de fails 3 | private.coffee fails 4 | Kumi latency 169,719 ms
+
+So the investigating client got NO data — a different failure from the report,
+and the reason 13b could not be confirmed from here. Canyon tiles are expensive
+enough that volunteer mirrors refuse them outright.
+
+**The mechanism worth testing first.** `fetchTile` sheds detail when every
+mirror 504s (correctly — see the comment there; one busy server must not cost a
+street its houses permanently). But `query()` puts
+`relation["natural"="water"]` and `relation["waterway"="riverbank"]` behind
+`detail >= 1`, while the water WAYS are unconditional. **A tile that sheds to
+detail 0 therefore keeps ponds and loses the Colorado**, because a river that
+size is a multipolygon relation — the same fact the water clauses' own comment
+records ("the largest water on earth was invisible to this app"). That is in
+tension with the sibling comment asserting water "stays at every detail level
+rather than being shed" because it is a drownable hazard: that promise holds for
+ways and is broken for relations.
+
+**Open question, and it is a real trade.** Making the relation clauses
+unconditional would undermine what detail 0 is FOR — the last-resort level that
+exists to keep roads coming at all on a tile nothing else will answer. Options
+worth weighing: a water-only retry after a shed to 0; keeping relations at
+detail 0 but dropping the landcover/building clauses further; or accepting no
+big water at detail 0 and SAYING so in the HUD, which at least stops it reading
+as a rendering bug.
+
+**Diagnostic that settles which fault it is,** run in the app frame at the
+river — three outcomes, three different fixes:
+
+```js
+(()=>{const w=App.world,o=[];for(const k in w.roads){const t=w.roads[k],g=t.geom||{};
+o.push({tile:k,detail:g.detail,wat:(g.wat||[]).length,ways:(g.ways||[]).length,
+built:!!t.built,waterVerts:t.built&&t.built.water?t.built.water.positions.length/3:0})}
+console.table(o);console.log('car y',Math.round(App.car().y))})()
+```
+
+- `wat > 0`, `waterVerts = 0` → parsed then SKIPPED at mesh time; the suspect is
+  `waterMesh`'s `hs.length < 3` bail, which drops a ring whose vertices find no
+  loaded terrain under them — plausible over a canyon.
+- `wat > 0`, `waterVerts > 0` → meshed but INVISIBLE; the suspect is the single
+  20th-percentile `level` per ring (§11 already carries the one-level-per-ring
+  limitation), which for a river descending a canyon can sit below the terrain
+  along most of its length.
+- `wat = 0`, `detail = 0` → the shed-to-detail-0 path above.
+
+**A link straight to the water,** verified to land at car y 789 m, flying at
+39 m AGL: `https://gifos.app/?run=anyroad&go.at=36.0997,-112.0947&go.label=Colorado%20River&go.fly=1`
