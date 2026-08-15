@@ -251,6 +251,45 @@ async function waitFor(frame, fn, ms, arg) {
   }
 }
 
+// A BOX CAN BE ISOLATED AND STILL NOT BE A MACHINE THIS GAME RUNS ON, and that
+// gap cost a whole night. fleet.js verifies that a host is reachable, idle and
+// has a browser — every one of which a Raspberry Pi passes. It cannot verify
+// that the box can RENDER, and a 4-core ARM board driving Three.js through a
+// software rasteriser cannot: its app frame answered a single `evaluate` in
+// 220 SECONDS. Every assertion below polls through evaluate, so a 180 s budget
+// bought exactly one observation, and the suite reported "both peers see two
+// players — alice=false" while the diagnostic taken moments later showed the
+// presence had in fact arrived.
+//
+// That is a verdict about a Raspberry Pi, which is the precise thing
+// test/lib/fleet.js exists to stop this repo from believing. So measure the
+// thing the measurements depend on, and REFUSE rather than judge.
+async function mustBeAbleToAnswer(frame, who, host) {
+  const samples = [];
+  for (let i = 0; i < 3; i++) {
+    const t = Date.now();
+    const ok = await frame.evaluate(() => 1).then(() => true, () => false);
+    samples.push(ok ? Date.now() - t : 999999);
+  }
+  samples.sort((a, b) => a - b);
+  const median = samples[1];
+  if (median <= 2000) return median;
+  console.log('NEEDS-FLEET — ' + who + "'s box (" + host + ') cannot answer while running this game.');
+  console.log('');
+  console.log('  A round trip into its app frame took ' + median + ' ms (median of 3). Every assertion');
+  console.log('  in this half polls through that channel, so a 180 s wait buys a handful of');
+  console.log('  samples and any timing it reports is a timing about the box.');
+  console.log('');
+  console.log('  This is NOT a product failure. The host passed fleet.js — reachable, idle, a');
+  console.log('  browser on it — because fleet.js checks whether a box is FREE, not whether it');
+  console.log('  is CAPABLE. A 4-core ARM board rendering Three.js through swiftshader is both.');
+  console.log('');
+  console.log('  Give this half two machines that can actually draw the game: a GPU, or enough');
+  console.log('  CPU that the world builds in seconds rather than minutes.');
+  console.log('0 PASSED, 0 FAILED — no verdict was reached, on purpose.');
+  process.exit(3);
+}
+
 /* ======================================================================= */
 /* SOLO — one box                                                          */
 /* ======================================================================= */
@@ -410,10 +449,35 @@ async function deathmatch() {
     // kill. The first join into a freshly minted room over a real relay is the
     // slowest thing here, so it is given room and both are timed from the same
     // instant.
-    const [aSees, bSees] = await Promise.all([
-      waitFor(aFrame, () => window.Net && window.Net.count() >= 2, 180000),
-      waitFor(bFrame, () => window.Net && window.Net.count() >= 2, 180000),
-    ]);
+    // Before believing anything timed below, check the channel it is timed
+    // through. See mustBeAbleToAnswer.
+    const aMs = await mustBeAbleToAnswer(aFrame, 'Alice', boxes[0].host.name || boxes[0].host.ssh);
+    const bMs = await mustBeAbleToAnswer(bFrame, 'Bob', boxes[1].host.name || boxes[1].host.ssh);
+    console.log('  both app frames answer in ' + aMs + ' / ' + bMs + ' ms — timings below mean something');
+
+    // SAMPLED TOGETHER, AND PRINTED, because "alice=false" is not a finding.
+    // Both peers are read on the same tick and every change is logged, so the
+    // failure carries its own timeline: whether presence never crossed, crossed
+    // slowly, or crossed and then FLAPPED — which is a live possibility here,
+    // since a player unheard-from for STALE_MS (9 s) stops being drawn, and that
+    // is a different bug from one that never arrives.
+    let aSees = false, bSees = false, aFlap = false, bFlap = false;
+    {
+      const t0 = Date.now();
+      let last = '';
+      while (Date.now() - t0 < 180000) {
+        const [a, b] = await Promise.all([aFrame, bFrame].map((f) => f.evaluate(() => ({
+          c: window.Net ? window.Net.count() : -1,
+          bod: window.Remote ? window.Remote.count() : -1,
+        })).catch(() => ({ c: -1, bod: -1 }))));
+        const line = 'alice count=' + a.c + ' bodies=' + a.bod + '   bob count=' + b.c + ' bodies=' + b.bod;
+        if (line !== last) { console.log('    t=' + String(Math.round((Date.now() - t0) / 1000)).padStart(3) + 's  ' + line); last = line; }
+        if (a.c >= 2) aSees = true; else if (aSees) aFlap = true;
+        if (b.c >= 2) bSees = true; else if (bSees) bFlap = true;
+        if (aSees && bSees) break;
+        await sleep(3000);
+      }
+    }
     const roomState = async () => (await Promise.all([aFrame, bFrame].map((f) => f.evaluate(() => ({
       count: window.Net ? window.Net.count() : 'no Net',
       others: window.Net ? Object.keys(window.Net.others()) : [],
@@ -421,6 +485,11 @@ async function deathmatch() {
     })).catch((e) => ({ err: String(e).slice(0, 60) }))))).map((r, i) => (i ? 'bob' : 'alice') + '=' + JSON.stringify(r)).join(' ');
     check('both peers see two players in the room', aSees && bSees,
       aSees && bSees ? 'alice=true bob=true' : await roomState());
+    // A room that keeps forgetting people is not the same product as one that
+    // is merely slow to introduce them, and the assertion above cannot tell
+    // them apart on its own because it latches.
+    check('...and neither peer then FORGETS the other', !aFlap && !bFlap,
+      'alice dropped=' + aFlap + ' bob dropped=' + bFlap);
 
     // A BODY, not just a row: remote.js has to put something shootable in the
     // world, or the other player is a name on a scoreboard and nothing else.
