@@ -131,6 +131,44 @@
       "sha256": "64ac94f9d22876c929a3aed24e005a6bc0e819809f60a2570d5f88b3b49f9f7b"
     },
     {
+      "slug": "fps-simple",
+      "appId": "fps-simple",
+      "name": "FPS Simple",
+      "shortName": "FPS",
+      "version": "1.0.0",
+      "tagline": "A sunlit market street, a rifle, and whoever you send the link to.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 1285,
+      "releaseDate": "2026-08-15",
+      "updated": "2026-08-15",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "fps",
+        "shooter",
+        "3d",
+        "webgl",
+        "multiplayer",
+        "deathmatch",
+        "offline"
+      ],
+      "accent": [
+        214,
+        172,
+        78
+      ],
+      "cover": "/apps/fps-simple/cover.jpg",
+      "bytes": 1018109,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "a8a479c168925f3b60ceca2e33ba6b9b520987409f3eea031d42f109817b40f4"
+    },
+    {
       "slug": "offline-llm-bitnet",
       "appId": "offline-llm-bitnet",
       "name": "Offline Cheap Text LLM BitNet",
