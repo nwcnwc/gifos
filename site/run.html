@@ -3385,7 +3385,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     //   * THE BUDGET was the flat 900k aux constant, the CARRIED-media number. A
     //     broadcaster who deliberately picked 1080p in Settings had it squeezed
     //     to 900k on the first hop and re-squeezed on every hop below.
-    // So the Stage gets its own cell size and its own budget lane (stageSenders,
+    //   * THE FRAME RATE was compFps() — SCALE.COMP_FPS, the constant whose own
+    //     comment reads "composites are secondary tiles — 8fps halves the
+    //     packer's CPU vs 12 with no perceptible loss". That argument is the
+    //     exact one this block rejects, and it was left in place when the other
+    //     two were fixed: the strip composited, captured and shipped the room's
+    //     ONE live tier at 8fps (5 on a phone in a deep power tier), which is
+    //     what "the stage feels laggy" is (2026-08-15,
+    //     test/tools/stage-solo-lag.js). Raising it is cheap where it is cheap:
+    //     the still-frame skip drops any repaint that would be byte-identical,
+    //     so a strip whose source is slower than the rate costs nothing extra,
+    //     and the cost governor still rules on a weak device.
+    // So the Stage gets its own cell size, its own frame rate, and its own budget lane (stageSenders,
     // see shipMos). The ceiling is set by ROOM TYPE, and deliberately NOT by
     // headcount: a seat's stage cost is decode-one + forward-to-≤C, which is
     // bounded at EVERY scale — a stadium of a million costs a node exactly what
@@ -3395,10 +3406,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // open room lets anyone step up while everyone carries a full section.
     const STAGE_MAXW = 1280; // strip canvas width cap — with G stagers each cell is maxW/G
     const STAGE_CELL = 480;  // per-stager square at 1-2 stagers; maxW governs above that
+    const STAGE_FPS = 20;    // strip paint/capture rate — the live tier, not a tapestry
     function stageCell() {
       if (!IS_MOBILE) return STAGE_CELL;
       const deep = battTier >= 3 || drainTier >= 3 || idleNow;
       return deep ? Math.round(STAGE_CELL * 0.5) : STAGE_CELL;
+    }
+    // The strip's rate, by power tier — STAGE_FPS is the ceiling captureStream
+    // is built at, and stripPack.setFps() moves the paint rate under it without
+    // a rebuild. A phone still pays less than a desktop, and a deep tier still
+    // halves it; the floor stays above compFps() because a stuttery broadcast
+    // is the bug being fixed, not a saving.
+    function stageFps() {
+      if (!IS_MOBILE) return STAGE_FPS;
+      const deep = battTier >= 3 || drainTier >= 3 || idleNow;
+      return deep ? Math.round(STAGE_FPS * 0.5) : Math.round(STAGE_FPS * 0.75);
     }
     function stageCeilingKbps() {
       if (BROADCAST) return 3500;      // viewers bring NO media — the whole local budget is the stage's, at any scale
@@ -9020,6 +9042,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       stadiumEl.classList.add('on');
       compOf.set('sd', { via: 'mosaic', streamId: stream.id, stream, names: [], rws: [], cnt: knownTotal() });
     }
+    // A STAGER NEVER WATCHES ITSELF THROUGH ITS OWN COMPOSITE.
+    //
+    // When the Stage holds exactly ONE member and that member is me, the strip
+    // I would paint is a canvas copy of a track I am already holding: the same
+    // pixels, one packer hop and one stageFps() gate later (measured solo,
+    // headless: the strip 94ms behind capture against 31ms for the direct
+    // track — test/tools/stage-solo-lag.js). At a DEEP seat it is worse still,
+    // because that copy travelled up the tree to Section 1 and back down. The
+    // composite is still BUILT and SHIPPED whenever someone is there to receive
+    // it — what changes is only what I look at.
+    //
+    // The track is meTile's, which refreshOutbound keeps identical to the
+    // outbound one ("your self-view shows EXACTLY the track you broadcast"), so
+    // this shows the BROADCAST — blur baked in — never a private clear copy.
+    let selfStageSt = null;
+    function selfStageStream() {
+      const st = meTile && meTile.video && meTile.video.srcObject;
+      const vt = st && st.getVideoTracks()[0];
+      if (!vt || vt.readyState === 'ended') { selfStageSt = null; return null; }
+      // CACHED BY TRACK IDENTITY: paintStageStrip re-assigns srcObject whenever
+      // the stream differs and the mosaic sweep runs every 2s, so minting a
+      // fresh MediaStream per sweep would restart the element forever.
+      if (!selfStageSt || selfStageSt.getVideoTracks()[0] !== vt) selfStageSt = new MediaStream([vt]);
+      return selfStageSt;
+    }
     // The Stage strip: one wide tile at the top of the stage feed.
     function paintStageStrip(stream) {
       let el = stagefeedEl.querySelector('[data-row="sgs"]');
@@ -9104,6 +9151,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const stadLbl = (pid) => stadTiny ? { dot: true, talking: labelFor(pid).talking } : labelFor(pid);
       const stagers = stageIds();               // gossiped, ordered, <=C
       const amStager = stagers.includes(myId);
+      // The Stage is me and nobody else ⇒ every strip in this sweep is a
+      // composite of my own face, and I must not WATCH it (selfStageStream).
+      const soloSelf = amStager && stagers.length === 1;
       // { el, stream } for a cell: my own live view, a claimed mosaic feed, or a
       // directly-linked peer. Stream carries the audio the fold sums; el is the
       // drawImage source (a <video> or a nested composite's <canvas>).
@@ -9446,17 +9496,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (amStager) { const st = mySelfStream(); if (st) floodOne('stg:' + myId, st, null, 0); }
         for (const k of heldStg) { const hf = mosIn.get(k); floodOne(k, hf.stream, hf.via, stgHop(hf)); }
         // composite the strip in stage order; fan 'sgs' down my subtree
+        const selfSt = soloSelf ? selfStageStream() : null;
         if (!stagers.length) { paintStageStrip(null); }
+        else if (soloSelf && !peers.size) {
+          // NOBODY TO SHIP IT TO, AND NOBODY BUT ME ON IT. The strip has no
+          // consumer at all: no peer to fan it down to, and I must not watch
+          // myself through it — so building one composites, captureStreams and
+          // paints the room's broadcast for an audience of nobody (measured in
+          // a room of one: mosaic().jobs === []). peers.size is the honest
+          // receiver test — a strip can only leave this device over a peer
+          // connection — and unlike an occ lookup it cannot flicker with
+          // gossip. The sweep rebuilds within 2s of anyone arriving.
+          if (stripPack) { stripPack.stop(); stripPack = null; }
+          paintStageStrip(selfSt);
+        }
         else {
-        if (!stripPack) stripPack = MM.createPacker({ shape: 'bar', fps: compFps(), cell: stageCell(), maxW: STAGE_MAXW }).start(); // VIDEO-ONLY: Stage audio folds at the ear (mix-minus). NOT the secondary-tile default — see "THE STAGE IS NOT A SECONDARY TILE"
-        else stripPack.setCell(stageCell()); // the power tier moves under a long-lived strip; track it without a teardown (a rebuild would mint a new stream id and re-ship to everyone)
+        if (!stripPack) stripPack = MM.createPacker({ shape: 'bar', fps: STAGE_FPS, cell: stageCell(), maxW: STAGE_MAXW }).start(); // VIDEO-ONLY: Stage audio folds at the ear (mix-minus). NOT the secondary-tile defaults — see "THE STAGE IS NOT A SECONDARY TILE"
+        // The power tier moves under a long-lived strip; track it without a
+        // teardown (a rebuild would mint a new stream id and re-ship to
+        // everyone). Both dials, every sweep — setCell/setFps no-op unchanged.
+        stripPack.setCell(stageCell()); stripPack.setFps(stageFps());
         const stgKeep = new Set();
         stagers.forEach((sid, j) => {
           const sc = srcFor(sid, 'stg:' + sid);
           if (sc && sc.el) { stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(sid) }); stgKeep.add(sid); }
         });
         for (const id of stripPack.ids()) if (!stgKeep.has(id)) stripPack.delTile(id);
-        paintStageStrip(stripPack.stream);
+        paintStageStrip(selfSt || stripPack.stream);
         // Fan the strip DOWN only: every S1 seat composites its OWN strip from
         // the flooded stg feeds, so sideways sgs ships between S1 seats were
         // dead weight (receivers own stripPack and never paint them) — gone.
@@ -9469,7 +9535,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // from (via); sticky claimMos keeps one live source and fails over in ~2s.
       const sgs = mosIn.get('sgs');
       if (sgs && c.pc !== 0 && stagers.length) {
-        paintStageStrip(sgs.stream);
+        // Relay it regardless (my subtree needs it) — but if the only face in
+        // it is mine, look at the local track instead of at my own pixels
+        // after a round trip up to Section 1 and back down.
+        paintStageStrip((soloSelf && selfStageStream()) || sgs.stream);
         const dj = shipMos('sgs', occPid(T.down(c)), sgs.stream, blockMeta(sgs)); if (dj) wanted.add(dj);
         if (iAmHead) for (let j = 1; j < C; j++) { const jk = shipMos('sgs', occPid({ pc: c.pc, r: c.r, i: j }), sgs.stream, blockMeta(sgs)); if (jk) wanted.add(jk); }
         const xg = T.crossLink(c); const xgPid = xg ? occPid(xg) : null;
@@ -9536,6 +9605,32 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!job.unwantedAt) job.unwantedAt = nowU;
         else if (nowU - job.unwantedAt > MOS_GRACE) unshipMos(jk, true);
       }
+      // ---- DEMAND GATE: a composite nobody ships and nobody looks at ---------
+      // createPacker has carried setActive since the day it was written ("a
+      // composite that has no consumer (not shipped, not displayed) isn't
+      // painted (static canvas ⇒ ~0 encode too)") and NOTHING has ever called
+      // it. The gap is real work, not theory: prodPack is built the moment a
+      // seat is a head, and a seat alone on Stage IS a head — with an empty
+      // row, no up-link ship and no stadium tile, painting and capturing for
+      // nobody. Same for a strip kept for a subtree that has gone.
+      //
+      // Consumers are READ from the two authorities, never guessed: mosJobs
+      // (every ship is born there, and a PARKED standby counts — its whole job
+      // is to be able to wake with live pixels) and compOf (every painted
+      // composite registers there, which is also what the recorder reads). Both
+      // are recomputed each sweep, so a pack wakes on the sweep its first
+      // consumer appears — and setActive(false) only skips PAINT: the canvas
+      // keeps its last frame and captureStream emits nothing, so the worst a
+      // late wake costs is one frame, never a black tile.
+      const shippedTracks = new Set();
+      for (const job of mosJobs.values()) for (const t of job.srcTracks) shippedTracks.add(t);
+      const paintedSids = new Set(); for (const cv of compOf.values()) if (cv.streamId) paintedSids.add(cv.streamId);
+      const gatePack = (pk) => {
+        if (!pk || !pk.setActive) return;
+        pk.setActive(!!(pk.track && shippedTracks.has(pk.track)) || !!(pk.stream && paintedSids.has(pk.stream.id)));
+      };
+      gatePack(prodPack); gatePack(sdPack); gatePack(stripPack);
+      for (const pk of sdnPacks.values()) gatePack(pk);
     }
 
     // ============ THE STAGE DATA LANE (§11 — docs/media-plane.md, Channel St):

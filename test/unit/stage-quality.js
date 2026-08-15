@@ -72,6 +72,26 @@ check('setCell tolerates junk without throwing', (() => {
   catch (e) { return false; }
 })());
 
+// ---- setFps: the RATE is the third inherited constant -----------------------
+// The strip took compFps() — SCALE.COMP_FPS, whose own comment is "composites
+// are secondary tiles" — which is the argument this suite exists to reject. The
+// rate has to be settable on a LIVE packer for the same reason the cell does
+// (a rebuild mints a new stream id and re-ships to every receiver), and
+// captureStream's rate is fixed at start(), so the dial may only ever lower the
+// paint rate under the ceiling it was built with.
+const pk2 = M.createPacker({ shape: 'bar', cell: 480, maxW: 1280, fps: 20 });
+check('createPacker exposes setFps (a live strip tracks the power tier)',
+  typeof pk2.setFps === 'function');
+check('stats() reports the rate — the number a harness cannot otherwise see',
+  pk2.stats().fps === 20, pk2.stats().fps);
+pk2.setFps(15);
+check('setFps moves the rate on a live packer', pk2.stats().fps === 15, pk2.stats().fps);
+pk2.setFps(0); pk2.setFps(-3); pk2.setFps(NaN); pk2.setFps(undefined);
+check('setFps REFUSES junk — a NaN tier must never become a 1fps broadcast',
+  pk2.stats().fps === 15, pk2.stats().fps);
+pk2.setFps(999);
+check('setFps is bounded at the top', pk2.stats().fps <= 60, pk2.stats().fps);
+
 // ---- run.html actually hands the Stage its own numbers ----------------------
 // A source scan, deliberately: the failure being guarded is textual — someone
 // drops the `cell:`/`maxW:` argument and the strip silently inherits the
@@ -84,6 +104,39 @@ check('run.html builds the Stage strip with a bar packer', !!barCreate);
 check('the Stage strip passes its OWN cell + maxW (never the secondary default)',
   !!barCreate && /cell:/.test(barCreate[0]) && /maxW:/.test(barCreate[0]),
   barCreate ? barCreate[0].slice(0, 120) : null);
+
+check('the Stage strip passes its OWN fps (never compFps, the secondary rate)',
+  !!barCreate && /fps:\s*STAGE_FPS/.test(barCreate[0]) && !/compFps/.test(barCreate[0]),
+  barCreate ? barCreate[0].slice(0, 160) : null);
+check('and the live strip is re-dialled every sweep (setCell AND setFps)',
+  /stripPack\.setCell\(stageCell\(\)\);\s*stripPack\.setFps\(stageFps\(\)\)/.test(RUN));
+
+const fpsConst = RUN.match(/const STAGE_FPS\s*=\s*(\d+)/);
+const COMP_FPS = (globalThis.GifOS.net.SCALE || {}).COMP_FPS || 8;
+check('STAGE_FPS is defined and beats the secondary-tile rate',
+  !!fpsConst && +fpsConst[1] > COMP_FPS, { STAGE_FPS: fpsConst && +fpsConst[1], COMP_FPS });
+// The power tier may THIN the stage, but never down to the tapestry's rate: a
+// stuttery broadcast is the bug this was cut for, not a saving.
+const fpsFn = RUN.match(/function stageFps\(\)\s*\{[\s\S]*?\n    \}/);
+check('stageFps exists and scales STAGE_FPS by tier', !!fpsFn && /STAGE_FPS/.test(fpsFn[0]));
+if (fpsFn && fpsConst) {
+  const mults = (fpsFn[0].match(/STAGE_FPS \* ([\d.]+)/g) || []).map((s) => parseFloat(s.split('* ')[1]));
+  check('even the deepest tier stays above the secondary rate',
+    mults.length > 0 && mults.every((m) => Math.round(+fpsConst[1] * m) > COMP_FPS),
+    { mults, floor: mults.length ? Math.round(+fpsConst[1] * Math.min(...mults)) : null });
+}
+
+// ---- a stager never watches itself through its own composite ---------------
+// The strip is the same pixels as the local track, one packer hop and one
+// stageFps() gate later (and at a deep seat, a round trip to Section 1 and
+// back). Measured solo: 94ms behind capture vs 31ms — test/tools/stage-solo-lag.js.
+check('selfStageStream exists and is cached by track identity (not minted per sweep)',
+  /function selfStageStream\(\)/.test(RUN) && /selfStageSt\.getVideoTracks\(\)\[0\] !== vt/.test(RUN));
+check('a solo stager paints the LOCAL track, at Section 1 and deep alike',
+  /paintStageStrip\(selfSt \|\| stripPack\.stream\)/.test(RUN)
+  && /paintStageStrip\(\(soloSelf && selfStageStream\(\)\) \|\| sgs\.stream\)/.test(RUN));
+check('and with no peer to ship it to, the solo strip is not built at all',
+  /soloSelf && !peers\.size/.test(RUN));
 
 const cellConst = RUN.match(/const STAGE_CELL\s*=\s*(\d+)/);
 const maxwConst = RUN.match(/const STAGE_MAXW\s*=\s*(\d+)/);
