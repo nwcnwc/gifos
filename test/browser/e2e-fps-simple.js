@@ -162,8 +162,12 @@ async function play(runPage, frame) {
 
   // Presence has to cross both ways before anything else is meaningful.
   const sawEachOther = await Promise.all([
-    aFrame.waitForFunction(() => window.Net && window.Net.count() >= 2, null, { timeout: 90000 }).then(() => true, () => false),
-    bFrame.waitForFunction(() => window.Net && window.Net.count() >= 2, null, { timeout: 90000 }).then(() => true, () => false),
+    // 4 minutes, not one: two peers each running a full WebGL scene on a
+    // software rasteriser is what this box actually is, and the HOST waits the
+    // longer of the two — the guest is in the roster the moment it publishes,
+    // while the host only learns of it after that first publish crosses.
+    aFrame.waitForFunction(() => window.Net && window.Net.count() >= 2, null, { timeout: 240000 }).then(() => true, () => false),
+    bFrame.waitForFunction(() => window.Net && window.Net.count() >= 2, null, { timeout: 240000 }).then(() => true, () => false),
   ]);
   check('both peers see two players in the room', sawEachOther[0] && sawEachOther[1],
     'alice=' + sawEachOther[0] + ' bob=' + sawEachOther[1]);
@@ -175,15 +179,15 @@ async function play(runPage, frame) {
   // A BODY, not just a row: remote.js has to put something shootable in the
   // world, or the other player is a name on a scoreboard and nothing else.
   const bodies = await Promise.all([
-    aFrame.waitForFunction(() => window.Remote && window.Remote.count() >= 1, null, { timeout: 90000 }).then(() => true, () => false),
-    bFrame.waitForFunction(() => window.Remote && window.Remote.count() >= 1, null, { timeout: 90000 }).then(() => true, () => false),
+    aFrame.waitForFunction(() => window.Remote && window.Remote.count() >= 1, null, { timeout: 120000 }).then(() => true, () => false),
+    bFrame.waitForFunction(() => window.Remote && window.Remote.count() >= 1, null, { timeout: 120000 }).then(() => true, () => false),
   ]);
   check('each peer spawns a BODY for the other, in the world', bodies[0] && bodies[1],
     'alice=' + bodies[0] + ' bob=' + bodies[1]);
 
   // ---- a hit crosses the wire and is paid ----
   const bobHealthBefore = await bFrame.evaluate(() => {
-    const p = window.__ENGINE__ && window.__ENGINE__.ctx.peek('player');
+    const p = window.__FPS__ && window.__FPS__.player;
     return p && p.health ? p.health.value : null;
   });
   const claimed = await aFrame.evaluate(() => {
@@ -195,14 +199,15 @@ async function play(runPage, frame) {
   });
   check('Alice can address a claim to Bob', !!claimed);
 
+  check('Bob has a readable health value to lose', typeof bobHealthBefore === 'number', String(bobHealthBefore));
   const paid = await bFrame.waitForFunction(
     (before) => {
-      const p = window.__ENGINE__ && window.__ENGINE__.ctx.peek('player');
+      const p = window.__FPS__ && window.__FPS__.player;
       return !!(p && p.health && p.health.value < before);
-    }, bobHealthBefore, { timeout: 60000 }
+    }, bobHealthBefore, { timeout: 90000 }
   ).then(() => true, () => false);
   const bobHealthAfter = await bFrame.evaluate(() => {
-    const p = window.__ENGINE__ && window.__ENGINE__.ctx.peek('player');
+    const p = window.__FPS__ && window.__FPS__.player;
     return p && p.health ? p.health.value : null;
   });
   check('the hit crosses the wire and the target pays for it',
@@ -210,15 +215,18 @@ async function play(runPage, frame) {
 
   // Dedupe: a row is re-delivered on every unrelated change, so the SAME claim
   // must never be paid twice. Alice publishes repeatedly without claiming again.
-  const settled = bobHealthAfter;
+  //
+  // Asserted on the CLAIM COUNTER, not on health: health regenerates, so a
+  // duplicate hit is masked within a few seconds, and a health-based check here
+  // would pass whether the dedupe worked or not. That is the shape of a guard
+  // that guards nothing — this suite already shipped one by accident.
+  const claimsBefore = await bFrame.evaluate(() => window.Net.appliedTotal());
   await aFrame.evaluate(() => { for (let i = 0; i < 6; i++) window.Net.publish(true); });
-  await sleep(4000);
-  const stillSettled = await bFrame.evaluate(() => {
-    const p = window.__ENGINE__ && window.__ENGINE__.ctx.peek('player');
-    return p && p.health ? p.health.value : null;
-  });
-  check('a redelivered row does not land the same hit twice',
-    stillSettled >= settled - 0.001, settled + ' -> ' + stillSettled);
+  await sleep(5000);
+  const claimsAfter = await bFrame.evaluate(() => window.Net.appliedTotal());
+  check('Bob accepted the claim exactly once', claimsBefore === 1, 'accepted ' + claimsBefore);
+  check('six redeliveries of the same row land it no further times',
+    claimsAfter === claimsBefore, claimsBefore + ' -> ' + claimsAfter);
 
   await browser.close();
   console.log(failures ? '\nFAILURES: ' + failures : '\nall green');
