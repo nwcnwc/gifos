@@ -140,7 +140,7 @@ async function dismissInvite(runPage) {
 
 // Settle the Abilities sheet (the app declares `pointer`, so it always appears
 // on a first run) and wait for the world to finish building.
-async function ready(runPage, label, budgetMs) {
+async function ready(runPage, label, budgetMs, replacing) {
   runPage.on('pageerror', (e) => console.log('  [' + label + ' app err] ' + e.message.slice(0, 200)));
   // Look for the frame that IS our app, rather than for an <iframe> element or
   // "the frame that is not the page". Inviting reboots the app through the app
@@ -161,6 +161,14 @@ async function ready(runPage, label, budgetMs) {
   while (Date.now() < deadline) {
     for (const f of runPage.frames()) {
       if (f === runPage.mainFrame()) continue;
+      // THE MOUNT WE ARE REPLACING IS STILL THERE, AND STILL LOOKS RIGHT.
+      // Inviting remounts the app, but the old frame does not vanish the
+      // instant the click lands — and because Alice now invites BEFORE playing,
+      // that old frame still has a gate with an enabled Play button on it. So
+      // the first thing this loop found was the frame about to be thrown away,
+      // and the click on it died with "Frame was detached" a moment later. Skip
+      // it by identity; the runtime builds a genuinely new iframe.
+      if (replacing && f === replacing) continue;
       const isOurs = await f.evaluate(() => !!document.getElementById('gate-go')).catch(() => false);
       if (isOurs) { frame = f; break; }
     }
@@ -204,7 +212,17 @@ async function play(runPage, frame) {
     if (clear) break;
     await sleep(500);
   }
-  await frame.click('#gate-go', { timeout: 60000 });
+  // A detached frame here means the mount was replaced under us after ready()
+  // picked it. Say so plainly rather than failing as a click problem.
+  try {
+    await frame.click('#gate-go', { timeout: 60000 });
+  } catch (e) {
+    if (/detach/i.test(String(e && e.message))) {
+      throw new Error('the app was remounted between finding its gate and pressing Play'
+        + ' — ready() returned a frame that was on its way out');
+    }
+    throw e;
+  }
   await sleep(1500);
 }
 
@@ -364,7 +382,7 @@ async function deathmatch() {
     // is worse, because it tears down the host while she is it and she arrives
     // at a room with nobody left to serve the app.
     const aRun = aRun0;
-    aFrame = await ready(aRun, 'Alice', 240000);
+    aFrame = await ready(aRun, 'Alice', 240000, aFrame);
     await play(aRun, aFrame);
 
     /* ---- Bob, on a DIFFERENT machine, opens the link ---- */
