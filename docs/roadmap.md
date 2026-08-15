@@ -2260,44 +2260,57 @@ Two live defects, both reported from gifos.app edge at Grand Canyon Village on
 already taken — including the hypotheses that were KILLED — so the next attempt
 starts where this one stopped rather than repeating it.
 
-### 14a. The main thread freezes for 45 s at a time
+### 14a. The main thread freezes for 45 s at a time — SOLVED 2026-08-14, fix shipped
 
-**What.** Driving from the South Rim down to the Colorado, the page stops
-responding for tens of seconds at a stretch, repeatedly. Chrome raises its
-**"Page Unresponsive"** dialog, so the renderer's main thread is genuinely
-blocked — not a stalled rAF. The engine note keeps playing throughout (the audio
-graph is on its own thread, which is exactly how the 2026-08-13 phone report
-sounded too). It recovers on its own; opening DevTools appeared to help but did
-not — the reporter confirmed the recovery was not immediate after Ctrl+Shift+C,
-so the long task simply finished.
+**What it was.** `waterMesh()` walked EVERY vertex of a water ring TWICE — once
+sampling the ground beneath it to pick the level, once ear-clipping it for the
+fill — for EVERY TILE the ring touches. The Colorado through the Grand Canyon is
+one multipolygon of thousands of vertices, and ear-clipping is quadratic in the
+vertex count on a concave ring, which a river bank is from end to end.
 
-**RULED OUT, by measurement — do not re-chase these:**
+**The evidence.** A DevTools trace of the freeze, from the reporting machine.
+Of 92.7 s of non-idle CPU:
+
+    36.7 s   terrain height sampling   (the level loop)
+    29.9 s   triangulate + its nested cross/inside   (the fill)
+    ------
+    66.6 s   ~72% of all busy time, in one function, on one river
+
+Chrome raised "Page Unresponsive" — a genuinely blocked main thread — while the
+engine note kept playing, because audio runs on its own thread. That is the same
+signature as the original 2026-08-13 phone report.
+
+**The fix (roads.js `waterMesh`).** The level is a 20th PERCENTILE, so it is
+taken from 220 stride samples rather than every vertex — 220 estimates a
+percentile as well as 5000 does. The surface is a flat sheet, so a ring over 600
+points is decimated before filling; at these scales the dropped vertices are far
+below a pixel. Both bounds are per ring, so a 40-point pond is untouched, and
+only the DRAWN surface is coarsened — `geom.wat` is untouched, so the wet index
+and the drown test still read the real bank. Measured on a realistic noisy bank:
+5000 points 1184 ms -> 25 ms (48x), 1800 points 178 ms -> 22 ms. e2e-anyroad
+246 PASS, including every water assertion.
+
+**THE DEAD END THAT WAS NOT ONE — read this before trusting a benchmark here.**
+This section previously recorded `triangulate` as RULED OUT on an 11.8 ms
+measurement of an 800-point "river". That benchmark was wrong, and wrong in the
+most dangerous direction: it CLEARED the actual culprit. The fixture was a
+smooth sine wave, which ear-clipping finds easy; real OSM banks are dense and
+reflex nearly everywhere, and the same vertex count costs two orders of
+magnitude more. **A synthetic fixture that is kinder than reality proves
+nothing, and proves least of all an absence.** The two hypotheses genuinely
+killed, and still dead, are:
 
 | hypothesis | measurement | verdict |
 |---|---|---|
-| `triangulate()` is super-linear on a long river ring | 800-point river-shaped ring → **11.8 ms** | not it |
-| Rebuild storm — `built.incomplete` tiles re-meshing on every `terrainEpoch` bump | 90 s flying into the canyon: **7 builds, 357 ms total, worst 119 ms**, and `incomplete: 0` (every tile converged) | not it |
-| Water buried under terrain by the one-level-per-ring bug | `waterVerts: 0` — no water mesh exists there at all | not it |
+| Rebuild storm — `built.incomplete` tiles re-meshing on every `terrainEpoch` bump | 90 s flying the canyon: **7 builds, 357 ms total**, `incomplete: 0` | not it |
+| Water buried under terrain by one-level-per-ring | `waterVerts: 0` — no water mesh existed there at all | not it (but see 14b) |
 
-**Why it is still open.** It cannot be attributed on a box without a GPU. Under
-swiftshader every frame becomes a 1.5–2.6 s NATIVE task (98% of CPU-profile
-samples land in `(program)`, not JS), which mimics the symptom and masks it. A
-75 s profile at the village recorded 31 long tasks over 1 s, worst 6328 ms — all
-of it software rasterisation, none of it the reporter's bug. **The next
-measurement must come from a machine with a real GPU.**
-
-**Sketch.** Get a DevTools Performance recording, or long-task + phase timings,
-from the reporting machine across one freeze — wrapping `Roads.build`,
-`Roads.loadTile`, `Terrain.loadTile`, `Terrain.meshFor` and `Render.draw`. The
-JS that did appear under the native noise, in self-time order, was
-`tree`/`plantAt`/`scatter`, `heightAtGeo`, `nearestRoad`, `buildWallIndex`,
-`hull` and `ribbon` — the scatter and the wall index are the two that scale with
-canyon-sized geometry and are worth suspecting first, but suspicion is not
-evidence and this list is a starting point, not a finding.
-
-**Open question.** Whether the freeze and 13b share a cause: both appear where
-Overpass is refusing the tile (below), and a client that is retrying huge
-queries is doing work the profile above never sampled.
+**Still to confirm.** That the freeze is gone on the reporting machine at the
+canyon. The fix is verified fast in isolation and verified not to break water,
+but nobody has yet driven the canyon on real hardware with it. A GPU-less box
+cannot answer that: under swiftshader every frame is a 1.5-2.6 s NATIVE task
+(98% of profile samples land in `(program)`), which imitates the symptom
+convincingly enough to fool a whole afternoon.
 
 ### 14b. The Colorado River renders as no water at all
 
@@ -2357,6 +2370,11 @@ console.table(o);console.log('car y',Math.round(App.car().y))})()
   limitation), which for a river descending a canyon can sit below the terrain
   along most of its length.
 - `wat = 0`, `detail = 0` → the shed-to-detail-0 path above.
+
+**Note after 14a was solved.** Part of this may simply have been 14a: a ring
+costing ~1.2 s per tile to mesh, across every tile it touches and every rebuild,
+may never have finished before the reporter looked. Re-check this one FIRST on
+the fixed build before hunting further.
 
 **A link straight to the water,** verified to land at car y 789 m, flying at
 39 m AGL: `https://gifos.app/?run=anyroad&go.at=36.0997,-112.0947&go.label=Colorado%20River&go.fly=1`
