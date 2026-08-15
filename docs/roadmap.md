@@ -2376,6 +2376,44 @@ costing ~1.2 s per tile to mesh, across every tile it touches and every rebuild,
 may never have finished before the reporter looked. Re-check this one FIRST on
 the fixed build before hunting further.
 
+**MEASURED 2026-08-15, on a canyon fixture (rim 2118 m, floor 763 m).** The
+suite now has sloped-water coverage, and it is RED — deliberately, because this
+is what the reporter sees:
+
+    FAIL  the surface FOLLOWS its own ground        worst -234.3 m (at vertices)
+    FAIL  the surface BETWEEN the banks             worst -667.8 m, all 8 triangles >15 m out
+    FAIL  where the car DROWNS, water is drawn      27 of 27 spots had none
+    PASS  never stands ON TOP of the land           0.3 m
+    PASS  no triangle stretched across a hillside   tallest spans 0 m of height
+
+Read them together and they say one thing: **the water is a single flat sheet
+sitting hundreds of metres below the ground it belongs to, while the drown test
+is a 2D outline that never looks at height.** Hence the three reported symptoms
+— the river reads as land, fish stand on it, the car drowns on dry rock.
+
+**Two hypotheses this killed, both mine:**
+- *Ear-clipping stretches triangles across hillsides.* No: the tallest triangle
+  spans 0 m. Every water triangle is perfectly flat.
+- *Per-vertex levelling fixes it.* It does not engage at all here. The window is
+  3% of the ring and these rings are 5 points, so it wraps the whole ring and
+  degenerates to the global percentile. The change is shipped and UNPROVEN — it
+  can only do anything on a ring of hundreds of points, and no test exercises
+  that. **If the canyon still looks wrong, revert it rather than defend it.**
+
+**What the fixture still cannot do.** Its water rings are 5 points. Testing any
+per-vertex or per-tile levelling needs a LONG river ring — hundreds of vertices
+descending the canyon — so that "local" means something. That fixture is the
+prerequisite for the fix below, not an optional extra.
+
+**The fix, and it is the one from the original brief.** Clip each ring to the
+tile that draws it, so a tile draws its OWN piece and can level that piece
+locally; and put height into the hazard so `landAt` agrees with what is drawn.
+The earlier Sutherland-Hodgman attempt failed because it joins disjoint pieces
+of a concave ring along the clip boundary (it flooded 75% of a tile at Niagara);
+a clipper that emits MULTIPLE polygons is what this needs. Everything done on
+2026-08-14/15 bounded water's COST (§14a, the freeze — real and confirmed). None
+of it changed water's SHAPE.
+
 **A link straight to the water,** verified to land at car y 789 m, flying at
 39 m AGL: `https://gifos.app/?run=anyroad&go.at=36.0997,-112.0947&go.label=Colorado%20River&go.fly=1`
 
