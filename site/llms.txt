@@ -160,6 +160,18 @@ a .zip for multi-file apps). GifOS packs the GIF there.
      (navigator.gpu && await navigator.gpu.requestAdapter()) and fall back to
      CPU/WASM when there is no adapter — many devices have a real GPU, the ones
      that do not run fine on CPU. Shown as "uses your device's graphics chip."
+   - pointer: declare capabilities.pointer:true to use POINTER LOCK — hide the
+     cursor and read the mouse as movementX/movementY deltas, the way a
+     first-person game aims. A sandboxed frame is refused it outright, and the
+     refusal is a SecurityError thrown INSIDE your app, so without the
+     declaration the app mounts, renders, and silently cannot look around. This
+     adds the allow-pointer-lock sandbox token and NOTHING else — no CSP change,
+     connect-src stays 'none'. The browser's own rules still apply: entering
+     needs a user gesture (lock on click, never on load) and Esc always releases,
+     so ALWAYS listen for pointerlockchange and pause/show a "click to resume"
+     overlay when the lock is lost — a game that keeps playing while the cursor
+     is back is a game the player cannot quit. Useless on a phone, which has no
+     pointer to lock: ship touch controls alongside it, don't gate the app on it.
    ALWAYS feature-detect and never fake a result. You do NOT need to write your
    own "how to set up X" instructions: when a gifos.api / gifos.ai call hits
    missing config, GIFOS ITSELF shows a setup prompt (it knows the provider's URL

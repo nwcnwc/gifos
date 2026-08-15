@@ -2386,6 +2386,26 @@
     if (hasCap(manifest, 'gpu') && !capDisabled(manifest, 'gpu')) allow.push('webgpu');
     if (asked.length) allow.push('autoplay');
     if (allow.length) { try { iframe.setAttribute('allow', allow.join('; ')); } catch (e) {} }
+    // Pointer lock is a SANDBOX flag, not a permissions-policy feature, so it
+    // cannot ride in `allow` above: a sandboxed frame is refused outright —
+    // "Blocked pointer lock on an element because the element's frame is
+    // sandboxed and the 'allow-pointer-lock' permission is not set" — until the
+    // token is on the frame itself. Declared in the manifest and revocable in
+    // the sheet like motion and WebGPU, and set HERE rather than in
+    // makeIframe() for the same reason they are: the sandbox is fixed at
+    // navigation, and makeIframe() has no manifest to ask.
+    //
+    // What it grants is the POINTER, not data: the cursor hides and mousemove
+    // reports movementX/Y deltas instead of coordinates. No network, no origin,
+    // no storage — connect-src 'none' is untouched. The browser keeps both
+    // guards it always had: entering needs a user gesture, and Esc always
+    // leaves. A first-person game cannot aim without it; nothing else needs it.
+    if (hasCap(manifest, 'pointer') && !capDisabled(manifest, 'pointer')) {
+      try {
+        const sb = iframe.getAttribute('sandbox') || '';
+        if (!/(^|\s)allow-pointer-lock(\s|$)/.test(sb)) iframe.setAttribute('sandbox', (sb + ' allow-pointer-lock').trim());
+      } catch (e) {}
+    }
     iframe.srcdoc = buildAppHtml(files, manifest);
     return () => root.removeEventListener('message', handler);
   }
