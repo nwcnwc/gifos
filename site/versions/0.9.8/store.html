@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/versions/0.9.8/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0f">
+<!-- NO CHANNEL LOADER, deliberately — every other entry page has one.
+     A release user's channel loader would send them to
+     /versions/<current>/store.html, and every snapshot cut before this feature
+     existed 404s there: gifos.app/store was a hard 404 for the default channel
+     the moment it shipped. So the store is served from the ROOT for everyone,
+     and js/store.js does the version work itself — it looks up the build that
+     actually owns this visitor's Home Screen and speaks for it from here: it
+     says plainly when that build is too old to receive an install at all, and
+     when it is too old for the particular app being looked at. It no longer
+     hands over to that build's own store page either. A frozen store is code
+     cut before the app it is describing existed, so it cannot know an app
+     needs a build newer than itself — it read the live catalog and offered the
+     install anyway. The hand-off never needed the redirect: index.html's
+     channel loader carries pathname and hash, so #place= reaches the pinned
+     build's desktop from here just the same. -->
+<!-- Theming gate: hide chrome behind the theme-color backdrop until the theme
+     cascade (js/gifos-themes.js) applies real vars, so the fallback purple never
+     paints first. Same gate every GifOS page uses. -->
+<style id="theme-gate">html.gifos-booting body{visibility:hidden}html.gifos-booting{background:var(--bg,#0a0a0f)}</style>
+<script>(function(){var h=document.documentElement;h.className+=(h.className?' ':'')+'gifos-booting';var shown=0;
+function show(){if(shown)return;shown=1;h.classList.remove('gifos-booting');
+try{var bg=h.style.getPropertyValue('--bg');var m=document.querySelector('meta[name=theme-color]');if(bg&&m)m.setAttribute('content',bg.trim());}catch(e){}}
+function chk(){if(shown)return;if(h.style.getPropertyValue('--accent'))show();else requestAnimationFrame(chk);}
+requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GifOS">
+<script src="js/sw-register.js" defer></script>
+<script src="js/build.js" defer></script>
+<script src="js/build-badge.js" defer></script>
+<title>App Store — GifOS</title>
+<meta name="description" content="Browse GifOS apps and install them to your Home Screen. Every app is a single GIF file you own — free to install, free to keep, free to pass on.">
+<link rel="canonical" href="https://gifos.app/store">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GifOS">
+<meta property="og:title" content="GifOS App Store">
+<meta property="og:description" content="Apps that are GIFs. Install one to your Home Screen.">
+<meta property="og:url" content="https://gifos.app/store">
+<meta property="og:image" content="https://gifos.app/og.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%8D%3C/text%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 16px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+         background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); }
+  a { color: var(--accent, #7b5cff); }
+  .brand { font-weight: 800; background: linear-gradient(135deg, var(--accent, #7b5cff), var(--accent2, #ff5caa));
+           -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
+  .topbar { display: flex; align-items: center; gap: .8rem; padding: .7rem 1rem; position: sticky; top: 0; z-index: 20;
+            border-bottom: 1px solid var(--border, #2a2a3f); background: var(--surface, #14141f); }
+  .topbar a { text-decoration: none; font-size: 1.05rem; }
+  .topbar .title { font-weight: 700; }
+  .topbar .spacer { flex: 1; }
+  .topbar .home { padding: .4rem .8rem; border-radius: .5rem; border: 1px solid var(--border, #2a2a3f);
+                  color: var(--text, #e0e0f0); font-size: .9rem; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 1.4rem 1rem 4rem; }
+  h1 { font-size: 1.8rem; margin-bottom: .3rem; }
+  .lede { color: var(--muted, #a9a9c5); margin-bottom: 1.4rem; }
+
+  /* ---- browse ---- */
+  .filters { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.2rem; }
+  #q { flex: 1; min-width: 12rem; padding: .55rem .8rem; border-radius: .6rem; font: inherit;
+       border: 1px solid var(--border, #2a2a3f); background: var(--bg, #0a0a0f); color: var(--text, #e0e0f0); }
+  .cats { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1.3rem; }
+  .cat { padding: .35rem .8rem; border-radius: 999px; font-size: .87rem; cursor: pointer;
+         border: 1px solid var(--border, #2a2a3f); background: transparent; color: var(--muted, #a9a9c5); font-family: inherit; }
+  .cat[aria-pressed="true"] { background: var(--accent, #7b5cff); color: var(--onaccent, #fff); border-color: transparent; font-weight: 600; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1rem; }
+  .card { border: 1px solid var(--border, #2a2a3f); border-radius: .9rem; overflow: hidden; cursor: pointer;
+          background: var(--surface, #14141f); text-align: left; font: inherit; color: inherit; padding: 0; display: flex; flex-direction: column; }
+  .card:hover { border-color: var(--accent, #7b5cff); }
+  /* The cover is a JPEG. NEVER the App GIF — see js/store.js. */
+  .card .shot { width: 100%; aspect-ratio: 16/10; object-fit: cover; object-position: top center; display: block;
+                background: var(--bg, #0a0a0f); border-bottom: 1px solid var(--border, #2a2a3f); }
+  .card .body { padding: .75rem .85rem .9rem; display: flex; flex-direction: column; gap: .25rem; flex: 1; }
+  .card h3 { font-size: 1.02rem; }
+  .card .tag { color: var(--muted, #a9a9c5); font-size: .87rem; flex: 1; }
+  .card .meta { color: var(--muted, #8888aa); font-size: .78rem; display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+  .pill { border: 1px solid var(--border, #2a2a3f); border-radius: 999px; padding: .05rem .5rem; font-size: .74rem; color: var(--muted, #8888aa); }
+  .installed { color: var(--accent, #7b5cff); font-weight: 600; }
+  /* "Needs a newer GifOS" — a caution, not an error and not an invitation, so
+     it is neither the accent (which reads as "ready, press me") nor the red of
+     a failure. It replaces the size on a card whose app can't run here yet. */
+  .needs { color: #ffab48; font-weight: 600; }
+
+  /* ---- detail ---- */
+  .back { background: none; border: 0; color: var(--accent, #7b5cff); font: inherit; cursor: pointer; padding: 0; margin-bottom: 1rem; }
+  .head { display: flex; gap: 1.1rem; align-items: flex-start; flex-wrap: wrap; margin-bottom: 1.2rem; }
+  .head h1 { font-size: 1.9rem; margin: 0; }
+  .head .sub { color: var(--muted, #a9a9c5); }
+  .hero { width: 100%; max-width: 680px; border-radius: .8rem; border: 1px solid var(--border, #2a2a3f); display: block; margin-bottom: 1.4rem; }
+  .actions { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin: 0 0 1.4rem; }
+  .btn { padding: .7rem 1.4rem; border-radius: .7rem; border: 0; font: inherit; font-weight: 700; cursor: pointer;
+         background: var(--accent, #7b5cff); color: var(--onaccent, #fff); }
+  .btn[disabled] { opacity: .6; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--text, #e0e0f0); border: 1px solid var(--border, #2a2a3f); font-weight: 600; }
+  .prog { height: .4rem; border-radius: 999px; background: var(--border, #2a2a3f); overflow: hidden; width: 12rem; }
+  .prog i { display: block; height: 100%; width: 0; background: var(--accent, #7b5cff); transition: width .15s linear; }
+  /* The SECOND download — install-time assets (model weights). Its own row,
+     because it is its own file: the app GIF's bar finishing has nothing to do
+     with how far along a 769 MB model is. */
+  .dl { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin: -.8rem 0 1.4rem; }
+  /* Indeterminate: a phase with nothing honest to count (verifying a gigabyte,
+     or a server that never sent a content-length). It MOVES so it can't be
+     read as "finished", which is precisely how a parked full bar was read. */
+  .prog.busy i { background: linear-gradient(90deg, transparent 0%, var(--accent, #7b5cff) 50%, transparent 100%);
+                 animation: dlsweep 1.1s linear infinite; }
+  @keyframes dlsweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: reduce) { .prog.busy i { animation: none; opacity: .55; } }
+  .note { color: var(--muted, #8888aa); font-size: .87rem; }
+  /* The shared link, revealed after a copy (so it is checkable) and the whole
+     feature where there is no clipboard API. Monospace and full-width: this is
+     a thing to read carefully and select, not decoration. */
+  .sharebox { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: -.8rem 0 1.4rem; max-width: 42rem; }
+  .sharebox input { flex: 1 1 20rem; min-width: 0; font: inherit; font-size: .85rem;
+                    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                    padding: .5rem .6rem; border-radius: .5rem; color: var(--text, #e0e0f0);
+                    background: var(--surface, #15151f); border: 1px solid var(--border, #2a2a3f); }
+  .err { color: #ff6b8a; font-size: .9rem; }
+  .desc { white-space: pre-wrap; color: var(--muted, #a9a9c5); max-width: 42rem; margin-bottom: 1.6rem; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .9rem 1.4rem; max-width: 42rem; margin-bottom: 1.6rem; }
+  .facts div { font-size: .9rem; }
+  .facts dt { color: var(--muted, #8888aa); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  .facts dd { margin: .15rem 0 0; }
+  .caps { display: flex; gap: .4rem; flex-wrap: wrap; }
+  .empty { color: var(--muted, #8888aa); padding: 2rem 0; }
+  .foot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border, #2a2a3f); font-size: .85rem; color: var(--muted, #667); }
+</style>
+<script src="js/gifos-themes.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <a href="/"><span class="brand">GifOS</span></a>
+    <span class="title">App&nbsp;Store</span>
+    <span class="spacer"></span>
+    <a class="home" href="/">Home Screen</a>
+  </div>
+
+  <div class="wrap">
+    <div id="browse">
+      <h1>Apps that are <span class="brand">GIFs</span></h1>
+      <p class="lede">Install one and it lands on your Home Screen as a single file you own — free to keep, free to pass on.</p>
+      <div class="filters"><input id="q" type="search" placeholder="Search apps…" autocomplete="off"></div>
+      <div class="cats" id="cats"></div>
+      <div class="grid" id="grid"></div>
+      <div class="empty" id="empty" style="display:none">Nothing matches that.</div>
+    </div>
+
+    <div id="detail" style="display:none"></div>
+
+    <div class="foot">
+      Every app here is a real GIF file. <a href="/about.html">How GifOS works</a> ·
+      <a href="https://github.com/nwcnwc/gifos/tree/main/apps">Build one yourself</a>
+    </div>
+  </div>
+
+  <script>
+    // Bind to the right computer BEFORE the store loads: opened from a booted
+    // computer image (boot.html), the store installs into THAT image. In the
+    // HASH, like run.html — the channel loader above carries `pathname + hash`
+    // across a version redirect and drops the query, so anything that must
+    // survive a pinned build lives after the #.
+    (function () {
+      var db = new URLSearchParams(location.hash.slice(1)).get('db');
+      if (db && /^gifos_vm_[\w-]+$/.test(db)) window.GIFOS_DB_NAME = db;
+    })();
+  </script>
+  <script src="js/gifos-gif.js"></script>
+  <script src="js/gifos-ed.js"></script>
+  <script src="js/gifos-sign.js"></script>
+  <script src="js/gifos-assets.js"></script>
+  <script src="js/gifos-store.js"></script>
+  <script src="js/store.js"></script>
+</body>
+</html>
