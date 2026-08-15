@@ -1,0 +1,15 @@
+{
+  "tagline": "A first-person shooter with no art files at all.",
+  "description": "A proper first-person shooter that runs in the sandbox, and there is not a single image, model or sound file inside it. Every texture, every mesh, every animation and every noise it makes is generated from code while it loads: the concrete and plaster on the walls, the sand underfoot, the weapon in your hands, the soldiers, the sky. That is why a whole game fits in a GIF you can send to somebody.\n\nYou start in a market street at midday. Solo, a garrison patrols it and comes looking for you — they take cover, flank, throw grenades, and fall over properly when hit, because the ragdolls are simulated rather than animated. Rounds travel, drop over distance and punch through thin material, so what you are standing behind matters.\n\nSend the invite link and the same street becomes a deathmatch. Everyone who opens it lands in the identical world — not a copy, the same street, because it is all built from one shared seed rather than downloaded — and the garrison stands down. There is no game server, no account and no lobby: the room is the link, and the host's browser holds it together.\n\nOn a phone it is a real phone game, not a port with the controls missing: left thumb to move, push the pad to its edge to sprint, drag anywhere on the right to aim, tap to fire, with reload, jump, crouch and aim-down-sights under your thumb. On a desktop it takes the mouse properly — GifOS asks you first, and Esc always gives the pointer straight back.\n\nQuality picks itself from your device and is yours to change in the pause menu, along with sensitivity, field of view and invert-Y. Your settings stay on your device, inside the app.\n\nThe game engine is Claude of Duty by mshumer, MIT-licensed and built with Three.js. The GifOS port — touch controls, the pointer-lock handling, and all of the multiplayer, which the original does not have — was written for this app.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-15",
+  "categories": ["Games"],
+  "tags": ["fps", "shooter", "3d", "webgl", "multiplayer", "deathmatch", "procedural", "offline"],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fps-simple",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

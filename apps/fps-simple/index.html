@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>FPS Simple</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- The engine draws here; upstream's HUD (crosshair, minimap, killfeed, pause
+     menu) mounts itself into #ui. Everything below #ui is OURS. -->
+<canvas id="game"></canvas>
+<div id="ui"></div>
+
+<!-- The first gesture. Two things need one and neither can be faked: pointer
+     lock (a sandboxed frame is refused without a real click) and Web Audio
+     (a context started without one stays suspended and the game is silent).
+     So the app opens on a card rather than on a canvas that quietly does
+     neither. It doubles as the loading screen, because the world is BUILT on
+     boot — every texture, mesh and sound is generated from code — and a black
+     canvas for four seconds reads as broken. -->
+<div id="gate">
+  <div class="gate-box">
+    <h1>FPS Simple</h1>
+    <p class="sub">A first-person shooter with no art files. Every texture,
+       mesh, animation and sound in it is generated from code as it loads.</p>
+    <div id="gate-load"><div id="gate-bar"></div></div>
+    <p id="gate-note">Building the world…</p>
+    <button id="gate-go" disabled>Play</button>
+    <div id="gate-keys">
+      <b>WASD</b> move · <b>mouse</b> aim · <b>click</b> fire · <b>right-click</b> aim down sights<br>
+      <b>R</b> reload · <b>Shift</b> sprint · <b>Ctrl</b> crouch · <b>Space</b> jump · <b>Q/E</b> lean · <b>Esc</b> pause
+    </div>
+    <div id="gate-room"></div>
+  </div>
+</div>
+
+<!-- Touch controls. Built by touch.js and shown only once a real finger has
+     touched the screen — a laptop with a touchscreen must not get a phone HUD
+     laid over its game. -->
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+  <div id="t-look"></div>
+  <div id="t-buttons">
+    <button class="t-btn t-wide" data-code="Mouse0" id="t-fire">FIRE</button>
+    <button class="t-btn" data-code="Mouse2">ADS</button>
+    <button class="t-btn" data-code="KeyR">RELOAD</button>
+    <button class="t-btn" data-code="Space">JUMP</button>
+    <button class="t-btn" data-code="ControlLeft">CROUCH</button>
+  </div>
+  <button id="t-pause" class="t-btn">❚❚</button>
+</div>
+
+<!-- Scoreboard: only ever shown in a room. Hold Tab, or tap the tally. -->
+<div id="score" hidden><table><tbody id="score-rows"></tbody></table></div>
+<div id="tally" hidden></div>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands, so
+     every file here runs in this order and each one reads what came before.
+     vendor/game.js defines window.COD; the rest is ours. -->
+<script src="vendor/game.js"></script>
+<script src="net.js"></script>
+<script src="remote.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

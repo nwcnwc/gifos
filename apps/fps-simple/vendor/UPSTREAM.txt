@@ -1,0 +1,10 @@
+vendor/game.js is GENERATED. Do not edit it; run node apps/fps-simple/vendor.mjs.
+
+upstream: https://github.com/mshumer/Claude-of-Duty.git
+commit:   d9b237b75c9304ab8d9ef4cfa0c3568c7c11a853
+three:    0.180.0
+entry:    src/_gifos-facade.js (written by vendor.mjs), IIFE, global COD
+
+Both licences are MIT and travel beside it as COPYING-claude-of-duty.txt and
+COPYING-three.txt. They are packed into the GIF too, so a copy of this app
+that someone was handed still carries the notices it is required to carry.
