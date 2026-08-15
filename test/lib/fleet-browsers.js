@@ -27,6 +27,7 @@
  */
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
+const casualty = require('./casualty');
 
 const LOCAL_PW = require('playwright/package.json').version;
 const BASE_PORT = Number(process.env.FLEET_PORT_BASE || 9400);
@@ -100,6 +101,47 @@ function secureOriginArgs(args, origin) {
   return out;
 }
 
+// A FLEET BOX THAT VANISHES IS A CASUALTY, NOT A FAILING ASSERTION.
+//
+// casualty.js arms the 98 suites that launch through test/lib/pw.js. These
+// browsers do not come from there — they are connect()ed over a websocket to a
+// server on somebody else's machine — so they were the one family of browser in
+// the repo whose death was NOT covered, and the death that matters most: a
+// fleet box is a laptop on someone's wifi, and a laptop sleeps.
+//
+// It cost a night. nvidia-laptop suspended mid-run (measured afterwards: a
+// 4h48m silence in its journal, a fresh tty7 login when it woke, wifi
+// reactivated one second later) and the suite reported
+// "frame.evaluate: Target page, context or browser has been closed" from inside
+// its own assertions — a string casualty.js's CASUALTY_RE has always matched,
+// arriving through the one door that never asked it. The run before that had
+// spent forty minutes producing timings about a box that was on its way out.
+//
+// So: the same doctrine, through this door too, and named — the report says
+// which BOX died, since "a browser" is not a useful thing to be told when the
+// browsers are on four different machines.
+const teardown = new WeakSet();
+
+function armFleetBrowser(browser, h) {
+  const where = h.name || h.ssh;
+  try {
+    browser.on('disconnected', () => {
+      if (teardown.has(browser)) return;
+      casualty.refuse({
+        what: 'the browser on ' + where + ' — a FLEET BOX',
+        why: 'it disconnected mid-run: the box slept, dropped off the network, or was reaped',
+        where: where + ' (a remote host; its memory was not read at death time)',
+        host: where,
+        mem: {},
+      });
+    });
+  } catch (e) { /* never break a launch over this */ }
+  // And everything casualty.js does for a local browser: renderer crashes, and
+  // marking a close we asked for as one we asked for.
+  try { casualty.watchBrowser(browser); } catch (e) {}
+  return browser;
+}
+
 /** Start a browser server per host and connect to each. */
 async function openFleet(hosts, opts) {
   opts = opts || {};
@@ -109,7 +151,7 @@ async function openFleet(hosts, opts) {
     for (let i = 0; i < hosts.length; i++) {
       const h = hosts[i];
       const s = await startOne(h, BASE_PORT + i, opts);
-      const browser = await chromium.connect(s.ws, { timeout: 60000 });
+      const browser = armFleetBrowser(await chromium.connect(s.ws, { timeout: 60000 }), h);
       console.log('  FLEET: ' + (h.name || h.ssh) + ' -> ' + s.ws.replace(/\/[0-9a-f]{8,}$/, '/…'));
       started.push({ host: h, browser: browser, ws: s.ws, child: s.child });
     }
@@ -132,6 +174,10 @@ async function openFleet(hosts, opts) {
 
 async function closeFleet(boxes) {
   for (const b of boxes || []) {
+    // We are ending this on purpose, so the disconnect that follows is not a
+    // casualty. Declared BEFORE the close, or the handler races the teardown
+    // and refuses a verdict the suite already reached.
+    try { if (b.browser) { teardown.add(b.browser); casualty.deathExpected(b.browser); } } catch (e) {}
     try { if (b.browser) await b.browser.close(); } catch (e) {}
     try { if (b.child) b.child.kill('SIGKILL'); } catch (e) {}
   }
