@@ -45,6 +45,11 @@
   var killedBy = '', killedById = null, killedByHs = false, killedAt = 0;
   var deaths = 0;
   var garrisonRetired = false;
+  // Module scope on purpose: materialSystemFor() reads this, and it is defined
+  // out here rather than inside start(). Declaring it in start() is what shipped
+  // "The game could not start: useCache is not defined" — a ReferenceError from
+  // the first texture lookup, i.e. every boot.
+  var useCache = true;
   var gate = document.getElementById('gate');
   var bar = document.getElementById('gate-bar');
   var note = document.getElementById('gate-note');
@@ -198,15 +203,17 @@
     var s = { quality: 'medium', renderScale: null, probe: p };
     if (!p.ok) { s.quality = 'low'; s.renderScale = 0.5; return s; }
     if (p.software || p.score < 0.5) {
-      s.quality = 'low'; s.renderScale = 0.34; s.texCap = 256;
+      s.quality = 'low'; s.renderScale = 0.25; s.texCap = 128;
       // SHADOWS ARE GEOMETRY, AND GEOMETRY IS WHAT THIS DEVICE HAS NONE OF.
       // The street is 603k static and 1129k instanced triangles across 212 draw
       // calls, and three shadow cascades means all of it is submitted THREE
       // MORE TIMES every frame. Cutting renderScale did nothing for that, and
       // measurably nothing for the frame rate — a 435x245 render target still
       // took 8.7 seconds a frame — because the cost was never the pixels.
-      s.q = { cascades: 1, shadowMapSize: 512, shadowDistance: 28,
-              particleBudget: 400, decalBudget: 16, bloom: false };
+      s.q = { cascades: 1, shadowMapSize: 256, shadowDistance: 18,
+              particleBudget: 120, decalBudget: 8, bloom: false,
+              taa: false, gtao: false, ssr: false, volumetrics: false,
+              motionBlur: false, anisotropy: 1 };
     } else if (p.score < 2) { s.quality = 'low'; s.renderScale = 0.6; s.texCap = 512; s.q = { cascades: 2 }; }
     else if (p.score < 8) { s.quality = 'medium'; }
     else if (p.score < 25) { s.quality = 'high'; }
@@ -568,7 +575,7 @@
     // here and it writes pixels the world is drawn from. `GIFOS_FPS_NOCACHE=1`
     // in the console before opening the app bakes everything fresh, which is
     // how you tell a cache bug from a game bug in one step.
-    var useCache = !root.GIFOS_FPS_NOCACHE;
+    useCache = !root.GIFOS_FPS_NOCACHE;
     Promise.all([loadPrefs(), useCache ? root.TexCache.preload(root.gifos) : 0]).then(function (pre) {
       var cached = (pre && pre[1]) || 0;
       if (cached) { try { console.info('[fps] texture cache: ' + cached + ' surfaces available'); } catch (e) {} }
@@ -576,14 +583,34 @@
       // saved preference is a player's own choice and outranks any probe, and
       // GIFOS_FPS_QUALITY is the suites' hatch (same shape as GIFOS_CONN in the
       // runtime, for the same reason).
+      // A PRESET IS A PREFERENCE. WHAT THE DEVICE CAN DRAW IS NOT.
+      //
+      // This used to read `chosen ? null : pickSettings()`, so choosing a
+      // quality — or having one pinned by the settings bug — skipped the probe
+      // AND every limit that came from it: the render scale, the texture cap,
+      // the shadow cuts, all of them. The result was a machine with no graphics
+      // chip rendering a full-fat scene with not one of its downgrades applied,
+      // which is exactly what it looked like.
+      //
+      // So the probe always runs (it costs ~150 ms), the preset is still the
+      // player's to choose, and the device's ceilings are clamped over the top
+      // of whatever preset that is. Ask for ULTRA on a software rasteriser and
+      // you get ULTRA's look with a software rasteriser's budget, because the
+      // alternative is a slideshow that honours a menu.
       var chosen = root.GIFOS_FPS_QUALITY || prefs.quality;
-      var auto = chosen ? null : pickSettings();
+      var auto = pickSettings();
       var config = COD.createConfig({ quality: chosen || auto.quality });
       // The render target is width * pixelRatio * renderScale, so this is the
       // lever with a square on it. Set BEFORE the engine is built, because the
       // first resize sizes every render target from it.
-      if (auto && auto.renderScale != null) config.q.renderScale = auto.renderScale;
-      if (auto && auto.q) for (var qk in auto.q) config.q[qk] = auto.q[qk];
+      // Clamp, never raise: a device ceiling can only ever make this cheaper.
+      if (auto.renderScale != null) config.q.renderScale = Math.min(config.q.renderScale, auto.renderScale);
+      if (auto.q) {
+        for (var qk in auto.q) {
+          var want = auto.q[qk], have = config.q[qk];
+          config.q[qk] = (typeof want === 'number' && typeof have === 'number') ? Math.min(have, want) : want;
+        }
+      }
       if (auto) {
         root.__FPS_AUTO__ = auto;   // readable by the suites and by a console
         try {
@@ -603,7 +630,7 @@
       engine.rng.seed(WORLD_SEED);
 
       engine
-        .add(tracked(COD.RenderSystem)).add(tracked(materialSystemFor(auto && auto.texCap))).add(tracked(COD.SkySystem))
+        .add(tracked(COD.RenderSystem)).add(tracked(materialSystemFor(auto.texCap))).add(tracked(COD.SkySystem))
         .add(tracked(COD.WorldSystem)).add(tracked(COD.PhysicsSystem)).add(tracked(COD.PlayerSystem))
         .add(tracked(COD.WeaponSystem)).add(tracked(COD.FxSystem)).add(tracked(COD.AiSystem))
         .add(tracked(COD.UiSystem)).add(tracked(COD.AudioSystem))
@@ -612,7 +639,7 @@
       // Say how long, and say it once, rather than leaving a number to imply it.
       // The first launch on a machine without a graphics chip is minutes, and a
       // player who was told that waits; a player who was not closes the tab.
-      say(auto && auto.probe && auto.probe.software
+      say(auto.probe && auto.probe.software
         ? 'Building the street… the first time on this device takes a few minutes'
         : 'Building the street…', 0.15);
       // Join the room BEFORE init, because whether we are alone decides whether
@@ -649,7 +676,7 @@
         // triangles and no setting removes the street. A player who is told
         // that can act on it; a player who is not just thinks the game is
         // broken, which is what it looks like.
-        if (auto && auto.probe && auto.probe.software) softwareWarning();
+        if (auto.probe && auto.probe.software) softwareWarning();
         touch = root.Touch.init(engine.input, ui);
         root.__FPS_POSE__ = pose;
         // A handle on the running game, for the suites and for anyone poking at
@@ -719,31 +746,42 @@
     checkAiming();
   });
 
-  // WHEN THE POINTER IS NOT OURS TO TAKE. `capabilities.pointer` is revocable —
-  // the Abilities sheet says "Uncheck to turn this off for this app" and means
-  // it, so the frame can mount without allow-pointer-lock. The engine asks for
-  // the lock inside a try/catch and the browser's refusal is a SecurityError
-  // thrown in here, where nobody sees it: the game starts, renders, sounds
-  // right, and the view will not turn. A first-person game that silently cannot
-  // look around reads as a broken game, not as a setting, so say which it is.
+  // WHEN THE POINTER IS NOT OURS TO TAKE.
   //
-  // Detected by the OUTCOME rather than by asking whether the capability is on,
-  // which also covers a browser that refuses the lock for its own reasons.
+  // `capabilities.pointer` is revocable, and when it is off the browser refuses
+  // the lock inside the sandbox where nobody sees it: the game starts, renders,
+  // sounds right, and will not turn. Worth saying out loud — but only when it
+  // is TRUE.
+  //
+  // THE FIRST VERSION OF THIS CRIED WOLF. It asked "are we locked 900 ms after
+  // Play?", which is a different question and is false for ordinary reasons:
+  // the pause menu releases the pointer (that is what pausing IS), so does
+  // switching window, so does taking a screenshot. It told a player whose
+  // pointer worked perfectly to go and turn on a permission they already had,
+  // over a game that was merely paused.
+  //
+  // The honest test is whether a lock was EVER obtained. If it was, the
+  // capability is present and nothing here is anybody's problem.
+  var everLocked = false;
+  document.addEventListener('pointerlockchange', function () {
+    if (document.pointerLockElement) {
+      everLocked = true;
+      var n = document.getElementById('no-pointer');
+      if (n) n.remove();
+    }
+  });
+
   function checkAiming() {
     if (matchMedia('(pointer: coarse)').matches) return;   // a thumb needs no lock
     setTimeout(function () {
-      if (document.pointerLockElement) return;
+      if (everLocked || document.pointerLockElement) return;
+      if (document.getElementById('no-pointer')) return;
       var n = document.createElement('div');
       n.id = 'no-pointer';
       n.innerHTML = 'The mouse pointer is switched off for this app, so you can move but not aim.<br>' +
         'Turn on <b>“Take over the mouse pointer while you play”</b> in Abilities, then reopen FPS Simple.';
       document.body.appendChild(n);
-      // If it is ever granted — the player fixed it, or the browser simply took
-      // a second click — the warning has stopped being true. Take it down.
-      document.addEventListener('pointerlockchange', function () {
-        if (document.pointerLockElement && n.parentNode) n.remove();
-      });
-    }, 900);
+    }, 4000);
   }
 
   /* ---- scoreboard on Tab ------------------------------------------------ */
