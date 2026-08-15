@@ -1,0 +1,81 @@
+/* FPS Simple — the GifOS shell around upstream's game.
+   Upstream ships its own HUD styles and injects them into #ui; nothing here
+   touches those. This is the gate, the touch controls and the scoreboard. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: #e8e8f0; }
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+#game { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: none; }
+
+/* ---- the first-gesture gate ------------------------------------------- */
+#gate {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
+  background: radial-gradient(120% 120% at 50% 0%, #17161f 0%, #08080c 70%);
+  padding: 1.25rem; transition: opacity .35s ease;
+}
+#gate.gone { opacity: 0; pointer-events: none; }
+.gate-box { width: min(30rem, 100%); text-align: center; }
+.gate-box h1 { font-size: 1.9rem; letter-spacing: .02em; margin-bottom: .6rem; }
+.sub { color: #9a9ab0; line-height: 1.5; font-size: .93rem; }
+#gate-load { height: 4px; border-radius: 4px; background: #23222e; margin: 1.4rem 0 .55rem; overflow: hidden; }
+#gate-bar { height: 100%; width: 0%; border-radius: 4px; background: var(--accent, #c8a24a); transition: width .3s ease; }
+#gate-note { font-size: .82rem; color: #7d7d92; min-height: 1.2em; }
+#gate-go {
+  margin-top: 1.3rem; padding: .72rem 2.6rem; font: inherit; font-weight: 600; font-size: 1.02rem;
+  border: 0; border-radius: .6rem; background: var(--accent, #c8a24a); color: #14120c; cursor: pointer;
+}
+#gate-go[disabled] { opacity: .35; cursor: default; }
+#gate-keys { margin-top: 1.5rem; font-size: .76rem; line-height: 1.9; color: #6e6e83; }
+#gate-keys b { color: #a9a9c0; font-weight: 600; }
+body.touch #gate-keys { display: none; }
+#gate-room { margin-top: 1rem; font-size: .84rem; color: #9a9ab0; min-height: 1.2em; }
+#gate-room b { color: var(--accent, #c8a24a); }
+
+/* ---- touch controls ---------------------------------------------------- */
+/* Laid out so the thumbs never cross: move on the left, look anywhere on the
+   right, actions stacked up the right edge within reach of the right thumb.
+   Everything is pointer-events:none except the parts you actually press, so a
+   stray touch on the HUD does not eat a shot. */
+#touch { position: fixed; inset: 0; z-index: 30; pointer-events: none; touch-action: none; user-select: none; }
+#touch[hidden] { display: none; }
+#t-look { position: absolute; inset: 0 0 0 40%; pointer-events: auto; }
+.t-stick {
+  position: absolute; left: max(1.1rem, env(safe-area-inset-left)); bottom: max(1.4rem, env(safe-area-inset-bottom));
+  width: 8.6rem; height: 8.6rem; border-radius: 50%; pointer-events: auto;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.14);
+}
+.t-knob {
+  position: absolute; left: 50%; top: 50%; width: 3.4rem; height: 3.4rem; margin: -1.7rem 0 0 -1.7rem;
+  border-radius: 50%; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3);
+}
+#t-buttons {
+  position: absolute; right: max(.9rem, env(safe-area-inset-right)); bottom: max(1.4rem, env(safe-area-inset-bottom));
+  display: grid; grid-template-columns: repeat(2, 4.6rem); gap: .5rem; justify-items: stretch;
+}
+.t-btn {
+  pointer-events: auto; font: inherit; font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+  color: #e8e8f0; background: rgba(12,12,18,.5); border: 1px solid rgba(255,255,255,.2);
+  border-radius: .7rem; padding: .85rem .2rem; cursor: pointer;
+}
+.t-btn.on { background: rgba(255,255,255,.28); }
+#t-fire { grid-column: 1 / -1; padding: 1.15rem .2rem; font-size: .8rem; background: rgba(150,40,32,.55); border-color: rgba(255,120,100,.4); }
+#t-pause { position: absolute; top: max(.7rem, env(safe-area-inset-top)); right: max(.9rem, env(safe-area-inset-right)); width: 3rem; padding: .6rem 0; }
+
+/* ---- scoreboard -------------------------------------------------------- */
+#score {
+  position: fixed; z-index: 35; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: rgba(8,8,12,.9); border: 1px solid rgba(255,255,255,.14); border-radius: .7rem;
+  padding: 1rem 1.2rem; min-width: min(22rem, 88vw); backdrop-filter: blur(6px);
+}
+#score[hidden] { display: none; }
+#score table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+#score td { padding: .32rem .5rem; border-bottom: 1px solid rgba(255,255,255,.07); }
+#score td.k, #score td.d { text-align: right; width: 3.2rem; font-variant-numeric: tabular-nums; color: #9a9ab0; }
+#score tr.me td { color: var(--accent, #c8a24a); font-weight: 600; }
+#score tr.dead td:first-child { opacity: .45; }
+#tally {
+  position: fixed; z-index: 29; top: max(.7rem, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  font-size: .8rem; letter-spacing: .04em; color: #c9c9dc; background: rgba(8,8,12,.5);
+  padding: .3rem .7rem; border-radius: .5rem; pointer-events: auto; cursor: pointer;
+}
+#tally[hidden] { display: none; }
