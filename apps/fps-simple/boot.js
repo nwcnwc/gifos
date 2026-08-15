@@ -51,6 +51,47 @@
     if (pct != null) bar.style.width = Math.round(pct * 100) + '%';
   }
 
+  /* ---- a bar that actually moves ---------------------------------------- */
+  // "Building the world…" sat at 15% for the better part of a minute and then
+  // jumped. On a slow device that is indistinguishable from a hang, and it is
+  // the first thing anybody sees. The engine gives no progress callback for
+  // init(), but it does init its systems one after another, so wrapping each
+  // one turns "something is happening" into a bar with real numbers behind it.
+  //
+  // The weights are MEASURED, not guessed — from the engine's own
+  // `[engine] <id> init <ms>` on the slowest device to hand — because a bar
+  // that advances evenly across wildly uneven work is its own kind of lie: it
+  // would crawl through the world and then leap through the last four systems.
+  var INIT_W = { render: 2, materials: 2, sky: 4, world: 10, weapons: 5, fx: 1, ai: 13, ui: 0.5, netplay: 0.5 };
+  var BAKE_W = 20;                 // the material bakes, which happen inside world init
+  var BAKES_EXPECTED = 17;
+  var initTotal = BAKE_W; for (var _k in INIT_W) initTotal += INIT_W[_k];
+  var initDone = 0;
+
+  // Boot is two long phases; this is the first 55% of the bar and prewarm owns
+  // the rest, which is why the numbers here stop at 0.55.
+  function initStep(w) {
+    initDone += w;
+    say(null, 0.05 + 0.5 * Math.min(1, initDone / initTotal));
+  }
+
+  // Wrap a system class so finishing it moves the bar. Statics (id, deps) are
+  // inherited, which is what the engine's registry reads.
+  function tracked(Base) {
+    if (!Base) return Base;
+    var w = INIT_W[Base.id] != null ? INIT_W[Base.id] : 1;
+    try {
+      return class extends Base {
+        init(ctx) {
+          var r = super.init(ctx);
+          return (r && typeof r.then === 'function')
+            ? r.then(function (v) { initStep(w); return v; })
+            : (initStep(w), r);
+        }
+      };
+    } catch (e) { return Base; }
+  }
+
   function fatal(text) {
     say('', 1);
     note.innerHTML = '<b style="color:#e08b7a">' + text + '</b>';
@@ -186,12 +227,19 @@
   // It costs sharpness on surfaces that, on this class of device, are already
   // being rendered at a third of the screen's resolution and upscaled.
   function materialSystemFor(cap) {
-    if (!cap || !root.COD.MaterialSystem) return root.COD.MaterialSystem;
+    if (!root.COD.MaterialSystem) return root.COD.MaterialSystem;
     try {
       return class extends root.COD.MaterialSystem {
         _size(want) {
           var n = super._size(want);
-          return Math.max(128, Math.min(n, cap));
+          return cap ? Math.max(128, Math.min(n, cap)) : n;
+        }
+        // Seventeen of these run back to back inside world init, and they are
+        // the longest unbroken stretch of the whole boot. Report each one.
+        getTextureSet(name, opts) {
+          var set = super.getTextureSet(name, opts);
+          initStep(BAKE_W / BAKES_EXPECTED);
+          return set;
         }
       };
     } catch (e) { return root.COD.MaterialSystem; }
@@ -444,13 +492,18 @@
       engine.rng.seed(WORLD_SEED);
 
       engine
-        .add(COD.RenderSystem).add(materialSystemFor(auto && auto.texCap)).add(COD.SkySystem)
-        .add(COD.WorldSystem).add(COD.PhysicsSystem).add(COD.PlayerSystem)
-        .add(COD.WeaponSystem).add(COD.FxSystem).add(COD.AiSystem)
-        .add(COD.UiSystem).add(COD.AudioSystem)
+        .add(tracked(COD.RenderSystem)).add(tracked(materialSystemFor(auto && auto.texCap))).add(tracked(COD.SkySystem))
+        .add(tracked(COD.WorldSystem)).add(tracked(COD.PhysicsSystem)).add(tracked(COD.PlayerSystem))
+        .add(tracked(COD.WeaponSystem)).add(tracked(COD.FxSystem)).add(tracked(COD.AiSystem))
+        .add(tracked(COD.UiSystem)).add(tracked(COD.AudioSystem))
         .add(NetplaySystem);
 
-      say('Building the world…', 0.15);
+      // Say how long, and say it once, rather than leaving a number to imply it.
+      // The first launch on a machine without a graphics chip is minutes, and a
+      // player who was told that waits; a player who was not closes the tab.
+      say(auto && auto.probe && auto.probe.software
+        ? 'Building the street… the first time on this device takes a few minutes'
+        : 'Building the street…', 0.15);
       // Join the room BEFORE init, because whether we are alone decides whether
       // the AI garrison is spawned at all (see below) and that is decided during
       // the first update, not later.
@@ -507,6 +560,7 @@
       });
     }).then(function () {
       say('Ready', 1);
+      gate.classList.add('ready');
       go.disabled = false;
       go.focus();
     }).catch(function (err) {
