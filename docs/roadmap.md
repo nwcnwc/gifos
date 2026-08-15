@@ -2360,3 +2360,48 @@ console.table(o);console.log('car y',Math.round(App.car().y))})()
 
 **A link straight to the water,** verified to land at car y 789 m, flying at
 39 m AGL: `https://gifos.app/?run=anyroad&go.at=36.0997,-112.0947&go.label=Colorado%20River&go.fly=1`
+
+### 14c. The same link lands you somewhere slightly different every time
+
+**What.** Pasting one `go.at` link repeatedly spawns you at a slightly different
+place and facing each time. Reported 2026-08-14 at the Grand Canyon, where it is
+worst.
+
+**Why, and it is two independent causes.**
+
+1. **The facing is randomised.** `hop()` does
+   `car = Car.create(0, 0, Math.random() * Math.PI * 2)` — every arrival points
+   a random way round the compass. Harmless-looking, and on its own it already
+   makes one link look like several places.
+
+2. **The road-snap races the network, and the network wins differently every
+   time.** `snapToRoad()` runs each frame while `hopAnim < 2.6` and MOVES the
+   car onto the nearest road among **whatever tiles have arrived so far**. Tile
+   arrival order is network timing, so a link resolves to a different road — and
+   therefore a different position — depending on which square of map happened to
+   land inside those 2.6 seconds. If none arrives in time, no snap happens at
+   all and the car stays on the raw coordinates. Three different outcomes from
+   one URL.
+
+   This is why the canyon shows it most: those tiles are the ones the Overpass
+   mirrors 504 and dribble in (§14b), so the 2.6 s window catches a different
+   subset on every load.
+
+**Why it matters beyond the surprise.** A shared link is supposed to be a place.
+It is also the reproduction step for §14a and §14b — an investigation that
+cannot start from the same spot twice has to re-establish where it is before it
+can measure anything, which cost real time on 2026-08-14.
+
+**Sketch.** Make arrival deterministic, then decide the snap separately:
+- Derive the spawn yaw from the coordinates (or the road it snaps to) rather
+  than `Math.random()`, so one link is one arrival.
+- Snap to the road nearest the REQUESTED point once the tiles covering that
+  point have arrived, rather than to the nearest road among whatever is loaded
+  inside an arbitrary 2.6 s. A late snap that is correct beats an early snap
+  that is a coin toss — and if it must stay time-boxed, it should at least
+  prefer the tile containing the requested coordinate.
+
+**Open question.** Whether the snap should happen at all when the requested
+point is deliberately off-road — a link to the middle of the Colorado is a
+legitimate thing to send, and SNAP_MAX (2 km) is a large nudge to apply to
+somebody's chosen coordinates without saying so.
