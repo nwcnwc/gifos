@@ -626,6 +626,11 @@ Roughly three families in one directory:
   airborne, and a link making the TTS provider speak),
   `e2e-app-store` (the store catalog, its listings, and Install — including
   the rule that browsing must fetch ZERO App GIFs),
+  `e2e-pointer-lock` (capabilities.pointer: an app that did not declare it is
+  refused by the sandbox, one that did locks the pointer, and UNCHECKING it in
+  the Abilities sheet refuses it again — the sandbox is fixed at navigation, so
+  a veto that is only honoured where the brokers honour theirs would be a
+  checkbox that moves and changes nothing),
   `e2e-join-prettyurl`, `e2e-perms-share`, `e2e-owned-app`, `e2e-mymedia`,
   `e2e-mymedia-share`, `e2e-theme-wallpaper`, `e2e-invite-lifetime`,
   `e2e-wasm`, `e2e-irl`, `e2e-bible-nav`, `e2e-mirror`,
@@ -670,6 +675,15 @@ Roughly three families in one directory:
   end to end, and is where the download pool is proven on a real app: nine
   tiles, nine upstream requests, players driving on roads they never
   downloaded. `RECORD=1` writes a per-player screen recording to `test/out/`),
+  `e2e-fps-simple` (the FPS Simple port, from its real built GIF: it boots in
+  the sandbox, LOCKS THE POINTER through a real manifest, and reaches the
+  network zero times — then two peers in one room must see each other, SPAWN A
+  BODY for each other (a name on a scoreboard is not something you can shoot),
+  and a claimed hit must cross the wire and be paid ONCE, not once per
+  redelivery of the row. Every multiplayer assertion here guards code with
+  nothing else watching it: upstream Claude of Duty has no networking at all.
+  Pins `GIFOS_FPS_QUALITY=low`, or a software rasteriser spends ~35 s per peer
+  building scenery the suite never looks at),
   `e2e-pool` (capabilities.pool — two peers in one meeting, one URL, and the
   upstream is asked ONCE; spawns its own counting server on 8801 and asserts
   the COUNT, not the source, so a cache or a second code path cannot fake it.
