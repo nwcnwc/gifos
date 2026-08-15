@@ -1,59 +1,101 @@
 /*
  * FPS Simple — the whole port, from the real GIF.
  *
- * Two halves, and the second is the one that matters most, because it is the
- * part that does not exist upstream at all: upstream Claude of Duty has NO
- * networking of any kind, so every assertion below about a second player is a
- * guard on code that was written for this app and has nothing else watching it.
+ * Two halves, and they need two different amounts of hardware, so they ask for
+ * it separately.
  *
- *   SOLO      the built GIF installs, boots inside the sandbox, and LOCKS THE
- *             POINTER — the end-to-end proof of capabilities.pointer, through a
- *             real manifest in a real app rather than the synthetic one in
- *             e2e-pointer-lock.js. Plus: it reaches the network zero times,
- *             which is the claim the manifest makes by declaring no hosts.
+ *   SOLO      one box, and one box is enough. The built GIF installs, boots
+ *             inside the sandbox, and LOCKS THE POINTER — the end-to-end proof
+ *             of capabilities.pointer, through a real manifest in a real app
+ *             rather than the synthetic one in e2e-pointer-lock.js. Plus: it
+ *             reaches the network zero times, which is the claim the manifest
+ *             makes by declaring no hosts. Every one of those is a question
+ *             about STATE. A slow box gives the same answer as a fast one.
  *
- *   DEATHMATCH  two peers in one room over the local relay. They must see each
- *             other in the roster, SPAWN A BODY for each other in the world
- *             (remote.js — a body is what makes another player shootable), and
- *             a hit claimed by one must land on the other and take its health
- *             down (net.js — the shooter decides, the target pays).
+ *   DEATHMATCH  NEEDS A MACHINE PER PLAYER, and refuses to run without one.
+ *             Two peers in one room over the relay: they must see each other in
+ *             the roster, SPAWN A BODY for each other (remote.js — a body is
+ *             what makes another player shootable), and a hit claimed by one
+ *             must land on the other, take its health down, KILL it, and be
+ *             scored to the right player. Upstream Claude of Duty has no
+ *             networking of any kind, so all of that is code written for this
+ *             app with nothing else watching it.
+ *
+ * WHY THE DEATHMATCH HALF DECLARES NEEDS-FLEET. This app IS its animation loop:
+ * presence is published from the engine's own update, a remote body is driven
+ * from the wire per rendered frame, and a death is a state machine that has to
+ * tick. Two Chromiums building a 3D world through a software rasteriser on one
+ * kernel render at around a frame a second, and every timing this file depends
+ * on becomes a timing about that box. The one-box version of this suite had
+ * already grown the tell: it pinned GIFOS_FPS_QUALITY='low' so the world would
+ * finish building, gave itself a SEVEN MINUTE boot deadline, and brought each
+ * tab to the front before every single assertion because the backgrounded one
+ * stopped talking. Those are not test settings, they are apologies for the
+ * machine — exactly the shape test/lib/fleet.js was written to stop us from
+ * shipping as a verdict. On real boxes none of them are needed and none of them
+ * are here.
  *
  * WHY A HIT IS CLAIMED DIRECTLY. The suite calls Net.claimHit() rather than
- * aiming and firing. Aiming a bullet at a moving body on a software rasteriser
- * would be a test of the ballistics — which is upstream's, already exercised by
- * its own selftests, and not what can regress here. What can regress is the
- * wire: that a claim rides out on the shooter's row, is deduped, is addressed
- * to the right life, and is paid by the target. So that is what is asserted.
+ * aiming and firing. Aiming a bullet at a moving body is a test of the
+ * ballistics — which is upstream's, exercised by its own selftests, and not what
+ * can regress here. What can regress is the wire: that a claim rides out on the
+ * shooter's row, is deduped, is addressed to the right life, is paid by the
+ * target, and that the KILL it causes is credited to the player who fired it.
+ * So that is what is asserted. (Whether a human can lead a shot at 6 Hz is a
+ * question for a human; it is in apps/fps-simple/README.md under its limits.)
  *
- * Needs: static server on 8099 AND the local relay on 8790
- * (test/servers/relay-local.js).
+ * Needs: the stack on the orchestrator, reachable by the fleet's browsers —
+ * a static server on 8099 bound to 0.0.0.0 and test/servers/relay-local.js.
  */
 const { chromium, CHROME } = require('../lib/pw');
+const needFleet = require('../lib/fleet');
+const { openFleet, closeFleet } = require('../lib/fleet-browsers');
 const { appGif } = require('../lib/apps');
+const need = require('../lib/need');
 const { readFileSync } = require('fs');
 
-const BASE = process.env.BASE || 'http://127.0.0.1:8099';
-const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
+// The deathmatch browsers are on OTHER MACHINES, so the stack address cannot be
+// loopback: they dial the orchestrator at the base/relay in the hosts file.
+const FLEETCFG = needFleet.load() || {};
+const BASE = process.env.BASE || FLEETCFG.base || 'http://127.0.0.1:8099';
+const RELAY = process.env.RELAY || FLEETCFG.relay || 'ws://127.0.0.1:8790';
 const GIF_B64 = readFileSync(appGif('fps-simple')).toString('base64');
 
 let failures = 0;
 const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (d ? '  (' + d + ')' : '')); if (!c) failures++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// A software rasteriser cannot build this world at the quality a real device
-// gets, in any time worth waiting for. 'low' is the same code path.
-const setup = (name) => "try{localStorage.setItem('gifos_relay','" + RELAY + "');" +
+// QUALITY IS ASKED FOR DIFFERENTLY BY THE TWO HALVES, and that difference is
+// the whole point of splitting them.
+//
+// SOLO runs wherever the battery runs — the gate box, four cores and no GPU —
+// and pins 'low', because it is asking whether the app BOOTS and locks the
+// pointer and those answers do not depend on how pretty the street is. It is
+// the same code path; 'medium' on a software rasteriser spends minutes building
+// scenery nothing then looks at.
+//
+// DEATHMATCH lets each device choose, as a player's device would. That is what
+// the fleet was asked for: a box per player, running the game at the quality it
+// would really run it at. Pinning there would be measuring the pin.
+const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RELAY + "');" +
   "localStorage.setItem('gifos_name','" + name + "')}catch(e){};" +
-  "window.GIFOS_FPS_QUALITY='low';";
+  ((process.env.GIFOS_FPS_QUALITY || quality)
+    ? "window.GIFOS_FPS_QUALITY='" + (process.env.GIFOS_FPS_QUALITY || quality) + "';" : '');
 
-function launch() {
-  return chromium.launch({
-    executablePath: CHROME,
-    // No GPU on the gate box: without a software rasteriser there is no WebGL2
-    // context at all and the app would (correctly) refuse to start.
-    args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-  });
-}
+const ARGS = [
+  // A box with no GPU still needs a rasteriser, or there is no WebGL2 context
+  // at all and the app would (correctly) refuse to start. A box WITH one
+  // ignores these and uses it.
+  '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+  // WITHOUT THESE THERE IS NO MULTIPLAYER TO TEST. Chromium throttles a
+  // backgrounded tab's requestAnimationFrame to about one frame a second, and
+  // this app publishes its presence from the engine's own update — so a peer
+  // that is not in front goes quiet, and the other correctly stops drawing it.
+  // e2e-anyroad-mp carries the same three flags for the same reason.
+  '--disable-background-timer-throttling',
+  '--disable-backgrounding-occluded-windows',
+  '--disable-renderer-backgrounding',
+];
 
 async function install(page) {
   await page.goto(BASE + '/index.html');
@@ -65,15 +107,14 @@ async function install(page) {
     await GifOS.store.putFile({ id: fid, name: 'FPS Simple.gif', bytes, kind: 'gif', isApp: true, appId: 'fps-simple', mime: 'image/gif' });
     await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'FPS Simple.gif', parent: null, x: 200, y: 200, iconSize: 64 });
     await GifOS.desktop.load(); await GifOS.desktop.render();
-  }, b64OrThrow());
-  function b64OrThrow() { return GIF_B64; }
+  }, GIF_B64);
 }
 
 // Close the Abilities sheet if one is up. Clicked in the PAGE rather than
 // through Playwright's actionability gate: that gate wants the element stable
-// across two animation frames, and this box is running a WebGL scene in the
-// frame next door, so a short timeout on it fails while the sheet sits there
-// perfectly clickable. Two runs died on exactly that.
+// across two animation frames, and there is a WebGL scene in the frame next
+// door, so a short timeout on it fails while the sheet sits there perfectly
+// clickable. Two runs died on exactly that.
 async function dismissSheet(runPage) {
   return runPage.evaluate(() => {
     const box = document.querySelector('.perm-modal');
@@ -86,7 +127,7 @@ async function dismissSheet(runPage) {
 
 // Settle the Abilities sheet (the app declares `pointer`, so it always appears
 // on a first run) and wait for the world to finish building.
-async function ready(runPage, label) {
+async function ready(runPage, label, budgetMs) {
   runPage.on('pageerror', (e) => console.log('  [' + label + ' app err] ' + e.message.slice(0, 200)));
   // Look for the frame that IS our app, rather than for an <iframe> element or
   // "the frame that is not the page". Inviting reboots the app through the app
@@ -97,7 +138,12 @@ async function ready(runPage, label) {
   //
   // The sheet is clicked on every pass, not once up front: a capability
   // acknowledgement can arrive after the remount as easily as before it.
-  const deadline = Date.now() + 420000; // a world, built on a software rasteriser
+  //
+  // The fleet half allows two minutes: a real machine building a world at the
+  // quality it actually chose, and if it cannot manage that, that is a finding
+  // rather than something to wait out. The solo half, pinned to 'low' on a
+  // software rasteriser, is given the room it genuinely needs.
+  const deadline = Date.now() + (budgetMs || 120000);
   let frame = null;
   while (Date.now() < deadline) {
     for (const f of runPage.frames()) {
@@ -122,7 +168,7 @@ async function ready(runPage, label) {
   }
   await frame.waitForFunction(
     () => { const b = document.getElementById('gate-go'); return b && !b.disabled; },
-    null, { timeout: deadline - Date.now() }
+    null, { timeout: Math.max(5000, deadline - Date.now()) }
   );
   return frame;
 }
@@ -148,156 +194,345 @@ async function play(runPage, frame) {
   await sleep(1500);
 }
 
-// Foreground the page first — see the note at the presence check.
-async function inFront(runPage, frame, fn, timeout) {
-  await runPage.bringToFront();
-  return frame.waitForFunction(fn, null, { timeout: timeout }).then(() => true, () => false);
+// WAITFORFUNCTION DOES NOT WORK IN THE APP FRAME ONCE THE GAME IS RUNNING, so
+// everything after Play polls with evaluate() from out here instead. A harness
+// fact, written down because it cost a cycle: the moment engine.start() takes
+// over requestAnimationFrame, frame.waitForFunction() times out no matter what
+// it is asked — a predicate of `() => true` on 200 ms timer polling times out
+// too — while frame.evaluate() of the SAME expression answers correctly at the
+// same instant. Playwright's injected poller cannot run in there; the frame is
+// healthy. e2e-fps-touch.js was silently dead this way: nine assertions became
+// one bare TimeoutError that read as a broken app.
+const POLL = 250;
+async function waitFor(frame, fn, ms, arg) {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    if (await frame.evaluate(fn, arg).catch(() => false)) return true;
+    if (Date.now() >= deadline) return false;
+    await sleep(POLL);
+  }
 }
-const sees = (p, f) => inFront(p, f, () => window.Net && window.Net.count() >= 2, 180000);
-const hasBody = (p, f) => inFront(p, f, () => window.Remote && window.Remote.count() >= 1, 120000);
 
-(async () => {
-  const browser = await launch();
+/* ======================================================================= */
+/* SOLO — one box                                                          */
+/* ======================================================================= */
+async function solo() {
+  console.log('=== SOLO  (one box is enough: every assertion is about state)');
+  const browser = await chromium.launch({ executablePath: CHROME, args: ARGS });
+  try {
+    const ctx = await browser.newContext();
+    await ctx.addInitScript({ content: setup('Alice', 'low') });
 
-  /* ================= SOLO ================= */
-  const aCtx = await browser.newContext();
-  await aCtx.addInitScript({ content: setup('Alice') });
+    // Every request this context makes, so "it never touches the network" is
+    // COUNTED rather than taken on the manifest's word. Observed passively
+    // rather than through route(): interception changes how the app mounts, and
+    // a guard must not alter what it watches.
+    const external = [];
+    ctx.on('request', (req) => {
+      const u = req.url();
+      if (!u.startsWith(BASE) && !/^(data|blob|about|ws):/.test(u)) external.push(u);
+    });
 
-  // Every request this context makes, so "it never touches the network" is
-  // COUNTED rather than taken on the manifest's word. Observed passively rather
-  // than through route(): interception changes how the app-mesh remount behaves
-  // when the room is minted below, and a guard must not alter what it watches.
-  const external = [];
-  aCtx.on('request', (req) => {
-    const u = req.url();
-    if (!u.startsWith(BASE) && !/^(data|blob|about|ws):/.test(u)) external.push(u);
+    const desk = await ctx.newPage();
+    desk.on('pageerror', (e) => console.log('  [Alice err] ' + e.message.slice(0, 200)));
+    await install(desk);
+    const [run] = await Promise.all([
+      ctx.waitForEvent('page'),
+      desk.locator('.icon', { hasText: 'FPS Simple.gif' }).dblclick(),
+    ]);
+    const frame = await ready(run, 'Alice', 420000);
+    check('the built GIF installs and boots inside the sandbox', true);
+    check('solo: the room is empty, so it is the garrison you are playing',
+      /solo against the garrison/i.test(await frame.evaluate(() => document.getElementById('gate-room').textContent)));
+
+    await play(run, frame);
+    check('capabilities.pointer, end to end: the app locks the pointer',
+      await frame.evaluate(() => !!document.pointerLockElement));
+    check('the engine is running (the player has a pose to publish)',
+      await frame.evaluate(() => !!(window.__FPS_POSE__ && window.__FPS_POSE__())));
+
+    // Tab is OURS. Upstream binds it to swapWeapon alongside Digit1/Digit2, and
+    // the gate card tells the player to hold it for scores — so before this was
+    // fixed, checking the scoreboard swapped your rifle for your sidearm and
+    // letting go swapped it back. The scoreboard is the multiplayer surface,
+    // but the collision is in the engine's binding table and is asserted here,
+    // in the half that always runs.
+    const tab = await frame.evaluate(() => {
+      const F = window.__FPS__, input = F.engine.input;
+      input._pendingDown.add('Tab');            // the same channel a real key uses
+      const before = F.ctx.peek('weapon');
+      const swapBefore = input.actionPressed('swapWeapon') || input.action('swapWeapon');
+      input.down.add('Tab');
+      const swapHeld = input.action('swapWeapon');
+      input.down.delete('Tab'); input._pendingDown.delete('Tab');
+      input.down.add('Digit2');
+      const digitStillSwaps = input.action('swapWeapon');
+      input.down.delete('Digit2');
+      return { swapBefore: !!swapBefore, swapHeld: !!swapHeld, digitStillSwaps: !!digitStillSwaps, had: !!before };
+    });
+    check('holding Tab for the scoreboard does NOT swap the weapon', !tab.swapHeld,
+      'held Tab -> swapWeapon=' + tab.swapHeld);
+    check('...and 1/2 still swap it, which is what the gate card says', tab.digitStillSwaps);
+
+    check('it reached the network ZERO times — the manifest declares no hosts',
+      external.length === 0, external.slice(0, 3).join(' '));
+  } finally {
+    await browser.close();
+  }
+}
+
+/* ======================================================================= */
+/* DEATHMATCH — a machine per player                                       */
+/* ======================================================================= */
+async function deathmatch() {
+  // A dead relay looks EXACTLY like a broken app here: the room forms locally,
+  // the invite link mints, and the guest then sits waiting on a room that will
+  // never answer. Check the stack where the fleet's browsers reach it, not on
+  // loopback, or a healthy remote stack is refused as missing.
+  await need({ 8099: 'a static server on 8099 bound to 0.0.0.0 (python3 -m http.server 8099 -d site --bind 0.0.0.0)',
+               8790: 'relay-local (node test/servers/relay-local.js)' },
+    new URL(BASE).hostname);
+
+  const fleet = await needFleet(2, {
+    why: 'each player needs their own CPU — presence is published from the engine\'s own update, '
+       + 'a remote body is driven per RENDERED FRAME, and two 3D browsers on one box render at ~1 fps, '
+       + 'so every timing this half depends on becomes a timing about that box',
+    roles: ['alice', 'bob'],
   });
+  const boxes = await openFleet(fleet.hosts.slice(0, 2), { args: ARGS, origin: BASE });
 
-  const aDesk = await aCtx.newPage();
-  aDesk.on('pageerror', (e) => console.log('  [Alice err] ' + e.message.slice(0, 200)));
-  await install(aDesk);
-  const [aRun] = await Promise.all([
-    aCtx.waitForEvent('page'),
-    aDesk.locator('.icon', { hasText: 'FPS Simple.gif' }).dblclick(),
-  ]);
-  let aFrame = await ready(aRun, 'Alice');
-  check('the built GIF installs and boots inside the sandbox', true);
-  check('solo: the room is empty, so it is the garrison you are playing',
-    /solo against the garrison/i.test(await aFrame.evaluate(() => document.getElementById('gate-room').textContent)));
+  try {
+    console.log('=== DEATHMATCH  (Alice on ' + (boxes[0].host.name || boxes[0].host.ssh)
+      + ', Bob on ' + (boxes[1].host.name || boxes[1].host.ssh) + ')');
 
-  await play(aRun, aFrame);
-  const locked = await aFrame.evaluate(() => !!document.pointerLockElement);
-  check('capabilities.pointer, end to end: the app locks the pointer', locked);
-  check('the engine is running (the player has a pose to publish)',
-    await aFrame.evaluate(() => !!(window.__FPS_POSE__ && window.__FPS_POSE__())));
+    /* ---- Alice, on her own machine, mints the room ---- */
+    const aCtx = await boxes[0].browser.newContext({ viewport: { width: 1100, height: 720 } });
+    await aCtx.addInitScript({ content: setup('Alice') });
+    const aDesk = await aCtx.newPage();
+    aDesk.on('pageerror', (e) => console.log('  [Alice err] ' + e.message.slice(0, 200)));
+    await install(aDesk);
+    const [aRun0] = await Promise.all([
+      aCtx.waitForEvent('page'),
+      aDesk.locator('.icon', { hasText: 'FPS Simple.gif' }).dblclick(),
+    ]);
+    let aFrame = await ready(aRun0, 'Alice', 240000);
+    await play(aRun0, aFrame);
 
-  check('it reached the network ZERO times — the manifest declares no hosts',
-    external.length === 0, external.slice(0, 3).join(' '));
+    await aRun0.evaluate(() => document.getElementById('appinvite').click());
+    await aRun0.waitForSelector('input[name="rmcls"]', { timeout: 15000 });
+    await aRun0.evaluate(() => {
+      document.querySelector('input[name="rmcls"][value="heal"]').checked = true;
+      document.getElementById('inv-go').click();
+    });
+    await waitFor(aRun0, () => !!(document.getElementById('share-url') || {}).value, 60000);
+    const shareUrl = await aRun0.evaluate(() => (document.getElementById('share-url') || {}).value || '');
+    check('inviting mints a room link', /#/.test(shareUrl), shareUrl.slice(0, 60));
 
-  /* ============== DEATHMATCH ============== */
-  // Alice mints a resilient room and Bob opens the link.
-  await aRun.evaluate(() => document.getElementById('appinvite').click());
-  await aRun.waitForSelector('input[name="rmcls"]', { timeout: 15000 });
-  await aRun.evaluate(() => {
-    document.querySelector('input[name="rmcls"][value="heal"]').checked = true;
-    document.getElementById('inv-go').click();
-  });
-  await aRun.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 60000 });
-  const shareUrl = await aRun.evaluate(() => document.getElementById('share-url').value);
-  check('inviting mints a room link', /#/.test(shareUrl), shareUrl.slice(0, 60));
-  // RELOAD Alice at the link rather than riding the in-place remount that
-  // inviting kicks off. The remount reboots the app through the app mesh and,
-  // on a box already running one WebGL scene, it was the flakiest step in the
-  // suite — sometimes an <iframe> whose document never committed, sometimes a
-  // sheet re-asking over the top of it. A navigation to the room's own URL is
-  // the same thing a person does, is what Bob does two lines further down, and
-  // either it lands or it fails loudly.
-  await aRun.goto(shareUrl);
-  aFrame = await ready(aRun, 'Alice');
-  await play(aRun, aFrame);
+    // ALICE DOES NOT GO TO THE LINK. She IS the link: an app room is hosted by
+    // the browser that minted it, and the app's bytes are served to every guest
+    // from there. Inviting REMOUNTS her app in place as the room's host, and the
+    // only thing left to do is close the share card and let that remount finish.
+    //
+    // Two wrong ways were tried here, and both are worth naming because each
+    // fails looking like the app. Navigating her to the room URL is a
+    // SAME-DOCUMENT navigation — run.html#id=<file> to run.html#j=<room> differs
+    // only in the fragment — so goto() changes the hash and reloads nothing,
+    // leaving her parked on a half-replaced mount for the whole timeout. Forcing
+    // it with reload() does load the room URL, and that is worse: it tears down
+    // the host while she is it, so she arrives at a room with nobody left to
+    // serve the app and mounts an empty page. Both report "the app never mounted
+    // a frame with a gate in it", which is true and tells you nothing.
+    const aRun = aRun0;
+    await aRun.evaluate(() => {
+      const d = document.getElementById('inv-done');
+      if (d) d.click();
+      const m = document.getElementById('inv-modal');
+      if (m) m.style.display = 'none';
+    });
+    aFrame = await ready(aRun, 'Alice', 240000);
+    await play(aRun, aFrame);
 
-  const bCtx = await browser.newContext();
-  await bCtx.addInitScript({ content: setup('Bob') });
-  const bRun = await bCtx.newPage();
-  await bRun.goto(shareUrl);
-  const bFrame = await ready(bRun, 'Bob');
-  await play(bRun, bFrame);
+    /* ---- Bob, on a DIFFERENT machine, opens the link ---- */
+    const bCtx = await boxes[1].browser.newContext({ viewport: { width: 1100, height: 720 } });
+    await bCtx.addInitScript({ content: setup('Bob') });
+    const bRun = await bCtx.newPage();
+    await bRun.goto(shareUrl);
+    const bFrame = await ready(bRun, 'Bob', 240000);
+    await play(bRun, bFrame);
 
-  // Presence has to cross both ways before anything else is meaningful.
-  //
-  // CHECKED ONE AT A TIME, EACH BROUGHT TO FRONT. A backgrounded tab is
-  // throttled to about a frame a second, and this app IS its animation loop —
-  // presence is published from the engine's own update. So the moment Bob's page
-  // opens, Alice stops talking, and waiting on both at once measures nothing but
-  // which tab happens to be visible. test/lib/anyroad-app.js paid for this
-  // lesson with a car that "would not move"; e2e-anyroad-mp brings every page to
-  // the front before it asserts anything, and so does this.
-  const aSees = await sees(aRun, aFrame);
-  const bSees = await sees(bRun, bFrame);
-  check('both peers see two players in the room', aSees && bSees,
-    'alice=' + aSees + ' bob=' + bSees);
+    // No bringToFront anywhere below. Each browser is alone on its box with
+    // nothing to be backgrounded BY — that is what the fleet bought.
+    const aSees = await waitFor(aFrame, () => window.Net && window.Net.count() >= 2, 60000);
+    const bSees = await waitFor(bFrame, () => window.Net && window.Net.count() >= 2, 60000);
+    check('both peers see two players in the room', aSees && bSees,
+      'alice=' + aSees + ' bob=' + bSees);
 
-  check('the guest is told it is a deathmatch, not a garrison',
-    /Deathmatch/i.test(await bFrame.evaluate(() => document.getElementById('gate-room') ? document.getElementById('gate-room').textContent : '(gate gone)')) ||
-    true, 'gate may already be dismissed');
+    // A BODY, not just a row: remote.js has to put something shootable in the
+    // world, or the other player is a name on a scoreboard and nothing else.
+    const aBody = await waitFor(aFrame, () => window.Remote && window.Remote.count() >= 1, 60000);
+    const bBody = await waitFor(bFrame, () => window.Remote && window.Remote.count() >= 1, 60000);
+    check('each peer spawns a BODY for the other, in the world', aBody && bBody,
+      'alice=' + aBody + ' bob=' + bBody);
 
-  // A BODY, not just a row: remote.js has to put something shootable in the
-  // world, or the other player is a name on a scoreboard and nothing else.
-  const aBody = await hasBody(aRun, aFrame);
-  const bBody = await hasBody(bRun, bFrame);
-  check('each peer spawns a BODY for the other, in the world', aBody && bBody,
-    'alice=' + aBody + ' bob=' + bBody);
+    // THE SAME STREET. One shared seed, nothing sent — so if the world were
+    // being built differently on two machines, two players would be taking
+    // cover behind buildings the other cannot see. Compared by the world's own
+    // spawn points, which are placed from the seeded RNG after every prop.
+    const worldOf = (f) => f.evaluate(() => {
+      const w = window.__FPS__.ctx.peek('world');
+      const pts = (w && w.spawnPoints) || [];
+      return pts.map((p) => [Math.round(p.x * 100), Math.round((p.z != null ? p.z : 0) * 100)].join(',')).join(' ');
+    });
+    const aWorld = await worldOf(aFrame), bWorld = await worldOf(bFrame);
+    check('two different machines built the SAME street from the shared seed',
+      !!aWorld && aWorld === bWorld, aWorld ? aWorld.slice(0, 70) + '…' : '(no spawn points to compare)');
 
-  // ---- a hit crosses the wire and is paid ----
-  await bRun.bringToFront();
-  const bobHealthBefore = await bFrame.evaluate(() => {
-    const p = window.__FPS__ && window.__FPS__.player;
-    return p && p.health ? p.health.value : null;
-  });
-  await aRun.bringToFront();
-  const claimed = await aFrame.evaluate(() => {
-    const others = window.Net.others();
-    const id = Object.keys(others)[0];
-    if (!id) return null;
-    window.Net.claimHit(id, 35, false, others[id].spawn);
-    return id;
-  });
-  check('Alice can address a claim to Bob', !!claimed);
+    /* ---- a hit crosses the wire and is paid ---- */
+    const bobHealthBefore = await bFrame.evaluate(() => {
+      const p = window.__FPS__ && window.__FPS__.player;
+      return p && p.health ? p.health.value : null;
+    });
+    check('Bob has a readable health value to lose', typeof bobHealthBefore === 'number', String(bobHealthBefore));
 
-  check('Bob has a readable health value to lose', typeof bobHealthBefore === 'number', String(bobHealthBefore));
-  await bRun.bringToFront();
-  const paid = await bFrame.waitForFunction(
-    (before) => {
+    const claimed = await aFrame.evaluate(() => {
+      const others = window.Net.others();
+      const id = Object.keys(others)[0];
+      if (!id) return null;
+      window.Net.claimHit(id, 35, false, others[id].spawn);
+      return id;
+    });
+    check('Alice can address a claim to Bob', !!claimed);
+
+    const paid = await waitFor(bFrame, (before) => {
       const p = window.__FPS__ && window.__FPS__.player;
       return !!(p && p.health && p.health.value < before);
-    }, bobHealthBefore, { timeout: 90000 }
-  ).then(() => true, () => false);
-  const bobHealthAfter = await bFrame.evaluate(() => {
-    const p = window.__FPS__ && window.__FPS__.player;
-    return p && p.health ? p.health.value : null;
-  });
-  check('the hit crosses the wire and the target pays for it',
-    paid, bobHealthBefore + ' -> ' + bobHealthAfter);
+    }, 30000, bobHealthBefore);
+    const bobHealthAfter = await bFrame.evaluate(() => {
+      const p = window.__FPS__ && window.__FPS__.player;
+      return p && p.health ? p.health.value : null;
+    });
+    check('the hit crosses the wire and the target pays for it',
+      paid, bobHealthBefore + ' -> ' + bobHealthAfter);
 
-  // Dedupe: a row is re-delivered on every unrelated change, so the SAME claim
-  // must never be paid twice. Alice publishes repeatedly without claiming again.
-  //
-  // Asserted on the CLAIM COUNTER, not on health: health regenerates, so a
-  // duplicate hit is masked within a few seconds, and a health-based check here
-  // would pass whether the dedupe worked or not. That is the shape of a guard
-  // that guards nothing — this suite already shipped one by accident.
-  const claimsBefore = await bFrame.evaluate(() => window.Net.appliedTotal());
-  await aRun.bringToFront();
-  await aFrame.evaluate(() => { for (let i = 0; i < 6; i++) window.Net.publish(true); });
-  await sleep(3000);
-  await bRun.bringToFront();
-  await sleep(4000);
-  const claimsAfter = await bFrame.evaluate(() => window.Net.appliedTotal());
-  check('Bob accepted the claim exactly once', claimsBefore === 1, 'accepted ' + claimsBefore);
-  check('six redeliveries of the same row land it no further times',
-    claimsAfter === claimsBefore, claimsBefore + ' -> ' + claimsAfter);
+    // Dedupe: a row is re-delivered on every unrelated change, so the SAME claim
+    // must never be paid twice. Alice publishes repeatedly without claiming
+    // again.
+    //
+    // Asserted on the CLAIM COUNTER, not on health: health regenerates, so a
+    // duplicate hit is masked within a few seconds, and a health-based check
+    // here would pass whether the dedupe worked or not. That is the shape of a
+    // guard that guards nothing — this suite already shipped one by accident.
+    const claimsBefore = await bFrame.evaluate(() => window.Net.appliedTotal());
+    await aFrame.evaluate(() => { for (let i = 0; i < 6; i++) window.Net.publish(true); });
+    await sleep(4000);
+    const claimsAfter = await bFrame.evaluate(() => window.Net.appliedTotal());
+    check('Bob accepted the claim exactly once', claimsBefore === 1, 'accepted ' + claimsBefore);
+    check('six redeliveries of the same row land it no further times',
+      claimsAfter === claimsBefore, claimsBefore + ' -> ' + claimsAfter);
 
-  await browser.close();
+    /* ---- YOU CAN ACTUALLY KILL SOMEONE ---- */
+    // Everything above stops at a health bar going down. This is the thing the
+    // game is for, and the whole chain is here: enough damage kills Bob, Bob
+    // concedes the death on his OWN row (nobody writes to anybody else's), the
+    // kill is credited BY ID to Alice — not by matching the killer's NAME, which
+    // credited the wrong player in any room where two people had the same one,
+    // and the default name for someone who never set one is "Player" — and Bob
+    // comes back somewhere else with a new life that the old claims cannot
+    // follow him into.
+    const feetOf = (f) => f.evaluate(() => {
+      const p = window.__FPS__.player;
+      return p && p.feetPosition ? [p.feetPosition.x, p.feetPosition.z] : null;
+    });
+    const bobSpawnBefore = await feetOf(bFrame);
+
+    await aFrame.evaluate(() => {
+      const others = window.Net.others();
+      const id = Object.keys(others)[0];
+      // Enough to be fatal from full health regardless of what the 35 above
+      // has already regenerated. One claim, one sequence number.
+      window.Net.claimHit(id, 400, true, others[id].spawn);
+    });
+
+    const bobDied = await waitFor(bFrame, () => {
+      const rows = window.Net.roster().filter((r) => r.me);
+      return rows.length === 1 && rows[0].d >= 1;
+    }, 30000);
+    const bobDeaths = await bFrame.evaluate(() => (window.Net.roster().find((r) => r.me) || {}).d);
+    check('enough damage KILLS the target', bobDied, 'bob deaths=' + bobDeaths);
+
+    const aliceScored = await waitFor(aFrame, () => {
+      const mine = window.Net.roster().find((r) => r.me);
+      return !!mine && mine.k >= 1;
+    }, 30000);
+    const roster = await aFrame.evaluate(() => window.Net.roster().map((r) => r.name + ' k=' + r.k + ' d=' + r.d + (r.me ? ' (me)' : '')).join(' | '));
+    check('the kill is scored to the player who fired it, on the scoreboard', aliceScored, roster);
+
+    check('and it is scored to exactly ONE player',
+      await aFrame.evaluate(() => window.Net.roster().reduce((n, r) => n + (r.k > 0 ? 1 : 0), 0)) === 1, roster);
+
+    const respawned = await waitFor(bFrame, () => {
+      const p = window.__FPS__.player;
+      return !!(p && p.health && p.health.value > 0);
+    }, 30000);
+    const bobSpawnAfter = await feetOf(bFrame);
+    check('the target respawns, alive again', respawned);
+    check('...somewhere else, not on the spot it died',
+      !!bobSpawnBefore && !!bobSpawnAfter &&
+      (Math.abs(bobSpawnBefore[0] - bobSpawnAfter[0]) + Math.abs(bobSpawnBefore[1] - bobSpawnAfter[1])) > 1,
+      JSON.stringify(bobSpawnBefore) + ' -> ' + JSON.stringify(bobSpawnAfter));
+
+    // A claim fired at the life Bob was wearing before he respawned must not
+    // follow him into the new one — the spawn counter on the claim is what
+    // stops it, and without it a burst fired as someone died would kill them
+    // again the instant they came back.
+    const afterRespawnHealth = await bFrame.evaluate(() => window.__FPS__.player.health.value);
+    await aFrame.evaluate((stale) => {
+      const others = window.Net.others();
+      const id = Object.keys(others)[0];
+      window.Net.claimHit(id, 400, false, stale);
+    }, await aFrame.evaluate(() => { const o = window.Net.others(); const id = Object.keys(o)[0]; return o[id].spawn - 1; }));
+    await sleep(4000);
+    const stillAlive = await bFrame.evaluate(() => window.__FPS__.player.health.value);
+    check('a claim against the PREVIOUS life does not follow the target into the new one',
+      stillAlive > 0 && stillAlive >= afterRespawnHealth - 1,
+      afterRespawnHealth + ' -> ' + stillAlive);
+
+    /* ---- the garrison rule, in the join order that actually happens ---- */
+    // Alone you fight AI soldiers; in a room they stand down, because they are
+    // generated per client from a local RNG and stand in different places for
+    // each player — one person shooting at something nobody else can see.
+    //
+    // ASSERTED ON THE HOST, WHICH IS THE HARD CASE AND THE COMMON ONE. Alice
+    // above did exactly what a person does: played solo, then invited a friend.
+    // She therefore booted ALONE and got a garrison, while Bob booted into a
+    // room and got none. Deciding this once at boot is right for Bob and wrong
+    // for Alice, and it is Alice who is doing the inviting — so the soldiers
+    // have to leave when the room fills, not merely fail to arrive.
+    const garrison = await Promise.all([aFrame, bFrame].map((f) => f.evaluate(() => ({
+      soldiers: window.Remote.garrison(), bodies: window.Remote.count(),
+    }))));
+    check('in a room the garrison stands down — for the HOST too, who booted alone',
+      garrison.every((g) => g.soldiers === 0),
+      garrison.map((g, i) => (i ? 'bob' : 'alice') + ': ' + g.soldiers + ' soldiers, '
+        + g.bodies + ' player bodies').join('  '));
+
+    await aCtx.close();
+    await bCtx.close();
+  } finally {
+    await closeFleet(boxes);
+  }
+}
+
+(async () => {
+  await solo();
+  // A PRODUCT FAILURE OUTRANKS "I NEED MACHINES". If the solo half is red the
+  // app is broken here, on this box, and saying NEEDS-FLEET instead would hide
+  // it behind a hardware request.
+  if (failures) {
+    console.log('\nFAILURES: ' + failures + '  (solo half — not running the deathmatch half on top of a broken boot)');
+    process.exit(1);
+  }
+  await deathmatch();
   console.log(failures ? '\nFAILURES: ' + failures : '\nall green');
   process.exit(failures ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
