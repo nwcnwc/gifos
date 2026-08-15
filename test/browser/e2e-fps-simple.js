@@ -125,6 +125,19 @@ async function dismissSheet(runPage) {
   }).catch(() => false);
 }
 
+// Close the share card if one is up. It appears the moment a room is minted and
+// sits over the app; it is dismissed on every pass rather than once, because the
+// app remounts underneath it and the card outlives the mount it was opened from.
+async function dismissInvite(runPage) {
+  return runPage.evaluate(() => {
+    const d = document.getElementById('inv-done');
+    if (d) { d.click(); return true; }
+    const m = document.getElementById('inv-modal');
+    if (m && getComputedStyle(m).display !== 'none') { m.style.display = 'none'; return true; }
+    return false;
+  }).catch(() => false);
+}
+
 // Settle the Abilities sheet (the app declares `pointer`, so it always appears
 // on a first run) and wait for the world to finish building.
 async function ready(runPage, label, budgetMs) {
@@ -153,6 +166,7 @@ async function ready(runPage, label, budgetMs) {
     }
     if (frame) break;
     await dismissSheet(runPage);
+    await dismissInvite(runPage);
     await sleep(1000);
   }
   if (!frame) {
@@ -316,8 +330,17 @@ async function deathmatch() {
       aDesk.locator('.icon', { hasText: 'FPS Simple.gif' }).dblclick(),
     ]);
     let aFrame = await ready(aRun0, 'Alice', 240000);
-    await play(aRun0, aFrame);
 
+    // ALICE INVITES BEFORE SHE PLAYS, and that is the realistic order as well as
+    // the fast one. Pressing Play first locks the pointer, and a suite can then
+    // click Invite through the lock in a way a person never can: with the cursor
+    // captured by the canvas there is nothing to click Invite WITH, so a real
+    // player presses Esc — which releases the lock and opens the pause menu —
+    // and only then reaches the app bar. Inviting through a live pointer lock
+    // put the page in a state the remount did not survive: the app frame went
+    // away and never came back, and the failure read as "the app never mounted",
+    // which sent this straight at the app. It also saves a whole world build,
+    // since inviting throws the first mount away regardless.
     await aRun0.evaluate(() => document.getElementById('appinvite').click());
     await aRun0.waitForSelector('input[name="rmcls"]', { timeout: 15000 });
     await aRun0.evaluate(() => {
@@ -330,25 +353,17 @@ async function deathmatch() {
 
     // ALICE DOES NOT GO TO THE LINK. She IS the link: an app room is hosted by
     // the browser that minted it, and the app's bytes are served to every guest
-    // from there. Inviting REMOUNTS her app in place as the room's host, and the
-    // only thing left to do is close the share card and let that remount finish.
+    // from there. Inviting REMOUNTS her app in place as the room's host — the
+    // frame is back within a few seconds — so there is nothing to navigate to
+    // and the share card just needs closing, which ready() now does on every
+    // pass alongside the Abilities sheet.
     //
-    // Two wrong ways were tried here, and both are worth naming because each
-    // fails looking like the app. Navigating her to the room URL is a
-    // SAME-DOCUMENT navigation — run.html#id=<file> to run.html#j=<room> differs
-    // only in the fragment — so goto() changes the hash and reloads nothing,
-    // leaving her parked on a half-replaced mount for the whole timeout. Forcing
-    // it with reload() does load the room URL, and that is worse: it tears down
-    // the host while she is it, so she arrives at a room with nobody left to
-    // serve the app and mounts an empty page. Both report "the app never mounted
-    // a frame with a gate in it", which is true and tells you nothing.
+    // Navigating her there was tried twice and both ways lie. run.html#id=<file>
+    // to run.html#j=<room> differs only in the FRAGMENT, so goto() is a
+    // same-document navigation that reloads nothing; forcing it with reload()
+    // is worse, because it tears down the host while she is it and she arrives
+    // at a room with nobody left to serve the app.
     const aRun = aRun0;
-    await aRun.evaluate(() => {
-      const d = document.getElementById('inv-done');
-      if (d) d.click();
-      const m = document.getElementById('inv-modal');
-      if (m) m.style.display = 'none';
-    });
     aFrame = await ready(aRun, 'Alice', 240000);
     await play(aRun, aFrame);
 
