@@ -84,6 +84,38 @@ function terrariumHills(size, base, amp, wavelengthPx) {
 // 64px tile, ±9 m swells about 8 lattice cells wide: honest countryside.
 const HILLS_PNG = terrariumHills(64, FIXTURE_HEIGHT, 9, 21);
 
+// A CANYON — the terrain that catches WATER ON A SLOPE, which neither of the
+// tiles above can. Both of them are effectively level (flat, or ±9 m swells),
+// so a water ring laid on them has almost no ground spread, and every water
+// assertion in the suite has only ever exercised the FLAT branch of
+// waterMesh(). That is how a river drawn as ONE sheet at the 20th percentile of
+// its whole ring — buried inside the hillside for most of its length, reading
+// as land, with fish standing on it — reached a user before it reached a test.
+// Rim to floor across one tile, the Grand Canyon's own numbers.
+function terrariumCanyon(size, rim, floor) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; ihdr[9] = 2;
+  const rows = [];
+  for (let y = 0; y < size; y++) {
+    const row = Buffer.alloc(1 + size * 3);
+    for (let x = 0; x < size; x++) {
+      // A valley running north-south: high at both edges, dropping to the
+      // floor in the middle, so a ring laid across it spans the whole descent.
+      const t = Math.abs((x / (size - 1)) - 0.5) * 2;   // 1 at the edges, 0 mid
+      const h = floor + (rim - floor) * Math.pow(t, 1.6);
+      const [r, g, b] = terrariumPixel(h);
+      row[1 + x * 3] = r; row[2 + x * 3] = g; row[3 + x * 3] = b;
+    }
+    rows.push(row);
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(Buffer.concat(rows))), pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+const CANYON_PNG = terrariumCanyon(64, 2118, 763);
+
 // A street with KNOWN building types on it. OSM carries `building=house`,
 // `building=retail`, `building=warehouse` and the rest, and until 2026-08 the
 // parser tested the tag for truthiness and threw the value away — so this
@@ -286,7 +318,8 @@ function tileTag(bb) {
 // download pool engaged, a URL fetched by one player is never requested by the
 // others, so summing these across contexts counts REAL upstream requests.
 async function routeWorld(context, opts) {
-  const terrainBody = opts && opts.hills ? HILLS_PNG : TILE_PNG;
+  const terrainBody = (opts && opts.canyon) ? CANYON_PNG
+    : (opts && opts.hills) ? HILLS_PNG : TILE_PNG;
   // `names` is the ledger the label-cache soak reads: every DISTINCT street
   // name this fixture has ever served. A cache proves it is capped only
   // against the number of names it was actually offered.
@@ -346,4 +379,4 @@ function solidTile(size, r, g, b) {
   ]);
 }
 
-module.exports = { HOP, FIXTURE_HEIGHT, TILE_PNG, HILLS_PNG, terrariumTile, terrariumHills, overpassBody, mixedStreet, routeWorld, solidTile, bboxFromQuery, tileTag, streetGrid, perTileWorld };
+module.exports = { HOP, FIXTURE_HEIGHT, TILE_PNG, HILLS_PNG, CANYON_PNG, terrariumCanyon, terrariumTile, terrariumHills, overpassBody, mixedStreet, routeWorld, solidTile, bboxFromQuery, tileTag, streetGrid, perTileWorld };

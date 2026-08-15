@@ -3014,6 +3014,52 @@ function check(name, cond, detail) {
   // So: a second boot on ROLLING HILLS, asserting the invariants themselves.
   // maptiler: false ON PURPOSE — this boot saves no key, and handing it the
   // stub would make satellite quietly available in a test about terrain.
+  // ---- WATER ON A SLOPE: a river is not one flat sheet --------------------
+  // Every water assertion above runs on level ground — the flat fixture, or
+  // ±9 m swells — so all of them exercise the SAME branch of waterMesh(), the
+  // one that gives a whole ring a single height. A river descending a canyon
+  // cannot be one sheet: drawn flat at the 20th percentile of its own ring it
+  // sits under the hillside for most of its length, which is how it reached a
+  // user as "the Colorado is not blue, the fish stand on land, and the car
+  // drowns on dry rock" (roadmap §14b) with the suite entirely green.
+  //
+  // So: the same world, over a canyon 1355 m deep, asserting the surface
+  // follows its own ground instead of averaging it away.
+  const canyon0 = await openAnyroad(browser, { world: { canyon: true }, maptiler: false, tag: 'canyon' });
+  await canyon0.land();
+  const cWater = await canyon0.fr.locator('body').evaluate(() => {
+    const w = window.App.world, f = w.frame;
+    let verts = 0, worst = 0, above = 0, relief = 0, lo = Infinity, hi = -Infinity;
+    for (const k in w.roads) {
+      const t = w.roads[k];
+      if (!t || !t.built || !t.built.water || !t.built.water.positions) continue;
+      const P = t.built.water.positions;
+      for (let i = 0; i < P.length; i += 3) {
+        const g = window.Terrain.heightAt(f, P[i], P[i + 2]);
+        if (g == null) continue;
+        verts++;
+        lo = Math.min(lo, g); hi = Math.max(hi, g);
+        const d = P[i + 1] - g;                     // water minus its own ground
+        if (Math.abs(d) > Math.abs(worst)) worst = d;
+        if (d > above) above = d;
+      }
+    }
+    relief = (hi > lo) ? hi - lo : 0;
+    return { verts, worst: +worst.toFixed(1), above: +above.toFixed(1), relief: +relief.toFixed(1) };
+  });
+  check('CANYON: the ground under the water really does descend',
+    cWater.relief > 100, cWater.relief + ' m of relief beneath the water surface');
+  check('CANYON: water is drawn over a canyon at all',
+    cWater.verts > 0, cWater.verts + ' water vertices');
+  // THE ONE THAT WOULD HAVE CAUGHT IT. A single sheet over a 1355 m descent
+  // puts hundreds of metres between the surface and the ground under it.
+  check('CANYON: the surface FOLLOWS its own ground rather than averaging it',
+    Math.abs(cWater.worst) < 60,
+    'worst |water - ground| = ' + cWater.worst + ' m over ' + cWater.relief + ' m of relief');
+  check('CANYON: …and still never stands on top of the land',
+    cWater.above < 6, 'highest water above its own ground = ' + cWater.above + ' m');
+  await canyon0.close();
+
   const hills0 = await openAnyroad(browser, { world: { hills: true }, maptiler: false, tag: 'hills' });
   const hCtx = hills0.context, hFr = hills0.fr;
   await hills0.land();
