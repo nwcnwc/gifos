@@ -52,6 +52,11 @@
   // screenshot setting — its own README measures real gameplay at 12-17 fps and
   // 700-1200 ms stalls at high resolution. So: pick by device, let the player
   // override in the pause menu, and remember what they picked.
+  // What the device can actually carry. Overridden by a saved preference, and
+  // before that by root.GIFOS_FPS_QUALITY — a hatch for the suites, which run on
+  // a software rasteriser where building the world at 'medium' takes ~35 s and a
+  // two-peer deathmatch test would spend its life waiting on scenery it never
+  // looks at. Same shape as GIFOS_CONN in the runtime, for the same reason.
   function defaultQuality() {
     var touchy = matchMedia('(pointer: coarse)').matches;
     var cores = navigator.hardwareConcurrency || 4;
@@ -212,7 +217,7 @@
     var canvas = document.getElementById('game');
 
     loadPrefs().then(function () {
-      var config = COD.createConfig({ quality: prefs.quality || defaultQuality() });
+      var config = COD.createConfig({ quality: root.GIFOS_FPS_QUALITY || prefs.quality || defaultQuality() });
       if (prefs.sensitivity != null) config.sensitivity = prefs.sensitivity;
       if (prefs.invertY != null) config.invertY = prefs.invertY;
       if (prefs.fov != null) config.fov = prefs.fov;
