@@ -135,7 +135,7 @@
       "appId": "fps-simple",
       "name": "FPS Simple",
       "shortName": "FPS",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "tagline": "A sunlit market street, a rifle, and whoever you send the link to.",
       "author": {
         "name": "GifOS",
@@ -162,11 +162,11 @@
         78
       ],
       "cover": "/apps/fps-simple/cover.jpg",
-      "bytes": 1036668,
+      "bytes": 1039479,
       "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "d970fc4cdd00dae05a58edd119f1278ed0b84b8e2374978f680167a9965f4ee2"
+      "sha256": "5dabf3b690842037c331c6ed1ff07cfb41645200a4cc1db41cc7684abc45e9d4"
     },
     {
       "slug": "offline-llm-bitnet",

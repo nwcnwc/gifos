@@ -22,6 +22,10 @@
   // a constant. (Multiple maps = publish this in the room. One is enough today.)
   var WORLD_SEED = 0x0f9a51de;
 
+  // Stamped onto a saved quality, so a choice made against another build of the
+  // game is not mistaken for a judgement about this one.
+  var APP_VERSION = '0.9.1';
+
   var RESPAWN_MS = 3200;
 
   // How long a bullet stays responsible for you. Death is reported by the
@@ -248,20 +252,41 @@
     } catch (e) { return root.COD.MaterialSystem; }
   }
 
+  // A SAVED QUALITY IS ONLY THE PLAYER'S CHOICE IF THE PLAYER CHOSE IT.
+  //
+  // savePrefs() runs on sensitivity, field of view and every other setting, so
+  // it was writing the CURRENT quality as a side effect of nudging the mouse
+  // speed. That pinned quality to whatever happened to be active — 'medium' on
+  // a machine with no graphics chip — and a pinned quality outranks the device
+  // probe by design, so the probe would never run again on that device. The
+  // symptom is the worst kind: an update that measurably changes nothing,
+  // because the thing it fixed is being overridden by a preference the player
+  // never knowingly set.
+  //
+  // So the choice is recorded explicitly, and it is stamped with the version
+  // that made it: a quality chosen against a different build of the game is not
+  // a judgement about this one.
   function loadPrefs() {
     if (!root.gifos || !root.gifos.db) return Promise.resolve();
     db = root.gifos.db('prefs');
     return db.get('settings').then(function (rec) {
-      if (rec) prefs = { quality: rec.quality, sensitivity: rec.sensitivity, invertY: rec.invertY, fov: rec.fov };
+      if (!rec) return;
+      prefs = { quality: null, sensitivity: rec.sensitivity, invertY: rec.invertY, fov: rec.fov };
+      if (rec.qualityChosen && rec.qualityFor === APP_VERSION) prefs.quality = rec.quality;
     }).catch(function () {});
   }
 
+  var qualityChosen = false;
   function savePrefs() {
     if (!db || !ctx) return;
     var c = ctx.config;
-    db.put({ id: 'settings', quality: c.quality, sensitivity: c.sensitivity, invertY: !!c.invertY, fov: c.fov })
+    db.put({ id: 'settings',
+      quality: c.quality, qualityChosen: qualityChosen, qualityFor: APP_VERSION,
+      sensitivity: c.sensitivity, invertY: !!c.invertY, fov: c.fov })
       .catch(function () {});
   }
+  // Only this one means "I picked a quality".
+  function chooseQuality() { qualityChosen = true; savePrefs(); }
 
   /* ------------------------------------------------------------------ */
   /* the netplay system                                                 */
@@ -414,6 +439,80 @@
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
 
   /* ------------------------------------------------------------------ */
+  /* a stray key asks a question, so answer it                          */
+  /* ------------------------------------------------------------------ */
+
+  // Pressing a key that does nothing is how people ask what the keys are, and
+  // in a pointer-locked first-person game there is nowhere to look it up: the
+  // gate card that listed them is gone the moment you press Play.
+  //
+  // WHICH KEYS COUNT AS STRAY IS ASKED OF THE ENGINE, NOT LISTED HERE. The
+  // binding table is a module-level constant inside the bundle with no way in,
+  // but `input.action(name)` reads it, so putting a code into the held set and
+  // asking whether any action fires reveals the binding without duplicating it.
+  // A copy of that table in this file would be wrong the first time upstream
+  // moved a key, and wrong in the direction that matters: telling somebody a
+  // key does nothing when it does.
+  //
+  // Probed ONCE, at boot, while the engine is not yet running — mutating the
+  // held set mid-game would make the player walk.
+  var ACTIONS = ['forward', 'back', 'left', 'right', 'jump', 'crouch', 'prone',
+                 'sprint', 'reload', 'use', 'melee', 'leanLeft', 'leanRight',
+                 'swapWeapon', 'grenade', 'flashlight', 'pause'];
+  // Ours, which the engine knows nothing about: Tab is the scoreboard (we take
+  // it back off swapWeapon above) and Escape is the pause menu.
+  var OURS = ['Tab', 'Escape'];
+  var bound = null;
+
+  function learnBindings(input) {
+    var set = Object.create(null);
+    for (var i = 0; i < OURS.length; i++) set[OURS[i]] = 1;
+    if (!input || !input.down || !input.action) return set;
+    var codes = ['Space', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
+                 'AltLeft', 'AltRight', 'Enter', 'Backspace', 'Tab', 'Escape',
+                 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+    for (var c = 65; c <= 90; c++) codes.push('Key' + String.fromCharCode(c));
+    for (var d = 0; d <= 9; d++) codes.push('Digit' + d);
+    for (var k = 0; k < codes.length; k++) {
+      var code = codes[k];
+      var had = input.down.has(code);
+      if (!had) input.down.add(code);
+      for (var a = 0; a < ACTIONS.length; a++) {
+        if (input.action(ACTIONS[a])) { set[code] = 1; break; }
+      }
+      if (!had) input.down.delete(code);
+    }
+    return set;
+  }
+
+  var helpEl = null, helpTimer = 0;
+  function flashKeyHelp() {
+    if (!helpEl) {
+      helpEl = document.createElement('div');
+      helpEl.id = 'keyhelp';
+      helpEl.innerHTML =
+        '<b>WASD</b> move · <b>mouse</b> aim · <b>click</b> fire · <b>right-click</b> sights<br>' +
+        '<b>Shift</b> sprint · <b>Ctrl</b> crouch · <b>Space</b> jump · <b>Q/E</b> lean · <b>R</b> reload<br>' +
+        '<b>1/2</b> weapon · <b>G</b> grenade · <b>F</b> use · <b>V</b> melee · <b>Tab</b> scores · <b>Esc</b> pause';
+      document.body.appendChild(helpEl);
+    }
+    helpEl.classList.add('on');
+    clearTimeout(helpTimer);
+    helpTimer = setTimeout(function () { helpEl.classList.remove('on'); }, 2600);
+  }
+
+  addEventListener('keydown', function (e) {
+    // Held keys repeat; one question deserves one answer.
+    if (e.repeat || !bound) return;
+    // Still on the gate, which is already showing the keys.
+    if (gate && gate.parentNode) return;
+    // A browser shortcut is not somebody asking what a key does.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (bound[e.code]) return;
+    flashKeyHelp();
+  });
+
+  /* ------------------------------------------------------------------ */
   /* Tab belongs to the scoreboard                                      */
   /* ------------------------------------------------------------------ */
 
@@ -540,6 +639,9 @@
           : 'Deathmatch — <b>' + roster.length + ' in the room</b>.';
 
         freeTheTabKey(engine.input);
+        // After freeTheTabKey, so Tab reads as ours rather than the engine's.
+        bound = learnBindings(engine.input);
+        root.__FPS_BOUND__ = bound;        // for the suites, and for a console
         // SAY SO WHEN THE DEVICE HAS NO GRAPHICS CHIP. Everything above makes
         // this as cheap as it can be made — measured on a GPU-less container,
         // 280 s to the Play button became 111 s — but "as cheap as possible" is
@@ -557,7 +659,7 @@
         pushSelf();
 
         // Settings the player changes in the pause menu, kept for next time.
-        ctx.events.on('ui:quality', savePrefs);
+        ctx.events.on('ui:quality', chooseQuality);
         ctx.events.on('ui:sensitivity', savePrefs);
         ctx.events.on('ui:fov', savePrefs);
         ctx.events.on('ui:setting', savePrefs);
