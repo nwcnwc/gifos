@@ -351,6 +351,16 @@ async function solo() {
       'held Tab -> swapWeapon=' + tab.swapHeld);
     check('...and 1/2 still swap it, which is what the gate card says', tab.digitStillSwaps);
 
+    // A CHOICE OUTRANKS A MEASUREMENT. The app probes the GPU and picks its own
+    // settings, but a saved preference is the player's own decision and
+    // GIFOS_FPS_QUALITY is how the suites stay fast — if the probe ever started
+    // winning, every suite here would quietly begin measuring something else,
+    // and this half pins 'low' precisely so it does not spend minutes building
+    // scenery it never looks at.
+    check('a pinned quality wins over the device probe, which does not run',
+      await frame.evaluate(() => !window.__FPS_AUTO__ && window.__FPS__.ctx.config.quality === 'low'),
+      'quality=' + await frame.evaluate(() => window.__FPS__.ctx.config.quality));
+
     check('it reached the network ZERO times — the manifest declares no hosts',
       external.length === 0, external.slice(0, 3).join(' '));
   } finally {

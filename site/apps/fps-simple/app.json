@@ -41,9 +41,9 @@
   "cover": "/apps/fps-simple/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fps-simple/fps-simple.gif",
-  "bytes": 1024241,
+  "bytes": 1029105,
   "download": 0,
   "provides": null,
-  "sha256": "2c02f9bb22a7dcbd7a40d3873a5c3ea218827464eedb6c96149c851e42199a1b",
+  "sha256": "eadf30e7c05d61f5c0c15962718fdfee52979dc43bb266ea319e6103d5ec67eb",
   "signature": null
 }

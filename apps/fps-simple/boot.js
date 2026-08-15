@@ -61,20 +61,140 @@
   /* settings                                                           */
   /* ------------------------------------------------------------------ */
 
-  // A phone is not a workstation. Upstream defaults to 'ultra', which is its
-  // screenshot setting — its own README measures real gameplay at 12-17 fps and
-  // 700-1200 ms stalls at high resolution. So: pick by device, let the player
-  // override in the pause menu, and remember what they picked.
-  // What the device can actually carry. Overridden by a saved preference, and
-  // before that by root.GIFOS_FPS_QUALITY — a hatch for the suites, which run on
-  // a software rasteriser where building the world at 'medium' takes ~35 s and a
-  // two-peer deathmatch test would spend its life waiting on scenery it never
-  // looks at. Same shape as GIFOS_CONN in the runtime, for the same reason.
-  function defaultQuality() {
-    var touchy = matchMedia('(pointer: coarse)').matches;
-    var cores = navigator.hardwareConcurrency || 4;
-    if (touchy) return cores >= 8 ? 'medium' : 'low';
-    return cores >= 8 ? 'high' : 'medium';
+  // WHAT THIS DEVICE CAN ACTUALLY CARRY, MEASURED — because guessing was wrong
+  // on both of the devices that matter most, in opposite directions.
+  //
+  // The old picker read navigator.hardwareConcurrency and whether the pointer
+  // was coarse. Neither of those is a GPU. A ChromeOS Linux container has no
+  // /dev/dri at all, so every pixel is SwiftShader on the CPU — but it reports
+  // 4 cores and a mouse, so it was handed 'medium': 280 SECONDS to reach the
+  // Play button (205 s of it building the world) and then 0.9 fps, which is
+  // 2.2 seconds a frame. A Moto g24 reports EIGHT cores and a touchscreen, so
+  // it was handed 'medium' too, on a Mali-G52 MC2.
+  //
+  // So ask the device instead, in about 150 ms, before a single building
+  // exists. Two questions: what the driver CALLS itself — decisive when the
+  // answer is a software rasteriser, because no amount of CPU makes one
+  // playable — and then what it actually DOES, timed, because a driver string
+  // is a name and not a speed. The gap is not subtle: SwiftShader measures
+  // 0.011 against the Mali's 1.02, a hundredfold, so this cannot confuse them.
+  //
+  // The measurement is adaptive, so it costs about the same on a workstation as
+  // on a phone: one pass, then double until the batch is long enough to time
+  // honestly, stopping early when it already is.
+  var SOFTWARE_RE = /swiftshader|llvmpipe|softpipe|virgl|swrast|mesa offscreen|basic render|microsoft basic|software/i;
+
+  function probeGpu() {
+    var out = { ok: false, renderer: '', software: false, score: 0 };
+    var gl = null, canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 256;
+    try {
+      gl = canvas.getContext('webgl2', { antialias: false, depth: false, alpha: false,
+                                         powerPreference: 'high-performance' });
+    } catch (e) {}
+    if (!gl) return out;
+    out.ok = true;
+    try {
+      var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      if (dbg) out.renderer = String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || '');
+      if (!out.renderer) out.renderer = String(gl.getParameter(gl.RENDERER) || '');
+    } catch (e) {}
+    out.software = SOFTWARE_RE.test(out.renderer);
+    try {
+      // ALU-bound on purpose: a trivial shader measures driver overhead, and
+      // overhead is not what decides whether a frame lands in 16 ms.
+      var vs = '#version 300 es\nvoid main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.0-1.0,0,1);}';
+      var fs = '#version 300 es\nprecision highp float;out vec4 o;uniform float u;'
+             + 'void main(){vec2 p=gl_FragCoord.xy*0.01;float a=0.0;'
+             + 'for(int i=0;i<64;i++){a+=sin(p.x*float(i)+u)*cos(p.y*float(i)-u);}'
+             + 'o=vec4(vec3(a*0.01+0.5),1.0);}';
+      var mk = function (t, src) { var s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+      var prog = gl.createProgram();
+      gl.attachShader(prog, mk(gl.VERTEX_SHADER, vs));
+      gl.attachShader(prog, mk(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return out;
+      gl.useProgram(prog);
+      var uloc = gl.getUniformLocation(prog, 'u');
+      gl.bindVertexArray(gl.createVertexArray());
+      var px = new Uint8Array(4);
+      var batch = function (n) {
+        for (var i = 0; i < n; i++) { gl.uniform1f(uloc, i * 0.13); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);   // make the GPU finish
+      };
+      var t0 = (performance && performance.now) ? performance.now() : Date.now();
+      batch(1);                                    // warm the pipeline; never timed
+      var passes = 1, ms = 0;
+      for (;;) {
+        var s = performance.now();
+        batch(passes);
+        ms = performance.now() - s;
+        if (ms >= 8 || passes >= 512 || performance.now() - t0 > 400) break;
+        passes *= 2;
+      }
+      out.score = (passes * 256 * 256 / 1e6) / ms * 1000;
+      out.ms = Math.round(ms);
+    } catch (e) { /* a probe that throws must not stop the game starting */ }
+    // Hand the context back rather than leaving it against the browser's limit.
+    try { var lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); } catch (e) {}
+    return out;
+  }
+
+  // The settings a device gets before anybody has chosen anything. The rule is
+  // NO LAG, not maximum fidelity: a player who wants it prettier can say so in
+  // the pause menu and it is remembered, but nobody should have to discover the
+  // pause menu to get a game that runs.
+  //
+  // renderScale is the lever that matters once the preset is picked — the
+  // render target is width * pixelRatio * renderScale, so it is quadratic in
+  // exactly the fill rate a software rasteriser does not have.
+  function pickSettings() {
+    var p = probeGpu();
+    var s = { quality: 'medium', renderScale: null, probe: p };
+    if (!p.ok) { s.quality = 'low'; s.renderScale = 0.5; return s; }
+    if (p.software || p.score < 0.5) {
+      s.quality = 'low'; s.renderScale = 0.34; s.texCap = 256;
+      // SHADOWS ARE GEOMETRY, AND GEOMETRY IS WHAT THIS DEVICE HAS NONE OF.
+      // The street is 603k static and 1129k instanced triangles across 212 draw
+      // calls, and three shadow cascades means all of it is submitted THREE
+      // MORE TIMES every frame. Cutting renderScale did nothing for that, and
+      // measurably nothing for the frame rate — a 435x245 render target still
+      // took 8.7 seconds a frame — because the cost was never the pixels.
+      s.q = { cascades: 1, shadowMapSize: 512, shadowDistance: 28,
+              particleBudget: 400, decalBudget: 16, bloom: false };
+    } else if (p.score < 2) { s.quality = 'low'; s.renderScale = 0.6; s.texCap = 512; s.q = { cascades: 2 }; }
+    else if (p.score < 8) { s.quality = 'medium'; }
+    else if (p.score < 25) { s.quality = 'high'; }
+    else { s.quality = 'ultra'; }
+    return s;
+  }
+
+  // THE OTHER QUADRATIC, and on a slow device it is the expensive one.
+  //
+  // Every surface in the street is a texture generated on the device at boot.
+  // Measured on a GPU-less container: seventeen of them cost 45 SECONDS, and
+  // the engine's own camo maps another 12 — 59 s of the 134 s it took to reach
+  // the Play button, more than the world's geometry, the physics, the weapons
+  // and the visual effects put together.
+  //
+  // The engine already halves texture size at 'low' (its _quality is 0.5, so a
+  // 1024 map bakes at 512), and there is no tier below 'low' to ask for. So cap
+  // the size instead: _size() is the one place every bake asks how big to be,
+  // and a subclass is the seam that needs no fork of the engine. Baking is
+  // quadratic in this, so 512 -> 256 is four times less work.
+  //
+  // It costs sharpness on surfaces that, on this class of device, are already
+  // being rendered at a third of the screen's resolution and upscaled.
+  function materialSystemFor(cap) {
+    if (!cap || !root.COD.MaterialSystem) return root.COD.MaterialSystem;
+    try {
+      return class extends root.COD.MaterialSystem {
+        _size(want) {
+          var n = super._size(want);
+          return Math.max(128, Math.min(n, cap));
+        }
+      };
+    } catch (e) { return root.COD.MaterialSystem; }
   }
 
   function loadPrefs() {
@@ -293,7 +413,27 @@
     var canvas = document.getElementById('game');
 
     loadPrefs().then(function () {
-      var config = COD.createConfig({ quality: root.GIFOS_FPS_QUALITY || prefs.quality || defaultQuality() });
+      // MEASURE THE DEVICE, unless somebody has already decided for it: a
+      // saved preference is a player's own choice and outranks any probe, and
+      // GIFOS_FPS_QUALITY is the suites' hatch (same shape as GIFOS_CONN in the
+      // runtime, for the same reason).
+      var chosen = root.GIFOS_FPS_QUALITY || prefs.quality;
+      var auto = chosen ? null : pickSettings();
+      var config = COD.createConfig({ quality: chosen || auto.quality });
+      // The render target is width * pixelRatio * renderScale, so this is the
+      // lever with a square on it. Set BEFORE the engine is built, because the
+      // first resize sizes every render target from it.
+      if (auto && auto.renderScale != null) config.q.renderScale = auto.renderScale;
+      if (auto && auto.q) for (var qk in auto.q) config.q[qk] = auto.q[qk];
+      if (auto) {
+        root.__FPS_AUTO__ = auto;   // readable by the suites and by a console
+        try {
+          console.info('[fps] device probe: ' + (auto.probe.renderer || 'unknown')
+            + (auto.probe.software ? ' [SOFTWARE]' : '')
+            + ' score=' + auto.probe.score.toFixed(3)
+            + ' -> ' + auto.quality + ' @ renderScale ' + config.q.renderScale);
+        } catch (e) {}
+      }
       if (prefs.sensitivity != null) config.sensitivity = prefs.sensitivity;
       if (prefs.invertY != null) config.invertY = prefs.invertY;
       if (prefs.fov != null) config.fov = prefs.fov;
@@ -304,7 +444,7 @@
       engine.rng.seed(WORLD_SEED);
 
       engine
-        .add(COD.RenderSystem).add(COD.MaterialSystem).add(COD.SkySystem)
+        .add(COD.RenderSystem).add(materialSystemFor(auto && auto.texCap)).add(COD.SkySystem)
         .add(COD.WorldSystem).add(COD.PhysicsSystem).add(COD.PlayerSystem)
         .add(COD.WeaponSystem).add(COD.FxSystem).add(COD.AiSystem)
         .add(COD.UiSystem).add(COD.AudioSystem)
@@ -335,6 +475,14 @@
           : 'Deathmatch — <b>' + roster.length + ' in the room</b>.';
 
         freeTheTabKey(engine.input);
+        // SAY SO WHEN THE DEVICE HAS NO GRAPHICS CHIP. Everything above makes
+        // this as cheap as it can be made — measured on a GPU-less container,
+        // 280 s to the Play button became 111 s — but "as cheap as possible" is
+        // still 7 seconds a frame there, because the street is 1.7 million
+        // triangles and no setting removes the street. A player who is told
+        // that can act on it; a player who is not just thinks the game is
+        // broken, which is what it looks like.
+        if (auto && auto.probe && auto.probe.software) softwareWarning();
         touch = root.Touch.init(engine.input, ui);
         root.__FPS_POSE__ = pose;
         // A handle on the running game, for the suites and for anyone poking at
@@ -376,6 +524,19 @@
       speed: player.horizontalSpeed,
       crouch: player.stance === 'crouch' || player.stance === 'prone',
     };
+  }
+
+  // Shown on the gate, not over the game: it is information for the decision
+  // the player is about to make, and it must not be one more thing to dismiss
+  // mid-firefight. Never a refusal — it is their device and their call.
+  function softwareWarning() {
+    var el = document.getElementById('gate-room');
+    if (!el) return;
+    var chromeOS = /CrOS/.test(navigator.userAgent);
+    el.innerHTML = '<b style="color:#e8b26a">This device is drawing without a graphics chip</b>, '
+      + 'so the game will be slow to start and slow to play — that is the device, not the game.'
+      + (chromeOS ? ' Turning on GPU support for Linux in ChromeOS settings fixes it.' : '')
+      + '<br>' + el.innerHTML;
   }
 
   /* ---- the first gesture ------------------------------------------------ */
