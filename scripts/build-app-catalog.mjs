@@ -197,6 +197,10 @@ async function buildApp(slug) {
       // capabilities.gpu (WebGPU allow-policy on the app frame) landed after
       // the 0.9.7 cut (build 1249), so the first build that grants it is 1250.
       ['capabilities.gpu', (x) => !!(x.capabilities || {}).gpu, 1250],
+      // capabilities.pointer (allow-pointer-lock on the app frame) — without it
+      // a first-person app mounts, renders, and cannot aim: the SecurityError
+      // lands inside the sandbox where the player never sees it.
+      ['capabilities.pointer', (x) => !!(x.capabilities || {}).pointer, 1285],
     ];
     for (const [what, uses, since] of FEATURE_BUILD) {
       if (uses(m) && m.minBuild < since) {
