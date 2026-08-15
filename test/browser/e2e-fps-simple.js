@@ -73,20 +73,31 @@ async function install(page) {
 // on a first run) and wait for the world to finish building.
 async function ready(runPage, label) {
   runPage.on('pageerror', (e) => console.log('  [' + label + ' app err] ' + e.message.slice(0, 200)));
-  // Not '#appmount iframe': inviting reboots the app into HOSTED mode, where
-  // run.html mounts it somewhere else. The app frame is simply the one that is
-  // not the page — it is a srcdoc frame with an opaque origin either way.
-  await runPage.waitForSelector('iframe', { timeout: 90000 });
-  await runPage.locator('.perm-modal .done').click({ timeout: 5000 }).catch(() => {});
+  // Look for the frame that IS our app, rather than for an <iframe> element or
+  // "the frame that is not the page". Inviting reboots the app through the app
+  // mesh, and during that remount there are moments with an iframe element in
+  // the DOM whose document has not committed yet — a frame list that is empty,
+  // then briefly holds a frame that is not ours. Both were flaky to look at.
+  // The gate is unmistakable and only our app has one.
+  //
+  // The sheet is clicked on every pass, not once up front: a capability
+  // acknowledgement can arrive after the remount as easily as before it.
+  const deadline = Date.now() + 420000; // a world, built on a software rasteriser
   let frame = null;
-  for (let i = 0; i < 60 && !frame; i++) {
-    frame = runPage.frames().find((f) => f !== runPage.mainFrame());
-    if (!frame) await sleep(500);
+  while (Date.now() < deadline) {
+    for (const f of runPage.frames()) {
+      if (f === runPage.mainFrame()) continue;
+      const isOurs = await f.evaluate(() => !!document.getElementById('gate-go')).catch(() => false);
+      if (isOurs) { frame = f; break; }
+    }
+    if (frame) break;
+    await runPage.locator('.perm-modal .done').click({ timeout: 500 }).catch(() => {});
+    await sleep(1000);
   }
-  if (!frame) throw new Error(label + ': the app never mounted a frame');
+  if (!frame) throw new Error(label + ': the app never mounted a frame with a gate in it');
   await frame.waitForFunction(
     () => { const b = document.getElementById('gate-go'); return b && !b.disabled; },
-    null, { timeout: 300000 } // building a world on a software rasteriser
+    null, { timeout: deadline - Date.now() }
   );
   return frame;
 }

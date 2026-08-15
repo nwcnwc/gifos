@@ -43,6 +43,12 @@
 
   function isTouch() { return active; }
 
+  // Capture keeps a thumb that slides off the control still talking to it. It is
+  // an optimisation, not a requirement: a pointerId the browser will not accept
+  // (a synthetic event, a pointer already released) throws InvalidPointerId, and
+  // losing the capture must never cost the player the input itself.
+  function capture(node, id) { try { node.setPointerCapture(id); } catch (e) {} }
+
   function init(engineInput, uiSystem) {
     input = engineInput;
     ui = uiSystem;
@@ -78,7 +84,7 @@
       move.cx = r.left + r.width / 2;
       move.cy = r.top + r.height / 2;
       move.r = r.width / 2;
-      el.move.setPointerCapture(e.pointerId);
+      capture(el.move, e.pointerId);
       track(e);
       e.preventDefault();
     });
@@ -112,7 +118,7 @@
       if (look.id !== null) return;
       look.id = e.pointerId; look.lx = e.clientX; look.ly = e.clientY;
       look.t0 = Date.now(); look.moved = 0;
-      el.look.setPointerCapture(e.pointerId);
+      capture(el.look, e.pointerId);
       e.preventDefault();
     });
     el.look.addEventListener('pointermove', function (e) {
@@ -144,7 +150,7 @@
         if (!input) return;
         input._pendingDown.add(code);
         b.classList.add('on');
-        b.setPointerCapture(e.pointerId);
+        capture(b, e.pointerId);
         e.preventDefault();
       });
       var up = function (e) {
