@@ -3094,8 +3094,8 @@ function check(name, cond, detail) {
     for (const k in w.roads) {
       const t = w.roads[k];
       if (!t || !t.built || !t.built.water || !t.built.water.positions) continue;
-      const P = t.built.water.positions, I = t.built.water.idx || t.built.water.index;
-      if (!I) continue;
+      const P = t.built.water.positions, I = t.built.water.indices;
+      if (!I || !I.length) continue;
       for (let i = 0; i + 2 < I.length; i += 3) {
         const a = I[i] * 3, b = I[i + 1] * 3, c = I[i + 2] * 3;
         const cx = (P[a] + P[b] + P[c]) / 3;
