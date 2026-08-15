@@ -158,6 +158,20 @@ people an update they do not need — see the rule above.
   drape runs on the player's own key via `gifos.api`, so the app ships on
   genuinely open data with no account. Finished GIF:
   [`site/apps/anyroad/anyroad.gif`](../site/apps/anyroad/anyroad.gif) (~160 KB).
+- **[fps-simple](fps-simple/)** — a first-person shooter in the sandbox. Solo, a
+  garrison patrols a market street and hunts you; send the invite link and the
+  same street becomes a deathmatch. The engine is
+  [Claude of Duty](https://github.com/mshumer/Claude-of-Duty) (mshumer, MIT,
+  Three.js), pinned and vendored as one IIFE bundle; the GifOS port adds the
+  touch controls, the pointer handling and ALL of the multiplayer — upstream has
+  no networking whatsoever. The first app to need **`capabilities.pointer`**:
+  pointer lock is a sandbox flag, so without the declaration an FPS mounts,
+  renders, and silently cannot aim. Two things made the port cheap: the game
+  builds its world procedurally from one RNG seed, so every peer lands in the
+  identical street having sent nothing, and remote players are AI soldier bodies
+  with the brain removed — which means the existing ballistics already shoot
+  them, headshots and hitmarkers included. Finished GIF:
+  [`site/apps/fps-simple/fps-simple.gif`](../site/apps/fps-simple/fps-simple.gif) (~1 MB).
 - **[fluence](fluence/)** — spontaneous-speech coach (full port). Nine drill
   types, record a take → Deepgram nova-3 transcript (word confidence + filler
   tagging via `gifos.api`) → deterministic pace/filler/lexical features →
