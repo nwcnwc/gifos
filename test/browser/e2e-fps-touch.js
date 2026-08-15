@@ -30,6 +30,29 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const INIT = "window.GIFOS_FPS_QUALITY='low';";
+// WAITFORFUNCTION DOES NOT WORK IN THIS FRAME ONCE THE GAME IS RUNNING, so
+// everything after Play polls with evaluate() instead. This is a harness fact
+// and it cost a whole cycle to pin down, so it is written down here rather than
+// rediscovered: the moment engine.start() takes over requestAnimationFrame,
+// frame.waitForFunction() times out no matter what it is asked — a predicate of
+// `() => true` with 200 ms timer polling times out too — while frame.evaluate()
+// of the SAME expression returns the right answer at the same instant. Playwright's
+// injected poller cannot run in there; the frame is perfectly healthy. Waiting
+// on a real condition with a broken waiter reports the app as broken, which is
+// exactly what it did: nine green checks became one bare TimeoutError pointing
+// at the app.
+const POLL = 250;
+
+/** Wait for fn to be truthy IN the app frame, polling from out here. */
+async function until(frame, fn, ms, arg) {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    if (await frame.evaluate(fn, arg).catch(() => false)) return true;
+    if (Date.now() >= deadline) return false;
+    await sleep(POLL);
+  }
+}
+
 
 async function openApp(ctx, label) {
   const desk = await ctx.newPage();
@@ -63,7 +86,7 @@ async function openApp(ctx, label) {
   await frame.waitForFunction(() => { const b = document.getElementById('gate-go'); return b && !b.disabled; },
     null, { timeout: 300000 });
   await frame.click('#gate-go');
-  await frame.waitForFunction(() => !!window.__FPS__, null, { timeout: 30000 });
+  if (!await until(frame, () => !!window.__FPS__, 30000)) throw new Error(label + ': the engine never started after Play');
   await sleep(1200);
   return { run, frame };
 }
@@ -129,9 +152,7 @@ const RELEASE = ({ sel }) => {
   // rasteriser draws a few frames a second. A fixed 700 ms read zero here while
   // the mechanism was working perfectly.
   await phone.frame.evaluate(STROKE, { sel: '#t-move', from: { x: 0.5, y: 0.5 }, to: { x: 0.06, y: 0.5 }, steps: 4 });
-  const wentLeft = await phone.frame.waitForFunction(
-    () => window.__FPS__.engine.input.stick.moveX < -0.5, null, { timeout: 30000 }
-  ).then(() => true, () => false);
+  const wentLeft = await until(phone.frame, () => window.__FPS__.engine.input.stick.moveX < -0.5, 30000);
   const stickX = await phone.frame.evaluate(() => window.__FPS__.engine.input.stick.moveX);
   check('dragging the pad left drives the engine\'s own move axis', wentLeft,
     'stick.moveX=' + stickX.toFixed(2));
@@ -139,9 +160,7 @@ const RELEASE = ({ sel }) => {
 
   // Sprint is not a button: upstream sprints past 0.92, so the pad's edge does it.
   await phone.frame.evaluate(STROKE, { sel: '#t-move', from: { x: 0.5, y: 0.5 }, to: { x: 0.5, y: -0.6 }, steps: 4 });
-  const sprinted = await phone.frame.waitForFunction(
-    () => window.__FPS__.engine.input.stick.moveY <= -0.92, null, { timeout: 30000 }
-  ).then(() => true, () => false);
+  const sprinted = await until(phone.frame, () => window.__FPS__.engine.input.stick.moveY <= -0.92, 30000);
   const fwd = await phone.frame.evaluate(() => window.__FPS__.engine.input.stick.moveY);
   check('pushing the pad to its forward edge reaches the sprint threshold',
     sprinted, 'stick.moveY=' + fwd.toFixed(2));
@@ -149,18 +168,15 @@ const RELEASE = ({ sel }) => {
   // And letting go stops you dead — a stick stuck full-forward would run the
   // player into a wall until the tab closed.
   await phone.frame.evaluate(RELEASE, { sel: '#t-move' });
-  const stopped = await phone.frame.waitForFunction(
-    () => window.__FPS__.engine.input.stick.moveX === 0 && window.__FPS__.engine.input.stick.moveY === 0,
-    null, { timeout: 30000 }
-  ).then(() => true, () => false);
+  const stopped = await until(phone.frame,
+    () => window.__FPS__.engine.input.stick.moveX === 0 && window.__FPS__.engine.input.stick.moveY === 0, 30000);
   check('lifting the thumb returns the stick to centre', stopped);
 
   /* ---- drag to look: the view actually turns ----------------------------- */
   const yaw0 = await phone.frame.evaluate(() => window.__FPS__.player.yaw);
   await phone.frame.evaluate(STROKE, { sel: '#t-look', from: { x: 0.2, y: 0.5 }, to: { x: 0.85, y: 0.5 }, steps: 8 });
-  const turned = await phone.frame.waitForFunction(
-    (before) => Math.abs(window.__FPS__.player.yaw - before) > 0.02, yaw0, { timeout: 20000 }
-  ).then(() => true, () => false);
+  const turned = await until(phone.frame,
+    (before) => Math.abs(window.__FPS__.player.yaw - before) > 0.02, 20000, yaw0);
   const yaw1 = await phone.frame.evaluate(() => window.__FPS__.player.yaw);
   check('dragging on the right half turns the view', turned,
     yaw0.toFixed(3) + ' -> ' + yaw1.toFixed(3));
@@ -170,18 +186,14 @@ const RELEASE = ({ sel }) => {
     const b = document.querySelector('#t-buttons .t-btn[data-code="KeyR"]');
     b.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 9, pointerType: 'touch', bubbles: true, cancelable: true }));
   });
-  const held = await phone.frame.waitForFunction(
-    () => window.__FPS__.engine.input.down.has('KeyR'), null, { timeout: 20000 }
-  ).then(() => true, () => false);
+  const held = await until(phone.frame, () => window.__FPS__.engine.input.down.has('KeyR'), 20000);
   check('a button press reaches the engine as its key code (RELOAD -> KeyR)', held);
 
   await phone.frame.evaluate(() => {
     const b = document.querySelector('#t-buttons .t-btn[data-code="KeyR"]');
     b.dispatchEvent(new PointerEvent('pointerup', { pointerId: 9, pointerType: 'touch', bubbles: true, cancelable: true }));
   });
-  const released = await phone.frame.waitForFunction(
-    () => !window.__FPS__.engine.input.down.has('KeyR'), null, { timeout: 20000 }
-  ).then(() => true, () => false);
+  const released = await until(phone.frame, () => !window.__FPS__.engine.input.down.has('KeyR'), 20000);
   check('and releasing it lets go — a stuck key would reload forever', released);
 
   await pCtx.close();
