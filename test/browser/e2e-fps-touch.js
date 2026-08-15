@@ -44,11 +44,19 @@ async function openApp(ctx, label) {
     await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'FPS Simple.gif', parent: null, x: 40, y: 40, iconSize: 64 });
     await GifOS.desktop.load(); await GifOS.desktop.render();
   }, GIF_B64);
-  const [run] = await Promise.all([
-    ctx.waitForEvent('page'),
-    desk.locator('.icon', { hasText: 'FPS Simple.gif' }).dblclick(),
-  ]);
+  // Opened by URL rather than by double-clicking the icon: on a touch context a
+  // desktop icon is TAP-to-open and locked against dragging (CLAUDE.md), so a
+  // dblclick opens nothing. What is under test here is the app's thumb
+  // controls, and the desktop's own icon behaviour has its own suites.
+  const fileId = await desk.evaluate(async () => {
+    const f = (await GifOS.store.allFiles()).find((x) => x.appId === 'fps-simple');
+    return f ? f.id : null;
+  });
+  if (!fileId) throw new Error(label + ': the app did not install');
+  await desk.close();
+  const run = await ctx.newPage();
   run.on('pageerror', (e) => console.log('  [' + label + ' app err] ' + e.message.slice(0, 180)));
+  await run.goto(BASE + '/run.html#id=' + fileId);
   await run.waitForSelector('#appmount iframe', { timeout: 90000 });
   await run.locator('.perm-modal .done').click({ timeout: 5000 }).catch(() => {});
   const frame = await (await run.$('#appmount iframe')).contentFrame();
@@ -62,8 +70,9 @@ async function openApp(ctx, label) {
 
 // One synthetic pointer stroke, dispatched in the page. Playwright cannot give
 // us a real finger; the handlers do not care whether the event is trusted, and
-// what is under test is what they DO with it.
-const STROKE = (sel, from, to, steps) => {
+// what is under test is what they DO with it. Takes ONE object, because
+// evaluate() passes a single argument and a list arrives as a list.
+const STROKE = ({ sel, from, to, steps }) => {
   const el = document.querySelector(sel);
   const r = el.getBoundingClientRect();
   const at = (f) => ({
@@ -76,6 +85,17 @@ const STROKE = (sel, from, to, steps) => {
   }));
   fire('pointerdown', at(0));
   for (let i = 1; i <= steps; i++) fire('pointermove', at(i / steps));
+  return true;
+};
+
+// Let go. Held separately because the stick ZEROES on release, so a check that
+// released before reading would always see 0 — which is exactly how the first
+// version of this suite failed.
+const RELEASE = ({ sel }) => {
+  const el = document.querySelector(sel);
+  el.dispatchEvent(new PointerEvent('pointerup', {
+    pointerId: 7, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true,
+  }));
   return true;
 };
 
@@ -104,25 +124,40 @@ const STROKE = (sel, from, to, steps) => {
     await phone.frame.evaluate(() => !document.getElementById('touch').hidden && document.body.classList.contains('touch')));
 
   /* ---- the left stick: a thumb becomes a gamepad axis -------------------- */
-  await phone.frame.evaluate(STROKE, ['#t-move', { x: 0.5, y: 0.5 }, { x: 0.06, y: 0.5 }, 4]);
-  await sleep(700); // _pollGamepad runs in beginFrame; give it frames
-  const stick = await phone.frame.evaluate(() => ({
-    x: window.__FPS__.engine.input.stick.moveX,
-    y: window.__FPS__.engine.input.stick.moveY,
-  }));
-  check('dragging the pad left drives the engine\'s own move axis', stick.x < -0.5,
-    'stick.moveX=' + stick.x.toFixed(2));
+  // WAITED FOR, not slept on: the touch value only reaches input.stick when
+  // _pollGamepad runs, which is once per rendered frame, and a software
+  // rasteriser draws a few frames a second. A fixed 700 ms read zero here while
+  // the mechanism was working perfectly.
+  await phone.frame.evaluate(STROKE, { sel: '#t-move', from: { x: 0.5, y: 0.5 }, to: { x: 0.06, y: 0.5 }, steps: 4 });
+  const wentLeft = await phone.frame.waitForFunction(
+    () => window.__FPS__.engine.input.stick.moveX < -0.5, null, { timeout: 30000 }
+  ).then(() => true, () => false);
+  const stickX = await phone.frame.evaluate(() => window.__FPS__.engine.input.stick.moveX);
+  check('dragging the pad left drives the engine\'s own move axis', wentLeft,
+    'stick.moveX=' + stickX.toFixed(2));
+  await phone.frame.evaluate(RELEASE, { sel: '#t-move' });
 
   // Sprint is not a button: upstream sprints past 0.92, so the pad's edge does it.
-  await phone.frame.evaluate(STROKE, ['#t-move', { x: 0.5, y: 0.5 }, { x: 0.5, y: -0.6 }, 4]);
-  await sleep(700);
+  await phone.frame.evaluate(STROKE, { sel: '#t-move', from: { x: 0.5, y: 0.5 }, to: { x: 0.5, y: -0.6 }, steps: 4 });
+  const sprinted = await phone.frame.waitForFunction(
+    () => window.__FPS__.engine.input.stick.moveY <= -0.92, null, { timeout: 30000 }
+  ).then(() => true, () => false);
   const fwd = await phone.frame.evaluate(() => window.__FPS__.engine.input.stick.moveY);
   check('pushing the pad to its forward edge reaches the sprint threshold',
-    fwd <= -0.92, 'stick.moveY=' + fwd.toFixed(2));
+    sprinted, 'stick.moveY=' + fwd.toFixed(2));
+
+  // And letting go stops you dead — a stick stuck full-forward would run the
+  // player into a wall until the tab closed.
+  await phone.frame.evaluate(RELEASE, { sel: '#t-move' });
+  const stopped = await phone.frame.waitForFunction(
+    () => window.__FPS__.engine.input.stick.moveX === 0 && window.__FPS__.engine.input.stick.moveY === 0,
+    null, { timeout: 30000 }
+  ).then(() => true, () => false);
+  check('lifting the thumb returns the stick to centre', stopped);
 
   /* ---- drag to look: the view actually turns ----------------------------- */
   const yaw0 = await phone.frame.evaluate(() => window.__FPS__.player.yaw);
-  await phone.frame.evaluate(STROKE, ['#t-look', { x: 0.2, y: 0.5 }, { x: 0.85, y: 0.5 }, 8]);
+  await phone.frame.evaluate(STROKE, { sel: '#t-look', from: { x: 0.2, y: 0.5 }, to: { x: 0.85, y: 0.5 }, steps: 8 });
   const turned = await phone.frame.waitForFunction(
     (before) => Math.abs(window.__FPS__.player.yaw - before) > 0.02, yaw0, { timeout: 20000 }
   ).then(() => true, () => false);
