@@ -69,6 +69,21 @@ async function install(page) {
   function b64OrThrow() { return GIF_B64; }
 }
 
+// Close the Abilities sheet if one is up. Clicked in the PAGE rather than
+// through Playwright's actionability gate: that gate wants the element stable
+// across two animation frames, and this box is running a WebGL scene in the
+// frame next door, so a short timeout on it fails while the sheet sits there
+// perfectly clickable. Two runs died on exactly that.
+async function dismissSheet(runPage) {
+  return runPage.evaluate(() => {
+    const box = document.querySelector('.perm-modal');
+    if (!box) return false;
+    const b = box.querySelector('.done') || box.querySelector('#perm-plain');
+    if (b) { b.click(); return true; }
+    return false;
+  }).catch(() => false);
+}
+
 // Settle the Abilities sheet (the app declares `pointer`, so it always appears
 // on a first run) and wait for the world to finish building.
 async function ready(runPage, label) {
@@ -91,10 +106,20 @@ async function ready(runPage, label) {
       if (isOurs) { frame = f; break; }
     }
     if (frame) break;
-    await runPage.locator('.perm-modal .done').click({ timeout: 500 }).catch(() => {});
+    await dismissSheet(runPage);
     await sleep(1000);
   }
-  if (!frame) throw new Error(label + ': the app never mounted a frame with a gate in it');
+  if (!frame) {
+    // Say what was actually there. A bare timeout here sent two runs chasing
+    // the wrong thing.
+    const seen = await runPage.evaluate(() => ({
+      iframes: document.querySelectorAll('iframe').length,
+      mount: (document.getElementById('appmount') || {}).innerHTML ? 'has content' : 'empty',
+      sheet: !!document.querySelector('.perm-modal'),
+      text: document.body.innerText.slice(0, 160).replace(/\s+/g, ' '),
+    })).catch((e) => ({ err: String(e).slice(0, 120) }));
+    throw new Error(label + ': the app never mounted a frame with a gate in it — ' + JSON.stringify(seen));
+  }
   await frame.waitForFunction(
     () => { const b = document.getElementById('gate-go'); return b && !b.disabled; },
     null, { timeout: deadline - Date.now() }
@@ -102,13 +127,34 @@ async function ready(runPage, label) {
   return frame;
 }
 
+// Clear whatever GifOS has put over the app, then press Play.
+//
+// Two things can be in the way after inviting, because inviting REMOUNTS the
+// app: the copy-link modal, and the Abilities sheet — a remount is a fresh
+// mount, and it asks again. A host closes both before playing, and Play must be
+// a REAL click, because pointer lock will not be granted without a gesture.
 async function play(runPage, frame) {
-  // The copy-link modal is re-shown by the remount that inviting causes, and it
-  // sits over the app — exactly what a host closes before playing.
-  await runPage.evaluate(() => { const m = document.getElementById('inv-modal'); if (m) m.style.display = 'none'; });
-  await frame.click('#gate-go');       // a REAL gesture: pointer lock needs one
+  for (let i = 0; i < 20; i++) {
+    await runPage.evaluate(() => { const m = document.getElementById('inv-modal'); if (m) m.style.display = 'none'; });
+    await dismissSheet(runPage);
+    const clear = await runPage.evaluate(() => {
+      const p = document.querySelector('.perm-modal'), m = document.getElementById('inv-modal');
+      return !p && (!m || getComputedStyle(m).display === 'none');
+    });
+    if (clear) break;
+    await sleep(500);
+  }
+  await frame.click('#gate-go', { timeout: 60000 });
   await sleep(1500);
 }
+
+// Foreground the page first — see the note at the presence check.
+async function inFront(runPage, frame, fn, timeout) {
+  await runPage.bringToFront();
+  return frame.waitForFunction(fn, null, { timeout: timeout }).then(() => true, () => false);
+}
+const sees = (p, f) => inFront(p, f, () => window.Net && window.Net.count() >= 2, 180000);
+const hasBody = (p, f) => inFront(p, f, () => window.Remote && window.Remote.count() >= 1, 120000);
 
 (async () => {
   const browser = await launch();
@@ -159,8 +205,14 @@ async function play(runPage, frame) {
   await aRun.waitForFunction(() => document.getElementById('share-url').value, null, { timeout: 60000 });
   const shareUrl = await aRun.evaluate(() => document.getElementById('share-url').value);
   check('inviting mints a room link', /#/.test(shareUrl), shareUrl.slice(0, 60));
-  await aRun.evaluate(() => { const m = document.getElementById('inv-modal'); if (m) m.style.display = 'none'; });
-  // Invite REBOOTS the app into hosted mode, so the pre-invite frame is dead.
+  // RELOAD Alice at the link rather than riding the in-place remount that
+  // inviting kicks off. The remount reboots the app through the app mesh and,
+  // on a box already running one WebGL scene, it was the flakiest step in the
+  // suite — sometimes an <iframe> whose document never committed, sometimes a
+  // sheet re-asking over the top of it. A navigation to the room's own URL is
+  // the same thing a person does, is what Bob does two lines further down, and
+  // either it lands or it fails loudly.
+  await aRun.goto(shareUrl);
   aFrame = await ready(aRun, 'Alice');
   await play(aRun, aFrame);
 
@@ -172,16 +224,18 @@ async function play(runPage, frame) {
   await play(bRun, bFrame);
 
   // Presence has to cross both ways before anything else is meaningful.
-  const sawEachOther = await Promise.all([
-    // 4 minutes, not one: two peers each running a full WebGL scene on a
-    // software rasteriser is what this box actually is, and the HOST waits the
-    // longer of the two — the guest is in the roster the moment it publishes,
-    // while the host only learns of it after that first publish crosses.
-    aFrame.waitForFunction(() => window.Net && window.Net.count() >= 2, null, { timeout: 240000 }).then(() => true, () => false),
-    bFrame.waitForFunction(() => window.Net && window.Net.count() >= 2, null, { timeout: 240000 }).then(() => true, () => false),
-  ]);
-  check('both peers see two players in the room', sawEachOther[0] && sawEachOther[1],
-    'alice=' + sawEachOther[0] + ' bob=' + sawEachOther[1]);
+  //
+  // CHECKED ONE AT A TIME, EACH BROUGHT TO FRONT. A backgrounded tab is
+  // throttled to about a frame a second, and this app IS its animation loop —
+  // presence is published from the engine's own update. So the moment Bob's page
+  // opens, Alice stops talking, and waiting on both at once measures nothing but
+  // which tab happens to be visible. test/lib/anyroad-app.js paid for this
+  // lesson with a car that "would not move"; e2e-anyroad-mp brings every page to
+  // the front before it asserts anything, and so does this.
+  const aSees = await sees(aRun, aFrame);
+  const bSees = await sees(bRun, bFrame);
+  check('both peers see two players in the room', aSees && bSees,
+    'alice=' + aSees + ' bob=' + bSees);
 
   check('the guest is told it is a deathmatch, not a garrison',
     /Deathmatch/i.test(await bFrame.evaluate(() => document.getElementById('gate-room') ? document.getElementById('gate-room').textContent : '(gate gone)')) ||
@@ -189,18 +243,18 @@ async function play(runPage, frame) {
 
   // A BODY, not just a row: remote.js has to put something shootable in the
   // world, or the other player is a name on a scoreboard and nothing else.
-  const bodies = await Promise.all([
-    aFrame.waitForFunction(() => window.Remote && window.Remote.count() >= 1, null, { timeout: 120000 }).then(() => true, () => false),
-    bFrame.waitForFunction(() => window.Remote && window.Remote.count() >= 1, null, { timeout: 120000 }).then(() => true, () => false),
-  ]);
-  check('each peer spawns a BODY for the other, in the world', bodies[0] && bodies[1],
-    'alice=' + bodies[0] + ' bob=' + bodies[1]);
+  const aBody = await hasBody(aRun, aFrame);
+  const bBody = await hasBody(bRun, bFrame);
+  check('each peer spawns a BODY for the other, in the world', aBody && bBody,
+    'alice=' + aBody + ' bob=' + bBody);
 
   // ---- a hit crosses the wire and is paid ----
+  await bRun.bringToFront();
   const bobHealthBefore = await bFrame.evaluate(() => {
     const p = window.__FPS__ && window.__FPS__.player;
     return p && p.health ? p.health.value : null;
   });
+  await aRun.bringToFront();
   const claimed = await aFrame.evaluate(() => {
     const others = window.Net.others();
     const id = Object.keys(others)[0];
@@ -211,6 +265,7 @@ async function play(runPage, frame) {
   check('Alice can address a claim to Bob', !!claimed);
 
   check('Bob has a readable health value to lose', typeof bobHealthBefore === 'number', String(bobHealthBefore));
+  await bRun.bringToFront();
   const paid = await bFrame.waitForFunction(
     (before) => {
       const p = window.__FPS__ && window.__FPS__.player;
@@ -232,8 +287,11 @@ async function play(runPage, frame) {
   // would pass whether the dedupe worked or not. That is the shape of a guard
   // that guards nothing — this suite already shipped one by accident.
   const claimsBefore = await bFrame.evaluate(() => window.Net.appliedTotal());
+  await aRun.bringToFront();
   await aFrame.evaluate(() => { for (let i = 0; i < 6; i++) window.Net.publish(true); });
-  await sleep(5000);
+  await sleep(3000);
+  await bRun.bringToFront();
+  await sleep(4000);
   const claimsAfter = await bFrame.evaluate(() => window.Net.appliedTotal());
   check('Bob accepted the claim exactly once', claimsBefore === 1, 'accepted ' + claimsBefore);
   check('six redeliveries of the same row land it no further times',
