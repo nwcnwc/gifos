@@ -124,10 +124,9 @@
   };
 
   // Somebody's browser says they shot me. We are the authority on what that
-  // costs us — see the note in net.js about why the target decides.
-  // The wound arrives already scaled — the shooter's collider multiplier (which
-  // is where the headshot bonus lives) and the range falloff are both applied
-  // before it goes on the wire, so what is left for us is to take it.
+  // costs us — see the note in net.js about why the target decides. The wound
+  // arrives already scaled, by the shooter's collider multiplier (where the
+  // headshot bonus lives) and by range, so what is left for us is to take it.
   function onIncomingHit(dmg, headshot, fromId, fromName) {
     if (!player || dead) return;
     var o = root.Net.others()[fromId];
