@@ -77,7 +77,11 @@ Assignment lives in the same per-role config apps already resolve through:
    same opaque origin. No shared provider tab, no cross-tab RPC: isolation
    stays structural, and a dead consumer tab cleans up its own provider
    instance. The cost (one engine instance per consuming tab) is the price of
-   not inventing a new trust path.
+   not inventing a new trust path. (That cost is real and has been costed:
+   two AI tabs hold two copies of a 769 MB model. Whether it can be shared
+   without giving the trade back is written up in
+   [`provider-warm-tabs.md`](provider-warm-tabs.md) — a maybe, not a plan.
+   The rule above stands until that decision is deliberately re-taken.)
 3. **Serve** — the provider app calls
    `gifos.provider.serve({ tts: async (req) => ({ bytes, mime }), … })`
    (handlers keyed by ROLE). The runtime forwards each brokered call as a

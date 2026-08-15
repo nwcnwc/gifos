@@ -2196,3 +2196,60 @@ with a whole stadium of overhead per room, right for humans taking a breakout
 and wrong for a car crossing a street), and **swap pools**
 (`mmog-ideas.md` §4 — bounded by that document's own "topology is weather"
 doctrine, and unable to track continuous motion).
+
+---
+
+## 13. Keeping a provider warm across tabs (MAYBE — not agreed, may not be worth it)
+
+**Full write-up: [`docs/provider-warm-tabs.md`](provider-warm-tabs.md).** This
+entry is the roadmap stub; the doc holds the argument, the ruled-out route, and
+the nine open questions. Listed lower than the rest on purpose: the honest
+outcome may be that we build none of it.
+
+**What.** An on-device provider is mounted **per tab** (`providerServices` in
+`runtime.js`), and apps open in their own tab
+(`root.open('run.html#id=…','_blank')`). So every app tab that asks for AI boots
+its own wasm engine and loads its own copy of the weights — 769 MB for Gemma 3,
+twice over if two AI tabs are open. This item asks whether one instance can be
+shared, and what that costs.
+
+**Why it fits, and where it stops fitting.** The prize is mostly **memory**, not
+speed: two resident copies on a phone is a tab crash, not a slow wait. Speed
+matters less than it did a week ago, because `ctx.delta` streaming already
+killed the six-minutes-of-nothing case — an answer now appears as it is written.
+Where it stops fitting is the trust model. `providers.md` states the current
+design as a deliberate trade — "No shared provider tab, no cross-tab RPC:
+isolation stays structural… the price of not inventing a new trust path" — so
+this cannot be picked up without re-taking that decision on purpose.
+
+**Sketch.** Not a build plan; the doc argues each of these.
+
+1. **SharedWorker is ruled out, permanently.** A provider is untrusted GIF code
+   living in an opaque-origin sandbox with `connect-src 'none'`. A SharedWorker
+   runs at `gifos.app` with `fetch` and IndexedDB, and there is no way to build
+   an opaque origin inside a worker — it would hand a downloaded model file the
+   whole computer's storage and a way off the device. The sandbox is the
+   product.
+2. **The only surviving shape is one HOST TAB owning the mount**, other tabs
+   reaching it over the BroadcastChannel machinery that already carries
+   cross-tab store sync (and which must be namespaced per computer, or two
+   booted images share a brain). The provider stays in the same sandbox; the new
+   trust path is between GifOS's own runtime code in two tabs, never between app
+   code.
+3. **Prefer the desktop as a fixed host over election.** Election churns —
+   every leader that closes makes the next asker pay full price, invisibly.
+4. **Measure before building.** `sys::provider-timing` already records cold and
+   warm per provider; what is missing is the split *inside* a cold call (blob
+   read vs engine boot vs llama.cpp allocation vs first token). If the bulk is
+   allocation, a smaller quant or a lower `n_ctx` buys more than any of this,
+   for a fraction of the risk.
+
+**Open questions.** Nine, stated properly in the doc §9. The three that could
+kill it outright: whether **tab freezing** destroys the warm instance on phones,
+which is exactly where the wait hurts most; whether **serialising** concurrent
+askers behind one engine is acceptable when today they run in parallel; and
+whether the whole thing loses to simply making the cold load cheaper.
+
+**Not a daemon, whatever we build.** No browser gives a process that outlives
+the tabs — close every GifOS tab and the model is gone. "Warm across tabs" can
+only ever mean "while at least one tab lives".
