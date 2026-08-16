@@ -849,74 +849,68 @@ guess — leans on §4e to spotlight the actor's tile), **trivia/buzzer**,
   the §6 app-store + §4e seams so the community builds the long tail? (Lean:
   ship Draw & Guess first-party as the flagship; let the rest be store apps.)
 
-### 4g. Screen sharing (rides the Stage channel)
+### 4g. Screen sharing (rides the Stage channel) — SHIPPED 2026-08-16
 
-**What.** Let a participant **share their screen** (a window, a tab, or the whole
-desktop) to the whole room by publishing it on the **Stage** — the existing
-chosen-≤C broadcast tier. Stepping up to "Share screen" claims a Stage seat and
-swaps the sharer's Stage video source from their camera to a
-`getDisplayMedia()` capture; the screen is composited and fanned down the same
-Stage path as a face, and reverts to the camera on stop. Rendered in a
-**dedicated, large region** (like an app on Stage), not as one square in the A/V
-strip.
+Built as argued, and the argument held: a screen share is a **source swap**, not
+a channel. `sentVideoTrack()` returns the `getDisplayMedia` track instead of the
+camera, the sharer takes a Stage seat, and every consumer that already reads
+that one function publishes the screen at once — self-view, MAIN senders to
+row-mates, the `stg:` collect/composite/fan-down, the Stadium square, the
+recorder, the PiP aim. `shipMos` re-ships on its own because the track changed.
+No new stream, no new key, no side channel.
 
-**Why it fits.** The Stage feed is already **source-agnostic** — a stager's
-outbound is built by `mySelfStream()` (`site/run.html:6135`) wrapping
-`sentVideoTrack()` (`:2433`) plus the mic, shipped up-tree as `stg:<myId>`
-(`:7105`/`:7142`), composited at Section 1 and fanned down. Nothing on that path
-cares whether the video track came from a camera, and a `getDisplayMedia` track
-is structurally identical to a `getUserMedia` one. Three pieces already exist:
-- **`getDisplayMedia` is wired up** for the recorder (`site/run.html:8022`,
-  `scope:'app'`) — capture/permission/`onended` handling to copy.
-- **The ship re-fires on track change** by design (`shipMos`, `:6161`;
-  media-plane doc: "re-ships exactly when a track actually changes"), so a
-  cam→screen `replaceTrack` propagates with no renegotiation.
-- **The architecture already anticipated non-camera Stage occupants.**
-  `media-plane.md` Channel St: *"An APP on Stage carries a DATA stream, not A/V …
-  renders in its own dedicated UI region."* Screen-share is the pixel-valued
-  sibling. It also **reuses the source-substitution seam of §4b** (avatar): both
-  are "publish something other than the raw camera on the same `replaceTrack` /
-  ship paths." No new infrastructure — one composited fan-down stream occupying
-  one of the ≤C Stage seats, honoring the no-beefy-node / fair-share doctrine.
+**What landed** (`site/run.html`, `site/js/mesh-media.js`;
+docs/media-plane.md Channel St):
+- Source swap + Stage step-up/step-down; a sharer already on Stage keeps their
+  seat, and only a share that stepped you up steps you back down.
+- The aspect gotcha, exactly where §4g predicted it: a packed tile may declare
+  `fit:'contain'` and is letterboxed instead of cover-cropped. Sizing extracted
+  as the pure `fitBox()` so it is Node-testable (`test/unit/mesh-media.js`
+  asserts both the letterbox AND the 1080-of-1920 columns a cover-crop throws
+  away).
+- Honesty: a gossiped `scr` bit on the ordinary heartbeat drives a "🖥 sharing
+  their screen" chip, names the sharer on the Stage strip, and separates a dark
+  seat from a camera-off sharer (`seatDark`). Stop is handled from the
+  browser's own bar (`track.onended`), and an admin's "video off for everyone"
+  stops a share outright.
+- The app-pin preference, mechanically: an app-pinned room offers no control at
+  all; the share sheet names Run app, and names the *running* app when there is
+  one. Gate: `test/browser/e2e-screen-share.js` counts `getDisplayMedia` calls.
 
-**Sketch.**
-- **Source swap:** while sharing, `sentVideoTrack()` / `mySelfStream()` yields
-  the display track instead of the camera; the `stg:` ship re-fires
-  automatically. Follows the existing "stagers live on the Stage only" rule
-  (main cam/mic senders parked via `refreshOutbound`, `:2465`).
-- **Aspect ratio (the one real gotcha):** the Stage strip is a `kind:'band'`
-  composite where each cell gets a **centered-square cover-crop**
-  (`site/js/mesh-media.js:99`, `coverBox` at `:47`) — feed it a 16:9 screen and
-  it discards ~40% of the width, text gone. The engine already has the fix:
-  `kind:'frame'` draws **aspect-preserved contain, never cropped** (`:92–96`).
-  So this is a per-cell "contain, don't cover" flag, not new code.
-- **Readability → dedicated region:** a screen sharing 1/C of a 756px-wide strip
-  is unreadable. Model it on **app-on-Stage** — occupy a Stage seat but render
-  **big in its own area**, with the A/V strip staying contiguous for the
-  remaining stagers.
-- **Camera coexistence:** simplest (Zoom-style) is screen *replaces* the sharer's
-  Stage video and their camera tile hides while sharing. Screen **and** face at
-  once means a second aux feed (`stg:` carries one video track) — doable, more
-  work, defer.
-- **Audio:** `getDisplayMedia` can capture tab/system audio; the Stage aux feed
-  already carries audio with edge mix-minus (`stageEar`, `:6115`), so system
-  audio can ride along (usual echo caveats).
-- **Step-up/stop:** reuse the Stage step-up/cap logic; stop the display track,
-  restore the camera as the Stage source (or step down).
+**Answered, of the open questions:**
+- *Face + screen simultaneously* — **replace for v1**, as leaned. Screen
+  replaces the sharer's Stage video; their camera tile is already hidden while
+  staged ("stagers live on the Stage ONLY").
+- *Mobile capability* — feature-detected (`canScreenShare`), control hidden
+  where `getDisplayMedia` is absent. Never a UA check.
+- *Consent / trust chip* — the chip and the strip label above. The admin
+  "allow/forbid guest screen-share" hammer is **already there by arithmetic**:
+  sharing needs a Stage seat, so `canStage` (the signed `app` grant) gates it in
+  an admin room, and "video off for everyone" ends a live share.
 
-**Open questions.**
-- **Dedicated-region layout** vs the strip: where the big screen sits relative to
-  the A/V strip, the row, and the Stadium; how it reflows on phones (portrait).
-- **Face + screen simultaneously** worth a second aux feed, or is
-  screen-replaces-face enough for v1? (Lean: replace for v1.)
-- **Mobile capability:** `getDisplayMedia` is absent/limited on iOS Safari and
-  restricted on some Android Chrome — feature-detect and hide the control
-  (as the recorder already does via `canScreenRecord`, `:7950`).
-- **Consent / trust chip / recording:** a "sharing screen" indicator to the
-  room; inherit the meeting's existing capture/recording consent posture; admin
-  ability to allow/forbid guest screen-share (same shape as group blur / cam-off).
-- **Interaction with §4e** (app-driven layout): a shared screen is another
-  placeable tile the layout seam could arrange.
+**Still open, deliberately:**
+- **System / tab audio.** `audio: false` today, and the sheet says so rather
+  than putting a checkbox in the browser's picker that does nothing. The
+  outbound audio track is the mic, read directly by `mySelfStream` and every
+  `mainA` sender, so tab audio needs a WebAudio fold in front of all of them
+  plus a mute button that no longer means one thing.
+- **The dedicated large region.** A share currently rides the Stage strip,
+  which grows (`body.screen-on`, the lever the broadcast skin already pulls)
+  but is still a strip. §4e's placeable-tile layout is the right home for a
+  proper region; a share beside four other stagers is still small.
+- **Not measured on real hardware**: readability of a shared 1080p desktop on a
+  phone at the far end of a deep tree, and what the Stage bitrate ceiling does
+  to text (a face tolerates blur; a terminal does not). Needs the cross-device
+  harness, not one box.
+
+**Not possible for APPS, and now recorded where someone will reach for it:**
+a `capabilities.screen` that delegates `display-capture` to an app frame was
+built and removed. The policy delegates cleanly and then `getDisplayMedia`
+rejects with `SecurityError: Invalid security origin`, because the app frame is
+srcdoc-sandboxed with no `allow-same-origin` and its origin is opaque. It would
+need either that sandbox relaxation (never) or a camera/mic-style broker.
+`site/js/runtime.js` carries the measurement; `e2e-screen-share.js` guards the
+invariant that no app can reach the screen however its manifest is written.
 
 ## 5. Paid meetings (x402)
 

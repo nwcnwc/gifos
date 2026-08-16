@@ -643,6 +643,26 @@ Roughly three families in one directory:
   the Abilities sheet refuses it again — the sandbox is fixed at navigation, so
   a veto that is only honoured where the brokers honour theirs would be a
   checkbox that moves and changes nothing),
+  `e2e-fullscreen-lock` (capabilities.fullscreen, the same three legs over its
+  TWO hatches — the fullscreen permissions policy and the
+  allow-orientation-lock sandbox token),
+  `e2e-screen-share` (sharing a screen in a meeting, and the far more
+  interesting half: that an app-pinned meeting NEVER NEEDS IT. It drives the
+  REAL getDisplayMedia — headless Chromium answers it only under
+  `--auto-select-desktop-capture-source`, and then hands back a genuine
+  1280×720 'monitor' surface — so "the published track is a display capture,
+  not the camera" is read off the outbound sender's own settings. The app-pin
+  half COUNTS rather than trusts: getDisplayMedia is WRAPPED, never stubbed
+  (a stub would make the whole assertion vacuous), and the counter must stay at
+  ZERO while an app is pinned into a meeting, on host and guest alike, and in
+  an app-pinned room — which offers no share control at all, with the ordinary
+  meeting buttons beside it asserted VISIBLE so "hidden" means hidden by the
+  rule and not by an unrendered bar. That last assertion found a real bug the
+  day it was written: Invite-from-solo left `html.solo-app` set, so an app room
+  born that way had no meeting bar, no grid and no filmstrip, ever. A last leg,
+  on its own flagless browser, guards the invariant that NO APP can photograph
+  your screen however its manifest is written — see site/js/runtime.js for why
+  a capabilities.screen cannot be built without breaking the app sandbox),
   `e2e-fps-touch` (the thumb controls FPS Simple adds to an engine that has
   none: a real touchstart reveals them and a mouse machine never sees them, then
   a thumb reaches `input.stick` / `_rawLook` / the button queues and the
