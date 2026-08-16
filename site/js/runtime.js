@@ -2408,7 +2408,30 @@
     // while document.fullscreenEnabled still read true. `*` removes the origin
     // match from the question. It is not a wider grant in any way that matters:
     // the only document this policy can ever reach is the one app in this frame.
-    if (hasCap(manifest, 'fullscreen') && !capDisabled(manifest, 'fullscreen')) allow.push('fullscreen *');
+    // SCREEN CAPTURE — `display-capture`, the policy feature behind
+    // getDisplayMedia(). Without this delegation an app frame is refused
+    // outright (NotAllowedError, "Permissions policy violation"), which is the
+    // right default and stays the default: an app that can photograph the whole
+    // desktop can read every other window on it — your bank tab, your
+    // messages, the meeting you are in — so this is the widest-reaching
+    // capability in the list and it is opt-in per app and revocable in the
+    // sheet like every other. `*` for the same measured reason as fullscreen
+    // above: the default allowlist is 'self' and this frame's origin is opaque,
+    // so there is nothing for 'self' to match.
+    //
+    // The BROWSER's own guard is what makes this safe rather than terrifying,
+    // and it is a guard GifOS could not build itself: the picker is chrome, not
+    // page content, capture only ever starts from a real user gesture, the user
+    // chooses the exact surface, and the browser shows a stop control the page
+    // cannot hide. That is why this is a delegation and not a broker — unlike
+    // camera/mic, where we mint an unfakeable overlay ourselves because a
+    // silent grab is otherwise possible.
+    //
+    // NOTE FOR ANYONE READING THIS FROM THE MEETING SIDE: this is NOT how the
+    // meeting shares a screen. run.html is the parent page and calls
+    // getDisplayMedia directly; no app is involved, and an app-pinned room
+    // deliberately offers no screen share at all (docs/media-plane.md).
+    if (hasCap(manifest, 'screen') && !capDisabled(manifest, 'screen')) allow.push('display-capture *');
     if (asked.length) allow.push('autoplay');
     if (allow.length) { try { iframe.setAttribute('allow', allow.join('; ')); } catch (e) {} }
     // Pointer lock is a SANDBOX flag, not a permissions-policy feature, so it
