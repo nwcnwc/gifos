@@ -2,32 +2,35 @@
 // (gifos.app, default relay) a client that opened a /join link sees the SAME
 // link in the bar — /join/<code> for a self-healing app, /join/<room>/<verifier>
 // for an owned one — not the internal run.html#j=…/#s=… form it loads via. We
-// fake prod by resolving gifos.app to localhost and not setting a custom relay,
-// so the pretty branch is taken. No live host is needed: the address-bar rewrite
+// are really ON gifos.app here (test/lib/prod-origin.js serves that origin out
+// of the local site server) and set no custom relay, so the pretty branch is
+// taken for the real reason. No live host is needed: the address-bar rewrite
 // happens as the client boots, before it connects.
-const { chromium, CHROME } = require('../lib/pw');
+const { chromium, CHROME, casualty } = require('../lib/pw');
+const need = require('../lib/need');
+const { PROD_ARGS, serveProdOrigin } = require('../lib/prod-origin');
 
-const PORT = (process.env.BASE || 'http://127.0.0.1:8099').split(':').pop();
+const PORT = parseInt((process.env.BASE || 'http://127.0.0.1:8099').split(':').pop(), 10);
 
 let failures = 0;
 const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; };
 
 (async () => {
-  // THE ORIGIN MUST BE TRUSTWORTHY — see the same note in e2e-meet-prettyurl.js.
-  // Mapping gifos.app to localhost does not make it a secure context (only the
-  // literal localhost/127.0.0.1 get that), and an insecure origin has no
-  // crypto.subtle, so this suite was driving a page that could never join
-  // anything. The browser preflight now stops such a page and says why, which
-  // is correct for a visitor and useless for a URL-shaping test — so make the
-  // origin genuinely secure instead of testing around it.
-  const browser = await chromium.launch({
-    executablePath: CHROME,
-    args: ['--host-resolver-rules=MAP gifos.app 127.0.0.1',
-      '--unsafely-treat-insecure-origin-as-secure=http://gifos.app:' + PORT],
-  });
-  const ctx = await browser.newContext();
+  await need({ [PORT]: 'a static server on ' + PORT + ' (python3 -m http.server ' + PORT + ' -d site)' });
+  // THE ORIGIN MUST BE THE REAL SHAPE — https://gifos.app, not a spoofed http
+  // one; see the long note in e2e-meet-prettyurl.js and test/lib/prod-origin.js.
+  // Short version: mapping gifos.app to localhost never made the origin secure
+  // (so this suite was driving a page with no crypto.subtle), and as of
+  // chromium-1234 it does not even load — `.app` is an HSTS-preloaded TLD, the
+  // browser upgrades the navigation to https, and the local plain-HTTP server
+  // answers with ERR_SSL_PROTOCOL_ERROR before the first assertion. Prod is
+  // https; so is this now.
+  const browser = await chromium.launch({ executablePath: CHROME, args: [...PROD_ARGS] });
+  // serviceWorkers:'block' — a worker's own fetches never pass through the route
+  // that serves this origin, and https is the first origin it will install on.
+  const ctx = await browser.newContext({ serviceWorkers: 'block' });
   await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_name','Pat');localStorage.setItem('gifos_channel','edge')}catch(e){}" });
-  const base = 'http://gifos.app:' + PORT;
+  const base = await serveProdOrigin(ctx, { port: PORT });
 
   // ---- a self-healing app join → /join/<code> ----------------------------------
   const code = 'heal' + Math.floor(Math.random() * 1e6).toString(36);
@@ -52,6 +55,9 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
     (await p2.evaluate(() => location.pathname)) === '/join/' + room + '/' + ver + '/' + lsec);
 
   // ---- local dev keeps the hash form (no /join routing there) -------------------
+  // 127.0.0.1 is served straight off the site server: same bytes, a hostname the
+  // pretty branch does not match, and the ONE origin browsers still trust over
+  // plain http.
   const p3 = await ctx.newPage();
   p3.on('pageerror', () => {});
   await p3.goto('http://127.0.0.1:' + PORT + '/run.html#j=' + code);
@@ -63,4 +69,11 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
-})();
+})().catch((e) => {
+  // NEVER die as an unhandled rejection — see the note at the foot of
+  // e2e-meet-prettyurl.js. A throw is a FAIL with its reason; a dead browser is
+  // NO VERDICT (exit 4), never a product red.
+  if (casualty.isCasualty(e)) casualty.refuse({ what: 'the browser this suite was driving', why: (e && e.message) || e });
+  console.log('FAIL — the suite threw before it could finish: ' + String((e && e.stack) || e).slice(0, 400));
+  process.exit(1);
+});
