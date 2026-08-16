@@ -1133,6 +1133,7 @@
     setTimeout(function () { gate.remove(); }, 400);
     try { if (root.__AUDIO__) root.__AUDIO__.setMasterVolume(1); } catch (e) {}
     armBackAsPause();
+    armPauseOnExitFullscreen();
     armFullscreenRetry();
     checkAiming();
   }
@@ -1231,6 +1232,26 @@
   // as it always did. A pause button that throws on load would take the whole
   // boot with it, which is a far worse trade than a back button that does not
   // pause.
+  // LOSING THE BIG PICTURE IS ITSELF A REASON TO PAUSE.
+  //
+  // On a phone the Back button does not reach a popstate handler while the app
+  // is fullscreen — the browser spends it on LEAVING fullscreen, which is its
+  // own rule and not one to fight. So the exit is the signal: whatever took the
+  // player out of the immersive view (Back, Esc, the swipe from the edge, a
+  // notification), the game should not carry on being played by nobody. Pausing
+  // here is also the duty the pointer-lock path already has, for the same
+  // reason: a game that keeps running while the player's attention is elsewhere
+  // is a game they come back to dead.
+  function armPauseOnExitFullscreen() {
+    document.addEventListener('fullscreenchange', function () {
+      if (document.fullscreenElement) return;                  // entering, not leaving
+      // `menu.open` is a BOOLEAN on upstream's PauseMenu, not a method — show()
+      // and close() are the verbs. Calling it would throw, inside a sandbox,
+      // every time the player left fullscreen.
+      try { if (ui && ui.menu && !ui.menu.open && ui.menu.show) ui.menu.show(); } catch (e) {}
+    });
+  }
+
   function armBackAsPause() {
     try { history.pushState({ fps: 1 }, ''); } catch (e) { return; }
     root.addEventListener('popstate', function () {
