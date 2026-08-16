@@ -25,6 +25,9 @@
     },
     "textures": {
       "visibility": "private"
+    },
+    "perf": {
+      "visibility": "private"
     }
   }
 }

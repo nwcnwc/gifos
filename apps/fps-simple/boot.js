@@ -55,6 +55,30 @@
   var note = document.getElementById('gate-note');
   var go = document.getElementById('gate-go');
 
+  // Phones cannot be driven by a debugger here (CDP is a wall on this device),
+  // so every phase stamps a line the console — and therefore adb logcat — can
+  // read. This is the only way the goal's numbers are checkable on the target.
+  var T0 = (root.performance && performance.now) ? performance.now() : Date.now();
+  var perfMarks = [];
+  function stamp(what) {
+    var ms = ((root.performance && performance.now) ? performance.now() : Date.now()) - T0;
+    perfMarks.push(what + '=' + Math.round(ms));
+    try { console.info('[fpsperf] ' + what + ' ' + Math.round(ms) + 'ms'); } catch (e) {}
+    publishPerf('');            // incrementally: a slow device must be readable BEFORE it finishes
+    return ms;
+  }
+  // A phone cannot be attached to a debugger here and stable Chrome does not
+  // put console lines in logcat, so the numbers are written where something
+  // outside can read them: the app's own private store.
+  function publishPerf(extra) {
+    if (!root.gifos || !root.gifos.db) return;
+    try {
+      root.gifos.db('perf').put({ id: 'last', at: Date.now(),
+        marks: perfMarks.join(' '), ua: navigator.userAgent.slice(0, 80),
+        note: extra || '' }).catch(function () {});
+    } catch (e) {}
+  }
+
   function say(text, pct) {
     if (text != null) note.textContent = text;
     if (pct != null) bar.style.width = Math.round(pct * 100) + '%';
@@ -89,13 +113,13 @@
   function tracked(Base) {
     if (!Base) return Base;
     var w = INIT_W[Base.id] != null ? INIT_W[Base.id] : 1;
+    var id = Base.id || 'sys';
     try {
       return class extends Base {
         init(ctx) {
           var r = super.init(ctx);
-          return (r && typeof r.then === 'function')
-            ? r.then(function (v) { initStep(w); return v; })
-            : (initStep(w), r);
+          var done = function (v) { initStep(w); stamp('sys:' + id); return v; };
+          return (r && typeof r.then === 'function') ? r.then(done) : done(r);
         }
       };
     } catch (e) { return Base; }
@@ -217,43 +241,35 @@
     // The driver string decides FIRST and cannot be overruled by the number. A
     // software rasteriser that happens to time well on one lucky batch is still
     // a software rasteriser, and a score is the noisier of the two signals.
-    // THE BURDEN OF PROOF IS ON THE DEVICE.
+    // NOBODY IS GRADED BY A SYNTHETIC SCORE ANY MORE.
     //
-    // The old thresholds handed 'medium' to anything scoring 2, which is barely
-    // twice a low-end phone GPU, and 'high' at 8. That is backwards for this
-    // engine: the street is 1.7 million triangles across 212 draw calls, so a
-    // weak integrated chip clears the "not software" bar comfortably and then
-    // cannot actually draw the thing. Reported from exactly that machine —
-    // integrated graphics, four cores — as still looking full quality, because
-    // by these numbers it WAS being given full quality.
+    // This used to run an ALU-heavy shader and map its throughput onto quality
+    // tiers. It does not work, and the way it failed is instructive: a phone
+    // was rated HIGH. The number measures arithmetic in a fragment shader; the
+    // thing that decides whether this game runs is 1.7 million triangles across
+    // 212 draw calls with shadow passes on top. Those are not the same
+    // question, so no threshold over that number is ever going to be right —
+    // and every attempt to pick one has been wrong, in both directions.
     //
-    // So a device gets LOW unless it can show it is genuinely fast. The player
-    // can raise it in the pause menu in two clicks and that choice is kept; what
-    // nobody should have to do is discover the pause menu to get a game that
-    // runs. Calibration points: SwiftShader ~0.01-0.2, Mali-G52 ~1.0.
-    if (p.software || p.score < 0.5) {
+    // So: EVERY device starts cheap, and the real frame clock decides from
+    // there (see AutoScale). Starting low costs a fast machine about a second
+    // of softness before it ramps up. Starting high costs a slow one the entire
+    // session, which is what has been happening.
+    //
+    // The probe is kept for the ONE thing a driver string answers honestly —
+    // whether there is a graphics chip at all — because that sets the floor to
+    // start from, and it is worth saying out loud on the gate.
+    if (p.software || !p.ok) {
       s.quality = 'low'; s.renderScale = 0.25; s.texCap = 128;
-      // SHADOWS ARE GEOMETRY, AND GEOMETRY IS WHAT THIS DEVICE HAS NONE OF.
-      // The street is 603k static and 1129k instanced triangles across 212 draw
-      // calls, and three shadow cascades means all of it is submitted THREE
-      // MORE TIMES every frame. Cutting renderScale did nothing for that, and
-      // measurably nothing for the frame rate — a 435x245 render target still
-      // took 8.7 seconds a frame — because the cost was never the pixels.
       s.q = { cascades: 1, shadowMapSize: 256, shadowDistance: 18,
               particleBudget: 120, decalBudget: 8, bloom: false,
               taa: false, gtao: false, ssr: false, volumetrics: false,
               motionBlur: false, anisotropy: 1 };
-    } else if (p.score < 6) {
-      // A phone GPU, or integrated graphics. Plays, but only if asked politely.
+    } else {
       s.quality = 'low'; s.renderScale = 0.5; s.texCap = 256;
       s.q = { cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
               taa: false, gtao: false, ssr: false, volumetrics: false, motionBlur: false };
-    } else if (p.score < 25) {
-      // Decent integrated, or an older discrete card.
-      s.quality = 'low'; s.renderScale = 0.8; s.texCap = 512; s.q = { cascades: 2, ssr: false };
-    } else if (p.score < 60) { s.quality = 'medium'; }
-    else if (p.score < 120) { s.quality = 'high'; }
-    else { s.quality = 'ultra'; }
+    }
     return s;
   }
 
@@ -274,8 +290,12 @@
         + 'Building a ' + a.quality.toUpperCase() + '-detail street at ' + scale + ' resolution.';
     }
     var name = (p.renderer.match(/\(([^,()]+),\s*([^,()]+)/) || [])[2] || p.renderer || 'a graphics chip';
-    return 'Graphics: ' + name.trim() + ' (speed ' + p.score.toFixed(1) + ') — '
-      + 'building a ' + a.quality.toUpperCase() + '-detail street at ' + scale + ' resolution.';
+    // No number here on purpose: the benchmark reported 1.02 and then 1198 for
+    // the SAME phone, so putting it in front of a player would be showing them
+    // noise dressed as a measurement. It no longer decides anything either —
+    // the frame clock does — and it stays in the console for calibration only.
+    return 'Graphics: ' + name.trim() + ' — building a ' + a.quality.toUpperCase()
+      + '-detail street at ' + scale + ' resolution.';
   }
 
   var deviceEl = null;
@@ -383,6 +403,7 @@
     context.events.on('player:death', onDeath);
   };
   NetplaySystem.prototype.update = function (dt, context) {
+    autoScaleTick(dt);
     if (touch) touch.tick();
     if (!root.Net.live()) return;
     root.Remote.sync();
@@ -515,6 +536,72 @@
   }
 
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+  /* ------------------------------------------------------------------ */
+  /* the frame clock decides, not a benchmark                           */
+  /* ------------------------------------------------------------------ */
+
+  // WHAT THE DEVICE CAN DO IS WHAT IT IS DOING, MEASURED ON THE WALL CLOCK.
+  //
+  // Every attempt to predict this from a synthetic number has been wrong: a
+  // shader benchmark rated a phone HIGH, and a driver string only ever answers
+  // "is there a graphics chip", not "can it draw a street of 1.7 million
+  // triangles". The only measurement that answers the real question is the real
+  // frame, so that is the one used — the same thing the player is looking at.
+  //
+  // The rule is asymmetric on purpose. Going DOWN is fast and needs little
+  // evidence, because a player suffering does not want to wait for statistical
+  // confidence. Going UP is slow and needs sustained proof, because a device
+  // that oscillates between resolutions is worse than one that simply stays
+  // low. Resolution is the only thing moved at runtime: it is one number, it
+  // resizes render targets and nothing else, and it does not rebuild a texture
+  // or a shadow map mid-game.
+  var TARGET_MS = 34;          // ~30 fps: the point below which this stops being a game
+  var GOOD_MS = 20;            // comfortably above it, i.e. room to spare
+  var SCALE_MIN = 0.18, SCALE_STEP_DOWN = 0.75, SCALE_STEP_UP = 1.12;
+  var WINDOW = 24;             // frames per verdict
+  var autoScale = { on: false, cap: 1, frames: [], last: 0, good: 0, changes: 0 };
+
+  function autoScaleInit(a) {
+    autoScale.on = true;
+    autoScale.cap = (a && a.renderScale != null) ? a.renderScale : 1;
+    autoScale.last = Date.now();
+  }
+
+  // Called every frame from the netplay system, which already rides the loop.
+  function autoScaleTick(dt) {
+    if (!autoScale.on || !ctx || !dt) return;
+    var f = autoScale.frames;
+    f.push(dt * 1000);
+    if (f.length < WINDOW) return;
+    f.sort(function (x, y) { return x - y; });
+    var med = f[f.length >> 1];
+    f.length = 0;
+    // Never faster than every 1.5 s: a resize costs a hitch of its own, and
+    // paying it repeatedly to chase noise would be its own performance bug.
+    if (Date.now() - autoScale.last < 1500) return;
+    var q = ctx.config.q, cur = q.renderScale, next = cur;
+    if (med > TARGET_MS && cur > SCALE_MIN) {
+      next = Math.max(SCALE_MIN, cur * SCALE_STEP_DOWN);
+      autoScale.good = 0;
+    } else if (med < GOOD_MS && cur < autoScale.cap) {
+      // Three consecutive comfortable windows before giving anything back.
+      if (++autoScale.good < 3) return;
+      autoScale.good = 0;
+      next = Math.min(autoScale.cap, cur * SCALE_STEP_UP);
+    } else { return; }
+    if (Math.abs(next - cur) < 0.02) return;
+    q.renderScale = next;
+    autoScale.last = Date.now();
+    autoScale.changes++;
+    var rs = ctx.peek('render');
+    try { if (rs && rs.resize) rs.resize(window.innerWidth, window.innerHeight, ctx); } catch (e) {}
+    try {
+      console.info('[fps] frame ' + med.toFixed(0) + ' ms -> resolution '
+        + Math.round(next * 100) + '% (was ' + Math.round(cur * 100) + '%)');
+    } catch (e) {}
+    root.__FPS_SCALE__ = { med: med, scale: next, changes: autoScale.changes };
+  }
 
   /* ------------------------------------------------------------------ */
   /* a stray key asks a question, so answer it                          */
@@ -670,7 +757,9 @@
       // alternative is a slideshow that honours a menu.
       var chosen = root.GIFOS_FPS_QUALITY || prefs.quality;
       say('Checking what this device can draw…', 0.08);
+      stamp('prefs-loaded');
       var auto = pickSettings();
+      stamp('probed');
       showDevice(auto);
       var config = COD.createConfig({ quality: chosen || auto.quality });
       // The render target is width * pixelRatio * renderScale, so this is the
@@ -719,6 +808,7 @@
       // the AI garrison is spawned at all (see below) and that is decided during
       // the first update, not later.
       return Promise.all([engine.init(), root.Net.init()]).then(function (r) {
+        stamp('world-built');
         var roster = r[1] || [];
         ctx = engine.ctx;
         player = ctx.peek('player');
@@ -739,6 +829,7 @@
           : 'Deathmatch — <b>' + roster.length + ' in the room</b>.';
 
         freeTheTabKey(engine.input);
+        autoScaleInit(auto);
         // After freeTheTabKey, so Tab reads as ours rather than the engine's.
         bound = learnBindings(engine.input);
         root.__FPS_BOUND__ = bound;        // for the suites, and for a console
@@ -789,14 +880,20 @@
           },
         });
         if (warm && warm.catch) warm.catch(function () {});
-        // Wait for the shaders only if this device compiles them fast enough
-        // that waiting is cheaper than stuttering.
-        return (auto.probe && auto.probe.software) ? null : warm;
+        // NOBODY WAITS FOR THIS. Measured on a Moto g24: the world was built at
+        // 22.7 s and the Play button lit at 124.1 s — 101 SECONDS of shader
+        // compilation, on a phone with a perfectly good GPU, for programs not
+        // one of which had been needed yet. Gating on "is it a software
+        // rasteriser" was the wrong question; the right one is whether anybody
+        // should ever wait for work that is pure front-loading, and the answer
+        // is no. It keeps compiling behind the gate and while the player walks.
+        return null;
       });
     }).then(function () {
-      say(auto.probe && auto.probe.software
-        ? 'Ready — the street is built. Shaders keep warming as you play.'
-        : 'Ready', 1);
+      stamp('READY');
+      publishPerf((auto.probe ? (auto.probe.software ? 'software' : 'gpu:' + auto.probe.renderer.slice(0, 40)) : '?')
+        + ' q=' + ctx.config.quality + ' scale=' + ctx.config.q.renderScale + ' tex=' + auto.texCap);
+      say('Ready — the street is built. Detail keeps sharpening as you play.', 1);
       gate.classList.add('ready');
       if (useCache) { try { root.TexCache.flush(); } catch (e) {} }   // nobody waits on this now
       go.disabled = false;
