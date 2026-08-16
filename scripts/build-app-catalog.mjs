@@ -201,6 +201,12 @@ async function buildApp(slug) {
       // a first-person app mounts, renders, and cannot aim: the SecurityError
       // lands inside the sandbox where the player never sees it.
       ['capabilities.pointer', (x) => !!(x.capabilities || {}).pointer, 1285],
+      // capabilities.fullscreen — TWO hatches under one ability: the fullscreen
+      // permissions policy on the app frame and the allow-orientation-lock
+      // sandbox token. Without it a phone plays a first-person game in a
+      // portrait strip, and both refusals (TypeError, SecurityError) land inside
+      // the sandbox where the player never sees them. Landed in build 1314.
+      ['capabilities.fullscreen', (x) => !!(x.capabilities || {}).fullscreen, 1314],
     ];
     for (const [what, uses, since] of FEATURE_BUILD) {
       if (uses(m) && m.minBuild < since) {

@@ -4,7 +4,7 @@
   "name": "FPS Simple",
   "shortName": "FPS",
   "version": "0.9.1",
-  "minBuild": 1285,
+  "minBuild": 1314,
   "entry": "index.html",
   "accent": [
     214,

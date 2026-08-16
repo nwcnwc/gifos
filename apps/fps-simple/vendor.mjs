@@ -460,6 +460,72 @@ const PATCHES = [
     ].join('\n'),
     why: 'let a weak device stop drawing a street it cannot see the end of',
   },
+  {
+    // THE WHOLE FRAME WAS FOG, AND THE GUN WAS THE ONLY THING LEFT IN IT.
+    //
+    // Reported as "the entire bottom half of the screen is blacked/faded/clouded
+    // out" and blamed, reasonably, on the weapon. It is not the weapon: rendered
+    // to its own target the rifle is correctly lit, in full detail.
+    //
+    // The sky's aerial-perspective pass is depth-driven — `bool sky = depth <= 0.0`
+    // — and it binds `r.depthTexture` with no null check. Turning the depth
+    // PREPASS off (which this app does, because it was a third full walk over the
+    // street) leaves that texture allocated and never written, so it reads 0
+    // EVERYWHERE. Every pixel therefore takes the sky branch at maximum fog
+    // distance, downward rays integrate the entire ground-haze layer, and the
+    // lower half of the frame is replaced by pure in-scatter. The viewmodel is
+    // composited after the registered passes on purpose ("compositing earlier
+    // would bury the weapon in 40 m of aerial perspective"), so it is the one
+    // thing in frame NOT lifted by that in-scatter — which is exactly why it read
+    // as a black silhouette.
+    //
+    // Proven by A/B on real hardware: same box, same preset, prepass the only
+    // difference, symptom present and absent; and toggling this single pass at
+    // runtime on the broken build makes both the whiteout and the black gun
+    // vanish and return. No depth, no fog — every other depth consumer in the
+    // engine already guards this way (fx soft particles, haze), this one forgot.
+    file: 'src/sky/index.js',
+    find: /this\._unregisterPass = r\.registerPass\(this\.volumetrics\);/,
+    replace: () =>
+      'this.volumetrics.enabled = r.needsPrepass !== false;\n' +
+      '    this._unregisterPass = r.registerPass(this.volumetrics);',
+    why: 'a fog pass reading an unwritten depth buffer painted the whole frame as 900 m of haze',
+  },
+  {
+    // And say out loud that there is no depth this frame, rather than publishing
+    // a buffer nothing ever wrote. Not what fixed the fog (three.js binds a
+    // zeroed 1x1 texture for a null sampler, so the pass would still have read
+    // zeroes) — it makes the state legible to every consumer that already checks
+    // for it, and stops soft particles depth-testing against a buffer of noise.
+    file: 'src/render/index.js',
+    find: /this\.depthTexture = this\.gbuffer\.depthTexture;\s*\n\s*this\.velocityTexture = this\.gbuffer\.velocityTexture;/,
+    replace: () =>
+      'this.depthTexture = this.needsPrepass ? this.gbuffer.depthTexture : null;\n' +
+      '    this.velocityTexture = this.needsPrepass ? this.gbuffer.velocityTexture : null;',
+    why: 'publish no depth texture when no depth was rendered',
+  },
+  {
+    // AND THE SKY WAS BLACK, FOR THE THIRD TIME, FOR THE SAME REASON.
+    //
+    // floatTarget() is hdrTarget() with the type forced to FloatType — and, like
+    // the exposure meter before it, WITHOUT overriding the filters, which
+    // hdrTarget defaults to LinearFilter. Its one caller is the atmosphere's
+    // TRANSMITTANCE LUT (sky/luts.js). On a GPU with no OES_texture_float_linear
+    // — this Mali-G52 — a full-float texture with linear filtering is incomplete
+    // and samples as (0,0,0,1) with no GL error, so the atmosphere transmits
+    // nothing and the sky renders BLACK. It was black in every phone screenshot
+    // taken all night, on a game whose own description begins "a sunlit market
+    // street", while a desktop showed blue sky and clouds.
+    //
+    // Half float, for the same reasons as the exposure fix: it is linearly
+    // filterable in core WebGL2, and the LUT stores transmittance in [0,1] where
+    // ten bits of mantissa is far more than the banding this comment worries
+    // about — that comment is about 8-bit, which this still is not.
+    file: 'src/sky/fullscreen.js',
+    find: /return hdrTarget\(w, h, \{ type: THREE\.FloatType, \.\.\.opts \}\);/,
+    replace: () => 'return hdrTarget(w, h, { type: THREE.HalfFloatType, ...opts });',
+    why: 'a device that cannot linearly filter full float rendered a black sky over a sunlit street',
+  },
 ];
 for (const p of PATCHES) {
   const f = join(src, p.file);
