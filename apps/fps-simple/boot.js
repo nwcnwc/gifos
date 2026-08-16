@@ -279,7 +279,16 @@
               // Size is quadratic: three sets at 128px cost less than one at
               // 512 did, so the variants keep their own camo and the 8.4s that
               // started this is still gone.
-              aiTexSize: 128, weapons: ['rifle'], fxAtlas: 256 };
+              aiTexSize: 128, weapons: ['rifle'], fxAtlas: 256,
+              // A ten-minute game got worse the longer it ran: 1/120 s with up
+              // to eight substeps means a slow frame earns MORE physics, which
+              // slows the next one. Measured f:physics 0.61 ms/frame at two
+              // minutes, 9.05 at four. A wider step this device can keep up
+              // with breaks the loop.
+              fixedStep: 1 / 60, maxSubsteps: 3,
+              // The HUD floors at 62% of a 1080p layout; on a phone that is
+              // unreadable. Never smaller than the design size here.
+              hudMinScale: 1.0 };
     } else {
       s.quality = 'low'; s.renderScale = 0.5; s.texCap = 128;
       // 8.4 s of a 21 s first load on a Moto g24 was this: three camo sets baked
@@ -290,7 +299,8 @@
               aiTexSize: 192,
               // Two of three viewmodels: 1/2 still swaps, and the smg's 4.4 s
               // share of the boot is not worth making everyone wait for.
-              weapons: ['rifle', 'pistol'], fxAtlas: 256 };
+              weapons: ['rifle', 'pistol'], fxAtlas: 256,
+              fixedStep: 1 / 60, maxSubsteps: 3, hudMinScale: 1.0 };
     }
     return s;
   }
