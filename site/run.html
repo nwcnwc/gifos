@@ -653,6 +653,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   body.broadcast.notadmin:not(.stage-granted) #flipcam,
   body.broadcast.notadmin:not(.stage-granted) .blurctl,
   body.broadcast.notadmin #appbtn,
+  body.broadcast.notadmin #sharebtn,   /* a viewer is not a broadcaster — same rule as Run app */
   body.broadcast.notadmin #recbtn,
   body.broadcast.notadmin #ccbtn,
   body.broadcast.notadmin #pwbtn,
@@ -888,6 +889,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   body.app-room:not(.call-on) .bar { display: none !important; }
   body.solo-app #feed, body.app-room:not(.call-on) #feed { display: none !important; }
   body.app-room #appbtn { display: none !important; }  /* the app IS the room — no picker */
+  /* …AND NO SCREEN SHARE, for the same reason and more strongly. In an
+     app-pinned room every participant is already running this app locally, in
+     sync (docs/one-runtime.md). A screen share here could only be a video of
+     the app somebody is already running — blurrier, one-way, unclickable, and
+     paid for in pixels at every hop. The room does not need it, so it is not
+     offered; e2e-screen-share.js proves the control is absent and that nothing
+     on the app-pin path ever reaches getDisplayMedia. */
+  body.app-room #sharebtn { display: none !important; }
+  /* A screen wants height. Same lever the broadcast skin already pulls, armed
+     while anyone in the room is sharing (paintShare). */
+  body.screen-on #stagefeed .rowtile { max-height: 76vh; }
+  #sharebtn.on { background: #b3402f; border-color: #d4593f; color: #fff; }
+  .share-note { border: 1px solid var(--border, #2a2a3f); border-left: 3px solid #6f7bd4;
+    background: rgba(111,123,212,.10); border-radius: .45rem; padding: .55rem .7rem;
+    font-size: .84rem; line-height: 1.4; margin: .2rem 0 .7rem; }
+  .share-note.running { border-left-color: #37d67a; background: rgba(55,214,122,.10); }
   #callbanner { display: none; align-items: center; gap: .6rem; padding: .4rem .9rem;
     background: var(--surface, #14141f); border-bottom: 1px solid var(--border, #2a2a3f); font-size: .85rem; }
   #callbanner button { padding: .25rem .7rem; border-radius: .4rem; border: 1px solid var(--border, #2a2a3f);
@@ -1032,6 +1049,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <div class="barmore" id="barmore">
     <button id="invite" title="Friends join you live with one link">Invite</button>
     <button id="appbtn" title="Run an app inside this meeting — everyone here shares and interacts with it live">Run app</button>
+    <button id="sharebtn" title="Show the whole room a window, a tab or your desktop. (To share a GifOS app, use Run app — everyone runs it themselves.)" style="display:none">Share screen</button>
     <button id="blurall" title="Blur every guest at once (admins) — same as blocking each of them by hand" style="display:none">Blur guests</button>
     <button id="camall" title="Turn video OFF for every guest at once (admins) — stronger than blur" style="display:none">Video off</button>
     <button id="pwbtn" title="Lock this room with a password">Password</button>
@@ -1107,6 +1125,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       </div>
       <div style="display:flex;justify-content:center;margin-top:.9rem">
         <button id="set-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- The share sheet. The app-pin note is not decoration: pinning an app is
+       the better answer whenever the thing being shown IS an app, and this is
+       the last moment to say so before a picker opens. -->
+  <div class="name-modal" id="share-modal" style="display:none">
+    <div class="name-box" style="max-width:430px;text-align:left">
+      <h3>Share your screen</h3>
+      <div id="share-appnote" class="share-note"></div>
+      <p style="font-size:.86rem">A screen share is for what an app can’t be: <b>a deck on your disk, a tool that isn’t GifOS, a window from somewhere else</b>. It takes a seat on the stage, so the whole room sees it — and everyone can see that it’s you sharing.</p>
+      <p style="font-size:.8rem;color:var(--muted,#8888aa)">Your camera pauses while you share, and comes back when you stop. Sound from the shared tab doesn’t travel — talk over it.</p>
+      <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap;margin-top:.9rem">
+        <button id="share-go">Choose what to share…</button>
+        <button id="share-runapp" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Run app instead</button>
+        <button id="share-cancel" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Cancel</button>
       </div>
     </div>
   </div>
@@ -1593,8 +1628,29 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // A joiner cannot know the room's generation from its own state; the room
     // knows, so the room says. Gossiping the NUMBER leaks nothing (the
     // password itself only ever travels inside a signed, sealed grant).
-    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0, pwEp: 0 };
-    const statusOf = new Map();  // peerId -> { muted, camOff, blur }
+    // `scr` is the SCREEN-SHARE flag: 0, or the ms timestamp the share started.
+    // It rides this heartbeat like every other fact about a seat — there is no
+    // screen-share message and no screen-share channel. What actually crosses
+    // the wire is the sharer's ordinary Stage feed with a display track where
+    // the camera track would be (docs/media-plane.md, Channel St); this bit is
+    // only how every other device knows to LETTERBOX it instead of cropping it
+    // to a square, and to say who is sharing.
+    const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0, pwEp: 0, scr: 0 };
+    const statusOf = new Map();  // peerId -> { muted, camOff, blur, scr }
+    // IS THIS SEAT DARK? Not the same question as "is its camera off".
+    // Sharing a screen with the camera off is the COMMON case — nobody puts
+    // their face up to show a deck, and join-quiet means the camera is off by
+    // default anyway. Every "is this tile dark" test in this file used to read
+    // camOff alone, which would have hidden the tile, skipped it for
+    // PiP/full-screen and dropped it from the composite at exactly the moment
+    // it carried the thing the room came to look at.
+    const seatDark = (st) => !!(st && st.camOff && !st.scr);
+    // The live getDisplayMedia capture while I am sharing, and whether *this*
+    // share is what put me on the Stage (so stopping it steps me back down and
+    // a share started by someone already on stage leaves them there). Declared
+    // here, beside the flag it belongs to, because sentVideoTrack() — far below
+    // — reads it on every outbound refresh.
+    let screenStream = null, screenSteppedUp = false;
 
     // ================= THE STADIUM (docs/healing-laws.md + docs/media-plane.md) =================
     // One metaphor, all the way down: a SEAT holds a person; a ROW seats C
@@ -2134,7 +2190,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       let first = null;
       for (const [pid, p] of peers) {
         // a camOff peer's track still decodes (black) frames — skip by STATUS
-        if (!p.connected || (statusOf.get(pid) || {}).camOff || !pipReady(p.video)) continue;
+        if (!p.connected || seatDark(statusOf.get(pid)) || !pipReady(p.video)) continue;   // a screen sharer is the BEST float target, not a skipped one
         if (speakingOf.get(pid)) return p.video; // the talker beats first-connected
         first = first || p.video;
       }
@@ -2145,7 +2201,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // preview — it shows the camera is still live and the room still open
       // while I'm in another app. Only when the camera is actually ON: the
       // join-quiet default (camOff) would float a black box.
-      return (meTile && !myStatus.camOff && pipReady(meTile.video)) ? meTile.video : null;
+      return (meTile && !seatDark(myStatus) && pipReady(meTile.video)) ? meTile.video : null;
     }
     async function enterPip() {
       const v = pipSource();
@@ -2295,6 +2351,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // rule can prevent.
     const forcedCamOff = (id) => { const m = modOf(id).cam; return !!(m && m.on); };
     function enforceForcedCam() {
+      // "Video off for everyone" means VIDEO, not "camera". A screen share is
+      // video leaving this device on the same senders, so a share that survived
+      // an admin's video-off would be a one-tap way around the strongest
+      // moderation hammer in the room — which is exactly why sharing does not
+      // get to skip the blur ladder for free (see sentVideoTrack).
+      if (forcedCamOff('me') && myStatus.scr && typeof stopScreenShare === 'function') {
+        stopScreenShare('an admin turned video off for the room');
+      }
       if (!localStream) return;
       const track = localStream.getVideoTracks()[0]; if (!track) return;
       if (forcedCamOff('me') && track.enabled) {
@@ -2466,13 +2530,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (pipReady(v)) out.push({ key: 'stage:' + ((v.closest('.rowtile') || {}).dataset || {}).row, label: 'On stage', v });
       }
       for (const [pid, p] of peers) {
-        if (p.connected && pipReady(p.video) && !(statusOf.get(pid) || {}).camOff) {
+        if (p.connected && pipReady(p.video) && !seatDark(statusOf.get(pid))) {
           out.push({ key: 'peer:' + pid, label: rosterNames[pid] || 'Guest', v: p.video });
         }
       }
       const sd = stadiumEl.querySelector('[data-row="sd"] video');
       if (pipReady(sd)) out.push({ key: 'sd', label: 'The stadium', v: sd });
-      if (meTile && !myStatus.camOff && pipReady(meTile.video)) out.push({ key: 'me', label: 'You', v: meTile.video });
+      if (meTile && !seatDark(myStatus) && pipReady(meTile.video)) out.push({ key: 'me', label: 'You', v: meTile.video });
       return out;
     }
     function fsPaintSel() { for (const th of fsstrip.children) th.classList.toggle('sel', th.dataset.key === fsSel); }
@@ -2614,6 +2678,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!isMe && t.relayed) chips.push('<span>📡 via ' + esc((peers.get(t.relayed) || {}).name || 'a friend') + '</span>');
       else if (!isMe && t.noRoute && !peerAway(id)) chips.push('<span class="warn">🚧 can’t connect straight to them — something on this network blocks video (common at work)</span>');
       if (stageIds().includes(isMe ? myId : id)) chips.push('<span>🎙 on stage</span>');
+      // WHAT IS ON SCREEN, AND WHOSE. A screen share is the one feed where the
+      // pixels do not say who they came from or that they are not a face — so
+      // the tile does, on every device, from the same gossiped bit.
+      if (st.scr) chips.push('<span class="warn">🖥 ' + (isMe ? 'you are sharing your screen' : 'sharing their screen') + '</span>');
       if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
       if (st.rec) chips.push('<span class="warn">⏺ recording this meeting</span>');
       if (st.cc) chips.push('<span>📝 transcribing</span>');
@@ -2638,7 +2706,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       t.chips.innerHTML = chips.join('');
       t.tile.classList.toggle('noroute', !isMe && !!t.noRoute);
-      t.tile.classList.toggle('cam-off', !!st.camOff || !!gCam); // admin video-off hides the tile on every receiver
+      t.tile.classList.toggle('cam-off', seatDark(st) || !!gCam); // admin video-off hides the tile on every receiver; a screen share is not a dark seat
       t.video.classList.remove('blur1', 'blur2');
       // The ME tile already SHOWS the pre-blurred outbound pixels (WYSIWYG), so
       // a CSS blur on top would double it; receiver-side CSS blur is for the
@@ -2703,6 +2771,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // The identity BURNED onto a person's face in every composite (approach A):
     // name strip, hand glyph, live green talking frame. Computed the same on
     // every device from shared status + the local audio meter.
+    // Is this seat broadcasting a SCREEN rather than a face? Read from the same
+    // gossiped status every device holds, so the compositing seat at Section 1
+    // letterboxes the cell exactly the way the sharer's own device does — the
+    // packing must not depend on who happens to be doing the packing.
+    const sharingScreen = (pid) => !!((pid === myId ? myStatus : statusOf.get(pid)) || {}).scr;
+    const fitFor = (pid) => (sharingScreen(pid) ? 'contain' : null);
     const labelFor = (pid) => {
       const isMe = pid === myId;
       const st = (isMe ? myStatus : statusOf.get(pid)) || {};
@@ -3032,6 +3106,34 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // — is baked into the broadcast pixels at the source. "Blurred" is never
     // viewer-side cosmetics alone: what leaves this browser is already blurry.
     function sentVideoTrack() {
+      // A SCREEN SHARE IS A SOURCE SWAP, NOT A SECOND CHANNEL (roadmap §4g).
+      // This one function decides what video leaves this device, and every
+      // consumer already reads it: the self-view, the MAIN senders to row-mates
+      // (refreshOutbound), the 'stg:' Stage feed (mySelfStream), the Stadium
+      // square, the recorder, the PiP aim. Returning the display track here
+      // publishes the screen through all of them at once, over links the mesh
+      // already holds — no new stream, no new key, no side channel to keep
+      // alive, and shipMos re-fires on its own because the track changed.
+      //
+      // It is returned BEFORE the no-camera bail on purpose: the camera
+      // idle-stop removes the video track after 20s of camOff (reactCamIdle),
+      // and sharing a screen with the camera off is the normal case — bailing
+      // first would have silently dropped the share 20 seconds in, which is
+      // exactly the shape of the stage-voice bug (see mySelfStream).
+      const scr = screenStream && screenStream.getVideoTracks()[0];
+      if (scr && scr.readyState === 'live') {
+        // NO BLUR ON A SHARED SCREEN. Blur exists to protect a face and the
+        // room behind it from people who have not yet all consented, and it is
+        // the DEFAULT state (everyone joins Max-blurred). Applied to a slide it
+        // protects nothing and destroys everything — a Max-blurred deck is a
+        // grey rectangle, so the feature would simply not work in the state
+        // every room starts in. A share is instead a deliberate, announced act:
+        // the room sees a "sharing their screen" chip and the strip names the
+        // sharer, and an admin's video-off still stops it outright
+        // (stopScreenShare below), so the moderation ladder is not bypassed.
+        stopBlurPipe();
+        return scr;
+      }
       const cam = localStream && localStream.getVideoTracks()[0];
       if (!cam) return null;
       const lvl = blurLevelFor('me');
@@ -5657,6 +5759,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       reconcileMosaic(); // the fractal mosaic follows the same occ (3b)
       applyBuses();    // bus membership follows the same arithmetic
       paintStage();    // remote grants/roster moves can change my stage rights
+      paintShare();    // …and SOMEONE ELSE starting a share is a room fact only gossip carries
       reactHandCall(); // admin room: a fresh grant while my hand is up = called onto the Stage
       if (lowerHandForStage()) broadcastStatus(); // an answered hand lowers itself (self-owned, idempotent)
       renderHandq();   // the room-wide hand queue, freshest fold wins
@@ -9079,6 +9182,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       }
       const v = el.querySelector('video');
       if (v.srcObject !== stream) { v.srcObject = stream; const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+      // NAME THE SHARE. A composited strip carries no attribution of its own —
+      // the burned overlay names each face, but a shared screen's pixels are
+      // somebody's spreadsheet, with nothing on them to say whose window this
+      // is or that it is a window at all. The label says it, from gossip, the
+      // same on every device.
+      const shr = screenSharers();
+      const lbEl = el.querySelector('.rlabel');
+      if (lbEl) {
+        lbEl.textContent = shr.length
+          ? '🖥 ' + shr.map((id) => (id === myId ? 'Your' : ((rosterNames[id] || (peers.get(id) || {}).name || 'A guest') + '’s'))).join(' & ') + ' screen — on stage'
+          : 'On stage';
+      }
       compOf.set('sgs', { via: 'stage', streamId: stream.id, stream, names: stageIds() });
     }
     // (Channel Se — the C×C Section composite — was DROPPED to free its cross-link
@@ -9198,7 +9313,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const pid = pid0 && stagers.includes(pid0) ? null : pid0; // stagers live on the Stage ONLY (docs/media-plane.md)
           const sc = pid ? srcFor(pid) : null;
           if (sc && sc.el) dbgRowFaces.push({ i: j, pid: String(pid).slice(0, 8) });
-          if (sc && sc.el) prodPack.setTile('r' + j, 'a' + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: stadLbl(pid) });
+          if (sc && sc.el) prodPack.setTile('r' + j, 'a' + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: stadLbl(pid), fit: fitFor(pid) });
           else prodPack.delTile('r' + j);
           const sub = mosIn.get('sub:' + j);
           if (sub) setBlock(prodPack, 's' + j, 'b' + j, sub); else prodPack.delTile('s' + j);
@@ -9298,7 +9413,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               const fp0 = j === c.i ? myId : occPid({ pc: c.pc, r: c.r, i: j });
               const fp = fp0 && stagers.includes(fp0) ? null : fp0;
               const sc = fp ? srcFor(fp) : null;
-              if (sc && sc.el) pk.setTile('f' + j, 10 + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: stadLbl(fp) });
+              if (sc && sc.el) pk.setTile('f' + j, 10 + j, sc.el, sc.stream, { n: 1, cols: 1, lbl: stadLbl(fp), fit: fitFor(fp) });
               else pk.delTile('f' + j);
             }
             for (let j = 0; j < C; j++) {
@@ -9519,7 +9634,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const stgKeep = new Set();
         stagers.forEach((sid, j) => {
           const sc = srcFor(sid, 'stg:' + sid);
-          if (sc && sc.el) { stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(sid) }); stgKeep.add(sid); }
+          if (sc && sc.el) { stripPack.setTile(sid, j, sc.el, sc.stream, { n: 1, cols: 1, lbl: labelFor(sid), fit: fitFor(sid) }); stgKeep.add(sid); }
         });
         for (const id of stripPack.ids()) if (!stgKeep.has(id)) stripPack.delTile(id);
         paintStageStrip(selfSt || stripPack.stream);
@@ -9955,6 +10070,156 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (stageIds().length >= SCALE.C) { setStatus('The stage is full (' + SCALE.C + ' seats).'); return; }
       setStage(true);
     };
+
+    // ---- SCREEN SHARING (docs/media-plane.md Channel St; roadmap §4g) ---------
+    //
+    // WHAT THIS IS NOT: it is not how you share an APP. GifOS can PIN an app
+    // into a meeting — everyone runs the same app locally off a small shared
+    // data stream and stays in sync (docs/app-mesh.md, "Run app"), which is
+    // crisp, interactive, readable on a phone, and costs the room a data
+    // stream instead of a video one. A screen share is a VIDEO OF SOMEONE
+    // ELSE'S WINDOW: one-way, one resolution, unclickable, and priced in
+    // pixels at every hop. Where the two overlap the app pin wins, so the
+    // share sheet below always names it, an app-pinned room does not offer
+    // this control at all (the CSS beside #appbtn), and a room that already
+    // has an app running says so before anything is captured. Screen share is
+    // for what an app cannot be: a deck on your disk, a third-party tool, a
+    // window from outside GifOS.
+    //
+    // WHERE IT RIDES: nowhere new. Sharing swaps sentVideoTrack()'s answer from
+    // the camera to the display capture and steps onto the Stage — the existing
+    // chosen-≤C broadcast tier, which is exactly "the thing the whole room is
+    // looking at". Collect up the tree to Section 1, composite, fan down: the
+    // Stage path, unchanged, including its cross-link redundancy and its
+    // one-pipe/parked-standby law. The only screen-specific bit anywhere is the
+    // gossiped `scr` bit telling the strip compositor to letterbox the cell
+    // instead of cropping it square (mesh-media fitBox).
+    //
+    // NO SYSTEM AUDIO, DELIBERATELY, FOR NOW: getDisplayMedia can capture tab
+    // audio, but the outbound audio track is the mic — mySelfStream and every
+    // mainA sender read localStream's audio track directly — so carrying it
+    // would mean a WebAudio fold in front of all of them plus a mute button
+    // that mutes the mic and not the tab. That is a real feature and a real
+    // refactor; asking for `audio: true` and then dropping it would put a
+    // "share tab audio" checkbox in the picker that does nothing, which is
+    // worse than not offering it. So: `audio: false`, and the sheet says so.
+    const canScreenShare = () => !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+    const shareBtn = document.getElementById('sharebtn');
+    const screenSharers = () => {
+      const out = [];
+      for (const id of new Set([myId, ...rosterIds])) {
+        if (!id) continue;
+        const st = id === myId ? myStatus : statusOf.get(id);
+        if (st && st.scr && (id === myId || stHold(id))) out.push(id);
+      }
+      return out;
+    };
+    function paintShare() {
+      if (!shareBtn) return;
+      const on = !!myStatus.scr;
+      shareBtn.classList.toggle('on', on);
+      shareBtn.textContent = on ? 'Stop sharing' : 'Share screen';
+      shareBtn.title = on
+        ? 'You are sharing your screen with the meeting — tap to stop'
+        : 'Show the whole room a window, a tab or your desktop. (To share a GifOS app, use Run app — everyone runs it themselves.)';
+      // FEATURE DETECTION, NEVER A UA CHECK (the preflight's rule). iOS Safari
+      // has no getDisplayMedia at all; a button that always fails is a lie.
+      shareBtn.style.display = canScreenShare() ? '' : 'none';
+      // A screen on the Stage wants height. This does not rebuild the layout —
+      // it lets the strip grow the way the broadcast skin already does.
+      document.body.classList.toggle('screen-on', screenSharers().length > 0);
+    }
+    function startScreenShare() {
+      if (myStatus.scr) return;
+      if (!canScreenShare()) { setStatus('This browser can’t share a screen. Chrome, Edge and Firefox on a computer can; iPhones and iPads cannot.'); return; }
+      if (forcedCamOff('me')) { setStatus('📷 An admin turned your video off for the room — screen sharing is off too until they lift it.'); return; }
+      if (!myStatus.stg && !canStage(myId)) { setStatus('🛡 Only this room’s admins — or people they allow — can share a screen here.'); return; }
+      if (!myStatus.stg && stageIds().length >= SCALE.C) { setStatus('The stage is full (' + SCALE.C + ' seats) — someone has to step down first.'); return; }
+      setStatus('Choose what to share…');
+      navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: false })
+        .then((s) => {
+          const vt = s.getVideoTracks()[0];
+          if (!vt) { try { s.getTracks().forEach((t) => t.stop()); } catch (e) {} return; }
+          screenStream = s;
+          myStatus.scr = Date.now();
+          // THE BROWSER'S OWN "Stop sharing" BAR IS THE MOST-USED STOP BUTTON
+          // and it does not tell the page anything except this event. Without
+          // it the room keeps a frozen last frame of a share that ended, the
+          // sharer's camera never comes back, and the only cure is a reload.
+          vt.onended = () => stopScreenShare('the browser ended the share');
+          // A share is a broadcast, so it takes a Stage seat — the tier whose
+          // whole job is "what the room is looking at". Someone already up
+          // there keeps their seat and simply changes what they broadcast.
+          if (!myStatus.stg) { screenSteppedUp = true; setStage(true); } else screenSteppedUp = false;
+          paintShare(); paintControls();
+          refreshOutbound();   // republish: self-view, row-mates, the stg: feed
+          broadcastStatus();   // and tell the room what it is looking at
+          refreshAllTiles();
+          setStatus('🖥 Sharing your screen with the meeting. Sound from the shared tab does not travel — talk over it.');
+        })
+        .catch((err) => {
+          const denied = err && (err.name === 'NotAllowedError' || err.name === 'AbortError');
+          setStatus(denied ? 'Screen share cancelled — nothing was shared.'
+            : 'Couldn’t share the screen (' + ((err && err.name) || 'error') + ').');
+        });
+    }
+    function stopScreenShare(why) {
+      if (!screenStream && !myStatus.scr) return;
+      const s = screenStream;
+      screenStream = null;
+      myStatus.scr = 0;
+      if (s) for (const t of s.getTracks()) { try { t.onended = null; t.stop(); } catch (e) {} }
+      // Step back down only if THIS share is what brought me up. Someone who
+      // was already on stage stays on stage, now showing their camera again.
+      if (screenSteppedUp) { screenSteppedUp = false; setStage(false); }
+      paintShare(); paintControls();
+      refreshOutbound();   // the camera (or nothing) becomes the source again
+      broadcastStatus();
+      refreshAllTiles();
+      setStatus(why ? 'Screen share stopped — ' + why + '.' : 'Screen share stopped.');
+    }
+    if (shareBtn) shareBtn.onclick = () => {
+      if (myStatus.scr) { stopScreenShare(); return; }
+      openShareSheet();
+    };
+    // THE SHEET THAT PREFERS THE APP PIN. It is not a nag screen: it is the
+    // one moment where the person can still be told that the thing they are
+    // about to do the expensive way has a better way, before a picker opens.
+    // It always names Run app; when an app is ALREADY running in this room it
+    // says so first, by name, because then the answer is simply "you already
+    // have it".
+    function openShareSheet() {
+      const modal = document.getElementById('share-modal');
+      const note = document.getElementById('share-appnote');
+      const running = (typeof findSharedApp === 'function') ? findSharedApp() : null;
+      const runnable = (typeof canIRunApp === 'function') ? canIRunApp() : false;
+      note.className = running ? 'share-note running' : 'share-note';
+      note.innerHTML = running
+        ? '<b>🧩 ' + esc(running.name || 'An app') + ' is already running in this meeting.</b> '
+          + 'Everyone here runs it on their own device and stays in sync — you do <b>not</b> need to share '
+          + 'your screen to show it, and a video of your window would be blurrier and unclickable for them.'
+        : '<b>🧩 Sharing a GifOS app? Use “Run app” instead.</b> '
+          + 'A pinned app runs on everyone’s own device off a small shared data stream — crisp, interactive, '
+          + 'readable on a phone. A screen share is a <i>video of your window</i>: one-way, one resolution, and '
+          + 'paid for in pixels at every hop.';
+      const go = document.getElementById('share-runapp');
+      go.style.display = (runnable && !ROOM.appPinned) ? '' : 'none';
+      go.textContent = running ? 'Show me the app' : 'Run app instead';
+      modal.style.display = '';
+    }
+    (function wireShareSheet() {
+      const modal = document.getElementById('share-modal');
+      if (!modal) return;
+      document.getElementById('share-cancel').onclick = () => { modal.style.display = 'none'; };
+      document.getElementById('share-go').onclick = () => { modal.style.display = 'none'; startScreenShare(); };
+      document.getElementById('share-runapp').onclick = () => {
+        modal.style.display = 'none';
+        const want = (typeof findSharedApp === 'function') ? findSharedApp() : null;
+        if (want && appHiddenSid === want.s) { appHiddenSid = null; reconcileApp(); return; }
+        if (want) { setStatus('🧩 ' + (want.name || 'The app') + ' is running here — it is on your screen already.'); return; }
+        openAppPicker();
+      };
+    })();
 
     // ---- audio: three buses, receiver-side (docs/media-plane.md) --------------
     // Stage / My row / The stadium are a grouping by LINK CLASS, not a sender
@@ -10410,11 +10675,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const stg = new Set(stageIds()), mates = new Set(rowMates());
       const g = { stage: [], row: [], stadium: [] };
       // my own contribution rides my-row; recorded at full (I keep my own voice)
-      g.row.push({ key: 'me', video: meTile.video, label: myName() + ' (you)', bus: 'row', blur: 0, stream: localStream, me: true, camOff: myStatus.camOff });
+      g.row.push({ key: 'me', video: meTile.video, label: myName() + ' (you)', bus: 'row', blur: 0, stream: localStream, me: true, camOff: seatDark(myStatus) });
       for (const [pid, p] of peers) {
         const st = statusOf.get(pid) || {};
         const src = { key: pid, video: p.video, label: p.name || '…', blur: blurLevelFor(pid), stream: p.video.srcObject,
-          mute: !!(modOf(pid).mute && modOf(pid).mute.on), camOff: !!st.camOff };
+          mute: !!(modOf(pid).mute && modOf(pid).mute.on), camOff: seatDark(st) };
         // Same bus classification as applyBuses: stage / my row / everyone
         // beyond my row (The stadium).
         if (stg.has(pid)) {
@@ -10729,6 +10994,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // decides what actually shows; the slider never locks or grays.
       const lvl = blurLevel(myStatus.blur);
       for (const seg of blurSegs) seg.classList.toggle('sel', +seg.dataset.blur === lvl);
+      paintShare();
     }
 
     // A tap on a dead mic/cam button is the ONE moment we can ask again: a
@@ -12008,6 +12274,43 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         vState: f.stream && f.stream.getVideoTracks()[0] ? f.stream.getVideoTracks()[0].readyState : null,
       })),
       stageForTest: (on) => { if (!!on === !!myStatus.stg) return stageIds().includes(myId); if (on && (!canStage(myId) || stageIds().length >= SCALE.C)) return false; setStage(!!on); return true; },
+      // SCREEN SHARE (docs/media-plane.md Channel St). Read the state a
+      // receiver can actually act on: who the room believes is sharing, and —
+      // for the sharer — what is really on the outbound sender right now. The
+      // track's `label`/`displaySurface` is the only place the browser admits
+      // a track came from getDisplayMedia rather than a camera, which is what
+      // makes "the screen really is what is being published" provable at all.
+      screenInfo: () => {
+        const vt = (typeof sentVideoTrack === 'function') ? sentVideoTrack() : null;
+        let surface = null; try { surface = vt && vt.getSettings ? (vt.getSettings().displaySurface || null) : null; } catch (e) {}
+        const mainTracks = [];
+        for (const p of peers.values()) if (p.mainV && p.mainV.track) mainTracks.push(p.mainV.track.id);
+        return {
+          sharing: !!myStatus.scr, sharers: screenSharers(),
+          capable: canScreenShare(),
+          steppedUp: screenSteppedUp,
+          onStage: stageIds().includes(myId),
+          sentTrackId: vt ? vt.id : null,
+          sentLabel: vt ? String(vt.label || '') : null,
+          surface,
+          mainTrackIds: mainTracks,
+          shareBtnShown: !!(shareBtn && shareBtn.offsetParent !== null),
+          bodyScreenOn: document.body.classList.contains('screen-on'),
+        };
+      },
+      startScreenShareForTest: () => { startScreenShare(); return true; },
+      stopScreenShareForTest: () => { stopScreenShare(); return true; },
+      // The sheet's copy, as rendered — the app-pin preference is a PROMISE the
+      // product makes in words, so the guard reads the words.
+      shareSheetForTest: () => {
+        openShareSheet();
+        const m = document.getElementById('share-modal');
+        const n = document.getElementById('share-appnote');
+        const r = document.getElementById('share-runapp');
+        return { open: m.style.display !== 'none', note: n.textContent || '',
+          runAppShown: r.style.display !== 'none', runAppLabel: r.textContent || '' };
+      },
+      closeShareSheetForTest: () => { document.getElementById('share-modal').style.display = 'none'; return true; },
       // TEST: what the stage EAR actually PLAYS — peak level over `ms` of the
       // folded per-stager audio. -1 = no ear/no stream. The 2026-07-29 bar:
       // a room must HEAR its stage, not merely hold the feed (held keys and
