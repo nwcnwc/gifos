@@ -168,7 +168,8 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   check('the viewer letterboxes that seat instead of cropping it square',
     (await b.evaluate((id) => window.__gifosVideo.fitForTest(id), bOn.sharers[0])) === 'contain');
   check('…and still crops ordinary faces', (await b.evaluate(() => window.__gifosVideo.fitForTest(null))) === null);
-  check('the viewer gives the stage room to be read', bOn.bodyScreenOn);
+  await b.waitForFunction(() => document.body.classList.contains('screen-on'), null, { timeout: 8000 }).catch(() => {});
+  check('the viewer gives the stage room to be read', (await info(b)).bodyScreenOn);
 
   // ---- LEG 3: it stops, all the way ---------------------------------------
   await a.evaluate(() => window.__gifosVideo.stopScreenShareForTest());
@@ -216,8 +217,12 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   p.on('pageerror', (e) => console.log('  [pin] ' + e.message));
   await p.goto(BASE + '/run.html#id=' + appFile.id);
   await p.waitForSelector('#appmount iframe', { timeout: 60000 });
-  await p.locator('#appinvite').click();
-  await p.locator('#inv-go').click();
+  // Drive the invite modal programmatically: a default app boots its own
+  // .perm-modal over the app bar, and it intercepts pointer events (same
+  // reason e2e-app-room.js does it this way).
+  await p.evaluate(() => document.getElementById('appinvite').click());
+  await p.waitForSelector('#inv-go', { timeout: 15000 });
+  await p.evaluate(() => document.getElementById('inv-go').click());
   await p.waitForFunction(() => document.body.classList.contains('app-room'), null, { timeout: 30000 });
   // Turn the call layer on, so the meeting bar is actually rendered — the point
   // is that Share screen is missing BY RULE, not because no bar is drawn.
