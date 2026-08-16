@@ -356,6 +356,18 @@ them apart — guessing without this trace cost two wrong diagnoses in one day.
 * **Plain http is not a secure context.** Without
   `MEET_INSECURE_ORIGINS=http://<server-ip>:8099` getUserMedia and WebCrypto
   fail and the page looks broken for the wrong reason.
+* **…and `gifos.app` cannot be spoken to over http AT ALL.** `.app` is an
+  HSTS-PRELOADED gTLD: the browser rewrites `http://gifos.app:8099` to https
+  before it reaches the wire, meets a plain-HTTP server there, and fails with
+  `net::ERR_SSL_PROTOCOL_ERROR`. No flag turns that off (it is not
+  `HttpsUpgrades`), and `--unsafely-treat-insecure-origin-as-secure` grants
+  secure-context PRIVILEGES, never the scheme. Faking prod with
+  `--host-resolver-rules=MAP gifos.app 127.0.0.1` plus http therefore stopped
+  working the day the gate box moved to chromium-1234 / Chrome 151 (1228 still
+  loaded it), and took both pretty-URL suites into the DEAD state on their
+  first `goto`. Serve the REAL origin instead: `test/lib/prod-origin.js`
+  fulfils `https://gifos.app/**` out of the local site server, so the origin is
+  genuinely gifos.app, genuinely https, and no bytes leave the box.
 * **A fresh `git worktree` has no `node_modules`** (it is gitignored), so every
   actor dies in 4s with "actor not running". Symlink the main clone's:
   `ln -s ~/projects/gifos/node_modules $WT/node_modules`.
