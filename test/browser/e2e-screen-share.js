@@ -174,7 +174,20 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   check('the viewer gives the stage room to be read', (await info(b)).bodyScreenOn);
 
   // ---- LEG 3: it stops, all the way ---------------------------------------
-  await a.evaluate(() => window.__gifosVideo.stopScreenShareForTest());
+  // Stop from the ALWAYS-VISIBLE control, not the test hook: the Share-screen
+  // button lives in .barmore, which the meeting bar hides when collapsed, and
+  // collapsed is the default — so the sharer's own tile chip has to be a way
+  // out on its own. (The browser's own stop bar is the other, and it lands in
+  // the same place through track.onended.)
+  const stopChip = await a.evaluate(() => {
+    const el = document.querySelector('.stopshare');
+    if (!el) return null;
+    el.click();
+    return el.textContent;
+  });
+  check('the sharer’s own tile offers a visible way to stop', !!stopChip && /tap to stop/i.test(stopChip), stopChip || '(no .stopshare chip)');
+  await sleep(400);
+  await a.evaluate(() => window.__gifosVideo.stopScreenShareForTest()); // idempotent belt-and-braces
   await sleep(600);
   const off = await info(a);
   check('stopping ends the share', !off.sharing && !off.steppedUp, JSON.stringify({ sharing: off.sharing }));
