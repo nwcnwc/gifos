@@ -558,6 +558,60 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   await page.evaluate(() => localStorage.removeItem('gifos_pin'));
 
+  // ---- AND ON EDGE, WHERE THE GATE WAS DEAD --------------------------------
+  // Everything above is asserted about a RELEASE visitor, whose build number
+  // comes out of version.json's builds map after a fetch. The edge visitor's
+  // came from window.GIFOS_BUILD instead — and store.html loads js/build.js
+  // with `defer` while js/store.js has no defer, so resolveBuild() ran while
+  // the document was still parsing, before that global existed. ownerBuild was
+  // null, tooOld() is deliberately false when the build is unknown, and so
+  // EVERY minBuild in the catalog went unenforced for edge visitors. That is
+  // not hypothetical: fps-simple (floor 1285) installed onto build 1283, the
+  // half-install this whole section exists to prevent.
+  //
+  // A local checkout reproduces it exactly without any staging, because
+  // build.js ships 0 here and 0 is the same falsy that `undefined` was. The
+  // number version.json carries for the root build is edgeBuild, so that is
+  // what the store must fall back to — and this test hands it one.
+  const EDGE_BUILD = 1307;
+  await page.addInitScript((edgeBuild) => {
+    const orig = window.fetch;
+    window.fetch = async function (input, init) {
+      const res = await orig.call(this, input, init);
+      const url = String((input && input.url) || input);
+      if (!/\/version\.json/.test(url)) return res;
+      try {
+        const body = await res.clone().json();
+        body.edgeBuild = edgeBuild;
+        return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+      } catch (e) { return res; }
+    };
+  }, EDGE_BUILD);
+  await page.evaluate(() => { localStorage.removeItem('gifos_pin'); localStorage.setItem('gifos_channel', 'edge'); });
+  // about:blank FIRST, because the previous navigation was also store.html and
+  // a goto that changes only the HASH does not reload the document: the page
+  // keeps the ownerBuild it resolved as a PINNED visitor, and the channel just
+  // written to localStorage is never read. The first cut of this block did
+  // exactly that — it reported build 1283 while claiming to describe an edge
+  // visitor, and the two checks below it passed against the release number
+  // (999999 is over every build, so they cannot tell the two apart). A guard
+  // that cannot fail is worse than no guard.
+  await page.goto('about:blank');
+  await page.goto(BASE + '/store.html#app=' + guinea.slug);
+  await page.waitForSelector('#install', { timeout: 10000 });
+  const edgeOwner = await page.evaluate(() => ({ build: GifOS.storeBuild.build, name: GifOS.storeBuild.name }));
+  check('an edge visitor is a build too, and the store knows which',
+    edgeOwner.build === EDGE_BUILD, JSON.stringify(edgeOwner));
+  check('the floor is enforced on edge exactly as it is on a release',
+    await page.locator('#install').isDisabled(), 'floor ' + UNREACHABLE + ' vs build ' + EDGE_BUILD);
+  if (reachable) {
+    await page.goto(BASE + '/store.html#app=' + reachable.slug);
+    await page.waitForSelector('#install', { timeout: 10000 });
+    check('…and on edge it still blocks ONLY what it must',
+      !(await page.locator('#install').isDisabled()), reachable.slug + ' minBuild ' + reachable.minBuild);
+  }
+  await page.evaluate(() => localStorage.removeItem('gifos_channel'));
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
