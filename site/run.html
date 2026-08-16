@@ -1638,7 +1638,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // the wire is the sharer's ordinary Stage feed with a display track where
     // the camera track would be (docs/media-plane.md, Channel St); this bit is
     // only how every other device knows to LETTERBOX it instead of cropping it
-    // to a square, and to say who is sharing.
+    // to a square, and to say who is sharing. It rides the SEALED pulse, so the
+    // relay never learns it (healing-laws R2/R3), and like `stg` and `hand` it
+    // is SELF-reported: a DOM hacker can set their own bit, which relabels
+    // their own tile and letterboxes their own cell and buys them no seat, no
+    // reach and no fanout (healing-laws S — harm ≈ fanout). Nobody can ever
+    // set anyone else's.
     const myStatus = { muted: true, camOff: true, blur: 2, hand: null, rec: false, cc: false, cap: 0, pwEp: 0, scr: 0 };
     const statusOf = new Map();  // peerId -> { muted, camOff, blur, scr }
     // IS THIS SEAT DARK? Not the same question as "is its camera off".
