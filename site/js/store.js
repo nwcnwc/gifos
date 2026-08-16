@@ -166,11 +166,29 @@
     }
     const rel = await effectiveRelease();
     if (!rel) {                                                 // the root build owns this visitor
-      // 0 is a local checkout (build.js ships 0; pages.yml bakes the real
-      // number at deploy). Unknown, not ancient — never gate on it.
-      ownerBuild = Number(root.GIFOS_BUILD) || null;
+      // version.json FIRST, and the number comes from it before the global.
+      //
+      // WHY THE ORDER IS THE WHOLE FIX. store.html loads js/build.js with
+      // `defer` and js/store.js without it, so this function runs while the
+      // document is still parsing — before build.js has executed and before
+      // window.GIFOS_BUILD exists. Reading the global here therefore read
+      // `undefined` on the DEPLOYED edge build, ownerBuild became null, and
+      // tooOld() is deliberately false when the build is unknown: the minBuild
+      // gate was dead on edge for every app in the catalog. fps-simple
+      // (minBuild 1285) installed onto a build that could not run it, which is
+      // the exact half-install the gate exists to prevent. The release path
+      // never showed it, because that number comes out of the builds map after
+      // a fetch — by which time the deferred script has long since run.
+      //
+      // Awaiting version.json is also what makes the global safe to read: the
+      // fetch is a task, so build.js has executed by the time we come back.
+      // edgeBuild is the same number pages.yml bakes into build.js, so the two
+      // agree by construction and either one alone is enough.
+      const v = await versionJson();
+      // 0 is a local checkout (build.js ships 0 and version.json's edgeBuild is
+      // 0 until deploy). Unknown, not ancient — never gate on it.
+      ownerBuild = Number(root.GIFOS_BUILD) || Number(v && v.edgeBuild) || null;
       ownerName = 'the edge build' + (ownerBuild ? ' (build ' + ownerBuild + ')' : '');
-      await versionJson();
       return;
     }
     const v = await versionJson();
