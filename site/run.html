@@ -12410,11 +12410,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const m = document.getElementById('share-modal');
         const n = document.getElementById('share-appnote');
         const r = document.getElementById('share-runapp');
-        // offsetParent, not `style.display !== "none"`: the second is true for
-        // a sheet that was never shown at all, so it would pass on a broken
-        // openShareSheet — the assertion has to be able to fail.
-        return { open: m.offsetParent !== null, note: n.textContent || '',
-          runAppShown: r.offsetParent !== null, runAppLabel: r.textContent || '' };
+        // Not `style.display !== "none"`: that is TRUE for a sheet that was
+        // never shown at all, so a broken openShareSheet would still "pass".
+        // And not offsetParent either — it is null for ANY position:fixed
+        // element, which the sheet is, so that reads every open sheet as
+        // closed. The honest test is a real box on screen plus a computed
+        // display: both are false only when the thing genuinely is not there.
+        const shown = (el) => {
+          const r2 = el.getBoundingClientRect();
+          return r2.width > 0 && r2.height > 0 && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
+        };
+        return { open: shown(m), note: n.textContent || '',
+          runAppShown: shown(r), runAppLabel: r.textContent || '' };
       },
       closeShareSheetForTest: () => { document.getElementById('share-modal').style.display = 'none'; return true; },
       // TEST: what the stage EAR actually PLAYS — peak level over `ms` of the
