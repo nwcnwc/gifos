@@ -1,34 +1,49 @@
 // The address bar stays the PRETTY link. On prod (gifos.app, default relay) a
 // meeting page rewrites location to /meet/<room>[/<verifier>] — the same link it
-// hands out — instead of the internal run.html#v=… form it loads via. We fake
-// prod by resolving gifos.app to localhost and NOT setting a custom relay (so the
-// pretty branch is taken). The relay socket won't actually connect (its real host
-// is unreachable here), but the address-bar rewrite happens before that and is
-// what we're checking.
-const { chromium, CHROME } = require('../lib/pw');
+// hands out — instead of the internal run.html#v=… form it loads via. We are
+// really ON gifos.app here: test/lib/prod-origin.js serves that origin out of
+// the local site server, so the hostname branch is taken for the real reason.
+// The relay socket won't actually connect (the default relay's host resolves to
+// this box and nothing answers), but the address-bar rewrite happens before that
+// and is what we're checking.
+const { chromium, CHROME, casualty } = require('../lib/pw');
+const need = require('../lib/need');
+const { PROD_ARGS, serveProdOrigin } = require('../lib/prod-origin');
 
-const PORT = (process.env.BASE || 'http://127.0.0.1:8099').split(':').pop();
+const PORT = parseInt((process.env.BASE || 'http://127.0.0.1:8099').split(':').pop(), 10);
 
 let failures = 0;
 const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; };
 
 (async () => {
-  // THE ORIGIN MUST BE TRUSTWORTHY. Faking prod by mapping gifos.app to
-  // localhost gives an origin Chrome does NOT trust (only literal
-  // localhost/127.0.0.1 get the free pass), and an untrusted origin has no
-  // crypto.subtle at all — so this suite was driving a page that could never
-  // hold a meeting, and only got away with it because the address-bar rewrite
-  // happens before any crypto. The browser preflight (run.html, 2026-08-05)
-  // now stops that page up front and says so, which is right for a visitor and
-  // wrong for this suite. So we make the origin genuinely secure, the same way
-  // the swarm and app-room harnesses already do.
+  await need({ [PORT]: 'a static server on ' + PORT + ' (python3 -m http.server ' + PORT + ' -d site)' });
+  // THE ORIGIN MUST BE THE REAL SHAPE — https://gifos.app, not a spoofed http
+  // one. Two things had already been learned here and a third finished the
+  // argument:
+  //   1. mapping gifos.app to localhost does not make the origin trustworthy,
+  //      so an http fake has no crypto.subtle and could never hold a meeting;
+  //   2. run.html's preflight (2026-08-05) correctly stops such a page, which
+  //      is right for a visitor and useless for a URL-shaping test — so the
+  //      suite used --unsafely-treat-insecure-origin-as-secure to buy the
+  //      secure-context privileges back;
+  //   3. and on 2026-08-16 that stopped loading at all: `.app` is an
+  //      HSTS-PRELOADED TLD, chromium-1234 (Chrome 151) upgrades the
+  //      navigation to https before it reaches the wire, and python's plain
+  //      HTTP server answers the handshake with ERR_SSL_PROTOCOL_ERROR. Both
+  //      pretty-URL suites died on their FIRST goto with ZERO assertions — the
+  //      DEAD state, on the gate box only, because the box that still had
+  //      chromium-1228 was fooled a little longer.
+  // No flag turns that off (it is not HttpsUpgrades, and the insecure-origin
+  // allowlist is about privileges, not the scheme). So stop faking the scheme:
+  // prod is https, and now so is this. See test/lib/prod-origin.js.
   const browser = await chromium.launch({
     executablePath: CHROME,
-    args: ['--host-resolver-rules=MAP gifos.app 127.0.0.1',
-      '--unsafely-treat-insecure-origin-as-secure=http://gifos.app:' + PORT,
-      '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+    args: [...PROD_ARGS, '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
   });
-  const ctx = await browser.newContext({ permissions: ['camera', 'microphone'] });
+  // serviceWorkers:'block' — an https origin is the first one the site's worker
+  // will actually install on, and a worker's own fetches never pass through the
+  // route that serves this origin.
+  const ctx = await browser.newContext({ permissions: ['camera', 'microphone'], serviceWorkers: 'block' });
   // Set a name but NOT gifos_relay → the page keeps its default relay, so
   // custom=false and the pretty branch is taken (hostname gifos.app matches).
   //
@@ -44,7 +59,7 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   // meeting guest staring at blank space). The pretty SHARE LINK is unaffected
   // and still asserted below.
   await ctx.addInitScript({ content: "try{localStorage.setItem('gifos_name','Pat');localStorage.setItem('gifos_channel','edge')}catch(e){}" });
-  const base = 'http://gifos.app:' + PORT;
+  const base = await serveProdOrigin(ctx, { port: PORT });
 
   // ---- a plain room's address bar becomes /meet/<room> -------------------------
   const room = 'pretty' + Math.floor(Math.random() * 1e6).toString(36);
@@ -74,4 +89,13 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
-})();
+})().catch((e) => {
+  // NEVER die as an unhandled rejection. That is how this suite reported "exit
+  // 1, ZERO assertions" for two gate runs — indistinguishable from silence, and
+  // the reader cannot tell a broken product from a suite that never ran. A
+  // throw is a FAIL with the reason attached; a DEAD BROWSER is no verdict at
+  // all (exit 4), never a red.
+  if (casualty.isCasualty(e)) casualty.refuse({ what: 'the browser this suite was driving', why: (e && e.message) || e });
+  console.log('FAIL — the suite threw before it could finish: ' + String((e && e.stack) || e).slice(0, 400));
+  process.exit(1);
+});
