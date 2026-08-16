@@ -187,11 +187,23 @@
 
   /** Load last run's surfaces. Must complete BEFORE the engine starts. */
   function preload(api) {
-    if (!api || !api.db) return Promise.resolve(0);
-    try { db = api.db(COLL); } catch (e) { return Promise.resolve(0); }
+    // EVERY BAIL SAYS WHY. This module can fail completely silently — no db, no
+    // restore, no write, and stats that look merely empty rather than broken —
+    // which is exactly how it sat unnoticed: 27 surfaces baked every launch on
+    // the phone while a desktop restored them in 247ms.
+    if (!api || !api.db) { whyMsg = 'no gifos.db when preload ran'; return Promise.resolve(0); }
+    try { db = api.db(COLL); } catch (e) {
+      whyMsg = 'gifos.db(' + COLL + ') threw: ' + ((e && e.message) || e);
+      return Promise.resolve(0);
+    }
     return db.get('all').then(function (row) {
-      if (!row || !row.sets) return 0;
-      var n = 0;
+      // SAY WHAT CAME BACK. The write side reports "27 surfaces in 1607ms" and
+      // the next launch still bakes all 27 from scratch, so the failure is on
+      // THIS side — and an empty `why` cannot tell "no row" from "a row I could
+      // not decode".
+      if (!row) { whyMsg = 'no saved row came back from the store'; return 0; }
+      if (!row.sets) { whyMsg = 'row came back WITHOUT sets (keys: ' + Object.keys(row).join(',') + ')'; return 0; }
+      var n = 0, bad = 0;
       for (var k in row.sets) {
         var src = row.sets[k];
         var rec = { id: k, maps: Object.create(null), plain: src.plain || {} }, ok = true;
@@ -200,11 +212,15 @@
           try { rec.maps[mk] = { w: m.w, h: m.h, p: m.p || {}, data: fromB64(m.b64) }; }
           catch (e2) { ok = false; break; }
         }
-        if (!ok) continue;
+        if (!ok) { bad++; continue; }
         mem[k] = rec; stored += bytesOf(rec); n++;
       }
+      if (!n) whyMsg = 'row had ' + Object.keys(row.sets).length + ' sets but none decoded (' + bad + ' failed)';
       return n;
-    }).catch(function () { return 0; });
+    }).catch(function (e) {
+      whyMsg = 'reading the saved row threw: ' + ((e && e.message) || e);
+      return 0;
+    });
   }
 
   /** Wrap a material system's forge. Idempotent; the forge is built lazily. */
@@ -242,7 +258,8 @@
    * it is worth one frame of the game the player is now waiting to start.
    */
   function flush() {
-    if (!db || !fresh.length) return Promise.resolve(0);
+    if (!db) { lastFlush = 'NOT WRITTEN — no db (preload never got one)'; return Promise.resolve(0); }
+    if (!fresh.length) { lastFlush = 'nothing new to write'; return Promise.resolve(0); }
     fresh.length = 0;
     var t0 = Date.now();
     // ONE RECORD. NOT ONE PER SURFACE, AND CERTAINLY NOT ONE PER MAP.
@@ -259,12 +276,17 @@
     // it was 59 seconds of competing with the game for a phone's single slow
     // core.
     var payload = { id: 'all', v: 1, sets: {} }, count = 0;
+    var tEnc = 0, encBytes = 0;   // measured, because "the write is slow" is not a cause
     try {
       for (var k in mem) {
         var rec = mem[k], maps = {};
         for (var mk in rec.maps) {
           var m = rec.maps[mk];
-          maps[mk] = { w: m.w, h: m.h, p: m.p, b64: m.b64 || toB64(m.data) };
+          var e0 = Date.now();
+          var b64 = m.b64 || toB64(m.data);
+          tEnc += Date.now() - e0;
+          encBytes += b64.length;
+          maps[mk] = { w: m.w, h: m.h, p: m.p, b64: b64 };
         }
         payload.sets[k] = { maps: maps, plain: rec.plain };
         count++;
@@ -273,8 +295,11 @@
       lastFlush = 'could not encode: ' + (e && e.message || e);
       return Promise.resolve(0);
     }
+    var tPut = Date.now();
     return db.put(payload).then(function () {
-      lastFlush = count + ' surfaces in ' + (Date.now() - t0) + 'ms (one record)';
+      lastFlush = count + ' surfaces in ' + (Date.now() - t0) + 'ms'
+        + ' (encode ' + tEnc + 'ms for ' + Math.round(encBytes / 1048576) + 'MB b64'
+        + ', put ' + (Date.now() - tPut) + 'ms)';
       try { console.info('[fps] texture cache: ' + lastFlush); } catch (e) {}
       return count;
     }, function (e) {

@@ -64,6 +64,10 @@
   // street itself is rebuilt from its seed every launch (the world is 61.6 MB
   // and deliberately not cached). So say that, rather than either lie.
   var restored = { tex: 0, mesh: 0 };
+  // A FACT ABOUT THE HARDWARE, not a hint about styling. `(pointer: coarse)`
+  // is a media query browsers answer for layout, and it matched in a headless
+  // desktop — which then lost the pointer lock, because fullscreen releases it.
+  var IS_TOUCH = (navigator.maxTouchPoints || 0) > 0;
   var gate = document.getElementById('gate');
   var bar = document.getElementById('gate-bar');
   var note = document.getElementById('gate-note');
@@ -91,6 +95,15 @@
         marks: perfMarks.join(' '), ua: navigator.userAgent.slice(0, 80),
         note: extra || '' }).catch(function () {});
     } catch (e) {}
+  }
+
+  // The cache line of the perf note, so it can be published more than once —
+  // once at READY and again after the flush resolves.
+  function cacheNote() {
+    try {
+      return ' tex=' + JSON.stringify(root.TexCache.stats())
+           + ' mesh=' + JSON.stringify(root.MeshCache.stats());
+    } catch (e) { return ''; }
   }
 
   function say(text, pct) {
@@ -314,10 +327,10 @@
       // 84 ms and wrecked the picture: the sky dome sits far beyond it, so it was
       // clipped to BLACK, and the ground ran to a far plane close enough that the
       // distance haze washed the whole lower half of the screen to flat fog. That
-      // is the "entire bottom half is blacked/faded/clouded out" the user reported
-      // on nvidia-laptop — a real-GPU box, which takes this branch; clawbox takes
-      // the software branch below and never had it. 12% of a frame is not worth
-      // the game not looking like the game.
+      // is the "entire bottom half is blacked/faded/clouded out" reported from a
+      // real-GPU desktop, which takes this branch; a software rasteriser takes
+      // the branch below and never had it. 12% of a frame is not worth the game
+      // not looking like the game.
       s.q = { shadows: false, prepass: false, pixelRatio: 1, cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
               taa: false, gtao: false, ssr: false, volumetrics: false, motionBlur: false,
               aiTexSize: 192,
@@ -1000,19 +1013,32 @@
       });
     }).then(function () {
       stamp('READY');
-      var cs = '';
-      try { cs = ' tex=' + JSON.stringify(root.TexCache.stats())
-               + ' mesh=' + JSON.stringify(root.MeshCache.stats()); } catch (e) {}
-      publishPerf((auto.probe ? (auto.probe.software ? 'software' : 'gpu:' + auto.probe.renderer.slice(0, 40)) : '?')
-        + ' q=' + ctx.config.quality + ' scale=' + ctx.config.q.renderScale + ' tex=' + auto.texCap + cs);
+      var fullNote = function () {
+        return (auto.probe ? (auto.probe.software ? 'software' : 'gpu:' + auto.probe.renderer.slice(0, 40)) : '?')
+          + ' q=' + ctx.config.quality + ' scale=' + ctx.config.q.renderScale + ' tex=' + auto.texCap + cacheNote();
+      };
+      publishPerf(fullNote());
       say(restored.tex
         ? 'Ready — reused ' + restored.tex + ' saved surfaces. Detail keeps sharpening as you play.'
         : 'Ready — the street is built. Detail keeps sharpening as you play.', 1);
       gate.classList.add('ready');
       if (useCache) {                                   // nobody waits on these now
-        try { root.TexCache.flush(); } catch (e) {}
+        // …but the REPORT waits, because the note above is written BEFORE this
+        // line and therefore always said pending=27, flush="" — a snapshot of
+        // the moment before the write, which reads exactly like a cache that
+        // never writes. Hours went into that misreading. Publish again once the
+        // write has actually resolved, so the numbers describe what happened.
+        var after = function () { try { publishPerf(fullNote()); } catch (e) {} };
+        try { var ft = root.TexCache.flush(); if (ft && ft.then) ft.then(after, after); else after(); } catch (e) {}
         try { root.MeshCache.flush(); } catch (e) {}
       }
+      // THE BUTTON SAYS WHAT IT IS. It read "Play" the whole way through the
+      // build, greyed out, so people pressed it and nothing happened — reported
+      // as "it took three presses" and "it's hard to tell because the button
+      // says Play even when it's half greyed out". It starts as "Wait" (see
+      // index.html) and only becomes Play when pressing it will actually do
+      // something.
+      go.textContent = 'Play';
       go.disabled = false;
       go.focus();
     }).catch(function (err) {
@@ -1044,6 +1070,17 @@
       + (chromeOS ? ' Turning on GPU support for Linux in ChromeOS settings fixes it.' : '')
       + '<br>' + el.innerHTML;
   }
+
+  // A TOUCH DEVICE IS A TOUCH DEVICE BEFORE IT IS TOUCHED.
+  //
+  // touch.js adds body.touch on the first touchstart, and `body.touch #gate-keys`
+  // hides the keyboard hints — so the FIRST tap reflowed the card and moved the
+  // Play button out from under the finger that was pressing it. That is the "it
+  // took three presses" report, and it is not a phone-only quirk of the harness:
+  // a real thumb loses the first press the same way. A coarse pointer is known
+  // before anything is touched, so the layout settles before the first paint and
+  // the button never moves.
+  if (IS_TOUCH) document.body.classList.add('touch');
 
   /* ---- the first gesture ------------------------------------------------ */
   // PLAY MUST REACT ON THE TAP, AND THE GAME MUST NOT ARRIVE IN PIECES.
@@ -1084,15 +1121,36 @@
     say('Warming up the shaders — first run only…', null);
 
     engine.start();
-    // Same click, so it still counts as the user gesture all of these need —
-    // and FULLSCREEN GOES FIRST, deliberately. Both it and pointer lock want
-    // TRANSIENT activation, and asking for the pointer first consumes it: on the
-    // phone the lock succeeded (Chrome even showed its "to show your cursor…"
-    // toast) and the fullscreen request that followed was silently refused, so
-    // the game stayed in a portrait strip. Fullscreen is also the one that
-    // matters on the device where it is least optional.
-    goFullscreenLandscape();
+    // ONE GESTURE, TWO HATCHES THAT BOTH EAT IT — so the device decides which
+    // one goes first. Fullscreen and pointer lock each want TRANSIENT user
+    // activation and the first one spends it: asking for the pointer first left
+    // the phone in a portrait strip (measured: refused, "Permissions check
+    // failed"), and asking for fullscreen first broke pointer lock on the
+    // desktop (measured: e2e-fps-simple's "the app locks the pointer" went red
+    // the moment I swapped them).
+    //
+    // They are not equally valuable on both devices, which is what breaks the
+    // tie. A touchscreen has no pointer to lock and is unplayable in a portrait
+    // strip; a mouse has no orientation to hold and is useless without the lock.
+    // So each device asks for the one it cannot do without, and the other is
+    // picked up by armFullscreenRetry() on the very next tap or click.
+    // THE POINTER ALWAYS, THE SCREEN ONLY WHERE IT IS THE POINT.
+    //
+    // Both want transient user activation and the first one spends it, so they
+    // cannot both be asked for unconditionally. They are also wanted on
+    // different machines, which is the way out: a mouse needs the lock and has
+    // nothing to gain from fullscreen (F11 is right there), while a touchscreen
+    // has no pointer to lock and is unplayable in a portrait strip.
+    //
+    // maxTouchPoints, not `(pointer: coarse)`: the media query is something
+    // browsers answer for layout and it matched in a headless desktop context,
+    // which is not a statement about the hardware. (I also briefly recorded
+    // here that entering fullscreen RELEASES the lock — that was wrong. The red
+    // lock assertion those runs were chasing turned out to be a stale app
+    // catalog breaking the desktop mount entirely, and it is green with this
+    // gating and with the catalog regenerated.)
     engine.input.requestPointerLock();
+    if (IS_TOUCH) goFullscreenLandscape();
     // Audio is STARTED here, inside the gesture, because that is the only place
     // a browser will allow it — but silenced until there is something to look
     // at, so it can never again be 20 seconds of gunfire over a black screen.
@@ -1120,11 +1178,24 @@
       if (frame !== seen) {                   // a frame actually landed
         var ms = now - last;
         last = now; seen = frame;
-        good = (ms < 150) ? good + 1 : 0;
+        // FAST IS NOT THE SAME AS DRAWN. Counting only the clock let the gate
+        // lift on the first few frames, which are quick precisely BECAUSE there
+        // is nothing in them yet — and the player got a black screen for ten
+        // seconds with the sound already running. A frame counts only if the
+        // renderer actually submitted work for it.
+        good = (ms < 150 && drawCalls() > 0) ? good + 1 : 0;
       }
       if (good >= 3 || now - t0 > 45000) { reveal(); return; }
       root.requestAnimationFrame(watch);
     })();
+  }
+
+  function drawCalls() {
+    try {
+      var r = ctx && ctx.peek && ctx.peek('render');
+      var info = r && r.renderer && r.renderer.info && r.renderer.info.render;
+      return info ? info.calls : 1;           // no counter to read: do not block on it
+    } catch (e) { return 1; }
   }
 
   function reveal() {
@@ -1133,8 +1204,7 @@
     setTimeout(function () { gate.remove(); }, 400);
     try { if (root.__AUDIO__) root.__AUDIO__.setMasterVolume(1); } catch (e) {}
     armBackAsPause();
-    armPauseOnExitFullscreen();
-    armFullscreenRetry();
+    if (IS_TOUCH) { armPauseOnExitFullscreen(); armFullscreenRetry(); }
     checkAiming();
   }
 
