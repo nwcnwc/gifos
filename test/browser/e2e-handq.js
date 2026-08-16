@@ -8,7 +8,8 @@
 // the Stage by itself and its hand lowers; a non-admin's tap does nothing and
 // a FORGED grant is refused by every receiver (only the signed table merges);
 // a grant that predates the raise is standing rights, never a call-up.
-const { chromium, CHROME } = require('../lib/pw');
+const { chromium, CHROME, casualty } = require('../lib/pw');
+const need = require('../lib/need');
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
 // PHASE=open|admin|all (default all) — lets a starved box run the halves
@@ -21,6 +22,10 @@ const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' +
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
+  // A missing fixture must never masquerade as a failing assertion: without the
+  // relay every client sits alone and this suite reds on the mesh, not the hands.
+  await need({ [parseInt(BASE.split(':').pop(), 10)]: 'a static server on 8099 (python3 -m http.server 8099 -d site)',
+    [parseInt(RELAY.split(':').pop(), 10)]: 'relay-local' });
   const browser = await chromium.launch({
     executablePath: CHROME,
     args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
@@ -136,29 +141,95 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('overflow leg: enough clients meshed (' + (3 + meshed.length) + '/10, need 9)', meshed.length >= 6);
   const raisers = [a, b, c, ...meshed];
   const NR = raisers.length;
+  const rIds = []; for (const pg of raisers) rIds.push(await myIdOf(pg));
+
+  // A WAIT IS A PRECONDITION, NEVER THE VERDICT. Every wait in this leg used to
+  // be a bare waitForFunction, and on the 0.9.9 gate box the "observers see the
+  // hands" one timed out — which threw out of this async IIFE, killed node with
+  // an uncaught rejection, and printed NO FAIL LINE AT ALL. The gate could only
+  // report "RED TWICE: 0 failed / 11 passed": a suite that passed every
+  // assertion it made and still exited non-zero, which tells the reader nothing
+  // about WHICH claim is in trouble and is a hair from the DEAD state. So these
+  // settle or give up, and check() below renders the verdict — with the numbers
+  // it actually saw, and a per-peer dump when it is short.
+  const settle = (pg, fn, arg, ms) => pg.waitForFunction(fn, arg, { timeout: ms }).then(() => true).catch(() => false);
+  // WHY A PEER CAN BE MISSING FROM THE QUEUE — the two are different failures
+  // and the log must say which: handQueue() drops a hand whose owner's STATUS
+  // is older than 15s (the freshness rule every derived view shares), so a peer
+  // with no status at all never gossiped to this observer, while a peer with an
+  // ageing one is a beat that is not keeping up. statusPeekForTest gives both
+  // clocks: age = the ORIGIN's timestamp, rx = when this client last heard it.
+  const dump = async (why) => {
+    console.log('  [overflow] ' + why);
+    for (const [nm, pg] of [['a', a], ['b', b]]) {
+      const d = await pg.evaluate((ids) => ({
+        q: window.__gifosVideo.handQueue().length,
+        total: window.__gifosVideo.totalCount(),
+        links: window.__gifosVideo.liveLinks(),
+        stage: window.__gifosVideo.stageIds().length,
+        peers: ids.map((id) => {
+          const st = window.__gifosVideo.statusPeekForTest(id);
+          return id.slice(0, 6) + (st ? '=' + Math.round(st.ageMs / 100) / 10 + 's/rx' + Math.round(st.rxAgeMs / 100) / 10 + 's' : '=NO-STATUS')
+            + (window.__gifosVideo.stageIds().includes(id) ? '/ON-STAGE' : '');
+        }),
+      }), rIds).catch((e) => ({ q: '?', total: '?', links: '?', stage: '?', peers: ['(' + String(e.message).slice(0, 60) + ')'] }));
+      console.log('   observer ' + nm + ': queue=' + d.q + ' roster=' + d.total + ' links=' + d.links + ' onstage=' + d.stage
+        + ' — peer status age/receipt: ' + d.peers.join(' '));
+    }
+    // …and what each RAISER believes about itself. A hand that is genuinely
+    // down at its owner (auto-lowered by a Stage seat, say) is a completely
+    // different bug from one that is up and not arriving.
+    const mine = [];
+    for (let i = 0; i < raisers.length; i++) {
+      // eslint-disable-next-line no-await-in-loop
+      const s = await raisers[i].evaluate(() => ({ h: !!window.__gifosVideo.handRaised(), s: !!window.__gifosVideo.onStage(), l: window.__gifosVideo.liveLinks() }))
+        .catch((e) => ({ err: String(e.message).slice(0, 40) }));
+      mine.push(rIds[i].slice(0, 6) + '=' + (s.err ? s.err : (s.h ? 'hand' : 'HAND-DOWN') + (s.s ? '/stage' : '') + '/links' + s.l));
+    }
+    console.log('   raisers say: ' + mine.join(' '));
+  };
+
   // Every raiser must be KNOWN to the observers first, or early queues are partial.
-  for (const pg of [a, b]) await pg.waitForFunction((n) => window.__gifosVideo.totalCount() >= n, NR, { timeout: 120000 });
+  for (const pg of [a, b]) {
+    if (!(await settle(pg, (n) => window.__gifosVideo.totalCount() >= n, NR, 120000))) await dump('an observer never saw all ' + NR + ' members in its roster');
+  }
   for (const pg of raisers) { await pg.evaluate(() => window.__gifosVideo.raiseHand(true)); await sleep(200); }
-  for (const pg of [a, b]) await pg.waitForFunction((n) => window.__gifosVideo.handQueue().length >= n, Math.min(NR, 9), { timeout: 60000 });
   // Under heavy load the mesh churns mid-assert (roster flux ⇒ transient queue
   // divergence between observers) — wait for the two to AGREE, then assert.
+  const target = Math.min(NR, 9); // >8 is what makes the banner overflow at all
   let oa = [], ob = [];
-  const agreeBy = Date.now() + 60000;
+  // ONE budget, ONE loop, and the elapsed time is REPORTED. The old shape spent
+  // 60s in a hard waitForFunction for the hands and only then entered a 60s
+  // agreement loop — so a box that needed 70s to flood ten statuses died at the
+  // 60s mark from patience it actually had. Now the whole 150s is one wait for
+  // the thing being asserted, and the log says how long it took: a run that
+  // converges in 9s on a laptop and 80s on the gate box is a fact worth seeing
+  // BEFORE it becomes a red.
+  const t0 = Date.now();
+  const agreeBy = t0 + 120000;
   for (;;) {
     [oa, ob] = [await qIds(a), await qIds(b)];
-    if ((oa.length >= 9 && same(oa, ob)) || Date.now() > agreeBy) break;
+    if (oa.length >= target && same(oa, ob)) break;
+    if (Date.now() > agreeBy) break;
     await sleep(1000);
   }
-  if (!same(oa, ob)) console.log('  [overflow] observer queues diverged:\n   a: ' + oa.join(',') + '\n   b: ' + ob.join(','));
-  check(NR + ' raised hands: two observers converge on the IDENTICAL ordered queue (saw ' + oa.length + ')',
-    oa.length >= 9 && same(oa, ob));
+  const took = Math.round((Date.now() - t0) / 100) / 10 + 's';
+  const converged = oa.length >= target && same(oa, ob);
+  if (!converged) {
+    await dump(oa.length < target ? 'the observers never saw ' + target + ' raised hands at once'
+      : 'observer queues diverged:\n   a: ' + oa.join(',') + '\n   b: ' + ob.join(','));
+  }
+  check(NR + ' raised hands: two observers converge on the IDENTICAL ordered queue (saw ' + oa.length + '/' + target + ' in ' + took + ')',
+    converged);
   // The banner mirrors the derived queue: first 8 names + a '+K' overflow.
-  await a.waitForFunction(() => {
+  const bannerOk = await settle(a, () => {
     const q = window.__gifosVideo.handQueue(), t = window.__gifosVideo.handqText();
     return q.length > 8 && new RegExp('✋ ' + q.length + ' waiting:.*, \\+' + (q.length - 8) + '$').test(t);
-  }, null, { timeout: 30000 });
-  check('the banner shows the first 8 + overflow (+K)',
-    (await a.evaluate(() => document.querySelectorAll('#handq .hq').length)) === 8);
+  }, null, 30000);
+  const segs = await a.evaluate(() => document.querySelectorAll('#handq .hq').length);
+  if (!bannerOk) console.log('  [overflow] the banner never took the overflow shape — it reads: '
+    + JSON.stringify(await a.evaluate(() => window.__gifosVideo.handqText())));
+  check('the banner shows the first 8 + overflow (+K)', bannerOk && segs === 8);
   for (const { ctx } of extras) await ctx.close();
   } // SKIP_OVERFLOW
   await a.close(); await b.close(); await c.close();
@@ -254,4 +325,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
-})();
+})().catch((e) => {
+  // NEVER exit non-zero having said nothing. An uncaught rejection here reads
+  // as "0 failed / N passed" in the gate — the shape CLAUDE.md calls the most
+  // dangerous result there is, because it looks like the suite had no opinion.
+  // A throw is a FAIL with its reason attached; a browser that DIED is no
+  // verdict at all (exit 4), never a product red.
+  if (casualty.isCasualty(e)) casualty.refuse({ what: 'a browser this suite was driving', why: (e && e.message) || e, browsers: 1 });
+  console.log('FAIL — the suite threw before it could finish: ' + String((e && e.stack) || e).slice(0, 500));
+  process.exit(1);
+});
