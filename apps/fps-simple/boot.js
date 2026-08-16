@@ -299,7 +299,7 @@
       // every 203 ms frame on the GPU with the render scale already at its
       // floor — so the cost is geometry, and the cascade is the one pass that
       // can be removed outright rather than made smaller.
-      s.q = { shadows: false, prepass: false, pixelRatio: 1, cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
+      s.q = { shadows: false, prepass: false, pixelRatio: 1, drawDistance: 110, cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
               taa: false, gtao: false, ssr: false, volumetrics: false, motionBlur: false,
               aiTexSize: 192,
               // Two of three viewmodels: 1/2 still swaps, and the smg's 4.4 s

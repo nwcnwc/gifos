@@ -438,6 +438,28 @@ const PATCHES = [
     replace: () => 'const pr = this.ctx.config.q.pixelRatio || Math.min(globalThis.devicePixelRatio || 1, 1.5);',
     why: 'let a phone stop compositing a canvas 1.5x bigger than the picture in it',
   },
+  {
+    // NOTHING IS EVER TOO FAR AWAY TO DRAW. The camera's far plane is 1200
+    // metres for a street the minimap measures in tens, so three.js frustum
+    // culling never removes anything and the phone submits every building in
+    // the world every frame — 256 draw calls and 1.26M triangles, which is
+    // where the remaining 29 ms of render JS goes.
+    //
+    // Applied in resize() rather than at the camera's construction, because
+    // config.q is not populated when the Engine is built and the patch would
+    // silently read undefined and change nothing. resize() runs during init()
+    // and on every resize after, and already rebuilds the projection matrix.
+    // Unset, the far plane stays upstream's 1200.
+    file: 'src/core/engine.js',
+    find: /this\.camera\.aspect = w \/ h;\s*this\.camera\.updateProjectionMatrix\(\);/,
+    replace: () => [
+      'this.camera.aspect = w / h;',
+      '    const _dd = this.ctx && this.ctx.config && this.ctx.config.q && this.ctx.config.q.drawDistance;',
+      '    if (_dd) this.camera.far = _dd;',
+      '    this.camera.updateProjectionMatrix();',
+    ].join('\n'),
+    why: 'let a weak device stop drawing a street it cannot see the end of',
+  },
 ];
 for (const p of PATCHES) {
   const f = join(src, p.file);
