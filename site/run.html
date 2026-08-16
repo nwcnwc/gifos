@@ -5708,8 +5708,24 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // 90s, measured (nvidia hunt2 run 14, pairs() timeline). Only a fresh
         // ufrag re-gathers — the ICE restart at 12s mints one, and the 25s
         // rebuild is the backstop, exactly as for 'connecting'.
+        //
+        // THIS CURE MUST HAVE ITS OWN CLOCK (adversary-room, 2026-08-16). It
+        // used to gate on `now - p.lastKick > 8000` — the SAME stamp the plain
+        // 6s re-offer below resets — and the arithmetic starves it outright:
+        // the sweep rides the 2s worker beat, so after a kick at T the plain
+        // path samples delta = 8000 - jitter < 8000 on its fourth beat, fires,
+        // and re-stamps the clock — deterministically, every cycle, BECAUSE of
+        // the jitter term, and the worker clock holds cadence even on a loaded
+        // box. Result: a pair that formed under load (glare-wedged, ice=new)
+        // was barren-renegotiated every ~8s forever and the restart NEVER ran —
+        // pc timelines showed sl=69/sr=122, gathering restarting, zero ICE for
+        // 170+ seconds, on renderers a bare RTCPeerConnection probe proved
+        // perfectly capable. The plain path stays throttled by lastKick (a
+        // restart IS that beat's offer); only the ESCALATION reads its own
+        // stamp, so it now actually fires at 12s/25s as designed.
         if (!p.absentSince && iInitiate(pid) && !p.connected && (st === 'connecting' || st === 'new')
-            && p.downSince && now - p.downSince > 12000 && now - p.lastKick > 8000) {
+            && p.downSince && now - p.downSince > 12000 && now - (p.cureAt || 0) > 8000) {
+          p.cureAt = now;
           p.lastKick = now + Math.random() * 1500;
           p.altPath = !p.altPath; // §FWD transport rotation — see sendSig
           if (now - p.downSince > 25000) { newPcFor(p); sendOffer(pid); }
