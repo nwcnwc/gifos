@@ -271,9 +271,27 @@
           // sheet is worse than no button.
           if (!hasNet && !caps.length) chipEl.style.display = 'none';
         }
+        // THE SHEET GOES FIRST, THEN THE APP STARTS.
+        //
+        // grantLaunch() used to run BEFORE close(), so the app was released to
+        // mount while the sheet was still in the DOM — and an app that builds a
+        // world synchronously then holds the main thread, so the paint that
+        // would have removed the sheet never happens. Reported from a phone as
+        // "after I accepted the abilities confirmation, it seemed like the phone
+        // hung because nothing happened". The consent is recorded here (so
+        // close()'s denyLaunch() cannot flip it), the sheet is removed, and the
+        // app is let go only after the browser has had two frames to show that.
+        var goAfterPaint = function () {
+          if (!launchReq || launchDone) return;
+          launchDone = true;
+          var release = function () { try { launchReq.grant(); } catch (e) {} };
+          if (root.requestAnimationFrame) {
+            root.requestAnimationFrame(function () { root.requestAnimationFrame(release); });
+          } else { setTimeout(release, 0); }
+        };
         var go = bg.querySelector('#perm-go');
         if (go) {
-          go.onclick = function () { grantLaunch(); close(); };
+          go.onclick = function () { goAfterPaint(); close(); };
           bg.querySelector('#perm-plain').onclick = close;
         } else bg.querySelector('.done').onclick = close;
         bg.addEventListener('click', function (ev) { if (ev.target === bg) close(); });
