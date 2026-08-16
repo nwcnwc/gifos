@@ -844,7 +844,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
                   color: #eceef8; cursor: pointer; font-size: .75rem; }
   .tile.focus { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
   /* chat + pinned files panel (pure P2P — DataChannels, no server anywhere) */
-  #chatpanel { position: fixed; right: 0; top: 0; bottom: 0; width: min(340px, 100vw); z-index: 30;
+  /* THE CHAT PANEL MUST NOT COVER THE MEETING BAR. It is a fixed full-height
+     overlay pinned to the right, so with top:0 it sat on top of the bar's right
+     end — and the bar WRAPS (flex-wrap), so which controls ended up underneath
+     depended only on how many buttons there were and how wide the window was.
+     While chat was open those controls could not be clicked at all: Record, CC,
+     Stage, Settings, Help — silently dead, with nothing to see. e2e-video.js
+     had already been taught to close the panel before touching the toolbar and
+     says so in a comment; adding one button to the bar moved the CLOSE button
+     itself underneath, and the suite could no longer get out. --barh is the
+     bar's measured height (set below; 0 where ResizeObserver is missing, which
+     is exactly the old behaviour). */
+  #chatpanel { position: fixed; right: 0; top: var(--barh, 0px); bottom: 0; width: min(340px, 100vw); z-index: 30;
                background: var(--bg, #101018); border-left: 1px solid var(--border, #2a2a3f); display: none; flex-direction: column; }
   #chatpanel.open { display: flex; }
   #chathead { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border-bottom: 1px solid var(--border, #2a2a3f); font-weight: 700; }
@@ -11048,6 +11059,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       };
       let saved = null; try { saved = localStorage.getItem('gifos_meet_bar'); } catch (e) {}
       apply(saved === null ? true : saved !== '0'); // default: collapsed
+      // Publish the bar's own height so the fixed overlays that hang from the
+      // top (the chat panel) can start BELOW it instead of on top of it. It has
+      // to be measured, not assumed: the bar wraps, and collapsing it changes
+      // the height too. Observed rather than computed at open time, so a wrap
+      // caused by a window resize or a button appearing mid-meeting (Admin,
+      // Transcript, Share screen) moves it as well. Where ResizeObserver is
+      // missing the variable stays unset and everything behaves exactly as it
+      // did before — the fallback is the old bug, not a broken layout.
+      const setBarH = () => {
+        try { document.documentElement.style.setProperty('--barh', Math.round(bar.getBoundingClientRect().height) + 'px'); } catch (e) {}
+      };
+      if (window.ResizeObserver) { try { new ResizeObserver(setBarH).observe(bar); } catch (e) {} }
+      window.addEventListener('resize', setBarH);
+      setBarH();
     })();
 
     function amGloballyMuted() { const m = modOf('me').mute; return !!(m && m.on); }
