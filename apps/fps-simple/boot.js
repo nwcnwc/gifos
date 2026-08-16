@@ -45,10 +45,17 @@
   var killedBy = '', killedById = null, killedByHs = false, killedAt = 0;
   var deaths = 0;
   var garrisonRetired = false;
-  // Module scope on purpose: materialSystemFor() reads this, and it is defined
-  // out here rather than inside start(). Declaring it in start() is what shipped
-  // "The game could not start: useCache is not defined" — a ReferenceError from
-  // the first texture lookup, i.e. every boot.
+  // MODULE SCOPE, BOTH OF THEM, AND FOR THE SAME REASON TWICE OVER. boot's
+  // promise chain is several separate callbacks: a `var` declared in one of
+  // them is invisible in the next, and referencing it there throws a
+  // ReferenceError that the chain's .catch turns into fatal() — which REMOVES
+  // THE PLAY BUTTON. The world builds, the bar fills, and then the game deletes
+  // its own door. That shipped twice (useCache, then auto) and neither was
+  // caught by a test that only asked whether Play lit up, because it lit up and
+  // then went away a moment later.
+  // `auto` is the device's measured ceilings; `useCache` is read by
+  // materialSystemFor(), which lives out here too.
+  var auto = null;
   var useCache = true;
   var gate = document.getElementById('gate');
   var bar = document.getElementById('gate-bar');
@@ -767,7 +774,7 @@
       var chosen = root.GIFOS_FPS_QUALITY || prefs.quality;
       say('Checking what this device can draw…', 0.08);
       stamp('prefs-loaded');
-      var auto = pickSettings();
+      auto = pickSettings();
       stamp('probed');
       showDevice(auto);
       var config = COD.createConfig({ quality: chosen || auto.quality });
@@ -900,8 +907,10 @@
       });
     }).then(function () {
       stamp('READY');
+      var cs = '';
+      try { cs = ' cache=' + JSON.stringify(root.TexCache.stats()); } catch (e) {}
       publishPerf((auto.probe ? (auto.probe.software ? 'software' : 'gpu:' + auto.probe.renderer.slice(0, 40)) : '?')
-        + ' q=' + ctx.config.quality + ' scale=' + ctx.config.q.renderScale + ' tex=' + auto.texCap);
+        + ' q=' + ctx.config.quality + ' scale=' + ctx.config.q.renderScale + ' tex=' + auto.texCap + cs);
       say('Ready — the street is built. Detail keeps sharpening as you play.', 1);
       gate.classList.add('ready');
       if (useCache) { try { root.TexCache.flush(); } catch (e) {} }   // nobody waits on this now

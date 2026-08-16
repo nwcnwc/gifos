@@ -198,6 +198,22 @@ async function ready(runPage, label, budgetMs, replacing) {
     () => { const b = document.getElementById('gate-go'); return b && !b.disabled; },
     null, { timeout: Math.max(5000, deadline - Date.now()) }
   );
+  // AND IT MUST STILL BE THERE A MOMENT LATER. boot's promise chain runs on
+  // after the button lights, and anything that throws in it lands in the
+  // chain's .catch — which calls fatal(), which REMOVES the button. That has
+  // shipped twice (a `var` declared in one .then callback and read from the
+  // next, both times), and both times every check here passed, because they
+  // asked whether Play appeared and never whether it stayed. The world builds,
+  // the bar fills, and then the game quietly deletes its own door.
+  await sleep(2500);
+  const after = await frame.evaluate(() => ({
+    button: !!document.getElementById('gate-go'),
+    note: (document.getElementById('gate-note') || {}).textContent || '',
+  })).catch(() => ({ button: false, note: '(frame gone)' }));
+  if (!after.button) {
+    throw new Error(label + ': Play appeared and then VANISHED — boot threw after'
+      + ' enabling it, so fatal() removed it. Gate says: "' + after.note.slice(0, 160) + '"');
+  }
   return frame;
 }
 
@@ -351,15 +367,22 @@ async function solo() {
       'held Tab -> swapWeapon=' + tab.swapHeld);
     check('...and 1/2 still swap it, which is what the gate card says', tab.digitStillSwaps);
 
-    // A CHOICE OUTRANKS A MEASUREMENT. The app probes the GPU and picks its own
-    // settings, but a saved preference is the player's own decision and
-    // GIFOS_FPS_QUALITY is how the suites stay fast — if the probe ever started
-    // winning, every suite here would quietly begin measuring something else,
-    // and this half pins 'low' precisely so it does not spend minutes building
-    // scenery it never looks at.
-    check('a pinned quality wins over the device probe, which does not run',
-      await frame.evaluate(() => !window.__FPS_AUTO__ && window.__FPS__.ctx.config.quality === 'low'),
-      'quality=' + await frame.evaluate(() => window.__FPS__.ctx.config.quality));
+    // A PRESET IS A CHOICE; A CEILING IS PHYSICS. The pin decides which preset
+    // is used and must keep deciding it — the suites depend on 'low' to avoid
+    // spending minutes on scenery they never look at. But the probe now runs
+    // ALWAYS, and its ceilings clamp over whatever preset was chosen, because
+    // gating them behind "did the player choose" is what let a machine with no
+    // graphics chip render at full resolution: any quality being set skipped
+    // the probe and every limit that came with it.
+    const pinned = await frame.evaluate(() => {
+      const c = window.__FPS__.ctx.config, a = window.__FPS_AUTO__;
+      return { quality: c.quality, probed: !!a,
+               scale: c.q.renderScale, ceiling: a ? a.renderScale : null };
+    });
+    check('a pinned quality still decides the preset', pinned.quality === 'low', JSON.stringify(pinned));
+    check('...and the device ceilings are applied anyway, never skipped',
+      pinned.probed && pinned.ceiling != null && pinned.scale <= pinned.ceiling + 0.001,
+      JSON.stringify(pinned));
 
     // A STRAY KEY ASKS WHAT THE KEYS ARE, and the answer must know which keys
     // are real. The bound set is probed from the engine's own table at boot

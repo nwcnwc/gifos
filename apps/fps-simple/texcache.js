@@ -20,10 +20,13 @@
  * the device is slow — with no GPU there is no bus to cross, the "GPU" memory
  * is main memory.
  *
- * ONLY 8-BIT RGBA IS CACHED. A half-float target read as bytes comes back
- * garbled rather than failing, and a surface that is quietly wrong is worse
- * than a surface that is slow — so anything that is not UnsignedByteType is
- * left to bake, every time, on purpose.
+ * IT TRIES RATHER THAN PREJUDGES. An earlier version refused anything that was
+ * not UnsignedByteType and thereby refused every texture in the game — the
+ * counter read 0 on every device and said nothing about why. Whether a read is
+ * legal is a question the driver answers better than a type constant does: an
+ * incompatible format fails the readPixels, getError catches it, and the set is
+ * baked as before. A set is stored ALL or NOTHING, so a surface can never come
+ * back with one map missing, which would render wrong rather than slow.
  *
  * WHERE IT GOES. A sandboxed app frame has an opaque origin: no IndexedDB, no
  * localStorage, no Cache API (the runtime withholds allow-same-origin
@@ -53,6 +56,15 @@
   var stored = 0;
   var hits = 0, misses = 0, unreadable = 0;
 
+  // One line, once, naming the first reason nothing could be cached. Silence is
+  // what let this ship broken twice.
+  var explained = false, whyMsg = '';
+  function whyNot(msg) {
+    if (explained) return;
+    explained = true; whyMsg = msg;
+    try { console.info('[fps] texture cache OFF: ' + msg); } catch (e) {}
+  }
+
   function hash(s) {
     var h = 5381;
     for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
@@ -77,9 +89,13 @@
   function readback(renderer, tex) {
     var THREE = root.COD && root.COD.THREE;
     if (!renderer || !tex || !tex.isTexture || !THREE) return null;
-    // Byte textures only — see the header.
-    if (tex.type !== undefined && THREE.UnsignedByteType !== undefined
-        && tex.type !== THREE.UnsignedByteType) return null;
+    // TRY, DO NOT PREJUDGE. This used to refuse anything that was not
+    // UnsignedByteType, and refused every texture in the game — nothing was ever
+    // cached, on either device, and the counter said 0 for days. Whether a read
+    // is legal is a question the driver answers better than a type constant: an
+    // incompatible format fails the readPixels and getError catches it, which is
+    // the same "no" arrived at honestly.
+    void THREE;
     var w = tex.image && tex.image.width, h = tex.image && tex.image.height;
     if (!w || !h) return null;
     var gl, glTex;
@@ -88,19 +104,21 @@
       var props = renderer.properties && renderer.properties.get(tex);
       glTex = props && props.__webglTexture;
     } catch (e) { return null; }
-    if (!gl || !glTex) return null;
+    if (!gl || !glTex) { whyNot('no gl texture yet for ' + (tex.name || '?')); return null; }
     var fb = null, prev = null, out = null;
     try {
       prev = gl.getParameter(gl.FRAMEBUFFER_BINDING);
       fb = gl.createFramebuffer();
       gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, glTex, 0);
-      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) {
+      var st = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+      if (st === gl.FRAMEBUFFER_COMPLETE) {
         var buf = new Uint8Array(w * h * 4);
         gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
-        if (!gl.getError()) out = buf;
-      }
-    } catch (e) { out = null; }
+        var err = gl.getError();
+        if (!err) out = buf; else whyNot('readPixels error 0x' + err.toString(16));
+      } else { whyNot('framebuffer incomplete 0x' + st.toString(16)); }
+    } catch (e) { whyNot('readPixels threw: ' + (e && e.message || e)); out = null; }
     try { if (fb) { gl.bindFramebuffer(gl.FRAMEBUFFER, prev || null); gl.deleteFramebuffer(fb); } } catch (e) {}
     return out;
   }
@@ -216,7 +234,8 @@
     preload: preload, wrap: wrap, flush: flush,
     stats: function () {
       var n = 0; for (var k in mem) n++;
-      return { entries: n, bytes: stored, pending: fresh.length, hits: hits, misses: misses, unreadable: unreadable };
+      return { entries: n, bytes: stored, pending: fresh.length, hits: hits,
+               misses: misses, unreadable: unreadable, why: whyMsg };
     },
   };
 })(window);
