@@ -29,9 +29,35 @@
 //
 // Self-contained: spawns its OWN relay and static server for THIS checkout's
 // site/, so it is safe from a worktree and never touches production.
+//
+// THE ICE-BLIND RENDERER (0.9.9 gate, 2026-08-16) — why the link checks probe
+// before they judge. This drill went RED TWICE on the gate box with the same
+// distinctive shape both runs: one of the three late joiners held its seat,
+// ran its mesh at a healthy ~500ms tick, exchanged offers/answers by the
+// hundred (SDP reached 'stable' on both ends) — and its renderer never minted
+// ONE ICE candidate, on any pair, for three minutes, so no link through it
+// could ever complete however many rebuilds the sweeper fired (7 were fired).
+// Reproduced outside the gate on the same box while sampling it: MemAvailable
+// pinned at 0 MB and load 17-24 on 6 cores for the whole run — and the SAME
+// TREE on that same box, started 30 minutes later from load 0.9, was 13/13
+// green, as it was twice on an 8-core box with 13 GB free. A box out of
+// memory does not kill the renderer (casualty.js would refuse); it starves
+// the WebRTC stack until the page is involuntarily DARK — indistinguishable
+// at the app layer from this drill's own manufactured adversary, so the red
+// it produces is TRUE of the room and MEANINGLESS about GifOS.
+//
+// So: when a link assertion is about to fail, every page involved is probed
+// with a BARE RTCPeerConnection — no product code, no signaling, no room —
+// asking only "can this renderer gather one host candidate". A page that
+// cannot is a casualty of the box, and the suite REFUSES the verdict (exit 4,
+// NO-VERDICT — casualty.js doctrine: a suite that could not MEASURE must not
+// judge). A page that CAN gather leaves the red standing exactly as before —
+// a product failure to wire a demonstrably ICE-capable page is precisely what
+// this drill exists to catch, and the probe cannot mask it.
 const { spawn } = require('child_process');
 const path = require('path');
 const { chromium, CHROME } = require('../lib/pw');
+const casualty = require('../lib/casualty');
 
 
 const RELAY_PORT = parseInt(process.env.ADV_RELAY_PORT || '8821', 10);
@@ -49,11 +75,41 @@ const check = (n, c, d) => {
 };
 
 (async () => {
+  // The box, measured before a single process is spawned — the number to read
+  // FIRST on any red (casualty.js: MemAvailable, never swap). And a box that
+  // cannot HOLD this room does not get to judge it: 11 pages at the shared
+  // MEM_PER_BROWSER_MB constant is the room's footprint, and a box short of it
+  // runs the whole drill from swap — where message latency stretches to
+  // seconds, pair formation renegotiates faster than its own round trip, and
+  // the reds that come out are true of the kernel and meaningless about GifOS
+  // (0.9.9 gate: RED TWICE at MemAvailable 0 MB / load 17-35 on 6 cores; the
+  // same tree 13/13 on the same box started roomy, and 13/13 twice more on an
+  // 8-core box under the gate's exact chromium build). Refusing is fleet.js
+  // doctrine, exit 3: never retried, never a product red, and it still BLOCKS
+  // a cut until the drill is run somewhere honest — same as e2e-anyroad-mp,
+  // which 0.9.8 satisfied by running on the fleet and recording it in the cut.
+  {
+    const m = casualty.memLocal();
+    const need = 11 * casualty.MEM_PER_BROWSER_MB;
+    console.log('box: ' + casualty.capacityLine('local', 11, m));
+    if (m.availMb != null && m.availMb < need) {
+      console.log('NEEDS-FLEET — this drill needs a box that can hold 11 browsers ('
+        + m.availMb + ' MB available, need ~' + need + '); this box would measure the kernel, not the room.');
+      process.exit(3);
+    }
+  }
   const relay = spawn('node', [path.join(__dirname, '..', 'servers', 'relay-local.js')], {
     env: { ...process.env, RELAY_PORT: String(RELAY_PORT), RELAY_DEV: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   relay.stderr.on('data', (d) => process.stderr.write('[relay] ' + d));
+  // A relay that dies mid-run voids everything after it (measured 2026-08-16:
+  // an unbracketed pkill from ANOTHER session killed this drill's relay
+  // between phases and the rest of the run read as fragment-founding carnage).
+  // Say so loudly; without this line that run is indistinguishable from a
+  // product disaster.
+  let runEnding = false;
+  relay.on('exit', (code, sig) => { if (!runEnding) console.log('!! THE DRILL\'S OWN RELAY DIED (code=' + code + ' sig=' + sig + ') — every verdict after this line is VOID'); });
   const site = spawn('python3', ['-m', 'http.server', String(SITE_PORT), '-d', path.join(__dirname, '..', '..', 'site')], { stdio: 'ignore' });
   const cleanup = () => { try { relay.kill(); } catch (e) {} try { site.kill(); } catch (e) {} };
   process.on('exit', cleanup);
@@ -122,6 +178,76 @@ const check = (n, c, d) => {
     return { ok: false, d: last, want: last ? last.named.filter((p) => !darkIds.has(p)) : [] };
   };
 
+  // ---- the ICE-blind probe (see the header) --------------------------------
+  // bareIce: can this page's RENDERER mint one host candidate with a bare
+  // RTCPeerConnection — no product code, no signaling, no room? 5s is generous
+  // (loopback host candidates arrive in milliseconds on a live stack); the
+  // outer 15s race covers a page too starved to run the evaluate at all.
+  const bareIce = async (u) => {
+    const r = await Promise.race([
+      u.page.evaluate(async () => {
+        try {
+          const pc = new RTCPeerConnection();
+          pc.createDataChannel('probe');
+          let n = 0;
+          pc.onicecandidate = (e) => { if (e.candidate) n++; };
+          await pc.setLocalDescription(await pc.createOffer());
+          await new Promise((res) => setTimeout(res, 5000));
+          const out = { candidates: n, gathering: pc.iceGatheringState };
+          pc.close();
+          return out;
+        } catch (e) { return { err: String(e).slice(0, 100) }; }
+      }).catch((e) => ({ err: 'evaluate: ' + String(e && e.message || e).slice(0, 80) })),
+      sleep(15000).then(() => ({ err: 'probe timeout (15s) — page too starved to run it' })),
+    ]);
+    console.log('  BARE-ICE ' + u.name + ' ' + JSON.stringify(r));
+    return r;
+  };
+  // linkFailProbe: a link assertion is about to fail — probe the page it is
+  // about to fail FOR and the owner of every wanted-but-unlinked peer id (the
+  // blind renderer is as often the TARGET as the checker: both gate runs, the
+  // stranded page was named in two other users' want lists). Returns the
+  // ICE-blind offenders; empty means every renderer could gather, so the red
+  // is a real product claim and must stand.
+  const linkFailProbe = async (u, want, linked) => {
+    const owners = new Map();
+    for (const x of users) { const d = await dump(x); if (d && d.peer) owners.set(d.peer, x); }
+    const pages = [u];
+    for (const pfx of want) { const o = owners.get(pfx); if (o && !linked.includes(pfx) && !pages.includes(o)) pages.push(o); }
+    const blind = [];
+    for (const q of pages) {
+      const res = await bareIce(q);
+      if (res.err || !res.candidates) blind.push(q.name + ' ' + JSON.stringify(res));
+    }
+    return blind;
+  };
+  const refuseIceBlind = (blind) => {
+    runEnding = true;
+    console.log('');
+    console.log('NO VERDICT — a RENDERER THIS SUITE WAS DRIVING IS ICE-BLIND, so a link check here cannot be a claim about GifOS.');
+    console.log('');
+    console.log('  CASUALTY: a renderer\'s WebRTC stack stopped minting ICE candidates — a bare RTCPeerConnection (zero product code) gathered none: ' + blind.join('; '));
+    console.log('  THE BOX:  ' + casualty.capacityLine('local', users.length, casualty.memLocal()));
+    console.log('');
+    console.log('  A page in this state is involuntarily DARK: SDP still flows, the mesh');
+    console.log('  still ticks, and no link through it can ever complete — measured on the');
+    console.log('  0.9.9 gate box at MemAvailable 0 MB, load 17-24 on 6 cores: hundreds of');
+    console.log('  offers/answers reached stable, seven sweeper rebuilds fired, zero');
+    console.log('  candidates in three minutes. The identical tree was 13/13 on the same');
+    console.log('  box started idle, and 13/13 twice on a box with headroom. Publishing');
+    console.log('  this as RED reads as a security defect in the room; it is the kernel.');
+    console.log('');
+    console.log('  NOT retried (the box does not get roomier), and it BLOCKS a cut: run');
+    console.log('  this drill on a box that can hold ' + users.length + ' browsers (casualty.js doctrine).');
+    console.log('  If the probe shows candidates on every page and links still fail,');
+    console.log('  there is no refusal — that red is real. Do not widen this probe.');
+    console.log('');
+    console.log('NO-VERDICT — the link claims were unmeasurable here, on purpose.');
+    try { browser.close(); } catch (e) {}
+    cleanup();
+    process.exit(4);
+  };
+
   console.log('room: ' + url);
 
   // ── Phase 1: a healthy room forms ────────────────────────────────────────
@@ -154,6 +280,10 @@ const check = (n, c, d) => {
 
   for (let i = 0; i < late.length; i++) {
     const r = await waitLinks(late[i], darkIds, LINK_MS);
+    if (!r.ok) { // about to fail: is every renderer involved even CAPABLE of a link? (header)
+      const blind = await linkFailProbe(late[i], r.want, r.d ? r.d.linked : []);
+      if (blind.length) refuseIceBlind(blind);
+    }
     check('late' + i + ' wired to every HEALTHY neighbour it names',
       r.ok, r.d ? (r.d.coord + ' want=[' + r.want.join(',') + '] linked=[' + r.d.linked.join(',') + ']') : 'no dump');
   }
@@ -162,6 +292,10 @@ const check = (n, c, d) => {
   const stillOk = [];
   for (const u of users.filter((x) => x.profile === 'healthy')) {
     const r = await waitLinks(u, darkIds, 8000);
+    if (!r.ok) { // same probe-before-judging as Phase 3
+      const blind = await linkFailProbe(u, r.want, r.d ? r.d.linked : []);
+      if (blind.length) refuseIceBlind(blind);
+    }
     stillOk.push({ n: u.name, ok: r.ok, coord: r.d && r.d.coord });
   }
   check('every healthy participant still holds its healthy links (meeting continues)',
@@ -342,7 +476,20 @@ const check = (n, c, d) => {
   check('no non-founder greeter MINT (no fragment founding via empty+founded)',
     mintByNonFounder === 0, mintByNonFounder + ' non-founder MINT event(s)');
 
+  // On a REAL red (every renderer probed ICE-capable, so the refusal above did
+  // not fire), record whether the missing links EVER formed — 'healed after
+  // the window' and 'never healed' are different hunts, and the gate log is
+  // the only place a reader will look.
+  if (failures) {
+    for (let i = 0; i < late.length; i++) {
+      const r = await waitLinks(late[i], darkIds, 4000);
+      console.log('late' + i + ' at end of run: ' + (r.ok ? 'wired' : 'STILL MISSING')
+        + (r.d ? '  want=[' + r.want.join(',') + '] linked=[' + r.d.linked.join(',') + ']' : ''));
+    }
+  }
+
   console.log('\nadversaries: ' + [...darkIds].join(' ') + '  (profile: dark / cannot complete P2P)');
+  runEnding = true;
   await browser.close(); cleanup();
   console.log(failures ? '\n' + failures + ' FAILED' : '\nALL PASS — a misbehaving participant cannot poison the room');
   process.exit(failures ? 1 : 0);
