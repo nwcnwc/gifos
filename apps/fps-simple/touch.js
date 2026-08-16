@@ -37,7 +37,7 @@
   var input = null, ui = null;
   var el = {};
   var active = false;
-  var move = { id: null, cx: 0, cy: 0, r: 1, x: 0, y: 0 };
+  var move = { id: null, x: 0, y: 0 };
   var look = { id: null, lx: 0, ly: 0, t0: 0, moved: 0 };
   var firing = false, fireUntil = 0;
 
@@ -80,10 +80,6 @@
     el.move.addEventListener('pointerdown', function (e) {
       if (move.id !== null) return;
       move.id = e.pointerId;
-      var r = el.move.getBoundingClientRect();
-      move.cx = r.left + r.width / 2;
-      move.cy = r.top + r.height / 2;
-      move.r = r.width / 2;
       capture(el.move, e.pointerId);
       track(e);
       e.preventDefault();
@@ -102,14 +98,55 @@
     el.move.addEventListener('pointercancel', end);
   }
 
+  // THE PAD IS MEASURED EVERY SAMPLE, AND A SAMPLE THAT CANNOT BE A THUMB IS
+  // DROPPED. Both halves are the same bug, measured on a Moto g24: the stick
+  // walked north-west and only north-west, whichever way the thumb was dragged.
+  //
+  // The deflection is an ABSOLUTE position — where the finger is, against where
+  // the pad is — so it is only ever as good as the agreement between those two
+  // numbers, and the app spends its first second pulling them apart. Play asks
+  // for fullscreen and locks the screen to landscape on the same gesture that
+  // starts the game (boot.js goFullscreenLandscape), so the pad travels through
+  // four layouts — top 581 -> 705 -> 195 -> 251 — while a thumb is already down
+  // on it. A centre cached at pointerdown is stale by hundreds of pixels within
+  // one frame of the press, and stale by far more than the pad is wide, so the
+  // error swamps the thumb's own 68 px of throw and the vector stops depending
+  // on the thumb at all. Reading the element per sample costs one rect on a
+  // control that is one element, and cannot go stale.
+  //
+  // The second half is worse and is a browser bug: across that same transition
+  // Chrome delivers pointermoves for the touch that is ALREADY DOWN with client,
+  // page AND screen all exactly (0,0) — a position it does not have — before
+  // following up with pointercancel. Measured, verbatim, off the phone:
+  //
+  //   pointerdown  client=[86.3, 649.7]  screen=[86.3, 781.7]   <- the real thumb
+  //   pointermove  client=[0, -32]       screen=[0, 0]          <- no position
+  //   pointermove  client=[0, 0]         screen=[0, 0]
+  //   pointercancel
+  //
+  // Read as a thumb, the viewport's origin is up and to the left of a pad
+  // anchored bottom-left, so every one of those samples resolves to the same
+  // full-throw vector, (-0.13, -0.99): north-west, at a sprint, until the
+  // player lifts. The finger is not at the top-left pixel of the phone — it is
+  // 650 px away from a control 137 px across, which is nine pad-radii and not a
+  // hand. Three radii is already well outside anything a thumb does to this pad
+  // (the suite's own hardest over-drag, out to the sprint threshold, is 2.2),
+  // so beyond that we keep the last deflection and wait for a sample that says
+  // where the thumb really is. Holding is deliberate: a hiccup should cost the
+  // player a moment of stiffness, never a direction they did not ask for.
+  var MAX_RADII = 3;
   function track(e) {
-    var dx = e.clientX - move.cx, dy = e.clientY - move.cy;
+    var r = el.move.getBoundingClientRect();
+    var rad = r.width / 2;
+    if (!rad) return;                            // hidden — no geometry to steer by
+    var dx = e.clientX - (r.left + rad), dy = e.clientY - (r.top + rad);
     var len = Math.hypot(dx, dy) || 1;
-    var clamped = Math.min(len, move.r) / move.r;
+    if (len > rad * MAX_RADII) return;
+    var clamped = Math.min(len, rad) / rad;
     move.x = (dx / len) * clamped;
     move.y = (dy / len) * clamped;
-    el.knob.style.transform = 'translate(' + (move.x * move.r * 0.62).toFixed(1) + 'px,' +
-                              (move.y * move.r * 0.62).toFixed(1) + 'px)';
+    el.knob.style.transform = 'translate(' + (move.x * rad * 0.62).toFixed(1) + 'px,' +
+                              (move.y * rad * 0.62).toFixed(1) + 'px)';
   }
 
   /* ---- drag to look, tap to shoot -------------------------------------- */

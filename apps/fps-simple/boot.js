@@ -287,6 +287,10 @@
               // 512 did, so the variants keep their own camo and the 8.4s that
               // started this is still gone.
               aiTexSize: 128, weapons: ['rifle'], fxAtlas: 256,
+              // See vendor.mjs: the Web Audio render thread falls off a cliff at
+              // 2000-4000 node constructions a second and does not recover. This
+              // device gets the tightest cap.
+              voiceRate: 12, soundBudgetWindow: 1 / 20,
               // A ten-minute game got worse the longer it ran: 1/120 s with up
               // to eight substeps means a slow frame earns MORE physics, which
               // slows the next one. Measured f:physics 0.61 ms/frame at two
@@ -320,6 +324,14 @@
               // Two of three viewmodels: 1/2 still swaps, and the smg's 4.4 s
               // share of the boot is not worth making everyone wait for.
               weapons: ['rifle', 'pistol'], fxAtlas: 256,
+              // NOT a phone-only number. The sound cutting in and out was
+              // reported on a desktop first, and measured worse there: the
+              // budgets it replaces were per FRAME, so a machine at 200 fps
+              // admitted three times the audio work of one at 60. Capped at 20
+              // voices a second, a held trigger goes from an irreversible
+              // collapse to dips that recover (measured at 25: stolen 1379 -> 6,
+              // dropped 741 -> 0).
+              voiceRate: 20, soundBudgetWindow: 1 / 30,
               fixedStep: 1 / 60, maxSubsteps: 3, hudMinScale: 1.0 };
     }
     return s;
@@ -1054,9 +1066,15 @@
   // is a loading screen the whole way instead of a black one, and the tap gets
   // an answer immediately.
   var starting = false;
-  go.addEventListener('click', function () {
+  go.addEventListener('click', function (ev) {
     if (starting) return;                     // a second tap must not re-enter
     starting = true;
+    // Recorded because a SCRIPTED click carries no user activation, and every
+    // hatch this handler opens — fullscreen, orientation, pointer lock, audio —
+    // is refused without one, silently, inside a sandbox nobody can see into.
+    // If this ever reads false in a report, the answer is that nobody pressed
+    // the button, not that the browser is broken.
+    root.__FPS_FS__ = { trusted: !!(ev && ev.isTrusted), state: 'pending' };
     // THE TAP MUST BE UNMISTAKABLE. Reported as "nothing visibly happens, the
     // play button just sits there, so a normal person ends up spamming it" —
     // so the button changes its WORD, not just its opacity. A disabled button
@@ -1066,9 +1084,15 @@
     say('Warming up the shaders — first run only…', null);
 
     engine.start();
-    // Same click, so it still counts as the user gesture all of these need.
-    engine.input.requestPointerLock();
+    // Same click, so it still counts as the user gesture all of these need —
+    // and FULLSCREEN GOES FIRST, deliberately. Both it and pointer lock want
+    // TRANSIENT activation, and asking for the pointer first consumes it: on the
+    // phone the lock succeeded (Chrome even showed its "to show your cursor…"
+    // toast) and the fullscreen request that followed was silently refused, so
+    // the game stayed in a portrait strip. Fullscreen is also the one that
+    // matters on the device where it is least optional.
     goFullscreenLandscape();
+    engine.input.requestPointerLock();
     // Audio is STARTED here, inside the gesture, because that is the only place
     // a browser will allow it — but silenced until there is something to look
     // at, so it can never again be 20 seconds of gunfire over a black screen.
@@ -1109,7 +1133,35 @@
     setTimeout(function () { gate.remove(); }, 400);
     try { if (root.__AUDIO__) root.__AUDIO__.setMasterVolume(1); } catch (e) {}
     armBackAsPause();
+    armFullscreenRetry();
     checkAiming();
+  }
+
+  // ASK AGAIN ON THE NEXT REAL TOUCH, AND KEEP ASKING UNTIL IT TAKES.
+  //
+  // Fullscreen and orientation lock need TRANSIENT user activation, and the Play
+  // click is a crowded gesture: it also starts the engine, takes the pointer and
+  // resumes audio. If anything consumes the activation first — or the click was
+  // scripted, which is how a harness starts the game — the request is refused
+  // with a TypeError thrown inside the sandbox, and the player gets a portrait
+  // strip with no idea why.
+  //
+  // A player taps constantly, so the cheapest fix is to treat the NEXT tap as
+  // another chance. Idempotent by construction: it stops the moment the document
+  // is fullscreen, it never asks more than once every two seconds, and it is
+  // silent when refused — a game that nags is worse than one in a small window.
+  function armFullscreenRetry() {
+    var lastTry = 0;
+    var again = function () {
+      if (document.fullscreenElement) return;                 // already there
+      var now = Date.now();
+      if (now - lastTry < 2000) return;
+      lastTry = now;
+      goFullscreenLandscape();
+    };
+    ['pointerdown', 'touchstart', 'keydown'].forEach(function (ev) {
+      document.addEventListener(ev, again, true);
+    });
   }
 
   // FILL THE SCREEN, AND TURN IT SIDEWAYS.
@@ -1126,13 +1178,28 @@
   // is a fault and neither should ever interrupt a game that is otherwise fine —
   // so no throw escapes, and the game plays windowed rather than not at all.
   function goFullscreenLandscape() {
+    // Why it records what happened: this is refused INSIDE a sandboxed frame,
+    // where the rejection is invisible from anywhere a person can look. The one
+    // channel this app has to the outside is its own store, so the outcome goes
+    // there with everything else (framelog.js publishes it).
+    root.__FPS_FS__ = root.__FPS_FS__ || {};
+    root.__FPS_FS__.enabled = !!document.fullscreenEnabled;
+    root.__FPS_FS__.state = 'asked';
     try {
       var el = document.documentElement;
-      var p = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : null;
+      if (!el.requestFullscreen) { root.__FPS_FS__.state = 'unsupported'; return; }
+      var p = el.requestFullscreen();
       if (p && p.then) {
-        p.then(lockLandscape, function () {});
-      } else { lockLandscape(); }
-    } catch (e) {}
+        p.then(function () {
+          root.__FPS_FS__.state = 'on';
+          lockLandscape();
+        }, function (err) {
+          root.__FPS_FS__.state = 'refused:' + ((err && (err.name + ':' + err.message)) || '?').slice(0, 90);
+        });
+      } else { root.__FPS_FS__.state = 'sync'; lockLandscape(); }
+    } catch (e) {
+      root.__FPS_FS__.state = 'threw:' + ((e && e.message) || e);
+    }
   }
   function lockLandscape() {
     try {
@@ -1140,7 +1207,12 @@
       // Only a device that HAS an orientation to hold — a desktop rejects this,
       // and a phone held in landscape already is still worth locking so it does
       // not flip back mid-firefight.
-      if (o && o.lock) { var q = o.lock('landscape'); if (q && q.catch) q.catch(function () {}); }
+      if (!o || !o.lock) { root.__FPS_FS__.lock = 'none'; return; }
+      var q = o.lock('landscape');
+      if (q && q.then) {
+        q.then(function () { root.__FPS_FS__.lock = 'landscape'; },
+               function (err) { root.__FPS_FS__.lock = 'refused:' + ((err && err.name) || '?'); });
+      } else { root.__FPS_FS__.lock = 'sync'; }
     } catch (e) {}
   }
 
