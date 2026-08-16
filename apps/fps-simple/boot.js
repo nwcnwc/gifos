@@ -57,6 +57,13 @@
   // materialSystemFor(), which lives out here too.
   var auto = null;
   var useCache = true;
+  // WHAT CAME BACK FROM THE CACHE, so the gate can say so. A reload used to
+  // narrate "Building the street…" word for word identically to a first run,
+  // which reads as "it saved nothing" — reported as exactly that. It is not
+  // true and it is not false: the SURFACES and some models are restored, the
+  // street itself is rebuilt from its seed every launch (the world is 61.6 MB
+  // and deliberately not cached). So say that, rather than either lie.
+  var restored = { tex: 0, mesh: 0 };
   var gate = document.getElementById('gate');
   var bar = document.getElementById('gate-bar');
   var note = document.getElementById('gate-note');
@@ -299,7 +306,15 @@
       // every 203 ms frame on the GPU with the render scale already at its
       // floor — so the cost is geometry, and the cascade is the one pass that
       // can be removed outright rather than made smaller.
-      s.q = { shadows: false, prepass: false, pixelRatio: 1, drawDistance: 110, cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
+      // drawDistance is NOT set here, and that is a correction. 110 m bought 96 ms ->
+      // 84 ms and wrecked the picture: the sky dome sits far beyond it, so it was
+      // clipped to BLACK, and the ground ran to a far plane close enough that the
+      // distance haze washed the whole lower half of the screen to flat fog. That
+      // is the "entire bottom half is blacked/faded/clouded out" the user reported
+      // on nvidia-laptop — a real-GPU box, which takes this branch; clawbox takes
+      // the software branch below and never had it. 12% of a frame is not worth
+      // the game not looking like the game.
+      s.q = { shadows: false, prepass: false, pixelRatio: 1, cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
               taa: false, gtao: false, ssr: false, volumetrics: false, motionBlur: false,
               aiTexSize: 192,
               // Two of three viewmodels: 1/2 still swaps, and the smg's 4.4 s
@@ -775,6 +790,8 @@
                  useCache ? root.TexCache.preload(root.gifos) : 0,
                  useCache ? root.MeshCache.preload(root.gifos) : 0]).then(function (pre) {
       var cached = (pre && pre[1]) || 0;
+      restored.tex = cached;
+      restored.mesh = (pre && pre[2]) || 0;
       if (cached) { try { console.info('[fps] texture cache: ' + cached + ' surfaces available'); } catch (e) {} }
       // MEASURE THE DEVICE, unless somebody has already decided for it: a
       // saved preference is a player's own choice and outranks any probe, and
@@ -868,7 +885,9 @@
       // player who was told that waits; a player who was not closes the tab.
       say(auto.probe && auto.probe.software
         ? 'Building the street… on this device that takes a few minutes'
-        : 'Building the street…', 0.15);
+        : (restored.tex
+            ? 'Reusing ' + restored.tex + ' saved surfaces — rebuilding the street…'
+            : 'Building the street…'), 0.15);
       // Join the room BEFORE init, because whether we are alone decides whether
       // the AI garrison is spawned at all (see below) and that is decided during
       // the first update, not later.
@@ -974,7 +993,9 @@
                + ' mesh=' + JSON.stringify(root.MeshCache.stats()); } catch (e) {}
       publishPerf((auto.probe ? (auto.probe.software ? 'software' : 'gpu:' + auto.probe.renderer.slice(0, 40)) : '?')
         + ' q=' + ctx.config.quality + ' scale=' + ctx.config.q.renderScale + ' tex=' + auto.texCap + cs);
-      say('Ready — the street is built. Detail keeps sharpening as you play.', 1);
+      say(restored.tex
+        ? 'Ready — reused ' + restored.tex + ' saved surfaces. Detail keeps sharpening as you play.'
+        : 'Ready — the street is built. Detail keeps sharpening as you play.', 1);
       gate.classList.add('ready');
       if (useCache) {                                   // nobody waits on these now
         try { root.TexCache.flush(); } catch (e) {}
@@ -1013,15 +1034,138 @@
   }
 
   /* ---- the first gesture ------------------------------------------------ */
+  // PLAY MUST REACT ON THE TAP, AND THE GAME MUST NOT ARRIVE IN PIECES.
+  //
+  // What it did before: hid the gate on the click and started the engine. The
+  // shaders, though, are deliberately NOT waited for — they compile behind the
+  // gate so the Play button can light up as soon as the world exists (that is
+  // what took first load from 124 s to 15 s on this phone, and it is right).
+  // The cost landed on the player instead, and it was reported exactly as it
+  // felt: "I hit play and for 10 seconds nothing happens, then for 20 seconds
+  // I hear sounds and see nothing. Then finally after 40-60 seconds the game
+  // screen appears." Every one of those seconds is a shader compiling on first
+  // use, with the gate already gone — so the feedback was a black screen, and
+  // the audio (which needs no compiling) arrived long before the picture.
+  //
+  // So the gate now STAYS UP across the warm-up and says so. The engine runs
+  // behind it, which is what forces the compiles to happen; the bar keeps
+  // moving because prewarm is still reporting; and the game is revealed only
+  // once frames are actually arriving at a sane rate. Same total wait, but it
+  // is a loading screen the whole way instead of a black one, and the tap gets
+  // an answer immediately.
+  var starting = false;
   go.addEventListener('click', function () {
+    if (starting) return;                     // a second tap must not re-enter
+    starting = true;
+    // THE TAP MUST BE UNMISTAKABLE. Reported as "nothing visibly happens, the
+    // play button just sits there, so a normal person ends up spamming it" —
+    // so the button changes its WORD, not just its opacity. A disabled button
+    // that merely dims is exactly what a slow page looks like anyway.
+    go.disabled = true;
+    go.textContent = 'Starting…';
+    say('Warming up the shaders — first run only…', null);
+
+    engine.start();
+    // Same click, so it still counts as the user gesture all of these need.
+    engine.input.requestPointerLock();
+    goFullscreenLandscape();
+    // Audio is STARTED here, inside the gesture, because that is the only place
+    // a browser will allow it — but silenced until there is something to look
+    // at, so it can never again be 20 seconds of gunfire over a black screen.
+    if (root.__AUDIO__ && root.__AUDIO__.start) {
+      try { root.__AUDIO__.setMasterVolume(0); } catch (e) {}
+      root.__AUDIO__.start().catch(function () {});
+    }
+    revealWhenDrawing();
+  });
+
+  // Reveal on FRAMES, not on a timer. Three consecutive frames inside 150 ms
+  // means the compile stalls are behind us; a timer would either cut the player
+  // off mid-stall or make a fast machine sit and wait for nothing.
+  //
+  // The cap is not a guess at how long warming takes — it is a promise that the
+  // player is never trapped behind this. If frames are still slow at 45 s, the
+  // device is simply slow and it is better to be playing a slow game than
+  // watching a bar; that is the player's call to make from inside the game.
+  function revealWhenDrawing() {
+    var t0 = (root.performance ? performance.now() : Date.now());
+    var last = t0, good = 0, seen = -1;
+    (function watch() {
+      var now = (root.performance ? performance.now() : Date.now());
+      var frame = (engine && engine.time) ? engine.time.frame : 0;
+      if (frame !== seen) {                   // a frame actually landed
+        var ms = now - last;
+        last = now; seen = frame;
+        good = (ms < 150) ? good + 1 : 0;
+      }
+      if (good >= 3 || now - t0 > 45000) { reveal(); return; }
+      root.requestAnimationFrame(watch);
+    })();
+  }
+
+  function reveal() {
+    if (gate.classList.contains('gone')) return;
     gate.classList.add('gone');
     setTimeout(function () { gate.remove(); }, 400);
-    engine.start();
-    // Same click, so it still counts as the user gesture both of these need.
-    engine.input.requestPointerLock();
-    if (root.__AUDIO__ && root.__AUDIO__.start) root.__AUDIO__.start().catch(function () {});
+    try { if (root.__AUDIO__) root.__AUDIO__.setMasterVolume(1); } catch (e) {}
+    armBackAsPause();
     checkAiming();
-  });
+  }
+
+  // FILL THE SCREEN, AND TURN IT SIDEWAYS.
+  //
+  // A first-person game in a portrait strip on a phone is unplayable — you
+  // cannot see anything, which is how it was reported. Both halves of this need
+  // capabilities.fullscreen (see site/js/runtime.js): fullscreen is delegated
+  // as a permissions policy, and the orientation lock is a sandbox flag, and
+  // they ride together because a browser only honours a lock while fullscreen.
+  //
+  // Everything here is best-effort and silent on failure BY DESIGN. A desktop
+  // has no screen to turn and rejects lock() with NotSupportedError; a player
+  // who revoked the ability in the Abilities sheet gets a rejection too. Neither
+  // is a fault and neither should ever interrupt a game that is otherwise fine —
+  // so no throw escapes, and the game plays windowed rather than not at all.
+  function goFullscreenLandscape() {
+    try {
+      var el = document.documentElement;
+      var p = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : null;
+      if (p && p.then) {
+        p.then(lockLandscape, function () {});
+      } else { lockLandscape(); }
+    } catch (e) {}
+  }
+  function lockLandscape() {
+    try {
+      var o = root.screen && root.screen.orientation;
+      // Only a device that HAS an orientation to hold — a desktop rejects this,
+      // and a phone held in landscape already is still worth locking so it does
+      // not flip back mid-firefight.
+      if (o && o.lock) { var q = o.lock('landscape'); if (q && q.catch) q.catch(function () {}); }
+    } catch (e) {}
+  }
+
+  // ON A PHONE, BACK IS THE PAUSE BUTTON.
+  //
+  // A desktop player presses Esc and the engine's menu opens. A phone player's
+  // equivalent gesture is the back button, and what it did was leave the game
+  // — mid-match, with no warning and no way to say "I only wanted the menu".
+  // So the first entry into the game pushes a history state to land on, and
+  // back spends that entry on opening the menu instead of on leaving, then
+  // pushes a fresh one so the next back does the same.
+  //
+  // Guarded, because an app frame is sandboxed and may have an opaque origin,
+  // where pushState throws SecurityError. If it does, we simply do not arm it:
+  // the touch HUD's pause button and Esc still open the menu, and back behaves
+  // as it always did. A pause button that throws on load would take the whole
+  // boot with it, which is a far worse trade than a back button that does not
+  // pause.
+  function armBackAsPause() {
+    try { history.pushState({ fps: 1 }, ''); } catch (e) { return; }
+    root.addEventListener('popstate', function () {
+      try { if (ui && ui.menu && ui.menu.toggle) ui.menu.toggle(); } catch (e) {}
+      try { history.pushState({ fps: 1 }, ''); } catch (e) {}
+    });
+  }
 
   // WHEN THE POINTER IS NOT OURS TO TAKE.
   //

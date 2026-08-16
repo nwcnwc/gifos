@@ -228,9 +228,38 @@ async function launchResult(page) {
     await fr.locator('#btn-menu').click();
     await fr.locator('#share-field').waitFor({ state: 'visible', timeout: 10000 });
     const minted = await fr.locator('#share-url').inputValue();
-    check('the button mints a link to where you actually are',
-      minted.indexOf('?run=anyroad') > 0 && minted.indexOf('go.at=' + HOP.lat.toFixed(5) + ',' + HOP.lon.toFixed(5)) > 0,
-      minted);
+    // WHERE YOU ARE STANDING, NOT WHERE YOU LANDED — and that distinction is the
+    // whole reason the ☰ link exists (see apps/anyroad/ui.js: a link minted at
+    // the Colorado River, six kilometres down from the rim, used to come back
+    // pointing at Grand Canyon Village).
+    //
+    // This used to assert the minted point equalled the FIXTURE to five decimal
+    // places, which is a metre. That is the arrival point, and by the time the
+    // sheet opens the car has been flying for seconds — so the assertion was
+    // testing that the car had NOT moved, the exact bug the feature fixes. It
+    // passed when it was written only because the flight had barely started, and
+    // it has been red since: measured 48.87018,2.30793 against a fixture of
+    // 48.86980,2.30780, about 42 m apart.
+    //
+    // So: the link must carry the app's LIVE position (compared against what the
+    // app itself reports, with a tolerance for the metres it flies while the
+    // sheet opens), and it must not have silently reverted to the origin.
+    const live = await fr.locator('body').evaluate(() => {
+      const f = window.App && window.App.world && window.App.world.frame;
+      const c = window.App && window.App.car && window.App.car();
+      if (!f) return null;
+      const g = (c && isFinite(c.x) && isFinite(c.z)) ? f.toGeo(c.x, c.z) : { lat: f.lat0, lon: f.lon0 };
+      return { lat: g.lat, lon: g.lon, lat0: f.lat0, lon0: f.lon0 };
+    });
+    const got = /go\.at=(-?[\d.]+),(-?[\d.]+)/.exec(minted);
+    check('the button mints a link, in the shape a person can paste',
+      minted.indexOf('?run=anyroad') > 0 && !!got, minted);
+    check('…to where you actually are, not where you arrived',
+      !!(got && live) && Math.abs(+got[1] - live.lat) < 0.002 && Math.abs(+got[2] - live.lon) < 0.002,
+      minted + ' vs live ' + (live ? live.lat.toFixed(5) + ',' + live.lon.toFixed(5) : 'null'));
+    check('…and it has actually left the arrival point behind',
+      !!(got && live) && (Math.abs(+got[1] - live.lat0) > 1e-5 || Math.abs(+got[2] - live.lon0) > 1e-5),
+      minted + ' vs origin ' + (live ? live.lat0.toFixed(5) + ',' + live.lon0.toFixed(5) : 'null'));
     check('…and carries the flying, because that is part of "here"', /go\.fly=1/.test(minted), minted);
     await context.close();
 

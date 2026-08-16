@@ -141,7 +141,7 @@
         "name": "GifOS",
         "url": "https://gifos.app"
       },
-      "minBuild": 1285,
+      "minBuild": 1314,
       "releaseDate": "2026-08-15",
       "updated": "2026-08-15",
       "categories": [
@@ -162,11 +162,11 @@
         78
       ],
       "cover": "/apps/fps-simple/cover.jpg",
-      "bytes": 1078694,
+      "bytes": 1082555,
       "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "178bbb6e4eb49c3f5320b995a320435b47b51582eaf2cb5d3becd430cb6f2b5e"
+      "sha256": "51ec7e730b9b4434e3bbc6804d1bbb9e8005601126aaa52db33a02cb82d337c6"
     },
     {
       "slug": "offline-llm-bitnet",
