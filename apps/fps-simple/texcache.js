@@ -58,7 +58,7 @@
 
   // One line, once, naming the first reason nothing could be cached. Silence is
   // what let this ship broken twice.
-  var explained = false, whyMsg = '';
+  var explained = false, whyMsg = '', lastFlush = '';
   function whyNot(msg) {
     if (explained) return;
     explained = true; whyMsg = msg;
@@ -158,6 +158,27 @@
     return set;
   }
 
+  // PIXELS TRAVEL AS TEXT, and that is not a style choice.
+  //
+  // A map is a 65 KB Uint8Array. Sent as one, it crosses the sandbox bridge and
+  // lands in storage as an object with sixty-five thousand numeric keys —
+  // megabytes of it, per map. On a desktop that is merely wasteful; on a Moto
+  // g24 it was about a minute EACH, so four maps landed in four minutes and the
+  // cache looked broken. Base64 is a fifth of the size, serialises as one
+  // string, and decodes fast enough that nobody notices.
+  function toB64(u8) {
+    var CH = 0x8000, out = '';
+    for (var i = 0; i < u8.length; i += CH) {
+      out += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
+    }
+    return btoa(out);
+  }
+  function fromB64(str) {
+    var bin = atob(str), u8 = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+
   function bytesOf(rec) {
     var n = 0;
     for (var k in rec.maps) n += (rec.maps[k].data && rec.maps[k].data.byteLength) || 0;
@@ -168,19 +189,19 @@
   function preload(api) {
     if (!api || !api.db) return Promise.resolve(0);
     try { db = api.db(COLL); } catch (e) { return Promise.resolve(0); }
-    return db.getAll().then(function (rows) {
-      // Rows are per-MAP; a set is only usable when every map it had is back.
-      var bySet = Object.create(null);
-      for (var i = 0; i < (rows || []).length; i++) {
-        var r = rows[i];
-        if (!r || !r.id || !r.set || !r.data) continue;
-        var e = bySet[r.set] || (bySet[r.set] = { maps: Object.create(null), plain: r.plain || {} });
-        e.maps[r.map] = { w: r.w, h: r.h, data: r.data, p: r.p || {} };
-      }
+    return db.get('all').then(function (row) {
+      if (!row || !row.sets) return 0;
       var n = 0;
-      for (var k in bySet) {
-        mem[k] = bySet[k]; mem[k].id = k;
-        stored += bytesOf(bySet[k]); n++;
+      for (var k in row.sets) {
+        var src = row.sets[k];
+        var rec = { id: k, maps: Object.create(null), plain: src.plain || {} }, ok = true;
+        for (var mk in src.maps) {
+          var m = src.maps[mk];
+          try { rec.maps[mk] = { w: m.w, h: m.h, p: m.p || {}, data: fromB64(m.b64) }; }
+          catch (e2) { ok = false; break; }
+        }
+        if (!ok) continue;
+        mem[k] = rec; stored += bytesOf(rec); n++;
       }
       return n;
     }).catch(function () { return 0; });
@@ -222,44 +243,45 @@
    */
   function flush() {
     if (!db || !fresh.length) return Promise.resolve(0);
-    var keys = fresh.slice(); fresh.length = 0;
-    // ONE MAP PER RECORD, AND NO WRITE MAY STALL THE QUEUE.
+    fresh.length = 0;
+    var t0 = Date.now();
+    // ONE RECORD. NOT ONE PER SURFACE, AND CERTAINLY NOT ONE PER MAP.
     //
-    // Measured on a Moto g24: of 27 surfaces captured, TWO ever reached the
-    // database, and the rest never did no matter how long it was given. A whole
-    // surface is ~200 KB of pixels crossing the sandbox bridge in one message,
-    // and a put that never settles stops a sequential queue dead — everything
-    // behind it waits forever on a promise that will not resolve.
+    // Measured: 26 surfaces took 59 SECONDS to write, ~2.3 s each, for 5.3 MB
+    // that IndexedDB should swallow in well under a second. The size was never
+    // the problem — the COUNT was. Every put notifies the collection changed,
+    // and a change pushes the collection back across the sandbox bridge, so
+    // writing 26 records into a growing 5 MB collection moves something like
+    // 130 MB of messages. Quadratic, and invisible until you time it.
     //
-    // So each MAP goes separately (a third the size), and every write races a
-    // timeout. A write that does not land in time is abandoned and the queue
-    // moves on: a partial cache is worth having, because a surface restored is
-    // a surface not baked, and the two that did land were already worth 2.4 s.
-    var jobs = [];
-    for (var i = 0; i < keys.length; i++) {
-      var rec = mem[keys[i]];
-      if (!rec) continue;
-      for (var mk in rec.maps) jobs.push({ id: keys[i] + '#' + mk, map: mk, rec: rec });
-    }
-    var n = 0, wrote = 0;
-    function step() {
-      if (n >= jobs.length) {
-        try { console.info('[fps] texture cache: stored ' + wrote + '/' + jobs.length + ' maps'); } catch (e) {}
-        return Promise.resolve(wrote);
+    // One write, one notification, one copy. And it matters beyond the wait:
+    // this runs while the player is walking down the street, so 59 seconds of
+    // it was 59 seconds of competing with the game for a phone's single slow
+    // core.
+    var payload = { id: 'all', v: 1, sets: {} }, count = 0;
+    try {
+      for (var k in mem) {
+        var rec = mem[k], maps = {};
+        for (var mk in rec.maps) {
+          var m = rec.maps[mk];
+          maps[mk] = { w: m.w, h: m.h, p: m.p, b64: m.b64 || toB64(m.data) };
+        }
+        payload.sets[k] = { maps: maps, plain: rec.plain };
+        count++;
       }
-      var j = jobs[n++];
-      var m = j.rec.maps[j.map];
-      var row = { id: j.id, set: j.rec.id, map: j.map, w: m.w, h: m.h, data: m.data, p: m.p,
-                  plain: j.rec.plain };
-      var settled = false;
-      return Promise.race([
-        db.put(row).then(function () { settled = true; wrote++; }, function () { settled = true; }),
-        new Promise(function (r) { setTimeout(r, 5000); }),
-      ]).then(function () {
-        return new Promise(function (r) { setTimeout(r, 40); }).then(step);
-      });
+    } catch (e) {
+      lastFlush = 'could not encode: ' + (e && e.message || e);
+      return Promise.resolve(0);
     }
-    return step();
+    return db.put(payload).then(function () {
+      lastFlush = count + ' surfaces in ' + (Date.now() - t0) + 'ms (one record)';
+      try { console.info('[fps] texture cache: ' + lastFlush); } catch (e) {}
+      return count;
+    }, function (e) {
+      lastFlush = 'write refused after ' + (Date.now() - t0) + 'ms: ' + (e && e.message || e);
+      try { console.info('[fps] texture cache: ' + lastFlush); } catch (e2) {}
+      return 0;
+    });
   }
 
   root.TexCache = {
@@ -267,7 +289,7 @@
     stats: function () {
       var n = 0; for (var k in mem) n++;
       return { entries: n, bytes: stored, pending: fresh.length, hits: hits,
-               misses: misses, unreadable: unreadable, why: whyMsg };
+               misses: misses, unreadable: unreadable, why: whyMsg, flush: lastFlush };
     },
   };
 })(window);

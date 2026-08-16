@@ -26,7 +26,7 @@ if (!existsSync(join(dir, 'vendor', 'game.js'))) {
 // Script order matters: each file attaches itself to window and the ones after
 // it read what came before. index.html lists them in the same order, and the
 // runtime inlines each <script src> where it stands.
-const SCRIPTS = ['vendor/game.js', 'texcache.js', 'net.js', 'remote.js', 'touch.js', 'boot.js'];
+const SCRIPTS = ['vendor/game.js', 'texcache.js', 'meshcache.js', 'framelog.js', 'net.js', 'remote.js', 'touch.js', 'boot.js'];
 
 const files = {
   'manifest.json': JSON.stringify(manifest),

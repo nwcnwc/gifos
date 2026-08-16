@@ -273,7 +273,13 @@
               taa: false, gtao: false, ssr: false, volumetrics: false,
               motionBlur: false, anisotropy: 1,
               // Reachable only because vendor.mjs patches them into config.q.
-              aiTexSize: 128, aiCamo: ['arid'], weapons: ['rifle'], fxAtlas: 256 };
+              // ALL THREE CAMO SETS, SMALLER. Cutting the list to one broke the
+              // agents that ask for the others — "[ai] unknown material set
+              // camo_woodland" — and the saving was never in the count anyway.
+              // Size is quadratic: three sets at 128px cost less than one at
+              // 512 did, so the variants keep their own camo and the 8.4s that
+              // started this is still gone.
+              aiTexSize: 128, weapons: ['rifle'], fxAtlas: 256 };
     } else {
       s.quality = 'low'; s.renderScale = 0.5; s.texCap = 128;
       // 8.4 s of a 21 s first load on a Moto g24 was this: three camo sets baked
@@ -281,7 +287,7 @@
       // distance anyone ever sees one, for a fraction of the wait.
       s.q = { cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
               taa: false, gtao: false, ssr: false, volumetrics: false, motionBlur: false,
-              aiTexSize: 192, aiCamo: ['arid'],
+              aiTexSize: 192,
               // Two of three viewmodels: 1/2 still swaps, and the smg's 4.4 s
               // share of the boot is not worth making everyone wait for.
               weapons: ['rifle', 'pistol'], fxAtlas: 256 };
@@ -750,7 +756,9 @@
     // in the console before opening the app bakes everything fresh, which is
     // how you tell a cache bug from a game bug in one step.
     useCache = !root.GIFOS_FPS_NOCACHE;
-    Promise.all([loadPrefs(), useCache ? root.TexCache.preload(root.gifos) : 0]).then(function (pre) {
+    Promise.all([loadPrefs(),
+                 useCache ? root.TexCache.preload(root.gifos) : 0,
+                 useCache ? root.MeshCache.preload(root.gifos) : 0]).then(function (pre) {
       var cached = (pre && pre[1]) || 0;
       if (cached) { try { console.info('[fps] texture cache: ' + cached + ' surfaces available'); } catch (e) {} }
       // MEASURE THE DEVICE, unless somebody has already decided for it: a
@@ -782,6 +790,32 @@
       // lever with a square on it. Set BEFORE the engine is built, because the
       // first resize sizes every render target from it.
       // Clamp, never raise: a device ceiling can only ever make this cheaper.
+      // THE SAME STREET EVERY TIME MEANS THE SAME EVERYTHING EVERY TIME.
+      // Handed in if we kept it, and whatever the engine builds is kept for
+      // next time. Every one of these hooks exists only because vendor.mjs
+      // patches it in, and every one of them defaults to upstream's exact
+      // behaviour when it is not set.
+      //
+      //   weaponModel/onWeaponModel   the viewmodel descriptor (nodes, and the
+      //                               names of its assemblies)
+      //   weaponAsm/onWeaponAsm       one assembly's MERGED, MASK-BAKED
+      //                               geometry — where the 960 ms actually is
+      //   aiNav/onAiNav               the walkability grid and cover points
+      //   aiVariant/onAiVariant       one soldier's skinned geometry
+      //
+      // The seed is part of every key: one seed, one street, one garrison.
+      if (useCache) {
+        var MC = root.MeshCache;
+        MC.useSeed(WORLD_SEED);
+        config.q.weaponModel = function (name) { return MC.getWeapon(name); };
+        config.q.onWeaponModel = function (name, model) { MC.putWeaponModel(name, model); };
+        config.q.weaponAsm = function (id, asmName) { return MC.getWeaponAsm(id, asmName); };
+        config.q.onWeaponAsm = function (id, asmName, matKey, geo) { MC.putWeaponAsm(id, asmName, matKey, geo); };
+        config.q.aiNav = function (grid, cover) { return MC.getNav(grid, cover); };
+        config.q.onAiNav = function (grid, cover) { MC.putNav(grid, cover); };
+        config.q.aiVariant = function (name) { return MC.getVariant(name); };
+        config.q.onAiVariant = function (name, v) { MC.putVariant(name, v); };
+      }
       if (auto.renderScale != null) config.q.renderScale = Math.min(config.q.renderScale, auto.renderScale);
       if (auto.q) {
         for (var qk in auto.q) {
@@ -843,6 +877,19 @@
         document.getElementById('gate-room').innerHTML = alone
           ? 'Playing solo against the garrison. <b>Invite someone</b> and it becomes a deathmatch.'
           : 'Deathmatch — <b>' + roster.length + ' in the room</b>.';
+
+        // WHAT CACHING THE WORLD WOULD COST, MEASURED ON EVERY RUN.
+        //
+        // The street is the biggest single item left in the boot (2.0 s of 8.7 s
+        // on a fleet box, ~3.4 s of 11.7 s on the phone) and it is generated the
+        // same way everything else here is, so it looks like the obvious next
+        // thing to keep. It is not kept, and the reason is a number rather than
+        // an opinion: this walks the finished world and adds up exactly the
+        // bytes that would have to cross the sandbox bridge and land in
+        // IndexedDB. It is reported as `mesh.worldMB` beside the caches that DID
+        // pay off, so the decision can be re-argued against a measurement
+        // instead of a memory. See measureWorld() in meshcache.js.
+        if (useCache) { try { root.MeshCache.measureWorld(ctx); } catch (e) {} }
 
         freeTheTabKey(engine.input);
         autoScaleInit(auto);
@@ -908,12 +955,16 @@
     }).then(function () {
       stamp('READY');
       var cs = '';
-      try { cs = ' cache=' + JSON.stringify(root.TexCache.stats()); } catch (e) {}
+      try { cs = ' tex=' + JSON.stringify(root.TexCache.stats())
+               + ' mesh=' + JSON.stringify(root.MeshCache.stats()); } catch (e) {}
       publishPerf((auto.probe ? (auto.probe.software ? 'software' : 'gpu:' + auto.probe.renderer.slice(0, 40)) : '?')
         + ' q=' + ctx.config.quality + ' scale=' + ctx.config.q.renderScale + ' tex=' + auto.texCap + cs);
       say('Ready — the street is built. Detail keeps sharpening as you play.', 1);
       gate.classList.add('ready');
-      if (useCache) { try { root.TexCache.flush(); } catch (e) {} }   // nobody waits on this now
+      if (useCache) {                                   // nobody waits on these now
+        try { root.TexCache.flush(); } catch (e) {}
+        try { root.MeshCache.flush(); } catch (e) {}
+      }
       go.disabled = false;
       go.focus();
     }).catch(function (err) {
