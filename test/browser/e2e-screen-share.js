@@ -28,23 +28,25 @@
  *   5. An APP-PINNED ROOM does not even offer the control — while the ordinary
  *      meeting buttons beside it are there, so "hidden" means hidden by the
  *      rule, not by an unrendered bar.
- *   6. capabilities.screen: an app frame is refused display capture unless its
- *      manifest declared it, and unchecking it in the Abilities sheet takes it
- *      away again. (Same three-leg shape as e2e-fullscreen-lock.)
+ *   6. NO APP CAN PHOTOGRAPH YOUR SCREEN — however its manifest is written.
+ *      This began as capabilities.screen, built exactly like
+ *      capabilities.fullscreen (1d3d5b2), and the build is what proved it
+ *      cannot exist: `display-capture` delegates cleanly and the policy check
+ *      then PASSES, but getDisplayMedia rejects the app document anyway with
+ *      `SecurityError: Invalid security origin`, because an app frame is
+ *      srcdoc-sandboxed with no allow-same-origin and its origin is opaque.
+ *      The capability came back out (a checkbox that grants nothing is the one
+ *      lie a permission surface must never tell) and this leg stayed, as the
+ *      invariant it always really was. It is a guard against a future
+ *      one-liner that looks obviously right.
  *
  * WHY TWO BROWSERS. The meeting legs need Chromium's automation flags for
  * display capture (`--auto-select-desktop-capture-source`, measured: without
  * it getDisplayMedia hangs forever on a picker no headless box will answer,
- * and WITH it a real 1280x720 'monitor' surface arrives). The capability legs
- * must take NO flags at all — a suite that pre-grants the thing it is trying
- * to see refused proves nothing. So the capability legs get their own browser.
- *
- * WHAT THE CAPABILITY LEG CAN AND CANNOT PROVE HEADLESS. With no auto-select
- * flag there is no picker to answer, so a GRANTED ask does not resolve — it
- * hangs, which is exactly what reaching the picker looks like. So the granted
- * assertion is "it was NOT refused", against a refusal that is instant and
- * explicit when the policy is missing. Never assert a capture a headless box
- * cannot perform; assert that the policy stopped standing in the way.
+ * and WITH it a real 1280x720 'monitor' surface arrives). Leg 6 must take NO
+ * flags at all — a suite that pre-grants what it is trying to see refused
+ * proves nothing, and here the flags would auto-answer the very picker whose
+ * unreachability is the point. So leg 6 gets its own browser.
  *
  * Needs RELAY + BASE.
  */
@@ -245,12 +247,13 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   await aCtx.close();
   await browser.close();
 
-  // ============ capabilities.screen (leg 6) — NO launch flags ==============
+  // ====== LEG 6: no app can photograph your screen — NO launch flags ========
   const appBrowser = await chromium.launch({ executablePath: CHROME });
+
   // The ask must happen inside a REAL click: getDisplayMedia needs transient
   // user activation, so an at-load call is refused for a reason that has
-  // nothing to do with the permissions policy and would make the whole leg a
-  // test of the wrong refusal.
+  // nothing to do with the app boundary and would make this leg a test of the
+  // wrong refusal.
   const APP_HTML = '<!doctype html><meta charset="utf-8">'
     + '<style>html,body{margin:0;height:100%}#c{display:block;width:100vw;height:100vh;background:#222}</style>'
     + '<canvas id="c"></canvas><script>'
@@ -266,8 +269,7 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   // Same seeding shape as e2e-fullscreen-lock.js — and the manifest file is
   // `manifest.json`, which is the name the runtime actually reads. (A
   // mis-named manifest mounts a capability-LESS app that looks identical from
-  // the outside: the first cut of this suite spent a run proving that a
-  // declared capability was not delegated, when nothing had declared it.)
+  // the outside, which cost this suite a whole run.)
   const seed = (page, appId, name, caps) => page.evaluate(async (o) => {
     const manifest = { gifos: '1.0', appId: o.appId, name: o.name, entry: 'index.html' };
     if (o.caps) manifest.capabilities = o.caps;
@@ -284,19 +286,17 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   await boot.goto(BASE + '/run.html');
   await boot.waitForFunction(() => window.GifOS && GifOS.store && GifOS.gif, null, { timeout: 60000 });
   const plainId = await seed(boot, 'plainshot', 'Plain', null);
-  const shotId = await seed(boot, 'screenshot', 'Shotty', { screen: true });
+  // An app that ASKS. `screen` is not a capability the runtime knows, which is
+  // the whole point: asking must not be a way in, now or after some future
+  // refactor decides unknown keys deserve the benefit of the doubt.
+  const shotId = await seed(boot, 'screenshot', 'Shotty', { screen: true, fullscreen: true });
+  await boot.close();
 
-  // The ask is answered in one of three ways: DENIED instantly (no policy), or
-  // still pending after a beat — which on this flagless browser is what
-  // reaching the browser's own picker looks like — or GOT (only possible with
-  // an auto-select flag, which this browser deliberately has not got).
   const mount = async (fileId) => {
     const page = await capCtx.newPage();
     page.on('pageerror', (e) => console.log('  [cap] ' + e.message));
     await page.goto(BASE + '/run.html#id=' + fileId);
     await page.waitForSelector('#appmount iframe', { timeout: 60000 });
-    // Read the sheet's row on the way past: a capability the runtime honours
-    // but the sheet cannot NAME is one the user can neither see nor revoke.
     const row = await page.evaluate(() => {
       const cb = document.querySelector('.perm-modal input[data-cap="screen"]');
       const r = cb && cb.closest('.perm-row');
@@ -318,30 +318,21 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   };
 
   const plain = await mount(plainId);
-  check('an app that did NOT declare it gets no display-capture policy',
-    !/display-capture/.test(plain.allow), plain.allow || '(no allow attribute)');
-  check('…and its ask is refused, inside the sandbox', /^DENIED:/.test(plain.r), plain.r);
-  check('…and the Abilities sheet does not offer a row it never asked for', plain.row === null);
+  check('an ordinary app is refused the screen', /^DENIED:/.test(plain.r), plain.r);
+  check('…and was never delegated display-capture', !/display-capture/.test(plain.allow), plain.allow || '(no allow attribute)');
 
   const shot = await mount(shotId);
-  check('a declared app gets display-capture delegated',
-    /(^|[\s;])display-capture([\s;]|$)/.test(shot.allow), shot.allow);
-  check('…and its ask is NOT refused (it reaches the browser’s own picker)', !/^DENIED:/.test(shot.r), shot.r);
-  check('…and the sheet can NAME the ability, so it can be turned off',
-    !!shot.row && /Capture a window/.test(shot.row) && !/undefined/.test(shot.row), (shot.row || '').slice(0, 80));
-  check('…and nothing else about the sandbox was relaxed',
-    shot.sandbox === plain.sandbox && !/allow-same-origin|allow-top-navigation/.test(shot.sandbox), shot.sandbox);
-
-  // The veto. A permissions policy is fixed at NAVIGATION, so a checkbox that
-  // moves and changes nothing is the one lie a permission surface must not tell.
-  const veto = await capCtx.newPage();
-  await veto.goto(BASE + '/run.html');
-  await veto.evaluate(() => localStorage.setItem('gifos_capoff_screenshot', JSON.stringify(['screen'])));
-  await veto.close();
-  const vetoed = await mount(shotId);
-  check('unchecking it in the sheet takes the policy away again',
-    !/display-capture/.test(vetoed.allow), vetoed.allow || '(no allow attribute)');
-  check('…and the refusal is back', /^DENIED:/.test(vetoed.r), vetoed.r);
+  check('an app that ASKS for the screen in its manifest is refused too', /^DENIED:/.test(shot.r), shot.r);
+  check('…because asking is not a capability the runtime knows', !/display-capture/.test(shot.allow), shot.allow || '(no allow attribute)');
+  check('…and the Abilities sheet offers no screen row to tick', shot.row === null);
+  // The control: this app ALSO declares fullscreen, which the runtime does
+  // know. If that came through and the screen did not, the refusal above is a
+  // rule — not a manifest the mount failed to read.
+  check('…while its other, REAL declared capability came through',
+    /(^|[\s;])fullscreen([\s;]|$)/.test(shot.allow), shot.allow);
+  check('THE SANDBOX ITSELF IS UNTOUCHED — the opaque origin is why the screen is safe',
+    shot.sandbox.replace(/\s*allow-orientation-lock/, '') === plain.sandbox
+    && !/allow-same-origin/.test(shot.sandbox), shot.sandbox + ' vs ' + plain.sandbox);
 
   await appBrowser.close();
   console.log(fail ? '\nFAILURES: ' + fail : '\nall green');

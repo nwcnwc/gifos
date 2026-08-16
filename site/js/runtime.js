@@ -2408,30 +2408,33 @@
     // while document.fullscreenEnabled still read true. `*` removes the origin
     // match from the question. It is not a wider grant in any way that matters:
     // the only document this policy can ever reach is the one app in this frame.
-    // SCREEN CAPTURE — `display-capture`, the policy feature behind
-    // getDisplayMedia(). Without this delegation an app frame is refused
-    // outright (NotAllowedError, "Permissions policy violation"), which is the
-    // right default and stays the default: an app that can photograph the whole
-    // desktop can read every other window on it — your bank tab, your
-    // messages, the meeting you are in — so this is the widest-reaching
-    // capability in the list and it is opt-in per app and revocable in the
-    // sheet like every other. `*` for the same measured reason as fullscreen
-    // above: the default allowlist is 'self' and this frame's origin is opaque,
-    // so there is nothing for 'self' to match.
+    // NO SCREEN-CAPTURE CAPABILITY, AND IT IS NOT AN OVERSIGHT — IT CANNOT BE
+    // BUILT THIS WAY. `display-capture` IS a permissions-policy feature, so
+    // `allow.push('display-capture *')` looked like the same one-liner that
+    // gave apps webgpu and fullscreen, and it delegates cleanly: the attribute
+    // lands and the policy check passes. Then getDisplayMedia rejects anyway,
+    // with `SecurityError: Invalid security origin` — measured 2026-08-16 in a
+    // real app frame, inside a real click, on Chromium 1228. The refusal is
+    // the OPAQUE ORIGIN, not the policy: this frame is srcdoc-sandboxed with
+    // no allow-same-origin (makeIframe below), which is the property the whole
+    // app boundary rests on, and display capture will not run in a document
+    // whose origin is opaque. The proof it is the origin and not the policy is
+    // that the error CHANGES when the delegation is added — NotAllowedError
+    // "disallowed by permissions policy" before, SecurityError after.
     //
-    // The BROWSER's own guard is what makes this safe rather than terrifying,
-    // and it is a guard GifOS could not build itself: the picker is chrome, not
-    // page content, capture only ever starts from a real user gesture, the user
-    // chooses the exact surface, and the browser shows a stop control the page
-    // cannot hide. That is why this is a delegation and not a broker — unlike
-    // camera/mic, where we mint an unfakeable overlay ourselves because a
-    // silent grab is otherwise possible.
+    // So screen capture for an app would need either allow-same-origin (never
+    // — that is the sandbox) or a BROKER like camera/mic, where the parent
+    // captures behind an unfakeable overlay and hands the app the result. That
+    // is a real design with a real cost, and nothing has asked for it yet.
+    // What we will not ship in the meantime is a checkbox in the Abilities
+    // sheet that grants nothing: a permission surface that moves and changes
+    // nothing is the one lie it must never tell.
     //
-    // NOTE FOR ANYONE READING THIS FROM THE MEETING SIDE: this is NOT how the
-    // meeting shares a screen. run.html is the parent page and calls
-    // getDisplayMedia directly; no app is involved, and an app-pinned room
-    // deliberately offers no screen share at all (docs/media-plane.md).
-    if (hasCap(manifest, 'screen') && !capDisabled(manifest, 'screen')) allow.push('display-capture *');
+    // The MEETING's screen share is unaffected and unrelated: run.html is a
+    // top-level page with a real origin and calls getDisplayMedia itself
+    // (docs/media-plane.md). test/browser/e2e-screen-share.js gates both — the
+    // meeting share works, and no app can reach the screen however it is
+    // declared.
     if (asked.length) allow.push('autoplay');
     if (allow.length) { try { iframe.setAttribute('allow', allow.join('; ')); } catch (e) {} }
     // Pointer lock is a SANDBOX flag, not a permissions-policy feature, so it
