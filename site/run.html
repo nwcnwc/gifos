@@ -433,9 +433,13 @@
      start, not a second source of truth. -->
 <style id="entry-chrome">html.solo-app .bar,html.solo-app #grid,html.solo-app #feed{display:none!important}</style>
 <script>(function(){try{
-  // SOLO ONLY, deliberately. The three body.solo-app rules below are
-  // unconditional for the page's life, so mirroring them on <html> can never go
-  // stale. The app-room rules are NOT: they read
+  // SOLO ONLY, deliberately. The three body.solo-app rules below hold for as
+  // long as the page IS solo — and there is exactly one path that ends that:
+  // Invite-from-solo turns this page into an app ROOM in place. That path must
+  // therefore clear BOTH copies, and it does (inviteFromSolo, far below) —
+  // clearing only the body one left this mirror hiding the meeting bar, the
+  // grid and the feed forever, so a call in such a room showed nothing. The
+  // app-room rules are NOT mirrored at all: they read
   // `body.app-room:not(.call-on)`, and `call-on` is only ever added to <body> —
   // an <html>.app-room copy would have no such exception and would keep the grid
   // hidden FOREVER once an app-room call started. A launch from the desktop is
@@ -6880,6 +6884,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             ROOM.solo = false; ROOM.founder = true;
             ROOM.join = m.owned ? { short: m.short, av: m.av, k: m.k, owned: true } : { short: null, av: null, k: m.k, owned: false };
             document.body.classList.remove('solo-app');
+            // …AND THE <html> MIRROR. The entry-chrome block in <head> stamps
+            // `solo-app` on documentElement so a #id= launch never paints the
+            // meeting chrome and takes it away again — and its comment says the
+            // mirror "can never go stale" because the solo rules are
+            // unconditional for the page's life. This ONE path falsifies that:
+            // inviting from solo turns a solo page into an app ROOM in place
+            // (ROOM.solo = false above), and the app-room rules are
+            // :not(.call-on) — conditional. Removing only the body copy left
+            // html.solo-app hiding .bar, #grid and #feed for the rest of the
+            // page's life, so a call started in a room born this way had no
+            // meeting bar and no tiles at all: body.call-on went on, and
+            // nothing appeared. Found by e2e-screen-share.js asserting the bar
+            // is really RENDERED in an app room (its point is that Share screen
+            // is missing BY RULE, not because no bar was drawn).
+            document.documentElement.classList.remove('solo-app');
             document.getElementById('appinvite').style.display = 'none';
             // startMesh() mints the S4 identity ASYNC — myId lands a beat after
             // bootAppRoom resolves, and runApp refuses without it (canIRunApp).

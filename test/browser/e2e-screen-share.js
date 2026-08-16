@@ -247,21 +247,36 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
 
   // ============ capabilities.screen (leg 6) — NO launch flags ==============
   const appBrowser = await chromium.launch({ executablePath: CHROME });
-  const seed = async (page, appId, name, caps) => page.evaluate(async (o) => {
-    const enc = new TextEncoder();
-    const manifest = { name: o.name, appId: o.appId, version: '1.0.0', entry: 'index.html', capabilities: o.caps || {} };
-    const files = { 'index.html': enc.encode(o.html), 'gifos.json': enc.encode(JSON.stringify(manifest)) };
-    const bytes = await GifOS.gif.encode(files, { name: o.name });
+  // The ask must happen inside a REAL click: getDisplayMedia needs transient
+  // user activation, so an at-load call is refused for a reason that has
+  // nothing to do with the permissions policy and would make the whole leg a
+  // test of the wrong refusal.
+  const APP_HTML = '<!doctype html><meta charset="utf-8">'
+    + '<style>html,body{margin:0;height:100%}#c{display:block;width:100vw;height:100vh;background:#222}</style>'
+    + '<canvas id="c"></canvas><script>'
+    + 'window.__r = "no-click-seen";'
+    + 'document.getElementById("c").addEventListener("click", function () {'
+    + '  window.__r = "clicked-but-nothing-answered";'
+    + '  try { navigator.mediaDevices.getDisplayMedia({ video: true })'
+    + '    .then(function () { window.__r = "GOT"; },'
+    + '          function (e) { window.__r = "DENIED:" + e.name + ":" + String(e.message).slice(0, 90); }); }'
+    + '  catch (e) { window.__r = "DENIED:" + e.name + ":" + String(e.message).slice(0, 90); }'
+    + '});<\/scr' + 'ipt>';
+
+  // Same seeding shape as e2e-fullscreen-lock.js — and the manifest file is
+  // `manifest.json`, which is the name the runtime actually reads. (A
+  // mis-named manifest mounts a capability-LESS app that looks identical from
+  // the outside: the first cut of this suite spent a run proving that a
+  // declared capability was not delegated, when nothing had declared it.)
+  const seed = (page, appId, name, caps) => page.evaluate(async (o) => {
+    const manifest = { gifos: '1.0', appId: o.appId, name: o.name, entry: 'index.html' };
+    if (o.caps) manifest.capabilities = o.caps;
+    const files = { 'manifest.json': JSON.stringify(manifest), 'index.html': o.html };
+    const bytes = await GifOS.gif.encode(files, {});
     const id = GifOS.store.uid('file');
-    await GifOS.store.putFile({ id, name: o.name + '.gif', bytes, isApp: true, appId: o.appId });
+    await GifOS.store.putFile({ id, name: o.name + '.gif', bytes, kind: 'gif', isApp: true, appId: o.appId, mime: 'image/gif' });
     return id;
   }, { appId, name, caps, html: APP_HTML });
-
-  const APP_HTML = '<!doctype html><meta charset="utf-8"><body style="background:#123"><script>'
-    + 'window.__r="pending";'
-    + 'navigator.mediaDevices.getDisplayMedia({video:true}).then(function(s){window.__r="GOT";},'
-    + 'function(e){window.__r="DENIED:"+e.name+":"+String(e.message).slice(0,80);});'
-    + '<\/scr' + 'ipt></body>';
 
   const capCtx = await appBrowser.newContext();
   const boot = await capCtx.newPage();
@@ -271,29 +286,35 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   const plainId = await seed(boot, 'plainshot', 'Plain', null);
   const shotId = await seed(boot, 'screenshot', 'Shotty', { screen: true });
 
-  // The ask is answered in one of three ways: refused instantly (no policy),
-  // still pending after a beat (reached the browser's picker — a grant), or
-  // resolved (only possible with an auto-select flag, which this browser has
-  // deliberately not got).
+  // The ask is answered in one of three ways: DENIED instantly (no policy), or
+  // still pending after a beat — which on this flagless browser is what
+  // reaching the browser's own picker looks like — or GOT (only possible with
+  // an auto-select flag, which this browser deliberately has not got).
   const mount = async (fileId) => {
     const page = await capCtx.newPage();
     page.on('pageerror', (e) => console.log('  [cap] ' + e.message));
     await page.goto(BASE + '/run.html#id=' + fileId);
     await page.waitForSelector('#appmount iframe', { timeout: 60000 });
+    // Read the sheet's row on the way past: a capability the runtime honours
+    // but the sheet cannot NAME is one the user can neither see nor revoke.
     const row = await page.evaluate(() => {
       const cb = document.querySelector('.perm-modal input[data-cap="screen"]');
       const r = cb && cb.closest('.perm-row');
       return r ? (r.textContent || '') : null;
     });
-    await page.locator('.perm-modal .done').click({ timeout: 5000 }).catch(() => {});
+    // The sheet covers the app, so the click below would land on its backdrop.
+    const done = await page.$('.perm-modal .done');
+    if (done) { await done.click(); await page.waitForTimeout(150); }
     const el = await page.$('#appmount iframe');
-    const allow = await el.getAttribute('allow');
-    const sandbox = await el.getAttribute('sandbox');
-    await sleep(1500);
+    const allow = (await el.getAttribute('allow')) || '';
+    const sandbox = (await el.getAttribute('sandbox')) || '';
     const frame = await el.contentFrame();
+    await frame.waitForSelector('#c', { timeout: 15000 });
+    await frame.click('#c');   // a REAL gesture: getDisplayMedia demands one
+    await page.waitForTimeout(1200);
     const r = await frame.evaluate(() => window.__r).catch((e) => 'UNREADABLE:' + e.message);
     await page.close();
-    return { row, allow: allow || '', sandbox: sandbox || '', r };
+    return { row, allow, sandbox, r };
   };
 
   const plain = await mount(plainId);
