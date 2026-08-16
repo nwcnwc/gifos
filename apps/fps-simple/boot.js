@@ -1149,7 +1149,12 @@
     // lock assertion those runs were chasing turned out to be a stale app
     // catalog breaking the desktop mount entirely, and it is green with this
     // gating and with the catalog regenerated.)
-    engine.input.requestPointerLock();
+    // A TOUCHSCREEN IS NOT ASKED FOR THE POINTER AT ALL. touch.js bans the lock
+    // on touch devices anyway (Chrome on Android FREEZES touch coordinates while
+    // one is held, which is what killed the movement stick), but asking and then
+    // shedding is not free: the engine treats a lock it was holding disappearing
+    // as Escape, and the game arrives PAUSED. Cheaper and quieter never to ask.
+    if (!IS_TOUCH) engine.input.requestPointerLock();
     if (IS_TOUCH) goFullscreenLandscape();
     // Audio is STARTED here, inside the gesture, because that is the only place
     // a browser will allow it — but silenced until there is something to look

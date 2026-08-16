@@ -230,6 +230,39 @@ const RELEASE = ({ sel }) => {
   const released = await until(phone.frame, () => !window.__FPS__.engine.input.down.has('KeyR'), 20000);
   check('and releasing it lets go — a stuck key would reload forever', released);
 
+  // A TOUCH DEVICE MUST NOT HOLD POINTER LOCK WHILE IT PLAYS, and this is the
+  // one assertion that could have caught the stick going completely dead.
+  //
+  // Chrome on Android grants pointer lock to the canvas (the app asks on Play,
+  // and the engine re-asks on the compat mousedown that a bare canvas tap
+  // synthesises), and WHILE LOCKED it keeps hit-testing touch events to the
+  // right element but FREEZES their client coordinates. Measured on a Moto g24:
+  // 1 pointerdown and 14 pointermoves all arriving at #t-move carrying
+  // clientX/Y of exactly (0,-31). So the buttons kept working — they read no
+  // coordinates — while the stick and the look-drag, which read nothing else,
+  // did nothing at all. It is also why the stick came back in the pause menu:
+  // opening it exits pointer lock.
+  //
+  // Synthetic strokes can never see that, because Playwright's events carry
+  // good coordinates whether or not the lock is held. So the guard is the
+  // INVARIANT rather than the symptom: ask for the lock the way the engine
+  // does, and require that a touch device does not end up holding one.
+  //
+  // LAST IN THE SUITE, deliberately. Asking for the lock provokes the app into
+  // shedding one, and a shed is a real event — it briefly looks like Escape to
+  // the engine. Run earlier, it left the game paused and the look-drag
+  // assertion below it failed for a reason that had nothing to do with looking.
+  await phone.frame.evaluate(() => { try { window.__FPS__.engine.input.requestPointerLock(); } catch (e) {} });
+  const shed = await until(phone.frame,
+    () => document.body.classList.contains('touch') && !document.pointerLockElement, 5000);
+  check('a touch device never holds pointer lock while it is playing', shed);
+  // …and shedding it must not be mistaken for Escape. Upstream pauses when a
+  // lock it was holding disappears, so a careless shed opens the pause menu
+  // over a live game — which is its own version of "the controls do nothing".
+  check('…and shedding the lock does not read as Escape and pause the game',
+    await phone.frame.evaluate(() => !(window.__FPS__ && window.__FPS__.ui
+      && window.__FPS__.ui.menu && window.__FPS__.ui.menu.open)));
+
   await pCtx.close();
 
   /* ---- a desktop must NOT get a phone HUD -------------------------------- */
