@@ -58,6 +58,60 @@ if (at !== PIN) throw new Error('checkout is at ' + at + ', not the pin ' + PIN 
 
 if (!existsSync(join(src, 'node_modules', 'three'))) run('npm', ['install', '--silent'], src);
 
+// PATCHES WE CARRY, applied to upstream's SOURCE before the build.
+//
+// The engine is MIT and vendored, so changing it is allowed — what is not
+// allowed is changing it invisibly. A hand-edit to vendor/game.js disappears
+// the next time anybody moves the pin, and nobody finds out until the thing it
+// fixed comes back. So every change lives here, is applied to the checkout, and
+// FAILS THE BUILD if upstream has moved the code out from under it. A patch
+// that no longer matches is a decision to make, not a line to skip.
+//
+// aiTexSize / aiCamo — AiSystem hardcodes `size: 512` and three camo sets, with
+// no path from the quality preset. Measured on a Moto g24 that is 8.4 s of a
+// 21 s first load, and it is the single largest item left. Making both readable
+// from config.q lets a weak device ask for smaller maps and one camo without
+// touching what a fast device gets.
+const PATCHES = [
+  {
+    file: 'src/ai/index.js',
+    find: /size:\s*512,\s*anisotropy:\s*([A-Za-z_$][\w$]*)\.config\.q\.anisotropy\s*\?\?\s*8,\s*camo:\s*\[\s*['"]arid['"],\s*['"]woodland['"],\s*['"]urban['"]\s*\]/,
+    replace: (m, t) => `size: ${t}.config.q.aiTexSize ?? 512, anisotropy: ${t}.config.q.anisotropy ?? 8, camo: ${t}.config.q.aiCamo ?? ['arid', 'woodland', 'urban']`,
+    why: 'let a weak device pick smaller camo maps and fewer of them',
+  },
+  {
+    // WeaponSystem builds every viewmodel up front — three of them, 136.8k
+    // triangles, 4.4 s of a 16 s first load on a Moto g24. The list is
+    // hardcoded, so a device that would rather start than carry a spare cannot
+    // say so. Configurable, defaulting to exactly what upstream does.
+    file: 'src/weapons/index.js',
+    find: /for\s*\(\s*const\s+([A-Za-z_$][\w$]*)\s+of\s*\[\s*['"]rifle['"],\s*['"]smg['"],\s*['"]pistol['"]\s*\]\s*\)/,
+    replace: (m, n) => `for (const ${n} of (t.config.q.weapons ?? ['rifle', 'smg', 'pistol']))`,
+    why: 'let a weak device build fewer weapon viewmodels at boot',
+  },
+  {
+    // FxSystem picks its particle atlas size from the particle budget alone —
+    // 512 px unless the budget is huge. A phone wants a smaller one for the
+    // same reason it wants smaller everything else, and 939 ms of a 15 s boot
+    // is worth not spending on sparks nobody has seen yet.
+    file: 'src/fx/index.js',
+    find: /=\s*([A-Za-z_$][\w$]*)\s*\?\s*1024\s*:\s*512\s*;/,
+    replace: (m, big) => `= e.fxAtlas ?? (${big} ? 1024 : 512);`,
+    why: 'let a weak device bake smaller particle atlases',
+  },
+];
+for (const p of PATCHES) {
+  const f = join(src, p.file);
+  const before = readFileSync(f, 'utf8');
+  if (!p.find.test(before)) {
+    throw new Error('PATCH NO LONGER APPLIES: ' + p.file + ' — ' + p.why
+      + '\n  Upstream moved this code. Re-target the patch or drop it DELIBERATELY;'
+      + '\n  building without it silently loses what it was for.');
+  }
+  writeFileSync(f, before.replace(p.find, p.replace));
+  console.log('patched ' + p.file + ' — ' + p.why);
+}
+
 // The facade. Everything our layer needs, and nothing it does not — a smaller
 // surface here is a smaller thing to keep working when the pin moves.
 writeFileSync(join(src, 'src', '_gifos-facade.js'), `

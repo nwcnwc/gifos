@@ -264,11 +264,20 @@
       s.q = { cascades: 1, shadowMapSize: 256, shadowDistance: 18,
               particleBudget: 120, decalBudget: 8, bloom: false,
               taa: false, gtao: false, ssr: false, volumetrics: false,
-              motionBlur: false, anisotropy: 1 };
+              motionBlur: false, anisotropy: 1,
+              // Reachable only because vendor.mjs patches them into config.q.
+              aiTexSize: 128, aiCamo: ['arid'], weapons: ['rifle'], fxAtlas: 256 };
     } else {
-      s.quality = 'low'; s.renderScale = 0.5; s.texCap = 256;
+      s.quality = 'low'; s.renderScale = 0.5; s.texCap = 128;
+      // 8.4 s of a 21 s first load on a Moto g24 was this: three camo sets baked
+      // at 512 px. One set at 192 px is a soldier who looks the same at the
+      // distance anyone ever sees one, for a fraction of the wait.
       s.q = { cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
-              taa: false, gtao: false, ssr: false, volumetrics: false, motionBlur: false };
+              taa: false, gtao: false, ssr: false, volumetrics: false, motionBlur: false,
+              aiTexSize: 192, aiCamo: ['arid'],
+              // Two of three viewmodels: 1/2 still swaps, and the smg's 4.4 s
+              // share of the boot is not worth making everyone wait for.
+              weapons: ['rifle', 'pistol'], fxAtlas: 256 };
     }
     return s;
   }
