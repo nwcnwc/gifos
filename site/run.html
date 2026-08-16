@@ -905,6 +905,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      while anyone in the room is sharing (paintShare). */
   body.screen-on #stagefeed .rowtile { max-height: 76vh; }
   #sharebtn.on { background: #b3402f; border-color: #d4593f; color: #fff; }
+  .stopshare { cursor: pointer; text-decoration: underline dotted; }
   .share-note { border: 1px solid var(--border, #2a2a3f); border-left: 3px solid #6f7bd4;
     background: rgba(111,123,212,.10); border-radius: .45rem; padding: .55rem .7rem;
     font-size: .84rem; line-height: 1.4; margin: .2rem 0 .7rem; }
@@ -2690,7 +2691,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // WHAT IS ON SCREEN, AND WHOSE. A screen share is the one feed where the
       // pixels do not say who they came from or that they are not a face — so
       // the tile does, on every device, from the same gossiped bit.
-      if (st.scr) chips.push('<span class="warn">🖥 ' + (isMe ? 'you are sharing your screen' : 'sharing their screen') + '</span>');
+      // …and for ME the chip is also the STOP button. The Share-screen control
+      // lives in `.barmore`, which the meeting bar hides when collapsed — and
+      // collapsed is the DEFAULT (gifos_meet_bar). So the one moment a person
+      // most needs a way out is the moment the way out can be off screen. A
+      // tile is always on screen, so the chip that announces the share is the
+      // thing that ends it. (The browser's own "Stop sharing" bar still works
+      // and still lands here through track.onended — this is the third way,
+      // not the only one.)
+      if (st.scr) {
+        chips.push(isMe
+          ? '<span class="warn stopshare" role="button" tabindex="0" title="Stop sharing your screen">🖥 you are sharing your screen — tap to stop</span>'
+          : '<span class="warn">🖥 sharing their screen</span>');
+      }
       if (st.hand) chips.push('<span class="warn">✋ hand raised</span>');
       if (st.rec) chips.push('<span class="warn">⏺ recording this meeting</span>');
       if (st.cc) chips.push('<span>📝 transcribing</span>');
@@ -10226,6 +10239,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (myStatus.scr) { stopScreenShare(); return; }
       openShareSheet();
     };
+    // The self-tile's chip is the always-visible stop (see updateTile). One
+    // delegated listener, because the chips are re-rendered from a string on
+    // every repaint and per-element handlers would be re-bound forever.
+    document.addEventListener('click', (e) => {
+      const t = e.target && e.target.closest && e.target.closest('.stopshare');
+      if (t) { e.preventDefault(); stopScreenShare(); }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const t = document.activeElement;
+      if (t && t.classList && t.classList.contains('stopshare')) { e.preventDefault(); stopScreenShare(); }
+    });
     // THE SHEET THAT PREFERS THE APP PIN. It is not a nag screen: it is the
     // one moment where the person can still be told that the thing they are
     // about to do the expensive way has a better way, before a picker opens.
