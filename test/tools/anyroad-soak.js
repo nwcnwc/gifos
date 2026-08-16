@@ -22,7 +22,7 @@
  *      evict() skips pending slots on purpose ("never drop a tile still in
  *      flight"). A stranded marker can never be evicted and never resolves.
  *
- *   9-11 min of flying and hopping, nvidia-laptop, drape on:
+ *   9-11 min of flying and hopping, <gpu-box>, drape on:
  *     before          textures 26 -> 31 -> 36 -> 41 -> 46 -> 51, heap 17 -> 28 MB
  *                     a monotonic staircase, +5 per hop, NOT ONE SAMPLE FELL
  *     textures only   textures 26 -> 38   (still climbing: slots 25 -> 37)
@@ -38,10 +38,10 @@
  *
  * RUN IT ON A FLEET BOX (what the numbers above came from — this box is 4 cores
  * and cannot hold still long enough to trust a trend):
- *   ssh nvidia-laptop 'cd ~/projects/gifos && git fetch -q origin main && git reset -q --hard origin/main && node apps/anyroad/build.mjs'
- *   ssh nvidia-laptop 'cd ~/projects/gifos && setsid nohup python3 -m http.server 8099 -d site </dev/null >/dev/null 2>&1 & disown; exit 0'
- *   ssh nvidia-laptop 'cd ~/projects/gifos && SOAK_MINUTES=10 nohup setsid node test/tools/anyroad-soak.js >/tmp/soak.log 2>&1 </dev/null & echo ok'
- *   # then poll: ssh nvidia-laptop 'tail -20 /tmp/soak.log'
+ *   ssh <gpu-box> 'cd ~/projects/gifos && git fetch -q origin main && git reset -q --hard origin/main && node apps/anyroad/build.mjs'
+ *   ssh <gpu-box> 'cd ~/projects/gifos && setsid nohup python3 -m http.server 8099 -d site </dev/null >/dev/null 2>&1 & disown; exit 0'
+ *   ssh <gpu-box> 'cd ~/projects/gifos && SOAK_MINUTES=10 nohup setsid node test/tools/anyroad-soak.js >/tmp/soak.log 2>&1 </dev/null & echo ok'
+ *   # then poll: ssh <gpu-box> 'tail -20 /tmp/soak.log'
  * Backgrounding over ssh is fiddly: use `nohup setsid ... </dev/null` and exit 0,
  * or the redirect dies with the session and you get an empty log.
  *

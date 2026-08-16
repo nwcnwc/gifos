@@ -109,7 +109,7 @@ function secureOriginArgs(args, origin) {
 // the repo whose death was NOT covered, and the death that matters most: a
 // fleet box is a laptop on someone's wifi, and a laptop sleeps.
 //
-// It cost a night. nvidia-laptop suspended mid-run (measured afterwards: a
+// It cost a night. <gpu-box> suspended mid-run (measured afterwards: a
 // 4h48m silence in its journal, a fresh tty7 login when it woke, wifi
 // reactivated one second later) and the suite reported
 // "frame.evaluate: Target page, context or browser has been closed" from inside
