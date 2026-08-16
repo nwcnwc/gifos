@@ -227,8 +227,12 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   await p.waitForFunction(() => document.body.classList.contains('app-room'), null, { timeout: 30000 });
   // Turn the call layer on, so the meeting bar is actually rendered — the point
   // is that Share screen is missing BY RULE, not because no bar is drawn.
-  await p.locator('#cam').click({ force: true });
-  await p.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 20000 }).catch(() => {});
+  // A DOM .click(), not a Playwright click: in an app room the bar is hidden
+  // UNTIL the call layer is on, and the camera button is what turns it on —
+  // an actionability check can never pass on the control that makes itself
+  // visible. (Same idiom as e2e-app-room.js for the same reason.)
+  await p.evaluate(() => { document.getElementById('cam').click(); });
+  await p.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 25000 });
   const pinned = await p.evaluate(() => {
     const vis = (id) => { const el = document.getElementById(id); return !!(el && el.offsetParent !== null); };
     return { appRoom: document.body.classList.contains('app-room'), callOn: document.body.classList.contains('call-on'),
