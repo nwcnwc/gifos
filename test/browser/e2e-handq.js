@@ -209,10 +209,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // ONE budget, ONE loop, and the elapsed time is REPORTED. The old shape spent
   // 60s in a hard waitForFunction for the hands and only then entered a 60s
   // agreement loop — so a box that needed 70s to flood ten statuses died at the
-  // 60s mark from patience it actually had. Now the whole 150s is one wait for
-  // the thing being asserted, and the log says how long it took: a run that
-  // converges in 9s on a laptop and 80s on the gate box is a fact worth seeing
-  // BEFORE it becomes a red.
+  // 60s mark from patience it actually had. The same 120s is now one wait for
+  // the thing being asserted, and the log says how long it took: an idle 8-core
+  // box converges in 0s (the first sample already has ten), so a run that takes
+  // tens of seconds is a fact worth seeing BEFORE it becomes a red.
   const t0 = Date.now();
   const agreeBy = t0 + 120000;
   for (;;) {
