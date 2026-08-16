@@ -162,11 +162,11 @@
         78
       ],
       "cover": "/apps/fps-simple/cover.jpg",
-      "bytes": 1077132,
+      "bytes": 1077949,
       "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "84c320ee0b05f0311e4a3b94a303f82f85d32b34c5428275be975e3752039644"
+      "sha256": "b18098da41d91c6dc610844afe66f57767bc3fb78f76ddcc7e21cee3330bfe7a"
     },
     {
       "slug": "offline-llm-bitnet",

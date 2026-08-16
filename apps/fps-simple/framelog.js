@@ -236,6 +236,23 @@
     return rtCache;
   }
 
+  // WHERE THE FRAME WENT, in milliseconds, averaged over the window since the
+  // last publish and then reset — a running total since boot would be dominated
+  // by the first seconds forever. Written by the engine's step(), which is
+  // patched to keep it (see vendor.mjs).
+  function phaseMs(F) {
+    try {
+      var P = F.ctx && F.ctx.__phase;
+      if (!P || !P.n) return '';
+      var n = P.n;
+      var out = 'fixed:' + (P.fixed / n).toFixed(1) + ' update:' + (P.update / n).toFixed(1)
+        + ' late:' + (P.late / n).toFixed(1) + ' render:' + (P.render / n).toFixed(1)
+        + ' substeps:' + (P.steps / n).toFixed(2) + ' over:' + n;
+      P.fixed = P.update = P.late = P.render = P.steps = P.n = 0;
+      return out;
+    } catch (e) { return 'phase:' + String((e && e.message) || e); }
+  }
+
   function renderStats() {
     try {
       var F = root.__FPS__;
@@ -274,6 +291,7 @@
         shadow: ren.shadowMap ? ((ren.shadowMap.enabled ? 'on' : 'off') + '/' + ren.shadowMap.type) : 'n/a',
         tone: ren.toneMapping + '@' + (ren.toneMappingExposure != null ? ren.toneMappingExposure : '?'),
         cs: ren.outputColorSpace || ren.outputEncoding || '',
+        phase: phaseMs(F),
         lights: lightInfo(r),
         pix: pix,
         // WHAT THE RENDER SYSTEM IS MADE OF. The geometry all draws and the
