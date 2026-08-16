@@ -14,7 +14,8 @@
   "capabilities": {
     "db": true,
     "multiplayer": true,
-    "pointer": true
+    "pointer": true,
+    "fullscreen": true
   },
   "data": {
     "prefs": {

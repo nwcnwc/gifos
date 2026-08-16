@@ -2384,6 +2384,21 @@
     // it runs a compute/render pipeline on the device's GPU. The engine still
     // has to reach the sandbox as bytes; capabilities.wasm remains the way in.
     if (hasCap(manifest, 'gpu') && !capDisabled(manifest, 'gpu')) allow.push('webgpu');
+    // FULLSCREEN is half a permissions-policy feature and half a sandbox flag,
+    // and a phone game needs BOTH halves (the sandbox half is set below).
+    //
+    // The policy half: `fullscreen`'s default allowlist is 'self', and this
+    // frame's document is srcdoc inside a sandbox with no allow-same-origin, so
+    // it has an OPAQUE origin — cross-origin to us by definition, never 'self'.
+    // Without this delegation requestFullscreen() rejects with a TypeError
+    // ("Permissions check failed") thrown INSIDE the app, where nobody sees it.
+    // Note this is the modern spelling: the legacy `allowfullscreen` attribute
+    // means exactly `allow="fullscreen"`, and there is no such SANDBOX token —
+    // `allow-fullscreen` in a sandbox attribute is an invalid flag Chrome warns
+    // about and ignores. It grants a bigger picture and nothing else: no
+    // network, no origin, no storage, and the browser keeps its own two guards
+    // (a user gesture to enter, Esc to leave).
+    if (hasCap(manifest, 'fullscreen') && !capDisabled(manifest, 'fullscreen')) allow.push('fullscreen');
     if (asked.length) allow.push('autoplay');
     if (allow.length) { try { iframe.setAttribute('allow', allow.join('; ')); } catch (e) {} }
     // Pointer lock is a SANDBOX flag, not a permissions-policy feature, so it
@@ -2400,14 +2415,34 @@
     // no storage — connect-src 'none' is untouched. The browser keeps both
     // guards it always had: entering needs a user gesture, and Esc always
     // leaves. A first-person game cannot aim without it; nothing else needs it.
-    if (hasCap(manifest, 'pointer') && !capDisabled(manifest, 'pointer')) {
-      try {
-        const sb = iframe.getAttribute('sandbox') || '';
-        if (!/(^|\s)allow-pointer-lock(\s|$)/.test(sb)) iframe.setAttribute('sandbox', (sb + ' allow-pointer-lock').trim());
-      } catch (e) {}
-    }
+    if (hasCap(manifest, 'pointer') && !capDisabled(manifest, 'pointer')) sandboxToken(iframe, 'allow-pointer-lock');
+    // ORIENTATION LOCK is the second half of capabilities.fullscreen, and it is
+    // the half nobody expects, because it is a SANDBOX flag while fullscreen
+    // itself is a policy feature. The HTML sandbox sets a "sandboxed
+    // orientation lock browsing context flag" unless allow-orientation-lock is
+    // present, and with it set screen.orientation.lock('landscape') rejects
+    // with a SecurityError — inside the app, unseen, exactly like pointer lock.
+    //
+    // It rides on `fullscreen` rather than being its own capability because it
+    // cannot be used without it: the browser only honours an orientation lock
+    // while the document is fullscreen, and releases it on exit. So the two are
+    // one ability — "take the whole screen, the way round the game is drawn" —
+    // and one checkbox turns off both halves. A phone that cannot do either is
+    // a first-person game played through a letterbox.
+    if (hasCap(manifest, 'fullscreen') && !capDisabled(manifest, 'fullscreen')) sandboxToken(iframe, 'allow-orientation-lock');
     iframe.srcdoc = buildAppHtml(files, manifest);
     return () => root.removeEventListener('message', handler);
+  }
+
+  // Add one token to a frame's sandbox, once. Every caller is a capability, so
+  // the token must never appear on a frame whose manifest did not ask for it —
+  // and adding the same one twice would put a duplicate in the attribute the
+  // capability suites read back.
+  function sandboxToken(iframe, token) {
+    try {
+      const sb = iframe.getAttribute('sandbox') || '';
+      if (!new RegExp('(^|\\s)' + token + '(\\s|$)').test(sb)) iframe.setAttribute('sandbox', (sb + ' ' + token).trim());
+    } catch (e) {}
   }
 
   function makeIframe() {
