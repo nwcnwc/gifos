@@ -48,6 +48,24 @@
     const side = Math.min(sw, sh) || 1;
     return { sx: (sw - side) / 2, sy: (sh - side) / 2, sw: side, sh: side };
   }
+  // A SCREEN IS NOT A FACE (screen share, docs/media-plane.md Channel St).
+  // coverBox is right for a webcam — a face sits in the middle, so the centered
+  // square keeps the person and throws away wallpaper. Run the same rule over a
+  // shared screen and it throws away the SLIDE: a 1920×1080 share cut to a
+  // centered square keeps 1080 of 1920 columns — 56% of the width, the left and
+  // right thirds of every deck gone, with no way for the viewer to know. So a
+  // tile may declare `fit:'contain'` and be LETTERBOXED into its square cell
+  // instead: whole surface, aspect preserved, dark bars top and bottom.
+  // PURE, and exported, for the same reason cellSize is (below): the number
+  // that decides whether a viewer sees the whole slide must be reachable from
+  // the unit tier, not buried in a paint() that needs a canvas.
+  // fitBox(fit, sw, sh, cell) → { dx, dy, dw, dh } offsets INSIDE the cell.
+  function fitBox(fit, sw, sh, cell) {
+    if (fit !== 'contain') return { dx: 0, dy: 0, dw: cell, dh: cell };
+    const s = Math.min(cell / (sw || 1), cell / (sh || 1));
+    const dw = (sw || 1) * s, dh = (sh || 1) * s;
+    return { dx: (cell - dw) / 2, dy: (cell - dh) / 2, dw, dh };
+  }
 
   // ---- the composite engine --------------------------------------------------
   // createComposite({ kind:'band'|'frame', C, w, h, fps, label }) →
@@ -294,6 +312,7 @@
         if (el && typeof el.currentTime === 'number') s += id + ':' + el.currentTime.toFixed(3) + ';';
         else return null;
         if (t.lbl) s += (t.lbl.talking ? 'T' : '') + (t.lbl.hand ? 'H' : '') + (t.lbl.name || '') + '|';
+        if (t.fit) s += t.fit + '|'; // a cover→contain flip changes the frame with the source untouched
       }
       return s;
     }
@@ -337,8 +356,18 @@
           if (!sw || !sh) { continue; } // source not ready — leave dark, next paint fills
           try {
             if (t.n === 1 && t.cols === 1) {
-              const b = coverBox(sw, sh, { w: cell, h: cell });      // leaf camera → centered square
-              ctx.drawImage(el, b.sx, b.sy, b.sw, b.sh, dx, dy, cell, cell);
+              if (t.fit === 'contain') {
+                // A SHARED SCREEN, LETTERBOXED (see fitBox): whole surface, no
+                // crop. The bars are painted first so a re-aspect (a sharer
+                // switching from a window to a monitor) can never leave the
+                // previous source's pixels stranded in the margin.
+                const f = fitBox('contain', sw, sh, cell);
+                ctx.fillStyle = '#07090c'; ctx.fillRect(dx, dy, cell, cell);
+                ctx.drawImage(el, 0, 0, sw, sh, dx + f.dx, dy + f.dy, f.dw, f.dh);
+              } else {
+                const b = coverBox(sw, sh, { w: cell, h: cell });    // leaf camera → centered square
+                ctx.drawImage(el, b.sx, b.sy, b.sw, b.sh, dx, dy, cell, cell);
+              }
               drawOverlay(dx, dy, cell, t.lbl);                       // BURN IN name/hand/talking (approach A: baked once at the leaf, rides pixels up the tree)
             } else {
               const s = faceSrcRect(j, t.n, t.cols, sw, sh);         // block face → straight blit (overlay already baked by the sender)
@@ -362,7 +391,7 @@
         if (!el) { if (fold && prev) fold.remove('t' + id); tiles.delete(id); return; }
         const n = Math.max(1, (meta && meta.n) | 0 || 1);
         const cols = Math.max(1, (meta && meta.cols) | 0 || n); // a bar's cols = n
-        tiles.set(id, { ord, el, streamId: sid, n, cols, lbl: (meta && meta.lbl) || null });
+        tiles.set(id, { ord, el, streamId: sid, n, cols, lbl: (meta && meta.lbl) || null, fit: (meta && meta.fit) || null });
       },
       // Update just the overlay (name/hand/talking) without touching the source
       // — called every tick from status/audio so the frame tracks speech live.
@@ -568,5 +597,5 @@
     };
   }
 
-  GifOS.meshMedia = { bandRects, frameRects, coverBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, cellSize, faceSrcRect, createPacker, createBundle, cropView, sdnMirrorRoute };
+  GifOS.meshMedia = { bandRects, frameRects, coverBox, fitBox, createComposite, createAudioFold, packGrid, stadiumGrid, stadiumTiny, cellSize, faceSrcRect, createPacker, createBundle, cropView, sdnMirrorRoute };
 })(typeof window !== 'undefined' ? window : globalThis);

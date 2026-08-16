@@ -76,11 +76,45 @@ const pk = M.createPacker({ shape: 'grid' });
 check('packer degrades cleanly without DOM', pk.canvas === null && pk.start() === pk && pk.stream === null);
 pk.setTile('a', 0, null, null, null); pk.delTile('a');
 
-console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILED');
-process.exit(fails === 0 ? 0 : 1);
-
 // ---- per-link bundle (approach A: one stream per link) ----------------------
+// (These three lived BELOW the process.exit() and had therefore never run once —
+// the same "a test that guards nothing is worse than no test" shape CLAUDE.md
+// names. Moved above the exit, unchanged; they pass.)
 const bd = M.createBundle({ w: 400 });
 check('bundle degrades cleanly without DOM', bd.canvas === null && bd.start() === bd && bd.stream === null);
 bd.setPart('sd', 0, null, null, null); bd.delTile && bd.delTile('sd');
 check('bundle manifest empty when no parts', bd.manifest().length === 0);
+
+// ---- fitBox: cover for a face, CONTAIN for a shared screen -----------------
+// The screen-share sizing law. cover-cropping a 16:9 share into a square cell
+// is the bug this exists to prevent, so the numbers are asserted, not the flag:
+// a 1920×1080 source in a 480px cell must arrive 480 wide and 270 tall, whole.
+const fbC = M.fitBox('contain', 1920, 1080, 480);
+check('fitBox contain: a 16:9 screen letterboxes whole into a square cell',
+  Math.abs(fbC.dw - 480) < 0.01 && Math.abs(fbC.dh - 270) < 0.01
+  && Math.abs(fbC.dx) < 0.01 && Math.abs(fbC.dy - 105) < 0.01, fbC);
+// How much a cover-crop would have thrown away — the measurement in the code.
+const cvr = M.coverBox(1920, 1080, { w: 480, h: 480 });
+check('coverBox on the same screen keeps only 1080 of 1920 columns (56%)',
+  Math.abs(cvr.sw - 1080) < 0.01 && Math.abs(cvr.sx - 420) < 0.01, cvr);
+// A portrait share (a phone window) letterboxes on the OTHER axis.
+const fbP = M.fitBox('contain', 1080, 1920, 480);
+check('fitBox contain: a portrait share pillarboxes instead',
+  Math.abs(fbP.dh - 480) < 0.01 && Math.abs(fbP.dw - 270) < 0.01 && Math.abs(fbP.dx - 105) < 0.01, fbP);
+// Default (a face) is untouched: fill the cell, cropping is coverBox's job.
+const fbN = M.fitBox(null, 1280, 720, 480);
+check('fitBox default fills the cell (faces keep the cover-crop)',
+  fbN.dx === 0 && fbN.dy === 0 && fbN.dw === 480 && fbN.dh === 480, fbN);
+// A source that has not reported dimensions yet must not produce NaN geometry —
+// paint() would then draw nothing forever with no error anywhere.
+const fbZ = M.fitBox('contain', 0, 0, 480);
+check('fitBox survives a not-yet-sized source (no NaN)',
+  isFinite(fbZ.dw) && isFinite(fbZ.dh) && fbZ.dw > 0, fbZ);
+// The packer carries the flag through setTile (run.html sets it from gossiped
+// status, so a mis-plumbed meta silently reverts every share to a cover-crop).
+const pk2 = M.createPacker({ shape: 'bar' });
+pk2.setTile('s', 0, { videoWidth: 1920, videoHeight: 1080 }, null, { n: 1, cols: 1, fit: 'contain' });
+check('packer keeps a tile’s fit flag', pk2.ids().length === 1);
+
+console.log(fails === 0 ? '\nALL PASS' : '\n' + fails + ' FAILED');
+process.exit(fails === 0 ? 0 : 1);
