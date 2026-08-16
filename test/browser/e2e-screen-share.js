@@ -206,21 +206,15 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   await b.evaluate(() => window.__gifosVideo.closeShareSheetForTest());
   check('reading that sheet captured nothing either', (await gdm(b)) === gdmB0);
 
-  await aCtx.close(); await bCtx.close();
-
   // ---- LEG 5: an APP-PINNED ROOM does not offer the control at all --------
-  const pCtx = await newUser('Pin');
-  const p = await pCtx.newPage();
+  // Reuses Ada's context and her already-seeded store. A fresh context would
+  // mean a second first-visit desktop seed, and that seed GIF-encodes every
+  // sample app: the suite OOM-killed its own browser on a 7.6 GB box doing it
+  // twice (casualty: 497 MB available, ~390 needed). One seed per suite.
+  await a.close(); await b.close(); await bCtx.close();
+  const p = await aCtx.newPage();
   p.on('pageerror', (e) => console.log('  [pin] ' + e.message));
-  await p.goto(BASE + '/index.html');
-  await p.waitForSelector('.icon', { timeout: 90000 });
-  const pinFile = await p.evaluate(async (sys) => {
-    const fs = await window.GifOS.store.allFiles();
-    const f = fs.find((x) => x.isApp && !sys.includes(x.appId));
-    return f ? f.id : null;
-  }, SYS);
-  check('the app-room context seeded an app of its own', !!pinFile);
-  await p.goto(BASE + '/run.html#id=' + pinFile);
+  await p.goto(BASE + '/run.html#id=' + appFile.id);
   await p.waitForSelector('#appmount iframe', { timeout: 60000 });
   await p.locator('#appinvite').click();
   await p.locator('#inv-go').click();
@@ -243,7 +237,7 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   check('…but an app-pinned room offers NO Share screen', pinned.share === false);
   check('…and no app picker either (the app IS the room)', pinned.runapp === false);
   check('an app-pinned room never reached screen capture', (await gdm(p)) === 0, 'gdm=' + (await gdm(p)));
-  await pCtx.close();
+  await aCtx.close();
   await browser.close();
 
   // ============ capabilities.screen (leg 6) — NO launch flags ==============
