@@ -172,6 +172,40 @@ const RELEASE = ({ sel }) => {
     () => window.__FPS__.engine.input.stick.moveX === 0 && window.__FPS__.engine.input.stick.moveY === 0, 30000);
   check('lifting the thumb returns the stick to centre', stopped);
 
+  // A POSITIONLESS SAMPLE MUST NOT STEER, which is the shape of the bug where
+  // the stick only ever went north-west. Chrome delivers pointermoves for an
+  // already-down touch with client, page AND screen all exactly (0,0) across a
+  // fullscreen/orientation transition — measured on a Moto g24 — and the stick
+  // read those as an absolute position near the viewport origin. From a pad
+  // anchored bottom-left that is a full-throw diagonal, identical every sample:
+  // (-0.126, -0.992). Every stroke this suite dispatched carried good
+  // coordinates, so nothing here could ever have caught it.
+  await phone.frame.evaluate(STROKE, { sel: '#t-move', from: { x: 0.5, y: 0.5 }, to: { x: 0.9, y: 0.5 }, steps: 3 });
+  const wentRight = await until(phone.frame, () => window.__FPS__.engine.input.stick.moveX > 0.3, 30000);
+  check('dragging the pad right drives the move axis the other way', wentRight);
+  const before = await phone.frame.evaluate(() => ({
+    x: window.__FPS__.engine.input.stick.moveX, y: window.__FPS__.engine.input.stick.moveY }));
+  await phone.frame.evaluate(({ sel }) => {
+    const el = document.querySelector(sel);
+    for (let i = 0; i < 3; i++) {
+      el.dispatchEvent(new PointerEvent('pointermove', {
+        pointerId: 7, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true,
+        clientX: 0, clientY: 0,
+      }));
+    }
+    return true;
+  }, { sel: '#t-move' });
+  const after = await phone.frame.evaluate(() => ({
+    x: window.__FPS__.engine.input.stick.moveX, y: window.__FPS__.engine.input.stick.moveY }));
+  check('a pointermove with no position at all is IGNORED, not steered by',
+    Math.abs(after.x - before.x) < 0.05 && Math.abs(after.y - before.y) < 0.05,
+    'before ' + before.x.toFixed(3) + ',' + before.y.toFixed(3)
+      + ' after ' + after.x.toFixed(3) + ',' + after.y.toFixed(3));
+  check('…and it certainly does not pin the stick to a full-throw diagonal',
+    !(after.x < -0.4 && after.y < -0.4),
+    after.x.toFixed(3) + ',' + after.y.toFixed(3));
+  await phone.frame.evaluate(RELEASE, { sel: '#t-move' });
+
   /* ---- drag to look: the view actually turns ----------------------------- */
   const yaw0 = await phone.frame.evaluate(() => window.__FPS__.player.yaw);
   await phone.frame.evaluate(STROKE, { sel: '#t-look', from: { x: 0.2, y: 0.5 }, to: { x: 0.85, y: 0.5 }, steps: 8 });

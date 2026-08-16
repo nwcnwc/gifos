@@ -172,6 +172,23 @@ a .zip for multi-file apps). GifOS packs the GIF there.
      overlay when the lock is lost — a game that keeps playing while the cursor
      is back is a game the player cannot quit. Useless on a phone, which has no
      pointer to lock: ship touch controls alongside it, don't gate the app on it.
+   - fullscreen: declare capabilities.fullscreen:true to call
+     element.requestFullscreen() AND screen.orientation.lock('landscape').
+     These are TWO different hatches and one declaration opens both: fullscreen
+     is a permissions-policy feature (delegated on the frame's allow attribute,
+     whose default allowlist is 'self' — and an app frame's origin is opaque, so
+     it is never 'self'), while the orientation lock is a SANDBOX flag
+     (allow-orientation-lock), the same machinery as pointer lock. Without the
+     declaration fullscreen rejects with a TypeError and the lock with a
+     SecurityError, both thrown INSIDE your app where nobody sees them — the app
+     just plays in a portrait strip forever. It adds no CSP relaxation;
+     connect-src stays 'none', and it sees only its own window, never the rest
+     of the screen. The browser's own rules still apply: entering needs a user
+     gesture, and Esc, Back or the swipe from the edge always leaves — so listen
+     for fullscreenchange and PAUSE when it is lost, the same duty pointer lock
+     has. An orientation lock only holds while you are fullscreen and is dropped
+     when you leave; a desktop has no screen to turn and rejects .lock() with
+     NotSupportedError, which is normal and must not be treated as a failure.
    ALWAYS feature-detect and never fake a result. You do NOT need to write your
    own "how to set up X" instructions: when a gifos.api / gifos.ai call hits
    missing config, GIFOS ITSELF shows a setup prompt (it knows the provider's URL

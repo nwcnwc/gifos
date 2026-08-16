@@ -121,32 +121,24 @@
   // (after compositing its contents are undefined — that is why this is a wrap
   // and not another rAF). Sampled every couple of seconds: readPixels stalls
   // the pipeline, and this must not become the lag it is looking for.
-  var pix = null, pixAt = 0, wrapped = false, rafCalls = 0, trail = [], stages = '';
+  var pix = null, pixAt = 0, wrapped = false, rafCalls = 0, trail = [];
   var lastEnd = 0, gapSum = 0, gapN = 0, gpuMs = 0;
-  // Read one pixel out of each intermediate target. three.js knows each
-  // target's type, so readRenderTargetPixels is given a buffer that matches:
-  // a half-float target read into a Uint8Array comes back as zeroes, which
-  // would frame a WORKING pass as the broken one.
-  function stageRead(F, ren) {
-    try {
-      var r = F.ctx.peek('render'), out = [];
-      ['gbuffer', 'hdrRt', 'viewRt', 'ldrRt'].forEach(function (name) {
-        var t = r[name];
-        var target = t && (t.isWebGLRenderTarget ? t : (t.rt || t.target || null));
-        if (!target || !target.texture) return;
-        var tex = target.texture.isTexture ? target.texture : (target.texture[0] || {});
-        var half = (tex.type === 1016 || tex.type === 1015);
-        var buf = half ? new Float32Array(4) : new Uint8Array(4);
-        var x = target.width >> 1, y = target.height >> 1;
-        try {
-          ren.readRenderTargetPixels(target, x, y, 1, 1, buf);
-          var v = Math.max(buf[0], buf[1], buf[2]);
-          out.push(name + '=' + (half ? (+v.toFixed(3)) : v));
-        } catch (e) { out.push(name + '=x'); }
-      });
-      return out.join(' ');
-    } catch (e) { return 'stages:' + String((e && e.message) || e); }
-  }
+  // IS THE PICTURE BLACK, OR ONLY THE PHOTOGRAPH OF IT?
+  //
+  // Every capture from the moto shows a black viewport under a live HUD, and a
+  // red-canvas control page proved `adb screenrecord` CAN capture WebGL on this
+  // device — but that control was a top-level page, and the game's canvas lives
+  // inside a sandboxed iframe. So the two stories are still open: a scene that
+  // renders black, or a scene that renders fine and is composited or captured
+  // black. They need opposite fixes, and only the pixels can say.
+  //
+  // Read straight after the engine's own draw call, in the same frame, which is
+  // the one moment the drawing buffer is guaranteed to hold this frame's image
+  // (after compositing its contents are undefined — that is why this is a wrap
+  // and not another rAF). Sampled every couple of seconds: readPixels stalls
+  // the pipeline, and this must not become the lag it is looking for.
+  var pix = null, pixAt = 0, wrapped = false, rafCalls = 0, trail = [];
+  var lastEnd = 0, gapSum = 0, gapN = 0, gpuMs = 0;
   // Sampled from a wrapped requestAnimationFrame rather than a wrapped
   // renderer.render: patching the renderer instance sampled NOTHING, on the
   // phone AND on a desktop where the street is plainly visible, so the engine
@@ -206,16 +198,10 @@
       // driver. A single end-of-session number cannot tell those apart.
       trail.push(sc + ':' + max);
       if (trail.length > 10) trail.shift();
-      // BISECT THE CHAIN. Geometry -> gbuffer -> hdrRt -> ldrRt -> screen. The
-      // screen is black while every target is framebuffer-complete, so read the
-      // targets themselves: whichever one is the FIRST to be black is the pass
-      // that failed, and everything upstream of it is working.
-      stages = stageRead(F, ren);
       pix = { max: max, mean: Math.round(sum / pts.length), n: (pix && pix.n || 0) + 1,
               tgt: tgt ? 'bound' : 'screen', raf: rafCalls, scale: sc,
               gpu: +gpuMs.toFixed(1), gap: gapN ? +(gapSum / gapN).toFixed(1) : null,
-              first: (pix && pix.first) || (max + '@' + sc), trail: trail.join(' '),
-              stages: stages };
+              first: (pix && pix.first) || (max + '@' + sc), trail: trail.join(' ') };
     } catch (e) { pix = { err: String((e && e.message) || e), raf: rafCalls }; }
   }
 
@@ -307,6 +293,8 @@
         tone: ren.toneMapping + '@' + (ren.toneMappingExposure != null ? ren.toneMappingExposure : '?'),
         cs: ren.outputColorSpace || ren.outputEncoding || '',
         phase: phaseMs(F),
+        fs: root.__FPS_FS__ ? (root.__FPS_FS__.state + '/' + (root.__FPS_FS__.lock || '-')
+             + '/trusted=' + root.__FPS_FS__.trusted + '/enabled=' + root.__FPS_FS__.enabled) : 'never-asked',
         lights: lightInfo(r),
         pix: pix,
         // WHAT THE RENDER SYSTEM IS MADE OF. The geometry all draws and the
@@ -415,7 +403,13 @@
     if (root.gifos && root.gifos.db) {
       try {
         root.gifos.db('prefs').get('settings').then(function (rec) {
-          if (rec && rec.autostart) armAutostart();
+          // STAMPED, not merely set. A flag that only had to be present stayed
+          // present: every later session pressed Play by itself, a scripted
+          // click carries no user activation, and fullscreen, orientation lock
+          // and audio are all refused for it — which reads exactly like those
+          // features being broken. It has to be armed for THIS session.
+          if (rec && rec.autostart && rec.autostartAt
+              && Math.abs(Date.now() - rec.autostartAt) < 600000) armAutostart();
           // PRICING THE HUD. JS is 46 ms and the GPU is idle in a 146 ms frame,
           // so ~100 ms is the browser between frames — and the HUD is DOM,
           // restyled and repainted every frame on a phone. Hiding it is the

@@ -2398,7 +2398,17 @@
     // about and ignores. It grants a bigger picture and nothing else: no
     // network, no origin, no storage, and the browser keeps its own two guards
     // (a user gesture to enter, Esc to leave).
-    if (hasCap(manifest, 'fullscreen') && !capDisabled(manifest, 'fullscreen')) allow.push('fullscreen');
+    //
+    // AND THE ALLOWLIST IS `*`, NOT THE DEFAULT. `allow="fullscreen"` means
+    // `fullscreen 'src'` — granted to the frame's OWN origin — and this frame's
+    // origin is opaque, so on some browsers there is nothing for 'src' to match
+    // and the grant silently does not apply. Measured: desktop Chrome accepted
+    // the default and Chrome 150 on Android refused it, and the app reported
+    // back from the device with `refused:TypeError:Permissions check failed`
+    // while document.fullscreenEnabled still read true. `*` removes the origin
+    // match from the question. It is not a wider grant in any way that matters:
+    // the only document this policy can ever reach is the one app in this frame.
+    if (hasCap(manifest, 'fullscreen') && !capDisabled(manifest, 'fullscreen')) allow.push('fullscreen *');
     if (asked.length) allow.push('autoplay');
     if (allow.length) { try { iframe.setAttribute('allow', allow.join('; ')); } catch (e) {} }
     // Pointer lock is a SANDBOX flag, not a permissions-policy feature, so it

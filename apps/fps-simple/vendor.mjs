@@ -526,6 +526,110 @@ const PATCHES = [
     replace: () => 'return hdrTarget(w, h, { type: THREE.HalfFloatType, ...opts });',
     why: 'a device that cannot linearly filter full float rendered a black sky over a sunlit street',
   },
+  {
+    // THE SOUND GOES IN AND OUT, AND NEVER COMES BACK.
+    //
+    // Measured, not guessed. The instrument is rtf = d(actx.currentTime)/d(wall
+    // time): 1.0 means the Web Audio render thread is keeping up, below 1.0
+    // means Chrome is filling the difference with silence. During sustained fire
+    // the game's context falls to 0.14-0.22 — silence for 80-86% of render
+    // quanta — and it does NOT recover: 38 s after the last shot it was still
+    // 0.143. A second, private AudioContext running one oscillator in the SAME
+    // PAGE held 1.000 throughout, so this is the game's audio graph and not the
+    // machine, the browser or the OS. outputLatency went 0.008 s -> 10.008 s.
+    //
+    // The cause is a rate cliff on Web Audio NODE CONSTRUCTION, located by sweep
+    // at 2000-4000 nodes/sec; the game builds every sound from scratch (a rifle
+    // shot is ~44 nodes across seven layers, a footstep ~40) and was measured at
+    // 500-2900 nodes/sec in combat. So the cap has to be on voices STARTED PER
+    // SECOND OF WALL TIME — the render thread is what runs out, not the frame.
+    //
+    // Unset, _admit returns true and this is upstream exactly. Priority >= 0.9
+    // always speaks, so the player's own gunshot and explosions are never
+    // refused; impacts, footsteps, shells and ambience are.
+    file: 'src/audio/index.js',
+    find: /(\s*)\/\*\*\n\s*\* Spatialised one-shot: propagation delay, occlusion, air absorption and the\n\s*\* reverb send\. Returns false when the voice budget refused it\.\n\s*\*\/\n(\s*)_playAt\(kind, x, y, z, o = \{\}, bus = 'foley', priority = 0\.5\) \{\n\s*if \(!this\.running \|\| this\.actx\.state === 'suspended'\) return false;/,
+    replace: (m, lead, sp) =>
+      `${lead}/**\n`
+      + `${sp} * VOICE ADMISSION, IN WALL TIME.\n`
+      + `${sp} */\n`
+      + `${sp}_admit(priority) {\n`
+      + `${sp}  const cap = this.ctx.config.q.voiceRate;\n`
+      + `${sp}  if (!cap) return true;\n`
+      + `${sp}  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;\n`
+      + `${sp}  if (now - (this._rateAt ?? -1e9) >= 1) { this._rateAt = now; this._rateN = 0; }\n`
+      + `${sp}  if (this._rateN < cap) { this._rateN++; return true; }\n`
+      + `${sp}  return priority >= 0.9;\n`
+      + `${sp}}\n`
+      + `\n`
+      + `${sp}/**\n`
+      + `${sp} * Spatialised one-shot: propagation delay, occlusion, air absorption and the\n`
+      + `${sp} * reverb send. Returns false when the voice budget refused it.\n`
+      + `${sp} */\n`
+      + `${sp}_playAt(kind, x, y, z, o = {}, bus = 'foley', priority = 0.5) {\n`
+      + `${sp}  if (!this.running || this.actx.state === 'suspended') return false;\n`
+      + `${sp}  if (!this._admit(priority)) return false;`,
+    why: 'cap voices STARTED per second of wall time - the render thread, not the frame, is what runs out',
+  },
+  {
+    // The head-locked path bypasses the emitter pool entirely - the player's own
+    // gun, the UI, grunts - so it needs the same cap or the loudest, most
+    // frequent source in the game is exempt from it.
+    file: 'src/audio/index.js',
+    find: /(_playDry\(kind, o = \{\}, bus = 'foley', send = 0\.15\) \{\n)(\s*)(if \(!this\.running \|\| this\.actx\.state === 'suspended'\) return false;)/,
+    replace: (m, head, sp, guard) =>
+      `${head}${sp}${guard}\n`
+      + `${sp}if (!this._admit(bus === 'weapons' || bus === 'ui' ? 1 : 0.5)) return false;`,
+    why: 'the head-locked path bypasses the emitter pool, so it needs the same cap',
+  },
+  {
+    // THE BUDGETS WERE PER FRAME, WHICH IS WHY A FAST MACHINE IS WORSE.
+    // impact/step/shell/whizz are reset every frame, so at 60 fps they permit
+    // 300 impacts, 240 footsteps and 180 shells PER SECOND - and at 200 fps they
+    // permit three times that. The faster the machine, the more audio work it
+    // admits, which is exactly why this was reported on a desktop and not only
+    // on the phone (whose 5-12 fps throttled it by accident).
+    //
+    // NOT a strict no-op at the default 1/60: it pins the allowance to upstream's
+    // rate AT 60 fps, and strictly less above that. That is the point of it.
+    file: 'src/audio/index.js',
+    find: /(\/\* ---- reset per-frame budgets ------------------------------- \*\/\s*\n\s*)const b = this\._budget;\s*\n\s*b\.impact = 0; b\.step = 0; b\.shell = 0; b\.whizz = 0;/,
+    replace: (m, head) =>
+      `${head}const b = this._budget;\n`
+      + '      this._budgetTimer = (this._budgetTimer || 0) - dt;\n'
+      + '      if (this._budgetTimer <= 0) {\n'
+      + '        this._budgetTimer = this.ctx.config.q.soundBudgetWindow ?? (1 / 60);\n'
+      + '        b.impact = 0; b.step = 0; b.shell = 0; b.whizz = 0;\n'
+      + '      }',
+    why: 'spend the sound budget per SECOND, not per frame, so a fast machine cannot admit ten times as many voices',
+  },
+  {
+    // AND THE RATCHET THAT MADE IT PERMANENT. A voice is retired on the AUDIO
+    // clock, while voices are STARTED at wall rate. Once the audio clock runs at
+    // 0.15x, a 0.5 s tail occupies an emitter for 3.3 s of wall time, so the
+    // pool's effective size is 40 x rtf. Measured: 40/40 voices held for 38 s in
+    // which not one shot was fired, with 371 further steals - and every steal is
+    // a hard cut mid-sound plus more graph mutation, feeding the thing that
+    // caused it. When the clock is on time both deadlines coincide exactly, so
+    // this is a no-op; when it is late it cuts a queued tail instead of letting
+    // the pool jam shut.
+    file: 'src/audio/spatial.js',
+    find: /(em\.endTime = opts\.endTime \?\? now \+ 1;)/,
+    replace: (m, line) => `${line}\n    em.wallEnd = (this._wall || 0) + Math.max(0, em.endTime - now);`,
+    why: 'give every voice a wall-clock deadline as well as an audio-clock one',
+  },
+  {
+    file: 'src/audio/spatial.js',
+    find: /update\(dt\) \{\s*\n(\s*)const now = this\.actx\.currentTime;\s*\n\s*let active = 0;([\s\S]*?)if \(!e\.tracked && now > e\.endTime\) \{/,
+    replace: (m, sp, mid) =>
+      'update(dt) {\n'
+      + `${sp}const now = this.actx.currentTime;\n`
+      + `${sp}this._wall = (this._wall || 0) + dt;\n`
+      + `${sp}const _gw = this._wall;\n`
+      + `${sp}let active = 0;${mid}`
+      + 'if (!e.tracked && (now > e.endTime || (e.wallEnd !== undefined && _gw > e.wallEnd))) {',
+    why: 'retire a voice when its sound is over in REAL time, so a late audio clock cannot pin the pool',
+  },
 ];
 for (const p of PATCHES) {
   const f = join(src, p.file);
