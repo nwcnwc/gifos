@@ -28,6 +28,9 @@
     },
     "perf": {
       "visibility": "private"
+    },
+    "meshes": {
+      "visibility": "private"
     }
   }
 }

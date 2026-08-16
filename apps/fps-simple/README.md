@@ -16,6 +16,8 @@ boot.js         our entry: quality, prefs, the netplay system, death & respawn
 net.js          transport — presence, hit claims, the scoreboard roster
 remote.js       remote players as bodies in the world
 touch.js        thumb controls, written into the channels Input already has
+texcache.js     the world's surfaces, kept between launches
+meshcache.js    built geometry and the nav grid, kept between launches
 icon.mjs        the procedural app icon
 vendor/game.js  GENERATED. The pinned upstream engine as one IIFE. Never edit.
 vendor.mjs      rebuilds vendor/game.js from the pin. The only step needing net.
@@ -94,6 +96,54 @@ learn it, when the target's own row comes back naming its killer, and it is
 credited by ID. (It was credited by NAME once. Two players called "Player" —
 which is the default for anyone who never set one — and the kill went to
 whichever the roster reached first.)
+
+## What is kept between launches, and what deliberately is not
+
+Everything in this game is generated at boot, and none of it varies: one seed,
+no input, the same street every time. So it is built once and kept —
+`texcache.js` for the procedural surfaces, `meshcache.js` for geometry and the
+navigation grid, both in the app's own `gifos.db`, both written AFTER the Play
+button lights so nobody waits on the write.
+
+Every hook they use is patched into the vendored engine by `vendor.mjs`, and
+every patch defaults to upstream's exact behaviour when the hook is absent.
+
+| kept | rebuilt | restored |
+|---|---|---|
+| viewmodel geometry (merged + mask-baked, per assembly) | 1320 ms | 429 ms |
+| the three soldier variants (one skinned geometry each) | 538 ms | 3 ms |
+| the nav grid + 1353 cover points (~340 KB, and it is data, not geometry) | 488 ms | 1 ms |
+
+Warm launch on a fleet box, end to end: **8.7 s → 8.3 s** (READY 7679 ms →
+7156 ms).
+
+**And an honest asterisk on that total.** A/B'd on one box, same profile, same
+texture cache, same compiled-shader cache, minutes apart: 2.4 s of work goes
+away and `READY` moves by a fraction of it. The rest reappears in
+`AiSystem.prewarmMaterials`, which goes from 406 ms to 2282 ms — on a machine
+with no graphics chip the boot after the world is bounded by shader compilation
+in the GPU process, and the CPU work removed here is what used to overlap it.
+The geometry cost is gone; the wall clock is now waiting on something else.
+That something else is the biggest item left in front of the Play button, and
+it is the same shape of problem `boot.js` already solved for `COD.prewarm` by
+not making anybody wait for it.
+
+**Never materials.** Every material is procedural: its maps are rendered on the
+GPU into render targets and its shader is rewritten at runtime by
+`render.patcher`. A restored soldier calls upstream's own `resolveMaterials()`
+and a restored viewmodel calls `mats.get(matKey)`, exactly as a fresh one does.
+Geometry is cached; the look of it is always rebuilt.
+
+**Not the world**, and the reason is a measurement rather than an opinion. The
+street is the biggest single item in the boot and the seam is real — but its
+603k static triangles plus 7989 instances weigh **61.6 MB** of attribute data,
+measured, against 7.1 MB for everything above and 5.1 MB for the whole texture
+cache. That is what would have to cross the sandbox bridge into a phone's
+IndexedDB, and stay there, to buy back ~3.4 s. The figure is re-measured on
+every run and reported as `mesh.worldMB`, so the decision can be re-argued
+against a number rather than a memory. Caching it well needs its own storage
+design — chunking, quantised positions, a real eviction budget — and that is a
+different piece of work.
 
 ## Honest limits
 
