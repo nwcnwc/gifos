@@ -12298,6 +12298,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           bodyScreenOn: document.body.classList.contains('screen-on'),
         };
       },
+      // The exact call the strip compositor makes when it packs a seat's cell.
+      // Asserted directly because the alternative — reading pixels out of a
+      // composited canvas — cannot tell a letterbox from a dark room, and the
+      // sizing law itself is already proven in test/unit/mesh-media.js.
+      fitForTest: (pid) => fitFor(pid),
       startScreenShareForTest: () => { startScreenShare(); return true; },
       stopScreenShareForTest: () => { stopScreenShare(); return true; },
       // The sheet's copy, as rendered — the app-pin preference is a PROMISE the

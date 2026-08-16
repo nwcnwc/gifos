@@ -207,6 +207,12 @@ async function buildApp(slug) {
       // portrait strip, and both refusals (TypeError, SecurityError) land inside
       // the sandbox where the player never sees them. Landed in build 1314.
       ['capabilities.fullscreen', (x) => !!(x.capabilities || {}).fullscreen, 1314],
+      // capabilities.screen — the display-capture permissions policy on the app
+      // frame (getDisplayMedia). Without it the ask is refused with a
+      // NotAllowedError inside the sandbox; with it the app can photograph
+      // whatever surface the user picks in the BROWSER's own picker, which is
+      // why it is the widest ability in the sheet. Landed in build 1320.
+      ['capabilities.screen', (x) => !!(x.capabilities || {}).screen, 1320],
     ];
     for (const [what, uses, since] of FEATURE_BUILD) {
       if (uses(m) && m.minBuild < since) {
