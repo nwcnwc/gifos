@@ -294,7 +294,12 @@
       // 8.4 s of a 21 s first load on a Moto g24 was this: three camo sets baked
       // at 512 px. One set at 192 px is a soldier who looks the same at the
       // distance anyone ever sees one, for a fraction of the wait.
-      s.q = { cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
+      // SHADOWS OFF ON A PHONE, and it is not a taste decision. The cascade is
+      // a second full pass over the street, and this device spends ~140 ms of
+      // every 203 ms frame on the GPU with the render scale already at its
+      // floor — so the cost is geometry, and the cascade is the one pass that
+      // can be removed outright rather than made smaller.
+      s.q = { shadows: false, prepass: false, cascades: 1, shadowMapSize: 512, shadowDistance: 40, bloom: false,
               taa: false, gtao: false, ssr: false, volumetrics: false, motionBlur: false,
               aiTexSize: 192,
               // Two of three viewmodels: 1/2 still swaps, and the smg's 4.4 s

@@ -259,11 +259,65 @@ const PATCHES = [
     // That is a feedback loop, not a load. Both numbers become config so a weak
     // device can ask for a step it can actually keep up with; unset, upstream's
     // 1/120 and 8 are used exactly as before.
+    // AND WHY THE FIRST VERSION OF THIS PATCH DID NOT FIX IT. It rewrote only
+    // the loop CONDITION, leaving the body stepping and draining by FIXED_DT:
+    //
+    //     while (accum >= (q.fixedStep || FIXED_DT) && steps < (q.maxSubsteps || MAX_SUBSTEPS)) {
+    //       for (…) sys.fixedUpdate(FIXED_DT, ctx);   // still 1/120
+    //       accum -= FIXED_DT;                        // still 1/120
+    //     }
+    //     if (steps === MAX_SUBSTEPS) accum = 0;      // 3 === 8, never
+    //
+    // So the configured step was a lie — the simulation still advanced 1/120 a
+    // substep, doing exactly as much work per simulated second as before — and,
+    // worse, the spiral guard was DISABLED for any device that configured a cap,
+    // because it compares against upstream's constant 8 and steps now tops out
+    // at 3. The accumulator was therefore never shed: on the phone, at 200 ms a
+    // frame, it grows ~0.175 s EVERY FRAME, forever, so every frame runs the cap
+    // and the simulation falls permanently behind the wall clock.
+    //
+    // The whole block is rewritten so the configured step is the step: the loop
+    // gates on it, fixedUpdate receives it, the accumulator drains by it, the
+    // guard compares against the configured cap, and alpha is a fraction of it.
+    // Unset, every one of those is upstream's own value and this is a no-op.
     file: 'src/core/engine.js',
-    find: /this\._accum\s*>=\s*([A-Za-z_$][\w$]*)\s*&&\s*([A-Za-z_$][\w$]*)\s*<\s*([A-Za-z_$][\w$]*)/,
-    replace: (m, step, i, cap) =>
-      `this._accum >= (this.ctx.config.q.fixedStep || ${step}) && ${i} < (this.ctx.config.q.maxSubsteps || ${cap})`,
-    why: 'let a weak device widen the physics step instead of spiralling',
+    // The same rewrite also TIMES the frame, because there is no other way to
+    // learn where a phone's 200 ms goes: this device takes no debugger, and a
+    // profiler on a desktop measures a desktop. Four timestamps a frame,
+    // accumulated into ctx.__phase for framelog.js to publish and reset. It
+    // costs four performance.now() calls and answers the only question left.
+    find: /this\._accum \+= t\.dt;[\s\S]*?this\.input\.endFrame\(\);/,
+    replace: () => [
+      'this._accum += t.dt;',
+      '    let steps = 0;',
+      '    const fixedSystems = this.registry.with(\'fixedUpdate\');',
+      '    const _P = this.ctx.__phase || (this.ctx.__phase = { fixed: 0, update: 0, late: 0, render: 0, steps: 0, n: 0 });',
+      '    const _t0 = performance.now();',
+      '    const _step = this.ctx.config.q.fixedStep || FIXED_DT;',
+      '    const _cap = this.ctx.config.q.maxSubsteps || MAX_SUBSTEPS;',
+      '    while (this._accum >= _step && steps < _cap) {',
+      '      for (const sys of fixedSystems) sys.fixedUpdate(_step, this.ctx);',
+      '      this._accum -= _step;',
+      '      steps++;',
+      '    }',
+      '    if (steps === _cap) this._accum = 0; // shed backlog rather than spiral',
+      '    t.alpha = this._accum / _step;',
+      '    const _t1 = performance.now();',
+      '',
+      '    for (const sys of this.registry.with(\'update\')) sys.update(t.dt, this.ctx);',
+      '    const _t2 = performance.now();',
+      '    for (const sys of this.registry.with(\'lateUpdate\')) sys.lateUpdate(t.dt, this.ctx);',
+      '    const _t3 = performance.now();',
+      '',
+      '    const renderSystem = this.registry.peek(\'render\');',
+      '    if (typeof renderSystem?.render === \'function\') renderSystem.render(this.ctx);',
+      '    const _t4 = performance.now();',
+      '    _P.fixed += _t1 - _t0; _P.update += _t2 - _t1; _P.late += _t3 - _t2;',
+      '    _P.render += _t4 - _t3; _P.steps += steps; _P.n++;',
+      '',
+      '    this.input.endFrame();',
+    ].join('\n'),
+    why: 'let a weak device widen the physics step instead of spiralling, and say where the frame went',
   },
   {
     // The HUD is laid out for 1080p and scales by viewport height, with a floor
@@ -317,6 +371,54 @@ const PATCHES = [
     find: /const\s+([A-Za-z_$][\w$]*)\s*=\s*\{\s*type:\s*THREE\.FloatType,\s*format:\s*THREE\.RGBAFormat,\s*name:\s*['"]exposure['"]\s*\}/,
     replace: (m, o) => `const ${o} = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, name: 'exposure' }`,
     why: 'a device that cannot linearly filter full float read exposure 0 and drew a black screen',
+  },
+  {
+    // A SECOND FULL PASS OVER THE STREET, FOR A DEVICE THAT CANNOT AFFORD THE
+    // FIRST. Measured on the moto with the frame broken into phases:
+    //
+    //     fixed 9.2  update 8.8  late 3.4  render 39.4   — 60.8 ms of JS
+    //     …in a frame that took 203 ms
+    //
+    // so ~140 ms of every frame is the GPU, with the CPU waiting on it. The
+    // render scale is already at its 0.18 floor, so this is not fill rate: it
+    // is 3.4M triangles across 450 draw calls, which is what a Mali-G52 cannot
+    // do. That triangle count is the sum over ALL passes in the frame, and the
+    // cascade is a whole extra pass over the same street.
+    //
+    // csm.enabled already gates it — there is simply no way to reach the flag
+    // from a quality preset, so a device cannot decline shadows however slow
+    // they make it. Unset, `q.shadows` is undefined and this is upstream's
+    // behaviour exactly.
+    file: 'src/render/csm.js',
+    find: /this\.enabled\s*=\s*true;/,
+    replace: () => 'this.enabled = opts.enabled !== false;',
+    why: 'let a device that cannot afford a second pass over the street decline the cascade',
+  },
+  {
+    file: 'src/render/index.js',
+    find: /this\.csm\s*=\s*new\s+CascadedShadowMaps\(\s*renderer\s*,\s*\{\s*cascades:\s*q\.cascades,/,
+    replace: (m) => m.replace('cascades: q.cascades,', 'enabled: q.shadows !== false,\n      cascades: q.cascades,'),
+    why: 'carry the shadows knob from the quality preset into the cascade',
+  },
+  {
+    // THE DEPTH PREPASS IS A THIRD WALK OVER THE STREET. With the cascade gone
+    // the moto still draws 2.16M triangles across 319 calls for one frame,
+    // because the scene is rendered twice: once into the gbuffer and once for
+    // real. On a tile-based mobile GPU that is close to pure loss — a tiler
+    // already resolves hidden surfaces per tile, which is the work a depth
+    // prepass exists to save on an immediate-mode desktop part.
+    //
+    // Upstream keeps it unconditional because depthTexture and velocityTexture
+    // are "part of the public contract" for soft particles, SSR and motion
+    // blur. At this preset SSR, GTAO, contact shadows, motion blur and TAA are
+    // all already off, and the one consumer left reads
+    // `this.needsPrepass ? this.depthTexture : null` — it is written to take
+    // null. What it costs is soft-particle depth fade: smoke and sparks meet
+    // geometry with a hard edge instead of a soft one. Unset, this is upstream.
+    file: 'src/render/index.js',
+    find: /this\.needsPrepass\s*=\s*true;/,
+    replace: () => 'this.needsPrepass = q.prepass !== false;',
+    why: 'let a tile-based mobile GPU skip a depth prepass that only pays off on a desktop',
   },
 ];
 for (const p of PATCHES) {
