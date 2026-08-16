@@ -249,6 +249,34 @@ const PATCHES = [
       + `${sp}}`,
     why: 'let a built soldier variant be kept between launches',
   },
+  {
+    // A TEN MINUTE GAME GETS WORSE THE LONGER IT RUNS, and this is why. The
+    // fixed step is 1/120 s with up to EIGHT substeps a frame, so at 30 fps
+    // every frame runs four substeps of character sweeps against a 37.6k-tri
+    // BVH — and a slow frame earns itself MORE substeps, which slows the next
+    // one. Measured over a session: f:physics went from 0.61 ms/frame at two
+    // minutes to 9.05 ms/frame at four, with single frames at 85, 102, 117 ms.
+    // That is a feedback loop, not a load. Both numbers become config so a weak
+    // device can ask for a step it can actually keep up with; unset, upstream's
+    // 1/120 and 8 are used exactly as before.
+    file: 'src/core/engine.js',
+    find: /this\._accum\s*>=\s*([A-Za-z_$][\w$]*)\s*&&\s*([A-Za-z_$][\w$]*)\s*<\s*([A-Za-z_$][\w$]*)/,
+    replace: (m, step, i, cap) =>
+      `this._accum >= (this.ctx.config.q.fixedStep || ${step}) && ${i} < (this.ctx.config.q.maxSubsteps || ${cap})`,
+    why: 'let a weak device widen the physics step instead of spiralling',
+  },
+  {
+    // The HUD is laid out for 1080p and scales by viewport height, with a floor
+    // of 0.62 — so on a phone, or any modest window, every number and label is
+    // drawn at 62% of a size chosen for a desktop monitor. Reported from across
+    // the room as "font size for ants". The floor becomes config; unset, it is
+    // upstream's 0.62.
+    file: 'src/ui/index.js',
+    find: /this\.k\s*=\s*([A-Za-z_$][\w$]*)\(\s*([A-Za-z_$][\w$]*)\s*\/\s*1080\s*,\s*\.?62\s*,\s*2\.4\s*\)/,
+    replace: (m, clamp, h) =>
+      `this.k = ${clamp}(${h} / 1080, (this.ctx && this.ctx.config && this.ctx.config.q.hudMinScale) || 0.62, 2.4)`,
+    why: 'let the HUD stay readable on a phone instead of flooring at 62%',
+  },
 ];
 for (const p of PATCHES) {
   const f = join(src, p.file);
