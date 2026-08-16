@@ -3023,8 +3023,33 @@ function check(name, cond, detail) {
   // user as "the Colorado is not blue, the fish stand on land, and the car
   // drowns on dry rock" (roadmap §14b) with the suite entirely green.
   //
-  // So: the same world, over a canyon 1355 m deep, asserting the surface
-  // follows its own ground instead of averaging it away.
+  // WHAT THESE ASSERTIONS ASK FOR, AND WHAT THEY ASKED FOR BEFORE. The first
+  // version of this block judged the DEFAULT fixture's water — a rectangle
+  // running east-west — on a canyon that ran north-south, so the ring lay
+  // across the valley and over the rim: ground 1524 m at one end, 1322 m at the
+  // other, and 2093 m in the MIDDLE. Nothing that draws water as water can
+  // satisfy that. waterMesh gives one height per RING vertex and adds no
+  // interior points, so keeping the triangle centres near their ground needed
+  // vertices on a crest where the ring had none, while putting the two ends on
+  // their own ground makes a triangle span 200 m of height — and that is the
+  // assertion immediately below it. Two of the five could not be green at once,
+  // and the three reds were unearnable rather than true. The fixture said it,
+  // not the product: see the note over `CANYON` in anyroad-fixtures.js.
+  //
+  // So the canyon now runs the way its river runs, the river is a 6.4 km ring
+  // with a vertex every 30 m descending the valley floor at 2.5%, and these
+  // five ask exactly what the design promises: every tile meshes the ring WHOLE
+  // (waterMesh culls by tile, it does not clip), so one level for the ring puts
+  // its upstream end 128 m under its own ground — measured, with per-vertex
+  // levelling disabled — while a surface that follows the valley down comes in
+  // at 7 m. Nothing here is satisfied by a flat sheet, and nothing here asks
+  // for water to climb a hillside.
+  //
+  // The canyon world also serves its ELEVATION FIRST and holds the roads until
+  // it has gone quiet (routeWorld), because a tile may build as soon as its own
+  // square has ground while the ring runs kilometres past it — see the note
+  // there, and the "same river at the same height" check below, which is the
+  // observable form of it.
   const canyon0 = await openAnyroad(browser, { world: { canyon: true }, maptiler: false, tag: 'canyon' });
   await canyon0.land();
   // WAIT FOR WATER, and fail loudly if it never comes. Water tiles finish
@@ -3057,26 +3082,61 @@ function check(name, cond, detail) {
                relief: +((hi > lo) ? hi - lo : 0).toFixed(1) };
     };
     let m = measure();
-    for (let i = 0; i < 60 && (m.verts === 0 || m.relief < 100); i++) {
+    for (let i = 0; i < 60 && (m.verts < 100 || m.relief < 100); i++) {
       await wait(1000);
       m = measure();
     }
     return m;
   });
-  check('CANYON: water is drawn over a canyon at all (or this cannot judge)',
-    cWater.verts > 0, cWater.verts + ' water vertices');
+  // A LONG ring, not a puddle. The count is part of the coverage gate because
+  // the levelling under test works on a window of NEIGHBOURING vertices: on a
+  // four-corner ring that window wraps the whole polygon and degenerates back
+  // to the single global level, so a four-corner fixture cannot tell the two
+  // apart and must not be allowed to report on them.
+  check('CANYON: a LONG river is drawn over the canyon (or this cannot judge)',
+    cWater.verts > 100, cWater.verts + ' water vertices');
   check('CANYON: the ground under the water really does descend',
     cWater.relief > 100, cWater.relief + ' m of relief beneath the water surface');
-  // THE ONE THAT WOULD HAVE CAUGHT IT. A single sheet over a 1355 m descent
-  // leaves hundreds of metres between the surface and the ground under it.
-  // Gated on coverage so it can never report a green about an empty world.
+  // THE ONE THAT WOULD HAVE CAUGHT IT. One level for the whole ring is the 20th
+  // percentile of a 160 m descent, so the upstream half of the river is drawn
+  // well inside the hillside — measured at -128 m with the levelling switched
+  // off. Gated on coverage so it can never report a green about an empty world.
   check('CANYON: the surface FOLLOWS its own ground rather than averaging it',
-    cWater.verts > 0 && cWater.relief > 100 && Math.abs(cWater.worst) < 60,
+    cWater.verts > 100 && cWater.relief > 100 && Math.abs(cWater.worst) < 60,
     'worst |water - ground| = ' + cWater.worst + ' m over ' + cWater.relief
       + ' m of relief, ' + cWater.verts + ' vertices');
   check('CANYON: …and still never stands on top of the land',
-    cWater.verts > 0 && cWater.above < 6,
+    cWater.verts > 100 && cWater.above < 6,
     'highest water above its own ground = ' + cWater.above + ' m');
+  // ONE RIVER, NOT ONE PER TILE. waterMesh culls by tile and meshes the ring
+  // WHOLE, so every tile holding a piece of this river lays down the entire
+  // 6.4 km of it; the design's claim is that they all compute the same
+  // per-vertex heights and the copies land on top of each other. They only do
+  // if they were all built against the same ground — and a tile is allowed to
+  // build as soon as ITS OWN square has elevation, while the ring runs kilometres
+  // past that. Measured before this world served its elevation first: one tile's
+  // copy sat 26.1 m above its own ground while the next tile's copy of the same
+  // ring was within 2 m, and neither was ever rebuilt, because water's ground
+  // misses are not counted in `built.incomplete` the way a road's are. Two sheets
+  // of the same river at different heights is what z-fighting is made of.
+  const cAgree = await canyon0.fr.locator('body').evaluate(() => {
+    const w = window.App.world;
+    let ref = null, copies = 0, worst = 0;
+    for (const k in w.roads) {
+      const t = w.roads[k];
+      if (!t || !t.built || !t.built.water || !t.built.water.positions.length) continue;
+      const P = t.built.water.positions;
+      copies++;
+      if (!ref) { ref = P; continue; }
+      if (P.length !== ref.length) return { copies, worst: Infinity, mismatch: 'vertex counts differ' };
+      for (let i = 1; i < P.length; i += 3) worst = Math.max(worst, Math.abs(P[i] - ref[i]));
+    }
+    return { copies, worst: +worst.toFixed(2), mismatch: '' };
+  });
+  check('CANYON: every tile draws the SAME river at the same height',
+    cAgree.copies > 1 && !cAgree.mismatch && cAgree.worst < 0.01,
+    cAgree.copies + ' tiles carry the ring, worst disagreement ' + cAgree.worst + ' m'
+      + (cAgree.mismatch ? ' — ' + cAgree.mismatch : ''));
   // ---- THE SURFACE BETWEEN THE BANKS, AND WHAT THE HAZARD THINKS ---------
   // The checks above sample water VERTICES, which sit on the ring itself — and
   // per-vertex levelling makes those right almost by construction. What a
@@ -3117,16 +3177,24 @@ function check(name, cond, detail) {
     // Does the hazard agree with the picture? Walk a grid over the water's own
     // footprint: wherever landAt says "you drown", water should be DRAWN at
     // roughly that ground height.
+    // Pools count as drawn water: they are the same rings through the same
+    // waterMesh, packed into a second mesh only because they are painted a
+    // different blue. The wet index the drown test reads carries both (see
+    // buildWaterIndex), so a surface lookup that knew about only one of them
+    // would report a pool as dry ground.
     const surfaceAt = (x, z) => {
       let best = null;
       for (const k in w.roads) {
         const t = w.roads[k];
-        if (!t || !t.built || !t.built.water || !t.built.water.positions) continue;
-        const P = t.built.water.positions;
-        for (let i = 0; i < P.length; i += 3) {
-          const dx = P[i] - x, dz = P[i + 2] - z;
-          const d2 = dx * dx + dz * dz;
-          if (best === null || d2 < best.d2) best = { d2: d2, y: P[i + 1] };
+        if (!t || !t.built) continue;
+        for (const mesh of [t.built.water, t.built.pools]) {
+          if (!mesh || !mesh.positions) continue;
+          const P = mesh.positions;
+          for (let i = 0; i < P.length; i += 3) {
+            const dx = P[i] - x, dz = P[i + 2] - z;
+            const d2 = dx * dx + dz * dz;
+            if (best === null || d2 < best.d2) best = { d2: d2, y: P[i + 1] };
+          }
         }
       }
       return best;
