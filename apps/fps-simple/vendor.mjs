@@ -272,10 +272,51 @@ const PATCHES = [
     // the room as "font size for ants". The floor becomes config; unset, it is
     // upstream's 0.62.
     file: 'src/ui/index.js',
-    find: /this\.k\s*=\s*([A-Za-z_$][\w$]*)\(\s*([A-Za-z_$][\w$]*)\s*\/\s*1080\s*,\s*\.?62\s*,\s*2\.4\s*\)/,
+    // `0?\.62`, not `\.?62`. Upstream writes `clamp(h / 1080, 0.62, 2.4)` and
+    // the old pattern could match `.62` or `62` but never `0.62`, so a build
+    // from a CLEAN clone died here — the patch only ever applied to a checkout
+    // something had already been done to. Exactly the rot the fail-loud rule
+    // above exists to catch, caught by it.
+    find: /this\.k\s*=\s*([A-Za-z_$][\w$]*)\(\s*([A-Za-z_$][\w$]*)\s*\/\s*1080\s*,\s*0?\.62\s*,\s*2\.4\s*\)/,
     replace: (m, clamp, h) =>
       `this.k = ${clamp}(${h} / 1080, (this.ctx && this.ctx.config && this.ctx.config.q.hudMinScale) || 0.62, 2.4)`,
     why: 'let the HUD stay readable on a phone instead of flooring at 62%',
+  },
+  {
+    // THE MOTO DREW THE WHOLE GAME AND MULTIPLIED IT BY ZERO.
+    //
+    // On the phone the viewport was black under a live HUD, while the identical
+    // build rendered a sunlit street on a desktop. Everything a counter can
+    // reach was healthy: 450 draw calls, 3.4M triangles, 237 shader programs
+    // with none bad, every render target framebuffer-COMPLETE, half-float
+    // supported, no GL error, and the same lights at the same intensities.
+    //
+    // AutoExposure builds its metering chain — 64,16,4,1 and two 1x1 adapt
+    // targets — by handing hdrTarget() a type override of FloatType. It does
+    // not override the FILTERS, and hdrTarget defaults to LinearFilter on both.
+    // A full-float texture with linear filtering is INCOMPLETE unless
+    // OES_texture_float_linear is present, and on this Mali-G52 it is not
+    // (measured on the device: cbf:1 cbhf:1 tfl:0 — half-float is filterable,
+    // full float is not). Sampling an incomplete texture is not an error; it
+    // silently returns (0,0,0,1). composite.js then does:
+    //
+    //     float exposure = texture2D( tExposure, vec2( 0.5 ) ).r * uLook.w;
+    //     hdr *= exposure;
+    //
+    // so the exposure it reads is 0 and the finished frame is multiplied to
+    // black. Every stage upstream of it worked perfectly, which is exactly why
+    // this took a pixel readback on the device to find rather than a counter.
+    //
+    // Half-float is the fix rather than NearestFilter because the 64->16->4->1
+    // chain is a box downsample and WANTS linear filtering; and it is what
+    // every other HDR target in this engine already uses. Its range (65504)
+    // and precision are far beyond what a log-luminance meter and a clamped
+    // EV value in [-4, 16] need. On a device that CAN filter full float this
+    // changes the metering by nothing anyone can see.
+    file: 'src/render/exposure.js',
+    find: /const\s+([A-Za-z_$][\w$]*)\s*=\s*\{\s*type:\s*THREE\.FloatType,\s*format:\s*THREE\.RGBAFormat,\s*name:\s*['"]exposure['"]\s*\}/,
+    replace: (m, o) => `const ${o} = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, name: 'exposure' }`,
+    why: 'a device that cannot linearly filter full float read exposure 0 and drew a black screen',
   },
 ];
 for (const p of PATCHES) {
