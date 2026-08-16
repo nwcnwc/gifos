@@ -169,11 +169,18 @@
     if (!api || !api.db) return Promise.resolve(0);
     try { db = api.db(COLL); } catch (e) { return Promise.resolve(0); }
     return db.getAll().then(function (rows) {
-      var n = 0;
+      // Rows are per-MAP; a set is only usable when every map it had is back.
+      var bySet = Object.create(null);
       for (var i = 0; i < (rows || []).length; i++) {
         var r = rows[i];
-        if (!r || !r.id || !r.maps) continue;
-        mem[r.id] = r; stored += bytesOf(r); n++;
+        if (!r || !r.id || !r.set || !r.data) continue;
+        var e = bySet[r.set] || (bySet[r.set] = { maps: Object.create(null), plain: r.plain || {} });
+        e.maps[r.map] = { w: r.w, h: r.h, data: r.data, p: r.p || {} };
+      }
+      var n = 0;
+      for (var k in bySet) {
+        mem[k] = bySet[k]; mem[k].id = k;
+        stored += bytesOf(bySet[k]); n++;
       }
       return n;
     }).catch(function () { return 0; });
@@ -216,16 +223,41 @@
   function flush() {
     if (!db || !fresh.length) return Promise.resolve(0);
     var keys = fresh.slice(); fresh.length = 0;
-    var i = 0, wrote = 0;
+    // ONE MAP PER RECORD, AND NO WRITE MAY STALL THE QUEUE.
+    //
+    // Measured on a Moto g24: of 27 surfaces captured, TWO ever reached the
+    // database, and the rest never did no matter how long it was given. A whole
+    // surface is ~200 KB of pixels crossing the sandbox bridge in one message,
+    // and a put that never settles stops a sequential queue dead — everything
+    // behind it waits forever on a promise that will not resolve.
+    //
+    // So each MAP goes separately (a third the size), and every write races a
+    // timeout. A write that does not land in time is abandoned and the queue
+    // moves on: a partial cache is worth having, because a surface restored is
+    // a surface not baked, and the two that did land were already worth 2.4 s.
+    var jobs = [];
+    for (var i = 0; i < keys.length; i++) {
+      var rec = mem[keys[i]];
+      if (!rec) continue;
+      for (var mk in rec.maps) jobs.push({ id: keys[i] + '#' + mk, map: mk, rec: rec });
+    }
+    var n = 0, wrote = 0;
     function step() {
-      if (i >= keys.length) {
-        try { console.info('[fps] texture cache: stored ' + wrote + ' surfaces'); } catch (e) {}
+      if (n >= jobs.length) {
+        try { console.info('[fps] texture cache: stored ' + wrote + '/' + jobs.length + ' maps'); } catch (e) {}
         return Promise.resolve(wrote);
       }
-      var rec = mem[keys[i++]];
-      if (!rec) return step();
-      return db.put(rec).then(function () { wrote++; }, function () {})
-        .then(function () { return new Promise(function (r) { setTimeout(r, 150); }).then(step); });
+      var j = jobs[n++];
+      var m = j.rec.maps[j.map];
+      var row = { id: j.id, set: j.rec.id, map: j.map, w: m.w, h: m.h, data: m.data, p: m.p,
+                  plain: j.rec.plain };
+      var settled = false;
+      return Promise.race([
+        db.put(row).then(function () { settled = true; wrote++; }, function () { settled = true; }),
+        new Promise(function (r) { setTimeout(r, 5000); }),
+      ]).then(function () {
+        return new Promise(function (r) { setTimeout(r, 40); }).then(step);
+      });
     }
     return step();
   }
