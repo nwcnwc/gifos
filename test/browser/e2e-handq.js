@@ -161,6 +161,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // clocks: age = the ORIGIN's timestamp, rx = when this client last heard it.
   const dump = async (why) => {
     console.log('  [overflow] ' + why);
+    // WAS IT THE BOX? Ten clients means ten renderers (they are ten separate
+    // BrowserContexts, which never share a process), and a starved renderer
+    // stops beating: measured in a 4-core cgroup, every peer's status ARRIVED
+    // seconds ago and was already 20-60s old at its origin, so the 15s
+    // freshness rule dropped all ten hands and the queue fell to 1. That is a
+    // kernel measurement, not a hand-queue verdict, and the reader must be able
+    // to tell the two apart from the log alone.
+    console.log('   the box: ' + casualty.capacityLine('local', raisers.length, casualty.memLocal()));
     for (const [nm, pg] of [['a', a], ['b', b]]) {
       const d = await pg.evaluate((ids) => ({
         q: window.__gifosVideo.handQueue().length,
