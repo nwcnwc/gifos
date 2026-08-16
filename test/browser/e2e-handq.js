@@ -30,7 +30,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     executablePath: CHROME,
     args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
       '--disable-gpu', '--mute-audio', '--disable-dev-shm-usage',
-      '--process-per-site'], // all pages are one origin ⇒ one shared renderer — the 10-client overflow leg fits a small box
+      // --process-per-site was added believing "all pages are one origin ⇒ one
+      // shared renderer, so the 10-client overflow leg fits a small box". It
+      // does NOT: every client needs its own identity, so every client is its
+      // own BrowserContext, and contexts are separate storage partitions that
+      // never share a renderer process. MEASURED mid-run, 2026-08-16: 13
+      // renderer processes, 2.8 GB RSS. Kept because it is harmless, labelled
+      // because the memory it promises is not there — the leg costs ten
+      // renderers on whatever box runs it, and the dump below says so when the
+      // box could not hold them.
+      '--process-per-site'],
   });
   const setup = (name) => ({ content: "try{localStorage.setItem('gifos_relay','" + RELAY + "');localStorage.setItem('gifos_name','" + name + "');localStorage.setItem('gifos_meet_bar','0')}catch(e){}" });
   const newUser = async (name) => {
