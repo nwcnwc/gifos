@@ -142,8 +142,9 @@ The controls worth knowing:
   app can't be: a deck on your disk, a tool that isn't GifOS, a window from
   somewhere else. A room that already has an app pinned says so before it lets
   you share, and an **app room** — where the app *is* the room — doesn't offer
-  screen sharing at all. (Not available on iPhone or iPad; the browsers there
-  have no screen capture, so the button simply isn't shown.)
+  screen sharing at all. The button appears only where the browser can actually
+  do it (feature detection, never a browser name — some phone browsers have no
+  screen capture at all), so it is never a control that fails when pressed.
 - **Record / CC** — record a composite to *your own device* (blurred feeds stay
   blurred), or turn on live captions your phone writes from your own voice; lines
   gossip P2P into one attributed transcript.
