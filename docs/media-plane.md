@@ -133,6 +133,41 @@ different up-link) in ~2s via sticky `claimMos`, and a stager's feed reaches S1
 by two independent up-paths (the S1 flood dedups the copy). The mid-tree freeze
 is closed.
 
+**A SHARED SCREEN is a Stage feed whose video came from the display.** Sharing
+your screen is a broadcast, so it is a Stage act: `sentVideoTrack()` — the one
+function that decides what video leaves a device — returns the
+`getDisplayMedia` track instead of the camera, and the sharer steps onto the
+Stage. Everything downstream is unchanged and unaware: the self-view, the MAIN
+senders to row-mates, the `stg:<id>` collect up to Section 1, the composite,
+the fan down, the cross-link redundancy, the one-pipe law. `shipMos` re-ships
+by itself, because the track changed. There is no screen-share channel, no
+screen-share message, and nothing new to keep alive.
+
+Two screen-specific facts, and only two. **The bit**: a `scr` timestamp on the
+ordinary status heartbeat, so every device can say WHO is sharing (composited
+pixels carry no attribution, and a spreadsheet does not look like a spreadsheet
+from the outside) and can tell a dark seat from a camera-off sharer.
+**The packing**: that seat's strip cell is `fit:'contain'` — letterboxed, not
+cover-cropped. A centered square cut from a 1920×1080 share keeps 1080 of 1920
+columns: 56% of the width, the left and right thirds of every deck, gone
+silently. Every seat computes the same fit from the same gossip, so the packing
+does not depend on which seat happens to be compositing.
+
+Not blurred (a Max-blurred deck is a grey rectangle, and Max-blurred is the
+state every room starts in), announced instead — and an admin's "video off for
+everyone" stops a share outright, because video is video. No system audio yet:
+the outbound audio track is the mic, read directly by `mySelfStream` and every
+`mainA` sender, so tab audio would need a fold in front of all of them and a
+mute button that means two different things.
+
+**AN APP PINNED INTO A MEETING NEEDS NONE OF THIS, AND THE PRODUCT SAYS SO.**
+An app on Stage broadcasts *state*, below — everyone runs the app themselves.
+A screen share is the opposite trade, so where they overlap the pin wins: an
+app-PINNED room offers no screen-share control at all, and in an ordinary
+meeting the share sheet names "Run app" first — by the app's own name when one
+is already running. Guard: `test/browser/e2e-screen-share.js`, which counts
+`getDisplayMedia` calls rather than trusting the copy.
+
 **An APP on Stage carries a DATA stream, not A/V.** Running an app occupies one
 of the ≤C Stage seats (it counts toward the cap), but instead of camera pixels
 it broadcasts the app's shared **state** (small — deltas over the data channel),

@@ -133,6 +133,17 @@ The controls worth knowing:
   control").
 - **Run app** — share an app (a Bible, a board, a game) the whole room uses
   together, live (see [`app-mesh.md`](app-mesh.md)).
+- **Share screen** — show the room a window, a tab, or your whole desktop. It
+  takes a seat on the Stage, so everyone sees it; everyone also sees that it is
+  *you* sharing, and your camera pauses until you stop. **If what you want to
+  show is a GifOS app, don't** — *Run app* puts the app itself in the meeting
+  and everyone runs it on their own device, crisp and interactive, for the
+  price of a data stream instead of a video one. Screen sharing is for what an
+  app can't be: a deck on your disk, a tool that isn't GifOS, a window from
+  somewhere else. A room that already has an app pinned says so before it lets
+  you share, and an **app room** — where the app *is* the room — doesn't offer
+  screen sharing at all. (Not available on iPhone or iPad; the browsers there
+  have no screen capture, so the button simply isn't shown.)
 - **Record / CC** — record a composite to *your own device* (blurred feeds stay
   blurred), or turn on live captions your phone writes from your own voice; lines
   gossip P2P into one attributed transcript.

@@ -10115,6 +10115,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // gossiped `scr` bit telling the strip compositor to letterbox the cell
     // instead of cropping it square (mesh-media fitBox).
     //
+    // WHY THIS PAGE MAY SIMPLY ASK. Meeting and Broadcast are SYSTEM apps, and
+    // a system app is not a sandboxed App GIF: `runtime.js` boot() sees
+    // `manifest.system` in its SYSTEM_PAGES whitelist and does
+    // `location.replace('run.html')` — a real navigation to a first-party page
+    // on the GifOS origin — instead of mounting anything in an iframe. Its own
+    // comment says why: "System apps run as trusted first-party pages, not in
+    // the sandbox — live media (camera/mic + WebRTC) is impossible from an
+    // opaque origin." So this page has a real origin and the ordinary web
+    // platform, and it already calls getUserMedia directly for camera and mic
+    // and getDisplayMedia directly for the local recorder. The gate on a screen
+    // share here is the BROWSER's — its own picker, its own gesture
+    // requirement, its own stop bar — plus the room's rules below (a Stage
+    // seat, so canStage applies; an admin video-off ends it) and the honesty
+    // the room can see. There is no capability to declare, and the App-GIF
+    // capability model (capabilities.pointer / .fullscreen) is the wrong shape
+    // here: it exists to hand narrow powers to UNTRUSTED code in a sandbox.
+    // (It also could not deliver this one — see runtime.js on why a
+    // capabilities.screen cannot be built at all.)
+    //
     // NO SYSTEM AUDIO, DELIBERATELY, FOR NOW: getDisplayMedia can capture tab
     // audio, but the outbound audio track is the mic — mySelfStream and every
     // mainA sender read localStream's audio track directly — so carrying it
