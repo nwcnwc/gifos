@@ -420,6 +420,24 @@ const PATCHES = [
     replace: () => 'this.needsPrepass = q.prepass !== false;',
     why: 'let a tile-based mobile GPU skip a depth prepass that only pays off on a desktop',
   },
+  {
+    // THE CANVAS IS 1.5x WHATEVER THE RENDER SCALE SAYS. renderScale shrinks the
+    // engine's internal targets; the DRAWING BUFFER is sized separately, from
+    // min(devicePixelRatio, 1.5). On the moto that is 616x1114 while the scene
+    // is being rendered at 0.18 — so every frame ends with a big upscale blit,
+    // and Chrome then composites that buffer into the page and scales it again.
+    //
+    // That work is invisible to everything measured so far: gl.finish() after
+    // the frame's JS returns 0.1 ms, so our own GL queue is empty, and the
+    // compositor's copy happens later and in another process. Halving the
+    // buffer's linear size quarters those pixels. The image barely changes,
+    // because at renderScale 0.18 it is already far softer than the buffer it
+    // is being stretched into. Unset, this is upstream's min(dpr, 1.5).
+    file: 'src/render/index.js',
+    find: /const\s+pr\s*=\s*Math\.min\(\s*globalThis\.devicePixelRatio\s*\|\|\s*1\s*,\s*1\.5\s*\);/,
+    replace: () => 'const pr = this.ctx.config.q.pixelRatio || Math.min(globalThis.devicePixelRatio || 1, 1.5);',
+    why: 'let a phone stop compositing a canvas 1.5x bigger than the picture in it',
+  },
 ];
 for (const p of PATCHES) {
   const f = join(src, p.file);

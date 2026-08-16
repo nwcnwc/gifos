@@ -122,6 +122,7 @@
   // and not another rAF). Sampled every couple of seconds: readPixels stalls
   // the pipeline, and this must not become the lag it is looking for.
   var pix = null, pixAt = 0, wrapped = false, rafCalls = 0, trail = [], stages = '';
+  var lastEnd = 0, gapSum = 0, gapN = 0, gpuMs = 0;
   // Read one pixel out of each intermediate target. three.js knows each
   // target's type, so readRenderTargetPixels is given a buffer that matches:
   // a half-float target read into a Uint8Array comes back as zeroes, which
@@ -158,7 +159,13 @@
     var orig = root.requestAnimationFrame.bind(root);
     root.requestAnimationFrame = function (cb) {
       return orig(function (t) {
-        try { cb(t); } finally { rafCalls++; sample(); }
+        // The gap between this frame's callback ENDING and the next one
+        // STARTING is everything the page does that no JS timer can see:
+        // style, layout, paint, compositing, and waiting for the GPU. With JS
+        // at 40 ms in a 145 ms frame, that gap is the whole remaining question.
+        var _now = (root.performance ? performance.now() : Date.now());
+        if (lastEnd) { gapSum += _now - lastEnd; gapN++; }   // one clock, not two
+        try { cb(t); } finally { rafCalls++; sample(); lastEnd = (root.performance ? performance.now() : Date.now()); }
       });
     };
   }
@@ -174,6 +181,13 @@
       var gl = ren.getContext();
       if (!gl) return;
       pixAt = now + 2000;
+      // How much GPU work is still outstanding when the frame's JS is done?
+      // gl.finish() returns only once the driver has drained it, so the time it
+      // takes IS the wait. Sampled rarely — it is a full pipeline stall, and a
+      // measurement that changes the thing it measures has to stay rare.
+      var f0 = (root.performance ? performance.now() : Date.now());
+      try { gl.finish(); } catch (e) {}
+      gpuMs = (root.performance ? performance.now() : Date.now()) - f0;
       var tgt = ren.getRenderTarget ? ren.getRenderTarget() : null;
       var w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
       var pts = [[w >> 1, h >> 1], [w >> 2, h >> 2], [w >> 1, (h >> 2) * 3], [(w >> 2) * 3, h >> 1]];
@@ -199,6 +213,7 @@
       stages = stageRead(F, ren);
       pix = { max: max, mean: Math.round(sum / pts.length), n: (pix && pix.n || 0) + 1,
               tgt: tgt ? 'bound' : 'screen', raf: rafCalls, scale: sc,
+              gpu: +gpuMs.toFixed(1), gap: gapN ? +(gapSum / gapN).toFixed(1) : null,
               first: (pix && pix.first) || (max + '@' + sc), trail: trail.join(' '),
               stages: stages };
     } catch (e) { pix = { err: String((e && e.message) || e), raf: rafCalls }; }
@@ -401,6 +416,16 @@
       try {
         root.gifos.db('prefs').get('settings').then(function (rec) {
           if (rec && rec.autostart) armAutostart();
+          // PRICING THE HUD. JS is 46 ms and the GPU is idle in a 146 ms frame,
+          // so ~100 ms is the browser between frames — and the HUD is DOM,
+          // restyled and repainted every frame on a phone. Hiding it is the
+          // cheapest way to find out whether that is where the frame goes.
+          if (rec && rec.nohud) {
+            var hide = setInterval(function () {
+              var ui = document.getElementById('ui');
+              if (ui) { ui.style.display = 'none'; clearInterval(hide); }
+            }, 250);
+          }
         }).catch(function () {});
       } catch (e) {}
       return;
