@@ -41,76 +41,6 @@
   var look = { id: null, lx: 0, ly: 0, t0: 0, moved: 0 };
   var firing = false, fireUntil = 0;
 
-  /* ==== TEMP DIAGNOSTICS — the dead-stick hunt (remove when landed) ====== */
-  // The stick is dead ON THE DEVICE during play and alive while paused, and
-  // nothing on a desktop reproduces it. So the pad narrates what it is handed:
-  // every pointer event at the document (capture phase — heard before anything
-  // can eat it), every event that reaches #t-move, and every branch track()
-  // takes. Published to the app's own store, beaconed by _devperf.html.
-  var DIAG = {
-    log: [], dirty: false, lastPub: 0, moveLogGate: 0,
-    cnt: { docdown: 0, docmove: 0, docup: 0, doccancel: 0,
-           down: 0, downBusy: 0, move: 0, moveOther: 0, up: 0, cancel: 0,
-           trkOk: 0, trkNoRad: 0, trkFar: 0, polls: 0, applied: 0 },
-  };
-  function dnow() { return Math.round(((root.performance && performance.now) ? performance.now() : Date.now()) / 100) / 10; }
-  function dlog(s) {
-    DIAG.log.push(dnow() + ' ' + s);
-    if (DIAG.log.length > 70) DIAG.log.shift();
-    DIAG.dirty = true;
-    dpublish(false);
-  }
-  function denv() {
-    try {
-      var pl = document.pointerLockElement;
-      return (document.fullscreenElement ? 'fs' : 'win')
-        + ' ' + (pl ? 'LOCKED:' + (pl.id || pl.tagName) : 'nolock')
-        + ' ' + root.innerWidth + 'x' + root.innerHeight
-        + (root.visualViewport ? ' vv:' + (root.visualViewport.scale || 1) + '/'
-            + Math.round(root.visualViewport.offsetLeft) + ',' + Math.round(root.visualViewport.offsetTop) : '')
-        + ' menu:' + !!(ui && ui.menu && ui.menu.open)
-        + ' body.touch:' + document.body.classList.contains('touch');
-    } catch (e) { return 'env:' + ((e && e.message) || e); }
-  }
-  function dpose() {
-    try { var p = root.__FPS_POSE__ && root.__FPS_POSE__(); return p ? (p.x.toFixed(1) + ',' + p.z.toFixed(1)) : ''; } catch (e) { return ''; }
-  }
-  function dpublish(force) {
-    if (!root.gifos || !root.gifos.db || !DIAG.dirty) return;
-    var now = Date.now();
-    if (!force && now - DIAG.lastPub < 700) return;
-    DIAG.lastPub = now;
-    DIAG.dirty = false;
-    try {
-      root.gifos.db('perf').put({ id: 'stick', at: now,
-        cnt: JSON.stringify(DIAG.cnt), env: denv(), pose: dpose(),
-        stick: input ? (+input.stick.moveX).toFixed(2) + ',' + (+input.stick.moveY).toFixed(2) : '',
-        move: move.id + ':' + move.x.toFixed(2) + ',' + move.y.toFixed(2),
-        log: DIAG.log.join(' | ') }).catch(function () {});
-    } catch (e) {}
-  }
-  function watchDoc() {
-    ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'].forEach(function (t) {
-      document.addEventListener(t, function (e) {
-        DIAG.cnt['doc' + t.slice(7)]++;
-        // Moves flood: keep the left half (where the stick lives), one in five.
-        if (t === 'pointermove') {
-          if (e.clientX >= root.innerWidth * 0.45) return;
-          if (++DIAG.moveLogGate % 5 !== 1) return;
-        }
-        var tg = '?';
-        try {
-          tg = e.target ? (e.target.tagName + (e.target.id ? '#' + e.target.id
-             : (e.target.className ? '.' + String(e.target.className).slice(0, 14) : ''))) : 'null';
-        } catch (err) {}
-        dlog(t.slice(7) + ' id' + e.pointerId + (e.isPrimary ? '*' : '') + ' '
-          + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' >' + tg);
-      }, true);
-    });
-    setInterval(function () { DIAG.dirty = true; dpublish(true); }, 3000);
-  }
-  /* ==== END TEMP DIAGNOSTICS ============================================= */
-
   function isTouch() { return active; }
 
   // Capture keeps a thumb that slides off the control still talking to it. It is
@@ -143,7 +73,6 @@
     bindButtons();
     wrapGamepadPoll();
     banPointerLock();
-    watchDoc();
     return { isTouch: isTouch, tick: tick };
   }
 
@@ -189,27 +118,21 @@
   /* ---- the left stick --------------------------------------------------- */
   function bindStick() {
     el.move.addEventListener('pointerdown', function (e) {
-      if (move.id !== null) { DIAG.cnt.downBusy++; dlog('PAD down BUSY id' + e.pointerId + ' holder=' + move.id); return; }
-      DIAG.cnt.down++;
+      if (move.id !== null) return;
       move.id = e.pointerId;
       capture(el.move, e.pointerId);
-      dlog('PAD down id' + e.pointerId + ' pose=' + dpose());
       track(e);
       e.preventDefault();
     });
     el.move.addEventListener('pointermove', function (e) {
-      if (e.pointerId !== move.id) { DIAG.cnt.moveOther++; return; }
-      DIAG.cnt.move++;
+      if (e.pointerId !== move.id) return;
       track(e);
       e.preventDefault();
     });
     var end = function (e) {
       if (e.pointerId !== move.id) return;
-      DIAG.cnt[e.type === 'pointercancel' ? 'cancel' : 'up']++;
-      dlog('PAD ' + e.type + ' id' + e.pointerId + ' pose=' + dpose());
       move.id = null; move.x = 0; move.y = 0;
       el.knob.style.transform = '';
-      dpublish(true);
     };
     el.move.addEventListener('pointerup', end);
     el.move.addEventListener('pointercancel', end);
@@ -255,21 +178,10 @@
   function track(e) {
     var r = el.move.getBoundingClientRect();
     var rad = r.width / 2;
-    if (!rad) {                                  // hidden — no geometry to steer by
-      DIAG.cnt.trkNoRad++;
-      dlog('trk NORAD rect=' + Math.round(r.left) + ',' + Math.round(r.top) + ' w' + r.width);
-      return;
-    }
+    if (!rad) return;                            // hidden — no geometry to steer by
     var dx = e.clientX - (r.left + rad), dy = e.clientY - (r.top + rad);
     var len = Math.hypot(dx, dy) || 1;
-    if (len > rad * MAX_RADII) {
-      DIAG.cnt.trkFar++;
-      dlog('trk FAR c=' + Math.round(e.clientX) + ',' + Math.round(e.clientY)
-        + ' rect=' + Math.round(r.left) + ',' + Math.round(r.top) + ' w' + Math.round(r.width)
-        + ' len=' + Math.round(len));
-      return;
-    }
-    DIAG.cnt.trkOk++;
+    if (len > rad * MAX_RADII) return;
     var clamped = Math.min(len, rad) / rad;
     move.x = (dx / len) * clamped;
     move.y = (dy / len) * clamped;
@@ -337,10 +249,8 @@
     var orig = input._pollGamepad.bind(input);
     input._pollGamepad = function () {
       orig();
-      DIAG.cnt.polls++;
       if (!active) return;
       if (move.id !== null) {
-        DIAG.cnt.applied++;
         input.stick.moveX = move.x;
         input.stick.moveY = move.y; // gamepad convention: forward is negative
       }
