@@ -4438,6 +4438,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           if ('sid' in msg) { sp.ownSid = msg.sid; claimOwnStream(sp); }
         }
         reactRoomState(); // their agreement (or its withdrawal) can move the whole room's floor
+        if (typeof paintShare === 'function') paintShare(); // someone STARTED sharing: give the stage its height now, not on the next 2s beat (the chip already landed with the tile repaint, and a strip that stays letterbox-small for two seconds beside a chip saying "screen" reads as a bug)
         if (typeof reconcileApp === 'function') reconcileApp(); // pick up / drop a shared app
       } else if (msg.kind === 'mod') {
         takeMod(from, msg); // signature-verified in admin rooms (§9)
