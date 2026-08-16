@@ -2408,6 +2408,8 @@
     // while document.fullscreenEnabled still read true. `*` removes the origin
     // match from the question. It is not a wider grant in any way that matters:
     // the only document this policy can ever reach is the one app in this frame.
+    if (hasCap(manifest, 'fullscreen') && !capDisabled(manifest, 'fullscreen')) allow.push('fullscreen *');
+    //
     // NO SCREEN-CAPTURE CAPABILITY, AND IT IS NOT AN OVERSIGHT — IT CANNOT BE
     // BUILT THIS WAY. `display-capture` IS a permissions-policy feature, so
     // `allow.push('display-capture *')` looked like the same one-liner that
