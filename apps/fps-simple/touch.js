@@ -106,6 +106,13 @@
     };
     var shed = function () {
       if (!active || !document.pointerLockElement) return;
+      // Upstream reads a lost lock as "the player pressed Escape" and opens the
+      // pause menu (ui/index.js, _hadPointerLock). This loss is nothing of the
+      // sort — it is the app taking back a lock a touch screen should never
+      // have held — so the flag is cleared first, or shedding the lock would
+      // itself pause the game (measured: e2e-fps-touch's look assertion froze
+      // at -2.554 yaw because the menu had quietly opened and disabled control).
+      try { if (ui) ui._hadPointerLock = false; } catch (e) {}
       try { document.exitPointerLock(); } catch (e) {}
     };
     document.addEventListener('pointerlockchange', shed);
