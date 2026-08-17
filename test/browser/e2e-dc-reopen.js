@@ -5,13 +5,19 @@
 //
 //   parts=2 app=true host=false pend=0 [k_9c:dc=closed/connected stAge=5886]
 //
-// ICE connected. Roster right. App mounted. DataChannel CLOSED — and it stayed
-// that way for twenty minutes. App state moves only to peers whose channel is
-// open (run.html sgaFan; everything else queues in sgaPending and expires), so
-// the guest sat inside a room it could see, receiving nothing, forever.
+// ICE connected. Roster right. App mounted. DataChannel CLOSED. App state moves
+// only to peers whose channel is open (run.html sgaFan; everything else queues
+// in sgaPending and expires), so for as long as that lasts the guest sits
+// inside a room it can see, receiving nothing.
 //
-// It survived because two separate places both asked "is there a channel?" when
-// they meant "is there a channel that can carry anything":
+// SAY HONESTLY WHAT THAT SAMPLE IS AND IS NOT. It is ONE reading, from a phone
+// that was also swap-thrashing (3.7 of 3.86 GB used, 1.5 GB of swap), and it is
+// NOT evidence that the defects below caused that run's wedge — the phone was
+// too busy to answer a second debugger at all. What sent us looking was the
+// reading; what we found was independently wrong, and is what this file pins.
+//
+// Two separate places both asked "is there a channel?" when they meant "is
+// there a channel that can carry anything":
 //
 //   - sendOffer's `if (!p.dc)` — a closed RTCDataChannel is still an object, so
 //     every re-offer, ICE restart and rebuild kept the corpse and negotiated a
@@ -27,10 +33,18 @@
 // manufactures exactly that, so the recovery being asserted is the DC repair
 // and not the death-detection machinery standing in for it.
 //
-// BOTH LEGS ARE ASSERTED, because a recovery test whose damage never landed is
-// a test that passes on an untouched room: first that the channel really is
-// closed while ICE really is still connected, then that a NEW open channel
-// arrives and beats flow through it again.
+// THE DAMAGE IS ASSERTED BEFORE THE REPAIR, because a recovery test whose
+// damage never landed is a test that passes on an untouched room.
+//
+// AND THE REPAIR IS ASKED TWICE, NARROW THEN WIDE. A room has several healers,
+// and the widest of them — the starve edge, at 12s of unexplained silence —
+// rebuilds the whole transport, which resets p.dc to null and so heals this
+// even with the defects in place (measured: this suite passed on the unfixed
+// code, in 20s, by that route). A leg that both versions pass guards nothing.
+// So the narrow question goes first and inside 8s: on a pc that KEEPS ITS OWN,
+// does a re-offer restore the lane? That one fails without the fix. The wide
+// leg then stays, because "the room heals itself, unasked" is the product law
+// a player actually depends on and nothing else pinned it.
 //
 // One box is enough. Every question here is about STATE — is there an open
 // channel, did a beat cross — and a slow box gives the same answers.
@@ -92,7 +106,26 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
       (await a.evaluate(() => window.__gifosVideo.liveDataLinks())) === 0,
       'liveDataLinks=' + (await a.evaluate(() => window.__gifosVideo.liveDataLinks())));
 
-    /* ---- the recovery ---- */
+    /* ---- LEG 1: a bare re-offer must restore the lane ----
+     * This is the leg that DISCRIMINATES, and the window is tight on purpose.
+     * A room has more than one healer: on an unstarved box the starve edge
+     * notices 12s of silence and rebuilds the whole transport, which resets
+     * p.dc to null and hides the defect entirely — measured, this suite passed
+     * on the unfixed code in 20s by that route. So ask the narrower question
+     * first, inside 8s, before any other healer can answer it: given a pc that
+     * KEEPS ITS OWN (reofferForTest, never rebuildPair), does renegotiating
+     * bring back a channel that can carry something? With `if (!p.dc)` it
+     * cannot — the corpse is still an object, so no new channel is ever made. */
+    await a.evaluate((pid) => window.__gifosVideo.reofferForTest(pid), benId);
+    let reopened = false;
+    for (let i = 0; i < 8; i++) {
+      await sleep(1000);
+      if ((await a.evaluate(() => window.__gifosVideo.liveDataLinks())) >= 1) { reopened = true; break; }
+    }
+    check('a re-offer on the SAME pc makes a new channel — a closed one cannot be reused',
+      reopened, reopened ? 'open again' : 'still no open channel 8s after the re-offer');
+
+    /* ---- LEG 2: and the room heals itself, unasked ---- */
     let healed = false, ms = 0;
     const t0 = Date.now();
     while (Date.now() - t0 < HEAL_MS) {
