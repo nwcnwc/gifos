@@ -12039,6 +12039,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // (stHold keeps a pocketed phone's app alive through the away-holdover —
       // G1 doctrine; a CONFIRMED departure (meshGone) kills the ad instantly.)
       for (const [pid, st] of statusOf) if (st && st.app && stHold(pid) && !meshGone.has(pid)) consider(pid, st.app);
+      // Remember WHOSE ad won, retained across null returns: when the ad later
+      // vanishes, ownerAway() must ask whether that owner's SEAT is gone or
+      // only their STATUS PATH — and by then the ad that named them is gone.
+      if (best) appOwnerPid = bestPid;
       return best;
     }
     // Converge THIS phone's app view onto whatever the room is sharing. Runs on
@@ -12079,6 +12083,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } else if (want && ROOM.appPinned && appFrozen) {
         // the owner (or a successor) is back — thaw
         appFrozen = false;
+        succSince = 0;
         if (succT) { clearTimeout(succT); succT = null; }
         if (appClientCtl && appClientCtl.setFrozen) appClientCtl.setFrozen(false);
         document.getElementById('appwho').textContent = '· shared with the room' + (want.byName ? ' by ' + want.byName : '');
@@ -12093,6 +12098,33 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // desktop — the copy is genuinely theirs now) and re-hosts. The fresh ad
     // (newer ts) wins findSharedApp everywhere and the room thaws.
     let appFrozen = false, succT = null;
+    let appOwnerPid = '';    // whose ad we are mounted on (findSharedApp keeps it)
+    let succSince = 0;       // when the ad vanished INTO A CONTRADICTION (owner still seated)
+    // THE SEAT, NOT THE STATUS PATH. one-runtime.md (Ownership and succession):
+    // succession fires "when the owner's seat is CONFIRMED GONE (the mesh's own
+    // departure detection + a grace period)" — and healing-laws D: only a peer
+    // unreachable on EVERY path for the settled window is confirmed dead. The
+    // ad vanishing proves none of that: it proves the STATUS path went quiet
+    // (stHold expiring), and this room's own presence plane can be saying "2 in
+    // the meeting" at that same instant — measured on a real phone whose direct
+    // edge to the host never formed: the guest seized a PRESENT host's app 45s
+    // in, mid-firefight, and its competing ad then churned the true host too.
+    // Confirmed gone is what confirmGone() leaves behind: the owner's statusOf
+    // entry DELETED (it is removed only on a confirmed departure — "a stale
+    // status must not haunt the room"), or a standing meshGone tombstone.
+    const ownerSeatGone = () => {
+      const pid = appOwnerPid;
+      if (!pid || pid === String(myId)) return true;  // no known owner to defer to
+      if (!statusOf.has(pid)) return true;            // entry deleted = confirmed departure (D5 ~7s)
+      return !notTomb(pid);                           // tombstoned, not re-proven
+    };
+    // How long a live contradiction (stale status path, seated owner) may hold
+    // the room frozen before we seize anyway. A DELIBERATE number, not an
+    // accident: past every healing horizon in this file (stHold 15s, holdover
+    // 60s, mesh E-timers) — a status path that can heal has healed well before
+    // this; one that cannot leaves a permanently split room, and the app should
+    // eventually survive that too.
+    const SUCC_CONTRADICTION_MS = 180000;
     function ownerAway() {
       if (!appFrozen) {
         appEv('owner-away-freeze');
@@ -12106,9 +12138,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const pid of roomConsentIds()) if (pid !== myId && stHold(pid)) cands.push(String(pid));
       cands.sort();
       if (cands[0] !== String(myId)) return; // someone else is the deterministic successor
-      succT = setTimeout(() => {
+      if (!ownerSeatGone() && !succSince) { succSince = Date.now(); appEv('owner-away-contradiction'); }
+      succT = setTimeout(function reprobe() {
         succT = null;
-        if (findSharedApp() || !appFrozen) return; // the owner made it back — stand down
+        if (findSharedApp() || !appFrozen) { succSince = 0; return; } // the owner made it back — stand down
+        // Presence still vouches for the owner: HOLD the freeze and re-probe.
+        // The moment the seat is confirmed gone the very next probe seizes (the
+        // 6s grace has already been served); if the contradiction outlives
+        // SUCC_CONTRADICTION_MS, seize anyway and say so in the event log.
+        if (!ownerSeatGone() && succSince && (Date.now() - succSince < SUCC_CONTRADICTION_MS)) {
+          succT = setTimeout(reprobe, 3000);
+          return;
+        }
+        if (succSince) appEv('succession-after-contradiction');
+        succSince = 0;
         const ctl = appClientCtl;
         if (!ctl || !ctl.snapshot) return;
         const nm = document.getElementById('appname').textContent || 'App';
