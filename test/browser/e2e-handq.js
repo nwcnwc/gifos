@@ -184,6 +184,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         total: window.__gifosVideo.totalCount(),
         links: window.__gifosVideo.liveLinks(),
         stage: window.__gifosVideo.stageIds().length,
+        me: window.__gifosVideo.beatPeekForTest ? window.__gifosVideo.beatPeekForTest() : null,
         peers: ids.map((id) => {
           const st = window.__gifosVideo.statusPeekForTest(id);
           return id.slice(0, 6) + (st ? '=' + Math.round(st.ageMs / 100) / 10 + 's/rx' + Math.round(st.rxAgeMs / 100) / 10 + 's' : '=NO-STATUS')
@@ -191,17 +192,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         }),
       }), rIds).catch((e) => ({ q: '?', total: '?', links: '?', stage: '?', peers: ['(' + String(e.message).slice(0, 60) + ')'] }));
       console.log('   observer ' + nm + ': queue=' + d.q + ' roster=' + d.total + ' links=' + d.links + ' onstage=' + d.stage
+        + (d.me ? ' beat=' + Math.round(d.me.atAgeMs / 100) / 10 + 's' + (d.me.seated === false ? ' UNSEATED' : '') + (d.me.veiled ? ' VEILED' : '') : '')
         + ' — peer status age/receipt: ' + d.peers.join(' '));
     }
     // …and what each RAISER believes about itself. A hand that is genuinely
     // down at its owner (auto-lowered by a Stage seat, say) is a completely
-    // different bug from one that is up and not arriving.
+    // different bug from one that is up and not arriving. `beat` is the age of
+    // the raiser's OWN last broadcast stamp (beatPeekForTest): beat ≫ HB (4s)
+    // means the origin never got scheduled to send — the starved-box signature
+    // — while beat≈HB with a large observer-side age means the flood lost it.
+    // VEILED = the join veil is up (unseated page, 60fps spinner burning the
+    // very CPU the beats need).
     const mine = [];
     for (let i = 0; i < raisers.length; i++) {
       // eslint-disable-next-line no-await-in-loop
-      const s = await raisers[i].evaluate(() => ({ h: !!window.__gifosVideo.handRaised(), s: !!window.__gifosVideo.onStage(), l: window.__gifosVideo.liveLinks() }))
+      const s = await raisers[i].evaluate(() => ({ h: !!window.__gifosVideo.handRaised(), s: !!window.__gifosVideo.onStage(), l: window.__gifosVideo.liveLinks(),
+        b: window.__gifosVideo.beatPeekForTest ? window.__gifosVideo.beatPeekForTest() : null }))
         .catch((e) => ({ err: String(e.message).slice(0, 40) }));
-      mine.push(rIds[i].slice(0, 6) + '=' + (s.err ? s.err : (s.h ? 'hand' : 'HAND-DOWN') + (s.s ? '/stage' : '') + '/links' + s.l));
+      mine.push(rIds[i].slice(0, 6) + '=' + (s.err ? s.err : (s.h ? 'hand' : 'HAND-DOWN') + (s.s ? '/stage' : '') + '/links' + s.l
+        + (s.b ? '/beat' + Math.round(s.b.atAgeMs / 100) / 10 + 's' + (s.b.seated === false ? '/UNSEATED' : '') + (s.b.veiled ? '/VEILED' : '') : '')));
     }
     console.log('   raisers say: ' + mine.join(' '));
   };
