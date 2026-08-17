@@ -2470,3 +2470,30 @@ can measure anything, which cost real time on 2026-08-14.
 point is deliberately off-road — a link to the middle of the Colorado is a
 legitimate thing to send, and SNAP_MAX (2 km) is a large nudge to apply to
 somebody's chosen coordinates without saying so.
+
+## 15. Move the room's beat/status machinery off the main thread (Worker)
+
+**The measurement that motivates it (2026-08-17).** A guest whose page is busy
+starves the room machinery that lives in that same page: fps-simple's shader
+warm-up on a phone blocked the event loop in multi-second bursts, receive
+handlers could not stamp `meshRx`/`status.at`, and the page's own liveness
+judges then read their nap as the peers' silence — the starve sweeper fired
+'starve-dead' on a healthy LAN pair ~12 s into a freeze, statuses aged past
+stHold, the host's app ad vanished, and (before the succession fix) the guest
+seized a present host's app mid-game. The other side of the same coin is the
+handq finding: statuses 40-78 s old at ORIGIN are a busy sender's beats going
+out late. One thread serves the game, the beats, and the judges, and under
+load they all lose together.
+
+**The shipped mitigations, and what they do not solve.** The starvation-debt
+sentinel (run.html, `starveDebtSince`) makes the local judges refuse to count
+provable blockage against any liveness horizon, and the deferred
+transport-death hand-off keeps a wake-instant event from reaching the mesh's
+D5 gate while its own last-heard bookkeeping is stale. That stops the page
+from *judging* wrongly — it cannot make the page *send* beats it was too
+frozen to send (peers still see honest silence and rebuild toward us), and a
+page blocked past Android's renderer-hang threshold still gets reloaded
+wholesale, debt or no debt. A Worker owning the beat sender, the receive
+stamps, and the liveness clocks would keep the status plane truthful through
+main-thread storms — the structural fix; the debt sentinel is its honest
+stand-in.
