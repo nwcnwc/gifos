@@ -81,12 +81,72 @@ async function openApp(ctx, label) {
   run.on('pageerror', (e) => console.log('  [' + label + ' app err] ' + e.message.slice(0, 180)));
   await run.goto(BASE + '/run.html#id=' + fileId);
   await run.waitForSelector('#appmount iframe', { timeout: 90000 });
-  await run.locator('.perm-modal .done').click({ timeout: 5000 }).catch(() => {});
+  // The Abilities sheet is dismissed inside the wait loops below, on EVERY
+  // pass, never in one fixed window up front: on a loaded box it can appear
+  // later than any window you pick, and a missed sheet is a full-screen
+  // overlay in the PARENT document, over the whole iframe. Playwright's
+  // frame.click cannot see it (its hit check runs in the iframe's own
+  // document), so the CDP click lands on the sheet's backdrop — which closes
+  // the sheet and nothing else. Play never happens, and the failure reads as
+  // "the engine never started", pointing at the app.
+  const dismissSheet = () => run.evaluate(() => {
+    const box = document.querySelector('.perm-modal');
+    if (!box) return false;
+    const b = box.querySelector('.done') || box.querySelector('#perm-plain');
+    if (b) { b.click(); return true; }
+    return false;
+  }).catch(() => false);
   const frame = await (await run.$('#appmount iframe')).contentFrame();
-  await frame.waitForFunction(() => { const b = document.getElementById('gate-go'); return b && !b.disabled; },
-    null, { timeout: 300000 });
-  await frame.click('#gate-go');
-  if (!await until(frame, () => !!window.__FPS__, 30000)) throw new Error(label + ': the engine never started after Play');
+  const t0 = Date.now();
+  for (;;) {
+    if (await frame.evaluate(() => { const b = document.getElementById('gate-go'); return b && !b.disabled; }).catch(() => false)) break;
+    if (Date.now() - t0 > 300000) throw new Error(label + ': Play never lit (world did not finish building in 300s)');
+    await dismissSheet();
+    await sleep(POLL);
+  }
+  console.log('  [' + label + '] Play lit after ' + Math.round((Date.now() - t0) / 1000) + 's');
+  // PLAY, VERIFIED BY WHAT IT DOES — and clicked IN the frame, not through
+  // Playwright's actionability gate. Two measured reasons, both from runs on
+  // a deliberately starved box recreating the gate's conditions:
+  //
+  //   * The old wait polled `window.__FPS__` — which boot.js assigns at the
+  //     END OF BOOT, before Play is even enabled. It never tested "the engine
+  //     started"; it tested "can this suite complete one evaluate within
+  //     30 s", and on the gate box (two full swiftshader boots deep, loadavg
+  //     ~5) the answer was no — recorded RED twice with 13 passed, 0 failed.
+  //     The fact that IS Play: engine.time.frame starts counting.
+  //   * frame.click waits for the button to be "stable" across two animation
+  //     frames, and a starved renderer barely ticks rAF — measured: the click
+  //     itself timing out at 30 s with the button resolved, visible and
+  //     enabled the whole time. A frame-side .click() carries no user
+  //     activation, which this suite never needs (nothing here asserts
+  //     pointer lock being HELD, fullscreen, or audio — the touch leg asserts
+  //     the lock is NOT held), and framelog's own autostart presses Play the
+  //     same way for the same reason.
+  //
+  // The click is re-issued while the engine has not started (the app's
+  // `starting` guard makes repeats free), because a click can still race the
+  // sheet appearing over it.
+  const deadline = Date.now() + 240000;
+  let started = false;
+  while (Date.now() < deadline) {
+    await dismissSheet();
+    await frame.evaluate(() => { const b = document.getElementById('gate-go'); if (b && !b.disabled) b.click(); }).catch(() => {});
+    if (await until(frame,
+      () => !!(window.__FPS__ && window.__FPS__.engine && window.__FPS__.engine.time && window.__FPS__.engine.time.frame > 0),
+      15000)) { started = true; break; }
+  }
+  if (!started) {
+    // Say what was there — a bare "never started" sent the last reader at the
+    // app when the app was fine.
+    const seen = {
+      fps: await frame.evaluate(() => !!window.__FPS__).catch((e) => 'ERR:' + String(e.message).slice(0, 60)),
+      gate: await frame.evaluate(() => !!document.getElementById('gate')).catch(() => '?'),
+      sheet: await run.evaluate(() => !!document.querySelector('.perm-modal')).catch(() => '?'),
+    };
+    throw new Error(label + ': the engine never started after Play — ' + JSON.stringify(seen));
+  }
+  console.log('  [' + label + '] engine running after ' + Math.round((Date.now() - t0) / 1000) + 's');
   await sleep(1200);
   return { run, frame };
 }
@@ -127,6 +187,12 @@ const RELEASE = ({ sel }) => {
     executablePath: CHROME,
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
   });
+  // Close the browser on EVERY exit path, not only the green one. A suite
+  // that throws with its browser alive leaves swiftshader chromiums for the
+  // next suite to inherit — the exact pile-up CLAUDE.md documents the gate
+  // hunting with pkill — and the throw path here is the one the gate actually
+  // takes when a box is slow.
+  try {
 
   /* ---- a phone ---------------------------------------------------------- */
   const pCtx = await browser.newContext({
@@ -273,7 +339,9 @@ const RELEASE = ({ sel }) => {
   check('on a mouse machine the touch controls never appear',
     await desk.frame.evaluate(() => document.getElementById('touch').hidden && !document.body.classList.contains('touch')));
 
-  await browser.close();
+  } finally {
+    await browser.close().catch(() => {});
+  }
   console.log(failures ? '\nFAILURES: ' + failures : '\nall green');
   process.exit(failures ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
