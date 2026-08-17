@@ -442,7 +442,18 @@ if want browser; then
       # that must wait for real frames. Nothing here softens an assertion. The
       # standing answer for both anyroad suites is the same: SPLIT THE DOORS
       # rather than raise this again.
-      e2e|e2e-anyroad|e2e-anyroad-mp|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip) run_one "$f" 900 browser ;;
+      # e2e-fps-touch joins the 900s list the same way both anyroad suites
+      # did, with the same signature: TIMED OUT TWICE at 600s with 13 passed
+      # and 0 failed — no assertion in trouble, a suite doing TWO full app
+      # boots (a phone leg and a desktop control leg, each building the whole
+      # street) over a software rasteriser on a loaded box. Measured while
+      # fixing it: 109s on an idle real-GPU box, 296s with 4 cores contended —
+      # the gate box's slower cores at loadavg ~5 land right on the 600s wall,
+      # and the error its log DID show ("the engine never started after Play")
+      # was this suite's own broken wait, fixed in the same commit. Nothing
+      # here softens an assertion; if it outgrows 900s, split the desktop
+      # control leg into its own file rather than raising this again.
+      e2e|e2e-anyroad|e2e-anyroad-mp|e2e-away-holdover|e2e-vis-park|e2e-meet-mod|e2e-pip|e2e-fps-touch) run_one "$f" 900 browser ;;
       *) run_one "$f" 600 browser ;;
     esac
   done
