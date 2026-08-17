@@ -88,11 +88,20 @@ const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RE
   ((process.env.GIFOS_FPS_QUALITY || quality)
     ? "window.GIFOS_FPS_QUALITY='" + (process.env.GIFOS_FPS_QUALITY || quality) + "';" : '');
 
+// SOFTWARE RASTERISER, AND WHEN NOT TO USE ONE. `--use-angle=swiftshader`
+// does not "get ignored by a box with a GPU" (the note that used to sit here):
+// it FORCES software, GPU or no GPU. On a box that has one that is not a
+// harmless default, it is a different machine under test — measured on a real
+// GPU laptop rendering this game in software: the host's main thread blocked in
+// ~14.6 s bursts, and because broadcastStatus() runs on the main thread (the
+// heartbeat's Worker clock only FIRES it), the room's pulse went out at that
+// cadence against a 15 s freshness horizon. Its guest then froze with "the host
+// is away" — a verdict about the rasteriser, not about the app.
+// FPS_GL=hw asks for the real GPU, which is what a player has.
 const ARGS = [
-  // A box with no GPU still needs a rasteriser, or there is no WebGL2 context
-  // at all and the app would (correctly) refuse to start. A box WITH one
-  // ignores these and uses it.
-  '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+  ...(process.env.FPS_GL === 'hw'
+    ? ['--ignore-gpu-blocklist', '--enable-gpu-rasterization']
+    : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']),
   // WITHOUT THESE THERE IS NO MULTIPLAYER TO TEST. Chromium throttles a
   // backgrounded tab's requestAnimationFrame to about one frame a second, and
   // this app publishes its presence from the engine's own update — so a peer
@@ -243,7 +252,17 @@ async function play(runPage, frame) {
       throw new Error('the app was remounted between finding its gate and pressing Play'
         + ' — ready() returned a frame that was on its way out');
     }
-    throw e;
+    // ANDROID OVER CDP: Playwright's synthesized MOUSE click can hang inside
+    // "performing click action" against a phone's Chrome (measured on the
+    // FPS_BOB_CDP leg: button resolved, visible, enabled, stable — then a
+    // 60 s wall at the dispatch itself). Everything this suite asserts after
+    // Play is STATE, not gesture-gated chrome, so the app's own button.click()
+    // is a faithful press — the same fallback framelog's autostart uses.
+    if (e && e.name === 'TimeoutError') {
+      await frame.evaluate(() => { const b = document.getElementById('gate-go'); if (b && !b.disabled) b.click(); }).catch(() => {});
+    } else {
+      throw e;
+    }
   }
   await sleep(1500);
 }
@@ -450,6 +469,26 @@ async function solo() {
 /* DEATHMATCH — a machine per player                                       */
 /* ======================================================================= */
 async function deathmatch() {
+  // BOB CAN BE A REAL PHONE. With FPS_BOB_CDP set to a Chrome DevTools
+  // endpoint (an adb-forwarded Android Chrome, tunnelled to wherever this
+  // suite runs), Bob is that browser instead of a second fleet box — real
+  // silicon rendering at real frame rates, which is a STRONGER second player
+  // than any headless software rasteriser, plus real touch hardware. The
+  // isolation requirement is still satisfied and still VERIFIED: the phone is
+  // its own machine by construction, Alice still needs a verified fleet box,
+  // and mustBeAbleToAnswer still measures the phone before any timing below
+  // is believed. Unset, this function is exactly what it always was.
+  //
+  // The phone-side addresses default to loopback because that is the only
+  // shape that works there: a USB phone cannot take Chrome flags, so an
+  // insecure LAN origin would fail the mandatory Ed25519 join (secure-context
+  // WebCrypto) — but `adb reverse` makes the suite's stack appear on the
+  // phone's own localhost, which IS a secure context. The reverse also covers
+  // phones that cannot route to the stack at all (measured: this one cannot).
+  const BOB_CDP = process.env.FPS_BOB_CDP || '';
+  const BOB_BASE = (process.env.FPS_BOB_BASE || 'http://127.0.0.1:8099').replace(/\/+$/, '');
+  const BOB_RELAY = process.env.FPS_BOB_RELAY || 'ws://127.0.0.1:8790';
+
   // A dead relay looks EXACTLY like a broken app here: the room forms locally,
   // the invite link mints, and the guest then sits waiting on a room that will
   // never answer. Check the stack where the fleet's browsers reach it, not on
@@ -458,17 +497,19 @@ async function deathmatch() {
                8790: 'relay-local (node test/servers/relay-local.js)' },
     new URL(BASE).hostname);
 
-  const fleet = await needFleet(2, {
+  const fleet = await needFleet(BOB_CDP ? 1 : 2, {
     why: 'each player needs their own CPU — presence is published from the engine\'s own update, '
        + 'a remote body is driven per RENDERED FRAME, and two 3D browsers on one box render at ~1 fps, '
-       + 'so every timing this half depends on becomes a timing about that box',
-    roles: ['alice', 'bob'],
+       + 'so every timing this half depends on becomes a timing about that box'
+       + (BOB_CDP ? ' (Bob is the phone at FPS_BOB_CDP — his own machine by construction)' : ''),
+    roles: BOB_CDP ? ['alice'] : ['alice', 'bob'],
   });
-  const boxes = await openFleet(fleet.hosts.slice(0, 2), { args: ARGS, origin: BASE });
+  const boxes = await openFleet(fleet.hosts.slice(0, BOB_CDP ? 1 : 2), { args: ARGS, origin: BASE });
+  let bobBrowser = null;   // the phone's CDP connection, when there is one
 
   try {
     console.log('=== DEATHMATCH  (Alice on ' + (boxes[0].host.name || boxes[0].host.ssh)
-      + ', Bob on ' + (boxes[1].host.name || boxes[1].host.ssh) + ')');
+      + ', Bob on ' + (BOB_CDP ? 'the phone at FPS_BOB_CDP' : (boxes[1].host.name || boxes[1].host.ssh)) + ')');
 
     /* ---- Alice, on her own machine, mints the room ---- */
     const aCtx = await boxes[0].browser.newContext({ viewport: { width: 1100, height: 720 } });
@@ -519,12 +560,233 @@ async function deathmatch() {
     await play(aRun, aFrame);
 
     /* ---- Bob, on a DIFFERENT machine, opens the link ---- */
-    const bCtx = await boxes[1].browser.newContext({ viewport: { width: 1100, height: 720 } });
-    await bCtx.addInitScript({ content: setup('Bob', 'low') });
-    const bRun = await bCtx.newPage();
-    await bRun.goto(shareUrl);
-    const bFrame = await ready(bRun, 'Bob', 240000);
-    await play(bRun, bFrame);
+    let bRun;
+    if (BOB_CDP) {
+      // Android Chrome over CDP, with its quirks measured rather than assumed:
+      //   - newContext fails ("Failed to create browser context"), so Bob
+      //     lives in the default context — newPage there works.
+      //   - addInitScript is therefore unavailable for setup, so the relay and
+      //     name are seeded by loading an inert same-origin document
+      //     (version.json — cheap, no desktop boot) and writing localStorage.
+      //   - The quality pin is DELIBERATELY absent: the pin exists so software
+      //     rasterisers do not spend minutes building scenery, but this Bob is
+      //     real silicon — the device probe choosing the real phone preset is
+      //     part of what the phone buys us.
+      //   - Playwright clicks over CDP arrive trusted (measured:
+      //     isTrusted=true), so Play starts the engine like a finger would.
+      bobBrowser = await chromium.connectOverCDP(BOB_CDP, { timeout: 30000 });
+      const bobCtx = bobBrowser.contexts()[0];
+      if (!bobCtx) throw new Error('the phone exposed no default browser context over CDP');
+      bRun = await bobCtx.newPage();
+
+      // WARM-BOOT FIRST. A COLD build seizes the phone's main thread in
+      // multi-second bursts for minutes, which starves the page's own room
+      // machinery (the starved-judge family — run.html now carries the debt
+      // fix, but a warm boot shrinks the whole exposure). The phone's own
+      // mesh/texture caches take a follow-up boot to ~8s, so prime them with
+      // a solo boot to READY — the same street, the same seed, the same
+      // caches — then throw the page away. This mirrors a returning player,
+      // which is who the deathmatch is about anyway.
+      await bRun.bringToFront().catch(() => {});
+      await bRun.goto(BOB_BASE + '/index.html', { timeout: 60000 });
+      await bRun.waitForSelector('.icon', { timeout: 60000 }).catch(() => {});
+      const primed = await bRun.evaluate(async (base) => {
+        const have = (await GifOS.store.allFiles()).find((x) => x.appId === 'fps-simple');
+        if (have) return have.id;
+        const r = await fetch(base + '/apps/fps-simple/fps-simple.gif');
+        const bytes = new Uint8Array(await r.arrayBuffer());
+        const fid = GifOS.store.uid('file');
+        await GifOS.store.putFile({ id: fid, name: 'FPS Simple.gif', bytes, kind: 'gif', isApp: true, appId: 'fps-simple', mime: 'image/gif' });
+        await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'FPS Simple.gif', parent: null, x: 200, y: 200, iconSize: 64 });
+        return fid;
+      }, BOB_BASE).catch(() => null);
+      if (primed) {
+        await bRun.goto(BOB_BASE + '/run.html#id=' + primed, { timeout: 60000 }).catch(() => {});
+        await bRun.bringToFront().catch(() => {});
+        const pdl = Date.now() + 300000;
+        while (Date.now() < pdl) {
+          const lit = await (async () => {
+            for (const f of bRun.frames()) {
+              if (f === bRun.mainFrame()) continue;
+              if (await f.evaluate(() => { const b = document.getElementById('gate-go'); return !!(b && !b.disabled); }).catch(() => false)) return true;
+            }
+            return false;
+          })();
+          if (lit) break;
+          await dismissSheet(bRun);
+          await sleep(2000);
+        }
+        console.log('  [Bob] warm-boot primed (world built once, caches filled)');
+        // Shed the heavy primed page before the real join: navigating a page
+        // that still holds a built world can outlive a 30s load timeout.
+        await bRun.goto('about:blank', { timeout: 30000 }).catch(() => {});
+      }
+      await bRun.goto(BOB_BASE + '/version.json', { timeout: 60000, waitUntil: 'domcontentloaded' });
+      await bRun.evaluate(([relay, name]) => {
+        localStorage.setItem('gifos_relay', relay);
+        localStorage.setItem('gifos_name', name);
+      }, [BOB_RELAY, 'Bob']);
+      // The share link Alice minted names the stack where SHE reaches it —
+      // TWICE: the page origin, and the relay address riding IN the hash
+      // (#j=<room>&relay=<encoded ws url>). The phone reaches that same stack
+      // only through its own loopback (adb reverse), so both are rewritten
+      // and the room fragment itself survives untouched. Measured before this
+      // rewrite: Bob joined the room id but dialed Alice's relay address,
+      // which the phone cannot route to, and sat at "nobody is answering the
+      // door" until the suite gave up.
+      const u = new URL(shareUrl);
+      const hash = u.hash.replace(/([#&]relay=)[^&]*/, (m, key) => key + encodeURIComponent(BOB_RELAY));
+      await bRun.goto(BOB_BASE + u.pathname + hash, { timeout: 90000, waitUntil: 'domcontentloaded' });
+      // FOREGROUND, AND KEPT THERE. newPage over CDP opens a BACKGROUND tab on
+      // Android, and a background tab is the whole failure in one line: rAF
+      // throttled to 1 Hz (measured: the game ran at exactly 1 fps for 200 s),
+      // presence starved, and Chrome eventually discards-and-reloads the tab —
+      // which read as remounts, hung clicks, and a phone that "cannot answer".
+      // bringToFront took the same running game from 1 fps to 11 fps on the
+      // spot. Re-fronted in the wait loop too, because a reload re-backgrounds.
+      await bRun.bringToFront().catch(() => {});
+    } else {
+      const bCtx = await boxes[1].browser.newContext({ viewport: { width: 1100, height: 720 } });
+      await bCtx.addInitScript({ content: setup('Bob', 'low') });
+      bRun = await bCtx.newPage();
+      await bRun.goto(shareUrl);
+    }
+    bRun.on('pageerror', (e) => console.log('  [Bob app err] ' + e.message.slice(0, 200)));
+    let bFrame;
+    if (BOB_CDP) {
+      // THE PHONE PRESSES ITS OWN PLAY BUTTON. Playwright's CDP mouse click
+      // against this phone hangs inside "performing click action" and the
+      // interaction then RELOADS the tab (measured three runs in a row: a
+      // main-frame NAV at the exact second of the click) — the same wall that
+      // killed adb-injected taps in the earlier phone sessions. The harness's
+      // sanctioned answer is the app's own AUTOSTART pref (framelog.js): the
+      // app presses Play itself, from inside, stamped for THIS session. The
+      // pref lives in the app's private store, so it is written through the
+      // app's own shim once the first mount is up, and the page is then
+      // reloaded so framelog reads it at boot. An autostarted click carries no
+      // user activation — fullscreen and orientation are refused — which this
+      // half never asserts; it asserts room STATE.
+      const findAppFrame = async (budgetMs, why) => {
+        // The NEWEST matching frame, never the first: during a remount the
+        // page briefly holds the dying mount AND the live one, and both carry
+        // a gate — a click sent into the zombie does nothing while the real
+        // app sits at Play (measured: engine.time.frame pinned at 0 for
+        // seven minutes of "clicking"). A frame already running the engine wins
+        // outright.
+        const dl = Date.now() + budgetMs;
+        while (Date.now() < dl) {
+          let best = null;
+          for (const f of bRun.frames()) {
+            if (f === bRun.mainFrame()) continue;
+            const st = await f.evaluate(() => ({
+              ours: !!(document.getElementById('gate-go') || window.__FPS__),
+              run: !!(window.__FPS__ && window.__FPS__.engine && window.__FPS__.engine.time && window.__FPS__.engine.time.frame > 0),
+            })).catch(() => null);
+            if (st && st.run) return f;
+            if (st && st.ours) best = f;   // keep the LAST match — the newest mount
+          }
+          if (best) return best;
+          await dismissSheet(bRun);
+          await dismissInvite(bRun);
+          await sleep(1000);
+        }
+        throw new Error('Bob: no app frame ' + why);
+      };
+      // The whole press, from inside, with the frame RE-FOUND whenever the
+      // handle detaches: an app-room guest's iframe is remounted around
+      // serve/acknowledgement, which is the same reason ready() searches for
+      // its frame on every pass instead of holding one. Measured: the tab
+      // stayed alive with the app's workers running while a held handle read
+      // "Frame was detached". (The pref-then-reload autostart variant was
+      // tried and measured out: a joined room's private store does not
+      // persist across a reload, so the pref written before it read null
+      // after.) The click is re-issued while the engine has not started —
+      // the app's `starting` guard makes repeats free.
+      // ACK FIRST, AND EXPECT THE REMOUNT. Acknowledging the Abilities sheet
+      // REMOUNTS the app (ready()'s own doctrine) — measured here: pressing
+      // Play and acking afterwards tore down the RUNNING mount ~5 s into the
+      // game. So the sheet is settled before any press, a press goes to EVERY
+      // frame that shows an enabled Play (a zombie mount ignores it; the live
+      // one starts — clicking only "the" frame put seven minutes of clicks
+      // into a corpse), and the wait then scans for ANY frame with a counting
+      // engine. The budget is generous on purpose: this phone's first Play
+      // seizes the main thread for minutes of shader compilation (framelog
+      // measured 101 s of it), during which every evaluate simply waits.
+      const startDl = Date.now() + 600000;
+      let started = false;
+      // WHY BOB IS NOT STARTING, said while it is happening. The failure mode
+      // here is not "the click missed": it is the ROOM going out from under
+      // the guest mid-boot — the app freezes ("the host is away"), and a
+      // frozen app never counts a frame no matter how often Play is pressed.
+      // Room + transport state is therefore logged on every pass, because
+      // afterwards the host's browser is closed and the evidence is gone.
+      let lastRoom = '';
+      const roomLine = async () => {
+        const st = await bRun.evaluate(async () => {
+          const V = window.__gifosVideo; if (!V) return 'no-hooks';
+          const ids = (V.peerIds && V.peerIds()) || [];
+          const ps = [];
+          for (const id of ids) {
+            const ice = V.icePairFor ? await V.icePairFor(id).catch(() => null) : null;
+            const stp = V.statusPeekForTest ? V.statusPeekForTest(id) : null;
+            ps.push(String(id).slice(0, 4) + ':dc=' + ((ice && ice.dc) || '?')
+              + '/' + ((ice && ice.ice) || '?') + ' stAge=' + (stp ? stp.ageMs : '?'));
+          }
+          return 'parts=' + (V.participants ? V.participants() : '?')
+            + ' app=' + (V.appActive ? V.appActive() : '?')
+            + ' host=' + (V.appIsHost ? V.appIsHost() : '?')
+            + ' pend=' + (V.sgaPendingForTest ? V.sgaPendingForTest() : 'n/a')
+            + ' [' + ps.join(' | ') + '] ' + ((document.getElementById('status') || {}).textContent || '').slice(0, 60);
+        }).catch((e) => 'probe-err:' + String(e.message).slice(0, 40));
+        if (st !== lastRoom) { console.log('      [Bob room] ' + st); lastRoom = st; }
+      };
+      bFrame = await findAppFrame(240000, 'on the first mount (did Alice serve the app?)');
+      while (Date.now() < startDl) {
+        await bRun.bringToFront().catch(() => {});
+        await roomLine();
+        if (await dismissSheet(bRun)) { await sleep(2000); continue; }
+        for (const f of bRun.frames()) {
+          if (f === bRun.mainFrame()) continue;
+          await f.evaluate(() => { const g = document.getElementById('gate-go'); if (g && !g.disabled) g.click(); }).catch(() => {});
+        }
+        let running = null;
+        for (const f of bRun.frames()) {
+          if (f === bRun.mainFrame()) continue;
+          const run = await f.evaluate(() =>
+            !!(window.__FPS__ && window.__FPS__.engine && window.__FPS__.engine.time && window.__FPS__.engine.time.frame > 0)
+          ).catch(() => false);
+          if (run) { running = f; break; }
+        }
+        if (running) {
+          // STARTED MEANS STILL STANDING. An acknowledgement's remount lands
+          // SECONDS after the dismissal that caused it (measured: the engine
+          // counted frames and the mount was then torn down before the
+          // capability probe could run), so a mount only counts once it has
+          // survived ten seconds of running. A casualty here just loops: the
+          // successor mount gets found and pressed like any other.
+          let stable = true;
+          for (let k = 0; k < 5; k++) {
+            await sleep(2000);
+            if (running.isDetached()) { stable = false; break; }
+          }
+          if (stable) { bFrame = running; started = true; break; }
+          continue;
+        }
+        await sleep(1500);
+      }
+      if (!started) {
+        const seen = await bFrame.evaluate(() => ({
+          fps: !!window.__FPS__,
+          gate: !!document.getElementById('gate'),
+          btn: (document.getElementById('gate-go') || {}).disabled,
+          note: (document.getElementById('gate-note') || {}).textContent || '',
+        })).catch((e) => ({ err: String(e.message).slice(0, 80) }));
+        throw new Error('Bob: the phone never started the engine via autostart — ' + JSON.stringify(seen));
+      }
+    } else {
+      bFrame = await ready(bRun, 'Bob', 240000);
+      await play(bRun, bFrame);
+    }
 
     // No bringToFront anywhere below. Each browser is alone on its box with
     // nothing to be backgrounded BY — that is what the fleet bought.
@@ -540,7 +802,7 @@ async function deathmatch() {
     // Before believing anything timed below, check the channel it is timed
     // through. See mustBeAbleToAnswer.
     const aMs = await mustBeAbleToAnswer(aFrame, 'Alice', boxes[0].host.name || boxes[0].host.ssh);
-    const bMs = await mustBeAbleToAnswer(bFrame, 'Bob', boxes[1].host.name || boxes[1].host.ssh);
+    const bMs = await mustBeAbleToAnswer(bFrame, 'Bob', BOB_CDP ? 'the phone at FPS_BOB_CDP' : (boxes[1].host.name || boxes[1].host.ssh));
     console.log('  both app frames answer in ' + aMs + ' / ' + bMs + ' ms — timings below mean something');
 
     // SAMPLED TOGETHER, AND PRINTED, because "alice=false" is not a finding.
@@ -558,7 +820,25 @@ async function deathmatch() {
           c: window.Net ? window.Net.count() : -1,
           bod: window.Remote ? window.Remote.count() : -1,
         })).catch(() => ({ c: -1, bod: -1 }))));
-        const line = 'alice count=' + a.c + ' bodies=' + a.bod + '   bob count=' + b.c + ' bodies=' + b.bod;
+        // THE TRANSPORT, NOT JUST THE SYMPTOM. App state moves only to peers
+        // whose DataChannel is open (run.html sgaFan); everything else queues in
+        // sgaPending and expires. So when a count stays at 1, the next question
+        // is always "was there a channel to send it on?" — asked here rather
+        // than reconstructed afterwards from a suite that only watched counts.
+        const [ta, tb] = await Promise.all([aRun0, bRun].map((pg) => pg.evaluate(async () => {
+          const V = window.__gifosVideo; if (!V) return 'no-hooks';
+          const ids = (V.peerIds && V.peerIds()) || [];
+          const out = [];
+          for (const id of ids) {
+            const ice = V.icePairFor ? await V.icePairFor(id).catch(() => null) : null;
+            out.push(String(id).slice(0, 4) + ':dc=' + ((ice && ice.dc) || '?') + '/' + ((ice && ice.ice) || '?'));
+          }
+          return 'parts=' + (V.participants ? V.participants() : '?')
+            + ' pend=' + (V.sgaPendingForTest ? V.sgaPendingForTest() : 'n/a')
+            + ' [' + out.join(' ') + ']';
+        }).catch((e) => 'err:' + String(e.message).slice(0, 30))));
+        const line = 'alice count=' + a.c + ' bodies=' + a.bod + '   bob count=' + b.c + ' bodies=' + b.bod
+          + '\n           alice-net ' + ta + '\n           bob-net   ' + tb;
         if (line !== last) { console.log('    t=' + String(Math.round((Date.now() - t0) / 1000)).padStart(3) + 's  ' + line); last = line; }
         if (a.c >= 2) aSees = true; else if (aSees) aFlap = true;
         if (b.c >= 2) bSees = true; else if (bSees) bFlap = true;
@@ -757,8 +1037,12 @@ async function deathmatch() {
         + g.bodies + ' player bodies').join('  '));
 
     await aCtx.close();
-    await bCtx.close();
+    // The phone's Chrome is Nathan's, not ours: close the page and detach,
+    // never the browser's own state.
+    if (BOB_CDP) { await bRun.close().catch(() => {}); }
+    else { await bRun.context().close(); }
   } finally {
+    if (bobBrowser) await bobBrowser.close().catch(() => {});
     await closeFleet(boxes);
   }
 }
