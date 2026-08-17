@@ -67,7 +67,31 @@
   // A FACT ABOUT THE HARDWARE, not a hint about styling. `(pointer: coarse)`
   // is a media query browsers answer for layout, and it matched in a headless
   // desktop — which then lost the pointer lock, because fullscreen releases it.
-  var IS_TOUCH = (navigator.maxTouchPoints || 0) > 0;
+  // "IS THIS PERSON POINTING WITH A THUMB?" — NOT "does this screen accept a
+  // finger?". Those are different questions, and asking the second one broke
+  // the first ability this app has: aiming.
+  //
+  // `maxTouchPoints > 0` is true of every touchscreen LAPTOP, every 2-in-1 and
+  // every touchscreen Chromebook — machines whose owner is holding a mouse.
+  // On those this flag skipped the pointer-lock request at Play (so mouselook
+  // never engaged: the cursor ran to the edge of the window and aiming "went
+  // in and out of working"), forced a landscape fullscreen nobody asked for,
+  // and laid the thumb HUD over a desktop. Reported on a touchscreen
+  // Chromebook, 2026-08-17.
+  //
+  // The right question was already being asked one function away — checkAiming
+  // uses `(pointer: coarse)`, which is the PRIMARY pointing device, and the
+  // comment on the body.touch line below says "a coarse pointer is known
+  // before anything is touched". So ask that, and keep maxTouchPoints only as
+  // the fallback for a browser too old for the media query.
+  //
+  // A hybrid therefore gets the DESKTOP contract — lock the pointer, leave the
+  // window alone — and loses nothing: touch.js reveals the thumb controls on
+  // the first real touchstart and sheds the lock in the same breath, so a
+  // finger on a touchscreen laptop still works, and only then.
+  var IS_TOUCH = (root.matchMedia && root.matchMedia('(pointer: coarse)').media === '(pointer: coarse)')
+    ? root.matchMedia('(pointer: coarse)').matches
+    : (navigator.maxTouchPoints || 0) > 0;
   var gate = document.getElementById('gate');
   var bar = document.getElementById('gate-bar');
   var note = document.getElementById('gate-note');
