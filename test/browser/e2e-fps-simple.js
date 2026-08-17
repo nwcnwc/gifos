@@ -674,62 +674,77 @@ async function deathmatch() {
       };
       bRun = await newPhonePage();
 
-      // WARM-BOOT FIRST. A COLD build seizes the phone's main thread in
-      // multi-second bursts for minutes, which starves the page's own room
-      // machinery (the starved-judge family — run.html now carries the debt
-      // fix, but a warm boot shrinks the whole exposure). The phone's own
-      // mesh/texture caches take a follow-up boot to ~8s, so prime them with
-      // a solo boot to READY — the same street, the same seed, the same
-      // caches — then throw the page away. This mirrors a returning player,
-      // which is who the deathmatch is about anyway.
+      // THE WARM BOOT IS OFF BY DEFAULT NOW, AND THE REASON IS IN THE APP'S
+      // OWN SOURCE. It was added to prime the phone's texture and mesh caches
+      // with a solo boot — "the same street, the same seed, the same caches" —
+      // so the mount inside the room would not bake seventeen surfaces again.
+      // It cannot do that for THIS Bob, and apps/fps-simple/texcache.js says so
+      // in as many words:
+      //
+      //   "gifos.db, which for the app's OWNER — anyone opening it from their
+      //    own desktop, i.e. every solo launch — is backed by real IndexedDB …
+      //    A guest in someone else's room gets an in-memory store that dies
+      //    with the tab, so a guest bakes as before."
+      //
+      // Bob is a guest. The primed cache lives in the OWNER's store and the
+      // room mount is a different store that starts empty, so the second boot
+      // bakes the whole street exactly as if the first had never happened —
+      // while having cost a full world build, its peak memory, and its minutes
+      // of blocked main thread on a device that discards tabs at that peak.
+      // Whatever the browser's own shader cache still carries across is not
+      // worth paying twice for it.
+      //
+      // FPS_BOB_PRIME=1 puts it back, for measuring that question on purpose.
       await bRun.bringToFront().catch(() => {});
-      await bRun.goto(BOB_BASE + '/index.html', { timeout: 60000 });
-      await bRun.waitForSelector('.icon', { timeout: 60000 }).catch(() => {});
-      const primed = await bRun.evaluate(async (base) => {
-        const have = (await GifOS.store.allFiles()).find((x) => x.appId === 'fps-simple');
-        if (have) return have.id;
-        const r = await fetch(base + '/apps/fps-simple/fps-simple.gif');
-        const bytes = new Uint8Array(await r.arrayBuffer());
-        const fid = GifOS.store.uid('file');
-        await GifOS.store.putFile({ id: fid, name: 'FPS Simple.gif', bytes, kind: 'gif', isApp: true, appId: 'fps-simple', mime: 'image/gif' });
-        await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'FPS Simple.gif', parent: null, x: 200, y: 200, iconSize: 64 });
-        return fid;
-      }, BOB_BASE).catch(() => null);
-      if (primed) {
-        await bRun.goto(BOB_BASE + '/run.html#id=' + primed, { timeout: 60000 }).catch(() => {});
-        await bRun.bringToFront().catch(() => {});
-        const pdl = Date.now() + 300000;
-        while (Date.now() < pdl) {
-          const lit = await (async () => {
-            for (const f of bRun.frames()) {
-              if (f === bRun.mainFrame()) continue;
-              if (await f.evaluate(() => { const b = document.getElementById('gate-go'); return !!(b && !b.disabled); }).catch(() => false)) return true;
-            }
-            return false;
-          })();
-          if (lit) break;
-          await dismissSheet(bRun);
-          await sleep(2000);
+      if (process.env.FPS_BOB_PRIME === '1') {
+        await bRun.goto(BOB_BASE + '/index.html', { timeout: 60000 });
+        await bRun.waitForSelector('.icon', { timeout: 60000 }).catch(() => {});
+        const primed = await bRun.evaluate(async (base) => {
+          const have = (await GifOS.store.allFiles()).find((x) => x.appId === 'fps-simple');
+          if (have) return have.id;
+          const r = await fetch(base + '/apps/fps-simple/fps-simple.gif');
+          const bytes = new Uint8Array(await r.arrayBuffer());
+          const fid = GifOS.store.uid('file');
+          await GifOS.store.putFile({ id: fid, name: 'FPS Simple.gif', bytes, kind: 'gif', isApp: true, appId: 'fps-simple', mime: 'image/gif' });
+          await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'FPS Simple.gif', parent: null, x: 200, y: 200, iconSize: 64 });
+          return fid;
+        }, BOB_BASE).catch(() => null);
+        if (primed) {
+          await bRun.goto(BOB_BASE + '/run.html#id=' + primed, { timeout: 60000 }).catch(() => {});
+          await bRun.bringToFront().catch(() => {});
+          const pdl = Date.now() + 300000;
+          while (Date.now() < pdl) {
+            const lit = await (async () => {
+              for (const f of bRun.frames()) {
+                if (f === bRun.mainFrame()) continue;
+                if (await f.evaluate(() => { const b = document.getElementById('gate-go'); return !!(b && !b.disabled); }).catch(() => false)) return true;
+              }
+              return false;
+            })();
+            if (lit) break;
+            await dismissSheet(bRun);
+            await sleep(2000);
+          }
+          console.log('  [Bob] warm-boot primed (world built once, caches filled)');
+          // SHED THE PRIMED PAGE BY CLOSING IT, NOT BY NAVIGATING IT.
+          //
+          // Navigating was tried and MEASURED FAILING (2026-08-17): about:blank
+          // came back, and the very next goto — version.json, 400 bytes off
+          // loopback — timed out at 60s on a phone that had answered the same
+          // request in 313ms an hour earlier. A navigated page unloads INSIDE
+          // its own renderer, and that renderer is still holding a built 3D
+          // world, its worker and a few hundred MB on a 4 GB device; the unload
+          // queues behind all of it. Closing the tab hands the teardown to the
+          // BROWSER process instead, which does not have to wait for the game's
+          // main thread, and hands the memory back with it.
+          //
+          // A fresh tab is also the honest shape for what the primer models: a
+          // player who built this street once, closed the game, and comes back.
+          await bRun.close().catch(() => {});
+          await sleep(3000);            // let the device actually get the memory back
+          bRun = await newPhonePage();
+          await bRun.bringToFront().catch(() => {});
         }
-        console.log('  [Bob] warm-boot primed (world built once, caches filled)');
-        // SHED THE PRIMED PAGE BY CLOSING IT, NOT BY NAVIGATING IT.
-        //
-        // Navigating was tried and MEASURED FAILING (2026-08-17): about:blank
-        // came back, and the very next goto — version.json, 400 bytes off
-        // loopback — timed out at 60s on a phone that had answered the same
-        // request in 313ms an hour earlier. A navigated page unloads INSIDE
-        // its own renderer, and that renderer is still holding a built 3D
-        // world, its worker and a few hundred MB on a 4 GB device; the unload
-        // queues behind all of it. Closing the tab hands the teardown to the
-        // BROWSER process instead, which does not have to wait for the game's
-        // main thread, and hands the memory back with it.
-        //
-        // A fresh tab is also the honest shape for what the primer models: a
-        // player who built this street once, closed the game, and comes back.
-        await bRun.close().catch(() => {});
-        await sleep(3000);            // let the device actually get the memory back
-        bRun = await newPhonePage();
-        await bRun.bringToFront().catch(() => {});
       }
       await bRun.goto(BOB_BASE + '/version.json', { timeout: 60000, waitUntil: 'domcontentloaded' });
       await bRun.evaluate(([relay, name]) => {
