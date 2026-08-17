@@ -156,6 +156,30 @@ const LED_APP = {
   await cPage.waitForFunction(() => window.__gifosVideo.appActive(), null, { timeout: 10000 });
   check('Show app un-hides it', true);
 
+  // ---- THE PICKER NEVER OFFERS A SYSTEM LAUNCHER ----
+  // Running one routes through the runtime's SYSTEM_PAGES whitelist, which is
+  // a location.replace() — picking Broadcast or App Store from inside a
+  // meeting navigated the WHOLE MEETING away. The picker must hide all four
+  // (meet, video, broadcast, appstore), not just the two it started with.
+  {
+    await seedApp(cPage); // C's context has its own store — give it the ordinary app
+    await cPage.evaluate(async () => {
+      const bytes = await GifOS.gif.encode({ 'manifest.json': '{}' }, {});
+      for (const [appId, name] of [['meet', 'Meeting'], ['video', 'Video'], ['broadcast', 'Broadcast'], ['appstore', 'App Store']]) {
+        await GifOS.store.putFile({ id: GifOS.store.uid('file'), name: name + '.gif', bytes, kind: 'gif', isApp: true, appId, mime: 'image/gif' });
+      }
+    });
+    await cPage.locator('#appbtn').click(); // C has no share of its own → opens the picker
+    await cPage.waitForFunction(() => document.getElementById('app-modal').style.display !== 'none', null, { timeout: 10000 });
+    // The list loads async (allFiles) — wait for it to settle past 'Loading'
+    await cPage.waitForFunction(() => document.querySelectorAll('#app-list button').length > 0, null, { timeout: 10000 });
+    const offered = await cPage.evaluate(() => [...document.querySelectorAll('#app-list button')].map((b) => b.textContent));
+    check('the picker offers the ordinary app', offered.indexOf('LedTest') !== -1);
+    check('…and NONE of the system launchers (they navigate the meeting away)  (' + offered.join(', ') + ')',
+      !offered.some((t) => t === 'Meeting' || t === 'Video' || t === 'Broadcast' || t === 'App Store'));
+    await cPage.locator('#app-cancel').click();
+  }
+
   // ---- LED RECORDS: communal by default in an open room ----
   {
     const got = await clickRes(cPage, '#setnav', 'ok-nav');
