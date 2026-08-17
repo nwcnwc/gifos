@@ -458,6 +458,47 @@ async function solo() {
     check('the audio watchdog is wired: preset knob + engine tick + engine kick',
       heal.knob && heal.tick && heal.kick, JSON.stringify(heal));
 
+    /* ---- the HUD systems nothing was feeding ---------------------------- */
+    // Three engine features are drawn every frame and were given no data at
+    // all until 2026-08-17: enemy blips, the incoming-grenade warning, and the
+    // match bar. The blip collector is the subtle one — the UI asks the AI
+    // system for getHudActors() and RETURNS SILENTLY if it is absent, so the
+    // minimap drew the street and nothing else for every build ever shipped.
+    // A player found it by playing. These assert the wiring is present and the
+    // reveal rule is right, in both directions.
+    const hud = await frame.evaluate(() => ({
+      hook: !!(window.__FPS__ && window.__FPS__.ctx.peek('ai') && window.__FPS__.ctx.peek('ai').getHudActors),
+      test: !!window.__FPS_HUD__,
+      agents: (window.__FPS__.ctx.peek('ai').agents || []).length,
+    }));
+    check('the engine\'s blip collector has its data source — ai.getHudActors()',
+      hud.hook, JSON.stringify(hud));
+    // THE RULE: firing gives you away, standing still does not. Asserted
+    // through the app's own reveal rather than by faking a bullet — a
+    // synthetic round pushed into the ballistics sim is culled inside one
+    // frame (measured: liveLen 0 before the next rAF), so a test built that
+    // way reports "no contacts" no matter what the code does.
+    const reveal = await frame.evaluate(() => {
+      const ai = window.__FPS__.ctx.peek('ai');
+      const a = (ai.agents || [])[0];
+      if (!a || !a.position || !window.__FPS_HUD__) return null;
+      const hit = window.__FPS_HUD__.revealAt(a.position.x, a.position.z);
+      const shown = ai.getHudActors().length;
+      const miss = window.__FPS_HUD__.revealAt(a.position.x + 500, a.position.z + 500);
+      return { hit, shown, miss, alive: a.alive };
+    });
+    check('a shot marks the soldier standing where it came from',
+      !!reveal && reveal.hit === 1 && reveal.shown >= 1, JSON.stringify(reveal));
+    check('…and a shot from an empty field marks nobody (no wallhack)',
+      !!reveal && reveal.miss === 0, JSON.stringify(reveal));
+    const fed = await frame.evaluate(() => {
+      const ui = window.__FPS__.ctx.peek('ui');
+      return { grenade: typeof ui.spawnGrenade === 'function', match: typeof ui.setMatch === 'function',
+               markers: !!ui.markers };
+    });
+    check('the incoming-grenade warning and the match bar are reachable to feed',
+      fed.grenade && fed.match && fed.markers, JSON.stringify(fed));
+
     check('it reached the network ZERO times — the manifest declares no hosts',
       external.length === 0, external.slice(0, 3).join(' '));
   } finally {

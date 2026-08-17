@@ -238,6 +238,12 @@
 
   root.Remote = {
     init: init, sync: sync, clear: clear, retireGarrison: retireGarrison,
+    // The AI body standing in for a given player, so the HUD can reveal a
+    // deathmatch opponent the same way it reveals a soldier. A remote player's
+    // shots are NOT simulated here (the shooter decides hits and sends a
+    // claim — see net.js), so their gunfire cannot be seen in the ballistics
+    // sim; the claim is the only moment we learn they fired at us.
+    agentOf: function (id) { var r = bodies[id]; return r ? r.agent : null; },
     count: function () { var n = 0; for (var k in bodies) n++; return n; },
     // Soldiers still standing, for the suites: in a room this must be zero.
     garrison: function () {
