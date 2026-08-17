@@ -170,15 +170,36 @@ function check(h, engine) {
 /**
  * Require n isolated browser-capable machines, VERIFIED. Returns the fleet
  * descriptor and the live hosts; never returns when the requirement is unmet.
+ *
+ * `waitMs` — A BOX WE JUST FINISHED WITH IS NOT A BOX WE DO NOT HAVE. The
+ * idleness check reads /proc/loadavg, and a load average is a decaying memory:
+ * a fleet that just rendered three 3D worlds for us still reads BUSY for a
+ * minute or two after its browsers are gone. e2e-anyroad-mp runs two modes
+ * back to back and hit exactly that — 40 green assertions in ROOM=meet, then
+ * "NEEDS-FLEET, given 0" for ROOM=app against three machines that were idle,
+ * ours, and cooling from our own previous mode. Waiting is not guessing (the
+ * doctrine this file exists for is never to JUDGE on a box we did not verify),
+ * so a caller that expects a transient may ask for a bounded wait, out loud.
+ * Default 0 keeps the gate's fast, honest refusal.
  */
 module.exports = async function needFleet(n, o) {
   o = o || {};
   const engine = o.engine || 'chromium';
   const fleet = load();
   const declared = usable(fleet, engine);
-  const seen = await Promise.all(declared.map((h) => check(h, engine)));
-  const live = seen.filter((r) => r.ok).map((r) => r.h);
-  const dead = seen.filter((r) => !r.ok);
+  const waitMs = Number(process.env.FLEET_WAIT_MS != null ? process.env.FLEET_WAIT_MS : (o.waitMs || 0));
+  const deadline = Date.now() + waitMs;
+  let seen, live, dead;
+  for (;;) {
+    seen = await Promise.all(declared.map((h) => check(h, engine)));
+    live = seen.filter((r) => r.ok).map((r) => r.h);
+    dead = seen.filter((r) => !r.ok);
+    if (live.length >= n || Date.now() >= deadline) break;
+    console.log('  FLEET: ' + live.length + ' of ' + n + ' ready — waiting up to '
+      + Math.round((deadline - Date.now()) / 1000) + 's more for '
+      + dead.map((d) => (d.h.name || d.h.ssh) + ' (' + d.why.split(' —')[0] + ')').join(', '));
+    await new Promise((r) => setTimeout(r, 20000));
+  }
   for (const d of dead) console.log('  FLEET: skipping ' + (d.h.name || d.h.ssh) + ' — ' + d.why);
   if (live.length < n) refuse(n, live.length, o);
   const shown = seen.filter((r) => r.ok).map((r) => (r.h.name || r.h.ssh) + ' (load ' + r.load.toFixed(2) + '/' + r.cores + ')');
