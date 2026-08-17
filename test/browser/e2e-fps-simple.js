@@ -1088,8 +1088,30 @@ async function deathmatch() {
   }
 }
 
+// FPS_HALF — WHICH HALF, and the one reason it exists.
+//
+// Default is both, and the battery must keep running both: a half nobody runs
+// is a guard nobody has. But the two halves want opposite things from the box
+// they are STARTED on. Solo launches a browser locally, so it wants a machine
+// that can run one. The deathmatch launches NO local browser at all — it drives
+// Alice on a fleet box and Bob on a phone over CDP — and it wants a driver that
+// is neither of the players, because a third browser on a player's box is the
+// contention test/lib/fleet.js exists to abolish.
+//
+// Here that leaves exactly one shape. The orchestrator is the only machine that
+// is not a player, and it is the one machine that must never run a browser
+// (CLAUDE.md: it hard-hung once). Every other candidate is either a player or
+// too slow to build a world at all. So the deathmatch is startable from the
+// orchestrator only with the solo half not running — hence this switch, and
+// hence its default is 'both'.
+const HALF = (process.env.FPS_HALF || 'both').toLowerCase();
+if (['both', 'solo', 'deathmatch'].indexOf(HALF) < 0) {
+  console.log('FPS_HALF must be both | solo | deathmatch (got ' + JSON.stringify(HALF) + ')');
+  process.exit(2);
+}
+
 (async () => {
-  await solo();
+  if (HALF !== 'deathmatch') await solo();
   // A PRODUCT FAILURE OUTRANKS "I NEED MACHINES". If the solo half is red the
   // app is broken here, on this box, and saying NEEDS-FLEET instead would hide
   // it behind a hardware request.
@@ -1097,6 +1119,12 @@ async function deathmatch() {
     console.log('\nFAILURES: ' + failures + '  (solo half — not running the deathmatch half on top of a broken boot)');
     process.exit(1);
   }
+  if (HALF === 'solo') {
+    console.log('\nSOLO HALF ONLY (FPS_HALF=solo) — the deathmatch did NOT run and this is not a full verdict.');
+    console.log(failures ? '\nFAILURES: ' + failures : '\nall green (solo half)');
+    process.exit(failures ? 1 : 0);
+  }
+  if (HALF === 'deathmatch') console.log('DEATHMATCH HALF ONLY (FPS_HALF=deathmatch) — the solo half did NOT run.');
   await deathmatch();
   console.log(failures ? '\nFAILURES: ' + failures : '\nall green');
   process.exit(failures ? 1 : 0);
