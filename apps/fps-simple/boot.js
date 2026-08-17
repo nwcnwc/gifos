@@ -887,6 +887,13 @@
         config.q.aiVariant = function (name) { return MC.getVariant(name); };
         config.q.onAiVariant = function (name, v) { MC.putVariant(name, v); };
       }
+      // PRE-RENDERED VOICES, unconditionally: the audio render thread was
+      // measured burning a full core on live per-shot synthesis, which is what
+      // silenced the game on any machine whose sustained clock cannot afford
+      // it (see voicecache.js for the numbers, vendor.mjs for the seams). A
+      // hit is one buffer source instead of ~40 nodes; a miss plays live and
+      // renders itself for next time.
+      if (root.VoiceCache) config.q.voiceCache = root.VoiceCache;
       if (auto.renderScale != null) config.q.renderScale = Math.min(config.q.renderScale, auto.renderScale);
       if (auto.q) {
         for (var qk in auto.q) {
