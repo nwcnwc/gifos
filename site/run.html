@@ -2065,7 +2065,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           const heardPid = Math.max(meshRxByPid.get(pid) || 0, p.dcRxAt || 0);
           if (!pidFirstSeen.has(pid)) pidFirstSeen.set(pid, nowHb);
           const basePid = Math.max(heardPid, pidFirstSeen.get(pid));
-          if (!p.connected && !heardPid && nowHb - basePid < 12000) { why('notconn'); continue; }
+          // Receive-silence measured while OUR OWN loop was blocked is our
+          // starvation, not the peer's (see starveDebtSince above): the
+          // stamps this clock reads are written by JS handlers that could
+          // not run. Subtract the provable blockage from every silence
+          // window below, or a heavy app in this tab makes this sweeper
+          // fire 'starve-dead' on healthy pairs — measured doing exactly
+          // that 12s into a phone's shader warm-up.
+          const asleep = starveDebtSince(basePid);
+          if (!p.connected && !heardPid && nowHb - basePid - asleep < 12000) { why('notconn'); continue; }
           // THE HALF-OPEN PAIR (pair-probe.js, 2026-07-27): ICE lands but the
           // DataChannel NEVER opens — ondatachannel never fires on the
           // answerer, the initiator's channel sticks in 'connecting'. No
@@ -2082,7 +2090,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // genuinely dead it goes !connected and the starve edge below still
           // owns it — no threshold there changes.
           const dcOpen = p.dc && p.dc.readyState === 'open';
-          if (p.connected && !dcOpen && !heardPid && nowHb - (p.rebuiltAt || basePid) > 5000) {
+          if (p.connected && !dcOpen && !heardPid && nowHb - (p.rebuiltAt || basePid) - starveDebtSince(p.rebuiltAt || basePid) > 5000) {
             // The DIALER side rebuilds (house doctrine, same as the starve
             // edge): only its pc CREATES the DataChannel, so an answerer-side
             // rebuild+offer would negotiate a session with no data m-line at
@@ -2109,7 +2117,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // gate left pairs where the victim wasn't the designated dialer
           // unhealed forever); the 12s threshold + 30s throttle are the storm
           // guard, and perfect negotiation absorbs a rare double-rebuild
-          if (nowHb - basePid < 12000) { why('fresh'); continue; }
+          if (nowHb - basePid - asleep < 12000) { why('fresh'); continue; }
           if (nowHb - (p.meshKickAt || 0) < 30000) { why('throttled'); continue; }
           sv.kicked++;
           p.meshKickAt = nowHb;
@@ -2326,10 +2334,51 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // never revive a confirmed departure. HOLDOVER_MS stays well under the
     // mesh E-timers: real death is still the mesh's call, not this one.
     const HOLDOVER_MS = 60000;
+    // THE JUDGE MUST HAVE BEEN AWAKE FOR THE WINDOW IT JUDGES. healing-laws D
+    // confirms a death only for a peer "unreachable on every path for the
+    // settled window" — which silently presumes the observer was CONSCIOUS for
+    // that window. This page can be provably not: a heavy app in the same tab
+    // (measured 2026-08-17: fps-simple's shader warm-up on a phone blocks the
+    // event loop in multi-second bursts) stops every receive handler, so
+    // meshRx/status stamps freeze while wall clocks run — and the local
+    // judges then read their OWN starvation as the peer's silence. The phone
+    // fired 'starve-dead' on a healthy host/prflx pair 12s into its own
+    // freeze, the ad vanished, and the room began eating itself.
+    //
+    // So: a 250ms sentinel notes how late it fired; lateness beyond 1s is
+    // provable event-loop blockage, kept for 5 minutes. Every local
+    // receive-silence judgment subtracts the blockage that fell inside its
+    // window — equivalently, reaping clocks pause while the judge was
+    // demonstrably asleep. Self-knowledge only: nothing here asks a peer for
+    // grace, and a peer that GENUINELY departs while we are blocked is still
+    // confirmed on normal horizons once we wake (the debt shields the
+    // receive-silence clocks, never the mesh's first-hand departure edges).
+    const loopBlocks = [];             // { at, ms }, most-recent-last
+    let loopLastBeat = Date.now();
+    setInterval(() => {
+      const now = Date.now();
+      const late = now - loopLastBeat - 250;
+      loopLastBeat = now;
+      if (late > 1000) loopBlocks.push({ at: now, ms: late });
+      while (loopBlocks.length && now - loopBlocks[0].at > 300000) loopBlocks.shift();
+    }, 250);
+    const starveDebtSince = (t0) => {
+      let d = 0;
+      for (const b of loopBlocks) if (b.at > t0) d += Math.min(b.ms, b.at - t0);
+      // PULL, never only push: timers queued during a block drain at wake in
+      // scheduled order, so a liveness judgment can run BEFORE the sentinel's
+      // own next tick records the block — and would see zero debt in the very
+      // instant the damage happens (the first guard run caught exactly that:
+      // freeze-and-seize within milliseconds of waking). The gap since the
+      // last beat IS provable blockage at read time, so count it live.
+      const pending = Date.now() - loopLastBeat - 250;
+      if (pending > 1000) d += (t0 <= loopLastBeat ? pending : Math.min(pending, Date.now() - t0));
+      return d;
+    };
     const stHold = (pid) => {
       const st = statusOf.get(pid);
       if (!st) return false;
-      const age = Date.now() - (st.at || 0);
+      const age = Date.now() - (st.at || 0) - starveDebtSince(st.at || 0);
       if (age < 15000) return true;
       if (age >= HOLDOVER_MS) return false;
       const p = peers.get(pid);
@@ -4095,6 +4144,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const p = peers.get(pid);
       const now = Date.now();
       if (p) { if (p.tlAt && now - p.tlAt < 10000) return; p.tlAt = now; }
+      // A TRANSPORT EVENT DELIVERED AT WAKE CARRIES EVIDENCE FROM OUR NAP.
+      // Every close/failed event queued while this page's loop was blocked
+      // drains in the first instant after it — and the mesh's own last-heard
+      // bookkeeping froze with us, so its D5 probe gate sees a peer already
+      // silent past the settled window and confirms INSTANTLY instead of
+      // probing (measured: 'translost dc-close' and 'gone d5' in the same
+      // 100ms at wake, tombstoning a live host whose only crime was kicking
+      // our silent pair honestly). Same doctrine as starveDebtSince above,
+      // applied at the mesh binding: defer the hand-off until the evidence
+      // window has been RE-OBSERVED awake. A genuine death is still dead
+      // after the deferral and confirms on ordinary horizons; a wake
+      // artifact heals under it as the resumed beats freshen last-heard.
+      if (starveDebtSince(now - 20000) > 2000) {
+        if (typeof clog === 'function') clog('translost-deferred ' + String(pid).slice(0, 6) + ' ' + why);
+        const recheck = () => {
+          if (leaving || bannedOut || !peers.has(pid)) return;
+          if (starveDebtSince(Date.now() - 20000) > 2000) { setTimeout(recheck, 5000); return; }
+          const pr = peers.get(pid);
+          if (pr && pr.connected) return;  // the pair healed: the death was our nap's echo
+          if (pr) pr.tlAt = 0;             // let the real fire through the throttle
+          onTransportDead(pid, why + '-awake');
+        };
+        setTimeout(recheck, 5000);
+        return;
+      }
       const s = meshSeat();
       try { if (s && s.transportLost) s.transportLost(pid); } catch (e) {}
       if (typeof clog === 'function') clog('translost ' + String(pid).slice(0, 6) + ' ' + why);
@@ -5666,7 +5740,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (seatOcc && seatOcc.occ) for (const v of seatOcc.occ.values()) if (v) occLive.add(v);
         for (const [pid, st] of statusOf) {
           if (pid === myId || peers.has(pid) || occLive.has(pid)) continue;
-          if (now - Math.max((st && st.rx) || 0, (st && st.at) || 0) > HOLDOVER_MS) statusOf.delete(pid);
+          const seen = Math.max((st && st.rx) || 0, (st && st.at) || 0);
+          if (now - seen - starveDebtSince(seen) > HOLDOVER_MS) statusOf.delete(pid);
         }
       }
       // The link set follows the seat arithmetic — occupancy gossip settling
@@ -12039,10 +12114,11 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // (stHold keeps a pocketed phone's app alive through the away-holdover —
       // G1 doctrine; a CONFIRMED departure (meshGone) kills the ad instantly.)
       for (const [pid, st] of statusOf) if (st && st.app && stHold(pid) && !meshGone.has(pid)) consider(pid, st.app);
-      // Remember WHOSE ad won, retained across null returns: when the ad later
-      // vanishes, ownerAway() must ask whether that owner's SEAT is gone or
-      // only their STATUS PATH — and by then the ad that named them is gone.
-      if (best) appOwnerPid = bestPid;
+      // Remember WHOSE ad won — and WHEN — retained across null returns: when
+      // the ad later vanishes, ownerAway() must ask whether that owner's SEAT
+      // is gone or only their STATUS PATH, and by then the ad that named them
+      // is gone.
+      if (best) { appOwnerPid = bestPid; appOwnerSeenAt = Date.now(); }
       return best;
     }
     // Converge THIS phone's app view onto whatever the room is sharing. Runs on
@@ -12099,6 +12175,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // (newer ts) wins findSharedApp everywhere and the room thaws.
     let appFrozen = false, succT = null;
     let appOwnerPid = '';    // whose ad we are mounted on (findSharedApp keeps it)
+    let appOwnerSeenAt = 0;  // when that ad was last actually seen
     let succSince = 0;       // when the ad vanished INTO A CONTRADICTION (owner still seated)
     // THE SEAT, NOT THE STATUS PATH. one-runtime.md (Ownership and succession):
     // succession fires "when the owner's seat is CONFIRMED GONE (the mesh's own
@@ -12112,11 +12189,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // Confirmed gone is what confirmGone() leaves behind: the owner's statusOf
     // entry DELETED (it is removed only on a confirmed departure — "a stale
     // status must not haunt the room"), or a standing meshGone tombstone.
+    // How long an ABSENT statusOf entry must stay absent, on an AWAKE clock,
+    // before absence alone counts as departure. This is only the fallback for
+    // deaths that never earned a verdict: a REAL departure gets confirmGone's
+    // meshGone tombstone within seconds and seizes promptly through the
+    // tombstone door above. The fallback must outlast the worst HONEST
+    // transport blip (sweeper detect 12s + 30s kick throttle + renegotiation
+    // + a status beat ≈ 45-50s), so it borrows the status plane's own
+    // holdover horizon: the same 60s the room already grants a silent peer.
+    const SEAT_GONE_MS = 60000;
     const ownerSeatGone = () => {
       const pid = appOwnerPid;
       if (!pid || pid === String(myId)) return true;  // no known owner to defer to
-      if (!statusOf.has(pid)) return true;            // entry deleted = confirmed departure (D5 ~7s)
-      return !notTomb(pid);                           // tombstoned, not re-proven
+      if (!notTomb(pid)) return true;                 // tombstoned, not re-proven
+      if (statusOf.has(pid)) return false;            // seated: presence still vouches
+      // ABSENCE OF THE ENTRY IS NOT CONFIRMATION. confirmGone() deletes it —
+      // but so does dropPeer() on ANY transport teardown, rebuilds included
+      // (caught by e2e-starved-judge's first run: the host honestly kicked a
+      // silent guest, the guest's dropPeer erased the host's entry, and this
+      // gate read a link blip as a death). A real departure STAYS absent; a
+      // blip is re-proven by the next status within seconds. So the absence
+      // must last SEAT_GONE_MS on an AWAKE clock before it counts.
+      return Date.now() - appOwnerSeenAt - starveDebtSince(appOwnerSeenAt) > SEAT_GONE_MS;
     };
     // How long a live contradiction (stale status path, seated owner) may hold
     // the room frozen before we seize anyway. A DELIBERATE number, not an
@@ -12138,19 +12232,30 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const pid of roomConsentIds()) if (pid !== myId && stHold(pid)) cands.push(String(pid));
       cands.sort();
       if (cands[0] !== String(myId)) return; // someone else is the deterministic successor
-      if (!ownerSeatGone() && !succSince) { succSince = Date.now(); appEv('owner-away-contradiction'); }
       succT = setTimeout(function reprobe() {
         succT = null;
         if (findSharedApp() || !appFrozen) { succSince = 0; return; } // the owner made it back — stand down
-        // Presence still vouches for the owner: HOLD the freeze and re-probe.
-        // The moment the seat is confirmed gone the very next probe seizes (the
-        // 6s grace has already been served); if the contradiction outlives
-        // SUCC_CONTRADICTION_MS, seize anyway and say so in the event log.
-        if (!ownerSeatGone() && succSince && (Date.now() - succSince < SUCC_CONTRADICTION_MS)) {
-          succT = setTimeout(reprobe, 3000);
-          return;
+        // THE SEIZE DECIDES ON THE STATE AT FIRE TIME, never on what was true
+        // when the timer was armed — a seat that flapped between arm and fire
+        // fell through an arm-time-stamped hold branch straight into the
+        // seize (caught by e2e-starved-judge run 3). Presence vouching NOW
+        // holds the freeze, stamps the contradiction if new, and re-probes;
+        // the moment the seat is confirmed gone (30s of awake absence, or a
+        // tombstone) the very next probe seizes — the 6s grace has already
+        // been served. A contradiction outliving SUCC_CONTRADICTION_MS
+        // seizes anyway and says so in the event log.
+        if (!ownerSeatGone()) {
+          if (!succSince) { succSince = Date.now(); appEv('owner-away-contradiction'); }
+          if (Date.now() - succSince < SUCC_CONTRADICTION_MS) {
+            succT = setTimeout(reprobe, 3000);
+            return;
+          }
+          appEv('succession-after-contradiction');
+        } else {
+          // Say WHICH door confirmed the seat gone — a wrong verdict here is
+          // a different bug depending on the door, and the guard reads this.
+          appEv('seat-gone', { door: !notTomb(appOwnerPid) ? 'tombstone' : (!appOwnerPid || appOwnerPid === String(myId)) ? 'no-owner' : 'absence' });
         }
-        if (succSince) appEv('succession-after-contradiction');
         succSince = 0;
         const ctl = appClientCtl;
         if (!ctl || !ctl.snapshot) return;
@@ -12967,6 +13072,43 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       relayMapSid: (id) => { const r = relayVia.get(id); return r ? r.streamId : null; },
       awayOf: (id) => peerAway(id),
       // fault injection: simulate lost gossip / a dead transport
+      // Read-only forensics for the sick-status-path family (the false
+      // succession of 2026-08-17 and its relatives): how old is my view of a
+      // peer's status, does transport vouch for them, and what ICE pair is
+      // actually carrying the link — host/srflx/relay tells you the topology
+      // a run REALLY had, which no config file can.
+      // The starved-judge forensics: total provable event-loop blockage in
+      // the 5-minute window, and the sweeper's own kick counter — the pair
+      // the e2e-starved-judge guard reads.
+      starveDebt: () => starveDebtSince(0),
+      starveKicked: () => (window.__starve ? window.__starve.kicked : 0),
+      statusAgeOf: (id) => {
+        const st = statusOf.get(id);
+        const p = peers.get(id);
+        return {
+          at: st ? Date.now() - (st.at || 0) : null,
+          rx: st ? Date.now() - (st.rx || 0) : null,
+          connected: !!(p && p.connected),
+          dcOpen: !!(p && p.dc && p.dc.readyState === 'open'),
+          held: stHold(id),
+          gone: meshGone.has(id),
+        };
+      },
+      icePairFor: (id) => {
+        const p = peers.get(id);
+        if (!p || !p.pc) return Promise.resolve(null);
+        return p.pc.getStats().then((stats) => {
+          const cand = {};
+          stats.forEach((r) => { if (r.type === 'local-candidate' || r.type === 'remote-candidate') cand[r.id] = r.candidateType; });
+          let pair = null;
+          stats.forEach((r) => {
+            if (r.type === 'candidate-pair' && r.nominated && (r.selected !== false) && r.state === 'succeeded') {
+              pair = pair || { local: cand[r.localCandidateId] || '?', remote: cand[r.remoteCandidateId] || '?', rtt: r.currentRoundTripTime };
+            }
+          });
+          return { pair, ice: p.pc.iceConnectionState, conn: p.pc.connectionState };
+        }).catch(() => null);
+      },
       _corruptStatus: (id) => statusOf.delete(id),
       // THE CORPSE'S LAST BREATH, on demand (e2e-status-map leg 6). The 71.2s
       // leak of 2026-08-07 rode a RACE — a departing tab's final status pulse
