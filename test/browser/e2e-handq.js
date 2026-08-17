@@ -18,6 +18,11 @@ const PHASE = process.env.PHASE || 'all';
 const SKIP_OVERFLOW = !!process.env.SKIP_OVERFLOW;
 
 let failures = 0;
+// Set when the overflow leg's verdict was UNMEASURABLE on this box (see the
+// probe-before-judging there): the suite still runs everything it CAN measure
+// (the admin phase is a 3-client cast and holds up on the same box), and exits
+// 4 at the end — unless a real red happened anywhere, which trumps a refusal.
+let refusedNoVerdict = null;
 const check = (name, cond) => { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name); if (!cond) failures++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -322,7 +327,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
     if (saturated && offenders.length) {
       console.log('');
-      console.log('NO VERDICT — THE BOX TOOK THE LINK LAYER AWAY, so a convergence check here cannot be a claim about GifOS.');
+      console.log('NO VERDICT (overflow leg) — THE BOX TOOK THE LINK LAYER AWAY, so a convergence check here cannot be a claim about GifOS.');
       console.log('');
       console.log('  CASUALTY: the mesh had no spanning transport to measure over on a saturated box — ' + offenders.join('; '));
       console.log('  THE BOX:  ' + casualty.capacityLine('local', raisers.length, m));
@@ -332,11 +337,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       console.log('  e2e-anyroad-mp precedent: satisfy it on capable hardware, record it in the cut).');
       console.log('  A red on a box with headroom stands exactly as before, and must.');
       console.log('');
-      console.log('NO-VERDICT — the convergence claims were unmeasurable here, on purpose.');
-      try { await browser.close(); } catch (e) {}
-      process.exit(4);
+      refusedNoVerdict = 'the overflow leg\'s convergence + banner checks were unmeasurable (see CASUALTY above)';
     }
   }
+  if (refusedNoVerdict) {
+    console.log('  [overflow] convergence + banner verdicts WITHHELD — everything this box CAN measure still runs below.');
+  } else {
   check(NR + ' raised hands: two observers converge on the IDENTICAL ordered queue (saw ' + oa.length + '/' + target + ' in ' + took + ')',
     converged);
   // The banner mirrors the derived queue: first 8 names + a '+K' overflow.
@@ -348,6 +354,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (!bannerOk) console.log('  [overflow] the banner never took the overflow shape — it reads: '
     + JSON.stringify(await a.evaluate(() => window.__gifosVideo.handqText())));
   check('the banner shows the first 8 + overflow (+K)', bannerOk && segs === 8);
+  } // refusedNoVerdict
   for (const { ctx } of extras) await ctx.close();
   } // SKIP_OVERFLOW
   await a.close(); await b.close(); await c.close();
@@ -441,8 +448,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   } // PHASE admin
 
   await browser.close();
-  console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
-  process.exit(failures ? 1 : 0);
+  // A real red anywhere trumps a refusal — a red is a red. Otherwise a
+  // withheld overflow verdict makes the whole run NO-VERDICT (exit 4): every
+  // other claim passed, but the suite's reason for existing was unmeasurable.
+  if (failures) { console.log('\n' + failures + ' FAILURE(S)'); process.exit(1); }
+  if (refusedNoVerdict) { console.log('\nNO-VERDICT — ' + refusedNoVerdict + '; everything measurable passed.'); process.exit(4); }
+  console.log('\nALL PASS');
+  process.exit(0);
 })().catch((e) => {
   // NEVER exit non-zero having said nothing. An uncaught rejection here reads
   // as "0 failed / N passed" in the gate — the shape CLAUDE.md calls the most
