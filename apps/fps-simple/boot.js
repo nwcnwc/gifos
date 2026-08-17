@@ -529,7 +529,7 @@
   NetplaySystem.prototype.update = function (dt, context) {
     autoScaleTick(dt);
     if (touch) touch.tick();
-    minimapBlips(context);
+    hudFeed(context);
     if (!root.Net.live()) return;
     root.Remote.sync();
     // The moment this stops being a solo game, the soldiers go. See
@@ -544,80 +544,158 @@
   };
 
   /* ------------------------------------------------------------------ */
-  /* the minimap's red dots                                             */
+  /* the HUD nobody was feeding                                          */
   /* ------------------------------------------------------------------ */
 
-  // NOBODY WAS EVER TELLING THE MINIMAP WHERE THE ENEMY WAS.
+  // THREE HUD SYSTEMS ARE FULLY BUILT, DRAWN EVERY FRAME, AND WERE NEVER
+  // GIVEN ANY DATA. Found by audit after a player reported the first one:
   //
-  // The engine draws red blips perfectly well — ui.setBlips() fills them and
-  // the minimap paints anything whose kind is not 'friend' in red. But
-  // setBlips is called in exactly ONE place in the whole engine: the HUD's
-  // own DEMO state, with a hardcoded {x:-2,z:4}. Upstream's main.js is a
-  // capture harness we deliberately do not use (see vendor.mjs), so in the
-  // real game the array stayed empty forever and the map showed the street,
-  // your arrow and nothing else. Reported by a player: "impossible to see
-  // where enemies are shooting from".
+  //   * ENEMY BLIPS. The UI calls _collectBlips() every frame, which asks the
+  //     AI system for `getHudActors()` (or `.actors`) and RETURNS SILENTLY if
+  //     neither is there. Nothing ever provided it, so the minimap has drawn
+  //     the street, your arrow and nothing else since the first build. It is
+  //     an extension point the game is expected to fill — so fill it.
+  //   * INCOMING GRENADES. ui.spawnGrenade() draws the warning ring and plays
+  //     grenade_warn. The garrison throws grenades to move you off a position
+  //     — that is in the app's own description — and the warning has only ever
+  //     fired in the HUD demo. A grenade landed at your feet in silence.
+  //   * THE MATCH BAR. ui.setMatch() is never called anywhere in the engine
+  //     outside its own definition, so the score line sat at its defaults.
   //
-  // WHAT REVEALS A SHOOTER, and why this is the honest signal: the same thing
-  // that reveals one in the game this is modelled on — FIRING. Not presence.
-  // Blipping every living soldier would be a wallhack and would make the
-  // street trivial; blipping the ones who just shot is the actual mechanic,
-  // and it is what the player asked for.
-  //
-  // The signal is the ballistics sim's live rounds, NOT the audio: a muted
-  // game must still show the dots. Each round carries pos, dir and how far it
-  // has travelled, so its ORIGIN is pos - dir * travelled — the muzzle it
-  // came from. Rounds that started at our own muzzle are ours and are
-  // skipped, which is also what stops the map painting a dot on yourself
-  // every time you pull the trigger.
-  var BLIP_TTL_MS = 2600;   // how long a shot keeps its dot — about a CoD ping
-  var BLIP_MAX = 12;
-  var blipRing = [];
-  var _bo = null;           // scratch: the recovered origin
-  function minimapBlips(ctx) {
+  // WHAT REVEALS AN ENEMY, and why it is not simply "everyone alive": the
+  // rule from the game this is modelled on is that FIRING gives you away.
+  // Blipping every living soldier is a wallhack and makes the street trivial.
+  // So a contact appears when someone shoots and fades a few seconds later.
+  var REVEAL_MS = 2600;
+  var revealed = new Map();     // agent -> when the contact goes cold
+  var nadeSeen = new Set();     // grenades already warned about, once each
+  var _bo = null;               // scratch: a round's recovered origin
+
+  /** Mark whoever fired this round, if it was not us. */
+  function revealShooter(ai, r, me, now) {
+    if (!r || !r.alive || !r.pos || !r.dir) return;
+    if (!_bo) _bo = r.pos.clone();
+    _bo.copy(r.pos).addScaledVector(r.dir, -(r.travelled || 0));
+    // Ours: the muzzle is a couple of metres from the camera, and a round that
+    // has not travelled yet is still sitting on it. This is also what stops
+    // the map painting a contact on you every time you pull the trigger.
+    if (me && Math.abs(_bo.x - me.x) < 3.5 && Math.abs(_bo.z - me.z) < 3.5) return;
+    var best = null, bestD = 25;   // 5 m, squared
+    for (var i = 0; i < ai.agents.length; i++) {
+      var a = ai.agents[i];
+      var pos = a && a.position;
+      if (!pos) continue;
+      var dx = pos.x - _bo.x, dz = pos.z - _bo.z;
+      var d = dx * dx + dz * dz;
+      if (d < bestD) { bestD = d; best = a; }
+    }
+    if (best) revealed.set(best, now + REVEAL_MS);
+  }
+
+  // A HANDLE FOR THE SUITES, because the obvious way to test this is a lie.
+  // Pushing a synthetic round into the ballistics sim does not work: a fake
+  // that is missing fields the sim wants is culled inside one frame (measured
+  // — liveLen went to 0 before the next rAF), so a test built that way reports
+  // "no contacts" whatever the code does. This exposes the reveal itself, so a
+  // guard can assert the rule — a shot at this spot marks the soldier standing
+  // there — without depending on the sim keeping a counterfeit alive.
+  root.__FPS_HUD__ = {
+    revealAt: function (x, z) {
+      var ai = ctx && ctx.peek && ctx.peek('ai');
+      if (!ai || !ai.agents) return 0;
+      var best = null, bestD = 25;
+      for (var i = 0; i < ai.agents.length; i++) {
+        var a = ai.agents[i], pos = a && a.position;
+        if (!pos) continue;
+        var dx = pos.x - x, dz = pos.z - z, d = dx * dx + dz * dz;
+        if (d < bestD) { bestD = d; best = a; }
+      }
+      if (best) { revealed.set(best, Date.now() + REVEAL_MS); return 1; }
+      return 0;
+    },
+    revealedCount: function () { return revealed.size; },
+  };
+
+  /** Called from the netplay system's update, i.e. once per engine frame. */
+  function hudFeed(ctx) {
     var ui = ctx.peek('ui');
-    if (!ui || !ui.setBlips) return;
+    var ai = ctx.peek('ai');
+    if (!ui || !ai) return;
     var now = Date.now();
+    var me = root.__FPS_POSE__ ? root.__FPS_POSE__() : null;
+
+    /* ---- who just fired ---- */
     try {
       var w = ctx.peek('weapons');
       var live = w && w.sim && w.sim.live;
-      // OUR pose, not peek('player') — that system carries movement/rig/health
-      // and no world position. __FPS_POSE__ is the one net.js publishes from,
-      // so it is the same position the rest of this app already trusts.
-      var mp = root.__FPS_POSE__ ? root.__FPS_POSE__() : null;
-      if (live && live.length) {
-        for (var i = 0; i < live.length; i++) {
-          var r = live[i];
-          if (!r || !r.alive || !r.pos || !r.dir) continue;
-          if (!_bo) _bo = r.pos.clone();
-          _bo.copy(r.pos).addScaledVector(r.dir, -(r.travelled || 0));
-          // Ours. The muzzle is a couple of metres from the camera, and a
-          // round that has not gone anywhere yet is still sitting on it.
-          if (mp && Math.abs(_bo.x - mp.x) < 3.5 && Math.abs(_bo.z - mp.z) < 3.5) continue;
-          // One dot per shooter-ish position: a burst is one contact, not
-          // five dots stacked into a brighter one.
-          var merged = false;
-          for (var j = 0; j < blipRing.length; j++) {
-            var b = blipRing[j];
-            if (Math.abs(b.x - _bo.x) < 2.5 && Math.abs(b.z - _bo.z) < 2.5) {
-              b.at = now; merged = true; break;
-            }
-          }
-          if (!merged) blipRing.push({ x: _bo.x, z: _bo.z, at: now });
-        }
+      if (live && ai.agents) {
+        for (var i = 0; i < live.length; i++) revealShooter(ai, live[i], me, now);
       }
     } catch (e) { /* a missing system is not worth a frame */ }
-    // Expire, cap, publish. setBlips copies what it needs, so handing it a
-    // fresh array each frame costs nothing it does not already pay.
-    var out = [];
-    for (var k = blipRing.length - 1; k >= 0; k--) {
-      if (now - blipRing[k].at > BLIP_TTL_MS) blipRing.splice(k, 1);
+
+    /* ---- hand the engine its own extension point ---- */
+    // Installed once, and only ours: if a future engine ships a real one, the
+    // guard leaves it alone rather than fighting it.
+    if (!ai.getHudActors) {
+      ai.getHudActors = function () {
+        var out = [];
+        var t = Date.now();
+        for (var it = revealed.entries(), e = it.next(); !e.done; e = it.next()) {
+          var agent = e.value[0], until = e.value[1];
+          if (t > until) { revealed.delete(agent); continue; }
+          if (!agent || !agent.position || agent.alive === false || agent.dead === true) {
+            revealed.delete(agent); continue;
+          }
+          out.push(agent);
+        }
+        return out;
+      };
     }
-    if (blipRing.length > BLIP_MAX) blipRing.splice(0, blipRing.length - BLIP_MAX);
-    for (var m = 0; m < blipRing.length; m++) {
-      out.push({ x: blipRing[m].x, z: blipRing[m].z, kind: 'enemy', heading: 0 });
-    }
-    try { ui.setBlips(out); } catch (e) { /* ditto */ }
+
+    /* ---- incoming grenades ---- */
+    try {
+      var nades = ai._grenades;
+      if (nades && nades.length) {
+        for (var g = 0; g < nades.length; g++) {
+          var n = nades[g];
+          if (!n || nadeSeen.has(n)) continue;
+          nadeSeen.add(n);
+          var np = (n.body && n.body.position) || (n.mesh && n.mesh.position);
+          // Only what is thrown AT us: the blast is 6.5 m, so a grenade across
+          // the street is not a warning, it is noise.
+          if (!np || (me && Math.hypot(np.x - me.x, np.z - me.z) > 22)) continue;
+          try { ui.spawnGrenade(np, Math.max(0.5, n.fuse || 2.35)); } catch (e2) {}
+        }
+      }
+      // Forget the ones that have gone off, or the set grows all session.
+      if (nadeSeen.size > 32 && nades) {
+        var alive = new Set(nades);
+        for (var it2 = nadeSeen.values(), v = it2.next(); !v.done; v = it2.next()) {
+          if (!alive.has(v.value)) nadeSeen.delete(v.value);
+        }
+      }
+    } catch (e) { /* ditto */ }
+
+    /* ---- the match bar ---- */
+    // Only in a deathmatch, and only from numbers we actually have: this is a
+    // free-for-all, so US is you and THEM is whoever is winning of the rest.
+    // No invented clock — the mode line says DM and the time stays where the
+    // engine put it rather than pretending there is a round timer.
+    try {
+      if (ui.setMatch && root.Net && root.Net.live() && root.Net.count() >= 2) {
+        // roster() is the one place that already knows every score INCLUDING
+        // ours (net.js builds it from self + others, sorted) — so the bar
+        // cannot drift from the scoreboard the Tab key shows.
+        var list = root.Net.roster ? root.Net.roster() : [];
+        var mine = 0, top = 0;
+        for (var r = 0; r < list.length; r++) {
+          var row = list[r];
+          if (row.me) mine = row.k || 0;
+          else if ((row.k || 0) > top) top = row.k || 0;
+        }
+        ui.setMatch({ scoreUs: mine, scoreThem: top, mode: 'DM' });
+      }
+    } catch (e) { /* ditto */ }
   }
 
   // Somebody's browser says they shot me. We are the authority on what that
@@ -1257,6 +1335,18 @@
     if (demoBtn) { demoBtn.disabled = true; demoBtn.textContent = 'Starting…'; }
     go.disabled = true;
     say('Starting the demo…', null);
+    // FULLSCREEN FIRST, AND SYNCHRONOUSLY — this is the whole reason the demo
+    // can have it when Play struggles to. Both fullscreen and pointer lock
+    // want TRANSIENT user activation and the first one spends it (see the Play
+    // handler below), so Play has to choose; a demo aims at nothing, so it
+    // never asks for the lock and the gesture is free. It must be requested
+    // here, in the click itself: everything after this is async, and by the
+    // time a polled callback runs the activation is long gone.
+    //
+    // Landscape is locked on a touch device for the same reason the game does
+    // it — a phone propped up on a shelf running this should not be a portrait
+    // strip. On a desktop it is plain fullscreen, no orientation opinion.
+    goFullscreenLandscape();
     engine.start();
     // Audio inside the gesture, same as Play — a demo on a shop display with no
     // sound is half a demo. No pointer lock and no fullscreen: nobody is aiming.
@@ -1293,6 +1383,11 @@
       try { var u = ctx.peek('ui'); if (u && u.debugState) u.debugState('clean'); } catch (e) {}
       var h = document.getElementById('demo-exit');
       if (h && h.parentNode) h.parentNode.removeChild(h);
+      // Leave fullscreen with the demo. Esc already drops it on a desktop (the
+      // browser does that itself, which is why the exit listener below also
+      // treats a fullscreen exit as "stop"), but a tap-to-stop on a phone
+      // would otherwise leave the viewer in a fullscreen menu-less street.
+      try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); } catch (e) {}
       // Back to a street you can actually play, rather than stranding the
       // viewer in a half-lit HUD: the engine is already running, so this is
       // the ordinary game from here.
@@ -1300,6 +1395,11 @@
     };
     addEventListener('keydown', function (e) { if (e.code === 'Escape') stop(); });
     document.addEventListener('pointerdown', function () { if (demoing && IS_TOUCH) stop(); }, true);
+    // Esc in fullscreen is eaten by the browser to exit fullscreen, so the
+    // keydown above may never arrive — the fullscreen exit IS the intent.
+    document.addEventListener('fullscreenchange', function () {
+      if (demoing && !document.fullscreenElement) stop();
+    });
   }
   if (demoBtn) demoBtn.addEventListener('click', startDemo);
 
