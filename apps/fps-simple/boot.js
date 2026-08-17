@@ -104,6 +104,7 @@
   var bar = document.getElementById('gate-bar');
   var note = document.getElementById('gate-note');
   var go = document.getElementById('gate-go');
+  var demoBtn = document.getElementById('gate-demo');
 
   // Phones cannot be driven by a debugger here (CDP is a wall on this device),
   // so every phase stamps a line the console — and therefore adb logcat — can
@@ -528,6 +529,7 @@
   NetplaySystem.prototype.update = function (dt, context) {
     autoScaleTick(dt);
     if (touch) touch.tick();
+    minimapBlips(context);
     if (!root.Net.live()) return;
     root.Remote.sync();
     // The moment this stops being a solo game, the soldiers go. See
@@ -540,6 +542,83 @@
     if (dead && Date.now() >= respawnAt) doRespawn();
     updateTally();
   };
+
+  /* ------------------------------------------------------------------ */
+  /* the minimap's red dots                                             */
+  /* ------------------------------------------------------------------ */
+
+  // NOBODY WAS EVER TELLING THE MINIMAP WHERE THE ENEMY WAS.
+  //
+  // The engine draws red blips perfectly well — ui.setBlips() fills them and
+  // the minimap paints anything whose kind is not 'friend' in red. But
+  // setBlips is called in exactly ONE place in the whole engine: the HUD's
+  // own DEMO state, with a hardcoded {x:-2,z:4}. Upstream's main.js is a
+  // capture harness we deliberately do not use (see vendor.mjs), so in the
+  // real game the array stayed empty forever and the map showed the street,
+  // your arrow and nothing else. Reported by a player: "impossible to see
+  // where enemies are shooting from".
+  //
+  // WHAT REVEALS A SHOOTER, and why this is the honest signal: the same thing
+  // that reveals one in the game this is modelled on — FIRING. Not presence.
+  // Blipping every living soldier would be a wallhack and would make the
+  // street trivial; blipping the ones who just shot is the actual mechanic,
+  // and it is what the player asked for.
+  //
+  // The signal is the ballistics sim's live rounds, NOT the audio: a muted
+  // game must still show the dots. Each round carries pos, dir and how far it
+  // has travelled, so its ORIGIN is pos - dir * travelled — the muzzle it
+  // came from. Rounds that started at our own muzzle are ours and are
+  // skipped, which is also what stops the map painting a dot on yourself
+  // every time you pull the trigger.
+  var BLIP_TTL_MS = 2600;   // how long a shot keeps its dot — about a CoD ping
+  var BLIP_MAX = 12;
+  var blipRing = [];
+  var _bo = null;           // scratch: the recovered origin
+  function minimapBlips(ctx) {
+    var ui = ctx.peek('ui');
+    if (!ui || !ui.setBlips) return;
+    var now = Date.now();
+    try {
+      var w = ctx.peek('weapons');
+      var live = w && w.sim && w.sim.live;
+      // OUR pose, not peek('player') — that system carries movement/rig/health
+      // and no world position. __FPS_POSE__ is the one net.js publishes from,
+      // so it is the same position the rest of this app already trusts.
+      var mp = root.__FPS_POSE__ ? root.__FPS_POSE__() : null;
+      if (live && live.length) {
+        for (var i = 0; i < live.length; i++) {
+          var r = live[i];
+          if (!r || !r.alive || !r.pos || !r.dir) continue;
+          if (!_bo) _bo = r.pos.clone();
+          _bo.copy(r.pos).addScaledVector(r.dir, -(r.travelled || 0));
+          // Ours. The muzzle is a couple of metres from the camera, and a
+          // round that has not gone anywhere yet is still sitting on it.
+          if (mp && Math.abs(_bo.x - mp.x) < 3.5 && Math.abs(_bo.z - mp.z) < 3.5) continue;
+          // One dot per shooter-ish position: a burst is one contact, not
+          // five dots stacked into a brighter one.
+          var merged = false;
+          for (var j = 0; j < blipRing.length; j++) {
+            var b = blipRing[j];
+            if (Math.abs(b.x - _bo.x) < 2.5 && Math.abs(b.z - _bo.z) < 2.5) {
+              b.at = now; merged = true; break;
+            }
+          }
+          if (!merged) blipRing.push({ x: _bo.x, z: _bo.z, at: now });
+        }
+      }
+    } catch (e) { /* a missing system is not worth a frame */ }
+    // Expire, cap, publish. setBlips copies what it needs, so handing it a
+    // fresh array each frame costs nothing it does not already pay.
+    var out = [];
+    for (var k = blipRing.length - 1; k >= 0; k--) {
+      if (now - blipRing[k].at > BLIP_TTL_MS) blipRing.splice(k, 1);
+    }
+    if (blipRing.length > BLIP_MAX) blipRing.splice(0, blipRing.length - BLIP_MAX);
+    for (var m = 0; m < blipRing.length; m++) {
+      out.push({ x: blipRing[m].x, z: blipRing[m].z, kind: 'enemy', heading: 0 });
+    }
+    try { ui.setBlips(out); } catch (e) { /* ditto */ }
+  }
 
   // Somebody's browser says they shot me. We are the authority on what that
   // costs us — see the note in net.js about why the target decides. The wound
@@ -1075,6 +1154,7 @@
         ? 'Ready — reused ' + restored.tex + ' saved surfaces. Detail keeps sharpening as you play.'
         : 'Ready — the street is built. Detail keeps sharpening as you play.', 1);
       gate.classList.add('ready');
+      if (demoBtn) demoBtn.disabled = false;
       if (useCache) {                                   // nobody waits on these now
         // …but the REPORT waits, because the note above is written BEFORE this
         // line and therefore always said pending=27, flush="" — a snapshot of
@@ -1156,6 +1236,73 @@
   // is a loading screen the whole way instead of a black one, and the tap gets
   // an answer immediately.
   var starting = false;
+  /* ---- watch the demo -------------------------------------------------- */
+  //
+  // The engine ships a full combat DEMO and nothing has ever run it: a scripted
+  // timeline of weapon fire, hit arcs, killfeed, banners, grenade markers,
+  // damage numbers and reloads, driven from ui.debugState('combat'). It LOOPS
+  // by construction (its update runs `frame++ % LOOP`), so it needs no restart
+  // logic from us — which is exactly what makes it usable as a screensaver or
+  // on a shop display, and is why it earns a button instead of staying dead
+  // code that only upstream's capture harness ever saw.
+  //
+  // It is NOT a second Play: state.simulate is true for its duration, which
+  // makes the HUD read from the script instead of from the player, and the
+  // engine's own weapon:fire handler bows out while it is set. So the demo
+  // never pretends to be a game you are playing, and leaving it is one press.
+  var demoing = false;
+  function startDemo() {
+    if (starting || demoing) return;
+    demoing = true;
+    if (demoBtn) { demoBtn.disabled = true; demoBtn.textContent = 'Starting…'; }
+    go.disabled = true;
+    say('Starting the demo…', null);
+    engine.start();
+    // Audio inside the gesture, same as Play — a demo on a shop display with no
+    // sound is half a demo. No pointer lock and no fullscreen: nobody is aiming.
+    if (root.__AUDIO__ && root.__AUDIO__.start) {
+      try { root.__AUDIO__.setMasterVolume(0); } catch (e) {}
+      root.__AUDIO__.start().catch(function () {});
+    }
+    var armed = false;
+    var arm = function () {
+      if (armed) return;
+      var u = ctx && ctx.peek && ctx.peek('ui');
+      if (!u || !u.debugState) return;
+      armed = true;
+      try { u.debugState('combat'); } catch (e) { /* a demo is never worth a crash */ }
+      reveal();
+      try { if (root.__AUDIO__) root.__AUDIO__.setMasterVolume(1); } catch (e) {}
+      var hint = document.createElement('div');
+      hint.id = 'demo-exit';
+      hint.textContent = IS_TOUCH ? 'Demo — tap to stop' : 'Demo — press Esc to stop';
+      document.body.appendChild(hint);
+      setTimeout(function () { if (hint.parentNode) hint.style.opacity = '0'; }, 6000);
+    };
+    // The world may already be built (Play was lit), but the UI system is only
+    // reachable once the engine has run a tick, so poll briefly rather than
+    // assume an ordering.
+    var tries = 0;
+    var t = setInterval(function () {
+      arm();
+      if (armed || ++tries > 200) clearInterval(t);
+    }, 100);
+    var stop = function () {
+      if (!demoing) return;
+      demoing = false;
+      try { var u = ctx.peek('ui'); if (u && u.debugState) u.debugState('clean'); } catch (e) {}
+      var h = document.getElementById('demo-exit');
+      if (h && h.parentNode) h.parentNode.removeChild(h);
+      // Back to a street you can actually play, rather than stranding the
+      // viewer in a half-lit HUD: the engine is already running, so this is
+      // the ordinary game from here.
+      try { if (!IS_TOUCH) engine.input.requestPointerLock(); } catch (e) {}
+    };
+    addEventListener('keydown', function (e) { if (e.code === 'Escape') stop(); });
+    document.addEventListener('pointerdown', function () { if (demoing && IS_TOUCH) stop(); }, true);
+  }
+  if (demoBtn) demoBtn.addEventListener('click', startDemo);
+
   go.addEventListener('click', function (ev) {
     if (starting) return;                     // a second tap must not re-enter
     starting = true;
