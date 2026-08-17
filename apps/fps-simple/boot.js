@@ -304,6 +304,11 @@
               // 2000-4000 node constructions a second and does not recover. This
               // device gets the tightest cap.
               voiceRate: 12, soundBudgetWindow: 1 / 20,
+              // And when the context wedges anyway — measured: once its render
+              // clock slips below real time the speakers go SILENT, not quiet,
+              // and it never recovers unaided — the engine's watchdog kicks it
+              // back to life (see the audioHeal patch in vendor.mjs).
+              audioHeal: true,
               // A ten-minute game got worse the longer it ran: 1/120 s with up
               // to eight substeps means a slow frame earns MORE physics, which
               // slows the next one. Measured f:physics 0.61 ms/frame at two
@@ -345,6 +350,15 @@
               // collapse to dips that recover (measured at 25: stolen 1379 -> 6,
               // dropped 741 -> 0).
               voiceRate: 20, soundBudgetWindow: 1 / 30,
+              // The cap softens the collapse but cannot prevent it, and it was
+              // measured to be neither the cause nor the cure: with it removed
+              // the same session went from a 7.9 s render-clock deficit to a
+              // 30.5 s one and not one fire window reached the speakers. What
+              // brings the sound back is the watchdog (audioHeal in
+              // vendor.mjs): a wedged context is cycled, a re-wedged one is
+              // rebuilt on a fresh context. Both kicks were proven on a
+              // microphone physically listening to the speakers.
+              audioHeal: true,
               fixedStep: 1 / 60, maxSubsteps: 3, hudMinScale: 1.0 };
     }
     return s;
