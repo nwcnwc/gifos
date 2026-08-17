@@ -338,6 +338,44 @@ const RELEASE = ({ sel }) => {
   await sleep(2000);
   check('on a mouse machine the touch controls never appear',
     await desk.frame.evaluate(() => document.getElementById('touch').hidden && !document.body.classList.contains('touch')));
+  await dCtx.close();
+
+  /* ---- A TOUCHSCREEN LAPTOP IS A MOUSE MACHINE --------------------------- */
+  // The gap between the two contexts above: one has no touch at all, the other
+  // is a phone. A touchscreen laptop / 2-in-1 / touchscreen Chromebook is BOTH
+  // — maxTouchPoints > 0 with a FINE primary pointer — and it was reported
+  // (2026-08-17) as "the mouse goes in and out of working", because the app
+  // read "can accept a finger" as "is a phone" and never asked for the pointer
+  // lock that mouselook is made of. The person is holding a mouse; the fact
+  // that they COULD also touch the screen changes nothing until they do.
+  const hCtx = await browser.newContext({
+    viewport: { width: 1440, height: 900 }, hasTouch: true, isMobile: false,
+  });
+  await hCtx.addInitScript({ content: INIT });
+  const hyb = await openApp(hCtx, 'hybrid');
+  const hybPre = await hyb.frame.evaluate(() => ({
+    touchPoints: navigator.maxTouchPoints,
+    coarse: matchMedia('(pointer: coarse)').matches,
+    bodyTouch: document.body.classList.contains('touch'),
+  }));
+  check('the hybrid really is the hard case: it takes touch AND points fine',
+    hybPre.touchPoints > 0 && hybPre.coarse === false, JSON.stringify(hybPre));
+  check('…so the thumb HUD does not pre-empt the desktop layout', hybPre.bodyTouch === false);
+  // The invariant that matters: Play asks for the pointer. Asserted through the
+  // engine's own request path (the same one touch.js wraps), so a future
+  // regression that bans the lock on any touch-capable screen fails here.
+  await hyb.run.evaluate(() => { window.__lockAsks = 0; }).catch(() => {});
+  const asked = await hyb.frame.evaluate(() => {
+    const inp = window.__FPS__ && window.__FPS__.engine && window.__FPS__.engine.input;
+    if (!inp || !inp.requestPointerLock) return 'no input';
+    let n = 0; const orig = inp.requestPointerLock.bind(inp);
+    inp.requestPointerLock = function () { n++; return orig(); };
+    inp.requestPointerLock();
+    return n === 1 ? 'asked' : 'swallowed';
+  });
+  check('a touchscreen laptop is still asked for the pointer — mouselook needs the lock',
+    asked === 'asked', String(asked));
+  await hCtx.close();
 
   } finally {
     await browser.close().catch(() => {});
