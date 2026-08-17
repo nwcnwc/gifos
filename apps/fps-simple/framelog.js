@@ -47,6 +47,47 @@
   // gate is still there. So the app records what it was actually handed, and the
   // difference between that and where the button is says whether the harness is
   // aiming wrong or the page is lying about where its button is.
+  // THE POINTER THAT GOES IN AND OUT OF WORKING (reported on a Chromebook,
+  // 2026-08-17): mouselook lives and dies with pointer lock, and a lock that
+  // drops silently mid-fight IS "the mouse stopped working" — the game keeps
+  // rendering, the cursor is just no longer captured, and nothing on screen
+  // says so. The forensic that settles WHY is the ~2 s of input immediately
+  // before each transition: an Esc keydown is the browser's own exit, a blur
+  // is a focus steal (notification, window manager), a fullscreenchange is the
+  // browser tying lock to fullscreen, an unlock with NOTHING before it is the
+  // compositor/OS dropping it on its own — four different bugs, and the ring
+  // tells them apart from a single minute of play.
+  var plLog = [], plRecent = [], plLocks = 0, plDrops = 0, plErrs = 0;
+  function plNote(what) {
+    var t = root.performance ? performance.now() : Date.now();
+    plRecent.push({ t: t, ev: what });
+    if (plRecent.length > 10) plRecent.shift();
+  }
+  function watchPointerLock() {
+    ['keydown', 'mousedown', 'blur', 'focus', 'visibilitychange', 'fullscreenchange'].forEach(function (ev) {
+      var tgt = (ev === 'blur' || ev === 'focus') ? root : document;
+      tgt.addEventListener(ev, function (e) {
+        plNote(ev === 'keydown' ? 'key:' + e.code
+          : ev === 'visibilitychange' ? 'vis:' + document.visibilityState
+          : ev === 'fullscreenchange' ? 'fs:' + (document.fullscreenElement ? 'in' : 'out')
+          : ev);
+      }, true);
+    });
+    ['pointerlockchange', 'pointerlockerror'].forEach(function (ev) {
+      document.addEventListener(ev, function () {
+        var t = root.performance ? performance.now() : Date.now();
+        var to = ev === 'pointerlockerror' ? 'ERROR'
+          : (document.pointerLockElement ? 'lock' : 'unlock');
+        if (to === 'lock') plLocks++; else if (to === 'unlock') plDrops++; else plErrs++;
+        var before = plRecent.filter(function (r) { return t - r.t < 2000; })
+          .map(function (r) { return r.ev + '@-' + ((t - r.t) / 1000).toFixed(1); }).join(' ');
+        plLog.push(Math.round(t / 100) / 10 + 's ' + to + (before ? ' after[' + before + ']' : ' after[nothing]'));
+        if (plLog.length > 24) plLog.shift();
+        publish();   // a drop is exactly the moment worth surviving a tab close
+      });
+    });
+  }
+
   var lastTap = null, tapCount = 0;
   function watchTaps() {
     ['pointerdown', 'touchstart'].forEach(function (ev) {
@@ -331,6 +372,11 @@
       render: renderStats(),
       tap: lastTap,
       taps: tapCount,
+      // Pointer-lock lifecycle: cycles say HOW flaky, the transition ring says
+      // WHY — each entry carries the 2 s of input that preceded it.
+      plock: (plLocks || plDrops || plErrs)
+        ? { locks: plLocks, drops: plDrops, errs: plErrs, log: plLog.slice(-12) }
+        : null,
     };
   }
 
@@ -430,6 +476,7 @@
 
   wrapRAF();
   watchTaps();      // before the gate clears — the tap that misses is the point
+  watchPointerLock();   // from the first moment — the drop nobody saw is the point
   // HEARTBEAT. Without one, "framelog never published" and "no tap ever
   // reached this document" are the same silence, and I have now spent an hour
   // telling them apart the slow way. gifos.db is not up at parse time, so the
