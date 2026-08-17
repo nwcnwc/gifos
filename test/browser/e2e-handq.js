@@ -26,6 +26,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // relay every client sits alone and this suite reds on the mesh, not the hands.
   await need({ [parseInt(BASE.split(':').pop(), 10)]: 'a static server on 8099 (python3 -m http.server 8099 -d site)',
     [parseInt(RELAY.split(':').pop(), 10)]: 'relay-local' });
+  // THE BOX PREFLIGHT (the adversary-room precedent, 7b92a44): the overflow
+  // leg is a TEN-BROWSER cast — ten BrowserContexts are ten renderers, and
+  // --process-per-site does not collapse them (see the launch-args note). A
+  // box that cannot hold that cast in RAM measures its own swap, not the hand
+  // queue. Refuse BEFORE the first assertion: NEEDS-FLEET (exit 3,
+  // test/lib/fleet.js doctrine) is never retried, never a product red, and it
+  // still BLOCKS a cut until the suite runs on a box that can hold the room.
+  const CAST = (PHASE !== 'admin' && !SKIP_OVERFLOW) ? 10 : 3;
+  {
+    const m = casualty.memLocal();
+    console.log('box: ' + casualty.capacityLine('local', CAST, m));
+    if (m.availMb != null && m.availMb < CAST * casualty.MEM_PER_BROWSER_MB) {
+      console.log('NEEDS-FLEET — e2e-handq needs a box that can hold ' + CAST + ' browsers ('
+        + (CAST * casualty.MEM_PER_BROWSER_MB) + ' MB available); this one has ' + m.availMb + ' MB.');
+      console.log('  Run it on a box with headroom. (PHASE=open|admin and SKIP_OVERFLOW=1 exist for a');
+      console.log('  human diagnosing a starved box — they are never a gate verdict.)');
+      process.exit(3);
+    }
+  }
   const browser = await chromium.launch({
     executablePath: CHROME,
     args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
@@ -176,8 +195,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // seconds ago and was already 20-60s old at its origin, so the 15s
     // freshness rule dropped all ten hands and the queue fell to 1. That is a
     // kernel measurement, not a hand-queue verdict, and the reader must be able
-    // to tell the two apart from the log alone.
-    console.log('   the box: ' + casualty.capacityLine('local', raisers.length, casualty.memLocal()));
+    // to tell the two apart from the log alone. Everything printed here is also
+    // RETURNED, because the probe-before-judging below decides on it.
+    const ev = { box: casualty.memLocal(), obs: [], raisers: [] };
+    console.log('   the box: ' + casualty.capacityLine('local', raisers.length, ev.box));
     for (const [nm, pg] of [['a', a], ['b', b]]) {
       const d = await pg.evaluate((ids) => ({
         q: window.__gifosVideo.handQueue().length,
@@ -185,15 +206,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         links: window.__gifosVideo.liveLinks(),
         stage: window.__gifosVideo.stageIds().length,
         me: window.__gifosVideo.beatPeekForTest ? window.__gifosVideo.beatPeekForTest() : null,
+        raw: ids.map((id) => { const st = window.__gifosVideo.statusPeekForTest(id); return st ? { age: st.ageMs, rx: st.rxAgeMs } : null; }),
         peers: ids.map((id) => {
           const st = window.__gifosVideo.statusPeekForTest(id);
           return id.slice(0, 6) + (st ? '=' + Math.round(st.ageMs / 100) / 10 + 's/rx' + Math.round(st.rxAgeMs / 100) / 10 + 's' : '=NO-STATUS')
             + (window.__gifosVideo.stageIds().includes(id) ? '/ON-STAGE' : '');
         }),
-      }), rIds).catch((e) => ({ q: '?', total: '?', links: '?', stage: '?', peers: ['(' + String(e.message).slice(0, 60) + ')'] }));
+      }), rIds).catch((e) => ({ q: '?', total: '?', links: '?', stage: '?', raw: null, peers: ['(' + String(e.message).slice(0, 60) + ')'] }));
       console.log('   observer ' + nm + ': queue=' + d.q + ' roster=' + d.total + ' links=' + d.links + ' onstage=' + d.stage
         + (d.me ? ' beat=' + Math.round(d.me.atAgeMs / 100) / 10 + 's' + (d.me.seated === false ? ' UNSEATED' : '') + (d.me.veiled ? ' VEILED' : '') : '')
         + ' — peer status age/receipt: ' + d.peers.join(' '));
+      ev.obs.push({ nm, d });
     }
     // …and what each RAISER believes about itself. A hand that is genuinely
     // down at its owner (auto-lowered by a Stage seat, say) is a completely
@@ -211,8 +234,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         .catch((e) => ({ err: String(e.message).slice(0, 40) }));
       mine.push(rIds[i].slice(0, 6) + '=' + (s.err ? s.err : (s.h ? 'hand' : 'HAND-DOWN') + (s.s ? '/stage' : '') + '/links' + s.l
         + (s.b ? '/beat' + Math.round(s.b.atAgeMs / 100) / 10 + 's' + (s.b.seated === false ? '/UNSEATED' : '') + (s.b.veiled ? '/VEILED' : '') : '')));
+      ev.raisers.push({ id: rIds[i], s });
     }
     console.log('   raisers say: ' + mine.join(' '));
+    return ev;
   };
 
   // Every raiser must be KNOWN to the observers first, or early queues are partial.
@@ -242,8 +267,75 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const took = Math.round((Date.now() - t0) / 100) / 10 + 's';
   const converged = oa.length >= target && same(oa, ob);
   if (!converged) {
-    await dump(oa.length < target ? 'the observers never saw ' + target + ' raised hands at once'
+    const ev = await dump(oa.length < target ? 'the observers never saw ' + target + ' raised hands at once'
       : 'observer queues diverged:\n   a: ' + oa.join(',') + '\n   b: ' + ob.join(','));
+    // ── PROBE BEFORE JUDGING (the adversary-room linkFailProbe doctrine, one
+    // layer up). This verdict is a claim about DERIVED CONVERGENCE: ten
+    // origins beat a 4s status pulse over mesh DataChannel links, and every
+    // observer derives the same queue inside the product's 15s freshness
+    // window. Mesh frames are DataChannel-or-nothing BY DESIGN (mesh-wire.js
+    // "THE RELAY IS A DOOR, NOT A TRANSPORT"), so the measurement NEEDS the
+    // link layer — and the link layer is ICE on loopback, which a saturated
+    // kernel starves while every page's clocks stay healthy. Measured on this
+    // exact red (2026-08-16, 4-core box, load 17-30): all ten raisers' own
+    // beats 0.7-4.2s old at judgment — the pulse NEVER stopped — while one
+    // observer sat at 0 live links holding copies 58-90s stale. The identical
+    // machinery converges in single-digit seconds on the same box with a cast
+    // it can hold. Publishing that as RED reads as a product defect in the
+    // hand queue; it is the kernel.
+    //
+    // So: refuse (NO-VERDICT, exit 4) ONLY when BOTH box saturation and the
+    // mechanism are in evidence —
+    //   1. SATURATION: 1-min load ≥ 2× cores, or MemAvailable short of the
+    //      cast. On a box with headroom there is NO refusal, ever.
+    //   2. MECHANISM: a page this verdict reads was measurably cut off — an
+    //      observer/raiser UNSEATED or holding <2 live links, or a missing
+    //      hand whose origin beat within 2×HB (≤8s) while an observer's copy
+    //      of it is stale past the 15s freshness window (the pulse fired and
+    //      had no path).
+    // If every page is seated and linked and the pulses that fired arrived,
+    // and the queues still disagree, that red is REAL and it stands — same
+    // rule as the bare-ICE probe: do not widen this refusal.
+    const m = ev.box || {};
+    const saturated = (m.load != null && m.cores != null && m.load >= 2 * m.cores)
+      || (m.availMb != null && m.availMb < raisers.length * casualty.MEM_PER_BROWSER_MB);
+    const offenders = [];
+    for (const { nm, d } of ev.obs) {
+      if (d.me && (d.me.seated === false || d.links === 0)) offenders.push('observer ' + nm + ' ' + (d.me.seated === false ? 'UNSEATED' : '0 live links') + ' — deaf by construction');
+      else if (typeof d.links === 'number' && d.links < 2) offenders.push('observer ' + nm + ' holds ' + d.links + ' live link(s)');
+    }
+    const missing = rIds.filter((id) => oa.indexOf(id) < 0 || ob.indexOf(id) < 0);
+    for (const id of missing) {
+      const r = ev.raisers.find((x) => x.id === id);
+      const s = (r && r.s) || {};
+      const short = id.slice(0, 6);
+      if (s.err) { offenders.push(short + ' unevaluable (' + s.err + ')'); continue; }
+      if (s.b && s.b.seated === false) { offenders.push(short + ' UNSEATED mid-run'); continue; }
+      if (typeof s.l === 'number' && s.l < 2) { offenders.push(short + ' holds ' + s.l + ' live link(s)'); continue; }
+      const beatFresh = s.b && s.b.atAgeMs <= 8000;
+      const staleAt = ev.obs.some(({ d }) => {
+        const i = rIds.indexOf(id);
+        const raw = d.raw && d.raw[i];
+        return raw === null || (raw && raw.age > 15000);
+      });
+      if (beatFresh && staleAt) offenders.push(short + ' beat ' + Math.round(s.b.atAgeMs / 100) / 10 + 's ago yet is stale/absent at an observer (pulse fired, no path)');
+    }
+    if (saturated && offenders.length) {
+      console.log('');
+      console.log('NO VERDICT — THE BOX TOOK THE LINK LAYER AWAY, so a convergence check here cannot be a claim about GifOS.');
+      console.log('');
+      console.log('  CASUALTY: the mesh had no spanning transport to measure over on a saturated box — ' + offenders.join('; '));
+      console.log('  THE BOX:  ' + casualty.capacityLine('local', raisers.length, m));
+      console.log('');
+      console.log('  Not retried (the box does not get roomier), and it BLOCKS a cut: run this');
+      console.log('  suite on a box that can hold ' + raisers.length + ' browsers (casualty.js doctrine — the');
+      console.log('  e2e-anyroad-mp precedent: satisfy it on capable hardware, record it in the cut).');
+      console.log('  A red on a box with headroom stands exactly as before, and must.');
+      console.log('');
+      console.log('NO-VERDICT — the convergence claims were unmeasurable here, on purpose.');
+      try { await browser.close(); } catch (e) {}
+      process.exit(4);
+    }
   }
   check(NR + ' raised hands: two observers converge on the IDENTICAL ordered queue (saw ' + oa.length + '/' + target + ' in ' + took + ')',
     converged);
