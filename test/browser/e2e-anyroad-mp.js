@@ -100,8 +100,15 @@ async function run(MODE) {
   });
   const LAUNCH_ARGS = [
       // No GPU on the gate box; without a software rasteriser there is no WebGL
-      // context at all and the app would correctly refuse to run.
-      '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+      // context at all and the app would correctly refuse to run. But this
+      // FORCES software even where a GPU exists, and that is not free: a box
+      // rendering three worlds in software spends its main thread there, and
+      // this suite's steering assertions read a physics sim that advances per
+      // RENDERED FRAME. ANYROAD_GL=hw asks for the real GPU on boxes that have
+      // one — which is also what every player has.
+      ...(process.env.ANYROAD_GL === 'hw'
+        ? ['--ignore-gpu-blocklist', '--enable-gpu-rasterization']
+        : ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']),
       '--disable-features=WebRtcHideLocalIpsWithMdns',
       '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
       '--autoplay-policy=no-user-gesture-required',
