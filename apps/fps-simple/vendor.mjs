@@ -619,6 +619,77 @@ const PATCHES = [
     why: 'give every voice a wall-clock deadline as well as an audio-clock one',
   },
   {
+    // THE VOICE ITSELF IS THE COST, so stop paying it per shot.
+    //
+    // Measured to the end: the render thread burns ~1000 ms of CPU per second
+    // in combat because every gunshot is ~40 nodes of live synthesis with
+    // a-rate envelopes, and on a laptop whose sustained power limit halves its
+    // clock ten seconds in, 10-16 such voices exceed a whole core — at which
+    // point Chrome plays silence. No knob prevents that (equalpower, no
+    // reverb, an 8-voice cap: all measured, all still pinned at capacity
+    // 0.999), because the per-voice DSP is the load.
+    //
+    // But this engine's own doctrine is that everything is generated and
+    // comes out the same every time, and dsp.js is written against
+    // BaseAudioContext precisely so a voice renders identically in an
+    // OfflineAudioContext (upstream's selftest does exactly that). So: hand
+    // _build a cache. A hit plays a PRE-RENDERED buffer — one source node and
+    // maybe a gain, microseconds of render cost — and a miss builds live
+    // exactly as upstream while the cache renders that voice offline for next
+    // time. The policy (keys, variants, trimming, eviction) lives in the app
+    // beside the other caches (voicecache.js); this is only the seam.
+    // Unset, this is upstream exactly.
+    file: 'src/audio/index.js',
+    find: /(_build\(kind, when, dist, o\) \{\n)(\s*)(const \{ actx, bank \} = this;)/,
+    replace: (m, head, sp, destructure) =>
+      `${head}${sp}const _vq = this.ctx.config.q;\n`
+      + `${sp}if (_vq.voiceCache && !this._voOffline) {\n`
+      + `${sp}  const _vhit = _vq.voiceCache.get(this, kind, when, dist, o);\n`
+      + `${sp}  if (_vhit) return _vhit;\n`
+      + `${sp}}\n`
+      + `${sp}${destructure}`,
+    why: 'let a pre-rendered voice be handed back instead of 40 nodes of live synthesis per shot',
+  },
+  {
+    // …and the renderer for the misses: build the SAME voice with the SAME
+    // builders on an OfflineAudioContext and resolve its finished buffer.
+    // The actx/bank swap is safe because everything here is synchronous until
+    // startRendering, and _voOffline keeps _build from consulting the cache
+    // for the render itself.
+    file: 'src/audio/index.js',
+    find: /(\n  _error\(err\) \{)/,
+    replace: (m, tail) => `
+  /**
+   * Render one voice offline into an AudioBuffer. Used by the voice cache
+   * (config.q.voiceCache — see the seam in _build). Resolves null on any
+   * failure; the caller just keeps building live.
+   */
+  _voRender(kind, dist, o, seconds) {
+    const OAC = globalThis.OfflineAudioContext;
+    if (!OAC || !this.actx || !this.running) return Promise.resolve(null);
+    const liveA = this.actx, liveB = this.bank;
+    let oc, v;
+    try {
+      oc = new OAC(2, Math.max(256, Math.ceil(seconds * liveA.sampleRate)), liveA.sampleRate);
+      this._voOffline = true;
+      this.actx = oc;
+      this.bank = new NoiseBank(oc, this.rng.fork(), 2.4);
+      v = this._build(kind, 0.02, dist, o);
+      v.node.connect(oc.destination);
+    } catch (err) {
+      return Promise.resolve(null);
+    } finally {
+      this.actx = liveA; this.bank = liveB; this._voOffline = false;
+    }
+    return oc.startRendering().then(
+      (buffer) => ({ buffer, send: v.send, end: v.end }),
+      () => null
+    );
+  }
+${tail}`,
+    why: 'render a voice offline with its own builders, so the cache serves the real sound',
+  },
+  {
     // A CEILING ON CONCURRENTLY ACTIVE SPATIAL VOICES, set by the watchdog
     // when the machine proves it cannot afford more (see _heal in index.js).
     // The render thread's cost is per ACTIVE voice per rendered second —
