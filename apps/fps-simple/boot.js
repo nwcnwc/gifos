@@ -79,19 +79,27 @@
   // and laid the thumb HUD over a desktop. Reported on a touchscreen
   // Chromebook, 2026-08-17.
   //
-  // The right question was already being asked one function away — checkAiming
-  // uses `(pointer: coarse)`, which is the PRIMARY pointing device, and the
-  // comment on the body.touch line below says "a coarse pointer is known
-  // before anything is touched". So ask that, and keep maxTouchPoints only as
-  // the fallback for a browser too old for the media query.
+  // BOTH SIGNALS, because each one alone has been WRONG here in production:
+  //
+  //   * `maxTouchPoints > 0` alone — what shipped — is true of every
+  //     touchscreen laptop and Chromebook, and took the phone path on them.
+  //   * `(pointer: coarse)` alone was tried and REVERTED for a real reason,
+  //     recorded at the Play handler below: the media query is something
+  //     browsers answer for LAYOUT, and it matched in a headless desktop
+  //     context, which is not a statement about the hardware.
+  //
+  // So require the hardware AND the intent: a touch digitiser exists, and the
+  // primary pointer really is coarse. That is exactly "the person is pointing
+  // with a thumb", and it is right in all four corners — phone (true), a
+  // touchscreen laptop (false: fine primary), the headless desktop that fooled
+  // the media query (false: no digitiser), plain desktop (false).
   //
   // A hybrid therefore gets the DESKTOP contract — lock the pointer, leave the
   // window alone — and loses nothing: touch.js reveals the thumb controls on
   // the first real touchstart and sheds the lock in the same breath, so a
-  // finger on a touchscreen laptop still works, and only then.
-  var IS_TOUCH = (root.matchMedia && root.matchMedia('(pointer: coarse)').media === '(pointer: coarse)')
-    ? root.matchMedia('(pointer: coarse)').matches
-    : (navigator.maxTouchPoints || 0) > 0;
+  // finger on a touchscreen laptop still works, and only once there is one.
+  var COARSE = !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches);
+  var IS_TOUCH = (navigator.maxTouchPoints || 0) > 0 && COARSE;
   var gate = document.getElementById('gate');
   var bar = document.getElementById('gate-bar');
   var note = document.getElementById('gate-note');
@@ -1187,9 +1195,12 @@
     // nothing to gain from fullscreen (F11 is right there), while a touchscreen
     // has no pointer to lock and is unplayable in a portrait strip.
     //
-    // maxTouchPoints, not `(pointer: coarse)`: the media query is something
-    // browsers answer for layout and it matched in a headless desktop context,
-    // which is not a statement about the hardware. (I also briefly recorded
+    // maxTouchPoints, not `(pointer: coarse)` ALONE: the media query is
+    // something browsers answer for layout and it matched in a headless desktop
+    // context, which is not a statement about the hardware. That lesson stands
+    // and is why IS_TOUCH still requires a digitiser — but maxTouchPoints alone
+    // was ALSO wrong, on every touchscreen laptop, so IS_TOUCH now demands both
+    // (see its definition at the top). (I also briefly recorded
     // here that entering fullscreen RELEASES the lock — that was wrong. The red
     // lock assertion those runs were chasing turned out to be a stale app
     // catalog breaking the desktop mount entirely, and it is green with this
