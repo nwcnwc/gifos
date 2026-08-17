@@ -658,9 +658,24 @@ async function deathmatch() {
           await sleep(2000);
         }
         console.log('  [Bob] warm-boot primed (world built once, caches filled)');
-        // Shed the heavy primed page before the real join: navigating a page
-        // that still holds a built world can outlive a 30s load timeout.
-        await bRun.goto('about:blank', { timeout: 30000 }).catch(() => {});
+        // SHED THE PRIMED PAGE BY CLOSING IT, NOT BY NAVIGATING IT.
+        //
+        // Navigating was tried and MEASURED FAILING (2026-08-17): about:blank
+        // came back, and the very next goto — version.json, 400 bytes off
+        // loopback — timed out at 60s on a phone that had answered the same
+        // request in 313ms an hour earlier. A navigated page unloads INSIDE
+        // its own renderer, and that renderer is still holding a built 3D
+        // world, its worker and a few hundred MB on a 4 GB device; the unload
+        // queues behind all of it. Closing the tab hands the teardown to the
+        // BROWSER process instead, which does not have to wait for the game's
+        // main thread, and hands the memory back with it.
+        //
+        // A fresh tab is also the honest shape for what the primer models: a
+        // player who built this street once, closed the game, and comes back.
+        await bRun.close().catch(() => {});
+        await sleep(3000);            // let the device actually get the memory back
+        bRun = await bobCtx.newPage();
+        await bRun.bringToFront().catch(() => {});
       }
       await bRun.goto(BOB_BASE + '/version.json', { timeout: 60000, waitUntil: 'domcontentloaded' });
       await bRun.evaluate(([relay, name]) => {
