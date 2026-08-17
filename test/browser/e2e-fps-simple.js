@@ -548,6 +548,25 @@ async function deathmatch() {
   const boxes = await openFleet(fleet.hosts.slice(0, BOB_CDP ? 1 : 2), { args: ARGS, origin: BASE });
   let bobBrowser = null;   // the phone's CDP connection, when there is one
 
+  // THE HARNESS HAS NO THUMB, AND A PLAYER DOES.
+  //
+  // run.html parks a phone after three minutes with no touch and no speech —
+  // nobody is holding this one — and releases its wake lock. This suite starts
+  // the game through the app's autostart pref and scripted clicks, none of
+  // which is a touch, so on a run long enough to build a world the container
+  // correctly concluded its owner had walked away. Measured here, twice,
+  // immediately before the failure it caused:
+  //   [Bob room] … dc=closed/disconnected stAge=179348 😴 Phone looks parked
+  //
+  // So say what is true: a person is playing. pokeForTest is the host page's
+  // own "a touch or a word happened" hook. It is NOT standing in for the
+  // product path — a real thumb reaches the container through the app frame's
+  // `uiactive` ping, and that law has its own guard in e2e-app-touch-awake.js,
+  // where it is asserted instead of assumed.
+  const stayPresent = (pg) => pg.evaluate(() => {
+    try { window.__gifosVideo.pokeForTest(); } catch (e) {}
+  }).catch(() => {});
+
   try {
     console.log('=== DEATHMATCH  (Alice on ' + (boxes[0].host.name || boxes[0].host.ssh)
       + ', Bob on ' + (BOB_CDP ? 'the phone at FPS_BOB_CDP' : (boxes[1].host.name || boxes[1].host.ssh)) + ')');
@@ -796,9 +815,26 @@ async function deathmatch() {
         }).catch((e) => 'probe-err:' + String(e.message).slice(0, 40));
         if (st !== lastRoom) { console.log('      [Bob room] ' + st); lastRoom = st; }
       };
+      // THE HARNESS HAS NO THUMB, AND A PLAYER DOES.
+      //
+      // run.html parks a phone after three minutes with no touch and no
+      // speech — nobody is holding this one — and releases its wake lock. This
+      // suite starts the game through the app's autostart pref and a scripted
+      // click, neither of which is a touch, so on a run long enough to build a
+      // world the container correctly concluded that its owner had walked away.
+      // Measured here, twice, immediately before the failure it caused:
+      //   [Bob room] … dc=closed/disconnected stAge=179348 😴 Phone looks parked
+      //
+      // So say what is true: a person is playing. pokeForTest is the host's own
+      // "a touch or a word happened" hook, and using it keeps this suite about
+      // the deathmatch instead of about the idle clock. It is NOT standing in
+      // for the product path — a real thumb reaches the container through the
+      // app frame's `uiactive` ping, and that law has its own guard in
+      // e2e-app-touch-awake.js, where it is asserted rather than assumed.
       bFrame = await findAppFrame(240000, 'on the first mount (did Alice serve the app?)');
       while (Date.now() < startDl) {
         await bRun.bringToFront().catch(() => {});
+        await stayPresent(bRun);
         await roomLine();
         if (await dismissSheet(bRun)) { await sleep(2000); continue; }
         for (const f of bRun.frames()) {
@@ -872,6 +908,9 @@ async function deathmatch() {
       const t0 = Date.now();
       let last = '';
       while (Date.now() - t0 < 180000) {
+        // This window is exactly as long as the parked-phone timer, so the
+        // player has to keep being present through it too — see stayPresent.
+        if (BOB_CDP) await stayPresent(bRun);
         const [a, b] = await Promise.all([aFrame, bFrame].map((f) => f.evaluate(() => ({
           c: window.Net ? window.Net.count() : -1,
           bod: window.Remote ? window.Remote.count() : -1,
