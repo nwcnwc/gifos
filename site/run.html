@@ -3413,6 +3413,35 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     };
     addEventListener('pointerdown', poke, { passive: true });
     addEventListener('keydown', poke);
+    // A PLAYER'S THUMB IS INSIDE THE APP, AND THIS PAGE CANNOT SEE IT.
+    // DOM events do not cross a document boundary, so every touch on a running
+    // app lands in the app's own iframe and none of it reaches the two
+    // listeners above. Three minutes of that and the clock below calls a phone
+    // PARKED — "nobody is holding this phone" — while somebody is holding it
+    // and playing. Measured 2026-08-17, mid-deathmatch on a real phone: "😴
+    // Phone looks parked — letting the screen rest", wake lock released and
+    // send quality floored, on a device whose owner had not put it down.
+    //
+    // The shim already pings us on interaction (runtime.js, `uiactive` — it
+    // exists so the Back trap can arm under fresh activation); it just had
+    // nobody listening for it here. It is throttled to one message per 20s at
+    // the source, so this is cheap.
+    //
+    // TRUSTED, WITH THE LIMIT STATED: an app that lied — pinging with nobody
+    // there — could hold a phone out of its parked state. That is a smaller
+    // power than the one it already has (an app that renders every frame burns
+    // the same battery), and the ping only counts while this document is
+    // VISIBLE, so it cannot reach through a screen that has gone off. Only the
+    // MOUNTED app's frame is believed; any other window posting this is ignored.
+    addEventListener('message', (e) => {
+      if (!e.data || e.data.ns !== 'gifos' || e.data.type !== 'uiactive') return;
+      if (document.hidden) return;
+      const mount = document.getElementById('appmount');
+      if (!mount) return;
+      for (const f of mount.querySelectorAll('iframe')) {
+        if (f.contentWindow === e.source) { poke(); return; }
+      }
+    });
     setInterval(() => {
       const idle = IS_MOBILE && Date.now() - lastActive > IDLE_MS;
       if (idle === idleNow) return;
