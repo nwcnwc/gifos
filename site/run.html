@@ -12232,7 +12232,12 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       modal.style.display = 'flex';
       let files = [];
       try { files = await GifOS.store.allFiles(); } catch (e) {}
-      const apps = (files || []).filter((f) => f.isApp && f.appId !== 'meet' && f.appId !== 'video');
+      // System launchers are OUT, all four of them. Running one routes through
+      // the runtime's SYSTEM_PAGES whitelist, which is a location.replace() —
+      // picking Broadcast or App Store from inside a meeting navigated the
+      // WHOLE MEETING away. Same set as desktop.js SYSTEM_LAUNCHERS.
+      const SYSTEM_APPS = { meet: 1, video: 1, broadcast: 1, appstore: 1 };
+      const apps = (files || []).filter((f) => f.isApp && !SYSTEM_APPS[f.appId]);
       if (!apps.length) { list.innerHTML = '<small style="color:#667">No apps on this computer yet. Make one with ＋ Add on your Home Screen, then run it in a meeting.</small>'; return; }
       const label = (f) => (f.name || f.appId || 'App').replace(/\.gif$/i, '');
       apps.sort((a, b) => label(a).localeCompare(label(b), undefined, { sensitivity: 'base', numeric: true }));
