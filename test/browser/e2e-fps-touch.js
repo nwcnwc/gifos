@@ -54,7 +54,10 @@ async function until(frame, fn, ms, arg) {
 }
 
 
-async function openApp(ctx, label) {
+// `prep` runs against the app's page BEFORE it navigates — the only moment
+// media emulation can reach boot.js, which decides how to treat the device once,
+// at startup.
+async function openApp(ctx, label, prep) {
   const desk = await ctx.newPage();
   desk.on('pageerror', (e) => console.log('  [' + label + ' err] ' + e.message.slice(0, 180)));
   await desk.goto(BASE + '/index.html');
@@ -79,6 +82,7 @@ async function openApp(ctx, label) {
   await desk.close();
   const run = await ctx.newPage();
   run.on('pageerror', (e) => console.log('  [' + label + ' app err] ' + e.message.slice(0, 180)));
+  if (prep) await prep(run);
   await run.goto(BASE + '/run.html#id=' + fileId);
   await run.waitForSelector('#appmount iframe', { timeout: 90000 });
   // The Abilities sheet is dismissed inside the wait loops below, on EVERY
@@ -348,11 +352,24 @@ const RELEASE = ({ sel }) => {
   // read "can accept a finger" as "is a phone" and never asked for the pointer
   // lock that mouselook is made of. The person is holding a mouse; the fact
   // that they COULD also touch the screen changes nothing until they do.
+  // EMULATING THIS HONESTLY TAKES CDP. `hasTouch: true` alone does not make a
+  // hybrid: Chrome ties `(pointer: coarse)` to touch emulation, so a context
+  // with hasTouch reports coarse EVEN WITH isMobile false (measured here —
+  // {touchPoints:1, coarse:true} — which is also the exact effect an earlier
+  // session recorded when it found `(pointer: coarse)` matching on a headless
+  // desktop). A real touchscreen laptop reports a digitiser AND a FINE primary
+  // pointer, so the media feature is overridden directly, before the app boots.
   const hCtx = await browser.newContext({
     viewport: { width: 1440, height: 900 }, hasTouch: true, isMobile: false,
   });
   await hCtx.addInitScript({ content: INIT });
-  const hyb = await openApp(hCtx, 'hybrid');
+  const hyb = await openApp(hCtx, 'hybrid', async (page) => {
+    const cdp = await hCtx.newCDPSession(page);
+    await cdp.send('Emulation.setEmulatedMedia', {
+      media: 'screen',
+      features: [{ name: 'pointer', value: 'fine' }, { name: 'any-pointer', value: 'coarse' }],
+    });
+  });
   const hybPre = await hyb.frame.evaluate(() => ({
     touchPoints: navigator.maxTouchPoints,
     coarse: matchMedia('(pointer: coarse)').matches,
@@ -369,7 +386,10 @@ const RELEASE = ({ sel }) => {
     const inp = window.__FPS__ && window.__FPS__.engine && window.__FPS__.engine.input;
     if (!inp || !inp.requestPointerLock) return 'no input';
     let n = 0; const orig = inp.requestPointerLock.bind(inp);
-    inp.requestPointerLock = function () { n++; return orig(); };
+    // Counted BEFORE delegating: what is under test is whether the app's own
+    // ban swallows the request, not whether the browser then grants it (it
+    // will refuse outside a user gesture, and that refusal is not the bug).
+    inp.requestPointerLock = function () { n++; try { orig(); } catch (e) { /* browser refusal is fine */ } };
     inp.requestPointerLock();
     return n === 1 ? 'asked' : 'swallowed';
   });
