@@ -1946,12 +1946,17 @@
           }
           // A vertex over unloaded terrain borrows the nearest known height
           // rather than reading as sea level — the bug that once pinned rivers
-          // at y≈0.3 under 171 m of ground.
+          // at y≈0.3 under 171 m of ground. But a BORROW IS STILL A MISS: the
+          // borrowed height is a guess, and without counting it the tile
+          // reports itself complete (incomplete: 0) and is never rebuilt when
+          // the real terrain arrives — a river laid on borrowed heights sat
+          // 26 m above its own ground PERMANENTLY. Counting it makes build()
+          // say "this tile is a guess", so the epoch check rebuilds it.
           var lastKnown = null;
           for (gi = 0; gi < gy.length; gi++) if (gy[gi] !== null) { lastKnown = gy[gi]; break; }
           if (lastKnown === null) lastKnown = level;
           for (gi = 0; gi < gy.length; gi++) {
-            if (gy[gi] === null) gy[gi] = lastKnown; else lastKnown = gy[gi];
+            if (gy[gi] === null) { groundMisses++; gy[gi] = lastKnown; } else lastKnown = gy[gi];
           }
           var win = Math.max(3, Math.round(fill.length * 0.03));
           levels = [];
