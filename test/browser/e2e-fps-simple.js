@@ -384,6 +384,16 @@ async function solo() {
       pinned.probed && pinned.ceiling != null && pinned.scale <= pinned.ceiling + 0.001,
       JSON.stringify(pinned));
 
+    // The stray-key help is DISABLED while the gate is up (the gate card
+    // itself lists the keys — boot.js returns early on `gate.parentNode`),
+    // and the gate lifts only after three fast DRAWN frames, which on a box
+    // still compiling shaders is seconds after Play. This suite never waited
+    // for that: on the slow gate box the polling cadence hid it, and on a
+    // fast headed GPU box the next check ran with the gate still up and
+    // reported the flash "broken". Measured both ways on the same machine —
+    // FAIL without the wait, PASS with it, same build.
+    await waitFor(frame, () => !document.getElementById('gate'), 60000);
+
     // A STRAY KEY ASKS WHAT THE KEYS ARE, and the answer must know which keys
     // are real. The bound set is probed from the engine's own table at boot
     // rather than copied into the app, so this checks the probe actually found
@@ -408,6 +418,26 @@ async function solo() {
       keys.movement === 6 && keys.ours, JSON.stringify(keys));
     check('a stray key flashes the controls, a real one does not',
       keys.strayFlashes && keys.boundStaysQuiet, JSON.stringify(keys));
+
+    // THE AUDIO WATCHDOG IS WIRED, END TO END. The sound bug this guards was
+    // heard on a microphone: once the game's AudioContext render clock slips
+    // below real time, the speakers go silent — not quiet, SILENT, with the
+    // graph's own analyser still reading signal — and the context never
+    // recovers unaided. The cure is the audioHeal watchdog (vendor.mjs): it
+    // measures the render clock against the wall clock from update() and
+    // kicks a wedged context (suspend/resume, then a full rebuild). This
+    // cannot re-measure the wedge here (it needs real speakers and an ear);
+    // what it CAN guard is the wiring: the preset carries the knob, and the
+    // engine carries the watchdog — either half silently vanishing (a pin
+    // move dropping the patch, a preset edit losing the knob) brings the
+    // whole symptom back.
+    const heal = await frame.evaluate(() => ({
+      knob: window.__FPS__.ctx.config.q.audioHeal === true,
+      tick: !!(window.__AUDIO__ && typeof window.__AUDIO__._healTick === 'function'),
+      kick: !!(window.__AUDIO__ && typeof window.__AUDIO__._heal === 'function'),
+    }));
+    check('the audio watchdog is wired: preset knob + engine tick + engine kick',
+      heal.knob && heal.tick && heal.kick, JSON.stringify(heal));
 
     check('it reached the network ZERO times — the manifest declares no hosts',
       external.length === 0, external.slice(0, 3).join(' '));

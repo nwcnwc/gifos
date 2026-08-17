@@ -630,6 +630,113 @@ const PATCHES = [
       + 'if (!e.tracked && (now > e.endTime || (e.wallEnd !== undefined && _gw > e.wallEnd))) {',
     why: 'retire a voice when its sound is over in REAL time, so a late audio clock cannot pin the pool',
   },
+  {
+    // THE SOUND DIES BECAUSE THE CONTEXT WEDGES, AND ONLY A KICK BRINGS IT BACK.
+    //
+    // Measured with a microphone on a second machine physically listening to
+    // this game's speakers, correlated against an in-page log on the same
+    // clock. The law, observed on every run: THE ROOM HEARS THE GAME IF AND
+    // ONLY IF rtf = d(actx.currentTime)/d(wall) is ~1.0. The moment the
+    // context's render clock slips below real time — rtf 0.95 or 0.5, it does
+    // not matter — the speaker output is not degraded, it is GONE: 31
+    // first-person rifle shots played through the head-locked path at full
+    // volume with the graph's own AnalyserNode reading rms 0.12 (no NaN, no
+    // muting, state 'running'), and the microphone read the room's noise
+    // floor. A private control AudioContext in the same page stayed audible
+    // and at rtf 1.000 throughout, so it is this context that is wedged, not
+    // the page, the browser, the machine or the OS.
+    //
+    // Once wedged it NEVER recovers on its own: with the graph almost empty
+    // (0 active voices, ambience only) rtf stayed 0.6-0.9 and the cumulative
+    // deficit only grew — 7.9 s behind wall time by the end of a 58 s script.
+    // The voice-admission cap changes the onset (uncapped: collapse at 7 s,
+    // deficit 30.5 s; capped at 20: collapse at ~12 s, deficit 7.9 s) but not
+    // the outcome, and cheapening the graph (equalpower panners for HRTF)
+    // changed nothing either — so no budget knob can prevent this, only
+    // recovery can end it.
+    //
+    // Both kicks were proven ON THE MICROPHONE mid-combat: suspend()/resume()
+    // brought the room back from silence, and a full teardown+start on a fresh
+    // context brought it back in the middle of a firefight. So: watch the
+    // render clock against the wall clock from update(), and when it slips,
+    // cycle the stream; if it wedges again promptly, rebuild the graph on a
+    // fresh context (a fresh context is exactly what the healthy control was).
+    //
+    // Gated on q.audioHeal so unset this is upstream exactly.
+    file: 'src/audio/index.js',
+    find: /(if \(actx\.state === 'suspended'\) return; \/\/ tab hidden, or resume pending\n)/,
+    replace: (m, line) => line + '\n      this._healTick();\n',
+    why: 'watch the audio render clock from update(), because a wedged context never heals itself',
+  },
+  {
+    file: 'src/audio/index.js',
+    find: /(\n  _error\(err\) \{)/,
+    replace: (m, tail) => `
+  /**
+   * WATCHDOG: the render clock vs the wall clock, in ~1 s windows.
+   * Two windows under 0.95, or 0.6 s of accumulated deficit, is a wedge.
+   */
+  _healTick() {
+    if (!this.ctx.config.q.audioHeal) return;
+    const wall = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+    const at = this.actx.currentTime;
+    if (this._hWall === undefined) {
+      this._hWall = wall; this._hAudio = at;
+      this._hStrikes = 0; this._hDebt = 0;
+      this._hHealAt = this._hHealAt ?? -1e9;
+      return;
+    }
+    const dw = wall - this._hWall;
+    if (dw < 1) return;
+    const da = at - this._hAudio;
+    this._hWall = wall; this._hAudio = at;
+    if (this._healing) return;
+    if (dw > 3) { this._hStrikes = 0; this._hDebt = 0; return; } // hidden tab, not a verdict
+    const rtf = da / dw;
+    this._hDebt += dw - da;
+    if (this._hDebt < 0) this._hDebt = 0;
+    if (rtf < 0.95) this._hStrikes++;
+    else if (rtf > 0.99) { this._hStrikes = 0; this._hDebt = 0; }
+    if (this._hStrikes >= 2 || this._hDebt > 0.6) this._heal(rtf);
+  }
+
+  /**
+   * The kick. First a cheap suspend/resume cycle of the output stream; if the
+   * wedge returns within 15 s the stream itself is sick, so rebuild the whole
+   * graph on a fresh context — the thing measured to stay healthy.
+   */
+  _heal(rtf) {
+    if (this._healing) return;
+    this._healing = true;
+    this._hStrikes = 0; this._hDebt = 0;
+    const wall = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+    const rebuild = wall - this._hHealAt < 15;
+    this._hHealAt = wall;
+    this.stats.heals = (this.stats.heals ?? 0) + 1;
+    console.info('[audio] render clock stalled (rtf ' + rtf.toFixed(2) + ') — '
+      + (rebuild ? 'rebuilding the graph on a fresh context' : 'cycling the output stream'));
+    const done = () => { this._hWall = undefined; this._healing = false; };
+    try {
+      if (!rebuild) {
+        this.actx.suspend().then(() => this.actx.resume()).then(done, done);
+      } else {
+        const vol = this.mixer ? this.mixer.masterVolume : 0.95;
+        // Dry slots hold nodes of the context being thrown away, with end
+        // times on its clock; on the fresh context those read as busy for
+        // minutes. Clear them.
+        for (const d of this._dry) {
+          try { d.node?.disconnect(); d.send?.disconnect(); } catch { /* gone */ }
+          d.node = null; d.send = null; d.end = 0;
+        }
+        this._teardown();
+        this.failed = false;
+        this.start().then((ok) => { if (ok) this.setMasterVolume(vol); done(); }, done);
+      }
+    } catch { done(); }
+  }
+${tail}`,
+    why: 'a wedged output stream is cycled, and one that wedges again is rebuilt on a fresh context',
+  },
 ];
 for (const p of PATCHES) {
   const f = join(src, p.file);
