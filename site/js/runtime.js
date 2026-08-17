@@ -210,10 +210,30 @@
       // Android Chrome only lets the container's Back trap "stick" once the page
       // has real user activation, and the user touches the APP, not the frame
       // around it — those gestures never reach the parent. Ping the container on
-      // our first interaction so it can arm the trap under fresh activation
+      // interaction so it can arm the trap under fresh activation
       // (a same-origin gesture propagates activation to our parent too).
+      //
+      // NOT `once`, AND THAT IS THE POINT NOW. DOM events do not cross a
+      // document boundary at all, so a person playing an app on a phone touches
+      // the screen a hundred times a minute and the page AROUND the app sees
+      // exactly none of it. The container's parked-phone timer — three minutes
+      // with no touch and no speech, which means nobody is holding this phone —
+      // therefore fired on somebody in the middle of a game (measured
+      // 2026-08-17: "😴 Phone looks parked" during a live deathmatch). One ping
+      // per interaction was never about the count; it was about the FIRST one
+      // arming the trap. A ping that repeats also re-arms a trap whose entry
+      // has since been spent, which the once-only version could not do.
+      //
+      // Throttled to 20s: the clock upstairs is measured in minutes, so this is
+      // a handful of postMessages an hour, not one per touch.
+      var lastActivePing = 0;
       ['pointerdown','touchstart','keydown'].forEach(function(ev){
-        window.addEventListener(ev, function(){ try { parent.postMessage({ ns:'gifos', type:'uiactive' }, '*'); } catch(e){} }, { capture:true, passive:true, once:true });
+        window.addEventListener(ev, function(){
+          var now = Date.now();
+          if (now - lastActivePing < 20000) return;
+          lastActivePing = now;
+          try { parent.postMessage({ ns:'gifos', type:'uiactive' }, '*'); } catch(e){}
+        }, { capture:true, passive:true });
       });
       window.gifos = {
         db: function(collection){ return {
