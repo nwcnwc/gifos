@@ -25,6 +25,26 @@ body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -w
   border: 0; border-radius: .6rem; background: var(--accent, #c8a24a); color: #14120c; cursor: pointer;
 }
 #gate-go[disabled] { opacity: .35; cursor: default; }
+/* THE DEMO BUTTON IS NOT A SECOND PLAY BUTTON. It sits apart from Play, is
+   quieter than it in every dimension (size, weight, colour, border not fill),
+   and carries its own margin so a thumb reaching for Play cannot land on it.
+   A store display or a screensaver is a real reason to want it; pressing it by
+   accident on the way into a game is not. */
+#gate-actions { display: flex; flex-direction: column; align-items: center; }
+#gate-demo {
+  margin-top: 1.15rem; padding: .34rem 1.05rem; font: inherit; font-size: .78rem; font-weight: 500;
+  border: 1px solid #3a3948; border-radius: .45rem; background: transparent; color: #8b8ba2;
+  cursor: pointer; letter-spacing: .01em;
+}
+#gate-demo:hover:not([disabled]) { color: #c9c9dc; border-color: #56556a; }
+#gate-demo[disabled] { opacity: .3; cursor: default; }
+/* While the demo plays, one quiet line says how to get out of it. */
+#demo-exit {
+  position: fixed; left: 50%; bottom: 4.5vh; transform: translateX(-50%);
+  font: 500 .78rem/1 system-ui, sans-serif; color: rgba(233,233,247,.72);
+  background: rgba(8,8,14,.42); padding: .5rem .9rem; border-radius: .5rem;
+  pointer-events: none; z-index: 40; transition: opacity .6s ease;
+}
 #gate-keys { margin-top: 1.5rem; font-size: .76rem; line-height: 1.9; color: #6e6e83; }
 #gate-keys b { color: #a9a9c0; font-weight: 600; }
 body.touch #gate-keys { display: none; }
