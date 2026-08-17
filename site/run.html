@@ -2090,7 +2090,27 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // genuinely dead it goes !connected and the starve edge below still
           // owns it — no threshold there changes.
           const dcOpen = p.dc && p.dc.readyState === 'open';
-          if (p.connected && !dcOpen && !heardPid && nowHb - (p.rebuiltAt || basePid) - starveDebtSince(p.rebuiltAt || basePid) > 5000) {
+          // A CHANNEL THAT CLOSED IS NOT A CHANNEL THAT NEVER OPENED, and only
+          // the second one was covered here. `!heardPid` is the right gate for
+          // a pair that has never said anything — but it is a memory, and a
+          // pair that talked happily for a minute and then lost its channel
+          // carries that memory forever, so this watchdog stepped over the
+          // exact case it is for. Measured on a real phone joining a real room
+          // (2026-08-17): `dc=closed/connected` — ICE connected, DataChannel
+          // closed — held for twenty minutes. Nothing rebuilt it, because the
+          // pair had been heard from; and nothing re-created the channel on the
+          // pc either (see sendOffer, where a closed channel counted as one).
+          // App state moves ONLY over an open channel, so the guest sat in a
+          // room it could see, receiving nothing, forever.
+          //
+          // A closed channel is first-hand evidence about the transport we hold
+          // right now, so it outranks the memory: rebuild on it. The 5s
+          // settle, the starvation debt, the dialer designation and the 10s
+          // throttle all still apply — a wedged pair heals within a beat, and a
+          // healthy one can never enter this branch, because a healthy pair's
+          // channel is open.
+          const dcLost = !!p.dc && (p.dc.readyState === 'closed' || p.dc.readyState === 'closing');
+          if (p.connected && !dcOpen && (!heardPid || dcLost) && nowHb - (p.rebuiltAt || basePid) - starveDebtSince(p.rebuiltAt || basePid) > 5000) {
             // The DIALER side rebuilds (house doctrine, same as the starve
             // edge): only its pc CREATES the DataChannel, so an answerer-side
             // rebuild+offer would negotiate a session with no data m-line at
@@ -4369,9 +4389,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // The OFFERER creates the DataChannel (whoever dials — id-initiator,
       // unwired newcomer, or a starved answerer-side rebuild), BEFORE
       // createOffer so the data m-line rides this offer. Idempotent: a
-      // renegotiation/ICE-restart on a pc that already carries a channel
+      // renegotiation/ICE-restart on a pc that already carries a LIVE channel
       // keeps it.
-      if (!p.dc) { try { wireDc(p, p.pc.createDataChannel('gifos')); } catch (e) {} }
+      //
+      // "HAS A CHANNEL" USED TO MEAN `p.dc` — and a closed RTCDataChannel is
+      // still an object, so the one thing this line exists to do stopped
+      // happening in the one case it was needed. An RTCDataChannel that has
+      // closed can never reopen; the only repair is a NEW channel, which needs
+      // exactly the renegotiation we are already in the middle of. So every
+      // re-offer — ICE restart, rebuild, redial — sailed past a corpse and
+      // negotiated a session that could carry no app state at all, while ICE
+      // reported `connected` and everything else looked healthy.
+      const dcAlive = p.dc && (p.dc.readyState === 'open' || p.dc.readyState === 'connecting');
+      if (!dcAlive) { try { wireDc(p, p.pc.createDataChannel('gifos')); } catch (e) {} }
       preferHwVideo(p.pc);
       const opts = iceRestart ? { iceRestart: true } : undefined;
       p.pc.createOffer(opts).then((offer) => p.pc.setLocalDescription(offer))
@@ -12637,6 +12667,21 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         newPcFor(p);
         if (iInitiate(pid)) sendOffer(pid, false);
         return { ok: true, rebuilt: String(pid).slice(0, 8) };
+      },
+      // DEBUG: kill ONLY the DataChannel, leaving the pc and ICE untouched —
+      // the state a real phone landed in (2026-08-17: `dc=closed/connected`
+      // held for twenty minutes while the guest sat in a room it could see and
+      // received nothing). severPair kills the whole transport, which the mesh
+      // correctly reads as a death; this manufactures the far nastier shape
+      // where every health signal still says connected and only the lane that
+      // carries app state is gone. e2e-dc-reopen.js is the guard.
+      killDcForTest: (pid) => {
+        if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
+        const p = peers.get(pid); if (!p) return { err: 'no such peer' };
+        if (!p.dc) return { err: 'that pair has no channel to kill' };
+        const was = p.dc.readyState;
+        try { p.dc.close(); } catch (e) { return { err: String(e).slice(0, 60) }; }
+        return { ok: true, was: was, now: p.dc.readyState, ice: p.pc && p.pc.iceConnectionState };
       },
       // DEBUG: SEVER a pair — kill the transport AND drop every frame to/from
       // that peer for `ms` (a one-sided partition in miniature; one side
