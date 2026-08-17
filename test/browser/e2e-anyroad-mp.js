@@ -63,7 +63,7 @@ let failures = 0;
 function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : '')); if (!cond) failures++; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function run(MODE) {
+async function run(MODE, nth) {
   const OUT = path.resolve(__dirname, '../out/anyroad-mp' + (MODE === 'app' ? '-app' : ''));
   // A dead relay looks EXACTLY like a broken app here: the room forms locally,
   // the invite link mints, and the guests then sit on "reconnecting to the
@@ -97,6 +97,13 @@ async function run(MODE) {
   const fleet = LOCAL ? null : await needFleet(3, {
     why: 'each driver needs its own CPU — the steering assertions read a physics sim that advances per RENDERED FRAME, and three 3D browsers on one box render at ~1 fps',
     roles: NAMES.map((n) => n.toLowerCase()),
+    // THE SECOND MODE INHERITS THE FIRST MODE'S HEAT. A load average decays
+    // over minutes, so the three boxes that just rendered nine worlds for
+    // ROOM=meet still read BUSY when ROOM=app asks for them seconds later —
+    // measured: 40 green assertions, then "NEEDS-FLEET, given 0" against a
+    // fleet that was idle and ours. Wait for our own cooldown; never judge on
+    // a box that is still hot.
+    waitMs: nth ? 300000 : 0,
   });
   const LAUNCH_ARGS = [
       // No GPU on the gate box; without a software rasteriser there is no WebGL
@@ -918,7 +925,7 @@ async function run(MODE) {
 }
 
 (async () => {
-  for (const m of MODES) await run(m);
+  for (let i = 0; i < MODES.length; i++) await run(MODES[i], i);
   console.log(failures ? failures + ' FAILED' : 'all good');
   process.exit(failures ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
