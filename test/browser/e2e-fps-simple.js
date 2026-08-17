@@ -882,6 +882,17 @@ async function deathmatch() {
       // app frame's `uiactive` ping, and that law has its own guard in
       // e2e-app-touch-awake.js, where it is asserted rather than assumed.
       bFrame = await findAppFrame(240000, 'on the first mount (did Alice serve the app?)');
+      // SAY WHAT THE PHONE ACTUALLY DECIDED TO BUILD. The quality pin travels
+      // by page-level addInitScript and has to survive into a SANDBOXED frame
+      // to mean anything; "I set an env var" is not evidence that it did. The
+      // device line beside it is boot.js's own summary of the probe, so a run
+      // that goes wrong afterwards says, in its log, which street it was
+      // building — rather than leaving the next person to infer it from a
+      // memory graph.
+      console.log('  [Bob] ' + JSON.stringify(await bFrame.evaluate(() => ({
+        pinned: window.GIFOS_FPS_QUALITY || null,
+        note: ((document.getElementById('gate-note') || {}).textContent || '').slice(0, 90),
+      })).catch((e) => ({ err: String(e.message).slice(0, 60) }))));
       while (Date.now() < startDl) {
         await bRun.bringToFront().catch(() => {});
         await stayPresent(bRun);
