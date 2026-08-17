@@ -625,19 +625,54 @@ async function deathmatch() {
       // Android Chrome over CDP, with its quirks measured rather than assumed:
       //   - newContext fails ("Failed to create browser context"), so Bob
       //     lives in the default context — newPage there works.
-      //   - addInitScript is therefore unavailable for setup, so the relay and
-      //     name are seeded by loading an inert same-origin document
-      //     (version.json — cheap, no desktop boot) and writing localStorage.
-      //   - The quality pin is DELIBERATELY absent: the pin exists so software
-      //     rasterisers do not spend minutes building scenery, but this Bob is
-      //     real silicon — the device probe choosing the real phone preset is
-      //     part of what the phone buys us.
+      //   - the relay and name are seeded by loading an inert same-origin
+      //     document (version.json — cheap, no desktop boot) and writing
+      //     localStorage.
+      //     CONTEXT-level addInitScript is unavailable; PAGE-level is not, and
+      //     it reaches child frames — which is how the app inside the sandbox
+      //     is reachable at all (see the quality pin below).
       //   - Playwright clicks over CDP arrive trusted (measured:
       //     isTrusted=true), so Play starts the engine like a finger would.
       bobBrowser = await chromium.connectOverCDP(BOB_CDP, { timeout: 30000 });
       const bobCtx = bobBrowser.contexts()[0];
       if (!bobCtx) throw new Error('the phone exposed no default browser context over CDP');
-      bRun = await bobCtx.newPage();
+
+      // THE PHONE IS PINNED TO 'low' TOO NOW, and the reason is measured, not
+      // tidy. This used to say the pin was deliberately absent — "this Bob is
+      // real silicon, the device probe choosing the real phone preset is part
+      // of what the phone buys us" — and on a phone with room to spare that is
+      // still the better test. This one has 3.86 GB and it does not.
+      //
+      // Three runs died the same way: the tab reached the room, began building
+      // the street, and RELOADED. Chrome discards a tab under memory pressure
+      // and Android's own killer was watching the same cliff — logcat, at the
+      // moment of one reload: "lowmemorykiller: freeMemory 63560Kib". The room
+      // then healed correctly every time (parts back to 2, channel back open),
+      // which is the product behaving; the engine simply never got to start.
+      //
+      // Pinning is consistent with what this half is FOR, and the file already
+      // says so about the fleet peers: the fleet is asked for ISOLATION, not
+      // FIDELITY — nothing here looks at the street, it asks who is in the room
+      // and whether a hit lands. And the preset is only a preset: the device
+      // probe still runs and still clamps its own ceilings over the top
+      // (boot.js, "A PRESET IS A PREFERENCE. WHAT THE DEVICE CAN DRAW IS NOT"),
+      // so this asks the phone for less scenery, never for more than it can do.
+      // What the phone still buys, and nothing else can: real silicon, real
+      // touch hardware, a real network path, and its own machine by
+      // construction. Set FPS_BOB_QUALITY= (empty) to let the probe choose,
+      // on a phone with the memory for it.
+      const BOB_QUALITY = process.env.FPS_BOB_QUALITY !== undefined ? process.env.FPS_BOB_QUALITY : 'low';
+      const newPhonePage = async () => {
+        const pg = await bobCtx.newPage();
+        if (BOB_QUALITY) {
+          // Page-level, so it lands on the app's sandboxed frame as well —
+          // boot.js reads GIFOS_FPS_QUALITY off its OWN window, and that frame
+          // is the only place setting it has any effect.
+          await pg.addInitScript({ content: "window.GIFOS_FPS_QUALITY='" + BOB_QUALITY + "';" }).catch(() => {});
+        }
+        return pg;
+      };
+      bRun = await newPhonePage();
 
       // WARM-BOOT FIRST. A COLD build seizes the phone's main thread in
       // multi-second bursts for minutes, which starves the page's own room
@@ -693,7 +728,7 @@ async function deathmatch() {
         // player who built this street once, closed the game, and comes back.
         await bRun.close().catch(() => {});
         await sleep(3000);            // let the device actually get the memory back
-        bRun = await bobCtx.newPage();
+        bRun = await newPhonePage();
         await bRun.bringToFront().catch(() => {});
       }
       await bRun.goto(BOB_BASE + '/version.json', { timeout: 60000, waitUntil: 'domcontentloaded' });
