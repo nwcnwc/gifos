@@ -2392,7 +2392,22 @@ is a 2D outline that never looks at height.** Hence the three reported symptoms
   3% of the ring and these rings are 5 points, so it wraps the whole ring and
   degenerates to the global percentile. The change is shipped and UNPROVEN — it
   can only do anything on a ring of hundreds of points, and no test exercises
-  that. **If the canyon still looks wrong, revert it rather than defend it.**
+  that. ~~**If the canyon still looks wrong, revert it rather than defend it.**~~
+
+**CORRECTION 2026-08-16 — the paragraph above records fixture artefacts as
+product truth, and its advice is backwards.** The MEASURED reds below come from
+a fixture whose rings are 5 points: on such a ring the levelling degenerates by
+construction (its own admission, one sentence earlier), so those numbers say
+nothing about per-vertex levelling in the product, where river rings are
+hundreds of points. A measurement the mechanism cannot engage in is not
+evidence against the mechanism. Do NOT revert per-vertex levelling off the back
+of this section — build the long-ring fixture ("What the fixture still cannot
+do", below) and judge it on ground it can actually stand on. Related, fixed
+2026-08-16: water vertices over not-yet-arrived terrain borrowed heights
+without counting a ground miss, so the tile never rebuilt when the real ground
+arrived and its river could sit 26 m above the ground permanently — that
+alone produced "water disagrees with its ground" symptoms no levelling change
+could ever fix (roads.js, the borrow loop in waterMesh).
 
 **What the fixture still cannot do.** Its water rings are 5 points. Testing any
 per-vertex or per-tile levelling needs a LONG river ring — hundreds of vertices
