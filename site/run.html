@@ -13106,9 +13106,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
               pair = pair || { local: cand[r.localCandidateId] || '?', remote: cand[r.remoteCandidateId] || '?', rtt: r.currentRoundTripTime };
             }
           });
-          return { pair, ice: p.pc.iceConnectionState, conn: p.pc.connectionState };
+          // THE DATA CHANNEL IS THE THING THAT ACTUALLY CARRIES APP STATE.
+          // sgaFan() sends only to peers whose dc.readyState === 'open' and
+          // QUEUES anything else into sgaPending, where it expires silently —
+          // so a pair that is ICE-connected but has no open dc looks perfectly
+          // healthy here while every app write is being dropped on the floor.
+          // Report it, or the next investigation reads "ice: connected" and
+          // concludes the transport was fine.
+          return { pair, ice: p.pc.iceConnectionState, conn: p.pc.connectionState,
+                   dc: (p.dc && p.dc.readyState) || 'none' };
         }).catch(() => null);
       },
+      // How many app-state frames found NO open channel and are waiting for
+      // one — the queue a dropped write dies in.
+      sgaPendingForTest: () => sgaPending.length,
       _corruptStatus: (id) => statusOf.delete(id),
       // THE CORPSE'S LAST BREATH, on demand (e2e-status-map leg 6). The 71.2s
       // leak of 2026-08-07 rode a RACE — a departing tab's final status pulse
