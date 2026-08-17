@@ -12271,6 +12271,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // Strip-teardown forensics (e2e-mosaic): whose status holds a stage
       // seat, and which stg pipes this page still holds. Read-only peeks.
       statusPeekForTest: (id) => { const st = statusOf.get(id); return st ? { stg: st.stg || 0, ageMs: Date.now() - (st.at || 0), rxAgeMs: Date.now() - (st.rx || 0) } : null; },
+      // ORIGIN-side beat forensics (e2e-handq's starved-box dump): how stale is
+      // MY OWN last broadcast (myStatus.at — the stamp every receiver ages),
+      // which clock drives it, and whether this page is even seated. Separates
+      // "the origin never beat" (this age ≫ SCALE.HB: the renderer was not
+      // scheduled) from "the beat happened and the flood never delivered it"
+      // (this age small while an observer's statusPeek age for me is large).
+      beatPeekForTest: () => ({ atAgeMs: Date.now() - (myStatus.at || 0), tick: hbTick, via: hbVia,
+        veiled: !!joinVeilEl,
+        seated: (() => { try { const s = meshSeat(); return !!(s && s.state === 3 && s.hasCoord); } catch (e) { return null; } })() }),
       mosInKeysForTest: () => [...mosIn.keys()].filter((k) => k.indexOf('stg') === 0 || k === 'sgs'),
       // ENCODED PASSTHROUGH (§9a) forensics: which jobs ride the pipe lane vs
       // were denied back to transcode, and the worker's per-pipe counters
