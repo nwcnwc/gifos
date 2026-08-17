@@ -12668,6 +12668,17 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (iInitiate(pid)) sendOffer(pid, false);
         return { ok: true, rebuilt: String(pid).slice(0, 8) };
       },
+      // DEBUG: a BARE RENEGOTIATION — re-offer on the pc we already have, with
+      // no rebuild. rebuildPair replaces the pc (which resets p.dc to null and
+      // therefore hides the very defect e2e-dc-reopen exists to pin); this is
+      // the other half of that pair of tools, and the only way a suite can ask
+      // "does a re-offer restore the data lane on a pc that kept its own".
+      reofferForTest: (pid) => {
+        if (!DEBUG_ON) return { err: 'DEBUG=on not in URL' };
+        const p = peers.get(pid); if (!p) return { err: 'no such peer' };
+        sendOffer(pid, false);
+        return { ok: true, dc: (p.dc && p.dc.readyState) || 'none' };
+      },
       // DEBUG: kill ONLY the DataChannel, leaving the pc and ICE untouched —
       // the state a real phone landed in (2026-08-17: `dc=closed/connected`
       // held for twenty minutes while the guest sat in a room it could see and
