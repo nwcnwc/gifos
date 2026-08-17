@@ -213,7 +213,10 @@
       // interaction so it can arm the trap under fresh activation
       // (a same-origin gesture propagates activation to our parent too).
       //
-      // NOT `once`, AND THAT IS THE POINT NOW. DOM events do not cross a
+      // NOT once-only, AND THAT IS THE POINT NOW. (No backticks in here: this
+      // whole shim is a TEMPLATE LITERAL, and one in a comment ends it — the
+      // file then fails to parse and every app mounts into nothing.)
+      // DOM events do not cross a
       // document boundary at all, so a person playing an app on a phone touches
       // the screen a hundred times a minute and the page AROUND the app sees
       // exactly none of it. The container's parked-phone timer — three minutes
