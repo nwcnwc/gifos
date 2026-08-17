@@ -799,7 +799,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   #joinveil p { color: var(--muted, #b0b0c8); font-size: .88rem; line-height: 1.5; }
   #joinveil .jv-spin { width: 2.2rem; height: 2.2rem; margin: 0 auto 1rem; border-radius: 50%;
     border: 3px solid var(--border, #2a2a3f); border-top-color: var(--accent, #7b5cff);
-    animation: jvspin 1s linear infinite; }
+    /* steps(8), not linear: the veil shows ONLY on a page that is struggling
+       to join, and a linear spin repaints at 60fps — measured on the 0.9.9
+       gate red (e2e-handq, 2026-08-16), unseated pages sat VEILED burning the
+       very CPU their ICE re-forms needed, a self-amplifying stall (software
+       compositing on headless boxes; the same 60fps burns a stuck phone's
+       battery). Eight ticks a second still reads as a spinner. */
+    animation: jvspin 1s steps(8) infinite; }
   @keyframes jvspin { to { transform: rotate(360deg); } }
   /* The follow-the-speaker chip rides the strip like a thumb. */
   .fsthumb.fsauto { display: flex; flex-direction: column; align-items: center; justify-content: center;
