@@ -619,6 +619,26 @@ const PATCHES = [
     why: 'give every voice a wall-clock deadline as well as an audio-clock one',
   },
   {
+    // A CEILING ON CONCURRENTLY ACTIVE SPATIAL VOICES, set by the watchdog
+    // when the machine proves it cannot afford more (see _heal in index.js).
+    // The render thread's cost is per ACTIVE voice per rendered second —
+    // measured at a whole core for 10-16 of these synthesized voices on a
+    // power-limited laptop clock — so the rate cap alone (starts per second)
+    // cannot bound it: long tails stack. Priority >= 0.9 still always speaks.
+    // Unset, this is upstream exactly; it lives in config so it survives the
+    // watchdog rebuilding the field on a fresh context.
+    file: 'src/audio/spatial.js',
+    find: /(acquire\(opts\) \{\n\s*const now = this\.actx\.currentTime;)/,
+    replace: (m, head) => `${head}
+    const _gceil = this.ctx && this.ctx.config && this.ctx.config.q && this.ctx.config.q.voiceCeil;
+    if (_gceil && (opts.priority ?? 0.5) < 0.9) {
+      let _gbusy = 0;
+      for (let _gi = 0; _gi < this.emitters.length; _gi++) if (!this.emitters[_gi].free) _gbusy++;
+      if (_gbusy >= _gceil) { this.stats.dropped++; return null; }
+    }`,
+    why: 'let the watchdog cap concurrently ACTIVE voices - the render cost is per active voice, not per start',
+  },
+  {
     file: 'src/audio/spatial.js',
     find: /update\(dt\) \{\s*\n(\s*)const now = this\.actx\.currentTime;\s*\n\s*let active = 0;([\s\S]*?)if \(!e\.tracked && now > e\.endTime\) \{/,
     replace: (m, sp, mid) =>
@@ -674,7 +694,9 @@ const PATCHES = [
     replace: (m, tail) => `
   /**
    * WATCHDOG: the render clock vs the wall clock, in ~1 s windows.
-   * Two windows under 0.95, or 0.6 s of accumulated deficit, is a wedge.
+   * One window under 0.93, or 0.3 s of accumulated deficit, is a wedge —
+   * measured: the room hears this game if and only if this clock keeps real
+   * time, and every second of hesitation here is a second of silence there.
    */
   _healTick() {
     if (!this.ctx.config.q.audioHeal) return;
@@ -682,7 +704,7 @@ const PATCHES = [
     const at = this.actx.currentTime;
     if (this._hWall === undefined) {
       this._hWall = wall; this._hAudio = at;
-      this._hStrikes = 0; this._hDebt = 0;
+      this._hDebt = 0;
       this._hHealAt = this._hHealAt ?? -1e9;
       return;
     }
@@ -691,31 +713,54 @@ const PATCHES = [
     const da = at - this._hAudio;
     this._hWall = wall; this._hAudio = at;
     if (this._healing) return;
-    if (dw > 3) { this._hStrikes = 0; this._hDebt = 0; return; } // hidden tab, not a verdict
+    if (dw > 3) { this._hDebt = 0; return; } // hidden tab, not a verdict
+    // GRACE. A rebuilt context spends its first moments opening an output
+    // stream, and that startup gap reads as rtf 0.7-0.9. Judging it re-trips
+    // the watchdog and the heal becomes a storm — measured: 21 rebuilds in a
+    // minute, ~1.3 s apart, each one both the cure and the next disease. So
+    // the first two windows after a heal are not evidence, and heals are
+    // never closer than 4 s.
+    if (this._hGrace > 0) { this._hGrace--; this._hDebt = 0; return; }
     const rtf = da / dw;
     this._hDebt += dw - da;
     if (this._hDebt < 0) this._hDebt = 0;
-    if (rtf < 0.95) this._hStrikes++;
-    else if (rtf > 0.99) { this._hStrikes = 0; this._hDebt = 0; }
-    if (this._hStrikes >= 2 || this._hDebt > 0.6) this._heal(rtf);
+    if (rtf > 0.99) this._hDebt = 0;
+    if (wall - this._hHealAt < 4) return;
+    if (rtf < 0.93 || this._hDebt > 0.3) this._heal(rtf);
   }
 
   /**
-   * The kick. First a cheap suspend/resume cycle of the output stream; if the
-   * wedge returns within 15 s the stream itself is sick, so rebuild the whole
-   * graph on a fresh context — the thing measured to stay healthy.
+   * The kick, and the lesson. Kick: a cheap suspend/resume cycle of the
+   * output stream; if the wedge returns within 15 s, rebuild the whole graph
+   * on a fresh context — the thing measured to stay healthy.
+   *
+   * Lesson: a wedge is this MACHINE saying the graph does not fit its render
+   * budget — measured at ~1000 ms of audio-thread CPU per second, on a
+   * laptop whose sustained power limit halves its clock ten seconds into
+   * combat — so every heal also SHEDS: the voice-admission rate halves
+   * (floor 5) and a ceiling lands on concurrently active spatial voices
+   * (10, then 6, then 4 — see voiceCeil in spatial.js acquire). Measured on
+   * the microphone: shedding took the session from 34% of fire time audible
+   * with 7 heals to 72% audible with 4, and the longest silence from 3.7 s
+   * to 1.8 s. A thinner soundscape that is THERE beats a rich one that is
+   * not.
    */
   _heal(rtf) {
     if (this._healing) return;
     this._healing = true;
-    this._hStrikes = 0; this._hDebt = 0;
+    this._hDebt = 0;
     const wall = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
     const rebuild = wall - this._hHealAt < 15;
     this._hHealAt = wall;
     this.stats.heals = (this.stats.heals ?? 0) + 1;
+    const q = this.ctx.config.q;
+    this._hShed = (this._hShed ?? 0) + 1;
+    q.voiceRate = Math.max(5, Math.floor((q.voiceRate || 20) / 2));
+    q.voiceCeil = this._hShed === 1 ? 10 : this._hShed === 2 ? 6 : 4;
     console.info('[audio] render clock stalled (rtf ' + rtf.toFixed(2) + ') — '
-      + (rebuild ? 'rebuilding the graph on a fresh context' : 'cycling the output stream'));
-    const done = () => { this._hWall = undefined; this._healing = false; };
+      + (rebuild ? 'rebuilding the graph on a fresh context' : 'cycling the output stream')
+      + '; shedding to ' + q.voiceRate + ' voices/s, ' + q.voiceCeil + ' active');
+    const done = () => { this._hWall = undefined; this._hGrace = 2; this._healing = false; };
     try {
       if (!rebuild) {
         this.actx.suspend().then(() => this.actx.resume()).then(done, done);
