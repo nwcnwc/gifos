@@ -933,9 +933,15 @@ async function deathmatch() {
             ps.push(String(id).slice(0, 4) + ':dc=' + ((ice && ice.dc) || '?')
               + '/' + ((ice && ice.ice) || '?') + ' stAge=' + (stp ? stp.ageMs : '?'));
           }
+          // SEATED, because sgaTargets() opens with `const c = meshCoord();
+          // if (!c) return []` — a page with no seat in the mesh tree fans app
+          // state to NOBODY, however healthy its room, roster and channel look.
+          // That is the shape of a pend pinned at its 32 cap.
+          const bp = V.beatPeekForTest ? V.beatPeekForTest() : null;
           return 'parts=' + (V.participants ? V.participants() : '?')
             + ' app=' + (V.appActive ? V.appActive() : '?')
             + ' host=' + (V.appIsHost ? V.appIsHost() : '?')
+            + ' seated=' + (bp ? bp.seated : '?')
             + ' pend=' + (V.sgaPendingForTest ? V.sgaPendingForTest() : 'n/a')
             + ' [' + ps.join(' | ') + '] ' + ((document.getElementById('status') || {}).textContent || '').slice(0, 60);
         }).catch((e) => 'probe-err:' + String(e.message).slice(0, 40));
@@ -1100,7 +1106,9 @@ async function deathmatch() {
             const ice = V.icePairFor ? await V.icePairFor(id).catch(() => null) : null;
             out.push(String(id).slice(0, 4) + ':dc=' + ((ice && ice.dc) || '?') + '/' + ((ice && ice.ice) || '?'));
           }
+          const bp2 = V.beatPeekForTest ? V.beatPeekForTest() : null;
           return 'parts=' + (V.participants ? V.participants() : '?')
+            + ' seated=' + (bp2 ? bp2.seated : '?')
             + ' pend=' + (V.sgaPendingForTest ? V.sgaPendingForTest() : 'n/a')
             + ' [' + out.join(' ') + ']';
         }).catch((e) => 'err:' + String(e.message).slice(0, 30))));
