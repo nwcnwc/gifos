@@ -662,24 +662,27 @@ async function deathmatch() {
     // because a software rasteriser earns every second of it; loud if she never
     // gets there, because a host that cannot reach her own world is a finding
     // and not something to quietly time out around.
+    // NOT "and still beating", which was asked for here first and was a
+    // question with no answer: a host ALONE in a room has nobody to gossip to,
+    // so broadcastStatus is not called and her stamp does not advance. Measured
+    // saying so — "engine running=true her last beat 608732ms ago" — while the
+    // very next line, once the guest was in, read stAge=3234. Frames counting
+    // is the precondition that was actually missing.
     {
       const dl = Date.now() + 600000;
-      let running = false, beatMs = -1;
+      let running = false, waited = 0;
+      const t0 = Date.now();
       while (Date.now() < dl) {
         running = await aFrame.evaluate(() =>
           !!(window.__FPS__ && window.__FPS__.engine && window.__FPS__.engine.time
              && window.__FPS__.engine.time.frame > 0)).catch(() => false);
-        beatMs = await aRun0.evaluate(() => {
-          const V = window.__gifosVideo;
-          const b = V && V.beatPeekForTest && V.beatPeekForTest();
-          return b ? b.atAgeMs : -1;
-        }).catch(() => -1);
-        if (running && beatMs >= 0 && beatMs < 6000) break;
+        if (running) break;
         await sleep(3000);
       }
-      check('Alice is playing AND still beating before the guest is invited in',
-        running && beatMs >= 0 && beatMs < 6000,
-        'engine running=' + running + ' her last beat ' + beatMs + 'ms ago');
+      waited = Math.round((Date.now() - t0) / 1000);
+      check('Alice is actually IN the game before the guest is sent in',
+        running, running ? 'her engine was counting frames after ' + waited + 's'
+                         : 'her engine never started in 600s — the host cannot reach her own world');
     }
 
     /* ---- Bob, on a DIFFERENT machine, opens the link ---- */
