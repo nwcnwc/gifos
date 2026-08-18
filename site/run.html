@@ -2090,27 +2090,28 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // genuinely dead it goes !connected and the starve edge below still
           // owns it — no threshold there changes.
           const dcOpen = p.dc && p.dc.readyState === 'open';
-          // A CHANNEL THAT CLOSED IS NOT A CHANNEL THAT NEVER OPENED, and only
-          // the second one was covered here. `!heardPid` is the right gate for
-          // a pair that has never said anything — but it is a memory, and a
-          // pair that talked happily for a minute and then lost its channel
-          // carries that memory forever, so this watchdog stepped over the
-          // exact case it is for. Measured on a real phone joining a real room
-          // (2026-08-17): `dc=closed/connected` — ICE connected, DataChannel
-          // closed — held for twenty minutes. Nothing rebuilt it, because the
-          // pair had been heard from; and nothing re-created the channel on the
-          // pc either (see sendOffer, where a closed channel counted as one).
-          // App state moves ONLY over an open channel, so the guest sat in a
-          // room it could see, receiving nothing, forever.
+          // WHY `!heardPid` STAYS, having been removed and put back the same
+          // day. A closed channel looked like first-hand evidence worth
+          // rebuilding on, so this gate was widened to `!heardPid || dcLost`.
+          // That reintroduced, through a different door, the exact cycle the
+          // starved-judge fix had just closed: this branch subtracts starvation
+          // debt from `nowHb - rebuiltAt`, and on a pair whose pc is minutes
+          // old that subtraction changes nothing — so a page blocked by its own
+          // shader compile, whose channel had gone with it, rebuilt a perfectly
+          // healthy pair every 10s for as long as the blockage lasted.
           //
-          // A closed channel is first-hand evidence about the transport we hold
-          // right now, so it outranks the memory: rebuild on it. The 5s
-          // settle, the starvation debt, the dialer designation and the 10s
-          // throttle all still apply — a wedged pair heals within a beat, and a
-          // healthy one can never enter this branch, because a healthy pair's
-          // channel is open.
-          const dcLost = !!p.dc && (p.dc.readyState === 'closed' || p.dc.readyState === 'closing');
-          if (p.connected && !dcOpen && (!heardPid || dcLost) && nowHb - (p.rebuiltAt || basePid) - starveDebtSince(p.rebuiltAt || basePid) > 5000) {
+          // e2e-starved-judge caught it in the gate ("NO starve-kick fired on
+          // the blocked judge's own healthy pair — kicked 0 -> 1"), and it is
+          // the same room-eating churn its own header describes. A phone
+          // deathmatch showed the other end of it: the pair cycling
+          // open→closed→checking for three minutes while presence never
+          // crossed.
+          //
+          // The repair a closed channel actually needs is in sendOffer, where a
+          // closed channel is no longer mistaken for a channel — so the NEXT
+          // re-offer from any healer restores the lane without this branch
+          // manufacturing re-offers of its own. Guarded by e2e-dc-reopen.
+          if (p.connected && !dcOpen && !heardPid && nowHb - (p.rebuiltAt || basePid) - starveDebtSince(p.rebuiltAt || basePid) > 5000) {
             // The DIALER side rebuilds (house doctrine, same as the starve
             // edge): only its pc CREATES the DataChannel, so an answerer-side
             // rebuild+offer would negotiate a session with no data m-line at
