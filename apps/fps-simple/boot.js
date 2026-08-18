@@ -568,6 +568,7 @@
   // So a contact appears when someone shoots and fades a few seconds later.
   var REVEAL_MS = 2600;
   var revealed = new Map();     // agent -> when the contact goes cold
+  var matchSince = 0;           // when this room became a match, for the clock
   var nadeSeen = new Set();     // grenades already warned about, once each
   var _bo = null;               // scratch: a round's recovered origin
 
@@ -624,12 +625,36 @@
     var now = Date.now();
     var me = root.__FPS_POSE__ ? root.__FPS_POSE__() : null;
 
-    /* ---- who just fired ---- */
+    /* ---- who is shooting ---- */
+    // FIRING REVEALS YOU. That is the Call of Duty rule this copies: a soldier
+    // who shoots appears on the map for a moment; a soldier who is merely
+    // standing there never does, because that would be a wallhack.
+    //
+    // THIS READ THE WRONG THING UNTIL NOW, AND THE FEATURE HAS NEVER WORKED
+    // ONCE. It asked the ballistics sim for its live rounds and reconstructed
+    // each one's origin. Every part of that ran, and it could never produce a
+    // single blip: `sim.spawn()` has exactly ONE call site in the engine, right
+    // after `this.viewmodel.muzzleWorld(...)` — the player's own first-person
+    // weapon. Soldiers hurt you through applyDamage and never put anything in
+    // that pool. So sim.live holds only YOUR bullets, and the line below it
+    // discarded exactly those as "ours". The list handed to the minimap was
+    // empty in every game anyone has ever played, which is what was reported:
+    // "I still have never seen a dot show up on the minimap for any reason."
+    //
+    // The soldier knows perfectly well when it is shooting, so ask it. Measured
+    // on a live agent: burstLeft counts down a burst, wantFire is the intent,
+    // fireCooldown is the gap between rounds. Mid-burst IS firing, and the
+    // REVEAL_MS fade afterwards is what makes a contact readable rather than a
+    // flicker.
     try {
-      var w = ctx.peek('weapons');
-      var live = w && w.sim && w.sim.live;
-      if (live && ai.agents) {
-        for (var i = 0; i < live.length; i++) revealShooter(ai, live[i], me, now);
+      if (ai.agents) {
+        for (var i = 0; i < ai.agents.length; i++) {
+          var a = ai.agents[i];
+          if (!a || a.alive === false || a.dead === true) continue;
+          if (a.burstLeft > 0 || (a.wantFire === true && !(a.fireCooldown > 0))) {
+            revealed.set(a, now + REVEAL_MS);
+          }
+        }
       }
     } catch (e) { /* a missing system is not worth a frame */ }
 
@@ -681,8 +706,21 @@
     // free-for-all, so US is you and THEM is whoever is winning of the rest.
     // No invented clock — the mode line says DM and the time stays where the
     // engine put it rather than pretending there is a round timer.
+    // AND WHEN THERE IS NO MATCH, THERE IS NO BAR. The engine ships this widget
+    // filled with mock-up text — "43", "TDM", "4:12", "38" — and updates it
+    // from a state object that stays EMPTY unless setMatch is called. Called
+    // only at two players, as it was, a solo game showed 0 / TDM / a dead clock
+    // / 0 for its whole length and never moved. Reported exactly that way:
+    // "the score read 2 TOM 10:00 0 the entire time, and I have no idea what
+    // any of that means." A frozen scoreboard is worse than none: it is a
+    // scoreboard that is lying about a match you are not in.
+    var inMatch = !!(root.Net && root.Net.live() && root.Net.count() >= 2);
     try {
-      if (ui.setMatch && root.Net && root.Net.live() && root.Net.count() >= 2) {
+      var barEl = ui.matchBar && ui.matchBar.root;
+      if (barEl) barEl.style.display = inMatch ? '' : 'none';
+    } catch (e) { /* the bar is decoration; never let it stop a frame */ }
+    try {
+      if (ui.setMatch && inMatch) {
         // roster() is the one place that already knows every score INCLUDING
         // ours (net.js builds it from self + others, sorted) — so the bar
         // cannot drift from the scoreboard the Tab key shows.
@@ -693,7 +731,16 @@
           if (row.me) mine = row.k || 0;
           else if ((row.k || 0) > top) top = row.k || 0;
         }
-        ui.setMatch({ scoreUs: mine, scoreThem: top, mode: 'DM' });
+        // THE CLOCK HAS TO MOVE. This used to pass no time at all, on the
+        // reasoning that inventing a round timer would be dishonest — but the
+        // widget renders `uz(t.timeLeft ?? 0)` every frame regardless, so
+        // refusing to feed it did not hide the clock, it froze one on screen.
+        // A stopped clock is a worse lie than the one I was avoiding. There IS
+        // a true number here: how long this match has been running, counted
+        // from the moment the room had two people in it.
+        if (!matchSince) matchSince = now;
+        ui.setMatch({ scoreUs: mine, scoreThem: top, mode: 'DM',
+                      timeLeft: (now - matchSince) / 1000 });
       }
     } catch (e) { /* ditto */ }
   }
