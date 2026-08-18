@@ -30,22 +30,36 @@
 // (115s vs 173s for the same mode) is larger than the gap between them — which
 // is the usual warning that a number measured here is a number about the box.
 //
-// KNOWN WEAKNESS, NOT YET FIXED — THE STEERING WINDOW CAN CONTAIN A CRASH.
+// THE STEERING WINDOW CONTAINS CRASHES, AND THAT IS FINE NOW — READ THE LEDGER.
 // The steering legs hold full lock and full throttle for 55 frames in a real
 // OSM city, so the car leaves the road and hits a building in a large fraction
 // of legs (measured 2026-08-18: all three drivers in one run, at frames 3, 15
-// and 18). The speed guard below now judges the window rather than its last
-// frame and is honest about that, but the YAW numbers beside it are still
-// measured straight through the collision — and car.js SNAPS the heading to the
-// wall tangent on a scrape (`car.yaw += diff * 0.45`), which is a yaw change
-// nobody steered. The turn assertions have never failed on this, because a
-// full-lock turn dwarfs the snap and the comparison is against the car's own
-// straight-line drift, but a leg that crashes early is not really a steering
-// measurement and should be re-driven rather than scored. The honest fix is to
-// end the window at the first collision and retry the leg — it needs a
-// collision signal in App.debug() (crumple only moves on damage, so a low-speed
-// scrape is invisible) and a retry budget that converges in a dense city.
-// Roadmap, not a blocker.
+// and 18). That is the product working, not a fault, and it used to poison both
+// halves of the measurement:
+//
+//   * SPEED read the single last frame of the window, so a car that drove at
+//     16 m/s and clipped a wall on the way out reported "0.1 m/s". Fixed below
+//     by judging the window instead of its final instant.
+//   * YAW compared two headings, and the heading moves for THREE reasons that
+//     are not the driver at all — a scrape snaps the car along the wall it is
+//     touching (car.js, `car.yaw += diff * 0.45`), place()/unstick teleports it
+//     facing down the road, and the airborne controls bank it on another
+//     transfer function — plus a fourth that IS the driver but inverted: below
+//     zero the steering integrator NEGATES, so a window straddling a crash
+//     rebound holds two opposite turns from one held input, which cancel.
+//     From outside all four look identical to steering: the heading moved.
+//
+// So car.js now keeps a HEADING LEDGER — every writer of car.yaw books its
+// radians to yawSteer / yawSteerRev / yawExt / yawAir, exposed through
+// App.debug() — and the turn assertions read the driver's bucket. A crashed leg
+// is now a perfectly good steering measurement, because the wall's contribution
+// is subtracted rather than guessed at, and no leg has to be re-driven.
+// The ledger is diagnostics only: nothing in the simulation reads it back.
+//
+// The books are CHECKED, per leg: raw heading change must equal what the four
+// buckets claim. A future writer of car.yaw that forgets to book its radians
+// would otherwise vanish from the measurement silently — invisible is worse
+// than wrong — and that assertion is what makes reading one bucket safe.
 //
 // RECORD=1 records each player's screen to test/out/anyroad-mp[-app]/*.webm.
 //
@@ -534,6 +548,17 @@ async function run(MODE, nth) {
     // enough to wrap, and read 'yaw -2.57/-2.60' for a left and a right.
     let yawPrev = window.App.car().yaw, yawAcc = 0;
     const frames0 = window.App.debug().frames;
+    // THE HEADING LEDGER (car.js). Two headings a window apart cannot say who
+    // turned the car: a scraped building rotates it to run along the wall, a
+    // rescue teleports it facing somewhere new, the airborne controls bank it
+    // on another transfer function, and below zero the steering integrator
+    // NEGATES. The app books each of those separately; sample it at both ends
+    // and the turn assertions can be about the driver instead of about whether
+    // this lap happened to clip a building.
+    const led0 = window.App.debug();
+    const ledger0 = { steer: led0.yawSteer, rev: led0.yawSteerRev, ext: led0.yawExt,
+                      air: led0.yawAir, scrapes: led0.scrapes, teleports: led0.teleports,
+                      revFrames: led0.revFrames };
     let peakSteer = 0;
     const STALL_MS = 5000;
     const cap = Date.now() + ms;
@@ -562,7 +587,17 @@ async function run(MODE, nth) {
     }
     const framesRun = window.App.debug().frames - frames0;
     yawAcc += wrap(window.App.car().yaw - yawPrev);
-    const out = { scheme, steer: peakSteer, dYaw: yawAcc, trace,
+    const led1 = window.App.debug();
+    const ledger = {
+      steer: led1.yawSteer - ledger0.steer,     // the driver, going forward
+      rev: led1.yawSteerRev - ledger0.rev,      // the driver, in reverse (inverted)
+      ext: led1.yawExt - ledger0.ext,           // walls and teleports
+      air: led1.yawAir - ledger0.air,           // the airborne controls
+      scrapes: led1.scrapes - ledger0.scrapes,
+      teleports: led1.teleports - ledger0.teleports,
+      revFrames: led1.revFrames - ledger0.revFrames,
+    };
+    const out = { scheme, steer: peakSteer, dYaw: yawAcc, trace, ledger,
                   speed: window.App.debug().speed, frames: framesRun,
                   // Judging steering on a window that never filled is judging
                   // the box. The caller refuses to score an unfilled leg.
@@ -624,9 +659,19 @@ async function run(MODE, nth) {
     steering.push({ name: p.name, straight, left, right, ready: [r0, r1, r2] });
   }
   for (const s of steering) {
+    // Report the DRIVER's radians beside the raw heading change, and what else
+    // was pushing the car around, so a reader can see why the two differ.
+    const led = (l) => `steer ${l.ledger.steer.toFixed(2)}` +
+      (l.ledger.rev ? ` rev ${l.ledger.rev.toFixed(2)}` : '') +
+      (l.ledger.ext ? ` wall ${l.ledger.ext.toFixed(2)}` : '') +
+      (l.ledger.air ? ` air ${l.ledger.air.toFixed(2)}` : '');
     const d = `${s.left.scheme}: steer ${s.left.steer.toFixed(2)}/${s.right.steer.toFixed(2)}, ` +
-              `yaw ${s.left.dYaw.toFixed(2)}/${s.right.dYaw.toFixed(2)} rad, ` +
-              `speed ${s.right.speed.toFixed(1)} m/s, ${s.right.frames} frames`;
+              `driver yaw ${s.left.ledger.steer.toFixed(2)}/${s.right.ledger.steer.toFixed(2)} rad ` +
+              `(raw ${s.left.dYaw.toFixed(2)}/${s.right.dYaw.toFixed(2)}), ` +
+              `speed ${s.right.speed.toFixed(1)} m/s, ${s.right.frames} frames` +
+              ` | L[${led(s.left)}] R[${led(s.right)}] S[${led(s.straight)}]` +
+              ` | scrapes ${s.left.ledger.scrapes}/${s.right.ledger.scrapes}` +
+              ` teleports ${s.left.ledger.teleports}/${s.right.ledger.teleports}`;
     // A WINDOW THAT NEVER FILLED CANNOT BE JUDGED. Every threshold below is a
     // property of the car over a FIXED slice of simulated time; on a leg that
     // rendered 8 of its 55 frames they describe the box instead, which is
@@ -657,23 +702,61 @@ async function run(MODE, nth) {
       Math.abs(s.left.steer) > 0.15 && Math.abs(s.right.steer) > 0.15, d);
     check(s.name + ' — the ' + s.left.scheme + ' steers BOTH ways, not just one',
       Math.sign(s.left.steer) === -Math.sign(s.right.steer) && s.left.steer !== 0, d);
+    // EVERY RADIAN IS ACCOUNTED FOR, OR THE LEDGER BELOW IS FICTION. The turn
+    // assertion now reads car.js's attribution rather than the heading itself,
+    // and that is only safe while the attribution is COMPLETE: a new writer of
+    // car.yaw that forgets to book its radians would quietly vanish from the
+    // measurement, which is a worse failure than the one this replaced —
+    // invisible instead of merely wrong. So check the books balance, per leg:
+    // the raw heading change must equal what the four buckets claim. The
+    // tolerance is for float drift and for the sampling seam at each end, not
+    // for a missing writer; a whole unbooked source shows up in radians.
+    for (const [tag, l] of [['straight', s.straight], ['left', s.left], ['right', s.right]]) {
+      const claimed = l.ledger.steer + l.ledger.rev + l.ledger.ext + l.ledger.air;
+      // dYaw is accumulated per SAMPLE (~30 ms) and the ledger per FRAME, so
+      // the two agree unless the car swung more than half a turn between two
+      // samples — a scrape can apply 1.4 rad in a single frame — in which case
+      // wrap() folds dYaw by a whole turn while the ledger, which never wraps,
+      // does not. That is a sampling artifact of THIS harness, not a missing
+      // writer, so allow the gap to be a multiple of 2pi. An unbooked source
+      // still shows up: it would have to contribute an exact multiple of a
+      // full turn to hide here.
+      const gap = l.dYaw - claimed;
+      const folded = Math.abs(gap - Math.round(gap / (Math.PI * 2)) * Math.PI * 2);
+      check(s.name + ' — the heading ledger balances on the ' + tag + ' leg (every radian is attributed)',
+        folded < 0.05,
+        'raw ' + l.dYaw.toFixed(3) + ' rad vs booked ' + claimed.toFixed(3)
+        + ' (' + led(l) + '), unexplained ' + folded.toFixed(3)
+        + ' — a gap means something moved car.yaw without booking it in car.js');
+    }
     // Against this tab's own straight line, not against a fixed number of
-    // radians. `drift` is what the road and the terrain do to a car nobody is
+    // radians. `drift` is what the steering channel does to a car nobody is
     // steering; a real turn has to beat it by a wide margin in BOTH directions.
     // Both tests now: several times the car's own straight-line wander, AND a
     // floor in radians — which only means anything because the window is a
     // fixed number of frames rather than a fixed number of seconds.
-    const drift = Math.abs(s.straight.dYaw);
+    // MEASURE THE DRIVER, NOT THE HEADING. This compared raw headings, and a
+    // heading moves for reasons that have nothing to do with the wheel: a
+    // scrape snaps the car along the wall it is touching, unstick() teleports
+    // it facing down the road, the airborne controls bank it, and below zero
+    // the integrator negates so one held input makes two opposite turns. Those
+    // are all correct behaviours, and every one of them lands in this window —
+    // the leg that crashed at frame 3 of 29 was still scored as steering.
+    // car.js books each radian to whoever applied it, so read the driver's
+    // bucket and the rest cannot contaminate the verdict.
+    const drift = Math.abs(s.straight.ledger.steer);
     // The floor is per-window: 0.04 rad is what a full-lock turn clears over a
     // FULL 55 frames, so over a short window it must be scaled or it is asking
     // the car to turn further than the simulated time allows.
     const frac = Math.min(1, Math.min(s.left.frames, s.right.frames) / s.left.want);
     const floor = 0.04 * frac;
+    const dl = s.left.ledger.steer, dr = s.right.ledger.steer;
     check(s.name + ' — and the car actually turns, in opposite directions',
-      Math.sign(s.left.dYaw) === -Math.sign(s.right.dYaw)
-      && Math.abs(s.left.dYaw) > Math.max(floor, drift * 3)
-      && Math.abs(s.right.dYaw) > Math.max(floor, drift * 3),
-      d + ', drift ' + s.straight.dYaw.toFixed(3) + ' over ' + s.straight.frames + ' frames, floor ' + floor.toFixed(3));
+      Math.sign(dl) === -Math.sign(dr)
+      && Math.abs(dl) > Math.max(floor, drift * 3)
+      && Math.abs(dr) > Math.max(floor, drift * 3),
+      d + ', drift ' + s.straight.ledger.steer.toFixed(3) + ' over ' + s.straight.frames
+      + ' frames, floor ' + floor.toFixed(3));
     // "Feels right" is not a frame timing on this box — but a car that is
     // stationary, reversing or supersonic while being steered is not a
     // judgement call, and any of them means the drive under test was not a

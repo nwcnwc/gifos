@@ -305,13 +305,22 @@ function check(name, cond, detail) {
     // contact band but not already past the wall. Started too close, the nose
     // is on the far side and the push-out helpfully shoves it the rest of the
     // way through — which is what the first version of this test measured.
+    const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     function run(speed, yawDeg, z) {
       const car = window.Car.create(0, z, 0);
       car.health = 100; car.speed = speed;
       car.yaw = yawDeg * Math.PI / 180;          // 0 = straight at the wall
+      // Sample the heading ledger across the impact. A scrape ROTATES the car
+      // to run along the wall, and that rotation must be booked to the wall
+      // (yawExt) and not left looking like steering — e2e-anyroad-mp reads
+      // these buckets to decide whether the controls reach the car.
+      const yaw0 = car.yaw, ext0 = car.yawExt, sc0 = car.scrapes;
       const hit = window.Car.collide(car, WALL, 0.016);
       return { damage: hit ? +hit.damage.toFixed(1) : 0, health: +car.health.toFixed(0),
-               speed: +car.speed.toFixed(1), z: +car.z.toFixed(2), crash: !!(hit && hit.crash) };
+               speed: +car.speed.toFixed(1), z: +car.z.toFixed(2), crash: !!(hit && hit.crash),
+               dYaw: +wrapPi(car.yaw - yaw0).toFixed(4),
+               dExt: +(car.yawExt - ext0).toFixed(4),
+               scrapes: car.scrapes - sc0 };
     }
     return { headOn: run(22, 0, -2.0), glance: run(22, 80, -0.85), crawl: run(2, 0, -2.0) };
   });
@@ -326,6 +335,26 @@ function check(name, cond, detail) {
     impacts.crawl.health === 100, JSON.stringify(impacts.crawl));
   check('the car is pushed clear of the wall, never left inside it',
     Math.abs(impacts.headOn.z) > 0.9, 'z = ' + impacts.headOn.z);
+  // ---- the heading ledger: a building is not a driver ----------------------
+  // A scrape steers the car — car.js turns it to run along the wall it is
+  // touching, which is what stops the bounce-cruise-bounce loop. That rotation
+  // is real and correct, and it is NOT the steering wheel. e2e-anyroad-mp
+  // judges the control schemes by reading car.js's attribution of every radian,
+  // so the booking is load-bearing: if a scrape's rotation leaked into the
+  // driver's bucket, a car that hit a building would read as a car that turned.
+  // Guarded HERE because a wall can be hit deterministically here, whereas in
+  // the room suite whether a leg meets a building at all is chance.
+  check('a scrape books its heading change to the WALL, not to the driver',
+    impacts.glance.scrapes === 1
+    && Math.abs(impacts.glance.dExt) > 0.001
+    && Math.abs(impacts.glance.dYaw - impacts.glance.dExt) < 0.001,
+    JSON.stringify({ dYaw: impacts.glance.dYaw, dExt: impacts.glance.dExt, scrapes: impacts.glance.scrapes }));
+  // The crash branch bounces the car off and does NOT rotate it, so it must
+  // book nothing at all — an accumulator that creeps on every impact would
+  // silently poison every steering verdict that followed it.
+  check('a square crash rotates the car not at all, and books nothing',
+    impacts.headOn.scrapes === 0 && impacts.headOn.dExt === 0 && impacts.headOn.dYaw === 0,
+    JSON.stringify({ dYaw: impacts.headOn.dYaw, dExt: impacts.headOn.dExt, scrapes: impacts.headOn.scrapes }));
 
   // ---- reverse is a gear, not an accident ----------------------------------
   // THE BUG: the brake past zero simply kept accelerating backwards, bounded

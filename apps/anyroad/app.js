@@ -268,7 +268,13 @@
     }
     if (!best) return false;
     car.x = best.p.x; car.z = best.p.z;
-    car.yaw = Math.atan2(best.q.x - best.p.x, best.q.z - best.p.z);
+    // Teleported onto the road facing along it — this writes car.yaw directly
+    // rather than through Car.place(), so it books its own radians in the
+    // heading ledger. Nobody steered this.
+    var snapYaw = Math.atan2(best.q.x - best.p.x, best.q.z - best.p.z);
+    car.yawExt += ((snapYaw - car.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    car.teleports++;
+    car.yaw = snapYaw;
     return true;
   }
 
@@ -2148,6 +2154,13 @@
         labelGeom: lastLabelGeom.map(function (L) { return { x: L.x, y: L.y, z: L.z, text: L.text, alpha: L.alpha }; }),
         flares: lastFlares,
         crumple: carCrumple(),
+        // The heading ledger (car.js). Two headings a second apart cannot say
+        // whether the DRIVER turned the car — a scraped building, a rescue and
+        // the airborne controls all move it too. These are monotonic; sample
+        // twice and subtract.
+        yawSteer: car.yawSteer, yawSteerRev: car.yawSteerRev,
+        yawExt: car.yawExt, yawAir: car.yawAir,
+        scrapes: car.scrapes, teleports: car.teleports, revFrames: car.revFrames,
       };
     },
   };
