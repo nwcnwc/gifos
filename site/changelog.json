@@ -3,7 +3,7 @@
   "entries": [
     {
       "version": "0.9.9",
-      "date": "2026-08-16",
+      "date": "2026-08-18",
       "headline": "Screen sharing in meetings, and FPS Simple plays properly on a phone: it fills the screen sideways, the picture is the picture, the sound stays on, and Play answers when you press it",
       "notes": [
         "You can share your screen in a meeting. Pick Share screen, choose a window or a whole display, and it goes out to the room the same way your camera does — your tile becomes the share, letterboxed so nothing is cropped off, and there is an obvious way to stop that you cannot lose track of. The browser asks you which window, not us: we never see your screen unless you pick it, and the browser's own indicator stays up the whole time.",
