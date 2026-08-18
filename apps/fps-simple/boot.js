@@ -1403,7 +1403,54 @@
   }
   if (demoBtn) demoBtn.addEventListener('click', startDemo);
 
-  go.addEventListener('click', function (ev) {
+  // Run fn once the browser has actually PAINTED. rAF fires before paint, so
+  // one is not enough; the second lands after the frame is on the glass. The
+  // setTimeout is the backstop for a tab that is not animating at all (a
+  // backgrounded phone throttles rAF to a crawl), so a press can never be
+  // swallowed by a frame that never comes.
+  function afterPaint(fn) {
+    var done = false;
+    var go1 = function () { if (!done) { done = true; fn(); } };
+    if (root.requestAnimationFrame) {
+      root.requestAnimationFrame(function () { root.requestAnimationFrame(go1); });
+      setTimeout(go1, 250);
+    } else setTimeout(go1, 0);
+  }
+
+  // THREE WAYS TO PRESS PLAY, because one was not reachable.
+  //
+  // The button is a real <button>, and on a desktop that is enough. It was not
+  // enough anywhere else:
+  //   * On this phone over CDP, Playwright's synthesized MOUSE click hangs
+  //     inside "performing click action" — the button resolves, is visible and
+  //     enabled, and the dispatch simply never lands (measured across three
+  //     sessions; adb-injected taps failed the same way). Every suite that
+  //     needed the game running had to reach around the button entirely.
+  //   * A press that only exists as a mouse click is also the least accessible
+  //     shape available: no keyboard route at all.
+  // So the press is now its own function with three doors onto it, all guarded
+  // by `starting` so extra ones are free:
+  //   1. click      — a mouse, a finger, or a trusted synthetic click.
+  //   2. pointerup  — the touch/pointer path, which lands on devices where the
+  //                   synthesized mouse click does not.
+  //   3. Enter/Space — anywhere on the gate, not only when the button holds
+  //                   focus. A keyboard is something every automation tool can
+  //                   drive and every screen-reader user already has.
+  function pressPlay(ev) {
+    if (starting || go.disabled) return;
+    startPlaying(ev);
+  }
+  go.addEventListener('pointerup', pressPlay);
+  root.addEventListener('keydown', function (ev) {
+    if (starting || go.disabled) return;
+    if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return;
+    if (gate && getComputedStyle(gate).display === 'none') return;   // gate is gone; this is gameplay
+    ev.preventDefault();
+    startPlaying(ev);
+  });
+
+  go.addEventListener('click', startPlaying);
+  function startPlaying(ev) {
     if (starting) return;                     // a second tap must not re-enter
     starting = true;
     // Recorded because a SCRIPTED click carries no user activation, and every
@@ -1419,8 +1466,19 @@
     go.disabled = true;
     go.textContent = 'Starting…';
     say('Warming up the shaders — first run only…', null);
-
-    engine.start();
+    // …AND IT MUST REACH THE SCREEN. Setting the word is not showing the word:
+    // engine.start() below seizes the main thread for seconds (minutes on a
+    // phone's first run), and the browser paints nothing between a DOM write
+    // and the block that follows it. So the button changed to 'Starting…' in
+    // the DOM and the player still saw the old, live-looking 'Play' — which is
+    // exactly the "nothing visibly happens, so a normal person ends up
+    // spamming it" report this line was written to answer. Reported again from
+    // a phone on 2026-08-17: "I may have hit Play but I did not see an
+    // immediate reaction."
+    //
+    // Two frames, not one: rAF fires BEFORE paint, so a single one still runs
+    // ahead of the pixels. The second is the promise that the pressed state is
+    // on the glass before anything is allowed to block.
     // ONE GESTURE, TWO HATCHES THAT BOTH EAT IT — so the device decides which
     // one goes first. Fullscreen and pointer lock each want TRANSIENT user
     // activation and the first one spends it: asking for the pointer first left
@@ -1457,6 +1515,16 @@
     // one is held, which is what killed the movement stick), but asking and then
     // shedding is not free: the engine treats a lock it was holding disappearing
     // as Escape, and the game arrives PAUSED. Cheaper and quieter never to ask.
+    // EVERY HATCH THAT NEEDS THE GESTURE IS OPENED BEFORE ANYTHING BLOCKS.
+    // These used to sit AFTER engine.start(), and transient user activation
+    // lasts about five seconds — so on any device where starting the engine
+    // takes longer than that, the activation was already spent by the time we
+    // asked. Measured on a Moto g24 (2026-08-17): a genuinely trusted tap,
+    // `__FPS_FS__.trusted === true`, and fullscreen still came back
+    // `refused: TypeError: not granted` — the phone then plays the game in a
+    // portrait strip behind the browser chrome, which is the exact opposite of
+    // the "fills the screen sideways" this release claims. Asking first costs
+    // nothing: none of these needs a running engine, only a fresh gesture.
     if (!IS_TOUCH) engine.input.requestPointerLock();
     if (IS_TOUCH) goFullscreenLandscape();
     // Audio is STARTED here, inside the gesture, because that is the only place
@@ -1466,8 +1534,11 @@
       try { root.__AUDIO__.setMasterVolume(0); } catch (e) {}
       root.__AUDIO__.start().catch(function () {});
     }
-    revealWhenDrawing();
-  });
+    afterPaint(function () {
+      engine.start();
+      revealWhenDrawing();
+    });
+  }
 
   // Reveal on FRAMES, not on a timer. Three consecutive frames inside 150 ms
   // means the compile stalls are behind us; a timer would either cut the player
