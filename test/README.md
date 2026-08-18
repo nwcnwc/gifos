@@ -176,6 +176,45 @@ behaviour-battery caller (26a) sets `ANYROAD_MP_LOCAL=1` to run the app-room
 WIRING on one box and skip the physics block, so the battery never demands a
 fleet from every host it runs on.
 
+Second worked example, and a different lesson: `e2e-pipe-mesh` (2026-08-17).
+The encoded-passthrough lane's six-seat room was the gate's only FLAKY suite —
+red once, green on the retry — and the gate's advice was "fix the wait". It was
+not the wait. Measured before changing anything, on an idle 8-core box with the
+suite unchanged: **8 runs, 8 green**, every seat's Stadium live in the low
+seconds against a 90 s budget; squeezed to 4 cores, **5 more runs, 5 green**.
+Thirteen greens, including nine that seated the gate's exact failing topology.
+
+**The red never reproduced on one box — and then the FLEET reproduced it in
+three runs, on verified-idle machines.** A deep row-mate came up holding
+nothing: `P4 @1/1.1 claims:[] ann:[] up:null`, while the other five seats were
+live in under 300ms and both boxes sat at load 0.09/8 and 0.20/4. So the
+contention thesis those 22 runs were built to support is **wrong** — squeezing a
+box is not necessary to produce this, and the flake is a product question, not a
+kernel one. It reds about 1 run in 9 on the fleet and now names the seat.
+
+**That is the argument for going multi-box, and it is not the argument I
+expected to be making.** The fleet's value here was not that it made a flake go
+away — it did not — but that in three runs it turned "seats 4 and 6 are false,
+on a box we cannot re-run" into a coordinate and a claim state. One box could
+not have told you which of those two worlds you were in, and that ambiguity had
+already burned two triages.
+
+Two things worth stealing for the next suite of this shape:
+
+- **The workload's real cost.** One 6-seat browser suite forks **17 chrome
+  processes and holds a 1-minute load of 8-13 on a 6-core box** for its whole
+  duration. `settle_box` gates on load *before* a suite starts, so it cannot see
+  this: the next suite in the tier begins inside the previous one's wake.
+  `fleet.js`'s 15-minute check *does* see it — after these runs both boxes were
+  correctly refused as `BUSY RECENTLY` for ~20 minutes, which is the same
+  measurement from the other side. Budget for that cooldown or pass
+  `FLEET_WAIT_MS`.
+- **Different boxes run different codecs, and that changes what is testable.**
+  Measured on the same Playwright build: x86 chromium ships `H264`, ARM does
+  not. So a fleet room genuinely spans codecs — the regime the pipe lane's
+  failback exists for and one box can never produce — and an assertion premised
+  on "this box is VP8-only" is false the moment it leaves that box.
+
 
 ## NEVER LET A WALL CLOCK DECIDE A VERDICT
 
@@ -681,6 +720,10 @@ Roughly three families in one directory:
   `e2e-meet-quiet`, `e2e-meet-record-app`, `e2e-meet-mod` (blur/mute/undo,
   stage, vote, admin rooms — 48 checks), `e2e-meet-password`, `e2e-video`,
   `e2e-sing`, `e2e-mosaic`, `e2e-media-recovery`, `e2e-handq`,
+  `e2e-pipe` (the encoded-passthrough lane's DETERMINISTIC half: the module
+  chain, and the one-tap fan-out that guards the detached-buffer bug — one box,
+  no room, no relay) and `e2e-pipe-mesh` (its six-seat room, which DECLARES
+  NEEDS-FLEET; see the worked example above),
   `e2e-meeting-app`, `e2e-mymedia-meet`, `e2e-app-governance`, `e2e-autoheal`,
   `e2e-failover`, `e2e-reconnect`, `e2e-relay`, `e2e-chess-mp`, `e2e-pip`
   (backgrounding floats the best room video in a PiP overlay; source picker
