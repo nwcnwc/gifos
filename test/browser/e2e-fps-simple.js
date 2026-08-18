@@ -619,6 +619,48 @@ async function deathmatch() {
     aFrame = await ready(aRun, 'Alice', 240000, aFrame);
     await play(aRun, aFrame);
 
+    // ALICE MUST BE PLAYING BEFORE BOB IS SENT IN, and this is the single
+    // biggest thing this suite was getting wrong.
+    //
+    // play() presses the button and returns 1.5s later. It does not wait for a
+    // world. On a box without hardware GL the stretch between Play and a
+    // running engine is MINUTES of blocked main thread — e2e-fps-touch measures
+    // 249-297s per leg on the gate box — and broadcastStatus() runs on that
+    // thread. So the guest was being sent into a room whose host had gone
+    // silent, and every reading afterwards was about her loading screen.
+    //
+    // It is exactly what the telemetry kept saying, and it took far too long to
+    // read: `dc=open/connected stAge=167151`. An OPEN channel, and Alice's own
+    // status stamp 167 SECONDS old. The transport was never the problem, and
+    // neither was the phone — which boots to READY in 13-15s and was sitting
+    // there waiting for a host that was not beating. One run passed only
+    // because she happened to finish first.
+    //
+    // So wait for her to be genuinely in the game: an engine counting frames,
+    // AND a fresh beat, which is the thing the room actually needs. Generous,
+    // because a software rasteriser earns every second of it; loud if she never
+    // gets there, because a host that cannot reach her own world is a finding
+    // and not something to quietly time out around.
+    {
+      const dl = Date.now() + 600000;
+      let running = false, beatMs = -1;
+      while (Date.now() < dl) {
+        running = await aFrame.evaluate(() =>
+          !!(window.__FPS__ && window.__FPS__.engine && window.__FPS__.engine.time
+             && window.__FPS__.engine.time.frame > 0)).catch(() => false);
+        beatMs = await aRun0.evaluate(() => {
+          const V = window.__gifosVideo;
+          const b = V && V.beatPeekForTest && V.beatPeekForTest();
+          return b ? b.atAgeMs : -1;
+        }).catch(() => -1);
+        if (running && beatMs >= 0 && beatMs < 6000) break;
+        await sleep(3000);
+      }
+      check('Alice is playing AND still beating before the guest is invited in',
+        running && beatMs >= 0 && beatMs < 6000,
+        'engine running=' + running + ' her last beat ' + beatMs + 'ms ago');
+    }
+
     /* ---- Bob, on a DIFFERENT machine, opens the link ---- */
     let bRun;
     if (BOB_CDP) {
