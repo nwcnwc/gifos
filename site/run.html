@@ -12657,7 +12657,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       pairs: () => Array.from(peers.values()).map((p) => ({ id: String(p.id).slice(0, 8),
         pc: p.pc ? p.pc.connectionState : null, ice: p.pc ? p.pc.iceConnectionState : null,
         sig: p.pc ? p.pc.signalingState : null, dc: p.dc ? p.dc.readyState : null,
-        connected: !!p.connected, absent: !!p.absentSince })),
+        connected: !!p.connected, absent: !!p.absentSince,
+        // GLARE FORENSICS, read-only. A pair stuck in have-local-offer is
+        // ambiguous without these: `armed` says the yield timer is waiting,
+        // `stored` says an offer was set aside to answer. Neither firing and
+        // neither stored means the offer never reached the handler at all,
+        // which is a different bug from a yield that armed and failed.
+        glareArmed: !!p.glareTimer, glareStored: !!p.glareOffer })),
       grid: () => ({ // the alignment engine's live state: clocks, tiers, timing, sing, mic
         sing: roomSingOn(), mic: micMode, timing, gd: myStatus.gd || 0,
         micTrack: (localStream && localStream.getAudioTracks()[0]) ? localStream.getAudioTracks()[0].id : null,
