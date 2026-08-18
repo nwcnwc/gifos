@@ -30,6 +30,23 @@
 // (115s vs 173s for the same mode) is larger than the gap between them — which
 // is the usual warning that a number measured here is a number about the box.
 //
+// KNOWN WEAKNESS, NOT YET FIXED — THE STEERING WINDOW CAN CONTAIN A CRASH.
+// The steering legs hold full lock and full throttle for 55 frames in a real
+// OSM city, so the car leaves the road and hits a building in a large fraction
+// of legs (measured 2026-08-18: all three drivers in one run, at frames 3, 15
+// and 18). The speed guard below now judges the window rather than its last
+// frame and is honest about that, but the YAW numbers beside it are still
+// measured straight through the collision — and car.js SNAPS the heading to the
+// wall tangent on a scrape (`car.yaw += diff * 0.45`), which is a yaw change
+// nobody steered. The turn assertions have never failed on this, because a
+// full-lock turn dwarfs the snap and the comparison is against the car's own
+// straight-line drift, but a leg that crashes early is not really a steering
+// measurement and should be re-driven rather than scored. The honest fix is to
+// end the window at the first collision and retry the leg — it needs a
+// collision signal in App.debug() (crumple only moves on damage, so a low-speed
+// scrape is invisible) and a retry budget that converges in a dense city.
+// Roadmap, not a blocker.
+//
 // RECORD=1 records each player's screen to test/out/anyroad-mp[-app]/*.webm.
 //
 // Needs: static server on 8099, local relay on 8790. Three Chromiums rendering
@@ -521,11 +538,22 @@ async function run(MODE, nth) {
     const STALL_MS = 5000;
     const cap = Date.now() + ms;
     let seen = frames0, advancedAt = Date.now();
+    // A SPEED SAMPLE PER OBSERVED FRAME ADVANCE, not per wall-clock poll. The
+    // final instantaneous speed cannot tell a car that never got going from a
+    // car that drove hard and hit a building on the last few frames, and those
+    // are opposite verdicts. Sampling on frame advance makes the trace a
+    // property of the simulated drive rather than of how often this box got
+    // scheduled. It UNDERSAMPLES when several frames land between two polls
+    // (measured: 29 samples over 38 frames), so the trace is a fair sample of
+    // the window, never a complete record of it — read it for the shape of the
+    // drive, and do not count its entries as frames.
+    const trace = [];
     for (;;) {
       const d = window.App.debug();
       if (d.input && Math.abs(d.input.steer) > Math.abs(peakSteer)) peakSteer = d.input.steer;
       const yNow = window.App.car().yaw;
       yawAcc += wrap(yNow - yawPrev); yawPrev = yNow;   // per-sample, so it never wraps
+      if (d.frames > seen) trace.push(Math.round(d.speed * 10) / 10);
       if (d.frames - frames0 >= frameWindow) break;
       if (d.frames > seen) { seen = d.frames; advancedAt = Date.now(); }
       else if (Date.now() - advancedAt > STALL_MS) break;   // the tab stopped rendering
@@ -534,7 +562,7 @@ async function run(MODE, nth) {
     }
     const framesRun = window.App.debug().frames - frames0;
     yawAcc += wrap(window.App.car().yaw - yawPrev);
-    const out = { scheme, steer: peakSteer, dYaw: yawAcc,
+    const out = { scheme, steer: peakSteer, dYaw: yawAcc, trace,
                   speed: window.App.debug().speed, frames: framesRun,
                   // Judging steering on a window that never filled is judging
                   // the box. The caller refuses to score an unfilled leg.
@@ -650,8 +678,45 @@ async function run(MODE, nth) {
     // stationary, reversing or supersonic while being steered is not a
     // judgement call, and any of them means the drive under test was not a
     // drive at all.
+    // JUDGE THE WINDOW, NOT ITS LAST FRAME. This read the single instantaneous
+    // speed at the end of the window, and that is not the claim above it: the
+    // leg holds FULL LOCK and FULL THROTTLE for 55 frames through a real OSM
+    // city, so the car reliably leaves the road and meets a building. That is
+    // the product working exactly as written — car.js scrapes speed down by
+    // 0.90/frame on sustained contact, and a crash sets `car.speed` NEGATIVE
+    // (`-Math.min(4.5, best * 0.22)`) to bounce you off — and the final frame
+    // then samples wherever the recovery happened to be. Measured 2026-08-18
+    // with a per-frame trace, all three drivers in one run:
+    //   Ada  [16 15.8 -3.4 -2.9 … 4.7 -1 -0.5 0.1]   crash at frame 3
+    //   Ben  [15.1 15 … 14 -3.1 -2.7 … 1.3 1.5 1.5]  crash at frame 15
+    //   Cyd  [7.7 … 13.2 13.1 -0.9 -0.3 0.5]         crash at frame 18 of 20
+    // Every one of them was genuinely driving at 13-16 m/s; every one reported
+    // "0.5 m/s" and reddened the gate. Which of the 55 frames the building
+    // lands on is chance, so the old form was a coin flip — it also passed at
+    // 3.0 m/s on the run that went 40/40, which is the same coin landing the
+    // other way, not a healthier car.
+    // So: the car must have been genuinely driving DURING the window. Take the
+    // best THREE CONSECUTIVE FRAMES (one lucky sample is not a drive) and
+    // require those to be a real speed; keep the supersonic ceiling on the raw
+    // peak, where it is STRICTER than reading the last frame. A parked car
+    // still fails — it has no three frames above the floor — and ready() above
+    // has already refused any leg that opened below 4 m/s.
+    // The WORST of the three, not their mean: averaging lets one lucky frame
+    // carry two parked ones (mutation-tested — [0,9,0] scored 3.0 and passed).
+    // This asks for three consecutive frames that were EACH a real speed.
+    const drove = (t) => {
+      if (!t || t.length < 3) return null;
+      let best = -Infinity;
+      for (let i = 0; i + 3 <= t.length; i++) best = Math.max(best, Math.min(t[i], t[i + 1], t[i + 2]));
+      return best;
+    };
+    const bestRun = drove(s.right.trace);
+    const peak = Math.max(...(s.right.trace && s.right.trace.length ? s.right.trace : [s.right.speed]));
     check(s.name + ' — was genuinely driving forward while steering',
-      s.right.speed > 2 && s.right.speed < 70, s.right.speed.toFixed(1) + ' m/s');
+      bestRun !== null && bestRun > 2 && peak < 70,
+      'best 3 consecutive frames ' + (bestRun === null ? 'n/a' : bestRun.toFixed(1)) + ' m/s, peak '
+      + peak.toFixed(1) + ' m/s, last frame ' + s.right.speed.toFixed(1) + ' m/s'
+      + '  | per-frame trace: [' + (s.right.trace || []).join(' ') + ']');
   }
   }   // end: steering schemes, first door only
 
