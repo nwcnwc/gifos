@@ -2111,7 +2111,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           // closed channel is no longer mistaken for a channel — so the NEXT
           // re-offer from any healer restores the lane without this branch
           // manufacturing re-offers of its own. Guarded by e2e-dc-reopen.
-          if (p.connected && !dcOpen && !heardPid && nowHb - (p.rebuiltAt || basePid) - starveDebtSince(p.rebuiltAt || basePid) > 5000) {
+          // …AND THE ONE CASE `!heardPid` MISSES, ADDED BACK WITH THE GUARD IT
+          // NEEDED. A pair can sit ICE-connected with a DEAD channel while
+          // BOTH sides stay perfectly happy: status still crosses on the relay,
+          // so neither peer starves, so no starve edge ever fires — and app
+          // state, which rides the DataChannel and nothing else, never crosses
+          // again. Measured with a phone in a real room: `dc=closed/connected`
+          // holding while the host's status read 3.2s fresh.
+          //
+          // The first attempt at this rebuilt on a closed channel outright, and
+          // e2e-starved-judge caught what that costs: a page blocked by its own
+          // shader compile has a closed channel too, and it kicked a healthy
+          // pair every 10s. The difference between the two is not the channel,
+          // it is WHO IS ASKING — a judge that was awake to watch the channel
+          // die knows something; one that was unconscious knows only that it
+          // was unconscious. So the same window and threshold onTransportDead
+          // already uses to defer at wake gate this too.
+          const dcLost = !!p.dc && (p.dc.readyState === 'closed' || p.dc.readyState === 'closing');
+          const awake = starveDebtSince(nowHb - 20000) < 2000;
+          if (p.connected && !dcOpen && (!heardPid || (dcLost && awake)) && nowHb - (p.rebuiltAt || basePid) - starveDebtSince(p.rebuiltAt || basePid) > 5000) {
             // The DIALER side rebuilds (house doctrine, same as the starve
             // edge): only its pc CREATES the DataChannel, so an answerer-side
             // rebuild+offer would negotiate a session with no data m-line at
