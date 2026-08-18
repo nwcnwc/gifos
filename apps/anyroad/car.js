@@ -41,6 +41,31 @@
       revArm: 0,          // seconds the brake has been held at a standstill
       halted: false,      // braked to a stop; the cruise stays off until GO
       stillT: 0,          // seconds of going nowhere — what "stuck" is read from
+      // ---- the heading ledger: WHO TURNED THE CAR --------------------------
+      // car.yaw is written from several places and only ONE of them is the
+      // steering wheel. A wall scrape rotates the car to run along the
+      // building, place() teleports it facing somewhere new, and in the air the
+      // same input banks it on a different transfer function. From outside all
+      // of these look identical — the heading simply moved — so anything trying
+      // to measure whether the CONTROLS reach the car cannot tell them apart,
+      // and a suite that compares two headings is really measuring "did you hit
+      // anything". Every writer books its radians here instead.
+      //
+      // DIAGNOSTICS ONLY. Nothing in the simulation reads these back, and they
+      // are deliberately never reset — a reader takes two samples and
+      // subtracts, which is the only thing that works across a teleport.
+      yawSteer: 0,        // radians applied by GROUND steering while going FORWARD
+      yawSteerRev: 0,     // …and while REVERSING, where the same input turns the
+                          //   car the other way (see the integrator below)
+      yawExt: 0,          // radians applied by something that is NOT the driver
+      yawAir: 0,          // radians applied by the airborne controls
+      scrapes: 0,         // wall contacts that rotated the car
+      teleports: 0,       // place() calls that moved the heading
+      // Ground-steering frames driven while REVERSING. The steering integrator
+      // negates when speed < 0 (a car reverses into a turn the other way), so
+      // after a crash rebound the SAME held input yaws the car the opposite
+      // way. A reader that does not know this reports the control as inverted.
+      revFrames: 0,
     };
   }
 
@@ -120,7 +145,9 @@
       if (tx * fx + tz * fz < 0) { tx = -tx; tz = -tz; }
       var want = Math.atan2(tx, tz);
       var diff = ((want - car.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-      car.yaw += diff * (fresh ? 0.45 : 0.22);
+      var dyawWall = diff * (fresh ? 0.45 : 0.22);
+      car.yaw += dyawWall;
+      car.yawExt += dyawWall; car.scrapes++;   // the building steered, not the driver
       car.speed *= fresh ? 0.90 : 0.97;
     } else {
       // Crash: most of the energy goes into the building, and you come off it.
@@ -152,7 +179,13 @@
   // rescue still thinks it is mid-crash.
   function place(car, x, z, yaw) {
     car.x = x; car.z = z;
-    if (yaw != null) car.yaw = yaw;
+    if (yaw != null) {
+      // A teleport is a heading change nobody steered — book the shortest way
+      // round, so a rescue cannot be read as a turn.
+      car.yawExt += ((yaw - car.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      car.teleports++;
+      car.yaw = yaw;
+    }
     car.speed = 0; car.vy = 0;
     car.contactT = 0; car.hurtCool = 0; car.revArm = 0; car.stillT = 0;
     car.halted = false;
@@ -302,7 +335,8 @@
         // hauling it upwards, which costs you speed the way it should.
         var cruise = 46 - Math.max(0, car.vy) * 0.55;
         car.speed += (cruise - car.speed) * Math.min(1, dt * 0.55);
-        car.yaw += target * dt * 0.55;               // bank turns
+        var dyawFly = target * dt * 0.55;
+        car.yaw += dyawFly; car.yawAir += dyawFly;   // bank turns
         car.roll += (-target * 0.55 - car.roll) * Math.min(1, dt * 3.0);
         car.pitch += ((car.vy / 26) - car.pitch) * Math.min(1, dt * 2.6);
       } else {
@@ -311,7 +345,8 @@
         // to watch happen.
         car.vy -= 9.81 * dt;
         car.speed *= Math.max(0, 1 - dt * 0.35);
-        car.yaw += target * dt * 0.18;
+        var dyawFall = target * dt * 0.18;
+        car.yaw += dyawFall; car.yawAir += dyawFall;
         car.roll += (target * 0.30 - car.roll) * Math.min(1, dt * 1.4);
         car.pitch += ((-0.6) - car.pitch) * Math.min(1, dt * 0.9);
       }
@@ -386,7 +421,15 @@
     var authority = 1 / (1 + v * 0.055);
     var turnRate = car.steer * 2.4 * authority * Math.min(1, v / 2.2);
     if (inHand) turnRate *= 1.7;                        // slide the back out
-    car.yaw += turnRate * dt * (car.speed < 0 ? -1 : 1);
+    var dyawSteer = turnRate * dt * (car.speed < 0 ? -1 : 1);
+    car.yaw += dyawSteer;
+    // Reverse is booked SEPARATELY, not merged into yawSteer. The integrator
+    // above negates below zero — a car reverses into a turn the other way, which
+    // is correct and is what a driver expects — so a window that straddles a
+    // crash rebound holds two opposite turns from ONE held input. Summed, they
+    // cancel and the control reads dead; kept apart, each is honest.
+    if (car.speed < 0) { car.yawSteerRev += dyawSteer; car.revFrames++; }
+    else car.yawSteer += dyawSteer;
 
     // --- longitudinal ------------------------------------------------------
     // Tarmac versus everything else. Until the road index existed, onRoad was
