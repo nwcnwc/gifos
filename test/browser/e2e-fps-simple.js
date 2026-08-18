@@ -494,24 +494,47 @@ async function solo() {
     }));
     check('the engine\'s blip collector has its data source — ai.getHudActors()',
       hud.hook, JSON.stringify(hud));
-    // THE RULE: firing gives you away, standing still does not. Asserted
-    // through the app's own reveal rather than by faking a bullet — a
-    // synthetic round pushed into the ballistics sim is culled inside one
-    // frame (measured: liveLen 0 before the next rAF), so a test built that
-    // way reports "no contacts" no matter what the code does.
-    const reveal = await frame.evaluate(() => {
-      const ai = window.__FPS__.ctx.peek('ai');
-      const a = (ai.agents || [])[0];
-      if (!a || !a.position || !window.__FPS_HUD__) return null;
-      const hit = window.__FPS_HUD__.revealAt(a.position.x, a.position.z);
-      const shown = ai.getHudActors().length;
-      const miss = window.__FPS_HUD__.revealAt(a.position.x + 500, a.position.z + 500);
-      return { hit, shown, miss, alive: a.alive };
-    });
-    check('a shot marks the soldier standing where it came from',
-      !!reveal && reveal.hit === 1 && reveal.shown >= 1, JSON.stringify(reveal));
-    check('…and a shot from an empty field marks nobody (no wallhack)',
-      !!reveal && reveal.miss === 0, JSON.stringify(reveal));
+    // THE RULE: firing gives you away, standing still does not.
+    //
+    // THIS USED TO ASSERT THE EASY HALF AND MISS THE FEATURE ENTIRELY. It
+    // called __FPS_HUD__.revealAt(agent.position.x, agent.position.z) — handing
+    // the app a soldier's own coordinates and checking it found that soldier.
+    // That exercises a nearest-agent search and nothing else: it never touched
+    // the source the feed actually reads, so the feed was free to read a source
+    // that could not produce a single blip in a real game, stay green here, and
+    // ship. It did exactly that, for the whole of 0.9.9's development, and it
+    // took a player saying "I have never seen a dot on the minimap for any
+    // reason" to find it.
+    //
+    // So drive the state the ENGINE sets on a soldier that is shooting, and ask
+    // the engine's own extension point what it would draw. Nothing synthetic is
+    // pushed anywhere: burstLeft is the field a live agent carries mid-burst
+    // (measured on a running game), which is precisely what the feed reads.
+    const reveal = await (async () => {
+      const armed = await frame.evaluate(() => {
+        const ai = window.__FPS__.ctx.peek('ai');
+        const live = (ai.agents || []).filter((a) => a && a.alive !== false);
+        if (live.length < 2) return null;          // need a control group
+        live.forEach((a) => { a.burstLeft = 0; a.wantFire = false; });
+        live[0].burstLeft = 3;                     // one soldier, mid-burst
+        return { total: live.length };
+      });
+      if (!armed) return null;
+      // The feed runs once per engine frame, so poll for it rather than
+      // assuming a frame has gone by — on a software rasteriser it has not.
+      await waitFor(frame, () => ((window.__FPS__.ctx.peek('ai').getHudActors() || []).length >= 1), 30000);
+      return frame.evaluate(() => {
+        const ai = window.__FPS__.ctx.peek('ai');
+        const live = (ai.agents || []).filter((a) => a && a.alive !== false);
+        const shown = ai.getHudActors() || [];
+        return { total: live.length, shown: shown.length,
+                 firingIsShown: shown.indexOf(live[0]) >= 0 };
+      });
+    })();
+    check('a soldier who FIRES shows up on the minimap',
+      !!reveal && reveal.firingIsShown === true, JSON.stringify(reveal));
+    check('…and the soldiers merely standing there do NOT (that would be a wallhack)',
+      !!reveal && reveal.shown === 1 && reveal.total > 1, JSON.stringify(reveal));
     const fed = await frame.evaluate(() => {
       const ui = window.__FPS__.ctx.peek('ui');
       return { grenade: typeof ui.spawnGrenade === 'function', match: typeof ui.setMatch === 'function',
