@@ -113,8 +113,16 @@ async function run(MODE, nth) {
       // this suite's steering assertions read a physics sim that advances per
       // RENDERED FRAME. ANYROAD_GL=hw asks for the real GPU on boxes that have
       // one — which is also what every player has.
+      // ASK FOR VULKAN, or "hw" does not select anything. --ignore-gpu-blocklist
+      // and --enable-gpu-rasterization only lift Chrome's own refusals; measured
+      // on the fleet's one real-GPU box, a headless Chrome with those flags
+      // reported the SwiftShader device byte-for-byte identically to a run
+      // without them. --use-angle=vulkan is what reaches the GPU, and it
+      // degrades safely to Vulkan's own SwiftShader device on a box that has
+      // none. (See the long note in e2e-fps-simple.js, where the same mistake
+      // cost a night of blaming a phone for a silent host.)
       ...(process.env.ANYROAD_GL === 'hw'
-        ? ['--ignore-gpu-blocklist', '--enable-gpu-rasterization']
+        ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization']
         : ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']),
       '--disable-features=WebRtcHideLocalIpsWithMdns',
       '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',

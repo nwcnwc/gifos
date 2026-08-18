@@ -98,9 +98,30 @@ const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RE
 // cadence against a 15 s freshness horizon. Its guest then froze with "the host
 // is away" — a verdict about the rasteriser, not about the app.
 // FPS_GL=hw asks for the real GPU, which is what a player has.
+// FPS_GL=hw ASKED FOR THE GPU AND DID NOT GET ONE, for as long as it has
+// existed. `--ignore-gpu-blocklist --enable-gpu-rasterization` only lifts
+// Chrome's own refusals; neither of them selects a backend, so a headless
+// Chrome with no display fell all the way back to software anyway. Measured on
+// the fleet's ONE real-GPU box (2026-08-17), the renderer string was byte
+// identical with the flag and without it:
+//
+//   ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader)
+//
+// That is not a detail. This suite's HOST presses Play before the guest
+// arrives, and on software the stretch from Play to a running engine is
+// MINUTES of blocked main thread (e2e-fps-touch measures 249-297s per leg) —
+// with broadcastStatus() on that thread. So the "hardware" host went silent for
+// minutes on every run, and the phone was blamed for a room that had no host
+// beating in it.
+//
+// Asking for VULKAN is what actually selects the GPU, and it degrades safely:
+// the same flags on a box without one land on Vulkan's own SwiftShader device,
+// so this means "use the GPU if there is one", never "assume one".
+//
+//   ANGLE (NVIDIA, Vulkan 1.3.242 (NVIDIA GeForce MX230), NVIDIA)
 const ARGS = [
   ...(process.env.FPS_GL === 'hw'
-    ? ['--ignore-gpu-blocklist', '--enable-gpu-rasterization']
+    ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization']
     : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']),
   // WITHOUT THESE THERE IS NO MULTIPLAYER TO TEST. Chromium throttles a
   // backgrounded tab's requestAnimationFrame to about one frame a second, and
