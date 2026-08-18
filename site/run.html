@@ -4275,6 +4275,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         for (const [jk, job] of [...mosJobs]) if (job.to === p.id) unshipMos(jk, false);
       } catch (e) { if (typeof clog === 'function') clog('newPcFor: mosaic job cleanup failed ' + String(e).slice(0, 60)); }
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      // A glare yield armed against the OLD pc must never fire at the new
+      // one: its rollback would target a connection that never offered.
+      try { if (p.glareTimer) clearTimeout(p.glareTimer); } catch (e) {}
+      p.glareTimer = null; p.glareOffer = null;
       p.pc = pc; p.connected = false; p.pendingIce = []; p.dc = null; p.incoming = []; p.deadSince = 0; p.rebuiltAt = Date.now();
       p.remoteParkMain = false; // hidden-viewer dormancy resets with the transport: a rebuilt pair must never inherit a stale park (black tile forever)
       // ENCODES = LINKS: the raw camera is CHANNEL R only — it goes to my
@@ -4430,6 +4434,36 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       for (const tr of pc.getTransceivers()) {
         try { if (tr.receiver.track.kind === 'video' && tr.setCodecPreferences) tr.setCodecPreferences(H264_FIRST); } catch (e) {}
       }
+    }
+
+    // A GLARE DEADLOCK IS BROKEN BY WHOEVER IS STILL STUCK, not by whoever is
+    // senior. Both peers offered; the polite one was supposed to yield and did
+    // not (its rollback threw, or our offer never arrived). This gives the
+    // impolite side — and a polite side whose rollback failed — a second, later
+    // chance to take the offer it set aside.
+    //
+    // One shot per stored offer, only while the pair is STILL in
+    // have-local-offer, and it drops the stored offer as soon as the pair moves
+    // on by any other route, so a pair that healed normally is never disturbed.
+    const GLARE_YIELD_MS = 4000;
+    function armGlareYield(p, from, msg) {
+      p.glareOffer = msg;
+      if (p.glareTimer) return;                       // already waiting
+      p.glareTimer = setTimeout(() => {
+        p.glareTimer = null;
+        const m = p.glareOffer; p.glareOffer = null;
+        if (!m || !p.pc || leaving) return;
+        if (p.pc.signalingState !== 'have-local-offer') return;  // it healed; leave it alone
+        if (typeof clog === 'function') clog('glare-yield ' + String(from).slice(0, 6));
+        Promise.resolve(p.pc.setLocalDescription({ type: 'rollback' }))
+          .then(() => p.pc.setRemoteDescription(m.sdp))
+          .then(() => { for (const c of p.pendingIce.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); })
+          .then(() => { preferHwVideo(p.pc); return p.pc.createAnswer(); })
+          .then((ans) => p.pc.setLocalDescription(ans))
+          .then(() => sendSig(from, { kind: 'answer', sdp: p.pc.localDescription, name: myName(), ip: myIp,
+                                      st: myStatus, mod: modTable, modw: gossipModW(), conns: myConns(), sid: mySid() }))
+          .catch(() => { try { newPcFor(p); if (iInitiate(from)) sendOffer(from, false); } catch (e) {} });
+      }, GLARE_YIELD_MS);
     }
 
     function sendOffer(peerId, iceRestart) {
@@ -4592,9 +4626,38 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
           .catch(() => {});
         if (p.pc.signalingState === 'have-local-offer') {
           if (myId && myId < from) {
-            Promise.resolve(p.pc.setLocalDescription({ type: 'rollback' })).then(accept).catch(() => {});
+            // Polite: roll back and answer. A FAILURE HERE USED TO BE THE END OF
+            // THE PAIR — the catch swallowed it and nobody ever looked again,
+            // while the impolite side sat on an offer that would never be
+            // answered. Fall through to the same yield the impolite side uses.
+            Promise.resolve(p.pc.setLocalDescription({ type: 'rollback' })).then(accept)
+              .catch(() => { armGlareYield(p, from, msg); });
+            return;
           }
-          // else: impolite — keep our offer, ignore theirs
+          // IMPOLITE — keep our offer, ignore theirs. BUT NOT FOREVER, which is
+          // what it used to mean and what wedged rooms.
+          //
+          // Perfect negotiation assumes the polite side will answer. When it
+          // does not — its rollback threw, or our offer never reached it — BOTH
+          // ends sit in have-local-offer with a peer object and no connection,
+          // and nothing revisits the decision: the sweeper's rebuild just
+          // re-offers into the same deadlock, so it survives any number of
+          // retries. Measured on two verified-idle fleet boxes (2026-08-18):
+          //
+          //   P3 -> P4  sig:have-local-offer  ice:checking  dc:connecting
+          //   P4        liveLinks:0  liveDataLinks:0  peers:[both]  relayUp:true
+          //   still dark after 150s; five of six seats live in 2.4s
+          //
+          // It is the same signature as e2e-latejoin's "socketless link target"
+          // flake and adversary-room's "wired to every HEALTHY neighbour it
+          // names" red, which is three symptoms of one bug.
+          //
+          // So being impolite is now a PREFERENCE, not a vow: hold our offer for
+          // GLARE_YIELD_MS, and if no answer has come, yield and answer theirs.
+          // Whoever gives way, the pair connects, which is the only outcome that
+          // matters. Bounded, one-shot per offer, and it can only fire while
+          // still stuck in have-local-offer.
+          armGlareYield(p, from, msg);
           return;
         }
         accept();
