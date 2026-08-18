@@ -1030,6 +1030,37 @@ async function deathmatch() {
     // instant.
     // Before believing anything timed below, check the channel it is timed
     // through. See mustBeAbleToAnswer.
+    // ALICE'S FRAME GOES STALE TOO, and only Bob's was ever re-found.
+    //
+    // findAppFrame exists because "an app-room guest's iframe is remounted
+    // around serve/acknowledgement … a held handle reads 'Frame was detached'".
+    // That is true of the HOST as well — serving the app to an arriving guest
+    // remounts hers — and hers was captured once, before Play, and held for the
+    // rest of the suite. A handle onto a replaced mount does not throw: it
+    // answers, from a corpse, forever.
+    //
+    // Measured exactly that way (2026-08-17): `alice count=1 bodies=0` held for
+    // 84 seconds while her OWN room line, on the same ticks, read parts=2 with
+    // dc=open/connected. The transport was healthy, the roster was right, and
+    // the app being asked was not the app that was running.
+    //
+    // So re-find hers the same way Bob's is found: the NEWEST frame with an
+    // engine that is counting, falling back to what we already hold.
+    const liveFrame = async (pg, prev) => {
+      let best = prev;
+      for (const f of pg.frames()) {
+        if (f === pg.mainFrame()) continue;
+        const st = await f.evaluate(() => ({
+          ours: !!(window.__FPS__ || document.getElementById('gate-go')),
+          run: !!(window.__FPS__ && window.__FPS__.engine && window.__FPS__.engine.time
+                  && window.__FPS__.engine.time.frame > 0),
+        })).catch(() => null);
+        if (st && st.run) best = f;          // a counting engine wins outright
+        else if (st && st.ours && best === prev) best = f;
+      }
+      return best || prev;
+    };
+    aFrame = await liveFrame(aRun, aFrame);
     const aMs = await mustBeAbleToAnswer(aFrame, 'Alice', boxes[0].host.name || boxes[0].host.ssh);
     const bMs = await mustBeAbleToAnswer(bFrame, 'Bob', BOB_CDP ? 'the phone at FPS_BOB_CDP' : (boxes[1].host.name || boxes[1].host.ssh));
     console.log('  both app frames answer in ' + aMs + ' / ' + bMs + ' ms — timings below mean something');
@@ -1048,6 +1079,10 @@ async function deathmatch() {
         // This window is exactly as long as the parked-phone timer, so the
         // player has to keep being present through it too — see stayPresent.
         if (BOB_CDP) await stayPresent(bRun);
+        // …and a remount mid-window must not leave us reading a corpse for the
+        // rest of it (see liveFrame above).
+        aFrame = await liveFrame(aRun, aFrame);
+        bFrame = await liveFrame(bRun, bFrame);
         const [a, b] = await Promise.all([aFrame, bFrame].map((f) => f.evaluate(() => ({
           c: window.Net ? window.Net.count() : -1,
           bod: window.Remote ? window.Remote.count() : -1,
