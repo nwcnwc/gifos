@@ -336,43 +336,72 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // genuinely climbing, and it is sized so this suite's worst case stays well
     // inside the gate's 600s per-suite timeout (release.sh run_one default).
     //
-    // WHY 25s, from the PRODUCT rather than from taste: run.html expires a
-    // mosaic announce after 12s (`nowA - ann.at > 12000`), and a claim that
-    // never resolved is re-made on the next announce. So 25s is TWO FULL
-    // announce/claim cycles with nothing changing anywhere in the room — and
-    // "anywhere" is doing real work here, because a seat climbing 0->1->2->3
-    // refreshes the window at every rung. Only a seat that is COMPLETELY static,
-    // no claim and no announce, can run this out.
-    // MEASURED against that: across 9 fleet runs (54 seat observations) every
-    // seat that came up at all did so within 4.66s, deep seats included — so the
-    // window is ~5x the observed tail. That is a margin argument, not a proof:
-    // exactly one run had a seat sit at rung 0 and never arrive, and whether it
-    // was STUCK or merely past this window was not established. The probe below
-    // exists to settle that the next time it happens, and it will say plainly
-    // if this number is the thing at fault.
-    const STILL_MS = 25000, CEIL_MS = 150000;
+    // WHY 60s, AND THE FIRST NUMBER WAS WRONG — this is set from a measurement
+    // that contradicted it, not from the product's constants.
+    //
+    // It was 25s, argued from run.html expiring a mosaic announce at 12s: two
+    // full announce/claim cycles with nothing moving looked like plenty. It was
+    // not. On the fleet a seat sat COMPLETELY static for 26s — no claim, no
+    // announce, and (the part the old ladder could not see) no live link and no
+    // data channel either, while every other seat already held it in roster and
+    // status — and then finished joining and went live 4s later. The room was
+    // converging the whole time; 25s of "stillness" was a test that could not
+    // see transport come up, and it produced a FALSE RED.
+    //
+    // So both halves changed: the ladder now starts at the transport (above) so
+    // wiring counts as progress, and the window is 60s — better than 2x the
+    // longest static stretch actually observed (26s), and still a third of the
+    // 90s flat ceiling this replaced, because it only ever runs out when
+    // NOTHING in the room improves: no rung, no data channel, no peer, no
+    // occupancy. If a future red claims stillness, the probe below says whether
+    // the seat recovered anyway — and if it did, this number is the bug again.
+    const STILL_MS = 60000, CEIL_MS = 180000;
+    // THE LADDER STARTS BELOW THE MOSAIC, and it has to — measured 2026-08-18.
+    // The first version began at "ingredient claimed", so a seat that was still
+    // WIRING scored 0 no matter how much progress it was making, and a room came
+    // up looking frozen while it was busy forming links. That cost a false red:
+    // a seat sat at 0 for 26s with liveDataLinks:0 and occ:2 while every other
+    // seat already held it in roster and status, then finished joining and went
+    // live 4s later. Nothing was stuck; the waiter was blind to the only thing
+    // that was moving. So the rungs now begin at the transport and the progress
+    // signal carries the WIRING counters too — a seat gaining a peer, a data
+    // channel, or occupancy is a room that is converging, and must never be
+    // scored as still.
     const rungOf = (i) => pages[i].evaluate(() => {
-      const V = window.__gifosVideo; if (!V) return 0;
-      const m = V.mosaic() || {};
+      const V = window.__gifosVideo; if (!V) return { r: 0, dc: 0, occ: 0, peers: 0 };
+      const safe = (f, d) => { try { return f(); } catch (e) { return d; } };
+      const m = safe(() => V.mosaic(), {}) || {};
       const el = document.querySelector('#stadium [data-row="sd"] video');
-      if (m.tile && m.tile.live) return 4;
-      if (el) return el.readyState >= 1 ? 3 : 2;
-      const cl = m.claims || [];
-      return cl.some((k) => k === 'sdn' || k === 'sdm' || String(k).indexOf('sub:') === 0) ? 1 : 0;
-    }).catch(() => 0);
+      const dc = safe(() => V.liveDataLinks(), 0) || 0;
+      const occ = (safe(() => V.meshState(), {}) || {}).occ || 0;
+      const peers = (safe(() => V.peerIds(), []) || []).length;
+      let r;
+      if (m.tile && m.tile.live) r = 6;
+      else if (el) r = el.readyState >= 1 ? 5 : 4;
+      else if ((m.claims || []).some((k) => k === 'sdn' || k === 'sdm' || String(k).indexOf('sub:') === 0)) r = 3;
+      else if (dc > 0) r = 2;                    // wired: a DataChannel to someone
+      else if (peers > 0) r = 1;                 // wiring: a peer exists, not yet open
+      else r = 0;                                // not yet joined at all
+      return { r, dc, occ, peers };
+    }).catch(() => ({ r: 0, dc: 0, occ: 0, peers: 0 }));
     const tS = Date.now();
-    let best = -1, lastGain = Date.now(), rungs = new Array(N).fill(0);
+    let best = -1, lastGain = Date.now(), rungs = new Array(N).fill(0), det = [];
     for (;;) {
+      det = [];
       for (let i = 0; i < N; i++) {
-        const r = await rungOf(i);
-        rungs[i] = r;
-        if (r === 4 && !live[i]) { live[i] = true; liveMs[i] = Date.now() - tS; }
+        const s = await rungOf(i);
+        rungs[i] = s.r; det.push(s);
+        if (s.r === 6 && !live[i]) { live[i] = true; liveMs[i] = Date.now() - tS; }
       }
       if (live.every(Boolean)) break;
-      const sum = rungs.reduce((s, x) => s + x, 0);
+      // PROGRESS IS ANY OF IT MOVING: the rung, the open data channels, the
+      // occupancy each seat knows, the peers it holds. A room that is wiring
+      // improves one of these on every beat even when no Stadium has appeared.
+      const sum = det.reduce((s, x) => s + x.r * 1000 + x.dc * 10 + x.occ + x.peers, 0);
       if (sum > best) { best = sum; lastGain = Date.now(); }
       if (Date.now() - lastGain >= STILL_MS) {
         console.log('   MEASURE the room STOPPED climbing: rungs ' + JSON.stringify(rungs)
+          + ' wiring ' + JSON.stringify(det.map((x) => x.dc + '/' + x.peers + '/occ' + x.occ))
           + ' unchanged for ' + Math.round((Date.now() - lastGain) / 1000) + 's at t+'
           + Math.round((Date.now() - tS) / 1000) + 's — not waiting out a ceiling for a room that is not moving');
         break;
@@ -398,15 +427,55 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       for (let i = 0; i < N; i++) {
         if (live[i]) continue;
         const d = await pages[i].evaluate(() => {
-          const m = window.__gifosVideo.mosaic() || {};
+          const V = window.__gifosVideo, m = V.mosaic() || {};
           const el = document.querySelector('#stadium [data-row="sd"] video');
-          return { head: m.head, up: m.up, down: m.down, prodStream: m.prodStream, sdStream: m.sdStream,
+          const safe = (f, dflt) => { try { return f(); } catch (e) { return dflt; } };
+          const short = (a) => (a || []).map((x) => String(x).slice(0, 8));
+          return { me: m.me, head: m.head, up: m.up, down: m.down,
+            prodStream: m.prodStream, sdStream: m.sdStream,
             el: el ? { vw: el.videoWidth, rs: el.readyState, sid: String(el.srcObject && el.srcObject.id).slice(0, 8) } : null,
-            claims: m.claims, ann: m.ann, jobs: m.jobs };
+            claims: m.claims, ann: m.ann, jobs: m.jobs,
+            // MESH STATE, not just mosaic state. `up:null` says the composite
+            // never reached this seat; these say whether it ever had a mesh to
+            // reach it THROUGH — seat state, strandedness, how much occupancy it
+            // knows, who it holds links to, and whether it has a DataChannel to
+            // anybody at all.
+            mesh: safe(() => V.meshState(), null),
+            linkPeers: short(safe(() => V.meshLinks(), [])),
+            liveLinks: safe(() => V.liveLinks(), null),
+            liveDataLinks: safe(() => V.liveDataLinks(), null),
+            peers: short(safe(() => V.peerIds(), [])),
+            roster: short(safe(() => V.rosterIdsNow(), [])),
+            statusIds: short(safe(() => V.statusIds(), [])),
+            relayUp: safe(() => V.relayUp(), null) };
         }).catch((e) => ({ err: String(e).slice(0, 90) }));
         why.push({ seat: 'P' + i, at: cstr(coords[i]), d });
       }
       console.log('   MEASURE seats with no live Stadium: ' + JSON.stringify(why));
+      // INVISIBLE TO EVERYONE, OR ONLY MISSING ITS OWN UP-LINK? The seat's own
+      // view cannot answer that, and the answer decides where the defect is: a
+      // seat nobody has in occ was never NAMED (a gossip problem), while a seat
+      // everyone can see but which holds no up-link ASKED and got no answer (a
+      // link-formation problem). Ask every other seat what it holds for this id.
+      for (const w of why) {
+        const pid = String((w.d && w.d.me) || '');
+        if (!pid) continue;
+        const seen = [];
+        for (let j = 0; j < N; j++) {
+          if ('P' + j === w.seat) continue;
+          const v = await pages[j].evaluate((id) => {
+            const V = window.__gifosVideo;
+            const safe = (f, dflt) => { try { return f(); } catch (e) { return dflt; } };
+            const has = (arr) => (arr || []).some((x) => String(x).indexOf(id) === 0 || id.indexOf(String(x)) === 0);
+            const p = (V.pairs && safe(() => V.pairs(), []) || []).find((q) => String(q.id).indexOf(id) === 0 || id.indexOf(String(q.id)) === 0);
+            return { peer: has(safe(() => V.peerIds(), [])), roster: has(safe(() => V.rosterIdsNow(), [])),
+              status: has(safe(() => V.statusIds(), [])), link: has(safe(() => V.meshLinks(), [])),
+              myOcc: (safe(() => V.meshState(), {}) || {}).occ, pair: p || null };
+          }, pid).catch(() => null);
+          seen.push(Object.assign({ from: 'P' + j }, v || { err: true }));
+        }
+        console.log('   MEASURE who can SEE ' + w.seat + ' (' + w.at + ', id ' + pid + '): ' + JSON.stringify(seen));
+      }
       // DID IT RECOVER? The waiter gives up on STILLNESS rather than on a clock,
       // and the one thing stillness cannot distinguish by itself is a room that
       // is DEADLOCKED from a seat that is merely slower than the window. So keep
@@ -423,7 +492,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         await sleep(2000);
         for (let k = stillDark.length - 1; k >= 0; k--) {
           const i = stillDark[k];
-          if (await rungOf(i) === 4) { recovered.push({ seat: 'P' + i, afterMs: Date.now() - tR }); stillDark.splice(k, 1); }
+          if ((await rungOf(i)).r === 6) { recovered.push({ seat: 'P' + i, afterMs: Date.now() - tR }); stillDark.splice(k, 1); }
         }
       }
       console.log('   MEASURE dark seats after the verdict: '
