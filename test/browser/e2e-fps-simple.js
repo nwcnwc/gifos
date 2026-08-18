@@ -777,6 +777,16 @@ async function deathmatch() {
       await bRun.goto(shareUrl);
     }
     bRun.on('pageerror', (e) => console.log('  [Bob app err] ' + e.message.slice(0, 200)));
+    // THE PHONE'S BOOT TIMELINE, FROM THE APP ITSELF. boot.js stamps every
+    // phase as `[fpsperf] <what> <ms>` on the console precisely because a phone
+    // cannot be attached to a debugger while it does this — and the one thing
+    // we could never see is WHERE its main thread goes for the minutes that the
+    // room spends unreachable (measured: stAge=180996, three minutes with no
+    // beat processed). Listening costs nothing and needs no product change.
+    bRun.on('console', (m) => {
+      const t = m.text();
+      if (t.indexOf('[fpsperf]') === 0 || t.indexOf('[fps]') === 0) console.log('  [Bob ' + t.slice(0, 120) + ']');
+    });
     let bFrame;
     if (BOB_CDP) {
       // THE PHONE PRESSES ITS OWN PLAY BUTTON. Playwright's CDP mouse click
