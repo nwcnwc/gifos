@@ -42,6 +42,47 @@
 // gate, so needFleet(3) would refuse routinely and block cuts for a reason that
 // has nothing to do with the product.
 //
+// WHAT THIS ROOM COSTS TO BUILD, measured so the next person does not have to
+// guess at a budget (2026-08-18, 10 fleet runs, 59 seat observations, two
+// isolated boxes, 3 seats each, both verified idle):
+//
+//   time from the live-check starting to a seat's Stadium going live
+//     min 6 ms   median 136 ms   p90 2.27 s   max 4.66 s
+//
+// Section-0 seats land in the tens of milliseconds; the seconds-long tail is
+// always the DEEP seats, which is the tree doing its job rather than a fault.
+// Seating itself (all six holding a coord, one of them deep) runs 23-26 s
+// before any of that starts.
+//
+// AND ONE OUTLIER THAT MATTERS MORE THAN THE DISTRIBUTION: a seat was once
+// observed still WIRING at 26 s — no live link, no data channel, occ 2 against
+// the room's 4-6 — while every other seat already carried it in roster and
+// status. It finished and went live about 30 s in. It is SLOW, not broken, and
+// nothing here treats it as a defect; but a room can take half a minute to
+// wire on idle hardware, and any waiter written against this suite has to
+// survive that. It is exactly what a 25 s stillness window got wrong once.
+//
+// ONE FAILURE IS STILL UNEXPLAINED, recorded here rather than quietly dropped:
+// a run on 2026-08-17 (old 25 s waiter, before the recovery probe existed) had
+// P4 @1/1.1 dark with claims:[] and ann:[]. That is the SAME observable
+// signature as the wiring case above — a row-mate at x/1.1, no claim, no
+// announce — so the most likely reading is that it was the same false red. It
+// cannot be shown either way: that dump predates the link counters, so whether
+// it held a data channel is simply not known, and nothing asked whether it
+// recovered. Unexplained, probably benign, unproven. Let the probe classify the
+// next one rather than re-arguing this one.
+//
+// A HARNESS THAT CANNOT SEE THE LINE IT IS LOOKING FOR REPORTS "NEVER FIRED"
+// WITH TOTAL CONFIDENCE. This file passes DEBUG=on, so run.html's clog() is
+// live and every rebuild/heal/glare site writes to it — and for its whole life
+// this suite listened only for `pageerror` and threw all of it away. It was
+// asked, on 2026-08-18, whether a new glare-yield repair was firing; with no
+// console listener the honest answer available to it would have been a
+// confident, wrong "no". Seats' clog lines are captured now, and the count is
+// printed on GREEN runs too, because a room that goes green without ever
+// yielding is not evidence that yielding fixed anything. Same failure shape as
+// a guard that asserts the easy half and stays green while the feature is dead.
+//
 // Needs, ON THE ORCHESTRATOR (which runs NO browsers): the static site on 8099
 // and test/servers/relay-local.js on 8790, both bound 0.0.0.0 — the fleet's
 // browsers load over the tailnet, never loopback. Addresses come from the same
@@ -208,6 +249,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   {
     const room = 'pipe' + Math.random().toString(36).slice(2, 7);
     const pages = [];
+    const clogLines = [];              // transport forensics from every seat
+    const tRoom = Date.now();
     for (let i = 0; i < N; i++) {
       const ctx = await seatBox(i).browser.newContext({ permissions: ['camera', 'microphone'] });
       // PIPE_DRAIN=off disables the carrier catch-up drainer for an A/B against
@@ -229,6 +272,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await ctx.addInitScript({ content: `try{localStorage.setItem('gifos_relay','${RELAY}');localStorage.setItem('gifos_name','P${i}')}catch(e){}; ${drain} ${lane} ${carrier} window.GIFOS_SCALE={C:2};` });
       const page = await ctx.newPage();
       page.on('pageerror', (e) => console.log(`  [P${i}] PAGEERROR`, String(e).slice(0, 200)));
+      // THE TRANSPORT'S OWN VOICE. run.html's clog() is live on a DEBUG page
+      // (this suite always passes DEBUG=on) and every rebuild/heal/glare site
+      // writes to it — but nothing here was listening, so the signalling trail
+      // was being thrown away at exactly the moment it mattered. Keep the
+      // glare/rollback lines with the seat and a timestamp; they are the only
+      // way to tell a fix that never ARMED from one that armed and failed.
+      const seatN = i;
+      page.on('console', (m) => {
+        let t = '';
+        try { t = m.text(); } catch (e) { return; }
+        if (!t || t.indexOf('[clog]') < 0) return;
+        if (!/glare|rollback|re-?pair|rebuild|watchdog/i.test(t)) return;
+        clogLines.push({ seat: 'P' + seatN, ms: Date.now() - tRoom, t: t.replace('[clog]', '').trim().slice(0, 120) });
+      });
       await page.goto(BASE + '/run.html#v=' + room + '&DEBUG=on');
       // WHICH KIND OF FALLBACK. `pipeInfo().deny` is one set fed by TWO totally
       // different events (run.html "FAILBACK is per-job and automatic"): a
@@ -416,6 +473,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // 8-core box every seat is live in the low seconds (measured); a green with
     // a seat near the ceiling is a warning, not a pass.
     console.log('   MEASURE time to a live Stadium, per seat (ms): ' + JSON.stringify(liveMs));
+    // ALWAYS PRINTED, INCLUDING ON A GREEN RUN. Whether the glare yield fires at
+    // all is nearly as informative as the pass rate: a room that goes green
+    // WITHOUT ever yielding never had the deadlock to begin with, and cannot be
+    // evidence that yielding cured it. Silence here on a red run means the
+    // offer never reached the handler, which is a different bug entirely.
+    {
+      const g = clogLines.filter((x) => /glare/i.test(x.t));
+      console.log('   MEASURE glare-yield fired: ' + g.length
+        + (g.length ? '  ' + JSON.stringify(g.slice(0, 8)) : '  (never armed or never needed)')
+        + '; other transport lines: ' + (clogLines.length - g.length));
+    }
     // AND WHY, when one does not. A dark Stadium has two completely different
     // causes and the boolean cannot tell them apart: the seat never CLAIMED the
     // ingredient its Stadium is built from (a branch that never converged — no
@@ -475,6 +543,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
           seen.push(Object.assign({ from: 'P' + j }, v || { err: true }));
         }
         console.log('   MEASURE who can SEE ' + w.seat + ' (' + w.at + ', id ' + pid + '): ' + JSON.stringify(seen));
+        // The full transport trail for this room, so a surviving wedge can be
+        // read as "the yield never armed" vs "the yield armed and failed".
+        console.log('   MEASURE transport trail (all seats, ms since join): '
+          + (clogLines.length ? JSON.stringify(clogLines.slice(-24)) : 'EMPTY — no clog lines at all,'
+            + ' so either DEBUG is off or nothing in the rebuild/heal/glare path ran'));
       }
       // DID IT RECOVER? The waiter gives up on STILLNESS rather than on a clock,
       // and the one thing stillness cannot distinguish by itself is a room that
