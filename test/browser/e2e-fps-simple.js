@@ -531,6 +531,30 @@ async function solo() {
 /* DEATHMATCH — a machine per player                                       */
 /* ======================================================================= */
 async function deathmatch() {
+  // WHAT THE PHONE LEG IS, AND WHAT IT IS NOT — written after a night of
+  // treating it as the requirement when it is an extra.
+  //
+  // The DEFAULT is two fleet boxes, and that is what the gate needs. Measured
+  // 2026-08-17 on nvidia-laptop + clawbox: 19/19 green with presence crossing
+  // at t=0s, no churn, the guest answering in 142ms. (An earlier note that
+  // clawbox was too slow to be a player — a 10,327ms probe — was taken before
+  // GL=hw actually asked for a GPU and before this suite waited for the host to
+  // be playing; it is not true of the suite as it stands.)
+  //
+  // The phone leg is OPT-IN and, as of that date, FLAKY — one full green run in
+  // seven, and the same two-box run green back to back around it. What it costs
+  // is not the phone's silicon: it boots to READY in 13-15s on a real Mali GPU
+  // and answers in 51-80ms. It is the PATH. The phone reaches the stack through
+  // adb reverse and its peer through household wifi, and the pair's ICE was
+  // measured cycling connected/disconnected while the game ran, with app state
+  // (which rides the DataChannel and nothing else) queued to its 32 cap on both
+  // sides. Both peers seated, both rosters right, and nothing crossing.
+  //
+  // So: run it for what only it can prove — real touch hardware, a real phone
+  // GPU, a real network path — and read a red on it as a question about the
+  // path before it is read as one about the product. The two-box run is the
+  // control that tells those apart, and it takes ten minutes.
+  //
   // BOB CAN BE A REAL PHONE. With FPS_BOB_CDP set to a Chrome DevTools
   // endpoint (an adb-forwarded Android Chrome, tunnelled to wherever this
   // suite runs), Bob is that browser instead of a second fleet box — real
