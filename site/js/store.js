@@ -366,11 +366,28 @@
   // Origin-relative rather than hard-coded, so a custom deployment shares itself.
   const shareUrl = (slug) => new URL('/store/' + encodeURIComponent(slug), location.href).href;
 
+  // Optional cash path (site/js/gifos-cash.js). Empty when pay.js was not
+  // baked with a Payment Link — then the bar stays hidden and a listing
+  // has no Feature button. Install is never gated on this.
+  function paintPayBar() {
+    const bar = $('paybar'), tip = $('tip');
+    const link = GifOS.cash ? GifOS.cash.tipHref() : '';
+    if (!bar) return;
+    if (!link) {
+      bar.hidden = true;
+      if (tip) tip.removeAttribute('href');
+      return;
+    }
+    bar.hidden = false;
+    if (tip) tip.href = link;
+  }
+
   function showBrowse(push) {
     detailEl.style.display = 'none';
     browseEl.style.display = '';
     document.title = 'App Store — GifOS';
     if (push) history.pushState({}, '', browseUrl());
+    paintPayBar();
     renderGrid();
     root.scrollTo(0, 0);
   }
@@ -404,6 +421,7 @@
     // moved to an older build), and "Install again", greyed out and silent, is
     // the same dead end as a silent "Install — free".
     const why = (normal) => (tooOld(app) ? 'Needs a newer GifOS' : normal);
+    const feature = GifOS.cash ? GifOS.cash.featureHref(app.slug) : '';
     detailEl.innerHTML =
       '<button class="back" id="back">← All apps</button>' +
       '<div class="head"><div>' +
@@ -422,6 +440,11 @@
         // cannot install from is still worth sending to someone whose computer
         // can — that is most of the point of having a link.
         '<button class="btn ghost" id="share" data-url="' + esc(shareUrl(app.slug)) + '">Share</button>' +
+        // Feature is optional cash, never a gate. A listing you cannot pay
+        // for is the normal state; a listing you can still installs free.
+        (feature
+          ? '<a class="btn ghost" id="feature" href="' + esc(feature) + '" target="_blank" rel="noopener">Feature this listing</a>'
+          : '') +
         '<span class="note" id="note">' + esc(human(app.bytes)) + ' download' +
           // An app whose weights arrive separately is TWO downloads, and the
           // second one dwarfs the first. Say so before the press, not after.
@@ -733,6 +756,7 @@
       return;
     }
     await refreshInstalled();
+    paintPayBar();
     renderCats();
     // Say it once at the top too, so nobody browses the whole catalog before
     // discovering their computer can't take an install yet.

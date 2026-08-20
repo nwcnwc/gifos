@@ -133,6 +133,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .caps { display: flex; gap: .4rem; flex-wrap: wrap; }
   .empty { color: var(--muted, #8888aa); padding: 2rem 0; }
   .foot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border, #2a2a3f); font-size: .85rem; color: var(--muted, #667); }
+  /* Optional cash path. Hidden unless js/pay.js was baked with a Payment Link.
+     The catalog does not depend on it — Install stays free either way. */
+  .paybar { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap;
+            margin: -.2rem 0 1.4rem; padding: .85rem 1rem;
+            border: 1px solid var(--border, #2a2a3f); border-radius: .8rem;
+            background: var(--surface, #14141f); color: var(--muted, #a9a9c5); font-size: .92rem; }
+  .paybar[hidden] { display: none; }
+  .paybar p { margin: 0; flex: 1 1 16rem; }
 </style>
 <script src="js/gifos-themes.js"></script>
 </head>
@@ -148,6 +156,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     <div id="browse">
       <h1>Apps that are <span class="brand">GIFs</span></h1>
       <p class="lede">Install one and it lands on your Home Screen as a single file you own — free to keep, free to pass on.</p>
+      <div class="paybar" id="paybar" hidden>
+        <p>The catalog stays free. Leave a tip, or pay to feature a listing.</p>
+        <a class="btn ghost" id="tip" rel="noopener" target="_blank">Leave a tip</a>
+      </div>
       <div class="filters"><input id="q" type="search" placeholder="Search apps…" autocomplete="off"></div>
       <div class="cats" id="cats"></div>
       <div class="grid" id="grid"></div>
@@ -178,6 +190,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-assets.js"></script>
   <script src="js/gifos-store.js"></script>
+  <script src="js/pay.js"></script>
+  <script src="js/gifos-cash.js"></script>
   <script src="js/store.js"></script>
 </body>
 </html>

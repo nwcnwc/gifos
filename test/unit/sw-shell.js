@@ -45,5 +45,14 @@ const stale = (core.match(/'\/js\/[^']+'/g) || [])
   .filter((p2) => !fs.existsSync(path.join(ROOT, 'site', p2.replace(/^\//, ''))));
 check('every js module CORE names still exists', stale.length === 0, stale);
 
+// The store page is shell too (sw.js says so). Its cash path is two new
+// modules; forgetting them here is the gifos-ed.js failure again — the
+// page parses, the tip bar is just quietly dead offline.
+const storeHtml = fs.readFileSync(path.join(ROOT, 'site', 'store.html'), 'utf8');
+for (const s of ['js/pay.js', 'js/gifos-cash.js', 'js/store.js']) {
+  check('store.html loads ' + s, storeHtml.includes('src="' + s + '"'));
+  check('CORE precaches /' + s + ' (store page is whole offline)', core.indexOf("'/" + s + "'") !== -1);
+}
+
 console.log(failures === 0 ? 'ALL PASS' : failures + ' FAILED');
 process.exit(failures === 0 ? 0 : 1);

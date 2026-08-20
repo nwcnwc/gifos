@@ -1096,7 +1096,13 @@ Curated GitHub repo keeps review in a familiar PR workflow. Store is
 **catalog + trust + IAP rail**, not a paid DRM gate.
 
 **SHIPPED (2026-08-01) — v1: browse + free install.** The store itself is
-live; only the IAP rail below is still unbuilt.
+live; only the x402 IAP rail below is still unbuilt.
+
+**SHIPPED (2026-08-19) — optional cash path, not a paywall.** The store can
+show a tip CTA and a per-listing "Feature this listing" button when deploy
+bakes `STRIPE_PAYMENT_LINK` into `site/js/pay.js` via `scripts/stamp-pay-link.js`. No account. Install stays
+"Install — free". Fulfillment of a featured listing is manual (the checkout
+carries `client_reference_id`). This is not the x402 IAP rail.
 
 - **Catalog source:** THIS repo, not a separate one. `apps/<slug>/listing.json`
   (author, tagline, long description, releaseDate, **categories**, tags,
