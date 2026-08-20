@@ -3,6 +3,11 @@
 **Status: Phase 2 (Base Sepolia testnet only). No mainnet asset is reachable by
 this code path.** Ratified 2026-08-11.
 
+The live App Store has a **separate** optional fiat CTA (`site/js/gifos-cash.js`)
+— a tip or "feature this listing" button baked from `STRIPE_PAYMENT_LINK` by `scripts/stamp-pay-link.js`. That
+is not this x402 path, does not paywall the catalog, and must not be rewritten
+into Coinbase/x402.
+
 **Platform decision, Nathan, 2026-08-11: we use Coinbase's stack, or we do no
 payments at all.** Base, the Base Account (Coinbase Smart Wallet), and
 Coinbase's x402 facilitator. This is not a technical finding, it is a choice

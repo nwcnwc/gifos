@@ -78,6 +78,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const gifImg = /(?:src|background(?:-image)?|href)\s*[:=][^\n]*\.gif/i.test(storeSrc.replace(/^\s*[/*].*$/gm, ''));
   check('store.js never points an image/link at a .gif in its markup', !gifImg);
 
+  const payJs = fs.readFileSync(path.join(SITE, 'js', 'pay.js'), 'utf8');
+  check('committed pay.js carries no payment URL (the link is baked at deploy, not stored in git)',
+    /link:\s*['"]{2}/.test(payJs), payJs.trim().split('\n').pop());
+  check('store.js still advertises Install as free — cash is a CTA, not a gate',
+    /Install — free/.test(storeSrc));
+
   // ---- the browser ----------------------------------------------------------
   const browser = await chromium.launch({ executablePath: CHROME });
   const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
@@ -132,6 +138,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('every card shows its cover image', covers.length === cards && covers.every((c) => c.loaded), JSON.stringify(covers.map((c) => c.loaded)));
   check('every card image is a cover.jpg', covers.every((c) => /\.jpe?g$/i.test(c.src || '')));
   check('BROWSING THE WHOLE STORE FETCHES ZERO APP GIFS', gifHits.length === 0, gifHits.join(', '));
+  check('with no payment link the store does not show a tip CTA',
+    (await page.locator('#paybar:not([hidden]), #tip[href]').count()) === 0);
 
   // ---- which build owns the visitor -----------------------------------------
   // This page carries NO channel loader on purpose, and that decision has
@@ -191,6 +199,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
   check('the listing shows the app\'s declared abilities before you install', /Abilities/.test(facts));
   check('opening a listing still fetches no App GIF', gifHits.length === 0, gifHits.join(', '));
+  check('Install is still free — paying is not required to get the app',
+    /Install — free/.test((await page.locator('#install').textContent()) || ''),
+    await page.locator('#install').textContent());
+  check('a listing without a payment link does not show Feature this listing',
+    (await page.locator('#feature').count()) === 0);
 
   // ---- Share ----------------------------------------------------------------
   // The button exists to hand someone the PRETTY link, and what it puts on the
@@ -611,6 +624,43 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       !(await page.locator('#install').isDisabled()), reachable.slug + ' minBuild ' + reachable.minBuild);
   }
   await page.evaluate(() => localStorage.removeItem('gifos_channel'));
+
+  // ---- optional cash path (baked Payment Link) -------------------------------
+  // The committed pay.js is empty. Prove the OTHER half: when a deploy bakes a
+  // link, the store grows a tip CTA and a Feature button, and Install stays
+  // free. Fresh CONTEXT: the first visit already registered a service worker
+  // that would keep serving the empty committed pay.js, and the same computer
+  // already installed the target so the button would say "Install again".
+  // The URL is a test double — no Stripe, no secret, no navigation off origin
+  // (we read href, we do not click through to a checkout).
+  const payCtx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const cashGifs = [];
+  payCtx.on('request', (r) => { if (/\/apps\/[^/]+\/[^/]+\.gif(\?|$)/i.test(r.url())) cashGifs.push(r.url()); });
+  await payCtx.route(/\/js\/pay\.js(\?|$)/, (route) => route.fulfill({
+    contentType: 'application/javascript',
+    body: 'window.GIFOS_PAY = { link: "https://buy.stripe.com/test_gifos_cash" };',
+  }));
+  const payPage = await payCtx.newPage();
+  await payPage.goto(BASE + '/store.html');
+  await payPage.waitForSelector('.card', { timeout: 15000 });
+  const tipHref = await payPage.locator('#tip').getAttribute('href');
+  check('a baked payment link reveals the tip CTA',
+    (await payPage.locator('#paybar').getAttribute('hidden')) === null &&
+    /^https:\/\/buy\.stripe\.com\//.test(tipHref || ''), tipHref);
+  check('…and tags the checkout as a tip, not a SKU',
+    /client_reference_id=tip/.test(tipHref || ''), tipHref);
+  await payPage.locator('.card[data-slug="' + target.slug + '"]').click();
+  await payPage.waitForSelector('#install', { timeout: 10000 });
+  check('Install is still free when checkout is available',
+    /Install — free/.test((await payPage.locator('#install').textContent()) || ''),
+    await payPage.locator('#install').textContent());
+  const featHref = await payPage.locator('#feature').getAttribute('href');
+  check('a listing offers Feature this listing when checkout is baked',
+    (featHref || '').includes('client_reference_id=feature-' + target.slug), featHref);
+  check('…and the feature checkout is https', /^https:\/\//.test(featHref || ''), featHref);
+  check('turning the cash CTA on still fetches no extra App GIF',
+    cashGifs.length === 0, cashGifs.join(', '));
+  await payCtx.close();
 
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILURE(S)') : '\nALL PASS');
