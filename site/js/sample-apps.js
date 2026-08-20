@@ -3209,7 +3209,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   // players. Metadata (name, type, category, a small thumbnail) lives in the
   // subscribed 'media' collection; the raw bytes live per-item in 'blobs',
   // fetched only when you open something (so the grid stays light). Add from
-  // files, or capture straight in with the brokered camera/mic. All local.
+  // files, or capture straight in with the brokered camera/mic. Open an item
+  // to play it, or Download it back out as a real file. All local.
   const MYMEDIA_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
@@ -3288,7 +3289,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     <div class="row"><span class="sub">Category</span><input type="text" id="mcat" list="cats" placeholder="Unsorted"><button class="btn ghost" id="msave">Save</button></div>
     <datalist id="cats"></datalist>
     <div class="row" id="visrow" style="display:none"><label class="tgl"><input type="checkbox" id="mvis"><span class="tslide"></span></label><div class="visinfo"><div class="vt">Visible to invited guests</div><span class="sub" id="vishint">Private — only you can see it.</span></div></div>
-    <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
+    <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="btn ghost" id="mdown">Download</button><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
   </div>
 </div></div>
 <div id="toast"></div>
@@ -3407,6 +3408,25 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     if(curUrl){ URL.revokeObjectURL(curUrl); curUrl=null; } cur=null;
     document.getElementById('modal').style.display='none';
   }
+  function downloadName(m){
+    var n=String((m&&m.name)||(m&&m.type)||'file');
+    n=n.replace(/[\\/?%*:|"<>]/g,'-').replace(/\\s+/g,' ').trim()||'file';
+    var ext={
+      'image/png':'png','image/jpeg':'jpg','image/jpg':'jpg','image/gif':'gif','image/webp':'webp','image/svg+xml':'svg',
+      'audio/wav':'wav','audio/wave':'wav','audio/x-wav':'wav','audio/mpeg':'mp3','audio/mp3':'mp3','audio/webm':'webm','audio/ogg':'ogg',
+      'video/webm':'webm','video/mp4':'mp4','video/quicktime':'mov'
+    }[String((m&&m.mime)||'').toLowerCase()];
+    if(ext && n.slice(-(ext.length+1)).toLowerCase()!=='.'+ext) n+='.'+ext;
+    return n;
+  }
+  function downloadCur(){
+    if(!cur) return;
+    if(!curUrl){ toast('The file for this item is missing.'); return; }
+    var a=document.createElement('a');
+    a.href=curUrl; a.download=downloadName(cur);
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  document.getElementById('mdown').onclick=downloadCur;
   document.getElementById('mclose').onclick=closeModal;
   document.getElementById('modal').addEventListener('click', function(e){ if(e.target.id==='modal') closeModal(); });
   document.getElementById('msave').onclick=async function(){
