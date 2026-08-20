@@ -1,8 +1,9 @@
 // My Media e2e — the default media library seeded loose on the Home Screen.
 // Verifies the core: it seeds at desktop root (next to Welcome), imports images
 // and audio, round-trips the raw bytes through gifos.db (Uint8Array survives),
-// bakes grid thumbnails, opens each format in the right built-in player, and
-// supports categorize / filter / delete. Needs a static server (BASE); no relay.
+// bakes grid thumbnails, opens each format in the right built-in player,
+// downloads the original bytes back out as a real file, and supports
+// categorize / filter / delete. Needs a static server (BASE); no relay.
 const { chromium, CHROME } = require('../lib/pw');
 
 const BASE = 'http://127.0.0.1:8099';
@@ -50,6 +51,29 @@ function wav(){ const sr=8000,n=800,b=Buffer.alloc(44+n*2); b.write('RIFF',0); b
   await fr.locator('#stage img').waitFor({timeout:5000});
   const natW = await fr.locator('#stage img').evaluate(el=>el.naturalWidth).catch(()=>0);
   ok('image opens in the built-in player from stored bytes', natW > 0, 'naturalWidth='+natW);
+  ok('opened item offers Download', await fr.locator('#mdown').count() === 1);
+
+  // Download hands the original bytes back as a real file (the library could
+  // import and play, but nothing wrote them out). The item name already has
+  // an extension, so the file is named exactly that.
+  const [dl] = await Promise.all([
+    page.waitForEvent('download', { timeout: 8000 }),
+    fr.locator('#mdown').click(),
+  ]);
+  ok('Download uses the item name', dl.suggestedFilename() === 'sunset.png', dl.suggestedFilename());
+  const got = require('fs').readFileSync(await dl.path());
+  ok('downloaded bytes match the imported image', Buffer.compare(got, PNG) === 0, 'len='+got.length);
+
+  // A name with no extension still gets the type's suffix, so a photo named
+  // "Grand Canyon" lands as Grand Canyon.png rather than a suffix-less blob.
+  await fr.locator('#mname').fill('Grand Canyon');
+  await fr.locator('#msave').click();
+  await page.waitForTimeout(300);
+  const [dl2] = await Promise.all([
+    page.waitForEvent('download', { timeout: 8000 }),
+    fr.locator('#mdown').click(),
+  ]);
+  ok('Download adds the type extension when the name has none', dl2.suggestedFilename() === 'Grand Canyon.png', dl2.suggestedFilename());
 
   // categorize
   await fr.locator('#mcat').fill('Trips'); await fr.locator('#msave').click(); await page.waitForTimeout(400);
