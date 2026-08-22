@@ -45,44 +45,37 @@
   }
 
   /**
-   * Decode whatever the browser can decode, then resample to 44100 stereo —
-   * the only rate the MDX models were trained at (samplerate = 44100 in
-   * SeperateMDX.seperate). Mono is duplicated, >2 channels are dropped to the
-   * first two, which is what prepare_mix does.
+   * Decode whatever the browser can decode, at 44100 stereo — the only rate the
+   * MDX models were trained at (`samplerate = 44100` in SeperateMDX.seperate).
+   * Mono is duplicated and >2 channels are dropped to the first two, which is
+   * what prepare_mix does.
+   *
+   * The decode happens INSIDE a 44100 OfflineAudioContext on purpose.
+   * decodeAudioData resamples to the CONTEXT's rate, not the file's, so
+   * decoding into a plain AudioContext first would put the audio through the
+   * device rate (48000 on most machines) and then back down to 44100 — two
+   * resamples where one will do. It also means `decoded.sampleRate` is the
+   * context's rate and never the file's: anything that reads it expecting to
+   * learn what the user handed over is reading the speaker configuration.
    */
   async function decodeTo44kStereo(arrayBuffer, opts) {
     opts = opts || {};
-    var Ctx = root.AudioContext || root.webkitAudioContext;
-    var tmp = new Ctx();
-    var decoded;
-    try { decoded = await tmp.decodeAudioData(arrayBuffer.slice(0)); }
-    finally { try { tmp.close(); } catch (e) {} }
+    var OAC = root.OfflineAudioContext || root.webkitOfflineAudioContext;
+    var ctx = new OAC(2, 1, 44100);
+    var decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
 
     var maxSec = opts.maxSec || 0;
     var count = maxSec > 0
-      ? Math.min(decoded.length, Math.round(maxSec * decoded.sampleRate))
+      ? Math.min(decoded.length, Math.round(maxSec * 44100))
       : decoded.length;
     if (count <= 0) throw new Error('There is no audio in that file.');
 
-    var outLen = Math.max(1, Math.round(count * 44100 / decoded.sampleRate));
-    var OAC = root.OfflineAudioContext || root.webkitOfflineAudioContext;
-    var off = new OAC(2, outLen, 44100);
-    // A trimmed copy, so the resampler only does the part we asked for.
-    var slice = off.createBuffer(Math.min(2, decoded.numberOfChannels), count, decoded.sampleRate);
-    for (var c = 0; c < slice.numberOfChannels; c++) {
-      slice.copyToChannel(decoded.getChannelData(c).subarray(0, count), c);
-    }
-    var src = off.createBufferSource();
-    src.buffer = slice;
-    src.connect(off.destination);
-    src.start();
-    var rendered = await off.startRendering();
-    // Straight out of the render, no copy: these are already the Float32Arrays
-    // the rest of the pipeline wants, and at four minutes each is 42 MB.
-    var L = rendered.getChannelData(0);
-    var R = rendered.numberOfChannels > 1 ? rendered.getChannelData(1) : L.slice();
-    return { mix: [L, R], sampleRate: 44100, sourceRate: decoded.sampleRate,
-             sourceChannels: decoded.numberOfChannels, sourceSeconds: decoded.duration };
+    // slice(), not subarray(): a "first 30 seconds" of a long track should let
+    // the rest of the decoded buffer go, not pin it behind a view.
+    var L = decoded.getChannelData(0).slice(0, count);
+    var R = decoded.numberOfChannels > 1 ? decoded.getChannelData(1).slice(0, count) : L.slice();
+    return { mix: [L, R], sampleRate: 44100,
+             sourceChannels: decoded.numberOfChannels, seconds: count / 44100 };
   }
 
   root.VRWAV = { encodeWav: encodeWav, decodeTo44kStereo: decodeTo44kStereo };

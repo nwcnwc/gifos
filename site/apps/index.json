@@ -566,11 +566,11 @@
         148
       ],
       "cover": "/apps/vocal-remover/cover.jpg",
-      "bytes": 12471750,
+      "bytes": 12471796,
       "download": 119545940,
       "provides": null,
       "signature": null,
-      "sha256": "17380defb95282c95927400f97723bbd28e0b931c935a7f266988e63c69e3b26"
+      "sha256": "7e67c58b16137fc388125b75e88d8dd76ef6e721a60c48c0825332e1fb9877c1"
     }
   ]
 }
