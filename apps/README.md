@@ -248,5 +248,7 @@ people an update they do not need — see the rule above.
   sample-exact parity with a numpy transcription of `separate.py`
   (`test/unit/vocal-remover.js`). Finished GIF:
   [`site/apps/vocal-remover/vocal-remover.gif`](../site/apps/vocal-remover/vocal-remover.gif) (~12.5 MB).
-  ⚠ Its asset pin still needs `tools/verify-pins.py` run against a host that can
-  reach the mirror — see the app's README.
+  Its pins are verified against the live host by `tools/verify-pins.py` — bytes,
+  the CORS header, and UVR's own model hash, which is the one that catches a
+  mirror serving a same-named re-export the app would then run at the wrong
+  settings.
