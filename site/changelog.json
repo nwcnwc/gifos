@@ -2,6 +2,20 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
+      "version": "0.9.10",
+      "date": "2026-08-22",
+      "headline": "Pull the singing out of a song on your own computer, a store that names who actually wrote a port, and a download you can see happening",
+      "notes": [
+        "Vocal Remover is in the store. Hand it a track and it hands you back the voice on its own and everything else on its own — and if you ask, it splits the voice again into the lead and the backing singers. It is an unofficial port of Ultimate Vocal Remover's MDX-Net path, running entirely on your machine: the audio never leaves the app, there is no account, no queue and no per-song charge. Be ready for it to take a while. On a computer without a usable graphics chip it is about ten times the length of the song, so a four-minute track is most of an hour; on a phone, longer still. A graphics chip speeds it up a lot. The app times itself on the first piece, counts down from there, and has a Stop button and a \"first 30 seconds\" setting so you can hear what you are going to get before committing to the whole thing.",
+        "The models download the first time you separate, not when you install. Install is just the app; the 67–120 MB of UVR weights arrive when you actually press Separate, only the models that job needs, checked against a fingerprint baked into the app, and then they live on your computer. An app can now mark a big download as optional in the same way, so you are not fetching weights for a job you never asked for.",
+        "A phone can finish a separation. Two things used to stop it: a 12 MB upload the phone's graphics chip would not map, which froze the app on \"Loading…\" forever, and a graphics chip that was not a graphics chip at all — some browsers hand out a software pretender, and the app used to treat that as the real thing and then sit there. It now refuses the pretender, and if the real chip gives out mid-run it says so, switches to the processor, and carries on rather than hanging. On a phone, thirty seconds of a real song came back as vocals and backing in eighteen minutes.",
+        "A port of someone else's work is no longer authored by GifOS. Vocal Remover is Anjok07 and aufr33's; FPS Simple is mshumer's Claude of Duty. The listing says so, marks it an unofficial port until they say otherwise, and sends bugs in the port to us, not to them. If they have a donate page it sits with the other facts about the app, not next to Install. Anyroad says it was inspired by Hop.Earth, which it is — our own engine, not a port of theirs.",
+        "You can leave a tip, or pay to feature a listing, without an account. The catalog stays free either way. Install is still Install.",
+        "My Media can hand a file back out. Open a photo or a recording and Download saves the original bytes under its name — and adds the type extension when the name has none, so a photo called \"Grand Canyon\" lands as Grand Canyon.png rather than a file with no suffix.",
+        "Opening an app that still needs a big download no longer shows a blank pane while it happens. The download used to report progress into a status line the solo-app screen hides, so a 120 MB model fetch was invisible — you stared at empty space, and if it failed you never saw why. It now shows the file, the fraction and the time, and a failed download still opens the app but says so first."
+      ]
+    },
+    {
       "version": "0.9.9",
       "date": "2026-08-18",
       "headline": "Screen sharing in meetings, and FPS Simple plays properly on a phone: it fills the screen sideways, the picture is the picture, the sound stays on, and Play answers when you press it",
