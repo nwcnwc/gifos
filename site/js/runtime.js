@@ -2903,16 +2903,37 @@
         }
       }).then(() => netPolicy.load()).then(() => {
         // Install-time assets backfill (gifos-assets.js): a store install
-        // cached these already; a hand-dropped or shared SLIM GIF fetches its
-        // pinned downloads on first run here into the computer's asset store.
-        // SOFT on failure — the app still mounts (offline it can at least
-        // explain itself); its gifos.assets() calls name the fix.
+        // cached these already; a hand-dropped GIF, a ?run= link or a shared
+        // SLIM GIF fetches its pinned downloads on first run here into the
+        // computer's asset store. SOFT on failure — the app still mounts
+        // (offline it can at least explain itself); its gifos.assets() calls
+        // name the fix.
         const A = GifOS.assets;
         if (!A) return;
         const cache = A.assetCache(store, fileId);
-        return A.missing(files, manifest, cache).then((need) => need.length
-          ? A.ensure(files, manifest, setStatus, cache).catch((e) => setStatus('App data download failed — ' + (e && e.message || e)))
-          : null);
+        return A.missing(files, manifest, cache).then((need) => {
+          if (!need.length) return null;
+          // This wait is minutes, not moments (vocal-remover pins 120 MB of
+          // model weights), and statusEl is the MEETING bar's status line —
+          // which body.solo-app hides. So the one entry every desktop launch
+          // goes through (run.html#id=) watched a BLANK pane while the OS
+          // downloaded weights into a hidden element; the meeting-host boot
+          // passes no statusEl at all and was silent by construction. The
+          // busy pill is the surface built for exactly this shape of work —
+          // the OS doing heavy, measured work on an app's behalf — so the
+          // backfill drives it too, with ensure()'s own honest fraction.
+          // (Held back 600 ms like every pill, so a small asset never flashes.)
+          busyStart(manifest.name || 'This app');
+          busyNote('One-time download of this app’s data…', null);
+          return A.ensure(files, manifest, (s, frac) => { setStatus(s); busyNote(s, frac); }, cache)
+            .then(() => busyEnd(), (e) => {
+              // The app still mounts (SOFT), but the person must SEE why it is
+              // about to open degraded — hold the pill long enough to read.
+              const msg = 'App data download failed — ' + (e && e.message || e) + '. The app opens without it and tries again next launch.';
+              setStatus(msg); busyNote(msg, null);
+              setTimeout(busyEnd, 8000);
+            });
+        });
       }).then(() => Promise.resolve(db.getFullState())).then((connectState) => {
         // Snapshot the state AT LOAD once, so the corner app-GIF and a
         // "data at connect time" steal share the same (memoized) bytes.

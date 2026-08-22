@@ -677,6 +677,12 @@ Roughly three families in one directory:
   airborne, and a link making the TTS provider speak),
   `e2e-app-store` (the store catalog, its listings, and Install — including
   the rule that browsing must fetch ZERO App GIFs),
+  `e2e-asset-boot-status` (the solo boot's install-time asset backfill is
+  VISIBLE: run.html#id= drives the busy pill with the download's own progress,
+  and a failed download says so readably while the app still mounts SOFT.
+  Exists because the backfill used to report only to the meeting bar's #status
+  line, which body.solo-app hides — so an Add-button or ?run= vocal-remover
+  downloaded 120 MB of weights behind a blank pane),
   `e2e-pointer-lock` (capabilities.pointer: an app that did not declare it is
   refused by the sandbox, one that did locks the pointer, and UNCHECKING it in
   the Abilities sheet refuses it again — the sandbox is fixed at navigation, so
