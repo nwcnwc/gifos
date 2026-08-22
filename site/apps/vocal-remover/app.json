@@ -1,0 +1,53 @@
+{
+  "catalog": "1.0",
+  "slug": "vocal-remover",
+  "appId": "vocal-remover",
+  "name": "Vocal Remover",
+  "shortName": "Vocals",
+  "version": "1.0",
+  "minBuild": 1250,
+  "tagline": "Pull the singing out of a song, on your own device.",
+  "description": "Hand it a track and it hands you back two files: the voice on its own, and everything else on its own. Ask for more and it splits the voice again, into the lead and the backing singers. It works on anything your browser can play — mp3, wav, flac, m4a — and it works on the whole song, not a thirty-second preview.\n\nThis is Ultimate Vocal Remover, the desktop tool people already use for this, moved into a GifOS app. The same models do the work: UVR-MDX-NET Inst HQ 3 for the main split and UVR-MDX-NET Karaoke 2 for the lead/backing one, running through UVR's own MDX-Net pipeline. They are downloaded once — 120 MB, checked against a fingerprint baked into this app — and then live on your computer.\n\nNothing is uploaded. The app has no way to reach the network at all: the audio is decoded, separated and written back out inside the sandbox, and the stems only leave when you press Download. There is no account, no queue, no upload limit and no per-song charge.\n\nBe ready for it to take a while. Separation is genuine work — the model listens to the track in six-second pieces and thinks about each one. On a computer with a graphics chip it runs at roughly the speed of the music. On the processor alone it is several times slower than that, so a four-minute song can mean a quarter of an hour. The app tells you which one it is using and counts down an estimate, and there is a Stop button and a \"first 30 seconds\" setting so you can hear what you are going to get before you commit to the whole thing.\n\nIt writes 16-bit WAV, the same as UVR does, and offers 32-bit float for the times when a stem comes out louder than the original and 16 bits has nowhere to put it. It says so when that happens instead of quietly turning it down.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-22",
+  "updated": "2026-08-22",
+  "categories": [
+    "Media",
+    "Creativity"
+  ],
+  "tags": [
+    "audio",
+    "stems",
+    "karaoke",
+    "acapella",
+    "instrumental",
+    "uvr",
+    "mdx-net",
+    "offline",
+    "onnx",
+    "gpu"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/vocal-remover",
+  "accent": [
+    236,
+    84,
+    148
+  ],
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "gpu": true
+  },
+  "cover": "/apps/vocal-remover/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/vocal-remover/vocal-remover.gif",
+  "bytes": 12471450,
+  "download": 119545940,
+  "provides": null,
+  "sha256": "0a04f145441664437536f55872bce3499b4392e4e1d542a7427386197d9df2f2",
+  "signature": null
+}

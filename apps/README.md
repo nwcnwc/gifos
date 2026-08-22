@@ -231,3 +231,22 @@ people an update they do not need — see the rule above.
   stays `'none'`, so the engine never touches the network. Finished GIF:
   [`site/apps/chess-grandmaster/chess-grandmaster.gif`](../site/apps/chess-grandmaster/chess-grandmaster.gif). **GPLv3** (it links Stockfish
   — see [`chess-grandmaster/COPYING-stockfish.txt`](chess-grandmaster/COPYING-stockfish.txt)).
+- **[vocal-remover](vocal-remover/)** — **Ultimate Vocal Remover**'s MDX-Net
+  separation path (Anjok07, MIT), transcribed to JavaScript and run on ONNX
+  Runtime Web in the sandbox: a song in, the vocal and the backing out as
+  separate WAVs, and optionally UVR's **vocal-split chain** on top (the karaoke
+  model run on the first model's vocal stem, giving lead + backing). It runs at
+  UVR's shipped defaults, including the `is_match_frequency_pitch` pass most
+  re-implementations drop — the residual is the mix put back through the same
+  STFT with no model in it, so the vocal stem does not carry back the band the
+  model never saw. It ships its own **mixed-radix FFT**, because none of UVR's
+  `n_fft` values (5120, 6144, 7680) is a power of two. UVR's own weights
+  (120 MB) ride the asset pin; the engine and a labelled identity **self-test
+  model** ride inside the GIF, which is what lets the whole pipeline be asserted
+  by arithmetic offline — a 440 Hz tone in, the same tone out sample-aligned,
+  and a −95 dBFS residual (`test/browser/e2e-vocal-remover.js`), on top of
+  sample-exact parity with a numpy transcription of `separate.py`
+  (`test/unit/vocal-remover.js`). Finished GIF:
+  [`site/apps/vocal-remover/vocal-remover.gif`](../site/apps/vocal-remover/vocal-remover.gif) (~12.5 MB).
+  ⚠ Its asset pin still needs `tools/verify-pins.py` run against a host that can
+  reach the mirror — see the app's README.
