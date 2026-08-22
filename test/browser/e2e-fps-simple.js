@@ -558,11 +558,11 @@ async function deathmatch() {
   // treating it as the requirement when it is an extra.
   //
   // The DEFAULT is two fleet boxes, and that is what the gate needs. Measured
-  // 2026-08-17 on nvidia-laptop + clawbox: 19/19 green with presence crossing
-  // at t=0s, no churn, the guest answering in 142ms. (An earlier note that
-  // clawbox was too slow to be a player — a 10,327ms probe — was taken before
-  // GL=hw actually asked for a GPU and before this suite waited for the host to
-  // be playing; it is not true of the suite as it stands.)
+  // 2026-08-17 on two <behavior-box> fleet clients: 19/19 green with presence
+  // crossing at t=0s, no churn, the guest answering in 142ms. (An earlier note
+  // that one <behavior-box> was too slow to be a player — a 10,327ms probe —
+  // was taken before GL=hw actually asked for a GPU and before this suite
+  // waited for the host to be playing; it is not true of the suite as it stands.)
   //
   // The phone leg is OPT-IN and, as of that date, FLAKY — one full green run in
   // seven, and the same two-box run green back to back around it. What it costs

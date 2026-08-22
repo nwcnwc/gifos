@@ -191,7 +191,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   //
   // AND WHAT VIDEO CODECS IT HAS, which is not the same question and turned out
   // to matter more. A Playwright chromium is VP8-only; a REAL Google Chrome
-  // ships H264 — and this fleet runs both (nvidia-laptop's hosts entry points
+  // ships H264 — and this fleet runs both (a <behavior-box> hosts entry points
   // at /opt/google/chrome/chrome). Measured on the first mixed run: two
   // real-Chrome seats negotiated an H264 CARRIER between themselves while the
   // content being forwarded was VP8 from an upstream chromium, so the lane
