@@ -7,12 +7,11 @@
  * here so the copy can be checked against upstream rather than trusted:
  * test/unit/vocal-remover.js re-derives them from apps/.../MODEL-PINS.json.
  *
- * WHY ONLY TWO. The asset tier downloads every pinned asset at INSTALL, not on
- * demand — the sandbox has no network of its own, so there is no such thing as
- * "fetch that model if the user picks it". Every model added here is a
- * mandatory download for everybody who installs the app. Two was the line: one
- * that does the split everyone wants, and one that does a job the first cannot
- * do at all. A third flagship vocal model would have been a 67 MB quality knob.
+ * WHY ONLY TWO, STILL. Pins are optional: gifos.assets() fetches a model when
+ * the job needs it, not at install. Two is still the line because each extra
+ * flagship vocal model is a 67 MB quality knob the user waits on the first
+ * time they pick it. The karaoke model is here because it does a job HQ 3
+ * cannot do at all.
  */
 (function (root) {
   'use strict';

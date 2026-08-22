@@ -18,6 +18,7 @@
 
   var S = {
     file: null, buf: null, job: 'split', bits: 16, maxSec: 0,
+    overlap: null, denoise: false, matchFreq: true, invertSpec: false,
     running: false, stop: false, gpu: false, ep: null, cpuOnly: false, gpuNote: null,
     sessions: {}, selfTest: false, results: [], urls: [],
   };
@@ -231,13 +232,16 @@
     await sessionFor(id);
     var run = runner(id, m.dimF, m.dimT);
     var primary = await window.VRMDX.demix(mix, m, run, {
+      overlap: S.overlap, denoise: S.denoise,
       onProgress: function () { tick(1); },
       shouldStop: function () { return S.stop; },
     });
     var base = mix;
-    if (m.freqCut) {
+    if ((m.freqCut && S.matchFreq) || S.invertSpec) {
       // is_match_mix: the same STFT/iSTFT with no model in it, so the residual
-      // does not carry back the band the model never saw.
+      // does not carry back the band the model never saw. invert_spec uses
+      // the same residual (UVR's invert of the mix spectrogram) even when
+      // the model is not in MDX_NET_FREQ_CUT.
       base = await window.VRMDX.demix(mix, m, null, {
         matchMix: true,
         onProgress: function () { tick(MATCH_WEIGHT); },
@@ -249,8 +253,8 @@
 
   function unitsFor(id, T) {
     var m = MODELS[id];
-    var u = window.VRMDX.chunkCount(T, m, false);
-    if (m.freqCut) u += window.VRMDX.chunkCount(T, m, true) * MATCH_WEIGHT;
+    var u = window.VRMDX.chunkCount(T, m, false, { overlap: S.overlap });
+    if ((m.freqCut && S.matchFreq) || S.invertSpec) u += window.VRMDX.chunkCount(T, m, true) * MATCH_WEIGHT;
     return u;
   }
 
@@ -435,6 +439,7 @@
     try {
       return Promise.resolve(gifos.db('prefs').put({
         id: 'prefs', job: S.job, bits: S.bits, maxSec: S.maxSec,
+        overlap: S.overlap, denoise: S.denoise, matchFreq: S.matchFreq, invertSpec: S.invertSpec,
         cpuOnly: S.cpuOnly, gpuNote: S.gpuNote,
       }));
     } catch (e) { return Promise.resolve(); }
@@ -449,6 +454,10 @@
       if (JOBS[p.job]) S.job = p.job;
       if (p.bits === 16 || p.bits === 32) S.bits = p.bits;
       if (typeof p.maxSec === 'number') S.maxSec = p.maxSec;
+      if (p.overlap === null || p.overlap === 0.25 || p.overlap === 0.5 || p.overlap === 0.75) S.overlap = p.overlap;
+      S.denoise = !!p.denoise;
+      if (typeof p.matchFreq === 'boolean') S.matchFreq = p.matchFreq;
+      S.invertSpec = !!p.invertSpec;
       S.cpuOnly = !!p.cpuOnly;
       S.gpuNote = p.gpuNote || null;
     } catch (e) {}
@@ -459,6 +468,10 @@
     await loadPrefs();
     $('bits').value = String(S.bits);
     $('length').value = String(S.maxSec);
+    $('overlap').value = S.overlap == null ? 'default' : String(S.overlap);
+    $('denoise').checked = S.denoise;
+    $('matchfreq').checked = S.matchFreq;
+    $('invertspec').checked = S.invertSpec;
     renderJobs();
 
     $('file').onchange = function (e) { takeFile(e.target.files && e.target.files[0]); };
@@ -474,6 +487,13 @@
     });
     $('bits').onchange = function (e) { S.bits = Number(e.target.value); savePrefs(); };
     $('length').onchange = function (e) { S.maxSec = Number(e.target.value); savePrefs(); };
+    $('overlap').onchange = function (e) {
+      S.overlap = e.target.value === 'default' ? null : Number(e.target.value);
+      savePrefs();
+    };
+    $('denoise').onchange = function (e) { S.denoise = !!e.target.checked; savePrefs(); };
+    $('matchfreq').onchange = function (e) { S.matchFreq = !!e.target.checked; savePrefs(); };
+    $('invertspec').onchange = function (e) { S.invertSpec = !!e.target.checked; savePrefs(); };
     $('go').onclick = function () { if (!S.running && S.buf) separate(); };
     $('stop').onclick = function () { S.stop = true; setStatus('Stopping after this piece…'); };
     if (window.gifos && gifos.onBack) {

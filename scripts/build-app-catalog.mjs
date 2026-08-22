@@ -332,6 +332,11 @@ async function buildApp(slug) {
       // portrait strip, and both refusals (TypeError, SecurityError) land inside
       // the sandbox where the player never sees them. Landed in build 1314.
       ['capabilities.fullscreen', (x) => !!(x.capabilities || {}).fullscreen, 1314],
+      // optional assets: skipped at install/boot; gifos.assets() fetches that
+      // one pin. Older runtimes download every pin on boot, so a zoo of
+      // optional models would be a gigabyte surprise — the app must claim
+      // the runtime that honours optional.
+      ['optional assets', (x) => Array.isArray(x.assets) && x.assets.some((a) => a && a.optional), 1381],
     ];
     for (const [what, uses, since] of FEATURE_BUILD) {
       if (uses(m) && m.minBuild < since) {
@@ -378,11 +383,11 @@ async function buildApp(slug) {
       if (hex !== String(a.sha256).toLowerCase()) fail(tag + ': site' + url + ' does not match the pinned sha256 — re-pin the manifest or restore the file');
       if (a.bytes && Number(a.bytes) !== b.length) fail(tag + ': declared bytes ' + a.bytes + ' ≠ actual ' + b.length);
       if (b.length < ASSET_MIN_BYTES) fail(tag + ': ' + b.length + ' bytes is small enough to ride INSIDE the GIF — pack it (assets are reserved for big model weights, docs/providers.md)');
-      download += b.length;
+      if (!a.optional) download += b.length;
     } else {
       if (!(Number(a.bytes) > 0)) { fail(tag + ': an absolute-URL asset must declare its true bytes (the store quotes the download, and the size floor needs it)'); continue; }
       if (Number(a.bytes) < ASSET_MIN_BYTES) fail(tag + ': ' + a.bytes + ' bytes is small enough to ride INSIDE the GIF — pack it (assets are reserved for big model weights, docs/providers.md)');
-      download += Number(a.bytes);
+      if (!a.optional) download += Number(a.bytes);
     }
   }
 

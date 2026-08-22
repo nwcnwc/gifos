@@ -145,7 +145,9 @@
    *           Omitted (or matchMix) means UVR's is_match_mix path: no model at
    *           all, just STFT -> iSTFT, which is what makes the "frequency cut"
    *           mix that the Vocals stem is subtracted from.
-   * opts      { matchMix, onProgress(done, total), shouldStop() }
+   * opts      { matchMix, overlap, denoise, onProgress(done, total), shouldStop() }
+   *           overlap: null === UVR's "Default" (step = chunk_size - n_fft).
+   *           denoise: UVR is_denoise — (model(x) - model(-x)) / 2, two calls.
    */
   async function demix(mix, cfg, runModel, opts) {
     opts = opts || {};
@@ -157,7 +159,8 @@
     // touches the model, so nothing ties it to dim_t.
     var segT = matchMix ? (cfg.matchDimT || 256) : dimT;
     var chunkSize = hop * (segT - 1);
-    var overlap = matchMix ? 0.02 : null;   // null === UVR's "Default"
+    var overlap = matchMix ? 0.02 : (opts.overlap === undefined ? null : opts.overlap);
+    var denoise = !matchMix && !!opts.denoise && !!runModel;
     var genSize = chunkSize - 2 * trim;
     var T = mix[0].length;
     var pad = genSize + trim - (T % genSize);
@@ -195,7 +198,16 @@
       }
 
       var spek = chunkToTensor(part, nFft, hop, dimF, segT, scratch);
-      var pred = matchMix ? spek : await runModel(spek);
+      var pred;
+      if (matchMix) pred = spek;
+      else if (denoise) {
+        var pos = await runModel(spek);
+        var negIn = new Float32Array(spek.length), z;
+        for (z = 0; z < spek.length; z++) negIn[z] = -spek[z];
+        var neg = await runModel(negIn);
+        pred = new Float32Array(pos.length);
+        for (z = 0; z < pos.length; z++) pred[z] = 0.5 * (pos[z] - neg[z]);
+      } else pred = await runModel(spek);
       tensorToChunk(pred, nFft, hop, dimF, segT, scratch, tarL, tarR);
 
       var window = null;
@@ -238,12 +250,14 @@
     demix: demix,
     // How many chunks demix() will run for T samples — the app needs it to show
     // a progress bar before the first one has finished.
-    chunkCount: function (T, cfg, matchMix) {
+    chunkCount: function (T, cfg, matchMix, opts) {
+      opts = opts || {};
       var nFft = cfg.nFft, hop = cfg.hop || 1024, dimT = cfg.dimT, trim = nFft >> 1;
       var segT = matchMix ? (cfg.matchDimT || 256) : dimT;
       var chunkSize = hop * (segT - 1), genSize = chunkSize - 2 * trim;
       var len = trim + T + (genSize + trim - (T % genSize));
-      var step = matchMix ? Math.trunc(0.98 * chunkSize) : hop * (dimT - 1) - nFft;
+      var overlap = matchMix ? 0.02 : (opts.overlap === undefined ? null : opts.overlap);
+      var step = overlap === null ? hop * (dimT - 1) - nFft : Math.trunc((1 - overlap) * chunkSize);
       return Math.ceil(len / step);
     },
   };

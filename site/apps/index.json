@@ -585,7 +585,7 @@
         "name": "Ultimate Vocal Remover",
         "blessed": false
       },
-      "minBuild": 1250,
+      "minBuild": 1381,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -610,11 +610,11 @@
         148
       ],
       "cover": "/apps/vocal-remover/cover.jpg",
-      "bytes": 12475558,
-      "download": 119545940,
+      "bytes": 12476957,
+      "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "ace8d7767c418c31a6d4880b7b82c2099e6be8106ca9cdedc2256e461dde188f"
+      "sha256": "e8b35240d7b17db2a1e4700ea13f54ce5874a83144506eb7dba9f3b6c13f4c1b"
     }
   ]
 }

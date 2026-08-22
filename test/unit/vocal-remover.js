@@ -252,7 +252,7 @@ check('the shipped modules load and attach their globals',
 
     // capabilities.gpu arrived in build 1250; assets in 1178.
     check('minBuild is the floor its capabilities actually need',
-      manifest.minBuild >= 1250 && !!manifest.capabilities.gpu && !!manifest.capabilities.wasm, manifest.minBuild);
+      manifest.minBuild >= 1381 && !!manifest.capabilities.gpu && !!manifest.capabilities.wasm, manifest.minBuild);
     check('the manifest declares no network of any kind',
       !manifest.capabilities.network && !manifest.capabilities.api && !manifest.hosts);
 

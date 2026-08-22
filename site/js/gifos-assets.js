@@ -9,12 +9,20 @@
  *                "sha256": "<64-hex of the exact bytes>",
  *                "path": "model.gguf", "bytes": 1200000000 }]
  *
+ * Optional pins (`"optional": true`) are NOT fetched at install or on boot.
+ * The app asks for them with gifos.assets(path); the OS then downloads that
+ * one pin, verifies it, caches it. Same trust as a required pin — the URL
+ * and hash are still the author's, the sandbox still never fetches — but a
+ * model the user never picks never crosses the wire. Required is the default,
+ * so every existing app is unchanged.
+ *
  * The OS — always a TRUSTED first-party page (the App Store at install,
- * run.html / the provider mount as a backfill), never the sandbox — fetches
- * each pinned URL, verifies the SHA-256, and caches the bytes in the
- * computer's ASSET STORE (IndexedDB `appassets`, Blob-backed so the browser
- * keeps them on disk, keyed by the icon's fileId). The app reads them back
- * with gifos.assets(path) and never touches the network itself.
+ * run.html / the provider mount as a backfill, gifos.assets() on demand),
+ * never the sandbox — fetches each pinned URL, verifies the SHA-256, and
+ * caches the bytes in the computer's ASSET STORE (IndexedDB `appassets`,
+ * Blob-backed so the browser keeps them on disk, keyed by the icon's
+ * fileId). The app reads them back with gifos.assets(path) and never touches
+ * the network itself.
  *
  * WHY A STORE, NOT THE GIF. Sealing into the GIF (repack) caps out fast: the
  * payload is base64-inside-JSON, so a fine-at-5-MB engine works but a 1.2 GB
@@ -63,7 +71,11 @@
       if (!a || typeof a !== 'object') continue;
       const url = String(a.url || ''), path = normPath(a.path), sha256 = String(a.sha256 || '').toLowerCase();
       if (!okUrl(url) || !okPath(path) || !okHash(sha256)) continue;
-      out.push({ url, path, sha256, bytes: Number(a.bytes) > 0 ? Number(a.bytes) : 0 });
+      out.push({
+        url, path, sha256,
+        bytes: Number(a.bytes) > 0 ? Number(a.bytes) : 0,
+        optional: a.optional === true,
+      });
     }
     return out;
   }
@@ -73,8 +85,14 @@
   // filesystem, and not already in the asset cache. `cache` is the store
   // binding — { has(path), put(path, blob) } — from assetCache() below;
   // omit it for a session-only context and everything missing re-fetches.
-  function missing(files, manifest, cache) {
-    const need = list(manifest).filter((a) => !(files && files[key(a)]));
+  // opts.requiredOnly — install and boot backfill: skip optional pins. They
+  // arrive when gifos.assets(path) asks for that path, not before.
+  function missing(files, manifest, cache, opts) {
+    const requiredOnly = !!(opts && opts.requiredOnly);
+    const need = list(manifest).filter((a) => {
+      if (requiredOnly && a.optional) return false;
+      return !(files && files[key(a)]);
+    });
     if (!cache) return Promise.resolve(need);
     return Promise.all(need.map((a) => cache.has(a.path))).then((have) => need.filter((_, i) => !have[i]));
   }
@@ -136,8 +154,8 @@
   // a phase with no measurable progress (verifying, or a download whose length
   // the server never declared). A caller that only wants the words can ignore
   // the second argument, and every existing one does.
-  function ensure(files, manifest, onStatus, cache) {
-    return missing(files, manifest, cache).then((need) => {
+  function ensure(files, manifest, onStatus, cache, opts) {
+    return missing(files, manifest, cache, opts).then((need) => {
       let chain = Promise.resolve();
       need.forEach((a, i) => {
         chain = chain.then(() => {
@@ -194,5 +212,16 @@
     };
   }
 
-  GifOS.assets = { DIR, list, missing, ensure, key, normPath, assetCache };
+  // One pin, by path. gifos.assets() uses this when the bytes are not cached
+  // yet: the app names a file the author pinned, the OS fetches that row, and
+  // nothing else. An unknown path is a miss, not a free-form download.
+  function ensurePath(files, manifest, path, onStatus, cache) {
+    const p = normPath(path);
+    const row = list(manifest).find((a) => a.path === p);
+    if (!row) return Promise.resolve({ changed: false, fetched: 0, total: 0, unknown: true });
+    const one = { assets: [row] };
+    return ensure(files, one, onStatus, cache);
+  }
+
+  GifOS.assets = { DIR, list, missing, ensure, ensurePath, key, normPath, assetCache };
 })(typeof window !== 'undefined' ? window : globalThis);

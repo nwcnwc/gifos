@@ -57,7 +57,19 @@
         <option value="32">32-bit float WAV (never clips)</option>
       </select>
     </div>
-    <p class="muted"><b>Separation is slow.</b> The model listens to the track in six-second pieces and each piece is real work. On the processor alone it takes <b>roughly ten times the length of the track</b> on a computer, and <b>three to four times that again on a phone</b> — where a four-minute song is a couple of hours. A device with a GPU is much faster. Either way the app measures the real rate from the first piece and tells you what is left, and you can stop at any point — but <b>try 30 seconds first</b>.</p>
+    <div class="row">
+      <label for="overlap">Overlap</label>
+      <select id="overlap">
+        <option value="default">Default (what UVR ships)</option>
+        <option value="0.25">25%</option>
+        <option value="0.5">50%</option>
+        <option value="0.75">75% (slower, usually cleaner)</option>
+      </select>
+    </div>
+    <label class="chk"><input type="checkbox" id="denoise"> Denoise — runs the model twice per piece, slower</label>
+    <label class="chk"><input type="checkbox" id="matchfreq" checked> Frequency-cut residual — UVR’s default; keep the band the model never saw off the vocal</label>
+    <label class="chk"><input type="checkbox" id="invertspec"> Invert spec — build the other stem from the mix spectrogram</label>
+    <p class="muted"><b>Separation is slow.</b> The model listens to the track in six-second pieces and each piece is real work. On the processor alone it takes <b>roughly ten times the length of the track</b> on a computer, and <b>three to four times that again on a phone</b> — where a four-minute song is a couple of hours. A device with a GPU is much faster. Either way the app measures the real rate from the first piece and tells you what is left, and you can stop at any point — but <b>try 30 seconds first</b>. UVR weights download the first time you separate, not at install — only the models that job needs.</p>
   </div>
 
   <div class="card">

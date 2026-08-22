@@ -272,10 +272,10 @@
             });
         },
         save: function(){ return rpc({type:'save'}); },
-        // Install-time assets (gifos-assets.js): bytes the OS downloaded FOR
-        // this app at install (hash-pinned in the manifest "assets" list) and
-        // sealed under .assets/ in the packed filesystem. Returns an
-        // ArrayBuffer; rejects if the download never completed.
+        // Hash-pinned assets (gifos-assets.js): bytes the OS downloaded FOR
+        // this app (required pins at install/boot, optional pins when this
+        // call names them). Returns an ArrayBuffer. A miss after the OS has
+        // tried names the fix rather than hanging.
         assets: function(path){ return rpc({type:'asset', path:path}).then(function(r){ return r.bytes; }); },
         info: function(){ return rpc({type:'info'}); },
         me: function(){ return rpc({type:'me'}); },
@@ -1433,7 +1433,7 @@
         // REFUSES everything else loudly — a hung promise inside the provider
         // would otherwise look like a broken engine.
         else if (d.type === 'info') { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: true, result: { appId: manifest.appId, name: manifest.name, version: manifest.version, provider: true } }, '*'); }
-        else if (d.type === 'asset') { replyAsset(files, fileId, d, (p, t) => { const w = iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); }); }
+        else if (d.type === 'asset') { replyAsset(files, fileId, manifest, d, (p, t) => { const w = iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); }); }
         else if (d.id) { const w = iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'reply', id: d.id, ok: false, error: 'Not available in a provider service mount.' }, '*'); }
       };
       const service = {
@@ -1531,22 +1531,57 @@
       });
     });
   }
-  // gifos.assets(path) — hand an app the bytes the OS downloaded for it at
-  // install (gifos-assets.js). Serves a hand-sealed .assets/ file from the
-  // packed filesystem first, else the computer's asset store (Blob-backed,
-  // keyed by the icon's fileId). Gigabyte-friendly: the ArrayBuffer crosses
-  // as a TRANSFER (zero-copy move), never a structured clone — post(payload,
-  // transferList). A miss names the fix instead of hanging.
-  function replyAsset(files, fileId, d, post) {
+  // gifos.assets(path) — hand an app the bytes for a hash-pinned path
+  // (gifos-assets.js). Serves a hand-sealed .assets/ file from the packed
+  // filesystem first, else the computer's asset store. If the pin is in the
+  // manifest and not cached yet, the OS FETCHES that one row now (busy pill)
+  // — required pins the store/boot missed, and optional pins the app just
+  // asked for. Unknown paths are a miss, not a free-form download.
+  // Gigabyte-friendly: the ArrayBuffer crosses as a TRANSFER.
+  const assetInflight = new Map();
+  function replyAsset(files, fileId, manifest, d, post) {
     const p = String(d.path || '').replace(/^\.?\/+/, '');
     const u8 = files['.assets/' + p];
     if (u8 && u8.buffer) { post({ ok: true, result: { bytes: u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) } }); return; }
-    const miss = () => post({ ok: false, error: 'Asset not available: ' + (d.path || '?') + ' — its install-time download hasn’t completed on this computer. Reopen the app while online (or reinstall it from the App Store).' });
+    const miss = (why) => post({ ok: false, error: 'Asset not available: ' + (d.path || '?') + ' — ' +
+      (why || 'its download hasn’t completed on this computer') +
+      '. Reopen the app while online (or reinstall it from the App Store).' });
+    const sendBlob = (blob) => blob.arrayBuffer().then((buf) => post({ ok: true, result: { bytes: buf } }, [buf]));
+    const fetchOnce = () => {
+      const A = GifOS.assets;
+      if (!A || !manifest || !fileId) return Promise.resolve(null);
+      const k = fileId + '\0' + p;
+      if (assetInflight.has(k)) return assetInflight.get(k);
+      const cache = A.assetCache(store, fileId);
+      busyStart(manifest.name || 'This app');
+      busyNote('Downloading ' + p.split('/').pop() + '…', 0);
+      const pending = A.ensurePath(files, manifest, p, (s, frac) => busyNote(s, frac), cache)
+        .then((r) => {
+          busyEnd();
+          if (r && r.unknown) return { unknown: true };
+          return store.getAsset(fileId, p).then((blob) => ({ blob: blob || null }));
+        })
+        .catch((e) => {
+          const msg = 'the download failed — ' + (e && e.message || e);
+          busyNote(msg, null);
+          setTimeout(busyEnd, 4000);
+          return { error: msg };
+        })
+        .finally(() => { assetInflight.delete(k); });
+      assetInflight.set(k, pending);
+      return pending;
+    };
+    const after = (got) => {
+      if (got && got.blob) return sendBlob(got.blob);
+      if (got && got.unknown) return miss('this app did not pin that file.');
+      if (got && got.error) return miss(got.error);
+      return miss();
+    };
     if (!fileId) { miss(); return; }
     store.getAsset(fileId, p).then((blob) => {
-      if (!blob) { miss(); return; }
-      return blob.arrayBuffer().then((buf) => post({ ok: true, result: { bytes: buf } }, [buf]));
-    }).catch(() => miss());
+      if (blob) return sendBlob(blob);
+      return fetchOnce().then(after);
+    }).catch(() => fetchOnce().then(after));
   }
 
   // The sanitized request a provider sees — the broker's own vocabulary, never
@@ -2362,7 +2397,7 @@
       // The app asking what its link said. Answers once — and only once — the
       // person has confirmed; null if nothing was asked, or if they declined.
       else if (d.type === 'launch') launchGate.then((result) => reply({ ok: true, result }));
-      else if (d.type === 'asset') replyAsset(files, mountFileId, d, (p, t) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); });
+      else if (d.type === 'asset') replyAsset(files, mountFileId, manifest, d, (p, t) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage(Object.assign({ ns: 'gifos', type: 'reply', id: d.id }, p), '*', t || []); });
       else if (d.type === 'setName') reply({ ok: true, result: setName(d.name) });
       else if (d.type === 'storage') {
         const est = root.navigator && root.navigator.storage && root.navigator.storage.estimate;
@@ -2911,7 +2946,7 @@
         const A = GifOS.assets;
         if (!A) return;
         const cache = A.assetCache(store, fileId);
-        return A.missing(files, manifest, cache).then((need) => {
+        return A.missing(files, manifest, cache, { requiredOnly: true }).then((need) => {
           if (!need.length) return null;
           // This wait is minutes, not moments (vocal-remover pins 120 MB of
           // model weights), and statusEl is the MEETING bar's status line —
@@ -2925,7 +2960,7 @@
           // (Held back 600 ms like every pill, so a small asset never flashes.)
           busyStart(manifest.name || 'This app');
           busyNote('One-time download of this app’s data…', null);
-          return A.ensure(files, manifest, (s, frac) => { setStatus(s); busyNote(s, frac); }, cache)
+          return A.ensure(files, manifest, (s, frac) => { setStatus(s); busyNote(s, frac); }, cache, { requiredOnly: true })
             .then(() => busyEnd(), (e) => {
               // The app still mounts (SOFT), but the person must SEE why it is
               // about to open degraded — hold the pill long enough to read.

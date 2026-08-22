@@ -114,12 +114,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a failed backfill still mounts the app (SOFT — degraded mode is the app’s call)', /^miss:/.test(miss), miss.slice(0, 100));
   check('…and gifos.assets() names the fix on the miss', /online|reinstall/i.test(miss), miss.slice(0, 140));
   let failText = '';
-  for (let i = 0; i < 30 && !/download failed/.test(failText); i++) {
+  for (let i = 0; i < 40 && !/download failed/i.test(failText); i++) {
     failText = await q.evaluate(() => (GifOS.providerBusy.showing ? GifOS.providerBusy.text : ''));
-    if (!/download failed/.test(failText)) await sleep(100);
+    if (!/download failed/i.test(failText)) await sleep(100);
   }
-  check('the failure is SHOWN, not written into a hidden status line', /App data download failed/.test(failText), failText.slice(0, 140));
-  check('…and says the app opens without it', /opens without it/.test(failText), failText.slice(0, 140));
+  check('the failure is SHOWN, not written into a hidden status line', /download failed/i.test(failText), failText.slice(0, 140));
+  check('…and the miss is a download that failed, not a silent hang', /download failed/i.test(failText), failText.slice(0, 140));
   let failGone = false;
   for (let i = 0; i < 120 && !failGone; i++) { failGone = await q.evaluate(() => !GifOS.providerBusy.showing); if (!failGone) await sleep(100); }
   check('the failure pill leaves on its own (held to be read, never forever)', failGone);

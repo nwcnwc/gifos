@@ -694,7 +694,7 @@
       const dl2 = $('dl2'), note2 = $('note2'), bar2 = $('prog2');
       try {
         const cache = A.assetCache(store, fid);
-        const need = await A.missing(archive.files, m, cache);
+        const need = await A.missing(archive.files, m, cache, { requiredOnly: true });
         if (!need.length) return;
         // The first line has finished its job; let it say so, so the moving
         // line below is unambiguously the one still working.
