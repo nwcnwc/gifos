@@ -18,7 +18,7 @@
 
   var S = {
     file: null, buf: null, job: 'split', bits: 16, maxSec: 0,
-    running: false, stop: false, gpu: false, ep: null,
+    running: false, stop: false, gpu: false, ep: null, cpuOnly: false, gpuNote: null,
     sessions: {}, selfTest: false, results: [], urls: [],
   };
 
@@ -52,21 +52,121 @@
     } catch (e) { return false; }
   }
 
+  // ---- when the GPU goes away ------------------------------------------------
+  // A phone can lose its WebGPU device to this model: 543 buffers into loading
+  // the weights, the device dies and every promise ORT is holding simply never
+  // settles. Nothing throws, so there is nothing to catch and nothing to fall
+  // back from — measured on a Moto G24, where the app sat on "Loading…" for as
+  // long as anyone was willing to watch it. A hang is worse than an error: an
+  // error at least tells you to try the processor.
+  //
+  // Two signals, because one is honest and the other is a backstop. The
+  // device's own `lost` promise is the real answer, and ORT publishes the
+  // device on env.webgpu.device as soon as its backend initialises — before
+  // the upload that dies — so it can be watched while the create that
+  // triggered it is still pending. The timeout catches the other shape, where
+  // the driver stops answering without ever declaring a loss.
+  var gpuLost = null;
+  function gpuLossSignal() {
+    if (gpuLost) return gpuLost;
+    gpuLost = new Promise(function (resolve) {
+      var tries = 0;
+      (function poll() {
+        var d = window.ort && window.ort.env && window.ort.env.webgpu && window.ort.env.webgpu.device;
+        if (d && d.lost && d.lost.then) { d.lost.then(function (i) { resolve(i || {}); }); return; }
+        if (++tries < 3000) setTimeout(poll, 100);   // five minutes of looking
+      })();
+    });
+    return gpuLost;
+  }
+
+  // Run a GPU-bound promise under both signals, so a dead device becomes a
+  // thrown error the fallbacks below already know what to do with.
+  function underGpuWatch(p, what, seconds) {
+    if (!S.gpu) return p;
+    var timer = null;
+    var done = function (v) { clearTimeout(timer); return v; };
+    var fail = function (e) { clearTimeout(timer); throw e; };
+    return Promise.race([
+      p,
+      gpuLossSignal().then(function (i) {
+        throw gone('the GPU device was lost' + (i && i.message ? ': ' + i.message : '') + ' — ' + what);
+      }),
+      new Promise(function (_, reject) {
+        timer = setTimeout(function () {
+          reject(gone('the GPU stopped answering after ' + seconds + 's — ' + what));
+        }, seconds * 1000);
+      }),
+    ]).then(done, fail);
+  }
+  // Tagged, because the two ways a GPU fails need different answers. An
+  // ordinary create() refusal — no kernel for some op — throws cleanly, ORT's
+  // `finally { Eb = null }` runs, and the engine is fine to reuse on the CPU in
+  // place. A LOST DEVICE is not clean: the JSEP operation it was in never
+  // returns, so the marker stays set and the wasm module stays suspended inside
+  // Asyncify with nothing coming to resume it. Every later session then dies on
+  // "Session already started" — including the CPU one meant to rescue it
+  // (measured). That engine is gone, and only a reload brings back a new one.
+  function gone(msg) { var e = new Error(msg); e.gpuGone = true; return e; }
+
+  // So the recovery for a lost device is a RESTART, not a retry: reload the
+  // frame for a fresh engine, with the GPU switched off for good on this
+  // computer, and say so on the way back in. It costs one press of Separate.
+  // The alternative, measured on a Moto G24, was the app sitting on "Loading…"
+  // for as long as anyone was willing to watch it.
+  async function restartOnCpu(err) {
+    S.stop = true;
+    S.cpuOnly = true;
+    S.gpuNote = 'The GPU dropped out mid-run (' + String((err && err.message) || err)
+      + '), so this app has switched to the processor on this computer and restarted itself. '
+      + 'It is slower — see the time estimate — but it finishes. Press Separate to start again.';
+    // Said BEFORE the reload as well as after it. If a sandbox ever refuses the
+    // reload, the note on screen is the difference between "the GPU died, here
+    // is what to do" and the silent hang this whole branch exists to end.
+    setStatus(S.gpuNote, 'err');
+    try { await savePrefs(); } catch (e) {}
+    location.reload();
+    await new Promise(function () {});   // nothing after the reload runs
+  }
+
   async function makeSession(bytes) {
     // ORT-web does not fall back on its own — a WebGPU session that cannot
     // place an op throws at create() — so the fallback is written out here.
     var eps = S.gpu ? ['webgpu', 'wasm'] : ['wasm'];
     try {
-      var s = await window.ort.InferenceSession.create(bytes, { executionProviders: eps });
+      var s = await underGpuWatch(
+        window.ort.InferenceSession.create(bytes, { executionProviders: eps }),
+        'loading the model onto the GPU', 150);
       S.ep = S.gpu ? 'webgpu' : 'wasm';
       return s;
     } catch (e) {
       if (!S.gpu) throw e;
-      S.gpu = false;
+      if (e && e.gpuGone) return restartOnCpu(e);
+      // Say WHY on screen. This branch used to be silent because the only way
+      // in was "no GPU kernel for some op", which nobody can act on; a lost
+      // device is different — it is the difference between the app being slow
+      // and the app being broken, and the user is about to wait ten times as
+      // long as they were told.
+      sayGpuGone(e);
       var s2 = await window.ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
       S.ep = 'wasm';
       return s2;
     }
+  }
+
+  // Drop to the processor for good: every cached session goes too, because they
+  // all sit on the one device that just said no, and sessionFor() rebuilds them
+  // on wasm now that S.gpu is false.
+  function sayGpuGone(err) {
+    S.gpu = false;
+    S.ep = 'wasm';
+    var old = S.sessions;
+    S.sessions = {};
+    Object.keys(old).forEach(function (k) {
+      Promise.resolve(old[k]).then(function (s) { try { s.release(); } catch (e) {} }, function () {});
+    });
+    $('engineline').textContent = 'ONNX Runtime Web on the processor — the GPU dropped out ('
+      + String((err && err.message) || err) + '), so the rest of this runs on the CPU. It is slower, and it finishes.';
   }
 
   async function modelBytes(id) {
@@ -90,10 +190,26 @@
 
   var MATCH_WEIGHT = 0.05;   // a match-mix chunk is FFT only; a model chunk is not
 
-  function runner(session, dimF, dimT) {
+  // A GPU that compiled the graph can still refuse to RUN it: the tensor here
+  // is 12 MB, one buffer per chunk, and on a phone that allocation is a real
+  // thing to fail halfway through a song. ORT-web does not fall back on its own
+  // and the run is the second place this shows up, so the demotion is written
+  // out here as well as in makeSession — a job that dies at 1% has thrown away
+  // the whole wait, and the processor would have finished it.
+  function runner(id, dimF, dimT) {
     return async function (tensor) {
       var feeds = { input: new window.ort.Tensor('float32', tensor, [1, 4, dimF, dimT]) };
-      var out = await session.run(feeds);
+      var session = await sessionFor(id);
+      var out;
+      try {
+        out = await underGpuWatch(session.run(feeds), 'separating a piece of the track', 120);
+      } catch (e) {
+        if (!S.gpu || S.stop) throw e;
+        if (e && e.gpuGone) return restartOnCpu(e);
+        sayGpuGone(e);
+        session = await sessionFor(id);
+        out = await session.run(feeds);
+      }
       var name = session.outputNames && session.outputNames[0] ? session.outputNames[0] : 'output';
       var t = out[name] || out.output;
       if (!t) throw new Error('the model returned no output tensor');
@@ -112,8 +228,8 @@
   // from. Returns { primary, secondary } named by the model.
   async function pass(id, mix, tick) {
     var m = MODELS[id];
-    var session = await sessionFor(id);
-    var run = runner(session, m.dimF, m.dimT);
+    await sessionFor(id);
+    var run = runner(id, m.dimF, m.dimT);
     var primary = await window.VRMDX.demix(mix, m, run, {
       onProgress: function () { tick(1); },
       shouldStop: function () { return S.stop; },
@@ -315,10 +431,13 @@
   }
 
   function savePrefs() {
-    if (!(window.gifos && gifos.db)) return;
+    if (!(window.gifos && gifos.db)) return Promise.resolve();
     try {
-      gifos.db('prefs').put({ id: 'prefs', job: S.job, bits: S.bits, maxSec: S.maxSec });
-    } catch (e) {}
+      return Promise.resolve(gifos.db('prefs').put({
+        id: 'prefs', job: S.job, bits: S.bits, maxSec: S.maxSec,
+        cpuOnly: S.cpuOnly, gpuNote: S.gpuNote,
+      }));
+    } catch (e) { return Promise.resolve(); }
   }
 
   async function loadPrefs() {
@@ -330,6 +449,8 @@
       if (JOBS[p.job]) S.job = p.job;
       if (p.bits === 16 || p.bits === 32) S.bits = p.bits;
       if (typeof p.maxSec === 'number') S.maxSec = p.maxSec;
+      S.cpuOnly = !!p.cpuOnly;
+      S.gpuNote = p.gpuNote || null;
     } catch (e) {}
   }
 
@@ -360,11 +481,28 @@
     }
 
     try { initOrt(); } catch (e) { setStatus(String(e.message || e), 'err'); return; }
-    S.gpu = await haveGpu();
-    $('engineline').innerHTML = S.gpu
-      ? 'ONNX Runtime Web on <b>your GPU</b> (WebGPU), falling back to the processor if an operation has no GPU kernel.'
-      : 'ONNX Runtime Web on <b>the processor</b> — this device exposes no WebGPU adapter. It works; it is just slower than the music.';
+    // A computer that has already lost its GPU to this model is not asked
+    // again: the failure costs minutes and takes the engine down with it, and
+    // it is a property of the device, not of the track. The switch is
+    // remembered per computer and can be handed back — a driver update, or a
+    // phone that was simply out of memory that day, deserves another go.
+    S.gpu = S.cpuOnly ? false : await haveGpu();
+    if (S.cpuOnly) {
+      $('engineline').textContent = 'ONNX Runtime Web on the processor — the GPU dropped out on this '
+        + 'computer once, so the app is not asking for it again. It is slower than the music, and it finishes.';
+      var again = document.createElement('button');
+      again.className = 'small'; again.textContent = 'Try the GPU again';
+      again.onclick = function () { S.cpuOnly = false; S.gpuNote = null; savePrefs(); location.reload(); };
+      $('engineline').appendChild(document.createTextNode(' '));
+      $('engineline').appendChild(again);
+    } else {
+      $('engineline').innerHTML = S.gpu
+        ? 'ONNX Runtime Web on <b>your GPU</b> (WebGPU), falling back to the processor if an operation has no GPU kernel.'
+        : 'ONNX Runtime Web on <b>the processor</b> — this device exposes no WebGPU adapter. It works; it is just slower than the music.';
+    }
     S.ep = S.gpu ? 'webgpu' : 'wasm';
+    // The reason it restarted, said once, on the way back in.
+    if (S.gpuNote) { setStatus(S.gpuNote); S.gpuNote = null; savePrefs(); }
 
     var names = Object.keys(MODELS).filter(function (k) { return !MODELS[k].selfTest; })
       .map(function (k) { return MODELS[k].label; }).join(' · ');

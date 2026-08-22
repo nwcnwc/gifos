@@ -45,9 +45,9 @@
   "cover": "/apps/vocal-remover/cover.jpg",
   "screenshots": [],
   "gif": "/apps/vocal-remover/vocal-remover.gif",
-  "bytes": 12471796,
+  "bytes": 12475558,
   "download": 119545940,
   "provides": null,
-  "sha256": "7e67c58b16137fc388125b75e88d8dd76ef6e721a60c48c0825332e1fb9877c1",
+  "sha256": "ace8d7767c418c31a6d4880b7b82c2099e6be8106ca9cdedc2256e461dde188f",
   "signature": null
 }

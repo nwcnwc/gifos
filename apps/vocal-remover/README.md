@@ -144,8 +144,11 @@ The ORT bytes are read from `apps/offline-tts-kokoro/vendor/` at build time
 rather than copied. That app exists *because* it needs the WebGPU-capable JSEP
 pairing; this one needs exactly the same pairing, and a private copy would be
 22 MB twice in every clone and two versions that drift. `build.mjs` asserts the
-bundle's export shape, so a vendor bump that changes it fails there rather than
-in a player's browser.
+bundle's export shape — and rewrites two things in it: the ESM exports into a
+`window.ort` global, and the WebGPU tensor upload off its mapped staging buffer
+(see [what the GPU path does on a real phone](#what-the-gpu-path-does-on-a-real-phone)).
+Both are guarded by assertions, so a vendor bump that moves either fails there
+rather than in a player's browser.
 
 ## Speed, with the number actually measured
 
@@ -182,9 +185,108 @@ Alongside that: a Stop button that takes effect between chunks, and a "first 30
 seconds" setting, so nobody commits an hour to find out whether they like the
 result.
 
-Memory is the other honest limit. Everything is float32 (as UVR has it), but a
-4-minute stereo track still means a ~60 MB array several times over, plus the
-ONNX session. Desktop is fine; a phone on a long track is not guaranteed.
+### What the GPU path does on a real phone
+
+Chrome on Android, Inst HQ 3, dead at 1%:
+
+```
+Failed to execute 'createBuffer' on 'GPUDevice': createBuffer failed,
+size (12582912) is too large for the implementation when mappedAtCreation == true
+```
+
+12,582,912 is not an arbitrary number: it is `4 × 3072 × 256 × 4` bytes — this
+app's input tensor, uploaded once per chunk. ONNX Runtime Web stages every
+CPU→GPU tensor through a buffer created with `mappedAtCreation: true`
+(`GpuDataManager.upload()`), and Blink has to back that mapping with a shared
+memory region allocated up front. There is exactly one such call site in the
+whole bundle, and on a phone that allocation is a real thing to fail.
+
+Taking it to a Moto G24 (Mali-G57, Bifrost, 4 GB, Chrome 151) turned up a
+second failure underneath the first, and it was the worse of the two.
+
+**One: the mapped staging buffer.** `build.mjs` rewrites that call site to fill
+the staging buffer with `queue.writeBuffer`, whose staging chunks internally and
+asks for no such region. The staging buffer and the encoder copy into the
+tensor's storage buffer are both *kept*: that copy is what orders the upload
+against the compute passes already recorded, and `writeBuffer` on its own would
+run ahead of them. Writing into a buffer created one line earlier is safe to
+reorder because nothing recorded before it can name it. Counted on the device by
+wrapping `GPUDevice.prototype.createBuffer`, over one separation:
+
+| | `createBuffer` calls | of those, `mappedAtCreation` | largest mapped |
+|---|---|---|---|
+| before | 543 | **221** | **12,582,912** |
+| after | 543 | **0** | — |
+
+The build asserts the site's shape and that no `mappedAtCreation` survives, so a
+vendor bump fails there rather than on somebody's phone. `offline-tts-kokoro`
+reads the same vendor bytes and is deliberately not patched — its tensors are a
+few hundred KB and its results come back down the `mapAsync` path, which
+allocates nothing at creation.
+
+Worth knowing: on an **idle** Chrome that phone allocates a 12 MB
+`mappedAtCreation` buffer without complaint (`maxBufferSize` is 256 MB there).
+The original error came from a browser with 25 tabs open. It is memory pressure,
+not a limit — which is exactly why it cannot be predicted and has to be removed.
+
+**Two: the device dies, and nothing throws.** With the mapped buffers gone the
+run got further and then hit the real ceiling. Session weights and activations
+want a 160 MB buffer and a 128 MB buffer among the 543; a few hundred MB of GPU
+allocation on a 4 GB phone loses the device outright:
+
+```
+Failed to execute 'mapAsync' on 'GPUBuffer':
+A valid external Instance reference no longer exists.
+```
+
+The device loss itself is **not this app's doing and not the patch's** — the
+unmodified build dies at the same point, in the same way. What matters is what
+happened next, which is nothing at all. ORT's JSEP wraps `_OrtRun` in a global
+marker cleared by `finally { Eb = null }`; a *clean* throw runs that finally and
+the engine is reusable. A lost device is not clean — the operation never
+returns, the marker stays set, and the wasm module stays suspended inside
+Asyncify with nothing coming to resume it. Every promise ORT is holding simply
+never settles. **The app sat on "Loading UVR-MDX-NET Inst HQ 3…" for as long as
+anyone was willing to watch it**, with no error, no fallback, and 688% idle CPU.
+The rescue session meant to catch it dies too, on `Session already started`.
+
+So `app.js` watches for it and *restarts* rather than retrying, which is the
+only thing that gets a working engine back:
+
+- the device's own `lost` promise is the honest signal, and ORT publishes the
+  device on `env.webgpu.device` as soon as its backend initialises — before the
+  work that kills it — so it can be watched while the call that triggered it is
+  still pending;
+- a timeout is the backstop, for a driver that wedges without declaring a loss;
+- either one reloads the frame for a fresh engine with the GPU switched off,
+  remembered per computer, and says why on the way back in. A **Try the GPU
+  again** button hands it back, because a driver update or a phone that was
+  merely out of memory that day deserves another go.
+
+Measured on the same phone, same track: **31 seconds** from pressing Separate to
+the app having noticed, restarted itself and offered to carry on — against
+indefinitely, before. The run that followed finished: 30 s of a real song into
+Vocals and Instrumental, 5.3 MB each, in 18 minutes.
+
+The ordinary create-time failure (an op with no GPU kernel) still throws
+cleanly, so that one is still handled where it always was — in place, no
+restart.
+
+### Speed on a phone is worse than the headline
+
+That 18 minutes is the other number worth writing down. 30 s of audio in 1088 s
+is **~36× realtime** on the G24's CPU — nearly three times the 13× measured on
+the 4-core VM above. A four-minute song on that phone is not "most of an hour",
+it is closer to two and a half. The app's live estimate is measured from its own
+first chunk and said "about 16 min left" within three minutes, so nobody is
+misled for long; the static copy has been softened to match.
+
+**Still not measured: a GPU path that survives.** No box here has a WebGPU
+adapter at all — headless Chromium exposes none even with `--enable-unsafe-webgpu`
+and a SwiftShader adapter forced — and the one real device to hand loses its
+device to this model. So there is still no honest number for how fast MDX-Net
+separates on a GPU, only the knowledge that a 4 GB phone is not where it will be
+taken.
 
 ## Does it actually separate?
 
