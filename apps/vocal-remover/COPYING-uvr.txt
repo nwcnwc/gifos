@@ -1,0 +1,86 @@
+Ultimate Vocal Remover GUI — licence and credit
+===============================================
+
+This GifOS app is a port of the MDX-Net separation path of
+
+    Ultimate Vocal Remover GUI
+    https://github.com/Anjok07/ultimatevocalremovergui
+    by Anjok07 and aufr33, with contributors credited below.
+
+and it runs that project's own trained model weights, downloaded from the UVR
+model repository.
+
+THE DECLARATION
+---------------
+UVR's README declares, verbatim:
+
+    ## License
+
+    The **Ultimate Vocal Remover GUI** code is [MIT-licensed](LICENSE).
+
+    - **Please Note:** For all third-party application developers who wish to
+      use our models, please honor the MIT license by providing credit to UVR
+      and its developers.
+
+That is the declaration this port relies on, and this file — shipped inside the
+app's GIF, so a copy that someone was handed carries it too — is the credit it
+asks for.
+
+One honesty note about provenance: the README's link points at a `LICENSE` file
+which, at the time this port was made (upstream commit 5517e0c, 2025-03-13,
+v5.6.0), is not present anywhere in the repository tree or at any tag we could
+find. The licence grant is therefore the README's statement above rather than a
+separate file we could copy in. The MIT terms it names are reproduced below for
+the reader's convenience; they are the terms UVR declares, transcribed, not a
+file quoted from upstream.
+
+    MIT License
+
+    Copyright (c) Ultimate Vocal Remover GUI — Anjok07, aufr33 and contributors
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+CREDIT, AS UVR'S README GIVES IT
+--------------------------------
+The models this app downloads and the code it was ported from exist because of:
+
+  Anjok07                — Ultimate Vocal Remover GUI, models
+  aufr33                 — models
+  ZFTurbo                — created and trained the MDX23C models
+  DilanBoskan            — early contributions to UVR
+  Bas Curtiz             — UVR logo, icon, banner and splash screen
+  tsurumeso              — the original VR Architecture code
+  Kuielab & Woosung Choi — the original MDX-Net AI code
+  Adefossez & Demucs     — the original Demucs AI code
+  KimberleyJSN           — MDX-Net and Demucs training scripts
+  Hv                     — chunking in the MDX-Net code
+
+WHAT THIS PORT TOOK, AND WHAT IT DID NOT
+----------------------------------------
+Taken and transcribed to JavaScript:
+
+  separate.py            SeperateMDX.demix / .run_model / .initialize_model_settings
+  lib_v5/tfc_tdf_v3.py   class STFT
+  gui_data/constants.py  the DEFAULT_DATA settings the port runs at
+  models/MDX_Net_Models/model_data/model_data.json
+                         the per-model n_fft / dim_f / dim_t / compensate values
+
+Not ported: the VR Architecture and Demucs paths, MDX23C, ensembles, secondary
+models, denoise/deverb, pitch shifting, and the desktop GUI. This app is the
+MDX-Net path at UVR's shipped defaults, and nothing else.

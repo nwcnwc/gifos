@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vocal Remover</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎤 Vocal Remover</h1>
+    <p class="lead">Pull the singing out of a song — or the song out from under the singing — on your own device. The audio never leaves this app.</p>
+  </header>
+
+  <div class="card" id="engine">
+    <h2>Engine</h2>
+    <p id="engineline">Starting up…</p>
+    <p id="modelline" class="muted"></p>
+  </div>
+
+  <div class="card" id="selftest-note" hidden>
+    <h2>⚠ Running the self-test model</h2>
+    <p>The real separation models have not finished downloading onto this computer, so the app is running its built-in <b>self-test</b> model instead. It is an identity — it hands the audio back band-limited and unseparated. It is here to prove the pipeline works offline, not to separate anything.</p>
+    <p class="muted">Reopen the app while online (or reinstall it from the App Store) to get the models.</p>
+  </div>
+
+  <div class="card">
+    <h2>1 · The track</h2>
+    <div id="drop" class="drop">
+      <input type="file" id="file" accept="audio/*,.mp3,.wav,.flac,.m4a,.ogg,.opus,.aac">
+      <p class="muted">Anything your browser can play: mp3, wav, flac, m4a, ogg. Drop it here or pick a file.</p>
+    </div>
+    <p id="fileinfo" class="fileinfo"></p>
+  </div>
+
+  <div class="card">
+    <h2>2 · What to pull apart</h2>
+    <div id="jobs" class="jobs"></div>
+  </div>
+
+  <div class="card">
+    <h2>3 · Settings</h2>
+    <div class="row">
+      <label for="length">Length</label>
+      <select id="length">
+        <option value="0">The whole track</option>
+        <option value="30">First 30 seconds</option>
+        <option value="60">First minute</option>
+        <option value="180">First 3 minutes</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="bits">Output</label>
+      <select id="bits">
+        <option value="16">16-bit WAV (what UVR writes)</option>
+        <option value="32">32-bit float WAV (never clips)</option>
+      </select>
+    </div>
+    <p class="muted">Separation is slow: the model listens to the track in six-second pieces and each piece is real work. On a device with a GPU it runs at roughly the speed of the music; on the processor alone, expect several times the track's length. Try 30 seconds first.</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <button id="go" disabled>Separate</button>
+      <button id="stop" class="ghost" hidden>Stop</button>
+    </div>
+    <div id="progwrap" hidden>
+      <div class="bar"><div id="bar"></div></div>
+      <p id="progtext" class="muted"></p>
+    </div>
+    <p id="status" class="status"></p>
+  </div>
+
+  <div class="card" id="results" hidden>
+    <h2>Stems</h2>
+    <div id="stems"></div>
+    <p class="muted">These are held in memory only — nothing this big is written into the app's GIF. Download what you want before you close it.</p>
+  </div>
+
+  <p class="foot">
+    A port of <b>Ultimate Vocal Remover</b> (Anjok07 &amp; aufr33, MIT) — its MDX-Net separation path, transcribed
+    to JavaScript and run in the sandbox with <b>ONNX&nbsp;Runtime&nbsp;Web</b> (MIT). Model weights are UVR's own,
+    downloaded once from the UVR model repository and checked against a SHA-256 pinned in this app.
+    Nothing is uploaded, and the app has no network of its own.
+  </p>
+</div>
+<script src="ort.js"></script>
+<script src="ort-wasm.js"></script>
+<script src="selftest-model.js"></script>
+<script src="fft.js"></script>
+<script src="mdx.js"></script>
+<script src="wav.js"></script>
+<script src="models.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
