@@ -7,9 +7,18 @@ file in this repository or http://www.apache.org/licenses/LICENSE-2.0
 --------------------------------------------------------------------------------
 Bundled applications with their own licenses
 
-This repository bundles first-party applications under apps/<slug>/. Each is
-governed by its OWN license, which also governs the App GIF built from it — the
-Apache-2.0 license above does not relicense them:
+This repository bundles applications under apps/<slug>/. Each is governed by
+its OWN license, which also governs the App GIF built from it — the Apache-2.0
+license above does not relicense them.
+
+Ports of other people's work keep the upstream license and credit; GifOS is
+the porter, not the author (see listing.json `basedOn`):
+
+  apps/vocal-remover/      MIT — port of Ultimate Vocal Remover (Anjok07 & aufr33;
+                           see apps/vocal-remover/COPYING-uvr.txt)
+  apps/fps-simple/         MIT — port of Claude of Duty (mshumer)
+
+First-party apps include:
 
   apps/fluence/            MIT
   apps/chess-grandmaster/  GPL-3.0-or-later (bundles the Stockfish engine; see

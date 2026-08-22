@@ -138,8 +138,16 @@
       "version": "0.9.1",
       "tagline": "A sunlit market street, a rifle, and whoever you send the link to.",
       "author": {
+        "name": "mshumer",
+        "url": "https://github.com/mshumer/Claude-of-Duty"
+      },
+      "porter": {
         "name": "GifOS",
         "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Claude of Duty",
+        "blessed": false
       },
       "minBuild": 1314,
       "releaseDate": "2026-08-15",
@@ -175,7 +183,10 @@
       "shortName": "BitNet LLM",
       "version": "0.9",
       "tagline": "EXPERIMENTAL, and SLOW — minutes per answer, not seconds. Microsoft's BitNet b1.58, running entirely on your device.",
-      "author": "GifOS",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
       "minBuild": 1205,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
@@ -216,7 +227,10 @@
       "shortName": "Gemma 3 LLM",
       "version": "1.0",
       "tagline": "EXPERIMENTAL, and SLOW — minutes per answer, not seconds. Google's Gemma 3, running entirely on your device.",
-      "author": "GifOS",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
       "minBuild": 1205,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
@@ -258,7 +272,10 @@
       "shortName": "Gemma 4 LLM",
       "version": "1.0",
       "tagline": "EXPERIMENTAL, and the SLOWEST of the three — many minutes per answer. Google's Gemma 4, entirely on your device.",
-      "author": "GifOS",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
       "minBuild": 1205,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
@@ -302,7 +319,10 @@
       "shortName": "Offline TTS",
       "version": "1.0",
       "tagline": "Give your computer a voice — offline text-to-speech that serves every app, no key, no cloud.",
-      "author": "GifOS",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
       "minBuild": 1177,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
@@ -340,7 +360,10 @@
       "shortName": "Kokoro TTS",
       "version": "1.0",
       "tagline": "A higher-quality neural voice for every app — GPU-accelerated on-device, no key, no cloud.",
-      "author": "GifOS",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
       "minBuild": 1250,
       "releaseDate": "2026-08-11",
       "updated": "2026-08-11",
@@ -382,7 +405,10 @@
       "shortName": "Neural TTS",
       "version": "1.0",
       "tagline": "A natural-sounding voice for every app on your computer — offline, no key, no cloud.",
-      "author": "GifOS",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
       "minBuild": 1205,
       "releaseDate": "2026-08-11",
       "updated": "2026-08-11",
@@ -421,7 +447,10 @@
       "shortName": "PDF Tables",
       "version": "1.1",
       "tagline": "Turn a text-based PDF's tables into an Excel workbook — on your device, nothing uploaded.",
-      "author": "GifOS",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
       "minBuild": 1205,
       "releaseDate": "2026-08-12",
       "updated": "2026-08-12",
@@ -458,7 +487,10 @@
       "shortName": "Scanned PDF Tables",
       "version": "1.0",
       "tagline": "Scanned or text, its tables come out as Excel — read by OCR on your own GPU, nothing uploaded.",
-      "author": "GifOS",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
       "minBuild": 1250,
       "releaseDate": "2026-08-12",
       "updated": "2026-08-12",
@@ -538,8 +570,16 @@
       "version": "1.0",
       "tagline": "Pull the singing out of a song, on your own device. Slowly, and for nothing.",
       "author": {
+        "name": "Anjok07 & aufr33",
+        "url": "https://github.com/Anjok07/ultimatevocalremovergui"
+      },
+      "porter": {
         "name": "GifOS",
         "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Ultimate Vocal Remover",
+        "blessed": false
       },
       "minBuild": 1250,
       "releaseDate": "2026-08-22",

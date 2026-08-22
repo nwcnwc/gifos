@@ -1,10 +1,12 @@
 # GifOS-certified apps
 
-First-party apps that ship **with the GifOS project but are not seeded as
-default apps** on the Home Screen. They're built and maintained here and
-listed in the **App Store** on gifos.app — install one from there, or drop the
-GIF on any GifOS desktop, to run it. A certified app can later be **promoted to
-a default** (seeded from `site/js/sample-apps.js`) if it earns its place.
+Apps that ship **with the GifOS project but are not seeded as default apps**
+on the Home Screen. They're built and maintained here and listed in the
+**App Store** on gifos.app — install one from there, or drop the GIF on any
+GifOS desktop, to run it. A certified app can later be **promoted to a
+default** (seeded from `site/js/sample-apps.js`) if it earns its place. Some
+are first-party; some are ports of someone else's work (`basedOn` in
+`listing.json`) — signed here, authored there.
 
 ## Layout
 
@@ -15,7 +17,9 @@ apps/
     manifest.json   ← the app's manifest: appId, names, version, minBuild,
                       capabilities
     listing.json    ← its STORE listing: author, tagline, description,
-                      releaseDate, categories, tags, license
+                      releaseDate, categories, tags, license; a port of
+                      someone else's work also has basedOn + porter
+                      (author is THEM, never GifOS)
     screenshot.png  ← the master cover art the store's cover.jpg is made from
     README.md       ← what it is, which gifos.* capabilities it uses
     build.*         ← how the finished .gif is produced from this source
@@ -133,14 +137,49 @@ Not a `minBuild` feature: an older GifOS has no `gifos.launch()` at all, which
 reads as `null`, and the app opens the ordinary way. A floor here would cost
 people an update they do not need — see the rule above.
 
+## Ports of other people's work
+
+A listing that *is* a port of a named product people already know (Ultimate
+Vocal Remover, Claude of Duty) is not first-party, even though it lives in
+this repo and is signed with the gifos.app key. The signature is integrity of
+the bytes, not authorship.
+
+```json
+"author":  { "name": "Anjok07 & aufr33", "url": "https://github.com/Anjok07/ultimatevocalremovergui" },
+"porter":  { "name": "GifOS", "url": "https://gifos.app" },
+"basedOn": {
+  "name": "Ultimate Vocal Remover",
+  "url": "https://github.com/Anjok07/ultimatevocalremovergui",
+  "donate": "https://www.buymeacoffee.com/uvr5",
+  "blessed": false
+},
+"homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/vocal-remover"
+```
+
+- **`author`** is who the work is by. For a port, them.
+- **`porter`** is who made this GifOS surface. Required iff `basedOn` is set.
+- **`basedOn`** is the named product. Required fields: `name`, `url`. Optional:
+  `donate` (their page, never gifos.app / Stripe), `blessed` (they accepted
+  the listing; default false). The store generates **Unofficial port of
+  {name}** unless `blessed` is true, and sends bugs to GifOS issues, not
+  upstream.
+- **`homepage`** stays the gifos tree — the code that built this GIF.
+
+`build-app-catalog.mjs` refuses the previous bug: `basedOn` + author GifOS is
+a failed build. First-party listings omit `basedOn` and `porter` entirely.
+
+An engine bundled inside a new UI (Stockfish, pdf.js) is not this shape —
+that copyright lives in `COPYING-*.txt` inside the GIF.
+
 ## What "certified" means here
 
-- **First-party**: lives in this repo, built by us, and **signed with the
-  gifos.app domain key** (`site/sign.html`, `gifos-sign.js`) so both store
-  listings read **✓ signed by gifos.app**. The catalog records the signature
+- **Lives here, signed here**: built in this repo and **signed with the
+  gifos.app domain key** (`site/sign.html`, `gifos-sign.js`) so listings read
+  **✓ signed by gifos.app**. The catalog records the signature
   claim (`build-app-catalog.mjs` reads the `GIFOSSIG` block); the store verifies
   it for real in the browser against the downloaded bytes and refuses any
-  download whose claimed signature fails to verify.
+  download whose claimed signature fails to verify. On a port, that is
+  integrity of the bits, not a claim that GifOS wrote the work.
 - **Sandbox-honest**: runs as a normal sandboxed GifOS app — data in
   `gifos.db`, network only via the manifest allowlist, brokered capture/AI via
   `gifos.recordAudio` / `gifos.ai.*` (keys never touch the app).
