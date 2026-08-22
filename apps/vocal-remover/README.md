@@ -53,9 +53,13 @@ accumulated recurrence — the recurrence has drifted noticeably by the time it
 has walked 3072 butterflies, and a spectrogram is not somewhere a slow phase
 error announces itself.
 
-At `n_fft` 6144 it is 0.27 ms a transform, about 0.3 s per chunk for both
-directions and both channels — against 10–20 s of model inference for the same
-chunk. It is not the bottleneck and was not optimised as if it were.
+At `n_fft` 6144 it is 0.27 ms a transform, so about 0.3 s per chunk for both
+directions and both channels — against the ~38 s the model itself takes for that
+chunk in the browser (see the measurement below). Under 1% of the work: it is
+not the bottleneck and was deliberately not optimised as if it were. (The
+obvious trick — packing the two real channels into one complex transform, which
+halves both directions — would buy about 0.4% and cost a second code path in
+the one place a mistake is inaudible.)
 
 ## The models
 
@@ -126,24 +130,66 @@ pairing; this one needs exactly the same pairing, and a private copy would be
 bundle's export shape, so a vendor bump that changes it fails there rather than
 in a player's browser.
 
-## Speed, said plainly
+## Speed, with the number actually measured
 
-Separation is real work. Measured single-threaded on this box's CPU, one 5.78 s
-chunk of Inst HQ 3 takes 7.7 s natively; ORT-web's wasm is slower still, and it
-is single-threaded by construction (`SharedArrayBuffer` needs cross-origin
-isolation, which an opaque-origin app frame does not have). On WebGPU it is far
-faster. So:
+Separation is real work, and the number is worse than "a bit slow", so it is
+written down here rather than rounded off in the copy.
 
-- **with a GPU**: roughly the length of the track.
-- **on the processor**: several times the length of the track.
+**Measured, end to end, in the browser sandbox** (4-core VM, no GPU,
+onnxruntime-web wasm, Inst HQ 3 with its frequency-cut pass):
 
-The app says which one it is on, measures a real ETA from the first chunk, has
-a Stop button, and offers "first 30 seconds" so nobody commits a quarter of an
-hour to find out whether they like the result.
+```
+12 s of audio  ->  155 s     ~13x realtime
+```
+
+For reference on the same box, the same model under Python's onnxruntime takes
+7.7 s per 5.78 s chunk single-threaded (1.34× realtime) and 5.4 s on four
+threads. So ORT-web's wasm is the expensive part, and it is single-threaded **by
+construction**: `SharedArrayBuffer` needs cross-origin isolation, which an
+opaque-origin app frame does not have, so `numThreads` above 1 only produces a
+worker that fails.
+
+So the honest statement, and the one the app makes, is **about ten times the
+length of the track on the processor** — a four-minute song is most of an hour.
+A faster desktop CPU will beat 13×; this box was also running the browser.
+
+**WebGPU is not measured.** Headless Chromium here exposes no adapter, so the
+GPU path has never been timed. MDX-Net is convolutions and ORT-web has WebGPU
+kernels for all of them, so it should be much faster — but "much faster" is as
+specific as anything here is allowed to be until somebody times it. The app
+says which execution provider it got, and every estimate it shows is measured
+live from its own first chunk rather than predicted, which is the part that
+protects the user either way.
+
+Alongside that: a Stop button that takes effect between chunks, and a "first 30
+seconds" setting, so nobody commits an hour to find out whether they like the
+result.
 
 Memory is the other honest limit. Everything is float32 (as UVR has it), but a
 4-minute stereo track still means a ~60 MB array several times over, plus the
 ONNX session. Desktop is fine; a phone on a long track is not guaranteed.
+
+## Does it actually separate?
+
+Yes, and to the same numbers as the Python original. A 12 s synthetic mix
+(chords + bass + hats under a formant-shaped, vibrato'd melody) was separated
+twice: once by `tools/mdx_ref.py` under Python's onnxruntime, once by the built
+GIF in the sandbox. Correlation of each stem against the parts that went into
+the mix:
+
+| | reference (Python) | this app (browser) |
+|---|---|---|
+| Instrumental vs true instrumental | 0.875 | 0.875 |
+| Instrumental vs true vocal | 0.275 | 0.272 |
+| Vocals vs true vocal | 0.828 | 0.828 |
+| Vocals vs true instrumental | 0.008 | 0.008 |
+
+(the mix itself scores 0.714 / 0.701, so the separation is doing real work; the
+0.275/0.272 gap is stereo-vs-left-channel in how the two were measured.)
+
+That run is not in the gate — it needs the 120 MB of weights — but it is
+reproducible: serve the two `.onnx` files from `site/`, point a throwaway build's
+asset pins at them origin-relative, and run it.
 
 ## How it is guarded
 

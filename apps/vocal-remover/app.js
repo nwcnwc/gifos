@@ -19,7 +19,7 @@
   var S = {
     file: null, buf: null, job: 'split', bits: 16, maxSec: 0,
     running: false, stop: false, gpu: false, ep: null,
-    sessions: {}, selfTest: false, results: [],
+    sessions: {}, selfTest: false, results: [], urls: [],
   };
 
   // ---- engine ---------------------------------------------------------------
@@ -227,10 +227,15 @@
   function renderStems(stems) {
     var host = $('stems');
     host.textContent = '';
+    // A stem is tens of megabytes and a second run makes a whole new set, so
+    // the last run's object URLs are released rather than left holding them.
+    S.urls.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} });
+    S.urls = [];
     stems.forEach(function (s) {
       var enc = window.VRWAV.encodeWav(s.audio, 44100, S.bits);
       var blob = new Blob([enc.bytes], { type: 'audio/wav' });
       var url = URL.createObjectURL(blob);
+      S.urls.push(url);
       var name = baseName() + '_(' + s.name + ').wav';
 
       var el = document.createElement('div');

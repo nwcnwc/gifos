@@ -58,12 +58,11 @@
     try { decoded = await tmp.decodeAudioData(arrayBuffer.slice(0)); }
     finally { try { tmp.close(); } catch (e) {} }
 
-    var startSec = opts.startSec || 0;
     var maxSec = opts.maxSec || 0;
-    var from = Math.min(decoded.length, Math.round(startSec * decoded.sampleRate));
-    var count = decoded.length - from;
-    if (maxSec > 0) count = Math.min(count, Math.round(maxSec * decoded.sampleRate));
-    if (count <= 0) throw new Error('That selection is past the end of the file.');
+    var count = maxSec > 0
+      ? Math.min(decoded.length, Math.round(maxSec * decoded.sampleRate))
+      : decoded.length;
+    if (count <= 0) throw new Error('There is no audio in that file.');
 
     var outLen = Math.max(1, Math.round(count * 44100 / decoded.sampleRate));
     var OAC = root.OfflineAudioContext || root.webkitOfflineAudioContext;
@@ -71,7 +70,7 @@
     // A trimmed copy, so the resampler only does the part we asked for.
     var slice = off.createBuffer(Math.min(2, decoded.numberOfChannels), count, decoded.sampleRate);
     for (var c = 0; c < slice.numberOfChannels; c++) {
-      slice.copyToChannel(decoded.getChannelData(c).subarray(from, from + count), c);
+      slice.copyToChannel(decoded.getChannelData(c).subarray(0, count), c);
     }
     var src = off.createBufferSource();
     src.buffer = slice;
