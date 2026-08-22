@@ -60,8 +60,14 @@ for f in "${OPTIONAL[@]}"; do [ -f "$SITE/$f" ] && cp "$SITE/$f" "$DEST/"; done
 # page added to site/ and not listed above would otherwise be silently absent
 # from every frozen build, and a pinned computer would 404 on it with nothing
 # anywhere saying why. Fail the cut instead; adding one line is the fix.
+#
+# Underscore-prefixed HTML is local scratch (site/_dev*.html and friends).
+# Gitignored, never published, never snapshotted — skip rather than fail the
+# cut, or a box that used a probe page cannot cut a release.
 for p in "$SITE"/*.html; do
-  b=$(basename "$p"); known=0
+  b=$(basename "$p")
+  case "$b" in _*) continue ;; esac
+  known=0
   for f in "${REQUIRED[@]}" "${OPTIONAL[@]}" "${NOT_SNAPSHOT[@]}"; do [ "$b" = "$f" ] && known=1; done
   [ "$known" = 1 ] || { echo "archive-version.sh: site/$b is a root page this script has never heard of — add it to REQUIRED, OPTIONAL, or NOT_SNAPSHOT and re-cut." >&2; exit 1; }
 done
