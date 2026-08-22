@@ -188,17 +188,21 @@ An app that truly needs it declares, in its manifest:
 
 ```json
 "assets": [{ "url": "https://huggingface.co/…/model-q4.bin",
-             "sha256": "<64-hex>", "path": "model.bin", "bytes": 48000000 }]
+             "sha256": "<64-hex>", "path": "model.bin", "bytes": 48000000 },
+            { "url": "https://huggingface.co/…/extra.onnx",
+              "sha256": "<64-hex>", "path": "extra.onnx", "bytes": 52000000,
+              "optional": true }]
 ```
 
 The **OS** — a trusted first-party page, never the sandbox — downloads each
-pinned URL (App Store at install; run.html / the provider mount as a backfill
-for hand-dropped slim GIFs), verifies the SHA-256, and **caches the bytes in
-the computer's asset store** (`appassets` in IndexedDB, Blob-backed so the
-browser keeps them on disk, keyed by the icon's fileId — once per computer,
-never per tab). The app reads them with `gifos.assets(path)` — served with a
-zero-copy ArrayBuffer transfer, so a gigabyte model crosses the bridge
-without a structured-clone copy — and never touches the network itself.
+**required** pinned URL (App Store at install; run.html / the provider mount
+as a backfill for hand-dropped slim GIFs), verifies the SHA-256, and **caches
+the bytes in the computer's asset store** (`appassets` in IndexedDB,
+Blob-backed so the browser keeps them on disk, keyed by the icon's fileId —
+once per computer, never per tab). Pins marked `"optional": true` are skipped
+at install and boot; `gifos.assets(path)` fetches that one row the first time
+the app names it. The app never touches the network itself. A gigabyte model
+crosses the bridge as a zero-copy ArrayBuffer transfer.
 
 **Why a store, not sealed into the GIF:** the GIF payload is base64-inside-
 JSON, so a 1.2 GB model would base64 past the engine's maximum string length

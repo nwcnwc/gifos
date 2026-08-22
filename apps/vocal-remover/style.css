@@ -30,6 +30,8 @@ b { color:var(--text); }
 
 .row { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin:.45rem 0; }
 .row label { font-size:.85rem; color:var(--muted); min-width:4.2rem; }
+.chk { display:flex; gap:.55rem; align-items:flex-start; font-size:.83rem; color:var(--muted); margin:.4rem 0; cursor:pointer; }
+.chk input { margin-top:.2rem; accent-color:var(--accent); }
 select { background:var(--bg); border:1px solid var(--border); border-radius:.5rem;
          color:var(--text); font:inherit; font-size:.86rem; padding:.4rem .5rem; flex:1; }
 button { background:var(--accent); border:none; border-radius:.55rem; color:#1a0410;

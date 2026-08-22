@@ -63,12 +63,14 @@ the one place a mistake is inaudible.)
 
 ## The models
 
-Two, and only two, on purpose. The asset tier downloads **every** pinned asset
-at install (the sandbox has no network of its own, so there is no "fetch that
-one if the user picks it"), which makes each extra model a mandatory download
-for everybody. The line drawn was: one that does the split everyone wants, and
-one that does a job the first cannot do at all. A third flagship vocal model
-would have been a 67 MB quality knob.
+Two, and only two, on purpose. Both pins are **optional**: they download when
+you first run a job that needs them, not at install. The line is still one
+model that does the split everyone wants, and one that does a job the first
+cannot do at all. A third flagship vocal model would be a 67 MB quality knob
+the user waits on the first time they pick it.
+
+Knobs (overlap, denoise, invert-spec, frequency-cut residual) start at UVR's
+shipped defaults. Segment size stays 256 — that is the ONNX input shape.
 
 | | UVR-MDX-NET Inst HQ 3 | UVR-MDX-NET Karaoke 2 |
 |---|---|---|

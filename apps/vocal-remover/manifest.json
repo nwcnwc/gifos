@@ -4,8 +4,8 @@
   "name": "Vocal Remover",
   "shortName": "Vocals",
   "version": "1.0",
-  "minBuild": 1250,
-  "description": "Ultimate Vocal Remover's MDX-Net separation, running entirely in the sandbox. Give it a song and it gives you back the singing and the backing as separate files — and, if you ask, splits the vocal again into lead and backing. It is SLOW: the model listens in six-second pieces, and on the processor alone that is roughly ten times the length of the track (measured), so a four-minute song is most of an hour. A device with a GPU is much faster. The app measures the real rate as it goes, shows what is left and can be stopped, and offers a 30-second try first. UVR's own model weights (120 MB) arrive once as a hash-pinned download and stay on this computer. Nothing is ever uploaded — the app has no network of its own.",
+  "minBuild": 1381,
+  "description": "Ultimate Vocal Remover's MDX-Net separation, running entirely in the sandbox. Give it a song and it gives you back the singing and the backing as separate files — and, if you ask, splits the vocal again into lead and backing. It is SLOW: the model listens in six-second pieces, and on the processor alone that is roughly ten times the length of the track (measured), so a four-minute song is most of an hour. A device with a GPU is much faster. The app measures the real rate as it goes, shows what is left and can be stopped, and offers a 30-second try first. UVR's own model weights arrive the first time you separate (hash-pinned, only the models that job needs) and stay on this computer. Nothing is ever uploaded — the app has no network of its own. Overlap, denoise and invert-spec start at UVR's shipped defaults.",
   "entry": "index.html",
   "accent": [
     236,
@@ -27,13 +27,15 @@
       "url": "https://huggingface.co/seanghay/uvr_models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx",
       "sha256": "317554b07fe1ea5279a77f2b1520a41ea4b93432560c4ffd08792c30fddf9adc",
       "path": "inst-hq3.onnx",
-      "bytes": 66759214
+      "bytes": 66759214,
+      "optional": true
     },
     {
       "url": "https://huggingface.co/seanghay/uvr_models/resolve/main/UVR_MDXNET_KARA_2.onnx",
       "sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
       "path": "kara2.onnx",
-      "bytes": 52786726
+      "bytes": 52786726,
+      "optional": true
     }
   ]
 }
