@@ -63,17 +63,17 @@
   var JOBS = {
     'split': {
       label: 'Vocals + Instrumental',
-      detail: 'The usual one. Two files out.',
+      detail: 'The usual choice. Two files: the singing, and everything else.',
       chain: ['inst-hq3'],
     },
     'split4': {
       label: 'Vocals + Instrumental, then Lead + Backing',
-      detail: 'UVR’s vocal-split chain: the karaoke model runs on the vocal stem. Four files out, and about twice the wait.',
+      detail: 'First separates the singing from the music, then splits the singing into lead and backing. Four files, about twice the wait.',
       chain: ['inst-hq3', 'kara2'],
     },
     'karaoke': {
       label: 'Lead + Backing vocals',
-      detail: 'For a track that is already an acapella.',
+      detail: 'For a track that is already just singing, with no instruments.',
       chain: ['kara2'],
     },
   };

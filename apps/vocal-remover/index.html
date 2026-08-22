@@ -20,9 +20,9 @@
   </div>
 
   <div class="card" id="selftest-note" hidden>
-    <h2>⚠ Running the self-test model</h2>
-    <p>The real separation models have not finished downloading onto this computer, so the app is running its built-in <b>self-test</b> model instead. It is an identity — it hands the audio back band-limited and unseparated. It is here to prove the pipeline works offline, not to separate anything.</p>
-    <p class="muted">Reopen the app while online (or reinstall it from the App Store) to get the models.</p>
+    <h2>⚠ Test mode — the real models aren&rsquo;t here yet</h2>
+    <p>The separation models haven&rsquo;t finished downloading to this device, so the app is using a tiny built-in <b>self-test</b> model instead. It hands your audio straight back — nothing gets separated. It only proves the machinery works.</p>
+    <p class="muted">To get the real models, open the app again while you&rsquo;re online, or reinstall it from the App Store.</p>
   </div>
 
   <div class="card">
@@ -53,23 +53,31 @@
     <div class="row">
       <label for="bits">Output</label>
       <select id="bits">
-        <option value="16">16-bit WAV (what UVR writes)</option>
-        <option value="32">32-bit float WAV (never clips)</option>
+        <option value="16">16-bit WAV (standard)</option>
+        <option value="32">32-bit WAV (bigger files, never distorts)</option>
       </select>
     </div>
     <div class="row">
       <label for="overlap">Overlap</label>
       <select id="overlap">
-        <option value="default">Default (what UVR ships)</option>
+        <option value="default">Default (recommended)</option>
         <option value="0.25">25%</option>
         <option value="0.5">50%</option>
         <option value="0.75">75% (slower, usually cleaner)</option>
       </select>
     </div>
-    <label class="chk"><input type="checkbox" id="denoise"> Denoise — runs the model twice per piece, slower</label>
-    <label class="chk"><input type="checkbox" id="matchfreq" checked> Frequency-cut residual — UVR’s default; keep the band the model never saw off the vocal</label>
-    <label class="chk"><input type="checkbox" id="invertspec"> Invert spec — build the other stem from the mix spectrogram</label>
-    <p class="muted"><b>Separation is slow.</b> The model listens to the track in six-second pieces and each piece is real work. On the processor alone it takes <b>roughly ten times the length of the track</b> on a computer, and <b>three to four times that again on a phone</b> — where a four-minute song is a couple of hours. A device with a GPU is much faster. Either way the app measures the real rate from the first piece and tells you what is left, and you can stop at any point — but <b>try 30 seconds first</b>. UVR weights download the first time you separate, not at install — only the models that job needs.</p>
+    <label class="chk"><input type="checkbox" id="denoise"> Extra noise reduction — a little cleaner, takes twice as long</label>
+    <label class="chk"><input type="checkbox" id="matchfreq" checked> Cleaner vocals (recommended) — keeps sounds the model can&rsquo;t judge, like very high frequencies, out of the vocal file</label>
+    <label class="chk"><input type="checkbox" id="invertspec"> Alternate separation math — worth a try if a result sounds off</label>
+    <p class="muted"><b>Good to know before you press Separate:</b></p>
+    <ul class="muted tips">
+      <li><b>It&rsquo;s slow.</b> The app works through the song in six-second pieces, and each piece takes real effort.</li>
+      <li>On a computer without a usable graphics chip, expect about <b>10&times; the length of the song</b>. On a phone, three to four times longer still — a four-minute song can take a couple of hours.</li>
+      <li>A graphics chip speeds this up a lot.</li>
+      <li>The app times itself on the first piece, then shows a live estimate. You can stop whenever you want.</li>
+      <li><b>Try &ldquo;First 30 seconds&rdquo; first</b> to hear whether you like the result.</li>
+      <li>The first Separate also downloads the models it needs (67&ndash;120&nbsp;MB, one time only).</li>
+    </ul>
   </div>
 
   <div class="card">
@@ -85,16 +93,16 @@
   </div>
 
   <div class="card" id="results" hidden>
-    <h2>Stems</h2>
+    <h2>Results</h2>
     <div id="stems"></div>
-    <p class="muted">These are held in memory only — nothing this big is written into the app's GIF. Download what you want before you close it.</p>
+    <p class="muted">These files only exist while the app is open. Download the ones you want before you close it.</p>
   </div>
 
   <p class="foot">
-    A port of <b>Ultimate Vocal Remover</b> (Anjok07 &amp; aufr33, MIT) — its MDX-Net separation path, transcribed
-    to JavaScript and run in the sandbox with <b>ONNX&nbsp;Runtime&nbsp;Web</b> (MIT). Model weights are UVR's own,
-    downloaded once from the UVR model repository and checked against a SHA-256 pinned in this app.
-    Nothing is uploaded, and the app has no network of its own.
+    Built on <b>Ultimate Vocal Remover</b>, the open-source separator by Anjok07 &amp; aufr33 (MIT licence) —
+    this app is its MDX&#8209;Net method rewritten to run right here, on the <b>ONNX&nbsp;Runtime&nbsp;Web</b> engine (MIT).
+    The models are UVR&rsquo;s own, downloaded once and checked byte-for-byte against a fingerprint built into this app.
+    Your audio is never uploaded — the app has no internet access of its own.
   </p>
 </div>
 <script src="ort.js"></script>

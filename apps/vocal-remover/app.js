@@ -118,9 +118,10 @@
   async function restartOnCpu(err) {
     S.stop = true;
     S.cpuOnly = true;
-    S.gpuNote = 'The GPU dropped out mid-run (' + String((err && err.message) || err)
-      + '), so this app has switched to the processor on this computer and restarted itself. '
-      + 'It is slower — see the time estimate — but it finishes. Press Separate to start again.';
+    S.gpuNote = 'The graphics chip on this device gave out partway through, so the app has '
+      + 'switched to the processor and restarted itself. That is slower — watch the time estimate — '
+      + 'but it finishes. Press Separate to start again. '
+      + '(Technical detail: ' + String((err && err.message) || err) + ')';
     // Said BEFORE the reload as well as after it. If a sandbox ever refuses the
     // reload, the note on screen is the difference between "the GPU died, here
     // is what to do" and the silent hang this whole branch exists to end.
@@ -166,8 +167,9 @@
     Object.keys(old).forEach(function (k) {
       Promise.resolve(old[k]).then(function (s) { try { s.release(); } catch (e) {} }, function () {});
     });
-    $('engineline').textContent = 'ONNX Runtime Web on the processor — the GPU dropped out ('
-      + String((err && err.message) || err) + '), so the rest of this runs on the CPU. It is slower, and it finishes.';
+    $('engineline').textContent = 'Now running on the processor — the graphics chip stopped partway '
+      + 'through, so the rest of this run happens there instead. Slower, but it finishes. '
+      + '(Technical detail: ' + String((err && err.message) || err) + ')';
   }
 
   async function modelBytes(id) {
@@ -180,7 +182,9 @@
 
   async function sessionFor(id) {
     if (S.sessions[id]) return S.sessions[id];
-    setStatus('Loading ' + MODELS[id].label + '…');
+    var mm = MODELS[id];
+    setStatus('Loading ' + mm.label
+      + (mm.bytes ? '… (the first time, this downloads ' + Math.round(mm.bytes / 1e6) + ' MB)' : '…'));
     var p = modelBytes(id).then(makeSession);
     S.sessions[id] = p;
     try { return await p; }
@@ -263,7 +267,7 @@
     $('go').disabled = true; $('stop').hidden = false;
     $('results').hidden = true; $('stems').textContent = '';
     $('progwrap').hidden = false;
-    setStatus('Decoding…');
+    setStatus('Reading the track…');
     try {
       var audio = await window.VRWAV.decodeTo44kStereo(S.buf, { maxSec: S.maxSec });
       var mix = audio.mix, T = mix[0].length;
@@ -284,7 +288,7 @@
         await sessionFor('self-test');
       }
       $('modelline').textContent = S.selfTest
-        ? 'Running the built-in self-test model — the UVR weights are not on this computer.'
+        ? 'Running the built-in self-test model — the real models are not on this device yet.'
         : 'Loaded: ' + chain.map(function (k) { return MODELS[k].label; }).join(' · ');
 
       var total = 0, i;
@@ -298,7 +302,7 @@
         var eta = doneUnits > 0.5 ? (el / doneUnits) * (total - doneUnits) : 0;
         $('progtext').textContent = Math.round(frac * 100) + '%'
           + (eta > 1 ? ' — about ' + fmtDur(eta) + ' left' : '')
-          + ' · running on ' + (S.ep === 'webgpu' ? 'your GPU' : 'the processor');
+          + ' · running on ' + (S.ep === 'webgpu' ? 'your graphics chip' : 'the processor');
       }
 
       var stems = [];
@@ -319,8 +323,8 @@
       // decodeAudioData reports the context's rate, not the file's — so nothing
       // is claimed about it. Its channel count is knowable, and worth saying:
       // a mono track cannot come back with anything different in each ear.
-      setStatus('Done — ' + stems.length + ' stems in ' + fmtDur((Date.now() - t0) / 1000) + '.'
-        + (audio.sourceChannels === 1 ? ' (The track was mono, so each stem is the same in both ears.)' : '')
+      setStatus('Done — ' + stems.length + ' files in ' + fmtDur((Date.now() - t0) / 1000) + '.'
+        + (audio.sourceChannels === 1 ? ' (The track was mono, so each file is the same in both ears.)' : '')
         + note, 'ok');
     } catch (e) {
       if (String(e && e.message) === 'stopped') setStatus('Stopped.');
@@ -375,7 +379,8 @@
       el.appendChild(h);
       if (enc.clipped) {
         var c = document.createElement('div'); c.className = 'clip';
-        c.textContent = enc.clipped.toLocaleString() + ' samples clipped — switch the output to 32-bit float to keep them.';
+        c.textContent = 'The loudest moments got clipped (' + enc.clipped.toLocaleString()
+          + ' samples hit the ceiling). Switch Output to 32-bit WAV to keep them intact.';
         el.appendChild(c);
       }
       var a = document.createElement('audio'); a.controls = true; a.src = url; a.preload = 'none';
@@ -383,7 +388,7 @@
       host.appendChild(el);
     });
     $('results').hidden = false;
-    return S.selfTest ? ' These are SELF-TEST output, not a separation.' : '';
+    return S.selfTest ? ' This is SELF-TEST output — your audio handed straight back, not a separation.' : '';
   }
 
   // ---- chrome ---------------------------------------------------------------
@@ -508,17 +513,17 @@
     // phone that was simply out of memory that day, deserves another go.
     S.gpu = S.cpuOnly ? false : await haveGpu();
     if (S.cpuOnly) {
-      $('engineline').textContent = 'ONNX Runtime Web on the processor — the GPU dropped out on this '
-        + 'computer once, so the app is not asking for it again. It is slower than the music, and it finishes.';
+      $('engineline').textContent = 'Running on the processor. The graphics chip failed during an '
+        + 'earlier run on this device, so the app has stopped using it. Slower, but reliable.';
       var again = document.createElement('button');
-      again.className = 'small'; again.textContent = 'Try the GPU again';
+      again.className = 'small'; again.textContent = 'Try the graphics chip again';
       again.onclick = function () { S.cpuOnly = false; S.gpuNote = null; savePrefs(); location.reload(); };
       $('engineline').appendChild(document.createTextNode(' '));
       $('engineline').appendChild(again);
     } else {
       $('engineline').innerHTML = S.gpu
-        ? 'ONNX Runtime Web on <b>your GPU</b> (WebGPU), falling back to the processor if an operation has no GPU kernel.'
-        : 'ONNX Runtime Web on <b>the processor</b> — this device exposes no WebGPU adapter. It works; it is just slower than the music.';
+        ? 'This device has a usable <b>graphics chip (GPU)</b>, so separation runs there — the fast way. Anything the chip can\'t handle falls back to the processor.'
+        : 'Separation runs on <b>the processor</b> — this device doesn\'t offer apps a graphics chip. Everything works; it just takes a while.';
     }
     S.ep = S.gpu ? 'webgpu' : 'wasm';
     // The reason it restarted, said once, on the way back in.
@@ -527,7 +532,7 @@
     var names = Object.keys(MODELS).filter(function (k) { return !MODELS[k].selfTest; })
       .map(function (k) { return MODELS[k].label; }).join(' · ');
     $('modelline').textContent = 'Models: ' + names
-      + ' — read from this computer\u2019s store the first time you press Separate.';
+      + ' — fetched (and downloaded, the first time) when you press Separate.';
   }
 
   boot();
