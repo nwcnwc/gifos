@@ -306,9 +306,24 @@
   function matches(app, q) {
     if (activeCat !== 'All' && !(app.categories || []).includes(activeCat)) return false;
     if (!q) return true;
-    const hay = [app.name, app.shortName, app.tagline, (app.author || {}).name].concat(app.tags || [], app.categories || []).join(' ').toLowerCase();
+    // basedOn.name is in the haystack so "uvr" / "claude of duty" still find
+    // a port after Author is no longer GifOS.
+    const hay = [app.name, app.shortName, app.tagline,
+      (app.author || {}).name, (app.porter || {}).name, (app.basedOn || {}).name]
+      .concat(app.tags || [], app.categories || []).join(' ').toLowerCase();
     return hay.includes(q);
   }
+
+  function personLink(p) {
+    if (!p || !p.name) return '';
+    return p.url
+      ? '<a href="' + esc(p.url) + '" rel="noopener">' + esc(p.name) + '</a>'
+      : esc(p.name);
+  }
+
+  // Bugs in a port go HERE, never to the upstream issue tracker. Hard-coded
+  // on purpose: a listing.json field exists to be pointed at UVR's 1,500 issues.
+  const PORT_BUGS = 'https://github.com/nwcnwc/gifos/issues';
 
   function renderCats() {
     // Only categories that actually hold something — an empty aisle is noise.
@@ -331,6 +346,7 @@
         '<div class="body">' +
           '<h3>' + esc(a.name) + '</h3>' +
           '<div class="tag">' + esc(a.tagline) + '</div>' +
+          (a.basedOn ? '<div class="portof">port of ' + esc(a.basedOn.name) + '</div>' : '') +
           '<div class="meta">' +
             // The card says "needs a newer GifOS" INSTEAD of the size, because
             // the size is an invitation and this app is not yet installable
@@ -422,11 +438,20 @@
     // the same dead end as a silent "Install — free".
     const why = (normal) => (tooOld(app) ? 'Needs a newer GifOS' : normal);
     const feature = GifOS.cash ? GifOS.cash.featureHref(app.slug) : '';
+    const donate = app.basedOn && app.basedOn.donate;
     detailEl.innerHTML =
       '<button class="back" id="back">← All apps</button>' +
       '<div class="head"><div>' +
         '<h1>' + esc(app.name) + '</h1>' +
         '<div class="sub">' + esc(app.tagline) + '</div>' +
+        (app.basedOn
+          ? '<div class="port">' +
+              (app.basedOn.blessed ? '' : '<span class="pill">Unofficial port</span> ') +
+              'of ' + personLink({ name: app.basedOn.name, url: app.basedOn.url }) +
+              '. Bugs in this port go to <a href="' + esc(PORT_BUGS) + '" rel="noopener">GifOS</a>, not ' +
+              esc(app.basedOn.name) + '.' +
+            '</div>'
+          : '') +
       '</div></div>' +
       // Again: cover.jpg. The GIF is not fetched until Install.
       '<img class="hero" src="' + esc(app.cover) + '" alt="' + esc(app.name) + ' screenshot" decoding="async">' +
@@ -440,6 +465,11 @@
         // cannot install from is still worth sending to someone whose computer
         // can — that is most of the point of having a link.
         '<button class="btn ghost" id="share" data-url="' + esc(shareUrl(app.slug)) + '">Share</button>' +
+        // Donate is THEIRS (basedOn.donate). Feature is optional GifOS cash.
+        // They are not the same button with a friendlier label.
+        (donate
+          ? '<a class="btn ghost" id="donate" href="' + esc(donate) + '" target="_blank" rel="noopener">Donate to ' + esc(app.basedOn.name) + '</a>'
+          : '') +
         // Feature is optional cash, never a gate. A listing you cannot pay
         // for is the normal state; a listing you can still installs free.
         (feature
@@ -473,8 +503,12 @@
       '<div class="desc">' + esc(app.description) + '</div>' +
       '<dl class="facts">' +
         fact('Version', esc(app.version)) +
-        fact('Author', app.author && app.author.url
-          ? '<a href="' + esc(app.author.url) + '" rel="noopener">' + esc(app.author.name) + '</a>' : esc((app.author || {}).name)) +
+        fact('Author', personLink(app.author)) +
+        (app.porter ? fact('Ported by', personLink(app.porter)) : '') +
+        (app.basedOn
+          ? fact('Based on', personLink({ name: app.basedOn.name, url: app.basedOn.url }) +
+              (app.basedOn.blessed ? '' : ' <span class="pill">Unofficial port</span>'))
+          : '') +
         fact('Released', esc(niceDate(app.releaseDate))) +
         (app.updated && app.updated !== app.releaseDate ? fact('Updated', esc(niceDate(app.updated))) : '') +
         fact('Category', (app.categories || []).map((c) => '<span class="pill">' + esc(c) + '</span>').join(' ')) +
@@ -493,7 +527,8 @@
         fact('Signature', app.signature && app.signature.id
           ? '✓ signed by ' + esc(app.signature.id) : 'not signed') +
         (caps.length ? fact('Abilities', '<span class="caps">' + caps.map((c) => '<span class="pill">' + esc(c) + '</span>').join(' ') + '</span>') : '') +
-        (app.homepage ? fact('Source', '<a href="' + esc(app.homepage) + '" rel="noopener">the code that built it</a>') : '') +
+        (app.homepage ? fact(app.basedOn ? 'This port' : 'Source',
+          '<a href="' + esc(app.homepage) + '" rel="noopener">the code that built it</a>') : '') +
       '</dl>';
 
     $('back').onclick = () => showBrowse(true);

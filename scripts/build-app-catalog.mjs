@@ -6,7 +6,9 @@
  *   apps/<slug>/manifest.json   the app's own manifest — source of truth for
  *                               appId, names, version, accent, capabilities
  *   apps/<slug>/listing.json    the store-only fields — author, tagline, long
- *                               description, dates, categories, tags, license
+ *                               description, dates, categories, tags, license,
+ *                               and for a port of someone else's work: basedOn
+ *                               + porter (author is THEM, never GifOS)
  *   apps/<slug>/screenshot.png  the master cover art
  *   site/apps/<slug>/<slug>.gif the finished App GIF (lives INSIDE the publish
  *                               boundary — .github/workflows/pages.yml ships
@@ -65,6 +67,87 @@ const fail = (msg) => { console.error('  ✗ ' + msg); errors++; };
 
 const readJSON = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const isoDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+
+// https:// only, no userinfo. Same hygiene as gifos-cash.js: a listing must
+// not ship a javascript: donate or a https://user:pass@… "homepage".
+function httpsUrl(s, what) {
+  if (typeof s !== 'string' || !s.trim()) { fail(what + ' is missing'); return null; }
+  let u;
+  try { u = new URL(s.trim()); } catch (e) { fail(what + ' is not a URL'); return null; }
+  if (u.protocol !== 'https:') { fail(what + ' must be https://'); return null; }
+  if (u.username || u.password) { fail(what + ' must not carry userinfo'); return null; }
+  if (!u.hostname) { fail(what + ' has no host'); return null; }
+  return u;
+}
+
+function hostOf(u) {
+  return (u && u.hostname || '').replace(/^www\./, '').toLowerCase();
+}
+
+// A person on a listing: {name, url}. A bare string is accepted and normalised
+// — several first-party listings still say "GifOS" — so the published catalog
+// is always an object and store.js never has to guess.
+function person(v, what, opts) {
+  const needUrl = !!(opts && opts.requiredUrl);
+  let name = '', url = '';
+  if (typeof v === 'string') {
+    name = v.trim();
+  } else if (v && typeof v === 'object' && !Array.isArray(v)) {
+    name = String(v.name || '').trim();
+    url = String(v.url || '').trim();
+  } else {
+    fail(what + ' must be {name, url} (or a name string)');
+    return null;
+  }
+  if (!name) { fail(what + ' needs a name'); return null; }
+  if (!url && name.toLowerCase() === 'gifos') url = 'https://gifos.app';
+  if (url) {
+    if (!httpsUrl(url, what + '.url')) return null;
+  } else if (needUrl) {
+    fail(what + ' needs a url');
+    return null;
+  }
+  return url ? { name, url } : { name };
+}
+
+function isGifosPerson(p) {
+  if (!p) return false;
+  if (String(p.name || '').trim().toLowerCase() === 'gifos') return true;
+  try { return hostOf(new URL(p.url || '')) === 'gifos.app'; } catch (e) { return false; }
+}
+
+// The named product this listing is a port of. Absent on first-party apps.
+// Present ⇒ author is THEM and porter is required — that is the rule that
+// stops "Author: GifOS" on someone else's work coming back.
+function basedOn(v, slug) {
+  if (v == null) return null;
+  if (typeof v !== 'object' || Array.isArray(v)) {
+    fail(slug + ': basedOn must be an object {name, url}');
+    return null;
+  }
+  const name = String(v.name || '').trim();
+  if (!name) fail(slug + ': basedOn.name is required — the named product this is a port of');
+  const u = httpsUrl(v.url, slug + ': basedOn.url');
+  let donate = '';
+  if (v.donate) {
+    const d = httpsUrl(v.donate, slug + ': basedOn.donate');
+    if (d) {
+      const h = hostOf(d);
+      if (h === 'gifos.app' || h === 'stripe.com' || h.endsWith('.stripe.com')) {
+        fail(slug + ': basedOn.donate must be the upstream project\'s own page, not a GifOS or Stripe checkout');
+      } else {
+        donate = v.donate.trim();
+      }
+    }
+  }
+  if (v.blessed != null && typeof v.blessed !== 'boolean') {
+    fail(slug + ': basedOn.blessed must be a boolean (default false)');
+  }
+  if (!name || !u) return null;
+  const out = { name, url: v.url.trim(), blessed: v.blessed === true };
+  if (donate) out.donate = donate;
+  return out;
+}
 
 // A GIFOSSIG block names the identity that signed the bytes (gifos-sign.js:
 // { v, type: 'domain'|'email', id, alg, sig, ts }). We record the CLAIM here —
@@ -156,6 +239,24 @@ async function buildApp(slug) {
   }
   if (!m.appId) fail(slug + ': manifest.json has no appId');
   if (!m.version) fail(slug + ': manifest.json has no version');
+
+  // AUTHOR / PORT. author is who the work is by. A port of someone else's
+  // named product sets basedOn + porter; author is then THEM, and GifOS as
+  // author is a build failure — that is how "this is UVR, moved into GifOS"
+  // stops being a sentence the catalog will ship. First-party listings omit
+  // both basedOn and porter, so the published record does not print GifOS twice.
+  const author = person(l.author, slug + ': author');
+  const based = basedOn(l.basedOn, slug);
+  let porter = null;
+  if (based) {
+    if (author && isGifosPerson(author)) {
+      fail(slug + ': a port of ' + based.name + ' cannot list GifOS as the author — they are the author, GifOS is the porter');
+    }
+    if (!l.porter) fail(slug + ': basedOn requires porter (who made this GifOS surface)');
+    else porter = person(l.porter, slug + ': porter', { requiredUrl: true });
+  } else if (l.porter) {
+    fail(slug + ': porter is only for ports — drop it, or add basedOn');
+  }
 
   // MIN BUILD — the oldest GifOS build this app actually runs on, as a build
   // number (the monotonic counter in site/js/build.js; version.json maps each
@@ -278,7 +379,7 @@ async function buildApp(slug) {
     minBuild: m.minBuild,
     tagline: l.tagline,
     description: l.description,
-    author: l.author,
+    author,
     releaseDate: l.releaseDate,
     updated: l.updated || l.releaseDate,
     categories: l.categories,
@@ -298,6 +399,8 @@ async function buildApp(slug) {
     sha256: crypto.createHash('sha256').update(gifBytes).digest('hex'),
     signature: signatureClaim(gifBytes),
   };
+  if (porter) rec.porter = porter;
+  if (based) rec.basedOn = based;
 
   // Screenshots (beyond the cover) get the same JPEG treatment.
   for (let i = 0; i < (l.screenshots || []).length; i++) {
@@ -330,6 +433,11 @@ const index = {
   apps: records.map((r) => ({
     slug: r.slug, appId: r.appId, name: r.name, shortName: r.shortName,
     version: r.version, tagline: r.tagline, author: r.author,
+    // basedOn belongs in the INDEX so the GRID can say "port of UVR" and
+    // search can find "ultimate vocal remover" / "claude of duty" without
+    // fetching app.json. Donate does not — that is a detail-page button.
+    ...(r.porter ? { porter: r.porter } : {}),
+    ...(r.basedOn ? { basedOn: { name: r.basedOn.name, blessed: r.basedOn.blessed } } : {}),
     // minBuild belongs in the INDEX, not only in each app.json, for the same
     // reason sha256 does (see below): the GRID has to be able to say "needs a
     // newer GifOS" on the card. Learning it only on the detail page would mean

@@ -7,10 +7,10 @@
   "version": "0.9.1",
   "minBuild": 1314,
   "tagline": "A sunlit market street, a rifle, and whoever you send the link to.",
-  "description": "You start in a market street at midday, holding a rifle. A garrison patrols it and comes looking for you — they take cover, work around your flank, throw grenades to move you, and go down properly when they are hit, because the bodies are simulated rather than animated. Rounds travel, drop over distance and punch through thin material, so what you are standing behind genuinely matters. Lean around a corner before you commit to it.\n\nSend the invite link and the same street becomes a deathmatch. Everyone who opens it lands in the identical world — the same buildings, the same cover, the same sun — and the garrison stands down, because now the other players are the opposition. There is no game server, no account and no lobby to sit in. The room is the link, and it holds together in the browsers of the people playing.\n\nOn a phone it is a real phone game rather than a port with the controls missing: left thumb to move, push the pad to its edge to sprint, drag anywhere on the right to aim, tap to fire, with reload, jump, crouch and aim-down-sights under your right thumb. On a computer it takes the mouse the way a shooter should — GifOS asks your permission first, and Esc always hands the pointer straight back.\n\nIt looks after itself: the graphics settings pick themselves based on what your device can do, and you can change them, along with sensitivity, field of view and invert-Y, from the pause menu. What you choose stays on your device, inside the app.\n\nThe game engine is Claude of Duty by mshumer, MIT-licensed, built with Three.js. The GifOS version adds the touch controls, the pointer handling, and all of the multiplayer.",
+  "description": "You start in a market street at midday, holding a rifle. A garrison patrols it and comes looking for you — they take cover, work around your flank, throw grenades to move you, and go down properly when they are hit, because the bodies are simulated rather than animated. Rounds travel, drop over distance and punch through thin material, so what you are standing behind genuinely matters. Lean around a corner before you commit to it.\n\nSend the invite link and the same street becomes a deathmatch. Everyone who opens it lands in the identical world — the same buildings, the same cover, the same sun — and the garrison stands down, because now the other players are the opposition. There is no game server, no account and no lobby to sit in. The room is the link, and it holds together in the browsers of the people playing.\n\nOn a phone it is a real phone game rather than a port with the controls missing: left thumb to move, push the pad to its edge to sprint, drag anywhere on the right to aim, tap to fire, with reload, jump, crouch and aim-down-sights under your right thumb. On a computer it takes the mouse the way a shooter should — GifOS asks your permission first, and Esc always hands the pointer straight back.\n\nIt looks after itself: the graphics settings pick themselves based on what your device can do, and you can change them, along with sensitivity, field of view and invert-Y, from the pause menu. What you choose stays on your device, inside the app.\n\nAn unofficial port of Claude of Duty by mshumer, MIT-licensed, built with Three.js. The GifOS version adds the touch controls, the pointer handling, and all of the multiplayer.",
   "author": {
-    "name": "GifOS",
-    "url": "https://gifos.app"
+    "name": "mshumer",
+    "url": "https://github.com/mshumer/Claude-of-Duty"
   },
   "releaseDate": "2026-08-15",
   "updated": "2026-08-15",
@@ -46,5 +46,14 @@
   "download": 0,
   "provides": null,
   "sha256": "0a6c861f97f2a1cdb214559619107ebd209762cc56c4367461e89570cac8ee75",
-  "signature": null
+  "signature": null,
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Claude of Duty",
+    "url": "https://github.com/mshumer/Claude-of-Duty",
+    "blessed": false
+  }
 }

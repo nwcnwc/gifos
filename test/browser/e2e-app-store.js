@@ -60,6 +60,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       (rec.categories || []).length > 0 && rec.categories.every((c) => index.categories.includes(c)));
     check(a.slug + ': carries the long and short descriptions a listing needs',
       !!rec.tagline && !!rec.description && rec.description.length > rec.tagline.length);
+    check(a.slug + ': published author is {name, url}, never a bare string',
+      rec.author && typeof rec.author === 'object' && !!rec.author.name);
+    if (rec.basedOn) {
+      check(a.slug + ': a port does not list GifOS as the author',
+        String((rec.author || {}).name).toLowerCase() !== 'gifos');
+      check(a.slug + ': a port names a porter', !!(rec.porter && rec.porter.name && rec.porter.url));
+      check(a.slug + ': basedOn carries the product name and url',
+        !!rec.basedOn.name && /^https:\/\//.test(rec.basedOn.url || ''));
+      check(a.slug + ': the grid index carries basedOn.name (search + "port of" pill)',
+        a.basedOn && a.basedOn.name === rec.basedOn.name && a.basedOn.blessed === rec.basedOn.blessed);
+      check(a.slug + ': donate is a detail-page fact, not on the grid index',
+        a.basedOn.donate === undefined);
+      if (rec.basedOn.donate) {
+        check(a.slug + ': donate is https and not a GifOS/Stripe checkout',
+          /^https:\/\//.test(rec.basedOn.donate) &&
+          !/gifos\.app|stripe\.com/i.test(rec.basedOn.donate));
+      }
+    } else {
+      check(a.slug + ': a first-party listing has no porter and no basedOn',
+        rec.porter == null && rec.basedOn == null && a.porter == null && a.basedOn == null);
+    }
     // The floor an app runs on has to survive the trip from the manifest into
     // BOTH published files. It is in the index because the GRID has to say it;
     // an index that dropped the field would read as minBuild 0 — "runs
@@ -185,6 +206,64 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('a search with no matches says so instead of showing an empty grid',
     (await page.locator('.card').count()) === 0 && await page.locator('#empty').isVisible());
   await page.locator('#q').fill('');
+  await sleep(200);
+
+  // ---- ports of other people's work ----------------------------------------
+  // Author is THEM, GifOS is the porter, and search still finds the upstream
+  // name after that split. Two listings, because this is the shape that will
+  // keep landing: vocal-remover (UVR, has a donate page) and fps-simple
+  // (Claude of Duty, does not).
+  const uvr = index.apps.find((a) => a.slug === 'vocal-remover');
+  const fps = index.apps.find((a) => a.slug === 'fps-simple');
+  check('vocal-remover is catalogued as a port of Ultimate Vocal Remover',
+    !!(uvr && uvr.basedOn && uvr.basedOn.name === 'Ultimate Vocal Remover' && uvr.basedOn.blessed === false));
+  check('fps-simple is catalogued as a port of Claude of Duty',
+    !!(fps && fps.basedOn && fps.basedOn.name === 'Claude of Duty' && fps.basedOn.blessed === false));
+
+  await page.locator('#q').fill('ultimate vocal remover');
+  await sleep(200);
+  check('searching the upstream name finds the UVR port',
+    (await page.locator('.card[data-slug="vocal-remover"]').count()) === 1);
+  check('…and the card says it is a port of that product',
+    /port of Ultimate Vocal Remover/.test((await page.locator('.card[data-slug="vocal-remover"]').textContent()) || ''));
+  await page.locator('#q').fill('claude of duty');
+  await sleep(200);
+  check('searching the upstream name finds the Claude of Duty port',
+    (await page.locator('.card[data-slug="fps-simple"]').count()) === 1);
+  await page.locator('#q').fill('');
+  await sleep(200);
+
+  await page.locator('.card[data-slug="vocal-remover"]').click();
+  await page.waitForSelector('#install', { timeout: 10000 });
+  const uvrFacts = (await page.locator('.facts').textContent()) || '';
+  const uvrHead = (await page.locator('.head').textContent()) || '';
+  check('the UVR listing does not claim GifOS as the author',
+    !/Author\s*GifOS/.test(uvrFacts) && /Anjok07/.test(uvrFacts));
+  check('the UVR listing states Ported by GifOS', /Ported by\s*GifOS/.test(uvrFacts));
+  check('the UVR listing states it is based on Ultimate Vocal Remover',
+    /Based on/.test(uvrFacts) && /Ultimate Vocal Remover/.test(uvrFacts));
+  check('the UVR listing is labelled an unofficial port',
+    /Unofficial port/.test(uvrHead) && /Unofficial port/.test(uvrFacts));
+  check('the UVR listing sends bugs to GifOS, not upstream',
+    /Bugs in this port go to/.test(uvrHead) &&
+    (await page.locator('.port a[href*="nwcnwc/gifos/issues"]').count()) === 1);
+  check('the UVR listing offers Donate to the upstream project',
+    (await page.locator('#donate').count()) === 1);
+  check('…pointing at UVR\'s own donate page, not GifOS',
+    (await page.locator('#donate').getAttribute('href')) === 'https://www.buymeacoffee.com/uvr5');
+  check('a port listing still fetches no App GIF', gifHits.length === 0, gifHits.join(', '));
+  await page.locator('#back').click();
+  await sleep(200);
+
+  await page.locator('.card[data-slug="fps-simple"]').click();
+  await page.waitForSelector('#install', { timeout: 10000 });
+  const fpsFacts = (await page.locator('.facts').textContent()) || '';
+  check('the Claude of Duty listing does not claim GifOS as the author',
+    !/Author\s*GifOS/.test(fpsFacts) && /mshumer/.test(fpsFacts));
+  check('the Claude of Duty listing states Ported by GifOS', /Ported by\s*GifOS/.test(fpsFacts));
+  check('a port without a donate page has no Donate button',
+    (await page.locator('#donate').count()) === 0);
+  await page.locator('#back').click();
   await sleep(200);
 
   // ---- a listing ------------------------------------------------------------
