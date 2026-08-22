@@ -171,6 +171,11 @@ a failed build. First-party listings omit `basedOn` and `porter` entirely.
 An engine bundled inside a new UI (Stockfish, pdf.js) is not this shape —
 that copyright lives in `COPYING-*.txt` inside the GIF.
 
+A first-party app that took its *idea* from someone else's product, without
+being a port of their code, sets `inspiredBy` instead — author stays GifOS,
+and the store prints **Inspired by {name}**. `basedOn` and `inspiredBy` cannot
+both be set: a port is not "inspired by". Anyroad is this shape (Hop.Earth).
+
 ## What "certified" means here
 
 - **Lives here, signed here**: built in this repo and **signed with the

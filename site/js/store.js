@@ -309,7 +309,8 @@
     // basedOn.name is in the haystack so "uvr" / "claude of duty" still find
     // a port after Author is no longer GifOS.
     const hay = [app.name, app.shortName, app.tagline,
-      (app.author || {}).name, (app.porter || {}).name, (app.basedOn || {}).name]
+      (app.author || {}).name, (app.porter || {}).name, (app.basedOn || {}).name,
+      (app.inspiredBy || {}).name, (app.inspiredBy || {}).by]
       .concat(app.tags || [], app.categories || []).join(' ').toLowerCase();
     return hay.includes(q);
   }
@@ -347,6 +348,7 @@
           '<h3>' + esc(a.name) + '</h3>' +
           '<div class="tag">' + esc(a.tagline) + '</div>' +
           (a.basedOn ? '<div class="portof">port of ' + esc(a.basedOn.name) + '</div>' : '') +
+          (a.inspiredBy ? '<div class="portof">inspired by ' + esc(a.inspiredBy.name) + '</div>' : '') +
           '<div class="meta">' +
             // The card says "needs a newer GifOS" INSTEAD of the size, because
             // the size is an invitation and this app is not yet installable
@@ -503,6 +505,10 @@
         (app.basedOn
           ? fact('Based on', personLink({ name: app.basedOn.name, url: app.basedOn.url }) +
               (app.basedOn.blessed ? '' : ' <span class="pill">Unofficial port</span>'))
+          : '') +
+        (app.inspiredBy
+          ? fact('Inspired by', personLink({ name: app.inspiredBy.name, url: app.inspiredBy.url }) +
+              (app.inspiredBy.by ? ' by ' + esc(app.inspiredBy.by) : ''))
           : '') +
         fact('Released', esc(niceDate(app.releaseDate))) +
         (app.updated && app.updated !== app.releaseDate ? fact('Updated', esc(niceDate(app.updated))) : '') +

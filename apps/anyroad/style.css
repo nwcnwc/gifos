@@ -406,6 +406,8 @@ select {
 .board li { margin-bottom: 4px; }
 .board .t { color: var(--dim); font-variant-numeric: tabular-nums; }
 
+.inspired { margin: 8px 0 14px; color: var(--dim); font-size: 12px; line-height: 1.45; }
+.inspired a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .attribution { margin: 18px 0 0; color: var(--dim); font-size: 10.5px; line-height: 1.6; }
 /* The in-drive credit line: pinned to the bottom edge, small and dim — present
    because the licences want it next to the map, quiet because it is not what
