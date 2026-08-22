@@ -70,7 +70,10 @@ cannot do at all. A third flagship vocal model would be a 67 MB quality knob
 the user waits on the first time they pick it.
 
 Knobs (overlap, denoise, invert-spec, frequency-cut residual) start at UVR's
-shipped defaults. Segment size stays 256 — that is the ONNX input shape.
+shipped defaults. Segment size stays 256 on the processor; on a GPU the app
+may hand the model shorter segments to fit the device's memory — UVR's own
+`mdx_segment_size` knob, applied automatically. See
+[the 1.82 GB nobody ordered](#the-182-gb-nobody-ordered-and-the-segment-ladder).
 
 | | UVR-MDX-NET Inst HQ 3 | UVR-MDX-NET Karaoke 2 |
 |---|---|---|
@@ -260,10 +263,13 @@ only thing that gets a working engine back:
   work that kills it — so it can be watched while the call that triggered it is
   still pending;
 - a timeout is the backstop, for a driver that wedges without declaring a loss;
-- either one reloads the frame for a fresh engine with the GPU switched off,
-  remembered per computer, and says why on the way back in. A **Try the GPU
-  again** button hands it back, because a driver update or a phone that was
-  merely out of memory that day deserves another go.
+- either one reloads the frame for a fresh engine and says why on the way back
+  in. But not straight to the processor: a lost device is almost always memory
+  (next section), so the app descends a **segment ladder** first — restart with
+  the GPU on 64-frame segments, then 32, and only a device that dies on the
+  smallest rung is remembered as CPU-only, per computer. A **Try the graphics
+  chip again** button hands it back, because a driver update or a phone that
+  was merely out of memory that day deserves another go.
 
 Measured on the same phone, same track: **31 seconds** from pressing Separate to
 the app having noticed, restarted itself and offered to carry on — against
@@ -283,12 +289,69 @@ it is closer to two and a half. The app's live estimate is measured from its own
 first chunk and said "about 16 min left" within three minutes, so nobody is
 misled for long; the static copy has been softened to match.
 
-**Still not measured: a GPU path that survives.** No box here has a WebGPU
-adapter at all — headless Chromium exposes none even with `--enable-unsafe-webgpu`
-and a SwiftShader adapter forced — and the one real device to hand loses its
-device to this model. So there is still no honest number for how fast MDX-Net
-separates on a GPU, only the knowledge that a 4 GB phone is not where it will be
-taken.
+### The 1.82 GB nobody ordered, and the segment ladder
+
+Why a few hundred MB of GPU allocation was ever in play for 66 MB of weights:
+the UVR exports declare a **fixed** `[batch, 4, dim_f, 256]` input shape, and
+with every shape static ORT-web's WebGPU backend plans — and **allocates** —
+the whole graph's activation memory at session create. Counted on the adapter
+here: **1.82 GB** for Inst HQ 3, 543 buffers, the largest 160 MB. That is the
+allocation that kills a 4 GB phone and was never going to fit the Chromebook
+either.
+
+But 256 is a declaration, not arithmetic. The network is fully convolutional
+along time — not one `Reshape` in the graph, and the TDF `MatMul`s act on
+frequency behind a transpose — so a shorter segment is a *setting*, the same
+knob UVR's GUI exposes as `mdx_segment_size`. `onnxseg.js` rewrites the
+declared time dim to a symbolic `"time"` (a protobuf splice on the verified
+bytes, in memory — the sha256 pin keeps meaning the upstream bytes) and the
+session is created with `freeDimensionOverrides` at the smaller segment.
+
+Verified end to end:
+
+- the patched model at 256 is **bit-identical** to the unpatched one under
+  Python ORT (max |diff| 0.0), and runs clean at 128/64/32;
+- create-time allocation at segment 64: **1.82 GB → ~0.5 GB** (measured);
+- separation quality at 64 on the 12 s synthetic mix: vocal correlation 0.862
+  vs 0.775 at 256 — not degraded (slightly better, within the model's noise);
+- **on the Moto G24's real GPU** (Mali-G57, 4 GB, Chrome 151): session create
+  at segment 64 in 4.9 s holding 160 MB, three inferences complete at ~26 s
+  each, output matching the CPU reference to 1e-5, peak 566 MB. The unpatched
+  model on the same phone minutes later: 2.0 GB allocated mid-run and the tab
+  died without another heartbeat. That pair of numbers is the whole fix.
+
+So `app.js` descends a ladder instead of giving up: **256 → 64 → 32 →
+CPU-only**, one restart per rung, remembered per computer. A device that
+admits `navigator.deviceMemory <= 4` (the Moto does) starts at 64 and skips
+the first failed run entirely. Every session and tensor in one separation
+agree on the segment even if the engine demotes to wasm mid-run — the session
+cache is dropped when the segment moves.
+
+### The GPU that is a lie: fallback adapters
+
+The Chromebook's "WebGPU always fails" turned out to be a different animal:
+Chrome hands out **fallback adapters** — SwiftShader, a renderer on the CPU
+pretending to be a GPU — on machines whose hardware WebGPU is blocklisted (and
+in headless Chrome under `--enable-unsafe-webgpu`, which is how it is pinned
+in the gate). Running MDX-Net on one was measured here: session create
+allocates for minutes when it completes at all, and a single small inference
+did not finish in twelve. It is strictly worse than ORT's own wasm engine —
+while the app said "your graphics chip" the whole time, then burned the
+per-computer CPU-only switch on a GPU that never existed.
+
+So `gpuAdapter()` refuses `isFallbackAdapter` outright: the app runs on wasm,
+the engine line says the adapter is a software fallback, and the CPU-only
+switch stays unburned. `test/browser/e2e-vocal-remover-gpu.js` runs with the
+fallback exposed and holds the app to all three — plus the reduced-segment
+path end to end inside the sandbox: it byte-patches the in-GIF self-test
+model, creates the session at `time: 64`, and requires the identity to come
+back exact at a shape the shipped `.onnx` never declared.
+
+**Still unmeasured: how fast a healthy desktop GPU separates.** The one real
+GPU to hand is a budget phone's Mali (~26 s per 64-frame chunk, above), and
+every box here either exposes no adapter or a fallback. The app says which
+engine it got, and every estimate it shows is measured live from its own
+first chunk, which is the part that protects the user either way.
 
 ## Does it actually separate?
 
@@ -326,7 +389,9 @@ enough to leave a hole in `divider`; the real 6144/1024 geometry; the match-mix
 path), every sample matching to float32 precision. Plus the FFT against a naive
 DFT, the two windows being genuinely different arrays, `reflectPad` against
 numpy's documented output, an STFT→tensor→iSTFT round-trip, the model tables
-against `MODEL-PINS.json`, and the WAV writer.
+against `MODEL-PINS.json`, the WAV writer, and the `onnxseg.js` patcher —
+checked by an **independently written** protobuf reader parsing the patched
+bytes back, so the patcher cannot grade its own homework.
 
 **`tools/check-torch.py`** — holds `mdx_ref.py` itself to **torch's** `stft` /
 `istft`. Without it the JS could match the reference perfectly and both be
@@ -341,6 +406,11 @@ the same level (measured: correlation 0.9999992, rms 0.35355 against a
 theoretical 0.35355), while the residual — the frequency-cut mix minus it —
 must come back at −95 dBFS. It also counts the app frame's network requests:
 **zero**.
+
+**`test/browser/e2e-vocal-remover-gpu.js`** — the same GIF with a fallback
+adapter exposed (`--enable-unsafe-webgpu`): the app must refuse it, say why,
+leave the CPU-only switch unburned, run the byte-patched self-test model at
+`time: 64`, and complete a separation on wasm.
 
 The 120 MB of real weights are deliberately **not** downloaded in the gate. A
 suite that needs a third-party host to be up goes red for reasons that have

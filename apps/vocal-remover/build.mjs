@@ -134,7 +134,7 @@ const strModule = (name, value) => (name + '=' + JSON.stringify(value) + ';').sp
 // Script order matters: fft.js attaches window.VRFFT and mdx.js reads it at
 // call time, but models.js/app.js read each other at load. index.html lists
 // them in this order and the runtime inlines each <script src> where it stands.
-const SCRIPTS = ['fft.js', 'mdx.js', 'wav.js', 'models.js', 'app.js'];
+const SCRIPTS = ['fft.js', 'mdx.js', 'wav.js', 'onnxseg.js', 'models.js', 'app.js'];
 
 const files = {
   'manifest.json': JSON.stringify(manifest),

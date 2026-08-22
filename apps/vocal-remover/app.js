@@ -20,8 +20,39 @@
     file: null, buf: null, job: 'split', bits: 16, maxSec: 0,
     overlap: null, denoise: false, matchFreq: true, invertSpec: false,
     running: false, stop: false, gpu: false, ep: null, cpuOnly: false, gpuNote: null,
+    gpuSeg: null, runSeg: 0, sessionsSeg: 0,
     sessions: {}, selfTest: false, results: [], urls: [],
   };
+
+  // The GPU segment ladder. The UVR exports declare a fixed 256-frame time
+  // axis, and ORT-web's WebGPU backend plans (and ALLOCATES) the whole graph's
+  // activation memory at session create from those static shapes — measured at
+  // 1.82 GB for Inst HQ 3. A 4 GB phone loses its GPU device to that; so did a
+  // Chromebook. Activation memory scales with the segment, so the answer is to
+  // hand the GPU shorter segments: 64 frames plans at ~0.5 GB (measured), and
+  // separation quality is unchanged (measured — see the README). The model is
+  // fully convolutional along time, so a shorter segment is a setting, not a
+  // different network: onnxseg.js makes the declared dim symbolic and the
+  // session is created with freeDimensionOverrides. UVR's own GUI exposes the
+  // same knob as mdx_segment_size.
+  var GPU_SEGS = [64, 32];
+  function nextSeg() {
+    if (!S.gpuSeg) return GPU_SEGS[0];
+    var i = GPU_SEGS.indexOf(S.gpuSeg);
+    return i >= 0 && i + 1 < GPU_SEGS.length ? GPU_SEGS[i + 1] : null;
+  }
+
+  // The model cfg a pass actually runs at: the pinned table entry, with dimT
+  // swapped for the reduced GPU segment when one is active. The self-test
+  // model is exempt — it is 4 KB and proves the 256-frame path.
+  function cfgFor(id) {
+    var m = MODELS[id];
+    if (!S.runSeg || m.selfTest || S.runSeg === m.dimT) return m;
+    var c = {};
+    for (var k in m) c[k] = m[k];
+    c.dimT = S.runSeg;
+    return c;
+  }
 
   // ---- engine ---------------------------------------------------------------
 
@@ -45,12 +76,20 @@
     window.ort.env.logLevel = 'error';
   }
 
-  async function haveGpu() {
+  // What the device actually offers. `isFallbackAdapter` is Chrome handing out
+  // SwiftShader — a software renderer pretending to be a graphics chip. Running
+  // MDX-Net on it was measured here: session create takes minutes when it
+  // completes at all, one small inference did not finish in twelve, and the
+  // whole time the app claims the fast path. It is strictly worse than ORT's
+  // wasm engine, so it is refused, and the engine line says why.
+  async function gpuAdapter() {
     try {
-      if (!navigator.gpu) return false;
+      if (!navigator.gpu) return { ok: false };
       var a = await navigator.gpu.requestAdapter();
-      return !!a;
-    } catch (e) { return false; }
+      if (!a) return { ok: false };
+      if (a.isFallbackAdapter) return { ok: false, fallback: true };
+      return { ok: true };
+    } catch (e) { return { ok: false }; }
   }
 
   // ---- when the GPU goes away ------------------------------------------------
@@ -111,17 +150,33 @@
   function gone(msg) { var e = new Error(msg); e.gpuGone = true; return e; }
 
   // So the recovery for a lost device is a RESTART, not a retry: reload the
-  // frame for a fresh engine, with the GPU switched off for good on this
-  // computer, and say so on the way back in. It costs one press of Separate.
-  // The alternative, measured on a Moto G24, was the app sitting on "Loading…"
-  // for as long as anyone was willing to watch it.
-  async function restartOnCpu(err) {
+  // frame for a fresh engine. It costs one press of Separate. The alternative,
+  // measured on a Moto G24, was the app sitting on "Loading…" for as long as
+  // anyone was willing to watch it.
+  //
+  // But not straight to the processor. A lost device is almost always the
+  // memory (the 1.82 GB static plan — see GPU_SEGS above), so the ladder is
+  // descended first: restart with the chip on a smaller segment, and only a
+  // device that dies at the smallest rung is remembered as CPU-only. Each rung
+  // costs one restart; giving up on a working chip because its first
+  // allocation was too greedy would cost every future run tenfold.
+  async function restartSmaller(err) {
     S.stop = true;
-    S.cpuOnly = true;
-    S.gpuNote = 'The graphics chip on this device gave out partway through, so the app has '
-      + 'switched to the processor and restarted itself. That is slower — watch the time estimate — '
-      + 'but it finishes. Press Separate to start again. '
-      + '(Technical detail: ' + String((err && err.message) || err) + ')';
+    var msg = String((err && err.message) || err);
+    var next = S.gpu ? nextSeg() : null;
+    if (next) {
+      S.gpuSeg = next;
+      S.gpuNote = 'The graphics chip on this device gave out partway through — that is almost '
+        + 'always its memory, so the app has restarted itself and will hand the chip the song in '
+        + 'smaller pieces from now on. The result sounds the same. Press Separate to start again. '
+        + '(Technical detail: ' + msg + '; new segment ' + next + ' frames.)';
+    } else {
+      S.cpuOnly = true;
+      S.gpuNote = 'The graphics chip on this device gave out even on the smallest pieces, so the '
+        + 'app has switched to the processor and restarted itself. That is slower — watch the time '
+        + 'estimate — but it finishes. Press Separate to start again. '
+        + '(Technical detail: ' + msg + ')';
+    }
     // Said BEFORE the reload as well as after it. If a sandbox ever refuses the
     // reload, the note on screen is the difference between "the GPU died, here
     // is what to do" and the silent hang this whole branch exists to end.
@@ -131,29 +186,57 @@
     await new Promise(function () {});   // nothing after the reload runs
   }
 
-  async function makeSession(bytes) {
+  // The reduced segment a given model's SESSION should be built at — 0 means
+  // the pinned 256. Tied to S.runSeg so every session and every tensor in one
+  // separation agree, even if the engine demotes to wasm halfway through.
+  function segFor(id) {
+    return S.runSeg && !MODELS[id].selfTest && S.runSeg !== MODELS[id].dimT ? S.runSeg : 0;
+  }
+
+  function sessionOpts(id, eps) {
+    var opts = { executionProviders: eps };
+    var seg = segFor(id);
+    if (seg) opts.freeDimensionOverrides = { batch_size: 1, time: seg };
+    return opts;
+  }
+
+  async function makeSession(bytes, id) {
     // ORT-web does not fall back on its own — a WebGPU session that cannot
     // place an op throws at create() — so the fallback is written out here.
     var eps = S.gpu ? ['webgpu', 'wasm'] : ['wasm'];
+    // A reduced segment needs the model's declared time axis to be symbolic
+    // before freeDimensionOverrides can pin it smaller. The pinned bytes stay
+    // pinned — the rewrite happens in memory, after the store verified them.
+    if (segFor(id)) bytes = window.VRONNX.dynamicTime(bytes);
     try {
       var s = await underGpuWatch(
-        window.ort.InferenceSession.create(bytes, { executionProviders: eps }),
+        window.ort.InferenceSession.create(bytes, sessionOpts(id, eps)),
         'loading the model onto the GPU', 150);
       S.ep = S.gpu ? 'webgpu' : 'wasm';
       return s;
     } catch (e) {
       if (!S.gpu) throw e;
-      if (e && e.gpuGone) return restartOnCpu(e);
+      if (e && e.gpuGone) return restartSmaller(e);
       // Say WHY on screen. This branch used to be silent because the only way
       // in was "no GPU kernel for some op", which nobody can act on; a lost
       // device is different — it is the difference between the app being slow
       // and the app being broken, and the user is about to wait ten times as
       // long as they were told.
       sayGpuGone(e);
-      var s2 = await window.ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
+      // Same bytes, same overrides: the tensors this separation is already
+      // cutting must fit the rescue session too.
+      var s2 = await window.ort.InferenceSession.create(bytes, sessionOpts(id, ['wasm']));
       S.ep = 'wasm';
       return s2;
     }
+  }
+
+  function releaseSessions() {
+    var old = S.sessions;
+    S.sessions = {};
+    Object.keys(old).forEach(function (k) {
+      Promise.resolve(old[k]).then(function (s) { try { s.release(); } catch (e) {} }, function () {});
+    });
   }
 
   // Drop to the processor for good: every cached session goes too, because they
@@ -162,11 +245,7 @@
   function sayGpuGone(err) {
     S.gpu = false;
     S.ep = 'wasm';
-    var old = S.sessions;
-    S.sessions = {};
-    Object.keys(old).forEach(function (k) {
-      Promise.resolve(old[k]).then(function (s) { try { s.release(); } catch (e) {} }, function () {});
-    });
+    releaseSessions();
     $('engineline').textContent = 'Now running on the processor — the graphics chip stopped partway '
       + 'through, so the rest of this run happens there instead. Slower, but it finishes. '
       + '(Technical detail: ' + String((err && err.message) || err) + ')';
@@ -185,7 +264,7 @@
     var mm = MODELS[id];
     setStatus('Loading ' + mm.label
       + (mm.bytes ? '… (the first time, this downloads ' + Math.round(mm.bytes / 1e6) + ' MB)' : '…'));
-    var p = modelBytes(id).then(makeSession);
+    var p = modelBytes(id).then(function (bytes) { return makeSession(bytes, id); });
     S.sessions[id] = p;
     try { return await p; }
     catch (e) { delete S.sessions[id]; throw e; }
@@ -210,7 +289,7 @@
         out = await underGpuWatch(session.run(feeds), 'separating a piece of the track', 120);
       } catch (e) {
         if (!S.gpu || S.stop) throw e;
-        if (e && e.gpuGone) return restartOnCpu(e);
+        if (e && e.gpuGone) return restartSmaller(e);
         sayGpuGone(e);
         session = await sessionFor(id);
         out = await session.run(feeds);
@@ -232,7 +311,7 @@
   // would frequency-cut) the band-limited copy of the input it gets subtracted
   // from. Returns { primary, secondary } named by the model.
   async function pass(id, mix, tick) {
-    var m = MODELS[id];
+    var m = cfgFor(id);
     await sessionFor(id);
     var run = runner(id, m.dimF, m.dimT);
     var primary = await window.VRMDX.demix(mix, m, run, {
@@ -256,7 +335,7 @@
   }
 
   function unitsFor(id, T) {
-    var m = MODELS[id];
+    var m = cfgFor(id);
     var u = window.VRMDX.chunkCount(T, m, false, { overlap: S.overlap });
     if ((m.freqCut && S.matchFreq) || S.invertSpec) u += window.VRMDX.chunkCount(T, m, true) * MATCH_WEIGHT;
     return u;
@@ -264,6 +343,13 @@
 
   async function separate() {
     S.running = true; S.stop = false; S.results = [];
+    // The segment is fixed for the WHOLE separation — every session and every
+    // tensor must agree on it, even if the engine demotes to wasm mid-run. A
+    // cached session built at a different segment cannot be fed this run's
+    // tensors, so the cache is dropped when the segment moves.
+    var wantSeg = S.gpu && S.gpuSeg ? S.gpuSeg : 0;
+    if (wantSeg !== S.sessionsSeg) { releaseSessions(); S.sessionsSeg = wantSeg; }
+    S.runSeg = wantSeg;
     $('go').disabled = true; $('stop').hidden = false;
     $('results').hidden = true; $('stems').textContent = '';
     $('progwrap').hidden = false;
@@ -445,7 +531,7 @@
       return Promise.resolve(gifos.db('prefs').put({
         id: 'prefs', job: S.job, bits: S.bits, maxSec: S.maxSec,
         overlap: S.overlap, denoise: S.denoise, matchFreq: S.matchFreq, invertSpec: S.invertSpec,
-        cpuOnly: S.cpuOnly, gpuNote: S.gpuNote,
+        cpuOnly: S.cpuOnly, gpuNote: S.gpuNote, gpuSeg: S.gpuSeg,
       }));
     } catch (e) { return Promise.resolve(); }
   }
@@ -465,6 +551,7 @@
       S.invertSpec = !!p.invertSpec;
       S.cpuOnly = !!p.cpuOnly;
       S.gpuNote = p.gpuNote || null;
+      if (GPU_SEGS.indexOf(p.gpuSeg) >= 0) S.gpuSeg = p.gpuSeg;
     } catch (e) {}
   }
 
@@ -511,7 +598,15 @@
     // it is a property of the device, not of the track. The switch is
     // remembered per computer and can be handed back — a driver update, or a
     // phone that was simply out of memory that day, deserves another go.
-    S.gpu = S.cpuOnly ? false : await haveGpu();
+    var ad = S.cpuOnly ? { ok: false } : await gpuAdapter();
+    S.gpu = ad.ok;
+    // A device that admits to little memory is not walked into the 1.82 GB
+    // first rung at all: start it on the small segment and skip the failed
+    // run, the restart, and the minute both cost. (deviceMemory caps at 8 and
+    // is absent on some engines; absent means no opinion, so no reduction.)
+    if (S.gpu && !S.gpuSeg && navigator.deviceMemory && navigator.deviceMemory <= 4) {
+      S.gpuSeg = GPU_SEGS[0];
+    }
     if (S.cpuOnly) {
       $('engineline').textContent = 'Running on the processor. The graphics chip failed during an '
         + 'earlier run on this device, so the app has stopped using it. Slower, but reliable.';
@@ -520,9 +615,17 @@
       again.onclick = function () { S.cpuOnly = false; S.gpuNote = null; savePrefs(); location.reload(); };
       $('engineline').appendChild(document.createTextNode(' '));
       $('engineline').appendChild(again);
+    } else if (ad.fallback) {
+      // What the Chromebook was actually offering. Never call it a graphics chip.
+      $('engineline').innerHTML = 'Separation runs on <b>the processor</b>. What this device offers '
+        + 'as a graphics chip is a software fallback — the processor pretending to be one — which is '
+        + 'slower than the app\u2019s own engine and can wedge outright, so the app doesn\u2019t use it. '
+        + 'Everything works; it just takes a while.';
     } else {
       $('engineline').innerHTML = S.gpu
-        ? 'This device has a usable <b>graphics chip (GPU)</b>, so separation runs there — the fast way. Anything the chip can\'t handle falls back to the processor.'
+        ? ('This device has a usable <b>graphics chip (GPU)</b>, so separation runs there — the fast way.'
+          + (S.gpuSeg ? ' It gets the song in small pieces sized to this device\u2019s memory; the result sounds the same.' : '')
+          + ' Anything the chip can\'t handle falls back to the processor.')
         : 'Separation runs on <b>the processor</b> — this device doesn\'t offer apps a graphics chip. Everything works; it just takes a while.';
     }
     S.ep = S.gpu ? 'webgpu' : 'wasm';

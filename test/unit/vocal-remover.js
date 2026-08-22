@@ -35,13 +35,14 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 // ---- load the shipped modules exactly as the GIF would run them -------------
 const sandbox = { window: {}, atob, btoa, console, Math, setTimeout };
 vm.createContext(sandbox);
-for (const f of ['fft.js', 'mdx.js', 'wav.js', 'models.js']) {
+for (const f of ['fft.js', 'mdx.js', 'wav.js', 'onnxseg.js', 'models.js']) {
   vm.runInContext(fs.readFileSync(path.join(APP, f), 'utf8'), sandbox, { filename: f });
 }
 const FFT = sandbox.window.VRFFT, MDX = sandbox.window.VRMDX;
 const WAV = sandbox.window.VRWAV, CAT = sandbox.window.VR_MODELS;
+const ONNX = sandbox.window.VRONNX;
 check('the shipped modules load and attach their globals',
-  !!(FFT && FFT.fft && MDX && MDX.demix && WAV && WAV.encodeWav && CAT && CAT.models));
+  !!(FFT && FFT.fft && MDX && MDX.demix && WAV && WAV.encodeWav && CAT && CAT.models && ONNX && ONNX.dynamicTime));
 
 // ---- the FFT ----------------------------------------------------------------
 // The MDX n_fft values are 5120, 6144 and 7680: none is a power of two, all are
@@ -255,6 +256,70 @@ check('the shipped modules load and attach their globals',
       manifest.minBuild >= 1381 && !!manifest.capabilities.gpu && !!manifest.capabilities.wasm, manifest.minBuild);
     check('the manifest declares no network of any kind',
       !manifest.capabilities.network && !manifest.capabilities.api && !manifest.hosts);
+
+    // ---- the ONNX time-dim patcher -------------------------------------------
+    // onnxseg.js rewrites each graph input/output's fixed 256-frame time axis
+    // to the symbolic "time", so a GPU-constrained device can create the
+    // session at a smaller segment (freeDimensionOverrides). The check here is
+    // INDEPENDENT: a second, separately-written protobuf reader parses the
+    // patched bytes back, so the patcher cannot grade its own homework. The
+    // checked-in self-test model has the same [batch, 4, dim_f, 256] shape as
+    // the real UVR exports, which is exactly why it is the fixture.
+    {
+      const readVarint = (b, p) => {
+        let v = 0, m = 1, x;
+        do { x = b[p++]; v += (x & 127) * m; m *= 128; } while (x & 128);
+        return [v, p];
+      };
+      // Walk one message body, returning [{no, wire, val|sub}] — enough of the
+      // wire format to reach a shape, nothing more.
+      const fields = (b, s, e) => {
+        const out = [];
+        let p = s;
+        while (p < e) {
+          let key, len;
+          [key, p] = readVarint(b, p);
+          const no = Math.floor(key / 8), wire = key % 8;
+          if (wire === 0) { let v; [v, p] = readVarint(b, p); out.push({ no, wire, val: v }); }
+          else if (wire === 2) { [len, p] = readVarint(b, p); out.push({ no, wire, s: p, e: p + len }); p += len; }
+          else if (wire === 5) p += 4;
+          else if (wire === 1) p += 8;
+          else throw new Error('wire ' + wire);
+        }
+        return out;
+      };
+      const readDims = (b, vi) => {
+        const type = fields(b, vi.s, vi.e).find((f) => f.no === 2);
+        const tensor = fields(b, type.s, type.e).find((f) => f.no === 1);
+        const shape = fields(b, tensor.s, tensor.e).find((f) => f.no === 2);
+        return fields(b, shape.s, shape.e).filter((f) => f.no === 1).map((d) => {
+          const fs2 = fields(b, d.s, d.e);
+          const v = fs2.find((f) => f.no === 1), n = fs2.find((f) => f.no === 2);
+          return n ? Buffer.from(b.slice(n.s, n.e)).toString() : v.val;
+        });
+      };
+      const dimsOf = (bytes) => {
+        const graph = fields(bytes, 0, bytes.length).find((f) => f.no === 7);
+        const io = fields(bytes, graph.s, graph.e).filter((f) => f.no === 11 || f.no === 12);
+        return io.map((vi) => readDims(bytes, vi));
+      };
+
+      const orig = new Uint8Array(fs.readFileSync(path.join(APP, 'vendor', 'selftest.onnx')));
+      const before = Buffer.from(orig).toString('base64');
+      const patched = ONNX.dynamicTime(orig);
+      check('the patcher leaves the original bytes alone (the pin keeps meaning the pin)',
+        Buffer.from(orig).toString('base64') === before);
+      check('...and rewrites ONLY the time axis: [batch_size, 4, dim_f, time] in and out',
+        JSON.stringify(dimsOf(patched)) === JSON.stringify([['batch_size', 4, 1024, 'time'], ['batch_size', 4, 1024, 'time']]),
+        dimsOf(patched));
+      check('...growing the file by exactly the two 3-byte dims it replaced',
+        patched.length === orig.length + 6, { before: orig.length, after: patched.length });
+      check('patching an already-dynamic model changes nothing (idempotent)',
+        Buffer.from(ONNX.dynamicTime(patched)).equals(Buffer.from(patched)));
+      let threw = false;
+      try { ONNX.dynamicTime(new Uint8Array([1, 2, 3, 4, 5])); } catch (e) { threw = true; }
+      check('bytes that are not a model it recognises THROW rather than run wrong', threw);
+    }
 
     // ---- the WAV writer -----------------------------------------------------
     {
