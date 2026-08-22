@@ -1,0 +1,23 @@
+{
+  "_": "The exact bytes this app pins, and where the numbers came from. test/unit/vocal-remover.js holds manifest.json and models.js to this file; tools/verify-pins.py re-downloads and re-checks it against upstream.",
+  "repo": "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/",
+  "modelData": "ultimatevocalremovergui models/MDX_Net_Models/model_data/model_data.json",
+  "pins": [
+    {
+      "id": "inst-hq3",
+      "file": "UVR-MDX-NET-Inst_HQ_3.onnx",
+      "bytes": 66759214,
+      "sha256": "317554b07fe1ea5279a77f2b1520a41ea4b93432560c4ffd08792c30fddf9adc",
+      "uvrHash": "55657dd70583b0fedfba5f67df11d711",
+      "modelData": { "compensate": 1.022, "mdx_dim_f_set": 3072, "mdx_dim_t_set": 8, "mdx_n_fft_scale_set": 6144, "primary_stem": "Instrumental" }
+    },
+    {
+      "id": "kara2",
+      "file": "UVR_MDXNET_KARA_2.onnx",
+      "bytes": 52786726,
+      "sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+      "uvrHash": "1d64a6d2c30f709b8c9b4ce1366d96ee",
+      "modelData": { "compensate": 1.065, "mdx_dim_f_set": 2048, "mdx_dim_t_set": 8, "mdx_n_fft_scale_set": 5120, "primary_stem": "Instrumental", "is_karaoke": true }
+    }
+  ]
+}

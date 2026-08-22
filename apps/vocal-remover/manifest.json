@@ -1,0 +1,39 @@
+{
+  "gifos": "1.0",
+  "appId": "vocal-remover",
+  "name": "Vocal Remover",
+  "shortName": "Vocals",
+  "version": "1.0",
+  "minBuild": 1250,
+  "description": "Ultimate Vocal Remover's MDX-Net separation, running entirely in the sandbox. Give it a song and it gives you back the singing and the backing as separate files — and, if you ask, splits the vocal again into lead and backing. It is SLOW: the model listens in six-second pieces, roughly the length of the track on a device with a GPU and several times that on the processor alone, so try thirty seconds first. UVR's own model weights (120 MB) arrive once as a hash-pinned download and stay on this computer. Nothing is ever uploaded — the app has no network of its own.",
+  "entry": "index.html",
+  "accent": [
+    236,
+    84,
+    148
+  ],
+  "capabilities": {
+    "db": true,
+    "wasm": true,
+    "gpu": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    }
+  },
+  "assets": [
+    {
+      "url": "https://huggingface.co/seanghay/uvr_models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx",
+      "sha256": "317554b07fe1ea5279a77f2b1520a41ea4b93432560c4ffd08792c30fddf9adc",
+      "path": "inst-hq3.onnx",
+      "bytes": 66759214
+    },
+    {
+      "url": "https://huggingface.co/seanghay/uvr_models/resolve/main/UVR_MDXNET_KARA_2.onnx",
+      "sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+      "path": "kara2.onnx",
+      "bytes": 52786726
+    }
+  ]
+}
