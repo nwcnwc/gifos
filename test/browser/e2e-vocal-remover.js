@@ -27,7 +27,19 @@
  * are nothing to do with the code. Pin health is checked by
  * apps/vocal-remover/tools/verify-pins.py, on purpose, out of band.
  *
- * Needs: static server on 8099.
+ * Needs: static server on 8099, AND the model host out of reach.
+ *
+ * That second one is not optional and it does not announce itself. The weights
+ * are not fetched by this file — the OS frame fetches every pinned asset when
+ * the app is opened — so on a box that can reach huggingface.co the store fills
+ * in, `gifos.assets()` resolves, the app runs the REAL Inst HQ 3, and eight
+ * assertions below go red for saying so: no missing-weights banner, stems named
+ * Instrumental/Vocals instead of Pass-through/Residual, and every measurement
+ * that assumes an identity model. Nothing is wrong when that happens except the
+ * premise. Run it with the host unreachable:
+ *
+ *   https_proxy=http://127.0.0.1:1 http_proxy=http://127.0.0.1:1 \
+ *   no_proxy=127.0.0.1,localhost node test/browser/e2e-vocal-remover.js
  */
 const { chromium, CHROME } = require('../lib/pw');
 const { appGif } = require('../lib/apps');

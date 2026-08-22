@@ -66,6 +66,53 @@ for (const want of ['InferenceSession:', 'Tensor:', 'env:']) {
   if (!ortExports.some((e) => e.startsWith(want))) throw new Error('ORT no longer exports ' + want.slice(0, -1));
 }
 ortJs = ortJs.replace(ORT_EXPORT_RE, `window.ort = { ${ortExports.join(', ')} };`);
+
+// ---- ORT: upload tensors with queue.writeBuffer, not a mapped staging buffer -
+// GpuDataManager.upload() stages every CPU->GPU tensor through a buffer created
+// with `mappedAtCreation: true`, sized to the whole tensor. Blink backs that
+// mapping with a shared memory region it has to allocate up front, and when it
+// cannot it throws
+//
+//   Failed to execute 'createBuffer' on 'GPUDevice': createBuffer failed,
+//   size (12582912) is too large for the implementation when
+//   mappedAtCreation == true
+//
+// 12,582,912 is not a coincidence: it is 4 x 3072 x 256 x 4 bytes, this app's
+// input tensor for Inst HQ 3, uploaded once per chunk. Reported from Chrome on
+// Android, where a 12 MB shm allocation is a real thing to fail — the whole run
+// died at 1%. `queue.writeBuffer` copies through the queue's own staging, which
+// chunks internally and asks for no such region, so it is the same upload
+// without the cliff.
+//
+// The staging buffer itself is KEPT, and so is the copy into the tensor's
+// storage buffer through ORT's command encoder: that copy is what orders the
+// upload against the compute passes already recorded. writeBuffer alone would
+// execute at call time, ahead of them. Writing into a buffer created one line
+// earlier is safe to reorder, because nothing recorded before it can name it.
+//
+// Kokoro reads the same vendor bytes and is NOT patched — its tensors are a few
+// hundred KB and its output comes back down the mapAsync path, which allocates
+// nothing at creation.
+const mappedCount = (ortJs.match(/mappedAtCreation/g) || []).length;
+if (mappedCount !== 1) {
+  throw new Error('ort-esm.js has ' + mappedCount + ' mappedAtCreation sites, expected 1 (the upload staging buffer) — the bundle changed; re-check the rewrite in build.mjs.');
+}
+const ORT_UPLOAD_RE = /let (\w+)=this\.backend\.device\.createBuffer\(\{mappedAtCreation:!0,size:(\w+),usage:GPUBufferUsage\.MAP_WRITE\|GPUBufferUsage\.COPY_SRC\}\),(\w+)=\1\.getMappedRange\(\);new Uint8Array\(\3\)\.set\(new Uint8Array\((\w+),(\w+),(\w+)\)\),\1\.unmap\(\);/;
+if (!ORT_UPLOAD_RE.test(ortJs)) {
+  throw new Error('ort-esm.js: GpuDataManager.upload() no longer has the shape build.mjs rewrites — the 12 MB mapped-staging-buffer fix must be re-derived against the new bundle.');
+}
+// $1 staging buffer, $2 its 16-aligned size, $3 the mapped range (gone),
+// $4/$5/$6 the source ArrayBuffer, its byte offset and its byte length.
+// writeBuffer wants a size that is a multiple of 4; a tensor's byte length need
+// not be one (uint8 inputs), so the ragged tail goes in a padded 4-byte write.
+// $2 is aligned to 16, so there is always room for it.
+ortJs = ortJs.replace(ORT_UPLOAD_RE,
+  'let $1=this.backend.device.createBuffer({size:$2,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC});'
+  + '{let gifosQueue=this.backend.device.queue,gifosWhole=$6-$6%4;'
+  + 'if(gifosWhole>0)gifosQueue.writeBuffer($1,0,$4,$5,gifosWhole);'
+  + 'if(gifosWhole<$6){let gifosTail=new Uint8Array(4);gifosTail.set(new Uint8Array($4,$5+gifosWhole,$6-gifosWhole));gifosQueue.writeBuffer($1,gifosWhole,gifosTail.buffer,0,4);}}');
+if (ortJs.includes('mappedAtCreation')) throw new Error('the mappedAtCreation upload path survived the rewrite in build.mjs.');
+
 if (!ortJs.includes('import.meta.url')) throw new Error('ort-esm.js no longer uses import.meta.url — re-check the rewrite in build.mjs.');
 ortJs = ortJs.split('import.meta.url').join('"https://ort.invalid/gifos-inlined/"');
 for (const bad of ['import.meta', 'import(']) {
