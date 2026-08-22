@@ -269,7 +269,7 @@ async function measureStems(fr, hz, amp) {
   await fr.waitForFunction(() => /%/.test(document.getElementById('progtext').textContent), null, { timeout: 120000 });
   const prog = await fr.locator('#progtext').textContent();
   check('progress says how far along it is and what it is running on',
-    /%/.test(prog) && /(your GPU|the processor)/.test(prog), prog);
+    /%/.test(prog) && /(your graphics chip|the processor)/.test(prog), prog);
   await fr.click('#stop');
   await fr.waitForFunction(() => /^Stopped/.test(document.getElementById('status').textContent), null, { timeout: 120000 })
     .catch(() => {});
