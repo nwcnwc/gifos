@@ -233,6 +233,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.locator('#q').fill('');
   await sleep(200);
 
+  const any = index.apps.find((a) => a.slug === 'anyroad');
+  check('anyroad is catalogued as inspired by Hop.Earth, not as a port',
+    !!(any && any.inspiredBy && any.inspiredBy.name === 'Hop.Earth' && !any.basedOn));
+  await page.locator('#q').fill('hop.earth');
+  await sleep(200);
+  check('searching hop.earth finds Anyroad',
+    (await page.locator('.card[data-slug="anyroad"]').count()) === 1);
+  check('…and the card says inspired by Hop.Earth',
+    /inspired by Hop\.Earth/.test((await page.locator('.card[data-slug="anyroad"]').textContent()) || ''));
+  await page.locator('#q').fill('');
+  await sleep(200);
+  await page.locator('.card[data-slug="anyroad"]').click();
+  await page.waitForSelector('#install', { timeout: 10000 });
+  const anyFacts = (await page.locator('.facts').textContent()) || '';
+  check('Anyroad still lists GifOS as the author', /Author\s*GifOS/.test(anyFacts) || /AuthorGifOS/.test(anyFacts));
+  check('Anyroad states Inspired by Hop.Earth',
+    /Inspired by/.test(anyFacts) && /Hop\.Earth/.test(anyFacts));
+  check('Anyroad does not wear the unofficial-port label',
+    !/Unofficial port/.test(anyFacts) && (await page.locator('.head .port').count()) === 0);
+  await page.locator('#back').click();
+  await sleep(200);
+
   await page.locator('.card[data-slug="vocal-remover"]').click();
   await page.waitForSelector('#install', { timeout: 10000 });
   const uvrFacts = (await page.locator('.facts').textContent()) || '';

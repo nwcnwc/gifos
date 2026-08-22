@@ -83,5 +83,23 @@ check('the two known ports are in the catalog',
   index.apps.some((a) => a.slug === 'vocal-remover') &&
   index.apps.some((a) => a.slug === 'fps-simple'));
 
+// Inspired-by is NOT a port: author stays GifOS, no porter, no unofficial-port pill.
+const any = listing('anyroad'), anyRec = appjson('anyroad');
+const anyIdx = index.apps.find((a) => a.slug === 'anyroad');
+check('anyroad author is still GifOS', isGifos(any.author) && isGifos(anyRec.author));
+check('anyroad has no basedOn and no porter',
+  any.basedOn == null && any.porter == null && anyRec.basedOn == null && anyRec.porter == null);
+check('anyroad inspiredBy is Hop.Earth',
+  any.inspiredBy && any.inspiredBy.name === 'Hop.Earth' &&
+  any.inspiredBy.url === 'https://hop.earth' &&
+  /Misiurski|DVLP/.test(any.inspiredBy.by || ''));
+check('anyroad inspiredBy survived the catalog build',
+  anyRec.inspiredBy && anyRec.inspiredBy.name === 'Hop.Earth' &&
+  anyRec.inspiredBy.url === 'https://hop.earth');
+check('the grid index carries inspiredBy.name so search finds hop.earth',
+  anyIdx && anyIdx.inspiredBy && anyIdx.inspiredBy.name === 'Hop.Earth');
+check('a port listing does not also claim inspiredBy',
+  index.apps.filter((a) => a.basedOn && a.inspiredBy).length === 0);
+
 console.log(failures ? '\n' + failures + ' FAILURE(S)' : '\nall green');
 process.exit(failures ? 1 : 0);

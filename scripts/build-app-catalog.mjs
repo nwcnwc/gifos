@@ -214,6 +214,26 @@ function coverIsCurrent(srcPng, outJpg) {
   return fs.statSync(outJpg).mtimeMs >= fs.statSync(srcPng).mtimeMs;
 }
 
+
+// A first-party app that took its IDEA from someone else's product, without
+// being a port of their code. Author stays GifOS. Mutually exclusive with
+// basedOn: a port is not "inspired by".
+function inspiredBy(v, slug) {
+  if (v == null) return null;
+  if (typeof v !== 'object' || Array.isArray(v)) {
+    fail(slug + ': inspiredBy must be an object {name, url}');
+    return null;
+  }
+  const name = String(v.name || '').trim();
+  if (!name) fail(slug + ': inspiredBy.name is required');
+  const u = httpsUrl(v.url, slug + ': inspiredBy.url');
+  const by = String(v.by || '').trim();
+  if (!name || !u) return null;
+  const out = { name, url: v.url.trim() };
+  if (by) out.by = by;
+  return out;
+}
+
 async function buildApp(slug) {
   const dir = path.join(SRC, slug);
   const manifestPath = path.join(dir, 'manifest.json');
@@ -256,6 +276,10 @@ async function buildApp(slug) {
     else porter = person(l.porter, slug + ': porter', { requiredUrl: true });
   } else if (l.porter) {
     fail(slug + ': porter is only for ports — drop it, or add basedOn');
+  }
+  const inspired = inspiredBy(l.inspiredBy, slug);
+  if (based && inspired) {
+    fail(slug + ': basedOn and inspiredBy are different claims — a port is not "inspired by". Pick basedOn.');
   }
 
   // MIN BUILD — the oldest GifOS build this app actually runs on, as a build
@@ -401,6 +425,7 @@ async function buildApp(slug) {
   };
   if (porter) rec.porter = porter;
   if (based) rec.basedOn = based;
+  if (inspired) rec.inspiredBy = inspired;
 
   // Screenshots (beyond the cover) get the same JPEG treatment.
   for (let i = 0; i < (l.screenshots || []).length; i++) {
@@ -438,6 +463,7 @@ const index = {
     // fetching app.json. Donate does not — that is a detail-page button.
     ...(r.porter ? { porter: r.porter } : {}),
     ...(r.basedOn ? { basedOn: { name: r.basedOn.name, blessed: r.basedOn.blessed } } : {}),
+    ...(r.inspiredBy ? { inspiredBy: { name: r.inspiredBy.name, by: r.inspiredBy.by || '' } } : {}),
     // minBuild belongs in the INDEX, not only in each app.json, for the same
     // reason sha256 does (see below): the GRID has to be able to say "needs a
     // newer GifOS" on the card. Learning it only on the detail page would mean

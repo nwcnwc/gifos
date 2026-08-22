@@ -4,6 +4,10 @@ Drive any road on Earth, in a GifOS app. The world is not authored — it is
 fetched: OpenStreetMap geometry for the roads and buildings, terrain-RGB tiles
 for the elevation, streamed in around the car as it moves.
 
+Inspired by [Hop.Earth](https://hop.earth) (Pawel Misiurski / DVLP) — the idea
+of driving the real road network in a browser. This is our own engine, not a
+port of theirs.
+
 Finished GIF: [`site/apps/anyroad/anyroad.gif`](../../site/apps/anyroad/anyroad.gif) (~160 KB).
 Rebuild it with `node apps/anyroad/build.mjs`, then refresh the catalog with
 `node scripts/build-app-catalog.mjs`.
