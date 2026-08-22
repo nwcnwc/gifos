@@ -465,11 +465,6 @@
         // cannot install from is still worth sending to someone whose computer
         // can — that is most of the point of having a link.
         '<button class="btn ghost" id="share" data-url="' + esc(shareUrl(app.slug)) + '">Share</button>' +
-        // Donate is THEIRS (basedOn.donate). Feature is optional GifOS cash.
-        // They are not the same button with a friendlier label.
-        (donate
-          ? '<a class="btn ghost" id="donate" href="' + esc(donate) + '" target="_blank" rel="noopener">Donate to ' + esc(app.basedOn.name) + '</a>'
-          : '') +
         // Feature is optional cash, never a gate. A listing you cannot pay
         // for is the normal state; a listing you can still installs free.
         (feature
@@ -529,6 +524,12 @@
         (caps.length ? fact('Abilities', '<span class="caps">' + caps.map((c) => '<span class="pill">' + esc(c) + '</span>').join(' ') + '</span>') : '') +
         (app.homepage ? fact(app.basedOn ? 'This port' : 'Source',
           '<a href="' + esc(app.homepage) + '" rel="noopener">the code that built it</a>') : '') +
+        // Donate is THEIRS (basedOn.donate), a fact among the other outbound
+        // links — not an Install-row button next to Feature this listing.
+        (donate
+          ? fact('Donate', '<a id="donate" href="' + esc(donate) + '" rel="noopener">' +
+              esc(app.basedOn.name) + '</a>')
+          : '') +
       '</dl>';
 
     $('back').onclick = () => showBrowse(true);

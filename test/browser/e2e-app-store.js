@@ -247,8 +247,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the UVR listing sends bugs to GifOS, not upstream',
     /Bugs in this port go to/.test(uvrHead) &&
     (await page.locator('.port a[href*="nwcnwc/gifos/issues"]').count()) === 1);
-  check('the UVR listing offers Donate to the upstream project',
-    (await page.locator('#donate').count()) === 1);
+  check('the UVR listing offers Donate among the metadata, not in the Install row',
+    (await page.locator('#donate').count()) === 1 &&
+    (await page.locator('.actions #donate').count()) === 0 &&
+    (await page.locator('.facts #donate').count()) === 1);
   check('…pointing at UVR\'s own donate page, not GifOS',
     (await page.locator('#donate').getAttribute('href')) === 'https://www.buymeacoffee.com/uvr5');
   check('a port listing still fetches no App GIF', gifHits.length === 0, gifHits.join(', '));
@@ -261,7 +263,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the Claude of Duty listing does not claim GifOS as the author',
     !/Author\s*GifOS/.test(fpsFacts) && /mshumer/.test(fpsFacts));
   check('the Claude of Duty listing states Ported by GifOS', /Ported by\s*GifOS/.test(fpsFacts));
-  check('a port without a donate page has no Donate button',
+  check('a port without a donate page has no Donate fact',
     (await page.locator('#donate').count()) === 0);
   await page.locator('#back').click();
   await sleep(200);
