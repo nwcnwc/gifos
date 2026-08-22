@@ -529,6 +529,48 @@
       "provides": null,
       "signature": null,
       "sha256": "c7f73b618695ef5559eb7bc3a143b4a71e90b1f2db7ef8fc6a1c7783d4c7a1b3"
+    },
+    {
+      "slug": "vocal-remover",
+      "appId": "vocal-remover",
+      "name": "Vocal Remover",
+      "shortName": "Vocals",
+      "version": "1.0",
+      "tagline": "Pull the singing out of a song, on your own device.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 1250,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Media",
+        "Creativity"
+      ],
+      "tags": [
+        "audio",
+        "stems",
+        "karaoke",
+        "acapella",
+        "instrumental",
+        "uvr",
+        "mdx-net",
+        "offline",
+        "onnx",
+        "gpu"
+      ],
+      "accent": [
+        236,
+        84,
+        148
+      ],
+      "cover": "/apps/vocal-remover/cover.jpg",
+      "bytes": 12471450,
+      "download": 119545940,
+      "provides": null,
+      "signature": null,
+      "sha256": "0a04f145441664437536f55872bce3499b4392e4e1d542a7427386197d9df2f2"
     }
   ]
 }
