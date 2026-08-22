@@ -536,7 +536,7 @@
       "name": "Vocal Remover",
       "shortName": "Vocals",
       "version": "1.0",
-      "tagline": "Pull the singing out of a song, on your own device.",
+      "tagline": "Pull the singing out of a song, on your own device. Slowly, and for nothing.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
@@ -566,11 +566,11 @@
         148
       ],
       "cover": "/apps/vocal-remover/cover.jpg",
-      "bytes": 12471450,
+      "bytes": 12471750,
       "download": 119545940,
       "provides": null,
       "signature": null,
-      "sha256": "0a04f145441664437536f55872bce3499b4392e4e1d542a7427386197d9df2f2"
+      "sha256": "17380defb95282c95927400f97723bbd28e0b931c935a7f266988e63c69e3b26"
     }
   ]
 }
