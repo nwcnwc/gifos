@@ -195,10 +195,13 @@
       $('bar').style.width = '100%';
       S.results = stems;
       var note = renderStems(stems);
+      // What the track's own sample rate was is NOT knowable here —
+      // decodeAudioData reports the context's rate, not the file's — so nothing
+      // is claimed about it. Its channel count is knowable, and worth saying:
+      // a mono track cannot come back with anything different in each ear.
       setStatus('Done — ' + stems.length + ' stems in ' + fmtDur((Date.now() - t0) / 1000) + '.'
-        + (audio.sourceRate !== 44100
-            ? ' (The track was ' + audio.sourceRate + ' Hz and was resampled to 44100, the only rate these models know.)'
-            : '') + note, 'ok');
+        + (audio.sourceChannels === 1 ? ' (The track was mono, so each stem is the same in both ears.)' : '')
+        + note, 'ok');
     } catch (e) {
       if (String(e && e.message) === 'stopped') setStatus('Stopped.');
       else setStatus(String((e && e.message) || e), 'err');

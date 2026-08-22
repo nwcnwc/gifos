@@ -44,21 +44,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TONE_HZ = 440, TONE_AMP = 0.5;
 
-// A stereo 16-bit WAV of a pure tone, written to a temp dir for setInputFiles.
-function toneWav(seconds) {
-  const sr = 44100, n = Math.round(seconds * sr);
-  const buf = Buffer.alloc(44 + n * 4);
-  buf.write('RIFF', 0); buf.writeUInt32LE(36 + n * 4, 4); buf.write('WAVE', 8);
+// A 16-bit WAV of a pure tone. Stereo at 44100 by default; `ch` and `sr` exist
+// because mono and non-44100 input are the two ordinary files that would break
+// SILENTLY — a dead right channel, or a stem at the wrong speed.
+function toneWav(seconds, ch, sr) {
+  ch = ch || 2; sr = sr || 44100;
+  const n = Math.round(seconds * sr), block = ch * 2;
+  const buf = Buffer.alloc(44 + n * block);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + n * block, 4); buf.write('WAVE', 8);
   buf.write('fmt ', 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20);
-  buf.writeUInt16LE(2, 22); buf.writeUInt32LE(sr, 24); buf.writeUInt32LE(sr * 4, 28);
-  buf.writeUInt16LE(4, 32); buf.writeUInt16LE(16, 34);
-  buf.write('data', 36); buf.writeUInt32LE(n * 4, 40);
+  buf.writeUInt16LE(ch, 22); buf.writeUInt32LE(sr, 24); buf.writeUInt32LE(sr * block, 28);
+  buf.writeUInt16LE(block, 32); buf.writeUInt16LE(16, 34);
+  buf.write('data', 36); buf.writeUInt32LE(n * block, 40);
   for (let i = 0; i < n; i++) {
     const v = Math.round(Math.sin(2 * Math.PI * TONE_HZ * i / sr) * TONE_AMP * 32767);
-    buf.writeInt16LE(v, 44 + i * 4); buf.writeInt16LE(v, 46 + i * 4);
+    for (let c = 0; c < ch; c++) buf.writeInt16LE(v, 44 + i * block + c * 2);
   }
   const dir = mkdtempSync(path.join(os.tmpdir(), 'vr-'));
-  const p = path.join(dir, 'tone-' + seconds + 's.wav');
+  const p = path.join(dir, 'tone-' + seconds + 's-' + ch + 'ch-' + sr + '.wav');
   writeFileSync(p, buf);
   return p;
 }
@@ -78,28 +81,31 @@ async function measureStems(fr, hz, amp) {
         o += 8 + sz + (sz & 1);
       }
       if (!fmt || !data) return null;
-      const step = fmt.ch * (fmt.bits / 8), n = Math.floor(data.size / step);
-      const L = new Float64Array(n);
+      const w = fmt.bits / 8, step = fmt.ch * w, n = Math.floor(data.size / step);
+      const rd = (p) => (fmt.bits === 32 ? dv.getFloat32(p, true) : dv.getInt16(p, true) / 32767);
+      const L = new Float64Array(n), R = new Float64Array(n);
       for (let i = 0; i < n; i++) {
-        const p = data.off + i * step;
-        L[i] = fmt.bits === 32 ? dv.getFloat32(p, true) : dv.getInt16(p, true) / 32767;
+        L[i] = rd(data.off + i * step);
+        R[i] = fmt.ch > 1 ? rd(data.off + i * step + w) : L[i];
       }
-      return { fmt, L, n };
+      return { fmt, L, R, n };
     }
     const out = [];
     for (const s of document.querySelectorAll('.stem')) {
       const url = s.querySelector('audio').src;
       const w = parseWav(await (await fetch(url)).arrayBuffer());
-      let num = 0, da = 0, db = 0;
+      let num = 0, da = 0, db = 0, dr = 0;
       for (let i = 0; i < w.n; i++) {
         const ref = Math.sin(2 * Math.PI * hz * i / 44100) * amp;
         num += w.L[i] * ref; da += w.L[i] * w.L[i]; db += ref * ref;
+        dr += w.R[i] * w.R[i];
       }
       out.push({
         name: s.querySelector('.n').textContent,
         rate: w.fmt.rate, ch: w.fmt.ch, bits: w.fmt.bits, format: w.fmt.format,
         seconds: w.n / w.fmt.rate,
         rms: Math.sqrt(da / w.n),
+        rmsR: Math.sqrt(dr / w.n),
         corr: da > 0 ? num / Math.sqrt(da * db) : 0,
       });
     }
@@ -221,8 +227,29 @@ async function measureStems(fr, hz, amp) {
   check('the 32-bit float setting writes IEEE-float WAV, not relabelled PCM',
     !!p32 && p32.format === 3 && p32.bits === 32 && p32.corr > 0.999, p32);
 
-  // ---- Stop --------------------------------------------------------------
+  // ---- the two ordinary files that would break silently --------------------
+  // A mono file must come out with BOTH channels carrying the audio (UVR's
+  // prepare_mix duplicates it), and a file that is not 44100 must be resampled
+  // — the models know one rate and nothing else checks this.
   await fr.selectOption('#bits', '16');
+  await fr.setInputFiles('#file', toneWav(2, 1, 22050));
+  await fr.waitForFunction(() => !document.getElementById('go').disabled, null, { timeout: 30000 });
+  await fr.click('#go');
+  await fr.waitForFunction(() => /\bok\b|err/.test(document.getElementById('status').className), null, { timeout: 300000 });
+  const monoStatus = await fr.locator('#status').textContent();
+  const mono = (await measureStems(fr, TONE_HZ, TONE_AMP)).find((s) => s.name === 'Pass-through');
+  check('a MONO 22050 Hz file separates rather than failing', /^Done —/.test(monoStatus), monoStatus.slice(0, 120));
+  check('...resampled to 44100, which is the only rate the models know, at the same duration',
+    !!mono && mono.rate === 44100 && Math.abs(mono.seconds - 2) < 0.02, mono && { rate: mono.rate, seconds: mono.seconds });
+  check('...and it says the track was mono, which — unlike its sample rate — is knowable',
+    /mono/.test(monoStatus), monoStatus.slice(0, 200));
+  check('...with the mono duplicated into BOTH channels, not left silent on one',
+    !!mono && mono.ch === 2 && mono.rmsR > 0.3 && Math.abs(mono.rmsR - mono.rms) < 0.01,
+    mono && { rms: mono.rms, rmsR: mono.rmsR });
+  check('...and it is still the tone that went in',
+    !!mono && mono.corr > 0.99, mono && mono.corr);
+
+  // ---- Stop --------------------------------------------------------------
   const tone90 = toneWav(90);
   await fr.setInputFiles('#file', tone90);
   await fr.waitForFunction(() => !document.getElementById('go').disabled, null, { timeout: 30000 });
