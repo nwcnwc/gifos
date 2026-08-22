@@ -85,27 +85,44 @@ its `primary_stem` in `model_data.json` is `Instrumental` (not `Vocals`), and
 `primary = LEAD_VOCAL_STEM if primary_stem_native == VOCAL_STEM else BV_VOCAL_STEM`.
 Its stem is also not in `MDX_NET_FREQ_CUT`, so no match-mix pass runs for it.
 
-### ⚠ The pin needs one verification this session could not do
+### The pin, and how it is checked — VERIFIED 2026-08-22
 
-The sha256s above are computed from the **authoritative UVR release bytes**,
-downloaded and hashed here, and cross-checked against `model_data.json` through
-UVR's own model hash. What could *not* be checked is the **host**: the session
-that wrote this app had `huggingface.co` blocked by policy (403 at the egress
-proxy), so the mirror the manifest points at could not be confirmed to serve
-those exact bytes.
+Both pins point at `huggingface.co/seanghay/uvr_models`, and both were verified
+end to end on 2026-08-22 (on the pi, against the live host):
 
-Run this on any machine that can reach it, before the app ships:
+```
+== inst-hq3.onnx
+   PASS  CORS: Access-Control-Allow-Origin: *
+   PASS  bytes: 66759214
+   PASS  sha256: 317554b07fe1ea5279a77f2b1520a41ea4b93432560c4ffd08792c30fddf9adc
+   PASS  UVR model hash: 55657dd70583b0fedfba5f67df11d711
+== kara2.onnx
+   PASS  CORS: Access-Control-Allow-Origin: *
+   PASS  bytes: 52786726
+   PASS  sha256: bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4
+   PASS  UVR model hash: 1d64a6d2c30f709b8c9b4ce1366d96ee
+```
+
+Re-run it whenever a pin moves — it needs the network, which is why it is a
+tool and not a gate suite:
 
 ```bash
 python3 apps/vocal-remover/tools/verify-pins.py
 ```
 
-It checks all three things that can be wrong, and they fail differently:
-the **bytes** (sha256 + length), the **CORS header** without which a browser
-cannot read the download at all, and the **UVR model hash**, which is what
-catches a mirror serving a re-export or a different revision — same name, same
-job, different `n_fft`/`compensate`, and the app would run it at the wrong
-settings and merely sound worse.
+It checks three things that fail differently, which is the reason it checks
+them separately rather than just fetching and diffing:
+
+- the **bytes** — sha256 and length, against the manifest;
+- the **CORS header**, without which a browser cannot read the download at all
+  even though the bytes are perfectly correct;
+- the **UVR model hash** (md5 of the last 10 MB, `UVR.py get_model_hash`), which
+  is the key into `model_data.json`. This is the one that earns its keep: a
+  mirror can serve a file with the right *name* that is a re-export or a
+  different revision, and then the sha256 catches it — but if somebody ever
+  updates the pin to match such a file, only this check notices that
+  `models.js` is now reading the wrong `n_fft`/`compensate` row. That failure
+  does not crash; it just separates worse.
 
 GitHub's own release URLs are not an option, and this is worth writing down
 because it looks like it should work: `github.com/TRvlvr/model_repo/releases/
