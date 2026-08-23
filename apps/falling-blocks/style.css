@@ -1,0 +1,161 @@
+/* Original canvas-tetris is a white page and a bordered canvas. Friend-mode
+   chrome, two wells, and the on-screen pad sit around that. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: #f4f4f4;
+  color: #222;
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+body { padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+#shell {
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+#brand { font-size: 22px; font-weight: 700; letter-spacing: 0.02em; }
+#scores {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  color: #444;
+}
+.actions { display: flex; gap: 8px; }
+.actions button, #againBtn, #leaveBtn, #friendBtn, #playbutton {
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border: 1px solid #222;
+  background: #fff;
+  cursor: pointer;
+}
+#friendBtn { background: #00c4cc; color: #fff; border-color: #00a8b0; }
+#playbutton { min-width: 100px; }
+body.friend #friendBtn,
+body.friend #playbutton { display: none; }
+
+#friend-bar {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px 12px 8px;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+#friend-hint b { color: #c40; }
+#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-scores {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+#friend-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid #e6e6e6;
+  font-variant-numeric: tabular-nums;
+}
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#friend-scores .me .name { color: #c40; }
+#friend-scores .meta { color: #777; font-size: 13px; white-space: nowrap; }
+#friend-scores .win { font-weight: 700; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+#againBtn { background: #00c4cc; color: #fff; border-color: #00a8b0; }
+#leaveBtn { background: transparent; }
+
+#stage {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 16px;
+  min-height: 0;
+}
+.well { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.well-name { font-size: 12px; font-weight: 700; color: #555; }
+.well canvas {
+  display: block;
+  background: #fff;
+  border: 1px solid #000;
+  max-width: 100%;
+  height: auto;
+  touch-action: none;
+  image-rendering: pixelated;
+}
+.well.mine canvas { width: min(300px, 72vw); }
+.well.them { opacity: 0.92; }
+.well.them canvas { width: min(180px, 40vw); }
+#them-wrap[hidden] { display: none; }
+body.friend .well.mine canvas { width: min(260px, 48vw); }
+
+#banner {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  font-weight: 700;
+  font-size: 22px;
+  padding: 14px 22px;
+  border-radius: 6px;
+  z-index: 4;
+  text-align: center;
+  min-width: 10rem;
+}
+#banner[hidden] { display: none; }
+#banner.win { background: rgba(0, 140, 110, 0.9); }
+#banner.lose { background: rgba(160, 30, 30, 0.9); }
+
+#how { margin: 0; font-size: 14px; color: #444; line-height: 1.4; }
+.foot { margin: 0; color: #888; font-size: 12px; line-height: 1.45; }
+
+#pad {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 8;
+  display: none;
+  grid-template-columns: repeat(3, 52px);
+  grid-template-rows: repeat(3, 52px);
+  gap: 6px;
+}
+#pad[hidden] { display: none; }
+body.touch #pad { display: grid; }
+body.touch #pad[hidden] { display: grid; }
+body.touch { padding-bottom: 190px; }
+#pad button {
+  padding: 0;
+  font-size: 22px;
+  color: #222;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #999;
+  border-radius: 10px;
+  touch-action: manipulation;
+}
+#pad button:active, #pad button.on { background: rgba(0, 196, 204, 0.55); }
+
+@media (max-width: 520px) {
+  #brand { font-size: 18px; }
+  #scores { font-size: 13px; gap: 10px; width: 100%; margin-left: 0; }
+  .well.mine canvas, body.friend .well.mine canvas { width: min(220px, 52vw); }
+  .well.them canvas { width: min(140px, 34vw); }
+}

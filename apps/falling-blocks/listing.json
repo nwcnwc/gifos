@@ -1,0 +1,33 @@
+{
+  "tagline": "Stack the falling shapes. Clear the lines. Or race a friend from the same pieces.",
+  "description": "Shapes drop from the top of the board. Slide them, turn them, drop them. Fill a row and it vanishes. The pile grows; the game is over when it reaches the top. That is the whole game.\n\nOn a computer the arrows slide and turn a shape, and the space bar drops it. On a phone you swipe the board, or use the pad at the bottom.\n\nWant a race? Press Play a friend, then press Invite (in the GifOS menu) and send the link. You both get the same shapes, each on your own board. Last one still stacking wins. If you both fill up, highest score takes it. Playing alone is the original game.\n\nYour best score stays on this device, inside the app.\n\nAn unofficial port of canvas-tetris by dionyziz, MIT-licensed. This copy puts two boards in one room, and adds swipe controls for a phone.",
+  "author": {
+    "name": "dionyziz",
+    "url": "https://github.com/dionyziz/canvas-tetris"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "canvas-tetris",
+    "url": "https://github.com/dionyziz/canvas-tetris",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "falling",
+    "blocks",
+    "puzzle",
+    "arcade",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/falling-blocks",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

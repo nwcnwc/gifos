@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Falling Blocks</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">Falling Blocks</div>
+      <div id="scores">
+        <span id="score">Score: 0</span>
+        <span id="lines">Lines: 0</span>
+        <span id="best">Best: 0</span>
+      </div>
+    </header>
+
+    <div class="actions">
+      <button type="button" id="friendBtn">Play a friend</button>
+      <button type="button" id="playbutton" onclick="playButtonClicked();">Play</button>
+    </div>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both get the same shapes, each on your own board. Last one still stacking wins.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="againBtn" hidden>Play again</button>
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <div class="well mine">
+        <div class="well-name" id="mine-name">You</div>
+        <canvas id="board" width="300" height="600"></canvas>
+      </div>
+      <div class="well them" id="them-wrap" hidden>
+        <div class="well-name" id="them-name">Friend</div>
+        <canvas id="them" width="300" height="600"></canvas>
+      </div>
+      <div id="banner" hidden></div>
+    </div>
+
+    <p id="how">Arrows move and turn. Space drops. On a phone, swipe or use the pad.</p>
+    <p class="foot">Unofficial port of canvas-tetris by dionyziz (MIT). Playing alone is the original game. A race is two boards from the same shapes — nobody writes on anybody else’s.</p>
+  </div>
+
+  <div id="pad" hidden>
+    <button type="button" data-act="rotate" style="grid-area:1/2" aria-label="Turn">↻</button>
+    <button type="button" data-act="left" style="grid-area:2/1" aria-label="Left">◀</button>
+    <button type="button" data-act="down" style="grid-area:2/2" aria-label="Down">▼</button>
+    <button type="button" data-act="right" style="grid-area:2/3" aria-label="Right">▶</button>
+    <button type="button" data-act="drop" style="grid-area:3/2" aria-label="Drop">⏬</button>
+  </div>
+
+  <audio id="clearsound"></audio>
+  <script src="vendor/tetris.js"></script>
+  <script src="vendor/render.js"></script>
+  <script src="vendor/controller.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+  <script src="touch.js"></script>
+</body>
+</html>
