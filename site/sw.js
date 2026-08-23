@@ -55,7 +55,7 @@ var CORE = [
   '/css/desktop.css',
   '/js/gifos-gif.js', '/js/gifos-sign.js', '/js/gifos-ed.js', '/js/gifos-zip.js', '/js/gifos-icons.js',
   '/js/gifos-themes.js', '/js/gifos-store.js', '/js/irl-apps.js', '/js/sample-apps.js', '/js/store.js', '/js/pay.js', '/js/gifos-cash.js',
-  '/js/desktop.js', '/js/runtime.js', '/js/relay-config.js', '/js/sw-register.js', '/js/build.js', '/js/build-badge.js',
+  '/js/desktop.js', '/js/runtime.js', '/js/camera-studio.js', '/js/relay-config.js', '/js/sw-register.js', '/js/build.js', '/js/build-badge.js',
   '/themes/theme.js', '/themes/icons.js', '/themes/eggs.js',
   '/gifos.key', '/version.json', '/changelog.json', '/og.png', '/manifest.webmanifest', '/icon.svg',
 ];

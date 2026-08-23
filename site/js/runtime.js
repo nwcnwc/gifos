@@ -295,6 +295,15 @@
         recordAudio: function(opts){ return rpc(Object.assign({type:'capture',media:'audio'}, opts||{})); },
         recordVideo: function(opts){ return rpc(Object.assign({type:'capture',media:'video'}, opts||{})); },
         takePhoto:   function(opts){ return rpc(Object.assign({type:'capture',media:'photo'}, opts||{})); },
+        // Full-screen camera studio in the trusted parent (never a live stream
+        // in the sandbox). cameraInfo probes devices then stops the tracks.
+        cameraInfo: function(){ return rpc({type:'cameraInfo'}); },
+        camera: function(opts){ opts=opts||{};
+          return rpc({type:'capture',studio:true, mode:opts.mode, facing:opts.facing, filter:opts.filter, timer:opts.timer, aspect:opts.aspect, grid:opts.grid, audio:opts.audio, maxSeconds:opts.maxSeconds}); },
+        // Deposit bytes into the seeded My Media library (and this app's roll
+        // if it declared one). The app cannot name another icon's db.
+        library: { put: function(item){ item=item||{};
+          return rpc({type:'libraryPut', bytes:item.bytes, mime:item.mime, name:item.name, mediaType:item.type, category:item.category, thumb:item.thumb}); } },
         // Device motion. Granted via the iframe allow-policy when the manifest
         // declares "motion"; this helper does the iOS permission dance and hands
         // you {alpha,beta,gamma} (orientation) or acceleration on each tick.
@@ -946,6 +955,10 @@
   // one behind a visible, unfakeable indicator it owns, then hands back only the
   // bytes. The app never touches the device — stronger than a raw grant, and it
   // literally cannot record without the user watching an overlay it can't fake.
+  //
+  // Two overlays: takePhoto/recordVideo keep the small 380px dialog. gifos.camera()
+  // opens the full-viewport studio (camera-studio.js) — still this origin, still
+  // unfakeable, still bytes-only back to the GIF.
   const capEsc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const CAP_FOR = { audio: 'microphone', video: 'camera', photo: 'camera' };
   const hasCap = (manifest, cap) => !!(manifest && manifest.capabilities && manifest.capabilities[cap]);
@@ -1079,6 +1092,18 @@
     return '';
   }
   function brokerCapture(manifest, d) {
+    if (d && d.studio) {
+      const CS = GifOS.cameraStudio;
+      if (!CS || !CS.open) return Promise.reject(new Error('Camera studio is not available.'));
+      if (!hasCap(manifest, 'camera')) return Promise.reject(new Error('This app did not declare the "camera" capability.'));
+      if (capDisabled(manifest, 'camera')) return Promise.reject(new Error(CAP_OFF_MSG('the camera')));
+      const nav = root.navigator;
+      if (!(nav && nav.mediaDevices && nav.mediaDevices.getUserMedia)) return Promise.reject(new Error('No camera available here.'));
+      const hasMic = hasCap(manifest, 'microphone') && !capDisabled(manifest, 'microphone');
+      const label = manifest.name || manifest.appId || 'Camera';
+      return CS.open(Object.assign({}, d, { label: label, audio: d.audio !== false && hasMic }), { hasMic: hasMic })
+        .catch((err) => { throw new Error(err && err.name === 'NotAllowedError' ? 'Permission to use the camera was denied.' : (err && err.message) || String(err)); });
+    }
     const kind = d.media === 'video' ? 'video' : d.media === 'photo' ? 'photo' : 'audio';
     const cap = CAP_FOR[kind];
     if (!hasCap(manifest, cap)) return Promise.reject(new Error('This app did not declare the "' + cap + '" capability.'));
@@ -1167,6 +1192,127 @@
         startRecorder();
       }))
       .catch((err) => { throw new Error(err && err.name === 'NotAllowedError' ? 'Permission to use the ' + cap + ' was denied.' : (err && err.message) || String(err)); });
+  }
+
+  const CAMERA_INFO_NO = (reason) => ({
+    ok: false, reason: reason || 'No camera available here.',
+    cameras: [], count: 0, facingModes: [], torch: false, zoom: null,
+    focus: false, exposure: false, maxWidth: 0, maxHeight: 0, maxFrameRate: 0,
+    video: false, mimeVideo: '', mimeAudio: '', highFps: false,
+  });
+  function brokerCameraInfo(manifest) {
+    if (!hasCap(manifest, 'camera')) return Promise.reject(new Error('This app did not declare the "camera" capability.'));
+    if (capDisabled(manifest, 'camera')) return Promise.resolve(CAMERA_INFO_NO(CAP_OFF_MSG('the camera')));
+    const CS = GifOS.cameraStudio;
+    if (!CS || !CS.probe) return Promise.resolve(CAMERA_INFO_NO('Camera studio is not available.'));
+    return CS.probe().then((info) => info || CAMERA_INFO_NO());
+  }
+
+  const LIB_MAX = 25 * 1024 * 1024;
+  function asU8(bytes) {
+    if (bytes instanceof Uint8Array) return bytes;
+    if (bytes instanceof ArrayBuffer) return new Uint8Array(bytes);
+    if (ArrayBuffer.isView(bytes)) return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return null;
+  }
+  function libTypeOf(mime) {
+    mime = String(mime || '');
+    return mime.indexOf('image/') === 0 ? 'image' : mime.indexOf('audio/') === 0 ? 'audio' : mime.indexOf('video/') === 0 ? 'video' : '';
+  }
+  function libDownscale(src, w, h) {
+    if (!w || !h) return '';
+    const max = 280, sc = Math.min(1, max / Math.max(w, h));
+    const c = root.document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
+    try { c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.7); }
+    catch (e) { return ''; }
+  }
+  function libThumb(bytes, mime, type) {
+    return new Promise((resolve) => {
+      const blob = new Blob([bytes], { type: mime || '' });
+      const url = URL.createObjectURL(blob);
+      if (type === 'image') {
+        const img = new Image();
+        img.onload = () => { resolve(libDownscale(img, img.naturalWidth, img.naturalHeight)); URL.revokeObjectURL(url); };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
+        img.src = url;
+        return;
+      }
+      if (type === 'video') {
+        const v = root.document.createElement('video');
+        v.muted = true; v.playsInline = true;
+        let done = false;
+        const fin = () => { if (done) return; done = true; resolve(libDownscale(v, v.videoWidth, v.videoHeight)); URL.revokeObjectURL(url); };
+        v.onloadeddata = () => { try { v.currentTime = Math.min(0.4, (v.duration || 1) / 3); } catch (e) { fin(); } };
+        v.onseeked = fin;
+        v.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
+        setTimeout(fin, 2500);
+        v.src = url;
+        return;
+      }
+      URL.revokeObjectURL(url);
+      resolve('');
+    });
+  }
+  function notifyAppDb(fileId, collection) {
+    try {
+      const ch = new root.BroadcastChannel(store.appChannel(fileId));
+      ch.postMessage({ collection: collection });
+      ch.close();
+    } catch (e) {}
+  }
+  async function findMyMediaFileId() {
+    const files = await store.allFiles();
+    const items = await store.allItems();
+    const byId = {};
+    for (let i = 0; i < files.length; i++) byId[files[i].id] = files[i];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it || it.parent === 'sys_trash') continue;
+      const f = byId[it.fileId];
+      if (f && f.isApp && f.isDefault && f.appId === 'mymedia') return f.id;
+    }
+    return null;
+  }
+  async function brokerLibraryPut(manifest, mountFileId, d, emit) {
+    const bytes = asU8(d && d.bytes);
+    if (!bytes || !bytes.length) throw new Error('Nothing to save.');
+    if (bytes.length > LIB_MAX) throw new Error('That file is too big (max 25 MB).');
+    const mime = String((d && d.mime) || 'application/octet-stream');
+    const type = (d && d.mediaType) || libTypeOf(mime);
+    if (type !== 'image' && type !== 'video' && type !== 'audio') throw new Error('Only images, audio and video can be added.');
+    const name = String((d && d.name) || type);
+    const category = String((d && d.category) || 'Camera');
+    const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    let thumb = (d && d.thumb) || '';
+    if (!thumb) {
+      try { thumb = await libThumb(bytes, mime, type); } catch (e) { thumb = ''; }
+    }
+    const mediaRec = { id: id, name: name, type: type, mime: mime, category: category, size: bytes.length, at: Date.now(), thumb: thumb };
+    const blobRec = { id: id, bytes: bytes };
+    let myMedia = false;
+    let missing = null;
+    const mmId = await findMyMediaFileId();
+    if (mmId) {
+      await store.appAdd(mmId, 'blobs', blobRec);
+      await store.appAdd(mmId, 'media', mediaRec);
+      notifyAppDb(mmId, 'blobs');
+      notifyAppDb(mmId, 'media');
+      myMedia = true;
+    } else {
+      missing = "My Media isn't on this computer";
+    }
+    const hasRoll = !!(manifest && manifest.data && manifest.data.roll);
+    if (hasRoll && mountFileId) {
+      const roll = Object.assign({}, mediaRec, { kind: type === 'video' ? 'video' : (type === 'audio' ? 'audio' : 'image') });
+      if (!myMedia) roll.bytes = bytes;
+      await store.appAdd(mountFileId, 'roll', roll);
+      notifyAppDb(mountFileId, 'roll');
+      if (typeof emit === 'function') emit('roll');
+    } else if (!myMedia) {
+      throw new Error(missing);
+    }
+    return { id: id, myMedia: myMedia, missing: missing, thumb: thumb };
   }
 
   // ---- brokered AI: the GifOS computer holds the endpoints + keys -----------
@@ -2378,6 +2524,11 @@
       }
       else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
       else if (d.type === 'capture') brokerCapture(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      else if (d.type === 'cameraInfo') brokerCameraInfo(manifest).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      else if (d.type === 'libraryPut') brokerLibraryPut(manifest, mountFileId, d, (collection) => {
+        const w = iframe && iframe.contentWindow;
+        if (w) w.postMessage({ ns: 'gifos', type: 'db-change', collection: collection }, '*');
+      }).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       // Streaming chat: each fragment rides back as a 'part' carrying this
       // call's id, and the single 'reply' still closes it out. Same guard as
       // reply() — an app torn out mid-stream must not be posted to.
