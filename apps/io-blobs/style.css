@@ -1,0 +1,45 @@
+/* IO Blobs — arena shell. The game paints the canvas; this is the gate of
+   the touch stick and the scoreboard. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1214; color: #e8f4f0; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+#game { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
+
+#touch { position: fixed; inset: 0; z-index: 30; pointer-events: none; touch-action: none; user-select: none; }
+#touch[hidden] { display: none; }
+.t-stick {
+  position: absolute; left: max(1.1rem, env(safe-area-inset-left)); bottom: max(1.4rem, env(safe-area-inset-bottom));
+  width: 8.6rem; height: 8.6rem; border-radius: 50%; pointer-events: auto;
+  background: rgba(180, 255, 230, .07); border: 1px solid rgba(180, 255, 230, .2);
+}
+.t-knob {
+  position: absolute; left: 50%; top: 50%; width: 3.4rem; height: 3.4rem; margin: -1.7rem 0 0 -1.7rem;
+  border-radius: 50%; background: rgba(80, 220, 190, .28); border: 1px solid rgba(180, 255, 230, .4);
+}
+
+#board {
+  position: fixed; z-index: 28; top: max(.7rem, env(safe-area-inset-top)); right: max(.7rem, env(safe-area-inset-right));
+  background: rgba(8, 16, 18, .62); border: 1px solid rgba(180, 255, 230, .14); border-radius: .55rem;
+  padding: .55rem .7rem .45rem; min-width: 9.5rem; backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+#board[hidden] { display: none; }
+.board-title {
+  font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: #8ab0a8;
+  font-weight: 600; padding: 0 .15rem .35rem;
+}
+#board table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+#board td { padding: .12rem .2rem; }
+#board td.n { color: #c8e8e0; max-width: 7.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#board td.s { text-align: right; width: 3.2rem; font-variant-numeric: tabular-nums; color: #8ab0a8; }
+#board tr.me td { color: #40d4b4; font-weight: 600; }
+#board tr.me td.s { color: #40d4b4; }
+#board tr.dead td { opacity: .4; }
+
+#hint {
+  position: fixed; z-index: 20; left: 50%; bottom: max(1.2rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%); font-size: .72rem; color: rgba(200, 232, 224, .55);
+  pointer-events: none; text-align: center; line-height: 1.5;
+}
+body.touch #hint { display: none; }

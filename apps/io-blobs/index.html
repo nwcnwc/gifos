@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>IO Blobs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- Touch: shown only after a real finger has touched the screen — a laptop
+     with a touchscreen must not get a phone HUD laid over its game. -->
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+</div>
+
+<div id="board" hidden>
+  <div class="board-title">Largest</div>
+  <table><tbody id="board-rows"></tbody></table>
+</div>
+<div id="hint"><b>WASD</b> / <b>arrows</b> or <b>mouse</b> move · <b>Tab</b> scores</div>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
