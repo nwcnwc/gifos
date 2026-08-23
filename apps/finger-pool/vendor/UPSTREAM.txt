@@ -1,0 +1,22 @@
+victorqribeiro/fingerPool
+https://github.com/victorqribeiro/fingerPool
+pin: a1da529849948b9f770df29ee1f3443d8958c4e7
+MIT, Copyright (c) 2021 Victor Ribeiro
+
+Vec2.js and Sphere.js are the upstream files at that pin.
+
+The flick is from main.js at that pin:
+
+  angle = atan2(start.y - end.y, start.x - end.x)
+  l     = -max(distance / dt * 12, 7)
+  acc   = (cos(angle) * l, sin(angle) * l)
+
+Rack: 15 coloured balls in a triangle, white at two-thirds along the
+long side. Pockets: four corners plus the middle of each long side.
+Friction 0.98 per frame. Equal-mass projection bounce. White respawns.
+
+This copy letterboxes a 2:1 table so two devices share one shape
+(upstream used the whole window and stacked the triangle on a tall
+screen). Sounds are short tones — the original hit.mp3 / hole.mp3 are
+not packed. Take-turns and the score are the GifOS port; upstream had
+no rules and no networking.
