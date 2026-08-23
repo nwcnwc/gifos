@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "sokoban",
+  "name": "Sokoban",
+  "shortName": "Sokoban",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Push the boxes onto the spots. Play alone, or race a friend on the same warehouse.",
+  "entry": "index.html",
+  "accent": [201, 148, 58],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "players": { "visibility": "read-write" }
+  }
+}

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sokoban</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="top">
+      <div id="logo" aria-label="sokoban"><span>soko</span><span>ban</span></div>
+      <div id="toolbar">
+        <label class="sr" for="levels">Level</label>
+        <select id="levels"></select>
+        <button type="button" id="undoBtn">Undo</button>
+        <button type="button" id="resetBtn">Restart</button>
+        <button type="button" class="accent" id="friendBtn">Play a friend</button>
+      </div>
+    </header>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send the link. You both get the same warehouse. First to park every box wins.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="againBtn" hidden>Next warehouse</button>
+        <button type="button" class="ghost" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <canvas id="board" aria-label="Warehouse"></canvas>
+      <div id="message" hidden>
+        <span id="solved">Warehouse clear</span>
+        <p id="won-stats"></p>
+        <button type="button" id="nextBtn">Next warehouse</button>
+      </div>
+    </div>
+
+    <div id="hud">
+      <span id="stat-level">Level 1</span>
+      <span id="stat-moves">0 moves</span>
+      <span id="stat-pushes">0 pushes</span>
+      <span id="stat-boxes">0 / 0</span>
+    </div>
+
+    <p id="how">Arrows or WASD move. U undoes. R restarts. On a phone, swipe the floor or use the pad.</p>
+    <p class="foot">Unofficial port of sokoban by klevze. Playing alone is the original puzzle. A race is the same warehouse — first to park every box wins.</p>
+  </div>
+
+  <div id="pad" hidden>
+    <button type="button" data-dx="0" data-dy="-1" style="grid-area:1/2" aria-label="Up">▲</button>
+    <button type="button" data-dx="-1" data-dy="0" style="grid-area:2/1" aria-label="Left">◀</button>
+    <button type="button" data-dx="1" data-dy="0" style="grid-area:2/3" aria-label="Right">▶</button>
+    <button type="button" data-dx="0" data-dy="1" style="grid-area:3/2" aria-label="Down">▼</button>
+  </div>
+
+  <script src="levels.js"></script>
+  <script src="game.js"></script>
+  <script src="mp.js"></script>
+  <script src="touch.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
