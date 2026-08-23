@@ -1,5 +1,7 @@
 # Checkers
 
+Play the computer on this device, or a friend from one link. No server.
+
 Jump the other side. Crown a king. Against the computer, or a friend.
 
 An unofficial port of **[Checkers](https://github.com/stroibot/Checkers)** by

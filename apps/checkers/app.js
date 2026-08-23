@@ -15,6 +15,7 @@
     mode: 'cpu', color: 'white',
     s: null, hist: [], over: false, thinking: false, sel: null
   };
+  var aiGen = 0;
   var db = null;
   try { if (window.gifos) db = gifos.db('save'); } catch (e) {}
 
@@ -23,12 +24,21 @@
     $('aiState').textContent = text;
   }
   function setStatus(el, text, cls) {
-    el.className = 'statusline' + (cls ? ' ' + cls : '');
+    el.className = 'turnpill' + (cls ? ' ' + cls : '');
     el.textContent = text;
   }
   function setScore(el, s) {
     if (!el || !s) return;
-    el.innerHTML = '<span class="wht">○ ' + s.whites + '</span><span class="blk">● ' + s.blacks + '</span>';
+    var turn = s.winner ? '' : C.colorName(s.turn);
+    el.innerHTML = '<span class="wht' + (turn === 'white' ? ' on' : '') + '">○ ' + s.whites + '</span>' +
+      '<span class="blk' + (turn === 'black' ? ' on' : '') + '">● ' + s.blacks + '</span>';
+  }
+  function shouldFlip() {
+    return state.mode === 'cpu' && state.color === 'black';
+  }
+  function cancelAi() {
+    aiGen++;
+    state.thinking = false;
   }
 
   $('modeSeg').addEventListener('click', function (e) {
@@ -68,18 +78,23 @@
   function paint(boardEl, s, opts) {
     opts = opts || {};
     if (!boardEl) return;
-    var r, c, sq, piece, val, key, legal = {}, help = {}, i, ms, m;
+    boardEl.classList.toggle('flip', !!opts.flip);
+    boardEl.classList.toggle('busy', !!opts.busy);
+    var r, c, sq, piece, val, key, legal = {}, cap = {}, must = {}, i, ms, m;
     var selected = opts.selected;
     if (opts.hints && s && !s.winner) {
       ms = C.legalMoves(s);
+      for (i = 0; i < ms.length; i++) {
+        if (ms[i].capture) must[ms[i].fr + ',' + ms[i].fc] = 1;
+      }
       if (selected) {
         for (i = 0; i < ms.length; i++) {
           m = ms[i];
-          if (m.fr === selected.r && m.fc === selected.c) legal[m.tr + ',' + m.tc] = 1;
+          if (m.fr === selected.r && m.fc === selected.c) {
+            legal[m.tr + ',' + m.tc] = 1;
+            if (m.capture) cap[m.tr + ',' + m.tc] = 1;
+          }
         }
-      }
-      for (i = 0; i < ms.length; i++) {
-        if (ms[i].capture) help[ms[i].fr + ',' + ms[i].fc] = 1;
       }
     }
     for (r = 0; r < C.SIZE; r++) for (c = 0; c < C.SIZE; c++) {
@@ -90,7 +105,13 @@
       if (s && s.last && ((s.last.fr === r && s.last.fc === c) || (s.last.tr === r && s.last.tc === c))) {
         sq.classList.add('last');
       }
-      if (legal[key]) sq.classList.add('hint');
+      if (s && s.last && s.last.capture && s.last.capture.r === r && s.last.capture.c === c) {
+        sq.classList.add('took');
+      }
+      if (legal[key]) {
+        sq.classList.add('hint');
+        if (cap[key]) sq.classList.add('cap');
+      }
       sq.innerHTML = '';
       val = s ? s.map[r][c] : 0;
       if (!val) continue;
@@ -98,15 +119,33 @@
       piece.className = 'piece ' + (C.owner(val) === C.BLACK ? 'black' : 'white');
       if (C.isKing(val)) piece.classList.add('king');
       if (selected && selected.r === r && selected.c === c) piece.classList.add('selected');
-      if (help[key] && !(selected && selected.r === r && selected.c === c)) piece.classList.add('help');
+      if (must[key] && !(selected && selected.r === r && selected.c === c)) piece.classList.add('must');
       sq.appendChild(piece);
     }
+  }
+
+  function pulseMust(boardEl) {
+    if (!boardEl) return;
+    var nodes = boardEl.querySelectorAll('.piece.must, .piece.selected');
+    Array.prototype.forEach.call(nodes, function (p) {
+      p.classList.remove('nudge');
+      void p.offsetWidth;
+      p.classList.add('nudge');
+    });
   }
 
   function isHumanTurn() {
     if (!state.s || state.over || state.thinking) return false;
     if (state.mode === 'hotseat') return true;
     return C.colorName(state.s.turn) === state.color;
+  }
+  function localOpts(extra) {
+    extra = extra || {};
+    if (extra.hints === undefined) extra.hints = isHumanTurn();
+    if (extra.selected === undefined) extra.selected = state.sel;
+    extra.flip = shouldFlip();
+    if (extra.busy === undefined) extra.busy = !!state.thinking;
+    return extra;
   }
   function localStatus() {
     if (!state.s) return;
@@ -119,15 +158,16 @@
       setStatus($('statusLine'), msg, you ? 'good' : 'warn');
       return;
     }
-    if (state.thinking) { setStatus($('statusLine'), 'Computer is thinking…', ''); return; }
+    if (state.thinking) { setStatus($('statusLine'), 'Computer is thinking…', 'think'); return; }
     var must = C.legalMoves(state.s).some(function (m) { return m.capture; });
     var jump = must ? (state.s.locked ? 'Keep jumping. ' : 'You must jump. ') : '';
+    var side = C.colorName(state.s.turn);
+    var cls = must ? 'must' : side;
     if (state.mode === 'hotseat') {
-      var t = C.colorName(state.s.turn);
-      setStatus($('statusLine'), jump + t.charAt(0).toUpperCase() + t.slice(1) + ' to play. Tap a piece, then a square.', '');
+      setStatus($('statusLine'), jump + side.charAt(0).toUpperCase() + side.slice(1) + ' to play. Tap a piece, then a square.', cls);
     } else {
-      setStatus($('statusLine'), jump + (C.colorName(state.s.turn) === state.color
-        ? 'Your turn. Tap a piece, then a square.' : 'Computer to play.'), '');
+      setStatus($('statusLine'), jump + (side === state.color
+        ? 'Your turn. Tap a piece, then a square.' : 'Computer to play.'), cls);
     }
   }
   function saveLocal() {
@@ -151,7 +191,7 @@
   }
   function afterLocal() {
     autoSelect();
-    paint($('board'), state.s, { hints: isHumanTurn(), selected: state.sel });
+    paint($('board'), state.s, localOpts());
     localStatus();
     saveLocal();
     if (!state.over && !state.thinking && state.mode === 'cpu' && C.colorName(state.s.turn) !== state.color) aiMove();
@@ -167,7 +207,7 @@
   }
   function playLocal(fr, fc, tr, tc) {
     if (!state.s || state.over) return false;
-    if (state.mode === 'cpu' && state.thinking && C.colorName(state.s.turn) === state.color) return false;
+    if (state.mode === 'cpu' && state.thinking) return false;
     if (!applyLocal(fr, fc, tr, tc)) return false;
     afterLocal();
     return true;
@@ -177,46 +217,72 @@
     var s = state.s;
     if (state.sel && (state.sel.r !== r || state.sel.c !== c)) {
       if (playLocal(state.sel.r, state.sel.c, r, c)) return;
+      pulseMust($('board'));
     }
     if (s.locked) {
       state.sel = { r: s.locked.r, c: s.locked.c };
-      paint($('board'), s, { hints: true, selected: state.sel });
+      paint($('board'), s, localOpts({ hints: true, selected: state.sel }));
+      if (state.sel.r !== r || state.sel.c !== c) pulseMust($('board'));
       return;
     }
     if (C.owner(s.map[r][c]) === s.turn) {
-      var has = C.legalMoves(s).some(function (m) { return m.fr === r && m.fc === c; });
-      if (has) {
-        state.sel = (state.sel && state.sel.r === r && state.sel.c === c) ? null : { r: r, c: c };
-        paint($('board'), s, { hints: true, selected: state.sel });
+      var ms = C.legalMoves(s), has = false, keys = {}, i, n = 0;
+      for (i = 0; i < ms.length; i++) {
+        if (ms[i].fr === r && ms[i].fc === c) has = true;
+        if (!keys[ms[i].fr + ',' + ms[i].fc]) { keys[ms[i].fr + ',' + ms[i].fc] = 1; n++; }
       }
+      if (has) {
+        var same = state.sel && state.sel.r === r && state.sel.c === c;
+        if (same && n > 1 && !s.locked) state.sel = null;
+        else state.sel = { r: r, c: c };
+        paint($('board'), s, localOpts({ hints: true, selected: state.sel }));
+      } else {
+        pulseMust($('board'));
+      }
+    } else {
+      pulseMust($('board'));
     }
   }
   function aiMove() {
     if (!state.s || state.over || state.mode !== 'cpu' || state.thinking) return;
     if (C.colorName(state.s.turn) === state.color) return;
+    var gen = ++aiGen;
     state.thinking = true;
     state.sel = null;
     setChip('thinking', 'Thinking…');
     localStatus();
-    paint($('board'), state.s, { hints: false });
+    paint($('board'), state.s, localOpts({ hints: false, selected: null, busy: true }));
+    var dog = setTimeout(function () {
+      if (gen !== aiGen) return;
+      state.thinking = false;
+      setChip('ready', 'Ready');
+      afterLocal();
+    }, 2500);
+    function finish(retry) {
+      if (gen !== aiGen) return;
+      clearTimeout(dog);
+      state.thinking = false;
+      setChip('ready', 'Ready');
+      if (retry) afterLocal();
+      else {
+        localStatus();
+        paint($('board'), state.s, localOpts({ hints: isHumanTurn(), busy: false }));
+      }
+    }
     setTimeout(function step() {
-      if (!state.s || state.over || state.mode !== 'cpu') { state.thinking = false; return; }
-      if (C.colorName(state.s.turn) === state.color) {
-        state.thinking = false; setChip('ready', 'Ready'); afterLocal(); return;
-      }
-      var move = C.aiMove(state.s);
-      if (!move || !applyLocal(move.fr, move.fc, move.tr, move.tc)) {
-        state.thinking = false; setChip('ready', 'Ready'); localStatus(); return;
-      }
-      paint($('board'), state.s, { hints: false });
+      if (gen !== aiGen) return;
+      if (!state.s || state.over || state.mode !== 'cpu') { finish(false); return; }
+      if (C.colorName(state.s.turn) === state.color) { finish(true); return; }
+      var move = null;
+      try { move = C.aiMove(state.s); } catch (e) { finish(false); return; }
+      if (!move || !applyLocal(move.fr, move.fc, move.tr, move.tc)) { finish(false); return; }
+      paint($('board'), state.s, localOpts({ hints: false, selected: null, busy: true }));
       if (state.s.locked && C.colorName(state.s.turn) !== state.color) {
         setTimeout(step, 280);
         return;
       }
-      state.thinking = false;
-      setChip('ready', 'Ready');
-      afterLocal();
-    }, 280);
+      finish(true);
+    }, 220);
   }
   function popTurn(hist) {
     if (!hist.length) return;
@@ -224,18 +290,19 @@
     while (hist.length && hist[hist.length - 1].color === color) hist.pop();
   }
   function undoLocal() {
-    if (!state.hist.length || state.thinking) return;
+    if (!state.hist.length) return;
+    cancelAi();
     popTurn(state.hist);
     if (state.mode === 'cpu' && state.hist.length) popTurn(state.hist);
     state.s = C.replay(state.hist);
     state.over = !!state.s.winner;
-    state.thinking = false;
     setChip('ready', state.mode === 'cpu' ? 'Ready' : 'Two players');
     afterLocal();
   }
   function newLocal() {
+    cancelAi();
     state.s = C.fresh(); state.hist = []; state.over = false;
-    state.thinking = false; state.sel = null;
+    state.sel = null;
     setChip('ready', state.mode === 'cpu' ? 'Ready' : 'Two players');
     $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
     afterLocal();
@@ -244,6 +311,7 @@
   makeBoard($('board'), tapLocal);
   $('startBtn').onclick = function () { newLocal(); };
   $('newBtn').onclick = function () {
+    cancelAi();
     $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'Ready');
   };
   $('undoBtn').onclick = undoLocal;
@@ -437,24 +505,31 @@
     $('fQueue').textContent = waiting.length ? ('Watching: ' + waiting.map(function (p) { return p.name || 'Player'; }).join(', ')) : '';
     setScore($('fScore'), s);
     var both = b.seats.white && b.seats.black;
+    var cls = '';
     if (!both) {
+      status.className = 'turnpill';
       status.innerHTML = 'Waiting for another player… press <b>Invite</b> (top bar) to bring a friend.';
     } else if (b.winner) {
       var wname = b.winner === 'draw' ? '' : nameOf(b.winner === 'white' ? b.seats.white : b.seats.black);
+      status.className = 'turnpill ' + (b.winner === 'draw' ? '' : 'good');
       status.innerHTML = b.winner === 'draw'
         ? (esc(b.result || 'Draw') + ' — next game starting…')
         : ((esc(b.result || 'No pieces left') + ' — ') + wname + ' wins. Next game starting…');
     } else if (!seat) {
+      status.className = 'turnpill';
       status.textContent = 'Spectating.';
     } else if (b.turn === seat) {
       var must = C.legalMoves(s).some(function (m) { return m.capture; });
+      cls = must ? 'must' : seat;
+      status.className = 'turnpill ' + cls;
       status.textContent = (must ? (s.locked ? 'Keep jumping. ' : 'You must jump. ') : '') + 'Your turn. Tap a piece, then a square.';
     } else {
+      status.className = 'turnpill ' + b.turn;
       status.textContent = 'Waiting for ' + b.turn + '…';
     }
     var hints = !!(seat && b.turn === seat && !b.winner);
     if (s.locked && seat && b.turn === seat) mp.sel = { r: s.locked.r, c: s.locked.c };
-    paint($('fBoard'), s, { hints: hints, selected: mpSelOf(s, seat) });
+    paint($('fBoard'), s, { hints: hints, selected: mpSelOf(s, seat), flip: seat === 'black' });
     $('fResign').hidden = !(seat && (b.moves || []).length && !b.winner);
   }
 
@@ -464,20 +539,34 @@
     var s = C.replay(b.moves || []);
     if (mp.sel && (mp.sel.r !== r || mp.sel.c !== c)) {
       if (mpPlay(mp.sel.r, mp.sel.c, r, c)) { mp.sel = null; return; }
+      pulseMust($('fBoard'));
     }
     if (s.locked) { mp.sel = { r: s.locked.r, c: s.locked.c }; mpRender(); return; }
     if (C.owner(s.map[r][c]) === s.turn) {
-      var has = C.legalMoves(s).some(function (m) { return m.fr === r && m.fc === c; });
-      if (has) {
-        mp.sel = (mp.sel && mp.sel.r === r && mp.sel.c === c) ? null : { r: r, c: c };
-        mpRender();
+      var ms = C.legalMoves(s), has = false, keys = {}, i, n = 0;
+      for (i = 0; i < ms.length; i++) {
+        if (ms[i].fr === r && ms[i].fc === c) has = true;
+        if (!keys[ms[i].fr + ',' + ms[i].fc]) { keys[ms[i].fr + ',' + ms[i].fc] = 1; n++; }
       }
+      if (has) {
+        var same = mp.sel && mp.sel.r === r && mp.sel.c === c;
+        if (same && n > 1 && !s.locked) mp.sel = null;
+        else mp.sel = { r: r, c: c };
+        mpRender();
+      } else {
+        pulseMust($('fBoard'));
+      }
+    } else {
+      pulseMust($('fBoard'));
     }
   });
 
   if (window.gifos && gifos.onBack) gifos.onBack(function () {
     if (!$('friend').hidden) mpLeave();
-    else if (!$('game').hidden) { $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'Ready'); }
+    else if (!$('game').hidden) {
+      cancelAi();
+      $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'Ready');
+    }
   });
 
   setChip('ready', 'Ready');
