@@ -184,17 +184,139 @@
   }
 
   function destFor(game, piece, steps) {
-    var actions, i, a;
+    var actions, i, a, hit;
     if (!piece) return null;
     actions = rule.getMoveActions(game.state, piece, steps);
     if (!actions.length) return null;
+    hit = false;
+    for (i = 0; i < actions.length; i++) {
+      if (actions[i].type === M.MoveActionType.HIT) hit = true;
+    }
     for (i = 0; i < actions.length; i++) {
       a = actions[i];
-      if (a.type === M.MoveActionType.BEAR) return { kind: 'bear', pos: a.from };
-      if (a.type === M.MoveActionType.RECOVER) return { kind: 'point', pos: a.position };
-      if (a.type === M.MoveActionType.MOVE) return { kind: 'point', pos: a.to };
+      if (a.type === M.MoveActionType.BEAR) return { kind: 'bear', type: piece.type, hit: hit };
+      if (a.type === M.MoveActionType.RECOVER) return { kind: 'point', pos: a.position, hit: hit };
+      if (a.type === M.MoveActionType.MOVE) return { kind: 'point', pos: a.to, hit: hit };
     }
-    return { kind: 'ok' };
+    return { kind: 'ok', hit: hit };
+  }
+
+  function uniqueSteps(moves) {
+    var seen = {}, out = [], i;
+    for (i = 0; i < (moves || []).length; i++) {
+      if (seen[moves[i]]) continue;
+      seen[moves[i]] = 1;
+      out.push(moves[i]);
+    }
+    return out;
+  }
+
+  function without(moves, steps) {
+    var i, out = moves.slice();
+    for (i = 0; i < out.length; i++) {
+      if (out[i] === steps) { out.splice(i, 1); return out; }
+    }
+    return out;
+  }
+
+  function tops(state, type) {
+    var out, i, top;
+    if (M.State.havePiecesOnBar(state, type)) {
+      top = M.State.getBarTopPiece(state, type);
+      return top ? [top] : [];
+    }
+    out = [];
+    for (i = 0; i < 24; i++) {
+      top = M.State.getTopPiece(state, i);
+      if (top && top.type === type) out.push(top);
+    }
+    return out;
+  }
+
+  var _fm = { key: '', list: [] };
+  function firstMoves(game) {
+    var type, start, bestLen, firsts, seen, key;
+    if (!game || !game.turnDice) return [];
+    key = (game.moveSequence || 0) + '|' + (game.turnDice.movesLeft || []).join(',') + '|' +
+          (game.turnPlayer ? game.turnPlayer.currentPieceType : '') + '|' + (game.state && game.state.nextPieceID);
+    if (_fm.key === key) return _fm.list;
+    type = game.turnPlayer.currentPieceType;
+    start = (game.turnDice.movesLeft || []).slice();
+    bestLen = -1;
+    firsts = [];
+    seen = {};
+    function consider(seq) {
+      var k;
+      if (seq.length < bestLen) return;
+      if (seq.length > bestLen) { bestLen = seq.length; firsts = []; seen = {}; }
+      if (!seq.length) return;
+      k = seq[0].pieceId + ':' + seq[0].steps;
+      if (seen[k]) return;
+      seen[k] = 1;
+      firsts.push({ pieceId: seq[0].pieceId, steps: seq[0].steps });
+    }
+    function walk(st, left, seq) {
+      var i, p, steps, pieces, actions, next, any = false, uniq;
+      if (!left.length) { consider(seq); return; }
+      uniq = uniqueSteps(left);
+      for (i = 0; i < uniq.length; i++) {
+        steps = uniq[i];
+        pieces = tops(st, type);
+        for (p = 0; p < pieces.length; p++) {
+          actions = rule.getMoveActions(st, pieces[p], steps);
+          if (!actions.length) continue;
+          any = true;
+          next = M.State.clone(st);
+          rule.applyMoveActions(next, actions);
+          seq.push({ pieceId: pieces[p].id, steps: steps });
+          walk(next, without(left, steps), seq);
+          seq.pop();
+        }
+      }
+      if (!any) consider(seq);
+    }
+    walk(M.State.clone(game.state), start, []);
+    _fm = { key: key, list: firsts };
+    return firsts;
+  }
+
+  function destsFor(game, piece) {
+    var list, i, d, out;
+    if (!game || !piece || !game.turnDice) return [];
+    list = firstMoves(game);
+    out = [];
+    for (i = 0; i < list.length; i++) {
+      if (list[i].pieceId !== piece.id) continue;
+      d = destFor(game, piece, list[i].steps);
+      if (d) out.push({ steps: list[i].steps, dest: d });
+    }
+    return out;
+  }
+
+  function froms(game) {
+    var list, i, p, seen, out;
+    if (!game || !game.turnDice) return [];
+    list = firstMoves(game);
+    seen = {}; out = [];
+    for (i = 0; i < list.length; i++) {
+      if (seen[list[i].pieceId]) continue;
+      seen[list[i].pieceId] = 1;
+      p = findPiece(game, list[i].pieceId);
+      if (p) out.push(p);
+    }
+    return out;
+  }
+
+  function onBar(game) {
+    if (!game || !game.state || !game.turnPlayer) return false;
+    return M.State.havePiecesOnBar(game.state, game.turnPlayer.currentPieceType);
+  }
+
+  function destMatches(dest, h, type) {
+    if (!dest || !h) return false;
+    if (dest.kind === 'bear') return h.kind === 'bear' && (h.type == null || h.type === type);
+    if (dest.kind === 'point') return h.kind === 'point' && h.pos === dest.pos;
+    return false;
   }
 
   root.Backgammon = {
@@ -219,6 +341,10 @@
     canUndo: canUndo,
     canRoll: canRoll,
     movable: movable,
-    destFor: destFor
+    destFor: destFor,
+    destsFor: destsFor,
+    froms: froms,
+    onBar: onBar,
+    destMatches: destMatches
   };
 })(typeof window !== 'undefined' ? window : (typeof self !== 'undefined' ? self : this));

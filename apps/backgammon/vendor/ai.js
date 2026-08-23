@@ -17,30 +17,55 @@
     return n;
   }
 
+  function backIndex(state, type) {
+    var i, best;
+    if (state.bar[type].length) return type === 0 ? 24 : -1;
+    best = type === 0 ? -1 : 24;
+    for (i = 0; i < 24; i++) {
+      if (!state.points[i].length || state.points[i][0].type !== type) continue;
+      if (type === 0) { if (i > best) best = i; }
+      else if (i < best) best = i;
+    }
+    return best;
+  }
+
   function score(state, type) {
     var opp = 1 - type;
-    var s = 0, i, k, mine, theirs, np;
-    s -= pipsOf(state, type) * 10;
-    s += pipsOf(state, opp) * 8;
+    var s = 0, i, k, mine, np, run = 0, bestPrime = 0, homeMade = 0;
+    var pips = pipsOf(state, type), oppPips = pipsOf(state, opp);
+    var wBack = backIndex(state, 0), bBack = backIndex(state, 1);
+    var racing = wBack >= 0 && bBack <= 23 && wBack < bBack;
+    s -= pips * (racing ? 16 : 10);
+    s += oppPips * (racing ? 6 : 8);
     s += state.outside[type].length * 140;
     s -= state.outside[opp].length * 110;
-    s += state.bar[opp].length * 90;
-    s -= state.bar[type].length * 130;
-    for (i = 0; i < 24; i++) {
-      mine = 0; theirs = 0;
+    s += state.bar[opp].length * (racing ? 20 : 90);
+    s -= state.bar[type].length * 140;
+    if (racing) return s;
+    for (np = 0; np < 24; np++) {
+      i = rule.denormPos(np, type);
+      mine = 0;
       for (k = 0; k < state.points[i].length; k++) {
         if (state.points[i][k].type === type) mine++;
-        else theirs++;
       }
-      np = rule.normPos(i, type);
       if (mine >= 2) {
-        s += 20;
-        if (np < 6) s += 14;
-      } else if (mine === 1) {
-        s -= 16;
-        if (np >= 18) s -= 24;
+        run++;
+        if (run > bestPrime) bestPrime = run;
+        s += 22;
+        if (np < 6) { s += 18; homeMade++; }
+        else if (np >= 18) s += 12;
+      } else {
+        run = 0;
+        if (mine === 1) {
+          s -= 20;
+          if (np >= 18) s -= 30;
+          else if (np >= 12) s -= 8;
+        }
       }
     }
+    s += bestPrime * 24;
+    if (bestPrime >= 6) s += 90;
+    if (state.bar[opp].length) s += homeMade * 28;
     return s;
   }
 

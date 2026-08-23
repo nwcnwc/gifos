@@ -14,7 +14,7 @@
   var state = {
     mode: 'cpu', color: 'white',
     g: null, over: false, thinking: false,
-    die: 0
+    sel: null, dieSteps: 0
   };
   var db = null;
   try { if (window.gifos) db = gifos.db('save'); } catch (e) {}
@@ -24,13 +24,15 @@
     $('aiState').textContent = text;
   }
   function setStatus(el, text, cls) {
-    el.className = 'statusline' + (cls ? ' ' + cls : '');
+    el.className = 'turnpill' + (cls ? ' ' + cls : '');
     el.textContent = text;
   }
   function setScore(el, g) {
     if (!el || !g) return;
     var w = g.state.whiteOutside.length, b = g.state.blackOutside.length;
-    el.innerHTML = '<span class="wht">White ' + w + ' off</span><span class="blk">Black ' + b + ' off</span>';
+    var turn = g.isOver ? '' : B.colorName(g.turnPlayer.currentPieceType);
+    el.innerHTML = '<span class="wht' + (turn === 'white' ? ' on' : '') + '">White ' + w + ' off</span>' +
+      '<span class="blk' + (turn === 'black' ? ' on' : '') + '">Black ' + b + ' off</span>';
   }
 
   $('modeSeg').addEventListener('click', function (e) {
@@ -52,23 +54,22 @@
       : 'You play black. The computer plays white, and goes first.';
   });
 
-  // ---- board geometry / paint ----
   var WOOD = '#5c2e1a', FRAME = '#3a1c10', FELT = '#4a2418';
   var LIGHT = '#d4b896', DARK = '#8b3a2a';
   var IVORY = '#f3ead8', INK = '#1a1210';
-  var BARC = '#2a140e';
+  var BARC = '#2a140e', GOLD = '#e8b440', GOLD2 = '#ffe08a';
 
   function geom(W, H) {
-    var frame = Math.min(W, H) * 0.045;
-    var bear = W * 0.075;
+    var frame = Math.min(W, H) * 0.04;
+    var bear = Math.max(28, W * 0.07);
     var x0 = frame, x1 = W - frame - bear, y0 = frame, y1 = H - frame;
-    var barW = (x1 - x0) * 0.09;
+    var barW = Math.max(26, (x1 - x0) * 0.08);
     var play = x1 - x0 - barW;
     var quad = play / 2;
     var pw = quad / 6;
-    var ph = (y1 - y0) * 0.42;
+    var ph = (y1 - y0) * 0.48;
     return { W: W, H: H, frame: frame, bear: bear, x0: x0, x1: x1, y0: y0, y1: y1,
-      barW: barW, quad: quad, pw: pw, ph: ph, barX: x0 + quad, bearX: x1 };
+      barW: barW, quad: quad, pw: pw, ph: ph, barX: x0 + quad, bearX: x1, mid: (y0 + y1) / 2 };
   }
   function pointBox(g, pos) {
     var col, top, left;
@@ -82,7 +83,7 @@
   }
   function resizeCanvas(canvas) {
     var cssW = canvas.clientWidth || 520;
-    var cssH = canvas.clientHeight || Math.round(cssW * 2 / 3);
+    var cssH = canvas.clientHeight || Math.round(cssW * 0.86);
     var dpr = window.devicePixelRatio || 1;
     var w = Math.round(cssW * dpr), h = Math.round(cssH * dpr);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -96,48 +97,78 @@
     ctx.fillStyle = g; ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = Math.max(1, r * 0.06); ctx.stroke();
   }
-  function pipAt(ctx, cx, cy, r, n, color) {
-    var spots = {
-      1: [[0, 0]],
-      2: [[-0.32, -0.32], [0.32, 0.32]],
-      3: [[-0.32, -0.32], [0, 0], [0.32, 0.32]],
-      4: [[-0.32, -0.32], [0.32, -0.32], [-0.32, 0.32], [0.32, 0.32]],
-      5: [[-0.32, -0.32], [0.32, -0.32], [0, 0], [-0.32, 0.32], [0.32, 0.32]],
-      6: [[-0.32, -0.32], [0.32, -0.32], [-0.32, 0], [0.32, 0], [-0.32, 0.32], [0.32, 0.32]]
-    };
-    var list = spots[n] || spots[1], i;
-    ctx.fillStyle = color;
-    for (i = 0; i < list.length; i++) {
-      ctx.beginPath();
-      ctx.arc(cx + list[i][0] * r * 2, cy + list[i][1] * r * 2, r * 0.16, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  function ringAt(ctx, x, y, r, color, w) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke();
   }
-  function dieFace(ctx, x, y, s, n, on) {
-    var r = s * 0.16;
-    ctx.save();
-    ctx.fillStyle = on ? IVORY : '#8a7460';
-    ctx.strokeStyle = on ? '#3a1c10' : '#5a4030';
-    ctx.lineWidth = Math.max(1, s * 0.06);
-    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, s, s, r); ctx.fill(); ctx.stroke(); }
-    else { ctx.fillRect(x, y, s, s); ctx.strokeRect(x, y, s, s); }
-    pipAt(ctx, x + s / 2, y + s / 2, s * 0.42, n, on ? INK : '#3a2a20');
-    ctx.restore();
+  function stackLayout(box, n) {
+    var r = Math.min(box.w * 0.46, box.h / 5.8);
+    var show = Math.min(n, 5);
+    var gap = show <= 1 ? 0 : Math.min(r * 1.82, (box.h - 2 * r) / Math.max(1, show - 1));
+    return { r: r, show: show, gap: gap };
   }
-  function stackCheckers(ctx, g, box, pieces) {
-    var r = Math.min(box.w * 0.42, box.h / 6.4);
-    var n = pieces.length, show = Math.min(n, 5), i, y, gap;
-    gap = show <= 1 ? 0 : Math.min(r * 1.85, (box.h - 2 * r) / Math.max(1, show - 1));
-    for (i = 0; i < show; i++) {
-      y = box.top ? (box.y + r + 2 + i * gap) : (box.y + box.h - r - 2 - i * gap);
-      checker(ctx, box.x + box.w / 2, y, r, pieces[i].type);
+  function stackY(box, lay, i) {
+    return box.top ? (box.y + lay.r + 2 + i * lay.gap) : (box.y + box.h - lay.r - 2 - i * lay.gap);
+  }
+  function stackCheckers(ctx, box, pieces, opts) {
+    opts = opts || {};
+    var n = pieces.length, lay = stackLayout(box, n), i, y, sel;
+    for (i = 0; i < lay.show; i++) {
+      y = stackY(box, lay, i);
+      checker(ctx, box.x + box.w / 2, y, lay.r, pieces[i].type);
+      sel = opts.selId != null && pieces[i].id === opts.selId;
+      if (sel) ringAt(ctx, box.x + box.w / 2, y, lay.r + 3, GOLD2, 3);
+      else if (opts.fromIds && opts.fromIds[pieces[i].id] && i === lay.show - 1) {
+        ringAt(ctx, box.x + box.w / 2, y, lay.r + 2.5, GOLD, 1.5);
+      }
     }
     if (n > 5) {
-      y = box.top ? (box.y + r + 2 + 4 * gap) : (box.y + box.h - r - 2 - 4 * gap);
-      ctx.fillStyle = pieces[show - 1].type === B.WHITE ? INK : IVORY;
-      ctx.font = 'bold ' + Math.round(r * 0.9) + 'px system-ui,sans-serif';
+      y = stackY(box, lay, 4);
+      ctx.fillStyle = pieces[lay.show - 1].type === B.WHITE ? INK : IVORY;
+      ctx.font = 'bold ' + Math.round(lay.r * 0.9) + 'px system-ui,sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(n), box.x + box.w / 2, y);
+    }
+  }
+  function destMark(ctx, geo, dest, steps) {
+    var box, lay, y, cx, r, n;
+    if (dest.kind === 'bear') {
+      box = {
+        x: geo.bearX, y: dest.type === B.BLACK ? geo.y0 : geo.y1 - geo.ph,
+        w: geo.W - geo.frame - geo.bearX, h: geo.ph, top: dest.type === B.BLACK
+      };
+      ctx.save();
+      ctx.strokeStyle = GOLD2; ctx.lineWidth = 3;
+      ctx.strokeRect(box.x + 2, box.y + 2, box.w - 4, box.h - 4);
+      ctx.restore();
+      cx = box.x + box.w / 2; y = box.top ? box.y + 16 : box.y + box.h - 16;
+      ctx.fillStyle = GOLD; ctx.beginPath(); ctx.arc(cx, y, 8, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
+    if (dest.kind !== 'point') return;
+    box = pointBox(geo, dest.pos);
+    n = 0;
+    lay = stackLayout(box, 1);
+    y = dest.top != null ? stackY(box, lay, 0) : (box.top ? box.y + lay.r + 8 : box.y + box.h - lay.r - 8);
+    // land at the next slot — paint uses empty-ish center of the triangle
+    cx = box.x + box.w / 2;
+    y = box.top ? box.y + box.h * 0.58 : box.y + box.h * 0.42;
+    r = Math.max(13, box.w * 0.38);
+    ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI * 2);
+    if (dest.hit) {
+      ctx.strokeStyle = '#ff7a6b'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, y, r * 0.45, 0, Math.PI * 2);
+      ctx.fillStyle = GOLD; ctx.fill();
+    } else {
+      ctx.strokeStyle = GOLD2; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, y, r * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = GOLD; ctx.fill();
+    }
+    if (steps) {
+      ctx.fillStyle = INK;
+      ctx.font = 'bold ' + Math.round(r * 0.7) + 'px system-ui,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(steps), cx, y + 0.5);
     }
   }
   function paint(canvas, g, opts) {
@@ -145,8 +176,10 @@
     var sz = resizeCanvas(canvas);
     var ctx = canvas.getContext('2d');
     ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
-    var W = sz.cssW, H = sz.cssH, geo = geom(W, H), pos, box, i, left, s, x, on, val;
+    var W = sz.cssW, H = sz.cssH, geo = geom(W, H), pos, box, i;
     ctx.fillStyle = FRAME; ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    if (opts.flip) { ctx.translate(W, H); ctx.scale(-1, -1); }
     ctx.fillStyle = FELT; ctx.fillRect(geo.x0, geo.y0, geo.x1 - geo.x0, geo.y1 - geo.y0);
     ctx.fillStyle = BARC; ctx.fillRect(geo.barX, geo.y0, geo.barW, geo.y1 - geo.y0);
     ctx.fillStyle = WOOD; ctx.fillRect(geo.bearX, geo.y0, W - geo.frame - geo.bearX, geo.y1 - geo.y0);
@@ -166,64 +199,98 @@
       ctx.fillStyle = (pos % 2 === 0) ? LIGHT : DARK;
       ctx.fill();
     }
+    var fromIds = {}, dests = opts.dests || [], selId = opts.selId;
+    if (opts.froms) {
+      for (i = 0; i < opts.froms.length; i++) fromIds[opts.froms[i].id] = 1;
+    }
     if (g) {
-      for (pos = 0; pos < 24; pos++) stackCheckers(ctx, geo, pointBox(geo, pos), g.state.points[pos]);
-      stackCheckers(ctx, geo, {
+      for (pos = 0; pos < 24; pos++) {
+        stackCheckers(ctx, pointBox(geo, pos), g.state.points[pos], { selId: selId, fromIds: fromIds });
+      }
+      stackCheckers(ctx, {
         x: geo.barX, y: geo.y0, w: geo.barW, h: geo.ph, top: true
-      }, g.state.bar[B.BLACK]);
-      stackCheckers(ctx, geo, {
+      }, g.state.bar[B.BLACK], { selId: selId, fromIds: fromIds });
+      stackCheckers(ctx, {
         x: geo.barX, y: geo.y1 - geo.ph, w: geo.barW, h: geo.ph, top: false
-      }, g.state.bar[B.WHITE]);
-      stackCheckers(ctx, geo, {
+      }, g.state.bar[B.WHITE], { selId: selId, fromIds: fromIds });
+      stackCheckers(ctx, {
         x: geo.bearX, y: geo.y0, w: W - geo.frame - geo.bearX, h: geo.ph, top: true
-      }, g.state.outside[B.BLACK]);
-      stackCheckers(ctx, geo, {
+      }, g.state.outside[B.BLACK], {});
+      stackCheckers(ctx, {
         x: geo.bearX, y: geo.y1 - geo.ph, w: W - geo.frame - geo.bearX, h: geo.ph, top: false
-      }, g.state.outside[B.WHITE]);
+      }, g.state.outside[B.WHITE], {});
+      for (i = 0; i < dests.length; i++) destMark(ctx, geo, dests[i].dest, dests[i].steps);
     }
-    left = (g && g.turnDice) ? (g.turnDice.movesLeft || []) : [];
-    s = Math.min(36, geo.barW * 0.85);
-    if (g && g.turnDice && g.turnDice.values) {
-      x = geo.barX + geo.barW + geo.pw * 0.4;
-      var midY = (geo.y0 + geo.y1) / 2 - s / 2;
-      for (i = 0; i < g.turnDice.values.length; i++) {
-        val = g.turnDice.values[i];
-        on = left.indexOf(val) >= 0;
-        dieFace(ctx, x + i * (s + 8), midY, s, val, on);
-      }
-      if (left.length) {
-        var sel = Math.max(0, Math.min(opts.die || 0, left.length - 1));
-        var hx = x + geo.quad * 0.55;
-        dieFace(ctx, hx, midY, s, left[sel], true);
-        ctx.strokeStyle = '#f3ead8';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(hx - 2, midY - 2, s + 4, s + 4);
-      }
-    }
+    ctx.restore();
   }
-  function hit(canvas, ev) {
+  function hit(canvas, ev, flip) {
     var rect = canvas.getBoundingClientRect();
     var t = ev.changedTouches && ev.changedTouches[0] ? ev.changedTouches[0]
           : (ev.touches && ev.touches[0] ? ev.touches[0] : ev);
     var x = t.clientX - rect.left, y = t.clientY - rect.top;
-    var geo = geom(rect.width, rect.height), pos, box;
+    if (flip) { x = rect.width - x; y = rect.height - y; }
+    var geo = geom(rect.width, rect.height), pos, box, mid = geo.mid;
     if (x >= geo.barX && x <= geo.barX + geo.barW && y >= geo.y0 && y <= geo.y1) {
-      return { kind: 'bar', type: y < (geo.y0 + geo.y1) / 2 ? B.BLACK : B.WHITE };
+      return { kind: 'bar', type: y < mid ? B.BLACK : B.WHITE };
+    }
+    if (x >= geo.bearX && x <= geo.W - geo.frame && y >= geo.y0 && y <= geo.y1) {
+      return { kind: 'bear', type: y < mid ? B.BLACK : B.WHITE };
     }
     for (pos = 0; pos < 24; pos++) {
       box = pointBox(geo, pos);
-      if (x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h) {
+      var y0 = box.top ? geo.y0 : mid;
+      var y1 = box.top ? mid : geo.y1;
+      if (x >= box.x && x <= box.x + box.w && y >= y0 && y <= y1) {
         return { kind: 'point', pos: pos };
       }
     }
     return null;
   }
 
-  function selectedSteps(g, die) {
-    var left = (g && g.turnDice && g.turnDice.movesLeft) ? g.turnDice.movesLeft : [];
-    if (!left.length) return 0;
-    var i = Math.max(0, Math.min(die || 0, left.length - 1));
-    return left[i];
+  var PIPS = {
+    1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8]
+  };
+  function pipsHTML(n) {
+    var spots = PIPS[n] || PIPS[1], i, html = '';
+    for (i = 0; i < 9; i++) html += '<span' + (spots.indexOf(i) >= 0 ? ' class="pip"' : '') + '></span>';
+    return html;
+  }
+  function renderDice(el, g, pick, onPick) {
+    if (!el) return;
+    el.innerHTML = '';
+    if (!g || !g.turnDice) { el.hidden = true; return; }
+    var list = (g.turnDice.moves && g.turnDice.moves.length) ? g.turnDice.moves
+             : (g.turnDice.values || []);
+    if (!list.length) { el.hidden = true; return; }
+    el.hidden = false;
+    var left = (g.turnDice.movesLeft || []).slice();
+    var i, n, on, btn, idx;
+    for (i = 0; i < list.length; i++) {
+      n = list[i];
+      idx = left.indexOf(n);
+      on = idx >= 0;
+      if (on) left.splice(idx, 1);
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'die' + (on ? ' on' : ' spent') + (on && pick === n ? ' pick' : '');
+      btn.setAttribute('aria-label', 'Die ' + n + (on ? '' : ' spent'));
+      btn.innerHTML = pipsHTML(n);
+      if (on && onPick) {
+        (function (val) {
+          btn.addEventListener('click', function () { onPick(val); });
+        })(n);
+      }
+      el.appendChild(btn);
+    }
+  }
+
+  function shouldFlip() {
+    if (state.mode === 'cpu' && state.color === 'black') return true;
+    return false;
+  }
+  function filterDests(dests, dieSteps) {
+    if (!dieSteps) return dests;
+    return dests.filter(function (d) { return d.steps === dieSteps; });
   }
   function pieceFromHit(g, h) {
     if (!g || !h) return null;
@@ -231,12 +298,29 @@
     if (h.kind === 'point') return B.topAt(g, h.pos);
     return null;
   }
+  function selPiece(g, sel) {
+    if (!g || !sel) return null;
+    if (sel.pieceId != null) return B.findPiece(g, sel.pieceId);
+    return pieceFromHit(g, sel);
+  }
+  function paintHints(g, sel, dieSteps) {
+    var dests = [], from = [], piece;
+    if (!g || g.isOver || !g.turnDice) return { dests: dests, froms: from, selId: null };
+    from = B.froms(g);
+    piece = selPiece(g, sel);
+    if (piece) dests = filterDests(B.destsFor(g, piece), dieSteps);
+    return { dests: dests, froms: from, selId: piece ? piece.id : null };
+  }
 
-  // ---- local game ----
   function isHumanTurn() {
     if (!state.g || state.over || state.thinking) return false;
     if (state.mode === 'hotseat') return true;
     return B.colorName(state.g.turnPlayer.currentPieceType) === state.color;
+  }
+  function turnCls(g, extra) {
+    if (extra) return extra;
+    if (!g || g.isOver) return '';
+    return B.colorName(g.turnPlayer.currentPieceType);
   }
   function localStatus() {
     var g = state.g;
@@ -245,6 +329,8 @@
     $('rollBtn').disabled = !isHumanTurn() || !B.canRoll(g);
     $('undoBtn').disabled = !isHumanTurn() || !B.canUndo(g);
     $('confirmBtn').disabled = !isHumanTurn() || !B.canConfirm(g);
+    $('rollBtn').classList.toggle('go', isHumanTurn() && B.canRoll(g));
+    $('confirmBtn').classList.toggle('go', isHumanTurn() && B.canConfirm(g));
     if (g.isOver) {
       var you = state.mode === 'cpu' && g.winner === B[state.color.toUpperCase()];
       var who = B.colorName(g.winner);
@@ -255,24 +341,36 @@
       setStatus($('statusLine'), msg, you ? 'good' : 'warn');
       return;
     }
-    if (state.thinking) { setStatus($('statusLine'), 'Computer is thinking…', ''); return; }
+    if (state.thinking) { setStatus($('statusLine'), 'Computer is thinking…', 'think'); return; }
     var turn = B.colorName(g.turnPlayer.currentPieceType);
     turn = turn.charAt(0).toUpperCase() + turn.slice(1);
+    var mine = isHumanTurn();
     if (B.canRoll(g)) {
-      setStatus($('statusLine'), (state.mode === 'hotseat' ? turn + ' to play. ' : (isHumanTurn() ? 'Your turn. ' : 'Computer to play. ')) + 'Roll.', '');
+      setStatus($('statusLine'),
+        (state.mode === 'hotseat' ? turn + ' to play. Roll.' : (mine ? 'Your turn. Roll.' : 'Computer to play.')),
+        turnCls(g, mine || state.mode === 'hotseat' ? null : ''));
+      return;
+    }
+    if (B.canConfirm(g) && !(g.turnDice.movesPlayed || []).length) {
+      setStatus($('statusLine'), 'No move with this roll. Confirm.', turnCls(g));
       return;
     }
     if (B.canConfirm(g)) {
-      setStatus($('statusLine'), 'No more moves. Confirm the turn.', '');
+      setStatus($('statusLine'), 'No more moves. Confirm the turn.', turnCls(g));
       return;
     }
-    if (state.mode === 'hotseat') {
-      setStatus($('statusLine'), turn + ' to play. Tap a point to move with the highlighted die.', '');
-    } else {
-      setStatus($('statusLine'), isHumanTurn()
-        ? 'Your turn. Tap a point to move with the highlighted die. Tap the die to cycle.'
-        : 'Computer to play.', '');
+    if (!mine) { setStatus($('statusLine'), 'Computer to play.', 'think'); return; }
+    if (B.onBar(g)) {
+      setStatus($('statusLine'), (state.mode === 'hotseat' ? turn + ' is on the bar. Tap a point to enter.' : 'You are on the bar. Tap a point to enter.'), turnCls(g));
+      return;
     }
+    if (state.sel) {
+      setStatus($('statusLine'), 'Tap where it goes — or tap another checker.', turnCls(g));
+      return;
+    }
+    setStatus($('statusLine'),
+      (state.mode === 'hotseat' ? turn + ' to play. Tap a checker, then where it goes.' : 'Your turn. Tap a checker, then where it goes.'),
+      turnCls(g));
   }
   function saveLocal() {
     if (!db || !state.g) return;
@@ -281,16 +379,37 @@
       snap: B.snapshot(state.g), over: state.over, at: nowMs()
     }).catch(function () {});
   }
+  function autoSel(g) {
+    var p;
+    if (!g || !g.turnDice || g.isOver) return null;
+    if (!B.onBar(g)) return null;
+    p = B.barTop(g, g.turnPlayer.currentPieceType);
+    if (!p || !B.destsFor(g, p).length) return null;
+    return { kind: 'bar', type: p.type, pieceId: p.id };
+  }
   function paintLocal() {
-    paint($('board'), state.g, { die: state.die });
+    var hints;
+    if (isHumanTurn() && state.g && !state.sel) state.sel = autoSel(state.g);
+    hints = paintHints(state.g, isHumanTurn() ? state.sel : null, state.dieSteps);
+    paint($('board'), state.g, {
+      flip: shouldFlip(), dests: hints.dests, froms: isHumanTurn() ? hints.froms : [], selId: hints.selId
+    });
+    renderDice($('diceRow'), state.g, state.dieSteps, isHumanTurn() ? onDiePick : null);
     localStatus();
   }
+  function onDiePick(n) {
+    if (!isHumanTurn()) return;
+    state.dieSteps = state.dieSteps === n ? 0 : n;
+    paintLocal();
+  }
   function afterHuman() {
+    if (state.g && B.canConfirm(state.g) && !(state.g.turnDice.movesPlayed || []).length) {
+      // blocked roll — leave confirm in the player's hands, but say so
+    }
+    if (!B.canUndo(state.g)) state.sel = autoSel(state.g);
+    else state.sel = autoSel(state.g);
     paintLocal();
     saveLocal();
-    if (state.g && B.canConfirm(state.g) && !(state.g.turnDice.movesPlayed || []).length) {
-      // nothing was playable — confirm is the only act
-    }
   }
   function maybeCpu() {
     if (!state.g || state.over || state.mode !== 'cpu' || state.thinking) return;
@@ -300,6 +419,7 @@
   function cpuTurn() {
     if (!state.g || state.over) return;
     state.thinking = true;
+    state.sel = null;
     setChip('thinking', 'Thinking…');
     paintLocal();
     setTimeout(function () {
@@ -308,40 +428,57 @@
       paintLocal();
       setTimeout(function () {
         if (!state.g || state.over) { state.thinking = false; return; }
-        B.aiPlay(state.g);
-        B.confirm(state.g);
-        if (state.g.isOver) state.over = true;
-        state.thinking = false;
-        state.die = 0;
-        setChip('ready', 'Ready');
-        paintLocal();
-        saveLocal();
-        if (!state.over) maybeCpu();
-      }, 280);
-    }, 180);
+        var seq = B.aiChoose(state.g) || [];
+        var i = 0;
+        function step() {
+          if (!state.g || state.over) { state.thinking = false; return; }
+          if (i >= seq.length) {
+            B.confirm(state.g);
+            if (state.g.isOver) state.over = true;
+            state.thinking = false;
+            state.dieSteps = 0;
+            setChip('ready', 'Ready');
+            paintLocal();
+            saveLocal();
+            if (!state.over) maybeCpu();
+            return;
+          }
+          B.applyMove(state.g, seq[i].pieceId, seq[i].steps);
+          i++;
+          paintLocal();
+          setTimeout(step, 240);
+        }
+        step();
+      }, 220);
+    }, 160);
   }
   function playHit(h) {
-    var g = state.g, piece, steps;
+    var g = state.g, piece, dests, i, match;
     if (!g || !isHumanTurn() || !h) return;
-    if (B.canRoll(g)) { B.roll(g); state.die = 0; afterHuman(); maybeCpu(); return; }
-    steps = selectedSteps(g, state.die);
-    if (!steps) return;
+    if (B.canRoll(g)) { B.roll(g); state.sel = autoSel(g); state.dieSteps = 0; afterHuman(); maybeCpu(); return; }
+    piece = selPiece(g, state.sel);
+    if (piece) {
+      dests = filterDests(B.destsFor(g, piece), state.dieSteps);
+      for (i = 0; i < dests.length; i++) {
+        if (B.destMatches(dests[i].dest, h, piece.type)) { match = dests[i]; break; }
+      }
+      if (match && B.tryMove(g, piece.id, match.steps)) {
+        state.sel = null; state.dieSteps = 0;
+        afterHuman();
+        return;
+      }
+    }
     piece = pieceFromHit(g, h);
-    if (!piece || piece.type !== g.turnPlayer.currentPieceType) {
-      state.die = (state.die + 1) % Math.max(1, (g.turnDice.movesLeft || []).length);
+    if (piece && piece.type === g.turnPlayer.currentPieceType && B.destsFor(g, piece).length) {
+      state.sel = { kind: h.kind, pos: h.pos, type: h.type, pieceId: piece.id };
       paintLocal();
       return;
     }
-    if (B.tryMove(g, piece.id, steps)) {
-      state.die = 0;
-      afterHuman();
-    } else {
-      state.die = (state.die + 1) % Math.max(1, (g.turnDice.movesLeft || []).length);
-      paintLocal();
-    }
+    state.sel = autoSel(g);
+    paintLocal();
   }
   function newLocal() {
-    state.g = B.fresh(); state.over = false; state.thinking = false; state.die = 0;
+    state.g = B.fresh(); state.over = false; state.thinking = false; state.sel = null; state.dieSteps = 0;
     setChip('ready', state.mode === 'cpu' ? 'Ready' : 'Two players');
     $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
     paintLocal();
@@ -349,24 +486,24 @@
     maybeCpu();
   }
 
-  $('board').addEventListener('click', function (e) { playHit(hit(this, e)); });
+  $('board').addEventListener('click', function (e) { playHit(hit(this, e, shouldFlip())); });
   $('startBtn').onclick = function () { newLocal(); };
   $('newBtn').onclick = function () {
     $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'Ready');
   };
   $('rollBtn').onclick = function () {
     if (!isHumanTurn() || !state.g || !B.canRoll(state.g)) return;
-    B.roll(state.g); state.die = 0; afterHuman(); maybeCpu();
+    B.roll(state.g); state.sel = autoSel(state.g); state.dieSteps = 0; afterHuman(); maybeCpu();
   };
   $('undoBtn').onclick = function () {
     if (!isHumanTurn() || !state.g) return;
-    B.undo(state.g); state.die = 0; afterHuman();
+    B.undo(state.g); state.sel = autoSel(state.g); state.dieSteps = 0; afterHuman();
   };
   $('confirmBtn').onclick = function () {
     if (!isHumanTurn() || !state.g || !B.canConfirm(state.g)) return;
     B.confirm(state.g);
     if (state.g.isOver) state.over = true;
-    state.die = 0;
+    state.sel = null; state.dieSteps = 0;
     afterHuman();
     maybeCpu();
   };
@@ -379,7 +516,7 @@
   var PRES_TTL = 9000, HB_MS = 3000, END_HOLD = 4000;
   var mpDb = null;
   try { if (window.gifos) mpDb = gifos.db('room'); } catch (e) {}
-  var mp = { on: false, id: null, name: 'You', row: null, board: null, people: [], hb: 0, sub: false, die: 0 };
+  var mp = { on: false, id: null, name: 'You', row: null, board: null, people: [], hb: 0, sub: false, sel: null, dieSteps: 0 };
   var _items = [];
   var _mpSeqPaint = -1;
 
@@ -425,7 +562,7 @@
   function mpEnter() {
     if (!mpDb) { setStatus($('statusLine'), 'Play a friend needs storage.', 'warn'); return; }
     (window.gifos ? gifos.me() : Promise.resolve({ id: 'local', name: 'You' })).then(function (me) {
-      mp.id = me.id; mp.name = me.name || 'You'; mp.on = true; mp.row = null; mp.die = 0;
+      mp.id = me.id; mp.name = me.name || 'You'; mp.on = true; mp.row = null; mp.sel = null; mp.dieSteps = 0;
       _mpSeqPaint = -1;
       $('setup').hidden = true; $('game').hidden = true; $('friend').hidden = false;
       setChip('ready', 'A friend');
@@ -583,6 +720,7 @@
     var g = gameOf(b);
     return B.colorName(g.turnPlayer.currentPieceType) === seat;
   }
+  function mpFlip() { return mySeat(mp.board) === 'black'; }
   $('fRoll').onclick = function () {
     if (!mpMyTurn()) return;
     var g = gameOf(mp.board);
@@ -603,29 +741,34 @@
     mpIntent({ kind: 'resign' });
   };
   $('fBoard').addEventListener('click', function (e) {
-    var b = mp.board, h, g, piece, steps;
+    var b = mp.board, h, g, piece, dests, i, match;
     if (!mpMyTurn()) return;
     g = gameOf(b);
-    h = hit(this, e);
+    h = hit(this, e, mpFlip());
     if (B.canRoll(g)) { mpIntent({ kind: 'roll' }); return; }
-    steps = selectedSteps(g, mp.die);
-    if (!steps || !h) return;
+    piece = selPiece(g, mp.sel);
+    if (piece) {
+      dests = filterDests(B.destsFor(g, piece), mp.dieSteps);
+      for (i = 0; i < dests.length; i++) {
+        if (B.destMatches(dests[i].dest, h, piece.type)) { match = dests[i]; break; }
+      }
+      if (match && B.tryMove(B.restore(b.snap), piece.id, match.steps)) {
+        mp.sel = null; mp.dieSteps = 0;
+        mpIntent({ kind: 'move', pieceId: piece.id, steps: match.steps });
+        return;
+      }
+    }
     piece = pieceFromHit(g, h);
-    if (!piece || piece.type !== g.turnPlayer.currentPieceType) {
-      mp.die = (mp.die + 1) % Math.max(1, (g.turnDice.movesLeft || []).length);
+    if (piece && piece.type === g.turnPlayer.currentPieceType && B.destsFor(g, piece).length) {
+      mp.sel = { kind: h.kind, pos: h.pos, type: h.type, pieceId: piece.id };
       mpRender(true);
       return;
     }
-    if (!B.tryMove(B.restore(b.snap), piece.id, steps)) {
-      mp.die = (mp.die + 1) % Math.max(1, (g.turnDice.movesLeft || []).length);
-      mpRender(true);
-      return;
-    }
-    mp.die = 0;
-    mpIntent({ kind: 'move', pieceId: piece.id, steps: steps });
+    mp.sel = autoSel(g);
+    mpRender(true);
   });
 
-  function mpRender(snap) {
+  function mpRender(force) {
     if (!mp.on) return;
     var b = mp.board, status = $('fStatus');
     if (!b) { $('fSeats').innerHTML = ''; status.textContent = 'Setting up the board…'; return; }
@@ -643,21 +786,35 @@
     $('fRoll').disabled = !(mine && B.canRoll(g));
     $('fUndo').disabled = !(mine && B.canUndo(g));
     $('fConfirm').disabled = !(mine && B.canConfirm(g));
+    $('fRoll').classList.toggle('go', mine && B.canRoll(g));
+    $('fConfirm').classList.toggle('go', mine && B.canConfirm(g));
+    if ((b.seq || 0) !== _mpSeqPaint) { mp.sel = mine ? autoSel(g) : null; mp.dieSteps = 0; }
     if (!both) {
+      status.className = 'turnpill';
       status.innerHTML = 'Waiting for another player… press <b>Invite</b> (top bar) to bring a friend.';
     } else if (b.winner) {
       var wname = nameOf(b.winner === 'white' ? b.seats.white : b.seats.black);
+      status.className = 'turnpill good';
       status.innerHTML = (esc(b.result || 'All fifteen off') + ' — ') + wname + ' wins. Next game starting…';
     } else if (!seat) {
-      status.textContent = 'Spectating.';
+      setStatus(status, 'Spectating.', '');
     } else if (mine) {
-      if (B.canRoll(g)) status.textContent = 'Your turn. Roll.';
-      else if (B.canConfirm(g)) status.textContent = 'No more moves. Confirm the turn.';
-      else status.textContent = 'Your turn. Tap a point to move with the highlighted die.';
+      if (B.canRoll(g)) setStatus(status, 'Your turn. Roll.', turnCls(g));
+      else if (B.canConfirm(g) && !(g.turnDice.movesPlayed || []).length) setStatus(status, 'No move with this roll. Confirm.', turnCls(g));
+      else if (B.canConfirm(g)) setStatus(status, 'No more moves. Confirm the turn.', turnCls(g));
+      else if (B.onBar(g)) setStatus(status, 'You are on the bar. Tap a point to enter.', turnCls(g));
+      else if (mp.sel) setStatus(status, 'Tap where it goes — or tap another checker.', turnCls(g));
+      else setStatus(status, 'Your turn. Tap a checker, then where it goes.', turnCls(g));
     } else {
-      status.textContent = 'Waiting for ' + b.turn + '…';
+      setStatus(status, 'Waiting for ' + b.turn + '…', b.turn);
     }
-    paint($('fBoard'), g, { die: mp.die });
+    var hints = paintHints(g, mine ? mp.sel : null, mp.dieSteps);
+    paint($('fBoard'), g, {
+      flip: mpFlip(), dests: hints.dests, froms: mine ? hints.froms : [], selId: hints.selId
+    });
+    renderDice($('fDice'), g, mp.dieSteps, mine ? function (n) {
+      mp.dieSteps = mp.dieSteps === n ? 0 : n; mpRender(true);
+    } : null);
     _mpSeqPaint = b.seq || 0;
     $('fResign').hidden = !(seat && g.turnNumber > 1 && !b.winner);
   }

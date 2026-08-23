@@ -1,5 +1,5 @@
-// Procedural icon: a mahogany backgammon table, a white checker sliding
-// along the home board. Pure Node, super-sample → box-downsample. Deterministic.
+// Procedural icon: a mahogany backgammon table, a white checker hitting a
+// blot onto the bar. Pure Node, super-sample → box-downsample. Deterministic.
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
 
 const CARD = [20, 12, 8];
@@ -12,11 +12,13 @@ const IVORY_H = [255, 248, 238];
 const IVORY = [200, 180, 152];
 const INK_H = [74, 58, 52];
 const INK = [26, 18, 16];
+const GOLD = [232, 180, 64];
+const GOLD2 = [255, 224, 138];
 
 function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD, FRAME, FELT, LIGHT, DARK, BAR, IVORY_H, IVORY, INK_H, INK]) {
+  for (const b of [CARD, FRAME, FELT, LIGHT, DARK, BAR, IVORY_H, IVORY, INK_H, INK, GOLD, GOLD2]) {
     for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.35).map(Math.round));
   }
@@ -48,31 +50,36 @@ function inTri(x, y, x0, y0, x1, y1, x2, y2) {
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 18;
-  const bx = 14, by = 22, bw = OUT - 28, bh = OUT - 40;
+  // Close-up of the home board: bar on the left, six points, a hit onto the bar.
+  const bx = 12, by = 18, bw = OUT - 24, bh = OUT - 32;
   const t = f / (FRAMES - 1);
-  const barW = bw * 0.08;
-  const play = bw - barW;
-  const quad = play / 2;
-  const pw = quad / 6;
-  const ph = bh * 0.42;
-  const slideX0 = bx + quad + barW + 5.5 * pw;
-  const slideX1 = bx + quad + barW + 2.5 * pw;
-  const slideX = slideX0 + (slideX1 - slideX0) * t;
-  const slideY = by + bh - 14 - Math.sin(t * Math.PI) * 6;
-  function pointTri(pos) {
-    let col, top, left;
-    if (pos >= 12 && pos <= 17) { col = pos - 12; top = true; left = true; }
-    else if (pos >= 18) { col = pos - 18; top = true; left = false; }
-    else if (pos >= 6) { col = 11 - pos; top = false; left = true; }
-    else { col = 5 - pos; top = false; left = false; }
-    const x = bx + (left ? 0 : quad + barW) + col * pw;
+  const COLS = 4;
+  const barW = bw * 0.22;
+  const pw = (bw - barW) / COLS;
+  const ph = bh * 0.48;
+  const hitT = Math.min(1, t * 1.12);
+  const blotT = Math.max(0, (t - 0.42) / 0.58);
+  function pointTri(col, top) {
+    const x = bx + barW + col * pw;
     const y = top ? by : by + bh - ph;
     return { x, y, w: pw, h: ph, top };
   }
-  const stacks = {
-    23: [0, 0], 12: [0, 0, 0, 0, 0], 7: [0, 0, 0], 5: [0, 0, 0, 0, 0],
-    0: [1, 1], 11: [1, 1, 1, 1, 1], 16: [1, 1, 1], 18: [1, 1, 1, 1, 1]
-  };
+  const r = pw * 0.42;
+  function stackCy(p, i) {
+    return p.top ? (p.y + r + 2 + i * r * 1.62) : (p.y + p.h - r - 2 - i * r * 1.62);
+  }
+  const fromP = pointTri(3, false);
+  const ontoP = pointTri(1, false);
+  const from = { cx: fromP.x + fromP.w / 2, cy: stackCy(fromP, 1) };
+  const onto = { cx: ontoP.x + ontoP.w / 2, cy: stackCy(ontoP, 0) };
+  const barC = { cx: bx + barW / 2, cy: by + r + 6 };
+  const flyerX = from.cx + (onto.cx - from.cx) * hitT;
+  const flyerY = from.cy + (onto.cy - from.cy) * hitT - Math.sin(hitT * Math.PI) * 16;
+  const blotGone = blotT > 0.06;
+  const blotX = onto.cx + (barC.cx - onto.cx) * blotT;
+  const blotY = onto.cy + (barC.cy - onto.cy) * blotT - Math.sin(blotT * Math.PI) * 20;
+  const bot = { 0: [0, 0], 2: [0, 0], 3: [0, 0] };
+  const top = { 0: [1, 1], 2: [1, 1, 1], 3: [1] };
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
@@ -83,33 +90,51 @@ function frameIndices(pal, f) {
         col = FRAME.slice();
         if (x > bx + 2 && x < bx + bw - 2 && y > by + 2 && y < by + bh - 2) {
           col = FELT.slice();
-          if (x >= bx + quad && x <= bx + quad + barW) col = BAR.slice();
-          for (let pos = 0; pos < 24; pos++) {
-            const p = pointTri(pos);
-            const lite = pos % 2 === 0;
-            const inside = p.top
-              ? inTri(x, y, p.x, p.y, p.x + p.w, p.y, p.x + p.w / 2, p.y + p.h)
-              : inTri(x, y, p.x, p.y + p.h, p.x + p.w, p.y + p.h, p.x + p.w / 2, p.y);
-            if (inside) col = (lite ? LIGHT : DARK).slice();
+          if (x >= bx && x <= bx + barW) col = BAR.slice();
+          for (let coln = 0; coln < COLS; coln++) {
+            for (const isTop of [true, false]) {
+              const p = pointTri(coln, isTop);
+              const lite = (coln + (isTop ? 1 : 0)) % 2 === 0;
+              const inside = p.top
+                ? inTri(x, y, p.x, p.y, p.x + p.w, p.y, p.x + p.w / 2, p.y + p.h)
+                : inTri(x, y, p.x, p.y + p.h, p.x + p.w, p.y + p.h, p.x + p.w / 2, p.y);
+              if (inside) col = (lite ? LIGHT : DARK).slice();
+            }
           }
-          const r = pw * 0.38;
-          for (const pos of Object.keys(stacks)) {
-            const p = pointTri(+pos);
-            const pcs = stacks[pos];
-            for (let i = 0; i < Math.min(pcs.length, 4); i++) {
-              const cy = p.top ? (p.y + r + 1 + i * r * 1.55) : (p.y + p.h - r - 1 - i * r * 1.55);
-              const cx = p.x + p.w / 2;
-              const d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
-              if (d <= r * r) {
-                const u = (x - (cx - 2)) / (r * 2);
-                col = pcs[i] ? mix(INK_H, INK, Math.max(0, Math.min(1, u)))
-                             : mix(IVORY_H, IVORY, Math.max(0, Math.min(1, u)));
+          function paintStack(map, isTop) {
+            for (const coln of Object.keys(map)) {
+              const p = pointTri(+coln, isTop);
+              const pcs = map[coln];
+              for (let i = 0; i < pcs.length; i++) {
+                const cy = stackCy(p, i);
+                const cx = p.x + p.w / 2;
+                const d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+                if (d <= r * r) {
+                  const u = (x - (cx - 2)) / (r * 2);
+                  col = pcs[i] ? mix(INK_H, INK, Math.max(0, Math.min(1, u)))
+                               : mix(IVORY_H, IVORY, Math.max(0, Math.min(1, u)));
+                }
               }
             }
           }
-          const dd = (x - slideX) * (x - slideX) + (y - slideY) * (y - slideY);
+          paintStack(top, true);
+          paintStack(bot, false);
+          if (!blotGone) {
+            const d = (x - onto.cx) * (x - onto.cx) + (y - onto.cy) * (y - onto.cy);
+            if (d <= r * r) {
+              const u = (x - (onto.cx - 2)) / (r * 2);
+              col = mix(INK_H, INK, Math.max(0, Math.min(1, u)));
+            }
+          } else {
+            const d = (x - blotX) * (x - blotX) + (y - blotY) * (y - blotY);
+            if (d <= r * r) {
+              const u = (x - (blotX - 2)) / (r * 2);
+              col = mix(INK_H, INK, Math.max(0, Math.min(1, u)));
+            }
+          }
+          const dd = (x - flyerX) * (x - flyerX) + (y - flyerY) * (y - flyerY);
           if (dd <= r * r) {
-            const u = (x - (slideX - 2)) / (r * 2);
+            const u = (x - (flyerX - 2)) / (r * 2);
             col = mix(IVORY_H, IVORY, Math.max(0, Math.min(1, u)));
           }
         }
@@ -162,28 +187,35 @@ function pngChunk(tag, data) {
 }
 
 const GLYPHS = {
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '3': [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '6': [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
   'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
-  'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
   'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
-  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
   'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
   'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
   'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
-  'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
   'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   'P': [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
   'R': [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
-  'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
   'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
+  '.': [0, 0, 0, 0, 0, 0, 0b00100],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -215,17 +247,33 @@ export function screenshotPng() {
     x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
+  const fillRound = (x0, y0, x1, y1, rad, r, g, b) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const cx = Math.min(Math.max(x, x0 + rad), x1 - rad);
+      const cy = Math.min(Math.max(y, y0 + rad), y1 - rad);
+      const dx = x - cx, dy = y - cy;
+      if (dx * dx + dy * dy <= rad * rad) put(x, y, r, g, b);
+    }
+  };
 
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const t = (x + y) / (W + H);
     put(x, y, (18 + t * 12) | 0, (10 + t * 8) | 0, (6 + t * 6) | 0);
   }
 
-  const bx = 48, by = 70, bw = 680, bh = 580;
+  const pill = 'YOUR TURN. TAP A CHECKER.';
+  const pillW = pill.length * 6 * 3 + 28;
+  fillRound(((W - pillW) / 2) | 0, 18, ((W + pillW) / 2) | 0, 52, 16, 42, 24, 16);
+  drawText(put, ((W - pill.length * 6 * 3) / 2) | 0, 24, pill, 3, 243, 234, 216);
+
+  const bx = 70, by = 66, bw = 1060, bh = 590;
   fill(bx, by, bx + bw, by + bh, 58, 28, 16);
-  fill(bx + 14, by + 14, bx + bw - 14, by + bh - 14, 74, 36, 24);
-  const ix = bx + 14, iy = by + 14, iw = bw - 28, ih = bh - 28;
-  const barW = iw * 0.08, play = iw - barW, quad = play / 2, pw = quad / 6, ph = ih * 0.42;
+  fill(bx + 16, by + 16, bx + bw - 16, by + bh - 16, 74, 36, 24);
+  const ix = bx + 16, iy = by + 16, iw = bw - 32, ih = bh - 32;
+  const bear = 52;
+  fill(ix + iw - bear, iy, ix + iw, iy + ih, 92, 46, 28);
+  const playInner = iw - bear;
+  const barW = playInner * 0.075, play = playInner - barW, quad = play / 2, pw = quad / 6, ph = ih * 0.46;
   fill(ix + quad, iy, ix + quad + barW, iy + ih, 42, 20, 14);
 
   function tri(pos, lite) {
@@ -271,14 +319,64 @@ export function screenshotPng() {
       discAt(p.x + p.w / 2, cy, rad, black ? BLACK_H : WHITE_H, black ? BLACK : WHITE);
     }
   }
-  stack(23, 2, false); stack(12, 5, false); stack(7, 3, false); stack(5, 5, false);
-  stack(0, 2, true); stack(11, 5, true); stack(16, 3, true); stack(18, 5, true);
+  // Mid-game: white about to hit a blot on the 6-point with a 5.
+  stack(0, 2, false); stack(1, 2, false); stack(2, 2, false); stack(4, 3, false);
+  stack(10, 2, false); stack(11, 1, false);
+  stack(23, 2, true); stack(22, 3, true); stack(20, 2, true); stack(18, 3, true);
+  stack(16, 2, true); stack(5, 1, true);
 
-  drawText(put, 760, 160, 'BACKGAMMON', 6, 243, 234, 216);
-  drawText(put, 760, 250, 'A TABLE', 5, 212, 184, 150);
-  drawText(put, 760, 360, 'COMPUTER', 3, 232, 220, 200);
-  drawText(put, 760, 410, 'OR A FRIEND', 3, 232, 220, 200);
-  drawText(put, 760, 500, 'WHITE GOES FIRST', 3, 196, 154, 96);
+  function stackTop(pos, n) {
+    const p = tri(pos, pos % 2 === 0);
+    const rad = p.w * 0.38;
+    const i = n - 1;
+    const cy = p.top ? (p.y + rad + 4 + i * rad * 1.7) : (p.y + p.h - rad - 4 - i * rad * 1.7);
+    return { cx: p.x + p.w / 2, cy, rad, p };
+  }
+  const sel = stackTop(10, 2);
+  for (let dy = -(sel.rad + 5); dy <= sel.rad + 5; dy++) for (let dx = -(sel.rad + 5); dx <= sel.rad + 5; dx++) {
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d > sel.rad + 5 || d < sel.rad + 1) continue;
+    put(sel.cx + dx, sel.cy + dy, 255, 224, 138);
+  }
+  const blot = stackTop(5, 1);
+  const destR = blot.rad + 6;
+  for (let dy = -destR; dy <= destR; dy++) for (let dx = -destR; dx <= destR; dx++) {
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d <= destR && d >= destR - 4) put(blot.cx + dx, blot.cy + dy, 255, 122, 107);
+  }
+  const hole = blot.rad * 0.42;
+  for (let dy = -hole; dy <= hole; dy++) for (let dx = -hole; dx <= hole; dx++) {
+    if (dx * dx + dy * dy <= hole * hole) put(blot.cx + dx, blot.cy + dy, 232, 180, 64);
+  }
+
+  // White 3 off (bottom tray), black 1 off (top tray) + black on the bar.
+  const trayX = ix + iw - bear / 2;
+  for (let i = 0; i < 3; i++) discAt(trayX, iy + ih - 22 - i * 30, 14, WHITE_H, WHITE);
+  discAt(trayX, iy + 22, 14, BLACK_H, BLACK);
+  discAt(ix + quad + barW / 2, iy + 22, pw * 0.36, BLACK_H, BLACK);
+
+  function dieAt(x, y, s, n) {
+    fillRound(x, y, x + s, y + s, s * 0.16, 243, 234, 216);
+    const spots = {
+      1: [[0, 0]],
+      2: [[-0.32, -0.32], [0.32, 0.32]],
+      3: [[-0.32, -0.32], [0, 0], [0.32, 0.32]],
+      5: [[-0.32, -0.32], [0.32, -0.32], [0, 0], [-0.32, 0.32], [0.32, 0.32]]
+    };
+    const list = spots[n] || spots[1];
+    const pr = s * 0.07;
+    for (const [px, py] of list) {
+      discAt(x + s / 2 + px * s, y + s / 2 + py * s, pr, [26, 18, 16], [26, 18, 16]);
+    }
+  }
+  const dieS = 46;
+  const dieX = ix + quad + barW + pw * 1.6;
+  const dieY = iy + ih / 2 - dieS / 2;
+  dieAt(dieX, dieY, dieS, 5);
+  dieAt(dieX + dieS + 14, dieY, dieS, 3);
+
+  drawText(put, 90, 670, 'WHITE 3 OFF', 3, 243, 234, 216);
+  drawText(put, 860, 670, 'BLACK 1 OFF', 3, 200, 170, 140);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
