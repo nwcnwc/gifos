@@ -14,7 +14,9 @@
     return (correct / typed) * 100;
   };
 
-  T.score = function (passage, typed, ms) {
+  // Net WPM uses correct characters only. Raw counts every keystroke in `typed`.
+  // A mash of wrong keys must not look fast.
+  T.score = function (passage, typed, ms, misses) {
     passage = passage || '';
     typed = typed || '';
     var correct = 0, errors = 0, i, n = typed.length;
@@ -22,14 +24,18 @@
       if (i < passage.length && typed.charAt(i) === passage.charAt(i)) correct++;
       else errors++;
     }
+    var hit = misses == null ? errors : misses;
+    var denom = correct + hit;
     return {
       correct: correct,
       errors: errors,
+      misses: hit,
       typed: n,
       total: passage.length,
       done: n >= passage.length && passage.length > 0,
-      wpm: T.wpm(n, ms),
-      acc: T.accuracy(correct, n)
+      wpm: T.wpm(correct, ms),
+      raw: T.wpm(n, ms),
+      acc: T.accuracy(correct, denom > 0 ? denom : n)
     };
   };
 

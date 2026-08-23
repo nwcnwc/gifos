@@ -10,6 +10,7 @@
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch];
     });
   };
+  var TAP = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
   var HISTORY_N = 20;
   var db = null;
@@ -24,6 +25,7 @@
     typed: '',
     startedAt: 0,
     finishedAt: 0,
+    misses: 0,
     seed: 0,
     focused: false,
     history: [],
@@ -40,45 +42,120 @@
       $(s).hidden = s !== id;
     });
     G.screen = id;
+    document.body.classList.toggle('live', false);
+    if (id !== 'run' && id !== 'friend') setFocused(false);
   }
   function newSeed() { return (Math.random() * 0x100000000) >>> 0; }
 
-  function paintPassage(el, passage, typed, focused) {
-    var html = '', i, ch, cls, show;
-    for (i = 0; i < passage.length; i++) {
-      ch = passage.charAt(i);
-      if (i < typed.length) {
-        cls = typed.charAt(i) === ch ? 'ok' : 'bad';
-      } else if (i === typed.length) {
-        cls = 'caret' + (focused ? ' on' : '');
-      } else {
-        cls = 'todo';
-      }
-      show = ch === ' ' ? ' ' : ch;
-      if (ch === ' ') html += '<span class="' + cls + ' sp"> </span>';
-      else if (ch === '\n') html += '<span class="' + cls + '">\n</span>';
-      else html += '<span class="' + cls + '">' + esc(show) + '</span>';
+  function tapLabel() { return TAP ? 'Tap to type' : 'Click to type'; }
+
+  function focusKb(id) {
+    var el = $(id);
+    if (!el || el.readOnly) return;
+    try { el.focus({ preventScroll: true }); } catch (e) {
+      try { el.focus(); } catch (e2) {}
     }
-    el.innerHTML = html;
+  }
+
+  function setFocused(on) {
+    G.focused = !!on;
+    document.body.classList.toggle('focused', G.focused);
   }
 
   function liveScore() {
     var ms = 0;
     if (G.startedAt) ms = (G.finishedAt || nowMs()) - G.startedAt;
-    return T.score(G.passage, G.typed, ms);
+    return T.score(G.passage, G.typed, ms, G.misses);
   }
 
-  function paintRun() {
+  function fmtWpm(s, ms) {
+    if (!ms || ms < 600 || s.correct < 2) return '0';
+    return String(Math.round(s.wpm));
+  }
+
+  function placeCaret(stage, passageEl, caret, idx, focused, snap) {
+    if (!stage || !passageEl || !caret) return;
+    var spans = passageEl.children;
+    if (!spans.length) { caret.hidden = true; return; }
+    var atEnd = idx >= spans.length;
+    var target = atEnd ? spans[spans.length - 1] : spans[idx];
+    caret.classList.toggle('on', !!focused && !atEnd);
+    caret.classList.toggle('idle', !focused);
+    if (snap) caret.classList.add('snap');
+    else caret.classList.remove('snap');
+    var sr = stage.getBoundingClientRect();
+    var tr = target.getBoundingClientRect();
+    var left = tr.left - sr.left + stage.scrollLeft;
+    if (atEnd) left = tr.right - sr.left + stage.scrollLeft;
+    caret.style.left = left + 'px';
+    caret.style.top = (tr.top - sr.top + stage.scrollTop) + 'px';
+    caret.style.height = tr.height + 'px';
+    caret.hidden = false;
+    if (snap) {
+      requestAnimationFrame(function () { caret.classList.remove('snap'); });
+    }
+    keepCaretVisible(stage, caret);
+  }
+
+  function keepCaretVisible(stage, caret) {
+    if (!stage || !caret || caret.hidden) return;
+    var vv = window.visualViewport;
+    var cr = caret.getBoundingClientRect();
+    var top = vv ? vv.offsetTop : 0;
+    var bot = vv ? (vv.offsetTop + vv.height) : window.innerHeight;
+    if (cr.bottom > bot - 16 || cr.top < top + 36) {
+      try { caret.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
+    }
+  }
+
+  function paintPassage(el, passage, typed, focused, caretId, stageId, snap) {
+    if (!el) return;
+    var i, ch, html, want, spans, prev;
+    prev = el.getAttribute('data-p');
+    if (prev !== passage) {
+      html = '';
+      for (i = 0; i < passage.length; i++) {
+        ch = passage.charAt(i);
+        if (ch === ' ') html += '<span class="todo sp"> </span>';
+        else if (ch === '\n') html += '<span class="todo">\n</span>';
+        else html += '<span class="todo">' + esc(ch) + '</span>';
+      }
+      el.innerHTML = html;
+      el.setAttribute('data-p', passage);
+      snap = true;
+    }
+    spans = el.children;
+    for (i = 0; i < spans.length; i++) {
+      if (i < typed.length) want = typed.charAt(i) === passage.charAt(i) ? 'ok' : 'bad';
+      else want = 'todo';
+      if (passage.charAt(i) === ' ') want += ' sp';
+      if (spans[i].className !== want) spans[i].className = want;
+    }
+    placeCaret($(stageId), el, $(caretId), typed.length, focused, snap);
+  }
+
+  function paintRun(opts) {
+    opts = opts || {};
     var s = liveScore();
-    $('statWpm').textContent = String(Math.round(s.wpm));
+    var ms = G.startedAt ? ((G.finishedAt || nowMs()) - G.startedAt) : 0;
+    $('statWpm').textContent = fmtWpm(s, ms);
     $('statAcc').textContent = String(Math.round(s.acc));
-    $('statTime').textContent = T.fmtTime(G.startedAt ? (G.finishedAt || nowMs()) - G.startedAt : 0);
-    paintPassage($('passage'), G.passage, G.typed, G.focused);
+    $('statTime').textContent = T.fmtTime(ms);
+    if (!opts.statsOnly) {
+      paintPassage($('passage'), G.passage, G.typed, G.focused, 'caret', 'stage', opts.snap);
+    }
+    var veil = $('runVeil');
+    var stage = $('stage');
+    var showVeil = !G.focused && !G.finishedAt;
+    veil.hidden = !showVeil;
+    veil.textContent = tapLabel();
+    stage.classList.toggle('blurred', showVeil);
     $('runHint').textContent = G.focused
       ? (G.startedAt ? 'Backspace fixes a miss.' : 'Type to start the clock.')
-      : 'Tap the passage to open the keyboard.';
+      : (TAP ? 'Tap the passage to open the keyboard.' : 'Click the passage to type.');
     $('kindSeg').hidden = G.mode === 'lesson';
     $('runNew').textContent = G.mode === 'lesson' ? 'Again' : 'New';
+    document.body.classList.toggle('live', !!(G.startedAt && !G.finishedAt && G.screen === 'run'));
   }
 
   function loadPassage() {
@@ -87,8 +164,18 @@
     G.typed = '';
     G.startedAt = 0;
     G.finishedAt = 0;
+    G.misses = 0;
     $('kb').value = '';
-    paintRun();
+    $('kb').readOnly = false;
+    paintRun({ snap: true });
+  }
+
+  function bestWpm() {
+    var b = 0, i;
+    for (i = 0; i < G.history.length; i++) {
+      if (G.history[i].wpm > b) b = G.history[i].wpm;
+    }
+    return b;
   }
 
   function finishRun() {
@@ -100,16 +187,22 @@
       : (G.kind === 'code' ? 'Code' : 'English');
     var run = {
       at: G.finishedAt, wpm: T.round1(s.wpm), acc: T.round1(s.acc),
-      ms: G.finishedAt - G.startedAt, errors: s.errors, chars: s.typed,
+      ms: G.finishedAt - G.startedAt, errors: s.misses, chars: s.typed,
       kind: G.kind, mode: G.mode, title: title
     };
+    var prevBest = bestWpm();
     G.history.unshift(run);
     if (G.history.length > HISTORY_N) G.history = G.history.slice(0, HISTORY_N);
     if (G.mode === 'lesson' && s.acc >= 90) G.doneLessons[G.lessonId] = true;
     savePrivate();
     $('resWpm').textContent = String(Math.round(s.wpm));
     $('resAcc').textContent = Math.round(s.acc) + '%';
-    $('resMeta').textContent = T.fmtTime(run.ms) + '  ·  ' + s.errors + ' error' + (s.errors === 1 ? '' : 's') + '  ·  ' + s.typed + ' characters';
+    $('resMeta').textContent = T.fmtTime(run.ms) + '  ·  ' + s.misses + ' miss' + (s.misses === 1 ? '' : 'es') +
+      '  ·  ' + s.correct + '/' + s.total;
+    var beat = prevBest && s.wpm > prevBest;
+    $('resBest').textContent = beat
+      ? 'Personal best — was ' + Math.round(prevBest)
+      : (prevBest ? 'Best on this device: ' + Math.round(Math.max(prevBest, s.wpm)) : '');
     setChip('ready', Math.round(s.wpm) + ' WPM');
     try { $('kb').blur(); } catch (e) {}
     show('result');
@@ -119,6 +212,10 @@
   function onTyped(v) {
     if (G.screen !== 'run' || G.finishedAt) return;
     if (v.length > G.passage.length) v = v.slice(0, G.passage.length);
+    if (v.length === G.typed.length + 1) {
+      var i = v.length - 1;
+      if (v.charAt(i) !== G.passage.charAt(i)) G.misses++;
+    }
     G.typed = v;
     if (!G.startedAt && v.length) {
       G.startedAt = nowMs();
@@ -140,19 +237,22 @@
       } else if (v.length <= prev.length && prev.slice(0, v.length) === v) {
         setter(v);
       } else {
-        // reject swipe-type / paste of a whole word
         input.value = prev;
       }
     });
     input.addEventListener('focus', function () {
-      G.focused = true;
+      setFocused(true);
       if (G.screen === 'run') paintRun();
       if (G.screen === 'friend') mpPaint();
     });
     input.addEventListener('blur', function () {
-      G.focused = false;
+      setFocused(false);
       if (G.screen === 'run') paintRun();
       if (G.screen === 'friend') mpPaint();
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') e.preventDefault();
+      if (e.key === 'Tab') e.preventDefault();
     });
   }
 
@@ -161,7 +261,12 @@
     onTyped(v);
   });
 
-  $('stage').addEventListener('click', function () { $('kb').focus(); });
+  function armStage(stage, kbId) {
+    stage.addEventListener('pointerdown', function () {
+      focusKb(kbId);
+    });
+  }
+  armStage($('stage'), 'kb');
 
   $('kindSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
@@ -170,11 +275,12 @@
     G.kind = b.getAttribute('data-kind');
     savePrivate();
     if (G.screen === 'run' && !G.startedAt) loadPassage();
+    focusKb('kb');
   });
 
   function goHome() {
     stopTick();
-    G.finishedAt = 0; G.startedAt = 0; G.typed = '';
+    G.finishedAt = 0; G.startedAt = 0; G.typed = ''; G.misses = 0;
     show('home');
     setChip('ready', 'Ready');
     paintHistory();
@@ -184,7 +290,7 @@
     show('run');
     setChip('ready', 'Practice');
     loadPassage();
-    setTimeout(function () { $('kb').focus(); }, 50);
+    focusKb('kb');
   }
   function startLesson(id) {
     G.mode = 'lesson';
@@ -192,7 +298,7 @@
     show('run');
     setChip('ready', T.lessonById(id).name);
     loadPassage();
-    setTimeout(function () { $('kb').focus(); }, 50);
+    focusKb('kb');
   }
 
   $('practiceBtn').onclick = startPractice;
@@ -202,20 +308,27 @@
     if (G.mode === 'lesson') { show('lessons'); paintLessons(); setChip('ready', 'Lessons'); }
     else goHome();
   };
-  $('runNew').onclick = function () { loadPassage(); $('kb').focus(); };
+  $('runNew').onclick = function () { loadPassage(); focusKb('kb'); };
   $('againBtn').onclick = function () {
     show('run');
     loadPassage();
     setChip('ready', G.mode === 'lesson' ? T.lessonById(G.lessonId).name : 'Practice');
-    setTimeout(function () { $('kb').focus(); }, 50);
+    focusKb('kb');
   };
   $('resultHome').onclick = goHome;
 
   function paintLessons() {
     $('lessonList').innerHTML = T.LESSONS.map(function (L) {
+      var keys = '';
+      var row = L.row || '';
+      if (row && !L.random) {
+        keys = '<span class="keys">' + String(row).split('').map(function (ch) {
+          return '<span class="k">' + esc(ch) + '</span>';
+        }).join('') + '</span>';
+      }
       return '<button type="button" class="lesson' + (G.doneLessons[L.id] ? ' done' : '') + '" data-id="' + L.id + '">' +
         '<span class="name">' + esc(L.name) + '</span>' +
-        '<span class="hint">' + esc(L.hint) + '</span></button>';
+        '<span class="hint">' + esc(L.hint) + '</span>' + keys + '</button>';
     }).join('');
   }
   $('lessonList').addEventListener('click', function (e) {
@@ -225,6 +338,14 @@
 
   function paintHistory() {
     var el = $('history');
+    var b = $('best');
+    var best = bestWpm();
+    if (best) {
+      b.hidden = false;
+      b.textContent = 'Best on this device: ' + Math.round(best) + ' WPM';
+    } else {
+      b.hidden = true;
+    }
     if (!G.history.length) {
       el.className = 'history empty';
       el.textContent = 'Finish a run and it shows up here.';
@@ -247,13 +368,27 @@
   function startTick() {
     if (tickId) return;
     tickId = setInterval(function () {
-      if (G.screen === 'run' && G.startedAt && !G.finishedAt) paintRun();
-      if (G.screen === 'friend' && mp.startedAt && !mp.done) mpPaint();
+      if (G.screen === 'run' && G.startedAt && !G.finishedAt) paintRun({ statsOnly: true });
+      if (G.screen === 'friend') mpPaint({ statsOnly: true });
     }, 200);
   }
   function stopTick() {
     if (tickId) { clearInterval(tickId); tickId = 0; }
   }
+
+  function onVV() {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    var pad = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    document.documentElement.style.setProperty('--vv-pad', pad + 'px');
+    if (G.screen === 'run') keepCaretVisible($('stage'), $('caret'));
+    if (G.screen === 'friend') keepCaretVisible($('fStage'), $('fCaret'));
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', onVV);
+    window.visualViewport.addEventListener('scroll', onVV);
+  }
+  window.addEventListener('resize', onVV);
 
   // ---- multiplayer ----
   // One collection. Each person writes ONLY their own row (id = me).
@@ -263,7 +398,7 @@
   try { if (window.gifos) mpDb = gifos.db('room'); } catch (e) {}
   var mp = {
     on: false, id: null, name: 'You', row: null, race: null, people: [],
-    hb: 0, sub: false, typed: '', startedAt: 0, finishedAt: 0, done: false, seq: -1
+    hb: 0, sub: false, typed: '', startedAt: 0, finishedAt: 0, done: false, seq: -1, misses: 0
   };
   var _items = [];
 
@@ -278,13 +413,13 @@
     var kind = G.kind === 'code' ? 'code' : 'english';
     return {
       id: 'race', host: hostId, kind: kind, seed: seed,
-      text: T.passage(kind, seed), seq: seq || 1, at: nowMs()
+      text: T.passage(kind, seed), seq: seq || 1, at: nowMs(), goAt: 0, endedAt: 0
     };
   }
   function putMe(extra) {
     if (!mpDb || !mp.id) return;
     var s = T.score((mp.race && mp.race.text) || '', mp.typed,
-      mp.startedAt ? ((mp.finishedAt || nowMs()) - mp.startedAt) : 0);
+      mp.startedAt ? ((mp.finishedAt || nowMs()) - mp.startedAt) : 0, mp.misses);
     var row = {
       id: mp.id, name: mp.name, at: nowMs(),
       seq: mp.race ? mp.race.seq : 0,
@@ -302,12 +437,25 @@
   }
   function putRace(r) { mp.race = r; mpDb.put(r).catch(function () {}); }
 
+  function raceOpen(race, people) {
+    if (!race || people.length < 2) return false;
+    if (race.endedAt) return false;
+    if (!race.goAt) return false;
+    return nowMs() >= race.goAt;
+  }
+  function countLeft(race) {
+    if (!race || !race.goAt) return 0;
+    var left = Math.ceil((race.goAt - nowMs()) / 1000);
+    if (left < 0) left = 0;
+    return left;
+  }
+
   $('friendBtn').onclick = mpEnter;
   function mpEnter() {
     if (!mpDb) { setChip('', 'Play a friend needs storage.'); return; }
     (window.gifos ? gifos.me() : Promise.resolve({ id: 'local', name: 'You' })).then(function (me) {
       mp.id = me.id; mp.name = me.name || 'You'; mp.on = true; mp.row = null;
-      mp.typed = ''; mp.startedAt = 0; mp.finishedAt = 0; mp.done = false; mp.seq = -1;
+      mp.typed = ''; mp.startedAt = 0; mp.finishedAt = 0; mp.done = false; mp.seq = -1; mp.misses = 0;
       $('fKb').value = '';
       show('friend');
       setChip('ready', 'A friend');
@@ -318,7 +466,8 @@
       putMe();
       if (mp.hb) clearInterval(mp.hb);
       mp.hb = setInterval(function () { if (mp.on) putMe(); }, HB_MS);
-      mpPaint();
+      startTick();
+      mpPaint({ snap: true });
     });
   }
   function mpLeave() {
@@ -356,7 +505,7 @@
     }
     if (race.seq !== mp.seq) {
       mp.seq = race.seq;
-      mp.typed = ''; mp.startedAt = 0; mp.finishedAt = 0; mp.done = false;
+      mp.typed = ''; mp.startedAt = 0; mp.finishedAt = 0; mp.done = false; mp.misses = 0;
       $('fKb').value = '';
       putMe();
     }
@@ -366,12 +515,16 @@
   function mpReconcile(R, people) {
     var r = {
       id: 'race', host: mp.id, kind: R.kind, seed: R.seed,
-      text: R.text, seq: R.seq, at: R.at, endedAt: R.endedAt || 0
+      text: R.text, seq: R.seq, at: R.at, endedAt: R.endedAt || 0, goAt: R.goAt || 0
     };
     var ch = false;
     if (r.host !== mp.id) { r.host = mp.id; ch = true; }
     if (!r.text) {
       r.text = T.passage(r.kind || 'english', r.seed || 1);
+      ch = true;
+    }
+    if (people.length >= 2 && !r.goAt && !r.endedAt) {
+      r.goAt = nowMs() + 3000;
       ch = true;
     }
     var racers = people.filter(function (p) { return p.seq === r.seq; });
@@ -390,19 +543,23 @@
   }
 
   function mpOnTyped(v) {
-    if (!mp.on || !mp.race || mp.people.length < 2 || mp.done) {
+    var open = raceOpen(mp.race, mp.people);
+    if (!mp.on || !mp.race || !open || mp.done) {
       $('fKb').value = mp.typed || '';
       return;
     }
     var text = mp.race.text || '';
     if (v.length > text.length) v = v.slice(0, text.length);
+    if (v.length === mp.typed.length + 1) {
+      var i = v.length - 1;
+      if (v.charAt(i) !== text.charAt(i)) mp.misses++;
+    }
     mp.typed = v;
     if (!mp.startedAt && v.length) {
       mp.startedAt = nowMs();
       setChip('live', 'Race');
-      startTick();
     }
-    var s = T.score(text, mp.typed, mp.startedAt ? nowMs() - mp.startedAt : 0);
+    var s = T.score(text, mp.typed, mp.startedAt ? nowMs() - mp.startedAt : 0, mp.misses);
     if (s.done) {
       mp.done = true;
       mp.finishedAt = nowMs();
@@ -415,9 +572,7 @@
     $('fKb').value = v;
     mpOnTyped(v);
   });
-  $('fStage').addEventListener('click', function () {
-    if (mp.people.length >= 2) $('fKb').focus();
-  });
+  armStage($('fStage'), 'fKb');
 
   function winnerOf(race, people) {
     if (!race) return null;
@@ -434,17 +589,28 @@
     return { id: done[0].id, pending: false, wpm: done[0].wpm };
   }
 
-  function mpPaint() {
+  function mpPaint(opts) {
     if (!mp.on) return;
+    opts = opts || {};
     var race = mp.race, status = $('fStatus');
     var people = mp.people;
+    var veil = $('fVeil');
+    var count = $('fCount');
+    var stage = $('fStage');
     if (!race) {
       $('fSeats').innerHTML = '';
       status.textContent = 'Setting up the passage…';
+      veil.hidden = true;
+      count.hidden = true;
+      $('fWait').hidden = false;
+      $('fPassage').innerHTML = '';
+      $('fCaret').hidden = true;
       return;
     }
     var text = race.text || '';
     var both = people.length >= 2;
+    var open = raceOpen(race, people);
+    var left = countLeft(race);
     var win = winnerOf(race, people);
     $('fSeats').innerHTML = people.map(function (p) {
       var me = p.id === mp.id;
@@ -452,13 +618,14 @@
       var cls = 'seat' + (me ? ' me' : '') + (win && win.id === p.id && !win.pending ? ' won' : '');
       var prog = (p.done ? Math.round(p.wpm || 0) + ' WPM' : pct + '%') +
         (p.done ? '  ·  ' + Math.round(p.acc || 0) + '%' : '');
-      return '<div class="' + cls + '"><span>' + esc(p.name || 'Player') + (me ? ' (you)' : '') +
+      return '<div class="' + cls + '"><span class="bar" style="width:' + pct + '%"></span><span class="who">' +
+        esc(p.name || 'Player') + (me ? ' (you)' : '') +
         '</span><span class="prog">' + prog + '</span></div>';
     }).join('');
 
+    $('fHint').hidden = !both;
     if (!both) {
-      status.innerHTML = 'Waiting for another player… press <b>Invite</b> (top bar) to bring a friend.';
-      $('fHint').innerHTML = 'Press <b>Invite</b> (top bar) to bring a friend.';
+      status.textContent = 'Waiting for another player.';
     } else if (win && !win.pending) {
       var wname = people.filter(function (p) { return p.id === win.id; })[0];
       status.textContent = (wname && wname.id === mp.id ? 'You win.' : (wname ? wname.name : 'Someone') + ' wins.') +
@@ -466,21 +633,58 @@
       $('fHint').textContent = 'Higher speed wins if you both finish.';
     } else if (mp.done) {
       status.textContent = 'Done. Waiting for the other person to finish…';
-      $('fHint').textContent = 'If they finish too, higher speed wins.';
+      $('fHint').textContent = 'If they finish too, higher WPM wins.';
     } else if (win && win.pending) {
       status.textContent = 'Someone finished. Keep going — higher speed still wins.';
       $('fHint').textContent = 'First to finish, or higher WPM if you both finish.';
+    } else if (!open && both) {
+      status.textContent = left > 0 ? 'Same passage. Get ready.' : 'Same passage. Type!';
+      $('fHint').textContent = 'First to finish, or higher speed if you both finish.';
     } else {
       status.textContent = 'Same passage. Type! First to finish, or higher speed if you both finish.';
-      $('fHint').textContent = G.focused ? 'Backspace fixes a miss.' : 'Tap the passage to open the keyboard.';
+      $('fHint').textContent = G.focused ? 'Backspace fixes a miss.' : (TAP ? 'Tap the passage to open the keyboard.' : 'Click the passage to type.');
     }
 
-    var s = T.score(text, mp.typed, mp.startedAt ? ((mp.finishedAt || nowMs()) - mp.startedAt) : 0);
-    $('fWpm').textContent = String(Math.round(s.wpm));
+    var showText = both && (open || (race.goAt && nowMs() + 3000 >= race.goAt));
+    if (!showText) {
+      if (!opts.statsOnly) {
+        $('fPassage').innerHTML = '';
+        $('fPassage').removeAttribute('data-p');
+        $('fCaret').hidden = true;
+      }
+    } else if (!opts.statsOnly) {
+      paintPassage($('fPassage'), text, mp.typed, G.focused && open, 'fCaret', 'fStage', opts.snap || race.seq !== mp._paintedSeq);
+      mp._paintedSeq = race.seq;
+    }
+
+    var counting = both && !open && !race.endedAt && race.goAt && left > 0;
+    count.hidden = !counting && !(both && !open && !race.endedAt && race.goAt && left === 0 && nowMs() < race.goAt + 400);
+    if (!count.hidden) {
+      if (left > 0) {
+        count.textContent = String(left);
+        count.className = 'count';
+      } else {
+        count.textContent = 'GO';
+        count.className = 'count go';
+      }
+    }
+
+    $('fWait').hidden = !!both;
+    var showVeil = both && open && !G.focused && !mp.done && !race.endedAt;
+    veil.hidden = !showVeil;
+    veil.textContent = tapLabel();
+    stage.classList.toggle('blurred', showVeil);
+
+    var s = T.score(text, mp.typed, mp.startedAt ? ((mp.finishedAt || nowMs()) - mp.startedAt) : 0, mp.misses);
+    var ms = mp.startedAt ? ((mp.finishedAt || nowMs()) - mp.startedAt) : 0;
+    $('fWpm').textContent = fmtWpm(s, ms);
     $('fAcc').textContent = String(Math.round(s.acc));
-    $('fTime').textContent = T.fmtTime(mp.startedAt ? ((mp.finishedAt || nowMs()) - mp.startedAt) : 0);
-    paintPassage($('fPassage'), text, mp.typed, G.focused && both);
-    $('fKb').readOnly = !both || mp.done;
+    $('fTime').textContent = T.fmtTime(ms);
+    $('fKb').readOnly = !open || mp.done;
+    if (open && !mp.done && G.focused) {
+      // keep going
+    }
+    document.body.classList.toggle('live', !!(open && !mp.done && mp.startedAt));
   }
 
   if (window.gifos && gifos.onBack) gifos.onBack(function () {

@@ -22,8 +22,10 @@ vendor/             MIT notice, UPSTREAM pin
 
 ## What you can type
 
-- **Practice** — a passage, a caret, live WPM and accuracy, a result at the
-  end. Toggle English / Code. Last 20 runs stay in the icon (private).
+- **Practice** — a passage, a sliding caret, live net WPM (correct letters
+  only) and accuracy, a result at the end. Toggle English / Code. Last 20
+  runs stay in the icon (private). On a phone the clock and caret keep the
+  current letter above the OS keyboard.
 - **Lessons** — home row (left, right, both), then top row, bottom row,
   punctuation, numbers, mixed, and the original random-keys drill.
 - **Play a friend** — send the invite (top bar; that button is OS chrome).

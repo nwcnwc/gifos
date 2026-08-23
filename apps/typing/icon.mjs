@@ -57,14 +57,14 @@ const ROWS = [
   ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
   ['Z', 'X', 'C', 'V', 'B', 'N', 'M'],
 ];
-const PRESS = ['A', 'S', 'D', 'F', 'J', 'K', 'L', 'T', 'Y', 'P', 'E', 'A'];
+const PRESS = ['T', 'Y', 'P', 'E', 'A', 'S', 'D', 'F', 'J', 'K', 'L', 'T'];
 
 function keyBox(row, col) {
-  const keyW = 9.4, keyH = 11, gap = 1.4;
+  const keyW = 10.2, keyH = 12.2, gap = 1.5;
   const rowN = ROWS[row].length;
   const totalW = rowN * keyW + (rowN - 1) * gap;
-  const x0 = (OUT - totalW) / 2 + (row === 1 ? 3 : row === 2 ? 8 : 0);
-  const y0 = 38 + row * (keyH + gap);
+  const x0 = (OUT - totalW) / 2 + (row === 1 ? 4 : row === 2 ? 10 : 0);
+  const y0 = 42 + row * (keyH + gap);
   return { x0: x0 + col * (keyW + gap), y0, x1: x0 + col * (keyW + gap) + keyW, y1: y0 + keyH };
 }
 
@@ -82,7 +82,7 @@ function frameIndices(pal, f) {
       a = 1;
       col = mix(CARD_A, CARD_B, Math.max(0, Math.min(1, (y - m) / (OUT - 2 * m))));
       // space bar
-      if (inRound(x, y, 38, 78, 90, 90, 3)) col = KEY.slice();
+      if (inRound(x, y, 34, 86, 94, 98, 3)) col = KEY.slice();
       for (let r = 0; r < ROWS.length; r++) {
         for (let c = 0; c < ROWS[r].length; c++) {
           const b = keyBox(r, c);
@@ -100,13 +100,13 @@ function frameIndices(pal, f) {
           }
         }
       }
-      if (inRound(x, y, 38, 78, 90, 90, 3) && pressed === ' ') col = AMBER.slice();
-      // caret tick at the top
-      if (y > 18 && y < 28 && x > 24 && x < 104) {
-        const caretX = 24 + ((f % 8) / 7) * 72;
-        if (Math.abs(x - caretX) < 1.2) col = AMBER.slice();
-        else if (x < caretX) col = mix(OK, CARD_A, 0.55);
-        else col = mix(INK, CARD_A, 0.7);
+      if (inRound(x, y, 34, 86, 94, 98, 3) && pressed === ' ') col = AMBER.slice();
+      // passage line with a bar caret — keys below light as if typed
+      if (y > 16 && y < 30 && x > 18 && x < 110) {
+        const caretX = 22 + (f / (FRAMES - 1)) * 80;
+        if (x > caretX - 1.1 && x < caretX + 1.1) col = AMBER.slice();
+        else if (x < caretX) col = mix(INK, CARD_A, 0.35);
+        else col = mix(INK, CARD_A, 0.78);
       }
     }
     const o = (py * RW + px) * 4;
@@ -236,23 +236,15 @@ export function screenshotPng() {
     }
   };
 
-  // never-empty first boot: dark page, stats, a passage mid-type with a caret
+  // never-empty: quiet stats, a passage mid-type, bar caret on one letter
   fill(0, 0, W, H, 10, 10, 15);
-  drawText(put, 64, 36, 'TYPING', 6, 255, 193, 74);
 
-  rr(64, 108, 280, 228, 16, 20, 20, 28);
-  drawText(put, 92, 124, '62', 8, 255, 193, 74);
-  drawText(put, 92, 196, 'WPM', 3, 122, 122, 144);
-
-  rr(300, 108, 516, 228, 16, 20, 20, 28);
-  drawText(put, 328, 124, '98', 8, 125, 255, 179);
-  drawText(put, 328, 196, 'ACC', 3, 122, 122, 144);
-
-  rr(536, 108, 780, 228, 16, 20, 20, 28);
-  drawText(put, 564, 124, '0:18', 7, 232, 232, 240);
-  drawText(put, 564, 196, 'TIME', 3, 122, 122, 144);
-
-  rr(64, 252, 1136, 668, 20, 20, 20, 28);
+  drawText(put, 72, 48, '62', 6, 255, 193, 74);
+  drawText(put, 72, 100, 'WPM', 3, 122, 122, 144);
+  drawText(put, 280, 48, '98', 6, 255, 193, 74);
+  drawText(put, 280, 100, 'ACC', 3, 122, 122, 144);
+  drawText(put, 488, 48, '0:18', 6, 232, 232, 240);
+  drawText(put, 488, 100, 'TIME', 3, 122, 122, 144);
 
   const lines = [
     'THE HOME ROW IS WHERE YOUR FINGERS REST.',
@@ -260,19 +252,19 @@ export function screenshotPng() {
     'SPEED COMES LATER; FIRST THE HANDS LEARN',
     'WHERE EACH LETTER LIVES.',
   ];
-  // first two lines typed (white), amber caret on SPEED, rest muted
-  const s = 4, x0 = 96;
+  const s = 4, x0 = 72;
   for (let i = 0; i < lines.length; i++) {
-    const y = 296 + i * 72;
+    const y = 196 + i * 92;
     if (i < 2) {
-      drawText(put, x0, y, lines[i], s, 232, 232, 240);
+      drawText(put, x0, y, lines[i], s, 207, 208, 220);
     } else if (i === 2) {
-      const cw = 5 * 6 * s;
-      fill(x0 - 6, y - 10, x0 + cw + 4, y + 7 * s + 8, 255, 193, 74);
-      drawText(put, x0, y, 'SPEED', s, 26, 18, 6);
-      drawText(put, x0 + 6 * 6 * s, y, 'COMES LATER; FIRST THE HANDS LEARN', s, 90, 90, 114);
+      // typed "SPEED", bar caret on the S of COMES, rest muted
+      drawText(put, x0, y, 'SPEED ', s, 207, 208, 220);
+      const caretX = x0 + 6 * 6 * s;
+      fill(caretX - 4, y - 8, caretX, y + 7 * s + 6, 255, 193, 74);
+      drawText(put, caretX, y, 'COMES LATER; FIRST THE HANDS LEARN', s, 86, 86, 108);
     } else {
-      drawText(put, x0, y, lines[i], s, 90, 90, 114);
+      drawText(put, x0, y, lines[i], s, 86, 86, 108);
     }
   }
 
