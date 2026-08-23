@@ -1,0 +1,15 @@
+vendor/common.js is Jake Gordon's common.js with the patches listed at the
+top of that file. images/sprites.png and images/background.png are the
+placeholder sheets from the same tree.
+
+upstream: https://github.com/jakesgordon/javascript-racer
+commit:   3e8a060b5900755db27f899612a74a77427c853e
+entry:    v4.final.html (the game loop lives in game.js, extracted)
+
+The MIT notice is vendor/COPYING.txt and is packed inside the GIF.
+
+MUSIC is not included. Upstream licensed those tracks only for the original
+project.
+
+SPRITES: upstream README — "placeholder graphics borrowed from the old
+genesis version of outrun and used here as teaching examples."
