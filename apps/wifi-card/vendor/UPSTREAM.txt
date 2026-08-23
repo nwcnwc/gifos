@@ -1,0 +1,20 @@
+bndw/wifi-card
+https://github.com/bndw/wifi-card
+MIT, Copyright (c) 2020 Ben Woodward
+
+WIFI: QR payload (escape of " ; , : \), encryption modes (WPA / WPA2-EAP /
+WEP / none), hidden SSID, hide-password, portrait, print copies, and the
+card layout are from the React app (qrcode.react + evergreen-ui).
+
+GifOS inlines classic scripts and drops type=module, so that stack cannot
+ride in. This directory is the port: same card, same payload, English only.
+The last card is saved privately. Press Invite to show the same card in a
+meeting. Upstream has no save and no meeting — it is a public website that
+never sends the details.
+
+kazuhikoarase/qrcode-generator
+https://github.com/kazuhikoarase/qrcode-generator
+file: js/dist/qrcode.js
+sha256: 79ec86f82856005b1c887905cfccfcfbec3821ca61c7fd5a952faa5f778f791c
+MIT, Copyright (c) 2009 Kazuhiko Arase
+QR Code is a registered trademark of DENSO WAVE INCORPORATED.

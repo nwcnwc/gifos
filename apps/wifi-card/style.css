@@ -1,0 +1,157 @@
+:root {
+  --bg: #f6f7fb;
+  --ink: #1c2434;
+  --muted: #5b6578;
+  --card: #fff;
+  --line: #c9ced8;
+  --accent: #2176c7;
+  --err: #c0392b;
+  --field: #fff;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, sans-serif;
+}
+body { min-height: 100vh; }
+.wrap { max-width: 520px; margin: 0 auto; padding: 1.2rem 1rem 2.5rem; }
+header { display: flex; align-items: center; gap: .7rem; }
+h1 { font-size: 1.85rem; margin: 0; letter-spacing: -.02em; }
+h2 { font-size: 1.25rem; margin: 0; font-weight: 650; }
+.wifi-mark { color: var(--accent); flex: none; }
+.wifi-mark.small { color: var(--ink); }
+.lead { color: var(--muted); margin: .7rem 0 0; }
+.privacy { margin-top: .45rem; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(28, 36, 52, .08);
+  padding: 1.1rem 1.15rem 1rem;
+  margin: 1.2rem 0 1rem;
+}
+.card.portrait { max-width: 280px; }
+.card-head { display: flex; align-items: center; gap: .55rem; margin-bottom: .85rem; }
+.card.portrait .card-head { justify-content: center; }
+.details { display: flex; align-items: center; gap: .9rem; }
+.card.portrait .details { flex-direction: column; }
+.qrcode {
+  width: 150px; height: 150px;
+  flex: none;
+  background: #fff;
+  image-rendering: pixelated;
+}
+.card.portrait .qrcode { margin-bottom: .4rem; }
+.fields { flex: 1; width: 100%; display: grid; gap: .55rem; }
+label { display: block; font-size: .82rem; color: var(--muted); font-weight: 600; }
+textarea, input[type=number] {
+  display: block; width: 100%; margin-top: .28rem;
+  background: var(--field);
+  color: var(--ink);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: .45rem .55rem;
+  font-family: Georgia, 'Source Serif 4', 'Times New Roman', serif;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  resize: none;
+  overflow: hidden;
+}
+textarea:focus, input[type=number]:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, white);
+  border-color: var(--accent);
+}
+textarea[readonly] { background: #f3f4f7; }
+.tip {
+  margin: .85rem 0 0;
+  padding-top: .7rem;
+  border-top: 1px solid #e4e7ee;
+  color: var(--muted);
+  font-size: .85rem;
+}
+.err { color: var(--err); font-size: .85rem; margin: .5rem 0 0; }
+#settings { margin: .2rem 0 1rem; }
+.check, .radio {
+  display: flex; align-items: center; gap: .5rem;
+  font-weight: 500; color: var(--ink); font-size: .95rem;
+  margin: .35rem 0;
+}
+.num { margin: .7rem 0; max-width: 280px; }
+.num input { max-width: 8rem; font: inherit; }
+fieldset {
+  border: none; margin: .8rem 0 0; padding: 0;
+}
+legend { font-size: .82rem; color: var(--muted); font-weight: 600; margin-bottom: .3rem; }
+.actions { margin: .4rem 0 1rem; }
+button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 700;
+  height: 50px;
+  width: 180px;
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.05); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.meet { color: var(--muted); font-size: .9rem; margin: 0; }
+.meet.live { color: var(--ink); }
+body.guest #settings,
+body.guest #printBtn,
+body.guest .fields textarea { opacity: .9; pointer-events: none; }
+
+#print-area { display: none; }
+
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+    position: absolute;
+    left: 0; top: 0;
+    width: 100%;
+    background: #fff;
+  }
+  .card-print {
+    visibility: visible;
+    border: 1px dashed #888;
+    box-shadow: none;
+    border-radius: 0;
+    margin: .4rem;
+    padding: 1rem;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    background: #fff;
+    color: #000;
+    max-width: 100%;
+  }
+  .card-print.portrait { max-width: 280px; }
+  .card-print .details { display: flex; align-items: center; gap: .8rem; }
+  .card-print.portrait .details { flex-direction: column; }
+  .card-print h2 { margin: 0; font-size: 1.2rem; }
+  .card-print .card-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .6rem; }
+  .card-print .fields label { color: #444; }
+  .card-print .value {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.15rem;
+    color: #000;
+    margin: .15rem 0 .4rem;
+    min-height: 1.3em;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .card-print .tip {
+    border-top: 1px solid #ccc;
+    color: #333;
+    font-size: .8rem;
+    margin-top: .5rem;
+    padding-top: .5rem;
+  }
+  .card-print canvas { width: 150px; height: 150px; }
+}

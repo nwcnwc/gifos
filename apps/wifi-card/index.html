@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>WiFi Card</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand" aria-hidden="true">
+      <svg class="wifi-mark" viewBox="0 0 24 24" width="32" height="32">
+        <path fill="currentColor" d="M12 18.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm0-5.2a6.6 6.6 0 0 0-4.7 1.95l1.5 1.5A4.5 4.5 0 0 1 12 15.5c1.2 0 2.3.47 3.2 1.25l1.5-1.5A6.6 6.6 0 0 0 12 13.3zm0-4.3a10.9 10.9 0 0 0-7.7 3.2l1.5 1.5A8.8 8.8 0 0 1 12 11.2c2.4 0 4.6.96 6.2 2.5l1.5-1.5A10.9 10.9 0 0 0 12 9zM12 4.6C6.3 4.6 1.2 7.1.1 10.4l1.6 1.5C2.7 9.3 7 7 12 7s9.3 2.3 10.3 4.9l1.6-1.5C22.8 7.1 17.7 4.6 12 4.6z"/>
+      </svg>
+    </div>
+    <h1>WiFi Card</h1>
+  </header>
+  <p class="lead">Print a simple card with your WiFi login details. Tape it to the fridge, keep it in your wallet, etc.</p>
+  <p class="lead privacy">Your WiFi information is never uploaded. Nothing leaves this device unless you press <b>Invite</b> to show the same card in a meeting.</p>
+
+  <article id="card" class="card">
+    <div class="card-head">
+      <svg class="wifi-mark small" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+        <path fill="currentColor" d="M12 18.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm0-5.2a6.6 6.6 0 0 0-4.7 1.95l1.5 1.5A4.5 4.5 0 0 1 12 15.5c1.2 0 2.3.47 3.2 1.25l1.5-1.5A6.6 6.6 0 0 0 12 13.3zm0-4.3a10.9 10.9 0 0 0-7.7 3.2l1.5 1.5A8.8 8.8 0 0 1 12 11.2c2.4 0 4.6.96 6.2 2.5l1.5-1.5A10.9 10.9 0 0 0 12 9zM12 4.6C6.3 4.6 1.2 7.1.1 10.4l1.6 1.5C2.7 9.3 7 7 12 7s9.3 2.3 10.3 4.9l1.6-1.5C22.8 7.1 17.7 4.6 12 4.6z"/>
+      </svg>
+      <h2>WiFi Login</h2>
+    </div>
+    <div class="details">
+      <canvas id="qr" class="qrcode" width="180" height="180" aria-label="WiFi code"></canvas>
+      <div class="fields">
+        <label>Network name
+          <textarea id="ssid" maxlength="32" rows="1" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="WiFi Network name"></textarea>
+        </label>
+        <label id="eapMethodLabel" hidden>EAP method
+          <textarea id="eapMethod" rows="1" readonly spellcheck="false"></textarea>
+        </label>
+        <label id="identityLabel" hidden>Identity
+          <textarea id="identity" rows="1" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Username"></textarea>
+        </label>
+        <label id="passwordLabel">Password
+          <textarea id="password" maxlength="63" rows="2" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Password"></textarea>
+        </label>
+      </div>
+    </div>
+    <p id="tip" class="tip">Point your phone's camera at the QR Code to connect automatically</p>
+    <p id="err" class="err" hidden></p>
+  </article>
+
+  <section id="settings">
+    <label class="check"><input type="checkbox" id="portrait"> Rotate</label>
+    <label class="check"><input type="checkbox" id="hidePassword"> Hide password</label>
+    <label class="check"><input type="checkbox" id="hiddenSSID"> Hidden SSID</label>
+    <label class="check"><input type="checkbox" id="hideTip"> Hide tip (legend)</label>
+    <label class="num">Number of cards to print
+      <input type="number" id="copies" min="1" max="10" value="1">
+    </label>
+    <fieldset>
+      <legend>Encryption</legend>
+      <label class="radio"><input type="radio" name="enc" value="WPA" checked> WPA/WPA2/WPA3</label>
+      <label class="radio"><input type="radio" name="enc" value="WPA2-EAP"> WPA2-EAP</label>
+      <label class="radio"><input type="radio" name="enc" value="WEP"> WEP</label>
+      <label class="radio"><input type="radio" name="enc" value=""> None</label>
+    </fieldset>
+  </section>
+
+  <div class="actions">
+    <button type="button" id="printBtn">Print</button>
+  </div>
+  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to show this card in a meeting. Nothing is uploaded on its own.</p>
+</div>
+
+<div id="print-area" hidden></div>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="vendor/qrcode.js"></script>
+<script src="mp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
