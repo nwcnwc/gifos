@@ -116,6 +116,12 @@ if (/(?:src|href)\s*=\s*["']https?:/i.test(html)) {
   throw new Error('index.html loads a remote URL — nothing may be fetched.');
 }
 if (html.includes('id="invite"')) throw new Error('Invite is OS chrome — do not draw a share button');
+if (!html.includes('id="lobby"')) throw new Error('index.html must have a race lobby — Invite is OS chrome, the lobby explains it');
+if (!html.includes('class="chart"') && !html.includes("class='chart'")) {
+  throw new Error('index.html must ship a kana chart picker, not a chip wall');
+}
+if (!html.includes('id="continueBtn"')) throw new Error('index.html must offer Continue — do not auto-jump a returning drill');
+if (!html.includes('id="missedStrip"')) throw new Error('index.html must show missed cards on the done screen');
 
 for (const n of ['app.js', 'vendor/kana.js']) {
   if (/<\/script/i.test(files[n])) throw new Error(n + ' contains </script — cannot inline safely');
@@ -134,6 +140,19 @@ if (!files['app.js'].includes("'firstN'") || !files['app.js'].includes("'deck'")
 }
 if (files['app.js'].includes('id="invite"')) {
   throw new Error('Invite is OS chrome — do not draw a share button');
+}
+if (files['app.js'].includes('location.hash') || files['app.js'].includes("location.replace") ||
+    files['app.js'].includes('location.href')) {
+  throw new Error('app.js must not navigate — hash escape is a failed round');
+}
+if (!files['app.js'].includes('crow') || !files['style.css'].includes('.crow')) {
+  throw new Error('picker must be a kana chart (crow rows), not chips');
+}
+if (!files['style.css'].includes('min-height: 88px')) {
+  throw new Error('answer buttons must be huge (min-height 88px)');
+}
+if (!files['app.js'].includes('FEED_BAD') || !files['app.js'].includes('G.requeued')) {
+  throw new Error('a miss must linger and come back in the solo deck');
 }
 if (!files['COPYING-kanaquiz.txt'].includes('Antti Pilto')) {
   throw new Error('COPYING-kanaquiz.txt is not anzzstuff/Antti Pilto\'s MIT notice');
@@ -156,6 +175,16 @@ if (!files['vendor/kana.js'].includes("'し'") || !files['vendor/kana.js'].inclu
     throw new Error('basic hiragana missing あ / し / ん');
   }
   if (K.romajiOf('し') !== 'shi') throw new Error('し should map to shi, got ' + K.romajiOf('し'));
+  if (K.romajiOf('ち') !== 'chi') throw new Error('ち should map to chi, got ' + K.romajiOf('ち'));
+  if (K.romajiOf('つ') !== 'tsu') throw new Error('つ should map to tsu, got ' + K.romajiOf('つ'));
+  if (K.romajiOf('ふ') !== 'fu') throw new Error('ふ should map to fu, got ' + K.romajiOf('ふ'));
+  if (K.romajiOf('を') !== 'wo') throw new Error('を should map to wo, got ' + K.romajiOf('を'));
+  if (K.allowedOf('し').indexOf('si') < 0) throw new Error('し must still accept si (original table)');
+  if (K.romajiOf('じ') !== 'ji') throw new Error('じ should map to ji, got ' + K.romajiOf('じ'));
+  if (K.romajiOf('シ') !== 'shi') throw new Error('シ should map to shi, got ' + K.romajiOf('シ'));
+  if (K.isCorrect('し', 'shi', 'toRomaji') !== true) throw new Error('shi must be correct for し');
+  if (K.isCorrect('し', 'sa', 'toRomaji') !== false) throw new Error('sa must be wrong for し');
+  if (K.isCorrect('あ', 'あ', 'toKana') !== true) throw new Error('toKana must match the key');
   if (K.scoreAfter(0, true) !== 1) throw new Error('score increment on correct');
   if (K.scoreAfter(5, false) !== 5) throw new Error('score must not increment on wrong');
   if (K.scoreAfter(7, true) !== 8) throw new Error('score increment on correct from 7');

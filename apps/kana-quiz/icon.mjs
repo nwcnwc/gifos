@@ -127,12 +127,19 @@ function frameIndices(pal, f) {
       const ix = gx | 0, iy = gy | 0;
       if (glyphOn(glyph, ix, iy)) {
         col = mix(INK, INK_D, ((ix + iy) % 5) > 2 ? 0.35 : 0);
-        if (flip >= 0.5 && ping > 0.15) col = mix(col, OK, 0.22);
+        if (flip >= 0.5 && ping > 0.12) col = mix(col, OK, 0.45);
       }
       if (pingA > 0) {
         const dx = x - 64, dy = y - 64;
         const d = Math.sqrt(dx * dx + dy * dy);
-        if (Math.abs(d - pingR) < 2.4) col = mix(col, OK, pingA);
+        if (Math.abs(d - pingR) < 3.2) col = mix(col, OK, pingA);
+      }
+      if (ping > 0.28 && inCard(x, y, m, rad)) {
+        const cx = x - 92, cy = y - 92;
+        const onCheck =
+          (Math.abs(cy - cx * 0.9) < 2.2 && cx > -10 && cx < 6) ||
+          (Math.abs(cy + cx * 1.6 + 18) < 2.2 && cx > -18 && cx < -8);
+        if (onCheck) col = mix(OK, [255, 255, 255], 0.25);
       }
     }
     const o = (py * RW + px) * 4;
@@ -260,23 +267,23 @@ export function screenshotPng() {
 
   fill(0, 0, W, H, 10, 10, 15);
 
-  drawText(put, 56, 40, 'KANA QUIZ', 8, 244, 241, 234);
-  drawText(put, 56, 118, 'HIRAGANA', 3, 154, 150, 168);
+  drawText(put, 56, 36, 'KANA QUIZ', 8, 244, 241, 234);
+  drawText(put, 56, 110, 'HIRAGANA', 3, 154, 150, 168);
 
-  rr(56, 168, 250, 228, 22, 22, 22, 31);
-  rr(266, 168, 460, 228, 22, 22, 22, 31);
-  drawText(put, 78, 186, 'YOU  7', 4, 61, 204, 138);
-  drawText(put, 288, 186, 'SAM  5', 4, 244, 241, 234);
+  rr(56, 156, 250, 216, 22, 22, 22, 31);
+  rr(266, 156, 460, 216, 22, 22, 22, 31);
+  drawText(put, 78, 174, 'YOU  7', 4, 61, 204, 138);
+  drawText(put, 288, 174, 'SAM  5', 4, 244, 241, 234);
 
-  blitKana(put, HIRA_SHI, 80, 250, 6, 244, 241, 234);
+  blitKana(put, HIRA_A, 40, 210, 6, 244, 241, 234);
 
   drawText(put, 56, 650, '7 / 10', 4, 255, 138, 148);
 
   const btns = [
-    { label: 'SHI', ok: true, x: 620, y: 240 },
-    { label: 'SA', ok: false, x: 900, y: 240 },
-    { label: 'SU', ok: false, x: 620, y: 430 },
-    { label: 'SE', ok: false, x: 900, y: 430 },
+    { label: 'A', ok: true, x: 620, y: 240 },
+    { label: 'I', ok: false, x: 900, y: 240 },
+    { label: 'U', ok: false, x: 620, y: 430 },
+    { label: 'E', ok: false, x: 900, y: 430 },
   ];
   for (const btn of btns) {
     if (btn.ok) rr(btn.x, btn.y, btn.x + 250, btn.y + 150, 28, 20, 51, 38);

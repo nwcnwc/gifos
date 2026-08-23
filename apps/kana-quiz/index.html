@@ -16,7 +16,7 @@
   </header>
 
   <section id="home" class="home">
-    <p class="lead">Pick rows. A kana, four sounds. Misses come back.</p>
+    <p class="lead" id="lead">A kana. Four sounds. Tap the right one — on this device, no account.</p>
 
     <div class="seg" id="scriptSeg" role="group" aria-label="Script">
       <button type="button" data-script="hiragana" class="on">Hiragana</button>
@@ -28,21 +28,38 @@
       <button type="button" data-dir="toKana">Sound → kana</button>
     </div>
 
-    <div id="rows" class="rows"></div>
+    <div class="presets" id="presets" role="group" aria-label="Quick pick"></div>
+    <p class="count" id="pickCount"></p>
+    <div id="rows" class="chart"></div>
 
     <p class="err" id="homeErr" hidden></p>
-    <button type="button" class="primary" id="startBtn">Start drill</button>
-    <button type="button" class="ghost" id="reviewBtn" hidden>Review misses</button>
-    <button type="button" class="ghost" id="friendBtn">Play a friend</button>
-    <p class="hint" id="friendHint">To race, press <b>Invite</b> in the bar above the app. Same deck — first to ten, or more when the cards run out.</p>
+    <div class="actions">
+      <button type="button" class="primary" id="continueBtn" hidden>Continue</button>
+      <button type="button" class="primary" id="startBtn">Start drill</button>
+      <button type="button" class="ghost" id="reviewBtn" hidden>Review misses</button>
+      <button type="button" class="ghost" id="friendBtn">Play a friend</button>
+    </div>
+  </section>
+
+  <section id="lobby" class="lobby" hidden>
+    <p class="lead">Same shuffled deck. Press <b>Invite</b> in the bar above the app — that link is the room.</p>
+    <div class="seg" id="raceSeg" role="group" aria-label="Race">
+      <button type="button" data-race="firstN" class="on">First to 10</button>
+      <button type="button" data-race="deck">Whole deck</button>
+    </div>
+    <div id="lobbyPeople" class="versus"></div>
+    <p id="lobbyWait" class="wait">Waiting for a friend…</p>
+    <p class="hint">You only write your own score. First to ten right wins, or whoever has more when the cards run out.</p>
+    <button type="button" class="ghost" id="lobbyBack">Back</button>
   </section>
 
   <section id="quiz" class="quiz" hidden>
     <div id="versus" class="versus" hidden></div>
     <p id="waitNote" class="wait" hidden>Waiting for a friend — press <b>Invite</b> in the bar above.</p>
-    <p id="feedback" class="feedback" aria-live="polite"></p>
+    <p id="feedback" class="feedback" aria-live="polite">Which sound?</p>
     <div id="prompt" class="prompt" aria-live="polite"></div>
     <div id="choices" class="choices" role="group" aria-label="Answers"></div>
+    <div class="bar" aria-hidden="true"><i id="barFill"></i></div>
     <p id="progress" class="progress"></p>
   </section>
 
@@ -50,6 +67,7 @@
     <p id="doneTitle" class="done-title">Deck done</p>
     <p id="doneScore" class="done-score"></p>
     <p id="doneNote" class="done-note"></p>
+    <div id="missedStrip" class="missed" hidden></div>
     <button type="button" class="primary" id="againBtn">Again</button>
     <button type="button" class="ghost" id="reviewDoneBtn" hidden>Review misses</button>
     <button type="button" class="ghost" id="homeBtn">Change rows</button>
@@ -61,9 +79,9 @@
     <button type="button" class="icon-btn close" data-close="info" aria-label="Close">✕</button>
     <h2 id="infoTitle">How to play</h2>
     <ul>
-      <li>Choose hiragana, katakana, or both, then the rows — あ-row, dakuten, yōon.</li>
-      <li>A kana appears. Tap the romaji. Or flip it: romaji first, pick the kana.</li>
-      <li>Right or wrong lands at once. Misses wait in Review.</li>
+      <li>Tap the rows you know — you see the actual あ か さ, not a list of names.</li>
+      <li>A kana appears. Tap the sound. Or flip it: sound first, pick the kana.</li>
+      <li>Right or wrong lands at once. A miss comes back in this drill, and waits in Review.</li>
       <li>To race a friend, use <b>Invite</b> in the bar above the app. Same shuffled deck — first to ten right, or whoever has more when the cards run out. You only write your own score.</li>
     </ul>
     <p class="foot">Unofficial port of Kana Quiz by anzzstuff. Tables from that quiz, running here with no account.</p>

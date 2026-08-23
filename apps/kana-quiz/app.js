@@ -16,7 +16,8 @@
     'h_group1', 'h_group2', 'h_group3', 'h_group4', 'h_group5',
     'h_group6', 'h_group7', 'h_group8', 'h_group9', 'h_group10'
   ];
-  var STALE_MS = 9000, HB_MS = 3000, FEED_MS = 520;
+  var STALE_MS = 9000, HB_MS = 3000;
+  var FEED_OK = 380, FEED_BAD = 900;
   var TARGET_N = 10;
 
   function tables() { return (KANA && KANA.tables) || {}; }
@@ -153,13 +154,16 @@
     score: 0,
     wrong: 0,
     missed: [],
+    requeued: [],
     choices: [],
     locked: false,
     screen: 'home',
     friend: false,
     race: 'firstN',
     ready: false,
-    doneAt: 0
+    doneAt: 0,
+    more: false,
+    solo: null
   };
 
   var api = typeof gifos !== 'undefined' ? gifos : null;
@@ -191,14 +195,19 @@
     if (G.race === 'deck') return G.deck.length;
     return Math.min(TARGET_N, G.deck.length || TARGET_N);
   }
+  function selectedCount() {
+    return collect(G.groups).length;
+  }
 
   function show(name) {
     G.screen = name;
     $('home').hidden = name !== 'home';
+    $('lobby').hidden = name !== 'lobby';
     $('quiz').hidden = name !== 'quiz';
     $('done').hidden = name !== 'done';
     $('backBtn').hidden = name === 'home';
     if (name === 'home') renderHome();
+    if (name === 'lobby') renderLobby();
   }
 
   function currentKey() {
@@ -222,31 +231,61 @@
     G.choices = key ? makeChoices(key, pool, 4, rng) : [];
   }
 
+  function snapshotSolo() {
+    if (!G.deck.length) return null;
+    return {
+      deck: G.deck.slice(),
+      i: G.i,
+      score: G.score,
+      wrong: G.wrong,
+      dir: G.dir,
+      groups: G.groups.slice(),
+      requeued: G.requeued.slice()
+    };
+  }
+
   function startDrill(opts) {
     opts = opts || {};
     var ids = G.groups.slice();
-    if (!ids.length) {
+    if (!ids.length && !opts.review && !opts.resume) {
       $('homeErr').hidden = false;
       $('homeErr').textContent = 'Pick at least one row.';
       return;
     }
-    $('homeErr').hidden = true;
+    if ($('homeErr')) $('homeErr').hidden = true;
     G.friend = !!opts.friend;
     G.ready = false;
     G.doneAt = 0;
-    G.i = 0;
-    G.score = 0;
-    G.wrong = 0;
     G.locked = false;
-    if (opts.review) {
+    if (opts.resume && G.solo && G.solo.deck && G.solo.deck.length) {
+      G.deck = G.solo.deck.slice();
+      G.i = G.solo.i | 0;
+      G.score = G.solo.score | 0;
+      G.wrong = G.solo.wrong | 0;
+      G.requeued = Array.isArray(G.solo.requeued) ? G.solo.requeued.slice() : [];
+      if (G.solo.dir) G.dir = G.solo.dir;
+      G.friend = false;
+    } else if (opts.review) {
       if (!G.missed.length) return;
       G.deck = shuffle(G.missed.slice());
       G.missed = [];
+      G.requeued = [];
       G.friend = false;
+      G.i = 0;
+      G.score = 0;
+      G.wrong = 0;
     } else if (G.friend && match && match.deck && match.deck.length) {
+      G.i = 0;
+      G.score = 0;
+      G.wrong = 0;
+      G.requeued = [];
       applyMatch(match);
     } else {
       G.deck = buildDeck(ids, opts.seed);
+      G.i = 0;
+      G.score = 0;
+      G.wrong = 0;
+      G.requeued = [];
     }
     dealChoices();
     show('quiz');
@@ -266,6 +305,10 @@
     if (!ok) {
       G.wrong++;
       if (G.missed.indexOf(key) < 0) G.missed.push(key);
+      if (!G.friend && G.requeued.indexOf(key) < 0) {
+        G.deck.push(key);
+        G.requeued.push(key);
+      }
     }
     paintChoices(ok, value, key);
     $('feedback').className = 'feedback ' + (ok ? 'ok' : 'bad');
@@ -284,6 +327,7 @@
       if (finished) {
         if (!G.doneAt) G.doneAt = now();
         G.locked = false;
+        if (!G.friend) G.solo = null;
         publishMe();
         saveSoon();
         if (!G.friend) showDone();
@@ -292,11 +336,9 @@
       }
       G.locked = false;
       dealChoices();
-      $('feedback').textContent = '';
-      $('feedback').className = 'feedback';
       publishMe();
       render();
-    }, FEED_MS);
+    }, ok ? FEED_OK : FEED_BAD);
   }
 
   function showDone() {
@@ -306,10 +348,30 @@
     $('doneScore').textContent = G.score + ' / ' + n;
     var miss = G.missed.length;
     $('doneNote').textContent = miss
-      ? miss + ' to review.'
+      ? miss + ' to review — they wait here until they stick.'
       : 'Clean sweep.';
     $('reviewDoneBtn').hidden = !miss;
+    $('reviewDoneBtn').textContent = miss ? ('Review these ' + miss) : 'Review misses';
+    paintMissed();
     render();
+  }
+  function paintMissed() {
+    var el = $('missedStrip');
+    el.textContent = '';
+    if (!G.missed.length) { el.hidden = true; return; }
+    el.hidden = false;
+    G.missed.forEach(function (k) {
+      var s = document.createElement('span');
+      s.className = 'miss';
+      var b = document.createElement('b');
+      b.lang = 'ja';
+      b.textContent = k;
+      var sm = document.createElement('small');
+      sm.textContent = romajiOf(k);
+      s.appendChild(b);
+      s.appendChild(sm);
+      el.appendChild(s);
+    });
   }
   function vsDoneTitle() {
     var o = vsOutcome();
@@ -331,11 +393,6 @@
     }
   }
 
-  function groupById(id) {
-    var list = groups(), i;
-    for (i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
-    return null;
-  }
   function visibleGroups() {
     return groups().filter(function (g) {
       if (G.script === 'both') return true;
@@ -349,14 +406,34 @@
     saveSoon();
     renderHome();
   }
-  function setKind(script, kind, on) {
-    groups().forEach(function (g) {
-      if (g.script !== script) return;
-      if (kind && g.kind !== kind) return;
-      var i = G.groups.indexOf(g.id);
-      if (on && i < 0) G.groups.push(g.id);
-      if (!on && i >= 0) G.groups.splice(i, 1);
+  function groupById(id) {
+    var list = groups(), i;
+    for (i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+  function applyPreset(kind) {
+    var scripts = G.script === 'both' ? ['hiragana', 'katakana'] : [G.script];
+    var next = [];
+    var other = G.groups.filter(function (id) {
+      var g = groupById(id);
+      return g && scripts.indexOf(g.script) < 0;
     });
+    scripts.forEach(function (script) {
+      var vis = groups().filter(function (g) { return g.script === script; });
+      if (kind === 'vowels') {
+        vis.forEach(function (g) {
+          if (g.id === 'h_group1' || g.id === 'k_group1') next.push(g.id);
+        });
+      } else if (kind === 'two') {
+        vis.forEach(function (g) {
+          if (g.kind === 'basic' && (g.id === 'h_group1' || g.id === 'h_group2' ||
+              g.id === 'k_group1' || g.id === 'k_group2')) next.push(g.id);
+        });
+      } else if (kind === 'all') {
+        vis.forEach(function (g) { if (g.kind === 'basic') next.push(g.id); });
+      }
+    });
+    G.groups = other.concat(next);
     saveSoon();
     renderHome();
   }
@@ -366,61 +443,113 @@
     root.textContent = '';
     var vis = visibleGroups();
     var scripts = G.script === 'both' ? ['hiragana', 'katakana'] : [G.script];
-    var kinds = [
-      { id: 'basic', title: 'Rows' },
-      { id: 'dakuten', title: 'Dakuten' },
-      { id: 'yoon', title: 'Yōon' },
-      { id: 'alike', title: 'Look-alikes' },
-      { id: 'extra', title: 'Extra sounds' }
-    ];
+    var extraKinds = ['dakuten', 'yoon', 'alike', 'extra'];
+
+    var presets = $('presets');
+    presets.textContent = '';
+    [
+      ['vowels', 'Vowels'],
+      ['two', 'あ か'],
+      ['all', 'All 46'],
+      ['none', 'None']
+    ].forEach(function (pair) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = pair[1];
+      if (G.script === 'katakana' && pair[0] === 'two') b.textContent = 'ア カ';
+      if (G.script === 'both' && pair[0] === 'two') b.textContent = 'First two';
+      if (G.script !== 'hiragana' && pair[0] === 'all') b.textContent = 'All basic';
+      b.addEventListener('click', function () { applyPreset(pair[0]); });
+      presets.appendChild(b);
+    });
+
     scripts.forEach(function (script) {
       var block = document.createElement('div');
       block.className = 'block';
       var h = document.createElement('h2');
       h.textContent = script === 'hiragana' ? 'Hiragana · ひらがな' : 'Katakana · カタカナ';
       block.appendChild(h);
-      var q = document.createElement('div');
-      q.className = 'quick';
-      function link(label, fn) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = label;
-        b.addEventListener('click', fn);
-        q.appendChild(b);
-      }
-      link('All basic', function () { setKind(script, 'basic', true); });
-      link('None', function () { setKind(script, null, false); });
-      link('Dakuten', function () { setKind(script, 'dakuten', true); });
-      link('Yōon', function () { setKind(script, 'yoon', true); });
-      block.appendChild(q);
-      kinds.forEach(function (kind) {
-        var chips = vis.filter(function (g) { return g.script === script && g.kind === kind.id; });
-        if (!chips.length) return;
-        if (kind.id !== 'basic') {
-          var sub = document.createElement('h2');
-          sub.textContent = kind.title;
-          block.appendChild(sub);
-        }
-        var wrap = document.createElement('div');
-        wrap.className = 'chips';
-        chips.forEach(function (g) {
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'chip' + (G.groups.indexOf(g.id) >= 0 ? ' on' : '');
-          b.textContent = g.label;
-          b.addEventListener('click', function () { toggleGroup(g.id); });
-          wrap.appendChild(b);
-        });
-        block.appendChild(wrap);
+      vis.filter(function (g) { return g.script === script && g.kind === 'basic'; })
+        .forEach(function (g) { block.appendChild(rowBtn(g)); });
+
+      var extras = vis.filter(function (g) {
+        return g.script === script && extraKinds.indexOf(g.kind) >= 0;
       });
+      if (extras.length) {
+        var more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'more';
+        more.setAttribute('data-more', script);
+        var nOn = extras.filter(function (g) { return G.groups.indexOf(g.id) >= 0; }).length;
+        more.textContent = G.more
+          ? 'Hide extra rows'
+          : ('Dakuten, yōon, extras' + (nOn ? ' · ' + nOn + ' on' : ''));
+        more.addEventListener('click', function () {
+          G.more = !G.more;
+          renderHome();
+        });
+        block.appendChild(more);
+        if (G.more) {
+          extraKinds.forEach(function (kind) {
+            var chips = extras.filter(function (g) { return g.kind === kind; });
+            if (!chips.length) return;
+            var sub = document.createElement('h2');
+            sub.textContent = kind === 'yoon' ? 'Yōon' : kind === 'alike' ? 'Look-alikes' : kind === 'extra' ? 'Extra sounds' : 'Dakuten';
+            block.appendChild(sub);
+            chips.forEach(function (g) { block.appendChild(rowBtn(g)); });
+          });
+        }
+      }
       root.appendChild(block);
     });
+
+    var n = selectedCount();
+    $('pickCount').textContent = n ? (n + ' in this drill') : 'Pick a row to start';
+    $('startBtn').disabled = !n;
+    $('startBtn').textContent = G.solo && G.solo.deck && G.solo.i < G.solo.deck.length ? 'New drill' : 'Start drill';
+
     var miss = G.missed.length;
     $('reviewBtn').hidden = !miss;
     $('reviewBtn').textContent = miss ? ('Review misses (' + miss + ')') : 'Review misses';
+
+    var canResume = !!(G.solo && G.solo.deck && G.solo.i < G.solo.deck.length);
+    $('continueBtn').hidden = !canResume;
+    if (canResume) {
+      $('continueBtn').textContent = 'Continue  ' + (G.solo.i + 1) + ' / ' + G.solo.deck.length;
+    }
+
     $('friendBtn').hidden = !api;
-    $('friendHint').hidden = !api;
     $('scoreChip').textContent = '';
+    Array.prototype.forEach.call($('scriptSeg').children, function (c) {
+      c.classList.toggle('on', c.getAttribute('data-script') === G.script);
+    });
+    Array.prototype.forEach.call($('dirSeg').children, function (c) {
+      c.classList.toggle('on', c.getAttribute('data-dir') === G.dir);
+    });
+  }
+
+  function rowBtn(g) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'crow' + (G.groups.indexOf(g.id) >= 0 ? ' on' : '');
+    b.setAttribute('aria-pressed', G.groups.indexOf(g.id) >= 0 ? 'true' : 'false');
+    var keys = g.keys.slice();
+    var i, cell, sm, k;
+    for (i = 0; i < Math.max(keys.length, 1); i++) {
+      k = keys[i];
+      cell = document.createElement('span');
+      cell.className = 'ck';
+      cell.lang = 'ja';
+      if (k) {
+        cell.appendChild(document.createTextNode(k));
+        sm = document.createElement('small');
+        sm.textContent = romajiOf(k);
+        cell.appendChild(sm);
+      }
+      b.appendChild(cell);
+    }
+    b.addEventListener('click', function () { toggleGroup(g.id); });
+    return b;
   }
 
   function renderQuiz() {
@@ -431,8 +560,7 @@
     if (waiting || !key) {
       prompt.textContent = waiting ? 'あ' : '';
       prompt.className = 'prompt';
-      if (waiting) prompt.style.opacity = '.22';
-      else prompt.style.opacity = '';
+      prompt.style.opacity = waiting ? '.22' : '';
     } else {
       prompt.style.opacity = '';
       if (G.dir === 'toKana') {
@@ -452,19 +580,22 @@
         var label = G.dir === 'toKana' ? k : romajiOf(k);
         b.textContent = label;
         b.setAttribute('data-a', label);
-        if (G.dir === 'toKana') b.className = 'kana';
+        if (G.dir === 'toKana') { b.className = 'kana'; b.lang = 'ja'; }
         b.disabled = G.locked;
         b.addEventListener('click', function () { answer(label); });
         box.appendChild(b);
       });
     }
     var t = targetOf();
+    var n = G.deck.length;
     $('progress').textContent = waiting
       ? ''
-      : ((G.i + 1) + ' / ' + G.deck.length + (G.friend ? (' · first to ' + t) : ''));
+      : ((G.i + 1) + ' / ' + n + (G.friend ? (' · first to ' + t) : ''));
+    var fill = $('barFill');
+    if (fill) fill.style.width = n ? (Math.min(100, (G.i / n) * 100) + '%') : '0';
     $('scoreChip').textContent = String(G.score);
     if (!G.locked) {
-      $('feedback').textContent = '';
+      $('feedback').textContent = G.dir === 'toKana' ? 'Which kana?' : 'Which sound?';
       $('feedback').className = 'feedback';
     }
   }
@@ -500,16 +631,13 @@
     return { kind: 'playing' };
   }
 
-  function renderVersus() {
-    var el = $('versus');
-    if (!G.friend) { el.hidden = true; el.textContent = ''; return; }
-    el.hidden = false;
+  function fillPills(el, extra) {
     el.textContent = '';
-    var outcome = vsOutcome();
     function pill(p) {
       if (!p) return;
       var span = document.createElement('span');
       var cls = 'pill' + (p.id === me.id ? ' me' : '');
+      var outcome = extra && extra.outcome;
       if (outcome && outcome.kind === 'win' && outcome.winner && outcome.winner.id === p.id) cls += ' win';
       span.className = cls;
       var label = p.id === me.id ? 'You' : (p.name || 'Friend');
@@ -518,20 +646,26 @@
     }
     pill({ id: me.id, name: me.name, score: G.score });
     others.forEach(pill);
+  }
 
-    var modes = document.createElement('div');
-    modes.className = 'modes';
-    [['firstN', 'First to ' + TARGET_N], ['deck', 'Whole deck']].forEach(function (pair) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = pair[1];
-      b.className = G.race === pair[0] ? 'on' : '';
-      b.disabled = !iAmManager();
-      b.addEventListener('click', function () { setRace(pair[0]); });
-      modes.appendChild(b);
+  function renderLobby() {
+    fillPills($('lobbyPeople'), {});
+    $('lobbyWait').textContent = versusOn()
+      ? 'Friend is here — starting…'
+      : 'Waiting for a friend…';
+    Array.prototype.forEach.call($('raceSeg').children, function (c) {
+      c.classList.toggle('on', c.getAttribute('data-race') === G.race);
+      c.disabled = versusOn() && !iAmManager();
     });
-    el.appendChild(modes);
+    $('scoreChip').textContent = '';
+  }
 
+  function renderVersus() {
+    var el = $('versus');
+    if (!G.friend) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    var outcome = vsOutcome();
+    fillPills(el, { outcome: outcome });
     var note = document.createElement('p');
     note.className = 'note';
     if (!versusOn()) {
@@ -551,6 +685,7 @@
 
   function render() {
     if (G.screen === 'home') renderHome();
+    else if (G.screen === 'lobby') renderLobby();
     else if (G.screen === 'quiz') {
       renderQuiz();
       renderVersus();
@@ -562,6 +697,7 @@
     } else {
       $('scoreChip').textContent = String(G.score);
       renderVersus();
+      paintMissed();
       if (G.friend) {
         $('againBtn').textContent = 'Play again';
         $('doneTitle').textContent = vsDoneTitle();
@@ -573,7 +709,13 @@
 
   function setRace(mode) {
     if (mode !== 'firstN' && mode !== 'deck') return;
-    if (!G.friend || !iAmManager() || !matchDb) return;
+    G.race = mode;
+    if (!G.friend || !matchDb) {
+      saveSoon();
+      renderLobby();
+      return;
+    }
+    if (!iAmManager()) return;
     var next = {
       id: 'm',
       seed: (now() ^ (Math.random() * 0xffffffff)) >>> 0,
@@ -581,13 +723,13 @@
       groups: G.groups.slice(),
       dir: G.dir,
       race: mode,
-      round: (vsRound || 1) + (G.i > 0 || G.score > 0 ? 1 : 0),
+      round: vsRound || 1,
       startedAt: now()
     };
-    if (!(G.i > 0 || G.score > 0)) {
-      next.round = vsRound || 1;
-      next.deck = G.deck.slice();
-      next.seed = match && match.seed != null ? match.seed : next.seed;
+    if (match && match.deck && match.deck.length && !(G.i > 0 || G.score > 0)) {
+      next.deck = match.deck.slice();
+      next.seed = match.seed;
+      next.round = match.round || 1;
     }
     match = next;
     matchDb.put(match).catch(function () {});
@@ -601,6 +743,7 @@
     var keep = G.groups.filter(function (id) { return vis.indexOf(id) >= 0; });
     if (!keep.length) {
       if (s === 'katakana') keep = ['k_group1', 'k_group2'];
+      else if (s === 'both') keep = ['h_group1', 'h_group2', 'k_group1', 'k_group2'];
       else keep = ['h_group1', 'h_group2'];
     }
     G.groups = keep;
@@ -624,17 +767,22 @@
   }
   bindSeg($('scriptSeg'), 'data-script', setScript);
   bindSeg($('dirSeg'), 'data-dir', setDir);
+  bindSeg($('raceSeg'), 'data-race', setRace);
 
   $('startBtn').addEventListener('click', function () { startDrill({}); });
+  $('continueBtn').addEventListener('click', function () { startDrill({ resume: true }); });
   $('reviewBtn').addEventListener('click', function () { startDrill({ review: true }); });
   $('reviewDoneBtn').addEventListener('click', function () { startDrill({ review: true }); });
   $('friendBtn').addEventListener('click', function () {
     if (!api) return;
     G.friend = true;
-    G.race = 'firstN';
+    G.race = G.race || 'firstN';
     ensureMatch(true);
-    startDrill({ friend: true });
+    show('lobby');
+    publishMe();
+    render();
   });
+  $('lobbyBack').addEventListener('click', function () { goHome(); });
   $('againBtn').addEventListener('click', function () {
     if (G.friend) {
       G.ready = true;
@@ -647,7 +795,10 @@
     startDrill({});
   });
   $('homeBtn').addEventListener('click', function () { goHome(); });
-  $('backBtn').addEventListener('click', function () { goHome(); });
+  $('backBtn').addEventListener('click', function () {
+    if (G.screen === 'lobby') { goHome(); return; }
+    goHome();
+  });
   $('infoBtn').addEventListener('click', function () { $('modal-info').hidden = false; });
   $('modal-info').addEventListener('click', function (ev) {
     if (ev.target === $('modal-info')) $('modal-info').hidden = true;
@@ -681,6 +832,9 @@
   }
 
   function goHome() {
+    if (G.screen === 'quiz' && !G.friend && G.deck.length && G.i < G.deck.length) {
+      G.solo = snapshotSolo();
+    }
     G.friend = false;
     G.locked = false;
     show('home');
@@ -703,16 +857,22 @@
       missed: G.missed.slice(),
       race: G.race
     }).catch(function () {});
-    if (!G.friend && G.screen === 'quiz' && G.deck.length) {
+    var solo = (!G.friend && G.screen === 'quiz' && G.deck.length && G.i < G.deck.length)
+      ? snapshotSolo()
+      : G.solo;
+    if (solo && solo.deck && solo.deck.length) {
       prefsDb.put({
         id: 'solo',
-        deck: G.deck.slice(),
-        i: G.i,
-        score: G.score,
-        wrong: G.wrong,
-        dir: G.dir,
-        groups: G.groups.slice()
+        deck: solo.deck.slice(),
+        i: solo.i,
+        score: solo.score,
+        wrong: solo.wrong,
+        dir: solo.dir,
+        groups: solo.groups ? solo.groups.slice() : G.groups.slice(),
+        requeued: solo.requeued ? solo.requeued.slice() : []
       }).catch(function () {});
+    } else {
+      prefsDb.put({ id: 'solo', deck: [] }).catch(function () {});
     }
   }
   function restorePrefs(rows) {
@@ -724,23 +884,17 @@
       if (Array.isArray(by.setup.groups) && by.setup.groups.length) G.groups = by.setup.groups.slice();
       if (Array.isArray(by.setup.missed)) G.missed = by.setup.missed.slice();
       if (by.setup.race) G.race = by.setup.race;
-      Array.prototype.forEach.call($('scriptSeg').children, function (c) {
-        c.classList.toggle('on', c.getAttribute('data-script') === G.script);
-      });
-      Array.prototype.forEach.call($('dirSeg').children, function (c) {
-        c.classList.toggle('on', c.getAttribute('data-dir') === G.dir);
-      });
     }
-    if (by.solo && Array.isArray(by.solo.deck) && by.solo.deck.length && !G.friend) {
-      G.deck = by.solo.deck.slice();
-      G.i = by.solo.i | 0;
-      G.score = by.solo.score | 0;
-      G.wrong = by.solo.wrong | 0;
-      if (by.solo.dir) G.dir = by.solo.dir;
-      if (G.i < G.deck.length) {
-        dealChoices();
-        show('quiz');
-      }
+    if (by.solo && Array.isArray(by.solo.deck) && by.solo.deck.length && (by.solo.i | 0) < by.solo.deck.length) {
+      G.solo = {
+        deck: by.solo.deck.slice(),
+        i: by.solo.i | 0,
+        score: by.solo.score | 0,
+        wrong: by.solo.wrong | 0,
+        dir: by.solo.dir || G.dir,
+        groups: Array.isArray(by.solo.groups) ? by.solo.groups.slice() : G.groups.slice(),
+        requeued: Array.isArray(by.solo.requeued) ? by.solo.requeued.slice() : []
+      };
     }
   }
 
@@ -788,8 +942,13 @@
     });
     if (versusOn() && G.friend) {
       ensureMatch(false);
+      if (G.screen === 'lobby') {
+        startDrill({ friend: true });
+        return;
+      }
       maybeNewRound();
-    } else if (versusOn() && others.some(function (p) { return p.friend; }) && G.screen === 'home') {
+    } else if (versusOn() && others.some(function (p) { return p.friend; }) &&
+        (G.screen === 'home' || G.screen === 'lobby')) {
       G.friend = true;
       ensureMatch(false);
       startDrill({ friend: true });
@@ -815,8 +974,9 @@
       G.doneAt = 0;
       G.ready = false;
       G.locked = false;
+      G.requeued = [];
       dealChoices();
-      if (G.friend) show('quiz');
+      if (G.friend && G.screen !== 'lobby') show('quiz');
     }
     publishMe();
   }
