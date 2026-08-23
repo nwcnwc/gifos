@@ -1,0 +1,14 @@
+{
+  "gifos": "1.0",
+  "appId": "hat-sh",
+  "name": "hat.sh",
+  "shortName": "hat.sh",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Encrypt and decrypt files in this tab with a password or a key pair. Nothing leaves this device — there is no network path at all.",
+  "entry": "index.html",
+  "accent": [107, 140, 255],
+  "capabilities": {
+    "wasm": true
+  }
+}

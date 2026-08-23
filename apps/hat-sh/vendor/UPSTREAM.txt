@@ -1,0 +1,23 @@
+vendor/sodium.js is GENERATED. Do not edit it; run node apps/hat-sh/vendor.mjs.
+
+hat.sh:     https://github.com/sh-dv/hat.sh
+commit:     540d3ccfd2a12b4ed96b78a776c764f899678b6c   (v2.3.6, 2022-06-18)
+license:    MIT (COPYING-hat.sh.txt)
+
+libsodium:  https://github.com/jedisct1/libsodium.js
+tag:        0.7.13
+commit:     d96986a6e69ef9da64d3eca0b62b736da5afc4d0
+file:       dist/browsers-sumo/sodium.js
+sha256:     b13df42138a77880bd8e18ab184ca74fac59c31471cf82f8ded677cc46b5087f
+license:    ISC (COPYING-libsodium.txt)
+
+SUMO, not the standard browsers build: hat.sh's v2 password path is Argon2id
+(crypto_pwhash), which the standard libsodium.js build does not export.
+
+The port's file format is hat.sh v2:
+  symmetric  signature "zDKO6XYXioc" + salt(16) + header(24) + secretstream chunks
+  asymmetric signature "hTWKbfoikeg" + header(24) + secretstream chunks
+chunk size 64 MiB, ABYTES 17, pwhash OPSLIMIT/MEMLIMIT INTERACTIVE + ARGON2ID13.
+v1 ("Encrypted Using Hat.sh") is detected and refused.
+
+Both notices travel INSIDE the GIF as well as beside it here.
