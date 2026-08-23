@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "gomoku",
+  "appId": "gomoku",
+  "name": "Gomoku",
+  "shortName": "Gomoku",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Five in a row, against the computer or a friend on the other side of the board.",
+  "description": "A wooden 15-by-15 board. Black and white take turns putting a stone down. First to get five in a line — across, down, or diagonal — wins.\n\nPlay the computer at novice, medium, or expert. It thinks on this device; there is no server. Play another person on the same screen, passing the device between you. Or press Play a friend and send the invite: the same board, live, on two devices. Black sits one side, white the other. You can take back the stone you just put down as long as the other person has not answered yet. Further than that, you both have to agree.\n\nAn unofficial port of HTML5 Gomoku by yyjhao. The computer is the same one that shipped with that game.",
+  "author": {
+    "name": "yyjhao",
+    "url": "https://github.com/yyjhao/HTML5-Gomoku"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "gomoku",
+    "five-in-a-row",
+    "board",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/gomoku",
+  "accent": [
+    196,
+    140,
+    70
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/gomoku/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/gomoku/gomoku.gif",
+  "bytes": 200091,
+  "download": 0,
+  "provides": null,
+  "sha256": "4d481e331686a321ad7e4b7a3225961c027d632f037fa91de3ba63720b73b866",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "HTML5 Gomoku",
+    "url": "https://github.com/yyjhao/HTML5-Gomoku",
+    "blessed": false
+  }
+}

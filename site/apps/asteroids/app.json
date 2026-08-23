@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "asteroids",
+  "appId": "asteroids",
+  "name": "Asteroids",
+  "shortName": "Asteroids",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "A little triangle, a field of rocks, and whoever you send the link to.",
+  "description": "You are a ship in empty space and the rocks do not care. Turn, thrust, shoot. A big one breaks into medium ones, those into pebbles, and a saucer will wander through if you linger. Three lives, a score in the corner, and the next wave is always one rock heavier.\n\nOn a phone the buttons sit under your thumbs — turn, thrust, fire. On a computer it is the arrows and the space bar, the way it always was.\n\nSend the invite and extra ships appear in the same field. Everyone flies their own, everyone shoots the same rocks, and a board in the corner keeps the scores. Friendly fire stays off unless the host turns it on.\n\nAn unofficial port of HTML5 Asteroids by Doug McInnes, MIT-licensed. This copy adds the extra ships over a meeting.",
+  "author": {
+    "name": "dmcinnes",
+    "url": "https://github.com/dmcinnes/HTML5-Asteroids"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "asteroids",
+    "arcade",
+    "vector",
+    "multiplayer",
+    "space",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/asteroids",
+  "accent": [
+    196,
+    220,
+    255
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/asteroids/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/asteroids/asteroids.gif",
+  "bytes": 202406,
+  "download": 0,
+  "provides": null,
+  "sha256": "ae17a97cad1f224ebed590c64607d87749a8d0aca18be6bf8fe3896b5ebf6f6f",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "HTML5 Asteroids",
+    "url": "https://github.com/dmcinnes/HTML5-Asteroids",
+    "blessed": false
+  }
+}

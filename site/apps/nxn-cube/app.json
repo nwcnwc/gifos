@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "nxn-cube",
+  "appId": "nxn-cube",
+  "name": "NxN Cube",
+  "shortName": "NxN Cube",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "A colourful cube. Drag a face to turn it. Race the same scramble.",
+  "description": "Turn the faces of a cube until each side is one colour. Drag a face to twist it, or drag the empty space to spin the whole cube. Start at 3×3, or pick any size from a pocket 2×2 up to 10×10.\n\nScramble shuffles the cube. Restore puts it back to solved, if you would rather start over. Your move count sits in the corner while you work.\n\nSend the invite from the GifOS bar and everyone who opens it gets the same scramble. First to a solved cube wins. On your own it is still just the toy: scramble, turn, solve.\n\nAn unofficial port of rubiks-cube by pengfeiw, MIT-licensed. This copy adds the scramble, a shared-shuffle race, and drag that works with a finger.",
+  "author": {
+    "name": "pengfeiw",
+    "url": "https://github.com/pengfeiw/rubiks-cube"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "cube",
+    "puzzle",
+    "3d",
+    "scramble",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/nxn-cube",
+  "accent": [
+    251,
+    54,
+    54
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/nxn-cube/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/nxn-cube/nxn-cube.gif",
+  "bytes": 404031,
+  "download": 0,
+  "provides": null,
+  "sha256": "fbac535991773635037df94d9e03f6577082c4cbb881241a22abf51d9d151ca3",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "rubiks-cube",
+    "url": "https://github.com/pengfeiw/rubiks-cube",
+    "blessed": false
+  }
+}

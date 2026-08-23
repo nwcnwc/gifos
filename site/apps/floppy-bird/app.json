@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "floppy-bird",
+  "appId": "floppy-bird",
+  "name": "Floppy Bird",
+  "shortName": "Floppy",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Tap to flap between the pipes. Send the link and race a ghost of the other bird.",
+  "description": "Tap, or hit space, and the bird flaps. The pipes keep coming. Last as long as you can — that is the whole game, and it works with a thumb on a phone the same way it works with a mouse.\n\nSend the invite and it becomes a race. Everyone who opens the link flies the same pipes. You see the other bird as a ghost on your screen, a little ahead or a little behind. First to hit a pipe loses; the one who goes farthest wins. There is no game server and no lobby. The room is the link, and it holds together in the browsers of the people playing. Playing alone is still the original game.\n\nYour best score stays on this device, inside the app.\n\nAn unofficial port of Floppy Bird by nebez, Apache-2.0. The pictures and sounds come from the 2014 tap-flap game by Dong Nguyen / .GEARS. This copy adds the race over a meeting link. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "nebez",
+    "url": "https://github.com/nebez/floppybird"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "arcade",
+    "tap",
+    "multiplayer",
+    "race",
+    "offline"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/floppy-bird",
+  "accent": [
+    78,
+    192,
+    202
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/floppy-bird/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/floppy-bird/floppy-bird.gif",
+  "bytes": 300768,
+  "download": 0,
+  "provides": null,
+  "sha256": "c4d04d1960a6dcc3c6bf3b55f09e512f3f27f23d81a6768ee4ff5a2249066f00",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Floppy Bird",
+    "url": "https://github.com/nebez/floppybird",
+    "blessed": false
+  }
+}

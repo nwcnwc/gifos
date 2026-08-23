@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "word-master",
+  "appId": "word-master",
+  "name": "Word Master",
+  "shortName": "Words",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Six guesses, as many words as you like. Race a friend on the same secret.",
+  "description": "You have six tries to find a five-letter word. After each guess the letters change colour: green if a letter is right and in the right place, yellow if it belongs in the word somewhere else, and gray if it does not belong at all. Guess any real word. When you finish, play another — there is no once-a-day limit.\n\nOn your own it is a quiet streak, saved on this device inside the app. Send the invite and two of you get the same secret word. You never see each other's letters — only how many guesses the other person has used. First to find it wins; if you both get there, fewer guesses wins.\n\nAn unofficial port of Word Master by octokatherine, MIT-licensed. Play as many rounds as you want.",
+  "author": {
+    "name": "octokatherine",
+    "url": "https://github.com/octokatherine/word-master"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "word",
+    "puzzle",
+    "guessing",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/word-master",
+  "accent": [
+    99,
+    170,
+    85
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/word-master/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/word-master/word-master.gif",
+  "bytes": 207756,
+  "download": 0,
+  "provides": null,
+  "sha256": "33323884bd35ebb26dba4269ce8dd736c15ef8d7f3abebe59e32836763a57c3b",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Word Master",
+    "url": "https://github.com/octokatherine/word-master",
+    "blessed": false
+  }
+}

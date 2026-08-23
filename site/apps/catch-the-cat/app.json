@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "catch-the-cat",
+  "appId": "catch-the-cat",
+  "name": "Catch the Cat",
+  "shortName": "Cat",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Tap the dots. Wall the cat in before it reaches the edge.",
+  "description": "A black cat sits in the middle of a honeycomb of dots. Each tap turns a dot into a wall; after every tap the cat takes a step, always toward the way out. Wall it in and you win. Let it reach the rim and it runs.\n\nOn a phone it is just a finger: tap a dot, the cat moves, tap again. Undo if you slipped. A new board scatters a handful of walls so the first move is never the same.\n\nSend the invite and everyone who opens it gets the same board. You each play your own copy — same start, same cat, same walls — and the one who pens it in with the fewest taps wins. If the cat gets away, you are out of that round. Start another whenever you like; everyone jumps to the new board together.\n\nAn unofficial port of Catch The Cat by ganlvtech. The cat, the honeycomb and the chase are theirs. Racing a friend over the invite is ours.",
+  "author": {
+    "name": "ganlvtech",
+    "url": "https://github.com/ganlvtech/phaser-catch-the-cat"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "puzzle",
+    "cat",
+    "hex",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/catch-the-cat",
+  "accent": [
+    232,
+    176,
+    90
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/catch-the-cat/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/catch-the-cat/catch-the-cat.gif",
+  "bytes": 575651,
+  "download": 0,
+  "provides": null,
+  "sha256": "56beca5e2787ec9f73485de339467f4b2e50ab3e3f06195a071a6083cd1a2193",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Catch The Cat",
+    "url": "https://github.com/ganlvtech/phaser-catch-the-cat",
+    "blessed": false
+  }
+}
