@@ -1,0 +1,146 @@
+:root {
+  --bg: #f4f1ea;
+  --ink: #111111;
+  --muted: #555555;
+  --blue: #0ebeff;
+  --blue-d: #0a9ad4;
+  --green: #47cf73;
+  --yellow: #fcd000;
+  --red: #ff3c41;
+  --card: #ffffff;
+  --line: #ddd8cc;
+  --hl: #ece7dc;
+  --pad: #ffffff;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  padding: 10px 12px 28px;
+  padding-bottom: max(28px, env(safe-area-inset-bottom));
+}
+button, select { font: inherit; color: inherit; }
+button { touch-action: manipulation; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0,0,0,0);
+}
+#app { max-width: 520px; margin: 0 auto; }
+header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap; margin-bottom: 8px;
+}
+h1 { font-size: 1.25rem; margin: 0; letter-spacing: -0.02em; color: var(--blue-d); }
+.meta { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+#size {
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 8px; font-weight: 650;
+}
+#puz { font-variant-numeric: tabular-nums; font-weight: 650; min-width: 3ch; }
+.timer {
+  background: var(--blue); color: #111; border: 0; border-radius: 8px;
+  padding: 6px 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  cursor: pointer; min-width: 4.5rem;
+}
+
+#race {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; margin: 0 0 10px; text-align: left;
+}
+#race[hidden], #overlay[hidden], #won[hidden], #how[hidden], #invite-hint[hidden], #againBtn[hidden] { display: none; }
+.race-hd { font-weight: 700; color: var(--blue-d); font-size: 0.85rem; letter-spacing: .04em; text-transform: uppercase; }
+.race-row {
+  display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  border-top: 1px solid var(--line); font-variant-numeric: tabular-nums;
+}
+.race-row:first-child { border-top: none; }
+.race-row.me .who { color: var(--blue-d); font-weight: 700; }
+.race-row.win .who { color: var(--green); }
+.who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.when { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.bar-track { flex: 0 0 72px; height: 6px; background: var(--hl); border-radius: 99px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; border-radius: 99px; }
+.state { font-size: 12px; color: var(--muted); min-width: 4.5rem; text-align: right; }
+#race-note { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.race-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
+#againBtn {
+  background: var(--blue); color: #111; border: 0; border-radius: 8px;
+  padding: 8px 14px; font-weight: 700; cursor: pointer;
+}
+
+#stage { position: relative; width: min(100%, 520px); margin: 0 auto; }
+#board {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background: var(--card);
+  border-radius: 8px;
+  cursor: crosshair;
+}
+#overlay, #won {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  z-index: 3;
+  border-radius: 8px;
+}
+.play-btn {
+  width: 80px; height: 80px; border-radius: 50%; border: 0;
+  background: var(--blue); color: #111; font-size: 28px; cursor: pointer;
+}
+#won p { margin: 0 0 8px; font-weight: 700; font-size: 1.2rem; }
+#won-next, #controls button, #bar button, #howClose, #new, #pad button {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; font-weight: 650; cursor: pointer;
+}
+#won-next { background: var(--green); color: #111; border: 0; }
+
+#pad {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  width: min(100%, 520px); margin: 10px auto 0;
+}
+#pad button {
+  min-height: 48px;
+  font-size: 1rem;
+}
+#fillBtn[aria-pressed="true"] {
+  background: var(--blue); color: #111; border-color: var(--blue);
+}
+#crossBtn[aria-pressed="true"] {
+  background: var(--red); color: #fff; border-color: var(--red);
+}
+
+#controls, #bar {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  width: min(100%, 520px); margin: 10px auto 0;
+}
+#undo:disabled { opacity: .45; }
+
+#invite-hint { color: var(--muted); font-size: 13px; line-height: 1.45; }
+#invite-hint b { color: var(--blue-d); }
+.credit { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 14px; }
+
+#how {
+  position: fixed; inset: 0; background: color-mix(in srgb, #000 40%, transparent);
+  z-index: 20; display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  background: var(--card); color: var(--ink); width: min(100%, 520px);
+  border-radius: 16px 16px 0 0; padding: 18px 18px 28px;
+  max-height: 90vh; overflow: auto;
+}
+.sheet h2 { margin: 0 0 12px; }
+.sheet ul { margin: 0; padding-left: 1.2em; color: var(--muted); }
+.sheet li { margin: 0 0 8px; }
+.foot { color: var(--muted); font-size: 13px; line-height: 1.45; }
+#howClose { width: 100%; margin-top: 16px; background: var(--blue); color: #111; border: 0; }
