@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Yahtzee</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link href="vendor/main.css" rel="stylesheet">
+  <link href="style.css" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header class="top">
+      <h1>Yahtzee</h1>
+      <div class="top-meta">
+        <span id="best">Best: 0</span>
+        <button type="button" id="friendBtn">Play a friend</button>
+      </div>
+    </header>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You each have your own scorecard. Same round. Highest total wins.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="againBtn" hidden>Play again</button>
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div class="dices">
+      <canvas id="d0" class="dice"></canvas>
+      <canvas id="d1" class="dice"></canvas>
+      <canvas id="d2" class="dice"></canvas>
+      <canvas id="d3" class="dice"></canvas>
+      <canvas id="d4" class="dice"></canvas>
+      <canvas id="play" class="paquet"></canvas>
+      <canvas class="counter"></canvas>
+    </div>
+
+    <div id="showScores">
+      <button type="button">Show</button>
+    </div>
+
+    <div class="results">
+      <img src="vendor/images/scores.jpg" width="360" height="auto" alt="">
+      <div>
+        <div class="result multi">
+          <div class="name">1 x</div>
+          <div class="score"></div>
+        </div>
+        <div class="result multi">
+          <div class="name">2 x</div>
+          <div class="score"></div>
+        </div>
+        <div class="result multi">
+          <div class="name">3 x</div>
+          <div class="score"></div>
+        </div>
+        <div class="result multi">
+          <div class="name">4 x</div>
+          <div class="score"></div>
+        </div>
+        <div class="result multi">
+          <div class="name">5 x</div>
+          <div class="score"></div>
+        </div>
+        <div class="result multi">
+          <div class="name">6 x</div>
+          <div class="score"></div>
+        </div>
+        <div id="sum" class="result saved">
+          <div class="name">?&gt;63</div>
+          <div class="score"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="result yams">
+          <div class="name">Brelan</div>
+          <div class="score"></div>
+        </div>
+        <div class="result yams">
+          <div class="name">Carré</div>
+          <div class="score"></div>
+        </div>
+        <div class="result yams">
+          <div class="name">suite</div>
+          <div class="score"></div>
+        </div>
+        <div class="result yams">
+          <div class="name">Suite</div>
+          <div class="score"></div>
+        </div>
+        <div class="result yams">
+          <div class="name">Full</div>
+          <div class="score"></div>
+        </div>
+        <div class="result yams">
+          <div class="name">Bonus</div>
+          <div class="score"></div>
+        </div>
+        <div id="yahtzee" class="result yams">
+          <div class="name">Yahtzee</div>
+          <div class="score"></div>
+        </div>
+      </div>
+      <div id="total" class="result saved">
+        <div class="name">TOTAL</div>
+        <div class="score"></div>
+      </div>
+    </div>
+
+    <p class="foot">Unofficial port of Yahtzee by Alhissar (MIT). Playing alone is the original game. A table is one round, each scorecard on its own row — nobody writes on anybody else’s.</p>
+  </div>
+
+  <div class="invisible">
+    <img src="vendor/images/colors_small.png" alt="" id="colors" width="500" height="100">
+    <img src="vendor/images/numbers.png" alt="" id="nb" width="162" height="54">
+  </div>
+
+  <script src="vendor/Card.js"></script>
+  <script src="vendor/Dices.js"></script>
+  <script src="vendor/Player.js"></script>
+  <script src="vendor/functions.js"></script>
+  <script src="storage.js"></script>
+  <script src="mp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

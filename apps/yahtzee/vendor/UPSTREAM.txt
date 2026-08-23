@@ -1,0 +1,36 @@
+vendor/* is GENERATED. Do not edit it; run node apps/yahtzee/vendor.mjs.
+
+upstream: https://github.com/Alhissar/Yahtzee.git
+commit:   a85a38aefb3aafe6613a4533da14a401e7ed0313
+date:     2019-06-21
+license:  MIT (COPYING-yahtzee.txt)
+
+Classic scripts converted from js/ (ESM import/export stripped; class Foo
+bound on var Foo so a later classic script can see it):
+  Card.js
+  Dices.js
+  Player.js
+  functions.js
+
+NOT copied:
+  js/main.js                 — boot is app.js (wait for art, then new Dices/Player)
+  images/back2.jpg           — unused
+  images/cardTemplate.jpg    — unused
+
+Player.js originally did `const dices = new Dices()` at import, constructing
+five extra cards on the same canvases. scoringDices() is a Dices.prototype
+object with no cards, used only for yahtzee / full / straight / sameDice.
+
+style/main.css image url() (fond.jpg, card.jpg, back.jpg, numbers.png) are
+data URIs. HTML <img> files still ride as vendor/images/* so the runtime can
+rewrite src= to a data URL.
+
+sha256:
+  Card.js  be34ab1dc4ddd6d03f943d66cb5f5fa1cbea82b06f4f95d688743e7ad4f1bdf2
+  Dices.js  8c1a72abeb4bcfeeedcf273a3fe22894eca52ef9e12e2b7db10c10446bda0466
+  Player.js  d6829b8dcd47ea5e8c3c317eca65359086518561a2e8a46d5ffdf60f1619d3cc
+  functions.js  8682f81c7570ce5598ce48eb5ac0b43d05feaa1d136bb803d45f6ae986226dfa
+  main.css  00b806f4a6479c5d59182a7aa8f9d784f01eb328ea81189ebe1167cc3cb92bbb
+  COPYING-yahtzee.txt  baa07d4ec0de31988b3583cd64d0b110c95cf3adc74b3b36035c2a7bbf1bbbca
+
+The MIT notice travels INSIDE the GIF as COPYING-yahtzee.txt as well as here.
