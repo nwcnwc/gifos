@@ -36,8 +36,16 @@
   </section>
 
   <section class="game" id="game" hidden>
+    <div class="turnrow" aria-live="polite">
+      <div class="who" id="whoWhite">♔ White</div>
+      <div class="who" id="whoBlack">♚ Black</div>
+    </div>
     <div class="statusline" id="statusLine">Your turn.</div>
-    <div class="boardwrap"><canvas id="board" width="640" height="700" aria-label="Hex chess board"></canvas></div>
+    <div class="caps" id="caps"></div>
+    <div class="boardwrap">
+      <canvas id="board" width="640" height="720" aria-label="Hex chess board"></canvas>
+      <div class="banner" id="banner" hidden></div>
+    </div>
     <div class="controls">
       <button id="undoBtn" class="ghost" type="button">↶ Undo</button>
       <button id="newBtn" class="ghost" type="button">＋ New game</button>
@@ -49,7 +57,7 @@
     <div class="seats" id="fSeats"></div>
     <div class="fqueue" id="fQueue"></div>
     <div class="statusline" id="fStatus"></div>
-    <div class="boardwrap"><canvas id="fBoard" width="640" height="700" aria-label="Shared hex chess board"></canvas></div>
+    <div class="boardwrap"><canvas id="fBoard" width="640" height="720" aria-label="Shared hex chess board"></canvas></div>
     <div class="controls">
       <button id="fResign" class="ghost" type="button" hidden>🏳 Resign</button>
     </div>

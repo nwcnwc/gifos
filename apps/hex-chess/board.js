@@ -420,10 +420,11 @@
     return Math.max(Math.abs(q1 - q2), Math.abs(r1 - r2), Math.abs(z1 - z2));
   }
 
+  // Flat-top axial (Red Blob Games). y is north-up. White's rank 1 is south.
   function pixel(q, r, size) {
     return {
-      x: size * Math.sqrt(3) / 2 * q,
-      y: -size * (r + q / 2)
+      x: size * 1.5 * q,
+      y: size * Math.sqrt(3) * (r + q / 2)
     };
   }
 
@@ -437,12 +438,39 @@
   }
 
   function atPixel(px, py, size) {
-    var q = (2 / Math.sqrt(3)) * px / size;
-    var r = (-py / size) - q / 2;
-    var z = -q - r;
-    var h = cubeRound(q, r, z);
-    if (!inBoard(h.q, h.r)) return null;
-    return h;
+    var q = (2 / 3) * px / size;
+    var r = py / (size * Math.sqrt(3)) - q / 2;
+    var h = cubeRound(q, r, -q - r);
+    if (inBoard(h.q, h.r)) return h;
+    // slop: a tap on the outer stroke still counts
+    var p = pixel(h.q, h.r, size), dx = px - p.x, dy = py - p.y;
+    if (dx * dx + dy * dy <= size * size * 0.64 && inBoard(h.q, h.r)) return h;
+    return null;
+  }
+
+  function san(s, m) {
+    if (!s || !m) return '';
+    var piece = s.pieces[key(m.fq, m.fr)];
+    var t = ptype(piece);
+    var dest = alg(m.tq, m.tr);
+    var cap = m.cap || m.ep;
+    var letters = ' PNBRQK';
+    if (t === P) {
+      return (cap ? alg(m.fq, m.fr).charAt(0) + 'x' : '') + dest +
+        (m.promo ? '=' + letters.charAt(m.promo) : '');
+    }
+    return letters.charAt(t) + (cap ? 'x' : '') + dest;
+  }
+
+  function missingGlyphs(pieces) {
+    var start = { P: 9, N: 2, B: 3, R: 2, Q: 1, K: 1 };
+    var c = countSide(pieces), order = 'QRNBP', i, ch, n, ws = '', bs = '';
+    for (i = 0; i < order.length; i++) {
+      ch = order.charAt(i);
+      for (n = start[ch] - (c.b[ch] || 0); n > 0; n--) ws += ch;
+      for (n = start[ch] - (c.w[ch] || 0); n > 0; n--) bs += ch;
+    }
+    return { w: ws, b: bs };
   }
 
   function material(pieces) {
@@ -478,6 +506,9 @@
   function aiMove(s, budgetMs) {
     var moves = legalMoves(s);
     if (!moves.length) return null;
+    moves.sort(function (a, b) {
+      return (b.cap ? VALUES[ptype(b.cap)] : 0) - (a.cap ? VALUES[ptype(a.cap)] : 0);
+    });
     var t0 = Date.now ? Date.now() : 0;
     var budget = budgetMs || 60;
     var i, ns, sc, best = -1e15, pool = [], m, reply, j, worst, rs, capBonus;
@@ -536,7 +567,7 @@
     fresh: fresh, play: play, applyMove: applyMove, replay: replay,
     colorName: colorName, colorNum: colorNum, cubeDist: cubeDist,
     pixel: pixel, atPixel: atPixel, evaluate: evaluate, aiMove: aiMove,
-    material: material, dump: dump,
+    material: material, dump: dump, san: san, missingGlyphs: missingGlyphs,
     WHITE_PAWN_START: WHITE_PAWN_START, BLACK_PAWN_START: BLACK_PAWN_START
   };
 })(typeof window !== 'undefined' ? window : this);

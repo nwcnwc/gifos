@@ -45,23 +45,32 @@ function inFlatHex(px, py, cx, cy, R) {
 }
 function hexColor(q, r) { return ((q - r) % 3 + 3) % 3; }
 function hexPixel(q, r, size) {
-  return { x: size * Math.sqrt(3) / 2 * q, y: -size * (r + q / 2) };
+  return { x: size * 1.5 * q, y: size * Math.sqrt(3) * (r + q / 2) };
 }
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 18;
-  const size = 11.2;
-  const ox = OUT / 2, oy = OUT / 2 + 2;
+  const size = 12.4;
+  const ox = OUT / 2, oy = OUT / 2 + 4;
   const t = f / (FRAMES - 1);
-  const from = { q: -1, r: 0 }, to = { q: 1, r: 2 };
+  // Real knight leap: 2 hexes north, then one at 60° (cube delta 1,2,3).
+  const from = { q: -1, r: -1 }, to = { q: 0, r: 1 };
   const a = hexPixel(from.q, from.r, size), b = hexPixel(to.q, to.r, size);
-  const jumpT = Math.min(1, t * 1.12);
+  const jumpT = Math.min(1, t * 1.08);
   const jx = ox + a.x + (b.x - a.x) * jumpT;
-  const jy = oy + a.y + (b.y - a.y) * jumpT - Math.sin(jumpT * Math.PI) * size * 1.15;
+  const jy = oy - (a.y + (b.y - a.y) * jumpT) - Math.sin(jumpT * Math.PI) * size * 1.05;
   const settled = [
-    [0, -1, false], [1, -1, false], [-1, 1, true], [0, 1, true], [2, 0, true], [-2, 1, false]
+    [0, -2, false], [1, -2, false], [-1, 1, true], [0, 1, true], [2, -1, true], [-2, 0, false]
   ];
+  function knightBlob(x, y, cx, cy, pr) {
+    const dx = x - cx, dy = y - cy;
+    if (dx * dx + dy * dy <= pr * pr) return true;
+    const ear = (x - (cx + pr * 0.42)) * (x - (cx + pr * 0.42)) + (y - (cy - pr * 0.62)) * (y - (cy - pr * 0.62));
+    if (ear <= (pr * 0.34) * (pr * 0.34)) return true;
+    const snout = (x - (cx + pr * 0.7)) * (x - (cx + pr * 0.7)) + (y - (cy - pr * 0.15)) * (y - (cy - pr * 0.15));
+    return snout <= (pr * 0.28) * (pr * 0.28);
+  }
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a1 = 0;
@@ -72,16 +81,16 @@ function frameIndices(pal, f) {
         const rMin = Math.max(-2, -2 - q), rMax = Math.min(2, 2 - q);
         for (let r = rMin; r <= rMax; r++) {
           const p = hexPixel(q, r, size);
-          if (inFlatHex(x, y, ox + p.x, oy + p.y, size * 0.92)) {
+          const hx = ox + p.x, hy = oy - p.y;
+          if (inFlatHex(x, y, hx, hy, size * 0.98)) {
             const c = hexColor(q, r);
             col = (c === 0 ? HEX1 : c === 1 ? HEX2 : HEX3).slice();
             for (const s of settled) {
               if (s[0] === q && s[1] === r) {
-                const cx = ox + p.x, cy = oy + p.y;
-                const d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
-                const pr = size * 0.28;
+                const d = (x - hx) * (x - hx) + (y - hy) * (y - hy);
+                const pr = size * 0.30;
                 if (d <= pr * pr) {
-                  const u = (x - (cx - 2)) / (pr * 2);
+                  const u = (x - (hx - 2)) / (pr * 2);
                   col = s[2] ? mix(B_HI, B_LO, Math.max(0, Math.min(1, u)))
                              : mix(W_HI, W_LO, Math.max(0, Math.min(1, u)));
                 }
@@ -91,15 +100,13 @@ function frameIndices(pal, f) {
         }
       }
     }
-    const pr = size * 0.32;
-    const dd = (x - jx) * (x - jx) + (y - jy) * (y - jy);
-    if (dd <= pr * pr) {
+    const pr = size * 0.36;
+    if (knightBlob(x, y, jx, jy, pr)) {
       a1 = 1;
       const u = (x - (jx - 2)) / (pr * 2);
       col = mix(W_HI, W_LO, Math.max(0, Math.min(1, u)));
-      // a little ear so it reads as a knight, not a pawn
-      const ear = (x - (jx + pr * 0.35)) * (x - (jx + pr * 0.35)) + (y - (jy - pr * 0.55)) * (y - (jy - pr * 0.55));
-      if (ear <= (pr * 0.28) * (pr * 0.28)) col = mix(W_HI, GOLD, 0.25);
+      const ear = (x - (jx + pr * 0.42)) * (x - (jx + pr * 0.42)) + (y - (jy - pr * 0.62)) * (y - (jy - pr * 0.62));
+      if (ear <= (pr * 0.34) * (pr * 0.34)) col = mix(W_HI, GOLD, 0.3);
     }
     const o = (py * RW + px) * 4;
     if (a1) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
@@ -167,6 +174,7 @@ const GLYPHS = {
   'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b01010, 0b00100],
   'X': [0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b01010, 0b10001],
   ' ': [0, 0, 0, 0, 0, 0, 0],
 };
@@ -210,9 +218,9 @@ export function screenshotPng() {
     put(x, y, (10 + t * 8) | 0, (10 + t * 6) | 0, (15 + t * 10) | 0);
   }
 
-  const size = 38;
-  const ox = 420, oy = 368;
-  const HEXC = [[201, 160, 106], [138, 90, 50], [90, 56, 32]];
+  const size = 34;
+  const ox = 430, oy = 368;
+  const HEXC = [[243, 213, 160], [209, 138, 50], [122, 67, 22]];
   function drawHex(cx, cy, R, rgb) {
     const r0 = Math.ceil(R * Math.sqrt(3) / 2) + 1;
     for (let dy = -r0; dy <= r0; dy++) for (let dx = -R - 1; dx <= R + 1; dx++) {
@@ -231,10 +239,6 @@ export function screenshotPng() {
         (hi[2] + (lo[2] - hi[2]) * u) | 0);
     }
   }
-  const glyphs = {
-    K: 'K', Q: 'Q', R: 'R', B: 'B', N: 'N', P: ''
-  };
-
   // Mid-game: queens developed, a knight has leaped, pawns have met in the centre.
   const white = 'Kg1 Qc3 Rc1 Ri1 Nd1 Nf4 Bf1 Bf2 Bf3 Pb2 Pc2 Pd3 Pe4 Pf5 Pg4 Ph3 Pi2 Pk1';
   const black = 'Kg10 Qc6 Rc8 Ri8 Nd9 Nh9 Bf9 Bf10 Bf11 Pb7 Pc7 Pd7 Pe6 Pf7 Pg7 Ph7 Pi7 Pk7';
@@ -254,14 +258,14 @@ export function screenshotPng() {
     for (let r = rMin; r <= rMax; r++) {
       const p = hexPixel(q, r, size);
       const c = hexColor(q, r);
-      drawHex(ox + p.x, oy + p.y, size * 0.92, HEXC[c]);
+      drawHex(ox + p.x, oy - p.y, size * 0.98, HEXC[c]);
     }
   }
   // last-move glow on the leaping knight's hex and origin
   const glow = [parseAlg('h1'), parseAlg('f4')];
   for (const h of glow) {
     const p = hexPixel(h.q, h.r, size);
-    const cx = ox + p.x, cy = oy + p.y, R = size * 0.92;
+    const cx = ox + p.x, cy = oy - p.y, R = size * 0.98;
     const r0 = Math.ceil(R * Math.sqrt(3) / 2) + 1;
     for (let dy = -r0; dy <= r0; dy++) for (let dx = -R - 1; dx <= R + 1; dx++) {
       if (inFlatHex(cx + dx, cy + dy, cx, cy, R * 0.88)) {
@@ -273,40 +277,46 @@ export function screenshotPng() {
       }
     }
   }
+  function coverPiece(cx, cy, kind, isW) {
+    const hi = isW ? [250, 244, 230] : [48, 48, 58];
+    const lo = isW ? [210, 198, 170] : [14, 14, 20];
+    const ink = isW ? [90, 56, 32] : [232, 197, 71];
+    const rad = kind === 'P' ? size * 0.28 : size * 0.36;
+    discAt(cx, cy + (kind === 'P' ? 1 : 2), rad, hi, lo);
+    if (kind === 'P') return;
+    if (kind === 'N') {
+      discAt(cx + rad * 0.38, cy - rad * 0.55, rad * 0.38, hi, lo);
+      discAt(cx + rad * 0.62, cy - rad * 0.08, rad * 0.26, hi, lo);
+      return;
+    }
+    drawText(put, cx - 6, cy - 10, kind, 2, ink[0], ink[1], ink[2]);
+  }
   for (const pc of pieces) {
     const p = hexPixel(pc.q, pc.r, size);
-    const cx = ox + p.x, cy = oy + p.y;
-    const hi = pc.color === 'w' ? [250, 244, 230] : [70, 70, 82];
-    const lo = pc.color === 'w' ? [210, 198, 170] : [18, 18, 24];
-    const rad = pc.kind === 'P' ? size * 0.28 : size * 0.34;
-    discAt(cx, cy, rad, hi, lo);
-    if (pc.kind !== 'P') {
-      const ink = pc.color === 'w' ? [90, 56, 32] : [232, 197, 71];
-      drawText(put, cx - 8, cy - 11, glyphs[pc.kind], 2, ink[0], ink[1], ink[2]);
-    }
+    coverPiece(ox + p.x, oy - p.y, pc.kind, pc.color === 'w');
   }
   // Selected leaping knight + legal hexes, so the cover is a game in progress.
   {
     const sel = parseAlg('f4');
     const p = hexPixel(sel.q, sel.r, size);
-    const cx = ox + p.x, cy = oy + p.y, rad = size * 0.42;
+    const cx = ox + p.x, cy = oy - p.y, rad = size * 0.46;
     for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
       const d = Math.sqrt(dx * dx + dy * dy);
-      if (d > rad - 2.2 && d <= rad) put(cx + dx, cy + dy, 28, 205, 211);
+      if (d > rad - 2.4 && d <= rad) put(cx + dx, cy + dy, 28, 205, 211);
     }
     const hints = ['g6', 'h5', 'i3', 'd5'];
     for (const a of hints) {
       const h = parseAlg(a);
       const q = hexPixel(h.q, h.r, size);
-      discAt(ox + q.x, oy + q.y, size * 0.12, [255, 220, 140], [232, 197, 71]);
+      discAt(ox + q.x, oy - q.y, size * 0.13, [255, 220, 140], [232, 197, 71]);
     }
   }
 
-  drawText(put, 860, 160, 'HEX', 9, 232, 197, 71);
-  drawText(put, 860, 240, 'CHESS', 9, 201, 160, 106);
-  drawText(put, 860, 360, 'COMPUTER', 3, 210, 198, 170);
-  drawText(put, 860, 410, 'OR A FRIEND', 3, 210, 198, 170);
-  drawText(put, 860, 500, 'THREE BISHOPS', 3, 201, 162, 39);
+  drawText(put, 860, 150, 'HEX', 9, 232, 197, 71);
+  drawText(put, 860, 230, 'CHESS', 9, 201, 160, 106);
+  drawText(put, 860, 350, 'ON THIS', 3, 210, 198, 170);
+  drawText(put, 860, 392, 'DEVICE', 3, 210, 198, 170);
+  drawText(put, 860, 470, 'OR ONE LINK', 3, 201, 162, 39);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
