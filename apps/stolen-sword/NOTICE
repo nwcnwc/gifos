@@ -1,0 +1,12 @@
+Stolen Sword for GifOS is an unofficial port of Stolen Sword
+(https://github.com/chiaogu/stolen-sword) by chiaogu / Ian Chiao, MIT.
+
+This copy is not affiliated with, endorsed by, or maintained by the original
+author. Bugs in the GifOS wrap go to GifOS, not upstream.
+
+The original work is a one-finger action platformer written for js13kGames
+2020. GifOS adds a localStorage stand-in over gifos.db, touch that does not
+scroll the page, and ghost swordsmen over a meeting link. The campaign,
+drawing, and sounds are chiaogu's.
+
+Sounds use zzfx (Zuper Zmall Zound Zynth) as bundled by upstream.

@@ -1,0 +1,22 @@
+{
+  "gifos": "1.0",
+  "appId": "stolen-sword",
+  "name": "Stolen Sword",
+  "shortName": "Sword",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [104, 158, 131],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "players": {
+      "visibility": "read-write"
+    }
+  }
+}
