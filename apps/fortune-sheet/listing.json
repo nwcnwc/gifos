@@ -1,6 +1,6 @@
 {
   "tagline": "A local Excel-like spreadsheet. Your workbook lives in the icon, not in anyone's cloud.",
-  "description": "Fortune Sheet is a full spreadsheet in the sandbox: cells, formulas, formatting, freeze, sort, filter, comments, and as many sheets as you need. Type a budget, a roster, a grade book — it stays on this device, inside the app's GIF. There is no account and no server of theirs (or ours) that your numbers ever visit.\n\nIt opens on a small demo sheet so you can see formulas working, then it is yours. Every edit is written into gifos.db a moment after you make it; close the app and come back, the grid is where you left it. New workbook wipes the grid, not the GIF.\n\nAn unofficial port of FortuneSheet by ruilisi, MIT-licensed — a TypeScript rewrite of Luckysheet that dropped jQuery. Their collaboration backend is not in this app: we never send an Op, we never open a socket, and connect-src stays closed. What you type is saved here, not synced to a service.",
+  "description": "A full spreadsheet: cells, formulas, formatting, freeze, sort, filter, comments, and as many sheets as you need. Type a budget, a roster, a grade book — it stays on this device, inside the app. There is no account and no server of theirs (or ours) that your numbers ever visit.\n\nIt opens on a small demo sheet so you can see formulas working, then it is yours. Every edit is saved a moment after you make it; close the app and come back, the grid is where you left it. New workbook wipes the grid, not the app.\n\nAn unofficial port of FortuneSheet by ruilisi, MIT-licensed. Their live collaboration is not in this app. What you type is saved here, not synced to a service.",
   "author": {
     "name": "ruilisi",
     "url": "https://github.com/ruilisi/fortune-sheet"
@@ -15,8 +15,17 @@
     "blessed": false
   },
   "releaseDate": "2026-08-22",
-  "categories": ["Productivity"],
-  "tags": ["spreadsheet", "excel", "sheets", "formulas", "offline", "workbook"],
+  "categories": [
+    "Productivity"
+  ],
+  "tags": [
+    "spreadsheet",
+    "excel",
+    "sheets",
+    "formulas",
+    "offline",
+    "workbook"
+  ],
   "license": "MIT",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fortune-sheet",
   "cover": "screenshot.png",

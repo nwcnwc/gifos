@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 1381,
   "tagline": "A photo or a page in, the words out. On your device, nothing uploaded.",
-  "description": "Hand it a photograph of a page, a screenshot, a scan — it types the words back. English, on this device. Nothing is uploaded, and there is no network path out of this browser.\n\nAn unofficial port of Tesseract.js (naptha), which is Tesseract OCR compiled to WebAssembly. The engine is packed inside this GIF. English arrives the first time you read a page — about 15 MB, checked against a fingerprint baked in — and then lives on your computer. After that, every page is instant to start.\n\nTHIS IS NOT A TABLE TOOL. It returns the words in reading order, not a spreadsheet. For tables in a PDF, including a scanned one, use Scanned PDF Tables → Excel, which recovers the row-and-column grid.\n\nIt works on anything the browser can show as a picture: a photo from the camera roll, a screenshot, a scan saved as JPEG or PNG. On a phone, the file picker offers the camera. Crooked pages can be auto-straightened from the text lines. You can ask it to treat the image as a full page, a single column, a single line, or sparse words on a photo.\n\nHONEST ABOUT LIMITS. OCR is a reading, not a transcript. A faint, skewed, handwritten or low-resolution page will come back imperfect, and you should check the words that matter. It reads English. Other languages are not in this build.\n\nThe picture you drop in, and the text that comes out, never leave this device.",
+  "description": "Hand it a photograph of a page, a screenshot, a scan — it types the words back. English, on this device. Nothing is uploaded, and nothing is sent anywhere.\n\nAn unofficial port of Tesseract.js (naptha). The reading engine is packed inside this app. English arrives the first time you read a page — about 15 MB, checked against a fingerprint baked in — and then lives on your computer. After that, every page is instant to start.\n\nTHIS IS NOT A TABLE TOOL. It returns the words in reading order, not a spreadsheet. For tables in a PDF, including a scanned one, use Scanned PDF Tables → Excel, which recovers the row-and-column grid.\n\nIt works on anything the browser can show as a picture: a photo from the camera roll, a screenshot, a scan saved as JPEG or PNG. On a phone, the file picker offers the camera. Crooked pages can be auto-straightened from the text lines. You can ask it to treat the image as a full page, a single column, a single line, or sparse words on a photo.\n\nHONEST ABOUT LIMITS. Reading a picture is a reading, not a transcript. A faint, skewed, handwritten or low-resolution page will come back imperfect, and you should check the words that matter. It reads English. Other languages are not in this build.\n\nThe picture you drop in, and the text that comes out, never leave this device.",
   "author": {
     "name": "naptha",
     "url": "https://github.com/naptha/tesseract.js"
@@ -24,8 +24,7 @@
     "scan",
     "text",
     "english",
-    "offline",
-    "wasm"
+    "offline"
   ],
   "license": "Apache-2.0",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tesseract",

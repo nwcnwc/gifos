@@ -1,6 +1,6 @@
 {
   "tagline": "A hand-drawn whiteboard that lives in the GIF. Nothing is uploaded.",
-  "description": "Sketch boxes, arrows, handwriting and diagrams the way Excalidraw always has — the rough ink, the infinite canvas, undo, export to PNG or SVG or the open .excalidraw file. This copy runs sealed in the app sandbox: there is no account, no Firebase, no live-collab room and no library CDN. What you draw is saved on this device, inside the app's GIF, and is still there when you open it again.\n\nDrop a .excalidraw file on the canvas to open it. Export when you want a picture or a file you can email. Images you paste stay in the drawing, on this computer. There is no share-link, because there is no server to put it on.\n\nAn unofficial port of Excalidraw (MIT). The GifOS version drops the collaboration cloud and keeps the editor.",
+  "description": "Sketch boxes, arrows, handwriting and diagrams the way Excalidraw always has — the rough ink, the infinite canvas, undo, export to PNG or SVG or the open .excalidraw file. This copy has no account, no live collaboration room, and no sticker library from the internet. What you draw is saved on this device, inside the app, and is still there when you open it again.\n\nDrop a .excalidraw file on the canvas to open it. Export when you want a picture or a file you can email. Images you paste stay in the drawing, on this computer. There is no share-link, because there is no server to put it on.\n\nAn unofficial port of Excalidraw (MIT). This copy drops the collaboration cloud and keeps the editor.",
   "author": {
     "name": "Excalidraw",
     "url": "https://github.com/excalidraw/excalidraw"
@@ -16,8 +16,18 @@
     "blessed": false
   },
   "releaseDate": "2026-08-22",
-  "categories": ["Creativity", "Productivity"],
-  "tags": ["whiteboard", "drawing", "diagram", "sketch", "offline", "excalidraw"],
+  "categories": [
+    "Creativity",
+    "Productivity"
+  ],
+  "tags": [
+    "whiteboard",
+    "drawing",
+    "diagram",
+    "sketch",
+    "offline",
+    "excalidraw"
+  ],
   "license": "MIT",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/excalidraw",
   "cover": "screenshot.png",
