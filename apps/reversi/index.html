@@ -15,6 +15,7 @@
 <main>
   <section class="card setup" id="setup">
     <h2>New game</h2>
+    <p class="lede">The computer thinks on this device. A friend sits the other colour from one link. There is no game server.</p>
     <label class="row">Play
       <div class="seg" id="modeSeg">
         <button type="button" data-mode="cpu" class="on">Computer</button>
@@ -24,36 +25,36 @@
     <div id="cpuOpts">
       <label class="row">You play
         <div class="seg" id="colorSeg">
-          <button type="button" data-color="black" class="on">● Black</button>
-          <button type="button" data-color="white">○ White</button>
+          <button type="button" data-color="black" class="on">Black</button>
+          <button type="button" data-color="white">White</button>
         </div>
       </label>
       <p class="lvlnote" id="cpuNote">You place black. The computer places white. It thinks on this device.</p>
     </div>
-    <p class="lvlnote" id="hotseatNote" hidden>Pass the device. Black goes first. Tap a square to place.</p>
+    <p class="lvlnote" id="hotseatNote" hidden>Pass the device. Black goes first. Tap a square to place. Dots show where you can go.</p>
     <button class="primary" id="startBtn" type="button">Start game</button>
-    <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
+    <button class="ghost wide" id="friendBtn" type="button">Play a friend</button>
   </section>
 
   <section class="game" id="game" hidden>
-    <div class="scoreline" id="scoreLine"><span class="blk">● 2</span><span class="wht">○ 2</span></div>
+    <div class="scoreline" id="scoreLine"></div>
     <div class="statusline" id="statusLine">Your turn.</div>
     <div class="boardwrap"><div class="board" id="board" aria-label="Reversi board"></div></div>
     <div class="controls">
-      <button id="undoBtn" class="ghost" type="button">↶ Undo</button>
-      <button id="newBtn" class="ghost" type="button">＋ New game</button>
+      <button id="undoBtn" class="ghost" type="button">Undo</button>
+      <button id="newBtn" class="ghost" type="button">New game</button>
     </div>
   </section>
 
   <section class="game" id="friend" hidden>
-    <div class="vhead"><h2>Play a friend</h2><button class="ghost" id="fLeave" type="button">← Leave</button></div>
+    <div class="vhead"><h2>Play a friend</h2><button class="ghost" id="fLeave" type="button">Leave</button></div>
     <div class="seats" id="fSeats"></div>
     <div class="fqueue" id="fQueue"></div>
-    <div class="scoreline" id="fScore"><span class="blk">● 2</span><span class="wht">○ 2</span></div>
+    <div class="scoreline" id="fScore"></div>
     <div class="statusline" id="fStatus"></div>
     <div class="boardwrap"><div class="board" id="fBoard" aria-label="Shared Reversi board"></div></div>
     <div class="controls">
-      <button id="fResign" class="ghost" type="button" hidden>🏳 Resign</button>
+      <button id="fResign" class="ghost" type="button" hidden>Resign</button>
     </div>
   </section>
 </main>

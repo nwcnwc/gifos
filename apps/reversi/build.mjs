@@ -121,8 +121,18 @@ if (!files['app.js'].includes('intent') || !files['app.js'].includes('putMe')) {
 if (!files['app.js'].includes('putBoard') || !files['app.js'].includes('isHost')) {
   throw new Error('host applies legal moves to the board row; nobody else writes it');
 }
+if (!files['app.js'].includes('flipping') || files['app.js'].includes('inversion')) {
+  throw new Error('flips must be a disc turning over, not a CSS invert flash');
+}
+if (!files['app.js'].includes('show-b') || !files['style.css'].includes('.hint')) {
+  throw new Error('legal-move dots must be their own marks, readable on a phone');
+}
+if (files['app.js'].includes('location.hash') || files['app.js'].includes("location.replace('#'")) {
+  throw new Error('do not write the hash — that walks the app out of its frame');
+}
 
 // Sanity: opening four, a place flips, MCTS returns a legal square.
+// Illegal flips fail the build — that is a failed round.
 {
   const ctx = { console };
   vm.runInNewContext(
@@ -130,15 +140,47 @@ if (!files['app.js'].includes('putBoard') || !files['app.js'].includes('isHost')
     'self = this; result = (function () {\n' +
     '  var s = RV.fresh();\n' +
     '  if (s.blacks !== 2 || s.whites !== 2) throw new Error("start count");\n' +
+    '  if (s.map[3][3] !== RV.WHITE || s.map[3][4] !== RV.BLACK) throw new Error("opening d4/e4");\n' +
+    '  if (s.map[4][3] !== RV.BLACK || s.map[4][4] !== RV.WHITE) throw new Error("opening d5/e5");\n' +
     '  var opening = RV.availableMoves(s.map, RV.BLACK);\n' +
     '  if (opening.length !== 4) throw new Error("opening should have 4 moves, got " + opening.length);\n' +
     '  var ns = RV.place(s, 2, 3);\n' +
     '  if (!ns) throw new Error("d3 should be legal for black");\n' +
     '  if (ns.map[2][3] !== RV.BLACK) throw new Error("placed disk missing");\n' +
     '  if (ns.map[3][3] !== RV.BLACK) throw new Error("d4 should have flipped");\n' +
+    '  if (ns.map[3][4] !== RV.BLACK) throw new Error("e4 must stay black");\n' +
+    '  if (ns.map[4][4] !== RV.WHITE) throw new Error("e5 must stay white — that is not in the sandwich");\n' +
+    '  if (ns.flipped.length !== 2) throw new Error("d3 flips exactly one, got " + ns.flipped.length);\n' +
     '  if (ns.blacks !== 4 || ns.whites !== 1) throw new Error("after d3 counts " + ns.blacks + "-" + ns.whites);\n' +
     '  var illegal = RV.place(s, 0, 0);\n' +
     '  if (illegal) throw new Error("corner is not legal on move 1");\n' +
+    '  var occupied = RV.place(s, 3, 3);\n' +
+    '  if (occupied) throw new Error("cannot place on an occupied square");\n' +
+    '  var empty = RV.cloneMap(RV.fresh().map);\n' +
+    '  var r, c;\n' +
+    '  for (r = 0; r < 8; r++) for (c = 0; c < 8; c++) empty[r][c] = 0;\n' +
+    '  empty[0][0] = RV.BLACK;\n' +
+    '  empty[0][1] = RV.WHITE; empty[0][2] = RV.WHITE; empty[0][3] = RV.WHITE; empty[0][4] = RV.WHITE;\n' +
+    '  var long = { map: empty, n: 0, turn: RV.BLACK, last: null, flipped: null, winner: 0, blacks: 1, whites: 4, passed: false };\n' +
+    '  var longNs = RV.place(long, 0, 5);\n' +
+    '  if (!longNs) throw new Error("a four-disc sandwich must be legal");\n' +
+    '  if (longNs.flipped.length !== 5) throw new Error("four whites must all flip, got " + longNs.flipped.length);\n' +
+    '  if (longNs.map[0][1] !== RV.BLACK || longNs.map[0][4] !== RV.BLACK) throw new Error("long line missed a disc");\n' +
+    '  var two = RV.cloneMap(empty);\n' +
+    '  for (r = 0; r < 8; r++) for (c = 0; c < 8; c++) two[r][c] = 0;\n' +
+    '  two[3][3] = RV.WHITE; two[3][4] = RV.BLACK;\n' +
+    '  two[4][2] = RV.WHITE; two[5][2] = RV.BLACK;\n' +
+    '  var twoS = { map: two, n: 1, turn: RV.BLACK, last: null, flipped: null, winner: 0, blacks: 2, whites: 2, passed: false };\n' +
+    '  var twoNs = RV.place(twoS, 3, 2);\n' +
+    '  if (!twoNs) throw new Error("two-direction sandwich must be legal");\n' +
+    '  if (twoNs.map[3][3] !== RV.BLACK) throw new Error("horizontal flip missing");\n' +
+    '  if (twoNs.map[4][2] !== RV.BLACK) throw new Error("vertical flip missing");\n' +
+    '  if (twoNs.map[3][4] !== RV.BLACK || twoNs.map[5][2] !== RV.BLACK) throw new Error("anchors must stay");\n' +
+    '  if (twoNs.flipped.length !== 3) throw new Error("two-dir should flip two, got " + twoNs.flipped.length);\n' +
+    '  var gap = RV.cloneMap(empty);\n' +
+    '  for (r = 0; r < 8; r++) for (c = 0; c < 8; c++) gap[r][c] = 0;\n' +
+    '  gap[0][2] = RV.WHITE; gap[0][3] = RV.BLACK;\n' +
+    '  if (RV.validMove(gap, RV.BLACK, 0, 0)) throw new Error("must not flip across a gap");\n' +
     '  var col = RV.aiMove(s.map, RV.BLACK, 40);\n' +
     '  if (!col || typeof col.r !== "number" || typeof col.c !== "number") throw new Error("AI move " + JSON.stringify(col));\n' +
     '  if (!RV.validMove(s.map, RV.BLACK, col.r, col.c)) throw new Error("AI picked an illegal square");\n' +

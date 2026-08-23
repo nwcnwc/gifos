@@ -1,20 +1,22 @@
-// Procedural icon: a green Reversi board, a black disk settling and a
-// white one flipping. Pure Node, super-sample → box-downsample. Deterministic.
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
+// Procedural icon: a disc flipping on green felt. Cover: a mid-game
+// sandwich with a long line turning over. Pure Node, super-sample → box-downsample.
+const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 16;
 
 const CARD = [14, 22, 20];
-const FRAME = [47, 79, 79];
+const FRAME = [42, 69, 69];
 const GREEN = [58, 134, 100];
 const GREEN_D = [42, 110, 82];
-const BLACK_H = [70, 70, 70];
+const BLACK_H = [92, 92, 92];
 const BLACK = [17, 17, 17];
-const WHITE_H = [250, 250, 244];
-const WHITE = [220, 220, 214];
+const WHITE_H = [255, 255, 250];
+const WHITE = [196, 196, 188];
+const RIM = [214, 210, 198];
+const GOLD = [232, 197, 71];
 
 function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD, FRAME, GREEN, GREEN_D, BLACK_H, BLACK, WHITE_H, WHITE]) {
+  for (const b of [CARD, FRAME, GREEN, GREEN_D, BLACK_H, BLACK, WHITE_H, WHITE, RIM, GOLD]) {
     for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.35).map(Math.round));
   }
@@ -37,58 +39,50 @@ function inCard(x, y, m, r) {
   const dx = x - cx, dy = y - cy; return dx * dx + dy * dy <= r * r;
 }
 
+function discCol(x, y, cx, cy, rx, ry, hi, lo) {
+  const nx = (x - cx) / rx, ny = (y - cy) / ry;
+  if (nx * nx + ny * ny > 1) return null;
+  const u = (x - (cx - rx * 0.55)) / (rx * 2.1);
+  return mix(hi, lo, Math.max(0, Math.min(1, u)));
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 18;
-  const N = 8;
-  const bx = 16, by = 16, bw = OUT - 32, bh = OUT - 32;
-  const cell = bw / N;
-  const diskR = cell * 0.38;
   const t = f / (FRAMES - 1);
-  // opening: white d4, black e4, black d5, white e5. Black drops onto d3 and
-  // flips d4.
-  const dropCol = 3, dropRow = 2;
-  const dropY0 = by + (dropRow + 0.5) * cell - 16;
-  const dropY1 = by + (dropRow + 0.5) * cell;
-  const dropY = dropY0 + (dropY1 - dropY0) * Math.min(1, t * 1.2);
-  const flipT = Math.max(0, (t - 0.45) / 0.55);
-  const settled = [
-    [3, 3, false], [3, 4, true], [4, 3, true], [4, 4, false],
-  ];
+  // Disc turns white → edge-on → black. ScaleX is 1 at the ends, ~0.08 in the middle.
+  const squash = 0.08 + 0.92 * Math.abs(2 * t - 1);
+  const blackSide = t >= 0.5;
+  const hi = blackSide ? BLACK_H : WHITE_H;
+  const lo = blackSide ? BLACK : WHITE;
+  const cx = OUT / 2, cy = OUT / 2 + 2;
+  const ry = 38, rx = ry * squash;
+
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
     if (inCard(x, y, m, rad)) {
       a = 1;
       col = CARD.slice();
-      const inside = x >= bx && x <= bx + bw && y >= by && y <= by + bh;
-      if (inside) {
+      const bx = 14, by = 14, bw = OUT - 28, bh = OUT - 28;
+      if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
         col = FRAME.slice();
-        const c = Math.min(N - 1, Math.max(0, Math.floor((x - bx) / cell)));
-        const r = Math.min(N - 1, Math.max(0, Math.floor((y - by) / cell)));
-        const gx = bx + c * cell, gy = by + r * cell;
-        const inset = 0.7;
-        if (x > gx + inset && x < gx + cell - inset && y > gy + inset && y < gy + cell - inset) {
+        const inset = 6;
+        if (x > bx + inset && x < bx + bw - inset && y > by + inset && y < by + bh - inset) {
           col = mix(GREEN, GREEN_D, Math.max(0, Math.min(1, (x + y) / (OUT * 2))));
-          const cx = bx + (c + 0.5) * cell, cy = by + (r + 0.5) * cell;
-          for (const s of settled) {
-            if (s[0] === r && s[1] === c) {
-              const d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
-              if (d <= diskR * diskR) {
-                const u = (x - (cx - 2)) / (diskR * 2);
-                let black = s[2];
-                if (r === 3 && c === 3 && flipT > 0) black = flipT > 0.5;
-                col = black ? mix(BLACK_H, BLACK, Math.max(0, Math.min(1, u)))
-                            : mix(WHITE_H, WHITE, Math.max(0, Math.min(1, u)));
-              }
-            }
+          // faint 3×3 grid so it still reads as a board at a glance
+          const cell = (bw - inset * 2) / 3;
+          const gx = ((x - (bx + inset)) / cell);
+          const gy = ((y - (by + inset)) / cell);
+          const fx = Math.abs(gx - Math.round(gx));
+          const fy = Math.abs(gy - Math.round(gy));
+          if ((fx < 0.03 && gx > 0.05 && gx < 2.95) || (fy < 0.03 && gy > 0.05 && gy < 2.95)) {
+            col = mix(col, FRAME, 0.35);
           }
-          if (c === dropCol && r === dropRow) {
-            const dd = (x - cx) * (x - cx) + (y - dropY) * (y - dropY);
-            if (dd <= diskR * diskR && Math.abs(dropY - cy) < diskR * 1.2) {
-              const u = (x - (cx - 2)) / (diskR * 2);
-              col = mix(BLACK_H, BLACK, Math.max(0, Math.min(1, u)));
-            }
+          const dcol = discCol(x, y, cx, cy, rx, ry, hi, lo);
+          if (dcol) {
+            col = dcol;
+            if (squash < 0.28) col = mix(RIM, col, 0.35);
           }
         }
       }
@@ -118,7 +112,7 @@ export function reversiIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 8, transparentIndex: 0 };
 }
 
 import { deflateSync } from 'node:zlib';
@@ -141,12 +135,10 @@ function pngChunk(tag, data) {
 
 const GLYPHS = {
   'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
   'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
   'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
-  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
   'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
   'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
@@ -160,7 +152,6 @@ const GLYPHS = {
   'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
-  'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
   'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
 };
@@ -203,45 +194,75 @@ export function screenshotPng() {
   const N = 8, cell = 72;
   const board = N * cell;
   const bx = 70, by = 72;
-  fill(bx - 16, by - 16, bx + board + 16, by + board + 16, 47, 79, 79);
+  fill(bx - 16, by - 16, bx + board + 16, by + board + 16, 42, 69, 69);
 
-  function discAt(cx, cy, rad, hi, lo) {
-    for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
-      if (dx * dx + dy * dy > rad * rad) continue;
-      const u = (dx + rad) / (rad * 2);
-      put(cx + dx, cy + dy,
-        (hi[0] + (lo[0] - hi[0]) * u) | 0,
-        (hi[1] + (lo[1] - hi[1]) * u) | 0,
-        (hi[2] + (lo[2] - hi[2]) * u) | 0);
+  function discEll(cx, cy, rx, ry, hi, lo, rim) {
+    const rx2 = rx * rx, ry2 = ry * ry;
+    for (let dy = -Math.ceil(ry) - 1; dy <= Math.ceil(ry) + 1; dy++) {
+      for (let dx = -Math.ceil(rx) - 1; dx <= Math.ceil(rx) + 1; dx++) {
+        if (dx * dx / rx2 + dy * dy / ry2 > 1) continue;
+        const u = (dx + rx) / (rx * 2);
+        let r = (hi[0] + (lo[0] - hi[0]) * u) | 0;
+        let g = (hi[1] + (lo[1] - hi[1]) * u) | 0;
+        let b = (hi[2] + (lo[2] - hi[2]) * u) | 0;
+        if (rim && rx < ry * 0.4) {
+          r = (r * 0.55 + RIM[0] * 0.45) | 0;
+          g = (g * 0.55 + RIM[1] * 0.45) | 0;
+          b = (b * 0.55 + RIM[2] * 0.45) | 0;
+        }
+        put(cx + dx, cy + dy, r, g, b);
+      }
     }
   }
-  const BLACK_H = [70, 70, 70], BLACK = [17, 17, 17];
-  const WHITE_H = [250, 250, 244], WHITE = [220, 220, 214];
-  // a real-looking opening that has spread a little from the four centre disks
+  function discAt(cx, cy, rad, hi, lo) { discEll(cx, cy, rad, rad, hi, lo, false); }
+
+  // Mid-game. 1 black, 2 white, 0 empty.
+  // Row 3 is a long sandwich: black just landed at c1, five whites flipping, black at c7.
   const grid = [
-    [0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 1, 2, 0, 0, 0],
+    [0, 0, 1, 1, 2, 2, 0, 0],
+    [0, 1, 1, 1, 2, 2, 1, 0],
+    [1, 1, 2, 2, 2, 2, 2, 1],
+    [0, 2, 1, 1, 2, 1, 2, 0],
+    [0, 0, 2, 1, 2, 1, 0, 0],
+    [0, 0, 0, 1, 2, 0, 0, 0],
     [0, 0, 0, 0, 1, 0, 0, 0],
-    [0, 0, 0, 1, 1, 1, 0, 0],
-    [0, 0, 2, 2, 1, 0, 0, 0],
-    [0, 0, 0, 1, 2, 2, 0, 0],
-    [0, 0, 0, 0, 1, 2, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
   ];
+  // squash for the five whites on row 3, cols 2..6 — a wave of the flip
+  const flipSx = { '3,2': 0.72, '3,3': 0.38, '3,4': 0.10, '3,5': 0.42, '3,6': 0.78 };
+  const flipToBlack = { '3,2': 0.2, '3,3': 0.45, '3,4': 0.55, '3,5': 0.7, '3,6': 0.9 };
+
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
     const gx = bx + c * cell, gy = by + r * cell;
     fill(gx + 1, gy + 1, gx + cell - 1, gy + cell - 1, 58, 134, 100);
+    // star points
+    if ((r === 2 || r === 5) && (c === 2 || c === 5) && grid[r][c] === 0) {
+      discAt(bx + (c + 0.5) * cell, by + (r + 0.5) * cell, 4, [22, 44, 36], [22, 44, 36]);
+    }
     const cx = bx + (c + 0.5) * cell, cy = by + (r + 0.5) * cell, rad = cell * 0.38;
+    const key = r + ',' + c;
     const v = grid[r][c];
-    if (v === 1) discAt(cx, cy, rad, BLACK_H, BLACK);
+    if (flipSx[key] != null) {
+      const sx = flipSx[key];
+      const toB = flipToBlack[key];
+      const hi = mix(WHITE_H, BLACK_H, toB);
+      const lo = mix(WHITE, BLACK, toB);
+      discEll(cx, cy, rad * sx, rad, hi, lo, true);
+    } else if (v === 1) discAt(cx, cy, rad, BLACK_H, BLACK);
     else if (v === 2) discAt(cx, cy, rad, WHITE_H, WHITE);
   }
+  // gold last-move on the black that started the sandwich (row 3, col 1)
+  {
+    const cx = bx + (1 + 0.5) * cell, cy = by + (3 + 0.5) * cell;
+    discAt(cx, cy, 6, GOLD, GOLD);
+  }
 
-  drawText(put, 740, 160, 'REVERSI', 9, 180, 230, 200);
-  drawText(put, 740, 250, 'OTHELLO', 5, 58, 134, 100);
-  drawText(put, 740, 360, 'COMPUTER', 3, 220, 232, 226);
-  drawText(put, 740, 410, 'OR A FRIEND', 3, 220, 232, 226);
-  drawText(put, 740, 500, 'BLACK GOES FIRST', 3, 155, 176, 168);
+  drawText(put, 740, 150, 'REVERSI', 9, 180, 230, 200);
+  drawText(put, 740, 240, 'OTHELLO', 5, 58, 134, 100);
+  drawText(put, 740, 350, 'COMPUTER', 3, 220, 232, 226);
+  drawText(put, 740, 400, 'OR A FRIEND', 3, 220, 232, 226);
+  drawText(put, 740, 490, 'ONE LINK', 3, 155, 176, 168);
+  drawText(put, 740, 540, 'NO SERVER', 3, 155, 176, 168);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
