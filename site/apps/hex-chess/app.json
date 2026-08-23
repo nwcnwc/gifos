@@ -6,8 +6,8 @@
   "shortName": "HexChess",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Chess on a hexagonal board. The computer thinks here, or a friend from one link.",
-  "description": "A hexagonal board — the kind with three bishops — and no game server. The computer thinks on this device, or you send one link and a friend sits the other colour. There is no account.\n\nWhite and black take turns on ninety-one hexes. Each side has a king, a queen, two rooks, two knights, three bishops (one for each colour of hex), and nine pawns. Tap a piece, then tap a hex. Legal hexes light up.\n\nOn your own you play a computer that looks a little way ahead, right here on the phone or computer. Pass the device for two people in the same room, or press Play a friend and send the invite: the same board, live, on two devices.\n\nThere is no castling. A pawn that steps two hexes can still be taken in passing. Close the tab and the game is still in the icon — the file is the save.\n\nThis is the hexagonal kind, not the square board.",
+  "tagline": "The hexagonal kind, with three bishops. Computer on this device — or a friend from one link.",
+  "description": "Hexagonal chess on this device. The computer thinks here, or you send one link and a friend sits the other colour. There is no account, and no game server.\n\nNinety-one hexes, three colours, three bishops. Tap a piece, then a hex — legal hexes light up. White sits at the near side. Close the tab and the game is still in the icon: the file is the save.\n\nOn your own, a computer looks a little way ahead right on the phone. Pass the device for two people in the same room, or press Play a friend and send the invite.\n\nThere is no castling. A pawn that steps two hexes can still be taken in passing. This is the hexagonal kind, not the square board.",
   "author": {
     "name": "GifOS",
     "url": "https://gifos.app"
@@ -38,10 +38,10 @@
   "cover": "/apps/hex-chess/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hex-chess/hex-chess.gif",
-  "bytes": 198443,
+  "bytes": 202200,
   "download": 0,
   "provides": null,
-  "sha256": "64b1bc2bcb3da1709e3ceaaca45d979d789a95b2b3a124fc1a3eb0830f6bc72d",
+  "sha256": "da4f200c47f516db6432663a73acfe53024e75c6df1a9c64797b03b03b75afc9",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

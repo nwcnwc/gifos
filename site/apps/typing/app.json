@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 947,
   "tagline": "Practice on this device. History lives in the file. Race a friend from one link.",
-  "description": "A passage appears. Type it. Your speed and accuracy update as you go, and when you finish you get a result. The last runs stay in the file, on this device — no account, nothing to sign in to, nothing in the cloud.\n\nLessons start on the home row, then the other rows, then punctuation. Switch between plain English and programmer lines whenever you like.\n\nPress Play a friend, then Invite in the bar above the app, and send the link. You both get the same passage. First to finish wins; if you both finish, the higher speed takes it.\n\nAn unofficial port of Programmer's Typing Practice by climech. The original is a stream of random characters with no score. This version adds passages, lessons, a live result, and a race — and it works with the real keyboard on a phone.",
+  "description": "A passage appears. Type it. Speed is the letters you got right, not the ones you mashed; accuracy sits quietly beside it. Finish a run and it stays in the file, on this device — no account, nothing to sign in to, nothing in the cloud.\n\nLessons start on the home row, then the other rows, then punctuation. Switch between plain English and programmer lines whenever you like.\n\nPress Play a friend, then Invite in the bar above the app, and send the link. You both get the same passage and start together. First to finish wins; if you both finish, the higher speed takes it.\n\nAn unofficial port of Programmer's Typing Practice by climech. The original is a stream of random characters with no score. This version adds passages, lessons, a live result, and a race — and it works with the real keyboard on a phone.",
   "author": {
     "name": "climech",
     "url": "https://github.com/climech/typing-practice"
@@ -38,10 +38,10 @@
   "cover": "/apps/typing/cover.jpg",
   "screenshots": [],
   "gif": "/apps/typing/typing.gif",
-  "bytes": 195721,
+  "bytes": 200502,
   "download": 0,
   "provides": null,
-  "sha256": "48c2405ecc52023b39e3041ece5ce618113364704c00d1d36148fa189d2d93ec",
+  "sha256": "2180599d7bb01cb9feed8cab60d93aa4d8b21ff5a4639e2bdf721a0c63b043f3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

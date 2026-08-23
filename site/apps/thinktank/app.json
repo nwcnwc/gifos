@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 947,
   "tagline": "Two sides. No game server. Destroy the other base — against the computer, or a friend from one link.",
-  "description": "Two sides, no game server. The computer thinks on this device, or a friend joins from one link.\n\nRed and blue take turns on a long board. Each side has a home and a base. On your turn you place a piece from your hand, slide one already out, or turn a tank to face a new way. Tanks fire in a straight line. A shield stops the other side's shots. Infiltrators steal a tank or a shield if they stand next to it. A mine blows up anything next to it except a shield. You may not leave your own pieces in harm's way. Destroy the other base and you win.\n\nPass the phone for two people in the same room, or press Play a friend and send the invite: the same board, live, on two devices. Red sits one side, blue the other.\n\nAn unofficial port of Thinktank by averycrespi.",
+  "description": "Two sides, no game server. The computer thinks on this device, or a friend joins from one link. The board lives in this file, so you can close it and come back.\n\nRed and blue take turns. Each side has a tinted home and a house inside it. On your turn you do one thing: place a piece from your hand around your home, slide one already out, or turn a tank. Tanks shoot in a straight line the way they face — the beam lights up when you tap one. A shield stops the other side's shots. Infiltrators steal a tank or a shield if they stand next to it. A mine blows up anything next to it except a shield. You may not leave your own pieces in harm's way. Destroy the other house and you win.\n\nPass the phone for two people in the same room, or press Play a friend and send the invite: the same board, live, on two devices. Red sits one side, blue the other.\n\nAn unofficial port of Thinktank by averycrespi.",
   "author": {
     "name": "averycrespi",
     "url": "https://github.com/averycrespi"
@@ -38,10 +38,10 @@
   "cover": "/apps/thinktank/cover.jpg",
   "screenshots": [],
   "gif": "/apps/thinktank/thinktank.gif",
-  "bytes": 201387,
+  "bytes": 208094,
   "download": 0,
   "provides": null,
-  "sha256": "65478a7f83900fac0cb1488345ab8ed5d6f263df9f2f0ffe2a7e14e261105254",
+  "sha256": "2c8f80316d52c780a62e0874575e24a6aec6c1ec3c7e69f8ac0a7bce1130e272",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

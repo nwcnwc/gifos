@@ -18,7 +18,7 @@
       "name": "2048",
       "shortName": "2048",
       "version": "1.0",
-      "tagline": "Join the numbers. Get to 2048. Or race a friend to it.",
+      "tagline": "Race a friend to 2048 from one link. The file is the save.",
       "author": {
         "name": "Gabriele Cirulli",
         "url": "https://github.com/gabrielecirulli/2048"
@@ -49,7 +49,7 @@
         46
       ],
       "cover": "/apps/2048/cover.jpg",
-      "bytes": 306682,
+      "bytes": 307957,
       "download": 0,
       "provides": null,
       "signature": {
@@ -57,7 +57,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "8ad64775a9679455cfd241c7566494cbc6e02647e24902b326818893b25a4fb5"
+      "sha256": "025fdaa0ae23528cd576bb2464e72eed26262ce95774ac3c474d6515508dca33"
     },
     {
       "slug": "air-hockey",
@@ -646,7 +646,7 @@
       "name": "Checkers",
       "shortName": "Checkers",
       "version": "1.0",
-      "tagline": "Jump the other side. Crown a king. Play the computer, or a friend on the other side.",
+      "tagline": "Play the computer on this device, or a friend from one link. No server.",
       "author": {
         "name": "stroibot",
         "url": "https://github.com/stroibot/Checkers"
@@ -734,7 +734,7 @@
       "name": "Connect Four",
       "shortName": "C4",
       "version": "1.0",
-      "tagline": "Drop a disc. Connect four. Play the computer, or a friend on the other side.",
+      "tagline": "Computer on this device. A friend sits the other colour from one link. No game server.",
       "author": {
         "name": "kenrick95",
         "url": "https://github.com/kenrick95/c4"
@@ -1616,7 +1616,7 @@
       "name": "Hangman",
       "shortName": "Hangman",
       "version": "1.0.0",
-      "tagline": "Guess the word before the gallows fills. Race a friend, or share the rope.",
+      "tagline": "Race a friend or share the rope — one invite, on this device. No account.",
       "author": {
         "name": "simonjsuh",
         "url": "https://github.com/simonjsuh/Vanilla-Javascript-Hangman-Game"
@@ -1648,7 +1648,7 @@
         176
       ],
       "cover": "/apps/hangman/cover.jpg",
-      "bytes": 183682,
+      "bytes": 171872,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1656,7 +1656,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "b0d637bac0edf546dbf1a667a5f5e09d74b3ce454490ababc2252cbc96858c7a"
+      "sha256": "566a6e466df35312e0fd944e7d0be31a67723b68f654a685842ed869afb38927"
     },
     {
       "slug": "hat-sh",
@@ -1712,7 +1712,7 @@
       "name": "Hex Chess",
       "shortName": "HexChess",
       "version": "1.0",
-      "tagline": "Chess on a hexagonal board. The computer thinks here, or a friend from one link.",
+      "tagline": "The hexagonal kind, with three bishops. Computer on this device — or a friend from one link.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
@@ -1736,7 +1736,7 @@
         39
       ],
       "cover": "/apps/hex-chess/cover.jpg",
-      "bytes": 198443,
+      "bytes": 202200,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1744,7 +1744,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "64b1bc2bcb3da1709e3ceaaca45d979d789a95b2b3a124fc1a3eb0830f6bc72d"
+      "sha256": "da4f200c47f516db6432663a73acfe53024e75c6df1a9c64797b03b03b75afc9"
     },
     {
       "slug": "invaderz",
@@ -1997,7 +1997,7 @@
       "name": "Jungle",
       "shortName": "Jungle",
       "version": "1.0",
-      "tagline": "The computer thinks on this device, or a friend joins from one link — no game server.",
+      "tagline": "The computer thinks on this phone, or one link sits a friend across the river — no account, no server.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
@@ -2021,7 +2021,7 @@
         70
       ],
       "cover": "/apps/jungle/cover.jpg",
-      "bytes": 195883,
+      "bytes": 199315,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2029,7 +2029,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "25c5b867b84b4d576484ecda744fbc9b5e140690d4b0d0daf250db71163abfda"
+      "sha256": "b5f88856fbd751736f794d044f056c5ee4a5b5c8e9c479f9be752e8c2e5c34bb"
     },
     {
       "slug": "kana-quiz",
@@ -2071,7 +2071,7 @@
         88
       ],
       "cover": "/apps/kana-quiz/cover.jpg",
-      "bytes": 197463,
+      "bytes": 201458,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2079,7 +2079,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "3d26bac6157eca4616b38172ae69c0b2260378468946250b8ccb4634e9438c21"
+      "sha256": "c864e6db1d5bb166a58bc840b2f75bb69c25633ae32c2b45f1ce128faa4fecf3"
     },
     {
       "slug": "keeweb",
@@ -2233,7 +2233,7 @@
       "name": "Math Race",
       "shortName": "Math Race",
       "version": "1.0.0",
-      "tagline": "Same equation, a clock, first correct scores. Invite is the room — no game server.",
+      "tagline": "Same equation on both phones. First correct scores. Nothing to host — the invite is the room.",
       "author": {
         "name": "iloire",
         "url": "https://github.com/iloire/math-race"
@@ -2266,7 +2266,7 @@
         154
       ],
       "cover": "/apps/math-race/cover.jpg",
-      "bytes": 194174,
+      "bytes": 196383,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2274,7 +2274,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "c89309299d8e3e86a570f77a65a42e2d16862f596788d3e948911c5b334f0123"
+      "sha256": "2dd60fb09294c3bd850643b6c19fb3967e2be909de39d6b888cb578a8a28afc5"
     },
     {
       "slug": "mykonos",
@@ -2713,7 +2713,7 @@
       "name": "One Stroke",
       "shortName": "OneStroke",
       "version": "1.0",
-      "tagline": "One stroke each. The picture only exists because you opened the same file.",
+      "tagline": "One stroke each. Not a whiteboard. The invite is the studio.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
@@ -2738,7 +2738,7 @@
         93
       ],
       "cover": "/apps/one-stroke/cover.jpg",
-      "bytes": 194126,
+      "bytes": 197070,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2746,7 +2746,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "23a2b219757ecec486e777a6defd52daab17e5d35aa01de498a2f4f92055a5fc"
+      "sha256": "8cf3aa8d365e2bed5f81301a99c33ca3629218ab0790662cfeef17ea77251f74"
     },
     {
       "slug": "paint-board",
@@ -2977,7 +2977,7 @@
         60
       ],
       "cover": "/apps/periodic-table/cover.jpg",
-      "bytes": 167471,
+      "bytes": 175318,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2985,7 +2985,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "75f33177546699d3a4803ea6e764e909518d3612c8186b008198b08d868739d6"
+      "sha256": "a7c61d789bdf28db5d075c0744d00dc311c2f5ede38c3c428abc53d977e760d2"
     },
     {
       "slug": "pickr",
@@ -3290,7 +3290,7 @@
       "name": "Quiz Buzzer",
       "shortName": "Buzzer",
       "version": "1.0",
-      "tagline": "One invite. Phones are buzzers. Fastest correct answer scores.",
+      "tagline": "No account, no class code. One invite, and every phone is a buzzer.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
@@ -3319,7 +3319,7 @@
         72
       ],
       "cover": "/apps/quiz-buzzer/cover.jpg",
-      "bytes": 196179,
+      "bytes": 202892,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3327,7 +3327,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "9c3e88a46c688ba3aba7401ad31b5505b4b76e76071003f97fdae07385879487"
+      "sha256": "35853f0118e80d68fbd9149d8ba856cc4def4236d03875403eeda2695dd2ca0b"
     },
     {
       "slug": "racer",
@@ -3614,7 +3614,7 @@
         64
       ],
       "cover": "/apps/rockets/cover.jpg",
-      "bytes": 200298,
+      "bytes": 203111,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3622,7 +3622,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "05d48c467c44bcad89b2e786fc4d329f38c8c7dc26b73a36edd13f209a655b31"
+      "sha256": "a0b8cc3e754a939792f9d06b68197fa27f9384c7803b21218f0ebcb10a4413f0"
     },
     {
       "slug": "signature-pad",
@@ -4300,7 +4300,7 @@
         74
       ],
       "cover": "/apps/thinktank/cover.jpg",
-      "bytes": 201387,
+      "bytes": 208094,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4308,7 +4308,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "65478a7f83900fac0cb1488345ab8ed5d6f263df9f2f0ffe2a7e14e261105254"
+      "sha256": "2c8f80316d52c780a62e0874575e24a6aec6c1ec3c7e69f8ac0a7bce1130e272"
     },
     {
       "slug": "thumb-sprint",
@@ -4340,7 +4340,7 @@
         74
       ],
       "cover": "/apps/thumb-sprint/cover.jpg",
-      "bytes": 222449,
+      "bytes": 225115,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4348,7 +4348,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "b779fafa5eee7c94964fd5af96d541916dcefd2203016760768ab29d83e4844b"
+      "sha256": "491320dd8f5488356221389b3ba92791df189c465fbb274a259ff5bf4f04c797"
     },
     {
       "slug": "tic-tac-toe",
@@ -4581,7 +4581,7 @@
         74
       ],
       "cover": "/apps/typing/cover.jpg",
-      "bytes": 195721,
+      "bytes": 200502,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4589,7 +4589,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "48c2405ecc52023b39e3041ece5ce618113364704c00d1d36148fa189d2d93ec"
+      "sha256": "2180599d7bb01cb9feed8cab60d93aa4d8b21ff5a4639e2bdf721a0c63b043f3"
     },
     {
       "slug": "ui-gradients",
