@@ -1229,7 +1229,7 @@
       "name": "Falling Blocks",
       "shortName": "Blocks",
       "version": "1.0.0",
-      "tagline": "Race a friend from one link. Same shapes, two boards, on this device.",
+      "tagline": "Stack the falling shapes. Clear the lines. Or race a friend from the same pieces.",
       "author": {
         "name": "dionyziz",
         "url": "https://github.com/dionyziz/canvas-tetris"
@@ -1327,7 +1327,7 @@
       "name": "Floppy Bird",
       "shortName": "Floppy",
       "version": "1.0",
-      "tagline": "Race a friend from one link. Tap on this phone. High score lives in the file.",
+      "tagline": "Tap to flap between the pipes. Send the link and race a ghost of the other bird.",
       "author": {
         "name": "nebez",
         "url": "https://github.com/nebez/floppybird"
@@ -3136,7 +3136,7 @@
       "name": "Pong",
       "shortName": "Pong",
       "version": "1.0.0",
-      "tagline": "Two devices, one link, no server. First to nine.",
+      "tagline": "Classic Pong. You on the left, a friend on the right.",
       "author": {
         "name": "Jake Gordon",
         "url": "https://github.com/jakesgordon/javascript-pong"
@@ -3716,7 +3716,7 @@
       "name": "Snake",
       "shortName": "Snake",
       "version": "1.0.0",
-      "tagline": "Two snakes on one grid. Send the link — no server.",
+      "tagline": "The classic game of Snake. Send the link and there are two of you.",
       "author": {
         "name": "patorjk",
         "url": "https://github.com/patorjk/JavaScript-Snake"
@@ -4521,15 +4521,11 @@
         64
       ],
       "cover": "/apps/tower-game/cover.jpg",
-      "bytes": 850704,
+      "bytes": 880472,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-23"
-      },
-      "sha256": "b7619f52824763c57a2d3304b01c19e8f00c064ce43ddf652d7f77d0a4226691"
+      "signature": null,
+      "sha256": "0f5fce39d84bd6c5c2cf94416acab3e43e76665e43528040f5e2880eb194fc02"
     },
     {
       "slug": "typing",
