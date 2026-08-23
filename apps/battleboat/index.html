@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Battleboat</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Battleboat</div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="setup">
+    <h2>New game</h2>
+    <p class="lede">Hide five ships. Find the other five. The computer hunts; a friend hides a fleet on their own phone.</p>
+    <button class="primary" id="cpuBtn" type="button">Play the computer</button>
+    <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
+    <p class="statsline" id="setupStats"></p>
+  </section>
+
+  <section class="game" id="game" hidden>
+    <div class="vhead">
+      <h2 id="gameTitle">Your fleet</h2>
+      <button class="ghost" id="leaveBtn" type="button">← Leave</button>
+    </div>
+    <p class="statusline" id="status">Place your ships.</p>
+    <p class="invite" id="inviteHint" hidden>Press <b>Invite</b> (GifOS menu) to send the link. Each of you hides a fleet on your own device.</p>
+
+    <div id="placeBar">
+      <ul class="roster" id="roster"></ul>
+      <div class="place-actions">
+        <button class="ghost" id="rotateBtn" type="button" data-dir="0">Rotate</button>
+        <button class="ghost" id="scatterBtn" type="button">Scatter ships</button>
+        <button class="primary" id="startBtn" type="button" hidden>Start</button>
+      </div>
+    </div>
+
+    <div class="boards">
+      <div class="board-wrap">
+        <h3>Your fleet</h3>
+        <div class="grid human" id="humanGrid" role="grid" aria-label="Your fleet"></div>
+      </div>
+      <div class="board-wrap" id="enemyWrap">
+        <h3 id="enemyTitle">Enemy fleet</h3>
+        <div class="grid enemy" id="enemyGrid" role="grid" aria-label="Enemy fleet"></div>
+      </div>
+    </div>
+
+    <div class="overbar" id="overBar" hidden>
+      <p id="overText"></p>
+      <button class="primary" id="againBtn" type="button">Play again</button>
+    </div>
+  </section>
+</main>
+
+<p class="credit">Unofficial port of Battleboat by Bill Mei. The computer is his.</p>
+
+<script src="game.js"></script>
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
