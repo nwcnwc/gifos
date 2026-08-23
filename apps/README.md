@@ -8,6 +8,14 @@ default** (seeded from `site/js/sample-apps.js`) if it earns its place. Some
 are first-party; some are ports of someone else's work (`basedOn` in
 `listing.json`) — signed here once listed, authored there.
 
+> **Building an app?** The canonical, complete builder reference — the app
+> rules, the full `manifest.json` schema, the entire `window.gifos` API,
+> networking/multiplayer/provider details, and the GIF packing recipe — is
+> [`site/llms.txt`](../site/llms.txt) (published at
+> [gifos.app/llms.txt](https://gifos.app/llms.txt), written for AIs and
+> humans alike). This README covers only what is specific to apps
+> *certified into this repo*: layout, listing, signing, and reviews.
+
 ## Layout
 
 ```
