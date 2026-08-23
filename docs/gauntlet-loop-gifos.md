@@ -59,8 +59,9 @@ user's own keys; a launch block lets a shared URL open it onto something; in a
 GifOS meeting it gains shared voice and video around it. Any of those that
 would genuinely make THIS app better and is missing or half-done is a gap.
 
-Two pieces are ALWAYS in the gauntlet, because they are the app's face and get
-judged before anyone plays: the ICON and the STORE ART. The icon is the App
+Three pieces are ALWAYS in the gauntlet, because they are the app's face and
+get judged before anyone plays: the ICON, the STORE ART, and the LISTING
+COPY. The icon is the App
 GIF's visible animated frames (apps/<slug>/icon.mjs) — put it on a real Home
 Screen at real icon size next to the seeded apps and judge it there: it must
 read at a glance, say what the app is, and its ANIMATION must earn its loop
@@ -72,7 +73,15 @@ UI; crop the shell toolbar out (listing coverCrop); then its critic judges it
 blind at BOTH sizes (grid card and listing hero) beside the comp's own store
 or marketing art, and beside the best covers already in this catalog. If the
 current screenshot is poor — many are — retaking it after the app improves is
-part of the work, not an afterthought.
+part of the work, not an afterthought. The listing copy is the tagline and
+description in apps/<slug>/listing.json: the tagline must sell the app in one
+card-sized line, and the description must read like the comp's own store page
+— what it is, what makes it worth opening, and the GifOS-only powers said
+plainly (works offline, the file is the save, one link is multiplayer) — not
+a changelog and not a feature list. Its critic reads it ON the rendered
+listing page, blind beside the comp's store copy and the best-written
+listings in this catalog, and every claim in it must be true of the build it
+ships beside: an overclaim is a failed round, not a style note.
 
 Split the work into the smallest pieces that can be improved and judged
 independently, and fan out sub-agents: each piece gets a builder and a
@@ -95,8 +104,10 @@ stays green. An improvement that breaks a wall is a regression.
 When you believe it wins, prove it: a final blind A/B against the comp; a cold
 run offline on a phone-sized screen; and a fresh-eyes sub-agent that has never
 seen the code using it start to finish — including one who arrives through a
-shared invite link knowing nothing. Update the listing (cover, tagline,
-description) to sell only what is now true. Keep a simple live progress note
+shared invite link knowing nothing. Then re-check the whole listing — icon,
+cover, tagline, description — against the FINAL build: pieces judged early in
+the run may describe an app that no longer exists, and the listing may only
+sell what is now true. Keep a simple live progress note
 as you go. Fan out sub-agents and ultracode. /loop until it's utterly perfect.
 ```
 
