@@ -1,38 +1,46 @@
 /* IO Blobs — arena shell. The game paints the canvas; this is the gate of
-   the touch stick and the scoreboard. */
+   the floating stick, the boost button, and the scoreboard. */
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1214; color: #e8f4f0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a1214; color: #e8f4f0; overscroll-behavior: none; }
 body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
 #game { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
 
-#touch { position: fixed; inset: 0; z-index: 30; pointer-events: none; touch-action: none; user-select: none; }
+#touch { position: fixed; inset: 0; z-index: 30; pointer-events: auto; touch-action: none; user-select: none; }
 #touch[hidden] { display: none; }
 .t-stick {
   position: absolute; left: max(1.1rem, env(safe-area-inset-left)); bottom: max(1.4rem, env(safe-area-inset-bottom));
-  width: 8.6rem; height: 8.6rem; border-radius: 50%; pointer-events: auto;
-  background: rgba(180, 255, 230, .07); border: 1px solid rgba(180, 255, 230, .2);
+  width: 6.6rem; height: 6.6rem; border-radius: 50%; pointer-events: none;
+  background: rgba(180, 255, 230, .08); border: 1px solid rgba(180, 255, 230, .22);
 }
 .t-knob {
-  position: absolute; left: 50%; top: 50%; width: 3.4rem; height: 3.4rem; margin: -1.7rem 0 0 -1.7rem;
-  border-radius: 50%; background: rgba(80, 220, 190, .28); border: 1px solid rgba(180, 255, 230, .4);
+  position: absolute; left: 50%; top: 50%; width: 2.6rem; height: 2.6rem; margin: -1.3rem 0 0 -1.3rem;
+  border-radius: 50%; background: rgba(80, 220, 190, .32); border: 1px solid rgba(180, 255, 230, .45);
 }
+#t-boost {
+  position: absolute; right: max(1.1rem, env(safe-area-inset-right)); bottom: max(1.5rem, env(safe-area-inset-bottom));
+  pointer-events: auto; min-width: 4.6rem; height: 2.6rem; padding: 0 .9rem;
+  border-radius: 1.4rem; border: 1px solid rgba(180, 255, 230, .35);
+  background: rgba(20, 40, 38, .72); color: #d8fff4; font: 700 .82rem ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+#t-boost:active, #t-boost.held { background: rgba(48, 196, 168, .45); }
 
 #board {
   position: fixed; z-index: 28; top: max(.7rem, env(safe-area-inset-top)); right: max(.7rem, env(safe-area-inset-right));
-  background: rgba(8, 16, 18, .62); border: 1px solid rgba(180, 255, 230, .14); border-radius: .55rem;
-  padding: .55rem .7rem .45rem; min-width: 9.5rem; backdrop-filter: blur(6px);
+  background: rgba(8, 16, 18, .72); border: 1px solid rgba(180, 255, 230, .14); border-radius: .55rem;
+  padding: .5rem .65rem .4rem; min-width: 8.6rem; backdrop-filter: blur(6px);
   pointer-events: none;
 }
 #board[hidden] { display: none; }
 .board-title {
-  font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: #8ab0a8;
-  font-weight: 600; padding: 0 .15rem .35rem;
+  font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; color: #8ab0a8;
+  font-weight: 600; padding: 0 .15rem .3rem;
 }
-#board table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-#board td { padding: .12rem .2rem; }
-#board td.n { color: #c8e8e0; max-width: 7.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#board td.s { text-align: right; width: 3.2rem; font-variant-numeric: tabular-nums; color: #8ab0a8; }
+#board table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+#board td { padding: .1rem .18rem; }
+#board td.n { color: #c8e8e0; max-width: 6.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#board td.s { text-align: right; width: 3rem; font-variant-numeric: tabular-nums; color: #8ab0a8; }
 #board tr.me td { color: #40d4b4; font-weight: 600; }
 #board tr.me td.s { color: #40d4b4; }
 #board tr.dead td { opacity: .4; }
@@ -41,5 +49,14 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-se
   position: fixed; z-index: 20; left: 50%; bottom: max(1.2rem, env(safe-area-inset-bottom));
   transform: translateX(-50%); font-size: .72rem; color: rgba(200, 232, 224, .55);
   pointer-events: none; text-align: center; line-height: 1.5;
+  transition: opacity .6s ease;
 }
 body.touch #hint { display: none; }
+@media (pointer: coarse), (max-width: 500px) {
+  #hint { display: none; }
+  #board { min-width: 7.2rem; padding: .4rem .48rem .32rem; }
+  #board table { font-size: .7rem; }
+  #board td.n { max-width: 5.6rem; }
+}
+
+#t-boost[hidden] { display: none; }

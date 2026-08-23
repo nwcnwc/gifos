@@ -58,19 +58,24 @@ function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 22;
   const t = f / FRAMES;
-  const eat = (Math.sin(t * Math.PI * 2) * 0.5 + 0.5);
-  const tealR = 22 + eat * 5;
-  const pinkR = 11 - eat * 4;
-  const tx = 54, ty = 68;
-  const px = 54 + 28 - eat * 22, py = 68 - 6 + eat * 4;
-  const bob = Math.sin(t * Math.PI * 2) * 1.2;
+  // One-way chomp: chase, swallow, a new morsel appears so the loop reads as eat.
+  const chase = Math.min(1, t / 0.58);
+  const gulp = t < 0.58 ? 0 : Math.min(1, (t - 0.58) / 0.22);
+  const after = t < 0.80 ? 0 : (t - 0.80) / 0.20;
+  const tealR = 20 + chase * 3 + gulp * 8 - after * 5;
+  const pinkR = Math.max(0, 12.5 - gulp * 13);
+  const tx = 48 + chase * 6 + gulp * 4, ty = 66;
+  const px = 92 - chase * 26 - gulp * 14, py = 64 - chase * 2 + gulp * 3;
+  const bob = Math.sin(t * Math.PI * 2) * 1.1;
+  const spark = gulp > 0.15 && gulp < 0.85;
   const foods = [
-    [32, 38, 3.2, YEL],
-    [96, 44, 2.8, BLUE],
-    [88, 92, 3.6, LIME],
-    [36, 96, 2.6, PINK],
-    [70, 34, 2.4, TEAL],
-    [108, 72, 3.0, YEL],
+    [28, 36, 3.0 - after * 1.2, YEL],
+    [100, 40, after > 0.3 ? 3.2 : 2.6, BLUE],
+    [90, 96, 3.4, LIME],
+    [34, 98, 2.5, PINK],
+    [72, 30, 2.3, TEAL],
+    [108, 74, 2.8, YEL],
+    [54, 42, 2.2, LIME],
   ];
 
   for (let pyi = 0; pyi < RW; pyi++) for (let pxi = 0; pxi < RW; pxi++) {
@@ -90,12 +95,22 @@ function frameIndices(pal, f) {
         const ddx = x - fd[0], ddy = y - fd[1];
         if (ddx * ddx + ddy * ddy <= fd[2] * fd[2]) col = fd[3];
       }
-      if (pinkR > 2.5) {
+      if (pinkR > 2.2) {
         const pb = blob(x, y, px, py + bob * 0.4, pinkR, PINK, PINK_D);
         if (pb) col = pb;
       }
       const tb = blob(x, y, tx, ty + bob, tealR, TEAL, TEAL_D);
       if (tb) col = tb;
+      if (spark) {
+        const ang = (x + y + f * 7) % 7;
+        const sdx = x - tx, sdy = y - (ty + bob);
+        const sd = Math.hypot(sdx, sdy);
+        if (sd > tealR * 0.92 && sd < tealR * 1.22 && ang < 1.2) col = mix(YEL, WHITE, 0.4);
+      }
+      if (after > 0.45) {
+        const nb = blob(x, y, 102, 58, 4.2 + after * 2.2, PINK, PINK_D);
+        if (nb) col = nb;
+      }
     }
     const o = (pyi * RW + pxi) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
@@ -123,7 +138,7 @@ export function ioBlobsIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 8, transparentIndex: 0 };
 }
 
 import { deflateSync } from 'node:zlib';
@@ -158,11 +173,25 @@ const GLYPHS = {
   'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
   'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  'P': [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
   'R': [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
   'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
+  'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
+  'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '3': [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '6': [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
 };
@@ -183,7 +212,7 @@ function drawText(put, x, y, str, s, r, g, b) {
   }
 }
 
-function putBlob(put, cx, cy, r, col, rim) {
+function putBlob(put, cx, cy, r, col, rim, wobble) {
   const r2 = r * r;
   for (let dy = -r - 2; dy <= r + 4; dy++) for (let dx = -r - 2; dx <= r + 4; dx++) {
     const sdx = dx - 2, sdy = dy + r * 0.22;
@@ -191,13 +220,40 @@ function putBlob(put, cx, cy, r, col, rim) {
       put(cx + dx, cy + dy, 6, 10, 12);
     }
   }
-  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-    const d2 = dx * dx + dy * dy;
-    if (d2 > r2) continue;
-    const d = Math.sqrt(d2) / r;
+  for (let dy = -r - 3; dy <= r + 3; dy++) for (let dx = -r - 3; dx <= r + 3; dx++) {
+    const ang = Math.atan2(dy, dx);
+    const wr = r * (1 + (wobble || 0.06) * Math.sin(ang * 3 + r));
+    if (dx * dx + dy * dy > wr * wr) continue;
+    const d = Math.sqrt(dx * dx + dy * dy) / wr;
     const shine = Math.max(0, 1 - Math.hypot(dx + r * 0.32, dy + r * 0.32) / (r * 0.55));
     let c = mix(col, WHITE, shine * 0.5);
     if (d > 0.86) c = mix(rim, col, 0.3);
+    put(cx + dx, cy + dy, c[0] | 0, c[1] | 0, c[2] | 0);
+  }
+}
+
+function putDot(put, cx, cy, r, col) {
+  cx = cx | 0; cy = cy | 0;
+  r = Math.max(4, r);
+  const r2 = r * r;
+  for (let dy = -r - 1; dy <= r + 1; dy++) for (let dx = -r - 1; dx <= r + 1; dx++) {
+    if (dx * dx + dy * dy > r2) continue;
+    const d = Math.sqrt(dx * dx + dy * dy) / r;
+    const c = mix(col, WHITE, Math.max(0, 0.45 - d));
+    put(cx + dx, cy + dy, c[0] | 0, c[1] | 0, c[2] | 0);
+  }
+}
+
+function putThorn(put, cx, cy, r) {
+  const n = 18;
+  for (let dy = -r * 1.35; dy <= r * 1.35; dy++) for (let dx = -r * 1.35; dx <= r * 1.35; dx++) {
+    const ang = Math.atan2(dy, dx);
+    const k = ((ang + Math.PI) / (Math.PI * 2)) * n;
+    const spike = (k - Math.floor(k) < 0.5) ? 1.26 : 0.78;
+    const wr = r * spike;
+    if (dx * dx + dy * dy > wr * wr) continue;
+    const d = Math.sqrt(dx * dx + dy * dy) / wr;
+    const c = mix([76, 190, 58], [200, 255, 106], Math.max(0, 1 - d));
     put(cx + dx, cy + dy, c[0] | 0, c[1] | 0, c[2] | 0);
   }
 }
@@ -206,6 +262,7 @@ export function screenshotPng() {
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
   const put = (x, y, r, g, b, a) => {
+    x = x | 0; y = y | 0;
     if (x < 0 || y < 0 || x >= W || y >= H) return;
     const o = (y * W + x) * 4;
     rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a == null ? 255 : a;
@@ -216,41 +273,65 @@ export function screenshotPng() {
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
 
-  // radial-ish arena: darker in the middle, greyer at the rim — upstream's look
+  // Mid-arena: dense pellets, a swallow in progress, a spike, names, scores.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const dx = (x - W / 2) / (W / 2), dy = (y - H / 2) / (H / 2);
     const d = Math.min(1, Math.sqrt(dx * dx + dy * dy));
     const t = d * d;
-    put(x, y, (16 + t * 28) | 0, (24 + t * 28) | 0, (28 + t * 24) | 0);
+    put(x, y, (18 + t * 22) | 0, (26 + t * 22) | 0, (30 + t * 18) | 0);
   }
-  const T = 40;
-  for (let x = 0; x < W; x += T) {
-    fill(x, 0, x + 1, H, 36, 52, 56);
-  }
-  for (let y = 0; y < H; y += T) {
-    fill(0, y, W, y + 1, 36, 52, 56);
+  const T = 48;
+  for (let x = 0; x < W; x += T) fill(x, 0, x + 1, H, 40, 56, 60);
+  for (let y = 0; y < H; y += T) fill(0, y, W, y + 1, 40, 56, 60);
+
+  const rng = (function (a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  })(0x10B10B5);
+  const blobs = [[470, 390, 110], [820, 210, 64], [980, 430, 50], [240, 220, 40], [590, 348, 34]];
+  for (let i = 0; i < 140; i++) {
+    const fx = 18 + rng() * (W - 36), fy = 18 + rng() * (H - 36);
+    let covered = false;
+    for (const b of blobs) {
+      if ((fx - b[0]) * (fx - b[0]) + (fy - b[1]) * (fy - b[1]) < (b[2] + 8) * (b[2] + 8)) covered = true;
+    }
+    if (covered) continue;
+    const fr = 7 + rng() * 5;
+    const pal = [YEL, BLUE, LIME, PINK, TEAL, [255, 140, 70], [180, 120, 255]][i % 7];
+    putDot(put, fx, fy, fr, pal);
   }
 
-  const dots = [
-    [140, 120, 7, YEL], [220, 200, 6, BLUE], [310, 90, 8, LIME],
-    [980, 140, 7, PINK], [1080, 260, 6, TEAL], [180, 580, 8, BLUE],
-    [860, 80, 5, YEL], [1040, 560, 7, LIME], [60, 400, 6, PINK],
-    [500, 60, 7, BLUE], [640, 640, 6, YEL], [420, 520, 5, LIME],
-    [760, 600, 8, TEAL], [250, 340, 6, YEL], [900, 480, 5, PINK],
-  ];
-  for (const d of dots) {
-    putBlob(put, d[0], d[1], d[2], d[3], mix(d[3], [0, 0, 0], 0.4));
+  putThorn(put, 700, 520, 42);
+  putThorn(put, 180, 500, 34);
+
+  putBlob(put, 980, 430, 44, [80, 160, 255], [32, 70, 130], 0.07);
+  putBlob(put, 820, 210, 58, [236, 92, 132], [140, 36, 72], 0.08);
+  putBlob(put, 1088, 250, 26, [120, 220, 90], [40, 100, 40], 0.07);
+  putBlob(put, 240, 220, 34, [255, 170, 60], [140, 80, 20], 0.07);
+  putBlob(put, 470, 390, 102, TEAL, TEAL_D, 0.09);
+  putBlob(put, 590, 348, 28, PINK, PINK_D, 0.1);
+
+  drawText(put, 454, 248, 'YOU', 3, 232, 252, 246);
+  drawText(put, 790, 128, 'NIBBLER', 2, 244, 220, 228);
+  drawText(put, 948, 372, 'DRIFT', 2, 200, 220, 244);
+  drawText(put, 214, 168, 'PIP', 2, 255, 220, 180);
+
+  drawText(put, 36, H - 64, '1840', 5, 232, 252, 246);
+  drawText(put, 36, H - 28, 'BEST 2210', 2, 138, 176, 168);
+
+  const boardX = W - 268, boardY = 28;
+  for (let y = boardY; y < boardY + 168; y++) for (let x = boardX; x < boardX + 240; x++) {
+    put(x, y, 10, 18, 20);
   }
-
-  putBlob(put, 920, 420, 38, [80, 160, 255], [32, 70, 130]);
-  putBlob(put, 780, 240, 52, [236, 92, 132], [140, 36, 72]);
-  putBlob(put, 1040, 200, 28, [120, 220, 90], [40, 100, 40]);
-  putBlob(put, 430, 380, 92, TEAL, TEAL_D);
-  putBlob(put, 560, 300, 22, PINK, PINK_D);
-
-  drawText(put, 48, 48, 'IO BLOBS', 6, 232, 252, 246);
-  drawText(put, 48, 100, 'EAT. GROW.', 3, 48, 196, 168);
-  drawText(put, 48, 140, 'THE LINK IS THE ROOM', 2, 168, 200, 192);
+  drawText(put, boardX + 16, boardY + 12, 'LARGEST', 2, 138, 176, 168);
+  drawText(put, boardX + 16, boardY + 44, 'YOU        1840', 2, 64, 212, 176);
+  drawText(put, boardX + 16, boardY + 72, 'NIBBLER     960', 2, 200, 220, 214);
+  drawText(put, boardX + 16, boardY + 100, 'DRIFT       410', 2, 200, 220, 214);
+  drawText(put, boardX + 16, boardY + 128, 'PIP         180', 2, 200, 220, 214);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
