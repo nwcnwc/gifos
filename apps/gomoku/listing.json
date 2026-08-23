@@ -1,6 +1,6 @@
 {
-  "tagline": "Five in a row, against the computer or a friend on the other side of the board.",
-  "description": "A wooden 15-by-15 board. Black and white take turns putting a stone down. First to get five in a line — across, down, or diagonal — wins.\n\nPlay the computer at novice, medium, or expert. It thinks on this device; there is no server. Play another person on the same screen, passing the device between you. Or press Play a friend and send the invite: the same board, live, on two devices. Black sits one side, white the other. You can take back the stone you just put down as long as the other person has not answered yet. Further than that, you both have to agree.\n\nAn unofficial port of HTML5 Gomoku by yyjhao. The computer is the same one that shipped with that game.",
+  "tagline": "Five in a row. Play the computer here, or a friend from one invite. No server.",
+  "description": "Five in a row. The computer thinks on this device. There is no server. Press Play a friend, send the invite, and they sit the other colour on the same board.\n\nA wooden 15-by-15. Black and white take turns putting a stone down. First to get five in a line — across, down, or diagonal — wins. Play the computer at novice, medium, or expert, or pass the phone. Close it and come back: the file is the save.\n\nAn unofficial port of HTML5 Gomoku by yyjhao. The computer is the same one that shipped with that game.",
   "author": {
     "name": "yyjhao",
     "url": "https://github.com/yyjhao/HTML5-Gomoku"
@@ -15,6 +15,7 @@
     "blessed": false
   },
   "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
   "categories": [
     "Games"
   ],

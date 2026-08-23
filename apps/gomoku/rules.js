@@ -42,7 +42,7 @@
         if (at(s, rr, cc) !== color) break;
         cells.unshift({ r: rr, c: cc });
       }
-      if (cells.length >= 5) return cells.slice(0, 5);
+      if (cells.length >= 5) return cells;
     }
     return null;
   }

@@ -11,7 +11,7 @@ index.html          setup / local game / play a friend
 style.css           wooden board chrome
 rules.js            15×15, five in a line, legal place / undo
 app.js              game loop, canvas board, multiplayer
-icon.mjs            procedural goban icon + 1200×720 cover
+icon.mjs            fifth stone completing a line; mid-game fight cover
 vendor/ai-worker.js yyjhao's AI, unmodified
 build.mjs           packs the GIF into site/apps/gomoku/gomoku.gif
 ```
