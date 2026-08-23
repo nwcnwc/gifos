@@ -1,0 +1,34 @@
+{
+  "tagline": "A tiny 3D scene you spin with a finger. The scene lives in this app.",
+  "description": "Open it and you are already standing in a small 3D scene — a ring of colour, a few glossy balls, a patch of ground. Drag to look around. On a phone, one finger orbits; pinch with two to move closer or farther. Arrow keys walk, and the letter keys turn, if you have a keyboard.\n\nThe scene is packed in this app. Nothing is downloaded, and nothing is sent anywhere.\n\nAn unofficial port of splat by antimatter15. The original loads a scene from the internet; this copy carries a tiny one of its own, so it works with no network at all.\n\nIf you have a scene file, drop it on the window to look at that instead. What you drop stays on this device.",
+  "author": {
+    "name": "antimatter15",
+    "url": "https://github.com/antimatter15/splat"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "splat",
+    "url": "https://github.com/antimatter15/splat",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Media",
+    "Creativity"
+  ],
+  "tags": [
+    "3d",
+    "splat",
+    "viewer",
+    "scene",
+    "orbit",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/splat",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

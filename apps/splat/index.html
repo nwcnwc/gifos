@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Splat</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="info">
+    <h3>Splat</h3>
+    <p>Drag to look. Pinch to move. One finger orbits.</p>
+    <details>
+      <summary>Keys</summary>
+      <div id="instructions">Arrows walk. Space hops.
+A/D turn. W/S tilt. Q/E roll. I/J/K/L orbit.
+0–9 jump to a saved view. P plays the slow spin.
+Drop a scene file on the window to look at that instead.</div>
+    </details>
+  </div>
+
+  <div id="progress"></div>
+  <div id="message"></div>
+  <div class="scene" id="spinner">
+    <div class="cube-wrapper">
+      <div class="cube">
+        <div class="cube-faces">
+          <div class="cube-face bottom"></div>
+          <div class="cube-face top"></div>
+          <div class="cube-face left"></div>
+          <div class="cube-face right"></div>
+          <div class="cube-face back"></div>
+          <div class="cube-face front"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <canvas id="canvas">This scene needs a canvas.</canvas>
+  <div id="quality"><span id="fps"></span></div>
+  <div id="caminfo"><span id="camid"></span></div>
+
+  <!-- Order matters: the runtime inlines each <script src> where it stands. -->
+  <script src="scene.js"></script>
+  <script src="vendor/main.js"></script>
+</body>
+</html>

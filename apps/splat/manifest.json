@@ -1,0 +1,12 @@
+{
+  "gifos": "1.0",
+  "appId": "splat",
+  "name": "Splat",
+  "shortName": "Splat",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "A tiny 3D scene you spin with a finger. The scene lives in this app — nothing is fetched.",
+  "entry": "index.html",
+  "accent": [70, 110, 255],
+  "capabilities": {}
+}
