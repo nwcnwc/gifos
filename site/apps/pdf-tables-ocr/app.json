@@ -45,9 +45,13 @@
   "cover": "/apps/pdf-tables-ocr/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pdf-tables-ocr/pdf-tables-ocr.gif",
-  "bytes": 27919043,
+  "bytes": 27919230,
   "download": 0,
   "provides": null,
-  "sha256": "cc8c7012beb0e3b9ce5f9ca5cc15efc60ea44d202a2a5751affecc0d3cacce28",
-  "signature": null
+  "sha256": "97fee48a2c70551014b702b2fa038af7fcb9df5e85b7c88d49670e3260c47045",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  }
 }

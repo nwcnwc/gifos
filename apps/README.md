@@ -44,14 +44,14 @@ it to `site/apps/<name>/<name>.gif`. Then regenerate the catalog:
 ```bash
 node scripts/sign-apps.mjs                  # GIFOSSIG as gifos.app (local key)
 node scripts/build-app-catalog.mjs          # write site/apps/*
-node scripts/build-app-catalog.mjs --check  # verify it's current (what CI runs)
+node scripts/build-app-catalog.mjs --check --require-signed  # what CI runs
 ```
 
 `sign-apps.mjs` reads the JWK from `GIFOS_SIGN_KEY` and refuses a key that
 does not match `site/gifos.key`. It is **not** a GitHub Action: a leaked
 Actions secret would let anyone mint "✓ signed by gifos.app". Pages publishes
-the GIFs already in `site/`. After the first bulk sign,
-`build-app-catalog.mjs --check --require-signed` is the gate.
+the GIFs already in `site/`. `build-app-catalog.mjs --check --require-signed`
+is the gate: a listed GIF without a gifos.app GIFOSSIG fails.
 
 A source tree with **no `listing.json` is simply not in the store** — that is
 how an app stays unlisted while it's being built.
@@ -193,9 +193,7 @@ both be set: a port is not "inspired by". Anyroad is this shape (Hop.Earth).
   (`build-app-catalog.mjs` reads the `GIFOSSIG` block); the store verifies it
   for real in the browser against `https://gifos.app/gifos.key` and refuses
   any download whose claimed signature fails to verify. On a port, that is
-  integrity of the bits, not a claim that GifOS wrote the work. Fluence is
-  the one GIF already signed (a manual test, 2026-08-02); the rest wait on
-  the first `sign-apps.mjs` run.
+  integrity of the bits, not a claim that GifOS wrote the work.
 - **Sandbox-honest**: runs as a normal sandboxed GifOS app — data in
   `gifos.db`, network only via the manifest allowlist, brokered capture/AI via
   `gifos.recordAudio` / `gifos.ai.*` (keys never touch the app).

@@ -42,11 +42,15 @@
   "cover": "/apps/fps-simple/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fps-simple/fps-simple.gif",
-  "bytes": 1109950,
+  "bytes": 1110137,
   "download": 0,
   "provides": null,
-  "sha256": "0a6c861f97f2a1cdb214559619107ebd209762cc56c4367461e89570cac8ee75",
-  "signature": null,
+  "sha256": "d532479961c1984210276ee0fc7308b6178a0e78f52d3667228c6a2fcc0539cc",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

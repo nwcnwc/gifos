@@ -35,10 +35,9 @@
  *   --check           verify the committed catalog matches the sources; write nothing.
  *                     (This is what CI / the test battery runs.)
  *   --require-signed  also fail if a listed GIF has no gifos.app GIFOSSIG.
- *                     Off in CI until the first `scripts/sign-apps.mjs` bulk
- *                     sign; the default --check still PRINTS the unsigned list.
- *                     Signing is local (`GIFOS_SIGN_KEY`). The private key
- *                     does not go in GitHub Secrets (docs/threat-model.md).
+ *                     e2e-app-store.js passes this. Signing is local
+ *                     (`GIFOS_SIGN_KEY`). The private key does not go in
+ *                     GitHub Secrets (docs/threat-model.md).
  */
 import fs from 'node:fs';
 import path from 'node:path';
