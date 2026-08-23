@@ -1,0 +1,7 @@
+vendor/*.js and vendor/style.css are GENERATED. Do not edit them; run node apps/jspaint/vendor.mjs.
+
+upstream: https://github.com/1j01/jspaint.git
+commit:   53be67ab8c47cc0d2168899e7481bc04839c4c81
+entry:    src/_gifos-core.js + src/_gifos-app.js (written by vendor.mjs), IIFE
+
+MIT licence travels beside it as COPYING-jspaint.txt and is packed into the GIF.

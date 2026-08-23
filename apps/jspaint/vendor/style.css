@@ -1,0 +1,2122 @@
+
+/* Remove the inner border and padding in Firefox. */
+button::-moz-focus-inner,
+[type="button"]::-moz-focus-inner,
+[type="reset"]::-moz-focus-inner,
+[type="submit"]::-moz-focus-inner {
+	border-style: none;
+	padding: 0;
+}
+
+/* Restore the focus styles unset by the previous rule.*/
+button:-moz-focusring,
+[type="button"]:-moz-focusring,
+[type="reset"]:-moz-focusring,
+[type="submit"]:-moz-focusring {
+	outline: 1px dotted ButtonText;
+}
+
+/*\
+|*| Note: layout.rtl.css is a generated file. Only edit layout.css.
+|*| layout.rtl.css is generated automatically while running the dev server (npm run dev)
+|*| (or manually with npm run build-css)
+|*|
+|*| Right-to-left layout is handled with a processor called RTLCSS, using comment directives.
+|*| Note in particular that "direction: ltr;" by default gets flipped to "direction: rtl;",
+|*| so the way to make a piece of UI left-to-right-only is with an ignore directive.
+\*/
+
+html, body, .jspaint {
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	overflow: hidden;
+}
+.jspaint {
+	direction: ltr;
+	
+	box-sizing: border-box; /* for iPad fullscreen workaround, which adds padding to .jspaint; without this it hides the status bar */
+
+	/* prevent selection, especially for Safari on iOS/iPad, which likes to select random (nearest, kind of?) elements when long-pressing */
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+.chooser-option {
+	display: flex;
+}
+.choose-shape-style {
+	display: flex;
+	flex-flow: column;
+}
+.choose-eraser,
+.choose-magnification,
+.choose-stroke-size,
+.choose-transparent-mode {
+	display: flex;
+	flex-flow: column;
+	align-items: center;
+	justify-content: space-around;
+}
+.choose-brush,
+.choose-airbrush-size {
+	display: flex;
+	flex-flow: row wrap;
+	justify-content: space-around;
+	align-content: space-around;
+}
+.tool-options canvas {
+	flex: 0 0 auto;
+}
+.component-window .window-content,
+.component-window .window-content :not(table):not(tbody):not(tr):not(td) {
+	display: flex;
+}
+.jspaint {
+	display: flex;
+	flex-flow: column;
+	flex: 1;
+}
+.horizontal {
+	display: flex;
+	flex-flow: row;
+	flex: 1 1 0;
+	overflow: hidden;
+}
+.vertical {
+	display: flex;
+	flex-flow: column;
+	flex: 1;
+}
+.jspaint > .vertical {
+	height: 100%;
+}
+@media (max-width: 200px) {
+	.horizontal > .component-area {
+		display: none;
+	}
+}
+@media (max-height: 340px) {
+	.vertical > .component-area {
+		display: none;
+	}
+}
+@media (max-height: 359px) {
+	.vertical > .status-area {
+		display: none !important;
+	}
+}
+.window.squish,
+.window.squish .window-content {
+	max-width: 100vw;
+	max-height: 100vh;
+}
+.window:not(.squish) {
+	white-space: nowrap;
+}
+/* reset the above to avoid .tracky-mouse-error-message getting clipped (when webcam in use for example) */
+.tracky-mouse-window .tracky-mouse-canvas-overlay {
+	white-space: normal;
+}
+/* fix overlapped min/max labels and barely clickable slider due to 98.css slider styles */
+.tracky-mouse-labeled-slider {
+	height: 20px;
+}
+.component-area {
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+.tool-window .window-titlebar {
+	direction: ltr;
+	text-align: start;
+}
+.status-area,
+.component-area {
+	display: flex;
+	flex: 0 0 auto;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+
+.selection,
+.textbox,
+.helper-layer {
+	z-index: 3;
+}
+.selection,
+.textbox {
+	display: block !important; /* @TODO: reduce overzealous display: flex; */
+	box-sizing: border-box;
+	-moz-box-sizing: border-box;
+}
+
+.textbox > img,
+.textbox > canvas,
+.selection > img,
+.selection > canvas {
+	/* @TODO: maybe don't include the canvas in the DOM (is it helpful to inspect it tho? it's not critical...) */
+	opacity: 0;
+	/* Fix draggable part of selection going outside the selection selection is vertically thin */
+	position: absolute;
+	left: 0;
+	top: 0;
+}
+.selection > img,
+.selection > canvas,
+.helper-layer > canvas {
+	width: 100%;
+	height: 100%;
+}
+.helper-layer > canvas {
+	/* Fix helper layer canvas going off the main canvas when main canvas is vertically thin */
+	position: absolute;
+	left: 0;
+	top: 0;
+}
+.resize-ghost,
+.component-ghost {
+	pointer-events: none;
+}
+.resize-ghost {
+	z-index: 4;
+}
+.component-ghost {
+	z-index: 5001; /* 50-5000 reserved for subwindows, which dynamically increase z-index */
+}
+.textbox-editor {
+	color: transparent !important;
+	background: transparent !important;
+	caret-color: black;
+	z-index: 4; /* go above handles and .main-canvas */
+	outline: none;
+}
+/* debug */
+/*.textbox-editor:hover {
+	color: rgba(255, 0, 255, 0.5) !important;
+}*/
+
+.status-area {
+	display: flex;
+	overflow: hidden;
+	white-space: nowrap;
+	cursor: default;
+}
+.status-text {
+	flex-basis: auto;
+	flex-grow: 1;
+	flex-shrink: 0;
+	padding-right: 2px;
+	overflow: hidden;
+}
+.status-coordinates {
+	flex: 0 0 114px;
+	min-width: 0px;
+	padding-left: 3px;
+}
+
+.enlarge-ui .color-button {
+	width: 25px;
+	height: 25px;
+}
+.enlarge-ui .colors-component.tall {
+	width: 50px;
+}
+.enlarge-ui .colors-component.tall .color-box {
+	width: 100%;
+}
+.enlarge-ui .colors-component.tall .current-colors {
+	width: 100%;
+}
+.enlarge-ui .colors-component.tall .foreground-color {
+	left: 12px;
+}
+.enlarge-ui .colors-component.tall .background-color {
+	right: 12px;
+}
+.enlarge-ui .colors-component.wide {
+	height: 50px;
+}
+.enlarge-ui .colors-component.wide .color-box {
+	height: 100%;
+}
+.enlarge-ui .colors-component.wide .current-colors {
+	height: 100%;
+}
+.enlarge-ui .colors-component.wide .foreground-color {
+	top: 12px;
+}
+.enlarge-ui .colors-component.wide .background-color {
+	bottom: 12px;
+}
+
+/* more specific .tool-window selectors are needed to override titlebar height currently defined in classic.css */
+.enlarge-ui .os-window .window-titlebar,
+.enlarge-ui .os-window.tool-window .window-titlebar {
+	font-size: 2rem;
+	line-height: 1.2;
+	height: 2.8rem;
+}
+.enlarge-ui .os-window .window-title-area,
+.enlarge-ui .os-window.tool-window .window-title-area {
+	height: 100%;
+}
+.enlarge-ui .os-window .window-titlebar button {
+	transform: scale(3);
+	margin-right: 32px;
+}
+.enlarge-ui .tool-window .window-titlebar button {
+	transform-origin: 0 0;
+}
+
+.enlarge-ui .menu-button {
+	padding-right: 10px;
+	padding-left: 10px;
+}
+.enlarge-ui .menu-button {
+	height: 3rem;
+	line-height: 2.5rem;
+}
+.enlarge-ui .menu-button,
+.enlarge-ui .menu-button * {
+	font-size: 2rem;
+}
+.enlarge-ui .menu-item * {
+	font-size: 2rem;
+	line-height: 1.5;
+}
+.enlarge-ui .menu-item-checkbox-area::after,
+.enlarge-ui .menu-item-submenu-area::after {
+	width: 1.2em;
+	height: 1.2em;
+	mask-size: 1.2em 1.2em;
+	-webkit-mask-size: 1.2em 1.2em;
+}
+
+/* sigh, trying to move two things in a similar way but padding does look a bit better for the status area (esp. in Bubblegum theme),
+whereas it breaks component docking calculations if used to shift the colors box */
+.status-area {
+	padding-left: var(--floating-buttons-width);
+}
+.component-area.bottom {
+	margin-left: var(--floating-buttons-width);
+}
+.floating-buttons {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	transform-origin: bottom left;
+	transform: scale(2);
+	/* Go on top of canvas if both left/bottom docking areas are empty */
+	z-index: 1;
+	/* They're not within .jspaint currently */
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+.enlarge-ui .floating-buttons {
+	transform: scale(3);
+}
+.floating-buttons button {
+	width: 28px;
+	height: 28px;
+	vertical-align: bottom;
+	position: relative;
+}
+.floating-buttons .button-icon {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 24px;
+	height: 24px;
+}
+
+.menu-button {
+	/* @TODO: make this part of os-gui */
+	white-space: nowrap;
+}
+.menus {
+	/* @TODO: make this part of os-gui; note that Explorer does overflow differently though */
+	flex-wrap: wrap;
+}
+
+.component-area {
+	/* for measuring offsetTop/offsetLeft of component elements */
+	/* (makes it relative to this element) */
+	position: relative;
+}
+
+.tools-component {
+	height: 273px;
+	align-items: center;
+	padding-left: 4px;
+	padding-right: 2px;
+	display: flex;
+	flex-flow: column;
+}
+.tool-options {
+	display: flex;
+	margin-top: 3px;
+	width: 41px;
+	height: 66px;
+	box-sizing: border-box;
+	-moz-box-sizing: border-box;
+}
+.tool-options > div {
+	flex: 1;
+}
+.tools {
+	display: flex;
+	flex-flow: row wrap;
+}
+.tool {
+	display: block !important;
+	box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	position: relative;
+}
+
+.horizontal .component-area {
+	flex-direction: column;
+}
+.component {
+	display: flex;
+}
+.colors-component {
+	align-items: center;
+	justify-content: center;
+}
+.colors-component.wide {
+	height: 47px;
+}
+.colors-component.tall {
+	width: 47px;
+}
+.palette {
+	display: flex;
+}
+.colors-component.wide .palette {
+	flex-flow: row wrap;
+}
+.colors-component.tall .palette {
+	flex-flow: column wrap;
+}
+.colors-component.wide .color-box,
+.colors-component.wide .palette {
+	display: flex;
+	flex-direction: row;
+	height: 32px;
+}
+.colors-component.tall .color-box,
+.colors-component.tall .palette {
+	display: flex;
+	flex-direction: column;
+	width: 32px;
+}
+.colors-component.wide .current-colors {
+	width: 30px;
+	height: 31px;
+}
+.colors-component.tall .current-colors {
+	width: 31px;
+	height: 32px;
+}
+.current-colors,
+.color-button {
+	position: relative;
+}
+.foreground-color {
+	position: absolute;
+	left: 2px;
+	top: 4px;
+}
+.background-color {
+	position: absolute;
+	right: 3px;
+	bottom: 3px;
+}
+.colors-component.tall .foreground-color {
+	left: 4px;
+	top: 3px;
+}
+.colors-component.tall .background-color {
+	right: 3px;
+	bottom: 3px;
+}
+
+.colors-component.wide .color-button,
+.colors-component.wide .color-selection {
+	margin-left: 1px;
+}
+.colors-component.tall .color-button,
+.colors-component.tall .color-selection {
+	margin-top: 1px;
+}
+.color-button,
+.color-selection {
+	display: flex;
+	padding: 0;
+	box-sizing: border-box;
+	width: 15px;
+	height: 15px;
+	border: 0;
+}
+
+.edit-colors-window .color-grid {
+	width: 222px;
+	display: grid;
+	grid-template-columns: repeat(8, 16px);
+	grid-gap: 5px 9px;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	margin-left: 8px/*rtl:ignore*/;
+}
+.edit-colors-window .swatch {
+	width: 16px;
+	height: 13px;
+	display: flex;
+}
+.edit-colors-window .window-content {
+	font-family: Tahoma, sans-serif;
+	font-size: 12px;
+}
+.edit-colors-window .swatch {
+	outline: none; /* we'll provide a new focus indicator below */
+}
+.edit-colors-window .swatch.selected {
+	outline: 1px solid black;
+	outline-offset: 0px;
+}
+.edit-colors-window .swatch:focus::after {
+	content: "";
+	display: block;
+	position: absolute;
+	left: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	outline: 1px dotted black;
+	outline-offset: 5px;
+}
+.edit-colors-window .window-content .left-right-split {
+	display: flex;
+	flex-flow: row;
+}
+.edit-colors-window .window-content .left-side {
+	/* display: flex;
+	flex-flow: column; */
+	width: 217px;
+	height: 298px;
+}
+.edit-colors-window .window-content .right-side {
+	width: 218px;
+	position: relative;
+	padding-top: 7px;
+	padding-left: 10px/*rtl:ignore*/;
+}
+.edit-colors-window .window-content .button-group {
+	display: flex;
+	flex-flow: row;
+}
+.edit-colors-window .window-content .button-group button {
+	min-width: 66px;
+	margin: 3px;
+}
+.edit-colors-window .window-content .define-custom-colors-button,
+.edit-colors-window .window-content .button-group button:first-of-type {
+	margin-left: 5px/*rtl:ignore*/;
+}
+.edit-colors-window .window-content button {
+	height: 23px;
+	box-sizing: border-box;
+	padding: 0;
+	margin-left: 3px/*rtl:ignore*/;
+}
+.edit-colors-window .window-content .define-custom-colors-button {
+	margin-top: 13px;
+	width: 210px;
+}
+.edit-colors-window .window-content .add-to-custom-colors-button {
+	position: absolute;
+	bottom: 5px;
+	right: 5px/*rtl:ignore*/;
+	width: 213px;
+}
+.edit-colors-window .left-side label {
+	display: block;
+	margin-top: 7px;
+	margin-bottom: 5px;
+	margin-left: 5px/*rtl:ignore*/;
+}
+.edit-colors-window .left-side label:nth-of-type(2) {
+	margin-top: 18px;
+	margin-bottom: 7px;
+}
+.edit-colors-window .luminosity-canvas {
+	margin-left: 15px/*rtl:ignore*/;
+}
+.edit-colors-window .result-color-canvas {
+	margin-top: 4px;
+}
+/* WET layout code for small viewports and Enlarge UI mode */
+/* could do it cleaner with JavaScript or CSS preprocessor */
+@media (max-width: 450px) {
+	.edit-colors-window {
+		overflow: hidden;
+	}
+	.edit-colors-window.defining-custom-colors .left-side {
+		/* display: none !important; */
+		/* this element is determining the height */
+		width: 0;
+		visibility: hidden;
+	}
+	.edit-colors-window:not(.defining-custom-colors) .right-side {
+		display: none !important;
+	}
+}
+/* WET layout code for small viewports and Enlarge UI mode */
+.enlarge-ui .edit-colors-window {
+	overflow: hidden;
+}
+.enlarge-ui .edit-colors-window.defining-custom-colors .left-side {
+	/* display: none !important; */
+	/* this element is determining the height */
+	width: 0;
+	visibility: hidden;
+}
+.enlarge-ui .edit-colors-window:not(.defining-custom-colors) .right-side {
+	display: none !important;
+}
+
+.save-as .window-content > form > div {
+	display: flex;
+	flex-direction: column;
+}
+.save-as .window-content > form > div > label {
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+	align-items: center;
+	margin-left: 10px;
+}
+.save-as .window-content > form > div > label > input,
+.save-as .window-content > form > div > label > select {
+	width: calc(100vw - 220px);
+	max-width: 230px;
+	float: right;
+	margin: 5px;
+	box-sizing: border-box;
+}
+.save-as .window-content > form > div > label:not(:first-of-type) {
+	margin-top: 8px;
+}
+.save-as .window-content {
+	padding-top: 10px;
+	padding-bottom: 10px;
+}
+.save-as .button-group button {
+	margin: 5px;
+}
+
+.font-box {
+	display: flex;
+	flex-flow: row;
+	align-items: center;
+	margin: 4px 7px; /* not measured, just guessed */
+	gap: 10px;
+}
+
+.canvas-area {
+	flex: 1;
+	display: block !important;
+	position: relative;
+	overflow: auto;
+	padding: 3px;
+	direction: ltr/*rtl:ignore*/;
+}
+.main-canvas {
+	position: absolute;
+	z-index: 2;
+}
+.canvas-area .handle {
+	position: absolute;
+	width: 3px;
+	height: 3px;
+	z-index: 1;
+	pointer-events: none; /* important for Dwell Clicker mode */
+}
+.grab-region {
+	/* the grab-region make handles way easier to grab by extending outside the visual representation of the handle */
+	position: absolute;
+	/*background: rgba(255, 0, 0, 0.5);*/ /* debug */
+}
+/* .grab-region.is-middle { */
+	/*background: rgba(255, 255, 0, 0.5);*/ /* debug */
+/* } */
+.textbox::before {
+	/* allow dragging textbox */
+	/* In mspaint the border drawn around selections and textboxes extends out from them,
+	centered on the pixels bordering the contents,
+	which makes it more reasonable to have the border be a draggable thing.
+	I'm making the draggable area outside the border for now. */
+	content: "";
+	pointer-events: all; /* @TODO: maybe don't have a blanket pointer-events: none; on pseudo elements */
+	display: block;
+	position: absolute;
+	left: -10px;
+	right: -10px;
+	top: -10px;
+	bottom: -10px;
+	/*background: orange;*/ /* debug */
+}
+
+.window-content .button-group {
+	display: flex;
+	flex: 0 0 auto;
+	flex-flow: column;
+}
+.window-content .button-group > button {
+	min-width: 80px;
+	padding: 3px 5px;
+	white-space: nowrap;
+}
+.window-content > form {
+	display: flex;
+	flex-flow: row;
+}
+.window:not(.edit-colors-window) .window-content > form {
+	direction: ltr;
+}
+.horizontal-buttons .window-content > form {
+	flex-flow: column;
+}
+.horizontal-buttons .window-content > form > .button-group {
+	display: flex;
+	flex-flow: row;
+	justify-content: flex-end;
+	gap: 5px;
+	margin: 5px;
+	margin-bottom: 10px;
+}
+.horizontal-buttons .window-content > form > div:first-child {
+	padding: 5px;
+}
+
+.stretch-and-skew .window-content,
+.flip-and-rotate .window-content,
+.convert-to-black-and-white .window-content,
+.component-window .window-content {
+	direction: ltr;
+}
+
+.dialog-window:not(.horizontal-buttons):not(.edit-colors-window) .window-content {
+	padding: 10px;
+}
+.dialog-window:not(.horizontal-buttons):not(.edit-colors-window) .window-content .button-group {
+	padding-left: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.flip-and-rotate fieldset {
+	width: 200px;
+}
+.flip-and-rotate fieldset > label {
+	display: flex !important; /* overriding `.window:not(.edit-colors-window) .window-content label` */
+}
+.flip-and-rotate input:disabled {
+	/* pointer events already can't get received on disabled input elements,
+	but this lets them be received on a parent,
+	in order to enable the element */
+	pointer-events: none;
+}
+.flip-and-rotate .sub-options {
+	padding-left: 30px;
+}
+.flip-and-rotate .radio-wrapper {
+	width: fit-content;
+}
+
+/* Fix label ordering for RTL layout (display inline labels can get super out of order with the checkboxes/inputs - very confusing!) */
+.window:not(.edit-colors-window):not(.tracky-mouse-window) .window-content label {
+	display: inline-flex;
+	flex-direction: row;
+	direction: ltr;
+}
+
+.attributes-window .window-content {
+	direction: ltr;
+}
+.attributes-window table {
+	margin-bottom: 5px;
+}
+.attributes-window input[type="number"] {
+	margin-left: 5px; /* separate label from input for Width and Height fields */
+}
+.attributes-window table ~ label ~ label {
+	margin-left: 10px; /* separate Width and Height fields */
+}
+.attributes-window fieldset {
+	margin-top: 5px;
+}
+.attributes-window fieldset .fieldset-body {
+	display: grid;
+	grid-template-columns: calc(80px * 2) 80px;
+}
+.attributes-window fieldset:first-of-type .fieldset-body {
+	grid-template-columns: 80px 80px 80px;
+}
+
+.custom-zoom-window .current-zoom {
+	margin: 10px 15px;
+}
+.custom-zoom-window fieldset {
+	margin: 8px;
+	padding: 0;
+}
+.custom-zoom-window .fieldset-body {
+	display: flex;
+	flex-flow: column wrap;
+	width: 240px;
+	height: 70px;
+	padding: 12px 5px;
+	row-gap: 10px;
+}
+.custom-zoom-window bdi {
+	margin: 0 10px;
+}
+.custom-zoom-window input[name="really-custom-zoom-input"] {
+	width: 50px;
+}
+
+.radio-field {
+	display: flex;
+	flex-flow: row;
+	align-items: center;
+}
+
+/* @TODO: part of os-gui */
+.os-window {
+	display: flex;
+	flex-direction: column;
+}
+/* @TODO: part of os-gui */
+.os-window .window-content {
+	flex: 1;
+}
+
+.help-window .window-content {
+	display: flex;
+	flex-flow: column;
+}
+.help-window .main {
+	flex: 1;
+	display: flex;
+	flex-flow: row;
+	height: 0; /* fixes an overflow issue with small window height, where the iframe and contents tree would be sized based on the intrinsic height of the contents tree */
+}
+.help-window .toolbar button {
+	width: 55px;
+	height: 40px;
+	padding: 0;
+}
+.help-window .toolbar button span {
+	display: inline-flex;
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	/* flex centering + preventing overflow wrap means the font can be too big and it'll still stay centered */
+	font-size: 12px;
+	white-space: pre;
+	justify-content: center;
+}
+.help-window .toolbar button {
+	position: relative;
+}
+.help-window .toolbar button .icon {
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+.help-window .toolbar button .icon {
+	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAVkAAAApCAYAAACfp1quAAAFa0lEQVR4Xu2cW3LDIAxFk5W1O4u7s3Zl6YhajKyAwTahEtz85CN+oCPpImSc+w0fEAABEACBtxG4v+3KuDAIgAAIgMANIosgAIHxCDyVScjzf/Rxa/jauWdMaz2mM2PAOWMTyMUpxR7/5jEOS/nn0SYdiSUb5fEm7G09iOf39/fp9Pz8/KRzW4/p9Hhw4pAEns/na57+/PzcKP6WZQlGL8tiNQ5p8KmxRaPIvvv9Lm0xJzwXIqtKYyxpSetAOjLL5Di3HtMFf+LUwQiEBKUEJCEiYf34+Nh8c5HgQGRZbDc5xxOIFNl10mBXes+vIxpjwtbWgwhBzIHMXuWgLiUsBYazSjZXVZRM9fa7NzuTichxuSe0X19f1itZjp0XG2WFPorILsvyVBNeciWiE8qSlrxNZGnZxVXBoCLruXd3VOS92UqJGW3kWKQ43BNatcRunRtHmSePT4hOFF1ZxcqTyX7RBrHcCnnpv65jl76AyHIl+3g8Ql9IVg1EkCsFSZOCn5ZtlmafQkYERzsa79UE92bvpsrTKysttBk4pkWWxZa+uR0ge7EkTiJGNxPOKrgm7RO+CDFHepGrZFNaQroTlsOGVsWXQbOTdaAqY4PDSx9LYHbGGmdSJ+MtYa/53ZvNclII9umltJz8PfpR552sVKXoCsGJHFbhCj/VOP8fjonxpoWUJ4/SmCz59DJkcjYLas5wMpiDXEPjKtba7JOxZbNUWR1Z9HfpAAO/F2dALVKGE3TV1L+VRmpyZ7+p5fXlXOjhx712gW6RJHwWhigqe4s2Z9sBPDnktETq0HQiywJaqmYtgUkkTFUvSJ5n3B451NFsi5UsLznZWG5jOZs0oq9km4CW0bJdoKtZWcHLiYXEioobS9ucVgN341CL7N6kZin3Ls9kVytZAuWgJ3tYhJxU5hyno9m3EVmdjLrCtZSQtdVwql0gH3CpGZR7lLGSpWrWaG/2dCVLxg3ZkxVvyGziQz/pLFWxDkTpsBA5St7RbLtSyaZaJ5eLkVrxrDjuZTvdWt1WnPrXKuCPwUr2ZdJPteS8aUnr4Nls9q7ZXYCebFVuvPug6XqyhXaB5NE6R676Ur6EIF8DjtflFglVdeIhV6xiuS9rtJLdCG2iUMk+FBu2J6siJoosO5LbAd5mn51M8Pak/WpSr629P91xUp1fqWRjklt/uKcdyw+0SDxZYOU3Fz0OKlnpgxB2wtaqVZelOG09S0eR1cuS3BNBFmHsk22hhW+7hrt9srxHNLe7wOuDr4yH4/v8nEcpoZUvCBnuyWoTdXskW8nSiaP2ZCWU5J834I2vt4lfrwu7e+MrtRF/E6hi37alquekQ8MbbmuPNVyC/+xGtgz4GBbYxNtUJ2/f9TRUsql/4RpUZMMy2viSslX0e7OzKhEZzgAiy7H48mCLdxxogV1tb72SbRVve9ep8q0ln7aGPFMl2yOgcI9zBKoScTCRDUKrK1qJT7QIdJ/zHOX/OavKt0OLbAPurYW/wZBwCWcEirslEvaMEnfxvwy0jeKNMM+2HvGtCTtNDMJZAmO4IGCdwJ4QIec7ew/AOwPH7UAABOYiAJGdy9+wFgRAoDMBiGxn4LgdCIDAXAQgsnP5G9aCAAh0JgCR7QwctwMBEJiLAER2Ln/DWhAAgc4EILKdgeN2IAACcxGAyM7lb1gLAiDQmQBEtjNw3A4EQGAuAhDZufwNa0EABDoTgMh2Bo7bgQAIzEUAIjuXv2EtCIBAZwIQ2c7AcTsQAIG5CEBk5/I3rAUBEOhMACLbGThuBwIgMBcBiOxc/oa1IAACnQlAZDsDx+1AAATmIgCRncvfsBYEQKAzAYhsZ+C4HQiAwFwEfgE7NRFXRXFIGQAAAABJRU5ErkJggg==");
+}
+.help-window .toolbar button:not([disabled]):hover .icon {
+	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAVkAAAApCAYAAACfp1quAAAFpUlEQVR4Xu2cbZqrIAyF7co6O9PubGZlzhMgGBHqF6UBTn/czky1kpPkJQa8jwEvKAAFoAAU+JgCj499M74YCkABKAAFBkAWQQAF2lNgDkxCnn/Rx7nFD517xbTcY7oyBpzTtgKpOKXY489qjMO9/KvRpjAS92yUx6uwN/cg5iVGr2SpGU7uMV0ZCM5pV4F5nrd5+vf3N/z8/EjGao1DGnxsbN4of8DknMjv9letdh2NuIOM0cOS3IKfmWVSouYe01Hn4bj2FZh/f38NTCVoCbDP53OwoH06FR5a45AZKt+951ZluITr8rNWu45G3xnGqLA19yBMEHMgs2phUCfpauM695iOOu/Kcamq4sp3aT6nNjujichxKUErAUugXdCqFrIcJxsb5R9MEjUA2Wma5mmaJBOidyJh8jwUsSQ30Dxkp2kysKVXo5CtuXd3Fui12RrcUj78xP8OtDYxvam5c+Os5tHjybBHol2QdBLB1gGX8jKAVpZxfehLCLDheAFZrmTHcTJVQXh79nq9Nv4gCNsqoppKdh6or1fPeO/mQG32rqq88M4qBG1CHNWQZdjybEKDFSxN+9scZP5RaZ8YuOnovF5pyMZYMo6jbTwrys3bQlM5H/MoQdYaaz+NLTZoLvHfUMkCZzHutoZ3CVjg/NpsNtWOS7RN/NHf5eSvKSGP+jJc/VkHoe3urMPUfTN9RHWOS8+j1yt8nMcFQVa+qLKtjSW3AUGQtUAN+/GLNARaFiacfbiK1Tb7JIJqgY2cQd5H4G2NCwT4/mKCXJFXVCWk/MSQjSUkw5c/qwuyyy1UYLvz4dI02LrMwZWKPRuVGmMz4jLLFlfVJlnCVaw2ltwW2UKWvXYMtCloKA/2NWCPkE8/jNiK1mzzlSxlrJzYKVYpzmQmK4+7kKWuT8Ww9fWq6CdbfkYhS8UQdQrMDai69lwSsFTEkR9RySYmxneVLIVDBT3Z8xCqq53Qmn0ryMbaUvVC1s+Lwd3HatFuZfKq9jW/8I2nOsjSuJPdgL1Klk5usicbTJ/euWE/qLY+SqRQPQ8iVLJH6v1PHHOnko21Tm7f8WU0crOdzm1zOrj05bq5C1812bbMIKtlj7V6tbEkt8Bis7dd9NrbXYCebMb0u/5V3fVkdyrZzZbT69JmP/Ptwwjmary4RV28ZZHLDkR/JbsCrVs4j+6TDdd3mu3Jhg0juV2m0X2yta2058jy2my+U8kufWqdC0NyfGGJZ0c8vYaBFqMJsAxav9hVRSUb2oiHEYSnfSXLgOWea2p3QSU92RBUte0bvQva2uztoCcrXTrNwzyKXqvbBisBaypaB9iX21Vr9suq3GEgjQvbI/5hhG72ycYq2TCj8cTXXcZ9/fzqnvgK98luZkmx9F7X7oJtLNie7LjdRUm7CHzLQFSwVOnaJ6lqevpLtBH2u1uafPqRnmwnkOXuV24Nv07UyACq+78LjiyOsJ2aEvK686lMTYCWK1hTwNL2Lf9sWI2xi8dqZZuAA6bRSvZ6PuDMTytwKBHbgixZkwAtT5GmgjXH1dAmSMXIId9qmjhzz2T7dfx+euUe0/4VcURrClyJw0bizj3mzsXq6t0/olqzrWd8q8JOFYNoLcNhDxT4sgLvQIScL+wcCF5YcFwOCkCBvhQAZPvyN6yFAlCgsAKAbGHBcTkoAAX6UgCQ7cvfsBYKQIHCCgCyhQXH5aAAFOhLAUC2L3/DWigABQorAMgWFhyXgwJQoC8FANm+/A1roQAUKKwAIFtYcFwOCkCBvhQAZPvyN6yFAlCgsAKAbGHBcTkoAAX6UgCQ7cvfsBYKQIHCCgCyhQXH5aAAFOhLAUC2L3/DWigABQorAMgWFhyXgwJQoC8FANm+/A1roQAUKKwAIFtYcFwOCkCBvhQAZPvyN6yFAlCgsAKAbGHBcTkoAAX6UuAfci+HSCGRrrgAAAAASUVORK5CYII=");
+}
+.help-window .toolbar button[disabled] .icon {
+	filter: saturate(0%) opacity(50%); /* fallback */
+	filter: url("#disabled-inset-filter");
+}
+.help-window .contents {
+	background: white;
+	background: var(--Window);
+	color: var(--WindowText);
+	flex-basis: 300px; /* normally the default is 200px, but that leaves a scrollbar and we don't have rollover viewing of longer titles (@TODO) */
+	flex-grow: 0;
+	flex-shrink: 0;
+	overflow: auto;
+	box-sizing: border-box;
+}
+.help-window ul {
+	margin: 0;
+	padding: 0;
+}
+.help-window li {
+	display: block;
+	white-space: nowrap;
+}
+.help-window .item {
+	display: inline-block;
+}
+.help-window .folder:not(.expanded) ul {
+	display: none;
+}
+.help-window iframe {
+	flex: 1;
+	width: 0;
+}
+.help-window li ul {
+	/* Help content is not currently translated, so it's all in English */
+	padding-left: 16px/*rtl:ignore*/;
+}
+.help-window li:before {
+	content: "";
+	display: inline-block;
+	vertical-align: middle;
+	width: 16px;
+	height: 16px;
+	background-position: 0 0/*rtl:ignore*/;
+	margin-right: 2px;
+}
+.help-window .folder.expanded:before {
+	background-position: -16px 0/*rtl:ignore*/;
+}
+.help-window .page:before {
+	background-position: -32px 0/*rtl:ignore*/;
+}
+
+.dragging iframe {
+	pointer-events: none;
+}
+
+.storage-manager table {
+	max-height: 400px;
+	overflow: auto;
+	display: block;
+}
+.storage-manager .thumbnail-container {
+	width: 64px;
+	height: 64px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.storage-manager .thumbnail-container > img {
+	max-width: 64px;
+	max-height: 64px;
+	flex: 0 0 auto;
+}
+.storage-manager .thumbnail-container,
+.storage-manager p {
+	margin: 5px;
+}
+.storage-manager .remove-button {
+	margin-left: 15px;
+}
+
+.history-window .window-content {
+	direction: ltr;
+}
+.history-view {
+	width: 500px;
+	height: 500px;
+	max-width: calc(100vw - 10px);
+	max-height: calc(100vh - 100px);
+	overflow: auto;
+	position: relative; /* needed for offsetTop to work relative to the top of the list (rather than the window) */
+	direction: ltr;
+}
+.history-entry {
+	cursor: pointer;
+	padding: 5px;
+	display: flex;
+}
+.history-entry-icon-area {
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+}
+.history-entry.current {
+	font-weight: bold;
+}
+.history-entry:not(.current):not(.ancestor-of-current) {
+	color: gray;
+}
+.history-entry:hover:hover:hover { /* specificity hack vs :not()s */
+	color: #0000ff;
+	text-decoration: underline;
+}
+
+/* TODO: reduce scope of this rule, and remove exception(s) to it */
+::before, ::after {
+	pointer-events: none;
+}
+/* Quick fix for clicking directly on the radio button in themes which use styles from 98.css */
+input[type="radio"] + label::before {
+	pointer-events: all;
+}
+
+.cursor-bully * {
+	cursor: inherit !important;
+}
+
+#about-paint-header {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	margin: 0;
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+#about-paint-beside-icon {
+	margin: auto 10px;
+}
+#jspaint-project-name {
+	white-space: nowrap;
+	font-size: 2rem;
+	margin: 0;
+}
+#jspaint-version {
+	/* @TODO: separate some of this into a shared.css? (not all layout!) */
+	white-space: nowrap;
+	font-size: 1.4rem;
+	font-weight: normal;
+}
+#maybe-outdated-line {
+	font-style: italic;
+	line-height: 1;
+	/* min-height avoids a flaky test where sometimes the element blackout is visible and sometimes not depending on whether the news had been loaded when the test runs */
+	min-height: 1em;
+	/* top margin is almost just to separate blackout regions for clarity in the visual test snapshots */
+	margin-top: 3px;
+}
+#view-project-news,
+#close-about-paint {
+	margin: auto; /* for right-alignment AND avoiding stretching to height of the container */
+	margin-right: 0;
+	width: 100px;
+	min-height: 2.2rem;
+}
+#close-about-paint {
+	float: right;
+	margin-bottom: 10px;
+}
+
+#news {
+	max-height: 500px;
+	overflow: auto;
+	-webkit-user-select: text;
+	-moz-user-select: text;
+	-ms-user-select: text;
+	user-select: text;
+	cursor: auto;
+}
+@media (max-height: 550px) {
+	#news {
+		max-height: calc(100vh - 50px);
+	}
+}
+
+.news-indicator {
+	display: flex;
+	font-family: sans-serif;
+}
+.news-indicator > img {
+	margin-right: 5px;
+}
+@media (max-width: 550px) {
+	.news-indicator > img {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+	}
+	.news-indicator .marquee {
+		display: none;
+	}
+}
+
+.marquee {
+	overflow: hidden;
+	text-decoration: inherit;
+}
+
+.marquee span {
+	display: inline-block;
+	white-space: nowrap;
+	width: var(--text-width);
+	text-shadow:
+		var(--text-width) 0 currentColor,
+		calc(var(--text-width) * 2) 0 currentColor,
+		calc(var(--text-width) * 3) 0 currentColor,
+		calc(var(--text-width) * 4) 0 currentColor;
+	will-change: transform;
+	animation: marquee var(--animation-duration) linear infinite;
+	animation-play-state: paused;
+	text-decoration: inherit;
+}
+
+.marquee:hover span {
+	animation-play-state: running;
+}
+
+@keyframes marquee {
+	0% { transform: translateX(0); }
+	100% { transform: translateX(-100%)/*rtl:ignore*/; }
+}
+
+/* On MacOs: System Preferences > Accessibility > Display > Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+	.marquee span {
+		animation: none;
+		text-shadow: none;
+		width: auto;
+		display: block;
+		line-height: 1.5;
+		text-align: center;
+		white-space: normal;
+	}
+}
+
+/* For Safari on iPad, Fullscreen mode overlays the system bar, completely obscuring our menu bar. */
+/* This adds a spacer to the top of the page, styled with the title bar gradient, to prevent that. */
+/* Only show this if the device is tall enough that this won't cause any problems (fullscreen is important for fitting the color palette on the screen on some phones) */
+:root {
+	--ios-title-bar-height: 21px; /* this is what looks good to my eye, there's not a hard line in the overlay, just text/symbols, and I didn't measure the system bar in a case where it has a background */
+	/* hope it doesn't change! */
+}
+@media (min-height: 450px) {
+	.ios.fullscreen .jspaint {
+		padding-top: var(--ios-title-bar-height);
+	}
+	.ios.fullscreen .jspaint::before {
+		content: "";
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: var(--ios-title-bar-height);
+	}
+	/* That works, but now the exit fullscreen button (which we also can't change) obscures the menu bar. */
+	/* So center the menu bar contents, that'll look nice. */
+	/* .ios.fullscreen .menus {
+		justify-content: center;
+	}
+	/* Ugh no, then the three dots button (multitasking menu) at the top of the system menu steals taps from the menu bar. */
+	/* Just shift it over by a fixed amount. */
+	/* This lets it sit in between the exit button and the three dots button,
+	at least on a 9th generation iPad with software version 15.0.2 (this is a very fragile workaround) */
+	.ios.fullscreen .menus {
+		padding-left: 100px;
+	}
+	/* Also nudge the tools downward to avoid the exit fullscreen button */
+	/* (not if it's in a window, only if it's docked) */
+	/* (I considered using `.ios.fullscreen .horizontal > .component-area:first-child`
+	so that it's not affected by the transform in Enlarge UI mode,
+	but it wants tweaking in that case anyways due to the menu bar being bigger */
+	.ios.fullscreen .component-area .tools-component {
+		padding-top: 40px;
+	}
+	/* Not so much in Enlarge UI mode, where it's scaled with transform,
+	and where the menu bar takes more of the space reserved for the exit fullscreen button */
+	.ios.fullscreen .enlarge-ui .component-area .tools-component {
+		padding-top: 10px;
+	}
+}
+
+select.inset-deep {
+	background-position: top 0px right 0px;
+	padding-right: 16px;
+}
+
+progress {
+	width: 291px;
+	height: 20px;
+	box-sizing: border-box;
+}
+
+details pre {
+	margin: 0;
+	margin-top: 5px;
+	-webkit-user-select: text;
+	-moz-user-select: text;
+	-ms-user-select: text;
+	user-select: text;
+}
+
+details {
+	margin-top: 8px;
+}
+summary {
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	cursor: pointer;
+}
+
+.too-big-soon-gif {
+	transition: transform 0.2s;
+	transform-origin: 0% 100%;
+	image-rendering: optimizeQuality;
+}
+.menu-item:not(.highlight) .too-big-soon-gif {
+	transform: scale(0.6);
+}
+.menus,
+.menu-popup,
+.os-window,
+.os-window .window-titlebar,
+.os-window .window-title {
+	cursor: default;
+	-webkit-user-select: none;
+	   -moz-user-select: none;
+	        user-select: none;
+}
+
+.os-window {
+	contain: layout; /* contain: paint; seems to clip children to the padding-box, including for interaction, not just painting; it breaks being able to grab resize handles over the border */
+	/* overflow: hidden; is also not usable for the same reason */
+	/* I might be able to do either with overflow-clip-margin however (@TODO) */
+	display: flex;
+	flex-direction: column;
+	/* will-change: width height left top; */
+}
+.window-content {
+	flex: 1;
+	min-height: 0px;
+	/* Text overflowing the window frame is really ugly!
+	overflow: hidden; would make it harder to enable scrollbars (overflow: auto !important)
+	We want to allow scrollbars to be enabled easily (but not enable them),
+	and we want to clip to the border of the window, without contents overlapping the border at all. */
+    contain: layout paint;
+}
+
+.os-window .window-titlebar,
+body > .window-titlebar {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	white-space: nowrap;
+	overflow: hidden;
+	flex-shrink: 0;
+}
+.os-window .window-title-area {
+	position: relative;
+	flex: 1;
+}
+
+.os-window .window-titlebar .icon {
+	vertical-align: bottom;
+}
+
+.os-window.maximized .handle,
+.os-window.minimized-without-taskbar .handle {
+	display: none; /* prevent resizing when window is minimized */
+}
+
+.os-window.minimized-without-taskbar .menus {
+	display: none; /* hide menubar when window is minimized */
+}
+
+
+/* Fix dragging things (like windows) over iframes */
+.dragging iframe {
+	pointer-events: none;
+}
+
+.menus {
+	display: flex;
+	flex: 0 0 auto;
+	flex-wrap: wrap;
+}
+.menu-popup {
+	position: absolute;
+	box-sizing: border-box;
+}
+.menu-popup-table {
+	border-collapse: collapse;
+}
+.menu-button,
+.menu-item {
+	white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    /* text-overflow: ellipsis; might imply a dialog */
+}
+.menu-hr {
+	display: block !important;
+	height: 0;
+	width: auto;
+}
+/* @TODO: rename .access-key */
+/* @TODO: what are these !important flags about? */
+.menu-hotkey {
+	display: inline !important;
+}
+.menu-item-checkbox-area,
+.menu-item-submenu-area {
+	min-width: 16px;
+}
+.menu-item-checkbox-area,
+.menu-item-submenu-area {
+	text-align: center;
+}
+
+/* .window-content .button-group {
+	width: 85px;
+}
+.window-content .button-group > button {
+	width: 95%;
+	padding: 3px 5px;
+} */
+
+::before,
+::after {
+	pointer-events: none;
+}
+
+/*# sourceMappingURL=layout.css.map */
+/*! 98.css custom build - https://github.com/jdan/98.css */
+/**
+ * 98.css
+ * Copyright (c) 2020 Jordan Scales <thatjdanisso.cool>
+ * https://github.com/jdan/98.css/blob/main/LICENSE
+ */
+
+:root {
+  /* Color */
+  --surface: var(--ButtonFace, #c0c0c0);
+  --button-highlight: var(--ButtonHilight, #ffffff);
+  --button-face: var(--ButtonFace, #dfdfdf);
+  --button-shadow: var(--ButtonShadow, #808080);
+  --window-frame: var(--WindowFrame, #0a0a0a);
+  --dialog-blue: var(--ActiveTitle, #000080);
+  --dialog-blue-light: var(--GradientActiveTitle, #1084d0);
+  --dialog-gray: var(--InactiveTitle, #808080);
+  --dialog-gray-light: var(--GradientInactiveTitle, #b5b5b5);
+  --link-blue: #0000ff;
+
+  /* Spacing */
+  --element-spacing: 8px;
+  --grouped-button-spacing: 4px;
+  --grouped-element-spacing: 6px;
+  --radio-width: 12px;
+  --checkbox-width: 13px;
+  --radio-label-spacing: 6px;
+  --range-track-height: 4px;
+  --range-spacing: 10px;
+
+  /* Some detailed computations for radio buttons and checkboxes */
+  --radio-total-width-precalc: var(--radio-width) + var(--radio-label-spacing);
+  --radio-total-width: calc(var(--radio-total-width-precalc));
+  --radio-left: calc(-1 * var(--radio-total-width-precalc));
+  --radio-dot-width: 4px;
+  --radio-dot-top: calc(var(--radio-width) / 2 - var(--radio-dot-width) / 2);
+  --radio-dot-left: calc(
+    -1 * (var(--radio-total-width-precalc)) + var(--radio-width) / 2 - var(
+        --radio-dot-width
+      ) / 2
+  );
+
+  --checkbox-total-width-precalc: var(--checkbox-width) +
+    var(--radio-label-spacing);
+  --checkbox-total-width: calc(var(--checkbox-total-width-precalc));
+  --checkbox-left: calc(-1 * var(--checkbox-total-width-precalc));
+  --checkmark-width: 7px;
+  --checkmark-top: 3px;
+  --checkmark-left: 3px;
+
+  /* Borders */
+  --border-width: 1px;
+  /* rtl:ignore */
+  --border-raised-outer: inset -1px -1px var(--window-frame),
+    inset 1px 1px var(--button-highlight);
+  /* rtl:ignore */
+    --border-raised-inner: inset -2px -2px var(--button-shadow),
+    inset 2px 2px var(--button-face);
+  /* rtl:ignore */
+    --border-sunken-outer: inset -1px -1px var(--button-highlight),
+    inset 1px 1px var(--window-frame);
+  /* rtl:ignore */
+    --border-sunken-inner: inset -2px -2px var(--button-face),
+    inset 2px 2px var(--button-shadow);
+
+  /* Window borders flip button-face and button-highlight */
+  /* rtl:ignore */
+  --border-window-outer: inset -1px -1px var(--window-frame),
+    inset 1px 1px var(--button-face);
+  /* rtl:ignore */
+    --border-window-inner: inset -2px -2px var(--button-shadow),
+    inset 2px 2px var(--button-highlight);
+
+  /* Field borders (checkbox, input, etc) flip window-frame and button-shadow */
+  /* rtl:ignore */
+  --border-field: inset -1px -1px var(--button-highlight),
+    inset 1px 1px var(--button-shadow), inset -2px -2px var(--button-face),
+    inset 2px 2px var(--window-frame);
+}
+
+/* 
+@font-face {
+  font-family: "Pixelated MS Sans Serif";
+  src: url("fonts/converted/ms_sans_serif.woff") format("woff");
+  src: url("fonts/converted/ms_sans_serif.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Pixelated MS Sans Serif";
+  src: url("fonts/converted/ms_sans_serif_bold.woff") format("woff");
+  src: url("fonts/converted/ms_sans_serif_bold.woff2") format("woff2");
+  font-weight: bold;
+  font-style: normal;
+}
+
+body {
+  font-family: Arial;
+  font-size: 12px;
+  color: #222222;
+}
+
+button,
+label,
+input,
+textarea,
+select,
+option,
+ul.tree-view,
+.window,
+.title-bar {
+  font-family: "Pixelated MS Sans Serif", Arial;
+  -webkit-font-smoothing: none;
+  font-size: 11px;
+}
+
+h1 {
+  font-size: 5rem;
+}
+
+h2 {
+  font-size: 2.5rem;
+}
+
+h3 {
+  font-size: 2rem;
+}
+
+h4 {
+  font-size: 1.5rem;
+}
+
+u {
+  text-decoration: none;
+  border-bottom: 0.5px solid #222222;
+}
+
+button {
+  box-sizing: border-box;
+  border: none;
+  background: var(--surface);
+  box-shadow: var(--border-raised-outer), var(--border-raised-inner);
+  border-radius: 0;
+
+  min-width: 75px;
+  min-height: 23px;
+  padding: 0 12px;
+}
+
+.vertical-bar {
+  width: 4px;
+  height: 20px;
+  background: #c0c0c0;
+  box-shadow: var(--border-raised-outer), var(--border-raised-inner);
+}
+
+button:not(:disabled):active {
+  box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
+  padding: 2px 11px 0 13px;
+}
+
+@media (not(hover)) {
+  button:not(:disabled):hover {
+    box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
+  }
+}
+
+button:focus {
+  outline: 1px dotted #000000;
+  outline-offset: -4px;
+}
+
+button::-moz-focus-inner {
+  border: 0;
+}
+
+:disabled,
+:disabled + label {
+  color: var(--button-shadow);
+}
+
+button:disabled,
+:disabled + label {
+  text-shadow: 1px 1px 0 var(--button-highlight);
+}
+
+.window {
+  box-shadow: var(--border-window-outer), var(--border-window-inner);
+  background: var(--surface);
+  padding: 3px;
+}
+
+.title-bar {
+  background: linear-gradient(
+    90deg,
+    var(--dialog-blue),
+    var(--dialog-blue-light)
+  );
+  padding: 3px 2px 3px 3px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title-bar.inactive {
+  background: linear-gradient(
+    90deg,
+    var(--dialog-gray),
+    var(--dialog-gray-light)
+  );
+}
+
+.title-bar-text {
+  font-weight: bold;
+  color: white;
+  letter-spacing: 0;
+  margin-right: 24px;
+}
+
+.title-bar-controls {
+  display: flex;
+}
+
+.title-bar-controls button {
+  padding: 0;
+  display: block;
+  min-width: 16px;
+  min-height: 14px;
+}
+
+.title-bar-controls button:active {
+  padding: 0;
+}
+
+.title-bar-controls button:focus {
+  outline: none;
+}
+
+.title-bar-controls button[aria-label="Minimize"] {
+  background-image: svg-load("./icon/minimize.svg");
+  background-repeat: no-repeat;
+  background-position: bottom 3px left 4px;
+}
+
+.title-bar-controls button[aria-label="Maximize"] {
+  background-image: svg-load("./icon/maximize.svg");
+  background-repeat: no-repeat;
+  background-position: top 2px left 3px;
+}
+
+.title-bar-controls button[aria-label="Restore"] {
+  background-image: svg-load("./icon/restore.svg");
+  background-repeat: no-repeat;
+  background-position: top 2px left 3px;
+}
+
+.title-bar-controls button[aria-label="Help"] {
+  background-image: svg-load("./icon/help.svg");
+  background-repeat: no-repeat;
+  background-position: top 2px left 5px;
+}
+
+.title-bar-controls button[aria-label="Close"] {
+  margin-left: 2px;
+  background-image: svg-load("./icon/close.svg");
+  background-repeat: no-repeat;
+  background-position: top 3px left 4px;
+}
+
+.status-bar {
+  margin: 0px 1px;
+  display: flex;
+  gap: 1px;
+}
+
+.status-bar-field {
+  box-shadow: inset -1px -1px  #dfdfdf, 
+    inset 1px 1px #808080;
+  flex-grow: 1;
+  padding: 2px 3px;
+  margin: 0;
+}
+
+.window-body {
+  margin: var(--element-spacing);
+}
+*/
+
+fieldset {
+  border-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='5' height='5' viewBox='0 0 5 5' fill='grey' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M0 0H5V5H0V2H2V3H3V2H0' fill='white'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M0 0H4V4H0V1H1V3H3V1H0' fill='%23808080'/%3E %3C/svg%3E") 2;
+  padding: calc(2 * var(--border-width) + var(--element-spacing));
+  padding-block-start: var(--element-spacing);
+  margin: 0;
+}
+
+legend {
+  background: var(--surface);
+}
+
+/* .field-row {
+  display: flex;
+  align-items: center;
+}
+
+[class^="field-row"] + [class^="field-row"] {
+  margin-top: var(--grouped-element-spacing);
+}
+
+.field-row > * + * {
+  margin-left: var(--grouped-element-spacing);
+}
+
+.field-row-stacked {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-row-stacked * + * {
+  margin-top: var(--grouped-element-spacing);
+}
+
+.field-row label {
+  display: inline-flex;
+  align-items: center;
+} */
+
+input[type="radio"],
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  margin: 0;
+  background: 0;
+  position: fixed;
+  opacity: 0;
+  border: none;
+}
+
+input[type="radio"] + label,
+input[type="checkbox"] + label {
+  line-height: 13px;
+}
+
+input[type="radio"] + label {
+  position: relative;
+  margin-left: var(--radio-total-width);
+}
+
+input[type="radio"] + label::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(-1 * (var(--radio-total-width-precalc)));
+  display: inline-block;
+  width: var(--radio-width);
+  height: var(--radio-width);
+  margin-right: var(--radio-label-spacing);
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M8 0H4V1H2V2H1V4H0V8H1V10H2V8H1V4H2V2H4V1H8V2H10V1H8V0Z' fill='%23808080'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M8 1H4V2H2V3V4H1V8H2V9H3V8H2V4H3V3H4V2H8V3H10V2H8V1Z' fill='black'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M9 3H10V4H9V3ZM10 8V4H11V8H10ZM8 10V9H9V8H10V9V10H8ZM4 10V11H8V10H4ZM4 10V9H2V10H4Z' fill='%23DFDFDF'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M11 2H10V4H11V8H10V10H8V11H4V10H2V11H4V12H8V11H10V10H11V8H12V4H11V2Z' fill='white'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M4 2H8V3H9V4H10V8H9V9H8V10H4V9H3V8H2V4H3V3H4V2Z' fill='white'/%3E %3C/svg%3E");
+}
+
+input[type="radio"]:active + label::before {
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M8 0H4V1H2V2H1V4H0V8H1V10H2V8H1V4H2V2H4V1H8V2H10V1H8V0Z' fill='%23808080'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M8 1H4V2H2V3V4H1V8H2V9H3V8H2V4H3V3H4V2H8V3H10V2H8V1Z' fill='black'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M9 3H10V4H9V3ZM10 8V4H11V8H10ZM8 10V9H9V8H10V9V10H8ZM4 10V11H8V10H4ZM4 10V9H2V10H4Z' fill='%23DFDFDF'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M11 2H10V4H11V8H10V10H8V11H4V10H2V11H4V12H8V11H10V10H11V8H12V4H11V2Z' fill='white'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M4 2H8V3H9V4H10V8H9V9H8V10H4V9H3V8H2V4H3V3H4V2Z' fill='%23C0C0C0'/%3E %3C/svg%3E");
+}
+
+input[type="radio"]:checked + label::after {
+  content: "";
+  display: block;
+  width: var(--radio-dot-width);
+  height: var(--radio-dot-width);
+  top: var(--radio-dot-top);
+  left: var(--radio-dot-left);
+  position: absolute;
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='4' height='4' viewBox='0 0 4 4' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M3 0H1V1H0V2V3H1V4H3V3H4V2V1H3V0Z' fill='black'/%3E %3C/svg%3E");
+}
+
+input[type="radio"]:focus + label,
+input[type="checkbox"]:focus + label {
+  outline: 1px dotted #000000;
+}
+
+input[type="radio"][disabled] + label::before {
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M8 0H4V1H2V2H1V4H0V8H1V10H2V8H1V4H2V2H4V1H8V2H10V1H8V0Z' fill='%23808080'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M8 1H4V2H2V3V4H1V8H2V9H3V8H2V4H3V3H4V2H8V3H10V2H8V1Z' fill='black'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M9 3H10V4H9V3ZM10 8V4H11V8H10ZM8 10V9H9V8H10V9V10H8ZM4 10V11H8V10H4ZM4 10V9H2V10H4Z' fill='%23DFDFDF'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M11 2H10V4H11V8H10V10H8V11H4V10H2V11H4V12H8V11H10V10H11V8H12V4H11V2Z' fill='white'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M4 2H8V3H9V4H10V8H9V9H8V10H4V9H3V8H2V4H3V3H4V2Z' fill='%23C0C0C0'/%3E %3C/svg%3E");
+}
+
+input[type="radio"][disabled]:checked + label::after {
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='4' height='4' viewBox='0 0 4 4' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M3 0H1V1H0V2V3H1V4H3V3H4V2V1H3V0Z' fill='%23808080'/%3E %3C/svg%3E");
+}
+
+input[type="checkbox"] + label {
+  position: relative;
+  margin-left: var(--checkbox-total-width);
+}
+
+input[type="checkbox"] + label::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * (var(--checkbox-total-width-precalc)));
+  display: inline-block;
+  width: var(--checkbox-width);
+  height: var(--checkbox-width);
+  background: var(--Window);
+  box-shadow: var(--border-field);
+  margin-right: var(--radio-label-spacing);
+}
+
+input[type="checkbox"]:active + label::before {
+  background: var(--surface);
+}
+
+input[type="checkbox"]:checked + label::after {
+  content: "";
+  display: block;
+  width: var(--checkmark-width);
+  height: var(--checkmark-width);
+  position: absolute;
+  top: var(--checkmark-top);
+  left: calc(
+    -1 * (var(--checkbox-total-width-precalc)) + var(--checkmark-left)
+  );
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='7' height='7' viewBox='0 0 7 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M7 0H6V1H5V2H4V3H3V4H2V3H1V2H0V5H1V6H2V7H3V6H4V5H5V4H6V3H7V0Z' fill='black'/%3E %3C/svg%3E");
+}
+
+input[type="checkbox"][disabled] + label::before {
+  background: var(--surface);
+}
+
+input[type="checkbox"][disabled]:checked + label::after {
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='7' height='7' viewBox='0 0 7 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M7 0H6V1H5V2H4V3H3V4H2V3H1V2H0V5H1V6H2V7H3V6H4V5H5V4H6V3H7V0Z' fill='%23808080'/%3E %3C/svg%3E");
+}
+
+/*
+input[type="text"],
+input[type="password"],
+input[type="email"],
+select,
+textarea {
+  padding: 3px 4px;
+  border: none;
+  box-shadow: var(--border-field);
+  background-color: var(--Window);
+  color: var(--WindowText);
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 0;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+select {
+  height: 21px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  /* For some reason descenders are getting cut off without this *.../
+  line-height: 2;
+}
+
+input[type="text"]:disabled,
+input[type="password"]:disabled,
+input[type="email"]:disabled,
+textarea:disabled {
+  background-color: var(--surface);
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  position: relative;
+  padding-right: 32px;
+  background-image: svg-load("./icon/button-down.svg");
+  background-position: top 2px right 2px;
+  background-repeat: no-repeat;
+  border-radius: 0;
+}
+
+select:focus,
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+textarea:focus {
+  outline: none;
+}
+*/
+
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  background: transparent;
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 21px;
+  width: 11px;
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='11' height='21' viewBox='0 0 11 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M0 0V16H2V18H4V20H5V19H3V17H1V1H10V0Z' fill='white'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M1 1V16H2V17H3V18H4V19H6V18H7V17H8V16H9V1Z' fill='%23C0C7C8'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M9 1H10V16H8V18H6V20H5V19H7V17H9Z' fill='%2387888F'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M10 0H11V16H9V18H7V20H5V21H6V19H8V17H10Z' fill='black'/%3E %3C/svg%3E");
+  transform: translateY(-8px);
+}
+
+input[type="range"].has-box-indicator::-webkit-slider-thumb {
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='11' height='21' viewBox='0 0 11 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M0 0V20H1V1H10V0Z' fill='white'/%3E %3Crect x='1' y='1' width='8' height='18' fill='%23C0C7C8'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M9 1H10V20H1V19H9Z' fill='%2387888F'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M10 0H11V21H0V20H10Z' fill='black'/%3E %3C/svg%3E");
+  transform: translateY(-10px);
+}
+
+input[type="range"]::-moz-range-thumb {
+  height: 21px;
+  width: 11px;
+  border: 0;
+  border-radius: 0;
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='11' height='21' viewBox='0 0 11 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M0 0V16H2V18H4V20H5V19H3V17H1V1H10V0Z' fill='white'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M1 1V16H2V17H3V18H4V19H6V18H7V17H8V16H9V1Z' fill='%23C0C7C8'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M9 1H10V16H8V18H6V20H5V19H7V17H9Z' fill='%2387888F'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M10 0H11V16H9V18H7V20H5V21H6V19H8V17H10Z' fill='black'/%3E %3C/svg%3E");
+  transform: translateY(2px);
+}
+
+input[type="range"].has-box-indicator::-moz-range-thumb {
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg width='11' height='21' viewBox='0 0 11 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M0 0V20H1V1H10V0Z' fill='white'/%3E %3Crect x='1' y='1' width='8' height='18' fill='%23C0C7C8'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M9 1H10V20H1V19H9Z' fill='%2387888F'/%3E %3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M10 0H11V21H0V20H10Z' fill='black'/%3E %3C/svg%3E");
+  transform: translateY(0px);
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 2px;
+  box-sizing: border-box;
+  background: black;
+  border-right: 1px solid grey;
+  border-bottom: 1px solid grey;
+  /* rtl:ignore */
+  box-shadow: 1px 0 0 white, 1px 1px 0 white, 0 1px 0 white, -1px 0 0 darkgrey,
+    -1px -1px 0 darkgrey, 0 -1px 0 darkgrey, -1px 1px 0 white, 1px -1px darkgrey;
+}
+
+input[type="range"]::-moz-range-track {
+  width: 100%;
+  height: 2px;
+  box-sizing: border-box;
+  background: black;
+  border-right: 1px solid grey;
+  border-bottom: 1px solid grey;
+  /* rtl:ignore */
+  box-shadow: 1px 0 0 white, 1px 1px 0 white, 0 1px 0 white, -1px 0 0 darkgrey,
+    -1px -1px 0 darkgrey, 0 -1px 0 darkgrey, -1px 1px 0 white, 1px -1px darkgrey;
+}
+
+.is-vertical {
+  display: inline-block;
+  width: 4px;
+  height: 150px;
+  transform: translateY(50%);
+}
+
+.is-vertical > input[type="range"] {
+  width: 150px;
+  height: 4px;
+  margin: 0 calc(var(--grouped-element-spacing) + var(--range-spacing)) 0
+    var(--range-spacing);
+  transform-origin: left;
+  transform: rotate(270deg) translateX(calc(-50% + var(--element-spacing)));
+}
+
+.is-vertical > input[type="range"]::-webkit-slider-runnable-track {
+  border-left: 1px solid grey;
+  border-right: 0;
+  border-bottom: 1px solid grey;
+  /* rtl:ignore */
+  box-shadow: -1px 0 0 white, -1px 1px 0 white, 0 1px 0 white, 1px 0 0 darkgrey,
+    1px -1px 0 darkgrey, 0 -1px 0 darkgrey, 1px 1px 0 white, -1px -1px darkgrey;
+}
+
+.is-vertical > input[type="range"]::-moz-range-track {
+  border-left: 1px solid grey;
+  border-right: 0;
+  border-bottom: 1px solid grey;
+  /* rtl:ignore */
+  box-shadow: -1px 0 0 white, -1px 1px 0 white, 0 1px 0 white, 1px 0 0 darkgrey,
+    1px -1px 0 darkgrey, 0 -1px 0 darkgrey, 1px 1px 0 white, -1px -1px darkgrey;
+}
+
+.is-vertical > input[type="range"]::-webkit-slider-thumb {
+  transform: translateY(-8px) scaleX(-1);
+}
+
+.is-vertical > input[type="range"].has-box-indicator::-webkit-slider-thumb {
+  transform: translateY(-10px) scaleX(-1);
+}
+
+.is-vertical > input[type="range"]::-moz-range-thumb {
+  transform: translateY(2px) scaleX(-1);
+}
+
+.is-vertical > input[type="range"].has-box-indicator::-moz-range-thumb {
+  transform: translateY(0px) scaleX(-1);
+}
+
+/* select:focus {
+  color: var(--HilightText);
+  background-color: var(--Hilight);
+}
+select:focus option {
+  color: #000;
+  background-color: #fff;
+}
+
+select:active {
+  background-image: svg-load("./icon/button-down-active.svg");
+} */
+
+/* a {
+  color: var(--link-blue);
+}
+
+a:focus {
+  outline: 1px dotted var(--link-blue);
+} */
+
+/* ul.tree-view {
+  display: block;
+  background: var(--Window);
+  box-shadow: var(--border-field);
+  padding: 6px;
+  margin: 0;
+}
+
+ul.tree-view li {
+  list-style-type: none;
+}
+
+ul.tree-view a {
+  text-decoration: none;
+  color: #000;
+}
+
+ul.tree-view a:focus {
+  background-color: var(--Hilight);
+  color: var(--HilightText);
+}
+
+ul.tree-view ul,
+ul.tree-view li {
+  margin-top: 3px;
+}
+
+ul.tree-view ul {
+  margin-left: 16px;
+  padding-left: 16px;
+  /* Goes down too far *.../
+  border-left: 1px dotted #808080;
+}
+
+ul.tree-view ul > li {
+  position: relative;
+}
+ul.tree-view ul > li::before {
+  content: "";
+  display: block;
+  position: absolute;
+  left: -16px;
+  top: 6px;
+  width: 12px;
+  border-bottom: 1px dotted #808080;
+}
+
+/* Cover the bottom of the left dotted border *.../
+ul.tree-view ul > li:last-child::after {
+  content: "";
+  display: block;
+  position: absolute;
+  left: -20px;
+  top: 7px;
+  bottom: 0px;
+  width: 8px;
+  background: var(--Window);
+}
+
+ul.tree-view details {
+  margin-top: 0;
+}
+
+ul.tree-view details[open] summary {
+  margin-bottom: 0;
+}
+
+ul.tree-view ul details > summary:before {
+  margin-left: -22px;
+  position: relative;
+  z-index: 1;
+}
+
+ul.tree-view details > summary:before {
+  text-align: center;
+  display: block;
+  float: left;
+  content: "+";
+  border: 1px solid #808080;
+  width: 8px;
+  height: 9px;
+  line-height: 8px;
+  margin-right: 5px;
+  padding-left: 1px;
+  background-color: #fff;
+}
+
+ul.tree-view details[open] > summary:before {
+  content: "-";
+} */
+
+/* pre {
+  display: block;
+  background: var(--Window);
+  box-shadow: var(--border-field);
+  padding: 12px 8px;
+  margin: 0;
+}
+
+code,
+code * {
+  font-family: monospace;
+}
+
+summary:focus {
+  outline: 1px dotted #000000;
+} */
+
+/*
+::-webkit-scrollbar {
+  width: 16px;
+}
+::-webkit-scrollbar:horizontal {
+  height: 17px;
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--button-face);
+}
+
+::-webkit-scrollbar-track {
+  background-image: svg-load("./icon/scrollbar-background.svg");
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--button-face);
+  box-shadow: var(--border-raised-outer), var(--border-raised-inner);
+}
+
+::-webkit-scrollbar-button:horizontal:start:decrement,
+::-webkit-scrollbar-button:horizontal:end:increment,
+::-webkit-scrollbar-button:vertical:start:decrement,
+::-webkit-scrollbar-button:vertical:end:increment {
+  display: block;
+}
+
+::-webkit-scrollbar-button:vertical:start {
+  height: 17px;
+  background-image: svg-load("./icon/button-up.svg");
+}
+::-webkit-scrollbar-button:vertical:end {
+  height: 17px;
+  background-image: svg-load("./icon/button-down.svg");
+}
+::-webkit-scrollbar-button:horizontal:start {
+  width: 16px;
+  background-image: svg-load("./icon/button-left.svg");
+}
+::-webkit-scrollbar-button:horizontal:end {
+  width: 16px;
+  background-image: svg-load("./icon/button-right.svg");
+}
+*/
+
+/*# sourceMappingURL=98.custom-build.css.map */
+
+html, body, .jspaint {
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	overflow: hidden;
+}
+
+.canvas-area,
+.main-canvas {
+	position: fixed;
+	left: 0;
+	top: 0;
+	max-width: 100%;
+	width: auto !important;
+	height: auto !important;
+	border: 0 !important;
+}
+
+.window,
+.canvas-area .handle,
+.canvas-area .grab-region,
+.status-area,
+.menus,
+.component-area,
+.selection,
+.textbox,
+.helper-layer,
+button,
+.tracky-mouse-hover-halo,
+.tracky-mouse-dwell-indicator {
+	display: none !important;
+}
+
+* {
+	background: transparent !important;
+}
+
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body { background: var(--AppWorkspace, #808080); }
