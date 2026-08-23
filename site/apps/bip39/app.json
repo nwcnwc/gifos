@@ -1,0 +1,57 @@
+{
+  "catalog": "1.0",
+  "slug": "bip39",
+  "appId": "bip39",
+  "name": "BIP39",
+  "shortName": "BIP39",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Recovery words on this device. They never leave.",
+  "description": "Type your recovery words, or make a new set. This tab shows the wallet addresses those words belong to. Anyone who sees the words can take the coins — treat them like cash on the table.\n\nRecovery words never leave this device. There is no account, nothing is uploaded, and nothing is sent anywhere. Close the app and they are gone.\n\nAn unofficial port of bip39 by iancoleman. Same tool: generate words, type existing ones, pick a coin, see the addresses. Word lists for English and nine other languages ride inside the app.\n\nThis is not a wallet. It does not send coins. It does not talk to the internet.",
+  "author": {
+    "name": "iancoleman",
+    "url": "https://github.com/iancoleman/bip39"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "recovery",
+    "words",
+    "wallet",
+    "offline",
+    "privacy",
+    "bip39"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/bip39",
+  "accent": [
+    196,
+    148,
+    48
+  ],
+  "capabilities": {},
+  "cover": "/apps/bip39/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/bip39/bip39.gif",
+  "bytes": 2138059,
+  "download": 0,
+  "provides": null,
+  "sha256": "55502d646cdef76400f7c380e67e952ccdfb0dd73f0649470cd8f7154f45067b",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "bip39",
+    "url": "https://github.com/iancoleman/bip39",
+    "blessed": false
+  }
+}

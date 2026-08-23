@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "bitsy",
+  "appId": "bitsy",
+  "name": "Bitsy",
+  "shortName": "Bitsy",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "A tiny world. Walk around. Make one. Share it.",
+  "description": "A little room you can walk around in. Arrows or a swipe. Talk to whoever is there. Pick things up.\n\nA few worlds already live here. Open one and wander. If you want a world of your own, press Make: draw the floor, draw a friend, write what they say. The whole world is a short piece of writing you can copy.\n\nYour world stays on this device, inside the app. Close it, come back, the room is where you left it.\n\nPress Share the world, then Invite (in the GifOS menu), and everyone who opens the link walks in the same room. When you change the world, they see it. When they change it, you see it.\n\nAn unofficial port of Bitsy by Adam le Doux. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "le-doux",
+    "url": "https://github.com/le-doux/bitsy"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games",
+    "Creativity"
+  ],
+  "tags": [
+    "bitsy",
+    "world",
+    "story",
+    "pixel",
+    "editor",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/bitsy",
+  "accent": [
+    0,
+    82,
+    204
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/bitsy/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/bitsy/bitsy.gif",
+  "bytes": 292980,
+  "download": 0,
+  "provides": null,
+  "sha256": "da358f8a339db913e7e63ae443a0469ed5562cccc7837dfb2adb6d3e2667860f",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Bitsy",
+    "url": "https://github.com/le-doux/bitsy",
+    "blessed": false
+  }
+}

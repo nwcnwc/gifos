@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "nonogram",
+  "appId": "nonogram",
+  "name": "Nonogram",
+  "shortName": "Picross",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Picross. Paint the squares from the numbers. Race a friend on the same puzzle.",
+  "description": "Numbers along the edge tell you how the filled squares run in each row and column. Paint a square, or mark it empty with a cross, until the picture appears. Drag to paint a whole line. Start small and work up to a fifteen-by-fifteen.\n\nOn your own it is that game, saved on this device inside the app. Close it and pick up where you left off. Send the invite and you both get the same puzzle: first to finish wins, and you can see each other's times as you go. There is no account and no game server. The room is the link.\n\nAn unofficial port of Nonogram by HandsomeOne. This copy adds the race, and a finger can paint.",
+  "author": {
+    "name": "HandsomeOne",
+    "url": "https://github.com/HandsomeOne/Nonogram"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "picross",
+    "nonogram",
+    "puzzle",
+    "multiplayer",
+    "race",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/nonogram",
+  "accent": [
+    14,
+    190,
+    255
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/nonogram/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/nonogram/nonogram.gif",
+  "bytes": 198969,
+  "download": 0,
+  "provides": null,
+  "sha256": "1707f0aba86a810045481e16c1dcef73d399f3995188acc11b2db922df95975d",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Nonogram",
+    "url": "https://github.com/HandsomeOne/Nonogram",
+    "blessed": false
+  }
+}

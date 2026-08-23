@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "pickr",
+  "appId": "pickr",
+  "name": "Pickr",
+  "shortName": "Pickr",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "A color picker you can actually use. Copy the code. Nothing is uploaded.",
+  "description": "Pick a color with a finger or a mouse. The whole screen fills with it, so you can see what you chose. Drag the palette, the hue, the opacity. Tap a line to copy hex, RGB, HSL or CMYK — that code is yours to paste into whatever you are making.\n\nColors you picked recently stay on this computer, inside the app. Close it, open it later, they are still there. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of Pickr by simonwep. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "simonwep",
+    "url": "https://github.com/simonwep/pickr"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "color",
+    "picker",
+    "hex",
+    "rgb",
+    "palette",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pickr",
+  "accent": [
+    232,
+    65,
+    108
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/pickr/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/pickr/pickr.gif",
+  "bytes": 199345,
+  "download": 0,
+  "provides": null,
+  "sha256": "2ad981f2035c7154ef3a27e4af8522d1d08082a74a6c86906afeff4a02de51ba",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Pickr",
+    "url": "https://github.com/simonwep/pickr",
+    "blessed": false
+  }
+}
