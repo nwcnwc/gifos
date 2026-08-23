@@ -170,6 +170,17 @@ if (!files['style.css'].includes('#0a0a0f')) {
     '  if (!kms.length) throw new Error("king should have an escape off the file");\n' +
     '  var ai = HEX.aiMove(s, 40);\n' +
     '  if (!ai || !HEX.applyMove(s, ai)) throw new Error("AI picked an illegal move");\n' +
+    '  var g1 = HEX.parseAlg("g1"), g10 = HEX.parseAlg("g10");\n' +
+    '  var p1 = HEX.pixel(g1.q, g1.r, 10), p10 = HEX.pixel(g10.q, g10.r, 10);\n' +
+    '  if (p1.y >= p10.y) throw new Error("g1 must sit south of g10 (white at the near side)");\n' +
+    '  var f5 = HEX.parseAlg("f5"), pf = HEX.pixel(f5.q, f5.r, 10);\n' +
+    '  var back = HEX.atPixel(pf.x, pf.y, 10);\n' +
+    '  if (!back || back.q !== f5.q || back.r !== f5.r) throw new Error("atPixel missed f5");\n' +
+    '  var f1 = HEX.parseAlg("f1");\n' +
+    '  if (HEX.pixel(f1.q, f1.r, 10).y >= pf.y) throw new Error("f1 should be south of f5");\n' +
+    '  var n1 = HEX.pixel(0, 0, 10), n2 = HEX.pixel(0, 1, 10);\n' +
+    '  var d = Math.hypot(n2.x - n1.x, n2.y - n1.y);\n' +
+    '  if (Math.abs(d - 10 * Math.sqrt(3)) > 0.01) throw new Error("flat-top north spacing " + d);\n' +
     '  return kn.length;\n' +
     '})();',
     ctx
