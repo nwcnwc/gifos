@@ -1,0 +1,101 @@
+:root{
+  --bg:#1c1814; --surface:#2a241c; --surface2:#3a3228; --border:#5a4e40;
+  --text:#f4ead4; --muted:#b8a890; --accent:#e85c40; --accent2:#f4a090;
+  --onaccent:#1a0a08; --good:#6dce7a; --bad:#ff7a6b;
+  --paper:#fffdf6; --ink:#1c1814;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,'Segoe UI',sans-serif;background:
+  radial-gradient(1200px 600px at 50% -10%, #3a3228 0%, var(--bg) 60%);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center}
+header{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 16px;background:linear-gradient(180deg,rgba(20,16,12,.55),transparent);
+  border-bottom:1px solid var(--border)}
+.brand{font-weight:800;letter-spacing:.2px;color:var(--text);display:flex;align-items:center;gap:8px}
+.brand .logo{width:22px;height:22px;border-radius:6px;background:var(--paper);
+  box-shadow:inset 0 0 0 1.5px var(--ink);position:relative}
+.brand .logo::before{content:"";position:absolute;left:4px;right:4px;top:11px;height:2px;
+  background:var(--accent);border-radius:2px;transform:rotate(-18deg)}
+.engine-chip{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:5px 11px}
+.engine-chip .dot{width:8px;height:8px;border-radius:50%;background:#c98b3a;box-shadow:0 0 8px #c98b3a}
+.engine-chip.ready .dot{background:var(--good);box-shadow:0 0 8px var(--good)}
+.engine-chip.wait .dot{background:var(--accent2);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+main{width:100%;max-width:480px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px}
+h2{margin:0 0 12px;font-size:17px;color:var(--text)}
+.lead{margin:0 0 14px;color:var(--muted);font-size:14px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0;font-weight:600}
+.seg{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.seg button{padding:8px 10px;border-radius:10px;background:var(--surface2);color:var(--text);
+  border:1px solid var(--border);cursor:pointer;font:inherit;font-weight:600}
+.seg button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.lvlnote,.hint{margin:2px 0 8px;color:var(--muted);font-size:12.5px}
+.hint b{color:var(--text)}
+button{font:inherit}
+.primary{width:100%;margin-top:10px;padding:13px;border:0;border-radius:12px;cursor:pointer;
+  background:linear-gradient(180deg,#ff7a64,var(--accent));color:#fff;font-weight:800;font-size:15px}
+.primary:disabled{opacity:.55;cursor:default;filter:grayscale(.4)}
+.ghost{flex:1;min-width:96px;padding:10px;border-radius:11px;cursor:pointer;
+  background:var(--surface);color:var(--text);border:1px solid var(--border);font-weight:700}
+.ghost:disabled{opacity:.45;cursor:default}
+.ghost:active{transform:translateY(1px)}
+.ghost.wide{width:100%;flex:none;margin-top:8px}
+.ghost.slim{flex:none;min-width:0;padding:8px 10px;font-size:13px}
+.ghost.slim.on{border-color:var(--accent);color:var(--accent2)}
+
+.game{display:flex;flex-direction:column;gap:12px;width:100%}
+.vhead{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin-bottom:4px}
+.vhead h2{margin:0}
+.vhead .ghost{flex:none;min-width:0;padding:8px 12px}
+.statusline{min-height:20px;font-weight:700;text-align:center;color:var(--text)}
+.statusline.warn{color:var(--bad)}.statusline.good{color:var(--good)}
+.count{text-align:center;color:var(--muted);font-size:12.5px;margin:0}
+.prompt{text-align:center;font-size:22px;font-weight:800;margin:4px 0 8px;color:var(--accent2)}
+
+.seats{display:flex;gap:8px;width:100%;flex-wrap:wrap;justify-content:center}
+.seat{flex:1;min-width:120px;max-width:200px;text-align:center;background:var(--surface2);
+  border:1px solid var(--border);border-radius:12px;padding:9px 12px;font-weight:700;font-size:14px}
+.seat.me{border-color:var(--accent)}
+.seat.host{box-shadow:0 0 0 2px var(--accent2) inset}
+.seat .open{color:var(--muted);font-weight:600;font-style:italic}
+
+.plist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.plist li{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+.addrow{display:flex;gap:8px;margin:10px 0}
+.addrow input,#wordIn{flex:1;padding:11px 12px;border-radius:10px;border:1px solid var(--border);
+  background:var(--paper);color:var(--ink);font:inherit}
+#wordIn{width:100%;margin:8px 0}
+
+.padwrap,.showwrap{width:100%;background:var(--paper);border-radius:12px;overflow:hidden;
+  box-shadow:0 10px 28px rgba(0,0,0,.4);border:1px solid var(--border)}
+#pad,#guessArt{width:100%;height:auto;aspect-ratio:1/1;display:block;touch-action:none;cursor:crosshair}
+#guessArt{cursor:default;touch-action:manipulation}
+.tools{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;width:100%}
+.swatch{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0}
+.swatch.on{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+
+.chainnav{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.chainnav button{padding:8px 10px;border-radius:10px;background:var(--surface2);color:var(--text);
+  border:1px solid var(--border);cursor:pointer;font:inherit;font-weight:600}
+.chainnav button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.chain{display:flex;flex-direction:column;gap:14px;align-items:center}
+.step{width:100%;text-align:center}
+.step h4{margin:0 0 6px;color:var(--muted);font-size:13px;font-weight:600}
+.step .word{font-size:28px;font-weight:800;margin:0;color:var(--text)}
+.step canvas{width:min(100%,360px);aspect-ratio:1/1;background:var(--paper);border-radius:10px;
+  border:1px solid var(--border)}
+.went{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
+.went h4{margin:0 0 4px;color:var(--muted);font-size:13px}
+.went p{margin:0 0 10px;font-size:22px;font-weight:800}
+
+button.row-del{
+  background:none;border:0;color:var(--muted);cursor:pointer;padding:.15rem;line-height:0;
+}
+button.row-del:hover{color:var(--bad)}
+button.row-del svg{display:block;pointer-events:none}
