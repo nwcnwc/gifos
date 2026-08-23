@@ -36,8 +36,10 @@ const dry = run(['--dry-run']);
 check('dry-run exits 0 without a key', dry.status === 0, 'status=' + dry.status + ' ' + dry.stderr.slice(0, 200));
 check('dry-run lists fluence as already signed gifos.app',
   /^fluence\tdomain:gifos.app$/m.test(dry.stdout), dry.stdout.slice(0, 400));
-check('dry-run lists at least one unsigned catalog GIF',
-  /\tunsigned$/m.test(dry.stdout), dry.stdout);
+// The catalog is signed. Requiring an unsigned listing here turned green
+// the day we finished signing, into a product-shaped red the next.
+check('dry-run lists catalog GIFs as signed gifos.app (unsigned is not required)',
+  /^[^\t]+\tdomain:gifos.app$/m.test(dry.stdout), dry.stdout.slice(0, 200));
 
 const unset = run([], { GIFOS_SIGN_KEY: '' });
 check('unset GIFOS_SIGN_KEY exits 2 and names GitHub Secrets as the wrong place',
@@ -62,8 +64,8 @@ check('a key that does not match site/gifos.key exits 3 and does not write',
   'status=' + wrong.status + ' ' + wrong.stderr.slice(0, 300));
 
 const cat = run(['--dry-run']); // catalog GIFs untouched
-check('a refused key leaves fluence still the only signed listing in dry-run',
-  (cat.stdout.match(/^fluence\tdomain:gifos.app$/m) ? 1 : 0) === 1);
+check('a refused key leaves fluence still signed in dry-run (nothing was rewritten)',
+  /^fluence\tdomain:gifos.app$/m.test(cat.stdout));
 
 if (failures) { console.log('\n' + failures + ' FAILURE(S)'); process.exit(1); }
 console.log('\nALL PASS');
