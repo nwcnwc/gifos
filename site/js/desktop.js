@@ -810,7 +810,7 @@
     const shield = (decor.get(it.fileId) || {}).signed ? 'sig' : '';
     return [it.fileId || '', it.name, it.x | 0, it.y | 0, it.iconSize || 64, it.kind,
       file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : '',
-      idpill, provX, hasArt ? 'art' : '', shield].join('\x01');
+      idpill, provX, hasArt ? 'art' : '', shield, it.passkey ? 'pk' : ''].join('\x01');
   }
 
   const FILE_EMOJI = { gif: '🖼️', other: '📄' };
@@ -1001,6 +1001,12 @@
           nb.title = 'Fresh — you haven’t saved anything in this app yet.';
           thumb.appendChild(nb);
         }
+        if (it.passkey) {
+          const lb = document.createElement('span');
+          lb.className = 'lock-badge'; lb.textContent = '🔒';
+          lb.title = 'Passkey-locked — Open asks for your passkey. The icon still plays.';
+          thumb.appendChild(lb);
+        }
         if (SYSTEM_LAUNCHERS[file.appId]) {
           // Honest signage: this launcher opens a trusted GifOS PAGE, with
           // powers the sandbox deliberately withholds from ordinary apps —
@@ -1120,6 +1126,49 @@
       unsigned: 'This GIF is unsigned.',
     }[v.status] || 'Unknown signature state.';
     showModal(v.status === 'valid' ? 'Verified' : v.status === 'tampered' ? 'Tampered!' : 'Signature', body);
+  }
+
+  // Passkey lock: launch gate AND crypto wrap together. Metadata lives on the
+  // item (saveItem — never a new IndexedDB store). WebAuthn runs here in OS
+  // chrome, never inside the GIF.
+  async function lockItem(it) {
+    if (!GifOS.lock || !it.fileId) return;
+    const name = (it.name || 'App').replace(/\.gif$/i, '');
+    try {
+      const file = await store.getFile(it.fileId);
+      if (!file || !file.isApp) return;
+      const bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+      const archive = await gif.decode(bytes);
+      const m = archive ? gif.readManifest(archive) : null;
+      if (m && m.system) { showModal('Can’t lock this', 'Built-in GifOS pages cannot be passkey-locked.'); return; }
+      const cap = await GifOS.lock.canPasskeyLock();
+      if (!cap.ok && !GifOS.lock._prfOverride) { showModal('Can’t lock this', escapeHtml(cap.reason)); return; }
+      const act = await GifOS.lock.showSheet('lock', name);
+      if (act !== 'ok') return;
+      const created = await GifOS.lock.createLock(name, it.fileId);
+      await GifOS.lock.wrapAtRest(it.fileId, created.key);
+      it.passkey = created.meta;
+      await saveItem(it, { keepCell: true });
+      render();
+    } catch (e) {
+      showModal('Could not lock', escapeHtml(e && e.message || String(e)));
+    }
+  }
+  async function unlockItem(it) {
+    if (!GifOS.lock || !it.passkey) return;
+    const name = (it.name || 'App').replace(/\.gif$/i, '');
+    try {
+      const act = await GifOS.lock.showSheet('remove', name);
+      if (act !== 'ok') return;
+      const key = await GifOS.lock.assertLock(it.passkey);
+      await GifOS.lock.unwrapAtRest(it.fileId, key);
+      GifOS.lock.session.del(it.fileId);
+      delete it.passkey;
+      await saveItem(it, { keepCell: true });
+      render();
+    } catch (e) {
+      showModal('Could not remove the lock', escapeHtml(e && e.message || String(e)));
+    }
   }
 
   function updateCrumbs() {
@@ -1661,6 +1710,11 @@
     } else if (it) {
       entries = [
         { label: 'Open', fn: () => openItem(it) },
+        ...(it._isApp
+          ? (it.passkey
+              ? [{ label: 'Remove passkey lock…', fn: () => unlockItem(it) }]
+              : [{ label: 'Passkey lock…', fn: () => lockItem(it) }])
+          : []),
         // Files AND folders are GIFs → both download (folders as a bundle) and sign.
         ...(it.fileId ? [{ label: it.kind === 'folder' ? 'Download (as one GIF)' : 'Download', fn: () => downloadItem(it) }] : []),
         ...(it.fileId && signableFiles.has(it.fileId)
@@ -1692,18 +1746,31 @@
   // A file's shareable bytes: for a GifOS app with saved state, fold the state
   // in with repack() — swaps ONLY the embedded filesystem block, every pixel
   // and artwork byte stays intact. Everything else exports as-is.
-  async function exportBytes(fileId) {
+  async function exportBytes(fileId, opts) {
     const file = await store.getFile(fileId);
     if (!file) return null;
     let bytes = file.bytes instanceof Uint8Array ? file.bytes : new Uint8Array(file.bytes);
+    const locked = !!(opts && opts.locked);
+    const key = opts && opts.key;
+    // A locked app's private data stays sealed unless this call presented a
+    // passkey (opts.key). Folding live state without that would leak.
+    if (locked && !key) return { bytes, file };
     if (file.isApp && gif.repack) {
       try {
-        const state = await store.getState(fileId);
+        let state = await store.getState(fileId);
+        if (key && GifOS.lock && GifOS.lock.isSealed(state)) state = await GifOS.lock.openState(state, key);
+        if (key && GifOS.lock) {
+          const opened = await GifOS.lock.unwrapGif(bytes, key);
+          bytes = opened.bytes;
+        }
         if (state && state.collections && Object.keys(state.collections).length) {
           const archive = await gif.decode(bytes);
           if (archive && archive.files) {
             const out = {};
-            for (const p in archive.files) if (!p.startsWith('.state/')) out[p] = archive.files[p];
+            for (const p in archive.files) {
+              if (p.startsWith('.state/') || p.startsWith('.lock/')) continue;
+              out[p] = archive.files[p];
+            }
             out['.state/db.json'] = gif.textToBytes(store.packJSON(state)); // binary-safe: media blobs survive
             bytes = await gif.repack(bytes, out);
           }
@@ -1727,6 +1794,42 @@
       if (bytes) triggerDownload(bytes, (it.name || 'Folder') + '.gif', 'image/gif');
       return;
     }
+    const locked = !!(it.passkey && GifOS.lock);
+    if (locked) {
+      const name = (it.name || 'App').replace(/\.gif$/i, '');
+      const act = await GifOS.lock.showSheet('export', name);
+      if (act === 'cancel') return;
+      if (act === 'ok') {
+        try {
+          const key = await GifOS.lock.assertLock(it.passkey);
+          const ex = await exportBytes(it.fileId, { locked: true, key });
+          if (ex) triggerDownload(ex.bytes, it.name || ex.file.name || 'download', ex.file.mime);
+        } catch (e) {
+          showModal('Could not unlock', escapeHtml(e && e.message || String(e)));
+        }
+        return;
+      }
+      // Download without private data — animation + app code, no .state/.lock.
+      try {
+        const ex = await exportBytes(it.fileId, { locked: true });
+        if (!ex) return;
+        const archive = await gif.decode(ex.bytes);
+        if (archive && archive.files && gif.repack) {
+          const out = {};
+          for (const p in archive.files) {
+            if (p.startsWith('.state/') || p.startsWith('.lock/')) continue;
+            out[p] = archive.files[p];
+          }
+          const stripped = await gif.repack(ex.bytes, out);
+          triggerDownload(stripped, it.name || ex.file.name || 'download', ex.file.mime);
+        } else {
+          triggerDownload(ex.bytes, it.name || ex.file.name || 'download', ex.file.mime);
+        }
+      } catch (e) {
+        showModal('Could not download', escapeHtml(e && e.message || String(e)));
+      }
+      return;
+    }
     const ex = await exportBytes(it.fileId);
     if (ex) triggerDownload(ex.bytes, it.name || ex.file.name || 'download', ex.file.mime);
   }
@@ -1746,7 +1849,7 @@
         payload[path] = await packFolderBundle(kid);
         list.push(Object.assign(base, { kind: 'folder' }));
       } else {
-        const ex = await exportBytes(kid.fileId);
+        const ex = await exportBytes(kid.fileId, kid.passkey ? { locked: true } : undefined);
         if (!ex) { n--; continue; }
         payload[path] = ex.bytes;
         list.push(Object.assign(base, {
