@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "squoosh",
+  "name": "Squoosh",
+  "shortName": "Squoosh",
+  "version": "1.0",
+  "minBuild": 1178,
+  "description": "Make images smaller with Squoosh's own WASM codecs — MozJPEG, WebP, AVIF, JPEG XL, OxiPNG, QOI — running entirely on this device. Drop a photo, pick a format, drag the quality. Nothing is uploaded: there is no network path out of this app.",
+  "entry": "index.html",
+  "accent": [0, 149, 255],
+  "capabilities": {
+    "wasm": true,
+    "db": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" }
+  }
+}
