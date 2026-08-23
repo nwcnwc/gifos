@@ -80,6 +80,7 @@ for (const s of [...OURS, ...VENDOR_JS]) {
 }
 if (!html.includes('href="style.css"')) throw new Error('index.html does not load style.css');
 if (!html.includes('id="touch"')) throw new Error('index.html is missing the touch overlay');
+if (!html.includes('id="hud"')) throw new Error('index.html is missing the floor HUD');
 for (const s of VENDOR_PNG) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not embed ' + s);
 }
@@ -108,6 +109,20 @@ if (!listing.categories || listing.categories[0] !== 'Games') {
 const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']) {
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
+}
+const lead = (listing.description || '').slice(0, 280);
+if (!/in a GIF/i.test(lead)) throw new Error('listing must lead with in a GIF');
+if (!/no (jam site|install|game server|server)/i.test(lead)) {
+  throw new Error('listing must lead with no jam site / no server');
+}
+if (!/inside the file|file is the save|lives in the file/i.test(lead)) {
+  throw new Error('listing must lead with the file is the save');
+}
+if (!/unofficial/i.test(listing.description || '')) {
+  throw new Error('listing must credit this as unofficial');
+}
+if (/CLICK TO INITIATE/i.test(listing.description || '')) {
+  throw new Error('listing must not sell the title screen');
 }
 
 if (!manifest.capabilities || manifest.capabilities.db !== true) {

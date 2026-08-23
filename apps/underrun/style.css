@@ -15,21 +15,41 @@ html, body {
   cursor: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAcAAAAHAQMAAAD+nMWQAAAABGdBTUEAALGPC/xhBQAAAAZQTFRFAAAA////pdmf3QAAAAF0Uk5TAEDm2GYAAAATSURBVAjXYxBgEGBgYDgGxEAWAAc4AQebSvKuAAAAAElFTkSuQmCC), auto;
 }
 body.touch #c { cursor: none; }
+@media (max-aspect-ratio: 3/4) {
+  #c { top: 0; transform: translateX(-50%); }
+}
 
 #a {
   font-weight: bold; color: #c80;
-  position: absolute; top: 4vw; left: 2vw;
-  font-size: 1.6vw; overflow: hidden; white-space: nowrap;
+  position: absolute; top: max(8px, 2vw, env(safe-area-inset-top));
+  left: 2vw;
+  font-size: clamp(13px, 1.6vw, 22px);
+  overflow: hidden; white-space: nowrap;
   width: 94%; text-shadow: 0 0 7px #f70;
   transition: opacity 1s;
   pointer-events: none; z-index: 4;
 }
+#hud {
+  position: absolute;
+  top: max(8px, 2vw, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 5;
+  font-size: clamp(11px, 1.4vw, 16px);
+  letter-spacing: .08em;
+  color: #e90;
+  text-shadow: 0 0 6px #f70;
+  pointer-events: none;
+  text-align: right;
+}
+#hud[hidden] { display: none; }
+#hud span { display: block; }
+#hud-best { color: #c80; opacity: .85; }
 #a div:last-child { color: #e90; }
 #a b { animation: r 1s infinite; }
 @keyframes r { 50% { opacity: 0; } }
 
 #tally {
-  position: fixed; right: 12px; top: 12px; z-index: 5;
+  position: fixed; right: 12px; top: 42px; z-index: 5;
   font-size: 12px; letter-spacing: .08em; color: #e90;
   background: rgba(0, 0, 0, .7); border: 1px solid rgba(238, 153, 0, .4);
   padding: 4px 8px; cursor: pointer;

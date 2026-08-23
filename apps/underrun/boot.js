@@ -14,9 +14,13 @@
   var scoreEl = document.getElementById('score');
   var scoreRows = document.getElementById('score-rows');
   var tally = document.getElementById('tally');
+  var hud = document.getElementById('hud');
+  var hudFloor = document.getElementById('hud-floor');
+  var hudBest = document.getElementById('hud-best');
   var showScores = false;
   var playing = false;
   var pendingMusic = null;
+  var wantStart = false;
   var origLoadImage = load_image;
   var origAudioPlay = audio_play;
   var origEndFrame = renderer_end_frame;
@@ -70,6 +74,35 @@
   function showBoard(on) {
     if (!scoreRows.innerHTML) return;
     scoreEl.hidden = !on;
+  }
+
+  function paintHud() {
+    if (!hud) return;
+    var fl = (typeof current_level === 'number' ? current_level : 0) | 0;
+    var best = prefs.floor | 0;
+    if (playing && fl > 0) {
+      hudFloor.hidden = false;
+      hudFloor.textContent = 'FLOOR ' + fl;
+    } else {
+      hudFloor.hidden = true;
+      hudFloor.textContent = '';
+    }
+    if (best > 0 && !(playing && best === fl)) {
+      hudBest.hidden = false;
+      hudBest.textContent = 'BEST ' + best;
+    } else {
+      hudBest.hidden = true;
+      hudBest.textContent = '';
+    }
+    hud.hidden = !((playing && fl > 0) || (best > 0 && !(playing && best === fl)));
+  }
+
+  function tryStart() {
+    if (!wantStart || playing) return;
+    if (typeof _document === 'undefined' || !_document.onclick) return;
+    var fn = _document.onclick;
+    wantStart = false;
+    try { fn({ preventDefault: function () {} }); } catch (e) {}
   }
 
   root.load_image = function (name, callback) {
@@ -177,6 +210,7 @@
       prefs.floor = current_level;
       savePrefs();
     }
+    paintHud();
     showBoard(showScores);
   };
 
@@ -216,10 +250,12 @@
     showBoard(showScores);
   });
 
-  document.addEventListener('pointerdown', function once() {
+  document.addEventListener('pointerdown', function () {
     unlockAudio();
-    document.removeEventListener('pointerdown', once);
+    wantStart = true;
+    tryStart();
   });
+  setInterval(tryStart, 120);
 
   var origNext = next_level;
   root.next_level = function (callback) {
@@ -228,17 +264,30 @@
     origNext(callback);
   };
 
-  if (typeof terminal_text_story === 'string' && terminal_text_story.indexOf('ON A PHONE') < 0) {
-    root.terminal_text_story = terminal_text_story.replace(
-      'USE WASD OR CURSOR KEYS TO MOVE, MOUSE TO SHOOT',
-      'USE WASD OR CURSOR KEYS TO MOVE, MOUSE TO SHOOT\n' +
-      'ON A PHONE: LEFT THUMB WALKS, RIGHT THUMB AIMS AND FIRES'
-    );
+  if (typeof terminal_text_story === 'string') {
+    if (terminal_text_story.indexOf('ON A PHONE') < 0) {
+      root.terminal_text_story = terminal_text_story.replace(
+        'USE WASD OR CURSOR KEYS TO MOVE, MOUSE TO SHOOT',
+        'USE WASD OR CURSOR KEYS TO MOVE, MOUSE TO SHOOT\n' +
+        'ON A PHONE: LEFT THUMB WALKS, RIGHT THUMB AIMS AND FIRES'
+      );
+    }
+    var coarse = false;
+    try {
+      coarse = !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches);
+    } catch (e) {}
+    if (coarse) {
+      root.terminal_text_story = root.terminal_text_story.replace(
+        'CLICK TO INITIATE YOUR DEPLOYMENT',
+        'TAP TO INITIATE YOUR DEPLOYMENT'
+      );
+    }
   }
 
   if (root.Touch) Touch.init();
 
   loadPrefs().then(function () {
+    paintHud();
     if (!root.Net) return;
     root.Net.init().then(function () {
       root.Net.onRoster(paintRoster);
