@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Koil</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="hud-fps"></div>
+  <div id="hud-room"></div>
+</div>
+
+<div id="gate">
+  <div class="gate-box">
+    <h1>Koil</h1>
+    <p class="sub">A small tiled hall, a line of keys, a bomb. Walk the corridor.
+       Send the invite and other people appear down the same hall.</p>
+    <div id="gate-actions">
+      <button id="gate-go">Walk in</button>
+    </div>
+    <div id="gate-keys">
+      <b>WASD</b> or <b>arrows</b> move · <b>Space</b> throw a bomb<br>
+      On a phone: left thumb walks, right thumb looks, <b>Throw</b> for the bomb
+    </div>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+  <div id="t-look"></div>
+  <button id="t-throw" class="t-btn">THROW</button>
+</div>
+
+<img id="tex-wall" src="assets/images/wall.png" alt="" hidden>
+<img id="tex-player" src="assets/images/player.png" alt="" hidden>
+<img id="tex-bomb" src="assets/images/bomb.png" alt="" hidden>
+<img id="tex-key" src="assets/images/key.png" alt="" hidden>
+<img id="tex-particle" src="assets/images/particle.png" alt="" hidden>
+
+<audio id="snd-blast" src="assets/sounds/blast.ogg" preload="auto"></audio>
+<audio id="snd-pickup" src="assets/sounds/bomb-pickup.ogg" preload="auto"></audio>
+<audio id="snd-key" src="assets/sounds/key-pickup.wav" preload="auto"></audio>
+<audio id="snd-rico" src="assets/sounds/ricochet.wav" preload="auto"></audio>
+
+<script src="game.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
