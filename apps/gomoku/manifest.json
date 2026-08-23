@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "gomoku",
+  "name": "Gomoku",
+  "shortName": "Gomoku",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [196, 140, 70],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "gomoku": { "visibility": "private" },
+    "gomoku-mp": { "visibility": "read-write" }
+  }
+}
