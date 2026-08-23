@@ -1,0 +1,9 @@
+vendor/drawnix.js is GENERATED. Do not edit it; run node apps/drawnix/vendor.mjs.
+
+upstream: https://github.com/plait-board/drawnix.git
+commit:   8a91504c78b876ebe73abcb5da9fac0b19d60636
+entry:    apps/web/src/main.tsx, IIFE, mounts #root
+store:    window.__GIFOS_STORE (boot.js → gifos.db)
+
+Drawnix is MIT (COPYING-drawnix.txt). It bundles Plait, React, Slate,
+mermaid and markdown-to-drawnix, all MIT. The notices travel inside the GIF.

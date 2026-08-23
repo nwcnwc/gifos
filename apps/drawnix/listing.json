@@ -1,0 +1,24 @@
+{
+  "tagline": "Freehand, mind maps and flowcharts on one infinite canvas — saved on this device.",
+  "description": "A whiteboard that holds a mind map, a flowchart and a pencil sketch on the same infinite canvas, so you do not have to open three tools to finish one thought.\n\nDraw boxes and arrows, grow a mind map from the keyboard, or just scribble. Undo, redo, copy, paste, zoom and pan all work the way a board should. Drop in a picture. Export a PNG, an SVG or a .drawnix JSON file when you want a copy in your hands. Paste Mermaid and it becomes a flowchart; paste Markdown and it becomes a mind map.\n\nNothing leaves this device. There is no account and no cloud: the board auto-saves inside the app, on this computer, and that is the whole of it. Close the window, open it later, the canvas is where you left it.\n\nAn unofficial port of Drawnix by plait-board, MIT-licensed, built on the Plait drawing framework. The GifOS version keeps the board local in gifos.db and never talks to a network.",
+  "author": {
+    "name": "plait-board",
+    "url": "https://github.com/plait-board/drawnix"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Drawnix",
+    "url": "https://github.com/plait-board/drawnix",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-22",
+  "categories": ["Creativity", "Productivity"],
+  "tags": ["whiteboard", "mindmap", "flowchart", "freehand", "drawing", "offline", "canvas"],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/drawnix",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
