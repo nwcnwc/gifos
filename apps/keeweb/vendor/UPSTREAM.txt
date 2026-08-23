@@ -1,0 +1,11 @@
+vendor/kdbxweb.js and vendor/argon2.js are GENERATED. Do not edit them;
+run node apps/keeweb/vendor.mjs to rebuild from the pins.
+
+kdbxweb:        https://github.com/keeweb/kdbxweb  npm 2.1.1
+                git 9b86a035a53f1827e427a0fc081bdcccc24f4f1b
+argon2:         @noble/hashes 1.8.0 (Paul Miller, MIT) — pure JS, no WASM
+keeweb (UI/product this is a port of):
+                https://github.com/keeweb/keeweb  MIT, Antelle
+
+Licences ride beside the bytes here AND inside the GIF:
+  COPYING-keeweb.txt COPYING-kdbxweb.txt COPYING-noble-hashes.txt
