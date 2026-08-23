@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "signature-pad",
+  "name": "Signature Pad",
+  "shortName": "Sign",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A pad you sign with a finger. Save the picture. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [36, 72, 156],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
