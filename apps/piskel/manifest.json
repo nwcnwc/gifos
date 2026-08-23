@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "piskel",
+  "name": "Piskel",
+  "shortName": "Piskel",
+  "version": "0.15.2",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [255, 215, 0],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "piskels": { "visibility": "private" },
+    "backups": { "visibility": "private" }
+  }
+}

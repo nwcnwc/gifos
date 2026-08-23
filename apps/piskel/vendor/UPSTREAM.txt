@@ -1,0 +1,9 @@
+vendor/piskel.js and vendor/piskel.css are GENERATED. Do not edit them; run node apps/piskel/vendor.mjs.
+
+upstream: https://github.com/piskelapp/piskel.git
+commit:   a6b9c02daefceb10093f71e92d52d16920ccb16e
+version:  0.15.2-SNAPSHOT (packaged as 0.15.2)
+entry:    dest/prod concat, classic scripts, FakeWorker GIF encoder
+store:    gifos.db via boot.js + rewritten PiskelDatabase/BackupDatabase
+
+Piskel is Apache-2.0 (LICENSE). The notice travels inside the GIF.
