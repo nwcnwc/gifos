@@ -1,0 +1,13 @@
+Battleboat by Bill Mei
+https://github.com/billmei/battleboat
+Pinned: gh-pages commit e30edf293346d9068e26f0480baca4490b87b6cc
+js/battleboat.js blob SHA: b86a240ed462e9a5f22fa7432d415849e9802302
+License: MIT (see COPYING-battleboat.txt)
+
+The UI is rewritten for GifOS (no Google Fonts, no image assets, no
+localStorage, no alert). The computer is Bill Mei's probability AI —
+opening book, hunt-around-hits weighting, remaining-ship placements —
+running on this device.
+
+Multiplayer is GifOS: each person writes only their own shots and the
+revealed cells of their own fleet. Ship positions never leave this device.
