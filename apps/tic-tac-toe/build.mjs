@@ -12,6 +12,7 @@ import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import vm from 'node:vm';
 
 // Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
 // uses). Node 20+ is fine. Buffer the payload and deflateRaw at flush — the
@@ -90,8 +91,46 @@ if (!files['app.js'].includes('intent') || !files['app.js'].includes('putMe')) {
 if (!files['app.js'].includes('putBoard') || !files['app.js'].includes('isHost')) {
   throw new Error('host applies legal moves to the board row; nobody else writes it');
 }
-if (!files['rules.js'].includes('cpuPick')) {
-  throw new Error('rules.js must include the tiny CPU');
+if (!files['rules.js'].includes('cpuPick') || !files['rules.js'].includes('cpuMoves')) {
+  throw new Error('rules.js must include the perfect-play CPU');
+}
+if (!files['rules.js'].includes('minimax')) {
+  throw new Error('rules.js CPU must be minimax, not a heuristic');
+}
+
+{
+  const sandbox = { window: {} };
+  vm.runInNewContext(files['rules.js'], sandbox);
+  const T = sandbox.window.TTT;
+  if (!T || !T.cpuMoves) throw new Error('rules.js did not attach TTT.cpuMoves');
+  function assertNeverLoses(cpuMark) {
+    function walk(s) {
+      if (s.winner) {
+        if (s.winner !== -1 && T.colorName(s.winner) !== cpuMark) {
+          throw new Error('perfect CPU lost as ' + cpuMark);
+        }
+        return;
+      }
+      var i, ns;
+      if (T.colorName(s.turn) === cpuMark) {
+        var moves = T.cpuMoves(s);
+        if (!moves || !moves.length) throw new Error('CPU passed as ' + cpuMark);
+        for (i = 0; i < moves.length; i++) {
+          ns = T.place(s, moves[i].r, moves[i].c);
+          if (!ns) throw new Error('CPU illegal move as ' + cpuMark);
+          walk(ns);
+        }
+      } else {
+        for (i = 0; i < 9; i++) {
+          ns = T.placeI(s, i);
+          if (ns) walk(ns);
+        }
+      }
+    }
+    walk(T.fresh());
+  }
+  assertNeverLoses('x');
+  assertNeverLoses('o');
 }
 
 for (const [n, s] of Object.entries(files)) {

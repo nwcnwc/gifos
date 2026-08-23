@@ -1,4 +1,4 @@
-// Tic-Tac-Toe. Computer is a tiny CPU on this device. A friend sits the
+// Tic-Tac-Toe. Computer is perfect play on this device. A friend sits the
 // other mark on a shared board. Invite is OS chrome — this file never
 // draws a share button.
 //
@@ -13,8 +13,13 @@
   var esc = function (s) {
     return String(s).replace(/[&<>]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]; });
   };
+  var MARK_SVG = '<svg viewBox="0 0 100 100" aria-hidden="true">'
+    + '<path class="markx a" d="M26 26 L74 74"/>'
+    + '<path class="markx b" d="M74 26 L26 74"/>'
+    + '<circle class="marko" cx="50" cy="50" r="26"/>'
+    + '</svg>';
 
-  var state = { mode: 'cpu', mark: 'x', s: null, over: false };
+  var state = { mode: 'cpu', mark: 'x', s: null, over: false, hist: [] };
   var cpuTok = 0;
   var db = null;
   try { if (window.gifos) db = gifos.db('ttt'); } catch (e) {}
@@ -29,7 +34,9 @@
     el.textContent = text;
   }
   function showStats() {
-    $('statsLine').textContent = 'Win ' + stats.win + ' · Draw ' + stats.draw + ' · Loss ' + stats.loss;
+    var t = 'Win ' + stats.win + ' · Draw ' + stats.draw + ' · Loss ' + stats.loss;
+    $('statsLine').textContent = t;
+    if ($('gameStats')) $('gameStats').textContent = t;
   }
 
   function bindSeg(id, key, attr, onChange) {
@@ -48,18 +55,49 @@
   });
   bindSeg('markSeg', 'mark', 'data-mark');
 
-  function paint(boardEl, s) {
-    var i, cell, mark, win = {};
+  function paintWin(svg, s, instant) {
+    if (!svg) return;
+    var line = svg.querySelector('.seg');
+    if (!line) return;
+    if (!s || !s.winLine) {
+      svg.classList.remove('on', 'instant');
+      line.setAttribute('x1', '0'); line.setAttribute('y1', '0');
+      line.setAttribute('x2', '0'); line.setAttribute('y2', '0');
+      return;
+    }
+    var a = s.winLine[0], b = s.winLine[2];
+    var x1 = ((a % 3) + 0.5) / 3 * 100, y1 = (((a / 3) | 0) + 0.5) / 3 * 100;
+    var x2 = ((b % 3) + 0.5) / 3 * 100, y2 = (((b / 3) | 0) + 0.5) / 3 * 100;
+    line.setAttribute('x1', String(x1)); line.setAttribute('y1', String(y1));
+    line.setAttribute('x2', String(x2)); line.setAttribute('y2', String(y2));
+    svg.classList.toggle('instant', !!instant);
+    svg.classList.add('on');
+  }
+
+  function paint(boardEl, winSvg, s, opts) {
+    var i, cell, mark, win = {}, last = -1, want, had, instant;
+    opts = opts || {};
+    instant = !!opts.instant;
     if (!boardEl) return;
     if (s && s.winLine) for (i = 0; i < s.winLine.length; i++) win[s.winLine[i]] = 1;
+    if (s && s.last) last = T.idx(s.last.r, s.last.c);
     for (i = 0; i < 9; i++) {
       cell = boardEl.children[i];
-      if (!cell) continue;
+      if (!cell || cell.tagName !== 'BUTTON') continue;
       mark = s ? s.cells[i] : 0;
-      cell.className = 'cell' + (mark === T.X ? ' x' : mark === T.O ? ' o' : '') + (win[i] ? ' win' : '');
+      want = mark === T.X ? 'x' : mark === T.O ? 'o' : '';
+      had = cell.classList.contains('x') || cell.classList.contains('o');
+      cell.className = 'cell'
+        + (want ? ' ' + want : '')
+        + (win[i] ? ' win' : '')
+        + (last === i && !win[i] ? ' last' : '')
+        + ((want && (instant || had)) ? ' settled' : '');
+      cell.disabled = !!(s && (s.winner || mark));
       cell.setAttribute('aria-label', mark === T.X ? 'X' : mark === T.O ? 'O' : 'empty');
     }
+    paintWin(winSvg, s, instant);
   }
+
   function makeBoard(el, onPlay) {
     var i, b;
     el.innerHTML = '';
@@ -68,6 +106,7 @@
       b.type = 'button';
       b.className = 'cell';
       b.setAttribute('data-i', String(i));
+      b.innerHTML = MARK_SVG;
       b.addEventListener('click', function () {
         var n = parseInt(this.getAttribute('data-i'), 10);
         onPlay((n / T.N) | 0, n % T.N);
@@ -81,16 +120,37 @@
     if (state.mode === 'hotseat') return true;
     return T.colorName(state.s.turn) === state.mark;
   }
+  function whoNames() {
+    var xName, oName;
+    if (state.mode === 'hotseat') { xName = 'X'; oName = 'O'; }
+    else if (state.mark === 'x') { xName = 'You'; oName = 'Computer'; }
+    else { xName = 'Computer'; oName = 'You'; }
+    $('whoXName').textContent = xName;
+    $('whoOName').textContent = oName;
+  }
+  function whoTurn() {
+    var s = state.s;
+    $('whoX').classList.toggle('on', !!(s && !s.winner && s.turn === T.X));
+    $('whoO').classList.toggle('on', !!(s && !s.winner && s.turn === T.O));
+    $('whoX').classList.toggle('win', !!(s && s.winner === T.X));
+    $('whoO').classList.toggle('win', !!(s && s.winner === T.O));
+  }
   function localStatus() {
     if (!state.s) return;
-    if (state.s.winner === -1) { setStatus($('statusLine'), 'Draw.', ''); return; }
+    whoTurn();
+    $('undoBtn').disabled = !state.hist.length;
+    $('againBtn').classList.toggle('on', !!state.over);
+    if (state.s.winner === -1) {
+      setStatus($('statusLine'), 'Draw.', '');
+      return;
+    }
     if (state.s.winner) {
       var w = T.colorName(state.s.winner);
       var you = state.mode === 'cpu' && w === state.mark;
       var msg = state.mode === 'hotseat'
-        ? (w.toUpperCase() + ' wins.')
-        : (you ? 'You win.' : 'The computer wins.');
-      setStatus($('statusLine'), msg, you ? 'good' : (state.mode === 'cpu' ? 'warn' : ''));
+        ? (w.toUpperCase() + ' wins')
+        : (you ? 'You win' : 'Computer wins');
+      setStatus($('statusLine'), msg + '.', you ? 'good' : (state.mode === 'cpu' ? 'warn' : ''));
       return;
     }
     if (state.mode === 'hotseat') {
@@ -131,8 +191,9 @@
     if (!isHumanTurn() && state.mode === 'cpu') return false;
     var ns = T.place(state.s, r, c);
     if (!ns) return false;
+    state.hist.push(state.s);
     state.s = ns;
-    paint($('board'), state.s);
+    paint($('board'), $('boardWin'), state.s);
     if (ns.winner) {
       state.over = true;
       if (state.mode === 'cpu') recordResult(ns, state.mark);
@@ -149,38 +210,65 @@
     if (!state.s || state.over || state.mode !== 'cpu') return;
     var tok = ++cpuTok;
     setChip('thinking', 'Thinking…');
+    $('board').classList.add('busy');
     setTimeout(function () {
       if (tok !== cpuTok || !state.s || state.over) return;
       var p = T.cpuPick(state.s);
-      setChip('ready', 'Ready');
+      setChip('ready', 'On this device');
+      $('board').classList.remove('busy');
       if (!p) return;
       var ns = T.place(state.s, p.r, p.c);
       if (!ns) return;
+      state.hist.push(state.s);
       state.s = ns;
-      paint($('board'), state.s);
+      paint($('board'), $('boardWin'), state.s);
       if (ns.winner) {
         state.over = true;
         recordResult(ns, state.mark);
       }
       localStatus();
       saveLocal();
-    }, 280);
+    }, 320);
   }
   function newLocal() {
     cpuTok++;
-    state.s = T.fresh(); state.over = false;
-    setChip('ready', state.mode === 'cpu' ? 'Ready' : 'Two players');
+    state.s = T.fresh(); state.over = false; state.hist = [];
+    setChip('ready', state.mode === 'cpu' ? 'On this device' : 'Two players');
     $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
-    paint($('board'), state.s);
+    $('board').classList.remove('busy');
+    whoNames();
+    paint($('board'), $('boardWin'), state.s, { instant: true });
     localStatus();
     saveLocal();
     if (state.mode === 'cpu' && state.mark === 'o') cpuMove();
   }
+  function undoLocal() {
+    if (!state.hist.length) return;
+    cpuTok++;
+    $('board').classList.remove('busy');
+    setChip('ready', state.mode === 'cpu' ? 'On this device' : 'Two players');
+    if (state.mode === 'cpu') {
+      // Undo the pair: computer reply + your mark. If the game just ended on
+      // your mark (no reply yet), one step is enough.
+      state.s = state.hist.pop();
+      if (state.hist.length && T.colorName(state.s.turn) !== state.mark) {
+        state.s = state.hist.pop();
+      }
+    } else {
+      state.s = state.hist.pop();
+    }
+    state.over = !!state.s.winner;
+    paint($('board'), $('boardWin'), state.s, { instant: true });
+    localStatus();
+    saveLocal();
+  }
 
   $('startBtn').onclick = function () { newLocal(); };
+  $('againBtn').onclick = function () { newLocal(); };
+  $('undoBtn').onclick = function () { undoLocal(); };
   $('newBtn').onclick = function () {
     cpuTok++;
-    $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'Ready');
+    $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'On this device');
   };
 
   makeBoard($('board'), function (r, c) { playLocal(r, c); });
@@ -191,6 +279,7 @@
   try { if (window.gifos) mpDb = gifos.db('ttt-mp'); } catch (e) {}
   var mp = { on: false, id: null, name: 'You', row: null, board: null, people: [], hb: 0, sub: false };
   var _items = [];
+  var _mpCells = '';
 
   function mySeat(b) {
     if (!b || !b.seats) return null;
@@ -230,6 +319,7 @@
     (window.gifos ? gifos.me() : Promise.resolve({ id: 'local', name: 'You' })).then(function (me) {
       mp.id = me.id; mp.name = me.name || 'You'; mp.on = true; mp.row = null;
       cpuTok++;
+      _mpCells = '';
       $('setup').hidden = true; $('game').hidden = true; $('friend').hidden = false;
       setChip('ready', 'A friend');
       if (!mp.sub) {
@@ -246,7 +336,7 @@
     mp.on = false;
     if (mp.hb) clearInterval(mp.hb); mp.hb = 0;
     if (mpDb && mp.id) mpDb.delete(mp.id).catch(function () {});
-    $('friend').hidden = true; $('setup').hidden = false; setChip('ready', 'Ready');
+    $('friend').hidden = true; $('setup').hidden = false; setChip('ready', 'On this device');
   }
   $('fLeave').onclick = mpLeave;
 
@@ -349,11 +439,12 @@
     var b = mp.board, status = $('fStatus');
     if (!b) { $('fSeats').innerHTML = ''; status.textContent = 'Setting up the board…'; return; }
     var s = boardToState(b);
+    if (b.last) s.last = b.last;
     var seat = mySeat(b);
     var nameOf = function (id) { return id ? esc(b.names[id] || 'Player') : '<span class="open">open</span>'; };
     $('fSeats').innerHTML =
-      '<div class="seat' + (seat === 'x' ? ' me' : '') + (b.turn === 'x' && !b.winner ? ' turn' : '') + '">X ' + nameOf(b.seats.x) + '</div>' +
-      '<div class="seat' + (seat === 'o' ? ' me' : '') + (b.turn === 'o' && !b.winner ? ' turn' : '') + '">O ' + nameOf(b.seats.o) + '</div>';
+      '<div class="seat' + (seat === 'x' ? ' me' : '') + (b.turn === 'x' && !b.winner ? ' turn' : '') + '">X · ' + nameOf(b.seats.x) + '</div>' +
+      '<div class="seat' + (seat === 'o' ? ' me' : '') + (b.turn === 'o' && !b.winner ? ' turn' : '') + '">O · ' + nameOf(b.seats.o) + '</div>';
     var waiting = mp.people.filter(function (p) { return p.id !== b.seats.x && p.id !== b.seats.o; });
     $('fQueue').textContent = waiting.length ? ('Watching: ' + waiting.map(function (p) { return p.name || 'Player'; }).join(', ')) : '';
     var both = b.seats.x && b.seats.o;
@@ -372,22 +463,30 @@
     } else {
       status.textContent = 'Waiting for ' + (b.turn === 'x' ? 'X' : 'O') + '…';
     }
-    paint($('fBoard'), s);
+    var key = (b.cells || []).join(',');
+    var filled = 0, prevFilled = 0, i;
+    for (i = 0; i < 9; i++) if (b.cells && b.cells[i]) filled++;
+    if (_mpCells) {
+      var prev = _mpCells.split(',');
+      for (i = 0; i < prev.length; i++) if (prev[i] !== '0') prevFilled++;
+    }
+    paint($('fBoard'), $('fBoardWin'), s, { instant: !_mpCells || filled < prevFilled });
+    _mpCells = key;
   }
 
   makeBoard($('fBoard'), function (r, c) { mpPlay(r, c); });
 
   window.addEventListener('resize', function () {
-    if (!$('game').hidden && state.s) paint($('board'), state.s);
-    if (!$('friend').hidden && mp.board) paint($('fBoard'), boardToState(mp.board));
+    if (!$('game').hidden && state.s) paint($('board'), $('boardWin'), state.s, { instant: true });
+    if (!$('friend').hidden && mp.board) paint($('fBoard'), $('fBoardWin'), boardToState(mp.board), { instant: true });
   });
 
   if (window.gifos && gifos.onBack) gifos.onBack(function () {
     if (!$('friend').hidden) mpLeave();
-    else if (!$('game').hidden) { cpuTok++; $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'Ready'); }
+    else if (!$('game').hidden) { cpuTok++; $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'On this device'); }
   });
 
-  setChip('ready', 'Ready');
+  setChip('ready', 'On this device');
   showStats();
   if (db) {
     db.get('stats').then(function (st) {
@@ -401,7 +500,7 @@
       state.mark = g.mark || 'x';
       var s = T.fromCells(g.cells);
       if (!s.n) return;
-      state.s = s; state.over = !!s.winner;
+      state.s = s; state.over = !!s.winner; state.hist = [];
       if (state.mode === 'cpu') {
         $('modeSeg').querySelector('[data-mode="cpu"]').click();
         Array.prototype.forEach.call($('markSeg').children, function (c) {
@@ -411,7 +510,8 @@
         $('modeSeg').querySelector('[data-mode="hotseat"]').click();
       }
       $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
-      paint($('board'), state.s);
+      whoNames();
+      paint($('board'), $('boardWin'), state.s, { instant: true });
       localStatus();
       if (!state.over && state.mode === 'cpu' && T.colorName(state.s.turn) !== state.mark) cpuMove();
     }).catch(function () {});

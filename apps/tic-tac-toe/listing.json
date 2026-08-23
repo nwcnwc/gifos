@@ -1,6 +1,6 @@
 {
-  "tagline": "Three in a row, against the computer or a friend on the other side of the board.",
-  "description": "A three-by-three grid. One of you is X, the other is O. Take turns putting a mark down. First to get three in a line — across, down, or diagonal — wins.\n\nPlay the computer. It thinks on this device; there is no server. Play another person on the same screen, passing the device between you. Or press Play a friend and send the invite: the same board, live, on two devices. X sits one side, O the other.\n\nAn unofficial port of Colyseus Tic-Tac-Toe. The original needs a game server. This copy does not: the meeting is the room.",
+  "tagline": "The computer plays here, perfectly. A friend from one link. No game server.",
+  "description": "The computer thinks on this phone, and it does not lose. There is no game server. Press Play a friend, send the invite, and they sit the other mark on the same board.\n\nA three-by-three grid. One of you is X, the other is O. Take turns putting a mark down. First to three in a line — across, down, or diagonal — wins. Close it and come back: the file is the save.\n\nOn your own you play a perfect computer, on this device. Pass the phone for two people in the same room, or send one link.\n\nAn unofficial port of Colyseus Tic-Tac-Toe. The original needs a game server. This copy does not.",
   "author": {
     "name": "Colyseus",
     "url": "https://github.com/colyseus/demo-tic-tac-toe"
@@ -15,6 +15,7 @@
     "blessed": false
   },
   "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
   "categories": [
     "Games"
   ],
