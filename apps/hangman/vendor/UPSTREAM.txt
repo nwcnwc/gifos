@@ -1,0 +1,19 @@
+Hangman pictures, word list and the original rules come from:
+
+  https://github.com/simonjsuh/Vanilla-Javascript-Hangman-Game
+  commit  9cd3289dcf0fc99841751c41b3fcc2b942cb3121
+          (master, 2019-12-16)
+  license MIT (COPYING-hangman.txt)  Copyright (c) 2019 simonjsuh
+
+vendor/hangman.js           original script (Bootstrap + innerHTML)
+vendor/images/0.jpg … 6.jpg original gallows frames (PNG bytes, named .jpg)
+
+Upstream loads Bootstrap from a CDN and the six frames as <img src>. GifOS's
+runtime inlines <script src> and drops type="module", and the sandbox has
+nowhere to fetch a CDN from. app.js is a classic-script port of the same
+rules (one of fourteen programming-language words, six wrong guesses) plus
+gifos.db persistence and versus (same word: race, or one shared gallows).
+The frames travel inside the GIF. Nothing is fetched.
+
+The notice COPYING-hangman.txt is packed inside the GIF as well as sitting
+here.
