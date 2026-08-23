@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Excalidraw</title>
+<link rel="stylesheet" href="vendor/excalidraw.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="root"><div class="boot">Opening…</div></div>
+<!-- Order matters: the runtime inlines each <script src> as a classic script.
+     shim.js is a memory localStorage so upstream never throws on the opaque
+     origin; vendor/excalidraw.js is the IIFE (React + Excalidraw); app.js is
+     the GifOS shell (gifos.db persistence, no collab). -->
+<script src="shim.js"></script>
+<script src="vendor/excalidraw.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+vendor/excalidraw.js and vendor/excalidraw.css are GENERATED.
+Do not edit them; run node apps/excalidraw/vendor.mjs.
+
+upstream: https://github.com/excalidraw/excalidraw
+npm:      @excalidraw/excalidraw@0.18.1
+react:    18.3.1
+entry:    gifos-facade.js (written by vendor.mjs), IIFE, global ExcalidrawLib
+          exposing { React, createRoot, Excalidraw, MainMenu, serializeAsJSON, … }
+fonts:    Latin faces inlined as data: URLs from dist/prod/fonts.
+          Xiaolai (CJK, ~12 MB) is omitted; CJK falls back to the system font.
+
+Firebase / live-collab is NOT in this package and is never called.
+The public library CDN (libraries.excalidraw.com) is not fetched.
+Licences ride beside the bundle and inside the GIF:
+COPYING-excalidraw.txt, COPYING-react.txt.
