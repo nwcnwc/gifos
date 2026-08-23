@@ -1,0 +1,13 @@
+HandsomeOne/Nonogram
+https://github.com/HandsomeOne/Nonogram
+commit 8940df6f986665da7a8ac77f453b03aee30c6171
+        (master, 2018-03-19)
+license MIT (COPYING-nonogram.txt)  Copyright (c) 2016 Zhou Qi
+
+vendor/nonogram.js is a classic-script port of src/Nonogram.ts + src/Game.ts
++ src/colors.ts + src/status.ts. Touch listeners are added here: upstream
+only wired mouse. Editor and Solver (web worker) are not packed — this app
+is the playable Game.
+
+The notice COPYING-nonogram.txt is packed inside the GIF as well as sitting
+here.

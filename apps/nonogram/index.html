@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Nonogram</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Nonogram</h1>
+      <div class="meta">
+        <label class="sr-only" for="size">Size</label>
+        <select id="size" aria-label="Size">
+          <option value="5">5 × 5</option>
+          <option value="8">8 × 8</option>
+          <option value="10">10 × 10</option>
+          <option value="15">15 × 15</option>
+        </select>
+        <span id="puz">#1</span>
+        <button type="button" id="timer" class="timer" aria-label="Pause or continue">0:00</button>
+      </div>
+    </header>
+
+    <div id="race" hidden>
+      <div class="race-hd">Race</div>
+      <div id="race-rows"></div>
+      <div id="race-note">Same puzzle. First to finish wins.</div>
+      <div class="race-actions">
+        <button type="button" id="againBtn" hidden>Play again</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <canvas id="board" width="320" height="320" aria-label="Picross"></canvas>
+      <div id="overlay" hidden>
+        <button type="button" id="continueBtn" class="play-btn" aria-label="Continue">▶</button>
+      </div>
+      <div id="won" hidden>
+        <p id="won-msg">You finished.</p>
+        <p id="won-time"></p>
+        <button type="button" id="won-next">Next puzzle</button>
+      </div>
+    </div>
+
+    <div id="pad" aria-label="Brush">
+      <button type="button" id="fillBtn" aria-pressed="true">Fill</button>
+      <button type="button" id="crossBtn" aria-pressed="false">Cross</button>
+    </div>
+
+    <div id="controls">
+      <button type="button" id="undo">Undo</button>
+      <button type="button" id="hint">Hint</button>
+    </div>
+    <div id="bar">
+      <button type="button" id="new">New game</button>
+      <button type="button" id="howBtn">How to play</button>
+    </div>
+
+    <p id="invite-hint" hidden><b>Invite</b> (top bar) to race a friend on the same puzzle. First to finish wins.</p>
+    <p class="credit">Unofficial port of Nonogram by HandsomeOne. Paint from the numbers. A finger can drag a line.</p>
+  </div>
+
+  <div id="how" hidden>
+    <div class="sheet" role="dialog" aria-labelledby="howTitle">
+      <h2 id="howTitle">How to play</h2>
+      <ul>
+        <li>The numbers say how the filled squares run in each row and column, in order, with gaps between runs.</li>
+        <li>Tap Fill, then paint. Tap Cross to mark a square empty. Drag to paint a whole line.</li>
+        <li>A green number means that line is right. Right-click (or Cross) to mark empties.</li>
+        <li>When every line is right, the picture is finished.</li>
+      </ul>
+      <p class="foot">To play a friend, use <b>Invite</b> in the bar above the app. Same puzzle — first to finish wins.</p>
+      <button type="button" id="howClose">Done</button>
+    </div>
+  </div>
+
+  <script src="nonogram.js"></script>
+  <script src="puzzles.js"></script>
+  <script src="mp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
