@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "racer",
+  "appId": "racer",
+  "name": "Racer",
+  "shortName": "Racer",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "A sunset highway, a red car, and whoever you send the link to.",
+  "description": "You drop onto a long coastal road at dusk and drive. Hills rise and fall, curves pull you sideways, and the other cars on the road take the racing line whether you are ready or not. Speed is on the dash; so is this lap, and the best you have done on this device.\n\nOn a phone it is a phone game: left thumb to steer, right thumb to go. On a computer the arrows or WASD do the same job.\n\nSend the invite and the same road has everyone else on it, as cars you can see and pass. There is no game server and no account. The host taps Start and you all leave the line together; whoever finishes first is first on the board.\n\nAn unofficial port of Jake Gordon's JavaScript Racer, MIT-licensed. This copy adds the thumb controls and the race over a link. The original could not be played on a phone.",
+  "author": {
+    "name": "Jake Gordon",
+    "url": "https://github.com/jakesgordon/javascript-racer"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "racing",
+    "driving",
+    "outrun",
+    "multiplayer",
+    "offline",
+    "touch"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/racer",
+  "accent": [
+    255,
+    92,
+    64
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/racer/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/racer/racer.gif",
+  "bytes": 514997,
+  "download": 0,
+  "provides": null,
+  "sha256": "9fb2e133e83e3c9173e5476bbef1e27c31bdd4bd98fdae5fb900fcec546af785",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JavaScript Racer",
+    "url": "https://github.com/jakesgordon/javascript-racer",
+    "blessed": false
+  }
+}

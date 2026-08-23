@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "tosios",
+  "appId": "tosios",
+  "name": "TOSIOS",
+  "shortName": "TOSIOS",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "A top-down dungeon, a staff, and whoever you send the link to.",
+  "description": "You drop into a stone dungeon looking down from above — a little round fighter with a staff. Walk, aim, shoot. Three hearts. Red bottles on the floor give one back. Bats patrol the halls if you are alone; send the invite and the bats stand down, because now the other people are the fight.\n\nEveryone who opens the link lands in the same dungeon. There is no game server, no account and no lobby to sit in. The room is the link, and it holds together in the browsers of the people playing.\n\nOn a phone, left thumb walks, right thumb aims, and holding the right pad fires. On a computer it is WASD to move, the mouse to aim, click or space to shoot. Tab shows the scores.\n\nAn unofficial port of TOSIOS by halftheopposite, MIT-licensed. The original needs a game server. This copy does not: the meeting is the room.",
+  "author": {
+    "name": "halftheopposite",
+    "url": "https://github.com/halftheopposite/TOSIOS"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "shooter",
+    "top-down",
+    "multiplayer",
+    "dungeon",
+    "io",
+    "deathmatch"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tosios",
+  "accent": [
+    220,
+    72,
+    88
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/tosios/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/tosios/tosios.gif",
+  "bytes": 198276,
+  "download": 0,
+  "provides": null,
+  "sha256": "cb29a9546c9cbcd2036e8ed0b90dc461e0e0103bfb87e3d62f3770c715bbb386",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "TOSIOS",
+    "url": "https://github.com/halftheopposite/TOSIOS",
+    "blessed": false
+  }
+}

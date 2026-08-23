@@ -13,6 +13,53 @@
   ],
   "apps": [
     {
+      "slug": "2048",
+      "appId": "2048",
+      "name": "2048",
+      "shortName": "2048",
+      "version": "1.0",
+      "tagline": "Join the numbers. Get to 2048. Or race a friend to it.",
+      "author": {
+        "name": "Gabriele Cirulli",
+        "url": "https://github.com/gabrielecirulli/2048"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "2048",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "2048",
+        "puzzle",
+        "arcade",
+        "multiplayer"
+      ],
+      "accent": [
+        237,
+        194,
+        46
+      ],
+      "cover": "/apps/2048/cover.jpg",
+      "bytes": 306682,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "8ad64775a9679455cfd241c7566494cbc6e02647e24902b326818893b25a4fb5"
+    },
+    {
       "slug": "anyroad",
       "appId": "anyroad",
       "name": "Anyroad",
@@ -58,6 +105,151 @@
         "ts": "2026-08-23"
       },
       "sha256": "7f39c07530840d5594e98fcb046f6f75c0b875bf014e4f240f3034e4366a4a24"
+    },
+    {
+      "slug": "asteroids",
+      "appId": "asteroids",
+      "name": "Asteroids",
+      "shortName": "Asteroids",
+      "version": "1.0.0",
+      "tagline": "A little triangle, a field of rocks, and whoever you send the link to.",
+      "author": {
+        "name": "dmcinnes",
+        "url": "https://github.com/dmcinnes/HTML5-Asteroids"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "HTML5 Asteroids",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "asteroids",
+        "arcade",
+        "vector",
+        "multiplayer",
+        "space",
+        "offline"
+      ],
+      "accent": [
+        196,
+        220,
+        255
+      ],
+      "cover": "/apps/asteroids/cover.jpg",
+      "bytes": 202406,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "ae17a97cad1f224ebed590c64607d87749a8d0aca18be6bf8fe3896b5ebf6f6f"
+    },
+    {
+      "slug": "battle-city",
+      "appId": "battle-city",
+      "name": "Battle City",
+      "shortName": "Tanks",
+      "version": "1.0.0",
+      "tagline": "Tanks, bricks, and the eagle. A friend on the other pad.",
+      "author": {
+        "name": "feichao93",
+        "url": "https://github.com/feichao93/battle-city"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Battle City",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "tanks",
+        "arcade",
+        "multiplayer",
+        "retro",
+        "offline"
+      ],
+      "accent": [
+        231,
+        156,
+        33
+      ],
+      "cover": "/apps/battle-city/cover.jpg",
+      "bytes": 278644,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "ffaee96210a37269ba51ddf6d17c1c082459f049ca432d974f0f375c39d4339f"
+    },
+    {
+      "slug": "catch-the-cat",
+      "appId": "catch-the-cat",
+      "name": "Catch the Cat",
+      "shortName": "Cat",
+      "version": "1.0.0",
+      "tagline": "Tap the dots. Wall the cat in before it reaches the edge.",
+      "author": {
+        "name": "ganlvtech",
+        "url": "https://github.com/ganlvtech/phaser-catch-the-cat"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Catch The Cat",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "puzzle",
+        "cat",
+        "hex",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        232,
+        176,
+        90
+      ],
+      "cover": "/apps/catch-the-cat/cover.jpg",
+      "bytes": 575651,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "56beca5e2787ec9f73485de339467f4b2e50ab3e3f06195a071a6083cd1a2193"
     },
     {
       "slug": "chess-grandmaster",
@@ -204,6 +396,55 @@
       "sha256": "d11797be2b64cfce0b57c03debad7b0a34604b2afcd2381134df7627a10f5596"
     },
     {
+      "slug": "emoji-minesweeper",
+      "appId": "emoji-minesweeper",
+      "name": "Emoji Minesweeper",
+      "shortName": "Minesweeper",
+      "version": "1.0",
+      "tagline": "Minesweeper with emoji. Race a friend on the same board.",
+      "author": {
+        "name": "muan",
+        "url": "https://github.com/muan/emoji-minesweeper"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "emoji-minesweeper",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "minesweeper",
+        "emoji",
+        "puzzle",
+        "multiplayer",
+        "race",
+        "offline"
+      ],
+      "accent": [
+        255,
+        184,
+        48
+      ],
+      "cover": "/apps/emoji-minesweeper/cover.jpg",
+      "bytes": 193780,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "119fef4f96b1d9c01310627627cd87b467053cb5ea48c179eb7eab55368150c5"
+    },
+    {
       "slug": "excalidraw",
       "appId": "excalidraw",
       "name": "Excalidraw",
@@ -252,6 +493,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "546ae7af9ba6dba8e91bed6947e8f7896420e86d8af5a09d8ad2620ea2b60d9e"
+    },
+    {
+      "slug": "floppy-bird",
+      "appId": "floppy-bird",
+      "name": "Floppy Bird",
+      "shortName": "Floppy",
+      "version": "1.0",
+      "tagline": "Tap to flap between the pipes. Send the link and race a ghost of the other bird.",
+      "author": {
+        "name": "nebez",
+        "url": "https://github.com/nebez/floppybird"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Floppy Bird",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "arcade",
+        "tap",
+        "multiplayer",
+        "race",
+        "offline"
+      ],
+      "accent": [
+        78,
+        192,
+        202
+      ],
+      "cover": "/apps/floppy-bird/cover.jpg",
+      "bytes": 300768,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "c4d04d1960a6dcc3c6bf3b55f09e512f3f27f23d81a6768ee4ff5a2249066f00"
     },
     {
       "slug": "fluence",
@@ -391,6 +680,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "d532479961c1984210276ee0fc7308b6178a0e78f52d3667228c6a2fcc0539cc"
+    },
+    {
+      "slug": "gomoku",
+      "appId": "gomoku",
+      "name": "Gomoku",
+      "shortName": "Gomoku",
+      "version": "1.0",
+      "tagline": "Five in a row, against the computer or a friend on the other side of the board.",
+      "author": {
+        "name": "yyjhao",
+        "url": "https://github.com/yyjhao/HTML5-Gomoku"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "HTML5 Gomoku",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "gomoku",
+        "five-in-a-row",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        196,
+        140,
+        70
+      ],
+      "cover": "/apps/gomoku/cover.jpg",
+      "bytes": 200091,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "4d481e331686a321ad7e4b7a3225961c027d632f037fa91de3ba63720b73b866"
     },
     {
       "slug": "hat-sh",
@@ -539,6 +876,103 @@
         "ts": "2026-08-23"
       },
       "sha256": "baa807eefff65379f781c935b8b0ea2396fd4d801d2046591b45834310f8bad7"
+    },
+    {
+      "slug": "koil",
+      "appId": "koil",
+      "name": "Koil",
+      "shortName": "Koil",
+      "version": "1.0.0",
+      "tagline": "A mint-green corridor, a handful of keys, and whoever walks in with you.",
+      "author": {
+        "name": "tsoding",
+        "url": "https://github.com/tsoding/koil"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Koil",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "raycasting",
+        "fps",
+        "multiplayer",
+        "retro",
+        "offline"
+      ],
+      "accent": [
+        140,
+        196,
+        176
+      ],
+      "cover": "/apps/koil/cover.jpg",
+      "bytes": 274020,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "52c6896ceee20c810d994e73994467fe706607e6350fd1d100c59aa537f7b0e1"
+    },
+    {
+      "slug": "nxn-cube",
+      "appId": "nxn-cube",
+      "name": "NxN Cube",
+      "shortName": "NxN Cube",
+      "version": "1.0",
+      "tagline": "A colourful cube. Drag a face to turn it. Race the same scramble.",
+      "author": {
+        "name": "pengfeiw",
+        "url": "https://github.com/pengfeiw/rubiks-cube"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "rubiks-cube",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "cube",
+        "puzzle",
+        "3d",
+        "scramble",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        251,
+        54,
+        54
+      ],
+      "cover": "/apps/nxn-cube/cover.jpg",
+      "bytes": 404031,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "fbac535991773635037df94d9e03f6577082c4cbb881241a22abf51d9d151ca3"
     },
     {
       "slug": "offline-llm-bitnet",
@@ -966,6 +1400,152 @@
       "sha256": "4d742273eb25202f51903223b54c030580f9e99b56115dc08e077f3010fd8968"
     },
     {
+      "slug": "pong",
+      "appId": "pong",
+      "name": "Pong",
+      "shortName": "Pong",
+      "version": "1.0.0",
+      "tagline": "Classic Pong. You on the left, a friend on the right.",
+      "author": {
+        "name": "Jake Gordon",
+        "url": "https://github.com/jakesgordon/javascript-pong"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "JavaScript Pong",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "pong",
+        "arcade",
+        "classic",
+        "multiplayer",
+        "table-tennis"
+      ],
+      "accent": [
+        90,
+        220,
+        110
+      ],
+      "cover": "/apps/pong/cover.jpg",
+      "bytes": 198427,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "4c9d32459306078d6c328961c809f9faec0f5cfce7d03ade7a6a7209dba0889a"
+    },
+    {
+      "slug": "racer",
+      "appId": "racer",
+      "name": "Racer",
+      "shortName": "Racer",
+      "version": "1.0.0",
+      "tagline": "A sunset highway, a red car, and whoever you send the link to.",
+      "author": {
+        "name": "Jake Gordon",
+        "url": "https://github.com/jakesgordon/javascript-racer"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "JavaScript Racer",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "racing",
+        "driving",
+        "outrun",
+        "multiplayer",
+        "offline",
+        "touch"
+      ],
+      "accent": [
+        255,
+        92,
+        64
+      ],
+      "cover": "/apps/racer/cover.jpg",
+      "bytes": 514997,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "9fb2e133e83e3c9173e5476bbef1e27c31bdd4bd98fdae5fb900fcec546af785"
+    },
+    {
+      "slug": "radius-raid",
+      "appId": "radius-raid",
+      "name": "Radius Raid",
+      "shortName": "Raid",
+      "version": "1.0.0",
+      "tagline": "A tiny ship, a swarm of enemies, and a friend on the other stick.",
+      "author": {
+        "name": "jackrugile",
+        "url": "https://github.com/jackrugile/radius-raid-js13k"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Radius Raid",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "shooter",
+        "twin-stick",
+        "arcade",
+        "multiplayer",
+        "coop",
+        "js13k"
+      ],
+      "accent": [
+        0,
+        220,
+        255
+      ],
+      "cover": "/apps/radius-raid/cover.jpg",
+      "bytes": 223183,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "2727119fc24c99a6c42332e2a4dec8750786a9d595e567b4519d1e74cf4d8a44"
+    },
+    {
       "slug": "restfox",
       "appId": "restfox",
       "name": "Restfox",
@@ -1016,6 +1596,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "060efc566416f285d9c6d0424b47f53d3742af5e1ac48fe4c1e02bea7ad74968"
+    },
+    {
+      "slug": "snake",
+      "appId": "snake",
+      "name": "Snake",
+      "shortName": "Snake",
+      "version": "1.0.0",
+      "tagline": "The classic game of Snake. Send the link and there are two of you.",
+      "author": {
+        "name": "patorjk",
+        "url": "https://github.com/patorjk/JavaScript-Snake"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "JavaScript Snake",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "snake",
+        "arcade",
+        "classic",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        56,
+        176,
+        72
+      ],
+      "cover": "/apps/snake/cover.jpg",
+      "bytes": 191403,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "716c0bf5c7496209b8ea6ea54b35b37d7d666cd38dd0548f44d96c3739e8f23f"
     },
     {
       "slug": "sound-it-out",
@@ -1166,6 +1794,55 @@
       "sha256": "4a8c065ef7393d0ff14dbf7339fe03d06f9e42a8e2eea70c6d0dbb9defb30203"
     },
     {
+      "slug": "tosios",
+      "appId": "tosios",
+      "name": "TOSIOS",
+      "shortName": "TOSIOS",
+      "version": "1.0",
+      "tagline": "A top-down dungeon, a staff, and whoever you send the link to.",
+      "author": {
+        "name": "halftheopposite",
+        "url": "https://github.com/halftheopposite/TOSIOS"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "TOSIOS",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "shooter",
+        "top-down",
+        "multiplayer",
+        "dungeon",
+        "io",
+        "deathmatch"
+      ],
+      "accent": [
+        220,
+        72,
+        88
+      ],
+      "cover": "/apps/tosios/cover.jpg",
+      "bytes": 198276,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "cb29a9546c9cbcd2036e8ed0b90dc461e0e0103bfb87e3d62f3770c715bbb386"
+    },
+    {
       "slug": "vocal-remover",
       "appId": "vocal-remover",
       "name": "Vocal Remover",
@@ -1216,6 +1893,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "aac58f2b020ff12391b5b4d9f39064493917e208a06debcb0e39ad44683d70c1"
+    },
+    {
+      "slug": "word-master",
+      "appId": "word-master",
+      "name": "Word Master",
+      "shortName": "Words",
+      "version": "1.0.0",
+      "tagline": "Six guesses, as many words as you like. Race a friend on the same secret.",
+      "author": {
+        "name": "octokatherine",
+        "url": "https://github.com/octokatherine/word-master"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Word Master",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "word",
+        "puzzle",
+        "guessing",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        99,
+        170,
+        85
+      ],
+      "cover": "/apps/word-master/cover.jpg",
+      "bytes": 207756,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "33323884bd35ebb26dba4269ce8dd736c15ef8d7f3abebe59e32836763a57c3b"
     }
   ]
 }
