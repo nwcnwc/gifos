@@ -1,0 +1,23 @@
+{
+  "gifos": "1.0",
+  "appId": "skifree",
+  "name": "SkiFree",
+  "shortName": "Ski",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Point down the mountain. Dodge the trees. Race a ghost of whoever you send the link to.",
+  "entry": "index.html",
+  "accent": [40, 132, 196],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "room": {
+      "visibility": "read-write"
+    }
+  }
+}

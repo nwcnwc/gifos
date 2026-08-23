@@ -1,0 +1,31 @@
+vendor/* is GENERATED. Do not edit it; run node apps/skifree/vendor.mjs.
+
+upstream: https://github.com/basicallydan/skifree.js.git
+commit:   a812f944f7420ab53374b6b983ef3eb54f8a26ce
+date:     2026-02-23
+license:  MIT (COPYING.txt)
+
+Classic IIFE of js/lib/*.js + js/spriteInfo.js (ESM import/export stripped,
+GUID() → guid()). Sprites copied as PNGs; index.html holds hidden <img> so
+the GifOS runtime can rewrite src to a data URL inside a srcdoc iframe.
+
+NOT copied:
+  js/main.js              — localStorage high score, auto-boot, UA sniffing
+  js/lib/input.js         — Hammer.js + Mousetrap; touch.js / boot.js own input
+  js/lib/isMobileDevice.js
+  js/lib/skiLift.js       — unused by upstream's own main.js
+  dist/skifree.js         — esbuild bundle of the above plus hammer/mousetrap
+  yeti-big.png            — unused
+  apple-touch-icon*.png
+  skifree-*-banner.png
+  *.psd
+
+sha256:
+  engine.js  ac3f6c494cdc6a0812b51dbfd1dcef474ea9aa135068072e1ad2d24ca9add06b
+  sprite-characters.png  8b6d5311d215ef74790f71396c432a57914b00c8e0b1c1e7f3db013a1e546375
+  skifree-objects.png  de10de91ac8c82b3161025a690f3a0f71d748471afbb3568a72b962df0f8957d
+  COPYING.txt  b4c377798e19e9d5525ecd519820096223c6a712ab367f11e4de0af3ae089c02
+
+The MIT notice travels INSIDE the GIF as COPYING.txt as well as here.
+Sprites are from Wing Wang Wao / Spriters Resource, as credited upstream.
+Original SkiFree is Chris Pirih, 1991.

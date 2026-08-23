@@ -1,0 +1,23 @@
+SkiFree
+Copyright (C) 2013 Daniel Hough
+
+This product includes software developed by Daniel Hough
+(https://github.com/basicallydan/skifree.js).
+
+SkiFree.js is released under the MIT License. A copy of the MIT License is
+in COPYING.txt (and is packed inside the App GIF).
+
+The sprite sheets (sprite-characters.png, skifree-objects.png) were drawn by
+Wing Wang Wao of the Spriters Resource, as credited by upstream, and extended
+there. Original SkiFree is Chris Pirih, 1991.
+
+This GifOS app is an UNOFFICIAL port. It is not affiliated with, endorsed by,
+or blessed by Daniel Hough, Chris Pirih, or Microsoft. The GifOS signature on
+the GIF is integrity of the bytes, not authorship, and not a claim that
+upstream accepted this listing. Bugs go to GifOS, not upstream.
+
+Port surface (boot.js, mp.js, touch.js, the GifOS packing, this NOTICE addendum):
+Copyright 2026 GifOS contributors.
+
+Bugs for this port: https://github.com/nwcnwc/gifos/issues
+Upstream SkiFree.js: https://github.com/basicallydan/skifree.js
