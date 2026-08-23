@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Tic-Tac-Toe</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Tic-Tac-Toe</div>
+  <div class="engine-chip ready" id="aiChip"><span class="dot"></span><span id="aiState">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="setup">
+    <h2>New game</h2>
+    <label class="row">Play
+      <div class="seg" id="modeSeg">
+        <button type="button" data-mode="cpu" class="on">Computer</button>
+        <button type="button" data-mode="hotseat">Two here</button>
+      </div>
+    </label>
+    <div id="cpuOpts">
+      <label class="row">You play
+        <div class="seg" id="markSeg">
+          <button type="button" data-mark="x" class="on">X</button>
+          <button type="button" data-mark="o">O</button>
+        </div>
+      </label>
+      <p class="lvlnote" id="cpuNote">A tiny opponent on this device. X goes first.</p>
+    </div>
+    <p class="lvlnote" id="hotseatNote" hidden>Pass the device. X goes first.</p>
+    <button class="primary" id="startBtn" type="button">Start game</button>
+    <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
+    <p class="stats" id="statsLine"></p>
+  </section>
+
+  <section class="game" id="game" hidden>
+    <div class="statusline" id="statusLine">Your turn.</div>
+    <div class="boardwrap"><div class="board" id="board" aria-label="Tic-tac-toe board"></div></div>
+    <div class="controls">
+      <button id="newBtn" class="ghost" type="button">＋ New game</button>
+    </div>
+  </section>
+
+  <section class="game" id="friend" hidden>
+    <div class="vhead"><h2>Play a friend</h2><button class="ghost" id="fLeave" type="button">← Leave</button></div>
+    <div class="seats" id="fSeats"></div>
+    <div class="fqueue" id="fQueue"></div>
+    <div class="statusline" id="fStatus"></div>
+    <div class="boardwrap"><div class="board" id="fBoard" aria-label="Shared tic-tac-toe board"></div></div>
+  </section>
+</main>
+
+<script src="rules.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
