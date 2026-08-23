@@ -4584,6 +4584,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   #shutter span{display:block;width:100%;height:100%;border-radius:50%;background:#fff}
   #shutter:active span{transform:scale(.92)}
   .ghost{width:48px;height:48px;border:0;border-radius:50%;background:#1a1a22;color:#ddd;font:inherit;cursor:pointer}
+  .ghost.wide{width:auto;min-width:48px;padding:0 16px;border-radius:24px;font-weight:650;white-space:nowrap}
   #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#000c;color:#fff;padding:8px 14px;border-radius:10px;font-size:.85rem;opacity:0;transition:opacity .25s;pointer-events:none;max-width:88%;z-index:5}
   #toast.on{opacity:1}
   #ui{flex:1;display:flex;flex-direction:column;min-height:0}
@@ -4598,7 +4599,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   <div id="stage"><div class="ph"><div class="ring"></div><div>Tap the shutter</div></div><div id="hint"></div></div>
   <div id="film"></div>
   <div id="bar">
-    <button class="ghost" id="flip" title="Front / back" style="visibility:hidden">🔄</button>
+    <button class="ghost wide" id="mmbtn" title="Open My Media">🖼️ My Media</button>
     <button id="shutter" aria-label="Open camera"><span></span></button>
     <button class="ghost" id="rollbtn" title="Recents">🎞️</button>
   </div>
@@ -4613,12 +4614,13 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   function typeOf(mime){ mime=String(mime||''); return mime.indexOf('image/')===0?'image':mime.indexOf('video/')===0?'video':mime.indexOf('audio/')===0?'audio':''; }
   function nameFor(shot){
     var t=new Date().toLocaleString();
+    var m=shot.mode||'';
     if(shot.kind==='video' || (shot.mime||'').indexOf('video/')===0) return 'Video · '+t;
     if((shot.mime||'')==='image/gif'){
-      if(lastMode==='burst') return 'Burst · '+t;
-      if(lastMode==='boomerang') return 'Boomerang · '+t;
-      if(lastMode==='slowmo') return 'Slow-mo · '+t;
-      if(lastMode==='timelapse') return 'Time-lapse · '+t;
+      if(m==='burst') return 'Burst · '+t;
+      if(m==='boomerang') return 'Boomerang · '+t;
+      if(m==='slowmo') return 'Slow-mo · '+t;
+      if(m==='timelapse') return 'Time-lapse · '+t;
       return 'Clip · '+t;
     }
     return 'Photo · '+t;
@@ -4669,15 +4671,22 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     }catch(e){ toast(String(e&&e.message||e).slice(0,90)); }
   }
   async function openStudio(){
+    // Every capture arrives through onShot the moment it is taken and is saved
+    // RIGHT THEN — closing the studio (or a crash) can no longer lose a shot.
+    // The resolved value is just the last capture, already saved; it only
+    // paints the stage.
+    var saved=0;
     try{
-      var shot=await gifos.camera({ mode:lastMode });
-      if(shot && shot.kind) lastMode = shot.kind==='video' ? 'video' : lastMode;
-      await putShot(shot);
-      if(shot && shot.thumb){
+      var last=await gifos.camera({ mode:lastMode }, function(shot){
+        if(shot&&shot.mode) lastMode = shot.mode;
+        saved++;
+        putShot(shot);
+      });
+      if(last && last.thumb){
         var st=document.getElementById('stage');
         st.innerHTML='<img alt=""><div id="hint"></div>';
-        st.querySelector('img').src=shot.thumb;
-        document.getElementById('hint').textContent='Saved to My Media';
+        st.querySelector('img').src=last.thumb;
+        document.getElementById('hint').textContent=(saved>1?saved+' captures saved to My Media':'Saved to My Media')+' — tap My Media below to see them';
       }
     }catch(e){
       var m=String(e&&e.message||e);
@@ -4685,6 +4694,9 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     }
   }
   document.getElementById('shutter').onclick=function(){ openStudio(); };
+  document.getElementById('mmbtn').onclick=function(){
+    gifos.library.open().catch(function(e){ toast(String(e&&e.message||e).slice(0,90)); });
+  };
   document.getElementById('rollbtn').onclick=function(){
     var latest=items.slice().sort(function(a,b){ return (b.at||0)-(a.at||0); })[0];
     if(latest) showItem(latest.id);
@@ -4698,9 +4710,6 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
       document.getElementById('empty').classList.add('on');
       if(info && info.reason) document.getElementById('why').textContent=info.reason;
       return;
-    }
-    if(info.count>1 || (info.facingModes&&info.facingModes.indexOf('user')>=0&&info.facingModes.indexOf('environment')>=0)){
-      document.getElementById('flip').style.visibility='visible';
     }
     await openStudio();
   })();
