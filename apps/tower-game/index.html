@@ -18,12 +18,14 @@
   </div>
   <div id="landing" class="screen landing hide">
     <img id="titleImg" alt="Tower Building" class="title-img swing">
-    <p class="hint">Tap to drop each floor. Stack them. Three misses and it’s over.</p>
-    <p class="hint sub">Press <b>Invite</b> (GifOS menu) to race a friend. You each build your own tower. Tallest wins.</p>
+    <div class="hint-card">
+      <p class="hint">Race a friend from one link. No server.</p>
+      <p class="hint sub">Tap to drop each floor. Press <b>Invite</b> in the bar above, send the link, tallest tower wins.</p>
+      <p id="bestLine" class="best"></p>
+    </div>
     <button type="button" id="start" class="img-btn start-btn" aria-label="Start">
       <img id="startImg" alt="Start">
     </button>
-    <p id="bestLine" class="best"></p>
   </div>
   <div id="modal" class="screen modal hide">
     <div class="mask"></div>

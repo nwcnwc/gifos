@@ -5,7 +5,7 @@
   "shortName": "Tower",
   "version": "1.0",
   "minBuild": 947,
-  "description": "Tap to drop each floor. Stack them. Race a friend to the tallest tower.",
+  "description": "Race a friend from one link. Tap to drop each floor. No server.",
   "entry": "index.html",
   "accent": [249, 82, 64],
   "capabilities": {
