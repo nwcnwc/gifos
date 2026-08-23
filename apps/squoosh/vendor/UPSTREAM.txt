@@ -1,0 +1,23 @@
+Vendored from https://github.com/GoogleChromeLabs/squoosh
+Pin: e8d35e0fb66eb16eff6fe8fc773eabcbb7128de3
+Fetched: 2026-08-23
+
+These are Squoosh's compiled WASM codecs (Apache-2.0). The GifOS app
+shell is original; Google Analytics and Squoosh's Preact UI are NOT here.
+
+file                        bytes  sha256
+mozjpeg_enc.js               39891  b3ad278054fd46dcfe5173e738d417e4e8d46a85eae1846d99867f7368e2d350
+mozjpeg_enc.wasm            251948  1d60d5a5e1a5be1b6527d624963c8fc9dc21bd3a7c13f0d3e30a2c8fb6b169e1
+webp_enc.js                  38157  afa373799ca88f20de58c23fe49f81ef08d02b3c87f1b9828919474bfe7b222b
+webp_enc.wasm               298327  86ad63e3a82b3011a55779264042152bc37c99360ef9140dd8eed543b35c080a
+avif_enc.js                  43302  d8341b926b3fdc597415368b59b57bd7332ca9ea30fa0648c8a819346d990e4a
+avif_enc.wasm              2818173  99efb708ff44288a9b0b0d4864b5d6aec02b26f6574161dc31b60a8df6ba5651
+jxl_enc.js                   50570  a0c239eb2d13554b51f5c6eec7c745ef5f76ee104727468278ff26e8bfedd1ca
+jxl_enc.wasm               1345677  98113980d99e49bdf5aba4bdc82eb5dd5ce4d3e34a90ac6e9fedcb3a84984223
+qoi_enc.js                   36256  557c419f78b94e612fb2dc722d9213d4f809238b798afc22f1cea47ec75e3f48
+qoi_enc.wasm                 16577  0b95d360603f29e41d88ee844332a4e5a4aaea69cceda0d336a1c3043c9847d9
+oxipng.js                     3642  2f075dd79066b27fd433f31536e4a7aa203472df4245683ae232798dc540265c
+oxipng.wasm                 147017  897885c802d9f39ff1b29a7c30edfd3a735d72d48281f1ac504d94dc6e10bc61
+LICENSE-squoosh.txt          11358  cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30
+LICENSE-mozjpeg.md            5208  8213556ea36ce3a0f2883db06238463e2452fdad68e3d2e2e4ace2189477a37e
+LICENSE-oxipng.md             1078  fbd251bd50b001db93e2cb942e71a85a3befe6ddef659709e09d762d4e2c2a5a

@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Squoosh</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="blob" aria-hidden="true"></span>
+    <h1>Squoosh</h1>
+  </div>
+  <p class="tag">Images stay on this device. Nothing is uploaded.</p>
+</header>
+
+<main>
+  <section id="intro" class="intro">
+    <div id="drop" class="drop">
+      <input type="file" id="file" accept="image/*,.jpg,.jpeg,.png,.webp,.avif,.gif,.bmp,.svg">
+      <div class="drop-art" aria-hidden="true">▣</div>
+      <p><b>Drop an image here</b> or tap to choose</p>
+      <p class="muted">JPEG, PNG, WebP, AVIF, GIF — anything this browser can open.</p>
+    </div>
+  </section>
+
+  <section id="work" class="work" hidden>
+    <div class="stage">
+      <div id="view" class="view">
+        <canvas id="left" class="pane"></canvas>
+        <canvas id="right" class="pane"></canvas>
+        <div id="divider" class="divider" role="slider" aria-label="Comparison" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0">
+          <i></i>
+        </div>
+        <div class="labels">
+          <span id="labL">Original</span>
+          <span id="labR">Compressed</span>
+        </div>
+      </div>
+      <p id="dims" class="dims"></p>
+    </div>
+
+    <aside class="side">
+      <div class="stats">
+        <div>
+          <div class="k">Original</div>
+          <div id="origSize" class="v">—</div>
+        </div>
+        <div>
+          <div class="k">Compressed</div>
+          <div id="outSize" class="v">—</div>
+        </div>
+        <div>
+          <div class="k">Saving</div>
+          <div id="saving" class="v">—</div>
+        </div>
+      </div>
+
+      <label class="row">Format
+        <select id="format"></select>
+      </label>
+      <p id="fmtNote" class="muted note"></p>
+
+      <label class="row" id="qualityRow">Quality
+        <input type="range" id="quality" min="0" max="100" value="75">
+        <span id="qualityVal" class="num">75</span>
+      </label>
+
+      <label class="chk"><input type="checkbox" id="lossless"> Lossless</label>
+
+      <details class="adv">
+        <summary>More options</summary>
+        <div id="advBody"></div>
+      </details>
+
+      <label class="chk"><input type="checkbox" id="resizeOn"> Resize</label>
+      <div id="resizeRow" class="resize" hidden>
+        <label>W <input type="number" id="rw" min="1" max="8192"></label>
+        <label>H <input type="number" id="rh" min="1" max="8192"></label>
+        <label class="chk tight"><input type="checkbox" id="lock" checked> Keep proportions</label>
+      </div>
+
+      <p id="status" class="status"></p>
+      <div class="actions">
+        <button id="download" class="primary" disabled>Download</button>
+        <button id="another" class="ghost">Another image</button>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<footer>
+  <p class="fine">Unofficial port of Squoosh by GoogleChromeLabs, Apache-2.0. The picture never leaves this browser. No Google Analytics.</p>
+</footer>
+
+<!-- Glue is rewritten by build.mjs from Squoosh's Emscripten/wasm-pack output
+     into classic scripts that expose window.SQUOOSH_*. WASM bytes arrive via
+     gifos.assets() from .assets/ packed in the GIF — never fetched. -->
+<script src="mozjpeg.js"></script>
+<script src="webp.js"></script>
+<script src="avif.js"></script>
+<script src="jxl.js"></script>
+<script src="qoi.js"></script>
+<script src="oxipng.js"></script>
+<script src="codecs.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
