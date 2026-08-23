@@ -1,0 +1,34 @@
+{
+  "tagline": "Notes fall down the neck. Play them on your guitar, or tap the fret.",
+  "description": "Pick a string and a song. Notes drop toward the nut. When one arrives, play that note on a real guitar — press Listen and this device hears it — or just tap the fret on the screen. The right note scores. The wrong one costs a heart.\n\nSurvival starts you with five hearts. A miss takes one; a hit can give one back. Practice keeps going until you stop. Slow the beat if you are learning, speed it up when you are ready.\n\nPress Invite in the GifOS menu and a friend gets the same song, the same string, the same speed. You both play at once. Highest score wins. There is no game server, no account, and nothing you play leaves this device.\n\nAn unofficial port of Guitar Bro by Anatoli Makarevich. The songs, the strings and the falling notes are his. This copy adds a tap on the fret, a listen button for a real guitar, and a race with a friend.",
+  "author": {
+    "name": "makaroni4",
+    "url": "https://github.com/makaroni4/guitar_bro"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Guitar Bro",
+    "url": "https://github.com/makaroni4/guitar_bro",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Learning",
+    "Games"
+  ],
+  "tags": [
+    "guitar",
+    "fretboard",
+    "notes",
+    "trainer",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/guitar-bro",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

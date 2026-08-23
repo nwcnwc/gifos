@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "guitar-bro",
+  "name": "Guitar Bro",
+  "shortName": "Guitar",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Notes fall down the neck. Play them on your guitar, or tap the fret. Race a friend on the same song.",
+  "entry": "index.html",
+  "accent": [124, 105, 244],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "microphone": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "players": { "visibility": "read-write" }
+  }
+}
