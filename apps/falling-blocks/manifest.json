@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "falling-blocks",
+  "name": "Falling Blocks",
+  "shortName": "Blocks",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Stack falling shapes, clear lines. Play alone, or race a friend from the same pieces.",
+  "entry": "index.html",
+  "accent": [0, 196, 204],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

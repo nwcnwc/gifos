@@ -1,0 +1,14 @@
+vendor/tetris.js, vendor/controller.js and vendor/render.js are the original
+classic scripts from dionyziz/canvas-tetris. Do not edit them; run
+node apps/falling-blocks/vendor.mjs to rebuild from the pin.
+
+  https://github.com/dionyziz/canvas-tetris.git
+  commit  4e497d1c858914f0a1f0818698029d1c7dad090b
+
+MIT, Dionysis "dionyziz" Zindros, 2012. The notice travels beside the
+scripts as COPYING-canvas-tetris.txt and is packed into the GIF too, so a
+copy of this app that someone was handed still carries the notice it is
+required to carry.
+
+The original pop.ogg is not shipped — line-clear is silent. The original
+index title branded the well-known game; this port does not.
