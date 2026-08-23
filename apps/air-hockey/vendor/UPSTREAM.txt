@@ -1,0 +1,15 @@
+vendor/* is UNMODIFIED AirHockeyWebGL (MortimerGoro / Imanol Fernandez), MIT.
+
+upstream: https://github.com/MortimerGoro/AirHockeyWebGL
+commit:   9ad9bf421c2787a0b4a4cca2e7c12772f099ff68
+
+three.min.js is three.js r66 (MIT). box2d.js is box2dweb (zlib, Erin Catto).
+OBJMTLLoader.js is the r66-era Three.js example loader (MTLLoader + OBJMTLLoader).
+Audio samples were bundled upstream and credited to
+https://www.freesound.org/people/krb21/sounds/118604/
+
+Not vendored (unused by index.html, or debug-only):
+  models/hockey.obj (1.5 MB unused composite), dat.gui.min.js, src/main.js
+  (boot.js is our entry).
+
+Run node apps/air-hockey/vendor.mjs to rebuild this directory from the pin.
