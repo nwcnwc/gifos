@@ -1,0 +1,58 @@
+{
+  "catalog": "1.0",
+  "slug": "hat-sh",
+  "appId": "hat-sh",
+  "name": "hat.sh",
+  "shortName": "hat.sh",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Encrypt and decrypt files in this tab. Nothing leaves this device.",
+  "description": "Drop a file, pick a password (or a key pair), and get an encrypted copy back — or drop a .enc and get the original back. The file never goes anywhere. There is no account, no upload, and no network path out of this tab.\n\nAn unofficial port of hat.sh by sh-dv. Same v2 format: XChaCha20-Poly1305 in 64 MB chunks, Argon2id to turn a password into a key, X25519 if you would rather exchange keys than share a password. A file this app encrypts opens in hat.sh, and a file hat.sh encrypted opens here.\n\nThe sandbox has no service worker, so the encrypted file is assembled in memory — the same path hat.sh already uses in Safari. A few-hundred-megabyte file is fine; a multi-gigabyte one may not fit. hat.sh v1 files (the old “Encrypted Using Hat.sh” header) are refused rather than guessed at. Passwords must be at least 12 characters.\n\nlibsodium runs from bytes packed inside this GIF. Nothing is fetched, and nothing you drop in is sent anywhere.",
+  "author": {
+    "name": "sh-dv",
+    "url": "https://github.com/sh-dv/hat.sh"
+  },
+  "releaseDate": "2026-08-22",
+  "updated": "2026-08-22",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "encryption",
+    "decryption",
+    "privacy",
+    "offline",
+    "password",
+    "xchacha20",
+    "argon2",
+    "libsodium"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hat-sh",
+  "accent": [
+    107,
+    140,
+    255
+  ],
+  "capabilities": {
+    "wasm": true
+  },
+  "cover": "/apps/hat-sh/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/hat-sh/hat-sh.gif",
+  "bytes": 660046,
+  "download": 0,
+  "provides": null,
+  "sha256": "aa59be9879c99f3ef3f8bf053817d51cdf85474ab4caf56494fa25663d6916d8",
+  "signature": null,
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "hat.sh",
+    "url": "https://github.com/sh-dv/hat.sh",
+    "blessed": false,
+    "donate": "https://ko-fi.com/shdvapps"
+  }
+}
