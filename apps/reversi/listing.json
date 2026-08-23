@@ -1,0 +1,32 @@
+{
+  "tagline": "Flip the disks. Get more of your colour. Play the computer, or a friend on the other side.",
+  "description": "An eight-by-eight green board. Black and white take turns putting a disk down. Any of the other colour trapped in a straight line between two of yours flip to you. Black goes first. When neither of you can place, the one with more disks wins.\n\nOn your own you play a computer that thinks on this device. There is no game server. Pass the phone for two people in the same room, or press Play a friend and send the invite: the same board, live, on two devices. Black sits one side, white the other. Tap a square to place.\n\nAn unofficial port of Reversi by Alexander Berson. The computer is the same one that shipped with that game.",
+  "author": {
+    "name": "alex-berson",
+    "url": "https://github.com/alex-berson/reversi"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Reversi",
+    "url": "https://github.com/alex-berson/reversi",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "reversi",
+    "othello",
+    "board",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/reversi",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
