@@ -1,0 +1,14 @@
+Regexper (regexper-static) by Jeffrey Avallone (javallone)
+https://github.com/javallone/regexper-static
+Pinned commit: 126d29588d30b2beac6ce684c575b0c5dda1b006 (master, 2018-06-06)
+License: MIT (see COPYING-regexper.txt)
+
+Bundled with the IIFE (not shipped as separate files):
+  lodash 4.17.21 — MIT (COPYING-lodash.txt)
+  Snap.svg via snapsvg-cjs 0.0.6 — Apache-2.0 (COPYING-snapsvg.txt)
+  eve (Snap.svg's event bus) — Apache-2.0 (COPYING-eve.txt)
+  canopy 0.2.0 (PEG compiler, grammar compiled in) — MIT (COPYING-canopy.txt)
+
+Open Iconic SVG sprite in index.html — MIT (COPYING-open-iconic.txt)
+
+No Google font, no analytics, no Sentry, no CDN.

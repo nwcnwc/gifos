@@ -1,0 +1,167 @@
+/* Regexper chrome. Colours and layout follow javallone's site; the Bangers
+   webfont is not loaded (no CDN). SVG railroad colours live in the template. */
+
+html, body, div, span, h1, p, a, ul, li, form, header, footer, main, button, textarea {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  vertical-align: baseline;
+}
+html, body { height: 100%; }
+body {
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  background: #6b6659;
+  color: #000;
+  margin-bottom: 1.5em;
+}
+a { color: #000; }
+ul { list-style: none; }
+
+.inline-icon svg {
+  margin-right: 0.375em;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  background: transparent;
+}
+
+h1 {
+  font-size: 3em;
+  line-height: 1em;
+}
+
+ul.inline-list { font-size: 0.875em; line-height: 1.15em; }
+ul.inline-list::after { clear: both; content: ""; display: table; }
+ul.inline-list li {
+  list-style-type: none;
+  display: inline-block;
+  white-space: nowrap;
+}
+ul.inline-list li::after { content: '//'; padding: 0 0.375em; }
+ul.inline-list li:last-child::after { content: ''; }
+
+.svg-container { min-width: 200px; }
+.svg-container.loading .svg { position: absolute; top: -10000px; }
+
+header {
+  background: #bada55;
+  background: linear-gradient(to bottom, #bada55 0%, #8ca440 100%);
+  padding: 1.5em;
+  box-shadow: 0 0 10px #000;
+}
+header::after { clear: both; content: ""; display: table; }
+header .logo { display: inline-block; }
+header .logo span { color: #6b6659; }
+header h1 {
+  font-family: Impact, Haettenschweiler, "Arial Black", system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  font-weight: 400;
+}
+
+#content { padding: 1.5em; display: block; }
+
+#content .application { position: relative; }
+#content .application::after { clear: both; content: ""; display: table; }
+#content .application form { overflow: hidden; }
+#content .application textarea {
+  font-size: 1em;
+  line-height: 1.5em;
+  border: 0 none;
+  outline: none;
+  background: #cbcbba;
+  padding: 0.4em 0.5em;
+  margin-bottom: 0.25em;
+  width: 100% !important;
+  min-height: 4.5em;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+#content .application textarea::placeholder { color: #6b6659; }
+#content .application button {
+  font-size: 1em;
+  line-height: 1.5em;
+  width: 100px;
+  height: 2.2em;
+  border: 0 none;
+  background: #bada55;
+  background: linear-gradient(to bottom, #bada55 0%, #8ca440 100%);
+  float: left;
+  cursor: pointer;
+  font-weight: 700;
+}
+#content .application ul { float: right; display: none; }
+body.has-results #content .application ul { display: inline-block; }
+#content .application ul.hide-permalink .permalink,
+#content .application ul.hide-download-svg .download-svg,
+#content .application ul.hide-download-png .download-png { display: none; }
+
+#content .results { margin-top: 1.5em; display: none; }
+body.has-results #content .results,
+body.has-error #content .results,
+body.is-loading #content .results { display: block; }
+
+.progress {
+  width: 50%;
+  height: 0.75em;
+  border: 1px solid #8ca440;
+  overflow: hidden;
+  margin: 1.5em auto;
+}
+.progress div {
+  background: #bada55;
+  background: linear-gradient(135deg, #bada55 25%, #cbe380 25%, #cbe380 50%, #bada55 50%, #bada55 75%, #cbe380 75%, #cbe380 100%);
+  background-size: 3em 3em;
+  background-repeat: repeat-x;
+  height: 100%;
+  animation: progress 1s infinite linear;
+}
+@keyframes progress {
+  0% { background-position-x: 3em; }
+  100% { background-position-x: 0; }
+}
+
+#error {
+  background: #b3151a;
+  color: #fff;
+  padding: 0 0.5em;
+  white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: bold;
+  display: none;
+  overflow-x: auto;
+}
+body.has-error #error { display: block; }
+
+#warnings {
+  font-size: 1em;
+  line-height: 1.5em;
+  font-weight: bold;
+  background-color: #f8ca00;
+  display: none;
+}
+#warnings li { margin: 0.375em; }
+body.has-results #warnings { display: block; }
+
+#regexp-render {
+  background: #fff;
+  width: 100%;
+  overflow: auto;
+  text-align: center;
+  display: none;
+}
+body.is-loading #regexp-render,
+body.has-results #regexp-render { display: block; }
+
+#open-iconic { display: none; }
+#open-iconic path { stroke: none; fill-opacity: 1; }
+
+footer {
+  padding: 0 1.5em 1.5em;
+  color: #cbcbba;
+}
+footer a { color: #cbcbba; }
+footer b { color: #fff; font-weight: 700; }

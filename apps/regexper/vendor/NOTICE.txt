@@ -1,0 +1,10 @@
+Regexper for GifOS bundles several MIT / Apache-2.0 works:
+
+  Regexper          MIT         Jeffrey Avallone
+  lodash            MIT         OpenJS Foundation
+  Snap.svg          Apache-2.0  Adobe Systems
+  eve               Apache-2.0  Dmitry Baranovskiy
+  canopy            MIT         James Coglan
+  Open Iconic       MIT         P.J. Onori / Iconic
+
+The full notices live next to this file and ride inside the App GIF.
