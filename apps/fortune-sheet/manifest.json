@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "fortune-sheet",
+  "name": "Fortune Sheet",
+  "shortName": "Sheets",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [1, 136, 251],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "workbook": {
+      "visibility": "private"
+    }
+  }
+}
