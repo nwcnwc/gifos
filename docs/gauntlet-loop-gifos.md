@@ -59,6 +59,21 @@ user's own keys; a launch block lets a shared URL open it onto something; in a
 GifOS meeting it gains shared voice and video around it. Any of those that
 would genuinely make THIS app better and is missing or half-done is a gap.
 
+Two pieces are ALWAYS in the gauntlet, because they are the app's face and get
+judged before anyone plays: the ICON and the STORE ART. The icon is the App
+GIF's visible animated frames (apps/<slug>/icon.mjs) — put it on a real Home
+Screen at real icon size next to the seeded apps and judge it there: it must
+read at a glance, say what the app is, and its ANIMATION must earn its loop
+(an icon that merely wiggles loses to one that demonstrates). The store art is
+apps/<slug>/screenshot.png, which becomes cover.jpg on the card and the
+listing hero. It must catch the app at its best moment — mid-use, full of real
+content, something happening — never an empty first boot or a wall of default
+UI; crop the shell toolbar out (listing coverCrop); then its critic judges it
+blind at BOTH sizes (grid card and listing hero) beside the comp's own store
+or marketing art, and beside the best covers already in this catalog. If the
+current screenshot is poor — many are — retaking it after the app improves is
+part of the work, not an afterthought.
+
 Split the work into the smallest pieces that can be improved and judged
 independently, and fan out sub-agents: each piece gets a builder and a
 SEPARATE harsh critic with fresh context. The critic never reads the builder's
@@ -112,6 +127,11 @@ pixels. For a provider app, the bar is the paid cloud service it replaces
   point (CLAUDE.md).
 - The critic's browser work has everything it needs in `test/lib/pw.js`
   (Playwright + Chromium resolution) and the recipes in `test/README.md`.
+- A retaken `screenshot.png` becomes the published `cover.jpg` by running
+  `node scripts/build-app-catalog.mjs` (it re-renders when the source is
+  newer); `coverCrop` in `listing.json` cuts the shell toolbar out of the
+  frame. The icon animation is rebuilt by the app's own `build.mjs` /
+  `icon.mjs` into the GIF's visible frames.
 - Stop the run when you love what you see; the loop has no natural end.
 
 Credit: the loop, the harsh critic, the blind comparison and the refusal to
