@@ -26,7 +26,8 @@
 
   const MIME = {
     html: 'text/html', htm: 'text/html', js: 'text/javascript', mjs: 'text/javascript',
-    css: 'text/css', json: 'application/json', txt: 'text/plain', svg: 'image/svg+xml',
+    css: 'text/css', json: 'application/json', txt: 'text/plain', md: 'text/markdown',
+    markdown: 'text/markdown', svg: 'image/svg+xml',
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
     webp: 'image/webp', ico: 'image/x-icon', wav: 'audio/wav', mp3: 'audio/mpeg',
   };
@@ -2822,7 +2823,7 @@
   // business arming my copy. declaredLaunch() filters it against the manifest.
   function boot(mountEl, fileId, statusEl, launch) {
     const setStatus = (m) => { if (statusEl) statusEl.textContent = m; };
-    const noop = { save: () => Promise.resolve(null), becomeHost: () => Promise.reject(new Error('nothing running')) };
+    const noop = { save: () => Promise.resolve(null), becomeHost: () => Promise.reject(new Error('nothing running')), help: () => '' };
     const lock = GifOS.lock;
     return Promise.all([store.getFile(fileId), store.allItems()]).then(([rec, all]) => {
       if (!rec) { setStatus('File not found on this desktop.'); return noop; }
@@ -3223,7 +3224,13 @@
         if (root.__gifosOnApp) root.__gifosOnApp(appBytes, manifest);
         announceConn({ mode: 'local' });
         setStatus('Running · state saved to this icon');
-        return { save: () => downloadSnapshot(appBytes, files, manifest, db), steal: (opts) => stealApp(appBytes, files, manifest, db, stealCtx, opts), becomeHost, sessionInfo, endSession };
+        return {
+          save: () => downloadSnapshot(appBytes, files, manifest, db),
+          steal: (opts) => stealApp(appBytes, files, manifest, db, stealCtx, opts),
+          becomeHost, sessionInfo, endSession,
+          // OS Help: markdown from help.md (or manifest.help) inside the GIF.
+          help: () => (GifOS.help && GifOS.help.read) ? GifOS.help.read(files, manifest) : '',
+        };
       });
     }
   }
@@ -3494,6 +3501,8 @@
         // renders these as the thumbnail — seeing it IS seeing that a Steal
         // would succeed, since it copies exactly these bytes.
         gifBytes: () => appBytes,
+        // OS Help: same help.md the host packed. Empty until the bytes land.
+        help: () => (GifOS.help && GifOS.help.read) ? GifOS.help.read(filesRef, manifestRef) : '',
       };
     });
   }

@@ -1,0 +1,80 @@
+// OS Help: the app bar button, the markdown dialect, and the GIF file it reads.
+//
+// Help is OS chrome (run.html #apphelp), not an in-app How-to-play. The
+// markdown comes from help.md inside the GIF. This suite pins the contract
+// so a refactor cannot drop the button, execute HTML from a GIF, or follow
+// a javascript: link.
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '..', '..');
+require(path.join(ROOT, 'site', 'js', 'gifos-help.js'));
+const help = globalThis.GifOS.help;
+
+let failures = 0;
+const check = (n, c, d) => {
+  console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (d !== undefined ? '  (' + JSON.stringify(d) + ')' : ''));
+  if (!c) failures++;
+};
+
+const run = fs.readFileSync(path.join(ROOT, 'site', 'run.html'), 'utf8');
+const runtime = fs.readFileSync(path.join(ROOT, 'site', 'js', 'runtime.js'), 'utf8');
+
+check('run.html loads gifos-help.js before runtime.js',
+  /js\/gifos-help\.js[\s\S]*js\/runtime\.js/.test(run));
+check('app bar has Help immediately after Save',
+  /id="appsave"[\s\S]{0,280}id="apphelp"/.test(run));
+check('app Help modal exists',
+  /id="apphelp-modal"/.test(run) && /id="apphelp-body"/.test(run) && /id="apphelp-close"/.test(run));
+check('runtime ctl exposes help()',
+  /\bhelp:\s*\(\)\s*=>/.test(runtime));
+check('GifOS.help attaches read/render/parse',
+  typeof help.read === 'function' && typeof help.render === 'function' && typeof help.parse === 'function');
+
+const html = help.render([
+  '# Title',
+  '',
+  'A **bold** and *italic* word, plus `code`.',
+  '',
+  '## Section',
+  '- one',
+  '- two',
+  '',
+  '1. first',
+  '2. second',
+  '',
+  '[safe](https://gifos.app/store/isocity)',
+  '[unsafe](javascript:alert(1))',
+  '',
+  '<script>alert(1)</script>',
+  '',
+  '```',
+  '<img src=x onerror=alert(1)>',
+  '```',
+].join('\n'));
+
+check('headings render', /<h3>Title<\/h3>/.test(html) && /<h4>Section<\/h4>/.test(html));
+check('bold/italic/code render', /<b>bold<\/b>/.test(html) && /<i>italic<\/i>/.test(html) && /<code>code<\/code>/.test(html));
+check('lists render', /<ul>/.test(html) && /<ol>/.test(html) && /<li>one<\/li>/.test(html));
+check('https links render', /href="https:\/\/gifos\.app\/store\/isocity"/.test(html));
+check('javascript: links are NOT hrefs', !/href="javascript:/i.test(html));
+check('raw HTML is escaped, never executed',
+  html.indexOf('<script>') === -1 && /&lt;script&gt;/.test(html));
+check('fenced blocks escape HTML',
+  /<pre><code>/.test(html) && html.indexOf('<img') === -1 && /&lt;img/.test(html));
+
+const parsed = help.parse('# 2048\n\nSlide tiles.\n');
+check('parse strips the leading h1 into title',
+  parsed.title === '2048' && parsed.html.indexOf('2048') === -1 && /Slide tiles/.test(parsed.html));
+
+const files = {
+  'help.md': new TextEncoder().encode('# Hi\n\nBody.\n'),
+  'other.md': new TextEncoder().encode('nope'),
+};
+check('read() defaults to help.md', /^\s*# Hi/.test(help.read(files, {})));
+check('read() honours manifest.help', help.read(files, { help: 'other.md' }).trim() === 'nope');
+check('read() refuses path traversal', help.read(files, { help: '../help.md' }) === '');
+check('read() is empty when the file is missing', help.read({}, {}) === '');
+
+console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
+process.exit(failures ? 1 : 0);
