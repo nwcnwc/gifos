@@ -1,0 +1,17 @@
+Unofficial port of https://github.com/mihailgaberov/bingo (MIT).
+
+Upstream is Bingo Bigul: a login, a Mongo-backed game server, a React
+back office, a paper.js blower, a card marketplace, and a browser that
+is a client of that stack. None of that ships here. The GifOS invite is
+the room. The Node process, the database, the accounts and the coins
+stay behind.
+
+What was kept: American 75-ball cards (B 1–15, I 16–30, N 31–45 with a
+free centre, G 46–60, O 61–75), daubing numbers that have been called,
+and the four winning patterns (a line, a column, a diagonal, the four
+corners).
+
+What was rewritten: the UI as classic scripts (GifOS drops type=module),
+and the wire. The host calls numbers on their row. Each device derives
+its own card from the round seed and keeps the daubs private. A bingo
+claim is checked against the card and the calls.
