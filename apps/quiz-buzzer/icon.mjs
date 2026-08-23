@@ -1,6 +1,8 @@
 // Procedural icon: a dark card, four coloured pads, a buzzer lighting,
 // a score ticking. Pure Node, super-sample → box-downsample. Deterministic.
 import { deflateSync } from 'node:zlib';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
 
@@ -60,48 +62,45 @@ function inRoundRect(x, y, x0, y0, x1, y1, r) {
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / (FRAMES - 1);
-  const press = Math.max(0, Math.min(1, (t - 0.12) / 0.38));
-  const glow = Math.sin(Math.min(1, Math.max(0, t - 0.2)) * Math.PI);
-  const score = Math.min(3, Math.max(0, Math.floor((t - 0.42) * 6.2)));
+  // Red pad lights, sinks, then a white ring — a buzzer, not a wiggle.
+  const press = Math.max(0, Math.min(1, (t - 0.08) / 0.32));
+  const glow = Math.sin(Math.min(1, Math.max(0, (t - 0.14) / 0.5)) * Math.PI);
+  const score = Math.min(3, Math.max(0, Math.floor((t - 0.38) * 7)));
+  const sink = press * 4;
   const pads = [
-    { x0: 16, y0: 36, x1: 60, y1: 78, hi: RED_H, lo: RED },
-    { x0: 68, y0: 36, x1: 112, y1: 78, hi: BLUE_H, lo: BLUE },
-    { x0: 16, y0: 82, x1: 60, y1: 114, hi: GOLD_H, lo: GOLD },
-    { x0: 68, y0: 82, x1: 112, y1: 114, hi: GREEN_H, lo: GREEN },
+    { x0: 12, y0: 36 + sink, x1: 61, y1: 78 + sink, hi: RED_H, lo: RED, buzz: true },
+    { x0: 67, y0: 36, x1: 116, y1: 78, hi: BLUE_H, lo: BLUE, buzz: false },
+    { x0: 12, y0: 82, x1: 61, y1: 118, hi: GOLD_H, lo: GOLD, buzz: false },
+    { x0: 67, y0: 82, x1: 116, y1: 118, hi: GREEN_H, lo: GREEN, buzz: false },
   ];
-  const bx = 64, by = 64;
-  const bR = 18 - press * 2.2;
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
-    if (inCard(x, y, 7, 20)) {
+    if (inCard(x, y, 5, 24)) {
       a = 1;
       col = mix(CARD, CARD_D, Math.max(0, Math.min(1, (x + y) / (OUT * 2))));
       for (let i = 0; i < 4; i++) {
         const p = pads[i];
-        if (inRoundRect(x, y, p.x0, p.y0, p.x1, p.y1, 8)) {
-          const lit = i === 0 ? 0.25 + press * 0.75 : 0.15;
-          col = mix(p.lo, p.hi, lit * ((x - p.x0) / (p.x1 - p.x0)));
+        if (inRoundRect(x, y, p.x0, p.y0, p.x1, p.y1, 11)) {
+          const u = (x - p.x0) / (p.x1 - p.x0);
+          const lit = p.buzz ? 0.18 + press * 0.95 : 0.16;
+          col = mix(p.lo, p.hi, lit * (0.4 + u * 0.6));
+          if (p.buzz && glow > 0.04) {
+            const inset = 5.5 - glow * 1.4;
+            const onRing = !inRoundRect(x, y, p.x0 + inset, p.y0 + inset, p.x1 - inset, p.y1 - inset, 8);
+            if (onRing) col = mix(col, [255, 255, 255], Math.min(1, glow * 1.15));
+            else col = mix(col, [255, 220, 220], glow * 0.35);
+          }
         }
       }
-      const d = Math.hypot(x - bx, y - by);
-      const halo = 22 + glow * 10;
-      if (d < halo && d > bR) {
-        const k = 1 - (d - bR) / (halo - bR);
-        col = mix(col, mix(BUZZ_H, BUZZ, 1 - glow), k * glow * 0.85);
-      }
-      if (d <= bR) {
-        const u = (x - (bx - bR)) / (bR * 2);
-        col = mix(BUZZ_H, BUZZ, Math.max(0, Math.min(1, u * 0.7 + (1 - press) * 0.2)));
-        const hl = Math.hypot(x - (bx - 5), y - (by - 6));
-        if (hl < 6) col = mix(col, [255, 230, 230], 0.45);
-      }
-      // score pips top-right
+      // score pips tick — large enough to read at 64px
       for (let s = 0; s < 3; s++) {
-        const sx = 86 + s * 10, sy = 20;
+        const sx = 28 + s * 24, sy = 20;
         const dd = Math.hypot(x - sx, y - sy);
-        if (dd <= 4.2) {
-          col = s < score ? mix(GOLD_H, GOLD, (x - sx + 4) / 8) : mix(MUTED, CARD, 0.4);
+        if (dd <= 7.2) {
+          col = s < score ? mix(GOLD_H, GOLD, (x - sx + 7) / 14) : mix(MUTED, CARD, 0.35);
+        } else if (dd <= 8.6 && s < score) {
+          col = mix(col, GOLD_H, 0.7);
         }
       }
     }
@@ -290,4 +289,47 @@ export function screenshotPng() {
     pngChunk('IDAT', deflateSync(raw, { level: 9 })),
     pngChunk('IEND', Buffer.alloc(0)),
   ]);
+}
+
+function pngFromRgba(W, H, rgba) {
+  const raw = Buffer.alloc((W * 4 + 1) * H);
+  for (let y = 0; y < H; y++) {
+    raw[y * (W * 4 + 1)] = 0;
+    Buffer.from(rgba).copy(raw, y * (W * 4 + 1) + 1, y * W * 4, (y + 1) * W * 4);
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4);
+  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', deflateSync(raw, { level: 9 })),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+export function dumpIconPngs(dir) {
+  const ic = quizBuzzerIcon();
+  const pal = [];
+  for (let i = 0; i < ic.numColors; i++) {
+    pal.push([ic.palette[i * 3], ic.palette[i * 3 + 1], ic.palette[i * 3 + 2]]);
+  }
+  for (let f = 0; f < ic.frames.length; f++) {
+    const idx = ic.frames[f];
+    const rgba = Buffer.alloc(OUT * OUT * 4);
+    for (let i = 0; i < OUT * OUT; i++) {
+      const p = pal[idx[i]] || [0, 0, 0];
+      const a = idx[i] === ic.transparentIndex ? 0 : 255;
+      rgba[i * 4] = p[0]; rgba[i * 4 + 1] = p[1]; rgba[i * 4 + 2] = p[2]; rgba[i * 4 + 3] = a;
+    }
+    writeFileSync(join(dir, 'icon-f' + f + '.png'), pngFromRgba(OUT, OUT, rgba));
+    // 64px neighbour-size critic
+    const s = 64, small = Buffer.alloc(s * s * 4);
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+      const sx = (x * OUT / s) | 0, sy = (y * OUT / s) | 0;
+      const o = (sy * OUT + sx) * 4, d = (y * s + x) * 4;
+      small[d] = rgba[o]; small[d + 1] = rgba[o + 1]; small[d + 2] = rgba[o + 2]; small[d + 3] = rgba[o + 3];
+    }
+    writeFileSync(join(dir, 'icon64-f' + f + '.png'), pngFromRgba(s, s, small));
+  }
 }

@@ -7,7 +7,7 @@
 // Run:  node apps/quiz-buzzer/build.mjs
 import { quizBuzzerIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
@@ -123,6 +123,12 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'gifos.fetch', 
 if (!html.includes('Start the pack') || !html.includes('Reveal') || !html.includes('Next') || !html.includes('Type a question')) {
   throw new Error('host controls (pack / custom / Reveal / Next) missing from index.html');
 }
+if (!html.includes('Keep in this file') || !html.includes('Questions this round')) {
+  throw new Error('round length + save-in-file missing from index.html');
+}
+if (!files['app.js'].includes('coverShot') || !files['app.js'].includes('pointerdown')) {
+  throw new Error('coverShot + pointerdown buzz missing');
+}
 if (!files['app.js'].includes('Invite') || files['app.js'].includes('id="invite"')) {
   throw new Error('Invite is OS chrome — tell the player to press it, do not draw a share button');
 }
@@ -204,10 +210,18 @@ if (/https?:\/\//.test(html) || html.includes('cdn.')) {
   if (ctx.result !== 40) throw new Error('pack self-test returned ' + ctx.result);
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-if (shot.length < 1000) throw new Error('screenshot png looks empty');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+// Playwright capture (tools/shoot.js) is the store master. Do not clobber it
+// with the procedural fallback — that shot is mid-round with live scores.
+if (!existsSync(shotPath) || process.env.QUIZ_SHOT === 'gen') {
+  const shot = screenshotPng();
+  if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
+  if (shot.length < 1000) throw new Error('screenshot png looks empty');
+  writeFileSync(shotPath, shot);
+  console.log('wrote apps/quiz-buzzer/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB (fallback)');
+} else {
+  console.log('keeping apps/quiz-buzzer/screenshot.png (Playwright master)');
+}
 
 const bytes = await gif.encode(files, { preview: quizBuzzerIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'quiz-buzzer', 'quiz-buzzer.gif');
@@ -215,5 +229,4 @@ mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
 console.log('wrote site/apps/quiz-buzzer/quiz-buzzer.gif —', (bytes.length / 1024).toFixed(0), 'KB, from',
             Object.keys(files).length, 'files (original pack, no network)');
-console.log('wrote apps/quiz-buzzer/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB');
 console.log('catalog is owned elsewhere — do not run build-app-catalog.mjs from this tree');
