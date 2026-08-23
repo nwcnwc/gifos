@@ -1,0 +1,12 @@
+vendor/*.js and vendor/m/* are Underrun as shipped. Do not edit them; run
+node apps/underrun/vendor.mjs.
+
+upstream: https://github.com/phoboslab/underrun
+commit:   f933e29152d7fc1ca61d4b3eaa8b29551d7d7a62
+license:  MIT (COPYING-underrun.txt)
+sonant-x: zlib (COPYING-sonantx.txt) — a reduced copy, already in upstream
+music:    Andreas Lösch, no-fate.net (shipped as part of the MIT tree)
+
+The GifOS layer (boot, twin-stick, extra soldiers) is ordinary source
+beside this directory. The notices travel INSIDE the GIF as well as
+beside them here.
