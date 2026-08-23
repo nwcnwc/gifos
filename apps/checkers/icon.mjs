@@ -1,21 +1,23 @@
-// Procedural icon: a wood checkers board, a black man jumping a white one.
-// Pure Node, super-sample → box-downsample. Deterministic.
+// Procedural icon: a wood checkers board, a black man jumping a white one,
+// a king already on the far side. Pure Node, super-sample → box-downsample.
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
 
 const CARD = [22, 16, 12];
 const FRAME = [58, 36, 20];
 const LIGHT = [232, 213, 176];
 const DARK = [90, 56, 32];
-const BLACK_H = [70, 70, 70];
+const DARK2 = [106, 70, 40];
+const BLACK_H = [90, 90, 90];
 const BLACK = [17, 17, 17];
-const WHITE_H = [250, 250, 244];
-const WHITE = [208, 208, 208];
-const RING = [90, 90, 90];
+const WHITE_H = [255, 255, 250];
+const WHITE = [196, 196, 196];
+const GOLD = [232, 180, 64];
+const GOLD2 = [255, 224, 138];
 
 function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD, FRAME, LIGHT, DARK, BLACK_H, BLACK, WHITE_H, WHITE, RING]) {
+  for (const b of [CARD, FRAME, LIGHT, DARK, DARK2, BLACK_H, BLACK, WHITE_H, WHITE, GOLD, GOLD2]) {
     for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.35).map(Math.round));
   }
@@ -44,27 +46,38 @@ function disc(col, x, y, cx, cy, rad, hi, lo) {
   const u = (x - (cx - 2)) / (rad * 2);
   return mix(hi, lo, Math.max(0, Math.min(1, u)));
 }
+function ring(col, x, y, cx, cy, rad, w, color) {
+  const d = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+  if (d > rad || d < rad - w) return col;
+  return color.slice();
+}
+function kingDisc(col, x, y, cx, cy, rad, hi, lo) {
+  col = disc(col, x, y, cx, cy, rad, hi, lo);
+  col = ring(col, x, y, cx, cy, rad * 0.58, rad * 0.12, GOLD);
+  return col;
+}
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 18;
-  const N = 6;
-  const bx = 16, by = 16, bw = OUT - 32, bh = OUT - 32;
+  const N = 4;
+  const bx = 14, by = 14, bw = OUT - 28, bh = OUT - 28;
   const cell = bw / N;
-  const pieceR = cell * 0.36;
+  const pieceR = cell * 0.40;
   const t = f / (FRAMES - 1);
-  // A black man on (2,1) jumps a white on (3,2) landing on (4,3).
-  const from = [2, 1], over = [3, 2], to = [4, 3];
+  // Black on (0,1) jumps white on (1,2), lands on (2,3). A white king sits (3,0).
+  const from = [0, 1], over = [1, 2], to = [2, 3];
   const fromX = bx + (from[1] + 0.5) * cell, fromY = by + (from[0] + 0.5) * cell;
   const toX = bx + (to[1] + 0.5) * cell, toY = by + (to[0] + 0.5) * cell;
   const overX = bx + (over[1] + 0.5) * cell, overY = by + (over[0] + 0.5) * cell;
-  const jumpT = Math.min(1, t * 1.15);
+  const jumpT = Math.min(1, t * 1.12);
   const jx = fromX + (toX - fromX) * jumpT;
-  const jy = fromY + (toY - fromY) * jumpT - Math.sin(jumpT * Math.PI) * cell * 0.55;
-  const captured = jumpT > 0.55;
+  const jy = fromY + (toY - fromY) * jumpT - Math.sin(jumpT * Math.PI) * cell * 0.62;
+  const captured = jumpT > 0.52;
   const settled = [
-    [1, 0, true], [1, 2, true], [1, 4, true],
-    [4, 1, false], [4, 5, false], [5, 0, false], [5, 2, false], [5, 4, false],
+    [3, 0, false, true],  // white king
+    [3, 2, false, false],
+    [0, 3, true, false],
   ];
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
@@ -78,13 +91,20 @@ function frameIndices(pal, f) {
         const c = Math.min(N - 1, Math.max(0, Math.floor((x - bx) / cell)));
         const r = Math.min(N - 1, Math.max(0, Math.floor((y - by) / cell)));
         const gx = bx + c * cell, gy = by + r * cell;
-        const inset = 0.6;
+        const inset = 0.5;
         if (x > gx + inset && x < gx + cell - inset && y > gy + inset && y < gy + cell - inset) {
-          col = ((r + c) & 1) ? DARK.slice() : LIGHT.slice();
+          const dark = (r + c) & 1;
+          col = dark ? mix(DARK2, DARK, (x - gx) / cell) : LIGHT.slice();
+          // dest ring before the jumper lands
+          if (r === to[0] && c === to[1] && jumpT < 0.92) {
+            col = ring(col, x, y, toX, toY, cell * 0.36, 2.2, GOLD2);
+          }
           const cx = bx + (c + 0.5) * cell, cy = by + (r + 0.5) * cell;
           for (const s of settled) {
             if (s[0] === r && s[1] === c) {
-              col = disc(col, x, y, cx, cy, pieceR, s[2] ? BLACK_H : WHITE_H, s[2] ? BLACK : WHITE);
+              col = s[3]
+                ? kingDisc(col, x, y, cx, cy, pieceR, s[2] ? BLACK_H : WHITE_H, s[2] ? BLACK : WHITE)
+                : disc(col, x, y, cx, cy, pieceR, s[2] ? BLACK_H : WHITE_H, s[2] ? BLACK : WHITE);
             }
           }
           if (r === over[0] && c === over[1] && !captured) {
@@ -93,7 +113,7 @@ function frameIndices(pal, f) {
         }
       }
     }
-    col = disc(col, x, y, jx, jy, pieceR, BLACK_H, BLACK);
+    col = disc(col, x, y, jx, jy, pieceR * (jumpT > 0.08 && jumpT < 0.92 ? 1.08 : 1), BLACK_H, BLACK);
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
   }
@@ -141,17 +161,23 @@ function pngChunk(tag, data) {
 }
 
 const GLYPHS = {
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '3': [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '6': [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
   'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
-  'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
-  'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
-  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
   'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+  'J': [0b01111, 0b00001, 0b00001, 0b00001, 0b10001, 0b10001, 0b01110],
   'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
-  'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
   'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
   'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
@@ -161,7 +187,9 @@ const GLYPHS = {
   'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
+  'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
+  '.': [0, 0, 0, 0, 0, 0, 0b00100],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -193,16 +221,24 @@ export function screenshotPng() {
     x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
+  const fillRound = (x0, y0, x1, y1, rad, r, g, b) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const cx = Math.min(Math.max(x, x0 + rad), x1 - rad);
+      const cy = Math.min(Math.max(y, y0 + rad), y1 - rad);
+      const dx = x - cx, dy = y - cy;
+      if (dx * dx + dy * dy <= rad * rad) put(x, y, r, g, b);
+    }
+  };
 
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const t = (x + y) / (W + H);
-    put(x, y, (18 + t * 10) | 0, (12 + t * 8) | 0, (8 + t * 6) | 0);
+    put(x, y, (18 + t * 12) | 0, (12 + t * 8) | 0, (8 + t * 6) | 0);
   }
 
-  const N = 10, cell = 56;
+  const N = 10, cell = 54;
   const board = N * cell;
-  const bx = 56, by = 80;
-  fill(bx - 14, by - 14, bx + board + 14, by + board + 14, 58, 36, 20);
+  const bx = ((W - board) / 2) | 0, by = 78;
+  fill(bx - 12, by - 12, bx + board + 12, by + board + 12, 58, 36, 20);
 
   function discAt(cx, cy, rad, hi, lo) {
     for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
@@ -214,36 +250,85 @@ export function screenshotPng() {
         (hi[2] + (lo[2] - hi[2]) * u) | 0);
     }
   }
-  const BLACK_H = [70, 70, 70], BLACK = [17, 17, 17];
-  const WHITE_H = [250, 250, 244], WHITE = [208, 208, 208];
-  // Opening layout, dark squares only, a few men already advanced.
+  function kingAt(cx, cy, rad, hi, lo) {
+    discAt(cx, cy, rad, hi, lo);
+    const ir = rad * 0.54, iw = Math.max(2, rad * 0.1);
+    for (let dy = -ir; dy <= ir; dy++) for (let dx = -ir; dx <= ir; dx++) {
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > ir || d < ir - iw) continue;
+      put(cx + dx, cy + dy, 232, 180, 64);
+    }
+  }
+  const BLACK_H = [90, 90, 90], BLACK = [17, 17, 17];
+  const WHITE_H = [255, 255, 250], WHITE = [196, 196, 196];
+  // Mid-game: a white king, a forced jump for the selected white man.
+  // 1 black  2 white  3 white king  4 black king
+  // Jump: white at 5,4 over black at 4,3 onto empty 3,2.
   const grid = [
     [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
-    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
-    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
-    [1, 0, 0, 0, 1, 0, 1, 0, 1, 0],
-    [0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
-    [0, 0, 2, 0, 0, 0, 2, 0, 0, 0],
+    [1, 0, 1, 0, 1, 0, 0, 0, 1, 0],
+    [0, 3, 0, 1, 0, 0, 0, 1, 0, 1],
+    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+    [0, 1, 0, 1, 0, 0, 0, 4, 0, 0],
+    [0, 0, 2, 0, 2, 0, 2, 0, 0, 0],
     [0, 2, 0, 0, 0, 2, 0, 2, 0, 2],
     [2, 0, 2, 0, 2, 0, 2, 0, 2, 0],
     [0, 2, 0, 2, 0, 2, 0, 2, 0, 2],
-    [2, 0, 2, 0, 2, 0, 2, 0, 2, 0],
+    [2, 0, 2, 0, 0, 0, 2, 0, 2, 0],
   ];
+  const sel = [5, 4], dest = [3, 2], lastFrom = [6, 1], lastTo = [5, 0];
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
     const gx = bx + c * cell, gy = by + r * cell;
     if ((r + c) & 1) fill(gx, gy, gx + cell, gy + cell, 90, 56, 32);
     else fill(gx, gy, gx + cell, gy + cell, 232, 213, 176);
-    const cx = bx + (c + 0.5) * cell, cy = by + (r + 0.5) * cell, rad = cell * 0.36;
+    if ((r === lastFrom[0] && c === lastFrom[1]) || (r === lastTo[0] && c === lastTo[1])) {
+      for (let i = 0; i < 3; i++) {
+        fill(gx + i, gy + i, gx + cell - i, gy + 3, 232, 180, 64);
+        fill(gx + i, gy + cell - 3, gx + cell - i, gy + cell - i, 232, 180, 64);
+        fill(gx + i, gy + i, gx + 3, gy + cell - i, 232, 180, 64);
+        fill(gx + cell - 3, gy + i, gx + cell - i, gy + cell - i, 232, 180, 64);
+      }
+    }
+    const cx = bx + (c + 0.5) * cell, cy = by + (r + 0.5) * cell, rad = cell * 0.40;
+    if (r === dest[0] && c === dest[1]) {
+      const rr = cell * 0.40;
+      for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) {
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d <= rr && d >= rr - 5) put(cx + dx, cy + dy, 255, 224, 138);
+        else if (d < rr - 5) put(cx + dx, cy + dy, 90, 56, 32);
+      }
+      // gold fill in the hole so a card-size cover still reads "jump here"
+      const hole = cell * 0.16;
+      for (let dy = -hole; dy <= hole; dy++) for (let dx = -hole; dx <= hole; dx++) {
+        if (dx * dx + dy * dy <= hole * hole) put(cx + dx, cy + dy, 232, 180, 64);
+      }
+    }
     const v = grid[r][c];
     if (v === 1) discAt(cx, cy, rad, BLACK_H, BLACK);
     else if (v === 2) discAt(cx, cy, rad, WHITE_H, WHITE);
+    else if (v === 3) kingAt(cx, cy, rad, WHITE_H, WHITE);
+    else if (v === 4) kingAt(cx, cy, rad, BLACK_H, BLACK);
+    if (r === sel[0] && c === sel[1]) {
+      const rr = rad + 4;
+      for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) {
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d > rr || d < rad + 1) continue;
+        put(cx + dx, cy + dy, 255, 224, 138);
+      }
+    }
   }
 
-  drawText(put, 700, 150, 'CHECKERS', 8, 232, 213, 176);
-  drawText(put, 700, 240, 'DRAUGHTS', 5, 166, 48, 42);
-  drawText(put, 700, 360, 'COMPUTER', 3, 232, 213, 176);
-  drawText(put, 700, 410, 'OR A FRIEND', 3, 232, 213, 176);
-  drawText(put, 700, 500, 'WHITE GOES FIRST', 3, 184, 160, 128);
+  // Turn pill: You must jump.
+  const pillW = 520, pillH = 40, px = ((W - pillW) / 2) | 0, py = 24;
+  fillRound(px, py, px + pillW, py + pillH, 12, 48, 36, 18);
+  drawText(put, px + 86, py + 12, 'YOU MUST JUMP. YOUR TURN.', 3, 255, 224, 138);
+
+  // Score under the board — side to play (white) is the lit disc.
+  const sy = by + board + 28;
+  discAt(bx + 48, sy, 10, WHITE_H, WHITE);
+  drawText(put, bx + 66, sy - 10, '16', 3, 255, 224, 176);
+  discAt(bx + board - 90, sy, 10, BLACK_H, BLACK);
+  drawText(put, bx + board - 72, sy - 10, '17', 3, 160, 160, 160);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

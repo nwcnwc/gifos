@@ -124,6 +124,21 @@ if (!files['app.js'].includes('putBoard') || !files['app.js'].includes('isHost')
 if (!files['style.css'].includes('touch-action:manipulation')) {
   throw new Error('the board must be touch-action:manipulation');
 }
+if (!files['style.css'].includes('grid-template-rows:repeat(10,1fr)')) {
+  throw new Error('board rows must be 1fr each so empty dest squares stay square');
+}
+if (!/piece-size:\s*calc\(var\(--board-size\) \/ 10 \* 0\.8[2-9]/.test(files['style.css'])) {
+  throw new Error('pieces must fill at least 82% of a square — phone tap targets');
+}
+if (!files['style.css'].includes('hint.cap') && !files['style.css'].includes('.hint.cap')) {
+  throw new Error('capture destinations must look different from quiet steps');
+}
+if (!files['app.js'].includes('You must jump') || !files['style.css'].includes('mustpulse')) {
+  throw new Error('forced jumps must be named and pulsed, not a silent illegal tap');
+}
+if (!files['index.html'].includes('The computer plays on this device')) {
+  throw new Error('setup must say the computer plays on this device');
+}
 
 // Sanity: 20 aside, white to move, a jump captures, a crown, AI a legal step.
 {
