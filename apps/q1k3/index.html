@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Q1K3</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="g">
+  <canvas id="c" width="320" height="180"></canvas>
+  <div id="ts"></div>
+  <div id="h"></div>
+  <div id="a"></div>
+  <div id="msg"></div>
+</div>
+
+<div id="gate">
+  <div class="gate-box">
+    <h1>Q1K3</h1>
+    <p class="sub">A shotgun, two torch-lit halls, and whatever is waiting
+       around the corner. Send the invite and extra people appear in the
+       same maps.</p>
+    <div id="gate-actions">
+      <button id="gate-go" disabled>Wait</button>
+    </div>
+    <div id="gate-keys">
+      <b>WASD</b> move · <b>mouse</b> look · <b>click</b> fire · <b>right-click</b> or <b>space</b> jump<br>
+      <b>Q / E</b> or <b>wheel</b> switch weapon · <b>Tab</b> scores
+    </div>
+    <p class="opts">
+      Mouse speed <input id="m" type="range" value="10" min="1" max="50">
+      Invert <input id="mi" type="checkbox">
+    </p>
+    <div id="gate-room"></div>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+  <div id="t-look"></div>
+  <div id="t-buttons">
+    <button class="t-btn t-wide" id="t-fire" type="button">FIRE</button>
+    <button class="t-btn" id="t-jump" type="button">JUMP</button>
+    <button class="t-btn" id="t-prev" type="button">PREV</button>
+    <button class="t-btn" id="t-next" type="button">NEXT</button>
+  </div>
+</div>
+
+<div id="score" hidden>
+  <table>
+    <thead><tr><th>player</th><th>k</th><th>d</th></tr></thead>
+    <tbody id="score-rows"></tbody>
+  </table>
+</div>
+<div id="tally" hidden></div>
+
+<button id="f" hidden type="button">FULLSCREEN</button>
+
+<script src="vendor/assets.js"></script>
+<script src="vendor/game.js"></script>
+<script src="net.js"></script>
+<script src="remote.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
