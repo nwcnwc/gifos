@@ -1,8 +1,9 @@
 # One Stroke
 
-A blank page. Each person draws exactly one stroke — a line, a curve, a
-scribble — then the turn passes. After a round, the table votes on a title.
-The picture plays back as a loop of the strokes arriving, in order.
+A blank page that teaches the stroke. Each person draws exactly one line —
+a curve, a scribble, a secret — then sends it, and the turn passes. After a
+round the table names the picture. It plays back as a loop of the strokes
+arriving, in order.
 
 This is not a whiteboard. Excalidraw and Drawnix already cover that. One
 Stroke is the constraint: the picture can only exist because several people
@@ -19,13 +20,15 @@ build.mjs           packs the GIF into site/apps/one-stroke/one-stroke.gif
 
 ## What you can play
 
-- **Solo** — you against the page. One stroke at a time, a stack of lines,
-  playback. The doodle lives in this file (`gifos.db('save')`, private).
-- **Play with friends** — send the invite (top bar; that button is OS chrome).
-  Seats around the page. Whose-turn is obvious. You cannot draw when it is
-  not your turn. Each person writes only their own row. The host of the
-  page (lowest live id) is the only writer of the picture row: a player
-  publishes an intended stroke, the host appends it if it is legal.
+- **Solo** — lands on the page. A ghost line draws itself until you do.
+  One stroke at a time, a stack of lines, playback. The doodle lives in
+  this file (`gifos.db('save')`, private).
+- **With friends** — send the invite (top bar; that button is OS chrome).
+  Seats around the page. Whose-turn sits on the paper. You cannot draw
+  when it is not your turn. Each person writes only their own row. The
+  host of the page (lowest live id) is the only writer of the picture
+  row: a player publishes an intended stroke, the host appends it if it
+  is legal. After a round, a title vote, then the loop.
 
 A stroke is a compact list of `{x,y}` in `0..1` plus a palette colour and a
 width. No bitmaps go in the hot collection.

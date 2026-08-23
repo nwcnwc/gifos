@@ -102,6 +102,12 @@ if (!files['app.js'].includes('putPicture') || !files['app.js'].includes('isHost
 if (!files['style.css'].includes('touch-action:none')) {
   throw new Error('the pad must set touch-action:none so a finger draws instead of scrolling');
 }
+if (!html.includes('ghost-stroke') || !html.includes('Draw one line')) {
+  throw new Error('empty page must teach the stroke — a ghost line and “Draw one line”');
+}
+if (!html.includes('soloFriends') || !html.includes('With friends')) {
+  throw new Error('first-run must offer With friends without drawing an Invite button');
+}
 if (!files['game.js'].includes('{x,y}') && !files['game.js'].includes('p.x') ) {
   throw new Error('strokes must be compact {x,y} lists in 0..1');
 }

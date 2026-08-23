@@ -12,9 +12,9 @@
   };
 
   var PRES_TTL = 9000, HB_MS = 3000;
-  var PLAY_MS = 720, HOLD_MS = 1200;
+  var PLAY_MS = 900, HOLD_MS = 1400, ARRIVE_MS = 780;
 
-  var color = OS.COLORS[0];
+  var color = OS.COLORS[2];
   var width = OS.WIDTHS[1];
 
   var solo = null;
@@ -36,9 +36,11 @@
     el.className = 'statusline' + (cls ? ' ' + cls : '');
     el.textContent = text;
   }
+  function setControls(id, kind) {
+    $(id).className = 'controls ' + kind;
+  }
 
   function hideAll() {
-    $('setup').hidden = true;
     $('solo').hidden = true;
     $('friend').hidden = true;
   }
@@ -58,29 +60,50 @@
     return { cssW: cssW, cssH: cssH, dpr: dpr };
   }
 
-  function strokePath(ctx, s, w, h, frac) {
-    var pts = s && s.pts;
-    if (!pts || pts.length < 2) return;
+  function ptsUntil(pts, frac) {
+    if (!pts || pts.length < 2) return null;
     var t = frac == null ? 1 : frac;
-    if (t <= 0) return;
-    if (t > 1) t = 1;
-    var n = pts.length;
-    var end = Math.max(2, Math.ceil((n - 1) * t) + 1);
-    if (end > n) end = n;
+    if (t <= 0) return null;
+    if (t >= 1) return pts;
+    var total = OS.pathLen(pts) || 1;
+    var want = total * t;
+    var out = [pts[0]], walked = 0, i, seg, u;
+    for (i = 1; i < pts.length; i++) {
+      seg = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      if (walked + seg >= want) {
+        u = seg ? (want - walked) / seg : 0;
+        out.push({
+          x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * u,
+          y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * u
+        });
+        return out;
+      }
+      out.push(pts[i]);
+      walked += seg;
+    }
+    return out;
+  }
+
+  function strokePath(ctx, s, w, h, frac, wet) {
+    var pts = ptsUntil(s && s.pts, frac);
+    if (!pts || pts.length < 2) return;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = s.c || OS.COLORS[0];
-    ctx.lineWidth = Math.max(1.4, (s.w || width) * Math.min(w, h));
+    ctx.strokeStyle = s.c || OS.COLORS[2];
+    ctx.lineWidth = Math.max(2.2, (s.w || width) * Math.min(w, h));
+    ctx.shadowColor = 'rgba(0,0,0,.45)';
+    ctx.shadowBlur = wet ? 5 : 2.4;
+    ctx.shadowOffsetY = 1;
     ctx.beginPath();
     ctx.moveTo(pts[0].x * w, pts[0].y * h);
     var i, mx, my;
-    for (i = 1; i < end - 1; i++) {
+    for (i = 1; i < pts.length - 1; i++) {
       mx = ((pts[i].x + pts[i + 1].x) / 2) * w;
       my = ((pts[i].y + pts[i + 1].y) / 2) * h;
       ctx.quadraticCurveTo(pts[i].x * w, pts[i].y * h, mx, my);
     }
-    ctx.lineTo(pts[end - 1].x * w, pts[end - 1].y * h);
+    ctx.lineTo(pts[pts.length - 1].x * w, pts[pts.length - 1].y * h);
     ctx.stroke();
     ctx.restore();
   }
@@ -97,21 +120,28 @@
       for (i = 0; i < list.length; i++) {
         t = playT - i;
         if (t <= 0) break;
-        strokePath(ctx, list[i], w, h, t >= 1 ? 1 : t);
+        strokePath(ctx, list[i], w, h, t >= 1 ? 1 : t, false);
       }
       return;
     }
-    for (i = 0; i < list.length; i++) strokePath(ctx, list[i], w, h, 1);
+    for (i = 0; i < list.length; i++) strokePath(ctx, list[i], w, h, 1, false);
     if (pending && pending.pts && pending.pts.length >= 2) {
-      strokePath(ctx, pending, w, h, 1);
+      strokePath(ctx, pending, w, h, 1, true);
     }
   }
 
-  function playClock(strokes, t0) {
+  function playClock(strokes, t0, mode) {
     var n = (strokes || []).length;
     if (!n) return 0;
+    var e, dur;
+    if (mode === 'arrive') {
+      dur = ARRIVE_MS;
+      e = (nowMs() - t0) / dur;
+      if (e >= 1) return n;
+      return (n - 1) + Math.max(0, Math.min(1, e));
+    }
     var total = n * PLAY_MS + HOLD_MS;
-    var e = (nowMs() - t0) % total;
+    e = (nowMs() - t0) % total;
     if (e >= n * PLAY_MS) return n;
     return e / PLAY_MS;
   }
@@ -122,15 +152,21 @@
     var drawing = false;
     var last = null;
     var playOn = false;
+    var playMode = 'loop';
     var playStart = 0;
     var raf = 0;
-
     var sent = false;
+
     function canDraw() { return !sent && hooks.canDraw && hooks.canDraw(); }
     function strokes() { return hooks.strokes ? hooks.strokes() : []; }
 
     function redraw() {
-      var t = playOn ? playClock(strokes(), playStart) : null;
+      var t = playOn ? playClock(strokes(), playStart, playMode) : null;
+      if (playOn && playMode === 'arrive' && t >= (strokes() || []).length) {
+        playOn = false;
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        t = null;
+      }
       paintPaper(canvas, strokes(), playOn ? null : pending, t);
       var paper = canvas.parentNode;
       if (paper) paper.classList.toggle('mine', !playOn && canDraw() && !pending);
@@ -140,17 +176,14 @@
       raf = 0;
       if (!playOn) return;
       redraw();
-      raf = requestAnimationFrame(loop);
+      if (playOn) raf = requestAnimationFrame(loop);
     }
 
-    function pt(ev) {
-      var r = canvas.getBoundingClientRect();
-      var t = ev;
-      if (ev.touches && ev.touches[0]) t = ev.touches[0];
-      else if (ev.changedTouches && ev.changedTouches[0]) t = ev.changedTouches[0];
-      var x = (t.clientX - r.left) / (r.width || 1);
-      var y = (t.clientY - r.top) / (r.height || 1);
-      return { x: x, y: y };
+    function ptOf(t, r) {
+      return {
+        x: (t.clientX - r.left) / (r.width || 1),
+        y: (t.clientY - r.top) / (r.height || 1)
+      };
     }
 
     function start(ev) {
@@ -160,7 +193,8 @@
       if (ev.pointerType === 'mouse' && ev.button !== 0) return;
       ev.preventDefault();
       try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
-      var p = pt(ev);
+      var r = canvas.getBoundingClientRect();
+      var p = ptOf(ev, r);
       drawing = true;
       pending = { pts: OS.compactPts([p]), c: color, w: width };
       last = p;
@@ -170,18 +204,33 @@
     function move(ev) {
       if (!drawing || !pending) return;
       ev.preventDefault();
-      var p = pt(ev);
-      pending.pts = OS.compactPts(pending.pts.concat([p]));
-      last = p;
+      var r = canvas.getBoundingClientRect();
+      var extra = [], i, list;
+      if (ev.getCoalescedEvents) {
+        list = ev.getCoalescedEvents();
+        for (i = 0; i < list.length; i++) extra.push(ptOf(list[i], r));
+      } else {
+        extra.push(ptOf(ev, r));
+      }
+      if (!extra.length) return;
+      pending.pts = OS.compactPts(pending.pts.concat(extra));
+      last = extra[extra.length - 1];
+      pending.c = color;
+      pending.w = width;
       redraw();
     }
     function end(ev) {
       if (!drawing || !pending) return;
       if (ev) ev.preventDefault();
-      var p = ev ? pt(ev) : last;
+      var r = canvas.getBoundingClientRect();
+      var p = ev ? ptOf(ev, r) : last;
       if (p) pending.pts = OS.compactPts(pending.pts.concat([p]));
       drawing = false;
       if (!pending.pts || pending.pts.length < 2) pending = null;
+      else {
+        pending.c = color;
+        pending.w = width;
+      }
       redraw();
       if (hooks.onChange) hooks.onChange();
     }
@@ -193,6 +242,7 @@
 
     function stopPlay() {
       playOn = false;
+      playMode = 'loop';
       if (raf) { cancelAnimationFrame(raf); raf = 0; }
       redraw();
     }
@@ -203,6 +253,9 @@
       sent: function () { return sent; },
       markSent: function () { sent = true; if (hooks.onChange) hooks.onChange(); },
       clearPending: function () { pending = null; drawing = false; sent = false; redraw(); },
+      restyle: function () {
+        if (pending && !sent) { pending.c = color; pending.w = width; redraw(); }
+      },
       undo: function () {
         if (drawing || sent) return false;
         if (!pending) return false;
@@ -211,14 +264,15 @@
         if (hooks.onChange) hooks.onChange();
         return true;
       },
-      play: function () {
-        if (playOn) { stopPlay(); return false; }
+      play: function (mode) {
+        if (playOn && playMode === (mode || 'loop')) { stopPlay(); return false; }
         playOn = true;
+        playMode = mode || 'loop';
         playStart = nowMs();
         loop();
         return true;
       },
-      playing: function () { return playOn; },
+      playing: function () { return playOn && playMode === 'loop'; },
       stopPlay: stopPlay
     };
   }
@@ -236,6 +290,8 @@
         color = c;
         paintInk('soloInk');
         paintInk('fInk');
+        if (pads.solo) pads.solo.restyle();
+        if (pads.f) pads.f.restyle();
       });
       host.appendChild(b);
     });
@@ -243,7 +299,7 @@
   function paintWidths(hostId) {
     var host = $(hostId);
     host.innerHTML = '';
-    var sizes = [7, 12, 18];
+    var sizes = [8, 14, 22];
     OS.WIDTHS.forEach(function (w, i) {
       var b = document.createElement('button');
       b.type = 'button';
@@ -256,6 +312,8 @@
         width = w;
         paintWidths('soloWidths');
         paintWidths('fWidths');
+        if (pads.solo) pads.solo.restyle();
+        if (pads.f) pads.f.restyle();
       });
       host.appendChild(b);
     });
@@ -280,22 +338,32 @@
   function soloRefresh() {
     if ($('solo').hidden || !solo) return;
     var n = (solo.strokes || []).length;
-    var title = solo.title || 'Your page';
-    $('soloTitle').textContent = title;
     var pad = pads.solo;
     var pending = pad && pad.pending();
+    var ready = pending && pending.pts && pending.pts.length >= 2;
+    var hint = $('soloHint');
     if (pad && pad.playing()) {
-      setStatus($('soloStatus'), 'Playing the loop.', '');
+      setStatus($('soloStatus'), 'The picture, arriving.', '');
       setChip('ready', 'Loop');
-    } else if (pending && pending.pts && pending.pts.length >= 2) {
+      hint.hidden = true;
+      setControls('soloControls', 'play');
+      $('soloPlay').textContent = 'Stop loop';
+    } else if (ready) {
       setStatus($('soloStatus'), 'Undo, or send this stroke.', 'turn');
       setChip('turn', 'Your stroke');
+      hint.hidden = true;
+      setControls('soloControls', 'pending');
+      $('soloPlay').textContent = 'Play loop';
     } else {
-      setStatus($('soloStatus'), n ? ('Your turn. Stroke ' + (n + 1) + '.') : 'Your turn. One stroke.', 'turn');
+      setStatus($('soloStatus'), n ? 'Your turn. One more line.' : 'Your turn. One line.', 'turn');
       setChip('turn', 'Your turn');
+      hint.hidden = n > 0;
+      setControls('soloControls', n ? 'idle' : 'empty');
+      $('soloPlay').textContent = 'Play loop';
     }
-    $('soloSend').disabled = !!(pad && pad.sent()) || !(pending && pending.pts && pending.pts.length >= 2);
-    $('soloUndo').disabled = !!(pad && pad.sent()) || !(pending && pending.pts && pending.pts.length >= 2);
+    $('soloStatus').style.visibility = hint.hidden ? '' : 'hidden';
+    $('soloSend').disabled = !!(pad && pad.sent()) || !ready;
+    $('soloUndo').disabled = !!(pad && pad.sent()) || !ready;
     if (pad) pad.redraw();
   }
 
@@ -321,22 +389,18 @@
       });
       solo.title = existing.title || '';
       solo.seq = existing.seq || solo.strokes.length;
-    } else {
+    } else if (!solo) {
       solo = OS.fresh(['local'], { names: { local: 'You' } });
     }
     $('soloTitleIn').value = solo.title || '';
-    pads.solo.clearPending();
-    pads.solo.stopPlay();
+    if (pads.solo) {
+      pads.solo.clearPending();
+      pads.solo.stopPlay();
+    }
     soloRefresh();
   }
 
-  $('soloBtn').onclick = function () { openSolo(null); };
-  $('soloLeave').onclick = function () {
-    soloSave();
-    hideAll();
-    $('setup').hidden = false;
-    setChip('ready', 'Ready');
-  };
+  $('soloFriends').onclick = function () { mpEnter(); };
   $('soloUndo').onclick = function () { pads.solo.undo(); };
   $('soloSend').onclick = function () {
     if (!solo) return;
@@ -346,13 +410,13 @@
     var next = OS.applyIntent(solo, 'local', intent);
     if (!next) return;
     solo = next;
-    pads.solo.markSent();
     pads.solo.clearPending();
+    pads.solo.play('arrive');
     soloSave();
     soloRefresh();
   };
   $('soloPlay').onclick = function () {
-    var on = pads.solo.play();
+    var on = pads.solo.play('loop');
     $('soloPlay').textContent = on ? 'Stop loop' : 'Play loop';
     soloRefresh();
   };
@@ -407,6 +471,8 @@
       mp.id = me.id; mp.name = me.name || 'You'; mp.on = true; mp.row = null;
       hideAll();
       $('friend').hidden = false;
+      $('soloFriends').hidden = true;
+      $('fLeave').hidden = false;
       setChip('ready', 'A friend');
       pads.f.clearPending();
       pads.f.stopPlay();
@@ -424,11 +490,10 @@
     mp.on = false;
     if (mp.hb) clearInterval(mp.hb); mp.hb = 0;
     if (mpDb && mp.id) mpDb.delete(mp.id).catch(function () {});
-    hideAll();
-    $('setup').hidden = false;
-    setChip('ready', 'Ready');
+    $('soloFriends').hidden = false;
+    $('fLeave').hidden = true;
+    openSolo(solo);
   }
-  $('friendBtn').onclick = mpEnter;
   $('fLeave').onclick = mpLeave;
 
   function livePeople(items, t) {
@@ -496,6 +561,13 @@
       });
       if (committed || picture.seq !== mp.row.intent.seq) {
         pads.f.clearPending();
+        if (committed) pads.f.play('arrive');
+      }
+    } else if (picture.strokes && picture.strokes.length) {
+      var last = picture.strokes[picture.strokes.length - 1];
+      if (last && last.by !== mp.id && mp._seenN !== last.n && picture.phase === 'draw') {
+        mp._seenN = last.n;
+        pads.f.play('arrive');
       }
     }
     mpRender();
@@ -545,6 +617,7 @@
   function myTurn() {
     var pic = mp.picture;
     if (!pic || pic.phase !== 'draw') return false;
+    if (!pic.seats || pic.seats.length < 2) return false;
     return OS.actorOf(pic) === mp.id;
   }
 
@@ -565,7 +638,7 @@
   $('fUndo').onclick = function () { pads.f.undo(); };
   $('fSend').onclick = mpPlayStroke;
   $('fPlay').onclick = function () {
-    var on = pads.f.play();
+    var on = pads.f.play('loop');
     $('fPlay').textContent = on ? 'Stop loop' : 'Play loop';
     mpRender();
   };
@@ -609,68 +682,109 @@
   function mpRender() {
     if (!mp.on) return;
     var pic = mp.picture, status = $('fStatus');
+    var hint = $('fHint'), wait = $('fWait');
     if (!pic) {
       $('fSeats').innerHTML = '';
       status.textContent = 'Setting up the page…';
+      hint.hidden = true;
+      wait.hidden = true;
       return;
     }
     var seat = mySeat(pic);
     var actor = OS.actorOf(pic);
     var waiting = mp.people.filter(function (p) { return pic.seats.indexOf(p.id) < 0; });
-    $('fSeats').innerHTML = pic.seats.map(function (id, i) {
+    var n = (pic.strokes || []).length;
+    var both = pic.seats.length >= 2;
+    function bothTurn(p, id) {
+      return both && p.phase === 'draw' && p.seats[p.turn] === id;
+    }
+    $('fSeats').innerHTML = pic.seats.map(function (id) {
       var mine = id === mp.id;
-      var turn = pic.phase === 'draw' && pic.seats[pic.turn] === id;
+      var turn = bothTurn(pic, id);
+      var label = mine ? 'You' : esc(nameOf(pic, id));
       return '<div class="seat' + (mine ? ' me' : '') + (turn ? ' turn' : '') + '">' +
-        esc(nameOf(pic, id)) + (mine ? ' · you' : '') + '</div>';
+        label + '</div>';
     }).join('') || '<div class="seat"><span class="open">open</span></div>';
     $('fQueue').textContent = waiting.length
       ? ('Watching: ' + waiting.map(function (p) { return p.name || 'Player'; }).join(', '))
       : '';
-
-    var both = pic.seats.length >= 2;
+    $('fQueue').hidden = !waiting.length;
     var pending = pads.f.pending();
     var ready = pending && pending.pts && pending.pts.length >= 2;
-    $('fPaper').classList.toggle('locked', !(seat >= 0 && pic.phase === 'draw' && actor === mp.id));
-    $('fPaper').classList.toggle('mine', seat >= 0 && pic.phase === 'draw' && actor === mp.id && !ready);
+    var mineNow = myTurn();
+    $('fPaper').classList.toggle('locked', !mineNow);
+    $('fPaper').classList.toggle('mine', mineNow && !ready && !pads.f.playing());
     $('fSend').disabled = !(myTurn() && ready) || pads.f.sent();
     $('fUndo').disabled = !ready || pads.f.sent();
     $('fAgain').hidden = pic.phase !== 'play' || seat < 0;
     $('fNew').hidden = (pic.phase !== 'play' && pic.phase !== 'vote') || seat < 0;
     $('fVote').hidden = pic.phase !== 'vote' || seat < 0;
 
+    hint.hidden = true;
+    wait.hidden = true;
+
+    $('friend').classList.toggle('waiting', !both);
     if (!both) {
-      status.innerHTML = 'Waiting for another player… press <b>Invite</b> (top bar) to bring a friend.';
+      status.innerHTML = 'Press <b>Invite</b> in the bar above. The people who open the link sit here.';
       setChip('wait', 'Waiting');
+      wait.hidden = false;
+      $('fWaitName').textContent = 'Invite is the studio';
+      $('fWaitMsg').textContent = 'Send the link from the bar above. No account. The doodle lives in this file.';
+      setControls('fControls', 'empty');
     } else if (pic.phase === 'vote') {
       paintVotes(pic);
       if (seat < 0) setStatus(status, 'Spectating the vote.', '');
       else if (pic.votes && pic.votes[mp.id]) setStatus(status, 'You voted. Waiting for the others.', '');
-      else setStatus(status, 'Vote on a title.', 'turn');
+      else setStatus(status, 'Name this picture.', 'turn');
       setChip('turn', 'Title');
+      setControls('fControls', n ? 'idle' : 'empty');
     } else if (pic.phase === 'play') {
       var ttl = pic.title ? ('“' + pic.title + '”') : 'The picture';
-      setStatus(status, ttl + ' — playing back.', 'good');
+      setStatus(status, ttl + ' — arriving, in order.', 'good');
       setChip('ready', pic.title || 'Loop');
+      setControls('fControls', 'play');
       if (mp.autoPlay !== pic.seq) {
         mp.autoPlay = pic.seq;
         if (!pads.f.playing()) {
-          pads.f.play();
+          pads.f.play('loop');
           $('fPlay').textContent = 'Stop loop';
         }
       }
     } else if (seat < 0) {
       setStatus(status, 'Spectating.', '');
       setChip('wait', 'Watching');
+      setControls('fControls', n ? 'idle' : 'empty');
     } else if (actor === mp.id) {
-      setStatus(status, ready ? 'Undo, or send this stroke.' : 'Your turn. One stroke.', 'turn');
-      setChip('turn', 'Your turn');
+      if (ready) {
+        setStatus(status, 'Undo, or send this stroke.', 'turn');
+        setChip('turn', 'Your stroke');
+        setControls('fControls', 'pending');
+      } else {
+        setStatus(status, n ? 'Your turn. One line.' : 'Your turn. Draw one line.', 'turn');
+        setChip('turn', 'Your turn');
+        if (!n && !pads.f.playing()) {
+          hint.hidden = false;
+          hint.querySelector('b').textContent = 'Your turn. One line.';
+          hint.querySelector('span').textContent = 'Lift, then send it. Nobody else may draw until you do.';
+        }
+        setControls('fControls', n ? 'idle' : 'empty');
+      }
     } else {
       setStatus(status, 'Waiting for ' + nameOf(pic, actor) + '…');
       setChip('wait', nameOf(pic, actor));
+      wait.hidden = false;
+      $('fWaitName').textContent = nameOf(pic, actor);
+      $('fWaitMsg').textContent = 'is drawing the next line';
+      setControls('fControls', n ? 'idle' : 'empty');
     }
-    if (pads.f.playing() && pic.phase !== 'play') {
-      /* keep looping if they asked */
+    if (pads.f.playing()) {
+      $('fPlay').textContent = 'Stop loop';
+      setControls('fControls', 'play');
+      hint.hidden = true;
+    } else {
+      $('fPlay').textContent = 'Play loop';
     }
+    status.style.visibility = (!hint.hidden || !wait.hidden) ? 'hidden' : '';
     pads.f.redraw();
   }
 
@@ -681,14 +795,15 @@
 
   if (window.gifos && gifos.onBack) gifos.onBack(function () {
     if (!$('friend').hidden) mpLeave();
-    else if (!$('solo').hidden) $('soloLeave').click();
   });
 
-  setChip('ready', 'Ready');
+  setChip('turn', 'Your turn');
   if (saveDb) {
     saveDb.get('doodle').then(function (g) {
-      if (!g || !g.strokes || !g.strokes.length) return;
-      openSolo(g);
-    }).catch(function () {});
+      if (g && g.strokes && g.strokes.length) openSolo(g);
+      else openSolo(null);
+    }).catch(function () { openSolo(null); });
+  } else {
+    openSolo(null);
   }
 })();
