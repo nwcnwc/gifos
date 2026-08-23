@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KeeWeb</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="gate">
+  <div class="gate-card">
+    <h1>KeeWeb</h1>
+    <p class="lead">A KeePass vault on this device. Nothing is uploaded. Copy a password — this app never fills another site.</p>
+
+    <section id="panel-unlock" hidden>
+      <h2 id="unlock-title">Unlock vault</h2>
+      <label>Master password
+        <div class="pwrow">
+          <input type="password" id="pw-unlock" autocomplete="off" spellcheck="false">
+          <button type="button" class="ghost" data-toggle="pw-unlock">Show</button>
+        </div>
+      </label>
+      <label class="file-lab">Key file <span class="opt">(optional)</span>
+        <input type="file" id="key-unlock">
+        <span id="key-unlock-name" class="file-name"></span>
+      </label>
+      <div class="row">
+        <button type="button" id="btn-unlock">Unlock</button>
+      </div>
+      <p id="unlock-status" class="status" role="status"></p>
+      <p class="hint">Wrong password, or a vault KeePass itself would refuse, is refused here too. The password is not stored.</p>
+    </section>
+
+    <section id="panel-create">
+      <h2>New vault</h2>
+      <label>Name
+        <input type="text" id="new-name" value="My Vault" autocomplete="off" spellcheck="false">
+      </label>
+      <label>Master password <span class="req">8+ characters</span>
+        <div class="pwrow">
+          <input type="password" id="pw-new" autocomplete="new-password" spellcheck="false">
+          <button type="button" class="ghost" data-toggle="pw-new">Show</button>
+        </div>
+      </label>
+      <label>Confirm
+        <input type="password" id="pw-new2" autocomplete="new-password" spellcheck="false">
+      </label>
+      <label class="file-lab">Key file <span class="opt">(optional)</span>
+        <input type="file" id="key-new">
+        <span id="key-new-name" class="file-name"></span>
+      </label>
+      <div class="row">
+        <button type="button" id="btn-create">Create vault</button>
+      </div>
+      <p id="create-status" class="status" role="status"></p>
+    </section>
+
+    <section id="panel-import">
+      <h2>Open a .kdbx</h2>
+      <div id="drop" class="drop">
+        <div class="drop-icon">🔑</div>
+        <div><b>Drop a KeePass file here</b> or tap to choose</div>
+        <div class="hint">The file stays in this tab. It is not uploaded.</div>
+      </div>
+      <input type="file" id="file-import" accept=".kdbx,application/octet-stream">
+      <p id="import-name" class="file-name"></p>
+      <label>Master password
+        <div class="pwrow">
+          <input type="password" id="pw-import" autocomplete="off" spellcheck="false">
+          <button type="button" class="ghost" data-toggle="pw-import">Show</button>
+        </div>
+      </label>
+      <label class="file-lab">Key file <span class="opt">(optional)</span>
+        <input type="file" id="key-import">
+        <span id="key-import-name" class="file-name"></span>
+      </label>
+      <div class="row">
+        <button type="button" id="btn-import">Open</button>
+      </div>
+      <p id="import-status" class="status" role="status"></p>
+    </section>
+
+    <p class="foot">Unofficial port of <b>KeeWeb</b> by Antelle (MIT). Engine: kdbxweb + Argon2. Dropbox, Google Drive, OneDrive, WebDAV and autofill are not included. Sealed sandbox, no network.</p>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header id="bar">
+    <div class="brand">
+      <strong>KeeWeb</strong>
+      <span id="bar-name" class="sub">on this device</span>
+    </div>
+    <input type="search" id="search" placeholder="Search" autocomplete="off" spellcheck="false">
+    <div id="status" aria-live="polite"></div>
+    <button type="button" id="btn-new-entry">New entry</button>
+    <button type="button" class="ghost" id="btn-export">Export .kdbx</button>
+    <button type="button" class="ghost" id="btn-lock">Lock</button>
+  </header>
+  <div id="workspace">
+    <nav id="groups" aria-label="Groups"></nav>
+    <section id="list" aria-label="Entries"></section>
+    <section id="detail" aria-label="Entry"></section>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+
+<script src="vendor/kdbxweb.js"></script>
+<script src="vendor/argon2.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "keeweb",
+  "name": "KeeWeb",
+  "shortName": "KeeWeb",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A local KeePass vault. Open, edit and export .kdbx files on this device. Copy-paste only — nothing is uploaded and nothing is filled into other sites.",
+  "entry": "index.html",
+  "accent": [107, 189, 88],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "vault": {
+      "visibility": "private"
+    }
+  }
+}

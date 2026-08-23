@@ -1,0 +1,34 @@
+{
+  "tagline": "A KeePass vault on this device. Copy a password, never fill another site.",
+  "description": "Open a .kdbx, or start a new vault, and keep logins on this computer. Groups, entries, a password generator, and TOTP codes — the same file KeePass and KeeWeb already use, encrypted with Argon2. Unlock with your master password (and an optional key file). Export writes a .kdbx you can open in KeePassXC.\n\nCopy-paste only. There is no browser extension and no autofill into other sites: username, password, URL and OTP copy to the clipboard when you ask, and that is the whole hand-off. Closing the app locks the vault. The master password is never stored.\n\nAn unofficial port of KeeWeb by Antelle, MIT-licensed. KeeWeb's Dropbox, Google Drive, OneDrive, WebDAV, plugin gallery and KeePassHTTP autofill are not in this app. connect-src stays closed; there is no network path at all. The engine is kdbxweb (the same library KeeWeb uses) plus a pure-JS Argon2, packed inside this GIF.",
+  "author": {
+    "name": "Antelle",
+    "url": "https://github.com/keeweb/keeweb"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "KeeWeb",
+    "url": "https://github.com/keeweb/keeweb",
+    "donate": "https://opencollective.com/keeweb",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-22",
+  "categories": ["Utilities"],
+  "tags": [
+    "password",
+    "keepass",
+    "kdbx",
+    "vault",
+    "offline",
+    "argon2",
+    "totp",
+    "keeweb"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/keeweb",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
