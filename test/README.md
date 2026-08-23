@@ -131,7 +131,8 @@ verdict, one log. Everything else should SPREAD across whatever boxes are up:
   the freeze tag (`v<x.y.z>-freeze`). `~/projects/gifos` is for ongoing
   `main`. Fleet `dir` in `~/.gifos-behavior-hosts.json` is the release-process
   clone on every box. Tag the freeze **before** the gate; further `main` is
-  not that release. CLAUDE.md "Release clones".
+  not that release. Product bugs found in the gate land on `release/<x.y.z>`
+  AND on `main`. CLAUDE.md "Release clones".
 
 **Diagnostics, when a run disagrees with the sim.**
 
