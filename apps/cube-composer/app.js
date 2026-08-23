@@ -77,7 +77,7 @@
         var mark = G.solvedSet[lv.id] ? ' ✓' : '';
         html += '<option value="' + esc(lv.id) + '"' +
           (lv.id === G.levelId ? ' selected' : '') + '>' +
-          esc(CC.levelTitle(lv)) + mark + '</option>';
+          esc(lv.id + ' — ' + lv.name) + mark + '</option>';
       });
       html += '</optgroup>';
     });
@@ -112,7 +112,16 @@
   function renderHelp() {
     var ch = currentChapter();
     var lv = currentLevel();
-    $('help').innerHTML = lv.help ? replaceTransformers(ch, lv.help) : '';
+    var html = lv.help ? replaceTransformers(ch, lv.help) : '';
+    $('help').innerHTML = html;
+    var wrap = $('help-wrap');
+    if (wrap) wrap.hidden = !html;
+  }
+
+  function syncHelpOpen() {
+    var wrap = $('help-wrap');
+    if (!wrap) return;
+    wrap.open = !!(root.matchMedia && root.matchMedia('(min-width: 641px)').matches);
   }
 
   function renderSolved() {
@@ -125,6 +134,7 @@
     var msg = $('message');
     var badge = $('solved');
     msg.hidden = !match;
+    $('nextBtn').textContent = (root.CCMp && root.CCMp.on) ? 'Next puzzle' : 'Next level';
     if (match && !was) {
       badge.classList.remove('flash');
       void badge.offsetWidth;
@@ -136,6 +146,9 @@
   function render() {
     renderLists();
     renderHelp();
+    var n = G.program.length;
+    var lab = $('program-label');
+    if (lab) lab.textContent = n ? ('Your program · ' + n) : 'Your program';
     paintCanvases();
     renderSolved();
     if (root.CCMp) root.CCMp.onChange();
@@ -289,12 +302,17 @@
 
   function boot() {
     fillSelect();
+    syncHelpOpen();
     render();
     root.requestAnimationFrame(function () { paintCanvases(); });
     if (root.ResizeObserver) {
       var ro = new ResizeObserver(function () { paintCanvases(); });
       ro.observe($('stage'));
       ro.observe($('goal'));
+    }
+    if (root.matchMedia) {
+      try { root.matchMedia('(min-width: 641px)').addEventListener('change', syncHelpOpen); }
+      catch (e) {}
     }
     if (root.CCMp) root.CCMp.watch();
   }

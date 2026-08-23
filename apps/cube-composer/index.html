@@ -19,7 +19,6 @@
     </header>
 
     <div id="friend-bar" hidden>
-      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send the link. You both get the same puzzle. First to match the picture wins.</p>
       <p id="friend-status"></p>
       <ul id="friend-scores"></ul>
       <div class="friend-actions">
@@ -41,7 +40,10 @@
         <b>Goal</b>
         <canvas id="goal" aria-label="Goal"></canvas>
       </div>
-      <p id="help"></p>
+      <details id="help-wrap">
+        <summary>Tip</summary>
+        <p id="help"></p>
+      </details>
     </aside>
 
     <div id="controls">
@@ -50,12 +52,12 @@
         <ul id="available" class="fn-list"></ul>
       </div>
       <div class="box">
-        <div class="box-label">Your program</div>
+        <div class="box-label" id="program-label">Your program</div>
         <ul id="program" class="fn-list"></ul>
       </div>
     </div>
 
-    <p class="foot">Unofficial port of Cube Composer by David Peter. Tap a function to use it, tap it again to take it out, drag to reorder. Playing alone is the original puzzle. A race is the same picture — first to match it wins.</p>
+    <p class="foot">Unofficial port of Cube Composer by David Peter. Tap a function to add it, tap it again to take it out, drag to reorder. Playing alone is the original puzzle. A race is one invite — first to match the picture wins.</p>
   </div>
 
   <script src="transformers.js"></script>

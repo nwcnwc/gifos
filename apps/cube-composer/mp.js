@@ -122,7 +122,7 @@
         '<span class="name">' + (mine ? 'You' : esc(p.name || 'Player')) + '</span>' +
         '<span class="meta">' + tag + '</span></li>';
     });
-    scores.innerHTML = html || '<li><span class="name">Just you so far</span></li>';
+    scores.innerHTML = html;
 
     var others = players.filter(function (p) { return p.id !== me.id; });
     if (v) {
@@ -136,7 +136,7 @@
       roundOver = false;
       again.hidden = true;
       if (!others.length) {
-        status.textContent = 'Waiting for a friend… press Invite (GifOS menu) to send the link. You can solve in the meantime — they get the same puzzle.';
+        status.innerHTML = 'Press <b>Invite</b> to send the link. Same puzzle — first to match.';
       } else if (root.CCGame && root.CCGame.solved) {
         status.textContent = 'You matched it. Waiting to see if anyone was first.';
       } else {
@@ -186,7 +186,9 @@
   function enter() {
     api = root.gifos;
     if (!api || !api.db) {
+      document.body.classList.add('friend');
       $('friend-bar').hidden = false;
+      $('friendBtn').hidden = true;
       $('friend-status').textContent = 'Play a friend needs a GifOS room.';
       return;
     }
