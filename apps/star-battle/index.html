@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Star Battle</title>
+<link rel="stylesheet" href="vendor/css/common.css">
+<link rel="stylesheet" href="vendor/css/style.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="app">
+    <div id="logo">
+      <img src="./img/logo-01.png" alt="Star Battle">
+    </div>
+    <div id="container" class="absolute">
+      <div id="start" class="column">
+        <p class="message pre">
+W A S D to fly, Space to fire.
+
+Fuel starts at 15 and falls by 1 a second. Hit 0 and the run is over. Catch a bottle for +15 (max 30).
+
+Red ships are +5. Rocks take two hits, +10. Friends are −10 — do not shoot them. Bumping a red ship costs 15 fuel.
+
+P pauses. M mutes.
+        </p>
+        <button id="start-btn" class="btn">
+          <p>Start</p>
+          <p>Loading…</p>
+        </button>
+      </div>
+      <div id="play" class="absolute">
+        <canvas id="canvas" class="absolute"></canvas>
+        <div class="content absolute">
+          <div class="header">
+            <ul class="info">
+              <li>
+                <img src="./img/time3.png" alt="">
+                <span id="time">00</span>
+              </li>
+              <li>
+                <img src="./img/fuel2.png" alt="">
+                <span id="fuel">00</span>
+              </li>
+              <li>
+                <img src="./img/score.png" alt="">
+                <span id="score">00</span>
+              </li>
+              <li>
+                <img src="./img/playerBullet.png" alt="">
+                <span id="shoot">00</span>
+              </li>
+            </ul>
+            <ul class="option">
+              <li id="game-font-size-add">
+                <img class="pause" src="./img/a+.png" alt="">
+              </li>
+              <li id="game-font-size-reduce">
+                <img class="pause" src="./img/a-.png" alt="">
+              </li>
+              <li id="game-mute-btn">
+                <img class="pause" src="./img/mute.png" alt="">
+                <img class="pause" src="./img/speaker.png" alt="">
+              </li>
+              <li id="game-pause-btn">
+                <img class="pause" src="./img/play.png" alt="">
+                <img class="pause" src="./img/pause.png" alt="">
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div id="over" class="column absolute">
+        <div class="game-data">
+          <p class="message">
+            <span><img src="./img/time3.png" alt=""></span>
+            <span>--</span>
+            <span class="time">00</span>
+          </p>
+          <p class="message">
+            <span><img src="./img/score.png" alt=""></span>
+            <span>--</span>
+            <span class="score">00</span>
+          </p>
+          <p class="message">
+            <span><img src="./img/playerBullet.png" alt=""></span>
+            <span>--</span>
+            <span class="shoot">00</span>
+          </p>
+        </div>
+        <input type="text" id="name" placeholder="Your name" />
+        <button id="submit-btn" class="btn" disabled>Continue</button>
+      </div>
+      <div id="rank" class="column absolute">
+        <table class="scroll">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Name</th>
+              <th>Score</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <button id="restart-btn" class="btn">Back</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="hud">
+  <div>W A S D  FLY  SPACE FIRE</div>
+  <div>P PAUSE  M MUTE  TAB SCORES</div>
+</div>
+
+<div id="tally" hidden></div>
+<div id="board" hidden>
+  <table>
+    <thead><tr><th>ship</th><th>score</th><th>fuel</th></tr></thead>
+    <tbody id="score-rows"></tbody>
+  </table>
+</div>
+
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+  <div id="t-right" class="t-col">
+    <button class="t-btn wide" data-key=" " type="button">FIRE</button>
+  </div>
+</div>
+
+<script src="boot.js"></script>
+<script src="vendor/assets.js"></script>
+<script src="vendor/js/config/config.js"></script>
+<script src="vendor/js/utils/utils.js"></script>
+<script src="vendor/js/utils/res.js"></script>
+<script src="vendor/js/class/scene.js"></script>
+<script src="vendor/js/class/cooldown.js"></script>
+<script src="vendor/js/class/element.js"></script>
+<script src="vendor/js/class/animation.js"></script>
+<script src="vendor/js/class/plane.js"></script>
+<script src="vendor/js/class/bullet.js"></script>
+<script src="vendor/js/class/player.js"></script>
+<script src="vendor/js/class/enemy.js"></script>
+<script src="vendor/js/class/meteorite.js"></script>
+<script src="vendor/js/class/friend.js"></script>
+<script src="vendor/js/class/star.js"></script>
+<script src="vendor/js/class/fuel.js"></script>
+<script src="vendor/js/scenes/start.js"></script>
+<script src="vendor/js/scenes/play.js"></script>
+<script src="vendor/js/scenes/over.js"></script>
+<script src="vendor/js/scenes/rank.js"></script>
+<script src="vendor/js/game.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="wrap.js"></script>
+</body>
+</html>
