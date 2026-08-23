@@ -1,0 +1,16 @@
+Pinned tesseract.js-core 7.0.0 (the WASM Tesseract.js 7.0.0 loads).
+
+  https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0/tesseract-core-simd-lstm.js
+    sha256 e48e2f02ddae3716c8dd24bf41cd290d4efa96892d689cdc4013c2545d63f469
+    bytes  89271
+  https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0/tesseract-core-simd-lstm.wasm
+    sha256 34e8d50cac216427d86bf397d610fdd9f49492539bbcdfbfccc4eda20c810bea
+    bytes  2857601
+
+LSTM + WASM SIMD only — every browser GifOS still supports has SIMD, and
+OSD/legacy detection is not shipped (that needs the larger non-LSTM core).
+
+Rebuild these two files with:  node apps/tesseract/vendor.mjs
+
+Language data is NOT in this directory. English rides an optional gifos.assets
+pin (LANG-PINS.json / manifest.json) so the GIF stays small.
