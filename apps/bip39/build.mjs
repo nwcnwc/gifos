@@ -70,6 +70,7 @@ const PINS = {
 };
 
 const SCRIPTS = [
+  'app.js',
   'vendor/jquery-3.2.1.js',
   'vendor/bootstrap.js',
   'vendor/bip39-libs.js',
