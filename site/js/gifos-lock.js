@@ -200,6 +200,7 @@
   }
 
   async function canPasskeyLock() {
+    if (overrideRaw()) return { ok: true, test: true };
     const C = root.PublicKeyCredential;
     if (!C || typeof root.navigator === 'undefined' || !root.navigator.credentials) {
       return { ok: false, reason: CANNOT };
@@ -220,8 +221,17 @@
     return { ok: true };
   }
 
+  function overrideRaw() {
+    const direct = GifOS.lock && GifOS.lock._prfOverride;
+    if (direct) return direct instanceof Uint8Array ? direct : new Uint8Array(direct);
+    try {
+      const s = root.localStorage && root.localStorage.getItem('gifos_lock_test_prf');
+      if (s) return b64d(s);
+    } catch (e) {}
+    return null;
+  }
   async function overrideKey() {
-    const raw = GifOS.lock && GifOS.lock._prfOverride;
+    const raw = overrideRaw();
     if (!raw) return null;
     return keyFromPrf(raw);
   }
