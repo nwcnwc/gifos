@@ -483,15 +483,11 @@
         48
       ],
       "cover": "/apps/bip39/cover.jpg",
-      "bytes": 2138059,
+      "bytes": 2141761,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-23"
-      },
-      "sha256": "55502d646cdef76400f7c380e67e952ccdfb0dd73f0649470cd8f7154f45067b"
+      "signature": null,
+      "sha256": "72645c7f2d7ad056145f07b20a0ae6155c8233ce06c23be575bca45983c57ca0"
     },
     {
       "slug": "bitsy",
@@ -3077,15 +3073,11 @@
         0
       ],
       "cover": "/apps/piskel/cover.jpg",
-      "bytes": 2458755,
+      "bytes": 2459489,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-23"
-      },
-      "sha256": "4d742273eb25202f51903223b54c030580f9e99b56115dc08e077f3010fd8968"
+      "signature": null,
+      "sha256": "826c669daf76bf4a0eb18344f6626ef5ad8021cf4f527391e574517e8023541f"
     },
     {
       "slug": "pixel-paint",
@@ -3467,15 +3459,11 @@
         85
       ],
       "cover": "/apps/regexper/cover.jpg",
-      "bytes": 294084,
+      "bytes": 296049,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-23"
-      },
-      "sha256": "91160f0fa81f5179651de6d6cbce2240ccc1904cda9270ebb902f9156f0c4e13"
+      "signature": null,
+      "sha256": "573d5590e32ff98e28e044c31033abc4dd10921f4961c4427753ef6ea988a16f"
     },
     {
       "slug": "restfox",
