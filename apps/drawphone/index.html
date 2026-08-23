@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Drawphone</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Drawphone</div>
+  <div class="engine-chip ready" id="chip"><span class="dot"></span><span id="chipState">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="setup">
+    <h2>Telephone with pictures</h2>
+    <p class="lead">Draw a word. The next person guesses. The next person draws that guess. At the end, see how far it drifted.</p>
+    <label class="row">First word
+      <div class="seg" id="firstSeg">
+        <button type="button" data-first="pack" class="on">Give us one</button>
+        <button type="button" data-first="write">We write it</button>
+      </div>
+    </label>
+    <p class="lvlnote" id="firstNote">Each chain starts with a simple word to draw.</p>
+    <button class="ghost wide" id="hereBtn" type="button">Pass this device</button>
+    <button class="primary" id="friendBtn" type="button">👥 Play with friends</button>
+    <p class="hint">Friends: after you sit down, send the invite from the top bar. That button is not drawn here.</p>
+  </section>
+
+  <section class="card" id="hereSetup" hidden>
+    <div class="vhead"><h2>Pass this device</h2><button class="ghost" id="hereBack" type="button">← Back</button></div>
+    <p class="lvlnote">Add everyone at the table. Hand the phone to whoever is up.</p>
+    <ul class="plist" id="hereList"></ul>
+    <div class="addrow">
+      <input id="hereName" type="text" maxlength="24" placeholder="Name" autocomplete="off">
+      <button class="ghost" id="hereAdd" type="button">Add</button>
+    </div>
+    <button class="primary" id="hereStart" type="button">Start</button>
+  </section>
+
+  <section class="game" id="lobby" hidden>
+    <div class="vhead"><h2>The table</h2><button class="ghost" id="lobbyLeave" type="button">← Leave</button></div>
+    <div class="seats" id="lobbySeats"></div>
+    <p class="statusline" id="lobbyStatus"></p>
+    <button class="primary" id="lobbyStart" type="button" hidden>Start the round</button>
+    <p class="hint" id="lobbyHint">Send the invite from the top bar to bring people in. Two or more to start.</p>
+  </section>
+
+  <section class="game" id="play" hidden>
+    <div class="vhead">
+      <h2 id="playTitle">Your turn</h2>
+      <button class="ghost" id="playLeave" type="button">← Leave</button>
+    </div>
+    <p class="statusline" id="playStatus"></p>
+    <p class="count" id="playCount"></p>
+
+    <div id="passSplash" hidden>
+      <p class="lead" id="passName">Pass the phone</p>
+      <button class="primary" id="passGo" type="button">I’m up</button>
+    </div>
+
+    <div id="wordPane" hidden>
+      <div class="showwrap" id="guessArtWrap" hidden>
+        <canvas id="guessArt" width="400" height="400" aria-label="Someone’s drawing"></canvas>
+      </div>
+      <input id="wordIn" type="text" maxlength="80" placeholder="A word or a short guess" autocomplete="off" autocapitalize="off">
+      <button class="primary" id="wordSend" type="button">Send</button>
+    </div>
+
+    <div id="drawPane" hidden>
+      <p class="prompt" id="drawPrompt"></p>
+      <div class="padwrap">
+        <canvas id="pad" width="400" height="400" aria-label="Drawing pad"></canvas>
+      </div>
+      <div class="tools" id="colors"></div>
+      <div class="tools">
+        <button type="button" class="ghost slim" data-w="3" id="w3">Thin</button>
+        <button type="button" class="ghost slim on" data-w="5" id="w5">Medium</button>
+        <button type="button" class="ghost slim" data-w="10" id="w10">Thick</button>
+        <button type="button" class="ghost slim" id="undoBtn">Undo</button>
+        <button type="button" class="ghost slim" id="clearBtn">Clear</button>
+      </div>
+      <button class="primary" id="drawSend" type="button">Send drawing</button>
+    </div>
+
+    <div id="waitPane" hidden>
+      <p class="lead" id="waitLead">Waiting for everyone to send…</p>
+      <ul class="plist" id="waitList"></ul>
+    </div>
+
+    <div id="resultsPane" hidden>
+      <div class="chainnav" id="chainNav"></div>
+      <div class="chain" id="chainView"></div>
+      <div class="went" id="wentFrom"></div>
+      <button class="primary" id="againBtn" type="button">Play again</button>
+    </div>
+  </section>
+</main>
+
+<script src="words.js"></script>
+<script src="game.js"></script>
+<script src="draw.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
