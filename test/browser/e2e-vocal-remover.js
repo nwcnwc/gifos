@@ -27,19 +27,12 @@
  * are nothing to do with the code. Pin health is checked by
  * apps/vocal-remover/tools/verify-pins.py, on purpose, out of band.
  *
- * Needs: static server on 8099, AND the model host out of reach.
- *
- * That second one is not optional and it does not announce itself. The weights
- * are optional pins now — they are not fetched at boot — but Separate calls
- * gifos.assets() and the OS will then try huggingface.co. On a box that can
- * reach it, the real Inst HQ 3 runs and eight assertions below go red for
- * saying so: no missing-weights banner, stems named Instrumental/Vocals
- * instead of Pass-through/Residual, and every measurement that assumes an
- * identity model. Nothing is wrong when that happens except the premise.
- * Run it with the host unreachable:
- *
- *   https_proxy=http://127.0.0.1:1 http_proxy=http://127.0.0.1:1 \
- *   no_proxy=127.0.0.1,localhost node test/browser/e2e-vocal-remover.js
+ * Needs: static server on 8099. The suite itself aborts huggingface.co, so
+ * Separate cannot fetch the optional pins and the in-GIF self-test model is
+ * what runs. A gate that needed a third-party host to be down was a gate that
+ * went red on every networked box for reasons that are nothing to do with
+ * the code — measured 2026-08-22: Inst HQ 3 ran in two minutes and twelve
+ * identity assertions failed for telling the truth.
  */
 const { chromium, CHROME } = require('../lib/pw');
 const { appGif } = require('../lib/apps');
@@ -128,6 +121,12 @@ async function measureStems(fr, hz, amp) {
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext();
+  // Separate calls gifos.assets() and the OS then tries the pin host. Abort
+  // it here so this suite always exercises the in-GIF self-test model, which
+  // is the only model whose stems are an identity we can measure. A networked
+  // box without this ran Inst HQ 3 for two minutes and failed twelve
+  // assertions that were telling the truth.
+  await context.route(/huggingface\.co/, (r) => r.abort());
   const page = await context.newPage();
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
 
