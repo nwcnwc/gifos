@@ -14,11 +14,13 @@
 
 <main>
   <section class="card setup" id="setup">
-    <h2>Spectrum</h2>
+    <h2>Find the mark</h2>
     <p class="lead">One of you sees a mark between two opposites and gives a clue. The other slides the needle to where that clue belongs.</p>
-    <p class="lvlnote">Seven cards. Dead-on is four (kept as three, and you keep the card). Close is three or two. A miss is nothing. The psychic seat passes after each card.</p>
+    <p class="lvlnote">Seven cards. Land dead-on and you keep that card (and score 3). Close is 3 or 2. A miss is nothing. You swap seats after each card.</p>
     <button class="primary" id="hotseatBtn" type="button">Two here</button>
-    <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
+    <button class="ghost wide" id="continueBtn" type="button" hidden>Continue this game</button>
+    <button class="ghost wide" id="friendBtn" type="button">Play a friend</button>
+    <p class="lvlnote">Play a friend: press Invite in the bar above the app. Whoever opens the link is the other seat. There is no game server — the invite is the room, and the spectrum lives in this file.</p>
     <p class="stats" id="statsLine"></p>
   </section>
 
@@ -27,10 +29,26 @@
       <h2 id="playTitle">Two here</h2>
       <button class="ghost" id="leaveBtn" type="button">← Leave</button>
     </div>
+    <div class="turnbanner" id="turnBanner">
+      <div class="who" id="turnWho"></div>
+      <div class="do" id="turnDo"></div>
+    </div>
     <div class="seats" id="seats"></div>
     <div class="fqueue" id="queue"></div>
-    <div class="scoreline" id="scoreline"></div>
+    <div class="scoreline" id="scoreline">
+      <span class="score-lab">Score</span>
+      <span class="score-num" id="scoreNum">0</span>
+      <span class="pips" id="pips" aria-hidden="true"></span>
+    </div>
     <div class="statusline" id="status"></div>
+
+    <div class="cluebox" id="cluebox">
+      <div class="clue-read" id="clueRead" hidden></div>
+      <div class="clue-write" id="clueWrite" hidden>
+        <input type="text" id="clueInput" maxlength="80" autocomplete="off" spellcheck="true" enterkeyhint="done" placeholder="Your clue…">
+        <p class="hint">One thought. Stay on the line. No numbers.</p>
+      </div>
+    </div>
 
     <div class="spectrum" id="spectrum">
       <div class="poles">
@@ -39,21 +57,28 @@
       </div>
       <div class="rail-wrap" id="railWrap">
         <div class="rail" id="rail">
-          <div class="band b4" id="band4" hidden></div>
-          <div class="band b3" id="band3" hidden></div>
-          <div class="band b2" id="band2" hidden></div>
-          <div class="mark target" id="targetMark" hidden><span>Target</span></div>
-          <div class="mark needle" id="needle" hidden></div>
+          <div class="rail-clip">
+            <div class="wedges" id="wedges" hidden>
+              <div class="wedge w2"><span>2</span></div>
+              <div class="wedge w3"><span>3</span></div>
+              <div class="wedge w4"><span>4</span></div>
+              <div class="wedge w3"><span>3</span></div>
+              <div class="wedge w2"><span>2</span></div>
+            </div>
+          </div>
+          <div class="ticks" id="ticks"></div>
+          <div class="mark target" id="targetMark" hidden></div>
+          <div class="mark needle" id="needle" hidden>
+            <div class="stem"></div>
+            <div class="knob" id="knob"></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="cluebox" id="cluebox">
-      <div class="clue-read" id="clueRead" hidden></div>
-      <div class="clue-write" id="clueWrite" hidden>
-        <input type="text" id="clueInput" maxlength="80" autocomplete="off" spellcheck="true" placeholder="Clue…">
-        <p class="hint">One thought. Stay on the line. No numbers.</p>
-      </div>
+    <div class="reveal-score" id="revealScore" hidden>
+      <div class="pts" id="revealPts"></div>
+      <div class="why" id="revealWhy"></div>
     </div>
 
     <div class="controls" id="actions"></div>
@@ -63,8 +88,8 @@
 <div class="pass" id="pass" hidden>
   <div class="pass-card">
     <h2>Pass the device</h2>
-    <p>The guesser should take it now. The mark is hidden.</p>
-    <button class="primary" id="passOk" type="button">I have it</button>
+    <p>Hand it to the guesser. The mark is hidden.</p>
+    <button class="primary" id="passOk" type="button">I'm the guesser</button>
   </div>
 </div>
 
