@@ -1,0 +1,19 @@
+Tower Defense
+Copyright 2011–2017 oldj
+
+This product includes software developed by oldj
+(https://github.com/oldj/html5-tower-defense).
+
+HTML5 Tower Defense is released under the MIT License. A copy of the
+MIT License is in COPYING.txt (and is packed inside the App GIF).
+
+This GifOS app is an UNOFFICIAL port. It is not affiliated with, endorsed by,
+or blessed by oldj. The GifOS signature on the GIF is integrity of the bytes,
+not authorship, and not a claim that upstream accepted this listing.
+Bugs go to GifOS, not upstream.
+
+Port surface (boot.js, mp.js, touch.js, the GifOS packing, this NOTICE addendum):
+Copyright 2026 GifOS contributors.
+
+Bugs for this port: https://github.com/nwcnwc/gifos/issues
+Upstream HTML5 Tower Defense: https://github.com/oldj/html5-tower-defense

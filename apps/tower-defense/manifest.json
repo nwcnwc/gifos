@@ -1,0 +1,23 @@
+{
+  "gifos": "1.0",
+  "appId": "tower-defense",
+  "name": "Tower Defense",
+  "shortName": "TD",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Pick a tower, tap a square. Don't let them through. Share the map and place towers together.",
+  "entry": "index.html",
+  "accent": [26, 116, 186],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "room": {
+      "visibility": "read-write"
+    }
+  }
+}

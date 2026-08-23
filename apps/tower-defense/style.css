@@ -1,0 +1,138 @@
+/* GifOS chrome around oldj's HTML5 TD. The board is the original 640×560
+   canvas, scaled to the phone; the picker is a thumb-sized stand-in for the
+   tiny panel map. */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #1A74BA;
+  color: #0b2a44;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#chrome {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px 6px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  background: #E0F4FC;
+  border-bottom: 1px solid #b7d7ea;
+}
+#brand {
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: #1A74BA;
+  font-size: 18px;
+}
+#actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+#actions button, .friend-actions button, #picker button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: #c5e4f4;
+  color: #0b2a44;
+}
+#shareBtn { background: #1A74BA; color: #fff; }
+body.together #shareBtn { display: none; }
+
+#friend-bar {
+  flex: 0 0 auto;
+  background: #0e4a7a;
+  color: #e8f4fc;
+  padding: 8px 12px 6px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  font-size: 14px;
+  line-height: 1.4;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 6px; }
+#friend-hint b { color: #ffe08a; }
+#friend-status { font-weight: 600; min-height: 1.2em; }
+#friend-roster {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#friend-roster li {
+  border-radius: 999px;
+  background: #165a92;
+  padding: 3px 10px;
+  font-size: 13px;
+}
+#friend-roster li.me { font-weight: 700; color: #ffe08a; }
+#friend-roster .meta { color: #9ec9e8; font-size: 12px; margin-left: 6px; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+#leaveBtn { background: transparent; box-shadow: inset 0 0 0 2px #7eb3d6; color: #e8f4fc; }
+
+#picker {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  background: #d5eef8;
+}
+#picker .pick.on { background: #1A74BA; color: #fff; }
+#upBtn, #sellBtn, #pauseBtn { background: #fff; box-shadow: inset 0 0 0 1px #b7d7ea; }
+#picker button { min-height: 36px; }
+
+#wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #1A74BA;
+}
+#td-wrapper {
+  padding: 8px;
+  background: #E0F4FC;
+}
+#td-board { display: none; font-size: 16px; }
+#td-board canvas#td-canvas {
+  display: block;
+  background: #fff;
+  border: solid 1px #cdf;
+  touch-action: none;
+  max-width: 100%;
+  height: auto;
+}
+#td-loading {
+  font-size: 18px;
+  line-height: 48px;
+  padding: 40px 24px;
+  font-style: italic;
+  color: #1A74BA;
+}
+
+@media only screen and (max-width: 520px) {
+  #brand { font-size: 16px; }
+  #actions button, #picker button { padding: 8px 10px; font-size: 12px; }
+}
