@@ -105,8 +105,32 @@ if (!files['vendor/ai.js'].includes('MAX_DEPTH')) {
 if (!files['app.js'].includes('Invite') || files['app.js'].includes('id="invite"')) {
   throw new Error('Invite is OS chrome — tell the player to press it, do not draw a share button');
 }
+if (!files['app.js'].includes('coverShot')) {
+  throw new Error('app.js must expose C4.coverShot for the store cover');
+}
+if (/location\.hash|href\s*=\s*["']#/.test(files['app.js'] + files['index.html'])) {
+  throw new Error('no hash navigation — that walks the app out of its frame');
+}
 if (!files['COPYING-c4.txt'].includes('Kenrick')) {
   throw new Error('COPYING-c4.txt is not kenrick95\'s MIT notice');
+}
+
+const listing = JSON.parse(read('listing.json'));
+if (listing.cover !== 'screenshot.png') throw new Error('listing.cover must be screenshot.png');
+if (listing.tagline.length > 120) throw new Error('tagline is over 120 chars');
+const listingBlob = JSON.stringify(listing);
+for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'gifos.fetch', 'CORS', 'COOP', 'Argon2', 'CDN', 'Node']) {
+  if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
+}
+const lead = (listing.tagline + '\n' + listing.description).toLowerCase();
+if (!/computer/.test(lead) || !/invite|one link|friend/.test(lead) || !/no game server|there is no game server/.test(lead)) {
+  throw new Error('listing must lead with computer here / friend from one link / no server');
+}
+if (!/unofficial/.test(lead) || !/kenrick/.test(lead)) {
+  throw new Error('listing must credit kenrick95 as unofficial');
+}
+if (!/file is the save/.test(lead)) {
+  throw new Error('listing must say the file is the save');
 }
 
 // Sanity: empty board, AI returns a legal column; a vertical four is a win.
@@ -125,15 +149,33 @@ if (!files['COPYING-c4.txt'].includes('Kenrick')) {
     '  v = C4.drop(v, 0); v = C4.drop(v, 1);\n' +
     '  v = C4.drop(v, 0);\n' +
     '  if (v.winner !== C4.P1) throw new Error("vertical four should win");\n' +
+    '  var cover = C4.replay(C4.COVER_MOVES);\n' +
+    '  if (cover.winner) throw new Error("cover position must not already be won");\n' +
+    '  if (!C4.canDrop(cover, 0)) throw new Error("cover must be able to drop column 0");\n' +
+    '  var won = C4.drop(cover, 0);\n' +
+    '  if (!won || won.winner !== C4.P1) throw new Error("cover column 0 should complete four");\n' +
+    '  if (!won.winLine || won.winLine.length < 4) throw new Error("cover win must have a line");\n' +
     '  return col;\n' +
     '})();',
     ctx
   );
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+// Playwright capture (tools/shoot.js) is the store master. Do not clobber it
+// with the procedural fallback — that shot is mid-game with four about to land.
+if (!existsSync(shotPath) || process.env.C4_SHOT === 'gen') {
+  const shot = screenshotPng();
+  if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
+  if (shot.length < 1000) throw new Error('screenshot png looks empty');
+  writeFileSync(shotPath, shot);
+  console.log('wrote apps/connect-four/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB (fallback)');
+} else {
+  const keep = readFileSync(shotPath);
+  if (keep[0] !== 0x89 || keep[1] !== 0x50) throw new Error('screenshot.png is not a PNG');
+  if (keep.length < 1000) throw new Error('screenshot.png looks empty');
+  console.log('keeping apps/connect-four/screenshot.png (Playwright master)');
+}
 
 const bytes = await gif.encode(files, { preview: connectFourIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'connect-four', 'connect-four.gif');
@@ -141,4 +183,3 @@ mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
 console.log('wrote site/apps/connect-four/connect-four.gif —', (bytes.length / 1024).toFixed(0), 'KB, from',
             Object.keys(files).length, 'files (c4 AI vendored, no network)');
-console.log('wrote apps/connect-four/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB');

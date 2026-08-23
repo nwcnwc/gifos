@@ -1,6 +1,6 @@
 // Procedural icon: a grey Connect Four grid, a red disc dropping into a
 // column. Pure Node, super-sample → box-downsample. Deterministic.
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
+const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 16;
 
 const CARD = [22, 28, 42];
 const MASK = [216, 216, 216];
@@ -41,16 +41,23 @@ function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 18;
   const COLS = 7, ROWS = 6;
-  const bx = 16, by = 22, bw = OUT - 32, bh = OUT - 38;
+  const bx = 14, by = 28, bw = OUT - 28, bh = OUT - 40;
   const cellW = bw / COLS, cellH = bh / ROWS;
-  const holeR = Math.min(cellW, cellH) * 0.38;
-  const t = f / (FRAMES - 1);
+  const holeR = Math.min(cellW, cellH) * 0.42;
   const dropCol = 3;
   const dropRow = 4;
-  const dropY0 = by - holeR;
+  const dropY0 = 18;
   const dropY1 = by + (dropRow + 0.5) * cellH;
-  const dropY = dropY0 + (dropY1 - dropY0) * Math.min(1, t * 1.15);
-  // settled discs (row, col, red?) — a short game that ends with four red
+  const hold = 3;
+  const dropFrames = FRAMES - 1 - hold;
+  let u = f <= dropFrames ? f / dropFrames : 1;
+  if (u < 1) u = u * u; // gravity
+  let dropY = dropY0 + (dropY1 - dropY0) * u;
+  if (f > dropFrames && f < FRAMES - 1) {
+    const b = (f - dropFrames) / hold;
+    dropY = dropY1 - Math.sin(b * Math.PI) * 5;
+  }
+  // settled discs (row, col, red?) — a short game; the dropping red lands on 4,3
   const settled = [
     [5, 1, false], [5, 2, true], [5, 3, false], [5, 4, true],
     [4, 2, false], [4, 4, true],
@@ -80,20 +87,20 @@ function frameIndices(pal, f) {
             if (c === dropCol && r === dropRow) {
               const dd = (x - cx) * (x - cx) + (y - dropY) * (y - dropY);
               if (dd <= holeR * holeR && Math.abs(dropY - cy) < holeR * 1.1) {
-                const u = (x - (cx - 2)) / (holeR * 2);
-                col = mix(RED_H, RED, Math.max(0, Math.min(1, u)));
+                const du = (x - (cx - 2)) / (holeR * 2);
+                col = mix(RED_H, RED, Math.max(0, Math.min(1, du)));
               }
             }
           }
         }
-        // falling disc above the grid
-        if (dropY < by + 0.5 * cellH) {
-          const cx = bx + (dropCol + 0.5) * cellW;
-          const dd = (x - cx) * (x - cx) + (y - dropY) * (y - dropY);
-          if (dd <= holeR * holeR) {
-            const u = (x - (cx - 2)) / (holeR * 2);
-            col = mix(RED_H, RED, Math.max(0, Math.min(1, u)));
-          }
+      }
+      // falling disc — including the frames where it is still above the grid
+      {
+        const cx = bx + (dropCol + 0.5) * cellW;
+        const dd = (x - cx) * (x - cx) + (y - dropY) * (y - dropY);
+        if (dd <= holeR * holeR) {
+          const du = (x - (cx - 2)) / (holeR * 2);
+          col = mix(RED_H, RED, Math.max(0, Math.min(1, du)));
         }
       }
     }
@@ -122,7 +129,7 @@ export function connectFourIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 8, transparentIndex: 0 };
 }
 
 import { deflateSync } from 'node:zlib';
