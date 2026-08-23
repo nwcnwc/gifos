@@ -36,7 +36,7 @@
 
   var engine = null, ctx = null, player = null, ui = null, touch = null;
   var db = null, prefs = { quality: null, sensitivity: null, invertY: null, fov: null };
-  var spawnSeq = 1, dead = false, respawnAt = 0;
+  var spawnSeq = 1, dead = false, respawnAt = 0, lastSpawnIdx = -1;
   // Who last shot us, BY ID. Matching the killer back by name (which this did)
   // credits the wrong player whenever two people share one — and the default
   // name for someone who never set one is "Player", so an unnamed room credited
@@ -808,7 +808,12 @@
     // each other's heads at the same corner.
     var world = ctx.peek('world');
     var n = (world && world.spawnPoints && world.spawnPoints.length) || 1;
-    player.respawn(Math.floor(Math.random() * n));
+    var i = Math.floor(Math.random() * n);
+    // The comment above is a promise: a different corner, not a coin-flip that
+    // can land you on the corpse. With n>1 never reuse lastSpawnIdx.
+    if (n > 1 && i === lastSpawnIdx) i = (i + 1) % n;
+    lastSpawnIdx = i;
+    player.respawn(i);
     player.setControlEnabled(true);
     pushSelf();
     root.Net.publish(true);
