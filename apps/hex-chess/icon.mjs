@@ -51,7 +51,7 @@ function hexPixel(q, r, size) {
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 18;
-  const size = 12.4;
+  const size = 15.4;
   const ox = OUT / 2, oy = OUT / 2 + 4;
   const t = f / (FRAMES - 1);
   // Real knight leap: 2 hexes north, then one at 60° (cube delta 1,2,3).
@@ -59,9 +59,9 @@ function frameIndices(pal, f) {
   const a = hexPixel(from.q, from.r, size), b = hexPixel(to.q, to.r, size);
   const jumpT = Math.min(1, t * 1.08);
   const jx = ox + a.x + (b.x - a.x) * jumpT;
-  const jy = oy - (a.y + (b.y - a.y) * jumpT) - Math.sin(jumpT * Math.PI) * size * 1.05;
+  const jy = oy - (a.y + (b.y - a.y) * jumpT) - Math.sin(jumpT * Math.PI) * size * 0.95;
   const settled = [
-    [0, -2, false], [1, -2, false], [-1, 1, true], [0, 1, true], [2, -1, true], [-2, 0, false]
+    [1, -1, false], [-1, 1, true], [1, 0, true]
   ];
   function knightBlob(x, y, cx, cy, pr) {
     const dx = x - cx, dy = y - cy;
@@ -85,10 +85,14 @@ function frameIndices(pal, f) {
           if (inFlatHex(x, y, hx, hy, size * 0.98)) {
             const c = hexColor(q, r);
             col = (c === 0 ? HEX1 : c === 1 ? HEX2 : HEX3).slice();
+            if (q === from.q && r === from.r) {
+              const glow = 1 - Math.min(1, Math.hypot(x - hx, y - hy) / (size * 0.9));
+              col = mix(col, GOLD, 0.18 + 0.35 * (1 - jumpT) * glow);
+            }
             for (const s of settled) {
               if (s[0] === q && s[1] === r) {
                 const d = (x - hx) * (x - hx) + (y - hy) * (y - hy);
-                const pr = size * 0.30;
+                const pr = size * 0.26;
                 if (d <= pr * pr) {
                   const u = (x - (hx - 2)) / (pr * 2);
                   col = s[2] ? mix(B_HI, B_LO, Math.max(0, Math.min(1, u)))
@@ -100,7 +104,7 @@ function frameIndices(pal, f) {
         }
       }
     }
-    const pr = size * 0.36;
+    const pr = size * 0.52;
     if (knightBlob(x, y, jx, jy, pr)) {
       a1 = 1;
       const u = (x - (jx - 2)) / (pr * 2);
@@ -137,6 +141,8 @@ export function hexChessIcon() {
 }
 
 import { deflateSync } from 'node:zlib';
+import { readFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 function crc(buf) {
   let c = ~0;
@@ -204,6 +210,8 @@ function parseAlg(s) {
 }
 
 export function screenshotPng() {
+  const hero = fileURLToPath(new URL('./hero.png', import.meta.url));
+  if (existsSync(hero)) return readFileSync(hero);
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
   const put = (x, y, r, g, b, a) => {
@@ -278,18 +286,76 @@ export function screenshotPng() {
     }
   }
   function coverPiece(cx, cy, kind, isW) {
-    const hi = isW ? [250, 244, 230] : [48, 48, 58];
-    const lo = isW ? [210, 198, 170] : [14, 14, 20];
-    const ink = isW ? [90, 56, 32] : [232, 197, 71];
-    const rad = kind === 'P' ? size * 0.28 : size * 0.36;
-    discAt(cx, cy + (kind === 'P' ? 1 : 2), rad, hi, lo);
-    if (kind === 'P') return;
-    if (kind === 'N') {
-      discAt(cx + rad * 0.38, cy - rad * 0.55, rad * 0.38, hi, lo);
-      discAt(cx + rad * 0.62, cy - rad * 0.08, rad * 0.26, hi, lo);
+    const hi = isW ? [250, 244, 230] : [36, 36, 44];
+    const lo = isW ? [214, 202, 176] : [12, 12, 18];
+    const ink = isW ? [86, 50, 24] : [236, 214, 160];
+    const S = size * (kind === 'P' ? 0.30 : 0.38);
+    function ring(x, y, r, t) {
+      for (let dy = -r - 1; dy <= r + 1; dy++) for (let dx = -r - 1; dx <= r + 1; dx++) {
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d <= r && d > r - t) put(x + dx, y + dy, ink[0], ink[1], ink[2]);
+      }
+    }
+    function base(yOff, rw, rh) {
+      for (let dy = 0; dy <= rh; dy++) {
+        const w = rw - dy * 0.15;
+        for (let dx = -w; dx <= w; dx++) put(cx + dx, cy + yOff + dy, lo[0], lo[1], lo[2]);
+      }
+    }
+    base(S * 0.55, S * 0.85, Math.max(2, S * 0.18));
+    discAt(cx, cy + S * 0.12, S * 0.72, hi, lo);
+    if (kind === 'P') {
+      discAt(cx, cy - S * 0.35, S * 0.42, hi, lo);
+      ring(cx, cy - S * 0.35, S * 0.42, 1.4);
       return;
     }
-    drawText(put, cx - 6, cy - 10, kind, 2, ink[0], ink[1], ink[2]);
+    if (kind === 'N') {
+      discAt(cx + S * 0.12, cy - S * 0.2, S * 0.62, hi, lo);
+      discAt(cx + S * 0.42, cy - S * 0.55, S * 0.36, hi, lo);
+      discAt(cx + S * 0.72, cy - S * 0.12, S * 0.28, hi, lo);
+      ring(cx + S * 0.12, cy - S * 0.2, S * 0.62, 1.3);
+      return;
+    }
+    if (kind === 'R') {
+      for (let dy = -S * 0.7; dy <= S * 0.4; dy++) {
+        for (let dx = -S * 0.48; dx <= S * 0.48; dx++) put(cx + dx, cy + dy, hi[0], hi[1], hi[2]);
+      }
+      for (let i = -2; i <= 2; i++) {
+        const x = cx + i * S * 0.28;
+        for (let dy = -S * 0.95; dy <= -S * 0.55; dy++) {
+          for (let dx = -S * 0.1; dx <= S * 0.1; dx++) put(x + dx, cy + dy, hi[0], hi[1], hi[2]);
+        }
+      }
+      return;
+    }
+    if (kind === 'B') {
+      discAt(cx, cy - S * 0.55, S * 0.32, hi, lo);
+      for (let dy = -S * 0.3; dy <= S * 0.5; dy++) {
+        const w = S * 0.18 + (dy + S * 0.3) * 0.35;
+        for (let dx = -w; dx <= w; dx++) put(cx + dx, cy + dy, hi[0], hi[1], hi[2]);
+      }
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -1; dx <= 1; dx++) {
+        put(cx + dx, cy - S * 0.7 + dy, ink[0], ink[1], ink[2]);
+      }
+      return;
+    }
+    if (kind === 'Q') {
+      discAt(cx, cy - S * 0.15, S * 0.7, hi, lo);
+      for (let i = -2; i <= 2; i++) {
+        const ang = -Math.PI / 2 + i * 0.55;
+        discAt(cx + Math.cos(ang) * S * 0.62, cy - S * 0.15 + Math.sin(ang) * S * 0.62, S * 0.16, hi, ink);
+      }
+      return;
+    }
+    // king
+    discAt(cx, cy - S * 0.05, S * 0.68, hi, lo);
+    const arm = Math.max(2, (S * 0.16) | 0), stem = Math.max(6, (S * 0.55) | 0);
+    for (let dy = -stem; dy <= stem * 0.15; dy++) for (let dx = -arm; dx <= arm; dx++) {
+      put(cx + dx, cy - S * 0.55 + dy, ink[0], ink[1], ink[2]);
+    }
+    for (let dy = -arm; dy <= arm; dy++) for (let dx = -stem * 0.45; dx <= stem * 0.45; dx++) {
+      put(cx + dx, cy - S * 0.85 + dy, ink[0], ink[1], ink[2]);
+    }
   }
   for (const pc of pieces) {
     const p = hexPixel(pc.q, pc.r, size);

@@ -51,8 +51,8 @@
   });
 
   function layout(cssW, cssH) {
-    var halfW = 1.5 * C.N + 1.4;
-    var halfH = Math.sqrt(3) * (C.N + 0.9);
+    var halfW = 1.5 * C.N + 1.55;
+    var halfH = Math.sqrt(3) * (C.N + 1.05);
     var pad = Math.max(8, Math.min(cssW, cssH) * 0.02);
     var size = Math.min((cssW - 2 * pad) / (2 * halfW),
                         (cssH - 2 * pad) / (2 * halfH));
@@ -114,22 +114,22 @@
       ctx.lineTo(-7.4, 1.6); ctx.lineTo(-6.0, 1.6); ctx.lineTo(-6.0, 6.4);
       ctx.closePath();
     } else if (t === C.NIGHT) {
-      ctx.moveTo(-6.4, 8.8); ctx.lineTo(6.6, 8.8); ctx.lineTo(5.4, 6.6);
-      ctx.lineTo(4.2, 3.4); ctx.quadraticCurveTo(7.2, -0.6, 6.4, -4.2);
-      ctx.quadraticCurveTo(5.6, -7.6, 2.4, -8.4);
-      ctx.quadraticCurveTo(0.6, -9.2, -0.2, -7.4);
-      ctx.quadraticCurveTo(-1.6, -8.8, -3.6, -7.2);
-      ctx.quadraticCurveTo(-6.8, -4.2, -5.4, -0.2);
-      ctx.quadraticCurveTo(-7.2, 2.6, -5.0, 5.0);
-      ctx.lineTo(-5.2, 6.6); ctx.closePath();
+      ctx.moveTo(-6.8, 8.8); ctx.lineTo(6.2, 8.8); ctx.lineTo(5.0, 6.6);
+      ctx.lineTo(3.2, 4.4); ctx.lineTo(3.4, 1.0);
+      ctx.lineTo(7.6, -0.8); ctx.lineTo(8.6, -3.0); ctx.lineTo(6.2, -2.6);
+      ctx.lineTo(5.0, -5.2); ctx.lineTo(3.0, -9.0); ctx.lineTo(0.6, -8.4);
+      ctx.lineTo(1.4, -5.6); ctx.lineTo(-1.6, -6.2);
+      ctx.lineTo(-4.2, -3.0); ctx.lineTo(-6.2, 0.2);
+      ctx.lineTo(-6.8, 3.4); ctx.lineTo(-5.4, 6.4);
+      ctx.closePath();
     } else if (t === C.BISHOP) {
-      ctx.moveTo(-6.0, 8.8); ctx.lineTo(6.0, 8.8); ctx.lineTo(4.8, 6.6);
-      ctx.quadraticCurveTo(3.4, 4.2, 3.2, 1.4);
-      ctx.quadraticCurveTo(6.0, -2.4, 2.6, -6.2);
-      ctx.quadraticCurveTo(1.2, -8.8, 0, -9.2);
-      ctx.quadraticCurveTo(-1.2, -8.8, -2.6, -6.2);
-      ctx.quadraticCurveTo(-6.0, -2.4, -3.2, 1.4);
-      ctx.quadraticCurveTo(-3.4, 4.2, -4.8, 6.6);
+      ctx.moveTo(-6.2, 8.8); ctx.lineTo(6.2, 8.8); ctx.lineTo(5.0, 6.8);
+      ctx.lineTo(3.4, 6.8); ctx.quadraticCurveTo(3.6, 3.2, 3.0, 0.6);
+      ctx.quadraticCurveTo(5.4, -2.8, 2.2, -6.6);
+      ctx.arc(0, -7.6, 2.4, 0.9, Math.PI - 0.9, true);
+      ctx.quadraticCurveTo(-5.4, -2.8, -3.0, 0.6);
+      ctx.quadraticCurveTo(-3.6, 3.2, -3.4, 6.8);
+      ctx.lineTo(-5.0, 6.8);
       ctx.closePath();
     } else if (t === C.QUEEN) {
       ctx.moveTo(-7.0, 8.8); ctx.lineTo(7.0, 8.8); ctx.lineTo(5.6, 6.4);
@@ -213,7 +213,7 @@
       [[last.fq, last.fr], [last.tq, last.tr]].forEach(function (pr) {
         pt = screenOf(g, pr[0], pr[1], flip);
         hexPath(ctx, pt.x, pt.y, hexR * 0.94);
-        ctx.fillStyle = 'rgba(232, 197, 71, .34)';
+        ctx.fillStyle = 'rgba(232, 197, 71, .42)';
         ctx.fill();
       });
     }
@@ -227,8 +227,11 @@
       h = C.HEXES[i];
       var south = !C.inBoard(h.q, h.r + (flip ? 1 : -1));
       pt = screenOf(g, h.q, h.r, flip);
-      if (south) ctx.fillText(C.FILES[h.q + C.N], pt.x, pt.y + hexR * 1.12);
-      if (h.q === leftFile) ctx.fillText(String(C.rankOf(h.q, h.r)), pt.x - hexR * 1.12, pt.y);
+      if (south) ctx.fillText(C.FILES[h.q + C.N], pt.x, pt.y + hexR * 1.32);
+      if (h.q === leftFile) ctx.fillText(String(C.rankOf(h.q, h.r)), pt.x - hexR * 1.22, pt.y);
+      else if ((!flip && h.r === C.N && h.q < 0) || (flip && h.r === -C.N && h.q > 0)) {
+        ctx.fillText(String(C.rankOf(h.q, h.r)), pt.x - hexR * 1.18, pt.y);
+      }
     }
     for (k in legal) {
       if (!Object.prototype.hasOwnProperty.call(legal, k)) continue;
@@ -242,7 +245,7 @@
         ctx.stroke();
       } else {
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, Math.max(5.5, hexR * 0.22), 0, Math.PI * 2);
+        ctx.arc(pt.x, pt.y, Math.max(6.5, hexR * 0.30), 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255, 226, 140, .92)';
         ctx.fill();
       }
