@@ -1,0 +1,10 @@
+vendor/js/* and vendor/img/* and vendor/sound/* are Star Battle as shipped.
+Do not edit them; run node apps/star-battle/vendor.mjs.
+
+upstream: https://github.com/gd4Ark/star-battle
+commit:   b600e9e91012886f6273d6b3c91d6ab83b5eecad
+license:  MIT (COPYING-star-battle.txt)
+
+Classic scripts, loaded as classic scripts. js/main.js is kept for the
+record but is not executed — boot.js starts the Game after the asset map
+is applied. The notice travels INSIDE the GIF as well as beside it here.
