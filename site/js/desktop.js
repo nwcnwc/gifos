@@ -396,6 +396,39 @@
     return movers.length + 1;
   }
 
+  // One-shot layout migration: Camera slots DIRECTLY BELOW Welcome, scooching
+  // that column down one row (My Media, Stolen Apps, Store, Providers, Trash
+  // on a stock left column). If Welcome or Camera left the root, nothing
+  // moves; the flag still sets so we never fight the user. My Media already
+  // in another column is left there — we don't teleport it.
+  async function placeCameraBetweenWelcomeAndMyMedia() {
+    const key = 'gifos_mig_camera_slot' + (store.dbName === 'gifos' ? '' : '::' + store.dbName);
+    try { if (localStorage.getItem(key)) return 0; } catch (e) {}
+    const done = () => { try { localStorage.setItem(key, '1'); } catch (e) {} };
+    const files = await store.allFiles();
+    const rootApp = (match) => {
+      for (const it of items) {
+        if (it.kind !== 'file' || it.parent) continue;
+        const fl = files.find((x) => x.id === it.fileId);
+        if (fl && fl.isApp && fl.isDefault && match(fl.appId)) return it;
+      }
+      return null;
+    };
+    const welcome = rootApp((id) => id === 'welcome');
+    const camera = rootApp((id) => id === 'camera');
+    if (!welcome || !camera) { done(); return 0; }
+    const tx = welcome.x, ty = (welcome.y || 0) + GRID.rowPitch;
+    if (camera.x === tx && camera.y === ty) { done(); return 0; }
+    const col = cellOf(tx, 0).col;
+    const movers = items
+      .filter((it) => !it.parent && it.id !== camera.id && cellOf(it.x, 0).col === col && (it.y || 0) >= ty)
+      .sort((p, q) => (q.y || 0) - (p.y || 0));
+    for (const it of movers) { it.y = (it.y || 0) + GRID.rowPitch; await saveItem(it, { keepCell: true }); }
+    await saveItem(camera, { at: { x: tx, y: ty } });
+    done();
+    return movers.length + 1;
+  }
+
   // Re-bake the default apps from this build's code when the BUILD MOVED under
   // this desktop — two triggers, one mechanism:
   //  • gifos_reseed — set by every EXPLICIT build move (pin / release / edge /
@@ -455,8 +488,9 @@
       const seed = await GifOS.samples.build();
       const { updated, added, purged } = await rebuildDefaultApps(seed);
       const moved = await placeBroadcastBelowMeeting();
+      const cam = await placeCameraBetweenWelcomeAndMyMedia();
       const redrawn = await refreshSystemFolderArt();
-      if (updated || added || purged || moved || redrawn) await load();
+      if (updated || added || purged || moved || cam || redrawn) await load();
     } catch (e) { /* never block boot */ }
   }
 
@@ -466,24 +500,24 @@
   async function ensureSystemItems() {
     const sysSpot = { x: GRID.origin, y: GRID.origin + 3 * GRID.pitch };
     // FRESH SEED (pendingStoreApp held by seedIfEmpty): the left column is
-    // laid out deterministically — Welcome / My Media / Stolen Apps / App
-    // Store / Providers / Trash — so the store sits RIGHT BELOW the chest
+    // laid out deterministically — Welcome / Camera / My Media / Stolen Apps /
+    // App Store / Providers / Trash — so the store sits RIGHT BELOW the chest
     // (user decision 2026-08-02: the store and the loot live together; the
-    // store's own aim is chest+1 = row 3, which is why Providers takes row 4).
+    // store's own aim is chest+1 = row 4, which is why Providers takes row 5).
     // Existing desktops keep their arrangement: the aims below only apply to
     // items that do not exist yet, and saveItem still resolves every aim to a
-    // free cell.
+    // free cell. Camera is scooched under Welcome by placeCameraBetweenWelcomeAndMyMedia.
     const fresh = !!pendingStoreApp;
     const rowAt = (r) => ({ x: GRID.origin, y: GRID.origin + r * GRID.rowPitch });
     if (!items.find((i) => i.id === TRASH_ID)) {
-      const at = fresh ? rowAt(5) : sysSpot;
+      const at = fresh ? rowAt(6) : sysSpot;
       await saveItem({ id: TRASH_ID, kind: 'folder', name: 'Trash', parent: null,
         x: at.x, y: at.y, iconSize: 64 }, { at });
       await load();
     }
     let stolen = items.find((i) => i.id === 'sys_stolen');
     if (!stolen) {
-      const at = fresh ? rowAt(2) : sysSpot;
+      const at = fresh ? rowAt(3) : sysSpot;
       stolen = { id: 'sys_stolen', kind: 'folder', name: 'Stolen Apps', parent: null,
         x: at.x, y: at.y, iconSize: 64 };
       await saveItem(stolen, { at });
@@ -505,11 +539,11 @@
     // 'sys_providers' — where Provider apps LIVE to be recognized
     // (docs/providers.md). The runtime broker and the Settings picker only
     // honour direct children of this folder; anywhere else a provider icon
-    // wears the red ✕. Fresh seed: row 4 of the left system column (right
+    // wears the red ✕. Fresh seed: row 5 of the left system column (right
     // under the App Store, which itself aims for the cell under the chest).
     let providers = items.find((i) => i.id === 'sys_providers');
     if (!providers) {
-      const at = fresh ? rowAt(4) : sysSpot;
+      const at = fresh ? rowAt(5) : sysSpot;
       providers = { id: 'sys_providers', kind: 'folder', name: 'Providers', parent: null,
         x: at.x, y: at.y, iconSize: 64 };
       await saveItem(providers, { at });
