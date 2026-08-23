@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "paint-board",
+  "name": "Paint Board",
+  "shortName": "Paint Board",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A freehand board with wild brushes. Draw together.",
+  "entry": "index.html",
+  "accent": [255, 99, 99],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

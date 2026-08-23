@@ -1,0 +1,34 @@
+{
+  "tagline": "A freehand board with wild brushes. Draw together.",
+  "description": "Paint with a dozen brushes — a plain pencil, a rainbow, a spray of pixels, a mesh that knits itself, thorns, waves, stars. Change the colour, the thickness, undo, and when you want a picture in your hands, save it as a PNG on this device.\n\nWhat you draw stays on this computer, inside the app. Close it, open it later, the picture is where you left it.\n\nPress Draw together, then Invite (in the GifOS menu), and everyone who opens the link paints on the same board. Each person draws their own strokes; they land on the shared board.\n\nAn unofficial port of paint-board by LHRUN. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "LHRUN",
+    "url": "https://github.com/LHRUN/paint-board"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "paint-board",
+    "url": "https://github.com/LHRUN/paint-board",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "paint",
+    "drawing",
+    "freehand",
+    "brushes",
+    "canvas",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/paint-board",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
