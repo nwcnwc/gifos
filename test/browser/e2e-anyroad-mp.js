@@ -136,28 +136,7 @@ async function run(MODE, nth) {
     // a box that is still hot.
     waitMs: nth ? 300000 : 0,
   });
-  const LAUNCH_ARGS = [
-      // No GPU on the gate box; without a software rasteriser there is no WebGL
-      // context at all and the app would correctly refuse to run. But this
-      // FORCES software even where a GPU exists, and that is not free: a box
-      // rendering three worlds in software spends its main thread there, and
-      // this suite's steering assertions read a physics sim that advances per
-      // RENDERED FRAME. ANYROAD_GL=hw asks for the real GPU on boxes that have
-      // one — which is also what every player has.
-      // ASK FOR VULKAN, or "hw" does not select anything. --ignore-gpu-blocklist
-      // and --enable-gpu-rasterization only lift Chrome's own refusals; measured
-      // on the fleet's one real-GPU box, a headless Chrome with those flags
-      // reported the SwiftShader device byte-for-byte identically to a run
-      // without them. --use-angle=vulkan is what reaches the GPU, and it
-      // degrades safely to Vulkan's own SwiftShader device on a box that has
-      // none. (See the long note in e2e-fps-simple.js, where the same mistake
-      // cost a night of blaming a phone for a silent host.)
-      // Default is the real GPU (Vulkan). ANYROAD_GL=sw is the software
-      // rasteriser for a box that has none. Forcing SwiftShader on a fleet
-      // that includes a Pi made the Pi look dead (same lesson as FPS_GL).
-      ...(process.env.ANYROAD_GL === 'sw'
-        ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
-        : ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization']),
+  const COMMON = [
       '--disable-features=WebRtcHideLocalIpsWithMdns',
       '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
       '--autoplay-policy=no-user-gesture-required',
@@ -174,8 +153,22 @@ async function run(MODE, nth) {
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
   ];
-  const boxes = LOCAL ? null : await openFleet(fleet.hosts.slice(0, NAMES.length), { args: LAUNCH_ARGS, origin: BASE });
-  const localBrowser = LOCAL ? await chromium.launch({ executablePath: CHROME, args: LAUNCH_ARGS }) : null;
+  // Per-host GL: headless Vulkan only on boxes whose GPU answers it
+  // (`gpu: true`). Forcing --use-angle=vulkan on a GLES GPU (Broadcom V3D, …)
+  // hides the adapter behind ANGLE SwiftShader. A board with a seat display
+  // gets headed GLES instead — same lesson as e2e-fps-simple.js. ANYROAD_GL=sw
+  // is the software opt-out. The 3-driver gate is still needFleet(3); LOCAL
+  // is wiring-only and skips steering.
+  function launchArgs(h) {
+    const gl = process.env.ANYROAD_GL === 'sw'
+      ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
+      : (h && h.gpu)
+        ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--enable-gpu']
+        : ['--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--enable-gpu'];
+    return gl.concat(COMMON);
+  }
+  const boxes = LOCAL ? null : await openFleet(fleet.hosts.slice(0, NAMES.length), { args: launchArgs, origin: BASE });
+  const localBrowser = LOCAL ? await chromium.launch({ executablePath: CHROME, args: launchArgs(null) }) : null;
   if (LOCAL) console.log('  WIRING-ONLY (ANYROAD_MP_LOCAL=1): one box, and the steering PHYSICS block is SKIPPED — it needs a machine per driver (test/lib/fleet.js).');
 
   const players = [];
