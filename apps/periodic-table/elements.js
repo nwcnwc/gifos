@@ -1,11 +1,15 @@
 /* Periodic Table — 118 confirmed elements, quiz items, extra tables.
  * Data is vendored. Nothing is fetched. Classic script (no import/export).
  * 118 is Oganesson (Og). Ununennium (Uue) would be 119 and is not included.
+ *
+ * RAW: z, symbol, name, mass, category, shells
+ * EXTRA (same order): state, year (0 = ancient), eneg, density g/cm3,
+ *   melt C, boil C, oxidation, electron config.
+ * Unknown numbers are 0 / '' — we do not guess superheavy properties.
  */
 (function (root) {
   'use strict';
 
-  // z, symbol, name, mass, category, shells (Bohr occupancy)
   var RAW = [
     [1, 'H', 'Hydrogen', 1.008, 'nonmetal', '1'],
     [2, 'He', 'Helium', 4.0026, 'noble', '2'],
@@ -127,6 +131,128 @@
     [118, 'Og', 'Oganesson', 294, 'noble', '2-8-18-32-32-18-8']
   ];
 
+  // Same order as RAW. 0 / '' = unknown (not a guess). year 0 = known in antiquity.
+  var EXTRA = [
+    ['g', 1766, 2.20, 0.000090, -259, -253, '-1, +1', '1s1'],
+    ['g', 1868, 0, 0.000179, -272, -269, '0', '1s2'],
+    ['s', 1817, 0.98, 0.534, 181, 1342, '+1', '[He] 2s1'],
+    ['s', 1798, 1.57, 1.85, 1287, 2470, '+2', '[He] 2s2'],
+    ['s', 1808, 2.04, 2.08, 2076, 3927, '+3', '[He] 2s2 2p1'],
+    ['s', 0, 2.55, 2.267, 3550, 4027, '-4, +2, +4', '[He] 2s2 2p2'],
+    ['g', 1772, 3.04, 0.001251, -210, -196, '-3, +3, +5', '[He] 2s2 2p3'],
+    ['g', 1774, 3.44, 0.001429, -219, -183, '-2, +2', '[He] 2s2 2p4'],
+    ['g', 1886, 3.98, 0.001696, -220, -188, '-1', '[He] 2s2 2p5'],
+    ['g', 1898, 0, 0.000900, -249, -246, '0', '[He] 2s2 2p6'],
+    ['s', 1807, 0.93, 0.971, 98, 883, '+1', '[Ne] 3s1'],
+    ['s', 1755, 1.31, 1.738, 650, 1090, '+2', '[Ne] 3s2'],
+    ['s', 1825, 1.61, 2.70, 660, 2519, '+3', '[Ne] 3s2 3p1'],
+    ['s', 1824, 1.90, 2.33, 1414, 3265, '+4', '[Ne] 3s2 3p2'],
+    ['s', 1669, 2.19, 1.82, 44, 281, '-3, +3, +5', '[Ne] 3s2 3p3'],
+    ['s', 0, 2.58, 2.07, 115, 445, '-2, +4, +6', '[Ne] 3s2 3p4'],
+    ['g', 1774, 3.16, 0.003214, -102, -34, '-1, +1, +5, +7', '[Ne] 3s2 3p5'],
+    ['g', 1894, 0, 0.001784, -189, -186, '0', '[Ne] 3s2 3p6'],
+    ['s', 1807, 0.82, 0.862, 64, 759, '+1', '[Ar] 4s1'],
+    ['s', 1808, 1.00, 1.54, 842, 1484, '+2', '[Ar] 4s2'],
+    ['s', 1879, 1.36, 2.99, 1541, 2836, '+3', '[Ar] 3d1 4s2'],
+    ['s', 1791, 1.54, 4.51, 1668, 3287, '+2, +3, +4', '[Ar] 3d2 4s2'],
+    ['s', 1801, 1.63, 6.11, 1910, 3407, '+2, +3, +4, +5', '[Ar] 3d3 4s2'],
+    ['s', 1797, 1.66, 7.15, 1907, 2671, '+2, +3, +6', '[Ar] 3d5 4s1'],
+    ['s', 1774, 1.55, 7.21, 1246, 2061, '+2, +4, +7', '[Ar] 3d5 4s2'],
+    ['s', 0, 1.83, 7.87, 1538, 2862, '+2, +3', '[Ar] 3d6 4s2'],
+    ['s', 1735, 1.88, 8.90, 1495, 2927, '+2, +3', '[Ar] 3d7 4s2'],
+    ['s', 1751, 1.91, 8.91, 1455, 2913, '+2', '[Ar] 3d8 4s2'],
+    ['s', 0, 1.90, 8.96, 1085, 2562, '+1, +2', '[Ar] 3d10 4s1'],
+    ['s', 0, 1.65, 7.14, 420, 907, '+2', '[Ar] 3d10 4s2'],
+    ['s', 1875, 1.81, 5.91, 30, 2204, '+3', '[Ar] 3d10 4s2 4p1'],
+    ['s', 1886, 2.01, 5.32, 938, 2833, '+2, +4', '[Ar] 3d10 4s2 4p2'],
+    ['s', 0, 2.18, 5.73, 817, 614, '-3, +3, +5', '[Ar] 3d10 4s2 4p3'],
+    ['s', 1817, 2.55, 4.81, 221, 685, '-2, +4, +6', '[Ar] 3d10 4s2 4p4'],
+    ['l', 1826, 2.96, 3.12, -7, 59, '-1, +1, +5', '[Ar] 3d10 4s2 4p5'],
+    ['g', 1898, 3.00, 0.003749, -157, -153, '0, +2', '[Ar] 3d10 4s2 4p6'],
+    ['s', 1861, 0.82, 1.53, 39, 688, '+1', '[Kr] 5s1'],
+    ['s', 1790, 0.95, 2.64, 777, 1382, '+2', '[Kr] 5s2'],
+    ['s', 1794, 1.22, 4.47, 1526, 3336, '+3', '[Kr] 4d1 5s2'],
+    ['s', 1789, 1.33, 6.52, 1855, 4409, '+4', '[Kr] 4d2 5s2'],
+    ['s', 1801, 1.60, 8.57, 2477, 4744, '+3, +5', '[Kr] 4d4 5s1'],
+    ['s', 1781, 2.16, 10.28, 2623, 4639, '+4, +6', '[Kr] 4d5 5s1'],
+    ['s', 1937, 1.90, 11.50, 2157, 4265, '+4, +7', '[Kr] 4d5 5s2'],
+    ['s', 1844, 2.20, 12.37, 2334, 4150, '+3, +4', '[Kr] 4d7 5s1'],
+    ['s', 1803, 2.28, 12.45, 1964, 3695, '+3', '[Kr] 4d8 5s1'],
+    ['s', 1803, 2.20, 12.02, 1555, 2963, '+2, +4', '[Kr] 4d10'],
+    ['s', 0, 1.93, 10.49, 962, 2162, '+1', '[Kr] 4d10 5s1'],
+    ['s', 1817, 1.69, 8.65, 321, 767, '+2', '[Kr] 4d10 5s2'],
+    ['s', 1863, 1.78, 7.31, 157, 2072, '+3', '[Kr] 4d10 5s2 5p1'],
+    ['s', 0, 1.96, 7.29, 232, 2602, '+2, +4', '[Kr] 4d10 5s2 5p2'],
+    ['s', 0, 2.05, 6.70, 631, 1587, '-3, +3, +5', '[Kr] 4d10 5s2 5p3'],
+    ['s', 1782, 2.10, 6.24, 450, 988, '-2, +4, +6', '[Kr] 4d10 5s2 5p4'],
+    ['s', 1811, 2.66, 4.93, 114, 184, '-1, +1, +5, +7', '[Kr] 4d10 5s2 5p5'],
+    ['g', 1898, 2.60, 0.005887, -112, -108, '0, +2, +4, +6', '[Kr] 4d10 5s2 5p6'],
+    ['s', 1860, 0.79, 1.87, 28, 671, '+1', '[Xe] 6s1'],
+    ['s', 1808, 0.89, 3.51, 727, 1845, '+2', '[Xe] 6s2'],
+    ['s', 1839, 1.10, 6.15, 920, 3464, '+3', '[Xe] 5d1 6s2'],
+    ['s', 1803, 1.12, 6.77, 799, 3426, '+3, +4', '[Xe] 4f1 5d1 6s2'],
+    ['s', 1885, 1.13, 6.77, 931, 3512, '+3', '[Xe] 4f3 6s2'],
+    ['s', 1885, 1.14, 7.01, 1021, 3074, '+3', '[Xe] 4f4 6s2'],
+    ['s', 1945, 0, 7.26, 1042, 3000, '+3', '[Xe] 4f5 6s2'],
+    ['s', 1879, 1.17, 7.52, 1074, 1794, '+2, +3', '[Xe] 4f6 6s2'],
+    ['s', 1901, 0, 5.24, 822, 1529, '+2, +3', '[Xe] 4f7 6s2'],
+    ['s', 1880, 1.20, 7.90, 1313, 3273, '+3', '[Xe] 4f7 5d1 6s2'],
+    ['s', 1843, 0, 8.23, 1356, 3230, '+3', '[Xe] 4f9 6s2'],
+    ['s', 1886, 1.22, 8.55, 1412, 2567, '+3', '[Xe] 4f10 6s2'],
+    ['s', 1867, 1.23, 8.80, 1474, 2700, '+3', '[Xe] 4f11 6s2'],
+    ['s', 1843, 1.24, 9.07, 1529, 2868, '+3', '[Xe] 4f12 6s2'],
+    ['s', 1879, 1.25, 9.32, 1545, 1950, '+3', '[Xe] 4f13 6s2'],
+    ['s', 1878, 0, 6.90, 824, 1196, '+2, +3', '[Xe] 4f14 6s2'],
+    ['s', 1907, 1.27, 9.84, 1663, 3402, '+3', '[Xe] 4f14 5d1 6s2'],
+    ['s', 1923, 1.30, 13.31, 2233, 4603, '+4', '[Xe] 4f14 5d2 6s2'],
+    ['s', 1802, 1.50, 16.65, 3017, 5458, '+5', '[Xe] 4f14 5d3 6s2'],
+    ['s', 1783, 2.36, 19.25, 3422, 5555, '+4, +6', '[Xe] 4f14 5d4 6s2'],
+    ['s', 1925, 1.90, 21.02, 3186, 5596, '+4, +7', '[Xe] 4f14 5d5 6s2'],
+    ['s', 1803, 2.20, 22.59, 3033, 5012, '+3, +4', '[Xe] 4f14 5d6 6s2'],
+    ['s', 1803, 2.20, 22.56, 2466, 4428, '+3, +4', '[Xe] 4f14 5d7 6s2'],
+    ['s', 1735, 2.28, 21.45, 1768, 3825, '+2, +4', '[Xe] 4f14 5d9 6s1'],
+    ['s', 0, 2.54, 19.3, 1064, 2970, '+1, +3', '[Xe] 4f14 5d10 6s1'],
+    ['l', 0, 2.00, 13.53, -39, 357, '+1, +2', '[Xe] 4f14 5d10 6s2'],
+    ['s', 1861, 1.62, 11.85, 304, 1473, '+1, +3', '[Xe] 4f14 5d10 6s2 6p1'],
+    ['s', 0, 2.33, 11.34, 327, 1749, '+2, +4', '[Xe] 4f14 5d10 6s2 6p2'],
+    ['s', 1753, 2.02, 9.78, 271, 1564, '+3, +5', '[Xe] 4f14 5d10 6s2 6p3'],
+    ['s', 1898, 2.00, 9.20, 254, 962, '+2, +4', '[Xe] 4f14 5d10 6s2 6p4'],
+    ['s', 1940, 2.20, 7.00, 302, 337, '-1, +1, +5', '[Xe] 4f14 5d10 6s2 6p5'],
+    ['g', 1900, 0, 0.00973, -71, -62, '0, +2', '[Xe] 4f14 5d10 6s2 6p6'],
+    ['s', 1939, 0.70, 1.87, 27, 677, '+1', '[Rn] 7s1'],
+    ['s', 1898, 0.90, 5.50, 700, 1737, '+2', '[Rn] 7s2'],
+    ['s', 1899, 1.10, 10.07, 1051, 3198, '+3', '[Rn] 6d1 7s2'],
+    ['s', 1829, 1.30, 11.72, 1750, 4788, '+4', '[Rn] 6d2 7s2'],
+    ['s', 1913, 1.50, 15.37, 1572, 4000, '+5', '[Rn] 5f2 6d1 7s2'],
+    ['s', 1789, 1.38, 18.95, 1135, 4131, '+3, +4, +6', '[Rn] 5f3 6d1 7s2'],
+    ['s', 1940, 1.36, 20.25, 644, 4000, '+3, +4, +5', '[Rn] 5f4 6d1 7s2'],
+    ['s', 1940, 1.28, 19.82, 640, 3230, '+3, +4, +6', '[Rn] 5f6 7s2'],
+    ['s', 1944, 1.30, 13.67, 1176, 2011, '+3', '[Rn] 5f7 7s2'],
+    ['s', 1944, 1.30, 13.51, 1345, 3110, '+3', '[Rn] 5f7 6d1 7s2'],
+    ['s', 1949, 1.30, 14.78, 1050, 2627, '+3', '[Rn] 5f9 7s2'],
+    ['s', 1950, 1.30, 15.10, 900, 1470, '+3', '[Rn] 5f10 7s2'],
+    ['s', 1952, 1.30, 8.84, 860, 996, '+3', '[Rn] 5f11 7s2'],
+    ['s', 1952, 1.30, 0, 1527, 0, '+3', '[Rn] 5f12 7s2'],
+    ['s', 1955, 1.30, 0, 827, 0, '+3', '[Rn] 5f13 7s2'],
+    ['s', 1958, 1.30, 0, 827, 0, '+3', '[Rn] 5f14 7s2'],
+    ['s', 1961, 1.30, 0, 1627, 0, '+3', '[Rn] 5f14 7s2 7p1'],
+    ['u', 1964, 0, 0, 0, 0, '+4', '[Rn] 5f14 6d2 7s2'],
+    ['u', 1967, 0, 0, 0, 0, '', '[Rn] 5f14 6d3 7s2'],
+    ['u', 1974, 0, 0, 0, 0, '', '[Rn] 5f14 6d4 7s2'],
+    ['u', 1981, 0, 0, 0, 0, '', '[Rn] 5f14 6d5 7s2'],
+    ['u', 1984, 0, 0, 0, 0, '', '[Rn] 5f14 6d6 7s2'],
+    ['u', 1982, 0, 0, 0, 0, '', '[Rn] 5f14 6d7 7s2'],
+    ['u', 1994, 0, 0, 0, 0, '', '[Rn] 5f14 6d8 7s2'],
+    ['u', 1994, 0, 0, 0, 0, '', '[Rn] 5f14 6d9 7s2'],
+    ['u', 1996, 0, 0, 0, 0, '', '[Rn] 5f14 6d10 7s2'],
+    ['u', 2004, 0, 0, 0, 0, '', '[Rn] 5f14 6d10 7s2 7p1'],
+    ['u', 1998, 0, 0, 0, 0, '', '[Rn] 5f14 6d10 7s2 7p2'],
+    ['u', 2003, 0, 0, 0, 0, '', '[Rn] 5f14 6d10 7s2 7p3'],
+    ['u', 2000, 0, 0, 0, 0, '', '[Rn] 5f14 6d10 7s2 7p4'],
+    ['u', 2010, 0, 0, 0, 0, '', '[Rn] 5f14 6d10 7s2 7p5'],
+    ['u', 2006, 0, 0, 0, 0, '0', '[Rn] 5f14 6d10 7s2 7p6']
+  ];
+
   var CATS = [
     'alkali', 'alkaline-earth', 'transition', 'post-transition',
     'metalloid', 'nonmetal', 'halogen', 'noble', 'lanthanide', 'actinide'
@@ -143,6 +269,18 @@
     lanthanide: 'Lanthanide',
     actinide: 'Actinide'
   };
+  var SHORT = {
+    alkali: 'Alkali',
+    'alkaline-earth': 'Earth',
+    transition: 'Transition',
+    'post-transition': 'Other',
+    metalloid: 'Metalloid',
+    nonmetal: 'Nonmetal',
+    halogen: 'Halogen',
+    noble: 'Noble',
+    lanthanide: 'La',
+    actinide: 'Ac'
+  };
   var COLORS = {
     alkali: '#c46bff',
     'alkaline-earth': '#7b8cff',
@@ -155,6 +293,20 @@
     lanthanide: '#e6c84a',
     actinide: '#ff9900'
   };
+  // Ptable-like cell fills (pastel, dark ink). Distinct at 20px.
+  var FILLS = {
+    alkali: '#e8b4ff',
+    'alkaline-earth': '#b8c2ff',
+    transition: '#9de8b8',
+    'post-transition': '#9eeaf0',
+    metalloid: '#efe08a',
+    nonmetal: '#ffa3e0',
+    halogen: '#9ee7ff',
+    noble: '#ffb0bb',
+    lanthanide: '#f3e08a',
+    actinide: '#ffc078'
+  };
+  var STATE_LABEL = { s: 'Solid', l: 'Liquid', g: 'Gas', u: 'Unknown' };
 
   function periodOf(z) {
     if (z <= 2) return 1;
@@ -182,6 +334,13 @@
     if (z >= 104 && z <= 118) return z - 100;
     return 0;
   }
+  function blockOf(z, g) {
+    if ((z >= 57 && z <= 71) || (z >= 89 && z <= 103)) return 'f';
+    if (z === 2) return 's';
+    if (g === 1 || g === 2) return 's';
+    if (g >= 3 && g <= 12) return 'd';
+    return 'p';
+  }
   // Visual cell in a 9×18 grid (lanthanides row 8, actinides row 9).
   function cellOf(z) {
     if (z >= 57 && z <= 71) return { r: 7, c: (z - 57) + 2 };
@@ -190,13 +349,19 @@
     return { r: periodOf(z) - 1, c: g - 1 };
   }
 
+  if (EXTRA.length !== RAW.length) {
+    throw new Error('EXTRA length ' + EXTRA.length + ' != RAW ' + RAW.length);
+  }
+
   var ELEMENTS = [];
   var BY_Z = {};
   var BY_SYM = {};
   var BY_NAME = {};
-  var i, row, el;
+  var i, row, x, el, g;
   for (i = 0; i < RAW.length; i++) {
     row = RAW[i];
+    x = EXTRA[i];
+    g = groupOf(row[0]);
     el = {
       z: row[0],
       symbol: row[1],
@@ -205,20 +370,62 @@
       category: row[4],
       shells: row[5],
       period: periodOf(row[0]),
-      group: groupOf(row[0]),
-      cell: cellOf(row[0])
+      group: g,
+      block: blockOf(row[0], g),
+      cell: cellOf(row[0]),
+      state: x[0],
+      year: x[1],
+      eneg: x[2],
+      density: x[3],
+      melt: x[4],
+      boil: x[5],
+      ox: x[6],
+      config: x[7]
     };
     ELEMENTS.push(el);
     BY_Z[el.z] = el;
     BY_SYM[el.symbol] = el;
     BY_NAME[el.name.toLowerCase()] = el;
   }
-  // Former systematic name of 118; Ununennium is 119 (not vendored).
   if (BY_Z[118]) BY_Z[118].former = 'Ununoctium';
 
   function byZ(z) { return BY_Z[z] || null; }
-  function bySymbol(s) { return BY_SYM[s] || null; }
+  function bySymbol(s) {
+    if (!s) return null;
+    var k = String(s);
+    if (BY_SYM[k]) return BY_SYM[k];
+    var low = k.toLowerCase();
+    for (i = 0; i < ELEMENTS.length; i++) {
+      if (ELEMENTS[i].symbol.toLowerCase() === low) return ELEMENTS[i];
+    }
+    return null;
+  }
   function byName(n) { return BY_NAME[String(n).toLowerCase()] || null; }
+
+  function findEl(q) {
+    if (q == null || q === '') return null;
+    var s = String(q).trim();
+    if (!s) return null;
+    var n = parseInt(s, 10);
+    if (String(n) === s && n >= 1 && n <= 118) return byZ(n);
+    return bySymbol(s) || byName(s);
+  }
+
+  function dash(v) { return (v === 0 || v === '' || v == null) ? '—' : String(v); }
+  function yearText(y) {
+    if (y === 0) return 'Ancient';
+    if (!y) return '—';
+    return String(y);
+  }
+  function densText(d) {
+    if (!d) return '—';
+    if (d < 0.05) return (Math.round(d * 1e6) / 1000) + ' g/L';
+    return d + ' g/cm³';
+  }
+  function tempText(t) {
+    if (t === 0 || t === '' || t == null) return '—';
+    return t + ' °C';
+  }
 
   function mulberry(seed) {
     var t = seed >>> 0;
@@ -239,51 +446,135 @@
     return arr;
   }
 
-  function uniquePick(rand, want, isUsed) {
-    var n, guard = 0, v;
-    do {
-      n = ELEMENTS[(rand() * ELEMENTS.length) | 0];
-      v = want(n);
+  function pickNear(rand, el, take, used) {
+    var pool = [], e, d, v, k;
+    for (k = 0; k < ELEMENTS.length; k++) {
+      e = ELEMENTS[k];
+      if (e.z === el.z) continue;
+      d = e.z - el.z;
+      if (d < 0) d = -d;
+      if (e.period === el.period || e.category === el.category || d <= 6) pool.push(e);
+    }
+    shuffleIn(rand, pool);
+    for (k = 0; k < pool.length; k++) {
+      v = take(pool[k]);
+      if (!used[v]) return v;
+    }
+    for (k = 0; k < ELEMENTS.length; k++) {
+      v = take(ELEMENTS[(el.z + k * 7) % ELEMENTS.length]);
+      if (!used[v]) return v;
+    }
+    return take(ELEMENTS[(el.z * 3) % ELEMENTS.length]);
+  }
+
+  function fillChoices(rand, correct, take, el) {
+    var used = {}, choices = [correct], v, guard = 0;
+    used[correct] = 1;
+    while (choices.length < 4 && guard < 40) {
       guard++;
-    } while (isUsed(v) && guard < 80);
-    return v;
+      v = pickNear(rand, el, take, used);
+      if (used[v]) continue;
+      used[v] = 1;
+      choices.push(v);
+    }
+    shuffleIn(rand, choices);
+    return choices;
+  }
+
+  function answerIndex(choices, correct) {
+    var i, a = 0;
+    for (i = 0; i < choices.length; i++) if (choices[i] === correct) a = i;
+    return a;
   }
 
   // One quiz item: 4 choices, exactly one right. Same seed+index → same item.
   function quizItem(seed, index) {
     var rand = mulberry((seed >>> 0) + (index + 1) * 2654435761);
-    var kind = (rand() * 3) | 0;
+    var roll = rand();
     var el = ELEMENTS[(rand() * ELEMENTS.length) | 0];
-    var prompt, correct, choices, used, take, i, answer;
-    used = {};
-    if (kind === 0) {
+    var kind, prompt, correct, choices, take, cat, pool, k, other, v;
+    if (roll < 0.26) {
+      kind = 0;
       prompt = 'What is the symbol for ' + el.name + '?';
       correct = el.symbol;
-      take = function (e) { return e.symbol; };
-    } else if (kind === 1) {
+      take = function (n) { return n.symbol; };
+      choices = fillChoices(rand, correct, take, el);
+    } else if (roll < 0.48) {
+      kind = 1;
       prompt = 'Which number is ' + el.symbol + '?';
       correct = String(el.z);
-      take = function (e) { return String(e.z); };
-    } else {
+      take = function (n) { return String(n.z); };
+      choices = fillChoices(rand, correct, take, el);
+    } else if (roll < 0.70) {
+      kind = 2;
       prompt = 'What is the name of ' + el.symbol + '?';
       correct = el.name;
-      take = function (e) { return e.name; };
-    }
-    used[correct] = 1;
-    choices = [correct];
-    while (choices.length < 4) {
-      var d = uniquePick(rand, take, function (v) { return used[v]; });
-      if (used[d]) {
-        d = take(ELEMENTS[(choices.length * 17 + el.z) % ELEMENTS.length]);
+      take = function (n) { return n.name; };
+      choices = fillChoices(rand, correct, take, el);
+    } else if (roll < 0.82) {
+      kind = 3;
+      prompt = el.name + ' is a…';
+      correct = LABELS[el.category];
+      usedCats(el);
+      choices = catChoices(rand, el);
+    } else if (roll < 0.92) {
+      kind = 4;
+      cat = CATS[(rand() * 8) | 0];
+      pool = [];
+      for (k = 0; k < ELEMENTS.length; k++) if (ELEMENTS[k].category === cat) pool.push(ELEMENTS[k]);
+      el = pool[(rand() * pool.length) | 0];
+      prompt = 'Which of these is a ' + LABELS[cat].toLowerCase() + '?';
+      correct = el.symbol;
+      choices = [el.symbol];
+      var seen = {};
+      seen[el.symbol] = 1;
+      seen[el.category] = 1;
+      while (choices.length < 4) {
+        other = ELEMENTS[(rand() * ELEMENTS.length) | 0];
+        if (other.category === cat || seen[other.symbol]) continue;
+        seen[other.symbol] = 1;
+        choices.push(other.symbol);
       }
-      if (used[d]) continue;
-      used[d] = 1;
-      choices.push(d);
+      shuffleIn(rand, choices);
+    } else {
+      kind = 5;
+      prompt = 'What period is ' + el.symbol + ' in?';
+      correct = String(el.period);
+      choices = [correct];
+      var usedP = {};
+      usedP[correct] = 1;
+      while (choices.length < 4) {
+        v = String(1 + ((rand() * 7) | 0));
+        if (usedP[v]) continue;
+        usedP[v] = 1;
+        choices.push(v);
+      }
+      shuffleIn(rand, choices);
     }
-    shuffleIn(rand, choices);
-    answer = 0;
-    for (i = 0; i < 4; i++) if (choices[i] === correct) answer = i;
-    return { prompt: prompt, choices: choices, answer: answer, z: el.z, kind: kind };
+    return {
+      prompt: prompt,
+      choices: choices,
+      answer: answerIndex(choices, correct),
+      z: el.z,
+      kind: kind
+    };
+
+    function usedCats() { return; }
+    function catChoices(rand, el) {
+      var correct = LABELS[el.category];
+      var opts = [correct], seen = {}, c, lab;
+      seen[el.category] = 1;
+      while (opts.length < 4) {
+        c = CATS[(rand() * CATS.length) | 0];
+        if (seen[c]) continue;
+        seen[c] = 1;
+        lab = LABELS[c];
+        if (lab === correct) continue;
+        opts.push(lab);
+      }
+      shuffleIn(rand, opts);
+      return opts;
+    }
   }
 
   function quiz(seed, n) {
@@ -325,14 +616,22 @@
     ELEMENTS: ELEMENTS,
     CATS: CATS,
     LABELS: LABELS,
+    SHORT: SHORT,
     COLORS: COLORS,
+    FILLS: FILLS,
+    STATE_LABEL: STATE_LABEL,
     RACE: 10,
     byZ: byZ,
     bySymbol: bySymbol,
     byName: byName,
+    findEl: findEl,
     periodOf: periodOf,
     groupOf: groupOf,
     cellOf: cellOf,
+    yearText: yearText,
+    densText: densText,
+    tempText: tempText,
+    dash: dash,
     quizItem: quizItem,
     quiz: quiz,
     mulberry: mulberry,

@@ -14,6 +14,7 @@
   var filter = 'all';
   var query = '';
   var openZ = 0;
+  var zoomed = false;
   var saveDb = null, roomDb = null;
   try {
     if (window.gifos && gifos.db) {
@@ -37,7 +38,6 @@
     Array.prototype.forEach.call($('tabs').children, function (b) {
       b.classList.toggle('on', b.getAttribute('data-view') === v);
     });
-    if (v !== 'table') closeSheet();
     if (v === 'quiz') quizStart(false);
     if (v === 'friend') mpEnter();
     if (v !== 'friend' && mp.on) mpLeave();
@@ -47,7 +47,12 @@
     setView(b.getAttribute('data-view'));
   });
 
-  // ---- table ----
+  (function buildGroups() {
+    var i, html = [];
+    for (i = 1; i <= 18; i++) html.push('<span>' + i + '</span>');
+    $('gnums').innerHTML = html.join('');
+  })();
+
   function matchesQuery(el, q) {
     if (!q) return true;
     if (String(el.z) === q) return true;
@@ -72,9 +77,9 @@
             '<span class="n">' + el.z + '</span><span class="s">' + esc(el.symbol) + '</span></button>'
           );
         } else if (r === 5 && c === 2) {
-          html.push('<button type="button" class="ph lanthanide" data-ph="lanthanide">57–71</button>');
+          html.push('<button type="button" class="ph lanthanide" data-ph="lanthanide">La</button>');
         } else if (r === 6 && c === 2) {
-          html.push('<button type="button" class="ph actinide" data-ph="actinide">89–103</button>');
+          html.push('<button type="button" class="ph actinide" data-ph="actinide">Ac</button>');
         } else {
           html.push('<div class="gap"></div>');
         }
@@ -98,9 +103,13 @@
     paintTable();
   }
   (function buildFilters() {
-    var html = ['<button type="button" class="all on" data-cat="all">All</button>'];
+    var html = ['<button type="button" class="all on" data-cat="all"><i style="background:#e8b43c"></i>All</button>'];
     P.CATS.forEach(function (c) {
-      html.push('<button type="button" class="' + c + '" data-cat="' + c + '">' + esc(P.LABELS[c]) + '</button>');
+      html.push(
+        '<button type="button" class="' + c + '" data-cat="' + c + '">' +
+        '<i style="background:' + (P.FILLS[c] || P.COLORS[c]) + '"></i>' +
+        esc(P.SHORT[c] || P.LABELS[c]) + '</button>'
+      );
     });
     $('filters').innerHTML = html.join('');
     $('filters').addEventListener('click', function (e) {
@@ -111,35 +120,66 @@
   $('search').addEventListener('input', function () {
     query = this.value || '';
     paintTable();
+    var hit = P.findEl(query.trim());
+    if (hit && query.trim()) openSheet(hit.z);
   });
 
+  $('zoomBtn').onclick = function () {
+    zoomed = !zoomed;
+    $('tablewrap').classList.toggle('zoomed', zoomed);
+    this.classList.toggle('on', zoomed);
+    this.setAttribute('aria-pressed', zoomed ? 'true' : 'false');
+    this.textContent = zoomed ? 'Fit' : 'Bigger';
+    if (zoomed && openZ) {
+      var hit = $('table').querySelector('.hit');
+      if (hit && hit.scrollIntoView) hit.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  };
+
+  function fact(dt, dd, wide) {
+    return '<div' + (wide ? ' class="wide"' : '') + '><dt>' + dt + '</dt><dd>' + dd + '</dd></div>';
+  }
   function openSheet(z) {
     var el = P.byZ(z); if (!el) return;
     openZ = z;
+    $('dockEmpty').hidden = true;
+    $('dockBody').hidden = false;
     $('sheetSym').textContent = el.symbol;
     $('sheetSym').style.color = P.COLORS[el.category] || '#fff';
     $('sheetName').textContent = el.name;
+    $('sheetSub').textContent = el.z + ' · ' + el.mass + ' u · ' + (P.STATE_LABEL[el.state] || '—');
+    var cat = '<span class="catpill" style="background:' + (P.FILLS[el.category] || P.COLORS[el.category]) + '">' +
+      esc(P.LABELS[el.category]) + '</span>';
+    var grp = el.group ? String(el.group) : 'f-block';
     $('sheetFacts').innerHTML =
-      '<div><dt>Number</dt><dd>' + el.z + '</dd></div>' +
-      '<div><dt>Mass</dt><dd>' + el.mass + '</dd></div>' +
-      '<div><dt>Category</dt><dd><span class="catpill" style="background:' + P.COLORS[el.category] + ';color:#0a0a0f">' +
-      esc(P.LABELS[el.category]) + '</span></dd></div>' +
-      '<div><dt>Shells</dt><dd>' + esc(el.shells.split('-').join(' · ')) + '</dd></div>' +
-      '<div><dt>Period</dt><dd>' + el.period + '</dd></div>' +
-      '<div><dt>Group</dt><dd>' + (el.group ? el.group : 'f-block') + '</dd></div>';
-    $('sheet').hidden = false;
+      fact('Number', String(el.z)) +
+      fact('Mass', String(el.mass) + ' u') +
+      fact('Category', cat) +
+      fact('Block', el.block + '-block · period ' + el.period + ' · group ' + grp) +
+      fact('Electrons', esc(el.config), true) +
+      fact('Shells', esc(el.shells.split('-').join(' · '))) +
+      fact('Oxidation', el.ox ? esc(el.ox) : '—') +
+      fact('Found', P.yearText(el.year)) +
+      fact('Electroneg.', el.eneg ? String(el.eneg) : '—') +
+      fact('Density', P.densText(el.density)) +
+      fact('Melts', P.tempText(el.melt)) +
+      fact('Boils', P.tempText(el.boil));
+    $('prevEl').disabled = z <= 1;
+    $('nextEl').disabled = z >= 118;
     paintTable();
   }
   function closeSheet() {
     openZ = 0;
-    $('sheet').hidden = true;
+    $('dockEmpty').hidden = false;
+    $('dockBody').hidden = true;
     paintTable();
   }
-  $('sheetClose').onclick = closeSheet;
+  $('prevEl').onclick = function () { if (openZ > 1) openSheet(openZ - 1); };
+  $('nextEl').onclick = function () { if (openZ && openZ < 118) openSheet(openZ + 1); };
 
   // ---- local quiz ----
   var QN = P.RACE;
-  var quiz = { items: [], i: 0, right: 0, locked: false, seed: 0 };
+  var quiz = { items: [], i: 0, right: 0, locked: false, seed: 0, miss: [] };
   function quizStart(force) {
     if (!force && quiz.items.length && quiz.i < quiz.items.length) {
       quizRender();
@@ -150,18 +190,31 @@
     quiz.i = 0;
     quiz.right = 0;
     quiz.locked = false;
+    quiz.miss = [];
     $('qAgain').hidden = true;
+    $('qMiss').hidden = true;
+    $('qMiss').innerHTML = '';
     $('qBest').textContent = String(stats.best);
     quizRender();
   }
   function quizRender() {
     $('qBest').textContent = String(stats.best);
+    var pct = Math.round((quiz.i / QN) * 100);
+    $('qBar').innerHTML = '<span style="width:' + (quiz.i >= QN ? 100 : pct) + '%"></span>';
     if (quiz.i >= quiz.items.length) {
       $('qProg').textContent = 'Done';
       $('qRight').textContent = String(quiz.right);
       $('qPrompt').textContent = 'You got ' + quiz.right + ' of ' + QN + '.';
       $('qChoices').innerHTML = '';
       $('qNote').textContent = quiz.right >= stats.best && quiz.right ? 'Best on this device.' : '';
+      if (quiz.miss.length) {
+        $('qMiss').hidden = false;
+        $('qMiss').innerHTML = quiz.miss.map(function (m) {
+          var el = P.byZ(m.z);
+          var fill = el ? (P.FILLS[el.category] || '#ccc') : '#ccc';
+          return '<span class="chip" style="background:' + fill + '">' + esc(m.was) + '</span>';
+        }).join('');
+      }
       $('qAgain').hidden = false;
       return;
     }
@@ -189,6 +242,7 @@
       b.classList.add('wrong');
       nodes[it.answer].classList.add('right');
       $('qNote').textContent = 'It was ' + it.choices[it.answer] + '.';
+      quiz.miss.push({ z: it.z, was: it.choices[it.answer] });
     }
     $('qRight').textContent = String(quiz.right);
     setTimeout(function () {
@@ -205,7 +259,6 @@
   });
   $('qAgain').onclick = function () { quizStart(true); };
 
-  // ---- extra tables ----
   $('hcRows').innerHTML = P.HYDROCARBONS.map(function (h) {
     return '<div class="row">' + esc(h.name) + '<span>' + esc(h.formula) + ' · ' + esc(h.kind) + '</span></div>';
   }).join('');
@@ -407,7 +460,14 @@
     }
     var live = people.filter(function (p) { return p.id !== mp.id; });
     if (!live.length) {
-      status.innerHTML = 'Waiting for another player… press <b>Invite</b> (top bar) to bring a friend.';
+      status.innerHTML = '';
+      $('fPrompt').innerHTML =
+        '<div class="waitcard"><h3>Waiting for a friend</h3>' +
+        '<p>Press <b>Invite</b> in the bar above the app, and send the link. You both get the same questions. First to ' +
+        (q.n || QN) + ' right wins. No account.</p></div>';
+      $('fChoices').innerHTML = '';
+      $('fNote').textContent = '';
+      return;
     } else if (q.winner) {
       var mine = q.winner === mp.id;
       status.textContent = mine ? 'You got there first. Next race starting…' : ((q.winnerName || 'They') + ' got there first. Next race starting…');
@@ -420,12 +480,6 @@
       $('fPrompt').textContent = row.done || q.winner ? ('You got ' + (row.correct || 0) + ' right.') : '';
       $('fChoices').innerHTML = '';
       if (!q.winner && row.done) $('fNote').textContent = 'Waiting for the others…';
-      return;
-    }
-    if (!live.length) {
-      $('fPrompt').textContent = '';
-      $('fChoices').innerHTML = '';
-      $('fNote').textContent = '';
       return;
     }
     var it = P.quizItem(q.seed, idx);
@@ -441,7 +495,15 @@
 
   if (window.gifos && gifos.onBack) {
     gifos.onBack(function () {
-      if (!$('sheet').hidden) { closeSheet(); return true; }
+      if (zoomed) {
+        zoomed = false;
+        $('tablewrap').classList.remove('zoomed');
+        $('zoomBtn').classList.remove('on');
+        $('zoomBtn').setAttribute('aria-pressed', 'false');
+        $('zoomBtn').textContent = 'Bigger';
+        return true;
+      }
+      if (openZ) { closeSheet(); return true; }
       if (view === 'friend') { mpLeave(); setView('table'); return true; }
       if (view !== 'table') { setView('table'); return true; }
       return false;
@@ -457,5 +519,17 @@
       stats.played = s.played || 0;
       $('qBest').textContent = String(stats.best);
     }).catch(function () {});
+  }
+
+  function openFromLaunch(a) {
+    if (!a || a.el == null || a.el === '') return;
+    var el = P.findEl(a.el);
+    if (el) {
+      setView('table');
+      openSheet(el.z);
+    }
+  }
+  if (window.gifos && gifos.launch) {
+    gifos.launch().then(openFromLaunch).catch(function () {});
   }
 })();

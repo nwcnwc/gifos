@@ -146,11 +146,14 @@ for (const [n, s] of Object.entries(files)) {
     '    var e = P.ELEMENTS[i];\n' +
     '    if (seen[e.z]) throw new Error("dup Z " + e.z);\n' +
     '    seen[e.z] = 1;\n' +
-    '    if (!e.symbol || !e.name || !e.category || !e.shells) throw new Error("incomplete " + e.z);\n' +
+    '    if (!e.symbol || !e.name || !e.category || !e.shells || !e.config) throw new Error("incomplete " + e.z);\n' +
     '  }\n' +
     '  for (var z = 1; z <= 118; z++) if (!seen[z]) throw new Error("missing Z " + z);\n' +
     '  var au = P.byName("Gold");\n' +
     '  if (!au || au.symbol !== "Au" || au.z !== 79) throw new Error("Gold is Au 79");\n' +
+    '  if (au.config.indexOf("6s1") < 0) throw new Error("Gold config");\n' +
+    '  if (P.bySymbol("C").z !== 6) throw new Error("Carbon is 6");\n' +
+    '  if (P.bySymbol("Fe").z !== 26) throw new Error("Iron is 26");\n' +
     '  if (P.bySymbol("Au").z !== 79) throw new Error("Au is not 79");\n' +
     '  var e118 = P.byZ(118);\n' +
     '  if (!e118) throw new Error("118 missing");\n' +

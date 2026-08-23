@@ -12,6 +12,12 @@
     "db": true,
     "multiplayer": true
   },
+  "launch": {
+    "el": {
+      "label": "Open on an element",
+      "detail": "A name, symbol or number — Gold, Au or 79."
+    }
+  },
   "data": {
     "save": { "visibility": "private" },
     "room": { "visibility": "read-write" }
