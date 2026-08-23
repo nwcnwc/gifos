@@ -97,12 +97,12 @@ function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 7, rad = 20;
   const t = f / (FRAMES - 1);
-  const runX = 26 + t * 70;
-  const chaseX = 20 + t * 62;
-  const phase = t * 5.5;
-  const tapeX = 106;
-  const broken = t > 0.82;
-  const trackTop = 34, trackBot = 112;
+  const runX = 22 + t * 82;
+  const chaseX = 18 + t * 70;
+  const phase = t * 6.5;
+  const tapeX = 104;
+  const broken = t > 0.78;
+  const trackTop = 30, trackBot = 114;
 
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
@@ -121,9 +121,9 @@ function frameIndices(pal, f) {
         const flutter = Math.sin(y * 0.35 + f) * 4;
         if (Math.abs(x - (tapeX + flutter)) < 1.3 && (y | 0) % 6 < 3) col = mix(TAPE, WHITE, 0.35);
       }
-      const back = stickerAt(x, y, chaseX, 92, 16, phase + 0.4, MINT, [180, 250, 200]);
+      const back = stickerAt(x, y, chaseX, 96, 17, phase + 0.35, MINT, [180, 250, 200]);
       if (back) col = back;
-      const st = stickerAt(x, y, runX, 54, 22, phase, RED, RED_H);
+      const st = stickerAt(x, y, runX, 50, 28, phase, RED, RED_H);
       if (st) col = st;
     }
     const o = (py * RW + px) * 4;
@@ -286,28 +286,30 @@ export function screenshotPng() {
   fill(0, 0, W, H, 10, 10, 15);
 
   drawText(put, 40, 28, 'THUMB SPRINT', 6, 244, 241, 234);
-  drawText(put, 980, 36, 'GO', 5, 255, 224, 102);
 
-  const trackTop = 96, trackBot = 430, trackLeft = 40, trackRight = 1160;
-  fill(trackLeft, trackTop, trackRight, trackBot, 12, 12, 20);
+  const trackTop = 88, trackBot = 428, trackLeft = 36, trackRight = 1164;
+  fill(trackLeft, trackTop, trackRight, trackBot, 16, 16, 26);
   const lanes = [
-    { name: 'YOU', p: 0.68, body: RED, hi: RED_H, y: 0 },
-    { name: 'SAM', p: 0.61, body: MINT, hi: [187, 247, 208], y: 1 },
-    { name: 'RIO', p: 0.52, body: BLUE, hi: [191, 219, 254], y: 2 },
+    { name: 'YOU', p: 0.88, body: RED, hi: RED_H, phase: 0.08 },
+    { name: 'SAM', p: 0.81, body: MINT, hi: [187, 247, 208], phase: 0.52 },
+    { name: 'RIO', p: 0.73, body: BLUE, hi: [191, 219, 254], phase: 0.92 },
   ];
   const laneH = (trackBot - trackTop) / 3;
-  const tapeX = 1088;
+  const tapeX = 1096;
+  fill(trackLeft + 132, trackTop, trackLeft + 136, trackBot, 232, 228, 220);
   for (let i = 0; i < 3; i++) {
     const y0 = trackTop + i * laneH;
-    if (i % 2) fill(trackLeft, y0, trackRight, y0 + laneH, 16, 16, 26);
-    drawText(put, 56, y0 + 28, lanes[i].name, 3, lanes[i].body[0], lanes[i].body[1], lanes[i].body[2]);
-    const x = 180 + lanes[i].p * (tapeX - 220);
-    drawStickerPng(put, x, y0 + laneH * 0.55, 54, 0.35 + i * 0.2, lanes[i].body, lanes[i].hi);
+    if (i % 2) fill(trackLeft, y0, trackRight, y0 + laneH, 20, 20, 32);
+    drawText(put, 52, y0 + 36, lanes[i].name, 3, lanes[i].body[0], lanes[i].body[1], lanes[i].body[2]);
+    const x = 168 + lanes[i].p * (tapeX - 210);
+    drawStickerPng(put, x, y0 + laneH * 0.56, 68, lanes[i].phase, lanes[i].body, lanes[i].hi);
   }
-  fill(tapeX - 6, trackTop + 6, tapeX + 6, trackTop + 22, 58, 50, 40);
-  fill(tapeX - 6, trackBot - 22, tapeX + 6, trackBot - 6, 58, 50, 40);
-  for (let y = trackTop + 24; y < trackBot - 24; y++) {
-    if ((y % 16) < 10) fill(tapeX - 2, y, tapeX + 2, y + 1, 255, 224, 102);
+  fill(tapeX - 8, trackTop + 4, tapeX + 8, trackTop + 20, 58, 50, 40);
+  fill(tapeX - 8, trackBot - 20, tapeX + 8, trackBot - 4, 58, 50, 40);
+  for (let y = trackTop + 20; y < trackBot - 20; y++) {
+    const row = ((y / 8) | 0) % 2;
+    fill(tapeX - 7, y, tapeX, y + 1, row ? 20 : 244, row ? 20 : 241, row ? 24 : 234);
+    fill(tapeX, y, tapeX + 7, y + 1, row ? 244 : 20, row ? 241 : 20, row ? 234 : 24);
   }
 
   // mash pad

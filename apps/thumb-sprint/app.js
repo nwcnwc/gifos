@@ -50,7 +50,9 @@
     lastPut: 0,
     hb: 0,
     seq: -1,
-    vsFriend: false
+    vsFriend: false,
+    ignoreUntil: 0,
+    hitT: 0
   };
 
   function iAmHost() { return !!S.host; }
@@ -174,12 +176,35 @@
       phase: 'countdown'
     });
     resetMine();
+    S.ignoreUntil = now() + 420;
     putRace(race);
     putMine(true);
   }
 
+  function buzz(ms) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {}
+  }
+
+  function punchPad() {
+    var mash = $('mash');
+    mash.classList.add('hit', 'down');
+    if (S.hitT) clearTimeout(S.hitT);
+    S.hitT = setTimeout(function () { mash.classList.remove('hit'); }, 70);
+  }
+
+  function photoReady() {
+    return !!(S.photo && now() - S.photo.t0 >= T.PHOTO_MS * 1.6);
+  }
+
   function doTap() {
-    if (S.photo || !S.race || !S.race.startAt) {
+    punchPad();
+    if (S.ignoreUntil && now() < S.ignoreUntil) return;
+    if (S.photo) {
+      if (!photoReady()) return;
+      if (iAmHost()) hostStart();
+      return;
+    }
+    if (!S.race || !S.race.startAt) {
       if (iAmHost()) hostStart();
       return;
     }
@@ -187,8 +212,14 @@
     if ((S.race.finishOrder || []).length) return;
     if (!S.mine) resetMine();
     var before = S.mine.position;
+    var wasFs = S.mine.falseStart;
     S.mine = T.tap(S.mine, S.race, now());
-    if (S.mine.falseStart && S.mine.position === 0) S.shown[S.me.id] = 0;
+    if (S.mine.falseStart && !wasFs) {
+      S.shown[S.me.id] = 26;
+      buzz(40);
+    } else if (!S.mine.falseStart) {
+      buzz(8);
+    }
     if (S.mine.position !== before || S.mine.falseStart) putMine(true);
   }
 
@@ -338,33 +369,95 @@
     if (!S.race || !S.race.startAt) {
       if (S.vsFriend && liveOthers().length) {
         return iAmHost()
-          ? 'A friend is in the next lane. Start when you are ready.'
+          ? 'A friend is in the next lane. Mash when you are ready.'
           : 'Waiting for the host to start.';
       }
       if (S.vsFriend) return 'Press Invite in the bar above the app.';
       return S.mode === 'ghost'
-        ? (S.best ? 'Mash to race your best.' : 'Mash to set a time.')
+        ? (S.best ? 'Mash to race your best · ' + fmtMs(S.best.timeMs) : 'Mash to set a time.')
         : 'Mash to race the computer.';
     }
     var t = now();
     var left = S.race.startAt - t;
     if (left > 0) {
-      var n = Math.ceil(left / 1000);
       if (S.mine && S.mine.falseStart) return 'FALSE START — you go back.';
-      return String(n);
+      return 'Wait for GO';
     }
     var order = (S.race.finishOrder && S.race.finishOrder.length)
       ? S.race.finishOrder
       : T.finishOrder(lanes);
     if (order.length) {
       var w = order[0];
-      if (w === S.me.id) return 'You win.';
-      return nameOf(w) + ' wins.';
+      var winMs = 0;
+      for (var i = 0; i < lanes.length; i++) {
+        if (lanes[i].id === w && lanes[i].finishedAt) winMs = lanes[i].finishedAt - S.race.startAt;
+      }
+      var tbit = winMs > 0 ? ' · ' + fmtMs(winMs) : '';
+      if (w === S.me.id) return 'You win' + tbit + '.';
+      return nameOf(w) + ' wins' + tbit + '.';
     }
     if (S.mine && S.mine.falseStart && t < S.race.startAt + T.STALL_MS) {
-      return 'FALSE START — stalled.';
+      return 'FALSE START — wait.';
     }
     return 'MASH';
+  }
+
+  function mashFace(lanes) {
+    var mash = $('mash');
+    var label = $('mashLabel');
+    var hint = $('mashHint');
+    var t = now();
+    mash.classList.remove('warn', 'go');
+    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    var seated = seatedIds();
+    var mySeat = seated.indexOf(S.me.id) >= 0;
+    if (!mySeat) {
+      label.textContent = 'WATCH';
+      hint.textContent = 'watching';
+      mash.disabled = true;
+      return;
+    }
+    mash.disabled = false;
+    if (!S.race || !S.race.startAt) {
+      label.textContent = 'MASH';
+      hint.textContent = coarse ? 'tap to start' : 'space or click';
+      return;
+    }
+    var left = S.race.startAt - t;
+    if (S.mine && S.mine.falseStart && (left > 0 || t < S.race.startAt + T.STALL_MS)) {
+      mash.classList.add('warn');
+      label.textContent = 'WAIT';
+      hint.textContent = 'false start';
+      return;
+    }
+    if (left > 0) {
+      label.textContent = String(Math.max(1, Math.ceil(left / 1000)));
+      hint.textContent = 'don\'t jump';
+      return;
+    }
+    if (left > -420) {
+      mash.classList.add('go');
+      label.textContent = 'GO';
+      hint.textContent = coarse ? 'mash' : 'mash · space';
+      return;
+    }
+    if (S.photo) {
+      if (!photoReady()) {
+        label.textContent = 'LOOK';
+        hint.textContent = 'photo finish';
+        return;
+      }
+      label.textContent = iAmHost() ? 'AGAIN' : 'DONE';
+      hint.textContent = iAmHost() ? (coarse ? 'tap for another' : 'space for another') : '';
+      return;
+    }
+    if (finished()) {
+      label.textContent = iAmHost() ? 'AGAIN' : 'DONE';
+      hint.textContent = '';
+      return;
+    }
+    label.textContent = 'MASH';
+    hint.textContent = coarse ? 'tap' : 'space or click';
   }
 
   function paintFrom(lanes, overlayPos) {
@@ -377,114 +470,177 @@
     var ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
-    ctx.fillStyle = '#0c0c14';
-    ctx.fillRect(0, 0, cssW, cssH);
 
     var n = Math.max(1, lanes.length);
-    var pad = 10;
-    var left = 86, right = cssW - 36;
-    var top = 10, bot = cssH - 10;
+    var pad = 8;
+    var left = Math.max(88, Math.min(110, cssW * 0.22));
+    var top = 8, bot = cssH - 8;
     var laneH = (bot - top) / n;
+    var tapeX = cssW - 28;
+    var tNow = now();
+    var racingNow = !!(S.race && S.race.startAt && tNow >= S.race.startAt);
+    var cdLeft = S.race && S.race.startAt ? S.race.startAt - tNow : 0;
 
-    ctx.strokeStyle = 'rgba(255,255,255,.08)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 8]);
-    ctx.beginPath();
-    ctx.moveTo(left, top + 4);
-    ctx.lineTo(left, bot - 4);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.fillStyle = '#12121c';
+    ctx.fillRect(0, 0, cssW, cssH);
 
-    var tapeX = right - 8;
     var broken = false;
-    for (var i = 0; i < lanes.length; i++) {
+    var i, lane, y0, mid, col, raw, shown, p, x, phase;
+    for (i = 0; i < lanes.length; i++) {
+      if (lanes[i].finishedAt) broken = true;
       if ((overlayPos ? overlayPos[lanes[i].id] : lanes[i].position) >= T.FINISH) broken = true;
-    }
-    ctx.fillStyle = '#3a3228';
-    ctx.fillRect(tapeX - 4, top, 8, 10);
-    ctx.fillRect(tapeX - 4, bot - 10, 8, 10);
-    if (!broken) {
-      ctx.strokeStyle = '#ffe066';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([10, 6]);
-      ctx.beginPath();
-      ctx.moveTo(tapeX, top + 10);
-      ctx.lineTo(tapeX, bot - 10);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    } else {
-      ctx.strokeStyle = 'rgba(255,224,102,.45)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 10]);
-      ctx.beginPath();
-      ctx.moveTo(tapeX, top + 10);
-      ctx.lineTo(tapeX, bot - 10);
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
 
     for (i = 0; i < n; i++) {
-      var y0 = top + i * laneH;
-      var mid = y0 + laneH / 2;
-      ctx.fillStyle = i % 2 ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.015)';
+      y0 = top + i * laneH;
+      ctx.fillStyle = i % 2 ? '#161622' : '#101018';
       ctx.fillRect(pad, y0, cssW - pad * 2, laneH);
-      var lane = lanes[i];
-      var col = colorOf(lane.id, i);
-      var raw = overlayPos && overlayPos[lane.id] != null ? overlayPos[lane.id] : (lane.position || 0);
-      var shown = overlayPos ? raw : lerpShown(lane.id, raw, !!(lane.falseStart && raw === 0));
-      var p = Math.max(0, Math.min(1, shown / T.FINISH));
-      var x = left + p * (tapeX - left - 18);
-      ctx.fillStyle = col.body;
-      ctx.font = 'bold 12px system-ui,sans-serif';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(clipName(nameOf(lane.id)), 12, mid - 8);
-      if (lane.falseStart || (S.race && S.race.falseStarts && S.race.falseStarts[lane.id])) {
-        ctx.fillStyle = '#ff7a6b';
-        ctx.font = 'bold 9px system-ui,sans-serif';
-        ctx.fillText('FALSE START', 12, mid + 8);
+      ctx.strokeStyle = 'rgba(255,255,255,.06)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 7]);
+      ctx.beginPath();
+      ctx.moveTo(left, y0 + laneH - 0.5);
+      ctx.lineTo(tapeX, y0 + laneH - 0.5);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.fillStyle = '#ece8df';
+    ctx.fillRect(left - 3, top + 2, 4, bot - top - 4);
+    for (i = 0; i < n; i++) {
+      y0 = top + i * laneH;
+      mid = y0 + laneH / 2;
+      ctx.fillStyle = i % 2 ? '#1a1a14' : '#f4f1ea';
+      ctx.fillRect(left - 14, mid - laneH * 0.18, 12, laneH * 0.36);
+      ctx.fillStyle = i % 2 ? '#f4f1ea' : '#1a1a14';
+      ctx.fillRect(left - 14, mid - laneH * 0.18, 6, laneH * 0.18);
+      ctx.fillRect(left - 8, mid, 6, laneH * 0.18);
+    }
+
+    ctx.fillStyle = '#3a3228';
+    ctx.fillRect(tapeX - 5, top, 10, 12);
+    ctx.fillRect(tapeX - 5, bot - 12, 10, 12);
+    drawTape(ctx, tapeX, top + 12, bot - 12, broken, tNow);
+
+    var winner = null;
+    if (S.race && (S.race.finishOrder || []).length) winner = S.race.finishOrder[0];
+    else winner = T.winnerOf(lanes);
+
+    for (i = 0; i < n; i++) {
+      y0 = top + i * laneH;
+      mid = y0 + laneH / 2;
+      lane = lanes[i];
+      col = colorOf(lane.id, i);
+      raw = overlayPos && overlayPos[lane.id] != null ? overlayPos[lane.id] : (lane.position || 0);
+      var fsNow = !!(lane.falseStart && raw < 1 && (!S.race || tNow < S.race.startAt + T.STALL_MS + 80));
+      shown = overlayPos ? raw : lerpShown(lane.id, raw, fsNow);
+      p = Math.max(0, Math.min(1.04, shown / T.FINISH));
+      x = left + 14 + p * (tapeX - left - 36);
+      var moving = racingNow && shown > 0.4 && shown < T.FINISH;
+      phase = moving ? ((tNow / 85) + i * 0.2) % 1 : (cdLeft > 0 ? Math.sin(tNow / 180) * 0.08 : 0.15);
+      var size = Math.min(34, laneH * 0.5);
+      var ghost = lane.id === GHOST_ID;
+      ctx.save();
+      if (ghost) ctx.globalAlpha = 0.55;
+      if (winner && lane.id === winner && (S.photo || finished())) {
+        ctx.shadowColor = '#ffe066';
+        ctx.shadowBlur = 16;
       }
-      var phase = (shown / 6) % 1;
-      drawSticker(ctx, x, mid, Math.min(28, laneH * 0.42), col, phase);
+      drawSticker(ctx, x, mid, size, col, phase, moving);
+      ctx.restore();
+
+      var jumped = !!(lane.falseStart || (S.race && S.race.falseStarts && S.race.falseStarts[lane.id]));
+      var showFs = jumped && (!finished() || fsNow);
+      var showTime = !!(lane.finishedAt && S.race && S.race.startAt &&
+        (!overlayPos || (overlayPos[lane.id] != null && overlayPos[lane.id] >= T.FINISH * 0.98)));
+      drawNameplate(ctx, 8, y0 + 6, laneH - 12, col, clipName(nameOf(lane.id)), showFs, showTime ? lane : null);
     }
 
     if (S.photo) {
-      ctx.fillStyle = 'rgba(10,10,15,.28)';
+      ctx.fillStyle = 'rgba(8,8,12,.16)';
       ctx.fillRect(0, 0, cssW, cssH);
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(0, 0, cssW, 24);
+      ctx.fillRect(0, cssH - 16, cssW, 16);
+      ctx.fillStyle = '#ffe066';
+      var gap0 = cssW / 2 - 78, gap1 = cssW / 2 + 78;
+      for (i = 8; i < cssW; i += 16) {
+        if (i > gap0 && i < gap1) continue;
+        ctx.beginPath();
+        ctx.arc(i, 12, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(i, cssH - 8, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.fillStyle = '#ffe066';
       ctx.font = 'bold 13px system-ui,sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('PHOTO FINISH', cssW / 2, 18);
+      ctx.textBaseline = 'middle';
+      ctx.fillText('PHOTO FINISH', cssW / 2, 12);
       ctx.textAlign = 'left';
-    } else if (S.race && S.race.startAt) {
-      var leftMs = S.race.startAt - now();
-      if (leftMs > 0) {
-        var num = String(Math.max(1, Math.ceil(leftMs / 1000)));
-        ctx.fillStyle = 'rgba(10,10,15,.35)';
-        ctx.fillRect(0, 0, cssW, cssH);
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 72px system-ui,sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(num, cssW / 2, cssH / 2);
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-      } else if (leftMs > -380) {
-        ctx.fillStyle = '#ffe066';
-        ctx.font = 'bold 64px system-ui,sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('GO', cssW / 2, cssH / 2);
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-      }
+      ctx.textBaseline = 'alphabetic';
     }
   }
 
-  function lerpShown(id, target, snap) {
-    if (snap) { S.shown[id] = target; return target; }
-    var cur = S.shown[id];
+  function drawTape(ctx, x, y0, y1, broken, t) {
+    var y, row;
+    if (!broken) {
+      for (y = y0; y < y1; y += 7) {
+        row = ((y / 7) | 0) % 2;
+        ctx.fillStyle = row ? '#111018' : '#f4f1ea';
+        ctx.fillRect(x - 6, y, 6, 7);
+        ctx.fillStyle = row ? '#f4f1ea' : '#111018';
+        ctx.fillRect(x, y, 6, 7);
+      }
+      return;
+    }
+    for (y = y0; y < y1; y += 7) {
+      var flutter = Math.sin(y * 0.18 + t / 140) * 7;
+      row = ((y / 7) | 0) % 2;
+      ctx.fillStyle = row ? 'rgba(244,241,234,.7)' : 'rgba(255,224,102,.75)';
+      ctx.fillRect(x - 4 + flutter, y, 5, 6);
+      ctx.fillRect(x + 2 - flutter * 0.6, y + 1, 4, 5);
+    }
+  }
+
+  function drawNameplate(ctx, x, y, h, col, name, showFs, lane) {
+    var w = 76;
+    var boxH = Math.min(h - 4, 40);
+    var by = y + Math.max(0, (h - boxH) / 2);
+    ctx.fillStyle = 'rgba(8,8,12,.62)';
+    ctx.beginPath();
+    roundRect(ctx, x, by, w, boxH, 8);
+    ctx.fill();
+    ctx.fillStyle = col.body;
+    ctx.beginPath();
+    ctx.arc(x + 10, by + boxH / 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f4f1ea';
+    ctx.font = 'bold 12px system-ui,sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, x + 18, by + boxH / 2 - (showFs || (lane && lane.finishedAt) ? 7 : 0));
+    if (showFs) {
+      ctx.fillStyle = '#ff7a6b';
+      ctx.font = 'bold 9px system-ui,sans-serif';
+      ctx.fillText('JUMPED', x + 18, by + boxH / 2 + 8);
+    } else if (lane && lane.finishedAt && S.race && S.race.startAt) {
+      ctx.fillStyle = '#c8c4b8';
+      ctx.font = 'bold 10px system-ui,sans-serif';
+      ctx.fillText(fmtMs(lane.finishedAt - S.race.startAt), x + 18, by + boxH / 2 + 8);
+    }
+  }
+
+  function lerpShown(id, target, lurch) {
+    if (lurch) {
+      var cur = S.shown[id];
+      if (cur == null || cur < 2) { S.shown[id] = 26; return 26; }
+      S.shown[id] = cur + (0 - cur) * 0.2;
+      return S.shown[id];
+    }
+    cur = S.shown[id];
     if (cur == null) { S.shown[id] = target; return target; }
-    S.shown[id] = cur + (target - cur) * 0.38;
+    S.shown[id] = cur + (target - cur) * 0.42;
     return S.shown[id];
   }
 
@@ -503,23 +659,42 @@
     ctx.closePath();
   }
 
-  function drawSticker(ctx, x, y, size, color, phase) {
+  function drawSticker(ctx, x, y, size, color, phase, moving) {
     var run = Math.sin(phase * Math.PI * 2);
-    var leg = run * size * 0.22;
+    var leg = run * size * (moving ? 0.38 : 0.16);
+    var arm = -run * size * (moving ? 0.32 : 0.1);
+    var lean = moving ? 0.22 : 0.04;
     ctx.save();
     ctx.translate(x, y);
+    ctx.rotate(lean);
     ctx.fillStyle = 'rgba(0,0,0,.35)';
     ctx.beginPath();
-    ctx.ellipse(0, size * 0.62, size * 0.42, size * 0.12, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, size * 0.64, size * 0.46, size * 0.12, 0, 0, Math.PI * 2);
     ctx.fill();
+    if (moving) {
+      ctx.strokeStyle = 'rgba(255,255,255,.18)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-size * 0.7, -size * 0.1);
+      ctx.lineTo(-size * 1.15, -size * 0.1);
+      ctx.moveTo(-size * 0.65, size * 0.12);
+      ctx.lineTo(-size * 0.95, size * 0.12);
+      ctx.stroke();
+    }
     ctx.strokeStyle = color.ink;
-    ctx.lineWidth = size * 0.1;
+    ctx.lineWidth = size * 0.09;
     ctx.lineCap = 'round';
     ctx.beginPath();
+    ctx.moveTo(-size * 0.18, -size * 0.02);
+    ctx.lineTo(-size * 0.38, -size * 0.18 + arm);
+    ctx.moveTo(size * 0.18, -size * 0.02);
+    ctx.lineTo(size * 0.42, -size * 0.1 - arm);
+    ctx.stroke();
+    ctx.beginPath();
     ctx.moveTo(-size * 0.12, size * 0.22);
-    ctx.lineTo(-size * 0.2 - leg, size * 0.55);
+    ctx.lineTo(-size * 0.22 - leg, size * 0.58);
     ctx.moveTo(size * 0.12, size * 0.22);
-    ctx.lineTo(size * 0.2 + leg, size * 0.55);
+    ctx.lineTo(size * 0.22 + leg, size * 0.58);
     ctx.stroke();
     ctx.fillStyle = color.body;
     ctx.strokeStyle = color.ink;
@@ -537,8 +712,8 @@
     ctx.fill();
     ctx.fillStyle = color.ink;
     ctx.beginPath();
-    ctx.arc(-size * 0.08, -size * 0.45, size * 0.035, 0, Math.PI * 2);
-    ctx.arc(size * 0.12, -size * 0.45, size * 0.035, 0, Math.PI * 2);
+    ctx.arc(-size * 0.06, -size * 0.45, size * 0.035, 0, Math.PI * 2);
+    ctx.arc(size * 0.14, -size * 0.45, size * 0.035, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = color.ink;
     ctx.lineWidth = size * 0.045;
@@ -552,10 +727,13 @@
     var frames = S.photo && S.photo.frames;
     if (!frames || !frames.length) return null;
     var t0 = frames[0].t, t1 = frames[frames.length - 1].t;
-    var span = Math.max(80, t1 - t0);
-    var u = (t - S.photo.t0) % (span + 120);
-    if (u > span) u = span;
-    var at = t0 + u;
+    var span = Math.max(120, t1 - t0);
+    var hold = 180;
+    var slow = span * 2.2;
+    var cycle = slow + hold;
+    var u = (t - S.photo.t0) % cycle;
+    if (u > slow) u = slow;
+    var at = t0 + (u / slow) * span;
     var a = frames[0], b = frames[frames.length - 1];
     for (var i = 0; i < frames.length; i++) {
       if (frames[i].t <= at) a = frames[i];
@@ -593,16 +771,11 @@
     if (/FALSE/.test(msg)) cls = 'warn';
     else if (/win/i.test(msg)) cls = 'good';
     setStatus(msg, cls);
+    mashFace(lanes);
 
-    var racingNow = racing();
-    var done = !!(S.photo || finished());
-    var hostControls = !S.vsFriend || iAmHost();
-    $('startBtn').hidden = racingNow || !hostControls;
-    $('againBtn').hidden = !done || !hostControls;
-    var seated = seatedIds();
-    var mySeat = seated.indexOf(S.me.id) >= 0;
-    $('mash').disabled = !mySeat;
-    $('mashHint').textContent = mySeat ? 'tap or space' : 'watching';
+    $('startBtn').hidden = true;
+    $('againBtn').hidden = true;
+    $('bar').hidden = true;
 
     var ghostSolo = !S.vsFriend;
     $('modeSeg').hidden = !ghostSolo;
