@@ -1,0 +1,112 @@
+/* Rockets — dark space shell. The canvas paints the sky; this is HUD chrome. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #050814; color: #f4efe6;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#game { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
+
+#hud {
+  position: fixed; z-index: 20; top: max(.7rem, env(safe-area-inset-top));
+  left: max(.7rem, env(safe-area-inset-left));
+  display: flex; gap: .8rem; pointer-events: none;
+}
+#scorebox, #clockbox {
+  background: rgba(6, 10, 22, .55); border: 1px solid rgba(255, 200, 120, .16);
+  border-radius: .55rem; padding: .4rem .7rem .35rem; min-width: 4.6rem;
+  backdrop-filter: blur(8px);
+}
+#hud .label {
+  font-size: .62rem; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(255, 210, 150, .62); font-weight: 600;
+}
+#score, #clock {
+  font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: #ffe7c2; line-height: 1.15;
+}
+#hud .sub { font-size: .68rem; color: rgba(255, 210, 150, .5); margin-top: .1rem; }
+
+#board {
+  position: fixed; z-index: 28; top: max(.7rem, env(safe-area-inset-top));
+  right: max(.7rem, env(safe-area-inset-right));
+  background: rgba(6, 10, 22, .62); border: 1px solid rgba(255, 200, 120, .14);
+  border-radius: .55rem; padding: .55rem .7rem .45rem; min-width: 9.2rem;
+  backdrop-filter: blur(8px); pointer-events: none;
+}
+#board[hidden] { display: none; }
+.board-title {
+  font-size: .68rem; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(255, 210, 150, .55); font-weight: 600; padding: 0 .15rem .35rem;
+}
+#board table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+#board td { padding: .12rem .2rem; }
+#board td.n { color: #f0e6d4; max-width: 7.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#board td.s { text-align: right; width: 3rem; font-variant-numeric: tabular-nums; color: rgba(255, 210, 150, .7); }
+#board tr.me td { color: #ffb25a; font-weight: 600; }
+#board tr.me td.s { color: #ffb25a; }
+
+#hint {
+  position: fixed; z-index: 20; left: 50%;
+  bottom: max(1.2rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%); font-size: .72rem; color: rgba(244, 230, 210, .5);
+  pointer-events: none; text-align: center; line-height: 1.5; max-width: 90vw;
+}
+body.touch #hint { display: none; }
+body.play #hint { opacity: .55; }
+
+#touch { position: fixed; inset: 0; z-index: 30; pointer-events: none; touch-action: none; user-select: none; }
+#touch[hidden] { display: none; }
+.t-stick {
+  position: absolute; left: max(1.1rem, env(safe-area-inset-left));
+  bottom: max(1.4rem, env(safe-area-inset-bottom));
+  width: 8.6rem; height: 8.6rem; border-radius: 50%; pointer-events: auto;
+  background: rgba(255, 180, 80, .08); border: 1px solid rgba(255, 200, 120, .28);
+}
+.t-knob {
+  position: absolute; left: 50%; top: 50%; width: 3.4rem; height: 3.4rem;
+  margin: -1.7rem 0 0 -1.7rem; border-radius: 50%;
+  background: rgba(255, 160, 64, .32); border: 1px solid rgba(255, 220, 160, .5);
+}
+
+#gate, #over {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 40%, rgba(20, 16, 40, .55), rgba(4, 6, 14, .82));
+}
+#gate[hidden], #over[hidden] { display: none; }
+#gate h1 {
+  font-size: clamp(2.4rem, 10vw, 4.2rem); letter-spacing: .04em;
+  color: #ffe7c2; text-shadow: 0 0 28px rgba(255, 140, 64, .45);
+  text-align: center;
+}
+#gate { flex-direction: column; gap: .7rem; padding: 1.5rem; }
+#gate .lead { color: rgba(255, 220, 170, .8); font-size: 1.05rem; }
+#play {
+  margin-top: .6rem; padding: .7rem 1.8rem; border: 0; border-radius: 999px;
+  background: #ff8c40; color: #1a0e08; font: 700 1.05rem/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .04em; cursor: pointer;
+}
+#play:active { transform: scale(.98); }
+#gate .sub, #over .sub { color: rgba(255, 210, 150, .55); font-size: .82rem; text-align: center; }
+#mpNote[hidden] { display: none; }
+
+.over-card {
+  text-align: center; padding: 1.4rem 1.6rem 1.2rem;
+  background: rgba(8, 10, 22, .78); border: 1px solid rgba(255, 200, 120, .2);
+  border-radius: 1rem; min-width: 14rem; max-width: 90vw;
+}
+.over-kicker {
+  font-size: .72rem; letter-spacing: .14em; text-transform: uppercase;
+  color: rgba(255, 210, 150, .6); font-weight: 600;
+}
+.over-score {
+  font-size: 3.2rem; font-weight: 800; color: #ffe7c2; line-height: 1.05;
+  margin: .2rem 0 .15rem; font-variant-numeric: tabular-nums;
+}
+.over-best { color: #ffb25a; font-size: .9rem; min-height: 1.2em; margin-bottom: .6rem; }
+#overBoard { font-size: .88rem; color: #f0e6d4; text-align: left; margin: .4rem auto; max-width: 12rem; }
+#overBoard div { display: flex; justify-content: space-between; gap: 1.2rem; padding: .15rem 0; }
+#overBoard .me { color: #ffb25a; font-weight: 600; }

@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "rockets",
+  "name": "Rockets",
+  "shortName": "Rockets",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [255, 140, 64],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "players": {
+      "visibility": "read-write"
+    },
+    "sky": {
+      "visibility": "read-only"
+    }
+  }
+}

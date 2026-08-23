@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Rockets</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="scorebox">
+    <div class="label">Score</div>
+    <div id="score">0</div>
+    <div class="sub" id="best"></div>
+  </div>
+  <div id="clockbox">
+    <div class="label">Time</div>
+    <div id="clock">1:00</div>
+  </div>
+</div>
+
+<div id="board" hidden>
+  <div class="board-title">Sky</div>
+  <table><tbody id="board-rows"></tbody></table>
+</div>
+
+<div id="hint"><b>WASD</b> / <b>arrows</b> fly · send the <b>Invite</b> — a friend lands in this sky</div>
+
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+</div>
+
+<div id="gate">
+  <h1>Rockets</h1>
+  <p class="lead">Catch stars. Beat the clock.</p>
+  <button type="button" id="play">Play</button>
+  <p class="sub" id="mpNote" hidden>Someone is already in this sky.</p>
+</div>
+
+<div id="over" hidden>
+  <div class="over-card">
+    <div class="over-kicker" id="overKicker">Round over</div>
+    <div class="over-score" id="overScore">0</div>
+    <div class="over-best" id="overBest"></div>
+    <div id="overBoard"></div>
+    <p class="sub" id="overNext">Next round in a moment</p>
+  </div>
+</div>
+
+<script src="sim.js"></script>
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
