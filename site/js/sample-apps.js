@@ -3262,7 +3262,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   .tgl input:checked + .tslide::after{transform:translateX(18px)}
   .visinfo .vt{font-weight:600;font-size:.9rem}
   #toast.on{opacity:1}
-  #mgif{display:none}
+  #mgif,#mfliph,#mflipv{display:none}
   #gifpanel{display:none}
   #gifpanel.on{display:flex}
   .box.gifing .stage{max-height:36vh}
@@ -3307,7 +3307,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     <div class="row"><span class="sub">Category</span><input type="text" id="mcat" list="cats" placeholder="Unsorted"><button class="btn ghost" id="msave">Save</button></div>
     <datalist id="cats"></datalist>
     <div class="row" id="visrow" style="display:none"><label class="tgl"><input type="checkbox" id="mvis"><span class="tslide"></span></label><div class="visinfo"><div class="vt">Visible to invited guests</div><span class="sub" id="vishint">Private — only you can see it.</span></div></div>
-    <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="btn" id="mgif">Make GIF</button><button class="btn ghost" id="mdown">Download</button><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
+    <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="btn ghost" id="mfliph">Flip ↔️</button><button class="btn ghost" id="mflipv">Flip ↕️</button><button class="btn" id="mgif">Make GIF</button><button class="btn ghost" id="mdown">Download</button><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
   </div>
   <div class="info" id="gifpanel">
     <div id="filmstrip"></div>
@@ -3345,7 +3345,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   function isVisible(m){ return !!(m && (m._vis==='read-only' || m._vis==='read-write')); }
   var grid = document.getElementById('grid'), gEmpty = document.getElementById('empty');
   function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':s; return d.innerHTML; }
-  var toastT; function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(function(){ t.classList.remove('on'); }, 2600); }
+  var toastT; function toast(m, hold){ var t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); if(!hold) toastT=setTimeout(function(){ t.classList.remove('on'); }, 2600); }
   var KIND={ image:'🖼', audio:'🎵', video:'🎬' };
   function fmtSize(n){ n=+n||0; return n>=1e6?(n/1e6).toFixed(1)+' MB':n>=1024?Math.round(n/1024)+' KB':n+' B'; }
 
@@ -3422,6 +3422,9 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     document.getElementById('minfo').textContent = (KIND[m.type]||'')+' '+(m.mime||'')+' · '+fmtSize(m.size);
     syncVisRow();
     closeGifPanel();
+    var canFlip = m.type==='video' || (m.type==='image' && !/image\/gif/i.test(m.mime||''));
+    document.getElementById('mfliph').style.display = canFlip ? 'inline-block' : 'none';
+    document.getElementById('mflipv').style.display = canFlip ? 'inline-block' : 'none';
     document.getElementById('mgif').style.display = m.type==='video' ? 'inline-block' : 'none';
     document.getElementById('modal').style.display='flex';
   }
@@ -3767,6 +3770,190 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
       await new Promise(function(r){ setTimeout(r, 40); });
     await openItem(id);
   };
+
+  // ---- flip / later clip+reverse: new library item, original stays ----
+  function suffixName(m, tag, ext){
+    var n=String((m&&m.name)||'file');
+    n=n.replace(/\.[^.]+$/,'');
+    n=n.replace(/[\\/?%*:|"<>]/g,'-').replace(/\s+/g,' ').trim()||'file';
+    return n+' ('+tag+').'+ext;
+  }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  async function saveNew(bytes, mime, name){
+    if(!bytes||!bytes.length) throw new Error('Nothing to save.');
+    if(bytes.length>MAX){ toast('That file would be too big (max 25 MB).'); return null; }
+    var cat=(cur&&cur.category)||'Unsorted';
+    var id=await store(bytes, mime, name, cat);
+    if(!id) return null;
+    toast('Saved '+name);
+    return id;
+  }
+  async function openNew(id){
+    if(!id) return;
+    var tries=0;
+    while(tries++<25 && !items.filter(function(x){ return x.id===id; })[0])
+      await new Promise(function(r){ setTimeout(r, 40); });
+    await openItem(id);
+  }
+  function pickVideoMime(){
+    var MR=window.MediaRecorder;
+    if(!MR||!MR.isTypeSupported) return '';
+    var cands=['video/webm;codecs=vp8','video/webm;codecs=vp9','video/webm'];
+    for(var i=0;i<cands.length;i++){
+      try{ if(MR.isTypeSupported(cands[i])) return cands[i]; }catch(e){}
+    }
+    return '';
+  }
+  function paintFlipped(ctx, src, w, h, sx, sy){
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,w,h);
+    ctx.save();
+    ctx.translate(sx<0?w:0, sy<0?h:0);
+    ctx.scale(sx, sy);
+    ctx.drawImage(src, 0, 0, w, h);
+    ctx.restore();
+  }
+  async function recordEditedVideo(opts){
+    opts=opts||{};
+    var v=stageVideo();
+    if(!v) throw new Error('No video to edit.');
+    if(typeof MediaRecorder==='undefined') throw new Error('This browser cannot record video (no MediaRecorder).');
+    var canvas=document.createElement('canvas');
+    if(!canvas.captureStream) throw new Error('This browser cannot record video (no captureStream).');
+    var w=v.videoWidth||0, h=v.videoHeight||0;
+    if(!w||!h) throw new Error('The video has not decoded yet.');
+    var start=+opts.start||0, end=opts.end, d=vidDur();
+    if(!(end>start)) end=d;
+    if(!(end>start)) throw new Error('That clip is empty.');
+    var sx=opts.sx==null?1:opts.sx, sy=opts.sy==null?1:opts.sy;
+    var reverse=!!opts.reverse;
+    var fps=15;
+    var n=Math.max(2, Math.round((end-start)*fps));
+    if(n>900) n=900;
+    canvas.width=w; canvas.height=h;
+    var ctx=canvas.getContext('2d');
+    var stream=canvas.captureStream(fps);
+    var track=stream.getVideoTracks()[0];
+    var mime=pickVideoMime();
+    var rec;
+    try{ rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }
+    catch(e){ rec=new MediaRecorder(stream); }
+    var chunks=[];
+    rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
+    var stopped=new Promise(function(res, rej){
+      rec.onerror=function(ev){ rej((ev&&ev.error)||new Error('Recording failed.')); };
+      rec.onstop=function(){ res(); };
+    });
+    function emit(){
+      paintFlipped(ctx, v, w, h, sx, sy);
+      if(track&&track.requestFrame) try{ track.requestFrame(); }catch(e){}
+    }
+    v.pause(); v.muted=true;
+    var frameMs=Math.round(1000/fps);
+    try{
+      rec.start(100);
+      var firstT=reverse?Math.max(start, end-1/fps):start;
+      await seekTo(v, firstT);
+      emit(); await sleep(350); emit(); await sleep(50);
+      for(var i=0;i<n;i++){
+        if(gifAbort) throw new Error('cancel');
+        var t=reverse ? end-(i+0.5)*(end-start)/n : start+(i+0.5)*(end-start)/n;
+        if(opts.onProg) opts.onProg(i+1, n);
+        await seekTo(v, t);
+        if(gifAbort) throw new Error('cancel');
+        emit();
+        await sleep(frameMs);
+      }
+      emit(); await sleep(180);
+      if(rec.state==='recording') rec.stop();
+      await stopped;
+    }catch(err){
+      try{ if(rec.state==='recording') rec.stop(); }catch(e){}
+      try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+      throw err;
+    }
+    try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+    var blob=new Blob(chunks, { type: rec.mimeType||mime||'video/webm' });
+    if(!blob.size) throw new Error('Recording produced an empty file.');
+    var buf=new Uint8Array(await blob.arrayBuffer());
+    var outMime=(blob.type||'video/webm').split(';')[0]||'video/webm';
+    return { bytes:buf, mime:outMime };
+  }
+  async function flipStill(h, v){
+    if(!cur) throw new Error('Nothing to flip.');
+    var rec=await blobs.get(cur.id);
+    if(!rec||!rec.bytes) throw new Error('The file for this item is missing.');
+    var bytes=rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
+    var blob=new Blob([bytes], { type: cur.mime||'image/png' });
+    var url=URL.createObjectURL(blob);
+    var img;
+    try{
+      img=await new Promise(function(res, rej){
+        var i=new Image();
+        i.onload=function(){ res(i); };
+        i.onerror=function(){ rej(new Error('Could not decode the image.')); };
+        i.src=url;
+      });
+    }finally{ URL.revokeObjectURL(url); }
+    var w=img.naturalWidth, ht=img.naturalHeight;
+    if(!w||!ht) throw new Error('Could not decode the image.');
+    var c=document.createElement('canvas'); c.width=w; c.height=ht;
+    var ctx=c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    var before;
+    try{ before=ctx.getImageData(0,0,w,ht).data.slice(); }
+    catch(e){ throw new Error('Could not read the image pixels.'); }
+    paintFlipped(ctx, img, w, ht, h?-1:1, v?-1:1);
+    var after;
+    try{ after=ctx.getImageData(0,0,w,ht).data; }
+    catch(e){ throw new Error('Could not read the image pixels.'); }
+    var changed=false, p;
+    for(p=0;p<after.length;p+=4){
+      if(after[p]!==before[p]||after[p+1]!==before[p+1]||after[p+2]!==before[p+2]){ changed=true; break; }
+    }
+    if(!changed) throw new Error('That image looks the same flipped.');
+    var jpeg=/image\/jpe?g/i.test(cur.mime||'');
+    var outMime=jpeg?'image/jpeg':'image/png';
+    var out=await new Promise(function(res, rej){
+      if(!c.toBlob){
+        try{
+          var data=c.toDataURL(outMime, jpeg?0.92:undefined);
+          var bin=atob(data.split(',')[1]||''), u=new Uint8Array(bin.length);
+          for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+          res(new Blob([u], { type: outMime }));
+        }catch(err){ rej(new Error('Could not encode the image.')); }
+        return;
+      }
+      c.toBlob(function(b){ if(!b) rej(new Error('Could not encode the image.')); else res(b); }, outMime, jpeg?0.92:undefined);
+    });
+    return { bytes:new Uint8Array(await out.arrayBuffer()), mime:outMime, ext:jpeg?'jpg':'png' };
+  }
+  async function doFlip(h, v){
+    if(!cur||gifBusy) return;
+    gifBusy=true; gifAbort=false;
+    try{
+      if(cur.type==='image'){
+        var still=await flipStill(h, v);
+        var sid=await saveNew(still.bytes, still.mime, suffixName(cur, 'flipped', still.ext));
+        await openNew(sid);
+      }else if(cur.type==='video'){
+        toast('Flipping…', true);
+        var d=vidDur();
+        var recd=await recordEditedVideo({
+          sx:h?-1:1, sy:v?-1:1, start:0, end:d, reverse:false,
+          onProg:function(i,n){ toast('Flipping '+i+'/'+n+'…', true); }
+        });
+        var vidName=suffixName(cur, 'flipped', 'webm');
+        var vid=await saveNew(recd.bytes, recd.mime, vidName);
+        await openNew(vid);
+      }
+    }catch(err){
+      var msg=String(err&&err.message||err);
+      if(!/cancel/i.test(msg)) toast(msg.slice(0,90));
+    }finally{ gifBusy=false; }
+  }
+  document.getElementById('mfliph').onclick=function(){ doFlip(true, false); };
+  document.getElementById('mflipv').onclick=function(){ doFlip(false, true); };
 
   // ---- filters ----
   document.getElementById('types').addEventListener('click', function(e){ var b=e.target.closest?e.target.closest('button[data-t]'):null; if(!b) return;
