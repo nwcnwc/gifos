@@ -195,9 +195,9 @@ new; then build freely if the bug needs machinery that isn't there.
   `apps/<slug>/manifest.json` + `apps/<slug>/listing.json`; regenerate with
   `node scripts/build-app-catalog.mjs`, and `--check` fails if the committed
   catalog has drifted. Listed GIFs are signed as gifos.app by
-  `node scripts/sign-apps.mjs` (local `~/.gifos-signing-key.json`; the private
-  key never goes in GitHub Secrets). `--check --require-signed` is the gate
-  once the catalog is signed. A built App GIF lives at `site/apps/<slug>/<slug>.gif`
+  `node scripts/sign-apps.mjs` (`GIFOS_SIGN_KEY`; the private key never goes
+  in GitHub Secrets). `--check --require-signed` is the gate once the catalog
+  is signed. A built App GIF lives at `site/apps/<slug>/<slug>.gif`
   and NOWHERE else — `site/` is the whole publish boundary, so a GIF outside it
   is not downloadable, and a second copy is 8 MB twice in every clone plus two
   versions that drift. Tests must resolve it through `test/lib/apps.js`.

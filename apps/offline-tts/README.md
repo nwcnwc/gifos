@@ -44,5 +44,4 @@ node apps/offline-tts/build.mjs        # packs the slim GIF into site/apps/offli
 node scripts/build-app-catalog.mjs      # refresh the store catalog
 ```
 
-Sign with the rest of the catalog: `node scripts/sign-apps.mjs` (local
-`~/.gifos-signing-key.json`, not GitHub).
+Sign with the rest of the catalog: `node scripts/sign-apps.mjs` (`GIFOS_SIGN_KEY`, not GitHub).

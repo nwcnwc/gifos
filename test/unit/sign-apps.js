@@ -39,9 +39,13 @@ check('dry-run lists fluence as already signed gifos.app',
 check('dry-run lists at least one unsigned catalog GIF',
   /\tunsigned$/m.test(dry.stdout), dry.stdout);
 
+const unset = run([], { GIFOS_SIGN_KEY: '' });
+check('unset GIFOS_SIGN_KEY exits 2 and names GitHub Secrets as the wrong place',
+  unset.status === 2 && /GitHub Secrets/.test(unset.stderr),
+  'status=' + unset.status + ' ' + unset.stderr.slice(0, 300));
 const missing = run([], { GIFOS_SIGN_KEY: path.join(os.tmpdir(), 'gifos-no-such-key-' + Date.now() + '.json') });
-check('missing key exits 2 and names GitHub Secrets as the wrong place',
-  missing.status === 2 && /GitHub Secrets/.test(missing.stderr),
+check('a missing GIFOS_SIGN_KEY file exits 2',
+  missing.status === 2 && /not a readable file/.test(missing.stderr),
   'status=' + missing.status + ' ' + missing.stderr.slice(0, 300));
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gifos-sign-'));
