@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>SkiFree</title>
+<link href="style.css" rel="stylesheet">
+</head>
+<body>
+<!-- Hidden so the GifOS runtime can rewrite src to a data: URL. A path
+     assigned from JS would 404 inside the sandbox. -->
+<img id="img-characters" src="vendor/sprite-characters.png" alt="" hidden>
+<img id="img-objects" src="vendor/skifree-objects.png" alt="" hidden>
+
+<canvas id="skifree-canvas" tabindex="0"></canvas>
+
+<div id="racebar" hidden></div>
+
+<div id="hud">
+  <div id="meters">0 m</div>
+  <div id="lives">5 skiers</div>
+  <div id="bestLine"></div>
+</div>
+
+<div id="hint">Drag to ski · WASD or arrows · F to boost</div>
+
+<div id="over" hidden>
+  <div class="sheet">
+    <h1>Wiped out</h1>
+    <p id="overDist">0 m</p>
+    <p id="overTip">Space or tap to ski again</p>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <button type="button" id="t-boost" class="t-btn">BOOST</button>
+</div>
+
+<script src="vendor/engine.js"></script>
+<script src="mp.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

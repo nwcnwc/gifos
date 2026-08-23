@@ -1,0 +1,33 @@
+{
+  "tagline": "Point down the mountain. Dodge the trees. Race a ghost of whoever you send the link to.",
+  "description": "You are a little skier at the top of a white hill that does not end. Point where you want to go — mouse, keys, or a finger on the snow — and you go. Trees, rocks, jumps. Crash and you get back up. Go far enough and something hungry starts hunting you. Five skiers; when they are gone, that is how far you got.\n\nOn a phone you drag on the piste. Double-tap (or the boost button) to go faster, the old trick for getting away.\n\nPress Invite (in the GifOS menu) and send the link. Everyone who opens it skis their own run. You see the others as ghosts on your slope, a little ahead or a little behind. Farthest down the mountain wins. Playing alone is the original game.\n\nYour best distance stays on this device, inside the app.\n\nAn unofficial port of SkiFree.js by basicallydan, MIT-licensed. The pictures come from the 1991 PC game. This copy adds the ghosts over a meeting link. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "basicallydan",
+    "url": "https://github.com/basicallydan/skifree.js"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "SkiFree.js",
+    "url": "https://github.com/basicallydan/skifree.js",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "ski",
+    "arcade",
+    "yeti",
+    "multiplayer",
+    "touch",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/skifree",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
