@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Typing</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Typing</div>
+  <div class="chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+
+<main>
+  <section id="home">
+    <p class="lede">Practice on this device. History lives in the file. Race a friend from one link.</p>
+    <button class="primary" id="practiceBtn" type="button">Practice</button>
+    <button class="ghost wide" id="lessonsBtn" type="button">Lessons</button>
+    <button class="ghost wide" id="friendBtn" type="button">Play a friend</button>
+    <h2 class="hist-h">Recent</h2>
+    <div id="history" class="history empty">Finish a run and it shows up here.</div>
+  </section>
+
+  <section id="lessons" hidden>
+    <div class="vhead"><h2>Lessons</h2><button class="ghost" id="lessonsBack" type="button">← Back</button></div>
+    <p class="note">Home row first. Then the other rows. Then punctuation.</p>
+    <div id="lessonList" class="lesson-list"></div>
+  </section>
+
+  <section id="run" hidden>
+    <div class="vhead">
+      <button class="ghost" id="runBack" type="button">← Back</button>
+      <div class="seg" id="kindSeg">
+        <button type="button" data-kind="english" class="on">English</button>
+        <button type="button" data-kind="code">Code</button>
+      </div>
+      <button class="ghost" id="runNew" type="button">New</button>
+    </div>
+    <div class="stats">
+      <div><b id="statWpm">0</b><span>WPM</span></div>
+      <div><b id="statAcc">100</b><span>ACC</span></div>
+      <div><b id="statTime">0:00</b><span>TIME</span></div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="passage" id="passage" aria-live="polite"></div>
+      <textarea id="kb" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" rows="1" aria-label="Type here"></textarea>
+    </div>
+    <p class="hint" id="runHint">Tap the passage to open the keyboard.</p>
+  </section>
+
+  <section id="result" hidden>
+    <div class="result-card">
+      <div class="big" id="resWpm">0</div>
+      <div class="big-l">WPM</div>
+      <div class="res-row"><b id="resAcc">100%</b> accuracy</div>
+      <div class="res-row" id="resMeta"></div>
+    </div>
+    <button class="primary" id="againBtn" type="button">Again</button>
+    <button class="ghost wide" id="resultHome" type="button">Home</button>
+  </section>
+
+  <section id="friend" hidden>
+    <div class="vhead"><h2>Play a friend</h2><button class="ghost" id="fLeave" type="button">← Leave</button></div>
+    <div class="seats" id="fSeats"></div>
+    <p class="status" id="fStatus"></p>
+    <div class="stats">
+      <div><b id="fWpm">0</b><span>WPM</span></div>
+      <div><b id="fAcc">100</b><span>ACC</span></div>
+      <div><b id="fTime">0:00</b><span>TIME</span></div>
+    </div>
+    <div class="stage" id="fStage">
+      <div class="passage" id="fPassage" aria-live="polite"></div>
+      <textarea id="fKb" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" rows="1" aria-label="Type here"></textarea>
+    </div>
+    <p class="hint" id="fHint">Press <b>Invite</b> (top bar) to bring a friend.</p>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script src="passages.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

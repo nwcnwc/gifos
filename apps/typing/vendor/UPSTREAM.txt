@@ -1,0 +1,24 @@
+Unofficial port of Programmer's Typing Practice by climech (MIT).
+
+upstream: https://github.com/climech/typing-practice
+license:  MIT (COPYING-typing-practice.txt)
+
+The original is a vanilla-JS page: a never-ending stream of random
+characters with weights for lower/upper/digits/punctuation, a hidden
+<input> so the real keyboard (including a phone's) is the input, and
+no WPM. It stores weights in localStorage.
+
+What this tree keeps:
+  the MIT notice
+  the charset + random-word drill (letters, digits, punctuation)
+  a real input / textarea so the OS keyboard opens — never a fake one
+
+What this tree rewrites:
+  the UI (dark, phone layout, passages with a caret)
+  persistence (history lives in the icon, not localStorage)
+  lessons (home row, then the other rows, then punctuation)
+  English and programmer passages, with a toggle
+  live WPM + accuracy and a result at the end
+  play a friend: same passage, each person writes only their own row
+
+The MIT notice travels INSIDE the GIF as COPYING-typing-practice.txt.
