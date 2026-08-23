@@ -19,6 +19,26 @@ too, and your clone is a snapshot, not a live view. (A dedicated feature branch
 is fine ONLY for a not-yet-deployable flag-day like the mesh-v2 rewrite — and
 the always-commit-and-push rule still applies there, to the branch.)
 
+## Release clones — NEVER the development tree
+
+A release gate, a fleet actor, or `archive-version.sh` must run from a
+**separate clone**: `~/release-process/gifos`, checked out at the freeze tag
+(e.g. `v0.9.10-freeze`). `~/projects/gifos` is for ongoing development on
+`main`. The two collide: fleet `dir` used to point at the development tree, so
+a gate `cd`'d in, pushed `test/swarm/.bb-meet.js`, and `git pull`'d while
+someone was mid-edit. That is how a cut and a Camera session fought over one
+folder.
+
+- Tag the freeze (`git tag -a v<x.y.z>-freeze && git push origin v<x.y.z>-freeze`)
+  **before** the gate. Further commits on `main` are not this release.
+- Clone once per box: `git clone <repo> ~/release-process/gifos && git -C ~/release-process/gifos checkout v<x.y.z>-freeze`.
+  Symlink `node_modules` from a development clone if needed; do not `git pull`
+  that tree onto `main`.
+- The local hosts file (`~/.gifos-behavior-hosts.json`) `dir` for every fleet
+  host is `~/release-process/gifos`, never `~/projects/gifos`.
+- Cut from the freeze clone. `v<x.y.z>` itself is tagged on the archive
+  commit, after `scripts/archive-version.sh`.
+
 ## The release gate — GREEN OR WE DO NOT CUT
 
 **Every test is green, or there is no release. No exceptions, no "known red",
@@ -122,7 +142,8 @@ new; then build freely if the bug needs machinery that isn't there.
 ## Conventions that bite
 
 - `site/versions/<x.y.z>/` are FROZEN archived builds — never edit them.
-  Releases are cut with `scripts/archive-version.sh <version>`, which snapshots
+  Releases are cut with `scripts/archive-version.sh <version>` **from
+  `~/release-process/gifos` at the freeze tag**, which snapshots
   the current `site/` (js, css, themes, html) into `site/versions/<version>/`,
   stamps that snapshot's `GIFOS_VERSION`, bakes its build number, and rewrites
   `version.json`. The site ROOT stays `GIFOS_VERSION='edge'` (the unreleased edge

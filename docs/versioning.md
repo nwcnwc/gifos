@@ -223,14 +223,21 @@ severed the instant `current` flips. Scope that with the relay deploy.)*
 ## Release & rollback workflow
 
 **Cut a release**
+
+Work from `~/release-process/gifos`, not the development clone. Tag
+`v<next>-freeze` on the source SHA **before** the gate (further `main` is
+not this release). Fleet `dir` in `~/.gifos-behavior-hosts.json` is
+`~/release-process/gifos` on every box. See CLAUDE.md "Release clones".
+
 1. `scripts/archive-version.sh <next>` — immutable snapshot into `/versions/<next>/`.
+   Run this in the freeze clone so the snapshot is that SHA, not a later `main`.
 2. Set `version.json.staging = <next>` (Edge only; Stable users untouched).
 3. Exercise it on the **Edge** URL — full suite, the swarm, a real phone.
 4. When green, **promote**: set `version.json.current = <next>` (and clear
    `staging`). Production moves. Purge `version.json` at Cloudflare so it
    propagates in seconds.
-5. **Tag it in git**: `git tag v<next> && git push --tags` — the rollback tags
-   we don't have today.
+5. **Tag it in git**: `git tag v<next> && git push --tags` on the archive
+   commit (the freeze tag is the source; this tag is the cut).
 
 **Roll back** — set `version.json.current = <prev>`. Done. Instant, no redeploy,
 no git history surgery. (Because data is additive-only, the old code is happy.)

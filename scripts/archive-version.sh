@@ -6,6 +6,10 @@
 # Then commit and push. The Pages workflow ships site/ as-is, so
 # /versions/<version>/ is served automatically.
 #
+# Run this from ~/release-process/gifos checked out at v<x.y.z>-freeze, NOT
+# from ~/projects/gifos. The development tree keeps moving on main; the freeze
+# clone is the source of the snapshot. See CLAUDE.md "Release clones".
+#
 # The site ROOT is NOT bumped: it stays GIFOS_VERSION='edge' (the unreleased edge
 # build). Only the SNAPSHOT is stamped with the release number, below. A fresh
 # visitor follows version.json.current to it.
