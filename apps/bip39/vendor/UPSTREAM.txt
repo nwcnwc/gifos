@@ -1,0 +1,19 @@
+iancoleman/bip39
+https://github.com/iancoleman/bip39
+commit:  de71c22328b24e0848bbe1bd12ac8974ca83b5b8   (v0.5.6, 2023-08-01)
+license: MIT, Copyright (c) 2014-2016 Ian Coleman (COPYING-bip39.txt)
+
+Offline standalone tool: mnemonic phrase → seed → addresses / private keys.
+GifOS vendors the committed src/js and src/css as classic scripts. Wordlists
+ride inside the GIF (english, japanese, spanish, chinese simplified/traditional,
+french, italian, korean, czech, portuguese). Nothing is fetched.
+
+jsbip39 (Pavol Rusnak, MIT; JS port by Ian Coleman): vendor/jsbip39.js
+sjcl (Stanford Javascript Crypto Library; Emily Stark, Mike Hamburg, Dan Boneh)
+  selected components in vendor/sjcl-bip39.js
+jquery 3.2.1 (JS Foundation, MIT): vendor/jquery-3.2.1.js
+bootstrap 3.4.1 (Twitter, MIT): vendor/bootstrap.js + vendor/bootstrap.css
+bitcoinjs-lib and coin helpers: vendor/bip39-libs.js + *-util.js +
+  bitcoinjs-extensions.js + segwit-parameters.js
+
+Notices ride INSIDE the GIF as well as beside the bytes here.

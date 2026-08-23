@@ -1,0 +1,12 @@
+This GifOS app vendors iancoleman/bip39 v0.5.6 (MIT) and the libraries that
+tool already shipped:
+
+  iancoleman/bip39     MIT    Ian Coleman          COPYING-bip39.txt
+  jsbip39              MIT    Pavol Rusnak         COPYING-jsbip39.txt
+  sjcl                 BSD    Stark / Hamburg / Boneh   vendor/sjcl-bip39.js header
+  jquery 3.2.1         MIT    JS Foundation        vendor/jquery-3.2.1.js header
+  bootstrap 3.4.1      MIT    Twitter, Inc.        vendor/bootstrap.css header
+  bitcoinjs-lib        MIT    bitcoinjs            vendor/bip39-libs.js
+
+BIP-39 wordlists (english and nine other languages) are the published lists
+from the BIP-39 specification, vendored here as WORDLISTS classic scripts.
