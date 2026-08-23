@@ -1313,6 +1313,63 @@ sandboxed, not a link to someone's server that dies when they stop paying for it
   flood of ports raises the review bar (§6's abuse question) and the case for a
   signing/curation gate.
 
+### 6b. Community stars + comments via PRs (GitHub is the only server)
+
+**What.** Let anyone leave a **star rating and a comment** on a store listing
+by **submitting a PR to this repo** — a small review file beside the listing
+(e.g. `apps/<slug>/reviews/<github-user>.json`: stars, text, date). Merged
+reviews get baked into the published catalog by `scripts/build-app-catalog.mjs`
+(aggregate star count + recent comments in `site/apps/<slug>/app.json`), and
+the store UI shows them to **every GifOS user** — with **no server at all**
+other than native GitHub. PRs are already the way outsiders fix or improve an
+app in the catalog; this extends the same rail to *rating and discussing* apps,
+which is the part app stores normally need accounts and a backend for.
+
+**Why it fits.**
+- **Zero infrastructure, same doctrine as the catalog itself:** GENERATED but
+  COMMITTED. Reviews are static files served by Pages; the store never calls
+  an API to paint them. No accounts, no database, no moderation queue software —
+  the PR queue IS the moderation queue.
+- **Identity and spam control come free:** a review is signed by a GitHub
+  account with history, rate-limited by the effort of a PR, and curated by
+  merge. That's a stronger sybil bar than most review systems, without GifOS
+  operating anything.
+- **It's honest about what it is:** curated editorial + community voice, not
+  a live firehose. Review-by-merge means a delisted troll comment is a revert.
+- **Novel enough to be a story:** "rate an app by PR" is a hook in itself —
+  and every reviewer touches the repo, which is a contributor funnel.
+
+**Sketch.**
+- **Review file schema:** `stars` (1–5), `body` (length-capped), `app` slug,
+  date; filename = GitHub username so one review per user per app is
+  structural, and an edit is just a change to your own file. CI validates
+  schema + one-file-per-PR-author (the PR author must match the filename).
+- **Build step:** `build-app-catalog.mjs` aggregates per-app star average +
+  count and embeds the N most recent comments in the listing JSON; `--check`
+  drift rule already covers it.
+- **Store UI:** stars on the grid card and listing page; comments on the
+  listing page with GitHub username + link. A **"Write a review"** button
+  deep-links to a prefilled GitHub "new file" URL in the right path — the
+  whole flow is doable from a phone browser in GitHub's own UI, no clone.
+- **Low-friction merge:** a CI bot can auto-approve PRs that touch only the
+  author's own review file and pass schema — human review reserved for
+  everything else.
+
+**Open questions.**
+- **Friction vs. purity:** requiring a GitHub account filters out most GifOS
+  users. Is that fine (reviews as a contributor-tier signal), or do we also
+  surface GitHub Discussions / issue reactions as a lighter-weight lane?
+- **Auto-merge bar:** fully botted merges reopen the spam door (throwaway
+  accounts); human-merged only caps volume. Where's the line — account age,
+  first-review-manual-then-auto?
+- **Star inflation / brigading:** aggregate is public and gameable; do we
+  weight by account age or just accept it at this scale and revert abuse?
+- **Reviews of delisted or updated apps:** does a review pin the app version
+  it reviewed (catalog knows the sha256 at merge time), and do old reviews
+  show a "reviewed an earlier version" tag?
+- **Maker responses:** a maker replying to a review is just another file —
+  worth a schema slot from day one?
+
 ## 7. ONE runtime: kill the app star, strip the relay to meeting-only
 
 **DONE 2026-08-01 — the one-runtime flag day.** The agreed end-state design and
