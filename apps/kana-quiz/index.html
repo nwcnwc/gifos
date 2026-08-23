@@ -16,7 +16,7 @@
   </header>
 
   <section id="home" class="home">
-    <p class="lead" id="lead">A kana. Four sounds. Tap the right one — on this device, no account.</p>
+    <p class="lead" id="lead">A kana. Four sounds. Tap the right one.</p>
 
     <div class="seg" id="scriptSeg" role="group" aria-label="Script">
       <button type="button" data-script="hiragana" class="on">Hiragana</button>
@@ -29,7 +29,7 @@
     </div>
 
     <div class="presets" id="presets" role="group" aria-label="Quick pick"></div>
-    <p class="count" id="pickCount"></p>
+    <p class="count" id="pickLine"><span id="pickCount"></span> <button type="button" class="text" id="freshBtn" hidden>New drill</button></p>
     <div id="rows" class="chart"></div>
 
     <p class="err" id="homeErr" hidden></p>
@@ -49,6 +49,7 @@
     </div>
     <div id="lobbyPeople" class="versus"></div>
     <p id="lobbyWait" class="wait">Waiting for a friend…</p>
+    <div class="prompt wait-kana" id="lobbyKana" lang="ja" aria-hidden="true">あ</div>
     <p class="hint">You only write your own score. First to ten right wins, or whoever has more when the cards run out.</p>
     <button type="button" class="ghost" id="lobbyBack">Back</button>
   </section>

@@ -121,6 +121,7 @@ if (!html.includes('class="chart"') && !html.includes("class='chart'")) {
   throw new Error('index.html must ship a kana chart picker, not a chip wall');
 }
 if (!html.includes('id="continueBtn"')) throw new Error('index.html must offer Continue — do not auto-jump a returning drill');
+if (!html.includes('id="freshBtn"')) throw new Error('New drill must be a text control — do not stack a fourth action button');
 if (!html.includes('id="missedStrip"')) throw new Error('index.html must show missed cards on the done screen');
 
 for (const n of ['app.js', 'vendor/kana.js']) {
@@ -150,6 +151,9 @@ if (!files['app.js'].includes('crow') || !files['style.css'].includes('.crow')) 
 }
 if (!files['style.css'].includes('min-height: 88px')) {
   throw new Error('answer buttons must be huge (min-height 88px)');
+}
+if (!files['style.css'].includes('overflow: hidden') || !files['style.css'].includes('.home .chart')) {
+  throw new Error('Start must stay on screen — home chart scrolls, actions stay put');
 }
 if (!files['app.js'].includes('FEED_BAD') || !files['app.js'].includes('G.requeued')) {
   throw new Error('a miss must linger and come back in the solo deck');

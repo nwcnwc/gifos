@@ -21,13 +21,16 @@ html, body {
   color: var(--fg);
   font: 16px/1.45 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
   height: 100%;
+  overflow: hidden;
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
 }
-body { min-height: 100vh; min-height: 100dvh; }
+body { min-height: 100%; min-height: 100dvh; }
 .app {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   max-width: 520px;
@@ -39,7 +42,7 @@ header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 2px 8px;
+  padding: 10px 2px 8px;
   flex-shrink: 0;
 }
 h1 {
@@ -70,8 +73,9 @@ h1 {
 
 .lead, .hint, .wait {
   color: var(--muted);
-  font-size: .95rem;
-  margin: 0 0 12px;
+  font-size: .92rem;
+  margin: 0 0 8px;
+  flex-shrink: 0;
 }
 .hint b, .wait b, .foot b { color: var(--fg); }
 .count {
@@ -79,6 +83,16 @@ h1 {
   color: var(--muted);
   font-size: .82rem;
   font-weight: 650;
+}
+.count .text {
+  border: 0;
+  background: transparent;
+  color: var(--accent2);
+  font: inherit;
+  font-weight: 700;
+  padding: 0 0 0 8px;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 .seg {
@@ -137,7 +151,15 @@ h1 {
   flex-direction: column;
   min-height: 0;
 }
-.home { overflow: auto; }
+.home { overflow: hidden; }
+.home .seg, .home .presets, .home .count { flex-shrink: 0; }
+.home .chart {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding-bottom: 8px;
+}
 
 .chart { margin: 0 0 8px; }
 .block { margin: 0 0 14px; }
@@ -205,12 +227,11 @@ h1 {
 }
 
 .actions {
-  position: sticky;
-  bottom: 0;
-  background: linear-gradient(180deg, transparent, var(--bg) 12px);
-  padding: 12px 0 4px;
-  padding-bottom: max(4px, env(safe-area-inset-bottom));
-  margin-top: auto;
+  flex-shrink: 0;
+  background: var(--bg);
+  padding: 8px 0 0;
+  margin-top: 0;
+  box-shadow: 0 -12px 16px var(--bg);
 }
 
 .primary, .ghost {
@@ -218,12 +239,13 @@ h1 {
   border: 0;
   border-radius: 14px;
   font: inherit; font-weight: 800;
-  padding: 16px 14px;
-  min-height: 56px;
+  padding: 14px 14px;
+  min-height: 52px;
   cursor: pointer;
   touch-action: manipulation;
   margin: 0 0 8px;
 }
+.actions .ghost { min-height: 48px; padding: 12px 14px; }
 .primary {
   background: var(--accent);
   color: var(--on);
@@ -237,10 +259,12 @@ h1 {
 .primary:active, .ghost:active, .choices button:active, .crow:active, .presets button:active {
   transform: translateY(1px);
 }
-.err { color: var(--bad); font-weight: 700; margin: 0 0 8px; }
+.err { color: var(--bad); font-weight: 700; margin: 0 0 8px; flex-shrink: 0; }
 
 .lobby { padding-top: 8px; }
 .lobby .versus { justify-content: flex-start; margin: 0 0 12px; }
+.lobby .wait-kana { opacity: .18; min-height: 0; flex: 1; font-size: clamp(4rem, 22vw, 6rem); pointer-events: none; }
+.lobby .ghost { margin-top: 0; }
 
 .versus {
   display: flex; flex-wrap: wrap; gap: 8px;
@@ -430,4 +454,8 @@ h1 {
   .prompt { font-size: clamp(4.2rem, 22vw, 6.4rem); min-height: 18vh; }
   .choices { min-height: 168px; }
   .choices button { min-height: 72px; }
+  .lead { margin-bottom: 6px; }
+  .seg { margin-bottom: 8px; }
+  .crow { min-height: 48px; margin-bottom: 6px; }
+  .crow .ck { font-size: 1.4rem; min-height: 40px; }
 }
