@@ -12,17 +12,17 @@ process, and every socket path stay behind. The GifOS meeting is the room.
 ```
 index.html          setup / local game / play a friend
 style.css           paper board, X and O
-rules.js            3×3, three in a line, the tiny CPU
+rules.js            3×3, three in a line, perfect-play CPU
 app.js              game loop, seats, multiplayer
-icon.mjs            procedural notebook icon + 1200×720 cover
+icon.mjs            X and O placing, a win line; 1200×720 cover
 build.mjs           packs the GIF into site/apps/tic-tac-toe/tic-tac-toe.gif
 COPYING.txt         upstream MIT notice (also packed inside the GIF)
 ```
 
 ## What you can play
 
-- **Computer** — a tiny CPU on this device (win if it can, block if it must,
-  else centre / corner / side). X or O; X goes first.
+- **Computer** — perfect play on this device (minimax; it does not lose).
+  X or O; X goes first.
 - **Two here** — pass the device. X goes first.
 - **Play a friend** — send the invite (top bar; that button is OS chrome).
   Two seats, turns. Each person writes only their own row. The host of the

@@ -1,4 +1,4 @@
-// 3×3 three-in-a-row. Pure rules + a tiny CPU — no DOM, no network.
+// 3×3 three-in-a-row. Pure rules + a perfect-play CPU — no DOM, no network.
 (function (root) {
   'use strict';
   var N = 3;
@@ -8,8 +8,6 @@
     [0, 3, 6], [1, 4, 7], [2, 5, 8],
     [0, 4, 8], [2, 4, 6]
   ];
-  var CORNERS = [0, 2, 6, 8];
-  var SIDES = [1, 3, 5, 7];
 
   function fresh() {
     return { cells: [0, 0, 0, 0, 0, 0, 0, 0, 0], n: 0, turn: X, last: null, winner: 0, winLine: null };
@@ -80,27 +78,64 @@
 
   function placeI(s, i) { return place(s, (i / N) | 0, i % N); }
 
-  function wouldWin(cells, i, mark) {
-    if (cells[i]) return false;
-    var c = cells.slice();
-    c[i] = mark;
-    return !!lineOf(c, mark);
+  function empties(cells) {
+    var out = [], i;
+    for (i = 0; i < 9; i++) if (!cells[i]) out.push(i);
+    return out;
   }
 
-  // Tiny CPU: win, else block, else centre, else a corner, else a side.
-  function cpuPick(s) {
-    if (!s || s.winner) return null;
-    var me = s.turn, them = me === X ? O : X, cells = s.cells, i;
-    for (i = 0; i < 9; i++) if (wouldWin(cells, i, me)) return { r: (i / N) | 0, c: i % N };
-    for (i = 0; i < 9; i++) if (wouldWin(cells, i, them)) return { r: (i / N) | 0, c: i % N };
-    if (!cells[4]) return { r: 1, c: 1 };
-    for (i = 0; i < CORNERS.length; i++) if (!cells[CORNERS[i]]) {
-      return { r: (CORNERS[i] / N) | 0, c: CORNERS[i] % N };
-    }
-    for (i = 0; i < SIDES.length; i++) if (!cells[SIDES[i]]) {
-      return { r: (SIDES[i] / N) | 0, c: SIDES[i] % N };
-    }
+  function terminal(s, me, depth) {
+    if (s.winner === me) return 10 - depth;
+    if (s.winner === -1) return 0;
+    if (s.winner) return depth - 10;
     return null;
+  }
+
+  // Perfect play. Faster wins beat slower ones; slower losses beat faster.
+  function minimax(s, me, depth, alpha, beta) {
+    var v0 = terminal(s, me, depth);
+    if (v0 !== null) return v0;
+    var maxing = s.turn === me;
+    var best = maxing ? -99 : 99;
+    var moves = empties(s.cells), i, ns, v;
+    for (i = 0; i < moves.length; i++) {
+      ns = placeI(s, moves[i]);
+      if (!ns) continue;
+      v = minimax(ns, me, depth + 1, alpha, beta);
+      if (maxing) {
+        if (v > best) best = v;
+        if (v > alpha) alpha = v;
+      } else {
+        if (v < best) best = v;
+        if (v < beta) beta = v;
+      }
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+
+  function cpuMoves(s) {
+    if (!s || s.winner) return [];
+    var me = s.turn, moves = empties(s.cells), i, ns, v, best = -99, out = [];
+    for (i = 0; i < moves.length; i++) {
+      ns = placeI(s, moves[i]);
+      if (!ns) continue;
+      v = minimax(ns, me, 1, -99, 99);
+      if (v > best) {
+        best = v;
+        out = [{ r: (moves[i] / N) | 0, c: moves[i] % N, v: v }];
+      } else if (v === best) {
+        out.push({ r: (moves[i] / N) | 0, c: moves[i] % N, v: v });
+      }
+    }
+    return out;
+  }
+
+  function cpuPick(s, rng) {
+    var m = cpuMoves(s);
+    if (!m.length) return null;
+    var roll = rng || Math.random;
+    return m[(roll() * m.length) | 0];
   }
 
   function colorName(n) {
@@ -117,6 +152,7 @@
   root.TTT = {
     N: N, EMPTY: EMPTY, X: X, O: O, LINES: LINES,
     fresh: fresh, at: at, clone: clone, place: place, placeI: placeI,
-    fromCells: fromCells, cpuPick: cpuPick, colorName: colorName, colorNum: colorNum, idx: idx
+    fromCells: fromCells, cpuPick: cpuPick, cpuMoves: cpuMoves,
+    colorName: colorName, colorNum: colorNum, idx: idx
   };
 })(typeof window !== 'undefined' ? window : this);
