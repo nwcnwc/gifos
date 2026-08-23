@@ -79,6 +79,10 @@ function makeWebm(){
   await fr.locator('.card').first().waitFor({timeout:6000});
   ok('imported image appears in the library', await fr.locator('.card').count() === 1);
   ok('grid card shows a baked thumbnail', /background-image/.test(await fr.locator('.card .thumb').first().getAttribute('style')||''));
+  const cat0 = await fr.locator('#cat option').allTextContents();
+  ok('#cat first option is All categories', cat0[0]==='All categories', JSON.stringify(cat0));
+  ok('#cat last option is Deleted even when the bin is empty', cat0[cat0.length-1]==='Deleted', JSON.stringify(cat0));
+  ok('Deleted is listed once', cat0.filter((t)=>t==='Deleted').length===1, JSON.stringify(cat0));
 
   // Steal / backup serialize state to a GIF via the binary-safe packer. A blob's
   // Uint8Array must survive that round-trip (a plain JSON.stringify mangled it —
@@ -216,7 +220,12 @@ function makeWebm(){
   function pixAt(img,x,y){ const i=(y*img.w+x)*4; return [img.data[i], img.data[i+1], img.data[i+2]]; }
   function pixClose(a,b,tol){ return Math.abs(a[0]-b[0])<=tol && Math.abs(a[1]-b[1])<=tol && Math.abs(a[2]-b[2])<=tol; }
   async function modalOpen(){ return fr.locator('#modal').evaluate((el)=>getComputedStyle(el).display!=='none'); }
-  async function closeIfOpen(){ if (await modalOpen()) await fr.locator('#mclose').click(); }
+  async function closeIfOpen(){
+    if (!(await modalOpen())) return;
+    if (await fr.locator('#gifback').isVisible()) await fr.locator('#gifback').click();
+    if (await fr.locator('#mclose').isVisible()) await fr.locator('#mclose').click();
+    else await fr.locator('#modal').evaluate((el)=>{ el.style.display='none'; });
+  }
   async function showAll(){ await fr.locator('#types button[data-t="all"]').click(); await page.waitForTimeout(150); }
   async function openNamed(exact){
     await closeIfOpen(); await showAll();
@@ -439,6 +448,103 @@ function makeWebm(){
   const se2=await rangeSE();
   ok('dragging the fill back restores the window', Math.abs(se2.s-se0.s)<=0.2 && Math.abs(se2.e-se0.e)<=0.2, JSON.stringify({ se0, se2 }));
   ok('window drag back keeps duration', Math.abs((se2.e-se2.s)-dur0)<=0.15, 'dur='+(se2.e-se2.s));
+
+  // ---- Deleted category + multi-select (appended so the counts above stay put) ----
+  await closeIfOpen();
+  await showAll();
+  await fr.locator('#cat').selectOption('all');
+  await page.waitForTimeout(200);
+  const catEnd = await fr.locator('#cat option').allTextContents();
+  ok('#cat still starts with All categories', catEnd[0]==='All categories', JSON.stringify(catEnd));
+  ok('#cat still ends with Deleted', catEnd[catEnd.length-1]==='Deleted', JSON.stringify(catEnd));
+  ok('Deleted is not listed twice', catEnd.filter((t)=>t==='Deleted').length===1, JSON.stringify(catEnd));
+
+  const allNames = await fr.locator('.card .nm').allTextContents();
+  ok('first Delete hides the audio from All categories', !allNames.includes('clip.wav'), JSON.stringify(allNames));
+  await fr.locator('#cat').selectOption('Trips');
+  await page.waitForTimeout(200);
+  const tripNames = await fr.locator('.card .nm').allTextContents();
+  ok('Deleted item is not in Trips', !tripNames.includes('clip.wav'), JSON.stringify(tripNames));
+  ok('Trips still shows Grand Canyon', tripNames.includes('Grand Canyon'), JSON.stringify(tripNames));
+
+  await fr.locator('#cat').selectOption('Deleted');
+  await page.waitForTimeout(200);
+  const delNames = await fr.locator('.card .nm').allTextContents();
+  ok('first Delete puts the audio in Deleted', delNames.includes('clip.wav'), JSON.stringify(delNames));
+  await fr.locator('.card').filter({ has: fr.locator('.nm', { hasText: /^clip\.wav$/ }) }).first().click();
+  ok('Deleted item still plays (blob was kept)', await fr.locator('#stage audio').count()===1);
+
+  await fr.locator('#mcat').fill('Unsorted');
+  await fr.locator('#msave').click();
+  await page.waitForTimeout(400);
+  await closeIfOpen();
+  await fr.locator('#cat').selectOption('all');
+  await page.waitForTimeout(200);
+  const backNames = await fr.locator('.card .nm').allTextContents();
+  ok('recategorize out of Deleted returns to All categories', backNames.includes('clip.wav'), JSON.stringify(backNames));
+  await fr.locator('#cat').selectOption('Deleted');
+  await page.waitForTimeout(200);
+  const delAfterRestore = await fr.locator('.card .nm').allTextContents();
+  ok('recategorize leaves Deleted', !delAfterRestore.includes('clip.wav'), JSON.stringify(delAfterRestore));
+
+  await fr.locator('#cat').selectOption('all');
+  await page.waitForTimeout(200);
+  await openNamed('clip.wav');
+  await fr.locator('#mdel').click();
+  await page.waitForTimeout(400);
+  await closeIfOpen();
+  await fr.locator('#cat').selectOption('Deleted');
+  await page.waitForTimeout(200);
+  await fr.locator('.card').filter({ has: fr.locator('.nm', { hasText: /^clip\.wav$/ }) }).first().click();
+  ok('Deleted item Delete reads Delete forever', (await fr.locator('#mdel').innerText()).trim()==='Delete forever');
+  await fr.locator('#mdel').click();
+  await fr.locator('#delwarn').waitFor({ timeout: 4000 });
+  ok('second Delete shows an in-app warning', await fr.locator('#delwarn').isVisible());
+  ok('warning says it deletes for good', /for good|cannot be undone/i.test(await fr.locator('#delwarn-msg').innerText()), await fr.locator('#delwarn-msg').innerText());
+  ok('warning has confirm and cancel', await fr.locator('#mdel-confirm').isVisible() && await fr.locator('#mdel-cancel').isVisible());
+  await fr.locator('#mdel-cancel').click();
+  await page.waitForTimeout(200);
+  await closeIfOpen();
+  ok('cancel leaves the item in Deleted', await fr.locator('.card').filter({ has: fr.locator('.nm', { hasText: /^clip\.wav$/ }) }).count()===1);
+
+  await fr.locator('.card').filter({ has: fr.locator('.nm', { hasText: /^clip\.wav$/ }) }).first().click();
+  await fr.locator('#mdel').click();
+  await fr.locator('#mdel-confirm').click();
+  await page.waitForTimeout(500);
+  await closeIfOpen();
+  ok('confirm removes the item from Deleted', await fr.locator('.card').filter({ has: fr.locator('.nm', { hasText: /^clip\.wav$/ }) }).count()===0);
+  await fr.locator('#cat').selectOption('all');
+  await page.waitForTimeout(200);
+  ok('forever-deleted item is gone from All categories', !(await fr.locator('.card .nm').allTextContents()).includes('clip.wav'));
+
+  await closeIfOpen();
+  const liveBefore = await fr.locator('.card').count();
+  ok('library has at least two live items for multi-select', liveBefore>=2, 'n='+liveBefore);
+  ok('#stage is hidden before selecting', !(await fr.locator('#stage').isVisible()));
+  await fr.locator('.card .sel').nth(0).click();
+  await fr.locator('.card .sel').nth(1).click();
+  ok('checking boxes does not open the item', !(await fr.locator('#stage').isVisible()) && !(await modalOpen()));
+  ok('selection bar shows 2', /2 selected/.test(await fr.locator('#seln').innerText()), await fr.locator('#seln').innerText());
+  ok('selection bar is visible', await fr.locator('#selbar').isVisible());
+  await fr.locator('#seldel').click();
+  await page.waitForTimeout(500);
+  const liveAfter = await fr.locator('.card').count();
+  ok('bulk Delete moves two items to Deleted', liveAfter===liveBefore-2, 'before='+liveBefore+' after='+liveAfter);
+  ok('selection bar clears after bulk Delete', !(await fr.locator('#selbar').isVisible()));
+  await fr.locator('#cat').selectOption('Deleted');
+  await page.waitForTimeout(200);
+  ok('Deleted view has the two bulk-deleted items', await fr.locator('.card').count()>=2);
+  await fr.locator('.card .sel').nth(0).click();
+  await fr.locator('.card .sel').nth(1).click();
+  await fr.locator('#selcat').click();
+  await fr.locator('#catpick').waitFor({ timeout: 4000 });
+  ok('bulk Categorize is available in Deleted', await fr.locator('#catpick').isVisible());
+  await fr.locator('#catpick-list button').filter({ hasText: /^Unsorted$/ }).click();
+  await page.waitForTimeout(500);
+  await fr.locator('#cat').selectOption('all');
+  await page.waitForTimeout(200);
+  const liveRestored = await fr.locator('.card').count();
+  ok('bulk Categorize out of Deleted restores to All categories', liveRestored===liveBefore, 'before='+liveBefore+' after='+liveRestored);
 
   await b.close();
   console.log(fail?('\n'+fail+' FAIL'):'\nALL PASS'); process.exit(fail?1:0);
