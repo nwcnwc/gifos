@@ -50,8 +50,20 @@ category.
 First, set the bars. Play the app as it is: build it from apps/<slug>/, run it
 in the real GifOS sandbox, desktop viewport and phone viewport. Bar ONE is the
 strongest concrete comp you can actually inspect — the real, named product
-this app competes with [name it, or: pick one and tell me]. Bar TWO is the
-platform, and it is not optional: a great GifOS app makes someone want GifOS.
+this app competes with [name it, or: pick one and tell me]. The comp is a
+FLOOR to beat, never a ceiling to match: a piece exits the loop only when the
+blind critic picks OURS, and if the best available comp is itself mediocre,
+say so and set the bar where the comp SHOULD have been — beating a weak
+original by a hair is still shipping something weak. When the app is a port,
+the original IS the comp and "as good as" is losing: we took their work into
+a new home, so the version here must be the best version that has ever
+existed of it. The way we win is usually bar TWO — the original needs an
+install, an account, a server, or a connection; ours is one GIF in a browser
+tab that works on a plane and turns into multiplayer from one link. Bar TWO
+is the platform, and it is not optional: a great GifOS app makes someone want
+GifOS. Hold both bars to one sentence: BY THE END OF THE RUN, A STRANGER WHO
+KNOWS THE ORIGINAL MUST HAVE A REASON TO USE THIS VERSION INSTEAD — and be
+able to say it back in their own words.
 It works fully offline; its state lives inside the icon (gifos.db) so the file
 IS the save and sharing the GIF shares the app with its data; one invite link
 is multiplayer with no server; gifos.ai / gifos.api give it brains on the
@@ -76,9 +88,10 @@ current screenshot is poor — many are — retaking it after the app improves i
 part of the work, not an afterthought. The listing copy is the tagline and
 description in apps/<slug>/listing.json: the tagline must sell the app in one
 card-sized line, and the description must read like the comp's own store page
-— what it is, what makes it worth opening, and the GifOS-only powers said
-plainly (works offline, the file is the save, one link is multiplayer) — not
-a changelog and not a feature list. Its critic reads it ON the rendered
+— and it must LEAD with the reason to use this version instead of the
+original, said plainly (works offline, the file is the save, one link is
+multiplayer, no account, no install) — not a changelog and not a feature
+list. Its critic reads it ON the rendered
 listing page, blind beside the comp's store copy and the best-written
 listings in this catalog, and every claim in it must be true of the build it
 ships beside: an overclaim is a failed round, not a style note.
@@ -104,7 +117,9 @@ stays green. An improvement that breaks a wall is a regression.
 When you believe it wins, prove it: a final blind A/B against the comp; a cold
 run offline on a phone-sized screen; and a fresh-eyes sub-agent that has never
 seen the code using it start to finish — including one who arrives through a
-shared invite link knowing nothing. Then re-check the whole listing — icon,
+shared invite link knowing nothing. Ask the fresh-eyes agent the only question
+that matters: you know the original — why would you use this one? If it can't
+answer without prompting, or the answer is a shrug, the run is not done. Then re-check the whole listing — icon,
 cover, tagline, description — against the FINAL build: pieces judged early in
 the run may describe an app that no longer exists, and the listing may only
 sell what is now true. Keep a simple live progress note
@@ -114,21 +129,26 @@ as you go. Fan out sub-agents and ultracode. /loop until it's utterly perfect.
 ## Picking bar ONE (examples)
 
 The comp is the real product a stranger would otherwise use — named, current,
-inspectable:
+inspectable. It is a FLOOR: several of these are frankly mediocre, and the
+run's job is to beat them, usually with an ability the original never had.
+For a port, "better than the original" is the only acceptable outcome — we
+took their work into a new home, so this should be the best version of it
+that has ever existed.
 
-| app | comp |
-| --- | --- |
-| `2048` | play2048.co (the original) |
-| `word-master` | NYT Wordle |
-| `jspaint` | Paint on Windows 11 / Photopea |
-| `squoosh` | squoosh.app |
-| `vocal-remover` | the UVR desktop app |
-| `chess-grandmaster` | chess.com's play-vs-computer surface |
-| `anyroad` | Hop.Earth |
+| app | comp (the floor) | how we beat it |
+| --- | --- | --- |
+| `2048` | play2048.co (the original) | race a friend from one link; the original has no multiplayer at all |
+| `word-master` | NYT Wordle | no account, no paywall, works offline, plays more than once a day |
+| `jspaint` | Paint on Windows 11 / Photopea | the drawing and the app travel as one file you can hand to anyone |
+| `squoosh` | squoosh.app | works on a plane; nothing ever uploads anywhere |
+| `vocal-remover` | the UVR desktop app | no install, no Python, no GPU setup — one GIF, same weights |
+| `chess-grandmaster` | chess.com play-vs-computer | full-strength Stockfish offline, no account, no ads, no move limit |
+| `anyroad` | Hop.Earth | races with friends from one link, no server; progression that survives updates |
 
 For a utility, "feel" includes first-run clarity and error honesty, not just
 pixels. For a provider app, the bar is the paid cloud service it replaces
-(quality per watt, first-token latency, honesty about limits).
+(quality per watt, first-token latency, honesty about limits) — and the win
+is structural: the user's data never leaves the machine.
 
 ## Running it
 
