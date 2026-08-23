@@ -39,7 +39,7 @@
   var PUBLISH_HZ = 6;
   var STALE_MS = 9000;
   var EAT_RING = 8;
-  var FOOD_RING = 24;
+  var FOOD_RING = 56;
   var CLAIM_TTL = 12000;
 
   var api = null;

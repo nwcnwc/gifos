@@ -2,7 +2,9 @@
 
 A blob-eat-blob arena that runs as an ordinary sandboxed GifOS app. Solo, a
 few wandering blobs drift the field; send the invite and the same arena
-becomes a room of people.
+becomes a room of people. Food respawns. Spiked balls knock a chunk off a
+blob that has grown too big. Space (or Boost on a phone) spends a little
+size for a burst of speed.
 
 Upstream is **[example-.io-game](https://github.com/vzhou842/example-.io-game)**
 by vzhou842 — MIT, an HTML5 Canvas client talking to a **Socket.IO game
@@ -16,7 +18,7 @@ The GifOS meeting is the room.
 index.html      canvas, touch stick, scoreboard
 style.css       touch stick and scores
 net.js          transport — presence, size, eat claims, food taken
-app.js          arena, blobs, food, wanderers, joystick, the loop
+app.js          arena, blobs, food, spikes, wanderers, boost, joystick, the loop
 icon.mjs        procedural blob-arena icon + 1200×720 cover
 build.mjs       packs the GIF into site/apps/io-blobs/io-blobs.gif
 COPYING.txt     upstream MIT notice (also packed inside the GIF)

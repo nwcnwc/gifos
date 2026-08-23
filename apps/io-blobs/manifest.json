@@ -3,7 +3,7 @@
   "appId": "io-blobs",
   "name": "IO Blobs",
   "shortName": "Blobs",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "entry": "index.html",
   "accent": [48, 196, 168],
