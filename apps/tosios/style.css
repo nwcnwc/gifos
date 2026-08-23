@@ -1,0 +1,55 @@
+/* TOSIOS — dungeon shell. The game paints the canvas; this is the gate of
+   touch sticks and the scoreboard. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #25131A; color: #f4e8c8; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+#game { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
+
+#touch { position: fixed; inset: 0; z-index: 30; pointer-events: none; touch-action: none; user-select: none; }
+#touch[hidden] { display: none; }
+#t-look { position: absolute; inset: 0 0 0 40%; pointer-events: auto; }
+.t-stick {
+  position: absolute; left: max(1.1rem, env(safe-area-inset-left)); bottom: max(1.4rem, env(safe-area-inset-bottom));
+  width: 8.6rem; height: 8.6rem; border-radius: 50%; pointer-events: auto;
+  background: rgba(255, 220, 200, .06); border: 1px solid rgba(255, 220, 200, .18);
+}
+.t-knob {
+  position: absolute; left: 50%; top: 50%; width: 3.4rem; height: 3.4rem; margin: -1.7rem 0 0 -1.7rem;
+  border-radius: 50%; background: rgba(255, 220, 200, .22); border: 1px solid rgba(255, 220, 200, .35);
+}
+#t-fire {
+  position: absolute; right: max(.9rem, env(safe-area-inset-right)); bottom: max(1.4rem, env(safe-area-inset-bottom));
+  pointer-events: auto; font: inherit; font-size: .8rem; font-weight: 700; letter-spacing: .08em;
+  color: #f4e8c8; background: rgba(150, 40, 48, .55); border: 1px solid rgba(255, 120, 110, .4);
+  border-radius: .7rem; padding: 1.15rem 1.4rem; cursor: pointer;
+}
+#t-fire.on { background: rgba(220, 70, 80, .75); }
+
+#score {
+  position: fixed; z-index: 35; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: rgba(18, 8, 12, .92); border: 1px solid rgba(255, 220, 200, .16); border-radius: .7rem;
+  padding: 1rem 1.2rem; min-width: min(22rem, 88vw); backdrop-filter: blur(6px);
+}
+#score[hidden] { display: none; }
+#score table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+#score th { text-align: left; color: #a89088; font-weight: 600; padding: .2rem .5rem .5rem; font-size: .72rem; letter-spacing: .06em; }
+#score th:nth-child(2), #score th:nth-child(3) { text-align: right; }
+#score td { padding: .32rem .5rem; border-bottom: 1px solid rgba(255, 220, 200, .07); }
+#score td.k, #score td.d { text-align: right; width: 3.2rem; font-variant-numeric: tabular-nums; color: #a89088; }
+#score tr.me td { color: #e04858; font-weight: 600; }
+#score tr.dead td:first-child { opacity: .45; }
+
+#tally {
+  position: fixed; z-index: 29; top: max(.7rem, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  font-size: .78rem; letter-spacing: .04em; color: #e8dcc8; background: rgba(18, 8, 12, .5);
+  padding: .3rem .7rem; border-radius: .5rem; pointer-events: auto; cursor: pointer;
+}
+#tally[hidden] { display: none; }
+
+#hint {
+  position: fixed; z-index: 20; left: 50%; bottom: max(1.2rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%); font-size: .72rem; color: rgba(244, 232, 200, .55);
+  pointer-events: none; text-align: center; line-height: 1.5;
+}
+body.touch #hint { display: none; }
