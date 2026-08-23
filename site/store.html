@@ -134,6 +134,20 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .facts dt { color: var(--muted, #8888aa); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
   .facts dd { margin: .15rem 0 0; }
   .caps { display: flex; gap: .4rem; flex-wrap: wrap; }
+  /* ---- reviews — stars + comments committed to the repo, merged by PR ---- */
+  .stars { color: #ffc94a; font-weight: 600; }
+  .reviews { max-width: 42rem; margin-bottom: 1.6rem; }
+  .reviews h2 { font-size: 1.15rem; margin-bottom: .4rem; }
+  .revsum { color: var(--muted, #a9a9c5); margin-bottom: .6rem; }
+  .revstars { color: #ffc94a; letter-spacing: .12em; }
+  .review { border-top: 1px solid var(--border, #2a2a3f); padding: .8rem 0; }
+  .review p { color: var(--muted, #a9a9c5); white-space: pre-wrap; margin-top: .3rem; }
+  .revhead { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; font-size: .9rem; }
+  .revdate { color: var(--muted, #8888aa); font-size: .8rem; }
+  .revactions { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap;
+                margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--border, #2a2a3f); }
+  .revactions .note { flex: 1 1 16rem; }
+  .revactions .btn { text-decoration: none; }
   .empty { color: var(--muted, #8888aa); padding: 2rem 0; }
   .foot { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border, #2a2a3f); font-size: .85rem; color: var(--muted, #667); }
   /* Optional cash path. Hidden unless js/pay.js was baked with a Payment Link.

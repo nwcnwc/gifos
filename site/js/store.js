@@ -70,6 +70,7 @@
   }
 
   let catalog = null;          // index.json
+  let reviews = null;          // reviews.json — stars + comments, merged by PR
   let installedByAppId = {};   // appId -> fileId, so a listing can say "Open"
   let activeCat = 'All';
   let legacyDesktop = null;    // set to the release name when this visitor's
@@ -322,9 +323,59 @@
       : esc(p.name);
   }
 
+  // The repo behind the catalog — where apps are submitted, fixed, and REVIEWED.
+  const REPO = 'https://github.com/nwcnwc/gifos';
   // Bugs in a port go HERE, never to the upstream issue tracker. Hard-coded
   // on purpose: a listing.json field exists to be pointed at UVR's 1,500 issues.
-  const PORT_BUGS = 'https://github.com/nwcnwc/gifos/issues';
+  const PORT_BUGS = REPO + '/issues';
+
+  // ---------- reviews ----------
+  // Stars and comments are COMMITTED DATA, not a service: one JSON file per
+  // reviewer at apps/<slug>/reviews/<github-username>.json in the repo, landed
+  // by pull request and aggregated into /apps/reviews.json by
+  // scripts/build-app-reviews.mjs. GitHub is the whole backend — the account
+  // system, the spam bar (a PR costs effort and carries history) and the
+  // moderation queue (review-by-merge). The store only ever READS the one
+  // published file; with it missing or empty everything below renders fine.
+  const HOW_REVIEWS = REPO + '/blob/main/apps/README.md#reviews';
+  const revOf = (slug) => (reviews && reviews.apps && reviews.apps[slug]) || null;
+  const starRow = (n) => { const f = Math.round(n); return '★★★★★'.slice(0, f) + '☆☆☆☆☆'.slice(f); };
+  // GitHub's new-file page, prefilled: the right folder, a template that
+  // already validates, today's date. The reviewer renames the file to their
+  // own username (CI refuses anything else) and GitHub itself does the fork +
+  // PR — the whole flow works from a phone browser, no clone, no tooling.
+  function reviewHref(slug) {
+    const tmpl = JSON.stringify({
+      stars: 5,
+      review: 'What you think of it — a sentence is plenty.',
+      date: new Date().toISOString().slice(0, 10),
+    }, null, 2) + '\n';
+    return REPO + '/new/main/apps/' + encodeURIComponent(slug) + '/reviews' +
+      '?filename=your-github-username.json&value=' + encodeURIComponent(tmpl);
+  }
+  function reviewsBlock(app) {
+    const rv = revOf(app.slug);
+    const items = (rv ? rv.reviews : []).map((r) =>
+      '<div class="review">' +
+        '<div class="revhead"><span class="revstars">' + starRow(r.stars) + '</span>' +
+        '<a href="https://github.com/' + esc(r.user) + '" rel="noopener">@' + esc(r.user) + '</a>' +
+        '<span class="revdate">' + esc(niceDate(r.date)) + '</span></div>' +
+        '<p>' + esc(r.review) + '</p>' +
+      '</div>').join('');
+    return '<div class="reviews" id="reviews">' +
+      '<h2>Reviews</h2>' +
+      (rv
+        ? '<p class="revsum"><span class="revstars">' + starRow(rv.stars) + '</span> ' +
+          rv.stars + ' · ' + rv.count + (rv.count === 1 ? ' review' : ' reviews') + '</p>'
+        : '<p class="revsum">No reviews yet — be the first.</p>') +
+      items +
+      '<div class="revactions">' +
+        '<a class="btn ghost" id="write-review" href="' + esc(reviewHref(app.slug)) + '" target="_blank" rel="noopener">Write a review</a>' +
+        '<span class="note">A review is a pull request: one small JSON file under your GitHub name, in the same repo the apps live in. ' +
+        'The button prefills it — or ask your AI to do it for you (<a href="' + esc(HOW_REVIEWS) + '" rel="noopener">how reviews work</a>).</span>' +
+      '</div>' +
+    '</div>';
+  }
 
   function renderCats() {
     // Only categories that actually hold something — an empty aisle is noise.
@@ -359,6 +410,10 @@
               : installed
                 ? (outdated(a) ? '<span class="installed">↑ Update available</span>' : '<span class="installed">✓ Installed</span>')
                 : '<span>' + esc(human(a.bytes)) + '</span>') +
+            (revOf(a.slug)
+              ? '<span class="stars" title="' + revOf(a.slug).count + ' review(s), by pull request">★ ' +
+                revOf(a.slug).stars + ' (' + revOf(a.slug).count + ')</span>'
+              : '') +
             (a.categories || []).map((c) => '<span class="pill">' + esc(c) + '</span>').join('') +
           '</div>' +
         '</div></button>';
@@ -536,7 +591,8 @@
           ? fact('Donate', '<a id="donate" href="' + esc(donate) + '" rel="noopener">' +
               esc(app.basedOn.name) + '</a>')
           : '') +
-      '</dl>';
+      '</dl>' +
+      reviewsBlock(app);
 
     $('back').onclick = () => showBrowse(true);
     // Bound even when the floor is unmet, and the button left disabled beside
@@ -797,6 +853,12 @@
       $('grid').innerHTML = '<p class="err">The catalog didn’t load. Check your connection and reload.</p>';
       return;
     }
+    // Reviews are decoration on the catalog, never a dependency: a store that
+    // can't load them still browses, installs and shares everything.
+    try {
+      const rr = await fetch('/apps/reviews.json', { cache: 'no-cache' });
+      if (rr.ok) reviews = await rr.json();
+    } catch (e) { /* no stars painted, nothing else changes */ }
     await refreshInstalled();
     paintPayBar();
     renderCats();
