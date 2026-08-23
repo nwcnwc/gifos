@@ -1,0 +1,9 @@
+Classic Pool Game by henshmi (Chen Shmilovich)
+https://github.com/henshmi/Classic-Pool-Game
+Pinned commit: f60e9b824648faabe1d931e9116b20333559da2a
+License: MIT (see COPYING-classic-pool-game.txt)
+
+Vendored: the physics, 8-ball rules, stick, balls, AI trainer, and the
+table / ball / stick sprites. Menu PNGs, LAB.js, and the 9 MB jazz track
+are not shipped — the GifOS shell draws the menu, uses Web Audio, and
+adds touch plus two-device turns.

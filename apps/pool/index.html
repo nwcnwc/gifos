@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Pool</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="gameArea">
+  <canvas id="screen" width="1500" height="825">Sorry, this game needs a canvas.</canvas>
+</div>
+
+<div id="hud" hidden>
+  <div id="names">
+    <span id="name0">You</span>
+    <span id="vs">vs</span>
+    <span id="name1">Computer</span>
+  </div>
+  <button id="soundBtn" type="button" aria-label="Sound">♪</button>
+  <div id="power"><i id="powerFill"></i></div>
+  <div id="hint">Pull back to aim · let go to shoot</div>
+</div>
+
+<div id="menu">
+  <div id="menuCard">
+    <h1>Pool</h1>
+    <p class="tag">Classic 8-ball. Red against yellow, then the black.</p>
+    <button type="button" id="btnCpu">Play the computer</button>
+    <div id="diff" hidden>
+      <button type="button" data-iter="30">Easy</button>
+      <button type="button" data-iter="50">Medium</button>
+      <button type="button" data-iter="100">Hard</button>
+    </div>
+    <button type="button" id="btnHot">Two on this device</button>
+    <p class="invite">Press <b>Invite</b> (top bar) to play a friend on another device. You take turns. There is no game server.</p>
+    <p id="menuStatus"></p>
+  </div>
+</div>
+
+<!-- Static src so the runtime rewrites them into the GIF filesystem. -->
+<img id="spr-bg" src="assets/sprites/spr_background4.jpg" alt="" hidden>
+<img id="spr-ball" src="assets/sprites/spr_ball2.png" alt="" hidden>
+<img id="spr-red" src="assets/sprites/spr_redBall2.png" alt="" hidden>
+<img id="spr-yellow" src="assets/sprites/spr_yellowBall2.png" alt="" hidden>
+<img id="spr-black" src="assets/sprites/spr_blackBall2.png" alt="" hidden>
+<img id="spr-stick" src="assets/sprites/spr_stick.png" alt="" hidden>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="globals.js"></script>
+<script src="vendor/Keys.js"></script>
+<script src="vendor/Color.js"></script>
+<script src="vendor/Vector2.js"></script>
+<script src="vendor/ButtonState.js"></script>
+<script src="vendor/Keyboard.js"></script>
+<script src="vendor/Mouse.js"></script>
+<script src="vendor/Global.js"></script>
+<script src="vendor/Canvas2D.js"></script>
+<script src="vendor/Score.js"></script>
+<script src="vendor/Ball.js"></script>
+<script src="vendor/Stick.js"></script>
+<script src="vendor/Player.js"></script>
+<script src="vendor/Opponent.js"></script>
+<script src="vendor/AIPolicy.js"></script>
+<script src="vendor/AITrainer.js"></script>
+<script src="vendor/GamePolicy.js"></script>
+<script src="vendor/GameWorld.js"></script>
+<script src="menu-stub.js"></script>
+<script src="vendor/Game.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
