@@ -1,0 +1,32 @@
+{
+  "tagline": "The classic game of Snake. Send the link and there are two of you.",
+  "description": "Steer the snake, eat the apples, grow longer, and try not to run into yourself or the wall. That is the whole game, the way it has been since the phones that came with it.\n\nOn a computer the arrows (or WASD) steer. On a phone you swipe across the board, or use the pad in the corner.\n\nSend the invite and the same board holds every snake at once. Do not hit the others. The last one still moving wins. There is no server and no account — the room is the link.\n\nYour best length is kept on this device, inside the app.\n\nAn unofficial port of JavaScript Snake by patorjk, MIT-licensed. This copy puts two snakes on one grid, and adds swipe controls for a phone.",
+  "author": {
+    "name": "patorjk",
+    "url": "https://github.com/patorjk/JavaScript-Snake"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JavaScript Snake",
+    "url": "https://github.com/patorjk/JavaScript-Snake",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "snake",
+    "arcade",
+    "classic",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/snake",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
