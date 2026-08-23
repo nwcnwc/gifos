@@ -62,6 +62,9 @@ if (manifest.minBuild !== 947) throw new Error('minBuild must be 947 — this ap
 if (!manifest.capabilities || manifest.capabilities.db !== true || manifest.capabilities.multiplayer !== true) {
   throw new Error('manifest must declare capabilities.db and capabilities.multiplayer');
 }
+if (manifest.capabilities.motion !== true) {
+  throw new Error('manifest must declare capabilities.motion — tilt is how a phone steers');
+}
 if (!manifest.data || !manifest.data.prefs || manifest.data.prefs.visibility !== 'private') {
   throw new Error('prefs must be private');
 }
@@ -98,6 +101,15 @@ if (listing.homepage !== 'https://github.com/nwcnwc/gifos/tree/main/apps/skifree
 const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']) {
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
+}
+if (!/^Race a ghost/i.test(listing.tagline || '')) {
+  throw new Error('listing.tagline must lead with racing a ghost');
+}
+if (!/one link/i.test(listing.tagline || '') && !/the link/i.test(listing.description || '')) {
+  throw new Error('listing must say the race is one link');
+}
+if (!/unofficial/i.test(listing.description || '')) {
+  throw new Error('listing.description must keep the unofficial credit');
 }
 
 const SCRIPTS = [
@@ -174,6 +186,10 @@ if (!files['mp.js'].includes("db('room')")) throw new Error('mp.js must use gifo
 if (!files['boot.js'].includes("db('prefs')")) throw new Error('boot.js must use gifos.db prefs');
 if (!files['mp.js'].includes('drawGhosts')) throw new Error('mp.js must draw ghost skiers');
 if (!files['touch.js'].includes('pointerdown')) throw new Error('touch.js must ski on pointer');
+if (!files['touch.js'].includes('deviceorientation') && !files['touch.js'].includes('gifos.motion')) {
+  throw new Error('touch.js must steer from tilt');
+}
+if (!files['boot.js'].includes('seedSlope')) throw new Error('boot.js must seed the slope so first paint is not a void');
 
 const shot = screenshotPng();
 if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');

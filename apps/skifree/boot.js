@@ -25,6 +25,9 @@
   var dist = 0;
   var over = false;
   var hintTimer = 0;
+  var tape = [];
+  var lastTape = 0;
+  var savedTape = null;
 
   var Ski = root.Ski || (root.Ski = {});
 
@@ -64,13 +67,80 @@
     try { prefsDb.put({ id: 'best', n: best }).catch(function () {}); } catch (e) {}
   }
 
+  function saveTape(samples) {
+    if (!prefsDb) return;
+    savedTape = samples;
+    try { prefsDb.put({ id: 'ghost', samples: samples }).catch(function () {}); } catch (e) {}
+  }
+
   function loadBest() {
     if (!root.gifos || !root.gifos.db) return Promise.resolve();
     try { prefsDb = root.gifos.db('prefs'); } catch (e) { return Promise.resolve(); }
-    return prefsDb.get('best').then(function (row) {
-      if (row && row.n > best) best = +row.n;
+    return Promise.all([
+      prefsDb.get('best').then(function (row) {
+        if (row && row.n > best) best = +row.n;
+      }).catch(function () {}),
+      prefsDb.get('ghost').then(function (row) {
+        if (row && row.samples && row.samples.length) savedTape = row.samples;
+      }).catch(function () {})
+    ]).then(function () {
       paintHud();
-    }).catch(function () {});
+      if (root.SkiMp && root.SkiMp.setTape) root.SkiMp.setTape(savedTape);
+    });
+  }
+
+  function recordTape() {
+    if (!player || over) return;
+    var t = Date.now();
+    if (t - lastTape < 125) return;
+    lastTape = t;
+    tape.push([
+      Math.round(player.mapPosition[0] || 0),
+      Math.round(player.mapPosition[1] || 0),
+      skierPart(),
+      Math.round(metres() * 10) / 10
+    ]);
+    if (tape.length > 480) tape.shift();
+  }
+
+  function dropMod() {
+    var w = camera.logicalWidth();
+    // Original tuned a 800px window. A phone is a thin strip of the same
+    // mountain, so the modifier that THINNED a small window leaves it empty.
+    if (w < 520) return 0;
+    return Math.max(800 - w, 0);
+  }
+
+  function seedSlope() {
+    if (!game || !player || !camera) return;
+    var spr = sprites();
+    var types = [spr.smallTree, spr.tallTree, spr.smallTree, spr.rock, spr.tallTree];
+    var w = camera.logicalWidth();
+    var h = camera.logicalHeight();
+    var n = w < 520 ? 28 : 24;
+    var placed = 0, guard = 0;
+    while (placed < n && guard < n * 8) {
+      guard++;
+      var info = types[placed % types.length];
+      var x = (Math.random() - 0.5) * w * 0.92;
+      var y = 40 + Math.random() * (h * 0.62);
+      if (Math.abs(x) < 110 && y < 200) continue;
+      var s = new Ski.Sprite(info);
+      s.setMapPosition(x, y);
+      var canv = camera.mapPositionToCanvasPosition([x, y]);
+      s.canvasX = canv[0];
+      s.canvasY = canv[1];
+      if (info.hitBehaviour && info.hitBehaviour.skier) {
+        s.onHitting(player, info.hitBehaviour.skier);
+      }
+      game.addStaticObject(s);
+      placed++;
+    }
+    if (player && camera) {
+      var centre = camera.getCentralPosition().canvas;
+      player.canvasX = centre[0];
+      player.canvasY = centre[1];
+    }
   }
 
   function monsterHitsSkier(monster, skier) {
@@ -109,20 +179,21 @@
   }
 
   function randomlySpawn(fn, rate) {
-    var mod = Math.max(800 - camera.logicalWidth(), 0);
+    var mod = dropMod();
     if (Math.floor(Math.random() * (1001 + mod)) <= rate) fn();
   }
 
   function spawnTerrain() {
     if (!player.isMoving) return [];
+    var phone = camera.logicalWidth() < 520;
     return Ski.Sprite.createObjects([
-      { sprite: sprites().smallTree, dropRate: DROP.smallTree },
-      { sprite: sprites().tallTree, dropRate: DROP.tallTree },
+      { sprite: sprites().smallTree, dropRate: phone ? 9 : DROP.smallTree },
+      { sprite: sprites().tallTree, dropRate: phone ? 5 : DROP.tallTree },
       { sprite: sprites().jump, dropRate: DROP.jump },
       { sprite: sprites().thickSnow, dropRate: DROP.thickSnow },
-      { sprite: sprites().rock, dropRate: DROP.rock }
+      { sprite: sprites().rock, dropRate: phone ? 2 : DROP.rock }
     ], {
-      rateModifier: Math.max(800 - camera.logicalWidth(), 0),
+      rateModifier: dropMod(),
       position: function () { return camera.getRandomMapPositionBelowViewport(); },
       player: player
     });
@@ -132,7 +203,11 @@
     if (over) return;
     over = true;
     var m = metres();
-    if (m > best) { best = m; saveBest(); }
+    if (m > best) {
+      best = m;
+      saveBest();
+      if (tape.length) saveTape(tape.slice());
+    }
     paintHud();
     $('overDist').textContent = m.toFixed(1) + ' m';
     $('over').hidden = false;
@@ -148,6 +223,8 @@
     lives = 5;
     dist = 0;
     over = false;
+    tape = [];
+    lastTape = 0;
     $('over').hidden = true;
     if (root.SkiMp) root.SkiMp.onRetry();
     game.reset();
@@ -155,9 +232,13 @@
     startSign = new Ski.Sprite(sprites().signStart);
     startSign.setMapPosition(-50, 0);
     game.addStaticObject(startSign);
+    seedSlope();
     player.isMoving = false;
     player.setDirection(270);
-    if (root.SkiMp) root.SkiMp.onBegin();
+    if (root.SkiMp) {
+      if (root.SkiMp.setTape) root.SkiMp.setTape(savedTape);
+      root.SkiMp.onBegin();
+    }
     paintHud();
     if (root.SkiMp) root.SkiMp.publish(true);
   }
@@ -215,18 +296,22 @@
     player = new Ski.Skier(sprites().skier);
     player.setMapPosition(0, 0);
     player.setMapPositionTarget(0, -10);
+    player.isMoving = false;
+    player.setDirection(270);
 
     game = new Ski.Game(camera, player);
 
     startSign = new Ski.Sprite(sprites().signStart);
     startSign.setMapPosition(-50, 0);
     game.addStaticObject(startSign);
+    seedSlope();
 
     game.beforeCycle(function () {
       game.addStaticObjects(spawnTerrain());
       if (!game.isPaused()) {
         randomlySpawn(spawnBoarder, 0.1);
         if (metres() > MONSTER_DISTANCE_THRESHOLD) randomlySpawn(spawnMonster, 0.001);
+        recordTape();
         paintHud();
         if (root.SkiMp) root.SkiMp.publish(false);
       }
@@ -243,6 +328,9 @@
 
     player.isMoving = false;
     player.setDirection(270);
+    var centre = camera.getCentralPosition().canvas;
+    player.canvasX = centre[0];
+    player.canvasY = centre[1];
 
     Ski.player = player;
     Ski.game = game;

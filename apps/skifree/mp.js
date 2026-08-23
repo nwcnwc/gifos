@@ -3,8 +3,9 @@
  *
  * Upstream is a solo ski. Everything multiplayer is here: each skier
  * publishing pose + metres + lives on their own row, ghosts of the others
- * on your slope, and a farthest-wins race. Nobody writes anybody else's
- * row. Invite chrome is the OS's, not ours. Solo is the original game.
+ * on your slope, a farthest-wins race, and (when you are alone) a ghost of
+ * your best run. Nobody writes anybody else's row. Invite chrome is the
+ * OS's, not ours. Solo without a tape is the original game.
  *
  * A subscriber re-downloads the whole collection on every change, so we
  * publish slowly (~8 Hz) with small numbers.
@@ -15,6 +16,7 @@
   var PUBLISH_HZ = 8;
   var STALE_MS = 9000;
   var HB_MS = 2500;
+  var TAPE_MS = 125;
 
   var api = null;
   var room = null;
@@ -27,6 +29,9 @@
   var seenAt = {};
   var others = {};
   var roundOver = false;
+  var tape = null;
+  var tapeStart = 0;
+  var tapeArmed = false;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -78,8 +83,12 @@
     };
   }
 
-  function racing() {
+  function racingFriends() {
     return live(lastList).length >= 2;
+  }
+
+  function racing() {
+    return racingFriends() || !!(tape && tape.length);
   }
 
   function publish(force) {
@@ -100,18 +109,19 @@
       if (!p.id || p.id === me.id) continue;
       seen[p.id] = 1;
       var cur = others[p.id];
-      var moved = !cur || cur.x !== p.x || cur.y !== p.y || cur.stamp !== p.t || cur.over !== !!p.over;
       others[p.id] = {
         id: p.id,
         name: p.name || 'Skier',
-        x: p.x || 0,
-        y: p.y || 0,
+        tx: p.x || 0,
+        ty: p.y || 0,
+        x: cur ? cur.x : (p.x || 0),
+        y: cur ? cur.y : (p.y || 0),
         part: p.part || 'south',
         dist: p.dist || 0,
         lives: p.lives == null ? 5 : p.lives,
         over: !!p.over,
         stamp: p.t,
-        seen: moved ? t : cur.seen,
+        seen: t,
         hue: tintFor(p.id)
       };
     }
@@ -121,28 +131,74 @@
     paintHud();
   }
 
+  function lerpGhosts() {
+    for (var id in others) {
+      var o = others[id];
+      o.x += ((o.tx || 0) - o.x) * 0.38;
+      o.y += ((o.ty || 0) - o.y) * 0.38;
+    }
+  }
+
+  function tapePose() {
+    if (!tape || !tape.length) return null;
+    if (racingFriends()) return null;
+    var s = (root.Ski && root.Ski.snap) ? root.Ski.snap() : {};
+    if (!tapeArmed) {
+      if (s.dist > 1) {
+        tapeArmed = true;
+        tapeStart = now();
+      } else {
+        var first = tape[0];
+        return { x: first[0], y: first[1], part: first[2] || 'south', dist: 0, name: 'Best', hue: 195, over: false };
+      }
+    }
+    var i = Math.min(tape.length - 1, Math.floor((now() - tapeStart) / TAPE_MS));
+    var a = tape[i];
+    var b = tape[Math.min(tape.length - 1, i + 1)];
+    var t = ((now() - tapeStart) / TAPE_MS) - i;
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    return {
+      x: a[0] + (b[0] - a[0]) * t,
+      y: a[1] + (b[1] - a[1]) * t,
+      part: (t > 0.5 ? b[2] : a[2]) || 'south',
+      dist: a[3] || 0,
+      name: 'Best',
+      hue: 195,
+      over: i >= tape.length - 1
+    };
+  }
+
+  function drawOneGhost(camera, img, data, o) {
+    var part = data.parts[o.part] || data.parts.south;
+    if (!part) return;
+    var pos = camera.mapPositionToCanvasPosition([o.x, o.y]);
+    var ctx = camera;
+    ctx.save();
+    ctx.globalAlpha = o.over ? 0.22 : 0.7;
+    ctx.filter = 'hue-rotate(' + (o.hue || 0) + 'deg)';
+    ctx.drawImage(img, part[0], part[1], part[2], part[3], pos[0], pos[1], part[2], part[3]);
+    ctx.filter = 'none';
+    ctx.globalAlpha = 0.95;
+    var label = o.name || 'Skier';
+    ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif';
+    var tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.fillRect(pos[0] - 2, pos[1] - 16, tw + 6, 13);
+    ctx.fillStyle = '#16324a';
+    ctx.fillText(label, pos[0], pos[1] - 5);
+    ctx.restore();
+  }
+
   function drawGhosts(camera) {
     if (!camera || !root.Ski || !root.Ski.sprites) return;
+    lerpGhosts();
     var data = root.Ski.sprites.skier;
     var img = camera.getLoadedImage(data.$imageFile);
     if (!img) return;
-    var ctx = camera;
-    for (var id in others) {
-      var o = others[id];
-      var part = data.parts[o.part] || data.parts.south;
-      if (!part) continue;
-      var pos = camera.mapPositionToCanvasPosition([o.x, o.y]);
-      ctx.save();
-      ctx.globalAlpha = o.over ? 0.22 : 0.55;
-      ctx.filter = 'hue-rotate(' + o.hue + 'deg)';
-      ctx.drawImage(img, part[0], part[1], part[2], part[3], pos[0], pos[1], part[2], part[3]);
-      ctx.filter = 'none';
-      ctx.globalAlpha = 0.9;
-      ctx.font = '11px monospace';
-      ctx.fillStyle = '#16324a';
-      ctx.fillText(o.name || 'Skier', pos[0], pos[1] - 4);
-      ctx.restore();
-    }
+    for (var id in others) drawOneGhost(camera, img, data, others[id]);
+    var local = tapePose();
+    if (local) drawOneGhost(camera, img, data, local);
   }
 
   function roster() {
@@ -161,6 +217,15 @@
         id: o.id, name: o.name, mine: false,
         dist: o.dist, lives: o.lives, over: o.over
       });
+    }
+    if (!racingFriends()) {
+      var local = tapePose();
+      if (local) {
+        rows.push({
+          id: 'best', name: 'Best', mine: false,
+          dist: local.dist, lives: 0, over: !!local.over
+        });
+      }
     }
     rows.sort(function (a, b) {
       if (a.over !== b.over) return a.over ? 1 : -1;
@@ -183,38 +248,49 @@
     var bar = $('racebar');
     if (!bar) return;
     var rows = roster();
-    if (rows.length < 2) { bar.hidden = true; bar.textContent = ''; roundOver = false; return; }
+    if (rows.length < 2) {
+      bar.hidden = true;
+      bar.textContent = '';
+      roundOver = false;
+      document.body.classList.remove('racing');
+      return;
+    }
     bar.hidden = false;
-    var bits = [];
+    document.body.classList.add('racing');
+    var bits = ['<div class="racers">'];
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       var label = r.mine ? 'You' : (r.name || 'Skier');
-      var cls = 'who' + (r.over ? ' dead' : '') + (i === 0 ? ' lead' : '');
-      bits.push('<span class="' + cls + '">' + esc(label) + ' ' + (r.dist || 0).toFixed(0) + 'm' +
+      var cls = 'who' + (r.over ? ' dead' : '') + (i === 0 ? ' lead' : '') + (r.mine ? ' mine' : '');
+      bits.push('<span class="' + cls + '">' + esc(label) + ' <b>' + (r.dist || 0).toFixed(0) + 'm</b>' +
         (r.over ? ' out' : '') + '</span>');
     }
+    bits.push('</div>');
     var v = verdict(rows);
-    var line = bits.join(' · ');
     var meRow = rows.filter(function (r) { return r.mine; })[0];
+    var note = '';
     if (v) {
       roundOver = true;
       if (v.kind === 'tie') {
-        line += '<span class="note">Tie at ' + (v.a.dist || 0).toFixed(0) + ' m.</span>';
+        note = 'Tie at ' + (v.a.dist || 0).toFixed(0) + ' m.';
       } else {
         var mineWin = v.winner.mine;
-        line += '<span class="note">' + (mineWin ? 'You win' : esc(v.winner.name || 'They') + ' wins') +
-          ' — farthest skier</span>';
+        note = (mineWin ? 'You win' : esc(v.winner.name || 'They') + ' wins') +
+          ' — farthest skier';
       }
     } else {
       roundOver = false;
       var othersAhead = rows.filter(function (r) { return !r.mine && !r.over && r.dist > ((meRow && meRow.dist) || 0); });
       if (meRow && meRow.over) {
-        line += '<span class="note">You’re out. Waiting to see who skis farther.</span>';
+        note = 'You’re out. Waiting to see who skis farther.';
       } else if (othersAhead.length) {
-        line += '<span class="note">they are ahead</span>';
+        var lead = othersAhead[0];
+        var gap = (lead.dist || 0) - ((meRow && meRow.dist) || 0);
+        note = esc(lead.name || 'They') + ' is ahead by ' + gap.toFixed(0) + ' m';
       }
     }
-    bar.innerHTML = line;
+    if (note) bits.push('<span class="note">' + note + '</span>');
+    bar.innerHTML = bits.join('');
 
     var tip = $('overTip');
     if (meRow && meRow.over && !v) {
@@ -254,13 +330,18 @@
     racing: racing,
     roundOver: function () { return roundOver; },
     onBegin: function () {
+      tapeArmed = false;
+      tapeStart = 0;
       publish(true);
+      paintHud();
     },
     onRetry: function () {
-      if (racing() && roundOver) {
+      if (racingFriends() && roundOver) {
         round = (round || 1) + 1;
         roundOver = false;
       }
+      tapeArmed = false;
+      tapeStart = 0;
       publish(true);
     },
     onOver: function () {
@@ -269,8 +350,14 @@
     },
     publish: publish,
     drawGhosts: drawGhosts,
+    setTape: function (samples) {
+      tape = (samples && samples.length) ? samples : null;
+      tapeArmed = false;
+      tapeStart = 0;
+      paintHud();
+    },
     canRetry: function () {
-      if (!racing()) return true;
+      if (!racingFriends()) return true;
       return roundOver || !snap().over;
     }
   };
