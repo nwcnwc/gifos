@@ -18,18 +18,22 @@
 <div id="gate">
   <div class="gate-box">
     <h1>Q1K3</h1>
-    <p class="sub">A shotgun, two torch-lit halls, and whatever is waiting
-       around the corner. Send the invite and extra people appear in the
-       same maps.</p>
+    <p class="sub">A shotgun, two torch-lit halls, in a GIF. No server.
+       Send the invite and extra people appear in the same maps.</p>
     <div id="gate-actions">
       <button id="gate-go" disabled>Wait</button>
+      <button id="gate-cont" hidden type="button">Continue</button>
     </div>
     <div id="gate-keys">
       <b>WASD</b> move · <b>mouse</b> look · <b>click</b> fire · <b>right-click</b> or <b>space</b> jump<br>
       <b>Q / E</b> or <b>wheel</b> switch weapon · <b>Tab</b> scores
     </div>
+    <div id="gate-keys-phone">
+      Left thumb walks · right thumb looks · tap to shoot<br>
+      <b>FIRE</b> and <b>JUMP</b> on the right · <b>GUN</b> switches weapons
+    </div>
     <p class="opts">
-      Mouse speed <input id="m" type="range" value="10" min="1" max="50">
+      <span id="speed-label">Mouse speed</span> <input id="m" type="range" value="10" min="1" max="50">
       Invert <input id="mi" type="checkbox">
     </p>
     <div id="gate-room"></div>
@@ -40,10 +44,9 @@
   <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
   <div id="t-look"></div>
   <div id="t-buttons">
-    <button class="t-btn t-wide" id="t-fire" type="button">FIRE</button>
     <button class="t-btn" id="t-jump" type="button">JUMP</button>
-    <button class="t-btn" id="t-prev" type="button">PREV</button>
-    <button class="t-btn" id="t-next" type="button">NEXT</button>
+    <button class="t-btn" id="t-gun" type="button">GUN</button>
+    <button class="t-btn t-wide" id="t-fire" type="button">FIRE</button>
   </div>
 </div>
 

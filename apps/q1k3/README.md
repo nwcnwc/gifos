@@ -7,8 +7,8 @@ in the same halls.
 The engine is **[Q1K3](https://github.com/phoboslab/q1k3)** by phoboslab —
 MIT, two maps, five enemy types, three weapons, generated textures, and a
 chiptune from Andy Lösch. This directory is the GifOS port: a classic-script
-shell around it, thumb look/move, and the extra bodies. Upstream has no
-networking.
+shell around it, analog thumb look/move, a Continue for the map you reached,
+and the extra bodies. Upstream has no networking.
 
 ```
 index.html          canvas, the gate, touch markup, scoreboard
@@ -18,7 +18,7 @@ vendor/assets.js    GENERATED. Packed maps and models as Uint8Arrays.
 vendor.mjs          rebuilds vendor/ from the pin. Needs net + gcc.
 net.js              extra bodies — presence, hit claims, the scoreboard
 remote.js           remote players as grunt / enforcer / zombie bodies
-touch.js            left stick walks, right drag looks, FIRE / JUMP
+touch.js            left stick walks (analog), right drag looks, FIRE / JUMP / GUN
 boot.js             the gate, prefs, pointer lock, wiring
 icon.mjs            procedural hall + shotgun icon and the 1200×720 cover
 build.mjs           packs site/apps/q1k3/q1k3.gif

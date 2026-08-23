@@ -6,19 +6,21 @@
  * the original input.js already feeds the player, so the vendored game
  * never learns it is being flown by a thumb.
  *
- * Move is a stick (rate). Look is a drag (delta) — a stick channel for
- * look feels like stirring soup on glass.
+ * Move is a stick (rate, analog 0–1 — keys[] is used as a number, not a
+ * boolean, so a half-tilt walks slower). Look is a drag (delta) — a stick
+ * channel for look feels like stirring soup on glass.
  *
- * Shown only after a real touchstart. A laptop with a touchscreen must
- * not get a phone HUD laid over its game.
+ * Shown after a real touchstart, or armed by boot on a coarse pointer so
+ * a Playwright tap-to-start still gets a HUD.
  */
 (function (root) {
   'use strict';
 
-  var LOOK_GAIN = 2.4;
+  var LOOK_GAIN = 5.6;
   var TAP_MS = 220;
   var TAP_SLOP = 14;
   var MAX_RADII = 3;
+  var DEAD = 0.16;
 
   var active = false;
   var el = {};
@@ -35,15 +37,10 @@
     el.look = document.getElementById('t-look');
     el.fire = document.getElementById('t-fire');
     el.jump = document.getElementById('t-jump');
-    el.prev = document.getElementById('t-prev');
-    el.next = document.getElementById('t-next');
+    el.gun = document.getElementById('t-gun');
 
     var reveal = function () {
-      if (active) return;
-      active = true;
-      document.body.classList.add('touch');
-      el.wrap.hidden = false;
-      shedLock();
+      arm();
       removeEventListener('touchstart', reveal);
     };
     addEventListener('touchstart', reveal, { passive: true });
@@ -52,7 +49,15 @@
     bindStick();
     bindLook();
     bindButtons();
-    return { isTouch: function () { return active; }, tick: tick };
+    return { isTouch: function () { return active; }, tick: tick, arm: arm };
+  }
+
+  function arm() {
+    if (active) return;
+    active = true;
+    document.body.classList.add('touch');
+    el.wrap.hidden = false;
+    shedLock();
   }
 
   function shedLock() {
@@ -113,10 +118,12 @@
 
   function applyMove() {
     if (typeof keys === 'undefined') return;
-    keys[key_right] = move.x > 0.35 ? 1 : 0;
-    keys[key_left] = move.x < -0.35 ? 1 : 0;
-    keys[key_up] = move.y < -0.35 ? 1 : 0;
-    keys[key_down] = move.y > 0.35 ? 1 : 0;
+    var x = Math.abs(move.x) < DEAD ? 0 : move.x;
+    var y = Math.abs(move.y) < DEAD ? 0 : move.y;
+    keys[key_right] = x > 0 ? x : 0;
+    keys[key_left] = x < 0 ? -x : 0;
+    keys[key_up] = y < 0 ? -y : 0;
+    keys[key_down] = y > 0 ? y : 0;
   }
 
   function bindLook() {
@@ -185,20 +192,14 @@
       jumpHeld = false;
       if (typeof keys !== 'undefined') keys[key_jump] = 0;
     });
-    el.prev.addEventListener('pointerdown', function (e) {
-      if (e.pointerType === 'mouse') return;
-      if (typeof keys !== 'undefined') keys[key_prev] = 1;
-      el.prev.classList.add('on');
-      e.preventDefault();
-    });
-    el.prev.addEventListener('pointerup', function () { el.prev.classList.remove('on'); });
-    el.next.addEventListener('pointerdown', function (e) {
+    el.gun.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse') return;
       if (typeof keys !== 'undefined') keys[key_next] = 1;
-      el.next.classList.add('on');
+      el.gun.classList.add('on');
       e.preventDefault();
     });
-    el.next.addEventListener('pointerup', function () { el.next.classList.remove('on'); });
+    el.gun.addEventListener('pointerup', function () { el.gun.classList.remove('on'); });
+    el.gun.addEventListener('pointercancel', function () { el.gun.classList.remove('on'); });
     el.wrap.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
 
@@ -210,5 +211,5 @@
     if (jumpHeld) keys[key_jump] = 1;
   }
 
-  root.Touch = { init: init, tick: tick, isTouch: function () { return active; } };
+  root.Touch = { init: init, tick: tick, arm: arm, isTouch: function () { return active; } };
 })(window);
