@@ -80,25 +80,43 @@ function shieldAt(col, x, y, cx, cy, s, hi, lo) {
   return col;
 }
 
+function tankBody(col, x, y, cx, cy, dir, s, hi, lo) {
+  // dir: 0 up, 1 right, 2 down, 3 left. Body rect + barrel triangle.
+  const body = s * 0.28;
+  if (dir === 0) {
+    if (x >= cx - body && x <= cx + body && y >= cy - s * 0.05 && y <= cy + s * 0.45) col = mix(hi, lo, (x - cx + body) / (body * 2));
+    col = fillTri(col, x, y, cx, cy - s, cx - s * 0.55, cy + s * 0.05, cx + s * 0.55, cy + s * 0.05, hi, lo);
+  } else if (dir === 2) {
+    if (x >= cx - body && x <= cx + body && y >= cy - s * 0.45 && y <= cy + s * 0.05) col = mix(hi, lo, (x - cx + body) / (body * 2));
+    col = fillTri(col, x, y, cx, cy + s, cx - s * 0.55, cy - s * 0.05, cx + s * 0.55, cy - s * 0.05, hi, lo);
+  } else if (dir === 1) {
+    if (y >= cy - body && y <= cy + body && x >= cx - s * 0.45 && x <= cx + s * 0.05) col = mix(hi, lo, (y - cy + body) / (body * 2));
+    col = fillTri(col, x, y, cx + s, cy, cx - s * 0.05, cy - s * 0.55, cx - s * 0.05, cy + s * 0.55, hi, lo);
+  } else {
+    if (y >= cy - body && y <= cy + body && x >= cx - s * 0.05 && x <= cx + s * 0.45) col = mix(hi, lo, (y - cy + body) / (body * 2));
+    col = fillTri(col, x, y, cx - s, cy, cx + s * 0.05, cy - s * 0.55, cx + s * 0.05, cy + s * 0.55, hi, lo);
+  }
+  return col;
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 18;
-  const COLS = 7, ROWS = 8;
-  const bx = 16, by = 16, bw = OUT - 32, bh = OUT - 32;
+  const COLS = 5, ROWS = 6;
+  const bx = 18, by = 18, bw = OUT - 36, bh = OUT - 36;
   const cellW = bw / COLS, cellH = bh / ROWS;
   const t = f / (FRAMES - 1);
-  // Red tank on (2,3) slides to (4,3), then faces down and the blue + on (4,5) fades.
-  const fromC = 2, toC = 4, row = 3, shotR = 5, shotC = 4;
-  const slide = Math.min(1, t / 0.55);
+  // Red tank slides right, then faces down and a yellow beam erases the blue +.
+  const fromC = 1, toC = 2, row = 2, shotR = 4, shotC = 2;
+  const slide = Math.min(1, t / 0.5);
   const tankC = fromC + (toC - fromC) * slide;
-  const facingDown = t > 0.55;
-  const fade = t < 0.62 ? 1 : Math.max(0, 1 - (t - 0.62) / 0.38);
+  const facingDown = t > 0.5;
+  const fade = t < 0.58 ? 1 : Math.max(0, 1 - (t - 0.58) / 0.42);
   const settled = [
-    [1, 1, 'house', true],
-    [6, 5, 'house', false],
-    [2, 1, 'shield', true],
-    [5, 5, 'shield', false],
-    [4, 2, 'plus', false],
+    [0, 0, 'house', true],
+    [5, 4, 'house', false],
+    [0, 1, 'shield', true],
+    [4, 4, 'shield', false],
   ];
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
@@ -112,20 +130,19 @@ function frameIndices(pal, f) {
         const c = Math.min(COLS - 1, Math.max(0, Math.floor((x - bx) / cellW)));
         const r = Math.min(ROWS - 1, Math.max(0, Math.floor((y - by) / cellH)));
         const gx = bx + c * cellW, gy = by + r * cellH;
-        const inset = 0.5;
+        const inset = 0.6;
         if (x > gx + inset && x < gx + cellW - inset && y > gy + inset && y < gy + cellH - inset) {
           col = CELL.slice();
-          if (r <= 2 && c <= 2) col = mix(CELL, HOME_R, 0.55);
-          if (r >= 5 && c >= 4) col = mix(CELL, HOME_B, 0.55);
-          if (facingDown && c === shotC && r > row && r < shotR) col = mix(col, HINT, 0.35);
+          if (r <= 1 && c <= 1) col = mix(CELL, HOME_R, 0.6);
+          if (r >= 4 && c >= 3) col = mix(CELL, HOME_B, 0.6);
+          if (facingDown && c === shotC && r > row && r < shotR) col = mix(col, HINT, 0.45);
           const cx = bx + (c + 0.5) * cellW, cy = by + (r + 0.5) * cellH;
-          const s = Math.min(cellW, cellH) * 0.42;
+          const s = Math.min(cellW, cellH) * 0.44;
           for (const piece of settled) {
             if (piece[0] === r && piece[1] === c) {
               const hi = piece[3] ? RED_H : BLUE_H, lo = piece[3] ? RED : BLUE;
-              if (piece[2] === 'house') col = house(col, x, y, cx, cy, s * 1.15, BASE, lo);
+              if (piece[2] === 'house') col = house(col, x, y, cx, cy, s * 1.2, BASE, lo);
               else if (piece[2] === 'shield') col = shieldAt(col, x, y, cx, cy, s, hi, lo);
-              else if (piece[2] === 'plus') col = plusAt(col, x, y, cx, cy, s, hi, lo);
             }
           }
           if (r === shotR && c === shotC && fade > 0.05) {
@@ -137,12 +154,8 @@ function frameIndices(pal, f) {
     }
     const tankX = bx + (tankC + 0.5) * cellW;
     const tankY = by + (row + 0.5) * cellH;
-    const ts = Math.min(cellW, cellH) * 0.4;
-    if (facingDown) {
-      col = fillTri(col, x, y, tankX, tankY + ts, tankX - ts * 0.7, tankY - ts * 0.5, tankX + ts * 0.7, tankY - ts * 0.5, RED_H, RED);
-    } else {
-      col = fillTri(col, x, y, tankX + ts, tankY, tankX - ts * 0.5, tankY - ts * 0.7, tankX - ts * 0.5, tankY + ts * 0.7, RED_H, RED);
-    }
+    const ts = Math.min(cellW, cellH) * 0.42;
+    col = tankBody(col, x, y, tankX, tankY, facingDown ? 2 : 1, ts, RED_H, RED);
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
   }
@@ -196,6 +209,7 @@ const GLYPHS = {
   'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
   'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
+  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01111],
   'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
   'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
@@ -208,7 +222,11 @@ const GLYPHS = {
   'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b01010, 0b00100],
+  'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
+  'X': [0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001],
   'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  '+': [0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000, 0b00000],
   ' ': [0, 0, 0, 0, 0, 0, 0],
 };
 function drawText(put, x, y, str, s, r, g, b) {
@@ -249,8 +267,14 @@ export function screenshotPng() {
 
   const COLS = 15, ROWS = 18, cell = 32;
   const boardW = COLS * cell, boardH = ROWS * cell;
-  const bx = 36, by = 48;
-  fill(bx - 10, by - 10, bx + boardW + 10, by + boardH + 10, 48, 48, 68);
+  const bx = 36, by = 64;
+  fill(0, 0, W, 48, 20, 16, 28);
+  fill(0, 47, W, 48, 42, 42, 60);
+  drawText(put, 24, 16, 'THINKTANK', 3, 238, 240, 248);
+  drawText(put, 820, 18, 'YOUR TURN', 2, 245, 215, 110);
+
+  fill(bx, 50, bx + boardW, 62, 64, 22, 28);
+  drawText(put, bx + 12, 52, 'YOUR TURN  RED', 1, 255, 90, 90);
 
   function tri(cx, cy, dir, hi, lo, s) {
     // dir: 0 up, 1 right, 2 down, 3 left
@@ -352,11 +376,16 @@ export function screenshotPng() {
     else if (homeB) bg = [20, 34, 68];
     else if (spawnR) bg = [36, 20, 24];
     else if (spawnB) bg = [18, 26, 46];
+    const fire = (sel[1] === c && r > sel[0]);
+    if (fire) bg = [((bg[0] + 78) / 2) | 0, ((bg[1] + 68) / 2) | 0, ((bg[2] + 28) / 2) | 0];
     fill(gx, gy, gx + cell, gy + cell, bg[0], bg[1], bg[2]);
     fill(gx, gy, gx + cell, gy + 1, 40, 40, 58);
     fill(gx, gy, gx + 1, gy + cell, 40, 40, 58);
     if (hints[r + ',' + c]) {
       fill(gx + 2, gy + 2, gx + cell - 2, gy + cell - 2, 78, 68, 28);
+    }
+    if (fire) {
+      fill(gx + cell * 0.44, gy, gx + cell * 0.56, gy + cell, 245, 215, 110);
     }
     const cx = bx + (c + 0.5) * cell, cy = by + (r + 0.5) * cell, s = cell * 0.34;
     const v = grid[r][c];
@@ -380,12 +409,52 @@ export function screenshotPng() {
     }
   }
 
-  drawText(put, 560, 80, 'THINKTANK', 8, 238, 240, 248);
-  drawText(put, 560, 170, 'DESTROY', 5, 226, 74, 74);
-  drawText(put, 560, 220, 'THE BASE', 5, 77, 159, 255);
-  drawText(put, 560, 340, 'COMPUTER', 3, 220, 222, 240);
-  drawText(put, 560, 390, 'OR A FRIEND', 3, 220, 222, 240);
-  drawText(put, 560, 500, 'RED TO PLAY', 3, 245, 215, 110);
+  const trayY = by + boardH + 10;
+  const labels = ['SHIELD', 'TANK', 'INFIL +', 'INFIL X', 'MINE'];
+  const counts = ['2', '4', '2', '1', '1'];
+  const tw = 84, gap = 8;
+  const trayW = labels.length * tw + (labels.length - 1) * gap;
+  let tx = bx + ((boardW - trayW) / 2) | 0;
+  for (let i = 0; i < labels.length; i++) {
+    const on = i === 1;
+    fill(tx, trayY, tx + tw, trayY + 58, on ? 40 : 28, on ? 36 : 28, on ? 20 : 40);
+    for (let k = 0; k < tw; k++) {
+      put(tx + k, trayY, on ? 245 : 42, on ? 215 : 42, on ? 110 : 60);
+      put(tx + k, trayY + 57, on ? 245 : 42, on ? 215 : 42, on ? 110 : 60);
+    }
+    const cx = tx + tw / 2, cy = trayY + 20, s = 11;
+    if (i === 0) shieldDraw(cx, cy, s, RED_H, RED);
+    else if (i === 1) tri(cx, cy, 2, RED_H, RED, s);
+    else if (i === 2) plusDraw(cx, cy, s, RED_H, RED);
+    else if (i === 3) xDraw(cx, cy, s * 0.7, RED_H);
+    else discAt(cx, cy, s * 0.7, RED_H, RED);
+    drawText(put, tx + 10, trayY + 36, labels[i], 1, 220, 222, 240);
+    drawText(put, tx + 36, trayY + 46, counts[i], 1, 154, 160, 184);
+    tx += tw + gap;
+  }
+
+  const lx = 560, ly = 90;
+  drawText(put, lx, ly, 'DESTROY THE BASE', 3, 226, 74, 74);
+  drawText(put, lx, ly + 40, 'COMPUTER OR A FRIEND', 2, 220, 222, 240);
+  drawText(put, lx, ly + 70, 'NO GAME SERVER', 2, 154, 160, 184);
+  const key = [
+    ['shield', 'SHIELD', 'STOPS SHOTS'],
+    ['tank', 'TANK', 'SHOOTS A LINE'],
+    ['plus', 'INFIL', 'STEALS NEXT TO IT'],
+    ['mine', 'MINE', 'BLOWS UP'],
+    ['house', 'BASE', 'PROTECT THIS'],
+  ];
+  for (let i = 0; i < key.length; i++) {
+    const ky = ly + 130 + i * 70;
+    const cx = lx + 22, cy = ky + 16, s = 14;
+    if (key[i][0] === 'shield') shieldDraw(cx, cy, s, RED_H, RED);
+    else if (key[i][0] === 'tank') tri(cx, cy, 2, RED_H, RED, s);
+    else if (key[i][0] === 'plus') plusDraw(cx, cy, s, RED_H, RED);
+    else if (key[i][0] === 'mine') discAt(cx, cy, s * 0.7, RED_H, RED);
+    else houseDraw(cx, cy, s, BASE_H, BASE_R);
+    drawText(put, lx + 50, ky + 4, key[i][1], 2, 238, 240, 248);
+    drawText(put, lx + 50, ky + 28, key[i][2], 2, 154, 160, 184);
+  }
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

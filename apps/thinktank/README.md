@@ -44,9 +44,11 @@ shields stop enemy tank fire; shots pass through everything else.
 
 - **Computer** — you pick red or blue. Red goes first. It thinks on this
   device; there is no server. It only plays legal moves.
-- **Two here** — pass the device. Red goes first. Tap a piece in the tray
-  to place or to turn a tank; tap a piece on the board, then a highlighted
-  square, to move.
+- **Two here** — pass the device. Red goes first. Tap a named piece in the
+  tray, then a gold square around your home, to place. Tap a piece already
+  out, then a gold square, to move. Tap a tank, then a facing, to turn it
+  (it shoots the way it points — the beam lights up). Cyan marks a tank
+  you can turn.
 - **Play a friend** — send the invite (top bar; that button is OS chrome).
   Red and blue seats, turns. Each person writes only their own row. The
   host of the board (lowest live id) is the only writer of the board row: a

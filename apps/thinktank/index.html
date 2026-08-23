@@ -14,7 +14,14 @@
 
 <main>
   <section class="card setup" id="setup">
-    <h2>New game</h2>
+    <h2>Thinktank</h2>
+    <p class="lede">Two sides. Destroy the other base. One action a turn: place a piece, move one, or turn a tank.</p>
+    <ul class="kernel" aria-label="Pieces">
+      <li><span class="kg shield" aria-hidden="true"></span> Shield — stops shots</li>
+      <li><span class="kg tank" aria-hidden="true"></span> Tank — shoots the way it faces</li>
+      <li><span class="kg plus" aria-hidden="true"></span> Infil + / × — steals a tank or shield next to it</li>
+      <li><span class="kg mine" aria-hidden="true"></span> Mine — blows up anything next to it except a shield</li>
+    </ul>
     <label class="row">Play
       <div class="seg" id="modeSeg">
         <button type="button" data-mode="cpu" class="on">Computer</button>
@@ -30,17 +37,23 @@
       </label>
       <p class="lvlnote" id="cpuNote">You play red and go first. The computer plays blue. It thinks on this device.</p>
     </div>
-    <p class="lvlnote" id="hotseatNote" hidden>Pass the device. Red goes first. Place, move, or turn a tank.</p>
+    <p class="lvlnote" id="hotseatNote" hidden>Pass the device. Red goes first. Tap a piece below, then a gold square around your home.</p>
     <button class="primary" id="startBtn" type="button">Start game</button>
     <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
     <button class="ghost wide" id="helpBtn" type="button">How to play</button>
   </section>
 
   <section class="game" id="game" hidden>
+    <div class="turnbar" id="turnBar">Your turn</div>
     <div class="statusline" id="statusLine">Your turn.</div>
     <div class="logline" id="logLine"></div>
-    <div class="boardwrap"><div class="board" id="board" aria-label="Thinktank board"></div></div>
+    <div class="boardwrap">
+      <div class="boardtag red">Red home</div>
+      <div class="board" id="board" aria-label="Thinktank board"></div>
+      <div class="boardtag blue">Blue home</div>
+    </div>
     <div class="hand" id="hand" aria-label="Your hand"></div>
+    <div class="faces" id="faces" hidden></div>
     <div class="controls">
       <button id="undoBtn" class="ghost" type="button">↶ Undo</button>
       <button id="helpGameBtn" class="ghost" type="button">How to play</button>
@@ -52,10 +65,16 @@
     <div class="vhead"><h2>Play a friend</h2><button class="ghost" id="fLeave" type="button">← Leave</button></div>
     <div class="seats" id="fSeats"></div>
     <div class="fqueue" id="fQueue"></div>
+    <div class="turnbar" id="fTurnBar">Waiting</div>
     <div class="statusline" id="fStatus"></div>
     <div class="logline" id="fLog"></div>
-    <div class="boardwrap"><div class="board" id="fBoard" aria-label="Shared Thinktank board"></div></div>
+    <div class="boardwrap">
+      <div class="boardtag red">Red home</div>
+      <div class="board" id="fBoard" aria-label="Shared Thinktank board"></div>
+      <div class="boardtag blue">Blue home</div>
+    </div>
     <div class="hand" id="fHand" aria-label="Hand"></div>
+    <div class="faces" id="fFaces" hidden></div>
     <div class="controls">
       <button id="fHelp" class="ghost" type="button">How to play</button>
       <button id="fResign" class="ghost" type="button" hidden>🏳 Resign</button>
@@ -67,19 +86,26 @@
   <div class="sheet">
     <div class="vhead"><h2>How to play</h2><button class="ghost" id="helpClose" type="button">Close</button></div>
     <div class="helpbody">
-      <p>Two sides, red and blue. Each has a <b>home</b> (the tinted corner) and a <b>base</b> inside it. Destroy the other base to win.</p>
-      <p>On your turn, do <b>one</b> thing: place a piece from your hand into your spawn (the ring around your home), move a piece already on the board, or turn a tank to face a new way.</p>
-      <p>You cannot step into either home except with your own base, and you cannot put your own pieces in harm's way.</p>
+      <p class="lede">Destroy the house in the other tinted corner. You may not leave your own pieces in harm's way.</p>
+      <h3>On your turn — do one thing</h3>
+      <ol class="steps">
+        <li><b>Place</b> — tap a piece below, then a <span class="swatch gold">gold</span> square around your home.</li>
+        <li><b>Move</b> — tap a piece already out, then a gold square.</li>
+        <li><b>Turn a tank</b> — tap the tank, then a facing. It shoots the way it points. <span class="swatch cyan">Cyan</span> marks a tank you can turn.</li>
+      </ol>
       <h3>Pieces</h3>
-      <ul>
-        <li><b>Shield</b> — stops the other side's shots. Friendly tanks fire through it. Moves one space any way. Can be stolen, not shot.</li>
-        <li><b>Tank</b> — fires in a straight line from its face to the edge. Moves one space across or down. Turn it by picking a facing in the tray, then tapping the tank.</li>
-        <li><b>Infiltrator +</b> — steals a tank or shield next to it. Moves one space across or down. Cannot be stolen.</li>
-        <li><b>Infiltrator ×</b> — same steal, moves one space on the diagonal.</li>
-        <li><b>Mine</b> — blows up pieces next to it (except a shield), including itself. Jumps two spaces, over others. Do not set it where it would hit your own.</li>
-        <li><b>Base</b> — stays in its home. If it is destroyed, that side loses.</li>
-      </ul>
-      <p>Shot and stolen pieces go back to their owner's hand, except a steal keeps the piece on the board and changes who owns it.</p>
+      <table class="cheat">
+        <thead><tr><th></th><th>Piece</th><th>Does</th><th>Moves</th></tr></thead>
+        <tbody>
+          <tr><td class="g"><span class="kg shield"></span></td><td>Shield</td><td>Stops the other side's shots. Friendly tanks fire through it. Can be stolen, not shot.</td><td>1 any way</td></tr>
+          <tr><td class="g"><span class="kg tank"></span></td><td>Tank</td><td>Fires in a straight line from its face to the edge. The beam lights up when you select it.</td><td>1 across or down</td></tr>
+          <tr><td class="g"><span class="kg plus"></span></td><td>Infil +</td><td>Steals a tank or shield next to it. Cannot be stolen.</td><td>1 across or down</td></tr>
+          <tr><td class="g"><span class="kg times"></span></td><td>Infil ×</td><td>Same steal, on the diagonal.</td><td>1 diagonal</td></tr>
+          <tr><td class="g"><span class="kg mine"></span></td><td>Mine</td><td>Blows up pieces next to it (except a shield), including itself. Do not set it where it would hit your own.</td><td>2, can jump</td></tr>
+          <tr><td class="g"><span class="kg house"></span></td><td>Base</td><td>Stays in its home. Destroy the other one and you win.</td><td>1, inside home</td></tr>
+        </tbody>
+      </table>
+      <p>Shot pieces go back to their owner's hand. A steal keeps the piece on the board and changes who owns it.</p>
     </div>
   </div>
 </div>
