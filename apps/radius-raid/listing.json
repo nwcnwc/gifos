@@ -1,0 +1,33 @@
+{
+  "tagline": "A tiny ship, a swarm of enemies, and a friend on the other stick.",
+  "description": "You are a small white ship in a dark arena, and the arena does not stay empty. Thirteen kinds of enemy come in from the edges — splitters, growers, stealth, towers, things that circle you — and you shoot them before they chew through the hull. Power-ups drop as you go: more health, a slower swarm, a faster shot, three shots at once, a shot that keeps going. The longer you last, the denser it gets.\n\nAlone it is the original game. Send the link and extra ships drop into the same arena, firing on the same swarm, adding to one score. There is no lobby and no account.\n\nOn a phone it is a twin-stick: left thumb to move, right thumb to aim and fire. On a computer it is WASD and the mouse, the way it always was. F toggles autofire, P pauses, M mutes.\n\nAn unofficial port of Radius Raid by jackrugile, the 2013 js13kGames entry. This copy adds the sticks a phone needs, and the extra ships.",
+  "author": {
+    "name": "jackrugile",
+    "url": "https://github.com/jackrugile/radius-raid-js13k"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Radius Raid",
+    "url": "https://github.com/jackrugile/radius-raid-js13k",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "shooter",
+    "twin-stick",
+    "arcade",
+    "multiplayer",
+    "coop",
+    "js13k"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/radius-raid",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

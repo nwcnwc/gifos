@@ -1,0 +1,9 @@
+vendor/js/* is Radius Raid as shipped. Do not edit it; run node apps/radius-raid/vendor.mjs.
+
+upstream: https://github.com/jackrugile/radius-raid-js13k
+commit:   361ab5166570cfc8a29a4fc15c9afba566117b66
+date:     2024-04-23 (game itself is the 2013 js13kGames entry)
+license:  MIT (COPYING-radius-raid.txt)
+
+The GifOS layer (boot, touch sticks, netplay) is ordinary source beside this
+directory. The notice travels INSIDE the GIF as well as beside it here.

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Radius Raid</title>
+<link rel="shortcut icon" id="favicon">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="wrap">
+  <div id="wrap-inner">
+    <canvas id="cbg1"></canvas>
+    <canvas id="cbg2"></canvas>
+    <canvas id="cbg3"></canvas>
+    <canvas id="cbg4"></canvas>
+    <canvas id="cmg"></canvas>
+    <canvas id="cfg"></canvas>
+  </div>
+</div>
+
+<!-- Twin-stick overlay. touch.js shows it only after a real finger has touched
+     the screen during play — a laptop with a touchscreen must not get a phone
+     HUD laid over WASD. -->
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+  <div id="t-aim" class="t-stick"><div class="t-knob"></div></div>
+  <button id="t-pause" type="button">❚❚</button>
+</div>
+
+<script>var $ = {};</script>
+<script src="boot.js"></script>
+<script src="vendor/js/jsfxr.js"></script>
+<script src="vendor/js/util.js"></script>
+<script src="vendor/js/storage.js"></script>
+<script src="vendor/js/definitions.js"></script>
+<script src="vendor/js/audio.js"></script>
+<script src="vendor/js/text.js"></script>
+<script src="vendor/js/hero.js"></script>
+<script src="vendor/js/enemy.js"></script>
+<script src="vendor/js/bullet.js"></script>
+<script src="vendor/js/explosion.js"></script>
+<script src="vendor/js/powerup.js"></script>
+<script src="vendor/js/particle.js"></script>
+<script src="vendor/js/particleemitter.js"></script>
+<script src="vendor/js/textpop.js"></script>
+<script src="vendor/js/levelpop.js"></script>
+<script src="vendor/js/button.js"></script>
+<script src="vendor/js/game.js"></script>
+<script src="touch.js"></script>
+<script src="net.js"></script>
+<script src="wrap.js"></script>
+</body>
+</html>
