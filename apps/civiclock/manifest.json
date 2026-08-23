@@ -1,0 +1,28 @@
+{
+  "gifos": "1.0",
+  "appId": "civiclock",
+  "name": "Civiclock",
+  "shortName": "Civiclock",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "A city that ticks in a GIF. Zones, power, water, people, a budget — and one invite is a co-mayor.",
+  "entry": "index.html",
+  "accent": [240, 186, 72],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "city": { "visibility": "read-write" },
+    "edits": { "visibility": "read-write" },
+    "cursors": { "visibility": "read-write" }
+  },
+  "launch": {
+    "village": {
+      "label": "Open with a starter village already on the land",
+      "detail": "A small powered town, ready to tick."
+    }
+  }
+}
