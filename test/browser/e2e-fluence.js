@@ -12,9 +12,13 @@ const { appGif } = require('../lib/apps');
 const need = require('../lib/need');   // fixtures must be up, or say so plainly
 const fs = require('fs');
 
+// Ports overridable so the suite can run beside a gate that owns the defaults
+// (same env names the fake servers themselves honor).
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
-const DG = 'http://127.0.0.1:8792';
-const AI = 'http://127.0.0.1:8791';
+const DG_PORT = +(process.env.FAKE_KEYAPI_PORT || 8792);
+const AI_PORT = +(process.env.FAKE_AI_PORT || 8791);
+const DG = 'http://127.0.0.1:' + DG_PORT;
+const AI = 'http://127.0.0.1:' + AI_PORT;
 
 let failures = 0;
 function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : '')); if (!cond) failures++; }
@@ -24,7 +28,8 @@ const AI_CFG = JSON.stringify({ smartest: { url: AI, key: 'k', model: 'x' }, che
 const API_CFG = JSON.stringify({ deepgram: { url: DG, authType: 'token', key: 'dg-secret-key' } });
 
 (async () => {
-  await need({ 8791: 'fake-ai', 8792: 'fake-keyapi' });
+  const needPorts = {}; needPorts[AI_PORT] = 'fake-ai'; needPorts[DG_PORT] = 'fake-keyapi';
+  await need(needPorts);
   const gifBytes = fs.readFileSync(appGif('fluence'));
   const gifB64 = gifBytes.toString('base64');
 

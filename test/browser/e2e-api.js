@@ -4,14 +4,26 @@
 // - A sandboxed app that declares capabilities.api:["deepgram"] can call
 //   gifos.api("deepgram", …); the runtime attaches the key (app never sees it),
 //   returns the parsed JSON, and REFUSES to send the key to any other host.
+// - Deepgram rides its NATIVE WebSocket door: a POST to /v1/listen on an entry
+//   named "deepgram" is translated to Deepgram's WS protocol (runtime.js
+//   deepgramListenWS) — no CORS proxy — and comes back REST-shaped. The fake's
+//   WS answer is stamped request_id "ws-fake" so this suite can PROVE the WS
+//   path ran, not the REST route. The Settings Test, when the REST base is
+//   CORS-blocked (the fake's /wsonly base), probes the WS door and saves
+//   "native WebSocket" with no proxy.
 //
 // Needs: static server on 8099, and test/servers/fake-keyapi.js on 8792.
 const { chromium, CHROME } = require('../lib/pw');
 const need = require('../lib/need');   // fixtures must be up, or say so plainly
 
+// Ports are overridable so this suite can run beside a gate that owns the
+// defaults (FAKE_KEYAPI_PORT / FAKE_PROXY_PORT are what the fakes themselves
+// honor — start them with the same values).
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
-const API = 'http://127.0.0.1:8792';
-const PROXY = 'http://127.0.0.1:8793';
+const KEYAPI_PORT = +(process.env.FAKE_KEYAPI_PORT || 8792);
+const PROXY_PORT = +(process.env.FAKE_PROXY_PORT || 8793);
+const API = 'http://127.0.0.1:' + KEYAPI_PORT;
+const PROXY = 'http://127.0.0.1:' + PROXY_PORT;
 
 let failures = 0;
 function check(name, cond, detail) { console.log((cond ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : '')); if (!cond) failures++; }
@@ -33,7 +45,8 @@ const API_CFG = JSON.stringify({
 });
 
 (async () => {
-  await need({ 8792: 'fake-keyapi', 8793: 'fake-cors-proxy' });
+  const needPorts = {}; needPorts[KEYAPI_PORT] = 'fake-keyapi'; needPorts[PROXY_PORT] = 'fake-cors-proxy';
+  await need(needPorts);
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext();
   await context.addInitScript((cfg) => { try { window.localStorage.setItem('gifos_api_config', cfg); } catch (e) {} }, API_CFG);
@@ -63,6 +76,21 @@ const API_CFG = JSON.stringify({
   await page.locator('.api-test').first().click();
   await page.waitForFunction(() => /rejected/.test((document.querySelector('.api-status') || {}).textContent || ''), null, { timeout: 8000 });
   check('Test & save flags a rejected key (and refuses to save)', /rejected/.test(await page.locator('.api-status').first().textContent()));
+  // The WS-native ladder: the fake's /wsonly base answers REST WITHOUT CORS
+  // headers (exactly like the real api.deepgram.com), so the direct probe
+  // fails and Test must walk to Deepgram's WebSocket door — and save with NO
+  // proxy, because that is how every real request will travel.
+  await page.locator('.api-f[data-f="key"]').first().fill('dg-secret-key');
+  await page.locator('.api-f[data-f="url"]').first().fill(API + '/wsonly');
+  await page.locator('.api-test').first().click();
+  await page.waitForFunction(() => /WebSocket|rejected|reach/.test((document.querySelector('.api-status') || {}).textContent || ''), null, { timeout: 10000 });
+  const wsSt = await page.locator('.api-status').first().textContent();
+  check('a CORS-blocked Deepgram base saves via its native WebSocket', /native WebSocket/.test(wsSt), wsSt);
+  const wsEntry = await page.evaluate(() => (JSON.parse(localStorage.getItem('gifos_api_config') || '{}') || {}).deepgram);
+  check('…and the saved entry carries NO proxy (the WS door needs none)',
+    !!wsEntry && /\/wsonly$/.test(wsEntry.url || '') && !wsEntry.proxy, JSON.stringify(wsEntry));
+  // Restore the direct base; the re-save below writes it back for the app half.
+  await page.locator('.api-f[data-f="url"]').first().fill(API);
   // ---- the password-reveal EYE, desktop half ----
   // run.html grew the generic eye (every input[type=password] wears one) and
   // e2e-video guards it there; this is the DESKTOP's copy — Settings' AI/API
@@ -102,9 +130,12 @@ const API_CFG = JSON.stringify({
     const html = '<!doctype html><meta charset="utf-8"><div id="ok">…</div><div id="deny">…</div><div id="host">…</div><div id="proxy">…</div><div id="case">…</div><div id="ready">…</div>' +
       '<script>(async function(){' +
       // 1) declared API round-trips: parsed JSON back, key never visible here.
+      //    "deepgram" + POST /v1/listen rides the NATIVE WebSocket door — the
+      //    fake stamps its WS Metadata request_id "ws-fake", proving transport.
       '  try { var r = await gifos.api("deepgram", { method:"POST", path:"/v1/listen", query:{ model:"nova-3" }, body:{ audio:"x" }, as:"json" });' +
       '        var w = r && r.json && r.json.results.channels[0].alternatives[0].words;' +
-      '        document.getElementById("ok").textContent = "ok:" + r.status + ":" + (w?w.length:-1) + ":" + (w&&w[0].filler?"filler":"nofiller"); }' +
+      '        var rid = (r && r.json && r.json.metadata && r.json.metadata.request_id) || "nometa";' +
+      '        document.getElementById("ok").textContent = "ok:" + r.status + ":" + (w?w.length:-1) + ":" + (w&&w[0].filler?"filler":"nofiller") + ":" + rid; }' +
       '  catch(e){ document.getElementById("ok").textContent = "ERR:"+e.message; }' +
       // 2) an UNDECLARED name is refused by the runtime.
       '  try { await gifos.api("schwab", { path:"/x" }); document.getElementById("deny").textContent = "deny:LEAKED"; }' +
@@ -144,7 +175,8 @@ const API_CFG = JSON.stringify({
 
   await fr.locator('#ok').filter({ hasText: /ok:|ERR:/ }).waitFor({ timeout: 10000 });
   const ok = await fr.locator('#ok').textContent();
-  check('gifos.api() round-trips through the runtime with the key attached', /^ok:200:3:filler$/.test(ok), ok);
+  check('gifos.api() round-trips with the key attached — over Deepgram\'s NATIVE WebSocket, no proxy',
+    /^ok:200:3:filler:ws-fake$/.test(ok), ok);
 
   await fr.locator('#deny').filter({ hasText: /deny:/ }).waitFor({ timeout: 8000 });
   const deny = await fr.locator('#deny').textContent();
