@@ -5,12 +5,13 @@
   "shortName": "Ski",
   "version": "1.0",
   "minBuild": 947,
-  "description": "Point down the mountain. Dodge the trees. Race a ghost of whoever you send the link to.",
+  "description": "Race a ghost from one link. Tilt the phone. No install.",
   "entry": "index.html",
   "accent": [40, 132, 196],
   "capabilities": {
     "db": true,
-    "multiplayer": true
+    "multiplayer": true,
+    "motion": true
   },
   "data": {
     "prefs": {

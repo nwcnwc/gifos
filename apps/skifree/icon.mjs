@@ -1,28 +1,178 @@
-// Procedural icon for SkiFree: a snow rounded card, green trees, a magenta
-// skier cutting down the slope, a faded ghost on their tail. Super-sample →
-// box-downsample → small palette; deterministic so GIF builds reproduce.
+// SkiFree icon + cover. Icon is two skiers racing through trees (the loop
+// has to read at 64px). Cover composites the real vendor sprites mid-run.
+import { deflateSync, inflateSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 10;
+const here = dirname(fileURLToPath(import.meta.url));
 
 const SKY_A = [186, 220, 242];
 const SKY_B = [244, 247, 251];
 const SNOW = [252, 253, 255];
 const SNOW_D = [214, 226, 236];
-const TREE = [46, 140, 72];
-const TREE_D = [28, 96, 52];
-const TRUNK = [110, 72, 42];
-const SKI = [196, 40, 72];
-const SKI_D = [140, 24, 52];
-const SKIN = [255, 214, 170];
-const GHOST = [120, 160, 210];
 const INK = [22, 50, 74];
-const YETI = [168, 176, 186];
-const YETI_D = [110, 118, 130];
+const LEAD = [180, 32, 58];
+const WHITE = [255, 255, 255];
 
-function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function mix(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+function inCard(x, y, m, r) {
+  const lo = m, hi = OUT - m;
+  if (x < lo || x > hi || y < lo || y > hi) return false;
+  const cx = Math.min(Math.max(x, lo + r), hi - r), cy = Math.min(Math.max(y, lo + r), hi - r);
+  if (x >= lo + r && x <= hi - r) return true;
+  if (y >= lo + r && y <= hi - r) return true;
+  const dx = x - cx, dy = y - cy;
+  return dx * dx + dy * dy <= r * r;
+}
+function paeth(a, b, c) {
+  const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+function decodePng(buf) {
+  if (buf[0] !== 0x89) throw new Error('not a png');
+  let i = 8, w = 0, h = 0, depth = 8, ctype = 6;
+  const idats = [];
+  let pal = null, trns = null;
+  while (i < buf.length) {
+    const len = buf.readUInt32BE(i);
+    const typ = buf.toString('ascii', i + 4, i + 8);
+    const chunk = buf.subarray(i + 8, i + 8 + len);
+    i += 12 + len;
+    if (typ === 'IHDR') {
+      w = chunk.readUInt32BE(0); h = chunk.readUInt32BE(4);
+      depth = chunk[8]; ctype = chunk[9];
+      if (chunk[12] !== 0) throw new Error('interlaced png');
+    } else if (typ === 'PLTE') {
+      pal = [];
+      for (let k = 0; k < chunk.length; k += 3) pal.push([chunk[k], chunk[k + 1], chunk[k + 2], 255]);
+    } else if (typ === 'tRNS') {
+      trns = Buffer.from(chunk);
+    } else if (typ === 'IDAT') idats.push(chunk);
+    else if (typ === 'IEND') break;
+  }
+  if (pal && trns) {
+    for (let k = 0; k < trns.length && k < pal.length; k++) pal[k][3] = trns[k];
+  }
+  const samples = ctype === 0 ? 1 : ctype === 2 ? 3 : ctype === 3 ? 1 : ctype === 4 ? 2 : 4;
+  const bitsPerPix = depth * samples;
+  const bpp = Math.max(1, (bitsPerPix / 8) | 0);
+  const rowBytes = Math.ceil(w * bitsPerPix / 8);
+  const raw = inflateSync(Buffer.concat(idats));
+  const rows = [];
+  let src = 0;
+  let prev = Buffer.alloc(rowBytes);
+  for (let y = 0; y < h; y++) {
+    const filt = raw[src++];
+    const row = Buffer.alloc(rowBytes);
+    raw.copy(row, 0, src, src + rowBytes); src += rowBytes;
+    for (let x = 0; x < rowBytes; x++) {
+      const a = x >= bpp ? row[x - bpp] : 0;
+      const b = prev[x];
+      const c = x >= bpp ? prev[x - bpp] : 0;
+      let v = row[x];
+      if (filt === 1) v = (v + a) & 255;
+      else if (filt === 2) v = (v + b) & 255;
+      else if (filt === 3) v = (v + ((a + b) >> 1)) & 255;
+      else if (filt === 4) v = (v + paeth(a, b, c)) & 255;
+      else if (filt !== 0) throw new Error('bad filter ' + filt);
+      row[x] = v;
+    }
+    rows.push(row);
+    prev = row;
+  }
+  const out = Buffer.alloc(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const row = rows[y];
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      if (ctype === 6 && depth === 8) {
+        const s = x * 4;
+        out[o] = row[s]; out[o + 1] = row[s + 1]; out[o + 2] = row[s + 2]; out[o + 3] = row[s + 3];
+      } else if (ctype === 2 && depth === 8) {
+        const s = x * 3;
+        out[o] = row[s]; out[o + 1] = row[s + 1]; out[o + 2] = row[s + 2]; out[o + 3] = 255;
+      } else {
+        throw new Error('unsupported png ctype=' + ctype);
+      }
+    }
+  }
+  return { w, h, p: out };
+}
+function crop(src, sx, sy, sw, sh) {
+  const p = Buffer.alloc(sw * sh * 4);
+  for (let y = 0; y < sh; y++) {
+    const yy = sy + y;
+    if (yy < 0 || yy >= src.h) continue;
+    src.p.copy(p, y * sw * 4, (yy * src.w + sx) * 4, (yy * src.w + sx + sw) * 4);
+  }
+  return { w: sw, h: sh, p };
+}
+function blit(dst, dw, dh, src, dx, dy, scale, opt) {
+  opt = opt || {};
+  const sw = Math.max(1, Math.round(src.w * scale));
+  const sh = Math.max(1, Math.round(src.h * scale));
+  const aMul = opt.a == null ? 1 : opt.a;
+  for (let y = 0; y < sh; y++) {
+    const sy = Math.min(src.h - 1, (y / scale) | 0);
+    for (let x = 0; x < sw; x++) {
+      const sx = Math.min(src.w - 1, (x / scale) | 0);
+      const o = (sy * src.w + sx) * 4;
+      let r = src.p[o], g = src.p[o + 1], b = src.p[o + 2];
+      const a = src.p[o + 3] * aMul;
+      if (a < 8) continue;
+      const px = (dx + x) | 0, py = (dy + y) | 0;
+      if (px < 0 || py < 0 || px >= dw || py >= dh) continue;
+      if (opt.ghost) {
+        const t = 0.55;
+        r = Math.round(r * (1 - t) + 80 * t);
+        g = Math.round(g * (1 - t) + 190 * t);
+        b = Math.round(b * (1 - t) + 230 * t);
+      }
+      const d = (py * dw + px) * 4;
+      const aa = a / 255;
+      dst[d] = Math.round(r * aa + dst[d] * (1 - aa));
+      dst[d + 1] = Math.round(g * aa + dst[d + 1] * (1 - aa));
+      dst[d + 2] = Math.round(b * aa + dst[d + 2] * (1 - aa));
+      dst[d + 3] = 255;
+    }
+  }
+}
+
+const chars = decodePng(readFileSync(join(here, 'vendor', 'sprite-characters.png')));
+const objs = decodePng(readFileSync(join(here, 'vendor', 'skifree-objects.png')));
+
+const PART = {
+  east: [0, 0, 24, 34],
+  esEast: [24, 0, 24, 34],
+  sEast: [49, 0, 17, 34],
+  south: [65, 0, 17, 34],
+  sWest: [49, 37, 17, 34],
+  wsWest: [24, 37, 24, 34],
+  west: [0, 37, 24, 34],
+  jumping: [84, 0, 32, 34],
+};
+function skier(part) {
+  const p = PART[part] || PART.south;
+  return crop(chars, p[0], p[1], p[2], p[3]);
+}
+const smallTree = crop(objs, 0, 28, 30, 34);
+const tallTree = crop(objs, 95, 66, 32, 64);
+const rock = crop(objs, 30, 52, 23, 11);
+const jumpRamp = crop(objs, 109, 55, 32, 8);
+const startSign = crop(objs, 260, 103, 42, 27);
+const yeti = crop(chars, 90, 112, 32, 43);
+
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [SKY_A, SKY_B, SNOW, SNOW_D, TREE, TREE_D, TRUNK, SKI, SKI_D, SKIN, GHOST, INK, YETI, YETI_D]) {
-    for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
+  const bases = [SKY_A, SKY_B, SNOW, SNOW_D, INK, LEAD, WHITE,
+    [46, 140, 72], [28, 96, 52], [196, 40, 72], [255, 214, 170],
+    [80, 190, 230], [110, 72, 42], [168, 176, 186]];
+  for (const b of bases) {
+    for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.12).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.28).map(Math.round));
   }
   return pal.slice(0, 64);
@@ -35,87 +185,45 @@ function nearest(pal, r, g, b) {
   }
   return bi;
 }
-function inCard(x, y, m, r) {
-  const lo = m, hi = OUT - m;
-  if (x < lo || x > hi || y < lo || y > hi) return false;
-  const cx = Math.min(Math.max(x, lo + r), hi - r), cy = Math.min(Math.max(y, lo + r), hi - r);
-  if (x >= lo + r && x <= hi - r) return true;
-  if (y >= lo + r && y <= hi - r) return true;
-  const dx = x - cx, dy = y - cy; return dx * dx + dy * dy <= r * r;
-}
-function inTri(x, y, x1, y1, x2, y2, x3, y3) {
-  const s = (x1 - x3) * (y - y3) - (y1 - y3) * (x - x3);
-  const t = (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1);
-  const u = (x3 - x2) * (y - y2) - (y3 - y2) * (x - x2);
-  return (s >= 0 && t >= 0 && u >= 0) || (s <= 0 && t <= 0 && u <= 0);
-}
-function inCirc(x, y, cx, cy, r) {
-  const dx = x - cx, dy = y - cy; return dx * dx + dy * dy <= r * r;
-}
 
-function trees() {
-  return [
-    { x: 28, y: 42, s: 11 },
-    { x: 96, y: 38, s: 13 },
-    { x: 22, y: 88, s: 15 },
-    { x: 104, y: 78, s: 12 },
-    { x: 40, y: 108, s: 9 },
-    { x: 86, y: 102, s: 10 },
-  ];
-}
-
-function skierAt(f, ghost) {
-  const t = f / (FRAMES - 1);
-  const sway = Math.sin(t * Math.PI * 2) * 10;
-  if (ghost) {
-    return { x: 52 + sway * 0.6, y: 44 + t * 18, lean: sway * 0.04 };
-  }
-  return { x: 64 + sway, y: 58 + t * 22, lean: sway * 0.08 };
-}
-
+// Icon: magenta skier chasing a cyan ghost down a snow card. Trees scroll
+// up past them so the loop is a race, not a wiggle.
 function frameIndices(pal, f) {
-  const rgba = new Float32Array(RW * RW * 4);
+  const rgba = Buffer.alloc(RW * RW * 4);
+  const put = (x, y, r, g, b, a) => {
+    x = x | 0; y = y | 0;
+    if (x < 0 || y < 0 || x >= RW || y >= RW) return;
+    const o = (y * RW + x) * 4;
+    rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a == null ? 255 : a;
+  };
   const m = 7, rad = 20;
-  const pines = trees();
-  const me = skierAt(f, false);
-  const gh = skierAt(f, true);
+  const t = f / (FRAMES - 1);
+  const sway = Math.sin(t * Math.PI * 2);
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
-    let col = null, a = 0;
-    if (inCard(x, y, m, rad)) {
-      a = 1;
-      const gy = (y - m) / (OUT - 2 * m);
-      col = gy < 0.28 ? mix(SKY_A, SKY_B, gy / 0.28) : mix(SNOW, SNOW_D, (gy - 0.28) / 0.72);
-      // piste tracks
-      if (gy > 0.32 && Math.abs(x - 64) < 22 + gy * 8 && ((x + y * 0.4) % 7 < 0.7)) {
-        col = mix(col, SNOW_D, 0.35);
-      }
-      for (let i = 0; i < pines.length; i++) {
-        const p = pines[i];
-        if (inTri(x, y, p.x, p.y - p.s * 1.6, p.x - p.s, p.y + p.s * 0.4, p.x + p.s, p.y + p.s * 0.4)) {
-          col = mix(TREE_D, TREE, (x - (p.x - p.s)) / (p.s * 2));
-        }
-        if (x > p.x - 1.4 && x < p.x + 1.4 && y > p.y + p.s * 0.2 && y < p.y + p.s * 0.85) col = TRUNK;
-      }
-      // ghost skier
-      if (inCirc(x, y, gh.x, gh.y - 6, 4.2) || inTri(x, y, gh.x, gh.y - 10, gh.x - 5, gh.y + 2, gh.x + 5, gh.y + 2)) {
-        col = mix(col, GHOST, 0.55);
-      }
-      if ((x > gh.x - 7 && x < gh.x + 7 && y > gh.y + 1 && y < gh.y + 3.2)) col = mix(col, GHOST, 0.5);
-      // yeti, late frames
-      if (f > 6) {
-        const yx = 30 + (f - 6) * 4, yy = 70;
-        if (inCirc(x, y, yx, yy - 8, 6) || inCirc(x, y, yx, yy + 2, 7)) col = mix(YETI_D, YETI, (x - yx + 8) / 16);
-      }
-      // player skier
-      const sx = me.x + me.lean * (y - me.y), sy = me.y;
-      if (inCirc(x, y, sx, sy - 7, 4.4)) col = SKIN;
-      if (inTri(x, y, sx, sy - 11, sx - 6, sy + 3, sx + 6, sy + 3)) col = mix(SKI_D, SKI, (x - (sx - 6)) / 12);
-      if (x > sx - 8 && x < sx + 8 && y > sy + 2 && y < sy + 4.4) col = SKI_D;
-    }
-    const o = (py * RW + px) * 4;
-    if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
+    if (!inCard(x, y, m, rad)) continue;
+    const gy = (y - m) / (OUT - 2 * m);
+    const col = gy < 0.22 ? mix(SKY_A, SKY_B, gy / 0.22) : mix(SNOW, SNOW_D, (gy - 0.22) / 0.78);
+    put(px, py, col[0], col[1], col[2]);
   }
+  // Scroll trees up the card (camera follows the race).
+  const scroll = (f * 11) % 90;
+  const grove = [
+    [18, 28], [96, 22], [24, 70], [100, 64], [40, 108], [88, 96], [62, 8],
+  ];
+  for (const [gx, gy] of grove) {
+    const y = ((gy + scroll) % 110) + 8;
+    const useTall = (gx + gy) % 2 === 0;
+    blit(rgba, RW, RW, useTall ? tallTree : smallTree, gx * SS, y * SS, SS * (useTall ? 0.55 : 0.7));
+  }
+  const ghostPart = sway > 0.2 ? 'sEast' : sway < -0.2 ? 'sWest' : 'south';
+  const mePart = f > 6 ? 'jumping' : ghostPart;
+  const gx = 36 + sway * 6;
+  const gy = 28 + t * 8;
+  const mx = 58 + sway * 9;
+  const my = 48 + t * 12;
+  blit(rgba, RW, RW, skier(ghostPart), gx * SS, gy * SS, SS * 2.05, { ghost: true, a: 0.9 });
+  blit(rgba, RW, RW, skier(mePart), mx * SS, my * SS, SS * 2.2);
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
     let r = 0, g = 0, b = 0, a = 0, n = SS * SS;
@@ -141,8 +249,6 @@ export function skiFreeIcon() {
   return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
 }
 
-import { deflateSync } from 'node:zlib';
-
 function crc(buf) {
   let c = ~0;
   for (let i = 0; i < buf.length; i++) {
@@ -161,26 +267,26 @@ function pngChunk(tag, data) {
 
 const GLYPHS = {
   'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
+  'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
-  'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
-  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
   'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
-  'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
-  'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
+  'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
   'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  'P': [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
-  'R': [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
   'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
   'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
-  '·': [0, 0, 0, 0b00100, 0, 0, 0],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -197,35 +303,6 @@ function drawText(put, x, y, str, s, r, g, b) {
   }
 }
 
-function paintTree(put, x, y, s) {
-  for (let i = 0; i < s; i++) {
-    const w = 2 + i * 1.15;
-    const yy = y + i;
-    for (let dx = -w; dx <= w; dx++) {
-      const t = (dx + w) / (w * 2 || 1);
-      const c = mix(TREE_D, TREE, t);
-      put(x + dx, yy, c[0], c[1], c[2]);
-    }
-  }
-  for (let i = 0; i < s * 0.35; i++) {
-    put(x, y + s + i, TRUNK[0], TRUNK[1], TRUNK[2]);
-    put(x + 1, y + s + i, TRUNK[0], TRUNK[1], TRUNK[2]);
-  }
-}
-
-function paintSkier(put, x, y, col, ski) {
-  for (let dy = -18; dy <= 8; dy++) for (let dx = -10; dx <= 10; dx++) {
-    const inHead = dx * dx + (dy + 12) * (dy + 12) <= 36;
-    const inBody = Math.abs(dx) < 7 - Math.abs(dy + 2) * 0.15 && dy > -10 && dy < 4;
-    if (inHead) put(x + dx, y + dy, SKIN[0], SKIN[1], SKIN[2]);
-    else if (inBody) put(x + dx, y + dy, col[0], col[1], col[2]);
-  }
-  for (let dx = -14; dx <= 14; dx++) {
-    put(x + dx, y + 8, ski[0], ski[1], ski[2]);
-    put(x + dx, y + 9, ski[0], ski[1], ski[2]);
-  }
-}
-
 export function screenshotPng() {
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
@@ -238,31 +315,43 @@ export function screenshotPng() {
 
   for (let y = 0; y < H; y++) {
     const gy = y / H;
-    const sky = gy < 0.28 ? mix(SKY_A, SKY_B, gy / 0.28) : mix(SNOW, SNOW_D, (gy - 0.28) / 0.72);
+    const sky = gy < 0.16 ? mix(SKY_A, SKY_B, gy / 0.16) : mix(SNOW, SNOW_D, (gy - 0.16) / 0.84);
     for (let x = 0; x < W; x++) put(x, y, sky[0], sky[1], sky[2]);
   }
 
+  const scale = 3.2;
+  // Mid-run grove: trees close and far, a clear racing lane down the middle.
   const grove = [
-    [180, 220, 70], [320, 300, 90], [90, 480, 110], [250, 560, 80],
-    [980, 200, 85], [1100, 340, 95], [1020, 520, 75], [880, 600, 100],
-    [420, 640, 60], [760, 180, 55], [540, 250, 48],
+    [40, 140, 1], [180, 160, 0], [90, 210, 1], [210, 280, 0], [30, 360, 1],
+    [140, 430, 0], [70, 540, 1], [200, 600, 0],
+    [980, 150, 1], [1100, 200, 0], [1020, 250, 1], [1140, 320, 0],
+    [990, 430, 0], [1110, 510, 1], [1030, 600, 0], [1160, 640, 1],
+    [280, 120, 0], [860, 90, 1], [320, 500, 1], [840, 470, 0],
+    [400, 640, 0], [760, 620, 1], [500, 130, 0], [700, 160, 1],
+    [250, 350, 1], [900, 340, 0],
   ];
-  for (const [x, y, s] of grove) paintTree(put, x, y, s);
+  for (const [x, y, tall] of grove) {
+    blit(rgba, W, H, tall ? tallTree : smallTree, x, y, tall ? scale * 1.15 : scale);
+  }
+  blit(rgba, W, H, rock, 430, 300, scale);
+  blit(rgba, W, H, rock, 780, 410, scale);
+  blit(rgba, W, H, jumpRamp, 560, 390, scale);
+  blit(rgba, W, H, yeti, 80, 300, scale * 1.2);
 
-  paintSkier(put, 620, 360, SKI, SKI_D);
-  paintSkier(put, 540, 260, mix(GHOST, SNOW, 0.25), mix(GHOST, INK, 0.2));
+  // Ghost further down the mountain (lower on the frame). Player chasing.
+  blit(rgba, W, H, skier('sEast'), 500, 210, scale * 1.7, { ghost: true, a: 0.95 });
+  blit(rgba, W, H, skier('south'), 640, 390, scale * 1.85);
 
-  // yeti
-  for (let dy = -28; dy <= 24; dy++) for (let dx = -22; dx <= 22; dx++) {
-    if (dx * dx * 0.7 + (dy + 4) * (dy + 4) <= 420) {
-      put(140 + dx, 340 + dy, YETI[0], YETI[1], YETI[2]);
+  // Race HUD — two pills, away from the action.
+  function pill(x, y, w, h) {
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
+      put(xx, yy, 255, 255, 255);
     }
   }
-
-  drawText(put, 64, 64, 'SKIFREE', 10, 22, 50, 74);
-  drawText(put, 64, 160, 'POINT AND SKI', 5, 40, 80, 110);
-  drawText(put, 64, 230, 'RACE A GHOST', 5, 180, 32, 58);
-  drawText(put, 64, 640, 'FARTHEST WINS', 3, 22, 50, 74);
+  pill(48, 36, 300, 64);
+  pill(852, 36, 300, 64);
+  drawText(put, 68, 52, 'YOU  842M', 5, 22, 50, 74);
+  drawText(put, 872, 52, 'SAM  901M', 5, 180, 32, 58);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
