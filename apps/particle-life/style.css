@@ -1,0 +1,127 @@
+/* Dark jar, colourful dots, friend-mode chrome around it. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: #07080c;
+  color: #e8eef4;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+body {
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+#shell {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: calc(100vh - 20px);
+}
+#hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+#brand { font-size: 20px; font-weight: 700; letter-spacing: 0.02em; }
+#seed {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: #8aa0b0;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions button, #leaveBtn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border: 1px solid #2a3a44;
+  background: #121820;
+  color: #e8eef4;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#shareBtn { background: #00c4cc; color: #072024; border-color: #00a8b0; }
+#mixBtn { background: #1a2430; }
+#pullBtn.on { background: #ffb050; color: #1a1208; border-color: #e09030; }
+body.friend #shareBtn { display: none; }
+
+#friend-bar {
+  background: #121820;
+  border: 1px solid #2a3a44;
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+#friend-hint b { color: #ffb050; }
+#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-scores {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+#friend-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid #1e2a34;
+  font-variant-numeric: tabular-nums;
+}
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#friend-scores .me .name { color: #00c4cc; }
+#friend-scores .meta { color: #8aa0b0; font-size: 13px; white-space: nowrap; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+#stage {
+  flex: 1;
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  border: 1px dashed #504e52;
+  border-radius: 4px;
+  overflow: hidden;
+  touch-action: none;
+}
+#jar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: min(70vh, 640px);
+  object-fit: contain;
+  cursor: crosshair;
+  outline: none;
+  background: #000;
+}
+
+#knobs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: center;
+  font-size: 14px;
+  color: #c0ccd6;
+}
+#knobs label { display: flex; align-items: center; gap: 8px; }
+#knobs select, #knobs input[type="range"] {
+  font: inherit;
+  accent-color: #00c4cc;
+}
+#countN { font-variant-numeric: tabular-nums; color: #8aa0b0; min-width: 2.2em; }
+
+#how, .foot {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #8aa0b0;
+}
+.foot { color: #667888; }

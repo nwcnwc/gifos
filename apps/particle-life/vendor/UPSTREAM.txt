@@ -1,0 +1,15 @@
+Extracted classic-script port of hunar4321/particle-life
+(https://github.com/hunar4321/particle-life), MIT, Hunar Ahmad 2022.
+
+Pinned to 256278714c4f6a1ce900d24faafcc101769c54c2 (main at port time).
+The original is one HTML page plus a CDN copy of lil-gui, a hash-URL seed,
+cluster tracking, and video export. None of that is shipped: GifOS inlines
+classic <script src> and there is no network path.
+
+particle-life.js is the attraction/repulsion loop, the seeded rules, the
+atoms, and the click pulse from particle_life.html, wrapped as an IIFE
+that paints a fixed-size world (so two devices that share a seed start
+the same jar). The GUI, the CDN, MediaRecorder, and location.hash stay
+behind.
+
+vendor.mjs rebuilds COPYING-particle-life.txt from that pin.

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Particle Life</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">Particle Life</div>
+      <div id="seed">mix</div>
+    </header>
+
+    <div class="actions">
+      <button type="button" id="shareBtn">Share the jar</button>
+      <button type="button" id="mixBtn">New mix</button>
+      <button type="button" id="resetBtn">Reset</button>
+      <button type="button" id="pullBtn">Push</button>
+    </div>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both get the same mix. Tap the jar to stir — they see your poke.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <canvas id="jar" width="960" height="640" tabindex="1">This toy needs a canvas.</canvas>
+    </div>
+
+    <div id="knobs">
+      <label>Colours
+        <select id="colors">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4" selected>4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+        </select>
+      </label>
+      <label>Crowd <input id="count" type="range" min="40" max="400" step="20" value="180"> <span id="countN">180</span></label>
+    </div>
+
+    <p id="how">Tap or drag to stir. Push shoves them away; switch to Pull to gather them. New mix pours a fresh set of rules.</p>
+    <p class="foot">Unofficial port of Particle Life by hunar4321 (MIT). Playing alone is the original toy. A shared jar is the same mix, each person poking on their own — nobody writes on anybody else’s.</p>
+  </div>
+
+  <!-- Order matters: the runtime inlines each <script src> where it stands. -->
+  <script src="vendor/particle-life.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>
