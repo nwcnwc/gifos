@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Catch the Cat</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="status">Tap the dots. Wall the cat in.</div>
+    <div id="clicks">0 taps</div>
+  </header>
+  <div id="board"></div>
+  <div id="roster" hidden></div>
+  <div id="bar">
+    <button type="button" id="undo">Undo</button>
+    <button type="button" id="again">New board</button>
+  </div>
+</div>
+<script src="vendor/phaser.js"></script>
+<script src="vendor/game.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
