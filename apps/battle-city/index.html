@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Battle City</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" width="256" height="240"></canvas>
+
+<div id="touch" hidden>
+  <div id="dpad">
+    <button data-dir="up" class="d-up" aria-label="Up">▲</button>
+    <button data-dir="left" class="d-left" aria-label="Left">◀</button>
+    <button data-dir="right" class="d-right" aria-label="Right">▶</button>
+    <button data-dir="down" class="d-down" aria-label="Down">▼</button>
+  </div>
+  <button id="t-fire" aria-label="Fire">FIRE</button>
+  <button id="t-start" aria-label="Start">START</button>
+  <button id="t-pause" aria-label="Pause">❚❚</button>
+</div>
+
+<div id="sfx" hidden>
+<audio data-name="bullet_shot" src="sound/bullet_shot.ogg" preload="auto"></audio>
+<audio data-name="bullet_hit_1" src="sound/bullet_hit_1.ogg" preload="auto"></audio>
+<audio data-name="bullet_hit_2" src="sound/bullet_hit_2.ogg" preload="auto"></audio>
+<audio data-name="explosion_1" src="sound/explosion_1.ogg" preload="auto"></audio>
+<audio data-name="explosion_2" src="sound/explosion_2.ogg" preload="auto"></audio>
+<audio data-name="stage_start" src="sound/stage_start.ogg" preload="auto"></audio>
+<audio data-name="game_over" src="sound/game_over.ogg" preload="auto"></audio>
+<audio data-name="pause" src="sound/pause.ogg" preload="auto"></audio>
+<audio data-name="powerup_appear" src="sound/powerup_appear.ogg" preload="auto"></audio>
+<audio data-name="powerup_pick" src="sound/powerup_pick.ogg" preload="auto"></audio>
+<audio data-name="statistics_1" src="sound/statistics_1.ogg" preload="auto"></audio>
+</div>
+
+<script src="stages.js"></script>
+<script src="sound.js"></script>
+<script src="game.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

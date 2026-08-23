@@ -1,0 +1,15 @@
+vendor/sound/*.ogg and vendor/stages/*.json are copied from
+feichao93/battle-city (MIT), commit 745c369af6d4a02c71560265fd9448518e99c18d.
+
+upstream: https://github.com/feichao93/battle-city
+commit:   745c369af6d4a02c71560265fd9448518e99c18d
+
+The React/Redux/Saga tree is not vendored. GifOS's runtime inlines
+<script src> and DROPS type="module", so that webpack app cannot run
+inside a GIF. This port is a canvas remake of the same game: the 35
+stages and the SFX ride as-is, the tanks and tiles are redrawn to match
+their colour schemes, and two-player is a second device over gifos.db
+rather than a second keyboard or a websocket.
+
+Both the MIT notice (COPYING-battle-city.txt) and this file travel
+inside the GIF, so a copy someone is handed still carries the notices.
