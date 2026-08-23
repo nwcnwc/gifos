@@ -26,6 +26,7 @@
 // One box is enough — every question here is "what state is this page in".
 // Needs: static server on 8099, local relay on 8790.
 const { chromium, CHROME } = require('../lib/pw');
+const need = require('../lib/need');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8099';
 const RELAY = process.env.RELAY || 'ws://127.0.0.1:8790';
@@ -65,6 +66,8 @@ const waitIdle = async (page, want, ms) => {
 };
 
 (async () => {
+  await need({ 8099: 'a static server on 8099 (python3 -m http.server 8099 -d site)',
+               8790: 'relay-local (node test/servers/relay-local.js)' });
   const browser = await chromium.launch({ executablePath: CHROME,
     args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--use-fake-ui-for-media-stream',
            '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
@@ -91,8 +94,17 @@ const waitIdle = async (page, want, ms) => {
     // room with an app on the screen.
     await page.locator('#lob-open').click();
     await page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.room(), null, { timeout: 45000 });
+    // canIRunApp() needs myId, which S4 mints ASYNCHRONOUSLY. runApp returns
+    // without throwing if identity has not landed yet ("only admins can run
+    // an app"), so the iframe never appears and this file used to DEAD with
+    // zero assertions. Poll the same hook the Run-app button is gated on.
+    await page.waitForFunction(() => window.__gifosVideo && window.__gifosVideo.canRunApp(),
+      null, { timeout: 30000 });
     await page.evaluate((id) => window.__gifosVideo.runAppForTest(id, 'Touch Awake'), fid);
-    await page.waitForFunction(() => !!document.querySelector('#appmount iframe'), null, { timeout: 60000 });
+    const mounted = await page.waitForFunction(() => !!document.querySelector('#appmount iframe'),
+      null, { timeout: 60000 }).then(() => true, () => false);
+    check('runApp mounted an iframe in the meeting', mounted);
+    if (!mounted) throw new Error('app iframe never appeared — runApp no-op or boot died');
     // The shim has to be alive inside the frame, or the ping this whole suite
     // is about could never be sent and every result below would be about a
     // frame that never loaded.
