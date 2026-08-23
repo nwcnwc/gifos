@@ -97,6 +97,27 @@ if (manifest.minBuild !== 947) {
   throw new Error('minBuild must be 947 — this app needs nothing newer than the store');
 }
 if (manifest.appId !== 'invaderz') throw new Error('appId must be invaderz');
+{
+  const desc = listing.description || '';
+  const head = desc.slice(0, 220);
+  if (!/extra cannons/i.test(head) || !/invite/i.test(head)) {
+    throw new Error('listing description must lead with extra cannons / one invite');
+  }
+  if (/invite button|press invite|tap invite/i.test(desc)) {
+    throw new Error('Invite is OS chrome — do not tell the player to press an Invite button this app draws');
+  }
+}
+if (/location\.(hash|replace)|href\s*=\s*["']#/.test(files['index.html'])) {
+  throw new Error('index.html must not hash-navigate (srcdoc trapdoor)');
+}
+for (const s of OURS) {
+  if (/location\.(hash|replace)/.test(files[s])) {
+    throw new Error(s + ' must not hash-navigate (srcdoc trapdoor)');
+  }
+}
+if (/>\s*Invite\s*</.test(files['index.html'])) {
+  throw new Error('Invite is OS chrome — this app must not draw that button');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (!n.endsWith('.js')) continue;

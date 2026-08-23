@@ -212,11 +212,11 @@
         ctx.fillRect(p.bx * s, p.by * s, 3, 3);
       }
       ctx.save();
-      ctx.font = '8px Arial';
+      ctx.font = '9px "Courier New", Courier, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
       ctx.fillStyle = o.color;
-      ctx.fillText(o.name, (p.x + 2) * s, (p.y == null ? (h / 4 - 4) : p.y) * s - 2);
+      ctx.fillText(o.name, (p.x + 2) * s, (p.y == null ? (h / 4 - 4) : p.y) * s - 8);
       ctx.restore();
     }
   }

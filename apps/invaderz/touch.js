@@ -1,30 +1,36 @@
 /*
- * InvaderZ — thumb buttons.
+ * InvaderZ — thumb buttons, under the board.
  *
  * Original main.js always drew LEFT / FIRE / RIGHT under the canvas. Same
  * idea, every phone: the buttons write the same isMovingLeft / isMovingRight
  * / shoot() the keyboard does, so the vendored Player never learns it is
- * being flown by a thumb.
+ * being flown by a thumb. The pad is in the layout, not an overlay — a
+ * finger must never sit on the cannon.
  *
- * Revealed on the first real touchstart. A laptop with a touchscreen must
- * not get the overlay until a finger actually lands.
+ * Coarse pointers get the pad on boot. A laptop with a touchscreen waits
+ * for a real finger, so a mouse session is not suddenly a phone.
  */
 (function (root) {
   'use strict';
 
   var active = false;
 
+  function reveal() {
+    if (active) return;
+    active = true;
+    document.body.classList.add('touch');
+    var wrap = document.getElementById('touch');
+    if (wrap) wrap.hidden = false;
+    if (root.InvaderZ && root.InvaderZ.fit) root.InvaderZ.fit();
+  }
+
   function init() {
     var wrap = document.getElementById('touch');
     if (!wrap) return { isTouch: function () { return active; } };
 
-    var reveal = function () {
-      if (active) return;
-      active = true;
-      document.body.classList.add('touch');
-      wrap.hidden = false;
-      removeEventListener('touchstart', reveal);
-    };
+    var coarse = false;
+    try { coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches); } catch (e) {}
+    if (coarse) reveal();
     addEventListener('touchstart', reveal, { passive: true });
 
     var btns = wrap.querySelectorAll('[data-key]');
@@ -72,5 +78,5 @@
     });
   }
 
-  root.Touch = { init: init };
+  root.Touch = { init: init, reveal: reveal };
 })(window);

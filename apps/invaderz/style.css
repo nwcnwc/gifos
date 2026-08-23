@@ -4,9 +4,11 @@ html, body {
   background: #0b0c10; color: #1a1a1a;
   font-family: "Courier New", Courier, monospace;
   user-select: none;
+  display: flex; flex-direction: column;
 }
 #stage {
-  position: absolute; inset: 0;
+  position: relative;
+  flex: 1 1 auto; min-height: 0;
   display: flex; align-items: center; justify-content: center;
 }
 #canvas {
@@ -24,6 +26,8 @@ html, body {
   color: rgba(232, 240, 255, .7);
 }
 body.touch #hud { display: none; }
+@media (max-width: 500px) { #hud { display: none; } }
+@media (pointer: coarse) { #hud { display: none; } }
 
 #tally {
   position: fixed; right: 12px; top: 12px; z-index: 5;
@@ -46,28 +50,40 @@ body.touch #hud { display: none; }
 #score td:nth-child(2) { text-align: right; }
 #score tr.me td { color: #fff; }
 
+/* Pad sits UNDER the board so a thumb never covers the cannon. */
 #touch {
-  position: fixed; inset: 0; z-index: 20; pointer-events: none;
-  touch-action: none; user-select: none;
+  display: none;
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 20;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  padding: .45rem .7rem max(.7rem, env(safe-area-inset-bottom));
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: .6rem;
+  background: #0b0c10;
 }
 #touch[hidden] { display: none; }
+body.touch #touch { display: flex; }
 .t-col {
-  position: absolute; bottom: max(1.2rem, env(safe-area-inset-bottom));
-  display: flex; gap: .55rem; pointer-events: none;
+  display: flex; gap: .5rem; pointer-events: none;
+  align-items: flex-end;
 }
-#t-left { left: max(.8rem, env(safe-area-inset-left)); }
-#t-right { right: max(.8rem, env(safe-area-inset-right)); }
 .t-btn {
   pointer-events: auto;
-  width: 4.6rem; height: 4.6rem;
-  border-radius: .8rem;
-  border: 1px solid rgba(232, 240, 255, .35);
-  background: rgba(8, 10, 18, .45);
-  color: #e8f0ff;
-  font: 700 .68rem/1 "Courier New", Courier, monospace;
+  width: 4.4rem; height: 4.4rem;
+  border-radius: .7rem;
+  border: 0;
+  background: #008CBA;
+  color: #fff;
+  font: 700 .7rem/1 "Courier New", Courier, monospace;
   letter-spacing: .08em;
   cursor: pointer;
+  box-shadow: 0 4px 0 #006080;
+  touch-action: manipulation;
 }
-.t-btn.wide { width: 6.2rem; height: 6.2rem; font-size: .78rem; }
-.t-btn.on { background: rgba(232, 240, 255, .28); }
+.t-btn.wide { width: 5.6rem; height: 5.6rem; font-size: .82rem; }
+.t-btn.on { background: #33a9d0; box-shadow: 0 2px 0 #006080; transform: translateY(2px); }
 body:not(.touch) #touch { display: none; }

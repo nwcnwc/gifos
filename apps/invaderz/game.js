@@ -24,8 +24,18 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
   var dpr = 1;
   var hooks = {};
   var patched = false;
+  var pops = [];
+  var banner = null;
+  var FONT = '10px "Courier New", Courier, monospace';
 
   function r1(n) { return Math.round(n * 10) / 10; }
+
+  function laneFor(id) {
+    var s = String(id || 'local');
+    var hsh = 0;
+    for (var i = 0; i < s.length; i++) hsh = (hsh * 33 + s.charCodeAt(i)) >>> 0;
+    return 6 + (hsh % 44);
+  }
 
   function patchClasses() {
     if (patched) return;
@@ -62,11 +72,27 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
       this.fit = Math.round(this.y);
       Game.hitTest(this);
     };
+    // Guests coast on the last snapshot so the swarm does not stutter at 8 Hz.
+    // They never count a through — the host owns the line.
+    Invader.prototype.coast = function () {
+      if (!this.isAlive) return;
+      if (this.y >= (h >> 2)) return;
+      if (!this.shape[this.i]) {
+        var value = this.dir * this.speed * dt;
+        if (this.x + value > 0 && (this.x + value) * this.s < w - this.s * this.s) {
+          this.x += value;
+        }
+      }
+      this.y += this.speed * dt;
+    };
     Invader.prototype.show = function () {
       if (!this.isAlive) return;
       this.draw();
       if (Game.sim) this.update();
-      else Game.localHit(this);
+      else {
+        this.coast();
+        Game.localHit(this);
+      }
     };
   }
 
@@ -93,7 +119,16 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
     return -1;
   }
 
+  function addPop(inv) {
+    pops.push({
+      x: (inv.x + 2) * (inv.s || 4),
+      y: (inv.y + 2) * (inv.s || 4),
+      t: 0
+    });
+  }
+
   function killMine(inv) {
+    addPop(inv);
     inv.isAlive = false;
     if (player) {
       player.isShooting = false;
@@ -115,6 +150,7 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
       var o = others[id];
       if (!o.shooting) continue;
       if (shapeHit(inv, o.bx, o.by)) {
+        addPop(inv);
         inv.isAlive = false;
         return;
       }
@@ -148,27 +184,96 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
     }
   }
 
+  function blitPx(shape, px, py, cell, color) {
+    c.fillStyle = color;
+    for (var i = 0; i < shape.length; i++) {
+      if (shape[i]) c.fillRect(px + (i % 4) * cell, py + (i >> 2) * cell, cell, cell);
+    }
+  }
+
+  function drawGround() {
+    var gy = (h >> 2) * 4 - 3;
+    c.save();
+    c.strokeStyle = 'rgba(0,0,0,0.55)';
+    c.lineWidth = 1.5;
+    c.setLineDash([4, 3]);
+    c.beginPath();
+    c.moveTo(0, gy);
+    c.lineTo(w, gy);
+    c.stroke();
+    c.setLineDash([]);
+    c.restore();
+  }
+
+  function drawPops() {
+    for (var i = pops.length - 1; i >= 0; i--) {
+      var p = pops[i];
+      p.t += dt;
+      var a = 1 - p.t / 280;
+      if (a <= 0) { pops.splice(i, 1); continue; }
+      c.fillStyle = 'rgba(0,0,0,' + a + ')';
+      var rad = 4 + p.t / 28;
+      for (var k = 0; k < 4; k++) {
+        var ang = k * Math.PI / 2 + p.t / 90;
+        c.fillRect(p.x + Math.cos(ang) * rad - 1.5, p.y + Math.sin(ang) * rad - 1.5, 3, 3);
+      }
+    }
+  }
+
   function drawHud() {
     c.fillStyle = 'black';
-    c.font = '10px Arial';
+    c.font = FONT;
     c.textAlign = 'left';
     c.textBaseline = 'top';
-    c.fillText('Generation: ' + generation, 5, 10);
-    c.fillText('Invaders: ' + lives, 5, 20);
-    if (kills) c.fillText('Kills: ' + kills, 5, 30);
-    if (high) c.fillText('Best: ' + high, w - 52, 10);
-    if (roomy && !sim) c.fillText('Host holds the wave', 5, h - 14);
+    c.fillText('Gen ' + generation, 5, 8);
+    c.fillText('Through ' + lives + '/5', 5, 20);
+    if (kills) c.fillText('Kills ' + kills, 5, 32);
+    if (high) {
+      c.textAlign = 'right';
+      c.fillText('Best ' + high, w - 5, 8);
+      c.textAlign = 'left';
+    }
+    var elite = invaders && invaders.bestOfGeneration && invaders.bestOfGeneration.shape;
+    if (elite) {
+      c.textAlign = 'right';
+      c.fillText('Elite', w - 5, 20);
+      c.textAlign = 'left';
+      blitPx(elite, w - 22, 32, 4, '#222');
+    }
+  }
+
+  function drawBanner() {
+    if (!banner) return;
+    banner.t += dt;
+    if (banner.t > 900) { banner = null; return; }
+    var a = banner.t < 160 ? banner.t / 160 : (banner.t > 700 ? (900 - banner.t) / 200 : 1);
+    c.save();
+    c.globalAlpha = Math.max(0, Math.min(1, a));
+    c.fillStyle = 'black';
+    c.font = '16px "Courier New", Courier, monospace';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    var txt = 'GENERATION ' + banner.n;
+    c.fillText(txt, w / 2, 56);
+    c.restore();
   }
 
   function drawOver() {
+    c.fillStyle = 'rgba(255,255,255,0.72)';
+    c.fillRect(16, h / 2 - 48, w - 32, 88);
+    c.strokeStyle = 'black';
+    c.lineWidth = 2;
+    c.strokeRect(16, h / 2 - 48, w - 32, 88);
     c.fillStyle = 'black';
-    var txt = 'Game Over!';
-    c.font = '30px Arial';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.font = '22px "Courier New", Courier, monospace';
+    c.fillText('Game Over', w / 2, h / 2 - 22);
+    c.font = FONT;
+    c.fillText('Gen ' + generation + '   Through 5/5   Kills ' + kills, w / 2, h / 2 + 4);
+    var hint = (roomy && !sim) ? 'Waiting for a new wave' : 'FIRE to restart';
+    c.fillText(hint, w / 2, h / 2 + 22);
     c.textAlign = 'left';
-    c.fillText(txt, (w - c.measureText(txt).width) / 2, h / 2);
-    c.font = '10px Arial';
-    var hint = (roomy && !sim) ? 'Host restarts' : 'ENTER / FIRE to restart';
-    c.fillText(hint, (w - c.measureText(hint).width) / 2, h / 2 + 18);
   }
 
   function fit() {
@@ -197,7 +302,8 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
   }
 
   function spawnCannon() {
-    player = new Player(w / 4 / 2, h / 4 - 4);
+    var id = root.Net && root.Net.me && root.Net.me() && root.Net.me().id;
+    player = new Player(laneFor(id), h / 4 - 4);
   }
 
   function restart() {
@@ -213,6 +319,8 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
     Game.over = false;
     dt = 16;
     lastUpdate = Date.now();
+    pops = [];
+    banner = null;
     invaders = new Genetics();
     invaders.createPopulation();
     spawnCannon();
@@ -253,7 +361,9 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
       Game.kills = 0;
       if (player) { player.isShooting = false; player.bullet = {}; }
     }
-    generation = rec.gen | 0;
+    var nextGen = rec.gen | 0;
+    if (nextGen !== generation && nextGen > 1) banner = { n: nextGen, t: 0 };
+    generation = nextGen;
     lives = rec.lives | 0;
     over = !!rec.over || lives > 4;
     Game.over = over;
@@ -281,7 +391,18 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
   function honor(idx) {
     if (!sim || !invaders || !invaders.population) return;
     var inv = invaders.population[idx];
-    if (inv && inv.isAlive) inv.isAlive = false;
+    if (inv && inv.isAlive) {
+      addPop(inv);
+      inv.isAlive = false;
+    }
+  }
+
+  function noteHigh() {
+    if (!over) return;
+    if (generation > high) {
+      high = generation;
+      if (hooks.onHigh) hooks.onHigh(high);
+    }
   }
 
   function tick() {
@@ -302,16 +423,15 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
       if (invaders && invaders.population) {
         for (var d = 0; d < invaders.population.length; d++) invaders.population[d].draw();
       }
-      if (root.Net && root.Net.live()) {
-        root.Net.tick();
+      if (root.Net) {
+        if (root.Net.live()) root.Net.tick();
         root.Net.drawCannons(c);
       }
+      drawGround();
+      drawPops();
       drawHud();
       drawOver();
-      if (generation > high) {
-        high = generation;
-        if (hooks.onHigh) hooks.onHigh(high);
-      }
+      noteHigh();
       return;
     }
 
@@ -321,8 +441,8 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
       }
     }
     if (player) player.show();
-    if (root.Net && root.Net.live()) {
-      root.Net.tick();
+    if (root.Net) {
+      if (root.Net.live()) root.Net.tick();
       root.Net.drawCannons(c);
     }
 
@@ -336,6 +456,7 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
         if (generation % 7) invaders.evolve();
         else invaders.elitism();
         generation++;
+        banner = { n: generation, t: 0 };
       }
       if (lives > 4) {
         over = true;
@@ -343,11 +464,10 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
       }
     }
 
+    drawGround();
+    drawPops();
     drawHud();
-    if (generation > high) {
-      high = generation;
-      if (hooks.onHigh) hooks.onHigh(high);
-    }
+    drawBanner();
     if (hooks.afterFrame) hooks.afterFrame();
   }
 
@@ -416,6 +536,7 @@ var canvas, c, w, h, dt, player, lives, invaders, generation, lastUpdate;
     localHit: localHit,
     drawShape: drawShape,
     shapeHit: shapeHit,
+    laneFor: laneFor,
     get sim() { return sim; },
     set sim(v) { sim = !!v; },
     get roomy() { return roomy; },
