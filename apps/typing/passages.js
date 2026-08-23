@@ -56,6 +56,7 @@
       id: 'home-left',
       name: 'Home row, left',
       hint: 'Index on F. a s d f',
+      row: 'asdf',
       keys: 'asdf',
       words: ['as', 'ad', 'fa', 'da', 'sad', 'fad', 'add', 'dad', 'fads', 'adds', 'sass', 'asdf', 'faff', 'dads', 'sads', 'affa']
     },
@@ -63,6 +64,7 @@
       id: 'home-right',
       name: 'Home row, right',
       hint: 'Index on J. j k l ;',
+      row: 'jkl;',
       keys: 'jkl;',
       words: ['jk', 'kl', 'lj', 'jj', 'kk', 'll', 'jkl', 'lkj', 'kjk', 'l;', ';;', 'j;', 'k;', 'jll', 'kll', 'jjk']
     },
@@ -70,6 +72,7 @@
       id: 'home',
       name: 'Home row',
       hint: 'Both hands. asdfghjkl;',
+      row: 'asdfghjkl;',
       keys: 'asdfghjkl;',
       words: ['a', 'as', 'ad', 'all', 'ask', 'sad', 'lad', 'fall', 'hall', 'flag', 'glad', 'has', 'ash', 'lag', 'half', 'flask', 'dash', 'salad', 'flash', 'shall', 'glass', 'asks', 'lads', 'gash', 'had', 'jag', 'hags', 'flask', 'flags']
     },
@@ -77,6 +80,7 @@
       id: 'top',
       name: 'Top row',
       hint: 'q w e r t y u i o p',
+      row: 'qwertyuiop',
       keys: 'qwertyuiopasdfghjkl;',
       words: ['we', 'or', 'to', 'it', 'you', 'quit', 'type', 'wet', 'write', 'quite', 'power', 'yet', 'query', 'tower', 'rope', 'trip', 'witty', 'pretty', 'quiet', 'pour', 'your', 'our', 'two', 'pie', 'wire', 'the', 'was', 'are', 'this', 'that', 'with', 'they', 'word', 'just', 'from', 'have', 'were', 'what', 'when', 'there', 'would', 'about', 'which', 'other', 'after', 'first']
     },
@@ -84,6 +88,7 @@
       id: 'bottom',
       name: 'Bottom row',
       hint: 'z x c v b n m',
+      row: 'zxcvbnm',
       keys: 'zxcvbnmasdfghjkl;',
       words: ['cab', 'van', 'ban', 'man', 'can', 'back', 'hack', 'lamb', 'jazz', 'calm', 'bam', 'nab', 'max', 'mix', 'zinc', 'cave', 'band', 'hand', 'sand', 'land', 'and', 'scan', 'clan', 'bald', 'flan', 'exam', 'vans', 'cabs']
     },
@@ -91,6 +96,7 @@
       id: 'punct',
       name: 'Punctuation',
       hint: 'commas, quotes, braces',
+      row: '.,;:\'"!?-()[]{}',
       keys: 'abcdefghijklmnopqrstuvwxyz.,;:\'"!?-()[]{}',
       words: ["it's", "don't", "can't", 'hello,', 'well;', 'wait:', 'yes?', 'no!', '(yes)', '[ok]', '{a}', 'a-b', 'e.g.', '"hi"', "'a'", 'end.', 'what?', 'wow!', 'foo:', 'bar,', 'ok;']
     },
@@ -98,6 +104,7 @@
       id: 'numbers',
       name: 'Numbers',
       hint: '1 2 3 4 5 6 7 8 9 0',
+      row: '1234567890',
       keys: 'abcdefghijklmnopqrstuvwxyz0123456789',
       words: ['1', '2', '12', '10', '42', '100', '2026', 'a1', 'b2', '3d', 'x4', 'set2', 'run1', 'bit8', '64', '128', '256', '1024', '3.14', '0']
     },

@@ -167,6 +167,12 @@ if (!files['passages.js'].includes('LETTERS_LOWER') && !files['passages.js'].inc
     '  var s = Typing.score("hello", "hello", 30000);\n' +
     '  if (s.errors !== 0) throw new Error("perfect type should have 0 errors");\n' +
     '  if (!s.done) throw new Error("full match should be done");\n' +
+    '  var bad = Typing.score("hello", "xxxxx", 30000);\n' +
+    '  if (bad.correct !== 0) throw new Error("all-wrong should have 0 correct");\n' +
+    '  if (Math.abs(bad.wpm) > 0.001) throw new Error("WPM must use correct chars, got " + bad.wpm);\n' +
+    '  var mix = Typing.score("hello", "hxllo", 30000);\n' +
+    '  if (mix.correct !== 4) throw new Error("hxllo vs hello should be 4 correct");\n' +
+    '  if (Math.abs(mix.wpm - Typing.wpm(4, 30000)) > 0.001) throw new Error("net WPM should follow correct chars");\n' +
     '  var d = Typing.drill(Typing.LESSONS[0], 7);\n' +
     '  if (!d || !String(d).length) throw new Error("lesson drill is empty");\n' +
     '  return w;\n' +
