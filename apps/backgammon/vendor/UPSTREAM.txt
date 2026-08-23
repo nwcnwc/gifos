@@ -1,0 +1,25 @@
+vendor/model.js, vendor/rule.js and vendor/RuleBgCasual.js
+are quasoft's backgammonjs engine, wrapped as classic scripts (the
+GifOS runtime drops type=module). The Node crypto die roll is
+crypto.getRandomValues. Console noise from the search is silenced.
+Do not "improve" the rules — the table is the one that shipped with
+backgammonjs (RuleBgCasual, general / standard, no doubling cube).
+
+upstream: https://github.com/quasoft/backgammonjs
+commit:   f85f6ff0b0af9efcc5ef98a6d7bf7fc140090782
+date:     2025-06-09
+license:  MIT (COPYING-backgammonjs.txt)
+
+Pinned files wrapped:
+  lib/model.js              → vendor/model.js
+  lib/rules/rule.js         → vendor/rule.js
+  lib/rules/RuleBgCasual.js → vendor/RuleBgCasual.js
+
+NOT copied:
+  lib/client.js / lib/comm.js     — socket.io client; we have no game server
+  app/server/                     — their Node server
+  app/browser/                    — jQuery / Bootstrap / bundle UI; rewritten
+  lib/rules/RuleBgGulbara.js      — a different variant
+  lib/rules/RuleBgTapa.js         — a different variant
+
+The MIT notice travels INSIDE the GIF as COPYING-backgammonjs.txt as well as here.
