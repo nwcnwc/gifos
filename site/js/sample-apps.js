@@ -2281,6 +2281,9 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   <div class="card"><h2><span class="emoji">✨</span>Make your own apps</h2>
   <p>Press <b>＋ Add</b> in the top bar, copy the magic prompt into any AI (like Claude), tell it what you want, and paste back what it gives you. You just made an app. It's yours forever.</p></div>
 
+  <div class="card"><h2><span class="emoji">🔧</span>Change any app</h2>
+  <p>Every app is yours — free to keep, free to pass on, free to modify and improve. Hand the GIF to any AI and ask for a change. It unpacks what's inside, edits it, and packs it back. You don't need to know how to code.</p></div>
+
   <div class="card"><h2><span class="emoji"></span>Or just steal one</h2>
   <p>See an app you like in a friend's session or a call? Press <b>Steal</b> and choose where the copy goes — your <b>Stolen Apps</b> chest or a downloaded GIF — and how much comes with it: <b>No data</b> for a fresh, empty copy, or the data <b>as it arrived</b> or <b>as it is now</b> to carry the game in progress or the shared notes. Anyone in the session can, since it's already synced to your browser. It's not rude here, it's the whole point: every app is a file, so taking one just copies the GIF. Then remix it with your AI and make it yours.</p></div>
 
@@ -2319,6 +2322,8 @@ Home Screen, so this icon opens the built-in store page instead of running here.
     '    much data rides along: none for a FRESH, EMPTY app, or the data as',
     '    it arrived / as it is now to carry the live state. Anyone in the',
     '    session can, since it is synced to your browser.',
+    '  * Hand any app GIF to an AI and ask for a change. It unpacks the GIF,',
+    '    edits it, and packs it back. You do not need to know how to code.',
     '  * Any app can go multiplayer: your browser becomes the server and',
     '    friends join from a share link. Traffic goes peer-to-peer when the',
     '    network allows, and falls back to a relay when it does not.',
