@@ -131,8 +131,10 @@
     this.setAttribute('aria-pressed', zoomed ? 'true' : 'false');
     this.textContent = zoomed ? 'Fit' : 'Bigger';
     if (zoomed && openZ) {
-      var hit = $('table').querySelector('.hit');
-      if (hit && hit.scrollIntoView) hit.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      setTimeout(function () {
+        var hit = $('table').querySelector('.hit');
+        if (hit && hit.scrollIntoView) hit.scrollIntoView({ block: 'center', inline: 'center' });
+      }, 40);
     }
   };
 
@@ -152,18 +154,16 @@
       esc(P.LABELS[el.category]) + '</span>';
     var grp = el.group ? String(el.group) : 'f-block';
     $('sheetFacts').innerHTML =
-      fact('Number', String(el.z)) +
-      fact('Mass', String(el.mass) + ' u') +
       fact('Category', cat) +
       fact('Block', el.block + '-block · period ' + el.period + ' · group ' + grp) +
       fact('Electrons', esc(el.config), true) +
-      fact('Shells', esc(el.shells.split('-').join(' · '))) +
       fact('Oxidation', el.ox ? esc(el.ox) : '—') +
       fact('Found', P.yearText(el.year)) +
       fact('Electroneg.', el.eneg ? String(el.eneg) : '—') +
       fact('Density', P.densText(el.density)) +
       fact('Melts', P.tempText(el.melt)) +
-      fact('Boils', P.tempText(el.boil));
+      fact('Boils', P.tempText(el.boil)) +
+      fact('Shells', esc(el.shells.split('-').join(' · ')));
     $('prevEl').disabled = z <= 1;
     $('nextEl').disabled = z >= 118;
     paintTable();
@@ -511,6 +511,7 @@
   }
 
   paintTable();
+  openSheet(6);
   if (saveDb) {
     saveDb.get('stats').then(function (s) {
       if (!s) return;

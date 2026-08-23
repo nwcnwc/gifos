@@ -184,7 +184,12 @@ for (const [n, s] of Object.entries(files)) {
 
 const shot = screenshotPng();
 if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (process.env.PT_SHOT === '1' || !existsSync(shotPath)) {
+  writeFileSync(shotPath, shot);
+} else {
+  console.log('kept apps/periodic-table/screenshot.png (PT_SHOT=1 to regenerate the procedural cover)');
+}
 
 const bytes = await gif.encode(files, { preview: periodicTableIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'periodic-table', 'periodic-table.gif');
@@ -192,4 +197,3 @@ mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
 console.log('wrote site/apps/periodic-table/periodic-table.gif —', (bytes.length / 1024).toFixed(0), 'KB, from',
             Object.keys(files).length, 'files (118 elements vendored, no network)');
-console.log('wrote apps/periodic-table/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB');
