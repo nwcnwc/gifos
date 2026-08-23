@@ -2,45 +2,46 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
 <title>One Stroke</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
   <div class="brand"><span class="logo" aria-hidden="true"></span> One Stroke</div>
-  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+  <div class="hdr-actions">
+    <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Your turn</span></div>
+    <button class="ghost tiny" id="soloFriends" type="button">With friends</button>
+    <button class="ghost tiny" id="fLeave" type="button" hidden>← Solo</button>
+  </div>
 </header>
 
 <main>
-  <section class="card setup" id="setup">
-    <h2>One stroke each</h2>
-    <p class="lede">A blank page. You draw one line, then the turn passes. After a round, you vote on a title. The picture plays back as a loop.</p>
-    <button class="primary" id="soloBtn" type="button">Start a doodle</button>
-    <button class="ghost wide" id="friendBtn" type="button">Play with friends</button>
-    <p class="lvlnote">On your own, one stroke at a time — the doodle lives in this file. With friends, press Invite in the GifOS menu and send the link. The people who open it sit around the same page.</p>
-  </section>
-
-  <section class="studio" id="solo" hidden>
-    <div class="vhead">
-      <h2 id="soloTitle">Your page</h2>
-      <button class="ghost" id="soloLeave" type="button">← Leave</button>
-    </div>
-    <p class="statusline" id="soloStatus">Your turn. One stroke.</p>
-    <div class="paper" id="soloPaper">
+  <section class="studio" id="solo">
+    <div class="paper mine" id="soloPaper">
+      <p class="statusline turn" id="soloStatus">Your turn. One line.</p>
       <canvas id="soloPad" width="720" height="720" aria-label="Your page"></canvas>
+      <div class="hint" id="soloHint">
+        <svg class="ghost-stroke" viewBox="0 0 100 56" aria-hidden="true">
+          <path d="M8 38 C 26 8, 48 50, 70 18 S 94 16, 92 28" pathLength="1"></path>
+        </svg>
+        <div class="hint-copy">
+          <b>Draw one line</b>
+          <span>Lift, then send it. That’s the whole turn.</span>
+        </div>
+      </div>
     </div>
-    <div class="inkbar" id="soloInk"></div>
-    <div class="widths" id="soloWidths"></div>
-    <div class="controls">
-      <button class="ghost" id="soloUndo" type="button">Undo</button>
-      <button class="primary slim" id="soloSend" type="button">Send stroke</button>
+    <div class="tools">
+      <div class="inkbar" id="soloInk"></div>
+      <div class="widths" id="soloWidths"></div>
     </div>
-    <div class="controls">
-      <button class="ghost" id="soloPlay" type="button">Play loop</button>
-      <button class="ghost" id="soloNew" type="button">New page</button>
+    <div class="controls empty" id="soloControls">
+      <button class="ghost pendish" id="soloUndo" type="button">Undo</button>
+      <button class="primary slim pendish" id="soloSend" type="button">That’s my stroke</button>
+      <button class="ghost loopish" id="soloPlay" type="button">Play loop</button>
+      <button class="ghost loopish" id="soloNew" type="button">New page</button>
     </div>
-    <form class="titlebox" id="soloTitleForm" autocomplete="off">
+    <form class="titlebox" id="soloTitleForm" autocomplete="off" hidden>
       <label>Title
         <input id="soloTitleIn" maxlength="40" placeholder="Untitled">
       </label>
@@ -48,36 +49,45 @@
   </section>
 
   <section class="studio" id="friend" hidden>
-    <div class="vhead">
-      <h2>The page</h2>
-      <button class="ghost" id="fLeave" type="button">← Leave</button>
-    </div>
     <div class="seats" id="fSeats"></div>
     <p class="fqueue" id="fQueue"></p>
-    <p class="statusline" id="fStatus">Setting up the page…</p>
     <div class="paper" id="fPaper">
+      <p class="statusline" id="fStatus">Setting up the page…</p>
       <canvas id="fPad" width="720" height="720" aria-label="Shared page"></canvas>
+      <div class="hint" id="fHint" hidden>
+        <svg class="ghost-stroke" viewBox="0 0 100 56" aria-hidden="true">
+          <path d="M8 38 C 26 8, 48 50, 70 18 S 94 16, 92 28" pathLength="1"></path>
+        </svg>
+        <div class="hint-copy">
+          <b>Your turn. One line.</b>
+          <span>Lift, then send it. Nobody else may draw until you do.</span>
+        </div>
+      </div>
+      <div class="wait-banner" id="fWait" hidden>
+        <b id="fWaitName">A friend</b>
+        <span id="fWaitMsg">is drawing the next line</span>
+      </div>
+      <div class="vote" id="fVote" hidden>
+        <p class="vote-lead">Name this picture</p>
+        <div class="vote-list" id="fVoteList"></div>
+        <form class="titlebox" id="fVoteForm" autocomplete="off">
+          <label>Or write one
+            <input id="fVoteIn" maxlength="40" placeholder="A custom title">
+          </label>
+          <button class="primary slim" id="fVoteGo" type="submit">Vote</button>
+        </form>
+      </div>
     </div>
-    <div class="inkbar" id="fInk"></div>
-    <div class="widths" id="fWidths"></div>
-    <div class="controls">
-      <button class="ghost" id="fUndo" type="button">Undo</button>
-      <button class="primary slim" id="fSend" type="button">Send stroke</button>
+    <div class="tools">
+      <div class="inkbar" id="fInk"></div>
+      <div class="widths" id="fWidths"></div>
     </div>
-    <div class="controls">
-      <button class="ghost" id="fPlay" type="button">Play loop</button>
-      <button class="ghost" id="fAgain" type="button" hidden>Another round</button>
-      <button class="ghost" id="fNew" type="button" hidden>New page</button>
-    </div>
-    <div class="vote" id="fVote" hidden>
-      <p class="vote-lead">Vote on a title</p>
-      <div class="vote-list" id="fVoteList"></div>
-      <form class="titlebox" id="fVoteForm" autocomplete="off">
-        <label>Or write one
-          <input id="fVoteIn" maxlength="40" placeholder="A custom title">
-        </label>
-        <button class="primary slim" id="fVoteGo" type="submit">Vote</button>
-      </form>
+    <div class="controls empty" id="fControls">
+      <button class="ghost pendish" id="fUndo" type="button">Undo</button>
+      <button class="primary slim pendish" id="fSend" type="button">That’s my stroke</button>
+      <button class="ghost loopish" id="fPlay" type="button">Play loop</button>
+      <button class="ghost loopish" id="fAgain" type="button" hidden>Another round</button>
+      <button class="ghost loopish" id="fNew" type="button" hidden>New page</button>
     </div>
   </section>
 </main>

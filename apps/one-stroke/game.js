@@ -8,7 +8,7 @@
   var MAX_SEATS = 8;
   var MAX_TITLE = 40;
   var COLORS = ['#f4efe6', '#e85d4c', '#f4c95d', '#6dce7a', '#6eb5ff', '#c9a0ff', '#ff8ad4'];
-  var WIDTHS = [0.008, 0.016, 0.028];
+  var WIDTHS = [0.012, 0.022, 0.038];
   var SUGGESTIONS = [
     'A secret',
     'Two cats',
@@ -263,6 +263,14 @@
     });
   }
 
+  function pathLen(pts) {
+    var n = 0, i;
+    for (i = 1; i < (pts || []).length; i++) {
+      n += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    }
+    return n;
+  }
+
   function compactPts(pts) {
     var out = [], i, p, x, y, last, dx, dy;
     for (i = 0; i < (pts || []).length && out.length < MAX_PTS; i++) {
@@ -274,7 +282,7 @@
       if (last) {
         dx = x - last.x;
         dy = y - last.y;
-        if (dx * dx + dy * dy < 0.000036 && i !== pts.length - 1) continue;
+        if (dx * dx + dy * dy < 0.000018 && i !== pts.length - 1) continue;
       }
       out.push({ x: x, y: y });
     }
@@ -299,6 +307,7 @@
     skipAbsent: skipAbsent,
     playback: playback,
     compactPts: compactPts,
+    pathLen: pathLen,
     winningTitle: winningTitle
   };
 })(typeof window !== 'undefined' ? window : this);

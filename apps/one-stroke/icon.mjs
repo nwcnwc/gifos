@@ -94,16 +94,31 @@ function stamp(rgba, pts, until, rad, col, aaScale) {
   }
 }
 
+function along(pts, until) {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  const want = total * Math.max(0, Math.min(1, until));
+  let walked = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const ax = pts[i - 1].x, ay = pts[i - 1].y, bx = pts[i].x, by = pts[i].y;
+    const seg = Math.hypot(bx - ax, by - ay) || 1e-6;
+    if (walked + seg >= want) {
+      const u = (want - walked) / seg;
+      return { x: ax + (bx - ax) * u, y: ay + (by - ay) * u };
+    }
+    walked += seg;
+  }
+  return pts[pts.length - 1];
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const t = f / (FRAMES - 1);
+  // Draw over the first 9 frames, hold the last 3 — a line drawing itself.
+  const t = f <= 8 ? f / 8 : 1;
   const m = 8, rad = 18;
-  const coral = sampleBez(
-    { x: 22, y: 88 }, { x: 40, y: 40 }, { x: 78, y: 96 }, { x: 108, y: 58 }
-  , 48);
   const gold = sampleBez(
-    { x: 20, y: 70 }, { x: 48, y: 18 }, { x: 86, y: 110 }, { x: 112, y: 42 }
-  , 64);
+    { x: 18, y: 86 }, { x: 36, y: 28 }, { x: 86, y: 104 }, { x: 112, y: 40 }
+  , 72);
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
@@ -115,8 +130,11 @@ function frameIndices(pal, f) {
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
   }
-  stamp(rgba, coral, 1, 2.6, CORAL, SS);
-  stamp(rgba, gold, Math.min(1, t * 1.05), 3.2, mix(GOLD_H, GOLD, 0.45), SS);
+  stamp(rgba, gold, t, 3.4, mix(GOLD_H, GOLD, 0.35), SS);
+  if (t > 0.02 && t < 0.995) {
+    const nib = along(gold, t);
+    stampAt(rgba, nib.x * SS, nib.y * SS, 5.2 * SS, GOLD_H);
+  }
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
     let r = 0, g = 0, b = 0, a = 0, nss = SS * SS;
@@ -273,36 +291,34 @@ export function screenshotPng() {
   }
 
   // header
-  fill(0, 0, W, 64, 18, 16, 13);
-  disc(put, 36, 32, 11, GOLD, CORAL);
-  drawText(put, 56, 18, 'ONE STROKE', 4, 244, 239, 230);
-  roundRect(put, 980, 16, 1172, 50, 16, [37, 34, 28]);
-  disc(put, 1000, 33, 5, GOLD, GOLD);
-  drawText(put, 1014, 22, "SAM'S TURN", 2, 244, 201, 93);
+  fill(0, 0, W, 56, 18, 16, 13);
+  disc(put, 36, 28, 11, GOLD, CORAL);
+  drawText(put, 56, 14, 'ONE STROKE', 4, 244, 239, 230);
+  roundRect(put, 968, 12, 1176, 46, 16, [48, 40, 22]);
+  disc(put, 990, 29, 5, GOLD, GOLD);
+  drawText(put, 1004, 18, "SAM'S TURN", 2, 244, 201, 93);
 
   // seats
   const seats = [
-    { x: 40, label: 'YOU', me: true, turn: false },
-    { x: 250, label: 'MAYA', me: false, turn: false },
-    { x: 460, label: 'SAM', me: false, turn: true },
-    { x: 670, label: 'RIO', me: false, turn: false },
+    { x: 36, label: 'YOU', me: true, turn: false },
+    { x: 236, label: 'MAYA', me: false, turn: false },
+    { x: 436, label: 'SAM', me: false, turn: true },
+    { x: 636, label: 'RIO', me: false, turn: false },
   ];
   for (const s of seats) {
     const col = s.turn ? [48, 40, 22] : [37, 34, 28];
-    roundRect(put, s.x, 80, s.x + 190, 128, 12, col);
+    roundRect(put, s.x, 68, s.x + 184, 114, 12, col);
     if (s.turn) {
-      roundRect(put, s.x, 80, s.x + 190, 84, 2, GOLD);
-      roundRect(put, s.x, 124, s.x + 190, 128, 2, GOLD);
+      roundRect(put, s.x, 68, s.x + 184, 72, 2, GOLD);
+      roundRect(put, s.x, 110, s.x + 184, 114, 2, GOLD);
     }
     const ink = s.turn ? GOLD : CREAM;
-    drawText(put, s.x + 28, 96, s.label, 3, ink[0], ink[1], ink[2]);
+    drawText(put, s.x + 28, 82, s.label, 3, ink[0], ink[1], ink[2]);
   }
 
-  drawText(put, 360, 146, "WAITING FOR SAM", 3, 168, 159, 144);
-
-  // paper
-  const px0 = 70, py0 = 186, px1 = 790, py1 = 620;
-  roundRect(put, px0, py0, px1, py1, 18, PAPER);
+  // paper — the product. Mid-round doodle, whose-turn on the page.
+  const px0 = 36, py0 = 128, px1 = 836, py1 = 628;
+  roundRect(put, px0, py0, px1, py1, 22, PAPER);
   // vignette
   for (let y = py0; y < py1; y++) for (let x = px0; x < px1; x++) {
     const nx = (x - px0) / (px1 - px0), ny = (y - py0) / (py1 - py0);
@@ -326,48 +342,51 @@ export function screenshotPng() {
 
   // 1. gold moon
   stampPx(put, paperBez(
-    { x: 0.62, y: 0.18 }, { x: 0.78, y: 0.08 }, { x: 0.90, y: 0.28 }, { x: 0.70, y: 0.38 }
-  , 40), 1, 5.5, GOLD);
+    { x: 0.62, y: 0.16 }, { x: 0.78, y: 0.06 }, { x: 0.92, y: 0.26 }, { x: 0.70, y: 0.36 }
+  , 40), 1, 6.2, GOLD);
   // 2. cream horizon
   stampPx(put, paperBez(
-    { x: 0.04, y: 0.62 }, { x: 0.28, y: 0.52 }, { x: 0.62, y: 0.70 }, { x: 0.96, y: 0.58 }
-  , 50), 1, 4.2, CREAM);
-  // 3. mint tree
+    { x: 0.04, y: 0.64 }, { x: 0.28, y: 0.52 }, { x: 0.62, y: 0.72 }, { x: 0.96, y: 0.58 }
+  , 50), 1, 5.0, CREAM);
+  // 3. mint tree (one stroke: trunk and a branch)
   stampPx(put, paperBez(
-    { x: 0.22, y: 0.78 }, { x: 0.18, y: 0.48 }, { x: 0.30, y: 0.28 }, { x: 0.24, y: 0.16 }
-  , 36), 1, 6.5, MINT);
-  stampPx(put, paperBez(
-    { x: 0.24, y: 0.36 }, { x: 0.12, y: 0.32 }, { x: 0.10, y: 0.22 }, { x: 0.18, y: 0.20 }
-  , 18), 1, 5.2, MINT);
+    { x: 0.22, y: 0.80 }, { x: 0.16, y: 0.42 }, { x: 0.32, y: 0.22 }, { x: 0.18, y: 0.14 }
+  , 40), 1, 7.2, MINT);
   // 4. coral bird
   stampPx(put, paperBez(
-    { x: 0.48, y: 0.28 }, { x: 0.54, y: 0.18 }, { x: 0.58, y: 0.22 }, { x: 0.66, y: 0.16 }
-  , 28), 1, 4.0, CORAL);
+    { x: 0.46, y: 0.30 }, { x: 0.54, y: 0.16 }, { x: 0.60, y: 0.22 }, { x: 0.70, y: 0.14 }
+  , 28), 1, 4.6, CORAL);
+  // 5. sky path — mid-round, not a blank page
+  stampPx(put, paperBez(
+    { x: 0.08, y: 0.28 }, { x: 0.22, y: 0.12 }, { x: 0.40, y: 0.20 }, { x: 0.52, y: 0.08 }
+  , 32), 1, 4.2, SKY);
+
+  // whose-turn sits ON the paper
+  roundRect(put, 250, 150, 622, 228, 16, [22, 18, 14]);
+  drawText(put, 278, 176, "WAITING FOR SAM", 3, 244, 201, 93);
 
   // inks
   const inks = [CREAM, CORAL, GOLD, MINT, SKY, LILAC, [255, 138, 212]];
   inks.forEach((c, i) => {
-    disc(put, 110 + i * 44, 660, 14, c, mix(c, [0, 0, 0], 0.2).map(Math.round));
+    disc(put, 70 + i * 42, 668, 13, c, mix(c, [0, 0, 0], 0.2).map(Math.round));
   });
-  // gold selected ring
   for (let a = 0; a < 360; a += 4) {
     const rad = a * Math.PI / 180;
-    put(110 + 2 * 44 + Math.cos(rad) * 17, 660 + Math.sin(rad) * 17, 255, 232, 160);
+    put(70 + 2 * 42 + Math.cos(rad) * 16, 668 + Math.sin(rad) * 16, 255, 232, 160);
   }
 
-  // undo / send
-  roundRect(put, 460, 640, 600, 692, 10, [37, 34, 28]);
-  drawText(put, 490, 656, 'UNDO', 2, 168, 159, 144);
-  roundRect(put, 616, 640, 860, 692, 10, [80, 68, 32]);
-  drawText(put, 640, 656, 'SEND STROKE', 2, 120, 110, 90);
+  roundRect(put, 430, 646, 560, 696, 10, [37, 34, 28]);
+  drawText(put, 458, 662, 'UNDO', 2, 168, 159, 144);
+  roundRect(put, 576, 646, 780, 696, 10, [80, 68, 32]);
+  drawText(put, 618, 662, 'SEND', 2, 120, 110, 90);
 
   // right copy
-  drawText(put, 830, 220, 'ONE', 8, 244, 201, 93);
-  drawText(put, 830, 290, 'STROKE', 8, 244, 239, 230);
-  drawText(put, 830, 400, 'EACH', 4, 168, 159, 144);
-  drawText(put, 830, 460, 'THE INVITE', 3, 201, 160, 255);
-  drawText(put, 830, 500, 'IS THE STUDIO', 3, 201, 160, 255);
-  drawText(put, 830, 560, 'NO ACCOUNT', 3, 109, 206, 122);
+  drawText(put, 860, 200, 'ONE', 8, 244, 201, 93);
+  drawText(put, 860, 270, 'STROKE', 8, 244, 239, 230);
+  drawText(put, 860, 380, 'EACH', 4, 168, 159, 144);
+  drawText(put, 860, 460, 'THE INVITE', 3, 201, 160, 255);
+  drawText(put, 860, 500, 'IS THE STUDIO', 3, 201, 160, 255);
+  drawText(put, 860, 570, 'NO ACCOUNT', 3, 109, 206, 122);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
