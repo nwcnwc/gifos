@@ -235,41 +235,57 @@ Open new tab, mount filesystem in iframe
 
 ## Layer 3 — The Runtime Library (Desktop ↔ App)
 
-When an app runs in its tab, the **desktop (parent/opener window)** exposes a **runtime library** to it. An app that knows about the library can request capabilities; an app that ignores it just runs as a static site. The headline capability is a **database**, and it's what makes an app a server or a client.
+When an app runs in its tab, the **desktop (parent/opener window)** exposes a **runtime library** to it. An app that knows about the library can request capabilities; an app that ignores it just runs as a static site. The headline capability is a **database**, and it's what makes an app an owner or a guest.
 
-### Server vs. client — decided by where the DB lives
+### Owner vs. guest — decided by how the app was mounted
 
 ```
                      ┌─────────────────────────────┐
-   App asks runtime  │  Is there a remote DB in     │
-   for the DB   ───▶ │  my launch URL?              │
+   App asks runtime  │  Was I opened from my own    │
+   for the DB   ───▶ │  icon, or from an invite     │
+                     │  link (s=/k= or j= in URL)?  │
                      └───────────┬─────────────────┘
-                        no │             │ yes
-                           ▼             ▼
-                  ┌─────────────┐   ┌──────────────────────┐
-                  │  SERVER      │   │  CLIENT               │
-                  │  host the    │   │  connect to the       │
-                  │  central DB  │   │  remote DB via relay  │
-                  │  locally     │   │  (server's browser)   │
-                  └─────────────┘   └──────────────────────┘
+                       own icon │       │ invite link
+                                ▼       ▼
+                  ┌───────────────┐   ┌───────────────────────┐
+                  │  OWNER         │   │  GUEST                 │
+                  │  authoritative │   │  owner-verified local  │
+                  │  local store;  │   │  mirror; writes become │
+                  │  signs frames  │   │  proposals to owner    │
+                  └───────────────┘   └───────────────────────┘
 ```
 
-- **Server mode:** this browser holds the authoritative database. Reads/writes are local; the runtime broadcasts changes to connected clients through the relay.
-- **Client mode:** the app's DB calls are forwarded over the relay to the server browser, which owns the data.
+- **Owner mode:** this browser holds the authoritative database, persisted with the desktop icon. Reads/writes are local; the runtime floods owner-**signed** snapshots and deltas to guests over the room's peer-to-peer mesh.
+- **Guest mode:** the app reads from a local, owner-verified **mirror**; writes apply optimistically and ride to the owner as `act` **proposals**, whose next signed frame is the canonical truth.
 
-The app developer writes against **one DB API**. Whether it resolves locally (server) or remotely (client) is decided by the launch URL, not by the app.
+The app developer writes against **one DB API**. Whether it resolves as the authoritative store (owner) or a verified mirror (guest) is decided by the launch URL, not by the app.
 
 ### Trust boundary
 
 - The app runs in an **iframe inside its own tab**; the desktop/runtime is in the **parent/opener window**. The app never touches the raw database or the relay socket directly — it calls the runtime library, which mediates every operation.
 - The runtime enforces `manifest.json` **capabilities**: an app without `db` gets no database; an app can only reach `network` hosts it declared.
-- **Join URLs are capability tokens.** A client's URL grants access to a specific server session and nothing else (see Layer 4). The server's runtime validates joins before wiring a client to the DB.
+- **Join URLs are capability tokens.** A guest's URL grants access to one specific room and nothing else (see Layer 4): the link secret derives the join token and the end-to-end key, and without it neither the door nor the ciphertext opens.
 
 ## Layer 4 — The Relay (`gifos.app`) and Join URLs
 
-`gifos.app` is a **stateless relay**. It passes messages — including GIF bytes — between browsers and **stores nothing**: even join tokens and video-room passwords live in the occupants' socket attachments (connection state that dies with the connection), never in storage. Sockets are accepted through Cloudflare's WebSocket Hibernation API, so idle sessions cost nothing while nobody is talking. It is the only always-on infrastructure, and it holds no user data, no app data, and no state.
+`gifos.app` is a **stateless relay** — since the one-runtime flag day
+([one-runtime.md](./one-runtime.md)) a **greeter + door and nothing else**. It
+introduces peers (the sealed knock → greeter-list handshake of
+[healing-laws.md](./healing-laws.md)), carries targeted WebRTC signaling
+envelopes, and verifies Ed25519-**signed** door verbs (set-password / ban /
+unban / votekick) exactly as any peer would — it stamps nothing. It **stores
+nothing**: even join tokens and room passwords live in the occupants' socket
+attachments (connection state that dies with the connection), never in
+storage. Sockets are accepted through Cloudflare's WebSocket Hibernation API,
+so idle rooms cost nothing while nobody is talking. It is the only always-on
+infrastructure, and it holds no user data, no app data, and no state — app
+state, app GIF bytes, and media all travel **peer-to-peer over the room's own
+mesh**, not through the relay.
 
-Two session shapes share the same Durable Object: **host/client app sessions** (the host's browser is the server) and **host-less `mesh` rooms** (meetings — every participant equal, the room lives at its URL forever, whoever shows up talks to whoever is there). Details in [cors-and-networking.md](cors-and-networking.md).
+Every room — a shared app session or a meeting — is the **same shape** in the
+relay's eyes: a mesh room. What differs is ownership: an app session has an
+owner whose Ed25519 signature makes state canonical; a plain meeting has none.
+Details in [cors-and-networking.md](cors-and-networking.md).
 
 ### Apps inside meetings
 
@@ -280,24 +296,29 @@ simply that same room with nobody else in it yet — which is why inviting someo
 into a running app needs no migration, only a link. It composes the two session
 shapes above rather than merging them:
 
-- **Run app** in a meeting boots the chosen app through the normal app runtime,
-  hosts it (`forever`, resilient), and advertises its join info — `{ s, k, relay,
-  name }` — inside the host's own **status heartbeat**. Every participant's
-  meeting reconciles against that gossip and mounts the app as a runtime
-  **client**, so all faces share one live app session (its own sid, separate
-  from the media mesh). Late joiners pick it up on the next heartbeat; when the
+- **Run app** in a meeting boots the chosen app through the normal app runtime
+  and hosts it (`forever`, resilient, and `noRelay` — no separate relay session
+  is opened). The app's state rides the meeting's **own mesh**: the host
+  attaches the runtime to the Stage **data lane** (`attachStageBus`), so
+  owner-signed state frames fan down the Stage path as small DataChannel
+  frames. The ad — `{ s, k, relay, name, mesh, pk }` — travels inside the
+  host's own **status heartbeat**; every participant's meeting reconciles
+  against that gossip and mounts the app locally from the data stream
+  (`bootClientBus`), guest actions riding back up the same lane as `act`
+  proposals. The ad carries the owner public key so late joiners pre-pin the
+  state verifier. Late joiners pick it up on the next heartbeat; when the
   sharer stops or leaves, the pane tears down everywhere.
 - **Meeting** in an app tab hands the same app off to `run.html#app=<fileId>`
   — same browser, same saved state — which auto-hosts it and lights the media
   up. Both doors land on the identical layout: the app on the stage, participant
   tiles as a filmstrip, meeting controls in the bar.
 
-The media mesh and the app's data channels are independent peer connections
-within the one meeting (the relay is only the stadium's front door —
-docs/healing-laws.md R2); the app never touches the camera (that stays with the
-trusted meeting page), so the sandbox guarantees are unchanged. For the meeting
-system as a whole see [meeting.md](./meeting.md); the plan to carry app state
-fully over the mesh (retiring the relay app-broadcast) is [app-mesh.md](./app-mesh.md).
+Media and app state are separate **lanes of the one mesh** (the relay is only
+the stadium's front door — docs/healing-laws.md R2); the app never touches the
+camera (that stays with the trusted meeting page), so the sandbox guarantees
+are unchanged. For the meeting system as a whole see [meeting.md](./meeting.md);
+how app state came to ride the mesh (retiring the relay app-broadcast, shipped
+2026-08-01) is [app-mesh.md](./app-mesh.md).
 
 **Who runs the stage** follows the room principle — anarchy is unavoidable in
 open rooms (so DOM hackers gain nothing over the honest buttons), complete
@@ -311,9 +332,9 @@ control in admin rooms:
   live) — may share, and stops are honored only with the admin's Ed25519
   signature (docs/meet-security.md §SIG — no relay stamps exist). Everyone, everywhere, always has a personal **Hide** (opt-out on
   their own screen only).
-- **Led records**: an app's manifest may declare `ledRecords` — record ids
-  (like the Bible Browser's shared `nav` cursor) that only the sharer may
-  write while their **Leading** toggle is on. The fence lives in the sharer's
+- **Led records**: an app's manifest may declare `lead` — a list of
+  `{ collection, id }` record addresses (like the Bible Browser's shared `nav`
+  cursor) that only the sharer may write while their **Leading** toggle is on. The fence lives in the sharer's
   own host runtime — the one place no remote client, DOM-hacked or otherwise,
   can reach — and defaults communal in open rooms, leading in admin rooms.
   This is the embryo of broadcast-mode replication (single writer, unlimited
@@ -405,16 +426,20 @@ Flow when a friend opens the link:
 Friend opens join URL
    │
    ▼
-Relay delivers the app GIF ──▶ client unpacks it into a tab
+Knocks at the relay ──▶ seated into the room MESH (peer-to-peer)
    │
    ▼
-Client runtime sees s=/k= in the URL ──▶ enters CLIENT mode
+The app GIF arrives as an owner-SIGNED frame from whichever
+peer already holds it ──▶ unpacked into the tab
    │
    ▼
-Relay bridges client DB calls ⇄ server browser's central DB
+Runtime sees s=/k= in the URL ──▶ mounts as a GUEST: owner-signed
+snapshots/deltas keep a local mirror current; writes apply
+optimistically and ride up to the owner as `act` proposals
 ```
 
-The app the friend runs is identical to the server's; only the DB target differs.
+The app the friend runs is identical to the owner's; only the DB backing
+differs (authoritative store vs owner-verified mirror).
 
 ## State, Resume, and Failover
 
@@ -426,40 +451,34 @@ On the server, an app's state is **always associated with its GIF icon on the de
 
 A **snapshot** is a full export of the running app — filesystem plus current state — as one self-contained GIF. **Clients can snapshot at any time**, capturing the shared state as they last saw it.
 
-### Server lifecycle on close
+### Owner lifecycle on close
 
-What happens when the server drops (close/crash/battery) is set by the
+What happens when the owner drops (close/crash/battery) is set by the
 **resilience** dial chosen at Invite time (see *Multiplayer & data* under
 Security), not the lifetime:
 
-| Resilience | On host drop |
-|------------|--------------|
-| **off** (default) | No guest mirrored the state, so nobody can resume it — the session ends for everyone. Reopening the icon within a still-valid window resumes the same link (or, for `close`, mints a fresh one). |
-| **on** | Guests mirror the state; if the server stays gone a still-connected guest self-heals the session (below). Works for any lifetime, so a resilient `1h` link survives a dead battery yet still stops admitting strangers at the deadline. |
+| Resilience | On owner drop |
+|------------|---------------|
+| **off** (default — an *owned* link) | Ownership never transfers: the link's verifier is the maker's trust anchor. Guests keep reading their retained mirror, but writes **freeze politely** ("the owner is away"); the owner reopening the icon resumes the same session (or, for `close`, mints a fresh link). |
+| **on** (an *anyone-owns* link) | When the owner's seat is confirmed gone, the room heals itself by **deterministic succession** (below). Works for any lifetime, so a resilient `1h` link survives a dead battery yet still stops admitting strangers at the deadline. |
 
 Lifetime is independent: expiry only stops *new* joins; it never kicks the
 people already connected.
 
-### Failover from a snapshot (resilient links only)
+### Succession (resilient links only)
 
-Only a link with **resilience on** mirrors state to guests, so only it can
-survive the server's browser **dying** (crash, closed, offline). A
-resilience-off link has exactly one host by design. For a resilient link:
+Only an **anyone-owns** (resilience-on) link may transfer ownership. When the
+owner's seat is confirmed gone, every seat computes the **same successor** —
+the lowest-seated participant holding a full mirror — which mints a fresh
+owner key and announces it, signed with its mesh identity. Deterministic, no
+race, no server, no clicks — and the **same join URL keeps working**
+([one-runtime.md](./one-runtime.md) → "Ownership and succession"). Recovery
+fidelity is the successor's live-synced mirror.
 
-```
-server browser gone
-   │
-   ▼
-any user holding a snapshot can "Become Server"
-   │
-   ▼
-that snapshot's state is loaded as a new central DB
-   │
-   ▼
-a new join URL is issued; remaining clients reconnect
-```
-
-Recovery fidelity equals the **freshest available snapshot** — clients are encouraged to snapshot periodically for resilience.
+An **owned** (resilience-off) link never fails over — that is the point of
+owning it. Separately, anyone holding a snapshot GIF can always open it as
+their **own new session**: a fork with a new link, not a takeover of the old
+one.
 
 ## Computer Images — GifOS Boots Inside Itself
 
@@ -551,32 +570,34 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
 - The runtime enforces per-app **capabilities** from `manifest.json` (db,
   multiplayer, network allowlist). System-app routing (`manifest.system`) is a
   hardcoded whitelist — a GIF cannot name an arbitrary page.
-- **Join tokens** scope a client to a single server session; the relay
-  validates every join against the host's token. Both sides present a SHA-256
-  **derivation** of the link secret, never the secret — and the same secret
-  derives the session's end-to-end key, so every content frame the relay (or a
-  forwarding friend) carries is AES-GCM ciphertext.
-- **Owned vs anyone-owns — the host gate.** A session id is one of two shapes,
-  and the shape *is* the ownership contract. The relay reads it with a single
+- **Join tokens** scope a guest to a single room; the relay equality-checks a
+  SHA-256 **derivation** of the link secret, never the secret — and the same
+  secret derives the room's end-to-end key, so every envelope the relay
+  carries is AES-GCM ciphertext.
+- **Owned vs anyone-owns — the ownership contract.** A session id is one of two
+  shapes, and the shape *is* the contract. The relay reads it with a single
   helper, `verifierOf(sid)` — the hex tail after the **last dot**, or empty if
   there is no dot — shared byte-for-byte by apps and meetings, so "meet" and
   "join" derive authority the exact same way (there is no `?av=` query param;
   the verifier only ever travels *inside* the id).
   - **Owned** (the default for an app Invite): `sid = "<room>.<verifier>"`. The
-    host mints a random **secret**, never shown to a human and never in the link;
-    the link carries only `verifier = SHA-256(secret)`'s prefix. To hold the host
-    slot the relay demands a proof (`adm`) whose SHA-256 starts with the
-    verifier, so **only the creator's app can host** — a link-holder joins as a
-    guest but can never take over or impersonate the host. `room` is the app's
-    short name (`chess`) for a signed app, or `<name>-anon` for an unsigned one
-    (still owned; `-anon` only flags that authorship isn't vouched for).
-  - **Anyone-owns** (the "Let a friend keep it going" opt-out, and every plain
-    meeting link): a **dotless** id — a random `shortCode` for an app, the bare
-    `<room>` for a meeting. `verifierOf` returns empty, so the relay imposes **no
-    owner**: the host slot is guarded only by the epoch (enabling self-heal), and
-    everyone with the link is equally entitled to host. This is deliberate and
-    labeled, never a default. A meeting's admin form (`<room>.<verifier>`) is the
-    mirror image on the meeting side: same helper, verifier = a PBKDF2 hash of the
+    maker mints a random **secret**, never shown to a human and never in the
+    link; the id carries only `verifier = SHA-256(secret)`'s prefix. Authority
+    is a **signature, not a slot**: canonical app state is signed with the
+    owner key, guests verify every frame against the verifier, and the relay
+    checks privileged door verbs with the exact proof any peer would — so a
+    link-holder can mirror and propose, but never author canonical state or
+    impersonate the owner. `room` is the app's short name (`chess`) for a
+    signed app, or `<name>-anon` for an unsigned one (still owned; `-anon`
+    only flags that authorship isn't vouched for). An owned room never fails
+    over (see *Succession*).
+  - **Anyone-owns** (the "Let a friend keep it going" opt-in, and every plain
+    meeting link): a **dotless** id — derived from the link secret for an app,
+    the bare `<room>` for a meeting. `verifierOf` returns empty, so **no
+    owner is imposed**: everyone with the link is equally entitled to succeed
+    a gone owner (deterministic succession). This is deliberate and labeled,
+    never a default. A meeting's admin form (`<room>.<verifier>`) is the
+    mirror image on the meeting side: same helper, verifier = a hash of the
     admin password, admin power = knowing that password (the README's
     *Admin rooms* note covers the meeting UX).
 - **An invite link is a capability, not a viewer pass.** A joiner's browser
@@ -585,53 +606,39 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
   synced. Invite exposes **two independent dials**:
   - **Lifetime** — how long the link admits *new* joiners. `close` (default) is
     a fresh id each open, retired for good on close/rotate; `1h`/`24h` set an
-    admission deadline; `forever` never expires. Expiry only shuts the door:
-    `attachHost` refuses an *unknown* peer past `exp` (sends it `ended
-    (expired)`) while every already-connected peer stays. It never ends a live
-    session.
-  - **Resilience** (`heal`) — whether a still-connected guest may take over if
-    the host drops. Off by default (the session ends with you — safest for
-    private data), which mints an **owned** link (above); on mirrors state to
-    guests to enable self-healing (see Failover) and mints the **anyone-owns**
-    shape instead, since a link a *different* browser may keep alive can't also
-    be gated by a secret only yours holds. `close` forces it off (a link that
-    dies on close can't be kept alive by another). This is orthogonal to
-    lifetime, so a **1h game can be resilient** — a dead battery doesn't end it,
-    and it still stops admitting strangers after an hour.
-  The host advertises `heal` and `exp` in the per-peer `app` message; guests
-  gate mirroring on `heal` and a promoted healer keeps enforcing `exp`. **New
-  link** rotates the session id, broadcasting `ended (revoked)` to guests on the
-  old link. One live link per app.
+    admission deadline; `forever` never expires. Expiry only shuts the door —
+    an *unknown* peer past `exp` is refused (`ended (expired)`) while every
+    already-connected peer stays. It never ends a live session.
+  - **Resilience** (`heal`) — whether the room may elect a successor when the
+    owner drops. Off by default (writes freeze until the owner returns —
+    safest for private data), which mints an **owned** link (above); on
+    enables deterministic **succession** (see above) and mints the
+    **anyone-owns** shape instead, since a link a *different* browser may keep
+    alive can't also be gated by a secret only yours holds. `close` forces it
+    off (a link that dies on close can't be kept alive by another). This is
+    orthogonal to lifetime, so a **1h game can be resilient** — a dead battery
+    doesn't end it, and it still stops admitting strangers after an hour.
+  Every guest holds an owner-verified mirror regardless of the dial —
+  resilience gates *succession*, not mirroring. **New link** mints a fresh
+  link secret and retires the old session (guests see "Sharing ended"). One
+  live link per app.
 - Snapshots are plain GIFs — treat a shared snapshot as sharing the data it
   contains.
-- The relay is a dumb pipe: it routes by session but never inspects, stores, or
-  decrypts payloads; P2P DataChannels are DTLS-encrypted end-to-end. A
-  server-side **token-bucket bandwidth guard** (1 MB burst, ~384 Kbps
-  sustained) makes it physically unusable for streaming media — see the
-  networking doc.
-- **App delivery scales past the relay budget over P2P.** A joining peer needs
-  the app archive to boot. A *small* app rides the relay immediately (fast first
-  paint, inside the burst). A *heavy* app — e.g. one bundling a multi-megabyte
-  WASM engine — is far past the relay's per-message cap, so `attachHost` defers
-  it: the peer is flagged `needsApp` and the archive is handed over the **P2P
-  DataChannel** the moment it opens (`channel.onopen`), paced to the channel's
-  `bufferedAmount` so the send buffer never overflows. The relay is only ever
-  signalling + fallback; once peers are connected directly there is no bandwidth
-  ceiling. The transport fragmentation layer reassembles up to ~25 MB
-  (`FRAG_MAX_PARTS`), and the client receives the app over whichever transport
-  delivered it (the same `receiveApp` path serves relay and DataChannel). If the
-  DataChannel never opens within `APP_P2P_WAIT` (symmetric NAT, and there's no
-  TURN), the host first tries a **friend hop** — in small sessions guests keep
-  DataChannels to each other (the P1 fabric), and a guest the host can't reach
-  directly asks for the app *through* a friend, whose browser forwards the
-  sealed frames it cannot read — and only then falls back to **dripping the app
-  over the relay paced under its ~48 KB/s refill** (`relayPaced`) so nothing is
-  dropped — slow (minutes for a
-  big app) but it still arrives. Throughout, the joiner isn't a blank page: a
-  loader in the mount area narrates the stage ("Connecting…", "opening a direct
-  route…", "Receiving the app…") and shows a **live percent** bar driven by the
-  defragmenter's progress callback, labelling whether the app is coming over the
-  direct channel or the (slower) relay.
+- The relay never inspects, stores, or decrypts payloads — and since the
+  one-runtime flag day it carries only signaling envelopes and signed door
+  verbs, never app data or media; P2P DataChannels are DTLS-encrypted
+  end-to-end. A server-side **token-bucket bandwidth guard** (1 MB burst,
+  ~384 Kbps sustained) makes the door physically unusable for tunneling
+  media — see the networking doc.
+- **App delivery is peer-to-peer.** A joining peer needs the app archive to
+  boot. It arrives as an owner-**signed** frame over the room's DataChannels
+  from whichever peer already holds it — the owner seeded it once, and every
+  node retains and can re-serve it, so delivery scales with the room instead
+  of with one uplink. Sends are paced to the channel's `bufferedAmount` so
+  the send buffer never overflows, and the shared fragmentation layer
+  (`gifos-net.js`, `FRAG_MAX_PARTS`) reassembles archives up to ~50 MB.
+  Throughout, the joiner isn't a blank page: a loader in the mount area
+  narrates the stages and shows progress as fragments arrive.
 - **Booted computer images** run in separate IndexedDB namespaces with
   namespaced broadcast channels; a VM cannot read, write, or repaint the host
   desktop (and vice versa).
