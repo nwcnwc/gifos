@@ -1,0 +1,17 @@
+This is an unofficial port of LHRUN/paint-board, not a vendor of the
+React + Fabric.js app. The creative-brush behaviour is reimplemented as
+classic IIFE canvas scripts so the GIF has no CDN, no modules, and no
+Hugging Face / Google Fonts fetch.
+
+upstream: https://github.com/LHRUN/paint-board.git
+commit:   57265d7458fcfe04a0a85e3acf6745a176e0baf6
+date:     2025-10-13
+license:  MIT, LH_R / LHRUN (COPYING-paint-board.txt)
+
+What this copy keeps: freehand brushes (basic, rainbow, stars, crayon,
+pixels, stripe, web, mesh, dots, wave, thorn) and an eraser. What it
+drops: the Fabric.js editor, Lucide shapes, material image textures,
+the text brush (webfonts), camera background, Transformers.js, the
+multi-file drawer, and live-select handles.
+
+The notice travels INSIDE the GIF as COPYING-paint-board.txt.

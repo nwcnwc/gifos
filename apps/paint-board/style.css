@@ -1,0 +1,171 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  background: #1a1520;
+  color: #f4efe6;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#chrome {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px 6px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  border-bottom: 1px solid #3a3144;
+  background: #241c2c;
+}
+#brand {
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: #ff6363;
+  font-size: 18px;
+}
+#actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+#actions button, .friend-actions button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  border: 0;
+  border-radius: 4px;
+  padding: 7px 12px;
+  cursor: pointer;
+  background: #3a3144;
+  color: #f4efe6;
+}
+#shareBtn { background: #ff6363; color: #1a1520; }
+#newBtn, #undoBtn, #redoBtn, #saveBtn {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px #564866;
+}
+body.together #shareBtn { display: none; }
+body.together #undoBtn, body.together #redoBtn { display: none; }
+
+#friend-bar {
+  flex: 0 0 auto;
+  background: #2c2436;
+  color: #ddd;
+  padding: 8px 12px 6px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  font-size: 14px;
+  line-height: 1.4;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 6px; }
+#friend-hint b { color: #ff6363; }
+#friend-status { font-weight: 600; min-height: 1.2em; }
+#friend-roster {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#friend-roster li {
+  border-radius: 999px;
+  background: #1a1520;
+  padding: 3px 10px;
+  font-size: 13px;
+  box-shadow: inset 0 0 0 1px #564866;
+}
+#friend-roster li.me { color: #ff6363; font-weight: 700; }
+#friend-roster .meta { color: #999; font-size: 12px; margin-left: 6px; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+#leaveBtn { background: transparent; box-shadow: inset 0 0 0 2px #564866; color: #f4efe6; }
+
+#tools {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 8px 12px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  background: #241c2c;
+  border-bottom: 1px solid #3a3144;
+}
+#brushes, #swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#brushes button {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 8px;
+  cursor: pointer;
+  background: #3a3144;
+  color: #f4efe6;
+}
+#brushes button.on { background: #ff6363; color: #1a1520; }
+#brushes button[data-kind="erase"].on { background: #65cc8a; }
+#swatches button {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px #0006;
+}
+#swatches button.on { border-color: #fffef8; }
+#width-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #c8c0b4;
+  margin-left: auto;
+}
+#width { width: 100px; accent-color: #ff6363; }
+
+#stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  background: #2a2234;
+  padding: 10px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  padding-left: max(10px, env(safe-area-inset-left));
+  padding-right: max(10px, env(safe-area-inset-right));
+}
+#paper {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #fffef8;
+  border-radius: 8px;
+  touch-action: none;
+  cursor: crosshair;
+  box-shadow: 0 8px 28px #0006;
+}
+
+@media only screen and (max-width: 680px) {
+  #brand { font-size: 16px; }
+  #actions button { padding: 8px 10px; font-size: 12px; }
+  #brushes button { font-size: 11px; padding: 7px 7px; }
+  #width { width: 72px; }
+}
