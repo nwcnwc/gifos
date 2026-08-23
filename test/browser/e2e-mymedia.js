@@ -399,6 +399,47 @@ function makeWebm(){
   const vFlipDl=await downloadNow();
   ok('flipped video bytes differ from the source webm', Buffer.compare(vFlipDl.buf, WEBM)!==0, 'len='+vFlipDl.buf.length);
 
+  // Window-drag the range fill (GIF converter and Clip share this control).
+  await openNamed('clip.webm');
+  await fr.locator('#stage video').waitFor({ timeout: 8000 });
+  await fr.locator('#mclip').click();
+  await fr.locator('#gifpanel.on').waitFor({ timeout: 5000 });
+  await page.waitForTimeout(400);
+  await dragHandle('#gifh1', 0.5);
+  async function rangeSE(){
+    return fr.locator('#gifrange').evaluate((el)=>({
+      s: parseFloat(el.getAttribute('data-start')),
+      e: parseFloat(el.getAttribute('data-end')),
+    }));
+  }
+  const se0=await rangeSE();
+  ok('range exposes data-start/data-end', isFinite(se0.s) && isFinite(se0.e) && se0.e>se0.s, JSON.stringify(se0));
+  const dur0=se0.e-se0.s;
+  const fillBox=await fr.locator('#giffill').boundingBox();
+  const rangeBox=await fr.locator('#gifrange').boundingBox();
+  ok('range fill is a fat hit target', !!fillBox && fillBox.height>=40, JSON.stringify(fillBox));
+  const grab={ x: fillBox.x+fillBox.width/2, y: fillBox.y+fillBox.height/2 };
+  const dx=rangeBox.width*0.22;
+  await page.mouse.move(grab.x, grab.y);
+  await page.mouse.down();
+  await page.mouse.move(grab.x+dx, grab.y, { steps: 14 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const se1=await rangeSE();
+  const ds=se1.s-se0.s, de=se1.e-se0.e;
+  ok('dragging the fill slides the window (both ends up)', ds>0.1 && de>0.1, JSON.stringify({ se0, se1, ds, de }));
+  ok('window drag keeps duration', Math.abs((se1.e-se1.s)-dur0)<=0.15, 'dur0='+dur0+' dur1='+(se1.e-se1.s));
+  ok('window drag moves both ends by the same amount', Math.abs(ds-de)<=0.15, 'ds='+ds+' de='+de);
+  const grab2={ x: (await fr.locator('#giffill').boundingBox()).x + fillBox.width/2, y: grab.y };
+  await page.mouse.move(grab2.x, grab2.y);
+  await page.mouse.down();
+  await page.mouse.move(grab2.x-dx, grab2.y, { steps: 14 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const se2=await rangeSE();
+  ok('dragging the fill back restores the window', Math.abs(se2.s-se0.s)<=0.2 && Math.abs(se2.e-se0.e)<=0.2, JSON.stringify({ se0, se2 }));
+  ok('window drag back keeps duration', Math.abs((se2.e-se2.s)-dur0)<=0.15, 'dur='+(se2.e-se2.s));
+
   await b.close();
   console.log(fail?('\n'+fail+' FAIL'):'\nALL PASS'); process.exit(fail?1:0);
 })().catch((e) => { console.error('FATAL', (e && e.stack) || (e && e.message) || e); process.exit(2); });
