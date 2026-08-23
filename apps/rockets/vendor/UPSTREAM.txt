@@ -1,0 +1,19 @@
+Rules taken from Rocket Universe by lauthieb (Laurent Thiebault), MIT:
+rockets catch stars, a shared sky, a score.
+
+upstream: https://github.com/lauthieb/rocket-universe
+license:  MIT (COPYING-rocket-universe.txt)
+
+NOT copied:
+  server.js / engine.js     — Express + socket.io; the Node process WAS the sky
+  public/client.js          — jQuery + CDN fonts + socket.io-client
+  public/img/*.png          — 20×20 sprites redrawn every frame from disk
+  public/name-players.json  — random joke names; we use the player's own name
+
+The playable thing (a rocket in a field of stars) is rewritten as classic
+scripts so it can live in one GIF. The original needs a game server. This
+copy does not: the host of the room writes the starfield, each player writes
+only their own pose and score.
+
+The MIT notice travels INSIDE the GIF as COPYING-rocket-universe.txt as well
+as here.
