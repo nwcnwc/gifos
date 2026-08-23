@@ -1,0 +1,133 @@
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #121212;
+  color: #e0e0e0;
+  font-family: Assistant, system-ui, sans-serif;
+}
+body { overflow: hidden; }
+
+.boot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  letter-spacing: .02em;
+  color: #9aa0b4;
+}
+
+.excalidraw, .excalidraw .excalidraw-container {
+  height: 100%;
+  width: 100%;
+}
+
+/* The GifOS chrome: a thin name/status strip that sits above the canvas so
+   the board itself stays full-bleed. Hidden once Excalidraw's own UI is up
+   except for the pill in the top-left gap. */
+.g-bar {
+  position: absolute;
+  top: 10px;
+  left: 58px;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.g-bar * { pointer-events: auto; }
+.g-pill {
+  background: rgba(24, 24, 32, .88);
+  border: 1px solid rgba(105, 101, 219, .45);
+  color: #ececf5;
+  border-radius: 999px;
+  padding: .28rem .7rem;
+  font: 600 12px/1.4 Assistant, system-ui, sans-serif;
+  max-width: 42vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.g-pill.saved { border-color: rgba(90, 180, 130, .55); }
+.g-pill.saving { border-color: rgba(220, 180, 80, .55); }
+
+.g-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 8, 14, .55);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem;
+}
+.g-card {
+  background: #1a1a24;
+  border: 1px solid #2e2e44;
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem 1rem;
+  width: min(420px, 92vw);
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 18px 50px rgba(0,0,0,.45);
+}
+.g-card h2 { margin: 0 0 .4rem; font-size: 1.05rem; }
+.g-card p { margin: 0 0 .8rem; color: #9aa0b4; font-size: .88rem; }
+.g-list { list-style: none; margin: 0; padding: 0; }
+.g-list li {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .45rem 0;
+  border-top: 1px solid #2a2a3c;
+}
+.g-list button.link {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: #ececf5;
+  font: inherit;
+  cursor: pointer;
+  padding: .2rem 0;
+}
+.g-list button.link:hover { color: #b8b4ff; }
+.g-meta { font-size: .75rem; color: #7d8296; }
+.g-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; }
+.g-card button.act, .g-card button.ghost {
+  border: 0;
+  border-radius: .55rem;
+  font: 650 13px/1 Assistant, system-ui, sans-serif;
+  padding: .45rem 1rem;
+  cursor: pointer;
+}
+.g-card button.act { background: #6965db; color: #fff; }
+.g-card button.ghost { background: transparent; color: #c8c8d8; border: 1px solid #3a3a50; }
+.g-card input[type=text] {
+  width: 100%;
+  box-sizing: border-box;
+  background: #12121a;
+  border: 1px solid #3a3a50;
+  color: #ececf5;
+  border-radius: .5rem;
+  padding: .45rem .6rem;
+  font: inherit;
+  margin-bottom: .5rem;
+}
+button.row-del {
+  background: none;
+  border: 0;
+  color: #9aa0b4;
+  cursor: pointer;
+  padding: .15rem;
+  line-height: 0;
+}
+button.row-del:hover { color: #ff8a7a; }
+
+/* Mermaid / AI / live-collab / library-CDN chrome that we do not ship a backend for. */
+[data-testid="toolbar-embeddable"],
+[data-testid="toolbar-magicframe"],
+[data-testid="live-collaboration-button"],
+.library-menu-browse-button,
+.default-sidebar .layer-ui__library .library-menu-items-container__no-items a {
+  display: none !important;
+}

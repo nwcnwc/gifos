@@ -1,0 +1,16 @@
+{
+  "gifos": "1.0",
+  "appId": "excalidraw",
+  "name": "Excalidraw",
+  "shortName": "Draw",
+  "version": "0.18.1",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [105, 101, 219],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "drawings": { "visibility": "private" }
+  }
+}
