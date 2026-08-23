@@ -11,10 +11,12 @@ html, body {
   pointer-events: none; font-size: 12px; letter-spacing: .04em;
   color: rgba(232, 240, 255, .7);
 }
+#keys { pointer-events: none; }
+body.playing #keys, body.touch #keys { display: none; }
 #ff {
-  pointer-events: auto; margin-top: 6px; padding: 4px 8px;
-  border: 1px solid rgba(232, 240, 255, .35); background: transparent;
-  color: inherit; font: inherit; letter-spacing: .08em; cursor: pointer;
+  pointer-events: auto; margin-top: 6px; padding: 6px 10px;
+  border: 1px solid rgba(232, 240, 255, .35); background: rgba(5, 6, 10, .55);
+  color: inherit; font: inherit; letter-spacing: .04em; cursor: pointer;
 }
 #ff[hidden] { display: none; }
 
@@ -54,15 +56,15 @@ html, body {
 .t-stack { display: flex; flex-direction: column; gap: .55rem; }
 .t-btn {
   pointer-events: auto;
-  width: 4.6rem; height: 4.6rem;
-  border-radius: .8rem;
-  border: 1px solid rgba(232, 240, 255, .35);
-  background: rgba(8, 10, 18, .45);
+  width: 5.2rem; height: 5.2rem;
+  border-radius: .9rem;
+  border: 1px solid rgba(232, 240, 255, .4);
+  background: rgba(8, 10, 18, .58);
   color: #e8f0ff;
-  font: 700 .68rem/1 "Courier New", Courier, monospace;
+  font: 700 .72rem/1 "Courier New", Courier, monospace;
   letter-spacing: .08em;
   cursor: pointer;
 }
-.t-btn.wide { width: 6.2rem; height: 6.2rem; font-size: .78rem; }
+.t-btn.wide { width: 6.8rem; height: 6.8rem; font-size: .82rem; }
 .t-btn.on { background: rgba(232, 240, 255, .28); }
 body:not(.touch) #touch { display: none; }

@@ -16,7 +16,7 @@ vendor/game.js  the original game, vanilla. Never fetch it at runtime.
 net.js          extra ships — presence, rock claims, the scoreboard
 touch.js        THRUST / LEFT / RIGHT / FIRE, written into KEY_STATUS
 boot.js         mount, prefs, wiring
-icon.mjs        procedural ship + rock icon and the 1200×720 cover
+icon.mjs        procedural ship shooting a rock, and the 1200×720 cover
 build.mjs       packs site/apps/asteroids/asteroids.gif
 ```
 
