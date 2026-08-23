@@ -15,7 +15,7 @@ style.css           dark spy chrome, two-column location list
 locations.js        Spyfall 1 pack, English names
 deal.js             one spy, a shared place, a first question
 app.js              deal, timer, private card, public votes
-icon.mjs            procedural card icon + 1200×720 cover
+icon.mjs            spy vs location icon + in-round cover (role hidden)
 build.mjs           packs the GIF into site/apps/spyfall/spyfall.gif
 vendor/COPYING-spyfall.txt
 vendor/UPSTREAM.txt
@@ -23,17 +23,19 @@ vendor/UPSTREAM.txt
 
 ## What you can play
 
-- **Pass this phone** — add three or more names, deal, pass. Each person looks
-  at their card and hides it before the next. Then the location list and the
-  timer sit on this device.
+- **Pass this phone** — add three or more names, deal. Each person taps their
+  own name, looks at their card, and hides it. Hide never opens the next
+  card. Then the location list and the timer sit on this device. Marks on
+  the list stay on this phone.
 - **Play with friends** — send the invite (top bar; that button is OS chrome).
   The people who open it are the room. The host (lowest live id) deals. Each
   person writes only their own row. Your card is stored privately on this
-  device. Location votes ride on the public row, so everyone can see the
-  tally. Nobody writes anybody else's row.
+  device. Location marks stay on this phone — they are not votes and they
+  are not published. Nobody writes anybody else's row.
 
 Ask questions out loud — in the room, or in a GifOS meeting around the app.
-Tap a place to vote it. When the time is up, say who you think the spy is.
+Tap a place to cross it off on this phone. When the time is up, say who
+you think the spy is.
 
 ## capabilities
 
