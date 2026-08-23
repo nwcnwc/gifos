@@ -776,4 +776,6 @@ change is flagged. Verdicts are cached per session so icons don't re-ping key
 hosts on every render (also a privacy win). A shield badge sits on signed icons;
 the run bar shows **✓ Signed by …**; the icon context menu has **Verify
 signature**; signing happens at `sign.html` (private keys never leave the
-browser for domain; never touch the page at all for email).
+browser for domain; never touch the page at all for email). First-party
+catalog GIFs are signed the same way by `scripts/sign-apps.mjs` on the
+signer's machine — not in GitHub Actions.

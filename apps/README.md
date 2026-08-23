@@ -6,7 +6,7 @@ on the Home Screen. They're built and maintained here and listed in the
 GifOS desktop, to run it. A certified app can later be **promoted to a
 default** (seeded from `site/js/sample-apps.js`) if it earns its place. Some
 are first-party; some are ports of someone else's work (`basedOn` in
-`listing.json`) — signed here, authored there.
+`listing.json`) — signed here once listed, authored there.
 
 ## Layout
 
@@ -42,9 +42,19 @@ Rebuild the GIF from the source with the app's build script (or the
 it to `site/apps/<name>/<name>.gif`. Then regenerate the catalog:
 
 ```bash
+node scripts/sign-apps.mjs                  # GIFOSSIG as gifos.app (local key)
 node scripts/build-app-catalog.mjs          # write site/apps/*
 node scripts/build-app-catalog.mjs --check  # verify it's current (what CI runs)
 ```
+
+`sign-apps.mjs` reads `~/.gifos-signing-key.json` (the JWK `sign.html`
+downloads) and refuses a key that does not match `site/gifos.key`. Fluence
+was signed from a phone; penguin needs a copy of that same JWK at that path
+(`chmod 600`) before the script can run — copy it off the phone (scp, USB),
+never paste it into chat, the repo, or a GitHub secret. It is **not** a
+GitHub Action: a leaked Actions secret would let anyone mint "✓ signed by
+gifos.app". Pages publishes the GIFs already in `site/`. After the first
+bulk sign, `build-app-catalog.mjs --check --require-signed` is the gate.
 
 A source tree with **no `listing.json` is simply not in the store** — that is
 how an app stays unlisted while it's being built.
@@ -141,8 +151,8 @@ people an update they do not need — see the rule above.
 
 A listing that *is* a port of a named product people already know (Ultimate
 Vocal Remover, Claude of Duty) is not first-party, even though it lives in
-this repo and is signed with the gifos.app key. The signature is integrity of
-the bytes, not authorship.
+this repo and is signed with the gifos.app key once listed. The signature is
+integrity of the bytes, not authorship.
 
 ```json
 "author":  { "name": "Anjok07 & aufr33", "url": "https://github.com/Anjok07/ultimatevocalremovergui" },
@@ -179,12 +189,16 @@ both be set: a port is not "inspired by". Anyroad is this shape (Hop.Earth).
 ## What "certified" means here
 
 - **Lives here, signed here**: built in this repo and **signed with the
-  gifos.app domain key** (`site/sign.html`, `gifos-sign.js`) so listings read
-  **✓ signed by gifos.app**. The catalog records the signature
-  claim (`build-app-catalog.mjs` reads the `GIFOSSIG` block); the store verifies
-  it for real in the browser against the downloaded bytes and refuses any
-  download whose claimed signature fails to verify. On a port, that is
-  integrity of the bits, not a claim that GifOS wrote the work.
+  gifos.app domain key** (`scripts/sign-apps.mjs`, same crypto as
+  `site/sign.html`) so listings read **✓ signed by gifos.app**. The private
+  key stays on the signer's machine — not in the repo, not in GitHub Secrets
+  (docs/threat-model.md). The catalog records the signature claim
+  (`build-app-catalog.mjs` reads the `GIFOSSIG` block); the store verifies it
+  for real in the browser against `https://gifos.app/gifos.key` and refuses
+  any download whose claimed signature fails to verify. On a port, that is
+  integrity of the bits, not a claim that GifOS wrote the work. Fluence is
+  the one GIF already signed (a manual test, 2026-08-02); the rest wait on
+  the first `sign-apps.mjs` run.
 - **Sandbox-honest**: runs as a normal sandboxed GifOS app — data in
   `gifos.db`, network only via the manifest allowlist, brokered capture/AI via
   `gifos.recordAudio` / `gifos.ai.*` (keys never touch the app).
