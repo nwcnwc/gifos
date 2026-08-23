@@ -474,6 +474,11 @@ if want drills; then
   (
     export BEHAVIOR_BASE=http://127.0.0.1:8099
     export BEHAVIOR_RELAY=ws://127.0.0.1:8790
+    # A leaked GIFOS_FLEET / BEHAVIOR_HOSTS still puts drills in fleet mode
+    # (cast.js never auto-spawns). The loopback BASE is not enough if those
+    # are set: casualty-noverdict then ssh-fails as a product red (exit 1)
+    # instead of NO-VERDICT (exit 4).
+    unset GIFOS_FLEET BEHAVIOR_HOSTS
     run_tier drills 900 test/drills/*.js
   )
 fi
