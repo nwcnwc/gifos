@@ -3226,16 +3226,26 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   #cap{display:flex;gap:4px}
   #cap button{padding:4px 7px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font-size:14px}
   #bar{display:flex;gap:6px;align-items:center;padding:6px 10px;flex-wrap:wrap;border-bottom:1px solid var(--border,#2a2a3f)}
+  #selbar{display:none;gap:6px;align-items:center;padding:6px 10px;flex-wrap:wrap;border-bottom:1px solid var(--border,#2a2a3f);background:var(--surface,#14141f)}
+  #selbar.on{display:flex}
+  #seln{font-weight:700;font-size:.82rem}
+  #catpick{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82);z-index:34;padding:16px}
+  #catpick .box{max-width:360px}
+  #catpick .picks{display:flex;flex-wrap:wrap;gap:6px}
+  #catpick .picks button{padding:6px 10px}
   .seg{display:inline-flex;border:1px solid var(--border,#2a2a3f);border-radius:8px;overflow:hidden}
   .seg button{padding:4px 9px;border:0;background:transparent;color:var(--muted,#8888aa);font-size:.78rem}
   .seg button.on{background:var(--accent,#ff7850);color:var(--onaccent,#2a1000);font-weight:700}
   select{font:inherit;font-size:.78rem;padding:4px 8px;border-radius:8px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0)}
   #count{margin-left:auto;color:var(--muted,#8888aa);font-size:.72rem}
   #grid{flex:1;overflow-y:auto;padding:8px 10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;align-content:start}
-  .card{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:9px;overflow:hidden;cursor:pointer;transition:transform .1s}
+  .card{position:relative;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:9px;overflow:hidden;cursor:pointer;transition:transform .1s}
   .card:active{transform:scale(.97)}
+  .card.on{outline:2px solid var(--accent,#ff7850);outline-offset:-1px}
+  .sel{position:absolute;top:0;left:0;width:44px;height:44px;z-index:3;display:flex;align-items:center;justify-content:center;margin:0;padding:0;background:transparent;border:0;cursor:pointer}
+  .sel input{width:20px;height:20px;margin:0;accent-color:var(--accent,#ff7850);pointer-events:none}
   .thumb{position:relative;aspect-ratio:1/1;background:#0c0c14 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:26px}
-  .thumb .kind{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.55);border-radius:5px;padding:0 5px;font-size:10px}
+  .thumb .kind{position:absolute;top:4px;left:40px;background:rgba(0,0,0,.55);border-radius:5px;padding:0 5px;font-size:10px}
   .thumb .shared{position:absolute;top:4px;right:4px;background:color-mix(in srgb,var(--accent,#ff7850) 88%,#000);color:#fff;border-radius:5px;padding:0 5px;font-size:10px;font-weight:700}
   .thumb .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;text-shadow:0 2px 8px #000;color:#fff}
   .meta{padding:4px 6px}
@@ -3304,6 +3314,13 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   <select id="cat"><option value="all">All categories</option></select>
   <span id="count"></span>
 </div>
+<div id="selbar">
+  <span id="seln">0 selected</span>
+  <button class="btn ghost" id="selall">Select all</button>
+  <button class="btn" id="selcat">Categorize</button>
+  <button class="danger" id="seldel">Delete</button>
+  <button class="btn ghost" id="selclear">Clear</button>
+</div>
 <div id="grid"></div>
 <div id="empty"><div class="big" id="empty-icon">🎞️</div><div><b id="empty-title">No media yet</b></div><div class="sub" id="empty-sub" style="margin-top:.4rem">Tap <b>＋ Add</b> to import photos, audio or video — or drop files anywhere.</div></div>
 <input type="file" id="fi" accept="image/*,audio/*,video/*" multiple hidden>
@@ -3345,12 +3362,18 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   <div id="delwarn-msg"></div>
   <div class="row"><button class="danger" id="mdel-confirm">Delete forever</button><button class="btn ghost" id="mdel-cancel">Cancel</button></div>
 </div></div></div>
+<div id="catpick"><div class="box"><div class="info">
+  <div class="sub">Move to a category — or type a new one. From Deleted, this puts items back in the library.</div>
+  <div class="picks" id="catpick-list"></div>
+  <div class="row"><input type="text" id="catpick-new" placeholder="New category"><button class="btn" id="catpick-go">Apply</button></div>
+  <div class="row"><button class="btn ghost" id="catpick-cancel">Cancel</button></div>
+</div></div></div>
 <script src="gifenc.js"></script>
 <script>
   var media = gifos.db('media'), blobs = gifos.db('blobs');
   var MAX = 25 * 1024 * 1024;
   var items = [], fType = 'all', fCat = 'all', curUrl = null, cur = null, owner = false;
-  var pendingForever = null;
+  var pendingForever = null, selected = {};
   var gifAbort=false, gifBusy=false, gifSpeed=1, gifStart=0, gifEnd=0, gifSavedT=0, filmGen=0, panelMode='gif';
   var GIF_FPS=10, MAX_OUT_SEC=8, MAX_FRAMES=80, MAX_SIDE=480;
   // Only the library's owner (the host) can change what's shared. A guest view
@@ -3454,19 +3477,57 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
         su.textContent='Try a different type or category.';
       }
     }
+    var keep={}; items.forEach(function(m){ keep[m.id]=1; });
+    for(var k in selected) if(!keep[k]) delete selected[k];
     grid.innerHTML = list.map(function(m){
       var bg = m.thumb ? 'style="background-image:url('+m.thumb+')"' : '';
       var face = m.thumb ? (m.type!=='image'?'<div class="play">▶</div>':'') : ('<span>'+(KIND[m.type]||'📄')+'</span>');
       var shared = isVisible(m) ? '<span class="shared" title="Visible to invited guests">👁</span>' : '';
       var catLabel = isDeleted(m) ? 'Deleted' : (m.category||'Unsorted');
-      return '<div class="card" data-id="'+m.id+'"><div class="thumb" '+bg+'><span class="kind">'+(KIND[m.type]||'')+'</span>'+shared+face+'</div>'+
+      var on=!!selected[m.id];
+      return '<div class="card'+(on?' on':'')+'" data-id="'+m.id+'"><button type="button" class="sel" aria-label="Select"><input type="checkbox" class="pick"'+(on?' checked':'')+' tabindex="-1"></button>'+
+        '<div class="thumb" '+bg+'><span class="kind">'+(KIND[m.type]||'')+'</span>'+shared+face+'</div>'+
         '<div class="meta"><div class="nm">'+esc(m.name)+'</div><span class="cat">'+esc(catLabel)+'</span></div></div>';
     }).join('');
+    updateSelBar();
+  }
+  function selectedItems(){ return items.filter(function(m){ return !!selected[m.id]; }); }
+  function updateSelBar(){
+    var n=0; for(var k in selected) if(selected[k]) n++;
+    var bar=document.getElementById('selbar');
+    if(n){ bar.classList.add('on'); document.getElementById('seln').textContent=n+' selected'; }
+    else bar.classList.remove('on');
+  }
+  function clearSelection(){
+    selected={};
+    Array.prototype.forEach.call(grid.querySelectorAll('.card'), function(c){
+      c.classList.remove('on');
+      var cb=c.querySelector('.pick'); if(cb) cb.checked=false;
+    });
+    updateSelBar();
   }
   media.subscribe(function(rows){ items=(rows||[]).filter(function(r){ return r&&r.id&&r.type; }); render(); });
 
   // ---- open one: fetch its blob, pick the right player ----
-  grid.addEventListener('click', function(e){ var c=e.target.closest?e.target.closest('.card'):null; if(c) openItem(c.getAttribute('data-id')); });
+  grid.addEventListener('pointerdown', function(e){
+    if(e.target.closest && e.target.closest('.sel')) e.stopPropagation();
+  }, true);
+  grid.addEventListener('click', function(e){
+    var sel=e.target.closest?e.target.closest('.sel'):null;
+    if(sel){
+      e.preventDefault(); e.stopPropagation();
+      var card=sel.closest('.card'); if(!card) return;
+      var id=card.getAttribute('data-id');
+      if(selected[id]) delete selected[id]; else selected[id]=1;
+      var on=!!selected[id];
+      card.classList.toggle('on', on);
+      var cb=sel.querySelector('.pick'); if(cb) cb.checked=on;
+      updateSelBar();
+      return;
+    }
+    var c=e.target.closest?e.target.closest('.card'):null;
+    if(c) openItem(c.getAttribute('data-id'));
+  });
   async function openItem(id){
     var m=items.filter(function(x){ return x.id===id; })[0]; if(!m) return;
     var rec=await blobs.get(id);
@@ -3602,6 +3663,65 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     hideDelWarn();
     closeModal();
     if(list.length) await deleteForever(list);
+    clearSelection();
+  };
+  document.getElementById('selall').onclick=function(){
+    Array.prototype.forEach.call(grid.querySelectorAll('.card'), function(c){
+      var id=c.getAttribute('data-id'); if(!id) return;
+      selected[id]=1; c.classList.add('on');
+      var cb=c.querySelector('.pick'); if(cb) cb.checked=true;
+    });
+    updateSelBar();
+  };
+  document.getElementById('selclear').onclick=clearSelection;
+  document.getElementById('seldel').onclick=async function(){
+    var list=selectedItems();
+    if(!list.length) return;
+    if(fCat==='Deleted' || list.every(isDeleted)){ showDelWarn(list); return; }
+    try{
+      for(var i=0;i<list.length;i++){
+        if(isDeleted(list[i])) continue;
+        await media.put(Object.assign({}, list[i], { category:'Deleted' }));
+      }
+      toast(list.length===1 ? 'Moved to Deleted' : 'Moved '+list.length+' to Deleted');
+      clearSelection();
+    }catch(e){ toast('You can only remove your own items.'); }
+  };
+  function hideCatPick(){ document.getElementById('catpick').style.display='none'; }
+  function openCatPick(){
+    var list=document.getElementById('catpick-list'); list.innerHTML='';
+    function addBtn(name){
+      var b=document.createElement('button');
+      b.type='button'; b.className='btn ghost'; b.textContent=name;
+      b.onclick=function(){ applyCat(name); };
+      list.appendChild(b);
+    }
+    addBtn('Unsorted');
+    categories().forEach(function(c){ if(c!=='Unsorted') addBtn(c); });
+    document.getElementById('catpick-new').value='';
+    document.getElementById('catpick').style.display='flex';
+  }
+  async function applyCat(name){
+    name=canonCat(name);
+    var list=selectedItems();
+    if(!list.length){ hideCatPick(); return; }
+    try{
+      for(var i=0;i<list.length;i++){
+        await media.put(Object.assign({}, list[i], { category:name }));
+      }
+      hideCatPick();
+      toast(name==='Deleted'
+        ? (list.length===1 ? 'Moved to Deleted' : 'Moved '+list.length+' to Deleted')
+        : 'Saved');
+      clearSelection();
+    }catch(e){ toast('You can only recategorize your own items.'); }
+  }
+  document.getElementById('selcat').onclick=openCatPick;
+  document.getElementById('catpick-cancel').onclick=hideCatPick;
+  document.getElementById('catpick-go').onclick=function(){
+    var n=document.getElementById('catpick-new').value.trim();
+    if(!n){ toast('Type a category or pick one.'); return; }
+    applyCat(n);
   };
 
   // ---- add: file picker + drag/drop ----
@@ -4284,8 +4404,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
 
   // ---- filters ----
   document.getElementById('types').addEventListener('click', function(e){ var b=e.target.closest?e.target.closest('button[data-t]'):null; if(!b) return;
-    fType=b.getAttribute('data-t'); Array.prototype.forEach.call(this.children, function(c){ c.classList.toggle('on', c===b); }); render(); });
-  document.getElementById('cat').onchange=function(){ fCat=this.value; render(); };
+    fType=b.getAttribute('data-t'); Array.prototype.forEach.call(this.children, function(c){ c.classList.toggle('on', c===b); }); selected={}; render(); });
+  document.getElementById('cat').onchange=function(){ fCat=this.value; selected={}; render(); };
 </script></body></html>`;
 
   // Packed into My Media as gifenc.js. Real GIF89a + variable-width LZW — not
