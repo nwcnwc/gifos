@@ -79,7 +79,7 @@ reap_browsers() {
   return 0
 }
 
-pass=0; fail=0; skip=0; failed=""; nov=0; novlist=""
+pass=0; fail=0; skip=0; failed=""; nov=0; novlist=""; fleet=0; fleetlist=""
 for f in test/behavior/scenarios/*.js; do
   name=$(basename "$f" .js)
   match "$name" || continue
@@ -99,6 +99,12 @@ for f in test/behavior/scenarios/*.js; do
   elif [ $rc -eq 4 ]; then
     nov=$((nov+1)); novlist="$novlist $name"
     echo "NOVER $name (${secs}s) — $(grep -m1 'CASUALTY:' "$log" | sed 's/^ *CASUALTY: *//' | cut -c1-110)"
+  elif [ $rc -eq 3 ]; then
+    # The scenario declared it needs isolated machines (needFleet). Not a
+    # product red — and not a skip that looks like silence. release.sh maps
+    # this to NEEDS-FLEET, which still blocks a cut until the fleet run exists.
+    fleet=$((fleet+1)); fleetlist="$fleetlist $name"
+    echo "FLEET $name (${secs}s) — NEEDS-FLEET; log: $log"
   elif [ $rc -eq 0 ]; then
     pass=$((pass+1)); echo "PASS  $name (${secs}s)"
   else
@@ -109,10 +115,12 @@ for f in test/behavior/scenarios/*.js; do
 done
 
 echo
-echo "BEHAVIOR BATTERY: $pass passed, $fail failed, $skip skipped, $nov no-verdict"
+echo "BEHAVIOR BATTERY: $pass passed, $fail failed, $skip skipped, $nov no-verdict, $fleet needs-fleet"
 [ -n "$failed" ] && echo "failed:$failed"
 [ -n "$novlist" ] && echo "no-verdict:$novlist"
+[ -n "$fleetlist" ] && echo "needs-fleet:$fleetlist"
 # A red outranks a no-verdict: if something actually failed, that is the news.
 [ $fail -ne 0 ] && exit 1
 [ $nov -ne 0 ] && exit 4
+[ $fleet -ne 0 ] && exit 3
 exit 0

@@ -152,9 +152,12 @@ async function run(MODE, nth) {
       // degrades safely to Vulkan's own SwiftShader device on a box that has
       // none. (See the long note in e2e-fps-simple.js, where the same mistake
       // cost a night of blaming a phone for a silent host.)
-      ...(process.env.ANYROAD_GL === 'hw'
-        ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization']
-        : ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']),
+      // Default is the real GPU (Vulkan). ANYROAD_GL=sw is the software
+      // rasteriser for a box that has none. Forcing SwiftShader on a fleet
+      // that includes a Pi made the Pi look dead (same lesson as FPS_GL).
+      ...(process.env.ANYROAD_GL === 'sw'
+        ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
+        : ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization']),
       '--disable-features=WebRtcHideLocalIpsWithMdns',
       '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
       '--autoplay-policy=no-user-gesture-required',
