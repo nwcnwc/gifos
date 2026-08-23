@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "io-808",
+  "name": "iO-808",
+  "shortName": "808",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "A silver 808 on the table. Tap the steps. Share a beat.",
+  "entry": "index.html",
+  "accent": [255, 90, 0],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "patterns": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
