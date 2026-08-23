@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "tower-game",
+  "appId": "tower-game",
+  "name": "Tower Game",
+  "shortName": "Tower",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Tap to drop each floor. Stack them. Race a friend to the tallest tower.",
+  "description": "A crane swings a floor out over the tower. Tap, and it drops. Land it on the floor below and you climb. Miss three times and the hearts are gone.\n\nA perfect stack is worth more, and a streak of perfects is worth more still. The crane gets meaner the higher you go. That is the whole game, and it works with a thumb on a phone the same way it works with a mouse.\n\nPress Invite (in the GifOS menu) and send the link. You each build your own tower. The list of live heights updates as you go. Tallest when the hearts run out wins. Playing alone is the original game, exactly.\n\nYour best score stays on this device, inside the app.\n\nAn unofficial port of Tower Building Game by iamkun. This copy adds the race over a meeting link. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "iamkun",
+    "url": "https://github.com/iamkun/tower_game"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "arcade",
+    "tap",
+    "stacking",
+    "multiplayer",
+    "race"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tower-game",
+  "accent": [
+    249,
+    82,
+    64
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/tower-game/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/tower-game/tower-game.gif",
+  "bytes": 850704,
+  "download": 0,
+  "provides": null,
+  "sha256": "b7619f52824763c57a2d3304b01c19e8f00c064ce43ddf652d7f77d0a4226691",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Tower Building Game",
+    "url": "https://github.com/iamkun/tower_game",
+    "blessed": false
+  }
+}

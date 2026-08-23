@@ -204,6 +204,54 @@
       "sha256": "ffaee96210a37269ba51ddf6d17c1c082459f049ca432d974f0f375c39d4339f"
     },
     {
+      "slug": "battleboat",
+      "appId": "battleboat",
+      "name": "Battleboat",
+      "shortName": "Battleboat",
+      "version": "1.0",
+      "tagline": "Sink the fleet. Against the computer, or a friend on another phone.",
+      "author": {
+        "name": "billmei",
+        "url": "https://github.com/billmei/battleboat"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Battleboat",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "battleship",
+        "battleboat",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        255,
+        146,
+        0
+      ],
+      "cover": "/apps/battleboat/cover.jpg",
+      "bytes": 196915,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "273c25ef662d9b1d51eb4e7ae4742a7e9f30c6b5a82728ee88f9a076b1f79401"
+    },
+    {
       "slug": "catch-the-cat",
       "appId": "catch-the-cat",
       "name": "Catch the Cat",
@@ -290,6 +338,102 @@
         "ts": "2026-08-23"
       },
       "sha256": "36b7f005e188ea49e4ef34de46d4a7fb29496a46468cee43098ba55e5add9265"
+    },
+    {
+      "slug": "connect-four",
+      "appId": "connect-four",
+      "name": "Connect Four",
+      "shortName": "C4",
+      "version": "1.0",
+      "tagline": "Drop a disc. Connect four. Play the computer, or a friend on the other side.",
+      "author": {
+        "name": "kenrick95",
+        "url": "https://github.com/kenrick95/c4"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "c4",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "connect-four",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        239,
+        69,
+        59
+      ],
+      "cover": "/apps/connect-four/cover.jpg",
+      "bytes": 194389,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "2389b9378310a56bd28a5184f0e0316720390ff4a6da3750cb8d96a59c2ce439"
+    },
+    {
+      "slug": "cube-composer",
+      "appId": "cube-composer",
+      "name": "Cube Composer",
+      "shortName": "Cubes",
+      "version": "1.0",
+      "tagline": "Line up the cubes. A tiny bit of programming. Race a friend to the shape.",
+      "author": {
+        "name": "sharkdp",
+        "url": "https://github.com/sharkdp/cube-composer"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Cube Composer",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games",
+        "Learning"
+      ],
+      "tags": [
+        "puzzle",
+        "cubes",
+        "functions",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        235,
+        104,
+        65
+      ],
+      "cover": "/apps/cube-composer/cover.jpg",
+      "bytes": 169563,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "8c8ab34a4ccf2983930657d56b04d52bbf52fba0f445aed678aa0b4538694678"
     },
     {
       "slug": "cyberchef",
@@ -493,6 +637,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "546ae7af9ba6dba8e91bed6947e8f7896420e86d8af5a09d8ad2620ea2b60d9e"
+    },
+    {
+      "slug": "falling-blocks",
+      "appId": "falling-blocks",
+      "name": "Falling Blocks",
+      "shortName": "Blocks",
+      "version": "1.0.0",
+      "tagline": "Stack the falling shapes. Clear the lines. Or race a friend from the same pieces.",
+      "author": {
+        "name": "dionyziz",
+        "url": "https://github.com/dionyziz/canvas-tetris"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "canvas-tetris",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "falling",
+        "blocks",
+        "puzzle",
+        "arcade",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        0,
+        196,
+        204
+      ],
+      "cover": "/apps/falling-blocks/cover.jpg",
+      "bytes": 192708,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "f3be12d49098abaf96f2188bf9d2de33221a9b67efd54e02165b27774bf9aee3"
     },
     {
       "slug": "floppy-bird",
@@ -776,6 +969,151 @@
         "ts": "2026-08-23"
       },
       "sha256": "932e5a7bc6f6e0275138834189b30d21796f6b1a0e3e10ab0d853e9539c70f73"
+    },
+    {
+      "slug": "invaderz",
+      "appId": "invaderz",
+      "name": "InvaderZ",
+      "shortName": "InvaderZ",
+      "version": "1.0.0",
+      "tagline": "They keep changing shape. Keep them out of the atmosphere.",
+      "author": {
+        "name": "victorqribeiro",
+        "url": "https://github.com/victorqribeiro/invaderz"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "InvaderZ",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "invaders",
+        "arcade",
+        "space",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        0,
+        140,
+        186
+      ],
+      "cover": "/apps/invaderz/cover.jpg",
+      "bytes": 193059,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "65549ae1ce20b80aefb50a7cd60a36fa4e6d103c2d699c0de5c9209dfd8656cd"
+    },
+    {
+      "slug": "io-blobs",
+      "appId": "io-blobs",
+      "name": "IO Blobs",
+      "shortName": "Blobs",
+      "version": "1.0",
+      "tagline": "A coloured blob in an open arena. Swallow the smaller ones. Send the link and the others are people.",
+      "author": {
+        "name": "vzhou842",
+        "url": "https://github.com/vzhou842/example-.io-game"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "example-.io-game",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "io",
+        "arena",
+        "blobs",
+        "multiplayer",
+        "eat"
+      ],
+      "accent": [
+        48,
+        196,
+        168
+      ],
+      "cover": "/apps/io-blobs/cover.jpg",
+      "bytes": 195048,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "71a2e4c3df134d25b9845a88c4821c9a2059dfe7205456406f38a9e3786fe1f1"
+    },
+    {
+      "slug": "isocity",
+      "appId": "isocity",
+      "name": "IsoCity",
+      "shortName": "IsoCity",
+      "version": "1.0",
+      "tagline": "A tiny isometric city. Tap to place a tile. Share the map, or build two cities side by side.",
+      "author": {
+        "name": "victorqribeiro",
+        "url": "https://github.com/victorqribeiro/isocity"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "IsoCity",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "city",
+        "isometric",
+        "builder",
+        "tiles",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        176,
+        83,
+        85
+      ],
+      "cover": "/apps/isocity/cover.jpg",
+      "bytes": 643973,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "187b8329a0d8f43dce9b1d53b5a8de534ce54b6b37386019daec62d9688075fc"
     },
     {
       "slug": "jspaint",
@@ -1448,6 +1786,54 @@
       "sha256": "4c9d32459306078d6c328961c809f9faec0f5cfce7d03ade7a6a7209dba0889a"
     },
     {
+      "slug": "pool",
+      "appId": "pool",
+      "name": "Pool",
+      "shortName": "Pool",
+      "version": "1.0.0",
+      "tagline": "Eight-ball on a green table. Pull the stick back, let go, take turns.",
+      "author": {
+        "name": "henshmi",
+        "url": "https://github.com/henshmi/Classic-Pool-Game"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Classic Pool Game",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "pool",
+        "8-ball",
+        "billiards",
+        "multiplayer",
+        "classic"
+      ],
+      "accent": [
+        46,
+        150,
+        78
+      ],
+      "cover": "/apps/pool/cover.jpg",
+      "bytes": 396810,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "1a737be394a8aeadda96c0c58c485b09c073c84e30b3909121e058af64e0f6ed"
+    },
+    {
       "slug": "racer",
       "appId": "racer",
       "name": "Racer",
@@ -1794,6 +2180,54 @@
       "sha256": "4a8c065ef7393d0ff14dbf7339fe03d06f9e42a8e2eea70c6d0dbb9defb30203"
     },
     {
+      "slug": "tic-tac-toe",
+      "appId": "tic-tac-toe",
+      "name": "Tic-Tac-Toe",
+      "shortName": "TicTacToe",
+      "version": "1.0",
+      "tagline": "Three in a row, against the computer or a friend on the other side of the board.",
+      "author": {
+        "name": "Colyseus",
+        "url": "https://github.com/colyseus/demo-tic-tac-toe"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Colyseus Tic-Tac-Toe",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "tic-tac-toe",
+        "noughts-and-crosses",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        232,
+        208,
+        148
+      ],
+      "cover": "/apps/tic-tac-toe/cover.jpg",
+      "bytes": 190127,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "46899163031bc597ce2927935ce7eb276c0303949b4fb9c05bce86cd3ecfe9cc"
+    },
+    {
       "slug": "tosios",
       "appId": "tosios",
       "name": "TOSIOS",
@@ -1841,6 +2275,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "cb29a9546c9cbcd2036e8ed0b90dc461e0e0103bfb87e3d62f3770c715bbb386"
+    },
+    {
+      "slug": "tower-game",
+      "appId": "tower-game",
+      "name": "Tower Game",
+      "shortName": "Tower",
+      "version": "1.0",
+      "tagline": "Tap to drop each floor. Stack them. Race a friend to the tallest tower.",
+      "author": {
+        "name": "iamkun",
+        "url": "https://github.com/iamkun/tower_game"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Tower Building Game",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "arcade",
+        "tap",
+        "stacking",
+        "multiplayer",
+        "race"
+      ],
+      "accent": [
+        249,
+        82,
+        64
+      ],
+      "cover": "/apps/tower-game/cover.jpg",
+      "bytes": 850704,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "b7619f52824763c57a2d3304b01c19e8f00c064ce43ddf652d7f77d0a4226691"
     },
     {
       "slug": "vocal-remover",

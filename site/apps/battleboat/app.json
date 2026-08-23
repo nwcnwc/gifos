@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "battleboat",
+  "appId": "battleboat",
+  "name": "Battleboat",
+  "shortName": "Battleboat",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Sink the fleet. Against the computer, or a friend on another phone.",
+  "description": "A ten-by-ten sea. Five ships. You hide yours, then take turns firing until one fleet is gone.\n\nOn your own you play the original computer — it hunts by guessing where a ship is most likely to sit, then finishes it off once it has a hit. Place the ships yourself or scatter them at random, then tap the other map to fire. It fires back at once.\n\nPress Play a friend and send the invite. You each hide a fleet on your own device. You never see theirs, they never see yours. Tap a square on their map; they tap a square on yours. Hits and misses show up on both screens. First to sink all five wins. There is no account and no game server. The room is the link.\n\nAn unofficial port of Battleboat by Bill Mei.",
+  "author": {
+    "name": "billmei",
+    "url": "https://github.com/billmei/battleboat"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "battleship",
+    "battleboat",
+    "board",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/battleboat",
+  "accent": [
+    255,
+    146,
+    0
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/battleboat/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/battleboat/battleboat.gif",
+  "bytes": 196915,
+  "download": 0,
+  "provides": null,
+  "sha256": "273c25ef662d9b1d51eb4e7ae4742a7e9f30c6b5a82728ee88f9a076b1f79401",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Battleboat",
+    "url": "https://github.com/billmei/battleboat",
+    "blessed": false
+  }
+}

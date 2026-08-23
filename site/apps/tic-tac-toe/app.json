@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "tic-tac-toe",
+  "appId": "tic-tac-toe",
+  "name": "Tic-Tac-Toe",
+  "shortName": "TicTacToe",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Three in a row, against the computer or a friend on the other side of the board.",
+  "description": "A three-by-three grid. One of you is X, the other is O. Take turns putting a mark down. First to get three in a line — across, down, or diagonal — wins.\n\nPlay the computer. It thinks on this device; there is no server. Play another person on the same screen, passing the device between you. Or press Play a friend and send the invite: the same board, live, on two devices. X sits one side, O the other.\n\nAn unofficial port of Colyseus Tic-Tac-Toe. The original needs a game server. This copy does not: the meeting is the room.",
+  "author": {
+    "name": "Colyseus",
+    "url": "https://github.com/colyseus/demo-tic-tac-toe"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "tic-tac-toe",
+    "noughts-and-crosses",
+    "board",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tic-tac-toe",
+  "accent": [
+    232,
+    208,
+    148
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/tic-tac-toe/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/tic-tac-toe/tic-tac-toe.gif",
+  "bytes": 190127,
+  "download": 0,
+  "provides": null,
+  "sha256": "46899163031bc597ce2927935ce7eb276c0303949b4fb9c05bce86cd3ecfe9cc",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Colyseus Tic-Tac-Toe",
+    "url": "https://github.com/colyseus/demo-tic-tac-toe",
+    "blessed": false
+  }
+}
