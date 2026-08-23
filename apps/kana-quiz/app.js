@@ -305,10 +305,6 @@
     if (!ok) {
       G.wrong++;
       if (G.missed.indexOf(key) < 0) G.missed.push(key);
-      if (!G.friend && G.requeued.indexOf(key) < 0) {
-        G.deck.push(key);
-        G.requeued.push(key);
-      }
     }
     paintChoices(ok, value, key);
     $('feedback').className = 'feedback ' + (ok ? 'ok' : 'bad');
@@ -321,6 +317,10 @@
     publishMe();
     saveSoon();
     setTimeout(function () {
+      if (!ok && !G.friend && G.requeued.indexOf(key) < 0) {
+        G.deck.push(key);
+        G.requeued.push(key);
+      }
       G.i++;
       var finished = G.i >= G.deck.length ||
         (G.friend && G.race === 'firstN' && G.score >= targetOf());
@@ -348,7 +348,9 @@
     $('doneScore').textContent = G.score + ' / ' + n;
     var miss = G.missed.length;
     $('doneNote').textContent = miss
-      ? miss + ' to review — they wait here until they stick.'
+      ? (miss === 1
+        ? '1 to review — it waits here until it sticks.'
+        : miss + ' to review — they wait here until they stick.')
       : 'Clean sweep.';
     $('reviewDoneBtn').hidden = !miss;
     $('reviewDoneBtn').textContent = miss ? ('Review these ' + miss) : 'Review misses';
@@ -447,11 +449,23 @@
 
     var presets = $('presets');
     presets.textContent = '';
+    var visBasic = vis.filter(function (g) { return g.kind === 'basic'; }).map(function (g) { return g.id; });
+    var selBasic = visBasic.filter(function (id) { return G.groups.indexOf(id) >= 0; });
+    var vowelIds = visBasic.filter(function (id) { return id === 'h_group1' || id === 'k_group1'; });
+    var twoIds = visBasic.filter(function (id) {
+      return id === 'h_group1' || id === 'h_group2' || id === 'k_group1' || id === 'k_group2';
+    });
+    function sameSet(a, b) {
+      if (a.length !== b.length) return false;
+      var i;
+      for (i = 0; i < a.length; i++) if (b.indexOf(a[i]) < 0) return false;
+      return true;
+    }
     [
-      ['vowels', 'Vowels'],
-      ['two', 'あ か'],
-      ['all', 'All 46'],
-      ['none', 'None']
+      ['vowels', 'Vowels', vowelIds],
+      ['two', 'あ か', twoIds],
+      ['all', 'All 46', visBasic],
+      ['none', 'None', []]
     ].forEach(function (pair) {
       var b = document.createElement('button');
       b.type = 'button';
@@ -459,6 +473,8 @@
       if (G.script === 'katakana' && pair[0] === 'two') b.textContent = 'ア カ';
       if (G.script === 'both' && pair[0] === 'two') b.textContent = 'First two';
       if (G.script !== 'hiragana' && pair[0] === 'all') b.textContent = 'All basic';
+      if (sameSet(selBasic, pair[2]) && (pair[0] === 'none' || pair[2].length)) b.className = 'on';
+      if (pair[0] === 'none' && !selBasic.length) b.className = 'on';
       b.addEventListener('click', function () { applyPreset(pair[0]); });
       presets.appendChild(b);
     });
@@ -505,14 +521,17 @@
 
     var n = selectedCount();
     $('pickCount').textContent = n ? (n + ' in this drill') : 'Pick a row to start';
+    var canResume = !!(G.solo && G.solo.deck && G.solo.i < G.solo.deck.length);
     $('startBtn').disabled = !n;
-    $('startBtn').textContent = G.solo && G.solo.deck && G.solo.i < G.solo.deck.length ? 'New drill' : 'Start drill';
+    $('startBtn').textContent = 'Start drill';
+    $('startBtn').className = 'primary';
+    $('startBtn').hidden = canResume;
+    $('freshBtn').hidden = !canResume;
 
     var miss = G.missed.length;
     $('reviewBtn').hidden = !miss;
     $('reviewBtn').textContent = miss ? ('Review misses (' + miss + ')') : 'Review misses';
 
-    var canResume = !!(G.solo && G.solo.deck && G.solo.i < G.solo.deck.length);
     $('continueBtn').hidden = !canResume;
     if (canResume) {
       $('continueBtn').textContent = 'Continue  ' + (G.solo.i + 1) + ' / ' + G.solo.deck.length;
@@ -572,19 +591,20 @@
       }
     }
     var box = $('choices');
-    box.textContent = '';
-    if (!waiting && key && G.choices.length) {
-      G.choices.forEach(function (k) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        var label = G.dir === 'toKana' ? k : romajiOf(k);
-        b.textContent = label;
-        b.setAttribute('data-a', label);
-        if (G.dir === 'toKana') { b.className = 'kana'; b.lang = 'ja'; }
-        b.disabled = G.locked;
-        b.addEventListener('click', function () { answer(label); });
-        box.appendChild(b);
-      });
+    if (!G.locked) {
+      box.textContent = '';
+      if (!waiting && key && G.choices.length) {
+        G.choices.forEach(function (k) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          var label = G.dir === 'toKana' ? k : romajiOf(k);
+          b.textContent = label;
+          b.setAttribute('data-a', label);
+          if (G.dir === 'toKana') { b.className = 'kana'; b.lang = 'ja'; }
+          b.addEventListener('click', function () { answer(label); });
+          box.appendChild(b);
+        });
+      }
     }
     var t = targetOf();
     var n = G.deck.length;
@@ -770,6 +790,7 @@
   bindSeg($('raceSeg'), 'data-race', setRace);
 
   $('startBtn').addEventListener('click', function () { startDrill({}); });
+  $('freshBtn').addEventListener('click', function () { startDrill({}); });
   $('continueBtn').addEventListener('click', function () { startDrill({ resume: true }); });
   $('reviewBtn').addEventListener('click', function () { startDrill({ review: true }); });
   $('reviewDoneBtn').addEventListener('click', function () { startDrill({ review: true }); });
