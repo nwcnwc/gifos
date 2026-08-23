@@ -1,0 +1,192 @@
+/* Color wash behind a classic Pickr card. Contrast flips with luminance. */
+:root {
+  --c: #e8416c;
+  --ink: #fff;
+  --muted: rgba(255, 255, 255, .78);
+  --glass: rgba(12, 10, 14, .28);
+  --line: rgba(255, 255, 255, .22);
+}
+body.light {
+  --ink: #16141a;
+  --muted: rgba(22, 20, 26, .7);
+  --glass: rgba(255, 255, 255, .48);
+  --line: rgba(22, 20, 26, .16);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  color: var(--ink);
+  font: 15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif;
+}
+body { min-height: 100vh; }
+
+#checker, #wash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+#checker {
+  z-index: 0;
+  background-color: #d0d0d0;
+  background-image:
+    linear-gradient(45deg, #bbb 25%, transparent 25%),
+    linear-gradient(-45deg, #bbb 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #bbb 75%),
+    linear-gradient(-45deg, transparent 75%, #bbb 75%);
+  background-size: 22px 22px;
+  background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+}
+#wash {
+  z-index: 1;
+  background: var(--c);
+}
+
+main {
+  position: relative;
+  z-index: 2;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 18px 16px 36px;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-bottom: max(36px, env(safe-area-inset-bottom));
+}
+
+header { margin-bottom: 14px; }
+#brand {
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-size: 12px;
+  color: var(--muted);
+}
+#hex {
+  font-size: clamp(2.1rem, 8vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: .03em;
+  line-height: 1.1;
+  margin: 6px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+#lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#codes {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.code {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-weight: 650;
+  color: var(--ink);
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.code .k {
+  flex: none;
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+.code .v {
+  flex: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.code:focus { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+#host { font-size: clamp(12px, 3.3vw, 15px); }
+#host .pickr { display: none; }
+#host .pcr-app {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  z-index: 1;
+  width: 100% !important;
+  max-width: 100%;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .22);
+  border-radius: 14px;
+}
+#host .pcr-app.visible {
+  opacity: 1;
+  visibility: visible;
+}
+#host .pcr-selection {
+  touch-action: none;
+}
+
+#recents-wrap { margin-top: 16px; }
+.row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+h2 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+button.ghost {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+button.ghost[hidden] { display: none; }
+
+#recents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.recent {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .55);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .2);
+  cursor: pointer;
+  padding: 0;
+  background: var(--swatch, #888);
+}
+body.light .recent { border-color: rgba(22, 20, 26, .28); }
+.recent:focus { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+#status {
+  min-height: 1.3em;
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+#status.on { color: var(--ink); }

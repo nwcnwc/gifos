@@ -1,0 +1,19 @@
+vendor/* is GENERATED. Do not edit it; run node apps/pickr/vendor.mjs.
+
+upstream: https://github.com/simonwep/pickr
+tag:      v1.10.1
+commit:   c5bb5f8de703e8e43f0b96efa4c2293475d9b9df
+npm:      @simonwep/pickr@1.10.1
+license:  MIT, Simon Reinisch / simonwep (COPYING-pickr.txt)
+
+pickr.js is the published UMD build (window.Pickr), with the
+sourceMappingURL comment stripped so the sandbox never looks for a .map.
+pickr.css is dist/themes/classic.min.css (the classic theme).
+
+sha256:
+  npm umd (before strip)  e59ce1247c7593423ec24ca0c7187deaa64b60915886295a76e0ec0f7bfc32ea
+  pickr.js                0321b41cb174529fa06990513d7a2b33f4567770f14ebb4c48c04fd5c884d5f5
+  pickr.css               e8215c4d69606947bb17c4d135649f93d1ebfbe22d9d4da6dc3abbf6cb78a287
+  COPYING                 7129bc74b781d3db2979d4617940b00e75885914b8d636a3155a64e57481e5e5
+
+The notice travels INSIDE the GIF as COPYING-pickr.txt.
