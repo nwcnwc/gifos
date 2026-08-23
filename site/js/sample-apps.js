@@ -3921,6 +3921,157 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     root.GifEnc={ encode:encode, quantize:quantize };
   })(typeof window!=='undefined'?window:this);`;
 
+  // Camera — a full-bleed shutter that asks the OS for a studio session
+  // (gifos.camera). The sandbox never sees a live stream. Shots land in My
+  // Media via gifos.library.put, and a Recents strip is this app's own roll.
+  // Never interpolate ${} in this string: it is nested in an outer template.
+  const CAMERA_HTML = `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>
+  *{box-sizing:border-box} html,body{height:100%;margin:0}
+  body{background:#07070a;color:#f2f0e8;font:14px/1.35 system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+  #empty{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px 24px;gap:12px}
+  #empty.on{display:flex}
+  #empty .ring{width:96px;height:96px;border-radius:50%;border:8px solid #e8b84a;box-shadow:inset 0 0 0 10px #14141c,0 8px 28px #0008;background:radial-gradient(circle at 38% 32%,#6a6a78,#0c0c12 62%);margin-bottom:8px}
+  #empty h1{font-size:1.35rem;font-weight:800;margin:0;letter-spacing:-.02em}
+  #empty p{margin:0;color:#9a9aaa;max-width:22em}
+  #stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;position:relative}
+  #stage img,#stage video{max-width:100%;max-height:100%;object-fit:contain;display:block}
+  #stage .ph{display:flex;flex-direction:column;align-items:center;gap:10px;color:#7a7a88}
+  #stage .ph .ring{width:72px;height:72px;border-radius:50%;border:6px solid #e8b84a;background:radial-gradient(circle at 38% 32%,#4a4a58,#0c0c12 62%)}
+  #hint{position:absolute;left:12px;right:12px;bottom:12px;text-align:center;font-size:12px;color:#c8c8b8;text-shadow:0 1px 8px #000;pointer-events:none}
+  #film{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 6px;min-height:76px;scrollbar-width:none}
+  #film::-webkit-scrollbar{display:none}
+  #film img,#film .v{width:64px;height:64px;object-fit:cover;border-radius:10px;flex:0 0 auto;border:2px solid transparent;background:#111;cursor:pointer}
+  #film img.on,#film .v.on{border-color:#e8b84a}
+  #film .v{display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px}
+  #bar{display:flex;align-items:center;justify-content:space-around;padding:8px 18px max(16px,env(safe-area-inset-bottom));gap:12px}
+  #shutter{width:74px;height:74px;border-radius:50%;border:4px solid #fff;background:transparent;padding:5px;cursor:pointer}
+  #shutter span{display:block;width:100%;height:100%;border-radius:50%;background:#fff}
+  #shutter:active span{transform:scale(.92)}
+  .ghost{width:48px;height:48px;border:0;border-radius:50%;background:#1a1a22;color:#ddd;font:inherit;cursor:pointer}
+  #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#000c;color:#fff;padding:8px 14px;border-radius:10px;font-size:.85rem;opacity:0;transition:opacity .25s;pointer-events:none;max-width:88%;z-index:5}
+  #toast.on{opacity:1}
+  #ui{flex:1;display:flex;flex-direction:column;min-height:0}
+  #ui.hide{display:none}
+</style></head><body>
+<div id="empty">
+  <div class="ring"></div>
+  <h1>No camera on this computer</h1>
+  <p id="why">Allow the camera in the browser, then turn it on in this app’s Abilities chip at the top of the tab.</p>
+</div>
+<div id="ui">
+  <div id="stage"><div class="ph"><div class="ring"></div><div>Tap the shutter</div></div><div id="hint"></div></div>
+  <div id="film"></div>
+  <div id="bar">
+    <button class="ghost" id="flip" title="Front / back" style="visibility:hidden">🔄</button>
+    <button id="shutter" aria-label="Open camera"><span></span></button>
+    <button class="ghost" id="rollbtn" title="Recents">🎞️</button>
+  </div>
+</div>
+<div id="toast"></div>
+<script>
+  var roll = gifos.db('roll');
+  var items = [];
+  var lastMode = 'photo';
+  var toastT;
+  function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(function(){ t.classList.remove('on'); }, 2800); }
+  function typeOf(mime){ mime=String(mime||''); return mime.indexOf('image/')===0?'image':mime.indexOf('video/')===0?'video':mime.indexOf('audio/')===0?'audio':''; }
+  function nameFor(shot){
+    var t=new Date().toLocaleString();
+    if(shot.kind==='video' || (shot.mime||'').indexOf('video/')===0) return 'Video · '+t;
+    if((shot.mime||'')==='image/gif'){
+      if(lastMode==='burst') return 'Burst · '+t;
+      if(lastMode==='boomerang') return 'Boomerang · '+t;
+      if(lastMode==='slowmo') return 'Slow-mo · '+t;
+      if(lastMode==='timelapse') return 'Time-lapse · '+t;
+      return 'Clip · '+t;
+    }
+    return 'Photo · '+t;
+  }
+  function renderFilm(){
+    var film=document.getElementById('film');
+    var list=items.slice().sort(function(a,b){ return (b.at||0)-(a.at||0); }).slice(0,24);
+    film.innerHTML = list.map(function(m){
+      if(m.type==='video' && !m.thumb) return '<div class="v" data-id="'+m.id+'">▶</div>';
+      var src = m.thumb || '';
+      return '<img data-id="'+m.id+'" alt="" '+(src?'src="'+src+'"':'')+'>';
+    }).join('');
+  }
+  function showItem(id){
+    var m=items.find(function(x){ return x.id===id; });
+    var st=document.getElementById('stage');
+    var hint=document.getElementById('hint');
+    if(!m){ return; }
+    Array.prototype.forEach.call(document.querySelectorAll('#film [data-id]'), function(el){ el.classList.toggle('on', el.getAttribute('data-id')===id); });
+    if(m.type==='video'){
+      st.innerHTML='<video controls playsinline autoplay muted></video><div id="hint"></div>';
+      hint=document.getElementById('hint');
+      hint.textContent = m.name+' — in My Media';
+      if(m.bytes){ var u=URL.createObjectURL(new Blob([m.bytes],{type:m.mime||'video/webm'})); st.querySelector('video').src=u; }
+      else { st.querySelector('video').poster=m.thumb||''; hint.textContent='Open My Media to play this clip.'; }
+      return;
+    }
+    st.innerHTML='<img alt=""><div id="hint"></div>';
+    hint=document.getElementById('hint');
+    st.querySelector('img').src = m.thumb || '';
+    hint.textContent = (m.name||'Photo')+' — in My Media';
+    if(m.bytes){ st.querySelector('img').src=URL.createObjectURL(new Blob([m.bytes],{type:m.mime||'image/jpeg'})); }
+  }
+  document.getElementById('film').onclick=function(e){
+    var el=e.target.closest?e.target.closest('[data-id]'):null;
+    if(el) showItem(el.getAttribute('data-id'));
+  };
+  roll.subscribe(function(rows){ items=(rows||[]).filter(function(r){ return r&&r.id; }); renderFilm(); });
+
+  async function putShot(shot){
+    if(!shot||!shot.bytes) return;
+    var mime=shot.mime||'image/jpeg';
+    var type=typeOf(mime)||'image';
+    try{
+      var r=await gifos.library.put({ bytes:shot.bytes, mime:mime, name:nameFor(shot), type:type, category:'Camera', thumb:shot.thumb||'' });
+      if(r && r.missing) toast(r.missing);
+      else toast('Saved to My Media');
+    }catch(e){ toast(String(e&&e.message||e).slice(0,90)); }
+  }
+  async function openStudio(){
+    try{
+      var shot=await gifos.camera({ mode:lastMode });
+      if(shot && shot.kind) lastMode = shot.kind==='video' ? 'video' : lastMode;
+      await putShot(shot);
+      if(shot && shot.thumb){
+        var st=document.getElementById('stage');
+        st.innerHTML='<img alt=""><div id="hint"></div>';
+        st.querySelector('img').src=shot.thumb;
+        document.getElementById('hint').textContent='Saved to My Media';
+      }
+    }catch(e){
+      var m=String(e&&e.message||e);
+      if(!/cancel/i.test(m)) toast(m.slice(0,90));
+    }
+  }
+  document.getElementById('shutter').onclick=function(){ openStudio(); };
+  document.getElementById('rollbtn').onclick=function(){
+    var latest=items.slice().sort(function(a,b){ return (b.at||0)-(a.at||0); })[0];
+    if(latest) showItem(latest.id);
+  };
+
+  (async function boot(){
+    var info=null;
+    try{ info=await gifos.cameraInfo(); }catch(e){ info={ ok:false, reason:String(e&&e.message||e) }; }
+    if(!info||!info.ok){
+      document.getElementById('ui').classList.add('hide');
+      document.getElementById('empty').classList.add('on');
+      if(info && info.reason) document.getElementById('why').textContent=info.reason;
+      return;
+    }
+    if(info.count>1 || (info.facingModes&&info.facingModes.indexOf('user')>=0&&info.facingModes.indexOf('environment')>=0)){
+      document.getElementById('flip').style.visibility='visible';
+    }
+    await openStudio();
+  })();
+</script></body></html>`;
+
   function build() {
     const gif = GifOS.gif;
     // Apps that hand-author their theming with CSS variables take 'vars' —
@@ -4026,11 +4177,66 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
       const frames = []; for (let f = 0; f < N; f++) frames.push(painter(f));
       return GifOS.icons.rasterize(frames, S, 11);
     }
+    // Camera: a dark body with a gold ring and shutter blades that breathe,
+    // plus a gleam that sweeps the glass. Independent of the icon pack so it
+    // still reads at 64px on both light and dark tiles.
+    function cameraIcon(accent) {
+      const N = 16, S = 72;
+      const body = 'rgb(' + accent.map((v) => Math.max(0, Math.min(255, v | 0))).join(',') + ')';
+      const rr = (ctx, x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
+      const painter = (f) => (ctx, s) => {
+        const t = f / N;
+        const pulse = (1 - Math.cos(2 * Math.PI * t)) / 2;
+        ctx.clearRect(0, 0, s, s);
+        const cx = s * 0.5, cy = s * 0.54;
+        const bw = s * 0.78, bh = s * 0.56, bx = cx - bw / 2, by = cy - bh / 2;
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        rr(ctx, bx + 2, by + 4, bw, bh, s * 0.1); ctx.fill();
+        ctx.fillStyle = body;
+        rr(ctx, bx, by, bw, bh, s * 0.1); ctx.fill();
+        ctx.fillStyle = '#2a2a34';
+        rr(ctx, cx - s * 0.13, by - s * 0.08, s * 0.26, s * 0.12, s * 0.04); ctx.fill();
+        ctx.fillStyle = '#e8b84a';
+        ctx.fillRect(cx + s * 0.22, by + s * 0.08, s * 0.07, s * 0.055);
+        const R = s * 0.22;
+        ctx.beginPath(); ctx.arc(cx, cy, R + s * 0.035, 0, 7); ctx.fillStyle = '#e8b84a'; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, R + s * 0.012, 0, 7); ctx.fillStyle = '#1a1a22'; ctx.fill();
+        ctx.save();
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
+        ctx.fillStyle = '#0c0c12'; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+        const n = 6, open = 0.2 + 0.22 * pulse;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + t * 0.55;
+          ctx.beginPath(); ctx.moveTo(cx, cy);
+          ctx.arc(cx, cy, R, a, a + Math.PI * 2 / n * 0.9);
+          ctx.closePath();
+          ctx.fillStyle = i % 2 ? '#3a3a44' : '#22222c';
+          ctx.fill();
+        }
+        ctx.beginPath(); ctx.arc(cx, cy, R * open, 0, 7);
+        ctx.fillStyle = '#07070c'; ctx.fill();
+        ctx.restore();
+        ctx.save();
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
+        const gx = cx - R + (2 * R) * t;
+        const g = ctx.createLinearGradient(gx - 8, cy - R, gx + 8, cy + R);
+        g.addColorStop(0, 'rgba(255,255,255,0)');
+        g.addColorStop(0.5, 'rgba(255,236,180,' + (0.22 + 0.2 * pulse).toFixed(3) + ')');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+        ctx.restore();
+        ctx.beginPath(); ctx.arc(cx, cy, R + s * 0.035, 0, 7);
+        ctx.strokeStyle = 'rgba(255,220,140,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+      };
+      const frames = []; for (let f = 0; f < N; f++) frames.push(painter(f));
+      return GifOS.icons.rasterize(frames, S, 10);
+    }
     // Each app gets its own hand-designed animated artwork (gifos-icons.js),
     // rasterized into the GIF. Fall back to the plain animated tile if the
     // icons module isn't present (e.g. non-browser).
     const iconFor = (a) => a.appId === 'bible' && GifOS.icons ? bibleIcon()
       : a.appId === 'mymedia' && GifOS.icons ? mediaIcon(a.accent)
+      : a.appId === 'camera' && GifOS.icons ? cameraIcon(a.accent)
       : (GifOS.icons ? GifOS.icons.renderApp(a.appId, a.accent) : null);
     const enc = (a) => Promise.resolve(iconFor(a))
       .catch(() => null)
@@ -4127,7 +4333,14 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
       name: 'Welcome.gif', appId: 'welcome', accent: [92, 200, 255],
       files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255], { data: { welcome: PRIV } }), 'index.html': themeHtml(WELCOME_HTML, 'full'), 'README.txt': WELCOME_README },
     }, {
-      // A personal media library, on the Home Screen next to Welcome. Declares
+      // Home Screen shutter, between Welcome and My Media. Declares camera +
+      // microphone; the live stream stays in the trusted parent (camera-studio).
+      name: 'Camera.gif', appId: 'camera', accent: [40, 40, 48],
+      files: { 'manifest.json': manifest('camera', 'Camera', [40, 40, 48], { capabilities: { db: true, camera: true, microphone: true },
+               data: { roll: PRIV } }),
+               'index.html': themeHtml(CAMERA_HTML, 'vars') },
+    }, {
+      // A personal media library, on the Home Screen under Camera. Declares
       // microphone + camera so you can capture straight in (honours the per-app
       // Abilities opt-out); the app hand-authors its theming, so 'vars' mode.
       name: 'My Media.gif', appId: 'mymedia', accent: [255, 120, 80],
