@@ -898,10 +898,29 @@ docs/media-plane.md Channel St):
   which grows (`body.screen-on`, the lever the broadcast skin already pulls)
   but is still a strip. §4e's placeable-tile layout is the right home for a
   proper region; a share beside four other stagers is still small.
-- **Not measured on real hardware**: readability of a shared 1080p desktop on a
-  phone at the far end of a deep tree, and what the Stage bitrate ceiling does
-  to text (a face tolerates blur; a terminal does not). Needs the cross-device
-  harness, not one box.
+- **Legibility on a phone — MEASURED 2026-08-23, and it is the predicted
+  problem.** A shared desktop reaches a phone participant fine, but text at a
+  reasonable font size is not legible; only large fonts come through. Not
+  urgent, but the follow-up is now concrete rather than a guess:
+  - **Find which leg loses it.** Three suspects, in the order to eliminate
+    them: (1) the capture — `getDisplayMedia` constraints (ask for the
+    monitor's native `width`/`height`, `resizeMode: 'none'`) so a 1440p
+    desktop is not downscaled before it is encoded; (2) the encode — the Stage
+    bitrate / resolution ceiling and the scaler (`scaleResolutionDownBy`,
+    `degradationPreference`) were tuned for faces; a screen wants
+    `contentHint = 'detail'` / `'text'` and **maintain-resolution** over
+    maintain-framerate (a face tolerates blur; a terminal does not); (3) the
+    tree — every `stg:` composite/fan-down hop that re-encodes is a generation
+    loss, so a deep tree may need the share to pass through uncomposited.
+    Measure per-leg on the cross-device harness (test/README "ONE BOX CANNOT
+    ANSWER…"), not one box.
+  - **A screen is not a face, so treat its track like one that isn't**:
+    drop the frame rate (5–10 fps is plenty for a document) and spend the
+    bits on resolution.
+  - **The receiver side**: on a phone the share is a small tile in the Stage
+    strip regardless of how many pixels arrive. Pinch-to-zoom / tap-to-fill
+    on the share tile, or the dedicated large region above, is the other half
+    of "legible" — enough pixels *and* enough screen.
 
 **Not possible for APPS, and now recorded where someone will reach for it:**
 a `capabilities.screen` that delegates `display-capture` to an app frame was
