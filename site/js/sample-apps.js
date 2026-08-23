@@ -3424,7 +3424,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     document.getElementById('minfo').textContent = (KIND[m.type]||'')+' '+(m.mime||'')+' · '+fmtSize(m.size);
     syncVisRow();
     closeGifPanel();
-    var canFlip = m.type==='video' || (m.type==='image' && !/image\/gif/i.test(m.mime||''));
+    var mime=(m.mime||'').toLowerCase();
+    var canFlip = m.type==='video' || (m.type==='image' && mime.indexOf('image/gif')!==0);
     document.getElementById('mfliph').style.display = canFlip ? 'inline-block' : 'none';
     document.getElementById('mflipv').style.display = canFlip ? 'inline-block' : 'none';
     document.getElementById('mclip').style.display = (m.type==='video'||m.type==='audio') ? 'inline-block' : 'none';
@@ -3941,7 +3942,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
       if(after[p]!==before[p]||after[p+1]!==before[p+1]||after[p+2]!==before[p+2]){ changed=true; break; }
     }
     if(!changed) throw new Error('That image looks the same flipped.');
-    var jpeg=/image\/jpe?g/i.test(cur.mime||'');
+    var jm=(cur.mime||'').toLowerCase();
+    var jpeg=jm==='image/jpeg'||jm==='image/jpg';
     var outMime=jpeg?'image/jpeg':'image/png';
     var out=await new Promise(function(res, rej){
       if(!c.toBlob){
