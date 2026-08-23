@@ -1,8 +1,9 @@
-/* Dark jar, colourful dots, friend-mode chrome around it. */
+/* Dark jar first. Chrome sits in a thin strip so a phone still sees the specks. */
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
   background: #07080c;
   color: #e8eef4;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -11,40 +12,47 @@ html, body {
   -webkit-user-select: none;
 }
 body {
-  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 10px calc(8px + env(safe-area-inset-bottom, 0px));
 }
 #shell {
-  max-width: 960px;
+  flex: 1;
+  min-height: 0;
+  max-width: 1100px;
+  width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: calc(100vh - 20px);
+  gap: 6px;
 }
 #hud {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px 16px;
+  gap: 6px 14px;
+  flex: 0 0 auto;
 }
-#brand { font-size: 20px; font-weight: 700; letter-spacing: 0.02em; }
+#brand { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
 #seed {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: #8aa0b0;
 }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; flex: 0 0 auto; }
 .actions button, #leaveBtn {
   font: inherit;
   font-size: 15px;
   font-weight: 700;
   padding: 8px 14px;
+  min-height: 40px;
   border: 1px solid #2a3a44;
   background: #121820;
   color: #e8eef4;
   border-radius: 6px;
   cursor: pointer;
+  white-space: nowrap;
 }
 #shareBtn { background: #00c4cc; color: #072024; border-color: #00a8b0; }
 #mixBtn { background: #1a2430; }
@@ -55,22 +63,23 @@ body.friend #shareBtn { display: none; }
   background: #121820;
   border: 1px solid #2a3a44;
   border-radius: 8px;
-  padding: 10px 12px 8px;
+  padding: 8px 12px 6px;
+  flex: 0 0 auto;
 }
 #friend-bar[hidden] { display: none; }
-#friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+#friend-hint, #friend-status { margin: 0 0 6px; font-size: 14px; line-height: 1.4; }
 #friend-hint b { color: #ffb050; }
 #friend-status { font-weight: 700; min-height: 1.2em; }
 #friend-scores {
   list-style: none;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   padding: 0;
 }
 #friend-scores li {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  padding: 4px 0;
+  padding: 3px 0;
   border-top: 1px solid #1e2a34;
   font-variant-numeric: tabular-nums;
 }
@@ -81,47 +90,72 @@ body.friend #shareBtn { display: none; }
 .friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 #stage {
-  flex: 1;
-  min-height: 240px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #000;
-  border: 1px dashed #504e52;
-  border-radius: 4px;
-  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
   touch-action: none;
 }
 #jar {
   display: block;
-  width: 100%;
-  height: 100%;
-  max-height: min(70vh, 640px);
-  object-fit: contain;
+  width: min(100%, 70vh);
+  height: auto;
+  aspect-ratio: 1 / 1;
   cursor: crosshair;
   outline: none;
-  background: #000;
+  background: #05060a;
+  touch-action: none;
+  border: 1px dashed #504e52;
+  border-radius: 4px;
 }
 
 #knobs {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 18px;
+  gap: 10px 16px;
   align-items: center;
   font-size: 14px;
   color: #c0ccd6;
+  flex: 0 0 auto;
 }
 #knobs label { display: flex; align-items: center; gap: 8px; }
+#knobs .crowd { flex: 1 1 160px; min-width: 0; }
 #knobs select, #knobs input[type="range"] {
   font: inherit;
   accent-color: #00c4cc;
 }
+#knobs input[type="range"] { flex: 1; min-width: 80px; }
 #countN { font-variant-numeric: tabular-nums; color: #8aa0b0; min-width: 2.2em; }
 
 #how, .foot {
   margin: 0;
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.4;
   color: #8aa0b0;
+  flex: 0 0 auto;
 }
 .foot { color: #667888; }
+
+@media (max-width: 480px) {
+  #brand { font-size: 16px; }
+  #how, .foot { display: none; }
+  #friend-hint { display: none; }
+  #shareBtn .rest { display: none; }
+  .actions { flex-wrap: nowrap; }
+  .actions button, #leaveBtn {
+    min-height: 44px;
+    padding: 8px 8px;
+    font-size: 14px;
+    flex: 1 1 0;
+  }
+  #stage {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 220px;
+  }
+  #friend-bar { padding: 6px 10px 4px; }
+  #friend-status { margin: 0 0 4px; font-size: 13px; }
+  #friend-scores { margin: 0; }
+  #friend-scores li { padding: 2px 0; }
+}

@@ -130,7 +130,7 @@ for (const [n, s] of Object.entries(files)) {
     fillRect() {}, fillStyle: '', strokeStyle: '', lineWidth: 0,
     beginPath() {}, arc() {}, closePath() {}, fill() {}, stroke() {}
   };
-  const fakeCanvas = { width: 960, height: 640, getContext() { return fakeCtx; } };
+  const fakeCanvas = { width: 800, height: 800, getContext() { return fakeCtx; } };
   const sandbox = {
     window: null,
     globalThis: null,
@@ -153,17 +153,51 @@ for (const [n, s] of Object.entries(files)) {
   if (snap.atomN !== 180 * 4) {
     throw new Error('default jar should be 180 atoms × 4 colours, got ' + snap.atomN);
   }
+  if (typeof PL.step !== 'function' || typeof PL.getAtoms !== 'function') {
+    throw new Error('vendor/particle-life.js must export step/getAtoms for the cover');
+  }
   PL.poke(480, 320, 1);
   PL.poke(100, 100, -1);
+  PL.step(4);
+  if (PL.getAtoms().length !== 180 * 4) {
+    throw new Error('step should keep the jar populated');
+  }
   PL.setNumColors(3);
   if (PL.snapshot().atomN !== 180 * 3) {
     throw new Error('setNumColors(3) should rebuild 180×3 atoms');
   }
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+// Cover is a real jar: pour the default mix, let it cluster, paint that frame.
+{
+  const fakeCtx = {
+    fillRect() {}, fillStyle: '', strokeStyle: '', lineWidth: 0,
+    beginPath() {}, arc() {}, closePath() {}, fill() {}, stroke() {}
+  };
+  const fakeCanvas = { width: 800, height: 800, getContext() { return fakeCtx; } };
+  const sandbox = {
+    window: null,
+    globalThis: null,
+    requestAnimationFrame() { return 0; },
+    cancelAnimationFrame() {},
+    Math, isFinite, Date, parseInt, parseFloat, NaN, Infinity, undefined,
+    console
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(files['vendor/particle-life.js'], sandbox);
+  const PL = sandbox.ParticleLife;
+  PL.mount(fakeCanvas);
+  PL.settings.atoms.count = 280;
+  PL.setNumColors(5);
+  PL.setSeed(91651088029);
+  PL.step(420);
+  const atoms = PL.getAtoms().map(function (a) { return a.slice(); });
+  const shot = screenshotPng({ atoms: atoms, colors: PL.settings.colors.slice() });
+  if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
+  writeFileSync(join(dir, 'screenshot.png'), shot);
+}
 
 const bytes = await gif.encode(files, { preview: particleLifeIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'particle-life', 'particle-life.gif');
