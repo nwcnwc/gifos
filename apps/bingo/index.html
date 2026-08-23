@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Bingo</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Bingo</div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="home">
+    <h2>The host calls numbers</h2>
+    <p class="lede">You have a card. Mark the ones that come up. A line, a column, a diagonal, or the four corners — that is bingo.</p>
+    <button class="primary" id="soloBtn" type="button">Play on this device</button>
+    <button class="ghost wide" id="friendBtn" type="button">👥 Play with friends</button>
+    <p class="lvlnote">Play with friends: send the invite from the GifOS menu. The people who open it are the room. The host calls; each of you has a card on your own phone.</p>
+  </section>
+
+  <section class="game" id="lobby" hidden>
+    <div class="vhead"><h2>The room</h2><button class="ghost" id="lobbyLeave" type="button">← Leave</button></div>
+    <p class="statusline" id="lobbyStatus">Waiting for friends… press Invite in the GifOS menu to send the link.</p>
+    <ul class="lobby-list" id="lobbyList"></ul>
+    <button class="primary" id="dealBtn" type="button">Start calling</button>
+  </section>
+
+  <section class="game" id="play" hidden>
+    <div class="vhead">
+      <h2 id="playTitle">Bingo</h2>
+      <button class="ghost" id="playLeave" type="button">← Leave</button>
+    </div>
+    <p class="statusline" id="playStatus"></p>
+    <div class="call-ball" id="callBall">
+      <span class="letter" id="callLetter">·</span>
+      <span class="num" id="callNum">—</span>
+    </div>
+    <p class="subtitle" id="callHint">Waiting for a call</p>
+    <div class="called-strip" id="calledStrip"></div>
+    <table class="bingo-card" id="bingoCard" aria-label="Bingo card">
+      <thead>
+        <tr>
+          <th class="b">B</th><th class="i">I</th><th class="n">N</th><th class="g">G</th><th class="o">O</th>
+        </tr>
+      </thead>
+      <tbody id="cardBody"></tbody>
+    </table>
+    <ul class="lobby-list people" id="peopleList"></ul>
+    <div class="controls" id="playControls">
+      <button class="primary" id="callBtn" type="button">Call</button>
+      <button class="ghost" id="autoBtn" type="button">Keep calling</button>
+      <button class="ghost" id="bingoBtn" type="button" disabled>Bingo!</button>
+    </div>
+    <div class="reveal" id="reveal" hidden></div>
+  </section>
+</main>
+
+<script src="deal.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
