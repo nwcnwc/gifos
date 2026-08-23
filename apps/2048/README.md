@@ -42,8 +42,10 @@ No `network`, no `wasm`. The original is plain JS.
 
 ## How the race works
 
-1. Press **Play a friend**. Press **Invite** (the GifOS menu) to send the link.
-   Solo still works if nobody comes — you can play while you wait.
+1. Press **Play a friend**. Press **Invite** (the GifOS menu — this app never
+   draws its own share sheet) to send the link. Solo still works if nobody
+   comes — you can play while you wait. Live scores sit in a compact strip
+   above the board so the grid stays on screen.
 2. Everyone who is in the room **starts from the same two tiles**. The seed
    lives on each player’s own row; everyone adopts the seed of the
    lowest-id player on the current round. If you make the same moves, you
