@@ -114,24 +114,37 @@ const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RE
 // minutes on every run, and the phone was blamed for a room that had no host
 // beating in it.
 //
-// Asking for VULKAN is what actually selects the GPU, and it degrades safely:
-// the same flags on a box without one land on Vulkan's own SwiftShader device,
-// so this means "use the GPU if there is one", never "assume one".
+// Asking for VULKAN is what actually selects an NVIDIA/Tegra GPU in *headless*
+// Chrome, and it degrades safely to Vulkan's own SwiftShader on a box with
+// none. It is NOT safe as a fleet-wide default: ANGLE Vulkan on a GLES GPU
+// (Broadcom V3D, …) reports SwiftShader even in a headed Wayland session,
+// while the same Chromium headed with no backend forced reports the real
+// adapter (measured: ANGLE OpenGL ES 3.1 on that GPU; in-game evaluate RTT
+// 7 ms, ~40 fps). Forcing Vulkan and then calling the board unable to draw
+// was a harness bug, not a finding about the silicon.
 //
-//   ANGLE (NVIDIA, Vulkan 1.3.242 (NVIDIA GeForce MX230), NVIDIA)
-// Solo often runs on the orchestrator, which has no GPU — software is the
-// honest default there. Deathmatch is the fleet: default Vulkan so a board
-// that can draw is asked to, instead of being handed SwiftShader and then
-// declared unable. FPS_GL=hw/sw overrides both.
+//   gpu: true  → headless Vulkan (the hosts-file mark for a box whose GPU
+//                answers that path)
+//   otherwise  → no backend forced; fleet-browsers attaches headed if the
+//                seat has a display
+// USB phones stay first-class drawers via FPS_BOB_CDP (a real Mali GPU is
+// stronger than any headless software rasteriser) — they are not a fallback
+// after writing a board off. FPS_GL=hw forces Vulkan on everyone; =sw forces
+// software. Solo on the orchestrator stays software (that box often has no GPU).
 const THROTTLE = [
   '--disable-background-timer-throttling',
   '--disable-backgrounding-occluded-windows',
   '--disable-renderer-backgrounding',
 ];
 const SW_GL = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
-const HW_GL = ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
-const SOLO_ARGS = [...(process.env.FPS_GL === 'hw' ? HW_GL : SW_GL), ...THROTTLE];
-const FLEET_ARGS = [...(process.env.FPS_GL === 'sw' ? SW_GL : HW_GL), ...THROTTLE];
+const VULKAN_GL = ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--enable-gpu'];
+const GLES_GL = ['--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--enable-gpu'];
+const SOLO_ARGS = [...(process.env.FPS_GL === 'hw' ? VULKAN_GL : SW_GL), ...THROTTLE];
+function fleetArgs(h) {
+  if (process.env.FPS_GL === 'sw') return [...SW_GL, ...THROTTLE];
+  if (process.env.FPS_GL === 'hw' || (h && h.gpu)) return [...VULKAN_GL, ...THROTTLE];
+  return [...GLES_GL, ...THROTTLE];
+}
 
 async function install(page) {
   await page.goto(BASE + '/index.html');
@@ -309,17 +322,11 @@ async function waitFor(frame, fn, ms, arg) {
 
 // A BOX CAN BE ISOLATED AND STILL NOT BE A MACHINE THIS GAME RUNS ON, and that
 // gap cost a whole night. fleet.js verifies that a host is reachable, idle and
-// has a browser — every one of which a Raspberry Pi passes. It cannot verify
-// that the box can RENDER, and a 4-core ARM board driving Three.js through a
-// software rasteriser cannot: its app frame answered a single `evaluate` in
-// 220 SECONDS. Every assertion below polls through evaluate, so a 180 s budget
-// bought exactly one observation, and the suite reported "both peers see two
-// players — alice=false" while the diagnostic taken moments later showed the
-// presence had in fact arrived.
-//
-// That is a verdict about a Raspberry Pi, which is the precise thing
-// test/lib/fleet.js exists to stop this repo from believing. So measure the
-// thing the measurements depend on, and REFUSE rather than judge.
+// has a browser. It cannot verify that the box can RENDER THIS GAME. An empty
+// canvas that answers in 6 ms is not that measurement — the 18 s stall was
+// the game on a software rasteriser, which we had forced by asking ANGLE
+// Vulkan on a GLES GPU. Measure in-game evaluate RTT, try the next host on
+// a null, and do not skip a board because it lacks `gpu: true`.
 async function mustBeAbleToAnswer(frame, who, host) {
   const samples = [];
   for (let i = 0; i < 3; i++) {
@@ -333,16 +340,6 @@ async function mustBeAbleToAnswer(frame, who, host) {
   if (median <= 2000) return median;
   console.log('  ' + who + "'s box (" + host + ') cannot answer while the game is running — not a product red; the next capable host is tried.');
   return null;
-}
-
-// Hosts the local never-committed file may mark `gpu: true` go first. Weight
-// order alone put a software-rasterising ARM board in the pair ahead of a
-// GPU box with a lower weight, then this half exited 3 without trying the
-// GPU. Prefer the drawers; leftovers are the retry pool after a null RTT.
-function preferDrawers(hosts) {
-  const gpu = (hosts || []).filter((h) => h && h.gpu);
-  const rest = (hosts || []).filter((h) => h && !h.gpu);
-  return gpu.concat(rest);
 }
 
 /* ======================================================================= */
@@ -612,9 +609,9 @@ async function deathmatch() {
        + (BOB_CDP ? ' (Bob is the phone at FPS_BOB_CDP — his own machine by construction)' : ''),
     roles: BOB_CDP ? ['alice'] : ['alice', 'bob'],
   });
-  const pool = preferDrawers(fleet.hosts.slice());
+  const pool = fleet.hosts.slice();
   const pick = pool.splice(0, BOB_CDP ? 1 : 2);
-  const boxes = await openFleet(pick, { args: FLEET_ARGS, origin: BASE });
+  const boxes = await openFleet(pick, { args: fleetArgs, origin: BASE });
   let bobBrowser = null;   // the phone's CDP connection, when there is one
 
   // THE HARNESS HAS NO THUMB, AND A PLAYER DOES.
@@ -1123,7 +1120,7 @@ async function deathmatch() {
       console.log('  replacing ' + who + ' with ' + (next.name || next.ssh) + ' (' + pool.length + ' hosts left)');
       if (who === 'Bob') {
         try { await boxes[1].browser.close(); } catch (e) {}
-        const extra = await openFleet([next], { args: FLEET_ARGS, origin: BASE });
+        const extra = await openFleet([next], { args: fleetArgs, origin: BASE });
         boxes[1] = extra[0];
         const bCtx = await boxes[1].browser.newContext({ viewport: { width: 1100, height: 720 } });
         await bCtx.addInitScript({ content: setup('Bob', 'low') });
