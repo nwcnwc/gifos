@@ -1,10 +1,11 @@
 # Reversi
 
-Flip the disks. Get more of your colour. Against the computer, or a friend.
+Play the computer on this device, or a friend from one link. No server.
 
 An unofficial port of **[Reversi](https://github.com/alex-berson/reversi)** by
 Alexander Berson (MIT). The computer is his Monte-Carlo tree search, running
-on this device. The service worker, PWA chrome and App Store badge stay
+on this device. Discs are three-dimensional and actually turn over; dots mark
+legal squares. The service worker, PWA chrome and App Store badge stay
 behind. Classic scripts so the GifOS runtime (which drops `type=module`) can
 boot it.
 

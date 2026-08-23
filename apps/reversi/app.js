@@ -11,6 +11,7 @@
     });
   };
 
+  var FLIP_MS = 560, SWAP_AT = 270, STAGGER = 42;
   var state = {
     mode: 'cpu', color: 'black',
     s: null, hist: [], over: false, thinking: false, animating: false
@@ -26,9 +27,13 @@
     el.className = 'statusline' + (cls ? ' ' + cls : '');
     el.textContent = text;
   }
-  function setScore(el, s) {
+  function setScore(el, s, turnOn) {
     if (!el || !s) return;
-    el.innerHTML = '<span class="blk">● ' + s.blacks + '</span><span class="wht">○ ' + s.whites + '</span>';
+    var bOn = !!(turnOn && !s.winner && s.turn === R.BLACK);
+    var wOn = !!(turnOn && !s.winner && s.turn === R.WHITE);
+    el.innerHTML =
+      '<div class="sc blk' + (bOn ? ' on' : '') + '"><i class="d"></i><b>' + s.blacks + '</b></div>' +
+      '<div class="sc wht' + (wOn ? ' on' : '') + '"><i class="d"></i><b>' + s.whites + '</b></div>';
   }
 
   $('modeSeg').addEventListener('click', function (e) {
@@ -50,37 +55,56 @@
       : 'You place white. The computer places black, and goes first.';
   });
 
+  function squareAt(boardEl, r, c) {
+    return boardEl.children[r * R.SIZE + c];
+  }
   function diskAt(boardEl, r, c) {
-    var sq = boardEl.children[r * R.SIZE + c];
-    return sq ? sq.firstChild : null;
+    var sq = squareAt(boardEl, r, c);
+    return sq ? sq.querySelector('.disk') : null;
   }
   function paint(boardEl, s, opts) {
     opts = opts || {};
     if (!boardEl) return;
-    var r, c, disk, col, key, legal = {};
+    var r, c, sq, disk, hint, num, col, key, legal = {};
     var hintColor = opts.hintColor || (s ? s.turn : R.BLACK);
     if (opts.hints && s && !s.winner) {
       R.availableMoves(s.map, hintColor).forEach(function (m) { legal[m.r + ',' + m.c] = 1; });
     }
     for (r = 0; r < R.SIZE; r++) for (c = 0; c < R.SIZE; c++) {
-      disk = diskAt(boardEl, r, c);
-      if (!disk) continue;
-      disk.classList.remove('hint-b', 'hint-w', 'black', 'white', 'visible', 'inversion');
-      disk.textContent = '';
-      col = s ? s.map[r][c] : 0;
+      sq = squareAt(boardEl, r, c);
+      if (!sq) continue;
+      disk = sq.querySelector('.disk');
+      hint = sq.querySelector('.hint');
+      num = sq.querySelector('.num');
+      if (disk) {
+        disk.classList.add('snap');
+        disk.classList.remove('black', 'white', 'visible', 'flipping');
+        col = s ? s.map[r][c] : 0;
+        if (col === R.BLACK) disk.classList.add('black', 'visible');
+        else if (col === R.WHITE) disk.classList.add('white', 'visible');
+      }
       key = r + ',' + c;
-      if (col === R.BLACK) disk.classList.add('black', 'visible');
-      else if (col === R.WHITE) disk.classList.add('white', 'visible');
-      else if (legal[key]) disk.classList.add(hintColor === R.BLACK ? 'hint-b' : 'hint-w', 'visible');
+      if (hint) hint.className = 'hint' + (legal[key] ? (hintColor === R.BLACK ? ' show-b' : ' show-w') : '');
+      sq.classList.toggle('last', !!(s && s.last && s.last.r === r && s.last.c === c && !opts.noLast));
+      if (num && !opts.keepNums) num.textContent = '';
+    }
+    void boardEl.offsetWidth;
+    for (r = 0; r < R.SIZE; r++) for (c = 0; c < R.SIZE; c++) {
+      disk = diskAt(boardEl, r, c);
+      if (disk) disk.classList.remove('snap');
     }
   }
   function animatePlace(boardEl, prev, ns, done) {
-    paint(boardEl, prev, { hints: false });
+    paint(boardEl, prev, { hints: false, noLast: true });
     if (!ns || !ns.last) { paint(boardEl, ns); if (done) done(); return; }
+    var sq = squareAt(boardEl, ns.last.r, ns.last.c);
     var placed = diskAt(boardEl, ns.last.r, ns.last.c);
+    if (sq) sq.classList.add('last');
     if (placed) {
-      placed.classList.remove('hint-b', 'hint-w');
+      placed.classList.add('snap');
       placed.classList.add(ns.last.color === R.BLACK ? 'black' : 'white', 'visible');
+      void placed.offsetWidth;
+      placed.classList.remove('snap');
     }
     var rest = (ns.flipped || []).slice(1);
     if (!rest.length) { if (done) done(); return; }
@@ -90,32 +114,60 @@
       finished = true;
       if (done) done();
     }
-    rest.forEach(function (d) {
+    rest.forEach(function (d, i) {
       var disk = diskAt(boardEl, d.r, d.c);
       if (!disk) { left--; if (left <= 0) finish(); return; }
-      disk.classList.add('inversion');
-      disk.addEventListener('animationend', function () {
-        disk.classList.toggle('black');
-        disk.classList.toggle('white');
-        disk.classList.remove('inversion');
-        left--;
-        if (left <= 0) finish();
-      }, { once: true });
+      var toBlack = ns.map[d.r][d.c] === R.BLACK;
+      setTimeout(function () {
+        disk.classList.add('flipping');
+        setTimeout(function () {
+          disk.classList.toggle('black', toBlack);
+          disk.classList.toggle('white', !toBlack);
+        }, SWAP_AT);
+        disk.addEventListener('animationend', function () {
+          disk.classList.remove('flipping');
+          left--;
+          if (left <= 0) finish();
+        }, { once: true });
+      }, i * STAGGER);
     });
-    setTimeout(finish, 1100);
+    setTimeout(finish, FLIP_MS + 80 + rest.length * STAGGER);
+  }
+  function countOut(boardEl, s) {
+    if (!boardEl || !s) return;
+    var order = [], r, c;
+    for (r = 0; r < R.SIZE; r++) for (c = 0; c < R.SIZE; c++) {
+      if (s.map[r][c]) order.push({ r: r, c: c, color: s.map[r][c] });
+    }
+    var i = 0, b = 0, w = 0;
+    function step() {
+      if (i >= order.length) return;
+      var cell = order[i++];
+      if (cell.color === R.BLACK) b++; else w++;
+      var sq = squareAt(boardEl, cell.r, cell.c);
+      var num = sq && sq.querySelector('.num');
+      if (num) num.textContent = String(cell.color === R.BLACK ? b : w);
+      setTimeout(step, 42);
+    }
+    setTimeout(step, 180);
   }
   function makeBoard(el, onPlay) {
     el.innerHTML = '';
-    var r, c, sq, disk;
+    var r, c, sq, disk, hint, num;
     for (r = 0; r < R.SIZE; r++) for (c = 0; c < R.SIZE; c++) {
       sq = document.createElement('div');
       sq.className = 'square';
+      if ((r === 2 || r === 5) && (c === 2 || c === 5)) sq.classList.add('star');
       sq.setAttribute('data-r', String(r));
       sq.setAttribute('data-c', String(c));
-      disk = document.createElement('div');
-      disk.className = 'disk';
+      hint = document.createElement('i'); hint.className = 'hint';
+      disk = document.createElement('div'); disk.className = 'disk';
+      num = document.createElement('span'); num.className = 'num';
+      sq.appendChild(hint);
       sq.appendChild(disk);
-      sq.addEventListener('click', function () {
+      sq.appendChild(num);
+      sq.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         onPlay(+this.getAttribute('data-r'), +this.getAttribute('data-c'));
       });
       el.appendChild(sq);
@@ -129,7 +181,7 @@
   }
   function localStatus() {
     if (!state.s) return;
-    setScore($('scoreLine'), state.s);
+    setScore($('scoreLine'), state.s, true);
     if (state.s.winner === R.DRAW) {
       setStatus($('statusLine'), 'Draw — ' + state.s.blacks + ' apiece.', '');
       return;
@@ -148,10 +200,10 @@
     var pass = state.s.passed ? 'No move for the other side. ' : '';
     if (state.mode === 'hotseat') {
       var t = R.colorName(state.s.turn);
-      setStatus($('statusLine'), pass + t.charAt(0).toUpperCase() + t.slice(1) + ' to play. Tap a square.', '');
+      setStatus($('statusLine'), pass + t.charAt(0).toUpperCase() + t.slice(1) + ' to play. Tap a dotted square.', '');
     } else {
       setStatus($('statusLine'), pass + (R.colorName(state.s.turn) === state.color
-        ? 'Your turn. Tap a square.' : 'Computer to play.'), '');
+        ? 'Your turn. Tap a dotted square.' : 'Computer to play.'), '');
     }
   }
   function saveLocal() {
@@ -167,6 +219,7 @@
     paint($('board'), state.s, { hints: isHumanTurn(), hintColor: state.s ? state.s.turn : R.BLACK });
     localStatus();
     saveLocal();
+    if (state.s && state.s.winner) countOut($('board'), state.s);
     if (!state.over && state.mode === 'cpu' && R.colorName(state.s.turn) !== state.color) aiMove();
   }
   function playLocal(r, c) {
@@ -199,7 +252,7 @@
         move = R.aiMove(state.s.map, state.s.turn, R.TIME_LIMIT);
       }
       state.thinking = false;
-      setChip('ready', 'Ready');
+      setChip('ready', 'Computer');
       if (!move) { localStatus(); return; }
       playLocal(move.r, move.c);
     }, 50);
@@ -214,7 +267,7 @@
     state.s = R.replay(state.hist);
     state.over = !!state.s.winner;
     state.thinking = false;
-    setChip('ready', state.mode === 'cpu' ? 'Ready' : 'Two players');
+    setChip('ready', state.mode === 'cpu' ? 'Computer' : 'Two here');
     paint($('board'), state.s, { hints: isHumanTurn(), hintColor: state.s.turn });
     localStatus();
     saveLocal();
@@ -223,7 +276,7 @@
   function newLocal() {
     state.s = R.fresh(); state.hist = []; state.over = false;
     state.thinking = false; state.animating = false;
-    setChip('ready', state.mode === 'cpu' ? 'Ready' : 'Two players');
+    setChip('ready', state.mode === 'cpu' ? 'Computer' : 'Two here');
     $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
     paint($('board'), state.s, { hints: isHumanTurn(), hintColor: state.s.turn });
     localStatus();
@@ -380,7 +433,7 @@
         b.seq = (b.seq || 0) + 1;
         b.blacks = ns.blacks; b.whites = ns.whites; b.passed = !!ns.passed;
         if (ns.winner === R.DRAW) { b.winner = 'draw'; b.result = 'Draw'; b.endedAt = nowMs(); }
-        else if (ns.winner) { b.winner = R.colorName(ns.winner); b.result = 'Most disks'; b.endedAt = nowMs(); }
+        else if (ns.winner) { b.winner = R.colorName(ns.winner); b.result = 'Most discs'; b.endedAt = nowMs(); }
         else b.turn = R.colorName(ns.turn);
         ch = true;
       } else if (intent.kind === 'resign') {
@@ -418,11 +471,11 @@
     var seat = mySeat(b);
     var nameOf = function (id) { return id ? esc(b.names[id] || 'Player') : '<span class="open">open</span>'; };
     $('fSeats').innerHTML =
-      '<div class="seat' + (seat === 'black' ? ' me' : '') + (b.turn === 'black' && !b.winner ? ' turn' : '') + '">● ' + nameOf(b.seats.black) + '</div>' +
-      '<div class="seat' + (seat === 'white' ? ' me' : '') + (b.turn === 'white' && !b.winner ? ' turn' : '') + '">○ ' + nameOf(b.seats.white) + '</div>';
+      '<div class="seat' + (seat === 'black' ? ' me' : '') + (b.turn === 'black' && !b.winner ? ' turn' : '') + '">Black · ' + nameOf(b.seats.black) + '</div>' +
+      '<div class="seat' + (seat === 'white' ? ' me' : '') + (b.turn === 'white' && !b.winner ? ' turn' : '') + '">White · ' + nameOf(b.seats.white) + '</div>';
     var waiting = mp.people.filter(function (p) { return p.id !== b.seats.black && p.id !== b.seats.white; });
     $('fQueue').textContent = waiting.length ? ('Watching: ' + waiting.map(function (p) { return p.name || 'Player'; }).join(', ')) : '';
-    setScore($('fScore'), s);
+    setScore($('fScore'), s, !b.winner);
     var both = b.seats.black && b.seats.white;
     if (!both) {
       status.innerHTML = 'Waiting for another player… press <b>Invite</b> (top bar) to bring a friend.';
@@ -430,11 +483,11 @@
       var wname = b.winner === 'draw' ? '' : nameOf(b.winner === 'black' ? b.seats.black : b.seats.white);
       status.innerHTML = b.winner === 'draw'
         ? (esc(b.result || 'Draw') + ' — next game starting…')
-        : ((esc(b.result || 'Most disks') + ' — ') + wname + ' wins. Next game starting…');
+        : ((esc(b.result || 'Most discs') + ' — ') + wname + ' wins. Next game starting…');
     } else if (!seat) {
       status.textContent = 'Spectating.';
     } else if (b.turn === seat) {
-      status.textContent = (b.passed ? 'No move for the other side. ' : '') + 'Your turn. Tap a square.';
+      status.textContent = (b.passed ? 'No move for the other side. ' : '') + 'Your turn. Tap a dotted square.';
     } else {
       status.textContent = 'Waiting for ' + b.turn + '…';
     }
@@ -471,12 +524,13 @@
       state.over = !!state.s.winner;
       if (state.mode === 'hotseat') {
         $('modeSeg').querySelector('[data-mode="hotseat"]').click();
-        setChip('ready', 'Two players');
+        setChip('ready', 'Two here');
       } else {
         $('modeSeg').querySelector('[data-mode="cpu"]').click();
         Array.prototype.forEach.call($('colorSeg').children, function (c) {
           c.classList.toggle('on', c.getAttribute('data-color') === state.color);
         });
+        setChip('ready', 'Computer');
       }
       $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
       paint($('board'), state.s, { hints: isHumanTurn(), hintColor: state.s.turn });
