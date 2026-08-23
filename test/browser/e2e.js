@@ -121,12 +121,13 @@ async function openApp(page, ctx, folder, label) {
   await page.waitForSelector('.icon', { timeout: 8000 });
   await sleep(400);
   const labels = await page.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('desktop root has folders + Welcome + Meeting + Broadcast + App Store + Trash + Stolen Apps + Providers + My Media', labels.length === 13); // Providers system folder joined the left column (docs/providers.md)
+  check('desktop root has folders + Welcome + Camera + Meeting + Broadcast + App Store + Trash + Stolen Apps + Providers + My Media', labels.length === 14); // Camera joined the left column between Welcome and My Media
   check('App Store is a root icon (where more apps come from)', labels.includes('App Store.gif'));
   check('has Games / Studio / Tools / Social / IRL Games / Stolen Apps / Providers folders', ['Games', 'Studio', 'Tools', 'Social', 'IRL Games', 'Stolen Apps', 'Providers'].every((f) => labels.includes(f)));
   check('Stolen Apps wears its treasure-chest GIF (not the bare 📁 glyph)',
     await page.locator('.icon', { hasText: /^Stolen Apps$/ }).locator('.thumb img').count() === 1);
   check('has Welcome.gif at root', labels.includes('Welcome.gif'));
+  check('has Camera.gif at root', labels.includes('Camera.gif'));
   check('Meeting is a root icon (killer app, not buried in a folder)', labels.includes('Meeting.gif'));
   check('Meeting icon wears the SYSTEM badge (heightened-permissions signage)',
     await page.locator('.icon', { hasText: 'Meeting.gif' }).locator('.sysbadge').count() === 1);
@@ -142,6 +143,16 @@ async function openApp(page, ctx, folder, label) {
   const rowPitch = await page.evaluate(() => parseInt(getComputedStyle(document.getElementById('desktop')).getPropertyValue('--row'), 10));
   check('Broadcast sits DIRECTLY BELOW Meeting (the folder column starts under it)',
     bcPos.left === vcPos.left && bcPos.top === vcPos.top + rowPitch);
+  const wLeftPos = await page.locator('.icon', { hasText: 'Welcome.gif' })
+    .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
+  const camLeftPos = await page.locator('.icon', { hasText: 'Camera.gif' })
+    .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
+  const mmLeftPos = await page.locator('.icon', { hasText: 'My Media.gif' })
+    .evaluate((el) => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) }));
+  check('Camera sits in Welcome\'s column, one row below',
+    camLeftPos.left === wLeftPos.left && camLeftPos.top === wLeftPos.top + rowPitch);
+  check('My Media sits one row below Camera',
+    mmLeftPos.left === camLeftPos.left && mmLeftPos.top === camLeftPos.top + rowPitch);
   check('has Trash', labels.includes('Trash'));
   // folders are GIFs too — each renders its own folder GIF, not an emoji
   check('folders render as GIF images (folders are GIFs)',
@@ -947,7 +958,7 @@ async function openApp(page, ctx, folder, label) {
   await sys.waitForSelector('.icon');
   await sleep(600);
   const freshLabels = await sys.$$eval('.icon .label', (els) => els.map((e) => e.textContent));
-  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 13 && !freshLabels.includes('Resume.gif')); // 13 root items now (Providers system folder joined the left column, docs/providers.md)
+  check('reset re-seeds a fresh desktop (custom app gone)', freshLabels.length === 14 && !freshLabels.includes('Resume.gif')); // 14 root items now (Camera joined the left column between Welcome and My Media)
 
   await sys.setInputFiles('#restore-input', backupPath);
   await sys.locator('.modal-actions button', { hasText: 'Replace Home Screen' }).click();
