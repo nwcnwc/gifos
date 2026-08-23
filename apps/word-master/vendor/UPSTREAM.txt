@@ -1,0 +1,19 @@
+Word lists and the game rules come from:
+
+  https://github.com/octokatherine/word-master
+  commit  5790198fd926d19d716a57cc59ed0359057733c9
+          (main, 2024-02-09, "Bump postcss from 8.4.4 to 8.4.31")
+  license MIT (COPYING-word-master.txt)  Copyright (c) 2021 Katherine Peterson
+
+vendor/answers.tsx  2,151 secret words
+vendor/words.tsx    9,335 valid guesses
+
+Upstream is a Create-React-App module graph (React 17, Tailwind, Headless UI).
+GifOS's runtime inlines <script src> and DROPS type="module", so that graph
+cannot run as-is. build.mjs turns the two lists into a classic words.js, and
+app.js is a classic-script port of the same rules (six guesses, green / yellow
+/ gray, easy-normal-hard) plus GifOS persistence and versus. Nothing is fetched;
+the lists travel inside the GIF.
+
+The notice COPYING-word-master.txt is packed inside the GIF as well as sitting
+here.
