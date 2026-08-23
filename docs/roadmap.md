@@ -2628,3 +2628,50 @@ wasm chunks, or they take the small GPU segment, and the host's own ladder
   overhead the status service already argued against for cars.
 - Fairness and wattage: a phone that joined to listen should not become
   a silent inference box. Opt-in per guest, visible, stoppable.
+
+## 17. Shared CORS proxy: keyed-traffic refusal (staged)
+
+**The problem.** `cors-proxy.gifos.app` is the one place a user's API key and
+request plaintext can transit GifOS-operated infrastructure in readable form.
+The relay is zero-knowledge; the proxy is not. It stores and logs nothing, but
+"trust us" is a weaker property than "can't".
+
+**The end state.** The shared proxy forwards only **keyless public-data
+hosts** (Bible-text class: cacheable, no secrets, pennies). It **refuses any
+request carrying an `Authorization` header** with the same helpful error it
+already gives for unlisted hosts. Every keyed CORS-hostile API is served
+either **natively** (protocol translation, key straight to the API's own
+host) or through a **self-hosted proxy** (the one-file Worker in `cors-proxy/`,
+custom URL per API under Settings → Advanced — both already shipped).
+
+**Why staged, not now.** Refusing keyed traffic today would break the one
+keyed host still on the allow-list. The order matters: refusal first converts
+a working example into a "go deploy a Worker" wall; native-first makes refusal
+nearly free.
+
+- [x] **Stage 1 — honesty (shipped 2026-08-23).** The Settings copy states
+  plainly that proxied requests transit the proxy in flight, and points at
+  the self-host option.
+- [x] **Stage 2a — Deepgram native (shipped 2026-08-23).** The broker
+  translates app-side REST `/v1/listen` to Deepgram's WebSocket protocol
+  (`runtime.js` `deepgramListenWS`): no CORS preflight on a WS handshake, key
+  in the `Sec-WebSocket-Protocol` subprotocol, REST-shaped JSON back.
+  `api.deepgram.com` is off the shared allow-list. Prefer this shape for any
+  future keyed API with a WS door.
+- [ ] **Stage 2b — retire `ollama.com` from the allow-list.** Verified
+  2026-08-23 (preflight probe, plain GET, docs): ollama.com's cloud API sends
+  no `Access-Control-Allow-*` headers and has no WebSocket door, so it still
+  needs the proxy. It leaves when (a) Ollama grows CORS or a WS door, (b) the
+  default "Smartest" guidance steers to a CORS-friendly OpenAI-compatible
+  vendor (OpenRouter/Groq/Gemini class), or (c) we accept the self-host wall
+  for Ollama users. Re-probe occasionally — one `curl -si -X OPTIONS
+  https://ollama.com/v1/chat/completions -H "Origin: https://gifos.app" ...`
+  answers it.
+- [ ] **Stage 3 — the refusal.** With no shipped keyed API depending on the
+  shared proxy, refuse `Authorization`-bearing requests server-side (and any
+  future keyed-auth headers we broker). Also decide the auth story for
+  self-hosted proxies at that point: there is NO standard protocol for
+  captive CORS proxies (`Proxy-Authorization` is a forbidden fetch header;
+  `Authorization` must pass through to the upstream), so a deploy-time secret
+  in a custom header (`x-gifos-proxy-key`, stored next to the proxy URL in
+  Settings) is the honest, adequate answer for single-tenant Workers.
