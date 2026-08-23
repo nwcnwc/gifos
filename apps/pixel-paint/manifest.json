@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "pixel-paint",
+  "name": "Pixel Paint",
+  "shortName": "Pixel Paint",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A tiny 32×32 pixel canvas. Draw a sprite. Draw together.",
+  "entry": "index.html",
+  "accent": [60, 188, 252],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
