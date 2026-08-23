@@ -84,13 +84,15 @@ async function ensureStack() {
   // ROOM=app: the app IS the room, invited from a desktop icon with no call
   // layer. That is the door a group of friends actually uses for a game — the
   // meeting door is covered by the release gate, which runs both.
+  // THREE ISOLATED MACHINES. The steering physics advances per rendered
+  // frame; three Chromiums on one kernel cannot answer it (that is why
+  // e2e-anyroad-mp calls needFleet(3)). This scenario used to force
+  // ANYROAD_MP_LOCAL=1 so the behavior battery could "run" on one box —
+  // which then hung on the room-name field and scored as a product red.
+  // The gate for three drivers IS the fleet. Unset ANYROAD_MP_LOCAL; the
+  // suite refuses with exit 3 when it is not given three machines.
   const env = Object.assign({}, process.env, { ROOM: 'app' });
-  // WIRING, NOT PHYSICS. This scenario proves the app-room door carries three
-  // drivers and that each steering scheme REACHES its car; whether the car
-  // then turns by the right number of radians is a measurement that needs a
-  // machine per driver, and e2e-anyroad-mp asserts it there (test/lib/fleet.js).
-  // Without this the battery would demand a fleet from every box it runs on.
-  env.ANYROAD_MP_LOCAL = '1';
+  delete env.ANYROAD_MP_LOCAL;
   const child = spawn('node', ['test/browser/e2e-anyroad-mp.js'], { cwd: ROOT, env });
 
   let out = '';
@@ -113,6 +115,7 @@ async function ensureStack() {
   const passes = (out.match(/^PASS/gm) || []).length;
   const fails = (out.match(/^FAIL/gm) || []).length;
   console.log(`\n26a: ${passes} passed, ${fails} failed (exit ${code})`);
+  if (code === 3) process.exit(3); // needFleet — not a product red
   if (passes === 0) {
     console.log('✘ the driving suite asserted nothing at all — it did not run, it died');
     process.exit(1);

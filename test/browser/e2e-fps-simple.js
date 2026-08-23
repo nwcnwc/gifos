@@ -119,10 +119,13 @@ const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RE
 // so this means "use the GPU if there is one", never "assume one".
 //
 //   ANGLE (NVIDIA, Vulkan 1.3.242 (NVIDIA GeForce MX230), NVIDIA)
+// Default is the real GPU. FPS_GL=sw forces SwiftShader (a box with no
+// chip). The previous default was software even on fleet GPU boxes, and
+// then the suite declared a Pi "unable to draw" after forcing the lie.
 const ARGS = [
-  ...(process.env.FPS_GL === 'hw'
-    ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization']
-    : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']),
+  ...(process.env.FPS_GL === 'sw'
+    ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
+    : ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization']),
   // WITHOUT THESE THERE IS NO MULTIPLAYER TO TEST. Chromium throttles a
   // backgrounded tab's requestAnimationFrame to about one frame a second, and
   // this app publishes its presence from the engine's own update — so a peer
@@ -329,21 +332,20 @@ async function mustBeAbleToAnswer(frame, who, host) {
   }
   samples.sort((a, b) => a - b);
   const median = samples[1];
+  console.log('  ' + who + '@' + host + ' app-frame RTT ' + median + ' ms (median of 3)');
   if (median <= 2000) return median;
-  console.log('NEEDS-FLEET — ' + who + "'s box (" + host + ') cannot answer while running this game.');
-  console.log('');
-  console.log('  A round trip into its app frame took ' + median + ' ms (median of 3). Every assertion');
-  console.log('  in this half polls through that channel, so a 180 s wait buys a handful of');
-  console.log('  samples and any timing it reports is a timing about the box.');
-  console.log('');
-  console.log('  This is NOT a product failure. The host passed fleet.js — reachable, idle, a');
-  console.log('  browser on it — because fleet.js checks whether a box is FREE, not whether it');
-  console.log('  is CAPABLE. A 4-core ARM board rendering Three.js through swiftshader is both.');
-  console.log('');
-  console.log('  Give this half two machines that can actually draw the game: a GPU, or enough');
-  console.log('  CPU that the world builds in seconds rather than minutes.');
-  console.log('0 PASSED, 0 FAILED — no verdict was reached, on purpose.');
-  process.exit(3);
+  console.log('  ' + who + "'s box (" + host + ') cannot answer while the game is running — not a product red; the next capable host is tried.');
+  return null;
+}
+
+// Hosts the local never-committed file may mark `gpu: true` go first. Weight
+// order alone put a software-rasterising ARM board in the pair ahead of a
+// GPU box with a lower weight, then this half exited 3 without trying the
+// GPU. Prefer the drawers; leftovers are the retry pool after a null RTT.
+function preferDrawers(hosts) {
+  const gpu = (hosts || []).filter((h) => h && h.gpu);
+  const rest = (hosts || []).filter((h) => h && !h.gpu);
+  return gpu.concat(rest);
 }
 
 /* ======================================================================= */
@@ -613,7 +615,9 @@ async function deathmatch() {
        + (BOB_CDP ? ' (Bob is the phone at FPS_BOB_CDP — his own machine by construction)' : ''),
     roles: BOB_CDP ? ['alice'] : ['alice', 'bob'],
   });
-  const boxes = await openFleet(fleet.hosts.slice(0, BOB_CDP ? 1 : 2), { args: ARGS, origin: BASE });
+  const pool = preferDrawers(fleet.hosts.slice());
+  const pick = pool.splice(0, BOB_CDP ? 1 : 2);
+  const boxes = await openFleet(pick, { args: ARGS, origin: BASE });
   let bobBrowser = null;   // the phone's CDP connection, when there is one
 
   // THE HARNESS HAS NO THUMB, AND A PLAYER DOES.
@@ -1114,8 +1118,37 @@ async function deathmatch() {
       return best || prev;
     };
     aFrame = await liveFrame(aRun, aFrame);
-    const aMs = await mustBeAbleToAnswer(aFrame, 'Alice', boxes[0].host.name || boxes[0].host.ssh);
-    const bMs = await mustBeAbleToAnswer(bFrame, 'Bob', BOB_CDP ? 'the phone at FPS_BOB_CDP' : (boxes[1].host.name || boxes[1].host.ssh));
+    let aMs = await mustBeAbleToAnswer(aFrame, 'Alice', boxes[0].host.name || boxes[0].host.ssh);
+    let bMs = await mustBeAbleToAnswer(bFrame, 'Bob', BOB_CDP ? 'the phone at FPS_BOB_CDP' : (boxes[1].host.name || boxes[1].host.ssh));
+    while ((aMs == null || bMs == null) && pool.length && !BOB_CDP) {
+      const who = bMs == null ? 'Bob' : 'Alice';
+      const next = pool.shift();
+      console.log('  replacing ' + who + ' with ' + (next.name || next.ssh) + ' (' + pool.length + ' hosts left)');
+      if (who === 'Bob') {
+        try { await boxes[1].browser.close(); } catch (e) {}
+        const extra = await openFleet([next], { args: ARGS, origin: BASE });
+        boxes[1] = extra[0];
+        const bCtx = await boxes[1].browser.newContext({ viewport: { width: 1100, height: 720 } });
+        await bCtx.addInitScript({ content: setup('Bob', 'low') });
+        bRun = await bCtx.newPage();
+        bRun.on('pageerror', (e) => console.log('  [Bob app err] ' + e.message.slice(0, 200)));
+        bRun.on('console', (m) => {
+          const t = m.text();
+          if (t.indexOf('[fpsperf]') === 0 || t.indexOf('[fps]') === 0) console.log('  [Bob ' + t.slice(0, 120) + ']');
+        });
+        await bRun.goto(shareUrl);
+        bFrame = await ready(bRun, 'Bob', 240000);
+        await play(bRun, bFrame);
+        bMs = await mustBeAbleToAnswer(bFrame, 'Bob', boxes[1].host.name || boxes[1].host.ssh);
+      } else {
+        break;
+      }
+    }
+    if (aMs == null || bMs == null) {
+      console.log('NEEDS-FLEET — no pair of machines could answer while running this game.');
+      console.log('0 PASSED, 0 FAILED — no verdict was reached, on purpose.');
+      process.exit(3);
+    }
     console.log('  both app frames answer in ' + aMs + ' / ' + bMs + ' ms — timings below mean something');
 
     // SAMPLED TOGETHER, AND PRINTED, because "alice=false" is not a finding.

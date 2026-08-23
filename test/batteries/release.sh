@@ -563,7 +563,7 @@ if want behavior; then
     behretry=0
     # rc 4 = a scenario lost a BROWSER (behavior.sh's NOVER branch). Retrying it
     # is the same lie twice on the same box, so it goes straight to the verdict.
-    if [ $rc -ne 0 ] && [ $rc -ne 4 ]; then
+    if [ $rc -ne 0 ] && [ $rc -ne 4 ] && [ $rc -ne 3 ]; then
       failed_scen=$(grep -m1 '^failed:' "$LOGDIR/behavior.log" | cut -d: -f2-)
       if [ -n "$failed_scen" ]; then
         echo "  behavior: retrying only:$failed_scen"
@@ -575,6 +575,7 @@ if want behavior; then
       fi
     fi
     tail -1 "$LOGDIR/behavior.log" | grep -q 'BEHAVIOR BATTERY' && tally=$(tail -1 "$LOGDIR/behavior.log") || tally="see $LOGDIR/behavior.log"
+    vt=""
     if [ $rc -eq 0 ] && [ $behretry -eq 1 ]; then
       v=FLAKY; flaky=$((flaky+1)); flakes="$flakes behavior/$failed_scen"
       tally="GREEN on RETRY of$failed_scen — first pass red ($tally); fix the race"
@@ -583,10 +584,15 @@ if want behavior; then
       nov_scen=$(grep -m1 '^no-verdict:' "$LOGDIR/behavior.log" | cut -d: -f2-)
       v=NOVER; novrd=$((novrd+1)); novlist="$novlist behavior/$nov_scen"
       tally="NO VERDICT —$nov_scen lost a BROWSER ($tally); the box could not hold the cast"
+    elif [ $rc -eq 3 ]; then
+      fleet_scen=$(grep -m1 '^needs-fleet:' "$LOGDIR/behavior.log" | cut -d: -f2-)
+      v=FLEET; needfleet=$((needfleet+1)); needlist="$needlist behavior/${fleet_scen:-core}"
+      tally="NEEDS-FLEET —$fleet_scen ($tally); run on isolated machines"
+      vt=NEEDS-FLEET
     else v=RED; red=$((red+1)); fi
     # the machine-readable column carries the full verdict name; the console
     # column is 5 wide, so NO-VERDICT prints as NOVER there
-    vt="$v"; [ "$v" = NOVER ] && vt=NO-VERDICT
+    if [ -z "${vt:-}" ]; then vt="$v"; [ "$v" = NOVER ] && vt=NO-VERDICT; fi
     printf '%s\t%s\t%s\t%s\n' "$vt" "behavior/$BEHAVIOR" "${secs}s" "$tally" >> "$RESULTS"
     printf '%-5s %-38s %6s  %s\n' "$v" "behavior/$BEHAVIOR" "${secs}s" "$tally"
     grep -E '^FAIL' "$LOGDIR/behavior.log" | head -8 | sed 's/^/        /'
