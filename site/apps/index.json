@@ -483,11 +483,15 @@
         48
       ],
       "cover": "/apps/bip39/cover.jpg",
-      "bytes": 2141761,
+      "bytes": 2141948,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "72645c7f2d7ad056145f07b20a0ae6155c8233ce06c23be575bca45983c57ca0"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "aa5bf06ffcf73845ee494691592474a19d396d56ae2087c67d9b22ce3fa65fc0"
     },
     {
       "slug": "bitsy",
@@ -1229,7 +1233,7 @@
       "name": "Falling Blocks",
       "shortName": "Blocks",
       "version": "1.0.0",
-      "tagline": "Stack the falling shapes. Clear the lines. Or race a friend from the same pieces.",
+      "tagline": "Race a friend from one link. Same shapes, two boards, on this device.",
       "author": {
         "name": "dionyziz",
         "url": "https://github.com/dionyziz/canvas-tetris"
@@ -1262,7 +1266,7 @@
         204
       ],
       "cover": "/apps/falling-blocks/cover.jpg",
-      "bytes": 192708,
+      "bytes": 254038,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1270,7 +1274,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "f3be12d49098abaf96f2188bf9d2de33221a9b67efd54e02165b27774bf9aee3"
+      "sha256": "950e88d1d0adccbe24f277ba2a60fe8854eef6a09ae8cd4875bbad6528d1a5bc"
     },
     {
       "slug": "finger-pool",
@@ -1327,7 +1331,7 @@
       "name": "Floppy Bird",
       "shortName": "Floppy",
       "version": "1.0",
-      "tagline": "Tap to flap between the pipes. Send the link and race a ghost of the other bird.",
+      "tagline": "Race a friend from one link. Tap on this phone. High score lives in the file.",
       "author": {
         "name": "nebez",
         "url": "https://github.com/nebez/floppybird"
@@ -1359,7 +1363,7 @@
         202
       ],
       "cover": "/apps/floppy-bird/cover.jpg",
-      "bytes": 300768,
+      "bytes": 303083,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1367,7 +1371,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "c4d04d1960a6dcc3c6bf3b55f09e512f3f27f23d81a6768ee4ff5a2249066f00"
+      "sha256": "38b19da3431ea06e51c10948aa4ef057864b8a671bfe7c9bd38c03477fee0aab"
     },
     {
       "slug": "fluence",
@@ -3073,11 +3077,15 @@
         0
       ],
       "cover": "/apps/piskel/cover.jpg",
-      "bytes": 2459489,
+      "bytes": 2459676,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "826c669daf76bf4a0eb18344f6626ef5ad8021cf4f527391e574517e8023541f"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "cbb4028ead274d8e853ef9e24fb79517e71742bed0f39fc3f9a1e42e49f1cd5d"
     },
     {
       "slug": "pixel-paint",
@@ -3135,8 +3143,8 @@
       "appId": "pong",
       "name": "Pong",
       "shortName": "Pong",
-      "version": "1.0.0",
-      "tagline": "Classic Pong. You on the left, a friend on the right.",
+      "version": "1.1.0",
+      "tagline": "Two devices, one link, no server. First to nine.",
       "author": {
         "name": "Jake Gordon",
         "url": "https://github.com/jakesgordon/javascript-pong"
@@ -3168,7 +3176,7 @@
         110
       ],
       "cover": "/apps/pong/cover.jpg",
-      "bytes": 198427,
+      "bytes": 258743,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3176,7 +3184,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "4c9d32459306078d6c328961c809f9faec0f5cfce7d03ade7a6a7209dba0889a"
+      "sha256": "6b2068bf6aa26826d9f2d763402e8a49e0f12a399e7d02a860019c902bcd2c65"
     },
     {
       "slug": "pool",
@@ -3459,11 +3467,15 @@
         85
       ],
       "cover": "/apps/regexper/cover.jpg",
-      "bytes": 296049,
+      "bytes": 296236,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "573d5590e32ff98e28e044c31033abc4dd10921f4961c4427753ef6ea988a16f"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "e904de8ea42a997640be3b795982bebebcfe92bb120115c65c2567e15a8d43f5"
     },
     {
       "slug": "restfox",
@@ -3716,7 +3728,7 @@
       "name": "Snake",
       "shortName": "Snake",
       "version": "1.0.0",
-      "tagline": "The classic game of Snake. Send the link and there are two of you.",
+      "tagline": "Two snakes on one grid. Send the link — no server.",
       "author": {
         "name": "patorjk",
         "url": "https://github.com/patorjk/JavaScript-Snake"
@@ -3748,7 +3760,7 @@
         72
       ],
       "cover": "/apps/snake/cover.jpg",
-      "bytes": 191403,
+      "bytes": 196372,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3756,7 +3768,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "716c0bf5c7496209b8ea6ea54b35b37d7d666cd38dd0548f44d96c3739e8f23f"
+      "sha256": "00c7ef88bb5c6beef9470f0db2f1f323cfb653930a28dfd3ea993c9db286efeb"
     },
     {
       "slug": "sokoban",
@@ -4521,11 +4533,15 @@
         64
       ],
       "cover": "/apps/tower-game/cover.jpg",
-      "bytes": 880472,
+      "bytes": 880851,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "0f5fce39d84bd6c5c2cf94416acab3e43e76665e43528040f5e2880eb194fc02"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "6b80b5763e06dff155e0b692cf529f54e3159aed37a89b7b8521938b04ccbd20"
     },
     {
       "slug": "typing",

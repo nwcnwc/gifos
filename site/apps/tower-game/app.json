@@ -38,11 +38,15 @@
   "cover": "/apps/tower-game/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tower-game/tower-game.gif",
-  "bytes": 880472,
+  "bytes": 880851,
   "download": 0,
   "provides": null,
-  "sha256": "0f5fce39d84bd6c5c2cf94416acab3e43e76665e43528040f5e2880eb194fc02",
-  "signature": null,
+  "sha256": "6b80b5763e06dff155e0b692cf529f54e3159aed37a89b7b8521938b04ccbd20",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"
