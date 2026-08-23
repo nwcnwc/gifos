@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Pixel Paint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="vendor/main.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="chrome">
+    <div id="brand">Pixel Paint</div>
+    <div id="actions">
+      <button type="button" id="shareBtn">Draw together</button>
+      <button type="button" id="newBtn">New picture</button>
+    </div>
+  </div>
+
+  <div id="friend-bar" hidden>
+    <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send the link. Everyone paints on the same 32×32.</p>
+    <p id="friend-status"></p>
+    <ul id="friend-roster"></ul>
+    <div class="friend-actions">
+      <button type="button" id="leaveBtn">← Solo</button>
+    </div>
+  </div>
+
+  <div id="stage">
+    <div id="blanket-around-body">
+      <div id="toolbar">
+        <div class="no-select undoImg toolbarButton" id="undo-button">
+          <span class="tooltipText">undo <span class="hotkeyText">(Z)</span></span>
+        </div>
+        <div class="no-select redoImg toolbarButton" id="redo-button">
+          <span class="tooltipText">redo <span class="hotkeyText">(X)</span></span>
+        </div>
+        <div class="no-select pencilImg toolbarButton" id="pencil-button">
+          <span class="tooltipText"></span>
+        </div>
+        <div class="no-select fillImg toolbarButton" id="fill-button">
+          <span class="tooltipText"></span>
+        </div>
+        <div class="no-select eraserImg toolbarButton" id="eraser-button">
+          <span class="tooltipText"></span>
+        </div>
+        <div class="no-select selectionImg toolbarButton" id="selection-button">
+          <span class="tooltipText"></span>
+        </div>
+        <div class="no-select colorpickerImg toolbarButton" id="colorpicker-button">
+          <span class="tooltipText"></span>
+        </div>
+        <div class="no-select gridImg toolbarButton" id="grid-button">
+          <span class="tooltipText">grid <span class="hotkeyText">(G)</span></span>
+        </div>
+        <div class="no-select saveImg toolbarButton" id="save-button">
+          <span class="tooltipText">save PNG</span>
+        </div>
+        <div id="popup-message" class="fadeOutAnimation"></div>
+        <div class="active_indicator active-color-preview" id="active-color-preview-1"></div>
+        <div class="active-color-preview" id="active-color-preview-2"></div>
+        <label id="active-color-label"></label>
+      </div>
+      <div id="canvas-div"></div>
+      <div id="drop-shadow-preview"></div>
+      <div id="palette-select">
+        <label class="container">
+          <span class="checkmark"></span>
+          <input type="radio" onclick="Select_Palette()" name="radio" class="radio" id="radioNES" checked>
+          NES
+        </label><br>
+        <label class="container">
+          <span class="checkmark"></span>
+          <input type="radio" onclick="Select_Palette()" name="radio" class="radio" id="radioGB">
+          Gameboy
+        </label>
+      </div>
+      <div class="palette" id="palette-div"></div>
+      <div class="palette" id="gameboy-palette-div"></div>
+      <div id="cursor-coords-display"></div>
+      <div id="keyboard-shortcut-hover" onmouseover="Display_Keyboard_Shortcuts()" onmouseleave="Hide_Keyboard_Shortcuts()">Shortcuts</div>
+    </div>
+    <div id="info-section">
+      <table id="keyboard-shortcuts">
+        <tr><td>Pencil Mode</td><td>P</td></tr>
+        <tr><td>Bucket Mode</td><td>B</td></tr>
+        <tr><td>Eraser Mode</td><td>E</td></tr>
+        <tr><td>Colorpicker Mode</td><td>V</td></tr>
+        <tr><td>Color Swap</td><td>C</td></tr>
+        <tr><td>Selection Mode</td><td>S</td></tr>
+        <tr><td>Copy Selection</td><td>Alt + Click Drag</td></tr>
+        <tr><td>Move Selection</td><td>Click Drag</td></tr>
+        <tr><td>Delete Selection</td><td>Del or Backspace</td></tr>
+        <tr><td>Remove Selection</td><td>Esc</td></tr>
+        <tr><td>Copy</td><td>Ctrl + C</td></tr>
+        <tr><td>Cut</td><td>Ctrl + X</td></tr>
+        <tr><td>Paste</td><td>Ctrl + V</td></tr>
+        <tr><td>Undo</td><td>Z</td></tr>
+        <tr><td>Redo</td><td>X</td></tr>
+        <tr><td>Toggle Grid</td><td>G</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <script src="vendor/js/tools.js"></script>
+  <script src="vendor/js/palette.js"></script>
+  <script src="vendor/js/algo.js"></script>
+  <script src="vendor/js/historyStates.js"></script>
+  <script src="vendor/js/eventHandlers.js"></script>
+  <script src="vendor/js/utils.js"></script>
+  <script src="vendor/js/script.js"></script>
+  <script src="mp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

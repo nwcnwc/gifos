@@ -1,0 +1,30 @@
+vendor/* is GENERATED. Do not edit it; run node apps/pixel-paint/vendor.mjs.
+
+upstream: https://github.com/Kully/pixel-paint.git
+commit:   6dca77a1882ac55ef45bbfb299051d93c35b7113
+date:     2026-05-12
+license:  MIT, Adam Kulidjian / Kully (COPYING-pixel-paint.txt)
+
+js/* are the original page scripts with these seams:
+  toolbar + cursor images are data URLs (inlined CSS cannot resolve url())
+  tools dispatch on STATE.activeTool, not a .png filename in the cursor
+  pencil hotkey is KeyP (matches the Shortcuts table; upstream said KeyN)
+  Save_Canvas_State / Undo / Redo call PixelPaint.onChanged
+  PixelPaint.pack / replace / empty / size appended at end of script.js
+  touchstart/move/end synthesize mouse events on the cell under the finger
+
+main.css is the original with Open Sans dropped (system fonts) and img/
+urls inlined as data URLs, plus touch-action: none on the canvas.
+
+sha256:
+  js/tools.js          3ef5e410c401e014db5d9beb65d52a14c3a06ceaaad53073fc986a355c037474
+  js/palette.js        be17fcf6ca16aebf892c783d841d1ee2901c90ffe401bde2ea692ca9db529b7b
+  js/algo.js           e95a0cb5c667c54e4351b777d5e5849fdac695ba5a0e8e7383d5437beef3efda
+  js/historyStates.js  682f9826af791b90d5ed87a7d2b733db993217728c3a1bb6851a77573c45fc2b
+  js/eventHandlers.js  6e0f2045849ad09488ac1b720a67ecce24f9fe08c295cbceaaacf7e39ffbae9c
+  js/utils.js          47dc19f61362f1dbcf4951b38481a90f11f915ef803e607b0f72cbaac8408034
+  js/script.js         2077dd807ea980987ac8405f16d7ce6ff5eb53f89e9ed57f4354b4c0e1c82e52
+  main.css             2fe413df587a0eba1b609e5c8e86486c592e05af566569a108b81f88aa2fb11a
+  COPYING              7bbef0e80b52702d0b32d2aacae3493cfc5c948f0e75248a8b9a6824de4f9d95
+
+The notice travels INSIDE the GIF as COPYING-pixel-paint.txt.

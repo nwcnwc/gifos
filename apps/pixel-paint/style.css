@@ -1,0 +1,127 @@
+/* GifOS chrome around Pixel Paint. Dark page and 32×32 grid are upstream;
+   this file adds the draw-together bar, undoes the original centred
+   fit-content body, and scales the 606px stage so a phone can reach it. */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  left: auto;
+  transform: none;
+  position: relative;
+  background: #161619;
+  color: #efefef;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#chrome {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px 6px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  border-bottom: 1px solid #333;
+  background: #1e1e22;
+}
+#brand {
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: #3cbcfc;
+  font-size: 18px;
+}
+#actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+#actions button, .friend-actions button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  border: 0;
+  border-radius: 4px;
+  padding: 7px 12px;
+  cursor: pointer;
+  background: #3a3a42;
+  color: #efefef;
+}
+#shareBtn { background: #3cbcfc; color: #161619; }
+#newBtn { background: transparent; box-shadow: inset 0 0 0 2px #555; }
+body.together #shareBtn { display: none; }
+
+#friend-bar {
+  flex: 0 0 auto;
+  background: #24242a;
+  color: #ddd;
+  padding: 8px 12px 6px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  font-size: 14px;
+  line-height: 1.4;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 6px; }
+#friend-hint b { color: #3cbcfc; }
+#friend-status { font-weight: 600; min-height: 1.2em; }
+#friend-roster {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#friend-roster li {
+  border-radius: 999px;
+  background: #161619;
+  padding: 3px 10px;
+  font-size: 13px;
+  box-shadow: inset 0 0 0 1px #444;
+}
+#friend-roster li.me { color: #3cbcfc; font-weight: 700; }
+#friend-roster .meta { color: #999; font-size: 12px; margin-left: 6px; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+#leaveBtn { background: transparent; box-shadow: inset 0 0 0 2px #555; color: #efefef; }
+
+#stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  padding: 12px 8px 24px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+#blanket-around-body {
+  transform-origin: top center;
+}
+
+#canvas-div {
+  touch-action: none;
+}
+
+#keyboard-shortcut-hover {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  top: auto;
+}
+
+@media only screen and (max-width: 680px) {
+  #blanket-around-body { zoom: 0.72; }
+  #brand { font-size: 16px; }
+  #actions button { padding: 8px 10px; font-size: 12px; }
+}
+@media only screen and (max-width: 480px) {
+  #blanket-around-body { zoom: 0.58; }
+}
