@@ -1,0 +1,78 @@
+# App Store reviews ride PULL REQUESTS (roadmap §6b): anyone rates or comments
+# on a listed app by adding ONE file — apps/<slug>/reviews/<their-github-
+# username>.json — and GitHub is the only server in the loop: the account
+# system, the spam bar, and (merge = moderation) the review queue.
+#
+# Two jobs, two halves of that promise:
+#
+#   validate  (on PRs)  — the filename must be the PR AUTHOR'S OWN login and
+#                         the file must pass the schema. Nobody can write,
+#                         edit or delete anyone else's review, and a malformed
+#                         review is refused with the exact reason instead of
+#                         rotting in the queue. The checker is
+#                         scripts/build-app-reviews.mjs --pr (no dependencies).
+#
+#   publish   (on main) — regenerate site/apps/reviews.json from the merged
+#                         sources and commit it. The published file is
+#                         GENERATED but COMMITTED (the catalog doctrine —
+#                         Pages has no build step), and a reviewer editing one
+#                         JSON file in GitHub's web UI cannot be asked to run
+#                         a build script; this closes that gap mechanically.
+#                         The commit touches only site/, so it cannot
+#                         retrigger this workflow (paths filter), and it DOES
+#                         trigger pages.yml — which is exactly the deploy that
+#                         puts the new stars on gifos.app/store.
+name: App reviews
+
+on:
+  pull_request:
+    paths: ['apps/*/reviews/**']
+  push:
+    branches: [main]
+    paths: ['apps/*/reviews/**']
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Every touched review file is valid and owned by the PR author
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git diff --name-status "$BASE_SHA"...HEAD -- 'apps/*/reviews/*' \
+            | node scripts/build-app-reviews.mjs --pr "$AUTHOR"
+
+  publish:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate site/apps/reviews.json and commit it
+        run: |
+          set -euo pipefail
+          node scripts/build-app-reviews.mjs
+          if git diff --quiet -- site/apps/reviews.json; then
+            echo "reviews.json already current"
+            exit 0
+          fi
+          git add site/apps/reviews.json
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "store reviews: regenerate site/apps/reviews.json (app-reviews.yml)"
+          # main moves; a losing race is a rebase, not a failure.
+          for i in 1 2 3; do
+            git push && exit 0
+            git pull --rebase
+          done
+          git push
