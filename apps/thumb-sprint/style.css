@@ -1,0 +1,178 @@
+:root {
+  --bg: #0a0a0f;
+  --fg: #f4f1ea;
+  --muted: #9aa0ae;
+  --tile: #16161e;
+  --line: #2a2a36;
+  --accent: #ff5c4a;
+  --accent2: #ffb0a4;
+  --onaccent: #3a1010;
+  --tape: #ffe066;
+  --good: #4ade80;
+  --warn: #ff7a6b;
+}
+* { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+[hidden] { display: none !important; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.app {
+  height: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top) 12px max(10px, env(safe-area-inset-bottom));
+  gap: 8px;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding-top: 4px;
+}
+h1 {
+  flex: 1;
+  margin: 0;
+  font-size: clamp(1.05rem, 4.2vw, 1.45rem);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+.icon-btn {
+  width: 40px; height: 40px;
+  border: 0; padding: 8px;
+  border-radius: 999px;
+  background: var(--tile);
+  color: var(--fg);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.icon-btn svg { width: 22px; height: 22px; }
+.icon-btn.close { position: absolute; top: 12px; right: 12px; }
+.seg {
+  display: flex; gap: 4px;
+  background: var(--tile);
+  border-radius: 999px;
+  padding: 3px;
+}
+.seg button {
+  border: 0; background: transparent; color: var(--muted);
+  font: inherit; font-weight: 700; font-size: 12px;
+  padding: 6px 10px; border-radius: 999px; cursor: pointer;
+}
+.seg button.on { background: var(--accent); color: #fff; }
+.status {
+  margin: 0;
+  min-height: 1.3em;
+  text-align: center;
+  font-weight: 700;
+  color: var(--fg);
+}
+.status.warn { color: var(--warn); }
+.status.good { color: var(--good); }
+.trackwrap {
+  flex: 0.95 1 28%;
+  min-height: 140px;
+  position: relative;
+}
+#track {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  background: #0c0c14;
+}
+.mash {
+  flex: 1.25 1 42%;
+  min-height: 28vh;
+  border: 0;
+  border-radius: 28px;
+  cursor: pointer;
+  color: #fff;
+  background:
+    radial-gradient(circle at 50% 28%, #ff8a7c, var(--accent) 52%, #c42e22);
+  box-shadow:
+    0 10px 0 #8a1c14,
+    0 18px 32px rgba(0,0,0,.45),
+    inset 0 2px 0 rgba(255,255,255,.28);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  touch-action: manipulation;
+}
+.mash:active, .mash.down {
+  transform: translateY(6px);
+  box-shadow:
+    0 4px 0 #8a1c14,
+    0 8px 16px rgba(0,0,0,.4),
+    inset 0 2px 0 rgba(255,255,255,.2);
+  filter: brightness(1.06);
+}
+.mash-label {
+  font-size: clamp(2.4rem, 12vw, 4.4rem);
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-shadow: 0 3px 0 rgba(0,0,0,.25);
+}
+.mash-hint { font-size: .85rem; font-weight: 700; opacity: .85; letter-spacing: .08em; }
+.bar {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.ghost-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--tile);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  font: inherit;
+  font-weight: 800;
+}
+.ghost-btn:active { transform: translateY(1px); }
+
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex; align-items: flex-end; justify-content: center;
+  z-index: 20;
+}
+.sheet {
+  position: relative;
+  width: min(520px, 100%);
+  background: #14141c;
+  color: var(--fg);
+  border-radius: 20px 20px 0 0;
+  padding: 28px 22px 32px;
+  max-height: 80vh;
+  overflow: auto;
+}
+.sheet h2 { margin: 0 0 12px; }
+.sheet ul { margin: 0; padding-left: 1.1em; color: var(--muted); }
+.sheet li { margin: 0 0 8px; }
+.sheet b { color: var(--fg); }
+
+@media (min-width: 720px) {
+  .mash-hint::after { content: " — space or click"; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .app { flex-direction: row; flex-wrap: wrap; align-items: stretch; }
+  header, .status, .bar { flex-basis: 100%; }
+  .trackwrap { flex: 1 1 48%; min-height: 0; }
+  .mash { flex: 1 1 42%; min-height: 0; border-radius: 20px; }
+  .mash-label { font-size: clamp(1.6rem, 8vh, 3rem); }
+}
