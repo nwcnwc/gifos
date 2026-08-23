@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tesseract OCR</title>
+<!--
+  DELIBERATELY no <link>/<img> pointing at the packed wasm. The runtime inlines
+  every src/href that names a packed file into a data: URL inside the srcdoc —
+  the wasm rides under `.assets/` and app.js pulls it across with gifos.assets().
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <h1>Tesseract OCR</h1>
+  <p class="lead">A photo or a page in, the words out. English, on this device. Nothing is uploaded.</p>
+
+  <div class="card">
+    <div id="drop">
+      <div class="drop-ico">📷</div>
+      <div><b>Drop a picture here</b> or tap to choose</div>
+      <div class="hint">Photo, screenshot, scan — JPEG, PNG, WebP, GIF. On a phone the camera is in the picker.</div>
+    </div>
+    <input type="file" id="file" accept="image/*" capture="environment">
+    <div class="bar" id="bar"><i id="barfill"></i></div>
+    <div class="row opts">
+      <label>Layout
+        <select id="psm">
+          <option value="3" selected>Full page (auto)</option>
+          <option value="4">Single column</option>
+          <option value="6">Single block</option>
+          <option value="7">Single line</option>
+          <option value="11">Sparse words (a photo)</option>
+          <option value="13">Raw line</option>
+        </select>
+      </label>
+      <label class="chk"><input type="checkbox" id="rotate" checked> Straighten</label>
+    </div>
+    <div class="row">
+      <button id="read" disabled>Read text</button>
+      <button id="copy" class="ghost" disabled>Copy</button>
+      <button id="save" class="ghost" disabled>Save .txt</button>
+    </div>
+    <div id="status"></div>
+    <div id="engine"></div>
+  </div>
+
+  <div class="split">
+    <div id="preview" hidden>
+      <div class="cap">Picture</div>
+      <div class="preview-frame"><img id="thumb" alt=""></div>
+    </div>
+    <div id="outwrap" hidden>
+      <div class="cap">Text <span id="meta"></span></div>
+      <textarea id="out" spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div id="history" hidden>
+    <div class="cap">Recent on this device</div>
+    <ul id="histlist"></ul>
+  </div>
+
+  <p class="foot">Unofficial port of <b>Tesseract.js</b> — Tesseract OCR compiled to WebAssembly. The engine is packed inside this GIF; English downloads the first time you read a page (~15 MB) and then stays here. Not a table tool: for tables in a PDF, use <b>Scanned PDF Tables → Excel</b>. Apache-2.0. Nothing leaves this device.</p>
+</div>
+<script src="worker-src.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

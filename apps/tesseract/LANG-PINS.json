@@ -1,0 +1,28 @@
+{
+  "core": {
+    "package": "tesseract.js-core",
+    "version": "7.0.0",
+    "files": {
+      "tesseract-core-simd-lstm.js": {
+        "sha256": "e48e2f02ddae3716c8dd24bf41cd290d4efa96892d689cdc4013c2545d63f469",
+        "bytes": 89271
+      },
+      "tesseract-core-simd-lstm.wasm": {
+        "sha256": "34e8d50cac216427d86bf397d610fdd9f49492539bbcdfbfccc4eda20c810bea",
+        "bytes": 2857601
+      }
+    }
+  },
+  "langs": [
+    {
+      "id": "eng",
+      "label": "English",
+      "asset": "eng.traineddata",
+      "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/9ddc24e750eec0994223a9edc3fcb434a2244f3b/eng.traineddata",
+      "sha256": "8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba",
+      "bytes": 15400601,
+      "gzip": false,
+      "note": "tessdata_best, LSTM-only, commit 9ddc24e (initial import). Optional pin — downloaded the first time you read a page."
+    }
+  ]
+}
