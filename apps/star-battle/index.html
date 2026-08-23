@@ -17,11 +17,11 @@
     <div id="container" class="absolute">
       <div id="start" class="column">
         <p class="message pre">
-W A S D to fly, Space to fire.
+Send the invite — extra ships appear in this sky. Everyone shoots the same wave. No lobby.
 
-Fuel starts at 15 and falls by 1 a second. Hit 0 and the run is over. Catch a bottle for +15 (max 30).
+W A S D to fly, Space to fire. Fuel falls by 1 a second; catch a bottle or the run is over.
 
-Red ships are +5. Rocks take two hits, +10. Friends are −10 — do not shoot them. Bumping a red ship costs 15 fuel.
+Red ships +5. Rocks take two hits. Friends look like you — do not shoot them.
 
 P pauses. M mutes.
         </p>
@@ -122,10 +122,26 @@ P pauses. M mutes.
     <tbody id="score-rows"></tbody>
   </table>
 </div>
+<div id="wait" hidden>Waiting for the first ship…</div>
+<div id="out" hidden>You're out. Extra ships still flying.</div>
+<div id="phud" hidden><span id="phud-fuel">00</span><span id="phud-score">00</span></div>
+<div id="gate" hidden>
+  <img src="./img/logo-01.png" alt="Star Battle">
+  <p>Send the invite — extra ships appear in this sky. Everyone shoots the same wave. No lobby.</p>
+  <p>Stick on the left, hold FIRE on the right. Fuel falls by 1 a second; catch a bottle or the run is over. Friends look like you — do not shoot them.</p>
+  <button type="button" id="gate-start" class="btn">Start</button>
+</div>
+<div id="endcard" hidden>
+  <p>Score <b id="end-score">00</b></p>
+  <p>Time <b id="end-time">00</b></p>
+  <input id="end-name" type="text" placeholder="Your name" maxlength="16">
+  <button type="button" id="end-go" class="btn">Continue</button>
+</div>
 
 <div id="touch" hidden>
   <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
   <div id="t-right" class="t-col">
+    <button class="t-btn" data-act="pause" type="button">PAUSE</button>
     <button class="t-btn wide" data-key=" " type="button">FIRE</button>
   </div>
 </div>

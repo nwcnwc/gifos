@@ -349,6 +349,10 @@
       var p = poseOf(o);
       if (!p) continue;
       ctx.save();
+      ctx.fillStyle = 'hsla(' + o.hue + ', 70%, 55%, 0.35)';
+      ctx.beginPath();
+      ctx.ellipse(p.x + w / 2, p.y + h * 0.72, w * 0.42, h * 0.18, 0, 0, Math.PI * 2);
+      ctx.fill();
       if (o.hue) ctx.filter = 'hue-rotate(' + o.hue + 'deg)';
       if (img) {
         var fw = img.width / 4, fh = img.height;
@@ -362,15 +366,22 @@
         for (var i = 0; i < o.bullets.length; i++) {
           var b = o.bullets[i];
           if (!b) continue;
+          ctx.save();
+          if (o.hue) ctx.filter = 'hue-rotate(' + o.hue + 'deg)';
           ctx.drawImage(bimg, b[0], b[1], bw, bh);
+          ctx.restore();
         }
       }
       ctx.save();
-      ctx.font = '12px sans-serif';
+      ctx.font = 'bold 13px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillStyle = 'hsl(' + o.hue + ', 70%, 72%)';
-      ctx.fillText(String(o.name || '').slice(0, 14), p.x + w / 2, p.y - 2);
+      var label = String(o.name || '').slice(0, 14);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(5,6,10,.85)';
+      ctx.strokeText(label, p.x + w / 2, p.y - 2);
+      ctx.fillStyle = 'hsl(' + o.hue + ', 70%, 78%)';
+      ctx.fillText(label, p.x + w / 2, p.y - 2);
       ctx.restore();
     }
   }
@@ -424,6 +435,14 @@
     poseOf: poseOf,
     setPlaying: setPlaying,
     playing: function () { return playing; },
+    hasWorld: function () { return !!worldRec; },
+    othersPlaying: function () {
+      var n = 0;
+      for (var id in others) {
+        if (others[id].playing && others[id].alive !== false) n++;
+      }
+      return n;
+    },
     importWorld: function (play) { if (worldRec && !owner) importWorld(play, worldRec); },
     onRoster: function (fn) { onRoster = fn; }
   };
