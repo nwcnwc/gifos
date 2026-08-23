@@ -107,7 +107,8 @@ button{font:inherit}
 
 .eqwrap{
   background:var(--surface);border:1px solid var(--border);border-radius:18px;
-  padding:14px 12px;text-align:center;transition:background .15s,border-color .15s,box-shadow .15s
+  padding:14px 12px;text-align:center;transition:background .15s,border-color .15s,box-shadow .15s;
+  display:flex;align-items:center;justify-content:center
 }
 .eqwrap.bad{background:#2a1216;border-color:var(--bad);box-shadow:0 0 0 2px rgba(255,107,122,.35)}
 .eqwrap.good{background:#102818;border-color:var(--accent);box-shadow:0 0 0 2px rgba(125,255,154,.35)}
@@ -171,4 +172,24 @@ button{font:inherit}
 
 @media (min-height:740px){
   .pad button{min-height:58px}
+}
+@media (min-width:720px){
+  main{max-width:900px;width:100%}
+  #game.game{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 320px;
+    grid-template-rows:auto auto 1fr auto auto;
+    gap:12px 22px;
+    flex:1;min-height:0
+  }
+  #game .hud,#game .statusline,#game .eqwrap,#game .scores{grid-column:1;width:100%}
+  #game .hud,#game .statusline,#game .scores{align-self:start}
+  #game .eqwrap{align-self:stretch;min-height:160px}
+  #game .pad{
+    grid-column:2;grid-row:1 / 5;margin-top:0;align-self:stretch;
+    grid-auto-rows:1fr
+  }
+  #game .pad button{min-height:0}
+  #game .leave{grid-column:2;grid-row:5;align-self:end}
+  #game .endcard{grid-column:1 / -1}
 }
