@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SVGOMG</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <div>
+      <h1>SVGOMG</h1>
+      <p class="tag">SVG pictures stay on this device. Nothing is uploaded.</p>
+    </div>
+  </div>
+  <div class="hdr-actions">
+    <button type="button" id="btnOpen" class="ghost">Open SVG</button>
+    <button type="button" id="btnPaste" class="ghost">Paste markup</button>
+    <button type="button" id="btnDemo" class="ghost">Demo</button>
+  </div>
+  <form class="tabs" id="viewTabs">
+    <label><input type="radio" name="view" value="image" checked> Image</label>
+    <label><input type="radio" name="view" value="code"> Markup</label>
+  </form>
+</header>
+
+<main>
+  <section id="intro" class="intro">
+    <div id="drop" class="drop">
+      <input type="file" id="file" accept=".svg,image/svg+xml">
+      <div class="drop-art" aria-hidden="true">◇</div>
+      <p><b>Drop an SVG here</b> or tap to choose</p>
+      <p class="muted">Or paste the markup. A demo picture is ready if you just want to try it.</p>
+    </div>
+  </section>
+
+  <section id="work" class="work" hidden>
+    <div class="stage">
+      <div id="preview" class="preview bg-check">
+        <img id="pic" alt="SVG preview">
+        <pre id="code" hidden></pre>
+      </div>
+      <div class="stage-bar">
+        <div id="results" class="results">Drop an SVG to start</div>
+        <div class="stage-actions">
+          <button type="button" id="btnBg" class="ghost" title="Change preview background">Background</button>
+          <button type="button" id="btnCopy" class="ghost" disabled>Copy</button>
+          <button type="button" id="btnDownload" class="primary" disabled>Download</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <section>
+        <h2>Global settings</h2>
+        <label class="chk"><input type="checkbox" id="original"> Show original</label>
+        <label class="chk"><input type="checkbox" id="gzip" checked> Compare gzipped</label>
+        <label class="chk"><input type="checkbox" id="pretty"> Prettify markup</label>
+        <label class="chk"><input type="checkbox" id="multipass"> Multipass</label>
+        <label class="range">Number precision
+          <input type="range" id="floatPrecision" min="0" max="8" step="1" value="3">
+          <span id="floatVal" class="num">3</span>
+        </label>
+        <label class="range">Transform precision
+          <input type="range" id="transformPrecision" min="0" max="8" step="1" value="5">
+          <span id="transformVal" class="num">5</span>
+        </label>
+      </section>
+      <section>
+        <h2>Features</h2>
+        <div id="plugins"></div>
+      </section>
+      <button type="button" id="btnReset" class="ghost reset">Reset all</button>
+    </aside>
+  </section>
+</main>
+
+<div id="pasteModal" class="modal" hidden>
+  <div class="sheet">
+    <h2>Paste markup</h2>
+    <textarea id="pasteBox" placeholder="<svg …>"></textarea>
+    <div class="row">
+      <button type="button" id="pasteGo" class="primary">Use this</button>
+      <button type="button" id="pasteCancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<p id="status" class="status"></p>
+
+<footer>
+  <p class="fine">Unofficial port of SVGOMG by jakearchibald (MIT). The picture never leaves this browser. No Google Analytics.</p>
+</footer>
+
+<script src="svgo.js"></script>
+<script src="plugins.js"></script>
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

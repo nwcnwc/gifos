@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "svgomg",
+  "name": "SVGOMG",
+  "shortName": "SVGOMG",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Make SVG pictures smaller on this device. Drop a file, toggle the clean-up steps, download. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [63, 81, 181],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" }
+  }
+}

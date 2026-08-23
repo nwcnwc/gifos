@@ -1,0 +1,14 @@
+Vendored from https://github.com/jakearchibald/svgomg @ f925656d40a507c512bf95ee14ad16445a4ad3ed (SVGOMG 1.17.0)
+Engine: svgo@4.0.0 dist/svgo.browser.js (MIT, Kir Belevich)
+Fetched: 2026-08-23
+
+The GifOS app shell is original. Google Analytics, the service worker,
+and SVGOMG's Preact UI are NOT here.
+
+file                        bytes  sha256
+svgo.browser.js             780200  dc4790ecbd3d36f3f0f23f00d0759e1a287dae8f08723976cc347efe8cf9240b
+COPYING-svgo.txt              1064  d2b5640808aeec9c243152ae733cf9cca3a86189ad7817bf50335290dbb31012
+COPYING-svgomg.txt            1080  fc238e99233704853d397eb25d538edfd5f2ddb2ad86d903bb33af99753897bb
+config.json                   5478  54cf1c98fc23df61aacd5365e78712accfac27d551e2f15f860468483bb2c7c3
+car-lite.svg                 26539  9b940dfea98e7b6e19fa692848591e01152f4802f0e9f434b09d098e41e7ebfe
+
