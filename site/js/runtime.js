@@ -418,7 +418,12 @@
     "form-action 'none'",
     "frame-src 'none'",
     "object-src 'none'",
-    "base-uri 'none'",
+    // about: — and ONLY about: — so the OS can pin the app's base to
+    // about:srcdoc (see THE APP'S BASE URL IS ITS OWN DOCUMENT below). 'none'
+    // here blocks the OS's own <base> as readily as an app's, and that is the
+    // policy that kept every app based on run.html. A scheme-source cannot
+    // name a network origin, so an app still cannot repoint its base at one.
+    "base-uri about:",
     // (WebRTC is neutered in the shim instead of via a CSP 'webrtc' directive,
     //  which is not supported across all browsers.)
   ].join('; ');
@@ -442,6 +447,40 @@
     .replace("object-src 'none'", "worker-src blob:; object-src 'none'");
   const appCsp = (manifest) => hasCap(manifest, 'wasm') ? APP_CSP_WASM : APP_CSP;
 
+  /*
+   * THE APP'S BASE URL IS ITS OWN DOCUMENT — NEVER THE OS PAGE'S.
+   *
+   * An app is mounted as `srcdoc`, and a srcdoc document INHERITS ITS BASE URL
+   * FROM THE PARENT. Without this tag the base URL of every app on this
+   * computer is run.html's own address, which is wrong twice over:
+   *
+   *   1. IT IS A TRAPDOOR OUT OF THE APP. A RELATIVE navigation resolves
+   *      against the base, so `location.replace('#x')` or a click on a plain
+   *      `<a href="#section">` walks the frame off about:srcdoc and onto
+   *      run.html — which, finding no #id= in the hash it just landed on,
+   *      opens THE MEETING LOBBY. Regexper did exactly that on every launch
+   *      (its boot line seeded the example regex with location.replace), and
+   *      bip39's "Read more" and piskel's "+" did it on a click. Assigning
+   *      location.hash was never affected: that edits this document's own
+   *      fragment, and is why the same apps' other hash code was fine.
+   *   2. IT HANDS THE APP THE OS'S URL. document.baseURI is readable from
+   *      inside the sandbox, and in an app room run.html's hash carries the
+   *      room's link secret (#j=<code>, or #s=<room>.<verifier>&k=<lsec>).
+   *      An app has no business reading the key to the room it is running in.
+   *
+   * about:srcdoc is what the frame's own URL already is, so fragment links
+   * keep working (they scroll and fire hashchange, resolved same-document),
+   * SVG `<use href="#id">` and CSS url(#filter) resolve same-document instead
+   * of against a foreign page, and anything else relative simply fails to
+   * resolve — which is honest, because a sandboxed app has no network and
+   * every one of its own files is already inlined as a data: URL.
+   *
+   * Guarded by test/browser/e2e-app-frame-escape.js, which boots every built
+   * App GIF and clicks every in-page anchor.
+   */
+  const APP_BASE_TAG = '<base href="about:srcdoc">';
+  const baseTag = (doc) => { const b = doc.createElement('base'); b.setAttribute('href', 'about:srcdoc'); return b; };
+
   // ---- build a runnable, self-contained HTML doc from the archive ----------
   function buildAppHtml(files, manifest) {
     const withAgent = hasCap(manifest, 'agent');
@@ -459,8 +498,8 @@
     // Parse to a real document so the CSP <meta> lands as the FIRST child of
     // <head> (browsers ignore a CSP meta placed anywhere else). The parser
     // normalizes fragments, apps with a partial <head>, and full documents
-    // alike, so the policy is always enforced. The shim rides right behind the
-    // CSP so window.gifos exists before any app code runs.
+    // alike, so the policy is always enforced. The BASE rides second and the
+    // shim third, so window.gifos exists before any app code runs.
     if (typeof DOMParser === 'function') {
       const doc = new DOMParser().parseFromString(html, 'text/html');
       const meta = doc.createElement('meta');
@@ -469,13 +508,14 @@
       const shim = doc.createElement('script');
       shim.textContent = clientShim();
       doc.head.insertBefore(shim, doc.head.firstChild);
+      doc.head.insertBefore(baseTag(doc), doc.head.firstChild);
       doc.head.insertBefore(meta, doc.head.firstChild);
       if (withAgent) { const ag = doc.createElement('script'); ag.textContent = agentBootstrap(); doc.body.appendChild(ag); }
       return '<!doctype html>' + doc.documentElement.outerHTML;
     }
     // Non-DOM fallback (tooling): best-effort inject into <head> if present.
     const head = '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">' +
-      '<script>' + clientShim() + '</script>';
+      APP_BASE_TAG + '<script>' + clientShim() + '</script>';
     const tail = withAgent ? '<script>' + agentBootstrap() + '</script>' : '';
     const withHead = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + head) : head + html;
     return withHead + tail;
