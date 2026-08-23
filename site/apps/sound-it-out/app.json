@@ -42,9 +42,13 @@
   "cover": "/apps/sound-it-out/cover.jpg",
   "screenshots": [],
   "gif": "/apps/sound-it-out/sound-it-out.gif",
-  "bytes": 3884217,
+  "bytes": 3884404,
   "download": 0,
   "provides": null,
-  "sha256": "c7f73b618695ef5559eb7bc3a143b4a71e90b1f2db7ef8fc6a1c7783d4c7a1b3",
-  "signature": null
+  "sha256": "ff035c800e271a4c258a8f7707ff5dcf453aac8c152b12fa005d81384d289da6",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  }
 }

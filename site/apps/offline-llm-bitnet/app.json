@@ -41,13 +41,17 @@
   "cover": "/apps/offline-llm-bitnet/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-llm-bitnet/offline-llm-bitnet.gif",
-  "bytes": 10225026,
+  "bytes": 10225213,
   "download": 1105874048,
   "provides": {
     "ai": [
       "cheapest"
     ]
   },
-  "sha256": "d9bcd66acf8d7d55238cac2eb28529381bb443a0f522c598788a772a32c35302",
-  "signature": null
+  "sha256": "3b63c6d6a7adf70ce7c12f3d0852cd1c3c760fc03d2a4a0bcfa9b43b28c222a1",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  }
 }

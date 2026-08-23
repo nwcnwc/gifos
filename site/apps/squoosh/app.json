@@ -47,11 +47,15 @@
   "cover": "/apps/squoosh/cover.jpg",
   "screenshots": [],
   "gif": "/apps/squoosh/squoosh.gif",
-  "bytes": 2642852,
+  "bytes": 2643039,
   "download": 0,
   "provides": null,
-  "sha256": "d20b6d1011acedbc56c44ad679099a6d35c0469fc667023a149777a1301a9be8",
-  "signature": null,
+  "sha256": "4108bfd6a1ced2de496fe9e842ddc58e779fd9eba49854b0942ae17739b050f0",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

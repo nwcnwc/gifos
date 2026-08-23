@@ -41,11 +41,15 @@
   "cover": "/apps/tesseract/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tesseract/tesseract.gif",
-  "bytes": 1705694,
+  "bytes": 1705881,
   "download": 0,
   "provides": null,
-  "sha256": "40c4eca316acbc34072b17330be147626b07a2e3e9e44e972d746792b4f3ce4b",
-  "signature": null,
+  "sha256": "4a8c065ef7393d0ff14dbf7339fe03d06f9e42a8e2eea70c6d0dbb9defb30203",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

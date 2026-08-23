@@ -36,13 +36,17 @@
   "cover": "/apps/offline-tts/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-tts/offline-tts.gif",
-  "bytes": 1630336,
+  "bytes": 1630523,
   "download": 0,
   "provides": {
     "ai": [
       "tts"
     ]
   },
-  "sha256": "d78925dd9894d5e6dae2b05e6b896e0b4b92a22ec18953cc5e7e01ae5ce2866b",
-  "signature": null
+  "sha256": "b72c2f88c769018093fd2540b0c4f94a9ffd942dd1f008e64d9f032cb15e09dc",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  }
 }

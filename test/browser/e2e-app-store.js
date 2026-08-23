@@ -37,12 +37,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // match the sha256 it checks them against.
   let built = true;
   try {
-    execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-app-catalog.mjs'), '--check'], { stdio: 'pipe' });
+    execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-app-catalog.mjs'), '--check', '--require-signed'], { stdio: 'pipe' });
   } catch (e) {
     built = false;
     console.log('  ' + String(e.stdout || '').trim().split('\n').slice(-4).join('\n  '));
   }
-  check('the committed catalog matches apps/ (build-app-catalog.mjs --check)', built);
+  check('the committed catalog matches apps/ and every listing is signed as gifos.app', built);
 
   const index = JSON.parse(fs.readFileSync(path.join(SITE, 'apps', 'index.json'), 'utf8'));
   check('the catalog lists at least one app', (index.apps || []).length > 0, (index.apps || []).length + ' app(s)');
