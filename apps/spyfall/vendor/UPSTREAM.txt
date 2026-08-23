@@ -1,0 +1,16 @@
+Unofficial port of https://github.com/tannerkrewson/spyfall (MIT).
+
+Upstream is a Next.js + Express + Socket.IO app: server.js boots Node,
+server/Game.js is the room (deals the spy, the location, the roles, and
+the timer), and the browser is a React client of that socket. None of
+that ships here. The GifOS invite is the room. The Node process, the
+socket, and every access code stay behind.
+
+What was kept: the Spyfall 1 location pack and the English names/roles
+from locales/en.i18n.json, the deal (one spy, everyone else a role at
+the same place, someone asks first), the eight-minute timer, and the
+in-round location list.
+
+What was rewritten: the UI as classic scripts (GifOS drops type=module),
+and the wire. Each player stores their own card in a private collection
+and publishes only their location vote on their own row.

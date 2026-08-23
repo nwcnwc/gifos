@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Spyfall</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Spyfall</div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="home">
+    <h2>One of you is the spy</h2>
+    <p class="lede">The rest of you are at a place, each with a job there. The spy does not know the place. Ask questions. Catch the spy — or, if you are the spy, guess where you are.</p>
+    <button class="primary" id="hotseatBtn" type="button">Pass this phone</button>
+    <button class="ghost wide" id="friendBtn" type="button">👥 Play with friends</button>
+    <p class="lvlnote">Play with friends: send the invite from the GifOS menu. The people who open it are the room.</p>
+  </section>
+
+  <section class="card setup" id="hotseat" hidden>
+    <div class="vhead"><h2>Pass this phone</h2><button class="ghost" id="hsBack" type="button">← Back</button></div>
+    <p class="lvlnote">Add at least three people. Deal, then pass the phone. Each person looks at their card and hides it before the next.</p>
+    <ul class="lobby-list" id="hsNames"></ul>
+    <form id="hsForm" class="addrow">
+      <input id="hsInput" type="text" maxlength="24" placeholder="Name" autocomplete="off" enterkeyhint="done">
+      <button type="submit" class="ghost">Add</button>
+    </form>
+    <button class="primary" id="hsDeal" type="button">Deal</button>
+  </section>
+
+  <section class="card" id="hsCard" hidden>
+    <div class="vhead"><h2 id="hsWho">Your card</h2><button class="ghost" id="hsCardBack" type="button">← Back</button></div>
+    <p class="lvlnote" id="hsPassHint">Look, then hide it before you pass the phone.</p>
+    <div class="role-card" id="hsRole"></div>
+    <button class="primary" id="hsNext" type="button">Hide and pass</button>
+  </section>
+
+  <section class="game" id="lobby" hidden>
+    <div class="vhead"><h2>The room</h2><button class="ghost" id="lobbyLeave" type="button">← Leave</button></div>
+    <p class="statusline" id="lobbyStatus">Waiting for friends… press Invite in the GifOS menu to send the link.</p>
+    <ul class="lobby-list" id="lobbyList"></ul>
+    <label class="row">Minutes
+      <div class="seg" id="timeSeg">
+        <button type="button" data-min="6">6</button>
+        <button type="button" data-min="8" class="on">8</button>
+        <button type="button" data-min="10">10</button>
+      </div>
+    </label>
+    <button class="primary" id="dealBtn" type="button">Deal</button>
+  </section>
+
+  <section class="game" id="play" hidden>
+    <div class="vhead">
+      <h2 id="playTitle">Round</h2>
+      <button class="ghost" id="playLeave" type="button">← Leave</button>
+    </div>
+    <button type="button" class="countdown" id="timer" aria-label="Timer, tap to pause">8:00</button>
+    <p class="subtitle" id="timerHint">Tap to pause</p>
+    <div class="role-wrap">
+      <button type="button" class="hide-toggle" id="hideBtn">Your role · tap to hide</button>
+      <div class="role-card" id="roleCard"></div>
+    </div>
+    <p class="firstline" id="firstLine"></p>
+    <div class="seg as-seg" id="asSeg" hidden></div>
+    <h5>Players</h5>
+    <ul class="player-list" id="playerList"></ul>
+    <h5>Location reference</h5>
+    <p class="lvlnote">Tap a place to vote it. Everyone sees the votes. Tap again to take yours back.</p>
+    <ul class="location-list" id="locList"></ul>
+    <div class="controls" id="playControls">
+      <button class="ghost" id="endBtn" type="button">End round</button>
+    </div>
+    <div class="reveal" id="reveal" hidden></div>
+  </section>
+</main>
+
+<script src="locations.js"></script>
+<script src="deal.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
