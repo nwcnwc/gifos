@@ -1,6 +1,7 @@
 // Spyfall — location + spy. Invite is the room. The Node socket room is gone.
-// Host deals; each player stores their own card privately and publishes only
-// their location vote. Nobody writes anybody else's row. Invite is OS chrome.
+// Host deals; each player stores their own card privately. Location marks stay
+// on this phone — they are not votes and they are not published. Nobody writes
+// anybody else's row. Invite is OS chrome.
 (function () {
   'use strict';
   var SF = window.SF;
@@ -11,6 +12,7 @@
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch];
     });
   };
+  var DEL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 
   var PRES_TTL = 9000, HB_MS = 3000;
   var view = 'home';
@@ -29,31 +31,79 @@
   }
   function show(id) {
     view = id;
-    ['home', 'hotseat', 'hsCard', 'lobby', 'play'].forEach(function (k) {
+    ['home', 'hotseat', 'hsCard', 'hsHide', 'lobby', 'play', 'peek'].forEach(function (k) {
       $(k).hidden = k !== id;
     });
   }
 
-  // ---- hotseat (pass this phone) ----
-  var hs = { names: [], i: 0, deal: null, ids: [], hidden: false };
+  function bindMinutes(el) {
+    el.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('button') : null;
+      if (!b) return;
+      minutes = parseInt(b.getAttribute('data-min'), 10) || 8;
+      syncMinuteButtons();
+    });
+  }
+  function syncMinuteButtons() {
+    ['timeSeg', 'hsTimeSeg'].forEach(function (id) {
+      var root = $(id);
+      if (!root) return;
+      Array.prototype.forEach.call(root.children, function (c) {
+        var m = parseInt(c.getAttribute('data-min'), 10);
+        if (m === minutes) c.classList.add('on');
+        else c.classList.remove('on');
+      });
+    });
+  }
+  bindMinutes($('timeSeg'));
+  bindMinutes($('hsTimeSeg'));
 
+  // ---- hotseat (pass this phone) ----
+  // After deal: tap YOUR name, look, hide. Hide never opens the next card.
+  var hs = { names: [], i: 0, deal: null, ids: [], seen: {}, fromPlay: false };
+
+  function hsNoteForState() {
+    if (!hs.deal) {
+      return 'Add at least three people. Deal, then each person taps their own name, looks, and hides the card before the phone is passed.';
+    }
+    return 'Tap your name. Look. Hide it. Pass the phone. The next person taps their own name — their card is not waiting on the screen.';
+  }
   function renderHsNames() {
     var ul = $('hsNames'), html = '', i, n;
     for (i = 0; i < hs.names.length; i++) {
       n = hs.names[i];
-      html += '<li><span class="name">' + esc(n) + '</span>' +
-        '<button type="button" class="row-del" data-i="' + i + '" aria-label="Remove">🗑</button></li>';
+      html += '<li' + (hs.deal ? ' class="pick' + (hs.seen[i] ? ' seen' : '') + '" data-i="' + i + '"' : '') + '>' +
+        '<span class="name">' + esc(n) + '</span>' +
+        (hs.deal && hs.seen[i] ? '<span class="meta">looked</span>' : (hs.deal ? '<span class="meta">tap</span>' : '')) +
+        (!hs.deal ? '<button type="button" class="row-del" data-i="' + i + '" aria-label="Remove">' + DEL + '</button>' : '') +
+        '</li>';
     }
     ul.innerHTML = html || '<li><span class="name">Nobody yet</span></li>';
+    $('hsNote').textContent = hsNoteForState();
+    $('hsForm').hidden = !!hs.deal;
+    $('hsStart').hidden = !hs.deal;
+    $('hsDeal').textContent = hs.deal ? 'Deal again' : 'Deal';
+    $('hsDeal').className = hs.deal ? 'ghost wide' : 'primary';
+    var allSeen = !!hs.deal && hs.names.length > 0, si;
+    for (si = 0; si < hs.names.length; si++) if (!hs.seen[si]) allSeen = false;
+    $('hsStart').className = allSeen ? 'primary' : 'ghost wide';
   }
   $('hsNames').addEventListener('click', function (e) {
-    var b = e.target.closest ? e.target.closest('.row-del') : null;
-    if (!b) return;
-    hs.names.splice(parseInt(b.getAttribute('data-i'), 10), 1);
-    renderHsNames();
+    var del = e.target.closest ? e.target.closest('.row-del') : null;
+    if (del) {
+      if (hs.deal) return;
+      hs.names.splice(parseInt(del.getAttribute('data-i'), 10), 1);
+      renderHsNames();
+      return;
+    }
+    if (!hs.deal) return;
+    var li = e.target.closest ? e.target.closest('li[data-i]') : null;
+    if (!li) return;
+    openHsCard(parseInt(li.getAttribute('data-i'), 10), false);
   });
   $('hsForm').addEventListener('submit', function (e) {
     e.preventDefault();
+    if (hs.deal) return;
     var v = ($('hsInput').value || '').trim();
     if (v.length < 2 || v.length > 24) return;
     if (hs.names.indexOf(v) >= 0) return;
@@ -61,50 +111,81 @@
     $('hsInput').value = '';
     renderHsNames();
   });
-  $('hotseatBtn').onclick = function () { renderHsNames(); show('hotseat'); setChip('ready', 'This phone'); };
+  $('hotseatBtn').onclick = function () {
+    hs.deal = null;
+    hs.seen = {};
+    hs.fromPlay = false;
+    renderHsNames();
+    show('hotseat');
+    setChip('ready', 'This phone');
+  };
   $('hsBack').onclick = function () { show('home'); setChip('', 'Ready'); };
 
   function paintCard(el, card, first) {
     if (!card) { el.innerHTML = ''; return; }
     if (card.spy) {
-      el.innerHTML = '<div class="spy">You are the spy!</div>' +
+      el.innerHTML = '<div class="spy">You are the spy</div>' +
+        '<div class="job">You do not know the place. Listen. Guess it.</div>' +
         (first ? '<div class="job">You will ask the first question.</div>' : '');
     } else {
-      el.innerHTML = '<div class="notspy">You are <strong>not</strong> the spy</div>' +
+      el.innerHTML = '<div class="notspy">You are not the spy</div>' +
         '<div class="place">' + esc(card.location) + '</div>' +
         '<div class="job">' + esc(card.role) + '</div>' +
         (first ? '<div class="job">You will ask the first question.</div>' : '');
     }
   }
 
+  function openHsCard(i, fromPlay) {
+    if (!hs.deal || i < 0 || i >= hs.ids.length) return;
+    hs.i = i;
+    hs.fromPlay = !!fromPlay;
+    hs.seen[i] = true;
+    var id = hs.ids[i], card = hs.deal.cards[id];
+    var first = hs.deal.firstId === id;
+    $('hsWho').textContent = hs.names[i];
+    $('hsPassHint').textContent = 'Look. Then hide this card before anyone else sees the screen.';
+    paintCard($('hsRole'), card, first);
+    $('hsRole').className = 'role-card cream';
+    show('hsCard');
+    setChip('play', 'A card');
+  }
+
   $('hsDeal').onclick = function () {
-    if (hs.names.length < 3) { return; }
+    if (hs.names.length < 3) {
+      $('hsNote').textContent = 'Need at least three people.';
+      return;
+    }
     hs.ids = hs.names.map(function (n, i) { return 'p' + i; });
     hs.deal = SF.deal(String(nowMs()) + '-' + hs.names.join(','), hs.ids);
     hs.i = 0;
-    hs.hidden = false;
-    showHsCard();
+    hs.seen = {};
+    hs.fromPlay = false;
+    renderHsNames();
+    show('hotseat');
+    setChip('ready', 'Tap your name');
   };
-  function showHsCard() {
-    var id = hs.ids[hs.i], card = hs.deal.cards[id];
-    var first = hs.deal.firstId === id;
-    $('hsWho').textContent = hs.names[hs.i];
-    $('hsPassHint').textContent = 'Look, then hide it before you pass the phone.';
-    paintCard($('hsRole'), card, first);
-    $('hsRole').className = 'role-card';
-    $('hsNext').textContent = hs.i < hs.ids.length - 1 ? 'Hide and pass' : 'Everyone has seen · play';
-    show('hsCard');
-    setChip('play', 'Pass the phone');
-  }
-  $('hsNext').onclick = function () {
-    if (hs.i < hs.ids.length - 1) {
-      hs.i += 1;
-      showHsCard();
-    } else {
-      enterLocalPlay();
+  $('hsStart').onclick = function () {
+    if (!hs.deal) return;
+    enterLocalPlay();
+  };
+  $('hsHideBtn').onclick = function () {
+    show('hsHide');
+    setChip('ready', 'Hidden');
+  };
+  $('hsHiddenNext').onclick = function () {
+    if (hs.fromPlay) {
+      hs.fromPlay = false;
+      openPlay();
+      return;
     }
+    renderHsNames();
+    show('hotseat');
+    setChip('ready', 'Tap your name');
   };
-  $('hsCardBack').onclick = function () { show('hotseat'); setChip('ready', 'This phone'); };
+  $('hsCardBack').onclick = function () {
+    show('hsHide');
+    setChip('ready', 'Hidden');
+  };
 
   var localPlay = null;
   function enterLocalPlay() {
@@ -112,25 +193,41 @@
       deal: hs.deal,
       names: hs.names.slice(),
       ids: hs.ids.slice(),
-      as: 0,
       startedAt: nowMs(),
       duration: minutes * 60,
       paused: false,
       left: minutes * 60,
-      voteLoc: {},
-      voteSpy: {},
-      hidden: false,
+      strikeLoc: {},
+      strikeSpy: {},
+      hidden: true,
       ended: false
     };
     mp.on = false;
     openPlay();
   }
 
+  $('lookBtn').onclick = function () {
+    if (!localPlay) return;
+    var html = '', i;
+    for (i = 0; i < localPlay.names.length; i++) {
+      html += '<li class="pick" data-i="' + i + '"><span class="name">' + esc(localPlay.names[i]) + '</span></li>';
+    }
+    $('peekList').innerHTML = html;
+    show('peek');
+  };
+  $('peekBack').onclick = function () { openPlay(); };
+  $('peekList').addEventListener('click', function (e) {
+    var li = e.target.closest ? e.target.closest('li[data-i]') : null;
+    if (!li || !localPlay) return;
+    openHsCard(parseInt(li.getAttribute('data-i'), 10), true);
+  });
+
   // ---- multiplayer ----
   // One public collection (`votes`). Each person writes ONLY their own row.
   // The host (lowest live id) is the one who deals: they publish a seed on
   // THEIR row. Each player derives their card and writes it to private `role`.
-  var mp = { on: false, id: null, name: 'You', row: null, people: [], hb: 0, sub: false, hidden: false, adopted: null };
+  // Location and player marks stay local. They are never put on the row.
+  var mp = { on: false, id: null, name: 'You', row: null, people: [], hb: 0, sub: false, hidden: true, adopted: null, strikeLoc: {}, strikeSpy: {} };
   var _items = [];
 
   function livePeople(items, t) {
@@ -197,13 +294,10 @@
       id: mp.id,
       name: mp.name,
       at: nowMs(),
-      ready: true,
-      voteLoc: null,
-      voteSpy: null
+      ready: true
     };
     if (mp.row) {
-      ['round', 'seed', 'startedAt', 'duration', 'playerIds', 'phase', 'paused', 'left',
-        'voteLoc', 'voteSpy'].forEach(function (k) {
+      ['round', 'seed', 'startedAt', 'duration', 'playerIds', 'phase', 'paused', 'left'].forEach(function (k) {
         if (mp.row[k] !== undefined) row[k] = mp.row[k];
       });
     }
@@ -228,7 +322,9 @@
       mp.on = true;
       mp.row = null;
       mp.adopted = null;
-      mp.hidden = false;
+      mp.hidden = true;
+      mp.strikeLoc = {};
+      mp.strikeSpy = {};
       localPlay = null;
       show('lobby');
       setChip('ready', 'A room');
@@ -236,7 +332,7 @@
         mp.sub = true;
         votesDb.subscribe(function (items) { _items = items || []; mpRefresh(); });
       }
-      putMe({ phase: 'lobby', round: 0, seed: null, playerIds: null, voteLoc: null, voteSpy: null });
+      putMe({ phase: 'lobby', round: 0, seed: null, playerIds: null });
       if (mp.hb) clearInterval(mp.hb);
       mp.hb = setInterval(function () { if (mp.on) putMe(); }, HB_MS);
       mpRefresh();
@@ -255,14 +351,6 @@
     else { localPlay = null; show('home'); setChip('', 'Ready'); }
   };
 
-  $('timeSeg').addEventListener('click', function (e) {
-    var b = e.target.closest ? e.target.closest('button') : null;
-    if (!b) return;
-    Array.prototype.forEach.call(this.children, function (c) { c.classList.remove('on'); });
-    b.classList.add('on');
-    minutes = parseInt(b.getAttribute('data-min'), 10) || 8;
-  });
-
   $('dealBtn').onclick = function () {
     if (!mp.on) return;
     var people = livePeople(_items);
@@ -270,7 +358,7 @@
       people.push(mp.row || { id: mp.id, name: mp.name, at: nowMs() });
     }
     if (!isHost(people)) return;
-    if (people.length < 2) return;
+    if (people.length < 3) return;
     var ids = people.map(function (p) { return p.id; });
     ids.sort();
     var ad = adoptedDeal(people);
@@ -278,6 +366,9 @@
     var seed = nowMs().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
     var d = SF.deal(seed, ids);
     putRole(d.cards[mp.id], round);
+    mp.hidden = true;
+    mp.strikeLoc = {};
+    mp.strikeSpy = {};
     putMe({
       round: round,
       seed: seed,
@@ -286,9 +377,7 @@
       playerIds: ids,
       phase: 'play',
       paused: false,
-      left: minutes * 60,
-      voteLoc: null,
-      voteSpy: null
+      left: minutes * 60
     });
   };
 
@@ -348,40 +437,27 @@
     renderPlay();
   };
 
-  $('asSeg').addEventListener('click', function (e) {
-    var b = e.target.closest ? e.target.closest('button') : null;
-    if (!b || !localPlay) return;
-    localPlay.as = parseInt(b.getAttribute('data-as'), 10) || 0;
-    localPlay.hidden = false;
-    renderPlay();
-  });
   $('playerList').addEventListener('click', function (e) {
     var li = e.target.closest ? e.target.closest('li') : null;
     if (!li) return;
     var id = li.getAttribute('data-id');
     if (!id) return;
-    if (localPlay) {
-      var kn = localPlay.names[localPlay.as] || localPlay.names[0];
-      localPlay.voteSpy[kn] = localPlay.voteSpy[kn] === id ? null : id;
-      renderPlay();
-      return;
-    }
-    if (!mp.on || !mp.row) return;
-    putMe({ voteSpy: mp.row.voteSpy === id ? null : id });
+    var bag = localPlay ? localPlay.strikeSpy : mp.strikeSpy;
+    if (!bag) return;
+    if (bag[id]) delete bag[id];
+    else bag[id] = true;
+    renderPlay();
   });
   $('locList').addEventListener('click', function (e) {
     var li = e.target.closest ? e.target.closest('li') : null;
     if (!li) return;
     var name = li.getAttribute('data-loc');
     if (!name) return;
-    if (localPlay) {
-      var k = localPlay.names[localPlay.as] || localPlay.names[0];
-      localPlay.voteLoc[k] = localPlay.voteLoc[k] === name ? null : name;
-      renderPlay();
-      return;
-    }
-    if (!mp.on || !mp.row) return;
-    putMe({ voteLoc: mp.row.voteLoc === name ? null : name });
+    var bag = localPlay ? localPlay.strikeLoc : mp.strikeLoc;
+    if (!bag) return;
+    if (bag[name]) delete bag[name];
+    else bag[name] = true;
+    renderPlay();
   });
 
   function mpRefresh() {
@@ -396,7 +472,9 @@
       var d = SF.deal(ad.seed, ad.playerIds);
       var mine = d.cards[mp.id];
       if (mine) putRole(mine, ad.round);
-      mp.hidden = false;
+      mp.hidden = true;
+      mp.strikeLoc = {};
+      mp.strikeSpy = {};
       if (!mp.row || mp.row.round !== ad.round || mp.row.seed !== ad.seed) {
         putMe({
           round: ad.round,
@@ -406,9 +484,7 @@
           playerIds: ad.playerIds,
           phase: ad.phase || 'play',
           paused: !!ad.paused,
-          left: ad.left,
-          voteLoc: null,
-          voteSpy: null
+          left: ad.left
         });
       }
     }
@@ -417,11 +493,11 @@
     }
     mp.adopted = ad;
     if (ad && (ad.phase === 'play' || ad.phase === 'ended')) {
-      if (view !== 'play') openPlay();
-      else renderPlay();
+      if (view !== 'play' && view !== 'hsCard' && view !== 'hsHide' && view !== 'peek') openPlay();
+      else if (view === 'play') renderPlay();
     } else {
       renderLobby(people);
-      if (view !== 'lobby' && view !== 'home') show('lobby');
+      if (view !== 'lobby' && view !== 'home' && view !== 'hsCard' && view !== 'hsHide') show('lobby');
     }
   }
 
@@ -436,9 +512,11 @@
     }
     $('lobbyList').innerHTML = html || '<li><span class="name">Just you so far</span></li>';
     $('dealBtn').hidden = !host;
-    $('dealBtn').disabled = people.length < 2;
-    if (people.length < 2) {
-      $('lobbyStatus').textContent = 'Waiting for friends… press Invite in the GifOS menu to send the link.';
+    $('dealBtn').disabled = people.length < 3;
+    if (people.length < 3) {
+      $('lobbyStatus').textContent = people.length < 2
+        ? 'Waiting for friends… press Invite in the GifOS menu to send the link. Need three people to deal.'
+        : 'Two here. Need one more, then deal.';
     } else if (host) {
       $('lobbyStatus').textContent = people.length + ' here. Deal when you are ready.';
     } else {
@@ -453,57 +531,40 @@
   }
 
   function renderPlay() {
-    var d, namesById = {}, votes = [], i, p, card, firstId, ended, locCounts = {}, spyCounts = {};
-    var locNames = SF.names(), mineId, mineName;
+    var d, namesById = {}, i, p, card, firstId, ended;
+    var locNames = SF.names(), mineId;
+    var strikeLoc, strikeSpy;
 
     if (localPlay) {
       d = localPlay.deal;
       firstId = d.firstId;
       ended = localPlay.ended || remaining(localPlay) <= 0;
-      mineId = localPlay.ids[localPlay.as] || localPlay.ids[0];
-      mineName = localPlay.names[localPlay.as] || localPlay.names[0];
-      card = d.cards[mineId];
-      for (i = 0; i < localPlay.ids.length; i++) {
-        namesById[localPlay.ids[i]] = localPlay.names[i];
-        votes.push({
-          id: localPlay.ids[i],
-          name: localPlay.names[i],
-          voteLoc: localPlay.voteLoc[localPlay.names[i]] || null,
-          voteSpy: localPlay.voteSpy[localPlay.names[i]] || null
-        });
-      }
+      mineId = null;
+      card = null;
+      for (i = 0; i < localPlay.ids.length; i++) namesById[localPlay.ids[i]] = localPlay.names[i];
+      strikeLoc = localPlay.strikeLoc;
+      strikeSpy = localPlay.strikeSpy;
       $('playLeave').textContent = '← Home';
       $('endBtn').hidden = false;
       $('playTitle').textContent = 'On this phone';
-      var asHtml = '', ai;
-      for (ai = 0; ai < localPlay.names.length; ai++) {
-        asHtml += '<button type="button" data-as="' + ai + '"' +
-          (ai === localPlay.as ? ' class="on"' : '') + '>' + esc(localPlay.names[ai]) + '</button>';
-      }
-      $('asSeg').innerHTML = asHtml;
-      $('asSeg').hidden = false;
+      $('lookBtn').hidden = false;
+      $('roleWrap').hidden = true;
     } else if (mp.on && mp.adopted) {
       d = SF.deal(mp.adopted.seed, mp.adopted.playerIds);
       firstId = d.firstId;
       ended = mp.adopted.phase === 'ended' || remaining(mp.adopted) <= 0;
       mineId = mp.id;
-      mineName = 'You';
       card = d.cards[mp.id] || { spy: true, location: null, role: 'Spy' };
-      votes = mp.people.slice();
-      for (i = 0; i < votes.length; i++) namesById[votes[i].id] = votes[i].name || 'Player';
+      for (i = 0; i < mp.people.length; i++) namesById[mp.people[i].id] = mp.people[i].name || 'Player';
+      strikeLoc = mp.strikeLoc;
+      strikeSpy = mp.strikeSpy;
       $('playLeave').textContent = '← Leave';
       $('endBtn').hidden = !isHost(mp.people);
       $('playTitle').textContent = 'Round ' + (mp.adopted.round || 1);
-      $('asSeg').hidden = true;
-      $('asSeg').innerHTML = '';
+      $('lookBtn').hidden = true;
+      $('roleWrap').hidden = false;
     } else {
       return;
-    }
-
-    for (i = 0; i < votes.length; i++) {
-      p = votes[i];
-      if (p.voteLoc) locCounts[p.voteLoc] = (locCounts[p.voteLoc] || 0) + 1;
-      if (p.voteSpy) spyCounts[p.voteSpy] = (spyCounts[p.voteSpy] || 0) + 1;
     }
 
     var left = localPlay ? remaining(localPlay) : remaining(mp.adopted);
@@ -513,13 +574,15 @@
     tEl.className = 'countdown' + (ended ? ' finished' : '') + (paused && !ended ? ' paused' : '');
     $('timerHint').textContent = ended ? 'Time.' : (paused ? 'Paused' : 'Tap to pause');
 
-    var hidden = localPlay ? localPlay.hidden : mp.hidden;
-    $('hideBtn').textContent = hidden ? 'Your role · tap to show' : 'Your role · tap to hide';
-    $('roleCard').className = 'role-card' + (hidden ? ' hidden' : '');
-    paintCard($('roleCard'), card, firstId === mineId);
+    if (!localPlay) {
+      var hidden = mp.hidden;
+      $('hideBtn').textContent = hidden ? 'Your role · tap to show' : 'Your role · tap to hide';
+      $('roleCard').className = 'role-card' + (hidden ? ' hidden' : '');
+      paintCard($('roleCard'), card, firstId === mineId);
+    }
 
     var firstName = namesById[firstId] || 'Someone';
-    if (firstId === mineId) {
+    if (mineId && firstId === mineId) {
       $('firstLine').className = 'firstline you';
       $('firstLine').textContent = 'You will ask the first question.';
     } else {
@@ -532,11 +595,10 @@
     for (i = 0; i < order.length; i++) {
       p = order[i];
       html += '<li class="' + (p === mineId ? 'me' : '') +
-        ((localPlay ? localPlay.voteSpy[mineName] : (mp.row && mp.row.voteSpy)) === p ? ' on' : '') +
+        (strikeSpy[p] ? ' on' : '') +
         '" data-id="' + esc(p) + '"><span class="name">' +
         esc(p === mineId ? 'You' : (namesById[p] || 'Player')) + '</span>' +
         (p === firstId ? '<span class="first">1st</span>' : '') +
-        (spyCounts[p] ? '<span class="meta">' + spyCounts[p] + '</span>' : '') +
         '</li>';
     }
     $('playerList').innerHTML = html;
@@ -544,10 +606,8 @@
     html = '';
     for (i = 0; i < locNames.length; i++) {
       var loc = locNames[i];
-      var mineVote = localPlay ? localPlay.voteLoc[mineName] : (mp.row && mp.row.voteLoc);
-      html += '<li class="' + (mineVote === loc ? 'on' : '') + '" data-loc="' + esc(loc) + '">' +
+      html += '<li class="' + (strikeLoc[loc] ? 'on' : '') + '" data-loc="' + esc(loc) + '">' +
         '<span class="name">' + esc(loc) + '</span>' +
-        (locCounts[loc] ? '<span class="n">' + locCounts[loc] + '</span>' : '') +
         '</li>';
     }
     $('locList').innerHTML = html;
@@ -555,7 +615,7 @@
     var rev = $('reveal');
     if (ended && d) {
       rev.hidden = false;
-      var spyName = d.spyId === mineId ? 'You' : (namesById[d.spyId] || 'The spy');
+      var spyName = (mineId && d.spyId === mineId) ? 'You' : (namesById[d.spyId] || 'The spy');
       rev.innerHTML = '<h3>The place was ' + esc(d.location) + '</h3>' +
         '<p class="spy">' + esc(spyName) + ' was the spy.</p>';
     } else {
@@ -575,7 +635,12 @@
         else { localPlay = null; show('home'); setChip('', 'Ready'); }
         return true;
       }
-      if (view === 'hsCard') { show('hotseat'); setChip('ready', 'This phone'); return true; }
+      if (view === 'hsCard' || view === 'hsHide') {
+        show('hsHide');
+        setChip('ready', 'Hidden');
+        return true;
+      }
+      if (view === 'peek') { openPlay(); return true; }
       if (view === 'hotseat' || view === 'lobby') {
         if (mp.on) mpLeave();
         else { show('home'); setChip('', 'Ready'); }

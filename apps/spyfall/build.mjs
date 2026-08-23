@@ -84,11 +84,18 @@ if (!manifest.data || !manifest.data.role || manifest.data.role.visibility !== '
   throw new Error('manifest.data.role must be private — the card never leaves this tab');
 }
 if (!manifest.data.votes || manifest.data.votes.visibility !== 'read-write') {
-  throw new Error('manifest.data.votes must be read-write — location votes have to sync');
+  throw new Error('manifest.data.votes must be read-write — presence and the deal seed have to sync');
 }
 if (!html.includes('Play with friends')) throw new Error('index.html is missing Play with friends');
 if (/>\s*Invite\s*</.test(html) || /id=["']invite/i.test(html)) {
   throw new Error('Invite is OS chrome — this app must not draw a share button');
+}
+if (!html.includes('Hidden') || !html.includes('Hand the phone')) {
+  throw new Error('pass-the-phone must hide the card before the next person — no auto-advance');
+}
+if (!html.includes('hsHide')) throw new Error('index.html is missing the hide interstitial');
+if (/YOU ARE THE SPY/i.test(read('icon.mjs'))) {
+  throw new Error('cover must not leak the spy');
 }
 
 const packed = files['app.js'] + files['deal.js'] + files['locations.js'] + html;
@@ -97,6 +104,12 @@ if (/socket\.io|express\(|require\(["']next|createServer|WebSocket/i.test(packed
 }
 if (!files['app.js'].includes('putMe') || !files['app.js'].includes('putRole')) {
   throw new Error('app.js must write the private card and the player\'s own votes row');
+}
+if (files['app.js'].includes('voteLoc') || files['app.js'].includes('locCounts')) {
+  throw new Error('location marks stay on this phone — do not publish them as votes');
+}
+if (files['app.js'].includes('Hide and pass')) {
+  throw new Error('Hide and pass auto-advanced into the next card — that leaks');
 }
 if (!files['app.js'].includes("gifos.db('role')") || !files['app.js'].includes("gifos.db('votes')")) {
   throw new Error('app.js must use private role and read-write votes');
