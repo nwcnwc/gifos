@@ -19,27 +19,24 @@ const init = () => {
 
 	tool = [0, 0]
 
-	map = [
-		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
-		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
-		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
-		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
-		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
-		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
-		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
-	]
+	ntiles = 16
+	map = []
+	for (let r = 0; r < ntiles; r++) {
+		const row = []
+		for (let c = 0; c < ntiles; c++) row.push([0, 0])
+		map.push(row)
+	}
 
 	canvas = $("#bg")
-	canvas.width = 910
-	canvas.height = 666
-	w = 910
-	h = 462
 	texWidth = 12
 	texHeight = 6
-	bg = canvas.getContext("2d")
-	ntiles = 7
 	tileWidth = 128
 	tileHeight = 64
+	w = ntiles * tileWidth + 14
+	h = ntiles * tileHeight + 218
+	canvas.width = w
+	canvas.height = h
+	bg = canvas.getContext("2d")
 	bg.translate(w / 2, tileHeight * 2)
 
 	drawMap()
@@ -91,10 +88,36 @@ const init = () => {
 		if (!map[x] || !map[x][y]) return
 		map[x][y] = [a, b]
 	}
+	window.IsoCity.nestTo = (cells, destN) => {
+		destN = destN || ntiles
+		const src = cells || []
+		let srcN = Math.round(Math.sqrt(src.length))
+		if (srcN * srcN !== src.length || srcN < 1) srcN = destN
+		if (srcN === destN) {
+			const out = src.slice()
+			while (out.length < destN * destN) out.push(0)
+			return out.slice(0, destN * destN)
+		}
+		const out = []
+		for (let i = 0; i < destN * destN; i++) out.push(0)
+		if (srcN < destN) {
+			const off = Math.floor((destN - srcN) / 2)
+			for (let i = 0; i < srcN; i++)
+				for (let j = 0; j < srcN; j++)
+					out[(i + off) * destN + (j + off)] = src[i * srcN + j] || 0
+		} else {
+			const drop = Math.floor((srcN - destN) / 2)
+			for (let i = 0; i < destN; i++)
+				for (let j = 0; j < destN; j++)
+					out[i * destN + j] = src[(i + drop) * srcN + (j + drop)] || 0
+		}
+		return out
+	}
 	window.IsoCity.replaceMap = cells => {
+		const flat = window.IsoCity.nestTo(cells, ntiles)
 		for (let i = 0; i < ntiles; i++) {
 			for (let j = 0; j < ntiles; j++) {
-				const t = cells[i * ntiles + j] || 0
+				const t = flat[i * ntiles + j] || 0
 				map[i][j] = [Math.trunc(t / texWidth), Math.trunc(t % texWidth)]
 			}
 		}

@@ -1,15 +1,18 @@
 # IsoCity
 
 A tiny isometric city. Tap a tile, put it down. No budget, no score.
-Share the map from one invite. The city lives in the file.
+**Sixteen tiles on a side** (the original is 7×7; an old save nests in the
+middle). Drag to pan, pinch to zoom. Share the map from one invite. The
+city lives in the file.
 
 An unofficial port of **[IsoCity](https://github.com/victorqribeiro/isocity)**
 by victorqribeiro (MIT). The pictures are Kenney's isometric landscape/city
-tiles (CC0). Playing alone is that game, with the city saved in the file.
-Press **Share the map**, then **Invite**, and everyone paints on the same city
-— the city you already built, not a blank. On a phone, drag to look around
-and tap to place (the original was never designed for a thumb).
-Press **Compare cities** and each of you keeps your own, and you can peek.
+tiles (CC0). Playing alone is that game, on a bigger map, with the city
+saved in the file. Press **Share the map**, then **Invite**, and everyone
+paints on the same city — the city you already built, not a blank. On a
+phone, drag to pan, pinch to zoom, tap to place (the original was never
+designed for a thumb). Press **Compare cities** and each of you keeps your
+own, and you can peek.
 
 ![screenshot](screenshot.png)
 
@@ -38,8 +41,9 @@ No `network`, no `wasm`. The original is plain JS and one PNG.
 
 **Share the map.** Each player writes tile strokes on **their own row**. The
 elected host (lowest present id) applies legal placements onto the `city` row.
-Guests never write `city`. A stroke that is off the 7×7 grid or names a tile
-that does not exist is dropped.
+Guests never write `city`. A stroke that is off the 16×16 grid or names a tile
+that does not exist is dropped. A 7×7 city arriving from an older save is
+nested in the middle before it is applied.
 
 **Compare cities.** Each player publishes their own city on their own row.
 Tap a name to look; you only ever edit yours.

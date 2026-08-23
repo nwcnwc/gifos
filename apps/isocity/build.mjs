@@ -137,8 +137,23 @@ if (!files['mp.js'].includes('pending') || !files['mp.js'].includes('isHost')) {
 if (!files['mp.js'].includes('currentCells') || !files['mp.js'].includes("m === 'share' ? currentCells()")) {
   throw new Error('Share the map must start from the city already on the map, not empty dirt');
 }
+if (!files['vendor/main.js'].includes('ntiles = 16') || !files['mp.js'].includes('NTILES = 16')) {
+  throw new Error('the city is 16×16 — ntiles must be 16 in vendor and mp');
+}
+if (!files['vendor/main.js'].includes('nestTo')) {
+  throw new Error('an old 7×7 save must nest in the middle of 16×16');
+}
 if (!files['pan.js'].includes('scrollLeft') || !files['pan.js'].includes('touchstart')) {
   throw new Error('pan.js must pan the map from a drag and place from a tap');
+}
+if (!files['pan.js'].includes('pinch') || !files['pan.js'].includes('ctrlKey')) {
+  throw new Error('pan.js must pinch-zoom and Ctrl+wheel-zoom');
+}
+if (!files['index.html'].includes('id="undoBtn"') || !files['index.html'].includes('id="confirm-new"')) {
+  throw new Error('Undo and New-city confirm are required chrome');
+}
+if (!files['index.html'].includes('id="toolName"')) {
+  throw new Error('the selected tile must have a name');
 }
 if (!files['style.css'].includes('#stage') || !files['index.html'].includes('id="stage"')) {
   throw new Error('the map lives on #stage inside a scrollport so a phone can pan');

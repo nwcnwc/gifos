@@ -4,10 +4,10 @@
   "appId": "isocity",
   "name": "IsoCity",
   "shortName": "IsoCity",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "tagline": "Share the map from one invite. The city lives in the file.",
-  "description": "Press Share the map, then Invite in the bar above the app, and send the link. Everyone paints on the same city. No account, no server — the room is the invite, and the city you built lives in the file.\n\nOn your own it is IsoCity. Pick a tile — a road, a tree, a house, a tower — and tap to put it down. Drag the map to look around. There is no budget and no score. Close it, come back, the streets are where you left them.\n\nPress Compare cities and each of you keeps your own, and you can peek at the others.\n\nAn unofficial port of IsoCity by victorqribeiro. The pictures are Kenney's. Bugs go to GifOS, not upstream.",
+  "description": "Press Share the map, then Invite in the bar above the app, and send the link. Everyone paints on the same city. No account, no server — the room is the invite, and the city you built lives in the file.\n\nOn your own it is IsoCity, on a city sixteen tiles on a side. Pick a tile — a road, a tree, a house, a tower — and tap to put it down. Drag to pan, pinch to zoom. There is no budget and no score. Close it, come back, the streets are where you left them.\n\nPress Compare cities and each of you keeps your own, and you can peek at the others.\n\nAn unofficial port of IsoCity by victorqribeiro. The pictures are Kenney's. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "victorqribeiro",
     "url": "https://github.com/victorqribeiro/isocity"
@@ -39,10 +39,10 @@
   "cover": "/apps/isocity/cover.jpg",
   "screenshots": [],
   "gif": "/apps/isocity/isocity.gif",
-  "bytes": 647704,
+  "bytes": 651259,
   "download": 0,
   "provides": null,
-  "sha256": "c6cb84acd21e8f09248d57c6e3a34f1b4ab4f9fb2d839e469481233a1e9914af",
+  "sha256": "8fcfeb73ce40529bdeed1f471c66e236d92009e32398d326ab0ab901fc0c8a76",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

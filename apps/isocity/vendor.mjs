@@ -310,6 +310,105 @@ const getPosition = e => {
   'touch + CSS-scaled hit testing',
 );
 
+js = mustReplace(
+  js,
+  `	map = [
+		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
+		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
+		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
+		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
+		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
+		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
+		[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+	]
+
+	canvas = $("#bg")
+	canvas.width = 910
+	canvas.height = 666
+	w = 910
+	h = 462
+	texWidth = 12
+	texHeight = 6
+	bg = canvas.getContext("2d")
+	ntiles = 7
+	tileWidth = 128
+	tileHeight = 64
+	bg.translate(w / 2, tileHeight * 2)
+`,
+  `	ntiles = 16
+	map = []
+	for (let r = 0; r < ntiles; r++) {
+		const row = []
+		for (let c = 0; c < ntiles; c++) row.push([0, 0])
+		map.push(row)
+	}
+
+	canvas = $("#bg")
+	texWidth = 12
+	texHeight = 6
+	tileWidth = 128
+	tileHeight = 64
+	w = ntiles * tileWidth + 14
+	h = ntiles * tileHeight + 218
+	canvas.width = w
+	canvas.height = h
+	bg = canvas.getContext("2d")
+	bg.translate(w / 2, tileHeight * 2)
+`,
+  '16×16 city; canvas sized from ntiles',
+);
+
+js = mustReplace(
+  js,
+  `	window.IsoCity.replaceMap = cells => {
+		for (let i = 0; i < ntiles; i++) {
+			for (let j = 0; j < ntiles; j++) {
+				const t = cells[i * ntiles + j] || 0
+				map[i][j] = [Math.trunc(t / texWidth), Math.trunc(t % texWidth)]
+			}
+		}
+		drawMap()
+	}
+`,
+  `	window.IsoCity.nestTo = (cells, destN) => {
+		destN = destN || ntiles
+		const src = cells || []
+		let srcN = Math.round(Math.sqrt(src.length))
+		if (srcN * srcN !== src.length || srcN < 1) srcN = destN
+		if (srcN === destN) {
+			const out = src.slice()
+			while (out.length < destN * destN) out.push(0)
+			return out.slice(0, destN * destN)
+		}
+		const out = []
+		for (let i = 0; i < destN * destN; i++) out.push(0)
+		if (srcN < destN) {
+			const off = Math.floor((destN - srcN) / 2)
+			for (let i = 0; i < srcN; i++)
+				for (let j = 0; j < srcN; j++)
+					out[(i + off) * destN + (j + off)] = src[i * srcN + j] || 0
+		} else {
+			const drop = Math.floor((srcN - destN) / 2)
+			for (let i = 0; i < destN; i++)
+				for (let j = 0; j < destN; j++)
+					out[i * destN + j] = src[(i + drop) * srcN + (j + drop)] || 0
+		}
+		return out
+	}
+	window.IsoCity.replaceMap = cells => {
+		const flat = window.IsoCity.nestTo(cells, ntiles)
+		for (let i = 0; i < ntiles; i++) {
+			for (let j = 0; j < ntiles; j++) {
+				const t = flat[i * ntiles + j] || 0
+				map[i][j] = [Math.trunc(t / texWidth), Math.trunc(t % texWidth)]
+			}
+		}
+		drawMap()
+	}
+`,
+  'nest a smaller saved city in the middle of 16×16',
+);
+
 js += `
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot)
 else boot()
@@ -320,6 +419,8 @@ if (js.includes('history.pushState')) throw new Error('main.js still pushes hist
 if (js.includes('location.hash')) throw new Error('main.js still reads location.hash');
 if (js.includes('pointerup')) throw new Error('main.js still listens for pointerup (double-fire)');
 if (!js.includes('window.IsoCity')) throw new Error('main.js does not expose IsoCity');
+if (!js.includes('ntiles = 16')) throw new Error('main.js must be a 16×16 city');
+if (!js.includes('nestTo')) throw new Error('main.js must nest an old 7×7 save');
 if (/<\/script/i.test(js)) throw new Error('main.js contains </script');
 if (/^\s*import\s|export\s+\{|export default|import\.meta/m.test(js)) {
   throw new Error('main.js uses ESM — classic scripts only');
@@ -347,6 +448,7 @@ js/main.js is the original page script with these seams:
   touchstart/move paint; pointerup dropped (it double-fired with mouseup)
   getPosition uses the canvas box, so a CSS-scaled canvas still hits
   IsoCity.* API appended at the end of init()
+  16×16 city (old 7×7 saves nest in the middle); canvas sized from ntiles
 
 css/main.css is the original with the texture url() removed (inlined
 stylesheets cannot resolve a relative path). JS sets background-image

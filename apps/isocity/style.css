@@ -54,7 +54,8 @@ body {
 }
 #actions #shareBtn, #actions #compareBtn,
 #friend-bar #mineBtn { background: #b05355; color: #fff; }
-#newBtn { background: transparent; box-shadow: inset 0 0 0 2px #d8d0c6; }
+#newBtn, #undoBtn { background: transparent; box-shadow: inset 0 0 0 2px #d8d0c6; }
+#undoBtn:disabled { opacity: .4; cursor: default; }
 body.together #shareBtn,
 body.together #compareBtn { display: none; }
 
@@ -117,25 +118,76 @@ body.together #compareBtn { display: none; }
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: pan-x pan-y;
+  touch-action: none;
   min-height: 0;
 }
 #stage {
   position: relative;
-  width: 910px;
-  height: 666px;
   margin: 0 auto;
   flex: 0 0 auto;
 }
 #bg, #fg {
   touch-action: none;
-  width: 910px;
-  height: 666px;
   max-width: none;
   left: 0;
   transform: none;
 }
+#tools-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 580px;
+  height: 100%;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+#tools-wrap #tools { width: 100%; height: auto; flex: 1 1 auto; }
+@media only screen and (max-width: 1700px) { #tools-wrap { width: 440px; } }
+@media only screen and (max-width: 1540px) { #tools-wrap { width: 300px; } }
+@media only screen and (max-width: 1380px) { #tools-wrap { width: 160px; } }
+#toolName {
+  margin: 0;
+  padding: 2px 8px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5a4a40;
+}
 #tools > div { cursor: pointer; }
+
+#confirm-new {
+  position: fixed;
+  inset: 0;
+  background: rgba(40, 30, 24, .35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 16px;
+}
+#confirm-new[hidden] { display: none; }
+.confirm-box {
+  background: #fff;
+  color: #5a4a40;
+  border-radius: 8px;
+  padding: 16px 18px;
+  max-width: 320px;
+  box-shadow: 0 8px 28px rgba(40, 30, 24, .2);
+}
+.confirm-box p { margin: 0 0 12px; font-size: 15px; }
+.confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.confirm-actions button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 14px;
+  min-height: 40px;
+  cursor: pointer;
+  background: #eee4da;
+  color: #5a4a40;
+}
+#confirm-yes { background: #b05355; color: #fff; }
 
 .foot {
   display: none;
@@ -143,10 +195,15 @@ body.together #compareBtn { display: none; }
 
 @media only screen and (max-width: 966px) {
   #main { flex-direction: column-reverse; }
+  #tools-wrap {
+    width: 100%;
+    height: 188px;
+    flex: 0 0 188px;
+  }
   #tools {
     width: 100%;
     height: 168px;
-    flex: 0 0 168px;
+    flex: 1 1 auto;
     justify-content: flex-start;
   }
   #area { justify-content: flex-start; }
@@ -158,9 +215,13 @@ body.together #compareBtn { display: none; }
     font-size: 13px;
     min-height: 44px;
   }
+  #tools-wrap {
+    height: 138px;
+    flex: 0 0 138px;
+  }
   #tools {
     height: 118px;
-    flex: 0 0 118px;
+    flex: 1 1 auto;
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
@@ -169,15 +230,4 @@ body.together #compareBtn { display: none; }
     touch-action: pan-x;
   }
   #hint { font-size: 13px; }
-}
-@media only screen and (min-width: 700px) {
-  #stage {
-    width: min(100%, 910px);
-    height: auto;
-    aspect-ratio: 910 / 666;
-  }
-  #bg, #fg {
-    width: 100%;
-    height: 100%;
-  }
 }

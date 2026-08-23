@@ -1896,7 +1896,7 @@
       "appId": "isocity",
       "name": "IsoCity",
       "shortName": "IsoCity",
-      "version": "1.0",
+      "version": "1.1",
       "tagline": "Share the map from one invite. The city lives in the file.",
       "author": {
         "name": "victorqribeiro",
@@ -1930,7 +1930,7 @@
         85
       ],
       "cover": "/apps/isocity/cover.jpg",
-      "bytes": 647704,
+      "bytes": 651259,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1938,7 +1938,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "c6cb84acd21e8f09248d57c6e3a34f1b4ab4f9fb2d839e469481233a1e9914af"
+      "sha256": "8fcfeb73ce40529bdeed1f471c66e236d92009e32398d326ab0ab901fc0c8a76"
     },
     {
       "slug": "jspaint",

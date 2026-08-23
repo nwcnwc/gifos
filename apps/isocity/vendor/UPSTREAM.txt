@@ -13,13 +13,14 @@ js/main.js is the original page script with these seams:
   touchstart/move paint; pointerup dropped (it double-fired with mouseup)
   getPosition uses the canvas box, so a CSS-scaled canvas still hits
   IsoCity.* API appended at the end of init()
+  16×16 city (old 7×7 saves nest in the middle); canvas sized from ntiles
 
 css/main.css is the original with the texture url() removed (inlined
 stylesheets cannot resolve a relative path). JS sets background-image
 from the sheet.
 
 sha256:
-  main.js     e060d0cbdd8c412e92bf5f646a3857bf5a0cc06ad2085661db11ee2552c76ea3
+  main.js     de10fe6514bf7c50945eef68f86ad3f9dca2c2b740aa980f91c3a4495731dc7b
   main.css    c394faa125358e159e6648d99e9e32cbcd4492f3f43f4a53cee0a9c9cadd741f
   texture     6ac7c0aeb65d5c6968a72f751898d0e6e74f9dafc9cef215366f6bb3bb355e20
   COPYING     20917b8e2cfb3574d262b4d663b1fd206a6bf6c8de7e7f71941b986cb98e02fe
