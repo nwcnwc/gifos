@@ -52,7 +52,7 @@
   "basedOn": {
     "name": "KeeWeb",
     "url": "https://github.com/keeweb/keeweb",
-    "donate": "https://opencollective.com/keeweb",
-    "blessed": false
+    "blessed": false,
+    "donate": "https://opencollective.com/keeweb"
   }
 }

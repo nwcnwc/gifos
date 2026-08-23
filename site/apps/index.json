@@ -94,6 +94,148 @@
       "sha256": "0f0aa1f0801c14a45aed0598de77138fa439525f55445b7234d3d8fafdf0cfee"
     },
     {
+      "slug": "cyberchef",
+      "appId": "cyberchef",
+      "name": "CyberChef",
+      "shortName": "CyberChef",
+      "version": "11.4.0",
+      "tagline": "Encode, decode, encrypt, hash, compress — hundreds of operations, all on this device.",
+      "author": {
+        "name": "GCHQ",
+        "url": "https://github.com/gchq/CyberChef"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "CyberChef",
+        "blessed": false
+      },
+      "minBuild": 1178,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Utilities",
+        "Developer"
+      ],
+      "tags": [
+        "converter",
+        "encoder",
+        "decoder",
+        "crypto",
+        "hash",
+        "base64",
+        "hex",
+        "offline",
+        "cyberchef"
+      ],
+      "accent": [
+        244,
+        67,
+        54
+      ],
+      "cover": "/apps/cyberchef/cover.jpg",
+      "bytes": 11893809,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "64df4cecb5ceb28ab5c1c63a7da8c879d62d1a7e57a9fb1bcb8f36cda7c1438b"
+    },
+    {
+      "slug": "drawnix",
+      "appId": "drawnix",
+      "name": "Drawnix",
+      "shortName": "Drawnix",
+      "version": "0.4.0",
+      "tagline": "Freehand, mind maps and flowcharts on one infinite canvas — saved on this device.",
+      "author": {
+        "name": "plait-board",
+        "url": "https://github.com/plait-board/drawnix"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Drawnix",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Creativity",
+        "Productivity"
+      ],
+      "tags": [
+        "whiteboard",
+        "mindmap",
+        "flowchart",
+        "freehand",
+        "drawing",
+        "offline",
+        "canvas"
+      ],
+      "accent": [
+        70,
+        120,
+        230
+      ],
+      "cover": "/apps/drawnix/cover.jpg",
+      "bytes": 2231673,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "f1bce0f5c9014ea296f439245860f42335a4564a3daf2b0910ec8d5ab427b995"
+    },
+    {
+      "slug": "excalidraw",
+      "appId": "excalidraw",
+      "name": "Excalidraw",
+      "shortName": "Draw",
+      "version": "0.18.1",
+      "tagline": "A hand-drawn whiteboard that lives in the GIF. Nothing is uploaded.",
+      "author": {
+        "name": "Excalidraw",
+        "url": "https://github.com/excalidraw/excalidraw"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Excalidraw",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Creativity",
+        "Productivity"
+      ],
+      "tags": [
+        "whiteboard",
+        "drawing",
+        "diagram",
+        "sketch",
+        "offline",
+        "excalidraw"
+      ],
+      "accent": [
+        105,
+        101,
+        219
+      ],
+      "cover": "/apps/excalidraw/cover.jpg",
+      "bytes": 4601733,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "0efa29b3487d2650680de072f09f5e05ca496afef358cee6a65ea9eb67708ee9"
+    },
+    {
       "slug": "fluence",
       "appId": "fluence",
       "name": "Fluence",
@@ -133,6 +275,51 @@
         "ts": "2026-08-02"
       },
       "sha256": "64ac94f9d22876c929a3aed24e005a6bc0e819809f60a2570d5f88b3b49f9f7b"
+    },
+    {
+      "slug": "fortune-sheet",
+      "appId": "fortune-sheet",
+      "name": "Fortune Sheet",
+      "shortName": "Sheets",
+      "version": "1.0",
+      "tagline": "A local Excel-like spreadsheet. Your workbook lives in the icon, not in anyone's cloud.",
+      "author": {
+        "name": "ruilisi",
+        "url": "https://github.com/ruilisi/fortune-sheet"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "FortuneSheet",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Productivity"
+      ],
+      "tags": [
+        "spreadsheet",
+        "excel",
+        "sheets",
+        "formulas",
+        "offline",
+        "workbook"
+      ],
+      "accent": [
+        1,
+        136,
+        251
+      ],
+      "cover": "/apps/fortune-sheet/cover.jpg",
+      "bytes": 1265033,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "a7557a1d438d4317db97f15829588b227cb4d178a4d2a0ea473bae0ebe94f6ce"
     },
     {
       "slug": "fps-simple",
@@ -179,6 +366,146 @@
       "provides": null,
       "signature": null,
       "sha256": "0a6c861f97f2a1cdb214559619107ebd209762cc56c4367461e89570cac8ee75"
+    },
+    {
+      "slug": "hat-sh",
+      "appId": "hat-sh",
+      "name": "hat.sh",
+      "shortName": "hat.sh",
+      "version": "1.0",
+      "tagline": "Encrypt and decrypt files in this tab. Nothing leaves this device.",
+      "author": {
+        "name": "sh-dv",
+        "url": "https://github.com/sh-dv/hat.sh"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "hat.sh",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "encryption",
+        "decryption",
+        "privacy",
+        "offline",
+        "password",
+        "xchacha20",
+        "argon2",
+        "libsodium"
+      ],
+      "accent": [
+        107,
+        140,
+        255
+      ],
+      "cover": "/apps/hat-sh/cover.jpg",
+      "bytes": 660046,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "aa59be9879c99f3ef3f8bf053817d51cdf85474ab4caf56494fa25663d6916d8"
+    },
+    {
+      "slug": "jspaint",
+      "appId": "jspaint",
+      "name": "JS Paint",
+      "shortName": "Paint",
+      "version": "1.1.0",
+      "tagline": "Classic MS Paint, on this device. Nothing is uploaded.",
+      "author": {
+        "name": "Isaiah Odhner",
+        "url": "https://github.com/1j01/jspaint"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "JS Paint",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "paint",
+        "drawing",
+        "mspaint",
+        "pixel",
+        "canvas",
+        "offline",
+        "bitmap"
+      ],
+      "accent": [
+        0,
+        128,
+        128
+      ],
+      "cover": "/apps/jspaint/cover.jpg",
+      "bytes": 1207517,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "1d4a8b0eb8742a68ea1e918131c81bcde191d48f797dfa907d7fd0c5a1195032"
+    },
+    {
+      "slug": "keeweb",
+      "appId": "keeweb",
+      "name": "KeeWeb",
+      "shortName": "KeeWeb",
+      "version": "1.0",
+      "tagline": "A KeePass vault on this device. Copy a password, never fill another site.",
+      "author": {
+        "name": "Antelle",
+        "url": "https://github.com/keeweb/keeweb"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "KeeWeb",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "password",
+        "keepass",
+        "kdbx",
+        "vault",
+        "offline",
+        "argon2",
+        "totp",
+        "keeweb"
+      ],
+      "accent": [
+        107,
+        189,
+        88
+      ],
+      "cover": "/apps/keeweb/cover.jpg",
+      "bytes": 260730,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "4f9243b19c39efe8e3bb765bbed07d18db16d54abc55dbb1f50fe1e9ec292936"
     },
     {
       "slug": "offline-llm-bitnet",
@@ -528,6 +855,101 @@
       "sha256": "cc8c7012beb0e3b9ce5f9ca5cc15efc60ea44d202a2a5751affecc0d3cacce28"
     },
     {
+      "slug": "piskel",
+      "appId": "piskel",
+      "name": "Piskel",
+      "shortName": "Piskel",
+      "version": "0.15.2",
+      "tagline": "A pixel and sprite editor. Animated GIF out, nothing uploaded.",
+      "author": {
+        "name": "Julian Descottes",
+        "url": "https://github.com/piskelapp/piskel"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Piskel",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "pixel",
+        "sprite",
+        "animation",
+        "gif",
+        "pixel-art",
+        "editor",
+        "offline",
+        "piskel"
+      ],
+      "accent": [
+        255,
+        215,
+        0
+      ],
+      "cover": "/apps/piskel/cover.jpg",
+      "bytes": 2458568,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "e9571b9fdad619efafd1261a81004d5d08ea48ab29b97b1ae8045eb50f810855"
+    },
+    {
+      "slug": "restfox",
+      "appId": "restfox",
+      "name": "Restfox",
+      "shortName": "Restfox",
+      "version": "1.0.0",
+      "tagline": "An HTTP client. Collections stay here. Requests leave when you send them.",
+      "author": {
+        "name": "Flawid D'Souza",
+        "url": "https://github.com/flawiddsouza/Restfox"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Restfox",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Developer",
+        "Utilities"
+      ],
+      "tags": [
+        "http",
+        "rest",
+        "api",
+        "client",
+        "restfox",
+        "collections",
+        "json",
+        "headers"
+      ],
+      "accent": [
+        127,
+        79,
+        213
+      ],
+      "cover": "/apps/restfox/cover.jpg",
+      "bytes": 198782,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "92e180de1d4fa958f2c6459fc8eaebed34546b0ebd2dbb208dd695d2bc3a8052"
+    },
+    {
       "slug": "sound-it-out",
       "appId": "sound-it-out",
       "name": "Sound It Out",
@@ -565,6 +987,106 @@
       "provides": null,
       "signature": null,
       "sha256": "c7f73b618695ef5559eb7bc3a143b4a71e90b1f2db7ef8fc6a1c7783d4c7a1b3"
+    },
+    {
+      "slug": "squoosh",
+      "appId": "squoosh",
+      "name": "Squoosh",
+      "shortName": "Squoosh",
+      "version": "1.0",
+      "tagline": "Make images smaller, on this device. Nothing is uploaded.",
+      "author": {
+        "name": "GoogleChromeLabs",
+        "url": "https://github.com/GoogleChromeLabs/squoosh"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Squoosh",
+        "blessed": false
+      },
+      "minBuild": 1178,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Media",
+        "Utilities",
+        "Creativity"
+      ],
+      "tags": [
+        "image",
+        "compression",
+        "jpeg",
+        "webp",
+        "avif",
+        "jxl",
+        "png",
+        "qoi",
+        "mozjpeg",
+        "offline",
+        "wasm",
+        "squoosh"
+      ],
+      "accent": [
+        0,
+        149,
+        255
+      ],
+      "cover": "/apps/squoosh/cover.jpg",
+      "bytes": 2642852,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "d20b6d1011acedbc56c44ad679099a6d35c0469fc667023a149777a1301a9be8"
+    },
+    {
+      "slug": "tesseract",
+      "appId": "tesseract",
+      "name": "Tesseract OCR",
+      "shortName": "OCR",
+      "version": "1.0",
+      "tagline": "A photo or a page in, the words out. On your device, nothing uploaded.",
+      "author": {
+        "name": "naptha",
+        "url": "https://github.com/naptha/tesseract.js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Tesseract.js",
+        "blessed": false
+      },
+      "minBuild": 1381,
+      "releaseDate": "2026-08-22",
+      "updated": "2026-08-22",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "ocr",
+        "tesseract",
+        "photo",
+        "scan",
+        "text",
+        "english",
+        "offline",
+        "wasm"
+      ],
+      "accent": [
+        224,
+        152,
+        48
+      ],
+      "cover": "/apps/tesseract/cover.jpg",
+      "bytes": 1705694,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "40c4eca316acbc34072b17330be147626b07a2e3e9e44e972d746792b4f3ce4b"
     },
     {
       "slug": "vocal-remover",

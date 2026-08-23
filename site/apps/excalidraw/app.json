@@ -1,0 +1,57 @@
+{
+  "catalog": "1.0",
+  "slug": "excalidraw",
+  "appId": "excalidraw",
+  "name": "Excalidraw",
+  "shortName": "Draw",
+  "version": "0.18.1",
+  "minBuild": 947,
+  "tagline": "A hand-drawn whiteboard that lives in the GIF. Nothing is uploaded.",
+  "description": "Sketch boxes, arrows, handwriting and diagrams the way Excalidraw always has — the rough ink, the infinite canvas, undo, export to PNG or SVG or the open .excalidraw file. This copy runs sealed in the app sandbox: there is no account, no Firebase, no live-collab room and no library CDN. What you draw is saved on this device, inside the app's GIF, and is still there when you open it again.\n\nDrop a .excalidraw file on the canvas to open it. Export when you want a picture or a file you can email. Images you paste stay in the drawing, on this computer. There is no share-link, because there is no server to put it on.\n\nAn unofficial port of Excalidraw (MIT). The GifOS version drops the collaboration cloud and keeps the editor.",
+  "author": {
+    "name": "Excalidraw",
+    "url": "https://github.com/excalidraw/excalidraw"
+  },
+  "releaseDate": "2026-08-22",
+  "updated": "2026-08-22",
+  "categories": [
+    "Creativity",
+    "Productivity"
+  ],
+  "tags": [
+    "whiteboard",
+    "drawing",
+    "diagram",
+    "sketch",
+    "offline",
+    "excalidraw"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/excalidraw",
+  "accent": [
+    105,
+    101,
+    219
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/excalidraw/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/excalidraw/excalidraw.gif",
+  "bytes": 4601733,
+  "download": 0,
+  "provides": null,
+  "sha256": "0efa29b3487d2650680de072f09f5e05ca496afef358cee6a65ea9eb67708ee9",
+  "signature": null,
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Excalidraw",
+    "url": "https://github.com/excalidraw/excalidraw",
+    "blessed": false,
+    "donate": "https://opencollective.com/excalidraw"
+  }
+}
