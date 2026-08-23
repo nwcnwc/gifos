@@ -134,6 +134,8 @@
     $('score').textContent = String(score);
     if (score > best) { best = score; saveBest(); }
     paintBest();
+    var ob = $('overBest');
+    if (ob) ob.textContent = best ? ('Best ' + best) : '';
     $('modal').classList.remove('hide');
     if (root.TowerMp) root.TowerMp.onOver();
   }

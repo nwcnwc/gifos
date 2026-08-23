@@ -321,10 +321,10 @@ function paintFloor(put, x0, y0, w, h, gold) {
     put(x, y0, lite[0], lite[1], lite[2]);
     put(x, y0 + 1, lite[0], lite[1], lite[2]);
   }
-  // two arched windows
-  const ww = Math.max(14, (w * 0.2) | 0);
-  const wh = Math.max(18, (h * 0.55) | 0);
-  const wy = y0 + Math.max(8, (h * 0.22) | 0);
+  // two arched windows, sized like the original block art
+  const ww = Math.max(16, Math.min((w * 0.22) | 0, (h * 0.55) | 0));
+  const wh = Math.max(16, (h * 0.58) | 0);
+  const wy = y0 + Math.max(6, (h * 0.22) | 0);
   const windows = [x0 + (w * 0.18) | 0, x0 + (w * 0.58) | 0];
   for (const wx of windows) {
     for (let y = wy; y < wy + wh; y++) for (let x = wx; x < wx + ww; x++) {
@@ -391,30 +391,30 @@ export function screenshotPng() {
       }
     }
   }
-  cloud(430, 96, 32);
-  cloud(1120, 200, 26);
+  cloud(500, 210, 28);
+  cloud(1140, 240, 22);
 
-  // TALL mid-game tower — 11 floors, slight offsets, one perfect gold on top landing
+  // TALL mid-game tower — slim like the real crane game, not a brick wall.
   const floors = [
-    { x: 668, y: 548, w: 430, h: 58 },
-    { x: 690, y: 496, w: 390, h: 52 },
-    { x: 676, y: 446, w: 410, h: 50 },
-    { x: 704, y: 398, w: 360, h: 48 },
-    { x: 688, y: 352, w: 384, h: 46 },
-    { x: 714, y: 308, w: 340, h: 44 },
-    { x: 700, y: 266, w: 358, h: 42 },
-    { x: 722, y: 226, w: 322, h: 40 },
-    { x: 710, y: 188, w: 338, h: 38 },
-    { x: 734, y: 152, w: 298, h: 36 },
-    { x: 720, y: 118, w: 318, h: 34 },
+    { x: 784, y: 560, w: 268, h: 54 },
+    { x: 798, y: 508, w: 244, h: 52 },
+    { x: 788, y: 458, w: 256, h: 50 },
+    { x: 808, y: 410, w: 228, h: 48 },
+    { x: 794, y: 364, w: 244, h: 46 },
+    { x: 814, y: 320, w: 216, h: 44 },
+    { x: 800, y: 278, w: 232, h: 42 },
+    { x: 818, y: 238, w: 208, h: 40 },
+    { x: 806, y: 200, w: 220, h: 38 },
+    { x: 822, y: 164, w: 196, h: 36 },
+    { x: 810, y: 130, w: 208, h: 34 },
   ];
   for (const b of floors) paintFloor(put, b.x, b.y, b.w, b.h, false);
 
   // dropping perfect floor
-  paintFloor(put, 748, 52, 250, 32, true);
+  paintFloor(put, 824, 64, 176, 32, true);
 
   // crane
-  const hx = 873;
+  const hx = 912;
   for (let y = 0; y < 52; y++) {
     put(hx, y, ROPE[0], ROPE[1], ROPE[2]);
     put(hx + 1, y, HOOK[0], HOOK[1], HOOK[2]);
