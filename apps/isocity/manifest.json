@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "isocity",
+  "name": "IsoCity",
+  "shortName": "IsoCity",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A tiny isometric city. Tap to place a tile. Share the map, or build two cities side by side.",
+  "entry": "index.html",
+  "accent": [176, 83, 85],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

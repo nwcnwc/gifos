@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>IsoCity</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="vendor/main.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="chrome">
+    <div id="brand">IsoCity</div>
+    <div id="actions">
+      <button type="button" id="shareBtn">Share the map</button>
+      <button type="button" id="compareBtn">Compare cities</button>
+      <button type="button" id="newBtn">New city</button>
+    </div>
+  </div>
+
+  <div id="friend-bar" hidden>
+    <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send the link.</p>
+    <p id="friend-status"></p>
+    <ul id="friend-roster"></ul>
+    <div class="friend-actions">
+      <button type="button" id="mineBtn" hidden>Back to mine</button>
+      <button type="button" id="leaveBtn">← Solo</button>
+    </div>
+  </div>
+
+  <section id="main">
+    <div id="tools"></div>
+    <div id="area">
+      <canvas id="bg"></canvas>
+      <canvas id="fg"></canvas>
+    </div>
+  </section>
+
+  <img id="texSheet" src="vendor/textures/01_130x66_130x230.png" alt="" hidden>
+
+  <script src="vendor/main.js"></script>
+  <script src="mp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

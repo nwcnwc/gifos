@@ -1,0 +1,130 @@
+/* GifOS chrome around IsoCity. White page and tile strip are upstream;
+   this file adds the share/compare bar, phone-safe tap targets, and scales
+   the 910×666 canvases so a thumb can reach the grid. */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #fff;
+  color: #333;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  overflow: hidden;
+}
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#chrome {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px 6px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  border-bottom: 1px solid #ece6de;
+}
+#brand {
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: #b05355;
+  font-size: 18px;
+}
+#actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+#actions button, .friend-actions button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  border: 0;
+  border-radius: 4px;
+  padding: 7px 12px;
+  cursor: pointer;
+  background: #eee4da;
+  color: #5a4a40;
+}
+#shareBtn, #compareBtn { background: #b05355; color: #fff; }
+#newBtn { background: transparent; box-shadow: inset 0 0 0 2px #d8d0c6; }
+body.together #shareBtn,
+body.together #compareBtn { display: none; }
+
+#friend-bar {
+  flex: 0 0 auto;
+  background: #f6f1ea;
+  color: #5a4a40;
+  padding: 8px 12px 6px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  font-size: 14px;
+  line-height: 1.4;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 6px; }
+#friend-hint b { color: #b05355; }
+#friend-status { font-weight: 600; min-height: 1.2em; }
+#friend-roster {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#friend-roster li {
+  border-radius: 999px;
+  background: #fff;
+  padding: 3px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px #e0d6cc;
+}
+#friend-roster li.me { color: #b05355; font-weight: 700; }
+#friend-roster li.viewing { background: #b05355; color: #fff; box-shadow: none; }
+#friend-roster .meta { color: #9a8b80; font-size: 12px; margin-left: 6px; }
+#friend-roster li.viewing .meta { color: #f3d0d0; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+#leaveBtn { background: transparent; box-shadow: inset 0 0 0 2px #d8d0c6; }
+#mineBtn { background: #b05355; color: #fff; }
+
+#main {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+#area {
+  touch-action: none;
+}
+#bg, #fg {
+  touch-action: none;
+  width: min(100%, 910px);
+  height: auto;
+  max-width: 910px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+#tools > div { cursor: pointer; }
+
+.foot {
+  display: none;
+}
+
+@media only screen and (max-width: 966px) {
+  #main { flex-direction: column-reverse; }
+  #tools {
+    width: 100%;
+    height: 168px;
+    flex: 0 0 168px;
+    justify-content: flex-start;
+  }
+  #area { justify-content: center; }
+}
+@media only screen and (max-width: 520px) {
+  #brand { font-size: 16px; }
+  #actions button { padding: 8px 10px; font-size: 12px; }
+}
