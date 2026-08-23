@@ -3210,7 +3210,9 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   // subscribed 'media' collection; the raw bytes live per-item in 'blobs',
   // fetched only when you open something (so the grid stays light). Add from
   // files, or capture straight in with the brokered camera/mic. Open an item
-  // to play it, or Download it back out as a real file. All local.
+  // to play it, or Download it back out as a real file. Delete moves an item
+  // into the Deleted category (still in media/blobs); a second Delete, behind
+  // a warning, removes the records for good. All local.
   const MYMEDIA_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
@@ -3283,6 +3285,9 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   #gifspeeds{width:100%}
   #gifspeeds button{flex:1;min-width:44px;padding:8px 2px}
   #gifgo:disabled{opacity:.45}
+  #delwarn{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82);z-index:35;padding:16px}
+  #delwarn .box{max-width:360px}
+  #delwarn-msg{font-size:.95rem;line-height:1.45}
 </style></head><body>
 <header>
   <h1>My Media</h1>
@@ -3300,7 +3305,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   <span id="count"></span>
 </div>
 <div id="grid"></div>
-<div id="empty"><div class="big">🎞️</div><div><b>No media yet</b></div><div class="sub" style="margin-top:.4rem">Tap <b>＋ Add</b> to import photos, audio or video — or drop files anywhere.</div></div>
+<div id="empty"><div class="big" id="empty-icon">🎞️</div><div><b id="empty-title">No media yet</b></div><div class="sub" id="empty-sub" style="margin-top:.4rem">Tap <b>＋ Add</b> to import photos, audio or video — or drop files anywhere.</div></div>
 <input type="file" id="fi" accept="image/*,audio/*,video/*" multiple hidden>
 <div id="drop">Drop to add to your library</div>
 <div id="modal"><div class="box">
@@ -3336,11 +3341,16 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   </div>
 </div></div>
 <div id="toast"></div>
+<div id="delwarn"><div class="box"><div class="info">
+  <div id="delwarn-msg"></div>
+  <div class="row"><button class="danger" id="mdel-confirm">Delete forever</button><button class="btn ghost" id="mdel-cancel">Cancel</button></div>
+</div></div></div>
 <script src="gifenc.js"></script>
 <script>
   var media = gifos.db('media'), blobs = gifos.db('blobs');
   var MAX = 25 * 1024 * 1024;
   var items = [], fType = 'all', fCat = 'all', curUrl = null, cur = null, owner = false;
+  var pendingForever = null;
   var gifAbort=false, gifBusy=false, gifSpeed=1, gifStart=0, gifEnd=0, gifSavedT=0, filmGen=0, panelMode='gif';
   var GIF_FPS=10, MAX_OUT_SEC=8, MAX_FRAMES=80, MAX_SIDE=480;
   // Only the library's owner (the host) can change what's shared. A guest view
@@ -3384,26 +3394,73 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   }
 
   // ---- library ----
-  function categories(){ var s={}; items.forEach(function(m){ if(m.category) s[m.category]=1; }); return Object.keys(s).sort(); }
+  function isDeleted(m){ return /^deleted$/i.test((m&&m.category)||''); }
+  function canonCat(c){
+    c=String(c==null?'':c).trim();
+    if(!c) return 'Unsorted';
+    if(/^deleted$/i.test(c)) return 'Deleted';
+    return c;
+  }
+  function categories(){
+    var s={};
+    items.forEach(function(m){ if(m.category && !isDeleted(m)) s[m.category]=1; });
+    return Object.keys(s).sort();
+  }
   function refreshCats(){
-    var sel=document.getElementById('cat'), cur=sel.value; sel.innerHTML='<option value="all">All categories</option>';
+    var sel=document.getElementById('cat'); sel.innerHTML='<option value="all">All categories</option>';
     categories().forEach(function(c){ var o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
-    if(fCat!=='all' && categories().indexOf(fCat)<0) fCat='all'; sel.value=fCat;
-    var dl=document.getElementById('cats'); dl.innerHTML=''; categories().forEach(function(c){ var o=document.createElement('option'); o.value=c; dl.appendChild(o); });
+    var del=document.createElement('option'); del.value='Deleted'; del.textContent='Deleted'; sel.appendChild(del);
+    if(fCat!=='all' && fCat!=='Deleted' && categories().indexOf(fCat)<0) fCat='all';
+    sel.value=fCat;
+    var dl=document.getElementById('cats'); dl.innerHTML='';
+    categories().forEach(function(c){ var o=document.createElement('option'); o.value=c; dl.appendChild(o); });
+    var dlo=document.createElement('option'); dlo.value='Deleted'; dl.appendChild(dlo);
   }
   function render(){
     refreshCats();
-    var list=items.filter(function(m){ return (fType==='all'||m.type===fType) && (fCat==='all'||m.category===fCat); })
-      .sort(function(a,b){ return (b.at||0)-(a.at||0); });
-    document.getElementById('count').textContent = items.length ? (list.length+' of '+items.length) : '';
-    gEmpty.style.display = items.length ? 'none' : 'flex';
-    grid.style.display = items.length ? 'grid' : 'none';
+    var list=items.filter(function(m){
+      if(fType!=='all' && m.type!==fType) return false;
+      if(fCat==='Deleted') return isDeleted(m);
+      return !isDeleted(m) && (fCat==='all' || m.category===fCat);
+    }).sort(function(a,b){ return (b.at||0)-(a.at||0); });
+    var live=0, bin=0;
+    items.forEach(function(m){ if(isDeleted(m)) bin++; else live++; });
+    var tot=fCat==='Deleted'?bin:live;
+    document.getElementById('count').textContent = tot ? (list.length+' of '+tot) : '';
+    if(list.length){
+      gEmpty.style.display='none';
+      grid.style.display='grid';
+    }else{
+      grid.style.display='none';
+      gEmpty.style.display='flex';
+      var ic=document.getElementById('empty-icon');
+      var ti=document.getElementById('empty-title');
+      var su=document.getElementById('empty-sub');
+      if(!items.length){
+        ic.textContent='🎞️';
+        ti.textContent='No media yet';
+        su.innerHTML='Tap <b>＋ Add</b> to import photos, audio or video — or drop files anywhere.';
+      }else if(fCat==='Deleted'){
+        ic.textContent='🗑️';
+        ti.textContent='Nothing in Deleted';
+        su.textContent='Items you Delete land here. Delete again to remove them for good.';
+      }else if(!live && bin){
+        ic.textContent='🎞️';
+        ti.textContent='Nothing here — '+bin+' in Deleted';
+        su.textContent='Open Deleted from the category list to see them.';
+      }else{
+        ic.textContent='🎞️';
+        ti.textContent='Nothing here';
+        su.textContent='Try a different type or category.';
+      }
+    }
     grid.innerHTML = list.map(function(m){
       var bg = m.thumb ? 'style="background-image:url('+m.thumb+')"' : '';
       var face = m.thumb ? (m.type!=='image'?'<div class="play">▶</div>':'') : ('<span>'+(KIND[m.type]||'📄')+'</span>');
       var shared = isVisible(m) ? '<span class="shared" title="Visible to invited guests">👁</span>' : '';
+      var catLabel = isDeleted(m) ? 'Deleted' : (m.category||'Unsorted');
       return '<div class="card" data-id="'+m.id+'"><div class="thumb" '+bg+'><span class="kind">'+(KIND[m.type]||'')+'</span>'+shared+face+'</div>'+
-        '<div class="meta"><div class="nm">'+esc(m.name)+'</div><span class="cat">'+esc(m.category||'Unsorted')+'</span></div></div>';
+        '<div class="meta"><div class="nm">'+esc(m.name)+'</div><span class="cat">'+esc(catLabel)+'</span></div></div>';
     }).join('');
   }
   media.subscribe(function(rows){ items=(rows||[]).filter(function(r){ return r&&r.id&&r.type; }); render(); });
@@ -3422,7 +3479,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
       : m.type==='audio' ? '<audio src="'+curUrl+'" controls autoplay></audio>'
       : '<video src="'+curUrl+'" controls autoplay playsinline></video>';
     document.getElementById('mname').value = m.name||'';
-    document.getElementById('mcat').value = m.category||'';
+    document.getElementById('mcat').value = isDeleted(m) ? 'Deleted' : (m.category||'');
     document.getElementById('minfo').textContent = (KIND[m.type]||'')+' '+(m.mime||'')+' · '+fmtSize(m.size);
     syncVisRow();
     closeGifPanel();
@@ -3433,6 +3490,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     document.getElementById('mclip').style.display = (m.type==='video'||m.type==='audio') ? 'inline-block' : 'none';
     document.getElementById('mrev').style.display = (m.type==='video'||m.type==='audio') ? 'inline-block' : 'none';
     document.getElementById('mgif').style.display = m.type==='video' ? 'inline-block' : 'none';
+    document.getElementById('mdel').textContent = isDeleted(m) ? 'Delete forever' : 'Delete';
     document.getElementById('modal').style.display='flex';
   }
   // The visibility control — owner only. Reflects the current item's state and
@@ -3489,14 +3547,61 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   document.getElementById('msave').onclick=async function(){
     if(!cur) return;
     var name=document.getElementById('mname').value.trim()||cur.name;
-    var cat=document.getElementById('mcat').value.trim()||'Unsorted';
-    await media.put(Object.assign({}, cur, { name:name, category:cat }));
-    toast('Saved'); cur.name=name; cur.category=cat;
+    var cat=canonCat(document.getElementById('mcat').value);
+    if(cat==='Deleted' && !isDeleted(cur)){
+      try{
+        await media.put(Object.assign({}, cur, { name:name, category:'Deleted' }));
+        toast('Moved to Deleted');
+        closeModal();
+      }catch(e){ toast('You can only remove your own items.'); }
+      return;
+    }
+    try{
+      await media.put(Object.assign({}, cur, { name:name, category:cat }));
+      toast('Saved'); cur.name=name; cur.category=cat;
+    }catch(e){ toast('You can only recategorize your own items.'); }
   };
+  function hideDelWarn(){
+    pendingForever=null;
+    document.getElementById('delwarn').style.display='none';
+  }
+  function showDelWarn(list){
+    pendingForever=list||[];
+    var msg;
+    if(pendingForever.length===1){
+      var nm=pendingForever[0].name||'this item';
+      msg='This deletes "'+nm+'" for good. It cannot be undone.';
+    }else{
+      msg='This deletes '+pendingForever.length+' items for good. It cannot be undone.';
+    }
+    document.getElementById('delwarn-msg').textContent=msg;
+    document.getElementById('delwarn').style.display='flex';
+  }
+  async function deleteForever(list){
+    try{
+      for(var i=0;i<list.length;i++){
+        await media.delete(list[i].id);
+        try{ await blobs.delete(list[i].id); }catch(e){}
+      }
+      toast(list.length>1 ? ('Deleted '+list.length+' items') : 'Deleted for good');
+    }catch(e){ toast('You can only remove your own items.'); }
+  }
   document.getElementById('mdel').onclick=async function(){
-    if(!cur) return; var id=cur.id; closeModal();
-    try{ await media.delete(id); try{ await blobs.delete(id); }catch(e){} }
-    catch(e){ toast('You can only remove your own items.'); }  // a guest can't delete the host's shared media
+    if(!cur) return;
+    if(isDeleted(cur)){ showDelWarn([cur]); return; }
+    var m=cur;
+    closeModal();
+    try{
+      await media.put(Object.assign({}, m, { category:'Deleted' }));
+      toast('Moved to Deleted');
+    }catch(e){ toast('You can only remove your own items.'); }  // a guest can't delete the host's shared media
+  };
+  document.getElementById('mdel-cancel').onclick=function(){ hideDelWarn(); };
+  document.getElementById('mdel-confirm').onclick=async function(){
+    var list=pendingForever||[];
+    hideDelWarn();
+    closeModal();
+    if(list.length) await deleteForever(list);
   };
 
   // ---- add: file picker + drag/drop ----
