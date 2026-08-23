@@ -1,6 +1,6 @@
 {
   "tagline": "Make images smaller, on this device. Nothing is uploaded.",
-  "description": "Drop a photo and it comes back smaller. Pick JPEG, WebP, AVIF, JPEG XL, PNG or QOI, drag the quality, and watch the file size change next to a side-by-side of before and after. The codecs doing the work are the ones from Squoosh — MozJPEG, libwebp, libavif, libjxl, OxiPNG, QOI — compiled to WebAssembly and running in this browser.\n\nAn unofficial port of Squoosh by GoogleChromeLabs. The original is a website; this is the same encoders sealed in a GIF, with Google Analytics stripped and no path out to a server. The picture you drop in never leaves this device. There is no account, no queue and no upload limit.\n\nEvery codec rides inside the app. The first time you pick AVIF or JPEG XL it has to spin up a larger encoder (a couple of megabytes of WASM already on disk), which can take a moment on a phone; JPEG and WebP are ready immediately. Resize if you want, then download. What you choose — format, quality, resize — stays in the icon so the next photo starts where you left off.",
+  "description": "Drop a photo and it comes back smaller. Pick JPEG, WebP, AVIF, JPEG XL, PNG or QOI, drag the quality, and watch the file size change next to a side-by-side of before and after. The encoders doing the work are the ones from Squoosh, running in this browser.\n\nAn unofficial port of Squoosh by GoogleChromeLabs. The original is a website; this is the same encoders, with tracking stripped and no path out to a server. The picture you drop in never leaves this device. There is no account, no queue and no upload limit.\n\nThe first time you pick AVIF or JPEG XL it can take a moment on a phone; JPEG and WebP are ready immediately. Resize if you want, then download. What you choose — format, quality, resize — stays in the app so the next photo starts where you left off.",
   "author": {
     "name": "GoogleChromeLabs",
     "url": "https://github.com/GoogleChromeLabs/squoosh"
@@ -15,7 +15,11 @@
     "blessed": false
   },
   "releaseDate": "2026-08-22",
-  "categories": ["Media", "Utilities", "Creativity"],
+  "categories": [
+    "Media",
+    "Utilities",
+    "Creativity"
+  ],
   "tags": [
     "image",
     "compression",
@@ -25,9 +29,7 @@
     "jxl",
     "png",
     "qoi",
-    "mozjpeg",
     "offline",
-    "wasm",
     "squoosh"
   ],
   "license": "Apache-2.0",

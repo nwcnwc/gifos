@@ -39,7 +39,6 @@
         "openstreetmap",
         "3d",
         "multiplayer",
-        "webgl",
         "racing",
         "wildlife",
         "traffic"
@@ -66,7 +65,7 @@
       "name": "Chess Grandmaster",
       "shortName": "Chess",
       "version": "1.0.1",
-      "tagline": "Full-strength Stockfish, running offline inside the sandbox.",
+      "tagline": "The real Stockfish engine, on this device. It plays on a plane.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
@@ -82,7 +81,6 @@
         "chess",
         "stockfish",
         "offline",
-        "wasm",
         "multiplayer"
       ],
       "accent": [
@@ -374,7 +372,6 @@
         "fps",
         "shooter",
         "3d",
-        "webgl",
         "multiplayer",
         "deathmatch",
         "offline"
@@ -425,10 +422,7 @@
         "decryption",
         "privacy",
         "offline",
-        "password",
-        "xchacha20",
-        "argon2",
-        "libsodium"
+        "password"
       ],
       "accent": [
         107,
@@ -527,7 +521,6 @@
         "kdbx",
         "vault",
         "offline",
-        "argon2",
         "totp",
         "keeweb"
       ],
@@ -553,7 +546,7 @@
       "name": "Offline Cheap Text LLM BitNet",
       "shortName": "BitNet LLM",
       "version": "0.9",
-      "tagline": "EXPERIMENTAL, and SLOW — minutes per answer, not seconds. Microsoft's BitNet b1.58, running entirely on your device.",
+      "tagline": "EXPERIMENTAL, and SLOW — minutes per answer, not seconds. Microsoft's BitNet, running entirely on your device.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
@@ -572,8 +565,7 @@
         "bitnet",
         "chat",
         "offline",
-        "ai",
-        "llama.cpp"
+        "ai"
       ],
       "accent": [
         92,
@@ -621,8 +613,7 @@
         "google",
         "chat",
         "offline",
-        "ai",
-        "llama.cpp"
+        "ai"
       ],
       "accent": [
         122,
@@ -672,8 +663,7 @@
         "apache-2.0",
         "chat",
         "offline",
-        "ai",
-        "llama.cpp"
+        "ai"
       ],
       "accent": [
         167,
@@ -746,7 +736,7 @@
       "name": "Offline Neural TTS (Kokoro, GPU)",
       "shortName": "Kokoro TTS",
       "version": "1.0",
-      "tagline": "A higher-quality neural voice for every app — GPU-accelerated on-device, no key, no cloud.",
+      "tagline": "A higher-quality natural voice for every app — faster on a graphics chip, no key, no cloud.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
@@ -763,7 +753,6 @@
         "text-to-speech",
         "neural",
         "kokoro",
-        "webgpu",
         "gpu",
         "offline",
         "accessibility",
@@ -885,7 +874,7 @@
       "name": "Scanned PDF Tables → Excel",
       "shortName": "Scanned PDF Tables",
       "version": "1.0",
-      "tagline": "Scanned or text, its tables come out as Excel — read by OCR on your own GPU, nothing uploaded.",
+      "tagline": "Scanned or text, its tables come out as Excel — read on your own device, nothing uploaded.",
       "author": {
         "name": "GifOS",
         "url": "https://gifos.app"
@@ -905,7 +894,6 @@
         "spreadsheet",
         "scanned",
         "gpu",
-        "webgpu",
         "offline",
         "serff",
         "insurance"
@@ -1108,9 +1096,7 @@
         "jxl",
         "png",
         "qoi",
-        "mozjpeg",
         "offline",
-        "wasm",
         "squoosh"
       ],
       "accent": [
@@ -1161,8 +1147,7 @@
         "scan",
         "text",
         "english",
-        "offline",
-        "wasm"
+        "offline"
       ],
       "accent": [
         224,
@@ -1213,9 +1198,7 @@
         "acapella",
         "instrumental",
         "uvr",
-        "mdx-net",
         "offline",
-        "onnx",
         "gpu"
       ],
       "accent": [
