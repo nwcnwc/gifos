@@ -13,13 +13,13 @@
 
   var W = 1200;
   var H = 800;
-  var ROCKET_R = 18;
-  var STAR_R = 12;
-  var STAR_N = 12;
+  var ROCKET_R = 22;
+  var STAR_R = 18;
+  var STAR_N = 26;
   var ROUND_MS = 60000;
-  var ACCEL = 720;
-  var MAX_SPEED = 340;
-  var DRAG = 1.7;
+  var STEER = 12;
+  var MAX_SPEED = 360;
+  var DRAG = 8;
   var KIND_STAR = 0;
   var KIND_GOLD = 1;
   var KIND_COMET = 2;
@@ -64,7 +64,7 @@
         s = existing[j];
         if (s.by) continue;
         dx = s.x - x; dy = s.y - y;
-        if (dx * dx + dy * dy < 64 * 64) { ok = false; break; }
+        if (dx * dx + dy * dy < 48 * 48) { ok = false; break; }
       }
       if (ok) return { x: x, y: y };
     }
@@ -125,21 +125,41 @@
     return sky;
   }
 
-  function hitsStar(rocket, star) {
+  /* Comets drift around their spawn. Seeded from id so every client
+     draws the same path without extra sky bytes. t<=0 keeps tests still. */
+  function starPos(s, now, origin) {
+    if (!s) return s;
+    if (s.k !== KIND_COMET) return s;
+    now = now || 0;
+    origin = origin || 0;
+    var t = (now - origin) / 1000;
+    if (!(t > 0)) return s;
+    var a = (s.id || 1) * 1.618;
+    return {
+      id: s.id, x: s.x + Math.cos(t * 0.62 + a) * 46,
+      y: s.y + Math.sin(t * 0.48 + a) * 30,
+      k: s.k, by: s.by
+    };
+  }
+
+  function hitsStar(rocket, star, now, origin) {
     if (!rocket || !star || star.by) return false;
-    var dx = rocket.x - star.x, dy = rocket.y - star.y;
-    var r = ROCKET_R + STAR_R * 0.45;
+    var p = starPos(star, now, origin);
+    var dx = rocket.x - p.x, dy = rocket.y - p.y;
+    var r = ROCKET_R + STAR_R * (star.k === KIND_GOLD ? 1.05 : 0.82);
     return dx * dx + dy * dy <= r * r;
   }
 
-  function tryCollect(sky, rocket) {
+  function tryCollect(sky, rocket, now) {
     if (!sky || !rocket || !sky.stars) {
       return { collected: false, points: 0, starId: null };
     }
+    var origin = sky.startedAt || 0;
+    now = now || 0;
     var i, s, pts;
     for (i = 0; i < sky.stars.length; i++) {
       s = sky.stars[i];
-      if (hitsStar(rocket, s)) {
+      if (hitsStar(rocket, s, now, origin)) {
         s.by = rocket.id;
         pts = pointsOf(s.k);
         rocket.score = (rocket.score || 0) + pts;
@@ -197,7 +217,7 @@
     var h = 0, s = String(id || 'x'), i;
     for (i = 0; i < s.length; i++) h = (h * 33 + s.charCodeAt(i)) >>> 0;
     var rng = mulberry(h || 1);
-    return { x: 90 + rng() * (W - 180), y: 90 + rng() * (H - 180) };
+    return { x: W * 0.28 + rng() * W * 0.44, y: H * 0.28 + rng() * H * 0.44 };
   }
 
   function clampRocket(r) {
@@ -208,26 +228,23 @@
     if (r.y > H - m) { r.y = H - m; r.vy = -Math.abs(r.vy) * 0.35; }
   }
 
+  /* Stick is target velocity, not thrust. Release coasts to a stop.
+     This is the .io-snack feel the original 4-way accel never had. */
   function integrate(rocket, input, dt) {
     dt = Math.max(0, Math.min(0.05, dt || 0));
     var ix = (input && input.x) || 0;
     var iy = (input && input.y) || 0;
     var m = Math.hypot(ix, iy);
     if (m > 1) { ix /= m; iy /= m; m = 1; }
-    rocket.vx += ix * ACCEL * dt;
-    rocket.vy += iy * ACCEL * dt;
-    var damp = Math.exp(-DRAG * dt);
-    rocket.vx *= damp;
-    rocket.vy *= damp;
-    var sp = Math.hypot(rocket.vx, rocket.vy);
-    if (sp > MAX_SPEED) {
-      rocket.vx *= MAX_SPEED / sp;
-      rocket.vy *= MAX_SPEED / sp;
-    }
+    var tx = ix * MAX_SPEED, ty = iy * MAX_SPEED;
+    var k = 1 - Math.exp(-STEER * dt);
+    rocket.vx += (tx - rocket.vx) * k;
+    rocket.vy += (ty - rocket.vy) * k;
     rocket.x += rocket.vx * dt;
     rocket.y += rocket.vy * dt;
-    if (m > 0.12) rocket.angle = Math.atan2(iy, ix);
-    else if (sp > 16) rocket.angle = Math.atan2(rocket.vy, rocket.vx);
+    var sp = Math.hypot(rocket.vx, rocket.vy);
+    if (m > 0.08) rocket.angle = Math.atan2(iy, ix);
+    else if (sp > 18) rocket.angle = Math.atan2(rocket.vy, rocket.vx);
     clampRocket(rocket);
     return rocket;
   }
@@ -302,9 +319,9 @@
 
   root.Rockets = {
     W: W, H: H, ROCKET_R: ROCKET_R, STAR_R: STAR_R, STAR_N: STAR_N,
-    ROUND_MS: ROUND_MS, POINTS: POINTS,
+    ROUND_MS: ROUND_MS, POINTS: POINTS, STEER: STEER, MAX_SPEED: MAX_SPEED,
     KIND_STAR: KIND_STAR, KIND_GOLD: KIND_GOLD, KIND_COMET: KIND_COMET,
-    mulberry: mulberry, hueFor: hueFor, pointsOf: pointsOf,
+    mulberry: mulberry, hueFor: hueFor, pointsOf: pointsOf, starPos: starPos,
     freshSky: freshSky, spawnStar: spawnStar, refillStars: refillStars,
     hitsStar: hitsStar, tryCollect: tryCollect, applyClaims: applyClaims,
     spawnRocket: spawnRocket, spawnPos: spawnPos, integrate: integrate,

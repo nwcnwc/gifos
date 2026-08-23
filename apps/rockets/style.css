@@ -13,7 +13,9 @@ html, body {
   position: fixed; z-index: 20; top: max(.7rem, env(safe-area-inset-top));
   left: max(.7rem, env(safe-area-inset-left));
   display: flex; gap: .8rem; pointer-events: none;
+  opacity: 0; transition: opacity .25s ease;
 }
+body.play #hud { opacity: 1; }
 #scorebox, #clockbox {
   background: rgba(6, 10, 22, .55); border: 1px solid rgba(255, 200, 120, .16);
   border-radius: .55rem; padding: .4rem .7rem .35rem; min-width: 4.6rem;
@@ -51,24 +53,28 @@ html, body {
 #hint {
   position: fixed; z-index: 20; left: 50%;
   bottom: max(1.2rem, env(safe-area-inset-bottom));
-  transform: translateX(-50%); font-size: .72rem; color: rgba(244, 230, 210, .5);
+  transform: translateX(-50%); font-size: .72rem; color: rgba(244, 230, 210, .62);
   pointer-events: none; text-align: center; line-height: 1.5; max-width: 90vw;
+  opacity: 0;
 }
-body.touch #hint { display: none; }
-body.play #hint { opacity: .55; }
+body.touch #hint { bottom: max(10.4rem, calc(env(safe-area-inset-bottom) + 9.2rem)); }
+body.play #hint { opacity: .7; }
+body.touch.play #hint { opacity: .55; }
 
 #touch { position: fixed; inset: 0; z-index: 30; pointer-events: none; touch-action: none; user-select: none; }
+body.touch #touch { pointer-events: auto; }
 #touch[hidden] { display: none; }
 .t-stick {
   position: absolute; left: max(1.1rem, env(safe-area-inset-left));
   bottom: max(1.4rem, env(safe-area-inset-bottom));
-  width: 8.6rem; height: 8.6rem; border-radius: 50%; pointer-events: auto;
-  background: rgba(255, 180, 80, .08); border: 1px solid rgba(255, 200, 120, .28);
+  width: 8.8rem; height: 8.8rem; border-radius: 50%; pointer-events: none;
+  background: rgba(255, 180, 80, .10); border: 1.5px solid rgba(255, 200, 120, .38);
+  box-shadow: 0 0 24px rgba(255, 140, 64, .10) inset;
 }
 .t-knob {
-  position: absolute; left: 50%; top: 50%; width: 3.4rem; height: 3.4rem;
-  margin: -1.7rem 0 0 -1.7rem; border-radius: 50%;
-  background: rgba(255, 160, 64, .32); border: 1px solid rgba(255, 220, 160, .5);
+  position: absolute; left: 50%; top: 50%; width: 3.6rem; height: 3.6rem;
+  margin: -1.8rem 0 0 -1.8rem; border-radius: 50%;
+  background: rgba(255, 160, 64, .45); border: 1px solid rgba(255, 220, 160, .65);
 }
 
 #gate, #over {
