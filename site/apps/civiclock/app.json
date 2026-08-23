@@ -1,0 +1,56 @@
+{
+  "catalog": "1.0",
+  "slug": "civiclock",
+  "appId": "civiclock",
+  "name": "Civiclock",
+  "shortName": "Civiclock",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "The city lives in the file. Invite a co-mayor. It still ticks on a plane.",
+  "description": "No account. No install. No city server. The city lives in this file — close it, share the GIF, and the streets are still there. Press Invite in the bar above the app and a friend is co-mayor on the same land, live, with nothing in the middle.\n\nPaint homes, shops and works. Run a plant and a river pump. Time ticks in months you can watch: buildings grow when the city works, people walk the roads to jobs, windows light up at night. Cut the power, jack the tax, or isolate a neighbourhood, and they leave. Tap Look and a lot will tell you why it will not grow.\n\nYou open this on a phone. You open it on a plane. You hand someone a link.\n\nInspired by SimCity (Maxis / Electronic Arts). This is our own engine and our own pictures — not a port of theirs.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "city",
+    "simulation",
+    "builder",
+    "mayor",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/civiclock",
+  "accent": [
+    240,
+    186,
+    72
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/civiclock/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/civiclock/civiclock.gif",
+  "bytes": 236699,
+  "download": 0,
+  "provides": null,
+  "sha256": "dd8136b9d16c8d5d388906dcfd86abc16d8faa2dfdd56f73ece00e714a9d5cf7",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "inspiredBy": {
+    "name": "SimCity",
+    "url": "https://www.ea.com/games/simcity",
+    "by": "Maxis / Electronic Arts"
+  }
+}

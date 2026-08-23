@@ -82,7 +82,7 @@
       tiles[idx(x, y)] = makeTile(t);
     }
     return {
-      id: 'world', n: N, tiles: tiles, money: 10000, month: 0, tax: 8, speed: 1,
+      id: 'world', n: N, tiles: tiles, money: 10000, month: 0, tax: 8, speed: 0,
       seed: seed, demand: { H: 0.4, S: 0.08, W: 0.55 }, pop: 0, jobs: 0, shops: 0,
       powerUsed: 0, powerCap: 0, waterUsed: 0, waterCap: 0, income: 0, expense: 0,
       headline: 'Empty land. Lay a road, paint homes, give them power.',
@@ -101,13 +101,16 @@
     var w = blank(seed == null ? 7 : seed), x, y;
     w.kind = 'village';
     w.money = 8200;
+    w.speed = 1;
     w.headline = 'A small town is already ticking. Paint more, or wreck it.';
     w.tiles[idx(1, 11)].t = T.WATER;
     w.tiles[idx(1, 12)].t = T.WATER;
     for (y = 4; y <= 19; y++) place(w, 4, y, T.ROAD);
     for (x = 2; x <= 18; x++) place(w, x, 11, T.ROAD);
-    for (x = 4; x <= 14; x++) place(w, x, 7, T.ROAD);
-    for (y = 7; y <= 15; y++) place(w, 10, y, T.ROAD);
+    for (x = 4; x <= 16; x++) place(w, x, 7, T.ROAD);
+    for (y = 5; y <= 15; y++) place(w, 10, y, T.ROAD);
+    for (x = 10; x <= 16; x++) place(w, x, 5, T.ROAD);
+    for (y = 5; y <= 11; y++) place(w, 16, y, T.ROAD);
     place(w, 2, 11, T.PUMP);
     place(w, 3, 13, T.PLANT);
     place(w, 3, 11, T.ROAD);
@@ -121,10 +124,13 @@
     for (y = 12; y <= 15; y++) for (x = 5; x <= 8; x++) {
       if (w.tiles[idx(x, y)].t === T.GRASS) place(w, x, y, T.SHOP);
     }
-    for (y = 5; y <= 9; y++) for (x = 11; x <= 14; x++) {
+    for (y = 5; y <= 9; y++) for (x = 11; x <= 15; x++) {
       if (w.tiles[idx(x, y)].t === T.GRASS) place(w, x, y, T.WORK);
     }
-    for (y = 12; y <= 14; y++) for (x = 11; x <= 13; x++) {
+    for (y = 12; y <= 15; y++) for (x = 11; x <= 15; x++) {
+      if (w.tiles[idx(x, y)].t === T.GRASS) place(w, x, y, T.HOME);
+    }
+    for (y = 8; y <= 10; y++) for (x = 6; x <= 8; x++) {
       if (w.tiles[idx(x, y)].t === T.GRASS) place(w, x, y, T.HOME);
     }
     return w;
@@ -304,8 +310,8 @@
       if (leave && tl.s > 0) {
         if (r < 0.38 || !tl.p) {
           tl.age = (tl.age || 0) + 1;
-          if (tl.age >= 2) {
-            if (tl.s >= 2 && r < 0.55) { tl.s -= 1; tl.a = 0; tl.age = 0; }
+          if (tl.age >= 3) {
+            if (tl.s > 1) { tl.s -= 1; tl.a = 0; tl.age = 0; }
             else { tl.a = 1; tl.age = 0; }
           }
         }
@@ -437,14 +443,15 @@
 
   function headline(w, c, prevPop) {
     var h = '', alerts = [];
-    if (w.money < 0) { h = 'Treasury empty. Plants will go dark if this lasts.'; alerts.push('broke'); }
+    if (c.pop === 0 && c.homes === 0) h = 'Empty land. Lay a road, paint homes, give them power.';
+    else if (w.money < 0) { h = 'Treasury empty. Plants will go dark if this lasts.'; alerts.push('broke'); }
     else if (w.powerUsed > w.powerCap) { h = 'Blackouts. Build another plant, or the lights die.'; alerts.push('power'); }
     else if (w.waterUsed > w.waterCap) { h = 'Taps run dry. Put a pump on the river.'; alerts.push('water'); }
     else if (c.pop < prevPop - 4) { h = 'People are leaving. Check power, tax, and jobs.'; alerts.push('leave'); }
+    else if (c.pop === 0) h = 'Lots are waiting. Unpause — homes grow when a road and power touch them.';
     else if (w.demand.H > 0.55 && c.needH > 4) h = 'Homes are packed. Paint more lots along a road.';
-    else if (w.demand.W > 0.55) h = 'Workers need jobs. Paint works near the road.';
-    else if (w.demand.S > 0.5) h = 'Shops would fill if you zoned them.';
-    else if (c.pop === 0 && w.month > 2) h = 'No one lives here yet. Homes, a road, and power.';
+    else if (w.demand.W > 0.55 && c.jobs < c.pop * 0.5) h = 'Workers need jobs. Paint works near the road.';
+    else if (w.demand.S > 0.5 && c.shopLots < 3) h = 'Shops would fill if you zoned them.';
     else if (c.pop > 80 && w.month % 7 === 0) h = 'A living city. Night lights mean the grid is holding.';
     else if (c.pop > 0) h = c.pop + ' people, ' + c.jobs + ' jobs. Tax ' + w.tax + '%.';
     else h = 'Empty lots wait. Time is running.';
@@ -582,15 +589,22 @@
         shop = nearest(w, x, y, T.SHOP);
         path = null;
         tMove = 0;
-        if (isNight) {
-          out.push({ x: x + 0.3 + hash(p, 1, y) * 0.4, y: y + 0.3 + hash(p, 2, x) * 0.4, k: 'home', z: 0 });
-          continue;
+        if (isNight) continue; // inside — windows tell the story
+        function onRoad(tx, ty) {
+          var spot = null;
+          neighbors4(tx, ty, function (nx, ny) {
+            if (!spot && w.tiles[idx(nx, ny)].t === T.ROAD) {
+              spot = { x: nx + 0.35 + hash(p, tx, 1) * 0.3, y: ny + 0.35 + hash(p, ty, 2) * 0.3 };
+            }
+          });
+          return spot || { x: tx + 0.5, y: ty + 0.7 };
         }
         if (kind === 0 && job) {
           path = bfsRoad(w, x, y, job.x, job.y);
           if (morning) tMove = (dayT - 0.22) / 0.16;
           else if (midday) {
-            out.push({ x: job.x + 0.4, y: job.y + 0.4, k: 'work', z: 1 });
+            var at = onRoad(job.x, job.y);
+            out.push({ x: at.x, y: at.y, k: 'work', z: 1 });
             continue;
           } else if (evening) tMove = 1 - (dayT - 0.62) / 0.2;
         } else if (shop) {
@@ -598,10 +612,7 @@
           if (morning || midday) tMove = clamp((dayT - 0.3) / 0.25, 0, 1);
           else tMove = 1 - (dayT - 0.62) / 0.2;
         }
-        if (!path || path.length < 1) {
-          out.push({ x: x + 0.45, y: y + 0.45, k: 'home', z: 0 });
-          continue;
-        }
+        if (!path || path.length < 1) continue;
         tMove = clamp(tMove, 0, 1);
         var u = tMove * (path.length - 1), a = u | 0, f = u - a;
         var A = path[a], B = path[Math.min(path.length - 1, a + 1)];

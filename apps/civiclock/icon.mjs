@@ -170,7 +170,7 @@ function frameIndices(pal, f) {
     }
   }
 
-  // commuter walks the road as night falls
+  // commuter walks the road as night falls — large enough to read at 64px
   const path = [iso(1, 1), iso(2, 1), iso(3, 1), iso(3, 2)];
   const u = Math.min(0.999, t * 1.05) * (path.length - 1);
   const a = u | 0, fr = u - a;
@@ -178,9 +178,9 @@ function frameIndices(pal, f) {
   const px = A.sx + (B.sx - A.sx) * fr;
   const py = A.sy + (B.sy - A.sy) * fr;
   const person = mix(GOLD, WIN, night);
-  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-    if (dx * dx + dy * dy <= 5) {
-      putCol(rgba, ((px) * SS + dx * SS / 2) | 0, ((py - 3) * SS + dy * SS / 2) | 0, person, 1);
+  for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) {
+    if (dx * dx + dy * dy <= 22) {
+      putCol(rgba, ((px) * SS + dx) | 0, ((py - 5) * SS + dy) | 0, dx * dx + dy * dy > 14 ? [255, 255, 255] : person, 1);
     }
   }
 

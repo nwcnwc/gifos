@@ -38,15 +38,16 @@ html,body{
 .money.broke{color:var(--bad)}
 .pop{color:var(--home);flex:1}
 .date{color:var(--muted);font-variant-numeric:tabular-nums}
+.tod{font-size:14px;width:22px;text-align:center}
 .hud-mid{gap:10px;padding:6px 10px}
 .svc{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
 .svc.bad{color:var(--bad)}
 .svc.ok{color:var(--good)}
-.demand{display:flex;gap:8px;flex:1;justify-content:center;height:28px;align-items:flex-end}
-.dcol{width:14px;height:28px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px}
+.demand{display:flex;gap:10px;flex:1;justify-content:center;height:34px;align-items:flex-end}
+.dcol{width:16px;height:34px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px}
 .dcol i{
-  display:block;width:10px;border-radius:2px 2px 0 0;background:var(--muted);
-  height:8px;min-height:2px;
+  display:block;width:12px;border-radius:3px 3px 0 0;background:var(--muted);
+  height:8px;min-height:3px;
 }
 .dcol i[data-k="H"]{background:var(--home)}
 .dcol i[data-k="S"]{background:var(--shop)}

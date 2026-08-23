@@ -72,10 +72,9 @@
     canvas.width = Math.max(1, (w * dpr) | 0);
     canvas.height = Math.max(1, (h * dpr) | 0);
     if (!cam._inited) {
-      cam.s = dpr * (w < 500 ? 1.05 : 1.25);
-      var o = R.origin(canvas, cam.s);
-      cam.x = o.x; cam.y = o.y;
-      cam._inited = true;
+      var phone = w < 520;
+      cam.s = Math.max(1.15, Math.min(2.4, dpr * (phone ? 1.55 : 1.35)));
+      focusTile(8, 11, cam.s);
     }
   }
   window.addEventListener('resize', resize);
@@ -96,6 +95,8 @@
     m.classList.toggle('broke', world.money < 0);
     $('pop').textContent = (world.pop || 0) + ' people';
     $('date').textContent = C.dateStr(world.month);
+    var night = dayT < 0.22 || dayT > 0.78;
+    $('tod').textContent = night ? '☾' : (dayT < 0.32 || dayT > 0.7 ? '🌅' : '☀');
     var p = $('pow'), wa = $('wat');
     p.textContent = '⚡ ' + (world.powerUsed || 0) + '/' + (world.powerCap || 0);
     wa.textContent = '💧 ' + (world.waterUsed || 0) + '/' + (world.waterCap || 0);
@@ -283,6 +284,7 @@
     world.speed = 1;
     persistWorld(world);
     hideCoach();
+    focusTile(9, 10, Math.max(cam.s, canvas.width < 900 ? 1.7 : 1.45));
   });
   $('coachHide').addEventListener('click', hideCoach);
 
@@ -397,15 +399,23 @@
     el.textContent = live.length + ' mayors on this land';
   }
 
+  function focusTile(tx, ty, scale) {
+    var p = R.iso(tx, ty);
+    cam.s = scale;
+    cam.x = canvas.width / 2 - p.sx * cam.s;
+    cam.y = canvas.height * 0.42 - p.sy * cam.s;
+    cam._inited = true;
+  }
+
   function coverShot() {
-    world = C.grownVillage(40);
+    world = C.grownVillage(48);
     world.speed = 1;
     coachOn = false;
     $('coach').hidden = true;
     closeSheet();
-    dayT = 0.84;
-    cam._inited = false;
+    dayT = 0.42;
     resize();
+    focusTile(9, 10, Math.min(2.2, (canvas.width / 760) * 1.55));
     hud();
     paintMap();
   }
@@ -451,7 +461,7 @@
             if (rec && rec.tiles) {
               if (!owner && rec.v && world.v && rec.v < world.v) return;
               world = C.load(rec);
-              if (world.kind === 'village' || world.pop > 0 || world.month > 0) hideCoach();
+              if (world.kind === 'village' || world.pop > 0) hideCoach();
             }
           });
         }
@@ -461,7 +471,7 @@
       .then(function (rec) {
         if (rec && rec.tiles) {
           world = C.load(rec);
-          if (world.kind === 'village' || world.pop > 0 || world.month > 0) hideCoach();
+          if (world.kind === 'village' || world.pop > 0) hideCoach();
         } else if (owner) {
           persistWorld(world);
         }
