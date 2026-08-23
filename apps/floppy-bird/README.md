@@ -12,7 +12,7 @@ draws one.
 
 ```
 index.html          the original shell, no CDN, no analytics
-style.css           race HUD
+style.css           race HUD, phone fill
 mp.js               prefs, seeded pipes, ghosts, the race
 icon.mjs            procedural icon + 1200×720 cover
 vendor.mjs          rebuilds vendor/* from the pin. The only net step.

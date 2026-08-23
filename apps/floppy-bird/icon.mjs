@@ -1,12 +1,20 @@
-// Procedural icon for Floppy Bird: a cyan rounded card, green pipes, a yellow
-// bird whose wing beats across the frames. Super-sample → box-downsample →
-// small palette; deterministic so GIF builds reproduce.
+// Floppy Bird icon + cover. Icon is a yellow bird tapping through a pipe
+// (the loop has to read at 64px). Cover composites the real vendor sprites
+// mid-flight, with a race score, so the card looks like the game.
+import { deflateSync, inflateSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 8;
+const here = dirname(fileURLToPath(import.meta.url));
 
 const SKY_A = [110, 206, 214];
-const SKY_B = [62, 176, 188];
+const SKY_B = [78, 192, 202];
+const SKY_FILL = [78, 192, 202];
 const LAND = [222, 216, 149];
 const LAND_D = [180, 168, 96];
+const GRASS = [116, 191, 46];
 const PIPE = [115, 191, 46];
 const PIPE_D = [73, 128, 22];
 const PIPE_L = [174, 224, 90];
@@ -16,15 +24,27 @@ const BEAK = [232, 124, 36];
 const WHITE = [250, 250, 246];
 const INK = [36, 28, 20];
 const RED = [228, 64, 48];
+const CLOUD = [248, 252, 240];
 
-function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function mix(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+function inCard(x, y, m, r) {
+  const lo = m, hi = OUT - m;
+  if (x < lo || x > hi || y < lo || y > hi) return false;
+  const cx = Math.min(Math.max(x, lo + r), hi - r), cy = Math.min(Math.max(y, lo + r), hi - r);
+  if (x >= lo + r && x <= hi - r) return true;
+  if (y >= lo + r && y <= hi - r) return true;
+  const dx = x - cx, dy = y - cy;
+  return dx * dx + dy * dy <= r * r;
+}
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [SKY_A, SKY_B, LAND, LAND_D, PIPE, PIPE_D, PIPE_L, BIRD, BIRD_D, BEAK, WHITE, INK, RED]) {
+  for (const b of [SKY_A, SKY_B, SKY_FILL, LAND, LAND_D, GRASS, PIPE, PIPE_D, PIPE_L, BIRD, BIRD_D, BEAK, WHITE, INK, RED, CLOUD]) {
     for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.28).map(Math.round));
   }
-  return pal;
+  return pal.slice(0, 64);
 }
 function nearest(pal, r, g, b) {
   let bi = 1, bd = 1e9;
@@ -34,41 +54,15 @@ function nearest(pal, r, g, b) {
   }
   return bi;
 }
-function inCard(x, y, m, r) {
-  const lo = m, hi = OUT - m;
-  if (x < lo || x > hi || y < lo || y > hi) return false;
-  const cx = Math.min(Math.max(x, lo + r), hi - r), cy = Math.min(Math.max(y, lo + r), hi - r);
-  if (x >= lo + r && x <= hi - r) return true;
-  if (y >= lo + r && y <= hi - r) return true;
-  const dx = x - cx, dy = y - cy; return dx * dx + dy * dy <= r * r;
-}
-function inRR(x, y, x0, y0, x1, y1, rad) {
-  if (x < x0 || x > x1 || y < y0 || y > y1) return false;
-  const cx = Math.min(Math.max(x, x0 + rad), x1 - rad);
-  const cy = Math.min(Math.max(y, y0 + rad), y1 - rad);
-  if (x >= x0 + rad && x <= x1 - rad) return true;
-  if (y >= y0 + rad && y <= y1 - rad) return true;
-  const dx = x - cx, dy = y - cy; return dx * dx + dy * dy <= rad * rad;
-}
-
-function drawBird(put, cx, cy, scale, flap, ghost) {
-  const a = ghost ? 0.45 : 1;
-  const body = (x, y, r, col) => {
-    const dx = x - cx, dy = y - cy;
-    // skip, used via pixel walk outside
-    return dx * dx + dy * dy;
-  };
-  void body;
-  const wingY = cy + (flap ? -3 : 4) * scale;
-  const wingH = (flap ? 5 : 7) * scale;
-  return { wingY, wingH, a };
-}
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / FRAMES;
   const flap = (f % 2) === 0;
-  const bob = Math.sin(t * Math.PI * 2) * 3;
+  const bob = Math.sin(t * Math.PI * 2) * 4;
+  // Bird stays IN the gap, tapping, drifting a little through the pipe.
+  const bx = 58 + Math.sin(t * Math.PI * 2) * 6;
+  const by = 60 + bob;
   const m = 7, rad = 20;
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
@@ -76,53 +70,46 @@ function frameIndices(pal, f) {
     if (inCard(x, y, m, rad)) {
       a = 1;
       col = mix(SKY_A, SKY_B, Math.max(0, Math.min(1, (y - m) / (OUT - 2 * m))));
-      // land
-      if (y > 98) col = mix(LAND, LAND_D, (y - 98) / 22);
-      // left pipe (upper + lower with a gap)
-      if (x > 18 && x < 34) {
-        if (y < 48 || y > 78) {
-          col = mix(PIPE_D, PIPE, (x - 18) / 16);
-          if (x > 20 && x < 24) col = PIPE_L;
-        }
-        if ((y > 44 && y < 50) || (y > 76 && y < 82)) {
-          if (x > 16 && x < 36) col = mix(PIPE_D, PIPE, 0.4);
-        }
+      // clouds
+      const c1 = (x - 28) * (x - 28) / 140 + (y - 28) * (y - 28) / 40;
+      const c2 = (x - 86) * (x - 86) / 90 + (y - 24) * (y - 24) / 28;
+      if (c1 < 1 || c2 < 1) col = mix(col, CLOUD, 0.85);
+      // hills
+      if (y > 86 && y <= 100) {
+        const hill = 92 + 4 * Math.sin(x * 0.35);
+        if (y > hill) col = mix(GRASS, PIPE_D, (y - 86) / 20);
       }
-      // right pipe
-      if (x > 92 && x < 110) {
-        if (y < 40 || y > 70) {
-          col = mix(PIPE_D, PIPE, (x - 92) / 18);
-          if (x > 94 && x < 98) col = PIPE_L;
-        }
-        if ((y > 36 && y < 42) || (y > 68 && y < 74)) {
-          if (x > 90 && x < 112) col = mix(PIPE_D, PIPE, 0.4);
-        }
+      if (y > 100) col = mix(LAND, LAND_D, (y - 100) / 20);
+      if (y > 100 && y < 104) col = GRASS;
+      // ONE pipe, gap large enough that a 64px icon still reads the tap
+      const px0 = 46, px1 = 92, gap0 = 42, gap1 = 80;
+      if (x >= px0 && x <= px1 && (y < gap0 || y > gap1) && y < 102) {
+        col = mix(PIPE_D, PIPE, (x - px0) / (px1 - px0));
+        if (x > px0 + 4 && x < px0 + 12) col = PIPE_L;
       }
-      // bird body
-      const bx = 58, by = 62 + bob;
+      if ((y > gap0 - 5 && y < gap0 + 1) || (y > gap1 - 1 && y < gap1 + 5)) {
+        if (x > px0 - 6 && x < px1 + 6 && y < 102) col = mix(PIPE_D, PIPE, 0.45);
+      }
+      // bird body — large, in the gap
       const dx = x - bx, dy = y - by;
-      const rx = 13, ry = 10;
+      const rx = 16, ry = 12;
       if ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1) {
         col = mix(BIRD_D, BIRD, 0.45 + 0.4 * ((x - (bx - rx)) / (2 * rx)));
       }
-      // wing
-      const wy = by + (flap ? -6 : 3);
-      const wdx = x - (bx - 2), wdy = y - wy;
-      const wrx = 9, wry = flap ? 4.5 : 6.5;
-      if ((wdx * wdx) / (wrx * wrx) + (wdy * wdy) / (wry * wry) <= 1 && x < bx + 4) {
-        col = mix(BIRD, WHITE, flap ? 0.15 : 0.05);
+      const wy = by + (flap ? -7 : 4);
+      const wdx = x - (bx - 3), wdy = y - wy;
+      const wrx = 11, wry = flap ? 5 : 7.5;
+      if ((wdx * wdx) / (wrx * wrx) + (wdy * wdy) / (wry * wry) <= 1 && x < bx + 5) {
+        col = mix(BIRD, WHITE, flap ? 0.18 : 0.05);
       }
-      // beak
-      if (x > bx + 8 && x < bx + 18 && y > by - 3 && y < by + 5) {
-        const kx = x - (bx + 8), ky = y - by;
-        if (ky > -2.5 + kx * 0.15 && ky < 2.8 - kx * 0.12) col = BEAK;
+      if (x > bx + 10 && x < bx + 22 && y > by - 4 && y < by + 6) {
+        const kx = x - (bx + 10), ky = y - by;
+        if (ky > -3 + kx * 0.15 && ky < 3.2 - kx * 0.12) col = BEAK;
       }
-      // eye
-      const ex = bx + 5, ey = by - 2;
-      if ((x - ex) * (x - ex) + (y - ey) * (y - ey) <= 3.4 * 3.4) col = WHITE;
-      if ((x - (ex + 1.2)) * (x - (ex + 1.2)) + (y - ey) * (y - ey) <= 1.5 * 1.5) col = INK;
-      // red tuft
-      if ((x - (bx - 6)) * (x - (bx - 6)) + (y - (by - 8)) * (y - (by - 8)) <= 3.2 * 3.2) col = RED;
+      const ex = bx + 6, ey = by - 2.5;
+      if ((x - ex) * (x - ex) + (y - ey) * (y - ey) <= 4.2 * 4.2) col = WHITE;
+      if ((x - (ex + 1.4)) * (x - (ex + 1.4)) + (y - ey) * (y - ey) <= 1.7 * 1.7) col = INK;
+      if ((x - (bx - 8)) * (x - (bx - 8)) + (y - (by - 10)) * (y - (by - 10)) <= 3.6 * 3.6) col = RED;
     }
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
@@ -149,10 +136,198 @@ export function floppyBirdIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 8, transparentIndex: 0 };
 }
 
-import { deflateSync } from 'node:zlib';
+function paeth(a, b, c) {
+  const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+
+function decodePng(buf) {
+  if (buf[0] !== 0x89) throw new Error('not a png');
+  let i = 8, w = 0, h = 0, depth = 8, ctype = 6;
+  const idats = [];
+  let pal = null, trns = null;
+  while (i < buf.length) {
+    const len = buf.readUInt32BE(i);
+    const typ = buf.toString('ascii', i + 4, i + 8);
+    const chunk = buf.subarray(i + 8, i + 8 + len);
+    i += 12 + len;
+    if (typ === 'IHDR') {
+      w = chunk.readUInt32BE(0); h = chunk.readUInt32BE(4);
+      depth = chunk[8]; ctype = chunk[9];
+      if (chunk[12] !== 0) throw new Error('interlaced png');
+    } else if (typ === 'PLTE') {
+      pal = [];
+      for (let k = 0; k < chunk.length; k += 3) pal.push([chunk[k], chunk[k + 1], chunk[k + 2], 255]);
+    } else if (typ === 'tRNS') {
+      trns = Buffer.from(chunk);
+    } else if (typ === 'IDAT') idats.push(chunk);
+    else if (typ === 'IEND') break;
+  }
+  if (pal && trns) {
+    for (let k = 0; k < trns.length && k < pal.length; k++) pal[k][3] = trns[k];
+  }
+  const samples = ctype === 0 ? 1 : ctype === 2 ? 3 : ctype === 3 ? 1 : ctype === 4 ? 2 : 4;
+  const bitsPerPix = depth * samples;
+  const bpp = Math.max(1, (bitsPerPix / 8) | 0);
+  const rowBytes = Math.ceil(w * bitsPerPix / 8);
+  const raw = inflateSync(Buffer.concat(idats));
+  const rows = [];
+  let src = 0;
+  let prev = Buffer.alloc(rowBytes);
+  for (let y = 0; y < h; y++) {
+    const filt = raw[src++];
+    const row = Buffer.alloc(rowBytes);
+    raw.copy(row, 0, src, src + rowBytes); src += rowBytes;
+    for (let x = 0; x < rowBytes; x++) {
+      const a = x >= bpp ? row[x - bpp] : 0;
+      const b = prev[x];
+      const c = x >= bpp ? prev[x - bpp] : 0;
+      let v = row[x];
+      if (filt === 1) v = (v + a) & 255;
+      else if (filt === 2) v = (v + b) & 255;
+      else if (filt === 3) v = (v + ((a + b) >> 1)) & 255;
+      else if (filt === 4) v = (v + paeth(a, b, c)) & 255;
+      else if (filt !== 0) throw new Error('bad filter ' + filt);
+      row[x] = v;
+    }
+    rows.push(row);
+    prev = row;
+  }
+  function unpack(row, x) {
+    if (depth === 8) return row[x];
+    const ppb = 8 / depth;
+    const byte = row[(x / ppb) | 0];
+    const shift = 8 - depth - (x % ppb) * depth;
+    return (byte >> shift) & ((1 << depth) - 1);
+  }
+  const out = Buffer.alloc(w * h * 4);
+  let rgbKey = null;
+  if (ctype === 2 && trns && trns.length >= 6) {
+    rgbKey = [(trns[0] << 8) | trns[1], (trns[2] << 8) | trns[3], (trns[4] << 8) | trns[5]];
+  }
+  for (let y = 0; y < h; y++) {
+    const row = rows[y];
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      if (ctype === 2 && depth === 8) {
+        const s = x * 3, r = row[s], g = row[s + 1], b = row[s + 2];
+        let a = 255;
+        if (rgbKey) {
+          const R = rgbKey[0] >> 8, G = rgbKey[1] >> 8, B = rgbKey[2] >> 8;
+          if (r === R && g === G && b === B) a = 0;
+        }
+        out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = a;
+      } else if (ctype === 6 && depth === 8) {
+        const s = x * 4;
+        out[o] = row[s]; out[o + 1] = row[s + 1]; out[o + 2] = row[s + 2]; out[o + 3] = row[s + 3];
+      } else if (ctype === 3) {
+        const c = pal[unpack(row, x)] || [0, 0, 0, 0];
+        out[o] = c[0]; out[o + 1] = c[1]; out[o + 2] = c[2]; out[o + 3] = c[3];
+      } else if (ctype === 0) {
+        const v = unpack(row, x);
+        const g = depth === 8 ? v : v * (255 / ((1 << depth) - 1));
+        out[o] = g; out[o + 1] = g; out[o + 2] = g; out[o + 3] = 255;
+      } else {
+        throw new Error('unsupported png ctype=' + ctype + ' depth=' + depth);
+      }
+    }
+  }
+  return { w, h, p: out };
+}
+
+function loadAsset(name) {
+  return decodePng(readFileSync(join(here, 'vendor', 'assets', name)));
+}
+
+function birdFrame(src, fi) {
+  const fw = src.w, fh = 24, sy = (fi % 4) * fh;
+  const p = Buffer.alloc(fw * fh * 4);
+  for (let y = 0; y < fh; y++) src.p.copy(p, y * fw * 4, ((sy + y) * src.w) * 4, ((sy + y) * src.w + fw) * 4);
+  return { w: fw, h: fh, p };
+}
+
+function blit(dst, dw, dh, src, dx, dy, scale, opt) {
+  opt = opt || {};
+  const sw = Math.max(1, Math.round(src.w * scale));
+  const sh = Math.max(1, Math.round(src.h * scale));
+  const aMul = opt.a == null ? 1 : opt.a;
+  for (let y = 0; y < sh; y++) {
+    const sy = Math.min(src.h - 1, (y / scale) | 0);
+    for (let x = 0; x < sw; x++) {
+      const sx = Math.min(src.w - 1, (x / scale) | 0);
+      const o = (sy * src.w + sx) * 4;
+      let r = src.p[o], g = src.p[o + 1], b = src.p[o + 2];
+      if (opt.dropBlack && r + g + b < 110) continue;
+      const a = src.p[o + 3] * aMul;
+      if (a < 8) continue;
+      const px = (dx + x) | 0, py = (dy + y) | 0;
+      if (px < 0 || py < 0 || px >= dw || py >= dh) continue;
+      if (opt.ghost) {
+        // Same bird, cyan — a ghost, not a muddy duck.
+        const t = 0.55;
+        r = Math.round(r * (1 - t) + 72 * t);
+        g = Math.round(g * (1 - t) + 216 * t);
+        b = Math.round(b * (1 - t) + 230 * t);
+      }
+      const d = (py * dw + px) * 4;
+      const aa = a / 255;
+      dst[d] = Math.round(r * aa + dst[d] * (1 - aa));
+      dst[d + 1] = Math.round(g * aa + dst[d + 1] * (1 - aa));
+      dst[d + 2] = Math.round(b * aa + dst[d + 2] * (1 - aa));
+      dst[d + 3] = 255;
+    }
+  }
+}
+
+function tileX(dst, dw, dh, src, y, scale) {
+  const sw = Math.round(src.w * scale);
+  const sh = Math.round(src.h * scale);
+  for (let x = 0; x < dw; x += sw) blit(dst, dw, dh, src, x, y, scale);
+  return sh;
+}
+
+function paintPipe(dst, dw, dh, body, capDown, capUp, x, gapTop, gapBot, landY, scale) {
+  const w = Math.round(body.w * scale);
+  const capH = Math.round(capDown.h * scale);
+  const bodySrc = body;
+  for (let y = 0; y < gapTop - capH; y++) {
+    const slice = { w: bodySrc.w, h: 1, p: bodySrc.p };
+    blit(dst, dw, dh, slice, x, y, scale);
+  }
+  blit(dst, dw, dh, capDown, x, gapTop - capH, scale);
+  blit(dst, dw, dh, capUp, x, gapBot, scale);
+  for (let y = gapBot + capH; y < landY; y++) {
+    const slice = { w: bodySrc.w, h: 1, p: bodySrc.p };
+    blit(dst, dw, dh, slice, x, y, scale);
+  }
+  void w;
+}
+
+const GLYPHS = {
+  'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
+  'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
+  'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
+  'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  ' ': [0, 0, 0, 0, 0, 0, 0],
+};
+function drawText(put, x, y, str, s, r, g, b) {
+  let cx = x;
+  for (const ch of str.toUpperCase()) {
+    const gph = GLYPHS[ch] || GLYPHS[' '];
+    for (let row = 0; row < 7; row++) for (let col = 0; col < 5; col++) {
+      if (gph[row] & (1 << (4 - col))) {
+        for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) put(cx + col * s + dx, y + row * s + dy, r, g, b);
+      }
+    }
+    cx += 6 * s;
+  }
+}
 
 function crc(buf) {
   let c = ~0;
@@ -170,124 +345,6 @@ function pngChunk(tag, data) {
   return Buffer.concat([len, body, c]);
 }
 
-const GLYPHS = {
-  'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
-  'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
-  'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
-  'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
-  'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
-  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
-  'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
-  'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
-  'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
-  'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
-  'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  'P': [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
-  'R': [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
-  'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
-  'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
-  'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
-  'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
-  ' ': [0, 0, 0, 0, 0, 0, 0],
-  '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
-  '·': [0, 0, 0, 0b00100, 0, 0, 0],
-};
-function drawText(put, x, y, str, s, r, g, b) {
-  let cx = x;
-  for (const ch of str.toUpperCase()) {
-    const gph = GLYPHS[ch] || GLYPHS[' '];
-    for (let row = 0; row < 7; row++) for (let col = 0; col < 5; col++) {
-      if (gph[row] & (1 << (4 - col))) {
-        for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) {
-          put(cx + col * s + dx, y + row * s + dy, r, g, b);
-        }
-      }
-    }
-    cx += 6 * s;
-  }
-}
-
-function paintBird(put, cx, cy, scale, flap, ghost) {
-  const dim = ghost ? 0.55 : 1;
-  const tint = (r, g, b) => ghost
-    ? [Math.round(r * 0.75 + 80), Math.round(g * 0.75 + 40), Math.round(b * 0.55 + 90)]
-    : [r, g, b];
-  const bodyR = 28 * scale, bodyH = 20 * scale;
-  for (let y = cy - bodyH; y <= cy + bodyH; y++) {
-    for (let x = cx - bodyR; x <= cx + bodyR + 16 * scale; x++) {
-      const dx = (x - cx) / bodyR, dy = (y - cy) / bodyH;
-      if (dx * dx + dy * dy <= 1) {
-        const c = tint(...mix(BIRD_D, BIRD, 0.4 + 0.4 * ((x - (cx - bodyR)) / (2 * bodyR))));
-        put(x, y, c[0], c[1], c[2]);
-      }
-    }
-  }
-  const wy = cy + (flap ? -12 : 6) * scale;
-  const wrx = 18 * scale, wry = (flap ? 8 : 12) * scale;
-  for (let y = wy - wry; y <= wy + wry; y++) {
-    for (let x = cx - wrx - 4 * scale; x <= cx + 6 * scale; x++) {
-      const dx = (x - (cx - 4 * scale)) / wrx, dy = (y - wy) / wry;
-      if (dx * dx + dy * dy <= 1) {
-        const c = tint(...mix(BIRD, WHITE, flap ? 0.2 : 0.05));
-        put(x, y, c[0], c[1], c[2]);
-      }
-    }
-  }
-  for (let y = cy - 8 * scale; y <= cy + 10 * scale; y++) {
-    for (let x = cx + 18 * scale; x <= cx + 38 * scale; x++) {
-      const kx = (x - (cx + 18 * scale)) / (20 * scale);
-      const ky = (y - cy) / (10 * scale);
-      if (ky > -0.45 + kx * 0.2 && ky < 0.5 - kx * 0.15 && kx >= 0 && kx <= 1) {
-        const c = tint(...BEAK);
-        put(x, y, c[0], c[1], c[2]);
-      }
-    }
-  }
-  const ex = cx + 10 * scale, ey = cy - 4 * scale, er = 7 * scale;
-  for (let y = ey - er; y <= ey + er; y++) for (let x = ex - er; x <= ex + er; x++) {
-    if ((x - ex) * (x - ex) + (y - ey) * (y - ey) <= er * er) {
-      const c = tint(...WHITE);
-      put(x, y, c[0], c[1], c[2]);
-    }
-  }
-  const px = ex + 3 * scale, py = ey, pr = 3.2 * scale;
-  for (let y = py - pr; y <= py + pr; y++) for (let x = px - pr; x <= px + pr; x++) {
-    if ((x - px) * (x - px) + (y - py) * (y - py) <= pr * pr) put(x, y, INK[0], INK[1], INK[2]);
-  }
-  const tx = cx - 14 * scale, ty = cy - 16 * scale, tr = 7 * scale;
-  for (let y = ty - tr; y <= ty + tr; y++) for (let x = tx - tr; x <= tx + tr; x++) {
-    if ((x - tx) * (x - tx) + (y - ty) * (y - ty) <= tr * tr) {
-      const c = tint(...RED);
-      put(x, y, c[0], c[1], c[2]);
-    }
-  }
-  void dim;
-}
-
-function paintPipe(put, x0, gapTop, gapBot, H) {
-  const W = 72;
-  const cap = 22;
-  for (let y = 0; y < gapTop; y++) for (let x = x0; x < x0 + W; x++) {
-    const g = x < x0 + 12 ? PIPE_L : mix(PIPE_D, PIPE, (x - x0) / W);
-    put(x, y, g[0], g[1], g[2]);
-  }
-  for (let y = gapTop - cap; y < gapTop; y++) for (let x = x0 - 8; x < x0 + W + 8; x++) {
-    const g = mix(PIPE_D, PIPE, 0.45);
-    put(x, y, g[0], g[1], g[2]);
-  }
-  for (let y = gapBot; y < H; y++) for (let x = x0; x < x0 + W; x++) {
-    const g = x < x0 + 12 ? PIPE_L : mix(PIPE_D, PIPE, (x - x0) / W);
-    put(x, y, g[0], g[1], g[2]);
-  }
-  for (let y = gapBot; y < gapBot + cap; y++) for (let x = x0 - 8; x < x0 + W + 8; x++) {
-    const g = mix(PIPE_D, PIPE, 0.45);
-    put(x, y, g[0], g[1], g[2]);
-  }
-}
-
 export function screenshotPng() {
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
@@ -298,31 +355,48 @@ export function screenshotPng() {
     rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a == null ? 255 : a;
   };
 
-  for (let y = 0; y < H; y++) {
-    const sky = mix(SKY_A, SKY_B, y / (H * 0.78));
-    const landY = H * 0.78;
-    for (let x = 0; x < W; x++) {
-      if (y < landY) put(x, y, sky[0], sky[1], sky[2]);
-      else {
-        const g = mix(LAND, LAND_D, (y - landY) / (H - landY));
-        put(x, y, g[0], g[1], g[2]);
-      }
-    }
+  const sky = loadAsset('sky.png');
+  const land = loadAsset('land.png');
+  const ceiling = loadAsset('ceiling.png');
+  const body = loadAsset('pipe.png');
+  const capDown = loadAsset('pipe-down.png');
+  const capUp = loadAsset('pipe-up.png');
+  const bird = loadAsset('bird.png');
+  const font4 = loadAsset('font_big_4.png');
+  const font6 = loadAsset('font_big_6.png');
+
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) put(x, y, SKY_FILL[0], SKY_FILL[1], SKY_FILL[2]);
+
+  const landY = 560;
+  const skyScale = 3;
+  const skyH = Math.round(sky.h * skyScale);
+  tileX(rgba, W, H, sky, landY - skyH, skyScale);
+  tileX(rgba, W, H, land, landY, 2);
+  tileX(rgba, W, H, ceiling, 0, 3);
+
+  const pScale = 4;
+  paintPipe(rgba, W, H, body, capDown, capUp, 360, 150, 440, landY, pScale);
+  paintPipe(rgba, W, H, body, capDown, capUp, 820, 130, 360, landY, pScale);
+
+  const you = birdFrame(bird, 1);
+  const them = birdFrame(bird, 2);
+  // Mid-flight THROUGH the first pipe gap; ghost is a little ahead.
+  blit(rgba, W, H, you, 400, 236, 5);
+  blit(rgba, W, H, them, 680, 200, 5, { ghost: true, a: 0.9 });
+
+  blit(rgba, W, H, font4, 72, 64, 2, { dropBlack: true });
+
+  // Race score — the reason this copy exists.
+  for (let y = 620; y < 688; y++) for (let x = 48; x < 560; x++) {
+    const o = (y * W + x) * 4;
+    rgba[o] = Math.round(rgba[o] * 0.35);
+    rgba[o + 1] = Math.round(rgba[o + 1] * 0.35);
+    rgba[o + 2] = Math.round(rgba[o + 2] * 0.35);
   }
-  // ceiling strip
-  for (let y = 0; y < 18; y++) for (let x = 0; x < W; x++) {
-    const c = ((x + y) % 14 < 7) ? [210, 168, 96] : [186, 140, 72];
-    put(x, y, c[0], c[1], c[2]);
-  }
-
-  paintPipe(put, 520, 210, 390, Math.floor(H * 0.78));
-  paintPipe(put, 860, 160, 340, Math.floor(H * 0.78));
-
-  paintBird(put, 280, 310, 2.2, true, false);
-  paintBird(put, 430, 250, 2.2, false, true);
-
-  drawText(put, 70, 40, 'FLOPPY BIRD', 7, 255, 255, 255);
-  drawText(put, 70, 640, 'TAP TO FLAP  ·  RACE A FRIEND', 3, 255, 248, 210);
+  drawText(put, 70, 636, 'YOU', 5, 255, 229, 106);
+  drawText(put, 280, 636, 'SAM', 5, 160, 230, 235);
+  blit(rgba, W, H, font4, 168, 628, 1.4, { dropBlack: true });
+  blit(rgba, W, H, font6, 378, 628, 1.4, { dropBlack: true });
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

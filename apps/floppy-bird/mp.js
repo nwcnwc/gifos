@@ -4,8 +4,8 @@
  * Upstream is a solo tap-flap game with Math.random pipes and a cookie
  * highscore. Everything multiplayer is here: a shared pipe seed, each bird
  * publishing y + alive + distance on its own row, ghosts of the others, and
- * a farthest-wins race. Nobody writes anybody else's row. Invite chrome is
- * the OS's, not ours. Solo is the original game.
+ * a farthest-wins race. Nobody writes anybody else's row. The OS draws the
+ * share control; we never do. Solo is the original game.
  *
  * A subscriber re-downloads the whole collection on every change, so we
  * publish slowly (~8 Hz) with small numbers.
@@ -65,7 +65,10 @@
   }
 
   function tintFor(id) {
-    return hashId(id) % 360;
+    // Skip the pipe-green band so a ghost never disappears into the course.
+    var h = hashId(id) % 280;
+    if (h > 70 && h < 160) h += 130;
+    return h % 360;
   }
 
   function resetPipes(seed) {
@@ -73,12 +76,25 @@
     pipeRng = mulberry32(pipeSeed);
   }
 
-  function pickSeed() {
+  function hostSeed() {
+    var rows = [{ id: me.id || 'local', seed: pipeSeed }];
     var id;
     for (id in others) {
-      if (others[id].alive && others[id].seed) return others[id].seed >>> 0;
+      if (others[id].seed) rows.push({ id: id, seed: others[id].seed });
     }
-    return (Date.now() ^ hashId(me.id || 'local')) >>> 0 || 1;
+    rows.sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+    return (rows[0].seed >>> 0) || 1;
+  }
+
+  function pickSeed() {
+    var id, live = null;
+    for (id in others) {
+      if (others[id].alive && others[id].seed) {
+        if (!live || id < live.id) live = others[id];
+      }
+    }
+    if (live) return live.seed >>> 0;
+    return hostSeed();
   }
 
   function myDistance() {
@@ -148,15 +164,27 @@
         score: p.score || 0,
         seed: p.seed || 0,
         stamp: p.t,
-        seen: moved ? now : cur.seen,
-        hue: tintFor(p.id)
+        seen: moved ? now : (cur ? cur.seen : now),
+        hue: cur && cur.hue != null ? cur.hue : tintFor(p.id),
+        gx: cur && cur.gx != null ? cur.gx : null,
+        gy: cur && cur.gy != null ? cur.gy : null
       };
     }
     for (var id in others) {
       if (!seen[id] || now - others[id].seen > STALE_MS) delete others[id];
     }
+    if (!myAlive()) {
+      var hs = hostSeed();
+      if (hs && hs !== pipeSeed) resetPipes(hs);
+    }
     paintGhosts();
     paintHud();
+  }
+
+  function shortName(n) {
+    n = String(n || 'Player').replace(/\s+/g, ' ').trim() || 'Player';
+    if (n.length > 10) n = n.slice(0, 9) + '\u2026';
+    return n;
   }
 
   function paintGhosts() {
@@ -164,7 +192,7 @@
     if (!fly) return;
     var myD = myDistance();
     var seen = {};
-    var id, el, o, x;
+    var id, el, o, x, y;
     for (id in others) {
       seen[id] = 1;
       o = others[id];
@@ -174,12 +202,21 @@
         el.id = 'ghost-' + id;
         el.className = 'bird ghost animated';
         el.style.filter = 'hue-rotate(' + o.hue + 'deg)';
+        el.innerHTML = '<span class="ghost-tag"></span>';
         fly.appendChild(el);
       }
+      var tag = el.querySelector('.ghost-tag');
+      if (tag) tag.textContent = shortName(o.name);
       x = 60 + (o.distance - myD);
-      el.style.left = Math.round(x) + 'px';
-      el.style.top = Math.round(o.y) + 'px';
-      el.style.opacity = o.alive ? '0.5' : '0.22';
+      y = o.y;
+      if (o.gx == null) { o.gx = x; o.gy = y; }
+      else {
+        o.gx += (x - o.gx) * 0.4;
+        o.gy += (y - o.gy) * 0.4;
+      }
+      el.style.left = Math.round(o.gx) + 'px';
+      el.style.top = Math.round(o.gy) + 'px';
+      el.style.opacity = o.alive ? '0.55' : '0.22';
       el.style.transform = o.alive ? '' : 'rotate(90deg)';
     }
     var ghosts = fly.querySelectorAll('.ghost');
@@ -206,6 +243,7 @@
       });
     }
     rows.sort(function (a, b) {
+      if (a.score !== b.score) return b.score - a.score;
       if (a.alive !== b.alive) return a.alive ? -1 : 1;
       return b.distance - a.distance;
     });
@@ -216,35 +254,67 @@
     var bar = document.getElementById('racebar');
     if (!bar) return;
     var rows = roster();
-    if (rows.length < 2) { bar.hidden = true; bar.textContent = ''; return; }
+    if (rows.length < 2) {
+      bar.hidden = true;
+      bar.innerHTML = '';
+      document.body.classList.remove('racing');
+      return;
+    }
+    document.body.classList.add('racing');
     bar.hidden = false;
-    var bits = [];
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      var label = r.mine ? 'You' : r.name;
-      var cls = 'who' + (r.alive ? '' : ' dead') + (i === 0 ? ' lead' : '');
-      bits.push('<span class="' + cls + '">' + escapeHtml(label) + ' ' + (r.score | 0) +
-        (r.alive ? '' : ' crashed') + '</span>');
+    var bits = ['<div class="racers">'];
+    var i, r, label, cls;
+    for (i = 0; i < rows.length; i++) {
+      r = rows[i];
+      label = r.mine ? 'You' : shortName(r.name);
+      cls = 'who' + (r.mine ? ' mine' : '') + (r.alive ? '' : ' dead') + (i === 0 ? ' lead' : '');
+      bits.push('<span class="' + cls + '">' + escapeHtml(label) + ' <b>' + (r.score | 0) + '</b></span>');
     }
-    var allDead = rows.every(function (r) { return !r.alive; });
-    var line = bits.join(' · ');
+    bits.push('</div>');
+    var meRow = rows.filter(function (x) { return x.mine; })[0];
+    var lead = rows[0];
+    var other = rows.filter(function (x) { return !x.mine; })[0];
+    var allDead = rows.every(function (x) { return !x.alive; });
+    var someoneAlive = rows.some(function (x) { return !x.mine && x.alive; });
+    var someoneDead = rows.some(function (x) { return !x.mine && !x.alive; });
+    var call = '';
     if (allDead) {
-      var win = rows[0];
-      line += '<div>' + (win.mine ? 'You win' : escapeHtml(win.name) + ' wins') +
-        ' — farthest bird</div>';
-    } else if (!rows[0].mine && rows[0].alive) {
-      line += '<div>they are ahead</div>';
-    } else if (rows[0].mine && rows[0].alive) {
-      var someoneDead = rows.some(function (r) { return !r.mine && !r.alive; });
-      if (someoneDead) line += '<div>they crashed — keep going</div>';
+      if (other && lead.score === other.score && meRow && lead.score === meRow.score) {
+        call = 'Tie — ' + (lead.score | 0) + ' pipes';
+      } else if (lead.mine) {
+        call = 'You win — ' + (lead.score | 0) +
+          (other ? ' to ' + (other.score | 0) : '');
+      } else {
+        call = escapeHtml(shortName(lead.name)) + ' wins — ' + (lead.score | 0) +
+          (meRow ? ' to ' + (meRow.score | 0) : '');
+      }
+    } else if (!meRow.alive && someoneAlive) {
+      call = myAlive() ? '' : (typeof currentstate !== 'undefined' && currentstate === states.SplashScreen
+        ? 'they are flying — tap to chase'
+        : 'they are still flying');
+    } else if (typeof currentstate !== 'undefined' && currentstate === states.SplashScreen) {
+      call = 'tap to race — same pipes';
+    } else if (meRow.alive && someoneDead) {
+      call = 'they crashed — keep going';
+    } else if (meRow.alive && other && other.score > meRow.score) {
+      call = 'they are ahead';
     }
-    bar.innerHTML = line;
+    if (call) bits.push('<div class="call">' + call + '</div>');
+    bar.innerHTML = bits.join('');
   }
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
     });
+  }
+
+  function fromReplay(el) {
+    while (el) {
+      if (el.id === 'replay' || el.id === 'replayimg') return true;
+      el = el.parentElement;
+    }
+    return false;
   }
 
   // Seeded pipes — same sequence for everyone on this course.
@@ -269,6 +339,7 @@
     frozenDist = 0;
     _startGame();
     publish(true);
+    paintHud();
   };
 
   var _playerDead = root.playerDead;
@@ -285,6 +356,7 @@
     frozenDist = 0;
     _showSplash();
     publish(true);
+    paintHud();
   };
 
   var _gameloop = root.gameloop;
@@ -292,9 +364,44 @@
     _gameloop();
     publish(false);
     paintGhosts();
+    if (document.body.classList.contains('racing')) paintHud();
   };
 
+  // One pointerdown = one flap. Original binds touchstart OR mousedown;
+  // a phone can fire both. Replay has its own hit target.
+  if (root.$) {
+    $(document).off('touchstart');
+    $(document).off('mousedown');
+    $(document).off('keydown');
+  }
+  var lastTap = 0;
+  function onTap(e) {
+    if (fromReplay(e.target)) return;
+    if (e.isPrimary === false) return;
+    var n = Date.now();
+    if (n - lastTap < 40) return;
+    lastTap = n;
+    if (e.cancelable) e.preventDefault();
+    if (typeof screenClick === 'function') screenClick();
+  }
+  document.addEventListener('pointerdown', onTap, { passive: false });
+  document.addEventListener('keydown', function (e) {
+    if (e.keyCode !== 32 && e.key !== ' ') return;
+    e.preventDefault();
+    if (typeof currentstate !== 'undefined' && currentstate === states.ScoreScreen) {
+      var replay = document.getElementById('replay');
+      if (replay) replay.click();
+    } else if (typeof screenClick === 'function') {
+      screenClick();
+    }
+  });
   document.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+
+  function syncFly() {
+    if (root.$ && typeof flyArea !== 'undefined') flyArea = $('#flyarea').height();
+  }
+  if (root.$) $(syncFly);
+  root.addEventListener('resize', syncFly);
 
   function initNet() {
     api = root.gifos || null;
@@ -309,6 +416,7 @@
     api.me().then(function (id) {
       me.id = (id && id.id) || 'local';
       me.name = (id && id.name) || 'Player';
+      if (pipeSeed === 1) pipeSeed = (Date.now() ^ hashId(me.id)) >>> 0 || 1;
       go();
       roomDb.subscribe(function (list) { ingest(list || []); });
       publish(true);

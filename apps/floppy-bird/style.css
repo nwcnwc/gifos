@@ -1,44 +1,110 @@
-/* Race HUD + phone: original layout is untouched so collision math stays honest. */
-html, body {
+/* Race HUD + phone. flyArea is re-read from layout so collision stays honest. */
+html, body, #gamecontainer, #gamescreen {
   height: 100%;
+  min-height: 0;
   overflow: hidden;
-  touch-action: manipulation;
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
+}
+#flyarea {
+  height: 100%;
+  min-height: 280px;
+}
+#ceiling {
+  top: 0;
 }
 
 #racebar {
   position: absolute;
-  top: 6px;
+  top: 20px;
   left: 8px;
   right: 8px;
   z-index: 3000;
   pointer-events: none;
   text-align: center;
-  font: 700 12px/1.35 monospace;
   color: #fff;
-  text-shadow: 0 1px 0 #3a2a10, 0 0 4px rgba(0,0,0,.55);
-  letter-spacing: .02em;
+  text-shadow: 0 1px 0 #2a1c08, 0 0 5px rgba(0,0,0,.6);
 }
 
-#racebar .who { display: inline-block; margin: 0 8px; }
-#racebar .dead { opacity: .7; }
-#racebar .lead { color: #ffe56a; }
+#racebar .racers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+#racebar .who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(20, 16, 10, .48);
+  font: 700 13px/1.2 -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: .01em;
+  max-width: 46%;
+}
+
+#racebar .who b {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+}
+
+#racebar .who.mine { box-shadow: inset 0 0 0 2px #ffe56a; }
+#racebar .who.lead { color: #ffe56a; }
+#racebar .who.dead { opacity: .72; }
+#racebar .call {
+  margin-top: 4px;
+  font: 700 12px/1.3 -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+#bigscore {
+  left: 50%;
+  transform: translateX(-50%);
+}
+body.racing #bigscore { top: 78px; }
+body.racing #splash { top: 118px; }
+
+#splash {
+  left: 50%;
+  margin-left: -94px;
+}
+#scoreboard {
+  left: 50%;
+  margin-left: -118px;
+}
+
+#replay {
+  z-index: 20;
+  min-width: 88px;
+  min-height: 88px;
+}
+#replayimg { display: block; pointer-events: none; }
 
 .bird.ghost {
   pointer-events: none;
   z-index: 8;
-  opacity: .5;
+}
+.ghost-tag {
+  position: absolute;
+  left: 50%;
+  top: -13px;
+  transform: translateX(-50%);
+  font: 700 10px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 #footer {
   z-index: 2000;
   font-size: 10px;
-  opacity: .75;
+  opacity: .7;
+  pointer-events: none;
 }
 #footer span {
   display: block;
   padding: 1px 2px;
   color: #fff;
 }
-
-#replayimg { display: block; }
