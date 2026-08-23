@@ -178,10 +178,12 @@ ports must be **ephemeral** or a killed run's leftover server collides with the
 next one.
 
 Worked example: `e2e-anyroad-mp` went from "times out at 600s, or refuses to
-judge" on one box to **40 pass / 0 fail in 321s** with a driver per machine. Its
-behaviour-battery caller (26a) sets `ANYROAD_MP_LOCAL=1` to run the app-room
-WIRING on one box and skip the physics block, so the battery never demands a
-fleet from every host it runs on.
+judge" on one box to **40 pass / 0 fail in 321s** with a driver per machine.
+The 3-driver gate **is** that fleet: the suite calls `needFleet(3)` and has no
+one-box door. 26a (the behaviour-battery caller) unsets `ANYROAD_MP_LOCAL` so a
+leaked env cannot sneak a wiring-only skip of the steering physics. Without
+three isolated machines it exits 3 (NEEDS-FLEET) — never a product red, and
+never a green from one box.
 
 Second worked example, and a different lesson: `e2e-pipe-mesh` (2026-08-17).
 The encoded-passthrough lane's six-seat room was the gate's only FLAKY suite —

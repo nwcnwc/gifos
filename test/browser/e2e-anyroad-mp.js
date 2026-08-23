@@ -63,11 +63,12 @@
 //
 // RECORD=1 records each player's screen to test/out/anyroad-mp[-app]/*.webm.
 //
-// Needs: static server on 8099, local relay on 8790. Three Chromiums rendering
-// a 3D world on a software rasteriser is heavy — every assertion here is about
-// STATE (who can see whom, how many queries), never about frame timings, which
-// on one box cannot tell a product bug from a busy kernel.
-const { chromium, CHROME } = require('../lib/pw');
+// Needs: the stack on the orchestrator, reachable by THREE ISOLATED MACHINES
+// (needFleet(3)) — one Chromium per driver. There is no one-box door. Steering
+// advances per RENDERED FRAME; three 3D browsers on one kernel render at ~1 fps
+// and every number produced there is a number about that box. Ghosts, the
+// download pool, and the player count are state; the physics block is a
+// fleet measurement, and skipping it is not a gate.
 const needFleet = require('../lib/fleet');
 const { openFleet, closeFleet } = require('../lib/fleet-browsers');
 const { appGif } = require('../lib/apps');
@@ -119,13 +120,13 @@ async function run(MODE, nth) {
   // 2026-08-11) and cornered on the third — generous waits TIME OUT at 600s,
   // tight waits cannot render enough frames to measure, and no setting exists
   // between them. See test/lib/fleet.js.
-  // WIRING-ONLY MODE, for the behaviour battery. 26a runs this file to prove
-  // the app-room door works with three drivers; it is not the place the
-  // steering PHYSICS is judged, and it must not demand a fleet from every box
-  // the battery runs on. So ANYROAD_MP_LOCAL=1 keeps the door, the ghosts, the
-  // download pool and the race — and skips the physics block, out loud.
-  const LOCAL = process.env.ANYROAD_MP_LOCAL === '1';
-  const fleet = LOCAL ? null : await needFleet(3, {
+  // There is no one-box wiring door. 26a used to force that so the behaviour
+  // battery could "run" on one box — which then hung on the room-name field
+  // and scored as a product red, while skipping the physics the gate exists
+  // to judge. The gate for three drivers IS the fleet. Without three machines
+  // this exits 3 (NEEDS-FLEET); it never pretends a one-box wiring run is the
+  // same test.
+  const fleet = await needFleet(3, {
     why: 'each driver needs its own CPU — the steering assertions read a physics sim that advances per RENDERED FRAME, and three 3D browsers on one box render at ~1 fps',
     roles: NAMES.map((n) => n.toLowerCase()),
     // THE SECOND MODE INHERITS THE FIRST MODE'S HEAT. A load average decays
@@ -157,8 +158,7 @@ async function run(MODE, nth) {
   // (`gpu: true`). Forcing --use-angle=vulkan on a GLES GPU (Broadcom V3D, …)
   // hides the adapter behind ANGLE SwiftShader. A board with a seat display
   // gets headed GLES instead — same lesson as e2e-fps-simple.js. ANYROAD_GL=sw
-  // is the software opt-out. The 3-driver gate is still needFleet(3); LOCAL
-  // is wiring-only and skips steering.
+  // is the software opt-out. The 3-driver gate is always needFleet(3).
   function launchArgs(h) {
     const gl = process.env.ANYROAD_GL === 'sw'
       ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
@@ -167,15 +167,13 @@ async function run(MODE, nth) {
         : ['--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--enable-gpu'];
     return gl.concat(COMMON);
   }
-  const boxes = LOCAL ? null : await openFleet(fleet.hosts.slice(0, NAMES.length), { args: launchArgs, origin: BASE });
-  const localBrowser = LOCAL ? await chromium.launch({ executablePath: CHROME, args: launchArgs(null) }) : null;
-  if (LOCAL) console.log('  WIRING-ONLY (ANYROAD_MP_LOCAL=1): one box, and the steering PHYSICS block is SKIPPED — it needs a machine per driver (test/lib/fleet.js).');
+  const boxes = await openFleet(fleet.hosts.slice(0, NAMES.length), { args: launchArgs, origin: BASE });
 
   const players = [];
   for (let pi = 0; pi < NAMES.length; pi++) {
     const name = NAMES[pi];
-    const box = LOCAL ? null : boxes[pi];        // Ada, Ben and Cyd, each on their own machine
-    const ctx = await (box ? box.browser : localBrowser).newContext(Object.assign(
+    const box = boxes[pi];        // Ada, Ben and Cyd, each on their own machine
+    const ctx = await box.browser.newContext(Object.assign(
       { permissions: ['camera', 'microphone'], viewport: { width: 1000, height: 700 } },
       RECORD ? { recordVideo: { dir: path.join(OUT, name), size: { width: 1000, height: 700 } } } : {},
     ));
@@ -415,7 +413,7 @@ async function run(MODE, nth) {
   // partway through with 51 passed and 0 failed. A suite that runs out of clock
   // is red, and red for no reason is the worst kind.
   const SCHEMES = { Ada: 'wheel', Ben: 'stick', Cyd: 'tilt' };
-  if (MODE === MODES[0] && !LOCAL) {
+  if (MODE === MODES[0]) {
   for (const p of players) {
     await p.page.bringToFront();
     // locator.evaluate hands the ELEMENT in first: the argument is the SECOND
@@ -1053,7 +1051,7 @@ async function run(MODE, nth) {
   // close, so the handle is grabbed first and the file renamed after.
   const vids = RECORD ? players.map((p) => ({ name: p.name, v: p.page.video() })) : [];
   for (const p of players) await p.ctx.close();
-  if (localBrowser) await localBrowser.close(); else await closeFleet(boxes);
+  await closeFleet(boxes);
 
   if (RECORD) {
     for (const { name, v } of vids) {
