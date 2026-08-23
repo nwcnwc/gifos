@@ -86,11 +86,13 @@ async function ensureStack() {
   // meeting door is covered by the release gate, which runs both.
   // THREE ISOLATED MACHINES. The steering physics advances per rendered
   // frame; three Chromiums on one kernel cannot answer it (that is why
-  // e2e-anyroad-mp calls needFleet(3)). This scenario used to force
-  // ANYROAD_MP_LOCAL=1 so the behavior battery could "run" on one box —
-  // which then hung on the room-name field and scored as a product red.
-  // The gate for three drivers IS the fleet. Unset ANYROAD_MP_LOCAL; the
-  // suite refuses with exit 3 when it is not given three machines.
+  // e2e-anyroad-mp calls needFleet(3) and has no one-box door). This
+  // scenario used to force ANYROAD_MP_LOCAL=1 so the behavior battery could
+  // "run" on one box — which then hung on the room-name field and scored as
+  // a product red, while skipping the physics. The gate for three drivers
+  // IS the fleet. Unset ANYROAD_MP_LOCAL so a leaked env cannot sneak a
+  // one-box run back on if the door is ever reintroduced; without three
+  // machines the suite refuses with exit 3.
   const env = Object.assign({}, process.env, { ROOM: 'app' });
   delete env.ANYROAD_MP_LOCAL;
   const child = spawn('node', ['test/browser/e2e-anyroad-mp.js'], { cwd: ROOT, env });

@@ -78,11 +78,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // not a cop-out. The fleet is asked for ISOLATION — a CPU per player, so that
 // "did the presence arrive" is not really "was the kernel scheduling two 3D
 // browsers". It is not asked for FIDELITY: nothing in this half looks at the
-// street, and a peer may be a Raspberry Pi rendering through swiftshader, which
-// at 'medium' never finishes building a world at all. What the frame rate
-// actually is on real hardware is a different question with a different tool,
-// and answering it by making this suite slow enough to time out answers neither.
-// Override to measure something else.
+// street. A GLES board (Broadcom V3D, …) DRAWS this game — measured in-game
+// evaluate RTT ~7 ms / ~40 fps through headed GLES, once the harness stopped
+// forcing ANGLE Vulkan (which hid that GPU behind SwiftShader). 'medium' on
+// ANY peer spends minutes building scenery this half never looks at. What the
+// frame rate actually is on real hardware is a different question with a
+// different tool, and answering it by making this suite slow enough to time
+// out answers neither. Override to measure something else.
 const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RELAY + "');" +
   "localStorage.setItem('gifos_name','" + name + "')}catch(e){};" +
   ((process.env.GIFOS_FPS_QUALITY || quality)
@@ -128,9 +130,12 @@ const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RE
 //   otherwise  → no backend forced; fleet-browsers attaches headed if the
 //                seat has a display
 // USB phones stay first-class drawers via FPS_BOB_CDP (a real Mali GPU is
-// stronger than any headless software rasteriser) — they are not a fallback
-// after writing a board off. FPS_GL=hw forces Vulkan on everyone; =sw forces
-// software. Solo on the orchestrator stays software (that box often has no GPU).
+// stronger than any headless software rasteriser) — they are not a consolation
+// after writing a board off. If a seated box cannot answer while the game is
+// running, the next host in weight order is tried, GLES boards included; a
+// phone is the same kind of next host, not a different category. FPS_GL=hw
+// forces Vulkan on everyone; =sw forces software. Solo on the orchestrator
+// stays software (that box often has no GPU).
 const THROTTLE = [
   '--disable-background-timer-throttling',
   '--disable-backgrounding-occluded-windows',
@@ -1140,6 +1145,10 @@ async function deathmatch() {
     }
     if (aMs == null || bMs == null) {
       console.log('NEEDS-FLEET — no pair of machines could answer while running this game.');
+      if (!BOB_CDP) {
+        console.log('  GLES boards stay in the pool (do not skip them for lacking gpu:true).');
+        console.log('  USB phones are first-class drawers: set FPS_BOB_CDP to an adb-forwarded Chrome DevTools endpoint.');
+      }
       console.log('0 PASSED, 0 FAILED — no verdict was reached, on purpose.');
       process.exit(3);
     }
