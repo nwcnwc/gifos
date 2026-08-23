@@ -1,0 +1,11 @@
+vendor/game.js is Stolen Sword, flattened from ESM to one classic IIFE.
+Do not edit it; run node apps/stolen-sword/vendor.mjs.
+
+upstream: https://github.com/chiaogu/stolen-sword
+commit:   e5aa6e06ce50545df80e5bdfdde4122b5e267d09
+license:  MIT (COPYING-stolen-sword.txt)
+
+chiaogu's sources are ES modules + rollup. GifOS inlines <script src> and
+drops type=module, so vendor.mjs concatenates the pin in dependency order,
+strips import/export, and hangs window.StolenSword for the GifOS shell.
+The notice travels INSIDE the GIF as well as beside it here.

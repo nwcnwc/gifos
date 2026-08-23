@@ -1,0 +1,34 @@
+{
+  "tagline": "One finger, a stolen blade, and a thief who will not stop running.",
+  "description": "Someone took the sword and ran into the bamboo. You get one finger: press, pull back, and let go — you fly, and the blade goes with you. Grey marks wait in the air. Some throw fire. Some hide behind a shell. Four lands, from a pale grove to a dark river, and at the end of each the thief is still ahead.\n\nOn a phone it is the same press you use on a computer. There is nothing else to learn.\n\nSend the invite and extra swordsmen appear in the same grove, flying their own lines. There is no lobby and no account. The room is the link.\n\nAn unofficial port of Stolen Sword by chiaogu, the 2020 js13kGames entry. This copy adds the extra bodies over a meeting.",
+  "author": {
+    "name": "chiaogu",
+    "url": "https://github.com/chiaogu"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Stolen Sword",
+    "url": "https://github.com/chiaogu/stolen-sword",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "action",
+    "sword",
+    "platformer",
+    "js13k",
+    "touch",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/stolen-sword",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
