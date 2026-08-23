@@ -1,0 +1,6 @@
+klevze/sokoban
+https://github.com/klevze/sokoban.git
+commit 210957e734e379ded0b6544f099abf99f5555055
+Puzzles: src/js/levels/level01.json … level50.json
+Walkable tiles: src/js/config/config.js TILES.WALKABLE_TILES
+MIT License, Gregor (klevze), 2025
