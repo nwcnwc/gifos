@@ -15,8 +15,9 @@
  *  2. The identity is INSIDE the signed statement, so a signature can't be
  *     re-attributed to another identity that happens to share a key.
  *  3. Canonical content hash EXCLUDES the signature block itself AND any
- *     .state/** file — so saving app state never voids the author's signature,
- *     but changing the app or its artwork does.
+ *     .state/** or .lock/** file — so saving app state, or passkey-wrapping
+ *     that state, never voids the author's signature, but changing the app
+ *     or its artwork does.
  *  4. Honest verdicts: signed / unsigned / TAMPERED (contents changed after
  *     signing). Never "malware" — a signature can't prove that.
  *
@@ -57,10 +58,11 @@
   //  - visualBytes = the GIF with the GIFOS1.0 and GIFOSSIG blocks removed
   //    (i.e. every pixel/palette/animation byte), and
   //  - filesDigest = SHA256 over the sorted list of "path\0sha256(bytes)" for
-  //    every app file EXCEPT .state/** and .assets/** .
+  //    every app file EXCEPT .state/**, .lock/** and .assets/** .
   // Consequence: saving app state (which only rewrites .state inside GIFOS1.0)
-  // changes neither term, so the signature survives; changing app code or
-  // artwork changes one of them, so it (correctly) breaks. `.assets/**` are
+  // or passkey-wrapping it into .lock/v1 changes neither term, so the
+  // signature survives; changing app code or artwork changes one of them, so
+  // it (correctly) breaks. `.assets/**` are
   // the install-time downloads the OS seals in (gifos-assets.js): excluded so
   // installing them voids nothing, and SAFE to exclude because the SIGNED
   // manifest already pins each asset by sha256 — the excluded bytes are still
@@ -84,6 +86,7 @@
       const parts = [];
       for (const path of Object.keys(archive.files).sort()) {
         if (path.indexOf('.state/') === 0) continue;  // volatile — never signed
+        if (path.indexOf('.lock/') === 0) continue;   // passkey wrap of that volatile state — never signed
         if (path.indexOf('.assets/') === 0) continue; // OS-sealed downloads — pinned by the signed manifest instead
         parts.push(te(path + '\0'));
         parts.push(await sha256(archive.files[path]));
