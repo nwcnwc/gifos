@@ -76,8 +76,8 @@ function frameIndices(pal, f) {
           const gy = ((y - (by + inset)) / cell);
           const fx = Math.abs(gx - Math.round(gx));
           const fy = Math.abs(gy - Math.round(gy));
-          if ((fx < 0.03 && gx > 0.05 && gx < 2.95) || (fy < 0.03 && gy > 0.05 && gy < 2.95)) {
-            col = mix(col, FRAME, 0.35);
+          if ((fx < 0.025 && gx > 0.08 && gx < 2.92) || (fy < 0.025 && gy > 0.08 && gy < 2.92)) {
+            col = mix(col, FRAME, 0.18);
           }
           const dcol = discCol(x, y, cx, cy, rx, ry, hi, lo);
           if (dcol) {
@@ -235,10 +235,6 @@ export function screenshotPng() {
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
     const gx = bx + c * cell, gy = by + r * cell;
     fill(gx + 1, gy + 1, gx + cell - 1, gy + cell - 1, 58, 134, 100);
-    // star points
-    if ((r === 2 || r === 5) && (c === 2 || c === 5) && grid[r][c] === 0) {
-      discAt(bx + (c + 0.5) * cell, by + (r + 0.5) * cell, 4, [22, 44, 36], [22, 44, 36]);
-    }
     const cx = bx + (c + 0.5) * cell, cy = by + (r + 0.5) * cell, rad = cell * 0.38;
     const key = r + ',' + c;
     const v = grid[r][c];

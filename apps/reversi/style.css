@@ -58,14 +58,9 @@ button{font:inherit}
   background:linear-gradient(135deg, var(--green) 0%, var(--green2) 100%);
   -webkit-tap-highlight-color:transparent;
 }
-.square.star::before{
-  content:'';position:absolute;width:7px;height:7px;border-radius:50%;
-  background:rgba(14,28,22,.5);pointer-events:none;z-index:0;
-}
-.square.star:has(.disk.visible)::before{opacity:0}
 .square.last::after{
-  content:'';position:absolute;width:9px;height:9px;border-radius:50%;
-  background:var(--gold);box-shadow:0 0 0 2px rgba(0,0,0,.35), 0 0 8px rgba(232,197,71,.55);
+  content:'';position:absolute;width:8px;height:8px;border-radius:50%;
+  background:var(--gold);box-shadow:0 0 0 2px rgba(0,0,0,.4), 0 0 8px rgba(232,197,71,.55);
   pointer-events:none;z-index:3;
 }
 
@@ -74,8 +69,8 @@ button{font:inherit}
   max-width:14px;max-height:14px;border-radius:50%;opacity:0;
   pointer-events:none;z-index:1;
 }
-.hint.show-b{opacity:1;background:#142820;box-shadow:0 0 0 1.5px rgba(0,0,0,.3)}
-.hint.show-w{opacity:1;background:#e8eee9;box-shadow:0 0 0 1.5px rgba(0,0,0,.28)}
+.hint.show-b{opacity:1;background:#0c1814;box-shadow:0 0 0 2px rgba(0,0,0,.35)}
+.hint.show-w{opacity:1;background:#f2f6f3;box-shadow:0 0 0 2px rgba(0,0,0,.3)}
 
 .disk{
   height:var(--disk-size);width:var(--disk-size);border-radius:50%;
@@ -96,8 +91,8 @@ button{font:inherit}
 .disk.snap{animation:none!important;transition:none!important}
 @keyframes flip{
   0%{transform:scaleX(1)}
-  46%{transform:scaleX(.07)}
-  54%{transform:scaleX(.07)}
+  46%{transform:scaleX(.16)}
+  54%{transform:scaleX(.16)}
   100%{transform:scaleX(1)}
 }
 .disk.flipping{animation:flip .56s ease-in-out}
@@ -150,6 +145,6 @@ button{font:inherit}
 .fqueue{color:var(--muted);font-size:12.5px;text-align:center;min-height:14px;width:100%}
 
 @media (max-width:420px){
-  .hint{min-width:11px;min-height:11px;width:26%;height:26%}
-  .square.last::after{width:10px;height:10px}
+  .hint{min-width:12px;min-height:12px;width:28%;height:28%}
+  .square.last::after{width:9px;height:9px}
 }
