@@ -23,6 +23,15 @@
   var boardEl = document.getElementById('board');
   var scoreRows = document.getElementById('score-rows');
   var tally = document.getElementById('tally');
+  var waitEl = document.getElementById('wait');
+  var outEl = document.getElementById('out');
+  var gateEl = document.getElementById('gate');
+  var endEl = document.getElementById('endcard');
+  var phud = document.getElementById('phud');
+  var phudFuel = document.getElementById('phud-fuel');
+  var phudScore = document.getElementById('phud-score');
+  var portrait = false;
+  var sceneName = 'start';
 
   function persist() {
     persistTimer = null;
@@ -124,9 +133,6 @@
   }
 
   function paintRoster(list) {
-    if (list && list.length > 1 && root.Net) {
-      /* extra ships are in the room */
-    }
     if (!list || list.length < 2) {
       if (boardEl) boardEl.hidden = true;
       if (tally) tally.hidden = true;
@@ -146,6 +152,7 @@
         '<td>' + (p.fuel | 0) + '</td></tr>';
     }
     scoreRows.innerHTML = html;
+    if (showScores && boardEl) boardEl.hidden = false;
   }
 
   function showBoard(on) {
@@ -164,9 +171,59 @@
     if (!app) return;
     var gw = (typeof config !== 'undefined' && config.game && config.game.w) || 960;
     var gh = (typeof config !== 'undefined' && config.game && config.game.h) || 480;
-    var s = Math.min(stage.clientWidth / gw, stage.clientHeight / gh);
+    var vw = stage.clientWidth, vh = stage.clientHeight;
+    portrait = vh > vw * 1.08;
+    document.body.classList.toggle('portrait', portrait);
+    var playing = sceneName === 'play';
+    document.body.classList.toggle('in-play', playing);
+    document.body.classList.toggle('gate-on', portrait && sceneName === 'start');
+    document.body.classList.toggle('end-on', portrait && (sceneName === 'over' || sceneName === 'rank'));
+    if (gateEl) gateEl.hidden = !(portrait && sceneName === 'start');
+    if (endEl) endEl.hidden = !(portrait && (sceneName === 'over' || sceneName === 'rank'));
+    if (phud) phud.hidden = !(portrait && playing);
+    var rotate = portrait && playing;
+    var s = rotate
+      ? Math.min(vh / gw, vw / gh)
+      : Math.min(vw / gw, vh / gh);
     if (!isFinite(s) || s <= 0) s = 1;
-    app.style.transform = 'scale(' + s + ')';
+    app.style.transform = rotate
+      ? 'rotate(-90deg) scale(' + s + ')'
+      : 'scale(' + s + ')';
+  }
+
+  function onScene(name) {
+    sceneName = name || 'start';
+    if (gateEl) gateEl.hidden = !(portrait && sceneName === 'start');
+    if (endEl) endEl.hidden = !(portrait && (sceneName === 'over' || sceneName === 'rank'));
+    if (phud) phud.hidden = !(portrait && sceneName === 'play');
+    fit();
+    if (sceneName === 'over') fillEnd();
+  }
+
+  function fillEnd() {
+    if (!game || !game.data) return;
+    var es = document.getElementById('end-score');
+    var et = document.getElementById('end-time');
+    var en = document.getElementById('end-name');
+    if (es) es.textContent = String(game.data.score | 0);
+    if (et) et.textContent = String(game.data.time | 0);
+    var nameEl = document.getElementById('name');
+    if (en && nameEl && nameEl.value && !en.value) en.value = nameEl.value;
+  }
+
+  function paintHud() {
+    if (!phud || !phudFuel) return;
+    var g = game || (root.__starGame);
+    if (!g || !g.data) return;
+    phudFuel.textContent = String(g.data.fuel | 0);
+    phudScore.textContent = String(g.data.score | 0);
+  }
+
+  function showWait(on) {
+    if (waitEl) waitEl.hidden = !on;
+  }
+  function showOut(on) {
+    if (outEl) outEl.hidden = !on;
   }
 
   function withTimeout(p, ms) {
@@ -186,6 +243,27 @@
     if (tally) {
       tally.addEventListener('click', function () {
         showBoard(!showScores);
+      });
+    }
+    var gateBtn = document.getElementById('gate-start');
+    if (gateBtn) {
+      gateBtn.addEventListener('click', function () {
+        var b = document.getElementById('start-btn');
+        if (b) b.click();
+      });
+    }
+    var endGo = document.getElementById('end-go');
+    if (endGo) {
+      endGo.addEventListener('click', function () {
+        var en = document.getElementById('end-name');
+        var nameEl = document.getElementById('name');
+        if (en && nameEl) {
+          nameEl.value = en.value;
+          nameEl.dispatchEvent(new Event('input'));
+        }
+        var sub = document.getElementById('submit-btn');
+        if (sub && !sub.disabled) sub.click();
+        else if (game && game.rank) game.rank();
       });
     }
     var jobs = [withTimeout(load(), 1500)];
@@ -222,6 +300,12 @@
     showBoard: showBoard,
     showingBoard: function () { return showScores; },
     paintRoster: paintRoster,
+    showWait: showWait,
+    showOut: showOut,
+    onScene: onScene,
+    paintHud: paintHud,
+    portrait: function () { return portrait; },
+    scene: function () { return sceneName; },
     prefs: prefs,
     game: function () { return game; }
   };

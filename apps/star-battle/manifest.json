@@ -3,7 +3,7 @@
   "appId": "star-battle",
   "name": "Star Battle",
   "shortName": "Star Battle",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minBuild": 947,
   "entry": "index.html",
   "accent": [232, 176, 48],

@@ -2,7 +2,8 @@
 
 A side-scrolling space shooter that runs as an ordinary sandboxed GifOS app.
 Solo it is gd4Ark's Star Battle. Send the invite and extra ships appear in
-the same sky.
+the same sky. On a phone the sky turns so you fly toward the top of the
+screen; hold FIRE to keep shooting.
 
 The engine is **[Star Battle](https://github.com/gd4Ark/star-battle)** by
 gd4Ark — MIT, written for the 2017 Abu Dhabi World Skills Competition. This
@@ -22,7 +23,7 @@ boot.js                 localStorage stand-in, asset rewrite, scoreboard
 touch.js                left stick WASD, right FIRE
 net.js                  extra ships — presence, hit claims, the scoreboard
 wrap.js                 hangs the above on the original prototypes
-icon.mjs                procedural saucers icon and the 1200×720 cover
+icon.mjs                firing-chick icon; cover composites the real sprites
 build.mjs               packs site/apps/star-battle/star-battle.gif
 ```
 

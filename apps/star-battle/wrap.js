@@ -70,10 +70,17 @@
 
     var origPC = Play.prototype.playerCollision;
     Play.prototype.playerCollision = function (el, callback) {
-      origPC.call(this, el, callback);
-      if (isGuest() && el && !el.run && el._eid != null && root.Net) {
-        Net.claim(el._eid);
+      if (isGuest() && el && el._remote) {
+        var self = this;
+        this.collision(this.player, el, function () {
+          if (el._hitMe) return;
+          el._hitMe = true;
+          if (root.Net && el._eid != null) Net.claim(el._eid);
+          callback(el);
+        });
+        return;
       }
+      origPC.call(this, el, callback);
     };
 
     var origInitPlayer = Play.prototype.initPlayer;
@@ -89,21 +96,31 @@
       }
     };
 
+    var origToggle = Game.prototype.toggleScene;
+    Game.prototype.toggleScene = function (scene) {
+      origToggle.call(this, scene);
+      if (root.Boot && Boot.onScene) Boot.onScene(scene);
+    };
+
     var origSetup = Play.prototype.setup;
     Play.prototype.setup = function () {
       nextEid = 1;
       origSetup.call(this);
+      if (root.Boot && Boot.showOut) Boot.showOut(false);
       if (root.Boot && Boot.prefs.mute) this.mute();
       if (root.Net) {
         Net.setPlaying(true);
         if (isGuest()) Net.importWorld(this);
       }
+      if (root.Boot && Boot.fit) Boot.fit();
+      if (root.Boot && Boot.portrait && Boot.portrait() && root.Touch && Touch.reveal) Touch.reveal();
     };
 
     var origUn = Play.prototype.uninstall;
     Play.prototype.uninstall = function () {
       origUn.call(this);
       if (root.Net) Net.setPlaying(false);
+      if (root.Boot && Boot.fit) Boot.fit();
     };
 
     var origEvent = Play.prototype.event;
@@ -114,6 +131,32 @@
       }, true);
     };
 
+    var origOver = Game.prototype.over;
+    Game.prototype.over = function () {
+      if (root.Net && Net.live() && Net.owner() && this.scene === this.scenes.play) {
+        var n = Net.othersPlaying ? Net.othersPlaying() : 0;
+        if (n > 0) {
+          this.data.end = true;
+          if (this.scenes.play.player) this.scenes.play.player.run = false;
+          if (root.Boot && Boot.showOut) Boot.showOut(true);
+          if (root.Net) Net.setPlaying(true);
+          return;
+        }
+      }
+      origOver.call(this);
+    };
+
+    var origUF = Play.prototype.updateFuel;
+    Play.prototype.updateFuel = function (num) {
+      if (this.game.data.end && root.Net && Net.owner && Net.owner() && Net.othersPlaying && Net.othersPlaying() > 0) {
+        this.game.data.fuel = 0;
+        var fuelEl = document.getElementById('fuel');
+        if (fuelEl) fuelEl.innerHTML = (typeof numberFormat === 'function') ? numberFormat(0) : '00';
+        return;
+      }
+      origUF.call(this, num);
+    };
+
     var origUpdate = Play.prototype.update;
     Play.prototype.update = function () {
       if (isGuest()) Net.importWorld(this);
@@ -122,7 +165,11 @@
         Net.tick();
         Net.drawShips(this.ctx, this);
         if (root.Boot && Boot.paintRoster) Boot.paintRoster(Net.roster());
+        if (root.Boot && Boot.showWait) {
+          Boot.showWait(isGuest() && !Net.hasWorld());
+        }
       }
+      if (root.Boot && Boot.paintHud) Boot.paintHud();
     };
 
     var origMute = Play.prototype.mute;

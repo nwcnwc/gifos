@@ -97,6 +97,7 @@ for (const s of [...OURS, ...VENDOR]) {
 }
 if (!html.includes('href="style.css"')) throw new Error('index.html does not load style.css');
 if (!html.includes('id="touch"')) throw new Error('index.html is missing the touch overlay');
+if (!html.includes('id="gate"')) throw new Error('index.html is missing the portrait start gate');
 if (/type=["']module["']/.test(html)) throw new Error('classic scripts only — no type=module');
 if (html.includes('vendor/js/main.js')) {
   throw new Error('do not load vendor/js/main.js — boot.js starts the Game');

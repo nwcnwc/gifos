@@ -16,13 +16,15 @@
   var active = false;
   var move = { id: null, x: 0, y: 0 };
   var held = { W: false, A: false, S: false, D: false };
+  var fireTimer = null;
 
   function capture(node, id) { try { node.setPointerCapture(id); } catch (e) {} }
 
   function send(key, down) {
+    var code = key === ' ' ? 'Space' : 'Key' + String(key).toUpperCase();
     try {
       window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', {
-        key: key, bubbles: true, cancelable: true
+        key: key, code: code, bubbles: true, cancelable: true
       }));
     } catch (e) {}
   }
@@ -34,10 +36,32 @@
   }
 
   function applyStick() {
-    setHeld('W', move.y < -DEAD);
-    setHeld('S', move.y > DEAD);
-    setHeld('A', move.x < -DEAD);
-    setHeld('D', move.x > DEAD);
+    var portrait = !!(root.Boot && Boot.portrait && Boot.portrait());
+    if (portrait) {
+      /* game is rotated −90°: screen-up is game-right (toward the wave) */
+      setHeld('D', move.y < -DEAD);
+      setHeld('A', move.y > DEAD);
+      setHeld('W', move.x < -DEAD);
+      setHeld('S', move.x > DEAD);
+    } else {
+      setHeld('W', move.y < -DEAD);
+      setHeld('S', move.y > DEAD);
+      setHeld('A', move.x < -DEAD);
+      setHeld('D', move.x > DEAD);
+    }
+  }
+
+  function startFire() {
+    send(' ', true);
+    if (fireTimer) clearInterval(fireTimer);
+    fireTimer = setInterval(function () {
+      send(' ', false);
+      send(' ', true);
+    }, 90);
+  }
+  function stopFire() {
+    if (fireTimer) { clearInterval(fireTimer); fireTimer = null; }
+    send(' ', false);
   }
 
   function stickFrom(node, e) {
@@ -88,45 +112,64 @@
 
   function bindFire(node) {
     var down = function (e) {
+      if (e.pointerType === 'mouse') return;
       e.preventDefault();
       try { node.setPointerCapture(e.pointerId); } catch (err) {}
       node.classList.add('on');
-      send(' ', true);
+      startFire();
     };
     var up = function (e) {
       e.preventDefault();
       node.classList.remove('on');
-      send(' ', false);
+      stopFire();
     };
     node.addEventListener('pointerdown', down);
     node.addEventListener('pointerup', up);
     node.addEventListener('pointercancel', up);
     node.addEventListener('lostpointercapture', function () {
       node.classList.remove('on');
-      send(' ', false);
+      stopFire();
     });
+  }
+
+  function bindPause(node) {
+    node.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse') return;
+      e.preventDefault();
+      send('p', true);
+    });
+    node.addEventListener('pointerup', function (e) {
+      e.preventDefault();
+      send('p', false);
+    });
+  }
+
+  var wrapEl = null;
+  function reveal() {
+    if (active || !wrapEl) return;
+    active = true;
+    document.body.classList.add('touch');
+    wrapEl.hidden = false;
+    removeEventListener('touchstart', reveal);
   }
 
   function init() {
     var wrap = document.getElementById('touch');
+    wrapEl = wrap;
     if (!wrap) return { isTouch: function () { return active; } };
 
-    var reveal = function () {
-      if (active) return;
-      active = true;
-      document.body.classList.add('touch');
-      wrap.hidden = false;
-      removeEventListener('touchstart', reveal);
-    };
     addEventListener('touchstart', reveal, { passive: true });
+    if (window.matchMedia && matchMedia('(pointer: coarse)').matches) reveal();
 
     var stick = document.getElementById('t-move');
     if (stick) bindStick(stick);
     var fire = wrap.querySelector('[data-key]');
     if (fire) bindFire(fire);
+    var pause = wrap.querySelector('[data-act="pause"]');
+    if (pause) bindPause(pause);
     wrap.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     return { isTouch: function () { return active; } };
   }
 
-  root.Touch = { init: init, isTouch: function () { return active; } };
+  root.Touch = { init: init, isTouch: function () { return active; }, reveal: reveal };
 })(window);
