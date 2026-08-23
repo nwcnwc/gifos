@@ -1,0 +1,27 @@
+vendor/ai.js is stroibot's Checkers AI, transcribed from scripts/AI.js
+to a classic script wrapped against board.js (the GifOS runtime drops
+type=module). Do not "improve" the search — the computer is the one that
+shipped with Checkers: a random legal move, kings preferred half the
+time, captures when the rules demand them.
+
+upstream: https://github.com/stroibot/Checkers
+commit:   1d0ba0ca0394fdee49a5ba08d7224b30c6cfa524
+date:     2018-03-24
+license:  MIT (COPYING-checkers.txt)
+
+Pinned files transcribed:
+  scripts/Board.js     → board.js (10×10, place, jump, king)
+  scripts/Checker.js   → board.js (men forward, must jump, crown)
+  scripts/Tile.js      → board.js (diagonal step / jump range)
+  scripts/AI.js        → vendor/ai.js (random legal, king 50%)
+  scripts/GameManager.js → board.js (white to move, win if none left
+                           or the other side cannot move)
+
+NOT copied:
+  images/background.png, images/favicon.ico
+  styles/main.css            — rewritten for a phone
+  scripts/DrawManager.js     — DOM board rewritten
+  scripts/ButtonController.js, Message.js, Logger.js, index.js
+  emoji-css from afeld       — a crown is a CSS glyph, no CDN
+
+The MIT notice travels INSIDE the GIF as COPYING-checkers.txt as well as here.
