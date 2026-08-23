@@ -6,7 +6,7 @@
  * subset: headings, paragraphs, lists, bold/italic, inline code, fenced
  * blocks, https links. HTML in the file is escaped, never executed.
  *
- * Attaches to GifOS.help = { read, render, parse }.
+ * Attaches to GifOS.help = { read, render, parse, withOsFooter }.
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
@@ -148,5 +148,28 @@
     return { title: '', html: render(text) };
   }
 
-  GifOS.help = { read, render, parse };
+  // Appended to EVERY Help screen — the bar above the app, plus a remix
+  // plug. Apps write how THEY work; the OS writes how GifOS apps work.
+  const OS_FOOTER = [
+    '## Using a GifOS app',
+    '',
+    '- **Invite** — share this app live. Friends open one link and everyone uses the same app together.',
+    '- **Save** — download a snapshot GIF: the app plus whatever it has saved, yours to keep.',
+    '- **Steal** — if you joined someone else, copy the app onto your desktop (with their data, as they joined, or clean).',
+    '- The chip is **Abilities** — what this app may do on this device. Tap to review or turn things off.',
+    '',
+    '## Make it yours',
+    '',
+    'Every GifOS app is a GIF you can remix. **Save** that GIF, drop it into your favorite AI chat, and ask it to change the game — a dark mode, bigger buttons, a new rule, whatever you want. Add the GIF it gives you back to your Home Screen and play your remixed version. You do not need to know how to code. This is how GifOS apps get better: you make the next one.',
+  ].join('\n');
+
+  const EMPTY_INTRO = '# Help\n\nThis app did not ship its own Help page.';
+
+  function withOsFooter(md) {
+    const body = String(md || '').replace(/^\uFEFF/, '').replace(/\s+$/, '');
+    if (!body) return EMPTY_INTRO + '\n\n' + OS_FOOTER;
+    return body + '\n\n---\n\n' + OS_FOOTER;
+  }
+
+  GifOS.help = { read, render, parse, withOsFooter };
 })(typeof window !== 'undefined' ? window : globalThis);
