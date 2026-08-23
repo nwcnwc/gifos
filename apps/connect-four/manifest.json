@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "connect-four",
+  "name": "Connect Four",
+  "shortName": "C4",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [239, 69, 59],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

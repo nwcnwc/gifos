@@ -1,0 +1,20 @@
+vendor/ai.js is kenrick95's Connect Four AI, transcribed from TypeScript
+to a classic script (the GifOS runtime drops type=module). Do not "improve"
+the search — the computer is the one that shipped with c4.
+
+upstream: https://github.com/kenrick95/c4
+commit:   4e5a7768edeb373c95a5bf684271f109062c8e8a
+date:     2026-08-12
+license:  MIT (COPYING-c4.txt)
+
+Pinned files transcribed:
+  core/src/player/player-ai.ts   → vendor/ai.js (minimax + alpha-beta, depth 4)
+  core/src/utils.ts              → clone / choose / getMockPlayerAction in board.js
+  core/src/board/base.ts         → board.js (6×7, drop, four in a line)
+
+NOT copied:
+  browser/                       — Vite + type=module UI; rewritten for GifOS
+  server/                        — their game server; we have no game server
+  core/src/game/game-online/*    — same reason
+
+The MIT notice travels INSIDE the GIF as COPYING-c4.txt as well as here.
