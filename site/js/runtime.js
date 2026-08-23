@@ -636,7 +636,7 @@
   // encode (procedural preview) when the originals aren't available.
   function packSnapshot(originalBytes, files, manifest, state) {
     const out = {};
-    for (const p in files) if (!p.startsWith('.state/')) out[p] = files[p];
+    for (const p in files) if (!p.startsWith('.state/') && !p.startsWith('.lock/')) out[p] = files[p];
     out['.state/db.json'] = gif.textToBytes(store.packJSON(state)); // binary-safe: keeps media blobs intact
     return originalBytes && gif.repack
       ? gif.repack(originalBytes, out)
@@ -656,7 +656,10 @@
   // Strip any baked-in .state/ so a copy opens FRESH (app only, no data).
   function stripState(originalBytes, files) {
     const clean = {}; let hadState = false;
-    for (const p in files) { if (p.startsWith('.state/')) hadState = true; else clean[p] = files[p]; }
+    for (const p in files) {
+      if (p.startsWith('.state/') || p.startsWith('.lock/')) hadState = true;
+      else clean[p] = files[p];
+    }
     return (hadState && gif.repack) ? gif.repack(originalBytes, clean) : Promise.resolve(originalBytes);
   }
   // Unified "steal". The app bytes were already transported/read ONCE (they live
@@ -2780,13 +2783,31 @@
   function boot(mountEl, fileId, statusEl, launch) {
     const setStatus = (m) => { if (statusEl) statusEl.textContent = m; };
     const noop = { save: () => Promise.resolve(null), becomeHost: () => Promise.reject(new Error('nothing running')) };
-    return store.getFile(fileId).then((rec) => {
+    const lock = GifOS.lock;
+    return Promise.all([store.getFile(fileId), store.allItems()]).then(([rec, all]) => {
       if (!rec) { setStatus('File not found on this desktop.'); return noop; }
+      const item = lock ? lock.itemOfFile(all, fileId) : null;
+      const lockKey = (lock && lock.session.get(fileId)) || null;
       const appBytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
-      return gif.decode(appBytes).then((archive) => bootDecoded(archive, appBytes, rec));
+      return Promise.all([gif.decode(appBytes), store.getState(fileId)]).then(([archive, st]) => {
+        const locked = !!(lock && (lock.isLockedItem(item) || lock.isSealed(st)));
+        if (locked && !lockKey) {
+          setStatus('This app is passkey-locked on this device. Unlock it with your passkey to open.');
+          return noop;
+        }
+        const go = (arch) => {
+          if (!lockKey) return bootDecoded(arch, appBytes, rec, null, null);
+          const opened = (st && lock.isSealed(st)) ? lock.openState(st, lockKey) : Promise.resolve(st && st.collections ? st : { collections: {} });
+          return opened.then((initial) => bootDecoded(arch, appBytes, rec, lockKey, initial || { collections: {} }));
+        };
+        if (lockKey && archive && lock.isWrappedFiles(archive.files)) {
+          return lock.unwrapGif(appBytes, lockKey).then((o) => go({ files: o.files }));
+        }
+        return go(archive);
+      });
     });
 
-    function bootDecoded(archive, appBytes, rec) {
+    function bootDecoded(archive, appBytes, rec, lockKey, lockState) {
       if (!archive) { setStatus('Not a GifOS app — nothing to run.'); return noop; }
       const files = archive.files;
       const manifest = gif.readManifest(archive) || { name: rec.name || 'App' };
@@ -2827,7 +2848,9 @@
         if (hostApi) hostApi.sendToAll({ t: 'db-change', collection });
         if (stageOnChange) { try { stageOnChange(collection); } catch (e) { /* bus torn down */ } }
       };
-      const db = makeLocalDb(fileId, emit);
+      const db = (lockKey && GifOS.lock)
+        ? GifOS.lock.makeDb(fileId, lockKey, emit, lockState || { collections: {} })
+        : makeLocalDb(fileId, emit);
       const netPolicy = makeNetPolicy(fileId, manifest);
 
       // ---- invite-link lifetime & resilience ------------------------------
@@ -2881,6 +2904,9 @@
       }
 
       function becomeHost(opts) {
+        if (lockKey) {
+          return Promise.reject(new Error('This app is passkey-locked. Other devices do not have your passkey, so it cannot be shared live.'));
+        }
         opts = opts || {};
         const relay = relayUrl();
         if (!relay) return Promise.reject(new Error('No relay configured (set window.GIFOS_RELAY).'));
@@ -3107,6 +3133,9 @@
 
       return db.load().then((state) => {
         // First run of a snapshot GIF: hydrate the icon's DB from embedded state.
+        // A locked launch already unwrapped private data into makeDb; do not
+        // import leftover clear .state (there should not be any).
+        if (lockKey) return;
         if (isEmptyState(state) && files['.state/db.json']) {
           try {
             const embedded = store.unpackJSON(gif.bytesToText(files['.state/db.json']));

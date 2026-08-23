@@ -282,6 +282,15 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
 }
 .idbadge .ver { color: #57ccff; font-weight: 800; }
 
+/* Passkey lock: the icon still plays; this says Open will ask. Top-right so
+   it does not sit on the signature shield (bottom-right) or NEW (bottom-left). */
+.lock-badge {
+  position: absolute; right: -4px; top: -4px; pointer-events: none;
+  width: 1.05rem; height: 1.05rem; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: .62rem; line-height: 1;
+  color: #fff; background: #3d3d55; border: 2px solid var(--bg);
+}
+
 /* context menu */
 .ctx {
   position: absolute; z-index: 20; background: var(--surface); border: 1px solid var(--border);

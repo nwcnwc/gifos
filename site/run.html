@@ -1435,6 +1435,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-assets.js"></script>
   <script src="js/gifos-store.js"></script>
+  <script src="js/gifos-lock.js"></script>
   <script src="js/gifos-net.js"></script>
   <script src="js/mesh.js"></script>
   <script src="js/mesh-identity.js"></script>
@@ -7064,20 +7065,31 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         if (!rec) throw new Error('file not found on this desktop');
         const nm = (rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         document.title = nm + ' — GifOS';
-        showAppPane(nm, 'on this device');
-        setAppGif(rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes), nm);
-        const inv = document.getElementById('appinvite');
-        // THE deferred preflight gate (see the top of this file): a solo app
-        // never saw the too-old wall at load, so the Share-live button — the
-        // solo entry's first and only network act — is where a browser that
-        // cannot meet finds out, over a still-working app.
-        inv.style.display = '';
-        inv.onclick = () => {
-          const P = window.GifOSPreflight;
-          if (P && typeof P.requireMeeting === 'function') P.requireMeeting(inviteFromSolo);
-          else inviteFromSolo();
+        const mount = () => {
+          showAppPane(nm, 'on this device');
+          setAppGif(rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes), nm);
+          const inv = document.getElementById('appinvite');
+          // THE deferred preflight gate (see the top of this file): a solo app
+          // never saw the too-old wall at load, so the Share-live button — the
+          // solo entry's first and only network act — is where a browser that
+          // cannot meet finds out, over a still-working app.
+          inv.style.display = '';
+          inv.onclick = () => {
+            const P = window.GifOSPreflight;
+            if (P && typeof P.requireMeeting === 'function') P.requireMeeting(inviteFromSolo);
+            else inviteFromSolo();
+          };
+          return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl, ROOM.solo ? LAUNCH : null).then((ctl) => { soloCtl = ctl; });
         };
-        return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl, ROOM.solo ? LAUNCH : null).then((ctl) => { soloCtl = ctl; });
+        // Passkey lock: GifOS sheet, then WebAuthn, then unwrap — all in OS
+        // chrome, before makeIframe. Cancel does not mount the sandbox.
+        if (GifOS.lock) {
+          return GifOS.lock.gateOpen(ROOM.fileId, nm).then((ok) => {
+            if (!ok) { setStatus('Cancelled — this app is passkey-locked.'); return; }
+            return mount();
+          });
+        }
+        return mount();
       }).catch((e) => setStatus('Could not open the app: ' + (e && e.message || e)));
     }
 
@@ -7126,7 +7138,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // room's lane. The owned/resilient choice IS the succession class:
     // owned rooms freeze when the owner leaves; resilient rooms heal.
     function inviteFromSolo() {
-      GifOS.store.getFile(ROOM.fileId).then((rec) => {
+      GifOS.store.allItems().then((all) => {
+        const it = GifOS.lock && GifOS.lock.itemOfFile(all, ROOM.fileId);
+        if (it && GifOS.lock.isLockedItem(it)) {
+          setStatus('This app is passkey-locked. Other devices do not have your passkey, so it cannot be shared live.');
+          return;
+        }
+        return GifOS.store.getFile(ROOM.fileId);
+      }).then((rec) => {
+        if (!rec) return;
         const nm = ((rec && rec.name) || 'App').replace(/\.gif$/i, '');
         const bg = document.createElement('div'); bg.className = 'name-modal';
         bg.innerHTML = '<div class="name-box" style="max-width:440px;text-align:left"><h3>Share ' + esc(nm) + ' live</h3>' +
@@ -12095,6 +12115,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     async function runApp(fileId, name) {
       if (!window.GifOS || !GifOS.runtime || !GifOS.store) return;
       if (!canIRunApp()) { setStatus('🛡 Only this room\u2019s admins — or people they allow — can run an app here.'); return; }
+      if (GifOS.lock) {
+        const all = await GifOS.store.allItems();
+        const it = GifOS.lock.itemOfFile(all, fileId);
+        if (GifOS.lock.isLockedItem(it)) {
+          setStatus('This app is passkey-locked. Other people in the meeting cannot unlock it, so it cannot be shared live.');
+          return;
+        }
+      }
       appBooting = true;
       appEv('runApp', { fid: String(fileId).slice(0, 12) });
       try {
