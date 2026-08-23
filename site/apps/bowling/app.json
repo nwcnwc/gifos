@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "bowling",
+  "appId": "bowling",
+  "name": "Bowling",
+  "shortName": "Bowl",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Ten pins at the end of the lane. Aim, flick, take turns.",
+  "description": "A bowling alley. Ten pins stand in a triangle, a red ball at your end. Slide the ball left or right to line it up, then flick up the lane to throw. Knock them all on the first ball and that is a strike. Leave a few and pick them up for a spare. Ten frames, and the score adds itself.\n\nOn your own you bowl a full game. Two of you can pass the same screen. Or press Invite and a friend takes the next turn on their own phone or computer — there is no game server, no account, and no lobby. The room is the link. Each person keeps their own score.\n\nAn unofficial port of bowling by tincoats. This copy adds a score sheet, and a friend on a second device.",
+  "author": {
+    "name": "tincoats",
+    "url": "https://github.com/tincoats/bowling"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "bowling",
+    "alley",
+    "sports",
+    "multiplayer",
+    "classic"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/bowling",
+  "accent": [
+    196,
+    56,
+    40
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/bowling/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/bowling/bowling.gif",
+  "bytes": 198070,
+  "download": 0,
+  "provides": null,
+  "sha256": "f4ac0f298e63fb6652eb1548d7ed4900337e0374759023cbf0afd5c620e13ecf",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "bowling",
+    "url": "https://github.com/tincoats/bowling",
+    "blessed": false
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "star-battle",
+  "appId": "star-battle",
+  "name": "Star Battle",
+  "shortName": "Star Battle",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "A yellow saucer, a dark sky, and whatever is coming in from the right.",
+  "description": "You fly a little yellow ship across a field of stars. Red saucers come in from the right. Rocks take two hits. Friends look like you — do not shoot them. Fuel leaks away one point a second; catch a falling bottle or the run is over. Negative scores are allowed. That is the whole game.\n\nOn a phone the stick is under your left thumb and fire is under your right. On a computer it is W A S D and the space bar, the way it always was. P pauses. M mutes.\n\nSend the invite and extra ships appear in the same sky, each person flying their own. Everyone is shooting the same wave. There is no lobby and no account. The room is the link.\n\nAn unofficial port of Star Battle by gd4Ark, MIT-licensed. This copy adds the extra ships over a meeting.",
+  "author": {
+    "name": "gd4Ark",
+    "url": "https://github.com/gd4Ark/star-battle"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "shmup",
+    "arcade",
+    "space",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/star-battle",
+  "accent": [
+    232,
+    176,
+    48
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/star-battle/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/star-battle/star-battle.gif",
+  "bytes": 791500,
+  "download": 0,
+  "provides": null,
+  "sha256": "591891f7e3661712729b2fbd2e5a3903c990413af6844c1d07fdb47434a60a4e",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Star Battle",
+    "url": "https://github.com/gd4Ark/star-battle",
+    "blessed": false
+  }
+}

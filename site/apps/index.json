@@ -60,6 +60,54 @@
       "sha256": "8ad64775a9679455cfd241c7566494cbc6e02647e24902b326818893b25a4fb5"
     },
     {
+      "slug": "air-hockey",
+      "appId": "air-hockey",
+      "name": "Air Hockey",
+      "shortName": "Air Hockey",
+      "version": "1.0.0",
+      "tagline": "Two paddles on the ice. Drag yours. A friend takes the other end.",
+      "author": {
+        "name": "MortimerGoro",
+        "url": "https://github.com/MortimerGoro/AirHockeyWebGL"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "AirHockeyWebGL",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "air-hockey",
+        "hockey",
+        "arcade",
+        "multiplayer",
+        "table"
+      ],
+      "accent": [
+        32,
+        168,
+        196
+      ],
+      "cover": "/apps/air-hockey/cover.jpg",
+      "bytes": 1467523,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "3bfeb7253db254a37f4aa0b768985835f647139d0a9c417a21a5e8fff5e85f72"
+    },
+    {
       "slug": "anyroad",
       "appId": "anyroad",
       "name": "Anyroad",
@@ -250,6 +298,103 @@
         "ts": "2026-08-23"
       },
       "sha256": "273c25ef662d9b1d51eb4e7ae4742a7e9f30c6b5a82728ee88f9a076b1f79401"
+    },
+    {
+      "slug": "besogo",
+      "appId": "besogo",
+      "name": "BesoGo",
+      "shortName": "BesoGo",
+      "version": "1.0",
+      "tagline": "A Go board. Two seats. Tap to place a stone.",
+      "author": {
+        "name": "yewang",
+        "url": "https://github.com/yewang/besogo"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "BesoGo",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "go",
+        "weiqi",
+        "baduk",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        196,
+        140,
+        70
+      ],
+      "cover": "/apps/besogo/cover.jpg",
+      "bytes": 218624,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "629d34e046779ac1474b44223fedb4761c1485bb3e03fb830a5e98804cb92f11"
+    },
+    {
+      "slug": "bowling",
+      "appId": "bowling",
+      "name": "Bowling",
+      "shortName": "Bowl",
+      "version": "1.0.0",
+      "tagline": "Ten pins at the end of the lane. Aim, flick, take turns.",
+      "author": {
+        "name": "tincoats",
+        "url": "https://github.com/tincoats/bowling"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "bowling",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "bowling",
+        "alley",
+        "sports",
+        "multiplayer",
+        "classic"
+      ],
+      "accent": [
+        196,
+        56,
+        40
+      ],
+      "cover": "/apps/bowling/cover.jpg",
+      "bytes": 198070,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "f4ac0f298e63fb6652eb1548d7ed4900337e0374759023cbf0afd5c620e13ecf"
     },
     {
       "slug": "catch-the-cat",
@@ -538,6 +683,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "d11797be2b64cfce0b57c03debad7b0a34604b2afcd2381134df7627a10f5596"
+    },
+    {
+      "slug": "drawphone",
+      "appId": "drawphone",
+      "name": "Drawphone",
+      "shortName": "Drawphone",
+      "version": "1.0",
+      "tagline": "Draw a word, pass it on, guess what they drew. Telephone with pictures.",
+      "author": {
+        "name": "tannerkrewson",
+        "url": "https://github.com/tannerkrewson/drawphone"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Drawphone",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "telephone",
+        "drawing",
+        "party",
+        "multiplayer",
+        "pictionary"
+      ],
+      "accent": [
+        232,
+        92,
+        64
+      ],
+      "cover": "/apps/drawphone/cover.jpg",
+      "bytes": 197373,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "669f9e9ece520207b9b2c72ebe4ce8d5a766217a7a75f9f8aeed2f31a444e347"
     },
     {
       "slug": "emoji-minesweeper",
@@ -1264,6 +1457,54 @@
       "sha256": "52c6896ceee20c810d994e73994467fe706607e6350fd1d100c59aa537f7b0e1"
     },
     {
+      "slug": "longwave",
+      "appId": "longwave",
+      "name": "Longwave",
+      "shortName": "Longwave",
+      "version": "1.0",
+      "tagline": "A needle on a spectrum. One of you hints. The other finds the mark.",
+      "author": {
+        "name": "cynicaloptimist",
+        "url": "https://github.com/cynicaloptimist/longwave"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Longwave",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "spectrum",
+        "party",
+        "clue",
+        "needle",
+        "multiplayer"
+      ],
+      "accent": [
+        118,
+        86,
+        214
+      ],
+      "cover": "/apps/longwave/cover.jpg",
+      "bytes": 197515,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "a6136b504be11c781c4828548ece5b3321d7a16f4e8c2e7bedc8ba2691d28a65"
+    },
+    {
       "slug": "nxn-cube",
       "appId": "nxn-cube",
       "name": "NxN Cube",
@@ -1597,6 +1838,56 @@
       "sha256": "86685f6fd31c0c0d6220eae8dd0310525f57a9ffeacd8f91e612705ed15bde70"
     },
     {
+      "slug": "particle-life",
+      "appId": "particle-life",
+      "name": "Particle Life",
+      "shortName": "Life",
+      "version": "1.0.0",
+      "tagline": "Coloured specks that clump into little creatures. Touch to stir. Share the jar.",
+      "author": {
+        "name": "hunar4321",
+        "url": "https://github.com/hunar4321/particle-life"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Particle Life",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Creativity",
+        "Games"
+      ],
+      "tags": [
+        "particles",
+        "life",
+        "colours",
+        "toy",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        0,
+        196,
+        204
+      ],
+      "cover": "/apps/particle-life/cover.jpg",
+      "bytes": 190454,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "cc5970a0d60cde824b66d26f10dde445b05a23e210c38aca0c6ba2ffd67500f6"
+    },
+    {
       "slug": "pdf-tables",
       "appId": "pdf-tables",
       "name": "PDF Tables → Excel",
@@ -1738,6 +2029,57 @@
       "sha256": "4d742273eb25202f51903223b54c030580f9e99b56115dc08e077f3010fd8968"
     },
     {
+      "slug": "pixel-paint",
+      "appId": "pixel-paint",
+      "name": "Pixel Paint",
+      "shortName": "Pixel Paint",
+      "version": "1.0",
+      "tagline": "A tiny 32×32 pixel canvas. Draw a sprite. Draw together.",
+      "author": {
+        "name": "Kully",
+        "url": "https://github.com/Kully/pixel-paint"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Pixel Paint",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "pixel",
+        "paint",
+        "sprite",
+        "pixel-art",
+        "canvas",
+        "drawing",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        60,
+        188,
+        252
+      ],
+      "cover": "/apps/pixel-paint/cover.jpg",
+      "bytes": 211386,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "dae3883d6c657d62ebb31bcf81b0580e96ea914b880304aced8678f2dc195001"
+    },
+    {
       "slug": "pong",
       "appId": "pong",
       "name": "Pong",
@@ -1832,6 +2174,56 @@
         "ts": "2026-08-23"
       },
       "sha256": "1a737be394a8aeadda96c0c58c485b09c073c84e30b3909121e058af64e0f6ed"
+    },
+    {
+      "slug": "q1k3",
+      "appId": "q1k3",
+      "name": "Q1K3",
+      "shortName": "Q1K3",
+      "version": "1.0.0",
+      "tagline": "A shotgun, two torch-lit halls, and whoever you send the link to.",
+      "author": {
+        "name": "phoboslab",
+        "url": "https://github.com/phoboslab"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Q1K3",
+        "blessed": false
+      },
+      "minBuild": 1314,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "quake",
+        "fps",
+        "shooter",
+        "3d",
+        "js13k",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        196,
+        92,
+        36
+      ],
+      "cover": "/apps/q1k3/cover.jpg",
+      "bytes": 231901,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "16fa72ad3bfd0bf4759917d4b95e45f71580af053e6f14864612a97be0e741b0"
     },
     {
       "slug": "racer",
@@ -1984,6 +2376,103 @@
       "sha256": "060efc566416f285d9c6d0424b47f53d3742af5e1ac48fe4c1e02bea7ad74968"
     },
     {
+      "slug": "reversi",
+      "appId": "reversi",
+      "name": "Reversi",
+      "shortName": "Reversi",
+      "version": "1.0",
+      "tagline": "Flip the disks. Get more of your colour. Play the computer, or a friend on the other side.",
+      "author": {
+        "name": "alex-berson",
+        "url": "https://github.com/alex-berson/reversi"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Reversi",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "reversi",
+        "othello",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        58,
+        134,
+        100
+      ],
+      "cover": "/apps/reversi/cover.jpg",
+      "bytes": 194509,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "f5b017de78579a2e6406f4ace5bb6750039f7663ee7fc18e4188234be0b93d7c"
+    },
+    {
+      "slug": "skifree",
+      "appId": "skifree",
+      "name": "SkiFree",
+      "shortName": "Ski",
+      "version": "1.0",
+      "tagline": "Point down the mountain. Dodge the trees. Race a ghost of whoever you send the link to.",
+      "author": {
+        "name": "basicallydan",
+        "url": "https://github.com/basicallydan/skifree.js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "SkiFree.js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "ski",
+        "arcade",
+        "yeti",
+        "multiplayer",
+        "touch",
+        "offline"
+      ],
+      "accent": [
+        40,
+        132,
+        196
+      ],
+      "cover": "/apps/skifree/cover.jpg",
+      "bytes": 209203,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "4c061e54109a675e184d1b1a0485e45a548e7a65e840b486b5ceac4edff56abd"
+    },
+    {
       "slug": "snake",
       "appId": "snake",
       "name": "Snake",
@@ -2075,6 +2564,54 @@
       "sha256": "ff035c800e271a4c258a8f7707ff5dcf453aac8c152b12fa005d81384d289da6"
     },
     {
+      "slug": "spyfall",
+      "appId": "spyfall",
+      "name": "Spyfall",
+      "shortName": "Spyfall",
+      "version": "1.0",
+      "tagline": "One of you is the spy. The rest of you are at a place. Ask questions.",
+      "author": {
+        "name": "tannerkrewson",
+        "url": "https://github.com/tannerkrewson/spyfall"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Spyfall",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "spyfall",
+        "party",
+        "spy",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        196,
+        40,
+        48
+      ],
+      "cover": "/apps/spyfall/cover.jpg",
+      "bytes": 195173,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "f5968dbeb989720e2ec75f4d67209b266b0aecab88f6c6daaf85bb448854db90"
+    },
+    {
       "slug": "squoosh",
       "appId": "squoosh",
       "name": "Squoosh",
@@ -2128,6 +2665,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "4108bfd6a1ced2de496fe9e842ddc58e779fd9eba49854b0942ae17739b050f0"
+    },
+    {
+      "slug": "star-battle",
+      "appId": "star-battle",
+      "name": "Star Battle",
+      "shortName": "Star Battle",
+      "version": "1.0.0",
+      "tagline": "A yellow saucer, a dark sky, and whatever is coming in from the right.",
+      "author": {
+        "name": "gd4Ark",
+        "url": "https://github.com/gd4Ark/star-battle"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Star Battle",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "shmup",
+        "arcade",
+        "space",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        232,
+        176,
+        48
+      ],
+      "cover": "/apps/star-battle/cover.jpg",
+      "bytes": 791500,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "591891f7e3661712729b2fbd2e5a3903c990413af6844c1d07fdb47434a60a4e"
     },
     {
       "slug": "tesseract",
@@ -2277,6 +2862,54 @@
       "sha256": "cb29a9546c9cbcd2036e8ed0b90dc461e0e0103bfb87e3d62f3770c715bbb386"
     },
     {
+      "slug": "tower-defense",
+      "appId": "tower-defense",
+      "name": "Tower Defense",
+      "shortName": "TD",
+      "version": "1.0",
+      "tagline": "Pick a tower, tap a square. Don't let them through.",
+      "author": {
+        "name": "oldj",
+        "url": "https://github.com/oldj/html5-tower-defense"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "HTML5 Tower Defense",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "tower",
+        "defense",
+        "map",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        26,
+        116,
+        186
+      ],
+      "cover": "/apps/tower-defense/cover.jpg",
+      "bytes": 228852,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "e8b027f2eac7dfc854ba58e3fa5f484c534edd141c976506293add23aa24eed3"
+    },
+    {
       "slug": "tower-game",
       "appId": "tower-game",
       "name": "Tower Game",
@@ -2323,6 +2956,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "b7619f52824763c57a2d3304b01c19e8f00c064ce43ddf652d7f77d0a4226691"
+    },
+    {
+      "slug": "underrun",
+      "appId": "underrun",
+      "name": "Underrun",
+      "shortName": "Underrun",
+      "version": "1.0.0",
+      "tagline": "A dark corridor, a handful of dead computers, and whoever walks in with you.",
+      "author": {
+        "name": "phoboslab",
+        "url": "https://github.com/phoboslab"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Underrun",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "shooter",
+        "twin-stick",
+        "corridor",
+        "multiplayer",
+        "js13k",
+        "offline"
+      ],
+      "accent": [
+        204,
+        136,
+        0
+      ],
+      "cover": "/apps/underrun/cover.jpg",
+      "bytes": 213095,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "41ae83ac56b31b0398f906c6fff635192d11e22e21a6cc5f3b740761b3e8884d"
     },
     {
       "slug": "vocal-remover",
@@ -2423,6 +3105,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "33323884bd35ebb26dba4269ce8dd736c15ef8d7f3abebe59e32836763a57c3b"
+    },
+    {
+      "slug": "yahtzee",
+      "appId": "yahtzee",
+      "name": "Yahtzee",
+      "shortName": "Yahtzee",
+      "version": "1.0",
+      "tagline": "Five dice. A scorecard. A table that is the meeting.",
+      "author": {
+        "name": "Alhissar",
+        "url": "https://github.com/Alhissar/Yahtzee"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Yahtzee",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "yahtzee",
+        "dice",
+        "scorecard",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        26,
+        122,
+        58
+      ],
+      "cover": "/apps/yahtzee/cover.jpg",
+      "bytes": 330206,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "6d9f5d7010527767af85e72932590b68df815d05ad4c1e52e1f36b2ace96cfc0"
     }
   ]
 }

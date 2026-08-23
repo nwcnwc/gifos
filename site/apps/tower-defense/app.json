@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "tower-defense",
+  "appId": "tower-defense",
+  "name": "Tower Defense",
+  "shortName": "TD",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Pick a tower, tap a square. Don't let them through.",
+  "description": "Creatures walk from one corner of the map to the other. You place guns in their way. A cannon hits hard, a machine gun hits often, a laser never misses. A wall is just a wall. If they reach the far corner, you lose a life.\n\nTap a gun on the side, then tap a square. You cannot close the path entirely — they always need a way through. Upgrade a gun that is already earning its keep, or sell one that is not. On a phone it is the same taps.\n\nPress Share the map, then Invite (in the GifOS menu). Everyone who opens the link places towers on the same map. Each person puts down their own. The creatures keep coming.\n\nAn unofficial port of HTML5 Tower Defense by oldj. This copy adds the shared map over a meeting. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "oldj",
+    "url": "https://github.com/oldj/html5-tower-defense"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "tower",
+    "defense",
+    "map",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tower-defense",
+  "accent": [
+    26,
+    116,
+    186
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/tower-defense/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/tower-defense/tower-defense.gif",
+  "bytes": 228852,
+  "download": 0,
+  "provides": null,
+  "sha256": "e8b027f2eac7dfc854ba58e3fa5f484c534edd141c976506293add23aa24eed3",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "HTML5 Tower Defense",
+    "url": "https://github.com/oldj/html5-tower-defense",
+    "blessed": false
+  }
+}

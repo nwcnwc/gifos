@@ -1,0 +1,61 @@
+{
+  "catalog": "1.0",
+  "slug": "particle-life",
+  "appId": "particle-life",
+  "name": "Particle Life",
+  "shortName": "Life",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Coloured specks that clump into little creatures. Touch to stir. Share the jar.",
+  "description": "A jar of tiny coloured specks. Each colour likes some colours and shies from others. From that one rule, they bunch into worms, cells, crystals — things that look alive, for a while.\n\nTap the jar to stir. Hold and drag to keep stirring. Push shoves them away from your finger; switch to Pull and they gather instead. New mix pours a fresh set of likes and shies. Reset pours the same mix again, from the start.\n\nWant a friend in the jar? Press Share the jar, then Invite (in the GifOS menu) and send the link. You both watch the same mix. When you poke, they see it. When they poke, you see it. Playing alone is the original toy.\n\nThe last mix you poured stays on this device, inside the app.\n\nAn unofficial port of Particle Life by hunar4321, MIT-licensed. This copy puts two people over one jar, and adds a finger for a phone.",
+  "author": {
+    "name": "hunar4321",
+    "url": "https://github.com/hunar4321/particle-life"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Creativity",
+    "Games"
+  ],
+  "tags": [
+    "particles",
+    "life",
+    "colours",
+    "toy",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/particle-life",
+  "accent": [
+    0,
+    196,
+    204
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/particle-life/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/particle-life/particle-life.gif",
+  "bytes": 190454,
+  "download": 0,
+  "provides": null,
+  "sha256": "cc5970a0d60cde824b66d26f10dde445b05a23e210c38aca0c6ba2ffd67500f6",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Particle Life",
+    "url": "https://github.com/hunar4321/particle-life",
+    "blessed": false
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "catalog": "1.0",
+  "slug": "pixel-paint",
+  "appId": "pixel-paint",
+  "name": "Pixel Paint",
+  "shortName": "Pixel Paint",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "A tiny 32×32 pixel canvas. Draw a sprite. Draw together.",
+  "description": "A small pixel canvas. Pencil, fill, eraser, a colour picker, and a selection you can move or copy. Palettes from the NES and the Game Boy. Undo, redo, a grid. When you want a picture in your hands, save it as a PNG on this device.\n\nYour sprite stays on this computer, inside the app. Close it, open it later, the pixels are where you left them.\n\nPress Draw together, then Invite (in the GifOS menu), and everyone who opens the link paints on the same 32×32. Each person draws their own strokes; they land on the shared board.\n\nAn unofficial port of Pixel Paint by Kully. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Kully",
+    "url": "https://github.com/Kully/pixel-paint"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "pixel",
+    "paint",
+    "sprite",
+    "pixel-art",
+    "canvas",
+    "drawing",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pixel-paint",
+  "accent": [
+    60,
+    188,
+    252
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/pixel-paint/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/pixel-paint/pixel-paint.gif",
+  "bytes": 211386,
+  "download": 0,
+  "provides": null,
+  "sha256": "dae3883d6c657d62ebb31bcf81b0580e96ea914b880304aced8678f2dc195001",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Pixel Paint",
+    "url": "https://github.com/Kully/pixel-paint",
+    "blessed": false
+  }
+}
