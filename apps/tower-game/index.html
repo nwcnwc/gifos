@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Tower Game</title>
+<link href="style.css" rel="stylesheet">
+</head>
+<body>
+<canvas id="canvas" class="hide"></canvas>
+<div id="wrap" class="content">
+  <div id="loading" class="screen loading">
+    <div class="main">
+      <div id="loadPct" class="title">0%</div>
+      <div class="bar"><div id="loadBar" class="percent"></div></div>
+      <div class="text">Loading…</div>
+    </div>
+  </div>
+  <div id="landing" class="screen landing hide">
+    <img id="titleImg" alt="Tower Building" class="title-img swing">
+    <p class="hint">Tap to drop each floor. Stack them. Three misses and it’s over.</p>
+    <p class="hint sub">Press <b>Invite</b> (GifOS menu) to race a friend. You each build your own tower. Tallest wins.</p>
+    <button type="button" id="start" class="img-btn start-btn" aria-label="Start">
+      <img id="startImg" alt="Start">
+    </button>
+    <p id="bestLine" class="best"></p>
+  </div>
+  <div id="modal" class="screen modal hide">
+    <div class="mask"></div>
+    <div class="sheet">
+      <img id="overImg" alt="Game over" class="over-img">
+      <div id="score" class="over-score">0</div>
+      <p id="overTip" class="tip">Try again!</p>
+      <button type="button" id="again" class="img-btn again-btn">
+        <img id="againImg" alt="Try again">
+      </button>
+    </div>
+  </div>
+  <div id="racebar" hidden></div>
+</div>
+<script src="vendor/assets.js"></script>
+<script src="vendor/main.js"></script>
+<script src="mp.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

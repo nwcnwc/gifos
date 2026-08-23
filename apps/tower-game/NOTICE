@@ -1,0 +1,22 @@
+Tower Game
+Copyright 2018 BMQB, Inc / iamkun
+
+This product includes software developed by iamkun
+(https://github.com/iamkun/tower_game).
+
+Tower Building Game is released under the MIT License. A copy of the
+MIT License is in COPYING.txt (and is packed inside the App GIF).
+
+dist/main.js bundles cooljs (https://github.com/iamkun/cooljs), the canvas
+engine the game is written against, by the same author.
+
+This GifOS app is an UNOFFICIAL port. It is not affiliated with, endorsed by,
+or blessed by iamkun or BMQB. The GifOS signature on the GIF is integrity of
+the bytes, not authorship, and not a claim that upstream accepted this listing.
+Bugs go to GifOS, not upstream.
+
+Port surface (boot.js, mp.js, the GifOS packing, this NOTICE addendum):
+Copyright 2026 GifOS contributors.
+
+Bugs for this port: https://github.com/nwcnwc/gifos/issues
+Upstream Tower Building Game: https://github.com/iamkun/tower_game

@@ -1,0 +1,121 @@
+/* Original tower_game chrome, plus a race HUD. Touch-first: no pinch-zoom,
+   no 300ms tap delay, the page never scrolls under a finger. */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  background: #f95240;
+  font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  text-align: center;
+}
+html { font-size: 17.6vh; }
+@media screen and (min-height: 560px) { html { font-size: 100px; } }
+@media screen and (min-height: 640px) { html { font-size: 112.5px; } }
+@media screen and (min-height: 720px) { html { font-size: 125px; } }
+@media screen and (min-height: 800px) { html { font-size: 137.5px; } }
+
+#canvas {
+  position: fixed;
+  left: 0; top: 0; right: 0; bottom: 0;
+  margin: auto;
+  touch-action: none;
+}
+.hide { display: none !important; }
+
+.content {
+  height: 100vh;
+  margin: 0 auto;
+  position: relative;
+  max-width: 100%;
+}
+.screen { position: absolute; inset: 0; }
+
+.loading { background: #f05a50; color: #fff; display: flex; align-items: center; justify-content: center; }
+.loading .main { width: 70%; }
+.loading .title { font-size: .3rem; font-family: wenxue, Arial, sans-serif; }
+.loading .text { font-size: .15rem; margin-top: .08rem; }
+.loading .bar {
+  height: .12rem; width: 100%;
+  border: 3px solid #fff; border-radius: .6rem; margin: .1rem 0;
+}
+.loading .percent {
+  height: 100%; width: 0;
+  background: #fff; border-radius: .6rem;
+}
+
+.landing {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: .2rem .18rem calc(.2rem + env(safe-area-inset-bottom, 0px));
+  gap: .12rem;
+}
+.title-img { width: 70%; max-width: 420px; }
+.hint {
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.4;
+  max-width: 22em;
+  text-shadow: 0 1px 0 rgba(80, 20, 16, .45);
+}
+.hint.sub { opacity: .92; font-size: 13px; }
+.hint b { color: #ffe56a; }
+.best { color: #fff8e0; font-size: 13px; min-height: 1.2em; }
+.img-btn {
+  display: block; border: 0; background: none; padding: 0; cursor: pointer;
+  width: 65%; max-width: 360px;
+}
+.img-btn img { width: 100%; display: block; pointer-events: none; }
+.start-btn { margin-top: .08rem; }
+
+.modal { z-index: 20; }
+.modal .mask {
+  position: absolute; inset: 0;
+  background: #000; opacity: .55;
+}
+.sheet {
+  position: relative;
+  width: 86%; max-width: 420px;
+  margin: 12vh auto 0;
+  padding: .2rem .16rem .24rem;
+  background: #fff3e4;
+  border-radius: 12px;
+  box-shadow: 0 8px 0 rgba(80, 20, 16, .25);
+}
+.over-img { width: 78%; margin: 0 auto; display: block; }
+.over-score {
+  margin-top: -.08rem;
+  font-size: .42rem;
+  color: #ff735c;
+  text-shadow: -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff;
+  font-family: wenxue, Arial, sans-serif;
+}
+.tip { font-size: 15px; color: #9b724e; margin: .08rem 0 .12rem; }
+.again-btn { width: 72%; margin: 0 auto; }
+
+#racebar {
+  position: absolute;
+  top: calc(6px + env(safe-area-inset-top, 0px));
+  left: 8px; right: 8px;
+  z-index: 30;
+  pointer-events: none;
+  text-align: center;
+  font: 700 12px/1.35 ui-monospace, Menlo, monospace;
+  color: #fff;
+  text-shadow: 0 1px 0 #3a2a10, 0 0 4px rgba(0,0,0,.55);
+}
+#racebar .who { display: inline-block; margin: 0 8px; }
+#racebar .dead { opacity: .7; }
+#racebar .lead { color: #ffe56a; }
+#racebar .note { display: block; margin-top: 2px; font-weight: 600; }
+
+.swing {
+  animation: sw 2s ease-in-out alternate infinite;
+  transform-origin: top center;
+}
+@keyframes sw {
+  0% { transform: rotate(5deg); }
+  100% { transform: rotate(-5deg); }
+}

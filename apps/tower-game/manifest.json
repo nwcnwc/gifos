@@ -1,0 +1,23 @@
+{
+  "gifos": "1.0",
+  "appId": "tower-game",
+  "name": "Tower Game",
+  "shortName": "Tower",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Tap to drop each floor. Stack them. Race a friend to the tallest tower.",
+  "entry": "index.html",
+  "accent": [249, 82, 64],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "room": {
+      "visibility": "read-write"
+    }
+  }
+}
