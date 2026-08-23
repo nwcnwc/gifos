@@ -466,7 +466,16 @@ fi
 # ---- tier 4: drills (self-contained: each spawns its own relay + site) -------
 if want drills; then
   [ "$LIST" = 1 ] || stop_all      # they bring their own; keep the ports clear
-  run_tier drills 900 test/drills/*.js
+  # After stop_all the orchestrator stack is down. A hosts file whose `base`
+  # is that stack puts drills in fleet mode, which NEVER auto-spawns, so
+  # casualty-noverdict threw "stack unreachable" at cast.up (RED TWICE on
+  # the freeze gate; GREEN on the same SHA with loopback BASE, load 0.00/8).
+  # Force loopback for this tier only so a drill can mint its own site+relay.
+  (
+    export BEHAVIOR_BASE=http://127.0.0.1:8099
+    export BEHAVIOR_RELAY=ws://127.0.0.1:8790
+    run_tier drills 900 test/drills/*.js
+  )
 fi
 
 # ---- tier 5: the mesh LAWS (C++ reference; needs g++) ------------------------
