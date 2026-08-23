@@ -79,6 +79,8 @@
     root.Touch.init();
 
     G.hooks.afterFrame = function () {
+      var playing = G.FSM && G.FSM.state !== 'waiting' && G.FSM.state !== 'boot';
+      document.body.classList.toggle('playing', !!playing);
       if (root.Net && root.Net.live()) {
         root.Net.tick();
         root.Net.drawRemoteShots(G.context);
@@ -106,7 +108,7 @@
       if (root.Net) root.Net.claimAlien();
     };
     G.hooks.onFF = function (on) {
-      if (ffEl) ffEl.textContent = on ? 'FF ON' : 'FF OFF';
+      if (ffEl) ffEl.textContent = on ? 'Friendly fire on' : 'Friendly fire off';
       if (root.Net) root.Net.publishWorld(true);
     };
     G.hooks.onStart = function () {
@@ -122,14 +124,14 @@
       ffEl.addEventListener('click', function () {
         if (!G.isHost) return;
         G.friendlyFire = !G.friendlyFire;
-        ffEl.textContent = G.friendlyFire ? 'FF ON' : 'FF OFF';
+        ffEl.textContent = G.friendlyFire ? 'Friendly fire on' : 'Friendly fire off';
         if (root.Net) root.Net.publishWorld(true);
       });
     }
 
-    document.addEventListener('pointerdown', function once() {
+    canvas.addEventListener('pointerdown', function () {
       if (root.SFX) root.SFX.unlock();
-      document.removeEventListener('pointerdown', once);
+      if (G.FSM && G.FSM.state === 'waiting') root.gameStart = true;
     });
 
     var roomP = root.Net ? root.Net.init() : Promise.resolve({ owner: true, others: 0 });
@@ -142,7 +144,7 @@
         G.hudNote = G.isHost ? 'F toggles friendly fire' : 'Host flies the rocks';
         if (ffEl) {
           ffEl.hidden = false;
-          ffEl.textContent = G.friendlyFire ? 'FF ON' : 'FF OFF';
+          ffEl.textContent = G.friendlyFire ? 'Friendly fire on' : 'Friendly fire off';
         }
       } else {
         G.hudNote = '';
@@ -152,7 +154,7 @@
         root.Net.onFF(function (on) {
           if (ffEl) {
             ffEl.hidden = false;
-            ffEl.textContent = on ? 'FF ON' : 'FF OFF';
+            ffEl.textContent = on ? 'Friendly fire on' : 'Friendly fire off';
           }
         });
         paintRoster(root.Net.roster());

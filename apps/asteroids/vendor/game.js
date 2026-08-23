@@ -789,13 +789,21 @@
       return roid;
     },
 
+    centerBlocked: function (roid) {
+      var dx = roid.x - this.canvasWidth / 2;
+      var dy = roid.y - this.canvasHeight / 2;
+      return (dx * dx) / (260 * 260) + (dy * dy) / (80 * 80) < 1;
+    },
+
     spawnAsteroids: function (count) {
       if (!count) count = this.totalAsteroids;
+      var keepout = this.FSM.state === 'boot';
       for (var i = 0; i < count; i++) {
         var roid = this.makeRock();
         roid.x = Math.random() * this.canvasWidth;
         roid.y = Math.random() * this.canvasHeight;
-        while (!roid.isClear()) {
+        var tries = 0;
+        while (tries++ < 80 && (!roid.isClear() || (keepout && this.centerBlocked(roid)))) {
           roid.x = Math.random() * this.canvasWidth;
           roid.y = Math.random() * this.canvasHeight;
         }

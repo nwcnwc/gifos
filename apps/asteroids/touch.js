@@ -6,14 +6,23 @@
  * buttons write the same KEY_STATUS the keyboard does, so the vendored
  * ship never learns it is being flown by a thumb.
  *
- * Revealed on the first real touchstart. A laptop with a touchscreen must
- * not get the overlay until a finger actually lands.
+ * Revealed at boot on a phone (coarse pointer, or a narrow touch screen).
+ * A laptop with a touchscreen must not get the overlay until a finger
+ * actually lands. Revealing the pad does not start the game — FIRE does,
+ * or a tap on the field.
  */
 (function (root) {
   'use strict';
 
   var active = false;
   var held = {};
+
+  function phoneish() {
+    var pts = (root.navigator && root.navigator.maxTouchPoints) || 0;
+    var coarse = !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches);
+    var narrow = Math.min(root.innerWidth || 0, root.innerHeight || 0) <= 520;
+    return (pts > 0 && coarse) || (pts > 0 && narrow);
+  }
 
   function init() {
     var wrap = document.getElementById('touch');
@@ -24,12 +33,12 @@
       active = true;
       document.body.classList.add('touch');
       wrap.hidden = false;
-      root.gameStart = true;
       if (root.AsteroidsGame) root.AsteroidsGame.touchy = true;
       if (root.SFX) root.SFX.unlock();
       removeEventListener('touchstart', reveal);
     };
-    addEventListener('touchstart', reveal, { passive: true });
+    if (phoneish()) reveal();
+    else addEventListener('touchstart', reveal, { passive: true });
 
     var btns = wrap.querySelectorAll('[data-key]');
     for (var i = 0; i < btns.length; i++) bind(btns[i]);

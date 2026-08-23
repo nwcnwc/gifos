@@ -1,8 +1,8 @@
-// Procedural icon for Asteroids: a dark card holding a vector ship and a
-// rock. The ship turns and the exhaust flickers; the rock drifts the other
-// way. Pure Node — super-sample → box-downsample → small palette.
-// Deterministic so builds reproduce.
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
+// Procedural icon for Asteroids: a dark card holding a vector ship that
+// SHOOTS a rock. The shot travels, the rock bursts, fragments fly, and the
+// loop restarts — it has to read at 64px. Pure Node — super-sample →
+// box-downsample → small palette. Deterministic so builds reproduce.
+const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 16, SHOT_N = 10;
 
 const CARD_A = [12, 16, 28];
 const CARD_B = [6, 8, 16];
@@ -11,6 +11,7 @@ const INK_D = [140, 168, 210];
 const EXH = [255, 196, 96];
 const ROCK = [186, 198, 214];
 const GLOW = [96, 160, 255];
+const SPARK = [255, 255, 255];
 
 const SHIP = [-5, 4, 0, -12, 5, 4];
 const EXHAUST = [-3, 6, 0, 11, 3, 6];
@@ -21,7 +22,7 @@ function mix(a, b, t) {
 }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD_A, CARD_B, INK, INK_D, EXH, ROCK, GLOW]) {
+  for (const b of [CARD_A, CARD_B, INK, INK_D, EXH, ROCK, GLOW, SPARK]) {
     for (let s = 0; s <= 4; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.4).map(Math.round));
   }
@@ -79,13 +80,35 @@ function distPoly(px, py, pts, closed) {
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const t = f / FRAMES;
-  const shipRot = -18 + t * 40;
-  const rockRot = t * -80;
+  const shipRot = 38;
+  const rockRot = -18 + f * -5;
   const thrust = (f % 3) !== 1;
-  const ship = xform(SHIP, shipRot, 2.6, 52, 72);
-  const exh = xform(EXHAUST, shipRot, 2.6, 52, 72);
-  const rock = xform(ROCK_P, rockRot, 2.15, 88, 48);
+  const shipX = 44, shipY = 90;
+  const rockX = 90, rockY = 38;
+  const ship = xform(SHIP, shipRot, 2.8, shipX, shipY);
+  const exh = xform(EXHAUST, shipRot, 2.8, shipX, shipY);
+  const hit = f >= SHOT_N;
+  const k = hit ? (f - SHOT_N) / (FRAMES - SHOT_N) : 0;
+  const rock = xform(ROCK_P, rockRot, hit ? 2.2 * (1 - k * 0.7) : 2.2, rockX, rockY);
+  const bits = hit ? [
+    xform(ROCK_P, rockRot + k * 50, 0.9, rockX + k * 18, rockY - k * 6),
+    xform(ROCK_P, rockRot - k * 40, 0.8, rockX - k * 14, rockY - k * 16),
+    xform(ROCK_P, rockRot + k * 70, 0.75, rockX + k * 4, rockY + k * 18),
+  ] : [];
+  const rad = (shipRot - 90) * Math.PI / 180;
+  const ux = Math.cos(rad), uy = Math.sin(rad);
+  const shotT = hit ? 1 : (f + 0.4) / SHOT_N;
+  const shotX = shipX + ux * (12 + shotT * 48);
+  const shotY = shipY + uy * (12 + shotT * 48);
+  const boom = [];
+  if (hit) {
+    for (let i = 0; i < 5; i++) {
+      const a = i * (Math.PI * 2 / 5) + 0.3;
+      const L = 4 + k * 16;
+      boom.push([rockX + Math.cos(a) * 2, rockY + Math.sin(a) * 2,
+                 rockX + Math.cos(a) * L, rockY + Math.sin(a) * L]);
+    }
+  }
 
   for (let py = 0; py < RW; py++) {
     for (let px = 0; px < RW; px++) {
@@ -93,11 +116,30 @@ function frameIndices(pal, f) {
       if (!inCard(x, y, 6, 20)) continue;
       let col = mix(CARD_A, CARD_B, Math.max(0, Math.min(1, (y - 6) / (OUT - 12))));
       const ds = distPoly(x, y, ship, true);
-      const dr = distPoly(x, y, rock, true);
+      const dr = (!hit || k < 0.75) ? distPoly(x, y, rock, true) : 99;
       const de = thrust ? distPoly(x, y, exh, false) : 99;
-      if (ds < 1.15) col = ds < 0.55 ? INK : mix(INK, GLOW, 0.35);
-      else if (de < 1.0) col = de < 0.45 ? EXH : mix(EXH, CARD_A, 0.25);
-      else if (dr < 1.15) col = dr < 0.55 ? ROCK : mix(ROCK, INK_D, 0.4);
+      let db = 99;
+      for (let i = 0; i < bits.length; i++) {
+        const d = distPoly(x, y, bits[i], true);
+        if (d < db) db = d;
+      }
+      let dBoom = 99;
+      for (let i = 0; i < boom.length; i++) {
+        const b = boom[i];
+        const d = distSeg(x, y, b[0], b[1], b[2], b[3]);
+        if (d < dBoom) dBoom = d;
+      }
+      const dShot = hit ? 99 : distSeg(
+        x, y,
+        shotX - ux * 7, shotY - uy * 7,
+        shotX + ux * 1.5, shotY + uy * 1.5
+      );
+      if (ds < 1.2) col = ds < 0.55 ? INK : mix(INK, GLOW, 0.35);
+      else if (de < 1.05) col = de < 0.45 ? EXH : mix(EXH, CARD_A, 0.25);
+      else if (dShot < 1.35) col = dShot < 0.7 ? SPARK : mix(SPARK, GLOW, 0.45);
+      else if (dBoom < 1.05) col = dBoom < 0.5 ? SPARK : mix(EXH, SPARK, 0.4);
+      else if (db < 1.1) col = db < 0.5 ? ROCK : mix(ROCK, INK_D, 0.4);
+      else if (dr < 1.2) col = dr < 0.55 ? ROCK : mix(ROCK, INK_D, 0.4);
       const o = (py * RW + px) * 4;
       rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
     }
@@ -230,43 +272,68 @@ export function screenshotPng() {
   }
 
   const rocks = [
-    { x: 260, y: 180, rot: 20, s: 7.2 },
-    { x: 940, y: 160, rot: 200, s: 6.4 },
-    { x: 1080, y: 480, rot: 80, s: 5.8 },
-    { x: 180, y: 520, rot: 310, s: 4.6 },
-    { x: 520, y: 120, rot: 140, s: 2.4 },
-    { x: 780, y: 560, rot: 55, s: 2.2 },
-    { x: 640, y: 300, rot: 0, s: 2.0 },
-    { x: 400, y: 400, rot: 90, s: 2.1 },
-    { x: 1000, y: 300, rot: 170, s: 2.3 },
+    { x: 210, y: 170, rot: 20, s: 7.0 },
+    { x: 1040, y: 140, rot: 200, s: 6.2 },
+    { x: 1120, y: 520, rot: 80, s: 5.6 },
+    { x: 140, y: 560, rot: 310, s: 5.0 },
+    { x: 480, y: 90, rot: 140, s: 2.5 },
+    { x: 820, y: 620, rot: 55, s: 2.4 },
+    { x: 390, y: 430, rot: 90, s: 2.2 },
+    { x: 980, y: 340, rot: 170, s: 2.3 },
+    { x: 300, y: 320, rot: 250, s: 2.0 },
+    { x: 700, y: 80, rot: 10, s: 1.9 },
   ];
   for (const rk of rocks) {
     const pts = xform(ROCK_P, rk.rot, rk.s, rk.x, rk.y);
     strokePoly(put, pts, true, 1.6, 210, 220, 235);
   }
 
-  const ship = xform(SHIP, -12, 3.4, 600, 400);
-  const exh = xform(EXHAUST, -12, 3.4, 600, 400);
-  strokePoly(put, exh, false, 1.4, 255, 196, 96);
-  strokePoly(put, ship, true, 1.8, 232, 240, 255);
-
-  const p2 = xform(SHIP, 40, 3.0, 420, 260);
-  strokePoly(put, p2, true, 1.6, 120, 210, 255);
-  const p3 = xform(SHIP, 200, 3.0, 860, 390);
-  strokePoly(put, p3, true, 1.6, 255, 170, 140);
-
-  // shots
-  const shots = [[630, 340], [638, 318], [646, 296], [840, 370], [828, 352]];
-  for (const s of shots) {
-    strokeLine(put, s[0] - 2, s[1] - 2, s[0] + 2, s[1] + 2, 1.2, 232, 240, 255);
-    strokeLine(put, s[0] + 2, s[1] - 2, s[0] - 2, s[1] + 2, 1.2, 232, 240, 255);
+  // A rock mid-break — the shot just landed.
+  const boomX = 740, boomY = 268;
+  strokePoly(put, xform(ROCK_P, 30, 3.4, boomX, boomY), true, 1.5, 230, 236, 248);
+  const bits = [
+    { rot: 70, s: 1.8, x: boomX + 46, y: boomY - 18 },
+    { rot: 200, s: 1.6, x: boomX - 38, y: boomY - 36 },
+    { rot: 320, s: 1.5, x: boomX + 10, y: boomY + 48 },
+  ];
+  for (const b of bits) strokePoly(put, xform(ROCK_P, b.rot, b.s, b.x, b.y), true, 1.4, 210, 220, 235);
+  for (let i = 0; i < 5; i++) {
+    const a = i * (Math.PI * 2 / 5) + 0.4;
+    strokeLine(put, boomX + Math.cos(a) * 6, boomY + Math.sin(a) * 6,
+      boomX + Math.cos(a) * 34, boomY + Math.sin(a) * 34, 1.3, 255, 220, 160);
   }
 
-  drawText(put, 36, 28, '2480', 4, 232, 240, 255);
-  drawText(put, W / 2 - 140, 36, 'ASTEROIDS', 5, 232, 240, 255);
-  // spare lives, top right — tiny ships
+  const shipRot = -52;
+  const ship = xform(SHIP, shipRot, 4.4, 560, 430);
+  const exh = xform(EXHAUST, shipRot, 4.4, 560, 430);
+  strokePoly(put, exh, false, 1.6, 255, 196, 96);
+  strokePoly(put, ship, true, 2.0, 232, 240, 255);
+
+  const p2 = xform(SHIP, 28, 3.4, 400, 250);
+  const e2 = xform(EXHAUST, 28, 3.4, 400, 250);
+  strokePoly(put, e2, false, 1.3, 120, 210, 255);
+  strokePoly(put, p2, true, 1.7, 120, 210, 255);
+  const p3 = xform(SHIP, 210, 3.4, 900, 400);
+  strokePoly(put, p3, true, 1.7, 255, 170, 140);
+
+  const SAUCER = [-20, 0, -12, -4, 12, -4, 20, 0, 12, 4, -12, 4];
+  const SAUCER_TOP = [-8, -4, -6, -6, 6, -6, 8, -4];
+  strokePoly(put, xform(SAUCER, 0, 2.4, 250, 400), true, 1.6, 232, 240, 255);
+  strokePoly(put, xform(SAUCER_TOP, 0, 2.4, 250, 400), false, 1.4, 232, 240, 255);
+
+  const shots = [
+    [612, 372], [644, 336], [676, 300], [708, 268],
+    [428, 214], [444, 186],
+    [872, 372],
+  ];
+  for (const s of shots) {
+    strokeLine(put, s[0] - 3, s[1] - 3, s[0] + 3, s[1] + 3, 1.4, 232, 240, 255);
+    strokeLine(put, s[0] + 3, s[1] - 3, s[0] - 3, s[1] + 3, 1.4, 232, 240, 255);
+  }
+
+  drawText(put, W - 188, 28, '2480', 4, 232, 240, 255);
   for (let i = 0; i < 2; i++) {
-    const life = xform(SHIP, 0, 1.6, W - 40 - i * 28, 48);
+    const life = xform(SHIP, 0, 1.6, W - 40 - i * 28, 78);
     strokePoly(put, life, true, 1.2, 232, 240, 255);
   }
 
