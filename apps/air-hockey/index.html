@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Air Hockey</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="container"></div>
+<div id="hud">
+  <div id="playerA_score">You: 0</div>
+  <div id="playerB_score">CPU: 0</div>
+  <button id="soundBtn" type="button" aria-label="Sound">♪</button>
+</div>
+<div id="hint">Drag your paddle · Press Invite for a friend</div>
+
+<!-- Static src so the runtime rewrites them into data URLs. JS loaders
+     cannot fetch; boot.js reads these elements instead. -->
+<img id="tex-floor" data-src="images/floor.jpg" src="vendor/images/floor.jpg" alt="" hidden>
+<img id="tex-surface" data-src="images/surface.png" src="vendor/images/surface.png" alt="" hidden>
+<audio id="aud-hit1" src="vendor/audio/hit1.ogg" preload="auto"></audio>
+<audio id="aud-hit2" src="vendor/audio/hit2.ogg" preload="auto"></audio>
+<audio id="aud-edge1" src="vendor/audio/edge1.ogg" preload="auto"></audio>
+<audio id="aud-edge2" src="vendor/audio/edge2.ogg" preload="auto"></audio>
+<audio id="aud-goal1" src="vendor/audio/goal1.ogg" preload="auto"></audio>
+
+<script id="vs_floor" type="x-shader/x-vertex">
+varying vec2 vUv;
+varying vec3 vPosition;
+void main() {
+    vUv = uv;
+    vPosition = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+</script>
+<script id="fs_floor" type="x-shader/x-fragment">
+uniform sampler2D texture;
+uniform float innerRadius;
+uniform float outerRadius;
+varying vec2 vUv;
+varying vec3 vPosition;
+void main() {
+     vec4 color = texture2D(texture, vUv * 4.0);
+     float d = length(vPosition.xy)/3.5;
+     float ratio = mix(1.0, 0.0, clamp(sign(d - innerRadius),0.0,1.0));
+     float radial = mix(0.0, 1.0, (outerRadius - d)/(outerRadius - innerRadius));
+     ratio = mix(ratio, radial, clamp(sign(outerRadius - d),0.0,1.0));
+     ratio = mix(0.0, ratio, sign(outerRadius - d));
+     gl_FragColor = vec4(color.rgb * ratio, 0.1);
+}
+</script>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OBJMTLLoader.js"></script>
+<script src="vendor/box2d.js"></script>
+<script src="vendor/physics.js"></script>
+<script src="vendor/AI.js"></script>
+<script src="vendor/audio.js"></script>
+<script src="vendor/hockey.js"></script>
+<script src="vendor/model.js"></script>
+<script src="vendor/assets.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
