@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "quiz-buzzer",
+  "name": "Quiz Buzzer",
+  "shortName": "Buzzer",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A question on the big screen. Everyone else's phone is a buzzer. Fastest correct answer scores.",
+  "entry": "index.html",
+  "accent": [232, 64, 72],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "match": { "visibility": "read-write" },
+    "players": { "visibility": "read-write" }
+  }
+}
