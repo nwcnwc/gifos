@@ -1,0 +1,15 @@
+vendor/game.js and vendor/assets.js are GENERATED. Do not edit them;
+run node apps/q1k3/vendor.mjs.
+
+upstream: https://github.com/phoboslab/q1k3
+commit:   8ee934856c3f5de3c584724b9dd554314a911694
+license:  MIT (COPYING-q1k3.txt); Sonant-X zlib (COPYING-sonant-x.txt)
+music:    Andy Lösch, no-fate.net (sonant data in source/music.js)
+
+game.js is the uncompressed classic-script sources concatenated in the
+order index.html listed them, minus document.js (the GifOS shell owns
+the page). fetch() of build/l and build/m is patched to read Q1K3_MAP
+and Q1K3_MODELS from assets.js, because a GIF srcdoc cannot fetch.
+assets.js is the packed maps and models the original build.sh produced
+(pack_map.c + pack_model.php, the latter reimplemented in this file).
+Both notices travel INSIDE the GIF as well as beside it here.

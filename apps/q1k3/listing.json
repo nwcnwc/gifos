@@ -1,0 +1,34 @@
+{
+  "tagline": "A shotgun, two torch-lit halls, and whoever you send the link to.",
+  "description": "You wake up in a brown stone hall with a shotgun in your hands and something waiting around the corner. Grunts, ogres, a hound that runs at you. Doors that need a key. A nailgun and a handful of grenades if you live long enough to pick them up. Two maps, then the end.\n\nOn a phone the left thumb walks and the right thumb looks; tap to shoot, jump with the button. On a computer it is WASD, the mouse, and a click — GifOS asks for the pointer first, and Esc always hands it back.\n\nSend the invite and extra people appear in the same halls, walking the same maps, shooting the same corners. There is no lobby and no account. The room is the link.\n\nAn unofficial port of Q1K3 by phoboslab, MIT-licensed. A tiny Quake-like from the 2021 js13k games. This copy adds the touch controls and the extra bodies over a meeting.",
+  "author": {
+    "name": "phoboslab",
+    "url": "https://github.com/phoboslab"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Q1K3",
+    "url": "https://github.com/phoboslab/q1k3",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "quake",
+    "fps",
+    "shooter",
+    "3d",
+    "js13k",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/q1k3",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

@@ -1,0 +1,107 @@
+/* Q1K3 — the GifOS shell around the original game. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #111; color: #fff; text-align: center;
+  font-family: sans-serif;
+}
+#g { position: relative; width: 100%; height: 100%; }
+#c {
+  display: block; width: 100%; height: 100%;
+  image-rendering: optimizeSpeed; image-rendering: pixelated;
+  object-fit: contain; background: #111; touch-action: none; cursor: none;
+}
+
+#ts {
+  position: absolute; bottom: 2em; left: 0; right: 0;
+  font-size: 1.2vw; font-weight: bold; text-align: center; pointer-events: none;
+}
+#ts h1 { font-size: 16vw; margin: 0; }
+#msg {
+  position: absolute; top: 8vw; left: 0; right: 0;
+  font-size: 1.2vw; font-weight: bold; text-align: center;
+  display: none; pointer-events: none;
+}
+#a, #h {
+  position: absolute; bottom: 3%; left: 20%; right: 0;
+  font-size: 3.2vw; font-weight: bold; pointer-events: none; text-align: center;
+}
+#h { left: -20%; }
+
+/* ---- the first-gesture gate ------------------------------------------- */
+#gate {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
+  background: radial-gradient(120% 120% at 50% 0%, #3a2218 0%, #120c0a 70%);
+  padding: 1.25rem; transition: opacity .35s ease;
+}
+#gate.gone { opacity: 0; pointer-events: none; }
+.gate-box { width: min(30rem, 100%); text-align: center; }
+.gate-box h1 { font-size: 2.4rem; letter-spacing: .04em; margin-bottom: .6rem; color: #e07828; }
+.sub { color: #c4a090; line-height: 1.5; font-size: .93rem; }
+#gate-go {
+  margin-top: 1.4rem; padding: .72rem 2.6rem; font: inherit; font-weight: 600; font-size: 1.02rem;
+  border: 0; border-radius: .6rem; background: #c45c24; color: #14120c; cursor: pointer;
+}
+#gate-go[disabled] { opacity: .35; cursor: default; }
+#gate-keys { margin-top: 1.5rem; font-size: .76rem; line-height: 1.9; color: #8a7064; }
+#gate-keys b { color: #d0b0a0; font-weight: 600; }
+body.touch #gate-keys { display: none; }
+.opts { margin-top: 1rem; font-size: .82rem; color: #a09080; }
+.opts input { vertical-align: middle; }
+#gate-room { margin-top: 1rem; font-size: .84rem; color: #c4a090; min-height: 1.2em; }
+#gate-room b { color: #e07828; }
+
+/* ---- touch ------------------------------------------------------------ */
+#touch { position: fixed; inset: 0; z-index: 30; pointer-events: none; touch-action: none; user-select: none; }
+#touch[hidden] { display: none; }
+#t-look { position: absolute; inset: 0 0 0 40%; pointer-events: auto; }
+.t-stick {
+  position: absolute; left: max(1.1rem, env(safe-area-inset-left)); bottom: max(1.4rem, env(safe-area-inset-bottom));
+  width: 8.6rem; height: 8.6rem; border-radius: 50%; pointer-events: auto;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.14);
+}
+.t-knob {
+  position: absolute; left: 50%; top: 50%; width: 3.4rem; height: 3.4rem; margin: -1.7rem 0 0 -1.7rem;
+  border-radius: 50%; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3);
+}
+#t-buttons {
+  position: absolute; right: max(.9rem, env(safe-area-inset-right)); bottom: max(1.4rem, env(safe-area-inset-bottom));
+  display: grid; grid-template-columns: repeat(2, 4.6rem); gap: .5rem;
+}
+.t-btn {
+  pointer-events: auto; font: inherit; font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+  color: #e8e8f0; background: rgba(12,12,18,.5); border: 1px solid rgba(255,255,255,.2);
+  border-radius: .7rem; padding: .85rem .2rem; cursor: pointer;
+}
+.t-btn.on { background: rgba(255,255,255,.28); }
+.t-wide { grid-column: 1 / -1; padding: 1.15rem .2rem; font-size: .8rem;
+  background: rgba(150,40,32,.55); border-color: rgba(255,120,100,.4); }
+
+/* ---- scoreboard ------------------------------------------------------- */
+#score {
+  position: fixed; z-index: 35; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: rgba(12,8,6,.9); border: 1px solid rgba(224,120,40,.35); border-radius: .7rem;
+  padding: 1rem 1.2rem; min-width: min(22rem, 88vw);
+}
+#score[hidden] { display: none; }
+#score table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+#score th { text-align: left; font-weight: 400; color: #a08070; padding-bottom: 6px; }
+#score td { padding: .32rem .5rem; border-bottom: 1px solid rgba(255,255,255,.07); }
+#score td:nth-child(2), #score td:nth-child(3) { text-align: right; width: 3.2rem; }
+#score tr.me td { color: #e07828; font-weight: 600; }
+#score tr.dead td:first-child { opacity: .45; }
+#tally {
+  position: fixed; z-index: 29; top: max(.7rem, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  font-size: .8rem; letter-spacing: .04em; color: #e0c8b0; background: rgba(12,8,6,.5);
+  padding: .3rem .7rem; border-radius: .5rem; pointer-events: auto; cursor: pointer;
+}
+#tally[hidden] { display: none; }
+
+#no-pointer {
+  position: fixed; z-index: 36; left: 50%; bottom: max(1.2rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%); max-width: min(34rem, 92vw); text-align: center;
+  font-size: .85rem; line-height: 1.5; color: #f0e2d6;
+  background: rgba(90,38,26,.92); border: 1px solid rgba(255,150,120,.35);
+  border-radius: .7rem; padding: .7rem 1rem;
+}
