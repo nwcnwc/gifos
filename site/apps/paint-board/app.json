@@ -40,10 +40,10 @@
   "cover": "/apps/paint-board/cover.jpg",
   "screenshots": [],
   "gif": "/apps/paint-board/paint-board.gif",
-  "bytes": 192206,
+  "bytes": 193714,
   "download": 0,
   "provides": null,
-  "sha256": "8c1c9da6949dbf26176fadb3229c37bff43048ece9bf9baf14ebc320487dacd1",
+  "sha256": "a95f807b1a49533f29f59249574f2699f24646056e1594b2f7b12f54d53f82d7",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

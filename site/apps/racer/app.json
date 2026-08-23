@@ -39,10 +39,10 @@
   "cover": "/apps/racer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/racer/racer.gif",
-  "bytes": 514997,
+  "bytes": 515883,
   "download": 0,
   "provides": null,
-  "sha256": "9fb2e133e83e3c9173e5476bbef1e27c31bdd4bd98fdae5fb900fcec546af785",
+  "sha256": "1b0fbc1f7aa2c4eb04f355eef8af7a24d9714bfb38ae925979ac90e8bb1f52c4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

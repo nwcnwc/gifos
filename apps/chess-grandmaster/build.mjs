@@ -12,11 +12,36 @@
 //   sf-wasm.js  →  window.GM_WASM_B64 : the wasm (NNUE net embedded), base64,
 //                  handed to the engine as wasmBinary — so it needs NO network.
 // Run:  node apps/chess-grandmaster/build.mjs
-import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
 import { grandmasterIcon } from './icon.mjs';
+import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+// Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
+// uses). Node 20+ is fine. Buffer the payload and deflateRaw at flush — the
+// encoder is not a streaming compressor anyway.
+{
+  const Orig = globalThis.CompressionStream;
+  globalThis.CompressionStream = class CompressionStream {
+    constructor(format) {
+      if (format !== 'deflate-raw') {
+        if (Orig) return new Orig(format);
+        throw new TypeError('unsupported format ' + format);
+      }
+      const chunks = [];
+      const ts = new TransformStream({
+        transform(chunk) { chunks.push(Buffer.from(chunk)); },
+        flush(controller) {
+          controller.enqueue(new Uint8Array(deflateRawSync(Buffer.concat(chunks))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  };
+}
+await import('../../site/js/gifos-gif.js'); // attaches globalThis.GifOS.gif
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const gif = globalThis.GifOS.gif;
@@ -39,6 +64,9 @@ const strModule = (name, value) => (name + '=' + JSON.stringify(value) + ';').sp
 const wasmB64 = readFileSync(join(dir, 'stockfish.wasm')).toString('base64');
 const manifest = JSON.parse(read('manifest.json'));
 
+const helpMd = read('help.md');
+if (helpMd.trim().length < 400) throw new Error('help.md is too short');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -48,6 +76,7 @@ const files = {
   'app.js': read('app.js'),
   'sf-glue.js': glue,
   'sf-wasm.js': strModule('window.GM_WASM_B64', wasmB64),
+  'help.md': helpMd,
 };
 
 const bytes = await gif.encode(files, { preview: grandmasterIcon(), accent: manifest.accent });

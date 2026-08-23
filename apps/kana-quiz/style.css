@@ -69,7 +69,6 @@ h1 {
   cursor: pointer;
   touch-action: manipulation;
 }
-.icon-btn.close { position: absolute; top: 10px; right: 10px; }
 
 .lead, .hint, .wait {
   color: var(--muted);
@@ -425,26 +424,6 @@ h1 {
   font-size: .75rem;
   font-weight: 700;
 }
-
-.modal {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.55);
-  display: flex; align-items: flex-end; justify-content: center;
-  padding: 12px;
-  z-index: 5;
-}
-.sheet {
-  position: relative;
-  background: #14141c;
-  color: var(--fg);
-  border-radius: 16px 16px 12px 12px;
-  padding: 28px 20px 20px;
-  max-width: 480px;
-  width: 100%;
-}
-.sheet h2 { margin: 0 0 10px; font-size: 1.2rem; }
-.sheet ul { margin: 0 0 12px; padding-left: 1.15em; color: var(--muted); }
-.sheet .foot { margin: 0; color: var(--muted); font-size: .9rem; }
 
 @media (min-width: 640px) {
   .choices button { min-height: 96px; }

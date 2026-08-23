@@ -39,10 +39,10 @@
   "cover": "/apps/emoji-minesweeper/cover.jpg",
   "screenshots": [],
   "gif": "/apps/emoji-minesweeper/emoji-minesweeper.gif",
-  "bytes": 193780,
+  "bytes": 195156,
   "download": 0,
   "provides": null,
-  "sha256": "119fef4f96b1d9c01310627627cd87b467053cb5ea48c179eb7eab55368150c5",
+  "sha256": "fdf1faf6a9c6a59bb3deac5725b1562bcae324d4e89cd3b3a69c261ccef884b2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

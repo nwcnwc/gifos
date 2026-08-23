@@ -44,6 +44,12 @@ const files = {
   'COPYING-react.txt': read('vendor/COPYING-react.txt'),
 };
 
+{
+  const help = read('help.md').trim();
+  if (help.length < 400) throw new Error('help.md is too short (' + help.length + ')');
+  files['help.md'] = help;
+}
+
 const html = files['index.html'];
 for (const s of ['vendor/fortune-sheet.js', 'app.js']) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);

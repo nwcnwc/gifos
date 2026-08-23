@@ -40,10 +40,10 @@
   "cover": "/apps/drawnix/cover.jpg",
   "screenshots": [],
   "gif": "/apps/drawnix/drawnix.gif",
-  "bytes": 2231860,
+  "bytes": 2226931,
   "download": 0,
   "provides": null,
-  "sha256": "d11797be2b64cfce0b57c03debad7b0a34604b2afcd2381134df7627a10f5596",
+  "sha256": "759f03749ed3534844468477fd318b9322177746b26d8721c02cd78a3a3c550a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

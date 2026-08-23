@@ -96,8 +96,12 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 
 const SCRIPTS = [...VENDOR_JS, 'mp.js', 'app.js'];
 
+const helpMd = read('help.md').trim();
+if (helpMd.length < 400) throw new Error('help.md trimmed length is ' + helpMd.length + ', need >= 400');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
+  'help.md': helpMd + '\n',
   'index.html': read('index.html'),
   'style.css': read('style.css'),
   'vendor/main.css': read('vendor/main.css'),

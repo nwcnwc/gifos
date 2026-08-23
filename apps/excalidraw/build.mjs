@@ -67,6 +67,11 @@ const files = {
   'COPYING-excalidraw.txt': read('vendor/COPYING-excalidraw.txt'),
   'COPYING-react.txt': read('vendor/COPYING-react.txt'),
 };
+{
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short — OS Help needs a real guide');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of ['shim.js', 'vendor/excalidraw.js', 'app.js']) {

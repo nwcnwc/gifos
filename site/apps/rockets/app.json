@@ -37,10 +37,10 @@
   "cover": "/apps/rockets/cover.jpg",
   "screenshots": [],
   "gif": "/apps/rockets/rockets.gif",
-  "bytes": 203111,
+  "bytes": 204290,
   "download": 0,
   "provides": null,
-  "sha256": "a0b8cc3e754a939792f9d06b68197fa27f9384c7803b21218f0ebcb10a4413f0",
+  "sha256": "b0129b7587a8ca90f4b962cb35a3073b894a8990aec2f6e3f97d5349dcd5b53a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

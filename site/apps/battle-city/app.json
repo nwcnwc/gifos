@@ -38,10 +38,10 @@
   "cover": "/apps/battle-city/cover.jpg",
   "screenshots": [],
   "gif": "/apps/battle-city/battle-city.gif",
-  "bytes": 278644,
+  "bytes": 280525,
   "download": 0,
   "provides": null,
-  "sha256": "ffaee96210a37269ba51ddf6d17c1c082459f049ca432d974f0f375c39d4339f",
+  "sha256": "8df99b0d259cbb6a33fdeb68aa7c7436dbeac912ff24c2dfea35707586090d9b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

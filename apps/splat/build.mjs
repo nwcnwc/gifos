@@ -76,6 +76,13 @@ const files = {
   'COPYING-splat.txt': read('vendor/COPYING-splat.txt'),
 };
 
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+{
+  const help = read('help.md').replace(/^\uFEFF/, '').trim();
+  if (help.length < 400) throw new Error('help.md trimmed length must be >= 400, got ' + help.length);
+}
+files['help.md'] = read('help.md');
+
 const html = files['index.html'];
 for (const s of SCRIPTS) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);

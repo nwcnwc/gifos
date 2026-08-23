@@ -54,6 +54,10 @@ for (const f of VENDOR) {
   }
 }
 
+const help = read('help.md').replace(/^\uFEFF/, '');
+if (help.trim().length < 400) throw new Error('help.md is missing or too short — need >= 400 trimmed characters');
+if (!/^#\s+\S/.test(help.trim())) throw new Error('help.md must start with # <App Name>');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -61,6 +65,7 @@ const files = {
   // The licence rides INSIDE the GIF, not just beside it in the repo. A copy
   // of this app that someone was handed is a distribution of that MIT work.
   'COPYING-invaderz.txt': read('vendor/COPYING-invaderz.txt'),
+  'help.md': help,
 };
 for (const s of OURS) files[s] = read(s);
 for (const s of VENDOR) files[s] = read(s);

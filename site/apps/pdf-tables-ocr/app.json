@@ -44,10 +44,10 @@
   "cover": "/apps/pdf-tables-ocr/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pdf-tables-ocr/pdf-tables-ocr.gif",
-  "bytes": 27919230,
+  "bytes": 28168952,
   "download": 0,
   "provides": null,
-  "sha256": "97fee48a2c70551014b702b2fa038af7fcb9df5e85b7c88d49670e3260c47045",
+  "sha256": "88272e81d00fccc05781e98f72199a791e39abad1588fa196ed1bed8a5c05a00",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

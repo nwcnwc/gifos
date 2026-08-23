@@ -63,6 +63,14 @@ const files = {
   'COPYING-c4.txt': read('vendor/COPYING-c4.txt'),
 };
 
+{
+  const helpPath = join(dir, 'help.md');
+  if (!existsSync(helpPath)) throw new Error('help.md is missing');
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md trimmed length must be >= 400');
+  files['help.md'] = helpMd;
+}
+
 const html = files['index.html'];
 for (const s of SCRIPTS) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);

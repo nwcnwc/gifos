@@ -54,7 +54,7 @@ h1 { font-size: 1.25rem; margin: 0; letter-spacing: -0.02em; color: var(--blue-d
   background: var(--card); border: 1px solid var(--line); border-radius: 10px;
   padding: 10px 12px; margin: 0 0 10px; text-align: left;
 }
-#race[hidden], #overlay[hidden], #won[hidden], #how[hidden], #invite-hint[hidden], #againBtn[hidden] { display: none; }
+#race[hidden], #overlay[hidden], #won[hidden], #invite-hint[hidden], #againBtn[hidden] { display: none; }
 .race-hd { font-weight: 700; color: var(--blue-d); font-size: 0.85rem; letter-spacing: .04em; text-transform: uppercase; }
 .race-row {
   display: flex; align-items: center; gap: 8px; padding: 4px 0;
@@ -99,7 +99,7 @@ h1 { font-size: 1.25rem; margin: 0; letter-spacing: -0.02em; color: var(--blue-d
   background: var(--blue); color: #111; font-size: 28px; cursor: pointer;
 }
 #won p { margin: 0 0 8px; font-weight: 700; font-size: 1.2rem; }
-#won-next, #controls button, #bar button, #howClose, #new, #pad button {
+#won-next, #controls button, #bar button, #new, #pad button {
   background: var(--card); border: 1px solid var(--line); border-radius: 10px;
   padding: 10px 12px; font-weight: 650; cursor: pointer;
 }
@@ -121,26 +121,13 @@ h1 { font-size: 1.25rem; margin: 0; letter-spacing: -0.02em; color: var(--blue-d
 }
 
 #controls, #bar {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  display: grid; gap: 8px;
   width: min(100%, 520px); margin: 10px auto 0;
 }
+#controls { grid-template-columns: 1fr 1fr; }
+#bar { grid-template-columns: 1fr; }
 #undo:disabled { opacity: .45; }
 
 #invite-hint { color: var(--muted); font-size: 13px; line-height: 1.45; }
 #invite-hint b { color: var(--blue-d); }
 .credit { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 14px; }
-
-#how {
-  position: fixed; inset: 0; background: color-mix(in srgb, #000 40%, transparent);
-  z-index: 20; display: flex; align-items: flex-end; justify-content: center;
-}
-.sheet {
-  background: var(--card); color: var(--ink); width: min(100%, 520px);
-  border-radius: 16px 16px 0 0; padding: 18px 18px 28px;
-  max-height: 90vh; overflow: auto;
-}
-.sheet h2 { margin: 0 0 12px; }
-.sheet ul { margin: 0; padding-left: 1.2em; color: var(--muted); }
-.sheet li { margin: 0 0 8px; }
-.foot { color: var(--muted); font-size: 13px; line-height: 1.45; }
-#howClose { width: 100%; margin-top: 16px; background: var(--blue); color: #111; border: 0; }

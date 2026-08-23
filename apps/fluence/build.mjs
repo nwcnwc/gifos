@@ -26,6 +26,12 @@ const files = {
   'app.js': read('app.js'),
 };
 
+{
+  const help = read('help.md').trim();
+  if (help.length < 400) throw new Error('help.md is too short (' + help.length + ')');
+  files['help.md'] = help;
+}
+
 const bytes = await gif.encode(files, { preview: oratorIcon() });
 // Into the PUBLISH boundary: Pages ships only site/, and the App Store has to
 // be able to download this. site/apps/<slug>/ is also where the catalog build

@@ -39,10 +39,10 @@
   "cover": "/apps/tosios/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tosios/tosios.gif",
-  "bytes": 198276,
+  "bytes": 199521,
   "download": 0,
   "provides": null,
-  "sha256": "cb29a9546c9cbcd2036e8ed0b90dc461e0e0103bfb87e3d62f3770c715bbb386",
+  "sha256": "861b8d45271c48b91f060f1c780d12ed4cdeed40925535c4549ebe57b5d020ed",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -39,10 +39,10 @@
   "cover": "/apps/wifi-card/cover.jpg",
   "screenshots": [],
   "gif": "/apps/wifi-card/wifi-card.gif",
-  "bytes": 208650,
+  "bytes": 209567,
   "download": 0,
   "provides": null,
-  "sha256": "205be561db2f66747b32f995e2af2629c492e90bf5688f6970a02cffdc394181",
+  "sha256": "73fb2772dc61b615b03c419fa5b1c4931d092d64c27f666dcc050f362cee9bf6",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

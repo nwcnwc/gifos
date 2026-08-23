@@ -20,7 +20,7 @@
 // is shared. This file writes site/apps/squoosh/{squoosh.gif,app.json,cover.jpg}.
 import { deflateRawSync } from 'node:zlib';
 import { squooshIcon, screenshotPng } from './icon.mjs';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -307,6 +307,13 @@ const files = {
   'LICENSE-mozjpeg.md':  read('vendor/LICENSE-mozjpeg.md'),
   'LICENSE-oxipng.md':   read('vendor/LICENSE-oxipng.md'),
 };
+
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+{
+  const help = read('help.md').replace(/^\uFEFF/, '').trim();
+  if (help.length < 400) throw new Error('help.md trimmed length must be >= 400, got ' + help.length);
+}
+files['help.md'] = read('help.md');
 
 const html = files['index.html'];
 for (const s of ['mozjpeg.js', 'webp.js', 'avif.js', 'jxl.js', 'qoi.js', 'oxipng.js', 'codecs.js', 'app.js']) {

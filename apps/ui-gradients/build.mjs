@@ -87,6 +87,11 @@ const files = {
   // work, and has to carry the notice with it.
   'COPYING-uigradients.txt': read('vendor/COPYING-uigradients.txt'),
 };
+{
+  const helpMd = read('help.md').trim();
+  if (helpMd.length < 400) throw new Error('help.md is missing or too short (' + helpMd.length + ')');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

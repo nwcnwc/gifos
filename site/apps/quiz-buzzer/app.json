@@ -39,10 +39,10 @@
   "cover": "/apps/quiz-buzzer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/quiz-buzzer/quiz-buzzer.gif",
-  "bytes": 202892,
+  "bytes": 204054,
   "download": 0,
   "provides": null,
-  "sha256": "35853f0118e80d68fbd9149d8ba856cc4def4236d03875403eeda2695dd2ca0b",
+  "sha256": "52dd903cab69f7d2e7381812b3c604931d34b1e496e12e42519fb74ee2368576",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

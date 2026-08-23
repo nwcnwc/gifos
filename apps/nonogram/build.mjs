@@ -100,6 +100,12 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
 }
 
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing — OS Help packs this file');
+const helpMd = read('help.md');
+if (helpMd.replace(/^\uFEFF/, '').trim().length < 400) {
+  throw new Error('help.md is too short (need >= 400 trimmed chars)');
+}
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -108,6 +114,7 @@ const files = {
   'puzzles.js': read('puzzles.js'),
   'mp.js': read('mp.js'),
   'app.js': read('app.js'),
+  'help.md': helpMd,
   'COPYING-nonogram.txt': read('vendor/COPYING-nonogram.txt'),
 };
 

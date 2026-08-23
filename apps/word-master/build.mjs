@@ -69,6 +69,11 @@ const files = {
   'app.js': read('app.js'),
   'COPYING-word-master.txt': read('vendor/COPYING-word-master.txt'),
 };
+{
+  const helpMd = read('help.md').trim();
+  if (helpMd.length < 400) throw new Error('help.md is missing or too short (' + helpMd.length + ')');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of ['words.js', 'app.js']) {

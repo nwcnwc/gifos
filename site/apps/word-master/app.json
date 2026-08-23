@@ -38,10 +38,10 @@
   "cover": "/apps/word-master/cover.jpg",
   "screenshots": [],
   "gif": "/apps/word-master/word-master.gif",
-  "bytes": 207756,
+  "bytes": 208080,
   "download": 0,
   "provides": null,
-  "sha256": "33323884bd35ebb26dba4269ce8dd736c15ef8d7f3abebe59e32836763a57c3b",
+  "sha256": "1e90bb943f64ac578b3a2f60582a3be6ed0065c204132a5eb216dc2e937f1a85",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

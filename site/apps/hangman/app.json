@@ -38,10 +38,10 @@
   "cover": "/apps/hangman/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hangman/hangman.gif",
-  "bytes": 171975,
+  "bytes": 171838,
   "download": 0,
   "provides": null,
-  "sha256": "7c7110f1137a4e3774cbe51cc67ae3654060ce5a4a4d7a5c9e42175a8fcad23f",
+  "sha256": "d1b12b8b5f7db335d06bc2bd9dde194ae0ede495e9e7c6fc14cf79dbca6493e8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

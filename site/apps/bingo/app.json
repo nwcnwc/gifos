@@ -38,10 +38,10 @@
   "cover": "/apps/bingo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bingo/bingo.gif",
-  "bytes": 197039,
+  "bytes": 198184,
   "download": 0,
   "provides": null,
-  "sha256": "93b4c5b9dec1747d7be6da21c39051a9a92a8f0e5ce01f2c948f846157e886aa",
+  "sha256": "ae62f55786116de8c41ce3200afcf600dfcc4221e371602a86ca08eb960c057b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

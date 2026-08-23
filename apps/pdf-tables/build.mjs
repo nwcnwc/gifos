@@ -13,11 +13,36 @@
 //   xlsx.js    → vendor/xlsx.full.min.js (SheetJS, Apache-2.0), pure JS.
 //
 // Run:  node apps/pdf-tables/build.mjs
-import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
 import { pdfTablesIcon } from './icon.mjs';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { deflateRawSync } from 'node:zlib';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+// Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
+// uses). Node 20+ is fine. Buffer the payload and deflateRaw at flush — the
+// encoder is not a streaming compressor anyway.
+{
+  const Orig = globalThis.CompressionStream;
+  globalThis.CompressionStream = class CompressionStream {
+    constructor(format) {
+      if (format !== 'deflate-raw') {
+        if (Orig) return new Orig(format);
+        throw new TypeError('unsupported format ' + format);
+      }
+      const chunks = [];
+      const ts = new TransformStream({
+        transform(chunk) { chunks.push(Buffer.from(chunk)); },
+        flush(controller) {
+          controller.enqueue(new Uint8Array(deflateRawSync(Buffer.concat(chunks))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  };
+}
+await import('../../site/js/gifos-gif.js'); // attaches globalThis.GifOS.gif
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const gif = globalThis.GifOS.gif;
@@ -52,6 +77,13 @@ const files = {
   'LICENSE-pdfjs.txt': read('vendor/LICENSE-pdfjs.txt'),
   'LICENSE-sheetjs.txt': read('vendor/LICENSE-sheetjs.txt'),
 };
+
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+{
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short');
+  files['help.md'] = helpMd;
+}
 
 const bytes = await gif.encode(files, { preview: pdfTablesIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'pdf-tables', 'pdf-tables.gif');

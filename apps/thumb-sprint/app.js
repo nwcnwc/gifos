@@ -818,7 +818,6 @@
     window.addEventListener('keydown', function (ev) {
       if (ev.repeat) return;
       if (ev.code !== 'Space' && ev.key !== ' ') return;
-      if (!$('modal-info').hidden) return;
       ev.preventDefault();
       mash.classList.add('down');
       doTap();
@@ -838,21 +837,6 @@
       S.mode = b.getAttribute('data-mode');
       if (saveDb) saveDb.put({ id: 'prefs', vs: S.mode }).catch(function () {});
     });
-
-    $('infoBtn').addEventListener('click', function () { $('modal-info').hidden = false; });
-    $('modal-info').addEventListener('click', function (ev) {
-      if (ev.target === $('modal-info')) $('modal-info').hidden = true;
-    });
-    $('modal-info').querySelector('[data-close]').addEventListener('click', function () {
-      $('modal-info').hidden = true;
-    });
-
-    if (api && api.onBack) {
-      api.onBack(function () {
-        if (!$('modal-info').hidden) { $('modal-info').hidden = true; return true; }
-        return false;
-      });
-    }
   }
 
   function boot() {

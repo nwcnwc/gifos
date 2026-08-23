@@ -10,12 +10,36 @@
 // it as a data: URL in the srcdoc. Same lesson as pdf-tables-ocr.
 //
 // Run:  node apps/tesseract/build.mjs
-import '../../site/js/gifos-gif.js';
+import { deflateRawSync } from 'node:zlib';
 import { tesseractIcon } from './icon.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+// Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
+// uses). Node 20+ is fine. Same polyfill as the other app packers.
+{
+  const Orig = globalThis.CompressionStream;
+  globalThis.CompressionStream = class CompressionStream {
+    constructor(format) {
+      if (format !== 'deflate-raw') {
+        if (Orig) return new Orig(format);
+        throw new TypeError('unsupported format ' + format);
+      }
+      const chunks = [];
+      const ts = new TransformStream({
+        transform(chunk) { chunks.push(Buffer.from(chunk)); },
+        flush(controller) {
+          controller.enqueue(new Uint8Array(deflateRawSync(Buffer.concat(chunks))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  };
+}
+await import('../../site/js/gifos-gif.js');
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const gif = globalThis.GifOS.gif;
@@ -87,6 +111,9 @@ const files = {
   '.assets/tesseract-core.wasm': wasm,
   'COPYING-tesseract.txt': read('COPYING-tesseract.txt'),
 };
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+files['help.md'] = read('help.md');
+if (files['help.md'].trim().length < 400) throw new Error('help.md trimmed length must be >= 400');
 
 if (!appJs.includes('tesseract-core.wasm')) throw new Error('app.js no longer asks for tesseract-core.wasm');
 if (!appJs.includes('eng.traineddata')) throw new Error('app.js no longer asks for eng.traineddata');

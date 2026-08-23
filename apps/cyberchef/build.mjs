@@ -171,6 +171,14 @@ const files = {
   '.assets/modules/Image.js.gz': imageGz,
 };
 
+{
+  const helpPath = join(dir, 'help.md');
+  if (!existsSync(helpPath)) throw new Error('help.md is missing');
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md trimmed length must be >= 400');
+  files['help.md'] = helpMd;
+}
+
 for (const name of MODULES) {
   if (name === 'Image') continue;
   files['.assets/modules/' + name + '.js.gz'] = readV('modules/' + name + '.js.gz');

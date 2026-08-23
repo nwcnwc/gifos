@@ -14,7 +14,7 @@ Nothing is fetched. Progress lives in the file. The picker is a gojūon chart
 of the actual kana — tap a row — not a wall of "あ-row" chips.
 
 ```
-index.html          picker / drill / race / how-to
+index.html          picker / drill / race
 style.css           dark #0a0a0f, huge answer buttons
 app.js              rules + gifos.db persistence + race
 icon.mjs            あ → ア flip icon + 1200×720 cover

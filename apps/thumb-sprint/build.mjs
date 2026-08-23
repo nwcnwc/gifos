@@ -6,7 +6,7 @@
 // Run:  node apps/thumb-sprint/build.mjs
 import { thumbSprintIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
@@ -95,6 +95,9 @@ const files = {
   'race.js': read('race.js'),
   'app.js': read('app.js'),
 };
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+files['help.md'] = read('help.md');
+if (files['help.md'].trim().length < 400) throw new Error('help.md trimmed length must be >= 400');
 
 const html = files['index.html'];
 if (!html.includes('src="race.js"')) throw new Error('index.html does not load race.js');

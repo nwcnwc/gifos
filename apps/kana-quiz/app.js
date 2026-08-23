@@ -820,19 +820,8 @@
     if (G.screen === 'lobby') { goHome(); return; }
     goHome();
   });
-  $('infoBtn').addEventListener('click', function () { $('modal-info').hidden = false; });
-  $('modal-info').addEventListener('click', function (ev) {
-    if (ev.target === $('modal-info')) $('modal-info').hidden = true;
-  });
-  $('modal-info').querySelector('[data-close]').addEventListener('click', function () {
-    $('modal-info').hidden = true;
-  });
-
   document.addEventListener('keydown', function (ev) {
     if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
-    if (!$('modal-info').hidden && ev.key === 'Escape') {
-      $('modal-info').hidden = true; ev.preventDefault(); return;
-    }
     if (G.screen !== 'quiz' || G.locked) return;
     var n = ev.key ? ev.key.charCodeAt(0) - 49 : -1;
     if (n >= 0 && n < 4) {
@@ -846,7 +835,6 @@
 
   if (api && api.onBack) {
     api.onBack(function () {
-      if (!$('modal-info').hidden) { $('modal-info').hidden = true; return true; }
       if (G.screen !== 'home') { goHome(); return true; }
       return false;
     });

@@ -51,8 +51,12 @@ if (!existsSync(join(dir, 'vendor', 'COPYING-periodic-table.txt'))) {
 
 const SCRIPTS = ['elements.js', 'app.js'];
 
+const helpMd = read('help.md').trim();
+if (helpMd.length < 400) throw new Error('help.md trimmed length is ' + helpMd.length + ', need >= 400');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
+  'help.md': helpMd + '\n',
   'index.html': read('index.html'),
   'style.css': read('style.css'),
   'elements.js': read('elements.js'),

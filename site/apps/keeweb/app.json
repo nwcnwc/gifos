@@ -39,10 +39,10 @@
   "cover": "/apps/keeweb/cover.jpg",
   "screenshots": [],
   "gif": "/apps/keeweb/keeweb.gif",
-  "bytes": 260917,
+  "bytes": 262444,
   "download": 0,
   "provides": null,
-  "sha256": "baa807eefff65379f781c935b8b0ea2396fd4d801d2046591b45834310f8bad7",
+  "sha256": "992f8de4d54f5ddf8ee5ef881e8d53c598aa7e10f5009fbd9a2028b3aa8e6646",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

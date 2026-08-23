@@ -152,6 +152,9 @@ const files = {
   'COPYING-svgomg.txt': read('vendor/COPYING-svgomg.txt'),
   'COPYING-svgo.txt': read('vendor/COPYING-svgo.txt'),
 };
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+files['help.md'] = read('help.md');
+if (files['help.md'].trim().length < 400) throw new Error('help.md trimmed length must be >= 400');
 
 const html = files['index.html'];
 for (const s of ['svgo.js', 'plugins.js', 'demo.js', 'app.js']) {

@@ -39,10 +39,10 @@
   "cover": "/apps/nxn-cube/cover.jpg",
   "screenshots": [],
   "gif": "/apps/nxn-cube/nxn-cube.gif",
-  "bytes": 404031,
+  "bytes": 405100,
   "download": 0,
   "provides": null,
-  "sha256": "fbac535991773635037df94d9e03f6577082c4cbb881241a22abf51d9d151ca3",
+  "sha256": "027c17a2758706f253a10d55d3611d660574f1a9a600b398261d5ec7399c2e15",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

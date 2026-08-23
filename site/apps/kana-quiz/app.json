@@ -40,10 +40,10 @@
   "cover": "/apps/kana-quiz/cover.jpg",
   "screenshots": [],
   "gif": "/apps/kana-quiz/kana-quiz.gif",
-  "bytes": 201458,
+  "bytes": 201907,
   "download": 0,
   "provides": null,
-  "sha256": "c864e6db1d5bb166a58bc840b2f75bb69c25633ae32c2b45f1ce128faa4fecf3",
+  "sha256": "08b67554fee79dc4ebddd8de6a012bca0579b62575a8106857b2e401e45c0f07",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

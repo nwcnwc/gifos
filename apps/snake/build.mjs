@@ -41,6 +41,9 @@ const read = (p) => readFileSync(join(dir, p), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 const SCRIPTS = ['game.js', 'app.js'];
 
+const helpMd = read('help.md');
+if (helpMd.trim().length < 400) throw new Error('help.md must exist and be at least 400 characters after trim');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -50,6 +53,7 @@ const files = {
   // The MIT notice rides INSIDE the GIF: a copy someone is handed is a
   // distribution of patorjk's JavaScript Snake.
   'COPYING.txt': read('COPYING.txt'),
+  'help.md': helpMd,
 };
 
 const html = files['index.html'];

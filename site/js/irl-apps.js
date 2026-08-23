@@ -1368,19 +1368,230 @@ IRL.onchange=render;
 IRL.init().then(render); render();
 </script>`;
 
+  const FAKEFACTS_HELP = `# Fake Facts
+
+Everyone invents a lie. The truth hides among them. Read the options aloud and see who falls for whose fib.
+
+## Setup
+
+Needs **3+** players, each on their own phone. Tap **Invite** in the top bar and send the link. Friends appear as chips. Tap a chip to drop someone stale. Pick a mode to start:
+
+- **About Us** — one player is the subject and types the true answer; everyone else types a fake. One round per person.
+- **Weird But True** — real trivia; you all invent believable lies. Eight rounds.
+
+## Play
+
+Type your answer (max 60 characters) and lock it in. When everyone is in, the ballot appears on every phone. Read them out loud, then tap the one you think is true. You cannot vote for your own lie.
+
+You score for spotting the truth, and extra if someone picks your lie. After the reveal, **Next round**.
+
+## Saved
+
+Scores and the current round live in this icon for the shared room.
+`;
+
+  const ONECLUE_HELP = `# One Clue
+
+A co-op word game. The room sees a secret word — except the guesser. Everyone else writes **one** one-word clue. Identical clues cancel out before the guesser sees them.
+
+## Setup
+
+Needs **3+** players, each on their own phone. **Invite** in the top bar, wait until people appear, then **Start the 13 words**.
+
+## Play
+
+- If you are **not** guessing: you see the word. Type one word (not the word itself) and lock it in.
+- If you **are** guessing: look at your friends, not their screens. When clues are in, you see only the ones that did not collide. Say your guess out loud.
+- The others tap **Correct** (+1), **They passed** (lose this word), or **Wrong** (lose this word *and* the next).
+
+You play 13 words as a team. Guesser rotates.
+
+## Saved
+
+The deck, whose turn it is, and the team score live in this icon.
+`;
+
+  const SAMEBRAIN_HELP = `# Same Brain
+
+Type what you think **most people** will type. Match the herd to score. A lone weird answer gets the **Pink Cow** — and you cannot win while you hold it.
+
+## Setup
+
+Needs **3+** players, each on their own phone. **Invite** in the top bar, wait until chips appear, then **Start mooing**. Tap a stale chip to drop someone who left.
+
+## Play
+
+A question appears on every phone. Secretly type your answer and lock it in. When everyone is in, **Stampede** reveals the groups.
+
+The unique biggest group scores +1 each. A tie for the biggest herd scores nobody.
+
+If only one person is alone with an answer, the Pink Cow moves to them. First to **8** points wins — unless they still hold the cow, in which case play continues.
+
+## Saved
+
+Scores, the cow, and the question round live in this icon.
+`;
+
+  const WOLVES_HELP = `# One Night Wolves
+
+One night. One vote. No moderator. Each phone is dealt a secret role. Two of you are werewolves (sometimes both wolf cards sleep in the centre). After hidden night actions: five minutes of accusations, then a vote.
+
+## Setup
+
+Needs **4+** players, each on their own phone. **Invite** in the top bar, then **Deal the roles**.
+
+## Night (silence)
+
+Hold to peek at your role, then do your one action:
+
+- **Werewolf** — you see the other wolf. A lone wolf may peek at one centre card.
+- **Seer** — peek at one player, or two centre cards.
+- **Robber** — steal another player’s role (you become that role).
+- **Troublemaker** — swap two *other* players.
+- **Insomniac** — at dawn you see what you are *now*.
+- **Villager / Hunter** — sleep. If the Hunter is voted out, their vote target goes down with them.
+
+When everyone is asleep, **Dawn** starts a 5:00 talk clock.
+
+## Day
+
+Talk in the room. Hold to peek at your night recap — your card may have been swapped. Tap who dies (or **No one dies**). Votes stay hidden until all are in.
+
+Village wins if a wolf is voted out (or if there were no wolves and nobody dies). Wolves win otherwise.
+
+## Saved
+
+Wins and the current night live in this icon.
+`;
+
+  const ODDWORD_HELP = `# Odd Word Out
+
+Everyone gets the same secret word — except one imposter, who gets a near-miss (coffee vs tea). One clue each, out loud. Then point at the faker.
+
+## One phone
+
+Add names (Enter after each), at least three, then **Deal the words**. Pass the phone. Each person **holds to peek**, then **I've seen it — pass on**. Phone down: in the listed order, say one word or short phrase. **We're ready to vote** — count out loud, then tap who got the most fingers.
+
+If you catch the imposter, they try to say the group’s word out loud; the group taps whether they got it.
+
+- Imposter not caught, or they guess the word: imposter **+3**.
+- Caught and they miss: everyone else **+1**.
+
+**Next round** keeps the group. **New group** starts over.
+
+## Own phones
+
+**Invite** in the top bar. When friends appear, this copy can deal over the wire instead of passing the phone (use **Everyone's on their own phone** if you see it). Hold to peek your word; votes stay hidden until all are in.
+
+## Saved
+
+Scores live in this icon. The pass-the-phone deal is on this device only.
+`;
+
+  const SPY_HELP = `# Catch the Spy
+
+Everyone learns a secret place and a role — except one spy, who knows neither. Ask questions about the place. Too vague? Suspicious. Too specific? You just told the spy.
+
+## Setup
+
+This is the **one-phone** version. Add names (Enter after each), at least three, then **Deal the roles**. Pass the phone. Each person **holds to peek**, then **Got it — pass on**.
+
+## Play
+
+Phones down. The named person asks first; answer, then you ask someone else. A timer runs (6 minutes, or 8 with six or more players).
+
+- **Peek at all possible places** if you need the list.
+- **We're accusing someone** — tap who the group points at. Catch the spy: everyone else +1. Accuse an innocent: spy +2.
+- **The spy surrenders & guesses the place** — they tap a place. Right: spy +4. Wrong: everyone else +1.
+
+Time’s up forces a final vote. **Next round** or **New group**.
+
+## Saved
+
+Scores live in this icon on this phone. Invite is not how this copy deals roles — pass the device.
+`;
+
+  const TILT_HELP = `# Tilt
+
+Stick this phone on your forehead, screen facing the room. They shout clues (or act them out — the deck says which). Tilt **down** when you get it, **up** to pass. 60 seconds, then pass the phone.
+
+## Play
+
+1. Pick a deck (Animals, Act It Out, Jobs, Foods, Around the House, Legends & Heroes).
+2. Hand the phone to the guesser. Anyone taps **Start (3·2·1)**. Allow motion access if the phone asks.
+3. During the round you can also **tap** the top of the screen to pass, or the bottom to mark a hit.
+
+Bring the phone back upright to arm the next tilt.
+
+When time is up you see what you got. **Next player, same deck** or **Change deck**.
+
+This game is one phone by design. **Invite** does not deal words to other devices.
+
+## Saved
+
+This session’s per-deck scores stay on screen until you leave. Nothing is stored in the icon.
+`;
+
+  const DIAL_HELP = `# The Dial
+
+How in-sync is this room? Each round one psychic secretly sees a target on a spectrum and gives **one** clue that sits right there. Everyone else argues and turns the dial.
+
+## Setup
+
+This is the **one-phone** version. Add names (Enter after each), at least two (three feels better), then **Start (7 rounds)**.
+
+## Play
+
+Everyone except the named psychic looks away. Psychic: **Hold to peek at the target**, think of one clue, hide it, say the clue out loud, then **Clue given**.
+
+The room drags the needle and taps **Lock it in**.
+
+- Within 6 of the target: **4** points
+- Within 12: **3**
+- Within 18: **2**
+- Else: **0**
+
+Seven rounds, psychics rotate. Total is out of 28.
+
+## Saved
+
+Nothing is stored in the icon. Invite is not how this copy hides the target — look away.
+`;
+
+  const ROULETTE_HELP = `# Party Roulette
+
+The deck is the boss. Add names, put the phone in the middle, tap for a card, do what it says.
+
+## Play
+
+Add everyone (Enter after each; tap a chip to remove someone), at least two, then **Shuffle up & deal**.
+
+**Next card** draws another. Names in the prompts are filled from the list, so someone in the room is always the target. **Players** goes back to edit who is in.
+
+There is no score and no winner. When the deck runs out it shuffles again.
+
+This is one phone in the middle. **Invite** does not deal cards to other devices.
+
+Skip a card you hate: tap **Next card** and pretend it never happened.
+
+## Saved
+
+Nothing is stored in the icon. Close the app and the deck forgets where you were.
+`;
+
   GifOS.irl = {
     netApps: [
-      { name: 'Fake Facts',       appId: 'fakefacts', accent: [212, 112, 61],  html: FAKEFACTS_HTML },
-      { name: 'One Clue',         appId: 'oneclue',   accent: [59, 165, 160],  html: ONECLUE_HTML },
-      { name: 'Same Brain',       appId: 'samebrain', accent: [224, 92, 138],  html: SAMEBRAIN_HTML },
-      { name: 'One Night Wolves', appId: 'wolves',    accent: [90, 74, 138],   html: WOLVES_HTML },
+      { name: 'Fake Facts',       appId: 'fakefacts', accent: [212, 112, 61],  html: FAKEFACTS_HTML, help: FAKEFACTS_HELP },
+      { name: 'One Clue',         appId: 'oneclue',   accent: [59, 165, 160],  html: ONECLUE_HTML,   help: ONECLUE_HELP },
+      { name: 'Same Brain',       appId: 'samebrain', accent: [224, 92, 138],  html: SAMEBRAIN_HTML, help: SAMEBRAIN_HELP },
+      { name: 'One Night Wolves', appId: 'wolves',    accent: [90, 74, 138],   html: WOLVES_HTML,    help: WOLVES_HELP },
     ],
     apps: [
-      { name: 'Odd Word Out',   appId: 'imposter', accent: [59, 165, 93],   html: ODDWORD_HTML },
-      { name: 'Catch the Spy',  appId: 'spy',      accent: [77, 124, 214],  html: SPY_HTML },
-      { name: 'Tilt',           appId: 'tilt',     accent: [232, 163, 60],  html: TILT_HTML },
-      { name: 'The Dial',       appId: 'dial',     accent: [198, 92, 204],  html: DIAL_HTML },
-      { name: 'Party Roulette', appId: 'roulette', accent: [123, 92, 255],  html: ROULETTE_HTML },
+      { name: 'Odd Word Out',   appId: 'imposter', accent: [59, 165, 93],   html: ODDWORD_HTML,  help: ODDWORD_HELP },
+      { name: 'Catch the Spy',  appId: 'spy',      accent: [77, 124, 214],  html: SPY_HTML,      help: SPY_HELP },
+      { name: 'Tilt',           appId: 'tilt',     accent: [232, 163, 60],  html: TILT_HTML,     help: TILT_HELP },
+      { name: 'The Dial',       appId: 'dial',     accent: [198, 92, 204],  html: DIAL_HTML,     help: DIAL_HELP },
+      { name: 'Party Roulette', appId: 'roulette', accent: [123, 92, 255],  html: ROULETTE_HTML, help: ROULETTE_HELP },
     ],
   };
 })(typeof window !== 'undefined' ? window : globalThis);

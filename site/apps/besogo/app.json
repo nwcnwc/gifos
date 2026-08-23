@@ -39,10 +39,10 @@
   "cover": "/apps/besogo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/besogo/besogo.gif",
-  "bytes": 218624,
+  "bytes": 219982,
   "download": 0,
   "provides": null,
-  "sha256": "629d34e046779ac1474b44223fedb4761c1485bb3e03fb830a5e98804cb92f11",
+  "sha256": "9aa2690b19d98a76b7f04181db07e3aa9354bce160845678e13b80f18c1786d7",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -55,6 +55,12 @@ const files = {
   'app.js': read('app.js'),
 };
 
+{
+  const help = read('help.md').replace(/^\uFEFF/, '').trim();
+  if (help.length < 400) throw new Error('help.md trimmed length is ' + help.length + ' (need >= 400)');
+  files['help.md'] = help + '\n';
+}
+
 const html = files['index.html'];
 for (const s of SCRIPTS) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);

@@ -37,10 +37,10 @@
   "cover": "/apps/2048/cover.jpg",
   "screenshots": [],
   "gif": "/apps/2048/2048.gif",
-  "bytes": 307957,
+  "bytes": 309124,
   "download": 0,
   "provides": null,
-  "sha256": "025fdaa0ae23528cd576bb2464e72eed26262ce95774ac3c474d6515508dca33",
+  "sha256": "decc73503c336601fc89e5216b2d94eb7a8d7c23df776c649c67cd2c8b8eb07f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

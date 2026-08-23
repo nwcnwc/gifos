@@ -73,6 +73,9 @@ if (!phaser.includes('t.Phaser=e()')) {
 
 const SCRIPTS = ['vendor/phaser.js', 'vendor/game.js', 'net.js', 'boot.js'];
 
+const helpMd = read('help.md');
+if (helpMd.trim().length < 400) throw new Error('help.md is too short');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -83,6 +86,7 @@ const files = {
   'boot.js': read('boot.js'),
   'COPYING-catch-the-cat.txt': read('vendor/COPYING-catch-the-cat.txt'),
   'COPYING-phaser.txt': read('vendor/COPYING-phaser.txt'),
+  'help.md': helpMd,
 };
 
 const html = files['index.html'];

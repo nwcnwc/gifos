@@ -4731,7 +4731,478 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     const VAR_APPS = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1, pingpong: 1, calc: 1, chat: 1, timer: 1, fortune: 1, bible: 1 };
     // OS Help markdown packed into each seeded GIF. Filled per appId; a
     // missing entry still shows Help (the OS fallback for Invite/Save/Steal).
-    const SAMPLE_HELP = {};
+    const SAMPLE_HELP = {
+      tictactoe: `# Tic-Tac-Toe
+
+Get three of your mark in a row — across, down, or diagonal.
+
+## Play
+
+Tap an empty square. **X** always starts the first game of a series; after that the starter alternates.
+
+## Solo or a friend
+
+- **Alone:** you play both marks. Pass the device, or just play both sides.
+- **Invite** (top bar): send the link. The first tap on a turn claims that seat, so you lock to **X** or **O**. Then you only move on your turn.
+
+## New game
+
+**New game** clears the board but keeps the series score and who starts.
+
+- Alone, it asks you to confirm so a stray tap does not wipe a close game.
+- With a friend it sends them a request. They tap **Start new game** or **Keep playing**. You can **Cancel request** while you wait. A move on the board cancels a pending request.
+
+## Saved
+
+The board, whose turn it is, the seats, and the series (**X / O / draws**) live in this icon. Close it and come back — you are still mid-game.
+`,
+      connect4: `# Connect Four
+
+Drop discs down a seven-wide, six-high grid. First to four in a row — across, down, or diagonal — wins.
+
+## Play
+
+Tap any disc in a column to drop yours to the lowest empty slot. **Red** starts the first game of a series; then the starter alternates.
+
+## Solo or a friend
+
+- **Alone:** you play both colours. Pass the device.
+- **Invite** (top bar): send the link. The first drop on a turn claims that colour, then you only move on your turn.
+
+## New game
+
+**New game** clears the grid but keeps the series score and who starts.
+
+- Alone, confirm so a stray tap does not wipe the board.
+- With a friend they must accept. **Cancel request** while you wait. A drop cancels a pending request.
+
+## Saved
+
+The grid, turn, seats, and series (**red / yellow / draws**) live in this icon.
+`,
+      minesweeper: `# Minesweeper
+
+Clear a 10×10 board without hitting any of the 15 mines. Numbers are how many mines touch that square. Clear every safe square and everyone wins.
+
+## Controls
+
+- **Tap** a covered square to open it. Opening a mine ends the game.
+- The first tap is always safe (and so are its neighbours).
+- **Long-press** a square to plant or remove a flag. On a computer, right-click does the same.
+- **Flag mode** (top): when it is on, a tap flags instead of opening — handy on a phone.
+- **New game** starts a fresh board for everyone.
+
+## Play together
+
+This is co-op, not versus. **Invite** a friend and you share one board: their opens and flags show up on yours. A flag remembers who planted it.
+
+## Saved
+
+The board, mines, flags, and whether you have won or lost live in this icon.
+`,
+      chess: `# Chess Tournament
+
+A single-elimination chess bracket. Join the lobby, start when two or more people are in, and winners advance until one champion remains. An odd player gets a bye.
+
+## Lobby
+
+1. Tap **Join lobby**.
+2. Set **Time control** (no clock, bullet, blitz, or rapid) and whether to **Shuffle the bracket seeding**. These lock once play starts.
+3. Anyone taps **Start tournament**.
+4. **Invite** (top bar) is how friends appear in the lobby. You cannot play the computer as a full opponent.
+
+## A match
+
+Tap a match in the bracket to play or watch. Tap one of your pieces, then a highlighted square. Pawns that reach the far rank become queens automatically. Capturing the king wins (there is no check/stalemate overlay).
+
+**Hint** asks the computer’s Smartest model for your best legal move. You need that model set up in Settings. Spectators and the player whose turn it is not do not see Hint.
+
+**← Bracket** goes back without ending the game. Clocks (if you chose one) run on your turn; flag fall loses the match.
+
+## Saved
+
+The whole tournament — lobby, settings, boards, clocks, and results — lives in this icon.
+`,
+      pingpong: `# Ping Pong
+
+Table tennis on this screen. Rally until someone misses. Score is shown at the top.
+
+## Controls
+
+- **Drag** to move your paddle.
+- **Touch the ball** (or tap near it) to hit.
+- **Swipe** as you hit: harder / longer swipes add power and spin. A press-and-hold with more pressure hits harder too.
+
+The host serves first, then the scorer serves. Two bounces on the same side, a net-on-the-way-down, or a miss awards the point.
+
+## Solo or a friend
+
+- **Alone (host):** you play the near end against a computer at the far end.
+- **Invite** (top bar): a friend takes the far end on their phone. If they drop off, the table pauses until they tap **I'm ready**.
+- Only the host sees **New game**.
+
+## Saved
+
+The score, ball, and paddles live in this icon for the shared room. Close and reopen and you are still on the table.
+`,
+      paint: `# Paint
+
+A 16×16 pixel pad you can doodle on together.
+
+## Draw
+
+Tap a colour in the palette, then drag across the grid. Keep the pointer down to paint a stroke; lift to stop.
+
+The first swatch is an eraser (the empty dark colour). After that: reds, oranges, yellow, greens, blues, purple, pink, brown, grey, and white.
+
+**Clear** wipes every pixel for everyone in the room. There is no undo except to paint over, so treat Clear as gone.
+
+## Play together
+
+On your own, it is a tiny sketchpad. **Invite** (top bar) and you share one canvas — their pixels land on yours as they draw. Anyone can Clear.
+
+## Saved
+
+The picture lives in this icon. Close it and the pixels are still here.
+`,
+      notes: `# Notes
+
+A shared checklist that lives in this icon.
+
+## Use it
+
+Type a line and tap **Add**. Empty notes are not added.
+
+Tap a note to check it off (or back on). Tap the trash to delete it for everyone.
+
+Each line shows who wrote it (your screen name from this computer).
+
+## Private vs shared
+
+On your own Home Screen these notes are yours. **Invite** (top bar) and everyone in the room can add, check, and delete. There is no “only I edit” switch — if you need a private list, do not send the link.
+
+## Saved
+
+Every note is saved in this icon automatically. Close the tab and they are still here.
+`,
+      calc: `# Calculator
+
+A graphing calculator. Type an expression on the left; the graph is on the right. Plain arithmetic still answers under the row (\`= 7\`).
+
+## Expressions
+
+Tap **+ expression** for a new row. Examples:
+
+- \`2+2\` — a number
+- \`y = x^2\` — a curve
+- \`r = sin(3 theta)\` — polar
+- \`x^2 + y^2 = 4\` — implicit
+- \`y > x\` — a shaded region
+- \`a = 1\` — a slider (drag, or tap ▶ to animate)
+- \`(1, 2)\` — a point
+
+Tap a row’s colour dot to hide that plot. × deletes the row. The keypad inserts π, θ, powers, roots, and functions without hunting the keyboard.
+
+## Graph
+
+Drag to pan, pinch or scroll to zoom. **+** / **−** zoom, **⌂** resets the view.
+
+## Private vs shared
+
+**Invite** shares the expression list, so a class graphs together. Your pan and zoom stay on this device.
+
+## Saved
+
+Expressions are saved in this icon. Your last view is remembered here too, and is not sent with an Invite.
+`,
+      timer: `# Stopwatch
+
+A stopwatch and a countdown, on this device only.
+
+## Stopwatch
+
+The default tab. **Start** runs, **Pause** holds the time, **Start** again continues, **Reset** goes back to 00:00.0.
+
+The display is minutes, seconds, and tenths.
+
+## Timer
+
+Switch to **Timer**. Tap **+1 min**, **+5 min**, **+10 min**, or **+10 s** to add time — chips do nothing while it is running — then **Start**. It beeps when it hits zero and the digits flash. **Reset** clears the remaining time.
+
+Switching tabs stops and resets the clock.
+
+## Saved
+
+Nothing is stored. Close the app and the time is gone. **Invite** does not share a running clock; each person has their own.
+`,
+      fortune: `# Fortune
+
+Crack a cookie for a short piece of advice.
+
+## Use it
+
+**Crack a cookie** fetches a new line onto the slip. **Keep it** adds the current one to **Kept fortunes** at the bottom.
+
+The Keep button stays off until a new crack succeeds, so you cannot save the same slip twice in a row.
+
+Fortunes come from the internet (adviceslip.com). If you are offline, or you have turned this app’s **Internet** off in the top bar, cracking fails instead of inventing a line.
+
+## Private vs shared
+
+On your own, kept fortunes are yours. **Invite** shares the kept list, so a room can collect them together. The slip on screen is just what you last cracked — it is not a chat.
+
+## Saved
+
+Kept fortunes live in this icon. Closing the app does not lose the list.
+`,
+      bible: `# Bible Browser
+
+Read the Recovery Version of the Bible. Pages come from the Recovery Version site over the internet.
+
+## Navigate
+
+**Home** opens the table of contents. Tap a book or chapter. In-page links stay inside this reader. **‹** / **›** are back and forward; the reload button fetches the page again.
+
+**A−** / **A+** change type size. The moon/sun button switches night and day. Those reading prefs are yours alone.
+
+## Read together
+
+**Invite** (top bar) and you share a meeting. **Following** (on by default once someone else is here) means when anyone turns a page or scrolls, the others come along. Tap it to **Follow** off if you want to peek without moving the group. The host can lock the room so only they lead.
+
+You need the internet (and this app’s **Internet** allowed) or pages will not load.
+
+## Saved
+
+Your last page, scroll, theme, and type size are remembered in this icon. The shared meeting position is remembered too.
+`,
+      speechcoach: `# Speech Coach
+
+Record up to 12 seconds of yourself talking. The clip is measured on this device for pace, pauses, and volume — it does not leave the phone.
+
+## Use it
+
+Tap **Record & analyse** and speak. Allow the microphone if asked (and leave it on in this app’s Abilities chip). You get:
+
+- length
+- talking vs silence
+- long pauses
+- pace (measured / steady / quick)
+- whether volume stays even
+
+Play the clip back from the card. Record again to replace the analysis. Nothing is kept when you close the app.
+
+## Private vs shared
+
+This is a personal coach. Invite does not send your recording or scores.
+`,
+      askai: `# Ask AI
+
+A private chat with the language models you set up on this computer.
+
+## Talk
+
+Type and tap **Send**. Pick **Cheapest** or **Smartest** under the thread — that is which model answers.
+
+**＋ New chat** starts a fresh thread and keeps the old one. **🕘 History** lists every chat; search by any word you asked or were told. Delete a chat only from History, and only after you confirm.
+
+## You need a model
+
+If nothing is set up, open **Settings → AI models** on your Home Screen and add an endpoint and key for Cheapest or Smartest (or install a Provider app that serves them). Test it, then come back. This app never sees your key.
+
+## Private vs shared
+
+Chats stay on this device. An Invite does not show anyone your history.
+
+## Saved
+
+Every message is kept in this icon until you delete that chat.
+`,
+      reader: `# Reader
+
+Paste or type text, then hear it read aloud.
+
+## Use it
+
+Put text in the box. Pick a voice (Nova, Shimmer, Fable, Echo, Onyx, Alloy, or Default). Tap **Read aloud**. **Stop** cuts it off.
+
+Long passages start speaking on the first sentence, then continue in chunks so it does not stall.
+
+The text you last read is remembered in this icon. Open Reader tomorrow and the box is still filled.
+
+## You need a voice
+
+This uses the computer’s **Text → speech**. Easiest: install **Offline Text to Speech** from the App Store (speaks on this device, no account). Or add a speech endpoint under **Settings → AI models**. Until one is set up, Read aloud cannot start.
+
+## Private vs shared
+
+Your text stays on this device. **Invite** does not read it to anyone else.
+`,
+      guestbook: `# Guestbook
+
+A shared wall of short messages.
+
+## Sign
+
+Type something and tap **Sign**. You sign as your screen name (set on this computer).
+
+The stamp row inserts an emoji into the box; you can mix stamps with words.
+
+Newest entries sit at the top. There is no edit and no delete — treat it like a real guest book.
+
+## Play together
+
+On your own it is a private wall. **Invite** (top bar) and everyone in the room can sign. Their names and lines show up for all of you.
+
+## Saved
+
+Every signature lives in this icon. Close it and the wall is still here.
+`,
+      chat: `# Chat
+
+A live room for text, photos, and files.
+
+## Send
+
+Type and tap **Send**, or tap a quick emoji under the thread. **📎** attaches a photo or file. Images shrink to fit; attachments cap at 256 KB — for bigger files, share them in a Meeting instead.
+
+**✨** drafts a reply with *your* AI into the box; it never sends. Edit it, then Send. You need a model in Settings for that button to work.
+
+Your own lines show a clock while they travel, a check when the host has them, and a warning you can tap to resend if they did not land.
+
+## Play together
+
+**Invite** (top bar). Everyone shares one thread. The ✨ draft uses each person’s own model, never the host’s.
+
+## Saved
+
+Messages and attachments live in this icon.
+`,
+      welcome: `# Welcome
+
+A short tour of this computer, plus a checklist that proves your stuff lives in the icon.
+
+## Read
+
+Cards cover the basics:
+
+- Apps are GIFs you can send, with your work inside
+- **Invite** is how you play together
+- **IRL Games** is for game night (**Single Phone** when only one device is in the room)
+- **＋ Add** is how you make an app
+- **Steal** copies one you like
+- The GifOS menu (top-left) backs up the whole Home Screen as one file
+
+## Try it
+
+Check items off (looked around, opened an app, invited a friend, made an app, backed up). Close this tab, open Welcome again — the ticks are still there. That is your data inside the icon.
+
+The checklist is yours alone. **Invite** does not share it.
+`,
+      camera: `# Camera
+
+Take photos and short clips. Everything you shoot is saved into **My Media**, not kept only here.
+
+## Capture
+
+Tap the shutter to open the camera. Shoot a still, or switch modes in that view for video, burst, boomerang, slow-mo, or time-lapse.
+
+Each shot is saved the moment you take it, even if you close the camera right after.
+
+Allow the camera (and microphone, for video) if asked, and leave them on in this app’s Abilities chip. If this computer has no camera, you will see that instead of a viewfinder.
+
+## Recents
+
+The film strip is your latest shots. Tap one to preview. **🖼️ My Media** opens the full library to rename, download, or delete. **🎞️** jumps to the newest item.
+
+## Privacy
+
+Your library is private. Inviting someone to Camera does not show them your roll. To let a guest see a shot, open it in **My Media** and turn on **Visible to invited guests**.
+`,
+      mymedia: `# My Media
+
+Your private library of photos, audio, and video.
+
+## Add
+
+**＋ Add** picks files, or drop them onto the window. **📷** / **🎙** / **🎬** capture straight in (if this computer can). Items over 25 MB will not import.
+
+Filter by type or category. Tap a card to open it. Check the corner to select several, then **Categorize** or **Delete**.
+
+## Open an item
+
+Rename it, set a category, **Download** it out, **Flip** a photo or video, **Clip** or **Reverse** audio/video, or **Make GIF** from a video (trim, pick a speed, go).
+
+**Delete** moves it to the **Deleted** category. Open Deleted and delete again (you will be asked) to remove it for good.
+
+## Privacy
+
+The whole library is private. **Invite** does not show guests anything until you, the owner, open an item and flip **Visible to invited guests**. Then they can see and steal that one item. Guests cannot make your items visible, and their own captures stay private.
+
+## Saved
+
+Everything lives in this icon.
+`,
+      meet: `# Meeting
+
+Tap this icon to open the built-in **Meeting** page — video, audio, chat, and apps in a call with people you invite.
+
+## What tapping does
+
+This is not an ordinary app you run in a tab. Meetings need the camera and microphone, so GifOS opens its trusted Meeting page instead of running a GIF here.
+
+From that page you start or join a room, share a link, and can even run an app inside the call.
+
+Use the Home Screen again when you are done.
+
+## Camera and mic
+
+Allow them when the browser asks. You can mute or stop video from the meeting controls. Ordinary apps on the Home Screen are not given that access.
+
+## Saved
+
+A meeting is live, not a file in this icon. Your Home Screen is unchanged when you leave the call.
+`,
+      broadcast: `# Broadcast
+
+Tap this icon to open the built-in **Broadcast** page — you on stage, as many viewers as you like, and chat as the back channel.
+
+## What tapping does
+
+This is not an ordinary app you run in a tab. Going live needs the camera and microphone, so GifOS opens its trusted Broadcast page instead of running a GIF here.
+
+From that page you go live and share the link. Viewers watch; they talk in chat.
+
+Use the Home Screen again when you are done.
+
+## Camera and mic
+
+Allow them when the browser asks if you are the one on stage. Viewers do not need a camera. Ordinary apps on the Home Screen are not given that access.
+
+## Saved
+
+A broadcast is live, not a file in this icon. Your Home Screen is unchanged when you leave.
+`,
+      appstore: `# App Store
+
+Tap this icon to open the built-in **App Store** — more apps to install onto this Home Screen.
+
+## What tapping does
+
+This is not an ordinary app you run in a tab. Installing writes to your Home Screen, so GifOS opens its trusted Store page instead of running a GIF here.
+
+Browse listings, read each app’s Help, and tap Install. The new icon lands on this computer.
+
+Use the Home Screen again when you are done.
+
+## What you get
+
+Installed apps are GIFs like the ones already on your desktop. They keep their own saved work.
+
+You can Steal, Save, or trash them later like any other icon.
+
+The Store itself does not keep a shopping cart in this icon.
+`,
+    };
     const app = (name, appId, accent, html, extra) => {
       extra = extra || {};
       const help = extra.help || SAMPLE_HELP[appId] || '';

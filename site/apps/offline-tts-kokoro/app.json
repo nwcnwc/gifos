@@ -42,14 +42,14 @@
   "cover": "/apps/offline-tts-kokoro/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-tts-kokoro/offline-tts-kokoro.gif",
-  "bytes": 18535730,
+  "bytes": 18707214,
   "download": 163234740,
   "provides": {
     "ai": [
       "tts"
     ]
   },
-  "sha256": "f7ba10f7f19b84fcccdfb995671173c5a9f9b1cba5060b4de4c27c428a9211d3",
+  "sha256": "77d84af612e97d3d3fde97d04677b3b9affed395ef5bedc5926293a05a545fb5",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

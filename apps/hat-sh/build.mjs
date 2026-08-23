@@ -79,6 +79,13 @@ const files = {
   'COPYING-libsodium.txt': read('vendor/COPYING-libsodium.txt'),
 };
 
+{
+  if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short — OS Help needs a real guide.');
+  files['help.md'] = helpMd;
+}
+
 const html = files['index.html'];
 for (const s of SCRIPTS) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);

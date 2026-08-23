@@ -55,6 +55,10 @@ if (/agar\.?io/i.test(listingBlob) || /agar\.?io/i.test(JSON.stringify(manifest)
 
 const SCRIPTS = ['net.js', 'app.js'];
 
+const help = read('help.md').replace(/^\uFEFF/, '');
+if (help.trim().length < 400) throw new Error('help.md is missing or too short — need >= 400 trimmed characters');
+if (!/^#\s+\S/.test(help.trim())) throw new Error('help.md must start with # <App Name>');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -64,6 +68,7 @@ const files = {
   // The licence rides INSIDE the GIF, not just beside it in the repo. A copy
   // of this app that someone was handed is a distribution of the MIT work.
   'COPYING.txt': read('COPYING.txt'),
+  'help.md': help,
 };
 
 const html = files['index.html'];

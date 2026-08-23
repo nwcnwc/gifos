@@ -37,10 +37,10 @@
   "cover": "/apps/regexper/cover.jpg",
   "screenshots": [],
   "gif": "/apps/regexper/regexper.gif",
-  "bytes": 296236,
+  "bytes": 296665,
   "download": 0,
   "provides": null,
-  "sha256": "e904de8ea42a997640be3b795982bebebcfe92bb120115c65c2567e15a8d43f5",
+  "sha256": "143c6492b613762a4a68cda84b27004f4af6463f8244fd69b160992ab55766df",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
