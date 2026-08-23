@@ -2,14 +2,15 @@
  * Q1K3 — GifOS shell.
  *
  * Starts the vendored game after a real gesture (pointer lock and Web
- * Audio both need one), keeps mouse speed in gifos.db, paints the
- * scoreboard, and wraps the loop so extra bodies stay in the halls.
- * Invite is OS chrome — this file never draws an Invite button.
+ * Audio both need one), keeps look speed and which map you reached in
+ * gifos.db, paints the scoreboard, and wraps the loop so extra bodies
+ * stay in the halls. Invite is OS chrome — this file never draws an
+ * Invite button.
  */
 (function (root) {
   'use strict';
 
-  var prefs = { speed: 10, invert: false };
+  var prefs = { speed: 10, invert: false, map: 0 };
   var starting = false;
   var deaths = 0, spawn = 0, killedBy = null;
   var showBoard = false;
@@ -18,12 +19,14 @@
 
   var gate = document.getElementById('gate');
   var go = document.getElementById('gate-go');
+  var cont = document.getElementById('gate-cont');
   var roomEl = document.getElementById('gate-room');
   var scoreEl = document.getElementById('score');
   var scoreRows = document.getElementById('score-rows');
   var tally = document.getElementById('tally');
   var speedEl = document.getElementById('m');
   var invertEl = document.getElementById('mi');
+  var speedLabel = document.getElementById('speed-label');
 
   function loadPrefs() {
     if (!root.gifos || !root.gifos.db) return Promise.resolve();
@@ -31,13 +34,14 @@
       if (!row) return;
       if (row.speed != null) prefs.speed = row.speed;
       if (row.invert != null) prefs.invert = !!row.invert;
+      if (row.map != null) prefs.map = row.map | 0;
     }).catch(function () {});
   }
 
   function savePrefs() {
     if (!root.gifos || !root.gifos.db) return;
     root.gifos.db('prefs').put({
-      id: 'prefs', speed: prefs.speed, invert: prefs.invert
+      id: 'prefs', speed: prefs.speed, invert: prefs.invert, map: prefs.map | 0
     }).catch(function () {});
   }
 
@@ -77,6 +81,10 @@
     game_init = function (idx) {
       origInit(idx);
       if (root.Remote) root.Remote.onReset();
+      if ((idx | 0) > (prefs.map | 0) && (idx | 0) < 2) {
+        prefs.map = idx | 0;
+        savePrefs();
+      }
     };
 
     var origRun = game_run;
@@ -104,7 +112,7 @@
   }
 
   function goFullscreen() {
-    var el = document.getElementById('g') || document.documentElement;
+    var el = document.documentElement;
     var req = el.requestFullscreen || el.webkitRequestFullscreen;
     if (!req) return;
     try {
@@ -113,10 +121,11 @@
     } catch (e) {}
   }
 
-  function startPlaying(ev) {
+  function startPlaying(mapIdx) {
     if (starting || go.disabled) return;
     starting = true;
     go.disabled = true;
+    if (cont) cont.disabled = true;
     go.textContent = 'Starting…';
     prefs.speed = speedEl ? (speedEl.value | 0) : prefs.speed;
     prefs.invert = invertEl ? !!invertEl.checked : prefs.invert;
@@ -124,6 +133,7 @@
 
     var g = document.getElementById('g');
     var c = document.getElementById('c');
+    if (IS_TOUCH && root.Touch && root.Touch.arm) root.Touch.arm();
     if (!IS_TOUCH && c && c.requestPointerLock) {
       try { c.requestPointerLock(); } catch (e) {}
     }
@@ -133,6 +143,9 @@
 
     if (typeof g.onclick === 'function') {
       g.onclick();
+    }
+    if ((mapIdx | 0) > 0 && typeof game_init === 'function') {
+      game_init(mapIdx | 0);
     }
 
     gate.classList.add('gone');
@@ -152,7 +165,30 @@
     }
   }
 
+  function readyButtons() {
+    var canCont = (prefs.map | 0) > 0 && (prefs.map | 0) < 2;
+    if (IS_TOUCH) {
+      go.textContent = canCont ? 'From the start' : 'Tap to start';
+    } else {
+      go.textContent = canCont ? 'From the start' : 'Click to start';
+    }
+    if (canCont && cont) {
+      cont.hidden = false;
+      cont.textContent = 'Continue';
+      go.classList.add('secondary');
+    } else if (cont) {
+      cont.hidden = true;
+      go.classList.remove('secondary');
+    }
+    go.disabled = false;
+    if (cont) cont.disabled = false;
+  }
+
   function boot() {
+    if (IS_TOUCH) {
+      document.body.classList.add('phone');
+      if (speedLabel) speedLabel.textContent = 'Look speed';
+    }
     applyPrefs();
     if (speedEl) speedEl.addEventListener('change', function () {
       prefs.speed = speedEl.value | 0; savePrefs();
@@ -211,22 +247,20 @@
         root.Net.onRoster(paintRoster);
         paintRoster(root.Net.roster());
       }
-      go.disabled = false;
-      go.textContent = 'Click to start';
+      readyButtons();
     }).catch(function (err) {
-      go.disabled = false;
-      go.textContent = 'Click to start';
+      readyButtons();
       if (roomEl) roomEl.textContent = (err && err.message) || 'Ready';
     });
 
-    go.addEventListener('click', startPlaying);
-    go.addEventListener('pointerup', startPlaying);
+    go.addEventListener('click', function () { startPlaying(0); });
+    if (cont) cont.addEventListener('click', function () { startPlaying(prefs.map | 0); });
     root.addEventListener('keydown', function (ev) {
       if (starting || go.disabled) return;
       if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return;
       if (gate && gate.classList.contains('gone')) return;
       ev.preventDefault();
-      startPlaying(ev);
+      startPlaying((prefs.map | 0) > 0 && (prefs.map | 0) < 2 ? (prefs.map | 0) : 0);
     });
   }
 

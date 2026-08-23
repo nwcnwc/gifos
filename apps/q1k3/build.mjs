@@ -70,6 +70,15 @@ for (const s of SCRIPTS) {
 if (!html.includes('href="style.css"')) throw new Error('index.html does not load style.css');
 if (!html.includes('id="touch"')) throw new Error('index.html is missing the touch overlay');
 if (!html.includes('id="c"')) throw new Error('index.html is missing canvas#c');
+if (!html.includes('id="t-gun"')) throw new Error('index.html is missing the GUN button');
+if (!html.includes('id="gate-keys-phone"')) throw new Error('index.html is missing phone gate keys');
+if (!html.includes('id="gate-cont"')) throw new Error('index.html is missing Continue');
+if (!/in a GIF/i.test(listing.tagline) || !/no server/i.test(listing.tagline)) {
+  throw new Error('listing.tagline must lead with in a GIF / no server');
+}
+if (!/^This is Q1K3 in a GIF/i.test(listing.description)) {
+  throw new Error('listing.description must lead with in a GIF');
+}
 
 if (!listing.basedOn || listing.basedOn.blessed !== false) {
   throw new Error('listing.basedOn.blessed must be false — this is an unofficial port');
@@ -134,9 +143,15 @@ if (/\bfetch\s*\(/.test(files['vendor/game.js'])) {
   throw new Error('vendor/game.js still contains fetch( — rerun vendor.mjs');
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (process.env.Q1K3_COVER === 'draw' || !existsSync(shotPath)) {
+  const shot = screenshotPng();
+  if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
+  writeFileSync(shotPath, shot);
+} else {
+  const kept = readFileSync(shotPath);
+  if (kept[0] !== 0x89 || kept[1] !== 0x50) throw new Error('screenshot.png is not a PNG');
+}
 
 const bytes = await gif.encode(files, { preview: q1k3Icon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'q1k3', 'q1k3.gif');
@@ -144,5 +159,5 @@ mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
 console.log('wrote site/apps/q1k3/q1k3.gif —', (bytes.length / 1024).toFixed(0), 'KB, from',
             Object.keys(files).length, 'files');
-console.log('wrote apps/q1k3/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB');
+console.log('cover apps/q1k3/screenshot.png —', (readFileSync(shotPath).length / 1024).toFixed(0), 'KB');
 console.log('catalog is owned elsewhere — do not run build-app-catalog.mjs from this tree');
