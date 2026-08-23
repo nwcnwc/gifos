@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "hex-chess",
+  "name": "Hex Chess",
+  "shortName": "HexChess",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [201, 162, 39],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
