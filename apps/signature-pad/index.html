@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Signature Pad</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="chrome">
+    <div id="brand">Signature Pad</div>
+    <div id="actions">
+      <button type="button" id="shareBtn">Pass the pad</button>
+    </div>
+  </div>
+
+  <div id="friend-bar" hidden>
+    <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send the link. Each person signs their own line.</p>
+    <p id="friend-status"></p>
+    <div class="friend-actions">
+      <button type="button" id="leaveBtn">← Solo</button>
+    </div>
+  </div>
+
+  <div id="stage">
+    <div id="your-row" class="sig-row">
+      <div class="row-name" id="your-label">Sign above</div>
+      <div class="paper" id="paper">
+        <canvas id="pad"></canvas>
+      </div>
+    </div>
+    <div id="sheet" hidden>
+      <div id="sheet-list"></div>
+    </div>
+  </div>
+
+  <div id="toolbar">
+    <button type="button" id="clearBtn" class="ghost">Clear</button>
+    <button type="button" id="undoBtn" class="ghost">Undo</button>
+    <button type="button" id="saveBtn">Save PNG</button>
+    <div id="inks" role="group" aria-label="Ink">
+      <button type="button" class="ink on" data-ink="black" title="Black ink" aria-label="Black ink"></button>
+      <button type="button" class="ink" data-ink="blue" title="Blue ink" aria-label="Blue ink"></button>
+    </div>
+  </div>
+  <p id="status" role="status"></p>
+
+  <script src="vendor/signature_pad.js"></script>
+  <script src="mp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

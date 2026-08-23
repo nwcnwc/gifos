@@ -1,0 +1,17 @@
+vendor/* is GENERATED. Do not edit it; run node apps/signature-pad/vendor.mjs.
+
+upstream: https://github.com/szimek/signature_pad
+tag:      v5.1.4
+commit:   769b6438572ea927d57eddd960795843381701fe
+npm:      signature_pad@5.1.4
+license:  MIT, Szymon Nowak / szimek (COPYING-signature_pad.txt)
+
+signature_pad.js is the published UMD build (window.SignaturePad), with the
+sourceMappingURL comment stripped so the sandbox never looks for a .map.
+
+sha256:
+  npm umd (before strip)  bc960e2d259722536d31a7eef36a85ad4f78c1bfc495e6025f5e0c3c954aaa65
+  signature_pad.js        82bbbcf38b96582180ef6f02ce18c51e1d1f73cb95a002be57aab1a757b61ee6
+  COPYING                 7d461320b6c69581bd19cc9402aa9a5e33ad826ed2f977d03bcb884e0cc6ce54
+
+The notice travels INSIDE the GIF as COPYING-signature_pad.txt.
