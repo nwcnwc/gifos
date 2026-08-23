@@ -3,7 +3,8 @@
  *
  * vendor/* is the unmodified upstream (physics, 8-ball rules, stick, AI).
  * Everything GifOS-specific lives here: HTML menu, Web Audio, touch pull-back
- * aim, and two-device turns over gifos.db.
+ * aim with a ghost ball, a portrait table that fills the phone, and two-device
+ * turns over gifos.db.
  *
  * MULTIPLAYER. Invite is OS chrome — this app never draws a share button.
  * Host (the person who opened the app) is player 1 and simulates the balls.
@@ -15,12 +16,14 @@
 
   var PUBLISH_HZ = 20;
   var STALE_MS = 3500;
-  var PULL_DEAD = 40;
-  var PULL_SCALE = 6;
-  var MIN_SHOT = 8;
+  var PULL_DEAD = 28;
+  var PULL_SCALE = 3.6;
+  var MIN_SHOT = 7;
 
   var COARSE = !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches);
-  var IS_TOUCH = (navigator.maxTouchPoints || 0) > 0 && COARSE;
+  var NARROW = Math.min(root.innerWidth || 0, root.innerHeight || 0) <= 520;
+  var IS_TOUCH = ((navigator.maxTouchPoints || 0) > 0 && COARSE) ||
+    ((navigator.maxTouchPoints || 0) > 0 && NARROW);
 
   var api = root.gifos || null;
   var me = { id: 'local', name: 'You' };
@@ -34,6 +37,8 @@
   var actx = null;
   var pulling = false;
   var placing = false;
+  var held = false;
+  var aimed = false;
   var loopGen = 0;
   var shotSeq = 0;
   var placeSeq = 0;
@@ -43,16 +48,26 @@
   var pendingShot = null;
   var pendingPlace = null;
   var menuOn = true;
+  var bannerTimer = 0;
 
   var menu = document.getElementById('menu');
   var hint = document.getElementById('hint');
   var names0 = document.getElementById('name0');
   var names1 = document.getElementById('name1');
+  var p0 = document.getElementById('p0');
+  var p1 = document.getElementById('p1');
+  var chip0 = document.getElementById('chip0');
+  var chip1 = document.getElementById('chip1');
+  var sc0 = document.getElementById('sc0');
+  var sc1 = document.getElementById('sc1');
   var soundBtn = document.getElementById('soundBtn');
   var powerBar = document.getElementById('power');
   var powerFill = document.getElementById('powerFill');
   var diff = document.getElementById('diff');
   var menuStatus = document.getElementById('menuStatus');
+  var bannerEl = document.getElementById('banner');
+
+  if (IS_TOUCH) document.body.classList.add('touch');
 
   function clamp(n, a, b) { return n < a ? a : n > b ? b : n; }
   function db(n) { return api && api.db ? api.db(n) : null; }
@@ -63,6 +78,9 @@
     if (!isMp()) return !AI_ON || Game.policy.turn !== AI_PLAYER_NUM;
     if (!owner && !opponent) return false;
     return Game.policy.turn === (owner ? 0 : 1);
+  }
+  function isPortrait() {
+    return (window.innerHeight || 0) > (window.innerWidth || 0) + 24;
   }
 
   /* ------------------------------------------------------------------ */
@@ -160,22 +178,30 @@
   };
 
   GamePolicy.prototype.drawScores = function () {
-    var label;
-    if (isMp()) {
-      label = this.turn === 0
-        ? (owner ? (me.name || 'You') : ((opponent && opponent.name) || 'Host'))
-        : (owner ? ((opponent && opponent.name) || 'Friend') : (me.name || 'You'));
-    } else {
-      label = 'PLAYER ' + (this.turn + 1);
-    }
-    Canvas2D.drawText(label, new Vector2(Game.size.x / 2 + 40, 200), new Vector2(150, 0), '#096834', 'top', 'Impact', '70px');
-    this.players[0].totalScore.draw();
-    this.players[1].totalScore.draw();
     this.players[0].matchScore.drawLines(this.players[0].color);
     this.players[1].matchScore.drawLines(this.players[1].color);
   };
 
   var origShoot = Stick.prototype.shoot;
+  var origOutcome = GamePolicy.prototype.updateTurnOutcome;
+  var origHole = GamePolicy.prototype.handleBallInHole;
+
+  GamePolicy.prototype.handleBallInHole = function (ball) {
+    origHole.call(this, ball);
+    if (ball.color === Color.black) showBanner(this.foul ? 'Early black' : 'Black in', 1600);
+    else if (ball.color === Color.white) showBanner('White in', 1200);
+  };
+
+  GamePolicy.prototype.updateTurnOutcome = function () {
+    if (this.turnPlayed && this.won) {
+      var we = isMp() ? (this.turn === (owner ? 0 : 1)) : (!AI_ON || this.turn !== AI_PLAYER_NUM);
+      if (!this.foul) showBanner(we ? 'You win' : (AI_ON ? 'Computer wins' : 'Player ' + (this.turn + 1) + ' wins'), 2400);
+      else showBanner(we ? 'Foul on the black' : 'They take it', 2200);
+    } else if (this.turnPlayed && this.foul) {
+      showBanner('Foul — ball in hand', 1400);
+    }
+    origOutcome.call(this);
+  };
 
   Stick.prototype.handleInput = function () {
     if (AI_ON && Game.policy.turn === AI_PLAYER_NUM) return;
@@ -206,6 +232,7 @@
         this.rotation = Math.atan2(dy, dx);
         this.power = clamp((dist - PULL_DEAD) / PULL_SCALE, 0, 75);
         this.origin.x = 970 + this.power * (2 / 1.2);
+        aimed = true;
       }
       return;
     }
@@ -214,7 +241,7 @@
       fire(this);
       return;
     }
-    if (this.trackMouse) {
+    if (this.trackMouse && aimed) {
       var opposite = Mouse.position.y - this.position.y;
       var adjacent = Mouse.position.x - this.position.x;
       this.rotation = Math.atan2(opposite, adjacent);
@@ -307,25 +334,90 @@
   /* main loop — host simulates; guest paints the host snapshot          */
   /* ------------------------------------------------------------------ */
 
+  function rayHitBall(ox, oy, ang) {
+    var dx = Math.cos(ang), dy = Math.sin(ang);
+    var bestT = 1e9, best = null, i, b, px, py, proj, dist2, off, t;
+    var balls = Game.gameWorld.balls;
+    for (i = 0; i < balls.length; i++) {
+      b = balls[i];
+      if (b === Game.gameWorld.whiteBall || b.inHole || !b.visible) continue;
+      px = b.position.x - ox;
+      py = b.position.y - oy;
+      proj = px * dx + py * dy;
+      if (proj <= 1) continue;
+      dist2 = px * px + py * py - proj * proj;
+      if (dist2 >= BALL_SIZE * BALL_SIZE) continue;
+      off = Math.sqrt(BALL_SIZE * BALL_SIZE - dist2);
+      t = proj - off;
+      if (t > 1 && t < bestT) { bestT = t; best = b; }
+    }
+    return best ? { ball: best, t: bestT, x: ox + dx * bestT, y: oy + dy * bestT, dx: dx, dy: dy } : null;
+  }
+
+  function rayCushion(ox, oy, ang) {
+    var dx = Math.cos(ang), dy = Math.sin(ang);
+    var rad = BALL_SIZE / 2;
+    var minX = BORDER_SIZE + rad, maxX = Game.size.x - BORDER_SIZE - rad;
+    var minY = BORDER_SIZE + rad, maxY = Game.size.y - BORDER_SIZE - rad;
+    var t = 1e9;
+    if (dx > 0.001) t = Math.min(t, (maxX - ox) / dx);
+    if (dx < -0.001) t = Math.min(t, (minX - ox) / dx);
+    if (dy > 0.001) t = Math.min(t, (maxY - oy) / dy);
+    if (dy < -0.001) t = Math.min(t, (minY - oy) / dy);
+    if (t < 1) t = 1;
+    return { t: t, x: ox + dx * t, y: oy + dy * t };
+  }
+
+  function drawGhost(ctx, x, y, rgb, alpha) {
+    ctx.beginPath();
+    ctx.arc(x, y, BALL_SIZE / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(' + rgb + ',' + alpha + ')';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
   function drawAimGuide() {
-    var world = Game.gameWorld, stick, ctx, scale, ball, len;
+    var world = Game.gameWorld, stick, ctx, scale, ball, hit, cush, i, nx, ny, len, ox, oy;
     if (!world || !world.stick || !world.stick.visible) return;
     stick = world.stick;
-    if (stick.power <= 0 || !myTurn()) return;
+    if (!myTurn() || (world.ballsMoving && world.ballsMoving())) return;
+    if (Game.policy && Game.policy.foul) return;
     ctx = Canvas2D._canvasContext;
     scale = Canvas2D.scale;
     ball = world.whiteBall;
     ctx.save();
     ctx.scale(scale.x, scale.y);
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 2;
     if (ctx.setLineDash) ctx.setLineDash([10, 8]);
-    len = 70 + stick.power * 3;
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ox = ball.position.x;
+    oy = ball.position.y;
+    hit = rayHitBall(ox, oy, stick.rotation);
+    cush = rayCushion(ox, oy, stick.rotation);
     ctx.beginPath();
-    ctx.moveTo(ball.position.x, ball.position.y);
-    ctx.lineTo(ball.position.x + Math.cos(stick.rotation) * len,
-               ball.position.y + Math.sin(stick.rotation) * len);
-    ctx.stroke();
+    ctx.moveTo(ox, oy);
+    if (hit && hit.t < cush.t) {
+      ctx.lineTo(hit.x, hit.y);
+      ctx.stroke();
+      if (ctx.setLineDash) ctx.setLineDash([]);
+      drawGhost(ctx, hit.x, hit.y, '255,255,255', 0.7);
+      nx = hit.ball.position.x - hit.x;
+      ny = hit.ball.position.y - hit.y;
+      len = Math.sqrt(nx * nx + ny * ny) || 1;
+      nx /= len; ny /= len;
+      ctx.beginPath();
+      if (ctx.setLineDash) ctx.setLineDash([7, 6]);
+      ctx.strokeStyle = 'rgba(255,255,210,0.5)';
+      ctx.moveTo(hit.ball.position.x, hit.ball.position.y);
+      ctx.lineTo(hit.ball.position.x + nx * 90, hit.ball.position.y + ny * 90);
+      ctx.stroke();
+      drawGhost(ctx, hit.ball.position.x + nx * 38, hit.ball.position.y + ny * 38, '255,255,210', 0.45);
+    } else {
+      ctx.lineTo(cush.x, cush.y);
+      ctx.stroke();
+      if (ctx.setLineDash) ctx.setLineDash([]);
+      drawGhost(ctx, cush.x, cush.y, '255,255,255', 0.45);
+    }
     ctx.restore();
   }
 
@@ -373,8 +465,12 @@
     localLock = false;
     pendingShot = null;
     pendingPlace = null;
+    aimed = false;
+    pulling = false;
+    placing = false;
     Game.gameWorld = new GameWorld();
     Game.policy = new GamePolicy();
+    Game.gameWorld.stick.rotation = 0;
     AI.init(Game.gameWorld, Game.policy);
     if (AI_ON && AI_PLAYER_NUM === 0) AI.startSession();
     hideMenu();
@@ -617,10 +713,47 @@
   function pointerToGame(ev) {
     var c = Canvas2D._canvas;
     if (!c) return;
-    var r = c.getBoundingClientRect();
-    var x = (ev.clientX - r.left) / r.width * Game.size.x;
-    var y = (ev.clientY - r.top) / r.height * Game.size.y;
-    Mouse._position = new Vector2(x, y);
+    var cw = c.width, ch = c.height;
+    if (!cw || !ch) return;
+    var lx, ly;
+    if (document.body.classList.contains('portrait')) {
+      var cx = (window.innerWidth || 0) / 2;
+      var cy = (window.innerHeight || 0) / 2;
+      lx = (cy - ev.clientY) + cw / 2;
+      ly = (ev.clientX - cx) + ch / 2;
+    } else {
+      var r = c.getBoundingClientRect();
+      lx = ev.clientX - r.left;
+      ly = ev.clientY - r.top;
+    }
+    Mouse._position = new Vector2(lx / cw * Game.size.x, ly / ch * Game.size.y);
+  }
+
+  function installResize() {
+    function resize() {
+      var gameCanvas = Canvas2D._canvas;
+      var gameArea = Canvas2D._div;
+      if (!gameCanvas || !gameArea || !Game.size) return;
+      var portrait = isPortrait();
+      document.body.classList.toggle('portrait', portrait);
+      var vw = window.innerWidth || 0, vh = window.innerHeight || 0;
+      var availW = portrait ? vh : vw;
+      var availH = portrait ? vw : vh;
+      var widthToHeight = Game.size.x / Game.size.y;
+      var newWidth = availW, newHeight = availH;
+      var newWidthToHeight = newWidth / Math.max(1, newHeight);
+      if (newWidthToHeight > widthToHeight) newWidth = newHeight * widthToHeight;
+      else newHeight = newWidth / widthToHeight;
+      gameArea.style.width = newWidth + 'px';
+      gameArea.style.height = newHeight + 'px';
+      gameArea.style.margin = '0';
+      gameCanvas.width = newWidth;
+      gameCanvas.height = newHeight;
+      Canvas2D._canvasOffset = Vector2.zero;
+    }
+    Canvas2D.resize = resize;
+    window.onresize = resize;
+    resize();
   }
 
   function bindPointer() {
@@ -628,31 +761,66 @@
     document.onmousemove = null;
     document.onmousedown = null;
     document.onmouseup = null;
-    canvas.addEventListener('pointerdown', function (ev) {
-      if (ev.target && ev.target.closest && ev.target.closest('#menu, #soundBtn')) return;
+
+    function pt(ev) {
+      if (ev.touches && ev.touches[0]) return ev.touches[0];
+      if (ev.changedTouches && ev.changedTouches[0]) return ev.changedTouches[0];
+      return ev;
+    }
+    function isUi(ev) {
+      var t = ev.target;
+      return t && t.closest && t.closest('#menuCard, #soundBtn, #diff, button');
+    }
+    function down(ev) {
+      if (held) return;
+      if (menuOn) return;
+      if (isUi(ev)) return;
+      var p = pt(ev);
       resumeAudio();
-      pointerToGame(ev);
+      pointerToGame(p);
       Mouse._left.down = true;
       Mouse._left.pressed = true;
       pulling = !!(Game.gameWorld && Game.policy && !Game.policy.foul && myTurn() &&
                    !Game.gameWorld.ballsMoving() && !menuOn);
       placing = !!(Game.gameWorld && Game.policy && Game.policy.foul && myTurn() && !menuOn);
-      try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
-      ev.preventDefault();
-    }, { passive: false });
-    canvas.addEventListener('pointermove', function (ev) {
-      pointerToGame(ev);
-      if (ev.buttons) ev.preventDefault();
-    }, { passive: false });
-    function endPtr(ev) {
-      pointerToGame(ev);
-      if (pulling && Game.gameWorld && Game.gameWorld.stick.power >= MIN_SHOT) fire(Game.gameWorld.stick);
+      aimed = true;
+      held = true;
+      try {
+        if (ev.pointerId != null && canvas && canvas.setPointerCapture) {
+          canvas.setPointerCapture(ev.pointerId);
+        }
+      } catch (e) {}
+      if (ev.cancelable && ev.preventDefault) ev.preventDefault();
+    }
+    function move(ev) {
+      if (menuOn) return;
+      var p = pt(ev);
+      pointerToGame(p);
+      if (held) aimed = true;
+      if (held && ev.cancelable && ev.preventDefault) ev.preventDefault();
+    }
+    function up(ev) {
+      if (!held) return;
+      held = false;
+      var p = pt(ev);
+      pointerToGame(p);
+      if (pulling && Game.gameWorld && Game.gameWorld.stick.power >= MIN_SHOT) {
+        fire(Game.gameWorld.stick);
+      } else if (pulling && Game.gameWorld && Game.gameWorld.stick) {
+        Game.gameWorld.stick.power = 0;
+        Game.gameWorld.stick.origin = new Vector2(970, 11);
+      }
       pulling = false;
       Mouse._left.down = false;
       Mouse.reset();
     }
-    canvas.addEventListener('pointerup', endPtr);
-    canvas.addEventListener('pointercancel', endPtr);
+    document.addEventListener('pointerdown', down, { passive: false });
+    document.addEventListener('pointermove', move, { passive: false });
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+    document.addEventListener('touchstart', down, { passive: false });
+    document.addEventListener('touchmove', move, { passive: false });
+    document.addEventListener('touchend', up, { passive: false });
   }
 
   document.addEventListener('keydown', function (e) {
@@ -672,8 +840,14 @@
     return '';
   }
 
+  function paintChip(el, color) {
+    el.classList.remove('red', 'yellow');
+    if (color === Color.red) el.classList.add('red');
+    else if (color === Color.yellow) el.classList.add('yellow');
+  }
+
   function setNames() {
-    var n0, n1;
+    var n0, n1, turn = Game.policy ? Game.policy.turn : 0;
     if (isMp()) {
       n0 = owner ? (me.name || 'You') : ((opponent && opponent.name) || 'Host');
       n1 = owner ? ((opponent && opponent.name) || 'Friend') : (me.name || 'You');
@@ -683,6 +857,14 @@
     }
     names0.textContent = n0;
     names1.textContent = n1;
+    p0.classList.toggle('on', turn === 0);
+    p1.classList.toggle('on', turn === 1);
+    if (Game.policy) {
+      paintChip(chip0, Game.policy.players[0].color);
+      paintChip(chip1, Game.policy.players[1].color);
+      sc0.textContent = Game.policy.players[0].matchScore.value ? String(Game.policy.players[0].matchScore.value) : '';
+      sc1.textContent = Game.policy.players[1].matchScore.value ? String(Game.policy.players[1].matchScore.value) : '';
+    }
   }
 
   function setHint() {
@@ -692,7 +874,7 @@
       return;
     }
     if (Game.policy && Game.policy.foul && myTurn()) {
-      hint.textContent = IS_TOUCH ? 'Drag the white ball, then let go' : 'Move the white ball, then click to place';
+      hint.textContent = IS_TOUCH ? 'Drag the white, then let go' : 'Move the white, then click to place';
       return;
     }
     if (Game.gameWorld.ballsMoving()) {
@@ -701,7 +883,15 @@
     }
     var col = Game.policy && Game.policy.players[Game.policy.turn] && colorWord(Game.policy.players[Game.policy.turn].color);
     var who = col ? ('You are ' + col + '. ') : '';
-    hint.textContent = who + (IS_TOUCH ? 'Pull back to aim · let go to shoot' : 'Aim with the mouse · W/S power · click to shoot');
+    hint.textContent = who + (IS_TOUCH ? 'Pull back to aim · let go to shoot' : 'Pull back to aim · let go to shoot');
+  }
+
+  function showBanner(text, ms) {
+    if (!bannerEl) return;
+    bannerEl.textContent = text;
+    bannerEl.hidden = false;
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(function () { bannerEl.hidden = true; }, ms || 1400);
   }
 
   function showMenu() {
@@ -709,6 +899,7 @@
     menuOn = true;
     GAME_STOPPED = true;
     document.getElementById('hud').hidden = true;
+    if (bannerEl) bannerEl.hidden = true;
   }
   function hideMenu() {
     menu.hidden = true;
@@ -763,6 +954,7 @@
   GAME_STOPPED = true;
 
   Game.start('gameArea', 'screen', 1500, 825);
+  installResize();
   bindPointer();
   setNames();
   bootNet();

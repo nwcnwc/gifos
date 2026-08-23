@@ -29,8 +29,8 @@ build.mjs           packs all of the above into site/apps/pool/pool.gif
 Upstream is already a self-contained canvas game: no `localStorage`, no
 network, no modules. GifOS's runtime inlines `<script src>` as classic
 scripts, and these files already are. The GifOS work is the invite room,
-making a finger on glass aim the stick, and not shipping the 9 MB jazz
-track or the menu PNGs.
+a ghost on the aim line, a table that fills a phone, a finger aiming the
+stick, and not shipping the 9 MB jazz track or the menu PNGs.
 
 ## capabilities
 
@@ -60,8 +60,10 @@ leave and the menu comes back.
 
 Upstream is mouse-aim + W/S power + click to shoot, and has no mobile
 support. `boot.js` maps a pull-back on the table onto stick rotation and
-power: the ball goes the way you pulled away from. After a foul, drag the
-white and let go to place it.
+power: the ball goes the way you pulled away from. A ghost shows the first
+ball you will hit. After a foul, drag the white and let go to place it. On
+a tall phone the table turns so the long side fills the screen — you stand
+at the white, the rack is up the felt.
 
 ## Honest limits
 
