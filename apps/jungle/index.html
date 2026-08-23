@@ -31,14 +31,15 @@
       <p class="lvlnote" id="cpuNote">You play blue and go first. The computer plays red. It thinks on this device.</p>
     </div>
     <p class="lvlnote" id="hotseatNote" hidden>Pass the device. Blue goes first. Tap a piece, then tap where it goes.</p>
-    <p class="ranks">Elephant 8 · Lion 7 · Tiger 6 · Leopard 5 · Wolf 4 · Dog 3 · Cat 2 · Rat 1. Rat takes elephant. Lion and tiger jump the river.</p>
+    <div class="rankrow" id="rankRow" aria-label="Animal ranks, elephant strongest"></div>
+    <p class="ranks">Stronger takes weaker. The rat takes the elephant. Lion and tiger jump the river. Walk into the other den to win.</p>
     <button class="primary" id="startBtn" type="button">Start game</button>
     <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
   </section>
 
   <section class="game" id="game" hidden>
-    <div class="taken" id="takenLine"></div>
-    <div class="statusline" id="statusLine">Your turn.</div>
+    <div class="turnpill" id="turnPill">Your turn</div>
+    <div class="taken" id="takenLine" hidden></div>
     <div class="boardwrap"><div class="board" id="board" aria-label="Jungle board"></div></div>
     <div class="controls">
       <button id="undoBtn" class="ghost" type="button">↶ Undo</button>
@@ -50,8 +51,8 @@
     <div class="vhead"><h2>Play a friend</h2><button class="ghost" id="fLeave" type="button">← Leave</button></div>
     <div class="seats" id="fSeats"></div>
     <div class="fqueue" id="fQueue"></div>
-    <div class="taken" id="fTaken"></div>
-    <div class="statusline" id="fStatus"></div>
+    <div class="taken" id="fTaken" hidden></div>
+    <div class="turnpill" id="fStatus"></div>
     <div class="boardwrap"><div class="board" id="fBoard" aria-label="Shared Jungle board"></div></div>
     <div class="controls">
       <button id="fResign" class="ghost" type="button" hidden>🏳 Resign</button>

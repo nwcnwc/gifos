@@ -79,7 +79,7 @@
     return v;
   }
 
-  function aiMove(s) {
+  function pickBest(s) {
     if (!s || s.winner) return null;
     var me = s.turn;
     var moves = orderMoves(s, J.legalMoves(s));
@@ -92,11 +92,43 @@
       v = alphabeta(ns, depth - 1, -INF, INF, me);
       if (v > bestV) { bestV = v; best = moves[i]; }
     }
-    // Refuse anything play() would reject — the computer does not cheat.
     if (!J.play(s, best.fr, best.fc, best.tr, best.tc)) return null;
     return best;
   }
 
+  // Blocking pick — used by the pack-time rule tests.
+  function aiMove(s) { return pickBest(s); }
+
+  // Time-sliced so the thinking chip can pulse and a tap is not frozen.
+  // Each root move is one slice; alphabeta itself is still sync per candidate.
+  function aiMoveAsync(s, cb) {
+    if (!s || s.winner) { cb(null); return; }
+    var me = s.turn;
+    var moves = orderMoves(s, J.legalMoves(s));
+    if (!moves.length) { cb(null); return; }
+    var best = moves[0], bestV = -INF, i = 0;
+    var depth = (s.reds + s.blues) >= 14 ? 2 : MAX_DEPTH;
+    function slice() {
+      var t0 = Date.now ? Date.now() : 0, ns, v;
+      while (i < moves.length && ((Date.now ? Date.now() : t0) - t0) < 12) {
+        ns = J.play(s, moves[i].fr, moves[i].fc, moves[i].tr, moves[i].tc);
+        if (ns) {
+          v = alphabeta(ns, depth - 1, -INF, INF, me);
+          if (v > bestV) { bestV = v; best = moves[i]; }
+        }
+        i++;
+      }
+      if (i < moves.length) {
+        setTimeout(slice, 0);
+        return;
+      }
+      if (!J.play(s, best.fr, best.fc, best.tr, best.tc)) cb(null);
+      else cb(best);
+    }
+    setTimeout(slice, 0);
+  }
+
   J.aiMove = aiMove;
+  J.aiMoveAsync = aiMoveAsync;
   J.MAX_DEPTH = MAX_DEPTH;
 })(typeof window !== 'undefined' ? window : this);
