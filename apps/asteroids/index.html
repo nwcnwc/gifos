@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Asteroids</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="canvas" width="780" height="540"></canvas>
+
+<div id="hud">
+  <div>ARROWS / WASD  THRUST  SPACE FIRE</div>
+  <div>P PAUSE  M MUTE  TAB SCORES</div>
+  <button id="ff" hidden type="button">FF OFF</button>
+</div>
+
+<div id="tally" hidden></div>
+<div id="score" hidden>
+  <table>
+    <thead><tr><th>pilot</th><th>score</th><th>ships</th></tr></thead>
+    <tbody id="score-rows"></tbody>
+  </table>
+</div>
+
+<div id="touch" hidden>
+  <div id="t-left" class="t-col">
+    <div class="t-stack">
+      <button class="t-btn" data-key="up" type="button">THRUST</button>
+      <div style="display:flex;gap:.55rem">
+        <button class="t-btn" data-key="left" type="button">LEFT</button>
+        <button class="t-btn" data-key="right" type="button">RIGHT</button>
+      </div>
+    </div>
+  </div>
+  <div id="t-right" class="t-col">
+    <button class="t-btn wide" data-key="space" type="button">FIRE</button>
+  </div>
+</div>
+
+<script src="vendor/game.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "asteroids",
+  "name": "Asteroids",
+  "shortName": "Asteroids",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [196, 220, 255],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "players": {
+      "visibility": "read-write"
+    },
+    "world": {
+      "visibility": "read-only"
+    }
+  }
+}
