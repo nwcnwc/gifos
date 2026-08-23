@@ -13,19 +13,20 @@
 
 <div id="hud" hidden>
   <div id="names">
-    <span id="name0">You</span>
+    <span class="who on" id="p0"><i class="chip" id="chip0"></i><b id="name0">You</b><em id="sc0"></em></span>
     <span id="vs">vs</span>
-    <span id="name1">Computer</span>
+    <span class="who" id="p1"><i class="chip" id="chip1"></i><b id="name1">Computer</b><em id="sc1"></em></span>
   </div>
   <button id="soundBtn" type="button" aria-label="Sound">♪</button>
   <div id="power"><i id="powerFill"></i></div>
   <div id="hint">Pull back to aim · let go to shoot</div>
+  <div id="banner" hidden></div>
 </div>
 
 <div id="menu">
   <div id="menuCard">
     <h1>Pool</h1>
-    <p class="tag">Classic 8-ball. Red against yellow, then the black.</p>
+    <p class="tag">Two devices, one link, no server. Red against yellow, then the black.</p>
     <button type="button" id="btnCpu">Play the computer</button>
     <div id="diff" hidden>
       <button type="button" data-iter="30">Easy</button>
@@ -33,7 +34,7 @@
       <button type="button" data-iter="100">Hard</button>
     </div>
     <button type="button" id="btnHot">Two on this device</button>
-    <p class="invite">Press <b>Invite</b> (top bar) to play a friend on another device. You take turns. There is no game server.</p>
+    <p class="invite">Press <b>Invite</b> (top bar) to play a friend on another phone or computer. You take turns. There is no game server.</p>
     <p id="menuStatus"></p>
   </div>
 </div>
