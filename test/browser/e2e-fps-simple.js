@@ -119,22 +119,19 @@ const setup = (name, quality) => "try{localStorage.setItem('gifos_relay','" + RE
 // so this means "use the GPU if there is one", never "assume one".
 //
 //   ANGLE (NVIDIA, Vulkan 1.3.242 (NVIDIA GeForce MX230), NVIDIA)
-// Default is the real GPU. FPS_GL=sw forces SwiftShader (a box with no
-// chip). The previous default was software even on fleet GPU boxes, and
-// then the suite declared a Pi "unable to draw" after forcing the lie.
-const ARGS = [
-  ...(process.env.FPS_GL === 'sw'
-    ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
-    : ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization']),
-  // WITHOUT THESE THERE IS NO MULTIPLAYER TO TEST. Chromium throttles a
-  // backgrounded tab's requestAnimationFrame to about one frame a second, and
-  // this app publishes its presence from the engine's own update — so a peer
-  // that is not in front goes quiet, and the other correctly stops drawing it.
-  // e2e-anyroad-mp carries the same three flags for the same reason.
+// Solo often runs on the orchestrator, which has no GPU — software is the
+// honest default there. Deathmatch is the fleet: default Vulkan so a board
+// that can draw is asked to, instead of being handed SwiftShader and then
+// declared unable. FPS_GL=hw/sw overrides both.
+const THROTTLE = [
   '--disable-background-timer-throttling',
   '--disable-backgrounding-occluded-windows',
   '--disable-renderer-backgrounding',
 ];
+const SW_GL = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+const HW_GL = ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
+const SOLO_ARGS = [...(process.env.FPS_GL === 'hw' ? HW_GL : SW_GL), ...THROTTLE];
+const FLEET_ARGS = [...(process.env.FPS_GL === 'sw' ? SW_GL : HW_GL), ...THROTTLE];
 
 async function install(page) {
   await page.goto(BASE + '/index.html');
@@ -353,7 +350,7 @@ function preferDrawers(hosts) {
 /* ======================================================================= */
 async function solo() {
   console.log('=== SOLO  (one box is enough: every assertion is about state)');
-  const browser = await chromium.launch({ executablePath: CHROME, args: ARGS });
+  const browser = await chromium.launch({ executablePath: CHROME, args: SOLO_ARGS });
   try {
     const ctx = await browser.newContext();
     await ctx.addInitScript({ content: setup('Alice', 'low') });
@@ -617,7 +614,7 @@ async function deathmatch() {
   });
   const pool = preferDrawers(fleet.hosts.slice());
   const pick = pool.splice(0, BOB_CDP ? 1 : 2);
-  const boxes = await openFleet(pick, { args: ARGS, origin: BASE });
+  const boxes = await openFleet(pick, { args: FLEET_ARGS, origin: BASE });
   let bobBrowser = null;   // the phone's CDP connection, when there is one
 
   // THE HARNESS HAS NO THUMB, AND A PLAYER DOES.
@@ -1126,7 +1123,7 @@ async function deathmatch() {
       console.log('  replacing ' + who + ' with ' + (next.name || next.ssh) + ' (' + pool.length + ' hosts left)');
       if (who === 'Bob') {
         try { await boxes[1].browser.close(); } catch (e) {}
-        const extra = await openFleet([next], { args: ARGS, origin: BASE });
+        const extra = await openFleet([next], { args: FLEET_ARGS, origin: BASE });
         boxes[1] = extra[0];
         const bCtx = await boxes[1].browser.newContext({ viewport: { width: 1100, height: 720 } });
         await bCtx.addInitScript({ content: setup('Bob', 'low') });
