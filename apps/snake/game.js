@@ -3,6 +3,11 @@
  *   https://github.com/patorjk/JavaScript-Snake
  * Same grid, growth, no-180, one queued turn. Multiplayer is extra: several
  * snakes share one board; each body is owned by its player.
+ *
+ * Palette never uses apple-red for a snake — two snakes plus a red apple have
+ * to read at a glance. Collision treats a moving neighbour's tail as vacating
+ * and their next cell as occupied, so a head-on or a same-cell lunge is a
+ * double KO instead of a host-wins ghost.
  */
 (function (root) {
   'use strict';
@@ -10,13 +15,14 @@
   var COLS = 28, ROWS = 18, GROW = 5;
   var UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3;
   var DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+  // Lime, gold, cyan, magenta, orange, periwinkle — none is apple red.
   var PAL = [
-    [255, 40, 40],
     [48, 220, 72],
-    [255, 214, 48],
+    [255, 210, 48],
     [48, 196, 255],
     [255, 96, 210],
-    [255, 152, 40]
+    [255, 152, 40],
+    [170, 170, 255]
   ];
 
   function opposite(a, b) { return a >= 0 && b >= 0 && Math.abs(a - b) === 2; }
@@ -38,14 +44,27 @@
 
   function colorForIndex(i) { return PAL[i % PAL.length]; }
 
+  function facing(s) {
+    if (!s) return RIGHT;
+    if (s.d >= 0) return s.d;
+    if (s.last >= 0) return s.last;
+    return RIGHT;
+  }
+
   function freshSnake(x, y, face) {
+    // Four cells, not one: a 1-cell snake paints as a ball, and two balls on
+    // one grid do not read as two snakes. Tail stacks behind `face`.
+    var body = [];
+    for (var i = 0; i < 4; i++) {
+      body.push({ x: x - DX[face] * i, y: y - DY[face] * i });
+    }
     return {
       x: x, y: y,
       d: -1,            // heading used on the next step; -1 = not yet moving
       last: face,       // last completed step (original starts facing right)
       pre: -1,          // one queued turn
       first: true,
-      body: [{ x: x, y: y }],
+      body: body,
       grow: 0,
       alive: true,
       moving: false
@@ -95,9 +114,19 @@
       var s = snakes[i];
       if (!s || !s.body) continue;
       var end = s.body.length;
-      if (s === self && self.grow <= 0 && end > 0) end -= 1;
+      var growing = (s.grow || 0) > 0;
+      // A moving snake's tail vacates this tick. A 1-cell neighbour that is
+      // NOT moving still occupies its only cell — do not skip that.
+      var moving = s === self || s.moving;
+      if (!growing && moving && end > 0) end -= 1;
       for (var k = 0; k < end; k++) {
         if (s.body[k].x === nx && s.body[k].y === ny) return true;
+      }
+      // Predicted next of a living neighbour: two lunges at one empty cell
+      // are a double KO, not a stack.
+      if (s !== self && s.alive !== false && s.moving && s.d >= 0) {
+        var px = s.x + DX[s.d], py = s.y + DY[s.d];
+        if (px === nx && py === ny) return true;
       }
     }
     return false;
@@ -127,6 +156,17 @@
       s.alive = false;
       result.died = true;
       return result;
+    }
+    // Land on a living neighbour's current head (they have not stepped yet
+    // from our point of view) — both lose that cell.
+    for (var i = 0; i < all.length; i++) {
+      var o = all[i];
+      if (!o || o === s || o.alive === false) continue;
+      if (o.x === nx && o.y === ny) {
+        s.alive = false;
+        result.died = true;
+        return result;
+      }
     }
 
     s.x = nx; s.y = ny;
@@ -169,21 +209,31 @@
     return placeApple((Math.random() * 0xffffffff) >>> 0, 1, snakes);
   }
 
+  function snapshot(s) {
+    if (!s || !s.body) return;
+    var prev = [];
+    for (var i = 0; i < s.body.length; i++) prev.push({ x: s.body[i].x, y: s.body[i].y });
+    s.prev = prev;
+  }
+
   root.SnakeGame = {
     COLS: COLS, ROWS: ROWS, GROW: GROW,
     UP: UP, RIGHT: RIGHT, DOWN: DOWN, LEFT: LEFT,
-    DX: DX, DY: DY,
+    DX: DX, DY: DY, PAL: PAL,
     spawn: spawn,
     colorForIndex: colorForIndex,
+    facing: facing,
     freshSnake: freshSnake,
     lengthOf: lengthOf,
     setDir: setDir,
     keyToDir: keyToDir,
     packBody: packBody,
     unpackBody: unpackBody,
+    occupied: occupied,
     stepSnake: stepSnake,
     placeApple: placeApple,
     randomApple: randomApple,
+    snapshot: snapshot,
     rng: rng
   };
 })(window);

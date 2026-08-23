@@ -7,8 +7,8 @@ snake at once.
 The game is an unofficial port of
 **[JavaScript Snake](https://github.com/patorjk/JavaScript-Snake)** by patorjk
 — MIT, the DOM snake at patorjk.com/games/snake. This directory is the GifOS
-surface: canvas paint, swipe + a d-pad, persistence through `gifos.db`, and
-multiplayer, none of which the original has as a room of snakes.
+surface: canvas paint, swipe + a d-pad under the board, a high score that
+lives in the file, and two snakes on one grid from one invite.
 
 ```
 index.html      shell: board, welcome dialog, on-screen pad
