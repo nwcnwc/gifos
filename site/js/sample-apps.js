@@ -4729,13 +4729,21 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     // timer red, fortune gold) must become the computer's accent. Everything
     // else is a plain chrome app that takes the full remap.
     const VAR_APPS = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1, pingpong: 1, calc: 1, chat: 1, timer: 1, fortune: 1, bible: 1 };
-    const app = (name, appId, accent, html, extra) => ({
-      name: name + '.gif', appId, accent,
-      files: {
-        'manifest.json': manifest(appId, name, accent, extra),
+    // OS Help markdown packed into each seeded GIF. Filled per appId; a
+    // missing entry still shows Help (the OS fallback for Invite/Save/Steal).
+    const SAMPLE_HELP = {};
+    const app = (name, appId, accent, html, extra) => {
+      extra = extra || {};
+      const help = extra.help || SAMPLE_HELP[appId] || '';
+      const rest = Object.assign({}, extra);
+      delete rest.help;
+      const files = {
+        'manifest.json': manifest(appId, name, accent, rest),
         'index.html': themeHtml(html, VAR_APPS[appId] ? 'vars' : 'full'),
-      },
-    });
+      };
+      if (help) files['help.md'] = help;
+      return { name: name + '.gif', appId, accent, files };
+    };
     // The Bible Browser gets a bespoke tile: a leather book that breathes open
     // and shut (a smooth cosine loop, so it never hard-cuts), cream pages with
     // faint text lines, a gold cross while nearly closed and a red ribbon once
@@ -4962,9 +4970,9 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
         // Each own-phone game shares one heartbeat collection ('party'): the
         // game doc + everyone's player docs, all read-write. (The Single Phone
         // versions run on one device, so they need no shared visibility.)
-        apps: (GifOS.irl ? GifOS.irl.netApps : []).map((g) => app(g.name, g.appId, g.accent, g.html, Object.assign({ data: { party: RW } }, g.manifest))),
+        apps: (GifOS.irl ? GifOS.irl.netApps : []).map((g) => app(g.name, g.appId, g.accent, g.html, Object.assign({ data: { party: RW }, help: g.help }, g.manifest))),
         sub: [{ name: 'Single Phone',
-          apps: (GifOS.irl ? GifOS.irl.apps : []).map((g) => app(g.name, g.appId, g.accent, g.html, g.manifest)) }] },
+          apps: (GifOS.irl ? GifOS.irl.apps : []).map((g) => app(g.name, g.appId, g.accent, g.html, Object.assign({ help: g.help }, g.manifest || {}))) }] },
     ];
     // Easter eggs: a themed computer (gifos-themes.js) can seed extra apps
     // that exist only on that digit — filed into a named folder, or loose.
@@ -4977,22 +4985,26 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     // Loose icons live at the desktop root: Welcome (a real onboarding app —
     // the README travels inside its GIF too) and Meeting (the killer app,
     // pinned top-right by the seeder, not buried in a folder).
+    const withHelp = (appId, files) => {
+      if (SAMPLE_HELP[appId]) files['help.md'] = SAMPLE_HELP[appId];
+      return files;
+    };
     const loose = [{
       name: 'Welcome.gif', appId: 'welcome', accent: [92, 200, 255],
-      files: { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255], { data: { welcome: PRIV } }), 'index.html': themeHtml(WELCOME_HTML, 'full'), 'README.txt': WELCOME_README },
+      files: withHelp('welcome', { 'manifest.json': manifest('welcome', 'Welcome', [92, 200, 255], { data: { welcome: PRIV } }), 'index.html': themeHtml(WELCOME_HTML, 'full'), 'README.txt': WELCOME_README }),
     }, {
       // Home Screen shutter, between Welcome and My Media. Declares camera +
       // microphone; the live stream stays in the trusted parent (camera-studio).
       name: 'Camera.gif', appId: 'camera', accent: [40, 40, 48],
-      files: { 'manifest.json': manifest('camera', 'Camera', [40, 40, 48], { capabilities: { db: true, camera: true, microphone: true },
+      files: withHelp('camera', { 'manifest.json': manifest('camera', 'Camera', [40, 40, 48], { capabilities: { db: true, camera: true, microphone: true },
                data: { roll: PRIV } }),
-               'index.html': themeHtml(CAMERA_HTML, 'vars') },
+               'index.html': themeHtml(CAMERA_HTML, 'vars') }),
     }, {
       // A personal media library, on the Home Screen under Camera. Declares
       // microphone + camera so you can capture straight in (honours the per-app
       // Abilities opt-out); the app hand-authors its theming, so 'vars' mode.
       name: 'My Media.gif', appId: 'mymedia', accent: [255, 120, 80],
-      files: { 'manifest.json': manifest('mymedia', 'My Media', [255, 120, 80], { capabilities: { db: true, microphone: true, camera: true },
+      files: withHelp('mymedia', { 'manifest.json': manifest('mymedia', 'My Media', [255, 120, 80], { capabilities: { db: true, microphone: true, camera: true },
                // Your library is PRIVATE by default — nothing rides along an
                // invite. Per item, you "make visible" (setVisibility → read-only)
                // so an invited guest can see and steal that ONE item; the blob
@@ -5000,24 +5012,24 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
                // private (they can't promote what isn't the host's to share).
                data: { media: PRIV, blobs: PRIV } }),
                'index.html': themeHtml(MYMEDIA_HTML, 'vars'),
-               'gifenc.js': GIFENC_JS },
+               'gifenc.js': GIFENC_JS }),
     }, {
       name: 'Meeting.gif', appId: 'meet', accent: [92, 160, 255],
-      files: { 'manifest.json': manifest('meet', 'Meeting', [92, 160, 255], { system: 'meet' }),
-               'index.html': themeHtml(MEET_FALLBACK_HTML, 'full') },
+      files: withHelp('meet', { 'manifest.json': manifest('meet', 'Meeting', [92, 160, 255], { system: 'meet' }),
+               'index.html': themeHtml(MEET_FALLBACK_HTML, 'full') }),
     }, {
       // Meeting's sibling: the same trusted page wearing the broadcast skin
       // (run.html#bc=1) — one host on the Stage, unlimited viewers, chat.
       name: 'Broadcast.gif', appId: 'broadcast', accent: [255, 92, 120],
-      files: { 'manifest.json': manifest('broadcast', 'Broadcast', [255, 92, 120], { system: 'broadcast' }),
-               'index.html': themeHtml(BROADCAST_FALLBACK_HTML, 'full') },
+      files: withHelp('broadcast', { 'manifest.json': manifest('broadcast', 'Broadcast', [255, 92, 120], { system: 'broadcast' }),
+               'index.html': themeHtml(BROADCAST_FALLBACK_HTML, 'full') }),
     }, {
       // Where more apps come from. A system launcher for the same reason
       // Meeting is one: the store installs onto this Home Screen, and the
       // sandbox has no such power (nor should it).
       name: 'App Store.gif', appId: 'appstore', accent: [123, 92, 255],
-      files: { 'manifest.json': manifest('appstore', 'App Store', [123, 92, 255], { system: 'store' }),
-               'index.html': themeHtml(STORE_FALLBACK_HTML, 'full') },
+      files: withHelp('appstore', { 'manifest.json': manifest('appstore', 'App Store', [123, 92, 255], { system: 'store' }),
+               'index.html': themeHtml(STORE_FALLBACK_HTML, 'full') }),
     }];
 
     const encGroup = (g) => Promise.all([

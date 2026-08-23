@@ -52,6 +52,25 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await p.waitForSelector('#appmount iframe', { timeout: 30000 });
   check('the app boots and mounts from the desktop store', true);
   check('solo layout: meeting chrome hidden (body.solo-app)', await p.evaluate(() => document.body.classList.contains('solo-app')));
+  check('Help sits on the app bar next to Invite/Save', await p.evaluate(() => {
+    const b = document.getElementById('apphelp');
+    return !!(b && b.offsetParent && /help/i.test(b.textContent));
+  }));
+  await p.click('#apphelp');
+  const helpOpen = await p.evaluate(() => {
+    const m = document.getElementById('apphelp-modal');
+    const body = document.getElementById('apphelp-body');
+    return {
+      flex: m && getComputedStyle(m).display === 'flex',
+      text: (body && body.textContent || '').trim(),
+    };
+  });
+  check('Help opens a modal with content', !!(helpOpen.flex && helpOpen.text.length > 40), helpOpen.text.slice(0, 80));
+  await p.click('#apphelp-close');
+  check('Got it closes Help', await p.evaluate(() => {
+    const m = document.getElementById('apphelp-modal');
+    return m && getComputedStyle(m).display === 'none';
+  }));
   check('no lobby shown', await p.evaluate(() => { const l = document.getElementById('lobby'); return !l || l.style.display === 'none' || !l.offsetParent; }));
   await p.waitForTimeout(2500); // anything eager (socket, gUM, mesh) would fire by now
   check('ZERO getUserMedia calls — solo never asks for camera/mic', (await p.evaluate(() => window.__gumCount)) === 0,

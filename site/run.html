@@ -951,6 +951,22 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .help-list li { color: var(--muted, #8888aa); font-size: .88rem; line-height: 1.5; padding: .18rem 0 .18rem .9rem; position: relative; }
   .help-list li::before { content: '·'; position: absolute; left: .1rem; color: var(--accent, #7b5cff); font-weight: 700; }
   .help-box b { color: var(--text, #e0e0f0); }
+  /* App Help: markdown body inside the same modal chrome. */
+  .help-md h3 { margin: 0 0 .5rem; font-size: 1.05rem; color: var(--text, #e0e0f0); }
+  .help-md h4 { margin: 1.1rem 0 .35rem; font-size: .98rem; color: var(--text, #e0e0f0); }
+  .help-md p { color: var(--muted, #8888aa); font-size: .88rem; line-height: 1.5; margin-bottom: .5rem; }
+  .help-md ul { list-style: none; margin: 0 0 .5rem; padding: 0; }
+  .help-md ul li { color: var(--muted, #8888aa); font-size: .88rem; line-height: 1.5; padding: .18rem 0 .18rem .9rem; position: relative; }
+  .help-md ul li::before { content: '·'; position: absolute; left: .1rem; color: var(--accent, #7b5cff); font-weight: 700; }
+  .help-md ol { margin: 0 0 .5rem; padding: 0 0 0 1.2rem; }
+  .help-md ol li { color: var(--muted, #8888aa); font-size: .88rem; line-height: 1.5; padding: .18rem 0; }
+  .help-md b { color: var(--text, #e0e0f0); }
+  .help-md i { color: var(--text, #e0e0f0); }
+  .help-md code { font: .82em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--bg, #0a0a0f); border: 1px solid var(--border, #2a2a3f); border-radius: .3rem; padding: .05rem .3rem; color: var(--text, #e0e0f0); }
+  .help-md pre { background: var(--bg, #0a0a0f); border: 1px solid var(--border, #2a2a3f); border-radius: .5rem; padding: .6rem .7rem; overflow-x: auto; margin: 0 0 .6rem; }
+  .help-md pre code { border: 0; padding: 0; background: none; }
+  .help-md a { color: var(--accent, #7b5cff); }
+  .help-md hr { border: 0; border-top: 1px solid var(--border, #2a2a3f); margin: .9rem 0; }
   /* Admin rooms: non-admins lose the group-moderation bar (the relay refuses
      their privileged actions anyway — this is honest UI, not the enforcement). */
   body.admroom.notadmin .modbar { display: none !important; }
@@ -1103,6 +1119,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <span id="appwho"></span>
       <button id="appinvite" style="display:none" title="Share this app live — friends join with one link">Invite</button>
       <button id="appsave" style="display:none" title="Save a snapshot GIF — the app with its data, yours to keep">Save</button>
+      <button id="apphelp" title="How this app works">Help</button>
       <button id="appsteal" style="display:none" title="Steal a copy of this app — it goes to your desktop's Stolen Apps, data and all">Steal</button>
       <button class="perms" id="appperms" title="What this app can do — review or turn things off" style="display:none"></button>
       <button id="applead" style="display:none"></button>
@@ -1412,6 +1429,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     </div>
   </div>
 
+  <div class="name-modal" id="apphelp-modal" style="display:none">
+    <div class="name-box help-box" style="max-width:600px;text-align:left">
+      <h3 id="apphelp-title" style="text-align:center">Help</h3>
+      <div class="help-scroll help-md" id="apphelp-body"></div>
+      <div style="display:flex;justify-content:center;margin-top:1rem">
+        <button id="apphelp-close" style="background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);color:var(--text,#e0e0f0)">Got it</button>
+      </div>
+    </div>
+  </div>
+
   <div class="name-modal" id="closed-modal" style="display:none">
     <div class="closed-box">
       <h3>Room closed</h3>
@@ -1431,6 +1458,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     })();
   </script>
   <script src="js/gifos-gif.js"></script>
+  <script src="js/gifos-help.js"></script>
   <script src="js/gifos-ed.js"></script>
   <script src="js/gifos-sign.js"></script>
   <script src="js/gifos-assets.js"></script>
@@ -12018,6 +12046,46 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function refreshStealBtn() {
       document.getElementById('appsteal').style.display = (ROOM.kind === 'app' && appMode === 'client') ? '' : 'none';
     }
+    const APP_HELP_FALLBACK = [
+      '# Help',
+      '',
+      'This app did not ship its own Help page.',
+      '',
+      '## The bar above the app',
+      '- **Invite** — share this app live. Friends open one link and everyone uses the same app together.',
+      '- **Save** — download a snapshot GIF: the app plus whatever it has saved, yours to keep.',
+      '- **Steal** — if you joined someone else, copy the app onto your desktop (with their data, as they joined, or clean).',
+      '- The chip is **Abilities** — what this app may do on this device. Tap to review or turn things off.',
+    ].join('\n');
+    function currentAppHelpMd() {
+      try {
+        const ctl = soloCtl || appHostCtl || appClientCtl;
+        if (ctl && typeof ctl.help === 'function') {
+          const s = ctl.help();
+          if (s && String(s).trim()) return String(s);
+        }
+      } catch (e) {}
+      return '';
+    }
+    function openAppHelp() {
+      const md = currentAppHelpMd() || APP_HELP_FALLBACK;
+      const H = window.GifOS && GifOS.help;
+      const parsed = (H && H.parse) ? H.parse(md) : { title: '', html: '' };
+      const titleEl = document.getElementById('apphelp-title');
+      const bodyEl = document.getElementById('apphelp-body');
+      const name = (document.getElementById('appname').textContent || '').trim();
+      titleEl.textContent = parsed.title || name || 'Help';
+      bodyEl.innerHTML = parsed.html || ((H && H.render) ? H.render(md) : '');
+      if (!bodyEl.innerHTML) bodyEl.textContent = md;
+      const modal = document.getElementById('apphelp-modal');
+      modal.style.display = 'flex';
+      bodyEl.scrollTop = 0;
+    }
+    document.getElementById('apphelp').onclick = openAppHelp;
+    document.getElementById('apphelp-close').onclick = () => { document.getElementById('apphelp-modal').style.display = 'none'; };
+    document.getElementById('apphelp-modal').onclick = (e) => {
+      if (e.target && e.target.id === 'apphelp-modal') e.target.style.display = 'none';
+    };
     document.getElementById('appsave').onclick = () => {
       const dl = (p) => p.then((bytes) => {
         const a = document.createElement('a');

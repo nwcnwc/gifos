@@ -24,6 +24,7 @@ apps/
                       reviewer, landed by pull request (see "Reviews" below)
     screenshot.png  ← the master cover art the store's cover.jpg is made from
     README.md       ← what it is, which gifos.* capabilities it uses
+    help.md         ← the OS Help popup (packed into the GIF — see below)
     build.*         ← how the finished .gif is produced from this source
 
 site/apps/          ← the PUBLISHED catalog (generated, but committed)
@@ -57,6 +58,29 @@ is the gate: a listed GIF without a gifos.app GIFOSSIG fails.
 
 A source tree with **no `listing.json` is simply not in the store** — that is
 how an app stays unlisted while it's being built.
+
+## `help.md` — the OS Help popup
+
+Every listed app ships a **`help.md`** at the source root. The packer puts it
+inside the GIF (default path `help.md`; override with `manifest.help`). The
+runtime reads it at mount, and **Help** on the app bar — right next to Invite
+and Save — opens it in an OS modal.
+
+This is OS chrome, not in-app chrome. Do not add a second How-to-play button
+inside the app that duplicates it. Keep upstream tutorial copy that is part of
+the original game's own screen (2048's "How to play: Use your arrow keys…" is
+the original, not ours).
+
+Write for a person who just opened the app and does not know it:
+
+- **Games:** objective, controls (keyboard, mouse, touch), rules, scoring,
+  solo vs a live friend (Invite in the bar), what is saved in the file.
+- **Tools:** what it is for, the jobs it does, the main commands/buttons,
+  what stays on this device vs what an Invite shares.
+- Succinct and complete. Headings, lists, **bold**, `code`. No HTML. No
+  "as an AI". No GifOS internals (`gifos.db`, WASM, the sandbox).
+
+If `help.md` is missing, Help still appears and explains Invite / Save / Steal.
 
 ## Reviews
 

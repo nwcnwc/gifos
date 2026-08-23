@@ -63,6 +63,12 @@ a .zip for multi-file apps). GifOS packs the GIF there.
    external — no CDNs, frameworks, remote images, or web fonts; the sandbox
    blocks all outside network. Inline SVG + emoji are fine. (Only the
    paste-HTML fallback, Path B, is limited to a single file.)
+1b. HELP: pack a `help.md` at the GIF root. GifOS shows a Help button next
+   to Invite and Save that pops this markdown up. Games: objective, controls,
+   rules, solo vs a live friend. Tools: what it is for, the common jobs, the
+   commands. Succinct and complete. Do not add a second How-to-play screen
+   inside the app — the OS button is the one Help. If you omit help.md, Help
+   still appears and explains Invite, Save, and Steal.
 2. Persistence: localStorage/cookies/indexedDB are DISABLED. Use:
      const db = gifos.db('items');
      await db.put({ id, ...fields }); await db.getAll(); await db.delete(id);
