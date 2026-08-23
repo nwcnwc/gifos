@@ -1,0 +1,35 @@
+{
+  "tagline": "A tiny world. Walk around. Make one. Share it.",
+  "description": "A little room you can walk around in. Arrows or a swipe. Talk to whoever is there. Pick things up.\n\nA few worlds already live here. Open one and wander. If you want a world of your own, press Make: draw the floor, draw a friend, write what they say. The whole world is a short piece of writing you can copy.\n\nYour world stays on this device, inside the app. Close it, come back, the room is where you left it.\n\nPress Share the world, then Invite (in the GifOS menu), and everyone who opens the link walks in the same room. When you change the world, they see it. When they change it, you see it.\n\nAn unofficial port of Bitsy by Adam le Doux. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "le-doux",
+    "url": "https://github.com/le-doux/bitsy"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Bitsy",
+    "url": "https://github.com/le-doux/bitsy",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games",
+    "Creativity"
+  ],
+  "tags": [
+    "bitsy",
+    "world",
+    "story",
+    "pixel",
+    "editor",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/bitsy",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

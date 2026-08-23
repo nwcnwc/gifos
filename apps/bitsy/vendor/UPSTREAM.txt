@@ -1,0 +1,31 @@
+vendor/* is GENERATED. Do not edit it; run node apps/bitsy/vendor.mjs.
+
+upstream: https://github.com/le-doux/bitsy.git
+commit:   6c0238f6526c3a608bd711cf465bfe51f55573ad
+tag:      v8.15
+date:     2026-02-12
+license:  MIT, Bitsy authors (COPYING-bitsy.txt, CREDITS-bitsy.txt)
+
+bitsy-engine.js is the player (system + engine) concat, in the same order
+as the exported-game template, with two seams:
+  touch listeners attach to the game canvas (no fullscreen overlay)
+  arrow keys are not preventDefault'd while a text field is focused
+  AudioContext uses the webkit fallback name
+
+ascii_small.bitsyfont is the default font. default.bitsy is the example
+world that ships in the editor. font.js is that font as a classic-script
+string (BITSY_DEFAULT_FONT).
+
+The 8 MB editor resource pack (icons, extra fonts, localisation) is not
+vendored. This app is the player plus a small editor of our own.
+
+sha256:
+  bitsy-engine.js         aeb6e09d2976b7f63b1d1fb3ff0a0d18a51c08051cb07c4d6271ed4281bbe1a2
+  ascii_small.bitsyfont   87f0a1972c5026497b83e98fc71a0b0952cbe818fa7c796315943c178becff44
+  default.bitsy           c290216b21c7901df0e042465fef975247667f56e75594790a76e272f4de6683
+  font.js                 639e037ba0c8acd6a9c7fe24e4edaff3f5d5c72cbd66b7a33a62f3cc741cac34
+  example.js              b3d6c0530ccb778fe4b9e8de1f00ac91cd2ec8c34ae7eceaee1867243978df72
+  COPYING-bitsy.txt       d680407dd64ddf37fd1b7aef13a628c27ee7a1e5da4f61514ef4495179399cf9
+  CREDITS-bitsy.txt       8592dd7ea1e9a53e70812012304439e35da2a9055753c78dc3b862212566e5b4
+
+The notice travels INSIDE the GIF as COPYING-bitsy.txt.

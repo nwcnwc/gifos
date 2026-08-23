@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "bitsy",
+  "name": "Bitsy",
+  "shortName": "Bitsy",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A tiny world. Walk around. Make one. Share it.",
+  "entry": "index.html",
+  "accent": [0, 82, 204],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
