@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Hangman</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <button type="button" class="icon-btn" id="infoBtn" aria-label="How to play">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+    </button>
+    <h1>Hangman</h1>
+    <span class="lives" aria-live="polite">Wrong <b id="mistakes">0</b> of <b id="maxWrong">6</b></span>
+  </header>
+
+  <div id="versus" class="versus" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <div class="stage">
+    <img id="hangmanPic" src="images/0.jpg" width="200" height="350" alt="">
+    <p class="prompt">Guess the programming language</p>
+    <p id="wordSpotlight" class="word" aria-live="polite"></p>
+    <p id="banner" class="banner" hidden></p>
+    <button type="button" id="playAgain" class="again" hidden>New word</button>
+  </div>
+
+  <div id="keyboard" class="keyboard" aria-label="Letters"></div>
+</div>
+
+<div id="modal-info" class="modal" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="infoTitle">
+    <button type="button" class="icon-btn close" data-close="info" aria-label="Close">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+    <h2 id="infoTitle">How to play</h2>
+    <ul>
+      <li>A programming language is hiding. Guess a letter.</li>
+      <li>Right letters fill in. Six wrong ones and the drawing is finished.</li>
+      <li>The words are the original fourteen: Python, Ruby, Java, and the rest.</li>
+    </ul>
+    <p class="foot">Unofficial port of Vanilla Javascript Hangman Game by simonjsuh. To play a friend, use <b>Invite</b> in the bar above the app. Same word — race, or share the gallows.</p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "tagline": "Guess the word before the gallows fills. Race a friend, or share the rope.",
+  "description": "A word is hiding. Pick a letter. Right ones fill in; six wrong ones and the drawing is finished. The words are programming languages — Python, Ruby, Java, and a dozen more.\n\nOn your own it is that game, on this device. Close it and come back: a game in progress is still there.\n\nSend the invite and two of you get the same word. Race, and the first to finish it wins — each of you has your own drawing, and you never see the other person's letters, only how many wrong guesses they have used. Or share the gallows: every letter anyone tries is on the same rope, so you sink or swim together.\n\nAn unofficial port of Vanilla Javascript Hangman Game by simonjsuh.",
+  "author": {
+    "name": "simonjsuh",
+    "url": "https://github.com/simonjsuh/Vanilla-Javascript-Hangman-Game"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Vanilla Javascript Hangman Game",
+    "url": "https://github.com/simonjsuh/Vanilla-Javascript-Hangman-Game",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "hangman",
+    "word",
+    "gallows",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hangman",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
