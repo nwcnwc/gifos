@@ -9,7 +9,7 @@
 // Run:  node apps/gomoku/build.mjs
 import { gomokuIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -81,6 +81,13 @@ const files = {
   'COPYING-gomoku.txt': read('vendor/COPYING-gomoku.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
 };
+
+{
+  if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short — OS Help needs a real guide.');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of ['ai-src.js', 'ai-worker.js', 'rules.js', 'app.js']) {

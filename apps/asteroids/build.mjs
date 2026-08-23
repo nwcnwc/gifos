@@ -61,6 +61,10 @@ const files = {
   'COPYING-html5-asteroids.txt': read('vendor/COPYING-html5-asteroids.txt'),
 };
 
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+files['help.md'] = read('help.md');
+if (files['help.md'].trim().length < 400) throw new Error('help.md is too short');
+
 const html = files['index.html'];
 for (const s of SCRIPTS) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);

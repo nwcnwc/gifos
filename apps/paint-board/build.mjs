@@ -9,7 +9,7 @@
 // Run:  node apps/paint-board/build.mjs
 import { paintBoardIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -88,6 +88,13 @@ const files = {
   'app.js': read('app.js'),
   'COPYING-paint-board.txt': read('COPYING-paint-board.txt'),
 };
+
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+{
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

@@ -217,7 +217,9 @@ function writeOut(p, contents) {
 // existence + mtime ordering instead of bytes.
 function coverIsCurrent(srcPng, outJpg) {
   if (!fs.existsSync(outJpg)) return false;
-  return fs.statSync(outJpg).mtimeMs >= fs.statSync(srcPng).mtimeMs;
+  // A few ms of slack: utimes often truncates sub-millisecond mtime, so a
+  // stamp copied from the source can compare as older than the source.
+  return fs.statSync(outJpg).mtimeMs + 5 >= fs.statSync(srcPng).mtimeMs;
 }
 
 
@@ -272,6 +274,17 @@ async function buildApp(slug) {
   }
   if (!m.appId) fail(slug + ': manifest.json has no appId');
   if (!m.version) fail(slug + ': manifest.json has no version');
+
+  // OS Help: the app bar reads help.md from the GIF. The source file is the
+  // authoring contract; the packer copies it in. A listing with no Help is
+  // a player who opens the app and has no idea what to do.
+  const helpPath = path.join(dir, 'help.md');
+  if (!fs.existsSync(helpPath)) {
+    fail(slug + ': help.md is missing — OS Help reads it from the GIF (see apps/README.md)');
+  } else {
+    const help = fs.readFileSync(helpPath, 'utf8').replace(/^\uFEFF/, '').trim();
+    if (help.length < 400) fail(slug + ': help.md is too short to be useful Help');
+  }
 
   // AUTHOR / PORT. author is who the work is by. A port of someone else's
   // named product sets basedOn + porter; author is then THEM, and GifOS as
@@ -409,7 +422,17 @@ async function buildApp(slug) {
   const coverOut = path.join(outDir, 'cover.jpg');
   if (!fs.existsSync(coverSrc)) fail(slug + ': cover art missing at ' + path.relative(ROOT, coverSrc));
   else if (CHECK) { if (!coverIsCurrent(coverSrc, coverOut)) fail(path.relative(ROOT, coverOut) + ' is missing or older than its source'); }
-  else if (!coverIsCurrent(coverSrc, coverOut)) await coverFrom(coverSrc, coverOut, l.coverCrop);
+  else if (!coverIsCurrent(coverSrc, coverOut)) {
+    await coverFrom(coverSrc, coverOut, l.coverCrop);
+    // writeOut skips a byte-identical JPEG, so the cover's mtime stays old
+    // while a rebuild has just rewritten screenshot.png with the same pixels.
+    // --check is mtime-only (sharp is not deterministic across versions), so
+    // stamp the cover to match the source when the bytes did not change.
+    if (!coverIsCurrent(coverSrc, coverOut) && fs.existsSync(coverOut)) {
+      const t = fs.statSync(coverSrc).mtimeMs / 1000 + 0.02;
+      fs.utimesSync(coverOut, t, t);
+    }
+  }
 
   const rec = {
     catalog: CATALOG_VERSION,

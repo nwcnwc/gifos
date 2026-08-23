@@ -502,10 +502,6 @@
   function hideModal(name) {
     $('modal-' + name).hidden = true;
     if (openModal === name) openModal = null;
-    if (name === 'info' && G.firstTime) {
-      G.firstTime = false;
-      saveSoon();
-    }
   }
   function closeTop() {
     if (openModal) { hideModal(openModal); return true; }
@@ -523,7 +519,6 @@
   });
 
   $('settingsBtn').addEventListener('click', function () { showModal('settings'); });
-  $('infoBtn').addEventListener('click', function () { showModal('info'); });
   $('playAgain').addEventListener('click', playAgain);
   $('endAgain').addEventListener('click', playAgain);
   $('darkToggle').addEventListener('change', function () {
@@ -538,7 +533,7 @@
     render();
     saveSoon();
   });
-  ['info', 'settings', 'end'].forEach(function (name) {
+  ['settings', 'end'].forEach(function (name) {
     var modal = $('modal-' + name);
     modal.addEventListener('click', function (ev) {
       if (ev.target === modal) hideModal(name);
@@ -721,7 +716,7 @@
         restorePrefs(rows);
         loaded = true;
         applyDark();
-        if (G.firstTime) showModal('info');
+        G.firstTime = false;
         render();
         if (playersDb) {
           playersDb.subscribe(function (list) { ingestPlayers(list || []); });

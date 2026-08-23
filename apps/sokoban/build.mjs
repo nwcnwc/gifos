@@ -99,6 +99,9 @@ const listing = JSON.parse(read('listing.json'));
 
 const SCRIPTS = ['levels.js', 'game.js', 'mp.js', 'touch.js', 'app.js'];
 
+const helpMd = read('help.md');
+if (helpMd.trim().length < 400) throw new Error('help.md must exist and be at least 400 characters after trim');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -109,6 +112,7 @@ const files = {
   'touch.js': read('touch.js'),
   'app.js': read('app.js'),
   'COPYING-sokoban.txt': read('vendor/COPYING-sokoban.txt'),
+  'help.md': helpMd,
 };
 
 const html = files['index.html'];

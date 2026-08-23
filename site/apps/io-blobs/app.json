@@ -38,10 +38,10 @@
   "cover": "/apps/io-blobs/cover.jpg",
   "screenshots": [],
   "gif": "/apps/io-blobs/io-blobs.gif",
-  "bytes": 200967,
+  "bytes": 202118,
   "download": 0,
   "provides": null,
-  "sha256": "bb2c7be702e33a7c7ed803494763466c546994e49babfc0672655c6b93e90577",
+  "sha256": "5b96a47ab30a931f520318d098b203c9af399cb1ad351199a6be958e15abd639",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -73,6 +73,11 @@ const files = {
 for (const s of OURS) files[s] = read(s);
 for (const s of VENDOR_JS) files[s] = read(s);
 for (const s of VENDOR_PNG) files[s] = bin(s);
+{
+  const helpMd = read('help.md').trim();
+  if (helpMd.length < 400) throw new Error('help.md is missing or too short (' + helpMd.length + ')');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of [...OURS, ...VENDOR_JS]) {

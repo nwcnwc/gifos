@@ -48,17 +48,6 @@ h1 {
   text-transform: uppercase;
   font-weight: 800;
 }
-.icon-btn {
-  width: 40px; height: 40px;
-  border: 0; padding: 8px;
-  border-radius: 999px;
-  background: var(--tile);
-  color: var(--fg);
-  cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.icon-btn svg { width: 22px; height: 22px; }
-.icon-btn.close { position: absolute; top: 12px; right: 12px; }
 .seg {
   display: flex; gap: 4px;
   background: var(--tile);
@@ -166,27 +155,6 @@ h1 {
   font-weight: 800;
 }
 .ghost-btn:active { transform: translateY(1px); }
-
-.modal {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.55);
-  display: flex; align-items: flex-end; justify-content: center;
-  z-index: 20;
-}
-.sheet {
-  position: relative;
-  width: min(520px, 100%);
-  background: #14141c;
-  color: var(--fg);
-  border-radius: 20px 20px 0 0;
-  padding: 28px 22px 32px;
-  max-height: 80vh;
-  overflow: auto;
-}
-.sheet h2 { margin: 0 0 12px; }
-.sheet ul { margin: 0; padding-left: 1.1em; color: var(--muted); }
-.sheet li { margin: 0 0 8px; }
-.sheet b { color: var(--fg); }
 
 @media (orientation: landscape) and (max-height: 500px) {
   .app { flex-direction: row; flex-wrap: wrap; align-items: stretch; }

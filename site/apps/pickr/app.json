@@ -38,10 +38,10 @@
   "cover": "/apps/pickr/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pickr/pickr.gif",
-  "bytes": 199345,
+  "bytes": 200328,
   "download": 0,
   "provides": null,
-  "sha256": "2ad981f2035c7154ef3a27e4af8522d1d08082a74a6c86906afeff4a02de51ba",
+  "sha256": "ede07fe969fbb872378ab5d95f90508a337dfd9aaede16b2b8cba5cb23ecd776",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

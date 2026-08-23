@@ -5,7 +5,7 @@
 // Run:  node apps/one-stroke/build.mjs
 import { oneStrokeIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
@@ -50,6 +50,13 @@ const files = {
   'game.js': read('game.js'),
   'app.js': read('app.js'),
 };
+
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+{
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

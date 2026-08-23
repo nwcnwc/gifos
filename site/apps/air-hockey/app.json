@@ -38,10 +38,10 @@
   "cover": "/apps/air-hockey/cover.jpg",
   "screenshots": [],
   "gif": "/apps/air-hockey/air-hockey.gif",
-  "bytes": 1467523,
+  "bytes": 1468698,
   "download": 0,
   "provides": null,
-  "sha256": "3bfeb7253db254a37f4aa0b768985835f647139d0a9c417a21a5e8fff5e85f72",
+  "sha256": "640d7e010f6e6d5f8cb151d60f23146574c3b58303f34c681840e0550bb59ae8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

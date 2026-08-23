@@ -39,10 +39,10 @@
   "cover": "/apps/isocity/cover.jpg",
   "screenshots": [],
   "gif": "/apps/isocity/isocity.gif",
-  "bytes": 646468,
+  "bytes": 647704,
   "download": 0,
   "provides": null,
-  "sha256": "9a9c434d0107eeed547039eda1d31976acdd5ca2f6ed2999063c1d2e51b6941c",
+  "sha256": "c6cb84acd21e8f09248d57c6e3a34f1b4ab4f9fb2d839e469481233a1e9914af",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

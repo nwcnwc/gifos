@@ -38,10 +38,10 @@
   "cover": "/apps/thinktank/cover.jpg",
   "screenshots": [],
   "gif": "/apps/thinktank/thinktank.gif",
-  "bytes": 208094,
+  "bytes": 208187,
   "download": 0,
   "provides": null,
-  "sha256": "2c8f80316d52c780a62e0874575e24a6aec6c1ec3c7e69f8ac0a7bce1130e272",
+  "sha256": "1dfe91e45a5d1bc589715f45fd6f5916e838d096b50ef83e55696def8d84de5f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

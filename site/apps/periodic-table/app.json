@@ -39,10 +39,10 @@
   "cover": "/apps/periodic-table/cover.jpg",
   "screenshots": [],
   "gif": "/apps/periodic-table/periodic-table.gif",
-  "bytes": 175318,
+  "bytes": 176416,
   "download": 0,
   "provides": null,
-  "sha256": "a7c61d789bdf28db5d075c0744d00dc311c2f5ede38c3c428abc53d977e760d2",
+  "sha256": "c19a8088e0f0926df7f48092cc8ae2f7e7f900b89eb3cc4ecf62cf7b3483d901",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

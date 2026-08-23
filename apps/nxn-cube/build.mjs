@@ -66,6 +66,12 @@ if (/Rubik'?s Cube/i.test(JSON.stringify(listing) + boot + read('index.html'))) 
   throw new Error("do not brand as Rubik's Cube (trademark) — NxN Cube / Pocket Cube only.");
 }
 
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing — OS Help packs this file');
+const helpMd = read('help.md');
+if (helpMd.replace(/^\uFEFF/, '').trim().length < 400) {
+  throw new Error('help.md is too short (need >= 400 trimmed chars)');
+}
+
 const SCRIPTS = ['vendor/cube.js', 'boot.js'];
 const files = {
   'manifest.json': JSON.stringify(manifest),
@@ -73,6 +79,7 @@ const files = {
   'style.css': read('style.css'),
   'vendor/cube.js': cubeJs,
   'boot.js': boot,
+  'help.md': helpMd,
   'COPYING-rubiks-cube.txt': read('vendor/COPYING-rubiks-cube.txt'),
   'COPYING-three.txt': read('vendor/COPYING-three.txt'),
 };

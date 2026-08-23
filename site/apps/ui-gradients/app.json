@@ -40,10 +40,10 @@
   "cover": "/apps/ui-gradients/cover.jpg",
   "screenshots": [],
   "gif": "/apps/ui-gradients/ui-gradients.gif",
-  "bytes": 200614,
+  "bytes": 201635,
   "download": 0,
   "provides": null,
-  "sha256": "d35ff62249a2a208bb7d57e758d29ff3a960dd0738140ad788243a91b7e10a5c",
+  "sha256": "83c2bca6c259e1f764dae2142e6d3b498f73bb0fd7fb885325d4bcc8ed34444d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

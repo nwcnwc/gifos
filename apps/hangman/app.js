@@ -62,7 +62,6 @@
     wins: 0,
     losses: 0,
     ready: false,
-    firstTime: true,
     solvedAt: 0
   };
 
@@ -446,39 +445,16 @@
     render();
   }
 
-  function showInfo() { $('modal-info').hidden = false; }
-  function hideInfo() {
-    $('modal-info').hidden = true;
-    if (G.firstTime) {
-      G.firstTime = false;
-      saveSoon();
-    }
-  }
-
   if (typeof document !== 'undefined') {
-    $('infoBtn').addEventListener('click', showInfo);
     $('playAgain').addEventListener('click', playAgain);
     $('modeRace').addEventListener('click', function () { setMode('race'); });
     $('modeShare').addEventListener('click', function () { setMode('share'); });
-    $('modal-info').addEventListener('click', function (ev) {
-      if (ev.target === $('modal-info')) hideInfo();
-    });
-    $('modal-info').querySelector('[data-close]').addEventListener('click', hideInfo);
 
     document.addEventListener('keydown', function (ev) {
       if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
-      if (!$('modal-info').hidden && ev.key === 'Escape') { hideInfo(); ev.preventDefault(); return; }
-      if (!$('modal-info').hidden) return;
       var letter = ev.key.toLowerCase();
       if (ALPHA.indexOf(letter) >= 0 && ev.key.length === 1) { handleGuess(letter); ev.preventDefault(); }
     });
-
-    if (api && api.onBack) {
-      api.onBack(function () {
-        if (!$('modal-info').hidden) { hideInfo(); return true; }
-        return false;
-      });
-    }
   }
 
   function saveSoon() {
@@ -491,8 +467,7 @@
     prefsDb.put({
       id: 'stats',
       wins: G.wins,
-      losses: G.losses,
-      firstTime: G.firstTime
+      losses: G.losses
     }).catch(function () {});
     if (!versusOn()) {
       prefsDb.put({
@@ -510,7 +485,6 @@
     if (by.stats) {
       G.wins = by.stats.wins || 0;
       G.losses = by.stats.losses || 0;
-      if (typeof by.stats.firstTime === 'boolean') G.firstTime = by.stats.firstTime;
     }
     if (by.solo && by.solo.answer && !versusOn()) {
       G.answer = String(by.solo.answer).toLowerCase();
@@ -632,9 +606,6 @@
       var pPrefs = prefsDb ? prefsDb.getAll() : Promise.resolve([]);
       return pPrefs.then(function (rows) {
         restorePrefs(rows);
-        // Do not cover the gallows on first boot — the empty drawing is the
-        // how-to. Info stays behind the ? button.
-        G.firstTime = false;
         render();
         if (playersDb) playersDb.subscribe(function (list) { ingestPlayers(list || []); });
         if (matchDb) matchDb.subscribe(function (list) { ingestMatch(list || []); });

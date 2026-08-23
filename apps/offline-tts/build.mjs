@@ -15,11 +15,35 @@
 // (docs/providers.md — think multi-tens-of-MB model files on a public host).
 //
 // Run:  node apps/offline-tts/build.mjs
-import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
-import { offlineTtsIcon } from './icon.mjs';
+import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { offlineTtsIcon } from './icon.mjs';
+
+// Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
+// uses). Node 20+ is fine. Buffer the payload and deflateRaw at flush.
+{
+  const Orig = globalThis.CompressionStream;
+  globalThis.CompressionStream = class CompressionStream {
+    constructor(format) {
+      if (format !== 'deflate-raw') {
+        if (Orig) return new Orig(format);
+        throw new TypeError('unsupported format ' + format);
+      }
+      const chunks = [];
+      const ts = new TransformStream({
+        transform(chunk) { chunks.push(Buffer.from(chunk)); },
+        flush(controller) {
+          controller.enqueue(new Uint8Array(deflateRawSync(Buffer.concat(chunks))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  };
+}
+await import('../../site/js/gifos-gif.js'); // attaches globalThis.GifOS.gif
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const gif = globalThis.GifOS.gif;
@@ -38,10 +62,14 @@ if (/<\/script/i.test(core)) throw new Error('vendor/espeak.js contains </script
 // from prematurely closing the <script> the runtime inlines it into.
 const strModule = (name, value) => (name + '=' + JSON.stringify(value) + ';').split('</').join('<\\/');
 
+const helpMd = read('help.md').replace(/^\uFEFF/, '');
+if (helpMd.trim().length < 400) throw new Error('help.md must be at least 400 characters after trim');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
   'app.js': read('app.js'),
+  'help.md': helpMd,
   'engine.js': core,
   'engine-data.js': strModule('window.PV_CONFIG_JSON', read('vendor/mespeak-config.json')),
   'voice-data.js': strModule('window.PV_VOICE_JSON', read('vendor/voice-en-us.json')),

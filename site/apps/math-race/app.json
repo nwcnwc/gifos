@@ -39,10 +39,10 @@
   "cover": "/apps/math-race/cover.jpg",
   "screenshots": [],
   "gif": "/apps/math-race/math-race.gif",
-  "bytes": 196383,
+  "bytes": 197509,
   "download": 0,
   "provides": null,
-  "sha256": "2dd60fb09294c3bd850643b6c19fb3967e2be909de39d6b888cb578a8a28afc5",
+  "sha256": "154888834149a850f57a83cd9b1b3faa0744317795b53d6eb761d667c137a95a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

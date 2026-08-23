@@ -40,10 +40,10 @@
   "cover": "/apps/piskel/cover.jpg",
   "screenshots": [],
   "gif": "/apps/piskel/piskel.gif",
-  "bytes": 2459676,
+  "bytes": 2482761,
   "download": 0,
   "provides": null,
-  "sha256": "cbb4028ead274d8e853ef9e24fb79517e71742bed0f39fc3f9a1e42e49f1cd5d",
+  "sha256": "7e1d4f240a164f28b0928ed32c1c9a6676e81f79d83a5bb65b21e9c2b3321aba",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

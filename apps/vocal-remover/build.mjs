@@ -19,11 +19,35 @@
 // player's browser.
 //
 // Run:  node apps/vocal-remover/build.mjs
-import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
 import { vocalRemoverIcon } from './icon.mjs';
+import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+// Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
+// uses). Node 20+ is fine. Buffer the payload and deflateRaw at flush.
+{
+  const Orig = globalThis.CompressionStream;
+  globalThis.CompressionStream = class CompressionStream {
+    constructor(format) {
+      if (format !== 'deflate-raw') {
+        if (Orig) return new Orig(format);
+        throw new TypeError('unsupported format ' + format);
+      }
+      const chunks = [];
+      const ts = new TransformStream({
+        transform(chunk) { chunks.push(Buffer.from(chunk)); },
+        flush(controller) {
+          controller.enqueue(new Uint8Array(deflateRawSync(Buffer.concat(chunks))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  };
+}
+await import('../../site/js/gifos-gif.js'); // attaches globalThis.GifOS.gif
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const gif = globalThis.GifOS.gif;
@@ -151,6 +175,11 @@ const files = {
   'LICENSE-onnxruntime.txt': readFileSync(join(dir, '..', 'offline-tts-kokoro', 'vendor', 'LICENSE-onnxruntime.txt'), 'utf8'),
 };
 for (const s of SCRIPTS) files[s] = read(s);
+{
+  const helpMd = read('help.md').trim();
+  if (helpMd.length < 400) throw new Error('help.md is missing or too short (' + helpMd.length + ')');
+  files['help.md'] = helpMd;
+}
 
 // The runtime inlines every <script src> it finds by rewriting the tag, so a
 // script the HTML never references would travel in the GIF and never run.

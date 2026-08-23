@@ -162,25 +162,6 @@ button{font:inherit}
 .seat .open{color:var(--muted);font-weight:600;font-style:italic}
 .fqueue{color:var(--muted);font-size:12.5px;text-align:center;min-height:14px;width:100%}
 
-.modal{position:fixed;inset:0;background:rgba(4,4,8,.72);display:flex;align-items:flex-end;justify-content:center;z-index:20;padding:12px}
-.modal .sheet{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 12px 12px;
-  width:min(480px,100%);max-height:86vh;overflow:auto;padding:16px 16px 24px}
-.helpbody{color:var(--text);font-size:14px}
-.helpbody p,.helpbody li{color:var(--muted)}
-.helpbody b{color:var(--text)}
-.helpbody ul{padding-left:18px;margin:0 0 10px}
-.steps{margin:0 0 12px;padding-left:20px}
-.steps li{margin:0 0 6px}
-.swatch{display:inline-block;padding:0 6px;border-radius:6px;font-weight:700;font-size:12px}
-.swatch.gold{background:rgba(245,215,110,.25);color:var(--hint)}
-.swatch.cyan{background:rgba(110,231,245,.2);color:var(--turn)}
-.cheat{width:100%;border-collapse:collapse;font-size:12.5px;margin:0 0 12px}
-.cheat th{text-align:left;color:var(--muted);font-weight:700;font-size:11px;padding:4px 6px;border-bottom:1px solid var(--border)}
-.cheat td{padding:8px 6px;vertical-align:top;color:var(--muted);border-bottom:1px solid var(--border)}
-.cheat td:nth-child(2){color:var(--text);font-weight:700;white-space:nowrap}
-.cheat .g{width:28px}
-.cheat .kg{width:20px;height:20px}
-
 @media (min-height: 780px){
   .board{border-width:4px}
 }

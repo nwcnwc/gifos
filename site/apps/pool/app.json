@@ -38,10 +38,10 @@
   "cover": "/apps/pool/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pool/pool.gif",
-  "bytes": 400353,
+  "bytes": 401983,
   "download": 0,
   "provides": null,
-  "sha256": "a1dae2375af618761f15f6f62528f51d089e7a7db462c9e5c7c16443bc0ebe96",
+  "sha256": "50a97b32a0f3b62a44b7d24cf0907da27f44e69a1dbb575613ce42c9a0e60849",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -62,6 +62,9 @@ const files = {
   'app.js': read('app.js'),
   'COPYING-reversi.txt': read('vendor/COPYING-reversi.txt'),
 };
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+files['help.md'] = read('help.md');
+if (files['help.md'].trim().length < 400) throw new Error('help.md trimmed length must be >= 400');
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

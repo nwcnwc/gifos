@@ -45,12 +45,17 @@ const manifest = JSON.parse(read('manifest.json'));
 
 const SCRIPTS = ['board.js', 'app.js'];
 
+const help = read('help.md').replace(/^\uFEFF/, '');
+if (help.trim().length < 400) throw new Error('help.md is missing or too short — need >= 400 trimmed characters');
+if (!/^#\s+\S/.test(help.trim())) throw new Error('help.md must start with # <App Name>');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
   'style.css': read('style.css'),
   'board.js': read('board.js'),
   'app.js': read('app.js'),
+  'help.md': help,
 };
 
 const html = files['index.html'];

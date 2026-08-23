@@ -96,6 +96,12 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 
 const SCRIPTS = ['world.js', 'game.js', 'mp.js', 'touch.js', 'boot.js'];
 
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing — OS Help packs this file');
+const helpMd = read('help.md');
+if (helpMd.replace(/^\uFEFF/, '').trim().length < 400) {
+  throw new Error('help.md is too short (need >= 400 trimmed chars)');
+}
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -105,6 +111,7 @@ const files = {
   'mp.js': read('mp.js'),
   'touch.js': read('touch.js'),
   'boot.js': read('boot.js'),
+  'help.md': helpMd,
   'COPYING-mykonos.txt': read('vendor/COPYING-mykonos.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
 };

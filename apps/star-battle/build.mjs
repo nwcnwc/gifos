@@ -89,6 +89,13 @@ const files = {
 for (const s of OURS) files[s] = read(s);
 for (const s of VENDOR) files[s] = read(s);
 
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+{
+  const help = read('help.md').replace(/^\uFEFF/, '').trim();
+  if (help.length < 400) throw new Error('help.md trimmed length must be >= 400, got ' + help.length);
+}
+files['help.md'] = read('help.md');
+
 const html = files['index.html'];
 for (const s of [...OURS, ...VENDOR]) {
   if (!html.includes('src="' + s + '"') && !html.includes('href="' + s + '"')) {

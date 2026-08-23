@@ -38,10 +38,10 @@
   "cover": "/apps/tic-tac-toe/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tic-tac-toe/tic-tac-toe.gif",
-  "bytes": 252299,
+  "bytes": 253352,
   "download": 0,
   "provides": null,
-  "sha256": "e496e575f84f1faf2846c3981e26c336f786c85feef64a187be27f253cf51a10",
+  "sha256": "2c11ac1421c1f7d6fb0dad4f009c23af3a8121db5474eaa7a87008ea192a5cfe",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

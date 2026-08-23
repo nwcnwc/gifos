@@ -41,10 +41,10 @@
   "cover": "/apps/css-doodle/cover.jpg",
   "screenshots": [],
   "gif": "/apps/css-doodle/css-doodle.gif",
-  "bytes": 241333,
+  "bytes": 242520,
   "download": 0,
   "provides": null,
-  "sha256": "1dd28fa79c75f75480121250488150dad8ac2207a3193cb23fa8af21672ed1d8",
+  "sha256": "e3826b0f168bf2c8e8a388ce02118322972650652e8e7bcc433561e68239b04d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

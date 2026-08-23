@@ -9,7 +9,7 @@
 // Run:  node apps/tic-tac-toe/build.mjs
 import { ticTacToeIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
@@ -142,6 +142,13 @@ for (const [n, s] of Object.entries(files)) {
   if (/^\s*export\s|export\{|import\.meta/m.test(s)) {
     throw new Error(n + ' uses ESM syntax — the classic-script inline path cannot carry it.');
   }
+}
+
+{
+  if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing — the OS Help popup reads it from the GIF');
+  const help = read('help.md');
+  if (help.trim().length < 400) throw new Error('help.md is too short (need >= 400 trimmed chars)');
+  files['help.md'] = help;
 }
 
 const shot = screenshotPng();

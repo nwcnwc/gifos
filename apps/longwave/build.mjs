@@ -9,7 +9,7 @@
 // Run:  node apps/longwave/build.mjs
 import { longwaveIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
@@ -47,6 +47,12 @@ const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
 const SCRIPTS = ['cards.js', 'rules.js', 'app.js'];
 
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing — OS Help packs this file');
+const helpMd = read('help.md');
+if (helpMd.replace(/^\uFEFF/, '').trim().length < 400) {
+  throw new Error('help.md is too short (need >= 400 trimmed chars)');
+}
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -54,6 +60,7 @@ const files = {
   'cards.js': read('cards.js'),
   'rules.js': read('rules.js'),
   'app.js': read('app.js'),
+  'help.md': helpMd,
   // The licence rides INSIDE the GIF, not just beside it in the repo. A copy
   // of this app that someone was handed is a distribution of the MIT work.
   'COPYING.txt': read('COPYING.txt'),

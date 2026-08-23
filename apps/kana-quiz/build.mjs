@@ -105,6 +105,12 @@ const files = {
   'COPYING-kanaquiz.txt': read('vendor/COPYING-kanaquiz.txt'),
 };
 
+{
+  const help = read('help.md').replace(/^\uFEFF/, '').trim();
+  if (help.length < 400) throw new Error('help.md trimmed length is ' + help.length + ' (need >= 400)');
+  files['help.md'] = help + '\n';
+}
+
 const html = files['index.html'];
 if (!html.includes('src="vendor/kana.js"')) throw new Error('index.html does not load vendor/kana.js');
 if (!html.includes('src="app.js"')) throw new Error('index.html does not load app.js');
@@ -116,6 +122,9 @@ if (/(?:src|href)\s*=\s*["']https?:/i.test(html)) {
   throw new Error('index.html loads a remote URL — nothing may be fetched.');
 }
 if (html.includes('id="invite"')) throw new Error('Invite is OS chrome — do not draw a share button');
+if (html.includes('id="infoBtn"') || html.includes('modal-info')) {
+  throw new Error('How-to-play is OS Help — do not draw an in-app help modal');
+}
 if (!html.includes('id="lobby"')) throw new Error('index.html must have a race lobby — Invite is OS chrome, the lobby explains it');
 if (!html.includes('class="chart"') && !html.includes("class='chart'")) {
   throw new Error('index.html must ship a kana chart picker, not a chip wall');

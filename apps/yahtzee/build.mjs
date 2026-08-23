@@ -122,6 +122,11 @@ const files = {
   'vendor/images/scores.jpg': bin('vendor/images/scores.jpg'),
 };
 for (const s of SCRIPTS) files[s] = read(s);
+{
+  const helpMd = read('help.md').trim();
+  if (helpMd.length < 400) throw new Error('help.md is missing or too short (' + helpMd.length + ')');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

@@ -68,19 +68,6 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 .lives b { color: var(--fg); font-weight: 700; }
-.icon-btn {
-  width: 40px; height: 40px;
-  border: 0; padding: 0;
-  border-radius: 999px;
-  background: var(--tile);
-  color: var(--fg);
-  cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-  touch-action: manipulation;
-  flex-shrink: 0;
-}
-.icon-btn svg { width: 22px; height: 22px; }
-.icon-btn.close { position: absolute; top: 10px; right: 10px; }
 
 .versus {
   display: flex; flex-wrap: wrap; gap: 6px 8px;
@@ -287,29 +274,6 @@ h1 {
 .key:disabled { cursor: default; }
 .key.ok { background: var(--ok-bg); color: var(--ok); }
 .key.bad { background: var(--bad-bg); color: var(--bad); opacity: .85; }
-
-.modal {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.55);
-  display: flex; align-items: flex-end; justify-content: center;
-  padding: 12px;
-  z-index: 5;
-}
-.modal[hidden] { display: none !important; }
-.sheet {
-  position: relative;
-  background: #1a1c24;
-  color: var(--fg);
-  border-radius: 16px 16px 12px 12px;
-  padding: 28px 20px 20px;
-  max-width: 480px;
-  width: 100%;
-}
-.sheet h2 { margin: 0 0 10px; font-size: 1.2rem; }
-.sheet ul { margin: 0 0 12px; padding-left: 1.15em; color: var(--muted); }
-.sheet li { margin: .4rem 0; }
-.sheet .foot { margin: 0; color: var(--muted); font-size: .9rem; }
-.sheet .foot b { color: var(--fg); }
 
 @media (max-height: 620px) {
   .gallows { min-height: 100px; height: min(32vh, 180px); }

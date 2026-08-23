@@ -102,6 +102,9 @@ const SCRIPTS = [
   'worlds.js', 'editor.js', 'app.js', 'mp.js',
 ];
 
+const helpMd = read('help.md');
+if (helpMd.trim().length < 400) throw new Error('help.md is too short');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -115,6 +118,7 @@ const files = {
   'mp.js': read('mp.js'),
   'COPYING-bitsy.txt': read('vendor/COPYING-bitsy.txt'),
   'CREDITS-bitsy.txt': read('vendor/CREDITS-bitsy.txt'),
+  'help.md': helpMd,
 };
 
 const html = files['index.html'];

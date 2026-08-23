@@ -41,10 +41,10 @@
   "cover": "/apps/pixel-paint/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pixel-paint/pixel-paint.gif",
-  "bytes": 211386,
+  "bytes": 212720,
   "download": 0,
   "provides": null,
-  "sha256": "dae3883d6c657d62ebb31bcf81b0580e96ea914b880304aced8678f2dc195001",
+  "sha256": "8676658e865cca95ab48f2eee2b7af58900f7db66baadfbfa4419c885a0d0b03",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

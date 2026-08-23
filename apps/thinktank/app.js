@@ -445,14 +445,6 @@
   };
   $('undoBtn').onclick = undoLocal;
 
-  function showHelp() { $('help').hidden = false; }
-  function hideHelp() { $('help').hidden = true; }
-  $('helpBtn').onclick = showHelp;
-  $('helpGameBtn').onclick = showHelp;
-  $('fHelp').onclick = showHelp;
-  $('helpClose').onclick = hideHelp;
-  $('help').addEventListener('click', function (e) { if (e.target === $('help')) hideHelp(); });
-
   // ---- multiplayer ----
   // One collection. Each person writes ONLY their own row (id = me).
   // The board row is written by whoever is host (lowest live id).
@@ -740,7 +732,6 @@
   });
 
   if (window.gifos && gifos.onBack) gifos.onBack(function () {
-    if (!$('help').hidden) { hideHelp(); return; }
     if (!$('friend').hidden) mpLeave();
     else if (!$('game').hidden) { $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'Ready'); }
   });

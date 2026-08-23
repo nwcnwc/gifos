@@ -120,6 +120,11 @@ for (const s of SCRIPTS) {
   if (s === 'globals.js' || s === 'boot.js' || s === 'menu-stub.js') continue;
   files[s] = read(s);
 }
+{
+  const help = read('help.md').trim();
+  if (help.length < 400) throw new Error('help.md is missing or shorter than 400 chars');
+  files['help.md'] = help;
+}
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

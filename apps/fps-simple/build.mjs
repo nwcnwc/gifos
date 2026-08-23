@@ -7,11 +7,36 @@
 // pinned upstream and is run only when the pin moves.
 //
 // Run:  node apps/fps-simple/build.mjs
-import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
 import { fpsSimpleIcon } from './icon.mjs';
+import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+// Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
+// uses). Node 20+ is fine. Buffer the payload and deflateRaw at flush — the
+// encoder is not a streaming compressor anyway.
+{
+  const Orig = globalThis.CompressionStream;
+  globalThis.CompressionStream = class CompressionStream {
+    constructor(format) {
+      if (format !== 'deflate-raw') {
+        if (Orig) return new Orig(format);
+        throw new TypeError('unsupported format ' + format);
+      }
+      const chunks = [];
+      const ts = new TransformStream({
+        transform(chunk) { chunks.push(Buffer.from(chunk)); },
+        flush(controller) {
+          controller.enqueue(new Uint8Array(deflateRawSync(Buffer.concat(chunks))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  };
+}
+await import('../../site/js/gifos-gif.js'); // attaches globalThis.GifOS.gif
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const gif = globalThis.GifOS.gif;
@@ -39,6 +64,13 @@ const files = {
   'COPYING-three.txt': read('vendor/COPYING-three.txt'),
 };
 for (const s of SCRIPTS) files[s] = read(s);
+
+{
+  if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short — OS Help needs a real guide.');
+  files['help.md'] = helpMd;
+}
 
 // The runtime inlines every <script src> it finds by rewriting the tag, so a
 // script the HTML never references would travel in the GIF and never run.

@@ -7,11 +7,36 @@
 // pinned upstream and is run only when the pin moves.
 //
 // Run:  node apps/piskel/build.mjs
-import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
 import { piskelIcon } from './icon.mjs';
+import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+// Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
+// uses). Node 20+ is fine. Buffer the payload and deflateRaw at flush — the
+// encoder is not a streaming compressor anyway.
+{
+  const Orig = globalThis.CompressionStream;
+  globalThis.CompressionStream = class CompressionStream {
+    constructor(format) {
+      if (format !== 'deflate-raw') {
+        if (Orig) return new Orig(format);
+        throw new TypeError('unsupported format ' + format);
+      }
+      const chunks = [];
+      const ts = new TransformStream({
+        transform(chunk) { chunks.push(Buffer.from(chunk)); },
+        flush(controller) {
+          controller.enqueue(new Uint8Array(deflateRawSync(Buffer.concat(chunks))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  };
+}
+await import('../../site/js/gifos-gif.js'); // attaches globalThis.GifOS.gif
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const gif = globalThis.GifOS.gif;
@@ -31,8 +56,12 @@ function safeScript(s) {
 
 const SCRIPTS = ['boot.js', 'vendor/piskel.js'];
 
+const helpMd = read('help.md').trim();
+if (helpMd.length < 400) throw new Error('help.md trimmed length is ' + helpMd.length + ', need >= 400');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
+  'help.md': helpMd + '\n',
   'index.html': read('index.html'),
   'boot.js': safeScript(read('boot.js')),
   'vendor/piskel.js': safeScript(read('vendor/piskel.js')),

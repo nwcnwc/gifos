@@ -39,10 +39,10 @@
   "cover": "/apps/svgomg/cover.jpg",
   "screenshots": [],
   "gif": "/apps/svgomg/svgomg.gif",
-  "bytes": 505960,
+  "bytes": 507551,
   "download": 0,
   "provides": null,
-  "sha256": "2019e6f6e9b35059636bb95df39ee52784ea71c3d3fd60a84fa700cb492186b4",
+  "sha256": "b558afaac70d59b7dbae2f7c8469138e3c9f6dcf8412b62d26d6bd60b24da49b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -53,6 +53,12 @@ const files = {
   'COPYING-battleboat.txt': read('vendor/COPYING-battleboat.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
 };
+if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+{
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

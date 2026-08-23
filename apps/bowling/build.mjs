@@ -97,6 +97,9 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 
 const SCRIPTS = ['vendor/layout.js', 'game.js', 'mp.js', 'boot.js'];
 
+const helpMd = read('help.md');
+if (helpMd.trim().length < 400) throw new Error('help.md is too short');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -107,6 +110,7 @@ const files = {
   'boot.js': read('boot.js'),
   'COPYING-bowling.txt': read('vendor/COPYING-bowling.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
+  'help.md': helpMd,
 };
 
 const html = files['index.html'];

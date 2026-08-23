@@ -47,13 +47,13 @@
   "cover": "/apps/fluence/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fluence/fluence.gif",
-  "bytes": 158329,
+  "bytes": 160298,
   "download": 0,
   "provides": null,
-  "sha256": "64ac94f9d22876c929a3aed24e005a6bc0e819809f60a2570d5f88b3b49f9f7b",
+  "sha256": "0070deee5a4f5a84fdfe0f95e5793d879886e69c2442cc7c290b133bd14979c2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-02"
+    "ts": "2026-08-23"
   }
 }

@@ -114,6 +114,13 @@ for (let i = 0; i <= 6; i++) {
   files[name] = buf;
 }
 
+{
+  if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short — OS Help needs a real guide.');
+  files['help.md'] = helpMd;
+}
+
 const html = files['index.html'];
 if (!html.includes('src="app.js"')) throw new Error('index.html does not load app.js');
 if (!html.includes('href="style.css"')) throw new Error('index.html does not load style.css');

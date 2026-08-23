@@ -39,10 +39,10 @@
   "cover": "/apps/radius-raid/cover.jpg",
   "screenshots": [],
   "gif": "/apps/radius-raid/radius-raid.gif",
-  "bytes": 223183,
+  "bytes": 224744,
   "download": 0,
   "provides": null,
-  "sha256": "2727119fc24c99a6c42332e2a4dec8750786a9d595e567b4519d1e74cf4d8a44",
+  "sha256": "ca1622c792065338c7a6080a3d024e77c2e0d298fd932ca29027ccf85ad00fee",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

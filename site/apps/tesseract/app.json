@@ -40,10 +40,10 @@
   "cover": "/apps/tesseract/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tesseract/tesseract.gif",
-  "bytes": 1705881,
+  "bytes": 1707233,
   "download": 0,
   "provides": null,
-  "sha256": "4a8c065ef7393d0ff14dbf7339fe03d06f9e42a8e2eea70c6d0dbb9defb30203",
+  "sha256": "4cf2a9098b60f7c342703d532d94ead0bb92ec0257135e8cbd50568d4dc29604",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

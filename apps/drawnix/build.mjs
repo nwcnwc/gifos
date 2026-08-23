@@ -7,12 +7,36 @@
 // the pinned upstream and is run only when the pin moves.
 //
 // Run:  node apps/drawnix/build.mjs
-import '../../site/js/gifos-gif.js'; // attaches globalThis.GifOS.gif
 import { drawnixIcon } from './icon.mjs';
+import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+// Node 18's CompressionStream rejects 'deflate-raw' (the format gifos-gif.js
+// uses). Node 20+ is fine. Same polyfill as dante/excalidraw/build.mjs.
+{
+  const Orig = globalThis.CompressionStream;
+  globalThis.CompressionStream = class CompressionStream {
+    constructor(format) {
+      if (format !== 'deflate-raw') {
+        if (Orig) return new Orig(format);
+        throw new TypeError('unsupported format ' + format);
+      }
+      const chunks = [];
+      const ts = new TransformStream({
+        transform(chunk) { chunks.push(Buffer.from(chunk)); },
+        flush(controller) {
+          controller.enqueue(new Uint8Array(deflateRawSync(Buffer.concat(chunks))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  };
+}
+await import('../../site/js/gifos-gif.js'); // attaches globalThis.GifOS.gif
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const gif = globalThis.GifOS.gif;
@@ -41,6 +65,11 @@ const files = {
 };
 if (existsSync(join(dir, 'vendor', 'COPYING-react.txt'))) {
   files['COPYING-react.txt'] = read('vendor/COPYING-react.txt');
+}
+{
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short — OS Help needs a real guide');
+  files['help.md'] = helpMd;
 }
 
 const html = files['index.html'];

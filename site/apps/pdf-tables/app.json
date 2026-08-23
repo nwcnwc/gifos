@@ -41,10 +41,10 @@
   "cover": "/apps/pdf-tables/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pdf-tables/pdf-tables.gif",
-  "bytes": 1247316,
+  "bytes": 1221202,
   "download": 0,
   "provides": null,
-  "sha256": "5d8f0170b1d8ffe33d5fed510db2b246716691a88b15866fecff0c018005b417",
+  "sha256": "f020c7bdf7703214637badf5ad62256e5d319cd478eded7b4cdd357769fe8df4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

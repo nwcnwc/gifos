@@ -168,6 +168,13 @@ for (const [n, s] of Object.entries(files)) {
   }
 }
 
+{
+  if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing — the OS Help popup reads it from the GIF');
+  const help = read('help.md');
+  if (help.trim().length < 400) throw new Error('help.md is too short (need >= 400 trimmed chars)');
+  files['help.md'] = help;
+}
+
 const shot = screenshotPng();
 if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
 writeFileSync(join(dir, 'screenshot.png'), shot);

@@ -65,6 +65,12 @@ const files = {
 };
 for (const s of SCRIPTS) files[s] = read(s);
 
+{
+  const help = read('help.md').trim();
+  if (help.length < 400) throw new Error('help.md is too short (' + help.length + ')');
+  files['help.md'] = help;
+}
+
 const html = files['index.html'];
 for (const s of SCRIPTS) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);

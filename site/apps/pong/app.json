@@ -38,10 +38,10 @@
   "cover": "/apps/pong/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pong/pong.gif",
-  "bytes": 258743,
+  "bytes": 259745,
   "download": 0,
   "provides": null,
-  "sha256": "6b2068bf6aa26826d9f2d763402e8a49e0f12a399e7d02a860019c902bcd2c65",
+  "sha256": "48aadcfb6a7eabaccbfb99b92ce800a9e10acc2582607e180116f0035a08fa93",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

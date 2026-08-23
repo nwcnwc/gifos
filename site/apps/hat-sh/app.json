@@ -37,10 +37,10 @@
   "cover": "/apps/hat-sh/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hat-sh/hat-sh.gif",
-  "bytes": 660233,
+  "bytes": 661363,
   "download": 0,
   "provides": null,
-  "sha256": "932e5a7bc6f6e0275138834189b30d21796f6b1a0e3e10ab0d853e9539c70f73",
+  "sha256": "32bbc3870a62b5a682510a59377737694cc21063f639afd267ca15a00d0ecc19",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

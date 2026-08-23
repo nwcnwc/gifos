@@ -38,10 +38,10 @@
   "cover": "/apps/fortune-sheet/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fortune-sheet/fortune-sheet.gif",
-  "bytes": 1265220,
+  "bytes": 1266669,
   "download": 0,
   "provides": null,
-  "sha256": "5a3cc2221921a560bcbe7aee2cd11bb90c47dc7a316c6dceed1c95820d9ec525",
+  "sha256": "e11f7da65efd242ba5f465d9397ad4d503bfcfadef04ee733d94c0e00e6f493a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

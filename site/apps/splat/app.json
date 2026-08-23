@@ -37,10 +37,10 @@
   "cover": "/apps/splat/cover.jpg",
   "screenshots": [],
   "gif": "/apps/splat/splat.gif",
-  "bytes": 198147,
+  "bytes": 199381,
   "download": 0,
   "provides": null,
-  "sha256": "f1a947f711aa1be4711170a1400a31fad75ad787b6b13601df7762ac911c523d",
+  "sha256": "9591bc52648d805357390273940bd81396f594bd15b69775b5aac4def4983cba",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

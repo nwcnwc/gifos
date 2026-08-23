@@ -349,10 +349,6 @@
     publish();
   }
 
-  function openHow(on) {
-    $('how').hidden = !on;
-  }
-
   $('fillBtn').addEventListener('click', function () {
     if (!game || G.won) return;
     game.setBrush(Status.FILLED);
@@ -370,8 +366,6 @@
   $('continueBtn').addEventListener('click', function () { pause(false); });
   $('won-next').addEventListener('click', newGame);
   $('againBtn').addEventListener('click', function () { if (raceMode) dealRace(); });
-  $('howBtn').addEventListener('click', function () { openHow(true); });
-  $('howClose').addEventListener('click', function () { openHow(false); });
   $('size').addEventListener('change', function () {
     G.size = +$('size').value || 5;
     savePrefs();
@@ -386,7 +380,6 @@
 
   if (window.gifos && gifos.onBack) {
     gifos.onBack(function () {
-      if (!$('how').hidden) { openHow(false); return true; }
       if (G.running && !G.won) { pause(true); return true; }
     });
   }

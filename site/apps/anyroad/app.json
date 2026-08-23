@@ -59,10 +59,10 @@
   "cover": "/apps/anyroad/cover.jpg",
   "screenshots": [],
   "gif": "/apps/anyroad/anyroad.gif",
-  "bytes": 409371,
+  "bytes": 410749,
   "download": 0,
   "provides": null,
-  "sha256": "7f39c07530840d5594e98fcb046f6f75c0b875bf014e4f240f3034e4366a4a24",
+  "sha256": "af0c915fcc3afa997313c0ddd951a9f83ab7f71812d31e2f1890bca349dfbb3b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

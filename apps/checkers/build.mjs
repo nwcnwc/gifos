@@ -53,6 +53,9 @@ if (!existsSync(join(dir, 'vendor', 'COPYING-checkers.txt'))) {
 
 const SCRIPTS = ['board.js', 'vendor/ai.js', 'app.js'];
 
+const helpMd = read('help.md');
+if (helpMd.trim().length < 400) throw new Error('help.md is too short');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -61,6 +64,7 @@ const files = {
   'vendor/ai.js': read('vendor/ai.js'),
   'app.js': read('app.js'),
   'COPYING-checkers.txt': read('vendor/COPYING-checkers.txt'),
+  'help.md': helpMd,
 };
 
 const html = files['index.html'];

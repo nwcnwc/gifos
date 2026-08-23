@@ -119,6 +119,11 @@ const files = {
   'COPYING-qrcode.txt': read('vendor/COPYING-qrcode.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
 };
+{
+  const helpMd = read('help.md').trim();
+  if (helpMd.length < 400) throw new Error('help.md is missing or too short (' + helpMd.length + ')');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

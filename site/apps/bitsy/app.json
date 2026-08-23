@@ -41,10 +41,10 @@
   "cover": "/apps/bitsy/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bitsy/bitsy.gif",
-  "bytes": 292980,
+  "bytes": 294566,
   "download": 0,
   "provides": null,
-  "sha256": "da358f8a339db913e7e63ae443a0469ed5562cccc7837dfb2adb6d3e2667860f",
+  "sha256": "390b73f9cc33ac358ff7deb37bbac8564287c3e7d55fa81f69a25a58bf277e2e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

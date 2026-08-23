@@ -52,6 +52,11 @@ const files = {
   'app.js': read('app.js'),
   'COPYING.txt': read('COPYING.txt'),
 };
+{
+  const helpMd = read('help.md');
+  if (helpMd.trim().length < 400) throw new Error('help.md is too short — OS Help needs a real guide');
+  files['help.md'] = helpMd;
+}
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

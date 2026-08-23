@@ -87,6 +87,10 @@ if (tex[0] !== 0x89 || tex[1] !== 0x50) throw new Error('texture is not a PNG');
 
 const SCRIPTS = ['vendor/main.js', 'pan.js', 'mp.js', 'app.js'];
 
+const help = read('help.md').replace(/^\uFEFF/, '');
+if (help.trim().length < 400) throw new Error('help.md is missing or too short — need >= 400 trimmed characters');
+if (!/^#\s+\S/.test(help.trim())) throw new Error('help.md must start with # <App Name>');
+
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -99,6 +103,7 @@ const files = {
   'vendor/textures/01_130x66_130x230.png': tex,
   'COPYING-isocity.txt': read('vendor/COPYING-isocity.txt'),
   'COPYING-kenney.txt': read('vendor/COPYING-kenney.txt'),
+  'help.md': help,
 };
 
 const html = files['index.html'];

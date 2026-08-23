@@ -40,10 +40,10 @@
   "cover": "/apps/particle-life/cover.jpg",
   "screenshots": [],
   "gif": "/apps/particle-life/particle-life.gif",
-  "bytes": 191468,
+  "bytes": 193106,
   "download": 0,
   "provides": null,
-  "sha256": "7cfdc73fa472bd478320aa67e525f78acec79c48009864ed58714fe8073e36a7",
+  "sha256": "bddcb2c2bbaadf48e3d00cb775041a97378ccdc5ec2eb04de5ea18bc188b2327",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
