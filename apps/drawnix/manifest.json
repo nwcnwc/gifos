@@ -1,0 +1,16 @@
+{
+  "gifos": "1.0",
+  "appId": "drawnix",
+  "name": "Drawnix",
+  "shortName": "Drawnix",
+  "version": "0.4.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [70, 120, 230],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "board": { "visibility": "private" }
+  }
+}
