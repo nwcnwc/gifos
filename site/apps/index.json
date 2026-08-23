@@ -204,6 +204,54 @@
       "sha256": "ae17a97cad1f224ebed590c64607d87749a8d0aca18be6bf8fe3896b5ebf6f6f"
     },
     {
+      "slug": "backgammon",
+      "appId": "backgammon",
+      "name": "Backgammon",
+      "shortName": "Backgammon",
+      "version": "1.0",
+      "tagline": "Fifteen checkers, two dice, a wooden table. Play the computer, or a friend on the other side.",
+      "author": {
+        "name": "quasoft",
+        "url": "https://github.com/quasoft/backgammonjs"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "backgammonjs",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "backgammon",
+        "board",
+        "dice",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        139,
+        58,
+        42
+      ],
+      "cover": "/apps/backgammon/cover.jpg",
+      "bytes": 221077,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "ddece8d55212a16efef7922f4ee0410ae7a4b3ede30a50f9cd27830296cfc28a"
+    },
+    {
       "slug": "battle-city",
       "appId": "battle-city",
       "name": "Battle City",
@@ -349,6 +397,154 @@
       "sha256": "629d34e046779ac1474b44223fedb4761c1485bb3e03fb830a5e98804cb92f11"
     },
     {
+      "slug": "bingo",
+      "appId": "bingo",
+      "name": "Bingo",
+      "shortName": "Bingo",
+      "version": "1.0",
+      "tagline": "The host calls numbers. You have a card. A line is bingo.",
+      "author": {
+        "name": "mihailgaberov",
+        "url": "https://github.com/mihailgaberov/bingo"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "bingo",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "bingo",
+        "party",
+        "hall",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        196,
+        40,
+        48
+      ],
+      "cover": "/apps/bingo/cover.jpg",
+      "bytes": 192725,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "25260abd7245bc889378f1b8aa9d32df50f20f8359fc7fd97358a53ea97cc7e1"
+    },
+    {
+      "slug": "bip39",
+      "appId": "bip39",
+      "name": "BIP39",
+      "shortName": "BIP39",
+      "version": "1.0",
+      "tagline": "Recovery words on this device. They never leave.",
+      "author": {
+        "name": "iancoleman",
+        "url": "https://github.com/iancoleman/bip39"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "bip39",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "recovery",
+        "words",
+        "wallet",
+        "offline",
+        "privacy",
+        "bip39"
+      ],
+      "accent": [
+        196,
+        148,
+        48
+      ],
+      "cover": "/apps/bip39/cover.jpg",
+      "bytes": 2138059,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "55502d646cdef76400f7c380e67e952ccdfb0dd73f0649470cd8f7154f45067b"
+    },
+    {
+      "slug": "bitsy",
+      "appId": "bitsy",
+      "name": "Bitsy",
+      "shortName": "Bitsy",
+      "version": "1.0",
+      "tagline": "A tiny world. Walk around. Make one. Share it.",
+      "author": {
+        "name": "le-doux",
+        "url": "https://github.com/le-doux/bitsy"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Bitsy",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games",
+        "Creativity"
+      ],
+      "tags": [
+        "bitsy",
+        "world",
+        "story",
+        "pixel",
+        "editor",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        0,
+        82,
+        204
+      ],
+      "cover": "/apps/bitsy/cover.jpg",
+      "bytes": 292980,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "da358f8a339db913e7e63ae443a0469ed5562cccc7837dfb2adb6d3e2667860f"
+    },
+    {
       "slug": "bowling",
       "appId": "bowling",
       "name": "Bowling",
@@ -445,6 +641,54 @@
       "sha256": "56beca5e2787ec9f73485de339467f4b2e50ab3e3f06195a071a6083cd1a2193"
     },
     {
+      "slug": "checkers",
+      "appId": "checkers",
+      "name": "Checkers",
+      "shortName": "Checkers",
+      "version": "1.0",
+      "tagline": "Jump the other side. Crown a king. Play the computer, or a friend on the other side.",
+      "author": {
+        "name": "stroibot",
+        "url": "https://github.com/stroibot/Checkers"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Checkers",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "checkers",
+        "draughts",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        166,
+        48,
+        42
+      ],
+      "cover": "/apps/checkers/cover.jpg",
+      "bytes": 194595,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "2d31f69e602c478b518de3f3631b10be3ac010cae730e65a57dd06782243d052"
+    },
+    {
       "slug": "chess-grandmaster",
       "appId": "chess-grandmaster",
       "name": "Chess Grandmaster",
@@ -530,6 +774,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "2389b9378310a56bd28a5184f0e0316720390ff4a6da3750cb8d96a59c2ce439"
+    },
+    {
+      "slug": "contrast-ratio",
+      "appId": "contrast-ratio",
+      "name": "Contrast Ratio",
+      "shortName": "Contrast",
+      "version": "1.0",
+      "tagline": "Check text contrast. Nothing is uploaded.",
+      "author": {
+        "name": "siege-media",
+        "url": "https://github.com/siege-media/contrast-ratio"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "contrast-ratio",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "contrast",
+        "text",
+        "colour",
+        "color",
+        "readable",
+        "offline"
+      ],
+      "accent": [
+        94,
+        167,
+        42
+      ],
+      "cover": "/apps/contrast-ratio/cover.jpg",
+      "bytes": 188232,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "4ec2679cf69079890bc06da9bb8b805ba718efc5889316952b230d041a29e385"
     },
     {
       "slug": "css-doodle",
@@ -1854,6 +2147,55 @@
       "sha256": "0bd16e9548c4532890befd1ca1c7823a95564020a9d78bd80180a55de762f3a0"
     },
     {
+      "slug": "nonogram",
+      "appId": "nonogram",
+      "name": "Nonogram",
+      "shortName": "Picross",
+      "version": "1.0.0",
+      "tagline": "Picross. Paint the squares from the numbers. Race a friend on the same puzzle.",
+      "author": {
+        "name": "HandsomeOne",
+        "url": "https://github.com/HandsomeOne/Nonogram"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Nonogram",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "picross",
+        "nonogram",
+        "puzzle",
+        "multiplayer",
+        "race",
+        "offline"
+      ],
+      "accent": [
+        14,
+        190,
+        255
+      ],
+      "cover": "/apps/nonogram/cover.jpg",
+      "bytes": 198969,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "1707f0aba86a810045481e16c1dcef73d399f3995188acc11b2db922df95975d"
+    },
+    {
       "slug": "nxn-cube",
       "appId": "nxn-cube",
       "name": "NxN Cube",
@@ -2375,6 +2717,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "97fee48a2c70551014b702b2fa038af7fcb9df5e85b7c88d49670e3260c47045"
+    },
+    {
+      "slug": "pickr",
+      "appId": "pickr",
+      "name": "Pickr",
+      "shortName": "Pickr",
+      "version": "1.0",
+      "tagline": "A color picker you can actually use. Copy the code. Nothing is uploaded.",
+      "author": {
+        "name": "simonwep",
+        "url": "https://github.com/simonwep/pickr"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Pickr",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "color",
+        "picker",
+        "hex",
+        "rgb",
+        "palette",
+        "offline"
+      ],
+      "accent": [
+        232,
+        65,
+        108
+      ],
+      "cover": "/apps/pickr/cover.jpg",
+      "bytes": 199345,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "2ad981f2035c7154ef3a27e4af8522d1d08082a74a6c86906afeff4a02de51ba"
     },
     {
       "slug": "piskel",
@@ -3019,6 +3410,55 @@
       "sha256": "716c0bf5c7496209b8ea6ea54b35b37d7d666cd38dd0548f44d96c3739e8f23f"
     },
     {
+      "slug": "sokoban",
+      "appId": "sokoban",
+      "name": "Sokoban",
+      "shortName": "Sokoban",
+      "version": "1.0",
+      "tagline": "Push the boxes onto the spots. Race a friend on the same warehouse.",
+      "author": {
+        "name": "klevze",
+        "url": "https://github.com/klevze/sokoban"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "sokoban",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "sokoban",
+        "puzzle",
+        "boxes",
+        "multiplayer",
+        "race",
+        "offline"
+      ],
+      "accent": [
+        201,
+        148,
+        58
+      ],
+      "cover": "/apps/sokoban/cover.jpg",
+      "bytes": 198938,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "1bb17512753f82c9fb0eb139792a9556396373789a20055e785b6cef4ad73484"
+    },
+    {
       "slug": "sound-it-out",
       "appId": "sound-it-out",
       "name": "Sound It Out",
@@ -3653,6 +4093,56 @@
         "ts": "2026-08-23"
       },
       "sha256": "b7619f52824763c57a2d3304b01c19e8f00c064ce43ddf652d7f77d0a4226691"
+    },
+    {
+      "slug": "ui-gradients",
+      "appId": "ui-gradients",
+      "name": "uiGradients",
+      "shortName": "Gradients",
+      "version": "1.0.0",
+      "tagline": "Beautiful colour ramps. Copy one. Favourites stay on this device.",
+      "author": {
+        "name": "ghosh",
+        "url": "https://github.com/ghosh/uiGradients"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "uiGradients",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "gradients",
+        "colours",
+        "palette",
+        "copy",
+        "design",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        221,
+        36,
+        118
+      ],
+      "cover": "/apps/ui-gradients/cover.jpg",
+      "bytes": 200614,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "d35ff62249a2a208bb7d57e758d29ff3a960dd0738140ad788243a91b7e10a5c"
     },
     {
       "slug": "underrun",

@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "bingo",
+  "appId": "bingo",
+  "name": "Bingo",
+  "shortName": "Bingo",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "The host calls numbers. You have a card. A line is bingo.",
+  "description": "The host calls a number. You look at your card. If it is there, you mark it. A full line, a column, a diagonal, or the four corners — that is bingo. Shout it. The first person with a real line takes the round.\n\nOn your own, you call the numbers on this device and daub your own card.\n\nWant a hall? Press Play with friends, then press Invite (in the GifOS menu) and send the link. Everyone who opens it is in the same game, each with a card on their own phone. The host calls. There is no lobby code and no game server. The room is the link.\n\nAn unofficial port of bingo by mihailgaberov. The original needs a game server. This copy does not: the invite is the room.",
+  "author": {
+    "name": "mihailgaberov",
+    "url": "https://github.com/mihailgaberov/bingo"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "bingo",
+    "party",
+    "hall",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/bingo",
+  "accent": [
+    196,
+    40,
+    48
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/bingo/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/bingo/bingo.gif",
+  "bytes": 192725,
+  "download": 0,
+  "provides": null,
+  "sha256": "25260abd7245bc889378f1b8aa9d32df50f20f8359fc7fd97358a53ea97cc7e1",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "bingo",
+    "url": "https://github.com/mihailgaberov/bingo",
+    "blessed": false
+  }
+}

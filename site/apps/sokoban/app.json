@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "sokoban",
+  "appId": "sokoban",
+  "name": "Sokoban",
+  "shortName": "Sokoban",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Push the boxes onto the spots. Race a friend on the same warehouse.",
+  "description": "You are in a warehouse. Push every box onto a marked spot. You can only push, never pull, and you cannot push two boxes at once. Undo if you get stuck. There are fifty rooms, from a first easy one up to a last few that take some thinking.\n\nOn your own it is the original game, saved on this device inside the app. Close it and pick up where you left off. Send the invite and you both get the same room: first to park every box wins, and you can see each other's moves as you go. There is no account and no game server. The room is the link.\n\nAn unofficial port of sokoban by klevze. This copy adds the race, and a pad so a phone can push.",
+  "author": {
+    "name": "klevze",
+    "url": "https://github.com/klevze/sokoban"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "sokoban",
+    "puzzle",
+    "boxes",
+    "multiplayer",
+    "race",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/sokoban",
+  "accent": [
+    201,
+    148,
+    58
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/sokoban/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/sokoban/sokoban.gif",
+  "bytes": 198938,
+  "download": 0,
+  "provides": null,
+  "sha256": "1bb17512753f82c9fb0eb139792a9556396373789a20055e785b6cef4ad73484",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "sokoban",
+    "url": "https://github.com/klevze/sokoban",
+    "blessed": false
+  }
+}
