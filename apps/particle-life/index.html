@@ -14,7 +14,7 @@
     </header>
 
     <div class="actions">
-      <button type="button" id="shareBtn">Share the jar</button>
+      <button type="button" id="shareBtn">Share<span class="rest"> the jar</span></button>
       <button type="button" id="mixBtn">New mix</button>
       <button type="button" id="resetBtn">Reset</button>
       <button type="button" id="pullBtn">Push</button>
@@ -30,7 +30,7 @@
     </div>
 
     <div id="stage">
-      <canvas id="jar" width="960" height="640" tabindex="1">This toy needs a canvas.</canvas>
+      <canvas id="jar" width="800" height="800" tabindex="1">This toy needs a canvas.</canvas>
     </div>
 
     <div id="knobs">
@@ -44,10 +44,10 @@
           <option value="7">7</option>
         </select>
       </label>
-      <label>Crowd <input id="count" type="range" min="40" max="400" step="20" value="180"> <span id="countN">180</span></label>
+      <label class="crowd">Crowd <input id="count" type="range" min="40" max="400" step="20" value="180"> <span id="countN">180</span></label>
     </div>
 
-    <p id="how">Tap or drag to stir. Push shoves them away; switch to Pull to gather them. New mix pours a fresh set of rules.</p>
+    <p id="how">Tap or drag to stir. Push shoves them away; switch to Pull to gather them. New mix pours a fresh set of rules. The mix lives in this file.</p>
     <p class="foot">Unofficial port of Particle Life by hunar4321 (MIT). Playing alone is the original toy. A shared jar is the same mix, each person poking on their own — nobody writes on anybody else’s.</p>
   </div>
 

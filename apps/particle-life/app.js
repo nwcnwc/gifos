@@ -61,11 +61,11 @@
   }
 
   function onPointerDown(e) {
-    if (e.button != null && e.button !== 0) return;
+    if (e.button != null && e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     lastStir = Date.now();
-    stirAt(e);
+    stirAt(e, e.button === 2 ? -1 : null);
   }
 
   function onPointerMove(e) {
@@ -87,7 +87,14 @@
       e.preventDefault();
       pulling = !pulling;
       $('pullBtn').classList.toggle('on', pulling);
-      $('pullBtn').textContent = pulling ? 'Pulling' : 'Push';
+      $('pullBtn').textContent = pulling ? 'Pull' : 'Push';
+    });
+
+    document.addEventListener('keydown', function (e) {
+      var tag = e.target && e.target.tagName;
+      if (tag && /INPUT|SELECT|TEXTAREA/.test(tag)) return;
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); newMix(); }
+      if (e.key === 'o' || e.key === 'O') { e.preventDefault(); resetAtoms(); }
     });
 
     var colors = $('colors');
@@ -113,11 +120,24 @@
     });
   }
 
+  function sizeJar() {
+    var st = $('stage');
+    if (!st || !canvas) return;
+    var s = Math.max(80, Math.min(st.clientWidth, st.clientHeight));
+    canvas.style.width = s + 'px';
+    canvas.style.height = s + 'px';
+  }
+
   function boot() {
     PL.mount(canvas);
+    sizeJar();
+    PL.step(140);
     bind();
     paintSeed();
     PL.start();
+    if (root.ResizeObserver) new ResizeObserver(sizeJar).observe($('stage'));
+    else window.addEventListener('resize', sizeJar);
+    root.requestAnimationFrame(sizeJar);
 
     if (!api || !api.db) return;
     saveDb = api.db('save');
@@ -126,6 +146,7 @@
       if (row.colors) PL.settings.numColors = row.colors;
       if (row.count) PL.settings.atoms.count = row.count;
       if (row.seed != null) PL.setSeed(row.seed);
+      PL.step(140);
       $('colors').value = String(PL.settings.numColors);
       $('count').value = String(PL.settings.atoms.count);
       $('countN').textContent = String(PL.settings.atoms.count);

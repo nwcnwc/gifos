@@ -9,10 +9,11 @@
 (function (root) {
   'use strict';
 
-  var WORLD_W = 960;
-  var WORLD_H = 640;
+  var WORLD_W = 800;
+  var WORLD_H = 800;
   var MAX_RADIUS = 200;
-  var PREDEFINED = ['green', 'red', 'orange', 'cyan', 'magenta', 'lavender', 'teal'];
+  // Vivid fills — same seven slots as upstream, not the dim HTML colour names.
+  var PREDEFINED = ['#3ae06a', '#ff4455', '#ffb03a', '#2ee0ea', '#ff5ac8', '#c8a8ff', '#3ad4b8'];
   var MAX_PULSES = 8;
 
   var canvas = null;
@@ -26,8 +27,8 @@
 
   var settings = {
     seed: 91651088029,
-    atoms: { count: 180, radius: 1.5 },
-    drawings: { circle: false, background: '#000000' },
+    atoms: { count: 180, radius: 4 },
+    drawings: { circle: true, background: '#05060a' },
     rules: {},
     rulesArray: [],
     radii: {},
@@ -214,11 +215,11 @@
       ctx.beginPath();
       ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
       ctx.closePath();
-      ctx.strokeStyle = r.pull ? 'rgba(255,180,80,' + r.a.toFixed(2) + ')' : 'rgba(120,220,255,' + r.a.toFixed(2) + ')';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = r.pull ? 'rgba(255,176,80,' + r.a.toFixed(2) + ')' : 'rgba(80,220,255,' + r.a.toFixed(2) + ')';
+      ctx.lineWidth = 3;
       ctx.stroke();
-      r.r += 3.5;
-      r.a -= 0.045;
+      r.r += 4;
+      r.a -= 0.04;
       if (r.a <= 0) rings.splice(i, 1);
     }
   }
@@ -262,6 +263,14 @@
       atomN: atoms.length
     };
   }
+
+  function step(n) {
+    n = n == null ? 1 : n | 0;
+    if (n < 1) n = 1;
+    for (var i = 0; i < n; i++) applyRules();
+  }
+
+  function getAtoms() { return atoms; }
 
   function worldFromEvent(e, target) {
     var el = target || canvas;
@@ -307,6 +316,8 @@
     setCircle: function (v) { settings.drawings.circle = !!v; },
     getSeed: function () { return settings.seed; },
     snapshot: snapshot,
+    step: step,
+    getAtoms: getAtoms,
     worldFromEvent: worldFromEvent,
     settings: settings
   };

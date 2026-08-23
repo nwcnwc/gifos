@@ -5,7 +5,7 @@ An unofficial local port of
 (MIT). Coloured specks attract and repel; they clump into little
 life-like shapes. Tap to stir. Playing alone is that toy. Press
 **Share the jar**, then **Invite**, and a friend watches the same mix —
-each of you pokes on your own.
+each of you pokes on your own. The mix lives in the file.
 
 ![screenshot](screenshot.png)
 
@@ -14,7 +14,7 @@ index.html                 shell: the jar, mix/reset, friend-mode strip
 style.css                  dark jar, dashed border, friend chrome
 app.js                     touch stir, last mix in gifos.db, the knobs
 mp.js                      shared mix, own-row pokes, live roster
-icon.mjs                   procedural particle-card icon + 1200×720 cover
+icon.mjs                   clustering icon + cover from a real poured jar
 vendor.mjs                 rebuilds vendor/COPYING from the pinned commit
 build.mjs                  packs the GIF into site/apps/particle-life/particle-life.gif
 vendor/particle-life.js    extracted attraction loop. See UPSTREAM.txt.
@@ -34,9 +34,10 @@ No `network`, no `wasm`. The original is plain JS plus a CDN GUI; the GUI stays 
 
 1. Press **Share the jar**. Press **Invite** (the GifOS menu) to send the link.
    Solo still works if nobody comes — you can stir while you wait.
-2. Everyone who is in the room **starts from the same mix**. The seed lives
-   on each player’s own row; everyone adopts the seed of the lowest-id
-   player on the current round. Same likes, same shies, same opening spots.
+2. A friend who opened the invite sits down in the jar on their own. Everyone
+   **starts from the same mix**. The seed lives on each player’s own row;
+   everyone adopts the seed of the lowest-id player on the current round.
+   Same likes, same shies, same opening spots.
 3. Each player publishes a **poke** (where they touched, push or pull) on
    **their own row**. Nobody writes anybody else’s row. A poke arriving on
    someone else’s row is applied locally as a stir.
@@ -54,7 +55,8 @@ chose **keep the room alive** on Invite, the jar empties.
 
 Upstream is a mouse click (shift-click pulls). `app.js` maps a finger on
 the jar onto the same pulse, and a Push / Pull button stands in for
-shift on a phone. Dragging keeps stirring.
+shift on a phone. Dragging keeps stirring. Right-click pulls on a
+computer. `r` pours a new mix; `o` resets, same as upstream.
 
 ## Building
 

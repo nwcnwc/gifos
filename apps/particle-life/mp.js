@@ -156,7 +156,7 @@
     var others = players.filter(function (p) { return p.id !== me.id; });
     if (!status) return;
     if (!others.length) {
-      status.textContent = 'Waiting for a friend… press Invite (GifOS menu) to send the link. You can stir in the meantime — they start from the same mix.';
+      status.textContent = 'Waiting for a friend… Invite sends the link. You can stir — they start from the same mix.';
     } else if (others.length === 1) {
       status.textContent = (others[0].name || 'Friend') + ' is in the jar. Tap to stir — they see it.';
     } else {
@@ -304,8 +304,11 @@
   $('shareBtn').addEventListener('click', function (e) { e.preventDefault(); enter(); });
   $('leaveBtn').addEventListener('click', function (e) { e.preventDefault(); leave(); });
 
-  // Joiners who arrived through Invite are already in a room — sit down.
-  if (root.gifos && root.gifos.db) {
-    setTimeout(function () { if (!on) enter(); }, 400);
+  // A guest who arrived through Invite is already in a room — sit down.
+  // The owner still presses Share the jar; gifos.db exists on a solo open too.
+  if (root.gifos && root.gifos.info) {
+    root.gifos.info().then(function (i) {
+      if (!on && i && i.owner === false) enter();
+    }).catch(function () {});
   }
 })(window);
