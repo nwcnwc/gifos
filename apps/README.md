@@ -20,6 +20,8 @@ apps/
                       releaseDate, categories, tags, license; a port of
                       someone else's work also has basedOn + porter
                       (author is THEM, never GifOS)
+    reviews/        ← stars + comments from GitHub users, ONE file per
+                      reviewer, landed by pull request (see "Reviews" below)
     screenshot.png  ← the master cover art the store's cover.jpg is made from
     README.md       ← what it is, which gifos.* capabilities it uses
     build.*         ← how the finished .gif is produced from this source
@@ -55,6 +57,79 @@ is the gate: a listed GIF without a gifos.app GIFOSSIG fails.
 
 A source tree with **no `listing.json` is simply not in the store** — that is
 how an app stays unlisted while it's being built.
+
+## Reviews
+
+**Anyone with a GitHub account can rate and comment on a listed app — by pull
+request.** There is no server anywhere in this: GitHub is the account system,
+the spam bar and the moderation queue, and the store shows merged reviews to
+every GifOS user. (PRs are also how you fix or improve the apps themselves;
+reviews extend the same rail to opinions.)
+
+A review is **one file, named after YOUR GitHub username**:
+
+```
+apps/<slug>/reviews/<your-github-username>.json
+```
+
+```json
+{
+  "stars": 5,
+  "review": "What you think of it — a sentence is plenty.",
+  "date": "2026-08-23"
+}
+```
+
+- `stars` — a whole number, 1 to 5.
+- `review` — plain text, up to 1000 characters. Newlines are fine; markup
+  shows as text, never renders.
+- `date` — the day you wrote it, `YYYY-MM-DD`.
+- Exactly those three fields, nothing else. `<slug>` is the app's store URL:
+  `gifos.app/store/<slug>` is the app at `apps/<slug>/`.
+
+**In a browser (~1 minute, works from a phone):** open the listing at
+`gifos.app/store/<slug>` and press **Write a review** — it opens GitHub's
+new-file page in the right folder with a valid template already filled in.
+Change the filename to `<your-github-username>.json`, put your stars and words
+in, press **Propose changes**, then **Create pull request**. GitHub forks the
+repo for you; no clone, no tooling.
+
+**By AI agent or command line:** telling an agent *"leave my 4-star review of
+<app> on GifOS — one-file PR to github.com/nwcnwc/gifos, recipe in
+apps/README.md → Reviews"* is enough. By hand with `gh`:
+
+```bash
+gh repo fork nwcnwc/gifos --clone && cd gifos
+USER=$(gh api user -q .login)
+mkdir -p "apps/<slug>/reviews"
+cat > "apps/<slug>/reviews/$USER.json" <<EOF
+{
+  "stars": 5,
+  "review": "What you think of it — a sentence is plenty.",
+  "date": "$(date +%Y-%m-%d)"
+}
+EOF
+printf 'A\tapps/<slug>/reviews/%s.json\n' "$USER" \
+  | node scripts/build-app-reviews.mjs --pr "$USER"   # optional: CI's exact check
+git checkout -b "review-<slug>" && git add "apps/<slug>/reviews/$USER.json"
+git commit -m "review: <slug>" && git push -u origin "review-<slug>"
+gh pr create --fill
+```
+
+**The rules, enforced by CI** (`.github/workflows/app-reviews.yml`, checker
+`scripts/build-app-reviews.mjs --pr` — it says exactly what's wrong):
+
+- **The filename must be YOUR login.** A PR may only add, edit or delete the
+  author's own review file — one review per person per app is structural, and
+  changing your mind is just editing your own file.
+- **The schema is exact** — the three fields above, valid JSON.
+- **Merge is moderation.** Honest reviews get merged, one star or five — the
+  bar is spam and abuse, never opinion. A bad merge is a revert.
+
+**After merge**, the same workflow regenerates `site/apps/reviews.json` (the
+ONE published file the store reads — generated but committed, the catalog
+doctrine) and commits it; Pages deploys, and your stars and words are on
+`gifos.app/store/<slug>` for everyone, usually within a couple of minutes.
 
 ## `minBuild` — the oldest GifOS an app runs on
 

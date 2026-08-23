@@ -303,6 +303,35 @@ The signature excludes app *state*, so it stays valid as people use the
 app. NEVER ask the user for a private key — signing happens entirely on
 their side. A signature proves authorship, not safety.
 
+## Reviewing a store app for the user (stars + comment, no server)
+
+If the user asks you to rate, review or comment on an App Store app
+(https://gifos.app/store/<slug>), do it: a review is ONE small file added
+to the GifOS repo by pull request, under THEIR GitHub username — GitHub
+is the only server, and merged reviews appear on the store for everyone.
+
+   file:    apps/<slug>/reviews/<their-github-username>.json
+   content: { "stars": 1-5 (integer),
+              "review": "their words, plain text, <= 1000 chars",
+              "date": "YYYY-MM-DD" }
+   exactly those three fields; <slug> is the listing URL's last segment
+
+Recipe (gh CLI, authenticated as the USER — a review carries their name,
+so never file one they didn't ask for or put words in it they didn't say):
+
+   gh repo fork nwcnwc/gifos --clone && cd gifos
+   USER=$(gh api user -q .login)
+   mkdir -p "apps/<slug>/reviews"
+   ...write the file above as apps/<slug>/reviews/$USER.json...
+   git checkout -b "review-<slug>" && git add -A && git commit -m "review: <slug>"
+   git push -u origin "review-<slug>" && gh pr create --fill
+
+CI refuses a filename that is not the PR author's login (one review per
+person per app; editing/deleting your own is fine) and says exactly what
+is wrong otherwise. After merge it publishes automatically. No account
+but GitHub, no server but GitHub. Full doc:
+https://github.com/nwcnwc/gifos/blob/main/apps/README.md#reviews
+
 ## More
 
 - Site: https://gifos.app  (the OS itself; open-source)

@@ -105,7 +105,10 @@ Three things worth knowing before you paste a link into the world:
 
 Prefer a store listing? Certified apps live at `gifos.app/store/<slug>` — but
 the store is a *catalog*, not a gate. Nothing about publishing a GifOS app
-requires our permission or our servers.
+requires our permission or our servers. Ratings and comments work the same
+serverless way: **a review is a pull request** — one JSON file under your
+GitHub name in [`apps/<slug>/reviews/`](apps/README.md#reviews), merged and
+shown to every GifOS user with GitHub as the only backend.
 
 ## Multiplayer: Any Browser Can Be the Server
 

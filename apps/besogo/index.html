@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>BesoGo</title>
+<link rel="stylesheet" href="css/besogo.css">
+<link rel="stylesheet" href="css/board-flat.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> BesoGo</div>
+  <div class="engine-chip ready" id="aiChip"><span class="dot"></span><span id="aiState">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="setup">
+    <h2>New game</h2>
+    <label class="row">Board
+      <div class="seg" id="sizeSeg">
+        <button type="button" data-size="9">9×9</button>
+        <button type="button" data-size="13">13×13</button>
+        <button type="button" data-size="19" class="on">19×19</button>
+      </div>
+    </label>
+    <p class="lvlnote">Pass the device. Black goes first. Tap an empty point to place a stone.</p>
+    <button class="primary" id="startBtn" type="button">Start game</button>
+    <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
+  </section>
+
+  <section class="game" id="game" hidden>
+    <div class="seats" id="localSeats">
+      <div class="seat" id="localBlack">● Black</div>
+      <div class="seat" id="localWhite">○ White</div>
+    </div>
+    <div class="statusline" id="statusLine">Black to play.</div>
+    <div class="caps" id="localCaps"></div>
+    <div class="boardwrap"><div id="board" class="besogo-host" aria-label="Go board"></div></div>
+    <div class="controls">
+      <button id="passBtn" class="ghost" type="button">Pass</button>
+      <button id="undoBtn" class="ghost" type="button">↶ Undo</button>
+      <button id="newBtn" class="ghost" type="button">＋ New game</button>
+    </div>
+  </section>
+
+  <section class="game" id="friend" hidden>
+    <div class="vhead"><h2>Play a friend</h2><button class="ghost" id="fLeave" type="button">← Leave</button></div>
+    <div class="seats" id="fSeats"></div>
+    <div class="fqueue" id="fQueue"></div>
+    <div class="statusline" id="fStatus"></div>
+    <div class="caps" id="fCaps"></div>
+    <div class="boardwrap"><div id="fBoard" class="besogo-host" aria-label="Shared Go board"></div></div>
+    <div class="controls">
+      <button id="fPass" class="ghost" type="button" hidden>Pass</button>
+      <button id="fUndo" class="ghost" type="button" hidden>↶ Undo</button>
+      <button id="fResign" class="ghost" type="button" hidden>🏳 Resign</button>
+    </div>
+  </section>
+</main>
+
+<script src="js/besogo.js"></script>
+<script src="js/gameRoot.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/svgUtil.js"></script>
+<script src="js/coord.js"></script>
+<script src="js/boardDisplay.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
