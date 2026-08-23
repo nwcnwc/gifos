@@ -237,6 +237,11 @@ Open new tab, mount filesystem in iframe
 
 When an app runs in its tab, the **desktop (parent/opener window)** exposes a **runtime library** to it. An app that knows about the library can request capabilities; an app that ignores it just runs as a static site. The headline capability is a **database**, and it's what makes an app an owner or a guest.
 
+> **Building an app?** This chapter explains the design; the complete
+> builder reference — every manifest field, the full `window.gifos` API,
+> and the GIF packing recipe — is [`site/llms.txt`](../site/llms.txt)
+> (published at [gifos.app/llms.txt](https://gifos.app/llms.txt)).
+
 ### Owner vs. guest — decided by how the app was mounted
 
 ```
