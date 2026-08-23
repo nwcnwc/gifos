@@ -1,0 +1,33 @@
+{
+  "tagline": "An HTTP client. Collections stay here. Requests leave when you send them.",
+  "description": "Build a collection of HTTP requests, press Send, and read the answer. Folders, query strings, headers, JSON or form bodies, Basic and Bearer auth, and {{environment}} variables — the same shape Restfox uses, kept on this device inside the app.\n\nAn unofficial port of Restfox by Flawid D'Souza (MIT). Restfox's own web-standalone is a Node server that proxies requests so the browser never has to; there is no Node here. Every Send goes through gifos.fetch, which is the only network path the sandbox has. Collections never leave. A request leaves this browser the moment you send it, https only, up to 8 MB back.\n\nSAME LIMIT AS RESTFOX IN A BROWSER. Sites that do not send CORS headers will refuse the call — that is the browser talking, not this app being broken. Restfox's desktop app gets past that with its own proxy; this port does not. A checkbox can route through GifOS's CORS proxy, which only forwards to a curated public-host list, not arbitrary APIs. Cookies are never attached. There are no WebSockets, no plugins (the sandbox forbids eval), and no file workspaces.\n\nThe app asks to reach any site (network: *), so GifOS labels it ⚠ Unsafe and you confirm the hosts before it can talk. Untick one and that host is gone.",
+  "author": {
+    "name": "Flawid D'Souza",
+    "url": "https://github.com/flawiddsouza/Restfox"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Restfox",
+    "url": "https://github.com/flawiddsouza/Restfox",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-22",
+  "categories": ["Developer", "Utilities"],
+  "tags": [
+    "http",
+    "rest",
+    "api",
+    "client",
+    "restfox",
+    "collections",
+    "json",
+    "headers"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/restfox",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
