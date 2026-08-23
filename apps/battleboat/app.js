@@ -11,18 +11,23 @@
   var BB = window.BB;
   var $ = function (id) { return document.getElementById(id); };
   var SIZE = BB.SIZE;
+  var REPLY_MS = 280;
 
-  var mode = 'cpu'; // 'cpu' | 'mp'
+  var mode = 'cpu';
   var solo = null;
   var placing = true;
   var placeType = '';
   var placeDir = BB.VERTICAL;
   var preview = [];
   var mpOn = false;
-  var mpLocal = null; // { grid, fleet, snap, processed }
+  var mpLocal = null;
   var prefsDb = null;
   var secretDb = null;
   var stats = { gamesPlayed: 0, gamesWon: 0, totalShots: 0, totalHits: 0 };
+  var lastEnemy = null;
+  var lastOwn = null;
+  var busy = false;
+  var replyTimer = 0;
 
   try {
     if (window.gifos) {
@@ -38,6 +43,10 @@
   function setStatus(text, cls) {
     $('status').className = 'statusline' + (cls ? ' ' + cls : '');
     $('status').textContent = text;
+  }
+  function setPhase(p) {
+    document.body.classList.remove('setup', 'place', 'hunting', 'over');
+    document.body.classList.add(p);
   }
 
   function clsFor(t, fog) {
@@ -56,6 +65,7 @@
     var i = 0, x, y, t, cls, px;
     var pending = opts.pending || [];
     var pend = {};
+    var last = opts.last || null;
     for (i = 0; i < pending.length; i++) pend[pending[i].x + ',' + pending[i].y] = 1;
     i = 0;
     for (x = 0; x < SIZE; x++) for (y = 0; y < SIZE; y++) {
@@ -70,14 +80,15 @@
         }
       }
       if (pend[x + ',' + y] && t === BB.EMPTY) cls += ' pending';
+      if (last && last.x === x && last.y === y) cls += ' last';
       if (cells[i]) cells[i].className = cls;
       i++;
     }
   }
 
-  function paintFromBoard(el, board, pending) {
+  function paintFromBoard(el, board, pending, last) {
     var fake = { at: function (x, y) { return Number((board || '').charAt(x * SIZE + y) || 0); } };
-    paintGrid(el, fake, { fog: true, pending: pending });
+    paintGrid(el, fake, { fog: true, pending: pending, last: last });
   }
 
   function hitCell(el, ev) {
@@ -105,6 +116,12 @@
     }
   }
 
+  function pipRow(n) {
+    var s = '', i;
+    for (i = 0; i < n; i++) s += '<i></i>';
+    return s;
+  }
+
   function renderRoster(fleet) {
     var ul = $('roster');
     ul.innerHTML = '';
@@ -112,7 +129,7 @@
       var ship = fleet.findByType(spec.id);
       var li = document.createElement('li');
       li.setAttribute('data-type', spec.id);
-      li.textContent = spec.name;
+      li.innerHTML = '<span class="len">' + pipRow(spec.len) + '</span>' + (spec.short || spec.name);
       if (ship && ship.placed) li.className = 'placed';
       else if (placeType === spec.id) li.className = 'placing';
       if (!ship || !ship.placed) {
@@ -125,6 +142,28 @@
       ul.appendChild(li);
     });
   }
+
+  function renderPips(lost) {
+    var ul = $('pips');
+    if (!ul) return;
+    ul.innerHTML = '';
+    var set = {};
+    var i;
+    if (Array.isArray(lost)) for (i = 0; i < lost.length; i++) set[lost[i]] = 1;
+    BB.TYPES.forEach(function (spec) {
+      var li = document.createElement('li');
+      li.className = set[spec.id] ? 'sunk' : '';
+      li.setAttribute('title', spec.name);
+      li.innerHTML = pipRow(spec.len);
+      ul.appendChild(li);
+    });
+  }
+
+  function showHuntBar(lost) {
+    $('huntBar').hidden = false;
+    renderPips(lost || []);
+  }
+  function hideHuntBar() { $('huntBar').hidden = true; }
 
   function ghostCells(fleet, x, y) {
     var spec = BB.typeById(placeType);
@@ -142,8 +181,8 @@
 
   function clearPreview() {
     preview = [];
-    if (mpOn && mpLocal) paintGrid($('humanGrid'), mpLocal.grid, {});
-    else if (solo) paintGrid($('humanGrid'), solo.humanGrid, {});
+    if (mpOn && mpLocal) paintGrid($('humanGrid'), mpLocal.grid, { last: lastOwn });
+    else if (solo) paintGrid($('humanGrid'), solo.humanGrid, { last: lastOwn });
   }
 
   function showPreview(x, y, fleet) {
@@ -192,10 +231,21 @@
     $('setupStats').textContent = 'Won ' + stats.gamesWon + ' of ' + stats.gamesPlayed + ' · ' + acc + '% hits';
   }
 
+  function paintSolo() {
+    if (!solo) return;
+    paintGrid($('humanGrid'), solo.humanGrid, { last: lastOwn });
+    paintGrid($('enemyGrid'), solo.computerGrid, { fog: true, last: lastEnemy });
+    showHuntBar(solo.computerFleet.lostTypes());
+  }
+
   /* ---- solo ---- */
   function beginCpu() {
     mode = 'cpu';
     mpOn = false;
+    busy = false;
+    if (replyTimer) { clearTimeout(replyTimer); replyTimer = 0; }
+    lastEnemy = null;
+    lastOwn = null;
     solo = new BB.Solo();
     placing = true;
     placeType = 'carrier';
@@ -203,12 +253,13 @@
     $('setup').hidden = true;
     $('game').hidden = false;
     $('inviteHint').hidden = true;
-    $('leaveBtn').textContent = '← Leave';
+    $('leaveBtn').textContent = 'Leave';
     $('gameTitle').textContent = 'Computer';
     $('enemyTitle').textContent = 'Enemy fleet';
     $('overBar').hidden = true;
     $('placeBar').hidden = false;
-    $('enemyWrap').hidden = false;
+    hideHuntBar();
+    setPhase('place');
     setChip('ready', 'Computer');
     setStatus('Pick a ship, then tap your map. Rotate if you need to.');
     renderRoster(solo.humanFleet);
@@ -222,38 +273,57 @@
     if (!solo.start()) return;
     placing = false;
     $('placeBar').hidden = true;
+    setPhase('hunting');
     setStatus('Your shot. Tap the enemy map.');
     setChip('ready', 'Your shot');
-    paintGrid($('humanGrid'), solo.humanGrid, {});
-    paintGrid($('enemyGrid'), solo.computerGrid, { fog: true });
+    paintSolo();
   }
 
   function fireSolo(x, y) {
-    if (!solo || placing || solo.over) return;
+    if (!solo || placing || solo.over || busy) return;
     var r = solo.fire(x, y);
     if (!r) return;
-    paintGrid($('enemyGrid'), solo.computerGrid, { fog: true });
-    paintGrid($('humanGrid'), solo.humanGrid, {});
+    lastEnemy = { x: x, y: y };
+    paintSolo();
     if (solo.over) {
       finishSolo();
       return;
     }
-    if (r.result === BB.MISS) setStatus('Miss. The computer fired back.');
-    else if (r.result === BB.SUNK) setStatus('You sank a ship. The computer fired back.');
-    else setStatus('Hit. The computer fired back.');
+    if (r.result === BB.MISS) setStatus('Miss.');
+    else if (r.result === BB.SUNK) setStatus('You sank a ship.');
+    else setStatus('Hit.');
+    busy = true;
+    setChip('', 'Their shot');
+    replyTimer = setTimeout(function () {
+      replyTimer = 0;
+      busy = false;
+      if (!solo || solo.over) return;
+      var reply = solo.reply();
+      if (reply) lastOwn = { x: reply.x, y: reply.y };
+      paintSolo();
+      if (solo.over) {
+        finishSolo();
+        return;
+      }
+      setStatus('Your shot. Tap the enemy map.');
+      setChip('ready', 'Your shot');
+    }, REPLY_MS);
   }
 
   function finishSolo() {
+    busy = false;
     var win = solo.winner === 'human';
     stats.gamesPlayed++;
     if (win) stats.gamesWon++;
     stats.totalShots += solo.shots;
     stats.totalHits += solo.hits;
     saveStats();
+    setPhase('over');
     setChip(win ? 'ready' : '', win ? 'You win' : 'Defeated');
     setStatus(win ? 'You sank the fleet.' : 'The computer sank your fleet.', win ? 'good' : 'warn');
     $('overText').textContent = win ? 'You win.' : 'The computer wins.';
     $('overBar').hidden = false;
+    paintSolo();
   }
 
   /* ---- multiplayer ---- */
@@ -270,6 +340,7 @@
         shots: [],
         board: BB.emptyBoard(),
         sunk: 0,
+        lost: [],
         result: ''
       }
     };
@@ -295,6 +366,7 @@
     if (!mpLocal) return;
     mpLocal.snap.board = mpLocal.grid.encode(true);
     mpLocal.snap.sunk = mpLocal.fleet.sunkCount();
+    mpLocal.snap.lost = mpLocal.fleet.lostTypes();
     window.BBNet.publish(mpLocal.snap, !!force);
   }
 
@@ -322,6 +394,7 @@
         continue;
       }
       BB.shoot(mpLocal.grid, mpLocal.fleet, s.x, s.y);
+      lastOwn = { x: s.x, y: s.y };
       mpLocal.processed = i + 1;
       changed = true;
     }
@@ -337,6 +410,9 @@
     mode = 'mp';
     mpOn = true;
     solo = null;
+    busy = false;
+    lastEnemy = null;
+    lastOwn = null;
     placing = true;
     placeType = 'carrier';
     placeDir = BB.VERTICAL;
@@ -344,15 +420,16 @@
     $('setup').hidden = true;
     $('game').hidden = false;
     $('inviteHint').hidden = false;
-    $('leaveBtn').textContent = '← Leave';
+    $('leaveBtn').textContent = 'Leave';
     $('gameTitle').textContent = 'A friend';
     $('enemyTitle').textContent = 'Their fleet';
     $('overBar').hidden = true;
     $('placeBar').hidden = false;
-    $('enemyWrap').hidden = false;
+    hideHuntBar();
+    setPhase('place');
     $('startBtn').textContent = 'Ready';
     setChip('ready', 'A friend');
-    setStatus('Place your ships. Send the invite so someone else can hide theirs.');
+    setStatus('Place your ships. Press Invite in the bar above so they can hide theirs.');
     renderRoster(mpLocal.fleet);
     paintGrid($('humanGrid'), mpLocal.grid, {});
     paintFromBoard($('enemyGrid'), BB.emptyBoard(), []);
@@ -368,6 +445,7 @@
           placing = false;
           mpLocal.snap.phase = 'ready';
           $('placeBar').hidden = true;
+          setPhase('hunting');
           renderRoster(mpLocal.fleet);
           paintGrid($('humanGrid'), mpLocal.grid, {});
         }
@@ -379,7 +457,6 @@
   function onMp(view) {
     if (!mpOn || !mpLocal) return;
     var them = view.other;
-    var me = view.me;
     if (them && them.round > mpLocal.snap.round) {
       resetMpRound(them.round);
       return;
@@ -391,6 +468,7 @@
         mpLocal.snap.phase = 'play';
         placing = false;
         $('placeBar').hidden = true;
+        setPhase('hunting');
         publishMp(true);
       }
     }
@@ -407,22 +485,27 @@
   function paintMp(view) {
     var them = view.other;
     var meRow = mpLocal.snap;
-    paintGrid($('humanGrid'), mpLocal.grid, placing ? { preview: preview, previewOk: true } : {});
+    paintGrid($('humanGrid'), mpLocal.grid, placing ? { preview: preview, previewOk: true } : { last: lastOwn });
     var pending = [];
+    var myShots = meRow.shots || [];
+    if (myShots.length) lastEnemy = myShots[myShots.length - 1];
     if (them) {
       var i, s, ch;
-      for (i = 0; i < (meRow.shots || []).length; i++) {
-        s = meRow.shots[i];
+      for (i = 0; i < myShots.length; i++) {
+        s = myShots[i];
         ch = (them.board || '').charAt(s.x * SIZE + s.y);
         if (ch === '0' || ch === '' || ch == null) pending.push(s);
       }
-      paintFromBoard($('enemyGrid'), them.board, pending);
+      paintFromBoard($('enemyGrid'), them.board, pending, lastEnemy);
+      showHuntBar(them.lost || []);
     } else {
-      paintFromBoard($('enemyGrid'), BB.emptyBoard(), meRow.shots || []);
+      paintFromBoard($('enemyGrid'), BB.emptyBoard(), myShots, lastEnemy);
+      hideHuntBar();
     }
 
     if (meRow.result) {
       var win = meRow.result === 'win';
+      setPhase('over');
       setChip(win ? 'ready' : '', win ? 'You win' : 'Defeated');
       setStatus(win ? 'You sank their fleet.' : 'They sank your fleet.', win ? 'good' : 'warn');
       $('overText').textContent = win ? 'You win.' : (them && them.name ? them.name : 'They') + ' wins.';
@@ -438,7 +521,7 @@
         setStatus('They left. Press Invite to bring them back, or Leave.');
         $('inviteHint').hidden = true;
       } else {
-        setStatus('Waiting for a friend… press Invite (GifOS menu) to send the link.');
+        setStatus('Waiting for a friend… press Invite in the bar above to send the link.');
         $('inviteHint').hidden = false;
       }
       return;
@@ -447,14 +530,17 @@
     $('enemyTitle').textContent = (them.name || 'Friend') + '’s fleet';
 
     if (meRow.phase === 'place' || (placing && meRow.phase !== 'play')) {
+      setPhase('place');
       setChip('ready', them.phase === 'ready' || them.phase === 'play' ? 'They are ready' : 'Placing');
       return;
     }
     if (meRow.phase === 'ready' && them.phase === 'place') {
+      setPhase('hunting');
       setStatus((them.name || 'They') + ' is still hiding ships.');
       setChip('ready', 'Waiting');
       return;
     }
+    setPhase(meRow.phase === 'over' ? 'over' : 'hunting');
     if (myTurn({ id: window.BBNet.me().id, phase: meRow.phase, shots: meRow.shots, result: meRow.result }, them)) {
       setChip('ready', 'Your shot');
       setStatus('Your shot. Tap their map.');
@@ -476,6 +562,7 @@
     var shots = mpLocal.snap.shots, i;
     for (i = 0; i < shots.length; i++) if (shots[i].x === x && shots[i].y === y) return;
     mpLocal.snap.shots = shots.concat([{ x: x, y: y }]);
+    lastEnemy = { x: x, y: y };
     if (mpLocal.snap.phase === 'ready') mpLocal.snap.phase = 'play';
     publishMp(true);
   }
@@ -485,6 +572,7 @@
     placing = false;
     mpLocal.snap.phase = 'ready';
     $('placeBar').hidden = true;
+    setPhase('hunting');
     saveShips();
     publishMp(true);
     setStatus('Waiting for the other fleet…');
@@ -495,8 +583,12 @@
     placing = true;
     placeType = 'carrier';
     placeDir = BB.VERTICAL;
+    lastEnemy = null;
+    lastOwn = null;
     $('overBar').hidden = true;
     $('placeBar').hidden = false;
+    hideHuntBar();
+    setPhase('place');
     $('startBtn').textContent = 'Ready';
     setStatus('New game. Place your ships.');
     renderRoster(mpLocal.fleet);
@@ -554,6 +646,8 @@
   }
 
   function leave() {
+    if (replyTimer) { clearTimeout(replyTimer); replyTimer = 0; }
+    busy = false;
     if (mpOn) {
       try { window.BBNet.leave(); } catch (e) {}
     }
@@ -561,9 +655,13 @@
     mpLocal = null;
     solo = null;
     placing = true;
+    lastEnemy = null;
+    lastOwn = null;
     $('game').hidden = true;
     $('setup').hidden = false;
     $('overBar').hidden = true;
+    hideHuntBar();
+    setPhase('setup');
     setChip('ready', 'Ready');
     paintSetupStats();
   }
@@ -577,6 +675,69 @@
       return;
     }
     beginCpu();
+  }
+
+  function resetFleet(fleet) {
+    fleet.grid.clear();
+    var i, s;
+    for (i = 0; i < fleet.roster.length; i++) {
+      s = fleet.roster[i];
+      s.placed = false; s.damage = 0; s.sunk = false;
+    }
+  }
+
+  /* Store cover: a mid-hunt with a line of hits on the other map. */
+  function coverShot() {
+    beginCpu();
+    resetFleet(solo.humanFleet);
+    resetFleet(solo.computerFleet);
+    var H = [
+      ['carrier', 2, 1, BB.HORIZONTAL],
+      ['battleship', 4, 3, BB.VERTICAL],
+      ['destroyer', 0, 6, BB.HORIZONTAL],
+      ['submarine', 5, 0, BB.VERTICAL],
+      ['patrolboat', 8, 0, BB.HORIZONTAL]
+    ];
+    var C = [
+      ['carrier', 4, 4, BB.HORIZONTAL],
+      ['battleship', 1, 0, BB.VERTICAL],
+      ['destroyer', 8, 7, BB.HORIZONTAL],
+      ['submarine', 5, 2, BB.HORIZONTAL],
+      ['patrolboat', 0, 2, BB.HORIZONTAL]
+    ];
+    var i, p;
+    for (i = 0; i < H.length; i++) {
+      p = H[i];
+      solo.humanFleet.placeShip(p[1], p[2], p[3], p[0]);
+    }
+    for (i = 0; i < C.length; i++) {
+      p = C[i];
+      solo.computerFleet.placeShip(p[1], p[2], p[3], p[0]);
+    }
+    solo.start();
+    placing = false;
+    $('placeBar').hidden = true;
+    $('overBar').hidden = true;
+    setPhase('hunting');
+    document.body.classList.add('cover');
+    var enemyShots = [
+      [1, 1], [2, 8], [7, 2], [0, 9], [6, 1], [3, 3], [5, 7], [9, 4],
+      [2, 2], [7, 8], [1, 5], [9, 0], [0, 2], [0, 3], [8, 8],
+      [4, 4], [4, 5], [4, 6]
+    ];
+    var ownShots = [
+      [0, 0], [1, 8], [6, 6], [8, 0], [8, 1], [2, 2], [2, 3], [5, 3]
+    ];
+    for (i = 0; i < enemyShots.length; i++) BB.shoot(solo.computerGrid, solo.computerFleet, enemyShots[i][0], enemyShots[i][1]);
+    for (i = 0; i < ownShots.length; i++) BB.shoot(solo.humanGrid, solo.humanFleet, ownShots[i][0], ownShots[i][1]);
+    lastEnemy = { x: 4, y: 6 };
+    lastOwn = { x: 5, y: 3 };
+    solo.shots = enemyShots.length;
+    solo.hits = 4;
+    setStatus('Hit. Your shot.');
+    setChip('ready', 'Your shot');
+    $('gameTitle').textContent = 'Computer';
+    paintSolo();
   }
 
   buildGrid($('humanGrid'));
@@ -614,6 +775,8 @@
     if (mpOn) fireMp(c.x, c.y);
     else fireSolo(c.x, c.y);
   });
+
+  window.BBApp = { coverShot: coverShot };
 
   loadStats();
   paintSetupStats();

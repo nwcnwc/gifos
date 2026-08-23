@@ -5,7 +5,7 @@
 // Run:  node apps/battleboat/build.mjs
 import { battleboatIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -86,6 +86,31 @@ if (!listing.author || listing.author.name !== 'billmei') {
 if (listing.basedOn.name !== 'Battleboat' || listing.basedOn.url !== 'https://github.com/billmei/battleboat') {
   throw new Error('listing.basedOn must name Battleboat at github.com/billmei/battleboat');
 }
+if (listing.cover !== 'screenshot.png') throw new Error('listing.cover must be screenshot.png');
+if (listing.tagline.length > 120) throw new Error('tagline is over 120 chars');
+{
+  const listingBlob = JSON.stringify(listing);
+  for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'gifos.fetch', 'CORS', 'COOP', 'Argon2', 'CDN', 'Node', 'relay']) {
+    if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
+  }
+  const lead = (listing.tagline + '\n' + listing.description).toLowerCase();
+  if (!/two devices/.test(lead) || !/one link/.test(lead) || !/no game server/.test(lead)) {
+    throw new Error('listing must lead with two devices / one link / no game server');
+  }
+  if (!/unofficial/.test(lead) || !/bill mei/.test(lead)) {
+    throw new Error('listing must credit Bill Mei as unofficial');
+  }
+  if (/\bbattleship\b/i.test(listing.tagline + listing.description + listing.name)) {
+    throw new Error('do not say Battleship in store copy — the store name is Battleboat');
+  }
+}
+if (!files['app.js'].includes('coverShot')) {
+  throw new Error('app.js must expose coverShot for the store cover');
+}
+if (!html.includes('id="huntBar"')) throw new Error('index.html must include the hunt remaining-ship bar');
+if (!files['app.js'].includes('setPhase')) {
+  throw new Error('app.js must set body.place / body.hunting for the phone grid');
+}
 for (const [n, s] of Object.entries(files)) {
   if (!n.endsWith('.js')) continue;
   if (/^\s*export\s|export\{|import\.meta/m.test(s)) {
@@ -94,9 +119,10 @@ for (const [n, s] of Object.entries(files)) {
   if (/<\/script/i.test(s)) throw new Error(n + ' contains </script — cannot inline safely');
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (!existsSync(shotPath)) writeFileSync(shotPath, screenshotPng());
+const shot = readFileSync(shotPath);
+if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot.png is not a PNG');
 
 const bytes = await gif.encode(files, { preview: battleboatIcon(), accent: manifest.accent });
 const outDir = join(dir, '..', '..', 'site', 'apps', 'battleboat');
@@ -104,5 +130,5 @@ mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, 'battleboat.gif'), bytes);
 console.log('wrote site/apps/battleboat/battleboat.gif —', (bytes.length / 1024).toFixed(0), 'KB, from',
             Object.keys(files).length, 'files');
-console.log('wrote apps/battleboat/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB');
+console.log('kept apps/battleboat/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB (retake with tools/shoot.js)');
 console.log('catalog is owned elsewhere — do not run build-app-catalog.mjs from this tree');

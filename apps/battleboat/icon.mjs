@@ -1,6 +1,6 @@
-// Procedural icon: a navy card holding a water grid, a grey ship, and a
-// hit that flashes. Pure Node, super-sample → box-downsample. Deterministic.
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
+// Procedural icon: a navy card holding a water grid. A shot falls onto a
+// ship cell, lands, and the cell goes red with an X. The loop is the shot.
+const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 14;
 
 const CARD = [14, 32, 52];
 const CARD_D = [8, 20, 34];
@@ -38,13 +38,29 @@ function inCard(x, y, m, r) {
   const dx = x - cx, dy = y - cy; return dx * dx + dy * dy <= r * r;
 }
 
+function nearDiag(lx, ly, size, thick) {
+  // local 0..size in a cell; true if on either diagonal of an X
+  const a = Math.abs(lx - ly);
+  const b = Math.abs(lx - (size - ly));
+  return a < thick || b < thick;
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const t = f / FRAMES;
-  const n = 8, pad = 22, span = OUT - 2 * pad, step = span / n;
-  const flash = 0.45 + 0.55 * Math.abs(Math.sin(t * Math.PI * 2));
-  const hitR = 5.5 + 2.2 * Math.sin(t * Math.PI * 2);
-  const hx = pad + 5.5 * step, hy = pad + 3.5 * step;
+  const n = 8, pad = 20, span = OUT - 2 * pad, step = span / n;
+  const tRow = 4, tCol = 2; // ship cell the shot hits
+  const tx = pad + (tCol + 0.5) * step;
+  const ty = pad + (tRow + 0.5) * step;
+  const fallN = 6;
+  const falling = f < fallN;
+  const u = Math.min(1, f / (fallN - 1));
+  const ease = u * u;
+  const shotY = 8 + (ty - 8) * ease;
+  const shotX = tx + (1 - u) * 4;
+  const shotR = falling ? 4.2 - u * 0.5 : 0;
+  const hitAge = Math.max(0, f - fallN);
+  const ringR = 4.5 + hitAge * 2.4;
+  const ringA = Math.max(0, 1 - hitAge / 8);
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
@@ -56,19 +72,43 @@ function frameIndices(pal, f) {
         const cx = Math.floor((x - pad) / step), cy = Math.floor((y - pad) / step);
         const ix = pad + cx * step, iy = pad + cy * step;
         if (cx >= 0 && cy >= 0 && cx < n && cy < n) {
-          const inset = 1.1;
+          const inset = 1.05;
           if (x > ix + inset && x < ix + step - inset && y > iy + inset && y < iy + step - inset) {
             col = CELL.slice();
-            // ship: row 3, cols 1-4
-            if (cy === 3 && cx >= 1 && cx <= 4) col = mix(SHIP_H, SHIP, (x - ix) / step);
-            // miss: (1,6)
-            if (cx === 6 && cy === 1) col = [244, 247, 250];
+            // ship: row 4, cols 1-4
+            if (cy === 4 && cx >= 1 && cx <= 4) col = mix(SHIP_H, SHIP, 0.28 + 0.35 * ((x - ix) / step));
+            // miss: (1,6) with a small x
+            if (cx === 6 && cy === 1) {
+              col = [244, 247, 250];
+              const lx = x - ix, ly = y - iy;
+              if (nearDiag(lx, ly, step, 0.9)) col = [30, 30, 36];
+            }
+            // the shot cell
+            if (cx === tCol && cy === tRow) {
+              if (!falling) {
+                const flash = hitAge === 0 ? 1 : Math.max(0, 1 - hitAge / 3);
+                col = mix(HIT_H, HIT, 1 - flash * 0.55);
+                const lx = x - ix, ly = y - iy;
+                if (nearDiag(lx, ly, step, 1.15)) col = mix([20, 8, 10], HIT, 0.15);
+              }
+            }
           }
         }
-        const dx = x - hx, dy = y - hy;
+        if (!falling) {
+          const dx = x - tx, dy = y - ty;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d > ringR && d < ringR + 2.2) {
+            col = mix(col, mix(HIT, ORANGE, 0.5), ringA * (1 - (d - ringR) / 2.2));
+          }
+        }
+      }
+      if (falling && shotR > 0) {
+        const dx = x - shotX, dy = y - shotY;
         const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < hitR) col = mix(HIT_H, HIT, d / hitR);
-        else if (d < hitR + 3.5) col = mix(col, mix(HIT, ORANGE, flash), (1 - (d - hitR) / 3.5) * 0.8);
+        if (d < shotR + 1.8) {
+          const core = d < shotR;
+          col = core ? mix(HIT_H, ORANGE, d / shotR) : mix(col, ORANGE, 1 - (d - shotR) / 1.8);
+        }
       }
     }
     const o = (py * RW + px) * 4;
@@ -96,7 +136,7 @@ export function battleboatIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 8, transparentIndex: 0 };
 }
 
 import { deflateSync } from 'node:zlib';
@@ -187,7 +227,7 @@ export function screenshotPng() {
     put(x, y, (13 + t * 8) | 0, (27 + t * 14) | 0, (42 + t * 18) | 0);
   }
 
-  function board(ox, oy, size, ships, marks) {
+  function board(ox, oy, size, ships, marks, lastKey) {
     const N = 10, gap = 3;
     const cell = Math.floor((size - 12 - gap * 9) / 10);
     rr(ox, oy, ox + size, oy + size, 12, 37, 86, 123);
@@ -208,26 +248,50 @@ export function screenshotPng() {
           put(cx + k, cy - k, 30, 30, 34);
         }
       }
+      if (key === lastKey) {
+        const o = 255, g = 146;
+        for (let k = 0; k < cell; k++) {
+          put(x0 + k, y0, o, g, 0); put(x0 + k, y0 + 1, o, 182, 85);
+          put(x0 + k, y0 + cell - 1, o, g, 0); put(x0 + k, y0 + cell - 2, o, 182, 85);
+          put(x0, y0 + k, o, g, 0); put(x0 + 1, y0 + k, o, 182, 85);
+          put(x0 + cell - 1, y0 + k, o, g, 0); put(x0 + cell - 2, y0 + k, o, 182, 85);
+        }
+      }
     }
   }
 
   const myShips = {};
-  [[2, 1, 5, 1], [5, 3, 4, 0], [0, 6, 3, 1], [7, 7, 3, 0], [8, 0, 2, 1]].forEach(function (s) {
+  [[2, 1, 5, 1], [4, 3, 4, 0], [0, 6, 3, 1], [5, 0, 3, 0], [8, 0, 2, 1]].forEach(function (s) {
     for (let i = 0; i < s[2]; i++) {
       const r = s[3] ? s[0] : s[0] + i, c = s[3] ? s[1] + i : s[1];
       myShips[r + ',' + c] = 1;
     }
   });
   const myMarks = { '2,2': 'h', '2,3': 'h', '5,3': 'h', '0,0': 'm', '1,8': 'm', '6,6': 'm', '8,0': 's', '8,1': 's' };
-  const enMarks = { '1,1': 'm', '4,4': 'h', '4,5': 'h', '7,2': 'm', '2,8': 'm', '8,8': 'h', '0,9': 'm', '6,1': 'm' };
+  const enMarks = {
+    '1,1': 'm', '2,8': 'm', '7,2': 'm', '0,9': 'm', '6,1': 'm', '3,3': 'm',
+    '5,7': 'm', '9,4': 'm', '2,2': 'm', '7,8': 'm', '1,5': 'm', '9,0': 'm',
+    '0,2': 's', '0,3': 's', '8,8': 'h', '4,4': 'h', '4,5': 'h', '4,6': 'h'
+  };
 
-  drawText(put, 70, 36, 'BATTLEBOAT', 7, 255, 182, 85);
-  drawText(put, 70, 100, 'SINK THE FLEET', 3, 155, 184, 204);
-  board(70, 150, 500, myShips, myMarks);
-  board(620, 150, 500, {}, enMarks);
-  drawText(put, 70, 670, 'YOUR FLEET', 3, 155, 184, 204);
-  drawText(put, 620, 670, 'ENEMY FLEET', 3, 155, 184, 204);
-  drawText(put, 70, 632, 'COMPUTER OR A FRIEND', 2, 255, 146, 0);
+  drawText(put, 70, 28, 'BATTLEBOAT', 6, 255, 182, 85);
+  drawText(put, 70, 82, 'HIT. YOUR SHOT.', 3, 238, 246, 251);
+  board(70, 130, 500, myShips, myMarks, '5,3');
+  board(630, 130, 500, {}, enMarks, '4,6');
+  drawText(put, 70, 650, 'YOUR FLEET', 3, 155, 184, 204);
+  drawText(put, 630, 650, 'ENEMY FLEET', 3, 155, 184, 204);
+  // remaining-ship pips under the enemy board
+  const pipLens = [5, 4, 3, 3, 2];
+  const pipSunk = [false, false, false, false, true];
+  let px0 = 630;
+  for (let s = 0; s < pipLens.length; s++) {
+    for (let k = 0; k < pipLens[s]; k++) {
+      const col = pipSunk[s] ? [26, 26, 26] : [110, 124, 134];
+      rr(px0 + k * 12, 678, px0 + k * 12 + 10, 686, 1, col[0], col[1], col[2]);
+    }
+    px0 += pipLens[s] * 12 + 14;
+  }
+  drawText(put, 70, 678, 'TWO DEVICES. ONE LINK.', 2, 255, 146, 0);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

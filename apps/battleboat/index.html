@@ -6,7 +6,7 @@
 <title>Battleboat</title>
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="setup">
 <header>
   <div class="brand"><span class="logo" aria-hidden="true"></span> Battleboat</div>
   <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
@@ -15,19 +15,19 @@
 <main>
   <section class="card setup" id="setup">
     <h2>New game</h2>
-    <p class="lede">Hide five ships. Find the other five. The computer hunts; a friend hides a fleet on their own phone.</p>
+    <p class="lede">Send one link — they hide a fleet on their phone, you hide one on yours. There is no game server. Or hunt the computer on this device.</p>
     <button class="primary" id="cpuBtn" type="button">Play the computer</button>
-    <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
+    <button class="ghost wide" id="friendBtn" type="button">Play a friend</button>
     <p class="statsline" id="setupStats"></p>
   </section>
 
   <section class="game" id="game" hidden>
     <div class="vhead">
       <h2 id="gameTitle">Your fleet</h2>
-      <button class="ghost" id="leaveBtn" type="button">← Leave</button>
+      <button class="ghost" id="leaveBtn" type="button">Leave</button>
     </div>
     <p class="statusline" id="status">Place your ships.</p>
-    <p class="invite" id="inviteHint" hidden>Press <b>Invite</b> (GifOS menu) to send the link. Each of you hides a fleet on your own device.</p>
+    <p class="invite" id="inviteHint" hidden>Press <b>Invite</b> in the bar above to send the link. Each of you hides a fleet on your own device.</p>
 
     <div id="placeBar">
       <ul class="roster" id="roster"></ul>
@@ -39,7 +39,7 @@
     </div>
 
     <div class="boards">
-      <div class="board-wrap">
+      <div class="board-wrap" id="humanWrap">
         <h3>Your fleet</h3>
         <div class="grid human" id="humanGrid" role="grid" aria-label="Your fleet"></div>
       </div>
@@ -47,6 +47,11 @@
         <h3 id="enemyTitle">Enemy fleet</h3>
         <div class="grid enemy" id="enemyGrid" role="grid" aria-label="Enemy fleet"></div>
       </div>
+    </div>
+
+    <div class="huntbar" id="huntBar" hidden>
+      <span class="hunt-label">Still afloat</span>
+      <ul class="pips" id="pips"></ul>
     </div>
 
     <div class="overbar" id="overBar" hidden>

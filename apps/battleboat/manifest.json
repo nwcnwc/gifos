@@ -5,7 +5,7 @@
   "shortName": "Battleboat",
   "version": "1.0",
   "minBuild": 947,
-  "description": "Sink the fleet. Against the computer, or a friend on another phone.",
+  "description": "Two devices, one link, no game server. Hide a fleet. Sink theirs.",
   "entry": "index.html",
   "accent": [255, 146, 0],
   "capabilities": {
