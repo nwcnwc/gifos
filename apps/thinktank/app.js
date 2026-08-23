@@ -18,16 +18,16 @@
       return '<svg viewBox="0 0 24 24"><path ' + a + ' d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg>';
     }
     if (token === T.TANK_U) {
-      return '<svg viewBox="0 0 24 24"><path ' + a + ' d="M12 3l8 12h-5v6H9v-6H4z"/></svg>';
+      return '<svg viewBox="0 0 24 24"><rect ' + a + ' x="8" y="12" width="8" height="9" rx="1"/><path ' + a + ' d="M12 2l7 11H5z"/></svg>';
     }
     if (token === T.TANK_D) {
-      return '<svg viewBox="0 0 24 24"><path ' + a + ' d="M12 21L4 9h5V3h6v6h5z"/></svg>';
+      return '<svg viewBox="0 0 24 24"><rect ' + a + ' x="8" y="3" width="8" height="9" rx="1"/><path ' + a + ' d="M12 22L5 11h14z"/></svg>';
     }
     if (token === T.TANK_L) {
-      return '<svg viewBox="0 0 24 24"><path ' + a + ' d="M3 12L15 4v5h6v6h-6v5z"/></svg>';
+      return '<svg viewBox="0 0 24 24"><rect ' + a + ' x="12" y="8" width="9" height="8" rx="1"/><path ' + a + ' d="M2 12l11-7v14z"/></svg>';
     }
     if (token === T.TANK_R) {
-      return '<svg viewBox="0 0 24 24"><path ' + a + ' d="M21 12L9 20v-5H3V9h6V4z"/></svg>';
+      return '<svg viewBox="0 0 24 24"><rect ' + a + ' x="3" y="8" width="9" height="8" rx="1"/><path ' + a + ' d="M22 12L11 5v14z"/></svg>';
     }
     if (token === T.INF_O) {
       return '<svg viewBox="0 0 24 24"><path ' + a + ' d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/></svg>';
@@ -93,28 +93,49 @@
     }
   }
 
-  function legalMap(s, selToken, selIndex) {
-    var map = {}, list, i;
-    if (!s || s.winner) return map;
+  function legalMaps(s, selToken, selIndex) {
+    var place = {}, rot = {}, list, i;
+    if (!s || s.winner) return { place: place, rot: rot };
     if (selIndex >= 0) {
       list = T.possibleMovements(s.cells, s.turn, selIndex);
-      for (i = 0; i < list.length; i++) map[list[i]] = 1;
+      for (i = 0; i < list.length; i++) place[list[i]] = 1;
     } else if (selToken) {
       list = T.possiblePlacements(s.cells, s.hands[s.turn], s.turn, selToken);
-      for (i = 0; i < list.length; i++) map[list[i]] = 1;
-      list = T.possibleRotations(s.cells, s.turn, selToken);
-      for (i = 0; i < list.length; i++) map[list[i]] = 1;
+      for (i = 0; i < list.length; i++) place[list[i]] = 1;
+      if (T.isTank(selToken)) {
+        list = T.possibleRotations(s.cells, s.turn, selToken);
+        for (i = 0; i < list.length; i++) rot[list[i]] = 1;
+      }
     }
-    return map;
+    return { place: place, rot: rot };
+  }
+
+  function shooterIndex(s, opts) {
+    var i = -1;
+    if (opts.fireFrom >= 0) i = opts.fireFrom;
+    else if (opts.selected >= 0 && s && s.cells[opts.selected] && T.isTank(s.cells[opts.selected].token)) {
+      i = opts.selected;
+    } else if (s && s.last) {
+      if ((s.last.k === 'place' || s.last.k === 'rotate') && s.last.i >= 0) i = s.last.i;
+      else if (s.last.k === 'move' && s.last.d >= 0) i = s.last.d;
+    }
+    if (i < 0 || !s || !s.cells[i] || !T.isTank(s.cells[i].token)) return -1;
+    return i;
   }
 
   function paint(boardEl, s, opts) {
     opts = opts || {};
     if (!boardEl) return;
-    var i, sq, p, cls, legal;
+    var i, sq, p, cls, maps, fire, k, dest, src, shooter;
     var selected = opts.selected;
     var selToken = opts.selToken;
-    legal = opts.hints ? legalMap(s, selToken, selected) : {};
+    maps = opts.hints ? legalMaps(s, selToken, selected) : { place: {}, rot: {} };
+    src = shooterIndex(s, opts);
+    shooter = src >= 0 ? s.cells[src].player : null;
+    fire = {};
+    dest = src >= 0 ? T.fireLine(s.cells, src) : [];
+    for (k = 0; k < dest.length; k++) fire[dest[k]] = 1;
+    boardEl.classList.toggle('coach', !!(opts.coach && s && !s.n && opts.hints && !selToken && !(selected >= 0)));
     for (i = 0; i < T.SIZE; i++) {
       sq = boardEl.children[i];
       if (!sq) continue;
@@ -123,17 +144,38 @@
       else if (T.isBlueHome(i)) cls += ' home-blue';
       else if (T.isRedSpawn(i)) cls += ' spawn-red';
       else if (T.isBlueSpawn(i)) cls += ' spawn-blue';
-      if (legal[i]) cls += ' hint';
+      if (maps.place[i]) cls += ' hint';
+      if (maps.rot[i]) cls += ' turnhint';
       if (selected === i) cls += ' sel';
       if (s && s.last) {
         if ((s.last.k === 'place' || s.last.k === 'rotate') && s.last.i === i) cls += ' last';
         if (s.last.k === 'move' && (s.last.s === i || s.last.d === i)) cls += ' last';
       }
-      sq.className = cls;
       p = s ? s.cells[i] : null;
+      if (fire[i]) {
+        cls += ' fire';
+        if (src >= 0) {
+          var tok = s.cells[src].token;
+          cls += (tok === T.TANK_U || tok === T.TANK_D) ? ' fire-v' : ' fire-h';
+        }
+        if (p && shooter && p.player !== shooter) cls += ' hot';
+      }
+      sq.className = cls;
       if (!p) { sq.innerHTML = ''; continue; }
       sq.innerHTML = '<div class="piece ' + p.player + '">' + glyph(p.token) + '</div>';
     }
+  }
+
+  function tokBtn(player, token, n, label, on, enabled, group) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tok ' + player + (on ? ' on' : '') + (!enabled || n === 0 ? ' dim' : '');
+    btn.disabled = !enabled || n === 0;
+    btn.setAttribute('data-t', token);
+    if (group) btn.setAttribute('data-g', group);
+    btn.innerHTML = glyph(token) + '<span class="lab">' + label + '</span><span class="n">' + n + '</span>';
+    btn.title = label;
+    return btn;
   }
 
   function paintHand(el, s, player, selToken, enabled) {
@@ -141,19 +183,32 @@
     el.innerHTML = '';
     if (!s) return;
     var hand = s.hands[player] || [];
-    var k, t, n, btn, show;
-    for (k = 0; k < T.HAND_TYPES.length; k++) {
-      t = T.HAND_TYPES[k];
-      n = T.handCount(hand, t);
-      show = n > 0 || (enabled && T.isTank(t) && T.tankCount(hand) >= 0);
-      if (!show && n === 0 && !T.isTank(t)) continue;
+    var tanks = T.tankCount(hand);
+    var face = T.isTank(selToken) ? selToken : T.preferFacing(player);
+    el.appendChild(tokBtn(player, T.BLOCKER, T.handCount(hand, T.BLOCKER), 'Shield', selToken === T.BLOCKER, enabled, ''));
+    el.appendChild(tokBtn(player, face, tanks, 'Tank', T.isTank(selToken), enabled, 'tank'));
+    el.appendChild(tokBtn(player, T.INF_O, T.handCount(hand, T.INF_O), 'Infil +', selToken === T.INF_O, enabled, ''));
+    el.appendChild(tokBtn(player, T.INF_X, T.handCount(hand, T.INF_X), 'Infil ×', selToken === T.INF_X, enabled, ''));
+    el.appendChild(tokBtn(player, T.MINE, T.handCount(hand, T.MINE), 'Mine', selToken === T.MINE, enabled, ''));
+    el.classList.toggle('nudge', !!(enabled && !selToken && s.n === 0));
+  }
+
+  function paintFaces(el, s, player, selToken, selIndex, enabled) {
+    if (!el) return;
+    var show = !!(enabled && s && (T.isTank(selToken) || (selIndex >= 0 && s.cells[selIndex] && T.isTank(s.cells[selIndex].token))));
+    el.hidden = !show;
+    if (!show) { el.innerHTML = ''; return; }
+    var cur = T.isTank(selToken) ? selToken : (s.cells[selIndex] ? s.cells[selIndex].token : T.preferFacing(player));
+    var faces = [T.TANK_U, T.TANK_R, T.TANK_D, T.TANK_L];
+    var words = ['Up', 'Right', 'Down', 'Left'];
+    var i, btn;
+    el.innerHTML = '';
+    for (i = 0; i < faces.length; i++) {
       btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'tok ' + player + (selToken === t ? ' on' : '') + (!enabled || (n === 0 && !T.isTank(t)) ? ' dim' : '');
-      btn.disabled = !enabled;
-      btn.setAttribute('data-t', t);
-      btn.innerHTML = glyph(t) + '<span class="n">' + n + '</span>';
-      btn.title = T.shortName(t);
+      btn.className = 'face ' + player + (cur === faces[i] ? ' on' : '');
+      btn.setAttribute('data-t', faces[i]);
+      btn.innerHTML = glyph(faces[i]) + '<span>' + words[i] + '</span>';
       el.appendChild(btn);
     }
   }
@@ -165,6 +220,11 @@
     var verb = e.kind === 'place' ? 'placed' : e.kind === 'move' ? 'moved'
       : e.kind === 'rotate' ? 'turned' : e.kind === 'shoot' ? 'shot'
       : e.kind === 'capture' ? 'captured' : e.kind === 'explode' ? 'blew up' : e.kind;
+    if (T.isTank(e.token)) {
+      if (e.kind === 'rotate') return who + ' turned a tank to face ' + T.faceWord(e.token) + '.';
+      if (e.kind === 'place') return who + ' placed a tank facing ' + T.faceWord(e.token) + '.';
+      return who + ' ' + verb + ' a tank.';
+    }
     return who + ' ' + verb + ' a ' + T.shortName(e.token).toLowerCase() + '.';
   }
 
@@ -173,24 +233,62 @@
     if (state.mode === 'hotseat') return true;
     return state.s.turn === state.color;
   }
+
+  function setTurnBar(el, text, cls) {
+    if (!el) return;
+    el.className = 'turnbar' + (cls ? ' ' + cls : '');
+    el.textContent = text;
+  }
+
+  function coachFor(s, mode, color, selToken, selIndex, thinking, over) {
+    if (!s) return { bar: 'Ready', barCls: '', line: '', lineCls: '', chip: 'Ready', chipCls: 'ready' };
+    var turnName = s.turn === T.RED ? 'Red' : 'Blue';
+    var you = mode === 'cpu' && s.turn === color;
+    if (s.winner || over) {
+      var winYou = mode === 'cpu' && s.winner === color;
+      var msg = mode === 'hotseat'
+        ? (s.winner === T.RED ? 'Red destroyed the blue base.' : 'Blue destroyed the red base.')
+        : (winYou ? 'You destroyed their base.' : 'The computer destroyed your base.');
+      return {
+        bar: winYou || (mode === 'hotseat' && s.winner) ? (s.winner === T.RED ? 'Red wins' : 'Blue wins') : (winYou ? 'You win' : 'Computer wins'),
+        barCls: winYou ? 'good' : 'warn',
+        line: msg, lineCls: winYou ? 'good' : 'warn',
+        chip: 'Over', chipCls: winYou ? 'ready' : 'thinking'
+      };
+    }
+    if (thinking) {
+      return { bar: 'Computer', barCls: 'wait', line: 'Computer is thinking…', lineCls: '', chip: 'Thinking…', chipCls: 'thinking' };
+    }
+    if (mode === 'cpu' && !you) {
+      return { bar: 'Computer to play', barCls: s.turn, line: 'Waiting on the computer.', lineCls: '', chip: 'Computer', chipCls: 'thinking' };
+    }
+    var bar = mode === 'hotseat' ? (turnName + ' to play') : 'Your turn — ' + turnName;
+    if (selIndex >= 0 && s.cells[selIndex]) {
+      var p = s.cells[selIndex];
+      if (T.isTank(p.token)) {
+        return { bar: bar, barCls: s.turn, line: 'Gold: move this tank. Or tap a facing below to turn it — it shoots the way it points.', lineCls: '', chip: bar, chipCls: 'turn' };
+      }
+      return { bar: bar, barCls: s.turn, line: 'Tap a gold square to move this ' + T.shortName(p.token).toLowerCase() + '.', lineCls: '', chip: bar, chipCls: 'turn' };
+    }
+    if (selToken) {
+      if (T.isTank(selToken)) {
+        return { bar: bar, barCls: s.turn, line: 'Gold around your home: place this tank facing ' + T.faceWord(selToken) + '. Cyan: turn a tank already out this way.', lineCls: '', chip: bar, chipCls: 'turn' };
+      }
+      return { bar: bar, barCls: s.turn, line: 'Tap a gold square around your home to place this ' + T.shortName(selToken).toLowerCase() + '. ' + T.blurb(selToken), lineCls: '', chip: bar, chipCls: 'turn' };
+    }
+    if (!s.n) {
+      return { bar: bar, barCls: s.turn, line: 'Tap a piece below, then a gold square around your home. Destroy the other house to win.', lineCls: '', chip: bar, chipCls: 'turn' };
+    }
+    return { bar: bar, barCls: s.turn, line: 'Place a piece, move one already out, or turn a tank. One action.', lineCls: '', chip: bar, chipCls: 'turn' };
+  }
+
   function localStatus() {
     if (!state.s) return;
     $('logLine').textContent = lastLog(state.s);
-    if (state.s.winner) {
-      var you = state.mode === 'cpu' && state.s.winner === state.color;
-      var msg = state.mode === 'hotseat'
-        ? (state.s.winner === T.RED ? 'Red wins.' : 'Blue wins.')
-        : (you ? 'You win.' : 'The computer wins.');
-      setStatus($('statusLine'), msg, you ? 'good' : 'warn');
-      return;
-    }
-    if (state.thinking) { setStatus($('statusLine'), 'Computer is thinking…', ''); return; }
-    if (state.mode === 'hotseat') {
-      setStatus($('statusLine'), (state.s.turn === T.RED ? 'Red' : 'Blue') + ' to play. Place, move, or turn a tank.', '');
-    } else {
-      setStatus($('statusLine'), state.s.turn === state.color
-        ? 'Your turn. Place, move, or turn a tank.' : 'Computer to play.', '');
-    }
+    var c = coachFor(state.s, state.mode, state.color, isHumanTurn() ? state.selToken : null, isHumanTurn() ? state.selIndex : -1, state.thinking, state.over);
+    setTurnBar($('turnBar'), c.bar, c.barCls);
+    setStatus($('statusLine'), c.line, c.lineCls);
+    setChip(c.chipCls, c.chip);
   }
   function saveLocal() {
     if (!db) return;
@@ -205,12 +303,16 @@
     return state.s.turn;
   }
   function afterLocal() {
+    var human = isHumanTurn();
     paint($('board'), state.s, {
-      hints: isHumanTurn(),
-      selToken: isHumanTurn() ? state.selToken : null,
-      selected: isHumanTurn() ? state.selIndex : -1
+      hints: human,
+      coach: human,
+      selToken: human ? state.selToken : null,
+      selected: human ? state.selIndex : -1,
+      fireFrom: -1
     });
-    paintHand($('hand'), state.s, handPlayer(), isHumanTurn() ? state.selToken : null, isHumanTurn());
+    paintHand($('hand'), state.s, handPlayer(), human ? state.selToken : null, human);
+    paintFaces($('faces'), state.s, handPlayer(), human ? state.selToken : null, human ? state.selIndex : -1, human);
     localStatus();
     saveLocal();
     if (!state.over && !state.thinking && state.mode === 'cpu' && state.s.turn !== state.color) aiMove();
@@ -242,9 +344,8 @@
     }
     if (p && p.player === s.turn && i !== state.selIndex) {
       state.selIndex = i;
-      state.selToken = null;
-      paint($('board'), s, { hints: true, selected: i, selToken: null });
-      paintHand($('hand'), s, handPlayer(), null, true);
+      state.selToken = T.isTank(p.token) ? p.token : null;
+      afterLocal();
       return;
     }
     if (state.selToken && T.canPlace(s.cells, s.hands[s.turn], s.turn, state.selToken, i)) {
@@ -255,17 +356,46 @@
       playLocal({ k: 'move', s: state.selIndex, d: i });
       return;
     }
-  }
-  function pickToken(t) {
-    if (!isHumanTurn()) return;
-    state.selToken = state.selToken === t ? null : t;
+    state.selToken = null;
     state.selIndex = -1;
-    paint($('board'), state.s, { hints: true, selToken: state.selToken, selected: -1 });
-    paintHand($('hand'), state.s, handPlayer(), state.selToken, true);
+    afterLocal();
+  }
+  function pickToken(t, group) {
+    if (!isHumanTurn()) return;
+    if (state.selIndex >= 0 && T.isTank(t) && T.canRotate(state.s.cells, state.s.turn, t, state.selIndex)) {
+      playLocal({ k: 'rotate', t: t, i: state.selIndex });
+      return;
+    }
+    if (group === 'tank') {
+      if (T.isTank(state.selToken)) {
+        state.selToken = null;
+      } else {
+        state.selToken = T.preferFacing(state.s.turn);
+      }
+      state.selIndex = -1;
+    } else {
+      state.selToken = state.selToken === t ? null : t;
+      state.selIndex = -1;
+    }
+    afterLocal();
+  }
+  function pickFace(t) {
+    if (!isHumanTurn()) return;
+    if (state.selIndex >= 0 && T.canRotate(state.s.cells, state.s.turn, t, state.selIndex)) {
+      playLocal({ k: 'rotate', t: t, i: state.selIndex });
+      return;
+    }
+    state.selToken = t;
+    state.selIndex = -1;
+    afterLocal();
   }
   $('hand').addEventListener('click', function (e) {
     var b = e.target.closest('[data-t]'); if (!b) return;
-    pickToken(b.getAttribute('data-t'));
+    pickToken(b.getAttribute('data-t'), b.getAttribute('data-g') || '');
+  });
+  $('faces').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-t]'); if (!b) return;
+    pickFace(b.getAttribute('data-t'));
   });
 
   function aiMove() {
@@ -273,10 +403,10 @@
     if (state.s.turn === state.color) return;
     state.thinking = true;
     state.selToken = null; state.selIndex = -1;
-    setChip('thinking', 'Thinking…');
     localStatus();
-    paint($('board'), state.s, { hints: false });
+    paint($('board'), state.s, { hints: false, coach: false, selected: -1, selToken: null, fireFrom: -1 });
     paintHand($('hand'), state.s, state.color, null, false);
+    paintFaces($('faces'), state.s, state.color, null, -1, false);
     setTimeout(function () {
       if (!state.s || state.over || state.mode !== 'cpu') { state.thinking = false; return; }
       if (state.s.turn === state.color) {
@@ -513,27 +643,37 @@
     $('fQueue').textContent = waiting.length ? ('Watching: ' + waiting.map(function (p) { return p.name || 'Player'; }).join(', ')) : '';
     $('fLog').textContent = lastLog(s);
     var both = b.seats.red && b.seats.blue;
+    var mine = mpMyTurn(b, s, seat);
+    var turnName = s.turn === T.RED ? 'Red' : 'Blue';
+    var coach = coachFor(s, 'hotseat', seat, mine ? mp.selToken : null, mine ? mp.selIndex : -1, false, !!b.winner);
     if (!both) {
       status.innerHTML = 'Waiting for another player… press <b>Invite</b> (top bar) to bring a friend.';
+      setTurnBar($('fTurnBar'), 'Waiting for a friend', 'wait');
     } else if (b.winner) {
       var wname = b.winner === 'draw' ? '' : nameOf(b.winner === 'red' ? b.seats.red : b.seats.blue);
       status.innerHTML = b.winner === 'draw'
         ? (esc(b.result || 'Draw') + ' — next game starting…')
         : ((esc(b.result || 'Base destroyed') + ' — ') + wname + ' wins. Next game starting…');
+      setTurnBar($('fTurnBar'), coach.bar, coach.barCls);
     } else if (!seat) {
-      status.textContent = 'Spectating.';
+      status.textContent = 'Spectating. ' + turnName + ' to play.';
+      setTurnBar($('fTurnBar'), turnName + ' to play', s.turn);
     } else if (b.turn === seat) {
-      status.textContent = 'Your turn. Place, move, or turn a tank.';
+      status.textContent = coach.line;
+      setTurnBar($('fTurnBar'), 'Your turn — ' + turnName, seat);
     } else {
-      status.textContent = 'Waiting for ' + b.turn + '…';
+      status.textContent = 'Waiting for ' + turnName + '…';
+      setTurnBar($('fTurnBar'), 'Waiting for ' + turnName, 'wait');
     }
-    var mine = mpMyTurn(b, s, seat);
     paint($('fBoard'), s, {
       hints: mine,
+      coach: mine,
       selToken: mine ? mp.selToken : null,
-      selected: mine ? mp.selIndex : -1
+      selected: mine ? mp.selIndex : -1,
+      fireFrom: -1
     });
     paintHand($('fHand'), s, seat || s.turn, mine ? mp.selToken : null, mine);
+    paintFaces($('fFaces'), s, seat || s.turn, mine ? mp.selToken : null, mine ? mp.selIndex : -1, mine);
     $('fResign').hidden = !(seat && (b.moves || []).length && !b.winner);
   }
 
@@ -548,7 +688,7 @@
     }
     if (p && p.player === s.turn && i !== mp.selIndex) {
       mp.selIndex = i;
-      mp.selToken = null;
+      mp.selToken = T.isTank(p.token) ? p.token : null;
       mpRender();
       return;
     }
@@ -558,14 +698,43 @@
     }
     if (mp.selIndex >= 0 && T.canMove(s.cells, s.turn, mp.selIndex, i)) {
       mpPlay({ k: 'move', s: mp.selIndex, d: i });
+      return;
     }
+    mp.selToken = null;
+    mp.selIndex = -1;
+    mpRender();
   });
   $('fHand').addEventListener('click', function (e) {
     var btn = e.target.closest('[data-t]'); if (!btn) return;
     var b = mp.board, seat = mySeat(b);
     if (!b || !seat || b.winner || b.turn !== seat) return;
     var t = btn.getAttribute('data-t');
-    mp.selToken = mp.selToken === t ? null : t;
+    var g = btn.getAttribute('data-g') || '';
+    var s = T.replay(b.moves || []);
+    if (mp.selIndex >= 0 && T.isTank(t) && T.canRotate(s.cells, s.turn, t, mp.selIndex)) {
+      mpPlay({ k: 'rotate', t: t, i: mp.selIndex });
+      return;
+    }
+    if (g === 'tank') {
+      mp.selToken = T.isTank(mp.selToken) ? null : T.preferFacing(s.turn);
+      mp.selIndex = -1;
+    } else {
+      mp.selToken = mp.selToken === t ? null : t;
+      mp.selIndex = -1;
+    }
+    mpRender();
+  });
+  $('fFaces').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-t]'); if (!btn) return;
+    var b = mp.board, seat = mySeat(b);
+    if (!b || !seat || b.winner || b.turn !== seat) return;
+    var t = btn.getAttribute('data-t');
+    var s = T.replay(b.moves || []);
+    if (mp.selIndex >= 0 && T.canRotate(s.cells, s.turn, t, mp.selIndex)) {
+      mpPlay({ k: 'rotate', t: t, i: mp.selIndex });
+      return;
+    }
+    mp.selToken = t;
     mp.selIndex = -1;
     mpRender();
   });

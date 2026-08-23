@@ -434,11 +434,49 @@
     if (t === TANK_D) return 'Tank ↓';
     if (t === TANK_L) return 'Tank ←';
     if (t === TANK_R) return 'Tank →';
-    if (t === INF_O) return 'Infiltrator +';
-    if (t === INF_X) return 'Infiltrator ×';
+    if (t === INF_O) return 'Infil +';
+    if (t === INF_X) return 'Infil ×';
     if (t === MINE) return 'Mine';
     if (t === BASE) return 'Base';
     return t;
+  }
+  function faceWord(t) {
+    if (t === TANK_U) return 'up';
+    if (t === TANK_D) return 'down';
+    if (t === TANK_L) return 'left';
+    if (t === TANK_R) return 'right';
+    return '';
+  }
+  function blurb(t) {
+    if (t === BLOCKER) return 'Stops the other side\'s shots. Friendly tanks fire through it.';
+    if (isTank(t)) return 'Shoots in a straight line the way it faces, all the way to the edge.';
+    if (t === INF_O) return 'Steals a tank or shield standing next to it. Moves one space across or down.';
+    if (t === INF_X) return 'Steals a tank or shield standing next to it. Moves one space on the diagonal.';
+    if (t === MINE) return 'Blows up anything next to it except a shield — including itself.';
+    if (t === BASE) return 'If this house is destroyed, that side loses.';
+    return '';
+  }
+  function preferFacing(player) { return player === RED ? TANK_D : TANK_U; }
+
+  // Cells a tank at `index` would fire through, nearest first. Stops at an
+  // enemy shield (shots pass through your own). Used to paint the beam.
+  function fireLine(cells, index) {
+    var p = cells[index], x, y, dx = 0, dy = 0, out = [], i, c;
+    if (!p || !isTank(p.token)) return out;
+    x = ix(index); y = iy(index);
+    if (p.token === TANK_U) dy = -1;
+    else if (p.token === TANK_D) dy = 1;
+    else if (p.token === TANK_L) dx = -1;
+    else dx = 1;
+    x += dx; y += dy;
+    while (inGrid(x, y)) {
+      i = coordsToIndex(x, y);
+      out.push(i);
+      c = cells[i];
+      if (c && c.token === BLOCKER && c.player !== p.player) break;
+      x += dx; y += dy;
+    }
+    return out;
   }
 
   root.TT = {
@@ -464,6 +502,7 @@
     possibleRotations: possibleRotations,
     reachableFrom: reachableFrom,
     fresh: fresh, play: play, legalActions: legalActions, replay: replay,
-    resolve: resolve, findBase: findBase, shortName: shortName
+    resolve: resolve, findBase: findBase, shortName: shortName,
+    faceWord: faceWord, blurb: blurb, preferFacing: preferFacing, fireLine: fireLine
   };
 })(typeof window !== 'undefined' ? window : this);
