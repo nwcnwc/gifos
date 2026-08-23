@@ -190,6 +190,11 @@
     }
     bar.innerHTML = line;
 
+    var sub = document.querySelector('#landing .hint.sub');
+    if (sub) {
+      sub.innerHTML = 'You each build your own tower. Tallest when the hearts run out wins.';
+    }
+
     var again = $('again');
     var tip = $('overTip');
     if (meRow && meRow.over && !v) {

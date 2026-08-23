@@ -60,7 +60,7 @@ html { font-size: 17.6vh; }
 .hint-card {
   width: 86%; max-width: 420px;
   padding: 10px 14px 8px;
-  background: rgba(40, 18, 16, .55);
+  background: rgba(40, 18, 16, .62);
   border-radius: 12px;
   box-shadow: 0 2px 0 rgba(40, 18, 16, .25);
 }
@@ -74,6 +74,7 @@ html { font-size: 17.6vh; }
 .hint.sub { opacity: .96; font-size: 13px; margin-top: 4px; }
 .hint b { color: #ffe56a; }
 .best { color: #ffe9b0; font-size: 13px; min-height: 1.1em; margin-top: 4px; }
+.sheet .best { color: #9b724e; }
 .img-btn {
   display: block; border: 0; background: none; padding: 0; cursor: pointer;
   width: 72%; max-width: 360px;
