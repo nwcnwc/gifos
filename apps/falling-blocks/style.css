@@ -1,84 +1,96 @@
-/* Original canvas-tetris is a white page and a bordered canvas. Friend-mode
-   chrome, two wells, and the on-screen pad sit around that. */
+/* Dark well around the original bordered canvas. Friend-mode chrome,
+   next-piece, two wells, and a full-width phone pad sit around that. */
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
   min-height: 100%;
-  background: #f4f4f4;
-  color: #222;
+  background: #12151a;
+  color: #e8eef2;
   font-family: Arial, Helvetica, sans-serif;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
 }
-body { padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+body { padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
 #shell {
-  max-width: 640px;
+  max-width: 720px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 #hud {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px 16px;
+  gap: 6px 14px;
 }
-#brand { font-size: 22px; font-weight: 700; letter-spacing: 0.02em; }
+#brand { font-size: 20px; font-weight: 700; letter-spacing: 0.02em; }
 #scores {
   margin-left: auto;
   display: flex;
-  gap: 14px;
+  gap: 12px;
   font-variant-numeric: tabular-nums;
   font-size: 14px;
-  color: #444;
+  color: #9aa4b2;
 }
+#score { color: #e8eef2; font-weight: 700; }
 .actions { display: flex; gap: 8px; }
 .actions button, #againBtn, #leaveBtn, #friendBtn, #playbutton {
   font: inherit;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  padding: 8px 16px;
-  border: 1px solid #222;
-  background: #fff;
+  padding: 8px 14px;
+  border: 1px solid #3a4454;
+  background: #1c222c;
+  color: #e8eef2;
+  border-radius: 8px;
   cursor: pointer;
 }
-#friendBtn { background: #00c4cc; color: #fff; border-color: #00a8b0; }
-#playbutton { min-width: 100px; }
+#friendBtn { background: #00c4cc; color: #081018; border-color: #00a8b0; }
+#playbutton { min-width: 108px; }
+#playbutton:disabled { opacity: 0.45; cursor: default; }
 body.friend #friendBtn,
 body.friend #playbutton { display: none; }
 
 #friend-bar {
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 10px 12px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  background: #1c222c;
+  border: 1px solid #2a3140;
+  border-radius: 8px;
+  padding: 6px 10px;
 }
 #friend-bar[hidden] { display: none; }
-#friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
-#friend-hint b { color: #c40; }
-#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-status { margin: 0; font-size: 13px; line-height: 1.35; font-weight: 700; min-height: 1.2em; flex: 1 1 160px; }
+#friend-status b { color: #00c4cc; }
 #friend-scores {
   list-style: none;
-  margin: 0 0 8px;
+  margin: 0;
   padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 #friend-scores li {
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 4px 0;
-  border-top: 1px solid #e6e6e6;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: #12151a;
+  border-radius: 6px;
   font-variant-numeric: tabular-nums;
+  font-size: 13px;
 }
-#friend-scores li:first-child { border-top: none; }
-#friend-scores .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#friend-scores .me .name { color: #c40; }
-#friend-scores .meta { color: #777; font-size: 13px; white-space: nowrap; }
-#friend-scores .win { font-weight: 700; }
-.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
-#againBtn { background: #00c4cc; color: #fff; border-color: #00a8b0; }
+#friend-scores .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 8em; }
+#friend-scores .me { box-shadow: inset 0 0 0 2px #00c4cc; }
+#friend-scores .me .name { color: #00c4cc; }
+#friend-scores .out { opacity: 0.55; }
+#friend-scores .meta { color: #8b95a3; white-space: nowrap; }
+.friend-actions { display: flex; gap: 8px; margin-left: auto; }
+#againBtn { background: #00c4cc; color: #081018; border-color: #00a8b0; }
 #leaveBtn { background: transparent; }
 
 #stage {
@@ -86,76 +98,116 @@ body.friend #playbutton { display: none; }
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  gap: 16px;
+  gap: 12px;
   min-height: 0;
 }
 .well { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
-.well-name { font-size: 12px; font-weight: 700; color: #555; }
+.well-name { font-size: 12px; font-weight: 700; color: #8b95a3; }
+body:not(.friend) .well-name { display: none; }
 .well canvas {
   display: block;
-  background: #fff;
-  border: 1px solid #000;
+  background: #0a0c10;
+  border: 2px solid #2a3140;
+  border-radius: 4px;
   max-width: 100%;
   height: auto;
   touch-action: none;
-  image-rendering: pixelated;
+  image-rendering: auto;
 }
-.well.mine canvas { width: min(300px, 72vw); }
-.well.them { opacity: 0.92; }
-.well.them canvas { width: min(180px, 40vw); }
+.well.mine canvas { width: min(300px, 68vw); }
+.well.them { opacity: 0.94; }
+.well.them canvas { width: min(168px, 36vw); }
 #them-wrap[hidden] { display: none; }
-body.friend .well.mine canvas { width: min(260px, 48vw); }
+body.friend .well.mine canvas { width: min(240px, 46vw); }
+
+#next-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 18px;
+  flex: none;
+}
+.next-label { font-size: 11px; font-weight: 700; color: #8b95a3; letter-spacing: 0.06em; text-transform: uppercase; }
+#next {
+  display: block;
+  width: 72px;
+  height: 72px;
+  background: #0a0c10;
+  border: 2px solid #2a3140;
+  border-radius: 4px;
+}
+body.friend #next-box { padding-top: 18px; }
+body.friend #next { width: 56px; height: 56px; }
 
 #banner {
   position: absolute;
   left: 50%;
   top: 42%;
   transform: translate(-50%, -50%);
-  background: rgba(0, 0, 0, 0.82);
+  background: rgba(8, 10, 14, 0.88);
   color: #fff;
   font-weight: 700;
   font-size: 22px;
   padding: 14px 22px;
-  border-radius: 6px;
+  border-radius: 8px;
   z-index: 4;
   text-align: center;
   min-width: 10rem;
+  pointer-events: none;
 }
 #banner[hidden] { display: none; }
-#banner.win { background: rgba(0, 140, 110, 0.9); }
-#banner.lose { background: rgba(160, 30, 30, 0.9); }
+#banner.win { background: rgba(0, 140, 110, 0.92); }
+#banner.lose { background: rgba(160, 30, 30, 0.92); }
 
-#how { margin: 0; font-size: 14px; color: #444; line-height: 1.4; }
-.foot { margin: 0; color: #888; font-size: 12px; line-height: 1.45; }
+#how { margin: 0; font-size: 13px; color: #8b95a3; line-height: 1.4; }
+.foot { margin: 0; color: #66707c; font-size: 12px; line-height: 1.45; }
 
 #pad {
   position: fixed;
-  right: max(12px, env(safe-area-inset-right));
-  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 8;
   display: none;
-  grid-template-columns: repeat(3, 52px);
-  grid-template-rows: repeat(3, 52px);
-  gap: 6px;
+  grid-template-columns: 1fr 1fr 8px 1fr 1fr 1.2fr;
+  gap: 8px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: rgba(12, 16, 22, 0.94);
+  border-top: 1px solid #2a3140;
 }
 #pad[hidden] { display: none; }
 body.touch #pad { display: grid; }
 body.touch #pad[hidden] { display: grid; }
-body.touch { padding-bottom: 190px; }
+body.touch { padding-bottom: 84px; }
+body.touch #how,
+body.touch .foot,
+body.friend #how,
+body.friend .foot { display: none; }
 #pad button {
   padding: 0;
+  height: 58px;
+  font: inherit;
   font-size: 22px;
-  color: #222;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #999;
-  border-radius: 10px;
+  font-weight: 700;
+  color: #e8eef2;
+  background: #1c222c;
+  border: 1px solid #3a4454;
+  border-radius: 12px;
   touch-action: manipulation;
 }
-#pad button:active, #pad button.on { background: rgba(0, 196, 204, 0.55); }
+#pad .pad-gap { pointer-events: none; }
+#pad button[data-act="drop"] { font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase; background: #00c4cc; color: #081018; border-color: #00a8b0; }
+#pad button:active, #pad button.on { background: #00c4cc; color: #081018; border-color: #00a8b0; }
 
 @media (max-width: 520px) {
-  #brand { font-size: 18px; }
-  #scores { font-size: 13px; gap: 10px; width: 100%; margin-left: 0; }
-  .well.mine canvas, body.friend .well.mine canvas { width: min(220px, 52vw); }
-  .well.them canvas { width: min(140px, 34vw); }
+  #brand { font-size: 17px; }
+  #scores { font-size: 12px; gap: 8px; width: 100%; margin-left: 0; }
+  .well.mine canvas { width: min(270px, 72vw); }
+  body.friend .well.mine canvas { width: min(200px, 54vw); }
+  .well.them canvas { width: min(122px, 32vw); }
+  #next { width: 56px; height: 56px; }
+  body.friend #next-box { display: none; }
+  #friend-status { flex-basis: 100%; }
+  #pad button { height: 54px; }
 }

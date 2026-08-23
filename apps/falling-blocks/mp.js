@@ -143,13 +143,12 @@
     players.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
     players.forEach(function (p) {
       var mine = p.id === me.id;
-      var tag = p.over ? 'out' : 'stacking';
-      html += '<li class="' + (mine ? 'me' : '') + '">' +
+      html += '<li class="' + (mine ? 'me' : '') + (p.over ? ' out' : '') + '">' +
         '<span class="name">' + (mine ? 'You' : esc(p.name || 'Player')) + '</span>' +
-        '<span class="meta">' + (p.score || 0) + ' · ' + (p.lines || 0) + ' lines · ' + tag + '</span>' +
+        '<span class="meta">' + (p.score || 0) + (p.over ? ' · out' : '') + '</span>' +
         '</li>';
     });
-    scores.innerHTML = html || '<li><span class="name">Just you so far</span></li>';
+    scores.innerHTML = html;
 
     var other = pickOther(players);
     if (wrap) wrap.hidden = !other;
@@ -179,14 +178,14 @@
       roundOver = false;
       again.hidden = true;
       if (!others.length) {
-        status.textContent = 'Waiting for a friend… press Invite (GifOS menu) to send the link. You can play in the meantime — they start from the same shapes.';
+        status.innerHTML = 'Press <b>Invite</b> in the bar above, then send the link. You can play now — same shapes when they join.';
       } else if (root.FB.over) {
-        status.textContent = 'You’re out. Waiting to see if anyone still stacking beats ' + (root.FB.score || 0) + '.';
+        status.textContent = 'You’re out. Waiting on the rest.';
         if (root.FB.banner) root.FB.banner('You’re out', 'lose');
       } else {
         status.textContent = others.length === 1
-          ? (others[0].name || 'Friend') + ' is on ' + (others[0].score || 0) + '.'
-          : others.length + ' playing. Last one stacking, or highest score when the boards fill.';
+          ? (others[0].name || 'Friend') + ' · ' + (others[0].score || 0)
+          : others.length + ' playing · last one stacking wins';
       }
     }
   }
@@ -263,9 +262,9 @@
     if (hbTimer) { clearInterval(hbTimer); hbTimer = 0; }
     if (room && me.id) room.delete(me.id).catch(function () {});
     if (typeof clearAllIntervals === 'function') clearAllIntervals();
-    if (typeof init === 'function') init();
     var pb = $('playbutton');
     if (pb) pb.disabled = false;
+    if (typeof playButtonClicked === 'function') playButtonClicked();
     if (root.FB.paintHud) root.FB.paintHud();
   }
 

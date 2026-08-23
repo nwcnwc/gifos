@@ -11,12 +11,12 @@ This port is not branded as the well-known game of the same idea.
 ![screenshot](screenshot.png)
 
 ```
-index.html      shell: two wells, friend-mode strip, on-screen pad
-style.css       original bordered canvas, plus the race chrome
-app.js          score, seeded RNG seam, mute of the original pop
+index.html      shell: two wells, next-piece, friend-mode strip, phone pad
+style.css       dark well, race chrome, full-width pad
+app.js          score, ghost, next, DAS/ARR, gravity, seeded RNG seam
 mp.js           the race: shared seed, own rows, live scores, ghost well
-touch.js        swipe + a d-pad writing the same keyPress as the arrows
-icon.mjs        procedural well icon + 1200×720 cover
+touch.js        swipe + pad, same DAS path as the arrows
+icon.mjs        lock + line-clear icon, mid-well cover
 vendor.mjs      rebuilds vendor/ from the pinned canvas-tetris commit
 build.mjs       packs the GIF into site/apps/falling-blocks/falling-blocks.gif
 vendor/         original classic scripts. Never edit.
@@ -60,8 +60,9 @@ not spectating.
 
 Upstream is keys only (arrows + space). `touch.js` maps a swipe on the well
 onto the same `keyPress` the keyboard uses, and on the first real
-`touchstart` it shows a d-pad so a phone is playable without discovering
-the swipe.
+`touchstart` it shows a full-width pad. Hold-to-slide uses the same delay
+then repeat as the arrows (a first move, a short pause, then a steady
+slide) so a thumb and a keyboard feel like one game.
 
 ## Building
 
