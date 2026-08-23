@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "longwave",
+  "name": "Longwave",
+  "shortName": "Longwave",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A needle on a spectrum. One of you hints. The other finds the mark.",
+  "entry": "index.html",
+  "accent": [118, 86, 214],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "lw": { "visibility": "private" },
+    "lw-mp": { "visibility": "read-write" }
+  }
+}
