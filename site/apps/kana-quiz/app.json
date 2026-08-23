@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "minBuild": 947,
   "tagline": "Hiragana and katakana on this device — no account, race a friend from one link.",
-  "description": "Hiragana and katakana live on this device. No account, no install. Pick the rows you want — あ, か, dakuten, yōon — hiragana, katakana, or both. A kana shows up; tap the sound. Or flip it: the sound first, pick the kana. Right or wrong lands at once, and a score runs at the top.\n\nMiss one and it comes back in Review until it sticks. Close the app and come back: your place is still there, inside the icon.\n\nPress Play a friend and send the invite. You both get the same shuffled deck. First to ten right wins, or whoever has more when the cards run out.\n\nAn unofficial port of Kana Quiz by anzzstuff. The tables are the ones that shipped with that quiz.",
+  "description": "Hiragana and katakana live on this device. No account, no install. Tap the rows you know — you see the actual あ か さ, not a list of names — then a kana, four sounds. Or flip it: the sound first, pick the kana. Right or wrong lands at once.\n\nMiss one and it comes back until it sticks. Close the app and come back: your place is still there, inside the icon.\n\nPress Play a friend, then Invite in the bar above. You both get the same shuffled deck. First to ten right wins, or whoever has more when the cards run out.\n\nAn unofficial port of Kana Quiz by anzzstuff. The tables are the ones that shipped with that quiz.",
   "author": {
     "name": "anzzstuff",
     "url": "https://github.com/anzzstuff/kanaquiz"
@@ -40,10 +40,10 @@
   "cover": "/apps/kana-quiz/cover.jpg",
   "screenshots": [],
   "gif": "/apps/kana-quiz/kana-quiz.gif",
-  "bytes": 197463,
+  "bytes": 201458,
   "download": 0,
   "provides": null,
-  "sha256": "3d26bac6157eca4616b38172ae69c0b2260378468946250b8ccb4634e9438c21",
+  "sha256": "c864e6db1d5bb166a58bc840b2f75bb69c25633ae32c2b45f1ce128faa4fecf3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -6,8 +6,8 @@
   "shortName": "2048",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Join the numbers. Get to 2048. Or race a friend to it.",
-  "description": "The original 2048 — swipe or use the arrow keys, merge matching tiles, and try to build the 2048 tile. Your game is saved on this device, inside the app, so you can close it and pick up where you left off.\n\nWant a race? Press Play a friend, then press Invite (in the GifOS menu) and send the link. You both start from the same tiles. First to 2048 wins. If someone runs out of moves, the other can keep going — highest score takes it once every board is stuck. Each of you plays your own board; the list of live scores updates as you go. Playing alone is the original game, exactly.\n\nAn unofficial port of 2048 by Gabriele Cirulli.",
+  "tagline": "Race a friend to 2048 from one link. The file is the save.",
+  "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You both start from the same tiles. First to 2048 wins. No account, no install — the race is the invite, and your solo game lives in the file.\n\nOn your own it is the original 2048. Swipe or use the arrow keys. When two tiles with the same number touch, they merge into one. Close it, come back, the board is where you left it.\n\nEach of you plays your own board. Live scores as you go. If someone runs out of moves, the other can keep going — highest score takes it once every board is stuck.\n\nAn unofficial port of 2048 by Gabriele Cirulli.",
   "author": {
     "name": "Gabriele Cirulli",
     "url": "https://github.com/gabrielecirulli/2048"
@@ -37,10 +37,10 @@
   "cover": "/apps/2048/cover.jpg",
   "screenshots": [],
   "gif": "/apps/2048/2048.gif",
-  "bytes": 306682,
+  "bytes": 307957,
   "download": 0,
   "provides": null,
-  "sha256": "8ad64775a9679455cfd241c7566494cbc6e02647e24902b326818893b25a4fb5",
+  "sha256": "025fdaa0ae23528cd576bb2464e72eed26262ce95774ac3c474d6515508dca33",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
