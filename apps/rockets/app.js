@@ -16,6 +16,8 @@
   var keys = {};
   var touchMove = { id: null, x: 0, y: 0 };
   var touchOn = false;
+  var pointer = { x: 0, y: 0, has: false };
+  var stickOrigin = { x: 0, y: 0 };
   var lastTs = 0;
   var particles = [];
   var pops = [];
@@ -71,14 +73,15 @@
     var rng = R.mulberry(0x5A1A5A);
     var i;
     bgStars = [];
-    for (i = 0; i < 90; i++) {
+    for (i = 0; i < 160; i++) {
       bgStars.push({
         x: rng() * R.W, y: rng() * R.H,
-        r: 0.6 + rng() * 1.6, a: 0.25 + rng() * 0.55, p: rng() * Math.PI * 2
+        r: 0.5 + rng() * 1.8, a: 0.22 + rng() * 0.6, p: rng() * Math.PI * 2,
+        z: rng() < 0.35 ? 0.45 : 1
       });
     }
     twinkles = [];
-    for (i = 0; i < 18; i++) {
+    for (i = 0; i < 28; i++) {
       twinkles.push({ x: rng() * R.W, y: rng() * R.H, p: rng() * 1000 });
     }
   }
@@ -91,9 +94,18 @@
     addEventListener('keydown', function (e) {
       keys[e.code] = true;
       if (e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault();
+      if (!playing && (e.code === 'Enter' || e.code === 'Space')) startPlay();
     });
     addEventListener('keyup', function (e) { keys[e.code] = false; });
     canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    canvas.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'touch') return;
+      var r = canvas.getBoundingClientRect();
+      pointer.has = true;
+      pointer.x = e.clientX - r.left;
+      pointer.y = e.clientY - r.top;
+    });
+    canvas.addEventListener('pointerleave', function () { pointer.has = false; });
     addEventListener('touchstart', revealTouch, { passive: true });
     bindTouch();
   }
@@ -104,48 +116,71 @@
     document.body.classList.add('touch');
     var wrap = $('touch');
     if (wrap) wrap.hidden = false;
+    var hint = $('hint');
+    if (hint) hint.innerHTML = 'the <b>stick</b> flies you · send the <b>Invite</b> — a friend lands in this sky';
     removeEventListener('touchstart', revealTouch);
   }
 
   function capture(node, id) { try { node.setPointerCapture(id); } catch (e) {} }
 
   function bindTouch() {
+    var wrap = $('touch');
     var moveEl = $('t-move');
     var knob = moveEl && moveEl.querySelector('.t-knob');
-    function stick(e, pad) {
-      var r = pad.getBoundingClientRect();
-      var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-      var dx = e.clientX - cx, dy = e.clientY - cy;
-      var max = r.width * 0.42, m = Math.hypot(dx, dy) || 1;
+    if (!wrap || !moveEl) return;
+
+    function fromOrigin(e) {
+      var dx = e.clientX - stickOrigin.x, dy = e.clientY - stickOrigin.y;
+      var max = moveEl.getBoundingClientRect().width * 0.42;
+      var m = Math.hypot(dx, dy) || 1;
       var k = Math.min(1, m / max);
       return { x: (dx / m) * k, y: (dy / m) * k };
     }
-    if (!moveEl) return;
-    moveEl.addEventListener('pointerdown', function (e) {
+    function floatPad(cx, cy) {
+      var size = moveEl.offsetWidth || 138;
+      var half = size / 2;
+      var x = Math.max(8, Math.min((root.innerWidth || 375) - size - 8, cx - half));
+      var y = Math.max(8, Math.min((root.innerHeight || 667) - size - 8, cy - half));
+      moveEl.style.left = x + 'px';
+      moveEl.style.top = y + 'px';
+      moveEl.style.bottom = 'auto';
+      moveEl.style.right = 'auto';
+      stickOrigin.x = x + half;
+      stickOrigin.y = y + half;
+    }
+    function parkPad() {
+      moveEl.style.left = '';
+      moveEl.style.top = '';
+      moveEl.style.bottom = '';
+      moveEl.style.right = '';
+      if (knob) knob.style.transform = '';
+    }
+
+    wrap.addEventListener('pointerdown', function (e) {
       unlockAudio();
       if (e.pointerType === 'mouse') return;
       if (touchMove.id !== null) return;
       touchMove.id = e.pointerId;
-      capture(moveEl, e.pointerId);
-      var s = stick(e, moveEl);
-      touchMove.x = s.x; touchMove.y = s.y;
-      if (knob) knob.style.transform = 'translate(' + (s.x * 36) + 'px,' + (s.y * 36) + 'px)';
+      capture(wrap, e.pointerId);
+      floatPad(e.clientX, e.clientY);
+      touchMove.x = 0; touchMove.y = 0;
+      if (knob) knob.style.transform = '';
       e.preventDefault();
     });
-    moveEl.addEventListener('pointermove', function (e) {
+    wrap.addEventListener('pointermove', function (e) {
       if (e.pointerId !== touchMove.id) return;
-      var s = stick(e, moveEl);
+      var s = fromOrigin(e);
       touchMove.x = s.x; touchMove.y = s.y;
-      if (knob) knob.style.transform = 'translate(' + (s.x * 36) + 'px,' + (s.y * 36) + 'px)';
+      if (knob) knob.style.transform = 'translate(' + (s.x * 38) + 'px,' + (s.y * 38) + 'px)';
       e.preventDefault();
     });
     var endMove = function (e) {
       if (e.pointerId !== touchMove.id) return;
       touchMove.id = null; touchMove.x = 0; touchMove.y = 0;
-      if (knob) knob.style.transform = '';
+      parkPad();
     };
-    moveEl.addEventListener('pointerup', endMove);
-    moveEl.addEventListener('pointercancel', endMove);
+    wrap.addEventListener('pointerup', endMove);
+    wrap.addEventListener('pointercancel', endMove);
   }
 
   function moveVector() {
@@ -156,6 +191,19 @@
     if (keys.KeyS || keys.ArrowDown) y += 1;
     if (touchOn && (touchMove.id !== null || touchMove.x || touchMove.y)) {
       x += touchMove.x; y += touchMove.y;
+    } else if (!x && !y && pointer.has && me && !touchOn && canvas) {
+      var dpr = root.devicePixelRatio || 1;
+      var w = canvas.width / dpr, h = canvas.height / dpr;
+      var zoom = camZoom(w, h);
+      var wx = cam.x + (pointer.x - w / 2) / zoom;
+      var wy = cam.y + (pointer.y - h / 2) / zoom;
+      var dx = wx - me.x, dy = wy - me.y;
+      var dist = Math.hypot(dx, dy);
+      if (dist > 14) {
+        var k = Math.min(1, (dist - 14) / 110);
+        x = (dx / dist) * k;
+        y = (dy / dist) * k;
+      }
     }
     var m = Math.hypot(x, y);
     if (m > 1) { x /= m; y /= m; }
@@ -196,28 +244,31 @@
     var gain = (pts || 1) + bonus;
     me.score += gain;
     if (root.Net) root.Net.setScore(me.score);
-    puff(x, y, 0.12, 14 + Math.min(10, gain * 2), 110);
-    pop(x, y - 18, '+' + gain + (combo >= 3 ? '  combo' : ''));
-    flash = 0.18;
+    puff(x, y, 0.12, 22 + Math.min(16, gain * 3), 140);
+    pop(x, y - 22, '+' + gain + (combo >= 3 ? '  combo' : ''));
+    flash = 0.22;
     beep(520 + Math.min(400, gain * 80), 0.09, 0.05, 'sine');
     if (combo >= 3) beep(880, 0.07, 0.03, 'triangle');
   }
 
   function collectLocal() {
     if (!me || !sky || sky.phase !== 'run') return;
-    var i, s, hid;
+    var t = now();
+    var origin = sky.startedAt || 0;
+    var i, s, hid, p;
     for (i = 0; i < sky.stars.length; i++) {
       s = sky.stars[i];
       if (s.by || pendingHide[s.id] || counted[s.id]) continue;
-      if (!R.hitsStar(me, s)) continue;
-      pendingHide[s.id] = now();
+      if (!R.hitsStar(me, s, t, origin)) continue;
+      p = R.starPos(s, t, origin);
+      pendingHide[s.id] = t;
       if (root.Net && root.Net.live()) {
         root.Net.claimStar(s.id);
       } else {
-        var res = R.tryCollect(sky, me);
+        var res = R.tryCollect(sky, me, t);
         if (res.collected) {
           me.score -= res.points;
-          award(res.points, res.starId, s.x, s.y);
+          award(res.points, res.starId, p.x, p.y);
           R.pruneTaken(sky);
           R.refillStars(sky, true);
         }
@@ -270,7 +321,15 @@
   }
 
   function camZoom(w, h) {
-    return Math.min(w / 640, h / 480, 1.35);
+    var z = Math.min(w / 520, h / 400, 1.4);
+    z = Math.max(z, w / R.W, h / R.H);
+    return z;
+  }
+
+  function clampCam(w, h, zoom) {
+    var hw = (w / zoom) / 2, hh = (h / zoom) / 2;
+    cam.x = hw * 2 >= R.W ? R.W / 2 : Math.max(hw, Math.min(R.W - hw, cam.x));
+    cam.y = hh * 2 >= R.H ? R.H / 2 : Math.max(hh, Math.min(R.H - hh, cam.y));
   }
 
   function drawStarShape(ctx, r, points) {
@@ -285,81 +344,139 @@
     ctx.closePath();
   }
 
-  function drawCollectible(s, t) {
+  function drawCollectible(s, t, origin) {
     if (s.by || pendingHide[s.id]) return;
-    var pulse = 1 + Math.sin(t * 0.005 + s.id) * 0.1;
-    var r = R.STAR_R * pulse;
-    var col = s.k === R.KIND_COMET ? '#7ee0ff' : s.k === R.KIND_GOLD ? '#ffd24a' : '#ffe08a';
-    var glow = s.k === R.KIND_COMET ? 'rgba(90, 210, 255, .28)' : 'rgba(255, 200, 80, .22)';
+    var p = R.starPos(s, t, origin);
+    var pulse = 1 + Math.sin(t * 0.0045 + s.id) * (s.k === R.KIND_GOLD ? 0.16 : 0.1);
+    var r = R.STAR_R * pulse * (s.k === R.KIND_GOLD ? 1.18 : s.k === R.KIND_COMET ? 1.08 : 1);
+    var col = s.k === R.KIND_COMET ? '#7ee0ff' : s.k === R.KIND_GOLD ? '#ffd24a' : '#ffe9a8';
+    var glow = s.k === R.KIND_COMET ? 'rgba(90, 210, 255, .42)' : s.k === R.KIND_GOLD ? 'rgba(255, 190, 50, .4)' : 'rgba(255, 210, 90, .3)';
     ctx.save();
-    ctx.translate(s.x, s.y);
-    ctx.rotate(t * 0.0007 * (s.k === R.KIND_COMET ? 2.2 : 1));
-    var g = ctx.createRadialGradient(0, 0, 1, 0, 0, r * 2.6);
+    ctx.translate(p.x, p.y);
+    if (s.k === R.KIND_COMET) {
+      var ang = Math.atan2(Math.cos(t * 0.00048 + s.id), -Math.sin(t * 0.00062 + s.id * 1.618));
+      ctx.rotate(ang);
+      ctx.fillStyle = 'rgba(90, 210, 255, .18)';
+      ctx.beginPath();
+      ctx.moveTo(-r * 3.4, 0); ctx.lineTo(-r * 0.2, -r * 0.55); ctx.lineTo(-r * 0.2, r * 0.55);
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.rotate(t * 0.0007 * (s.k === R.KIND_GOLD ? 1.4 : 1));
+    }
+    var g = ctx.createRadialGradient(0, 0, 1, 0, 0, r * 3.1);
     g.addColorStop(0, glow);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, r * 2.6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, r * 3.1, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = col;
     drawStarShape(ctx, r, s.k === R.KIND_COMET ? 4 : 5);
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.85)';
-    ctx.beginPath(); ctx.arc(-r * 0.22, -r * 0.22, r * 0.18, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.beginPath(); ctx.arc(-r * 0.22, -r * 0.22, r * 0.22, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
-  function drawRocket(r, hue, isMe, th) {
+  function drawRocket(r, hue, isMe, th, score) {
     ctx.save();
     ctx.translate(r.x, r.y);
     ctx.rotate(r.angle);
-    ctx.fillStyle = 'rgba(0,0,0,.28)';
+    ctx.fillStyle = 'rgba(0,0,0,.32)';
     ctx.beginPath();
-    ctx.ellipse(2, 8, 14, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(3, 10, 16, 8, 0, 0, Math.PI * 2);
     ctx.fill();
     if (th) {
-      var flick = 10 + Math.random() * 10;
-      ctx.fillStyle = 'rgba(255, 170, 60, .9)';
+      var flick = 14 + Math.random() * 12;
+      ctx.fillStyle = 'rgba(255, 160, 50, .95)';
       ctx.beginPath();
-      ctx.moveTo(-12, -5); ctx.lineTo(-12 - flick, 0); ctx.lineTo(-12, 5);
+      ctx.moveTo(-14, -6); ctx.lineTo(-14 - flick, 0); ctx.lineTo(-14, 6);
       ctx.closePath(); ctx.fill();
       ctx.fillStyle = 'rgba(255, 240, 180, .95)';
       ctx.beginPath();
-      ctx.moveTo(-12, -2.5); ctx.lineTo(-12 - flick * 0.6, 0); ctx.lineTo(-12, 2.5);
+      ctx.moveTo(-14, -3); ctx.lineTo(-14 - flick * 0.62, 0); ctx.lineTo(-14, 3);
       ctx.closePath(); ctx.fill();
     }
-    var body = hsv(hue, isMe ? 0.55 : 0.62, isMe ? 0.98 : 0.9);
-    var rim = hsv(hue, 0.7, 0.42);
+    var body = hsv(hue, isMe ? 0.55 : 0.7, isMe ? 0.98 : 0.92);
+    var rim = hsv(hue, 0.75, 0.4);
     ctx.fillStyle = rim;
     ctx.beginPath();
-    ctx.moveTo(-10, -11); ctx.lineTo(-4, -4); ctx.lineTo(-10, -2); ctx.closePath(); ctx.fill();
+    ctx.moveTo(-12, -13); ctx.lineTo(-4, -5); ctx.lineTo(-12, -2); ctx.closePath(); ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(-10, 11); ctx.lineTo(-4, 4); ctx.lineTo(-10, 2); ctx.closePath(); ctx.fill();
-    var grd = ctx.createLinearGradient(-12, 0, 18, 0);
+    ctx.moveTo(-12, 13); ctx.lineTo(-4, 5); ctx.lineTo(-12, 2); ctx.closePath(); ctx.fill();
+    var grd = ctx.createLinearGradient(-14, 0, 22, 0);
     grd.addColorStop(0, rim);
     grd.addColorStop(0.45, body);
     grd.addColorStop(1, '#fff6e8');
     ctx.fillStyle = grd;
     ctx.beginPath();
-    ctx.moveTo(18, 0);
-    ctx.lineTo(-12, 9);
-    ctx.lineTo(-8, 0);
-    ctx.lineTo(-12, -9);
+    ctx.moveTo(22, 0);
+    ctx.lineTo(-14, 11);
+    ctx.lineTo(-9, 0);
+    ctx.lineTo(-14, -11);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,.35)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = isMe ? 'rgba(255, 230, 180, .45)' : 'rgba(0,0,0,.4)';
+    ctx.lineWidth = isMe ? 1.6 : 1.3;
     ctx.stroke();
-    ctx.fillStyle = 'rgba(160, 230, 255, .9)';
-    ctx.beginPath(); ctx.ellipse(6, 0, 4.2, 3.1, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
-    ctx.beginPath(); ctx.ellipse(5, -1, 1.6, 1.1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(160, 230, 255, .92)';
+    ctx.beginPath(); ctx.ellipse(7, 0, 5, 3.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.beginPath(); ctx.ellipse(6, -1.2, 1.8, 1.2, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
 
-    ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+    var label = r.name || 'Rocket';
+    if (!isMe && score != null) label = label + '  ' + score;
+    ctx.font = isMe ? '700 13px ui-sans-serif, system-ui, sans-serif' : '600 13px ui-sans-serif, system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(8,8,16,.65)';
-    ctx.fillText(r.name || 'Rocket', r.x, r.y - 28);
-    ctx.fillStyle = isMe ? '#ffe7c2' : '#f0e6d4';
-    ctx.fillText(r.name || 'Rocket', r.x, r.y - 29);
+    ctx.fillStyle = 'rgba(8,8,16,.7)';
+    ctx.fillText(label, r.x, r.y - 34);
+    ctx.fillStyle = isMe ? '#ffe7c2' : hsv(hue, 0.35, 1);
+    ctx.fillText(label, r.x, r.y - 35);
+  }
+
+  function drawNebula() {
+    var blobs = [
+      [280, 220, 260, 'rgba(70, 40, 140, .22)'],
+      [860, 480, 300, 'rgba(40, 60, 140, .18)'],
+      [640, 160, 220, 'rgba(120, 50, 80, .12)'],
+      [180, 620, 240, 'rgba(30, 80, 120, .14)']
+    ];
+    var i, b, g;
+    for (i = 0; i < blobs.length; i++) {
+      b = blobs[i];
+      g = ctx.createRadialGradient(b[0], b[1], 10, b[0], b[1], b[2]);
+      g.addColorStop(0, b[3]);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(b[0], b[1], b[2], 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function drawPips(w, h, zoom, t, origin) {
+    if (!playing || !sky || !me || !sky.stars) return;
+    var vw = (w / zoom) * 0.42, vh = (h / zoom) * 0.42;
+    var nearest = null, nd = 1e9, i, s, p, dx, dy, d;
+    for (i = 0; i < sky.stars.length; i++) {
+      s = sky.stars[i];
+      if (s.by || pendingHide[s.id]) continue;
+      p = R.starPos(s, t, origin);
+      dx = p.x - cam.x; dy = p.y - cam.y;
+      if (Math.abs(dx) < vw && Math.abs(dy) < vh) continue;
+      d = dx * dx + dy * dy;
+      if (d < nd) { nd = d; nearest = p; }
+    }
+    if (!nearest) return;
+    dx = nearest.x - cam.x; dy = nearest.y - cam.y;
+    d = Math.hypot(dx, dy) || 1;
+    var m = Math.min(w, h) * 0.42;
+    var px = w / 2 + (dx / d) * m, py = h / 2 + (dy / d) * m;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(Math.atan2(dy, dx));
+    ctx.fillStyle = 'rgba(255, 210, 90, .85)';
+    ctx.beginPath();
+    ctx.moveTo(10, 0); ctx.lineTo(-6, 7); ctx.lineTo(-6, -7); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   function draw() {
@@ -368,12 +485,10 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var t = now();
     var zoom = camZoom(w, h);
+    clampCam(w, h, zoom);
+    var origin = sky && sky.startedAt || 0;
 
-    var g = ctx.createRadialGradient(w * 0.5, h * 0.42, 20, w * 0.5, h * 0.5, Math.max(w, h) * 0.75);
-    g.addColorStop(0, '#14102c');
-    g.addColorStop(0.55, '#08081a');
-    g.addColorStop(1, '#04040c');
-    ctx.fillStyle = g;
+    ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, w, h);
 
     ctx.save();
@@ -381,22 +496,29 @@
     ctx.scale(zoom, zoom);
     ctx.translate(-cam.x, -cam.y);
 
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, R.W, R.H); ctx.clip();
+
+    var g = ctx.createRadialGradient(R.W * 0.5, R.H * 0.42, 40, R.W * 0.5, R.H * 0.5, R.W * 0.7);
+    g.addColorStop(0, '#18122e');
+    g.addColorStop(0.55, '#0a0a1c');
+    g.addColorStop(1, '#050510');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, R.W, R.H);
+    drawNebula();
+
     var i;
     for (i = 0; i < bgStars.length; i++) {
       var b = bgStars[i];
       var tw = 0.55 + 0.45 * Math.sin(t * 0.002 + b.p);
       ctx.globalAlpha = b.a * tw;
       ctx.fillStyle = '#f4efe6';
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (b.z || 1), 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    ctx.strokeStyle = 'rgba(255, 210, 150, .12)';
-    ctx.lineWidth = 2 / zoom;
-    ctx.strokeRect(0, 0, R.W, R.H);
-
     if (sky && sky.stars) {
-      for (i = 0; i < sky.stars.length; i++) drawCollectible(sky.stars[i], t);
+      for (i = 0; i < sky.stars.length; i++) drawCollectible(sky.stars[i], t, origin);
     }
 
     if (root.Net) {
@@ -405,7 +527,10 @@
       for (id in others) {
         var o = others[id];
         var pose = root.Net.poseOf(o);
-        drawRocket({ x: pose.x, y: pose.y, angle: pose.angle, name: o.name }, o.hue, false, o.thrusting);
+        if (o.thrusting) {
+          puff(pose.x - Math.cos(pose.angle) * 16, pose.y - Math.sin(pose.angle) * 16, o.hue, 1, 36);
+        }
+        drawRocket({ x: pose.x, y: pose.y, angle: pose.angle, name: o.name }, o.hue, false, o.thrusting, o.score);
       }
     }
 
@@ -419,7 +544,7 @@
     }
     ctx.globalAlpha = 1;
 
-    ctx.font = '700 16px ui-sans-serif, system-ui, sans-serif';
+    ctx.font = '800 18px ui-sans-serif, system-ui, sans-serif';
     ctx.textAlign = 'center';
     for (i = 0; i < pops.length; i++) {
       var q = pops[i];
@@ -431,13 +556,28 @@
 
     ctx.restore();
 
+    var eg = ctx.createLinearGradient(0, 0, 0, 18);
+    eg.addColorStop(0, 'rgba(255, 190, 80, .22)');
+    eg.addColorStop(1, 'rgba(255, 190, 80, 0)');
+    ctx.fillStyle = eg;
+    ctx.fillRect(0, 0, R.W, 18);
+    eg = ctx.createLinearGradient(0, R.H, 0, R.H - 18);
+    eg.addColorStop(0, 'rgba(255, 190, 80, .22)');
+    eg.addColorStop(1, 'rgba(255, 190, 80, 0)');
+    ctx.fillStyle = eg;
+    ctx.fillRect(0, R.H - 18, R.W, 18);
+
+    ctx.restore();
+
+    drawPips(w, h, zoom, t, origin);
+
     if (flash > 0) {
-      ctx.fillStyle = 'rgba(255, 210, 120,' + (flash * 0.35) + ')';
+      ctx.fillStyle = 'rgba(255, 210, 120,' + (flash * 0.32) + ')';
       ctx.fillRect(0, 0, w, h);
     }
 
     if (thrusting && me) {
-      puff(me.x - Math.cos(me.angle) * 14, me.y - Math.sin(me.angle) * 14, 0.08, 1, 40);
+      puff(me.x - Math.cos(me.angle) * 16, me.y - Math.sin(me.angle) * 16, 0.08, 1, 48);
     }
   }
 
@@ -483,7 +623,13 @@
     var left = sky ? Math.max(0, (sky.endsAt || 0) - now()) : R.ROUND_MS;
     if (sky && sky.phase === 'over') left = 0;
     $('clock').textContent = fmtClock(left);
-    $('best').textContent = best ? ('best ' + best) : '';
+    var bestEl = $('best');
+    if (bestEl) {
+      var bits = [];
+      if (combo >= 2) bits.push('combo ×' + combo);
+      if (best) bits.push('best ' + best);
+      bestEl.textContent = bits.join(' · ');
+    }
   }
 
   function showOver() {
@@ -567,8 +713,12 @@
       }
     }
 
+    var dpr = root.devicePixelRatio || 1;
+    var vw = canvas.width / dpr, vh = canvas.height / dpr;
+    var z = camZoom(vw, vh);
     cam.x += (me.x - cam.x) * Math.min(1, dt * 6);
     cam.y += (me.y - cam.y) * Math.min(1, dt * 6);
+    clampCam(vw, vh, z);
 
     for (i = particles.length - 1; i >= 0; i--) {
       var p = particles[i];
@@ -686,7 +836,8 @@
         });
         root.Net.onAward(function (pts, starId) {
           var st = findStar(starId);
-          award(pts, starId, st ? st.x : me.x, st ? st.y : me.y);
+          var p = st ? R.starPos(st, now(), sky && sky.startedAt || 0) : null;
+          award(pts, starId, p ? p.x : me.x, p ? p.y : me.y);
         });
         root.Net.onBump(function (b) {
           if (!me) return;
@@ -710,7 +861,12 @@
         sky = R.freshSky((Math.random() * 0xffffffff) >>> 0, now());
       }
 
-      loadBest().then(function (b) { best = b | 0; paintHud(); });
+      loadBest().then(function (b) {
+        best = b | 0;
+        paintHud();
+        var gb = $('gateBest');
+        if (gb && best) gb.textContent = 'Best  ' + best;
+      });
 
       if (root.gifos && gifos.onBack) {
         gifos.onBack(function () {
@@ -724,9 +880,14 @@
       requestAnimationFrame(frame);
     }
 
-    $('play').addEventListener('click', function () {
-      startPlay();
-    });
+    $('play').addEventListener('click', function () { startPlay(); });
+    var gate = $('gate');
+    if (gate) {
+      gate.addEventListener('pointerup', function (e) {
+        if (e.pointerType === 'mouse' && e.target.id !== 'play' && !e.target.closest('#play')) return;
+        startPlay();
+      });
+    }
 
     if (root.Net && root.Net.init) {
       root.Net.init().then(go, function () { go(); });

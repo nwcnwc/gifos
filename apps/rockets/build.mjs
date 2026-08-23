@@ -176,6 +176,10 @@ if (!files['COPYING-rocket-universe.txt'].includes('Laurent Thiebault')) {
     '  if (sky.stars.length !== before) throw new Error("spawnStar is host-only");\n' +
     '  R.spawnStar(sky, { host: true });\n' +
     '  if (sky.stars.length !== before + 1) throw new Error("host spawnStar should add a star");\n' +
+    '  var fly = R.spawnRocket("fly", 200, 200);\n' +
+    '  R.integrate(fly, { x: 1, y: 0 }, 0.2);\n' +
+    '  if (fly.x <= 200) throw new Error("stick right should move the rocket");\n' +
+    '  if (Math.abs(fly.angle) > 0.2) throw new Error("stick right should face right");\n' +
     '  return a.score;\n' +
     '})();',
     ctx

@@ -28,7 +28,7 @@ vendor/         MIT notice (also packed inside the GIF)
 Upstream needs Node, Express, socket.io, jQuery, and two Google-font / FA
 CDNs, and it plays as a 550×550 box with a single star. Matching that is
 losing. Here: a field of stars, a minute on the clock, a high score inside
-the icon, analog thrust (stick / WASD / arrows), combos, gold and comet
+the icon, a thumb-anywhere stick (or WASD / mouse), combos, gold and comet
 stars, and a friend in the same sky from the OS invite. The original's
 rule — a rocket overlapping a star collects it, score goes up, the star
 is gone — is what `sim.js` keeps, and what the build's vm tests pin.

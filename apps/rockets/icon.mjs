@@ -92,10 +92,10 @@ function frameIndices(pal, f) {
   const catchT = 0.72;
   const caught = t > catchT;
   const fly = Math.min(1, t / catchT);
-  const rx = 34 + fly * 40;
-  const ry = 82 - fly * 30;
-  const ang = -0.72 + fly * 0.28;
-  const sx = 86, sy = 46;
+  const rx = 32 + fly * 50;
+  const ry = 88 - fly * 42;
+  const ang = -0.78 + fly * 0.38;
+  const sx = 88, sy = 44;
   const burst = caught ? (t - catchT) / (1 - catchT) : 0;
   const sparkle = [
     [28, 32], [48, 24], [100, 36], [108, 88], [30, 100], [70, 108], [92, 70], [54, 54]
@@ -111,17 +111,17 @@ function frameIndices(pal, f) {
         const dx = x - sparkle[i][0], dy = y - sparkle[i][1];
         if (dx * dx + dy * dy < 1.7 * 1.7) col = mix(col, WHITE, 0.45 + 0.2 * Math.sin(t * Math.PI * 2 + i));
       }
-      if (!caught && inStar(x, y, sx, sy, 11)) {
-        const d = Math.hypot(x - sx, y - sy) / 11;
+      if ((!caught || burst < 0.45) && inStar(x, y, sx, sy, 14 * (caught ? 1 - burst * 0.7 : 1))) {
+        const d = Math.hypot(x - sx, y - sy) / 14;
         col = d < 0.35 ? WHITE : mix(GOLD, GOLD_D, d);
       }
-      if (caught && burst < 0.85) {
+      if (caught && burst < 0.9) {
         const d = Math.hypot(x - sx, y - sy);
-        const ring = Math.abs(d - burst * 22);
-        if (ring < 2.2) col = mix(GOLD, WHITE, 0.6);
-        else if (d < 6 * (1 - burst)) col = mix(GOLD, WHITE, 1 - burst);
+        const ring = Math.abs(d - burst * 26);
+        if (ring < 2.8) col = mix(GOLD, WHITE, 0.7);
+        else if (d < 8 * (1 - burst)) col = mix(GOLD, WHITE, 1 - burst);
       }
-      const part = rocketAt(x, y, rx, ry, ang, 1.05);
+      const part = rocketAt(x, y, rx, ry, ang, 1.18);
       if (part === 'flame' && !caught) col = mix(FLAME, GOLD, (Math.sin(t * 40) * 0.5 + 0.5));
       if (part === 'fin') col = ORANGE_D;
       if (part === 'body') {
@@ -193,6 +193,7 @@ const GLYPHS = {
   '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
   '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
   '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
   '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
   '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
   ':': [0, 0b00100, 0b00100, 0, 0b00100, 0b00100, 0],
@@ -289,23 +290,25 @@ export function screenshotPng() {
   }
 
   const stars = [
-    [180, 140, 16, GOLD], [320, 220, 12, GOLD], [480, 110, 18, GOLD],
-    [640, 260, 14, GOLD], [820, 160, 20, GOLD], [980, 240, 13, GOLD],
-    [240, 420, 15, GOLD], [430, 500, 11, GOLD], [710, 480, 17, GOLD],
-    [900, 400, 14, GOLD], [1080, 520, 16, GOLD], [150, 600, 12, GOLD],
-    [560, 600, 13, CYAN], [1000, 120, 11, CYAN], [760, 320, 15, GOLD],
+    [180, 140, 20, GOLD], [320, 220, 15, GOLD], [480, 110, 22, GOLD],
+    [640, 260, 17, GOLD], [820, 160, 24, GOLD], [980, 240, 16, GOLD],
+    [240, 420, 18, GOLD], [430, 500, 14, GOLD], [710, 480, 20, GOLD],
+    [900, 400, 17, GOLD], [1080, 520, 19, GOLD], [150, 600, 15, GOLD],
+    [560, 600, 16, CYAN], [1000, 120, 14, CYAN], [760, 320, 18, GOLD],
+    [390, 280, 13, GOLD], [520, 380, 15, GOLD], [110, 300, 12, GOLD],
+    [1050, 360, 13, CYAN], [670, 140, 12, GOLD], [300, 640, 14, GOLD],
   ];
   for (const s of stars) putStar(put, s[0], s[1], s[2], s[3], mix(s[3], [0, 0, 0], 0.4));
 
-  putRocket(put, 390, 340, -0.55, 2.4, ORANGE, ORANGE_D);
-  putRocket(put, 860, 280, 0.4, 1.8, TEAL, mix(TEAL, [0, 0, 0], 0.35));
+  putRocket(put, 400, 330, -0.5, 2.8, ORANGE, ORANGE_D);
+  putRocket(put, 840, 270, 0.35, 2.1, TEAL, mix(TEAL, [0, 0, 0], 0.35));
 
   // score HUD, top-left — a mid-sky with a score, never empty
   for (let y = 36; y < 132; y++) for (let x = 36; x < 250; x++) {
     put(x, y, 8, 10, 22);
   }
   drawText(put, 52, 50, 'SCORE', 3, 255, 210, 150);
-  drawText(put, 52, 78, '18', 6, 255, 231, 194);
+  drawText(put, 52, 78, '27', 6, 255, 231, 194);
   for (let y = 36; y < 132; y++) for (let x = 270; x < 470; x++) {
     put(x, y, 8, 10, 22);
   }
