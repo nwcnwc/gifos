@@ -1,0 +1,12 @@
+{
+  "gifos": "1.0",
+  "appId": "bip39",
+  "name": "BIP39",
+  "shortName": "BIP39",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Recovery words never leave this device.",
+  "entry": "index.html",
+  "accent": [196, 148, 48],
+  "capabilities": {}
+}
