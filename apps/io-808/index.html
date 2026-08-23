@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>iO-808</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="top">
+      <div id="brand">
+        <span class="io">iO</span><span class="dash">-</span><span class="eight">808</span>
+        <span class="sub">Rhythm Composer</span>
+      </div>
+      <button type="button" class="accent" id="shareBtn">Share a pattern</button>
+    </header>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send the link. They get this pattern.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-roster"></ul>
+      <div class="friend-actions">
+        <button type="button" class="ghost" id="leaveBtn">← Keep it here</button>
+      </div>
+    </div>
+
+    <div id="panel">
+      <div id="instruments" class="instruments"></div>
+
+      <div id="transport">
+        <button type="button" id="start" class="start">Start</button>
+        <button type="button" id="clear">Clear</button>
+        <div class="group">
+          <span class="lab">A / B</span>
+          <button type="button" id="var-a" class="on">A</button>
+          <button type="button" id="var-ab">AB</button>
+          <button type="button" id="var-b">B</button>
+        </div>
+        <div class="group">
+          <span class="lab">Part</span>
+          <button type="button" id="part-1" class="on">1st</button>
+          <button type="button" id="part-2">2nd</button>
+        </div>
+        <label class="knob">Tempo <b id="tempo-val">135</b>
+          <input id="tempo" type="range" min="40" max="300" value="135">
+        </label>
+        <label class="knob">Fine
+          <input id="fine" type="range" min="-10" max="10" value="0">
+        </label>
+        <label class="knob">Volume
+          <input id="vol" type="range" min="0" max="100" value="70">
+        </label>
+      </div>
+
+      <div class="row-lab">Pattern</div>
+      <div id="pats" class="pats"></div>
+      <div class="row-lab">Steps</div>
+      <div id="steps" class="steps"></div>
+    </div>
+
+    <p class="foot">Unofficial port of io-808 by Vincent Riemer. Playing alone, the beat stays on this device. Share a pattern, then Invite, and a friend gets the same one.</p>
+  </div>
+
+  <script src="synth.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>

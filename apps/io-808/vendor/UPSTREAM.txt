@@ -1,0 +1,13 @@
+Faithful classic-script rewrite of vincentriemer/io-808
+(https://github.com/vincentriemer/io-808), MIT, Vincent Riemer 2016.
+
+Pinned to e744408089a4a75dfd1a336937ffb930ec9c5e7d (master at port time).
+The original is React + Redux + StyleX + webpack; that stack is not shipped.
+Drum-module graphs, envelopes, oscillator banks and the 808 step model
+(16 patterns × 12 instruments × two parts × A/B) are copied from
+src/synth/ and src/store-constants.js / src/initialState.js / src/helpers.js.
+
+Audio is synthesised here, same as upstream — no samples, no CDN.
+WAAClock is replaced by a small AudioContext lookahead timer (same
+callbackAtTime / repeat / timeStretch job). Persistence is gifos.db,
+not redux-persist / localStorage.
