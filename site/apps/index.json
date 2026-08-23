@@ -1707,6 +1707,46 @@
       "sha256": "932e5a7bc6f6e0275138834189b30d21796f6b1a0e3e10ab0d853e9539c70f73"
     },
     {
+      "slug": "hex-chess",
+      "appId": "hex-chess",
+      "name": "Hex Chess",
+      "shortName": "HexChess",
+      "version": "1.0",
+      "tagline": "Chess on a hexagonal board. The computer thinks here, or a friend from one link.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "chess",
+        "hex",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        201,
+        162,
+        39
+      ],
+      "cover": "/apps/hex-chess/cover.jpg",
+      "bytes": 198443,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "64b1bc2bcb3da1709e3ceaaca45d979d789a95b2b3a124fc1a3eb0830f6bc72d"
+    },
+    {
       "slug": "invaderz",
       "appId": "invaderz",
       "name": "InvaderZ",
@@ -1952,6 +1992,96 @@
       "sha256": "28d541967e42bea21330e1641abb20cb0af9ec9d3d5a63591885950fe16273e7"
     },
     {
+      "slug": "jungle",
+      "appId": "jungle",
+      "name": "Jungle",
+      "shortName": "Jungle",
+      "version": "1.0",
+      "tagline": "The computer thinks on this device, or a friend joins from one link — no game server.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "jungle",
+        "board",
+        "animals",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        46,
+        140,
+        70
+      ],
+      "cover": "/apps/jungle/cover.jpg",
+      "bytes": 195883,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "25c5b867b84b4d576484ecda744fbc9b5e140690d4b0d0daf250db71163abfda"
+    },
+    {
+      "slug": "kana-quiz",
+      "appId": "kana-quiz",
+      "name": "Kana Quiz",
+      "shortName": "Kana",
+      "version": "1.0.0",
+      "tagline": "Hiragana and katakana on this device — no account, race a friend from one link.",
+      "author": {
+        "name": "anzzstuff",
+        "url": "https://github.com/anzzstuff/kanaquiz"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Kana Quiz",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "japanese",
+        "kana",
+        "hiragana",
+        "katakana",
+        "quiz",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        232,
+        72,
+        88
+      ],
+      "cover": "/apps/kana-quiz/cover.jpg",
+      "bytes": 197463,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "3d26bac6157eca4616b38172ae69c0b2260378468946250b8ccb4634e9438c21"
+    },
+    {
       "slug": "keeweb",
       "appId": "keeweb",
       "name": "KeeWeb",
@@ -2096,6 +2226,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "a6136b504be11c781c4828548ece5b3321d7a16f4e8c2e7bedc8ba2691d28a65"
+    },
+    {
+      "slug": "math-race",
+      "appId": "math-race",
+      "name": "Math Race",
+      "shortName": "Math Race",
+      "version": "1.0.0",
+      "tagline": "Same equation, a clock, first correct scores. Invite is the room — no game server.",
+      "author": {
+        "name": "iloire",
+        "url": "https://github.com/iloire/math-race"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "math-race",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games",
+        "Learning"
+      ],
+      "tags": [
+        "math",
+        "race",
+        "multiplayer",
+        "offline",
+        "quiz"
+      ],
+      "accent": [
+        125,
+        255,
+        154
+      ],
+      "cover": "/apps/math-race/cover.jpg",
+      "bytes": 194174,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "c89309299d8e3e86a570f77a65a42e2d16862f596788d3e948911c5b334f0123"
     },
     {
       "slug": "mykonos",
@@ -2529,6 +2708,47 @@
       "sha256": "86685f6fd31c0c0d6220eae8dd0310525f57a9ffeacd8f91e612705ed15bde70"
     },
     {
+      "slug": "one-stroke",
+      "appId": "one-stroke",
+      "name": "One Stroke",
+      "shortName": "OneStroke",
+      "version": "1.0",
+      "tagline": "One stroke each. The picture only exists because you opened the same file.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games",
+        "Creativity"
+      ],
+      "tags": [
+        "drawing",
+        "party",
+        "multiplayer",
+        "doodle",
+        "offline"
+      ],
+      "accent": [
+        244,
+        201,
+        93
+      ],
+      "cover": "/apps/one-stroke/cover.jpg",
+      "bytes": 194126,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "23a2b219757ecec486e777a6defd52daab17e5d35aa01de498a2f4f92055a5fc"
+    },
+    {
       "slug": "paint-board",
       "appId": "paint-board",
       "name": "Paint Board",
@@ -2717,6 +2937,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "97fee48a2c70551014b702b2fa038af7fcb9df5e85b7c88d49670e3260c47045"
+    },
+    {
+      "slug": "periodic-table",
+      "appId": "periodic-table",
+      "name": "Periodic Table",
+      "shortName": "Table",
+      "version": "1.0",
+      "tagline": "All 118 on this phone. Quiz a friend from one link — no account.",
+      "author": {
+        "name": "calebephrem",
+        "url": "https://github.com/calebephrem/periodic-table"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Periodic Table",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "chemistry",
+        "periodic-table",
+        "quiz",
+        "science",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        232,
+        180,
+        60
+      ],
+      "cover": "/apps/periodic-table/cover.jpg",
+      "bytes": 167471,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "75f33177546699d3a4803ea6e764e909518d3612c8186b008198b08d868739d6"
     },
     {
       "slug": "pickr",
@@ -3016,6 +3285,51 @@
       "sha256": "16fa72ad3bfd0bf4759917d4b95e45f71580af053e6f14864612a97be0e741b0"
     },
     {
+      "slug": "quiz-buzzer",
+      "appId": "quiz-buzzer",
+      "name": "Quiz Buzzer",
+      "shortName": "Buzzer",
+      "version": "1.0",
+      "tagline": "One invite. Phones are buzzers. Fastest correct answer scores.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "inspiredBy": {
+        "name": "Kahoot!",
+        "by": "Kahoot!"
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games",
+        "Learning"
+      ],
+      "tags": [
+        "quiz",
+        "buzzer",
+        "party",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        232,
+        64,
+        72
+      ],
+      "cover": "/apps/quiz-buzzer/cover.jpg",
+      "bytes": 196179,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "9c3e88a46c688ba3aba7401ad31b5505b4b76e76071003f97fdae07385879487"
+    },
+    {
       "slug": "racer",
       "appId": "racer",
       "name": "Racer",
@@ -3262,6 +3576,53 @@
         "ts": "2026-08-23"
       },
       "sha256": "f5b017de78579a2e6406f4ace5bb6750039f7663ee7fc18e4188234be0b93d7c"
+    },
+    {
+      "slug": "rockets",
+      "appId": "rockets",
+      "name": "Rockets",
+      "shortName": "Rockets",
+      "version": "1.0",
+      "tagline": "Catch stars in a dark sky. One link puts a friend in it with you.",
+      "author": {
+        "name": "lauthieb",
+        "url": "https://github.com/lauthieb/rocket-universe"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Rocket Universe",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "arcade",
+        "rockets",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        255,
+        140,
+        64
+      ],
+      "cover": "/apps/rockets/cover.jpg",
+      "bytes": 200298,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "05d48c467c44bcad89b2e786fc4d329f38c8c7dc26b73a36edd13f209a655b31"
     },
     {
       "slug": "signature-pad",
@@ -3902,6 +4263,94 @@
       "sha256": "4a8c065ef7393d0ff14dbf7339fe03d06f9e42a8e2eea70c6d0dbb9defb30203"
     },
     {
+      "slug": "thinktank",
+      "appId": "thinktank",
+      "name": "Thinktank",
+      "shortName": "Thinktank",
+      "version": "1.0",
+      "tagline": "Two sides. No game server. Destroy the other base — against the computer, or a friend from one link.",
+      "author": {
+        "name": "averycrespi",
+        "url": "https://github.com/averycrespi"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Thinktank",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "abstract",
+        "strategy",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        226,
+        74,
+        74
+      ],
+      "cover": "/apps/thinktank/cover.jpg",
+      "bytes": 201387,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "65478a7f83900fac0cb1488345ab8ed5d6f263df9f2f0ffe2a7e14e261105254"
+    },
+    {
+      "slug": "thumb-sprint",
+      "appId": "thumb-sprint",
+      "name": "Thumb Sprint",
+      "shortName": "Sprint",
+      "version": "1.0.0",
+      "tagline": "Mash on your phone. A friend in the next lane from one link. No race server.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "race",
+        "party",
+        "multiplayer",
+        "touch",
+        "offline"
+      ],
+      "accent": [
+        255,
+        92,
+        74
+      ],
+      "cover": "/apps/thumb-sprint/cover.jpg",
+      "bytes": 222449,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "b779fafa5eee7c94964fd5af96d541916dcefd2203016760768ab29d83e4844b"
+    },
+    {
       "slug": "tic-tac-toe",
       "appId": "tic-tac-toe",
       "name": "Tic-Tac-Toe",
@@ -4093,6 +4542,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "b7619f52824763c57a2d3304b01c19e8f00c064ce43ddf652d7f77d0a4226691"
+    },
+    {
+      "slug": "typing",
+      "appId": "typing",
+      "name": "Typing",
+      "shortName": "Type",
+      "version": "1.0",
+      "tagline": "Practice on this device. History lives in the file. Race a friend from one link.",
+      "author": {
+        "name": "climech",
+        "url": "https://github.com/climech/typing-practice"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Programmer's Typing Practice",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "typing",
+        "keyboard",
+        "wpm",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        255,
+        193,
+        74
+      ],
+      "cover": "/apps/typing/cover.jpg",
+      "bytes": 195721,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "48c2405ecc52023b39e3041ece5ce618113364704c00d1d36148fa189d2d93ec"
     },
     {
       "slug": "ui-gradients",

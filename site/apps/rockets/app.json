@@ -1,0 +1,58 @@
+{
+  "catalog": "1.0",
+  "slug": "rockets",
+  "appId": "rockets",
+  "name": "Rockets",
+  "shortName": "Rockets",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Catch stars in a dark sky. One link puts a friend in it with you.",
+  "description": "You are a little rocket in a field of stars. Fly, catch them, score. On your own it is you against the clock — a minute of sky, then your best is what you beat next time.\n\nSend the invite and a friend lands in the same sky. Live scores, the same stars, a bump if you cross. There is no game server, no account, no lobby. The room is the link.\n\nOn a phone, drag the stick. On a laptop, arrows or WASD.\n\nAn unofficial port of Rocket Universe by lauthieb. The original needs a game server. This copy does not: the sky lives in the room.",
+  "author": {
+    "name": "lauthieb",
+    "url": "https://github.com/lauthieb/rocket-universe"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "arcade",
+    "rockets",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/rockets",
+  "accent": [
+    255,
+    140,
+    64
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/rockets/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/rockets/rockets.gif",
+  "bytes": 200298,
+  "download": 0,
+  "provides": null,
+  "sha256": "05d48c467c44bcad89b2e786fc4d329f38c8c7dc26b73a36edd13f209a655b31",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Rocket Universe",
+    "url": "https://github.com/lauthieb/rocket-universe",
+    "blessed": false
+  }
+}

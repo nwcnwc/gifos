@@ -1,0 +1,56 @@
+{
+  "catalog": "1.0",
+  "slug": "quiz-buzzer",
+  "appId": "quiz-buzzer",
+  "name": "Quiz Buzzer",
+  "shortName": "Buzzer",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "One invite. Phones are buzzers. Fastest correct answer scores.",
+  "description": "One invite. Phones are buzzers. No account, no class code, no quiz company — the questions live in the file, and it works on a plane.\n\nPut a question on the big screen, or pick one from the bundled pack. Everyone else taps one of four huge answers on their phone. The fastest correct answer scores. Wrong and late are recorded honestly. Reveal. Next. At the end of the round, the board.\n\nOn your own, drill the pack against the clock. You are host and player on the same device.\n\nWant a question that is not in the pack? Type it, pick four answers, start the round. It lives in this match, not in a library in the sky.\n\nForty original general-knowledge questions ride along — science, geography, words, numbers. Nothing is fetched. The pack is the file.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "quiz",
+    "buzzer",
+    "party",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/quiz-buzzer",
+  "accent": [
+    232,
+    64,
+    72
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/quiz-buzzer/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/quiz-buzzer/quiz-buzzer.gif",
+  "bytes": 196179,
+  "download": 0,
+  "provides": null,
+  "sha256": "9c3e88a46c688ba3aba7401ad31b5505b4b76e76071003f97fdae07385879487",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "inspiredBy": {
+    "name": "Kahoot!",
+    "url": "https://kahoot.com/",
+    "by": "Kahoot!"
+  }
+}

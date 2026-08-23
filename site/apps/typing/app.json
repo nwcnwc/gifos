@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "typing",
+  "appId": "typing",
+  "name": "Typing",
+  "shortName": "Type",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Practice on this device. History lives in the file. Race a friend from one link.",
+  "description": "A passage appears. Type it. Your speed and accuracy update as you go, and when you finish you get a result. The last runs stay in the file, on this device — no account, nothing to sign in to, nothing in the cloud.\n\nLessons start on the home row, then the other rows, then punctuation. Switch between plain English and programmer lines whenever you like.\n\nPress Play a friend, then Invite in the bar above the app, and send the link. You both get the same passage. First to finish wins; if you both finish, the higher speed takes it.\n\nAn unofficial port of Programmer's Typing Practice by climech. The original is a stream of random characters with no score. This version adds passages, lessons, a live result, and a race — and it works with the real keyboard on a phone.",
+  "author": {
+    "name": "climech",
+    "url": "https://github.com/climech/typing-practice"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "typing",
+    "keyboard",
+    "wpm",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/typing",
+  "accent": [
+    255,
+    193,
+    74
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/typing/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/typing/typing.gif",
+  "bytes": 195721,
+  "download": 0,
+  "provides": null,
+  "sha256": "48c2405ecc52023b39e3041ece5ce618113364704c00d1d36148fa189d2d93ec",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Programmer's Typing Practice",
+    "url": "https://github.com/climech/typing-practice",
+    "blessed": false
+  }
+}
