@@ -1,0 +1,93 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+canvas {
+  display: block;
+  position: absolute;
+}
+
+#main {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: space-around;
+	height: 100%;
+}
+
+#area {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	flex: 1;
+	display: flex;
+	justify-content: space-around;
+	overflow: auto;
+}
+
+#tools {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	overflow: auto;
+	width: 580px;
+	height: 100%;
+	transition: width .8s;
+}
+@media only screen and (max-width: 1700px) {
+	#tools {
+		width: 440px;
+	}
+}
+
+@media only screen and (max-width: 1540px) {
+	#tools {
+		width: 300px;
+	}
+}
+@media only screen and (max-width: 1380px) {
+	#tools {
+		width: 160px;
+	}
+}
+
+#tools > div {
+	display: block;
+	/* background-image is set in JS from #texSheet — inlined CSS cannot resolve a relative url() */
+	background-repeat: no-repeat;
+	background-size: auto;
+	width: 130px;
+	height: 230px;
+	border: 2px dashed transparent;
+	box-sizing: border-box;
+}
+
+#tools > div.selected {
+	border-color: #b05355;
+}
+
+@media only screen and (max-width: 966px) {
+
+	#main {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+	}
+	
+	#tools {
+		display: flex;
+		align-items: center;
+		overflow: auto;
+		width: 100%;
+		height: 240px;
+	}
+	#area {
+		justify-content: flex-start;
+	}
+	
+}

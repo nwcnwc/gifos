@@ -1,0 +1,33 @@
+{
+  "tagline": "A tiny isometric city. Tap to place a tile. Share the map, or build two cities side by side.",
+  "description": "A small city on a diamond grid. Pick a tile — a road, a tree, a house, a tower — and tap to put it down. Drag to paint a street. There is no budget and no score. Just a little city.\n\nYour city stays on this device, inside the app. Close it, come back, the streets are where you left them.\n\nPress Share the map, then Invite (in the GifOS menu), and everyone who opens the link paints on the same city. Each person places their own tiles; they land if they fit. Press Compare cities and you each keep your own city, and you can peek at the others.\n\nAn unofficial port of IsoCity by victorqribeiro. The pictures are Kenney's. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "victorqribeiro",
+    "url": "https://github.com/victorqribeiro/isocity"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "IsoCity",
+    "url": "https://github.com/victorqribeiro/isocity",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "city",
+    "isometric",
+    "builder",
+    "tiles",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/isocity",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

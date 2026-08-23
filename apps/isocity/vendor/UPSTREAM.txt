@@ -1,0 +1,27 @@
+vendor/* is GENERATED. Do not edit it; run node apps/isocity/vendor.mjs.
+
+upstream: https://github.com/victorqribeiro/isocity.git
+commit:   c5772412d3e423318f2cf479ebdd50a2b9029d84
+date:     2024-10-14
+license:  MIT, Victor Ribeiro (COPYING-isocity.txt)
+tiles:    Kenney isometric landscape/city, CC0 (COPYING-kenney.txt)
+
+js/main.js is the original page script with these seams:
+  texture from #texSheet (runtime rewrites static <img src>)
+  no location.hash / history.pushState — save is gifos.db
+  click goes through IsoCity.onPlace so a shared map can apply it
+  touchstart/move paint; pointerup dropped (it double-fired with mouseup)
+  getPosition uses the canvas box, so a CSS-scaled canvas still hits
+  IsoCity.* API appended at the end of init()
+
+css/main.css is the original with the texture url() removed (inlined
+stylesheets cannot resolve a relative path). JS sets background-image
+from the sheet.
+
+sha256:
+  main.js     e060d0cbdd8c412e92bf5f646a3857bf5a0cc06ad2085661db11ee2552c76ea3
+  main.css    c394faa125358e159e6648d99e9e32cbcd4492f3f43f4a53cee0a9c9cadd741f
+  texture     6ac7c0aeb65d5c6968a72f751898d0e6e74f9dafc9cef215366f6bb3bb355e20
+  COPYING     20917b8e2cfb3574d262b4d663b1fd206a6bf6c8de7e7f71941b986cb98e02fe
+
+Notices travel INSIDE the GIF as COPYING-isocity.txt and COPYING-kenney.txt.

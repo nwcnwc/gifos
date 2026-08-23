@@ -1,0 +1,10 @@
+IsoCity's tile sheet is Kenney's isometric landscape / city art, CC0.
+
+  https://opengameart.org/content/isometric-landscape
+  https://opengameart.org/content/isometric-city
+  https://kenney.nl
+
+CC0 1.0 Universal (CC0 1.0) Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Credit "Kenney.nl" or "www.kenney.nl" is requested, not required.
