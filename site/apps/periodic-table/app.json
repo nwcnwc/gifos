@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "periodic-table",
+  "appId": "periodic-table",
+  "name": "Periodic Table",
+  "shortName": "Table",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "All 118 on this phone. Quiz a friend from one link — no account.",
+  "description": "All 118 live on this device. Tap a cell for its name, symbol, number, mass and family. Filter alkali metals, noble gases, and the rest. Nothing is downloaded; the table is in the file.\n\nTest yourself: what is the symbol for Gold? Which number is Fe? Four choices, one right. Your best score stays on this device.\n\nQuiz a friend from one link: open A friend, then Invite in the bar above the app, and send it. You both get the same questions and race to ten right. No account. No site to host.\n\nAn unofficial port of Periodic Table by calebephrem. The original is a static site you have to host. This one is the table, the quiz, and a race from one invite.",
+  "author": {
+    "name": "calebephrem",
+    "url": "https://github.com/calebephrem/periodic-table"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "chemistry",
+    "periodic-table",
+    "quiz",
+    "science",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/periodic-table",
+  "accent": [
+    232,
+    180,
+    60
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/periodic-table/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/periodic-table/periodic-table.gif",
+  "bytes": 167471,
+  "download": 0,
+  "provides": null,
+  "sha256": "75f33177546699d3a4803ea6e764e909518d3612c8186b008198b08d868739d6",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Periodic Table",
+    "url": "https://github.com/calebephrem/periodic-table",
+    "blessed": false
+  }
+}
