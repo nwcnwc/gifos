@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hat.sh</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>hat.sh</h1>
+    <p class="lead">Encrypt and decrypt files in this tab. Nothing leaves this device.</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab on" data-tab="encrypt" type="button">Encrypt</button>
+    <button class="tab" data-tab="decrypt" type="button">Decrypt</button>
+    <button class="tab" data-tab="keys" type="button">Keys</button>
+  </nav>
+
+  <section id="panel-encrypt" class="panel">
+    <div class="card">
+      <div id="drop-enc" class="drop">
+        <div class="drop-icon">🔒</div>
+        <div><b>Drop files here</b> or tap to choose</div>
+        <div class="hint">Each file becomes a <code>.enc</code>. Nothing is uploaded.</div>
+      </div>
+      <input type="file" id="file-enc" multiple>
+      <ul id="list-enc" class="files"></ul>
+
+      <fieldset class="method">
+        <legend>Lock with</legend>
+        <label><input type="radio" name="enc-method" value="password" checked> A password</label>
+        <label><input type="radio" name="enc-method" value="keys"> A key pair</label>
+      </fieldset>
+
+      <div id="enc-password" class="fields">
+        <label>Password <span class="req">12+ characters</span>
+          <div class="pwrow">
+            <input type="password" id="pw-enc" autocomplete="new-password" spellcheck="false">
+            <button type="button" class="ghost" id="pw-enc-show" aria-label="Show password">Show</button>
+            <button type="button" class="ghost" id="pw-gen">Generate</button>
+          </div>
+        </label>
+        <div id="pw-strength" class="strength" hidden></div>
+        <label>Confirm
+          <input type="password" id="pw-enc2" autocomplete="new-password" spellcheck="false">
+        </label>
+      </div>
+
+      <div id="enc-keys" class="fields" hidden>
+        <label>Your private key
+          <input type="password" id="enc-sk" spellcheck="false" autocomplete="off">
+        </label>
+        <label>Their public key
+          <input type="text" id="enc-pk" spellcheck="false" autocomplete="off">
+        </label>
+        <p class="hint">You encrypt with <em>your</em> private key and <em>their</em> public key. Generate a pair under Keys if you do not have one.</p>
+      </div>
+
+      <div class="row">
+        <button type="button" id="go-enc" disabled>Encrypt</button>
+      </div>
+      <div id="status-enc" class="status"></div>
+      <div id="out-enc" class="out"></div>
+    </div>
+  </section>
+
+  <section id="panel-decrypt" class="panel" hidden>
+    <div class="card">
+      <div id="drop-dec" class="drop">
+        <div class="drop-icon">🔓</div>
+        <div><b>Drop a .enc file here</b> or tap to choose</div>
+        <div class="hint">hat.sh v2 files only. The original never left the other person's device either.</div>
+      </div>
+      <input type="file" id="file-dec" multiple>
+      <ul id="list-dec" class="files"></ul>
+
+      <fieldset class="method">
+        <legend>Unlock with</legend>
+        <label><input type="radio" name="dec-method" value="password" checked> A password</label>
+        <label><input type="radio" name="dec-method" value="keys"> A key pair</label>
+      </fieldset>
+
+      <div id="dec-password" class="fields">
+        <label>Password
+          <div class="pwrow">
+            <input type="password" id="pw-dec" autocomplete="current-password" spellcheck="false">
+            <button type="button" class="ghost" id="pw-dec-show" aria-label="Show password">Show</button>
+          </div>
+        </label>
+      </div>
+
+      <div id="dec-keys" class="fields" hidden>
+        <label>Your private key
+          <input type="password" id="dec-sk" spellcheck="false" autocomplete="off">
+        </label>
+        <label>Their public key
+          <input type="text" id="dec-pk" spellcheck="false" autocomplete="off">
+        </label>
+        <p class="hint">You decrypt with <em>your</em> private key and <em>their</em> public key — the pair they encrypted to.</p>
+      </div>
+
+      <div class="row">
+        <button type="button" id="go-dec" disabled>Decrypt</button>
+      </div>
+      <div id="status-dec" class="status"></div>
+      <div id="out-dec" class="out"></div>
+    </div>
+  </section>
+
+  <section id="panel-keys" class="panel" hidden>
+    <div class="card">
+      <p class="lead" style="margin-top:0">A key pair is two strings. You keep the private key. You can give anyone the public key. They encrypt a file to you; only the private key opens it.</p>
+      <div class="row">
+        <button type="button" id="go-keys">Generate a key pair</button>
+      </div>
+      <label>Public key
+        <div class="pwrow">
+          <input type="text" id="gen-pk" readonly spellcheck="false">
+          <button type="button" class="ghost" id="dl-pk" disabled>Save</button>
+        </div>
+      </label>
+      <label>Private key <span class="req">keep this</span>
+        <div class="pwrow">
+          <input type="password" id="gen-sk" readonly spellcheck="false">
+          <button type="button" class="ghost" id="gen-sk-show">Show</button>
+          <button type="button" class="ghost" id="dl-sk" disabled>Save</button>
+        </div>
+      </label>
+      <p class="hint">The keys never leave this tab unless you save them. Closing the app forgets them.</p>
+      <hr>
+      <label>Public key for a private key you already have
+        <div class="pwrow">
+          <input type="password" id="derive-sk" spellcheck="false" autocomplete="off" placeholder="Paste a private key">
+          <button type="button" class="ghost" id="go-derive">Show public</button>
+        </div>
+      </label>
+      <input type="text" id="derive-pk" readonly spellcheck="false" placeholder="Public key appears here">
+      <div id="status-keys" class="status"></div>
+    </div>
+  </section>
+
+  <p class="foot">Unofficial port of <b>hat.sh</b> by sh-dv (MIT). XChaCha20-Poly1305, Argon2id and X25519 via <b>libsodium.js</b> (ISC), packed inside this GIF. Sealed sandbox, no network. A file this app encrypts opens in hat.sh, and the other way around.</p>
+</div>
+<script src="sodium.js"></script>
+<script src="crypto.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
