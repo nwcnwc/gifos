@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Longwave</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Longwave</div>
+  <div class="engine-chip ready" id="chip"><span class="dot"></span><span id="chipState">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="setup">
+    <h2>Spectrum</h2>
+    <p class="lead">One of you sees a mark between two opposites and gives a clue. The other slides the needle to where that clue belongs.</p>
+    <p class="lvlnote">Seven cards. Dead-on is four (kept as three, and you keep the card). Close is three or two. A miss is nothing. The psychic seat passes after each card.</p>
+    <button class="primary" id="hotseatBtn" type="button">Two here</button>
+    <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
+    <p class="stats" id="statsLine"></p>
+  </section>
+
+  <section class="play" id="play" hidden>
+    <div class="vhead">
+      <h2 id="playTitle">Two here</h2>
+      <button class="ghost" id="leaveBtn" type="button">← Leave</button>
+    </div>
+    <div class="seats" id="seats"></div>
+    <div class="fqueue" id="queue"></div>
+    <div class="scoreline" id="scoreline"></div>
+    <div class="statusline" id="status"></div>
+
+    <div class="spectrum" id="spectrum">
+      <div class="poles">
+        <div class="pole left" id="poleL"></div>
+        <div class="pole right" id="poleR"></div>
+      </div>
+      <div class="rail-wrap" id="railWrap">
+        <div class="rail" id="rail">
+          <div class="band b4" id="band4" hidden></div>
+          <div class="band b3" id="band3" hidden></div>
+          <div class="band b2" id="band2" hidden></div>
+          <div class="mark target" id="targetMark" hidden><span>Target</span></div>
+          <div class="mark needle" id="needle" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cluebox" id="cluebox">
+      <div class="clue-read" id="clueRead" hidden></div>
+      <div class="clue-write" id="clueWrite" hidden>
+        <input type="text" id="clueInput" maxlength="80" autocomplete="off" spellcheck="true" placeholder="Clue…">
+        <p class="hint">One thought. Stay on the line. No numbers.</p>
+      </div>
+    </div>
+
+    <div class="controls" id="actions"></div>
+  </section>
+</main>
+
+<div class="pass" id="pass" hidden>
+  <div class="pass-card">
+    <h2>Pass the device</h2>
+    <p>The guesser should take it now. The mark is hidden.</p>
+    <button class="primary" id="passOk" type="button">I have it</button>
+  </div>
+</div>
+
+<script src="cards.js"></script>
+<script src="rules.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
