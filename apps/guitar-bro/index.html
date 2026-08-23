@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Guitar Bro</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="hud">
+      <canvas id="wave" width="80" height="32" aria-hidden="true"></canvas>
+      <div id="scorebox">Score: <span id="score">0</span></div>
+      <button type="button" id="hearBtn">Hear it</button>
+      <button type="button" id="listenBtn">Listen</button>
+      <button type="button" id="pauseBtn">Pause</button>
+    </header>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send the link. You both get the same song. Highest score wins.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="againBtn" hidden>Play again</button>
+        <button type="button" class="ghost" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <canvas id="game-canvas" aria-label="Fretboard">This trainer needs a canvas.</canvas>
+      <p id="hint">Tap a fret as the note arrives. Listen hears your guitar.</p>
+      <p id="heard"></p>
+    </div>
+  </div>
+
+  <div id="menu">
+    <div id="menuCard">
+      <h1>Guitar Bro</h1>
+      <p class="tag" id="over-copy">Pick a string. Notes fall down the neck. Play them on a real guitar, or tap the fret.</p>
+
+      <label>Song
+        <select id="song"></select>
+      </label>
+      <label>String
+        <select id="string"></select>
+      </label>
+      <label>BPM
+        <input id="bpm" type="number" min="8" max="240" value="30">
+      </label>
+
+      <fieldset>
+        <legend>Mode</legend>
+        <label class="mode"><input type="radio" name="mode" value="survival" checked> Survival <span>Five hearts. A miss costs one; a hit can give one back.</span></label>
+        <label class="mode"><input type="radio" name="mode" value="practice"> Practice <span>Keeps going until you pause.</span></label>
+      </fieldset>
+
+      <button type="button" class="accent" id="startBtn">Start</button>
+      <button type="button" id="friendBtn">Play a friend</button>
+      <p class="invite">Press <b>Invite</b> (GifOS menu) to race a friend on another device. Same song, same string, same speed. Highest score wins. There is no game server.</p>
+      <p class="foot">Unofficial port of Guitar Bro by Anatoli Makarevich. Tap a fret, or press Listen and play the note on your guitar. Playing alone is the original trainer. A race is the same chart — first scoreboard wins.</p>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="songs.js"></script>
+  <script src="pitch.js"></script>
+  <script src="game.js"></script>
+  <script src="mp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

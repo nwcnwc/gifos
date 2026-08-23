@@ -1,0 +1,15 @@
+makaroni4/guitar_bro
+https://github.com/makaroni4/guitar_bro
+pin: 334ea0450a5add84490e2ec065d10665d1ea9afa
+MIT, Copyright (c) 2017 Anatoli Makarevich
+
+Upstream is a Chrome-only Web Audio FFT tuner that holds a live microphone
+(jQuery, d3, Google Analytics, Font Awesome, Facebook/Twitter share). GifOS
+apps cannot hold a live mic — they get a clip via gifos.recordAudio — and
+the runtime inlines <script src> as classic scripts, so those CDNs cannot
+ride in.
+
+This directory is the port: the same strings, frequencies, songs, survival
+hearts and falling-note scoring, rewritten as classic scripts. Tap a fret
+to play; Listen records a short clip on this device and names the note.
+A race publishes each person's score on their own row. Nothing is fetched.
