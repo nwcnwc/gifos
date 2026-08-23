@@ -126,6 +126,12 @@ verdict, one log. Everything else should SPREAD across whatever boxes are up:
 * The gate host is also the box the release gate is ALLOWED to sit on for
   hours. If it is mid-gate, do not borrow it for exploratory runs: land those
   on a fleet client and let the gate finish.
+* **Release clones, not the development tree.** A release gate, a fleet actor,
+  and `archive-version.sh` run from `~/release-process/gifos` checked out at
+  the freeze tag (`v<x.y.z>-freeze`). `~/projects/gifos` is for ongoing
+  `main`. Fleet `dir` in `~/.gifos-behavior-hosts.json` is the release-process
+  clone on every box. Tag the freeze **before** the gate; further `main` is
+  not that release. CLAUDE.md "Release clones".
 
 **Diagnostics, when a run disagrees with the sim.**
 
@@ -409,7 +415,9 @@ them apart — guessing without this trace cost two wrong diagnoses in one day.
   genuinely gifos.app, genuinely https, and no bytes leave the box.
 * **A fresh `git worktree` has no `node_modules`** (it is gitignored), so every
   actor dies in 4s with "actor not running". Symlink the main clone's:
-  `ln -s ~/projects/gifos/node_modules $WT/node_modules`.
+  `ln -s <a clone that has node_modules> $WT/node_modules` (for a release
+  gate that is `~/release-process/gifos`; never point fleet `dir` at the
+  development `~/projects/gifos`).
 * **A stale clone fails SILENTLY** — a box running older code simply never gets
   placed, with no error. `git log -1` on every box before believing a result.
   Pull there with `git fetch && git reset --hard origin/<branch>`.

@@ -254,7 +254,7 @@ node test/browser/e2e-boot.js             # computer images: boot, isolate, rebo
 
 The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wrangler deploy` from that directory.
 
-**Releases**: `gifos.app/` is always the latest build; every past build is archived under `/versions/<x.y.z>/` and users can pin one in deep Settings ([`scripts/archive-version.sh`](scripts/archive-version.sh) cuts a release).
+**Releases**: `gifos.app/` is always the latest build; every past build is archived under `/versions/<x.y.z>/` and users can pin one in deep Settings ([`scripts/archive-version.sh`](scripts/archive-version.sh) cuts a release). Gate and cut from `~/release-process/gifos` at the freeze tag, never from the development clone.
 
 ## Project Status
 

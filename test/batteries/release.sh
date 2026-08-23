@@ -7,6 +7,10 @@
 #   test/batteries/release.sh --list             # show what would run, run nothing
 #   test/batteries/release.sh --only=unit,drills # iterate on a tier (never a green gate)
 #
+# Run a RELEASE gate from ~/release-process/gifos (the freeze tag), never from
+# ~/projects/gifos. Fleet hosts.json `dir` must match. See CLAUDE.md
+# "Release clones".
+#
 # WHY THIS EXISTS. Before it, no single command ran the release gate, and the
 # per-area batteries (join/mesh-churn/c-sweep) deliberately don't cover browser/
 # or most of drills/. So a guard could sit in NO battery and never run: that is

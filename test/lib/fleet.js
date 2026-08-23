@@ -89,7 +89,7 @@ function refuse(n, have, o) {
   console.log('      "hosts": [');
   console.log('        { "name": "orchestrator", "weight": 0 },');
   for (let i = 0; i < n; i++) {
-    console.log('        { "name": "box' + (i + 1) + '", "ssh": "<host>", "dir": "/home/<u>/projects/gifos",'
+    console.log('        { "name": "box' + (i + 1) + '", "ssh": "<host>", "dir": "/home/<u>/release-process/gifos",'
       + ' "node": "<node22>", "chrome": "<chrome>", "weight": 1 }' + (i < n - 1 ? ',' : ''));
   }
   console.log('      ]');
