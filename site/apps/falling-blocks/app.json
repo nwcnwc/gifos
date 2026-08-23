@@ -6,8 +6,8 @@
   "shortName": "Blocks",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Stack the falling shapes. Clear the lines. Or race a friend from the same pieces.",
-  "description": "Shapes drop from the top of the board. Slide them, turn them, drop them. Fill a row and it vanishes. The pile grows; the game is over when it reaches the top. That is the whole game.\n\nOn a computer the arrows slide and turn a shape, and the space bar drops it. On a phone you swipe the board, or use the pad at the bottom.\n\nWant a race? Press Play a friend, then press Invite (in the GifOS menu) and send the link. You both get the same shapes, each on your own board. Last one still stacking wins. If you both fill up, highest score takes it. Playing alone is the original game.\n\nYour best score stays on this device, inside the app.\n\nAn unofficial port of canvas-tetris by dionyziz, MIT-licensed. This copy puts two boards in one room, and adds swipe controls for a phone.",
+  "tagline": "Race a friend from one link. Same shapes, two boards, on this device.",
+  "description": "Press Play a friend, then Invite in the bar above, and send the link. You both get the same shapes, each on your own board. Last one still stacking wins. No account, no install — the race is the invite, and your best score lives in the file.\n\nOn your own it is the original falling-blocks game. Slide, turn, and drop the shapes. Fill a row and it vanishes. The pile grows; the game is over when it reaches the top. Close it, come back, your best is still here.\n\nOn a phone, use the pad at the bottom or swipe the board. Hold left or right to slide; tap to turn; swipe down or press drop to drop.\n\nAn unofficial port of canvas-tetris by dionyziz, MIT-licensed. This copy puts two boards in one room, and adds a pad that works with a thumb.",
   "author": {
     "name": "dionyziz",
     "url": "https://github.com/dionyziz/canvas-tetris"
@@ -39,10 +39,10 @@
   "cover": "/apps/falling-blocks/cover.jpg",
   "screenshots": [],
   "gif": "/apps/falling-blocks/falling-blocks.gif",
-  "bytes": 192708,
+  "bytes": 254038,
   "download": 0,
   "provides": null,
-  "sha256": "f3be12d49098abaf96f2188bf9d2de33221a9b67efd54e02165b27774bf9aee3",
+  "sha256": "950e88d1d0adccbe24f277ba2a60fe8854eef6a09ae8cd4875bbad6528d1a5bc",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
