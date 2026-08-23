@@ -65,11 +65,11 @@ if (!manifest.data.room || manifest.data.room.visibility !== 'read-write') {
   throw new Error('room must be read-write');
 }
 if (manifest.capabilities.network) throw new Error('floppy-bird has no network path');
-if (manifest.name === 'Flappy Bird' || /flappy bird/i.test(manifest.name)) {
-  throw new Error('do not call it Flappy Bird in the name — upstream is Floppy Bird');
-}
 
 const listingBlob = JSON.stringify(listing);
+if (manifest.name === 'Flappy Bird' || /flappy bird/i.test(manifest.name) || /flappy bird/i.test(listingBlob)) {
+  throw new Error('do not say Flappy Bird — upstream is Floppy Bird');
+}
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']) {
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
 }
