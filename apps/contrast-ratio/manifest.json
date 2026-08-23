@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "contrast-ratio",
+  "name": "Contrast Ratio",
+  "shortName": "Contrast",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Check whether text can be read on a colour. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [94, 167, 42],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}

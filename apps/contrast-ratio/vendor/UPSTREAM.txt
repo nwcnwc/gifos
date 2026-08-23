@@ -1,0 +1,19 @@
+siege-media/contrast-ratio
+https://github.com/siege-media/contrast-ratio
+commit 7ff045d1d50b1f3cc555b1ccab98098ef6c34872 (gh-pages, 2024-05-08)
+MIT, Copyright (c) 2013 Lea Verou
+
+A fork of Lea Verou's contrast-ratio. The public site is now
+siegemedia.com/contrast-ratio; this repo is the last public source.
+
+color.js is the WCAG relative-luminance and contrast-ratio math, copied
+verbatim. The split-screen checker (two colours, a circle, a verdict) is
+the same idea.
+
+GifOS inlines classic scripts and drops type=module. The original page
+loads Google Analytics, GitHub buttons, Incrementable from another host,
+and a Siege Media advert. This port keeps none of those: nothing is
+fetched.
+
+The last pair of colours is saved privately. Upstream is a public website
+with no save.
