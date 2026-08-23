@@ -1,0 +1,12 @@
+vendor/phaser.js and vendor/game.js are GENERATED. Do not edit them;
+run node apps/catch-the-cat/vendor.mjs.
+
+game:    https://github.com/ganlvtech/phaser-catch-the-cat.git
+commit:  75b67f97a405dd5b0fc8a48d8f647efb72f070a3
+phaser:  3.16.1  sha256 02e25ee129cafe81835ab3c4a9d1aa80cdb79e34de006ea6f83a97458c3879d9
+         https://cdn.jsdelivr.net/npm/phaser@3.16.1/dist/phaser.min.js
+entry:   src/index.ts, IIFE, global CatchTheCatGame (expects window.Phaser)
+
+Both licences are MIT and travel beside it as COPYING-catch-the-cat.txt and
+COPYING-phaser.txt. They are packed into the GIF too, so a copy of this app
+that someone was handed still carries the notices it is required to carry.

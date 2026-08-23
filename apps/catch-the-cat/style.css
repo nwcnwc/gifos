@@ -1,0 +1,68 @@
+:root {
+  --bg: #0b1020;
+  --surface: #141c30;
+  --border: #2a3554;
+  --text: #eef1f8;
+  --muted: #9aa6c3;
+  --accent: #e8b05a;
+  --accent-ink: #1a1204;
+  --wall: #3d8f7a;
+  --ok: #7dce9a;
+  --danger: #ff8a7a;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+}
+#app {
+  height: 100%;
+  display: flex; flex-direction: column;
+  padding: max(.55rem, env(safe-area-inset-top)) .7rem max(.7rem, env(safe-area-inset-bottom));
+}
+header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: .8rem; padding: .15rem .15rem .55rem;
+}
+#status { color: var(--muted); font-size: .92rem; flex: 1; min-width: 0; }
+#status.win { color: var(--ok); }
+#status.lose { color: var(--danger); }
+#clicks {
+  font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent);
+  white-space: nowrap;
+}
+#board {
+  flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  touch-action: none;
+}
+#board canvas { display: block; max-width: 100%; max-height: 100%; }
+#roster {
+  margin: .35rem 0 .45rem; padding: .45rem .6rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: .7rem;
+  font-size: .82rem; color: var(--muted);
+  max-height: 6.4rem; overflow: auto;
+}
+#roster[hidden] { display: none; }
+#roster .row {
+  display: flex; justify-content: space-between; gap: .6rem;
+  padding: .18rem 0;
+}
+#roster .row.me { color: var(--text); font-weight: 650; }
+#roster .win { color: var(--ok); }
+#roster .lose { color: var(--danger); }
+#roster .lead { color: var(--accent); }
+#bar {
+  display: flex; gap: .55rem;
+  padding-top: .35rem;
+}
+#bar button {
+  flex: 1; font: inherit; font-weight: 700;
+  padding: .85rem .6rem;
+  border-radius: .7rem; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text);
+  cursor: pointer; min-height: 2.8rem;
+}
+#bar button:active { transform: scale(.98); }
+#again { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }

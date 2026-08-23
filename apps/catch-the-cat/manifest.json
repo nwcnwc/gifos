@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "catch-the-cat",
+  "name": "Catch the Cat",
+  "shortName": "Cat",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [232, 176, 90],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "players": {
+      "visibility": "read-write"
+    }
+  }
+}
