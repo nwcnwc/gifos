@@ -3,7 +3,7 @@
   "appId": "longwave",
   "name": "Longwave",
   "shortName": "Longwave",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "description": "A needle on a spectrum. One of you hints. The other finds the mark.",
   "entry": "index.html",

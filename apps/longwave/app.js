@@ -21,6 +21,7 @@
   var mode = 'setup'; // setup | hotseat | mp
   var canSlide = false;
   var dragging = false;
+  var savedHot = null;
 
   function setChip(cls, text) {
     $('chip').className = 'engine-chip' + (cls ? ' ' + cls : '');
@@ -28,7 +29,12 @@
   }
   function setStatus(text, cls) {
     $('status').className = 'statusline' + (cls ? ' ' + cls : '');
-    $('status').textContent = text;
+    $('status').textContent = text || '';
+  }
+  function setTurn(who, detail, kind) {
+    $('turnWho').textContent = who || '';
+    $('turnDo').textContent = detail || '';
+    $('turnBanner').className = 'turnbanner' + (kind ? ' ' + kind : '');
   }
   function showStats() {
     $('statsLine').textContent = best ? ('Best cooperative score ' + best) : '';
@@ -42,11 +48,47 @@
   }
 
   function tickPct(v) { return ((v | 0) / LW.MAX) * 100; }
-  function placeBand(el, lo, hi) {
-    lo = Math.max(0, lo); hi = Math.min(LW.MAX, hi);
-    el.style.left = (((lo - 0.5) / LW.MAX) * 100) + '%';
-    el.style.width = (((hi - lo + 1) / LW.MAX) * 100) + '%';
+  function placeWedges(t) {
+    t = t | 0;
+    var el = $('wedges');
+    el.style.left = (((t - 2.5) / LW.MAX) * 100) + '%';
+    el.style.width = ((5 / LW.MAX) * 100) + '%';
   }
+  function paintPips(left, total) {
+    var n = LW.TURNS, used = n - (left | 0), i, html = '';
+    for (i = 0; i < n; i++) html += '<span class="' + (i < used ? 'gone' : 'left') + '"></span>';
+    $('pips').innerHTML = html;
+    $('scoreNum').textContent = String(total | 0);
+  }
+  function paintSeats(a, b) {
+    function cell(s) {
+      var name = s.open ? '<span class="open">open</span>'
+        : (s.me ? 'You' : esc(s.name || ''));
+      return '<div class="seat' + (s.me ? ' me' : '') + (s.on ? ' turn' : '') + '">' +
+        '<span class="role">' + esc(s.label) + '</span>' +
+        (name ? '<span class="who">' + name + '</span>' : '') +
+        '</div>';
+    }
+    $('seats').innerHTML = cell(a) + cell(b);
+  }
+  function showReveal(raw, last) {
+    var el = $('revealScore');
+    el.hidden = false;
+    if (raw === 4) {
+      el.className = 'reveal-score bull';
+      $('revealPts').textContent = '+' + last;
+      $('revealWhy').textContent = 'Dead on — you keep the card';
+    } else if (last) {
+      el.className = 'reveal-score hit';
+      $('revealPts').textContent = '+' + last;
+      $('revealWhy').textContent = raw === 3 ? 'Close' : 'In the zone';
+    } else {
+      el.className = 'reveal-score miss';
+      $('revealPts').textContent = '0';
+      $('revealWhy').textContent = 'Miss';
+    }
+  }
+  function hideReveal() { $('revealScore').hidden = true; }
 
   function paintSpectrum(card, opts) {
     opts = opts || {};
@@ -60,33 +102,42 @@
 
     var showT = opts.target != null && opts.target !== false;
     var showG = opts.guess != null && opts.guess !== false;
-    var showB = !!(opts.bands && showT);
-    $('band2').hidden = $('band3').hidden = $('band4').hidden = !showB;
+    var showB = !!(opts.bands || opts.aim) && (showT || opts.target === 0);
+    if (opts.aim && opts.target == null) showB = false;
+    if ((opts.bands || opts.aim) && opts.target != null && opts.target !== false) showB = true;
+    $('wedges').hidden = !showB;
     if (showB) {
-      var t = opts.target | 0;
-      placeBand($('band2'), t - 2, t + 2);
-      placeBand($('band3'), t - 1, t + 1);
-      placeBand($('band4'), t, t);
+      placeWedges(opts.target | 0);
+      $('wedges').className = 'wedges' + (opts.aim ? ' aim' : ' reveal');
     }
-    $('targetMark').hidden = !showT;
+    // Wedges ARE the mark — a gold ring on top of the 4 eats the label.
+    $('targetMark').hidden = !showT || !!showB;
     if (showT) $('targetMark').style.left = tickPct(opts.target) + '%';
     $('needle').hidden = !showG;
     if (showG) $('needle').style.left = tickPct(opts.guess) + '%';
     canSlide = !!opts.slide;
-    $('railWrap').style.cursor = canSlide ? 'pointer' : 'default';
+    $('railWrap').classList.toggle('can-slide', canSlide);
+    $('railWrap').style.cursor = canSlide ? 'grab' : 'default';
   }
 
   function posFromEvent(e) {
     var r = $('rail').getBoundingClientRect();
-    var x = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX) - r.left;
+    var pt = e;
+    if (e.touches && e.touches[0]) pt = e.touches[0];
+    else if (e.changedTouches && e.changedTouches[0]) pt = e.changedTouches[0];
+    var x = pt.clientX - r.left;
     var t = r.width ? x / r.width : 0.5;
     return Math.max(0, Math.min(LW.MAX, Math.round(t * LW.MAX)));
+  }
+  function needleTo(v) {
+    $('needle').hidden = false;
+    $('needle').style.left = tickPct(v) + '%';
   }
   function onSlide(v) {
     if (!canSlide) return;
     if (mode === 'hotseat') {
       L.guess = v;
-      paintLocal();
+      needleTo(v);
     } else if (mode === 'mp') {
       mpSlide(v);
     }
@@ -96,6 +147,7 @@
     wrap.addEventListener('pointerdown', function (e) {
       if (!canSlide) return;
       dragging = true;
+      wrap.classList.add('sliding');
       try { wrap.setPointerCapture(e.pointerId); } catch (err) {}
       onSlide(posFromEvent(e));
       e.preventDefault();
@@ -104,18 +156,24 @@
       if (!dragging || !canSlide) return;
       onSlide(posFromEvent(e));
     });
-    function up() { dragging = false; }
+    function up() {
+      dragging = false;
+      wrap.classList.remove('sliding');
+    }
     wrap.addEventListener('pointerup', up);
     wrap.addEventListener('pointercancel', up);
   })();
 
-  function scoreLine(total, left, last, raw) {
-    var bits = ['Score ' + (total | 0)];
-    if (left != null) bits.push((left | 0) + ' card' + ((left | 0) === 1 ? '' : 's') + ' left');
-    if (raw === 4) bits.push('bullseye — card kept');
-    else if (last) bits.push('+' + last);
-    $('scoreline').textContent = bits.join(' · ');
-  }
+  (function buildTicks() {
+    var el = $('ticks'), i, s;
+    el.innerHTML = '';
+    for (i = 0; i <= LW.MAX; i++) {
+      s = document.createElement('i');
+      s.style.left = (i / LW.MAX * 100) + '%';
+      if (i === 0 || i === 10 || i === LW.MAX) s.className = 'maj';
+      el.appendChild(s);
+    }
+  })();
 
   function setActions(btns) {
     var el = $('actions'), i, b;
@@ -123,7 +181,7 @@
     for (i = 0; i < btns.length; i++) {
       b = document.createElement('button');
       b.type = 'button';
-      b.className = btns[i].primary ? 'primary' : 'ghost';
+      b.className = btns[i].primary ? 'primary' : (btns[i].quiet ? 'ghost quiet' : 'ghost');
       if (btns[i].wide) b.className += ' wide';
       b.textContent = btns[i].label;
       b.disabled = !!btns[i].off;
@@ -135,7 +193,9 @@
   function showClueRead(who, text) {
     $('clueWrite').hidden = true;
     $('clueRead').hidden = false;
-    $('clueRead').innerHTML = '<span class="who">' + esc(who || 'Clue') + '</span>' + esc(text || '');
+    $('clueRead').innerHTML =
+      (who ? '<span class="who">' + esc(who) + '</span>' : '') +
+      '<span class="said">' + esc(text || '') + '</span>';
   }
   function showClueWrite(value) {
     $('clueRead').hidden = true;
@@ -156,52 +216,87 @@
     };
   }
   function cardOf(g) { return LW.cardAt(g.seed, g.index); }
+  function validHot(g) {
+    return g && typeof g.seed === 'string' && typeof g.phase === 'string' &&
+      g.left != null && g.target != null && g.phase !== 'done';
+  }
+  function persistLocal() {
+    if (!db || !L) return;
+    db.put({ id: 'hotseat', game: L, at: nowMs() }).catch(function () {});
+  }
 
   function paintLocal() {
     if (!L) return;
     var card = cardOf(L);
     $('playTitle').textContent = 'Two here';
-    $('seats').innerHTML =
-      '<div class="seat' + (L.phase === 'clue' ? ' turn me' : '') + '">Psychic</div>' +
-      '<div class="seat' + (L.phase === 'guess' ? ' turn me' : '') + '">Guesser</div>';
+    paintPips(L.left, L.total);
     $('queue').textContent = '';
-    scoreLine(L.total, L.left, L.phase === 'score' || L.phase === 'done' ? L.last : 0, L.raw);
     $('pass').hidden = L.phase !== 'pass';
+    hideReveal();
 
     if (L.phase === 'clue') {
-      paintSpectrum(card, { target: L.target, slide: false });
+      $('play').className = 'play hotseat role-psychic';
+      paintSeats(
+        { label: 'Psychic', name: 'You', me: true, on: true },
+        { label: 'Guesser', name: 'Waiting', me: false, on: false }
+      );
+      paintSpectrum(card, { target: L.target, aim: true, slide: false });
       showClueWrite();
-      setStatus('You are the psychic. Look at the mark, then give a clue.');
+      setTurn('You are the psychic', 'Look at the 4. Give a clue that lives there.', 'mine');
+      setStatus('');
       setChip('ready', 'Psychic');
       setActions([
-        { label: 'Draw another card', fn: localRedraw },
-        { label: 'Give clue', primary: true, fn: localClue }
+        { label: 'Give clue', primary: true, fn: localClue },
+        { label: 'Skip this card', quiet: true, fn: localRedraw }
       ]);
     } else if (L.phase === 'pass') {
+      $('play').className = 'play hotseat';
+      paintSeats(
+        { label: 'Psychic', me: false, on: false },
+        { label: 'Guesser', me: false, on: true }
+      );
       paintSpectrum(card, { slide: false });
       hideClue();
-      setStatus('Pass the device to the guesser.');
+      setTurn('Hand it over', 'The guesser takes the device. The mark is hidden.', 'wait');
+      setStatus('');
       setChip('wait', 'Pass');
       setActions([]);
     } else if (L.phase === 'guess') {
+      $('play').className = 'play hotseat role-guesser';
+      paintSeats(
+        { label: 'Psychic', me: false, on: false },
+        { label: 'Guesser', name: 'You', me: true, on: true }
+      );
       paintSpectrum(card, { guess: L.guess, slide: true });
-      showClueRead('Clue', L.clue);
-      setStatus('Slide the needle to where the clue belongs, then lock it.');
+      showClueRead('The clue', L.clue);
+      setTurn('You are the guesser', 'Slide the needle to where the clue belongs.', 'mine');
+      setStatus('');
       setChip('ready', 'Guesser');
       setActions([{ label: 'Lock the needle', primary: true, fn: localLock }]);
     } else if (L.phase === 'score') {
+      $('play').className = 'play hotseat role-guesser';
+      paintSeats(
+        { label: 'Psychic', me: false, on: false },
+        { label: 'Guesser', me: false, on: false }
+      );
       paintSpectrum(card, { target: L.target, guess: L.guess, bands: true, slide: false });
-      showClueRead('Clue', L.clue);
-      var msg = L.raw === 4
-        ? ('Bullseye. ' + L.last + ' points, and you keep the card.')
-        : (L.last ? (L.last + ' point' + (L.last === 1 ? '' : 's') + '.') : 'Miss.');
-      setStatus(msg, L.last ? 'good' : 'warn');
+      showClueRead('The clue', L.clue);
+      showReveal(L.raw, L.last);
+      setTurn('The mark', L.raw === 4 ? 'Dead on.' : (L.last ? 'See where you landed.' : 'Outside the zone.'), 'score');
+      setStatus('');
       setChip('ready', 'Score');
       setActions([{ label: L.left ? 'Next card' : 'See total', primary: true, fn: localNext }]);
     } else {
+      $('play').className = 'play hotseat role-guesser';
+      paintSeats(
+        { label: 'Psychic', me: false, on: false },
+        { label: 'Guesser', me: false, on: false }
+      );
       paintSpectrum(card, { target: L.target, guess: L.guess, bands: true, slide: false });
-      showClueRead('Clue', L.clue);
-      setStatus('Game complete. You scored ' + L.total + '.', 'good');
+      showClueRead('The clue', L.clue);
+      showReveal(L.raw, L.last);
+      setTurn('Game complete', 'You scored ' + L.total + '.', 'score');
+      setStatus('');
       setChip('ready', 'Done');
       setActions([{ label: 'Play again', primary: true, fn: localAgain }]);
     }
@@ -213,6 +308,7 @@
     L.target = LW.randomTarget();
     L.clue = '';
     $('clueInput').value = '';
+    persistLocal();
     paintLocal();
   }
   function localClue() {
@@ -222,6 +318,7 @@
     L.clue = t;
     L.phase = 'pass';
     L.guess = 10;
+    persistLocal();
     paintLocal();
   }
   function localLock() {
@@ -232,11 +329,12 @@
     if (!LW.coopBonus(L.raw)) L.left--;
     L.phase = 'score';
     saveBest(L.total);
+    persistLocal();
     paintLocal();
   }
   function localNext() {
     if (!L || L.phase !== 'score') return;
-    if (L.left <= 0) { L.phase = 'done'; paintLocal(); return; }
+    if (L.left <= 0) { L.phase = 'done'; persistLocal(); paintLocal(); return; }
     L.index++;
     L.target = LW.randomTarget();
     L.clue = '';
@@ -245,25 +343,33 @@
     L.last = 0;
     L.phase = 'clue';
     $('clueInput').value = '';
+    persistLocal();
     paintLocal();
   }
   function localAgain() {
     L = freshLocal();
     $('clueInput').value = '';
+    persistLocal();
     paintLocal();
   }
 
-  $('hotseatBtn').onclick = function () {
+  function enterHotseat(game) {
     mode = 'hotseat';
-    L = freshLocal();
+    L = game || freshLocal();
     $('setup').hidden = true;
     $('play').hidden = false;
-    $('clueInput').value = '';
+    if (!game) $('clueInput').value = '';
     paintLocal();
+  }
+  $('hotseatBtn').onclick = function () { enterHotseat(null); persistLocal(); };
+  $('continueBtn').onclick = function () {
+    if (!savedHot) return;
+    enterHotseat(savedHot);
   };
   $('passOk').onclick = function () {
     if (!L || L.phase !== 'pass') return;
     L.phase = 'guess';
+    persistLocal();
     paintLocal();
   };
 
@@ -334,14 +440,17 @@
     if (mpDb && mp.id) mpDb.delete(mp.id).catch(function () {});
     $('play').hidden = true; $('pass').hidden = true; $('setup').hidden = false;
     setChip('ready', 'Ready');
+    refreshContinue();
   }
   $('friendBtn').onclick = mpEnter;
   $('leaveBtn').onclick = function () {
     if (mode === 'mp') mpLeave();
     else {
+      persistLocal();
       L = null; mode = 'setup';
       $('play').hidden = true; $('pass').hidden = true; $('setup').hidden = false;
       setChip('ready', 'Ready');
+      refreshContinue();
     }
   };
 
@@ -491,7 +600,7 @@
     var b = mp.board;
     if (!b || mySeat(b) !== 'guesser' || b.phase !== 'guess') return;
     b.guess = v;
-    paintSpectrum(LW.cardAt(b.seed, b.cardIndex), { guess: v, slide: true });
+    needleTo(v);
     var t = nowMs();
     if (t - slideAt < SLIDE_MS) return;
     slideAt = t;
@@ -503,32 +612,43 @@
     var b = mp.board;
     $('playTitle').textContent = 'Play a friend';
     $('pass').hidden = true;
+    hideReveal();
     if (!b) {
       $('seats').innerHTML = '';
-      setStatus('Setting up the spectrum…');
+      paintPips(LW.TURNS, 0);
+      setTurn('Setting up', 'The spectrum is landing in this file.', 'wait');
+      setStatus('');
       setActions([]);
       hideClue();
       return;
     }
     var seat = mySeat(b);
-    var nameOf = function (id) { return id ? esc(b.names[id] || 'Player') : '<span class="open">open</span>'; };
-    $('seats').innerHTML =
-      '<div class="seat' + (seat === 'psychic' ? ' me' : '') + (b.phase === 'clue' ? ' turn' : '') + '">Psychic ' + nameOf(b.seats.psychic) + '</div>' +
-      '<div class="seat' + (seat === 'guesser' ? ' me' : '') + (b.phase === 'guess' ? ' turn' : '') + '">Guesser ' + nameOf(b.seats.guesser) + '</div>';
+    var pName = b.names[b.seats.psychic] || 'the psychic';
+    var gName = b.names[b.seats.guesser] || 'the guesser';
+    paintSeats(
+      { label: 'Psychic', name: pName, me: seat === 'psychic', on: b.phase === 'clue', open: !b.seats.psychic },
+      { label: 'Guesser', name: gName, me: seat === 'guesser', on: b.phase === 'guess', open: !b.seats.guesser }
+    );
     var waiting = mp.people.filter(function (p) { return p.id !== b.seats.psychic && p.id !== b.seats.guesser; });
     $('queue').textContent = waiting.length ? ('Watching: ' + waiting.map(function (p) { return p.name || 'Player'; }).join(', ')) : '';
-    scoreLine(b.total || 0, b.left, (b.phase === 'score' || b.phase === 'done') ? b.last : 0, b.raw);
-    if (b.seq !== lastSeq) { pendingDeal = false; lastSeq = b.seq; }
+    paintPips(b.left, b.total || 0);
+    if (b.seq !== lastSeq) {
+      pendingDeal = false;
+      lastSeq = b.seq;
+      if (b.phase === 'clue') $('clueInput').value = '';
+    }
     var card = LW.cardAt(b.seed, b.cardIndex);
     var both = b.seats.psychic && b.seats.guesser;
     var showTarget = seat === 'psychic' || b.phase === 'score' || b.phase === 'done';
     var target = (showTarget && b.dealt) ? b.target : null;
     var showGuess = b.phase === 'guess' || b.phase === 'score' || b.phase === 'done';
     var slide = seat === 'guesser' && b.phase === 'guess';
+    var aim = seat === 'psychic' && b.phase === 'clue' && b.dealt;
     paintSpectrum(card, {
       target: target,
       guess: showGuess ? b.guess : null,
       bands: b.phase === 'score' || b.phase === 'done',
+      aim: aim,
       slide: slide
     });
 
@@ -540,64 +660,78 @@
 
     if (!both) {
       hideClue();
-      setStatus('Waiting for another player… press Invite (top bar) to bring a friend.');
+      $('play').className = 'play';
+      setTurn('Waiting for a friend', 'Press Invite in the bar above the app. The link is the room.', 'wait');
+      setStatus('');
       setChip('wait', 'A friend');
       setActions([]);
       return;
     }
     if (b.phase === 'clue') {
       if (seat === 'psychic') {
+        $('play').className = 'play role-psychic';
         showClueWrite();
-        setStatus('You are the psychic. Look at the mark, then give a clue.');
+        setTurn('You are the psychic', 'Look at the 4. Give a clue that lives there.', 'mine');
+        setStatus('');
         setChip('ready', 'Psychic');
         setActions([
-          { label: 'Draw another card', off: !b.dealt, fn: function () {
-            sendIntent('deal', { target: LW.randomTarget(), cardIndex: (b.cardIndex | 0) + 1 });
-          } },
           { label: 'Give clue', primary: true, off: !b.dealt, fn: function () {
             var t = ($('clueInput').value || '').replace(/^\s+|\s+$/g, '');
             if (!t) { setStatus('Write a clue first.', 'warn'); return; }
             sendIntent('clue', { text: t });
+          } },
+          { label: 'Skip this card', quiet: true, off: !b.dealt, fn: function () {
+            sendIntent('deal', { target: LW.randomTarget(), cardIndex: (b.cardIndex | 0) + 1 });
           } }
         ]);
       } else {
+        $('play').className = 'play';
         hideClue();
-        setStatus('Waiting for ' + (b.names[b.seats.psychic] || 'the psychic') + ' to give a clue.');
+        setTurn('Waiting for ' + pName, 'They are looking at the mark and thinking of a clue.', 'wait');
+        setStatus('');
         setChip('wait', seat === 'guesser' ? 'Guesser' : 'Watching');
         setActions([]);
       }
     } else if (b.phase === 'guess') {
-      showClueRead((b.names[b.seats.psychic] || 'Psychic') + '\'s clue', b.clue);
+      showClueRead(pName + '\'s clue', b.clue);
       if (seat === 'guesser') {
-        setStatus('Slide the needle to where the clue belongs, then lock it.');
+        $('play').className = 'play role-guesser';
+        setTurn('You are the guesser', 'Slide the needle to where the clue belongs.', 'mine');
+        setStatus('');
         setChip('ready', 'Guesser');
         setActions([{ label: 'Lock the needle', primary: true, fn: function () {
           sendIntent('lock', { value: b.guess | 0 });
         } }]);
       } else {
-        setStatus('Watching the guesser place the needle.');
+        $('play').className = 'play role-guesser';
+        setTurn(gName + ' is guessing', 'Watch the needle. Stay quiet about the mark.', seat === 'psychic' ? 'wait' : 'wait');
+        setStatus('');
         setChip('wait', seat === 'psychic' ? 'Psychic' : 'Watching');
         setActions([]);
       }
     } else if (b.phase === 'score') {
-      showClueRead((b.names[b.seats.psychic] || 'Psychic') + '\'s clue', b.clue);
-      var msg = b.raw === 4
-        ? ('Bullseye. ' + b.last + ' points, and you keep the card.')
-        : (b.last ? (b.last + ' point' + (b.last === 1 ? '' : 's') + '.') : 'Miss.');
-      setStatus(msg, b.last ? 'good' : 'warn');
+      $('play').className = 'play role-guesser';
+      showClueRead(pName + '\'s clue', b.clue);
+      showReveal(b.raw, b.last);
+      setTurn('The mark', b.raw === 4 ? 'Dead on.' : (b.last ? 'See where you landed.' : 'Outside the zone.'), 'score');
+      setStatus('');
       setChip('ready', 'Score');
       saveBest(b.total | 0);
       var nextLabel = (b.left | 0) ? 'Next card' : 'See total';
       setActions(seat ? [{ label: nextLabel, primary: true, fn: function () { sendIntent('next'); } }] : []);
     } else if (b.phase === 'done') {
-      showClueRead((b.names[b.seats.psychic] || 'Psychic') + '\'s clue', b.clue);
-      setStatus('Game complete. You scored ' + (b.total | 0) + '.', 'good');
+      $('play').className = 'play role-guesser';
+      showClueRead(pName + '\'s clue', b.clue);
+      showReveal(b.raw, b.last);
+      setTurn('Game complete', 'You scored ' + (b.total | 0) + '.', 'score');
+      setStatus('');
       setChip('ready', 'Done');
       saveBest(b.total | 0);
       setActions(seat ? [{ label: 'Play again', primary: true, fn: function () { sendIntent('again'); } }] : []);
     } else {
       hideClue();
-      setStatus('Waiting…');
+      $('play').className = 'play';
+      setTurn('Waiting…', '', 'wait');
       setActions([]);
     }
   }
@@ -611,7 +745,18 @@
     if (e.key !== 'Enter') return;
     e.preventDefault();
     if (mode === 'hotseat' && L && L.phase === 'clue') localClue();
+    else if (mode === 'mp' && mp.board && mySeat(mp.board) === 'psychic' && mp.board.phase === 'clue') {
+      var t = ($('clueInput').value || '').replace(/^\s+|\s+$/g, '');
+      if (!t) { setStatus('Write a clue first.', 'warn'); return; }
+      sendIntent('clue', { text: t });
+    }
   });
+
+  function refreshContinue() {
+    var btn = $('continueBtn');
+    if (savedHot && validHot(savedHot)) btn.hidden = false;
+    else btn.hidden = true;
+  }
 
   setChip('ready', 'Ready');
   showStats();
@@ -620,6 +765,12 @@
       if (!st) return;
       best = st.best | 0;
       showStats();
+    }).catch(function () {});
+    db.get('hotseat').then(function (row) {
+      if (row && validHot(row.game)) {
+        savedHot = row.game;
+        refreshContinue();
+      }
     }).catch(function () {});
   }
 })();

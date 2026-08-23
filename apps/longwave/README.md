@@ -1,6 +1,6 @@
 # Longwave
 
-A needle on a spectrum. One of you hints. The other finds the mark.
+One invite is the room. No game server. Find the mark.
 
 An unofficial port of **[Longwave](https://github.com/cynicaloptimist/longwave)**
 by cynicaloptimist / Evan Bailey (MIT). Upstream is a React app that **needs a
@@ -9,11 +9,11 @@ Firebase room, and every socket path stay behind. The GifOS meeting is the room.
 
 ```
 index.html     setup / two here / play a friend
-style.css      dark spectrum, poles, needle
+style.css      fat spectrum, poles, grab-knob, reveal
 cards.js       the original basic + advanced spectrum cards
 rules.js       21-tick line, 4-3-2-0 scoring, seeded deck
-app.js         hotseat + psychic/guesser seats
-icon.mjs       procedural needle icon + 1200×720 cover
+app.js         hotseat + psychic/guesser seats (own-row, host applies)
+icon.mjs       procedural sliding-knob icon + 1200×720 cover
 build.mjs      packs the GIF into site/apps/longwave/longwave.gif
 COPYING.txt    upstream MIT notice (also packed inside the GIF)
 ```
@@ -21,7 +21,8 @@ COPYING.txt    upstream MIT notice (also packed inside the GIF)
 ## How it is played
 
 - **Two here** — pass the device. Psychic sees the mark, gives a clue, hands
-  the device over. Guesser places the needle. Then you swap.
+  the device over. Guesser places the needle. Then you swap. An in-progress
+  game is saved in the file, so you can close it and continue.
 - **Play a friend** — send the invite (top bar; that button is OS chrome).
   Two seats: psychic and guesser. Each person writes only their own row. The
   host of the board (lowest id) is the only writer of the board row: a player
@@ -47,7 +48,7 @@ enough to draw in classic scripts.
 
 | capability | why |
 |---|---|
-| `db` | Saved best score, and the shared board. |
+| `db` | Saved best score, in-progress hotseat, and the shared board. |
 | `multiplayer` | The room. |
 
 No `wasm`. No `network`. `minBuild` is **947**.

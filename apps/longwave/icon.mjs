@@ -1,4 +1,4 @@
-// Procedural icon: a spectrum bar with a needle sweeping the mark.
+// Procedural icon: a fat spectrum with a knob sliding onto the mark.
 // Pure Node, super-sample → box-downsample. Deterministic.
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
 
@@ -46,22 +46,33 @@ function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 18;
   const t = f / (FRAMES - 1);
-  const sweep = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
+  // Ease out to the mark, hold, ease back — the knob demonstrates the game.
+  const sweep = t < 0.72 ? 0.5 - 0.5 * Math.cos((t / 0.72) * Math.PI) : 1 - (t - 0.72) / 0.28 * 0.15;
+  const markU = 0.62;
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
     if (inCard(x, y, m, rad)) {
       a = 1;
       col = mix(CARD, CARD_L, (x + y) / (OUT * 2));
-      const bx = 18, by = 54, bw = OUT - 36, bh = 16;
+      const bx = 16, by = 52, bw = OUT - 32, bh = 22;
       if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
         const u = (x - bx) / bw;
         col = mix(TEAL, mix(VIOLET, PINK, Math.max(0, (u - 0.4) / 0.6)), u);
       }
-      const nx = bx + 4 + sweep * (bw - 8);
-      if (Math.abs(x - nx) < 1.6 && y >= by - 10 && y <= by + bh + 10) col = WHITE;
-      const dGold = Math.hypot(x - (bx + bw * 0.62), y - (by + bh / 2));
-      if (dGold < 5.2 && dGold > 2.6 && t > 0.35 && t < 0.85) col = GOLD;
+      const nx = bx + 12 + sweep * (bw - 24);
+      const ny = by + bh / 2 + 12;
+      // stem
+      if (Math.abs(x - nx) < 2.6 && y >= by - 10 && y <= by + bh + 4) col = WHITE;
+      // knob — large enough to read at Home Screen size
+      const kd = Math.hypot(x - nx, y - ny);
+      if (kd < 12.5) col = mix(WHITE, VIOLET, Math.min(1, kd / 13) * 0.4);
+      if (kd < 12.5 && kd > 10.2) col = WHITE;
+      // gold mark
+      const mx = bx + bw * markU, my = by + bh / 2;
+      const dGold = Math.hypot(x - mx, y - my);
+      const pulse = t > 0.45 && t < 0.85 ? 1 : 0.55;
+      if (dGold < 7.2 && dGold > 3.4) col = mix(GOLD, WHITE, 0.15 * pulse);
     }
     const off = (py * RW + px) * 4;
     if (a) { rgba[off] = col[0]; rgba[off + 1] = col[1]; rgba[off + 2] = col[2]; rgba[off + 3] = 1; }
@@ -111,6 +122,7 @@ function pngChunk(tag, data) {
 
 const GLYPHS = {
   'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
   'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
@@ -118,7 +130,9 @@ const GLYPHS = {
   'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
   'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+  'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
   'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
+  'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
   'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   'P': [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
@@ -131,6 +145,18 @@ const GLYPHS = {
   'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '-': [0, 0, 0, 0b11111, 0, 0, 0],
+  '.': [0, 0, 0, 0, 0, 0, 0b00100],
+  '\'': [0b00100, 0b00100, 0, 0, 0, 0, 0],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111],
+  '3': [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  '4': [0b10001, 0b10001, 0b10001, 0b11111, 0b00001, 0b00001, 0b00001],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '6': [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b00100, 0b01000, 0b01000],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -145,6 +171,21 @@ function drawText(put, x, y, str, s, r, g, b) {
       }
     }
     cx += 6 * s;
+  }
+}
+function fillRound(put, x0, y0, x1, y1, rad, r, g, b) {
+  x0 |= 0; y0 |= 0; x1 |= 0; y1 |= 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const cx = Math.min(Math.max(x, x0 + rad), x1 - 1 - rad);
+    const cy = Math.min(Math.max(y, y0 + rad), y1 - 1 - rad);
+    let ok = false;
+    if (x >= x0 + rad && x < x1 - rad) ok = true;
+    else if (y >= y0 + rad && y < y1 - rad) ok = true;
+    else {
+      const dx = x - cx, dy = y - cy;
+      ok = dx * dx + dy * dy <= rad * rad;
+    }
+    if (ok) put(x, y, r, g, b);
   }
 }
 
@@ -168,45 +209,81 @@ export function screenshotPng() {
     put(x, y, (27 + t * 18) | 0, (23 + t * 10) | 0, (48 + t * 22) | 0);
   }
 
-  fill(70, 80, 1130, 640, 44, 38, 80);
-  for (let x = 70; x < 1130; x++) {
-    put(x, 80, 90, 78, 136); put(x, 81, 90, 78, 136);
-    put(x, 639, 90, 78, 136); put(x, 638, 90, 78, 136);
-  }
+  fillRound(put, 90, 48, 1110, 672, 28, 44, 38, 80);
 
-  drawText(put, 110, 120, 'LONGWAVE', 8, 196, 176, 255);
+  // Turn banner
+  fillRound(put, 140, 80, 1060, 168, 16, 58, 50, 100);
+  drawText(put, 280, 104, 'YOU ARE THE GUESSER', 5, 196, 176, 255);
 
   // Poles
-  fill(110, 230, 430, 300, 46, 158, 158);
-  fill(770, 230, 1090, 300, 176, 74, 168);
-  drawText(put, 140, 250, 'HOT', 5, 255, 255, 255);
-  drawText(put, 860, 250, 'COLD', 5, 255, 255, 255);
+  fillRound(put, 140, 196, 470, 276, 14, 46, 158, 158);
+  fillRound(put, 730, 196, 1060, 276, 14, 176, 74, 168);
+  drawText(put, 200, 220, 'HOT', 5, 255, 255, 255);
+  drawText(put, 820, 220, 'COLD', 5, 255, 255, 255);
 
-  // Rail
-  const rx = 130, ry = 380, rw = 940, rh = 22;
+  // Fat rail
+  const rx = 150, ry = 340, rw = 900, rh = 36;
+  fillRound(put, rx, ry, rx + rw, ry + rh, 18, 40, 34, 70);
   for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) {
     const u = x / rw;
     const c = u < 0.5
       ? mix([46, 158, 158], [118, 86, 214], u * 2)
       : mix([118, 86, 214], [176, 74, 168], (u - 0.5) * 2);
-    put(rx + x, ry + y, c[0] | 0, c[1] | 0, c[2] | 0);
-  }
-  // Target gold ring around ~0.32
-  const tx = rx + rw * 0.32;
-  for (let dy = -18; dy <= 18; dy++) for (let dx = -18; dx <= 18; dx++) {
-    const d = Math.hypot(dx, dy);
-    if (d < 14 && d > 8) put(tx + dx, ry + rh / 2 + dy, 240, 212, 106);
-  }
-  // Needle at ~0.38
-  const nx = rx + rw * 0.38;
-  fill(nx - 3, ry - 28, nx + 3, ry + rh + 28, 255, 255, 255);
-  for (let i = 0; i < 14; i++) for (let k = -i; k <= i; k++) {
-    put(nx + k, ry - 28 - 14 + i, 255, 255, 255);
+    const yy = ry + y, xx = rx + x;
+    const cy = Math.min(Math.max(yy, ry + 18), ry + rh - 19);
+    const cx = Math.min(Math.max(xx, rx + 18), rx + rw - 19);
+    let ok = (xx >= rx + 18 && xx < rx + rw - 18) || (yy >= ry + 18 && yy < ry + rh - 18);
+    if (!ok) {
+      const dx = xx - cx, dy = yy - cy;
+      ok = dx * dx + dy * dy <= 18 * 18;
+    }
+    if (ok) put(xx, yy, c[0] | 0, c[1] | 0, c[2] | 0);
   }
 
-  drawText(put, 110, 470, 'CLUE', 4, 183, 172, 207);
-  drawText(put, 110, 520, 'COFFEE', 6, 244, 238, 252);
-  drawText(put, 110, 590, 'PSYCHIC  -  GUESSER', 3, 196, 176, 255);
+  // Scoring wedges around ~0.36 (mid-round reveal feel)
+  const cell = rw / 20;
+  const tTick = 7;
+  const wedges = [
+    [tTick - 2, [212, 104, 88], '2'],
+    [tTick - 1, [232, 154, 74], '3'],
+    [tTick, [240, 212, 106], '4'],
+    [tTick + 1, [232, 154, 74], '3'],
+    [tTick + 2, [212, 104, 88], '2'],
+  ];
+  for (const [tick, col] of wedges) {
+    const x0 = rx + (tick - 0.5) * cell;
+    const x1 = rx + (tick + 0.5) * cell;
+    fill(x0, ry, x1, ry + rh, col[0], col[1], col[2]);
+  }
+
+  // Needle + knob a hair off the 4 (close, not dead-on) — mid-round, clue + dial
+  const nx = rx + 8.2 * cell;
+  fill(nx - 3, ry - 18, nx + 3, ry + rh + 10, 255, 255, 255);
+  const ky = ry + rh + 28, kr = 26;
+  for (let dy = -kr; dy <= kr; dy++) for (let dx = -kr; dx <= kr; dx++) {
+    const d = Math.hypot(dx, dy);
+    if (d <= kr) {
+      const t = d / kr;
+      const c = mix([255, 255, 255], [196, 176, 255], t * 0.55);
+      put(nx + dx, ky + dy, c[0] | 0, c[1] | 0, c[2] | 0);
+    }
+  }
+
+  // Clue
+  drawText(put, 140, 470, 'THE CLUE', 3, 183, 172, 207);
+  drawText(put, 140, 510, 'COFFEE', 8, 244, 238, 252);
+
+  // Score pips + lock
+  drawText(put, 140, 590, 'SCORE 5', 3, 196, 176, 255);
+  for (let i = 0; i < 7; i++) {
+    const px = 430 + i * 22, py = 604;
+    const on = i < 5;
+    for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) {
+      if (dx * dx + dy * dy <= 25) put(px + dx, py + dy, on ? 196 : 70, on ? 176 : 62, on ? 255 : 110);
+    }
+  }
+  fillRound(put, 720, 574, 1060, 640, 14, 118, 86, 214);
+  drawText(put, 760, 592, 'LOCK', 4, 255, 255, 255);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
