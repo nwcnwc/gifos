@@ -53,8 +53,24 @@
   });
 
   // ---- board paint ----
+  // On a phone the 15×15 is width-limited; squeeze the wood margin and grow
+  // the stones so a finger can actually hit a point. Desktop keeps a calmer pad.
+  function geom(W) {
+    var pad = W < 420 ? Math.max(10, W * 0.028) : W * 0.05;
+    var span = W - 2 * pad;
+    var step = span / (G.N - 1);
+    var rad = step * (W < 420 ? 0.48 : 0.45);
+    return { pad: pad, span: span, step: step, rad: rad };
+  }
+  window.gomokuPad = function (W) { return geom(W).pad; };
   function resizeCanvas(canvas) {
-    var css = canvas.clientWidth || 448;
+    var wrap = canvas.parentElement;
+    if (wrap && wrap.classList && wrap.classList.contains('boardstage')) wrap = wrap.parentElement;
+    var availW = wrap && wrap.clientWidth ? wrap.clientWidth : (canvas.clientWidth || 448);
+    var availH = wrap && wrap.clientHeight ? wrap.clientHeight : availW;
+    var css = Math.max(120, Math.floor(Math.min(availW, availH, 560)));
+    canvas.style.width = css + 'px';
+    canvas.style.height = css + 'px';
     var dpr = window.devicePixelRatio || 1;
     var w = Math.round(css * dpr);
     if (canvas.width !== w || canvas.height !== w) { canvas.width = w; canvas.height = w; }
@@ -66,12 +82,63 @@
     else { g.addColorStop(0, '#fff'); g.addColorStop(1, '#b8b8c0'); }
     return g;
   }
+  function lastMark(ctx, x, y, r, black) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.08, 0, Math.PI * 2);
+    ctx.strokeStyle = black ? 'rgba(255,255,255,.92)' : 'rgba(32,20,8,.88)';
+    ctx.lineWidth = Math.max(2.2, r * 0.18);
+    ctx.shadowColor = black ? 'rgba(255,255,255,.7)' : 'rgba(240,193,74,.55)';
+    ctx.shadowBlur = Math.max(4, r * 0.55);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    var s = Math.max(4.2, r * 0.4);
+    ctx.beginPath();
+    ctx.moveTo(x, y - s);
+    ctx.lineTo(x + s * 0.88, y + s * 0.58);
+    ctx.lineTo(x - s * 0.88, y + s * 0.58);
+    ctx.closePath();
+    ctx.fillStyle = black ? '#f6f4ee' : '#1a1208';
+    ctx.fill();
+    ctx.restore();
+  }
+  function paintWin(ctx, s, g, pulse) {
+    if (!s.winLine || !s.winLine.length) return;
+    var u = 0.5 + 0.5 * Math.sin((pulse || 0) / 260);
+    var pts = s.winLine;
+    var i, x, y;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(240,193,74,' + (0.78 + 0.22 * u) + ')';
+    ctx.lineWidth = Math.max(3.4, g.rad * (0.28 + 0.1 * u));
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(240,193,74,.55)';
+    ctx.shadowBlur = Math.max(6, g.rad * 0.6);
+    ctx.beginPath();
+    for (i = 0; i < pts.length; i++) {
+      x = g.pad + pts[i].c * g.step;
+      y = g.pad + pts[i].r * g.step;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = Math.max(2.4, g.rad * 0.16);
+    for (i = 0; i < pts.length; i++) {
+      x = g.pad + pts[i].c * g.step;
+      y = g.pad + pts[i].r * g.step;
+      ctx.beginPath();
+      ctx.arc(x, y, g.rad * (1.06 + 0.06 * u), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   function paint(canvas, s, opts) {
     opts = opts || {};
     var css = resizeCanvas(canvas);
     var ctx = canvas.getContext('2d');
     ctx.setTransform((window.devicePixelRatio || 1), 0, 0, (window.devicePixelRatio || 1), 0, 0);
     var W = css;
+    var g = geom(W);
     var wood = ctx.createLinearGradient(0, 0, W, W);
     wood.addColorStop(0, '#e0b078');
     wood.addColorStop(0.5, '#c9955a');
@@ -79,69 +146,69 @@
     ctx.fillStyle = wood;
     ctx.fillRect(0, 0, W, W);
     ctx.fillStyle = 'rgba(80,40,10,.07)';
-    for (var i = 0; i < 12; i++) {
-      ctx.fillRect(0, (i / 12) * W, W, 1.2);
-    }
-    var N = G.N, pad = W * 0.065, span = W - 2 * pad, step = span / (N - 1);
+    var i;
+    for (i = 0; i < 12; i++) ctx.fillRect(0, (i / 12) * W, W, 1.2);
     ctx.strokeStyle = 'rgba(48,28,10,.78)';
     ctx.lineWidth = Math.max(1, W / 420);
     var k, p;
-    for (k = 0; k < N; k++) {
-      p = pad + k * step;
-      ctx.beginPath(); ctx.moveTo(pad, p); ctx.lineTo(pad + span, p); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(p, pad); ctx.lineTo(p, pad + span); ctx.stroke();
+    for (k = 0; k < G.N; k++) {
+      p = g.pad + k * g.step;
+      ctx.beginPath(); ctx.moveTo(g.pad, p); ctx.lineTo(g.pad + g.span, p); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(p, g.pad); ctx.lineTo(p, g.pad + g.span); ctx.stroke();
     }
     ctx.fillStyle = '#2a1808';
     [[3, 3], [3, 11], [11, 3], [11, 11], [7, 7]].forEach(function (xy) {
       ctx.beginPath();
-      ctx.arc(pad + xy[1] * step, pad + xy[0] * step, Math.max(2.2, step * 0.12), 0, Math.PI * 2);
+      ctx.arc(g.pad + xy[1] * g.step, g.pad + xy[0] * g.step, Math.max(2.2, g.step * 0.12), 0, Math.PI * 2);
       ctx.fill();
     });
     if (!s) return;
-    var r, c, x, y, rad = step * 0.44, col;
+    var r, c, x, y, col;
     var win = {};
     if (s.winLine) s.winLine.forEach(function (pt) { win[pt.r + ',' + pt.c] = 1; });
-    for (r = 0; r < N; r++) for (c = 0; c < N; c++) {
-      col = s.cells[r * N + c];
+    var winning = !!s.winLine;
+    for (r = 0; r < G.N; r++) for (c = 0; c < G.N; c++) {
+      col = s.cells[r * G.N + c];
       if (!col) continue;
-      x = pad + c * step; y = pad + r * step;
-      ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2);
-      ctx.fillStyle = stoneGradient(ctx, x, y, rad, col);
+      x = g.pad + c * g.step; y = g.pad + r * g.step;
+      ctx.save();
+      if (winning && !win[r + ',' + c]) ctx.globalAlpha = 0.42;
+      ctx.beginPath(); ctx.arc(x, y, g.rad, 0, Math.PI * 2);
+      ctx.fillStyle = stoneGradient(ctx, x, y, g.rad, col);
       ctx.fill();
       ctx.strokeStyle = col === G.BLACK ? 'rgba(0,0,0,.45)' : 'rgba(0,0,0,.22)';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = Math.max(1, g.rad * 0.08);
       ctx.stroke();
-      if (win[r + ',' + c]) {
-        ctx.beginPath(); ctx.arc(x, y, rad * 1.08, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(220,40,30,.85)';
-        ctx.lineWidth = 2.4;
-        ctx.stroke();
-      }
+      ctx.restore();
     }
-    if (s.last && G.at(s, s.last.r, s.last.c)) {
-      x = pad + s.last.c * step; y = pad + s.last.r * step;
-      ctx.beginPath(); ctx.arc(x, y, rad * 0.22, 0, Math.PI * 2);
-      ctx.fillStyle = G.at(s, s.last.r, s.last.c) === G.BLACK ? '#f2f2f2' : '#222';
-      ctx.fill();
+    if (!winning && s.last && G.at(s, s.last.r, s.last.c)) {
+      lastMark(ctx, g.pad + s.last.c * g.step, g.pad + s.last.r * g.step, g.rad,
+        G.at(s, s.last.r, s.last.c) === G.BLACK);
     }
+    if (winning) paintWin(ctx, s, g, opts.pulse);
     if (opts.hover && !s.winner && G.at(s, opts.hover.r, opts.hover.c) === G.EMPTY) {
-      x = pad + opts.hover.c * step; y = pad + opts.hover.r * step;
-      ctx.globalAlpha = 0.38;
-      ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2);
-      ctx.fillStyle = stoneGradient(ctx, x, y, rad, opts.hover.color || s.turn);
+      x = g.pad + opts.hover.c * g.step; y = g.pad + opts.hover.r * g.step;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath(); ctx.arc(x, y, g.rad, 0, Math.PI * 2);
+      ctx.fillStyle = stoneGradient(ctx, x, y, g.rad, opts.hover.color || s.turn);
       ctx.fill();
       ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(x, y, g.rad * 1.02, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(240,193,74,.55)';
+      ctx.lineWidth = Math.max(1.5, g.rad * 0.1);
+      ctx.stroke();
     }
   }
   function hitCell(canvas, ev) {
     var rect = canvas.getBoundingClientRect();
-    var t = ev.touches && ev.touches[0] ? ev.touches[0] : ev;
+    var t = ev.changedTouches && ev.changedTouches[0] ? ev.changedTouches[0]
+          : (ev.touches && ev.touches[0] ? ev.touches[0] : ev);
     var x = t.clientX - rect.left, y = t.clientY - rect.top, W = rect.width;
-    var pad = W * 0.065, span = W - 2 * pad, step = span / (G.N - 1);
-    var c = Math.round((x - pad) / step), r = Math.round((y - pad) / step);
+    var g = geom(W);
+    var c = Math.round((x - g.pad) / g.step), r = Math.round((y - g.pad) / g.step);
     if (r < 0 || c < 0 || r >= G.N || c >= G.N) return null;
-    var dx = x - (pad + c * step), dy = y - (pad + r * step);
-    if (dx * dx + dy * dy > (step * 0.55) * (step * 0.55)) return null;
+    var dx = x - (g.pad + c * g.step), dy = y - (g.pad + r * g.step);
+    if (dx * dx + dy * dy > (g.step * 0.52) * (g.step * 0.52)) return null;
     return { r: r, c: c };
   }
 
@@ -212,17 +279,65 @@
   function showGame() {
     $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
     paint($('board'), state.s, { hover: isHumanTurn() ? state.hover : null });
+    if (state.s && state.s.winLine) startPulse();
+  }
+  function paintTurn() {
+    var black = $('whoBlack'), white = $('whoWhite');
+    if (!black || !white) return;
+    if (state.mode === 'cpu') {
+      $('whoBlackName').textContent = state.color === 'black' ? 'You' : 'Computer';
+      $('whoWhiteName').textContent = state.color === 'white' ? 'You' : 'Computer';
+    } else {
+      $('whoBlackName').textContent = 'Black';
+      $('whoWhiteName').textContent = 'White';
+    }
+    var s = state.s;
+    var blackOn = false, whiteOn = false, win = false;
+    if (s && s.winner && s.winner !== -1) {
+      blackOn = s.winner === G.BLACK;
+      whiteOn = s.winner === G.WHITE;
+      win = true;
+    } else if (s && !s.winner && !state.thinking) {
+      blackOn = s.turn === G.BLACK;
+      whiteOn = s.turn === G.WHITE;
+    }
+    black.className = 'who black' + (blackOn ? (win ? ' on win' : ' on') : '');
+    white.className = 'who white' + (whiteOn ? (win ? ' on win' : ' on') : '');
+  }
+  function paintBanner() {
+    var el = $('banner');
+    if (el) el.hidden = true;
+  }
+  var pulseOn = false;
+  function pulseLoop() {
+    if (!pulseOn) return;
+    var local = !$('game').hidden && state.s && state.s.winLine;
+    var friend = !$('friend').hidden && mp.board;
+    if (local) paint($('board'), state.s, { hover: null, pulse: nowMs() });
+    else if (friend) {
+      var fs = boardToState(mp.board);
+      if (fs.winLine) paint($('fBoard'), fs, { hover: null, pulse: nowMs() });
+      else { pulseOn = false; return; }
+    } else { pulseOn = false; return; }
+    requestAnimationFrame(pulseLoop);
+  }
+  function startPulse() {
+    if (pulseOn) return;
+    pulseOn = true;
+    requestAnimationFrame(pulseLoop);
   }
   function localStatus() {
     if (!state.s) return;
+    paintTurn();
+    paintBanner();
     if (state.s.winner === -1) { setStatus($('statusLine'), 'Draw — the board is full.', ''); return; }
     if (state.s.winner) {
       var w = G.colorName(state.s.winner);
       var you = state.mode === 'cpu' && w === state.color;
       var msg = state.mode === 'hotseat'
-        ? (w.charAt(0).toUpperCase() + w.slice(1) + ' wins.')
-        : (you ? 'You win.' : 'The computer wins.');
-      setStatus($('statusLine'), msg, you ? 'good' : 'warn');
+        ? (w.charAt(0).toUpperCase() + w.slice(1) + ' wins — five in a row.')
+        : (you ? 'You win — five in a row.' : 'The computer wins.');
+      setStatus($('statusLine'), msg, you || state.mode === 'hotseat' ? 'good' : 'warn');
       return;
     }
     if (state.thinking) { setStatus($('statusLine'), 'Computer is thinking…', ''); return; }
@@ -268,6 +383,7 @@
     paint($('board'), state.s);
     localStatus();
     saveLocal();
+    if (state.s.winLine) startPulse();
     if (!state.over && state.mode === 'cpu' && G.colorName(state.s.turn) !== state.color) aiMove();
     return true;
   }
@@ -292,6 +408,7 @@
     paint($('board'), state.s);
     localStatus();
     saveLocal();
+    if (state.s.winLine) startPulse();
     if (state.mode === 'cpu') {
       resyncAi();
       if (!state.over && G.colorName(state.s.turn) !== state.color) aiMove();
@@ -549,9 +666,10 @@
     var s = boardToState(b);
     var seat = mySeat(b);
     var nameOf = function (id) { return id ? esc(b.names[id] || 'Player') : '<span class="open">open</span>'; };
+    var blackWin = b.winner === 'black', whiteWin = b.winner === 'white';
     $('fSeats').innerHTML =
-      '<div class="seat' + (seat === 'black' ? ' me' : '') + (b.turn === 'black' && !b.winner ? ' turn' : '') + '">● ' + nameOf(b.seats.black) + '</div>' +
-      '<div class="seat' + (seat === 'white' ? ' me' : '') + (b.turn === 'white' && !b.winner ? ' turn' : '') + '">○ ' + nameOf(b.seats.white) + '</div>';
+      '<div class="seat' + (seat === 'black' ? ' me' : '') + (b.turn === 'black' && !b.winner ? ' turn' : '') + (blackWin ? ' win' : '') + '"><i class="stone black" aria-hidden="true"></i> ' + nameOf(b.seats.black) + '</div>' +
+      '<div class="seat' + (seat === 'white' ? ' me' : '') + (b.turn === 'white' && !b.winner ? ' turn' : '') + (whiteWin ? ' win' : '') + '"><i class="stone white" aria-hidden="true"></i> ' + nameOf(b.seats.white) + '</div>';
     var waiting = mp.people.filter(function (p) { return p.id !== b.seats.black && p.id !== b.seats.white; });
     $('fQueue').textContent = waiting.length ? ('Watching: ' + waiting.map(function (p) { return p.name || 'Player'; }).join(', ')) : '';
     var both = b.seats.black && b.seats.white;
@@ -573,6 +691,7 @@
     paint($('fBoard'), s, {
       hover: (seat && b.turn === seat && !b.winner && mp.hover) ? { r: mp.hover.r, c: mp.hover.c, color: G.colorNum(seat) } : null
     });
+    if (s.winLine) startPulse();
     $('fUndo').hidden = !(seat && b.stones.length && !b.winner);
     $('fResign').hidden = !(seat && b.stones.length && !b.winner);
   }

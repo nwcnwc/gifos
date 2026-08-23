@@ -1,6 +1,6 @@
-// Procedural icon: a wooden go board with a black stone settling onto an
-// intersection. Pure Node, super-sample → box-downsample. Deterministic.
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
+// Procedural icon: a wooden goban, a fifth black stone completing a diagonal.
+// Pure Node, super-sample → box-downsample. Deterministic.
+const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 16;
 
 const WOOD_A = [224, 176, 120];
 const WOOD_B = [168, 116, 60];
@@ -10,11 +10,12 @@ const BLACK = [18, 16, 14];
 const WHITE_H = [250, 248, 242];
 const WHITE = [196, 196, 204];
 const CARD = [36, 24, 14];
+const GOLD = [240, 193, 74];
 
 function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [WOOD_A, WOOD_B, LINE, BLACK_H, BLACK, WHITE_H, WHITE, CARD]) {
+  for (const b of [WOOD_A, WOOD_B, LINE, BLACK_H, BLACK, WHITE_H, WHITE, CARD, GOLD]) {
     for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
   }
   return pal;
@@ -38,14 +39,23 @@ function inCard(x, y, m, r) {
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const m = 8, rad = 18, boardIn = 18;
-  const n = 9, span = OUT - 2 * boardIn, step = span / (n - 1);
-  const t = f / FRAMES;
-  const drop = Math.max(0, 1 - t * 1.15);
-  const stoneR = 6.4;
-  const br = boardIn + 4 * step, bc = boardIn + 4 * step;
-  const wr = boardIn + 3 * step, wc = boardIn + 5 * step;
-  const by = br - drop * 14;
+  const m = 8, rad = 18, boardIn = 20;
+  const n = 5, span = OUT - 2 * boardIn, step = span / (n - 1);
+  const stoneR = 9.4;
+  // Four black on the diagonal; the fifth drops onto the last point and the line lights up.
+  const blacks = [[0, 0], [1, 1], [2, 2], [3, 3]];
+  const fifth = [4, 4];
+  const whites = [[0, 2], [2, 0]];
+  const dropFrames = 11;
+  let u = f <= dropFrames ? f / dropFrames : 1;
+  if (u < 1) u = u * u;
+  const glow = f > dropFrames ? (0.55 + 0.45 * Math.sin((f - dropFrames) / (FRAMES - 1 - dropFrames) * Math.PI)) : 0;
+  const fx = boardIn + fifth[1] * step;
+  const fy1 = boardIn + fifth[0] * step;
+  const fy = fy1 - (1 - u) * (fy1 - (boardIn - 6));
+  function atStone(x, y, cx, cy, r) {
+    return (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r;
+  }
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
@@ -59,22 +69,38 @@ function frameIndices(pal, f) {
           if (Math.abs(y - p) < 0.7 && x >= boardIn && x <= OUT - boardIn) col = LINE;
           if (Math.abs(x - p) < 0.7 && y >= boardIn && y <= OUT - boardIn) col = LINE;
         }
-        const stars = [[2, 2], [2, 6], [6, 2], [6, 6], [4, 4]];
+        const stars = [[2, 2]];
         for (const s of stars) {
           const sx = boardIn + s[1] * step, sy = boardIn + s[0] * step;
           if ((x - sx) * (x - sx) + (y - sy) * (y - sy) < 2.1 * 2.1) col = LINE;
         }
-        const wd = (x - wc) * (x - wc) + (y - wr) * (y - wr);
-        if (wd <= stoneR * stoneR) {
-          const u = (x - (wc - 2)) / (stoneR * 2);
-          col = mix(WHITE_H, WHITE, Math.max(0, Math.min(1, u)));
-        }
-        const bd = (x - bc) * (x - bc) + (y - by) * (y - by);
-        if (bd <= stoneR * stoneR) {
-          const u = (x - (bc - 2.2)) / (stoneR * 2);
-          col = mix(BLACK_H, BLACK, Math.max(0.2, Math.min(1, u)));
-        }
       } else col = CARD.slice();
+      for (const s of whites) {
+        const sx = boardIn + s[1] * step, sy = boardIn + s[0] * step;
+        if (atStone(x, y, sx, sy, stoneR)) {
+          const t = (x - (sx - 2)) / (stoneR * 2);
+          col = mix(WHITE_H, WHITE, Math.max(0, Math.min(1, t)));
+        }
+      }
+      for (const s of blacks) {
+        const sx = boardIn + s[1] * step, sy = boardIn + s[0] * step;
+        if (atStone(x, y, sx, sy, stoneR)) {
+          const t = (x - (sx - 2.2)) / (stoneR * 2);
+          col = mix(BLACK_H, BLACK, Math.max(0.2, Math.min(1, t)));
+        }
+      }
+      if (atStone(x, y, fx, fy, stoneR)) {
+        const t = (x - (fx - 2.2)) / (stoneR * 2);
+        col = mix(BLACK_H, BLACK, Math.max(0.2, Math.min(1, t)));
+      }
+      if (glow > 0) {
+        const line = blacks.concat([fifth]);
+        for (const s of line) {
+          const sx = boardIn + s[1] * step, sy = boardIn + s[0] * step;
+          const d = Math.sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy));
+          if (d > stoneR * 0.98 && d < stoneR * 1.42) col = GOLD;
+        }
+      }
     }
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
@@ -101,7 +127,7 @@ export function gomokuIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 8, transparentIndex: 0 };
 }
 
 import { deflateSync } from 'node:zlib';
@@ -186,8 +212,8 @@ export function screenshotPng() {
     put(x, y, (32 + t * 18) | 0, (20 + t * 10) | 0, (12 + t * 6) | 0);
   }
 
-  const board = 620, bx = 70, by = 50;
-  const N = 15, pad = 36, span = board - 2 * pad, step = span / (N - 1);
+  const board = 680, bx = 40, by = 20;
+  const N = 15, pad = 32, span = board - 2 * pad, step = span / (N - 1);
   for (let y = 0; y < board; y++) for (let x = 0; x < board; x++) {
     const t = (x + y) / (board * 2);
     const r = (224 - t * 56) | 0, g = (176 - t * 52) | 0, b = (118 - t * 40) | 0;
@@ -214,7 +240,7 @@ export function screenshotPng() {
   [[3, 3], [3, 11], [11, 3], [11, 11], [7, 7]].forEach(function (p) { star(p[0], p[1]); });
 
   function stone(r, c, black, mark) {
-    const x = bx + pad + c * step, y = by + pad + r * step, rad = step * 0.44;
+    const x = bx + pad + c * step, y = by + pad + r * step, rad = step * 0.46;
     for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
       if (dx * dx + dy * dy > rad * rad) continue;
       const u = (dx + rad) / (rad * 2);
@@ -222,22 +248,57 @@ export function screenshotPng() {
       else put(x + dx, y + dy, (250 - u * 50) | 0, (248 - u * 48) | 0, (242 - u * 30) | 0);
     }
     if (mark) {
-      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
-        if (dx * dx + dy * dy <= 8) put(x + dx, y + dy, black ? 240 : 30, black ? 240 : 30, black ? 240 : 30);
+      const ring = rad + 3;
+      for (let dy = -ring; dy <= ring; dy++) for (let dx = -ring; dx <= ring; dx++) {
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d > rad + 0.2 && d <= ring) put(x + dx, y + dy, black ? 252 : 32, black ? 250 : 20, black ? 240 : 10);
       }
     }
   }
-  // a short opening that looks like a real game
-  const blacks = [[7, 7], [6, 8], [8, 6], [5, 7], [7, 5], [9, 9], [4, 8], [8, 4], [6, 6]];
-  const whites = [[7, 8], [6, 7], [8, 7], [7, 6], [5, 8], [8, 8], [4, 7], [9, 6]];
-  blacks.forEach(function (p, i) { stone(p[0], p[1], true, i === blacks.length - 1); });
-  whites.forEach(function (p) { stone(p[0], p[1], false, false); });
+  // A mid-game fight — not an opening, not an empty board. Alternating, no overlap.
+  const moves = [
+    [7, 7], [7, 8],
+    [6, 8], [6, 7],
+    [8, 6], [8, 7],
+    [5, 7], [7, 6],
+    [7, 5], [5, 8],
+    [9, 9], [8, 8],
+    [4, 8], [4, 7],
+    [8, 4], [9, 6],
+    [6, 6], [5, 6],
+    [5, 5], [6, 5],
+    [8, 9], [9, 8],
+    [4, 6], [4, 5],
+    [6, 4], [7, 4],
+    [9, 7], [10, 7],
+    [3, 9], [3, 8],
+    [10, 6], [10, 8],
+    [4, 9], [5, 9],
+    [8, 5], [9, 5],
+    [6, 9], [6, 10],
+    [3, 7], [3, 6],
+    [9, 4], [10, 5],
+    [2, 8], [2, 7],
+    [11, 7], [11, 6],
+    [1, 9], [12, 5],
+    [12, 9], [1, 6],
+    [2, 10], [13, 7],
+  ];
+  const seen = new Set();
+  for (const p of moves) {
+    const k = p[0] + ',' + p[1];
+    if (seen.has(k)) throw new Error('cover stone overlap at ' + k);
+    seen.add(k);
+  }
+  moves.forEach(function (p, i) {
+    stone(p[0], p[1], i % 2 === 0, i === moves.length - 1);
+  });
 
-  drawText(put, 740, 160, 'GOMOKU', 9, 232, 196, 122);
-  drawText(put, 740, 250, 'FIVE IN A ROW', 4, 196, 154, 96);
-  drawText(put, 740, 360, 'COMPUTER', 3, 232, 220, 200);
-  drawText(put, 740, 410, 'OR A FRIEND', 3, 232, 220, 200);
-  drawText(put, 740, 500, 'BLACK GOES FIRST', 3, 176, 140, 96);
+  drawText(put, 760, 140, 'GOMOKU', 9, 232, 196, 122);
+  drawText(put, 760, 230, 'FIVE IN A ROW', 4, 196, 154, 96);
+  drawText(put, 760, 360, 'COMPUTER', 3, 232, 220, 200);
+  drawText(put, 760, 410, 'OR A FRIEND', 3, 232, 220, 200);
+  drawText(put, 760, 500, 'NO SERVER', 3, 176, 140, 96);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
