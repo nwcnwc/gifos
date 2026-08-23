@@ -1315,6 +1315,24 @@ sandboxed, not a link to someone's server that dies when they stop paying for it
 
 ### 6b. Community stars + comments via PRs (GitHub is the only server)
 
+**SHIPPED (2026-08-23) — the whole loop except auto-merge.** A review is
+`apps/<slug>/reviews/<github-user>.json` ({stars, review, date} — exactly
+those); `scripts/build-app-reviews.mjs` validates and aggregates it into
+`site/apps/reviews.json` (ONE file for the whole store, so the grid paints
+stars with one fetch; deliberately outside build-app-catalog.mjs so
+regeneration needs node and nothing else); the store shows stars on cards,
+the full comments + a **Write a review** button (GitHub's new-file page,
+prefilled with a template that already validates) on every listing.
+`.github/workflows/app-reviews.yml` refuses any PR whose review files aren't
+the author's own (add/edit/DELETE — the delete rule is what stops quiet
+censorship of a one-star) and regenerates + commits the published file on
+merge, so a phone reviewer never runs a script. Docs for humans AND their AI
+agents: apps/README.md#reviews (the store links it) and a recipe in
+site/llms.txt. Guarded by `test/unit/app-reviews.js` (schema, ownership,
+aggregation, wiring, docs) and `test/browser/e2e-app-reviews.js` (rendering,
+the XSS probe on third-party text, the deep link, the zero-review state).
+Merges stay human — the auto-merge bar below is still the open question.
+
 **What.** Let anyone leave a **star rating and a comment** on a store listing
 by **submitting a PR to this repo** — a small review file beside the listing
 (e.g. `apps/<slug>/reviews/<github-user>.json`: stars, text, date). Merged
