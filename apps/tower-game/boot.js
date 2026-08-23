@@ -38,9 +38,9 @@
       s.textContent = '@font-face{font-family:wenxue;src:url("' + A['wenxue.woff'] + '") format("woff");font-weight:normal;font-style:normal;}';
       document.head.appendChild(s);
     }
-    if (A['main-bg.png']) {
-      document.body.style.background = '#f95240 url("' + A['main-bg.png'] + '")';
-    }
+    // Sky, not the original brick wallpaper: on a wide GifOS window the brick
+    // tiled the letterbox and ate the scene. The canvas already paints the city.
+    document.body.style.background = '#7ecce8';
   }
 
   function size() {
@@ -147,6 +147,26 @@
     if (started && game && game.touchStartListener) game.touchStartListener();
   }
 
+  // The engine binds touchstart on document. A tap on Start would otherwise
+  // drop a floor (or no-op) and never fire click. pointerdown + click, and
+  // stop the engine from seeing the chrome taps.
+  function bindTap(id, fn) {
+    var el = $(id);
+    if (!el) return;
+    var last = 0;
+    var go = function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var t = Date.now();
+      if (t - last < 400) return;
+      last = t;
+      fn();
+    };
+    el.addEventListener('pointerup', go, false);
+    el.addEventListener('click', go, false);
+    el.addEventListener('touchend', go, false);
+  }
+
   function hideLoading() {
     $('canvas').classList.remove('hide');
     $('loading').classList.add('hide');
@@ -202,8 +222,14 @@
   document.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
   document.addEventListener('keydown', onKey, false);
 
-  $('start').addEventListener('click', function (e) { e.preventDefault(); begin(); });
-  $('again').addEventListener('click', function (e) { e.preventDefault(); retry(); });
+  bindTap('start', begin);
+  bindTap('again', retry);
+  ['landing', 'modal'].forEach(function (id) {
+    var el = $(id);
+    if (!el) return;
+    el.addEventListener('touchstart', function (e) { e.stopPropagation(); }, true);
+    el.addEventListener('mousedown', function (e) { e.stopPropagation(); }, true);
+  });
 
   loadBest().then(boot, boot);
 })(window);
