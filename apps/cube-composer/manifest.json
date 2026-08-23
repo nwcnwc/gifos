@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "cube-composer",
+  "name": "Cube Composer",
+  "shortName": "Cubes",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Compose coloured cubes into the picture. Play alone, or race a friend on the same puzzle.",
+  "entry": "index.html",
+  "accent": [235, 104, 65],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "players": { "visibility": "read-write" }
+  }
+}

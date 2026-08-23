@@ -1,0 +1,33 @@
+{
+  "tagline": "Line up the cubes. A tiny bit of programming. Race a friend to the shape.",
+  "description": "You have a row of coloured cubes, and a picture of how they should look. Your job is to turn one into the other by lining up little functions — swap this colour for that, stack a cube on top, throw a colour away. Tap a function to add it. Tap it again to take it out. Drag to change the order. Watch the cubes change with each step.\n\nThere are six short chapters, from “turn yellow into red” up to a last few that think in numbers. Skip around if you like. Your progress stays on this device, inside the app.\n\nSend the invite from the GifOS bar and you both get the same puzzle. First to match the picture wins. You never see each other's functions — only who finished, and how many steps they used.\n\nAn unofficial port of Cube Composer by David Peter. The puzzles, the cubes and the functions are his.",
+  "author": {
+    "name": "sharkdp",
+    "url": "https://github.com/sharkdp/cube-composer"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Cube Composer",
+    "url": "https://github.com/sharkdp/cube-composer",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "puzzle",
+    "cubes",
+    "functions",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/cube-composer",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
