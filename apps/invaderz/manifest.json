@@ -1,0 +1,25 @@
+{
+  "gifos": "1.0",
+  "appId": "invaderz",
+  "name": "InvaderZ",
+  "shortName": "InvaderZ",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [0, 140, 186],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "players": {
+      "visibility": "read-write"
+    },
+    "world": {
+      "visibility": "read-only"
+    }
+  }
+}

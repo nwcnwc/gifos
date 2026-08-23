@@ -1,0 +1,32 @@
+{
+  "tagline": "They keep changing shape. Keep them out of the atmosphere.",
+  "description": "You are the last cannon on the ground. The things coming down are not a fixed pattern — each one has its own body, and the body is how it moves. Miss one and it teaches the next wave. After a while they barely look like the first ones you shot.\n\nYou get one shot at a time. Wait until it hits, or until it disappears into the sky, before you fire again. Five of them through the line and the sky is lost.\n\nOn a phone the buttons sit under your thumbs — left, right, fire. On a computer it is the arrows (or A and D) and the space bar.\n\nSend the invite and extra cannons appear on the same ground, each person aiming their own. Everyone is shooting the same wave. There is no lobby and no account. The room is the link.\n\nAn unofficial port of InvaderZ by victorqribeiro, MIT-licensed. This copy adds the extra cannons over a meeting.",
+  "author": {
+    "name": "victorqribeiro",
+    "url": "https://github.com/victorqribeiro/invaderz"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "InvaderZ",
+    "url": "https://github.com/victorqribeiro/invaderz",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "invaders",
+    "arcade",
+    "space",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/invaderz",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

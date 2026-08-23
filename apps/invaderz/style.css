@@ -1,0 +1,73 @@
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #0b0c10; color: #1a1a1a;
+  font-family: "Courier New", Courier, monospace;
+  user-select: none;
+}
+#stage {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+#canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;
+  border: 2px solid #111;
+  background: #fff;
+}
+
+#hud {
+  position: fixed; left: 12px; top: 12px; z-index: 5;
+  pointer-events: none; font-size: 12px; letter-spacing: .04em;
+  color: rgba(232, 240, 255, .7);
+}
+body.touch #hud { display: none; }
+
+#tally {
+  position: fixed; right: 12px; top: 12px; z-index: 5;
+  font-size: 12px; letter-spacing: .08em; color: rgba(232, 240, 255, .8);
+  background: rgba(11, 12, 16, .7); border: 1px solid rgba(232, 240, 255, .25);
+  padding: 4px 8px; cursor: pointer;
+}
+#tally[hidden] { display: none; }
+
+#score {
+  position: fixed; left: 50%; top: 12%; transform: translateX(-50%);
+  z-index: 6; min-width: 16rem;
+  background: rgba(11, 12, 16, .88); border: 1px solid rgba(232, 240, 255, .35);
+  color: #e8f0ff; padding: 10px 14px;
+}
+#score[hidden] { display: none; }
+#score table { width: 100%; border-collapse: collapse; font-size: 14px; }
+#score th { text-align: left; font-weight: 400; color: rgba(232, 240, 255, .5); padding-bottom: 6px; }
+#score td { padding: 3px 8px 3px 0; }
+#score td:nth-child(2) { text-align: right; }
+#score tr.me td { color: #fff; }
+
+#touch {
+  position: fixed; inset: 0; z-index: 20; pointer-events: none;
+  touch-action: none; user-select: none;
+}
+#touch[hidden] { display: none; }
+.t-col {
+  position: absolute; bottom: max(1.2rem, env(safe-area-inset-bottom));
+  display: flex; gap: .55rem; pointer-events: none;
+}
+#t-left { left: max(.8rem, env(safe-area-inset-left)); }
+#t-right { right: max(.8rem, env(safe-area-inset-right)); }
+.t-btn {
+  pointer-events: auto;
+  width: 4.6rem; height: 4.6rem;
+  border-radius: .8rem;
+  border: 1px solid rgba(232, 240, 255, .35);
+  background: rgba(8, 10, 18, .45);
+  color: #e8f0ff;
+  font: 700 .68rem/1 "Courier New", Courier, monospace;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.t-btn.wide { width: 6.2rem; height: 6.2rem; font-size: .78rem; }
+.t-btn.on { background: rgba(232, 240, 255, .28); }
+body:not(.touch) #touch { display: none; }

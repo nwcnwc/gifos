@@ -1,0 +1,11 @@
+vendor/*.js is InvaderZ as shipped. Do not edit it; run node apps/invaderz/vendor.mjs.
+
+upstream: https://github.com/victorqribeiro/invaderz
+commit:   a3ac9574f7a1904fb74d7fdff22b9b2e7c94a310
+license:  MIT (COPYING-invaderz.txt)
+
+Invader.js, Player.js and Genetics.js are loaded as classic scripts. main.js
+is kept for the record but is not executed — it registered a service worker
+and an appcache, and it owns a single cannon. The GifOS loop (game.js) is
+ordinary source beside this directory. The notice travels INSIDE the GIF as
+well as beside it here.
