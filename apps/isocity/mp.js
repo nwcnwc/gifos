@@ -13,10 +13,13 @@
   var STALE_MS = 9000;
   var HB_MS = 3000;
   var PUB_MS = 120;
-  var NTILES = 7;
+  var NTILES = 16;
   var TEX_W = 12;
   var TEX_H = 6;
-  var CELLS = NTILES * NTILES;
+  function ntiles() {
+    return (root.IsoCity && typeof root.IsoCity.ntiles === 'function' && root.IsoCity.ntiles()) || NTILES;
+  }
+  function CELLS() { return ntiles() * ntiles(); }
 
   var api = null;
   var room = null;
@@ -44,12 +47,13 @@
   };
 
   function zeros() {
-    var a = [];
-    for (var i = 0; i < CELLS; i++) a.push(0);
+    var a = [], n = CELLS();
+    for (var i = 0; i < n; i++) a.push(0);
     return a;
   }
   function legalCell(x, y, a, b) {
-    return x >= 0 && x < NTILES && y >= 0 && y < NTILES &&
+    var n = ntiles();
+    return x >= 0 && x < n && y >= 0 && y < n &&
       a >= 0 && a < TEX_H && b >= 0 && b < TEX_W;
   }
   function packStr(cells) { return (cells || []).join(','); }
@@ -125,7 +129,7 @@
   function currentCells() {
     if (root.IsoCity && root.IsoCity.pack) {
       var p = root.IsoCity.pack();
-      if (p && p.length === CELLS) return p.slice();
+      if (p && p.length === CELLS()) return p.slice();
     }
     return zeros();
   }
@@ -154,10 +158,11 @@
 
   function applyCity(cells) {
     if (!root.IsoCity || !root.IsoCity.replaceMap) return;
-    var s = packStr(cells);
+    var flat = (root.IsoCity.nestTo) ? root.IsoCity.nestTo(cells, ntiles()) : cells;
+    var s = packStr(flat);
     if (s === lastPacked) return;
     lastPacked = s;
-    root.IsoCity.replaceMap(cells);
+    root.IsoCity.replaceMap(flat);
   }
 
   function reconcile(C, people) {
@@ -165,7 +170,9 @@
       id: 'city',
       host: me.id,
       mode: C.mode || mode || 'share',
-      cells: (C.cells && C.cells.length === CELLS) ? C.cells.slice() : zeros(),
+      cells: (C.cells && C.cells.length)
+        ? ((root.IsoCity && root.IsoCity.nestTo) ? root.IsoCity.nestTo(C.cells, ntiles()) : C.cells.slice())
+        : zeros(),
       seq: C.seq || 0,
       applied: C.applied ? Object.assign({}, C.applied) : {},
       wipeN: C.wipeN ? Object.assign({}, C.wipeN) : {},
@@ -185,7 +192,7 @@
         (p.pending || []).forEach(function (s) {
           if (!s || s.n <= last) return;
           if (!legalCell(s.x, s.y, s.a, s.b)) return;
-          c.cells[s.x * NTILES + s.y] = s.a * TEX_W + s.b;
+          c.cells[s.x * ntiles() + s.y] = s.a * TEX_W + s.b;
           last = s.n;
           ch = true;
         });

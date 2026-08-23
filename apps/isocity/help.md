@@ -1,23 +1,21 @@
 # IsoCity
 
-A tiny isometric city. There is no budget, no score, no people. You pick a tile and you put it down.
+A tiny isometric city — no budget, no score, no people. Pick a tile and put it down. **Sixteen tiles on a side** (256 cells). An older save from the original 7×7 sits in the middle, not stretched.
 
-## The map is 7×7
+## Look around
 
-Forty-nine cells. That is the whole city — the same size as the original IsoCity. You cannot expand past the edge. Fill the cells; that is the game.
+- **Drag** to pan.
+- **Pinch** to zoom. On a computer, **Ctrl+scroll** (⌘+scroll on a Mac).
+- Zoom all the way out to see the whole diamond; pinch in to place carefully.
 
-The pictures are a Kenney sheet: **72 tiles** (roads, grass, trees, houses, towers, water). The first tile is empty ground. Right-click (or two-finger tap on some computers) puts empty ground back.
+## Place a tile
 
-## Look around — there is no zoom
+The strip on the side (under the map on a phone) is **72 tiles** — empty ground, roads, rails, trees, water, houses, towers. The name of the selected tile sits under the strip. The first tile is empty ground; right-click (or two-finger tap on some computers) puts empty ground back.
 
-**There is no pinch-zoom and no scroll-wheel zoom.** The tiles stay one size. **Drag to pan.** That is how you look around.
+- **Phone:** drag pans; a short tap places. Buttons sit above the city.
+- **Computer:** click to place. Click and drag to paint a stroke of the same tile.
 
-- **Phone:** drag pans the map; a short tap places the selected tile. Buttons sit above the city.
-- **Computer:** click to place. Click and drag to paint a stroke of the same tile. The whole 7×7 usually fits; if it does not, drag the map.
-
-Pick a tile from the strip, then tap a cell. The hint at the top hides once the city is no longer empty.
-
-**New city** wipes every cell.
+**Undo** takes back the last tap or the last paint stroke. **New city** asks before it wipes every cell.
 
 ## Share, or compare
 

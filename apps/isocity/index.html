@@ -13,11 +13,12 @@
     <div id="actions">
       <button type="button" id="shareBtn">Share the map</button>
       <button type="button" id="compareBtn">Compare cities</button>
+      <button type="button" id="undoBtn" disabled>Undo</button>
       <button type="button" id="newBtn">New city</button>
     </div>
   </div>
 
-  <p id="hint">Pick a tile, then tap the map. Drag to look around.</p>
+  <p id="hint">Pick a tile, then tap the map. Drag to pan. Pinch to zoom (Ctrl+scroll on a computer).</p>
 
   <div id="friend-bar" hidden>
     <p id="friend-hint">Press <b>Invite</b> in the bar above the app to send the link.</p>
@@ -30,7 +31,10 @@
   </div>
 
   <section id="main">
-    <div id="tools"></div>
+    <div id="tools-wrap">
+      <div id="tools"></div>
+      <p id="toolName">Trees</p>
+    </div>
     <div id="area">
       <div id="stage">
         <canvas id="bg"></canvas>
@@ -38,6 +42,16 @@
       </div>
     </div>
   </section>
+
+  <div id="confirm-new" hidden>
+    <div class="confirm-box">
+      <p>Wipe this city? Empty dirt, nothing left.</p>
+      <div class="confirm-actions">
+        <button type="button" id="confirm-no">Keep it</button>
+        <button type="button" id="confirm-yes">New city</button>
+      </div>
+    </div>
+  </div>
 
   <img id="texSheet" src="vendor/textures/01_130x66_130x230.png" alt="" hidden>
 

@@ -3,7 +3,7 @@
   "appId": "isocity",
   "name": "IsoCity",
   "shortName": "IsoCity",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "description": "Share the map from one invite. The city lives in the file.",
   "entry": "index.html",
