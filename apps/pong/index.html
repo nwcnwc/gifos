@@ -8,24 +8,21 @@
 </head>
 <body>
 <div id="stage">
-  <div id="court">
-    <canvas id="game">Sorry, this game needs a canvas.</canvas>
-    <div id="hud">
-      <div id="leftName">YOU</div>
-      <div id="rightName">CPU</div>
-      <button id="soundBtn" type="button" aria-label="Sound">♪</button>
+  <div id="bar">
+    <div id="leftName">YOU</div>
+    <div id="best"></div>
+    <button id="soundBtn" type="button" aria-label="Sound">♪</button>
+    <div id="rightName">CPU</div>
+  </div>
+  <div id="play">
+    <div id="court">
+      <canvas id="game">Sorry, this game needs a canvas.</canvas>
     </div>
-    <div id="pads" hidden>
-      <div class="col" id="padL">
-        <button type="button" data-side="L" data-dir="up" aria-label="Left paddle up">▲</button>
-        <button type="button" data-side="L" data-dir="down" aria-label="Left paddle down">▼</button>
-      </div>
-      <div class="col" id="padR">
-        <button type="button" data-side="R" data-dir="up" aria-label="Right paddle up">▲</button>
-        <button type="button" data-side="R" data-dir="down" aria-label="Right paddle down">▼</button>
-      </div>
-    </div>
-    <div id="hint">Tap to play · Q/A left · P/L right</div>
+  </div>
+  <div id="hint">Tap to play · drag your paddle</div>
+  <div id="pads" hidden>
+    <button type="button" data-dir="up" aria-label="Paddle up">▲</button>
+    <button type="button" data-dir="down" aria-label="Paddle down">▼</button>
   </div>
 </div>
 <!-- Order matters: the runtime inlines each <script src> where it stands. -->

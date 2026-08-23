@@ -12,43 +12,31 @@ html, body {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
-#court {
+#bar {
   position: relative;
-  width: min(100vw, 133.33vh);
-  height: min(75vw, 100vh);
-  max-width: 100%;
-  max-height: 100%;
-  background: #000;
-}
-#game {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: #000;
-}
-#hud {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  font-size: clamp(11px, 2.2vw, 16px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px 6px;
+  font-size: clamp(11px, 2.2vw, 15px);
   letter-spacing: .08em;
   text-transform: uppercase;
+  color: #7a9a7a;
+  flex: 0 0 auto;
 }
-#leftName, #rightName {
-  position: absolute;
-  top: 8%;
-  color: #6a8a6a;
+#leftName { margin-right: auto; }
+#rightName { margin-left: auto; text-align: right; }
+#best {
+  color: #4a6a4a;
+  font-size: .85em;
 }
-#leftName { left: 8%; }
-#rightName { right: 8%; text-align: right; }
+#best:empty { display: none; }
 #soundBtn {
-  pointer-events: auto;
   position: absolute;
-  top: 6%;
   left: 50%;
   transform: translateX(-50%);
   background: transparent;
@@ -62,40 +50,69 @@ html, body {
   padding: 0;
 }
 #soundBtn.off { color: #445544; }
+#play {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+#court {
+  position: relative;
+  width: min(100cqw, calc(100cqh * 4 / 3));
+  height: min(100cqh, calc(100cqw * 3 / 4));
+  background: #000;
+}
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+#hint {
+  flex: 0 0 auto;
+  font-size: clamp(10px, 2vw, 13px);
+  color: #5a7a5a;
+  letter-spacing: .04em;
+  text-align: center;
+  padding: 4px 10px 8px;
+  cursor: pointer;
+}
 #pads {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  pointer-events: none;
+  display: none;
+  flex: 0 0 auto;
+  gap: 12px;
+  padding: 0 16px 12px;
+  height: 22vmin;
+  min-height: 72px;
+  max-height: 120px;
 }
-#pads .col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-#pads .col[hidden] { display: none; }
+#pads[hidden] { display: none !important; }
+body.touch #pads:not([hidden]) { display: flex; }
 #pads button {
-  pointer-events: auto;
   flex: 1;
-  margin: 12% 8%;
-  border: 1px solid rgba(90, 220, 110, 0.18);
-  background: rgba(90, 220, 110, 0.06);
-  color: rgba(180, 255, 190, 0.35);
-  font-size: clamp(22px, 6vw, 42px);
+  border: 1px solid rgba(90, 220, 110, 0.28);
+  background: rgba(90, 220, 110, 0.08);
+  color: rgba(180, 255, 190, 0.7);
+  font-size: clamp(22px, 6vw, 36px);
   border-radius: 12px;
   cursor: pointer;
 }
-#pads button:active { background: rgba(90, 220, 110, 0.18); color: #c8ffc8; }
-#hint {
-  position: absolute;
-  left: 50%;
-  bottom: 6%;
-  transform: translateX(-50%);
-  font-size: clamp(10px, 2vw, 14px);
-  color: #6a8a6a;
-  letter-spacing: .04em;
-  text-align: center;
-  white-space: nowrap;
-  pointer-events: none;
-  text-transform: none;
+#pads button:active { background: rgba(90, 220, 110, 0.22); color: #c8ffc8; }
+@media (orientation: landscape) and (pointer: coarse) {
+  #pads { display: none !important; }
+}
+@media (pointer: coarse) and (orientation: portrait) {
+  #stage { justify-content: center; }
+  #play {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    container-type: normal;
+  }
+  #court {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+  }
 }
