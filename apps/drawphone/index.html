@@ -15,25 +15,29 @@
 <main>
   <section class="card setup" id="setup">
     <h2>Telephone with pictures</h2>
-    <p class="lead">Draw a word. The next person guesses. The next person draws that guess. At the end, see how far it drifted.</p>
+    <p class="lead">One invite is the room. No game server. Draw a word, pass it on, guess what they drew — the chain is the joke, and it lives in this file.</p>
     <label class="row">First word
       <div class="seg" id="firstSeg">
-        <button type="button" data-first="pack" class="on">Give us one</button>
+        <button type="button" data-first="pack" class="on">From the pack</button>
         <button type="button" data-first="write">We write it</button>
       </div>
     </label>
     <p class="lvlnote" id="firstNote">Each chain starts with a simple word to draw.</p>
     <button class="ghost wide" id="hereBtn" type="button">Pass this device</button>
-    <button class="primary" id="friendBtn" type="button">👥 Play with friends</button>
-    <p class="hint">Friends: after you sit down, send the invite from the top bar. That button is not drawn here.</p>
+    <button class="primary" id="friendBtn" type="button">Play with friends</button>
+    <p class="hint">Friends: sit down, then press Invite in the top bar. Two people is enough.</p>
+    <div id="archiveBox" hidden>
+      <h3>Rounds in this file</h3>
+      <ul class="plist" id="archiveList"></ul>
+    </div>
   </section>
 
   <section class="card" id="hereSetup" hidden>
     <div class="vhead"><h2>Pass this device</h2><button class="ghost" id="hereBack" type="button">← Back</button></div>
-    <p class="lvlnote">Add everyone at the table. Hand the phone to whoever is up.</p>
+    <p class="lvlnote">Add everyone at the table. Hand the phone to whoever is up. A splash hides the last turn so nobody peeks.</p>
     <ul class="plist" id="hereList"></ul>
     <div class="addrow">
-      <input id="hereName" type="text" maxlength="24" placeholder="Name" autocomplete="off">
+      <input id="hereName" type="text" maxlength="24" placeholder="Name" autocomplete="off" enterkeyhint="done">
       <button class="ghost" id="hereAdd" type="button">Add</button>
     </div>
     <button class="primary" id="hereStart" type="button">Start</button>
@@ -41,10 +45,11 @@
 
   <section class="game" id="lobby" hidden>
     <div class="vhead"><h2>The table</h2><button class="ghost" id="lobbyLeave" type="button">← Leave</button></div>
+    <p class="lead lobby-lead">The people who open the invite sit here. There is no code and no game server.</p>
     <div class="seats" id="lobbySeats"></div>
     <p class="statusline" id="lobbyStatus"></p>
     <button class="primary" id="lobbyStart" type="button" hidden>Start the round</button>
-    <p class="hint" id="lobbyHint">Send the invite from the top bar to bring people in. Two or more to start.</p>
+    <p class="hint" id="lobbyHint">Press Invite in the top bar to bring someone in. Two or more to start.</p>
   </section>
 
   <section class="game" id="play" hidden>
@@ -54,31 +59,33 @@
     </div>
     <p class="statusline" id="playStatus"></p>
     <p class="count" id="playCount"></p>
-
-    <div id="passSplash" hidden>
-      <p class="lead" id="passName">Pass the phone</p>
-      <button class="primary" id="passGo" type="button">I’m up</button>
-    </div>
+    <p class="fromline" id="fromLine" hidden></p>
+    <p class="note" id="playNote" hidden></p>
 
     <div id="wordPane" hidden>
-      <div class="showwrap" id="guessArtWrap" hidden>
-        <canvas id="guessArt" width="400" height="400" aria-label="Someone’s drawing"></canvas>
+      <div class="padslot" id="guessSlot">
+        <div class="padwrap showwrap" id="guessArtWrap" hidden>
+          <canvas id="guessArt" width="400" height="400" aria-label="Someone’s drawing"></canvas>
+        </div>
       </div>
-      <input id="wordIn" type="text" maxlength="80" placeholder="A word or a short guess" autocomplete="off" autocapitalize="off">
+      <input id="wordIn" type="text" maxlength="80" placeholder="A word or a short guess" autocomplete="off" autocapitalize="off" enterkeyhint="done">
       <button class="primary" id="wordSend" type="button">Send</button>
     </div>
 
     <div id="drawPane" hidden>
       <p class="prompt" id="drawPrompt"></p>
-      <div class="padwrap">
-        <canvas id="pad" width="400" height="400" aria-label="Drawing pad"></canvas>
+      <div class="padslot" id="padSlot">
+        <div class="padwrap" id="padWrap">
+          <canvas id="pad" width="400" height="400" aria-label="Drawing pad"></canvas>
+        </div>
       </div>
       <div class="tools" id="colors"></div>
       <div class="tools">
         <button type="button" class="ghost slim" data-w="3" id="w3">Thin</button>
-        <button type="button" class="ghost slim on" data-w="5" id="w5">Medium</button>
-        <button type="button" class="ghost slim" data-w="10" id="w10">Thick</button>
+        <button type="button" class="ghost slim on" data-w="7" id="w7">Medium</button>
+        <button type="button" class="ghost slim" data-w="14" id="w14">Thick</button>
         <button type="button" class="ghost slim" id="undoBtn">Undo</button>
+        <button type="button" class="ghost slim" id="redoBtn">Redo</button>
         <button type="button" class="ghost slim" id="clearBtn">Clear</button>
       </div>
       <button class="primary" id="drawSend" type="button">Send drawing</button>
@@ -90,13 +97,24 @@
     </div>
 
     <div id="resultsPane" hidden>
+      <p class="present" id="presentLine"></p>
       <div class="chainnav" id="chainNav"></div>
       <div class="chain" id="chainView"></div>
-      <div class="went" id="wentFrom"></div>
-      <button class="primary" id="againBtn" type="button">Play again</button>
+      <div class="went" id="wentFrom" hidden></div>
+      <button class="primary" id="revealNext" type="button">Next</button>
+      <button class="ghost wide" id="againBtn" type="button">Play again</button>
     </div>
   </section>
 </main>
+
+<div id="passSplash" hidden>
+  <div class="pass-card">
+    <p class="pass-kicker">Don’t peek</p>
+    <p class="lead" id="passName">Pass the phone</p>
+    <p class="lvlnote">Hand it over. They tap when they have it.</p>
+    <button class="primary" id="passGo" type="button">I’m up</button>
+  </div>
+</div>
 
 <script src="words.js"></script>
 <script src="game.js"></script>
