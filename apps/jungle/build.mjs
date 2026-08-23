@@ -116,6 +116,18 @@ if (!files['style.css'].includes('touch-action:manipulation')) {
 if (!files['ai.js'].includes('alphabeta') || !files['ai.js'].includes('MAX_DEPTH')) {
   throw new Error('ai.js is not minimax/alpha-beta');
 }
+if (!files['ai.js'].includes('aiMoveAsync')) {
+  throw new Error('ai.js must yield between root moves so the UI is not frozen');
+}
+if (!files['board.js'].includes('GLYPH') || !files['app.js'].includes('GLYPH')) {
+  throw new Error('pieces must be animals (GLYPH), not letters');
+}
+if (!html.includes('rankRow') || !html.includes('turnPill')) {
+  throw new Error('first-run rank strip and whose-turn pill are required');
+}
+if (!files['style.css'].includes('turnpill') || !files['style.css'].includes('.piece .gly')) {
+  throw new Error('animal faces and whose-turn chrome missing from CSS');
+}
 if (files['app.js'].includes('localStorage') || files['board.js'].includes('localStorage')) {
   throw new Error('no localStorage — gifos.db only');
 }

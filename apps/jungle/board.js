@@ -10,6 +10,30 @@
   var LETTER = ['', 'R', 'C', 'D', 'W', 'P', 'T', 'L', 'E'];
   var NAME = ['', 'Rat', 'Cat', 'Dog', 'Wolf', 'Leopard', 'Tiger', 'Lion', 'Elephant'];
   var EMOJI = ['', '🐀', '🐈', '🐕', '🐺', '🐆', '🐯', '🦁', '🐘'];
+  // White animal faces for the pieces. Distinct at ~32px: ears, mane, trunk, spots, stripes.
+  // Features use class "f" (filled dark by CSS). No fragment ids — no hash navigation.
+  function gsvg(kind, inner) {
+    return '<svg viewBox="0 0 32 32" class="gly ' + kind + '" aria-hidden="true">' + inner + '</svg>';
+  }
+  var GLYPH = [
+    '',
+    // Rat — round ears, pointed snout. Reads as the smallest animal.
+    gsvg('rat', '<circle cx="8" cy="8.5" r="5.4"/><circle cx="24" cy="8.5" r="5.4"/><ellipse cx="16" cy="18" rx="11" ry="10"/><ellipse cx="16" cy="25" rx="4.4" ry="3.4"/><circle class="f" cx="12" cy="16" r="1.8"/><circle class="f" cx="20" cy="16" r="1.8"/><circle class="f" cx="16" cy="24.2" r="1.5"/>'),
+    // Cat — tall triangle ears, round face, tiny nose.
+    gsvg('cat', '<polygon points="5,15 8.5,1.5 14.5,12"/><polygon points="27,15 23.5,1.5 17.5,12"/><circle cx="16" cy="18.8" r="10.2"/><circle class="f" cx="12" cy="17" r="1.9"/><circle class="f" cx="20" cy="17" r="1.9"/><polygon class="f" points="16,20 14,23.8 18,23.8"/>'),
+    // Dog — hanging ears, oval muzzle.
+    gsvg('dog', '<ellipse cx="6.2" cy="20" rx="4.6" ry="8.4" transform="rotate(-24 6.2 20)"/><ellipse cx="25.8" cy="20" rx="4.6" ry="8.4" transform="rotate(24 25.8 20)"/><circle cx="16" cy="15.5" r="9"/><ellipse cx="16" cy="22.8" rx="5.4" ry="4.4"/><circle class="f" cx="12.4" cy="14.4" r="1.8"/><circle class="f" cx="19.6" cy="14.4" r="1.8"/><ellipse class="f" cx="16" cy="22.6" rx="2.2" ry="1.5"/>'),
+    // Wolf — sharp ears, long snout down.
+    gsvg('wolf', '<polygon points="4,14.5 7.5,1 14,12"/><polygon points="28,14.5 24.5,1 18,12"/><ellipse cx="16" cy="16.5" rx="9" ry="7.6"/><ellipse cx="16" cy="25.6" rx="3.6" ry="5.4"/><circle class="f" cx="12.4" cy="15.4" r="1.6"/><circle class="f" cx="19.6" cy="15.4" r="1.6"/><ellipse class="f" cx="16" cy="25.2" rx="1.8" ry="2.6"/>'),
+    // Leopard — cat face + three spots (not stripes).
+    gsvg('leopard', '<polygon points="6,15.5 10,3.5 15,13"/><polygon points="26,15.5 22,3.5 17,13"/><circle cx="16" cy="18.6" r="10"/><circle class="f" cx="12.2" cy="16.8" r="1.7"/><circle class="f" cx="19.8" cy="16.8" r="1.7"/><circle class="f" cx="16" cy="10.2" r="1.7"/><circle class="f" cx="10.4" cy="22.8" r="1.6"/><circle class="f" cx="21.6" cy="22.8" r="1.6"/>'),
+    // Tiger — same ears, three forehead stripes.
+    gsvg('tiger', '<polygon points="5,15.5 8.5,1.8 14.5,12.5"/><polygon points="27,15.5 23.5,1.8 17.5,12.5"/><circle cx="16" cy="18.6" r="10"/><rect class="f" x="14.1" y="8" width="1.8" height="8" rx="0.9"/><rect class="f" x="9.8" y="9" width="1.7" height="7" rx="0.8"/><rect class="f" x="20.5" y="9" width="1.7" height="7" rx="0.8"/><circle class="f" cx="12" cy="18.4" r="1.8"/><circle class="f" cx="20" cy="18.4" r="1.8"/>'),
+    // Lion — tufted mane around a round FACE, not a trap-star.
+    gsvg('lion', '<circle cx="16" cy="3.4" r="3.3"/><circle cx="24.9" cy="7.1" r="3.3"/><circle cx="28.6" cy="16" r="3.3"/><circle cx="24.9" cy="24.9" r="3.3"/><circle cx="16" cy="28.6" r="3.3"/><circle cx="7.1" cy="24.9" r="3.3"/><circle cx="3.4" cy="16" r="3.3"/><circle cx="7.1" cy="7.1" r="3.3"/><circle cx="16" cy="16" r="9.4"/><circle class="f" cx="12.8" cy="14.8" r="1.7"/><circle class="f" cx="19.2" cy="14.8" r="1.7"/><ellipse class="f" cx="16" cy="19.4" rx="2.2" ry="1.6"/>'),
+    // Elephant — huge ears, trunk down.
+    gsvg('elephant', '<ellipse cx="6.2" cy="16.2" rx="6.4" ry="9.6"/><ellipse cx="25.8" cy="16.2" rx="6.4" ry="9.6"/><circle cx="16" cy="13.6" r="8.4"/><path d="M14 18.2c.5 5 .1 9.4-1.4 12.6 3.6-1.2 6-4.8 6.2-10 .1-2.6-.5-4.4-1.8-5.4z"/><circle class="f" cx="13" cy="12.6" r="1.7"/><circle class="f" cx="19" cy="12.6" r="1.7"/>')
+  ];
 
   function pack(side, rank) { return (side << 4) | rank; }
   function sideOf(p) { return p >> 4; }
@@ -266,7 +290,7 @@
     EMPTY: EMPTY, RED: RED, BLUE: BLUE,
     RAT: RAT, CAT: CAT, DOG: DOG, WOLF: WOLF,
     LEOPARD: LEOPARD, TIGER: TIGER, LION: LION, ELEPHANT: ELEPHANT,
-    LETTER: LETTER, NAME: NAME, EMOJI: EMOJI,
+    LETTER: LETTER, NAME: NAME, EMOJI: EMOJI, GLYPH: GLYPH,
     pack: pack, sideOf: sideOf, rankOf: rankOf,
     cloneMap: cloneMap, onBoard: onBoard,
     isWater: isWater, isTrap: isTrap, isDen: isDen,

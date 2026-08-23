@@ -7,11 +7,11 @@ boardgame.io, not React. Classic scripts so the GifOS runtime (which drops
 
 ```
 index.html     setup / local game / play a friend
-style.css      dark #0a0a0f, green board, river
-board.js       7×9, ranks, traps, dens, water, jumps
-ai.js          minimax + alpha-beta, depth 2–3, legal moves only
+style.css      dark #0a0a0f, green board, river, animal faces
+board.js       7×9, ranks, traps, dens, water, jumps, SVG glyphs
+ai.js          minimax + alpha-beta, depth 2–3, yields so the UI is not frozen
 app.js         game loop, seats, host-authority multiplayer
-icon.mjs       procedural board icon + 1200×720 cover
+icon.mjs       procedural board icon (lion hops the river) + 1200×720 cover
 build.mjs      packs the GIF into site/apps/jungle/jungle.gif
 ```
 

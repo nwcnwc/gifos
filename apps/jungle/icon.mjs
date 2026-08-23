@@ -48,6 +48,39 @@ function disc(col, x, y, cx, cy, rad, hi, lo) {
   return mix(hi, lo, Math.max(0, Math.min(1, u)));
 }
 
+// Geometric animals that still read at icon size: mane, ears, trunk, tail.
+function animal(col, x, y, cx, cy, rad, hi, lo, rk) {
+  const blob = (bx, by, br) => { col = disc(col, x, y, bx, by, br, hi, lo); };
+  if (rk === 7) { // lion — spiked mane, then face
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+      blob(cx + Math.cos(a) * rad * 1.08, cy + Math.sin(a) * rad * 1.08, rad * 0.36);
+    }
+    blob(cx, cy, rad * 0.74);
+  } else if (rk === 8) { // elephant — ears + trunk
+    blob(cx, cy, rad);
+    blob(cx - rad * 0.88, cy + rad * 0.04, rad * 0.58);
+    blob(cx + rad * 0.88, cy + rad * 0.04, rad * 0.58);
+    blob(cx, cy + rad * 0.95, rad * 0.28);
+    blob(cx, cy + rad * 1.28, rad * 0.22);
+  } else if (rk === 1) { // rat — round ears, smaller head
+    blob(cx - rad * 0.52, cy - rad * 0.62, rad * 0.42);
+    blob(cx + rad * 0.52, cy - rad * 0.62, rad * 0.42);
+    blob(cx, cy, rad);
+  } else if (rk === 6) { // tiger — pointed ears
+    blob(cx - rad * 0.55, cy - rad * 0.78, rad * 0.34);
+    blob(cx + rad * 0.55, cy - rad * 0.78, rad * 0.34);
+    blob(cx, cy, rad);
+  } else if (rk === 2) { // cat — triangle-ish ears as discs
+    blob(cx - rad * 0.48, cy - rad * 0.8, rad * 0.3);
+    blob(cx + rad * 0.48, cy - rad * 0.8, rad * 0.3);
+    blob(cx, cy, rad);
+  } else {
+    blob(cx, cy, rad);
+  }
+  return col;
+}
+
 function isWaterCell(r, c) {
   if (r < 3 || r > 5) return false;
   return c === 1 || c === 2 || c === 4 || c === 5;
@@ -67,14 +100,15 @@ function frameIndices(pal, f) {
   const jumpT = Math.min(1, t * 1.12);
   const jx = fromX + (toX - fromX) * jumpT;
   const jy = fromY + (toY - fromY) * jumpT - Math.sin(jumpT * Math.PI) * cellH * 0.85;
-  // Elephant on the right bank, rat in the left river.
+  // Elephant on the right bank, rat in the left river. Lion hops the water.
   const elX = bx + 6.5 * cellW, elY = by + 6.5 * cellH;
   const ratX = bx + 1.5 * cellW, ratY = by + 4.5 * cellH;
+  // r, c, red?, rank
   const settled = [
-    [0, 0, false], [0, 6, false],
-    [8, 0, true], [8, 6, true],
-    [2, 0, false], [6, 6, true],
-    [1, 1, false], [7, 5, true],
+    [0, 0, false, 6], [0, 6, false, 7],
+    [8, 0, true, 7], [8, 6, true, 6],
+    [2, 0, false, 8], [6, 6, true, 8],
+    [1, 1, false, 2], [7, 5, true, 2],
   ];
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
@@ -98,15 +132,15 @@ function frameIndices(pal, f) {
           const cx = bx + (c + 0.5) * cellW, cy = by + (r + 0.5) * cellH;
           for (const s of settled) {
             if (s[0] === r && s[1] === c) {
-              col = disc(col, x, y, cx, cy, pieceR, s[2] ? RED_H : BLUE_H, s[2] ? RED : BLUE);
+              col = animal(col, x, y, cx, cy, pieceR, s[2] ? RED_H : BLUE_H, s[2] ? RED : BLUE, s[3]);
             }
           }
         }
       }
     }
-    col = disc(col, x, y, ratX, ratY, pieceR * 0.72, BLUE_H, BLUE);
-    col = disc(col, x, y, elX, elY, pieceR * 1.15, RED_H, RED);
-    col = disc(col, x, y, jx, jy, pieceR, BLUE_H, BLUE);
+    col = animal(col, x, y, ratX, ratY, pieceR * 0.78, BLUE_H, BLUE, 1);
+    col = animal(col, x, y, elX, elY, pieceR * 1.18, RED_H, RED, 8);
+    col = animal(col, x, y, jx, jy, pieceR * 1.08, BLUE_H, BLUE, 7);
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
   }
@@ -230,6 +264,7 @@ export function screenshotPng() {
   fill(bx - 12, by - 12, bx + boardW + 12, by + boardH + 12, 22, 48, 28);
 
   function discAt(cx, cy, rad, hi, lo) {
+    rad = rad | 0;
     for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
       if (dx * dx + dy * dy > rad * rad) continue;
       const u = (dx + rad) / (rad * 2);
@@ -237,6 +272,84 @@ export function screenshotPng() {
         (hi[0] + (lo[0] - hi[0]) * u) | 0,
         (hi[1] + (lo[1] - hi[1]) * u) | 0,
         (hi[2] + (lo[2] - hi[2]) * u) | 0);
+    }
+  }
+  function darkAt(cx, cy, rad) {
+    rad = Math.max(1, rad | 0);
+    for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+      if (dx * dx + dy * dy > rad * rad) continue;
+      put(cx + dx, cy + dy, 18, 14, 16);
+    }
+  }
+  const SPECIES = [
+    null,
+    [[232, 220, 200], [200, 184, 160]], // rat
+    [[242, 230, 212], [214, 190, 160]], // cat
+    [[230, 196, 122], [198, 150, 70]],  // dog
+    [[200, 208, 216], [150, 160, 172]], // wolf
+    [[232, 194, 74], [196, 150, 40]],   // leopard
+    [[240, 138, 50], [200, 90, 30]],    // tiger
+    [[240, 196, 74], [200, 150, 40]],   // lion
+    [[216, 208, 196], [170, 160, 148]], // elephant
+  ];
+  function drawAnimal(cx, cy, rad, phi, plo, rk) {
+    discAt(cx, cy, rad, phi, plo);
+    const hi = SPECIES[rk][0], lo = SPECIES[rk][1];
+    const fr = rad * 0.62;
+    const blob = (bx, by, br) => discAt(bx, by, br, hi, lo);
+    if (rk === 7) {
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+        blob(cx + Math.cos(a) * fr * 1.05, cy + Math.sin(a) * fr * 1.05, fr * 0.38);
+      }
+      blob(cx, cy, fr * 0.82);
+    } else if (rk === 8) {
+      blob(cx - fr * 0.9, cy, fr * 0.62);
+      blob(cx + fr * 0.9, cy, fr * 0.62);
+      blob(cx, cy, fr);
+      blob(cx, cy + fr * 0.95, fr * 0.28);
+      blob(cx, cy + fr * 1.3, fr * 0.22);
+    } else if (rk === 1) {
+      blob(cx - fr * 0.55, cy - fr * 0.62, fr * 0.42);
+      blob(cx + fr * 0.55, cy - fr * 0.62, fr * 0.42);
+      blob(cx, cy, fr);
+    } else if (rk === 6) {
+      blob(cx - fr * 0.55, cy - fr * 0.82, fr * 0.32);
+      blob(cx + fr * 0.55, cy - fr * 0.82, fr * 0.32);
+      blob(cx, cy, fr);
+    } else if (rk === 5) {
+      blob(cx - fr * 0.48, cy - fr * 0.72, fr * 0.28);
+      blob(cx + fr * 0.48, cy - fr * 0.72, fr * 0.28);
+      blob(cx, cy, fr);
+    } else if (rk === 2) {
+      blob(cx - fr * 0.5, cy - fr * 0.85, fr * 0.3);
+      blob(cx + fr * 0.5, cy - fr * 0.85, fr * 0.3);
+      blob(cx, cy, fr);
+    } else if (rk === 4) {
+      blob(cx - fr * 0.55, cy - fr * 0.82, fr * 0.28);
+      blob(cx + fr * 0.55, cy - fr * 0.82, fr * 0.28);
+      blob(cx, cy, fr);
+      blob(cx, cy + fr * 0.62, fr * 0.4);
+    } else if (rk === 3) {
+      blob(cx - fr * 0.85, cy + fr * 0.2, fr * 0.4);
+      blob(cx + fr * 0.85, cy + fr * 0.2, fr * 0.4);
+      blob(cx, cy, fr);
+    } else {
+      blob(cx, cy, fr);
+    }
+    darkAt(cx - fr * 0.28, cy - fr * 0.08, Math.max(2, fr * 0.1));
+    darkAt(cx + fr * 0.28, cy - fr * 0.08, Math.max(2, fr * 0.1));
+    if (rk === 5) {
+      darkAt(cx, cy - fr * 0.42, Math.max(2, fr * 0.09));
+      darkAt(cx - fr * 0.4, cy + fr * 0.32, Math.max(2, fr * 0.09));
+      darkAt(cx + fr * 0.4, cy + fr * 0.32, Math.max(2, fr * 0.09));
+    }
+    if (rk === 6) {
+      for (let s = -1; s <= 1; s++) {
+        for (let t = 0; t < fr * 0.4; t++) {
+          put((cx + s * fr * 0.24) | 0, (cy - fr * 0.5 + t) | 0, 18, 14, 16);
+        }
+      }
     }
   }
 
@@ -254,7 +367,6 @@ export function screenshotPng() {
     [0, 13, 0, 0, 0, 12, 0],
     [17, 0, 0, 0, 0, 0, 0],
   ];
-  const LETTER = ['', 'R', 'C', 'D', 'W', 'P', 'T', 'L', 'E'];
   const BLUE_H = [106, 164, 216], BLUE = [58, 122, 184];
   const RED_H = [224, 122, 90], RED = [196, 74, 58];
 
@@ -264,19 +376,25 @@ export function screenshotPng() {
     const den = (c === 3 && (r === 0 || r === 8));
     const trap = (c === 3 && (r === 1 || r === 7)) ||
       ((c === 2 || c === 4) && (r === 0 || r === 8));
-    if (den) fill(gx, gy, gx + cell, gy + cell, 26, 18, 16);
-    else if (trap) fill(gx, gy, gx + cell, gy + cell, 106, 90, 34);
-    else if (water) fill(gx, gy, gx + cell, gy + cell, ((r + c) & 1) ? 36 : 26, ((r + c) & 1) ? 96 : 74, ((r + c) & 1) ? 140 : 110);
+    if (den) {
+      fill(gx, gy, gx + cell, gy + cell, 26, 18, 16);
+      const dcx = gx + cell / 2, dcy = gy + cell / 2, rr = cell * 0.28;
+      for (let a = 0; a < 360; a += 3) {
+        const rad = a * Math.PI / 180;
+        for (let w = 0; w < 3; w++) {
+          put((dcx + Math.cos(rad) * (rr + w)) | 0, (dcy + Math.sin(rad) * (rr + w)) | 0, 255, 186, 90);
+        }
+      }
+    } else if (trap) {
+      fill(gx, gy, gx + cell, gy + cell, 106, 90, 34);
+    } else if (water) fill(gx, gy, gx + cell, gy + cell, ((r + c) & 1) ? 36 : 26, ((r + c) & 1) ? 96 : 74, ((r + c) & 1) ? 140 : 110);
     else fill(gx, gy, gx + cell, gy + cell, ((r + c) & 1) ? 58 : 47, ((r + c) & 1) ? 124 : 106, ((r + c) & 1) ? 68 : 56);
     const v = grid[r][c];
     if (!v) continue;
     const red = v > 10, rk = red ? v - 10 : v;
-    const cx = bx + (c + 0.5) * cell, cy = by + (r + 0.5) * cell, rad = cell * 0.36;
-    discAt(cx, cy, rad, red ? RED_H : BLUE_H, red ? RED : BLUE);
-    const letter = LETTER[rk];
-    const tw = 5 * 4;
-    drawText(put, (cx - tw / 2) | 0, (cy - 16) | 0, letter, 4, 255, 255, 255);
-    drawText(put, (cx + 8) | 0, (cy + 8) | 0, String(rk), 2, 255, 255, 230);
+    const cx = bx + (c + 0.5) * cell, cy = by + (r + 0.5) * cell, rad = cell * 0.34;
+    drawAnimal(cx, cy, rad, red ? RED_H : BLUE_H, red ? RED : BLUE, rk);
+    drawText(put, (cx + 10) | 0, (cy + 10) | 0, String(rk), 2, 255, 255, 230);
   }
 
   drawText(put, 560, 90, 'JUNGLE', 10, 125, 204, 106);
