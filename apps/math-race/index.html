@@ -15,41 +15,51 @@
 <main>
   <section class="card setup" id="setup">
     <h2>New race</h2>
-    <p class="lede">Solve it first. Same equation, a clock, next one as soon as you score.</p>
-    <label class="row">Time
+    <p class="lede">Same equation, a clock, first correct scores. Number pad. Next one as soon as you score.</p>
+    <div class="row">Time
       <div class="seg" id="durSeg">
         <button type="button" data-dur="30">30s</button>
         <button type="button" data-dur="60" class="on">60s</button>
         <button type="button" data-dur="90">90s</button>
       </div>
-    </label>
-    <label class="row">Level
+    </div>
+    <div class="row">Level
       <div class="seg" id="diffSeg">
         <button type="button" data-diff="easy" class="on">Easy +/−</button>
         <button type="button" data-diff="medium">Medium ×</button>
         <button type="button" data-diff="hard">Hard mix</button>
       </div>
-    </label>
+    </div>
     <p class="lvlnote" id="bestLine">Best on this device lives in the file.</p>
+    <ul class="history" id="hist" hidden></ul>
     <button class="primary" id="soloBtn" type="button">Practice</button>
     <button class="ghost wide" id="friendBtn" type="button">Play a friend</button>
   </section>
 
   <section class="game" id="game" hidden>
     <div class="hud">
-      <div class="clock" id="clock" aria-live="polite">1:00</div>
-      <div class="myscore"><span class="lbl">Score</span><b id="score">0</b></div>
+      <div class="clockbox">
+        <div class="clock" id="clock" aria-live="polite">1:00</div>
+        <div class="timebar" aria-hidden="true"><i id="timeFill"></i></div>
+      </div>
+      <div class="myscore"><span class="lbl">Score</span><b id="score">0</b><span class="streak" id="streak" hidden></span></div>
     </div>
     <p class="statusline" id="statusLine"></p>
     <div class="eqwrap" id="eqWrap">
-      <div class="equation" id="equation">—</div>
-      <div class="equals">=</div>
-      <div class="answer" id="answer" aria-live="polite">&nbsp;</div>
+      <div class="eqrow">
+        <div class="equation" id="equation">—</div>
+        <div class="equals">=</div>
+        <div class="answer" id="answer" aria-live="polite">&nbsp;</div>
+      </div>
     </div>
     <ol class="scores" id="scoreList" hidden></ol>
     <div class="pad" id="pad" aria-label="Number pad"></div>
-    <div class="controls">
-      <button class="ghost" id="backBtn" type="button">← Back</button>
+    <button type="button" class="leave" id="leaveBtn">Leave</button>
+    <div class="endcard" id="endCard" hidden>
+      <p class="endscore" id="endScore">0</p>
+      <p class="endlbl" id="endLbl"></p>
+      <button class="primary" id="againBtn" type="button">Play again</button>
+      <button class="ghost wide" id="backBtn" type="button">← Back</button>
     </div>
   </section>
 
@@ -58,20 +68,20 @@
     <p class="statusline" id="fStatus"></p>
     <ol class="lobby" id="fPeople"></ol>
     <div id="fHostBits">
-      <label class="row">Time
+      <div class="row">Time
         <div class="seg" id="fDurSeg">
           <button type="button" data-dur="30">30s</button>
           <button type="button" data-dur="60" class="on">60s</button>
           <button type="button" data-dur="90">90s</button>
         </div>
-      </label>
-      <label class="row">Level
+      </div>
+      <div class="row">Level
         <div class="seg" id="fDiffSeg">
           <button type="button" data-diff="easy" class="on">Easy +/−</button>
           <button type="button" data-diff="medium">Medium ×</button>
           <button type="button" data-diff="hard">Hard mix</button>
         </div>
-      </label>
+      </div>
       <button class="primary" id="fStart" type="button">Start round</button>
     </div>
     <p class="lvlnote" id="fInviteNote">Press <b>Invite</b> in the bar above the app to bring a friend. The invite is the room.</p>

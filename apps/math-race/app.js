@@ -87,6 +87,19 @@
     var where = saveDb ? 'Saved on this device, inside the file.' : 'This visit only (open in GifOS to keep a best).';
     if (n == null) $('bestLine').textContent = 'No best yet for this setting. ' + where;
     else $('bestLine').textContent = 'Best ' + n + ' in ' + setup.duration + 's. ' + where;
+    renderHist();
+  }
+  function renderHist() {
+    var el = $('hist');
+    if (!el) return;
+    if (!history.length) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = history.map(function (h) {
+      var lvl = h.difficulty || 'easy';
+      var vs = h.vs === 'solo' || !h.vs ? 'practice' : 'vs';
+      return '<li><span>' + esc(vs) + ' · ' + esc(String(h.duration || 60)) + 's · ' + esc(lvl) +
+        '</span><b>' + (h.score || 0) + '</b></li>';
+    }).join('');
   }
   function persistSave() {
     if (!saveDb) return;
@@ -125,14 +138,14 @@
   function buildPad() {
     if (padBuilt) return;
     padBuilt = true;
-    var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '\u2212', '0', '⌫', 'GO'];
+    var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '\u2212', '0', 'DEL', 'GO'];
     var root = $('pad');
     keys.forEach(function (k) {
       var b = document.createElement('button');
       b.type = 'button';
       b.textContent = k;
       if (k === 'GO') b.className = 'go';
-      else if (k === '⌫' || k === '\u2212') b.className = 'ghosty';
+      else if (k === 'DEL' || k === '\u2212') b.className = 'ghosty';
       b.setAttribute('data-k', k);
       b.addEventListener('click', function () { handleKey(k); });
       root.appendChild(b);
@@ -182,7 +195,7 @@
   function handleKey(k) {
     if (k === 'GO' || k === 'Enter') { submit(); return; }
     if (!canAnswer()) return;
-    if (k === '⌫' || k === 'Backspace') {
+    if (k === 'DEL' || k === '⌫' || k === 'Backspace') {
       setTyped(typed.slice(0, -1));
       return;
     }
@@ -194,7 +207,19 @@
       var next = typed + k;
       if (next.length > MAX_CHARS) return;
       setTyped(next);
+      maybeAuto();
     }
+  }
+
+  function maybeAuto() {
+    if (!canAnswer()) return;
+    var eq = currentEq();
+    if (!eq) return;
+    var n = R.parseAnswer(typed);
+    if (n == null) return;
+    var sol = String(eq.solution);
+    var t = String(typed).replace('\u2212', '-');
+    if (t.length >= sol.length) submit();
   }
 
   function submit() {
@@ -216,10 +241,17 @@
     tickTimer = setInterval(fn, TICK_MS);
   }
 
-  function paintClock(sec, playing) {
+  function paintClock(sec, playing, duration) {
     var el = $('clock');
     el.textContent = fmtTime(sec);
     el.className = 'clock' + (playing && sec <= 10 ? ' low' : '');
+    var fill = $('timeFill');
+    var dur = duration || 60;
+    if (fill) {
+      var pct = playing && dur > 0 ? Math.max(0, Math.min(100, (sec / dur) * 100)) : 0;
+      fill.style.width = pct + '%';
+      fill.className = playing && sec <= 10 ? 'low' : '';
+    }
     if (playing) setChip(sec <= 10 ? 'warn' : 'play', fmtTime(sec) + ' left');
   }
 
@@ -227,12 +259,46 @@
     var list = $('scoreList');
     if (!rows || !rows.length) { list.hidden = true; list.innerHTML = ''; return; }
     list.hidden = false;
-    rows.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+    rows.sort(function (a, b) {
+      if (a.id === meId && b.id !== meId) return -1;
+      if (b.id === meId && a.id !== meId) return 1;
+      return (b.score || 0) - (a.score || 0);
+    });
     list.innerHTML = rows.map(function (r) {
       var mine = r.id === meId ? ' me' : '';
       var label = r.id === meId ? 'You' : esc(r.name || 'Player');
       return '<li class="' + mine + '"><span>' + label + '</span><b>' + (r.score || 0) + '</b></li>';
     }).join('');
+  }
+
+  function paintStreak(n) {
+    var el = $('streak');
+    if (!el) return;
+    if (n && n >= 2) { el.hidden = false; el.textContent = '×' + n; }
+    else { el.hidden = true; el.textContent = ''; }
+  }
+
+  function popScore() {
+    var el = $('score');
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+  }
+
+  function showEnd(score, label, canAgain) {
+    $('pad').hidden = true;
+    $('leaveBtn').hidden = true;
+    $('eqWrap').hidden = true;
+    $('endCard').hidden = false;
+    $('endScore').textContent = String(score);
+    $('endLbl').textContent = label || '';
+    $('againBtn').hidden = !canAgain;
+  }
+  function hideEnd() {
+    $('pad').hidden = false;
+    $('leaveBtn').hidden = false;
+    $('eqWrap').hidden = false;
+    $('endCard').hidden = true;
   }
 
   function paintEquation(eq) {
@@ -244,15 +310,32 @@
     if (solo) {
       $('score').textContent = String(solo.score);
       paintEquation(solo.eq);
-      paintClock(solo.phase === 'playing' ? remainingOf(solo.endsAt, nowMs()) : 0, solo.phase === 'playing');
-      paintScores(null);
+      paintClock(
+        solo.phase === 'playing' ? remainingOf(solo.endsAt, nowMs()) : 0,
+        solo.phase === 'playing',
+        solo.duration
+      );
+      paintStreak(solo.streak);
+      var key = R.bestKey(solo.difficulty, solo.duration);
+      if (best[key] != null) {
+        paintScores([
+          { id: 'you', name: 'You', score: solo.score },
+          { id: 'best', name: 'Best', score: best[key] }
+        ], 'you');
+      } else {
+        paintScores(null);
+      }
       if (solo.phase === 'ended') {
         var beat = solo.beat;
+        var line = beat
+          ? ('New best — ' + solo.score + '.')
+          : ('Score ' + solo.score + '.');
         $('statusLine').className = 'statusline' + (beat ? ' good' : '');
-        $('statusLine').textContent = beat
-          ? ('Time. New best — ' + solo.score + '.')
-          : ('Time. Score ' + solo.score + '.');
+        $('statusLine').textContent = line;
         setChip('ready', 'Time');
+        showEnd(solo.score, beat ? 'New best' : 'Time', true);
+      } else {
+        hideEnd();
       }
       return;
     }
@@ -263,7 +346,8 @@
       var eq = R.unpackEq(m.eq);
       paintEquation(m.phase === 'playing' || m.phase === 'ended' ? eq : null);
       var rem = m.phase === 'playing' ? remainingOf(m.endsAt, nowMs()) : (m.remaining || 0);
-      paintClock(rem, m.phase === 'playing');
+      paintClock(rem, m.phase === 'playing', m.duration);
+      paintStreak(mp.streak);
       var rows = [];
       var id;
       for (id in (m.names || {})) {
@@ -280,19 +364,29 @@
         var top = rows.slice().sort(function (a, b) { return (b.score || 0) - (a.score || 0); })[0];
         var win = top && rows.filter(function (r) { return r.score === top.score; }).length === 1;
         var mineWin = win && top && top.id === mp.id;
+        var line = mineWin
+          ? ('You win with ' + myScore + '.')
+          : (top ? ((top.id === mp.id ? 'You' : (top.name || 'They')) + ' ' + top.score + '.') : 'Time.');
         $('statusLine').className = 'statusline' + (mineWin ? ' good' : '');
-        $('statusLine').textContent = mineWin
-          ? ('Time. You win with ' + myScore + '.')
-          : (top ? ('Time. ' + (top.id === mp.id ? 'You' : (top.name || 'They')) + ' ' + top.score + '.') : 'Time.');
+        $('statusLine').textContent = line;
         setChip('ready', 'Time');
+        showEnd(myScore, mineWin ? 'You win' : 'Time', isHost(mp.people));
       } else if (m.phase === 'playing') {
+        hideEnd();
         if (m.q !== seenQ) {
           seenQ = m.q;
           setTyped('');
           if (m.lastWinner && m.lastWinner.id && m.lastWinner.id !== mp.id) {
+            mp.streak = 0;
             flash('good', (m.lastWinner.name || 'They') + ' scored — next.', 'good');
+          } else if (m.lastWinner && m.lastWinner.id === mp.id) {
+            mp.streak = (mp.streak || 0) + 1;
+            popScore();
+            paintStreak(mp.streak);
           }
         }
+      } else {
+        hideEnd();
       }
     }
   }
@@ -307,36 +401,43 @@
       difficulty: setup.difficulty,
       duration: dur,
       score: 0,
+      streak: 0,
       eq: R.make(setup.difficulty),
       startedAt: now,
       endsAt: now + dur * 1000,
       beat: false
     };
     setTyped('');
-    $('statusLine').textContent = '';
-    $('statusLine').className = 'statusline';
+    $('statusLine').textContent = 'GO!';
+    $('statusLine').className = 'statusline good';
     $('eqWrap').className = 'eqwrap';
+    hideEnd();
     show('game');
     paintGame();
     startTick(tickSolo);
+    flash('good', 'GO!', 'good');
   }
   function tickSolo() {
     if (!solo || solo.phase !== 'playing') return;
     var rem = remainingOf(solo.endsAt, nowMs());
-    paintClock(rem, true);
+    paintClock(rem, true, solo.duration);
     if (rem <= 0) endSolo();
   }
   function submitSolo(n) {
     if (!solo || solo.phase !== 'playing') return;
     if (R.isCorrect(solo.eq, n)) {
       solo.score += 1;
+      solo.streak = (solo.streak || 0) + 1;
       solo.eq = R.make(solo.difficulty);
       setTyped('');
-      flash('good', 'Yes — next.', 'good');
+      popScore();
+      flash('good', solo.streak >= 2 ? ('Yes — ×' + solo.streak) : 'Yes — next.', 'good');
       paintGame();
     } else {
+      solo.streak = 0;
       setTyped('');
       flash('bad', 'Nope — same equation.', 'warn');
+      paintStreak(0);
     }
   }
   function endSolo() {
@@ -355,10 +456,18 @@
     stopTick();
     paintGame();
     renderBest();
+    renderHist();
   }
 
   $('soloBtn').onclick = startSolo;
-  $('backBtn').onclick = function () {
+  $('againBtn').onclick = function () {
+    if (mp.on) {
+      if (isHost(mp.people)) hostStart();
+      return;
+    }
+    startSolo();
+  };
+  function leaveGame() {
     stopTick();
     if (mp.on) {
       show('friend');
@@ -370,7 +479,9 @@
     show('setup');
     setChip('ready', 'Ready');
     renderBest();
-  };
+  }
+  $('leaveBtn').onclick = leaveGame;
+  $('backBtn').onclick = leaveGame;
 
   document.addEventListener('keydown', function (e) {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -385,7 +496,7 @@
   // match row: host only. players row: id = me.id only.
   var mp = {
     on: false, id: null, name: 'You', row: null, match: null, people: [],
-    hb: 0, sub: false, duration: 60, difficulty: 'easy'
+    hb: 0, sub: false, duration: 60, difficulty: 'easy', streak: 0
   };
   var _matchItems = [], _playerItems = [];
 
@@ -582,7 +693,7 @@
     if (!mp.on || !mp.match) return;
     if (mp.match.phase !== 'playing') return;
     var rem = remainingOf(mp.match.endsAt, nowMs());
-    paintClock(rem, true);
+    paintClock(rem, true, mp.match.duration);
     if (isHost(mp.people) && rem <= 0) {
       var next = mpReconcile(mp.match, mp.people);
       if (next) putMatch(next);
@@ -595,8 +706,10 @@
     var eq = R.unpackEq(m.eq);
     if (!eq) return;
     if (!R.isCorrect(eq, n)) {
+      mp.streak = 0;
       setTyped('');
       flash('bad', 'Nope — same equation.', 'warn');
+      paintStreak(0);
       return;
     }
     putMe({ intent: { kind: 'answer', q: m.q, seq: m.seq, value: n, at: nowMs() } });
@@ -621,12 +734,15 @@
     nextEq(m);
     putMatch(m);
     seenQ = -1;
+    mp.streak = 0;
     setTyped('');
     $('statusLine').textContent = '';
     $('eqWrap').className = 'eqwrap';
+    hideEnd();
     show('game');
     startTick(tickMp);
     paintGame();
+    flash('good', 'GO!', 'good');
   }
   $('fStart').onclick = hostStart;
 
