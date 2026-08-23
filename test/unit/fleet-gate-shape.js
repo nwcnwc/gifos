@@ -2,9 +2,9 @@
 // must not force one GL backend then refuse a board whose GPU answers another.
 //
 // These are the shipped files, not a copy. A one-box ANYROAD_MP_LOCAL run is
-// not the gate. Forcing --use-angle=vulkan on every fleet host hid a GLES GPU
-// behind SwiftShader; skipping hosts that lack `gpu: true` then never asked
-// that board to draw.
+// not the gate — the suite has no such door. Forcing --use-angle=vulkan on
+// every fleet host hid a GLES GPU behind SwiftShader; skipping hosts that
+// lack `gpu: true` then never asked that board to draw.
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -24,9 +24,10 @@ const browsers = fs.readFileSync(path.join(ROOT, 'test/lib/fleet-browsers.js'), 
 
 check('e2e-anyroad-mp asks needFleet(3) for the steering gate',
   /needFleet\s*\(\s*3\s*,/.test(anyroad));
-check('LOCAL is only the env flag, never assigned true in the suite',
-  !/ANYROAD_MP_LOCAL\s*=\s*['"]1['"]/.test(anyroad)
-  && /process\.env\.ANYROAD_MP_LOCAL/.test(anyroad));
+check('e2e-anyroad-mp has no one-box LOCAL door (the 3-driver gate is always the fleet)',
+  !/ANYROAD_MP_LOCAL/.test(anyroad)
+  && !/\bLOCAL\b/.test(anyroad)
+  && !/localBrowser/.test(anyroad));
 check('26a does not force ANYROAD_MP_LOCAL=1 (that was the one-box hang)',
   !/ANYROAD_MP_LOCAL\s*=\s*['"]1['"]/.test(scen));
 check('26a deletes ANYROAD_MP_LOCAL so a leaked env cannot sneak LOCAL back on',
