@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "tic-tac-toe",
+  "name": "Tic-Tac-Toe",
+  "shortName": "TicTacToe",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [232, 208, 148],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "ttt": { "visibility": "private" },
+    "ttt-mp": { "visibility": "read-write" }
+  }
+}

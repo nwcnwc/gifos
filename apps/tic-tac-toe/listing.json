@@ -1,0 +1,32 @@
+{
+  "tagline": "Three in a row, against the computer or a friend on the other side of the board.",
+  "description": "A three-by-three grid. One of you is X, the other is O. Take turns putting a mark down. First to get three in a line — across, down, or diagonal — wins.\n\nPlay the computer. It thinks on this device; there is no server. Play another person on the same screen, passing the device between you. Or press Play a friend and send the invite: the same board, live, on two devices. X sits one side, O the other.\n\nAn unofficial port of Colyseus Tic-Tac-Toe. The original needs a game server. This copy does not: the meeting is the room.",
+  "author": {
+    "name": "Colyseus",
+    "url": "https://github.com/colyseus/demo-tic-tac-toe"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Colyseus Tic-Tac-Toe",
+    "url": "https://github.com/colyseus/demo-tic-tac-toe",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "tic-tac-toe",
+    "noughts-and-crosses",
+    "board",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tic-tac-toe",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
