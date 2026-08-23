@@ -21,7 +21,7 @@
     grass: [32, 58, 42], grassHi: [48, 86, 58], grassNight: [14, 28, 22],
     dirt: [42, 40, 32],
     water: [28, 78, 118], waterHi: [70, 150, 190], waterNight: [12, 32, 58],
-    road: [48, 50, 62], roadHi: [78, 82, 98], roadJam: [120, 64, 48],
+    road: [92, 96, 112], roadHi: [168, 172, 188], roadJam: [168, 92, 64], roadLine: [232, 210, 120],
     line: [210, 186, 70],
     plant: [120, 128, 138], plantHi: [168, 176, 186],
     pump: [70, 110, 150],
@@ -174,18 +174,21 @@
     if (tl.t === T.ROAD) {
       var jam = Math.min(1, (tl.k || 0) / 180);
       var rc = mix(PAL.road, PAL.roadJam, jam);
-      if (night) rc = mix(rc, PAL.night, 0.25);
-      diamond(ctx, sx, sy, rc, 0);
-      diamond(ctx, sx, sy, mix(rc, PAL.roadHi, 0.45), 3);
+      if (night) rc = mix(rc, PAL.night, 0.18);
+      diamond(ctx, sx, sy, mix(rc, [20, 20, 28], 0.25), 0);
+      diamond(ctx, sx, sy, rc, 1);
+      diamond(ctx, sx, sy, mix(rc, PAL.roadHi, 0.55), 4);
       var m = roadMask(w, x, y);
-      ctx.strokeStyle = jam > 0.55 ? 'rgba(220,90,40,.55)' : 'rgba(200,200,220,.18)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = jam > 0.55 ? 'rgba(255,140,70,.8)' : rgb(PAL.roadLine);
+      ctx.globalAlpha = night ? 0.45 : 0.7;
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
       if (m & 1) { ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - TH / 2 + 2); }
       if (m & 4) { ctx.moveTo(sx, sy); ctx.lineTo(sx, sy + TH / 2 - 2); }
       if (m & 2) { ctx.moveTo(sx, sy); ctx.lineTo(sx + TW / 2 - 2, sy); }
       if (m & 8) { ctx.moveTo(sx, sy); ctx.lineTo(sx - TW / 2 + 2, sy); }
       ctx.stroke();
+      ctx.globalAlpha = 1;
       return;
     }
     if (tl.t === T.LINE) {
@@ -229,7 +232,7 @@
         ctx.globalAlpha = 1;
         return;
       }
-      var h = 7 + tl.s * 9 + (tl.t === T.WORK ? 4 : 0);
+      var h = 11 + tl.s * 11 + (tl.t === T.WORK ? 6 : 0);
       var top, left, right, win;
       if (tl.a) {
         top = PAL.abandonTop; left = PAL.abandon; right = mix(PAL.abandon, [20, 16, 12], 0.3);
@@ -294,10 +297,12 @@
       a = agents[i];
       p = iso(a.x, a.y);
       col = a.k === 'work' ? PAL.workTop : a.k === 'shop' ? PAL.shopTop : PAL.homeTop;
-      ctx.fillStyle = 'rgba(0,0,0,.35)';
-      ctx.beginPath(); ctx.ellipse(p.sx, p.sy + 2, 2.2, 1.1, 0, 0, 6.3); ctx.fill();
-      ctx.fillStyle = rgb(night ? mix(col, [255, 230, 160], 0.35) : col);
-      ctx.beginPath(); ctx.arc(p.sx, p.sy - 2, 2.1, 0, 6.3); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.4)';
+      ctx.beginPath(); ctx.ellipse(p.sx, p.sy + 3, 3.4, 1.6, 0, 0, 6.3); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(p.sx, p.sy - 3.2, 3.1, 0, 6.3); ctx.fill();
+      ctx.fillStyle = rgb(night ? mix(col, [255, 230, 160], 0.45) : col);
+      ctx.beginPath(); ctx.arc(p.sx, p.sy - 3.2, 2.4, 0, 6.3); ctx.fill();
     }
   }
 

@@ -728,6 +728,51 @@
       "sha256": "2500be55757dee3aa53ce02d32944e081592217c3c2ed0308dce4d63b7664fbb"
     },
     {
+      "slug": "civiclock",
+      "appId": "civiclock",
+      "name": "Civiclock",
+      "shortName": "Civiclock",
+      "version": "1.0.0",
+      "tagline": "The city lives in the file. Invite a co-mayor. It still ticks on a plane.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "inspiredBy": {
+        "name": "SimCity",
+        "by": "Maxis / Electronic Arts"
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "city",
+        "simulation",
+        "builder",
+        "mayor",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        240,
+        186,
+        72
+      ],
+      "cover": "/apps/civiclock/cover.jpg",
+      "bytes": 236699,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "dd8136b9d16c8d5d388906dcfd86abc16d8faa2dfdd56f73ece00e714a9d5cf7"
+    },
+    {
       "slug": "connect-four",
       "appId": "connect-four",
       "name": "Connect Four",

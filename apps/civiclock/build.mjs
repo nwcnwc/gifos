@@ -185,7 +185,7 @@ if (/https?:\/\//.test(html) || html.includes('cdn.')) {
     '  var ppl = C.people(w, 0.45);\n' +
     '  if (!ppl.length) throw new Error("no people at day");\n' +
     '  var night = C.people(w, 0.05);\n' +
-    '  if (!night.length) throw new Error("no people at night (should be home)");\n' +
+    '  if (night.length) throw new Error("night people should be inside, got " + night.length);\n' +
     '  var dead = C.cloneWorld(w);\n' +
     '  for (i = 0; i < dead.tiles.length; i++) if (dead.tiles[i].t === C.T.PLANT) {\n' +
     '    dead.tiles[i] = { t: C.T.GRASS, s: 0, a: 0, age: 0, p: 0, u: 0, k: 0, v: 30 };\n' +
