@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "besogo",
+  "appId": "besogo",
+  "name": "BesoGo",
+  "shortName": "BesoGo",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "A Go board. Two seats. Tap to place a stone.",
+  "description": "A wooden board. Black and white take turns putting a stone down. Surround a group and it comes off the board. Black goes first.\n\nPlay another person on the same screen, passing the device between you. Or press Play a friend and send the invite: the same board, live, on two devices. Black sits one side, white the other. Tap an empty point to place. You can pass, take back the stone you just put down as long as the other person has not answered yet, or resign. Two passes in a row end the game.\n\nPick a small 9-by-9 board, a 13-by-13, or a full 19-by-19. There is no game server.\n\nAn unofficial port of BesoGo by yewang.",
+  "author": {
+    "name": "yewang",
+    "url": "https://github.com/yewang/besogo"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "go",
+    "weiqi",
+    "baduk",
+    "board",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/besogo",
+  "accent": [
+    196,
+    140,
+    70
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/besogo/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/besogo/besogo.gif",
+  "bytes": 218624,
+  "download": 0,
+  "provides": null,
+  "sha256": "629d34e046779ac1474b44223fedb4761c1485bb3e03fb830a5e98804cb92f11",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "BesoGo",
+    "url": "https://github.com/yewang/besogo",
+    "blessed": false
+  }
+}

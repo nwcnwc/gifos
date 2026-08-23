@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "longwave",
+  "appId": "longwave",
+  "name": "Longwave",
+  "shortName": "Longwave",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "A needle on a spectrum. One of you hints. The other finds the mark.",
+  "description": "One of you is the psychic. They see a mark sitting somewhere between two opposites — hot and cold, friend and enemy, trashy and classy. They give a clue: one thought that belongs on that line, right where the mark is. The other is the guesser. They slide a needle to where they think the clue lives.\n\nThe closer the needle, the more you score. Dead on is four, close is three or two, and a miss is nothing. A bullseye also buys the table another card. You have seven cards, and the psychic seat passes after each one. Sit together on one device, or press Play a friend and send the invite: psychic on one side, guesser on the other.\n\nAn unofficial port of Longwave by cynicaloptimist. The original needs a game server. This copy does not — send the invite and you are in the same game.",
+  "author": {
+    "name": "cynicaloptimist",
+    "url": "https://github.com/cynicaloptimist/longwave"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "spectrum",
+    "party",
+    "clue",
+    "needle",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/longwave",
+  "accent": [
+    118,
+    86,
+    214
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/longwave/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/longwave/longwave.gif",
+  "bytes": 197515,
+  "download": 0,
+  "provides": null,
+  "sha256": "a6136b504be11c781c4828548ece5b3321d7a16f4e8c2e7bedc8ba2691d28a65",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Longwave",
+    "url": "https://github.com/cynicaloptimist/longwave",
+    "blessed": false
+  }
+}
