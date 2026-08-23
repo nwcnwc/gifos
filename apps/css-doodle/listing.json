@@ -1,0 +1,36 @@
+{
+  "tagline": "A little pattern toy. Remix a snippet. Share it with a friend.",
+  "description": "A square that fills with a pattern — checkers, stripes, a spiral, a handful of coloured tiles. Tap a snippet to drop one in. Change a colour or a number in the recipe underneath, press Apply, and the square becomes yours. Shuffle rolls the random bits again so the same recipe lands a new way. Tap the square itself to shuffle too.\n\nThe last pattern you left stays on this device, inside the app. Close it, come back, it is still there.\n\nWant a friend looking at the same square? Press Share the pattern, then Invite (in the GifOS menu) and send the link. You both see the same recipe. When you apply a new one, they get it. When they apply one, you get it. Playing alone is the original toy.\n\nAn unofficial port of css-doodle. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "css-doodle",
+    "url": "https://github.com/css-doodle/css-doodle"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "css-doodle",
+    "url": "https://github.com/css-doodle/css-doodle",
+    "donate": "https://opencollective.com/css-doodle",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "pattern",
+    "doodle",
+    "remix",
+    "toy",
+    "art",
+    "colours",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/css-doodle",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

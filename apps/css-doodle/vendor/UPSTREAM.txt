@@ -1,0 +1,15 @@
+vendor/css-doodle.js is GENERATED. Do not edit it;
+run node apps/css-doodle/vendor.mjs.
+
+package: css-doodle@0.51.0
+npm:     https://registry.npmjs.org/css-doodle/-/css-doodle-0.51.0.tgz
+commit:  7c1665aa550fcdcbe5b3e274271776af27c04fef (GitHub tag v0.51.0)
+sha256:  47dbd5196ef91f44372056a72d3d6f59512f597f46cd98555146df8eb1463e48
+entry:   css-doodle.min.js — classic IIFE, defines <css-doodle>
+
+The MIT notice travels beside it as COPYING-css-doodle.txt and is packed
+into the GIF too, so a copy of this app that someone was handed still
+carries the notice it is required to carry.
+
+Google Fonts fetch in the upstream IIFE is dead in the GifOS sandbox
+(connect-src none). Snippets shipped here never ask for a font.

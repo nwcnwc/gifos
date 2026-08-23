@@ -1,0 +1,148 @@
+/* Dark square, purple chips, friend-mode chrome around it. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: #0a0c27;
+  color: #f4efe8;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+#shell {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: calc(100vh - 20px);
+}
+#hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+#brand { font-size: 20px; font-weight: 700; letter-spacing: 0.02em; }
+#which {
+  margin-left: auto;
+  font-size: 13px;
+  color: #b8b0d4;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions button, #leaveBtn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border: 1px solid #3a3470;
+  background: #16142c;
+  color: #f4efe8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#shareBtn { background: #60569e; color: #f4efe8; border-color: #7a70b8; }
+#applyBtn { background: #e6437d; color: #fff; border-color: #c83268; }
+#remixBtn { background: #1c1838; }
+body.friend #shareBtn { display: none; }
+
+#friend-bar {
+  background: #16142c;
+  border: 1px solid #3a3470;
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+#friend-hint b { color: #ebbf4d; }
+#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-scores {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+#friend-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid #2a2650;
+  font-variant-numeric: tabular-nums;
+}
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#friend-scores .me .name { color: #ebbf4d; }
+#friend-scores .meta { color: #b8b0d4; font-size: 13px; white-space: nowrap; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+#stage {
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #07081a;
+  border: 1px dashed #3a3470;
+  border-radius: 4px;
+  overflow: hidden;
+}
+css-doodle#doodle {
+  display: block;
+  width: min(100%, 70vh);
+  height: min(100%, 70vh);
+  max-height: min(62vh, 560px);
+  aspect-ratio: 1;
+  cursor: pointer;
+}
+
+#chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#chips button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border: 1px solid #3a3470;
+  background: #16142c;
+  color: #f4efe8;
+  border-radius: 999px;
+  cursor: pointer;
+}
+#chips button.on {
+  background: #60569e;
+  border-color: #7a70b8;
+}
+
+#recipe {
+  width: 100%;
+  min-height: 7.5em;
+  resize: vertical;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 8px 10px;
+  border: 1px solid #3a3470;
+  border-radius: 6px;
+  background: #07081a;
+  color: #f4efe8;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+#how, .foot {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #b8b0d4;
+}
+.foot { color: #7a7498; }

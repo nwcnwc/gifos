@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CSS Doodle</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">CSS Doodle</div>
+      <div id="which">Checker</div>
+    </header>
+
+    <div class="actions">
+      <button type="button" id="shareBtn">Share the pattern</button>
+      <button type="button" id="remixBtn">Remix</button>
+      <button type="button" id="shuffleBtn">Shuffle</button>
+      <button type="button" id="applyBtn">Apply</button>
+    </div>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both get the same pattern. Change the recipe and press Apply — they see it.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <css-doodle id="doodle"></css-doodle>
+    </div>
+
+    <div id="chips" role="list"></div>
+
+    <label class="sr" for="recipe">Pattern recipe</label>
+    <textarea id="recipe" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+
+    <p id="how">Tap a snippet to remix. Edit the recipe and press Apply. Shuffle (or tap the square) rolls the random bits again.</p>
+    <p class="foot">Unofficial port of css-doodle (MIT). Playing alone is the original toy. A shared square is the same pattern — nobody writes on anybody else’s row.</p>
+  </div>
+
+  <!-- Order matters: the runtime inlines each <script src> where it stands. -->
+  <script src="vendor/css-doodle.js"></script>
+  <script src="snippets.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>
