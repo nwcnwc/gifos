@@ -1,0 +1,34 @@
+vendor/* is GENERATED. Do not edit it; run node apps/2048/vendor.mjs.
+
+upstream: https://github.com/gabrielecirulli/2048.git
+commit:   478b6ec346e3787f589e4af751378d06ded4cbbc
+date:     2024-10-24
+license:  MIT (COPYING-2048.txt)
+
+Classic scripts copied as-is from js/:
+  bind_polyfill.js
+  classlist_polyfill.js
+  animframe_polyfill.js
+  keyboard_input_manager.js
+  html_actuator.js
+  grid.js
+  tile.js
+  game_manager.js
+
+NOT copied:
+  js/local_storage_manager.js  — sandbox has no localStorage; storage.js talks to gifos.db
+  js/application.js            — boot is app.js (load save, then new GameManager)
+  favicon / apple-touch images — the GIF preview is the icon
+  style/main.scss + helpers    — we ship the already-compiled main.css
+
+style/main.css is the upstream file with @import of Clear Sans replaced by
+@font-face data URIs (woff). Clear Sans is Apache-2.0, bundled by upstream.
+
+sha256:
+  game_manager.js  b02baa6b75f8c8cad8606e680b6f73b7c843c61e3a643ee48410022499a649f0
+  grid.js  169428f5ff7f726c38112fcf1c918028cbca3a1d9f9239838fbc7eb4396b9f9a
+  keyboard_input_manager.js  7d579ab5b67dddf339cf28a7d06e4e24eca08b0187204ce352d67c49ae1e48de
+  html_actuator.js  67b796d4f640b927e517b2281f8230c4f65c08b07558001e2c0dc9ea2e2145cf
+  COPYING-2048.txt  57e12c39a6ad9d98b2e451065bfdfbd15fc9e0c2ed3bf4dc1d09acab41ff02fc
+
+The MIT notice travels INSIDE the GIF as COPYING-2048.txt as well as here.
