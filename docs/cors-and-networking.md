@@ -2,7 +2,7 @@
 
 GifOS apps have two distinct networking needs, and this document covers both:
 
-1. **Browser-as-server** — one browser hosts a database and others connect to it, so an app can be multiplayer/multi-user. This is the primary model, built on the stateless `gifos.app` relay. **(Part 1)**
+1. **Browser-as-server** — one browser holds the authoritative app state and others mirror it, so an app can be multiplayer/multi-user. This is the primary model: a peer-to-peer mesh room, with the stateless `gifos.app` relay as the introduction service. **(Part 1)**
 2. **External APIs** — an app calls a third-party service (OpenAI, a weather API, a database-as-a-service). This uses a postMessage fetch bridge with a CORS-proxy fallback. **(Part 2)**
 
 Both share one principle: **nothing of the user's lives on our infrastructure.** The relay only passes messages; API keys only ever exist on the user's device.
@@ -23,9 +23,9 @@ falls back to the relay WebSocket automatically:
    both sides fire packets at each other's candidate addresses simultaneously —
    each side's outbound packet punches the NAT hole the other side's packet
    flies through.
-4. If a DataChannel opens (~80–90% of networks): all DB traffic moves onto it,
-   direct and DTLS-encrypted end-to-end — even the relay can't read it. The
-   relay socket stays connected as standby.
+4. If a DataChannel opens (~80–90% of networks): all session traffic moves
+   onto it, direct and DTLS-encrypted end-to-end — even the relay can't read
+   it. The relay socket stays connected as standby.
 5. If it never opens (symmetric NATs, UDP-blocking firewalls, no WebRTC): the
    session simply keeps flowing through the relay. **No TURN server needed —
    the relay is Plan B.** The app can't tell the difference either way.
@@ -51,93 +51,111 @@ Host browser                relay.gifos.app              Client browser
 
 ## The Idea
 
-A GifOS app runs in its own tab. The desktop (parent/opener window) exposes a **runtime library** that gives the app a database. Where that database physically lives determines the app's role:
+A GifOS app runs in its own tab. The runtime gives the app a database
+(`gifos.db`); where the **authoritative** copy of that database lives
+determines the app's role in a shared session:
 
-- **Server** — this browser holds the authoritative DB. It's the host.
-- **Client** — this browser has no local DB for the session; its DB calls are forwarded to the server browser.
+- **Owner (host)** — this browser holds the authoritative store, persisted
+  with the desktop icon. Every state frame it emits is signed with a
+  per-session Ed25519 owner key (`site/js/app-owner.js`).
+- **Guest (client)** — this browser holds an owner-**verified mirror**. Reads
+  are local; writes are optimistic local applies PLUS an `act` **proposal**
+  to the owner, whose next signed frame is the canonical truth.
 
-`gifos.app` sits between them as a **stateless relay** — it routes messages (and GIF bytes) between browsers and **stores nothing**.
+There is no server in the middle, and — since the one-runtime flag day
+(`docs/one-runtime.md`) — no relay data plane either: **a shared app session
+IS a mesh room.** State snapshots, deltas, and the app GIF bytes themselves
+travel peer-to-peer over the room's DataChannels, owner-signed so a relaying
+peer can carry them but never forge them. `gifos.app`'s relay is the
+**introduction service**: a stateless greeter + door that carries WebRTC
+signaling envelopes and stores nothing.
 
 ```
 ┌───────────────────────────┐        ┌───────────────────────────┐
-│  SERVER browser           │        │  CLIENT browser           │
-│                           │        │                           │
-│  ┌─────────────────────┐  │        │  ┌─────────────────────┐  │
-│  │ app tab (iframe)    │  │        │  │ app tab (iframe)    │  │
-│  │  calls runtime.db   │  │        │  │  calls runtime.db   │  │
-│  └──────────┬──────────┘  │        │  └──────────┬──────────┘  │
-│             ▼             │        │             ▼             │
-│  ┌─────────────────────┐  │        │  ┌─────────────────────┐  │
-│  │ runtime library     │  │        │  │ runtime library     │  │
-│  │  ► central DB (auth)│  │        │  │  ► remote DB proxy  │  │
-│  └──────────┬──────────┘  │        │  └──────────┬──────────┘  │
-└─────────────┼─────────────┘        └─────────────┼─────────────┘
-              │            ┌────────────────┐       │
-              └───────────▶│   gifos.app    │◀──────┘
-                           │  RELAY (dumb   │
-                           │  message pipe, │
-                           │  stores none)  │
-                           └────────────────┘
+│  OWNER browser            │        │  GUEST browser            │
+│  app iframe → gifos.db    │        │  app iframe → gifos.db    │
+│  authoritative store,     │        │  owner-verified mirror;   │
+│  signs snap/delta frames  │        │  writes become proposals  │
+└──────────┬────────────────┘        └──────────┬────────────────┘
+           │  owner-signed state + app bytes    │
+           └────── room mesh (WebRTC DCs) ──────┘
+                          ▲
+                          │  signaling only (knock, peer envelopes)
+                 ┌────────┴────────┐
+                 │ relay.gifos.app │  stateless greeter + door
+                 └─────────────────┘
 ```
 
 ## One DB API, Two Resolutions
 
-The app developer writes against a single database API. The runtime resolves it based on the **launch URL**:
-
-- **No remote session in the URL** → the runtime creates/opens a **local** authoritative DB. The app is the **server**.
-- **A session (`s=`/`k=`) in the URL** → the runtime forwards every DB operation over the relay to the server browser. The app is a **client**.
+The app developer writes against a single database API; the runtime resolves
+it by how the app was mounted (your own icon vs somebody's invite link):
 
 ```javascript
-// App-side — identical code whether server or client
-const db = gifos.db('chess');           // runtime decides local vs remote
-await db.put('moves', { n: 12, san: 'Qxf7#' });
-const moves = await db.getAll('moves'); // server: local read; client: relayed read
-db.subscribe('moves', render);          // server broadcasts changes to all clients
+// App-side — identical code whether owner or guest
+const db = gifos.db('moves');            // one handle per collection
+await db.put({ n: 12, san: 'Qxf7#' });   // owner: local write, then a signed
+                                         //   delta floods the room;
+                                         // guest: optimistic apply + an act
+                                         //   proposal the owner validates
+const moves = await db.getAll();         // owner: local read; guest: mirror read
+db.subscribe(render);                    // fires now and on every change
 ```
 
-On the **server**, writes hit the local DB and the runtime **broadcasts** the change to every connected client through the relay. On a **client**, the operation is serialized, sent over the relay, executed by the server's runtime, and the result is returned — plus the client receives broadcasts for live updates.
+Collections the manifest declares `private` never leave a participant's own
+tab at all; `read-only` collections reject guest writes with a readable
+error. The app-facing rules (visibility declarations, guest semantics, the
+leader fence) are in `site/llms.txt` → "Multiplayer".
 
 ## Joining a Session (the Shareable URL)
 
-When an app opens, its tab URL can be shared. It encodes what a new client needs:
+The Invite button mints a link that IS the capability — one short code from
+which everything derives ("derive, don't send", `site/js/gifos-net.js`):
 
 ```
-https://gifos.app/run.html#s=<session-id>&k=<join-token>&relay=<relay-url>
+https://gifos.app/join/<room>/<verifier>/<code>   owned link (production)
+https://gifos.app/join/<code>                     self-healing link (production)
+https://gifos.app/run.html#s=<room>.<verifier>&k=<code>&relay=<url>
+https://gifos.app/run.html#j=<code>&relay=<url>   (hash forms: local dev,
+                                                   custom relays)
 ```
 
 ```
 Friend opens the join URL
    │
    ▼
-Relay delivers the app GIF ──▶ client unpacks it into a new tab
+Knocks at the relay ──▶ seated into the ROOM MESH (peer-to-peer)
    │
    ▼
-Runtime sees s=/k= ──▶ CLIENT mode; opens a WebSocket to the relay
+The app GIF arrives as an owner-SIGNED frame from whichever PEER already
+holds it (the owner seeded it once; every node retains it)
    │
    ▼
-Server runtime validates the join token k ──▶ wires the client to the central DB
-   │
-   ▼
-Client DB calls ⇄ relay ⇄ server DB;  server broadcasts ⇄ relay ⇄ clients
+Owner-signed snapshots/deltas keep the guest's mirror current;
+the guest's writes travel back as act proposals over the same mesh
 ```
 
-The **join token (`k`)** is a capability: it authorizes access to exactly one server session. The server's runtime validates it before bridging any DB traffic. The relay itself never reads or stores app data — it only routes by session id.
+The relay only ever sees SHA-256 **derivations** of the code (the session id
+it routes on, the join token it equality-checks); the end-to-end key derives
+from the same code and is sent nowhere. The relay never reads or stores app
+data — app frames do not ride it at all.
 
 ## State, Resume, and Failover (networking view)
 
 - **Server state is authoritative and lives with the desktop icon.** Closing the tab suspends the session; reopening the icon restores the DB and resumes (or re-mints) the link.
 - **Two dials, set at Invite** (see [architecture.md](architecture.md) → *Multiplayer & data*): **Lifetime** (how long the link admits *new* joiners: `close`/`1h`/`24h`/`forever`) and **Resilience** (`heal` — whether a still-connected guest may take over if the host drops). They are orthogonal, so a `1h` game can still be resilient.
 - **Clients can snapshot** the shared state to a self-contained GIF at any time.
-- **Failover (resilient links only):** with resilience **on**, guests mirror the full state; if the host stays gone (~25s) the freshest mirror **automatically takes over** hosting on the *same* link — no clicks. The host slot at the relay is guarded by an **epoch** (connection state only), so a stale original host coming back rejoins as a guest. With resilience **off** there is exactly one host by design and the session ends with it.
+- **Succession (resilient links only):** with resilience **on** (`/join/<code>`, anyone-owns), guests mirror the full state; when the owner's seat is confirmed gone, every seat computes the **same successor** — the lowest-seated participant holding a full mirror — which mints a fresh owner key and announces it signed with its mesh identity. Deterministic, no race, no server (`docs/one-runtime.md` → "Ownership and succession"). With resilience **off** (owned links) there is **no automatic succession**: the verifier is the maker's trust anchor and never silently transfers. Writes freeze politely ("the owner is away"), reads continue from the retained snapshot, and the owner returning resumes.
 
 ## The Relay Bandwidth Guard — control plane only, enforced server-side
 
-The relay is for **control traffic**: DB ops, WebRTC signaling, one-time app
-delivery. To guarantee nobody tunnels audio/video through it, every connection
-gets a **token bucket** on the relay itself (`relay/src/relay.js` — not trusted
-to the app):
+The relay is for **signaling**: knocks, WebRTC introduction envelopes, the
+signed door verbs (password / ban / kick), and sealed chat-class fallback
+envelopes in meetings — never media, and never app data frames. To guarantee
+nobody tunnels audio/video through it, every connection gets a **token
+bucket** on the relay itself (`relay/src/relay.js` — not trusted to the app):
 
-- **Burst: 1 MB** — enough to deliver an App GIF to a joining client once.
+- **Burst: 1 MB** one-time.
 - **Refill: 48 KB/s (~384 Kbps)** — below even low-quality video, so sustained
   streaming starves within seconds.
 - Over-budget messages are **dropped** and the sender gets one
@@ -148,8 +166,8 @@ direct WebRTC or not at all. The relay physically cannot become a media server.
 
 ## Mesh Signaling — peer-addressed routing
 
-Beyond host↔client routing, the relay routes **peer-to-peer envelopes** so any
-two participants in a session can exchange WebRTC introductions directly:
+The relay routes **peer-to-peer envelopes** so any two participants in a
+session can exchange WebRTC introductions directly:
 
 ```
 any → relay : { t:'peer', to:<peerId|'host'>, msg:{...} }
@@ -268,9 +286,9 @@ The Meeting system app (`run.html`) is the proof of the guard:
 | Infra to run | A stateless relay only | Databases, app servers, scaling |
 | Cost model | Near-zero; relay is a message pipe | Grows with users and storage |
 | Privacy | You never see or store user data | You hold everything |
-| Failure mode | Self-healing: peers elect the freshest mirror as the new host | Central outage takes everyone down |
+| Failure mode | Resilient rooms heal by deterministic succession; owned rooms freeze politely until the owner returns | Central outage takes everyone down |
 
-The tradeoff: sessions depend on the **host browser staying online**, and a single host browser has finite capacity (see *Multi-server* in the architecture doc's future work). Host loss is **self-healing**: clients continuously mirror the full app state, and if the host stays gone (~25s) they gossip candidacies and the freshest mirror automatically takes over hosting on the *same* session — the share link keeps working, no clicks required. The host slot at the relay is guarded by an **epoch** (connection state only, nothing stored): each takeover claims epoch+1, so a stale original host coming back later is bounced — it automatically rejoins its own session as a guest instead of clobbering the newer state. A session with everyone gone goes dormant and resumes when anyone who holds a copy (the original icon, or a taker-over's saved copy) reopens it.
+The tradeoff: a session depends on **somebody who holds the state staying in the room**. Owner loss is handled per room class (see *Succession* above): a resilient room's mirrors elect a deterministic successor and the same link keeps working with no clicks; an owned room freezes writes honestly rather than transfer the maker's trust anchor. A session with everyone gone goes dormant and resumes when anyone who holds a copy (the original icon, or a saved snapshot) reopens it — the state lives in browsers and in GIF files, never on infrastructure.
 
 Staying online includes staying *runnable*: browsers freeze hidden tabs after a
 few minutes (Chrome's Page Lifecycle), which would suspend the host's JS and
@@ -290,124 +308,48 @@ Some apps need to call third-party services (OpenAI, weather, a BaaS). Apps run 
 
 ## The Problem
 
-The app iframe should not be trusted with unrestricted network access, and some target APIs don't return CORS headers that satisfy a browser. The runtime solves both by proxying `fetch` on the app's behalf and enforcing the app's declared `network` allowlist.
+The app iframe should not be trusted with unrestricted network access, and some target APIs don't return CORS headers that satisfy a browser. The runtime solves both by executing fetches on the app's behalf and enforcing the app's declared `network` allowlist.
 
-## The Fetch Shim
+## The bridge, as it actually is
 
-When the runtime mounts the app, it injects a replacement `fetch()` before app code runs. The app developer writes normal `fetch()`; the runtime handles the rest.
+The sandbox's own `fetch`/XHR/WebSocket are dead (`connect-src 'none'`), and
+the runtime does **not** monkey-patch them back: the app calls
+**`gifos.fetch(url, opts)`**, a postMessage RPC that the trusted OS page
+executes on the app's behalf (`bridgeFetch` in `site/js/runtime.js`).
+Enforced on every request, **before a byte is read**:
 
-```javascript
-// Injected into the app iframe before app code executes
-window.fetch = function(url, options) {
-  return new Promise((resolve, reject) => {
-    const id = crypto.randomUUID();
-    window.addEventListener('message', function handler(e) {
-      if (e.data?.id === id) {
-        window.removeEventListener('message', handler);
-        if (e.data.error) reject(new Error(e.data.error));
-        else resolve(new Response(e.data.body, {
-          status: e.data.status,
-          headers: new Headers(e.data.headers),
-        }));
-      }
-    });
-    parent.postMessage({
-      type: 'fetch-request', id, url,
-      method: options?.method || 'GET',
-      headers: options?.headers || {},
-      body: options?.body || null,
-    }, '*');
-
-    setTimeout(() => {
-      window.removeEventListener('message', handler);
-      reject(new Error('Fetch request timed out'));
-    }, 30000);
-  });
-};
-```
-
-## Runtime-Side Handler (permission-enforced)
-
-```javascript
-window.addEventListener('message', async (event) => {
-  if (event.data?.type !== 'fetch-request') return;
-  const { id, url, method, headers, body } = event.data;
-  const appFrame = event.source;
-
-  // Enforce the app's declared network allowlist (manifest.json capabilities.network)
-  const domain = new URL(url).hostname;
-  if (!isAllowedDomain(currentApp, domain)) {
-    appFrame.postMessage({ type: 'fetch-response', id,
-      error: `Network access denied: ${domain} is not in this app's permissions` }, '*');
-    return;
-  }
-
-  try {
-    const response = await smartFetch(url, { method, headers, body });  // direct, then proxy
-    const responseBody = await response.text();
-    appFrame.postMessage({ type: 'fetch-response', id,
-      status: response.status,
-      headers: Object.fromEntries(response.headers.entries()),
-      body: responseBody }, '*');
-  } catch (err) {
-    appFrame.postMessage({ type: 'fetch-response', id, error: err.message }, '*');
-  }
-});
-
-function isAllowedDomain(app, domain) {
-  const allowed = app.manifest?.capabilities?.network || [];
-  return allowed.some(p => p === '*' || domain === p || domain.endsWith('.' + p));
-}
-```
-
-Apps declare what they may reach in `manifest.json`:
+- the target host must be in the app's declared, user-approved allowlist
+  (`manifest.json` → `capabilities.network`; a host matches itself and its
+  subdomains; `"*"` is legal and loudly surfaced on the permission sheet);
+- https only (http for localhost dev); never the GifOS origin or its
+  subdomains, so an app cannot turn the trusted first-party into a proxy for
+  the relay or the site itself;
+- credentials are never attached; redirects are re-checked against the
+  allowlist; responses are capped at 8 MB.
 
 ```json
-{ "capabilities": { "network": ["api.openai.com", "*.supabase.co"] } }
+{ "capabilities": { "network": ["api.openai.com", "overpass-api.de"] } }
 ```
 
-The runtime can surface this to the user on launch (**Allow / Deny / Allow once**) and enforces it on every request. API keys the app supplies flow straight to the target service and are never stored by GifOS.
+The user sees the declared list at launch and can veto hosts individually;
+the veto persists with the icon (`<fileId>::netperms`) and the runtime gates
+every bridged fetch on the live policy. The app-facing contract — request
+options, response shape, pooling — is documented in `site/llms.txt` →
+"Network".
 
 ## CORS-Proxy Fallback (Cloudflare Worker)
 
-Some APIs (e.g. Anthropic, as of early 2026) don't send `Access-Control-Allow-Origin`, so even a direct runtime `fetch()` is blocked by the browser. A tiny Cloudflare Worker acts as a transparent CORS proxy for those cases.
-
-```javascript
-export default {
-  async fetch(request) {
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': request.headers.get('Access-Control-Request-Headers') || '*',
-        'Access-Control-Max-Age': '86400',
-      }});
-    }
-    const url = new URL(request.url);
-    const targetUrl = url.pathname.slice(1) + url.search;  // proxy.gifos.app/https://api.anthropic.com/...
-    const response = await fetch(targetUrl, {
-      method: request.method, headers: request.headers, body: request.body,
-    });
-    const out = new Response(response.body, response);
-    out.headers.set('Access-Control-Allow-Origin', '*');
-    out.headers.set('Access-Control-Allow-Credentials', 'true');
-    return out;
-  }
-};
-```
-
-```javascript
-async function smartFetch(url, options) {
-  try {
-    return await fetch(url, options);            // try direct first
-  } catch (err) {
-    if (err instanceof TypeError) {              // TypeError ≈ CORS block → retry via proxy
-      return await fetch(`https://proxy.gifos.app/${url}`, options);
-    }
-    throw err;
-  }
-}
-```
+Some APIs (e.g. Anthropic, as of early 2026) don't send
+`Access-Control-Allow-Origin`, so even the OS page's fetch is blocked by the
+browser. The production proxy is **`cors-proxy.gifos.app`** (source in
+[`cors-proxy/`](../cors-proxy)): the caller sends the true destination in an
+`x-gifos-target` header; the Worker forwards the request and adds the CORS
+headers. It is **not** an open proxy — it serves only `gifos.app` origins and
+only forwards to a curated **host allow-list** (`ALLOW_HOSTS` in
+`cors-proxy/src/cors-proxy.js`); adding a host is one line + a
+`wrangler deploy`. And there is **no automatic direct-then-proxy retry**:
+routing through the proxy is an explicit, per-call or per-API choice (below),
+so where a request went is always knowable.
 
 ### From a sandboxed app: `gifos.fetch(url, { proxy: true })`
 
@@ -446,14 +388,15 @@ The Worker is a dumb pipe: it adds one CORS header and forwards everything else 
 
 ### Deployment
 
+The production proxy deploys from this repo:
+
 ```bash
-npm install -g wrangler
-wrangler init gifos-proxy
-# paste the worker code into src/index.js
-wrangler deploy
-# → https://gifos-proxy.<your-subdomain>.workers.dev
-# optionally map to proxy.gifos.app via a custom domain
+cd cors-proxy && npx wrangler deploy    # → cors-proxy.gifos.app
 ```
+
+A self-hosted GifOS points its apps at its own copy by setting
+`window.GIFOS_CORS_PROXY` once (and protects its own sibling services with
+`window.GIFOS_FIRST_PARTY`); apps can never name an arbitrary proxy URL.
 
 ## The edge functions, one domain
 
@@ -475,5 +418,10 @@ relay code requires a redeploy**, pushing to GitHub is not enough.
 - **Network activity log** — the runtime shows users a DevTools-style request log.
 - **Rate limiting** — per-app request caps enforced by the runtime.
 - **Response caching** — respect `Cache-Control` for repeated external requests.
-- **Credential manager** — the runtime stores API keys and injects them by reference, so apps never see raw keys.
-- **End-to-end encrypted sessions** — encrypt relay payloads so even a compromised relay learns nothing.
+
+Two items that used to sit on this list have shipped and are documented
+above: the **credential manager** (Settings → Third-party APIs + `gifos.api`
+— the runtime attaches keys and pins them to the configured host; apps never
+see them) and **end-to-end encrypted sessions** ("derive, don't send" —
+content frames are sealed with a key derived from the link code, which the
+relay never holds).
