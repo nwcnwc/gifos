@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "jungle",
+  "name": "Jungle",
+  "shortName": "Jungle",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [46, 140, 70],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
