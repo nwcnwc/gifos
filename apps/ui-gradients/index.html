@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>uiGradients</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <header id="hud">
+      <div id="brand">uiGradients</div>
+      <button type="button" id="browseBtn">Show all</button>
+      <button type="button" id="shareBtn">Share this pick</button>
+    </header>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both get the same ramp. Pick another — they see it.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <button type="button" id="prevBtn" class="nav" aria-label="Previous">‹</button>
+    <button type="button" id="nextBtn" class="nav" aria-label="Next">›</button>
+
+    <div id="namebox">
+      <h1 id="which">…</h1>
+      <p id="how">Tap a colour to copy it. Copy recipe for the whole ramp.</p>
+    </div>
+
+    <div id="bar">
+      <ul id="swatches"></ul>
+      <div class="actions">
+        <button type="button" id="rotateBtn">Turn</button>
+        <button type="button" id="copyBtn">Copy recipe</button>
+        <button type="button" id="favBtn" aria-pressed="false">♡ Favourite</button>
+      </div>
+      <label class="sr" for="recipe">Recipe</label>
+      <pre id="recipe" tabindex="0"></pre>
+      <p id="toast" role="status"></p>
+    </div>
+  </div>
+
+  <div id="browse" hidden>
+    <div id="browse-head">
+      <button type="button" id="browseClose">← Back</button>
+      <input type="search" id="search" placeholder="Find a name" autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div id="filters" role="list"></div>
+    <div id="grid" role="list"></div>
+    <p id="browse-count"></p>
+  </div>
+
+  <p class="foot">Unofficial port of uiGradients (MIT). Browsing alone is the original gallery. A shared pick is the same ramp — nobody writes on anybody else’s row. Hearts stay on this device.</p>
+
+  <!-- Order matters: the runtime inlines each <script src> where it stands. -->
+  <script src="vendor/gradients.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>

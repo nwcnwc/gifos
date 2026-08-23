@@ -1,0 +1,18 @@
+vendor/gradients.json is GENERATED. Do not edit it;
+run node apps/ui-gradients/vendor.mjs.
+
+source:  ghosh/uiGradients
+url:     https://github.com/ghosh/uiGradients
+file:    gradients.json
+commit:  c07376ba587c6607bfb01465a88b26ee5f92d80f (last change to gradients.json)
+sha256:  56e1cf9e9c213aece92be9e1abe32aed958bf10c77031f2504431964b1cb7030
+count:   382
+entry:   vendor/gradients.js — classic IIFE, sets UIGradientsData
+
+The MIT notice travels beside it as COPYING-uigradients.txt and is packed
+into the GIF too, so a copy of this app that someone was handed still
+carries the notice it is required to carry.
+
+The original Vue site cannot ride in (GifOS drops type=module). This
+directory is the port: the same colour list, browse and copy, private
+favourites, and a shared pick. Nothing is fetched at run time.

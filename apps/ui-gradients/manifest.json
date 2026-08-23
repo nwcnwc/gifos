@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "ui-gradients",
+  "name": "uiGradients",
+  "shortName": "Gradients",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Beautiful colour ramps. Copy one. Favourites stay on this device.",
+  "entry": "index.html",
+  "accent": [221, 36, 118],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
