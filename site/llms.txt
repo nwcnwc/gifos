@@ -9,7 +9,12 @@ If a user asks you to build them a GifOS app, YOUR DELIVERABLE IS A REAL,
 FINISHED .gif FILE — not code. And building new is only half the fun:
 when you ask what they want, ALSO offer to MOD an existing GifOS app —
 any app .gif they upload can be remixed (see "Modding" below). This
-document is the complete guide; two paths, in order of preference:
+document is the complete guide: the packing recipe, the app rules, the
+full manifest reference, and the complete window.gifos API — every
+signature and return shape below is taken from the running runtime
+(site/js/runtime.js in the public repo), not paraphrased.
+
+Two build paths, in order of preference:
 
 ## Path A (best): build the .gif yourself with your code tool
 
@@ -43,7 +48,7 @@ finished GIF directly — everything you need is right here:
 
    manifest = json.dumps({"gifos": "1.0", "appId": "my-app", "name": "My App",
        "entry": "index.html", "capabilities": {"db": True, "multiplayer": True},
-       "data": {"items": {"visibility": "read-write"}}})  # REQUIRED to sync; see 2a
+       "data": {"items": {"visibility": "read-write"}}})  # REQUIRED to sync; see "Multiplayer"
    open("My App.gif", "wb").write(pack_gifos(open("icon.gif", "rb").read(),
        {"manifest.json": manifest, "index.html": HTML}))
 
@@ -59,163 +64,448 @@ a .zip for multi-file apps). GifOS packs the GIF there.
 
 1. The entry point is index.html. Multi-file apps are fully supported:
    app.js, style.css, assets/... referenced normally all travel inside the
-   GIF (include them in the files you pack). The ONLY hard rule: nothing
-   external — no CDNs, frameworks, remote images, or web fonts; the sandbox
-   blocks all outside network. Inline SVG + emoji are fine. (Only the
-   paste-HTML fallback, Path B, is limited to a single file.)
-1b. HELP: pack a `help.md` at the GIF root. GifOS shows a Help button next
+   GIF (include them in the files you pack). Everything is inlined into ONE
+   sandboxed document at mount, so nothing external loads — no CDNs,
+   frameworks, remote images, or web fonts. Inline SVG + emoji are fine.
+   (An app CAN reach declared third-party hosts through gifos.fetch — see
+   "Network" — but its own <script src>/<link>/<img> must all be files you
+   packed. Only the paste-HTML fallback, Path B, is limited to one file.)
+2. Persistence: localStorage/cookies/indexedDB are DISABLED in the sandbox.
+   Use gifos.db (see the API reference). Everything in gifos.db() persists
+   inside the app's icon on the user's Home Screen. Render from
+   db.subscribe() and declare collection visibility = multiplayer for free.
+3. Identity: const me = await gifos.me(); -> { id, name } (name may be "").
+   Attribute records to me.id/me.name so every player sees who did what.
+4. If window.gifos is undefined (opened outside GifOS), degrade gracefully.
+5. BACK BUTTON: the GifOS shell traps the phone's Back button, so a reflex
+   press never closes your app — by default it is simply swallowed. Register
+   gifos.onBack(() => { ... }) to make Back meaningful: close the topmost
+   modal, back out one screen/level. Apps with internal navigation SHOULD.
+6. Dark theme by default (#0a0a0f), mobile-friendly. Test at phone width.
+7. HELP: pack a `help.md` at the GIF root. GifOS shows a Help button next
    to Invite and Save that pops this markdown up. Games: objective, controls,
    rules, solo vs a live friend. Tools: what it is for, the common jobs, the
    commands. Succinct and complete. Do not add a second How-to-play screen
    inside the app — the OS button is the one Help. If you omit help.md, Help
    still appears and explains Invite, Save, and Steal.
-2. Persistence: localStorage/cookies/indexedDB are DISABLED. Use:
-     const db = gifos.db('items');
-     await db.put({ id, ...fields }); await db.getAll(); await db.delete(id);
-     db.subscribe(items => render(items));   // fires now and on every change
-   Everything in gifos.db() persists inside the app's icon. Render from
-   subscribe() and declare visibility (below) = multiplayer for free.
-2a. VISIBILITY — privacy-first: an invite shares NOTHING unless you declare it,
-   so you MUST list each shared collection in the manifest under "data":
-   { "<collection>": { "visibility": "<level>" } }. Levels:
-     - "read-write" guests see AND edit (collaborative state — this is what
-       multiplayer needs; an UNDECLARED collection does NOT sync).
-     - "read-only"  guests see, only the host writes (broadcast state).
-     - "private"    never leaves the owner's tab; each participant keeps their
-       OWN copy (personal prefs, a private library). This is the DEFAULT.
-   Split personal state (prefs) into a PRIVATE collection and shared state into
-   read-write/read-only ones; never mix them. The HOST is the authority —
-   enforcement is host-side, so a guest is refused, never able to override. Flip
-   one record at runtime (owner-only) with db.setVisibility(id, level): "make
-   this item visible", or a leader toggling a shared cursor read-only ("only I
-   lead"). A record's current level is its reserved _vis field.
-   HONESTY: there is NO cloud and NO automatic cross-device sync. Data
-   lives on the user's device, inside the app's GIF in that browser. It
-   reaches other devices exactly two ways: live, while people are
-   connected through an invite link, or by sharing the GIF file itself
-   (state travels inside the file). Never write UI copy claiming the app
-   "syncs across your devices" or "backs up to the cloud" — say something
-   true, like "Saved on this device inside the app's GIF".
-3. Identity: const me = await gifos.me(); -> { id, name }. Attribute records
-   to me.id/me.name so every player sees who did what.
-4. If window.gifos is undefined (opened outside GifOS), degrade gracefully.
-4b. BACK BUTTON: the GifOS shell traps the phone's Back button, so a reflex press never closes your app — by default it is simply swallowed. Register gifos.onBack(() => { ... }) to make Back meaningful: close the topmost modal, back out one screen/level. Apps with internal navigation SHOULD register it.
-5. Dark theme by default (#0a0a0f), mobile-friendly.
-5b. LIVE MEDIA IS OFF-LIMITS to apps, by design: the sandbox blocks camera,
-   microphone, screen capture, and WebRTC, so a video/voice/streaming app
-   cannot work as a GifOS app — don't attempt one. If the user wants video
-   chat, point them at the built-in Meeting on their Home Screen (P2P,
-   permanent room links, moderation, room passwords) — and note that ANY app
-   can be RUN INSIDE a Meeting, so all participants share it live with audio/
-   video/recording around it without the app touching the camera. Apps CAN
-   bundle and display static media — images, GIFs, audio files — inside the GIF, and
-   store binary blobs (base64) in gifos.db — but keep hot collections
-   lean: put big blobs (over ~100KB) in their OWN collection, fetched
-   with db.get(), because subscribers re-download a whole collection on
-   every change, and the slowest participant's link is bandwidth-throttled —
-   bloated hot collections make an app slow for everyone.
-5c. BROKERED CAPABILITIES (opt-in, declared in the manifest): the app can't
-   hold the live device or a secret key, so it asks the GifOS computer to do
-   the privileged act and gets back a RESULT. Declare the capability, then:
-   - microphone/camera/motion: gifos.recordAudio({maxSeconds}) /
-     gifos.recordVideo() / gifos.takePhoto() -> { bytes, mime }; gifos.motion(cb).
-     GifOS captures behind its own visible indicator; the app never holds the
-     live device.
-   - ai: gifos.ai.chat/tts/stt/image/video and gifos.ai.models(). DECLARE the AI
-     TYPES you use as an array — capabilities.ai:["smartest","cheapest","image"]
-     — not a bare true, so the user knows which models to set up and the app is
-     gated to those types (smartest/cheapest text LLM, tts, stt, image,
-     image_to_video, video). The user wires endpoints + keys per type in
-     Settings -> AI models; the app never sees a key.
-   - api: gifos.api(name, { method, path, query, headers, body, as }) for ANY
-     keyed third-party API that isn't OpenAI-shaped (Deepgram, a trading API…).
-     Declare the names you use: "capabilities": { "api": ["deepgram"] }. The
-     user configures each in Settings -> Third-party APIs (base URL + auth +
-     key); the runtime attaches the credential, PINS it to that API's own host
-     (an off-host path is refused), and the app never sees the key. path is
-     relative to the configured base URL. CORS: this is a direct browser fetch,
-     so the endpoint must send CORS headers; for server-only APIs (Deepgram's
-     REST among them) the user ticks "Route through a CORS proxy" in Settings and
-     GifOS relays the call through a stateless proxy — you don't write any of
-     that, just call gifos.api and tell the user to enable it if a call is CORS-
-     blocked.
-   - agent: declare capabilities.agent:true to add a GifOS ASSISTANT BAR to your
-     app — a built-in agent that reads and clicks/types on your app's screen by
-     natural language (driven by the user's Smartest model). No code: declaring
-     it injects the bar. It runs inside your app's own sandbox (it can only touch
-     THIS app), and GifOS brokers the model so the key never enters the sandbox.
-     Great for form-heavy / many-control apps. Make controls have clear labels /
-     aria-labels so the agent can find them.
-   - wasm: declare capabilities.wasm:true to run a COMPILED WebAssembly engine (a
-     chess engine, a codec, a physics sim). The sandbox refuses WASM by default;
-     this relaxes the CSP by exactly two things — 'wasm-unsafe-eval' (instantiate
-     a module) and worker-src blob: (run it on a Web Worker) — and NOTHING else.
-     connect-src stays 'none': the engine gets zero network, so ship its .wasm
-     bytes INSIDE the app (base64 in a bundled .js) and instantiate from bytes
-     (WebAssembly.instantiate / Module.wasmBinary) — never fetch. Shown to the
-     user as "runs a compiled engine on your device." (See apps/chess-grandmaster,
-     which bundles full-strength Stockfish and plays entirely offline.)
-   - gpu: declare capabilities.gpu:true to use WebGPU (navigator.gpu) for fast
-     on-device compute — AI inference, image, physics. The sandbox hides
-     navigator.gpu by default; this delegates the WebGPU permission to the app
-     frame and NOTHING else. No CSP change: WebGPU has no network path, so
-     connect-src stays 'none' and everything runs offline sealed in the app.
-     Pair it with wasm when your engine is WASM (transformers.js / ONNX Runtime
-     Web / WebLLM): the .wasm + weights still ride INSIDE the app (bundled bytes
-     or the install-time asset cache), never fetched. ALWAYS feature-detect
-     (navigator.gpu && await navigator.gpu.requestAdapter()) and fall back to
-     CPU/WASM when there is no adapter — many devices have a real GPU, the ones
-     that do not run fine on CPU. Shown as "uses your device's graphics chip."
-   - pointer: declare capabilities.pointer:true to use POINTER LOCK — hide the
-     cursor and read the mouse as movementX/movementY deltas, the way a
-     first-person game aims. A sandboxed frame is refused it outright, and the
-     refusal is a SecurityError thrown INSIDE your app, so without the
-     declaration the app mounts, renders, and silently cannot look around. This
-     adds the allow-pointer-lock sandbox token and NOTHING else — no CSP change,
-     connect-src stays 'none'. The browser's own rules still apply: entering
-     needs a user gesture (lock on click, never on load) and Esc always releases,
-     so ALWAYS listen for pointerlockchange and pause/show a "click to resume"
-     overlay when the lock is lost — a game that keeps playing while the cursor
-     is back is a game the player cannot quit. Useless on a phone, which has no
-     pointer to lock: ship touch controls alongside it, don't gate the app on it.
-   - fullscreen: declare capabilities.fullscreen:true to call
-     element.requestFullscreen() AND screen.orientation.lock('landscape').
-     These are TWO different hatches and one declaration opens both: fullscreen
-     is a permissions-policy feature (delegated on the frame's allow attribute,
-     whose default allowlist is 'self' — and an app frame's origin is opaque, so
-     it is never 'self'), while the orientation lock is a SANDBOX flag
-     (allow-orientation-lock), the same machinery as pointer lock. Without the
-     declaration fullscreen rejects with a TypeError and the lock with a
-     SecurityError, both thrown INSIDE your app where nobody sees them — the app
-     just plays in a portrait strip forever. It adds no CSP relaxation;
-     connect-src stays 'none', and it sees only its own window, never the rest
-     of the screen. The browser's own rules still apply: entering needs a user
-     gesture, and Esc, Back or the swipe from the edge always leaves — so listen
-     for fullscreenchange and PAUSE when it is lost, the same duty pointer lock
-     has. An orientation lock only holds while you are fullscreen and is dropped
-     when you leave; a desktop has no screen to turn and rejects .lock() with
-     NotSupportedError, which is normal and must not be treated as a failure.
-   ALWAYS feature-detect and never fake a result. You do NOT need to write your
-   own "how to set up X" instructions: when a gifos.api / gifos.ai call hits
-   missing config, GIFOS ITSELF shows a setup prompt (it knows the provider's URL
-   and the Settings screen). Pass an app-specific `hint` on the call (e.g.
-   gifos.api('deepgram', { …, hint: 'new accounts include free credit' })) and it
-   appends below the system text. To prompt BEFORE making a call (so you don't do
-   wasted work), check gifos.apiReady(name) / gifos.ai.models(), and if missing
-   call gifos.apiSetup(name, hint) or gifos.aiSetup(hint) to pop the same system
-   prompt. Keep your own copy to app-specifics only.
-   OPTIONAL vs REQUIRED: capabilities are OPTIONAL by default — the app launches
-   even before the user has set up a key, so they can explore it. If the app is
-   useless without one, add its name to a manifest "requires" array (a capability
-   key like "ai", or a third-party API name like "deepgram") and GifOS blocks
-   launch until the user sets it up. Prefer optional; only require what's truly
-   load-bearing. Device permissions (mic/camera/motion) are granted at use and
-   never block.
-6. Icon: the user's OWN GIF, used unchanged, is always the preferred
+8. LIVE MEDIA IS OFF-LIMITS to apps, by design: the sandbox never hands an
+   app a live camera/mic stream, screen capture, or WebRTC — so a video-chat
+   or live-streaming app cannot work as a GifOS app; don't attempt one.
+   (CLIPS are different: brokered capture — gifos.takePhoto / recordAudio /
+   recordVideo / camera — hands the app finished bytes after GifOS records
+   behind its own visible indicator. See the API reference.) If the user
+   wants video chat, point them at the built-in Meeting on their Home Screen
+   (P2P, permanent room links, moderation, room passwords) — and note that
+   ANY app can be RUN INSIDE a Meeting, so all participants share it live
+   with audio/video around it without the app touching the camera.
+9. Every gifos.* call can REJECT — the user can turn any declared capability
+   off per-app (the Abilities chip on the app's tab), a key may not be set
+   up yet, a guest's write may be refused. Catch rejections and show the
+   message; the runtime's error strings are written for end users.
+10. Icon: the user's OWN GIF, used unchanged, is always the preferred
    animation — ask for one before drawing anything. Otherwise: include
    <link rel="icon" href="data:image/svg+xml,..."> in the HTML (used when
    the user pastes HTML), or use pixel-art frames as the host animation
    (the finished-GIF path). Animated icons are the GifOS signature.
+
+## The manifest (manifest.json), complete
+
+Every field the platform reads. Only appId + name are practically
+mandatory; everything else defaults sensibly.
+
+   {
+     "gifos": "1.0",              // format tag
+     "appId": "my-app",           // stable id (also names snapshot files)
+     "name": "My App",            // shown under the icon and in the tab title
+     "shortName": "myapp",        // optional; labels the invite-link room
+     "version": "1.0.0",          // yours; shown via gifos.info()
+     "entry": "index.html",       // default index.html
+     "accent": [123, 92, 255],    // optional RGB; tints a procedural icon
+     "help": "help.md",           // optional; path of the Help markdown
+     "minBuild": 947,             // store-listed apps only; see "App Store"
+     "requires": ["ai"],          // optional; block launch until set up (see below)
+     "capabilities": { ... },     // see the table
+     "data": { ... },             // per-collection visibility (see "Multiplayer")
+     "lead": [ ... ],             // optional leader/communal toggle (see "Multiplayer")
+     "launch": { ... },           // optional link arguments (see "Sharing")
+     "provides": { "ai": [...] }, // Provider apps only (see "Provider apps")
+     "assets": [ ... ]            // big hash-pinned downloads (see "Big files")
+   }
+
+capabilities — everything an app may ask for. Each is shown to the user,
+and each can be vetoed per-app; undeclared = unavailable, and the error
+names the missing declaration.
+
+   "db": true          descriptive: the app saves data (nothing is gated
+   "multiplayer": true  on these two — persistence and invite links always
+                        work; declare them so the user is told)
+   "network": ["api.example.com"]   gifos.fetch allowlist — see "Network"
+   "pool": ["tiles.example.com"]    room-shared GET cache — see "Network"
+   "api": ["deepgram"]              keyed third-party APIs — gifos.api
+   "ai": ["smartest","tts"]         AI roles used — gifos.ai (array, not
+                                    bare true, so the user knows which
+                                    models to set up; roles: smartest,
+                                    cheapest, tts, stt, image,
+                                    image_to_video, video)
+   "microphone": true               brokered audio clips (recordAudio)
+   "camera": true                   brokered photo/video/studio capture
+   "motion": true                   device orientation/acceleration events
+   "wasm": true                     run a compiled WebAssembly engine
+   "gpu": true                      WebGPU (navigator.gpu) in the sandbox
+   "pointer": true                  pointer lock (FPS-style mouse aim)
+   "fullscreen": true               requestFullscreen + orientation lock
+   "agent": true                    inject the GifOS assistant bar
+
+What the sandbox capabilities actually unlock (and nothing else):
+   - wasm: the CSP gains 'wasm-unsafe-eval', worker-src blob: (run the
+     engine on a Web Worker), and connect-src blob: data: (emscripten-style
+     loaders fetch() the wasm the app minted from its OWN bytes as a
+     blob:/data: URL). The NETWORK stays unreachable — blob:/data: fetches
+     touch no wire. Ship the .wasm bytes INSIDE the GIF (base64 in a
+     bundled .js) or via the asset pin tier, and instantiate from bytes.
+     Two sandbox findings that bite ports: Chromium refuses {type:'module'}
+     blob workers in opaque origins (rewrite to classic workers), and
+     emscripten loaders need that connect-src blob: hatch.
+   - gpu: delegates the WebGPU permission to the app frame. No CSP change,
+     no network path. ALWAYS feature-detect (navigator.gpu && await
+     navigator.gpu.requestAdapter()) and fall back to CPU/WASM.
+   - pointer: adds the allow-pointer-lock sandbox token. Without it,
+     requestPointerLock throws a SecurityError INSIDE your app where nobody
+     sees it — the game mounts, renders, and silently cannot aim. Lock on
+     click (never on load), listen for pointerlockchange, pause and show a
+     "click to resume" overlay when the lock is lost. Useless on phones —
+     ship touch controls alongside.
+   - fullscreen: one declaration opens two hatches — the fullscreen
+     permissions-policy delegation AND the allow-orientation-lock sandbox
+     flag, so element.requestFullscreen() and
+     screen.orientation.lock('landscape') both work. Without it both reject
+     inside your app (TypeError / SecurityError). Orientation lock only
+     holds while fullscreen; desktops reject .lock() with NotSupportedError
+     — normal, not a failure. Listen for fullscreenchange and pause on exit.
+   - agent: no code needed — declaring it injects a GifOS assistant bar
+     that reads and clicks/types on YOUR app's screen by natural language,
+     driven by the user's Smartest model (brokered; the key never enters
+     the sandbox; it can only touch this one app). Great for form-heavy
+     apps. Give controls clear labels / aria-labels so it can find them.
+   - There is NO screen-capture capability, deliberately (the sandbox's
+     opaque origin makes it impossible to grant safely).
+
+requires — capabilities are OPTIONAL by default: the app launches even
+before the user has set up a key, so they can explore it. If the app is
+useless without one, list its name in "requires" (a capability key like
+"ai", or a third-party API name like "deepgram") and GifOS blocks launch
+until the user sets it up. Prefer optional; only require what's truly
+load-bearing. Device permissions (mic/camera/motion) are granted at use
+and never block launch.
+
+## The window.gifos API, complete
+
+Injected into every app before its code runs. Everything is async
+(postMessage RPC to the trusted runtime) — await everything. Shapes below
+are exact.
+
+DATA — gifos.db(collection)
+   const db = gifos.db('items');
+   await db.put(rec)        -> the stored record. If rec.id is missing an
+                               id like "items_1" is assigned (collection-
+                               scoped counter; concurrent-tab safe).
+                               put is insert-or-update by id.
+   await db.get(id)         -> record or null
+   await db.getAll()        -> array of records
+   await db.delete(id)      -> true
+   db.subscribe(cb)         -> calls cb(allRecords) NOW and again on every
+                               change (local, other tabs, other players).
+                               Render from this.
+   await db.setVisibility(id, 'private'|'read-only'|'read-write')
+                            -> owner-only per-record override (guests are
+                               refused); see "Multiplayer".
+   Records are plain JSON objects; Uint8Array values survive (binary-safe),
+   but keep hot collections lean: subscribers re-download a WHOLE collection
+   on every change, so put big blobs (over ~100 KB) in their OWN collection
+   fetched with db.get(), never in a collection that changes often.
+   Reserved field: _vis (a record's current visibility override).
+
+NETWORK — gifos.fetch(url, opts)  [needs capabilities.network — see below]
+   const r = await gifos.fetch('https://api.example.com/x', {
+     method: 'GET', headers: {}, body: null,   // body: string or ArrayBuffer
+     proxy: false });                          // true = via the GifOS CORS proxy
+   r -> { status, ok, headers /* lower-cased names */,
+          json(), text(), arrayBuffer(), blob() }   // pick one, all async
+   Pair blob() with URL.createObjectURL — the app CSP allows blob: for
+   img/media. Responses are capped at 8 MB.
+
+FILES & STATE
+   await gifos.save()       -> downloads a snapshot GIF: the app + all its
+                               current data baked in. Anyone who opens that
+                               file resumes exactly there.
+   await gifos.assets(path) -> ArrayBuffer of a manifest-pinned asset (see
+                               "Big files"). A miss names the fix.
+   await gifos.storage()    -> { usage, quota } in bytes — origin-wide (all
+                               apps share one IndexedDB), so an app can warn
+                               before filling the computer up.
+
+WHO/WHAT AM I
+   await gifos.info()       -> { appId, name, version, owner }  (owner=true
+                               when running on the owner's computer — host
+                               or solo; false on a guest)
+   await gifos.me()         -> { id, name }   (per-browser identity)
+   await gifos.setName(n)   -> { id, name }   (sets the browser-wide name)
+   await gifos.launch()     -> { <declared keys> } or null — what the link
+                               that opened the app asked for (see
+                               "Sharing"). Resolves LATE (after the person
+                               consents); call at boot, treat null as "open
+                               normally", never block first paint on it.
+
+BROKERED CAPTURE  [capabilities.microphone / camera]
+   The app never touches the live device: GifOS records behind a visible
+   indicator it owns, then hands back finished bytes.
+   await gifos.recordAudio({ maxSeconds })            -> { bytes, mime, durationMs }
+   await gifos.recordVideo({ maxSeconds, facing, audio }) -> { bytes, mime, durationMs }
+   await gifos.takePhoto({ facing })                  -> { bytes, mime, width, height }
+   (maxSeconds 1..120, default 15; facing 'user'|'environment'; audio:false
+    records silent video; video sound also needs capabilities.microphone.
+    bytes is an ArrayBuffer. Rejects "Capture cancelled." on cancel.)
+   await gifos.camera(opts, onShot) — the full-screen CAMERA STUDIO for
+     many-capture sessions: opts { mode, facing, filter, timer, aspect,
+     grid, audio, maxSeconds }; each capture is delivered to onShot(shot)
+     the moment it is taken; the promise resolves once with the LAST
+     capture (or rejects "Capture cancelled." if there were none).
+   await gifos.cameraInfo() -> device probe without capturing:
+     { ok, reason, cameras, count, facingModes, torch, zoom, focus,
+       exposure, maxWidth, maxHeight, maxFrameRate, video, mimeVideo,
+       mimeAudio, highFps }
+   await gifos.library.put({ bytes, mime, name, type, category, thumb })
+     -> { id, myMedia, missing, thumb } — deposit a finished image/audio/
+     video (max 25 MB) into the user's My Media library, plus this app's
+     own 'roll' collection if the manifest declares data.roll. The app
+     cannot name another app's storage.
+   await gifos.library.open() — switch this tab to My Media (solo mounts
+     only; inside a shared room it refuses rather than navigate away).
+
+MOTION  [capabilities.motion]
+   const stop = gifos.motion(cb)           // deviceorientation events
+   const stop = gifos.motion(cb, 'accel')  // devicemotion events
+   Handles the iOS permission dance; returns an unsubscribe function.
+
+AI — gifos.ai  [capabilities.ai — declare the ROLES you use as an array]
+   The user wires each role in Settings -> AI models: any OpenAI-compatible
+   endpoint + key, OR an installed Provider app that answers on-device. The
+   app never sees a key and cannot tell the two apart.
+   await gifos.ai.models() -> { available: ['cheapest','tts',...] }
+   await gifos.ai.chat({
+     model: 'smartest'|'cheapest',       // a ROLE, never a model name
+     prompt: 'hi'  /* or messages: [{role,content},...] */,
+     temperature, maxTokens,             // optional
+     onDelta: (piece) => {...}           // optional: stream tokens as they
+   })                                    //   arrive; promise still resolves
+     -> { text, streamed, raw? }         //   once with the whole answer.
+     An endpoint/provider that can't stream just never calls onDelta —
+     render deltas AND paint r.text at the end and you're correct either way.
+   await gifos.ai.tts({ text, voice, format })      -> { bytes, mime }
+   await gifos.ai.stt({ bytes, mime, language })    -> { text, raw }
+   await gifos.ai.image({ prompt, size })           -> { bytes, mime } or { url }
+   await gifos.ai.video({ prompt, size, seconds })         -> { raw } or { bytes, mime }
+   await gifos.ai.imageToVideo({ prompt, image, size, seconds }) -> same
+   (video shapes are provider-specific — no settled standard; poll/render
+    whatever comes back.)
+
+THIRD-PARTY APIs — gifos.api  [capabilities.api: ["<name>", ...]]
+   For ANY keyed API that isn't OpenAI-shaped (Deepgram, MapTiler, a
+   trading API...). The user configures each name in Settings ->
+   Third-party APIs (base URL + auth scheme + key); the runtime attaches
+   the credential, PINS the request to that API's own host (an off-host
+   path is refused), and the app never sees the key.
+   await gifos.api('deepgram', {
+     path: '/v1/listen',        // RELATIVE to the configured base URL
+     method: 'POST', query: {}, headers: {},
+     body,                      // object -> JSON; ArrayBuffer -> binary;
+                                // { b64: '...' } -> decoded binary
+     as: 'json'|'text'|'bytes'  // default: json if the response says so
+   }) -> { status, ok, contentType, json | text | bytes+mime }
+   CORS: this is a browser fetch, so the endpoint must send CORS headers;
+   for server-only APIs the user ticks "Route through a CORS proxy" on that
+   API's Settings row — you write nothing for that.
+   await gifos.apiReady(name) -> boolean (configured or not — the key is
+     never revealed). Check before doing wasted work.
+   Machine-readable error prefixes (test with String.startsWith):
+     'NOT_CONFIGURED:<name>'     the user hasn't set it up (GifOS already
+                                 showed them its own setup prompt)
+     'NOT_CONFIGURED:ai:<role>'  same, for an AI role
+     'OFFLINE:'                  no connection — key is fine
+     'UNREACHABLE:'              host unreachable — key is fine
+   To prompt BEFORE a call, gifos.apiSetup(name, hint) /
+   gifos.aiSetup(role, hint) pop the same system prompt; the optional hint
+   ("new accounts include free credit") appends below GifOS's own text.
+   Never write your own "go to Settings and type this URL" copy — GifOS
+   knows the provider and the screen, and says it consistently.
+
+PROVIDERS — gifos.provider.serve  [manifest "provides", not "capabilities"]
+   See "Provider apps" below.
+
+UI
+   gifos.onBack(cb)   — see rule 5.
+
+## Network (capabilities.network / pool / the CORS proxy)
+
+Default: an app declares NO hosts and can never touch the network — the
+browser itself refuses every network primitive inside the sandbox
+(connect-src 'none'; WebRTC is removed before app code runs). That
+self-contained default is a feature: say it in your UI ("works offline").
+
+To reach the outside, declare bare hostnames:
+
+   "capabilities": { "network": ["api.open-meteo.com", "overpass-api.de"] }
+
+- A host matches itself and its subdomains. Entries are lower-cased bare
+  hostnames — no ports, paths, or schemes (malformed entries are dropped).
+- "*" is legal and means "anywhere" — the permission sheet shouts about it;
+  use it only for a user-supplied-URL tool, never convenience.
+- The user SEES the list at launch and can veto hosts individually; every
+  gifos.fetch is gated on the live policy.
+- Enforced regardless: https only (http for localhost dev), never
+  gifos.app or the serving origin (an app can't use the OS as a proxy),
+  credentials never attached, redirects re-checked against the allowlist,
+  8 MB response cap.
+- CORS: gifos.fetch is a browser fetch from the OS page, so the target
+  must send CORS headers. For a PUBLIC host that doesn't,
+  gifos.fetch(url, { proxy: true }) routes through the GifOS CORS proxy
+  (cors-proxy.gifos.app) — the app can only ever select the default proxy,
+  and the proxy enforces its own curated host allowlist, so if a host you
+  need is public-data and CORS-stingy, ask for it to be added (an issue on
+  the repo) rather than shipping a broken call.
+
+POOLING — free bandwidth in multiplayer rooms. List a SUBSET of your
+network hosts under "pool" and, when the app is in a room, a GET to one of
+those hosts is answered from the room if anyone already has it, and
+fetched once and shared if nobody does (ten people driving the same map
+street cost the tile server one query instead of ten). Completely
+transparent — your code just calls gifos.fetch. Rules, enforced: pool must
+be a subset of network; GET only; never a keyed (capabilities.api) host;
+never "*". Cached responses live 30 min, up to 3 MB each.
+
+## Big files: the asset pin tier (manifest "assets")
+
+For payloads genuinely too big to ride inside the GIF — model weights in
+the tens of MB to gigabytes on a public CORS-served host (Hugging Face is
+the intended shape):
+
+   "assets": [{ "url": "https://huggingface.co/.../model-q4.gguf",
+                "sha256": "<64-hex of the exact bytes>",
+                "path": "model.gguf", "bytes": 806058240 },
+              { "url": "https://.../voice-extra.onnx", "sha256": "<64-hex>",
+                "path": "voice-extra.onnx", "bytes": 24000000,
+                "optional": true }]
+
+The OS (never the sandbox) downloads each required pin at install/first
+boot, verifies the SHA-256, and caches the bytes on the computer (once per
+computer, not per tab; a byte off and it is refused). The app reads them
+with await gifos.assets('model.gguf') -> ArrayBuffer (gigabyte-friendly:
+crosses as a zero-copy transfer). Pins marked optional are fetched only
+when the app first asks for that path — a model the user never picks never
+crosses the wire. The shared/exported GIF stays slim; a receiving computer
+re-downloads from the same pin. `bytes` is for progress UI only. Anything
+under ~8 MB belongs INSIDE the GIF instead (no second fetch to fail);
+per-asset ceiling 2 GB. Apps with pinned assets should also offer an
+honest degraded mode when the download hasn't completed — the gifos.assets
+rejection message tells the user how to fix it.
+
+## Multiplayer (one invite link; you write almost nothing)
+
+The user presses Invite on the app bar; whoever opens the link runs the
+SAME app live against the SAME data. Your entire job is: declare
+visibility per collection, render from db.subscribe(), attribute records
+to gifos.me(). Everything else — transport, verification (every state
+frame is owner-signed), late joins, reconnects — is the OS's.
+
+VISIBILITY — privacy-first: an invite shares NOTHING unless you declare
+it, so you MUST list each shared collection in the manifest under "data":
+
+   "data": { "moves":  { "visibility": "read-write" },
+             "prefs":  { "visibility": "private" } }
+
+   - "read-write"  guests see AND edit (what multiplayer needs; an
+                   UNDECLARED collection does NOT sync).
+   - "read-only"   guests see, only the host writes (broadcast state).
+   - "private"     never leaves the owner's tab; each participant keeps
+                   their OWN copy (personal prefs, drafts). The DEFAULT.
+
+Split personal state into private collections and shared state into
+read-write/read-only ones; never mix. The HOST is the authority —
+enforcement is host-side, so a guest is refused, never able to override.
+Flip one record at runtime (owner-only) with db.setVisibility(id, level):
+"make this item visible", or a leader taking a shared cursor read-only.
+
+GUEST SEMANTICS your code should expect:
+   - A guest's write to a shared collection applies optimistically and is
+     PROPOSED to the host; the host's signed state is canonical.
+   - A guest's put/delete REJECTS with a user-readable message when the
+     collection is read-only for guests, when a leader is driving that
+     record, or when the host is away ("the app is paused — its owner is
+     away"). Catch and show it.
+   - Private collections on a guest live in the tab and die with it.
+
+LEAD (optional): declare records the host can "lead" —
+   "lead": [{ "collection": "nav", "id": "cursor" }]
+— and the OS gives the host a communal/leading switch that flips exactly
+those records read-write <-> read-only live (a shared Bible's nav cursor:
+everyone browses together, or only the leader drives).
+
+HONESTY: there is NO cloud and NO automatic cross-device sync. Data lives
+on the user's device, inside the app's GIF in that browser. It reaches
+other devices exactly two ways: live, while people are connected through
+an invite link, or by sharing the GIF file itself (state travels inside
+the file). Never write UI copy claiming the app "syncs across your
+devices" or "backs up to the cloud" — say something true, like "Saved on
+this device inside the app's GIF".
+
+Invite links are capabilities: whoever holds one can join AND mirror the
+app's shared state. The host chooses the link lifetime (dies-on-close /
+1h / 24h / forever) and resilience in the OS chrome — not your code.
+
+## Provider apps (an app that gives GifOS an ability)
+
+A manifest with "provides" names a PROVIDER: install the GIF, and the
+user's computer gains an AI ability every other app can use — an on-device
+TTS voice, a local LLM. The user assigns it to a role in Settings -> AI
+models; every app's gifos.ai.* then gets answers from it, on-device, no
+key, nothing leaving the browser.
+
+   "provides": { "ai": ["tts"] }     // roles: smartest, cheapest, tts,
+                                     // stt, image, image_to_video, video
+
+In the app, register handlers keyed by role (safe to call in a normal
+mount too — requests only arrive when the OS mounts it hidden as a
+service):
+
+   gifos.provider.serve({
+     tts: async (req, ctx) => {
+       // req: { op:'tts', role, text, voice, format, speed, pitch }
+       ctx.progress('Loading voice...', 0.3); // note+frac both optional;
+                                              // re-arms the OS idle clock
+       return { bytes, mime: 'audio/wav' };   // same shape a cloud endpoint
+     },                                       // returns
+     cheapest: async (req, ctx) => {
+       // req: { op:'chat', role, messages, temperature, maxTokens }
+       ctx.delta(fragment);   // stream the answer as it is written — it
+                              // comes out of the asking app's onDelta.
+                              // Stream what you will RETURN (post-cleanup),
+                              // and stream any disclaimer FIRST.
+       return { text };
+     },
+     // stt req: { op:'stt', role, bytes, mime, language } -> { text }
+     // image req: { op:'image', role, prompt, size } -> { bytes, mime }
+   });
+
+HARD RULES, enforced mechanically: a provider may NOT declare
+capabilities.network or capabilities.api (every app's prompts flow into
+it; the no-network sandbox is what makes "nothing leaves this browser"
+true) — and it only serves while its icon sits in the Providers folder on
+the Home Screen (elsewhere it wears a red X and is inert). It gets no db,
+no fetch, no capture in its service mount: a pure request->response
+engine. Big weights ride the asset pin tier; the engine itself rides
+inside the GIF. A provider without progress pings for 3 minutes is
+considered wedged and failed; keep ctx.progress/ctx.delta flowing on long
+generations. Full doctrine: docs/providers.md in the repo.
 
 ## Their GIF is the app (the preferred move — always offer it)
 
@@ -264,6 +554,21 @@ signature (a "GIFOSSIG" block — cut it out the same way), the mod ships
 unsigned: a remix is a new work the original author's signature can't
 vouch for, and the modder can re-sign their version.
 
+## Porting web apps: the frame is NOT a page on the web
+
+Everything an app needs is inlined into ONE srcdoc document with an
+opaque origin and no network. Upstream code written for a real page at a
+real address trips on exactly two things:
+
+- The frame's URL is about:srcdoc and is not the app's to navigate. Use
+  location.hash = 'x' to set the fragment; in-page <a href="#..."> links
+  work. Full navigations/relative navigations have nowhere to go.
+- There is no base URL to fetch things off. Relative fetch(), workers
+  minted from relative paths, and new URL(path, document.baseURI) have
+  nothing to resolve against. An engine's .wasm must come from the app's
+  OWN bytes as a blob:/data: URL (capabilities.wasm) or from
+  gifos.assets().
+
 ## Sharing the finished app (tell the user this — it is the whole point)
 
 A GifOS app is ONE .gif file, so distributing it needs no store, no
@@ -289,7 +594,8 @@ in the manifest, and read the values with gifos.launch():
 Rules to build against, all enforced by the OS: only keys the manifest
 declared ever arrive; nothing arrives until the person reads what the
 link asked (in the manifest's own words) and agrees; a decline resolves
-null. It resolves LATE, so call it at boot and treat null as "open
+null. Values are strings capped at 2000 chars — an intention, not a
+payload. It resolves LATE, so call it at boot and treat null as "open
 normally" — never block first paint on it. Only expose things the person
 could do in one tap anyway; nothing that spends money or destroys data.
 
@@ -308,6 +614,19 @@ AFTER the GIF is final:
 The signature excludes app *state*, so it stays valid as people use the
 app. NEVER ask the user for a private key — signing happens entirely on
 their side. A signature proves authorship, not safety.
+
+## Getting into the App Store (optional; the store is a catalog, not a gate)
+
+Certified apps live at https://gifos.app/store/<slug>, one folder per app
+in the public repo (github.com/nwcnwc/gifos, apps/<slug>/): the source,
+manifest.json, a listing.json (author, tagline, description, categories —
+ports credit the original author and set basedOn), a screenshot, help.md,
+and a build script that writes the finished GIF to site/apps/<slug>/.
+Listing an app is a pull request. Store-listed manifests must declare
+minBuild (the oldest GifOS build the app runs on). The complete
+contributor doc — layout, minBuild derivation, listing fields, port
+crediting — is apps/README.md in the repo:
+https://github.com/nwcnwc/gifos/blob/main/apps/README.md
 
 ## Reviewing a store app for the user (stars + comment, no server)
 
@@ -345,6 +664,8 @@ https://github.com/nwcnwc/gifos/blob/main/apps/README.md#reviews
   one is a single GIF that lands on the Home Screen. A listing is
   https://gifos.app/store/<slug>. Worth pointing a user at before you build
   them something that already exists.)
-- Source + docs: https://github.com/nwcnwc/gifos
+- Source + docs: https://github.com/nwcnwc/gifos — the runtime the API
+  reference above is taken from is site/js/runtime.js; deeper doctrine
+  lives in docs/ (providers.md, cors-and-networking.md, architecture.md).
 - Multiplayer relay: wss://relay.gifos.app (control traffic only; media is
   strictly peer-to-peer)
