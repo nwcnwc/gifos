@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tower Defense</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="chrome">
+    <div id="brand">Tower Defense</div>
+    <div id="actions">
+      <button type="button" id="shareBtn">Share the map</button>
+    </div>
+  </div>
+
+  <div id="friend-bar" hidden>
+    <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send the link. Everyone places towers on the same map.</p>
+    <p id="friend-status"></p>
+    <ul id="friend-roster"></ul>
+    <div class="friend-actions">
+      <button type="button" id="leaveBtn">← Solo</button>
+    </div>
+  </div>
+
+  <div id="picker">
+    <button type="button" class="pick" data-type="cannon">Cannon $300</button>
+    <button type="button" class="pick" data-type="LMG">LMG $100</button>
+    <button type="button" class="pick" data-type="HMG">HMG $800</button>
+    <button type="button" class="pick" data-type="laser_gun">Laser $2000</button>
+    <button type="button" class="pick" data-type="wall">Wall $5</button>
+    <button type="button" id="upBtn">Upgrade</button>
+    <button type="button" id="sellBtn">Sell</button>
+    <button type="button" id="pauseBtn">Pause</button>
+  </div>
+
+  <div id="wrapper">
+    <div id="td-wrapper">
+      <div id="td-loading">Loading…</div>
+      <div id="td-board">
+        <canvas id="td-canvas">This game needs a canvas.</canvas>
+      </div>
+    </div>
+  </div>
+
+  <script src="vendor/td.js"></script>
+  <script src="vendor/td-lang.js"></script>
+  <script src="vendor/td-event.js"></script>
+  <script src="vendor/td-stage.js"></script>
+  <script src="vendor/td-element.js"></script>
+  <script src="vendor/td-obj-map.js"></script>
+  <script src="vendor/td-obj-grid.js"></script>
+  <script src="vendor/td-obj-building.js"></script>
+  <script src="vendor/td-obj-monster.js"></script>
+  <script src="vendor/td-obj-panel.js"></script>
+  <script src="vendor/td-data-stage-1.js"></script>
+  <script src="vendor/td-cfg-buildings.js"></script>
+  <script src="vendor/td-cfg-monsters.js"></script>
+  <script src="vendor/td-render-buildings.js"></script>
+  <script src="vendor/td-msg-en.js"></script>
+  <script src="vendor/td-walk.js"></script>
+  <script src="mp.js"></script>
+  <script src="touch.js"></script>
+  <script src="boot.js"></script>
+</body>
+</html>

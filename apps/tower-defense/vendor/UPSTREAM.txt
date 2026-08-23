@@ -1,0 +1,38 @@
+vendor/* is GENERATED. Do not edit it; run node apps/tower-defense/vendor.mjs.
+
+upstream: https://github.com/oldj/html5-tower-defense.git
+commit:   e3e009c7673121e98d6ff02c85fb442c774b6391
+date:     2019-03-15
+license:  MIT, oldj (COPYING.txt)
+
+Original classic scripts with these seams:
+  td.js getEventXY uses the canvas box (CSS-scaled + touch)
+  td.js canvas listens for touchstart/move; synthetic click is preventDefault'd
+  td.js exposes _TD.game after init so the GifOS shell can talk to it
+  retina capped at 2
+  English strings (td-msg-en.js), not Chinese
+  grid buy goes through TDHooks.onPlace
+  building upgrade/sell go through TDHooks.onUpgrade / onSell
+  restart notifies TDHooks.onRestart
+  canvas buttons are a little larger (90×36)
+
+sha256:
+  td.js                   72ac114f630a8497c6545edc3be69afda97603e2959c416d4f780650985dcee8
+  td-lang.js              82ed1237ac320c66c60b8454c5a73998f3caa6de8b7a2dc3168b9d7219c4c615
+  td-event.js             4c2a89c601070bb98049399542c658d717f8fcba891c2e6bd36d6fda3803a42a
+  td-stage.js             df613da015edc355281a8fbb0c838155f921124b2593c8275becd6d87eab8d3b
+  td-element.js           1d1b7747c24ffc84f8595f70f8ef016478db9955682117e232ecc85656d4f2bd
+  td-obj-map.js           bf5251c442e3809a49dc3ec7b31cb08965c1b999d71cad8b5a95570b64e88d4c
+  td-obj-grid.js          54993c8b9702e7f68e4bc556adb67cb1d044f83c4e2f1accb97419dcd3f0c18a
+  td-obj-building.js      9f3ebdfa46de94dc48aaf5e7bd269c50e5ce8b070f05daaca2d1437e9a21ebf0
+  td-obj-monster.js       60af1720fd1a3522cdd88d4e2a164acce712d9ff3311c176f38bd155a473fe6c
+  td-obj-panel.js         c32308f006cec9ed06c8433d599d789acdad28e5cb28dd67de7bf929c0d001b9
+  td-data-stage-1.js      60dbca119851c1cafc3aff7c6fa9abaa30d4dbb53196e9ff40e979445b747431
+  td-cfg-buildings.js     8379fd20104b0670fd5081379283e3ec4d1941ea6c69e937efa8d0ef903a7b63
+  td-cfg-monsters.js      934981a4b1af1c112690823c47796c82e07ee23201a8b05b4cdfc479ef9bba37
+  td-render-buildings.js  8a547a20537f5852906da29b9e52084f9b8cbeea194a1cb4032bbc092cc4578e
+  td-msg-en.js            6513e489a06707a41a9160253128662aee3d5f56e01735acb17958d40c92648b
+  td-walk.js              40fdb84acd4058691ee31d98ca7b977ff64ad369d13037306eafddb2981ff65a
+  COPYING.txt             dc30c81d5b085c711e1f97f47c8446da285b67b1415bbd1f4d3231a1a96ea29d
+
+Notices travel INSIDE the GIF as COPYING.txt.
