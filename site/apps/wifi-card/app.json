@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "wifi-card",
+  "appId": "wifi-card",
+  "name": "WiFi Card",
+  "shortName": "WiFi",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Print a card with your WiFi name and password. Nothing is uploaded.",
+  "description": "Type the network name and the password. A card appears with a code a phone can point at. Print it, tape it to the fridge, keep it in a wallet, or just hold the screen up for a guest. The details stay on this device — there is no account, and nothing is sent anywhere.\n\nThe last card you typed comes back the next time you open the app, still only on this device. Press Invite (the GifOS bar) if you want the same card to show up for everyone in a meeting. They can point a phone at it too.\n\nAn unofficial port of wifi-card by bndw. Same kind of card: network name, password, and a code that logs a phone in.",
+  "author": {
+    "name": "bndw",
+    "url": "https://github.com/bndw/wifi-card"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "wifi",
+    "password",
+    "print",
+    "guest",
+    "card",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/wifi-card",
+  "accent": [
+    33,
+    118,
+    199
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/wifi-card/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/wifi-card/wifi-card.gif",
+  "bytes": 208650,
+  "download": 0,
+  "provides": null,
+  "sha256": "205be561db2f66747b32f995e2af2629c492e90bf5688f6970a02cffdc394181",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "wifi-card",
+    "url": "https://github.com/bndw/wifi-card",
+    "blessed": false
+  }
+}

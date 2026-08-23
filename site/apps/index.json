@@ -532,6 +532,57 @@
       "sha256": "2389b9378310a56bd28a5184f0e0316720390ff4a6da3750cb8d96a59c2ce439"
     },
     {
+      "slug": "css-doodle",
+      "appId": "css-doodle",
+      "name": "CSS Doodle",
+      "shortName": "Doodle",
+      "version": "1.0.0",
+      "tagline": "A little pattern toy. Remix a snippet. Share it with a friend.",
+      "author": {
+        "name": "css-doodle",
+        "url": "https://github.com/css-doodle/css-doodle"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "css-doodle",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "pattern",
+        "doodle",
+        "remix",
+        "toy",
+        "art",
+        "colours",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        96,
+        86,
+        158
+      ],
+      "cover": "/apps/css-doodle/cover.jpg",
+      "bytes": 241333,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "1dd28fa79c75f75480121250488150dad8ac2207a3193cb23fa8af21672ed1d8"
+    },
+    {
       "slug": "cube-composer",
       "appId": "cube-composer",
       "name": "Cube Composer",
@@ -632,6 +683,58 @@
         "ts": "2026-08-23"
       },
       "sha256": "c98c74179e230cc323640269a9286f4a84c2b71015003205e07382f9ee85b5bf"
+    },
+    {
+      "slug": "dante",
+      "appId": "dante",
+      "name": "Dante",
+      "shortName": "Dante",
+      "version": "1.0.0",
+      "tagline": "Thirteen souls fell in the wrong circle. Bring them home.",
+      "author": {
+        "name": "SalvatorePreviti",
+        "url": "https://github.com/SalvatorePreviti"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Dante",
+        "blessed": false
+      },
+      "minBuild": 1314,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "dante",
+        "hell",
+        "souls",
+        "js13k",
+        "3d",
+        "platform",
+        "multiplayer",
+        "touch",
+        "offline"
+      ],
+      "accent": [
+        246,
+        97,
+        17
+      ],
+      "cover": "/apps/dante/cover.jpg",
+      "bytes": 225215,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "68ff73d8ac11c54c35a712038eb5718414cb9935277347ed3aaccf1f6f39fa05"
     },
     {
       "slug": "drawnix",
@@ -881,6 +984,55 @@
       "sha256": "f3be12d49098abaf96f2188bf9d2de33221a9b67efd54e02165b27774bf9aee3"
     },
     {
+      "slug": "finger-pool",
+      "appId": "finger-pool",
+      "name": "Finger Pool",
+      "shortName": "Flick",
+      "version": "1.0.0",
+      "tagline": "Flick a ball with your finger. Colours fly into the pockets. Take turns.",
+      "author": {
+        "name": "victorqribeiro",
+        "url": "https://github.com/victorqribeiro/fingerPool"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "fingerPool",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "pool",
+        "flick",
+        "billiards",
+        "multiplayer",
+        "classic",
+        "touch"
+      ],
+      "accent": [
+        17,
+        99,
+        54
+      ],
+      "cover": "/apps/finger-pool/cover.jpg",
+      "bytes": 217982,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "fd92b6a18ac7d3865df556fbd75d2992f5ee9937af719ca84f74862e5f666426"
+    },
+    {
       "slug": "floppy-bird",
       "appId": "floppy-bird",
       "name": "Floppy Bird",
@@ -1116,6 +1268,104 @@
       "sha256": "4d481e331686a321ad7e4b7a3225961c027d632f037fa91de3ba63720b73b866"
     },
     {
+      "slug": "guitar-bro",
+      "appId": "guitar-bro",
+      "name": "Guitar Bro",
+      "shortName": "Guitar",
+      "version": "1.0",
+      "tagline": "Notes fall down the neck. Play them on your guitar, or tap the fret.",
+      "author": {
+        "name": "makaroni4",
+        "url": "https://github.com/makaroni4/guitar_bro"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Guitar Bro",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Learning",
+        "Games"
+      ],
+      "tags": [
+        "guitar",
+        "fretboard",
+        "notes",
+        "trainer",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        124,
+        105,
+        244
+      ],
+      "cover": "/apps/guitar-bro/cover.jpg",
+      "bytes": 171803,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "066644240fb2647ce58040aa83a35f49272c953e5132da2db3d13a73bdbce5b0"
+    },
+    {
+      "slug": "hangman",
+      "appId": "hangman",
+      "name": "Hangman",
+      "shortName": "Hangman",
+      "version": "1.0.0",
+      "tagline": "Guess the word before the gallows fills. Race a friend, or share the rope.",
+      "author": {
+        "name": "simonjsuh",
+        "url": "https://github.com/simonjsuh/Vanilla-Javascript-Hangman-Game"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Vanilla Javascript Hangman Game",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "hangman",
+        "word",
+        "gallows",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        156,
+        162,
+        176
+      ],
+      "cover": "/apps/hangman/cover.jpg",
+      "bytes": 183682,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "b0d637bac0edf546dbf1a667a5f5e09d74b3ce454490ababc2252cbc96858c7a"
+    },
+    {
       "slug": "hat-sh",
       "appId": "hat-sh",
       "name": "hat.sh",
@@ -1210,6 +1460,56 @@
         "ts": "2026-08-23"
       },
       "sha256": "65549ae1ce20b80aefb50a7cd60a36fa4e6d103c2d699c0de5c9209dfd8656cd"
+    },
+    {
+      "slug": "io-808",
+      "appId": "io-808",
+      "name": "iO-808",
+      "shortName": "808",
+      "version": "1.0.0",
+      "tagline": "A silver 808 on the table. Tap the steps. Share a beat.",
+      "author": {
+        "name": "vincentriemer",
+        "url": "https://github.com/vincentriemer/io-808"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "io-808",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Creativity",
+        "Media"
+      ],
+      "tags": [
+        "drum",
+        "808",
+        "rhythm",
+        "sequencer",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        255,
+        90,
+        0
+      ],
+      "cover": "/apps/io-808/cover.jpg",
+      "bytes": 201775,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "036831cb417fb1bcb4e23dc27bcf1065d3837d47b0d767b32b940c56e34b2094"
     },
     {
       "slug": "io-blobs",
@@ -1503,6 +1803,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "a6136b504be11c781c4828548ece5b3321d7a16f4e8c2e7bedc8ba2691d28a65"
+    },
+    {
+      "slug": "mykonos",
+      "appId": "mykonos",
+      "name": "Mykonos",
+      "shortName": "Mykonos",
+      "version": "1.0.0",
+      "tagline": "White houses, a blue dome, and a little island to walk.",
+      "author": {
+        "name": "boona13",
+        "url": "https://github.com/boona13"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Mykonos Island Voxels",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "island",
+        "walk",
+        "mykonos",
+        "mediterranean",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        27,
+        91,
+        168
+      ],
+      "cover": "/apps/mykonos/cover.jpg",
+      "bytes": 197231,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "0bd16e9548c4532890befd1ca1c7823a95564020a9d78bd80180a55de762f3a0"
     },
     {
       "slug": "nxn-cube",
@@ -1836,6 +2185,56 @@
         "ts": "2026-08-23"
       },
       "sha256": "86685f6fd31c0c0d6220eae8dd0310525f57a9ffeacd8f91e612705ed15bde70"
+    },
+    {
+      "slug": "paint-board",
+      "appId": "paint-board",
+      "name": "Paint Board",
+      "shortName": "Paint Board",
+      "version": "1.0",
+      "tagline": "A freehand board with wild brushes. Draw together.",
+      "author": {
+        "name": "LHRUN",
+        "url": "https://github.com/LHRUN/paint-board"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "paint-board",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "paint",
+        "drawing",
+        "freehand",
+        "brushes",
+        "canvas",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        255,
+        99,
+        99
+      ],
+      "cover": "/apps/paint-board/cover.jpg",
+      "bytes": 192206,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "8c1c9da6949dbf26176fadb3229c37bff43048ece9bf9baf14ebc320487dacd1"
     },
     {
       "slug": "particle-life",
@@ -2324,6 +2723,56 @@
       "sha256": "2727119fc24c99a6c42332e2a4dec8750786a9d595e567b4519d1e74cf4d8a44"
     },
     {
+      "slug": "regexper",
+      "appId": "regexper",
+      "name": "Regexper",
+      "shortName": "Regexper",
+      "version": "1.0.0",
+      "tagline": "Type a regular expression. See a railroad diagram. On this device.",
+      "author": {
+        "name": "javallone",
+        "url": "https://github.com/javallone/regexper-static"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Regexper",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Developer",
+        "Utilities"
+      ],
+      "tags": [
+        "regex",
+        "regexp",
+        "railroad",
+        "diagram",
+        "offline",
+        "regexper"
+      ],
+      "accent": [
+        186,
+        218,
+        85
+      ],
+      "cover": "/apps/regexper/cover.jpg",
+      "bytes": 294084,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "91160f0fa81f5179651de6d6cbce2240ccc1904cda9270ebb902f9156f0c4e13"
+    },
+    {
       "slug": "restfox",
       "appId": "restfox",
       "name": "Restfox",
@@ -2422,6 +2871,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "f5b017de78579a2e6406f4ace5bb6750039f7663ee7fc18e4188234be0b93d7c"
+    },
+    {
+      "slug": "signature-pad",
+      "appId": "signature-pad",
+      "name": "Signature Pad",
+      "shortName": "Sign",
+      "version": "1.0",
+      "tagline": "A pad you sign with a finger. Save the picture. Nothing is uploaded.",
+      "author": {
+        "name": "szimek",
+        "url": "https://github.com/szimek/signature_pad"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "signature_pad",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "signature",
+        "sign",
+        "pad",
+        "png",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        36,
+        72,
+        156
+      ],
+      "cover": "/apps/signature-pad/cover.jpg",
+      "bytes": 199494,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "7c9152e7af6c4c7b653919fafd884cb47f692ce2e073be25bcd2ff255ef7afeb"
     },
     {
       "slug": "skifree",
@@ -2562,6 +3060,56 @@
         "ts": "2026-08-23"
       },
       "sha256": "ff035c800e271a4c258a8f7707ff5dcf453aac8c152b12fa005d81384d289da6"
+    },
+    {
+      "slug": "splat",
+      "appId": "splat",
+      "name": "Splat",
+      "shortName": "Splat",
+      "version": "1.0.0",
+      "tagline": "A tiny 3D scene you spin with a finger. The scene lives in this app.",
+      "author": {
+        "name": "antimatter15",
+        "url": "https://github.com/antimatter15/splat"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "splat",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Media",
+        "Creativity"
+      ],
+      "tags": [
+        "3d",
+        "splat",
+        "viewer",
+        "scene",
+        "orbit",
+        "offline"
+      ],
+      "accent": [
+        70,
+        110,
+        255
+      ],
+      "cover": "/apps/splat/cover.jpg",
+      "bytes": 198147,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "f1a947f711aa1be4711170a1400a31fad75ad787b6b13601df7762ac911c523d"
     },
     {
       "slug": "spyfall",
@@ -2713,6 +3261,155 @@
         "ts": "2026-08-23"
       },
       "sha256": "591891f7e3661712729b2fbd2e5a3903c990413af6844c1d07fdb47434a60a4e"
+    },
+    {
+      "slug": "stolen-sword",
+      "appId": "stolen-sword",
+      "name": "Stolen Sword",
+      "shortName": "Sword",
+      "version": "1.0.0",
+      "tagline": "One finger, a stolen blade, and a thief who will not stop running.",
+      "author": {
+        "name": "chiaogu",
+        "url": "https://github.com/chiaogu"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Stolen Sword",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "action",
+        "sword",
+        "platformer",
+        "js13k",
+        "touch",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        104,
+        158,
+        131
+      ],
+      "cover": "/apps/stolen-sword/cover.jpg",
+      "bytes": 194265,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "9d8dff547b090be173bdcb0129b2bc6fcc51067995ecd509464fff911b13d925"
+    },
+    {
+      "slug": "super-sudoku",
+      "appId": "super-sudoku",
+      "name": "Super Sudoku",
+      "shortName": "Sudoku",
+      "version": "1.0",
+      "tagline": "A full sudoku. Race a friend on the same puzzle.",
+      "author": {
+        "name": "TN1ck",
+        "url": "https://github.com/TN1ck/super-sudoku"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Super Sudoku",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "sudoku",
+        "puzzle",
+        "numbers",
+        "multiplayer",
+        "race",
+        "offline"
+      ],
+      "accent": [
+        13,
+        148,
+        136
+      ],
+      "cover": "/apps/super-sudoku/cover.jpg",
+      "bytes": 297591,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "1c67df90e843b4e30f5ede904d366baa829d494de4c403638760c5cdcce59ea8"
+    },
+    {
+      "slug": "svgomg",
+      "appId": "svgomg",
+      "name": "SVGOMG",
+      "shortName": "SVGOMG",
+      "version": "1.0",
+      "tagline": "Make SVG pictures smaller, on this device. Nothing is uploaded.",
+      "author": {
+        "name": "jakearchibald",
+        "url": "https://github.com/jakearchibald/svgomg"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "SVGOMG",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "svg",
+        "optimize",
+        "minify",
+        "vector",
+        "image",
+        "offline",
+        "svgomg"
+      ],
+      "accent": [
+        63,
+        81,
+        181
+      ],
+      "cover": "/apps/svgomg/cover.jpg",
+      "bytes": 505960,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "2019e6f6e9b35059636bb95df39ee52784ea71c3d3fd60a84fa700cb492186b4"
     },
     {
       "slug": "tesseract",
@@ -3057,6 +3754,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "aac58f2b020ff12391b5b4d9f39064493917e208a06debcb0e39ad44683d70c1"
+    },
+    {
+      "slug": "wifi-card",
+      "appId": "wifi-card",
+      "name": "WiFi Card",
+      "shortName": "WiFi",
+      "version": "1.0",
+      "tagline": "Print a card with your WiFi name and password. Nothing is uploaded.",
+      "author": {
+        "name": "bndw",
+        "url": "https://github.com/bndw/wifi-card"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "wifi-card",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-23",
+      "updated": "2026-08-23",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "wifi",
+        "password",
+        "print",
+        "guest",
+        "card",
+        "offline"
+      ],
+      "accent": [
+        33,
+        118,
+        199
+      ],
+      "cover": "/apps/wifi-card/cover.jpg",
+      "bytes": 208650,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-23"
+      },
+      "sha256": "205be561db2f66747b32f995e2af2629c492e90bf5688f6970a02cffdc394181"
     },
     {
       "slug": "word-master",
