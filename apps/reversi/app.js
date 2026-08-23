@@ -157,7 +157,6 @@
     for (r = 0; r < R.SIZE; r++) for (c = 0; c < R.SIZE; c++) {
       sq = document.createElement('div');
       sq.className = 'square';
-      if ((r === 2 || r === 5) && (c === 2 || c === 5)) sq.classList.add('star');
       sq.setAttribute('data-r', String(r));
       sq.setAttribute('data-c', String(c));
       hint = document.createElement('i'); hint.className = 'hint';
