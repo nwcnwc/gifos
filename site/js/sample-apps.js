@@ -3273,8 +3273,9 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   #filmstrip img{width:64px;height:48px;object-fit:cover;border-radius:6px;flex:0 0 auto;border:2px solid transparent;background:#000;cursor:pointer}
   #filmstrip img.on{border-color:var(--accent,#ff7850)}
   .gifrange{position:relative;height:44px;margin:2px 22px;touch-action:none;user-select:none}
-  .gifrange-track{position:absolute;left:0;right:0;top:50%;height:8px;margin-top:-4px;background:var(--border,#2a2a3f);border-radius:4px}
-  .gifrange-fill{position:absolute;top:0;bottom:0;background:var(--accent,#ff7850);border-radius:4px}
+  .gifrange-track{position:absolute;left:0;right:0;top:50%;height:8px;margin-top:-4px;background:var(--border,#2a2a3f);border-radius:4px;z-index:0}
+  .gifrange-fill{position:absolute;top:0;bottom:0;z-index:1;touch-action:none;cursor:grab;background:color-mix(in srgb,var(--accent,#ff7850) 22%,transparent)}
+  .gifrange-fill:after{content:'';position:absolute;left:0;right:0;top:50%;height:8px;margin-top:-4px;background:var(--accent,#ff7850);border-radius:4px;pointer-events:none}
   .gifrange-h{position:absolute;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--accent,#ff7850);border:3px solid #fff;box-shadow:0 1px 8px #0007;z-index:2;touch-action:none;cursor:grab}
   #giftimes{display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted,#8888aa)}
   #gifbudget{font-size:.82rem;font-weight:650}
@@ -3314,7 +3315,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   <div class="info" id="gifpanel">
     <div id="filmstrip"></div>
     <div class="gifrange" id="gifrange">
-      <div class="gifrange-track"><div class="gifrange-fill" id="giffill"></div></div>
+      <div class="gifrange-track"></div>
+      <div class="gifrange-fill" id="giffill"></div>
       <div class="gifrange-h" id="gifh0"></div>
       <div class="gifrange-h" id="gifh1"></div>
     </div>
@@ -3574,6 +3576,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     document.getElementById('gifh1').style.left=b+'%';
     var fill=document.getElementById('giffill');
     fill.style.left=a+'%'; fill.style.width=Math.max(0,b-a)+'%';
+    var rg=document.getElementById('gifrange');
+    if(rg){ rg.setAttribute('data-start', gifStart.toFixed(3)); rg.setAttribute('data-end', gifEnd.toFixed(3)); }
     document.getElementById('gifta').textContent=fmtT(gifStart);
     document.getElementById('giftd').textContent=fmtT(gifEnd-gifStart);
     document.getElementById('giftb').textContent=fmtT(gifEnd);
@@ -3688,6 +3692,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   };
   (function(){
     var which=null, range=document.getElementById('gifrange');
+    var moved=false, downX=0, grabT=0, grabStart=0, grabEnd=0;
     function tFromX(clientX){
       var r=range.getBoundingClientRect();
       var x=r.width? (clientX-r.left)/r.width : 0;
@@ -3697,12 +3702,32 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     function down(e, h){
       if(gifBusy) return;
       e.preventDefault(); e.stopPropagation();
-      which=h;
+      which=h; moved=true;
       try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){}
       move(e);
     }
+    function downWin(e){
+      if(gifBusy) return;
+      e.preventDefault(); e.stopPropagation();
+      which='w'; moved=false; downX=e.clientX;
+      grabT=tFromX(e.clientX); grabStart=gifStart; grabEnd=gifEnd;
+      try{ range.setPointerCapture(e.pointerId); }catch(err){}
+    }
     function move(e){
       if(which==null) return;
+      if(which==='w'){
+        if(!moved && Math.abs(e.clientX-downX)<5) return;
+        moved=true;
+        var t=tFromX(e.clientX), d=rangeDur(), span=grabEnd-grabStart;
+        var ns=grabStart+(t-grabT);
+        if(ns<0) ns=0;
+        if(ns+span>d) ns=Math.max(0, d-span);
+        gifStart=ns; gifEnd=ns+span;
+        var v=stageMedia();
+        if(v) try{ v.currentTime=gifStart+(grabT-grabStart); }catch(err){}
+        updateGifUI();
+        return;
+      }
       var t=tFromX(e.clientX), d=rangeDur(), max=rangeMaxSpan(), minSpan=Math.min(0.2, d||0.2);
       if(which===0){
         gifStart=Math.max(0, Math.min(t, gifEnd-minSpan));
@@ -3714,9 +3739,15 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
       var v=stageMedia(); if(v) try{ v.currentTime=which===0?gifStart:gifEnd; }catch(err){}
       updateGifUI();
     }
-    function up(){
+    function up(e){
       if(which==null) return;
-      which=null;
+      var was=which, did=moved;
+      which=null; moved=false;
+      if(was==='w' && !did){
+        var t=tFromX(e.clientX);
+        var v=stageMedia(); if(v) try{ v.currentTime=t; }catch(err){}
+        return;
+      }
       if(panelMode!=='aclip') makeFilmstrip();
     }
     document.getElementById('gifh0').addEventListener('pointerdown', function(e){ down(e,0); });
@@ -3727,10 +3758,15 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     document.getElementById('gifh1').addEventListener('pointerup', up);
     document.getElementById('gifh0').addEventListener('pointercancel', up);
     document.getElementById('gifh1').addEventListener('pointercancel', up);
+    range.addEventListener('pointermove', move);
+    range.addEventListener('pointerup', up);
+    range.addEventListener('pointercancel', up);
     range.addEventListener('pointerdown', function(e){
       if(gifBusy) return;
       if(e.target.id==='gifh0'||e.target.id==='gifh1') return;
       var t=tFromX(e.clientX);
+      var onFill=e.target.id==='giffill' || (t>=gifStart && t<=gifEnd);
+      if(onFill){ downWin(e); return; }
       var v=stageMedia(); if(v) try{ v.currentTime=t; }catch(err){}
     });
   })();
