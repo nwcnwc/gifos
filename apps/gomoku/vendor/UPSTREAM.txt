@@ -1,0 +1,7 @@
+HTML5-Gomoku by yyjhao (Yao Yujian)
+https://github.com/yyjhao/HTML5-Gomoku
+Pinned file: js/ai-worker.js
+Blob SHA: 0b7ea0c412e05e09bdfbcc186daabfc09162f90e
+License: MIT (see COPYING-gomoku.txt)
+The UI is rewritten for GifOS (no jQuery / jQuery Mobile, no CDN).
+The computer is this worker, running on the device.
