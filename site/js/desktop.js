@@ -2602,7 +2602,7 @@
     const cfg = apiCfgAll();
     const rows = Object.keys(cfg).map((n, i) => apiRowHtml(i, n, cfg[n])).join('');
     return '<details class="adv"><summary>Third-party APIs</summary>' +
-      '<p class="add-help">Beyond OpenAI-shaped models, wire up <b>any keyed API</b> — Deepgram, a trading API, whatever. Give it a short <b>name</b>, its base URL, how it authenticates, and your key, then hit <b>Test &amp; save</b>. GifOS tries the call <b>directly</b> first; if the site blocks browser calls (Deepgram’s REST, most brokerages), it automatically retries through a stateless CORS proxy (<span class="mono">' + escapeHtml(API_PROXY_DEFAULT) + '</span>) and remembers that. It only saves if a test succeeds. Your key <b>only ever goes to that API’s own host</b>, never to the app, and stays out of a shared backup.</p>' +
+      '<p class="add-help">Beyond OpenAI-shaped models, wire up <b>any keyed API</b> — Deepgram, a trading API, whatever. Give it a short <b>name</b>, its base URL, how it authenticates, and your key, then hit <b>Test &amp; save</b>. GifOS tries the call <b>directly</b> first. Deepgram needs no proxy at all — GifOS speaks its WebSocket protocol natively, so your key goes straight to Deepgram. For other sites that block browser calls (most brokerages), it retries through a stateless CORS proxy (<span class="mono">' + escapeHtml(API_PROXY_DEFAULT) + '</span>) and remembers that. Honesty note: requests routed that way <b>pass through that proxy in flight</b> — it stores and logs nothing, but if you’d rather nothing of yours transit GifOS infrastructure, put your own proxy URL under Advanced (the one-file Worker is in the repo, <span class="mono">cors-proxy/</span>). It only saves if a test succeeds. Your key only ever travels toward that API’s own host (directly or via the proxy you chose), never to the app, and stays out of a shared backup.</p>' +
       '<div class="api-rows">' + rows + '</div>' +
       '<button class="widebtn" id="api-add">＋ Add a third-party API</button>' +
       '</details>';
@@ -2615,7 +2615,10 @@
   // answers without auth (Test green), its tiles want ?key= (drape dead), and
   // the default Bearer header is something it ignores entirely.
   const KNOWN_API_SHAPES = {
-    deepgram: { auth: 'token' },
+    // ws: the runtime serves this path over Deepgram's WebSocket protocol
+    // (runtime.js deepgramListenWS) — no CORS proxy — so when the REST base
+    // won't answer a browser, Test must probe the WS door, not the proxy.
+    deepgram: { auth: 'token', ws: '/v1/listen' },
     maptiler: { auth: 'query', authName: 'key', only: true, probePath: '/tiles/satellite-v2/tiles.json' },
   };
   function knownShape(name) { return KNOWN_API_SHAPES[String(name || '').toLowerCase()] || null; }
@@ -2652,6 +2655,22 @@
     return fetch(url, { method: 'GET', headers })
       .then((r) => ({ reached: true, status: r.status, keyRejected: (r.status === 401 || r.status === 403) }))
       .catch(() => ({ reached: false }));
+  }
+  // Probe an API's WebSocket door the way the runtime will actually call it:
+  // key in the subprotocol list (a browser may not set headers on a WS
+  // handshake). A handshake that OPENS proves host + key together — the server
+  // rejects a bad key at the upgrade, before onopen. A handshake that fails
+  // hides its HTTP status from the page, so the caller must say "key or
+  // network", never guess one.
+  function apiWsProbe(c, path) {
+    return new Promise((resolve) => {
+      let u; try { u = new URL(String(c.url).replace(/\/+$/, '') + path); } catch (e) { return resolve({ opened: false }); }
+      const wsUrl = (u.protocol === 'http:' ? 'ws:' : 'wss:') + '//' + u.host + u.pathname;
+      let ws; try { ws = new WebSocket(wsUrl, c.key ? ['token', c.key] : undefined); } catch (e) { return resolve({ opened: false }); }
+      const t = setTimeout(() => { try { ws.close(); } catch (e) {} resolve({ opened: false }); }, 6000);
+      ws.onopen = () => { clearTimeout(t); try { ws.close(); } catch (e) {} resolve({ opened: true }); };
+      ws.onerror = () => { clearTimeout(t); resolve({ opened: false }); };
+    });
   }
   function wireApiSection(box) {
     const rowsWrap = box.querySelector('.api-rows');
@@ -2701,6 +2720,16 @@
         return setSt(st, '✗ you appear to be offline — ' + (saved
           ? 'this API is still set up; test again when the connection returns'
           : 'connect to test and save'), 'bad');
+      }
+      // A WS-native API (Deepgram): the REST base never answers a browser, but
+      // the runtime speaks its WebSocket directly — probe THAT door, save with
+      // no proxy at all. This is how every real request will travel.
+      const known = knownShape(c.name);
+      if (known && known.ws) {
+        setSt(st, 'blocked directly — trying its WebSocket…');
+        const viaWs = await apiWsProbe(c, known.ws);
+        if (viaWs.opened) { saveOne(c, undefined); return setSt(st, '✓ saved · native WebSocket (no proxy needed)', 'ok'); }
+        return setSt(st, '✗ could not open its WebSocket — a wrong key and a blocked network look the same here; check both', 'bad');
       }
       // Blocked directly (CORS/network) — retry through the proxy (custom or default).
       const pbase = c.customProxy || API_PROXY_DEFAULT;

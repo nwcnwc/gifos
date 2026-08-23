@@ -2150,7 +2150,10 @@
   // system knows the provider; the user should not need to know its trivia.
   // (desktop.js's Settings Test mirrors these defaults — keep them in step.)
   const KNOWN_APIS = {
-    deepgram: { label: 'Deepgram', url: 'https://api.deepgram.com', auth: 'token' },
+    // ws: paths the broker serves over Deepgram's WebSocket protocol instead
+    // of REST (deepgramListenWS below) — no CORS proxy, key straight to the
+    // API's own host. desktop.js KNOWN_API_SHAPES mirrors this; keep in step.
+    deepgram: { label: 'Deepgram', url: 'https://api.deepgram.com', auth: 'token', ws: ['/v1/listen'] },
     maptiler: { label: 'MapTiler', url: 'https://api.maptiler.com', auth: 'query', authName: 'key',
                 only: true,   // MapTiler accepts exactly this shape — no entry setting can improve on it
                 probePath: '/tiles/satellite-v2/tiles.json' },
@@ -2362,6 +2365,80 @@
     } catch (e) { /* no DOM host — the coded rejection still reaches the app */ }
   }
 
+  // ---- Deepgram's WebSocket door, REST-shaped -------------------------------
+  // Opens ws(s)://<configured host>/v1/listen?<the app's own query>, sends the
+  // clip as binary frames + {"type":"CloseStream"}, collects every is_final
+  // Results and the closing Metadata, and resolves the exact shape the REST
+  // endpoint would have returned — the calling app cannot tell the transport
+  // changed, which is the point. The key rides the subprotocol list
+  // (['token', key]) because a browser may not set headers on a WS handshake.
+  function deepgramListenWS(u, key, body, d, baseOrigin) {
+    return new Promise((resolve, reject) => {
+      const wsUrl = (u.protocol === 'http:' ? 'ws:' : 'wss:') + '//' + u.host + u.pathname + u.search;
+      let ws = null, opened = false, done = false, guard = null;
+      const finals = []; let meta = null;
+      const stop = () => { clearTimeout(guard); try { if (ws) { ws.onclose = null; ws.close(); } } catch (e) {} };
+      const fail = (e) => { if (done) return; done = true; stop(); reject(e); };
+      // Idle guard, not a total cap: a long clip takes long to transcribe, but
+      // a healthy stream is never silent for a whole minute.
+      const arm = () => { clearTimeout(guard); guard = setTimeout(() => fail(new Error('Deepgram WebSocket went silent — no answer in 60s.')), 60000); };
+      const finish = () => {
+        if (done) return; done = true; stop();
+        const words = []; const parts = []; let confSum = 0, confN = 0;
+        finals.forEach((r) => {
+          const alt = r.channel && r.channel.alternatives && r.channel.alternatives[0];
+          if (!alt) return;
+          if (alt.transcript) parts.push(alt.transcript);
+          if (Array.isArray(alt.words)) alt.words.forEach((w) => words.push(w));
+          if (typeof alt.confidence === 'number') { confSum += alt.confidence; confN++; }
+        });
+        const json = { metadata: meta || {}, results: { channels: [{ alternatives: [{
+          transcript: parts.join(' '), confidence: confN ? confSum / confN : 0, words }] }] } };
+        const out = { status: 200, ok: true, contentType: 'application/json' };
+        if (d.as === 'bytes') { const b = new TextEncoder().encode(JSON.stringify(json)); resolve(Object.assign(out, { bytes: b.buffer, mime: 'application/json' })); }
+        else if (d.as === 'text') resolve(Object.assign(out, { text: JSON.stringify(json) }));
+        else resolve(Object.assign(out, { json }));
+      };
+      try { ws = new root.WebSocket(wsUrl, key ? ['token', key] : undefined); } catch (e) {
+        return fail(new Error('UNREACHABLE: could not open a WebSocket toward ' + baseOrigin + ' (' + (e && e.message || e) + ')'));
+      }
+      ws.binaryType = 'arraybuffer';
+      arm();
+      ws.onopen = () => {
+        opened = true; arm();
+        let bytes = null;
+        if (body instanceof ArrayBuffer) bytes = new Uint8Array(body);
+        else if (body && ArrayBuffer.isView(body)) bytes = new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+        else if (body != null) bytes = new TextEncoder().encode(String(body));
+        // Chunked so no single frame is huge; the socket buffers, we don't pace
+        // — a recorded clip is a one-shot replay, not a live stream.
+        const CHUNK = 256 * 1024;
+        if (bytes) for (let i = 0; i < bytes.length; i += CHUNK) ws.send(bytes.subarray(i, Math.min(i + CHUNK, bytes.length)));
+        ws.send(JSON.stringify({ type: 'CloseStream' }));
+      };
+      ws.onmessage = (ev) => {
+        arm();
+        if (typeof ev.data !== 'string') return;
+        let m = null; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.type === 'Results' && m.is_final) finals.push(m);
+        else if (m.type === 'Metadata') { meta = m; finish(); } // Metadata is Deepgram's end-of-stream marker
+      };
+      ws.onclose = (ev) => {
+        if (done) return;
+        if (opened && finals.length) return finish(); // closed after answering — tolerate a missing Metadata
+        if (root.navigator && root.navigator.onLine === false) {
+          return fail(new Error('OFFLINE: you are offline — the entry is set up; it will work when the connection returns.'));
+        }
+        // A browser hides the handshake's HTTP status, so a rejected key and a
+        // blocked network are indistinguishable here. Say so instead of guessing.
+        fail(new Error(opened
+          ? 'Deepgram closed the stream without a transcript (code ' + ev.code + (ev.reason ? ', ' + ev.reason : '') + ').'
+          : 'Deepgram WebSocket: could not connect to ' + baseOrigin + ' — a rejected key and a blocked network look identical at a WebSocket handshake; check the key in Settings and your connection.'));
+      };
+      ws.onerror = () => { /* the close event that follows carries the verdict */ };
+    });
+  }
+
   function brokerApi(manifest, d) {
     const name = d.name;
     if (!name || !apiAllowed(manifest, name)) return Promise.reject(new Error('This app did not declare the "' + name + '" third-party API in its manifest.'));
@@ -2394,6 +2471,22 @@
     else if (body && typeof body === 'object' && typeof body.b64 === 'string') body = b64ToBuf(body.b64);
     else if (body && typeof body === 'object') { body = JSON.stringify(body); if (!headers['Content-Type'] && !headers['content-type']) headers['Content-Type'] = 'application/json'; }
     const method = String(d.method || 'GET').toUpperCase();
+    // Deepgram, NATIVELY. Its REST API is server-only (no Access-Control-Allow-*
+    // headers), so a browser POST to /v1/listen used to need the CORS proxy —
+    // meaning the user's key and audio transited that proxy. Its WebSocket API
+    // is browser-native: a WS handshake has no CORS preflight, and the key
+    // rides the Sec-WebSocket-Protocol subprotocol straight to the API's own
+    // host. So the broker TRANSLATES the app-side REST shape to WS on the fly:
+    // same gifos.api() call in, same REST-shaped JSON out (reassembled from
+    // the stream's is_final Results + closing Metadata), no proxy anywhere,
+    // and the key still travels ONLY to the configured host. Triggered by the
+    // entry NAME (how every other KNOWN_APIS default is keyed — and what lets
+    // a test or a self-hosted Deepgram at another URL take the same path) OR
+    // by the production hostname, so a differently-named entry still works.
+    if ((String(name).toLowerCase() === 'deepgram' || u.hostname === 'api.deepgram.com')
+        && method === 'POST' && /\/v1\/listen(\/|$)/.test(u.pathname)) {
+      return deepgramListenWS(u, key, body, d, baseOrigin);
+    }
     const init = { method, headers };
     if (method !== 'GET' && method !== 'HEAD' && body != null) init.body = body;
     // Server-only APIs (Deepgram's REST, …) send no CORS headers, so a direct
