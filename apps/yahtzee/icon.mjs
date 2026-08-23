@@ -64,17 +64,24 @@ function pips(n) {
   return [tl, ml, bl, tr, mr, br];
 }
 
+function faceAt(i, f) {
+  // Five dice tumble from a mixed hand onto a Yahtzee of sixes.
+  const land = 8 + i; // last ~4 frames all sixes
+  if (f >= land) return 6;
+  const tumble = [6, 1, 5, 2, 4, 3, 6, 5, 6];
+  return tumble[(f + i * 2) % tumble.length];
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 6, rad = 18;
   const t = f / (FRAMES - 1);
-  const faces = [5, 3, 6, 2, 1];
-  faces[2] = 1 + Math.floor(t * 5.99);
   const die = 18;
   const gap = 4;
   const rowW = 5 * die + 4 * gap;
   const x0 = (OUT - rowW) / 2;
-  const y0 = (OUT - die) / 2 + 4;
+  const y0 = (OUT - die) / 2 + 2;
+  const landed = f >= 10;
 
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
@@ -82,15 +89,20 @@ function frameIndices(pal, f) {
     if (inCard(x, y, m, rad)) {
       a = 1;
       col = mix(FELT_H, FELT_D, (x + y) / (OUT * 2));
+      if (landed && y > 22 && y < 28) {
+        const gx = (x - 18) / 92;
+        if (gx > 0 && gx < 1) col = mix(GOLD, col, 0.35);
+      }
       for (let i = 0; i < 5; i++) {
+        const bounce = landed ? 0 : Math.sin((t * 6 + i * 0.7) * Math.PI) * (1 - t) * 5;
+        const spin = landed ? 1 : 1 + 0.12 * Math.sin((t * 8 + i) * Math.PI);
         const dx0 = x0 + i * (die + gap);
-        const dy0 = y0 + (i === 2 ? Math.sin(t * Math.PI * 2) * 3 : 0);
-        const spin = i === 2 ? 1 + 0.08 * Math.sin(t * Math.PI) : 1;
+        const dy0 = y0 + bounce;
         const half = (die / 2) * spin;
         const cx = dx0 + die / 2, cy = dy0 + die / 2;
         if (rrPix(x, y, cx - half, cy - half, cx + half, cy + half, 3 * spin)) {
           col = mix(IVORY, IVORY_D, (x - (cx - half)) / (half * 2));
-          const face = faces[i];
+          const face = faceAt(i, f);
           const pr = 2.1 * spin;
           for (const p of pips(face)) {
             const pxp = cx - half + p[0] * half * 2;
@@ -140,6 +152,7 @@ const GLYPHS = {
   'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
   'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+  'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
   'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
   'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
   'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
@@ -151,6 +164,7 @@ const GLYPHS = {
   'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
   'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
+  'X': [0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b01010, 0b10001],
   'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   'Z': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
   ' ': [0, 0, 0, 0, 0, 0, 0],
@@ -161,6 +175,12 @@ const GLYPHS = {
   '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
   '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
   '6': [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
+  '+': [0b00000, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000],
+  '/': [0b00001, 0b00010, 0b00010, 0b00100, 0b01000, 0b01000, 0b10000],
+  '-': [0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000],
 };
 
 function drawText(put, x, y, str, s, r, g, b) {
@@ -216,6 +236,14 @@ function paintDie(put, x0, y0, size, face) {
   }
 }
 
+function rr(put, x0, y0, x1, y1, rad, r, g, b) {
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const cx = Math.min(Math.max(x, x0 + rad), x1 - rad - 1);
+    const cy = Math.min(Math.max(y, y0 + rad), y1 - rad - 1);
+    if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= rad * rad) put(x, y, r, g, b);
+  }
+}
+
 export function screenshotPng() {
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
@@ -231,27 +259,60 @@ export function screenshotPng() {
   };
 
   fill(0, 0, W, H, 26, 122, 58);
-  fill(0, 0, W, 8, 16, 86, 40);
-  drawText(put, 64, 70, 'YAHTZEE', 12, 244, 239, 228);
-  drawText(put, 64, 180, 'FIVE DICE', 4, 232, 197, 71);
-  drawText(put, 64, 230, 'A SCORECARD', 4, 244, 239, 228);
-  fill(64, 300, 400, 380, 232, 197, 71);
-  drawText(put, 86, 324, 'PLAY A FRIEND', 3, 26, 70, 36);
-  drawText(put, 64, 420, 'PRESS INVITE', 3, 244, 236, 220);
-  drawText(put, 64, 470, 'SAME ROUND', 3, 210, 230, 200);
-  drawText(put, 64, 520, 'OWN SCORECARD', 3, 210, 230, 200);
-  drawText(put, 64, 600, 'HIGHEST TOTAL WINS', 3, 232, 197, 71);
+  fill(0, 0, W, 10, 16, 86, 40);
 
-  const faces = [5, 3, 6, 2, 4];
-  const size = 110;
-  const gap = 18;
-  const rowW = 5 * size + 4 * gap;
-  const x0 = 560;
-  const y0 = 280;
-  void rowW;
+  drawText(put, 48, 36, 'YAHTZEE', 8, 244, 239, 228);
+
+  rr(put, 48, 112, 300, 172, 12, 244, 239, 228);
+  rr(put, 316, 112, 560, 172, 12, 36, 96, 50);
+  drawText(put, 64, 132, 'YOU  163', 3, 180, 35, 24);
+  drawText(put, 332, 132, 'SAM  142', 3, 244, 239, 228);
+
+  // Mid-game scorecard — filled lines, a live total, not an empty boot.
+  // Upper 3+6+12+8+20+18 = 67, +35 bonus = 102; + 3oak 18 + full house 25 + chance 18 = 163.
+  rr(put, 48, 196, 560, 680, 16, 244, 236, 220);
+  const rows = [
+    ['ONES', '3', 1],
+    ['TWOS', '6', 1],
+    ['THREES', '12', 1],
+    ['FOURS', '8', 1],
+    ['FIVES', '20', 1],
+    ['SIXES', '18', 1],
+    ['BONUS +35', '35', 1],
+    ['3 OF A KIND', '18', 1],
+    ['FULL HOUSE', '25', 1],
+    ['CHANCE', '18', 1],
+    ['YAHTZEE', '', 0],
+    ['TOTAL', '163', 2],
+  ];
+  rows.forEach((row, i) => {
+    const y = 214 + i * 38;
+    if (row[2] === 2) rr(put, 64, y - 6, 544, y + 32, 6, 232, 197, 71);
+    else if (row[2] === 1) rr(put, 64, y - 4, 544, y + 30, 6, 212, 196, 154);
+    else rr(put, 64, y - 4, 544, y + 30, 6, 255, 250, 240);
+    const ink = row[2] === 2 ? [26, 70, 36] : [42, 36, 24];
+    drawText(put, 80, y + 4, row[0], 2, ink[0], ink[1], ink[2]);
+    if (row[1]) drawText(put, 460, y + 4, row[1], 2, ink[0], ink[1], ink[2]);
+  });
+
+  drawText(put, 600, 48, 'TAP TO KEEP', 4, 232, 197, 71);
+  drawText(put, 600, 108, 'THREE ROLLS', 3, 244, 239, 228);
+  drawText(put, 600, 156, 'ONE INVITE', 3, 210, 230, 200);
+
+  const faces = [6, 6, 6, 5, 5];
+  const size = 96;
+  const gap = 14;
+  const x0 = 600;
+  const y0 = 240;
   for (let i = 0; i < 5; i++) {
     paintDie(put, x0 + i * (size + gap), y0, size, faces[i]);
   }
+  drawText(put, 600, 360, 'FULL HOUSE  25', 3, 244, 239, 228);
+
+  rr(put, 600, 430, 1148, 520, 12, 232, 197, 71);
+  drawText(put, 624, 460, 'PLAY A FRIEND', 4, 26, 70, 36);
+  drawText(put, 600, 560, 'A TABLE OVER A MEETING', 3, 244, 239, 228);
+  drawText(put, 600, 614, 'NO SERVER  SCORES IN THE FILE', 3, 210, 230, 200);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

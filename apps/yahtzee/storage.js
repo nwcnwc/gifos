@@ -21,7 +21,7 @@
     }, 200);
   }
 
-  function snapshot(player) {
+  function snapshot(player, dices) {
     if (!player) return null;
     return {
       dices: (player.dices || []).map(function (d) {
@@ -34,7 +34,10 @@
         return { isSaved: h.isSaved, isTrue: h.isTrue, scoreNow: h.scoreNow, score: h.score, nom: h.nom };
       }),
       counter: player.counter,
-      gameover: !!player.gameover
+      gameover: !!player.gameover,
+      yahtzeeBonus: player.yahtzeeBonus || 0,
+      rolledThisTurn: !!player.rolledThisTurn,
+      held: (dices && dices.selected) ? dices.selected.slice() : [0, 0, 0, 0, 0]
     };
   }
 
@@ -51,9 +54,9 @@
       if (root.Yahtzee && root.Yahtzee.mp) return null;
       return mem.gameState || null;
     },
-    setGame: function (player) {
+    setGame: function (player, dices) {
       if (root.Yahtzee && root.Yahtzee.mp) return;
-      mem.gameState = snapshot(player);
+      mem.gameState = snapshot(player, dices);
       persist();
     },
     clearGame: function () {

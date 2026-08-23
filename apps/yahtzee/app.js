@@ -1,7 +1,8 @@
-// Boot the original Dices / Player, with two seams:
-//   1. Save — best score and the solo game in progress live in gifos.db.
+// Boot the original Dices / Player, with three seams:
+//   1. Save — best score and the solo game in progress live in the file.
 //   2. Table — friend-mode publishes the row and swallows a mid-round New
 //      Game (Play again starts the next round once every card is full).
+//   3. Rules — official box values, tap-to-keep, three rolls (rules.js).
 (function (root) {
   'use strict';
 
@@ -18,16 +19,10 @@
     if (el) el.textContent = 'Best: ' + (Y.best || 0);
   }
 
-  function filledOf(p) {
-    var n = 0;
-    if (!p) return 0;
-    (p.multi || []).forEach(function (h) { if (h.isSaved != null) n++; });
-    (p.yams || []).forEach(function (h) { if (h.isSaved != null) n++; });
-    return n;
-  }
-
   Y.total = function () { return Y.player ? Y.player.total : 0; };
-  Y.filled = function () { return filledOf(Y.player); };
+  Y.filled = function () {
+    return (Y.Rules && Y.Rules.filledOf) ? Y.Rules.filledOf(Y.player) : 0;
+  };
   Y.gameover = function () { return !!(Y.player && Y.player.gameover); };
 
   function applySavedClasses(player) {
@@ -36,27 +31,14 @@
       (player[type] || []).forEach(function (h, i) {
         var node = nodes[i];
         if (!node) return;
-        if (h.isSaved != null) {
-          node.classList.add('saved');
-          var val = node.querySelector('.score');
-          if (val) val.textContent = h.isSaved;
-        } else {
-          node.classList.remove('saved');
-        }
+        if (h.isSaved != null) node.classList.add('saved');
+        else node.classList.remove('saved');
       });
     });
-    var sum = document.querySelector('#sum');
-    var multiSaved = document.querySelectorAll('.multi.saved').length;
-    if (sum && multiSaved === document.querySelectorAll('.multi').length) {
-      sum.style.opacity = '0';
-    }
     if (player.gameover) {
       player.endgame();
       var total = document.querySelector('#total');
       if (total) total.classList.add('endgame');
-      var divs = document.querySelectorAll('.results>div');
-      if (divs[0]) divs[0].style.display = 'none';
-      if (divs[1]) divs[1].style.display = 'none';
       if (typeof resultShow === 'function') resultShow();
     }
   }
@@ -80,6 +62,9 @@
     }
     if (typeof state.counter === 'number') player.counter = state.counter;
     player.gameover = !!state.gameover;
+    player.yahtzeeBonus = state.yahtzeeBonus || 0;
+    if (typeof state.rolledThisTurn === 'boolean') player.rolledThisTurn = state.rolledThisTurn;
+    else player.rolledThisTurn = !player.gameover;
     applySavedClasses(player);
     player.writeResult();
     return true;
@@ -94,64 +79,93 @@
     }
     if (root.YahtzeeStore) {
       if (Y.player.gameover) root.YahtzeeStore.clearGame();
-      else root.YahtzeeStore.setGame(Y.player);
+      else root.YahtzeeStore.setGame(Y.player, Y.dices);
     }
     if (Y.Mp) Y.Mp.onChange();
+    if (Y.Rules) Y.Rules.paintTurn();
   }
+  Y.afterMove = afterMove;
 
   // Live table only — does not touch the solo save. Friend-mode must not
   // overwrite the game you were in the middle of; leave() puts it back.
   Y.resetGame = function () {
     var player = Y.player, dices = Y.dices;
     if (!player || !dices) return;
-    dices.parkInAll();
     if (typeof resultHide === 'function') resultHide();
-    var paquet = document.querySelector('.paquet');
-    if (paquet) paquet.style.transform = '';
     if (typeof removeClass === 'function') {
       removeClass('.dice', 'selected');
+      removeClass('.dice', 'held');
       removeClass('.multi', 'saved');
       removeClass('.yams', 'saved');
+      removeClass('.multi', 'must');
+      removeClass('.yams', 'locked');
     }
     var sum = document.querySelector('#sum');
     if (sum) sum.style = '';
     var total = document.querySelector('#total');
     if (total) total.classList.remove('endgame');
-    var divs = document.querySelectorAll('.results>div');
-    if (divs[0]) divs[0].style = '';
-    if (divs[1]) divs[1].style = '';
     player.reset();
-    dices.display(player.dices);
+    if (Y.Rules) Y.Rules.afterResetVisual();
+    else {
+      dices.parkInAll();
+      dices.display(player.dices);
+    }
   };
 
   Y.restoreSolo = function () {
     var saved = root.YahtzeeStore && root.YahtzeeStore.getGame();
     Y.resetGame();
-    if (saved && restore(Y.player, saved)) Y.dices.display(Y.player.dices);
+    if (saved && restore(Y.player, saved)) {
+      if (Y.player.rolledThisTurn && !Y.player.gameover) {
+        if (Y.Rules && Y.Rules.setWaiting) Y.Rules.setWaiting(false);
+        Y.dices.display(Y.player.dices);
+        if (saved.held && Y.dices) {
+          Y.dices.selected = saved.held.slice();
+          if (Y.Rules) Y.Rules.paintHeld(Y.dices);
+        }
+      } else if (Y.Rules) {
+        Y.Rules.afterResetVisual();
+      }
+    }
   };
 
   function wire() {
     var player = Y.player, dices = Y.dices;
+    var R = Y.Rules;
     dices.$dices.forEach(function (el) {
-      el.addEventListener('click', clickDices({ player: player, dices: dices }));
+      el.addEventListener('click', function (e) { R.hold(e); });
+    });
+    document.querySelectorAll('.die-hit').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        e.preventDefault();
+        var i = el.getAttribute('data-i');
+        var die = dices.$dices[+i];
+        if (die) R.hold({ currentTarget: die });
+      });
     });
     ['multi', 'yams'].forEach(function (type) {
       document.querySelectorAll('.result.' + type).forEach(function (el, i) {
         el.addEventListener('click', function (e) {
-          clickResult({ dices: dices, player: player, type: type, i: i })(e);
-          afterMove();
+          R.scoreLine(type, i, e);
         });
       });
     });
-    $('play').addEventListener('click', function () {
+    function doRoll() {
       if (Y.mp && player.gameover) {
         if (Y.Mp) Y.Mp.playAgain();
         return;
       }
-      clickTurn({ player: player, dices: dices })();
+      R.roll();
       afterMove();
+    }
+    $('play').addEventListener('click', doRoll);
+    var rollBtn = $('rollBtn');
+    if (rollBtn) rollBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      doRoll();
     });
-    $('showScores').addEventListener('click', resultToggle);
+    var show = $('showScores');
+    if (show) show.addEventListener('click', resultToggle);
   }
 
   function whenArtReady(fn) {
@@ -168,11 +182,23 @@
   }
 
   function start() {
+    if (Y.Rules && Y.Rules.patchPlayer) Y.Rules.patchPlayer();
     Y.dices = new Dices();
     Y.player = new Player();
     var saved = root.YahtzeeStore && root.YahtzeeStore.getGame();
     if (saved && restore(Y.player, saved)) {
-      Y.dices.display(Y.player.dices);
+      if (Y.player.rolledThisTurn && !Y.player.gameover) {
+        if (Y.Rules && Y.Rules.setWaiting) Y.Rules.setWaiting(false);
+        Y.dices.display(Y.player.dices);
+        if (saved.held) {
+          Y.dices.selected = saved.held.slice();
+          if (Y.Rules) Y.Rules.paintHeld(Y.dices);
+        }
+      } else if (Y.Rules) {
+        Y.Rules.afterResetVisual();
+      }
+    } else if (Y.Rules) {
+      Y.Rules.afterResetVisual();
     } else {
       Y.player.writeResult();
       Y.dices.display(Y.player.dices);
@@ -181,6 +207,7 @@
     if (Y.player.total > Y.best) Y.best = Y.player.total;
     paintBest();
     wire();
+    if (Y.Rules) Y.Rules.paintTurn();
     if (Y.Mp && Y.Mp.watch) Y.Mp.watch();
   }
 

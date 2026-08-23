@@ -104,7 +104,9 @@ const SCRIPTS = [
   'vendor/Dices.js',
   'vendor/Player.js',
   'vendor/functions.js',
+  'scores.js',
   'storage.js',
+  'rules.js',
   'mp.js',
   'app.js',
 ];
@@ -161,10 +163,64 @@ for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeaco
   if (files['app.js'].includes(bad)) throw new Error('app.js uses ' + bad);
   if (files['mp.js'].includes(bad)) throw new Error('mp.js uses ' + bad);
   if (files['storage.js'].includes(bad)) throw new Error('storage.js uses ' + bad);
+  if (files['scores.js'].includes(bad)) throw new Error('scores.js uses ' + bad);
+  if (files['rules.js'].includes(bad)) throw new Error('rules.js uses ' + bad);
+}
+if (files['rules.js'].includes('id="invite"')) throw new Error('Invite is OS chrome — do not draw a share button');
+if (!files['rules.js'].includes('KEEP')) throw new Error('rules.js must tap-to-keep');
+
+if (!files['scores.js'].includes('UPPER_BONUS: 35')) throw new Error('scores.js must award +35 at 63');
+if (!files['scores.js'].includes('FULL_HOUSE: 25')) throw new Error('full house is 25');
+if (!files['scores.js'].includes('YAHTZEE: 50')) throw new Error('yahtzee is 50');
+
+if (!html.includes('id="rollBtn"')) throw new Error('a Roll button is required — the deck is easy to miss on a phone');
+if (!html.includes('die-hit')) throw new Error('non-overlapping die hit targets are required — the fan stacks canvases');
+if (!html.includes('Ones') || !html.includes('Full house') || !html.includes('Chance')) {
+  throw new Error('scorecard must use English names, not Brelan/Carré');
+}
+if (/Brelan|Carré/.test(html)) throw new Error('French Yams names leaked into the scorecard');
+if (!listing.tagline.toLowerCase().includes('meeting') && !listing.tagline.toLowerCase().includes('invite')) {
+  throw new Error('listing tagline must lead with the table / invite');
+}
+if (!listing.description.toLowerCase().includes('not a hasbro')) {
+  throw new Error('listing must keep Hasbro credit honest — unofficial, not a Hasbro product');
 }
 
-// Sanity: scoring helpers — five sixes is a Yahtzee, 2+3 is a full house,
-// 1-2-3-4-5 is a large straight. No DOM: Dices constructor paints cards.
+// Official box values. Wrong scores fail the round. No DOM.
+{
+  const ctx = { globalThis: {}, window: {} };
+  ctx.globalThis = ctx;
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(files['scores.js'], ctx);
+  vm.runInContext(
+    'result = (function () {\n' +
+    '  var S = YahtzeeScores;\n' +
+    '  function hand() { return Array.prototype.map.call(arguments, function (n) { return { number: n }; }); }\n' +
+    '  var y = S.preview(hand(6, 6, 6, 6, 6));\n' +
+    '  if (y.yahtzee !== 50) throw new Error("yahtzee " + y.yahtzee);\n' +
+    '  if (y.fh !== 0) throw new Error("yahtzee is not a full house");\n' +
+    '  if (y.three !== 30 || y.four !== 30 || y.chance !== 30) throw new Error("yahtzee sums");\n' +
+    '  var fh = S.preview(hand(2, 2, 5, 5, 5));\n' +
+    '  if (fh.fh !== 25) throw new Error("full house " + fh.fh);\n' +
+    '  if (fh.three !== 19) throw new Error("full house 3oak is the sum");\n' +
+    '  if (fh.four !== 0) throw new Error("full house is not 4oak");\n' +
+    '  var lg = S.preview(hand(1, 2, 3, 4, 5));\n' +
+    '  if (lg.lg !== 40 || lg.sm !== 30) throw new Error("large straight");\n' +
+    '  var sm = S.preview(hand(1, 2, 3, 4, 6));\n' +
+    '  if (sm.sm !== 30 || sm.lg !== 0) throw new Error("small straight");\n' +
+    '  var oak = S.preview(hand(1, 1, 1, 4, 6));\n' +
+    '  if (oak.three !== 13 || oak.four !== 0 || oak.upper[0] !== 3) throw new Error("three ones");\n' +
+    '  if (S.upperBonus(62) !== 0 || S.upperBonus(63) !== 35) throw new Error("upper bonus");\n' +
+    '  if (S.EXTRA_YAHTZEE !== 100) throw new Error("extra yahtzee");\n' +
+    '  return y.yahtzee;\n' +
+    '})();',
+    ctx
+  );
+  if (ctx.result !== 50) throw new Error('scoring smoke test did not return 50');
+}
+
+// Detection still agrees with Dices (five sixes is a Yahtzee, 2+3 is a full house).
 {
   const ctx = {};
   vm.createContext(ctx);
@@ -187,7 +243,7 @@ for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeaco
     '})();',
     ctx
   );
-  if (ctx.result !== 5) throw new Error('scoring smoke test did not return 5');
+  if (ctx.result !== 5) throw new Error('detection smoke test did not return 5');
 }
 
 const shot = screenshotPng();
