@@ -1,4 +1,5 @@
-// Procedural Math Race icon: an equation ticks, a score jumps.
+// Procedural Math Race icon: 9 + 4 is solved, YOU jumps past SAM, next equation.
+// Thick glyphs + spaced operator so it still reads at 64px Home Screen size.
 // Pure Node, super-sample → box-downsample → small palette. Deterministic.
 import { deflateSync } from 'node:zlib';
 
@@ -96,44 +97,76 @@ function glyphAt(ch, col, row) {
   return !!(g[row] & (1 << (4 - col)));
 }
 
+function inPill(x, y, cx, cy, rx, ry) {
+  const ox = (x - cx) / rx, oy = (y - cy) / ry;
+  return ox * ox + oy * oy <= 1;
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const m = 7, rad = 20;
-  // Story: 9+4 is solved (13), score 7→8 jumps, then 3×6 arrives. Clock ticks down.
-  let eq = '9+4', ans = '', score = '7', glow = 0, scorePop = 1, clock = '0:12';
+  const m = 6, rad = 22;
+  // Story at a glance: 9 + 4 is solved, YOU 7→8 jumps past SAM 6, then 3 × 6.
+  // Clock ticks. Thick glyphs so it still reads at 64px Home Screen size.
+  let eq = ['9', '+', '4'], ans = '', you = '7', sam = '6', glow = 0, pop = 1;
   if (f === 2) ans = '1';
   if (f === 3) ans = '13';
   if (f === 4) { ans = '13'; glow = 1; }
-  if (f === 5) { ans = '13'; glow = 0.6; score = '7'; scorePop = 1.1; }
-  if (f === 6) { ans = '13'; score = '8'; scorePop = 1.22; glow = 0.35; }
-  if (f === 7) { ans = '13'; score = '8'; scorePop = 1.06; clock = '0:11'; }
-  if (f === 8) { eq = '3×6'; ans = ''; score = '8'; clock = '0:10'; }
-  if (f === 9) { eq = '3×6'; ans = ''; score = '8'; clock = '0:09'; }
-  if (f === 10) { eq = '3×6'; ans = '1'; score = '8'; clock = '0:09'; }
-  if (f === 11) { eq = '3×6'; ans = '18'; score = '8'; clock = '0:08'; glow = 0.25; }
+  if (f === 5) { ans = '13'; glow = 0.7; pop = 1.12; }
+  if (f === 6) { ans = '13'; you = '8'; pop = 1.28; glow = 0.4; }
+  if (f === 7) { ans = '13'; you = '8'; pop = 1.08; }
+  if (f === 8) { eq = ['3', '×', '6']; ans = ''; you = '8'; }
+  if (f === 9) { eq = ['3', '×', '6']; ans = ''; you = '8'; }
+  if (f === 10) { eq = ['3', '×', '6']; ans = '1'; you = '8'; }
+  if (f === 11) { eq = ['3', '×', '6']; ans = '18'; you = '8'; glow = 0.3; }
 
-  const eqScale = 3.0, ansScale = 2.3, clkScale = 1.6, scScale = 2.1 * scorePop;
-  function textW(str, s) { return str.length * 6 * s; }
-  function hitText(str, x0, y0, s, x, y) {
-    let cx = x0;
-    for (let i = 0; i < str.length; i++) {
-      const gx = (x - cx) / s, gy = (y - y0) / s;
-      const gc = gx | 0, gr = gy | 0;
-      if (gc >= 0 && gc < 5 && gr >= 0 && gr < 7 && glyphAt(str[i], gc, gr)) return true;
-      cx += 6 * s;
+  const eqS = 3.55, ansS = 2.7, scS = 2.45;
+  const barW = 88, barH = 7, barX = (OUT - barW) / 2, barY = 16;
+  const frac = (12 - (f < 8 ? 0 : f - 6)) / 12;
+
+  // Circular stamp per glyph pixel — 1px bars vanish at 64px.
+  function hitCh(ch, x0, y0, s, x, y) {
+    const r = 0.72 * s;
+    const r2 = r * r;
+    for (let gr = 0; gr < 7; gr++) for (let gc = 0; gc < 5; gc++) {
+      if (!glyphAt(ch, gc, gr)) continue;
+      const dx = x - (x0 + (gc + 0.5) * s);
+      const dy = y - (y0 + (gr + 0.5) * s);
+      if (dx * dx + dy * dy <= r2) return true;
     }
     return false;
   }
-  const clkX = (OUT - textW(clock, clkScale)) / 2;
-  const eqX = (OUT - textW(eq, eqScale)) / 2;
-  const eqY = 42;
-  const eqCol = FG;
-  const clkCol = f >= 9 ? RED : AMBER;
-  const ansX = ans ? (OUT - textW(ans, ansScale)) / 2 : 0;
-  const ansCol = glow > 0.2 ? GREEN : FG;
-  const pcx = 64, pcy = 109, prx = 24 * scorePop, pry = 11 * scorePop;
-  const scX = pcx - textW(score, scScale) / 2;
-  const scY = pcy - 3.5 * scScale;
+  function textW(str, s, tracking) {
+    const t = tracking == null ? 6.35 : tracking;
+    return str.length * t * s - (t - 5) * s;
+  }
+  function hitStr(str, x0, y0, s, x, y, tracking) {
+    const t = tracking == null ? 6.35 : tracking;
+    let cx = x0;
+    for (let i = 0; i < str.length; i++) {
+      if (hitCh(str[i], cx, y0, s, x, y)) return true;
+      cx += t * s;
+    }
+    return false;
+  }
+  // Fat gap around a slightly smaller operator so "9+4" never reads "94".
+  const gap = eqS * 9.6;
+  const opS = eqS * 0.82;
+  const eqW = eqS * 5 * 2 + gap;
+  const eqX0 = (OUT - eqW) / 2;
+  const eqY = 30;
+  const opX = eqX0 + eqS * 5 + (gap - opS * 5) / 2;
+  const bX = eqX0 + eqS * 5 + gap;
+  const ansX = ans ? (OUT - textW(ans, ansS, 6.5)) / 2 : 0;
+  const ansY = 62;
+  const barCol = f >= 9 ? RED : AMBER;
+  const ansCol = glow > 0.25 ? GREEN : FG;
+  const youS = scS * pop;
+  const youCx = 40, youCy = 108, youRx = 24 * pop, youRy = 14 * pop;
+  const samCx = 90, samCy = 108, samRx = 24, samRy = 14;
+  const youTX = youCx - textW(you, youS, 6.4) / 2;
+  const youTY = youCy - 3.5 * youS;
+  const samTX = samCx - textW(sam, scS, 6.4) / 2;
+  const samTY = samCy - 3.5 * scS;
 
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
@@ -141,17 +174,27 @@ function frameIndices(pal, f) {
     if (inCard(x, y, m, rad)) {
       a = 1;
       col = mix(CARD_A, CARD_B, Math.max(0, Math.min(1, (y - m) / (OUT - 2 * m))));
-      if (glow > 0) col = mix(col, GREEN_D, glow * 0.45);
+      if (glow > 0) col = mix(col, GREEN_D, glow * 0.5);
 
-      if (hitText(clock, clkX, 18, clkScale, x, y)) col = clkCol;
-      if (hitText(eq, eqX, eqY, eqScale, x, y)) col = eqCol;
-      if (hitText('=', (OUT - textW('=', 2)) / 2, 68, 2, x, y)) col = MUTED;
-      if (ans && hitText(ans, ansX, 78, ansScale, x, y)) col = ansCol;
+      // shrinking time bar — the clock, without eating equation space
+      if (x >= barX && x <= barX + barW && y >= barY && y <= barY + barH) {
+        const filled = (x - barX) / barW <= frac;
+        col = filled ? barCol : mix(CARD_B, MUTED, 0.25);
+      }
 
-      const ox = (x - pcx) / prx, oy = (y - pcy) / pry;
-      if (ox * ox + oy * oy <= 1) {
-        col = mix(GREEN_D, GREEN, 0.35 + (f === 6 ? 0.35 : 0));
-        if (hitText(score, scX, scY, scScale, x, y)) col = INK;
+      if (hitCh(eq[0], eqX0, eqY, eqS, x, y)) col = FG;
+      if (hitCh(eq[1], opX, eqY + (eqS - opS) * 3.5, opS, x, y)) col = mix(GREEN, FG, 0.2);
+      if (hitCh(eq[2], bX, eqY, eqS, x, y)) col = FG;
+      if (hitCh('=', (OUT - 5 * ansS * 0.7) / 2, ansY - 2, ansS * 0.55, x, y)) col = MUTED;
+      if (ans && hitStr(ans, ansX, ansY + 10, ansS, x, y, 6.5)) col = ansCol;
+
+      if (inPill(x, y, youCx, youCy, youRx, youRy)) {
+        col = mix(GREEN_D, GREEN, 0.4 + (f === 6 ? 0.4 : 0));
+        if (hitStr(you, youTX, youTY, youS, x, y, 6.4)) col = INK;
+      }
+      if (inPill(x, y, samCx, samCy, samRx, samRy)) {
+        col = mix(CARD_A, MUTED, 0.22);
+        if (hitStr(sam, samTX, samTY, scS, x, y, 6.4)) col = FG;
       }
     }
     const o = (py * RW + px) * 4;

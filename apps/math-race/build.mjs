@@ -185,10 +185,20 @@ if (!files['COPYING-math-race.txt'].includes('Iván Loire') && !files['COPYING-m
   if (!w || w.id !== 'a') throw new Error('first correct is earliest at, then lowest id');
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-if (shot.length < 1000) throw new Error('screenshot png looks empty');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+// Never clobber a real Playwright cover with the procedural fallback.
+const shotPath = join(dir, 'screenshot.png');
+if (!existsSync(shotPath)) {
+  const shot = screenshotPng();
+  if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
+  if (shot.length < 1000) throw new Error('screenshot png looks empty');
+  writeFileSync(shotPath, shot);
+  console.log('wrote apps/math-race/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB');
+} else {
+  const keep = readFileSync(shotPath);
+  if (keep[0] !== 0x89 || keep[1] !== 0x50) throw new Error('screenshot.png is not a PNG');
+  if (keep.length < 1000) throw new Error('screenshot.png looks empty');
+  console.log('keeping existing screenshot.png —', (keep.length / 1024).toFixed(0), 'KB');
+}
 
 const bytes = await gif.encode(files, { preview: mathRaceIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'math-race', 'math-race.gif');
@@ -196,5 +206,4 @@ mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
 console.log('wrote site/apps/math-race/math-race.gif —', (bytes.length / 1024).toFixed(0), 'KB, from',
             Object.keys(files).length, 'files (generator in-GIF, no network)');
-console.log('wrote apps/math-race/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB');
 console.log('catalog is owned elsewhere — do not run build-app-catalog.mjs from this tree');
