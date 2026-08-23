@@ -1,0 +1,69 @@
+vendor/ is GENERATED. Do not edit it; run node apps/cyberchef/vendor.mjs.
+
+upstream: https://github.com/gchq/CyberChef
+commit:   2e048b0290854781db61e20638dca62978379032
+artifacts: gh-pages production build of that commit
+skipped:  OCR/Tesseract, .gz/.br duplicates of the download, the 76 MB zip, Google Analytics
+
+sha256 of each fetched file:
+  a3ef7af8b79e32a4acdf8bcd5c7d8227bdd557750f76a23ccf11ca02ab5cabe3  354228  assets/02aafe15b98928fdaa38.ttf
+  e8f47fe246a88ef705bf44ebb3c8e6e1974a1b43cb761e2d6853b3efd29f89e8  70995  assets/main.css.gz
+  3ea15a567626db5dc6efa737e8435912707e345849a1589faf5f4f191d707d03  3755542  assets/main.js.gz
+  ba00144b8b2ca4465898e154c7be78cc66668aa6d1a7d7c43e520e8e32ab17f5  6982  assets/main.js.LICENSE.txt
+  83bc549774011d6ce2504293f5e20d0dbda3775fd72ed9765dcb3e5cd6e9f2b9  31549  fonts/Roboto72White.fnt
+  f49e52b7908d49d2559a7efff9dbb015e3a564f10338af4a7bbc60d5ab16b4ac  52730  fonts/Roboto72White.png
+  5b85972c940df7769793e1c88049087c3400f341641bfe5fbcbe31dfe8377656  31735  fonts/RobotoBlack72White.fnt
+  fce3f5574b38ebe47f9e7f04f39aa6ebe1474eda49eec599a0c78dd61d72127c  50192  fonts/RobotoBlack72White.png
+  e6f956b7a27ba125751ad79cd11d220d101348288e10f4568a3ffd66f3f1a6b8  11934  fonts/RobotoMono72White.fnt
+  6b03b66ea87a796ab67de0835cdf9152dae992ad961e49073f581dfd59fef584  52580  fonts/RobotoMono72White.png
+  ef4cd84f32dcb096fbc754bc18e216cf5a27b38c7b3573aa12b700d49b064545  31945  fonts/RobotoSlab72White.fnt
+  bb8c23755e80bcfcb46a8504433552d12b7a47db05e68072ac6cd5bdd40971bd  54282  fonts/RobotoSlab72White.png
+  1af9634ec949405731ff7480de7f164175cd73d7521a8b7818f157f569d7e8c0  1624  images/cook_male-32x32.png
+  d356c96b82b0b0f7baba248cb8de87bb570fc550112556f3099ed230ae8dee8d  5970  images/cyberchef-128x128.png
+  7944dc07e597d827892a4ebf9ac878dd760a97c9a991bc66d4d579a44fc053e8  5453  images/fork_me.png
+  1cf8245b7f98b65ebc56b75a0a9d565699fbf0b30824df9accc3cc6838b312fc  78466  index.html
+  58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd  11357  LICENSE
+  6cb5f38667b3d232584b55add4d7631f7c874a7515aa96280d8a5370a57e9d7b  67422  modules/Bletchley.js.gz
+  b0522438ab044853c4dc2b7c27bbed7ebf2bc91c8a9f6449868a0f12a750846b  5023  modules/Bletchley.js.LICENSE.txt
+  d835c448ec5c5d90224137508103f749c87cf70fe0a03f8ffacf0a6380ad12e1  153098  modules/Charts.js.gz
+  66ec87aeaa5f781153c1918e76d12a35d898aa0bba1c460fbfde322315027284  2848  modules/Charts.js.LICENSE.txt
+  8c5fe9a3c2c5f61446734315c8d8b55c090e6d4a27a22143115edc971d433b68  618417  modules/Ciphers.js.gz
+  e2008ebbd7df2890e4a43c226ca619d269339f68e382036220526d1fe89d4866  12286  modules/Ciphers.js.LICENSE.txt
+  65fd1530ae796d5c444dc02e7d0e6b77bbaf8aeeebb65e775000e287583b90bf  768559  modules/Code.js.gz
+  3316ab9922b6fb361f5c50b896eb03883fe3021317dae4bd798c4e8cd1b59b10  5678  modules/Code.js.LICENSE.txt
+  39556291b4dca29a720bf09ce6f1788d73a6c35d7056a00a5f3330b71a4bc8eb  167977  modules/Compression.js.gz
+  166c16f1e388d929dea50cb7e2fdb6d33debc4126c89095ae0b2a587f781bfd6  4006  modules/Compression.js.LICENSE.txt
+  24931a7932257c3545274a758e261c106a1daec4e4af7dc518ace2290e7b569d  561464  modules/Crypto.js.gz
+  e4e85306e42de8be2404344473c9d8eb722c6b9b72729e33a7a556b2e89df02a  7483  modules/Crypto.js.LICENSE.txt
+  3ca3ca8082062d4add2bec2fbf308a27aa238ab54cd257e0803e642b19329b13  54559  modules/Diff.js.gz
+  509053d2641cfb8555ba2fb52cf1f1f2681971f45cab68fb841719c56141b06e  2715  modules/Diff.js.LICENSE.txt
+  4a714456f01268c2b9d08615135e97a89a96d411b7beb971d19d5493b047fcad  919342  modules/Encodings.js.gz
+  61d487622e6a38fe993d0d1ae5b5af5fdf9c636cd83e1d7cb1b499ece11d169c  5037  modules/Encodings.js.LICENSE.txt
+  88fc029199354dc14447f3c41d0018dc1bd03bcde65602647d95c4d2c5df069a  46524  modules/File.js.gz
+  1acbb250b4ce1c3d151b682450e49535be294a410c5e6aef6b21ed162f72b69f  2825  modules/File.js.LICENSE.txt
+  ba0f513a89cdfa97f7cecdd9242077bf6a099591f604980c8171b2ce6964106d  68484  modules/Handlebars.js.gz
+  fe901fa48221a5009f6488272bc2b292a63853e07caabe661b5fb6e01902d7b7  2816  modules/Handlebars.js.LICENSE.txt
+  232e00707fbcb6b2399e86f68d8f6b4fd1682d348e426e62b90e760fe7070cb8  271940  modules/Hashing.js.gz
+  b2462c191514561049b14659af15db533dfdd52ad0ba48211ee8ba79811f237e  3679  modules/Hashing.js.LICENSE.txt
+  d6f3e76a4532f8df7c272b848666ae2cf16d3b6d269099fe572bd924cca2e1da  412494  modules/Image.js.gz
+  e7f7bb1e2d6abaac951c52dd05ceef5da2a016ee729760edf9b513795f4ec67b  9777  modules/Image.js.LICENSE.txt
+  aed62ac305e4d77bf56afb9ff4a3e2970cd1042d52f9f6ead0bf7662b20fac41  676994  modules/Jq.js.gz
+  12e662eda3a782834f9fe0496c5ec9f236efe57bd3c9f21f4265ed5f4693884d  2911  modules/Jq.js.LICENSE.txt
+  37ca6d5072b6693bd01987416b1de54a12eae6a668deda10202af4a6fec1119e  419960  modules/PGP.js.gz
+  60accc1a0aadfb6d226bc8f895471b975226766f9f42da3898fbd6c61775191b  4060  modules/PGP.js.LICENSE.txt
+  7aa4f37fd3139c5d7c0fb0eb8ae417973ebba3e9c08860d522244dc093059b24  80487  modules/Protobuf.js.gz
+  0a362c6e5df9b7b1719e4a4ea0ca929d79c923f2e6813e9fefea798f256d7620  3706  modules/Protobuf.js.LICENSE.txt
+  4924a5c0012ca99efff6db0e57b715287b8ee1d8c3c28534aa3f190be5e9a46d  170266  modules/PublicKey.js.gz
+  c34873635d250a416b9681253315a0fd0dea0d3f95e15863a1617ee6e6e825ac  3684  modules/PublicKey.js.LICENSE.txt
+  b6574e5e10cb4b04d9846e128373c1e163cc4c9993aaddf3ab6913344c319836  105328  modules/Regex.js.gz
+  cc1a9812dc52ad919e8b8e5deb766bd5d7d1084674919859b41b2e1824a92437  4022  modules/Regex.js.LICENSE.txt
+  c055deeb8bea6ba53aca23ac2adac9a7937fe81c0b6be9e6c7e6cfa22c26aaa3  160991  modules/Serialise.js.gz
+  3cc7b2f1f514bd064e60bd19ffe5c9d6598d5a9ee7d1646146076e1e689b2c38  3301  modules/Serialise.js.LICENSE.txt
+  d736dd637cc6d65ad028ec4ee5766a81e9f2ce8d47a71c16d44f649f88e6d3c9  796422  modules/Shellcode.js.gz
+  b31687879a2a9f1236796ff0107e0e01281f84e6e163fdeba15da7a95f817503  2916  modules/Shellcode.js.LICENSE.txt
+  78f6e7044a328a50578ab4a8fa649efb4374388f36032d3d4c89ccb9081e10e2  63097  modules/URL.js.gz
+  8d08f0b5b36a0e066615dc5b322ed6a18b79a0fd1accc9558ffc091b5f4f226a  2767  modules/URL.js.LICENSE.txt
+  cf01ff0701ece999bdafcf5b639c875184c0c3c82a54d0627360fce60bfe9c2f  58172  modules/UserAgent.js.gz
+  509053d2641cfb8555ba2fb52cf1f1f2681971f45cab68fb841719c56141b06e  2715  modules/UserAgent.js.LICENSE.txt
+  c3d48ed6f25c8853efaae932c8f6bbdeaffbfeaf63f3c68bd695b6a493e813f2  507090  modules/Yara.js.gz
+  7b2f46616a40ad3b4fa7f1a3697e1a2fb28e7ec2abeb85f3a3f311e792082ea2  2821  modules/Yara.js.LICENSE.txt

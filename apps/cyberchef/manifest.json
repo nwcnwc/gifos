@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "cyberchef",
+  "name": "CyberChef",
+  "shortName": "CyberChef",
+  "version": "11.4.0",
+  "minBuild": 1178,
+  "entry": "index.html",
+  "accent": [244, 67, 54],
+  "capabilities": {
+    "db": true,
+    "wasm": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" }
+  }
+}

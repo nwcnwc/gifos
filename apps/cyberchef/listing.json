@@ -1,0 +1,24 @@
+{
+  "tagline": "Encode, decode, encrypt, hash, compress — hundreds of operations, all on this device.",
+  "description": "Drag operations into a recipe, drop some data in, and Bake. Base64, AES, gzip, hexdumps, hashes, timestamps, character encodings, and hundreds more, chained in whatever order you like. Nothing is uploaded: every conversion runs in this app, on this device.\n\nFavourites, options and saved recipes stay on this computer, inside the app. There is no account and no cloud copy.\n\nAn unofficial port of GCHQ's CyberChef, the Cyber Swiss Army Knife. GCHQ did not endorse this listing. The GifOS version keeps the same operations and the same recipe model, and adds nothing but the sandbox: recipes save through gifos.db instead of localStorage, and there is no network path out — so operations that would have fetched a URL (HTTP request, OCR's language model) simply cannot, and say so.",
+  "author": {
+    "name": "GCHQ",
+    "url": "https://github.com/gchq/CyberChef"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "CyberChef",
+    "url": "https://github.com/gchq/CyberChef",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-22",
+  "categories": ["Utilities", "Developer"],
+  "tags": ["converter", "encoder", "decoder", "crypto", "hash", "base64", "hex", "offline", "cyberchef"],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/cyberchef",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

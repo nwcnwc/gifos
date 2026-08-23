@@ -1,0 +1,14 @@
+CyberChef
+Copyright 2016-2026 Crown Copyright
+
+This product includes software developed by GCHQ (https://github.com/gchq/CyberChef).
+CyberChef is released under the Apache License, Version 2.0, and is covered by
+Crown Copyright. See LICENSE in this directory (and packed inside the App GIF).
+
+This GifOS app is an UNOFFICIAL port. It is not affiliated with, endorsed by,
+or blessed by GCHQ. Bugs belong at https://github.com/nwcnwc/gifos/issues —
+not upstream.
+
+Third-party notices from the production bundles ride beside this file as
+assets/main.js.LICENSE.txt and modules/*.js.LICENSE.txt; they are concatenated
+into the NOTICE packed inside the GIF.
