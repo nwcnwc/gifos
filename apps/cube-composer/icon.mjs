@@ -1,4 +1,4 @@
-// Procedural Cube Composer icon: isometric cubes that turn yellow → red.
+// Procedural Cube Composer icon: isometric cubes assembling into the valley.
 // Pure Node, super-sample → box-downsample. Deterministic.
 import { deflateSync } from 'node:zlib';
 
@@ -86,26 +86,28 @@ function projectCube(wx, wy, wz, s, ox, oy, scale) {
   };
 }
 
-function lerpColor(a, b, t) { return mix(a, b, Math.max(0, Math.min(1, t))); }
-
 function wallAt(f) {
-  const t = f / (FRAMES - 1);
-  // Valley of yellows turning red, left to right.
+  // Cubes assemble from the ground, left to right — the loop is the build.
   const cols = [
-    ['Yellow', 'Yellow', 'Red'],
-    ['Yellow', 'Red'],
-    ['Red'],
-    ['Red'],
-    ['Yellow', 'Red'],
-    ['Yellow', 'Yellow', 'Red']
+    [YELLOW, YELLOW, RED],
+    [YELLOW, RED],
+    [RED],
+    [RED],
+    [YELLOW, RED],
+    [YELLOW, YELLOW, RED]
   ];
-  return cols.map((stack, i) => {
-    const turn = (t - i * 0.12) / 0.35;
-    return stack.map((c) => {
-      if (c !== 'Yellow') return RED;
-      return lerpColor(YELLOW, RED, turn);
-    });
-  });
+  const order = [];
+  for (let x = 0; x < cols.length; x++) {
+    for (let z = 0; z < cols[x].length; z++) order.push({ x, z, rgb: cols[x][z] });
+  }
+  const t = Math.min(1, f / Math.max(1, FRAMES - 3));
+  const n = Math.max(1, Math.round(t * order.length));
+  const wall = cols.map(() => []);
+  for (let i = 0; i < n; i++) {
+    const o = order[i];
+    wall[o.x][o.z] = o.rgb;
+  }
+  return wall;
 }
 
 function frameIndices(pal, f) {
@@ -196,6 +198,16 @@ const GLYPHS = {
   Z: [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '-': [0, 0, 0, 0b11111, 0, 0, 0],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '3': [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '6': [0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -227,6 +239,63 @@ function pngChunk(tag, data) {
   return Buffer.concat([len, body, c]);
 }
 
+function cubesOf(cols, wy) {
+  const cubes = [];
+  const reversed = cols.slice().reverse();
+  for (let x = 0; x < reversed.length; x++) {
+    const stack = reversed[x];
+    for (let z = 0; z < stack.length; z++) {
+      cubes.push({ wx: -(reversed.length - x), wy, wz: z, rgb: stack[z] });
+    }
+  }
+  return cubes;
+}
+
+function projectAll(cubes, ox, oy, scale) {
+  const s = 0.92;
+  return cubes.map((c) => ({
+    face: projectCube(c.wx, c.wy, c.wz, s, ox, oy, scale),
+    rgb: c.rgb
+  }));
+}
+
+function faceBounds(projected) {
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  for (const c of projected) {
+    for (const key of ['top', 'right', 'left']) {
+      for (const p of c.face[key]) {
+        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+      }
+    }
+  }
+  return { minX, maxX, minY, maxY };
+}
+
+function paintCubes(put, cubes, box) {
+  const unit = projectAll(cubes, 0, 0, 1);
+  const b = faceBounds(unit);
+  const bw = Math.max(0.01, b.maxX - b.minX);
+  const bh = Math.max(0.01, b.maxY - b.minY);
+  const scale = Math.min(box.w / bw, box.h / bh);
+  const ox = box.x + (box.w - bw * scale) / 2 - b.minX * scale;
+  const oy = box.y + (box.h - bh * scale) / 2 - b.minY * scale;
+  const drawn = projectAll(cubes, ox, oy, scale);
+  drawn.sort((a, c) => a.face.depth - c.face.depth);
+  for (const c of drawn) {
+    fillQuad(put, c.face.left, shade(c.rgb, 0.58));
+    fillQuad(put, c.face.right, shade(c.rgb, 0.78));
+    fillQuad(put, c.face.top, shade(c.rgb, 1.05));
+  }
+}
+
+function tinyCube(put, x, y, rgb, n) {
+  n = n || 14;
+  for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) {
+    put(x + dx, y + dy, rgb[0], rgb[1], rgb[2]);
+  }
+}
+
 export function screenshotPng() {
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
@@ -240,23 +309,18 @@ export function screenshotPng() {
     x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
+  const rr = (x0, y0, x1, y1, rad, r, g, b) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const cx = Math.min(Math.max(x, x0 + rad), x1 - rad - 1);
+      const cy = Math.min(Math.max(y, y0 + rad), y1 - rad - 1);
+      if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= rad * rad) put(x, y, r, g, b);
+    }
+  };
 
   fill(0, 0, W, H, 250, 250, 248);
-  fill(48, 48, 248, 118, 222, 68, 23);
-  fill(248, 48, 640, 118, 71, 49, 40);
-  drawText(put, 72, 66, 'CUBE', 6, 255, 255, 255);
-  drawText(put, 268, 66, 'COMPOSER', 6, 255, 255, 255);
 
-  drawText(put, 56, 160, 'LINE UP THE CUBES', 3, 106, 74, 60);
-  drawText(put, 56, 210, 'TAP A FUNCTION', 3, 204, 51, 63);
-  drawText(put, 56, 260, 'MATCH THE PICTURE', 3, 106, 74, 60);
-  fill(56, 330, 340, 400, 235, 104, 65);
-  drawText(put, 80, 350, 'PLAY A FRIEND', 3, 255, 255, 255);
-  drawText(put, 56, 430, 'PRESS INVITE', 3, 204, 51, 63);
-  drawText(put, 56, 480, 'SAME PUZZLE', 3, 106, 74, 60);
-  drawText(put, 56, 530, 'FIRST TO MATCH WINS', 3, 106, 74, 60);
-
-  const cols = [
+  // Mid-puzzle fills the frame — Composition (0.3), cubes changing with each step.
+  const initial = [
     [YELLOW, YELLOW, RED],
     [YELLOW, RED],
     [RED],
@@ -264,25 +328,31 @@ export function screenshotPng() {
     [YELLOW, RED],
     [YELLOW, YELLOW, RED]
   ];
-  const ox = 820, oy = 480, scale = 44, s = 0.92;
-  const cubes = [];
-  const reversed = cols.slice().reverse();
-  for (let x = 0; x < reversed.length; x++) {
-    const stack = reversed[x];
-    for (let z = 0; z < stack.length; z++) {
-      cubes.push({
-        face: projectCube(-(reversed.length - x), 0, z, s, ox, oy, scale),
-        rgb: stack[z]
-      });
-    }
-  }
-  cubes.sort((a, b) => a.face.depth - b.face.depth);
+  const rejected = initial.map((s) => s.filter((c) => c !== YELLOW));
+  const stacked = rejected.map((s) => s.concat([YELLOW]));
   const sput = (x, y, r, g, b) => put(x | 0, y | 0, r, g, b);
-  for (const c of cubes) {
-    fillQuad(sput, c.face.left, shade(c.rgb, 0.58));
-    fillQuad(sput, c.face.right, shade(c.rgb, 0.78));
-    fillQuad(sput, c.face.top, shade(c.rgb, 1.05));
-  }
+  const cubes = cubesOf(initial, 0)
+    .concat(cubesOf(rejected, 5.6))
+    .concat(cubesOf(stacked, 11.2));
+  paintCubes(sput, cubes, { x: 40, y: 96, w: 1120, h: 520 });
+
+  fill(36, 28, 176, 80, 222, 68, 23);
+  fill(176, 28, 420, 80, 71, 49, 40);
+  drawText(put, 52, 42, 'CUBE', 4, 255, 255, 255);
+  drawText(put, 192, 42, 'COMPOSER', 4, 255, 255, 255);
+
+  rr(820, 28, 990, 80, 8, 255, 255, 255);
+  fill(820, 28, 824, 80, 204, 51, 63);
+  drawText(put, 838, 42, 'YOU  2', 3, 204, 51, 63);
+  rr(1006, 28, 1164, 80, 8, 255, 255, 255);
+  drawText(put, 1024, 42, 'SAM  3', 3, 106, 74, 60);
+
+  rr(36, 636, 268, 692, 8, 238, 238, 238);
+  drawText(put, 52, 654, 'MAP', 3, 51, 51, 51);
+  tinyCube(put, 122, 656, YELLOW, 16);
+  rr(284, 636, 560, 692, 8, 238, 238, 238);
+  drawText(put, 300, 654, 'STACK', 3, 51, 51, 51);
+  tinyCube(put, 420, 656, YELLOW, 16);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

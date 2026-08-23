@@ -2,7 +2,8 @@
 
 Line up little functions until the coloured cubes match the picture. Playing
 alone is that puzzle. Press **Play a friend**, then **Invite**, and it becomes
-a race on the same puzzle — first to match the picture wins.
+a race on the same puzzle — first to match the picture wins. Progress lives
+in the file.
 
 An unofficial port of **[cube-composer](https://github.com/sharkdp/cube-composer)**
 by David Peter / sharkdp (MIT). The original is PureScript (bower, gulp, a

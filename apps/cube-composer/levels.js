@@ -23,7 +23,7 @@
       ],
       levels: [
         lv('0.1', 'Transformation', 'Easy',
-          'In this game, your goal is to create a sequence of functions which transforms the colored cubes into the desired pattern (shown above). To change yellow cubes to red cubes, add the function `replaceYbyR` to your program. Tap a function to add it; tap it again to take it out. Drag to change the order.',
+          'In this game, your goal is to create a sequence of functions which transforms the colored cubes into the desired pattern (shown above). To change yellow cubes to red cubes, add the function `replaceYbyR` to your program.',
           [[Y, Y, R], [Y, R], [R], [R], [Y, R], [Y, Y, R]],
           [[R, R, R], [R, R], [R], [R], [R, R], [R, R, R]]),
         lv('0.2', 'Rejection', 'Easy',

@@ -144,6 +144,19 @@ if (!listing.basedOn || listing.basedOn.blessed !== false) {
 if (!listing.porter || listing.porter.name !== 'GifOS') {
   throw new Error('porter must be GifOS');
 }
+{
+  const tag = String(listing.tagline || '').toLowerCase();
+  if (!/race/.test(tag) || !/link|invite|file/.test(tag)) {
+    throw new Error('tagline must lead with the race and one link / the file');
+  }
+  const desc = String(listing.description || '');
+  if (!/play a friend|invite|send the link/i.test(desc.slice(0, 160))) {
+    throw new Error('description must lead with the race from one invite');
+  }
+  if (!/unofficial/i.test(desc)) {
+    throw new Error('description must credit this as unofficial');
+  }
+}
 
 const shot = screenshotPng();
 if (shot.length < 1000) throw new Error('screenshot png looks empty');
