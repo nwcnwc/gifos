@@ -3262,9 +3262,11 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   .tgl input:checked + .tslide::after{transform:translateX(18px)}
   .visinfo .vt{font-weight:600;font-size:.9rem}
   #toast.on{opacity:1}
-  #mgif,#mfliph,#mflipv{display:none}
+  #mgif,#mfliph,#mflipv,#mclip,#mrev{display:none}
   #gifpanel{display:none}
   #gifpanel.on{display:flex}
+  #gifpanel.clip #gifbudget,#gifpanel.clip #gifspeeds,#gifpanel.clip .gifspeed-label{display:none}
+  #gifpanel.aclip #filmstrip,#gifpanel.aclip #gifbudget,#gifpanel.aclip #gifspeeds,#gifpanel.aclip .gifspeed-label{display:none}
   .box.gifing .stage{max-height:36vh}
   .box.gifing .stage video{max-height:36vh}
   #filmstrip{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0 4px}
@@ -3307,7 +3309,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     <div class="row"><span class="sub">Category</span><input type="text" id="mcat" list="cats" placeholder="Unsorted"><button class="btn ghost" id="msave">Save</button></div>
     <datalist id="cats"></datalist>
     <div class="row" id="visrow" style="display:none"><label class="tgl"><input type="checkbox" id="mvis"><span class="tslide"></span></label><div class="visinfo"><div class="vt">Visible to invited guests</div><span class="sub" id="vishint">Private — only you can see it.</span></div></div>
-    <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="btn ghost" id="mfliph">Flip ↔️</button><button class="btn ghost" id="mflipv">Flip ↕️</button><button class="btn" id="mgif">Make GIF</button><button class="btn ghost" id="mdown">Download</button><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
+    <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="btn ghost" id="mfliph">Flip ↔️</button><button class="btn ghost" id="mflipv">Flip ↕️</button><button class="btn ghost" id="mclip">Clip</button><button class="btn ghost" id="mrev">Reverse</button><button class="btn" id="mgif">Make GIF</button><button class="btn ghost" id="mdown">Download</button><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
   </div>
   <div class="info" id="gifpanel">
     <div id="filmstrip"></div>
@@ -3318,7 +3320,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     </div>
     <div id="giftimes"><span id="gifta"></span><span id="giftd"></span><span id="giftb"></span></div>
     <div id="gifbudget"></div>
-    <div class="sub">Speed</div>
+    <div class="sub gifspeed-label">Speed</div>
     <div class="seg" id="gifspeeds">
       <button data-s="0.25">0.25×</button>
       <button data-s="0.5">0.5×</button>
@@ -3337,7 +3339,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   var media = gifos.db('media'), blobs = gifos.db('blobs');
   var MAX = 25 * 1024 * 1024;
   var items = [], fType = 'all', fCat = 'all', curUrl = null, cur = null, owner = false;
-  var gifAbort=false, gifBusy=false, gifSpeed=1, gifStart=0, gifEnd=0, gifSavedT=0, filmGen=0;
+  var gifAbort=false, gifBusy=false, gifSpeed=1, gifStart=0, gifEnd=0, gifSavedT=0, filmGen=0, panelMode='gif';
   var GIF_FPS=10, MAX_OUT_SEC=8, MAX_FRAMES=80, MAX_SIDE=480;
   // Only the library's owner (the host) can change what's shared. A guest view
   // sees the host's opted-in items plus its own private captures, read-only.
@@ -3425,6 +3427,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     var canFlip = m.type==='video' || (m.type==='image' && !/image\/gif/i.test(m.mime||''));
     document.getElementById('mfliph').style.display = canFlip ? 'inline-block' : 'none';
     document.getElementById('mflipv').style.display = canFlip ? 'inline-block' : 'none';
+    document.getElementById('mclip').style.display = (m.type==='video'||m.type==='audio') ? 'inline-block' : 'none';
+    document.getElementById('mrev').style.display = (m.type==='video'||m.type==='audio') ? 'inline-block' : 'none';
     document.getElementById('mgif').style.display = m.type==='video' ? 'inline-block' : 'none';
     document.getElementById('modal').style.display='flex';
   }
@@ -3522,7 +3526,11 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
 
   // ---- video → GIF (plain GIF89a via packed gifenc.js) ----
   function stageVideo(){ return document.querySelector('#stage video'); }
+  function stageMedia(){ return document.querySelector('#stage video') || document.querySelector('#stage audio'); }
   function vidDur(){ var v=stageVideo(), d=v&&v.duration; return (isFinite(d)&&d>0)?d:0; }
+  function mediaDur(){ var v=stageMedia(), d=v&&v.duration; return (isFinite(d)&&d>0)?d:0; }
+  function rangeDur(){ return panelMode==='aclip' ? mediaDur() : vidDur(); }
+  function rangeMaxSpan(){ var d=rangeDur(); return panelMode==='gif' ? Math.min(d, maxSrc()) : d; }
   function fmtT(t){ t=Math.max(0,+t||0); var m=Math.floor(t/60), s=t-m*60; return m+':'+(s<10?'0':'')+s.toFixed(1); }
   function maxSrc(){ return MAX_OUT_SEC*gifSpeed; }
   function gifNameFrom(m){
@@ -3546,7 +3554,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     });
   }
   function clampGifRange(){
-    var d=vidDur(), max=Math.min(d, maxSrc()), minSpan=Math.min(0.2, d||0.2);
+    var d=rangeDur(), max=rangeMaxSpan(), minSpan=Math.min(0.2, d||0.2);
     if(gifEnd>d) gifEnd=d;
     if(gifStart<0) gifStart=0;
     if(gifEnd-gifStart>max){
@@ -3559,7 +3567,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     }
   }
   function updateGifUI(){
-    var d=vidDur()||1;
+    var d=rangeDur()||1;
     var a=gifStart/d*100, b=gifEnd/d*100;
     document.getElementById('gifh0').style.left=a+'%';
     document.getElementById('gifh1').style.left=b+'%';
@@ -3574,7 +3582,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     var line=sel.toFixed(1)+'s selected · max '+maxTxt+'s at '+spdTxt;
     var budget=document.getElementById('gifbudget');
     budget.textContent=line;
-    var over=sel>max+0.05;
+    var over=panelMode==='gif' && sel>max+0.05;
     budget.classList.toggle('warn', over);
     document.getElementById('gifgo').disabled=over||gifBusy||sel<=0;
   }
@@ -3585,11 +3593,13 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   }
   function closeGifPanel(){
     gifAbort=true;
-    var p=document.getElementById('gifpanel'); if(p) p.classList.remove('on');
+    var p=document.getElementById('gifpanel'); if(p){ p.classList.remove('on'); p.classList.remove('clip'); p.classList.remove('aclip'); }
     var det=document.getElementById('detail'); if(det) det.style.display='';
     var box=document.querySelector('#modal .box'); if(box) box.classList.remove('gifing');
     var v=stageVideo();
     if(v){ v.controls=true; v.muted=false; }
+    var go=document.getElementById('gifgo'); if(go) go.textContent='Make GIF';
+    panelMode='gif';
     var stop=document.getElementById('gifstop'); if(stop) stop.style.display='none';
     var prog=document.getElementById('gifprog'); if(prog) prog.textContent='';
   }
@@ -3624,25 +3634,41 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     else probe.addEventListener('loadedmetadata', next);
     probe.addEventListener('error', function(){ if(gen===filmGen) strip.innerHTML=''; });
   }
-  function openGifPanel(){
-    var v=stageVideo(); if(!v) return;
+  function openRangePanel(mode){
+    panelMode=mode||'gif';
+    var media=stageMedia(); if(!media) return;
+    if(panelMode!=='aclip' && !stageVideo()) return;
     gifAbort=false; gifBusy=false; gifSpeed=1;
-    gifSavedT=v.currentTime||0;
-    v.pause(); v.muted=true; v.controls=false;
+    gifSavedT=media.currentTime||0;
+    media.pause();
+    if(media.tagName==='VIDEO'){ media.muted=true; media.controls=false; }
     document.getElementById('detail').style.display='none';
-    document.getElementById('gifpanel').classList.add('on');
+    var p=document.getElementById('gifpanel');
+    p.classList.add('on');
+    p.classList.toggle('clip', panelMode==='clip'||panelMode==='aclip');
+    p.classList.toggle('aclip', panelMode==='aclip');
+    document.getElementById('gifgo').textContent = panelMode==='gif' ? 'Make GIF' : 'Clip';
     var box=document.querySelector('#modal .box'); if(box) box.classList.add('gifing');
     function ready(){
-      var d=vidDur();
-      gifStart=0; gifEnd=Math.min(d, maxSrc());
+      var d=rangeDur();
+      gifStart=0;
+      gifEnd = panelMode==='gif' ? Math.min(d, maxSrc()) : d;
       if(d>0 && gifEnd<0.2) gifEnd=Math.min(d, 0.2);
       syncSpeeds(); updateGifUI();
-      seekTo(v, gifStart); makeFilmstrip();
+      try{ media.currentTime=gifStart; }catch(e){}
+      if(panelMode==='aclip') document.getElementById('filmstrip').innerHTML='';
+      else makeFilmstrip();
     }
-    if(v.readyState>=1 && isFinite(v.duration)) ready();
-    else v.addEventListener('loadedmetadata', ready);
+    if(media.readyState>=1 && isFinite(media.duration)) ready();
+    else media.addEventListener('loadedmetadata', ready);
   }
+  function openGifPanel(){ openRangePanel('gif'); }
   document.getElementById('mgif').onclick=openGifPanel;
+  document.getElementById('mclip').onclick=function(){
+    if(!cur) return;
+    if(cur.type==='audio') openRangePanel('aclip');
+    else openRangePanel('clip');
+  };
   document.getElementById('gifback').onclick=function(){ gifAbort=true; if(!gifBusy) closeGifPanel(); };
   document.getElementById('gifstop').onclick=function(){ gifAbort=true; };
   document.getElementById('gifspeeds').addEventListener('click', function(e){
@@ -3664,7 +3690,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     function tFromX(clientX){
       var r=range.getBoundingClientRect();
       var x=r.width? (clientX-r.left)/r.width : 0;
-      var d=vidDur();
+      var d=rangeDur();
       return Math.max(0, Math.min(d, x*d));
     }
     function down(e, h){
@@ -3676,7 +3702,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     }
     function move(e){
       if(which==null) return;
-      var t=tFromX(e.clientX), d=vidDur(), max=Math.min(d, maxSrc()), minSpan=Math.min(0.2, d||0.2);
+      var t=tFromX(e.clientX), d=rangeDur(), max=rangeMaxSpan(), minSpan=Math.min(0.2, d||0.2);
       if(which===0){
         gifStart=Math.max(0, Math.min(t, gifEnd-minSpan));
         if(gifEnd-gifStart>max) gifStart=gifEnd-max;
@@ -3684,12 +3710,13 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
         gifEnd=Math.min(d, Math.max(t, gifStart+minSpan));
         if(gifEnd-gifStart>max) gifEnd=gifStart+max;
       }
-      var v=stageVideo(); if(v) try{ v.currentTime=which===0?gifStart:gifEnd; }catch(err){}
+      var v=stageMedia(); if(v) try{ v.currentTime=which===0?gifStart:gifEnd; }catch(err){}
       updateGifUI();
     }
     function up(){
       if(which==null) return;
-      which=null; makeFilmstrip();
+      which=null;
+      if(panelMode!=='aclip') makeFilmstrip();
     }
     document.getElementById('gifh0').addEventListener('pointerdown', function(e){ down(e,0); });
     document.getElementById('gifh1').addEventListener('pointerdown', function(e){ down(e,1); });
@@ -3703,11 +3730,13 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
       if(gifBusy) return;
       if(e.target.id==='gifh0'||e.target.id==='gifh1') return;
       var t=tFromX(e.clientX);
-      var v=stageVideo(); if(v) try{ v.currentTime=t; }catch(err){}
+      var v=stageMedia(); if(v) try{ v.currentTime=t; }catch(err){}
     });
   })();
   document.getElementById('gifgo').onclick=async function(){
     if(gifBusy) return;
+    if(panelMode==='clip'){ await runVideoClip(); return; }
+    if(panelMode==='aclip'){ await runAudioClip(); return; }
     var v=stageVideo();
     if(!v){ toast('No video to convert.'); return; }
     if(!window.GifEnc||!GifEnc.encode||!GifEnc.quantize){ toast('GIF encoder is missing.'); return; }
@@ -3954,6 +3983,148 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   }
   document.getElementById('mfliph').onclick=function(){ doFlip(true, false); };
   document.getElementById('mflipv').onclick=function(){ doFlip(false, true); };
+
+  function encodeWav16(channels, sampleRate){
+    var ch=channels.length, n=channels[0].length;
+    var dataBytes=n*ch*2;
+    var buf=new ArrayBuffer(44+dataBytes);
+    var view=new DataView(buf), o=0;
+    function str(s){ for(var i=0;i<s.length;i++) view.setUint8(o++, s.charCodeAt(i)); }
+    str('RIFF'); view.setUint32(o, 36+dataBytes, true); o+=4; str('WAVE');
+    str('fmt '); view.setUint32(o, 16, true); o+=4;
+    view.setUint16(o, 1, true); o+=2;
+    view.setUint16(o, ch, true); o+=2;
+    view.setUint32(o, sampleRate, true); o+=4;
+    view.setUint32(o, sampleRate*ch*2, true); o+=4;
+    view.setUint16(o, ch*2, true); o+=2;
+    view.setUint16(o, 16, true); o+=2;
+    str('data'); view.setUint32(o, dataBytes, true); o+=4;
+    var i,c,s,q;
+    for(i=0;i<n;i++){
+      for(c=0;c<ch;c++){
+        s=channels[c][i];
+        q=Math.round(Math.max(-1, Math.min(1, s))*32767);
+        view.setInt16(o, q, true); o+=2;
+      }
+    }
+    return new Uint8Array(buf);
+  }
+  async function decodeCurAudio(){
+    if(!cur) throw new Error('Nothing to edit.');
+    var rec=await blobs.get(cur.id);
+    if(!rec||!rec.bytes) throw new Error('The file for this item is missing.');
+    var bytes=rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
+    var AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) throw new Error('This browser cannot decode audio.');
+    var ctx=new AC();
+    try{
+      var copy=bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset+bytes.byteLength);
+      var buf=await ctx.decodeAudioData(copy);
+      if(!buf||!buf.length) throw new Error('Could not decode the audio.');
+      return buf;
+    }catch(err){
+      var msg=String(err&&err.message||err);
+      if(/decode/i.test(msg)) throw err;
+      throw new Error('Could not decode the audio.');
+    }finally{
+      try{ ctx.close(); }catch(e){}
+    }
+  }
+  async function runAudioClip(){
+    if(gifBusy) return;
+    gifBusy=true; gifAbort=false;
+    var go=document.getElementById('gifgo'), stop=document.getElementById('gifstop'), prog=document.getElementById('gifprog');
+    go.disabled=true; stop.style.display='';
+    var id=null;
+    try{
+      prog.textContent='Clipping…';
+      var decoded=await decodeCurAudio();
+      if(gifAbort) throw new Error('cancel');
+      var sr=decoded.sampleRate||44100;
+      var i0=Math.max(0, Math.floor(gifStart*sr));
+      var i1=Math.min(decoded.length, Math.ceil(gifEnd*sr));
+      if(i1-i0<2) throw new Error('Pick a longer clip.');
+      var ch=[], c;
+      for(c=0;c<decoded.numberOfChannels;c++){
+        var dst=new Float32Array(i1-i0);
+        decoded.copyFromChannel(dst, c, i0);
+        ch.push(dst);
+        if(c%2===1) await sleep(0);
+      }
+      var wav=encodeWav16(ch, sr);
+      id=await saveNew(wav, 'audio/wav', suffixName(cur, 'clip', 'wav'));
+    }catch(err){
+      var msg=String(err&&err.message||err);
+      if(!/cancel/i.test(msg)) toast(msg.slice(0,90));
+    }finally{
+      gifBusy=false;
+      go.disabled=false; stop.style.display='none'; prog.textContent='';
+    }
+    if(!id) return;
+    closeGifPanel();
+    await openNew(id);
+  }
+  async function runVideoClip(){
+    if(gifBusy) return;
+    var v=stageVideo();
+    if(!v){ toast('No video to clip.'); return; }
+    gifBusy=true; gifAbort=false;
+    var go=document.getElementById('gifgo'), stop=document.getElementById('gifstop'), prog=document.getElementById('gifprog');
+    go.disabled=true; stop.style.display='';
+    var id=null;
+    try{
+      var recd=await recordEditedVideo({
+        sx:1, sy:1, start:gifStart, end:gifEnd, reverse:false,
+        onProg:function(i,n){ prog.textContent='Clipping '+i+'/'+n+'…'; }
+      });
+      id=await saveNew(recd.bytes, recd.mime, suffixName(cur, 'clip', 'webm'));
+    }catch(err){
+      var msg=String(err&&err.message||err);
+      if(!/cancel/i.test(msg)) toast(msg.slice(0,90));
+    }finally{
+      gifBusy=false;
+      go.disabled=false; stop.style.display='none'; prog.textContent='';
+    }
+    if(!id){
+      if(gifAbort && !document.getElementById('gifpanel').classList.contains('on')) return;
+      return;
+    }
+    closeGifPanel();
+    await openNew(id);
+  }
+  async function doReverse(){
+    if(!cur||gifBusy) return;
+    gifBusy=true; gifAbort=false;
+    try{
+      if(cur.type==='audio'){
+        toast('Reversing…', true);
+        var decoded=await decodeCurAudio();
+        if(gifAbort) throw new Error('cancel');
+        var ch=[], i;
+        for(i=0;i<decoded.numberOfChannels;i++){
+          var c=decoded.getChannelData(i).slice();
+          c.reverse();
+          ch.push(c);
+          await sleep(0);
+        }
+        var wav=encodeWav16(ch, decoded.sampleRate||44100);
+        var aid=await saveNew(wav, 'audio/wav', suffixName(cur, 'reversed', 'wav'));
+        await openNew(aid);
+      }else if(cur.type==='video'){
+        toast('Reversing…', true);
+        var recd=await recordEditedVideo({
+          sx:1, sy:1, start:0, end:vidDur(), reverse:true,
+          onProg:function(i,n){ toast('Reversing '+i+'/'+n+'…', true); }
+        });
+        var vid=await saveNew(recd.bytes, recd.mime, suffixName(cur, 'reversed', 'webm'));
+        await openNew(vid);
+      }
+    }catch(err){
+      var msg=String(err&&err.message||err);
+      if(!/cancel/i.test(msg)) toast(msg.slice(0,90));
+    }finally{ gifBusy=false; }
+  }
+  document.getElementById('mrev').onclick=function(){ doReverse(); };
 
   // ---- filters ----
   document.getElementById('types').addEventListener('click', function(e){ var b=e.target.closest?e.target.closest('button[data-t]'):null; if(!b) return;
