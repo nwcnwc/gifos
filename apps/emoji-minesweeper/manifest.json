@@ -1,0 +1,26 @@
+{
+  "gifos": "1.0",
+  "appId": "emoji-minesweeper",
+  "name": "Emoji Minesweeper",
+  "shortName": "Minesweeper",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Minesweeper with emoji. Play alone, or race a friend on the same board.",
+  "entry": "index.html",
+  "accent": [255, 184, 48],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "players": {
+      "visibility": "read-write"
+    },
+    "race": {
+      "visibility": "read-write"
+    }
+  }
+}

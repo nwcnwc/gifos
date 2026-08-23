@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Emoji Minesweeper</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="race" hidden>
+    <div class="race-hd">Race</div>
+    <div id="race-rows"></div>
+    <div id="race-note">Same board. First to clear wins.</div>
+  </div>
+
+  <div class="wrapper">
+    <button type="button" class="settings js-settings" aria-haspopup="true" aria-expanded="false" aria-label="Settings">🔧</button>
+    <div class="js-settings-popup settings-popup">
+      <div class="flex">
+        <input id="cols" class="input flex-cell" type="number" value="10" min="1" max="500" aria-label="Columns">
+        <div class="flex-cell divider">&times;</div>
+        <input id="rows" class="input flex-cell" type="number" value="10" min="1" max="500" aria-label="Rows">
+      </div>
+      <div class="prepend-input">💣</div>
+      <input id="bombs" class="input" type="number" value="10" min="1" max="2500" aria-label="Number of bombs">
+      <select id="emojiset" class="input input-select" aria-label="Change emoji set">
+        <option value="🐣 💣 🚧 ◻️">🐣 💣 🚧</option>
+        <option value="🍰 👾 📌 ◻️">🍰 👾 📌</option>
+        <option value="🌷 ⚡️ 🐞 ◻️">🌷 ⚡️ 🐞</option>
+        <option value="⭕️ ❌ ❗️ ✖️">⭕️ ❌ ❗️</option>
+        <option value="☀ ⚡ ☔ ☁️">☀ ⚡ ☔</option>
+      </select>
+      <button class="js-popup-new-game btn" type="button">Save and restart</button>
+    </div>
+    <button type="button" class="action-btn js-new-game" aria-label="New game">
+      <span class="default-emoji">😀</span>
+      <span id="result" class="result-emoji"></span>
+    </button>
+    <div id="map" role="grid" aria-label="Mine field"></div>
+    <div class="bar flex">
+      <div class="stat flex-cell"><div id="bombs-left">0</div><span class="small-text">BOMBS</span></div>
+      <div class="stat flex-cell"><div id="moves"></div><span class="small-text">MOVES</span></div>
+      <div class="stat flex-cell"><div id="timer">0.00</div><span class="small-text">TIME</span></div>
+    </div>
+  </div>
+
+  <p id="invite-hint" class="invite-hint" hidden>
+    <b>Invite</b> (top bar) to race a friend on the same board. First to clear wins.
+  </p>
+  <p class="credit">Based on muan’s emoji-minesweeper. Hold a square to plant a flag.</p>
+  <div aria-live="assertive" class="feedback"></div>
+
+  <script src="game.js"></script>
+  <script src="net.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
