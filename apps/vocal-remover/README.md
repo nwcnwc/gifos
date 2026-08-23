@@ -332,8 +332,11 @@ cache is dropped when the segment moves.
 The Chromebook's "WebGPU always fails" turned out to be a different animal:
 Chrome hands out **fallback adapters** — SwiftShader, a renderer on the CPU
 pretending to be a GPU — on machines whose hardware WebGPU is blocklisted (and
-in headless Chrome under `--enable-unsafe-webgpu`, which is how it is pinned
-in the gate). Running MDX-Net on one was measured here: session create
+in headless Chrome under `--enable-unsafe-webgpu`). `--enable-unsafe-webgpu`
+alone is not a fallback: on a box with a real GPU it exposes the chip
+(measured 2026-08-22 on the fleet NVIDIA laptop, `fallback:false`). The gate
+suite forces the lie with `--use-webgpu-adapter=swiftshader`. Running MDX-Net
+on a fallback was measured here: session create
 allocates for minutes when it completes at all, and a single small inference
 did not finish in twelve. It is strictly worse than ORT's own wasm engine —
 while the app said "your graphics chip" the whole time, then burned the
@@ -341,17 +344,20 @@ per-computer CPU-only switch on a GPU that never existed.
 
 So `gpuAdapter()` refuses `isFallbackAdapter` outright: the app runs on wasm,
 the engine line says the adapter is a software fallback, and the CPU-only
-switch stays unburned. `test/browser/e2e-vocal-remover-gpu.js` runs with the
-fallback exposed and holds the app to all three — plus the reduced-segment
-path end to end inside the sandbox: it byte-patches the in-GIF self-test
-model, creates the session at `time: 64`, and requires the identity to come
-back exact at a shape the shipped `.onnx` never declared.
+switch stays unburned. `test/browser/e2e-vocal-remover-gpu.js` asks Chrome
+for that fallback and holds the app to all three when it is what was served
+(a real chip is held to the usable-chip copy instead) — plus the
+reduced-segment path end to end inside the sandbox: it byte-patches the
+in-GIF self-test model, creates the session at `time: 64`, and requires the
+identity to come back exact at a shape the shipped `.onnx` never declared.
 
 **Still unmeasured: how fast a healthy desktop GPU separates.** The one real
-GPU to hand is a budget phone's Mali (~26 s per 64-frame chunk, above), and
-every box here either exposes no adapter or a fallback. The app says which
-engine it got, and every estimate it shows is measured live from its own
-first chunk, which is the part that protects the user either way.
+GPU timed so far is a budget phone's Mali (~26 s per 64-frame chunk, above).
+The fleet NVIDIA laptop does expose a real adapter; the gate suite holds the
+app to the usable-chip copy there and to the fallback-refusal copy when
+SwiftShader is what was served. The app says which engine it got, and every
+estimate it shows is measured live from its own first chunk, which is the
+part that protects the user either way.
 
 ## Does it actually separate?
 
@@ -407,10 +413,13 @@ theoretical 0.35355), while the residual — the frequency-cut mix minus it —
 must come back at −95 dBFS. It also counts the app frame's network requests:
 **zero**.
 
-**`test/browser/e2e-vocal-remover-gpu.js`** — the same GIF with a fallback
-adapter exposed (`--enable-unsafe-webgpu`): the app must refuse it, say why,
-leave the CPU-only switch unburned, run the byte-patched self-test model at
-`time: 64`, and complete a separation on wasm.
+**`test/browser/e2e-vocal-remover-gpu.js`** — the same GIF with WebGPU
+exposed. The suite asks Chrome for a SwiftShader fallback
+(`--use-webgpu-adapter=swiftshader`); if that is what was served the app must
+refuse it, say why, leave the CPU-only switch unburned, and complete a
+separation on wasm. A real chip is not a product red — the app must call it
+a usable graphics chip. It also runs the byte-patched self-test model at
+`time: 64`.
 
 The 120 MB of real weights are deliberately **not** downloaded in the gate. A
 suite that needs a third-party host to be up goes red for reasons that have

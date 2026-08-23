@@ -10,10 +10,20 @@
  * minutes when it completes at all, and one small inference did not finish in
  * twelve. ORT's wasm engine beats it without trying.
  *
- * So the app REFUSES fallback adapters, and this suite runs with the flag ON
- * to hold it to that: the engine line must say the processor and say why, a
- * separation must complete on wasm, and the whole failed-GPU/restart dance
- * must never begin.
+ * So the app REFUSES fallback adapters. This suite FORCES one
+ * (`--use-webgpu-adapter=swiftshader`) and holds the app to that: the engine
+ * line must say the processor and say why, a separation must complete on wasm,
+ * and the whole failed-GPU/restart dance must never begin.
+ *
+ * `--enable-unsafe-webgpu` ALONE is not a fallback. On a box without a GPU
+ * (Playwright headless, a blocklisted Chromebook) Chrome hands out SwiftShader
+ * and `isFallbackAdapter` is true. On a box WITH a GPU, the same flag exposes
+ * the real chip — measured on the fleet's NVIDIA laptop (2026-08-22):
+ * `{gpu:true, adapter:true, fallback:false}`, the app correctly called it a
+ * usable graphics chip, and this suite went red for doing its job. The
+ * swiftshader adapter flag is what FORCES the lie. If a real chip is still
+ * offered, that is not a product red: the suite holds the usable-chip copy
+ * instead of pretending the lie was served.
  *
  * It also proves the REDUCED-SEGMENT machinery inside the real sandbox: the
  * in-GIF self-test model is byte-patched by onnxseg.js (time axis 256 -> the
@@ -23,12 +33,9 @@
  * REAL weights take; the 66 MB versions of these assertions ran under Python
  * onnxruntime (bit-identical at 256, clean at 64/32 — see the README).
  *
- * Needs: static server on 8099, and the model host out of reach (same premise
- * as e2e-vocal-remover.js — the OS frame downloads pinned assets when the app
- * opens, and these assertions describe the self-test build):
- *
- *   https_proxy=http://127.0.0.1:1 http_proxy=http://127.0.0.1:1 \
- *   no_proxy=127.0.0.1,localhost node test/browser/e2e-vocal-remover-gpu.js
+ * Needs: static server on 8099. The suite itself aborts huggingface.co, so
+ * Separate cannot fetch the optional pins and the in-GIF self-test model is
+ * what runs (same as e2e-vocal-remover.js).
  */
 const { chromium, CHROME } = require('../lib/pw');
 const { appGif } = require('../lib/apps');
@@ -63,9 +70,17 @@ function toneWav(seconds) {
 (async () => {
   const browser = await chromium.launch({
     executablePath: CHROME,
-    args: ['--enable-unsafe-webgpu'],   // this is what exposes the fallback adapter
+    args: [
+      '--enable-unsafe-webgpu',
+      // Force the lie this suite is about, GPU or no GPU. See the header.
+      '--use-webgpu-adapter=swiftshader',
+      '--enable-unsafe-swiftshader',
+    ],
   });
   const context = await browser.newContext();
+  // Separate calls gifos.assets() and the OS then tries the pin host. Abort
+  // it here so this suite always exercises the in-GIF self-test model.
+  await context.route(/huggingface\.co/, (r) => r.abort());
   const page = await context.newPage();
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
 
@@ -95,24 +110,39 @@ function toneWav(seconds) {
   const fr = app.frames().find((f) => f !== app.mainFrame());
   await fr.waitForSelector('#go', { timeout: 30000 });
 
-  // The premise: this environment really does offer a fallback adapter to the
-  // app frame. If Chrome ever stops doing that under the flag, everything
-  // below tests nothing and should say so rather than pass by vacancy.
+  // What the frame was actually offered. The flags above ask for a fallback;
+  // a real GPU may still win, and no adapter at all is also a real machine.
+  // Each of those is a different product sentence — none is a vacancy.
   const adapter = await fr.evaluate(async () => {
     if (!navigator.gpu) return { gpu: false };
     const a = await navigator.gpu.requestAdapter().catch(() => null);
     return a ? { gpu: true, adapter: true, fallback: !!a.isFallbackAdapter } : { gpu: true, adapter: false };
   });
-  check('PREMISE: the app frame is offered a WebGPU adapter, and it is a fallback',
-    adapter.gpu && adapter.adapter && adapter.fallback, adapter);
-
   const engine = await fr.locator('#engineline').textContent();
-  check('the app refuses the software adapter instead of calling it a usable graphics chip',
-    /processor/.test(engine) && !/usable/.test(engine), engine.slice(0, 140));
-  check('...and says WHY: the adapter is a software fallback',
-    /software fallback/i.test(engine), engine.slice(0, 200));
-  check('...without burning the per-computer CPU-only switch (the chip was never tried)',
-    !/earlier run/.test(engine), engine.slice(0, 140));
+  if (adapter.gpu && adapter.adapter && adapter.fallback) {
+    check('PREMISE: the app frame is offered a WebGPU adapter, and it is a fallback',
+      true, adapter);
+    check('the app refuses the software adapter instead of calling it a usable graphics chip',
+      /processor/.test(engine) && !/usable/.test(engine), engine.slice(0, 140));
+    check('...and says WHY: the adapter is a software fallback',
+      /software fallback/i.test(engine), engine.slice(0, 200));
+    check('...without burning the per-computer CPU-only switch (the chip was never tried)',
+      !/earlier run/.test(engine), engine.slice(0, 140));
+  } else if (adapter.gpu && adapter.adapter) {
+    check('PREMISE: the app frame is offered a real (non-fallback) WebGPU adapter',
+      true, adapter);
+    check('the app calls a real chip a usable graphics chip, not a software fallback',
+      /usable/.test(engine) && /graphics chip/i.test(engine) && !/software fallback/i.test(engine),
+      engine.slice(0, 200));
+    check('...without burning the per-computer CPU-only switch (the chip was never tried)',
+      !/earlier run/.test(engine), engine.slice(0, 140));
+  } else {
+    check('PREMISE: the app frame is offered no WebGPU adapter', true, adapter);
+    check('the app says this device does not offer a graphics chip',
+      /doesn.t offer/i.test(engine) && /processor/.test(engine), engine.slice(0, 200));
+    check('...without burning the per-computer CPU-only switch (no chip was tried)',
+      !/earlier run/.test(engine), engine.slice(0, 140));
+  }
 
   // ---- the reduced-segment path, end to end, inside the sandbox --------------
   // onnxseg.js patches the self-test model's time axis and ORT creates the
@@ -149,9 +179,13 @@ function toneWav(seconds) {
   await fr.waitForFunction(
     () => /\bok\b|err/.test(document.getElementById('status').className), null, { timeout: 300000 });
   const status = await fr.locator('#status').textContent();
-  check('a separation runs to completion with the fallback refused', /^Done —/.test(status), status.slice(0, 160));
+  check('a separation runs to completion', /^Done —/.test(status), status.slice(0, 160));
   const prog = await fr.locator('#progtext').textContent();
-  check('...reported as the processor the whole way', /the processor/.test(prog), prog);
+  if (adapter.gpu && adapter.adapter && !adapter.fallback) {
+    check('...reported as the graphics chip the whole way', /graphics chip/.test(prog), prog);
+  } else {
+    check('...reported as the processor the whole way', /the processor/.test(prog), prog);
+  }
 
   await app.close();
   await browser.close();
