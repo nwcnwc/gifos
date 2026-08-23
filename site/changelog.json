@@ -2,6 +2,19 @@
   "note": "Human-readable release notes the desktop shows in Settings → Advanced → Version. Newest first. Keep notes SHORT — one line per change, every release at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so it is called out prominently and the desktop can nudge harder.",
   "entries": [
     {
+      "version": "0.9.11",
+      "date": "2026-08-23",
+      "headline": "Civiclock, a bigger IsoCity, speech that never goes through our proxy, and an app cannot walk you into a meeting",
+      "critical": true,
+      "notes": [
+        "An app can no longer walk you out of itself into the meeting lobby. A tap on an ordinary in-app link used to replace the whole frame with the call screen, because the app inherited the page around it as its address. It now keeps its own address, so those links stay in the app. This is why this release exists: 0.9.10 still did that.",
+        "Civiclock is in the store: a ticking city of homes, shops and works, with power along the roads, water from the river, people walking, night lights, and a blackout when the plant dies. You can invite a co-mayor.",
+        "IsoCity is sixteen blocks on a side. Pinch to zoom (or Ctrl+scroll), undo the last stroke, and New city asks before it wipes the map. An old save sits in the middle of the bigger grid.",
+        "Talking to Deepgram no longer sends your key or your audio through our proxy. The browser speaks to Deepgram itself.",
+        "An app can pack a Help page inside the GIF, and the Help button in the app chrome reads it."
+      ]
+    },
+    {
       "version": "0.9.10",
       "date": "2026-08-22",
       "headline": "A Camera on the Home Screen that actually saves, My Media that edits without eating the original, and pull the singing out of a song on your own computer",
