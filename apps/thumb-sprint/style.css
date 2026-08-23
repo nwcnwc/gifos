@@ -81,8 +81,8 @@ h1 {
 .status.warn { color: var(--warn); }
 .status.good { color: var(--good); }
 .trackwrap {
-  flex: 0.95 1 28%;
-  min-height: 140px;
+  flex: 0.9 1 26%;
+  min-height: 156px;
   position: relative;
 }
 #track {
@@ -93,8 +93,8 @@ h1 {
   background: #0c0c14;
 }
 .mash {
-  flex: 1.25 1 42%;
-  min-height: 28vh;
+  flex: 1.4 1 44%;
+  min-height: 32vh;
   border: 0;
   border-radius: 28px;
   cursor: pointer;
@@ -111,21 +111,43 @@ h1 {
   justify-content: center;
   gap: 6px;
   touch-action: manipulation;
+  transition: filter .06s linear, background .12s linear;
 }
 .mash:active, .mash.down {
-  transform: translateY(6px);
+  transform: translateY(8px);
   box-shadow:
-    0 4px 0 #8a1c14,
-    0 8px 16px rgba(0,0,0,.4),
+    0 2px 0 #8a1c14,
+    0 6px 14px rgba(0,0,0,.4),
     inset 0 2px 0 rgba(255,255,255,.2);
-  filter: brightness(1.06);
+  filter: brightness(1.1);
+}
+.mash.hit {
+  filter: brightness(1.28) saturate(1.15);
+}
+.mash.warn {
+  background:
+    radial-gradient(circle at 50% 28%, #ff9a7a, #e23d3d 52%, #8a1410);
+  box-shadow:
+    0 10px 0 #5a0c0c,
+    0 18px 32px rgba(0,0,0,.45),
+    inset 0 2px 0 rgba(255,255,255,.22);
+}
+.mash.go {
+  background:
+    radial-gradient(circle at 50% 28%, #ffe99a, #ffe066 52%, #c9a020);
+  color: #3a2800;
+  box-shadow:
+    0 10px 0 #8a7010,
+    0 18px 32px rgba(0,0,0,.45),
+    inset 0 2px 0 rgba(255,255,255,.35);
 }
 .mash-label {
-  font-size: clamp(2.4rem, 12vw, 4.4rem);
+  font-size: clamp(2.6rem, 14vw, 4.8rem);
   font-weight: 900;
-  letter-spacing: .16em;
+  letter-spacing: .14em;
   text-shadow: 0 3px 0 rgba(0,0,0,.25);
 }
+.mash.go .mash-label { text-shadow: 0 3px 0 rgba(255,255,255,.25); }
 .mash-hint { font-size: .85rem; font-weight: 700; opacity: .85; letter-spacing: .08em; }
 .bar {
   display: flex;
@@ -166,13 +188,10 @@ h1 {
 .sheet li { margin: 0 0 8px; }
 .sheet b { color: var(--fg); }
 
-@media (min-width: 720px) {
-  .mash-hint::after { content: " — space or click"; }
-}
 @media (orientation: landscape) and (max-height: 500px) {
   .app { flex-direction: row; flex-wrap: wrap; align-items: stretch; }
   header, .status, .bar { flex-basis: 100%; }
   .trackwrap { flex: 1 1 48%; min-height: 0; }
-  .mash { flex: 1 1 42%; min-height: 0; border-radius: 20px; }
+  .mash { flex: 1 1 46%; min-height: 0; border-radius: 20px; }
   .mash-label { font-size: clamp(1.6rem, 8vh, 3rem); }
 }

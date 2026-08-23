@@ -28,12 +28,12 @@
   </div>
 
   <button type="button" class="mash" id="mash" aria-label="Mash to run">
-    <span class="mash-label">MASH</span>
-    <span class="mash-hint" id="mashHint">tap or space</span>
+    <span class="mash-label" id="mashLabel">MASH</span>
+    <span class="mash-hint" id="mashHint">tap</span>
   </button>
 
-  <div class="bar">
-    <button type="button" class="ghost-btn" id="startBtn">Start</button>
+  <div class="bar" id="bar">
+    <button type="button" class="ghost-btn" id="startBtn" hidden>Start</button>
     <button type="button" class="ghost-btn" id="againBtn" hidden>Again</button>
   </div>
 </div>
@@ -46,10 +46,10 @@
     <h2 id="infoTitle">How to play</h2>
     <ul>
       <li>Mash the pad (or space). First sticker across the tape wins.</li>
-      <li>Mash before go and you go back — false start. Lanes sit side by side so everyone sees it.</li>
+      <li>Mash before GO and you lurch, then go back — everyone sees the false start.</li>
       <li>On your own: a ghost of your best time, or a computer with a fair cadence.</li>
       <li>A friend in the next lane: press <b>Invite</b> in the bar above the app and send the link. Two to four lanes. No race server.</li>
-      <li>The last second loops so you can see the nose.</li>
+      <li>The last second loops so you can see whose nose broke the tape.</li>
     </ul>
   </div>
 </div>

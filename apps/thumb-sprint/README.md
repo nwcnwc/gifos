@@ -27,7 +27,7 @@ Classic scripts only. GifOS drops `type=module`.
 ## Solo
 
 - **Ghost** — a recording of your best time, replayed in the next lane.
-- **Computer** — a seeded cadence around 7–8 taps/s with jitter. Beatable.
+- **Computer** — a seeded cadence around 5.5–6 taps/s with jitter. Beatable if you mash.
 
 Best time is private (`save`). Close the app and it is still in the icon.
 

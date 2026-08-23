@@ -13,10 +13,10 @@
   var STALL_MS = 900;
   var MAX_LANES = 4;
   var COUNTDOWN_MS = 3000;
-  var PHOTO_MS = 1000;
+  var PHOTO_MS = 1400;
   var SAMPLE_MS = 50;
-  var CPU_BASE = 130;
-  var CPU_JITTER = 25;
+  var CPU_BASE = 172;
+  var CPU_JITTER = 14;
 
   function freshRace(opts) {
     opts = opts || {};
