@@ -17,8 +17,10 @@
     </div>
   </div>
 
+  <p id="hint">Pick a tile, then tap the map. Drag to look around.</p>
+
   <div id="friend-bar" hidden>
-    <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send the link.</p>
+    <p id="friend-hint">Press <b>Invite</b> in the bar above the app to send the link.</p>
     <p id="friend-status"></p>
     <ul id="friend-roster"></ul>
     <div class="friend-actions">
@@ -30,14 +32,17 @@
   <section id="main">
     <div id="tools"></div>
     <div id="area">
-      <canvas id="bg"></canvas>
-      <canvas id="fg"></canvas>
+      <div id="stage">
+        <canvas id="bg"></canvas>
+        <canvas id="fg"></canvas>
+      </div>
     </div>
   </section>
 
   <img id="texSheet" src="vendor/textures/01_130x66_130x230.png" alt="" hidden>
 
   <script src="vendor/main.js"></script>
+  <script src="pan.js"></script>
   <script src="mp.js"></script>
   <script src="app.js"></script>
 </body>

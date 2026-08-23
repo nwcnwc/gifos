@@ -1,6 +1,7 @@
 /* GifOS chrome around IsoCity. White page and tile strip are upstream;
-   this file adds the share/compare bar, phone-safe tap targets, and scales
-   the 910×666 canvases so a thumb can reach the grid. */
+   this file adds the share/compare bar, phone-safe tap targets, and a
+   scrollport so a thumb can pan a full-size city instead of pinching one
+   into a postage stamp. */
 html, body {
   margin: 0;
   padding: 0;
@@ -9,6 +10,7 @@ html, body {
   color: #333;
   font-family: system-ui, -apple-system, Segoe UI, sans-serif;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 body {
   display: flex;
@@ -45,14 +47,29 @@ body {
   border: 0;
   border-radius: 4px;
   padding: 7px 12px;
+  min-height: 36px;
   cursor: pointer;
   background: #eee4da;
   color: #5a4a40;
 }
-#shareBtn, #compareBtn { background: #b05355; color: #fff; }
+#actions #shareBtn, #actions #compareBtn,
+#friend-bar #mineBtn { background: #b05355; color: #fff; }
 #newBtn { background: transparent; box-shadow: inset 0 0 0 2px #d8d0c6; }
 body.together #shareBtn,
 body.together #compareBtn { display: none; }
+
+#hint {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 12px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+  font-size: 13px;
+  color: #7a6a60;
+  background: #faf6f0;
+  border-bottom: 1px solid #ece6de;
+}
+#hint[hidden] { display: none; }
 
 #friend-bar {
   flex: 0 0 auto;
@@ -90,7 +107,6 @@ body.together #compareBtn { display: none; }
 #friend-roster li.viewing .meta { color: #f3d0d0; }
 .friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
 #leaveBtn { background: transparent; box-shadow: inset 0 0 0 2px #d8d0c6; }
-#mineBtn { background: #b05355; color: #fff; }
 
 #main {
   flex: 1 1 auto;
@@ -98,15 +114,26 @@ body.together #compareBtn { display: none; }
   height: auto;
 }
 #area {
-  touch-action: none;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  min-height: 0;
+}
+#stage {
+  position: relative;
+  width: 910px;
+  height: 666px;
+  margin: 0 auto;
+  flex: 0 0 auto;
 }
 #bg, #fg {
   touch-action: none;
-  width: min(100%, 910px);
-  height: auto;
-  max-width: 910px;
-  left: 50%;
-  transform: translateX(-50%);
+  width: 910px;
+  height: 666px;
+  max-width: none;
+  left: 0;
+  transform: none;
 }
 #tools > div { cursor: pointer; }
 
@@ -122,9 +149,35 @@ body.together #compareBtn { display: none; }
     flex: 0 0 168px;
     justify-content: flex-start;
   }
-  #area { justify-content: center; }
+  #area { justify-content: flex-start; }
 }
-@media only screen and (max-width: 520px) {
+@media only screen and (max-width: 640px) {
   #brand { font-size: 16px; }
-  #actions button { padding: 8px 10px; font-size: 12px; }
+  #actions button, .friend-actions button {
+    padding: 8px 12px;
+    font-size: 13px;
+    min-height: 44px;
+  }
+  #tools {
+    height: 118px;
+    flex: 0 0 118px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+  #hint { font-size: 13px; }
+}
+@media only screen and (min-width: 700px) {
+  #stage {
+    width: min(100%, 910px);
+    height: auto;
+    aspect-ratio: 910 / 666;
+  }
+  #bg, #fg {
+    width: 100%;
+    height: 100%;
+  }
 }

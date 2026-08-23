@@ -1,21 +1,25 @@
 # IsoCity
 
 A tiny isometric city. Tap a tile, put it down. No budget, no score.
+Share the map from one invite. The city lives in the file.
 
 An unofficial port of **[IsoCity](https://github.com/victorqribeiro/isocity)**
 by victorqribeiro (MIT). The pictures are Kenney's isometric landscape/city
-tiles (CC0). Playing alone is that game, with the city saved on this device.
-Press **Share the map**, then **Invite**, and everyone paints on the same city.
+tiles (CC0). Playing alone is that game, with the city saved in the file.
+Press **Share the map**, then **Invite**, and everyone paints on the same city
+— the city you already built, not a blank. On a phone, drag to look around
+and tap to place (the original was never designed for a thumb).
 Press **Compare cities** and each of you keeps your own, and you can peek.
 
 ![screenshot](screenshot.png)
 
 ```
 index.html      original two-canvas stage + the share/compare strip
-style.css       phone-safe chrome around upstream's white page
-app.js          private save, New city, onBack
+style.css       phone-safe chrome: full-size city in a scrollport
+app.js          private save, New city, compact tools, onBack
+pan.js          drag pans the map; tap places a tile
 mp.js           share-the-map (host applies strokes) and compare-cities
-icon.mjs        procedural isometric icon + 1200×720 cover
+icon.mjs        Kenney-tile growing icon + a built-city cover
 vendor.mjs      rebuilds vendor/ from the pinned isocity commit
 build.mjs       packs the GIF into site/apps/isocity/isocity.gif
 vendor/         GENERATED. Original script (patched) + Kenney sheet.

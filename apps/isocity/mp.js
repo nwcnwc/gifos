@@ -122,12 +122,20 @@
     room.put(c).catch(function () {});
   }
 
+  function currentCells() {
+    if (root.IsoCity && root.IsoCity.pack) {
+      var p = root.IsoCity.pack();
+      if (p && p.length === CELLS) return p.slice();
+    }
+    return zeros();
+  }
+
   function freshCity(hostId, m) {
     return {
       id: 'city',
       host: hostId,
       mode: m,
-      cells: zeros(),
+      cells: m === 'share' ? currentCells() : zeros(),
       seq: 0,
       applied: {},
       wipeN: {},
@@ -244,7 +252,7 @@
     var others = people.filter(function (p) { return p.id !== me.id; });
     if (mode === 'share') {
       if (!others.length) {
-        status.textContent = 'Waiting for a friend… press Invite (GifOS menu) to send the link. You can paint in the meantime.';
+        status.textContent = 'This city is the map. Press Invite in the bar above the app — a friend paints here too.';
       } else {
         status.textContent = 'One city. Everyone places tiles. ' + others.length + ' with you.';
       }
@@ -255,7 +263,7 @@
         status.textContent = 'Looking at ' + ((who && who.name) || 'their') + ' city. Yours is still yours.';
         $('mineBtn').hidden = false;
       } else if (!others.length) {
-        status.textContent = 'Waiting for a friend… press Invite (GifOS menu). Each of you builds a city; tap a name to peek.';
+        status.textContent = 'Waiting for a friend — press Invite in the bar above the app. Each of you builds a city; tap a name to peek.';
         $('mineBtn').hidden = true;
       } else {
         status.textContent = 'Each of you has a city. Tap a name to look.';
@@ -332,9 +340,11 @@
       root.IsoCity.mode = mode;
       document.body.classList.add('together');
       $('friend-bar').hidden = false;
+      if (root.IsoCity.centerMap) setTimeout(root.IsoCity.centerMap, 40);
       $('friend-hint').textContent = which === 'share'
-        ? 'Press Invite (GifOS menu) to send the link. Everyone paints on the same city.'
-        : 'Press Invite (GifOS menu) to send the link. Each of you builds a city; tap a name to peek.';
+        ? 'Press Invite in the bar above the app to send the link. Everyone paints on the same city.'
+        : 'Press Invite in the bar above the app to send the link. Each of you builds a city; tap a name to peek.';
+      if ($('hint')) $('hint').hidden = true;
       if (!subscribed) {
         subscribed = true;
         room.subscribe(onRoom);
@@ -358,6 +368,13 @@
     document.body.classList.remove('together');
     $('friend-bar').hidden = true;
     $('mineBtn').hidden = true;
+    if (root.IsoCity.centerMap) setTimeout(root.IsoCity.centerMap, 40);
+    if ($('hint') && root.IsoCity && root.IsoCity.pack) {
+      var cells = root.IsoCity.pack();
+      var n = 0;
+      for (var i = 0; i < (cells || []).length; i++) if (cells[i]) n++;
+      $('hint').hidden = n > 0;
+    }
     if (hbTimer) { clearInterval(hbTimer); hbTimer = 0; }
     if (pubTimer) { clearTimeout(pubTimer); pubTimer = 0; }
     if (room && me.id) room.delete(me.id).catch(function () {});

@@ -85,7 +85,7 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']
 const tex = bin(TEX);
 if (tex[0] !== 0x89 || tex[1] !== 0x50) throw new Error('texture is not a PNG');
 
-const SCRIPTS = ['vendor/main.js', 'mp.js', 'app.js'];
+const SCRIPTS = ['vendor/main.js', 'pan.js', 'mp.js', 'app.js'];
 
 const files = {
   'manifest.json': JSON.stringify(manifest),
@@ -93,6 +93,7 @@ const files = {
   'style.css': read('style.css'),
   'vendor/main.css': read('vendor/main.css'),
   'vendor/main.js': read('vendor/main.js'),
+  'pan.js': read('pan.js'),
   'mp.js': read('mp.js'),
   'app.js': read('app.js'),
   'vendor/textures/01_130x66_130x230.png': tex,
@@ -118,7 +119,7 @@ if (/<button[^>]*>\s*Invite/i.test(html) || /id=["']invite/i.test(html)) {
   throw new Error('invite is OS chrome — do not add an invite button');
 }
 
-const src = files['mp.js'] + files['app.js'] + files['vendor/main.js'];
+const src = files['mp.js'] + files['app.js'] + files['pan.js'] + files['vendor/main.js'];
 for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(']) {
   if (src.includes(bad)) throw new Error('a script uses ' + bad);
 }
@@ -127,6 +128,24 @@ if (!files['mp.js'].includes("db('room')") || !files['app.js'].includes("db('sav
 }
 if (!files['mp.js'].includes('pending') || !files['mp.js'].includes('isHost')) {
   throw new Error('mp.js must keep strokes on own rows and have the host apply them');
+}
+if (!files['mp.js'].includes('currentCells') || !files['mp.js'].includes("m === 'share' ? currentCells()")) {
+  throw new Error('Share the map must start from the city already on the map, not empty dirt');
+}
+if (!files['pan.js'].includes('scrollLeft') || !files['pan.js'].includes('touchstart')) {
+  throw new Error('pan.js must pan the map from a drag and place from a tap');
+}
+if (!files['style.css'].includes('#stage') || !files['index.html'].includes('id="stage"')) {
+  throw new Error('the map lives on #stage inside a scrollport so a phone can pan');
+}
+if (!files['app.js'].includes('centerMap') || !files['style.css'].includes('#actions #shareBtn')) {
+  throw new Error('phone must center the city; share buttons must beat #actions button');
+}
+if (!listing.tagline.toLowerCase().includes('share the map') || !listing.tagline.toLowerCase().includes('file')) {
+  throw new Error('tagline must lead with share the map / the city in the file');
+}
+if (!/^Press Share the map/.test(listing.description)) {
+  throw new Error('description must lead with Share the map');
 }
 
 for (const [n, s] of Object.entries(files)) {
