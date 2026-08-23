@@ -14,36 +14,38 @@
         <span id="len">Length: 1</span>
         <span id="hi">Highscore: 0</span>
       </div>
+      <div id="modes">
+        <label>Mode
+          <select id="mode">
+            <option value="100">Easy</option>
+            <option value="75" selected>Medium</option>
+            <option value="50">Hard</option>
+            <option value="25">Impossible</option>
+          </select>
+        </label>
+      </div>
       <div id="roster" hidden></div>
     </header>
 
-    <div id="stage">
-      <canvas id="board" width="560" height="360"></canvas>
-      <div id="dialog" class="dlg">
-        <p id="dlg-title">JavaScript Snake</p>
-        <p id="dlg-body">Use the <strong>arrow keys</strong> to play. On a phone, swipe or use the pad.</p>
-        <button type="button" id="dlg-go">Play Game</button>
+    <div id="play">
+      <div id="stage">
+        <canvas id="board" width="560" height="360"></canvas>
+        <div id="dialog" class="dlg">
+          <p id="dlg-title">JavaScript Snake</p>
+          <p id="dlg-body">Use the <strong>arrow keys</strong> to play. On a phone, swipe or use the pad.</p>
+          <button type="button" id="dlg-go">Play Game</button>
+          <button type="button" id="dlg-new" hidden>New game</button>
+        </div>
+      </div>
+
+      <div id="pad" hidden>
+        <button type="button" data-dir="0" style="grid-area:1/2" aria-label="Up">▲</button>
+        <button type="button" data-dir="3" style="grid-area:2/1" aria-label="Left">◀</button>
+        <button type="button" data-dir="p" style="grid-area:2/2" aria-label="Pause">❚❚</button>
+        <button type="button" data-dir="1" style="grid-area:2/3" aria-label="Right">▶</button>
+        <button type="button" data-dir="2" style="grid-area:3/2" aria-label="Down">▼</button>
       </div>
     </div>
-
-    <div id="modes">
-      <label>Mode
-        <select id="mode">
-          <option value="100">Easy</option>
-          <option value="75" selected>Medium</option>
-          <option value="50">Hard</option>
-          <option value="25">Impossible</option>
-        </select>
-      </label>
-    </div>
-  </div>
-
-  <div id="pad" hidden>
-    <button type="button" data-dir="0" style="grid-area:1/2" aria-label="Up">▲</button>
-    <button type="button" data-dir="3" style="grid-area:2/1" aria-label="Left">◀</button>
-    <button type="button" data-dir="p" style="grid-area:2/2" aria-label="Pause">❚❚</button>
-    <button type="button" data-dir="1" style="grid-area:2/3" aria-label="Right">▶</button>
-    <button type="button" data-dir="2" style="grid-area:3/2" aria-label="Down">▼</button>
   </div>
 
   <script src="game.js"></script>

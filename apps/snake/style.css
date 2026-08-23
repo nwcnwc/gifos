@@ -1,4 +1,5 @@
-/* JavaScript Snake look (patorjk's main theme): coral page, navy field. */
+/* patorjk's coral page + navy field. Pad sits IN the column on a phone so it
+   never covers the board or the mode row. */
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body {
   width: 100%; height: 100%; overflow: hidden;
@@ -10,83 +11,110 @@ html, body {
 }
 #shell {
   display: flex; flex-direction: column;
-  height: 100%; padding: .5rem .6rem calc(12px + env(safe-area-inset-bottom, 0px));
+  height: 100%;
+  padding: .45rem .55rem calc(8px + env(safe-area-inset-bottom, 0px));
+  min-height: 0;
 }
 #hud {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem 1.1rem;
-  padding: .15rem .2rem .45rem; font-size: 14px;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem;
+  padding: .05rem .15rem .35rem; font-size: 14px; flex: 0 0 auto;
 }
 #brand { font-weight: 700; letter-spacing: .02em; }
-#scores { display: flex; gap: 1.2rem; margin-left: auto; }
+#scores { display: flex; gap: 1.1rem; margin-left: auto; }
 #roster {
   flex: 1 1 100%; font-size: 12px; color: #fff8e8;
   display: flex; flex-wrap: wrap; gap: .35rem .8rem;
 }
 #roster .me { font-weight: 700; }
 #roster .dead { opacity: .45; text-decoration: line-through; }
+#play {
+  flex: 1 1 auto; min-height: 0; width: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
 #stage {
-  position: relative; flex: 1 1 auto; min-height: 0;
-  display: grid; place-items: center;
+  position: relative; flex: 0 1 auto; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%;
 }
 #board {
   display: block;
   background: #0000a8;
   max-width: 100%; max-height: 100%;
-  image-rendering: pixelated;
+  image-rendering: auto;
   touch-action: none;
+  border-radius: 2px;
 }
 #modes {
-  padding: .4rem .2rem 0; font-size: 13px;
+  font-size: 13px; flex: 0 0 auto;
 }
-#modes label { display: inline-flex; align-items: center; gap: .4rem; }
+#modes label { display: inline-flex; align-items: center; gap: .35rem; }
 #modes select {
   font: inherit; background: #fff; color: #222; border: 1px solid #900; border-radius: 3px;
-  padding: .1rem .25rem;
+  padding: .12rem .28rem;
 }
 #modes[hidden] { display: none; }
 
 .dlg {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   background: #000; color: #fff; text-align: center;
-  padding: 1.1rem 1.3rem 1.2rem; min-width: min(18rem, 86vw);
+  padding: 1rem 1.15rem 1.1rem; min-width: min(17rem, 86vw);
   font-size: 14px; line-height: 1.45;
   border: 2px solid #fcfc54;
   z-index: 5;
 }
 .dlg[hidden] { display: none; }
-#dlg-title { font-size: 1.15rem; font-weight: 700; margin-bottom: .55rem; }
-#dlg-body { margin-bottom: .85rem; }
+#dlg-title { font-size: 1.12rem; font-weight: 700; margin-bottom: .5rem; }
+#dlg-body { margin-bottom: .8rem; }
 .dlg button {
   font: inherit; font-weight: 700; cursor: pointer;
-  padding: .4rem 1rem; background: #fcfc54; color: #000; border: 0;
+  padding: .45rem 1.05rem; background: #fcfc54; color: #000; border: 0;
+  min-height: 44px; min-width: 7.5rem; margin: .15rem;
 }
 .dlg button:active { background: #ffffa0; }
+#dlg-new {
+  background: transparent; color: #fcfc54; border: 1px solid #fcfc54;
+}
+#dlg-new[hidden] { display: none; }
 
 #pad {
-  position: fixed;
-  right: max(12px, env(safe-area-inset-right));
-  bottom: max(12px, env(safe-area-inset-bottom));
+  display: none;
+  flex: 0 0 auto;
+  align-self: center;
   z-index: 8;
-  display: grid;
-  grid-template-columns: repeat(3, 52px);
-  grid-template-rows: repeat(3, 52px);
+  margin: .45rem 0 .1rem;
+  grid-template-columns: repeat(3, 48px);
+  grid-template-rows: repeat(3, 48px);
   gap: 6px;
   user-select: none;
 }
 #pad[hidden] { display: none; }
 #pad button {
-  padding: 0; font-size: 20px; color: #333;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid #999; border-radius: 10px;
+  padding: 0; font-size: 18px; color: #2a2a2a;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #c07070; border-radius: 12px;
   touch-action: manipulation;
+  min-width: 44px; min-height: 44px;
 }
-#pad button:active { background: rgba(180, 180, 180, 0.8); }
+#pad button:active { background: #fff; }
+#pad button[data-dir="p"] { font-size: 14px; color: #555; }
 
-@media (pointer: coarse) {
-  #pad { display: grid; }
-  #pad[hidden] { display: grid; }
-  #modes { padding-bottom: 4.8rem; }
-}
+/* Phone: pad travels WITH the board as one cluster, centered in the leftover
+   coral — not glued to the bottom with an empty ocean above. */
 body.touch #pad { display: grid; }
 body.touch #pad[hidden] { display: grid; }
-body.touch #modes { padding-bottom: 4.8rem; }
+body.touch #brand { display: none; }
+body.touch #hud { font-size: 13px; }
+@media (pointer: coarse) {
+  body #pad { display: grid; }
+  body #pad[hidden] { display: grid; }
+  #brand { display: none; }
+}
+
+@media (max-width: 420px) {
+  #pad {
+    grid-template-columns: repeat(3, 46px);
+    grid-template-rows: repeat(3, 46px);
+  }
+  .dlg { font-size: 13px; padding: .85rem .9rem .95rem; }
+}

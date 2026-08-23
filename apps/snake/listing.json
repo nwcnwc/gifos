@@ -1,6 +1,6 @@
 {
-  "tagline": "The classic game of Snake. Send the link and there are two of you.",
-  "description": "Steer the snake, eat the apples, grow longer, and try not to run into yourself or the wall. That is the whole game, the way it has been since the phones that came with it.\n\nOn a computer the arrows (or WASD) steer. On a phone you swipe across the board, or use the pad in the corner.\n\nSend the invite and the same board holds every snake at once. Do not hit the others. The last one still moving wins. There is no server and no account — the room is the link.\n\nYour best length is kept on this device, inside the app.\n\nAn unofficial port of JavaScript Snake by patorjk, MIT-licensed. This copy puts two snakes on one grid, and adds swipe controls for a phone.",
+  "tagline": "Two snakes on one grid. Send the link — no server.",
+  "description": "Send the Invite in the bar above the game. A friend opens the link and drops onto the same board as you — two snakes, one apple, last one still moving wins. No account, no install, no game server. The room is the link.\n\nOn your own it is the classic: eat, grow, don't hit the wall. Arrows or WASD on a computer; swipe or the pad on a phone. Your best length lives in the file, so the copy you keep is the save.\n\nAn unofficial port of JavaScript Snake by patorjk.",
   "author": {
     "name": "patorjk",
     "url": "https://github.com/patorjk/JavaScript-Snake"
