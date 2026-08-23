@@ -32,9 +32,13 @@ check('26a deletes ANYROAD_MP_LOCAL so a leaked env cannot sneak LOCAL back on',
 check('26a forwards needFleet\'s exit 3 instead of turning it into a product red',
   /code === 3/.test(scen) && /process\.exit\(3\)/.test(scen));
 
-check('fps-simple default GL is Vulkan, not SwiftShader (FPS_GL=sw is the opt-out)',
-  /FPS_GL === 'sw'/.test(fps) && /use-angle=vulkan/.test(fps)
-  && !/FPS_GL === 'hw'/.test(fps));
+check('fps-simple deathmatch FLEET_ARGS default to Vulkan (FPS_GL=sw is the opt-out)',
+  /const FLEET_ARGS/.test(fps) && /FPS_GL === 'sw'/.test(fps)
+  && /use-angle=vulkan/.test(fps));
+check('solo on the orchestrator is allowed software GL (that box often has no GPU)',
+  /const SOLO_ARGS/.test(fps) && /chromium.launch\(\{ executablePath: CHROME, args: SOLO_ARGS \}\)/.test(fps));
+check('openFleet gets FLEET_ARGS, not the solo software flags',
+  /openFleet\(pick, \{ args: FLEET_ARGS/.test(fps));
 check('deathmatch prefers gpu-marked hosts instead of weight-order slice(0, 2)',
   /function preferDrawers/.test(fps)
   && /preferDrawers\(fleet\.hosts/.test(fps)
