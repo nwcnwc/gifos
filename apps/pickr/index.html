@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Pickr</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="vendor/pickr.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="checker" aria-hidden="true"></div>
+  <div id="wash" aria-hidden="true"></div>
+
+  <main>
+    <header>
+      <div id="brand">Pickr</div>
+      <div id="hex">#E8416C</div>
+      <p id="lead">Tap a line to copy. Colors you pick stay on this device.</p>
+    </header>
+
+    <div id="codes">
+      <button type="button" class="code" data-fmt="hex"><span class="k">HEX</span><span class="v" id="v-hex"></span></button>
+      <button type="button" class="code" data-fmt="rgb"><span class="k">RGB</span><span class="v" id="v-rgb"></span></button>
+      <button type="button" class="code" data-fmt="hsl"><span class="k">HSL</span><span class="v" id="v-hsl"></span></button>
+      <button type="button" class="code" data-fmt="cmyk"><span class="k">CMYK</span><span class="v" id="v-cmyk"></span></button>
+    </div>
+
+    <div id="host">
+      <div id="picker"></div>
+    </div>
+
+    <section id="recents-wrap">
+      <div class="row-head">
+        <h2>Recent</h2>
+        <button type="button" id="clearRecents" class="ghost">Clear</button>
+      </div>
+      <div id="recents" role="list"></div>
+    </section>
+    <p id="status" role="status"></p>
+  </main>
+
+  <script src="vendor/pickr.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
