@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "thinktank",
+  "name": "Thinktank",
+  "shortName": "Thinktank",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [226, 74, 74],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

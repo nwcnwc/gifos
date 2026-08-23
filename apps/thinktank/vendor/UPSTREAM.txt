@@ -1,0 +1,29 @@
+Thinktank rules rewritten as classic scripts from averycrespi/thinktank
+(MIT). The original is a boardgame.io + React client that talks to a Node
+server. GifOS drops type=module and has no game server, so the moves,
+danger, hands, and turn-end resolution were transcribed by hand. Do not
+wrap the React tree or the match server.
+
+upstream: https://github.com/averycrespi/thinktank
+commit:   the v1.3.0 tag on main (shallow clone, 2020 Avery Crespi)
+license:  MIT (COPYING-thinktank.txt)
+
+Pinned files transcribed:
+  src/logic/index.ts   → board.js (tokens, hands, tank grouping)
+  src/logic/grid.ts    → board.js (15×18, home, spawn, adjacency)
+  src/logic/place.ts   → board.js (spawn only, no-suicide)
+  src/logic/move.ts    → board.js (piece steps, mines jump two)
+  src/logic/rotate.ts  → board.js (tanks only)
+  src/logic/danger.ts  → board.js (shot, infiltrate, explode)
+  src/logic/game.ts    → board.js (place/move/rotate, turn-end)
+
+NOT copied:
+  src/components/**    — React UI rewritten for a phone
+  src/server.ts        — no match server; the file is the save
+  src/api/**           — no remote storage
+  Font Awesome / PaperCSS / boardgame.io — no CDN, no framework
+
+The original has no computer player. vendor/ai.js is ours: a legal-move
+search that runs on this device and never cheats.
+
+The MIT notice travels INSIDE the GIF as COPYING-thinktank.txt as well as here.
