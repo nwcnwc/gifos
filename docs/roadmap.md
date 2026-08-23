@@ -1173,11 +1173,12 @@ carries `client_reference_id`). This is not the x402 IAP rail.
 - Fully free apps (no IAP) remain first-class.
 
 **Open questions.**
-- Curation bar (signed makers only? theme-computer stores?). The two
-  first-party apps are now **signed by gifos.app** (verified in the browser on
-  install), so a "signed makers only" bar has a working reference; the open
-  question is the policy for **third-party** makers — self-signed + reputation,
-  a GifOS counter-signature, or domain-key proof.
+- Curation bar (signed makers only? theme-computer stores?). Fluence was
+  **signed by gifos.app** by hand (2026-08-02) as a working-reference test;
+  `scripts/sign-apps.mjs` is the bulk step for the rest of the catalog (local
+  key, not GitHub Secrets). A "signed makers only" bar then has a real
+  reference; the open question is the policy for **third-party** makers —
+  self-signed + reputation, a GifOS counter-signature, or domain-key proof.
 - IAP entitlement storage (local-only vs maker server); restore on new device
   without accounts (receipt export / wallet-bound proof).
 - Abuse: malicious GIFs that phish pays — review, report, delist, wallet block

@@ -31,9 +31,14 @@
  * level; this script is the other half — it emits `cover`, and the byte size of
  * `gif` so the store can warn before a large download.
  *
- * Run: node scripts/build-app-catalog.mjs [--check]
- *   --check  verify the committed catalog matches the sources; write nothing.
- *            (This is what CI / the test battery runs.)
+ * Run: node scripts/build-app-catalog.mjs [--check] [--require-signed]
+ *   --check           verify the committed catalog matches the sources; write nothing.
+ *                     (This is what CI / the test battery runs.)
+ *   --require-signed  also fail if a listed GIF has no gifos.app GIFOSSIG.
+ *                     Off in CI until the first `scripts/sign-apps.mjs` bulk
+ *                     sign; the default --check still PRINTS the unsigned list.
+ *                     Signing is local (~/.gifos-signing-key.json). The private
+ *                     key does not go in GitHub Secrets (docs/threat-model.md).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -44,6 +49,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'apps');
 const OUT = path.join(ROOT, 'site', 'apps');
 const CHECK = process.argv.includes('--check');
+const REQUIRE_SIGNED = process.argv.includes('--require-signed');
+const unsigned = [];
 
 // The canonical navigation set. An app may sit in more than one, but not in a
 // category invented at listing time — free-text categories are how a store's
@@ -253,6 +260,13 @@ async function buildApp(slug) {
   const gifBytes = fs.readFileSync(gifPath);
   if (!(gifBytes[0] === 0x47 && gifBytes[1] === 0x49 && gifBytes[2] === 0x46)) { fail(slug + ': ' + slug + '.gif is not a GIF'); return null; }
   if (!gifBytes.includes(Buffer.from('GIFOS1.0'))) fail(slug + ': ' + slug + '.gif carries no GifOS filesystem — it is not an App GIF');
+  const claim = signatureClaim(gifBytes);
+  if (!claim || !claim.id) {
+    unsigned.push(slug);
+    if (REQUIRE_SIGNED) fail(slug + ': listed GIF has no GIFOSSIG — node scripts/sign-apps.mjs');
+  } else if (claim.type !== 'domain' || claim.id !== 'gifos.app') {
+    fail(slug + ': listed GIF is signed as ' + (claim.id || '(none)') + ' — certified apps sign as gifos.app');
+  }
 
   for (const f of ['tagline', 'description', 'author', 'releaseDate', 'categories', 'license']) {
     if (!l[f]) fail(slug + ': listing.json is missing "' + f + '"');
@@ -517,5 +531,10 @@ if (fs.existsSync(OUT)) {
   }
 }
 
+if (unsigned.length) {
+  console.log('UNSIGNED: ' + unsigned.join(', '));
+  console.log('  Sign with: node scripts/sign-apps.mjs');
+  if (!REQUIRE_SIGNED) console.log('  Gate with: node scripts/build-app-catalog.mjs --check --require-signed');
+}
 if (errors) { console.error('\n' + errors + ' problem(s). Catalog NOT ' + (CHECK ? 'valid' : 'written cleanly') + '.'); process.exit(1); }
 console.log((CHECK ? 'Catalog is current' : 'Catalog built') + ' — ' + records.length + ' app(s).');

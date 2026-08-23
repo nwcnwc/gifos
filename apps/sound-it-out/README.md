@@ -118,7 +118,7 @@ node apps/sound-it-out/build.mjs
 node scripts/build-app-catalog.mjs
 ```
 
-(sign at site/sign.html if it should read "signed by gifos.app".)
+Then `node scripts/sign-apps.mjs` so the listing reads signed by gifos.app.
 
 ## Tests
 

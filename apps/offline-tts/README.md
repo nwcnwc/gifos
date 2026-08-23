@@ -44,6 +44,5 @@ node apps/offline-tts/build.mjs        # packs the slim GIF into site/apps/offli
 node scripts/build-app-catalog.mjs      # refresh the store catalog
 ```
 
-Not yet signed with the gifos.app key (this build environment holds no
-private key) — sign via `site/sign.html` and re-commit the GIF to light the
-badge, same as anyroad.
+Sign with the rest of the catalog: `node scripts/sign-apps.mjs` (local
+`~/.gifos-signing-key.json`, not GitHub).

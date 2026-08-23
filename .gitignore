@@ -1,4 +1,8 @@
 node_modules/
+# Domain signing JWK from sign.html. Never commit. sign-apps.mjs reads
+# ~/.gifos-signing-key.json (or GIFOS_SIGN_KEY); a copy dropped in the tree
+# would mint "✓ signed by gifos.app" for anyone who clones.
+gifos-signing-key.json
 # Local probes served from the static site during development (site/_dev*.html
 # and friends). Never published. archive-version.sh skips these too.
 site/_*
