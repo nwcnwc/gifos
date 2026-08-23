@@ -1,0 +1,73 @@
+:root{
+  --bg:#0a0a0f; --surface:#14141c; --surface2:#1c1c28; --border:#2e2e44;
+  --text:#f0ece4; --muted:#9a9488; --accent:#c9a227; --accent2:#e8c547;
+  --onaccent:#1a1406; --good:#6dce7a; --bad:#ff7a6b;
+  --hex1:#3a342c; --hex2:#2a241c; --hex3:#1a1612;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,'Segoe UI',sans-serif;background:
+  radial-gradient(1200px 600px at 50% -10%, #1a1420 0%, var(--bg) 60%);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center}
+header{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 16px;background:linear-gradient(180deg,rgba(20,16,28,.6),transparent);
+  border-bottom:1px solid var(--border)}
+.brand{font-weight:800;letter-spacing:.2px;color:var(--text);display:flex;align-items:center;gap:8px}
+.brand .logo{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:16px;
+  background:radial-gradient(circle at 35% 30%, #3a3a48, #111018);
+  box-shadow:0 1px 3px rgba(0,0,0,.6)}
+.engine-chip{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:5px 11px}
+.engine-chip .dot{width:8px;height:8px;border-radius:50%;background:#c98b3a;box-shadow:0 0 8px #c98b3a}
+.engine-chip.ready .dot{background:var(--good);box-shadow:0 0 8px var(--good)}
+.engine-chip.thinking .dot{background:var(--accent2);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+main{width:100%;max-width:480px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px}
+h2{margin:0 0 12px;font-size:17px;color:var(--text)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0;font-weight:600}
+.seg{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.seg button{padding:8px 10px;border-radius:10px;background:var(--surface2);color:var(--text);
+  border:1px solid var(--border);cursor:pointer;font:inherit;font-weight:600}
+.seg button.on{background:var(--accent);color:var(--onaccent);border-color:var(--accent)}
+.lvlnote{margin:2px 0 8px;color:var(--muted);font-size:12.5px;min-height:16px}
+button{font:inherit}
+.primary{width:100%;margin-top:10px;padding:13px;border:0;border-radius:12px;cursor:pointer;
+  background:linear-gradient(180deg,#e0b84a,var(--accent));color:var(--onaccent);font-weight:800;font-size:15px}
+.primary:disabled{opacity:.55;cursor:default;filter:grayscale(.4)}
+
+.game{display:flex;flex-direction:column;gap:12px;align-items:center}
+.boardwrap{width:100%;display:flex;justify-content:center}
+canvas{width:min(92vw,448px);height:auto;aspect-ratio:640/700;
+  border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.5);touch-action:manipulation;cursor:pointer;
+  background:#0c0c14}
+
+.statusline{min-height:20px;font-weight:700;text-align:center;color:var(--text)}
+.statusline.warn{color:var(--bad)}.statusline.good{color:var(--good)}
+
+.controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%}
+.ghost{flex:1;min-width:96px;padding:10px;border-radius:11px;cursor:pointer;
+  background:var(--surface);color:var(--text);border:1px solid var(--border);font-weight:700}
+.ghost:disabled{opacity:.45;cursor:default}
+.ghost:active{transform:translateY(1px)}
+.ghost.wide{width:100%;flex:none;margin-top:8px}
+
+.vhead{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin-bottom:4px}
+.vhead h2{margin:0}
+.vhead .ghost{flex:none;min-width:0;padding:8px 12px}
+.seats{display:flex;gap:10px;width:100%;justify-content:center}
+.seat{flex:1;max-width:200px;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:9px 12px;font-weight:700;font-size:14px}
+.seat.me{border-color:var(--accent)}
+.seat.turn{box-shadow:0 0 0 2px var(--accent2) inset}
+.seat .open{color:var(--muted);font-weight:600;font-style:italic}
+.fqueue{color:var(--muted);font-size:12.5px;text-align:center;min-height:14px;width:100%}
+
+.promo{position:fixed;inset:0;background:rgba(6,6,10,.72);display:flex;align-items:center;justify-content:center;z-index:20}
+.promobox{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px;min-width:240px;text-align:center}
+.promobox p{margin:0 0 12px;font-weight:800}
+.promorow{display:flex;gap:10px;justify-content:center}
+.promorow button{width:56px;height:56px;border-radius:12px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:28px;cursor:pointer}
+.promorow button:active{transform:translateY(1px)}

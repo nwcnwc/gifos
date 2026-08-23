@@ -1,0 +1,23 @@
+{
+  "tagline": "Chess on a hexagonal board. The computer thinks here, or a friend from one link.",
+  "description": "A hexagonal board — the kind with three bishops — and no game server. The computer thinks on this device, or you send one link and a friend sits the other colour. There is no account.\n\nWhite and black take turns on ninety-one hexes. Each side has a king, a queen, two rooks, two knights, three bishops (one for each colour of hex), and nine pawns. Tap a piece, then tap a hex. Legal hexes light up.\n\nOn your own you play a computer that looks a little way ahead, right here on the phone or computer. Pass the device for two people in the same room, or press Play a friend and send the invite: the same board, live, on two devices.\n\nThere is no castling. A pawn that steps two hexes can still be taken in passing. Close the tab and the game is still in the icon — the file is the save.\n\nThis is the hexagonal kind, not the square board.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "chess",
+    "hex",
+    "board",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hex-chess",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
