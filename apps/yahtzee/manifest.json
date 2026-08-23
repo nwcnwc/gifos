@@ -5,7 +5,7 @@
   "shortName": "Yahtzee",
   "version": "1.0",
   "minBuild": 947,
-  "description": "Roll five dice and fill a scorecard. Play alone, or sit a table over a meeting — each of you has your own card.",
+  "description": "Five dice and a scorecard. Sit a table over a meeting from one invite — each of you has your own card.",
   "entry": "index.html",
   "accent": [26, 122, 58],
   "capabilities": {

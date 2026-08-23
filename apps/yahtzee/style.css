@@ -1,6 +1,6 @@
-/* GifOS chrome around the original felt table. The cream/green is the game;
-   this file only adds the friend-mode strip, a best score, and a system font
-   (upstream loaded Open Sans Condensed from Google). */
+/* GifOS chrome around the original felt table. Cream/green is the game;
+   this file adds the friend strip, a best score, official-card layout, and
+   a system font (upstream loaded Open Sans Condensed from Google). */
 html, body { overflow-x: hidden; }
 body {
   font-family: 'Segoe UI', 'Arial Narrow', 'Liberation Sans Narrow', sans-serif;
@@ -34,7 +34,7 @@ body {
   font-weight: 700;
 }
 
-#friendBtn, #againBtn, #leaveBtn {
+#friendBtn, #againBtn, #leaveBtn, #rollBtn {
   font: inherit;
   font-size: 15px;
   font-weight: 700;
@@ -42,9 +42,10 @@ body {
   border: 0;
   border-radius: 6px;
   cursor: pointer;
+  touch-action: manipulation;
+  min-height: 44px;
 }
-#friendBtn { background: #e8c547; color: #1a3a16; }
-#againBtn { background: #e8c547; color: #1a3a16; }
+#friendBtn, #againBtn, #rollBtn { background: #e8c547; color: #1a3a16; }
 #leaveBtn {
   background: transparent;
   color: #f4efe4;
@@ -55,27 +56,38 @@ body.friend #friendBtn { display: none; }
 #friend-bar {
   max-width: 720px;
   margin: 8px auto 0;
-  padding: 12px 14px 10px;
+  padding: 10px 14px 8px;
   background: #f4efe4;
   color: #1a3a16;
   border-radius: 8px;
   width: calc(100% - 24px);
 }
 #friend-bar[hidden] { display: none; }
-#friend-hint, #friend-status { margin: 0 0 8px; font-size: 15px; line-height: 1.45; }
+#friend-hint, #friend-status { margin: 0 0 6px; font-size: 15px; line-height: 1.4; }
 #friend-hint b { color: #b42318; }
 #friend-status { font-weight: 700; min-height: 1.2em; }
+.friend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
 #friend-scores {
   list-style: none;
-  margin: 0 0 8px;
+  margin: 0;
   padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
 }
 #friend-scores li {
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 4px 0;
-  border-top: 1px solid #d8d0c0;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #fffaf0;
+  border-radius: 6px;
   font-variant-numeric: tabular-nums;
 }
 #friend-scores li:first-child { border-top: none; }
@@ -85,11 +97,165 @@ body.friend #friendBtn { display: none; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 8em;
 }
+#friend-scores .me { box-shadow: inset 0 0 0 2px #b42318; }
 #friend-scores .me .name { color: #b42318; }
 #friend-scores .meta { color: #6a5a48; font-size: 13px; white-space: nowrap; }
 #friend-scores .win { font-weight: 700; }
-.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+#friend-scores .you-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #b42318;
+  text-transform: uppercase;
+}
+.friend-actions { display: flex; gap: 8px; margin-left: auto; }
+
+#turn-bar {
+  max-width: 720px;
+  margin: 8px auto 0;
+  padding: 0 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  color: #f4efe4;
+  text-shadow: 0 1px 2px #0a3a18;
+}
+#turn-hint {
+  margin: 0;
+  flex: 1;
+  min-width: 12em;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.turn-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#rolls-left {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #e8c547;
+}
+#rollBtn { min-width: 96px; font-size: 18px; }
+
+.dice, .paquet { touch-action: manipulation; }
+/* The original deck parks on top of the scorecard (it was off-screen
+   until Show). Roll is the control now; keep the fan, hide the pile. */
+.paquet, .counter { pointer-events: none !important; }
+.counter { opacity: 0 !important; }
+.dice { pointer-events: none; }
+body.waiting-roll .dice { opacity: 0; }
+body.waiting-roll .paquet {
+  opacity: 1 !important;
+  transform: translate(125%, 8%) rotate(-8deg) !important;
+  z-index: 1;
+}
+body:not(.waiting-roll) .paquet { opacity: 0 !important; }
+.dice.held {
+  opacity: 1;
+  outline: 4px solid #e8c547;
+  outline-offset: -4px;
+  filter: brightness(1.08);
+  z-index: 4;
+}
+.selected { opacity: 1; }
+
+#die-hits {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 0;
+  height: 100%;
+  display: flex;
+  z-index: 8;
+  pointer-events: none;
+}
+.die-hit {
+  flex: 1;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: manipulation;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+/* Scorecard stays on the table — original slid it 500px off-screen and
+   hid filled rows. A card you cannot read on a phone is not a scorecard. */
+.container { overflow: visible; }
+.dices { max-height: 220px; margin-bottom: 36px; }
+body.friend .foot { display: none; }
+.results {
+  transform: none !important;
+  height: auto;
+  max-width: min(420px, calc(100% - 16px));
+  margin: 8px auto 0;
+  padding: 12px 10px 8px;
+  font-size: 16px;
+  line-height: 1.2;
+  z-index: 2;
+}
+.results img { opacity: 0.12; }
+.result {
+  min-height: 40px;
+  height: 40px;
+  margin: 3px 0;
+  font-size: 15px;
+  touch-action: manipulation;
+}
+.result:hover { transform: none; background: #fff8; }
+.result.saved {
+  opacity: 1 !important;
+  cursor: default;
+  background: #d4c49a;
+  color: #2a2418;
+}
+.result.saved:hover { transform: none; background: #d4c49a; }
+.result.must {
+  box-shadow: inset 0 0 0 3px #b42318;
+  background: #ffe08a;
+}
+.result.locked { opacity: 0.45; cursor: default; }
+#sum, #total { opacity: 1 !important; }
+#sum, #sum.saved {
+  font-size: 14px;
+  background: #eef6e0 !important;
+  color: #1a3a16 !important;
+}
+#total, #total.saved {
+  height: 56px;
+  line-height: 56px;
+  font-size: 22px;
+  background: #e8c54755 !important;
+  color: #1a3a16 !important;
+}
+#total.endgame { height: 64px; line-height: 64px; font-size: 28px; }
+#ybonus {
+  display: inline-block;
+  margin-left: 4px;
+  color: #b42318;
+  font-weight: 700;
+}
+#ybonus[hidden] { display: none; }
+.result > .name { display: flex; align-items: center; padding-left: 8px; }
+.result > .score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+#showScores { display: none; }
+.counter { display: none; }
 
 .foot {
   max-width: 720px;
@@ -105,5 +271,25 @@ body.friend #friendBtn { display: none; }
 
 @media screen and (max-width: 520px) {
   .top h1 { font-size: 22px; }
-  #friend-bar { font-size: 14px; }
+  #friend-bar { font-size: 13px; padding: 8px 10px; }
+  #friend-hint { font-size: 13px; margin-bottom: 4px; }
+  body.friend #turn-hint { display: none; }
+  body.friend .dices { height: 34vw; max-height: 150px; margin-bottom: 18px; }
+  #turn-hint { font-size: 15px; }
+  .dices { height: 42vw; max-height: 200px; margin-top: 10px; margin-bottom: 20px; }
+  .results {
+    max-width: calc(100% - 12px);
+    padding: 10px 6px 8px;
+    font-size: 14px;
+    grid-column-gap: 6px;
+  }
+  .result { min-height: 42px; height: 42px; font-size: 13px; margin: 3px 0; }
+  .result > .name { padding-left: 6px; }
+  #total { height: 48px; line-height: 48px; font-size: 20px; }
+  .foot { font-size: 12px; }
+}
+
+@media screen and (max-width: 380px) {
+  .results { grid-template-columns: 1fr 1fr; }
+  .result { font-size: 12px; }
 }

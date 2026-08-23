@@ -136,13 +136,13 @@
       again.hidden = true;
       var g = root.Yahtzee || {};
       if (!others.length) {
-        status.textContent = 'Waiting for a friend… press Invite (GifOS menu) to send the link. You can fill your card in the meantime — they sit the same round.';
+        status.textContent = 'Waiting for a friend. You can fill your card now — they sit the same round.';
       } else if (g.gameover && g.gameover()) {
         status.textContent = 'Your card is full at ' + (g.total() || 0) + '. Waiting for the others.';
       } else {
         status.textContent = others.length === 1
-          ? ((others[0].name || 'Friend') + ' is on ' + (others[0].filled || 0) + '/13.')
-          : (others.length + ' playing. Highest total when every card is full.');
+          ? ('You both play now. ' + (others[0].name || 'Friend') + ' is on ' + (others[0].filled || 0) + '/13.')
+          : ('You all play now. ' + others.length + ' others filling their cards.');
       }
     }
   }

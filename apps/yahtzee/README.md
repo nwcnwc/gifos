@@ -3,29 +3,35 @@
 An unofficial local port of [Alhissar/Yahtzee](https://github.com/Alhissar/Yahtzee)
 (MIT). Five dice, a scorecard, thirteen turns. Playing alone is that game.
 Press **Play a friend**, then **Invite**, and it becomes a table: one round,
-each of you filling your own card.
+each of you filling your own card. Not a Hasbro product.
 
 ![screenshot](screenshot.png)
 
 ## What it is
 
-Upstream is a felt table of playing-card dice (ones through sixes, French
-names on the card: Brelan, Carré, suite, Full, Yahtzee). The JS, CSS and
-art are the original, converted to classic scripts because GifOS drops
-`type=module`. Two things changed, both because they have to:
+Upstream is a felt table of playing-card dice. The JS, CSS and art are the
+original, converted to classic scripts because GifOS drops `type=module`.
+Three things changed, all because they have to:
 
+- **Scoring.** Upstream is a French Yams variant (full house 50+sum, Yahtzee
+  100+sum, upper bonus 25). A game that calls itself Yahtzee has to use the
+  usual box values: full house 25, small straight 30, large 40, Yahtzee 50,
+  three/four of a kind the sum of all five, Chance the sum, +35 if the upper
+  section reaches 63, +100 for each extra Yahtzee. `scores.js` is the floor.
 - **Save.** Upstream wrote nothing. The best score and the game in progress
   go into a private `save` collection, on this device, inside the app.
 - **A table.** Upstream is strictly one player. This adds a shared round.
-  It is not a shared scorecard.
+  It is not a shared scorecard. You both fill your own card at the same time.
 
 ```
-index.html      original table markup + the friend-mode strip
-style.css       friend-mode chrome (the felt is upstream)
+index.html      original table markup + the friend-mode strip + a Roll button
+style.css       friend-mode chrome, 375px scorecard (the felt is upstream)
+scores.js       official box values (DOM-free; build.mjs proves them)
+rules.js        tap-to-keep, three rolls, extra Yahtzee, joker
 storage.js      best + in-progress over gifos.db('save'), private
 mp.js           the table: shared round, own rows, live totals
 app.js          boot, art wait, Invite-aware reset
-icon.mjs        procedural dice icon + 1200×720 cover
+icon.mjs        dice rolling into a Yahtzee + 1200×720 mid-game cover
 vendor.mjs      rebuilds vendor/ from the pinned Yahtzee commit
 build.mjs       packs the GIF into site/apps/yahtzee/yahtzee.gif
 vendor/         GENERATED. Classic scripts + inlined felt art.
@@ -46,12 +52,13 @@ No `network`, no `wasm`. The original is plain JS.
    Solo still works if nobody comes — you can fill your card while you wait.
 2. Everyone who is in the room **plays the same round**. The round number
    lives on each player’s own row; everyone adopts the highest round of the
-   lowest-id player. Dice are yours. The scorecard is yours.
+   lowest-id player. Dice are yours. The scorecard is yours. **Nobody waits
+   for a turn** — you both roll now.
 3. Each player publishes **total + filled lines** on **their own row**.
    Nobody writes anybody else’s row. The list of live scores is just those
    rows.
 4. When every remaining card is full, **highest total** wins. A tie is a tie.
-5. **Play again** starts the next round. **← Solo** puts you back on the
+5. **Play again** starts the next round. **Solo** puts you back on the
    original game, with the save you had before the table.
 
 Honest limits: this is friends, not a ladder. There is no referee and no
@@ -75,3 +82,4 @@ is a separate, signed step.
 
 Yahtzee is MIT, Alhissar, 2019. The notice is packed **inside the GIF** as
 `COPYING-yahtzee.txt` as well as living at `vendor/COPYING-yahtzee.txt`.
+Unofficial. Not a Hasbro product.
