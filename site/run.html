@@ -12046,17 +12046,6 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function refreshStealBtn() {
       document.getElementById('appsteal').style.display = (ROOM.kind === 'app' && appMode === 'client') ? '' : 'none';
     }
-    const APP_HELP_FALLBACK = [
-      '# Help',
-      '',
-      'This app did not ship its own Help page.',
-      '',
-      '## The bar above the app',
-      '- **Invite** — share this app live. Friends open one link and everyone uses the same app together.',
-      '- **Save** — download a snapshot GIF: the app plus whatever it has saved, yours to keep.',
-      '- **Steal** — if you joined someone else, copy the app onto your desktop (with their data, as they joined, or clean).',
-      '- The chip is **Abilities** — what this app may do on this device. Tap to review or turn things off.',
-    ].join('\n');
     function currentAppHelpMd() {
       try {
         const ctl = soloCtl || appHostCtl || appClientCtl;
@@ -12068,8 +12057,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       return '';
     }
     function openAppHelp() {
-      const md = currentAppHelpMd() || APP_HELP_FALLBACK;
       const H = window.GifOS && GifOS.help;
+      const md = (H && H.withOsFooter) ? H.withOsFooter(currentAppHelpMd()) : (currentAppHelpMd() || '');
       const parsed = (H && H.parse) ? H.parse(md) : { title: '', html: '' };
       const titleEl = document.getElementById('apphelp-title');
       const bodyEl = document.getElementById('apphelp-body');

@@ -87,7 +87,8 @@ a .zip for multi-file apps). GifOS packs the GIF there.
    rules, solo vs a live friend. Tools: what it is for, the common jobs, the
    commands. Succinct and complete. Do not add a second How-to-play screen
    inside the app — the OS button is the one Help. If you omit help.md, Help
-   still appears and explains Invite, Save, and Steal.
+   still appears. Do not document Invite/Save/Steal/Abilities or the remix
+   loop in help.md: the OS appends those to every Help screen.
 8. LIVE MEDIA IS OFF-LIMITS to apps, by design: the sandbox never hands an
    app a live camera/mic stream, screen capture, or WebRTC — so a video-chat
    or live-streaming app cannot work as a GifOS app; don't attempt one.

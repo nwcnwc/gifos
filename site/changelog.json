@@ -11,7 +11,7 @@
         "Civiclock is in the store: a ticking city of homes, shops and works, with power along the roads, water from the river, people walking, night lights, and a blackout when the plant dies. You can invite a co-mayor.",
         "IsoCity is sixteen blocks on a side. Pinch to zoom (or Ctrl+scroll), undo the last stroke, and New city asks before it wipes the map. An old save sits in the middle of the bigger grid.",
         "Talking to Deepgram no longer sends your key or your audio through our proxy. The browser speaks to Deepgram itself.",
-        "An app can pack a Help page inside the GIF, and the Help button in the app chrome reads it."
+        "An app can pack a Help page inside the GIF, and the Help button in the app chrome reads it. Every Help screen now also tells you how Invite, Save and Steal work, and that you can remix any app: save the GIF, ask an AI chat to change it, drop the new GIF on your Home Screen.",
       ]
     },
     {

@@ -76,5 +76,19 @@ check('read() honours manifest.help', help.read(files, { help: 'other.md' }).tri
 check('read() refuses path traversal', help.read(files, { help: '../help.md' }) === '');
 check('read() is empty when the file is missing', help.read({}, {}) === '');
 
+check('withOsFooter is on GifOS.help', typeof help.withOsFooter === 'function');
+const footed = help.withOsFooter('# Hi\n\nBody.\n');
+check('withOsFooter keeps the app\'s own help', /# Hi/.test(footed) && /Body/.test(footed));
+check('withOsFooter appends Invite / Save / Steal / Abilities',
+  /\*\*Invite\*\*/.test(footed) && /\*\*Save\*\*/.test(footed)
+  && /\*\*Steal\*\*/.test(footed) && /\*\*Abilities\*\*/.test(footed));
+check('withOsFooter plugs remix: save the GIF, ask an AI, add it back',
+  /remix/i.test(footed) && /AI chat/i.test(footed)
+  && /Home Screen/.test(footed) && /do not need to know how to code/i.test(footed));
+check('an empty help.md still gets the OS footer (and a title)',
+  /^# Help/.test(help.withOsFooter('')) && /\*\*Invite\*\*/.test(help.withOsFooter('')));
+check('run.html opens Help through withOsFooter, so every screen gets the footer',
+  /withOsFooter\(currentAppHelpMd\(\)\)/.test(run));
+
 console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
 process.exit(failures ? 1 : 0);

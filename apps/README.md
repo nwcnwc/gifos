@@ -88,7 +88,9 @@ Write for a person who just opened the app and does not know it:
 - Succinct and complete. Headings, lists, **bold**, `code`. No HTML. No
   "as an AI". No GifOS internals (`gifos.db`, WASM, the sandbox).
 
-If `help.md` is missing, Help still appears and explains Invite / Save / Steal.
+If `help.md` is missing, Help still appears. The OS **always** appends
+Invite / Save / Steal / Abilities, plus a plug to remix the GIF with an AI
+chat, so you do not repeat that in every app.
 
 ## Reviews
 
