@@ -47,14 +47,11 @@ node scripts/build-app-catalog.mjs          # write site/apps/*
 node scripts/build-app-catalog.mjs --check  # verify it's current (what CI runs)
 ```
 
-`sign-apps.mjs` reads `~/.gifos-signing-key.json` (the JWK `sign.html`
-downloads) and refuses a key that does not match `site/gifos.key`. Fluence
-was signed from a phone; penguin needs a copy of that same JWK at that path
-(`chmod 600`) before the script can run — copy it off the phone (scp, USB),
-never paste it into chat, the repo, or a GitHub secret. It is **not** a
-GitHub Action: a leaked Actions secret would let anyone mint "✓ signed by
-gifos.app". Pages publishes the GIFs already in `site/`. After the first
-bulk sign, `build-app-catalog.mjs --check --require-signed` is the gate.
+`sign-apps.mjs` reads the JWK from `GIFOS_SIGN_KEY` and refuses a key that
+does not match `site/gifos.key`. It is **not** a GitHub Action: a leaked
+Actions secret would let anyone mint "✓ signed by gifos.app". Pages publishes
+the GIFs already in `site/`. After the first bulk sign,
+`build-app-catalog.mjs --check --require-signed` is the gate.
 
 A source tree with **no `listing.json` is simply not in the store** — that is
 how an app stays unlisted while it's being built.

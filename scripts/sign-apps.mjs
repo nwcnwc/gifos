@@ -15,15 +15,12 @@
  * Pages publishes whatever is already in site/; this script is the step
  * before commit.
  *
- * Key file: the JWK `sign.html` downloads as gifos-signing-key.json.
- * Default path ~/.gifos-signing-key.json (or GIFOS_SIGN_KEY). Fluence was
- * signed on a phone; copy that same file onto penguin (chmod 600) — do not
- * mint a second key. The public half MUST match site/gifos.key, or this
- * refuses to sign — otherwise a forgotten second key would ship GIFs that
- * the live gifos.key cannot verify, and the store would refuse the install.
+ * Point GIFOS_SIGN_KEY at the JWK sign.html downloads. The public half MUST
+ * match site/gifos.key, or this refuses to sign — otherwise a second key
+ * would ship GIFs the live domain key cannot verify, and the store would
+ * refuse the install.
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { Readable, Writable } from 'node:stream';
@@ -42,7 +39,7 @@ const argv = process.argv.slice(2);
 const DRY = argv.includes('--dry-run');
 const FORCE = argv.includes('--force');
 const slugsWanted = argv.filter((a) => !a.startsWith('--'));
-const KEY_PATH = process.env.GIFOS_SIGN_KEY || path.join(os.homedir(), '.gifos-signing-key.json');
+const KEY_PATH = process.env.GIFOS_SIGN_KEY || '';
 
 function die(msg, code) {
   console.error(msg);
@@ -132,14 +129,12 @@ if (DRY) {
   process.exit(0);
 }
 
+if (!KEY_PATH) {
+  die('Set GIFOS_SIGN_KEY to the domain-signing JWK (the file sign.html downloads).\n' +
+    'It does not go in the repo and does not go in GitHub Secrets.', 2);
+}
 if (!fs.existsSync(KEY_PATH)) {
-  die(
-    'No signing key at ' + KEY_PATH + '\n' +
-    'Download gifos-signing-key.json from gifos.app/sign.html (the JWK next to gifos.key),\n' +
-    'save it as ~/.gifos-signing-key.json (mode 600), or set GIFOS_SIGN_KEY.\n' +
-    'The private key does not go in the repo and does not go in GitHub Secrets.',
-    2
-  );
+  die('GIFOS_SIGN_KEY is not a readable file.', 2);
 }
 
 const jwk = JSON.parse(fs.readFileSync(KEY_PATH, 'utf8'));
