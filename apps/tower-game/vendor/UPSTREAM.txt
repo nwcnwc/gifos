@@ -1,0 +1,27 @@
+vendor/* is GENERATED. Do not edit it; run node apps/tower-game/vendor.mjs.
+
+upstream: https://github.com/iamkun/tower_game.git
+commit:   c6fa84afe179b661fa71cf7cc8788d0c47ca2875
+date:     2025-08-29
+license:  MIT (COPYING.txt)
+
+Classic script copied from dist/main.js (webpack IIFE of src/ + cooljs) with
+one patch: pathGenerator('./assets/'+name) reads window.TOWER_ASSETS[name]
+so Image/Audio srcs are data URLs inside a srcdoc iframe.
+
+NOT copied:
+  assets/main-loading.gif          — CSS bar instead; the GIF is 279 KB of splash
+  assets/*.ogg                     — cooljs loads the mp3s; ogg is a second copy
+  assets/wenxue.{eot,ttf,svg}      — woff is enough
+  assets/main-modal-invite-b.png   — Invite is OS chrome, not a WeChat overlay
+  assets/main-share-icon.png
+  assets/main-index-logo.png
+  assets/favicon.png
+  assets/zepto-1.1.6.min.js        — chrome is vanilla
+
+sha256:
+  main.js  10b085a97177df83e3eb31158e310ef1c3966613638de4907fbdf9cff5efccb8
+  COPYING.txt  689dab40fdc5423fb221d2ad9283815a51d097898ebf584edfcba55be9630f94
+
+The MIT notice travels INSIDE the GIF as COPYING.txt as well as here.
+cooljs (iamkun/cooljs) is bundled inside dist/main.js by upstream.
