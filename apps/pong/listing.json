@@ -1,0 +1,32 @@
+{
+  "tagline": "Classic Pong. You on the left, a friend on the right.",
+  "description": "A white ball, two paddles, a black court. On your own you play a computer opponent that gets sharper when it is behind and sloppier when it is winning. Send the invite and a friend takes the other paddle, on their phone or their computer — there is no game server, no account, and no lobby. The room is the link.\n\nOn a phone, drag your half of the screen, or hold the on-screen arrows. On a keyboard, Q and A move the left paddle, P and L the right. First to nine.\n\nAn unofficial port of Jake Gordon's JavaScript Pong, MIT-licensed. This copy adds a friend on a second device, and touch.",
+  "author": {
+    "name": "Jake Gordon",
+    "url": "https://github.com/jakesgordon/javascript-pong"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JavaScript Pong",
+    "url": "https://github.com/jakesgordon/javascript-pong",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "pong",
+    "arcade",
+    "classic",
+    "multiplayer",
+    "table-tennis"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pong",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

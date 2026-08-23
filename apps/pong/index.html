@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Pong</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="court">
+    <canvas id="game">Sorry, this game needs a canvas.</canvas>
+    <div id="hud">
+      <div id="leftName">YOU</div>
+      <div id="rightName">CPU</div>
+      <button id="soundBtn" type="button" aria-label="Sound">♪</button>
+    </div>
+    <div id="pads" hidden>
+      <div class="col" id="padL">
+        <button type="button" data-side="L" data-dir="up" aria-label="Left paddle up">▲</button>
+        <button type="button" data-side="L" data-dir="down" aria-label="Left paddle down">▼</button>
+      </div>
+      <div class="col" id="padR">
+        <button type="button" data-side="R" data-dir="up" aria-label="Right paddle up">▲</button>
+        <button type="button" data-side="R" data-dir="down" aria-label="Right paddle down">▼</button>
+      </div>
+    </div>
+    <div id="hint">Tap to play · Q/A left · P/L right</div>
+  </div>
+</div>
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="vendor/game.js"></script>
+<script src="vendor/pong.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
