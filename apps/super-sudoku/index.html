@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Super Sudoku</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Super Sudoku</h1>
+      <div class="meta">
+        <label class="sr-only" for="diff">Difficulty</label>
+        <select id="diff" aria-label="Difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
+          <option value="hard">Hard</option>
+          <option value="expert">Expert</option>
+          <option value="evil">Evil</option>
+        </select>
+        <span id="puz">#1</span>
+        <button type="button" id="timer" class="timer" aria-label="Pause or continue">0:00</button>
+      </div>
+    </header>
+
+    <div id="race" hidden>
+      <div class="race-hd">Race</div>
+      <div id="race-rows"></div>
+      <div id="race-note">Same puzzle. First to finish wins.</div>
+      <div class="race-actions">
+        <button type="button" id="againBtn" hidden>Play again</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <div id="board" role="grid" aria-label="Sudoku"></div>
+      <div id="overlay" hidden>
+        <button type="button" id="continueBtn" class="play-btn" aria-label="Continue">▶</button>
+      </div>
+      <div id="won" hidden>
+        <p id="won-msg">You finished.</p>
+        <p id="won-time"></p>
+        <button type="button" id="won-next">Next puzzle</button>
+      </div>
+    </div>
+
+    <div id="controls">
+      <button type="button" id="undo">Undo</button>
+      <button type="button" id="erase">Erase</button>
+      <button type="button" id="notes" aria-pressed="false">Notes <small id="notes-st">OFF</small></button>
+      <button type="button" id="hint">Hint</button>
+    </div>
+    <div id="pad" aria-label="Numbers"></div>
+
+    <div id="bar">
+      <button type="button" id="new">New game</button>
+      <button type="button" id="settingsBtn">Settings</button>
+    </div>
+
+    <p id="invite-hint" hidden><b>Invite</b> (top bar) to race a friend on the same puzzle. First to finish wins.</p>
+    <p class="credit">Unofficial port of Super Sudoku by TN1ck. Tap a square, then a number.</p>
+  </div>
+
+  <div id="settings" hidden>
+    <div class="sheet">
+      <h2>Settings</h2>
+      <label><input type="checkbox" id="opt-hints"> Show auto notes</label>
+      <label><input type="checkbox" id="opt-wrong"> Highlight wrong entries</label>
+      <label><input type="checkbox" id="opt-conflicts" checked> Highlight conflicts</label>
+      <label><input type="checkbox" id="opt-occ" checked> Show how many of each number</label>
+      <label><input type="checkbox" id="opt-dark"> Dark mode</label>
+      <h3>Keys</h3>
+      <ul>
+        <li>Arrows move. 1–9 fill. Backspace erases.</li>
+        <li>N notes. H hint. Escape pauses.</li>
+        <li>Ctrl/⌘ Z undo, Y redo.</li>
+      </ul>
+      <button type="button" id="settingsClose">Done</button>
+    </div>
+  </div>
+
+  <script src="puzzles.js"></script>
+  <script src="game.js"></script>
+  <script src="mp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

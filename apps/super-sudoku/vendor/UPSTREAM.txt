@@ -1,0 +1,5 @@
+TN1ck/super-sudoku
+https://github.com/TN1ck/super-sudoku
+commit 165dcdba85f01624faf2acfd1524fdd8ac8bef63
+Puzzles: sudokus/{easy,medium,hard,expert,evil}.txt
+MIT License, Tom Nick, 2023

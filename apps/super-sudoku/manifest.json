@@ -1,0 +1,21 @@
+{
+  "gifos": "1.0",
+  "appId": "super-sudoku",
+  "name": "Super Sudoku",
+  "shortName": "Sudoku",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A full sudoku. Play alone, or race a friend on the same puzzle.",
+  "entry": "index.html",
+  "accent": [13, 148, 136],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "prefs": { "visibility": "private" },
+    "players": { "visibility": "read-write" },
+    "race": { "visibility": "read-write" }
+  }
+}
