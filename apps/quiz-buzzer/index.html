@@ -7,26 +7,41 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
+<header id="top">
   <div class="brand"><span class="logo" aria-hidden="true"></span> Quiz Buzzer</div>
   <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
 </header>
 
 <main>
   <section class="card setup" id="home">
-    <h2>Phones are buzzers</h2>
-    <p class="lede">A question on the big screen. Everyone else taps one of four answers. Fastest correct scores. No account, no quiz company — the pack is in the file.</p>
+    <div class="hero-pads" aria-hidden="true">
+      <span class="mini c0">▲</span><span class="mini c1">◆</span>
+      <span class="mini c2">●</span><span class="mini c3">■</span>
+    </div>
+    <h2>Phones are the buzzers</h2>
+    <p class="lede">No account. No class code. One invite is the room — and the questions live in this file, so it still works on a plane.</p>
+    <p class="stats" id="homeStats" hidden></p>
     <button class="primary" id="soloBtn" type="button">Drill the pack</button>
-    <button class="ghost wide" id="friendBtn" type="button">👥 Play with friends</button>
-    <p class="lvlnote" id="homeNote">Play with friends: send Invite from the GifOS menu. The people who open the link are the room. Put the host device where everyone can see it.</p>
+    <button class="ghost wide" id="mineBtn" type="button" hidden>My questions</button>
+    <button class="ghost wide" id="friendBtn" type="button">Play with friends</button>
+    <button class="ghost wide" id="homeCustom" type="button">Type a question</button>
+    <p class="lvlnote" id="homeNote">Play with friends: press Invite in the GifOS menu. The people who open the link are the room. Put the host device where everyone can see it.</p>
   </section>
 
   <section class="game" id="lobby" hidden>
-    <div class="vhead"><h2>The room</h2><button class="ghost" id="lobbyLeave" type="button">← Leave</button></div>
+    <div class="vhead"><h2>The room</h2><button class="ghost" id="lobbyLeave" type="button">Leave</button></div>
     <p class="statusline" id="lobbyStatus">Waiting for friends… press Invite in the GifOS menu to send the link.</p>
     <ul class="people" id="lobbyList"></ul>
     <div id="hostSetup">
       <p class="lvlnote">You host. Put this screen where people can see the question.</p>
+      <p class="field-label">Questions this round</p>
+      <div class="seg" id="lenSeg" role="group" aria-label="Questions">
+        <button type="button" data-len="5">5</button>
+        <button type="button" data-len="10" class="on">10</button>
+        <button type="button" data-len="20">20</button>
+        <button type="button" data-len="0">All 40</button>
+      </div>
+      <p class="field-label">Seconds to buzz</p>
       <div class="seg" id="secSeg" role="group" aria-label="Seconds">
         <button type="button" data-sec="10">10s</button>
         <button type="button" data-sec="15" class="on">15s</button>
@@ -38,35 +53,45 @@
   </section>
 
   <section class="game" id="custom" hidden>
-    <div class="vhead"><h2>This round</h2><button class="ghost" id="customBack" type="button">← Back</button></div>
-    <p class="lvlnote">Lives in this match only — not a library.</p>
+    <div class="vhead"><h2>This round</h2><button class="ghost" id="customBack" type="button">Back</button></div>
+    <p class="lvlnote">Type four answers, then tap the colour that is right. Kept in this file if you want — not a library in the sky.</p>
     <label class="field">Question
       <textarea id="cq" rows="3" maxlength="160" placeholder="What is the capital of…"></textarea>
     </label>
-    <label class="field">A <input id="ca0" maxlength="48" type="text"></label>
-    <label class="field">B <input id="ca1" maxlength="48" type="text"></label>
-    <label class="field">C <input id="ca2" maxlength="48" type="text"></label>
-    <label class="field">D <input id="ca3" maxlength="48" type="text"></label>
-    <p class="lvlnote">Which is correct?</p>
-    <div class="seg" id="cansSeg" role="group" aria-label="Correct answer">
-      <button type="button" data-a="0" class="on">A</button>
-      <button type="button" data-a="1">B</button>
-      <button type="button" data-a="2">C</button>
-      <button type="button" data-a="3">D</button>
+    <label class="field c0">▲ <input id="ca0" maxlength="48" type="text" placeholder="Answer A"></label>
+    <label class="field c1">◆ <input id="ca1" maxlength="48" type="text" placeholder="Answer B"></label>
+    <label class="field c2">● <input id="ca2" maxlength="48" type="text" placeholder="Answer C"></label>
+    <label class="field c3">■ <input id="ca3" maxlength="48" type="text" placeholder="Answer D"></label>
+    <p class="field-label">Tap which is correct</p>
+    <div class="seg colors" id="cansSeg" role="group" aria-label="Correct answer">
+      <button type="button" class="c0 on" data-a="0">▲ A</button>
+      <button type="button" class="c1" data-a="1">◆ B</button>
+      <button type="button" class="c2" data-a="2">● C</button>
+      <button type="button" class="c3" data-a="3">■ D</button>
     </div>
+    <label class="check"><input id="cqSave" type="checkbox" checked> Keep in this file</label>
+    <p class="statusline warn" id="customErr" hidden></p>
     <button class="primary" id="customStart" type="button">Start this question</button>
   </section>
 
   <section class="play" id="play" hidden>
-    <div class="vhead">
-      <div>
+    <div class="stage-top">
+      <div class="stage-meta">
         <div class="cat" id="catChip">Science</div>
-        <div class="clock" id="clock">15</div>
+        <div class="qmeta" id="qMeta"></div>
       </div>
-      <button class="ghost" id="playLeave" type="button">← Leave</button>
+      <div class="clockwrap" id="clockWrap" style="--t:1"><span class="clock" id="clock">15</span></div>
+      <button class="ghost tiny" id="playLeave" type="button">Leave</button>
     </div>
     <p class="prompt" id="prompt"></p>
-    <div class="pads" id="pads"></div>
+    <div class="play-grid">
+      <div class="pads" id="pads"></div>
+      <aside class="liveboard" id="liveBoard">
+        <h3>Board</h3>
+        <ol class="board live" id="liveList"></ol>
+        <p class="livehint" id="liveHint"></p>
+      </aside>
+    </div>
     <p class="statusline" id="playStatus"></p>
     <ul class="buzzed" id="buzzed"></ul>
     <div class="hostbar" id="hostBar" hidden>
@@ -77,8 +102,8 @@
   </section>
 
   <section class="game" id="board" hidden>
-    <div class="vhead"><h2>End of round</h2><button class="ghost" id="boardLeave" type="button">← Leave</button></div>
-    <ol class="board" id="boardList"></ol>
+    <div class="vhead"><h2>End of round</h2><button class="ghost" id="boardLeave" type="button">Leave</button></div>
+    <ol class="board podium" id="boardList"></ol>
     <p class="statusline" id="boardStatus"></p>
     <button class="primary" id="againBtn" type="button">New round</button>
   </section>

@@ -31,15 +31,57 @@
     ['home', 'lobby', 'custom', 'play', 'board'].forEach(function (k) {
       $(k).hidden = k !== id;
     });
+    document.body.classList.toggle('play-on', id === 'play');
   }
   function setRoleClass(role) {
     document.body.classList.remove('host', 'buzzer', 'solo');
     if (role) document.body.classList.add(role);
   }
 
+  // ---- sound + haptic (first tap unlocks the audio graph) ----
+  var AC = null, lastTickSec = -1;
+  function unlockAudio() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      AC = AC || new Ctx();
+      if (AC.state === 'suspended' && AC.resume) AC.resume();
+    } catch (e) {}
+  }
+  function tone(freq, dur, type, vol) {
+    if (!AC) return;
+    try {
+      var o = AC.createOscillator();
+      var g = AC.createGain();
+      o.type = type || 'square';
+      o.frequency.value = freq;
+      g.gain.value = vol == null ? 0.07 : vol;
+      o.connect(g); g.connect(AC.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.0008, AC.currentTime + dur);
+      o.stop(AC.currentTime + dur + 0.02);
+    } catch (e) {}
+  }
+  function sfx(kind) {
+    if (kind === 'lock') {
+      tone(880, 0.07, 'square', 0.08);
+      tone(1320, 0.09, 'square', 0.05);
+      if (navigator.vibrate) try { navigator.vibrate(18); } catch (e) {}
+    } else if (kind === 'ok') {
+      tone(523, 0.1, 'triangle', 0.08);
+      setTimeout(function () { tone(784, 0.16, 'triangle', 0.08); }, 90);
+    } else if (kind === 'no') {
+      tone(160, 0.18, 'sawtooth', 0.06);
+    } else if (kind === 'tick') {
+      tone(920, 0.04, 'square', 0.05);
+    }
+  }
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+
   // ---- solo (host + player on this device) ----
   var solo = null;
   var progress = { asked: 0, correct: 0, streak: 0, best: 0, seen: {} };
+  var customs = [];
 
   function saveProgress() {
     if (!prefsDb) return;
@@ -52,6 +94,10 @@
       seen: progress.seen,
       at: nowMs()
     }).catch(function () {});
+  }
+  function saveCustoms() {
+    if (!prefsDb) return;
+    prefsDb.put({ id: 'customs', items: customs, at: nowMs() }).catch(function () {});
   }
   function saveSolo() {
     if (!prefsDb || !solo) return;
@@ -66,17 +112,26 @@
       deadline: solo.deadline,
       choice: solo.choice,
       buzzAt: solo.buzzAt,
-      seconds: solo.seconds
+      seconds: solo.seconds,
+      deck: solo.deck || 'pack'
     }).catch(function () {});
   }
 
-  function startSolo(resume) {
+  function deckOf(kind) {
+    if (kind === 'mine') return customs.slice();
+    return QB.PACK.slice();
+  }
+
+  function startSolo(resume, kind) {
     mp.on = false;
     if (!resume) {
+      var deck = deckOf(kind || 'pack');
+      if (!deck.length) return;
       solo = {
-        order: QB.shuffledOrder(QB.PACK.length, nowMs()),
+        order: QB.shuffledOrder(deck.length, nowMs()),
         pos: 0, score: 0, phase: 'live', q: null,
-        startedAt: 0, deadline: 0, choice: null, buzzAt: 0, seconds: 12
+        startedAt: 0, deadline: 0, choice: null, buzzAt: 0, seconds: 12,
+        deck: kind || 'pack', cards: deck
       };
     }
     dealSolo();
@@ -87,6 +142,7 @@
   }
   function dealSolo() {
     if (!solo) return;
+    var cards = solo.cards || deckOf(solo.deck);
     if (solo.pos >= solo.order.length) {
       solo.phase = 'board';
       solo.q = null;
@@ -97,18 +153,20 @@
       setChip('win', 'Round over');
       return;
     }
-    solo.q = QB.PACK[solo.order[solo.pos]];
+    solo.q = cards[solo.order[solo.pos]];
     solo.phase = 'live';
     solo.choice = null;
     solo.buzzAt = 0;
     solo.startedAt = nowMs();
     solo.deadline = solo.startedAt + solo.seconds * 1000;
+    lastTickSec = -1;
     saveSolo();
   }
   function soloBuzz(choice) {
     if (!solo || solo.phase !== 'live' || solo.choice != null) return;
     solo.choice = choice;
     solo.buzzAt = nowMs();
+    sfx('lock');
     soloReveal();
   }
   function soloReveal() {
@@ -125,17 +183,20 @@
     solo.winner = scored.winner;
     solo.results = scored.results;
     progress.asked++;
-    progress.seen[solo.q.id] = 1;
+    if (solo.q.id) progress.seen[solo.q.id] = 1;
     if (scored.winner) {
       solo.score++;
       progress.correct++;
       progress.streak++;
       if (progress.streak > progress.best) progress.best = progress.streak;
+      sfx('ok');
     } else {
       progress.streak = 0;
+      sfx('no');
     }
     saveProgress();
     saveSolo();
+    renderHome();
     renderPlay();
   }
   function soloNext() {
@@ -148,14 +209,44 @@
       renderPlay();
     }
   }
+  function startSoloCustom(q) {
+    mp.on = false;
+    solo = {
+      order: [0], pos: 0, score: 0, phase: 'live', q: null,
+      startedAt: 0, deadline: 0, choice: null, buzzAt: 0, seconds: 15,
+      deck: 'custom', cards: [q]
+    };
+    dealSolo();
+    show('play');
+    setRoleClass('solo');
+    setChip('live', 'Solo');
+    renderPlay();
+  }
 
-  $('soloBtn').onclick = function () { startSolo(false); };
+  $('soloBtn').onclick = function () { startSolo(false, 'pack'); };
+  $('mineBtn').onclick = function () { startSolo(false, 'mine'); };
+  $('homeCustom').onclick = function () {
+    mp.on = false;
+    show('custom');
+    setRoleClass('solo');
+    $('customErr').hidden = true;
+  };
+
+  function renderHome() {
+    var el = $('homeStats');
+    if (progress.asked) {
+      el.hidden = false;
+      el.textContent = progress.correct + ' correct of ' + progress.asked +
+        (progress.best ? ' · best streak ' + progress.best : '');
+    } else el.hidden = true;
+    $('mineBtn').hidden = !customs.length;
+  }
 
   // ---- multiplayer ----
   var mp = {
     on: false, id: null, name: 'You', row: null,
     people: [], hb: 0, sub: false, tick: 0,
-    choice: null, buzzAt: 0, round: 0, seconds: 15, correctA: 0
+    choice: null, buzzAt: 0, round: 0, seconds: 15, correctA: 0, length: 10
   };
   var match = null;
   var _matchItems = [];
@@ -251,15 +342,16 @@
     show('home');
     setRoleClass('');
     setChip('', 'Ready');
+    renderHome();
   }
   $('lobbyLeave').onclick = mpLeave;
   $('playLeave').onclick = function () {
     if (mp.on) mpLeave();
-    else { solo = null; show('home'); setRoleClass(''); setChip('', 'Ready'); }
+    else { solo = null; show('home'); setRoleClass(''); setChip('', 'Ready'); renderHome(); }
   };
   $('boardLeave').onclick = function () {
     if (mp.on) mpLeave();
-    else { solo = null; show('home'); setRoleClass(''); setChip('', 'Ready'); }
+    else { solo = null; show('home'); setRoleClass(''); setChip('', 'Ready'); renderHome(); }
   };
 
   $('secSeg').addEventListener('click', function (e) {
@@ -269,11 +361,19 @@
     Array.prototype.forEach.call(this.children, function (c) { c.classList.remove('on'); });
     b.classList.add('on');
   });
+  $('lenSeg').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button') : null;
+    if (!b) return;
+    mp.length = parseInt(b.getAttribute('data-len'), 10);
+    if (isNaN(mp.length)) mp.length = 10;
+    Array.prototype.forEach.call(this.children, function (c) { c.classList.remove('on'); });
+    b.classList.add('on');
+  });
   $('cansSeg').addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('button') : null;
     if (!b) return;
     mp.correctA = parseInt(b.getAttribute('data-a'), 10) || 0;
-    Array.prototype.forEach.call(this.children, function (c) { c.classList.remove('on'); });
+    Array.prototype.forEach.call(this.querySelectorAll('[data-a]'), function (c) { c.classList.remove('on'); });
     b.classList.add('on');
   });
 
@@ -297,16 +397,22 @@
     if (!mp.on || !isHost()) return;
     var people = mp.people;
     if (people.length < 2) return;
-    var order = (match && match.packOrder && match.packOrder.length)
-      ? match.packOrder
-      : QB.shuffledOrder(QB.PACK.length, nowMs());
-    var pos = match && typeof match.packPos === 'number' ? match.packPos : 0;
+    var fromPack = qid && QB.byId(qid);
+    var order = [];
+    var pos = 0;
+    if (fromPack) {
+      order = (match && match.packOrder && match.packOrder.length)
+        ? match.packOrder
+        : trimOrder(QB.shuffledOrder(QB.PACK.length, nowMs()), mp.length);
+      pos = match && typeof match.packPos === 'number' ? match.packPos : 0;
+    }
     var round = ((match && match.round) || 0) + 1;
     var t = nowMs();
     saveLiveKey(round, q.answer, qid);
     mp.round = round;
     mp.choice = null;
     mp.buzzAt = 0;
+    lastTickSec = -1;
     putMatch({
       id: 'm',
       host: mp.id,
@@ -331,11 +437,17 @@
     putMe({ round: round, choice: null, buzzAt: 0, role: 'host' });
   }
 
+  function trimOrder(order, len) {
+    if (!len) return order;
+    if (order.length > len) return order.slice(0, len);
+    return order;
+  }
+
   $('startPackBtn').onclick = function () {
     if (!isHost()) return;
     var order = (match && match.packOrder && match.packOrder.length)
       ? match.packOrder
-      : QB.shuffledOrder(QB.PACK.length, nowMs());
+      : trimOrder(QB.shuffledOrder(QB.PACK.length, nowMs()), mp.length);
     var pos = match && typeof match.packPos === 'number' ? match.packPos : 0;
     if (match && match.phase === 'lobby') pos = 0;
     if (pos >= order.length) {
@@ -356,10 +468,13 @@
   $('customBtn').onclick = function () {
     if (!isHost()) return;
     show('custom');
+    $('customErr').hidden = true;
   };
-  $('customBack').onclick = function () { show('lobby'); mpRefresh(); };
-  $('customStart').onclick = function () {
-    if (!isHost()) return;
+  $('customBack').onclick = function () {
+    if (mp.on) { show('lobby'); mpRefresh(); }
+    else { show('home'); setRoleClass(''); renderHome(); }
+  };
+  function readCustom() {
     var prompt = ($('cq').value || '').trim();
     var choices = [
       ($('ca0').value || '').trim(),
@@ -367,9 +482,54 @@
       ($('ca2').value || '').trim(),
       ($('ca3').value || '').trim()
     ];
-    if (!prompt || !choices[0] || !choices[1] || !choices[2] || !choices[3]) return;
-    hostStart({ q: prompt, choices: choices, cat: 'custom', answer: mp.correctA }, 'custom');
+    if (!prompt || !choices[0] || !choices[1] || !choices[2] || !choices[3]) {
+      $('customErr').hidden = false;
+      $('customErr').textContent = 'Need a question and four answers.';
+      return null;
+    }
+    var q = {
+      id: 'c' + nowMs(),
+      q: prompt,
+      choices: choices,
+      cat: 'custom',
+      answer: mp.correctA
+    };
+    if ($('cqSave').checked) {
+      customs.push(q);
+      saveCustoms();
+      renderHome();
+    }
+    return q;
+  }
+  $('customStart').onclick = function () {
+    var q = readCustom();
+    if (!q) return;
+    if (mp.on) {
+      if (!isHost()) return;
+      hostStart(q, q.id);
+    } else {
+      startSoloCustom(q);
+    }
   };
+
+  function guestsOf() {
+    var hostId = match && match.host, out = [], i, p;
+    for (i = 0; i < mp.people.length; i++) {
+      p = mp.people[i];
+      if (hostId && p.id === hostId) continue;
+      out.push(p);
+    }
+    return out;
+  }
+  function allGuestsIn() {
+    var g = guestsOf(), i, p;
+    if (!g.length || !match) return false;
+    for (i = 0; i < g.length; i++) {
+      p = g[i];
+      if ((p.round || 0) !== match.round || typeof p.choice !== 'number') return false;
+    }
+    return true;
+  }
 
   function hostReveal() {
     if (!mp.on || !isHost() || !match || match.phase !== 'live') return;
@@ -379,12 +539,16 @@
       var q = QB.byId(match.qid);
       if (q) answer = q.answer;
     }
+    var i, p;
+    if (answer == null && match.qid && String(match.qid).charAt(0) === 'c') {
+      for (i = 0; i < customs.length; i++) if (customs[i].id === match.qid) answer = customs[i].answer;
+    }
     if (answer == null) return;
     match.phase = 'revealed';
-    var buzzes = [], i, p;
-    for (i = 0; i < mp.people.length; i++) {
-      p = mp.people[i];
-      if (p.id === match.host) continue;
+    var buzzes = [];
+    var people = guestsOf();
+    for (i = 0; i < people.length; i++) {
+      p = people[i];
       if ((p.round || 0) !== match.round) continue;
       if (typeof p.choice !== 'number') continue;
       buzzes.push({ id: p.id, name: p.name || 'Player', choice: p.choice, at: p.buzzAt || 0 });
@@ -418,6 +582,7 @@
       packOrder: match.packOrder || [],
       packPos: match.packPos || 0
     });
+    sfx(scored.winner ? 'ok' : 'no');
   }
   function hostNext() {
     if (!isHost() || !match) return;
@@ -451,14 +616,14 @@
   };
   $('endBtn').onclick = hostBoard;
   $('againBtn').onclick = function () {
-    if (solo) { startSolo(false); return; }
+    if (solo) { startSolo(false, solo.deck === 'mine' ? 'mine' : 'pack'); return; }
     if (!isHost()) return;
     mp.choice = null;
     mp.buzzAt = 0;
     putMatch({
       id: 'm', host: mp.id, phase: 'lobby', round: 0,
       scores: {}, names: namesOf(mp.people),
-      packOrder: QB.shuffledOrder(QB.PACK.length, nowMs()), packPos: 0,
+      packOrder: trimOrder(QB.shuffledOrder(QB.PACK.length, nowMs()), mp.length), packPos: 0,
       seconds: mp.seconds
     });
     show('lobby');
@@ -473,6 +638,7 @@
     if (t < match.startedAt || t > match.deadline) return;
     mp.choice = choice;
     mp.buzzAt = t;
+    sfx('lock');
     putMe({ round: match.round, choice: choice, buzzAt: t, role: 'buzzer' });
     renderPlay();
   }
@@ -514,7 +680,7 @@
       mp.buzzAt = 0;
       putMe({ round: match.round, choice: null, buzzAt: 0 });
     }
-    if (match && match.phase === 'live' && isHost() && nowMs() >= match.deadline) {
+    if (match && match.phase === 'live' && isHost() && (nowMs() >= match.deadline || allGuestsIn())) {
       hostReveal();
       return;
     }
@@ -565,21 +731,41 @@
     if (!m || !m.deadline) return 0;
     return Math.max(0, Math.ceil((m.deadline - nowMs()) / 1000));
   }
+  function fracLeft() {
+    var m = solo || match;
+    if (!m || !m.deadline || !m.startedAt) return 0;
+    var tot = (m.seconds ? m.seconds * 1000 : (m.deadline - m.startedAt)) || 1;
+    return Math.max(0, Math.min(1, (m.deadline - nowMs()) / tot));
+  }
+  function paintClock(phase) {
+    var left = remaining();
+    var wrap = $('clockWrap');
+    $('clock').textContent = phase === 'live' ? String(left) : '—';
+    $('clock').className = 'clock' + (phase === 'live' && left <= 5 ? ' low' : '');
+    wrap.className = 'clockwrap' + (phase === 'live' && left <= 5 ? ' low' : '');
+    wrap.hidden = phase !== 'live';
+    wrap.style.setProperty('--t', phase === 'live' ? String(fracLeft()) : '0');
+    if (phase === 'live' && left <= 5 && left > 0 && left !== lastTickSec) {
+      lastTickSec = left;
+      sfx('tick');
+    }
+  }
 
   function paintPads(choices, opts) {
     opts = opts || {};
-    var html = '', i, cls, locked, mark;
+    var html = '', i, cls, locked, first;
     for (i = 0; i < 4; i++) {
       cls = 'pad c' + i;
       locked = opts.locked === i;
-      mark = '';
+      first = '';
       if (opts.revealed) {
-        if (i === opts.answer) cls += ' correct';
-        else if (locked) cls += ' miss';
-        else cls += ' miss';
+        if (i === opts.answer) {
+          cls += ' correct';
+          if (opts.first) first = '<span class="first">FIRST</span>';
+        } else cls += ' miss';
       } else if (locked) cls += ' locked';
       html += '<button type="button" class="' + cls + '" data-i="' + i + '"' +
-        (opts.disabled ? ' disabled' : '') + '>' +
+        (opts.disabled ? ' disabled' : '') + '>' + first +
         '<span class="glyph">' + QB.SHAPES[i] + '</span>' +
         '<span class="txt">' + esc(choices[i] || '') + '</span></button>';
     }
@@ -587,13 +773,67 @@
   }
 
   if ($('pads')) {
-    $('pads').addEventListener('click', function (e) {
+    var onPad = function (e) {
       var b = e.target.closest ? e.target.closest('[data-i]') : null;
       if (!b || b.disabled) return;
+      if (e.cancelable) e.preventDefault();
       var i = parseInt(b.getAttribute('data-i'), 10);
       if (solo) soloBuzz(i);
       else mpBuzz(i);
-    });
+    };
+    $('pads').addEventListener('pointerdown', onPad);
+    $('pads').addEventListener('click', onPad);
+  }
+  document.addEventListener('keydown', function (e) {
+    if (view !== 'play') return;
+    var map = { '1': 0, '2': 1, '3': 2, '4': 3, a: 0, b: 1, c: 2, d: 3 };
+    var k = e.key && e.key.toLowerCase();
+    if (map[k] == null) return;
+    if (solo) soloBuzz(map[k]);
+    else mpBuzz(map[k]);
+  });
+
+  function paintLiveBoard(live, phase) {
+    var box = $('liveBoard');
+    var list = $('liveList');
+    var hint = $('liveHint');
+    var html = '', i, r, rows;
+    if (solo) {
+      box.hidden = false;
+      html = '<li class="me' + (solo.score ? ' win' : '') + '"><span>You</span><span class="meta">' +
+        solo.score + '</span></li>';
+      list.innerHTML = html;
+      hint.textContent = progress.streak ? ('Streak ' + progress.streak) : 'Solo drill';
+      return;
+    }
+    box.hidden = false;
+    rows = ranked();
+    for (i = 0; i < rows.length; i++) {
+      r = rows[i];
+      html += '<li class="' + (i === 0 && r.score ? 'win' : '') +
+        (r.id === mp.id ? ' me' : '') + '"><span>' + esc(r.name) +
+        '</span><span class="meta">' + r.score + '</span></li>';
+    }
+    list.innerHTML = html || '<li><span>Nobody yet</span></li>';
+    if (phase === 'live') {
+      var n = 0, p, g = guestsOf();
+      for (i = 0; i < g.length; i++) {
+        p = g[i];
+        if (((p.round || 0) === live.round) && typeof p.choice === 'number') n++;
+      }
+      hint.textContent = n ? (n + ' in') : 'Waiting for buzzes';
+    } else if (live && live.winner) {
+      hint.textContent = (live.winner.id === mp.id ? 'You' : (live.winner.name || 'They')) + ' got it';
+    } else {
+      hint.textContent = 'Nobody scored';
+    }
+  }
+
+  function qIndex(live) {
+    if (solo) return { n: (solo.pos || 0) + 1, tot: (solo.order && solo.order.length) || 0 };
+    var tot = (live && live.packOrder && live.packOrder.length) || 0;
+    var n = live && typeof live.packPos === 'number' ? live.packPos + 1 : 0;
+    return { n: n, tot: tot };
   }
 
   function renderPlay() {
@@ -608,25 +848,29 @@
     var myChoice = solo ? solo.choice : mp.choice;
     $('catChip').textContent = QB.CAT_LABEL[cat] || cat || 'Quiz';
     $('prompt').textContent = prompt;
-    var left = remaining();
-    $('clock').textContent = phase === 'live' ? String(left) : '—';
-    $('clock').className = 'clock' + (phase === 'live' && left <= 5 ? ' low' : '');
+    var qi = qIndex(live);
+    $('qMeta').textContent = qi.tot ? (qi.n + ' of ' + qi.tot) : '';
+    paintClock(phase);
 
     var disabled = phase !== 'live' || host || myChoice != null;
     paintPads(choices, {
       locked: myChoice,
       revealed: phase === 'revealed',
       answer: answer,
+      first: !!(phase === 'revealed' && live.winner && mp.on),
       disabled: disabled || host
     });
 
     var status = $('playStatus');
     var buzzed = $('buzzed');
     buzzed.innerHTML = '';
+    buzzed.hidden = !(mp.on && host && phase === 'live');
     $('hostBar').hidden = !(mp.on && host);
     $('revealBtn').hidden = !(mp.on && host && phase === 'live');
     $('nextBtn').hidden = !(mp.on && host && phase === 'revealed');
     $('endBtn').hidden = !(mp.on && host && phase === 'revealed');
+
+    paintLiveBoard(live, phase);
 
     if (phase === 'live') {
       if (solo) {
@@ -634,10 +878,9 @@
         status.className = 'statusline';
         setChip('live', 'Solo');
       } else if (host) {
-        var n = 0, i, p;
-        for (i = 0; i < mp.people.length; i++) {
-          p = mp.people[i];
-          if (p.id === mp.id) continue;
+        var n = 0, i, p, g = guestsOf();
+        for (i = 0; i < g.length; i++) {
+          p = g[i];
           var in_ = ((p.round || 0) === live.round) && typeof p.choice === 'number';
           if (in_) n++;
           buzzed.innerHTML += '<li class="' + (in_ ? 'in' : '') + '"><span>' +
@@ -658,7 +901,8 @@
       var w = live.winner;
       var got = solo ? !!w : (w && w.id === mp.id);
       if (solo) {
-        status.textContent = w ? 'Correct — you scored.' : (myChoice == null ? 'Time. Nobody scored.' : 'Not this one.');
+        var right = (live.q && live.q.choices && live.q.choices[live.q.answer]) || '';
+        status.textContent = w ? 'Correct — you scored.' : (myChoice == null ? 'Time.' : ('The answer was ' + right + '.'));
         status.className = 'statusline ' + (w ? 'good' : 'warn');
         $('hostBar').hidden = false;
         $('revealBtn').hidden = true;
@@ -669,6 +913,9 @@
         var line = w
           ? ((w.id === mp.id ? 'You' : (w.name || 'They')) + ' got it first.')
           : 'Nobody got it.';
+        if (w && w.at && live.startedAt) {
+          line += ' ' + ((w.at - live.startedAt) / 1000).toFixed(1) + 's';
+        }
         status.textContent = line;
         status.className = 'statusline ' + (got ? 'good' : '');
         var res = live.results || [];
@@ -736,28 +983,71 @@
       return;
     }
     if (mp.on && match && match.phase === 'live') {
-      if (isHost() && nowMs() >= match.deadline) { hostReveal(); return; }
-      var left = remaining();
-      $('clock').textContent = String(left);
-      $('clock').className = 'clock' + (left <= 5 ? ' low' : '');
+      if (isHost() && (nowMs() >= match.deadline || allGuestsIn())) { hostReveal(); return; }
+      paintClock('live');
     } else if (solo && solo.phase === 'live') {
-      left = remaining();
-      $('clock').textContent = String(left);
-      $('clock').className = 'clock' + (left <= 5 ? ' low' : '');
+      paintClock('live');
     }
   }
 
   if (window.gifos && gifos.onBack) {
     gifos.onBack(function () {
-      if (view === 'custom') { show('lobby'); mpRefresh(); return true; }
+      if (view === 'custom') {
+        if (mp.on) { show('lobby'); mpRefresh(); }
+        else { show('home'); setRoleClass(''); renderHome(); }
+        return true;
+      }
       if (view === 'play' || view === 'board' || view === 'lobby') {
         if (mp.on) mpLeave();
-        else { solo = null; show('home'); setRoleClass(''); setChip('', 'Ready'); }
+        else { solo = null; show('home'); setRoleClass(''); setChip('', 'Ready'); renderHome(); }
         return true;
       }
       return false;
     });
   }
+
+  // Store-art path: real host render, sample room. shoot.js calls this.
+  QB.coverShot = function () {
+    solo = null;
+    mp.on = true;
+    mp.id = 'host';
+    mp.name = 'Host';
+    mp.round = 3;
+    mp.choice = null;
+    mp.seconds = 15;
+    mp.length = 10;
+    match = {
+      id: 'm', host: 'host', phase: 'revealed', round: 3,
+      prompt: 'Which planet has the Great Red Spot?',
+      choices: ['Jupiter', 'Saturn', 'Mars', 'Neptune'],
+      cat: 'science', qid: 's1',
+      startedAt: 1, deadline: 15001, seconds: 15,
+      revealedAt: 8200, answer: 0,
+      winner: { id: 'sam', name: 'Sam', at: 4200, choice: 0 },
+      results: [
+        { id: 'sam', name: 'Sam', choice: 0, at: 4200, legal: true, correct: true, score: 1 },
+        { id: 'maya', name: 'Maya', choice: 0, at: 5100, legal: true, correct: true, score: 0 },
+        { id: 'lee', name: 'Lee', choice: 1, at: 3900, legal: true, correct: false, score: 0 },
+        { id: 'jordan', name: 'Jordan', choice: 3, at: 8800, legal: false, late: true, correct: false, score: 0 }
+      ],
+      scores: { sam: 3, maya: 2, lee: 1, jordan: 0 },
+      names: { sam: 'Sam', maya: 'Maya', lee: 'Lee', jordan: 'Jordan' },
+      packOrder: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      packPos: 2
+    };
+    mp.people = [
+      { id: 'host', name: 'Host', at: nowMs(), role: 'host' },
+      { id: 'sam', name: 'Sam', at: nowMs(), round: 3, choice: 0, buzzAt: 4200 },
+      { id: 'maya', name: 'Maya', at: nowMs(), round: 3, choice: 0, buzzAt: 5100 },
+      { id: 'lee', name: 'Lee', at: nowMs(), round: 3, choice: 1, buzzAt: 3900 },
+      { id: 'jordan', name: 'Jordan', at: nowMs(), round: 3, choice: 3, buzzAt: 8800 }
+    ];
+    document.body.classList.add('cover');
+    show('play');
+    setRoleClass('host');
+    renderPlay();
+    setChip('win', 'LIVE');
+  };
 
   setChip('ready', 'Ready');
   if (!matchDb) {
@@ -777,7 +1067,12 @@
       if (by.live && typeof by.live.answer === 'number') {
         liveAnswer = by.live.answer;
       }
+      if (by.customs && by.customs.items && by.customs.items.length) {
+        customs = by.customs.items;
+      }
+      renderHome();
     }).catch(function () {});
   }
+  renderHome();
   mp.tick = setInterval(tick, TICK_MS);
 })();
