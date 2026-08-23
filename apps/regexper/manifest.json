@@ -1,0 +1,11 @@
+{
+  "gifos": "1.0",
+  "appId": "regexper",
+  "name": "Regexper",
+  "shortName": "Regexper",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Railroad diagrams of regular expressions, drawn in this tab. Unofficial port of Regexper. Nothing leaves this device.",
+  "entry": "index.html",
+  "accent": [186, 218, 85]
+}
