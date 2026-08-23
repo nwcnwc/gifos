@@ -6,8 +6,8 @@
   "shortName": "Underrun",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "A dark corridor, a handful of dead computers, and whoever walks in with you.",
-  "description": "The year is 2718. The facility went dark. Spiders in the corridors, turrets around the corners, and every computer that runs the place is offline. Walk the halls, shoot what comes for you, and reboot each machine. When the last one on a floor comes back, you hop to the next.\n\nThree floors. Health packs on the ground. The things in the dark do not wait.\n\nOn a phone it is a twin-stick: left thumb walks, right thumb aims and fires. On a computer it is WASD or the arrows, and the mouse to shoot.\n\nSend the invite and extra soldiers drop into the same corridors, firing on the same spiders. There is no lobby and no account. The room is the link.\n\nAn unofficial port of Underrun by phoboslab, the 2018 js13kGames entry. Music by Andreas Lösch. This copy adds the sticks a phone needs, and the extra soldiers.",
+  "tagline": "The corridor shooter, in a GIF. No server. The file is the save.",
+  "description": "This is Underrun in a GIF you keep. No jam site, no install, no game server. Close it and your best floor is still there, inside the file. Send the invite and extra soldiers drop into the same halls — the room is the link.\n\nThe year is 2718. The facility went dark. Spiders in the corridors, turrets around the corners, and every computer that runs the place is offline. Walk the halls, shoot what comes for you, and reboot each machine. When the last one on a floor comes back, you hop to the next.\n\nThree floors. Health packs on the ground. The things in the dark do not wait.\n\nOn a phone it is a twin-stick: left thumb walks, right thumb aims and fires. On a computer it is WASD or the arrows, and the mouse to shoot.\n\nAn unofficial port of Underrun by phoboslab, the 2018 js13kGames entry. Music by Andreas Lösch. This copy adds the sticks a phone needs, the extra soldiers, and a save that lives in the file.",
   "author": {
     "name": "phoboslab",
     "url": "https://github.com/phoboslab"
@@ -39,10 +39,10 @@
   "cover": "/apps/underrun/cover.jpg",
   "screenshots": [],
   "gif": "/apps/underrun/underrun.gif",
-  "bytes": 213095,
+  "bytes": 214001,
   "download": 0,
   "provides": null,
-  "sha256": "41ae83ac56b31b0398f906c6fff635192d11e22e21a6cc5f3b740761b3e8884d",
+  "sha256": "d07901d51ada710056fe4bd5243a5ff3b58e4100c463daa378e5bde3bac98b77",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

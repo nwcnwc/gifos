@@ -4,10 +4,10 @@
   "appId": "q1k3",
   "name": "Q1K3",
   "shortName": "Q1K3",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minBuild": 1314,
-  "tagline": "A shotgun, two torch-lit halls, and whoever you send the link to.",
-  "description": "You wake up in a brown stone hall with a shotgun in your hands and something waiting around the corner. Grunts, ogres, a hound that runs at you. Doors that need a key. A nailgun and a handful of grenades if you live long enough to pick them up. Two maps, then the end.\n\nOn a phone the left thumb walks and the right thumb looks; tap to shoot, jump with the button. On a computer it is WASD, the mouse, and a click — GifOS asks for the pointer first, and Esc always hands it back.\n\nSend the invite and extra people appear in the same halls, walking the same maps, shooting the same corners. There is no lobby and no account. The room is the link.\n\nAn unofficial port of Q1K3 by phoboslab, MIT-licensed. A tiny Quake-like from the 2021 js13k games. This copy adds the touch controls and the extra bodies over a meeting.",
+  "tagline": "A shotgun, two torch-lit halls, in a GIF. No server.",
+  "description": "This is Q1K3 in a GIF. There is no jam page, no install, and no server. Open the file and you are in the halls. Close it, come back — how the look feels, and which map you reached, live in the file.\n\nYou wake up in a brown stone hall with a shotgun in your hands and something waiting around the corner. Grunts, ogres, a hound that runs at you. Doors that need a key. A nailgun and a handful of grenades if you live long enough to pick them up. Two maps, then the end.\n\nOn a phone the left thumb walks and the right thumb looks; tap to shoot, jump with the button. On a computer it is WASD, the mouse, and a click.\n\nSend the invite and extra people appear in the same halls. The room is the link.\n\nAn unofficial port of Q1K3 by phoboslab. Music by Andy Lösch.",
   "author": {
     "name": "phoboslab",
     "url": "https://github.com/phoboslab"
@@ -22,9 +22,8 @@
     "fps",
     "shooter",
     "3d",
-    "js13k",
-    "multiplayer",
-    "offline"
+    "offline",
+    "multiplayer"
   ],
   "license": "MIT",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/q1k3",
@@ -42,10 +41,10 @@
   "cover": "/apps/q1k3/cover.jpg",
   "screenshots": [],
   "gif": "/apps/q1k3/q1k3.gif",
-  "bytes": 231901,
+  "bytes": 232895,
   "download": 0,
   "provides": null,
-  "sha256": "16fa72ad3bfd0bf4759917d4b95e45f71580af053e6f14864612a97be0e741b0",
+  "sha256": "4ff72c02c572b1bab0000a30f0ab8d2d3d0e060f4fccdbb45a8a982aa0052156",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

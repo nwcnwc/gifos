@@ -6,8 +6,8 @@
   "shortName": "Cubes",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Line up the cubes. A tiny bit of programming. Race a friend to the shape.",
-  "description": "You have a row of coloured cubes, and a picture of how they should look. Your job is to turn one into the other by lining up little functions — swap this colour for that, stack a cube on top, throw a colour away. Tap a function to add it. Tap it again to take it out. Drag to change the order. Watch the cubes change with each step.\n\nThere are six short chapters, from “turn yellow into red” up to a last few that think in numbers. Skip around if you like. Your progress stays on this device, inside the app.\n\nSend the invite from the GifOS bar and you both get the same puzzle. First to match the picture wins. You never see each other's functions — only who finished, and how many steps they used.\n\nAn unofficial port of Cube Composer by David Peter. The puzzles, the cubes and the functions are his.",
+  "tagline": "Race a friend from one link. Line up the cubes. Progress lives in the file.",
+  "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You both get the same picture. First to match it wins. No account, no install — the race is the invite, and your progress lives in the file.\n\nOn your own it is Cube Composer. You have a row of coloured cubes and a picture of how they should look. Tap a function to add it, tap it again to take it out, drag to change the order. Watch the cubes change with each step. Six short chapters; skip around if you like.\n\nYou never see each other's functions — only who finished, and how many steps they used.\n\nAn unofficial port of Cube Composer by David Peter. The puzzles, the cubes and the functions are his.",
   "author": {
     "name": "sharkdp",
     "url": "https://github.com/sharkdp/cube-composer"
@@ -39,10 +39,10 @@
   "cover": "/apps/cube-composer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/cube-composer/cube-composer.gif",
-  "bytes": 169563,
+  "bytes": 170074,
   "download": 0,
   "provides": null,
-  "sha256": "8c8ab34a4ccf2983930657d56b04d52bbf52fba0f445aed678aa0b4538694678",
+  "sha256": "0012b9bd293ace7db94c9b61cdf6530566d3716bcc0caaeb72874be4ea5bca05",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

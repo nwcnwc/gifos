@@ -6,8 +6,8 @@
   "shortName": "Pool",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Eight-ball on a green table. Pull the stick back, let go, take turns.",
-  "description": "A full-size 8-ball table: fifteen coloured balls, the black in the triangle, the white on its spot. Red against yellow. Pot your colours, then the black. A foul and you place the white yourself.\n\nOn your own you play a computer that tries a handful of shots and picks the best. Two of you can pass the same screen. Or press Invite and a friend takes the other turn on their own phone or computer — there is no game server, no account, and no lobby. The room is the link.\n\nOn a phone, put your finger down and pull back to aim; let go to shoot. On a computer, move the mouse to aim, W and S for power, click to shoot.\n\nAn unofficial port of Classic Pool Game by henshmi. This copy adds a friend on a second device, and touch.",
+  "tagline": "Two devices, one link, no server. Red against yellow, then the black.",
+  "description": "Press Invite and a friend takes the other turn on their own phone or computer. There is no game server, no account, and no lobby. The room is the link.\n\nFifteen coloured balls, the black in the triangle, the white on its spot. Pot your colours, then the black. A foul and you place the white yourself.\n\nOn your own you play a computer that tries a handful of shots and picks the best. Two of you can pass the same screen. On a phone, pull back with your finger to aim and let go to shoot — the table turns to fill the screen.\n\nAn unofficial port of Classic Pool Game by henshmi. This copy adds a friend on a second device, and touch.",
   "author": {
     "name": "henshmi",
     "url": "https://github.com/henshmi/Classic-Pool-Game"
@@ -38,10 +38,10 @@
   "cover": "/apps/pool/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pool/pool.gif",
-  "bytes": 396810,
+  "bytes": 400353,
   "download": 0,
   "provides": null,
-  "sha256": "1a737be394a8aeadda96c0c58c485b09c073c84e30b3909121e058af64e0f6ed",
+  "sha256": "a1dae2375af618761f15f6f62528f51d089e7a7db462c9e5c7c16443bc0ebe96",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
