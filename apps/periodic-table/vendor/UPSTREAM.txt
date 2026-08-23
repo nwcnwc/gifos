@@ -1,0 +1,27 @@
+The table, category filters, element cards, multiple-choice quiz and
+extra chemistry tables come from calebephrem's Periodic Table (MIT).
+The original is a static site (HTML + CSS + JS, Bootstrap Icons, localStorage).
+This copy rewrites that UI as classic scripts so the GifOS runtime can
+boot it (it drops type=module), vendors all 118 confirmed elements
+inside the GIF, and adds a same-seed quiz race from one invite.
+
+upstream: https://github.com/calebephrem/periodic-table
+commit:   4c7d07793ebe3ee2237a1c995ddd50e6d6b76bec
+date:     2025-10-29
+license:  MIT (COPYING-periodic-table.txt)
+
+Pinned:
+  LICENSE                 → vendor/COPYING-periodic-table.txt (rides in the GIF)
+  js/quiz.js              → question kinds (symbol / number / name)
+  css/index.css           → category colours, rewritten for a phone
+  index.html              → 118 confirmed elements (Z=1..118)
+
+NOT copied:
+  119 Ununennium and the SuperActinides row — not confirmed; we vendor 118
+  Wikipedia / image fetches — nothing leaves this tab
+  Bootstrap Icons + web fonts — inline SVG instead
+  localStorage             — gifos.db instead
+
+118 is Oganesson (Og). Ununennium (Uue) would be 119.
+
+The MIT notice travels INSIDE the GIF as COPYING-periodic-table.txt.
