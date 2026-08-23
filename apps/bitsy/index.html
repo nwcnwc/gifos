@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Bitsy</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">Bitsy</div>
+      <div id="which">the example</div>
+    </header>
+
+    <div class="actions">
+      <button type="button" id="shareBtn">Share the world</button>
+      <button type="button" id="editBtn">Make</button>
+      <button type="button" id="playBtn" hidden>Play</button>
+    </div>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both walk in the same world. Change it — they see it.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div id="chips" role="list"></div>
+
+    <div id="stage">
+      <canvas id="game" width="512" height="512"></canvas>
+    </div>
+
+    <div id="pad">
+      <button type="button" id="padUp" aria-label="up">▲</button>
+      <div class="pad-mid">
+        <button type="button" id="padLeft" aria-label="left">◀</button>
+        <button type="button" id="padTalk">talk</button>
+        <button type="button" id="padRight" aria-label="right">▶</button>
+      </div>
+      <button type="button" id="padDown" aria-label="down">▼</button>
+      <button type="button" id="restartBtn">Restart</button>
+    </div>
+
+    <div id="editor" hidden>
+      <p class="how-edit">Draw the floor. Draw a friend. Write what they say. Play when you want to walk.</p>
+      <label class="field">Room
+        <select id="roomPick"></select>
+      </label>
+      <canvas id="roomCanvas" width="256" height="256"></canvas>
+      <div id="drawTools"></div>
+      <div class="edit-actions">
+        <button type="button" id="addTile">New floor</button>
+        <button type="button" id="addSprite">New friend</button>
+        <button type="button" id="addItem">New thing</button>
+      </div>
+      <canvas id="paintCanvas" width="160" height="160"></canvas>
+      <label class="chk"><input type="checkbox" id="wallChk"> This drawing is a wall</label>
+      <label class="field">Title
+        <input id="worldTitle" type="text" maxlength="80" autocomplete="off">
+      </label>
+      <label class="field">What they say
+        <textarea id="dlgText" rows="3" maxlength="800"></textarea>
+      </label>
+      <div class="pals">
+        <label>Room <input type="color" id="pal0"></label>
+        <label>Floor <input type="color" id="pal1"></label>
+        <label>People <input type="color" id="pal2"></label>
+      </div>
+      <label class="field">The world as writing
+        <textarea id="worldData" rows="8" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      </label>
+      <button type="button" id="applyData">Use this writing</button>
+    </div>
+
+    <p id="how">Arrows or a swipe to walk. Talk to whoever is there. Make a world of your own, or open one of the ones already here.</p>
+    <p class="foot">Unofficial port of Bitsy (MIT). Playing alone is a tiny world that stays here. A shared room is the same writing — nobody writes on anybody else’s row.</p>
+  </div>
+
+  <!-- Order matters: the runtime inlines each <script src> where it stands. -->
+  <script src="vendor/bitsy-engine.js"></script>
+  <script src="vendor/font.js"></script>
+  <script src="vendor/example.js"></script>
+  <script src="worlds.js"></script>
+  <script src="editor.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>

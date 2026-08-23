@@ -1,0 +1,207 @@
+/* Dark blue room, pink chips, friend-mode chrome around the tiny world. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: #0a1630;
+  color: #f4efe8;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+#shell {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: calc(100vh - 20px);
+}
+#hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+#brand { font-size: 20px; font-weight: 700; letter-spacing: 0.02em; }
+#which {
+  margin-left: auto;
+  font-size: 13px;
+  color: #9eb4e8;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions button, #leaveBtn, #applyData, .edit-actions button, #restartBtn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border: 1px solid #274a8a;
+  background: #132246;
+  color: #f4efe8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#shareBtn { background: #0052cc; color: #f4efe8; border-color: #3d7adf; }
+#playBtn, #applyData { background: #e6437d; color: #fff; border-color: #c83268; }
+#editBtn { background: #1c2c54; }
+body.friend #shareBtn { display: none; }
+
+#friend-bar {
+  background: #132246;
+  border: 1px solid #274a8a;
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+#friend-hint b { color: #ebbf4d; }
+#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-scores {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+#friend-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid #1e3360;
+  font-variant-numeric: tabular-nums;
+}
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#friend-scores .me .name { color: #ebbf4d; }
+#friend-scores .meta { color: #9eb4e8; font-size: 13px; white-space: nowrap; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+#chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#chips button, #drawTools button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border: 1px solid #274a8a;
+  background: #132246;
+  color: #f4efe8;
+  border-radius: 999px;
+  cursor: pointer;
+}
+#chips button.on, #drawTools button.on {
+  background: #0052cc;
+  border-color: #3d7adf;
+}
+
+#stage {
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #070b18;
+  border: 1px dashed #274a8a;
+  border-radius: 4px;
+  overflow: hidden;
+}
+#stage[hidden], #pad[hidden], #editor[hidden] { display: none; }
+#game, #roomCanvas, #paintCanvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+  touch-action: none;
+}
+#game {
+  width: min(100%, 70vh);
+  height: auto;
+  max-height: min(62vh, 560px);
+  aspect-ratio: 1;
+  background: #000;
+}
+
+#pad {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.pad-mid { display: flex; gap: 8px; align-items: center; }
+#pad button {
+  font: inherit;
+  font-weight: 700;
+  min-width: 52px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #274a8a;
+  background: #132246;
+  color: #f4efe8;
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: none;
+}
+#padTalk { background: #e6437d; border-color: #c83268; color: #fff; }
+#restartBtn { font-size: 13px; min-height: 36px; background: transparent; }
+
+#editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.how-edit { margin: 0; font-size: 14px; color: #9eb4e8; }
+#roomCanvas, #paintCanvas {
+  width: min(100%, 420px);
+  margin: 0 auto;
+  background: #000;
+  border: 1px solid #274a8a;
+  border-radius: 4px;
+}
+#paintCanvas { width: min(100%, 220px); }
+#drawTools { display: flex; flex-wrap: wrap; gap: 6px; }
+.edit-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #9eb4e8;
+}
+.field input, .field select, .field textarea, #worldData {
+  font: inherit;
+  font-weight: 400;
+  color: #f4efe8;
+  background: #070b18;
+  border: 1px solid #274a8a;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+#worldData, #dlgText {
+  width: 100%;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.chk { font-size: 14px; color: #f4efe8; }
+.pals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+  color: #9eb4e8;
+}
+.pals input { vertical-align: middle; }
+
+#how, .foot {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #9eb4e8;
+}
+.foot { color: #6e82b0; }
+body.making #how { display: none; }
