@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Floppy Bird</title>
+<link href="vendor/reset.css" rel="stylesheet">
+<link href="vendor/main.css" rel="stylesheet">
+<link href="style.css" rel="stylesheet">
+</head>
+<body>
+<div id="gamecontainer">
+  <div id="gamescreen">
+    <div id="sky" class="animated">
+      <div id="flyarea">
+        <div id="ceiling" class="animated"></div>
+        <div id="player" class="bird animated"></div>
+        <div id="bigscore"></div>
+        <div id="splash"></div>
+        <div id="scoreboard">
+          <div id="medal"></div>
+          <div id="currentscore"></div>
+          <div id="highscore"></div>
+          <div id="replay"><img id="replayimg" alt="replay"></div>
+        </div>
+      </div>
+    </div>
+    <div id="land" class="animated"></div>
+  </div>
+  <div id="racebar" hidden></div>
+</div>
+<div id="footer">
+  <span>original game/concept/art by dong nguyen</span>
+  <span>recreated by nebez briefkani</span>
+</div>
+<div class="boundingbox" id="playerbox"></div>
+<div class="boundingbox" id="pipebox"></div>
+<script src="vendor/jquery.min.js"></script>
+<script src="vendor/jquery.transit.min.js"></script>
+<script src="vendor/buzz.min.js"></script>
+<script src="vendor/assets.js"></script>
+<script src="vendor/main.js"></script>
+<script src="mp.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "gifos": "1.0",
+  "appId": "floppy-bird",
+  "name": "Floppy Bird",
+  "shortName": "Floppy",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [78, 192, 202],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": {
+      "visibility": "private"
+    },
+    "room": {
+      "visibility": "read-write"
+    }
+  }
+}
