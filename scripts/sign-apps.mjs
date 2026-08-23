@@ -104,7 +104,7 @@ function claimOf(bytes) {
 }
 
 installDeflateRaw();
-globalThis.crypto = crypto.webcrypto;
+if (!globalThis.crypto) globalThis.crypto = crypto.webcrypto;
 const require = createRequire(import.meta.url);
 require(path.join(ROOT, 'site/js/gifos-gif.js'));
 require(path.join(ROOT, 'site/js/gifos-ed.js'));

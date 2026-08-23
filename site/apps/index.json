@@ -671,7 +671,7 @@
         78
       ],
       "cover": "/apps/fps-simple/cover.jpg",
-      "bytes": 1110137,
+      "bytes": 1110341,
       "download": 0,
       "provides": null,
       "signature": {
@@ -679,7 +679,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "d532479961c1984210276ee0fc7308b6178a0e78f52d3667228c6a2fcc0539cc"
+      "sha256": "198b1d6376db5e6fc0485a581fd7be4d774fe3352081acc65c81fbdb23c28ea3"
     },
     {
       "slug": "gomoku",
