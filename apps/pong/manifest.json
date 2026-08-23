@@ -3,7 +3,7 @@
   "appId": "pong",
   "name": "Pong",
   "shortName": "Pong",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "entry": "index.html",
   "accent": [90, 220, 110],

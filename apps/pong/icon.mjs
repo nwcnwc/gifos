@@ -1,7 +1,7 @@
 // Procedural Pong icon: a dark rounded card holding a CRT-green court, two
 // paddles and a ball that rallies across the frames. Pure Node, super-sample
 // → box-downsample → small palette; deterministic so builds reproduce.
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
+const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 16;
 
 const CARD = [10, 16, 12];
 const CARD_D = [6, 10, 8];
@@ -10,6 +10,7 @@ const PHOS_D = [36, 110, 52];
 const WHITE = [236, 255, 236];
 
 function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function clamp(n, a, b) { return n < a ? a : n > b ? b : n; }
 function buildPalette() {
   const pal = [[0, 0, 0]];
   for (const b of [CARD, CARD_D, PHOS, PHOS_D, WHITE]) {
@@ -46,14 +47,22 @@ function inRoundRect(x, y, x0, y0, w, h, r) {
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / FRAMES;
-  const court = { x: 18, y: 22, w: 92, h: 84 };
-  // ball rallies: left → right → left, with a little vertical bounce
+  const court = { x: 16, y: 20, w: 96, h: 88 };
+  // Half the loop is a rally to the right paddle, half back. The last frame
+  // of each half is the bounce: ball overlapping the paddle plus a bloom.
   const goingRight = t < 0.5;
   const u = goingRight ? t * 2 : (1 - (t - 0.5) * 2);
-  const bx = court.x + 10 + u * (court.w - 20);
-  const by = court.y + 22 + Math.sin(t * Math.PI * 2) * 22;
-  const ly = by - 10;
-  const ry = court.y + court.h - 28 - (by - (court.y + 22));
+  const padW = 8, padH = 30, ballR = 5.2;
+  const leftX = court.x + 5;
+  const rightX = court.x + court.w - 5 - padW;
+  const x0 = leftX + padW + ballR;
+  const x1 = rightX - ballR;
+  const bx = x0 + u * (x1 - x0);
+  const by = court.y + 30 + Math.sin(t * Math.PI * 2) * 22;
+  const impact = (f === 0 || f === FRAMES / 2 || f === FRAMES / 2 - 1 || f === FRAMES - 1);
+  const ly = clamp(by - padH / 2, court.y + 6, court.y + court.h - 6 - padH);
+  const ry = clamp((court.y + court.h - 6 - padH) - (ly - (court.y + 6)), court.y + 6, court.y + court.h - 6 - padH);
+  const bloom = impact ? 4.5 : 0;
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = (px + 0.5) / SS, y = (py + 0.5) / SS;
     const o = (py * RW + px) * 4;
@@ -61,19 +70,18 @@ function frameIndices(pal, f) {
     let col = mix(CARD, CARD_D, y / OUT);
     if (inRoundRect(x, y, court.x, court.y, court.w, court.h, 3)) {
       col = mix(CARD, PHOS_D, 0.18);
-      // walls
-      if (y < court.y + 4 || y > court.y + court.h - 4) col = PHOS;
-      // dashed centre line
+      if (y < court.y + 5 || y > court.y + court.h - 5) col = PHOS;
       const cx = court.x + court.w / 2;
-      if (Math.abs(x - cx) < 1.2) {
+      if (Math.abs(x - cx) < 1.4) {
         const dash = Math.floor((y - court.y) / 6);
         if (dash % 2 === 0) col = PHOS_D;
       }
-      // paddles
-      if (x > court.x + 4 && x < court.x + 10 && y > ly && y < ly + 22) col = WHITE;
-      if (x > court.x + court.w - 10 && x < court.x + court.w - 4 && y > ry && y < ry + 22) col = WHITE;
-      // ball
-      if (Math.abs(x - bx) < 2.4 && Math.abs(y - by) < 2.4) col = WHITE;
+      if (x >= leftX && x < leftX + padW && y >= ly && y < ly + padH) col = WHITE;
+      if (x >= rightX && x < rightX + padW && y >= ry && y < ry + padH) col = WHITE;
+      const dx = x - bx, dy = y - by;
+      if (dx * dx + dy * dy <= (ballR + bloom) * (ballR + bloom)) {
+        col = bloom && (dx * dx + dy * dy > ballR * ballR) ? mix(WHITE, PHOS, 0.35) : WHITE;
+      }
     }
     rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
   }
@@ -99,7 +107,7 @@ export function pongIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 7, transparentIndex: 0 };
 }
 
 // Store cover: a 1200×720 court, scores, two paddles and a ball. No canvas,
@@ -179,11 +187,19 @@ export function screenshotPng() {
   digit(4, W / 2 - 1.5 * ww - sw, 2 * ww, sw, sh);
   digit(2, W / 2 + 1.5 * ww, 2 * ww, sw, sh);
 
-  const pw = 18, ph = 110;
-  fill(0, 250, pw, 250 + ph, ink[0], ink[1], ink[2]);
-  fill(W - pw, 360, W, 360 + ph, ink[0], ink[1], ink[2]);
-  const br = 10;
-  fill(780 - br, 300 - br, 780 + br, 300 + br, ink[0], ink[1], ink[2]);
+  const pw = 28, ph = 160;
+  fill(0, 220, pw, 220 + ph, ink[0], ink[1], ink[2]);
+  fill(W - pw, 330, W, 330 + ph, ink[0], ink[1], ink[2]);
+  // Mid-rally: ball about to kiss the right paddle, with a short motion trail.
+  const br = 16;
+  const bx = W - pw - 52, by = 390;
+  for (let i = 4; i >= 1; i--) {
+    const s = br - i * 2;
+    const gx = bx - i * 36, gy = by - i * 14;
+    const fade = 80 + i * 18;
+    fill(gx - s, gy - s, gx + s, gy + s, fade, fade + 12, fade);
+  }
+  fill(bx - br, by - br, bx + br, by + br, ink[0], ink[1], ink[2]);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

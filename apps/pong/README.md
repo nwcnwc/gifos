@@ -10,9 +10,9 @@ to nine. This directory is the GifOS port: touch, two-device play, and the
 packing. Upstream has no networking and no mobile input.
 
 ```
-index.html          shell: the court, names, on-screen arrows
-style.css           black court, letterboxed 4:3
-boot.js             our entry: Web Audio, touch, the netplay system
+index.html          shell: names/sound off the court, on-screen arrows below it
+style.css           black court, letterboxed 4:3, chrome in the letterbox
+boot.js             our entry: Web Audio, touch, juice, the netplay system
 icon.mjs            procedural CRT-green icon and the 1200×720 cover
 vendor/game.js      UPSTREAM. Jake Gordon's runner. Never edit.
 vendor/pong.js      UPSTREAM. The court, paddles, ball, CPU. Never edit.
@@ -57,9 +57,11 @@ leave and the CPU takes it back.
 ## Touch
 
 Upstream is keys only (Q/A left, P/L right) and its own README says there is
-no mobile support. `boot.js` maps a drag on your half of the court onto
-paddle `y`, and on a coarse pointer it also shows hold-to-move arrows so a
-phone is playable without discovering the drag.
+no mobile support. A drag on the court sets paddle `y` and carries english
+from the swipe, the way a moving paddle does on keys. On a coarse pointer,
+hold-to-move arrows sit in the letterbox *below* the court — never on it —
+so a phone is playable without covering the rally. Wins against the computer
+live in `gifos.db`, so the file is the save.
 
 ## Honest limits
 
