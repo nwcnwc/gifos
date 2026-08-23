@@ -1,0 +1,13 @@
+BesoGo by Ye Wang (yewang)
+https://github.com/yewang/besogo
+Pinned commit: 4f03a3a04bc632c49ca9b494cbcad5c7cfb3f6b2 (gh-pages, 2025-06-20)
+License: MIT (see COPYING-besogo.txt)
+
+Vendored files (unmodified):
+  js/besogo.js js/editor.js js/gameRoot.js
+  js/boardDisplay.js js/svgUtil.js js/coord.js
+  css/besogo.css css/board-flat.css
+
+Realistic stone and board images from upstream are not vendored — they
+are Creative Commons, not MIT. This port uses BesoGo's SVG stones and
+the flat board fill.
