@@ -14,6 +14,8 @@
 
   var PRES_TTL = 9000, HB_MS = 3000, AUTO_MS = 5000;
   var view = 'home';
+  var lastStamp = null;
+  var lastCallShown = null;
   var cardDb = null, roomDb = null;
   try {
     if (window.gifos) {
@@ -31,6 +33,10 @@
     ['home', 'lobby', 'play'].forEach(function (k) {
       $(k).hidden = k !== id;
     });
+    document.body.classList.toggle('play-on', id === 'play');
+    if (id !== 'play') {
+      document.body.classList.remove('solo', 'caller', 'player', 'waiting', 'cover');
+    }
   }
   function patternName(p) {
     if (!p) return 'a line';
@@ -39,6 +45,15 @@
     if (p.kind === 'diag') return 'a diagonal';
     if (p.kind === 'corners') return 'the four corners';
     return 'a line';
+  }
+  function speakCall(n) {
+    if (!window.speechSynthesis) return;
+    try {
+      var u = new SpeechSynthesisUtterance(BG.letter(n) + ', ' + n);
+      u.rate = 0.92;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    } catch (e) {}
   }
 
   // ---- local (this device) ----
@@ -66,6 +81,8 @@
       bingo: null
     };
     mp.on = false;
+    lastStamp = null;
+    lastCallShown = null;
     stopAuto();
     openPlay();
   }
@@ -83,6 +100,7 @@
   }
 
   function doCall() {
+    var n = null;
     if (localPlay) {
       if (localPlay.ended) return;
       if (localPlay.called.length >= localPlay.bag.length) {
@@ -90,7 +108,9 @@
         renderPlay();
         return;
       }
-      localPlay.called = localPlay.called.concat([localPlay.bag[localPlay.called.length]]);
+      n = localPlay.bag[localPlay.called.length];
+      localPlay.called = localPlay.called.concat([n]);
+      speakCall(n);
       renderPlay();
       return;
     }
@@ -104,11 +124,17 @@
       putMe({ phase: 'ended' });
       return;
     }
-    called.push(b[called.length]);
+    n = b[called.length];
+    called.push(n);
+    speakCall(n);
     putMe({ called: called, phase: 'play' });
   }
 
   $('callBtn').onclick = function () { doCall(); };
+  $('callBall').onclick = function () {
+    if ($('callBtn').hidden || $('callBtn').disabled) return;
+    doCall();
+  };
   $('autoBtn').onclick = function () {
     if (localPlay) {
       if (localPlay.ended) return;
@@ -131,10 +157,14 @@
   };
 
   $('bingoCard').addEventListener('click', function (e) {
-    var td = e.target.closest ? e.target.closest('td') : null;
-    if (!td) return;
-    var c = parseInt(td.getAttribute('data-c'), 10);
-    var r = parseInt(td.getAttribute('data-r'), 10);
+    var el = e.target;
+    while (el && el !== this) {
+      if (el.getAttribute && el.getAttribute('data-c') != null) break;
+      el = el.parentNode;
+    }
+    if (!el || el === this) return;
+    var c = parseInt(el.getAttribute('data-c'), 10);
+    var r = parseInt(el.getAttribute('data-r'), 10);
     if (isNaN(c) || isNaN(r)) return;
     daub(c, r);
   });
@@ -167,14 +197,24 @@
     if (n === 0) return;
     if (!BG.inCall(currentCalled(), n)) return;
     if (localPlay) {
-      if (localPlay.marked[k]) return;
-      localPlay.marked[k] = true;
+      if (localPlay.marked[k]) {
+        delete localPlay.marked[k];
+        lastStamp = null;
+      } else {
+        localPlay.marked[k] = true;
+        lastStamp = k;
+      }
       renderPlay();
       return;
     }
     if (!mp.on) return;
-    if (mp.marked[k]) return;
-    mp.marked[k] = true;
+    if (mp.marked[k]) {
+      delete mp.marked[k];
+      lastStamp = null;
+    } else {
+      mp.marked[k] = true;
+      lastStamp = k;
+    }
     putCard();
     renderPlay();
   }
@@ -186,7 +226,7 @@
     var called = currentCalled();
     var win = BG.validClaim(grid, marked, called);
     if (!win) {
-      $('playStatus').textContent = 'Not yet — mark a full line first.';
+      $('playStatus').textContent = 'Not yet — daub a full line first.';
       $('playStatus').className = 'statusline warn';
       return;
     }
@@ -321,6 +361,7 @@
       mp.marked = emptyMarks();
       mp.auto = false;
       localPlay = null;
+      lastStamp = null;
       stopAuto();
       show('lobby');
       setChip('ready', 'A room');
@@ -363,6 +404,8 @@
     var seed = freshSeed();
     mp.marked = emptyMarks();
     mp.auto = false;
+    lastStamp = null;
+    lastCallShown = null;
     stopAuto();
     putCard();
     putMe({
@@ -387,6 +430,8 @@
     if (ad && (!mp.adopted || mp.adopted.round !== ad.round || mp.adopted.seed !== ad.seed)) {
       mp.marked = emptyMarks();
       mp.auto = false;
+      lastStamp = null;
+      lastCallShown = null;
       stopAuto();
       if (!mp.row || mp.row.round !== ad.round || mp.row.seed !== ad.seed) {
         putMe({
@@ -452,7 +497,24 @@
     renderPlay();
   }
 
-  var lastCallShown = null;
+  function renderFlashboard(called, last) {
+    var board = $('flashboard');
+    var on = {}, i, c, n, html = '', cls;
+    for (i = 0; i < called.length; i++) on[called[i] | 0] = 1;
+    for (c = 0; c < 5; c++) {
+      html += '<div class="fl-row"><span class="fl-l ' + BG.LETTERS[c].toLowerCase() + '">' +
+        BG.LETTERS[c] + '</span>';
+      for (n = BG.RANGES[c][0]; n <= BG.RANGES[c][1]; n++) {
+        cls = 'fl-n';
+        if (n === last) cls += ' last on';
+        else if (on[n]) cls += ' on';
+        html += '<span class="' + cls + '">' + n + '</span>';
+      }
+      html += '</div>';
+    }
+    board.innerHTML = html;
+  }
+
   function renderPlay() {
     var grid = currentCard();
     var called = currentCalled();
@@ -461,38 +523,48 @@
     var host = true;
     var winner = null;
     var last = called.length ? called[called.length - 1] : null;
+    var role = 'solo';
 
     if (localPlay) {
-      $('playLeave').textContent = '← Home';
-      $('playTitle').textContent = 'On this device';
+      $('playLeave').textContent = '←';
+      $('playTitle').textContent = 'You call · you daub';
       winner = localPlay.bingo;
       host = true;
+      role = 'solo';
     } else if (mp.on && mp.adopted) {
-      $('playLeave').textContent = '← Leave';
-      $('playTitle').textContent = 'Round ' + (mp.adopted.round || 1);
+      $('playLeave').textContent = '←';
       host = isHost(mp.people);
+      role = host ? 'caller' : 'player';
+      $('playTitle').textContent = host
+        ? ('You call · round ' + (mp.adopted.round || 1))
+        : ('The host calls · you daub');
       winner = verifiedWinner(mp.people, mp.adopted);
     } else {
       return;
     }
 
+    document.body.classList.toggle('solo', role === 'solo');
+    document.body.classList.toggle('caller', role === 'caller');
+    document.body.classList.toggle('player', role === 'player');
+    document.body.classList.toggle('waiting', !last && !ended);
+
     var ball = $('callBall');
     if (last) {
       $('callLetter').textContent = BG.letter(last);
       $('callNum').textContent = String(last);
-      ball.className = 'call-ball' + (last !== lastCallShown ? ' fresh' : '');
+      ball.className = 'call-ball ' + BG.letter(last).toLowerCase() + (last !== lastCallShown ? ' fresh' : '');
       lastCallShown = last;
       $('callHint').textContent = BG.callName(last) + ' · ' + called.length + ' of 75';
     } else {
-      $('callLetter').textContent = '·';
-      $('callNum').textContent = '—';
+      $('callLetter').textContent = '';
+      $('callNum').textContent = host ? 'CALL' : '…';
       ball.className = 'call-ball empty';
       lastCallShown = null;
-      $('callHint').textContent = host ? 'Tap Call to draw a number.' : 'Waiting for the host to call.';
+      $('callHint').textContent = host ? 'Tap the ball to draw.' : 'Waiting for the host.';
     }
 
-    var strip = '', i, n;
-    var from = Math.max(0, called.length - 12);
+    var strip = '', i, n, from;
+    from = Math.max(0, called.length - 8);
     for (i = from; i < called.length; i++) {
       n = called[i];
       strip += '<span class="' + (i === called.length - 1 ? 'last' : '') + '">' +
@@ -501,34 +573,45 @@
     $('calledStrip').innerHTML = strip;
 
     var html = '', c, r, cell, k, cls, label;
+    for (c = 0; c < 5; c++) {
+      html += '<div class="ch ' + BG.LETTERS[c].toLowerCase() + '">' + BG.LETTERS[c] + '</div>';
+    }
     for (r = 0; r < 5; r++) {
-      html += '<tr>';
       for (c = 0; c < 5; c++) {
         cell = grid[c][r];
         k = BG.key(c, r);
-        cls = '';
-        if (cell === 0) { cls = 'free daubed'; label = 'FREE'; }
+        cls = 'cell';
+        if (cell === 0) { cls += ' free daubed'; label = 'FREE'; }
         else {
           label = String(cell);
-          if (marked[k]) cls = 'daubed';
-          else if (BG.inCall(called, cell)) cls = 'hit';
+          if (marked[k]) {
+            cls += ' daubed';
+            if (lastStamp === k) cls += ' just';
+          } else if (BG.inCall(called, cell)) {
+            cls += ' hit';
+            if (cell === last) cls += ' fresh-hit';
+          }
         }
-        html += '<td class="' + cls + '" data-c="' + c + '" data-r="' + r + '">' + label + '</td>';
+        html += '<button type="button" class="' + cls + '" data-c="' + c + '" data-r="' + r + '"' +
+          (cell === 0 || ended ? ' disabled' : '') + '><span class="n">' + label + '</span></button>';
       }
-      html += '</tr>';
     }
-    $('cardBody').innerHTML = html;
+    $('bingoCard').innerHTML = html;
     $('bingoCard').className = 'bingo-card' + (winner ? ' won' : '');
+
+    renderFlashboard(called, last);
+    $('flashboard').hidden = false;
 
     var win = BG.validClaim(grid, marked, called);
     $('bingoBtn').disabled = ended || !win;
     $('callBtn').hidden = !host;
     $('callBtn').disabled = ended || called.length >= 75;
+    $('callBall').disabled = !host || ended || called.length >= 75;
     $('autoBtn').hidden = !host;
     $('autoBtn').disabled = ended;
     var autoOn = localPlay ? localPlay.auto : mp.auto;
-    $('autoBtn').className = 'ghost' + (autoOn ? ' on' : '');
-    $('autoBtn').textContent = autoOn ? 'Stop calling' : 'Keep calling';
+    $('autoBtn').className = 'ghost tiny auto' + (autoOn ? ' on' : '');
+    $('autoBtn').textContent = autoOn ? 'Stop' : 'Auto';
 
     var peopleHtml = '';
     if (mp.on && mp.people) {
@@ -569,12 +652,23 @@
       setChip('play', 'Bingo ready');
     } else {
       status.className = 'statusline';
-      status.textContent = host
-        ? (called.length ? 'Mark it if you have it, then call the next.' : 'You call. Everyone daubs.')
-        : 'The host calls. Mark the numbers on your card.';
+      status.textContent = last
+        ? (BG.inCall && grid ? hitLine(grid, last, marked) : '')
+        : (host ? 'You call. Everyone daubs.' : 'The host calls. Daub the numbers on your card.');
       rev.hidden = true;
       setChip('play', called.length ? BG.callName(last) : 'Calling');
     }
+  }
+
+  function hitLine(grid, last, marked) {
+    var c, r;
+    for (c = 0; c < 5; c++) for (r = 0; r < 5; r++) {
+      if (grid[c][r] === last) {
+        if (marked[BG.key(c, r)]) return BG.callName(last) + ' — daubed.';
+        return 'You have ' + BG.callName(last) + '. Daub it.';
+      }
+    }
+    return BG.callName(last) + ' — not on this card.';
   }
 
   if (window.gifos && gifos.onBack) {
@@ -593,6 +687,33 @@
       return false;
     });
   }
+
+  window.Bingo = {
+    coverShot: function () {
+      var seed = 'cover-shot';
+      var bag = BG.bag(seed);
+      var card = BG.card(seed, 'local');
+      var called = bag.slice(0, 18);
+      var marked = emptyMarks();
+      var hits = [], c, r, n, k;
+      for (c = 0; c < 5; c++) for (r = 0; r < 5; r++) {
+        n = card[c][r];
+        k = BG.key(c, r);
+        if (n && BG.inCall(called, n)) hits.push(k);
+      }
+      for (c = 2; c < hits.length; c++) marked[hits[c]] = true;
+      localPlay = {
+        seed: seed, bag: bag, card: card, called: called,
+        marked: marked, auto: false, ended: false, bingo: null
+      };
+      mp.on = false;
+      lastStamp = hits[hits.length - 1] || null;
+      lastCallShown = null;
+      stopAuto();
+      document.body.classList.add('cover');
+      openPlay();
+    }
+  };
 
   setChip('', 'Ready');
 })();

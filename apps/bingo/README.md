@@ -1,6 +1,6 @@
 # Bingo
 
-The host calls numbers. You have a card. A line is bingo.
+Call bingo over a meeting. One invite is the hall. No server.
 
 An unofficial port of **[bingo](https://github.com/mihailgaberov/bingo)** by
 mihailgaberov (MIT). Upstream is Bingo Bigul: login, a game server, a React
@@ -20,15 +20,17 @@ vendor/UPSTREAM.txt
 
 ## What you can play
 
-- **Play on this device** — one card, you call the numbers, you daub. A line,
-  a column, a diagonal, or the four corners is bingo.
+- **Play on this device** — you call, you daub. The card fills the phone.
+  A line, a column, a diagonal, or the four corners is bingo.
 - **Play with friends** — send the invite (top bar; that button is OS chrome).
-  The people who open it are the room. The host (lowest live id) calls. Each
-  person writes only their own row. Your card and your daubs stay on this
-  device. A bingo claim is checked against the card and the calls. Nobody
-  writes anybody else's row.
+  The people who open it are the room. The host calls (a ball and a
+  flashboard). Everyone else gets a phone-sized card. Each person writes
+  only their own row. Your card and your daubs stay on this device. A bingo
+  claim is checked against the card and the calls. Nobody writes anybody
+  else's row.
 
-Call out loud — in the room, or in a GifOS meeting around the app.
+Call out loud — in the room, or in a GifOS meeting around the app. The
+host can also let the device say the number.
 
 ## capabilities
 

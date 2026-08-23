@@ -1,7 +1,26 @@
-// Procedural icon: a cream bingo card, BINGO in colour, a red daub that
-// settles, a numbered ball that rolls in. Pure Node, super-sample →
-// box-downsample. Deterministic.
+// Procedural icon: a cream bingo card, a cell daubed, a numbered ball
+// (N 32) that lands. Pure Node, super-sample → box-downsample.
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
+
+const DIGITS = {
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111],
+  '3': [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110],
+  'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
+};
+function glyphHit(px, py, ox, oy, s, str, map) {
+  let cx = ox;
+  for (const ch of str) {
+    const g = map[ch];
+    if (!g) { cx += 6 * s; continue; }
+    const col = Math.floor((px - cx) / s);
+    const row = Math.floor((py - oy) / s);
+    if (col >= 0 && col < 5 && row >= 0 && row < 7 && (g[row] & (1 << (4 - col)))) return true;
+    cx += 6 * s;
+  }
+  return false;
+}
 
 const FELT = [16, 32, 24];
 const CARD = [244, 234, 212];
@@ -42,48 +61,53 @@ function inRoundRect(x, y, x0, y0, x1, y1, r) {
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / (FRAMES - 1);
-  const daub = Math.min(1, Math.max(0, (t - 0.25) / 0.5));
-  const ballX = 22 + t * 84;
-  const ballY = 22 + Math.sin(t * Math.PI) * 8;
+  const daub = Math.min(1, Math.max(0, (t - 0.18) / 0.45));
+  const ballIn = Math.min(1, Math.max(0, (t - 0.02) / 0.5));
+  const ballX = 94;
+  const ballY = 34;
+  const ballR = 26 * (0.4 + 0.6 * ballIn);
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
-    if (inRoundRect(x, y, 10, 10, 118, 118, 16)) {
+    if (inRoundRect(x, y, 6, 6, 122, 122, 18)) {
       a = 1;
       col = mix(FELT, [8, 20, 14], Math.max(0, Math.min(1, y / OUT)));
     }
-    if (inRoundRect(x, y, 22, 18, 106, 110, 8)) {
+    if (inRoundRect(x, y, 14, 12, 114, 116, 10)) {
       a = 1;
       col = mix(CARD, CARD_D, Math.max(0, Math.min(1, (x + y) / (OUT * 2))));
       const headers = [BLUE, RED, GREEN, GOLD, ORANGE];
-      if (y >= 24 && y <= 36) {
-        const colI = Math.min(4, Math.max(0, Math.floor((x - 26) / 16)));
-        if (x >= 26 && x <= 102) col = mix(headers[colI], CARD, 0.15);
+      if (y >= 18 && y <= 32) {
+        const colI = Math.min(4, Math.max(0, Math.floor((x - 18) / 19)));
+        if (x >= 18 && x <= 110) col = mix(headers[colI], CARD, 0.12);
       }
-      const gx0 = 26, gy0 = 40, cell = 14, gap = 2;
+      const gx0 = 18, gy0 = 36, cell = 17, gap = 2;
       for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
         const x0 = gx0 + c * (cell + gap), y0 = gy0 + r * (cell + gap);
         if (x >= x0 && x <= x0 + cell && y >= y0 && y <= y0 + cell) {
-          col = mix(CARD, [255, 253, 246], 0.4);
+          col = [255, 253, 246];
           const cx = x0 + cell / 2, cy = y0 + cell / 2;
           const free = c === 2 && r === 2;
           const marked = (c === 1 && r === 1) || (c === 3 && r === 2) || (c === 0 && r === 4);
+          const d = Math.hypot(x - cx, y - cy);
           if (free) {
-            const d = Math.hypot(x - cx, y - cy);
-            if (d < 5) col = mix(GOLD, CARD, 0.25);
+            if (d < 6.2) col = mix(GOLD, CARD, 0.2);
           } else if (marked && daub > 0) {
-            const d = Math.hypot(x - cx, y - cy);
-            if (d < 5.2 * daub) col = mix(RED_H, RED, Math.max(0, Math.min(1, (x - x0) / cell)));
+            if (d < 8.4 * daub) col = mix(RED_H, RED, Math.max(0, Math.min(1, (x - x0) / cell)));
           }
         }
       }
     }
     const bd = Math.hypot(x - ballX, y - ballY);
-    if (bd < 11) {
+    if (ballIn > 0.08 && bd < ballR) {
       a = 1;
-      const shine = Math.max(0, 1 - Math.hypot(x - (ballX - 3), y - (ballY - 3)) / 11);
-      col = mix([255, 240, 220], RED, 0.55 - shine * 0.35);
-      if (bd > 8.5) col = mix(RED, [80, 16, 16], 0.3);
+      const shine = Math.max(0, 1 - Math.hypot(x - (ballX - 5), y - (ballY - 5)) / ballR);
+      col = mix([255, 176, 176], RED, 0.55 - shine * 0.4);
+      if (bd > ballR - 2.2) col = mix(RED, [80, 16, 16], 0.35);
+      if (ballR > 16) {
+        if (glyphHit(x, y, ballX - 5, ballY - 16, 1.35, 'N', DIGITS)) col = [255, 230, 210];
+        if (glyphHit(x, y, ballX - 13, ballY - 4, 2.15, '32', DIGITS)) col = [255, 255, 255];
+      }
     }
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
@@ -237,14 +261,15 @@ export function screenshotPng() {
     drawText(put, x + 46 - (tw / 2 | 0), y + (n === 0 ? 32 : 28), label, s, col[0], col[1], col[2]);
   }
 
-  drawText(put, 700, 80, 'BINGO', 12, 244, 234, 212);
-  fillCircle(860, 300, 110, 244, 234, 212);
-  fillCircle(860, 300, 100, 196, 40, 48);
-  drawText(put, 790, 230, 'N', 6, 255, 220, 180);
-  drawText(put, 790, 280, '32', 12, 255, 255, 255);
-  drawText(put, 700, 450, 'HOST CALLS', 4, 184, 196, 176);
-  drawText(put, 700, 510, 'YOUR CARD', 4, 184, 196, 176);
-  drawText(put, 700, 580, 'A LINE WINS', 4, 232, 196, 96);
+  drawText(put, 700, 70, 'BINGO', 12, 244, 234, 212);
+  fillCircle(860, 280, 118, 244, 210, 180);
+  fillCircle(860, 280, 108, 196, 40, 48);
+  fillCircle(820, 250, 22, 255, 160, 160);
+  drawText(put, 830, 200, 'N', 6, 255, 230, 210);
+  drawText(put, 790, 258, '32', 12, 255, 255, 255);
+  drawText(put, 700, 440, 'ONE INVITE', 4, 184, 196, 176);
+  drawText(put, 700, 500, 'NO SERVER', 4, 184, 196, 176);
+  drawText(put, 700, 570, 'YOUR CARD', 4, 232, 196, 96);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
