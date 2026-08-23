@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Civiclock</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div class="hud-top">
+      <span id="money" class="money">$10,000</span>
+      <span id="pop" class="pop">0 people</span>
+      <span id="date" class="date">Jan · Y1</span>
+      <button type="button" class="ghost tiny" id="budgetBtn">Budget</button>
+    </div>
+    <div class="hud-mid">
+      <div class="svc" id="pow" title="Power">⚡ 0/0</div>
+      <div class="svc" id="wat" title="Water">💧 0/0</div>
+      <div class="demand" id="demand" aria-label="Demand">
+        <div class="dcol"><i data-k="H"></i><b>H</b></div>
+        <div class="dcol"><i data-k="S"></i><b>S</b></div>
+        <div class="dcol"><i data-k="W"></i><b>W</b></div>
+      </div>
+      <div class="speeds" role="group" aria-label="Speed">
+        <button type="button" data-sp="0">❚❚</button>
+        <button type="button" data-sp="1" class="on">▶</button>
+        <button type="button" data-sp="3">▶▶</button>
+      </div>
+    </div>
+    <p class="headline" id="headline">Empty land. Lay a road, paint homes, give them power.</p>
+  </header>
+
+  <canvas id="map" aria-label="City map"></canvas>
+  <div id="mayors" hidden></div>
+
+  <div class="coach" id="coach">
+    <p>Road against a lot. Paint <b>homes</b>, <b>shops</b>, <b>works</b>. A <b>plant</b> and a <b>pump on the river</b>. Then unpause.</p>
+    <button type="button" class="primary" id="villageBtn">Drop a village</button>
+    <button type="button" class="ghost wide" id="coachHide">Empty land</button>
+  </div>
+
+  <nav id="tools" aria-label="Tools"></nav>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-h">
+    <h2 id="sheetTitle">Lot</h2>
+    <button type="button" class="ghost tiny" id="sheetClose">Close</button>
+  </div>
+  <div id="sheetBody"></div>
+</div>
+
+<script src="sim.js"></script>
+<script src="render.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
