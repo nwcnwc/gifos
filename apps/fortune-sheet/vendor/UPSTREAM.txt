@@ -1,0 +1,13 @@
+vendor/fortune-sheet.js and vendor/fortune-sheet.css are GENERATED.
+Do not edit them; run node apps/fortune-sheet/vendor.mjs.
+
+upstream: https://github.com/ruilisi/fortune-sheet
+npm:      @fortune-sheet/react@1.0.4
+core:     @fortune-sheet/core@1.0.4
+react:    18.3.1
+entry:    gifos-facade.js (written by vendor.mjs), IIFE, global FortuneSheet
+          exposing { React, createRoot, Workbook }
+
+Their collab backend (onOp → Express/Mongo) is NOT bundled and is never
+called. Licences ride beside the bundle and inside the GIF:
+COPYING-fortune-sheet.txt, COPYING-react.txt.

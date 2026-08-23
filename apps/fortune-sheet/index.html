@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Fortune Sheet</title>
+<link rel="stylesheet" href="vendor/fortune-sheet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <div class="brand">
+      <strong>Fortune Sheet</strong>
+      <span class="sub">on this device</span>
+    </div>
+    <div id="status" aria-live="polite">Opening…</div>
+    <button type="button" id="new-btn" title="Start a blank workbook">New workbook</button>
+  </header>
+  <div id="sheet"></div>
+</div>
+<!-- Opaque-origin sandbox has no localStorage. Stub it in memory so FortuneSheet
+     settings that touch it do not throw; real persistence is gifos.db in app.js. -->
+<script>
+(function () {
+  function memoryStore() {
+    var mem = {};
+    return {
+      getItem: function (k) { return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
+      setItem: function (k, v) { mem[k] = String(v); },
+      removeItem: function (k) { delete mem[k]; },
+      clear: function () { mem = {}; },
+      key: function (i) { return Object.keys(mem)[i] || null; },
+      get length() { return Object.keys(mem).length; }
+    };
+  }
+  function install(name) {
+    try { void window[name].getItem; }
+    catch (e) {
+      try { Object.defineProperty(window, name, { value: memoryStore(), configurable: true }); }
+      catch (e2) { try { window[name] = memoryStore(); } catch (e3) {} }
+    }
+  }
+  install('localStorage');
+  install('sessionStorage');
+})();
+</script>
+<script src="vendor/fortune-sheet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
