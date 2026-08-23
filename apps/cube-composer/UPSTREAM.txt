@@ -1,0 +1,7 @@
+Faithful classic-script rewrite of sharkdp/cube-composer
+(https://github.com/sharkdp/cube-composer), MIT, David Peter 2015–2016.
+
+Pinned to a891ffe5de79b072819da04718820d0452b9a201 (master at port time).
+The original is PureScript + bower + gulp; that stack is not shipped.
+Puzzles, transformers and colours are copied from src/Levels/ and
+src/Transformer.purs. build.mjs BFS-solves all 25 levels before packing.
