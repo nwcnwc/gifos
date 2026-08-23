@@ -117,12 +117,17 @@ for (let i = 0; i <= 6; i++) {
 const html = files['index.html'];
 if (!html.includes('src="app.js"')) throw new Error('index.html does not load app.js');
 if (!html.includes('href="style.css"')) throw new Error('index.html does not load style.css');
-if (!html.includes('src="images/0.jpg"')) throw new Error('index.html must start on images/0.jpg');
+if (!html.includes('id="gallows"') || !html.includes('data-part="1"')) {
+  throw new Error('index.html must draw an SVG gallows with staged parts');
+}
 if (/type\s*=\s*["']module["']/.test(html)) {
   throw new Error('index.html uses type=module — GifOS drops that attribute. Classic scripts only.');
 }
 if (/(?:src|href)\s*=\s*["']https?:/i.test(html)) {
   throw new Error('index.html loads a remote URL — nothing may be fetched.');
+}
+if (/href\s*=\s*["']#/.test(html)) {
+  throw new Error('index.html has href="#" — hash escape is a failed round');
 }
 if (html.includes('id="invite"')) throw new Error('Invite is OS chrome — do not draw a share button');
 
@@ -133,11 +138,21 @@ if (/^\s*import\s|export\s+\{|export default|import\.meta/m.test(files['app.js']
 for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(']) {
   if (files['app.js'].includes(bad)) throw new Error('app.js uses ' + bad + ' — nothing leaves this tab.');
 }
+if (files['app.js'].includes('location.hash') || files['app.js'].includes('location.replace') ||
+    files['app.js'].includes('location.href')) {
+  throw new Error('app.js must not navigate — hash escape is a failed round');
+}
 if (!files['app.js'].includes('players') || !files['app.js'].includes('guessed')) {
   throw new Error('app.js must publish on the players collection');
 }
 if (!files['app.js'].includes("'race'") || !files['app.js'].includes("'share'")) {
   throw new Error('app.js must offer race and shared-gallows modes');
+}
+if (!files['app.js'].includes('qwertyuiop') || !files['app.js'].includes('asdfghjkl')) {
+  throw new Error('keyboard must be QWERTY — a 7-column A–Z grid is unusable on a phone');
+}
+if (files['app.js'].includes('id="invite"')) {
+  throw new Error('Invite is OS chrome — do not draw a share button');
 }
 if (!files['COPYING-hangman.txt'].includes('simonjsuh')) {
   throw new Error('COPYING-hangman.txt is not simonjsuh\'s MIT notice');

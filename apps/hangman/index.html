@@ -15,16 +15,50 @@
       </svg>
     </button>
     <h1>Hangman</h1>
-    <span class="lives" aria-live="polite">Wrong <b id="mistakes">0</b> of <b id="maxWrong">6</b></span>
+    <span class="record" id="record" hidden></span>
+    <span class="lives" aria-live="polite"><b id="mistakes">0</b> / <b id="maxWrong">6</b></span>
   </header>
 
-  <div id="versus" class="versus" hidden></div>
+  <div id="versus" class="versus" hidden>
+    <div id="vsPills" class="pills"></div>
+    <div class="modes" role="group" aria-label="How you play together">
+      <button type="button" data-mode="race" id="modeRace">Race</button>
+      <button type="button" data-mode="share" id="modeShare">Share</button>
+    </div>
+    <p id="vsNote" class="note"></p>
+  </div>
   <div id="toast" class="toast" hidden></div>
 
   <div class="stage">
-    <img id="hangmanPic" src="images/0.jpg" width="200" height="350" alt="">
-    <p class="prompt">Guess the programming language</p>
-    <p id="wordSpotlight" class="word" aria-live="polite"></p>
+    <svg id="gallows" class="gallows" viewBox="8 4 164 206" role="img" aria-label="The gallows">
+      <g class="wood" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 200 H80"/>
+        <path d="M48 200 V16"/>
+        <path d="M48 16 H136"/>
+        <path d="M48 50 L84 16"/>
+      </g>
+      <path class="rope" d="M128 16 V42" fill="none" stroke-linecap="round"/>
+      <g class="figure" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <g data-part="1" class="limb">
+          <circle class="head" cx="128" cy="60" r="18"/>
+          <g class="face">
+            <circle class="eye" cx="121" cy="56" r="1.8" fill="currentColor" stroke="none"/>
+            <circle class="eye" cx="135" cy="56" r="1.8" fill="currentColor" stroke="none"/>
+            <path class="mouth ok" d="M121 67 H135"/>
+            <path class="mouth sad" d="M121 69 Q128 63 135 69"/>
+          </g>
+        </g>
+        <ellipse data-part="2" class="limb body" cx="128" cy="110" rx="20" ry="28"/>
+        <path data-part="3" class="limb" d="M114 92 L88 122"/>
+        <path data-part="4" class="limb" d="M142 92 L168 122"/>
+        <path data-part="5" class="limb" d="M118 136 L102 178"/>
+        <path data-part="6" class="limb" d="M138 136 L154 178"/>
+        <path data-part="6" class="limb markx" d="M118 100 L138 120 M138 100 L118 120"/>
+      </g>
+    </svg>
+    <div class="meter" id="meter" aria-hidden="true"></div>
+    <p class="prompt" id="prompt">A programming language</p>
+    <div id="wordSpotlight" class="word" aria-live="polite"></div>
     <p id="banner" class="banner" hidden></p>
     <button type="button" id="playAgain" class="again" hidden>New word</button>
   </div>
@@ -43,7 +77,12 @@
       <li>Right letters fill in. Six wrong ones and the drawing is finished.</li>
       <li>The words are the original fourteen: Python, Ruby, Java, and the rest.</li>
     </ul>
-    <p class="foot">Unofficial port of Vanilla Javascript Hangman Game by simonjsuh. To play a friend, use <b>Invite</b> in the bar above the app. Same word — race, or share the gallows.</p>
+    <p class="foot">To play a friend, use <b>Invite</b> in the bar above. Same word.</p>
+    <ul>
+      <li><b>Race</b> — each of you has your own rope. First to finish it wins. You never see their letters, only how many wrong they have used.</li>
+      <li><b>Share</b> — one rope. Every letter anyone tries is on it. You sink or swim together.</li>
+    </ul>
+    <p class="foot">Unofficial port of Vanilla Javascript Hangman Game by simonjsuh.</p>
   </div>
 </div>
 

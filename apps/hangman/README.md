@@ -9,12 +9,13 @@ or one shared rope.
 
 Upstream is Bootstrap from a CDN plus `innerHTML` buttons. GifOS's runtime
 drops `type="module"` and the sandbox has nowhere to fetch a CDN from, so this
-tree is classic scripts and the six frames packed inside the GIF. Nothing is
-fetched.
+tree is classic scripts. The gallows is an SVG that fills in (readable on a
+phone); the original six frames still travel in the GIF. QWERTY, not A–Z.
+Nothing is fetched.
 
 ```
-index.html      shell: gallows, word, keyboard, how-to
-style.css       dark card matching the original black frames
+index.html      shell: SVG gallows, letter tiles, QWERTY, how-to
+style.css       dark card, phone-first
 app.js          rules + gifos.db persistence + versus
 icon.mjs        procedural gallows icon + 1200×720 cover
 build.mjs       packs site/apps/hangman/hangman.gif

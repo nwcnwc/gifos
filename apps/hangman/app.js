@@ -3,12 +3,13 @@
  *
  * Upstream is Bootstrap + innerHTML + a CDN. GifOS inlines <script src> and
  * drops type=module, and the sandbox has nowhere to fetch a CDN from, so this
- * file is ordinary classic JS: same fourteen words, six wrong guesses, the
- * original gallows frames, gifos.db instead of a reload.
+ * file is ordinary classic JS: same fourteen words, six wrong guesses,
+ * gifos.db instead of a reload. The gallows is drawn here so it reads on a
+ * phone; the original frames still travel in the GIF.
  *
  * Versus: same word. Race — first to finish it wins; each person writes ONLY
  * their own players row, and only a wrong-guess COUNT (never the letters).
- * Share the gallows — union of letters, one rope. Invite is OS chrome — this
+ * Share the rope — union of letters, one gallows. Invite is OS chrome — this
  * app does not draw an invite button.
  */
 (function (root) {
@@ -19,6 +20,7 @@
     'c', 'csharp', 'golang', 'kotlin', 'php', 'sql', 'ruby'
   ];
   var ALPHA = 'abcdefghijklmnopqrstuvwxyz';
+  var KEYS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
   var MAX_WRONG = 6;
   var STALE_MS = 9000, HB_MS = 3000;
 
@@ -82,6 +84,7 @@
   var toastTimer = 0;
   var saveTimer = 0;
   var keysBuilt = false;
+  var meterBuilt = false;
 
   function versusOn() { return others.length > 0; }
   function now() { return Date.now(); }
@@ -182,18 +185,36 @@
     render();
   }
 
+  function fillMeter(el, n) {
+    if (!el) return;
+    var dots = el.querySelectorAll('i');
+    if (!dots.length) {
+      var i;
+      for (i = 0; i < MAX_WRONG; i++) el.appendChild(document.createElement('i'));
+      dots = el.querySelectorAll('i');
+    }
+    for (var j = 0; j < dots.length; j++) {
+      dots[j].className = j < n ? 'bad' : '';
+    }
+  }
+
   function buildKeyboard() {
     var root = $('keyboard');
     if (keysBuilt) return;
     keysBuilt = true;
-    ALPHA.split('').forEach(function (letter) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'key';
-      btn.setAttribute('data-k', letter);
-      btn.textContent = letter;
-      btn.addEventListener('click', function () { handleGuess(letter); });
-      root.appendChild(btn);
+    KEYS.forEach(function (row, idx) {
+      var div = document.createElement('div');
+      div.className = 'krow' + (idx === 1 ? ' mid' : idx === 2 ? ' bot' : '');
+      row.split('').forEach(function (letter) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'key';
+        btn.setAttribute('data-k', letter);
+        btn.textContent = letter;
+        btn.addEventListener('click', function () { handleGuess(letter); });
+        div.appendChild(btn);
+      });
+      root.appendChild(div);
     });
   }
 
@@ -215,9 +236,35 @@
     var n = mistakes;
     if (n < 0) n = 0;
     if (n > MAX_WRONG) n = MAX_WRONG;
-    var pic = $('hangmanPic');
-    var src = 'images/' + n + '.jpg';
-    if (pic.getAttribute('src') !== src) pic.setAttribute('src', src);
+    var svg = $('gallows');
+    svg.setAttribute('data-n', String(n));
+    svg.classList.toggle('lost', n >= MAX_WRONG);
+    var parts = svg.querySelectorAll('[data-part]');
+    for (var i = 0; i < parts.length; i++) {
+      var need = parseInt(parts[i].getAttribute('data-part'), 10);
+      if (n >= need) parts[i].classList.add('on');
+      else parts[i].classList.remove('on');
+    }
+    if (!meterBuilt) {
+      fillMeter($('meter'), 0);
+      meterBuilt = true;
+    }
+    fillMeter($('meter'), n);
+  }
+
+  function renderWord(st) {
+    var el = $('wordSpotlight');
+    el.textContent = '';
+    var letters = G.answer.split('');
+    for (var i = 0; i < letters.length; i++) {
+      var ch = letters[i];
+      var known = st.guessed.indexOf(ch) >= 0;
+      var reveal = st.lost && !known;
+      var span = document.createElement('span');
+      span.className = 'slot' + (known ? ' on' : '') + (reveal ? ' reveal' : '');
+      span.textContent = (known || reveal) ? ch : '';
+      el.appendChild(span);
+    }
   }
 
   function vsOutcome() {
@@ -247,13 +294,29 @@
     return { kind: 'win', winner: solved[0] };
   }
 
+  function anyoneGuessedThisRound() {
+    if (G.guessed.length > 0) return true;
+    for (var i = 0; i < others.length; i++) {
+      var p = others[i];
+      if (p.round !== vsRound) continue;
+      if ((p.guessed && p.guessed.length) || p.mistakes || p.solved || p.done) return true;
+    }
+    return false;
+  }
+
   function renderVersus() {
     var el = $('versus');
-    if (!versusOn()) { el.hidden = true; el.textContent = ''; return; }
+    var pills = $('vsPills');
+    var note = $('vsNote');
+    if (!versusOn()) {
+      el.hidden = true;
+      pills.textContent = '';
+      note.textContent = '';
+      return;
+    }
     el.hidden = false;
-    el.innerHTML = '';
+    pills.textContent = '';
     var outcome = vsOutcome();
-    var st = statusOf();
 
     function pill(p) {
       if (!p) return;
@@ -262,13 +325,16 @@
       if (outcome && outcome.kind === 'win' && outcome.winner && outcome.winner.id === p.id) cls += ' win';
       if (p.done && !p.solved && !sharing()) cls += ' dead';
       span.className = cls;
-      var label = p.id === me.id ? 'You' : (p.name || 'Friend');
-      var extra;
-      if (sharing()) extra = '';
-      else if (p.solved) extra = ' · got it';
-      else extra = ' · ' + (p.mistakes || 0) + ' wrong';
-      span.textContent = label + extra;
-      el.appendChild(span);
+      var name = document.createElement('b');
+      name.textContent = p.id === me.id ? 'You' : (p.name || 'Friend');
+      span.appendChild(name);
+      if (!sharing()) {
+        var m = document.createElement('span');
+        m.className = 'meter';
+        fillMeter(m, p.mistakes || 0);
+        span.appendChild(m);
+      }
+      pills.appendChild(span);
     }
     pill({
       id: me.id, name: me.name,
@@ -278,34 +344,36 @@
     });
     others.forEach(pill);
 
-    var modes = document.createElement('div');
-    modes.className = 'modes';
+    var roundOver = !!(outcome && (outcome.kind === 'win' || outcome.kind === 'draw'));
+    var canSwitch = iAmManager() && (!anyoneGuessedThisRound() || roundOver);
     ['race', 'share'].forEach(function (m) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.setAttribute('data-mode', m);
-      b.textContent = m === 'race' ? 'Race' : 'Share the gallows';
+      var b = m === 'race' ? $('modeRace') : $('modeShare');
       b.className = G.mode === m ? 'on' : '';
-      b.disabled = !iAmManager();
-      b.addEventListener('click', function () { setMode(m); });
-      modes.appendChild(b);
+      b.disabled = !canSwitch;
     });
-    el.appendChild(modes);
 
-    var note = document.createElement('p');
-    note.className = 'note';
     if (sharing()) {
       if (outcome && outcome.kind === 'win') note.textContent = 'Got it — together.';
       else if (outcome && outcome.kind === 'draw') note.textContent = 'The rope ran out.';
-      else note.textContent = 'One rope. Every letter anyone tries is on it. ' + st.mistakes + ' wrong.';
+      else note.textContent = 'Share — one rope. Every letter anyone tries is on it.';
     } else if (outcome && outcome.kind === 'win') {
       note.textContent = (outcome.winner.id === me.id ? 'You win' : (outcome.winner.name || 'They') + ' wins') + ' — first to finish it.';
     } else if (outcome && outcome.kind === 'draw') {
       note.textContent = 'Draw — nobody got it.';
     } else {
-      note.textContent = 'Same word. First to finish it wins — your drawing is yours.';
+      note.textContent = 'Race — same word, your own rope. First to finish it wins.';
     }
-    el.appendChild(note);
+  }
+
+  function renderRecord() {
+    var el = $('record');
+    if (versusOn() || (G.wins + G.losses) === 0) {
+      el.hidden = true;
+      el.textContent = '';
+      return;
+    }
+    el.hidden = false;
+    el.textContent = G.wins + '–' + G.losses;
   }
 
   function render() {
@@ -313,50 +381,53 @@
     $('maxWrong').textContent = String(MAX_WRONG);
     $('mistakes').textContent = String(st.mistakes);
     renderPicture(st.mistakes);
-    var spots = st.spotlight.split('').join(' ');
-    if (st.lost) {
-      $('wordSpotlight').textContent = G.answer.split('').join(' ');
-    } else {
-      $('wordSpotlight').textContent = spots;
-    }
+    renderWord(st);
     var banner = $('banner');
     var outcome = vsOutcome();
+    var prompt = $('prompt');
     if (st.won) {
       banner.hidden = false;
       banner.className = 'banner win';
       banner.textContent = sharing() ? 'You got it — together!' : 'You won!';
+      prompt.textContent = 'A programming language';
     } else if (st.lost) {
       banner.hidden = false;
       banner.className = 'banner lost';
-      banner.textContent = sharing() ? 'The rope ran out.' : 'You lost. The word was ' + G.answer + '.';
+      banner.textContent = sharing() ? 'The rope ran out.' : 'The word was ' + G.answer + '.';
+      prompt.textContent = 'A programming language';
     } else if (versusOn() && outcome && outcome.kind === 'win' && outcome.winner.id !== me.id && outcome.winner.id !== 'all') {
       banner.hidden = false;
       banner.className = 'banner';
       banner.textContent = (outcome.winner.name || 'They') + ' got it first.';
+      prompt.textContent = 'A programming language';
     } else {
       banner.hidden = true;
       banner.textContent = '';
+      prompt.textContent = 'A programming language';
     }
     renderKeyboard(st);
     renderVersus();
+    renderRecord();
     var again = $('playAgain');
     if (versusOn()) {
       again.hidden = !(outcome && (outcome.kind === 'win' || outcome.kind === 'draw'));
     } else {
       again.hidden = G.gameState === 'playing';
     }
-    again.textContent = versusOn() ? 'Play again' : 'New word';
+    again.textContent = versusOn() ? (G.ready ? 'Waiting…' : 'Play again') : 'New word';
   }
 
   function setMode(mode) {
     if (mode !== 'race' && mode !== 'share') return;
     if (!versusOn() || !iAmManager() || !matchDb) return;
     if (G.mode === mode && match && match.mode === mode) return;
-    var guessedAny = G.guessed.length > 0;
-    others.forEach(function (p) {
-      if (p.round !== vsRound) return;
-      if ((p.guessed && p.guessed.length) || p.mistakes || p.solved || p.done) guessedAny = true;
-    });
+    var outcome = vsOutcome();
+    var roundOver = !!(outcome && (outcome.kind === 'win' || outcome.kind === 'draw'));
+    var guessedAny = anyoneGuessedThisRound();
+    if (guessedAny && !roundOver) {
+      toast('Finish this word first.');
+      return;
+    }
     var next = {
       id: 'm',
       word: G.answer,
@@ -387,6 +458,8 @@
   if (typeof document !== 'undefined') {
     $('infoBtn').addEventListener('click', showInfo);
     $('playAgain').addEventListener('click', playAgain);
+    $('modeRace').addEventListener('click', function () { setMode('race'); });
+    $('modeShare').addEventListener('click', function () { setMode('share'); });
     $('modal-info').addEventListener('click', function (ev) {
       if (ev.target === $('modal-info')) hideInfo();
     });
@@ -559,7 +632,9 @@
       var pPrefs = prefsDb ? prefsDb.getAll() : Promise.resolve([]);
       return pPrefs.then(function (rows) {
         restorePrefs(rows);
-        if (G.firstTime) showInfo();
+        // Do not cover the gallows on first boot — the empty drawing is the
+        // how-to. Info stays behind the ? button.
+        G.firstTime = false;
         render();
         if (playersDb) playersDb.subscribe(function (list) { ingestPlayers(list || []); });
         if (matchDb) matchDb.subscribe(function (list) { ingestMatch(list || []); });
