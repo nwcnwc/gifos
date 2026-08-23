@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>2048</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link href="vendor/main.css" rel="stylesheet">
+  <link href="style.css" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <div class="heading">
+      <h1 class="title">2048</h1>
+      <div class="scores-container">
+        <div class="score-container">0</div>
+        <div class="best-container">0</div>
+      </div>
+    </div>
+
+    <div class="above-game">
+      <p class="game-intro">Join the numbers and get to the <strong>2048 tile!</strong></p>
+      <div class="game-buttons">
+        <a class="friend-button" id="friendBtn">Play a friend</a>
+        <a class="restart-button">New Game</a>
+      </div>
+    </div>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both start from the same tiles. First to 2048 wins.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <a id="againBtn" hidden>Play again</a>
+        <a id="leaveBtn">← Solo</a>
+      </div>
+    </div>
+
+    <div class="game-container">
+      <div class="game-message">
+        <p></p>
+        <div class="lower">
+          <a class="keep-playing-button">Keep going</a>
+          <a class="retry-button">Try again</a>
+        </div>
+      </div>
+
+      <div class="grid-container">
+        <div class="grid-row">
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+        </div>
+        <div class="grid-row">
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+        </div>
+        <div class="grid-row">
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+        </div>
+        <div class="grid-row">
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+        </div>
+      </div>
+
+      <div class="tile-container"></div>
+    </div>
+
+    <p class="game-explanation">
+      <strong class="important">How to play:</strong> Use your <strong>arrow keys</strong> or <strong>swipe</strong> to move the tiles. When two tiles with the same number touch, they <strong>merge into one!</strong>
+    </p>
+    <p class="foot">Unofficial port of 2048 by Gabriele Cirulli (MIT). Playing alone is the original game. A race is two boards from the same tiles — nobody writes on anybody else’s.</p>
+  </div>
+
+  <script src="vendor/bind_polyfill.js"></script>
+  <script src="vendor/classlist_polyfill.js"></script>
+  <script src="vendor/animframe_polyfill.js"></script>
+  <script src="vendor/keyboard_input_manager.js"></script>
+  <script src="vendor/html_actuator.js"></script>
+  <script src="vendor/grid.js"></script>
+  <script src="vendor/tile.js"></script>
+  <script src="storage.js"></script>
+  <script src="vendor/game_manager.js"></script>
+  <script src="mp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

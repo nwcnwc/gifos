@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "2048",
+  "name": "2048",
+  "shortName": "2048",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Join the numbers and get to the 2048 tile. Play alone, or race a friend from the same starting tiles.",
+  "entry": "index.html",
+  "accent": [237, 194, 46],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
