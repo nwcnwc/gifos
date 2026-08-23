@@ -1,0 +1,22 @@
+vendor/ai.js is Alexander Berson's Reversi MCTS, transcribed from
+js/ai.js to a classic script wrapped against board.js (the GifOS
+runtime drops type=module). Do not "improve" the search — the computer
+is the one that shipped with Reversi.
+
+upstream: https://github.com/alex-berson/reversi
+commit:   c9c1cdc87e03d131463737bbc6e401a9df65f4ac
+date:     2024-09-18
+license:  MIT (COPYING-reversi.txt)
+
+Pinned files transcribed:
+  js/reversi.js   → board.js (8×8, place, flip, pass, winner)
+  js/ai.js        → vendor/ai.js (MCTS, 1500 ms, opening book of four)
+
+NOT copied:
+  service-worker.js          — GifOS apps do not register a worker
+  fonts/                     — system UI; no woff in the GIF
+  images/                    — PWA icons / App Store badge
+  manifest.json              — theirs is a web-app manifest, not ours
+  js/ui.js                   — rewritten: setup / local / play a friend
+
+The MIT notice travels INSIDE the GIF as COPYING-reversi.txt as well as here.
