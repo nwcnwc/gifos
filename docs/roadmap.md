@@ -2503,3 +2503,52 @@ wholesale, debt or no debt. A Worker owning the beat sender, the receive
 stamps, and the liveness clocks would keep the status plane truthful through
 main-thread storms — the structural fix; the debt sentinel is its honest
 stand-in.
+
+---
+
+## 16. Vocal Remover across invited computers
+
+**What.** A song's MDX-Net pass is a sequence of independent time chunks
+(~31 for a four-minute track at UVR's shipped overlap). Today one computer
+does every chunk: a phone on wasm is "three to four times the length of the
+song," and a healthy desktop GPU is still unmeasured as a *shared* resource.
+The idea is that the person who has the file **invites other computers into
+the app** — a laptop, a friend's desktop, a second tab on a machine with a
+real chip — and those guests run chunks on whatever engine they have, then
+hand the tensors back. Not the test fleet; the same invite link the rest of
+GifOS already uses.
+
+**Why it fits.** No accounts, no server that sees the song. The work is
+already partitioned the way UVR partitioned it (fully convolutional along
+time; a shorter segment is a setting, not a different network). App invite
+links already live-sync state peer-to-peer. A Chromebook that was offered a
+software "GPU" and a Moto that OOM'd at 1.82 GB both still help: they take
+wasm chunks, or they take the small GPU segment, and the host's own ladder
+(`256 → 64 → 32 → CPU-only`) stays the fallback when nobody is around.
+
+**Sketch (not a build plan).**
+- Host holds the mix, does the STFT, offers jobs. A guest receives a chunk
+  (or the already-windowed tensor), runs the model it already has pinned,
+  returns the output tensor. iSTFT and stem assembly stay on the host.
+- Each guest picks its own engine the way the app already does: real chip,
+  refuse SwiftShader, or wasm. No one is asked to pretend.
+- Dropouts are ordinary mesh loss: a chunk not returned is re-offered,
+  including back to the host.
+- Weights: Inst HQ 3 is 120 MB and optional today. Either every guest
+  already has the pin cached, or the host forwards the bytes in-band —
+  that choice is the first question, not a solved design.
+
+**Open questions.**
+- How much of the song leaves the host: a whole mix, per-chunk PCM, or
+  only the model's input tensor? Invited peers *will* see audio either
+  way; the invite is the consent, same as sharing the file.
+- Do guests need the pinned weights on disk, or does the host ship the
+  session? Shipping 120 MB over the mesh to save a 4-minute song is a
+  different product than "everyone already ran Vocal Remover once."
+- Karaoke split (the second model, on the vocal stem) is another full
+  pass — same fan-out, or host-only?
+- App-room vs a purpose-built work mesh: one invite URL is the GifOS
+  shape; a stadium of seating for three laptops splitting a song is
+  overhead the status service already argued against for cars.
+- Fairness and wattage: a phone that joined to listen should not become
+  a silent inference box. Opt-in per guest, visible, stoppable.
