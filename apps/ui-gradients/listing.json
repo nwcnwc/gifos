@@ -1,0 +1,34 @@
+{
+  "tagline": "Beautiful colour ramps. Copy one. Favourites stay on this device.",
+  "description": "A gallery of colour ramps people have made for each other. Flip through, or open the list and pick one by name. Tap a colour to copy it. Copy the recipe if you want the whole ramp. Turn the direction if you want it to run the other way.\n\nHearts stay on this device — close the app, come back, they are still there. Nobody else sees them.\n\nWant a friend looking at the same ramp? Press Share this pick, then Invite (in the GifOS menu) and send the link. You both see the same one. When you pick another, they get it. Browsing alone is the original gallery.\n\nAn unofficial port of uiGradients. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "ghosh",
+    "url": "https://github.com/ghosh/uiGradients"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "uiGradients",
+    "url": "https://github.com/ghosh/uiGradients",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "gradients",
+    "colours",
+    "palette",
+    "copy",
+    "design",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/ui-gradients",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
