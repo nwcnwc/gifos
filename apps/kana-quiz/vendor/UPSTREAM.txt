@@ -1,0 +1,19 @@
+Kana tables come from anzzstuff/kanaquiz (MIT, archived):
+
+  https://github.com/anzzstuff/kanaquiz
+  commit  f7e46fdc78fd34aef2cbb7d3c69907c4b9adf2db
+          (master, 2026-04-14)
+  license MIT (COPYING-kanaquiz.txt)  Copyright (c) 2016 Antti Pilto
+
+vendor/kana.js is src/data/kanaDictionary.js transcribed to a classic
+script (the GifOS runtime drops type=module). Do not "improve" the
+mappings — し is shi, the 46 basic hiragana are the gojūon, dakuten and
+yōon sit in the original groups.
+
+NOT copied:
+  src/components/*     — React UI; rewritten for GifOS
+  src/src-sw.js        — service worker / PWA
+  webpack, Babel, Bootstrap from a CDN
+
+The notice COPYING-kanaquiz.txt is packed inside the GIF as well as sitting
+here.

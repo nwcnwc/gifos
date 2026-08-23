@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Kana Quiz</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <button type="button" class="icon-btn" id="backBtn" hidden aria-label="Back">←</button>
+    <h1>Kana Quiz</h1>
+    <span class="score" id="scoreChip" aria-live="polite"></span>
+    <button type="button" class="icon-btn" id="infoBtn" aria-label="How to play">?</button>
+  </header>
+
+  <section id="home" class="home">
+    <p class="lead">Pick rows. A kana, four sounds. Misses come back.</p>
+
+    <div class="seg" id="scriptSeg" role="group" aria-label="Script">
+      <button type="button" data-script="hiragana" class="on">Hiragana</button>
+      <button type="button" data-script="katakana">Katakana</button>
+      <button type="button" data-script="both">Both</button>
+    </div>
+    <div class="seg" id="dirSeg" role="group" aria-label="Direction">
+      <button type="button" data-dir="toRomaji" class="on">Kana → sound</button>
+      <button type="button" data-dir="toKana">Sound → kana</button>
+    </div>
+
+    <div id="rows" class="rows"></div>
+
+    <p class="err" id="homeErr" hidden></p>
+    <button type="button" class="primary" id="startBtn">Start drill</button>
+    <button type="button" class="ghost" id="reviewBtn" hidden>Review misses</button>
+    <button type="button" class="ghost" id="friendBtn">Play a friend</button>
+    <p class="hint" id="friendHint">To race, press <b>Invite</b> in the bar above the app. Same deck — first to ten, or more when the cards run out.</p>
+  </section>
+
+  <section id="quiz" class="quiz" hidden>
+    <div id="versus" class="versus" hidden></div>
+    <p id="waitNote" class="wait" hidden>Waiting for a friend — press <b>Invite</b> in the bar above.</p>
+    <p id="feedback" class="feedback" aria-live="polite"></p>
+    <div id="prompt" class="prompt" aria-live="polite"></div>
+    <div id="choices" class="choices" role="group" aria-label="Answers"></div>
+    <p id="progress" class="progress"></p>
+  </section>
+
+  <section id="done" class="done" hidden>
+    <p id="doneTitle" class="done-title">Deck done</p>
+    <p id="doneScore" class="done-score"></p>
+    <p id="doneNote" class="done-note"></p>
+    <button type="button" class="primary" id="againBtn">Again</button>
+    <button type="button" class="ghost" id="reviewDoneBtn" hidden>Review misses</button>
+    <button type="button" class="ghost" id="homeBtn">Change rows</button>
+  </section>
+</div>
+
+<div id="modal-info" class="modal" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="infoTitle">
+    <button type="button" class="icon-btn close" data-close="info" aria-label="Close">✕</button>
+    <h2 id="infoTitle">How to play</h2>
+    <ul>
+      <li>Choose hiragana, katakana, or both, then the rows — あ-row, dakuten, yōon.</li>
+      <li>A kana appears. Tap the romaji. Or flip it: romaji first, pick the kana.</li>
+      <li>Right or wrong lands at once. Misses wait in Review.</li>
+      <li>To race a friend, use <b>Invite</b> in the bar above the app. Same shuffled deck — first to ten right, or whoever has more when the cards run out. You only write your own score.</li>
+    </ul>
+    <p class="foot">Unofficial port of Kana Quiz by anzzstuff. Tables from that quiz, running here with no account.</p>
+  </div>
+</div>
+
+<script src="vendor/kana.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
