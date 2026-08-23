@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>One Stroke</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> One Stroke</div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="setup">
+    <h2>One stroke each</h2>
+    <p class="lede">A blank page. You draw one line, then the turn passes. After a round, you vote on a title. The picture plays back as a loop.</p>
+    <button class="primary" id="soloBtn" type="button">Start a doodle</button>
+    <button class="ghost wide" id="friendBtn" type="button">Play with friends</button>
+    <p class="lvlnote">On your own, one stroke at a time — the doodle lives in this file. With friends, press Invite in the GifOS menu and send the link. The people who open it sit around the same page.</p>
+  </section>
+
+  <section class="studio" id="solo" hidden>
+    <div class="vhead">
+      <h2 id="soloTitle">Your page</h2>
+      <button class="ghost" id="soloLeave" type="button">← Leave</button>
+    </div>
+    <p class="statusline" id="soloStatus">Your turn. One stroke.</p>
+    <div class="paper" id="soloPaper">
+      <canvas id="soloPad" width="720" height="720" aria-label="Your page"></canvas>
+    </div>
+    <div class="inkbar" id="soloInk"></div>
+    <div class="widths" id="soloWidths"></div>
+    <div class="controls">
+      <button class="ghost" id="soloUndo" type="button">Undo</button>
+      <button class="primary slim" id="soloSend" type="button">Send stroke</button>
+    </div>
+    <div class="controls">
+      <button class="ghost" id="soloPlay" type="button">Play loop</button>
+      <button class="ghost" id="soloNew" type="button">New page</button>
+    </div>
+    <form class="titlebox" id="soloTitleForm" autocomplete="off">
+      <label>Title
+        <input id="soloTitleIn" maxlength="40" placeholder="Untitled">
+      </label>
+    </form>
+  </section>
+
+  <section class="studio" id="friend" hidden>
+    <div class="vhead">
+      <h2>The page</h2>
+      <button class="ghost" id="fLeave" type="button">← Leave</button>
+    </div>
+    <div class="seats" id="fSeats"></div>
+    <p class="fqueue" id="fQueue"></p>
+    <p class="statusline" id="fStatus">Setting up the page…</p>
+    <div class="paper" id="fPaper">
+      <canvas id="fPad" width="720" height="720" aria-label="Shared page"></canvas>
+    </div>
+    <div class="inkbar" id="fInk"></div>
+    <div class="widths" id="fWidths"></div>
+    <div class="controls">
+      <button class="ghost" id="fUndo" type="button">Undo</button>
+      <button class="primary slim" id="fSend" type="button">Send stroke</button>
+    </div>
+    <div class="controls">
+      <button class="ghost" id="fPlay" type="button">Play loop</button>
+      <button class="ghost" id="fAgain" type="button" hidden>Another round</button>
+      <button class="ghost" id="fNew" type="button" hidden>New page</button>
+    </div>
+    <div class="vote" id="fVote" hidden>
+      <p class="vote-lead">Vote on a title</p>
+      <div class="vote-list" id="fVoteList"></div>
+      <form class="titlebox" id="fVoteForm" autocomplete="off">
+        <label>Or write one
+          <input id="fVoteIn" maxlength="40" placeholder="A custom title">
+        </label>
+        <button class="primary slim" id="fVoteGo" type="submit">Vote</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<script src="game.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
