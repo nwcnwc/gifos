@@ -163,8 +163,10 @@
         }
         // A partial result for a call still in flight. Never resolves and never
         // rejects: a stream that dies mid-answer still lands on the reply.
+        // Text parts are chat deltas; a 'shot' part is one camera-studio
+        // capture, delivered the moment it is taken.
         if(d.type==='part' && pending[d.id] && pending[d.id].part){
-          try { pending[d.id].part(d.text || ''); } catch(err){}
+          try { pending[d.id].part(d.shot !== undefined ? d.shot : (d.text || '')); } catch(err){}
         }
         if(d.type==='db-change'){
           if(d.collection==='*'){ Object.keys(subs).forEach(refresh); }
@@ -297,13 +299,20 @@
         takePhoto:   function(opts){ return rpc(Object.assign({type:'capture',media:'photo'}, opts||{})); },
         // Full-screen camera studio in the trusted parent (never a live stream
         // in the sandbox). cameraInfo probes devices then stops the tracks.
+        // A studio session can hold MANY captures: pass onShot to receive each
+        // one the moment it is taken. The promise still settles once, with the
+        // last capture (or rejects "Capture cancelled." if there were none).
         cameraInfo: function(){ return rpc({type:'cameraInfo'}); },
-        camera: function(opts){ opts=opts||{};
-          return rpc({type:'capture',studio:true, mode:opts.mode, facing:opts.facing, filter:opts.filter, timer:opts.timer, aspect:opts.aspect, grid:opts.grid, audio:opts.audio, maxSeconds:opts.maxSeconds}); },
+        camera: function(opts, onShot){ opts=opts||{};
+          return rpc({type:'capture',studio:true, mode:opts.mode, facing:opts.facing, filter:opts.filter, timer:opts.timer, aspect:opts.aspect, grid:opts.grid, audio:opts.audio, maxSeconds:opts.maxSeconds},
+            typeof onShot==='function'?onShot:null); },
         // Deposit bytes into the seeded My Media library (and this app's roll
         // if it declared one). The app cannot name another icon's db.
+        // open() asks the OS to switch this tab to the My Media app itself —
+        // solo mounts only, so a shared room is never navigated away.
         library: { put: function(item){ item=item||{};
-          return rpc({type:'libraryPut', bytes:item.bytes, mime:item.mime, name:item.name, mediaType:item.type, category:item.category, thumb:item.thumb}); } },
+          return rpc({type:'libraryPut', bytes:item.bytes, mime:item.mime, name:item.name, mediaType:item.type, category:item.category, thumb:item.thumb}); },
+          open: function(){ return rpc({type:'libraryOpen'}); } },
         // Device motion. Granted via the iframe allow-policy when the manifest
         // declares "motion"; this helper does the iOS permission dance and hands
         // you {alpha,beta,gamma} (orientation) or acceleration on each tick.
@@ -1091,7 +1100,7 @@
     for (const m of cands) { try { if (MR.isTypeSupported(m)) return m; } catch (e) {} }
     return '';
   }
-  function brokerCapture(manifest, d) {
+  function brokerCapture(manifest, d, onShot) {
     if (d && d.studio) {
       const CS = GifOS.cameraStudio;
       if (!CS || !CS.open) return Promise.reject(new Error('Camera studio is not available.'));
@@ -1101,7 +1110,7 @@
       if (!(nav && nav.mediaDevices && nav.mediaDevices.getUserMedia)) return Promise.reject(new Error('No camera available here.'));
       const hasMic = hasCap(manifest, 'microphone') && !capDisabled(manifest, 'microphone');
       const label = manifest.name || manifest.appId || 'Camera';
-      return CS.open(Object.assign({}, d, { label: label, audio: d.audio !== false && hasMic }), { hasMic: hasMic })
+      return CS.open(Object.assign({}, d, { label: label, audio: d.audio !== false && hasMic }), { hasMic: hasMic, onShot: onShot })
         .catch((err) => { throw new Error(err && err.name === 'NotAllowedError' ? 'Permission to use the camera was denied.' : (err && err.message) || String(err)); });
     }
     const kind = d.media === 'video' ? 'video' : d.media === 'photo' ? 'photo' : 'audio';
@@ -2523,12 +2532,29 @@
           .catch((err) => reply({ ok: false, error: String(err.message || err) }));
       }
       else if (d.type === 'save') downloadSnapshot(originalBytes, files, manifest, db).then((name) => reply({ ok: true, result: name })).catch((err) => reply({ ok: false, error: String(err.message || err) }));
-      else if (d.type === 'capture') brokerCapture(manifest, d).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      else if (d.type === 'capture') {
+        // Studio sessions stream every capture back as a 'shot' part so the
+        // app can save each one as it lands — the reply carries only the last.
+        const emitShot = d.studio ? (shot) => { const w = iframe && iframe.contentWindow; if (w) w.postMessage({ ns: 'gifos', type: 'part', id: d.id, shot: shot }, '*'); } : null;
+        brokerCapture(manifest, d, emitShot).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      }
       else if (d.type === 'cameraInfo') brokerCameraInfo(manifest).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
       else if (d.type === 'libraryPut') brokerLibraryPut(manifest, mountFileId, d, (collection) => {
         const w = iframe && iframe.contentWindow;
         if (w) w.postMessage({ ns: 'gifos', type: 'db-change', collection: collection }, '*');
       }).then((result) => reply({ ok: true, result })).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      // Switch this tab to the My Media app. Solo mounts only (#id=): inside a
+      // room or meeting the tab belongs to the room, and navigating away would
+      // tear the user out of it.
+      else if (d.type === 'libraryOpen') {
+        if (!/[#&]id=/.test(String(root.location.hash || ''))) reply({ ok: false, error: 'My Media can only be opened from an app running on its own.' });
+        else findMyMediaFileId().then((mmId) => {
+          if (!mmId) { reply({ ok: false, error: "My Media isn't on this computer" }); return; }
+          reply({ ok: true, result: true });
+          root.location.hash = '#id=' + mmId;
+          root.location.reload();
+        }).catch((err) => reply({ ok: false, error: String(err && err.message || err) }));
+      }
       // Streaming chat: each fragment rides back as a 'part' carrying this
       // call's id, and the single 'reply' still closes it out. Same guard as
       // reply() — an app torn out mid-stream must not be posted to.

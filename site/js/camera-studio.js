@@ -382,7 +382,12 @@
     let torchOn = false, zoomVal = 1, expVal = 0;
     let stream = null, rec = null, recChunks = [], recStart = 0, recRaf = 0, recCanvas = null;
     let flipping = false, busy = false, recording = false, held = null, heldUrl = '';
-    let info = null, closed = false, pinch0 = 0, zoom0 = 1;
+    let info = null, closed = false, finishing = false, pinch0 = 0, zoom0 = 1;
+    // Resolved when a stopped recording has finished materializing (onstop has
+    // run AND the blob's bytes are held). finish() waits on it so a close right
+    // after — or during — a recording can never drop the clip on the floor.
+    let recDone = null, recSettle = null;
+    const onShot = typeof ctx.onShot === 'function' ? ctx.onShot : null;
 
     const bg = doc.createElement('div');
     bg.className = 'cs';
@@ -509,7 +514,12 @@
       } catch (e) { return ''; }
     }
     function hold(result, previewUrl, previewKind) {
+      result.mode = result.mode || mode;
       held = result;
+      // Every capture is DELIVERED the moment it exists — the session promise
+      // only carries the last one, and a session can hold many. Without this,
+      // three taps of the shutter saved one photo.
+      if (onShot) { try { onShot(result); } catch (e) {} }
       if (heldUrl) { try { URL.revokeObjectURL(heldUrl); } catch (e) {} }
       heldUrl = previewUrl || '';
       lastBtn.classList.add('on');
@@ -634,25 +644,14 @@
     async function snapPhoto() {
       await countdown();
       flash();
-      const useIc = filter === 'normal' && mode === 'photo' && aspect === 'full' && root.ImageCapture;
-      if (useIc) {
-        try {
-          const track = stream.getVideoTracks()[0];
-          const ic = new root.ImageCapture(track);
-          const blob = await ic.takePhoto();
-          if (blob && blob.size) {
-            const buf = await blob.arrayBuffer();
-            const u = new Uint8Array(buf);
-            if (u[0] === 0xff && u[1] === 0xd8) {
-              const c = paintCanvas();
-              const result = { bytes: buf, mime: blob.type || 'image/jpeg', width: c.width, height: c.height, kind: 'photo', thumb: thumbFromCanvas(c) };
-              const url = URL.createObjectURL(blob);
-              hold(result, url, 'image');
-              return result;
-            }
-          }
-        } catch (e) { /* canvas is the truth */ }
-      }
+      // The photo IS the canvas. ImageCapture.takePhoto() was tried here and
+      // removed: on desktop webcams Chrome renegotiates the track for a
+      // full-resolution still and routinely hands back a JPEG whose header is
+      // valid but whose content is black with a few rows of image at the top
+      // (crbug-class UVC failure). A magic-byte check cannot catch that, so
+      // every "photo" saved fine and viewed broken — while the thumbnail,
+      // painted from this same canvas, looked perfect. The canvas is exactly
+      // what the finder shows, filters baked in, and it works everywhere.
       const c = paintCanvas();
       const jpg = await canvasToJpeg(c, 0.9);
       const result = { bytes: jpg.bytes, mime: 'image/jpeg', width: c.width, height: c.height, kind: 'photo', thumb: thumbFromCanvas(c) };
@@ -728,6 +727,7 @@
       const filtered = filter !== 'normal' || mode === 'night' || mode === 'beauty' || aspect !== 'full';
       recChunks = [];
       recStart = Date.now();
+      recDone = new Promise((resolve) => { recSettle = resolve; });
       if (filtered) {
         recCanvas = paintCanvas();
         const ctx2 = recCanvas.getContext('2d');
@@ -760,11 +760,13 @@
         shutter.classList.remove('rec');
         recTime.classList.remove('on');
         pill.classList.remove('live');
+        const settled = () => { const s = recSettle; recSettle = null; if (s) s(); };
+        if (!blob.size) { settled(); return; }
         blob.arrayBuffer().then((buf) => {
           const c = paintCanvas();
-          const result = { bytes: buf, mime: blob.type || 'video/webm', width: c.width, height: c.height, durationMs, kind: 'video', thumb: thumbFromCanvas(c) };
+          const result = { bytes: buf, mime: blob.type || 'video/webm', width: c.width, height: c.height, durationMs, kind: 'video', mode: 'video', thumb: thumbFromCanvas(c) };
           hold(result, URL.createObjectURL(blob), 'video');
-        });
+        }).catch(() => {}).then(settled);
       };
       rec.start(200);
       shutter.classList.add('rec');
@@ -777,7 +779,10 @@
     }
     function stopVideo() {
       if (!recording || !rec) return;
-      try { rec.stop(); } catch (e) { recording = false; }
+      try { rec.stop(); } catch (e) {
+        recording = false;
+        const s = recSettle; recSettle = null; if (s) s();
+      }
     }
 
     async function shoot() {
@@ -816,11 +821,25 @@
       root.removeEventListener('resize', layoutFrame);
       return true;
     }
-    function finish(ok) {
-      const shot = held;
-      if (!teardown()) return;
-      if (ok && shot) pending.resolve(shot);
-      else pending.reject(new Error('Capture cancelled.'));
+    // Close = "I'm done", never "throw my clip away". A recording that is
+    // still running (or whose bytes are still materializing in onstop) gets
+    // stopped and WAITED FOR before the session settles — held is judged at
+    // settle time, not at click time. The 8s ceiling only covers a recorder
+    // that dies without ever firing onstop.
+    function finish() {
+      if (finishing) return;
+      finishing = true;
+      const settle = () => {
+        const shot = held;
+        if (!teardown()) return;
+        if (shot) pending.resolve(shot);
+        else pending.reject(new Error('Capture cancelled.'));
+      };
+      if (recording) stopVideo();
+      if (recDone) {
+        const t = setTimeout(settle, 8000);
+        recDone.then(() => { clearTimeout(t); settle(); });
+      } else settle();
     }
 
     function showReview() {
@@ -845,12 +864,12 @@
     function onKey(e) {
       if (e.key === 'Escape') {
         if (review.classList.contains('on')) { review.classList.remove('on'); rv.innerHTML = ''; return; }
-        finish(!!held);
+        finish();
       }
       if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); shoot(); }
     }
 
-    bg.querySelector('[data-cs="close"]').onclick = () => finish(!!held);
+    bg.querySelector('[data-cs="close"]').onclick = () => finish();
     bg.querySelector('[data-cs="unreview"]').onclick = () => { review.classList.remove('on'); rv.innerHTML = ''; };
     shutter.onclick = () => shoot();
     lastBtn.onclick = () => showReview();
