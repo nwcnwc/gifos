@@ -13,11 +13,11 @@
   var EMPTY = 0, SHIP = 1, MISS = 2, HIT = 3, SUNK = 4;
   var VERTICAL = 0, HORIZONTAL = 1;
   var TYPES = [
-    { id: 'carrier', name: 'Aircraft Carrier', len: 5 },
-    { id: 'battleship', name: 'Battleship', len: 4 },
-    { id: 'destroyer', name: 'Destroyer', len: 3 },
-    { id: 'submarine', name: 'Submarine', len: 3 },
-    { id: 'patrolboat', name: 'Patrol Boat', len: 2 }
+    { id: 'carrier', name: 'Aircraft Carrier', short: 'Carrier', len: 5 },
+    { id: 'battleship', name: 'Battleship', short: 'Battleship', len: 4 },
+    { id: 'destroyer', name: 'Destroyer', short: 'Destroyer', len: 3 },
+    { id: 'submarine', name: 'Submarine', short: 'Submarine', len: 3 },
+    { id: 'patrolboat', name: 'Patrol Boat', short: 'Patrol', len: 2 }
   ];
 
   var PROB_WEIGHT = 5000;
@@ -155,6 +155,11 @@
     var n = 0, i;
     for (i = 0; i < this.roster.length; i++) if (this.roster[i].sunk) n++;
     return n;
+  };
+  Fleet.prototype.lostTypes = function () {
+    var out = [], i;
+    for (i = 0; i < this.roster.length; i++) if (this.roster[i].sunk) out.push(this.roster[i].type);
+    return out;
   };
   Fleet.prototype.placeShip = function (x, y, dir, type) {
     var ship = this.findByType(type);
@@ -375,14 +380,17 @@
     if (this.computerFleet.allSunk()) {
       this.over = true;
       this.winner = 'human';
-      return { result: result, reply: null };
     }
+    return { result: result };
+  };
+  Solo.prototype.reply = function () {
+    if (!this.ready || this.over) return null;
     var reply = this.robot.shoot();
     if (this.humanFleet.allSunk()) {
       this.over = true;
       this.winner = 'computer';
     }
-    return { result: result, reply: reply };
+    return reply;
   };
 
   root.BB = {

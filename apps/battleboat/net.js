@@ -37,6 +37,7 @@
       shots: [],
       board: root.BB.emptyBoard(),
       sunk: 0,
+      lost: [],
       result: ''
     };
   }
@@ -57,6 +58,7 @@
         shots: Array.isArray(p.shots) ? p.shots : [],
         board: p.board || root.BB.emptyBoard(),
         sunk: p.sunk || 0,
+        lost: Array.isArray(p.lost) ? p.lost : [],
         result: p.result || '',
         at: p.at,
         seen: moved ? t : cur.seen
@@ -86,6 +88,7 @@
         shots: lastSnap.shots,
         board: lastSnap.board,
         sunk: lastSnap.sunk,
+        lost: lastSnap.lost,
         result: lastSnap.result
       },
       other: opponent(),
@@ -107,6 +110,7 @@
       shots: lastSnap.shots || [],
       board: lastSnap.board || root.BB.emptyBoard(),
       sunk: lastSnap.sunk || 0,
+      lost: lastSnap.lost || [],
       result: lastSnap.result || ''
     }).catch(function () {});
   }

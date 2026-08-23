@@ -1,11 +1,12 @@
 # Battleboat
 
-Sink the fleet, against the computer or a friend on another phone.
+Two devices, one link, no game server. Hide a fleet. Sink theirs.
 
 An unofficial port of **[Battleboat](https://github.com/billmei/battleboat)** by
 Bill Mei (MIT). The computer is his probability AI, running on this device.
 The Google Fonts, image assets, `localStorage`, and `alert`s are rewritten so
-nothing is loaded from the network.
+nothing is loaded from the network. On a phone the hunt board sits on top and
+your fleet shrinks — the original page is desktop-only.
 
 ```
 index.html                  setup / computer / play a friend
@@ -23,7 +24,7 @@ vendor/UPSTREAM.txt
 
 - **Computer** — the original hunter. Place the five ships (or scatter them),
   then tap the other map. It fires back at once.
-- **Play a friend** — send the invite (top bar; that button is OS chrome).
+- **Play a friend** — press Invite in the bar above (that button is OS chrome).
   Each person hides a fleet on their own device. Ship positions never leave
   this device. Each person writes only their own shots and the revealed
   cells of their own fleet. Hits and misses show up on both screens.
