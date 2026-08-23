@@ -1,8 +1,10 @@
-// Procedural Falling Blocks icon: a dark rounded card holding a well of
-// coloured shapes, with a T dropping into a gap across the frames. Pure
-// Node, super-sample → box-downsample → small palette; deterministic so
-// builds reproduce. screenshotPng() paints the 1200×720 store cover.
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
+// Procedural Falling Blocks icon: a dark rounded card holding a well.
+// Across the frames a T drops, LOCKS into a gap, the full line FLASHES
+// and CLEARS, and the stack drops — a loop that reads at 64px. Pure Node,
+// super-sample → box-downsample → small palette; deterministic so builds
+// reproduce. screenshotPng() paints the 1200×720 store cover: two mid-game
+// wells with a real stack, not an empty first boot.
+const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 16;
 
 const CARD = [18, 22, 28];
 const CARD_D = [10, 12, 16];
@@ -10,6 +12,7 @@ const WELL = [8, 10, 14];
 const GRID = [28, 34, 42];
 const INK = [230, 236, 240];
 const CYAN = [0, 196, 204];
+const FLASH = [240, 252, 255];
 const SHAPE = [
   [0, 220, 220],
   [255, 140, 0],
@@ -39,12 +42,13 @@ function rrPix(x, y, x0, y0, x1, y1, rad) {
 
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  const bases = [CARD, CARD_D, WELL, GRID, INK, CYAN, ...SHAPE];
+  const bases = [CARD, CARD_D, WELL, GRID, INK, CYAN, FLASH, ...SHAPE];
   for (const b of bases) {
     pal.push(b.map(Math.round));
     pal.push(mix(b, [255, 255, 255], 0.22).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.28).map(Math.round));
   }
+  pal.push([255, 255, 255]);
   return pal.slice(0, 64);
 }
 function nearest(pal, r, g, b) {
@@ -56,16 +60,17 @@ function nearest(pal, r, g, b) {
   return bi;
 }
 
-// Settled pile (col, row from bottom, colour index). Gap at col 4–6 row 0 for the T.
-const PILE = [
-  [0, 0, 4], [1, 0, 4], [2, 0, 5], [3, 0, 5], [7, 0, 0], [8, 0, 0], [9, 0, 1],
-  [0, 1, 2], [1, 1, 2], [2, 1, 3], [3, 1, 3], [7, 1, 1], [8, 1, 6], [9, 1, 6],
-  [1, 2, 0], [2, 2, 0], [8, 2, 4], [9, 2, 4],
+// Settled pile in a 10×12 well, rows from the TOP. Bottom row 11 has a
+// 3-wide gap at cols 4–6 for the T to lock into; row 10 is open at col 5
+// for the stem. After the line clears, everything above row 11 drops.
+const SETTLED = [
+  [0, 11, 4], [1, 11, 4], [2, 11, 5], [3, 11, 5], [7, 11, 0], [8, 11, 0], [9, 11, 1],
+  [0, 10, 2], [1, 10, 2], [2, 10, 3], [3, 10, 3], [4, 10, 1], [6, 10, 6], [7, 10, 1], [8, 10, 6], [9, 10, 6],
+  [1, 9, 0], [2, 9, 0], [3, 9, 5], [7, 9, 4], [8, 9, 4], [9, 9, 2],
+  [2, 8, 6], [8, 8, 3], [9, 8, 3],
 ];
 
-function fallingT(f) {
-  const t = f / (FRAMES - 1);
-  const y = 3 + t * 8; // rows from top of the 12-row well
+function fallingT(y) {
   return [
     { c: 5, r: y, v: 6 },
     { c: 4, r: y + 1, v: 6 },
@@ -74,12 +79,48 @@ function fallingT(f) {
   ];
 }
 
+function cellsForFrame(f) {
+  // 0–8 fall (T bar lands on row 11 at f=8), 9 lock flash, 10–11 line flash,
+  // 12 line gone, 13–15 stack dropped + a new T peeking in for the loop.
+  const cells = [];
+  const LOCK_Y = 10;
+  if (f <= 8) {
+    const y = 1 + (LOCK_Y - 1) * (f / 8);
+    for (const p of SETTLED) cells.push({ c: p[0], r: p[1], v: p[2], flash: 0 });
+    for (const t of fallingT(y)) cells.push({ c: t.c, r: t.r, v: t.v, flash: f === 8 ? 0.4 : 0 });
+  } else if (f === 9) {
+    for (const p of SETTLED) cells.push({ c: p[0], r: p[1], v: p[2], flash: p[1] === 11 ? 0.55 : 0 });
+    for (const t of fallingT(LOCK_Y)) cells.push({ c: t.c, r: t.r, v: t.v, flash: 0.7 });
+  } else if (f === 10 || f === 11) {
+    const flash = f === 10 ? 1 : 0.55;
+    for (const p of SETTLED) cells.push({ c: p[0], r: p[1], v: p[2], flash: p[1] === 11 ? flash : 0 });
+    for (const t of fallingT(LOCK_Y)) cells.push({ c: t.c, r: t.r, v: t.v, flash: t.r === 11 ? flash : 0.15 });
+  } else if (f === 12) {
+    // Line vanishing — only the rows above, not yet dropped.
+    for (const p of SETTLED) {
+      if (p[1] === 11) continue;
+      cells.push({ c: p[0], r: p[1], v: p[2], flash: 0 });
+    }
+    cells.push({ c: 5, r: 10, v: 6, flash: 0 });
+  } else {
+    // Stack dropped one row. New T at the top, easing into the loop.
+    for (const p of SETTLED) {
+      if (p[1] === 11) continue;
+      cells.push({ c: p[0], r: p[1] + 1, v: p[2], flash: 0 });
+    }
+    cells.push({ c: 5, r: 11, v: 6, flash: 0 });
+    const y = 0.4 + (f - 13) * 0.35;
+    for (const t of fallingT(y)) cells.push({ c: t.c, r: t.r, v: t.v, flash: 0 });
+  }
+  return cells;
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 20;
   const cols = 10, rows = 12;
   const gx0 = 24, gy0 = 16, cell = 8, gap = 0.6;
-  const falling = fallingT(f);
+  const cells = cellsForFrame(f);
 
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
@@ -90,13 +131,11 @@ function frameIndices(pal, f) {
       const wx1 = gx0 + cols * cell, wy1 = gy0 + rows * cell;
       if (rrPix(x, y, gx0 - 3, gy0 - 3, wx1 + 3, wy1 + 3, 4)) col = GRID;
       if (x >= gx0 && x < wx1 && y >= gy0 && y < wy1) col = WELL;
-      for (const p of PILE) {
-        const x0 = gx0 + p[0] * cell, y0 = gy1(rows, gy0, cell) - (p[1] + 1) * cell;
-        if (x >= x0 + gap && x < x0 + cell - gap && y >= y0 + gap && y < y0 + cell - gap) col = SHAPE[p[2]];
-      }
-      for (const t of falling) {
+      for (const t of cells) {
         const x0 = gx0 + t.c * cell, y0 = gy0 + t.r * cell;
-        if (x >= x0 + gap && x < x0 + cell - gap && y >= y0 + gap && y < y0 + cell - gap) col = SHAPE[t.v];
+        if (x >= x0 + gap && x < x0 + cell - gap && y >= y0 + gap && y < y0 + cell - gap) {
+          col = t.flash ? mix(SHAPE[t.v], FLASH, t.flash) : SHAPE[t.v];
+        }
       }
     }
     const o = (py * RW + px) * 4;
@@ -115,7 +154,6 @@ function frameIndices(pal, f) {
   }
   return idx;
 }
-function gy1(rows, gy0, cell) { return gy0 + rows * cell; }
 
 export function fallingBlocksIcon() {
   const pal = buildPalette();
@@ -126,7 +164,7 @@ export function fallingBlocksIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 8, transparentIndex: 0 };
 }
 
 import { deflateSync } from 'node:zlib';
@@ -170,16 +208,26 @@ const GLYPHS = {
   'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
   'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
   'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '3': [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '6': [0b01110, 0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
   '!': [0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0, 0b00100],
+  '·': [0, 0, 0, 0b00100, 0b00100, 0, 0],
 };
 
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
   for (const ch of String(str).toUpperCase()) {
-    const gph = GLYPHS[ch];
-    if (!gph) { cx += 6 * s; continue; }
+    const gph = GLYPHS[ch] || GLYPHS[' '];
     for (let row = 0; row < 7; row++) for (let col = 0; col < 5; col++) {
       if (gph[row] & (1 << (4 - col))) {
         for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) {
@@ -196,18 +244,33 @@ function paintWell(put, fill, x0, y0, cell, board, falling) {
   const w = cols * cell, h = rows * cell;
   fill(x0 - 4, y0 - 4, x0 + w + 4, y0 + h + 4, 28, 34, 42);
   fill(x0, y0, x0 + w, y0 + h, 8, 10, 14);
-  function cellAt(c, r, col) {
+  function cellAt(c, r, col, inset) {
     if (c < 0 || r < 0 || c >= cols || r >= rows) return;
+    const pad = inset == null ? 1 : inset;
     const px = x0 + c * cell, py = y0 + r * cell;
-    fill(px + 1, py + 1, px + cell - 1, py + cell - 1, col[0], col[1], col[2]);
+    fill(px + pad, py + pad, px + cell - pad, py + cell - pad, col[0], col[1], col[2]);
+    if (pad < 2) {
+      const hi = mix(col, [255, 255, 255], 0.32);
+      fill(px + pad, py + pad, px + cell - pad, py + pad + Math.max(1, (cell - 2 * pad) * 0.22), hi[0], hi[1], hi[2]);
+    }
   }
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const v = board[r] && board[r][c];
     if (v) cellAt(c, r, SHAPE[v - 1]);
   }
   if (falling) {
-    for (const t of falling) cellAt(t.c, t.r, SHAPE[t.v]);
+    for (const t of falling) cellAt(t.c, t.r, SHAPE[t.v], t.ghost ? 3 : 1);
   }
+}
+
+function boardFromRows(rows) {
+  const b = [];
+  for (let r = 0; r < 20; r++) {
+    b[r] = new Array(10).fill(0);
+    const s = rows[r] || '';
+    for (let c = 0; c < 10; c++) b[r][c] = (s.charCodeAt(c) || 48) - 48;
+  }
+  return b;
 }
 
 export function screenshotPng() {
@@ -232,34 +295,71 @@ export function screenshotPng() {
   };
 
   fill(0, 0, W, H, 18, 22, 28);
-  drawText(put, 40, 48, 'FALLING', 8, 230, 236, 240);
-  drawText(put, 40, 112, 'BLOCKS', 8, 230, 236, 240);
-  drawText(put, 40, 188, 'STACK THE SHAPES', 3, 0, 196, 204);
-  rr(40, 250, 352, 326, 8, 0, 196, 204);
-  drawText(put, 64, 272, 'PLAY A FRIEND', 3, 18, 22, 28);
-  drawText(put, 40, 360, 'PRESS INVITE', 3, 255, 140, 0);
-  drawText(put, 40, 412, 'SAME SHAPES', 3, 230, 236, 240);
-  drawText(put, 40, 464, 'TWO BOARDS', 3, 230, 236, 240);
-  drawText(put, 40, 516, 'LAST ONE STANDING', 3, 170, 70, 200);
+  drawText(put, 40, 40, 'FALLING', 8, 230, 236, 240);
+  drawText(put, 40, 104, 'BLOCKS', 8, 230, 236, 240);
+  drawText(put, 40, 176, 'RACE FROM ONE LINK', 3, 0, 196, 204);
+  drawText(put, 40, 220, 'ON THIS DEVICE', 3, 230, 236, 240);
+  rr(40, 268, 352, 344, 8, 0, 196, 204);
+  drawText(put, 64, 290, 'PLAY A FRIEND', 3, 18, 22, 28);
+  drawText(put, 40, 372, 'SAME SHAPES', 3, 255, 140, 0);
+  drawText(put, 40, 424, 'TWO BOARDS', 3, 230, 236, 240);
+  drawText(put, 40, 476, 'LAST ONE STANDING', 3, 170, 70, 200);
+  drawText(put, 40, 544, 'BEST LIVES IN THE FILE', 2, 155, 164, 176);
 
-  function pileBoard(shift) {
-    const b = [];
-    for (let r = 0; r < 20; r++) b[r] = new Array(10).fill(0);
-    const cells = [
-      [0, 19, 5], [1, 19, 5], [2, 19, 4], [3, 19, 4], [4, 19, 1], [5, 19, 1], [6, 19, 0], [7, 19, 0], [8, 19, 6], [9, 19, 6],
-      [0, 18, 2], [1, 18, 2], [2, 18, 3], [3, 18, 3], [6, 18, 5], [7, 18, 5], [8, 18, 4], [9, 18, 4],
-      [1, 17, 0], [2, 17, 0], [3, 17, 0], [7, 17, 1], [8, 17, 1],
-      [2, 16, 6], [8, 16, 2],
-    ];
-    for (const c of cells) b[c[1]][(c[0] + shift) % 10] = c[2] + 1;
-    return b;
-  }
-  const youFall = [{ c: 4, r: 6, v: 6 }, { c: 3, r: 7, v: 6 }, { c: 4, r: 7, v: 6 }, { c: 5, r: 7, v: 6 }];
-  const themFall = [{ c: 2, r: 9, v: 0 }, { c: 3, r: 9, v: 0 }, { c: 4, r: 9, v: 0 }, { c: 5, r: 9, v: 0 }];
-  paintWell(put, fill, 560, 80, 24, pileBoard(0), youFall);
-  paintWell(put, fill, 860, 140, 16, pileBoard(3), themFall);
-  drawText(put, 560, 80 + 20 * 24 + 10, 'YOU', 3, 0, 196, 204);
-  drawText(put, 860, 140 + 20 * 16 + 10, 'FRIEND', 2, 170, 70, 200);
+  const youRows = [
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0033000000',
+    '0033551000',
+    '0223551770',
+    '0223441770',
+    '0663441550',
+    '0663341554',
+    '0113342554',
+    '0117342554',
+    '0777222664',
+    '0557222664',
+    '0557111663',
+    '0447111663',
+  ];
+  const themRows = [
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000000000',
+    '0000220000',
+    '0000223300',
+    '0115223340',
+    '0115553344',
+    '0661557744',
+    '0661157744',
+    '0332157766',
+    '0332151166',
+    '0447751166',
+    '0447752211',
+    '0557752211',
+  ];
+  const youFall = [
+    { c: 5, r: 4, v: 6 }, { c: 4, r: 5, v: 6 }, { c: 5, r: 5, v: 6 }, { c: 6, r: 5, v: 6 },
+  ];
+  const themFall = [
+    { c: 3, r: 6, v: 0 }, { c: 4, r: 6, v: 0 }, { c: 5, r: 6, v: 0 }, { c: 6, r: 6, v: 0 },
+  ];
+  paintWell(put, fill, 490, 78, 24, boardFromRows(youRows), youFall);
+  paintWell(put, fill, 860, 150, 18, boardFromRows(themRows), themFall);
+  drawText(put, 490, 78 + 20 * 24 + 14, 'YOU  2400', 3, 0, 196, 204);
+  drawText(put, 860, 150 + 20 * 18 + 14, 'FRIEND  1850', 2, 170, 70, 200);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
