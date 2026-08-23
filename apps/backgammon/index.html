@@ -15,6 +15,7 @@
 <main>
   <section class="card setup" id="setup">
     <h2>New game</h2>
+    <p class="lede">The computer plays on this device. A friend joins from one link. No server.</p>
     <label class="row">Play
       <div class="seg" id="modeSeg">
         <button type="button" data-mode="cpu" class="on">Computer</button>
@@ -30,15 +31,16 @@
       </label>
       <p class="lvlnote" id="cpuNote">You play white and go first. The computer plays black. It thinks on this device.</p>
     </div>
-    <p class="lvlnote" id="hotseatNote" hidden>Pass the device. White goes first. Roll, move, confirm.</p>
+    <p class="lvlnote" id="hotseatNote" hidden>Pass the device. White goes first. Roll, tap a checker, tap where it goes, confirm.</p>
     <button class="primary" id="startBtn" type="button">Start game</button>
     <button class="ghost wide" id="friendBtn" type="button">👥 Play a friend</button>
   </section>
 
   <section class="game" id="game" hidden>
+    <div class="turnpill" id="statusLine" aria-live="polite">Your turn.</div>
     <div class="scoreline" id="scoreLine"><span class="wht">White 0 off</span><span class="blk">Black 0 off</span></div>
-    <div class="statusline" id="statusLine">Your turn.</div>
-    <div class="boardwrap"><canvas id="board" width="720" height="480" aria-label="Backgammon board"></canvas></div>
+    <div class="boardwrap"><canvas id="board" width="720" height="560" aria-label="Backgammon board"></canvas></div>
+    <div class="dicerow" id="diceRow" hidden></div>
     <div class="controls">
       <button id="rollBtn" class="ghost" type="button">🎲 Roll</button>
       <button id="undoBtn" class="ghost" type="button">↶ Undo</button>
@@ -52,8 +54,9 @@
     <div class="seats" id="fSeats"></div>
     <div class="fqueue" id="fQueue"></div>
     <div class="scoreline" id="fScore"><span class="wht">White 0 off</span><span class="blk">Black 0 off</span></div>
-    <div class="statusline" id="fStatus"></div>
-    <div class="boardwrap"><canvas id="fBoard" width="720" height="480" aria-label="Shared backgammon board"></canvas></div>
+    <div class="turnpill" id="fStatus" aria-live="polite"></div>
+    <div class="boardwrap"><canvas id="fBoard" width="720" height="560" aria-label="Shared backgammon board"></canvas></div>
+    <div class="dicerow" id="fDice" hidden></div>
     <div class="controls">
       <button id="fRoll" class="ghost" type="button">🎲 Roll</button>
       <button id="fUndo" class="ghost" type="button">↶ Undo</button>

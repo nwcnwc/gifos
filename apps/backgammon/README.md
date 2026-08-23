@@ -1,6 +1,6 @@
 # Backgammon
 
-Fifteen checkers, two dice, a wooden table. Against the computer, or a friend.
+Play the computer on this device, or a friend from one link. No server.
 
 An unofficial port of **[backgammonjs](https://github.com/quasoft/backgammonjs)**
 by quasoft (MIT). The rules are his general table (`RuleBgCasual` — standard
@@ -26,7 +26,7 @@ build.mjs                packs the GIF into site/apps/backgammon/backgammon.gif
 
 - **Computer** — you pick white or black. White goes first. It thinks on this
   device; there is no server.
-- **Two here** — pass the device. White goes first. Roll, tap a point, confirm.
+- **Two here** — pass the device. White goes first. Roll, tap a checker, tap where it goes, confirm.
 - **Play a friend** — send the invite (top bar; that button is OS chrome).
   White and black seats, turns. Each person writes only their own row. The
   host of the board (lowest live id) is the only writer of the board row: a

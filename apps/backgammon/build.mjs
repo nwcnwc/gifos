@@ -150,6 +150,15 @@ if (listing.homepage !== 'https://github.com/nwcnwc/gifos/tree/main/apps/backgam
   throw new Error('listing.homepage must be the gifos tree');
 }
 if (listing.tagline.length > 120) throw new Error('tagline is over 120 chars');
+if (!/^Play the computer on this device/.test(listing.tagline)) {
+  throw new Error('tagline must lead with computer on this device');
+}
+if (!listing.description.includes('There is no game server')) {
+  throw new Error('listing must say there is no game server');
+}
+if (!listing.description.includes('unofficial')) {
+  throw new Error('listing must credit the unofficial port');
+}
 const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']) {
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
@@ -183,6 +192,30 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']
     '  var illegal = B.fresh();\n' +
     '  B.roll(illegal, [2, 1]);\n' +
     '  if (B.tryMove(illegal, B.topAt(illegal, 23).id, 4)) throw new Error("die 4 was not rolled");\n' +
+    '  var hit = B.fresh();\n' +
+    '  var blot = hit.state.points[18].pop();\n' +
+    '  hit.state.points[22].push(blot);\n' +
+    '  B.rebuild(hit);\n' +
+    '  B.roll(hit, [1, 2]);\n' +
+    '  if (!B.tryMove(hit, B.topAt(hit, 23).id, 1)) throw new Error("hit 1 from 24");\n' +
+    '  if (hit.state.bar[B.BLACK].length !== 1) throw new Error("hit should send the blot to the bar");\n' +
+    '  if (!hit.state.points[22].length || hit.state.points[22][0].type !== B.WHITE) throw new Error("hitter should sit on 23");\n' +
+    '  var doubles = B.fresh();\n' +
+    '  B.roll(doubles, [3, 3]);\n' +
+    '  if ((doubles.turnDice.moves || []).length !== 4) throw new Error("doubles are four moves");\n' +
+    '  var bear = B.fresh();\n' +
+    '  var st = bear.state, wi;\n' +
+    '  for (wi = 0; wi < 24; wi++) st.points[wi] = st.points[wi].filter(function (p) { return p.type === B.BLACK; });\n' +
+    '  st.bar[B.WHITE] = []; st.outside[B.WHITE] = [];\n' +
+    '  for (wi = 0; wi < 15; wi++) st.points[wi % 6].push(st.whitePieces[wi]);\n' +
+    '  B.rebuild(bear);\n' +
+    '  B.roll(bear, [1, 2]);\n' +
+    '  if (!B.tryMove(bear, B.topAt(bear, 0).id, 1)) throw new Error("bearing a 1 from the ace");\n' +
+    '  if (bear.state.outside[B.WHITE].length !== 1) throw new Error("checker should be off");\n' +
+    '  var gD = B.fresh();\n' +
+    '  B.roll(gD, [6, 5]);\n' +
+    '  var dests = B.destsFor(gD, B.topAt(gD, 23));\n' +
+    '  if (!dests.length) throw new Error("opening 6 from 24 should list a dest");\n' +
     '  return seq.length;\n' +
     '})();',
     ctx
