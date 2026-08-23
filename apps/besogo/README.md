@@ -47,7 +47,7 @@ No `wasm`: BesoGo is plain JavaScript. No `network`. `minBuild` is **947**.
 node apps/besogo/build.mjs
 ```
 
-Writes `site/apps/besogo/besogo.gif`. The MIT notice rides inside the GIF.
+Writes `site/apps/besogo/besogo.gif` (~213 KB). The MIT notice rides inside the GIF.
 
 Do not run `scripts/build-app-catalog.mjs` from this change — `index.json`
 is owned elsewhere.
