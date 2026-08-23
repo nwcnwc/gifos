@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "nxn-cube",
+  "name": "NxN Cube",
+  "shortName": "NxN Cube",
+  "version": "1.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [251, 54, 54],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "players": { "visibility": "read-write" },
+    "race": { "visibility": "read-write" }
+  }
+}

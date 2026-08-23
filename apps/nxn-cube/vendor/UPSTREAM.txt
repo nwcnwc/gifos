@@ -1,0 +1,10 @@
+vendor/cube.js is GENERATED. Do not edit it; run node apps/nxn-cube/vendor.mjs.
+
+upstream: https://github.com/pengfeiw/rubiks-cube.git
+commit:   c30b46d057c7b52b3db4feea3f881174c2bdbd44
+three:    0.135.0
+entry:    src/_gifos-facade.ts (from gifos/facade.ts), IIFE, global NXN
+
+Both licences are MIT and travel beside it as COPYING-rubiks-cube.txt and
+COPYING-three.txt. They are packed into the GIF too, so a copy of this app
+that someone was handed still carries the notices it is required to carry.
