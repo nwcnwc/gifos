@@ -1,0 +1,78 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  color: #e7e794;
+  font-family: ui-monospace, "Cascadia Mono", "Courier New", monospace;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#game {
+  display: block;
+  margin: 0 auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #757575;
+  max-width: 100vw;
+  max-height: 100vh;
+  width: auto;
+  height: 100%;
+}
+
+#touch {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+#touch button {
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  border: 0;
+  color: #e7e794;
+  background: rgba(0, 0, 0, 0.45);
+  font: 700 16px/1 ui-monospace, monospace;
+}
+
+#dpad {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: 156px;
+  height: 156px;
+}
+#dpad button {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+}
+.d-up    { left: 52px; top: 0; }
+.d-down  { left: 52px; bottom: 0; }
+.d-left  { left: 0; top: 52px; }
+.d-right { right: 0; top: 52px; }
+
+#t-fire {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  font-size: 18px !important;
+  letter-spacing: 0.08em;
+}
+#t-start, #t-pause {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  width: 72px;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 12px !important;
+}
+#t-start { right: max(96px, env(safe-area-inset-right)); }
+#t-pause { right: max(16px, env(safe-area-inset-right)); }
+
+body.touch #game { height: 100%; }

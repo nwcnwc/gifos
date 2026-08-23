@@ -1,0 +1,32 @@
+{
+  "tagline": "Tanks, bricks, and the eagle. A friend on the other pad.",
+  "description": "You are a yellow tank at the bottom of a brick city, and twenty enemy tanks are coming for the eagle. Shoot the bricks, bounce off the steel, hide in the trees, and do not let them through. There are thirty-five stages, four kinds of enemy, and the usual prizes: a star to upgrade the gun, a helmet, a grenade, extra lives, a freeze, a shovel for the walls around the base.\n\nAlone, it is you against the computer. Send the invite and a friend on another phone or computer is the green tank — same stage, same eagle, two guns. There is no game server, no account and no lobby. The room is the link, and it holds together in the two browsers.\n\nOn a phone there is a pad under your thumb and a fire button; on a computer it is WASD and J, or the arrows. Pause with P.\n\nAn unofficial remake of the 1985 tank game, based on feichao93's Battle City remake (MIT). The stages and the sounds are theirs. This copy adds a second player on a second device, and a pad that works with a thumb.",
+  "author": {
+    "name": "feichao93",
+    "url": "https://github.com/feichao93/battle-city"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Battle City",
+    "url": "https://github.com/feichao93/battle-city",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "tanks",
+    "arcade",
+    "multiplayer",
+    "retro",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/battle-city",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
