@@ -1,0 +1,16 @@
+vendor/game.js is GENERATED. Do not edit it; run node apps/dante/vendor.mjs.
+
+upstream: https://github.com/SalvatorePreviti/js13k-2022
+commit:   b88e159f3905843f1f420e409430e1c2e5c9931f
+license:  MIT (COPYING-dante.txt); SoundBox zlib (COPYING-soundbox.txt)
+music:    Ryan Malm, after Beethoven Piano Sonata No. 14
+
+game.js is upstream dist/1-build/index.js (the Vite classic bundle,
+DEBUG compiled out, shaders and the ground SVG already inlined). A GIF
+srcdoc cannot fetch and cannot reload, so three patches land here:
+  - NO_INLINE is defined (the 1-build still calls it)
+  - Restart clears the save and drops the player; no location.reload
+  - loadGame waits for DanteSave.ready so gifos.db can hydrate first
+  - After the colour pass, DanteEngine.drawGhosts may paint extra bodies
+  - window.DanteEngine exposes player pose, meshes, and save/load
+Both notices travel INSIDE the GIF as well as beside it here.
