@@ -297,8 +297,8 @@ or client — therefore holds a **Web Lock** (`gifos-live-session`), the
 documented opt-out from tab freezing, and kicks its sockets on the lifecycle
 `resume`/`pageshow` events in case a freeze happened anyway. A phone that
 suspends the whole browser (screen off, app switch) is beyond any page's
-control — that path is covered by reconnect, host-back re-sync, and Take Over
-failover.
+control — that path is covered by reconnect, owner-back re-sync, and (for
+resilient rooms) deterministic succession.
 
 ---
 

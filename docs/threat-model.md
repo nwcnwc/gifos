@@ -50,12 +50,13 @@ workers — is denied by default and granted narrowly.
  │   boundary B: gifos.fetch() — the only network egress         │
  │   boundary C: the GIF decoder — untrusted bytes in            │
  └───────────────┬───────────────────────────────┬──────────────┘
-                 │ boundary D: the relay          │ boundary E: a remote peer
-                 ▼ (stateless pipe)               ▼ (multiplayer host/client)
+                │ boundary D: the relay          │ boundary E: a remote peer
+                ▼ (greeter + door)               ▼ (multiplayer owner/guest)
         ┌──────────────────┐            ┌────────────────────────┐
         │ relay Worker      │            │ another person's browser│
-        │ persists NOTHING  │            │ (host is authoritative) │
-        └──────────────────┘            └────────────────────────┘
+        │ persists NOTHING  │            │ (owner-signed state is  │
+        └──────────────────┘            │  authoritative)         │
+                                        └────────────────────────┘
 
  boundary F: a booted computer image runs in its own IndexedDB namespace
  boundary G: provenance — a signature claims authorship of GIF bytes
