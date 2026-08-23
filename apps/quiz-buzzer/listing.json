@@ -1,0 +1,29 @@
+{
+  "tagline": "One invite. Phones are buzzers. Fastest correct answer scores.",
+  "description": "One invite. Phones are buzzers. No account, no class code, no quiz company — the questions live in the file, and it works on a plane.\n\nPut a question on the big screen, or pick one from the bundled pack. Everyone else taps one of four huge answers on their phone. The fastest correct answer scores. Wrong and late are recorded honestly. Reveal. Next. At the end of the round, the board.\n\nOn your own, drill the pack against the clock. You are host and player on the same device.\n\nWant a question that is not in the pack? Type it, pick four answers, start the round. It lives in this match, not in a library in the sky.\n\nForty original general-knowledge questions ride along — science, geography, words, numbers. Nothing is fetched. The pack is the file.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "inspiredBy": {
+    "name": "Kahoot!",
+    "url": "https://kahoot.com/",
+    "by": "Kahoot!"
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "quiz",
+    "buzzer",
+    "party",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/quiz-buzzer",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

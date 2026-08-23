@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Quiz Buzzer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Quiz Buzzer</div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="home">
+    <h2>Phones are buzzers</h2>
+    <p class="lede">A question on the big screen. Everyone else taps one of four answers. Fastest correct scores. No account, no quiz company — the pack is in the file.</p>
+    <button class="primary" id="soloBtn" type="button">Drill the pack</button>
+    <button class="ghost wide" id="friendBtn" type="button">👥 Play with friends</button>
+    <p class="lvlnote" id="homeNote">Play with friends: send Invite from the GifOS menu. The people who open the link are the room. Put the host device where everyone can see it.</p>
+  </section>
+
+  <section class="game" id="lobby" hidden>
+    <div class="vhead"><h2>The room</h2><button class="ghost" id="lobbyLeave" type="button">← Leave</button></div>
+    <p class="statusline" id="lobbyStatus">Waiting for friends… press Invite in the GifOS menu to send the link.</p>
+    <ul class="people" id="lobbyList"></ul>
+    <div id="hostSetup">
+      <p class="lvlnote">You host. Put this screen where people can see the question.</p>
+      <div class="seg" id="secSeg" role="group" aria-label="Seconds">
+        <button type="button" data-sec="10">10s</button>
+        <button type="button" data-sec="15" class="on">15s</button>
+        <button type="button" data-sec="20">20s</button>
+      </div>
+      <button class="primary" id="startPackBtn" type="button">Start the pack</button>
+      <button class="ghost wide" id="customBtn" type="button">Type a question</button>
+    </div>
+  </section>
+
+  <section class="game" id="custom" hidden>
+    <div class="vhead"><h2>This round</h2><button class="ghost" id="customBack" type="button">← Back</button></div>
+    <p class="lvlnote">Lives in this match only — not a library.</p>
+    <label class="field">Question
+      <textarea id="cq" rows="3" maxlength="160" placeholder="What is the capital of…"></textarea>
+    </label>
+    <label class="field">A <input id="ca0" maxlength="48" type="text"></label>
+    <label class="field">B <input id="ca1" maxlength="48" type="text"></label>
+    <label class="field">C <input id="ca2" maxlength="48" type="text"></label>
+    <label class="field">D <input id="ca3" maxlength="48" type="text"></label>
+    <p class="lvlnote">Which is correct?</p>
+    <div class="seg" id="cansSeg" role="group" aria-label="Correct answer">
+      <button type="button" data-a="0" class="on">A</button>
+      <button type="button" data-a="1">B</button>
+      <button type="button" data-a="2">C</button>
+      <button type="button" data-a="3">D</button>
+    </div>
+    <button class="primary" id="customStart" type="button">Start this question</button>
+  </section>
+
+  <section class="play" id="play" hidden>
+    <div class="vhead">
+      <div>
+        <div class="cat" id="catChip">Science</div>
+        <div class="clock" id="clock">15</div>
+      </div>
+      <button class="ghost" id="playLeave" type="button">← Leave</button>
+    </div>
+    <p class="prompt" id="prompt"></p>
+    <div class="pads" id="pads"></div>
+    <p class="statusline" id="playStatus"></p>
+    <ul class="buzzed" id="buzzed"></ul>
+    <div class="hostbar" id="hostBar" hidden>
+      <button class="primary" id="revealBtn" type="button">Reveal</button>
+      <button class="ghost" id="nextBtn" type="button" hidden>Next</button>
+      <button class="ghost" id="endBtn" type="button" hidden>End of round</button>
+    </div>
+  </section>
+
+  <section class="game" id="board" hidden>
+    <div class="vhead"><h2>End of round</h2><button class="ghost" id="boardLeave" type="button">← Leave</button></div>
+    <ol class="board" id="boardList"></ol>
+    <p class="statusline" id="boardStatus"></p>
+    <button class="primary" id="againBtn" type="button">New round</button>
+  </section>
+</main>
+
+<script src="pack.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
