@@ -1,5 +1,6 @@
-// Procedural icon: cream paper, a coral scribble of a cat drawing itself.
-// Pure Node, super-sample → box-downsample. Deterministic.
+// Procedural icon: a cat is drawn, then guessed as HAT — a drawing becoming
+// a guess. Pure Node, super-sample → box-downsample. Deterministic.
+// Cover is mid-round: please-draw CAT on a full pad, not an empty lobby.
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
 
 const CARD = [42, 36, 28];
@@ -61,11 +62,27 @@ const CAT = [
   [76, 80, 92, 70], [92, 70, 96, 58],
 ];
 
+// Guess written under the drawing — the telephone beat.
+const GUESS = [
+  // H
+  [24, 96, 24, 118], [24, 107, 40, 107], [40, 96, 40, 118],
+  // A
+  [48, 118, 56, 96], [56, 96, 64, 118], [51, 110, 61, 110],
+  // T
+  [70, 96, 90, 96], [80, 96, 80, 118],
+  // ?
+  [98, 98, 108, 98], [108, 98, 108, 106], [108, 106, 100, 110],
+  [100, 116, 100, 118],
+];
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 18;
   const t = f / (FRAMES - 1);
-  const nSeg = Math.max(1, Math.round(CAT.length * Math.min(1, t * 1.05)));
+  const catT = Math.min(1, t / 0.58);
+  const nSeg = Math.max(1, Math.round(CAT.length * Math.min(1, catT * 1.05)));
+  const gT = t < 0.55 ? 0 : (t - 0.55) / 0.45;
+  const nGuess = Math.round(GUESS.length * Math.min(1, gT * 1.08));
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
@@ -74,14 +91,25 @@ function frameIndices(pal, f) {
       col = mix(PAPER, PAPER_D, Math.max(0, Math.min(1, (x + y) / (OUT * 2))));
       for (let i = 0; i < nSeg; i++) {
         const s = CAT[i];
-        const d = distToSeg(x, y, s[0], s[1], s[2], s[3]);
+        const d = distToSeg(x, y, s[0], s[1] - 8, s[2], s[3] - 8);
         if (d < 2.1) col = i < 12 ? INK : CORAL;
       }
-      // pencil tip following the latest segment
-      if (nSeg > 0 && t < 0.98) {
+      for (let i = 0; i < nGuess; i++) {
+        const s = GUESS[i];
+        const d = distToSeg(x, y, s[0], s[1], s[2], s[3]);
+        if (d < 2.4) col = CORAL;
+      }
+      // pencil tip: cat first, then the guess
+      if (catT < 0.98 && nSeg > 0 && gT === 0) {
         const s = CAT[nSeg - 1];
-        const px2 = s[0] + (s[2] - s[0]) * Math.min(1, t * CAT.length - (nSeg - 1));
-        const py2 = s[1] + (s[3] - s[1]) * Math.min(1, t * CAT.length - (nSeg - 1));
+        const u = Math.min(1, catT * CAT.length - (nSeg - 1));
+        const px2 = s[0] + (s[2] - s[0]) * u;
+        const py2 = s[1] - 8 + (s[3] - s[1]) * u;
+        if (Math.hypot(x - px2, y - py2) < 3.2) col = CORAL_H;
+      } else if (gT > 0 && gT < 0.98 && nGuess > 0) {
+        const s = GUESS[Math.min(nGuess, GUESS.length) - 1];
+        const px2 = s[0] + (s[2] - s[0]) * 0.85;
+        const py2 = s[1] + (s[3] - s[1]) * 0.85;
         if (Math.hypot(x - px2, y - py2) < 3.2) col = CORAL_H;
       }
     }
@@ -136,6 +164,7 @@ const GLYPHS = {
   'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
   'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
+  'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
   'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
   'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
@@ -150,6 +179,8 @@ const GLYPHS = {
   'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b01010, 0b00100],
   'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
   'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '4': [0b00100, 0b01100, 0b10100, 0b11111, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
 };
 function drawText(put, x, y, str, s, r, g, b) {
@@ -200,35 +231,38 @@ export function screenshotPng() {
     put(x, y, (28 + t * 18) | 0, (24 + t * 14) | 0, (20 + t * 10) | 0);
   }
 
-  // three paper cards: CAT → drawing → HAT
-  function paper(x, y, w, h) {
-    fill(x, y, x + w, y + h, 255, 253, 246);
-    // edge
-    for (let i = 0; i < w; i++) {
-      put(x + i, y, 90, 80, 64); put(x + i, y + h - 1, 90, 80, 64);
-    }
-    for (let i = 0; i < h; i++) {
-      put(x, y + i, 90, 80, 64); put(x + w - 1, y + i, 90, 80, 64);
-    }
-  }
-  paper(48, 90, 280, 520);
-  paper(360, 90, 280, 520);
-  paper(672, 90, 280, 520);
+  // Mid-round: the pad, a word to draw, a cat in progress. Not an empty lobby.
+  drawText(put, 468, 36, 'PLEASE DRAW', 4, 184, 168, 140);
+  drawText(put, 528, 78, 'CAT', 8, 232, 92, 64);
 
-  drawText(put, 110, 300, 'CAT', 9, 28, 24, 20);
-  // cat drawing on middle card
-  const ox = 400, oy = 180, sc = 3.2;
+  const padX = 350, padY = 140, padS = 500;
+  fill(padX, padY, padX + padS, padY + padS, 255, 253, 246);
+  for (let i = 0; i < padS; i++) {
+    put(padX + i, padY, 90, 80, 64); put(padX + i, padY + padS - 1, 90, 80, 64);
+    put(padX, padY + i, 90, 80, 64); put(padX + padS - 1, padY + i, 90, 80, 64);
+  }
+  const ox = padX + 70, oy = padY + 40, sc = 3.6;
   for (const s of CAT) {
-    strokeSeg(put, ox + s[0] * sc, oy + s[1] * sc, ox + s[2] * sc, oy + s[3] * sc, 28, 24, 20, 3);
+    strokeSeg(put, ox + s[0] * sc, oy + s[1] * sc, ox + s[2] * sc, oy + s[3] * sc, 28, 24, 20, 4);
   }
-  drawText(put, 740, 200, 'HAT', 9, 232, 92, 64);
-  // brim + crown
-  const hx = 730, hy = 340;
-  fill(hx + 20, hy + 70, hx + 220, hy + 100, 232, 92, 64);
-  fill(hx + 70, hy, hx + 170, hy + 74, 232, 92, 64);
+  // pencil tip at the tail
+  const tip = CAT[CAT.length - 1];
+  const tx = ox + tip[2] * sc, ty = oy + tip[3] * sc;
+  for (let oy2 = -5; oy2 <= 5; oy2++) for (let ox2 = -5; ox2 <= 5; ox2++) {
+    if (ox2 * ox2 + oy2 * oy2 <= 25) put(tx + ox2, ty + oy2, 255, 160, 140);
+  }
 
-  drawText(put, 48, 640, 'DRAWPHONE', 5, 244, 234, 212);
-  drawText(put, 640, 650, 'THE INVITE IS THE ROOM', 2, 184, 168, 140);
+  const sw = ['#111111', '#e85c40', '#3d7ea6', '#3a9a5b', '#e0b03a', '#8b5a2b', '#7b4ea3'];
+  for (let i = 0; i < sw.length; i++) {
+    const hex = sw[i];
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    const cx = 462 + i * 46, cy = 662;
+    for (let yy = -12; yy <= 12; yy++) for (let xx = -12; xx <= 12; xx++) {
+      if (xx * xx + yy * yy <= 144) put(cx + xx, cy + yy, r, g, b);
+    }
+  }
+  drawText(put, 48, 28, 'TURN 1 OF 4', 3, 184, 168, 140);
+  drawText(put, 48, 680, 'DRAWPHONE', 4, 244, 234, 212);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

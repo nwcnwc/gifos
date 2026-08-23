@@ -29,6 +29,9 @@ vendor/COPYING-drawphone.txt   upstream MIT notice (also packed inside the GIF)
   person writes only their own row. The host of the table (lowest live id)
   is the only writer of the board row: a player publishes a word or a
   drawing, the host advances the chain when everyone has sent.
+- **Rounds in the file** — a finished chain is saved in `gifos.db('save')`.
+  Open the GIF later and the last rounds are still there. Sharing the file
+  shares the jokes.
 
 Each chain starts with a simple word (or one you write). Then draw, guess,
 draw, guess, until it has been around the table, always ending on a word.

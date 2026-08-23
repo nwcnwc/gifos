@@ -1,6 +1,7 @@
 // Drawphone. Invite is OS chrome — this file never draws a share button.
 // Each person writes ONLY their own row (id = me). The host (lowest live id)
 // is the only writer of the board row, and is who advances the chain.
+// Finished rounds live in gifos.db('save') — the file is the archive.
 (function () {
   'use strict';
   var DP = window.DP;
@@ -13,19 +14,24 @@
   };
   var DEL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
   var COLORS = ['#111111', '#e85c40', '#3d7ea6', '#3a9a5b', '#e0b03a', '#8b5a2b', '#7b4ea3', '#fffdf6'];
+  var SEAT_HUE = ['#e85c40', '#3d7ea6', '#3a9a5b', '#e0b03a', '#7b4ea3', '#3aa8a0'];
   var PRES_TTL = 9000, HB_MS = 3000;
 
   var wordFirst = false;
   var pad = null;
-  var mode = 'setup'; // setup | here | friend
-  var herePeople = [{ id: 'h0', name: 'You' }, { id: 'h1', name: 'Friend' }];
+  var mode = 'setup'; // setup | here | friend | archive
+  var herePeople = [{ id: 'h0', name: 'Alex' }, { id: 'h1', name: 'Sam' }];
   var hereBoard = null;
   var hereIntents = {};
   var hereQueue = [];
   var hereActor = null;
   var herePass = false;
   var viewChain = 0;
+  var revealStep = 0;
   var playKey = '';
+  var archive = [];
+  var archiveBoard = null;
+  var noteTimer = 0;
 
   var saveDb = null, mpDb = null;
   try { if (window.gifos) saveDb = gifos.db('save'); } catch (e) {}
@@ -38,18 +44,24 @@
     $('chip').className = 'engine-chip' + (cls ? ' ' + cls : '');
     $('chipState').textContent = text;
   }
+  function setBody(cls) {
+    document.body.className = cls || '';
+  }
   function hideAll() {
     $('setup').hidden = true;
     $('hereSetup').hidden = true;
     $('lobby').hidden = true;
     $('play').hidden = true;
+    $('passSplash').hidden = true;
   }
   function showSetup() {
     mode = 'setup';
     playKey = '';
     hideAll();
+    setBody('');
     $('setup').hidden = false;
     setChip('ready', 'Ready');
+    paintArchive();
   }
   function showPlay() {
     hideAll();
@@ -59,6 +71,17 @@
     $('drawPane').hidden = true;
     $('waitPane').hidden = true;
     $('resultsPane').hidden = true;
+    $('fromLine').hidden = true;
+    $('playNote').hidden = true;
+  }
+  function note(msg) {
+    var el = $('playNote');
+    el.hidden = !msg;
+    el.textContent = msg || '';
+    if (noteTimer) clearTimeout(noteTimer);
+    if (msg) {
+      noteTimer = setTimeout(function () { el.hidden = true; }, 2200);
+    }
   }
 
   $('firstSeg').addEventListener('click', function (e) {
@@ -72,8 +95,28 @@
   });
 
   // ---- drawing pad ----
+  function fitSquare(slot, wrap) {
+    if (!slot || !wrap) return 0;
+    var w = slot.clientWidth || 0;
+    var h = slot.clientHeight || 0;
+    var s = Math.floor(Math.min(w, h || w));
+    if (s < 140) s = Math.max(140, Math.min(w || 140, 280));
+    wrap.style.width = s + 'px';
+    wrap.style.height = s + 'px';
+    return s;
+  }
+  function layoutPad() {
+    if ($('drawPane').hidden) return;
+    fitSquare($('padSlot'), $('padWrap'));
+    if (pad) pad.resize();
+  }
+  function layoutGuess() {
+    if ($('wordPane').hidden || $('guessArtWrap').hidden) return;
+    fitSquare($('guessSlot'), $('guessArtWrap'));
+  }
+
   function ensurePad() {
-    if (pad) { pad.resize(); return pad; }
+    if (pad) { layoutPad(); return pad; }
     pad = new window.DrawPad($('pad'));
     var i, sw;
     var box = $('colors');
@@ -84,7 +127,7 @@
       sw.className = 'swatch' + (i === 0 ? ' on' : '');
       sw.style.background = COLORS[i];
       sw.setAttribute('data-c', COLORS[i]);
-      sw.setAttribute('aria-label', 'colour');
+      sw.setAttribute('aria-label', i === COLORS.length - 1 ? 'eraser' : 'colour');
       box.appendChild(sw);
     }
     box.addEventListener('click', function (e) {
@@ -94,28 +137,32 @@
       pad.color = t.getAttribute('data-c');
     });
     $('undoBtn').onclick = function () { if (pad) pad.undo(); };
+    $('redoBtn').onclick = function () { if (pad) pad.redo(); };
     $('clearBtn').onclick = function () { if (pad) pad.clear(); };
     function setW(w) {
       if (pad) pad.width = w;
-      ['w3', 'w5', 'w10'].forEach(function (id) {
+      ['w3', 'w7', 'w14'].forEach(function (id) {
         $(id).classList.toggle('on', parseInt($(id).getAttribute('data-w'), 10) === w);
       });
     }
     $('w3').onclick = function () { setW(3); };
-    $('w5').onclick = function () { setW(5); };
-    $('w10').onclick = function () { setW(10); };
+    $('w7').onclick = function () { setW(7); };
+    $('w14').onclick = function () { setW(14); };
+    layoutPad();
     return pad;
   }
 
   function paintGuess(strokes) {
+    layoutGuess();
     var canvas = $('guessArt');
     var cssW = canvas.clientWidth || 360;
+    var cssH = canvas.clientHeight || cssW;
     var dpr = window.devicePixelRatio || 1;
     canvas.width = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
     var ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    window.paintStrokes(ctx, strokes || [], cssW, cssW);
+    window.paintStrokes(ctx, strokes || [], cssW, cssH);
   }
 
   function paintResult(canvas, strokes) {
@@ -141,10 +188,10 @@
   function fillWait(board) {
     var names = waitNames(board);
     $('waitLead').textContent = names.length
-      ? ('Waiting on ' + names.join(', ') + '…')
+      ? ('Still waiting for: ' + names.join(', '))
       : 'Waiting for everyone to send…';
     $('waitList').innerHTML = names.map(function (n) {
-      return '<li>' + esc(n) + '</li>';
+      return '<li><span>' + esc(n) + '</span></li>';
     }).join('');
   }
   function renderBoard(board, meId, opts) {
@@ -152,9 +199,9 @@
     var prompt = (board && board.phase === 'play' && meId && !opts.pass) ? DP.promptFor(board, meId) : null;
     var acting = !!(prompt && !opts.submitted);
     var key = board
-      ? [board.startedAt || 0, board.phase, board.seq, board.turn, meId || '', opts.submitted ? 1 : 0, opts.pass ? 1 : 0, viewChain].join('|')
+      ? [board.startedAt || 0, board.phase, board.seq, board.turn, meId || '', opts.submitted ? 1 : 0, opts.pass ? 1 : 0, viewChain, revealStep, mode].join('|')
       : '';
-    if (key === playKey && acting) return;
+    if (key === playKey && acting) { layoutPad(); return; }
     if (key === playKey && board && board.phase === 'play' && !acting && !opts.pass) {
       fillWait(board);
       return;
@@ -169,33 +216,39 @@
       ? ('Turn ' + (board.turn + 1) + ' of ' + board.turns)
       : '';
     if (board.phase === 'results') {
+      setBody('on-results');
       setChip('ready', 'Results');
       $('playTitle').textContent = 'Results';
-      $('playStatus').textContent = 'How far did it drift?';
+      $('playStatus').textContent = '';
       $('resultsPane').hidden = false;
-      $('againBtn').hidden = !opts.canAgain;
-      renderResults(board, viewChain);
+      $('againBtn').hidden = true;
+      renderResults(board, viewChain, { canAgain: !!opts.canAgain });
       return;
     }
     if (opts.pass) {
+      setBody('on-pass');
       setChip('wait', 'Pass the phone');
-      $('playTitle').textContent = 'Pass the phone';
+      hideAll();
       $('passSplash').hidden = false;
       $('passName').textContent = (opts.passName || 'Next') + ', you’re up.';
-      $('playStatus').textContent = '';
       return;
     }
     if (prompt && !opts.submitted) {
       var kind = prompt.kind;
       var last = prompt.last;
       if (kind === 'word') {
+        setBody('on-guess');
         setChip('ready', 'Guess');
         $('wordPane').hidden = false;
         if (last && last.type === 'draw') {
           $('playTitle').textContent = 'What is this a drawing of?';
           $('playStatus').textContent = '';
           $('guessArtWrap').hidden = false;
-          paintGuess(last.strokes);
+          if (last.by) {
+            $('fromLine').hidden = false;
+            $('fromLine').textContent = nameOf(board, last.by) + ' drew this.';
+          }
+          setTimeout(function () { paintGuess(last.strokes); }, 30);
         } else {
           $('playTitle').textContent = 'What should be drawn?';
           $('playStatus').textContent = 'A word or a short phrase.';
@@ -204,6 +257,7 @@
         $('wordIn').value = '';
         setTimeout(function () { try { $('wordIn').focus(); } catch (e) {} }, 50);
       } else {
+        setBody('on-draw');
         setChip('ready', 'Draw');
         $('drawPane').hidden = false;
         ensurePad();
@@ -213,17 +267,24 @@
         $('playTitle').textContent = 'Please draw';
         $('drawPrompt').textContent = word;
         $('playStatus').textContent = '';
-        setTimeout(function () { if (pad) pad.resize(); }, 40);
+        if (last && last.by) {
+          $('fromLine').hidden = false;
+          $('fromLine').textContent = nameOf(board, last.by) + ' wrote that.';
+        }
+        setTimeout(layoutPad, 30);
+        setTimeout(layoutPad, 180);
       }
       return;
     }
+    setBody('');
     setChip('wait', 'Waiting');
     $('playTitle').textContent = 'Waiting';
     $('waitPane').hidden = false;
     fillWait(board);
   }
 
-  function renderResults(board, idx) {
+  function renderResults(board, idx, opts) {
+    opts = opts || {};
     var chains = board.chains || [];
     if (idx < 0) idx = 0;
     if (idx >= chains.length) idx = 0;
@@ -238,18 +299,22 @@
     var view = $('chainView');
     view.innerHTML = '';
     if (!chain) return;
+    var owner = nameOf(board, chain.owner);
+    $('presentLine').textContent = owner + ' should present this one.';
+    var links = chain.links || [];
+    var shown = Math.max(0, Math.min(revealStep, links.length));
     var i, L, step, who;
-    for (i = 0; i < chain.links.length; i++) {
-      L = chain.links[i];
+    for (i = 0; i < shown; i++) {
+      L = links[i];
       step = document.createElement('div');
       step.className = 'step';
-      who = L.seed ? 'The first word' : (esc(nameOf(board, L.by)) + (L.type === 'draw' ? ' drew' : ' thought that was'));
       if (L.seed) who = 'The first word';
       else if (i === 0 && L.type === 'word') who = esc(nameOf(board, L.by)) + ' wanted someone to draw';
       else if (L.type === 'draw') who = esc(nameOf(board, L.by)) + ' drew';
       else who = esc(nameOf(board, L.by)) + ' thought that was';
       if (L.type === 'word') {
         step.innerHTML = '<h4>' + who + '</h4><p class="word">' + esc(L.word || '') + '</p>';
+        view.appendChild(step);
       } else {
         step.innerHTML = '<h4>' + who + '</h4>';
         var cv = document.createElement('canvas');
@@ -257,20 +322,54 @@
         step.appendChild(cv);
         view.appendChild(step);
         paintResult(cv, L.strokes);
-        continue;
       }
-      view.appendChild(step);
     }
-    $('wentFrom').innerHTML =
-      '<h4>You started with</h4><p>' + esc(DP.firstWord(chain) || '—') + '</p>' +
-      '<h4>and ended up with</h4><p>' + esc(DP.lastWord(chain) || '—') + '</p>';
+    var allIn = shown >= links.length;
+    $('wentFrom').hidden = !allIn;
+    if (allIn) {
+      $('wentFrom').innerHTML =
+        '<h4>You started with</h4><p>' + esc(DP.firstWord(chain) || '—') + '</p>' +
+        '<h4>and ended up with</h4><p>' + esc(DP.lastWord(chain) || '—') + '</p>';
+      setTimeout(function () {
+        try { $('wentFrom').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+      }, 40);
+    }
+    $('againBtn').hidden = !(opts.canAgain && allIn);
+    var nxt = $('revealNext');
+    if (!allIn) {
+      nxt.hidden = false;
+      nxt.textContent = shown === 0 ? 'Show the first word' : (links[shown].type === 'draw' ? 'Show the drawing' : 'Show the guess');
+    } else if (chains.length > 1 && idx < chains.length - 1) {
+      nxt.hidden = false;
+      nxt.textContent = 'Next chain';
+    } else {
+      nxt.hidden = true;
+    }
   }
 
   $('chainNav').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
     var i = parseInt(b.getAttribute('data-i'), 10);
-    var board = mode === 'here' ? hereBoard : mp.board;
-    if (board) renderResults(board, i);
+    var board = currentBoard();
+    revealStep = 0;
+    playKey = '';
+    if (board) renderResults(board, i, { canAgain: mode !== 'archive' && (mode === 'here' || (mode === 'friend' && isHost(mp.people))) });
+  });
+  $('revealNext').onclick = function () {
+    var board = currentBoard();
+    if (!board) return;
+    var chain = (board.chains || [])[viewChain];
+    var n = chain && chain.links ? chain.links.length : 0;
+    if (revealStep < n) revealStep += 1;
+    else if (viewChain < (board.chains || []).length - 1) {
+      viewChain += 1;
+      revealStep = 0;
+    }
+    playKey = '';
+    renderResults(board, viewChain, { canAgain: mode !== 'archive' && (mode === 'here' || (mode === 'friend' && isHost(mp.people))) });
+  };
+  $('chainView').addEventListener('click', function () {
+    if (!$('revealNext').hidden) $('revealNext').click();
   });
 
   // ---- hotseat ----
@@ -284,6 +383,7 @@
   }
   $('hereBtn').onclick = function () {
     hideAll();
+    setBody('');
     $('hereSetup').hidden = false;
     renderHereList();
     setChip('ready', 'This device');
@@ -315,6 +415,7 @@
     hereActor = hereQueue.shift() || null;
     herePass = true;
     viewChain = 0;
+    revealStep = 0;
     hereRender();
   }
   $('hereStart').onclick = hereBegin;
@@ -327,6 +428,7 @@
   function hereRender() {
     if (!hereBoard) return;
     if (hereBoard.phase === 'results') {
+      rememberRound(hereBoard);
       renderBoard(hereBoard, null, { canAgain: true });
       return;
     }
@@ -338,6 +440,7 @@
   }
   $('passGo').onclick = function () {
     herePass = false;
+    playKey = '';
     hereRender();
   };
   function hereSubmit(intent) {
@@ -361,12 +464,16 @@
   }
 
   // ---- send buttons ----
-  function currentBoard() { return mode === 'here' ? hereBoard : mp.board; }
+  function currentBoard() {
+    if (mode === 'here') return hereBoard;
+    if (mode === 'archive') return archiveBoard;
+    return mp.board;
+  }
   function submitWord() {
     var board = currentBoard();
     if (!board || board.phase !== 'play') return;
     var word = $('wordIn').value.replace(/^\s+|\s+$/g, '');
-    if (!word) return;
+    if (!word) { note('Write a guess first.'); return; }
     var intent = { kind: 'word', seq: board.seq, word: word.slice(0, 80) };
     if (mode === 'here') hereSubmit(intent);
     else mpSubmit(intent);
@@ -375,7 +482,7 @@
     var board = currentBoard();
     if (!board || board.phase !== 'play') return;
     ensurePad();
-    if (pad.blank()) return;
+    if (pad.blank()) { note('Draw something first.'); return; }
     var intent = { kind: 'draw', seq: board.seq, strokes: DP.capStrokes(pad.getStrokes()) };
     if (mode === 'here') hereSubmit(intent);
     else mpSubmit(intent);
@@ -387,7 +494,11 @@
   $('drawSend').onclick = submitDraw;
 
   $('againBtn').onclick = function () {
+    revealStep = 0;
+    viewChain = 0;
+    playKey = '';
     if (mode === 'here') hereBegin();
+    else if (mode === 'archive') showSetup();
     else if (mode === 'friend' && isHost(mp.people) && mp.people.length >= DP.MIN) {
       putBoard(DP.start(mp.people, { wordFirst: wordFirst, host: mp.id }));
     }
@@ -397,6 +508,63 @@
     if (mode === 'friend') mpLeave();
     else showSetup();
   };
+
+  // ---- archive (rounds in the file) ----
+  function rememberRound(board) {
+    if (!board || board.phase !== 'results') return;
+    var at = board.startedAt || nowMs();
+    if (archive.length && archive[0].at === at) return;
+    var round = {
+      at: at,
+      names: board.names || {},
+      chains: board.chains || [],
+      wordFirst: !!board.wordFirst,
+      order: board.order || []
+    };
+    archive.unshift(round);
+    if (archive.length > 8) archive = archive.slice(0, 8);
+    if (saveDb) saveDb.put({ id: 'archive', rounds: archive }).catch(function () {});
+    paintArchive();
+  }
+  function paintArchive() {
+    var box = $('archiveBox'), list = $('archiveList');
+    if (!archive.length) { box.hidden = true; return; }
+    box.hidden = false;
+    list.innerHTML = archive.map(function (r, i) {
+      var chains = r.chains || [];
+      var bits = chains.slice(0, 2).map(function (c) {
+        return (DP.firstWord(c) || '?') + ' → ' + (DP.lastWord(c) || '?');
+      });
+      var extra = chains.length > 2 ? ', etc.' : '';
+      var when = '';
+      try { when = new Date(r.at).toLocaleString(); } catch (e) { when = ''; }
+      return '<li><button type="button" class="linkish" data-i="' + i + '">' +
+        esc(bits.join(', ') + extra) + '</button><span class="sub">' + esc(when) + '</span></li>';
+    }).join('');
+  }
+  $('archiveList').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var i = parseInt(b.getAttribute('data-i'), 10);
+    var r = archive[i]; if (!r) return;
+    archiveBoard = {
+      id: 'board', phase: 'results', chains: r.chains, names: r.names,
+      order: r.order, wordFirst: r.wordFirst, startedAt: r.at, turn: 0, turns: 0, seq: 0
+    };
+    mode = 'archive';
+    viewChain = 0;
+    revealStep = 0;
+    playKey = '';
+    renderBoard(archiveBoard, null, { canAgain: false });
+    $('againBtn').hidden = true;
+    $('playTitle').textContent = 'A round in this file';
+  });
+  function loadArchive() {
+    if (!saveDb) return;
+    saveDb.get('archive').then(function (row) {
+      archive = (row && row.rounds) || [];
+      paintArchive();
+    }).catch(function () {});
+  }
 
   // ---- multiplayer ----
   function isHost(people) {
@@ -420,6 +588,7 @@
       mp.id = me.id; mp.name = me.name || 'You'; mp.on = true; mp.row = null; mp.board = null;
       mode = 'friend';
       hideAll();
+      setBody('');
       $('lobby').hidden = false;
       setChip('ready', 'A table');
       if (!mp.sub) {
@@ -466,6 +635,7 @@
       var next = mpReconcile(board, people);
       if (next) { putBoard(next); return; }
     }
+    if (board && board.phase === 'results') rememberRound(board);
     if (mp.row && mp.row.intent && board && board.seq !== mp.row.intent.seq) {
       putMe({ intent: null });
     }
@@ -508,17 +678,23 @@
     var host = isHost(mp.people);
     if (!b || b.phase === 'lobby' || (b.phase !== 'play' && b.phase !== 'results')) {
       hideAll();
+      setBody('');
       $('lobby').hidden = false;
-      $('lobbySeats').innerHTML = mp.people.map(function (p) {
+      var seats = mp.people.map(function (p, i) {
         var me = p.id === mp.id ? ' me' : '';
         var ho = (host && p.id === mp.id) || (!host && b && b.host === p.id) ? ' host' : '';
-        return '<div class="seat' + me + ho + '">' + esc(p.name || 'Player') + '</div>';
-      }).join('');
+        var col = SEAT_HUE[i % SEAT_HUE.length];
+        return '<div class="seat' + me + ho + '" style="border-color:' + col + '">' + esc(p.name || 'Player') + '</div>';
+      });
+      if (mp.people.length < 4) {
+        seats.push('<div class="seat open">Waiting for a friend…</div>');
+      }
+      $('lobbySeats').innerHTML = seats.join('');
       var n = mp.people.length;
       $('lobbyStart').hidden = !(host && n >= DP.MIN);
       if (n < DP.MIN) {
-        $('lobbyStatus').innerHTML = 'Waiting for another player… press <b>Invite</b> (top bar) to bring a friend.';
-        $('lobbyHint').hidden = false;
+        $('lobbyStatus').innerHTML = 'Waiting for another player… press <b>Invite</b> in the top bar to bring a friend.';
+        $('lobbyHint').hidden = true;
       } else if (host) {
         $('lobbyStatus').textContent = n + ' at the table. Start when you’re ready.';
         $('lobbyHint').hidden = true;
@@ -526,7 +702,7 @@
         $('lobbyStatus').textContent = n + ' at the table. Waiting for the host to start.';
         $('lobbyHint').hidden = true;
       }
-      setChip('ready', 'A table');
+      setChip('ready', n + ' at the table');
       return;
     }
     var submitted = !!(mp.row && mp.row.intent && b.seq === mp.row.intent.seq);
@@ -536,12 +712,13 @@
   $('lobbyStart').onclick = function () {
     if (!isHost(mp.people) || mp.people.length < DP.MIN) return;
     viewChain = 0;
+    revealStep = 0;
     putBoard(DP.start(mp.people, { wordFirst: wordFirst, host: mp.id }));
   };
 
   window.addEventListener('resize', function () {
-    if (pad && !$('drawPane').hidden) pad.resize();
-    if (!$('guessArtWrap').hidden && !$('guessArtWrap').parentElement.hidden) {
+    layoutPad();
+    if (!$('guessArtWrap').hidden && !$('wordPane').hidden) {
       var b = currentBoard();
       var me = mode === 'here' ? hereActor : mp.id;
       var pr = b && me ? DP.promptFor(b, me) : null;
@@ -550,6 +727,7 @@
   });
 
   if (window.gifos && gifos.onBack) gifos.onBack(function () {
+    if (!$('passSplash').hidden) return;
     if (!$('play').hidden) {
       if (mode === 'friend') mpLeave();
       else showSetup();
@@ -557,5 +735,6 @@
     else if (!$('hereSetup').hidden) showSetup();
   });
 
+  loadArchive();
   setChip('ready', 'Ready');
 })();

@@ -92,6 +92,15 @@ if (/>\s*Invite\s*</.test(html) || /id=["']invite/i.test(html)) {
 if (!files['app.js'].includes('Invite') || files['app.js'].includes('id="invite"')) {
   throw new Error('Invite is OS chrome — tell the player to press it, do not draw a share button');
 }
+if (!files['app.js'].includes("id: 'archive'") || !files['app.js'].includes('saveDb')) {
+  throw new Error('finished rounds must live in gifos.db(save) — the file is the archive');
+}
+if (!files['app.js'].includes('revealNext') || !files['app.js'].includes('revealStep')) {
+  throw new Error('results must step through the chain — dumping it all kills the joke');
+}
+if (!files['draw.js'].includes('quadraticCurveTo') || !files['draw.js'].includes('getCoalescedEvents')) {
+  throw new Error('the pad must smooth a finger stroke (quadratic + coalesced points)');
+}
 if (!files['app.js'].includes('intent') || !files['app.js'].includes('putMe')) {
   throw new Error('app.js must publish turns on the player\'s own row');
 }
