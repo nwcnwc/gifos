@@ -1,0 +1,109 @@
+/* GifOS chrome around the original felt table. The cream/green is the game;
+   this file only adds the friend-mode strip, a best score, and a system font
+   (upstream loaded Open Sans Condensed from Google). */
+html, body { overflow-x: hidden; }
+body {
+  font-family: 'Segoe UI', 'Arial Narrow', 'Liberation Sans Narrow', sans-serif;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  max-width: 720px;
+  margin: 10px auto 0;
+  padding: 0 12px;
+  color: #f4efe4;
+  text-shadow: 0 1px 2px #0a3a18;
+}
+.top h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: 0.04em;
+}
+.top-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#best {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+#friendBtn, #againBtn, #leaveBtn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#friendBtn { background: #e8c547; color: #1a3a16; }
+#againBtn { background: #e8c547; color: #1a3a16; }
+#leaveBtn {
+  background: transparent;
+  color: #f4efe4;
+  box-shadow: inset 0 0 0 2px #f4efe488;
+}
+body.friend #friendBtn { display: none; }
+
+#friend-bar {
+  max-width: 720px;
+  margin: 8px auto 0;
+  padding: 12px 14px 10px;
+  background: #f4efe4;
+  color: #1a3a16;
+  border-radius: 8px;
+  width: calc(100% - 24px);
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 8px; font-size: 15px; line-height: 1.45; }
+#friend-hint b { color: #b42318; }
+#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-scores {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+#friend-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid #d8d0c0;
+  font-variant-numeric: tabular-nums;
+}
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .name {
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#friend-scores .me .name { color: #b42318; }
+#friend-scores .meta { color: #6a5a48; font-size: 13px; white-space: nowrap; }
+#friend-scores .win { font-weight: 700; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.foot {
+  max-width: 720px;
+  margin: 18px auto 0;
+  padding: 0 12px;
+  color: #d5e8c8;
+  font-size: 13px;
+  line-height: 1.5;
+  text-shadow: 0 1px 2px #0a3a18;
+}
+
+.invisible { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+@media screen and (max-width: 520px) {
+  .top h1 { font-size: 22px; }
+  #friend-bar { font-size: 14px; }
+}

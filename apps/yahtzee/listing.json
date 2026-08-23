@@ -1,0 +1,32 @@
+{
+  "tagline": "Five dice. A scorecard. A table that is the meeting.",
+  "description": "Roll five dice, keep the ones you like, and fill a line on the scorecard — ones through sixes, three of a kind, a straight, a full house, Yahtzee. Three rolls a turn. Thirteen turns. Highest total wins.\n\nOn your own it is that game, on this device. Close it and come back: the best score is still there.\n\nWant a table? Press Play a friend, then press Invite (in the GifOS menu) and send the link. You each have your own scorecard. You roll at the same time, on the same round. When every card is full, the highest total takes it. Playing alone is the original game.\n\nAn unofficial port of Yahtzee by Alhissar.",
+  "author": {
+    "name": "Alhissar",
+    "url": "https://github.com/Alhissar/Yahtzee"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Yahtzee",
+    "url": "https://github.com/Alhissar/Yahtzee",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "yahtzee",
+    "dice",
+    "scorecard",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/yahtzee",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
