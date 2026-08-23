@@ -160,7 +160,7 @@
       "name": "Asteroids",
       "shortName": "Asteroids",
       "version": "1.0.0",
-      "tagline": "A little triangle, a field of rocks, and whoever you send the link to.",
+      "tagline": "Extra ships from one invite. Same rocks, no server.",
       "author": {
         "name": "dmcinnes",
         "url": "https://github.com/dmcinnes/HTML5-Asteroids"
@@ -193,7 +193,7 @@
         255
       ],
       "cover": "/apps/asteroids/cover.jpg",
-      "bytes": 202406,
+      "bytes": 261526,
       "download": 0,
       "provides": null,
       "signature": {
@@ -201,7 +201,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "ae17a97cad1f224ebed590c64607d87749a8d0aca18be6bf8fe3896b5ebf6f6f"
+      "sha256": "dd8d3980f23d659c4d46a0f5de9de63d0987b92b2524b56eb5b3fd49f65508bf"
     },
     {
       "slug": "backgammon",
@@ -305,7 +305,7 @@
       "name": "Battleboat",
       "shortName": "Battleboat",
       "version": "1.0",
-      "tagline": "Sink the fleet. Against the computer, or a friend on another phone.",
+      "tagline": "Two devices, one link, no game server. Hide a fleet. Sink theirs.",
       "author": {
         "name": "billmei",
         "url": "https://github.com/billmei/battleboat"
@@ -325,7 +325,6 @@
         "Games"
       ],
       "tags": [
-        "battleship",
         "battleboat",
         "board",
         "multiplayer",
@@ -337,7 +336,7 @@
         0
       ],
       "cover": "/apps/battleboat/cover.jpg",
-      "bytes": 196915,
+      "bytes": 228985,
       "download": 0,
       "provides": null,
       "signature": {
@@ -345,7 +344,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "273c25ef662d9b1d51eb4e7ae4742a7e9f30c6b5a82728ee88f9a076b1f79401"
+      "sha256": "96de1178d775afb212d940f82fec817f3b5f65554f9401f6ee50df9eb91ba2b4"
     },
     {
       "slug": "besogo",
@@ -881,7 +880,7 @@
       "name": "Cube Composer",
       "shortName": "Cubes",
       "version": "1.0",
-      "tagline": "Line up the cubes. A tiny bit of programming. Race a friend to the shape.",
+      "tagline": "Race a friend from one link. Line up the cubes. Progress lives in the file.",
       "author": {
         "name": "sharkdp",
         "url": "https://github.com/sharkdp/cube-composer"
@@ -914,7 +913,7 @@
         65
       ],
       "cover": "/apps/cube-composer/cover.jpg",
-      "bytes": 169563,
+      "bytes": 170074,
       "download": 0,
       "provides": null,
       "signature": {
@@ -922,7 +921,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "8c8ab34a4ccf2983930657d56b04d52bbf52fba0f445aed678aa0b4538694678"
+      "sha256": "0012b9bd293ace7db94c9b61cdf6530566d3716bcc0caaeb72874be4ea5bca05"
     },
     {
       "slug": "cyberchef",
@@ -1752,7 +1751,7 @@
       "name": "InvaderZ",
       "shortName": "InvaderZ",
       "version": "1.0.0",
-      "tagline": "They keep changing shape. Keep them out of the atmosphere.",
+      "tagline": "Send the invite. Extra cannons on the same ground. No server.",
       "author": {
         "name": "victorqribeiro",
         "url": "https://github.com/victorqribeiro/invaderz"
@@ -1784,7 +1783,7 @@
         186
       ],
       "cover": "/apps/invaderz/cover.jpg",
-      "bytes": 193059,
+      "bytes": 194800,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1792,7 +1791,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "65549ae1ce20b80aefb50a7cd60a36fa4e6d103c2d699c0de5c9209dfd8656cd"
+      "sha256": "a51c1a2bb130b7c42308020ba0e9737a053e0bcc1ef06fbdd15e855b211d114f"
     },
     {
       "slug": "io-808",
@@ -1849,8 +1848,8 @@
       "appId": "io-blobs",
       "name": "IO Blobs",
       "shortName": "Blobs",
-      "version": "1.0",
-      "tagline": "A coloured blob in an open arena. Swallow the smaller ones. Send the link and the others are people.",
+      "version": "1.1",
+      "tagline": "Send the link. Same arena. No server.",
       "author": {
         "name": "vzhou842",
         "url": "https://github.com/vzhou842/example-.io-game"
@@ -1882,7 +1881,7 @@
         168
       ],
       "cover": "/apps/io-blobs/cover.jpg",
-      "bytes": 195048,
+      "bytes": 200967,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1890,7 +1889,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "71a2e4c3df134d25b9845a88c4821c9a2059dfe7205456406f38a9e3786fe1f1"
+      "sha256": "bb2c7be702e33a7c7ed803494763466c546994e49babfc0672655c6b93e90577"
     },
     {
       "slug": "isocity",
@@ -1898,7 +1897,7 @@
       "name": "IsoCity",
       "shortName": "IsoCity",
       "version": "1.0",
-      "tagline": "A tiny isometric city. Tap to place a tile. Share the map, or build two cities side by side.",
+      "tagline": "Share the map from one invite. The city lives in the file.",
       "author": {
         "name": "victorqribeiro",
         "url": "https://github.com/victorqribeiro/isocity"
@@ -1931,7 +1930,7 @@
         85
       ],
       "cover": "/apps/isocity/cover.jpg",
-      "bytes": 643973,
+      "bytes": 646468,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1939,7 +1938,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "187b8329a0d8f43dce9b1d53b5a8de534ce54b6b37386019daec62d9688075fc"
+      "sha256": "9a9c434d0107eeed547039eda1d31976acdd5ca2f6ed2999063c1d2e51b6941c"
     },
     {
       "slug": "jspaint",
@@ -2804,7 +2803,7 @@
       "name": "Particle Life",
       "shortName": "Life",
       "version": "1.0.0",
-      "tagline": "Coloured specks that clump into little creatures. Touch to stir. Share the jar.",
+      "tagline": "Share the jar from one link. Same mix, your stir, they see it.",
       "author": {
         "name": "hunar4321",
         "url": "https://github.com/hunar4321/particle-life"
@@ -2838,7 +2837,7 @@
         204
       ],
       "cover": "/apps/particle-life/cover.jpg",
-      "bytes": 190454,
+      "bytes": 191468,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2846,7 +2845,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "cc5970a0d60cde824b66d26f10dde445b05a23e210c38aca0c6ba2ffd67500f6"
+      "sha256": "7cfdc73fa472bd478320aa67e525f78acec79c48009864ed58714fe8073e36a7"
     },
     {
       "slug": "pdf-tables",
@@ -3192,7 +3191,7 @@
       "name": "Pool",
       "shortName": "Pool",
       "version": "1.0.0",
-      "tagline": "Eight-ball on a green table. Pull the stick back, let go, take turns.",
+      "tagline": "Two devices, one link, no server. Red against yellow, then the black.",
       "author": {
         "name": "henshmi",
         "url": "https://github.com/henshmi/Classic-Pool-Game"
@@ -3224,7 +3223,7 @@
         78
       ],
       "cover": "/apps/pool/cover.jpg",
-      "bytes": 396810,
+      "bytes": 400353,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3232,15 +3231,15 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "1a737be394a8aeadda96c0c58c485b09c073c84e30b3909121e058af64e0f6ed"
+      "sha256": "a1dae2375af618761f15f6f62528f51d089e7a7db462c9e5c7c16443bc0ebe96"
     },
     {
       "slug": "q1k3",
       "appId": "q1k3",
       "name": "Q1K3",
       "shortName": "Q1K3",
-      "version": "1.0.0",
-      "tagline": "A shotgun, two torch-lit halls, and whoever you send the link to.",
+      "version": "1.0.1",
+      "tagline": "A shotgun, two torch-lit halls, in a GIF. No server.",
       "author": {
         "name": "phoboslab",
         "url": "https://github.com/phoboslab"
@@ -3264,9 +3263,8 @@
         "fps",
         "shooter",
         "3d",
-        "js13k",
-        "multiplayer",
-        "offline"
+        "offline",
+        "multiplayer"
       ],
       "accent": [
         196,
@@ -3274,7 +3272,7 @@
         36
       ],
       "cover": "/apps/q1k3/cover.jpg",
-      "bytes": 231901,
+      "bytes": 232895,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3282,7 +3280,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "16fa72ad3bfd0bf4759917d4b95e45f71580af053e6f14864612a97be0e741b0"
+      "sha256": "4ff72c02c572b1bab0000a30f0ab8d2d3d0e060f4fccdbb45a8a982aa0052156"
     },
     {
       "slug": "quiz-buzzer",
@@ -3679,7 +3677,7 @@
       "name": "SkiFree",
       "shortName": "Ski",
       "version": "1.0",
-      "tagline": "Point down the mountain. Dodge the trees. Race a ghost of whoever you send the link to.",
+      "tagline": "Race a ghost from one link. Tilt the phone. No install.",
       "author": {
         "name": "basicallydan",
         "url": "https://github.com/basicallydan/skifree.js"
@@ -3704,6 +3702,7 @@
         "yeti",
         "multiplayer",
         "touch",
+        "tilt",
         "offline"
       ],
       "accent": [
@@ -3712,7 +3711,7 @@
         196
       ],
       "cover": "/apps/skifree/cover.jpg",
-      "bytes": 209203,
+      "bytes": 213196,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3720,7 +3719,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "4c061e54109a675e184d1b1a0485e45a548e7a65e840b486b5ceac4edff56abd"
+      "sha256": "4c5588c577d03faf101c0193ee8ad66ec60999296a011ff042a4c18e51bcab36"
     },
     {
       "slug": "snake",
@@ -4020,8 +4019,8 @@
       "appId": "star-battle",
       "name": "Star Battle",
       "shortName": "Star Battle",
-      "version": "1.0.0",
-      "tagline": "A yellow saucer, a dark sky, and whatever is coming in from the right.",
+      "version": "1.0.1",
+      "tagline": "Send the link. Extra ships in the same sky. No server.",
       "author": {
         "name": "gd4Ark",
         "url": "https://github.com/gd4Ark/star-battle"
@@ -4053,7 +4052,7 @@
         48
       ],
       "cover": "/apps/star-battle/cover.jpg",
-      "bytes": 791500,
+      "bytes": 795275,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4061,7 +4060,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "591891f7e3661712729b2fbd2e5a3903c990413af6844c1d07fdb47434a60a4e"
+      "sha256": "9a98537b6bf1a3dbced639bfa8d4a1c34cf4491699dc7f2f51eadc0834cbdde0"
     },
     {
       "slug": "stolen-sword",
@@ -4647,7 +4646,7 @@
       "name": "Underrun",
       "shortName": "Underrun",
       "version": "1.0.0",
-      "tagline": "A dark corridor, a handful of dead computers, and whoever walks in with you.",
+      "tagline": "The corridor shooter, in a GIF. No server. The file is the save.",
       "author": {
         "name": "phoboslab",
         "url": "https://github.com/phoboslab"
@@ -4680,7 +4679,7 @@
         0
       ],
       "cover": "/apps/underrun/cover.jpg",
-      "bytes": 213095,
+      "bytes": 214001,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4688,7 +4687,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "41ae83ac56b31b0398f906c6fff635192d11e22e21a6cc5f3b740761b3e8884d"
+      "sha256": "d07901d51ada710056fe4bd5243a5ff3b58e4100c463daa378e5bde3bac98b77"
     },
     {
       "slug": "vocal-remover",

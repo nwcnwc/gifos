@@ -4,10 +4,10 @@
   "appId": "io-blobs",
   "name": "IO Blobs",
   "shortName": "Blobs",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "A coloured blob in an open arena. Swallow the smaller ones. Send the link and the others are people.",
-  "description": "You are a little round blob in a wide arena. Drift around, swallow the dots, grow. Bigger blobs swallow smaller ones — including you, if you get careless. That is the whole game.\n\nSend the invite and everyone who opens the link lands in the same arena. There is no game server, no account and no lobby. The room is the link, and it holds together in the browsers of the people playing. Playing alone, a few wandering blobs keep you company; they scatter the moment a second person arrives.\n\nOn a computer, WASD or the arrows steer, or just point the mouse. On a phone, a thumb on the stick is enough.\n\nAn unofficial port of example-.io-game by vzhou842, MIT-licensed. The original needs a game server. This copy does not: the meeting is the room.",
+  "tagline": "Send the link. Same arena. No server.",
+  "description": "Press Invite in the bar above the game and send the link. Everyone who opens it drops into the same arena — no game server, no account, no lobby. The room is the link.\n\nYou are a small coloured blob. Steer, swallow the dots, grow. Bigger blobs swallow smaller ones, and a spiked ball knocks a chunk off you if you get greedy. On your own, a few wandering blobs keep you company; they scatter the moment another person arrives.\n\nOn a computer, point the mouse, or use WASD or the arrows. Space is a burst of speed that costs a little size. On a phone, put a thumb down and drag; Boost is the same burst.\n\nAn unofficial port of example-.io-game by vzhou842, MIT-licensed. The original needs a game server. This copy does not.",
   "author": {
     "name": "vzhou842",
     "url": "https://github.com/vzhou842/example-.io-game"
@@ -38,10 +38,10 @@
   "cover": "/apps/io-blobs/cover.jpg",
   "screenshots": [],
   "gif": "/apps/io-blobs/io-blobs.gif",
-  "bytes": 195048,
+  "bytes": 200967,
   "download": 0,
   "provides": null,
-  "sha256": "71a2e4c3df134d25b9845a88c4821c9a2059dfe7205456406f38a9e3786fe1f1",
+  "sha256": "bb2c7be702e33a7c7ed803494763466c546994e49babfc0672655c6b93e90577",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

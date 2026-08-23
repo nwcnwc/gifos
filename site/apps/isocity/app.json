@@ -6,8 +6,8 @@
   "shortName": "IsoCity",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "A tiny isometric city. Tap to place a tile. Share the map, or build two cities side by side.",
-  "description": "A small city on a diamond grid. Pick a tile — a road, a tree, a house, a tower — and tap to put it down. Drag to paint a street. There is no budget and no score. Just a little city.\n\nYour city stays on this device, inside the app. Close it, come back, the streets are where you left them.\n\nPress Share the map, then Invite (in the GifOS menu), and everyone who opens the link paints on the same city. Each person places their own tiles; they land if they fit. Press Compare cities and you each keep your own city, and you can peek at the others.\n\nAn unofficial port of IsoCity by victorqribeiro. The pictures are Kenney's. Bugs go to GifOS, not upstream.",
+  "tagline": "Share the map from one invite. The city lives in the file.",
+  "description": "Press Share the map, then Invite in the bar above the app, and send the link. Everyone paints on the same city. No account, no server — the room is the invite, and the city you built lives in the file.\n\nOn your own it is IsoCity. Pick a tile — a road, a tree, a house, a tower — and tap to put it down. Drag the map to look around. There is no budget and no score. Close it, come back, the streets are where you left them.\n\nPress Compare cities and each of you keeps your own, and you can peek at the others.\n\nAn unofficial port of IsoCity by victorqribeiro. The pictures are Kenney's. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "victorqribeiro",
     "url": "https://github.com/victorqribeiro/isocity"
@@ -39,10 +39,10 @@
   "cover": "/apps/isocity/cover.jpg",
   "screenshots": [],
   "gif": "/apps/isocity/isocity.gif",
-  "bytes": 643973,
+  "bytes": 646468,
   "download": 0,
   "provides": null,
-  "sha256": "187b8329a0d8f43dce9b1d53b5a8de534ce54b6b37386019daec62d9688075fc",
+  "sha256": "9a9c434d0107eeed547039eda1d31976acdd5ca2f6ed2999063c1d2e51b6941c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

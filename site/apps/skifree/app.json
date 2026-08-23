@@ -6,8 +6,8 @@
   "shortName": "Ski",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Point down the mountain. Dodge the trees. Race a ghost of whoever you send the link to.",
-  "description": "You are a little skier at the top of a white hill that does not end. Point where you want to go — mouse, keys, or a finger on the snow — and you go. Trees, rocks, jumps. Crash and you get back up. Go far enough and something hungry starts hunting you. Five skiers; when they are gone, that is how far you got.\n\nOn a phone you drag on the piste. Double-tap (or the boost button) to go faster, the old trick for getting away.\n\nPress Invite (in the GifOS menu) and send the link. Everyone who opens it skis their own run. You see the others as ghosts on your slope, a little ahead or a little behind. Farthest down the mountain wins. Playing alone is the original game.\n\nYour best distance stays on this device, inside the app.\n\nAn unofficial port of SkiFree.js by basicallydan, MIT-licensed. The pictures come from the 1991 PC game. This copy adds the ghosts over a meeting link. Bugs go to GifOS, not upstream.",
+  "tagline": "Race a ghost from one link. Tilt the phone. No install.",
+  "description": "Send the Invite in the bar above the slope. A friend opens the link and you both ski your own run — they show up as a ghost, a little ahead or a little behind. Farthest down the mountain wins. No account, no install, no game server. The race is the link.\n\nOn your own it is SkiFree. Point where you want to go — mouse, keys, a finger, or tilt the phone — and you go. Trees, rocks, jumps. Crash and get back up. Go far enough and something hungry starts hunting you. Five skiers; when they are gone, that is how far you got. Next run, a ghost of your best skis with you.\n\nOn a phone you drag on the snow, tilt to steer, and tap BOOST to go faster.\n\nYour best distance stays in the file.\n\nAn unofficial port of SkiFree.js by basicallydan, MIT-licensed. The pictures come from the 1991 PC game. This copy adds the ghosts and the phone. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "basicallydan",
     "url": "https://github.com/basicallydan/skifree.js"
@@ -23,6 +23,7 @@
     "yeti",
     "multiplayer",
     "touch",
+    "tilt",
     "offline"
   ],
   "license": "MIT",
@@ -34,15 +35,16 @@
   ],
   "capabilities": {
     "db": true,
-    "multiplayer": true
+    "multiplayer": true,
+    "motion": true
   },
   "cover": "/apps/skifree/cover.jpg",
   "screenshots": [],
   "gif": "/apps/skifree/skifree.gif",
-  "bytes": 209203,
+  "bytes": 213196,
   "download": 0,
   "provides": null,
-  "sha256": "4c061e54109a675e184d1b1a0485e45a548e7a65e840b486b5ceac4edff56abd",
+  "sha256": "4c5588c577d03faf101c0193ee8ad66ec60999296a011ff042a4c18e51bcab36",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
