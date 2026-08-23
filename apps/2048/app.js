@@ -60,11 +60,50 @@
     origKeep.call(this);
   };
 
+  function chromeEl(el) {
+    return el && el.closest && el.closest('a, button, input, textarea, .restart-button, .friend-button, .retry-button, .keep-playing-button, #friend-bar');
+  }
+
+  // Original only swipes on .game-container. In this iframe the heading and
+  // empty cream are most of the thumb's landing zone, so a swipe there has
+  // to move tiles too. Skip the board itself — vendor already handles it —
+  // so one swipe cannot fire twice.
+  function bindAnywhereSwipe(game) {
+    var input = game && game.inputManager;
+    if (!input || !input.emit) return;
+    var sx, sy, tracking = false;
+    document.addEventListener('touchstart', function (e) {
+      if (!e.changedTouches || !e.changedTouches.length) return;
+      if (chromeEl(e.target)) return;
+      if (e.target.closest && e.target.closest('.game-container')) return;
+      sx = e.changedTouches[0].clientX;
+      sy = e.changedTouches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      if (!tracking) return;
+      tracking = false;
+      if (!e.changedTouches || !e.changedTouches.length) return;
+      var dx = e.changedTouches[0].clientX - sx;
+      var dy = e.changedTouches[0].clientY - sy;
+      var absDx = Math.abs(dx), absDy = Math.abs(dy);
+      if (Math.max(absDx, absDy) > 24) {
+        input.emit('move', absDx > absDy ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0));
+      }
+    }, { passive: true });
+  }
+
   function start() {
     root.requestAnimationFrame(function () {
       root.G2048.game = new GameManager(4, KeyboardInputManager, HTMLActuator, LocalStorageManager);
+      bindAnywhereSwipe(root.G2048.game);
+      try { root.focus(); } catch (e) {}
     });
   }
+
+  document.addEventListener('pointerdown', function () {
+    try { root.focus(); } catch (e) {}
+  });
 
   if (root.gifos && root.gifos.onBack) {
     root.gifos.onBack(function () {

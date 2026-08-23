@@ -148,6 +148,16 @@
     if (p) p.textContent = text;
   }
 
+  function fmt(n) {
+    return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function chipClass(max) {
+    if (!max) return '';
+    if (max >= 4096) return 'chip chip-super';
+    return 'chip chip-' + max;
+  }
+
   function render() {
     if (!on) return;
     var players = live(lastList);
@@ -159,26 +169,29 @@
     players.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
     players.forEach(function (p) {
       var mine = p.id === me.id;
-      var tag = p.won ? '2048!' : p.over ? 'out' : 'playing';
+      var max = p.max || 0;
+      var tag = p.won ? '2048' : p.over ? 'out' : '';
       html += '<li class="' + (mine ? 'me' : '') + (p.won ? ' win' : '') + '">' +
         '<span class="name">' + (mine ? 'You' : esc(p.name || 'Player')) + '</span>' +
-        '<span class="meta">' + (p.score || 0) + ' · ' + (p.max || 0) + ' · ' + tag + '</span>' +
+        '<span class="score">' + fmt(p.score || 0) + '</span>' +
+        (max ? '<span class="' + chipClass(max) + '">' + max + '</span>' : '') +
+        (tag ? '<span class="tag">' + tag + '</span>' : '') +
         '</li>';
     });
-    scores.innerHTML = html || '<li><span class="name">Just you so far</span></li>';
+    scores.innerHTML = html;
 
     var others = players.filter(function (p) { return p.id !== me.id; });
     if (v) {
       roundOver = true;
       root.G2048.frozen = true;
       if (v.kind === 'tie') {
-        status.textContent = 'Tie at ' + (v.a.score || 0) + '.';
+        status.textContent = 'Tie at ' + fmt(v.a.score || 0) + '.';
         overlay('Tie!', false);
       } else {
         var mineWin = v.winner.id === me.id;
         var who = mineWin ? 'You' : (v.winner.name || 'They');
         var why = v.kind === '2048' ? ' reached 2048' : ' wins on score';
-        status.textContent = who + why + ' (' + (v.winner.score || 0) + ').';
+        status.textContent = who + why + ' (' + fmt(v.winner.score || 0) + ').';
         overlay(mineWin ? 'You win!' : (v.winner.name || 'They') + ' wins!', mineWin);
       }
       again.hidden = false;
@@ -187,16 +200,16 @@
       again.hidden = true;
       var g = root.G2048.game;
       if (!others.length) {
-        status.textContent = 'Waiting for a friend… press Invite (GifOS menu) to send the link. You can play in the meantime — they start from the same tiles.';
+        status.innerHTML = 'Press <b>Invite</b> to send the link. Same tiles — first to 2048.';
       } else if (g && g.over && !g.won) {
-        status.textContent = 'You’re out. Waiting to see if anyone still playing beats ' + g.score + '.';
+        status.textContent = 'You’re out. Highest score wins if nobody reaches 2048.';
         overlay('You’re out', false);
       } else if (g && g.won) {
         status.textContent = 'You reached 2048.';
       } else {
         status.textContent = others.length === 1
-          ? (others[0].name || 'Friend') + ' is on ' + (others[0].score || 0) + '.'
-          : others.length + ' playing. First to 2048, or highest score when the boards fill.';
+          ? (others[0].name || 'Friend') + ' is on ' + fmt(others[0].score || 0) + '.'
+          : others.length + ' playing. First to 2048.';
       }
     }
   }

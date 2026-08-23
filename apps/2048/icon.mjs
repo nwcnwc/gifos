@@ -1,8 +1,8 @@
-// Procedural 2048 icon: a cream rounded card holding the original grid, with
-// two 2-tiles sliding together into a 4 across the frames. Pure Node,
+// Procedural 2048 icon: a cream rounded card holding a 2×2 close-up of the
+// original grid, two 8-tiles sliding together into a 16. Pure Node,
 // super-sample → box-downsample → small palette; deterministic so builds
 // reproduce. screenshotPng() paints the 1200×720 store cover from the same
-// colours.
+// colours — a real mid-game board with a race score, not an empty start.
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
 
 const CREAM = [250, 248, 239];
@@ -119,23 +119,24 @@ function drawText(put, x, y, str, s, r, g, b) {
 }
 
 function tileAt(f) {
-  // Two 2s on row 1 slide together into a 4; a new 2 pops in the corner.
+  // 2×2 close-up so the merge reads at Home Screen size: two 8s slide
+  // together into a 16, a new 2 pops in. Tiny 4×4 digits vanish at 64px.
   const t = f / (FRAMES - 1);
-  const mergeT = Math.min(1, t / 0.55);
-  const slid = 0 + mergeT * 2; // col 0 → col 2
-  const merged = t > 0.55;
-  const pop = merged ? 1 + 0.18 * Math.sin(Math.min(1, (t - 0.55) / 0.2) * Math.PI) : 1;
+  const mergeT = Math.min(1, t / 0.5);
+  const slid = mergeT * mergeT * (3 - 2 * mergeT); // smoothstep col 0 → 1
+  const merged = t > 0.5;
+  const popT = Math.min(1, Math.max(0, (t - 0.5) / 0.28));
+  const pop = merged ? 1 + 0.18 * Math.sin(popT * Math.PI) : 1;
   const tiles = [
-    { c: 0, r: 0, v: 2, s: 1 },
-    { c: 3, r: 0, v: 4, s: 1 },
-    { c: 1, r: 3, v: 8, s: 1 },
+    { c: 0, r: 1, v: 2, s: 1 },
+    { c: 1, r: 1, v: 4, s: 1 },
   ];
   if (!merged) {
-    tiles.push({ c: 2, r: 1, v: 2, s: 1 });
-    tiles.push({ c: slid, r: 1, v: 2, s: 1 });
+    tiles.push({ c: 1, r: 0, v: 8, s: 1 });
+    tiles.push({ c: slid, r: 0, v: 8, s: 1 });
   } else {
-    tiles.push({ c: 2, r: 1, v: 4, s: pop });
-    if (t > 0.72) tiles.push({ c: 3, r: 3, v: 2, s: Math.min(1, (t - 0.72) / 0.18) });
+    tiles.push({ c: 1, r: 0, v: 16, s: pop });
+    if (t > 0.72) tiles.push({ c: 0, r: 0, v: 2, s: Math.min(1, (t - 0.72) / 0.18) });
   }
   return tiles;
 }
@@ -144,8 +145,8 @@ function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 6, rad = 18;
   const gx0 = 16, gy0 = 16, gx1 = 112, gy1 = 112;
-  const gap = 4;
-  const inner = (gx1 - gx0 - gap * 3) / 4;
+  const gap = 7;
+  const inner = (gx1 - gx0 - gap) / 2;
   const tiles = tileAt(f);
 
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
@@ -154,17 +155,17 @@ function frameIndices(pal, f) {
     if (inCard(x, y, m, rad)) {
       a = 1;
       col = CREAM;
-      if (rrPix(x, y, gx0 - 4, gy0 - 4, gx1 + 4, gy1 + 4, 8)) col = GRID;
-      for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+      if (rrPix(x, y, gx0 - 5, gy0 - 5, gx1 + 5, gy1 + 5, 10)) col = GRID;
+      for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) {
         const x0 = gx0 + c * (inner + gap), y0 = gy0 + r * (inner + gap);
-        if (rrPix(x, y, x0, y0, x0 + inner, y0 + inner, 3)) col = CELL;
+        if (rrPix(x, y, x0, y0, x0 + inner, y0 + inner, 5)) col = CELL;
       }
       for (let i = 0; i < tiles.length; i++) {
         const T = tiles[i], style = TILE[T.v];
         const cx = gx0 + T.c * (inner + gap) + inner / 2;
         const cy = gy0 + T.r * (inner + gap) + inner / 2;
         const half = (inner / 2) * T.s;
-        if (rrPix(x, y, cx - half, cy - half, cx + half, cy + half, 3 * T.s)) col = style.bg;
+        if (rrPix(x, y, cx - half, cy - half, cx + half, cy + half, 5 * T.s)) col = style.bg;
       }
     }
     const o = (py * RW + px) * 4;
@@ -185,7 +186,7 @@ function frameIndices(pal, f) {
     const T = tiles[i], style = TILE[T.v];
     if (T.s < 0.45) continue;
     const str = String(T.v);
-    const scale = T.v >= 16 ? 1 : 2;
+    const scale = T.v >= 16 ? 3 : 4;
     const tw = str.length * 6 * scale - scale;
     const th = 7 * scale;
     const cx = gx0 + T.c * (inner + gap) + inner / 2;
@@ -258,22 +259,27 @@ export function screenshotPng() {
   };
 
   fill(0, 0, W, H, 250, 248, 239);
-  drawText(put, 64, 80, '2048', 14, 119, 110, 101);
-  drawText(put, 64, 200, 'JOIN THE NUMBERS', 4, 187, 173, 160);
-  rr(64, 280, 360, 360, 8, 237, 194, 46);
-  drawText(put, 92, 304, 'PLAY A FRIEND', 3, 249, 246, 242);
-  drawText(put, 64, 400, 'PRESS INVITE', 3, 246, 94, 59);
-  drawText(put, 64, 450, 'SAME STARTING TILES', 3, 119, 110, 101);
-  drawText(put, 64, 500, 'FIRST TO 2048 WINS', 3, 119, 110, 101);
-  drawText(put, 64, 600, 'OR HIGHEST SCORE', 3, 187, 173, 160);
+  drawText(put, 56, 64, '2048', 12, 119, 110, 101);
 
+  rr(56, 196, 278, 268, 16, 238, 228, 218);
+  rr(294, 196, 540, 268, 16, 237, 224, 200);
+  drawText(put, 76, 218, 'YOU  6124', 3, 246, 94, 59);
+  drawText(put, 314, 218, 'SAM  4980', 3, 119, 110, 101);
+
+  drawText(put, 56, 320, 'RACE A FRIEND', 4, 119, 110, 101);
+  drawText(put, 56, 380, 'FROM ONE LINK', 4, 246, 94, 59);
+  drawText(put, 56, 460, 'SAME STARTING TILES', 3, 187, 173, 160);
+  drawText(put, 56, 514, 'FIRST TO 2048 WINS', 3, 187, 173, 160);
+  drawText(put, 56, 590, 'SAVED IN THE FILE', 3, 119, 110, 101);
+
+  // A real mid-game, not a colour chart: 1024 in the corner, 2s still around.
   const board = [
-    [2, 4, 8, 16],
-    [32, 64, 128, 256],
-    [8, 2, 16, 512],
-    [4, 1024, 2, 2048],
+    [4, 2, 8, 16],
+    [32, 8, 4, 2],
+    [64, 16, 2, 32],
+    [128, 4, 512, 1024],
   ];
-  const bx = 560, by = 70, bw = 560, pad = 18, gap = 14;
+  const bx = 600, by = 48, bw = 552, pad = 16, gap = 12;
   const cell = (bw - pad * 2 - gap * 3) / 4;
   rr(bx, by, bx + bw, by + bw, 16, 187, 173, 160);
   for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
