@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "periodic-table",
+  "name": "Periodic Table",
+  "shortName": "Table",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "All 118 on this device. Tap an element, filter by family, quiz yourself, or race a friend from one link.",
+  "entry": "index.html",
+  "accent": [232, 180, 60],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

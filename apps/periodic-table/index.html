@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Periodic Table</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">Periodic Table</div>
+  <nav class="tabs" id="tabs" aria-label="Modes">
+    <button type="button" data-view="table" class="on">Table</button>
+    <button type="button" data-view="quiz">Quiz</button>
+    <button type="button" data-view="friend">A friend</button>
+    <button type="button" data-view="more">More</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tableView">
+    <div class="filters" id="filters"></div>
+    <label class="sr" for="search">Find an element</label>
+    <input id="search" type="search" placeholder="Gold, Au, 79" autocomplete="off" spellcheck="false">
+    <div class="tablewrap">
+      <div class="table" id="table" role="grid" aria-label="Periodic table"></div>
+    </div>
+  </section>
+
+  <section id="quizView" hidden>
+    <div class="qhead">
+      <div class="qprog" id="qProg">1 / 10</div>
+      <div class="qscore">Right <b id="qRight">0</b> · Best <b id="qBest">0</b></div>
+    </div>
+    <p class="qprompt" id="qPrompt"></p>
+    <div class="choices" id="qChoices"></div>
+    <p class="qnote" id="qNote"></p>
+    <button class="primary" id="qAgain" type="button" hidden>Play again</button>
+  </section>
+
+  <section id="friendView" hidden>
+    <div class="vhead">
+      <h2>Race a friend</h2>
+      <button class="ghost" id="fLeave" type="button">← Leave</button>
+    </div>
+    <p class="statusline" id="fStatus"></p>
+    <div class="board" id="fBoard"></div>
+    <p class="qprompt" id="fPrompt"></p>
+    <div class="choices" id="fChoices"></div>
+    <p class="qnote" id="fNote"></p>
+  </section>
+
+  <section id="moreView" hidden>
+    <h2>Hydrocarbons</h2>
+    <div class="rows" id="hcRows"></div>
+    <h2>Indicators</h2>
+    <div class="rows" id="indRows"></div>
+    <h2>Solubility</h2>
+    <ul class="rules" id="solRows"></ul>
+    <p class="foot">Unofficial port of Periodic Table by calebephrem. All 118 confirmed elements; Ununennium would be 119.</p>
+  </section>
+</main>
+
+<div id="sheet" class="sheet" hidden>
+  <button type="button" class="sheet-close" id="sheetClose" aria-label="Close">Done</button>
+  <div class="sheet-sym" id="sheetSym"></div>
+  <div class="sheet-name" id="sheetName"></div>
+  <dl class="facts" id="sheetFacts"></dl>
+</div>
+
+<script src="elements.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
