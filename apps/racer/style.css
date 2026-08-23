@@ -1,0 +1,132 @@
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #0a0a0f; color: #f4e8dc;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  touch-action: none; overscroll-behavior: none;
+}
+
+#racer { position: absolute; inset: 0; }
+#canvas {
+  display: block; width: 100%; height: 100%;
+  touch-action: none; background: #72D7EE;
+}
+#loading {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: #0a0a0f; color: #c9a48a; font-size: .95rem; z-index: 2;
+}
+#loading[hidden] { display: none; }
+
+/* ---- HUD -------------------------------------------------------------- */
+#hud {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  display: flex; gap: .45rem; align-items: center; justify-content: space-between;
+  padding: .45rem .6rem;
+  padding-top: max(.45rem, env(safe-area-inset-top));
+  font-size: .78rem; letter-spacing: .02em;
+  background: linear-gradient(to bottom, rgba(10,8,16,.55), transparent);
+  pointer-events: none;
+}
+#hud .hud {
+  background: rgba(255,255,255,.18); color: #1a1010;
+  padding: .28rem .55rem; border-radius: .35rem; font-weight: 600;
+}
+#hud .value { font-variant-numeric: tabular-nums; }
+#hud #speed { margin-left: auto; background: rgba(255, 214, 80, .85); }
+
+#room-note {
+  position: absolute; top: max(2.6rem, calc(env(safe-area-inset-top) + 2.2rem));
+  left: .6rem; z-index: 3; font-size: .72rem; color: rgba(244,232,220,.8);
+  pointer-events: none; text-shadow: 0 1px 2px #000;
+}
+#room-note b { color: #ffd65a; }
+
+#race-start {
+  position: absolute;
+  top: max(4.3rem, calc(env(safe-area-inset-top) + 3.8rem));
+  left: .55rem; z-index: 4;
+  font: inherit; font-size: .78rem; font-weight: 700; letter-spacing: .04em;
+  padding: .4rem .7rem; border: 0; border-radius: .45rem;
+  background: #ff5c40; color: #1a0804; cursor: pointer;
+}
+#race-start[hidden] { display: none; }
+
+/* ---- race overlay / board -------------------------------------------- */
+#race-overlay {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  background: rgba(8,6,14,.28); pointer-events: none;
+}
+#race-overlay[hidden] { display: none; }
+#race-count {
+  font-size: 7rem; font-weight: 800; color: #fff6e8;
+  text-shadow: 0 4px 0 #c43a22, 0 8px 24px rgba(0,0,0,.45);
+  letter-spacing: .04em;
+}
+
+#race-board {
+  position: fixed; top: max(3.4rem, calc(env(safe-area-inset-top) + 3rem));
+  right: .55rem; z-index: 5; min-width: 11rem;
+  background: rgba(12,8,16,.72); color: #f4e8dc; border-radius: .5rem;
+  padding: .45rem .55rem .5rem; font-size: .78rem;
+  backdrop-filter: blur(6px);
+}
+#race-board[hidden] { display: none; }
+.board-title { font-weight: 700; letter-spacing: .08em; font-size: .68rem; color: #ffd65a; margin-bottom: .3rem; text-transform: uppercase; }
+.board-row { display: grid; grid-template-columns: 1.2rem 1fr auto; gap: .35rem; padding: .12rem 0; }
+.board-row.mine { color: #ffd65a; }
+.board-row .place { opacity: .7; }
+.board-empty { opacity: .6; font-size: .72rem; }
+
+/* ---- first-paint card ------------------------------------------------ */
+#gate {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
+  background: radial-gradient(120% 90% at 50% 0%, #3a1840 0%, #120814 70%);
+  padding: 1.25rem; transition: opacity .35s ease;
+}
+#gate.gone { opacity: 0; pointer-events: none; }
+#gate[hidden] { display: none; }
+.gate-box { width: min(28rem, 100%); text-align: center; }
+.gate-box h1 {
+  font-size: 2.1rem; letter-spacing: .12em; text-transform: uppercase;
+  color: #ffd65a; text-shadow: 0 2px 0 #c43a22; margin-bottom: .55rem;
+}
+.sub { color: #e8c4b0; line-height: 1.5; font-size: .95rem; }
+.hint { margin-top: 1.2rem; font-size: .8rem; color: #c9a48a; line-height: 1.7; }
+.hint b { color: #ffd65a; }
+#gate-note { margin-top: .8rem; font-size: .8rem; color: #c9a48a; min-height: 1em; }
+
+/* ---- touch ------------------------------------------------------------ */
+#touch {
+  position: fixed; inset: 0; z-index: 30; pointer-events: none;
+  touch-action: none; user-select: none;
+}
+#touch[hidden] { display: none; }
+.t-pad {
+  position: absolute;
+  left: max(1rem, env(safe-area-inset-left));
+  bottom: max(1.2rem, env(safe-area-inset-bottom));
+  width: 8.4rem; height: 8.4rem; border-radius: 50%; pointer-events: auto;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.18);
+}
+.t-knob {
+  position: absolute; left: 50%; top: 50%; width: 3.2rem; height: 3.2rem;
+  margin: -1.6rem 0 0 -1.6rem; border-radius: 50%;
+  background: rgba(255,214,80,.35); border: 1px solid rgba(255,214,80,.55);
+  will-change: transform;
+}
+#t-actions {
+  position: absolute;
+  right: max(.9rem, env(safe-area-inset-right));
+  bottom: max(1.2rem, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: .5rem; align-items: stretch;
+  pointer-events: auto;
+}
+.t-btn {
+  font: inherit; font-size: .72rem; font-weight: 800; letter-spacing: .08em;
+  color: #f4e8dc; background: rgba(12,8,16,.5); border: 1px solid rgba(255,255,255,.22);
+  border-radius: .8rem; padding: .7rem 1.1rem; min-width: 5.4rem; cursor: pointer;
+}
+.t-btn.on { background: rgba(255,255,255,.28); }
+.t-go { min-height: 5.6rem; font-size: 1.05rem; background: rgba(255, 92, 64, .55); border-color: rgba(255,214,80,.55); }
+.t-go.on { background: rgba(255, 92, 64, .9); color: #1a0804; }

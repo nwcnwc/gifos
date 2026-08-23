@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Racer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Hidden so the GifOS runtime can rewrite src to a data: URL. Game.loadImages
+     reads these; a path assigned from JS would 404 inside the sandbox. -->
+<img id="img-background" src="images/background.png" alt="" hidden>
+<img id="img-sprites" src="images/sprites.png" alt="" hidden>
+
+<div id="racer">
+  <canvas id="canvas">This game needs a canvas.</canvas>
+  <div id="loading">Loading the road…</div>
+
+  <div id="hud">
+    <span id="current_lap_time" class="hud">Time <span id="current_lap_time_value" class="value">0.0</span></span>
+    <span id="last_lap_time" class="hud" style="display:none">Last <span id="last_lap_time_value" class="value">0.0</span></span>
+    <span id="fast_lap_time" class="hud" style="display:none">Best <span id="fast_lap_time_value" class="value">0.0</span></span>
+    <span id="speed" class="hud"><span id="speed_value" class="value">0</span> mph</span>
+  </div>
+
+  <div id="room-note">Driving alone</div>
+  <button id="race-start" type="button">Start race</button>
+</div>
+
+<div id="race-overlay" hidden>
+  <div id="race-count">3</div>
+</div>
+
+<div id="race-board" hidden>
+  <div class="board-title">Finish</div>
+  <div id="board-rows"></div>
+</div>
+
+<div id="gate">
+  <div class="gate-box">
+    <h1>Racer</h1>
+    <p class="sub">A sunset highway and a red car. Send the link and the same road has everyone else on it.</p>
+    <p class="hint" id="gate-keys"><b>arrows</b> or <b>WASD</b> to drive</p>
+    <p class="hint">On a phone: <b>left</b> thumb steers, <b>right</b> thumb goes. Tap to start.</p>
+    <p id="gate-note"></p>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div id="t-steer" class="t-pad"><div class="t-knob"></div></div>
+  <div id="t-actions">
+    <button type="button" id="t-brake" class="t-btn">BRAKE</button>
+    <button type="button" id="t-go" class="t-btn t-go">GO</button>
+  </div>
+</div>
+
+<script src="vendor/common.js"></script>
+<script src="game.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
