@@ -1,0 +1,28 @@
+math-race — unofficial port of iloire/math-race (MIT, archived 2024-02-28).
+
+upstream: https://github.com/iloire/math-race
+commit:   3c4b2fa4e17457b9eff8f0e534e54e5658e4a5d8  (master)
+date:     2012 (archived 2024-02-28)
+license:  MIT (COPYING-math-race.txt)  Copyright (c) 2012 Iván Loire
+
+What we took:
+  lib/modules/race.js  Operation() — two integers 0–20, '+' or '−',
+                       first correct answer scores, clock is the server,
+                       next equation as soon as someone scores.
+  config.js            duration (the README said 60s; config shipped 30s).
+  LICENSE-MIT          packed inside the GIF as COPYING-math-race.txt.
+
+NOT copied (and not loaded):
+  server.js / app.js / socket.io  — the Node process was the starter pistol
+  knockout-2.0.0.js / jquery      — classic scripts instead
+  Bootstrap / bootswatch themes   — dark phone-first CSS instead
+  views/index.html                — rewritten; Invite is OS chrome
+
+GifOS has no game server. The host (lowest live id) is the clock and the
+only writer of the shared match row. Players publish an answer; the host
+awards the point if it is first and correct.
+
+Easy difficulty is the original generator. Medium (×) and Hard (mixed)
+are additions so a round is still a race when +/− gets too easy.
+
+The MIT notice travels INSIDE the GIF as COPYING-math-race.txt as well as here.
