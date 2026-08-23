@@ -322,9 +322,13 @@ THIRD-PARTY APIs — gifos.api  [capabilities.api: ["<name>", ...]]
                                 // { b64: '...' } -> decoded binary
      as: 'json'|'text'|'bytes'  // default: json if the response says so
    }) -> { status, ok, contentType, json | text | bytes+mime }
-   CORS: this is a browser fetch, so the endpoint must send CORS headers;
-   for server-only APIs the user ticks "Route through a CORS proxy" on that
-   API's Settings row — you write nothing for that.
+   CORS: this is a browser fetch, so the endpoint must send CORS headers.
+   For a server-only API, Settings' Test & save auto-detects the block and
+   routes that API through a stateless CORS proxy — you write nothing for
+   that. Deepgram is NATIVE: a POST to /v1/listen on an entry named
+   'deepgram' is translated to Deepgram's WebSocket protocol on the fly (no
+   proxy, key straight to the API host) and comes back REST-shaped — write
+   the ordinary REST call above and nothing else.
    await gifos.apiReady(name) -> boolean (configured or not — the key is
      never revealed). Check before doing wasted work.
    Machine-readable error prefixes (test with String.startsWith):

@@ -634,7 +634,13 @@ any ad-hoc scaling battery, and never leave one running unattended without caps.
 
 `relay-local.js` mirrors the production Worker (`relay/src/relay.js`) and is
 what the mesh/relay/drill suites spawn. `fake-ai.js`, `fake-keyapi.js` and
-`fake-cors-proxy.js` stand in for the paid upstreams.
+`fake-cors-proxy.js` stand in for the paid upstreams; `fake-keyapi` speaks
+both Deepgram's REST shape AND its WebSocket /v1/listen protocol (the runtime
+translates REST→WS natively — the WS answer is stamped `request_id:'ws-fake'`
+so a suite can prove which transport ran), plus a `/wsonly` base that answers
+REST without CORS to exercise the Settings WS-probe ladder. All the fakes and
+the suites that use them honor `FAKE_AI_PORT` / `FAKE_KEYAPI_PORT` /
+`FAKE_PROXY_PORT`, so they can run beside a gate that owns the defaults.
 
 ## unit/ — pure Node
 

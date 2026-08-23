@@ -79,10 +79,12 @@ timing from the word timestamps.
 
 - **Deepgram** (transcription) — GifOS Settings → **Third-party APIs** → add one
   named `deepgram`: base URL `https://api.deepgram.com`, auth **Token**, your
-  key, then **Test & save** (GifOS auto-detects that Deepgram's REST API needs
-  the CORS proxy and remembers it). A key with free credit comes with a new
-  deepgram.com account. When Fluence needs it and it isn't set up, **GifOS
-  itself** shows this prompt — the app doesn't hardcode it.
+  key, then **Test & save**. GifOS speaks Deepgram's **WebSocket protocol
+  natively** (the REST base blocks browsers, so Test probes the WS door and
+  saves that) — no CORS proxy anywhere; the key and audio go straight to
+  Deepgram. A key with free credit comes with a new deepgram.com account. When
+  Fluence needs it and it isn't set up, **GifOS itself** shows this prompt —
+  the app doesn't hardcode it.
 - **Smartest text** (coaching + weekly review) — GifOS Settings → **AI models**.
 - **Cheapest text** (drill generation) — GifOS Settings → **AI models**. Falls
   back to Smartest-style handling; only needed for generated drills.
