@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Bowling</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="lane">Sorry, this game needs a canvas.</canvas>
+
+<div id="hud" hidden>
+  <div id="sheet"></div>
+  <button id="soundBtn" type="button" aria-label="Sound">♪</button>
+  <button id="againBtn" type="button" hidden>New game</button>
+  <div id="power"><i id="powerFill"></i></div>
+  <div id="hint">Slide to aim · flick up the lane to throw</div>
+  <div id="banner" hidden></div>
+</div>
+
+<div id="menu">
+  <div id="menuCard">
+    <h1>Bowling</h1>
+    <p class="tag">Ten pins. Slide to aim, flick up the lane to throw. Ten frames.</p>
+    <button type="button" id="btnSolo">Bowl</button>
+    <button type="button" id="btnHot">Two on this device</button>
+    <p class="invite">Press <b>Invite</b> (top bar) to bowl with a friend on another device. You take turns. Each person keeps their own score. There is no game server.</p>
+    <p id="menuStatus"></p>
+  </div>
+</div>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="vendor/layout.js"></script>
+<script src="game.js"></script>
+<script src="mp.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

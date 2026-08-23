@@ -1,0 +1,18 @@
+tincoats/bowling
+https://github.com/tincoats/bowling
+pin: f3ef2da813cac5874c85019f86243bcacbad2a46
+MIT, Copyright (c) 2026 scotty888
+
+Upstream is an ES-module demo (Babylon.js + Havok, a glTF pin, type=module).
+GifOS inlines <script src> as classic scripts and drops type=module, so that
+engine cannot ride in. layout.js keeps the alley numbers and the throw from
+main.js at the pin above:
+
+  lane 6 wide, ball at (0, -7) diameter 1.5 mass 2
+  pin triangle at z = 10,11,12,13
+  drag left/right moves the ball (clamp ±2.5, 0.02 world per pixel)
+  flick up the lane: dy > 30px, under 1s, more vertical than horizontal
+  impulse = min(40, 20 + dy/8) along +z
+
+Scoring, take-turns, and the canvas alley are the GifOS port. Original had
+no score sheet — it reloaded the page seven seconds after a throw.
