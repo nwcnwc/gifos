@@ -258,6 +258,32 @@ being a port of their code, sets `inspiredBy` instead — author stays GifOS,
 and the store prints **Inspired by {name}**. `basedOn` and `inspiredBy` cannot
 both be set: a port is not "inspired by". Anyroad is this shape (Hop.Earth).
 
+## The frame an app runs in is NOT a page on the web
+
+Everything an app needs is inlined into ONE `srcdoc` document — its scripts,
+its stylesheets, its images as `data:` URLs — and mounted in a sandboxed
+iframe with an opaque origin and no network. Two consequences bite ports
+specifically, because upstream code was written for a real page at a real
+address:
+
+- **The frame's URL is `about:srcdoc`, and it is not the app's to navigate.**
+  A RELATIVE navigation — `location.replace('#x')`, `location.href = '#x'`, a
+  click on a plain `<a href="#section">` — used to resolve against the OS
+  page's address and walk the frame clean out of the app and onto run.html,
+  which then opened the MEETING LOBBY in place of the app. The OS now pins
+  `<base href="about:srcdoc">` so those resolve same-document, and
+  `test/browser/e2e-app-frame-escape.js` boots every built App GIF and clicks
+  every in-page anchor to keep it that way. The trap is closed, but the
+  lesson stands: **`location.hash = 'x'` is the way to say "set this
+  document's fragment"** — it edits this document's own URL and never had the
+  problem. Upstream's "the hash is the source of truth" pattern ports fine;
+  the sentence upstream wrote it with may not.
+- **There is no `document.baseURI` to fetch things off.** Relative fetches,
+  workers minted from relative paths, and `new URL(path, document.baseURI)`
+  have nothing to resolve against and nothing to reach. An engine's `.wasm`
+  has to come from the app's OWN bytes as a `blob:`/`data:` URL — see
+  `capabilities.wasm` and `gifos.assets()`.
+
 ## What "certified" means here
 
 - **Lives here, signed here**: built in this repo and **signed with the

@@ -686,6 +686,21 @@ Roughly three families in one directory:
   airborne, and a link making the TTS provider speak),
   `e2e-app-store` (the store catalog, its listings, and Install — including
   the rule that browsing must fetch ZERO App GIFs),
+  `e2e-app-frame-escape` (AN APP MAY NEVER NAVIGATE ITSELF OUT OF ITS OWN
+  FRAME. A `srcdoc` document inherits its base URL from the parent, so for the
+  runtime's whole life every app's base was run.html's own address — and
+  `location.replace('#x')` or a click on a plain `<a href="#section">` walks
+  the frame onto run.html, which finds no #id=/#s=/#j= in the hash it just
+  landed on and opens THE MEETING LOBBY. Regexper shipped to the store doing
+  that on 100% of launches; bip39 and piskel did it on a click. Fixed in the
+  OS — buildAppHtml pins `<base href="about:srcdoc">`, `base-uri about:` in the
+  app CSP so the OS's own base is not refused — so this guard is a SWEEP:
+  EVERY built App GIF in site/apps/ is installed, launched and clicked, because
+  the hazard belongs to the platform and therefore to every app anyone ports
+  next. It also asserts the mechanism directly, so a shelf with no `#` anchor
+  in it still fails the day the base tag is dropped. That second assertion is
+  a confidentiality one too: document.baseURI is readable inside the sandbox,
+  and in an app room run.html's hash carries the room's LINK SECRET),
   `e2e-asset-boot-status` (the solo boot's install-time asset backfill is
   VISIBLE: run.html#id= drives the busy pill with the download's own progress,
   and a failed download says so readably while the app still mounts SOFT.
