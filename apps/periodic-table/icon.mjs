@@ -1,26 +1,31 @@
-// Procedural icon: a few coloured element cells, Au flashing.
-// Demonstrates a table, not a generic flask. Pure Node, super-sample.
+// Procedural icon: the table silhouette, Au flashing gold.
+// A table, not a flask. Pure Node, super-sample.
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 10;
 
 const CARD = [16, 16, 24];
-const FG = [242, 242, 246];
-const ALK = [196, 107, 255];
-const AE = [123, 140, 255];
-const TR = [61, 206, 122];
-const NM = [255, 78, 200];
-const NG = [255, 77, 109];
-const HL = [62, 198, 255];
+const FG = [26, 20, 32];
+const ALK = [232, 180, 255];
+const AE = [184, 194, 255];
+const TR = [157, 232, 184];
+const PTM = [158, 234, 240];
+const MET = [239, 224, 138];
+const NM = [255, 163, 224];
+const HL = [158, 231, 255];
+const NG = [255, 176, 187];
+const LA = [243, 224, 138];
+const AC = [255, 192, 120];
 const AU = [232, 180, 60];
-const AU2 = [255, 230, 140];
+const AU2 = [255, 244, 180];
 
 function mix(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD, FG, ALK, AE, TR, NM, NG, HL, AU, AU2]) {
-    for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
-    pal.push(mix(b, [0, 0, 0], 0.35).map(Math.round));
+  for (const b of [CARD, FG, ALK, AE, TR, PTM, MET, NM, HL, NG, LA, AC, AU, AU2, [242, 242, 246]]) {
+    pal.push(b.map(Math.round));
+    pal.push(mix(b, [255, 255, 255], 0.25).map(Math.round));
+    pal.push(mix(b, [0, 0, 0], 0.3).map(Math.round));
   }
   return pal;
 }
@@ -96,57 +101,44 @@ function stampGlyph(rgba, x0, y0, ch, s, col, a) {
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const m = 8, rad = 18;
+  const m = 6, rad = 16;
   const t = f / (FRAMES - 1);
-  const pulse = 0.45 + 0.55 * Math.sin(t * Math.PI);
-  // 3×3 of real cells: H C O / Fe Au Ag / He Ne F  — Au flashes
-  const cells = [
-    { s: 'H',  c: NM, r: 0, k: 0 },
-    { s: 'C',  c: NM, r: 0, k: 1 },
-    { s: 'O',  c: NM, r: 0, k: 2 },
-    { s: 'FE', c: TR, r: 1, k: 0 },
-    { s: 'AU', c: mix(AU, AU2, pulse), r: 1, k: 1, flash: 1 },
-    { s: 'AG', c: TR, r: 1, k: 2 },
-    { s: 'HE', c: NG, r: 2, k: 0 },
-    { s: 'NE', c: NG, r: 2, k: 1 },
-    { s: 'F',  c: HL, r: 2, k: 2 },
-  ];
-  const bx = 18, by = 20, gap = 4, cell = 28;
+  const pulse = 0.35 + 0.65 * Math.sin(t * Math.PI);
+  const cell = 5.2, gap = 0.85;
+  const tableW = 18 * cell + 17 * gap;
+  const tableH = 9 * cell + 8 * gap;
+  const bx = (OUT - tableW) / 2;
+  const by = (OUT - tableH) / 2 + 2;
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
-    let col = null, a = 0;
-    if (inCard(x, y, m, rad)) {
-      a = 1;
-      col = CARD.slice();
-    }
     const o = (py * RW + px) * 4;
-    if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
+    if (inCard(x, y, m, rad)) {
+      rgba[o] = CARD[0]; rgba[o + 1] = CARD[1]; rgba[o + 2] = CARD[2]; rgba[o + 3] = 1;
+    }
   }
-  for (const celld of cells) {
-    const x0 = bx + celld.k * (cell + gap);
-    const y0 = by + celld.r * (cell + gap);
-    const bg = mix([18, 18, 26], celld.c, 0.22);
+  for (let z = 1; z <= 118; z++) {
+    const p = cellOf(z);
+    const x0 = bx + p.c * (cell + gap);
+    const y0 = by + p.r * (cell + gap);
+    const cat = catOf(z);
+    const col = CATCOL[cat] || [80, 80, 90];
+    const flash = z === 79;
+    const bg = flash ? mix(AU, AU2, pulse) : col;
     for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
       const x = px / SS, y = py / SS;
-      if (x < x0 || x > x0 + cell || y < y0 || y > y0 + cell) continue;
+      if (x < x0 || x >= x0 + cell || y < y0 || y >= y0 + cell) continue;
       const o = (py * RW + px) * 4;
-      let col = bg.slice();
-      if (y > y0 + cell - 3) col = celld.c.slice();
-      if (celld.flash) {
-        const cx = x0 + cell / 2, cy = y0 + cell / 2;
-        const d = Math.hypot(x - cx, y - cy);
-        if (d < 16) col = mix(col, celld.c, 0.35 + pulse * 0.4);
+      let c = bg;
+      if (flash) {
+        const d = Math.hypot(x - (x0 + cell / 2), y - (y0 + cell / 2));
+        if (d < cell * 0.9) c = mix(AU, [255, 255, 255], pulse * 0.55);
       }
-      rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
-    }
-    const gs = celld.s.length > 1 ? 2 : 3;
-    const tw = celld.s.length * 6 * gs;
-    const tx = x0 + Math.max(1, (cell - tw) / 2);
-    const ty = y0 + 10;
-    for (let i = 0; i < celld.s.length; i++) {
-      stampGlyph(rgba, tx + i * 6 * gs, ty, celld.s[i], gs, celld.flash ? mix(AU2, [255, 255, 255], pulse) : FG, 1);
+      rgba[o] = c[0]; rgba[o + 1] = c[1]; rgba[o + 2] = c[2]; rgba[o + 3] = 1;
     }
   }
+  // tiny Au mark so the flash reads as Gold, not a random spark
+  stampGlyph(rgba, 54, 108, 'A', 2, mix(AU2, [255, 255, 255], pulse), 1);
+  stampGlyph(rgba, 66, 108, 'U', 2, mix(AU2, [255, 255, 255], pulse), 1);
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
     let r = 0, g = 0, b = 0, a = 0, nss = SS * SS;
@@ -265,16 +257,31 @@ function cellOf(z) {
 }
 
 const CATCOL = {
-  alkali: [196, 107, 255],
-  'alkaline-earth': [123, 140, 255],
-  transition: [61, 206, 122],
-  'post-transition': [46, 201, 212],
-  metalloid: [212, 192, 74],
-  nonmetal: [255, 78, 200],
-  halogen: [62, 198, 255],
-  noble: [255, 77, 109],
-  lanthanide: [230, 200, 74],
-  actinide: [255, 153, 0],
+  alkali: [232, 180, 255],
+  'alkaline-earth': [184, 194, 255],
+  transition: [157, 232, 184],
+  'post-transition': [158, 234, 240],
+  metalloid: [239, 224, 138],
+  nonmetal: [255, 163, 224],
+  halogen: [158, 231, 255],
+  noble: [255, 176, 187],
+  lanthanide: [243, 224, 138],
+  actinide: [255, 192, 120],
+};
+
+const SYMS = {
+  1:'H',2:'HE',3:'LI',4:'BE',5:'B',6:'C',7:'N',8:'O',9:'F',10:'NE',
+  11:'NA',12:'MG',13:'AL',14:'SI',15:'P',16:'S',17:'CL',18:'AR',
+  19:'K',20:'CA',21:'SC',22:'TI',23:'V',24:'CR',25:'MN',26:'FE',27:'CO',28:'NI',29:'CU',30:'ZN',
+  31:'GA',32:'GE',33:'AS',34:'SE',35:'BR',36:'KR',
+  37:'RB',38:'SR',39:'Y',40:'ZR',41:'NB',42:'MO',43:'TC',44:'RU',45:'RH',46:'PD',47:'AG',48:'CD',
+  49:'IN',50:'SN',51:'SB',52:'TE',53:'I',54:'XE',
+  55:'CS',56:'BA',57:'LA',58:'CE',59:'PR',60:'ND',61:'PM',62:'SM',63:'EU',64:'GD',65:'TB',66:'DY',
+  67:'HO',68:'ER',69:'TM',70:'YB',71:'LU',72:'HF',73:'TA',74:'W',75:'RE',76:'OS',77:'IR',78:'PT',
+  79:'AU',80:'HG',81:'TL',82:'PB',83:'BI',84:'PO',85:'AT',86:'RN',
+  87:'FR',88:'RA',89:'AC',90:'TH',91:'PA',92:'U',93:'NP',94:'PU',95:'AM',96:'CM',97:'BK',98:'CF',
+  99:'ES',100:'FM',101:'MD',102:'NO',103:'LR',104:'RF',105:'DB',106:'SG',107:'BH',108:'HS',
+  109:'MT',110:'DS',111:'RG',112:'CN',113:'NH',114:'FL',115:'MC',116:'LV',117:'TS',118:'OG'
 };
 
 export function screenshotPng() {
@@ -309,61 +316,65 @@ export function screenshotPng() {
     }
   }
 
-  const SYMS = {
-    1: 'H', 2: 'HE', 6: 'C', 8: 'O', 26: 'FE', 79: 'AU', 82: 'PB', 118: 'OG'
-  };
-  const cell = 36, gap = 3, bx = 28, by = 64;
+  const cell = 38, gap = 3, bx = 22, by = 58;
+  for (let g = 1; g <= 18; g++) {
+    drawText(bx + (g - 1) * (cell + gap) + 12, 38, String(g), 1, 154, 160, 180);
+  }
   for (let z = 1; z <= 118; z++) {
     const p = cellOf(z);
     const x0 = bx + p.c * (cell + gap);
     const y0 = by + p.r * (cell + gap);
     const cat = catOf(z);
     const col = CATCOL[cat] || [80, 80, 90];
-    const bg = mix([18, 18, 26], col, z === 79 ? 0.55 : 0.28).map(Math.round);
-    fill(x0, y0, x0 + cell, y0 + cell, bg[0], bg[1], bg[2]);
-    fill(x0, y0 + cell - 3, x0 + cell, y0 + cell, col[0], col[1], col[2]);
+    fill(x0, y0, x0 + cell, y0 + cell, col[0], col[1], col[2]);
     const lab = SYMS[z];
     if (lab) {
       const gs = lab.length > 1 ? 2 : 3;
       const tw = lab.length * 6 * gs;
-      drawText(x0 + Math.max(2, (cell - tw) / 2), y0 + 10, lab, gs, 242, 242, 246);
+      drawText(x0 + Math.max(1, (cell - tw) / 2), y0 + 10, lab, gs, 26, 20, 32);
     }
   }
   // Gold (79) ring
   const gp = cellOf(79);
-  const gx = bx + gp.c * (cell + gap) + cell / 2;
-  const gy = by + gp.r * (cell + gap) + cell / 2;
-  for (let dy = -22; dy <= 22; dy++) for (let dx = -22; dx <= 22; dx++) {
-    const d = Math.hypot(dx, dy);
-    if (d > 18 && d <= 22) put(gx + dx, gy + dy, 232, 180, 60);
-  }
+  const gx0 = bx + gp.c * (cell + gap);
+  const gy0 = by + gp.r * (cell + gap);
+  fill(gx0 - 3, gy0 - 3, gx0 + cell + 3, gy0, 255, 255, 255);
+  fill(gx0 - 3, gy0 + cell, gx0 + cell + 3, gy0 + cell + 3, 255, 255, 255);
+  fill(gx0 - 3, gy0, gx0, gy0 + cell, 255, 255, 255);
+  fill(gx0 + cell, gy0, gx0 + cell + 3, gy0 + cell, 255, 255, 255);
 
   const chips = [
-    ['ALKALI', 196, 107, 255],
-    ['NOBLE', 255, 77, 109],
-    ['TRANSITION', 61, 206, 122],
-    ['HALOGEN', 62, 198, 255],
+    ['ALKALI', 232, 180, 255],
+    ['NOBLE', 255, 176, 187],
+    ['TRANSITION', 157, 232, 184],
+    ['HALOGEN', 158, 231, 255],
   ];
-  let chipX = 28;
-  const chipY = by + 9 * (cell + gap) + 16;
+  let chipX = 22;
+  const chipY = by + 9 * (cell + gap) + 14;
   for (const [lab, r, g, b] of chips) {
-    const w = lab.length * 18 + 28;
-    fill(chipX, chipY, chipX + w, chipY + 36, r, g, b);
-    drawText(chipX + 12, chipY + 10, lab, 2, 10, 10, 15);
-    chipX += w + 10;
+    const w = lab.length * 12 + 22;
+    fill(chipX, chipY, chipX + w, chipY + 28, r, g, b);
+    drawText(chipX + 10, chipY + 7, lab, 2, 26, 20, 32);
+    chipX += w + 8;
   }
 
-  // Gold card
-  const cx0 = 760, cy0 = 80, cx1 = 1172, cy1 = 640;
+  // Gold card — mid-use, the docked reading surface
+  const cx0 = 790, cy0 = 48, cx1 = 1178, cy1 = 672;
   fill(cx0, cy0, cx1, cy1, 20, 20, 28);
-  fill(cx0, cy0, cx1, cy0 + 8, 232, 180, 60);
-  drawText(cx0 + 36, cy0 + 40, 'AU', 14, 232, 180, 60);
-  drawText(cx0 + 36, cy0 + 168, 'GOLD', 7, 242, 242, 246);
-  drawText(cx0 + 36, cy0 + 250, 'NUMBER  79', 3, 154, 160, 180);
-  drawText(cx0 + 36, cy0 + 304, 'MASS  196.97', 3, 154, 160, 180);
-  drawText(cx0 + 36, cy0 + 358, 'TRANSITION METAL', 3, 61, 206, 122);
-  drawText(cx0 + 36, cy0 + 430, '2 8 18 32 18 1', 3, 232, 180, 60);
-  drawText(28, 18, 'PERIODIC TABLE', 3, 200, 200, 210);
+  fill(cx0, cy0, cx1, cy0 + 6, 232, 180, 60);
+  drawText(cx0 + 28, cy0 + 28, 'AU', 12, 61, 206, 122);
+  drawText(cx0 + 28, cy0 + 128, 'GOLD', 6, 242, 242, 246);
+  drawText(cx0 + 28, cy0 + 184, '79  ·  196.97 U  ·  SOLID', 2, 154, 160, 180);
+  fill(cx0 + 28, cy0 + 224, cx0 + 28 + 240, cy0 + 256, 157, 232, 184);
+  drawText(cx0 + 40, cy0 + 232, 'TRANSITION METAL', 2, 26, 20, 32);
+  drawText(cx0 + 28, cy0 + 280, 'ELECTRONS', 2, 154, 160, 180);
+  drawText(cx0 + 28, cy0 + 308, 'XE  4F14  5D10  6S1', 2, 232, 180, 60);
+  drawText(cx0 + 28, cy0 + 360, 'PERIOD  6   GROUP  11', 2, 154, 160, 180);
+  drawText(cx0 + 28, cy0 + 404, 'MELT  1064 C', 2, 154, 160, 180);
+  drawText(cx0 + 28, cy0 + 440, 'FOUND  ANCIENT', 2, 154, 160, 180);
+  drawText(cx0 + 28, cy0 + 476, 'DENSITY  19.3', 2, 154, 160, 180);
+  drawText(cx0 + 28, cy0 + 530, 'OXIDATION  +1  +3', 2, 232, 180, 60);
+  drawText(22, 16, 'PERIODIC TABLE', 3, 200, 200, 210);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

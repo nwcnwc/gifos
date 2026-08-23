@@ -25,12 +25,14 @@ vendor/             MIT notice + upstream pin
 
 ## What you can do
 
-- **Table** — compact 18-column grid. Tap an element for a card (name,
-  symbol, number, mass, category, shells). Filter by family. Search by
-  name, symbol or number. On a phone the cells stay readable because the
-  card is a sheet, not a magnified cell.
-- **Quiz** — "What is the symbol for Gold?" / "Which number is Fe?" Four
-  choices, one right. Score is saved on this device.
+- **Table** — 18-column map, pastel cells like a printed table. Tap an
+  element: the table stays, a docked card fills (name, number, mass,
+  family, electrons, state, year). Filter by family. Search by name,
+  symbol or number. **Bigger** makes the cells large enough to read and
+  pan. On a phone the card is the reading surface; the grid is the map.
+- **Quiz** — symbol, number, name, family, "which of these is a noble
+  gas?", period. Nearby wrong answers, not random. Score is saved on
+  this device.
 - **Play a friend** — send the invite (top bar; that button is OS chrome).
   Same quiz seed, race to ten right. Each person writes only their own
   score row. The host writes the shared quiz.
@@ -42,7 +44,8 @@ vendor/             MIT notice + upstream pin
 | capability | why |
 |---|---|
 | `db` | Local quiz score, and the shared race. |
-| `multiplayer` | The room. |
+| `multiplayer` | The room. Invite is OS chrome. |
+| `launch.el` | A link may open on Gold, Au or 79. |
 
 No `wasm`, no `network`, no `pointer`. `minBuild` is **947**.
 

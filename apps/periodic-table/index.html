@@ -8,7 +8,6 @@
 </head>
 <body>
 <header>
-  <div class="brand">Periodic Table</div>
   <nav class="tabs" id="tabs" aria-label="Modes">
     <button type="button" data-view="table" class="on">Table</button>
     <button type="button" data-view="quiz">Quiz</button>
@@ -19,12 +18,33 @@
 
 <main>
   <section id="tableView">
-    <div class="filters" id="filters"></div>
-    <label class="sr" for="search">Find an element</label>
-    <input id="search" type="search" placeholder="Gold, Au, 79" autocomplete="off" spellcheck="false">
-    <div class="tablewrap">
+    <div class="toolbar">
+      <div class="filters" id="filters"></div>
+      <div class="findrow">
+        <label class="sr" for="search">Find an element</label>
+        <input id="search" type="search" placeholder="Gold, Au, 79" autocomplete="off" spellcheck="false">
+        <button type="button" class="zoom" id="zoomBtn" aria-pressed="false">Bigger</button>
+      </div>
+    </div>
+    <div class="tablewrap" id="tablewrap">
+      <div class="gnums" id="gnums" aria-hidden="true"></div>
       <div class="table" id="table" role="grid" aria-label="Periodic table"></div>
     </div>
+    <aside class="dock" id="sheet">
+      <div class="dock-empty" id="dockEmpty">Tap a cell. The card stays put — the table is the map.</div>
+      <div class="dock-body" id="dockBody" hidden>
+        <div class="dock-hero">
+          <button type="button" class="step" id="prevEl" aria-label="Previous element">‹</button>
+          <div class="dock-sym" id="sheetSym"></div>
+          <div class="dock-id">
+            <div class="dock-name" id="sheetName"></div>
+            <div class="dock-sub" id="sheetSub"></div>
+          </div>
+          <button type="button" class="step" id="nextEl" aria-label="Next element">›</button>
+        </div>
+        <dl class="facts" id="sheetFacts"></dl>
+      </div>
+    </aside>
   </section>
 
   <section id="quizView" hidden>
@@ -32,9 +52,11 @@
       <div class="qprog" id="qProg">1 / 10</div>
       <div class="qscore">Right <b id="qRight">0</b> · Best <b id="qBest">0</b></div>
     </div>
+    <div class="qbar" id="qBar"></div>
     <p class="qprompt" id="qPrompt"></p>
     <div class="choices" id="qChoices"></div>
     <p class="qnote" id="qNote"></p>
+    <div id="qMiss" class="qmiss" hidden></div>
     <button class="primary" id="qAgain" type="button" hidden>Play again</button>
   </section>
 
@@ -60,13 +82,6 @@
     <p class="foot">Unofficial port of Periodic Table by calebephrem. All 118 confirmed elements; Ununennium would be 119.</p>
   </section>
 </main>
-
-<div id="sheet" class="sheet" hidden>
-  <button type="button" class="sheet-close" id="sheetClose" aria-label="Close">Done</button>
-  <div class="sheet-sym" id="sheetSym"></div>
-  <div class="sheet-name" id="sheetName"></div>
-  <dl class="facts" id="sheetFacts"></dl>
-</div>
 
 <script src="elements.js"></script>
 <script src="app.js"></script>
