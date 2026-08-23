@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Finger Pool</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="table">Sorry, this game needs a canvas.</canvas>
+
+<div id="hud" hidden>
+  <div id="sheet"></div>
+  <button id="soundBtn" type="button" aria-label="Sound">♪</button>
+  <button id="againBtn" type="button" hidden>New rack</button>
+  <div id="power"><i id="powerFill"></i></div>
+  <div id="hint">Touch a ball · flick to send it</div>
+  <div id="banner" hidden></div>
+</div>
+
+<div id="menu">
+  <div id="menuCard">
+    <h1>Finger Pool</h1>
+    <p class="tag">Fifteen colours. Touch a ball and flick. Faster is harder. Knock them in.</p>
+    <button type="button" id="btnSolo">Play</button>
+    <button type="button" id="btnHot">Two on this device</button>
+    <p class="invite">Press <b>Invite</b> (top bar) to play with a friend on another device. You take turns. Each person keeps the balls they pocket. There is no game server.</p>
+    <p id="menuStatus"></p>
+  </div>
+</div>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="vendor/Vec2.js"></script>
+<script src="vendor/Sphere.js"></script>
+<script src="game.js"></script>
+<script src="mp.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
