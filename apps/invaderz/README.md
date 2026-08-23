@@ -2,7 +2,7 @@
 
 Space invaders, except the invaders change shape as you play. Solo it is
 Victor Ribeiro's InvaderZ. Send the invite and extra cannons appear on the
-same ground.
+same ground. On a phone the buttons sit under the board, not on the cannon.
 
 The engine is **[InvaderZ](https://github.com/victorqribeiro/invaderz)** by
 victorqribeiro — MIT. This directory is the GifOS port: a classic-script
@@ -18,7 +18,7 @@ vendor/Genetics.js      UNMODIFIED upstream class
 vendor/main.js          original loop, kept for the record, not loaded
 game.js                 the GifOS loop (original main.js registered a SW)
 net.js                  extra cannons — presence, hit claims, the scoreboard
-touch.js                LEFT / RIGHT / FIRE, written into the Player
+touch.js                LEFT / RIGHT / FIRE under the board, written into the Player
 boot.js                 mount, prefs, wiring
 icon.mjs                procedural invaders + cannon icon and the 1200×720 cover
 build.mjs               packs site/apps/invaderz/invaderz.gif

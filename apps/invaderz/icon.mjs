@@ -1,6 +1,8 @@
 // Procedural icon for InvaderZ: a dark card holding 4×4 pixel invaders
-// that drift down while a cannon fires. Pure Node — super-sample →
-// box-downsample → small palette. Deterministic so builds reproduce.
+// that drift down while TWO cannons fire. Mid-loop a shot hits a body
+// and it bursts — the loop is extra cannons plus a kill, not a wiggle.
+// Pure Node — super-sample → box-downsample → small palette. Deterministic.
+
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
 
 const CARD_A = [18, 20, 28];
@@ -11,10 +13,13 @@ const BLUE = [0, 140, 186];
 const GREEN = [56, 196, 110];
 const GOLD = [240, 196, 72];
 const CANNON = [232, 236, 242];
+const BURST = [255, 220, 80];
 
-const SH_A = [0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0];
-const SH_B = [1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1];
-const SH_C = [0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0];
+// Irregular genetic blobs — not the classic crab.
+const SH_A = [1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1];
+const SH_B = [0, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0];
+const SH_C = [1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1];
+const SH_B2 = [0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0]; // one cell flipped
 const SH_P = [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1];
 
 function mix(a, b, t) {
@@ -22,7 +27,7 @@ function mix(a, b, t) {
 }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD_A, CARD_B, INK, INK_D, BLUE, GREEN, GOLD, CANNON]) {
+  for (const b of [CARD_A, CARD_B, INK, INK_D, BLUE, GREEN, GOLD, CANNON, BURST]) {
     for (let s = 0; s <= 4; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.4).map(Math.round));
   }
@@ -64,10 +69,23 @@ function blit(rgba, shape, ox, oy, cell, col) {
   }
 }
 
+function blitRect(rgba, x0, y0, w, h, col) {
+  for (let y = y0 * SS; y < (y0 + h) * SS; y++) {
+    for (let x = x0 * SS; x < (x0 + w) * SS; x++) {
+      const xi = x | 0, yi = y | 0;
+      if (xi < 0 || yi < 0 || xi >= RW || yi >= RW) continue;
+      const o = (yi * RW + xi) * 4;
+      if (!rgba[o + 3]) continue;
+      rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
+    }
+  }
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / FRAMES;
-  const drop = t * 10;
+  const drop = t * 14;
+  const hit = f >= 6;
 
   for (let py = 0; py < RW; py++) {
     for (let px = 0; px < RW; px++) {
@@ -79,21 +97,33 @@ function frameIndices(pal, f) {
     }
   }
 
-  blit(rgba, SH_A, 24, 18 + drop, 7, INK);
-  blit(rgba, SH_B, 58, 14 + (drop * 0.7) % 12, 7, GREEN);
-  blit(rgba, SH_C, 88, 22 + (10 - drop * 0.5), 7, BLUE);
-  blit(rgba, SH_P, 52, 92, 6, CANNON);
+  blit(rgba, SH_A, 20, 30 + drop, 7, INK);
+  blit(rgba, f >= 8 ? SH_B2 : SH_B, 52, 26 + drop * 0.7, 7, GREEN);
+  if (!hit) blit(rgba, SH_C, 82, 34 + drop * 0.4, 7, BLUE);
 
-  const shotY = 88 - t * 54;
-  const sx = 62, ss = 4;
-  for (let y = shotY * SS; y < (shotY + ss) * SS; y++) {
-    for (let x = sx * SS; x < (sx + ss) * SS; x++) {
-      const xi = x | 0, yi = y | 0;
-      if (xi < 0 || yi < 0 || xi >= RW || yi >= RW) continue;
-      const o = (yi * RW + xi) * 4;
-      if (!rgba[o + 3]) continue;
-      rgba[o] = GOLD[0]; rgba[o + 1] = GOLD[1]; rgba[o + 2] = GOLD[2]; rgba[o + 3] = 1;
+  blit(rgba, SH_P, 28, 94, 6, CANNON);
+  blit(rgba, SH_P, 70, 94, 6, BLUE);
+
+  // Ground line the cannons stand on.
+  blitRect(rgba, 16, 114, 96, 1, INK_D);
+
+  // Black cannon's shot — hits the blue invader around frame 6.
+  if (!hit) {
+    const shotY = 88 - t * 46;
+    blitRect(rgba, 38, shotY, 4, 4, GOLD);
+  } else if (f <= 9) {
+    const bx = 92, by = 40 + drop * 0.4;
+    const rad = 5 + (f - 6) * 4;
+    for (let k = 0; k < 4; k++) {
+      const ang = k * Math.PI / 2 + (f - 6) * 0.35;
+      blitRect(rgba, bx + Math.cos(ang) * rad - 1, by + Math.sin(ang) * rad - 1, 4, 4, BURST);
     }
+  }
+
+  // Extra cannon's shot, delayed so both barrels read.
+  if (f >= 3) {
+    const shotY = 88 - ((f - 3) / (FRAMES - 3)) * 54;
+    if (shotY > 22) blitRect(rgba, 80, shotY, 4, 4, GOLD);
   }
 
   const idx = new Uint8Array(OUT * OUT);
@@ -150,25 +180,28 @@ function pngChunk(tag, data) {
 
 const GLYPHS = {
   A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
+  B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
   G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
+  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+  K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
+  L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
   N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
   S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
-  V: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
-  Z: [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
+  U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
-  ':': [0, 0b00100, 0, 0, 0b00100, 0, 0],
+  '/': [0b00001, 0b00010, 0b00010, 0b00100, 0b01000, 0b01000, 0b10000],
   0: [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
   1: [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
-  3: [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
-  4: [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  2: [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
   5: [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
   7: [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  9: [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b10001, 0b01110],
 };
 
 function drawText(put, x, y, str, s, r, g, b) {
@@ -200,6 +233,14 @@ function blitPng(put, shape, ox, oy, cell, r, g, b) {
   }
 }
 
+function dashLine(put, x0, x1, y, r, g, b) {
+  for (let x = x0; x < x1; x++) {
+    if (((x - x0) / 10 | 0) % 2 === 0) {
+      for (let dy = 0; dy < 3; dy++) put(x, y + dy, r, g, b);
+    }
+  }
+}
+
 export function screenshotPng() {
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
@@ -214,33 +255,50 @@ export function screenshotPng() {
   }
 
   const cell = 22;
+  // Mid-wave: irregular bodies at mixed heights, one already through-close,
+  // one bursting from a hit. Three cannons on the line. HUD corners stay clear.
   const invaders = [
-    { sh: SH_A, x: 180, y: 110, r: 20, g: 20, b: 20 },
-    { sh: SH_B, x: 380, y: 70, r: 0, g: 140, b: 186 },
-    { sh: SH_C, x: 580, y: 130, r: 20, g: 20, b: 20 },
-    { sh: SH_A, x: 780, y: 90, r: 40, g: 160, b: 90 },
-    { sh: SH_B, x: 980, y: 150, r: 20, g: 20, b: 20 },
-    { sh: SH_C, x: 280, y: 250, r: 20, g: 20, b: 20 },
-    { sh: SH_A, x: 500, y: 220, r: 0, g: 140, b: 186 },
-    { sh: SH_B, x: 720, y: 270, r: 20, g: 20, b: 20 },
-    { sh: SH_C, x: 900, y: 310, r: 40, g: 160, b: 90 },
+    { sh: SH_B, x: 280, y: 160, r: 0, g: 140, b: 186 },
+    { sh: SH_C, x: 470, y: 130, r: 20, g: 20, b: 20 },
+    { sh: SH_A, x: 660, y: 150, r: 40, g: 160, b: 90 },
+    { sh: SH_B2, x: 850, y: 170, r: 20, g: 20, b: 20 },
+    { sh: SH_C, x: 1000, y: 200, r: 0, g: 140, b: 186 },
+    { sh: SH_B, x: 180, y: 250, r: 20, g: 20, b: 20 },
+    { sh: SH_A, x: 390, y: 280, r: 40, g: 160, b: 90 },
+    { sh: SH_C, x: 720, y: 240, r: 20, g: 20, b: 20 },
+    { sh: SH_B, x: 940, y: 320, r: 20, g: 20, b: 20 },
+    { sh: SH_A, x: 80, y: 360, r: 20, g: 20, b: 20 },
   ];
   for (const inv of invaders) blitPng(put, inv.sh, inv.x, inv.y, cell, inv.r, inv.g, inv.b);
 
-  blitPng(put, SH_P, 560, 560, cell, 20, 20, 20);
-  blitPng(put, SH_P, 360, 568, 18, 0, 140, 186);
-  blitPng(put, SH_P, 780, 568, 18, 40, 160, 90);
+  // The line they must not cross — just above the cannons.
+  dashLine(put, 20, W - 20, 548, 40, 40, 40);
 
-  // shots
-  for (const s of [[604, 500], [604, 450], [398, 520], [818, 530]]) {
+  blitPng(put, SH_P, 540, 568, cell, 20, 20, 20);
+  blitPng(put, SH_P, 300, 572, 18, 0, 140, 186);
+  blitPng(put, SH_P, 820, 572, 18, 40, 160, 90);
+
+  // Shots in flight, and a burst on the close invader at left.
+  for (const s of [[584, 470], [584, 410], [328, 500], [848, 510]]) {
     for (let py = 0; py < 14; py++) {
       for (let px = 0; px < 14; px++) put(s[0] + px, s[1] + py, 20, 20, 20);
     }
   }
+  const bx = 114, by = 370;
+  for (let k = 0; k < 4; k++) {
+    const ang = k * Math.PI / 2 + 0.3;
+    const x = bx + Math.cos(ang) * 28, y = by + Math.sin(ang) * 28;
+    for (let py = 0; py < 12; py++) {
+      for (let px = 0; px < 12; px++) put(x + px, y + py, 20, 20, 20);
+    }
+  }
 
-  drawText(put, 36, 24, 'GENERATION: 7', 4, 20, 20, 20);
-  drawText(put, 36, 64, 'INVADERS: 1', 4, 20, 20, 20);
-  drawText(put, W / 2 - 150, 24, 'INVADERZ', 5, 20, 20, 20);
+  drawText(put, 28, 22, 'GEN 7', 4, 20, 20, 20);
+  drawText(put, 28, 62, 'THROUGH 1/5', 4, 20, 20, 20);
+  drawText(put, 28, 102, 'KILLS 11', 4, 20, 20, 20);
+  drawText(put, W - 220, 22, 'BEST 9', 4, 20, 20, 20);
+  drawText(put, W - 220, 62, 'ELITE', 4, 20, 20, 20);
+  blitPng(put, SH_B2, W - 118, 96, 10, 20, 20, 20);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
