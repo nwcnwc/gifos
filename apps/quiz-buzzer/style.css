@@ -215,9 +215,13 @@ body.solo .pad,body.host .pad{min-height:18vh}
   font:inherit;font-weight:600;color:var(--text);background:var(--surface2);
   border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;
 }
-.field textarea{resize:vertical;min-height:56px}
+.field textarea{resize:vertical;min-height:48px}
 #custom{gap:8px}
 #custom .lvlnote{margin:0}
+.ansgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#custom .hostbar{align-items:center;margin-top:4px}
+#custom .hostbar .primary{margin-top:0}
+#custom .check{margin:0}
 .field.c0 input{border-color:#e23d3d;box-shadow:inset 4px 0 0 #e23d3d}
 .field.c1 input{border-color:#2f7fe0;box-shadow:inset 4px 0 0 #2f7fe0}
 .field.c2 input{border-color:#e6c01e;box-shadow:inset 4px 0 0 #e6c01e}
