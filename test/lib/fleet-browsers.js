@@ -32,11 +32,29 @@ const casualty = require('./casualty');
 const LOCAL_PW = require('playwright/package.json').version;
 const BASE_PORT = Number(process.env.FLEET_PORT_BASE || 9400);
 
-function remoteLauncher(h, port, args) {
+function remoteLauncher(h, args) {
   // Printed as one line so the parent can wait for exactly one token.
-  return 'const {chromium}=require("playwright");'
-    + 'chromium.launchServer({executablePath:' + JSON.stringify(h.chrome) + ','
-    + 'host:"0.0.0.0",port:0,args:' + JSON.stringify(args || []) + '})'
+  //
+  // A GLES GPU is invisible to headless ANGLE Vulkan. Measured: the same
+  // Playwright Chromium, same board, same user in the `render` group, with
+  // Mesa reporting an integrated GPU:
+  //   headless + --use-angle=vulkan → ANGLE SwiftShader
+  //   headed Wayland, no backend forced → ANGLE (… OpenGL ES 3.1) on that GPU
+  // Forcing Vulkan on every fleet box was how a working GPU got declared
+  // unable to draw. `gpu: true` in the hosts file means "headless Vulkan
+  // actually reaches this GPU" (dGPU / Tegra). Leave it unset on a GLES
+  // board; we attach to the seat's Wayland (or X) display instead.
+  const payload = { chrome: h.chrome, args: args || [], preferHeadless: !!h.gpu };
+  return 'const fs=require("fs");const {chromium}=require("playwright");'
+    + 'const o=' + JSON.stringify(payload) + ';'
+    + 'const uid=process.getuid();'
+    + 'const xdg=process.env.XDG_RUNTIME_DIR||("/run/user/"+uid);'
+    + 'process.env.XDG_RUNTIME_DIR=xdg;'
+    + 'if(!process.env.WAYLAND_DISPLAY&&fs.existsSync(xdg+"/wayland-0"))process.env.WAYLAND_DISPLAY="wayland-0";'
+    + 'const headless=o.preferHeadless||!(process.env.WAYLAND_DISPLAY||process.env.DISPLAY);'
+    + 'const args=o.args.slice();'
+    + 'if(!headless&&process.env.WAYLAND_DISPLAY&&!args.some(a=>a.indexOf("--ozone-platform=")==0))args.push("--ozone-platform=wayland");'
+    + 'chromium.launchServer({executablePath:o.chrome,host:"0.0.0.0",port:0,headless:headless,args:args,env:process.env})'
     + '.then(s=>{console.log("WSENDPOINT "+s.wsEndpoint());})'
     + '.catch(e=>{console.log("LAUNCHFAIL "+String(e&&e.message||e).split("\\n")[0]);process.exit(1);});';
 }
@@ -45,10 +63,15 @@ function startOne(h, port, opts) {
   return new Promise((resolve, reject) => {
     const node = h.node || 'node';
     const env = h.pwPath || h.nodePath ? 'NODE_PATH=' + (h.pwPath || h.nodePath) + ' ' : '';
-    const cmd = env + node + ' -e ' + JSON.stringify(remoteLauncher(h, port, opts.args));
-    // -tt so the remote dies with us; the server must outlive the command's
-    // first line of output but never the suite.
-    const child = spawn('ssh', ['-tt', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', h.ssh, cmd],
+    const args = typeof opts.args === 'function' ? opts.args(h) : opts.args;
+    const cmd = env + node + ' -e ' + JSON.stringify(remoteLauncher(h, args));
+    // No TTY. ssh -tt with stdin ignored hangs up the PTY after a few
+    // seconds; a headed Chrome (the GLES path — a window on the seat) treats
+    // that SIGHUP as "the session ended" and exits. Headless Vulkan survived
+    // the same hangup, which is how only GLES boards looked like they had
+    // died. -T still forwards stdout for the endpoint; closeFleet SIGKILLs
+    // this ssh, which takes the remote launchServer with it.
+    const child = spawn('ssh', ['-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', h.ssh, cmd],
       { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '', done = false;
     const fail = (why) => { if (!done) { done = true; try { child.kill('SIGKILL'); } catch (e) {} reject(new Error((h.name || h.ssh) + ': ' + why)); } };
@@ -88,6 +111,9 @@ function startOne(h, port, opts) {
 // tools/pipe-freeze-probe). Fleet suites get them automatically instead.
 const PNA = 'LocalNetworkAccessChecks,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests';
 function secureOriginArgs(args, origin) {
+  if (typeof args === 'function') {
+    return (h) => secureOriginArgs(args(h), origin);
+  }
   if (!origin || !/^http:/i.test(origin) || /\/\/(127\.0\.0\.1|localhost|\[::1\])[:/]/i.test(origin)) return args;
   const out = [];
   let merged = false;
