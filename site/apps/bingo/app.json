@@ -6,8 +6,8 @@
   "shortName": "Bingo",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "The host calls numbers. You have a card. A line is bingo.",
-  "description": "The host calls a number. You look at your card. If it is there, you mark it. A full line, a column, a diagonal, or the four corners — that is bingo. Shout it. The first person with a real line takes the round.\n\nOn your own, you call the numbers on this device and daub your own card.\n\nWant a hall? Press Play with friends, then press Invite (in the GifOS menu) and send the link. Everyone who opens it is in the same game, each with a card on their own phone. The host calls. There is no lobby code and no game server. The room is the link.\n\nAn unofficial port of bingo by mihailgaberov. The original needs a game server. This copy does not: the invite is the room.",
+  "tagline": "Call bingo over a meeting. One invite is the hall — no server.",
+  "description": "Call the numbers from one phone. Everyone else daubs a card on theirs. One invite is the room: no account, no game server, no lobby code. Open it in a GifOS meeting and you already have the voice.\n\nOn your own, you call and daub on this device. The card lives in the file, so the game you started is the game you hand someone.\n\nA line, a column, a diagonal, or the four corners is bingo. The first honest line takes the round.\n\nAn unofficial port of bingo by mihailgaberov. The original needs a login and a game server. This copy does not.",
   "author": {
     "name": "mihailgaberov",
     "url": "https://github.com/mihailgaberov/bingo"
@@ -38,10 +38,10 @@
   "cover": "/apps/bingo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bingo/bingo.gif",
-  "bytes": 192725,
+  "bytes": 197039,
   "download": 0,
   "provides": null,
-  "sha256": "25260abd7245bc889378f1b8aa9d32df50f20f8359fc7fd97358a53ea97cc7e1",
+  "sha256": "93b4c5b9dec1747d7be6da21c39051a9a92a8f0e5ce01f2c948f846157e886aa",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -6,8 +6,8 @@
   "shortName": "Drawphone",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Draw a word, pass it on, guess what they drew. Telephone with pictures.",
-  "description": "Someone draws a word. The next person guesses what the drawing is. The next person draws that guess. Around it goes, and at the end a moon has become a pancake — or a cat a hat. There is no winning. The point is the chain.\n\nPress Play with friends and send the invite. Everyone who opens it sits at the same table. There is no game server and no code to type: the invite is the room. The host starts when two or more people are in. Each person writes only their own turn. Draw with a finger or a mouse.\n\nOr pass this device around a table. Add names, start, and hand the phone to whoever is up.\n\nAn unofficial port of Drawphone by Tanner Krewson. The original needs a game server. This copy does not: the meeting is the room.",
+  "tagline": "One invite is the table. Draw, pass, guess — no game server.",
+  "description": "Send the invite. Everyone who opens it sits at the same table. There is no game server and no code to type: the invite is the room, and every round lives in this file.\n\nSomeone draws a word. The next person guesses. The next person draws that guess. Around it goes until a cat has become a hat. There is no winning. The point is the chain.\n\nOr pass this device around a table. Add names, start, and hand the phone to whoever is up. A splash hides the last turn so nobody peeks. Draw with a finger or a mouse.\n\nAn unofficial port of Drawphone by Tanner Krewson. The original needs a game server. This copy does not.",
   "author": {
     "name": "tannerkrewson",
     "url": "https://github.com/tannerkrewson/drawphone"
@@ -38,10 +38,10 @@
   "cover": "/apps/drawphone/cover.jpg",
   "screenshots": [],
   "gif": "/apps/drawphone/drawphone.gif",
-  "bytes": 197373,
+  "bytes": 202719,
   "download": 0,
   "provides": null,
-  "sha256": "669f9e9ece520207b9b2c72ebe4ce8d5a766217a7a75f9f8aeed2f31a444e347",
+  "sha256": "cb11485e6e85d9cf85e5c4c68cf59f668500eef63c5f773788f500896d37413d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

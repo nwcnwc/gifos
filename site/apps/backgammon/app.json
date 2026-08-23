@@ -6,8 +6,8 @@
   "shortName": "Backgammon",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Fifteen checkers, two dice, a wooden table. Play the computer, or a friend on the other side.",
-  "description": "A table of twenty-four points. White and black take turns rolling two dice and moving their fifteen checkers toward home. Hit a blot, send it to the bar. Bear them all off and you win. Doubles are played four times. There is no doubling cube.\n\nOn your own you play a computer that thinks on this device. There is no game server. Pass the phone for two people in the same room, or press Play a friend and send the invite: the same table, live, on two devices. White sits one side, black the other. White goes first. Roll, tap a point to move with the highlighted die, confirm the turn.\n\nAn unofficial port of backgammonjs by quasoft. The rules are the same general table that shipped with that game.",
+  "tagline": "Play the computer on this device, or a friend from one link. No server.",
+  "description": "The computer thinks on this device. There is no game server. Pass the phone, or press Play a friend and send the invite: the same table, live, on two devices. The game lives in the file, so sharing the GIF shares the board.\n\nA table of twenty-four points. White and black take turns rolling two dice and moving their fifteen checkers toward home. Hit a blot, it goes to the bar. Bear them all off and you win. Doubles are four moves. There is no doubling cube. White goes first. Roll, tap a checker, tap where it goes, confirm the turn.\n\nAn unofficial port of backgammonjs by quasoft. The rules are the same general table that shipped with that game.",
   "author": {
     "name": "quasoft",
     "url": "https://github.com/quasoft/backgammonjs"
@@ -38,10 +38,10 @@
   "cover": "/apps/backgammon/cover.jpg",
   "screenshots": [],
   "gif": "/apps/backgammon/backgammon.gif",
-  "bytes": 221077,
+  "bytes": 226234,
   "download": 0,
   "provides": null,
-  "sha256": "ddece8d55212a16efef7922f4ee0410ae7a4b3ede30a50f9cd27830296cfc28a",
+  "sha256": "d073ee5fa1348ee27f439d0f7fff1acaa7b3acc1679356154f96dac98778a4e8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -6,8 +6,8 @@
   "shortName": "Spyfall",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "One of you is the spy. The rest of you are at a place. Ask questions.",
-  "description": "Everyone but one person is at the same place — a bank, a pirate ship, a circus tent — and each of you has a job there. The spy does not know the place. Ask questions. Try not to give it away. Try to catch the spy. The spy tries to guess where you are.\n\nPass the phone around so each person can look at their card, then hide it. Or press Play with friends and send the invite: everyone who opens the link is in the same game, each on their own phone. There is no lobby code and no game server. The room is the link.\n\nTap a place on the list if you think that is where you are. Everyone can see the votes. When the time is up, say who you think the spy is.\n\nAn unofficial port of Spyfall by tannerkrewson. The original needs a game server. This copy does not: the invite is the room.",
+  "tagline": "One invite is the room. No game server. One of you is the spy.",
+  "description": "Send the invite. Everyone who opens it is in the same game, each on their own phone. There is no lobby code and no game server. The locations live in this file. The original needs a Node room. This copy does not.\n\nEveryone but one person is at the same place — a bank, a pirate ship, a circus tent — and each of you has a job there. The spy does not know the place. Ask questions. Try not to give it away. Catch the spy, or, if you are the spy, guess where you are.\n\nOr pass this phone around the table. Add names, deal, tap your own name, look at your card, hide it, pass it on. Nobody else's card is waiting on the screen.\n\nAn unofficial port of Spyfall by tannerkrewson.",
   "author": {
     "name": "tannerkrewson",
     "url": "https://github.com/tannerkrewson/spyfall"
@@ -38,10 +38,10 @@
   "cover": "/apps/spyfall/cover.jpg",
   "screenshots": [],
   "gif": "/apps/spyfall/spyfall.gif",
-  "bytes": 195173,
+  "bytes": 196673,
   "download": 0,
   "provides": null,
-  "sha256": "f5968dbeb989720e2ec75f4d67209b266b0aecab88f6c6daaf85bb448854db90",
+  "sha256": "c8eb24261e5e2712caceae369f19b608705d959c863213e5fedb3a8b3852e56c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

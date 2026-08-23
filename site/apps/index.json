@@ -209,7 +209,7 @@
       "name": "Backgammon",
       "shortName": "Backgammon",
       "version": "1.0",
-      "tagline": "Fifteen checkers, two dice, a wooden table. Play the computer, or a friend on the other side.",
+      "tagline": "Play the computer on this device, or a friend from one link. No server.",
       "author": {
         "name": "quasoft",
         "url": "https://github.com/quasoft/backgammonjs"
@@ -241,7 +241,7 @@
         42
       ],
       "cover": "/apps/backgammon/cover.jpg",
-      "bytes": 221077,
+      "bytes": 226234,
       "download": 0,
       "provides": null,
       "signature": {
@@ -249,7 +249,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "ddece8d55212a16efef7922f4ee0410ae7a4b3ede30a50f9cd27830296cfc28a"
+      "sha256": "d073ee5fa1348ee27f439d0f7fff1acaa7b3acc1679356154f96dac98778a4e8"
     },
     {
       "slug": "battle-city",
@@ -402,7 +402,7 @@
       "name": "Bingo",
       "shortName": "Bingo",
       "version": "1.0",
-      "tagline": "The host calls numbers. You have a card. A line is bingo.",
+      "tagline": "Call bingo over a meeting. One invite is the hall — no server.",
       "author": {
         "name": "mihailgaberov",
         "url": "https://github.com/mihailgaberov/bingo"
@@ -434,7 +434,7 @@
         48
       ],
       "cover": "/apps/bingo/cover.jpg",
-      "bytes": 192725,
+      "bytes": 197039,
       "download": 0,
       "provides": null,
       "signature": {
@@ -442,7 +442,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "25260abd7245bc889378f1b8aa9d32df50f20f8359fc7fd97358a53ea97cc7e1"
+      "sha256": "93b4c5b9dec1747d7be6da21c39051a9a92a8f0e5ce01f2c948f846157e886aa"
     },
     {
       "slug": "bip39",
@@ -678,7 +678,7 @@
         42
       ],
       "cover": "/apps/checkers/cover.jpg",
-      "bytes": 194595,
+      "bytes": 196578,
       "download": 0,
       "provides": null,
       "signature": {
@@ -686,7 +686,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "2d31f69e602c478b518de3f3631b10be3ac010cae730e65a57dd06782243d052"
+      "sha256": "cf813ec2bead44c09ef3fe50807227aa34382b6c06bc864a53a812314ff51c0f"
     },
     {
       "slug": "chess-grandmaster",
@@ -765,7 +765,7 @@
         59
       ],
       "cover": "/apps/connect-four/cover.jpg",
-      "bytes": 194389,
+      "bytes": 256267,
       "download": 0,
       "provides": null,
       "signature": {
@@ -773,7 +773,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "2389b9378310a56bd28a5184f0e0316720390ff4a6da3750cb8d96a59c2ce439"
+      "sha256": "93c259b3177c14f8bf60146d79f8f0e7b67d9f58a1a1088dc25c6d31c9e48e90"
     },
     {
       "slug": "contrast-ratio",
@@ -1086,7 +1086,7 @@
       "name": "Drawphone",
       "shortName": "Drawphone",
       "version": "1.0",
-      "tagline": "Draw a word, pass it on, guess what they drew. Telephone with pictures.",
+      "tagline": "One invite is the table. Draw, pass, guess — no game server.",
       "author": {
         "name": "tannerkrewson",
         "url": "https://github.com/tannerkrewson/drawphone"
@@ -1118,7 +1118,7 @@
         64
       ],
       "cover": "/apps/drawphone/cover.jpg",
-      "bytes": 197373,
+      "bytes": 202719,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1126,7 +1126,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "669f9e9ece520207b9b2c72ebe4ce8d5a766217a7a75f9f8aeed2f31a444e347"
+      "sha256": "cb11485e6e85d9cf85e5c4c68cf59f668500eef63c5f773788f500896d37413d"
     },
     {
       "slug": "emoji-minesweeper",
@@ -1233,7 +1233,7 @@
       "name": "Falling Blocks",
       "shortName": "Blocks",
       "version": "1.0.0",
-      "tagline": "Stack the falling shapes. Clear the lines. Or race a friend from the same pieces.",
+      "tagline": "Race a friend from one link. Same shapes, two boards, on this device.",
       "author": {
         "name": "dionyziz",
         "url": "https://github.com/dionyziz/canvas-tetris"
@@ -1331,7 +1331,7 @@
       "name": "Floppy Bird",
       "shortName": "Floppy",
       "version": "1.0",
-      "tagline": "Tap to flap between the pipes. Send the link and race a ghost of the other bird.",
+      "tagline": "Race a friend from one link. Tap on this phone. High score lives in the file.",
       "author": {
         "name": "nebez",
         "url": "https://github.com/nebez/floppybird"
@@ -1518,7 +1518,7 @@
       "name": "Gomoku",
       "shortName": "Gomoku",
       "version": "1.0",
-      "tagline": "Five in a row, against the computer or a friend on the other side of the board.",
+      "tagline": "Five in a row. Play the computer here, or a friend from one invite. No server.",
       "author": {
         "name": "yyjhao",
         "url": "https://github.com/yyjhao/HTML5-Gomoku"
@@ -1550,7 +1550,7 @@
         70
       ],
       "cover": "/apps/gomoku/cover.jpg",
-      "bytes": 200091,
+      "bytes": 261870,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1558,7 +1558,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "4d481e331686a321ad7e4b7a3225961c027d632f037fa91de3ba63720b73b866"
+      "sha256": "728fc07bd9181cf2ef4cb80ebda2732e9657f4af73dcfcce201ec341cc33a05b"
     },
     {
       "slug": "guitar-bro",
@@ -1648,7 +1648,7 @@
         176
       ],
       "cover": "/apps/hangman/cover.jpg",
-      "bytes": 171872,
+      "bytes": 171975,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1656,7 +1656,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "566a6e466df35312e0fd944e7d0be31a67723b68f654a685842ed869afb38927"
+      "sha256": "7c7110f1137a4e3774cbe51cc67ae3654060ce5a4a4d7a5c9e42175a8fcad23f"
     },
     {
       "slug": "hat-sh",
@@ -2184,8 +2184,8 @@
       "appId": "longwave",
       "name": "Longwave",
       "shortName": "Longwave",
-      "version": "1.0",
-      "tagline": "A needle on a spectrum. One of you hints. The other finds the mark.",
+      "version": "1.1",
+      "tagline": "One invite is the room. No game server. Find the mark.",
       "author": {
         "name": "cynicaloptimist",
         "url": "https://github.com/cynicaloptimist/longwave"
@@ -2217,7 +2217,7 @@
         214
       ],
       "cover": "/apps/longwave/cover.jpg",
-      "bytes": 197515,
+      "bytes": 200909,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2225,7 +2225,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "a6136b504be11c781c4828548ece5b3321d7a16f4e8c2e7bedc8ba2691d28a65"
+      "sha256": "d2754ea140eecbdbd6506cc06830bcc080aa20688c546336cbae196e2da1319e"
     },
     {
       "slug": "math-race",
@@ -3144,7 +3144,7 @@
       "name": "Pong",
       "shortName": "Pong",
       "version": "1.0.0",
-      "tagline": "Classic Pong. You on the left, a friend on the right.",
+      "tagline": "Two devices, one link, no server. First to nine.",
       "author": {
         "name": "Jake Gordon",
         "url": "https://github.com/jakesgordon/javascript-pong"
@@ -3535,7 +3535,7 @@
       "name": "Reversi",
       "shortName": "Reversi",
       "version": "1.0",
-      "tagline": "Flip the disks. Get more of your colour. Play the computer, or a friend on the other side.",
+      "tagline": "Play the computer on this device, or a friend from one link. No server.",
       "author": {
         "name": "alex-berson",
         "url": "https://github.com/alex-berson/reversi"
@@ -3567,7 +3567,7 @@
         100
       ],
       "cover": "/apps/reversi/cover.jpg",
-      "bytes": 194509,
+      "bytes": 255039,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3575,7 +3575,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "f5b017de78579a2e6406f4ace5bb6750039f7663ee7fc18e4188234be0b93d7c"
+      "sha256": "00429fee1c1993af823cafd9ac863860a42a5832d1b24f17df3e3d234c0588b0"
     },
     {
       "slug": "rockets",
@@ -3728,7 +3728,7 @@
       "name": "Snake",
       "shortName": "Snake",
       "version": "1.0.0",
-      "tagline": "The classic game of Snake. Send the link and there are two of you.",
+      "tagline": "Two snakes on one grid. Send the link — no server.",
       "author": {
         "name": "patorjk",
         "url": "https://github.com/patorjk/JavaScript-Snake"
@@ -3918,7 +3918,7 @@
       "name": "Spyfall",
       "shortName": "Spyfall",
       "version": "1.0",
-      "tagline": "One of you is the spy. The rest of you are at a place. Ask questions.",
+      "tagline": "One invite is the room. No game server. One of you is the spy.",
       "author": {
         "name": "tannerkrewson",
         "url": "https://github.com/tannerkrewson/spyfall"
@@ -3950,7 +3950,7 @@
         48
       ],
       "cover": "/apps/spyfall/cover.jpg",
-      "bytes": 195173,
+      "bytes": 196673,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3958,7 +3958,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "f5968dbeb989720e2ec75f4d67209b266b0aecab88f6c6daaf85bb448854db90"
+      "sha256": "c8eb24261e5e2712caceae369f19b608705d959c863213e5fedb3a8b3852e56c"
     },
     {
       "slug": "squoosh",
@@ -4356,7 +4356,7 @@
       "name": "Tic-Tac-Toe",
       "shortName": "TicTacToe",
       "version": "1.0",
-      "tagline": "Three in a row, against the computer or a friend on the other side of the board.",
+      "tagline": "The computer plays here, perfectly. A friend from one link. No game server.",
       "author": {
         "name": "Colyseus",
         "url": "https://github.com/colyseus/demo-tic-tac-toe"
@@ -4388,7 +4388,7 @@
         148
       ],
       "cover": "/apps/tic-tac-toe/cover.jpg",
-      "bytes": 190127,
+      "bytes": 252299,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4396,7 +4396,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "46899163031bc597ce2927935ce7eb276c0303949b4fb9c05bce86cd3ecfe9cc"
+      "sha256": "e496e575f84f1faf2846c3981e26c336f786c85feef64a187be27f253cf51a10"
     },
     {
       "slug": "tosios",
@@ -4501,7 +4501,7 @@
       "name": "Tower Game",
       "shortName": "Tower",
       "version": "1.0",
-      "tagline": "Tap to drop each floor. Stack them. Race a friend to the tallest tower.",
+      "tagline": "Race a friend from one link. Tap to drop each floor. No server.",
       "author": {
         "name": "iamkun",
         "url": "https://github.com/iamkun/tower_game"
@@ -4845,7 +4845,7 @@
       "name": "Yahtzee",
       "shortName": "Yahtzee",
       "version": "1.0",
-      "tagline": "Five dice. A scorecard. A table that is the meeting.",
+      "tagline": "A table over a meeting. One invite, no server.",
       "author": {
         "name": "Alhissar",
         "url": "https://github.com/Alhissar/Yahtzee"
@@ -4877,7 +4877,7 @@
         58
       ],
       "cover": "/apps/yahtzee/cover.jpg",
-      "bytes": 330206,
+      "bytes": 337871,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4885,7 +4885,7 @@
         "id": "gifos.app",
         "ts": "2026-08-23"
       },
-      "sha256": "6d9f5d7010527767af85e72932590b68df815d05ad4c1e52e1f36b2ace96cfc0"
+      "sha256": "24aad4a6ef1f2924ea66d253c1a873f863855d1cd9787dc589d9668ce71372a3"
     }
   ]
 }
