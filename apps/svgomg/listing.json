@@ -1,0 +1,34 @@
+{
+  "tagline": "Make SVG pictures smaller, on this device. Nothing is uploaded.",
+  "description": "Drop an SVG and it comes back smaller. Turn clean-up steps on and off, watch the picture and the file size change, then download. Paste the markup if you would rather not pick a file. A sample picture is included so you can try it straight away.\n\nAn unofficial port of SVGOMG by jakearchibald. The original is a website; this copy keeps the same clean-up steps, with tracking stripped and no path out to a server. The picture you drop in never leaves this device. There is no account, no queue and no upload.\n\nWhat you choose — which clean-up steps, how many decimal places — stays in the app so the next picture starts where you left off.\n\nNothing is fetched, and nothing you drop in is sent anywhere.",
+  "author": {
+    "name": "jakearchibald",
+    "url": "https://github.com/jakearchibald/svgomg"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "SVGOMG",
+    "url": "https://github.com/jakearchibald/svgomg",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-23",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "svg",
+    "optimize",
+    "minify",
+    "vector",
+    "image",
+    "offline",
+    "svgomg"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/svgomg",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
