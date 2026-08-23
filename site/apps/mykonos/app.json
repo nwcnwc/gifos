@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "mykonos",
+  "appId": "mykonos",
+  "name": "Mykonos",
+  "shortName": "Mykonos",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "White houses, a blue dome, and a little island to walk.",
+  "description": "A small island in the sun. Whitewashed houses, a chapel with a cobalt dome, a windmill, olive trees, and a path down to the water. You land on the cobbles and walk. Drag to turn the island around you. On a phone the left thumb walks and the right thumb looks.\n\nSend the invite and extra people appear on the same paths, walking the same village. There is no lobby and no account. The room is the link.\n\nAn unofficial port of Mykonos Island Voxels by boona13, MIT-licensed. The original is a builder. This copy is a walk around that island — the orbit a phone needs, and extra people if someone opens the link.",
+  "author": {
+    "name": "boona13",
+    "url": "https://github.com/boona13"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "island",
+    "walk",
+    "mykonos",
+    "mediterranean",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/mykonos",
+  "accent": [
+    27,
+    91,
+    168
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/mykonos/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/mykonos/mykonos.gif",
+  "bytes": 197231,
+  "download": 0,
+  "provides": null,
+  "sha256": "0bd16e9548c4532890befd1ca1c7823a95564020a9d78bd80180a55de762f3a0",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Mykonos Island Voxels",
+    "url": "https://github.com/boona13/mykonos-island-voxels",
+    "blessed": false
+  }
+}

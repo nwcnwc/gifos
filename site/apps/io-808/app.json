@@ -1,0 +1,61 @@
+{
+  "catalog": "1.0",
+  "slug": "io-808",
+  "appId": "io-808",
+  "name": "iO-808",
+  "shortName": "808",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "A silver 808 on the table. Tap the steps. Share a beat.",
+  "description": "Sixteen yellow buttons in a row, cream labels, orange knobs. Bass drum, snare, toms, hats, cowbell, clap — the usual kit. Tap a step to put a hit on it, twist a knob for tone or decay, press Start, and the lights walk.\n\nYour patterns stay on this device, inside the app. Close it, come back, the beat is where you left it.\n\nPress Share a pattern, then Invite (in the GifOS menu), and send the link. The friend who opens it gets the same beat — same steps, same knobs, same tempo. There is no account and no upload. The room is the link.\n\nAn unofficial port of io-808 by Vincent Riemer. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "vincentriemer",
+    "url": "https://github.com/vincentriemer/io-808"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Creativity",
+    "Media"
+  ],
+  "tags": [
+    "drum",
+    "808",
+    "rhythm",
+    "sequencer",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/io-808",
+  "accent": [
+    255,
+    90,
+    0
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/io-808/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/io-808/io-808.gif",
+  "bytes": 201775,
+  "download": 0,
+  "provides": null,
+  "sha256": "036831cb417fb1bcb4e23dc27bcf1065d3837d47b0d767b32b940c56e34b2094",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "io-808",
+    "url": "https://github.com/vincentriemer/io-808",
+    "blessed": false
+  }
+}

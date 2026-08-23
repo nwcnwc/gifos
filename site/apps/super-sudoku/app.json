@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "super-sudoku",
+  "appId": "super-sudoku",
+  "name": "Super Sudoku",
+  "shortName": "Sudoku",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "A full sudoku. Race a friend on the same puzzle.",
+  "description": "Fill every square so each row, column and box has the numbers 1 to 9. Tap a square, then tap a number. Pencil notes if you want to keep your options open. Five difficulties — easy through evil — and thousands of puzzles.\n\nOn your own it is the original game, saved on this device inside the app. Close it and pick up where you left off. Send the invite and you both get the same puzzle: first to finish wins, and you can see each other's times as you go. There is no account and no game server. The room is the link.\n\nAn unofficial port of Super Sudoku by TN1ck. This copy adds the race.",
+  "author": {
+    "name": "TN1ck",
+    "url": "https://github.com/TN1ck/super-sudoku"
+  },
+  "releaseDate": "2026-08-23",
+  "updated": "2026-08-23",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "sudoku",
+    "puzzle",
+    "numbers",
+    "multiplayer",
+    "race",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/super-sudoku",
+  "accent": [
+    13,
+    148,
+    136
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/super-sudoku/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/super-sudoku/super-sudoku.gif",
+  "bytes": 297591,
+  "download": 0,
+  "provides": null,
+  "sha256": "1c67df90e843b4e30f5ede904d366baa829d494de4c403638760c5cdcce59ea8",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-23"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Super Sudoku",
+    "url": "https://github.com/TN1ck/super-sudoku",
+    "blessed": false
+  }
+}
