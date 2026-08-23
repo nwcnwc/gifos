@@ -1,0 +1,21 @@
+Unofficial GifOS port of antimatter15/splat (MIT, Kevin Kwok, 2023).
+
+upstream:  https://github.com/antimatter15/splat
+commit:    ba182b51b7c2ad5738cdd6741cd63336d27470fb
+           (main, 2025-11-16, "Merge pull request #67 … recommend Spark")
+license:   MIT (COPYING-splat.txt)
+
+vendor/main.js is the viewer from that pin, adapted so it can run as a
+GifOS app:
+
+  - The original fetches train.splat from Hugging Face. This copy reads
+    window.SPLAT_SCENE, a tiny scene built by scene.js and packed in the GIF.
+  - Sort runs on this thread. Upstream used a blob Worker; the GifOS
+    sandbox only allows those when capabilities.wasm is set, and a few
+    thousand specks sort in a millisecond without it.
+  - Remote ?url= loading is gone. Drag-and-drop of a local scene file is
+    kept; converted files are shown, not downloaded.
+  - Touch orbit is upstream's (one finger orbit, two-finger pinch / pan).
+
+vendor.mjs rebuilds COPYING-splat.txt from that pin. Do not edit the
+notice by hand; move the pin deliberately.
