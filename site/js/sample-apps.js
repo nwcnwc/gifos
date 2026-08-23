@@ -3804,8 +3804,9 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   // ---- flip / later clip+reverse: new library item, original stays ----
   function suffixName(m, tag, ext){
     var n=String((m&&m.name)||'file');
-    n=n.replace(/\.[^.]+$/,'');
-    n=n.replace(/[\\/?%*:|"<>]/g,'-').replace(/\s+/g,' ').trim()||'file';
+    var dot=n.lastIndexOf('.');
+    if(dot>0 && n.length-dot<=5) n=n.slice(0,dot);
+    n=n.replace(/[\\/?%*:|"<>]/g,'-').replace(/\\s+/g,' ').trim()||'file';
     return n+' ('+tag+').'+ext;
   }
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -4016,17 +4017,29 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     var rec=await blobs.get(cur.id);
     if(!rec||!rec.bytes) throw new Error('The file for this item is missing.');
     var bytes=rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
+    function copyAb(){ return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset+bytes.byteLength); }
+    var sr=0;
+    if(bytes.length>36){
+      var riff=String.fromCharCode(bytes[0],bytes[1],bytes[2],bytes[3]);
+      var wave=String.fromCharCode(bytes[8],bytes[9],bytes[10],bytes[11]);
+      if(riff==='RIFF' && wave==='WAVE') sr=bytes[24]|(bytes[25]<<8)|(bytes[26]<<16)|(bytes[27]<<24);
+    }
+    var OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+    if(OAC && sr>=8000 && sr<=96000){
+      try{
+        var off=new OAC(1, 1, sr);
+        var buf=await off.decodeAudioData(copyAb());
+        if(buf&&buf.length) return buf;
+      }catch(e){}
+    }
     var AC=window.AudioContext||window.webkitAudioContext;
     if(!AC) throw new Error('This browser cannot decode audio.');
     var ctx=new AC();
     try{
-      var copy=bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset+bytes.byteLength);
-      var buf=await ctx.decodeAudioData(copy);
-      if(!buf||!buf.length) throw new Error('Could not decode the audio.');
-      return buf;
+      var live=await ctx.decodeAudioData(copyAb());
+      if(!live||!live.length) throw new Error('Could not decode the audio.');
+      return live;
     }catch(err){
-      var msg=String(err&&err.message||err);
-      if(/decode/i.test(msg)) throw err;
       throw new Error('Could not decode the audio.');
     }finally{
       try{ ctx.close(); }catch(e){}
