@@ -5,7 +5,7 @@
   "shortName": "IsoCity",
   "version": "1.0",
   "minBuild": 947,
-  "description": "A tiny isometric city. Tap to place a tile. Share the map, or build two cities side by side.",
+  "description": "Share the map from one invite. The city lives in the file.",
   "entry": "index.html",
   "accent": [176, 83, 85],
   "capabilities": {

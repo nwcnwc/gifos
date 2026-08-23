@@ -1,44 +1,155 @@
-// Procedural IsoCity icon: a cream card holding a tiny isometric city, a
-// red tower rising across the frames. Pure Node, super-sample → box-downsample
-// → small palette; deterministic so builds reproduce. screenshotPng() paints
-// the 1200×720 store cover from the same colours.
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
+// IsoCity icon + cover from the Kenney sheet. Icon: a cream card, a tiny
+// isometric city that grows across the frames (dirt → roads → trees → houses
+// → towers). Cover: a built city mid-use, never empty dirt, with a share bar
+// so the card sells the reason this copy exists. Pure Node, deterministic.
+import { deflateSync, inflateSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const OUT = 128, SS = 2, RW = OUT * SS, FRAMES = 12;
+const here = dirname(fileURLToPath(import.meta.url));
 
 const CREAM = [250, 246, 238];
 const SKY = [214, 232, 242];
 const INK = [90, 74, 64];
-const GROUND = [232, 220, 196];
-const GROUND_L = [214, 196, 164];
-const GROUND_R = [186, 166, 132];
-const ROAD = [120, 120, 124];
-const ROAD_L = [96, 96, 100];
-const GRASS = [142, 186, 90];
-const GRASS_L = [110, 150, 70];
-const WATER = [110, 180, 212];
-const RED = [196, 82, 74];
-const RED_L = [168, 62, 56];
-const RED_T = [220, 120, 110];
-const BEIGE = [232, 210, 170];
-const BEIGE_L = [200, 176, 136];
-const BEIGE_T = [246, 232, 200];
 const ACCENT = [176, 83, 85];
+const WHITE = [250, 246, 238];
+const CHIP = [246, 241, 234];
 
-function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function mix(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
 function inCard(x, y, m, r) {
   const lo = m, hi = OUT - m;
   if (x < lo || x > hi || y < lo || y > hi) return false;
   const cx = Math.min(Math.max(x, lo + r), hi - r), cy = Math.min(Math.max(y, lo + r), hi - r);
   if (x >= lo + r && x <= hi - r) return true;
   if (y >= lo + r && y <= hi - r) return true;
-  const dx = x - cx, dy = y - cy; return dx * dx + dy * dy <= r * r;
+  const dx = x - cx, dy = y - cy;
+  return dx * dx + dy * dy <= r * r;
 }
+
+function paeth(a, b, c) {
+  const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+function decodePng(buf) {
+  if (buf[0] !== 0x89) throw new Error('not a png');
+  let i = 8, w = 0, h = 0, depth = 8, ctype = 6;
+  const idats = [];
+  while (i < buf.length) {
+    const len = buf.readUInt32BE(i);
+    const typ = buf.toString('ascii', i + 4, i + 8);
+    const chunk = buf.subarray(i + 8, i + 8 + len);
+    i += 12 + len;
+    if (typ === 'IHDR') {
+      w = chunk.readUInt32BE(0); h = chunk.readUInt32BE(4);
+      depth = chunk[8]; ctype = chunk[9];
+      if (chunk[12] !== 0) throw new Error('interlaced png');
+    } else if (typ === 'IDAT') idats.push(chunk);
+    else if (typ === 'IEND') break;
+  }
+  const samples = ctype === 2 ? 3 : 4;
+  const bpp = samples;
+  const rowBytes = w * bpp;
+  const raw = inflateSync(Buffer.concat(idats));
+  const out = Buffer.alloc(w * h * 4);
+  let src = 0;
+  let prev = Buffer.alloc(rowBytes);
+  for (let y = 0; y < h; y++) {
+    const filt = raw[src++];
+    const row = Buffer.alloc(rowBytes);
+    raw.copy(row, 0, src, src + rowBytes); src += rowBytes;
+    for (let x = 0; x < rowBytes; x++) {
+      const a = x >= bpp ? row[x - bpp] : 0;
+      const b = prev[x];
+      const c = x >= bpp ? prev[x - bpp] : 0;
+      let v = row[x];
+      if (filt === 1) v = (v + a) & 255;
+      else if (filt === 2) v = (v + b) & 255;
+      else if (filt === 3) v = (v + ((a + b) >> 1)) & 255;
+      else if (filt === 4) v = (v + paeth(a, b, c)) & 255;
+      else if (filt !== 0) throw new Error('bad filter ' + filt);
+      row[x] = v;
+    }
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      if (ctype === 6) {
+        const s = x * 4;
+        out[o] = row[s]; out[o + 1] = row[s + 1]; out[o + 2] = row[s + 2]; out[o + 3] = row[s + 3];
+      } else {
+        const s = x * 3;
+        out[o] = row[s]; out[o + 1] = row[s + 1]; out[o + 2] = row[s + 2]; out[o + 3] = 255;
+      }
+    }
+    prev = row;
+  }
+  return { w, h, p: out };
+}
+
+const sheet = decodePng(readFileSync(join(here, 'vendor/textures/01_130x66_130x230.png')));
+const TW = 130, TH = 230;
+const tileCache = new Map();
+
+function tileSprite(row, col) {
+  const key = row + ',' + col;
+  if (tileCache.has(key)) return tileCache.get(key);
+  const p = Buffer.alloc(TW * TH * 4);
+  for (let y = 0; y < TH; y++) {
+    const sy = row * TH + y;
+    for (let x = 0; x < TW; x++) {
+      const sx = col * TW + x;
+      const s = (sy * sheet.w + sx) * 4;
+      const d = (y * TW + x) * 4;
+      const r = sheet.p[s], g = sheet.p[s + 1], b = sheet.p[s + 2], a = sheet.p[s + 3];
+      if (r + g + b < 18) { p[d + 3] = 0; continue; }
+      p[d] = r; p[d + 1] = g; p[d + 2] = b; p[d + 3] = a;
+    }
+  }
+  const spr = { w: TW, h: TH, p };
+  tileCache.set(key, spr);
+  return spr;
+}
+
+function blit(dst, dw, dh, src, dx, dy, scale) {
+  const sw = Math.max(1, Math.round(src.w * scale));
+  const sh = Math.max(1, Math.round(src.h * scale));
+  const x0 = Math.max(0, dx | 0), y0 = Math.max(0, dy | 0);
+  const x1 = Math.min(dw, (dx | 0) + sw), y1 = Math.min(dh, (dy | 0) + sh);
+  for (let y = y0; y < y1; y++) {
+    const sy = Math.min(src.h - 1, ((y - (dy | 0)) / scale) | 0);
+    for (let x = x0; x < x1; x++) {
+      const sx = Math.min(src.w - 1, ((x - (dx | 0)) / scale) | 0);
+      const o = (sy * src.w + sx) * 4;
+      const a = src.p[o + 3];
+      if (a < 8) continue;
+      const d = (y * dw + x) * 4;
+      const aa = a / 255;
+      dst[d] = Math.round(src.p[o] * aa + dst[d] * (1 - aa));
+      dst[d + 1] = Math.round(src.p[o + 1] * aa + dst[d + 1] * (1 - aa));
+      dst[d + 2] = Math.round(src.p[o + 2] * aa + dst[d + 2] * (1 - aa));
+      dst[d + 3] = 255;
+    }
+  }
+}
+
+function isoBlit(dst, dw, dh, row, col, mapX, mapY, ox, oy, scale) {
+  const spr = tileSprite(row, col);
+  const tileW = 128 * scale, tileH = 64 * scale;
+  const dx = ox + (mapY - mapX) * tileW / 2 - 65 * scale;
+  const dy = oy + (mapX + mapY) * tileH / 2 - 130 * scale;
+  blit(dst, dw, dh, spr, dx, dy, scale);
+}
+
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  const bases = [CREAM, SKY, INK, GROUND, GROUND_L, GROUND_R, ROAD, ROAD_L, GRASS, GRASS_L, WATER, RED, RED_L, RED_T, BEIGE, BEIGE_L, BEIGE_T, ACCENT];
+  const bases = [CREAM, SKY, INK, ACCENT, WHITE, CHIP, [142, 186, 90], [110, 180, 212], [196, 82, 74], [232, 210, 170], [120, 120, 124], [186, 166, 132]];
   for (const b of bases) {
     pal.push(b.map(Math.round));
     pal.push(mix(b, [255, 255, 255], 0.18).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.22).map(Math.round));
+    pal.push(mix(b, [255, 255, 255], 0.4).map(Math.round));
   }
   return pal.slice(0, 64);
 }
@@ -51,95 +162,62 @@ function nearest(pal, r, g, b) {
   return bi;
 }
 
-function inDiamond(x, y, cx, cy, hw, hh) {
-  return Math.abs(x - cx) / hw + Math.abs(y - cy) / hh <= 1;
-}
+// 4×4 city. Frame 0 is dirt; later frames grow roads, trees, water, houses, towers.
+const GROW = [
+  { f: 2, x: 0, y: 1, r: 0, c: 2 },
+  { f: 2, x: 1, y: 1, r: 0, c: 8 },
+  { f: 2, x: 2, y: 1, r: 0, c: 3 },
+  { f: 3, x: 3, y: 1, r: 4, c: 4 },
+  { f: 3, x: 0, y: 0, r: 0, c: 6 },
+  { f: 4, x: 3, y: 0, r: 0, c: 7 },
+  { f: 5, x: 1, y: 2, r: 5, c: 8 },
+  { f: 6, x: 2, y: 2, r: 4, c: 6 },
+  { f: 7, x: 1, y: 0, r: 0, c: 1 },
+  { f: 8, x: 0, y: 2, r: 5, c: 0 },
+  { f: 9, x: 2, y: 0, r: 5, c: 2 },
+  { f: 10, x: 1, y: 3, r: 5, c: 1 },
+  { f: 11, x: 2, y: 3, r: 4, c: 10 },
+];
 
-function isoBlock(x, y, cx, baseY, hw, hh, h, top, left, right) {
-  const topCy = baseY - h;
-  if (inDiamond(x, y, cx, topCy, hw, hh)) return top;
-  const leftX0 = cx - hw, leftX1 = cx;
-  if (x >= leftX0 && x <= leftX1 && y >= topCy && y <= baseY + hh) {
-    const t = (x - leftX0) / hw;
-    const yTop = topCy - hh + t * hh;
-    const yBot = baseY - hh + t * hh + hh;
-    if (y >= yTop && y <= yBot + hh * (1 - t) && y <= baseY + hh * t) {
-      const yTop2 = topCy + (x - leftX0) / hw * hh;
-      const yBot2 = yTop2 + h;
-      if (y >= yTop2 && y <= yBot2) return left;
-    }
+function cityAt(f) {
+  const cells = [];
+  for (let x = 0; x < 4; x++) for (let y = 0; y < 4; y++) cells.push({ x, y, r: 0, c: 0 });
+  for (const e of GROW) {
+    if (f < e.f) continue;
+    const i = e.x * 4 + e.y;
+    cells[i] = { x: e.x, y: e.y, r: e.r, c: e.c };
   }
-  const rightX0 = cx, rightX1 = cx + hw;
-  if (x >= rightX0 && x <= rightX1 && y >= topCy && y <= baseY + hh) {
-    const t = (rightX1 - x) / hw;
-    const yTop2 = topCy + (rightX1 - x) / hw * hh;
-    const yBot2 = yTop2 + h;
-    if (y >= yTop2 && y <= yBot2) return right;
-  }
-  return null;
-}
-
-function isoGround(x, y, cx, cy, hw, hh, top, left, right) {
-  const h = hh * 0.35;
-  return isoBlock(x, y, cx, cy + h, hw, hh, h, top, left, right);
-}
-
-function tileCenter(col, row, ox, oy, hw, hh) {
-  return { x: ox + (col - row) * hw, y: oy + (col + row) * hh };
+  cells.sort((a, b) => (a.x + a.y) - (b.x + b.y) || a.x - b.x);
+  return cells;
 }
 
 function frameIndices(pal, f) {
-  const rgba = new Float32Array(RW * RW * 4);
+  const rgba = Buffer.alloc(RW * RW * 4);
   const m = 6, rad = 18;
-  const t = f / (FRAMES - 1);
-  const rise = Math.min(1, t / 0.7);
-  const hw = 11, hh = 5.5;
-  const ox = 64, oy = 46;
-  const tiles = [
-    { c: 0, r: 0, kind: 'g' }, { c: 1, r: 0, kind: 'g' }, { c: 2, r: 0, kind: 'w' }, { c: 3, r: 0, kind: 'g' },
-    { c: 0, r: 1, kind: 'r' }, { c: 1, r: 1, kind: 'r' }, { c: 2, r: 1, kind: 'r' }, { c: 3, r: 1, kind: 'g' },
-    { c: 0, r: 2, kind: 'g' }, { c: 1, r: 2, kind: 'b' }, { c: 2, r: 2, kind: 'r' }, { c: 3, r: 2, kind: 'g' },
-    { c: 0, r: 3, kind: 'g' }, { c: 1, r: 3, kind: 'g' }, { c: 2, r: 3, kind: 't' }, { c: 3, r: 3, kind: 'g' },
-  ];
-  const towerH = 6 + rise * 22;
+  const scale = 0.30;
+  const ox = 64 * SS, oy = 44 * SS;
+  const cells = cityAt(f);
 
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
-    let col = null, a = 0;
-    if (inCard(x, y, m, rad)) {
-      a = 1;
-      col = mix(SKY, CREAM, Math.max(0, Math.min(1, (y - 8) / 90)));
-      for (let i = tiles.length - 1; i >= 0; i--) {
-        const T = tiles[i];
-        const p = tileCenter(T.c, T.r, ox, oy, hw, hh);
-        let hit = null;
-        if (T.kind === 'g') hit = isoGround(x, y, p.x, p.y, hw, hh, GRASS, GRASS_L, mix(GRASS_L, [0, 0, 0], 0.15));
-        else if (T.kind === 'w') hit = isoGround(x, y, p.x, p.y, hw, hh, WATER, mix(WATER, [0, 40, 60], 0.25), mix(WATER, [0, 20, 40], 0.4));
-        else if (T.kind === 'r') hit = isoGround(x, y, p.x, p.y, hw, hh, ROAD, ROAD_L, mix(ROAD_L, [0, 0, 0], 0.2));
-        else if (T.kind === 'b') {
-          hit = isoGround(x, y, p.x, p.y, hw, hh, GROUND, GROUND_L, GROUND_R);
-          const b = isoBlock(x, y, p.x, p.y, hw * 0.72, hh * 0.72, 16, BEIGE_T, BEIGE, BEIGE_L);
-          if (b) hit = b;
-        } else if (T.kind === 't') {
-          hit = isoGround(x, y, p.x, p.y, hw, hh, GROUND, GROUND_L, GROUND_R);
-          const b = isoBlock(x, y, p.x, p.y, hw * 0.7, hh * 0.7, towerH, RED_T, RED, RED_L);
-          if (b) hit = b;
-        }
-        if (hit) col = hit;
-      }
-    }
+    if (!inCard(x, y, m, rad)) continue;
+    const col = mix(SKY, CREAM, Math.max(0, Math.min(1, (y - 8) / 90)));
     const o = (py * RW + px) * 4;
-    if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
+    rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 255;
+  }
+
+  for (const T of cells) {
+    isoBlit(rgba, RW, RW, T.r, T.c, T.x, T.y, ox, oy, scale * SS);
   }
 
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
-    let r = 0, g = 0, b = 0, aa = 0, n = SS * SS;
+    let r = 0, g = 0, b = 0, a = 0, n = SS * SS;
     for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) {
       const o = (((y * SS + sy) * RW) + (x * SS + sx)) * 4;
-      r += rgba[o]; g += rgba[o + 1]; b += rgba[o + 2]; aa += rgba[o + 3];
+      r += rgba[o]; g += rgba[o + 1]; b += rgba[o + 2]; a += rgba[o + 3];
     }
-    if (aa / n < 0.5) { idx[y * OUT + x] = 0; continue; }
+    if (a / n < 80) { idx[y * OUT + x] = 0; continue; }
     idx[y * OUT + x] = nearest(pal, r / n, g / n, b / n);
   }
   return idx;
@@ -157,37 +235,13 @@ export function isocityIcon() {
   return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 10, transparentIndex: 0 };
 }
 
-import { deflateSync } from 'node:zlib';
-
-function crc(buf) {
-  let c = ~0;
-  for (let i = 0; i < buf.length; i++) {
-    c ^= buf[i];
-    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
-  }
-  return (~c) >>> 0;
-}
-function pngChunk(tag, data) {
-  const t = Buffer.from(tag);
-  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-  const body = Buffer.concat([t, data]);
-  const c = Buffer.alloc(4); c.writeUInt32BE(crc(body));
-  return Buffer.concat([len, body, c]);
-}
-
 const GLYPHS = {
   'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
-  'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
-  'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
-  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
   'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
-  'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
   'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
-  'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   'P': [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
   'R': [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
@@ -214,6 +268,33 @@ function drawText(put, x, y, str, s, r, g, b) {
   }
 }
 
+function crc(buf) {
+  let c = ~0;
+  for (let i = 0; i < buf.length; i++) {
+    c ^= buf[i];
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+  }
+  return (~c) >>> 0;
+}
+function pngChunk(tag, data) {
+  const t = Buffer.from(tag);
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const body = Buffer.concat([t, data]);
+  const c = Buffer.alloc(4); c.writeUInt32BE(crc(body));
+  return Buffer.concat([len, body, c]);
+}
+
+// 7×7 built city, x-major like IsoCity.pack(). Never empty dirt.
+export const DEMO = [
+  [5, 2], [0, 4], [5, 3], [5, 11], [4, 10], [0, 6], [4, 4],
+  [0, 2], [0, 8], [0, 2], [0, 2], [0, 9], [0, 7], [4, 4],
+  [5, 0], [0, 5], [5, 1], [0, 1], [5, 7], [0, 6], [4, 5],
+  [0, 6], [5, 8], [0, 3], [0, 8], [0, 3], [5, 6], [4, 4],
+  [5, 5], [0, 2], [4, 7], [0, 2], [5, 4], [0, 7], [4, 5],
+  [0, 7], [5, 10], [0, 3], [0, 8], [0, 3], [4, 6], [4, 1],
+  [5, 9], [0, 6], [5, 7], [4, 8], [0, 6], [4, 11], [4, 0],
+];
+
 export function screenshotPng() {
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
@@ -222,69 +303,38 @@ export function screenshotPng() {
     const o = (y * W + x) * 4;
     rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a == null ? 255 : a;
   };
-  const fill = (x0, y0, x1, y1, r, g, b) => {
-    x0 = Math.max(0, x0 | 0); y0 = Math.max(0, y0 | 0);
-    x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
-    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
-  };
 
-  fill(0, 0, W, H, 232, 244, 250);
   for (let y = 0; y < H; y++) {
-    const t = y / H;
-    const c = mix([214, 232, 242], [250, 246, 238], t);
+    const c = mix([214, 232, 242], [250, 246, 238], y / H);
     for (let x = 0; x < W; x++) put(x, y, c[0], c[1], c[2]);
   }
 
-  drawText(put, 48, 48, 'ISOCITY', 10, 176, 83, 85);
-  drawText(put, 48, 140, 'A TINY CITY', 4, 90, 74, 64);
-  drawText(put, 48, 190, 'TAP TO PLACE TILES', 3, 120, 120, 124);
-  fill(48, 250, 320, 302, 176, 83, 85);
-  drawText(put, 64, 262, 'SHARE THE MAP', 3, 250, 246, 238);
-  drawText(put, 48, 330, 'OR COMPARE CITIES', 3, 90, 74, 64);
-  drawText(put, 48, 390, 'NO BUDGET  NO SCORE', 3, 142, 186, 90);
-  drawText(put, 48, 640, 'UNOFFICIAL PORT', 3, 186, 166, 132);
+  // App chrome — mid-use of Share the map, not a poster.
+  for (let y = 0; y < 56; y++) for (let x = 0; x < W; x++) put(x, y, 255, 255, 255);
+  for (let x = 0; x < W; x++) put(x, 56, 236, 230, 222);
+  drawText(put, 28, 18, 'ISOCITY', 3, 176, 83, 85);
+  for (let y = 12; y < 44; y++) for (let x = 430; x < 690; x++) put(x, y, 176, 83, 85);
+  drawText(put, 446, 18, 'SHARE THE MAP', 3, 250, 246, 238);
+  function pill(x0, y0, x1, y1, fill, ink, label) {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const cx = Math.min(Math.max(x, x0 + 12), x1 - 13);
+      const cy = Math.min(Math.max(y, y0 + 12), y1 - 13);
+      if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= 12 * 12) put(x, y, fill[0], fill[1], fill[2]);
+    }
+    drawText(put, x0 + 16, y0 + 8, label, 2, ink[0], ink[1], ink[2]);
+  }
+  pill(720, 12, 830, 44, [255, 244, 242], ACCENT, 'YOU');
+  pill(846, 12, 956, 44, CHIP, INK, 'SAM');
 
-  const hw = 46, hh = 23;
-  const ox = 820, oy = 180;
-  function diamond(cx, cy, tw, th, r, g, b) {
-    const x0 = Math.floor(cx - tw), x1 = Math.ceil(cx + tw);
-    const y0 = Math.floor(cy - th), y1 = Math.ceil(cy + th);
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      if (Math.abs(x - cx) / tw + Math.abs(y - cy) / th <= 1) put(x, y, r, g, b);
-    }
+  const scale = 1.12;
+  const ox = 600, oy = 188;
+  const order = [];
+  for (let x = 0; x < 7; x++) for (let y = 0; y < 7; y++) {
+    const t = DEMO[x * 7 + y];
+    order.push({ x, y, r: t[0], c: t[1] });
   }
-  function block(cx, baseY, tw, th, h, top, left, right) {
-    for (let y = Math.floor(baseY - h - th); y <= Math.ceil(baseY + th); y++) {
-      for (let x = Math.floor(cx - tw); x <= Math.ceil(cx + tw); x++) {
-        const col = isoBlock(x, y, cx, baseY, tw, th, h, top, left, right);
-        if (col) put(x, y, col[0], col[1], col[2]);
-      }
-    }
-  }
-  const city = [
-    [0, 0, 'g'], [1, 0, 'g'], [2, 0, 'w'], [3, 0, 'g'], [4, 0, 'g'],
-    [0, 1, 'rd'], [1, 1, 'rd'], [2, 1, 'rd'], [3, 1, 'g'], [4, 1, 'g'],
-    [0, 2, 'g'], [1, 2, 'b'], [2, 2, 'rd'], [3, 2, 'b'], [4, 2, 'g'],
-    [0, 3, 'g'], [1, 3, 'g'], [2, 3, 't'], [3, 3, 'g'], [4, 3, 'b'],
-    [0, 4, 'g'], [1, 4, 'g'], [2, 4, 'rd'], [3, 4, 'g'], [4, 4, 'g'],
-  ];
-  city.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]));
-  for (const T of city) {
-    const p = tileCenter(T[0], T[1], ox, oy, hw, hh);
-    if (T[2] === 'g') {
-      diamond(p.x, p.y, hw, hh, GRASS[0], GRASS[1], GRASS[2]);
-    } else if (T[2] === 'w') {
-      diamond(p.x, p.y, hw, hh, WATER[0], WATER[1], WATER[2]);
-    } else if (T[2] === 'rd') {
-      diamond(p.x, p.y, hw, hh, ROAD[0], ROAD[1], ROAD[2]);
-    } else if (T[2] === 'b') {
-      diamond(p.x, p.y, hw, hh, GROUND[0], GROUND[1], GROUND[2]);
-      block(p.x, p.y, hw * 0.72, hh * 0.72, 48, BEIGE_T, BEIGE, BEIGE_L);
-    } else if (T[2] === 't') {
-      diamond(p.x, p.y, hw, hh, GROUND[0], GROUND[1], GROUND[2]);
-      block(p.x, p.y, hw * 0.7, hh * 0.7, 92, RED_T, RED, RED_L);
-    }
-  }
+  order.sort((a, b) => (a.x + a.y) - (b.x + b.y) || a.x - b.x);
+  for (const T of order) isoBlit(rgba, W, H, T.r, T.c, T.x, T.y, ox, oy, scale);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
