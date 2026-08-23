@@ -119,10 +119,15 @@
     return 'transparent';
   }
 
+  // Mid-game that leaves three red in a row on the bottom; red to play
+  // column 0 completes four. Used by the store cover (and its self-test).
+  var COVER_MOVES = [3, 3, 2, 4, 4, 2, 1, 5, 5, 1];
+
   root.C4 = {
     ROWS: ROWS, COLUMNS: COLUMNS,
     EMPTY: EMPTY, P1: P1, P2: P2, DRAW: DRAW,
     COLOR1: COLOR1, COLOR2: COLOR2, MASK: MASK,
+    COVER_MOVES: COVER_MOVES,
     cloneMap: cloneMap, mockDrop: mockDrop, getWinner: getWinner,
     fresh: fresh, drop: drop, replay: replay, canDrop: canDrop,
     colorName: colorName, colorNum: colorNum, hex: hex

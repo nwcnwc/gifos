@@ -13,7 +13,7 @@
 
   var state = {
     mode: 'cpu', s: null, hist: [], over: false, thinking: false,
-    hover: -1, dropping: false
+    hover: -1, dropping: false, pulse: 0, cover: false
   };
   var db = null;
   try { if (window.gifos) db = gifos.db('save'); } catch (e) {}
@@ -38,20 +38,29 @@
   });
 
   // ---- canvas ----
+  // Rail above the grid holds the preview disc. Extra canvas height (phone)
+  // is still the column's hit target — not just the hole.
   function layout(cssW, cssH) {
-    var pad = Math.min(cssW, cssH) * 0.05;
-    var innerW = cssW - 2 * pad, innerH = cssH - 2 * pad;
-    var Rw = innerW / (3 * C.COLUMNS + 1);
-    var Rh = innerH / (3 * C.ROWS + 1);
-    var R = Math.min(Rw, Rh);
+    var padX = Math.min(cssW * 0.03, 14);
+    var padBot = Math.min(cssH * 0.025, 10);
+    // rail is 2.2R (preview disc), not 2.2×width-based R — a wide canvas
+    // used to steal height and shrink the grid.
+    var maxR = Math.min(
+      Math.max(80, cssW - 2 * padX) / (3 * C.COLUMNS + 1),
+      Math.max(80, cssH - padBot) / (3 * C.ROWS + 1 + 2.2)
+    );
+    var R = Math.max(8, maxR);
     var boardW = (3 * C.COLUMNS + 1) * R;
     var boardH = (3 * C.ROWS + 1) * R;
+    var rail = 2.2 * R;
+    var leftover = cssH - padBot - boardH - rail;
+    var y0 = rail + Math.max(0, leftover * 0.12);
     return {
       radius: R,
       x0: (cssW - boardW) / 2,
-      y0: (cssH - boardH) / 2,
+      y0: y0,
       x1: (cssW - boardW) / 2 + boardW,
-      y1: (cssH - boardH) / 2 + boardH
+      y1: y0 + boardH
     };
   }
   function cellCenter(g, r, c) {
@@ -75,6 +84,18 @@
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = g; ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = Math.max(1, r * 0.08); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x - r * 0.22, y - r * 0.28, r * 0.22, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fill();
+  }
+  function dropY(t, fromY, toY) {
+    var fallEnd = 0.72;
+    if (t <= fallEnd) {
+      var u = t / fallEnd;
+      return fromY + (toY - fromY) * (u * u);
+    }
+    var b = (t - fallEnd) / (1 - fallEnd);
+    var amp = (toY - fromY) * 0.1;
+    return toY - Math.sin(b * Math.PI) * amp;
   }
   function paint(canvas, s, opts) {
     opts = opts || {};
@@ -98,25 +119,15 @@
       }
       if (opts.drop) {
         p = cellCenter(g, opts.drop.r, opts.drop.c);
-        var topY = cellCenter(g, 0, opts.drop.c).y - g.radius * 2;
-        disc(ctx, p.x, topY + (p.y - topY) * opts.drop.t, g.radius * 0.92, opts.drop.color);
+        var fromY = g.y0 - g.radius * 1.15;
+        disc(ctx, p.x, dropY(opts.drop.t, fromY, p.y), g.radius * 0.92, opts.drop.color);
       }
     }
-    if (opts.hover >= 0 && s && !s.winner && C.canDrop(s, opts.hover)) {
-      var hoverColor = opts.hoverColor || s.turn;
-      p = cellCenter(g, 0, opts.hover);
-      ctx.globalAlpha = 0.38;
-      disc(ctx, p.x, p.y - g.radius * 0.15, g.radius * 0.92, hoverColor);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = hoverColor === C.P1 ? 'rgba(239,69,59,.18)' : 'rgba(0,89,255,.18)';
-      ctx.fillRect(g.x0 + opts.hover * (g.x1 - g.x0) / C.COLUMNS, g.y0,
-        (g.x1 - g.x0) / C.COLUMNS, g.y1 - g.y0);
-    }
-    // mask with holes — discs show through
+    // mask with holes — discs show through the plastic
     ctx.save();
     ctx.fillStyle = C.MASK;
     ctx.beginPath();
-    var rr = 10;
+    var rr = Math.min(14, g.radius * 0.7);
     if (ctx.roundRect) ctx.roundRect(g.x0, g.y0, g.x1 - g.x0, g.y1 - g.y0, rr);
     else ctx.rect(g.x0, g.y0, g.x1 - g.x0, g.y1 - g.y0);
     for (r = 0; r < C.ROWS; r++) for (c = 0; c < C.COLUMNS; c++) {
@@ -126,23 +137,54 @@
     }
     ctx.fill('evenodd');
     ctx.restore();
-    if (s && s.winLine) {
-      ctx.strokeStyle = 'rgba(255, 220, 80, .95)';
-      ctx.lineWidth = Math.max(3, g.radius * 0.18);
+    ctx.strokeStyle = 'rgba(0,0,0,.22)';
+    ctx.lineWidth = Math.max(1, g.radius * 0.07);
+    for (r = 0; r < C.ROWS; r++) for (c = 0; c < C.COLUMNS; c++) {
+      p = cellCenter(g, r, c);
+      ctx.beginPath(); ctx.arc(p.x, p.y, g.radius * 0.98, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (opts.hover >= 0 && s && !s.winner && C.canDrop(s, opts.hover) && !opts.drop) {
+      var hoverColor = opts.hoverColor || s.turn;
+      p = cellCenter(g, 0, opts.hover);
+      ctx.fillStyle = hoverColor === C.P1 ? 'rgba(239,69,59,.14)' : 'rgba(0,89,255,.14)';
+      ctx.fillRect(g.x0 + opts.hover * (g.x1 - g.x0) / C.COLUMNS, g.y0,
+        (g.x1 - g.x0) / C.COLUMNS, g.y1 - g.y0);
+      ctx.globalAlpha = 0.95;
+      disc(ctx, p.x, g.y0 - g.radius * 1.12, g.radius * 0.92, hoverColor);
+      ctx.globalAlpha = 1;
+    }
+    if (s && s.winLine && !opts.drop) {
+      var pulse = 0.5 + 0.5 * Math.sin((opts.pulse || nowMs()) / 260);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 214, 70, ' + (0.78 + 0.22 * pulse) + ')';
+      ctx.lineWidth = Math.max(5, g.radius * (0.28 + 0.1 * pulse));
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      s.winLine.forEach(function (pt, i) {
+        p = cellCenter(g, pt.r, pt.c);
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      ctx.lineWidth = Math.max(3, g.radius * 0.16);
       s.winLine.forEach(function (pt) {
         p = cellCenter(g, pt.r, pt.c);
-        ctx.beginPath(); ctx.arc(p.x, p.y, g.radius * 1.08, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, g.radius * (1.04 + 0.08 * pulse), 0, Math.PI * 2);
+        ctx.stroke();
       });
+      ctx.restore();
     }
   }
   function hitColumn(canvas, ev) {
     var rect = canvas.getBoundingClientRect();
     var t = ev.changedTouches && ev.changedTouches[0] ? ev.changedTouches[0]
           : (ev.touches && ev.touches[0] ? ev.touches[0] : ev);
-    var x = t.clientX - rect.left, y = t.clientY - rect.top;
+    var x = t.clientX - rect.left;
     var g = layout(rect.width, rect.height);
-    if (x < g.x0 || x > g.x1 || y < g.y0 - 8 || y > g.y1) return -1;
-    var col = Math.floor((x - g.x0) / ((g.x1 - g.x0) / C.COLUMNS));
+    var colW = (g.x1 - g.x0) / C.COLUMNS;
+    var col = Math.floor((x - g.x0) / colW);
+    if (x < g.x0) col = 0;
+    if (x >= g.x1) col = C.COLUMNS - 1;
     if (col < 0 || col >= C.COLUMNS) return -1;
     return col;
   }
@@ -151,16 +193,34 @@
     if (!s || !s.last || s.last.c !== col) { done(); return; }
     var row = s.last.r, color = s.map[row][col];
     var t0 = nowMs();
-    var duration = 70 + row * 55;
+    var duration = 95 + row * 62 + 170;
     state.dropping = true;
     function frame() {
       var t = Math.min(1, (nowMs() - t0) / duration);
-      var ease = t * t;
-      paint(canvas, s, { drop: { r: row, c: col, t: ease, color: color }, hover: -1 });
+      paint(canvas, s, { drop: { r: row, c: col, t: t, color: color }, hover: -1 });
       if (t < 1) requestAnimationFrame(frame);
       else { state.dropping = false; paint(canvas, s, { hover: -1 }); done(); }
     }
     requestAnimationFrame(frame);
+  }
+
+  var pulseOn = false;
+  function pulseLoop() {
+    if (!pulseOn) return;
+    var local = !$('game').hidden && state.s && state.s.winLine;
+    var friend = !$('friend').hidden && mp.board;
+    if (local) paint($('board'), state.s, { hover: -1, pulse: nowMs() });
+    else if (friend) {
+      var fs = C.replay(mp.board.moves || []);
+      if (fs.winLine) paint($('fBoard'), fs, { hover: -1, pulse: nowMs() });
+      else { pulseOn = false; return; }
+    } else { pulseOn = false; return; }
+    requestAnimationFrame(pulseLoop);
+  }
+  function startPulse() {
+    if (pulseOn) return;
+    pulseOn = true;
+    requestAnimationFrame(pulseLoop);
   }
 
   // ---- local game ----
@@ -169,8 +229,47 @@
     if (state.mode === 'hotseat') return true;
     return state.s.turn === C.P1;
   }
+  function paintTurn() {
+    var red = $('whoRed'), blue = $('whoBlue');
+    if (!red || !blue) return;
+    $('whoRedName').textContent = state.mode === 'cpu' ? 'You' : 'Red';
+    $('whoBlueName').textContent = state.mode === 'cpu' ? 'Computer' : 'Blue';
+    var s = state.s;
+    var redOn = false, blueOn = false;
+    if (s && s.winner && s.winner !== C.DRAW) {
+      redOn = s.winner === C.P1;
+      blueOn = s.winner === C.P2;
+    } else if (s && !s.winner) {
+      if (state.thinking) { redOn = false; blueOn = true; }
+      else {
+        redOn = s.turn === C.P1;
+        blueOn = s.turn === C.P2;
+      }
+    }
+    red.className = 'who red' + (redOn ? (s && s.winner ? ' on win' : ' on') : '');
+    blue.className = 'who blue' + (blueOn ? (s && s.winner ? ' on win' : ' on') : '');
+  }
+  function paintBanner() {
+    var el = $('banner');
+    if (!el) return;
+    if (!state.s || !state.s.winner) { el.hidden = true; return; }
+    el.hidden = false;
+    if (state.s.winner === C.DRAW) {
+      el.className = 'banner'; el.textContent = 'Draw — the board is full'; return;
+    }
+    if (state.mode === 'hotseat') {
+      el.className = 'banner good';
+      el.textContent = (state.s.winner === C.P1 ? 'Red' : 'Blue') + ' wins';
+      return;
+    }
+    var you = state.s.winner === C.P1;
+    el.className = 'banner ' + (you ? 'good' : 'bad');
+    el.textContent = you ? 'You win — four in a row' : 'The computer wins';
+  }
   function localStatus() {
     if (!state.s) return;
+    paintTurn();
+    paintBanner();
     if (state.s.winner === C.DRAW) { setStatus($('statusLine'), 'Draw — the board is full.', ''); return; }
     if (state.s.winner) {
       var you = state.mode === 'cpu' && state.s.winner === C.P1;
@@ -189,7 +288,7 @@
     }
   }
   function saveLocal() {
-    if (!db) return;
+    if (!db || state.cover) return;
     db.put({
       id: 'game', mode: state.mode, moves: state.hist.slice(),
       over: state.over, at: nowMs()
@@ -199,6 +298,7 @@
     paint($('board'), state.s, { hover: isHumanTurn() ? state.hover : -1 });
     localStatus();
     saveLocal();
+    if (state.s && state.s.winLine) startPulse();
     if (!state.over && state.mode === 'cpu' && state.s.turn === C.P2) aiMove();
   }
   function playLocal(col) {
@@ -241,16 +341,20 @@
     paint($('board'), state.s);
     localStatus();
     saveLocal();
+    if (state.s && state.s.winLine) startPulse();
     if (!state.over && state.mode === 'cpu' && state.s.turn === C.P2) aiMove();
   }
   function newLocal() {
     state.s = C.fresh(); state.hist = []; state.over = false; state.hover = -1;
-    state.thinking = false; state.dropping = false;
+    state.thinking = false; state.dropping = false; state.cover = false;
     setChip('ready', state.mode === 'cpu' ? 'Ready' : 'Two players');
     $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
     paint($('board'), state.s);
     localStatus();
     saveLocal();
+    requestAnimationFrame(function () {
+      if (state.s && !$('game').hidden) paint($('board'), state.s, { hover: state.hover });
+    });
   }
 
   $('startBtn').onclick = function () { newLocal(); };
@@ -260,7 +364,8 @@
   $('undoBtn').onclick = undoLocal;
 
   function bindBoard(canvas, canPlay, onPlay, hoverOf) {
-    canvas.addEventListener('click', function (e) {
+    canvas.addEventListener('pointerdown', function (e) {
+      if (e.button && e.button !== 0) return;
       var col = hitColumn(canvas, e); if (col < 0) return;
       if (canPlay()) onPlay(col);
     });
@@ -292,7 +397,7 @@
   var PRES_TTL = 9000, HB_MS = 3000, END_HOLD = 4000;
   var mpDb = null;
   try { if (window.gifos) mpDb = gifos.db('room'); } catch (e) {}
-  var mp = { on: false, id: null, name: 'You', row: null, board: null, people: [], hb: 0, sub: false, hover: -1 };
+  var mp = { on: false, id: null, name: 'You', row: null, board: null, people: [], hb: 0, sub: false, hover: -1, seen: -1 };
   var _items = [];
 
   function mySeat(b) {
@@ -327,7 +432,7 @@
   function mpEnter() {
     if (!mpDb) { setStatus($('statusLine'), 'Play a friend needs storage.', 'warn'); return; }
     (window.gifos ? gifos.me() : Promise.resolve({ id: 'local', name: 'You' })).then(function (me) {
-      mp.id = me.id; mp.name = me.name || 'You'; mp.on = true; mp.row = null;
+      mp.id = me.id; mp.name = me.name || 'You'; mp.on = true; mp.row = null; mp.seen = -1;
       $('setup').hidden = true; $('game').hidden = true; $('friend').hidden = false;
       setChip('ready', 'A friend');
       if (!mp.sub) {
@@ -453,6 +558,13 @@
     putMe({ intent: { kind: 'resign', seq: b.seq } });
   };
 
+  function mpPaintBoard(s, b, seat) {
+    paint($('fBoard'), s, {
+      hover: (seat && b.turn === seat && !b.winner) ? mp.hover : -1,
+      hoverColor: seat ? C.colorNum(seat) : 0
+    });
+    if (s.winLine) startPulse();
+  }
   function mpRender() {
     if (!mp.on) return;
     var b = mp.board, status = $('fStatus');
@@ -460,9 +572,10 @@
     var s = C.replay(b.moves || []);
     var seat = mySeat(b);
     var nameOf = function (id) { return id ? esc(b.names[id] || 'Player') : '<span class="open">open</span>'; };
+    var disc = function (color) { return '<i class="disc ' + color + '" aria-hidden="true"></i>'; };
     $('fSeats').innerHTML =
-      '<div class="seat' + (seat === 'red' ? ' me' : '') + (b.turn === 'red' && !b.winner ? ' turn' : '') + '">🔴 ' + nameOf(b.seats.red) + '</div>' +
-      '<div class="seat blue' + (seat === 'blue' ? ' me' : '') + (b.turn === 'blue' && !b.winner ? ' turn' : '') + '">🔵 ' + nameOf(b.seats.blue) + '</div>';
+      '<div class="seat' + (seat === 'red' ? ' me' : '') + (b.turn === 'red' && !b.winner ? ' turn' : '') + '">' + disc('red') + nameOf(b.seats.red) + '</div>' +
+      '<div class="seat blue' + (seat === 'blue' ? ' me' : '') + (b.turn === 'blue' && !b.winner ? ' turn' : '') + '">' + disc('blue') + nameOf(b.seats.blue) + '</div>';
     var waiting = mp.people.filter(function (p) { return p.id !== b.seats.red && p.id !== b.seats.blue; });
     $('fQueue').textContent = waiting.length ? ('Watching: ' + waiting.map(function (p) { return p.name || 'Player'; }).join(', ')) : '';
     var both = b.seats.red && b.seats.blue;
@@ -480,33 +593,29 @@
     } else {
       status.textContent = 'Waiting for ' + b.turn + '…';
     }
-    paint($('fBoard'), s, {
-      hover: (seat && b.turn === seat && !b.winner) ? mp.hover : -1,
-      hoverColor: seat ? C.colorNum(seat) : 0
-    });
+    var seq = b.seq || 0;
+    var prev = mp.seen;
+    mp.seen = seq;
+    if (prev >= 0 && seq !== prev && b.last && !state.dropping) {
+      animateDrop($('fBoard'), s, b.last.c, function () { mpPaintBoard(s, b, seat); });
+    } else {
+      mpPaintBoard(s, b, seat);
+    }
     $('fResign').hidden = !(seat && (b.moves || []).length && !b.winner);
   }
 
-  (function bindFriendBoard() {
-    var canvas = $('fBoard');
-    canvas.addEventListener('click', function (e) {
-      var col = hitColumn(canvas, e); if (col < 0) return;
-      mpPlay(col);
+  bindBoard($('fBoard'), function () {
+    var b = mp.board, seat = mySeat(b);
+    return !!(b && seat && !b.winner && b.turn === seat && !state.dropping);
+  }, function (col) { return mpPlay(col); }, function (col) {
+    mp.hover = col;
+    var b = mp.board; if (!b) return;
+    var seat = mySeat(b);
+    paint($('fBoard'), C.replay(b.moves || []), {
+      hover: (seat && b.turn === seat && !b.winner) ? mp.hover : -1,
+      hoverColor: seat ? C.colorNum(seat) : 0
     });
-    canvas.addEventListener('pointermove', function (e) {
-      mp.hover = hitColumn(canvas, e);
-      var b = mp.board; if (!b) return;
-      var seat = mySeat(b);
-      paint(canvas, C.replay(b.moves || []), {
-        hover: (seat && b.turn === seat && !b.winner) ? mp.hover : -1,
-        hoverColor: seat ? C.colorNum(seat) : 0
-      });
-    });
-    canvas.addEventListener('pointerleave', function () {
-      mp.hover = -1;
-      if (mp.board) paint(canvas, C.replay(mp.board.moves || []), { hover: -1 });
-    });
-  })();
+  });
 
   window.addEventListener('resize', function () {
     if (!$('game').hidden && state.s) paint($('board'), state.s, { hover: state.hover });
@@ -518,9 +627,31 @@
     else if (!$('game').hidden) { $('game').hidden = true; $('setup').hidden = false; setChip('ready', 'Ready'); }
   });
 
+  C.coverShot = function () {
+    document.body.classList.add('cover');
+    state.cover = true;
+    state.mode = 'cpu';
+    state.hist = C.COVER_MOVES.concat([0]);
+    state.s = C.replay(state.hist);
+    state.over = true;
+    state.thinking = false;
+    state.dropping = false;
+    state.hover = -1;
+    $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
+    setChip('ready', 'Ready');
+    localStatus();
+    setStatus($('statusLine'), 'No game server.', '');
+    paint($('board'), state.s, { hover: -1, pulse: nowMs() });
+    startPulse();
+    requestAnimationFrame(function () {
+      if (state.s) paint($('board'), state.s, { hover: -1, pulse: nowMs() });
+    });
+  };
+
   setChip('ready', 'Ready');
   if (db) {
     db.get('game').then(function (g) {
+      if (state.cover) return;
       if (!g || !g.moves || !g.moves.length || g.over) return;
       state.mode = g.mode || 'cpu';
       state.hist = g.moves.slice();
@@ -535,6 +666,7 @@
       $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
       paint($('board'), state.s);
       localStatus();
+      if (state.s && state.s.winLine) startPulse();
       if (!state.over && state.mode === 'cpu' && state.s.turn === C.P2) aiMove();
     }).catch(function () {});
   }

@@ -28,8 +28,13 @@ build.mjs           packs the GIF into site/apps/connect-four/connect-four.gif
   host of the board (lowest live id) is the only writer of the board row: a
   player publishes an intended drop, the host applies it if it is legal.
 
-A game in progress auto-saves in the icon. On a phone, tap a column — the
-whole column is the hit target, not just the hole.
+A game in progress auto-saves in the icon. A disc falls with gravity and a
+bounce. The winning four is a gold line. Whose turn is the two coloured
+seats, not just a sentence. On a phone, the whole column is the hit target
+— any height of the board, not just a hole.
+
+Store cover is a Playwright shot of the live board (`tools/shoot.js`).
+`build.mjs` will not clobber `screenshot.png`.
 
 ## capabilities
 
