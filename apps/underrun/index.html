@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>UNDERRUN</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c" width="320" height="180"></canvas>
+<code id="a"></code>
+
+<div id="tally" hidden></div>
+<div id="score" hidden>
+  <table>
+    <thead><tr><th>soldier</th><th>hp</th><th>floor</th></tr></thead>
+    <tbody id="score-rows"></tbody>
+  </table>
+</div>
+
+<!-- Twin-stick overlay. touch.js shows it only after a real finger has touched
+     the screen during play — a laptop with a touchscreen must not get a phone
+     HUD laid over WASD. -->
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+  <div id="t-aim" class="t-stick"><div class="t-knob"></div></div>
+</div>
+
+<!-- Packed PNGs. GifOS rewrites HTML src to data: URLs; JS-built paths would
+     not resolve inside the srcdoc sandbox, so load_image reads these. -->
+<img id="img-q2" src="vendor/m/q2.png" alt="" hidden>
+<img id="img-l1" src="vendor/m/l1.png" alt="" hidden>
+<img id="img-l2" src="vendor/m/l2.png" alt="" hidden>
+<img id="img-l3" src="vendor/m/l3.png" alt="" hidden>
+
+<script src="vendor/game.js"></script>
+<script src="vendor/random.js"></script>
+<script src="vendor/renderer.js"></script>
+<script src="vendor/entity.js"></script>
+<script src="vendor/entity-cpu.js"></script>
+<script src="vendor/entity-player.js"></script>
+<script src="vendor/entity-plasma.js"></script>
+<script src="vendor/entity-spider.js"></script>
+<script src="vendor/entity-sentry.js"></script>
+<script src="vendor/entity-particle.js"></script>
+<script src="vendor/entity-health.js"></script>
+<script src="vendor/entity-explosion.js"></script>
+<script src="vendor/sonantx-reduced.js"></script>
+<script src="vendor/music-dark-meat-beat.js"></script>
+<script src="vendor/sound-effects.js"></script>
+<script src="vendor/audio.js"></script>
+<script src="vendor/terminal.js"></script>
+<script src="vendor/main.js"></script>
+<script src="touch.js"></script>
+<script src="net.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
