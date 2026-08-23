@@ -3262,6 +3262,24 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
   .tgl input:checked + .tslide::after{transform:translateX(18px)}
   .visinfo .vt{font-weight:600;font-size:.9rem}
   #toast.on{opacity:1}
+  #mgif{display:none}
+  #gifpanel{display:none}
+  #gifpanel.on{display:flex}
+  .box.gifing .stage{max-height:36vh}
+  .box.gifing .stage video{max-height:36vh}
+  #filmstrip{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0 4px}
+  #filmstrip img{width:64px;height:48px;object-fit:cover;border-radius:6px;flex:0 0 auto;border:2px solid transparent;background:#000;cursor:pointer}
+  #filmstrip img.on{border-color:var(--accent,#ff7850)}
+  .gifrange{position:relative;height:44px;margin:2px 22px;touch-action:none;user-select:none}
+  .gifrange-track{position:absolute;left:0;right:0;top:50%;height:8px;margin-top:-4px;background:var(--border,#2a2a3f);border-radius:4px}
+  .gifrange-fill{position:absolute;top:0;bottom:0;background:var(--accent,#ff7850);border-radius:4px}
+  .gifrange-h{position:absolute;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--accent,#ff7850);border:3px solid #fff;box-shadow:0 1px 8px #0007;z-index:2;touch-action:none;cursor:grab}
+  #giftimes{display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted,#8888aa)}
+  #gifbudget{font-size:.82rem;font-weight:650}
+  #gifbudget.warn{color:#ff9a9a}
+  #gifspeeds{width:100%}
+  #gifspeeds button{flex:1;min-width:44px;padding:8px 2px}
+  #gifgo:disabled{opacity:.45}
 </style></head><body>
 <header>
   <h1>My Media</h1>
@@ -3284,19 +3302,43 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
 <div id="drop">Drop to add to your library</div>
 <div id="modal"><div class="box">
   <div class="stage" id="stage"></div>
-  <div class="info">
+  <div class="info" id="detail">
     <input type="text" id="mname" placeholder="Name">
     <div class="row"><span class="sub">Category</span><input type="text" id="mcat" list="cats" placeholder="Unsorted"><button class="btn ghost" id="msave">Save</button></div>
     <datalist id="cats"></datalist>
     <div class="row" id="visrow" style="display:none"><label class="tgl"><input type="checkbox" id="mvis"><span class="tslide"></span></label><div class="visinfo"><div class="vt">Visible to invited guests</div><span class="sub" id="vishint">Private — only you can see it.</span></div></div>
-    <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="btn ghost" id="mdown">Download</button><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
+    <div class="row"><span class="sub" id="minfo"></span><span style="flex:1"></span><button class="btn" id="mgif">Make GIF</button><button class="btn ghost" id="mdown">Download</button><button class="danger" id="mdel">Delete</button><button class="btn ghost" id="mclose">Close</button></div>
+  </div>
+  <div class="info" id="gifpanel">
+    <div id="filmstrip"></div>
+    <div class="gifrange" id="gifrange">
+      <div class="gifrange-track"><div class="gifrange-fill" id="giffill"></div></div>
+      <div class="gifrange-h" id="gifh0"></div>
+      <div class="gifrange-h" id="gifh1"></div>
+    </div>
+    <div id="giftimes"><span id="gifta"></span><span id="giftd"></span><span id="giftb"></span></div>
+    <div id="gifbudget"></div>
+    <div class="sub">Speed</div>
+    <div class="seg" id="gifspeeds">
+      <button data-s="0.25">0.25×</button>
+      <button data-s="0.5">0.5×</button>
+      <button data-s="1" class="on">1×</button>
+      <button data-s="1.25">1.25×</button>
+      <button data-s="1.5">1.5×</button>
+      <button data-s="2">2×</button>
+    </div>
+    <div class="row"><button class="btn" id="gifgo">Make GIF</button><button class="btn ghost" id="gifstop" style="display:none">Stop</button><button class="btn ghost" id="gifback">Cancel</button></div>
+    <div id="gifprog" class="sub"></div>
   </div>
 </div></div>
 <div id="toast"></div>
+<script src="gifenc.js"></script>
 <script>
   var media = gifos.db('media'), blobs = gifos.db('blobs');
   var MAX = 25 * 1024 * 1024;
   var items = [], fType = 'all', fCat = 'all', curUrl = null, cur = null, owner = false;
+  var gifAbort=false, gifBusy=false, gifSpeed=1, gifStart=0, gifEnd=0, gifSavedT=0, filmGen=0;
+  var GIF_FPS=10, MAX_OUT_SEC=8, MAX_FRAMES=80, MAX_SIDE=480;
   // Only the library's owner (the host) can change what's shared. A guest view
   // sees the host's opted-in items plus its own private captures, read-only.
   if (window.gifos && gifos.info) gifos.info().then(function(i){ owner = !!(i && i.owner); if(cur) syncVisRow(); }).catch(function(){});
@@ -3330,6 +3372,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     var thumb=''; try{ thumb=await makeThumb(new Blob([bytes],{type:mime}), type); }catch(e){}
     await blobs.put({ id:id, bytes:bytes });
     await media.put({ id:id, name:name||type, type:type, mime:mime, category:(category||'Unsorted'), size:bytes.length, at:Date.now(), thumb:thumb });
+    return id;
   }
   async function importFile(file){
     try{ var buf=new Uint8Array(await file.arrayBuffer()); await store(buf, file.type||'', file.name||'file', 'Unsorted'); }
@@ -3378,6 +3421,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     document.getElementById('mcat').value = m.category||'';
     document.getElementById('minfo').textContent = (KIND[m.type]||'')+' '+(m.mime||'')+' · '+fmtSize(m.size);
     syncVisRow();
+    closeGifPanel();
+    document.getElementById('mgif').style.display = m.type==='video' ? 'inline-block' : 'none';
     document.getElementById('modal').style.display='flex';
   }
   // The visibility control — owner only. Reflects the current item's state and
@@ -3404,6 +3449,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     }catch(e){ this.checked=!makeVis; toast('Could not change visibility'); }
   };
   function closeModal(){
+    gifAbort=true;
+    closeGifPanel();
     var st=document.getElementById('stage'); st.innerHTML=''; // stops playback
     if(curUrl){ URL.revokeObjectURL(curUrl); curUrl=null; } cur=null;
     document.getElementById('modal').style.display='none';
@@ -3470,11 +3517,409 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     capBtn('🎬','Record a video clip', function(){ capture('video'); });
   }
 
+  // ---- video → GIF (plain GIF89a via packed gifenc.js) ----
+  function stageVideo(){ return document.querySelector('#stage video'); }
+  function vidDur(){ var v=stageVideo(), d=v&&v.duration; return (isFinite(d)&&d>0)?d:0; }
+  function fmtT(t){ t=Math.max(0,+t||0); var m=Math.floor(t/60), s=t-m*60; return m+':'+(s<10?'0':'')+s.toFixed(1); }
+  function maxSrc(){ return MAX_OUT_SEC*gifSpeed; }
+  function gifNameFrom(m){
+    var n=String((m&&m.name)||'Clip');
+    n=n.replace(/\.(webm|mp4|mov|mkv|avi|ogv|m4v)$/i,'');
+    if(/^Clip\s*·/i.test(n)) n='Clip';
+    n=n.replace(/[\\/?%*:|"<>]/g,'-').replace(/\s+/g,' ').trim()||'Clip';
+    return n+'.gif';
+  }
+  function seekTo(v, t){
+    return new Promise(function(res){
+      var done=false;
+      function fin(){ if(done) return; done=true; v.removeEventListener('seeked', fin); v.removeEventListener('error', fin); res(); }
+      v.addEventListener('seeked', fin);
+      v.addEventListener('error', fin);
+      try{
+        if(Math.abs((v.currentTime||0)-t)<0.001 && v.readyState>=2){ fin(); return; }
+        v.currentTime=t;
+      }catch(e){ fin(); return; }
+      setTimeout(fin, 2000);
+    });
+  }
+  function clampGifRange(){
+    var d=vidDur(), max=Math.min(d, maxSrc()), minSpan=Math.min(0.2, d||0.2);
+    if(gifEnd>d) gifEnd=d;
+    if(gifStart<0) gifStart=0;
+    if(gifEnd-gifStart>max){
+      gifEnd=gifStart+max;
+      if(gifEnd>d){ gifEnd=d; gifStart=Math.max(0, gifEnd-max); }
+    }
+    if(gifEnd-gifStart<minSpan && d>0){
+      gifEnd=Math.min(d, gifStart+minSpan);
+      if(gifEnd-gifStart<minSpan) gifStart=Math.max(0, gifEnd-minSpan);
+    }
+  }
+  function updateGifUI(){
+    var d=vidDur()||1;
+    var a=gifStart/d*100, b=gifEnd/d*100;
+    document.getElementById('gifh0').style.left=a+'%';
+    document.getElementById('gifh1').style.left=b+'%';
+    var fill=document.getElementById('giffill');
+    fill.style.left=a+'%'; fill.style.width=Math.max(0,b-a)+'%';
+    document.getElementById('gifta').textContent=fmtT(gifStart);
+    document.getElementById('giftd').textContent=fmtT(gifEnd-gifStart);
+    document.getElementById('giftb').textContent=fmtT(gifEnd);
+    var sel=gifEnd-gifStart, max=maxSrc();
+    var maxTxt=(Math.abs(max-Math.round(max))<1e-6)?String(Math.round(max)):max.toFixed(1);
+    var spdTxt=gifSpeed+'×';
+    var line=sel.toFixed(1)+'s selected · max '+maxTxt+'s at '+spdTxt;
+    var budget=document.getElementById('gifbudget');
+    budget.textContent=line;
+    var over=sel>max+0.05;
+    budget.classList.toggle('warn', over);
+    document.getElementById('gifgo').disabled=over||gifBusy||sel<=0;
+  }
+  function syncSpeeds(){
+    Array.prototype.forEach.call(document.getElementById('gifspeeds').children, function(c){
+      c.classList.toggle('on', parseFloat(c.getAttribute('data-s'))===gifSpeed);
+    });
+  }
+  function closeGifPanel(){
+    gifAbort=true;
+    var p=document.getElementById('gifpanel'); if(p) p.classList.remove('on');
+    var det=document.getElementById('detail'); if(det) det.style.display='';
+    var box=document.querySelector('#modal .box'); if(box) box.classList.remove('gifing');
+    var v=stageVideo();
+    if(v){ v.controls=true; v.muted=false; }
+    var stop=document.getElementById('gifstop'); if(stop) stop.style.display='none';
+    var prog=document.getElementById('gifprog'); if(prog) prog.textContent='';
+  }
+  function makeFilmstrip(){
+    var v=stageVideo(); if(!v) return;
+    var gen=++filmGen;
+    var n=10, a=gifStart, b=gifEnd, span=Math.max(0.01, b-a);
+    var strip=document.getElementById('filmstrip'); strip.innerHTML='';
+    var probe=document.createElement('video');
+    probe.muted=true; probe.playsInline=true; probe.preload='auto';
+    probe.src=v.currentSrc||v.src||'';
+    var i=0;
+    function next(){
+      if(gen!==filmGen){ probe.removeAttribute('src'); probe.load(); return; }
+      if(i>=n){ probe.removeAttribute('src'); probe.load(); return; }
+      var t=a+(i+0.5)*span/n;
+      seekTo(probe, t).then(function(){
+        if(gen!==filmGen) return;
+        var c=document.createElement('canvas');
+        var vw=probe.videoWidth||160, vh=probe.videoHeight||90;
+        var sc=64/Math.max(vw,1);
+        c.width=Math.max(1,Math.round(vw*sc)); c.height=Math.max(1,Math.round(vh*sc));
+        try{ c.getContext('2d').drawImage(probe,0,0,c.width,c.height); }catch(e){}
+        var img=document.createElement('img');
+        try{ img.src=c.toDataURL('image/jpeg',0.6); }catch(e){}
+        img.setAttribute('data-t', String(t));
+        strip.appendChild(img);
+        i++; setTimeout(next, 0);
+      });
+    }
+    if(probe.readyState>=1) next();
+    else probe.addEventListener('loadedmetadata', next);
+    probe.addEventListener('error', function(){ if(gen===filmGen) strip.innerHTML=''; });
+  }
+  function openGifPanel(){
+    var v=stageVideo(); if(!v) return;
+    gifAbort=false; gifBusy=false; gifSpeed=1;
+    gifSavedT=v.currentTime||0;
+    v.pause(); v.muted=true; v.controls=false;
+    document.getElementById('detail').style.display='none';
+    document.getElementById('gifpanel').classList.add('on');
+    var box=document.querySelector('#modal .box'); if(box) box.classList.add('gifing');
+    function ready(){
+      var d=vidDur();
+      gifStart=0; gifEnd=Math.min(d, maxSrc());
+      if(d>0 && gifEnd<0.2) gifEnd=Math.min(d, 0.2);
+      syncSpeeds(); updateGifUI();
+      seekTo(v, gifStart); makeFilmstrip();
+    }
+    if(v.readyState>=1 && isFinite(v.duration)) ready();
+    else v.addEventListener('loadedmetadata', ready);
+  }
+  document.getElementById('mgif').onclick=openGifPanel;
+  document.getElementById('gifback').onclick=function(){ gifAbort=true; if(!gifBusy) closeGifPanel(); };
+  document.getElementById('gifstop').onclick=function(){ gifAbort=true; };
+  document.getElementById('gifspeeds').addEventListener('click', function(e){
+    var b=e.target.closest?e.target.closest('button[data-s]'):null; if(!b||gifBusy) return;
+    gifSpeed=parseFloat(b.getAttribute('data-s'))||1;
+    syncSpeeds();
+    clampGifRange();
+    updateGifUI();
+    makeFilmstrip();
+    var v=stageVideo(); if(v) try{ v.currentTime=gifStart; }catch(err){}
+  });
+  document.getElementById('filmstrip').onclick=function(e){
+    var t=e.target&&e.target.getAttribute&&e.target.getAttribute('data-t');
+    if(t==null) return;
+    var v=stageVideo(); if(v) try{ v.currentTime=parseFloat(t); }catch(err){}
+  };
+  (function(){
+    var which=null, range=document.getElementById('gifrange');
+    function tFromX(clientX){
+      var r=range.getBoundingClientRect();
+      var x=r.width? (clientX-r.left)/r.width : 0;
+      var d=vidDur();
+      return Math.max(0, Math.min(d, x*d));
+    }
+    function down(e, h){
+      if(gifBusy) return;
+      e.preventDefault(); e.stopPropagation();
+      which=h;
+      try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){}
+      move(e);
+    }
+    function move(e){
+      if(which==null) return;
+      var t=tFromX(e.clientX), d=vidDur(), max=Math.min(d, maxSrc()), minSpan=Math.min(0.2, d||0.2);
+      if(which===0){
+        gifStart=Math.max(0, Math.min(t, gifEnd-minSpan));
+        if(gifEnd-gifStart>max) gifStart=gifEnd-max;
+      }else{
+        gifEnd=Math.min(d, Math.max(t, gifStart+minSpan));
+        if(gifEnd-gifStart>max) gifEnd=gifStart+max;
+      }
+      var v=stageVideo(); if(v) try{ v.currentTime=which===0?gifStart:gifEnd; }catch(err){}
+      updateGifUI();
+    }
+    function up(){
+      if(which==null) return;
+      which=null; makeFilmstrip();
+    }
+    document.getElementById('gifh0').addEventListener('pointerdown', function(e){ down(e,0); });
+    document.getElementById('gifh1').addEventListener('pointerdown', function(e){ down(e,1); });
+    document.getElementById('gifh0').addEventListener('pointermove', move);
+    document.getElementById('gifh1').addEventListener('pointermove', move);
+    document.getElementById('gifh0').addEventListener('pointerup', up);
+    document.getElementById('gifh1').addEventListener('pointerup', up);
+    document.getElementById('gifh0').addEventListener('pointercancel', up);
+    document.getElementById('gifh1').addEventListener('pointercancel', up);
+    range.addEventListener('pointerdown', function(e){
+      if(gifBusy) return;
+      if(e.target.id==='gifh0'||e.target.id==='gifh1') return;
+      var t=tFromX(e.clientX);
+      var v=stageVideo(); if(v) try{ v.currentTime=t; }catch(err){}
+    });
+  })();
+  document.getElementById('gifgo').onclick=async function(){
+    if(gifBusy) return;
+    var v=stageVideo();
+    if(!v){ toast('No video to convert.'); return; }
+    if(!window.GifEnc||!GifEnc.encode||!GifEnc.quantize){ toast('GIF encoder is missing.'); return; }
+    var srcDur=gifEnd-gifStart;
+    if(srcDur<=0){ toast('Pick a longer clip.'); return; }
+    if(srcDur>maxSrc()+0.05){ toast('That clip is too long at this speed.'); return; }
+    var nFrames=Math.round(srcDur/gifSpeed*GIF_FPS);
+    if(nFrames<2) nFrames=2;
+    if(nFrames>MAX_FRAMES) nFrames=MAX_FRAMES;
+    var vw=v.videoWidth||0, vh=v.videoHeight||0;
+    if(!vw||!vh){ toast('The video has not decoded yet.'); return; }
+    var sc=Math.min(1, MAX_SIDE/Math.max(vw,vh));
+    var tw=Math.max(1, Math.round(vw*sc)), th=Math.max(1, Math.round(vh*sc));
+    gifBusy=true; gifAbort=false;
+    var go=document.getElementById('gifgo'), stop=document.getElementById('gifstop'), prog=document.getElementById('gifprog');
+    go.disabled=true; stop.style.display='';
+    v.pause();
+    var saved=v.currentTime;
+    var canvas=document.createElement('canvas'); canvas.width=tw; canvas.height=th;
+    var ctx=canvas.getContext('2d', { willReadFrequently:true });
+    var rgba=[], id=null;
+    try{
+      for(var i=0;i<nFrames;i++){
+        if(gifAbort) throw new Error('cancel');
+        var t=gifStart+(i+0.5)*(srcDur/nFrames);
+        prog.textContent='Sampling '+(i+1)+'/'+nFrames+'…';
+        await seekTo(v, t);
+        if(gifAbort) throw new Error('cancel');
+        ctx.drawImage(v, 0, 0, tw, th);
+        rgba.push(new Uint8Array(ctx.getImageData(0,0,tw,th).data));
+        await new Promise(function(r){ setTimeout(r, 0); });
+      }
+      prog.textContent='Encoding…';
+      await new Promise(function(r){ setTimeout(r, 0); });
+      var q=GifEnc.quantize(rgba, tw, th);
+      var bytes=GifEnc.encode({ width:tw, height:th, frames:q.frames, palette:q.palette, delayCs:10, loop:true });
+      if(!bytes||bytes.length<6) throw new Error('Could not encode the GIF.');
+      var hdr=String.fromCharCode(bytes[0],bytes[1],bytes[2],bytes[3],bytes[4],bytes[5]);
+      if(hdr!=='GIF89a') throw new Error('Could not encode the GIF.');
+      if(bytes.length>MAX){ toast('That GIF would be too big (max 25 MB).'); return; }
+      var name=gifNameFrom(cur);
+      var cat=(cur&&cur.category)||'Unsorted';
+      id=await store(bytes, 'image/gif', name, cat);
+      toast('Saved '+name);
+    }catch(err){
+      var msg=String(err&&err.message||err);
+      if(!/cancel/i.test(msg)) toast(msg.slice(0,90));
+    }finally{
+      gifBusy=false;
+      go.disabled=false; stop.style.display='none'; prog.textContent='';
+      try{ if(v&&v.parentNode) v.currentTime=saved; }catch(e){}
+    }
+    if(!id){
+      if(gifAbort && !document.getElementById('gifpanel').classList.contains('on')) return;
+      return;
+    }
+    closeGifPanel();
+    var tries=0;
+    while(tries++<25 && !items.filter(function(x){ return x.id===id; })[0])
+      await new Promise(function(r){ setTimeout(r, 40); });
+    await openItem(id);
+  };
+
   // ---- filters ----
   document.getElementById('types').addEventListener('click', function(e){ var b=e.target.closest?e.target.closest('button[data-t]'):null; if(!b) return;
     fType=b.getAttribute('data-t'); Array.prototype.forEach.call(this.children, function(c){ c.classList.toggle('on', c===b); }); render(); });
   document.getElementById('cat').onchange=function(){ fCat=this.value; render(); };
 </script></body></html>`;
+
+  // Packed into My Media as gifenc.js. Real GIF89a + variable-width LZW — not
+  // the uncompressed-GIF trick in gifos-gif.js, and no GIFOS1.0 extension.
+  const GIFENC_JS = `(function(root){
+    var BAYER=[0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21];
+    function clamp(n){ return n<0?0:n>255?255:n|0; }
+    function lzw(indices, minCS){
+      var clear=1<<minCS, eoi=clear+1;
+      var codeSize=minCS+1, nextCode=eoi+1;
+      var dict=Object.create(null);
+      var bytes=[], acc=0, nbits=0;
+      function put(code, size){
+        acc |= (code << nbits);
+        nbits += size;
+        while(nbits>=8){
+          bytes.push(acc&255);
+          acc >>>= 8;
+          nbits -= 8;
+        }
+      }
+      function reset(){
+        dict=Object.create(null);
+        codeSize=minCS+1;
+        nextCode=eoi+1;
+      }
+      var len=indices.length;
+      put(clear, codeSize);
+      if(!len){ put(eoi, codeSize); if(nbits) bytes.push(acc&255); return bytes; }
+      var prefix=indices[0]&255;
+      for(var i=1;i<len;i++){
+        var pix=indices[i]&255;
+        var key=prefix*256+pix;
+        var found=dict[key];
+        if(found!==undefined){ prefix=found; continue; }
+        put(prefix, codeSize);
+        if(nextCode<4096){
+          dict[key]=nextCode;
+          if(nextCode===(1<<codeSize) && codeSize<12) codeSize++;
+          nextCode++;
+        }else{
+          put(clear, codeSize);
+          reset();
+        }
+        prefix=pix;
+      }
+      put(prefix, codeSize);
+      put(eoi, codeSize);
+      if(nbits) bytes.push(acc&255);
+      return bytes;
+    }
+    function subBlocks(data){
+      var out=[];
+      for(var i=0;i<data.length;i+=255){
+        var n=Math.min(255, data.length-i);
+        out.push(n);
+        for(var j=0;j<n;j++) out.push(data[i+j]);
+      }
+      out.push(0);
+      return out;
+    }
+    function quantize(rgbaFrames, w, h){
+      var counts=new Uint32Array(32768);
+      var i,p,f,data,k;
+      for(f=0;f<rgbaFrames.length;f++){
+        data=rgbaFrames[f];
+        for(p=0;p<data.length;p+=4){
+          k=((data[p]>>3)<<10)|((data[p+1]>>3)<<5)|(data[p+2]>>3);
+          counts[k]++;
+        }
+      }
+      var keys=[];
+      for(i=0;i<32768;i++) if(counts[i]) keys.push(i);
+      keys.sort(function(a,b){ return counts[b]-counts[a]; });
+      if(keys.length>256) keys.length=256;
+      var n=keys.length;
+      if(!n){ keys=[0]; n=1; }
+      var pal=new Uint8Array(768);
+      var centers=new Uint8Array(n*3);
+      for(i=0;i<n;i++){
+        k=keys[i];
+        var r=(((k>>10)&31)<<3)|4, g=(((k>>5)&31)<<3)|4, b=((k&31)<<3)|4;
+        centers[i*3]=r; centers[i*3+1]=g; centers[i*3+2]=b;
+        pal[i*3]=r; pal[i*3+1]=g; pal[i*3+2]=b;
+      }
+      var lut=new Uint8Array(32768);
+      for(i=0;i<32768;i++){
+        var r2=(((i>>10)&31)<<3)|4, g2=(((i>>5)&31)<<3)|4, b2=((i&31)<<3)|4;
+        var best=0, bd=1e12, j;
+        for(j=0;j<n;j++){
+          var dr=r2-centers[j*3], dg=g2-centers[j*3+1], db=b2-centers[j*3+2];
+          var dist=dr*dr+dg*dg+db*db;
+          if(dist<bd){ bd=dist; best=j; if(!dist) break; }
+        }
+        lut[i]=best;
+      }
+      var dither=14;
+      var frames=[], npx=w*h;
+      for(f=0;f<rgbaFrames.length;f++){
+        data=rgbaFrames[f];
+        var idx=new Uint8Array(npx);
+        for(p=0;p<npx;p++){
+          var x=p%w, y=(p/w)|0;
+          var t=(BAYER[(y&7)*8+(x&7)]/64-0.5)*dither;
+          var r=clamp(data[p*4]+t), g=clamp(data[p*4+1]+t), b=clamp(data[p*4+2]+t);
+          idx[p]=lut[((r>>3)<<10)|((g>>3)<<5)|(b>>3)];
+        }
+        frames.push(idx);
+      }
+      return { palette: pal, frames: frames };
+    }
+    function encode(opts){
+      opts=opts||{};
+      var w=opts.width|0, h=opts.height|0;
+      var frames=opts.frames||[];
+      var pal=opts.palette;
+      var delay=opts.delayCs==null?10:opts.delayCs;
+      var loop=opts.loop!==false;
+      if(!w||!h||!frames.length) throw new Error('GifEnc: nothing to encode');
+      var palette=new Uint8Array(768);
+      if(pal){
+        if(pal.length>=768) for(var pi=0;pi<768;pi++) palette[pi]=pal[pi];
+        else for(var pj=0;pj<pal.length;pj++) palette[pj]=pal[pj];
+      }
+      var out=[];
+      function byt(v){ out.push(v&255); }
+      function u16(v){ out.push(v&255,(v>>8)&255); }
+      function ascii(s){ for(var i=0;i<s.length;i++) out.push(s.charCodeAt(i)&255); }
+      ascii('GIF89a');
+      u16(w); u16(h);
+      byt(0xF7); byt(0); byt(0);
+      for(var i=0;i<768;i++) byt(palette[i]);
+      if(loop){
+        byt(0x21); byt(0xff); byt(0x0b); ascii('NETSCAPE'); ascii('2.0');
+        byt(0x03); byt(0x01); u16(0); byt(0x00);
+      }
+      for(var f=0;f<frames.length;f++){
+        byt(0x21); byt(0xf9); byt(0x04); byt(0x00); u16(delay); byt(0x00); byt(0x00);
+        byt(0x2c); u16(0); u16(0); u16(w); u16(h); byt(0);
+        byt(8);
+        var sb=subBlocks(lzw(frames[f], 8));
+        for(var j=0;j<sb.length;j++) byt(sb[j]);
+      }
+      byt(0x3b);
+      return new Uint8Array(out);
+    }
+    root.GifEnc={ encode:encode, quantize:quantize };
+  })(typeof window!=='undefined'?window:this);`;
 
   function build() {
     const gif = GifOS.gif;
@@ -3693,7 +4138,8 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
                // bytes are opted in the same way. Guests keep their own captures
                // private (they can't promote what isn't the host's to share).
                data: { media: PRIV, blobs: PRIV } }),
-               'index.html': themeHtml(MYMEDIA_HTML, 'vars') },
+               'index.html': themeHtml(MYMEDIA_HTML, 'vars'),
+               'gifenc.js': GIFENC_JS },
     }, {
       name: 'Meeting.gif', appId: 'meet', accent: [92, 160, 255],
       files: { 'manifest.json': manifest('meet', 'Meeting', [92, 160, 255], { system: 'meet' }),
