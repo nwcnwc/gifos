@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "restfox",
+  "name": "Restfox",
+  "shortName": "Restfox",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "An unofficial port of Restfox, the offline-first HTTP client. Collections live in gifos.db on this device. A request leaves this browser only when you press Send, through gifos.fetch, https only. Declares network: [\"*\"] so you can aim at any host — GifOS will label the icon Unsafe and you can revoke it.",
+  "entry": "index.html",
+  "accent": [127, 79, 213],
+  "capabilities": {
+    "db": true,
+    "network": ["*"]
+  },
+  "data": {
+    "items": { "visibility": "private" },
+    "workspace": { "visibility": "private" },
+    "history": { "visibility": "private" }
+  }
+}

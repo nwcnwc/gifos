@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" class="theme-dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Restfox</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <header class="side-head">
+      <span class="brand"><i class="ears"></i>Restfox</span>
+      <button type="button" id="btn-menu" class="btn ghost" title="Collection">⋯</button>
+    </header>
+    <input id="filter" class="filter" type="search" placeholder="Filter" autocomplete="off">
+    <div id="tree" class="tree"></div>
+    <footer class="side-foot">
+      <button type="button" id="btn-new-req" class="btn">+ Request</button>
+      <button type="button" id="btn-new-folder" class="btn">+ Folder</button>
+    </footer>
+  </aside>
+  <section id="main">
+    <div id="empty" class="empty">
+      <h1>Restfox</h1>
+      <p>Pick a request, or make a new one. Collections stay on this device.
+         A request leaves this browser only when you press Send.</p>
+    </div>
+    <div id="editor" hidden>
+      <div class="reqbar">
+        <select id="method" class="method"></select>
+        <input id="url" class="url" type="text" spellcheck="false" placeholder="https://">
+        <button type="button" id="btn-send" class="btn send">Send</button>
+      </div>
+      <div class="metabar">
+        <input id="req-name" class="req-name" type="text" placeholder="Request name">
+        <select id="env" title="Environment"></select>
+        <label class="proxy"><input type="checkbox" id="proxy"> CORS proxy</label>
+        <button type="button" id="btn-env" class="btn ghost">Env</button>
+      </div>
+      <div id="req-tabs" class="tabs"></div>
+      <div id="req-pane" class="pane"></div>
+      <div id="resp" class="resp">
+        <div id="resp-meta" class="resp-meta">Response</div>
+        <div id="resp-tabs" class="tabs"></div>
+        <pre id="resp-body" class="resp-body"></pre>
+      </div>
+    </div>
+  </section>
+</div>
+<button type="button" id="btn-sidebar" class="fab" hidden>☰</button>
+<div id="sheet" hidden></div>
+<script src="host.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
