@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Mykonos</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="view">Sorry, this walk needs a canvas.</canvas>
+
+<div id="hud" hidden>
+  <div id="names"></div>
+  <button id="soundBtn" type="button" aria-label="Sound">♪</button>
+  <div id="hint">WASD walk · drag to look around</div>
+</div>
+
+<div id="gate">
+  <div class="gate-box">
+    <h1>Mykonos</h1>
+    <p class="tag">White houses, a blue dome, a windmill by the water. Take a walk.</p>
+    <button type="button" id="btnWalk">Walk</button>
+    <p class="invite">Press <b>Invite</b> (top bar) to walk with a friend. Extra people appear on the same island. There is no game server.</p>
+    <p id="gateKeys">WASD or arrows walk · drag to turn the island · wheel to zoom</p>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+  <div id="t-look"></div>
+</div>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="world.js"></script>
+<script src="game.js"></script>
+<script src="mp.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+boona13/mykonos-island-voxels
+https://github.com/boona13/mykonos-island-voxels
+pin: ca5faeea84fc7dc8e18a6b8e899f432884dfe831
+MIT, Copyright (c) 2026 boona13
+
+Upstream is an ES-module isometric builder (type=module, PNG asset pack,
+localStorage). GifOS inlines <script src> as classic scripts and drops
+type=module, and a sandboxed app cannot fetch the pictures, so that path
+cannot ride in.
+
+world.js keeps the Mediterranean palette, the voxel cube helpers
+(box / shell / dome / cylinder / compose), and the procedural builders
+for the starter village from src/assets/voxelRenderer.js,
+src/assets/assetDefinitions.js, src/config.js, and the seed in src/main.js
+at the pin above. The walk, the orbit, and extra people are the GifOS port.
+The original had no walker and no networking.
