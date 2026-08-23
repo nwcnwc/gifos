@@ -239,6 +239,13 @@ not this release). Fleet `dir` in `~/.gifos-behavior-hosts.json` is
 5. **Tag it in git**: `git tag v<next> && git push --tags` on the archive
    commit (the freeze tag is the source; this tag is the cut).
 
+**Bugfixes while `main` is moving:** land on `release/<next>` (the freeze
+clone) AND cherry-pick onto `main`. The release branch is why the freeze
+exists. A fix only on `main` never enters the snapshot; a fix only on the
+release branch vanishes from development the next morning. Unpublished
+`site/versions/<next>/` may be deleted and the archive script re-run;
+once pushed, that tree is frozen.
+
 **Roll back** — set `version.json.current = <prev>`. Done. Instant, no redeploy,
 no git history surgery. (Because data is additive-only, the old code is happy.)
 

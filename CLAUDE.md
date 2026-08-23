@@ -38,6 +38,13 @@ folder.
   host is `~/release-process/gifos`, never `~/projects/gifos`.
 - Cut from the freeze clone. `v<x.y.z>` itself is tagged on the archive
   commit, after `scripts/archive-version.sh`.
+- **Bugfixes during a cut land TWICE.** `main` keeps moving while the gate
+  runs. A product fix goes on `release/<x.y.z>` (from the freeze tag, in
+  `~/release-process/gifos`) AND on `main` (cherry-pick or replay). One
+  without the other either ships the bug or drops the fix from development.
+  An unpublished snapshot may be deleted and `archive-version.sh` re-run
+  after the fix; a snapshot that has been pushed is frozen — that is a new
+  release.
 
 ## The release gate — GREEN OR WE DO NOT CUT
 
