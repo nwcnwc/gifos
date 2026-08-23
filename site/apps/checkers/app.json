@@ -38,10 +38,10 @@
   "cover": "/apps/checkers/cover.jpg",
   "screenshots": [],
   "gif": "/apps/checkers/checkers.gif",
-  "bytes": 194595,
+  "bytes": 196578,
   "download": 0,
   "provides": null,
-  "sha256": "2d31f69e602c478b518de3f3631b10be3ac010cae730e65a57dd06782243d052",
+  "sha256": "cf813ec2bead44c09ef3fe50807227aa34382b6c06bc864a53a812314ff51c0f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

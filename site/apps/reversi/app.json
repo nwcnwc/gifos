@@ -6,8 +6,8 @@
   "shortName": "Reversi",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Flip the disks. Get more of your colour. Play the computer, or a friend on the other side.",
-  "description": "An eight-by-eight green board. Black and white take turns putting a disk down. Any of the other colour trapped in a straight line between two of yours flip to you. Black goes first. When neither of you can place, the one with more disks wins.\n\nOn your own you play a computer that thinks on this device. There is no game server. Pass the phone for two people in the same room, or press Play a friend and send the invite: the same board, live, on two devices. Black sits one side, white the other. Tap a square to place.\n\nAn unofficial port of Reversi by Alexander Berson. The computer is the same one that shipped with that game.",
+  "tagline": "Play the computer on this device, or a friend from one link. No server.",
+  "description": "The computer thinks on this device. There is no game server. Pass the phone, or press Play a friend and send the invite: the same board, live, on two devices. The game lives in the file, so sharing the GIF shares the board.\n\nAn eight-by-eight green board. Black and white take turns putting a disc down. Any of the other colour trapped in a straight line between two of yours flip to you. Black goes first. Dots show where you can go. When neither of you can place, the one with more discs wins.\n\nAn unofficial port of Reversi by Alexander Berson. The computer is the same one that shipped with that game.",
   "author": {
     "name": "alex-berson",
     "url": "https://github.com/alex-berson/reversi"
@@ -38,10 +38,10 @@
   "cover": "/apps/reversi/cover.jpg",
   "screenshots": [],
   "gif": "/apps/reversi/reversi.gif",
-  "bytes": 194509,
+  "bytes": 255039,
   "download": 0,
   "provides": null,
-  "sha256": "f5b017de78579a2e6406f4ace5bb6750039f7663ee7fc18e4188234be0b93d7c",
+  "sha256": "00429fee1c1993af823cafd9ac863860a42a5832d1b24f17df3e3d234c0588b0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
