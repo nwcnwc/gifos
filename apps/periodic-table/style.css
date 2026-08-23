@@ -56,13 +56,11 @@ h2{margin:12px 0 6px;font-size:15px}
 }
 .toolbar{display:flex;flex-direction:column;gap:5px;flex:0 0 auto}
 .filters{
-  display:flex;gap:4px;overflow-x:auto;flex-wrap:nowrap;
-  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  display:flex;gap:4px;flex-wrap:wrap;
 }
-.filters::-webkit-scrollbar{display:none}
 .filters button{
-  flex:0 0 auto;padding:5px 8px 5px 6px;border-radius:999px;border:1px solid var(--border);
-  background:var(--surface);color:var(--text);font:inherit;font-size:11px;font-weight:700;
+  flex:0 0 auto;padding:3px 6px 3px 5px;border-radius:999px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);font:inherit;font-size:10px;font-weight:700;
   cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;
   touch-action:manipulation;
 }
@@ -122,7 +120,7 @@ h2{margin:12px 0 6px;font-size:15px}
 }
 .ph{opacity:.7;font-size:clamp(7px,1.6vw,10px);font-weight:800;color:var(--ink);cursor:pointer}
 .gap{min-height:0}
-.cell.alkali,.ph.lanthanide{background:#e8b4ff}
+.cell.alkali{background:#e8b4ff}
 .cell.alkaline-earth{background:#b8c2ff}
 .cell.transition{background:#9de8b8}
 .cell.post-transition{background:#9eeaf0}
@@ -150,15 +148,15 @@ h2{margin:12px 0 6px;font-size:15px}
   border:1px solid var(--border);
   border-radius:14px;
   padding:8px 10px 10px;
-  max-height:46%;
+  max-height:40%;
   overflow:auto;
 }
 .dock-empty{color:var(--muted);font-weight:600;padding:8px 4px;font-size:13px}
 .dock-hero{
-  display:flex;align-items:center;gap:8px;margin-bottom:8px;
+  display:flex;align-items:center;gap:8px;margin-bottom:6px;
 }
 .dock-sym{
-  font-size:42px;font-weight:800;line-height:1;letter-spacing:-1.5px;min-width:1.4em;
+  font-size:36px;font-weight:800;line-height:1;letter-spacing:-1.5px;min-width:1.3em;
 }
 .dock-id{flex:1;min-width:0}
 .dock-name{font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

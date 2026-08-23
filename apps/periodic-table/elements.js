@@ -487,11 +487,19 @@
     return a;
   }
 
+  // School-table first (H–Kr), then through radon, then the rest. Same seed → same pick.
+  function pickEl(rand, index) {
+    var r = rand();
+    if (index < 5 || r < 0.62) return ELEMENTS[(rand() * 36) | 0];
+    if (r < 0.88) return ELEMENTS[(rand() * 86) | 0];
+    return ELEMENTS[(rand() * ELEMENTS.length) | 0];
+  }
+
   // One quiz item: 4 choices, exactly one right. Same seed+index → same item.
   function quizItem(seed, index) {
-    var rand = mulberry((seed >>> 0) + (index + 1) * 2654435761);
+    var rand = mulberry((seed >>> 0) * 1 + (index + 1) * 2654435761);
     var roll = rand();
-    var el = ELEMENTS[(rand() * ELEMENTS.length) | 0];
+    var el = pickEl(rand, index);
     var kind, prompt, correct, choices, take, cat, pool, k, other, v;
     if (roll < 0.26) {
       kind = 0;
@@ -515,15 +523,14 @@
       kind = 3;
       prompt = el.name + ' is a…';
       correct = LABELS[el.category];
-      usedCats(el);
       choices = catChoices(rand, el);
     } else if (roll < 0.92) {
       kind = 4;
       cat = CATS[(rand() * 8) | 0];
       pool = [];
       for (k = 0; k < ELEMENTS.length; k++) if (ELEMENTS[k].category === cat) pool.push(ELEMENTS[k]);
-      el = pool[(rand() * pool.length) | 0];
-      prompt = 'Which of these is a ' + LABELS[cat].toLowerCase() + '?';
+      el = pool[(rand() * Math.min(4, pool.length)) | 0];
+      prompt = 'Which of these is in the ' + LABELS[cat].toLowerCase() + ' family?';
       correct = el.symbol;
       choices = [el.symbol];
       var seen = {};
@@ -559,7 +566,6 @@
       kind: kind
     };
 
-    function usedCats() { return; }
     function catChoices(rand, el) {
       var correct = LABELS[el.category];
       var opts = [correct], seen = {}, c, lab;
