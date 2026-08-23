@@ -2,7 +2,7 @@
 
 A corridor shooter that runs as an ordinary sandboxed GifOS app. Solo it is
 Dominic Szablewski's Underrun. Send the invite and extra soldiers drop into
-the same halls.
+the same halls. Best floor lives in the file.
 
 The engine is **[Underrun](https://github.com/phoboslab/underrun)** by
 phoboslab — MIT, the 2018 js13kGames entry. Music by Andreas Lösch. This
@@ -34,7 +34,7 @@ sandbox (`img-src data: blob:`), so they sit as `<img src>` tags in
 
 | capability | why |
 |---|---|
-| `db` | Best floor in a `private` collection; soldiers in a `read-write` one. |
+| `db` | Best floor in a `private` collection (the HUD reads it); soldiers in a `read-write` one. |
 | `multiplayer` | The room. Invite is OS chrome — this app never draws that button. |
 
 Needs nothing newer than the App Store itself, so `minBuild` is **947**. No
