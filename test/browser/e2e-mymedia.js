@@ -2,14 +2,36 @@
 // Verifies the core: it seeds at desktop root (next to Welcome), imports images
 // and audio, round-trips the raw bytes through gifos.db (Uint8Array survives),
 // bakes grid thumbnails, opens each format in the right built-in player,
-// downloads the original bytes back out as a real file, and supports
-// categorize / filter / delete. Needs a static server (BASE); no relay.
+// downloads the original bytes back out as a real file, supports
+// categorize / filter / delete, and turns a video into a plain looping GIF.
+// Needs a static server (BASE); no relay.
 const { chromium, CHROME } = require('../lib/pw');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
 
 const BASE = 'http://127.0.0.1:8099';
 let fail=0; const ok=(n,c,d)=>{console.log((c?'PASS':'FAIL')+' — '+n+(d?'  ('+d+')':''));if(!c)fail++;};
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEUlEQVR42mP8z8Dwn4EIwDiqEAAm9gQ9Ax1z8wAAAABJRU5ErkJggg==','base64');
 function wav(){ const sr=8000,n=800,b=Buffer.alloc(44+n*2); b.write('RIFF',0); b.writeUInt32LE(36+n*2,4); b.write('WAVE',8); b.write('fmt ',12); b.writeUInt32LE(16,16); b.writeUInt16LE(1,20); b.writeUInt16LE(1,22); b.writeUInt32LE(sr,24); b.writeUInt32LE(sr*2,28); b.writeUInt16LE(2,32); b.writeUInt16LE(16,34); b.write('data',36); b.writeUInt32LE(n*2,40); return b; }
+function makeWebm(){
+  const out = path.join(os.tmpdir(), 'gifos-mymedia-clip.webm');
+  try {
+    execFileSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x240:rate=10',
+      '-t', '2', '-an', '-c:v', 'libvpx', '-b:v', '200k',
+      '-deadline', 'realtime', '-cpu-used', '8',
+      out,
+    ], { timeout: 30000 });
+  } catch (e) {
+    throw new Error('ffmpeg failed to make a VP8 webm fixture: ' + ((e && e.message) || e));
+  }
+  const buf = fs.readFileSync(out);
+  if (buf.length < 100) throw new Error('webm fixture too small: ' + buf.length);
+  return buf;
+}
 (async()=>{
   const b=await chromium.launch({executablePath:CHROME});
   const ctx=await b.newContext(); const page=await ctx.newPage();
@@ -52,6 +74,7 @@ function wav(){ const sr=8000,n=800,b=Buffer.alloc(44+n*2); b.write('RIFF',0); b
   const natW = await fr.locator('#stage img').evaluate(el=>el.naturalWidth).catch(()=>0);
   ok('image opens in the built-in player from stored bytes', natW > 0, 'naturalWidth='+natW);
   ok('opened item offers Download', await fr.locator('#mdown').count() === 1);
+  ok('Make GIF is not on a photo', !(await fr.locator('#mgif').isVisible()));
 
   // Download hands the original bytes back as a real file (the library could
   // import and play, but nothing wrote them out). The item name already has
@@ -95,6 +118,63 @@ function wav(){ const sr=8000,n=800,b=Buffer.alloc(44+n*2); b.write('RIFF',0); b
   await fr.locator('.card').first().click(); await fr.locator('#mdel').click(); await page.waitForTimeout(500);
   await fr.locator('#types button[data-t="all"]').click(); await page.waitForTimeout(200);
   ok('delete removes the item', await fr.locator('.card').count() === 1);
+
+  // video → GIF. After audio delete, one image remains; this block adds a
+  // webm and a GIF so it runs LAST and does not disturb the counts above.
+  const WEBM = makeWebm();
+  await fr.locator('#fi').setInputFiles({ name:'clip.webm', mimeType:'video/webm', buffer:WEBM });
+  await fr.locator('.card').nth(1).waitFor({timeout:8000});
+  ok('video import adds a second item', await fr.locator('.card').count() === 2);
+  await fr.locator('.card').first().click();
+  await fr.locator('#stage video').waitFor({timeout:8000});
+  const vw = await fr.locator('#stage video').evaluate(async (el) => {
+    if (el.videoWidth) return { w: el.videoWidth, h: el.videoHeight, err: null };
+    await new Promise((res) => {
+      const done = () => res();
+      el.addEventListener('loadeddata', done);
+      el.addEventListener('error', done);
+      setTimeout(done, 8000);
+    });
+    return { w: el.videoWidth, h: el.videoHeight, err: el.error && (el.error.message || String(el.error.code)) };
+  });
+  ok('video opens with decoded frames (videoWidth > 0)', vw.w > 0, JSON.stringify(vw));
+  ok('Make GIF is on a video', await fr.locator('#mgif').isVisible());
+
+  await fr.locator('#mgif').click();
+  await fr.locator('#gifpanel.on').waitFor({timeout:5000});
+  ok('convert panel opens', await fr.locator('#gifpanel.on').count() === 1);
+  ok('speed segments exist', await fr.locator('#gifspeeds button').count() === 6);
+  ok('1× is selected by default', await fr.locator('#gifspeeds button[data-s="1"]').evaluate((el) => el.classList.contains('on')));
+  const b1 = await fr.locator('#gifbudget').innerText();
+  ok('budget line mentions 8s at 1×', /8s/.test(b1) && /1×/.test(b1), b1);
+  await fr.locator('#gifspeeds button[data-s="2"]').click();
+  const b2 = await fr.locator('#gifbudget').innerText();
+  ok('2× raises max source to 16s', /16s/.test(b2), b2);
+  await fr.locator('#gifspeeds button[data-s="0.25"]').click();
+  const b025 = await fr.locator('#gifbudget').innerText();
+  ok('0.25× drops max source to 2s', /max 2s/.test(b025), b025);
+  await fr.locator('#gifspeeds button[data-s="1"]').click();
+  const b1b = await fr.locator('#gifbudget').innerText();
+  ok('returning to 1× restores the 8s budget', /8s/.test(b1b) && /1×/.test(b1b), b1b);
+
+  await fr.locator('#gifgo').click();
+  await fr.locator('#stage img').waitFor({timeout:90000});
+  const gifW = await fr.locator('#stage img').evaluate((el) => el.naturalWidth).catch(() => 0);
+  ok('converted GIF opens as an image', gifW > 0, 'naturalWidth='+gifW);
+  ok('Make GIF is not on the new GIF', !(await fr.locator('#mgif').isVisible()));
+
+  const [gdl] = await Promise.all([
+    page.waitForEvent('download', { timeout: 8000 }),
+    fr.locator('#mdown').click(),
+  ]);
+  const gbuf = fs.readFileSync(await gdl.path());
+  ok('GIF download starts with GIF89a', gbuf.slice(0,6).toString() === 'GIF89a', gbuf.slice(0,8).toString('hex'));
+  ok('GIF is a reasonable size', gbuf.length > 100, 'len='+gbuf.length);
+  ok('plain GIF, not a GifOS app', !gbuf.includes('GIFOS1.0'));
+
+  await fr.locator('#mclose').click();
+  await fr.locator('#types button[data-t="image"]').click(); await page.waitForTimeout(200);
+  ok('library now has the original photo and the new GIF', await fr.locator('.card').count() === 2);
 
   await b.close();
   console.log(fail?('\n'+fail+' FAIL'):'\nALL PASS'); process.exit(fail?1:0);
