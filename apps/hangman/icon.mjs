@@ -2,10 +2,10 @@
 // Pure Node, super-sample → box-downsample → small palette. Deterministic.
 import { deflateSync } from 'node:zlib';
 
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 10;
+const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 9;
 
-const CARD_A = [22, 22, 28];
-const CARD_B = [10, 10, 14];
+const CARD_A = [28, 30, 38];
+const CARD_B = [16, 18, 24];
 const STEEL = [168, 172, 184];
 const STEEL_D = [110, 114, 126];
 const ROPE = [196, 154, 88];
@@ -53,10 +53,12 @@ function nearest(pal, r, g, b) {
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const m = 7, rad = 20;
-  const stage = Math.min(6, Math.floor((f / (FRAMES - 1)) * 6.99));
-  const poleX = 42, top = 24, beam = 92, foot = 108;
-  const hx = 88, hy = 42;
+  const m = 6, rad = 22;
+  // Frames 0–6 are the six stages plus empty; 7–8 hold the finished figure
+  // so the loop reads as "the gallows filling in", not a flicker.
+  const stage = Math.min(6, f);
+  const poleX = 36, top = 20, beam = 100, foot = 112;
+  const hx = 94, hy = 40;
 
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
@@ -65,33 +67,34 @@ function frameIndices(pal, f) {
       a = 1;
       col = mix(CARD_A, CARD_B, Math.max(0, Math.min(1, (y - m) / (OUT - 2 * m))));
       const wood = (d, w) => d < w;
-      if (wood(distSeg(x, y, poleX, top, poleX, foot), 3.2) ||
-          wood(distSeg(x, y, poleX - 2, top, beam, top), 3.0) ||
-          wood(distSeg(x, y, poleX, top + 14, poleX + 14, top + 2), 2.2) ||
-          wood(distSeg(x, y, poleX - 12, foot, poleX + 14, foot), 3.0)) {
+      if (wood(distSeg(x, y, poleX, top, poleX, foot), 3.6) ||
+          wood(distSeg(x, y, poleX - 2, top, beam, top), 3.4) ||
+          wood(distSeg(x, y, poleX, top + 16, poleX + 16, top + 2), 2.4) ||
+          wood(distSeg(x, y, poleX - 14, foot, poleX + 16, foot), 3.4)) {
         col = mix(STEEL, STEEL_D, (x + y) % 9 > 5 ? 0.25 : 0);
       }
-      if (distSeg(x, y, hx, top, hx, hy - 9) < 1.4) col = ROPE;
+      if (distSeg(x, y, hx, top, hx, hy - 11) < 1.6) col = ROPE;
       const dx = x - hx, dy = y - hy;
-      if (stage >= 1 && dx * dx + dy * dy <= 9.5 * 9.5) {
+      if (stage >= 1 && dx * dx + dy * dy <= 11 * 11) {
         col = SKIN;
-        if (dx * dx + dy * dy > 8.2 * 8.2) col = STEEL_D;
-        if (Math.abs(dy + 1) < 1.1 && Math.abs(dx) < 7) col = mix(SKIN, INK, 0.35);
-        if (stage >= 6 && dy > 1 && Math.abs(dx) < 3.2 && Math.abs(dy - 3) < 1.4) col = BAD;
+        if (dx * dx + dy * dy > 9.4 * 9.4) col = STEEL_D;
+        if (Math.abs(dx + 4) < 1.3 && Math.abs(dy + 2) < 1.3) col = STEEL_D;
+        if (Math.abs(dx - 4) < 1.3 && Math.abs(dy + 2) < 1.3) col = STEEL_D;
+        if (stage >= 6 && dy > 2 && Math.abs(dx) < 4 && Math.abs(dy - 4) < 1.2) col = BAD;
       }
       if (stage >= 2) {
-        const bx = hx, by = hy + 12;
-        const ox = (x - bx) / 8, oy = (y - by) / 14;
+        const bx = hx, by = hy + 14;
+        const ox = (x - bx) / 10, oy = (y - by) / 16;
         if (ox * ox + oy * oy <= 1) {
           col = SKIN;
-          if (Math.abs(ox) < 0.22 && Math.abs(oy) < 0.45) col = STEEL_D;
-          if (Math.abs(oy) < 0.18 && Math.abs(ox) < 0.45) col = STEEL_D;
+          if (Math.abs(ox) < 0.2 && Math.abs(oy) < 0.42) col = STEEL_D;
+          if (Math.abs(oy) < 0.16 && Math.abs(ox) < 0.42) col = STEEL_D;
         }
       }
-      if (stage >= 3 && distSeg(x, y, hx - 6, hy + 14, hx - 16, hy + 28) < 1.7) col = SKIN;
-      if (stage >= 4 && distSeg(x, y, hx + 6, hy + 14, hx + 16, hy + 28) < 1.7) col = SKIN;
-      if (stage >= 5 && distSeg(x, y, hx - 3, hy + 26, hx - 10, hy + 42) < 1.7) col = SKIN;
-      if (stage >= 6 && distSeg(x, y, hx + 3, hy + 26, hx + 10, hy + 42) < 1.7) col = SKIN;
+      if (stage >= 3 && distSeg(x, y, hx - 7, hy + 16, hx - 20, hy + 34) < 2.0) col = SKIN;
+      if (stage >= 4 && distSeg(x, y, hx + 7, hy + 16, hx + 20, hy + 34) < 2.0) col = SKIN;
+      if (stage >= 5 && distSeg(x, y, hx - 4, hy + 30, hx - 12, hy + 50) < 2.0) col = SKIN;
+      if (stage >= 6 && distSeg(x, y, hx + 4, hy + 30, hx + 12, hy + 50) < 2.0) col = SKIN;
     }
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
@@ -118,7 +121,7 @@ export function hangmanIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 14, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 16, transparentIndex: 0 };
 }
 
 function crc(buf) {
@@ -225,40 +228,69 @@ export function screenshotPng() {
     }
   };
 
-  fill(0, 0, W, H, 12, 12, 16);
+  fill(0, 0, W, H, 18, 20, 26);
 
-  drawText(put, 56, 56, 'HANGMAN', 10, 236, 236, 242);
-  drawText(put, 56, 150, 'SAME WORD', 4, 154, 158, 176);
-  drawText(put, 56, 200, 'FIRST TO FINISH', 4, 154, 158, 176);
-  drawText(put, 56, 250, 'OR ONE ROPE', 4, 196, 154, 88);
+  drawText(put, 56, 48, 'HANGMAN', 8, 236, 236, 242);
+  drawText(put, 56, 122, '3 OF 6', 4, 224, 112, 112);
 
-  rr(56, 330, 250, 392, 24, 26, 26, 34);
-  rr(270, 330, 470, 392, 24, 26, 26, 34);
-  drawText(put, 78, 350, 'YOU  1', 4, 125, 206, 160);
-  drawText(put, 292, 350, 'SAM  3', 4, 236, 236, 242);
+  rr(56, 186, 248, 250, 22, 28, 30, 38);
+  rr(264, 186, 456, 250, 22, 28, 30, 38);
+  rr(472, 186, 620, 250, 22, 38, 40, 50);
+  rr(632, 186, 790, 250, 22, 28, 30, 38);
+  drawText(put, 78, 206, 'YOU', 4, 125, 206, 160);
+  drawText(put, 286, 206, 'SAM', 4, 236, 236, 242);
+  drawText(put, 490, 206, 'RACE', 4, 236, 236, 242);
+  drawText(put, 650, 206, 'SHARE', 4, 154, 158, 176);
 
-  drawText(put, 56, 450, 'P Y T _ O N', 6, 236, 236, 242);
-  drawText(put, 56, 530, 'WRONG  2 OF 6', 3, 196, 80, 80);
-  drawText(put, 56, 590, 'RACE A FRIEND', 3, 156, 162, 176);
+  const known = { P: 1, Y: 1, T: 1, O: 1, N: 1 };
+  let tx = 56;
+  for (const ch of 'PYTHON') {
+    rr(tx, 300, tx + 72, 392, 10, 26, 28, 36);
+    if (known[ch]) drawText(put, tx + 16, 322, ch, 7, 236, 236, 242);
+    fill(tx, 384, tx + 72, 392, ch === 'H' ? 168 : 125, ch === 'H' ? 172 : 206, ch === 'H' ? 184 : 160);
+    tx += 84;
+  }
 
-  const poleX = 820, top = 80, beam = 1040, foot = 640;
-  const hx = 1020, hy = 210;
-  stroke(poleX, top, poleX, foot, 10, 168, 172, 184);
-  stroke(poleX - 6, top, beam, top, 10, 168, 172, 184);
-  stroke(poleX, top + 48, poleX + 44, top + 8, 7, 140, 144, 156);
-  stroke(poleX - 40, foot, poleX + 50, foot, 10, 168, 172, 184);
-  stroke(hx, top, hx, hy - 36, 4, 196, 154, 88);
-  circle(hx, hy, 36, 210, 210, 216);
-  circle(hx, hy, 32, 200, 200, 208);
-  fill(hx - 28, hy - 6, hx + 28, hy + 4, 180, 180, 188);
-  // oval body
-  for (let y = hy + 40; y < hy + 150; y++) for (let x = hx - 40; x < hx + 40; x++) {
-    const ox = (x - hx) / 36, oy = (y - (hy + 95)) / 55;
+  drawText(put, 56, 430, 'A PROGRAMMING LANGUAGE', 3, 154, 158, 176);
+
+  const keys = [
+    ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+    ['Z', 'X', 'C', 'V', 'B', 'N', 'M'],
+  ];
+  const ok = { P: 1, Y: 1, T: 1, O: 1, N: 1 };
+  const bad = { E: 1, S: 1, W: 1 };
+  keys.forEach((row, ri) => {
+    const inset = ri === 0 ? 0 : ri === 1 ? 28 : 78;
+    row.forEach((ch, i) => {
+      const x = 56 + inset + i * 62;
+      const y = 488 + ri * 68;
+      let r = 38, g = 40, b = 48;
+      let tr = 236, tg = 236, tb = 242;
+      if (ok[ch]) { r = 26; g = 50; b = 40; tr = 125; tg = 206; tb = 160; }
+      if (bad[ch]) { r = 58; g = 30; b = 34; tr = 224; tg = 112; tb = 112; }
+      rr(x, y, x + 54, y + 56, 8, r, g, b);
+      drawText(put, x + 14, y + 14, ch, 4, tr, tg, tb);
+    });
+  });
+
+  const poleX = 900, top = 70, beam = 1120, foot = 640;
+  const hx = 1090, hy = 200;
+  stroke(poleX, top, poleX, foot, 12, 168, 172, 184);
+  stroke(poleX - 6, top, beam, top, 12, 168, 172, 184);
+  stroke(poleX, top + 52, poleX + 48, top + 8, 8, 140, 144, 156);
+  stroke(poleX - 44, foot, poleX + 54, foot, 12, 168, 172, 184);
+  stroke(hx, top, hx, hy - 38, 5, 196, 154, 88);
+  circle(hx, hy, 38, 210, 210, 216);
+  circle(hx, hy, 34, 200, 200, 208);
+  fill(hx - 8, hy - 8, hx - 3, hy - 3, 58, 62, 72);
+  fill(hx + 3, hy - 8, hx + 8, hy - 3, 58, 62, 72);
+  fill(hx - 12, hy + 10, hx + 12, hy + 14, 90, 94, 104);
+  for (let y = hy + 42; y < hy + 158; y++) for (let x = hx - 42; x < hx + 42; x++) {
+    const ox = (x - hx) / 38, oy = (y - (hy + 100)) / 58;
     if (ox * ox + oy * oy <= 1) put(x, y, 210, 210, 216);
   }
-  stroke(hx - 12, hy + 70, hx + 12, hy + 120, 4, 90, 90, 100);
-  stroke(hx + 12, hy + 70, hx - 12, hy + 120, 4, 90, 90, 100);
-  stroke(hx - 20, hy + 70, hx - 70, hy + 40, 7, 210, 210, 216);
+  stroke(hx - 22, hy + 72, hx - 78, hy + 128, 8, 210, 210, 216);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
