@@ -48,6 +48,11 @@ const DEFAULT_NAME = {
 };
 
 function transform(code, filename) {
+  // Upstream is ES modules, and this build concatenates them into ONE classic
+  // script scope. Two module-LOCAL `let previous` (editor.js's drag point and
+  // index.js's rAF clock) collide there — a SyntaxError that killed the whole
+  // game (it shipped dead: buttons, no canvas). Rename index.js's copy.
+  if (filename === 'index.js') code = code.replace(/\bprevious\b/g, 'previousTick');
   code = code.replace(/^\s*import\s+[\s\S]*?from\s+['"][^'"]+['"]\s*;?\s*$/gm, '');
   code = code.replace(/^\s*import\s+['"][^'"]+['"]\s*;?\s*$/gm, '');
   code = code.replace(/export\s+default\s+class\s+/g, 'class ');
