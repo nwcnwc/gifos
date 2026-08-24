@@ -209,7 +209,8 @@ const startScreen = function(){
 
 	c.fillRect(0,0,w,h);
 
-	c.drawImage(artwork, 0, 0, artwork.width, artwork.height, 0, 0, w, h);
+	if (artwork && artwork.complete && artwork.width)
+		c.drawImage(artwork, 0, 0, artwork.width, artwork.height, 0, 0, w, h);
 
 	c.fillStyle = "black";
 
@@ -415,20 +416,16 @@ artwork = new Image();
 
 artwork.src = (window.AAS && AAS.artwork) || "artwork.png";
 
-artwork.onload = _ => {
-
+function bootGame(){
+	if (window._aasBooted) return;
+	window._aasBooted = true;
 	init();
-
 	syncAAS();
-
 	window.AASShowPad = function () { if (window.AAS && AAS.showPad) AAS.showPad(); };
-
 	AAS.startPlay = function () {
 		if (isStarting) { isStarting = false; update(); }
 	};
-
 	AAS.retry = function () { init(); };
-
 	AAS.goTitle = function () {
 		if (u) cancelAnimationFrame(u);
 		isStarting = true;
@@ -437,5 +434,9 @@ artwork.onload = _ => {
 		startScreen();
 		syncAAS();
 	};
-
+	if (window.AAS && AAS.coarse && AAS.showPad) AAS.showPad();
 }
+
+artwork.onload = bootGame;
+if (artwork.complete) bootGame();
+if (typeof setTimeout === 'function') setTimeout(bootGame, 400);

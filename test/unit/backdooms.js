@@ -112,6 +112,14 @@ check('game.js loads and attaches Backdooms',
   BD.setRemotes([{ id: 'friend', x: 5, y: 4, h: 100 }]);
   const r = BD.shoot();
   check('a shot in the chest of a friend counts', r && r.hits && r.hits.indexOf('friend') >= 0, r);
+  BD.setRemotes([]);
+}
+
+{
+  BD.start({ seed: 7, headless: true });
+  BD.setRemotes([{ id: 'friend', x: 6.5, y: 4, h: 100 }]);
+  const r = BD.shoot();
+  check('a shot in the chest of a friend down the hall counts', r && r.hits && r.hits.indexOf('friend') >= 0, r);
 }
 
 {
