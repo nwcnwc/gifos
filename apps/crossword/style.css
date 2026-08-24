@@ -50,15 +50,15 @@ h1 { flex: 1; margin: 0; font-size: 1.05rem; letter-spacing: .08em; text-transfo
   #play { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
   #tools button { font-size: .68rem; }
 }
-#grid { display: flex; align-items: center; justify-content: center; min-height: 0; }
+#grid { display: flex; align-items: flex-start; justify-content: center; min-height: 0; padding-top: .2rem; }
 #clues { overflow: auto; font-size: .86rem; min-height: 0; -webkit-overflow-scrolling: touch; }
 .crosswords-js.crossword-grid {
   width: min-content;
   max-width: 100%;
 }
 .crossword-grid {
-  --grid-cell-size: clamp(1.7rem, 12vw, 2.7rem);
-  --letter-size: clamp(1rem, 6.5vw, 1.55rem);
+  --grid-cell-size: clamp(1.75rem, 11vw, 3.4rem);
+  --letter-size: clamp(1rem, 6.5vw, 1.7rem);
   --label-size: .55rem;
 }
 .cwcell.dark { background: #0c0d12; }

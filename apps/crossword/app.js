@@ -165,7 +165,7 @@
         var b = document.createElement('button');
         b.type = 'button';
         b.textContent = ch;
-        b.addEventListener('click', function () { enterLetter(ch); focusKb(); });
+        b.addEventListener('pointerdown', function (ev) { ev.preventDefault(); enterLetter(ch); focusKb(); });
         wrap.appendChild(b);
       });
       if (ri === 2) {
@@ -173,7 +173,7 @@
         del.type = 'button';
         del.className = 'wide';
         del.textContent = 'DEL';
-        del.addEventListener('click', function () { enterLetter('DEL'); focusKb(); });
+        del.addEventListener('pointerdown', function (ev) { ev.preventDefault(); enterLetter('DEL'); focusKb(); });
         wrap.appendChild(del);
       }
       keysEl.appendChild(wrap);
