@@ -208,26 +208,19 @@
      over IM(), never a scrape of the CSSOM. */
   function patchPreloader() {
     if (!window.jQuery) return;
-    $.preloadCssImages = function (opts) {
-      opts = opts || {};
+    $.preloadCssImages = function () {
+      /* Everything is already local bytes, so there is nothing to WAIT for —
+         the vendor's black curtain and red bar would only flash over the
+         intro for one ugly frame (the blind load critique caught exactly
+         that). The curtain lifts at once; the decode warm-up runs silently
+         behind the intro, bounded so a bad picture can never pile up. */
+      $('#preloader').hide();
+      $('#black').stop(true).animate({ opacity: 0 }, 250, function () { $(this).remove(); });
       var images = IM(), urls = [], k;
       for (k in images) {
         if (Object.prototype.hasOwnProperty.call(images, k) && k.indexOf('images/') === 0) urls.push(images[k]);
       }
-      var bar = opts.statusBarEl ? $(opts.statusBarEl) : null;
-      var n = 0, inflight = 0, i = 0;
-      function lift() {
-        $('#black').animate({ opacity: 0 }, 500, function () { $(this).remove(); });
-      }
-      function step() {
-        n++;
-        if (bar && bar.length && urls.length) {
-          var w = bar.width();
-          bar.css('background-position', -(w - (w * n / urls.length).toFixed(0)) + 'px 50%');
-        }
-        if (n >= urls.length) { lift(); return; }
-        pump();
-      }
+      var inflight = 0, i = 0;
       function pump() {
         while (inflight < 4 && i < urls.length) {
           (function (src) {
@@ -238,16 +231,15 @@
               if (settled) return;
               settled = true;
               inflight--;
-              step();
+              pump();
             };
             im.onload = fin;
             im.onerror = fin;
-            setTimeout(fin, 1500); // a picture that will not decode must not hold the door
+            setTimeout(fin, 1500);
             im.src = src;
           })(urls[i++]);
         }
       }
-      if (!urls.length) { lift(); return []; }
       pump();
       return urls;
     };

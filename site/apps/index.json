@@ -6432,11 +6432,11 @@
         48
       ],
       "cover": "/apps/the-house/cover.jpg",
-      "bytes": 18349777,
+      "bytes": 18349825,
       "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "ca8446f6388f53aa1384746cc5121863e581590325cee5d91f4ce7b34a4dadbc"
+      "sha256": "7279262131dba4b16f3492aff383daf5b2a32e52abee89172f90286f22c9514a"
     },
     {
       "slug": "thinktank",
