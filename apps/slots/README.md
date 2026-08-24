@@ -5,11 +5,12 @@ Pull the lever. Five reels, toy credits, no cash. Invite and the meeting sees th
 An unofficial port of **[html5-slot-machine](https://github.com/johakr/html5-slot-machine)** by johakr (MIT). Upstream is a Web Animations proof of concept with a photo background, a bootstrap reboot CDN, and a Star Wars–style icon pack (KPD Media; redistribution of that pack is not allowed). **The pack stays behind.** This copy draws fruit-machine symbols, runs offline, and saves the credit pile in the file.
 
 ```
-index.html          shell: jackpot, five reels, spin, autoplay
-style.css           dark felt, gold payline
+index.html          shell: jackpot, five reels, lever, spin, autoplay
+style.css           cabinet, marquee lights, gold payline
 symbols.js          fruit SVGs as data URLs
+math.js             payout, stake, credit loop (tests play this)
 slot.js             Reel / Symbol / Slot — Web Animations, destacked
-app.js              credits, payline, private save
+app.js              credits, stake, sound, private save
 mp.js               room: the same reels, on own rows
 icon.mjs            procedural lever icon + 1200×720 cover
 build.mjs           packs the GIF into site/apps/slots/slots.gif

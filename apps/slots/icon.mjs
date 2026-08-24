@@ -88,17 +88,24 @@ function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / (FRAMES - 1);
   const slide = (1 - Math.cos(t * Math.PI)) / 2;
+  const lever = f < 4 ? f * 5 : (f < 8 ? 20 : 20 - (f - 8) * 4);
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
-    if (inRR(x, y, 6, 6, 122, 122, 18)) { a = 1; col = FELT; }
-    if (inRR(x, y, 14, 22, 114, 108, 8)) { a = 1; col = DARK; }
+    if (inRR(x, y, 4, 8, 110, 120, 16)) { a = 1; col = FELT; }
+    if (inRR(x, y, 12, 24, 100, 108, 8)) { a = 1; col = DARK; }
+    // gold bezel
+    if (inRR(x, y, 12, 24, 100, 108, 8) && !inRR(x, y, 16, 28, 96, 104, 6)) col = GOLD;
     for (let i = 0; i < 3; i++) {
-      const x0 = 18 + i * 32, y0 = 28;
-      if (inRR(x, y, x0, y0, x0 + 28, y0 + 72, 4)) col = mix(CREAM, GOLD2, 0.15);
-      const cy = y0 + 8 + slide * 24;
-      if (x > x0 + 4 && x < x0 + 24 && y > cy && y < cy + 36) col = mix(CREAM, [255, 255, 255], 0.2);
+      const x0 = 18 + i * 26, y0 = 30;
+      if (inRR(x, y, x0, y0, x0 + 24, y0 + 70, 3)) col = mix(CREAM, GOLD2, 0.12);
+      const cy = y0 + 6 + slide * 22;
+      if (x > x0 + 3 && x < x0 + 21 && y > cy && y < cy + 32) col = mix(CREAM, [255, 255, 255], 0.25);
     }
+    // lever arm + knob on the right
+    if (x > 108 && x < 118 && y > 36 + lever && y < 96) { a = 1; col = [180, 180, 190]; }
+    const kx = 113, ky = 32 + lever, kr = 8;
+    if ((x - kx) * (x - kx) + (y - ky) * (y - ky) <= kr * kr) { a = 1; col = RED; }
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
   }
@@ -110,8 +117,10 @@ function frameIndices(pal, f) {
       rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b;
     }
   }
-  const cy = 40 + slide * 8;
-  for (let i = 0; i < 3; i++) drawText(put, 22 + i * 32, cy | 0, '7', 4, RED[0], RED[1], RED[2]);
+  const cy = 42 + slide * 8;
+  for (let i = 0; i < 3; i++) drawText(put, 20 + i * 26, cy | 0, '7', 3, RED[0], RED[1], RED[2]);
+  // payline
+  for (let x = 16; x < 96; x++) put(x, 64, 255, 215, 106);
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
     let r = 0, g = 0, b = 0, a = 0, n = SS * SS;
@@ -175,20 +184,35 @@ export function screenshotPng() {
     }
   };
   fill(0, 0, W, H, 10, 10, 15);
-  rr(80, 40, 1120, 680, 24, 20, 20, 28);
-  drawText(put, 140, 70, 'SLOTS', 10, 240, 208, 128);
-  drawText(put, 140, 160, 'CREDITS  1840', 4, 212, 160, 48);
+  rr(48, 28, 1152, 692, 28, 28, 24, 16);
+  rr(64, 44, 1136, 676, 22, 20, 20, 28);
+  // marquee bulbs
+  for (let i = 0; i < 12; i++) {
+    const x = 100 + i * 82;
+    rr(x, 58, x + 28, 86, 12, 255, 215, 106);
+  }
+  drawText(put, 100, 108, 'SLOTS', 10, 240, 208, 128);
+  drawText(put, 100, 188, 'CREDITS  1840', 4, 212, 160, 48);
+  drawText(put, 780, 188, 'HIT', 6, 109, 206, 122);
   const labels = ['7', '7', '7', 'BAR', 'STAR'];
   for (let i = 0; i < 5; i++) {
-    const x0 = 140 + i * 180;
-    rr(x0, 230, x0 + 160, 560, 12, 12, 12, 18);
-    rr(x0 + 10, 250, x0 + 150, 540, 8, 244, 236, 224);
+    const x0 = 100 + i * 168;
+    rr(x0, 250, x0 + 150, 560, 12, 12, 12, 18);
+    rr(x0 + 8, 268, x0 + 142, 542, 8, 244, 236, 224);
     const s = labels[i] === '7' ? 14 : 5;
     const tw = labels[i].length * 6 * s;
-    drawText(put, x0 + 80 - (tw / 2 | 0), 360, labels[i], s, 224, 32, 48);
+    drawText(put, x0 + 75 - (tw / 2 | 0), 370, labels[i], s, 224, 32, 48);
   }
-  fill(140, 390, 1060, 396, 255, 215, 106);
-  drawText(put, 140, 600, 'TOY CREDITS  NO CASH', 3, 154, 144, 128);
+  fill(100, 400, 930, 406, 255, 215, 106);
+  // lever
+  rr(1000, 250, 1036, 560, 8, 180, 180, 190);
+  for (let y = 220; y < 268; y++) for (let x = 996; x < 1040; x++) {
+    const dx = x - 1018, dy = y - 244;
+    if (dx * dx + dy * dy <= 22 * 22) put(x, y, 224, 32, 48);
+  }
+  rr(100, 590, 420, 650, 14, 240, 208, 128);
+  drawText(put, 150, 606, 'SPIN', 5, 26, 18, 8);
+  drawText(put, 460, 614, 'TOY CREDITS  NO CASH', 3, 154, 144, 128);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;
