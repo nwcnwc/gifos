@@ -51,7 +51,11 @@ for (const need of ['vendor/piskel.js', 'vendor/piskel.css', 'index.html']) {
 }
 
 function safeScript(s) {
-  return s.split('</').join('<\\/');
+  // Escape ONLY `</script` (case-insensitive) — the one sequence that would
+  // terminate the inline <script> block the runtime packs these files into.
+  // A blanket `</` → `<\/` escape corrupts REGEX literals (e.g. upstream's
+  // /</g became the unterminated /<\/g); see vendor.mjs for the full story.
+  return s.replace(/<\/(script)/gi, '<\\/$1');
 }
 
 const SCRIPTS = ['boot.js', 'vendor/piskel.js'];

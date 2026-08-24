@@ -453,7 +453,16 @@ function concatList(listFile, property, separator) {
 }
 
 let js = concatList('piskel-script-list.js', 'scripts', ';\n');
-js = js.split('</').join('<\\/');
+// Escape ONLY `</script` (case-insensitive). The bundle is inlined into a
+// <script> block by the runtime (runtime.js buildAppHtml), where a literal
+// `</script` would terminate the block early — that ONE sequence must not
+// survive raw. The previous blanket `</` → `<\/` escape was WRONG: `<\/` only
+// means the same as `</` inside STRING literals; inside a REGEX literal the
+// `\/` escapes the closing slash, so upstream's `key.replace(/</g, "&lt;")`
+// became the unterminated `/<\/g` and the whole bundle was a SyntaxError.
+// `</script` never occurs unescaped inside a regex literal (an unescaped `/`
+// would already terminate it), so this narrow escape is safe everywhere.
+js = js.replace(/<\/(script)/gi, '<\\/$1');
 js += '\n;if(window.__gifosReady)window.__gifosReady.then(window.__gifosStartPiskel);else window.__gifosStartPiskel();\n';
 
 let css = concatList('piskel-style-list.js', 'styles', '\n');
