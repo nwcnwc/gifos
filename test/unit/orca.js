@@ -109,7 +109,8 @@ check('boot.js saves the grid privately as id grid', boot.includes("db('save')")
 check('boot.js ships the D4/:04C starter', boot.includes(':04C') && boot.includes('STARTER'));
 check('boot.js wraps MIDI with Web Audio (AudioContext)', boot.includes('AudioContext') && boot.includes('hearNote'));
 check('boot.js only hears in-browser when no MIDI device', boot.includes('outputDevice()') && boot.includes('hearNote'));
-check('boot.js has a Hear control', /id:\s*'hear'|id="hear"|Hear/.test(boot));
+check('boot.js has a Hear control', /hudHear/.test(boot) && /Hear/.test(boot));
+check('boot.js turns the operator guide off so the starter is visible', boot.includes('toggleGuide(false)'));
 check('boot.js injects a phone pad', boot.includes("id = 'pad'") || boot.includes('id="pad"'));
 check('boot.js onBack returns true only when it closed something', /onBack\(function \(\) \{[\s\S]*return closed;/.test(boot));
 check('style.css shows the pad on coarse pointers / phone width', css.includes('pointer: coarse') && css.includes('#pad'));

@@ -84,10 +84,23 @@
         showError('');
       }
     }
+    function scrubBomb() {
+      var kids = document.body && document.body.children;
+      if (!kids) return;
+      for (var i = kids.length - 1; i >= 0; i--) {
+        var n = kids[i];
+        if (!n || n.id === 'shell') continue;
+        var t = n.textContent || '';
+        if (/Syntax error in text/i.test(t) || (n.classList && (n.classList.contains('error-icon') || n.classList.contains('error-text')))) {
+          n.parentNode.removeChild(n);
+        }
+      }
+    }
     function bad(e) {
       if (my !== seq) return;
       showError(tidyError(e));
       if (lastGood) $('view').innerHTML = lastGood;
+      scrubBomb();
     }
     if (p && typeof p.then === 'function') {
       p.then(ok).catch(bad);

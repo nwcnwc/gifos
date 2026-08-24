@@ -2,6 +2,7 @@
 html, body { height: 100%; }
 body { max-height: none; }
 
+body.has-lesson { padding-top: 88px; }
 .lesson {
   position: fixed;
   left: 12px;
@@ -12,10 +13,11 @@ body { max-height: none; }
   font-size: 12px;
   line-height: 1.4;
   color: var(--f_high, #eee);
-  background: rgba(0, 0, 0, 0.82);
+  background: rgba(0, 0, 0, 0.92);
   border: 1px solid var(--b_med, #72dec2);
   font-family: input_mono_medium, ui-monospace, monospace;
   z-index: 5;
+  pointer-events: auto;
 }
 .lesson[hidden] { display: none; }
 .lesson b { color: var(--b_med, #72dec2); }

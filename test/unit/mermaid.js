@@ -131,6 +131,7 @@ function flush() {
   check('phone Recipe/Picture tabs exist', html.includes('tabSrc') && html.includes('tabPic') && css.includes('tab-pic'));
   check('app.js saves the document privately', js.includes("db('save')") && js.includes("id: 'doc'"));
   check('Copy SVG is aboard', html.includes('copyBtn') && js.includes('copySvg'));
+  check('bad syntax scrubs mermaid\'s bomb overlay', js.includes('Syntax error in text') && css.includes('error-icon'));
   check('mp.js tells the player to press Invite (OS chrome)', mp.includes('Invite'));
   check('no in-app Invite button', !/<button\b[^>]*>\s*Invite\s*</i.test(html));
   check('no CDN / no type=module', !/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, '')) && !/type=["']module["']/.test(html));
