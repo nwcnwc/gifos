@@ -7,22 +7,20 @@ Paste JSON on the left. See it as a graph of cards on the right. Nothing is uplo
 1. Type or paste JSON in the **text** pane.
 2. The graph updates as you type (after a short pause).
 3. **Format** pretty-prints. **Minify** packs it onto one line.
-4. **Choose file** opens a `.json` from this device.
+4. **Sample** loads a starter document. **Choose file** opens a `.json` from this device.
 
-A red line under the text means the JSON is not valid yet. The last good graph stays until you fix it.
+On a phone, **Text** and **Graph** swap so the keyboard does not cover the cards.
+
+An empty pane is empty — not an error. A red line means the JSON is not valid yet. The last good graph stays until you fix it.
 
 ## Read the graph
 
-Each **object** or **array** is a card. Keys that hold another object or array become an arrow to a child card. Strings, numbers, booleans and null stay on the parent as rows.
+Each **object** or **array** is a card. Nested objects and arrays stay as a row on the parent *and* become a child card with an arrow. Strings, numbers, booleans and null stay on the parent as rows.
 
 - Drag the background to pan.
-- Scroll or pinch to zoom.
+- Scroll, pinch, or use **+/−** to zoom. **Fit** frames the whole graph.
 - Tap a card's **–** to fold its children; tap **+** to open them.
 - Tap a row to copy that value.
-
-## A live friend
-
-Press **Invite** in the bar above the app. A friend who opens the link sees the **same document**. Either of you can type; the graph follows. There is no account.
 
 ## What is saved
 

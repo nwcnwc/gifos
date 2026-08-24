@@ -59,7 +59,7 @@
     if (guest) {
       var h = hostOf(players);
       var who = h && h.id !== me.id ? (h.name || 'a friend') : 'a friend';
-      return 'Showing ' + who + "'s document. Edit it — you both see the graph.';
+      return 'Showing ' + who + '\'s document. Edit it — you both see the graph.';
     }
     return (others.length === 1 ? 'A friend is here.' : others.length + ' friends are here.') +
       ' Either of you can type; the graph follows.';
