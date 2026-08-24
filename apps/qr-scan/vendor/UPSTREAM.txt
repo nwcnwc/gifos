@@ -1,0 +1,14 @@
+cozmo/jsQR
+https://github.com/cozmo/jsQR
+commit 8e6a036beafa7053dd44b1b76ac578d22b1b3311 (master)
+file: dist/jsQR.js
+sha256: 3325b0888fa4745c4e6940897d8c4f426fbaae76901fcbfe1871a04e90a51655
+Apache-2.0
+
+A pure-JS decoder: raw image bytes in, a payload out. The GifOS wrap never
+opens a live camera stream (the sandbox does not hand apps WebRTC /
+getUserMedia). A picture arrives from gifos.takePhoto (brokered, OS chrome)
+or from a dropped / picked file, then jsQR reads it.
+
+History of decoded text is saved privately. Upstream's demo page uses a live
+video stream — that path is not here.

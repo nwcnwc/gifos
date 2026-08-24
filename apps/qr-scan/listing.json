@@ -1,0 +1,32 @@
+{
+  "tagline": "Read a code from a photo. Nothing is uploaded.",
+  "description": "Take a still photo, or drop a picture. The words inside the code appear on the screen. There is no live camera view — one picture at a time, on this device. Nothing is sent anywhere, and there is no account.\n\nA short history of what you have read stays in this file. It never leaves this device. Press Invite (the GifOS bar) if you want a friend to open the same app in a meeting; their history stays on their side.\n\nAn unofficial port of jsQR by cozmo. For making a code, use QR Code. For a Wi-Fi fridge card, use WiFi Card.",
+  "author": {
+    "name": "cozmo",
+    "url": "https://github.com/cozmo/jsQR"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "jsQR",
+    "url": "https://github.com/cozmo/jsQR",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "qr",
+    "scan",
+    "photo",
+    "decode",
+    "offline"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/qr-scan",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

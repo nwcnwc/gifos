@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>QR Scan</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>QR Scan</h1>
+    <p class="lead">Read a code from a still photo. Nothing is uploaded. There is no live camera.</p>
+  </header>
+
+  <div class="actions">
+    <button type="button" id="photoBtn">Take a photo</button>
+    <button type="button" id="fileBtn" class="ghost">Choose a file</button>
+    <input type="file" id="file" accept="image/*" hidden>
+  </div>
+  <p id="dropHint" class="hint">Or drop a picture onto this page.</p>
+  <p id="status" class="status" role="status"></p>
+
+  <div class="stage">
+    <canvas id="preview" width="320" height="240" aria-label="Picture"></canvas>
+    <div class="result">
+      <h2>Decoded</h2>
+      <pre id="out" class="out"></pre>
+      <button type="button" id="copyBtn" class="ghost" hidden>Copy</button>
+    </div>
+  </div>
+
+  <section class="history">
+    <div class="hist-head">
+      <h2>History</h2>
+      <button type="button" id="clearBtn" class="ghost small">Clear history</button>
+    </div>
+    <ul id="hist"></ul>
+    <p id="histEmpty" class="hint">Successful reads stay in this file on this device.</p>
+  </section>
+</div>
+
+<script src="vendor/jsQR.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
