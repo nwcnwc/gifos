@@ -4,10 +4,10 @@
   "appId": "hexahedral",
   "name": "Hexahedral",
   "shortName": "Hexahedral",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Push every block down. Thirty jam levels. The file is the save.",
-  "description": "A green cube on a field of pink and blue blocks. Step onto a pink one and it drops. Step onto a blue one and it rises. Clear the pinks before you run out of moves. Broken beige tiles are walls.\n\nTap an adjacent block, swipe, or use the arrows. Easy, medium, and hard — ten levels each, the Global Game Jam set. Close it and come back: the level you reached is still in the file.\n\nAn unofficial port of Hexahedral by mminer. Same thirty puzzles; the Redux/virtual-dom shell stays behind.",
+  "tagline": "Drag the green cube. Thirty jam levels. Your best lives in the file.",
+  "description": "Works offline, no account, no install. Close it on level 18 and it opens on level 18 — this file keeps the level you reached and your best moves.\n\nYou are the green cube. Pink blocks are up, blue are down, beige are broken. Step onto a neighbour and it toggles. Push every pink down before you run out of moves. Drag the cube on a phone and it slides along the isometric faces; tap a neighbour; arrows work on a laptop. Undo if you step wrong.\n\nEasy, medium, and hard — ten Global Game Jam levels each. Finish one and the next is waiting.\n\nAn unofficial port of Hexahedral by mminer. Same thirty puzzles; the Redux shell stays behind.",
   "author": {
     "name": "mminer",
     "url": "https://github.com/mminer/hexahedral"
@@ -37,10 +37,10 @@
   "cover": "/apps/hexahedral/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hexahedral/hexahedral.gif",
-  "bytes": 185656,
+  "bytes": 192059,
   "download": 0,
   "provides": null,
-  "sha256": "ef7a33371c93a8412f15874de8aa3e3d5440e0697a246c1d1bef4c4699fd5200",
+  "sha256": "ea201182812a2a3e58b7f95c4ebd81afbdab0a37428d9d2180e4559b895ad3ce",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

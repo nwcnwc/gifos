@@ -4,10 +4,10 @@
   "appId": "fend",
   "name": "fend",
   "shortName": "fend",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Units, fractions, dice. Type 1 ft to cm. The pad stays on this device.",
-  "description": "A notepad calculator that knows units. Type an expression, press Enter, get an exact answer: 1 ft to cm, 2 + 2, 5 kg in lb, 4d6, sqrt(2), 0xFF. History scrolls above the prompt. The last pad comes back the next time you open the app. Nothing is uploaded.\n\nAn unofficial port of fend by printfn. Same engine as their web calculator. Their website is not in this app.",
+  "tagline": "Type 1 ft to cm. The pad stays in this file. Nothing is uploaded.",
+  "description": "Works offline. No account, no install, no website. Type a line, press Enter: 1 ft to cm, 5 kg in lb, 100 C to F. The last pad comes back the next time you open the app, because it lives in this file.\n\nOn a phone the keypad has digits and units so you can convert without a keyboard. A line that does not calculate says why. Variables stick: a = 3 then a * 2.\n\nUnofficial port of fend by printfn. Same engine as their calculator. Their website is not in this app.",
   "author": {
     "name": "printfn",
     "url": "https://github.com/printfn/fend"
@@ -38,10 +38,10 @@
   "cover": "/apps/fend/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fend/fend.gif",
-  "bytes": 593035,
+  "bytes": 596797,
   "download": 0,
   "provides": null,
-  "sha256": "616c2c92d746ade99c8c53ddd06a97bec38570c7ad44464ceaea46e7de25dbc0",
+  "sha256": "1073d50a0a7256399f04759987af61235faa5b40c242b2b7fb5e43271b4e2e5a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

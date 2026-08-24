@@ -4,10 +4,10 @@
   "appId": "json-editor",
   "name": "JSON Editor",
   "shortName": "JSON",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Tree and code for a document that lives in the file. Nothing is uploaded.",
-  "description": "Open a document as a tree you can expand, or as text you can type. Search, tidy the layout, and switch modes from the toolbar. The last document comes back the next time you open the app — still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of JSONEditor by Jos de Jong. Same tree and code views. Their online service is not in this app.",
+  "tagline": "Tree or code. The file is the document. Nothing is uploaded.",
+  "description": "The last JSON you edited comes back inside this app — there is no account, and the text never leaves this device. Open it as a tree you can expand, or as code you can type. Search, format, compact, and repair from the toolbar. A line that is not valid JSON is named as such; it is not silently rewritten.\n\nOn a phone, Tree and Code are two taps at the top so the keyboard does not bury the switch. Press Invite in the bar above to let a meeting watch the same document, read-only. Nothing is uploaded on its own.\n\nAn unofficial port of JSONEditor by Jos de Jong. Same tree and code views. Their online service is not in this app.",
   "author": {
     "name": "Jos de Jong",
     "url": "https://github.com/josdejong/jsoneditor"
@@ -33,15 +33,16 @@
     0
   ],
   "capabilities": {
-    "db": true
+    "db": true,
+    "multiplayer": true
   },
   "cover": "/apps/json-editor/cover.jpg",
   "screenshots": [],
   "gif": "/apps/json-editor/json-editor.gif",
-  "bytes": 791411,
+  "bytes": 800940,
   "download": 0,
   "provides": null,
-  "sha256": "9c333e27b3d3dccf49dd87bd96997a40f51a40d40cfdf5c9669af975e92ac517",
+  "sha256": "bf51f9dd5186b87fb3b772bd196d5f363358fc45f694a217c1eba11fc0d54aa8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -4,10 +4,10 @@
   "appId": "vintage-poker",
   "name": "Vintage Poker",
   "shortName": "Poker",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Texas Hold'em. Host is the dealer. Invite is the seats.",
-  "description": "A felt table, a 52-card shoe, toy chips. Two hole cards, then the flop, the turn, the river. Fold, check, call, or raise. Best five of seven takes the pot.\n\nOn your own, two bots sit across from you. Press Play with friends, then Invite in the bar above the app: everyone who opens the link takes a seat. The host deals. There is no account, no lobby code, and no game server.\n\nChips are toys. Nothing is wagered and nothing is paid out. Card faces are generic ranks and suits.\n\nAn unofficial port of Vintage Poker by Patrick Obermeier. The original is a React site on Node, Express and socket.io. This copy is not.",
+  "tagline": "No account, no cash. Invite is the table.",
+  "description": "No account, no cash, no game server. Invite is the table — everyone who opens the link takes a seat, the host deals. Works offline. Your chip pile lives in this file, so sharing the GIF shares the stack.\n\nTexas Hold'em at one felt. Two hole cards, then the flop, the turn, the river. Fold, check, call, or raise. Best five of seven takes the pot. Toy chips only — nothing is wagered and nothing is paid out. Card faces are generic ranks and suits, not a branded deck.\n\nOn your own, two bots sit across from you. With friends, press Invite in the bar; two seats and the host can deal.\n\nAn unofficial port of Vintage Poker by Patrick Obermeier. The original is a React site on Node, Express and socket.io, with accounts and a wallet. This copy is not.",
   "author": {
     "name": "Patrick Obermeier",
     "url": "https://github.com/Pobermeier/vintage-poker"
@@ -39,10 +39,10 @@
   "cover": "/apps/vintage-poker/cover.jpg",
   "screenshots": [],
   "gif": "/apps/vintage-poker/vintage-poker.gif",
-  "bytes": 196075,
+  "bytes": 199266,
   "download": 0,
   "provides": null,
-  "sha256": "26ad66a5e6e0046c0df27c54c18964a1373a52c161412355c825aa73995f29d8",
+  "sha256": "c61141aa1d9c0131f4883acd48e316d4b04608d857df624615e76172a149e869",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
