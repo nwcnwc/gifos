@@ -96,6 +96,8 @@ check('onBack closes Inspect', src.app.includes('onBack') && src.app.includes('i
 check('canvas pinch: touch-action none', src.css.includes('touch-action: none'));
 check('phone inspect is a sheet, not a permanent 38% panel', src.css.includes('body.inspect aside') && src.css.includes('translateY'));
 check('Open stays available after a model loads (hud + file-input)', src.html.includes('id="hud"') && src.html.includes('id="file-input"'));
+check('hidden wins over display:flex (empty state cannot cover the model)',
+  src.css.includes('[hidden]') && src.css.includes('body.loaded .placeholder'));
 check('no in-app Invite button', !/<button\b[^>]*>\s*Invite\s*</i.test(src.html));
 check('no ktx2 in the picker (this copy does not unpack it)', !src.html.includes('.ktx2'));
 check('no fetch / XHR / WebSocket in app or viewer',

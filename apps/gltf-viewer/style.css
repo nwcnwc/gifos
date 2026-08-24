@@ -1,4 +1,5 @@
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body {
   margin: 0; padding: 0;
   width: 100%; height: 100%;
@@ -64,6 +65,7 @@ code {
   padding: 24px;
   text-align: center;
 }
+body.loaded .placeholder { display: none !important; }
 .placeholder p { margin: 0; font-size: 16px; }
 .placeholder .hint { font-size: 13px; max-width: 28em; line-height: 1.45; }
 .placeholder .btn { pointer-events: auto; }
