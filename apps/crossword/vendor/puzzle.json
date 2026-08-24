@@ -1,0 +1,28 @@
+{
+  "document": {
+    "mimetype": "application/vnd.js-crossword",
+    "version": "1.0"
+  },
+  "source": {
+    "title": "GifOS Mini — Sand",
+    "url": "https://github.com/nwcnwc/gifos/tree/main/apps/crossword"
+  },
+  "setter": {
+    "title": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "width": 4,
+  "height": 4,
+  "acrossClues": [
+    { "x": 1, "y": 1, "clue": "1. Fine grit on a beach (4)", "solution": "SAND" },
+    { "x": 1, "y": 2, "clue": "5. Region or neighbourhood (4)", "solution": "AREA" },
+    { "x": 1, "y": 3, "clue": "6. Require (4)", "solution": "NEED" },
+    { "x": 1, "y": 4, "clue": "7. Fathers (4)", "solution": "DADS" }
+  ],
+  "downClues": [
+    { "x": 1, "y": 1, "clue": "1. Fine grit on a beach (4)", "solution": "SAND" },
+    { "x": 2, "y": 1, "clue": "2. Region or neighbourhood (4)", "solution": "AREA" },
+    { "x": 3, "y": 1, "clue": "3. Require (4)", "solution": "NEED" },
+    { "x": 4, "y": 1, "clue": "4. Fathers (4)", "solution": "DADS" }
+  ]
+}

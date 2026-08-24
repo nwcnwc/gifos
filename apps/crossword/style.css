@@ -1,0 +1,63 @@
+:root {
+  --bg: #12141a;
+  --fg: #ececf2;
+  --muted: #9aa0ae;
+  --accent: #6ea0e8;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+.app {
+  height: 100%; height: 100dvh;
+  display: flex; flex-direction: column;
+  padding: max(.5rem, env(safe-area-inset-top)) .6rem max(.5rem, env(safe-area-inset-bottom));
+  max-width: 820px; margin: 0 auto;
+}
+header { display: flex; align-items: baseline; gap: .6rem; }
+h1 { flex: 1; margin: 0; font-size: 1.15rem; letter-spacing: .08em; text-transform: uppercase; }
+#status { color: var(--muted); font-size: .85rem; }
+#tools { display: flex; gap: .4rem; padding: .4rem 0; }
+#tools button {
+  flex: 1; padding: .45rem .3rem; border: 0; border-radius: .5rem;
+  background: #242830; color: var(--fg); font: 650 .8rem system-ui, sans-serif;
+  cursor: pointer;
+}
+#play {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr);
+  gap: .6rem;
+}
+@media (max-width: 620px) {
+  #play { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+}
+#grid { display: flex; align-items: center; justify-content: center; }
+#clues { overflow: auto; font-size: .88rem; }
+.crosswords-js.crossword-grid {
+  width: min(100%, 360px);
+  aspect-ratio: 1;
+}
+.cwcell.dark { background: #0c0d12; }
+.cwcell.light {
+  background: #f4f1e8; color: #12141a;
+}
+.cwcell.light.active { background: #cfe0f8; }
+.cwcell.light.highlighted { outline: 2px solid var(--accent); }
+.crossword-clue-block-title { color: var(--accent); }
+.crossword-clue { padding: .2rem 0; }
+.crossword-clue.current-clue-segment { background: #1c2433; }
+#keys {
+  display: flex; flex-wrap: wrap; gap: .28rem; justify-content: center;
+  padding-top: .45rem;
+}
+#keys button {
+  width: 1.7rem; height: 2.1rem;
+  border: 0; border-radius: .35rem;
+  background: #2a2e38; color: var(--fg);
+  font: 700 .85rem system-ui, sans-serif;
+  cursor: pointer;
+}
+#keys button.wide { width: 4.2rem; }
+body:not(.touch) #keys { display: none; }
