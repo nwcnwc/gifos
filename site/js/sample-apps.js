@@ -1629,57 +1629,164 @@ function syncDebug(){
 
   const TIMER_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
+  *{box-sizing:border-box}
   body{font:16px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;align-items:center;min-height:100vh}
   header{width:100%;box-sizing:border-box;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#ff7878)}
   .tabs{display:flex;gap:8px;margin:16px 0 0}
   .tabs button{padding:8px 18px;border:1px solid var(--border,#1c1c2b);border-radius:999px;background:var(--surface,#1c1c2b);color:var(--muted,#8888aa);font:inherit;font-weight:700;cursor:pointer}
   .tabs button.on{background:var(--accent,#ff7878);color:var(--onaccent,#2a0a0a);border-color:transparent}
-  #t{font-size:56px;font-variant-numeric:tabular-nums;margin:28px 0 8px;letter-spacing:2px}
+  #t{font-size:clamp(40px,14vw,64px);font-variant-numeric:tabular-nums;margin:28px 0 4px;letter-spacing:1px;font-weight:700}
   #t.done{color:var(--accent,#ff7878);animation:blink .5s step-end infinite}
   @keyframes blink{50%{opacity:.25}}
-  .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:8px 0}
-  button{padding:12px 24px;border:1px solid var(--border,#1c1c2b);border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0)}
-  button.go{background:var(--accent2,#5cff7b);color:var(--onaccent,#04231b);border-color:transparent}button.stop{background:var(--accent,#ff7878);color:var(--onaccent,#2a0a0a);border-color:transparent}
-  .chips button{padding:8px 14px;font-size:14px;border-radius:999px}
+  #lapnow{color:var(--muted,#8888aa);font-variant-numeric:tabular-nums;font-size:14px;min-height:1.2em;margin-bottom:4px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:10px 0;align-items:center}
+  button{padding:14px 22px;min-width:96px;min-height:44px;border:1px solid var(--border,#1c1c2b);border-radius:999px;font-size:16px;font-weight:700;cursor:pointer;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0)}
+  button:disabled{opacity:.38;cursor:default}
+  button.go{background:var(--accent2,#5cff7b);color:var(--onaccent,#04231b);border-color:transparent}
+  button.stop{background:var(--accent,#ff7878);color:var(--onaccent,#2a0a0a);border-color:transparent}
+  .chips button{padding:8px 14px;font-size:14px;min-width:0;min-height:36px}
+  #laps{list-style:none;margin:8px 0 24px;padding:0 18px;width:100%;max-width:360px;flex:1;overflow-y:auto}
+  #laps li{display:flex;justify-content:space-between;gap:12px;padding:8px 4px;border-bottom:1px solid var(--border,#1c1c2b);font-variant-numeric:tabular-nums;font-size:15px}
+  #laps li .n{color:var(--muted,#8888aa)}
+  #laps li.fast{color:#2a9f5a}
+  #laps li.slow{color:#ff5c5c}
+  #laps li.cur{color:var(--muted,#8888aa)}
 </style>
 <header>Timer &amp; Stopwatch</header>
 <div class="tabs"><button id="tabS" class="on">Stopwatch</button><button id="tabT">Timer</button></div>
-<div id="t">00:00.0</div>
+<div id="t">00:00.00</div>
+<div id="lapnow"></div>
 <div class="chips row" id="presets" style="display:none">
   <button data-add="60">+1 min</button><button data-add="300">+5 min</button><button data-add="600">+10 min</button><button data-add="10">+10 s</button>
 </div>
 <div class="row">
+  <button id="lap" disabled>Lap</button>
   <button id="go" class="go">Start</button>
-  <button id="reset">Reset</button>
 </div>
+<ol id="laps"></ol>
 <script>
-  let mode='sw', running=false, base=0, elapsed=0, raf=0, left=0, target=0;
-  const tEl=document.getElementById('t'), go=document.getElementById('go');
+  function pad2(n){ n=Math.floor(Math.abs(+n||0)); return (n<10?'0':'')+n; }
+  function fmtSw(ms){
+    ms=Math.max(0, Math.floor(+ms||0));
+    var cs=Math.floor(ms/10)%100, s=Math.floor(ms/1000)%60, m=Math.floor(ms/60000)%60, h=Math.floor(ms/3600000);
+    return (h?h+':':'')+pad2(m)+':'+pad2(s)+'.'+pad2(cs);
+  }
+  function fmtT(ms){
+    var s=Math.max(0, Math.ceil((+ms||0)/1000));
+    var h=Math.floor(s/3600); s=s%3600; var m=Math.floor(s/60); s=s%60;
+    return (h?h+':':'')+m+':'+pad2(s);
+  }
+  var mode='sw', raf=0, ready=false;
+  var sw={running:false, elapsed:0, base:0, laps:[]};
+  var tm={running:false, left:0, target:0};
+  var tEl=document.getElementById('t'), go=document.getElementById('go'), lapBtn=document.getElementById('lap');
+  var lapNow=document.getElementById('lapnow'), lapsEl=document.getElementById('laps');
+  var clockDb=(window.gifos&&gifos.db)?gifos.db('clock'):null, saveT=null;
+  function now(){ return Date.now(); }
+  function swMs(){ return sw.elapsed+(sw.running?now()-sw.base:0); }
+  function tmMs(){ return tm.running?tm.target-now():tm.left; }
+  function persist(){
+    if(!clockDb||!ready) return;
+    if(saveT) return;
+    saveT=setTimeout(function(){ saveT=null;
+      clockDb.put({id:'clock', mode:mode,
+        sw:{running:sw.running,elapsed:sw.elapsed,base:sw.base,laps:sw.laps.slice()},
+        tm:{running:tm.running,left:tm.left,target:tm.target}});
+    }, 80);
+  }
   function beep(f,ms){ try{ const C=window.AudioContext||window.webkitAudioContext; if(!C)return; window.__ac=window.__ac||new C();
     const o=__ac.createOscillator(), g=__ac.createGain(); o.frequency.value=f; g.gain.value=.15; o.connect(g); g.connect(__ac.destination);
     o.start(); setTimeout(function(){o.stop();},ms); }catch(e){} }
-  function fmtSw(ms){ const m=Math.floor(ms/60000), s=Math.floor(ms/1000)%60, d=Math.floor(ms/100)%10;
-    return (m<10?'0':'')+m+':'+(s<10?'0':'')+s+'.'+d; }
-  function fmtT(ms){ const s=Math.max(0,Math.ceil(ms/1000)); return Math.floor(s/60)+':'+('0'+s%60).slice(-2); }
-  function draw(){ if(mode==='sw'){ tEl.textContent=fmtSw(elapsed+(running?Date.now()-base:0)); }
-    else { const rem=running?target-Date.now():left; tEl.textContent=fmtT(rem);
-      if(running&&rem<=0){ stop(); tEl.classList.add('done'); beep(880,250); setTimeout(function(){beep(880,250);},350); setTimeout(function(){beep(660,600);},750); left=0; } }
-    if(running) raf=requestAnimationFrame(draw); }
-  function stop(){ if(mode==='sw'&&running) elapsed+=Date.now()-base; if(mode==='t'&&running) left=Math.max(0,target-Date.now());
-    running=false; go.textContent='Start'; go.className='go'; cancelAnimationFrame(raf); }
-  function start(){ if(mode==='t'&&left<=0) return; tEl.classList.remove('done');
-    if(mode==='sw') base=Date.now(); else target=Date.now()+left;
-    running=true; go.textContent='Pause'; go.className='stop'; draw(); }
-  go.onclick=function(){ running?stop():start(); };
-  document.getElementById('reset').onclick=function(){ stop(); elapsed=0; left=0; tEl.classList.remove('done'); draw0(); };
-  function draw0(){ tEl.textContent=mode==='sw'?'00:00.0':fmtT(left); }
-  document.getElementById('presets').onclick=function(e){ const a=e.target.dataset.add; if(!a||running) return;
-    left+=a*1000; tEl.classList.remove('done'); draw0(); };
-  function setMode(m){ stop(); mode=m; elapsed=0;
-    document.getElementById('tabS').className=m==='sw'?'on':''; document.getElementById('tabT').className=m==='t'?'on':'';
-    document.getElementById('presets').style.display=m==='t'?'flex':'none'; tEl.classList.remove('done'); draw0(); }
+  function ring(){ beep(880,250); setTimeout(function(){beep(880,250);},350); setTimeout(function(){beep(660,600);},750); }
+  function sumLaps(){ var s=0; for(var i=0;i<sw.laps.length;i++) s+=sw.laps[i]; return s; }
+  function paintLaps(){
+    if(mode!=='sw'){ lapsEl.innerHTML=''; lapNow.textContent=''; return; }
+    var total=swMs(), split=Math.max(0,total-sumLaps());
+    lapNow.textContent = (sw.laps.length||sw.running||total) ? ('Lap '+(sw.laps.length+1)+'  '+fmtSw(split)) : '';
+    var n=sw.laps.length, fast=-1, slow=-1;
+    if(n>=2){ fast=0; slow=0; for(var i=1;i<n;i++){ if(sw.laps[i]<sw.laps[fast]) fast=i; if(sw.laps[i]>sw.laps[slow]) slow=i; } }
+    var html='';
+    if(sw.running||split>0) html+='<li class="cur"><span class="n">Lap '+(n+1)+'</span><span>'+fmtSw(split)+'</span></li>';
+    for(var i=n-1;i>=0;i--){
+      var cls=(n>=2&&i===fast)?'fast':(n>=2&&i===slow)?'slow':'';
+      html+='<li class="'+cls+'"><span class="n">Lap '+(i+1)+'</span><span>'+fmtSw(sw.laps[i])+'</span></li>';
+    }
+    lapsEl.innerHTML=html;
+  }
+  function buttons(){
+    if(mode==='sw'){
+      var has=swMs()>0||sw.laps.length;
+      lapBtn.textContent=sw.running?'Lap':'Reset';
+      lapBtn.disabled=sw.running?false:!has;
+      go.disabled=false;
+      go.textContent=sw.running?'Stop':'Start';
+      go.className=sw.running?'stop':'go';
+    } else {
+      lapBtn.textContent='Reset';
+      lapBtn.disabled=!(tm.running||tm.left>0);
+      go.textContent=tm.running?'Pause':'Start';
+      go.className=tm.running?'stop':'go';
+      go.disabled=!tm.running&&tm.left<=0;
+    }
+  }
+  function draw(){
+    if(mode==='sw') tEl.textContent=fmtSw(swMs());
+    else {
+      var rem=tmMs();
+      tEl.textContent=fmtT(rem);
+      if(tm.running&&rem<=0){ tm.running=false; tm.left=0; tEl.classList.add('done'); ring(); persist(); }
+    }
+    paintLaps(); buttons();
+  }
+  function loop(){ draw(); if(sw.running||tm.running) raf=requestAnimationFrame(loop); else cancelAnimationFrame(raf); }
+  function kick(){ cancelAnimationFrame(raf); loop(); persist(); }
+  go.onclick=function(){
+    tEl.classList.remove('done');
+    if(mode==='sw'){
+      if(sw.running){ sw.elapsed+=now()-sw.base; sw.running=false; }
+      else { sw.base=now(); sw.running=true; }
+    } else {
+      if(tm.running){ tm.left=Math.max(0,tm.target-now()); tm.running=false; }
+      else { if(tm.left<=0) return; tm.target=now()+tm.left; tm.running=true; }
+    }
+    kick();
+  };
+  lapBtn.onclick=function(){
+    if(mode==='sw'){
+      if(sw.running){ var split=swMs()-sumLaps(); if(split>=0) sw.laps.push(split); persist(); paintLaps(); }
+      else { sw.running=false; sw.elapsed=0; sw.base=0; sw.laps=[]; tEl.classList.remove('done'); kick(); }
+    } else {
+      tm.running=false; tm.left=0; tEl.classList.remove('done'); kick();
+    }
+  };
+  document.getElementById('presets').onclick=function(e){
+    var a=e.target.dataset.add; if(!a||tm.running) return;
+    tm.left+=a*1000; tEl.classList.remove('done'); kick();
+  };
+  function setMode(m){
+    mode=m;
+    document.getElementById('tabS').className=m==='sw'?'on':'';
+    document.getElementById('tabT').className=m==='t'?'on':'';
+    document.getElementById('presets').style.display=m==='t'?'flex':'none';
+    lapsEl.style.display=m==='sw'?'':'none';
+    lapNow.style.display=m==='sw'?'':'none';
+    if(m!=='t') tEl.classList.remove('done');
+    kick();
+  }
   document.getElementById('tabS').onclick=function(){ setMode('sw'); };
   document.getElementById('tabT').onclick=function(){ setMode('t'); };
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') kick(); });
+  function boot(s){
+    if(s){
+      mode=s.mode==='t'?'t':'sw';
+      if(s.sw){ sw.running=!!s.sw.running; sw.elapsed=+s.sw.elapsed||0; sw.base=+s.sw.base||0; sw.laps=Array.isArray(s.sw.laps)?s.sw.laps.map(Number).filter(function(x){return x>=0;}):[]; }
+      if(s.tm){ tm.running=!!s.tm.running; tm.left=+s.tm.left||0; tm.target=+s.tm.target||0; }
+      if(tm.running&&tm.target-now()<=0){ tm.running=false; tm.left=0; tEl.classList.add('done'); }
+    }
+    ready=true; setMode(mode);
+  }
+  if(clockDb) clockDb.get('clock').then(boot, function(){ boot(null); });
+  else boot(null);
 </script>`;
 
   const MINESWEEPER_HTML = `<!doctype html><meta charset="utf-8">
@@ -5244,23 +5351,23 @@ Expressions are saved in this icon. Your last view is remembered here too, and i
 `,
       timer: `# Stopwatch
 
-A stopwatch and a countdown, on this device only.
+A stopwatch with laps, and a countdown, on this device only.
 
 ## Stopwatch
 
-The default tab. **Start** runs, **Pause** holds the time, **Start** again continues, **Reset** goes back to 00:00.0.
+The default tab. **Start** runs, **Stop** holds the time, **Start** again continues. While it is running, **Lap** marks a split. After you stop, that same button is **Reset** and clears the time and the laps.
 
-The display is minutes, seconds, and tenths.
+The display is hours (when needed), minutes, seconds, and hundredths — \`00:00.00\`. The current lap sits under the digits. Completed laps list newest first. With two or more laps, the fastest is green and the slowest is red.
+
+The stopwatch and the countdown run independently. Switching tabs does not reset either one.
 
 ## Timer
 
-Switch to **Timer**. Tap **+1 min**, **+5 min**, **+10 min**, or **+10 s** to add time — chips do nothing while it is running — then **Start**. It beeps when it hits zero and the digits flash. **Reset** clears the remaining time.
-
-Switching tabs stops and resets the clock.
+Switch to **Timer**. Tap **+1 min**, **+5 min**, **+10 min**, or **+10 s** to add time — chips do nothing while it is running — then **Start**. **Pause** holds what is left. It beeps when it hits zero and the digits flash until you **Reset**.
 
 ## Saved
 
-Nothing is stored. Close the app and the time is gone. **Invite** does not share a running clock; each person has their own.
+The time, whether it is running, and the laps live in this icon, so closing the tab does not throw them away. A running clock keeps counting while it is closed. **Invite** does not share a clock; each person has their own.
 `,
       fortune: `# Fortune
 
@@ -5729,7 +5836,7 @@ The Store itself does not keep a shopping cart in this icon.
         // Desmos-idiom graphing calculator; the expression list is shared (a
         // classroom room graphs together), the viewport stays per-person.
         app('Calculator', 'calc', [92, 200, 255], CALCULATOR_HTML, { data: { calc: RW, prefs: PRIV } }),
-        app('Stopwatch', 'timer', [255, 120, 120], TIMER_HTML),
+        app('Stopwatch', 'timer', [255, 120, 120], TIMER_HTML, { capabilities: { db: true }, data: { clock: PRIV } }),
         // The one app that reaches out: it declares exactly the site it needs,
         // so opening it demonstrates the network acknowledgement on a real app.
         app('Fortune', 'fortune', [255, 206, 107], FORTUNE_HTML, { capabilities: { db: true, network: ['api.adviceslip.com'] }, data: { fortunes: RW } }),
