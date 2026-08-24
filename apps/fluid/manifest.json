@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "fluid",
+  "name": "Fluid",
+  "shortName": "Fluid",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Drag a finger through ink. Quality and dye settings stay in the file.",
+  "entry": "index.html",
+  "accent": [0, 180, 220],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}

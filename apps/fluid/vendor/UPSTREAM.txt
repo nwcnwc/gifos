@@ -1,0 +1,18 @@
+PavelDoGreat/WebGL-Fluid-Simulation
+https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
+MIT, Copyright (c) 2017 Pavel Dobryakov
+file: script.js (patched)
+  original sha256: 291d86de38ea23b8fb63d1879afeea77e9a4556900bbd67e13bc1d5ea007ce4e
+  patched sha256:  fc68acb50a45f1121f360ca8bc826a5c48d6cddfad87d5abcbccbba98df786f0
+Patches:
+  - stub ga()
+  - strip App Store / Play promo and social GUI buttons
+  - inline LDR_LLL1_0.png as a data URL (createTextureAsync)
+  - expose window.FluidConfig and window.FluidApply so settings can be saved
+file: dat.gui.min.js
+sha256: 27976ca8ac2e125de97163455131890e8686ed2afc2007cd5524080b7d53ef7b
+MIT, Copyright (c) 2013 dataarts / Google (dat.GUI)
+
+GifOS inlines classic scripts. Upstream loads analytics.js and store badges.
+Those are stripped. Quality and dye settings are saved privately. The live
+swirl is not snapshotted. Invite is not wired in v1 — solo is the original toy.
