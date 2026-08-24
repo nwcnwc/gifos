@@ -11,6 +11,7 @@
   --ok: #7dffb3;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body {
   margin: 0;
   padding: 0;
@@ -20,7 +21,7 @@ html, body {
   font: 16px/1.45 system-ui, -apple-system, Segoe UI, sans-serif;
 }
 body {
-  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px));
 }
 .wrap {
   max-width: 640px;

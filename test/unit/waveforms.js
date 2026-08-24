@@ -144,6 +144,8 @@ check('no eval / Function / fetch / getUserMedia',
 check('buttons are 44px tall', /min-height:\s*44px/.test(css));
 check('nav is sticky on a phone', /position:\s*fixed/.test(css) && /bottom:\s*0/.test(css));
 check('graph stays on screen while you read', /position:\s*sticky/.test(css));
+check('[hidden] wins over display:grid so the walk-through can reveal controls',
+  /\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css));
 check('no webfont import', !/@import|fonts\.google|typekit/i.test(css));
 check('listing leads with the reason to use this version',
   /offline/i.test(listing) && /file/i.test(listing) && /thumb|phone/i.test(listing));
