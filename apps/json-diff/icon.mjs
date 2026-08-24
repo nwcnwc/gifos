@@ -48,6 +48,15 @@ function finder(x, y, ox, oy, s) {
   return CARD;
 }
 
+function brace(x, y, ox, open) {
+  const lx = x - ox, ly = y - 26;
+  if (lx < 0 || lx > 10 || ly < 0 || ly > 76) return false;
+  const along = ly / 76;
+  const lip = (along < 0.12 || along > 0.88) ? 4 : (Math.abs(along - 0.5) < 0.08 ? 5 : 1.6);
+  if (open) return lx < lip + 1.4 && lx > lip - 1.6;
+  return (10 - lx) < lip + 1.4 && (10 - lx) > lip - 1.6;
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / (FRAMES - 1);
@@ -57,15 +66,19 @@ function frameIndices(pal, f) {
     if (!inCard(x, y, m, rad)) continue;
     let col = CARD;
     const mid = OUT / 2;
-    if (x < mid - 2) col = mix(CARD, [30, 32, 42], 0.4);
-    else if (x > mid + 2) col = mix(CARD, [32, 30, 30], 0.4);
-    else col = [10, 10, 14];
-    const row = Math.floor((y - 28) / 10);
-    if (row >= 0 && row < 7 && y > 28 && y < 100) {
-      if (x > 22 && x < 54) col = DOT;
-      if (x > 74 && x < 106) {
-        if (row === 1 && t > 0.2) col = INK;
-        else if (row === 3 && t > 0.45) col = GOLD;
+    if (x < mid - 1.5) col = mix(CARD, [28, 34, 44], 0.45);
+    else if (x > mid + 1.5) col = mix(CARD, [34, 28, 28], 0.35);
+    else col = [8, 8, 12];
+    if (brace(x, y, 18, true) || brace(x, y, 100, false)) col = DOT;
+    const row = Math.floor((y - 34) / 11);
+    if (row >= 0 && row < 5 && y > 34 && y < 90) {
+      if (x > 30 && x < 56) {
+        col = row === 2 && t > 0.25 ? INK : DOT;
+      }
+      if (x > 72 && x < 98) {
+        if (row === 1 && t > 0.2) col = GOLD;
+        else if (row === 3 && t > 0.55) col = GOLD;
+        else if (row === 2 && t > 0.25) col = mix(CARD, [40, 30, 30], 0.2);
         else col = DOT;
       }
     }
@@ -140,6 +153,15 @@ const GLYPHS = {
   '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
   ':': [0, 0b00100, 0b00100, 0, 0b00100, 0b00100, 0],
   '/': [0b00001, 0b00010, 0b00100, 0b00100, 0b01000, 0b10000, 0b10000],
+  '{': [0b00110, 0b01000, 0b01000, 0b10000, 0b01000, 0b01000, 0b00110],
+  '}': [0b01100, 0b00010, 0b00010, 0b00001, 0b00010, 0b00010, 0b01100],
+  '"': [0b01010, 0b01010, 0, 0, 0, 0, 0],
+  '+': [0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0, 0],
+  '-': [0, 0, 0b11111, 0, 0, 0, 0],
+  '1': [0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '3': [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -188,22 +210,41 @@ export function screenshotPng() {
   };
 
   fill(0, 0, W, H, 10, 10, 15);
-  drawText(put, 64, 48, 'JSON DIFF', 6, 80, 170, 90);
-  drawText(put, 64, 110, 'PASTE TWO DOCUMENTS. NOTHING UPLOADED.', 3, 154, 148, 134);
+  drawText(put, 48, 28, 'JSON DIFF', 6, 80, 170, 90);
+  drawText(put, 48, 84, 'PASTE TWO DOCUMENTS. NOTHING UPLOADED.', 3, 154, 148, 134);
 
-  rr(64, 180, 560, 640, 12, 16, 16, 24);
-  drawText(put, 90, 210, 'LEFT', 3, 154, 148, 134);
-  drawText(put, 90, 270, 'NAME: ADA', 4, 244, 241, 232);
-  drawText(put, 90, 340, 'N: 1', 4, 244, 241, 232);
-  drawText(put, 90, 410, 'TAGS: MATH NOTES', 3, 244, 241, 232);
+  rr(48, 140, 392, 430, 12, 16, 16, 24);
+  drawText(put, 68, 158, 'LEFT  OLD', 2, 154, 148, 134);
+  drawText(put, 68, 200, '{', 4, 244, 241, 232);
+  drawText(put, 100, 200, 'NAME: ADA', 3, 244, 241, 232);
+  drawText(put, 100, 250, 'N: 1', 3, 244, 241, 232);
+  drawText(put, 100, 300, 'TAGS: MATH NOTES', 2, 244, 241, 232);
+  drawText(put, 100, 340, 'USER.ROLE: EDITOR', 2, 244, 241, 232);
+  drawText(put, 68, 384, '}', 4, 244, 241, 232);
 
-  rr(640, 180, 1136, 640, 12, 16, 16, 24);
-  drawText(put, 670, 210, 'RIGHT', 3, 154, 148, 134);
-  drawText(put, 670, 270, 'NAME: ADA LOVELACE', 3, 80, 170, 90);
-  drawText(put, 670, 340, 'N: 2', 4, 80, 170, 90);
-  drawText(put, 670, 410, 'OK: TRUE', 4, 80, 170, 90);
-  drawText(put, 670, 500, 'GREEN ADDED. RED REMOVED.', 3, 154, 148, 134);
-  drawText(put, 670, 560, 'UNOFFICIAL PORT', 3, 80, 170, 90);
+  rr(416, 140, 760, 430, 12, 16, 16, 24);
+  drawText(put, 436, 158, 'RIGHT  NEW', 2, 154, 148, 134);
+  drawText(put, 436, 200, '{', 4, 244, 241, 232);
+  drawText(put, 468, 200, 'NAME: ADA LOVELACE', 2, 80, 170, 90);
+  drawText(put, 468, 250, 'N: 2', 3, 80, 170, 90);
+  drawText(put, 468, 300, 'OK: TRUE', 3, 80, 170, 90);
+  drawText(put, 468, 340, 'USER.ROLE: ADMIN', 2, 80, 170, 90);
+  drawText(put, 436, 384, '}', 4, 244, 241, 232);
+
+  rr(784, 140, 1152, 430, 12, 16, 16, 24);
+  drawText(put, 804, 158, 'DIFFERENCE', 2, 154, 148, 134);
+  fill(804, 200, 1132, 248, 29, 74, 42);
+  drawText(put, 820, 214, '+  OK: TRUE', 2, 216, 255, 216);
+  fill(804, 256, 1132, 304, 74, 29, 29);
+  drawText(put, 820, 270, '-  TAGS: NOTES', 2, 255, 208, 208);
+  fill(804, 312, 1132, 360, 42, 58, 42);
+  drawText(put, 820, 326, 'NAME: ADA / ADA LOVELACE', 2, 216, 255, 216);
+  drawText(put, 804, 384, '2 ADDED  1 REMOVED  3 CHANGED', 2, 154, 148, 134);
+
+  drawText(put, 48, 470, 'VISUAL   JSON DELTA   JSON PATCH', 3, 80, 170, 90);
+  drawText(put, 48, 530, 'MATCH LISTS BY ID. LAST PAIR STAYS IN THE FILE.', 3, 154, 148, 134);
+  drawText(put, 48, 590, 'INVITE SHOWS A READ-ONLY VIEW IN A MEETING.', 3, 154, 148, 134);
+  drawText(put, 48, 650, 'UNOFFICIAL PORT OF JSONDIFFPATCH', 3, 80, 170, 90);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

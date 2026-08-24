@@ -7,9 +7,9 @@ by benjamine (MIT). Classic UMD pin of v0.5.0 — later releases dropped the
 browser bundle.
 
 ```
-index.html                    two paste boxes + visual pane
-style.css                     dark chrome, formatter colour overrides
-app.js                        parse, diff, private last pair
+index.html                    two paste boxes + visual / JSON / Patch
+style.css                     dark chrome, phone tabs, formatter colour overrides
+app.js                        parse, diff, stats, private last pair
 mp.js                         optional meeting: read-only view
 icon.mjs                      procedural sticker and the 1200×720 cover
 build.mjs                     packs site/apps/json-diff/json-diff.gif

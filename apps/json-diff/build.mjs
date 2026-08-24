@@ -115,6 +115,24 @@ if (!files['mp.js'].includes('Invite') || !files['app.js'].includes('Invite')) {
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'last'")) {
   throw new Error('app.js must save the last pair privately');
 }
+if (!files['app.js'].includes('parseJson') || !files['app.js'].includes('compareTexts') || !files['app.js'].includes('diffPair')) {
+  throw new Error('app.js must export parseJson / compareTexts / diffPair');
+}
+if (!files['app.js'].includes('Paste both sides to compare') || !files['app.js'].includes('Not valid JSON')) {
+  throw new Error('app.js must be honest about empty and invalid JSON');
+}
+if (!files['app.js'].includes('jsonpatch') || !files['app.js'].includes("view === 'patch'")) {
+  throw new Error('app.js must offer the JSON Patch view');
+}
+if (!files['app.js'].includes('objectHash') || !files['app.js'].includes('gifos.onBack')) {
+  throw new Error('app.js must match lists by id and handle Back');
+}
+if (!html.includes('phone-tabs') || !html.includes('id="swapBtn"') || !html.includes('id="viewPatch"')) {
+  throw new Error('index.html must have phone tabs, swap, and Patch view');
+}
+if (/if you want/i.test(listingBlob) || /\bDrop\b/.test(listing.description)) {
+  throw new Error('listing copy must not say "if you want" or "Drop"');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;

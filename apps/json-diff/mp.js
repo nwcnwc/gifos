@@ -15,7 +15,9 @@
       name: me.name,
       left: s.left || '',
       right: s.right || '',
-      unchanged: !!s.unchanged
+      unchanged: !!s.unchanged,
+      matchById: s.matchById !== false,
+      view: s.view || 'visual'
     };
   }
 
