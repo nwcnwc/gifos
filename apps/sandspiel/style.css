@@ -1,0 +1,277 @@
+/* Warm dark sand, gold accent, friend-mode chrome. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #1a1410;
+  color: #f0e6d4;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 10px calc(8px + env(safe-area-inset-bottom, 0px));
+}
+#shell {
+  flex: 1;
+  min-height: 0;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  flex: 0 0 auto;
+}
+#brand { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+#which {
+  margin-left: auto;
+  font-size: 13px;
+  color: #e6c46e;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 6px; flex: 0 0 auto; }
+.actions button, #leaveBtn, #keepBtn, #putBtn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 14px;
+  min-height: 40px;
+  border: 1px solid #4a4038;
+  background: #2a221c;
+  color: #f0e6d4;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#shareBtn { background: #e6c46e; color: #1a1410; border-color: #c4a45a; }
+#pauseBtn.on { background: #4a90d9; color: #fff; border-color: #3a78b8; }
+body.friend #shareBtn { display: none; }
+
+#friend-bar {
+  background: #241c16;
+  border: 1px solid #4a4038;
+  border-radius: 8px;
+  padding: 8px 12px 6px;
+  flex: 0 0 auto;
+  max-height: 42%;
+  overflow: auto;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 6px; font-size: 14px; line-height: 1.4; }
+#friend-hint b { color: #e6c46e; }
+#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-scores {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+}
+#friend-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-top: 1px solid #3a3028;
+}
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#friend-scores .me .name { color: #e6c46e; }
+#friend-scores .meta { color: #a09080; font-size: 13px; white-space: nowrap; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.wall-put {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+.wall-put input, #saveName {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  min-height: 40px;
+  border: 1px solid #4a4038;
+  background: #1a1410;
+  color: #f0e6d4;
+  border-radius: 6px;
+}
+#wall {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+.card {
+  width: 96px;
+  background: #1a1410;
+  border: 1px solid #4a4038;
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+.card canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: 3px;
+  background: #1a1410;
+}
+.card .t {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card .a { display: block; font-size: 10px; color: #a09080; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#stage {
+  flex: 1 1 auto;
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+  background: #120e0c;
+  border-radius: 8px;
+  overflow: hidden;
+  touch-action: none;
+}
+#world {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: crosshair;
+  touch-action: none;
+  background: #1a1410;
+}
+
+#palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 0 0 auto;
+  max-height: 72px;
+  overflow: auto;
+}
+#palette button {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 8px;
+  min-height: 32px;
+  border: 1px solid #4a4038;
+  background: #2a221c;
+  color: #f0e6d4;
+  border-radius: 999px;
+  cursor: pointer;
+}
+#palette button.on { outline: 2px solid #e6c46e; outline-offset: 1px; }
+
+#brushes {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+#brushes button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #4a4038;
+  background: #2a221c;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+#brushes button.on { background: #e6c46e; border-color: #c4a45a; }
+#brushes button span {
+  display: block;
+  border-radius: 50%;
+  background: #f0e6d4;
+}
+#brushes button.on span { background: #1a1410; }
+
+#saves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+#saveList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+#saveList li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #241c16;
+  border: 1px solid #4a4038;
+  border-radius: 6px;
+  padding: 2px 4px 2px 8px;
+}
+#saveList button.load {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  background: none;
+  border: 0;
+  color: #e6c46e;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+button.row-del {
+  background: none;
+  border: 0;
+  color: #a09080;
+  cursor: pointer;
+  padding: 6px;
+}
+button.row-del:hover { color: #e0574a; }
+button.row-del svg { display: block; pointer-events: none; }
+
+#how, .foot {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #a09080;
+  flex: 0 0 auto;
+}
+.foot { color: #6a5e52; }
+
+@media (max-width: 480px) {
+  #brand { font-size: 16px; }
+  #how, .foot { display: none; }
+  #friend-hint { display: none; }
+  .actions { flex-wrap: nowrap; }
+  .actions button, #leaveBtn {
+    min-height: 44px;
+    padding: 8px 8px;
+    font-size: 14px;
+    flex: 1 1 0;
+  }
+}

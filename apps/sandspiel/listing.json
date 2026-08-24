@@ -1,0 +1,35 @@
+{
+  "tagline": "Pour sand, water, fire and plants. Keep boards here. A meeting wall of friends' worlds — no account.",
+  "description": "A falling-sand toy. Pick an element, paint with your finger, watch it run. Sand piles. Water finds a way down. Lava turns water to stone. Fire eats wood. Plants drink. Pause, undo, reset. Brush from a dot to a splash.\n\nBoards you keep stay in this copy of the app, on this device. Name one to come back to it.\n\nWant a public wall of worlds? Press Play together, then Invite in the bar above the app, and send the link. Friends land on the wall. Put a board up as a small card. Tap a card to open that world and look. Nobody needs an account.\n\nAn unofficial port of Sandspiel by Max Bittker. The original is a web toy with a public gallery. This copy is the pour, the private save, and a meeting wall instead.",
+  "author": {
+    "name": "Max Bittker",
+    "url": "https://github.com/MaxBittker/sandspiel"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Sandspiel",
+    "url": "https://github.com/MaxBittker/sandspiel",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Creativity",
+    "Games"
+  ],
+  "tags": [
+    "sand",
+    "falling-sand",
+    "elements",
+    "paint",
+    "toy",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/sandspiel",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
