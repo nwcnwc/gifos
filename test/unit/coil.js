@@ -165,6 +165,10 @@ function driveSquare(g, cx, cy, side, n) {
     html.includes('id="db-err"') && /dbErr/.test(boot));
   check('the phone menu is not locked at 830px',
     /max-width:\s*640px/.test(css) && coil.includes('world.width - 16'));
+  check('the HUD compacts on a phone so SCORE is not clipped',
+    coil.includes('world.width < 560'));
+  check('the HUD is drawn from the first playing frame, not after the first point',
+    /playing \|\| score !== 0/.test(coil));
   check('no share widgets, no remote at load',
     !/facebook|twitter-share/.test(html) && !/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, '')));
   check('listing author is Hakim, not GifOS', listing.author && listing.author.name !== 'GifOS'

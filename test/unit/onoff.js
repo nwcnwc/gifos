@@ -298,6 +298,8 @@ function flushSleep(env, ms) {
     /onBack/.test(boot) && /state = 'title'/.test(boot));
   check('the pad injects keys the sim already reads',
     /data-key="jump"/.test(html) && /ONOFF_DOWN/.test(touch) && /MIN_HOLD/.test(touch));
+  check('title rows have a tap rect (SVG <g> is not a button)',
+    /createElementNS/.test(boot) && /pointerup/.test(boot));
   check('the pad keeps a strip so landscape does not cover the floor',
     /padding-bottom/.test(css) && /body\.touch/.test(css));
   check('a db failure is shown', html.includes('id="db-err"') && /dbErr/.test(boot));

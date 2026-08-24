@@ -58,12 +58,24 @@
     var g = root.ONOFF_GAME;
     if (!g || !g.title) return;
     var items = document.querySelectorAll('#title .menu .item');
+    var rows = [290, 322, 354];
     for (var i = 0; i < items.length; i++) {
       (function (node, n) {
-        node.addEventListener('click', function () {
+        var hit = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        hit.setAttribute('x', '250');
+        hit.setAttribute('y', String(rows[n] || 290));
+        hit.setAttribute('width', '270');
+        hit.setAttribute('height', '30');
+        hit.setAttribute('fill', 'transparent');
+        hit.style.cursor = 'pointer';
+        node.appendChild(hit);
+        var pick = function (e) {
+          if (e && e.preventDefault) e.preventDefault();
           g.title.selected = n;
           g.title.choose();
-        });
+        };
+        node.addEventListener('click', pick);
+        node.addEventListener('pointerup', pick);
       })(items[i], i);
     }
     var orig = g.title.choose.bind(g.title);
