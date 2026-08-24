@@ -78,6 +78,10 @@
       if(s.length>3&&s.slice(-1)==='s') s=s.slice(0,-1); return s; },
     // docs for this round with a given prefix, e.g. IRL.docs('v', g.round)
     docs(prefix,round){ return (IRL.extra||[]).filter(function(x){ return String(x.id).indexOf(prefix+round+'_')===0; }); },
+    // Player ids are gifos uids ('user_<hex>'), so NEVER split('_')[1] — that
+    // yields 'user' and every score/name lookup becomes '?'.
+    who(docId,prefix,round){ const p=String(prefix)+String(round)+'_', s=String(docId||'');
+      return s.indexOf(p)===0 ? s.slice(p.length) : ''; },
     coordinator(g){ return g&&g.ids&&g.ids[0]===IRL.me.id; },
     // the everyone-joins lobby: live player chips (tap a chip to drop a stale
     // player), invite guidance, and a start button gated on the minimum count
@@ -249,7 +253,7 @@ function myNetRole(g){ const i=g.ids.indexOf(IRL.me.id); return i<0?null:(i===g.
 function rNet(){
   const g=IRL.g;
   const myWord=myNetRole(g);
-  const votes=IRL.extra.filter(function(x){ return String(x.id).indexOf('v'+g.round+'_')===0; });
+  const votes=IRL.docs('v',g.round);
   if(g.phase==='talk'||g.phase==='vote'){
     let html='<div class="peek"><div class="muted" style="color:#bbb">Hold to peek — your secret word</div><div class="w" id="w">·····</div></div>'
       +'<div class="card"><h2>Clue order</h2><ol class="order">'+g.order.map(function(n){return '<li>'+IRL.esc(n)+'</li>';}).join('')+'</ol>'
@@ -830,7 +834,7 @@ function options(g){
   const truth=truthOf(g); if(truth===null) return null;
   const opts=[{k:'t',text:truth,authors:[]}];
   IRL.docs('f',g.round).forEach(function(f){
-    const pid=f.id.split('_')[1];
+    const pid=IRL.who(f.id,'f',g.round);
     if(IRL.norm(f.text)===IRL.norm(truth)){ return; } // a fake that IS the truth folds into it
     const dup=opts.find(function(o){ return o.k!=='t'&&IRL.norm(o.text)===IRL.norm(f.text); });
     if(dup){ dup.authors.push(pid); } else opts.push({k:pid,text:f.text,authors:[pid]});
@@ -892,7 +896,7 @@ function render(){
     const canVote=voters.indexOf(meId)>=0;
     const mine=votes.find(function(v){return v.id==='v'+g.round+'_'+meId;});
     let html='<div class="card"><h2>Read these aloud… which is TRUE?</h2><div class="muted">'+promptFor(g)+'</div></div>';
-    html+=opts.map(function(o,i){
+    html+=opts.map(function(o){
       const isMine=o.authors.indexOf(meId)>=0;
       const sel=mine&&mine.k===o.k;
       return '<div class="opt'+(sel?' sel':'')+'" data-k="'+IRL.esc(o.k)+'">'+IRL.esc(o.text)
@@ -915,9 +919,9 @@ function render(){
     const votes=IRL.docs('v',g.round);
     let html='<div class="card"><h2>The truth comes out </h2></div>';
     opts.forEach(function(o){
-      const fooled=votes.filter(function(v){return v.k===o.k;}).map(function(v){return nameOf(g,v.id.split('_')[1]);});
+      const fooled=votes.filter(function(v){return v.k===o.k;}).map(function(v){return nameOf(g,IRL.who(v.id,'v',g.round));});
       if(o.k==='t') html+='<div class="opt truth">'+IRL.esc(o.text)+'<span class="who">✅ THE TRUTH — found by: '+(fooled.join(', ')||'nobody!')+'</span></div>';
-      else html+='<div class="opt">'+IRL.esc(o.text)+'<span class="who">🤥 '+o.authors.map(function(a){return IRL.esc(nameOf(g,a));}).join(' & ')+' fooled: '+(fooled.join(', ')||'no one')+'</span></div>';
+      else html+='<div class="opt'+(o.authors.indexOf(meId)>=0?' sel':'')+'">'+IRL.esc(o.text)+'<span class="who">🤥 '+o.authors.map(function(a){return IRL.esc(nameOf(g,a));}).join(' & ')+' fooled: '+(fooled.join(', ')||'no one')+(o.authors.indexOf(meId)>=0?' — that was yours':'')+'</span></div>';
     });
     const last=g.mode==='about'?g.round+1>=g.ids.length:g.round+1>=8;
     html+='<button class="btn" id="next">'+(last?'Final scores':'Next round')+'</button>';
@@ -939,7 +943,7 @@ function advance(g){
   const opts=options(g)||[], votes=IRL.docs('v',g.round);
   const sc=Object.assign({},g.scores||{});
   votes.forEach(function(v){
-    const voter=v.id.split('_')[1];
+    const voter=IRL.who(v.id,'v',g.round);
     const o=opts.find(function(x){return x.k===v.k;});
     if(!o) return;
     if(o.k==='t'){ sc[voter]=(sc[voter]||0)+1000; }
@@ -980,7 +984,7 @@ function guesserId(g){ return g.ids[g.turn%g.ids.length]; }
 function nameOf(g,pid){ return g.names[g.ids.indexOf(pid)]||'?'; }
 function clueDocs(g){ return IRL.docs('c',g.round); }
 function surviving(g){
-  const cs=clueDocs(g).map(function(c){ return {pid:c.id.split('_')[1], text:c.text, n:IRL.norm(c.text)}; });
+  const cs=clueDocs(g).map(function(c){ return {pid:IRL.who(c.id,'c',g.round), text:c.text, n:IRL.norm(c.text)}; });
   cs.forEach(function(c){ c.dead=cs.some(function(o){ return o!==c&&o.n===c.n; }); });
   return cs;
 }
@@ -1092,7 +1096,7 @@ function start(){
 function q(g){ return IRL.seededShuffle(QS,g.seed)[g.round%QS.length]; }
 function nameOf(g,pid){ return g.names[g.ids.indexOf(pid)]||'?'; }
 function grouped(g){
-  const as=IRL.docs('a',g.round).map(function(a){ return {pid:a.id.split('_')[1], text:a.text, n:IRL.norm(a.text)}; });
+  const as=IRL.docs('a',g.round).map(function(a){ return {pid:IRL.who(a.id,'a',g.round), text:a.text, n:IRL.norm(a.text)}; });
   const map={};
   as.forEach(function(a){ (map[a.n]=map[a.n]||[]).push(a); });
   const groups=Object.keys(map).map(function(k){ return map[k]; });
