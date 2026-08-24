@@ -1,12 +1,13 @@
 /*
  * Pixel It chrome around giventofly's pixelit library.
- * Last conversion is private. Take photo is a clip, never a live camera.
+ * Last ORIGINAL picture + settings are private (file is the save).
+ * Take photo is a clip, never a live camera.
  * Classic IIFE. No fetch, no sockets, no eval.
  */
 (function (root) {
   'use strict';
 
-  // Palettes from the original demo page (docs/js/main.js).
+  // Palettes from the original demo page (docs/js/main.js). Names are ours.
   var PALETTES = [
     [[7,5,5],[33,25,25],[82,58,42],[138,107,62],[193,156,77],[234,219,116],[160,179,53],[83,124,68],[66,60,86],[89,111,175],[107,185,182],[251,250,249],[184,170,176],[121,112,126],[148,91,40]],
     [[13,43,69],[32,60,86],[84,78,104],[141,105,122],[208,129,89],[255,170,94],[255,212,163],[255,236,214]],
@@ -21,6 +22,9 @@
     [[49,31,95],[22,135,167],[31,213,188],[237,255,177]],
     [[21,25,26],[138,76,88],[217,98,117],[230,184,193],[69,107,115],[75,151,166],[165,189,194],[255,245,247]]
   ];
+  var PALETTE_NAMES = ['Earth','Ember','Neon','CGA','Crimson','Dawn','Rose','Garden','Classic','Arcade','Aqua','Blush'];
+  var MAX_EDGE = 800;
+  var SRC_CAP = 900000;
 
   var $ = function (id) {
     return root.document && root.document.getElementById ? root.document.getElementById(id) : null;
@@ -32,6 +36,8 @@
   var px = null;
   var loaded = false;
   var currentUrl = null;
+  var srcDataUrl = null;
+  var comparing = false;
   var settings = { scale: 8, greyscale: false, paletteOn: true, palette: 8 };
 
   try {
@@ -75,6 +81,37 @@
     return Math.sqrt(d);
   }
 
+  function applyPaletteToPixels(data, palette) {
+    var i, c;
+    for (i = 0; i < data.length; i += 4) {
+      c = similarColor([data[i], data[i + 1], data[i + 2]], palette);
+      data[i] = c[0];
+      data[i + 1] = c[1];
+      data[i + 2] = c[2];
+    }
+    return data;
+  }
+
+  function downscaleNeed(w, h, max) {
+    max = max || MAX_EDGE;
+    w = w | 0; h = h | 0;
+    if (w < 1) w = 1;
+    if (h < 1) h = 1;
+    var scale = 1;
+    if (w > max || h > max) scale = max / Math.max(w, h);
+    return {
+      w: Math.max(1, Math.round(w * scale)),
+      h: Math.max(1, Math.round(h * scale)),
+      scale: scale
+    };
+  }
+
+  function pickRestoreUrl(srcRow, outRow) {
+    if (srcRow && srcRow.png) return srcRow.png;
+    if (outRow && outRow.png) return outRow.png;
+    return null;
+  }
+
   function demoImage() {
     var c = root.document.createElement('canvas');
     c.width = 240; c.height = 160;
@@ -104,6 +141,46 @@
     return c.toDataURL('image/png');
   }
 
+  function showWork(on) {
+    var empty = $('empty');
+    var canvas = $('pixelitcanvas');
+    var orig = $('origcanvas');
+    var work = $('work');
+    var hint = $('holdhint');
+    if (empty) empty.hidden = !!on;
+    if (canvas) canvas.hidden = !on;
+    if (orig) orig.hidden = true;
+    if (work) work.hidden = !on;
+    if (hint) hint.hidden = !on;
+  }
+
+  function paintOriginal() {
+    var img = $('pixelitimg');
+    var c = $('origcanvas');
+    if (!img || !c || !img.naturalWidth) return;
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0);
+  }
+
+  function setComparing(on) {
+    if (!loaded) return;
+    comparing = !!on;
+    var out = $('pixelitcanvas');
+    var orig = $('origcanvas');
+    var hint = $('holdhint');
+    if (on) {
+      paintOriginal();
+      if (out) out.hidden = true;
+      if (orig) orig.hidden = false;
+      if (hint) hint.textContent = 'Original';
+    } else {
+      if (out) out.hidden = false;
+      if (orig) orig.hidden = true;
+      if (hint) hint.textContent = 'Hold to see the original';
+    }
+  }
+
   function convert() {
     if (!px || !loaded) return;
     var scale = clampScale(+$('blocksize').value || 8);
@@ -117,11 +194,18 @@
       .pixelate();
     if (settings.greyscale) px.convertGrayscale();
     if (settings.paletteOn) px.convertPalette();
+    var img = $('pixelitimg');
+    var size = $('sizehint');
+    if (size && img) {
+      var w = img.naturalWidth || img.width;
+      var h = img.naturalHeight || img.height;
+      size.textContent = w + '×' + h + ' · block ' + scale;
+    }
     persist();
   }
 
   function persist() {
-    if (!saveDb) return;
+    if (!saveDb && !picDb) return;
     if (timer) clearTimeout(timer);
     timer = setTimeout(flush, 250);
   }
@@ -138,24 +222,43 @@
         at: Date.now()
       }).catch(function () {});
     }
-    if (picDb && px && px.drawto) {
-      try {
-        var data = px.drawto.toDataURL('image/png');
-        if (data && data.length < 900000) {
-          picDb.put({ id: 'out', png: data, at: Date.now() }).catch(function () {});
-        }
-      } catch (e) {}
+    if (picDb && srcDataUrl && srcDataUrl.length < SRC_CAP) {
+      picDb.put({ id: 'src', png: srcDataUrl, at: Date.now() }).catch(function () {});
     }
   }
 
-  function loadFromUrl(url) {
+  function encodeSrcFromImage(img) {
+    var w = img.naturalWidth || img.width;
+    var h = img.naturalHeight || img.height;
+    var need = downscaleNeed(w, h, MAX_EDGE);
+    var c = root.document.createElement('canvas');
+    c.width = need.w;
+    c.height = need.h;
+    c.getContext('2d').drawImage(img, 0, 0, need.w, need.h);
+    var data = c.toDataURL('image/png');
+    if (data.length > 800000) data = c.toDataURL('image/jpeg', 0.85);
+    return data;
+  }
+
+  function loadFromUrl(url, alreadySrc) {
     var img = $('pixelitimg');
     if (currentUrl && currentUrl.indexOf('blob:') === 0) {
       try { URL.revokeObjectURL(currentUrl); } catch (e) {}
     }
     currentUrl = url;
     img.onload = function () {
+      if (!alreadySrc) {
+        srcDataUrl = encodeSrcFromImage(img);
+        if (srcDataUrl && srcDataUrl !== url) {
+          alreadySrc = true;
+          img.src = srcDataUrl;
+          return;
+        }
+      } else {
+        srcDataUrl = url;
+      }
       loaded = true;
+      showWork(true);
       convert();
       say('Converted on this device.');
     };
@@ -164,7 +267,7 @@
   }
 
   function loadBlob(blob) {
-    loadFromUrl(URL.createObjectURL(blob));
+    loadFromUrl(URL.createObjectURL(blob), false);
   }
 
   function loadFile(file) {
@@ -190,7 +293,7 @@
   }
 
   function downloadPng() {
-    if (!px || !px.drawto) return;
+    if (!px || !px.drawto || !loaded) return;
     px.saveImage();
   }
 
@@ -202,12 +305,18 @@
       var b = root.document.createElement('button');
       b.type = 'button';
       b.className = 'palchip' + (i === settings.palette ? ' on' : '');
-      b.setAttribute('aria-label', 'Palette ' + (i + 1));
+      b.setAttribute('aria-label', PALETTE_NAMES[i] || ('Palette ' + (i + 1)));
+      var sw = root.document.createElement('span');
+      sw.className = 'swatch';
       pal.forEach(function (c) {
-        var sw = root.document.createElement('i');
-        sw.style.background = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
-        b.appendChild(sw);
+        var d = root.document.createElement('i');
+        d.style.background = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+        sw.appendChild(d);
       });
+      b.appendChild(sw);
+      var name = root.document.createElement('span');
+      name.textContent = PALETTE_NAMES[i] || ('Palette ' + (i + 1));
+      b.appendChild(name);
       b.addEventListener('click', function () {
         settings.palette = i;
         settings.paletteOn = true;
@@ -238,6 +347,20 @@
     if (row.palette != null) settings.palette = row.palette | 0;
   }
 
+  function bindStageHold() {
+    var stage = $('stage');
+    if (!stage) return;
+    function down(e) {
+      if (!loaded) return;
+      if (e.target && (e.target.closest && e.target.closest('#empty'))) return;
+      setComparing(true);
+    }
+    function up() { setComparing(false); }
+    stage.addEventListener('pointerdown', down);
+    root.addEventListener('pointerup', up);
+    root.addEventListener('pointercancel', up);
+  }
+
   function boot() {
     if (typeof pixelit !== 'function') {
       say('Pixel It library did not load.', true);
@@ -250,15 +373,22 @@
       palette: PALETTES[settings.palette]
     });
     paintPalettes();
+    showWork(false);
 
-    var drop = $('drop');
     var fileEl = $('file');
-    drop.addEventListener('click', function () { fileEl.click(); });
-    drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
-    drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
-    drop.addEventListener('drop', function (e) {
+    function pickFile() { if (fileEl) fileEl.click(); }
+    $('chooseBtn') && $('chooseBtn').addEventListener('click', pickFile);
+    $('emptyChoose') && $('emptyChoose').addEventListener('click', pickFile);
+    $('emptyPhoto') && $('emptyPhoto').addEventListener('click', takePhoto);
+    $('sampleBtn') && $('sampleBtn').addEventListener('click', function () {
+      loadFromUrl(demoImage(), true);
+    });
+    var stage = $('stage');
+    stage.addEventListener('dragover', function (e) { e.preventDefault(); stage.classList.add('over'); });
+    stage.addEventListener('dragleave', function () { stage.classList.remove('over'); });
+    stage.addEventListener('drop', function (e) {
       e.preventDefault();
-      drop.classList.remove('over');
+      stage.classList.remove('over');
       var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
       if (f) loadFile(f);
     });
@@ -271,6 +401,14 @@
     $('palette').addEventListener('change', convert);
     $('photoBtn').addEventListener('click', takePhoto);
     $('saveBtn').addEventListener('click', downloadPng);
+    bindStageHold();
+
+    if (root.gifos && typeof root.gifos.onBack === 'function') {
+      root.gifos.onBack(function () {
+        if (comparing) { setComparing(false); return true; }
+        return false;
+      });
+    }
 
     var ready = Promise.resolve();
     if (saveDb) {
@@ -280,23 +418,29 @@
       }).catch(function () {});
     }
     ready.then(function () {
-      if (picDb) {
-        return picDb.get('out').then(function (row) {
-          if (row && row.png) { loadFromUrl(row.png); return true; }
-          return false;
-        }).catch(function () { return false; });
-      }
-      return false;
-    }).then(function (had) {
-      if (!had) loadFromUrl(demoImage());
+      if (!picDb) return null;
+      return picDb.get('src').then(function (srcRow) {
+        return picDb.get('out').then(function (outRow) {
+          return pickRestoreUrl(srcRow, outRow);
+        });
+      }).catch(function () { return null; });
+    }).then(function (url) {
+      if (url) loadFromUrl(url, true);
+      else showWork(false);
     });
   }
 
   root.PixelitApp = {
     PALETTES: PALETTES,
+    PALETTE_NAMES: PALETTE_NAMES,
+    MAX_EDGE: MAX_EDGE,
     colorSim: colorSim,
     similarColor: similarColor,
-    clampScale: clampScale
+    clampScale: clampScale,
+    applyPaletteToPixels: applyPaletteToPixels,
+    downscaleNeed: downscaleNeed,
+    pickRestoreUrl: pickRestoreUrl,
+    demoImage: demoImage
   };
 
   if (root.document && root.document.readyState === 'loading') {

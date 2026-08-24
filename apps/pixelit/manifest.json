@@ -3,9 +3,9 @@
   "appId": "pixelit",
   "name": "Pixel It",
   "shortName": "PixelIt",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "description": "Turn a photo into pixel art on this device. Drop a picture or take one. Nothing is uploaded.",
+  "description": "Turn a photo into pixel art on this device. Take a still or open a picture. Nothing is uploaded.",
   "entry": "index.html",
   "accent": [228, 148, 58],
   "capabilities": {

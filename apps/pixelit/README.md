@@ -1,15 +1,15 @@
 # Pixel It
 
-Turn a photo into pixel art on this device. Drop a picture or take one.
-Nothing is uploaded.
+Turn a photo into pixel art on this device. Take a still or open a picture.
+Nothing is uploaded. The last original picture and recipe live in the file.
 
 An unofficial port of **[Pixel It](https://github.com/giventofly/pixelit)** by
 José Moreira / giventofly (MIT).
 
 ```
-index.html      drop, take photo, sliders, palette, canvas
-style.css       dark chrome around the converter
-app.js          gifos.db save + pic, takePhoto clip, palettes
+index.html      empty state, take photo, sliders, palette, canvas
+style.css       dark chrome, fat phone sliders, stage-first
+app.js          gifos.db original + settings, takePhoto clip, palettes, hold-to-compare
 icon.mjs        procedural pixel-photo icon + 1200×720 cover
 build.mjs       packs the GIF into site/apps/pixelit/pixelit.gif
 vendor/         pinned dist/pixelit.js + MIT notice + UPSTREAM.txt
