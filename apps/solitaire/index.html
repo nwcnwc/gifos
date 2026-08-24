@@ -9,19 +9,44 @@
 <body>
 <header>
   <div class="brand"><span class="logo" aria-hidden="true"></span> Solitaire</div>
-  <button type="button" id="js-reset" class="new-game">New game</button>
+  <div class="hud">
+    <span id="score">0</span>
+    <span class="dot">·</span>
+    <span id="moves">0</span>
+    <span class="dot">·</span>
+    <span id="clock">0:00</span>
+  </div>
 </header>
 <div class="solitaire" id="js-solitaire">
   <div class="top-row">
     <div class="deck">
-      <div id="js-deck-pile" class="deck__pile"></div>
+      <div id="js-deck-pile" class="deck__pile" aria-label="Stock"><span id="stockN" class="stock-n"></span></div>
       <div id="js-deck-deal" class="deck__deal"></div>
     </div>
     <div id="js-finish" class="finish-deck"></div>
   </div>
   <div id="js-board" class="board-deck"></div>
 </div>
-<p class="win" id="win" hidden>You win. New game?</p>
+<div class="bar">
+  <button type="button" id="undo">Undo</button>
+  <button type="button" id="hint">Hint</button>
+  <button type="button" id="drawN">Draw 3</button>
+  <button type="button" id="auto" hidden>Auto</button>
+  <button type="button" id="js-reset" class="new-game">New</button>
+</div>
+<p class="win" id="win" hidden>
+  You win
+  <span id="winStats"></span>
+  Tap for a new game
+</p>
+<div class="ask" id="ask" hidden>
+  <p>New game? This tableau goes away.</p>
+  <div class="ask-row">
+    <button type="button" id="askYes">New game</button>
+    <button type="button" id="askNo" class="ghost">Keep playing</button>
+  </div>
+</div>
+<script src="klondike.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

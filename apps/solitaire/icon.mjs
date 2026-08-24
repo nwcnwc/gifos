@@ -108,7 +108,16 @@ function frameIndices(pal, f) {
       rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b;
     }
   }
-  if (face && flip > 0.35) drawText(put, 50, 48, 'A', 6, 26, 20, 16);
+  if (face && flip > 0.35) {
+    drawText(put, 46, 36, 'A', 5, 26, 20, 16);
+    // spade pip
+    for (let y = 0; y < 22; y++) for (let x = 0; x < 18; x++) {
+      const nx = (x - 9) / 8, ny = (y - 8) / 10;
+      const leaf = (nx * nx + (ny + 0.15) * (ny + 0.15)) < 0.55 && ny < 0.45;
+      const stem = x > 7 && x < 11 && y > 14;
+      if (leaf || stem) put(55 + x - 9, 62 + y - 8, 26, 20, 16);
+    }
+  }
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
     let r = 0, g = 0, b = 0, a = 0, n = SS * SS;
@@ -172,29 +181,47 @@ export function screenshotPng() {
     }
   };
   fill(0, 0, W, H, 10, 10, 15);
-  rr(40, 30, 1160, 690, 24, 14, 58, 34);
-  drawText(put, 64, 50, 'SOLITAIRE', 8, 247, 243, 234);
-  drawText(put, 64, 130, 'THE FILE IS THE TABLEAU', 3, 232, 196, 96);
+  rr(32, 24, 1168, 696, 24, 14, 58, 34);
+  drawText(put, 56, 40, 'SOLITAIRE', 7, 247, 243, 234);
+  drawText(put, 56, 104, 'THE FILE IS THE TABLEAU', 3, 232, 196, 96);
+  drawText(put, 820, 48, '120  ·  18  ·  1:12', 3, 232, 196, 96);
+  // stock + waste
+  rr(56, 150, 168, 300, 10, 26, 42, 120);
+  rr(188, 150, 300, 300, 10, 247, 243, 234);
+  drawText(put, 204, 168, 'K', 5, 26, 20, 16);
+  rr(218, 150, 330, 300, 10, 247, 243, 234);
+  drawText(put, 234, 168, '7', 5, 196, 40, 48);
+  // four foundations, two with aces
+  const found = ['A', 'A', '', ''];
+  const foundRed = [false, true, false, false];
+  for (let i = 0; i < 4; i++) {
+    const x0 = 620 + i * 128;
+    rr(x0, 150, x0 + 112, 300, 10, 10, 44, 26);
+    if (found[i]) {
+      rr(x0 + 6, 156, x0 + 106, 294, 8, 247, 243, 234);
+      drawText(put, x0 + 22, 176, found[i], 6, foundRed[i] ? 196 : 26, foundRed[i] ? 40 : 20, foundRed[i] ? 48 : 16);
+    }
+  }
   const cols = [
-    ['K', 'Q', 'J', '10'],
-    ['9', '8', '7'],
-    ['A', '2'],
+    ['K', 'Q', 'J'],
+    ['9', '8'],
+    ['10', '9', '8', '7'],
     ['K'],
     [],
-    ['Q', 'J'],
-    ['5', '4', '3'],
+    ['Q', 'J', '10'],
+    ['6', '5', '4'],
   ];
   for (let c = 0; c < 7; c++) {
-    const x0 = 70 + c * 160;
-    rr(x0, 200, x0 + 130, 370, 10, 10, 44, 26);
+    const x0 = 56 + c * 156;
+    rr(x0, 330, x0 + 132, 490, 10, 10, 44, 26);
     cols[c].forEach((lab, r) => {
-      const y0 = 210 + r * 28;
-      rr(x0 + 8, y0, x0 + 122, y0 + 150, 8, 247, 243, 234);
+      const y0 = 338 + r * 36;
+      rr(x0 + 8, y0, x0 + 124, y0 + 168, 8, 247, 243, 234);
       const red = (c + r) % 2 === 0;
       drawText(put, x0 + 18, y0 + 12, lab, 4, red ? 196 : 26, red ? 40 : 20, red ? 48 : 16);
     });
   }
-  drawText(put, 64, 640, 'TAP TO MOVE', 3, 244, 236, 224);
+  drawText(put, 56, 650, 'TAP TO MOVE   UNDO   DRAW 3', 3, 244, 236, 224);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

@@ -7,7 +7,8 @@ An unofficial port of **[js-solitaire](https://github.com/rjanjic/js-solitaire)*
 ```
 index.html          felt, stock, waste, foundations, seven columns
 style.css           dark felt, CSS cards
-app.js              Klondike rules, tap-to-move, drag, private save
+klondike.js         rules, undo, draw 1/3, snapshot (tests play this)
+app.js              tap-to-move, drag, hint, auto-complete, private save
 icon.mjs            procedural ace icon + 1200×720 cover
 build.mjs           packs the GIF into site/apps/solitaire/solitaire.gif
 vendor/COPYING-solitaire.txt

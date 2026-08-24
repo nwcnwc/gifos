@@ -1,6 +1,6 @@
 {
-  "tagline": "Klondike on a phone. The file is the tableau.",
-  "description": "Seven columns, four foundations, a three-card waste. Red on black, black on red, kings in empty spaces, aces up the foundations. Tap a face-up card and it jumps to the first legal home. Drag works too, with a mouse or a finger.\n\nClose it and come back — the tableau is where you left it, inside this copy of the app. New game shuffles a fresh deck.\n\nAn unofficial port of js-solitaire by rjanjic. Same Klondike rules; cards drawn in CSS so it fits a phone.",
+  "tagline": "Klondike with undo, on a phone. The file is the tableau.",
+  "description": "Works offline. Close it and the tableau is where you left it, inside this copy of the app — the file is the save, no account and no install.\n\nSeven columns, four foundations, draw one or three. Red on black, kings in empty spaces, aces up the foundations. Tap a card and it jumps to the first legal home; tap the home yourself when several fit. Undo, hint, and auto-complete when every card is face-up. Drag a run with a mouse or a thumb.\n\nAn unofficial port of js-solitaire by rjanjic. Same Klondike rules; cards drawn in CSS so it fits a phone.",
   "author": {
     "name": "rjanjic",
     "url": "https://github.com/rjanjic/js-solitaire"
