@@ -46,7 +46,7 @@
      'time', 'timeline', 'tlCanvas', 'tlCursor', 'tlRange', 'dateText', 'dateSub', 'playBtn',
      'prevDay', 'nextDay', 'animBtn', 'dateBtn', 'browse', 'browseBody', 'browseTabs',
      'browseSearch', 'modal', 'modalTitle', 'modalBody', 'scrim', 'toast', 'busy', 'busyText',
-     'searchInput', 'searchResults', 'searchClear', 'menuBtn', 'panelClose', 'addLayerBtn',
+     'searchInput', 'searchResults', 'searchClear', 'menuBtn', 'panelClose', 'panelDay', 'addLayerBtn',
      'compare', 'cmpTagA', 'cmpTagB', 'welcome', 'wStart', 'wTour', 'netChip', 'storageBtn',
      'aboutBtn', 'subtime', 'subtimeInput', 'subtimeText', 'app', 'sheetGrip', 'tlScale',
      'todayBtn', 'tlCursorDate', 'inspect', 'insBody', 'phonebar', 'browseCount', 'browseDone',
@@ -108,6 +108,7 @@
   function bindTop() {
     el.menuBtn.addEventListener('click', function () { UI.setPanel(!UI.panelOpen()); });
     el.panelClose.addEventListener('click', function () { UI.setPanel(false); });
+    el.panelDay.addEventListener('click', function () { UI.openDatePick(); });
 
     var search = el.searchInput;
     search.addEventListener('input', function () {
@@ -962,6 +963,8 @@
   UI.renderDate = function () {
     el.dateText.textContent = U.prettyDate(state.date);
     el.dateSub.textContent = U.relDate(state.date);
+    el.panelDay.textContent = U.prettyDate(state.date);
+    el.panelDay.setAttribute('aria-label', 'Showing ' + U.prettyDate(state.date, { full: true }) + ' — pick another day');
     var latest = U.latestDay();
     el.nextDay.disabled = U.diffDays(state.date, latest) <= 0;
     var sub = state.layers.some(function (r) {
