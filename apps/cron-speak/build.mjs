@@ -72,12 +72,15 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad);
 }
 
-const SCRIPTS = ['vendor/cronstrue.js', 'mp.js', 'app.js'];
+if (!manifest.launch || !manifest.launch.expr) throw new Error('manifest must declare launch.expr');
+
+const SCRIPTS = ['vendor/cronstrue.js', 'cron.js', 'mp.js', 'app.js'];
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
   'style.css': read('style.css'),
   'vendor/cronstrue.js': buf.toString('utf8'),
+  'cron.js': read('cron.js'),
   'mp.js': read('mp.js'),
   'app.js': read('app.js'),
   'COPYING-cronstrue.txt': read('vendor/COPYING-cronstrue.txt'),
@@ -102,6 +105,12 @@ if (!files['mp.js'].includes('Invite') || !files['app.js'].includes('Invite')) {
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'last'")) {
   throw new Error('app.js must save the last expression privately');
 }
+if (!files['cron.js'].includes('nextTimes') || !files['app.js'].includes('CronTalk')) {
+  throw new Error('translator UI must use CronTalk (fields + next times)');
+}
+if (!files['index.html'].includes('id="fields"') || !files['index.html'].includes('id="next"')) {
+  throw new Error('translator UI must show fields and next times');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -121,7 +130,8 @@ if (!files['COPYING-cronstrue.txt'].includes('Brady Holt')) {
 {
   const ctx = { console };
   ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx; ctx.global = ctx;
-  vm.runInNewContext(files['vendor/cronstrue.js'] + '\n' + files['app.js'] + '\n' +
+  vm.runInNewContext(
+    files['vendor/cronstrue.js'] + '\n' + files['cron.js'] + '\n' + files['app.js'] + '\n' +
     'result = (function () {\n' +
     '  var s = CronSpeak.speak;\n' +
     '  var a = s("0 0 * * *", {});\n' +
@@ -130,7 +140,13 @@ if (!files['COPYING-cronstrue.txt'].includes('Brady Holt')) {
     '  if (!/every 5 minutes/i.test(b)) throw new Error("five " + b);\n' +
     '  var c = s("0 9 * * 1-5", { h24: true });\n' +
     '  if (!/09:00|9:00/.test(c) && !/9:00/.test(c)) throw new Error("weekday " + c);\n' +
-    '  return { midnight: a, five: b, weekday: c };\n' +
+    '  var bad;\n' +
+    '  try { s("99 * * * *", {}); } catch (e) { bad = String(e && e.message || e); }\n' +
+    '  if (!bad) throw new Error("invalid cron must throw");\n' +
+    '  var n = CronTalk.nextTimes("0 9 * * 1-5", new Date(2026, 7, 24, 8, 0, 0, 0), 3);\n' +
+    '  if (!n.times || n.times.length !== 3) throw new Error("next times");\n' +
+    '  if (n.times[0].getHours() !== 9 || n.times[0].getDate() !== 24) throw new Error("next monday 9");\n' +
+    '  return { midnight: a, five: b, weekday: c, err: bad };\n' +
     '})();',
     ctx
   );

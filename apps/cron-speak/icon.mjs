@@ -1,5 +1,5 @@
-// Procedural Cron Speak sticker: a clock face whose hands tick, then a
-// word-bar. Super-sample → box-downsample.
+// Procedural Cron Speak sticker: a clock whose hands tick, then a speech
+// bar that reads 5 MIN — cron → English. Super-sample → box-downsample.
 import { deflateSync } from 'node:zlib';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
@@ -7,6 +7,7 @@ const CARD = [250, 251, 253];
 const DOT = [18, 18, 18];
 const GOLD = [90, 160, 220];
 const INK = [28, 36, 52];
+const BUBBLE = [90, 160, 220];
 
 function mix(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -23,7 +24,7 @@ function inCard(x, y, m, r) {
 }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD, DOT, GOLD, INK, [255, 255, 255]]) {
+  for (const b of [CARD, DOT, GOLD, INK, [255, 255, 255], BUBBLE]) {
     for (let s = 0; s <= 4; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.25).map(Math.round));
   }
@@ -38,37 +39,80 @@ function nearest(pal, r, g, b) {
   }
   return bi;
 }
-function finder(x, y, ox, oy, s) {
-  const lx = x - ox, ly = y - oy;
-  if (lx < 0 || ly < 0 || lx >= 7 * s || ly >= 7 * s) return null;
-  const cx = Math.floor(lx / s), cy = Math.floor(ly / s);
-  const ring = cx === 0 || cy === 0 || cx === 6 || cy === 6;
-  const inner = cx >= 2 && cx <= 4 && cy >= 2 && cy <= 4;
-  if (ring || inner) return DOT;
-  return CARD;
+
+const TINY = {
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b11110],
+  M: [0b10001, 0b11011, 0b10101, 0b10001, 0b10001],
+  I: [0b11111, 0b00100, 0b00100, 0b00100, 0b11111],
+  N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001],
+  ' ': [0, 0, 0, 0, 0],
+};
+
+function stampTiny(putPix, x0, y0, str, col, s) {
+  let cx = x0;
+  for (const ch of str) {
+    const g = TINY[ch];
+    if (!g) { cx += 6 * s; continue; }
+    for (let row = 0; row < 5; row++) for (let colb = 0; colb < 5; colb++) {
+      if (g[row] & (1 << (4 - colb))) {
+        for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) {
+          putPix(cx + colb * s + dx, y0 + row * s + dy, col);
+        }
+      }
+    }
+    cx += 6 * s;
+  }
 }
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / (FRAMES - 1);
   const m = 10, rad = 18;
+  const putPix = (x, y, col) => {
+    if (x < 0 || y < 0 || x >= OUT || y >= OUT) return;
+    if (!inCard(x, y, m, rad)) return;
+    for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) {
+      const o = ((((y | 0) * SS + sy) * RW) + ((x | 0) * SS + sx)) * 4;
+      rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
+    }
+  };
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = (px + 0.5) / SS, y = (py + 0.5) / SS;
     if (!inCard(x, y, m, rad)) continue;
     let col = CARD;
-    const cx = 64, cy = 58, cr = 34;
+    const cx = 64, cy = 52, cr = 32;
     const dx = x - cx, dy = y - cy;
     const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < cr && d > cr - 3.2) col = INK;
-    if (d < 3) col = GOLD;
-    const ang = t * Math.PI * 1.6;
+    if (d < cr && d > cr - 3.4) col = INK;
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2 - Math.PI / 2;
+      const tx = cx + Math.cos(a) * (cr - 7);
+      const ty = cy + Math.sin(a) * (cr - 7);
+      if ((x - tx) * (x - tx) + (y - ty) * (y - ty) < (k % 3 === 0 ? 2.2 : 1.1)) col = INK;
+    }
+    if (d < 3.2) col = GOLD;
+    const ang = t * Math.PI * 1.7;
     const hx = Math.cos(ang - Math.PI / 2), hy = Math.sin(ang - Math.PI / 2);
     const along = dx * hx + dy * hy;
     const perp = Math.abs(dx * hy - dy * hx);
-    if (along > 0 && along < 22 && perp < 1.6) col = GOLD;
-    if (y > 100 && y < 112 && x > 28 && x < 100) col = mix(GOLD, CARD, 0.35);
+    if (along > 0 && along < 20 && perp < 1.7) col = GOLD;
+    const mx = Math.cos(ang * 0.12 - Math.PI / 2), my = Math.sin(ang * 0.12 - Math.PI / 2);
+    const malong = dx * mx + dy * my;
+    const mperp = Math.abs(dx * my - dy * mx);
+    if (malong > 0 && malong < 13 && mperp < 2.2) col = INK;
     const o = (py * RW + px) * 4;
     rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
+  }
+  const show = t > 0.28;
+  if (show) {
+    const y0 = 92, x0 = 22, x1 = 106, y1 = 114;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const r = 8;
+      const cx = Math.min(Math.max(x, x0 + r), x1 - r - 1);
+      const cy = Math.min(Math.max(y, y0 + r), y1 - r - 1);
+      if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r) putPix(x, y, GOLD);
+    }
+    stampTiny(putPix, 34, 97, '5 MIN', CARD, 2);
   }
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
@@ -113,23 +157,26 @@ function pngChunk(tag, data) {
 
 const GLYPHS = {
   A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
   D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
+  F: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
   G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
   H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
   K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
   L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
+  M: [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
   N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
-  Q: [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101],
   R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
   S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   V: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
+  W: [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b10101, 0b01010],
   X: [0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001],
   Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
@@ -137,7 +184,12 @@ const GLYPHS = {
   ':': [0, 0b00100, 0b00100, 0, 0b00100, 0b00100, 0],
   '/': [0b00001, 0b00010, 0b00100, 0b00100, 0b01000, 0b10000, 0b10000],
   '*': [0b00100, 0b10101, 0b01110, 0b00100, 0b01110, 0b10101, 0b00100],
+  '-': [0, 0, 0, 0b11111, 0, 0, 0],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111],
   '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -150,16 +202,6 @@ function drawText(put, x, y, str, s, r, g, b) {
       }
     }
     cx += 6 * s;
-  }
-}
-function drawFinder(put, ox, oy, s) {
-  for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) {
-    const ring = x === 0 || y === 0 || x === 6 || y === 6;
-    const inner = x >= 2 && x <= 4 && y >= 2 && y <= 4;
-    const col = (ring || inner) ? [18, 18, 18] : [255, 255, 255];
-    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) {
-      put(ox + x * s + dx, oy + y * s + dy, col[0], col[1], col[2]);
-    }
   }
 }
 
@@ -186,16 +228,34 @@ export function screenshotPng() {
   };
 
   fill(0, 0, W, H, 10, 10, 15);
-  drawText(put, 64, 48, 'CRON SPEAK', 6, 90, 160, 220);
-  drawText(put, 64, 110, 'A SCHEDULE SAID IN ENGLISH. NOTHING UPLOADED.', 3, 154, 148, 134);
+  drawText(put, 56, 36, 'CRON SPEAK', 5, 90, 160, 220);
+  drawText(put, 56, 86, 'A SCHEDULE SAID IN ENGLISH', 3, 154, 148, 134);
 
-  rr(64, 180, 1136, 340, 12, 16, 16, 24);
-  drawText(put, 90, 240, '*/5 * * * *', 5, 244, 241, 232);
+  rr(56, 140, 1144, 250, 12, 16, 16, 24);
+  drawText(put, 80, 176, '0 9 * * 1-5', 5, 244, 241, 232);
 
-  rr(64, 380, 1136, 640, 12, 16, 16, 24);
-  drawText(put, 90, 430, 'IN ENGLISH', 3, 154, 148, 134);
-  drawText(put, 90, 500, 'EVERY 5 MINUTES', 5, 90, 160, 220);
-  drawText(put, 90, 580, 'UNOFFICIAL PORT OF CRONSTRUE', 3, 154, 148, 134);
+  const pills = [
+    ['MIN', '0'],
+    ['HOUR', '9'],
+    ['DAY', '*'],
+    ['MON', '*'],
+    ['DOW', '1-5'],
+  ];
+  pills.forEach((p, i) => {
+    const x0 = 56 + i * 226;
+    rr(x0, 268, x0 + 214, 348, 10, 22, 22, 30);
+    drawText(put, x0 + 18, 284, p[0], 2, 154, 148, 134);
+    drawText(put, x0 + 18, 310, p[1], 3, 90, 160, 220);
+  });
+
+  rr(56, 368, 1144, 520, 12, 16, 16, 24);
+  drawText(put, 80, 392, 'IN ENGLISH', 2, 154, 148, 134);
+  drawText(put, 80, 430, 'AT 09:00 AM, MONDAY THROUGH FRIDAY', 4, 244, 241, 232);
+
+  rr(56, 540, 1144, 684, 12, 16, 16, 24);
+  drawText(put, 80, 560, 'NEXT TIMES', 2, 154, 148, 134);
+  drawText(put, 80, 598, 'MON 24 AUG 2026  9:00 AM', 3, 110, 200, 150);
+  drawText(put, 80, 640, 'TUE 25 AUG 2026  9:00 AM', 3, 110, 200, 150);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

@@ -10,20 +10,35 @@
 <div class="wrap">
   <header>
     <h1>Cron Speak</h1>
-    <p class="lead">Type a cron expression. The app says it in English. Nothing is uploaded.</p>
+    <p class="lead">A cron expression, said in English. Nothing is uploaded.</p>
   </header>
 
-  <label class="field">Expression
-    <input id="expr" type="text" spellcheck="false" autocomplete="off" autocapitalize="none" placeholder="*/5 * * * *">
-  </label>
+  <label class="field" for="expr">Expression</label>
+  <input id="expr" type="text" spellcheck="false" autocomplete="off" autocapitalize="none" inputmode="text" placeholder="*/5 * * * *">
   <p class="hint">minute · hour · day-of-month · month · day-of-week</p>
 
-  <div id="chips" class="chips"></div>
+  <div id="fields" class="fields" hidden></div>
+  <p id="fieldHint" class="field-hint" hidden></p>
+  <div id="suggest" class="chips suggest" hidden></div>
 
-  <section class="out-card">
+  <div id="chips" class="chips"></div>
+  <div id="hist" class="chips hist" hidden></div>
+
+  <section class="out-card" id="card">
     <h2>In English</h2>
-    <p id="out" class="out"></p>
+    <p id="empty" class="empty">Type a cron expression. The sentence appears here.</p>
+    <p id="out" class="out" hidden></p>
     <p id="err" class="err" hidden></p>
+    <div class="copy-row">
+      <button type="button" id="copyEn" class="ghost" hidden>Copy English</button>
+      <button type="button" id="copyEx" class="ghost" hidden>Copy expression</button>
+    </div>
+  </section>
+
+  <section id="nextWrap" class="next-card" hidden>
+    <h2>Next times</h2>
+    <ol id="next" class="next"></ol>
+    <p id="nextNote" class="next-note" hidden></p>
   </section>
 
   <section id="settings">
@@ -35,6 +50,7 @@
 </div>
 
 <script src="vendor/cronstrue.js"></script>
+<script src="cron.js"></script>
 <script src="mp.js"></script>
 <script src="app.js"></script>
 </body>
