@@ -39,18 +39,39 @@ const check = (n, c, d) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // The app's own state, read from inside its frame. boot.js keeps `g` in a
-// closure, so it is reached the way the app itself reaches it: BattleCity is
-// on the frame's window, and create() is wrapped before the scripts run.
+// closure, so it is reached through the one object that IS on the window.
+//
+// Two things here are the difference between a guard and a coin flip, and
+// both were paid for: this hook lost the race one run in three before it
+// looked like this.
+//
+//   It wraps render(), not create(). create() is called ONCE, at the top of
+//   boot.js's IIFE — a hook that lands a millisecond late never sees it and
+//   the suite times out looking for a game that is running perfectly well.
+//   render() is called on every frame forever, so whenever the hook lands,
+//   the next frame hands `g` over.
+//
+//   It ADOPTS an existing BattleCity instead of shadowing it. Defining an
+//   accessor over a property that is already set throws the object away:
+//   boot.js then reads `root.BattleCity` as undefined and the app dies with
+//   "Cannot read properties of undefined (reading 'create')" — the harness
+//   breaking the app and then reporting the app as broken.
 const HOOK = `(() => {
-  let real;
+  if (window.__bcHook) return;
+  window.__bcHook = 1;
+  const wrap = (v) => {
+    if (!v || v.__bcWrapped) return v;
+    const r = v.render;
+    v.render = function (ctx, g) { window.__bc = g; return r.apply(this, arguments); };
+    v.__bcWrapped = 1;
+    return v;
+  };
+  const d = Object.getOwnPropertyDescriptor(window, 'BattleCity');
+  let real = wrap(d ? d.value : undefined);
   Object.defineProperty(window, 'BattleCity', {
     configurable: true,
     get() { return real; },
-    set(v) {
-      real = v;
-      const c = v.create;
-      v.create = function (o) { const g = c(o); window.__bc = g; return g; };
-    }
+    set(v) { real = wrap(v); }
   });
 })();`;
 
@@ -78,7 +99,6 @@ async function install(ctx, label) {
 async function open(ctx, fileId, label) {
   const run = await ctx.newPage();
   run.on('pageerror', (e) => console.log('  [' + label + ' app err] ' + e.message.slice(0, 160)));
-  await run.addInitScript(HOOK);
   await run.goto(BASE + '/run.html#id=' + fileId);
   await run.waitForSelector('#appmount iframe', { timeout: 90000 });
   const frame = await (await run.$('#appmount iframe')).contentFrame();
@@ -86,7 +106,15 @@ async function open(ctx, fileId, label) {
   for (;;) {
     const ok = await frame.evaluate(() => !!(window.__bc && window.__bc.menu && window.__bc.menu.length)).catch(() => false);
     if (ok) break;
-    if (Date.now() - t0 > 60000) throw new Error(label + ': the game never reached its title screen in 60s');
+    if (Date.now() - t0 > 60000) {
+      // Say WHICH thing is missing. "No title screen" covers both a dead app
+      // and a harness that never got its hook in, and those want opposite fixes.
+      const seen = await frame.evaluate(() => ({
+        hook: !!window.__bcHook, bc: !!window.BattleCity, g: !!window.__bc,
+        canvas: !!document.getElementById('game'),
+      })).catch((e) => ({ err: String(e) }));
+      throw new Error(label + ': the game never reached its title screen in 60s — ' + JSON.stringify(seen));
+    }
     await sleep(200);
   }
   return { run: run, frame: frame };
@@ -120,6 +148,7 @@ async function toPlay(frame, label) {
   // ---- desktop: a keyboard ---------------------------------------------------
   {
     const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+    await ctx.addInitScript(HOOK); /* the app is a srcdoc frame — page-level lands too late */
     const fileId = await install(ctx, 'desktop');
     const { run, frame } = await open(ctx, fileId, 'desktop');
 
@@ -173,6 +202,7 @@ async function toPlay(frame, label) {
     const ctx = await browser.newContext({
       viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 3,
     });
+    await ctx.addInitScript(HOOK);
     const fileId = await install(ctx, 'phone');
     const { run, frame } = await open(ctx, fileId, 'phone');
 
