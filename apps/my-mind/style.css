@@ -1,9 +1,59 @@
-html, body { height: 100%; margin: 0; background: #fff; }
+html, body { height: 100%; margin: 0; background: #eed; }
 #tip {
   position: absolute; left: 12px; bottom: 12px;
   background: rgba(255,255,230,.92); border: 1px solid #ccc;
   padding: .4rem .7rem; font: 13px/1.4 system-ui, sans-serif;
   max-width: 22rem; z-index: 2;
 }
+#empty {
+  position: absolute; left: 50%; top: 58%;
+  transform: translate(-50%, 0);
+  background: rgba(255,255,245,.94); border: 1px dashed #bbb;
+  padding: .55rem .8rem; font: 14px/1.4 system-ui, sans-serif;
+  max-width: 18rem; text-align: center; z-index: 2; color: #334;
+  pointer-events: none;
+}
+#empty .phone { display: none; }
 #throbber { display: none; }
 .pane footer, a[href^="https://github.com"] { display: none; }
+
+#phone-bar { display: none; }
+.meet {
+  position: absolute; left: 12px; top: 8px; z-index: 3;
+  margin: 0; max-width: 22rem;
+  font: 12px/1.35 system-ui, sans-serif; color: #445;
+  background: rgba(255,255,245,.88); border: 1px solid #ddd;
+  padding: .25rem .5rem; border-radius: 4px;
+}
+
+@media (max-width: 700px) {
+  #phone-bar {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 30;
+    gap: 6px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: #fff;
+    box-shadow: 0 -2px 8px rgba(0,0,0,.12);
+    justify-content: space-around;
+  }
+  #phone-bar button {
+    flex: 1;
+    min-height: 44px;
+    border: 1px solid #c8cdd3;
+    border-radius: 8px;
+    background: #f7f4ea;
+    font: 600 13px/1 system-ui, sans-serif;
+    color: #223;
+    padding: 0 4px;
+  }
+  #tip { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 24px); }
+  #empty .desk { display: none; }
+  #empty .phone { display: inline; }
+  .meet {
+    top: auto; bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+    left: 8px; right: 8px; max-width: none;
+  }
+  .pane#ui { width: min(220px, 72vw); }
+}
