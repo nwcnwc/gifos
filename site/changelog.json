@@ -2,6 +2,25 @@
   "note": "Release notes shown in Settings → Advanced → Version. Newest first. SHORT, PLAIN bullets under \"features\" and \"fixes\" — a line or two each, no jargon, no filler; anyone who wants the long story can read the repo. Every release needs at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so the desktop calls it out.",
   "entries": [
     {
+      "version": "0.9.12",
+      "date": "2026-08-24",
+      "headline": "The Home Screen games and tools are finished apps now — Ping Pong first",
+      "features": [
+        "Ping Pong is table tennis: a real table, real paddles, spin you can see, first to 11. Slide to move — the paddle hits for you. Play the computer, or Invite a friend to the far end.",
+        "Chess can play the computer (Easy / Medium / Hard) on the device. Castling, en passant, and promotion work. Minesweeper has Easy through Expert, a first click that never dies, and flags.",
+        "Tic-Tac-Toe and Connect Four look like the real things, keep a series score, and Invite sits you in a seat.",
+        "Paint is a sketch pad with brush, fill, undo, and the picture saved in the icon. Notes is a notebook you can actually edit. The calculator traces a value when you point at a curve.",
+        "Stopwatch has hundredths and laps and keeps running if you close it. Chat and Guestbook empty rooms tell you to Invite. Fortune says so when it cannot reach the slip, instead of inventing one.",
+        "IRL party games: Fake Facts scores the real players, and Catch the Spy / The Dial / Odd Word Out work over Invite, not only pass-the-phone."
+      ],
+      "fixes": [
+        "Ping Pong used to be a brown gym with dots for paddles and a ball you had to tap. It now rallies.",
+        "Fake Facts (and Same Brain) printed “? fooled: ?” and never scored — they were reading the player id wrong.",
+        "Catch the Spy, The Dial, and Odd Word Out were private to one phone, so an Invite never synced.",
+        "Tilt could not use the accelerometer inside the app frame."
+      ]
+    },
+    {
       "version": "0.9.11",
       "date": "2026-08-23",
       "headline": "Civiclock, a bigger IsoCity, and an app can’t bounce you into a meeting",
