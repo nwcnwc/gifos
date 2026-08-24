@@ -9,7 +9,8 @@ guard; see §6.
 
 One voter, one vote — onto the stage, off the stage, out of the room — in a
 room whose membership a single seat can never enumerate. A seat holds direct
-links only to its bounded neighbourhood (row-mates, cross, up/down; ≤ C+2),
+links only to its bounded neighbourhood (row-mates plus cross/up/down in deep
+sections, ≤ C+2; row + column + down at Section 1 under the W7 rook, 2C−1),
 so at stadium scale:
 
 - no seat can see every voter's list, so no seat can tally exactly;

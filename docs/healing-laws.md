@@ -38,15 +38,18 @@ departures — and are covered at the end.
 it strands nobody. Every fill below is that one move at some level: a dead
 seat is refilled from its own subtree — its down-child walks FINDLEAF down to
 a leaf, and the leaf promotes into the hole; a seat with nothing below it
-anywhere is packed sideways by the scooch (C2), and even the scoocher must be
-childless — a leaf. **Only leaves move. No exceptions.**
+anywhere is packed sideways by the scooch (C2), and the scoocher must be
+childless — a leaf — with ONE aged escape: an immediate left-pack designee
+whose FINDLEAF attempts have gone unanswered ≥90 ticks scoochs even with
+children, so Section 1 cannot stay short forever after a mass kill.
 
 ## D — how a dead seat gets noticed
 
-- **D1. The heartbeat.** Every non-head seat "phones" its row's head on a
-  steady beat, and every head phones the seat above that owns it. Section-1
-  heads phone no one — there is nothing above the home. So each head hears
-  from its whole row, and each row-mate hears back from its head.
+- **D1. The heartbeat.** In deep sections every non-head seat "phones" its
+  row's head on a steady beat, and every head phones the seat above that owns
+  it. In Section 1 the beat rides the W7 rook: EVERY seat, heads included,
+  phones every live row- AND column-neighbour each beat — there is nothing
+  above the home, and the rich fabric is what D1 listens on.
 - **D2. Goodbyes are instant.** A seat that announces it is LEAVING is marked
   empty immediately.
 - **D3. The sweep is cleanup, not healing.** Each head periodically forgets
@@ -102,9 +105,10 @@ childless — a leaf. **Only leaves move. No exceptions.**
 - **H1-S1. Section 1 stays full; its heads are the BACKSTOP — but it heals a
   ring cell only on STRONG confirmation.** A Section-1 cell is normally
   refilled from below (H1) like any other seat, and the row head is the
-  backstop for a cell whose whole subtree is gone; the head is also the only
-  thing that clears a Section-1 PHANTOM (a stale gossip echo squatting on a
-  cell), acting on direct evidence only — liveness is set by a real phone
+  backstop for a cell whose whole subtree is gone; a Section-1 PHANTOM (a
+  stale gossip echo squatting on a cell) is cleared first-hand by whichever
+  designated or devolved admitter is about to admit into it, acting on
+  direct evidence only — liveness is set by a real phone
   call, never by gossip (E2). **Ring-heal conservatism:** a wrong ring-heal
   is the *one* act that can mint a divergent home (heal a cell whose occupant
   is merely unreachable, not dead, and you have duplicated it into a second
@@ -141,9 +145,10 @@ childless — a leaf. **Only leaves move. No exceptions.**
   admission target (C1: an admission must not race a healer); and any cell
   whose designated ADMITTER is a vacated head — occ-EMPTY, i.e. a delivered
   LEAVE (D2-confirmed; mere silence never clears occ, so silent death stays
-  behind the H1-S1 ring-hold) — has its admission duty DEVOLVE to that
-  head-hole's one fixed H2 healer: the occupant of column 1 of the admitter's
-  row. Fixed designation, one seat, no race — C3's designated-healer
+  behind the H1-S1 ring-hold) — has its admission duty DEVOLVE along
+  the head-hole's row: columns 1…C−1 in order, first reserved occupant wins
+  (then the column clique). Fixed designation order, one seat at a time, no
+  race — C3's designated-healer
   discipline applied to admission. (Without this, a FIND arriving in the
   seconds after a head's goodbye found no live admitter anywhere — every row
   cell pointed at the vacated head, every head cell at a row that never
@@ -239,7 +244,8 @@ childless — a leaf. **Only leaves move. No exceptions.**
     (4) **Q5 row-clique audit** — exhaustive C=5 mask check
     (`test/mesh/q5-designation.js`);
     (5) **S1 column-clique devolution** — when the row-right chain is empty,
-    first occupied column-mate (ascending row from hole.r+1, cyclic) heals /
+    first occupied column-mate (ascending row from hole.r+1, NO wrap — the
+    walk stops at C so it never raids the denser upper rows) heals /
     admits; childless column-mate may scooch (`repro-hchain` leg F).
     Gates: `test/sim/repro-hchain.sh`, `test/sim/repro-headless-row.sh`, Q5, full
     `test/sim/sweep.sh` GREEN after these land.
@@ -251,7 +257,8 @@ childless — a leaf. **Only leaves move. No exceptions.**
   Admitter writes soft **sitting-down** on PLACE (not permanent occ). Joiner
   **take**/CLAIM/HELLO self-confirms to **seated**. Assigner recheck + soft TTL
   (90 ticks) frees lost PLACE marks under packet loss. Row fill while head is
-  only sitting-down is allowed; spill to the next row waits for head seated.
+  only sitting-down is allowed; spill to the next row waits for the ENTIRE
+  previous row occ-confirmed (the old gate refused only a soft head).
   Pin: `test/sim/repro-loss-wedge.sh` (loss=0.10 burst N=60 → seated≥55; was 5/60).
   Rejected forever: firstHandLive hand-off gate; PLACE TTL alone.
 - *(RETIRED: the old H1 "the head heals its row" and H2 "lowest-column
@@ -270,8 +277,8 @@ childless — a leaf. **Only leaves move. No exceptions.**
 - **C2. The scooch packs rows left — and even the scoocher is a leaf.** When
   a hole's healer has nothing below it anywhere, the childless right-neighbour
   slides left into the hole. It is childless — a leaf — so even this move
-  strands nobody. (The old "scooch is the one non-leaf exception" is gone:
-  nothing non-leaf ever moves.)
+  strands nobody. (The one exception is the aged ≥90-tick left-pack
+  designee above; everything else that moves is a leaf.)
 - **C3. Exactly ONE healer per hole, known in advance — and ONLY it may fill
   the hole.** The down-child (H1) if the seat owned one; otherwise the
   right-neighbour (H2); the backfiller (H7) and the Section-1 backstop (H1-S1)
@@ -304,10 +311,12 @@ childless — a leaf. **Only leaves move. No exceptions.**
   admitter writes a soft sitting-down mark when it sends a PLACE and re-checks
   its own vouch at `SIT_RECHECK`. A live joiner is always HEARD within a beat
   or two (its CLAIM or HELLO lands, or its first PHONE at +8t); a tab killed
-  mid-placement is never heard at all, so total silence at the re-check frees
-  the cell — and clears its `healTry`, because a chair freed by a verdict is
-  admissible NOW, not 45 ticks later. Holding the mark the full `SIT_TTL`
-  instead let six killed tabs wall off Section 1 row 0 for 45s.
+  mid-placement is never heard at all. V4 refined the verdict: silence at the
+  re-check triggers a SITPING, and only continued silence at
+  `SIT_RECHECK + SIT_PING_WAIT` (40 ticks) frees the cell — which then
+  re-enters the ordinary 45-tick admission cooling (`healTry` is SET, not
+  cleared). Holding the mark the full `SIT_TTL` instead let six killed tabs
+  wall off Section 1 row 0 for 45s.
   **And a row advances only past CONFIRMED seats:** with the previous row all
   soft, the honest answer is NOROOM (the joiner's ordinary retry) — seating a
   newcomer behind a row of unanswered vouches gambles that every one confirms,
@@ -469,9 +478,10 @@ confirmation rides frames the seating already produces.)*
     gated by `test/sim/repro-compaction.sh`.
   - **Cross-links heal fast, with a standby path**, so a transient break
     doesn't linger and compound into a cut.
-  **STATUS: specified, NOT yet implemented** — `crossLink` still returns the
-  sparse transpose (and none for heads) in both `test/sim/topo.h` and
-  `site/js/gifos-net.js`.
+  **STATUS: LIVE in both twins (since 2026-07-18)** — Section 1 runs the
+  rook (`ownedLinks` = row + column + down, degree 2C−1, heads included) in
+  `test/sim/topo.h` and `site/js/gifos-net.js`; `crossLink` survives only
+  for deep sections.
 
 ## E — when ordinary healing isn't enough
 
@@ -482,8 +492,10 @@ confirmation rides frames the seating already produces.)*
   greeter for its own subtree: DRAIN fans down, every member re-seats as a
   newcomer, and the initiator re-seats last. Only if NO mesh route to
   Section 1 exists at all (>220 ticks) does it fall back to re-entering
-  through the relay. **Section-1 seats never drain or requeue — you ARE the
-  home.** This exemption is exactly why divergence reduces to *ring integrity*:
+  through the relay. **Section-1 seats never DRAIN — you ARE the
+  home** (three narrow requeue paths do exist: the E3-SELF split-off rescue,
+  the R3a client arm after 3 refused registrations, and an E2 YIELD/CONFIRM
+  loss). This exemption is exactly why divergence reduces to *ring integrity*:
   E1+W5 pull every fragment *below* the home back into the one home, so the
   only way a divergent home can form is the home itself splitting (which W7 +
   H1-S1 conservatism prevent short of a true network partition). (When the home
@@ -766,12 +778,10 @@ is the bug.
     the person. A seat's peer id can simply BE (the hash of) this key, which
     also retires the old client-set-id hole (E2's tie-break can no longer be
     hand-picked to impersonate someone).
-  - **STATUS: specified here, not yet implemented.** Until it lands,
-    healer-identity rests only on the healer's structural head start (it
-    detects a death in seconds via the heartbeat D1; an attacker learns of a
-    turnover only at gossip/relay speed) — a real edge, not a proof — and the
-    exposure is worst at Section 1, where wiring is fully public (W5/W6) and
-    seats are relay-reachable.
+  - **STATUS: BUILT and MANDATORY (S4, 2026-07-18).** `mesh-wire.js` hard-
+    fails without `mesh-identity.js`; the peer id IS H(pubkey), and
+    FINDLEAF/PLACE/CLAIM/HELLO are Ed25519-signed and TOFU-verified before
+    they reach the seat (gate: `test/mesh/e2e-mesh-identity.js`).
 
 **Still open (named honestly):** the whole scheme has ONE unforgeable-first-
 contact moment it rests on — join (and a total-reconnect where nobody
@@ -868,7 +878,11 @@ residual alongside it: the storm leaves the TREE deep even when it converges
 
 Live in both twins since `0c7f93d`→`ec06c46`, previously unrecorded here: a
 seat may E1-drain on a dead-anchor verdict only if the anchor is a target it
-could ever have FALSIFIED — heard first-hand within the 90-tick horizon. An
+has EVER heard first-hand (`live` is a monotone ever-set — the windowed
+`firstHandLive` form was the first cut, and it went RED in `repro-adversary`;
+the confirm horizon is 90 ticks for a deep anchor, `RING_HOLD`=220 for a
+Section-1 one, and the action is a view-only occ delete that re-enables the
+ordinary healer branches). An
 inheritance ghost the seat has NEVER heard (a stale occ handed down at
 seating) cannot kill it. The narrowing matters and is the measured shape: the
 broad form (any silent target) minted dups under mass-kill and killed
@@ -1043,7 +1057,9 @@ per-subtree free-space summary is ever wired into seeker routing. **Measured
 -3.2% and agrees with ground truth 25/25, but all 25 sections report room at the
 same depth, so the hint is unanimous and steers nothing. The storm leaves a
 uniformly HOLEY tree, not full branches beside empty ones. Full numbers and the
-refutation in docs/handoff-2026-08-05-093.md. The law below still governs the
+refutation in the deleted seed docs (git history:
+docs/handoff-2026-08-05-093.md); the survivors are
+docs/scale-1m-2026-08-07.md and docs/front3-descent-2026-08-06.md. The law below still governs the
 day someone finds a case where it does discriminate.) A digest may reorder which branch a FIND
 descends first; it may never decide that a seeker is admitted, and it may never
 override the V-laws' local admission evidence. A liar advertising free space it
@@ -1094,10 +1110,9 @@ bound of 39 and, more to the point, identical. N does not appear.
    may fill a hole; any other claim is rejected (C3), so no attacker can
    *contest* a seat. A duplicate only arises between two *legitimate* seats
    (severance-revival), and E2 settles that deterministically — first-hand
-   liveness only, tenure first, lower id wins. (The one residual: proving
-   *who* the healer is needs S4's per-person identity key, established at join
-   and stable as you move — worst-exposed at the public Section-1 ring —
-   specified, not yet built.)
+   liveness only, tenure first, lower id wins. (That residual closed: S4's
+   per-person identity key is built and mandatory — the peer id IS H(pubkey)
+   and every healing verb is signed.)
 2. **Churn shatters the meeting into disconnected pieces (SOURCE-PREVENTED,
    with honest splits and co-member friend-relay only).** Everything *below*
    the home re-seats into the one home (E1 + W5). Ordinary loss does not
