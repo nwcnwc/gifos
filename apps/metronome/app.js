@@ -311,7 +311,7 @@
     if (marks) {
       var kids = marks.querySelectorAll('button');
       for (var i = 0; i < kids.length; i++) {
-        kids[i].classList.toggle('on', parseInt(kids[i].getAttribute('data-bpm'), 10) === settings.tempo);
+        kids[i].classList.toggle('on', kids[i].getAttribute('data-mark') === tempoMark(settings.tempo));
       }
     }
     applying = false;
@@ -441,6 +441,7 @@
         b.type = 'button';
         b.textContent = m.name;
         b.setAttribute('data-bpm', String(m.bpm));
+        b.setAttribute('data-mark', m.name);
         b.addEventListener('click', function () { setTempo(m.bpm); });
         marks.appendChild(b);
       });

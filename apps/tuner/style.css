@@ -84,7 +84,7 @@ legend { font-size: .82rem; color: var(--muted); font-weight: 600; margin-bottom
   min-width: 44px;
 }
 .chips button.on { border-color: var(--accent); background: #163532; color: #f4fffb; }
-.strings button { min-width: 56px; font-variant-numeric: tabular-nums; }
+.strings button { min-width: 48px; padding: 0 .55rem; font-variant-numeric: tabular-nums; }
 .strings button.near { outline: 2px solid var(--accent); }
 .a4-row {
   display: flex;
