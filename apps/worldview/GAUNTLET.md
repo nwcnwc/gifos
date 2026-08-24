@@ -115,6 +115,99 @@ converging on the host's place and day, following the host's move, the guest's
 cursor on the host's map, a layer arriving in the guest's stack, and "on your
 own" really detaching.
 
+## Round 3 — one fresh-eyes user, eight scenarios, no source (2026-08-24)
+
+A critic with no access to the code drove the REAL packed GIF in the real GifOS
+runtime through ~25 scripted sessions on desktop, phone and offline, as an
+earth scientist who uses NASA Worldview. It was asked the only question the
+method says matters.
+
+### "You know the original — why would you use this one?"
+
+It answered without prompting:
+
+> Because it is the only version of Worldview that is still there when the
+> network isn't, and because it answers the question I actually ask ten times
+> an hour — *does this layer have data on this day?* — before I waste a scroll
+> on it.
+
+Then it scored the app twice: **8/10 would keep on my phone** ("a better phone
+Worldview than Worldview"), **4/10 would use for work** — "not for anything I'd
+put my name on", because of three things it could not do. That gap is the
+useful half, and all three were real.
+
+### The three it could not do — all fixed this round
+
+**A legend that fails is invisible.** It expanded one layer from each of the 24
+families, measured the legend element, got height 0 and empty innerHTML every
+time, and concluded the app has no legends at all — in the same breath as the
+listing claiming it does. The fetch and the parser were fine; the FAILURE was
+silent, and an empty box does not read as an answer, it reads as a broken
+panel. There are three reasons a colour bar is not there and they are different
+facts: NASA publishes none for this layer (its own 404 — remembered, so the app
+never asks twice), we could not reach NASA (NOT remembered, or one dead minute
+becomes a permanent "this layer has no legend"), and a colour map arrived that
+would not parse (our bug, and it must not be dressed up as a gap in the data).
+
+**Offline, the honest warnings went quiet.** Online, a layer with nothing over
+the view says so in amber. Offline — where the app has nothing at all — both
+warnings vanished and the inspector read "this day: from this file" while the
+storage sheet reported 0 tiles kept. One branch: a tile GIBS answers 404 to is
+MISSING, a tile that never arrived is FAILED, and only the first was counted,
+so every tile fell into "still loading" for ever. "From this file" now requires
+that something actually came from the file, and known-offline plus nothing
+drawn says so at once instead of after an RPC timeout.
+
+**The day on screen was not always the day in the box.** An 8-day or 16-day
+composite publishes on its start day and the map draws it all week. That is
+what NASA serves and it is correct — the app just never said which day you
+were looking at. The row and the inspector name it now.
+
+### And four things it could not reach at all
+
+- **The Download button had an invisible label.** `.sheet-body a` is
+  specificity (0,1,1) and beats `.primary` at (0,1,0), so the primary call to
+  action at the end of a ten-second render was accent text on an accent
+  background — measured 1:1. It is 9.4:1 now, and the suite computes the ratio
+  rather than trusting the rule.
+- **There was no way to reach Animate on a phone.** It lives in the bottom bar,
+  and the bottom bar collapses on a phone — so the feature that makes the GIF a
+  GIF had no entry point on the device the app is best on.
+- **Every tour threw away the offline basemap.** All fourteen used
+  `Coastlines_15m` and six used `Reference_Labels_15m` — GIBS NETWORK rasters —
+  and a tour replaces the whole stack. Take a tour, get on a plane, and the
+  coastlines you had are gone, which is the one thing this port is for. The
+  build now refuses a tour that reaches for network furniture.
+- **"Borders" was shipped, drawn, offline-capable and invisible** — in the
+  catalogue but not the default stack, so counting the offline layers in the
+  panel gave four where the help promises five.
+
+### What it found that was the harness, not the app
+
+Worth writing down, because a critic's report is evidence and not a verdict.
+"Zero network requests when adding a layer" was true of `window.fetch` — the
+sandbox has `connect-src 'none'` and every request goes through the platform's
+`gifos.fetch` RPC, which a fetch patch cannot see. And the drive harness 404s
+every non-tile path, so no colour map could ever have loaded under it. The
+legends work (`e2e-worldview` fetches and parses one against a fixture); what
+was broken was what the app said when they did not.
+
+### Three findings taken as true and NOT fixed
+
+Named here rather than quietly dropped — see "What is still missing":
+permalinks, the handoff to Earthdata Search, and 74 layers against Worldview's
+thousand. All three are real, none is a bug, and each is a deliberate cost of
+being an app inside a GIF.
+
+### Fixed the same round, before the report landed
+
+Found by reading the critic's own screenshots while it worked: the tablet
+bottom bar was pushing its controls off the screen (an invisible 350px readout
+at 834px), the expanded layer row printed NASA's paragraph a second time beside
+the inspector, compare put two days on the map and one on the ruler, the phone
+layer sheet hid the day it was about, the offline layer browser offered 74
+equally-unavailable layers, and nothing anywhere had a keyboard focus ring.
+
 ## What is still missing
 
 - **A live-imagery cover and a live catalogue verification.** Every layer id is
