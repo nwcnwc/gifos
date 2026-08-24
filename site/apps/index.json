@@ -529,15 +529,11 @@
         48
       ],
       "cover": "/apps/bingo/cover.jpg",
-      "bytes": 198694,
+      "bytes": 202311,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-24"
-      },
-      "sha256": "89fc5f303be909140abf7882be23c5758b6b1f85370d955af2f0f9cc290b87f8"
+      "signature": null,
+      "sha256": "6e566ee17e56991cc3f5f37eaf226857ee12997978fc4128bcce64fe31422ec6"
     },
     {
       "slug": "bip39",
