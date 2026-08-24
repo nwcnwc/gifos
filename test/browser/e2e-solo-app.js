@@ -141,7 +141,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     const m = document.getElementById('apphelp-modal');
     return m && getComputedStyle(m).display === 'none';
   }));
-  check('solo shows no A/V button — there is no room to talk in', await p.evaluate(() => { const b = document.getElementById('appav'); return !b || b.style.display === 'none' || !b.offsetParent; }));
+  check('solo shows no Audio switch — there is no room to talk in', await p.evaluate(() => { const b = document.getElementById('appaudio'); return !b || b.style.display === 'none' || !b.offsetParent; }));
   check('no lobby shown', await p.evaluate(() => { const l = document.getElementById('lobby'); return !l || l.style.display === 'none' || !l.offsetParent; }));
   await p.waitForTimeout(2500); // anything eager (socket, gUM, mesh) would fire by now
   check('ZERO getUserMedia calls — solo never asks for camera/mic', (await p.evaluate(() => window.__gumCount)) === 0,

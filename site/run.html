@@ -907,11 +907,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      The meeting bar and the 132px call filmstrip (#feed) both cost dead pixels
      when nobody is on camera; the filmstrip's reserved strip was the "white
      band under the app" on phones. Both return the moment the call layer is on. */
-  /* An app room starts DARK (no call layer) and the meeting bar stays out of
-     the way — but the door into the call must exist. #appav opens it:
-     body.av-open shows the real mic/cam bar before anyone is on the call. */
-  body.app-room:not(.call-on):not(.av-open) .bar { display: none !important; }
-  body.app-room #appav.on { border-color: var(--accent, #7b5cff); color: var(--accent, #7b5cff); }
+  /* An app-PINNED room is AUDIO-ONLY in 0.9.12. The app host flips room audio
+     with #appaudio; the flag rides the host's app ad (myStatus.app.audio), so
+     guests learn it from the ad that won. While it is on, the meeting bar
+     shows and everyone owns their own mic. Video — with its blur / password /
+     admin rules — is ROADMAP for app rooms; a regular meeting that runs the
+     app has all of it today. */
+  body.app-room:not(.audio-on) .bar { display: none !important; }
+  body.app-room #cam, body.app-room #flipcam, body.app-room .blurctl, body.app-room #bartoggle,
+  body.app-room #barmore, body.app-room #callbanner { display: none !important; }
+  body.app-room #appaudio.on { border-color: var(--accent, #7b5cff); color: var(--accent, #7b5cff); }
   body.solo-app #feed, body.app-room:not(.call-on) #feed { display: none !important; }
   body.app-room #appbtn { display: none !important; }  /* the app IS the room — no picker */
   /* …AND NO SCREEN SHARE, for the same reason and more strongly. In an
@@ -1124,7 +1129,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <button id="appinvite" style="display:none" title="Share this app live — friends join with one link">Invite</button>
       <button id="appsave" style="display:none" title="Save a snapshot GIF — the app with its data, yours to keep">Save</button>
       <button id="apphelp" title="How this app works">Help</button>
-      <button id="appav" style="display:none" title="Talk and see each other while you use this app — turn your mic and camera on or off, each on its own">A/V</button>
+      <button id="appaudio" style="display:none" title="Room audio — when on, everyone here gets their own mic control (host only)">Audio: off</button>
       <button id="appsteal" style="display:none" title="Steal a copy of this app — it goes to your desktop's Stolen Apps, data and all">Steal</button>
       <button class="perms" id="appperms" title="What this app can do — review or turn things off" style="display:none"></button>
       <button id="applead" style="display:none"></button>
@@ -7161,7 +7166,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     const appRoomStr = (j) => 'app~' + (j.owned ? j.short + '~' + j.av + '~' : '') + j.k;
     function bootAppRoom() {
       document.body.classList.add('app-room');
-      try { refreshAvBtn(); } catch (e) {}
+      try { refreshAudioBtn(); } catch (e) {}
       return ensureName().then(() => {
         meTile = makeTile('me', myName() + ' (you)', true);
         tileNote(meTile, 'This is an app room — no camera until you join the call (banner or the camera button).');
@@ -7271,6 +7276,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       if (!appGifUrl && appClientCtl && appClientCtl.gifBytes) {
         try { const b = appClientCtl.gifBytes(); if (b) setAppGif(b, document.getElementById('appname').textContent); } catch (e) {}
       }
+      try { applyRoomAudio(); refreshAudioBtn(); } catch (e) {}
       const on = document.body.classList.contains('call-on');
       if (!myStatus.camOff || !myStatus.muted) { if (!on) document.body.classList.add('call-on'); return; }
       let live = 0;
@@ -11470,8 +11476,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return;
       }
       lateAsk = true;
-      setStatus('Asking for camera & microphone…');
-      md.getUserMedia({ video: camVideoConstraints(), audio: true })
+      // An app-pinned room is audio-only (0.9.12): never prompt for a camera
+      // there — the browser's permission sheet would say "camera" to a person
+      // who was promised none, and a granted-but-disabled track is still a
+      // camera we took.
+      const appRoom = document.body.classList.contains('app-room');
+      setStatus(appRoom ? 'Asking for your microphone…' : 'Asking for camera & microphone…');
+      md.getUserMedia(appRoom ? { audio: true } : { video: camVideoConstraints(), audio: true })
         .then((s) => {
           lateAsk = false;
           // Quiet-join discipline still holds: only the tapped control goes on.
@@ -11511,6 +11522,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
 
     micBtn.onclick = () => {
+      if (document.body.classList.contains('app-room') && !roomAudioOn()) { setStatus('Room audio is off — only the app host can turn it on.'); return; }
       if (!localStream) return lateMedia('mic');
       const track = localStream.getAudioTracks()[0]; if (!track) return lateMedia('mic');
       if (!track.enabled && amGloballyMuted()) {
@@ -11526,6 +11538,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       updateMediaSession();
     };
     camBtn.onclick = () => {
+      if (document.body.classList.contains('app-room')) { setStatus('Video is not available in an app room yet — start a meeting and run the app from there.'); return; }
       if (!localStream) return lateMedia('cam');
       const track = localStream.getVideoTracks()[0]; if (!track) return lateMedia('cam');
       if (forcedCamOff('me') && !track.enabled) {
@@ -12071,29 +12084,52 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       // yours when you're the owner).
       if (ROOM.kind === 'app') document.getElementById('appsave').style.display = '';
       refreshStealBtn();
-      refreshAvBtn();
+      refreshAudioBtn();
     }
-    // A/V — THE DOOR INTO THE CALL FROM AN APP ROOM. The room starts dark and
-    // the meeting bar is hidden until someone is on the call; the call only
-    // turns on once someone has media. Nothing opened that loop from the UI
-    // (0.9.12): the plumbing was all there — lateMedia, the banner, the
-    // independent mic/cam toggles — and the only test drove #cam with a
-    // programmatic click, which a hidden button answers. This button reveals
-    // the real bar (mic and camera, each its own toggle) for the host and
-    // every guest of an app room; solo has no room and never shows it. The
-    // room stays dark until a person taps a control: A/V asks for nothing.
-    function refreshAvBtn() {
-      const b = document.getElementById('appav');
-      b.style.display = (ROOM.kind === 'app' && !ROOM.solo && document.body.classList.contains('app-room')) ? '' : 'none';
+    // ROOM AUDIO — the app host's switch, a piece of DATA on the data channel.
+    // An app-pinned room starts dark: no call layer, the meeting bar hidden.
+    // Nothing in the UI ever opened that loop (0.9.12): the plumbing was all
+    // there and the only test drove #cam with a programmatic click, which a
+    // hidden button answers. The switch is `audio` on the host's app ad
+    // (myStatus.app, the same status beat that carries the share itself), so
+    // guests read it from the ad that won findSharedApp() — the host's word,
+    // by construction, with no new identity plumbing. On: the bar shows and
+    // everyone controls their OWN mic (lateMedia asks for audio only here —
+    // an app room never touches a camera). Off: every mic goes quiet and the
+    // bar folds away; a guest cannot unmute. Video for app rooms is roadmap.
+    function roomAudioOn() {
+      if (!document.body.classList.contains('app-room')) return false;
+      if (appMode === 'host') return !!(myStatus.app && myStatus.app.audio);
+      const w = findSharedApp();
+      return !!(w && w.audio);
     }
-    function toggleAv(force) {
-      const open = typeof force === 'boolean' ? force : !document.body.classList.contains('av-open');
-      document.body.classList.toggle('av-open', open);
-      document.getElementById('appav').classList.toggle('on', open);
-      const bar = document.querySelector('.bar'), tg = document.getElementById('bartoggle');
-      if (open && bar) { bar.classList.remove('collapsed'); if (tg) tg.setAttribute('aria-expanded', 'true'); }
+    function refreshAudioBtn() {
+      const b = document.getElementById('appaudio');
+      const show = ROOM.kind === 'app' && !ROOM.solo && document.body.classList.contains('app-room') && appMode === 'host';
+      b.style.display = show ? '' : 'none';
+      const on = roomAudioOn();
+      b.textContent = on ? 'Audio: on' : 'Audio: off';
+      b.classList.toggle('on', on);
     }
-    document.getElementById('appav').onclick = () => toggleAv();
+    function applyRoomAudio() {
+      const on = roomAudioOn();
+      const was = document.body.classList.contains('audio-on');
+      document.body.classList.toggle('audio-on', on);
+      if (!on && localStream) {
+        // Host turned the room quiet: my mic goes with it, and stays off
+        // until the host opens the room again (micBtn refuses meanwhile).
+        const tr = localStream.getAudioTracks()[0];
+        if (tr && tr.enabled) { tr.enabled = false; myStatus.muted = true; paintControls(); broadcastStatus(); }
+      }
+      if (was !== on) { refreshAudioBtn(); if (!on) setStatus('The app host turned room audio off.'); }
+    }
+    document.getElementById('appaudio').onclick = () => {
+      if (appMode !== 'host' || !myStatus.app) return;
+      myStatus.app.audio = !myStatus.app.audio;
+      broadcastStatus();
+      applyRoomAudio(); refreshAudioBtn();
+      setStatus(myStatus.app.audio ? 'Room audio on — everyone here can turn on their mic.' : 'Room audio off — every mic is quiet.');
+    };
     function refreshStealBtn() {
       document.getElementById('appsteal').style.display = (ROOM.kind === 'app' && appMode === 'client') ? '' : 'none';
     }
@@ -12294,8 +12330,9 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         }
         // ts outbids any standing tombstone for this sid — a re-share is a
         // deliberate act and must win even against a skewed stopper's clock.
+        const keepAudio = !!(myStatus.app && myStatus.app.audio);
         myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name, mesh: meshBus, pk: meshPk,
-          ts: Math.max(Date.now(), ((appStops.get(sess.sid) || {}).at || 0) + 1), byName: myName() };
+          ts: Math.max(Date.now(), ((appStops.get(sess.sid) || {}).at || 0) + 1), byName: myName(), audio: keepAudio };
         broadcastStatus();
         warnRecorderNewApp(); // a tiles recording won't capture the app I just shared
       } catch (e) { clearAppView('runApp-error'); myStatus.app = null; broadcastStatus(); setStatus('Could not run the app: ' + (e && e.message || e)); }
