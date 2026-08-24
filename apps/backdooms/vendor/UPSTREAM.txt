@@ -1,0 +1,16 @@
+Kuberwastaken/backdooms
+https://github.com/Kuberwastaken/backdooms
+commit:  ed2dd50c8ad09d1ae521f2b7b8931cd339fbc513
+file:    THE-BACKDOOMS.html
+sha256:  4700f844404c0e6508c04947c423f38f9025f71d00f757faf026c2e5be31fffc
+license: MIT, Copyright (c) 2025 Kuber Mehta (COPYING-backdooms.txt)
+
+The playable game is the unminified HTML page, not the QR-sized
+aggressive minify. Google Analytics is stripped. The 4.7 MB
+Game-Music.mp3 is not packed — the QR edition never carried it.
+
+GifOS adds pointer lock, a Continue for the best score, analog
+thumb look/move, and extra bodies over an invite. Upstream has
+no save and no networking.
+
+The notice travels INSIDE the GIF as well as beside it here.
