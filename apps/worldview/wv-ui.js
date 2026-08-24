@@ -48,7 +48,8 @@
      'browseSearch', 'modal', 'modalTitle', 'modalBody', 'scrim', 'toast', 'busy', 'busyText',
      'searchInput', 'searchResults', 'searchClear', 'menuBtn', 'panelClose', 'addLayerBtn',
      'compare', 'cmpTagA', 'cmpTagB', 'welcome', 'wStart', 'wTour', 'netChip', 'storageBtn',
-     'aboutBtn', 'subtime', 'subtimeInput', 'subtimeText', 'app', 'sheetGrip'].forEach(function (id) {
+     'aboutBtn', 'subtime', 'subtimeInput', 'subtimeText', 'app', 'sheetGrip', 'tlScale',
+     'todayBtn', 'tlCursorDate', 'inspect', 'insBody', 'phonebar', 'browseCount', 'browseDone'].forEach(function (id) {
       el[id] = U.$(id);
     });
   }
@@ -226,6 +227,10 @@
       node.appendChild(main);
 
       var more = U.el('div', 'lyr-more');
+      if (!row.on) {
+        var offNote = U.el('p', 'lyr-note off-note', 'Hidden — tap the eye to show it.');
+        more.appendChild(offNote);
+      }
       var op = U.el('div', 'lyr-opacity');
       var slider = document.createElement('input');
       slider.type = 'range';
@@ -302,6 +307,7 @@
         subs[i].classList.toggle('warn', text.indexOf('Nothing') === 0);
       }
     }
+    UI.renderInspector();
   };
 
   function periodWord(p) {
@@ -422,6 +428,8 @@
   function renderBrowse() {
     var body = el.browseBody;
     body.innerHTML = '';
+    var n = state.layers.filter(function (r) { return r.on; }).length;
+    el.browseCount.textContent = n + (n === 1 ? ' layer on the map' : ' layers on the map');
     var q = el.browseSearch.value.trim();
 
     if (q) {
@@ -460,20 +468,33 @@
       sec.appendChild(U.el('h3', '', D.measTitle[mid] || mid));
       if (D.measBlurb[mid]) sec.appendChild(U.el('p', '', D.measBlurb[mid]));
       var g = U.el('div', 'meas-grid');
-      layers.forEach(function (l) { g.appendChild(layerCard(l)); });
+      layers.forEach(function (l) { g.appendChild(layerCard(l, D.measTitle[mid])); });
       sec.appendChild(g);
       body.appendChild(sec);
     });
   }
 
-  function layerCard(L) {
+  // "Corrected Reflectance (True Color)" under a heading that already says
+  // Corrected Reflectance is six identical-looking rows whose only difference
+  // is in the dimmest text on the card. Under its own heading, the layer is
+  // called what actually distinguishes it.
+  function cardTitle(L, groupTitle) {
+    var t = L.title;
+    if (groupTitle && t.indexOf(groupTitle) === 0) {
+      var rest = t.slice(groupTitle.length).replace(/^[\s,(–—-]+/, '').replace(/\)$/, '').trim();
+      if (rest) return rest.charAt(0).toUpperCase() + rest.slice(1);
+    }
+    return t;
+  }
+
+  function layerCard(L, groupTitle) {
     var on = state.layers.some(function (r) { return r.id === L.id; });
     var card = U.el('button', 'lcard' + (on ? ' on' : ''));
     var tick = U.el('span', 'tick');
     tick.innerHTML = on ? '<svg viewBox="0 0 24 24" width="14" height="14"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
     card.appendChild(tick);
     var txt = U.el('span');
-    txt.appendChild(U.el('span', 't', L.title));
+    txt.appendChild(U.el('span', 't', cardTitle(L, groupTitle)));
     txt.appendChild(U.el('span', 's', L.sub || ''));
     var bits = [];
     if (L.builtin) bits.push('offline');
@@ -493,21 +514,30 @@
   }
 
   // ---------------------------------------------------------------- tools ---
+  function runTool(t) {
+    if (t === 'zoomin') M.zoomBy(0.5);
+    else if (t === 'zoomout') M.zoomBy(2);
+    else if (t === 'home') M.flyHome();
+    else if (t === 'compare') app.toggleCompare();
+    else if (t === 'measure') app.toggleMeasure();
+    else if (t === 'shot') UI.openSnapshot();
+    else if (t === 'views') UI.openViews();
+    else if (t === 'tours') UI.openTours();
+    else if (t === 'phonetools') UI.openTools();
+  }
+  UI.runTool = runTool;
+
   function bindTools() {
     el.tools.addEventListener('click', function (e) {
       var b = e.target.closest('.tool');
-      if (!b) return;
-      var t = b.dataset.tool;
-      if (t === 'zoomin') M.zoomBy(0.5);
-      else if (t === 'zoomout') M.zoomBy(2);
-      else if (t === 'home') M.flyHome();
-      else if (t === 'compare') app.toggleCompare();
-      else if (t === 'measure') app.toggleMeasure();
-      else if (t === 'shot') UI.openSnapshot();
-      else if (t === 'views') UI.openViews();
-      else if (t === 'tours') UI.openTours();
+      if (b) runTool(b.dataset.tool);
+    });
+    el.phonebar.addEventListener('click', function (e) {
+      var b = e.target.closest('.pb');
+      if (b) runTool(b.dataset.tool);
     });
     el.browseSearch.addEventListener('input', renderBrowse);
+    el.browseDone.addEventListener('click', UI.closeSheets);
     document.addEventListener('click', function (e) {
       if (e.target.closest('.sheet-head .close')) UI.closeSheets();
     });
@@ -526,12 +556,23 @@
   var tl = { center: 0, mpp: 0, drag: null };
   var tlCtx = null;
 
+  // How much time the ruler shows across its whole width. It opens on DAYS
+  // because the app is a day picker: a five-year ruler makes one day a fifth of
+  // a pixel, which is a decoration, not a control.
+  var SCALES = { days: 120, months: 4 * 365, years: 30 * 365 };
+
   function bindTime() {
     tlCtx = el.tlCanvas.getContext('2d');
-    tl.mpp = 5 * 365.25 * U.MS_DAY / 900;      // about five years across a laptop
+    UI.setScale(state.ui.scale || 'days', true);
     // Today sits about two thirds across, not in the middle: the archive is
     // behind you, and half a ruler of empty future is half a ruler wasted.
     tl.center = U.dayMs(state.date) - tlWidth() * 0.18 * tl.mpp;
+
+    el.tlScale.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (b) UI.setScale(b.dataset.scale);
+    });
+    el.todayBtn.addEventListener('click', function () { app.setDate(U.latestDay()); });
 
     el.prevDay.addEventListener('click', function () { app.stepDate(-1); });
     el.nextDay.addEventListener('click', function () { app.stepDate(1); });
@@ -566,6 +607,12 @@
       var f = Math.exp(U.clamp(e.deltaY, -100, 100) * 0.0022);
       var min = U.MS_DAY / 40, max = 40 * 365.25 * U.MS_DAY / Math.max(300, r.width);
       tl.mpp = U.clamp(tl.mpp * f, min, max);
+      // The segmented control has to agree with the ruler after a wheel zoom.
+      var days = tl.mpp * tlWidth() / U.MS_DAY;
+      var name = days < 400 ? 'days' : (days < 4000 ? 'months' : 'years');
+      state.ui.scale = name;
+      var bs = el.tlScale.querySelectorAll('button');
+      for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].dataset.scale === name);
       // Keep the instant under the pointer where it was.
       tl.center = at - (e.clientX - r.left - r.width / 2) * tl.mpp;
       UI.renderTimeline();
@@ -581,6 +628,17 @@
     var ms = tl.center + (e.clientX - r.left - r.width / 2) * tl.mpp;
     app.setDate(U.msDay(U.clamp(ms, U.dayMs('1970-01-01'), Date.now())), { quiet: true });
   }
+
+  UI.setScale = function (name, quiet) {
+    if (!SCALES[name]) name = 'days';
+    state.ui.scale = name;
+    var at = U.dayMs(state.date);
+    tl.mpp = SCALES[name] * U.MS_DAY / tlWidth();
+    tl.center = at - tlWidth() * 0.18 * tl.mpp;
+    var bs = el.tlScale.querySelectorAll('button');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].dataset.scale === name);
+    if (!quiet) UI.renderTimeline();
+  };
 
   function tlWidth() {
     var r = el.timeline.getBoundingClientRect();
@@ -686,7 +744,7 @@
       c.moveTo(Math.round(px2) + 0.5, t.big ? 0 : h * 0.55);
       c.lineTo(Math.round(px2) + 0.5, h);
       c.stroke();
-      if (t.big || unit.ms / tl.mpp > 90) {
+      if (t.big || unit.ms / tl.mpp > 56) {
         c.fillStyle = t.big ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.34)';
         c.fillText(t.label, Math.round(px2) + 4, 3);
       }
@@ -707,6 +765,8 @@
     var cx = x(U.dayMs(state.date));
     el.tlCursor.style.left = cx + 'px';
     el.tlCursor.style.display = (cx < -4 || cx > w + 4) ? 'none' : '';
+    el.tlCursorDate.textContent = U.prettyDate(state.date);
+    el.tlCursor.classList.toggle('flip', cx > w - 120);
 
     var a = state.anim;
     if (a && a.from && a.to && (state.ui.showRange || window.WVAnim.playing())) {
@@ -796,12 +856,28 @@
     build(el.modalBody);
   };
 
-  UI.toast = function (msg, bad) {
-    el.toast.textContent = msg;
+  /*
+   * msg, then optionally { bad: true } or { action: 'Undo', fn: … }.
+   * A destructive control with no way back is a trap; a trash icon on every
+   * layer row needed one, and a toast is where it goes.
+   */
+  UI.toast = function (msg, opts) {
+    opts = (opts === true) ? { bad: true } : (opts || {});
+    el.toast.innerHTML = '';
+    el.toast.appendChild(U.el('span', '', msg));
+    if (opts.action) {
+      var b = U.el('button', 'toast-do', opts.action);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        el.toast.hidden = true;
+        opts.fn();
+      });
+      el.toast.appendChild(b);
+    }
     el.toast.hidden = false;
-    el.toast.classList.toggle('bad', !!bad);
+    el.toast.classList.toggle('bad', !!opts.bad);
     clearTimeout(el.toast._t);
-    el.toast._t = setTimeout(function () { el.toast.hidden = true; }, 3600);
+    el.toast._t = setTimeout(function () { el.toast.hidden = true; }, opts.action ? 6000 : 3600);
   };
 
   UI.busy = function (text) {
@@ -823,8 +899,15 @@
     var at = world || M.toWorld(M.size().w / 2, M.size().h / 2);
     // With no pointer (a phone, or a mouse that has not moved) the readout says
     // where the MIDDLE of the map is, which is the question it is there to
-    // answer. A row of zeroes is not an answer.
-    el.coords.textContent = U.fmtLatLon(at.lat, at.lon);
+    // answer. A row of zeroes is not an answer — and neither is a coordinate
+    // with no place attached to it, so once you are close enough for a place
+    // name to mean something, it says that too.
+    var name = '';
+    if (M.zoomLevel() > 2.4) {
+      var near = D.nearestPlace(at.lat, at.lon);
+      if (near) name = (M.zoomLevel() > 5 ? '' : 'near ') + near.name + '  ';
+    }
+    el.coords.textContent = name + U.fmtLatLon(at.lat, at.lon);
     // A scale bar that is a round number of kilometres, not 137.4.
     var mid = M.toWorld(0, M.size().h / 2);
     var mPerPx = U.haversine(mid.lat, 0, mid.lat, M.view.res) ;
@@ -869,6 +952,111 @@
     });
   }
 
+  /*
+   * The inspector — the right-hand column on a wide screen. It answers the four
+   * questions a map cannot: where am I, what is the top layer, does it have
+   * anything for this day, and what do its colours mean. Below 1400px it is not
+   * rendered at all.
+   */
+  var INS_TOOLS = [['compare', 'Compare A/B'], ['measure', 'Measure'], ['shot', 'Save a picture'],
+                   ['views', 'Saved views'], ['tours', 'Explore']];
+
+  UI.renderInspector = function () {
+    if (!el.inspect || window.innerWidth < 1400) return;
+    var v = M.view;
+    var body = el.insBody;
+    var near = D.nearestPlace(v.lat, v.lon);
+    body.innerHTML = '';
+
+    // Zoomed out to the planet, "near Accra" is not where you are — it is the
+    // nearest name to the middle of an ocean-sized view.
+    var z = M.zoomLevel();
+    var placeName = z < 2.4 || !near ? 'The whole Earth'
+      : (z > 5 ? near.name : 'near ' + near.name);
+    var place = U.el('div', 'ins-place', placeName);
+    body.appendChild(place);
+    var co = U.el('div', 'ins-coords', U.fmtLatLon(v.lat, v.lon) + '  ·  z' + M.zoomLevel().toFixed(1));
+    body.appendChild(co);
+    body.appendChild(U.el('div', 'ins-sep'));
+
+    var top = null;
+    for (var i = 0; i < state.layers.length; i++) {
+      var L = D.layer(state.layers[i].id);
+      if (L && state.layers[i].on && !L.ref && !L.builtin) { top = L; break; }
+    }
+    if (!top) {
+      for (var j = 0; j < state.layers.length; j++) {
+        var Lb = D.layer(state.layers[j].id);
+        if (Lb && state.layers[j].on) { top = Lb; break; }
+      }
+    }
+    if (top) {
+      var box = U.el('div', 'ins-layer');
+      box.appendChild(U.el('b', '', top.title));
+      box.appendChild(U.el('span', 'who', top.sub || ''));
+      var dl = U.el('dl', 'ins-facts');
+      function fact(k, val, cls) {
+        dl.appendChild(U.el('dt', '', k));
+        dl.appendChild(U.el('dd', cls || '', val));
+      }
+      if (top.builtin) {
+        fact('source', 'inside this app');
+        fact('needs', 'no connection', 'ins-ok');
+      } else {
+        fact('resolution', top.set);
+        fact('cadence', periodWord(top.period));
+        fact('record', (top.start ? top.start.slice(0, 4) : '—') + '–' + (top.end ? top.end.slice(0, 4) : 'now'));
+        fact('id', top.id);
+        var cov = D.coverage(top, state.date);
+        var st = M.layerStatus && M.layerStatus(top.id);
+        var word = !cov.ok ? 'none on this day'
+          : (st && !st.drawn && st.missing && !st.pending) ? 'nothing over this view'
+          : (T.net === 'offline' ? 'from this file' : 'live');
+        fact('this day', word, cov.ok && word !== 'nothing over this view' ? 'ins-ok' : 'ins-warn');
+      }
+      box.appendChild(dl);
+      if (!top.builtin) {
+        var lg = U.el('div', 'lyr-legend');
+        box.appendChild(lg);
+        loadLegend(top, lg);
+      }
+      if (top.about) box.appendChild(U.el('p', 'ins-about', top.about));
+      body.appendChild(box);
+    }
+
+    body.appendChild(U.el('div', 'ins-sep'));
+    var acts = U.el('div', 'ins-actions');
+    INS_TOOLS.forEach(function (t) {
+      var b = U.el('button', '', t[1]);
+      b.type = 'button';
+      if (t[0] === 'compare' && state.compare.on) b.classList.add('on');
+      b.addEventListener('click', function () { runTool(t[0]); });
+      acts.appendChild(b);
+    });
+    body.appendChild(acts);
+  };
+
+  // The phone's "Tools" button. Labelled, one thumb-height row each — the six
+  // unlabelled glyphs at the screen edge were a quiz nobody passed.
+  UI.openTools = function () {
+    UI.openModal('Tools', function (body) {
+      var list = U.el('div', 'tool-list');
+      [['compare', 'Compare two days', 'Split the screen and drag between them'],
+       ['measure', 'Measure', 'Tap points for a running distance'],
+       ['shot', 'Save a picture', 'This view as an image, with the date on it'],
+       ['views', 'Saved views', 'Places and days you kept in this file'],
+       ['home', 'Whole Earth', 'Back out to the whole planet']].forEach(function (t) {
+        var b = U.el('button', 'tool-row');
+        b.type = 'button';
+        b.appendChild(U.el('b', '', t[1]));
+        b.appendChild(U.el('span', '', t[2]));
+        b.addEventListener('click', function () { UI.closeSheets(); runTool(t[0]); });
+        list.appendChild(b);
+      });
+      body.appendChild(list);
+    });
+  };
+
   UI.renderAll = function () {
     UI.renderStack();
     UI.renderDate();
@@ -876,6 +1064,7 @@
     UI.renderCompare();
     UI.renderNet();
     UI.renderReadout();
+    UI.renderInspector();
   };
 
   UI.el = el;

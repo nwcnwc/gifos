@@ -320,7 +320,11 @@
         T.net = 'live';
         T.stats.fetched++;
         T.stats.bytes += bytes.byteLength;
-        var mime = job.url.slice(-3) === 'png' ? 'image/png' : 'image/jpeg';
+        // Believe the server's own content-type, and fall back to the URL's
+        // extension. GIBS is consistent, but a decoder handed the wrong type is
+        // a blank tile with no error anywhere.
+        var ct = String((r.headers && r.headers['content-type']) || '').split(';')[0].trim();
+        var mime = /^image\//.test(ct) ? ct : (job.url.slice(-3) === 'png' ? 'image/png' : 'image/jpeg');
         return toBitmap(bytes, mime).then(function (bmp) {
           memPut(key, bmp);
           store(key, bytes, mime, job.pin);

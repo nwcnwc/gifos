@@ -3,9 +3,14 @@
  *
  * The icon is judged at 64 px on a Home Screen next to a dozen others, and the
  * rule the gauntlet sets is that the animation has to DEMONSTRATE, not wiggle.
- * So it does exactly what the app does: a satellite's swath sweeps across the
- * globe, and the grey Earth turns into colour behind it — day by day, forever.
- * You can tell what this app is from across the room.
+ *
+ * So it is the real thing, simplified: the Earth TURNS, and a fixed imaging
+ * swath hangs in front of it. Land rises at the left limb dark and unimaged,
+ * crosses the bright scan line, and comes out the other side in colour — which
+ * is exactly how a polar orbiter builds a daily picture of a rotating planet.
+ * Every frame differs from the last (the first cut swept a band across a still
+ * globe and then held it for half the loop, so two moments a second apart
+ * looked identical and the icon read as a JPEG).
  *
  * Painted procedurally in pure Node (no canvas, no image decoder), from the
  * 1-bit land mask baked by tools/make-assets.py. Super-sampled, box-downsampled
@@ -17,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 14;
+const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 20;
 const MASK_W = 512, MASK_H = 256;
 
 // Cool and dark before the pass, true-colour after it.
@@ -45,15 +50,31 @@ function loadMask() {
   };
 }
 
+/*
+ * 64 colours, and the count is CHECKED. The first cut built 35 entries into a
+ * 32-colour table: nearest() happily returned index 33, the encoder wrote a
+ * 32-entry palette, and every pixel that landed past the end came out as
+ * whatever the decoder had there — continents of white sitting over the
+ * Sahara. A palette that overflows does not warn, it hallucinates.
+ */
+const CT = 64;
+
 function buildPalette() {
   const pal = [[0, 0, 0]];                     // 0 is the transparent surround
   const push = (c) => pal.push(c.map(Math.round));
   [SPACE, ICE, SCAN, RIM].forEach(push);
-  for (let i = 0; i < 6; i++) push(mix(OCEAN_DARK, OCEAN, i / 5));
-  for (let i = 0; i < 6; i++) push(mix(LAND_DARK, LAND, i / 5));
-  for (let i = 0; i < 5; i++) push(mix(LAND_DARK, DESERT, i / 4));
-  for (let i = 0; i < 4; i++) push(mix(OCEAN, [120, 190, 235], i / 3));
-  for (let i = 0; i < 4; i++) push(mix(LAND, DESERT, i / 3));
+  const ramp = (a, b, n) => { for (let i = 0; i < n; i++) push(mix(a, b, i / (n - 1))); };
+  ramp(OCEAN_DARK, OCEAN, 8);                  // the ocean, dim to lit
+  ramp([12, 48, 92], OCEAN, 6);                // cold ocean to warm ocean
+  ramp(OCEAN, [110, 175, 225], 5);             // shallow water and the specular
+  ramp(LAND_DARK, LAND, 8);                    // land, unimaged to imaged
+  ramp(LAND_DARK, DESERT, 6);
+  ramp(LAND, DESERT, 6);
+  ramp(DESERT, ICE, 5);                        // desert into snow line
+  ramp(mix(LAND, ICE, 0.5), ICE, 5);
+  ramp(SPACE, RIM, 6);                         // the atmosphere's own steps
+  ramp(mix(OCEAN, SCAN, 0.5), SCAN, 4);        // the scan line over water
+  if (pal.length > CT) throw new Error('icon palette has ' + pal.length + ' colours, table holds ' + CT);
   return pal;
 }
 
@@ -79,7 +100,8 @@ const R = 0.455;                    // globe radius as a fraction of the icon
 
 function frameIndices(pal, land, phase) {
   const rgba = new Float32Array(RW * RW * 4);
-  const sweep = -0.25 + phase * 1.5;     // the swath's screen x, in -0.5..0.5-ish
+  const spin = phase * 360;                 // a whole turn across the frame set
+  const SWATH = -0.22;                      // where the scan line hangs, in screen x
 
   for (let py = 0; py < RW; py++) {
     for (let px = 0; px < RW; px++) {
@@ -87,56 +109,58 @@ function frameIndices(pal, land, phase) {
       const d = Math.sqrt(u * u + v * v);
       const o = (py * RW + px) * 4;
 
-      if (d > R + 0.045) continue;                        // transparent surround
+      if (d > R + 0.05) continue;                        // transparent surround
 
       if (d > R) {
-        // The atmosphere: a thin accent rim, fading out. It is what makes a
-        // flat disc read as a planet at 64 px.
-        const t = 1 - (d - R) / 0.045;
-        const c = mix(SPACE, RIM, t * t * 0.85);
+        // Atmosphere: all the way around, brightest on the imaged side. A hard
+        // arc on one shoulder reads as a selection glow, not as air.
+        const t = 1 - (d - R) / 0.05;
+        const side = 0.45 + 0.55 * Math.max(0, Math.min(1, (u - SWATH + 0.35) / 0.7));
+        const c = mix(SPACE, RIM, t * t * 0.95 * side);
         rgba[o] = c[0]; rgba[o + 1] = c[1]; rgba[o + 2] = c[2];
         rgba[o + 3] = t * t;
         continue;
       }
 
-      // Sphere point.
+      // Sphere point, with the globe turned by `spin`.
       const z = Math.sqrt(Math.max(0, R * R - u * u - v * v));
       const lat = Math.asin(v / R) * -180 / Math.PI;
-      const lon = LON0 + Math.atan2(u, z) * 180 / Math.PI;
+      const lon = LON0 + spin + Math.atan2(u, z) * 180 / Math.PI;
       const isLand = land(lon, lat);
       const absLat = Math.abs(lat);
 
-      // Imaged or not: the swath edge is at `sweep`, and the 0.10 band around
-      // it is the bright scan line itself.
-      const rel = (u - sweep) / 0.10;
-      const imaged = rel < -1 ? 1 : rel > 1 ? 0 : (1 - (rel + 1) / 2);
+      // Imaged behind the swath, not yet imaged in front of it. Features enter
+      // at the left limb dark and leave the right limb in colour.
+      const rel = (u - SWATH) / 0.085;
+      const imaged = rel > 1 ? 1 : rel < -1 ? 0 : (rel + 1) / 2;
 
+      // Colour. Latitude bands use cos(lat), not |lat| — the absolute value has
+      // a kink at the equator, and after quantising that kink is a visible
+      // hairline straight across the planet.
+      const warmth = Math.cos(lat * Math.PI / 180);
       let cold, warm;
       if (isLand) {
-        // Deserts by latitude, ice at the caps: enough truth to be recognisable
-        // without carrying a second texture.
-        const dry = Math.exp(-Math.pow((absLat - 24) / 9, 2));
+        const dry = Math.exp(-Math.pow((absLat - 24) / 10, 2));
         warm = mix(LAND, DESERT, dry * 0.85);
-        if (absLat > 66) warm = mix(warm, ICE, Math.min(1, (absLat - 66) / 10));
-        cold = mix(LAND_DARK, [50, 58, 64], 0.4);
+        if (absLat > 64) warm = mix(warm, ICE, Math.min(1, (absLat - 64) / 12));
+        cold = mix(LAND_DARK, [44, 52, 60], 0.35);
       } else {
-        warm = mix(OCEAN, [12, 48, 92], Math.min(1, absLat / 90));
-        if (absLat > 74) warm = mix(warm, ICE, Math.min(1, (absLat - 74) / 12));
+        warm = mix([12, 48, 92], OCEAN, warmth);
+        if (absLat > 72) warm = mix(warm, ICE, Math.min(1, (absLat - 72) / 14));
         cold = OCEAN_DARK;
       }
       let c = mix(cold, warm, imaged);
 
-      // The scan line, and its glow just ahead of it.
-      const band = Math.abs(u - sweep);
-      if (band < 0.014) c = mix(c, SCAN, 1 - band / 0.014);
-      else if (u > sweep && band < 0.05) c = mix(c, SCAN, (1 - band / 0.05) * 0.18);
+      // The scan line itself, with a short glow ahead of it.
+      const band = Math.abs(u - SWATH);
+      if (band < 0.016) c = mix(c, SCAN, 1 - band / 0.016);
+      else if (u > SWATH && band < 0.06) c = mix(c, SCAN, (1 - band / 0.06) * 0.22);
 
-      // Shade the limb so the disc is a ball, not a sticker.
-      const shade = 0.55 + 0.45 * (z / R);
+      // Shade the limb so the disc is a ball, and light it from up-left.
+      const shade = 0.52 + 0.48 * (z / R);
       c = [c[0] * shade, c[1] * shade, c[2] * shade];
-      // A soft specular on the imaged side, up and left.
-      const spec = Math.max(0, 1 - Math.hypot(u + 0.16, v + 0.17) / 0.30);
-      c = mix(c, [255, 255, 255], spec * spec * 0.14 * imaged);
+      const spec = Math.max(0, 1 - Math.hypot(u + 0.15, v + 0.18) / 0.32);
+      c = mix(c, [255, 255, 255], spec * spec * 0.16 * imaged);
 
       rgba[o] = c[0]; rgba[o + 1] = c[1]; rgba[o + 2] = c[2];
       rgba[o + 3] = 1;
@@ -167,7 +191,6 @@ export function worldviewIcon() {
   const land = loadMask();
   const frames = [];
   for (let f = 0; f < FRAMES; f++) frames.push(frameIndices(pal, land, f / FRAMES));
-  const CT = 32;
   const flat = new Array(CT * 3).fill(0);
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0;
@@ -175,7 +198,7 @@ export function worldviewIcon() {
     flat[i * 3 + 2] = pal[i][2] | 0;
   }
   return {
-    width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 5,
-    frames, delayCs: 10, transparentIndex: 0,
+    width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6,
+    frames, delayCs: 8, transparentIndex: 0,
   };
 }
