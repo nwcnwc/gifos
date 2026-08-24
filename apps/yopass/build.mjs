@@ -57,7 +57,7 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad);
 }
 
-const SCRIPTS = ['crypto.js', 'app.js'];
+const SCRIPTS = ['crypto.js', 'core.js', 'app.js'];
 const helpMd = read('help.md');
 if (helpMd.trim().length < 400) throw new Error('help.md is too short');
 const files = {
@@ -65,6 +65,7 @@ const files = {
   'index.html': read('index.html'),
   'style.css': read('style.css'),
   'crypto.js': read('crypto.js'),
+  'core.js': read('core.js'),
   'app.js': read('app.js'),
   'COPYING-yopass.txt': read('vendor/COPYING-yopass.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
@@ -80,7 +81,10 @@ if (/<button\b[^>]*>\s*Invite\s*</i.test(html) || /id=["'][^"']*invite/i.test(ht
   throw new Error('do not draw an Invite button');
 }
 if (!files['app.js'].includes('Invite')) throw new Error('tell the player to press Invite');
-if (/socket\.io|firebase|redis|openpgp/i.test(files['app.js'] + files['crypto.js'])) {
+if (!files['core.js'].includes('waiting') || !files['core.js'].includes('gone')) {
+  throw new Error('guest waiting / gone states belong in core.js');
+}
+if (/socket\.io|firebase|redis|openpgp/i.test(files['app.js'] + files['crypto.js'] + files['core.js'])) {
   throw new Error('their backend stays behind');
 }
 for (const [n, s] of Object.entries(files)) {
@@ -102,18 +106,26 @@ if (!files['COPYING-yopass.txt'].includes('Apache License')) throw new Error('CO
     ctx.fail = reject;
     vm.runInNewContext(
       files['crypto.js'] + '\n' +
+      files['core.js'] + '\n' +
       'YopassCrypto.lock("hello-secret", "correct horse").then(function (rec) {\n' +
       '  if (!rec.hasPass || !rec.ct || !rec.iv || !rec.salt) throw new Error("shape");\n' +
       '  return YopassCrypto.unlock(rec, "correct horse").then(function (p) {\n' +
       '    if (p !== "hello-secret") throw new Error("roundtrip " + p);\n' +
       '    return YopassCrypto.unlock(rec, "wrong").then(function () {\n' +
       '      throw new Error("wrong passphrase should fail");\n' +
-      '    }, function () { return YopassCrypto.lock("plain", ""); });\n' +
+      '    }, function (err) {\n' +
+      '      if (!/wrong passphrase/i.test(String(err && err.message))) throw new Error("honest fail: " + err);\n' +
+      '      return YopassCrypto.lock("plain", "");\n' +
+      '    });\n' +
       '  });\n' +
       '}).then(function (rec) {\n' +
       '  if (rec.hasPass) throw new Error("no-pass should not set hasPass");\n' +
       '  return YopassCrypto.unlock(rec, null).then(function (p) {\n' +
       '    if (p !== "plain") throw new Error("nopass " + p);\n' +
+      '    if (YopassCore.isEmpty("") !== true) throw new Error("empty");\n' +
+      '    var row = YopassCore.makeRow(rec, { burn: true, lifetime: "1h" }, { id: "h" }, 1000);\n' +
+      '    if (YopassCore.screen(row, { id: "g" }, false, 1000) !== "open") throw new Error("guest open");\n' +
+      '    if (YopassCore.screen(null, { id: "g" }, false, 1000) !== "waiting") throw new Error("guest wait");\n' +
       '    result("ok");\n' +
       '  });\n' +
       '}).catch(fail);\n',
