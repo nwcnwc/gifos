@@ -6,51 +6,155 @@
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
 
-  const NOTES_HTML = `<!doctype html><meta charset="utf-8">
+  const NOTES_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-  body{font:15px system-ui;margin:0;background:#faf9ff;color:#1a1a2e}
-  header{background:linear-gradient(135deg,#7b5cff,#ff5caa);color:#fff;padding:14px 18px;font-weight:700}
-  form{display:flex;gap:8px;padding:14px 18px}
-  input{flex:1;padding:9px 12px;border:1px solid #d5d0f0;border-radius:8px;font:inherit}
-  button{padding:9px 14px;border:0;border-radius:8px;background:#7b5cff;color:#fff;cursor:pointer;font:inherit}
-  ul{list-style:none;margin:0;padding:0 18px 18px}
-  li{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #eee;border-radius:8px;margin-bottom:8px}
-  li span{flex:1;cursor:pointer}
-  li.done span{text-decoration:line-through;color:#aaa}
-  li button{background:none;border:none;color:#999;cursor:pointer;padding:4px 6px;line-height:0}
-  li button:hover{color:#c22}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font:15px system-ui;background:var(--bg,#faf9ff);color:var(--text,#1a1a2e);display:flex;flex-direction:column}
+  header{background:var(--accent,#7b5cff);color:var(--onaccent,#fff);padding:12px 16px;font-weight:700;display:flex;align-items:center;gap:10px;flex:none}
+  header h1{font-size:16px;margin:0;flex:none}
+  #q{flex:1;min-width:0;padding:7px 10px;border:0;border-radius:8px;font:inherit;background:rgba(255,255,255,.18);color:inherit}
+  #q::placeholder{color:rgba(255,255,255,.7)}
+  #q:focus{outline:2px solid rgba(255,255,255,.55);background:rgba(255,255,255,.28)}
+  #wrap{flex:1;display:flex;min-height:0}
+  #listwrap{width:320px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--border,#d5d0f0);background:var(--surface,#fff);min-width:0}
+  form{display:flex;gap:8px;padding:12px 12px 8px}
+  #t{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--border,#d5d0f0);border-radius:8px;font:inherit;background:var(--bg,#faf9ff);color:var(--text,#1a1a2e)}
+  form button{padding:9px 14px;border:0;border-radius:8px;background:var(--accent,#7b5cff);color:var(--onaccent,#fff);cursor:pointer;font:inherit;font-weight:700}
+  .hint{color:var(--muted,#999);font-size:12px;padding:0 12px 8px}
+  ul{list-style:none;margin:0;padding:0 10px 16px;overflow-y:auto;flex:1}
+  li{display:flex;align-items:flex-start;gap:8px;padding:10px 10px;background:var(--surface,#fff);border:1px solid var(--border,#eee);border-radius:10px;margin-bottom:8px;cursor:pointer}
+  li.on{border-color:var(--accent,#7b5cff);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#7b5cff) 25%,transparent)}
+  li.done .ttl{text-decoration:line-through;color:var(--muted,#aaa)}
+  li .chk{margin-top:3px;flex:none;width:16px;height:16px;accent-color:var(--accent,#7b5cff)}
+  li .body{flex:1;min-width:0}
+  li span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  li .ttl{font-weight:650}
+  li small{color:var(--muted,#999);font-size:11px}
+  li button.row-del{background:none;border:none;color:var(--muted,#999);cursor:pointer;padding:4px 6px;line-height:0;flex:none}
+  li button.row-del:hover{color:#c22}
   li button svg{pointer-events:none}
-  .empty{color:#999;padding:0 18px}
-  .hint{color:#bbb;font-size:12px;padding:0 18px 10px}
+  .empty{color:var(--muted,#999);padding:18px 12px;line-height:1.45}
+  #pane{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg,#faf9ff)}
+  #panebar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border,#eee);flex:none}
+  #back{display:none;padding:7px 12px;border:1px solid var(--border,#d5d0f0);border-radius:8px;background:var(--surface,#fff);color:var(--text,#1a1a2e);cursor:pointer;font:inherit}
+  #who{color:var(--muted,#999);font-size:12px;flex:1}
+  #saved{color:var(--muted,#999);font-size:12px}
+  #body{flex:1;width:100%;border:0;resize:none;padding:16px 18px;font:16px/1.5 system-ui;background:transparent;color:var(--text,#1a1a2e);outline:0}
+  #nobody{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted,#999);padding:24px;text-align:center;line-height:1.45}
+  @media (max-width:640px){
+    #listwrap{width:100%;border-right:0}
+    #pane{display:none}
+    body.show #listwrap{display:none}
+    body.show #pane{display:flex}
+    #back{display:inline-block}
+  }
 </style>
-<header>Notes</header>
-<form id="f"><input id="t" placeholder="Write a note and press Add…" autocomplete="off"><button>Add</button></form>
-<div class="hint">Tap a note to check it off.</div>
-<ul id="list"></ul>
+<header><h1>Notes</h1><input id="q" placeholder="Search…" autocomplete="off"></header>
+<div id="wrap">
+  <div id="listwrap">
+    <form id="f"><input id="t" placeholder="Write a note and press Add…" autocomplete="off"><button>Add</button></form>
+    <div class="hint">Tap a note to open it. Tick the box to check it off. Everything is saved in this icon.</div>
+    <ul id="list"></ul>
+  </div>
+  <div id="pane">
+    <div id="panebar"><button type="button" id="back">← List</button><div id="who"></div><div id="saved"></div></div>
+    <textarea id="body" placeholder="Start writing…" hidden></textarea>
+    <div id="nobody">Pick a note, or add one. Invite shares the list — the file is the save.</div>
+  </div>
+</div>
 <script>
   const db = gifos.db('notes'), list = document.getElementById('list');
   let me = { name: 'You' };
   let notes = [];
+  let sel = null;
+  let filter = '';
+  let saveT = null;
   if (window.gifos) gifos.me().then(m => { me = { id: m.id, name: m.name || 'You' }; });
   const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-  const DEL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'; // the standard GifOS row-delete glyph
+  const DEL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  function titleOf(n){ const t=String(n.text||'').trim(); const line=t.split('\\n')[0]; return line || 'Untitled'; }
+  function when(n){
+    const t=n.u||n.t; if(!t) return '';
+    const d=new Date(t); if(!isFinite(d.getTime())) return '';
+    const mo=d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+    const hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    return mo+' '+hm;
+  }
+  function ordered(items){
+    return items.slice().sort(function(a,b){ return (a.t||0)-(b.t||0) || String(a.id).localeCompare(String(b.id)); });
+  }
   function render(items){
-    notes = items;
-    list.innerHTML = items.length
-      ? items.map(n => '<li'+(n.done?' class="done"':'')+'><span data-t="'+n.id+'">'+esc(n.text)+' <small style="color:#999">— '+esc(n.by||'?')+'</small></span><button data-id="'+n.id+'" title="Delete">' + DEL + '</button></li>').join('')
-      : '<div class="empty">No notes yet. Your notes persist in this GIF icon.</div>';
+    if(items) notes = ordered(items);
+    const q = filter.trim().toLowerCase();
+    const shown = q ? notes.filter(function(n){ return String(n.text||'').toLowerCase().indexOf(q)>=0; }) : notes;
+    list.innerHTML = shown.length
+      ? shown.map(function(n){
+          return '<li class="'+(n.done?'done ':'')+(n.id===sel?'on':'')+'" data-id="'+esc(n.id)+'">'
+            +'<input class="chk" type="checkbox"'+(n.done?' checked':'')+' data-chk="'+esc(n.id)+'" title="Check off">'
+            +'<div class="body"><span class="ttl" data-t="'+esc(n.id)+'">'+esc(titleOf(n))+' <small>— '+esc(n.by||'?')+'</small></span>'
+            +'<small>'+esc(when(n))+'</small></div>'
+            +'<button class="row-del" data-id="'+esc(n.id)+'" title="Delete">'+DEL+'</button></li>';
+        }).join('')
+      : '<div class="empty">'+(notes.length?'No notes match that search.':'No notes yet. Your notes persist in this GIF icon.')+'</div>';
+    paintPane();
+  }
+  function paintPane(){
+    const n = notes.find(function(x){ return x.id===sel; });
+    const body = document.getElementById('body'), nobody=document.getElementById('nobody');
+    const who = document.getElementById('who'), saved=document.getElementById('saved');
+    if(!n){
+      document.body.classList.remove('show');
+      body.hidden=true; nobody.hidden=false;
+      who.textContent=''; saved.textContent='';
+      return;
+    }
+    document.body.classList.add('show');
+    nobody.hidden=true; body.hidden=false;
+    if(document.activeElement!==body) body.value = n.text||'';
+    who.textContent = (n.by||'You') + (when(n) ? ' · '+when(n) : '');
+    saved.textContent = 'Saved in this icon';
   }
   db.subscribe(render);
   document.getElementById('f').onsubmit = async e => {
     e.preventDefault();
     const t = document.getElementById('t');
-    if (t.value.trim()) { await db.put({ text: t.value.trim(), by: me.name, done: false }); t.value=''; }
+    if (t.value.trim()) {
+      const rec = await db.put({ text: t.value.trim(), by: me.name, done: false, t: Date.now(), u: Date.now() });
+      if(rec && rec.id) sel = rec.id;
+      t.value='';
+      paintPane();
+      const body=document.getElementById('body'); if(!body.hidden){ body.focus(); try{ body.selectionStart=body.selectionEnd=body.value.length; }catch(err){} }
+    }
   };
   list.onclick = async e => {
-    if (e.target.dataset.id) { await db.delete(e.target.dataset.id); return; }
-    const tid = e.target.dataset.t || (e.target.closest('span') && e.target.closest('span').dataset.t);
-    if (tid) { const n = notes.find(x => x.id === tid); if (n) await db.put(Object.assign({}, n, { done: !n.done })); }
+    const del = e.target.closest && e.target.closest('button.row-del');
+    if (del && del.dataset.id) {
+      const id=del.dataset.id;
+      await db.delete(id);
+      if(sel===id) sel=null;
+      return;
+    }
+    const chk = e.target.closest && e.target.closest('input.chk');
+    if (chk && chk.dataset.chk) {
+      const n = notes.find(function(x){ return x.id===chk.dataset.chk; });
+      if (n) await db.put(Object.assign({}, n, { done: !n.done, u: Date.now() }));
+      return;
+    }
+    const row = e.target.closest && e.target.closest('li[data-id]');
+    if (row) { sel = row.dataset.id; render(); const body=document.getElementById('body'); if(!body.hidden) body.focus(); }
   };
+  document.getElementById('body').oninput = function(){
+    const n = notes.find(function(x){ return x.id===sel; });
+    if(!n) return;
+    n.text = this.value;
+    const span = list.querySelector('span[data-t="'+n.id+'"]');
+    if(span) span.innerHTML = esc(titleOf(n))+' <small>— '+esc(n.by||'?')+'</small>';
+    clearTimeout(saveT);
+    saveT = setTimeout(function(){ db.put(Object.assign({}, n, { text: n.text, u: Date.now() })); }, 280);
+  };
+  document.getElementById('q').oninput = function(){ filter=this.value; render(); };
+  document.getElementById('back').onclick = function(){ sel=null; render(); };
 </script>`;
 
   const GUESTBOOK_HTML = `<!doctype html><meta charset="utf-8">
@@ -5090,23 +5194,23 @@ Every stroke is stored in this icon. Close it and the picture is still here. A d
 `,
       notes: `# Notes
 
-A shared checklist that lives in this icon.
+A notebook that lives in this icon. Save (top bar) takes the notes with you; **Invite** shares the list.
 
-## Use it
+## Write
 
-Type a line and tap **Add**. Empty notes are not added.
+Type a line at the top and tap **Add** — or open a note and keep typing. Each note is as long as you want. Search at the top of the window.
 
-Tap a note to check it off (or back on). Tap the trash to delete it for everyone.
+Tap a note to open it. Tick the box to check it off. The trash removes it for everyone.
 
-Each line shows who wrote it (your screen name from this computer).
+Each note shows who wrote it (your screen name from this computer).
 
 ## Private vs shared
 
-On your own Home Screen these notes are yours. **Invite** (top bar) and everyone in the room can add, check, and delete. There is no “only I edit” switch — if you need a private list, do not send the link.
+On your own Home Screen these notes are yours. **Invite** (top bar) and everyone in the room can add, edit, check, and delete. There is no “only I edit” switch — if you need a private list, do not send the link.
 
 ## Saved
 
-Every note is saved in this icon automatically. Close the tab and they are still here.
+Every keystroke is saved in this icon. Close the tab and they are still here.
 `,
       calc: `# Calculator
 
