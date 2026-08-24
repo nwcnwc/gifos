@@ -5,7 +5,7 @@
   --pink-s:#d6479a; --pink-ss:#d961a5;
   --beige-s:#d1bda9; --beige-ss:#d6c4b3;
   --green-s:#66b046; --green-ss:#5ea144;
-  --cell:min(4.6rem, 16vw);
+  --cell:9rem;
   --square:calc(var(--cell) * 1.12);
   --player:calc(var(--cell) * 0.44);
   --level-transform: translate(-50%, -40%) rotateX(45deg) rotateZ(45deg);
@@ -42,6 +42,7 @@ main#stage{position:relative;flex:1;min-height:0;touch-action:none}
 .difficulty-buttons button{
   display:block;width:100%;margin:0 auto 1rem;padding:1rem;border:0.2rem solid #fff;border-radius:2.5rem;
   color:#fff;font-size:2rem;font-weight:500;cursor:pointer}
+.difficulty-buttons button[hidden]{display:none}
 .difficulty-buttons button.diff.easy{background:var(--green)}
 .difficulty-buttons button.diff.medium{background:var(--blue)}
 .difficulty-buttons button.diff.hard{background:var(--pink)}
@@ -104,9 +105,10 @@ body.easy .level{transform:var(--level-transform)}
 body.medium .level{transform:var(--level-transform) scale3d(0.86,0.86,0.86)}
 body.hard .level{transform:var(--level-transform) scale3d(0.72,0.72,0.72)}
 @media (max-width:500px){
-  body.easy .level{transform:var(--level-transform) scale3d(0.86,0.86,0.86)}
-  body.medium .level{transform:var(--level-transform) scale3d(0.68,0.68,0.68)}
-  body.hard .level{transform:var(--level-transform) scale3d(0.54,0.54,0.54)}
+  :root{ --cell:6.4rem; }
+  body.easy .level{transform:var(--level-transform) scale3d(0.92,0.92,0.92)}
+  body.medium .level{transform:var(--level-transform) scale3d(0.70,0.70,0.70)}
+  body.hard .level{transform:var(--level-transform) scale3d(0.52,0.52,0.52)}
   .cell{touch-action:none}
 }
 @media (max-height:640px){
