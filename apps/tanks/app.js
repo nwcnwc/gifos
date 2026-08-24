@@ -149,6 +149,11 @@
     }
 
     if (!netOn || TanksNet.otherCount() === 0) {
+      /* The room emptied out (or never filled): the practice drones are the
+         game again. They were discarded when a friend arrived, and nothing
+         used to bring them back — one visit left the yard empty until a full
+         relaunch. */
+      if (!drones.length) startDrones();
       var i;
       for (i = 0; i < drones.length; i++) stepDrone(drones[i], dt);
     } else {
