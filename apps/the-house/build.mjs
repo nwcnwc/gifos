@@ -1,9 +1,10 @@
 // Pack apps/the-house/ into site/apps/the-house/the-house.gif
 import { houseIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, posix } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 {
   const Orig = globalThis.CompressionStream;
@@ -200,6 +201,21 @@ if (!files['app.js'].includes('HOUSE_ROOMS') || !files['app.js'].includes('HOUSE
 }
 if (!files['boot.js'].includes('SM2_DEFER')) throw new Error('SM2_DEFER');
 if (!files['patch.js'].includes('useHTML5Audio')) throw new Error('html5 audio');
+if (!files['patch.js'].includes('ignoreFlash')) throw new Error('ignoreFlash');
+if (!files['patch.js'].includes('__houseReleaseSM')) throw new Error('hold onready');
+if (!files['app.js'].includes('touchend')) throw new Error('phone tap');
+if (!files['app.js'].includes('onBack')) throw new Error('onBack');
+if (!files['app.js'].includes('fillArray')) throw new Error('collected in place');
+if (!files['app.js'].includes('skipIntro')) throw new Error('resume skips splash');
+if (!files['app.js'].includes('collected_items')) throw new Error('room.settings collected');
+if (/\.swf/i.test(files['boot.js'] + files['patch.js'] + files['app.js'])) throw new Error('swf in wrap');
+if (!/^Works offline/i.test(listing.description)) throw new Error('listing lead');
+if (!/file/i.test(listing.tagline) || !/save/i.test(listing.tagline)) throw new Error('tagline file-is-save');
+if (!/Tap/i.test(listing.description)) throw new Error('listing tap');
+if (!/Flash/i.test(listing.description)) throw new Error('listing Flash');
+if (!/Tap/i.test(helpBlob)) throw new Error('help tap');
+if (!/file you keep is the save/i.test(helpBlob)) throw new Error('help save');
+if (!rooms['room.html'].includes('id="note"')) throw new Error('room note hotspot');
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -211,7 +227,51 @@ for (const [n, s] of Object.entries(files)) {
   }
 }
 
-const shot = screenshotPng();
+function composeCover() {
+  // Mid-use first room: furniture + figure + the note on the desk. Vendor
+  // art is copied, not recompressed into the GIF (cover is store-only).
+  const convert = spawnSync('convert', ['-version'], { encoding: 'utf8' });
+  if (convert.status !== 0) return null;
+  const img = (n) => join(dir, 'vendor/images', n);
+  const tmpDir = join(dir, '.cover-tmp');
+  mkdirSync(tmpDir, { recursive: true });
+  const player = join(tmpDir, 'player.png');
+  const door = join(tmpDir, 'door.png');
+  const out = join(tmpDir, 'cover.png');
+  const cropPlayer = spawnSync('convert', [
+    img('room_player.png'), '-crop', '310x310+0+0', '+repage',
+    '-fuzz', '8%', '-transparent', 'black', player,
+  ], { encoding: 'utf8' });
+  if (cropPlayer.status !== 0) return null;
+  spawnSync('convert', [img('doors.png'), '-crop', '174x111+0+0', '+repage', door]);
+  const args = [
+    img('room.jpg'),
+    img('room_shelf.png'), '-geometry', '+103+46', '-composite',
+    img('room_bed.png'), '-geometry', '+311+20', '-composite',
+    img('room_aquarium.png'), '-geometry', '+177+183', '-composite',
+    img('room_chair.png'), '-geometry', '+555+200', '-composite',
+    img('room_desk.png'), '-geometry', '+658+280', '-composite',
+    img('room_note.png'), '-geometry', '+709+333', '-composite',
+    img('room_plant.png'), '-geometry', '+901+149', '-composite',
+    door, '-geometry', '+117+775', '-composite',
+    player, '-geometry', '+430+300', '-composite',
+    '-crop', '1000x600+80+40', '+repage',
+    '-resize', '1200x720!',
+    'png32:' + out,
+  ];
+  const r = spawnSync('convert', args, { encoding: 'utf8' });
+  let buf = null;
+  if (r.status === 0 && existsSync(out)) buf = readFileSync(out);
+  try {
+    unlinkSync(player);
+    unlinkSync(door);
+    if (existsSync(out)) unlinkSync(out);
+  } catch (e) {}
+  return buf && buf[0] === 0x89 ? buf : null;
+}
+
+let shot = composeCover();
+if (!shot) shot = screenshotPng();
 if (shot[0] !== 0x89) throw new Error('screenshot is not a PNG');
 writeFileSync(join(dir, 'screenshot.png'), shot);
 
