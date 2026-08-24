@@ -427,11 +427,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.goto(BASE + '/store.html');
   await page.waitForSelector('.card', { timeout: 15000 });
   check('back in the store its card now says Open', /^Open$/.test(((await actOf(second.slug).textContent()) || '').trim()));
+  const hitsAfterCard = gifHits.length; // two installs so far, two GIFs — and not one more from browsing
   await page.locator('.card[data-slug="' + target.slug + '"]').click();
   await page.waitForSelector('#install', { timeout: 10000 });
   const openHref = await page.locator('.actions a.btn').getAttribute('href').catch(() => '');
   check('an installed listing offers Open (pointing at the icon you own)', /run\.html#id=/.test(openHref || ''), openHref || 'none');
-  check('re-opening the store STILL fetches no App GIF', gifHits.length === 1, gifHits.length + ' total');
+  check('re-opening the store STILL fetches no App GIF', gifHits.length === hitsAfterCard, gifHits.length + ' total');
 
   // ---- delete, reinstall, and the app REMEMBERS -----------------------------
   // Every byte an app saves — searched places, driven-through map cache,
