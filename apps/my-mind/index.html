@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,user-scalable=no,initial-scale=1,viewport-fit=cover">
+<title>My Mind</title>
+<link rel="stylesheet" href="vendor/my-mind.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <div id="tip">Tab inserts a child. Enter inserts a sibling. The map stays in this file.</div>
+</main>
+
+<div id="ui" class="pane">
+  <h3>My Mind</h3>
+  <div class="scrollable">
+    <p class="row">
+      <button data-command="new" title="New">New</button>
+      <button data-command="load" title="Open">Open</button>
+      <button data-command="save" title="Save">Save</button>
+      <button data-command="save-as" title="Save as">Save as</button>
+    </p>
+    <p><label><span>Layout</span>
+      <select id="layout"><option value="">(Inherit)</option></select></label></p>
+    <p><label><span>Shape</span>
+      <select id="shape"><option value="">(Automatic)</option></select></label></p>
+    <p><label><span>Value</span>
+      <select id="value">
+        <option value="">(None)</option>
+        <option value="num">Number</option>
+        <optgroup label="Formula">
+          <option value="sum">Sum</option>
+          <option value="avg">Average</option>
+          <option value="min">Minimum</option>
+          <option value="max">Maximum</option>
+        </optgroup>
+      </select></label></p>
+    <p><label><span>Status</span>
+      <select id="status">
+        <option value="">None</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+        <option value="computed">Autocompute</option>
+      </select></label></p>
+    <p>
+      <span>Item color</span>
+      <span id="color" class="color-picker">
+        <a data-color="" title="Inherit" href="#"></a>
+        <a data-color="#000" title="Black" href="#"></a>
+        <a data-color="#e33" title="Red" href="#"></a>
+        <a data-color="#fa3" title="Orange" href="#"></a>
+        <a data-color="#dd3" title="Yellow" href="#"></a>
+        <a data-color="#3e3" title="Green" href="#"></a>
+        <a data-color="#33e" title="Blue" href="#"></a>
+        <a data-color="#3dd" title="Cyan" href="#"></a>
+        <a data-color="#d3d" title="Magenta" href="#"></a>
+      </span>
+    </p>
+    <p>
+      <span>Text color</span>
+      <span id="text-color" class="color-picker">
+        <a data-color="" title="Inherit" href="#"></a>
+        <a data-color="#000" title="Black" href="#"></a>
+        <a data-color="#e33" title="Red" href="#"></a>
+        <a data-color="#fa3" title="Orange" href="#"></a>
+        <a data-color="#dd3" title="Yellow" href="#"></a>
+        <a data-color="#3e3" title="Green" href="#"></a>
+        <a data-color="#33e" title="Blue" href="#"></a>
+        <a data-color="#3dd" title="Cyan" href="#"></a>
+        <a data-color="#d3d" title="Magenta" href="#"></a>
+      </span>
+    </p>
+    <p><label><span>Icons</span>
+      <select id="icons">
+        <option value="">None</option>
+      </select></label></p>
+  </div>
+  <button id="toggle" title="Toggle UI"></button>
+  <button data-command="help" title="Keys">Keys</button>
+  <span id="throbber" hidden></span>
+</div>
+
+<div id="io" class="pane" hidden>
+  <h3></h3>
+  <p><label><span>Storage</span>
+    <select id="backend"></select></label></p>
+  <div id="file">
+    <p class="desc">A file on this device.</p>
+    <p data-for="save"><label><span>Format</span>
+      <select class="format"></select></label></p>
+    <p class="row" data-for="save load">
+      <button class="go"></button><button class="cancel">Cancel</button>
+    </p>
+  </div>
+  <div id="image">
+    <p class="desc">Export as an image.</p>
+    <p data-for="save"><label><span>Format</span>
+      <select class="format">
+        <option value="png">PNG</option>
+        <option value="svg">SVG</option>
+      </select></label></p>
+    <p class="row">
+      <button class="go"></button><button class="cancel">Cancel</button>
+    </p>
+  </div>
+  <div id="local">
+    <p class="desc">Maps kept in this file.</p>
+    <p data-for="load"><label><span>Saved maps</span>
+      <select class="list"></select></label></p>
+    <p class="row" data-for="save load">
+      <button class="go"></button><button class="cancel">Cancel</button>
+    </p>
+    <p class="row" data-for="load">
+      <button class="remove">Delete</button>
+    </p>
+  </div>
+</div>
+
+<div id="help" class="pane" hidden>
+  <h3>Keys</h3>
+  <p>Navigation</p><table class="navigation"></table>
+  <p>Manipulation</p><table class="manipulation"></table>
+  <p>Editing</p><table class="editing"></table>
+  <p>Other</p><table class="other"></table>
+</div>
+
+<div id="notes" class="pane" hidden>
+  <h3>Topic Notes</h3>
+  <iframe></iframe>
+</div>
+
+<div id="context-menu">
+  <button data-command="insert-child"></button>
+  <button data-command="insert-sibling"></button>
+  <button data-command="delete"></button>
+  <span></span>
+  <button data-command="edit"></button>
+  <button data-command="value"></button>
+  <span></span>
+  <button data-command="undo"></button>
+  <button data-command="redo"></button>
+  <button data-command="center"></button>
+</div>
+
+<script src="ls-stub.js"></script>
+<script src="vendor/map-css.js"></script>
+<script src="app.js"></script>
+<script src="vendor/my-mind.js"></script>
+</body>
+</html>

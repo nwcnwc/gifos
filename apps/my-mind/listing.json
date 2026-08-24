@@ -1,0 +1,32 @@
+{
+  "tagline": "A map of ideas. Tab adds a child, Enter a sibling. The map is the save.",
+  "description": "Click a bubble and type. Tab inserts a child, Enter a sibling, arrows walk the map, Delete removes a node. Drag to pan, wheel to zoom. Colours, layouts (map, graph, tree), shapes, and a yes/no status live on each item.\n\nThe last map comes back the next time you open the app, still only on this device. New starts a blank map. There is no account, and nothing is sent anywhere — their Drive, Firebase, and WebDAV doors are not in this app.\n\nAn unofficial port of My Mind by Ondřej Žára. Same map, same keys.",
+  "author": {
+    "name": "Ondřej Žára",
+    "url": "https://github.com/ondras/my-mind"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "My Mind",
+    "url": "https://github.com/ondras/my-mind",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Productivity"
+  ],
+  "tags": [
+    "mindmap",
+    "outline",
+    "notes",
+    "ideas",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/my-mind",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
