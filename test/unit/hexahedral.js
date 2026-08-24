@@ -140,6 +140,8 @@ check('all 30 jam levels are aboard', HEX.count === 30 && (S.HEX_LEVELS || []).l
   check('the field captures a pointer so a drag actually slides',
     /pointerdown/.test(app) && /setPointerCapture/.test(app) && /isoDrag/.test(app) && /isoDir/.test(app));
   check('the field does not yield the gesture to the page', /touch-action:\s*none/.test(css));
+  check('a [hidden] menu button stays hidden (display:block must not leak Resume)',
+    /button\[hidden\]\s*\{\s*display:\s*none/.test(css));
   check('a diamond pad is there for a thumb after the first touch',
     /id="pad"/.test(html) && /touchstart/.test(app) && /data-dr/.test(html));
   check('the save writes bests through gifos.db(\'save\')',
