@@ -1,0 +1,29 @@
+vendor/* is GENERATED. Do not edit it; run node apps/js-gauntlet/vendor.mjs.
+
+upstream: https://github.com/jakesgordon/javascript-gauntlet
+commit:   2f9020dc642ba3bf98fd20a5251bed5c9d84d924
+date:     2025-06-01
+license:  MIT (COPYING.txt) for the code.
+
+NOT copied (licensed only for the original project, see upstream README):
+  sounds/music.*     Lucky Lion Studios
+  sounds/*.ogg/mp3   Premium Beat SFX
+Boot.js / the Sounds stub synthesise nothing — the dungeon is silent.
+
+Copied and lightly patched:
+  js/vendor.js, js/game.js, js/gauntlet.js, css, images, level PNGs.
+
+Patches in gauntlet.js / game.js:
+  - image and level URLs are data URIs (GAUNTLET_ASSETS)
+  - no audio files, Sounds is a mute stub
+  - Game.run does not hang if DOMContentLoaded already fired
+  - extra adventurers (party[]) occupy start+slot, share collision
+  - confirm() on quit removed
+
+sha256:
+  gauntlet.js  13f79b56fd6e3d5cd3fcb824f86cc39570dbeb7f3ba2134f30ff7e75c3bd592e
+  game.js      57c3306fa7750ed8352e0f78334fde46398be53cb7e4e0d814de2448fded4fae
+  vendor.js    bc6e0d3f6875d0335c9bf77175d93fe3f1ef5c592a5e928c6822e094279a19b6
+  COPYING.txt  127d037a038179131264d54a0cd2d49419d824a4545d2337a3d208dd5be05295
+
+The MIT notice travels INSIDE the GIF as COPYING.txt as well as here.
