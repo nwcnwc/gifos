@@ -3,8 +3,11 @@
  * connect-src stays 'none': nothing here fetches. Glue is window.SQUOOSH_*
  * (rewritten by build.mjs); wasm is packed under .assets/.
  *
- * Default options are Squoosh's own (src/features/encoders/*/shared/meta.ts
- * at pin e8d35e0). Changing a default is a product decision, not a guess.
+ * Default options are Squoosh's own (src/features/encoders/<codec>/shared/
+ * meta.ts at pin e8d35e0). Changing a default is a product decision, not a
+ * guess. NOTE: never write a glob with a slash after the star in this block
+ * comment — the star-slash pair terminates the comment and everything after
+ * it parses as code (this file shipped dead-at-boot exactly that way).
  */
 (function (root) {
   'use strict';
