@@ -1,5 +1,5 @@
 /* Optional meeting: the same numbers. Each device plays its own click.
- * Invite is OS chrome — this file only says to press it. */
+ * Invite is OS chrome — this file only says to press it. Volume stays local. */
 (function (root) {
   'use strict';
 
@@ -10,7 +10,7 @@
     var s = Mp.getState ? Mp.getState() : {};
     return {
       id: 'shared', at: Date.now(), hostId: me.id, name: me.name,
-      tempo: s.tempo || 120, sig: s.sig || '4/4', vol: s.vol == null ? 80 : s.vol
+      tempo: s.tempo || 120, sig: s.sig || '4/4', subdiv: s.subdiv || 'beat'
     };
   }
   function publish() {
@@ -26,7 +26,9 @@
     (list || []).forEach(function (r) { if (r && r.id === 'shared') row = r; });
     var was = guest;
     guest = !owner;
-    document.body.classList.toggle('guest', guest);
+    if (root.document && root.document.body) {
+      root.document.body.classList.toggle('guest', guest);
+    }
     if (guest && row && Mp.onRemote) Mp.onRemote(row);
     else if (was && !guest && Mp.onHost) Mp.onHost();
     if (Mp.onStatus) Mp.onStatus(statusOf(), guest);
@@ -56,4 +58,4 @@
     getState: null, onRemote: null, onHost: null, onStatus: null
   };
   root.MetroMp = Mp;
-})(window);
+})(typeof window !== 'undefined' ? window : this);

@@ -122,6 +122,12 @@ if (/mediaDevices|getUserMedia|recordAudio/.test(files['app.js'])) {
 if (!files['app.js'].includes('createOscillator') || !files['app.js'].includes('SCHEDULE_AHEAD')) {
   throw new Error('app.js must use the Web Audio lookahead scheduler');
 }
+if (!files['app.js'].includes('onBack')) throw new Error('app.js must register gifos.onBack to stop');
+if (!files['app.js'].includes('notesInQueue') && !files['app.js'].includes('queue.push')) {
+  throw new Error('app.js must queue notes and paint when they play, not when they schedule');
+}
+if (!files['mp.js'].includes('subdiv')) throw new Error('room snapshot must carry subdiv');
+if (/vol:/.test(files['mp.js'])) throw new Error('volume is local — do not sync it in the room snapshot');
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -139,7 +145,7 @@ if (!files['COPYING-metronome.txt'].includes('Chris Wilson')) {
 }
 
 {
-  const ctx = { console };
+  const ctx = { console, Math, Object, Array, JSON, Date, String, Number, Boolean };
   ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx;
   ctx.document = { getElementById: function () { return null; } };
   vm.runInNewContext(files['app.js'] + '\n' +
@@ -152,6 +158,12 @@ if (!files['COPYING-metronome.txt'].includes('Chris Wilson')) {
     '  if (Math.abs(q - 0.5) > 1e-9) throw new Error("120 4/4 " + q);\n' +
     '  var e = M.nextSeconds(120, "6/8");\n' +
     '  if (Math.abs(e - 0.25) > 1e-9) throw new Error("120 6/8 " + e);\n' +
+    '  var s8 = M.secondsPerClick(120, "4/4", "8th");\n' +
+    '  if (Math.abs(s8 - 0.25) > 1e-9) throw new Error("120 8th " + s8);\n' +
+    '  var bar = M.scheduleBar(120, "4/4", "beat", 0);\n' +
+    '  if (bar.length !== 4) throw new Error("bar " + bar.length);\n' +
+    '  if (!bar[0].accent || bar[1].accent) throw new Error("accent");\n' +
+    '  if (M.tapBpm([0, 500, 1000]) !== 120) throw new Error("tap");\n' +
     '  return { q: q, e: e };\n' +
     '})();',
     ctx

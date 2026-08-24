@@ -7,9 +7,9 @@ by Chris Wilson (MIT). Lookahead Web Audio scheduler, no Worker (srcdoc has
 no relative worker URL; audible audio already prevents timer throttling).
 
 ```
-index.html                     tempo, signature, start, tap
-style.css                      dark click-track UI
-app.js                         lookahead scheduler + private save
+index.html                     pendulum, tempo, signature, subdiv, start, tap
+style.css                      dark click-track UI, phone-sized targets
+app.js                         lookahead scheduler + private save + pendulum
 mp.js                          optional meeting: same numbers, local click
 icon.mjs                       procedural sticker and the 1200×720 cover
 build.mjs                      packs site/apps/metronome/metronome.gif
