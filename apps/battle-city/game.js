@@ -168,7 +168,9 @@
     if (hitMap(g, 'river', r, -0.01).length) return false;
     for (var i = 0; i < g.tanks.length; i++) {
       var o = g.tanks[i];
-      if (o === tank || !o.alive) continue;
+      /* tryMove tests a COPY of the mover, so identity never matches: compare
+         by id or every tank blocks itself and the whole board freezes. */
+      if (o === tank || o.id === tank.id || !o.alive) continue;
       if (collide(r, rectTank(o), -0.5)) return false;
     }
     return true;
