@@ -1,6 +1,6 @@
 {
   "tagline": "A crossword in a file. Type on the phone. Close it — the letters stay.",
-  "description": "Three original grids in one GIF: a 5×5 word square, a 7×7 of palindromes, and the little 4×4 that shipped first. There is no account, nothing is uploaded, and it works on a plane. Close the app and come back: every letter is still in the file.\n\nTap a square and type — the phone keyboard opens, and a pad sits under the grid if you want it. Check a word when you are stuck, or reveal one letter. Press Invite in the bar above and everyone fills the same grid.\n\nAn unofficial port of crosswords-js by Dave Kerr. The player is his. The puzzles were written for this copy.",
+  "description": "Three original grids in one GIF: a 5×5 word square, a 7×7 of palindromes, and the little 4×4 that shipped first. There is no account, nothing is uploaded, and it works on a plane. Close the app and come back: every letter is still in the file.\n\nTap a square and type — the phone keyboard opens, and a pad sits under the grid. Check a word when you are stuck, or reveal one letter. Press Invite in the bar above and everyone fills the same grid.\n\nAn unofficial port of crosswords-js by Dave Kerr. The player is his. The puzzles were written for this copy.",
   "author": {
     "name": "Dave Kerr",
     "url": "https://github.com/dwmkerr/crosswords-js"
