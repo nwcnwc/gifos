@@ -2,9 +2,16 @@
 (function () {
   'use strict';
 
-  var IM = window.HOUSE_IMAGES || {};
-  var SND = window.HOUSE_SOUNDS || {};
-  var ROOMS = window.HOUSE_ROOMS || {};
+  function IM() { return window.HOUSE_IMAGES || {}; }
+  function SND() { return window.HOUSE_SOUNDS || {}; }
+  function ROOMS() { return window.HOUSE_ROOMS || {}; }
+
+  function hideBoot() {
+    var el = document.getElementById('house-boot');
+    if (!el || el.classList.contains('gone')) return;
+    el.classList.add('gone');
+    setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 700);
+  }
 
   function remapSrc(src) {
     if (!src || /^data:|^blob:/i.test(src)) return src;
@@ -12,16 +19,17 @@
     u = u.replace(/^\.\//, '');
     while (u.indexOf('../') === 0) u = u.slice(3);
     if (u.charAt(0) === '/') u = u.slice(1);
-    if (IM[u]) return IM[u];
-    if (SND[u]) return SND[u];
+    var images = IM(), sounds = SND();
+    if (images[u]) return images[u];
+    if (sounds[u]) return sounds[u];
     var m = u.match(/((?:images|fonts|sound)\/[^/?#]+)$/);
     if (m) {
-      if (IM[m[1]]) return IM[m[1]];
-      if (SND[m[1]]) return SND[m[1]];
+      if (images[m[1]]) return images[m[1]];
+      if (sounds[m[1]]) return sounds[m[1]];
     }
     /* SM2 concatenates location.pathname + 'sound/x.mp3' → 'srcdocsound/x.mp3' */
     m = u.match(/sound\/([^/?#]+)$/);
-    if (m && SND['sound/' + m[1]]) return SND['sound/' + m[1]];
+    if (m && sounds['sound/' + m[1]]) return sounds['sound/' + m[1]];
     return src;
   }
 
@@ -106,9 +114,10 @@
   function roomKey(url) {
     var u = String(url || '').split('?')[0].replace(/^\.\//, '');
     if (u.charAt(0) === '/') u = u.slice(1);
-    if (ROOMS[u] != null) return u;
+    var rooms = ROOMS();
+    if (rooms[u] != null) return u;
     var base = u.indexOf('/') >= 0 ? u.slice(u.lastIndexOf('/') + 1) : u;
-    if (ROOMS[base] != null) return base;
+    if (rooms[base] != null) return base;
     return null;
   }
 
@@ -125,8 +134,9 @@
           resumeRoom();
           return this;
         }
-        if (key && ROOMS[key] != null) {
-          this.html(remapHtml(ROOMS[key]));
+        if (key && ROOMS()[key] != null) {
+          this.html(remapHtml(ROOMS()[key]));
+          hideBoot();
           var cb = typeof complete === 'function' ? complete : (typeof data === 'function' ? data : null);
           if (cb) {
             var el = this[0];
@@ -501,21 +511,33 @@
 
   if (window.HOUSE_TEST) return;
 
-  hookImages();
-  patchJquery();
-  patchSounds();
-  patchDrag();
-  bakeCss();
-  punchTouch();
-
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'hidden') persist(true);
-  });
-
-  if (saveDb && saveDb.get) {
-    saveDb.get('last').then(start).catch(function () { start(null); });
-    setTimeout(function () { start(null); }, 4000);
-  } else {
-    start(null);
+  function mapsReady() {
+    return Object.keys(IM()).length > 50 && Object.keys(SND()).length > 10 && ROOMS()['intro.html'] && ROOMS()['room.html'];
   }
+
+  function bootWhenReady() {
+    if (!mapsReady()) {
+      setTimeout(bootWhenReady, 40);
+      return;
+    }
+    hookImages();
+    patchJquery();
+    patchSounds();
+    patchDrag();
+    bakeCss();
+    punchTouch();
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') persist(true);
+    });
+
+    if (saveDb && saveDb.get) {
+      saveDb.get('last').then(start).catch(function () { start(null); });
+      setTimeout(function () { start(null); }, 4000);
+    } else {
+      start(null);
+    }
+  }
+  bootWhenReady();
+  setTimeout(hideBoot, 12000);
 })();
