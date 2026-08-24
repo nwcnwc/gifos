@@ -3395,6 +3395,14 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   .doc sup{color:var(--rlink);font-weight:700;font-size:.7em;padding-right:.15em}
   .status{padding:34px 20px;text-align:center;color:var(--rmuted);max-width:520px;margin:0 auto;line-height:1.6}
   .status.err{color:#d9694a}
+  .status button{margin-top:14px;padding:8px 14px;border-radius:9px;border:1px solid var(--rborder);background:var(--rbg);color:var(--rtext);cursor:pointer;font:inherit}
+  .banner{background:var(--rchrome);border:1px solid var(--rborder);color:var(--rmuted);font:12.5px system-ui;padding:9px 12px;margin:0 0 16px;border-radius:9px;line-height:1.45}
+  #jumper{display:none;gap:8px;align-items:center;flex-wrap:wrap;background:var(--rchrome);border-bottom:1px solid var(--rborder);padding:8px 12px;flex:0 0 auto}
+  #jumper.on{display:flex}
+  #jumper select,#jumper input{padding:6px 8px;border-radius:8px;border:1px solid var(--rborder);background:var(--rbg);color:var(--rtext);font:inherit}
+  #jumper input{width:4.4em}
+  #jumper label{color:var(--rmuted);font-size:13px}
+  nav button.jump.on{background:var(--rlink);color:var(--rbg);border-color:var(--rlink)}
   .foot{color:var(--rmuted);font-size:.72rem;text-align:center;padding:28px 20px 0;line-height:1.5;opacity:.85}
 </style>
 <header><span class="ttl">Bible Browser</span><span class="loc" id="loc"></span></header>
@@ -3403,6 +3411,9 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   <button id="fwd" title="Forward">&rsaquo;</button>
   <button id="reload" title="Reload">&#8635;</button>
   <button class="home" id="home">Home</button>
+  <button id="prevch" title="Previous chapter" disabled>&laquo;</button>
+  <button id="nextch" title="Next chapter" disabled>&raquo;</button>
+  <button id="jump" class="jump" title="Jump to a book or chapter">Go</button>
   <button class="follow" id="follow" style="display:none" title="Follow the meeting">Follow</button>
   <span class="sp"></span>
   <span class="grp">
@@ -3411,7 +3422,12 @@ Home Screen, so this icon opens the built-in store page instead of running here.
     <button id="theme" class="chip" title="Day / night">&#9790;</button>
   </span>
 </nav>
-<main id="main"><div class="status">Loading the Recovery Version&hellip;</div></main>
+<div id="jumper">
+  <select id="jbook"></select>
+  <label>ch. <input id="jch" type="number" min="1" value="1"></label>
+  <button id="jgo">Open</button>
+</div>
+<main id="main"><div class="status">Fetching the Recovery Version through the GifOS CORS proxy&hellip;</div></main>
 <script>
   var HOST='text.recoveryversion.bible', HOME='https://text.recoveryversion.bible/';
   var main=document.getElementById('main'), locEl=document.getElementById('loc');
@@ -3425,7 +3441,10 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   //              their own copy; it never leaves their tab).
   var hasDb=!!(window.gifos&&gifos.db);
   var navDb=hasDb?gifos.db('nav'):null, presDb=hasDb?gifos.db('presence'):null, prefsDb=hasDb?gifos.db('prefs'):null;
-  var hist=[], hi=-1, curUrl=HOME;
+  // Recently-read pages, PRIVATE: so a chapter you already opened can be re-read
+  // on a plane. Never shared — a meeting still fetches (or pools) the live page.
+  var pagesDb=hasDb?gifos.db('pages'):null;
+  var hist=[], hi=-1, curUrl=HOME, fromCache=false;
   var prefs={ theme:'night', fs:18 };
   var me={ id:'', name:'' };
   // Follow-along (meetings): the group's current page lives in a single 'nav'
@@ -3488,24 +3507,82 @@ Home Screen, so this icon opens the built-in store page instead of running here.
         setTimeout(function(){ applyingScroll=false; }, 90);
       }
     } }
-  function setStatus(msg,err){ main.innerHTML='<div class="status'+(err?' err':'')+'">'+msg+'</div>'; }
-  function buttons(){ backB.disabled=hi<=0; fwdB.disabled=hi>=hist.length-1; }
+  function setStatus(msg,err){ main.innerHTML='<div class="status'+(err?' err':'')+'">'+msg+(err?'<p><button type="button" id="retry">Try again</button></p>':'')+'</div>'; }
+  function buttons(){ backB.disabled=hi<=0; fwdB.disabled=hi>=hist.length-1; updateChapBtns(); }
   function shortLoc(u){ try{ var x=new URL(u); return (x.pathname+x.search)||'/'; }catch(e){ return u; } }
   function resolve(href, base){ try{ return new URL(href, base).toString(); }catch(e){ return null; } }
+  // The Recovery Version's chapter files are NN_Book_N.htm. Chapter counts are
+  // the Protestant/RV ones — used only to drive Go / prev / next, never to
+  // invent text. A miss just disables the buttons.
+  var BOOKS=[{id:'01_Genesis',n:'Genesis',c:50},{id:'02_Exodus',n:'Exodus',c:40},{id:'03_Leviticus',n:'Leviticus',c:27},{id:'04_Numbers',n:'Numbers',c:36},{id:'05_Deuteronomy',n:'Deuteronomy',c:34},{id:'06_Joshua',n:'Joshua',c:24},{id:'07_Judges',n:'Judges',c:21},{id:'08_Ruth',n:'Ruth',c:4},{id:'09_1Samuel',n:'1 Samuel',c:31},{id:'10_2Samuel',n:'2 Samuel',c:24},{id:'11_1Kings',n:'1 Kings',c:22},{id:'12_2Kings',n:'2 Kings',c:25},{id:'13_1Chronicles',n:'1 Chronicles',c:29},{id:'14_2Chronicles',n:'2 Chronicles',c:36},{id:'15_Ezra',n:'Ezra',c:10},{id:'16_Nehemiah',n:'Nehemiah',c:13},{id:'17_Esther',n:'Esther',c:10},{id:'18_Job',n:'Job',c:42},{id:'19_Psalms',n:'Psalms',c:150},{id:'20_Proverbs',n:'Proverbs',c:31},{id:'21_Ecclesiastes',n:'Ecclesiastes',c:12},{id:'22_SongofSongs',n:'Song of Songs',c:8},{id:'23_Isaiah',n:'Isaiah',c:66},{id:'24_Jeremiah',n:'Jeremiah',c:52},{id:'25_Lamentations',n:'Lamentations',c:5},{id:'26_Ezekiel',n:'Ezekiel',c:48},{id:'27_Daniel',n:'Daniel',c:12},{id:'28_Hosea',n:'Hosea',c:14},{id:'29_Joel',n:'Joel',c:3},{id:'30_Amos',n:'Amos',c:9},{id:'31_Obadiah',n:'Obadiah',c:1},{id:'32_Jonah',n:'Jonah',c:4},{id:'33_Micah',n:'Micah',c:7},{id:'34_Nahum',n:'Nahum',c:3},{id:'35_Habakkuk',n:'Habakkuk',c:3},{id:'36_Zephaniah',n:'Zephaniah',c:3},{id:'37_Haggai',n:'Haggai',c:2},{id:'38_Zechariah',n:'Zechariah',c:14},{id:'39_Malachi',n:'Malachi',c:4},{id:'40_Matthew',n:'Matthew',c:28},{id:'41_Mark',n:'Mark',c:16},{id:'42_Luke',n:'Luke',c:24},{id:'43_John',n:'John',c:21},{id:'44_Acts',n:'Acts',c:28},{id:'45_Romans',n:'Romans',c:16},{id:'46_1Corinthians',n:'1 Corinthians',c:16},{id:'47_2Corinthians',n:'2 Corinthians',c:13},{id:'48_Galatians',n:'Galatians',c:6},{id:'49_Ephesians',n:'Ephesians',c:6},{id:'50_Philippians',n:'Philippians',c:4},{id:'51_Colossians',n:'Colossians',c:4},{id:'52_1Thessalonians',n:'1 Thessalonians',c:5},{id:'53_2Thessalonians',n:'2 Thessalonians',c:3},{id:'54_1Timothy',n:'1 Timothy',c:6},{id:'55_2Timothy',n:'2 Timothy',c:4},{id:'56_Titus',n:'Titus',c:3},{id:'57_Philemon',n:'Philemon',c:1},{id:'58_Hebrews',n:'Hebrews',c:13},{id:'59_James',n:'James',c:5},{id:'60_1Peter',n:'1 Peter',c:5},{id:'61_2Peter',n:'2 Peter',c:3},{id:'62_1John',n:'1 John',c:5},{id:'63_2John',n:'2 John',c:1},{id:'64_3John',n:'3 John',c:1},{id:'65_Jude',n:'Jude',c:1},{id:'66_Revelation',n:'Revelation',c:22}];
+  function parseChap(u){
+    try{ var p=new URL(u).pathname; var m=p.match(/\\/(\\d{2}_[A-Za-z0-9]+)_(\\d+)\\.htm$/); if(!m) return null;
+      for(var i=0;i<BOOKS.length;i++) if(BOOKS[i].id===m[1]) return {book:BOOKS[i], ch:+m[2], i:i};
+      return null; }catch(e){ return null; }
+  }
+  function chapUrl(book, ch){ return HOME+book.id+'_'+ch+'.htm'; }
+  function niceLoc(u){ var p=parseChap(u); return p?(p.book.n+' '+p.ch):shortLoc(u); }
+  function updateChapBtns(){
+    var prev=document.getElementById('prevch'), next=document.getElementById('nextch');
+    if(!prev||!next) return;
+    var p=parseChap(curUrl);
+    prev.disabled=!(p&&(p.i>0||p.ch>1));
+    next.disabled=!(p&&(p.ch<p.book.c||p.i<BOOKS.length-1));
+  }
+  function neighbor(dir){
+    var p=parseChap(curUrl); if(!p) return null;
+    var ch=p.ch+dir, b=p.book, i=p.i;
+    if(ch<1){ if(i<=0) return null; b=BOOKS[i-1]; ch=b.c; }
+    else if(ch>b.c){ if(i>=BOOKS.length-1) return null; b=BOOKS[i+1]; ch=1; }
+    return chapUrl(b,ch);
+  }
+  function explainErr(e){
+    var msg=String((e&&e.message)||e||'');
+    if(msg==='NO_GIFOS'||!window.gifos||!gifos.fetch) return 'Open this from GifOS to reach the internet.';
+    if(typeof navigator!=='undefined'&&navigator.onLine===false) return 'You are offline, and this page has not been saved on this device yet. Chapters you have already opened can be re-read without a connection.';
+    if(/Network denied/i.test(msg)) return 'This app&rsquo;s internet is switched off (the &ldquo;Internet&rdquo; button up top), or '+HOST+' is blocked.';
+    if(/HTTP 404/.test(msg)) return 'That address is not on the Recovery Version site.';
+    if(/HTTP 429/.test(msg)) return 'The CORS proxy asked us to slow down. Wait a moment and try again.';
+    if(/Failed to fetch|NetworkError|Load failed|TypeError/i.test(msg)) return 'Couldn&rsquo;t reach the GifOS CORS proxy or the Bible site. You may be offline.';
+    return 'Couldn&rsquo;t load that page.<br><br><small>'+esc(msg)+'</small>';
+  }
   // Base for resolving a page's relative links: honour <base href> if present,
   // else the page's own URL. (Old static Bible sites often set <base>, and
   // getting this wrong is what sends chapter links to the wrong file.)
   function baseFor(doc, url){ var b=doc.querySelector('base[href]'); if(b){ var r=resolve(b.getAttribute('href'), url); if(r) return r; } return url; }
-  // Fetch + parse one page through the CORS proxy. Returns { doc, url } where url
-  // is where the request actually LANDED: the proxy follows redirects server-side
-  // (e.g. "nt-outlines" -> "nt-outlines/") and reports the final URL in a header,
-  // so a page's relative links resolve against the right directory. Older proxies
-  // omit it — then we fall back to the requested URL.
+  // Fetch + parse one page through the CORS proxy. Returns { doc, url, cached }
+  // where url is where the request actually LANDED: the proxy follows redirects
+  // server-side (e.g. "nt-outlines" -> "nt-outlines/") and reports the final URL
+  // in a header, so a page's relative links resolve against the right directory.
+  // Older proxies omit it — then we fall back to the requested URL.
+  // A failed live fetch falls back to a PRIVATE copy of a page this device has
+  // already opened (so re-reading a chapter works offline). cached:true when so.
+  function cachePut(url, html){
+    if(!pagesDb||!url||html==null) return;
+    pagesDb.put({id:url, html:html, t:Date.now()}).then(function(){ return pagesDb.getAll(); })
+      .then(function(rows){ if(!rows||rows.length<=40) return;
+        rows.sort(function(a,b){ return (a.t||0)-(b.t||0); });
+        for(var i=0;i<rows.length-40;i++) try{ pagesDb.delete(rows[i].id); }catch(e){} })
+      .catch(function(){}); }
+  function cacheGet(url){
+    if(!pagesDb||!url) return Promise.resolve(null);
+    return pagesDb.get(url).then(function(r){ return (r&&typeof r.html==='string')?r:null; }).catch(function(){ return null; });
+  }
   function fetchDoc(url){ var finalUrl=url;
     return gifos.fetch(url,{proxy:true}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status+' for '+shortLoc(url));
       var fin=r.headers&&r.headers['x-gifos-final-url']; if(fin){ var a=resolve(fin, url); if(a) finalUrl=a; }
       return r.text(); })
-    .then(function(t){ return { doc:new DOMParser().parseFromString(t,'text/html'), url:finalUrl }; }); }
+    .then(function(t){ cachePut(finalUrl, t); if(finalUrl!==url) cachePut(url, t);
+      return { doc:new DOMParser().parseFromString(t,'text/html'), url:finalUrl, cached:false }; })
+    .catch(function(e){
+      return cacheGet(url).then(function(hit){
+        if(!hit && finalUrl!==url) return cacheGet(finalUrl);
+        return hit;
+      }).then(function(hit){
+        if(!hit) throw e;
+        return { doc:new DOMParser().parseFromString(hit.html,'text/html'), url:hit.id, cached:true };
+      });
+    }); }
   // Rewrite every <a href> in a doc to an ABSOLUTE url against its base, so that
   // once frames are merged the hrefs still point at the right place.
   function absolutizeAnchors(doc, base){
@@ -3523,7 +3600,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
       var base=baseFor(doc, actual); absolutizeAnchors(doc, base);
       var frames=Array.prototype.slice.call(doc.querySelectorAll('frame[src],iframe[src]'));
       var same=frames.filter(function(fr){ var s=resolve(fr.getAttribute('src'), base); try{ return s && new URL(s).hostname===HOST; }catch(e){ return false; } });
-      if(!same.length) return { root: doc.body || doc.documentElement, url: actual };
+      if(!same.length) return { root: doc.body || doc.documentElement, url: actual, cached:!!res.cached };
       return Promise.all(same.map(function(fr){
         var src=resolve(fr.getAttribute('src'), base);
         return fetchDoc(src).then(function(fres){
@@ -3531,7 +3608,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
           var holder=document.createElement('div'); holder.innerHTML=(fdoc.body?fdoc.body.innerHTML:'');
           if(fr.parentNode) fr.parentNode.replaceChild(holder, fr); else (doc.body||doc.documentElement).appendChild(holder);
         }).catch(function(){ if(fr.parentNode) fr.parentNode.removeChild(fr); });
-      })).then(function(){ return { root: doc.body || doc.documentElement, url: actual }; });
+      })).then(function(){ return { root: doc.body || doc.documentElement, url: actual, cached:!!res.cached }; });
     });
   }
   // Clean the merged DOM: drop unsafe/non-content nodes, strip handlers, turn
@@ -3554,27 +3631,36 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   }
   function render(root){
     var html=sanitize(root);
-    main.innerHTML='<div class="doc">'+html+'<p class="foot">Text from text.recoveryversion.bible, read through the GifOS CORS proxy &mdash; tap the &ldquo;Internet&rdquo; button up top to see or change that.</p></div>';
+    var banner=fromCache?'<div class="banner">Showing a copy saved on this device &mdash; the live fetch through the CORS proxy did not land. Tap &#8635; to try again.</div>':'';
+    main.innerHTML='<div class="doc">'+banner+html+'<p class="foot">Text from text.recoveryversion.bible, read through the GifOS CORS proxy &mdash; tap the &ldquo;Internet&rdquo; button up top to see or change that. Chapters you open are saved on this device so you can re-read them offline.</p></div>';
     // Land where the reader (or the meeting) last was on this page, not the top.
     // Re-apply on the next frame: right after innerHTML the new layout isn't
     // flushed yet, so a bare scrollTop set clamps against the old (short) height.
     var f=pendingFrac!=null?pendingFrac:0; pendingFrac=null;
     applyingScroll=true; applyFrac(f);
     requestAnimationFrame(function(){ applyFrac(f); setTimeout(function(){ applyingScroll=false; }, 60); });
-    locEl.textContent=shortLoc(curUrl);
+    locEl.textContent=niceLoc(curUrl);
+    updateChapBtns();
+    var p=parseChap(curUrl);
+    if(p){ document.getElementById('jbook').value=p.book.id; document.getElementById('jch').value=p.ch; document.getElementById('jch').max=p.book.c; }
   }
   function go(url, push, fromSync, frac){
-    curUrl=url;
+    curUrl=url; fromCache=false;
     if(push){ hist=hist.slice(0,hi+1); hist.push(url); hi=hist.length-1; }
-    buttons(); locEl.textContent=shortLoc(url); setStatus('Loading '+esc(shortLoc(url))+'&hellip;');
+    buttons(); locEl.textContent=niceLoc(url);
+    var offline=typeof navigator!=='undefined'&&navigator.onLine===false;
+    setStatus(offline
+      ? 'You are offline &mdash; looking for a saved copy of '+esc(niceLoc(url))+'&hellip;'
+      : 'Fetching '+esc(niceLoc(url))+' through the GifOS CORS proxy&hellip;');
     if(!window.gifos||!gifos.fetch){ setStatus('Open this from GifOS to reach the internet.', true); return; }
     var want=url, target=(frac==null?0:frac);
     loadPage(url).then(function(res){ if(curUrl!==want) return; curUrl=res.url||url;
-        pendingFrac=target; render(res.root); lastFrac=target; saveLast();
-        if(!fromSync && follow) pushNav(curUrl, target); })  // my own move drives the group when following
-      .catch(function(e){ if(curUrl!==want) return; setStatus('Couldn&rsquo;t load that page. You may be offline, or this app&rsquo;s internet is switched off (the &ldquo;Internet&rdquo; button up top).<br><br><small>'+esc(e&&e.message||'')+'</small>', true); });
+        fromCache=!!res.cached; pendingFrac=target; render(res.root); lastFrac=target; saveLast();
+        if(!fromSync && follow && !fromCache) pushNav(curUrl, target); })  // my own live move drives the group; a cached fallback does not
+      .catch(function(e){ if(curUrl!==want) return; setStatus(explainErr(e), true); });
   }
   main.addEventListener('click', function(e){
+    if(e.target&&e.target.id==='retry'){ e.preventDefault(); go(curUrl, false); return; }
     var a=e.target.closest&&e.target.closest('a'); if(!a||!main.contains(a)) return;
     // This app runs in a srcdoc iframe, whose base URL is the HOST page (run.html).
     // Letting ANY in-doc link follow its href navigates the whole frame to
@@ -3599,6 +3685,27 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   fwdB.onclick=function(){ if(hi<hist.length-1){ hi++; go(hist[hi], false); buttons(); } };
   document.getElementById('reload').onclick=function(){ go(curUrl, false); };
   document.getElementById('home').onclick=function(){ go(HOME, true); };
+  document.getElementById('prevch').onclick=function(){ var u=neighbor(-1); if(u) go(u, true); };
+  document.getElementById('nextch').onclick=function(){ var u=neighbor(1); if(u) go(u, true); };
+  (function fillJump(){
+    var sel=document.getElementById('jbook');
+    for(var i=0;i<BOOKS.length;i++){ var o=document.createElement('option'); o.value=BOOKS[i].id; o.textContent=BOOKS[i].n; sel.appendChild(o); }
+    sel.onchange=function(){ var id=sel.value; for(var i=0;i<BOOKS.length;i++) if(BOOKS[i].id===id){ document.getElementById('jch').max=BOOKS[i].c; if(+document.getElementById('jch').value>BOOKS[i].c) document.getElementById('jch').value=1; } };
+  })();
+  document.getElementById('jump').onclick=function(){
+    var box=document.getElementById('jumper'); var on=box.classList.toggle('on');
+    this.classList.toggle('on', on);
+    var p=parseChap(curUrl);
+    if(p){ document.getElementById('jbook').value=p.book.id; document.getElementById('jch').value=p.ch; document.getElementById('jch').max=p.book.c; }
+  };
+  document.getElementById('jgo').onclick=function(){
+    var id=document.getElementById('jbook').value, ch=+document.getElementById('jch').value||1, b=null;
+    for(var i=0;i<BOOKS.length;i++) if(BOOKS[i].id===id) b=BOOKS[i];
+    if(!b) return;
+    document.getElementById('jumper').classList.remove('on');
+    document.getElementById('jump').classList.remove('on');
+    go(chapUrl(b, Math.max(1, Math.min(b.c, ch))), true);
+  };
   document.getElementById('bigger').onclick=function(){ prefs.fs=Math.min(30, prefs.fs+2); applyPrefs(); savePrefs(); };
   document.getElementById('smaller').onclick=function(){ prefs.fs=Math.max(14, prefs.fs-2); applyPrefs(); savePrefs(); };
   document.getElementById('theme').onclick=function(){ prefs.theme=prefs.theme==='night'?'day':'night'; applyPrefs(); savePrefs(); };
@@ -3654,54 +3761,123 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   .metric:last-child{border-bottom:0}
   .metric b{color:#7b5cff}
   .tip{color:#ffce6b;font-size:.88rem;margin-top:10px;line-height:1.45}
+  .fine{color:#8888aa;font-size:.78rem;margin-top:8px;line-height:1.4}
   audio{width:100%;margin-top:12px}
+  canvas.wave{width:100%;height:56px;display:block;margin-top:10px;background:#0a0a0f;border-radius:8px}
+  .past{margin-top:8px}
+  .past h3{margin:0 0 6px;font-size:.88rem;color:#8888aa;font-weight:600}
+  .take{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #2a2a3f;font-size:.82rem}
+  .take:last-child{border-bottom:0}
+  .take .when{color:#8888aa;font-variant-numeric:tabular-nums}
+  .wait{color:#8888aa}
 </style>
 <header>Speech Coach</header>
 <main>
-  <p class="lead">Record up to 12 seconds of yourself talking. It’s analysed right on your device — nothing leaves it — for pace, pauses and volume.</p>
+  <p class="lead">Tap Record. GifOS shows its own mic indicator and records up to 12 seconds; this app receives the finished clip, never a live microphone. Analysis stays on this device — nothing is sent anywhere. Pace is estimated from bursts of sound, not from a transcript: this app does not listen for words.</p>
   <button id="rec">● Record &amp; analyse</button>
   <div id="out"></div>
+  <div class="card past" id="hist" style="display:none"><h3>Earlier takes (scores only — the clip is not kept)</h3><div id="hlist"></div></div>
 </main>
 <script>
 const recBtn=document.getElementById('rec'), out=document.getElementById('out');
+const histBox=document.getElementById('hist'), hlist=document.getElementById('hlist');
+const pad=n=>(n<10?'0':'')+n;
+function when(ts){ const d=new Date(ts); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+let db=null, past=[];
+function drawHist(){
+  if(!past.length){ histBox.style.display='none'; return; }
+  histBox.style.display='';
+  hlist.innerHTML=past.slice().reverse().map(t=>'<div class="take"><span>'+esc(t.pace)+' · '+Math.round((t.talk||0)*100)+'% talking · '+t.pauses+' long pause'+(t.pauses===1?'':'s')+'</span><span class="when">'+when(t.ts)+' · '+(t.dur||0).toFixed(1)+'s</span></div>').join('');
+}
+function paintWave(frames, voiced){
+  const c=document.getElementById('wave'); if(!c||!frames.length) return;
+  const dpr=window.devicePixelRatio||1, w=c.clientWidth||320, h=c.clientHeight||56;
+  c.width=Math.round(w*dpr); c.height=Math.round(h*dpr);
+  const g=c.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,w,h);
+  const peak=Math.max.apply(null,frames)||1, mid=h/2, bar=Math.max(1, w/frames.length);
+  for(let i=0;i<frames.length;i++){
+    const mag=Math.max(1, (frames[i]/peak)*mid*0.92);
+    g.fillStyle=voiced[i]?(getComputedStyle(document.body).getPropertyValue('--accent').trim()||'#7b5cff'):(getComputedStyle(document.body).getPropertyValue('--border').trim()||'#2a2a3f');
+    g.fillRect(i*bar, mid-mag, Math.max(1,bar-0.4), mag*2);
+  }
+}
+function analyse(buf){
+  const data=buf.getChannelData(0), sr=buf.sampleRate, dur=buf.duration;
+  const fs=Math.max(1,Math.floor(sr*0.03)), frames=[];
+  for(let i=0;i+fs<data.length;i+=fs){ let s=0; for(let j=0;j<fs;j++){const v=data[i+j]; s+=v*v;} frames.push(Math.sqrt(s/fs)); }
+  const peak=Math.max.apply(null,frames)||1e-6, thr=peak*0.12;
+  const voiced=frames.map(f=>f>thr), voicedFrac=voiced.filter(Boolean).length/(voiced.length||1);
+  let pauses=0,run=0; const perPause=Math.ceil(0.4/0.03);
+  for(const v of voiced){ if(!v){ run++; if(run===perPause) pauses++; } else run=0; }
+  const vf=frames.filter((f,i)=>voiced[i]), mean=vf.reduce((a,b)=>a+b,0)/(vf.length||1);
+  const sd=Math.sqrt(vf.reduce((a,b)=>a+(b-mean)*(b-mean),0)/(vf.length||1)), cv=mean?sd/mean:0;
+  let bursts=0,prev=false; for(const v of voiced){ if(v&&!prev)bursts++; prev=v; }
+  const talkDur=voicedFrac*dur, wpm=talkDur>0.3?Math.round(bursts/talkDur*60):0;
+  const bps=bursts/(dur||1), pace=bps<2.2?'measured':bps>4.2?'quick':'steady';
+  const tips=[];
+  if(dur<1.2) tips.push('That was very short — try a sentence or two so there is something to measure.');
+  if(voicedFrac<0.08) tips.push('Almost no voice landed on the clip. Speak closer to the mic, or check GifOS still has the microphone allowed for this app.');
+  else if(voicedFrac<0.45) tips.push('Lots of silence — fill it with confident delivery, or trim the dead air.');
+  if(pauses>=3) tips.push('Several long pauses — a few land, too many lose the room.');
+  if(cv>0.7) tips.push('Volume swings a lot — even it out so every word lands.');
+  if(pace==='quick') tips.push('You’re quick — slow down on key points to let them sink in.');
+  if(pace==='measured'&&voicedFrac>0.6) tips.push('Lovely measured pace — great for clarity.');
+  if(!tips.length) tips.push('Well balanced — clear pace, steady volume, natural pauses.');
+  return {dur,voicedFrac,pauses,pace,cv,wpm,bursts,frames,voiced,tips};
+}
+function card(a, url, vsLast){
+  const vol=a.cv<0.4?'steady':a.cv<0.7?'ok':'uneven';
+  const wpmLine=a.wpm?('<div class="metric"><span>Estimated pace</span><b>~'+a.wpm+' bursts/min</b></div>'):'';
+  const delta=vsLast?('<div class="fine">Versus your last take: talking '+(a.voicedFrac>vsLast.talk?'up':'down')+' from '+Math.round(vsLast.talk*100)+'%, pace was '+esc(vsLast.pace)+'.</div>'):'';
+  return '<div class="card"><h3>Your delivery</h3>'+
+    '<div class="metric"><span>Length</span><b>'+a.dur.toFixed(1)+'s</b></div>'+
+    '<div class="metric"><span>Talking vs silence</span><b>'+Math.round(a.voicedFrac*100)+'% talking</b></div>'+
+    '<div class="metric"><span>Long pauses</span><b>'+a.pauses+'</b></div>'+
+    '<div class="metric"><span>Pace</span><b>'+a.pace+'</b></div>'+wpmLine+
+    '<div class="metric"><span>Volume</span><b>'+vol+'</b></div>'+
+    '<canvas class="wave" id="wave"></canvas>'+
+    '<div class="tip">'+a.tips.join(' ')+'</div>'+
+    '<div class="fine">Bursts/min is counted from loud-vs-quiet, not words. This app never transcribes you.</div>'+delta+
+    (url?'<audio controls src="'+url+'"></audio>':'')+'</div>';
+}
+async function keep(a){
+  const rec={id:'t'+Date.now().toString(36), ts:Date.now(), dur:a.dur, talk:a.voicedFrac, pauses:a.pauses, pace:a.pace, cv:a.cv, wpm:a.wpm};
+  past.push(rec); if(past.length>8) past=past.slice(-8);
+  if(db){ try{ await db.put(rec);
+    const all=await db.getAll();
+    if(all&&all.length>8){ all.sort((x,y)=>(x.ts||0)-(y.ts||0)); for(let i=0;i<all.length-8;i++) try{ await db.delete(all[i].id); }catch(e){} }
+  }catch(e){} }
+  drawHist();
+}
 recBtn.onclick=async()=>{
-  if(!window.gifos||!gifos.recordAudio){ out.innerHTML='<div class="card">Open this inside GifOS to use the microphone.</div>'; return; }
-  recBtn.disabled=true; out.innerHTML='<div class="card">Recording… speak now.</div>';
+  if(!window.gifos||!gifos.recordAudio){ out.innerHTML='<div class="card">Open this inside GifOS to use the microphone. GifOS records behind its own indicator; this app never sees a live mic.</div>'; return; }
+  recBtn.disabled=true; out.innerHTML='<div class="card wait">GifOS is opening its recorder. Speak when the red indicator says it is capturing — tap <b>Stop &amp; use</b> there when you are done (it also stops at 12 seconds).</div>';
   try{
     const clip=await gifos.recordAudio({maxSeconds:12});
-    out.innerHTML='<div class="card">Analysing…</div>';
+    out.innerHTML='<div class="card wait">Analysing the clip on this device…</div>';
     const AC=window.AudioContext||window.webkitAudioContext; const ctx=new AC();
     const buf=await ctx.decodeAudioData(clip.bytes.slice(0));
-    const data=buf.getChannelData(0), sr=buf.sampleRate, dur=buf.duration;
-    const fs=Math.max(1,Math.floor(sr*0.03)), frames=[];
-    for(let i=0;i+fs<data.length;i+=fs){ let s=0; for(let j=0;j<fs;j++){const v=data[i+j]; s+=v*v;} frames.push(Math.sqrt(s/fs)); }
-    const peak=Math.max.apply(null,frames)||1e-6, thr=peak*0.12;
-    const voiced=frames.map(f=>f>thr), voicedFrac=voiced.filter(Boolean).length/(voiced.length||1);
-    let pauses=0,run=0; const perPause=Math.ceil(0.4/0.03);
-    for(const v of voiced){ if(!v){ run++; if(run===perPause) pauses++; } else run=0; }
-    const vf=frames.filter((f,i)=>voiced[i]), mean=vf.reduce((a,b)=>a+b,0)/(vf.length||1);
-    const sd=Math.sqrt(vf.reduce((a,b)=>a+(b-mean)*(b-mean),0)/(vf.length||1)), cv=mean?sd/mean:0;
-    let bursts=0,prev=false; for(const v of voiced){ if(v&&!prev)bursts++; prev=v; }
-    const bps=bursts/(dur||1), pace=bps<2.2?'measured':bps>4.2?'quick':'steady';
-    const tips=[];
-    if(voicedFrac<0.45) tips.push('Lots of silence — fill it with confident delivery, or trim the dead air.');
-    if(pauses>=3) tips.push('Several long pauses — a few land, too many lose the room.');
-    if(cv>0.7) tips.push('Volume swings a lot — even it out so every word lands.');
-    if(pace==='quick') tips.push('You’re quick — slow down on key points to let them sink in.');
-    if(pace==='measured'&&voicedFrac>0.6) tips.push('Lovely measured pace — great for clarity.');
-    if(!tips.length) tips.push('Well balanced — clear pace, steady volume, natural pauses. 👏');
-    const url=URL.createObjectURL(new Blob([clip.bytes],{type:clip.mime}));
-    out.innerHTML='<div class="card"><h3>Your delivery</h3>'+
-      '<div class="metric"><span>Length</span><b>'+dur.toFixed(1)+'s</b></div>'+
-      '<div class="metric"><span>Talking vs silence</span><b>'+Math.round(voicedFrac*100)+'% talking</b></div>'+
-      '<div class="metric"><span>Long pauses</span><b>'+pauses+'</b></div>'+
-      '<div class="metric"><span>Pace</span><b>'+pace+'</b></div>'+
-      '<div class="metric"><span>Volume</span><b>'+(cv<0.4?'steady':cv<0.7?'ok':'uneven')+'</b></div>'+
-      '<div class="tip">'+tips.join(' ')+'</div><audio controls src="'+url+'"></audio></div>';
-    ctx.close();
-  }catch(e){ out.innerHTML='<div class="card">Couldn’t record: '+((e&&e.message)||e)+'</div>'; }
+    const a=analyse(buf);
+    const url=URL.createObjectURL(new Blob([clip.bytes],{type:clip.mime||'audio/webm'}));
+    const last=past[past.length-1]||null;
+    out.innerHTML=card(a,url,last);
+    requestAnimationFrame(function(){ paintWave(a.frames, a.voiced); });
+    await keep(a); ctx.close();
+  }catch(e){
+    const msg=String((e&&e.message)||e||'');
+    if(/cancel/i.test(msg)) out.innerHTML='<div class="card">Recording cancelled. Nothing was kept.</div>';
+    else if(/denied|Permission/i.test(msg)) out.innerHTML='<div class="card">The microphone was denied. Allow it when the browser asks, and leave it on in this app’s Abilities chip.</div>';
+    else if(/turned .*off|Abilities/i.test(msg)) out.innerHTML='<div class="card">'+esc(msg)+'</div>';
+    else out.innerHTML='<div class="card">Couldn’t record: '+esc(msg)+'</div>';
+  }
   recBtn.disabled=false;
 };
+(async()=>{
+  if(!window.gifos||!gifos.db) return;
+  db=gifos.db('takes');
+  try{ const rows=await db.getAll(); past=(rows||[]).filter(r=>r&&r.ts).sort((a,b)=>(a.ts||0)-(b.ts||0)).slice(-8); drawHist(); }catch(e){}
+})();
 </script>`;
 
   // Ask AI — showcases gifos.ai. Uses the models the user wired in Settings; the
@@ -3746,13 +3922,18 @@ recBtn.onclick=async()=>{
   .m.you{background:#14141f;border:1px solid #7b5cff}
   .m.ai{background:#14141f;border:1px solid #2a2a3f}
   .m.err{border-color:#ff5caa}
+  .m.streaming::after{content:'▍';margin-left:1px;animation:blink 1s step-end infinite;color:#7b5cff}
+  @keyframes blink{50%{opacity:0}}
+  .acts{display:flex;gap:6px;padding:0 4px}
+  .acts button{padding:3px 8px;border-radius:7px;border:1px solid #2a2a3f;background:#14141f;color:#8888aa;font:inherit;font-size:.72rem;cursor:pointer}
+  .acts button:hover{color:#e0e0f0}
   .stamp{color:#8888aa;font-size:.72rem;padding:0 4px;font-variant-numeric:tabular-nums}
   .note{color:#8888aa;font-size:.88rem;padding:16px 18px;line-height:1.5}
   .pick{display:flex;gap:6px;padding:0 18px 8px}
   .pick button{padding:6px 12px;border-radius:999px;border:1px solid #2a2a3f;background:#14141f;color:#8888aa;font-size:.8rem;cursor:pointer}
   .pick button.on{background:#7b5cff;color:#fff;border-color:#7b5cff}
-  form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid #2a2a3f}
-  input{flex:1;padding:11px 12px;border:1px solid #2a2a3f;border-radius:9px;background:#1c1c2b;color:#e0e0f0;font:inherit}
+  form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid #2a2a3f;align-items:flex-end}
+  #t{flex:1;padding:11px 12px;border:1px solid #2a2a3f;border-radius:9px;background:#1c1c2b;color:#e0e0f0;font:inherit;min-height:42px;max-height:160px;resize:vertical;line-height:1.4}
   form button{padding:11px 16px;border:0;border-radius:9px;background:#7b5cff;color:#fff;font-weight:700;cursor:pointer}
   form button:disabled{opacity:.5;cursor:default}
   /* History — every chat you ever had, searchable, and deletable ONLY here. */
@@ -3778,7 +3959,7 @@ recBtn.onclick=async()=>{
 <header>Ask AI<span class="sp"></span><button id="histbtn" title="Every chat you have had, searchable">🕘 History</button><button id="new" title="Start a new chat — this one is kept in History">＋ New chat</button></header>
 <div id="log"></div>
 <div class="pick"><button data-m="cheapest" class="on">Cheapest</button><button data-m="smartest">Smartest</button></div>
-<form id="f"><input id="t" placeholder="Ask anything…" autocomplete="off"><button id="send">Send</button></form>
+<form id="f"><textarea id="t" placeholder="Ask anything… (Enter to send, Shift+Enter for a new line)" autocomplete="off" rows="1"></textarea><button id="send">Send</button></form>
 <div id="hist"><div class="hbar"><b>Your chats</b><input id="hq" placeholder="Search by keyword…" autocomplete="off"><button id="hclose">Close</button></div><div id="hlist"></div></div>
 <script>
 const log=document.getElementById('log'), input=document.getElementById('t'), sendBtn=document.getElementById('send');
@@ -3809,13 +3990,21 @@ function metaOf(r){
   return bits.join(' · ');
 }
 function bottom(){ log.scrollTop=log.scrollHeight; }
+function copyBtn(text){
+  const a=document.createElement('div'); a.className='acts';
+  const b=document.createElement('button'); b.type='button'; b.textContent='Copy';
+  b.onclick=async()=>{ try{ await navigator.clipboard.writeText(text); b.textContent='Copied'; setTimeout(()=>{ b.textContent='Copy'; },1200); }catch(e){ b.textContent='Couldn’t copy'; } };
+  a.appendChild(b); return a;
+}
 function draw(r){
   const row=document.createElement('div'); row.className='row '+(r.role==='user'?'you':'ai');
   const b=document.createElement('div'); b.className='m '+(r.role==='user'?'you':'ai'); if(r.error) b.classList.add('err');
   b.textContent=r.content||'';
   const s=document.createElement('div'); s.className='stamp'; s.textContent=metaOf(r);
-  row.appendChild(b); row.appendChild(s); log.appendChild(row); bottom();
-  return {bubble:b, stamp:s};
+  row.appendChild(b); row.appendChild(s);
+  if(r.role==='assistant'&&r.content&&!r.error) row.appendChild(copyBtn(r.content));
+  log.appendChild(row); bottom();
+  return {bubble:b, stamp:s, row:row};
 }
 function note(html){ const d=document.createElement('div'); d.className='note'; d.innerHTML=html; log.appendChild(d); bottom(); return d; }
 function uid(p){ return (p||'m')+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -3943,16 +4132,23 @@ document.getElementById('new').onclick=()=>{
   else if(others>0) note('New chat. Your '+others+' earlier chat'+(others===1?'':'s')+' '+(others===1?'is':'are')+' in <b>🕘 History</b>.');
   remember();
   const m=await gifos.ai.models().catch(()=>({available:[]}));
-  if(!(m.available||[]).includes('cheapest')&&!(m.available||[]).includes('smartest'))
-    note('No AI model is set up yet. On your GifOS Home Screen open <b>Settings → AI models</b>, add an OpenAI-compatible endpoint + key for “Cheapest text LLM” or “Smartest text LLM”, press <b>Test</b>, then come back. Your key stays in your browser — this app never sees it.');
+  if(!(m.available||[]).includes('cheapest')&&!(m.available||[]).includes('smartest')){
+    const n=note('No language model is set up on this computer yet. Send a question — GifOS will walk you through wiring one. The key stays in your browser; this app never sees it.');
+    const b=document.createElement('button'); b.textContent='Set up a model'; b.style.cssText='display:block;margin-top:10px;padding:6px 12px;border-radius:8px;border:1px solid #2a2a3f;background:#14141f;color:#e0e0f0;font:inherit;font-size:.82rem;cursor:pointer';
+    b.onclick=()=>{ if(gifos.aiSetup) gifos.aiSetup(model); };
+    n.appendChild(b);
+  }
 })();
+input.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); document.getElementById('f').requestSubmit(); }
+});
 document.getElementById('f').onsubmit=async e=>{
   e.preventDefault(); const q=input.value.trim(); if(!q||busy)return; input.value='';
   busy=true; sendBtn.disabled=true;
   const u={id:uid(),conv:conv,seq:++seq,role:'user',content:q,ts:Date.now()};
   hist.push(u); draw(u); save(u);
   const a={id:uid(),conv:conv,seq:++seq,role:'assistant',content:'',ts:Date.now(),model:model};
-  const el=draw(a); el.bubble.textContent='…';
+  const el=draw(a); el.bubble.textContent='…'; el.bubble.classList.add('streaming');
   const t0=Date.now(); let first=null, streamed='';
   try{
     const r=await gifos.ai.chat({model:model,messages:context(),onDelta:piece=>{
@@ -3961,12 +4157,24 @@ document.getElementById('f').onsubmit=async e=>{
     }});
     a.content=((r&&r.text)||streamed||'(no answer)');
     a.ms=Date.now()-t0;
+    if(r&&r.streamed===false&&first===null) a.firstMs=undefined;
     el.bubble.textContent=a.content;
   }catch(err){
-    a.error=true; a.content='⚠ '+((err&&err.message)||err); a.ms=Date.now()-t0;
+    const msg=String((err&&err.message)||err||'');
+    el.bubble.classList.remove('streaming');
+    // GifOS already popped its own setup sheet. Do not also paint a
+    // NOT_CONFIGURED bubble — that string is for machines, not people.
+    if(/NOT_CONFIGURED/.test(msg)){
+      el.row.remove(); seq--;
+      note('GifOS is asking you to set up a model. Come back and send again once it is wired.');
+      busy=false; sendBtn.disabled=false; input.focus(); return;
+    }
+    a.error=true; a.content='⚠ '+msg; a.ms=Date.now()-t0;
     el.bubble.classList.add('err'); el.bubble.textContent=a.content;
   }
+  el.bubble.classList.remove('streaming');
   el.stamp.textContent=metaOf(a);
+  if(a.content&&!a.error) el.row.appendChild(copyBtn(a.content));
   hist.push(a); save(a); bottom();
   busy=false; sendBtn.disabled=false; input.focus();
 };
@@ -3985,38 +4193,74 @@ document.getElementById('f').onsubmit=async e=>{
   header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#7b5cff;display:flex;align-items:center;gap:10px}
   header .sp{flex:1}
   #text{flex:1;margin:14px 18px 8px;padding:12px 13px;border:1px solid #2a2a3f;border-radius:10px;background:#1c1c2b;color:#e0e0f0;font:inherit;line-height:1.55;resize:none}
-  .bar{display:flex;gap:8px;align-items:center;padding:10px 18px 14px}
+  #script{flex:1;margin:14px 18px 8px;padding:12px 13px;border:1px solid #2a2a3f;border-radius:10px;background:#1c1c2b;color:#e0e0f0;line-height:1.55;overflow:auto;display:none;white-space:pre-wrap}
+  #script .sent{border-radius:4px}
+  #script .sent.on{background:color-mix(in srgb,#7b5cff 28%,transparent);outline:1px solid #7b5cff}
+  .bar{display:flex;gap:8px;align-items:center;padding:10px 18px 8px;flex-wrap:wrap}
   select{padding:9px 10px;border:1px solid #2a2a3f;border-radius:9px;background:#14141f;color:#e0e0f0;font:inherit}
   .bar button{padding:11px 16px;border:0;border-radius:9px;background:#7b5cff;color:#fff;font-weight:700;cursor:pointer}
   .bar button:disabled{opacity:.5;cursor:default}
   .bar button.ghost{background:#14141f;border:1px solid #2a2a3f;color:#e0e0f0;font-weight:400}
-  #status{color:#8888aa;font-size:.82rem;padding:0 18px 12px;min-height:1.1em}
+  #status{color:#8888aa;font-size:.82rem;padding:0 18px 8px;min-height:1.1em}
+  .hint{color:#8888aa;font-size:.78rem;padding:0 18px 10px;line-height:1.4}
   .note{color:#8888aa;font-size:.88rem;padding:0 18px 12px;line-height:1.5}
 </style>
-<header>📖 Reader<span class="sp"></span></header>
+<header>📖 Reader<span class="sp"></span><span id="wc" style="color:#8888aa;font-weight:400;font-size:.78rem"></span></header>
 <textarea id="text" placeholder="Paste or type anything here, then press Read aloud."></textarea>
+<div id="script"></div>
 <div class="bar">
-  <select id="voice"><option value="">Default voice</option><option value="nova">Nova</option><option value="shimmer">Shimmer</option><option value="fable">Fable</option><option value="echo">Echo</option><option value="onyx">Onyx</option><option value="alloy">Alloy</option></select>
+  <select id="voice" title="A hint for the voice this computer uses. On-device voices have their own names and ignore this.">
+    <option value="">Default — this computer’s voice</option>
+    <option value="nova">Nova (if the provider knows it)</option>
+    <option value="shimmer">Shimmer (if the provider knows it)</option>
+    <option value="fable">Fable (if the provider knows it)</option>
+    <option value="echo">Echo (if the provider knows it)</option>
+    <option value="onyx">Onyx (if the provider knows it)</option>
+    <option value="alloy">Alloy (if the provider knows it)</option>
+  </select>
   <button id="read">🔊 Read aloud</button>
+  <button id="pause" class="ghost" style="display:none">⏸ Pause</button>
   <button id="stop" class="ghost" style="display:none">■ Stop</button>
 </div>
+<div class="hint">Named voices are a hint to a cloud TTS. An on-device voice uses its own names and ignores these.</div>
 <div id="status"></div>
 <div class="note" id="note" style="display:none"></div>
 <script>
 const T=document.getElementById('text'), V=document.getElementById('voice');
-const readBtn=document.getElementById('read'), stopBtn=document.getElementById('stop');
+const readBtn=document.getElementById('read'), stopBtn=document.getElementById('stop'), pauseBtn=document.getElementById('pause');
 const status=document.getElementById('status'), note=document.getElementById('note');
-let db=null, playing=false, session=0;
+const script=document.getElementById('script'), wc=document.getElementById('wc');
+let db=null, playing=false, session=0, paused=false;
 function say(m){ status.textContent=m||''; }
+function wordsOf(t){ return String(t||'').trim()?String(t).trim().split(/\\s+/).length:0; }
+function countWords(){ const n=wordsOf(T.value); wc.textContent=n?(n+' word'+(n===1?'':'s')):''; }
+T.addEventListener('input',()=>{ countWords(); remember(); });
+V.addEventListener('change',remember);
+function remember(){ if(db) db.put({id:'current',text:T.value,voice:V.value}).catch(()=>{}); }
+function showScript(on){ script.style.display=on?'block':'none'; T.style.display=on?'none':'block'; }
+function fillScript(sents){
+  script.innerHTML=sents.map((s,i)=>'<span class="sent" data-i="'+i+'">'+s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))+'</span>').join(' ');
+}
+function markSent(from,to){
+  Array.prototype.forEach.call(script.querySelectorAll('.sent'), function(el){
+    const i=+el.getAttribute('data-i'); el.classList.toggle('on', i>=from && i<to);
+  });
+  const on=script.querySelector('.sent.on'); if(on) try{ on.scrollIntoView({block:'nearest'}); }catch(e){}
+}
 // Sentence-ish chunks (~600 chars) so the first audio arrives fast and long
 // reads never hit a provider's per-request ceiling.
 function playBytes(r){ return new Promise((res,rej)=>{
   const url=URL.createObjectURL(new Blob([r.bytes],{type:r.mime||'audio/mpeg'}));
-  const a=new Audio(url); window.__cur=a;
-  a.onended=()=>{ URL.revokeObjectURL(url); res(); };
-  a.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('could not play the audio')); };
+  const a=new Audio(url); window.__cur=a; paused=false; pauseBtn.textContent='⏸ Pause';
+  a.onended=()=>{ URL.revokeObjectURL(url); if(window.__cur===a) window.__cur=null; res(); };
+  a.onerror=()=>{ URL.revokeObjectURL(url); if(window.__cur===a) window.__cur=null; rej(new Error('could not play the audio')); };
   a.play().catch(rej);
 }); }
+pauseBtn.onclick=()=>{
+  const a=window.__cur; if(!a) return;
+  if(paused){ a.play().catch(()=>{}); paused=false; pauseBtn.textContent='⏸ Pause'; say('Reading…'); }
+  else { a.pause(); paused=true; pauseBtn.textContent='▶ Resume'; say('Paused.'); }
+};
 // LEARN HOW FAST THIS VOICE IS, then size the passages to suit it. Reader
 // cannot know who serves Text -> speech — a cloud endpoint, a formant
 // synthesiser, or a neural model on this very device — and those differ by two
@@ -4040,15 +4284,17 @@ function budgetNow(first){
 }
 function sentencesOf(text){ return String(text).split(/(?<=[.!?\\n])\\s+/).filter(s=>s.trim()); }
 function takeChunk(sents,i,first){
-  const budget=budgetNow(first); let cur='';
+  const budget=budgetNow(first); let cur='', start=i;
   while(i<sents.length&&(!cur||(cur+' '+sents[i]).length<=budget)){ cur=cur?cur+' '+sents[i]:sents[i]; i++; }
-  return {text:cur,next:i};
+  return {text:cur,from:start,next:i};
 }
 async function readAloud(){
   const text=T.value.trim(); if(!text){ say('Nothing to read yet.'); return; }
-  const my=++session; playing=true; readBtn.style.display='none'; stopBtn.style.display='';
-  if(db) db.put({id:'current',text:text}).catch(()=>{});
+  const my=++session; playing=true; paused=false;
+  readBtn.style.display='none'; stopBtn.style.display=''; pauseBtn.style.display='';
+  remember();
   const sents=sentencesOf(text); msPerChar=0;
+  fillScript(sents); showScript(true);
   // THE FIRST CALL IS NOT A SPEED SAMPLE. It also pays for mounting the
   // provider and loading its model — measured at ~11s for an on-device neural
   // voice — so timing it says the voice is ~370 ms/character when the truth is
@@ -4069,26 +4315,36 @@ async function readAloud(){
       const audio=await next;
       const after=takeChunk(sents,cut.next,false);      // sized by what we just learned
       next=after.text?speak(after.text):null;           // synthesize ahead while playing
-      cut=after; n++;
+      const span={from:cut.from, next:cut.next}; cut=after; n++;
       if(!playing||my!==session) break;
-      say('Reading… ('+n+(next?' of '+(n+1)+'+':' — last')+')');
+      markSent(span.from, span.next);
+      say('Reading… sentence '+(span.from+1)+'–'+span.next+' of '+sents.length);
       await playBytes(audio);
       if(!next) break;
     }
     if(playing&&my===session) say('Done.');
-  }catch(err){ say('⚠ '+((err&&err.message)||err)); }
-  playing=false; readBtn.style.display=''; stopBtn.style.display='none';
+  }catch(err){
+    const msg=String((err&&err.message)||err||'');
+    if(/NOT_CONFIGURED/.test(msg)) say('GifOS is asking you to set up Text → speech. Come back and press Read aloud once it is wired.');
+    else say('⚠ '+msg);
+  }
+  playing=false; paused=false; showScript(false);
+  readBtn.style.display=''; stopBtn.style.display='none'; pauseBtn.style.display='none';
 }
 readBtn.onclick=readAloud;
-stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__cur.pause(); }catch(e){} } say('Stopped.'); readBtn.style.display=''; stopBtn.style.display='none'; };
+stopBtn.onclick=()=>{ playing=false; session++; paused=false; if(window.__cur){ try{ window.__cur.pause(); }catch(e){} window.__cur=null; } showScript(false); say('Stopped.'); readBtn.style.display=''; stopBtn.style.display='none'; pauseBtn.style.display='none'; };
 (async()=>{
   if(!window.gifos||!gifos.ai){ note.style.display=''; note.innerHTML='Open this inside GifOS to use it.'; return; }
   db=gifos.db('texts');
-  db.get('current').then(d=>{ if(d&&d.text&&!T.value) T.value=d.text; }).catch(()=>{});
+  db.get('current').then(d=>{ if(d&&d.text&&!T.value) T.value=d.text; if(d&&typeof d.voice==='string') V.value=d.voice; countWords(); }).catch(()=>{});
+  countWords();
   const m=await gifos.ai.models().catch(()=>({available:[]}));
   if(!(m.available||[]).includes('tts')){
     note.style.display='';
-    note.innerHTML='No <b>Text → speech</b> is set up yet. Easiest fix: install <b>Offline Text to Speech</b> from the App Store — a free Provider app that speaks entirely on this device (no account, no key). Or add an OpenAI-compatible endpoint under <b>Settings → AI models</b>. Then come back.';
+    note.innerHTML='No <b>Text → speech</b> is set up on this computer yet. Press <b>Read aloud</b> and GifOS will walk you through wiring a voice — a Provider app on this device, or an endpoint. This app never sees a key.';
+    const b=document.createElement('button'); b.textContent='Set up a voice'; b.style.cssText='display:block;margin-top:10px;padding:6px 12px;border-radius:8px;border:1px solid #2a2a3f;background:#14141f;color:#e0e0f0;font:inherit;font-size:.82rem;cursor:pointer';
+    b.onclick=()=>{ if(gifos.aiSetup) gifos.aiSetup('tts'); };
+    note.appendChild(b);
   }
 })();
 </script>`;
@@ -5921,11 +6177,19 @@ Read the Recovery Version of the Bible. Pages come from the Recovery Version sit
 
 **Invite** (top bar) and you share a meeting. **Following** (on by default once someone else is here) means when anyone turns a page or scrolls, the others come along. Tap it to **Follow** off if you want to peek without moving the group. The host can lock the room so only they lead.
 
-You need the internet (and this app’s **Internet** allowed) or pages will not load.
+**Go** jumps to a book and chapter. **«** / **»** turn the chapter.
+
+Pages come through the GifOS CORS proxy (the Recovery Version site sends no CORS headers, so a direct fetch is blocked). You need the internet and this app’s **Internet** allowed for a first open.
+
+## Offline
+
+Chapters you have already opened are saved in this icon. Re-open them without a connection; a banner says when you are looking at a saved copy, not a live page. A chapter nobody on this device has opened yet cannot be invented.
+
+In a meeting, people share the live download (pool) so the site is hit once.
 
 ## Saved
 
-Your last page, scroll, theme, and type size are remembered in this icon. The shared meeting position is remembered too.
+Your last page, scroll, theme, and type size are remembered in this icon. Saved chapters and the shared meeting position are remembered too.
 `,
       speechcoach: `# Speech Coach
 
@@ -5933,15 +6197,23 @@ Record up to 12 seconds of yourself talking. The clip is measured on this device
 
 ## Use it
 
-Tap **Record & analyse** and speak. Allow the microphone if asked (and leave it on in this app’s Abilities chip). You get:
+Tap **Record & analyse**. GifOS shows its own recorder (red indicator). Speak, then tap **Stop & use** there — or wait 12 seconds. This app receives the finished clip, never a live microphone.
+
+You get:
 
 - length
 - talking vs silence
 - long pauses
 - pace (measured / steady / quick)
+- estimated bursts per minute (from loud-vs-quiet, not from words — this app does not transcribe)
 - whether volume stays even
+- a waveform of this take
 
-Play the clip back from the card. Record again to replace the analysis. Nothing is kept when you close the app.
+Play the clip back from the card. Record again for another take.
+
+## Saved
+
+Scores from the last eight takes are remembered in this icon (so you can see if you sped up). The recording itself is not kept after you close the app.
 
 ## Private vs shared
 
@@ -5959,7 +6231,7 @@ Type and tap **Send**. Pick **Cheapest** or **Smartest** under the thread — th
 
 ## You need a model
 
-If nothing is set up, open **Settings → AI models** on your Home Screen and add an endpoint and key for Cheapest or Smartest (or install a Provider app that serves them). Test it, then come back. This app never sees your key.
+If nothing is set up, send a question (or tap **Set up a model**) and GifOS will walk you through wiring Cheapest or Smartest. This app never sees your key.
 
 ## Private vs shared
 
@@ -5975,15 +6247,17 @@ Paste or type text, then hear it read aloud.
 
 ## Use it
 
-Put text in the box. Pick a voice (Nova, Shimmer, Fable, Echo, Onyx, Alloy, or Default). Tap **Read aloud**. **Stop** cuts it off.
+Put text in the box. Tap **Read aloud**. **Pause** holds the current sentence; **Stop** cuts it off. The sentence being spoken is highlighted.
 
 Long passages start speaking on the first sentence, then continue in chunks so it does not stall.
 
-The text you last read is remembered in this icon. Open Reader tomorrow and the box is still filled.
+**Default** uses whatever voice this computer has set up. Named voices (Nova, Shimmer, and the rest) are a hint to a cloud TTS — an on-device voice has its own names and ignores them.
+
+The text and the voice hint are remembered in this icon. Open Reader tomorrow and the box is still filled.
 
 ## You need a voice
 
-This uses the computer’s **Text → speech**. Easiest: install **Offline Text to Speech** from the App Store (speaks on this device, no account). Or add a speech endpoint under **Settings → AI models**. Until one is set up, Read aloud cannot start.
+This uses the computer’s **Text → speech**. Press Read aloud (or **Set up a voice**) and GifOS will walk you through wiring one — a Provider app on this device, or an endpoint. Until one is set up, it cannot start.
 
 ## Private vs shared
 
@@ -6364,15 +6638,15 @@ The Store itself does not keep a shopping cart in this icon.
         // (nav, read-write and leadable so the host can "only I lead"), who's
         // here (presence, read-write heartbeats), and each reader's OWN theme +
         // font size + last page (prefs, private — never leaves their tab).
-        app('Bible Browser', 'bible', [200, 162, 75], BIBLE_HTML, { capabilities: { db: true, multiplayer: true, network: ['text.recoveryversion.bible'] },
-          data: { nav: RW, presence: RW, prefs: PRIV }, lead: [{ collection: 'nav', id: 'nav' }] }),
+        app('Bible Browser', 'bible', [200, 162, 75], BIBLE_HTML, { capabilities: { db: true, multiplayer: true, network: ['text.recoveryversion.bible'], pool: ['text.recoveryversion.bible'] },
+          data: { nav: RW, presence: RW, prefs: PRIV, pages: PRIV }, lead: [{ collection: 'nav', id: 'nav' }] }),
         // Showcases the brokered capabilities: a mic clip analysed on-device,
         // and the computer's own AI models. Both declare what they use.
-        app('Speech Coach', 'speechcoach', [123, 92, 255], SPEECHCOACH_HTML, { capabilities: { db: true, microphone: true, network: [] } }),
+        app('Speech Coach', 'speechcoach', [123, 92, 255], SPEECHCOACH_HTML, { capabilities: { db: true, microphone: true, network: [] }, data: { takes: PRIV } }),
         // Typed ai declaration (it uses exactly these two roles): the ack
         // sheet then shows a status line PER ROLE — including naming a
         // Provider app when one serves it — instead of the bare generic row.
-        app('Ask AI', 'askai', [123, 92, 255], ASKAI_HTML, { capabilities: { db: true, ai: ['cheapest', 'smartest'], network: [] } }),
+        app('Ask AI', 'askai', [123, 92, 255], ASKAI_HTML, { capabilities: { db: true, ai: ['cheapest', 'smartest'], network: [] }, data: { chat: PRIV, prefs: PRIV } }),
         // The consumer half of the Provider story (docs/providers.md): reads
         // any pasted text through the brokered Text → speech role — served by
         // an endpoint OR an installed Provider app (e.g. Offline Text to Speech),
