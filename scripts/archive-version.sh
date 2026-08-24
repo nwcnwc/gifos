@@ -29,7 +29,8 @@ if [ -d "$DEST" ]; then echo "versions/$V already exists — refusing to overwri
 V="$V" SITE="$SITE" node -e '
   const cl = JSON.parse(require("fs").readFileSync(process.env.SITE + "/changelog.json", "utf8"));
   const e = (cl.entries || []).find((e) => e && e.version === process.env.V);
-  if (!e || !Array.isArray(e.notes) || !e.notes.length) {
+  const has = (k) => Array.isArray(e && e[k]) && e[k].length;
+  if (!e || !(has("features") || has("fixes") || has("notes"))) {
     console.error("archive-version.sh: changelog.json has no entry (with notes) for " + process.env.V +
       " — write the release notes first; the update bar’s “What’s new” shows them.");
     process.exit(1);
