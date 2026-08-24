@@ -80,6 +80,18 @@ const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage', 'WebRTC']) {
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad);
 }
+if (!/^Nothing is uploaded/i.test(listing.description)) {
+  throw new Error('listing description must lead with nothing uploaded');
+}
+if (/\bif you want\b/i.test(listing.description) || /\bdrop\b/i.test(listing.description)) {
+  throw new Error('listing copy forbids "if you want" / "drop"');
+}
+{
+  const help = read('help.md');
+  if (/\bInvite\b/.test(help) || /\bSave\b/.test(help)) {
+    throw new Error('help.md must not document Invite/Save — the OS appends those');
+  }
+}
 
 const SCRIPTS = ['graph.js', 'mp.js', 'app.js'];
 const files = {
@@ -116,6 +128,18 @@ if (!files['mp.js'].includes('Invite') || !files['app.js'].includes('Invite')) {
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'last'")) {
   throw new Error('app.js must save the last document privately');
 }
+if (!files['app.js'].includes('pinch') || !files['style.css'].includes('touch-action: none')) {
+  throw new Error('phone pan/pinch must be wired (pinch + touch-action: none)');
+}
+if (!files['app.js'].includes('showEmpty') || !files['graph.js'].includes('parseJson')) {
+  throw new Error('empty textarea must be an empty state, not a parse dump');
+}
+if (!html.includes('tab-text') || !html.includes('tab-graph') || !html.includes('zoom-fit')) {
+  throw new Error('phone Text/Graph tabs and Fit zoom must exist');
+}
+if (!files['app.js'].includes('gifos.onBack')) {
+  throw new Error('register gifos.onBack so phone Back leaves Text or resets the view');
+}
 if (!files['mp.js'].includes('Nobody writes')) {
   throw new Error('mp.js must share the document on own rows');
 }
@@ -125,6 +149,9 @@ for (const [n, s] of Object.entries(files)) {
   if (/<\/script/i.test(s)) throw new Error(n + ' contains </script — cannot inline safely');
   if (/^\s*export\s|export\{|import\.meta/m.test(s) || /^\s*import\s/m.test(s)) {
     throw new Error(n + ' uses ESM syntax');
+  }
+  try { new vm.Script(s, { filename: n }); } catch (e) {
+    throw new Error(n + ' does not parse: ' + (e && e.message));
   }
   for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(']) {
     if (s.includes(bad)) throw new Error(n + ' uses ' + bad);
@@ -139,13 +166,18 @@ if (!files['COPYING-jsoncrack.txt'].includes('Apache License')) {
   vm.createContext(ctx);
   vm.runInContext(files['graph.js'] + '\n' +
     'this.result = (function () {\n' +
+    '  var empty = JsonCrack.parseJson("  \\n");\n' +
+    '  if (!empty.empty) throw new Error("empty parse");\n' +
+    '  var bad = JsonCrack.parseJson("{");\n' +
+    '  if (!bad.error || !/Not valid JSON/.test(bad.message)) throw new Error("bad parse " + bad.message);\n' +
     '  var g = JsonCrack.toGraph({ a: 1, b: { c: "x" }, d: [true, { e: null }] });\n' +
     '  if (g.nodes.length !== 4) throw new Error("nodes " + g.nodes.length);\n' +
     '  if (g.edges.length !== 3) throw new Error("edges " + g.edges.length);\n' +
     '  var root = g.nodes[0];\n' +
-    '  if (root.rows.length !== 1 || root.rows[0].k !== "a") throw new Error("root rows");\n' +
+    '  if (root.rows.length !== 3 || root.rows[0].k !== "a" || !root.rows[1].nested) throw new Error("root rows");\n' +
     '  var L = JsonCrack.layout(g, {});\n' +
     '  if (!L.nodes[0].w || !L.nodes[0].h) throw new Error("layout");\n' +
+    '  if (JsonCrack.cardsOverlap(L)) throw new Error("overlap");\n' +
     '  var folded = JsonCrack.layout(g, (function(){ var o={}; o[root.id]=true; return o; })());\n' +
     '  if (folded.nodes.length !== 1) throw new Error("collapse " + folded.nodes.length);\n' +
     '  return g.nodes.length;\n' +

@@ -1,6 +1,6 @@
 {
-  "tagline": "Paste JSON, see it as a graph of cards. Nothing is uploaded.",
-  "description": "Paste a JSON document on the left. On the right it becomes a graph: each object or array is a card, nested values hang off to the side, primitives stay on the parent. Drag to pan, scroll to zoom, tap a card to fold its children. Format or minify the text. Nothing is sent anywhere.\n\nThe last document comes back the next time you open the app, still only on this device. Press Invite in the bar above if you want a friend to see the same document. Either of you can edit it; you both see the graph.\n\nAn unofficial port of JSON Crack by Aykut Saraç. Same idea: paste JSON, see the tree. This copy is the graph view, on this device, with no account.",
+  "tagline": "Paste JSON, see the graph. Nothing is uploaded — the file is the document.",
+  "description": "Nothing is uploaded. Paste JSON on the left and it becomes a graph of cards on the right: each object or array is a card, nested values hang off to the side, primitives stay on the parent. The last document stays inside this file, on this device. There is no account.\n\nOn a phone, Text and Graph swap so the keyboard does not cover the cards. Drag to pan, pinch or the +/− buttons to zoom. A bad paste shows a short error; the last good graph stays until you fix it. Tap a row to copy that value. Format, minify, or open a file from this device.\n\nPress Invite in the GifOS bar to show the same document in a meeting. Either of you can type; you both see the graph.\n\nAn unofficial port of JSON Crack by Aykut Saraç. Graph view only — no accounts, no cloud, no ToDiagram.",
   "author": {
     "name": "Aykut Saraç",
     "url": "https://github.com/AykutSarac/jsoncrack.com"

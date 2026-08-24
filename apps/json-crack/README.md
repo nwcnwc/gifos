@@ -7,10 +7,10 @@ by Aykut Saraç (Apache-2.0). Upstream is Next.js; this copy is the **graph
 view** as classic scripts: same node rule, left-to-right cards, pan and zoom.
 
 ```
-index.html     split: textarea + graph
+index.html     split: textarea + graph (Text/Graph tabs on a phone)
 style.css      dark studio
-graph.js       object/array → card, nested → edge
-app.js         private last document
+graph.js       object/array → card, nested → edge, tree layout
+app.js         private last document, pinch/zoom, empty state
 mp.js          meeting shares the same document
 icon.mjs       procedural icon and the 1200×720 cover
 build.mjs      packs the GIF into site/apps/json-crack/json-crack.gif

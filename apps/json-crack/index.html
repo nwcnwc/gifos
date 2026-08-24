@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>JSON Crack</title>
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="tab-graph">
 <div id="app">
   <header>
     <h1>JSON Crack</h1>
@@ -15,19 +15,31 @@
   <div id="toolbar">
     <button type="button" id="format">Format</button>
     <button type="button" id="minify">Minify</button>
+    <button type="button" id="sample">Sample</button>
     <label class="file">
       <input type="file" id="file-input" accept=".json,application/json">
       Choose file
     </label>
     <span id="meta" class="meta"></span>
   </div>
+  <p id="err" class="err" hidden></p>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tab-text" aria-selected="false">Text</button>
+    <button type="button" role="tab" id="tab-graph" class="on" aria-selected="true">Graph</button>
+  </div>
   <div id="split">
     <section id="editor">
+      <label class="sr" for="src">JSON text</label>
       <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
-      <p id="err" class="err" hidden></p>
     </section>
     <section id="stage">
       <div id="graph-inner"></div>
+      <div id="zoom-hud">
+        <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+        <button type="button" id="zoom-fit" aria-label="Fit graph">Fit</button>
+        <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+      </div>
+      <div id="toast" hidden></div>
     </section>
   </div>
   <p id="meet" class="meet">Press <b>Invite</b> (top bar) to show this document in a meeting. Nothing is uploaded on its own.</p>
