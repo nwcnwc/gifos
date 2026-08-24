@@ -46,21 +46,67 @@
     if (p.kind === 'corners') return 'the four corners';
     return 'a line';
   }
-  function speakCall(n) {
-    if (!window.speechSynthesis) return;
+  // ---- voice-first reveal ---------------------------------------------------
+  // NOBODY — the caller included — sees a call until the voice has finished
+  // saying it. The called list is still the truth (claims, round end); the
+  // screen paints only the first `revealedN` calls, and the pump below speaks
+  // each pending call in order, bumping revealedN when the utterance ends.
+  // Ears first, eyes second — like a hall, where the ball goes up on the
+  // board only after the caller has announced it.
+  var revealedN = 0;   // calls the voice on THIS device has finished announcing
+  var revealEpoch = 0; // bumped on any round switch; abandons in-flight speech
+  var revealBusy = false;
+
+  function snapReveal(n) {
+    revealEpoch++;
+    revealBusy = false;
+    revealedN = n;
+    if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) {} }
+  }
+
+  function speakThenReveal(n, done) {
+    if (!window.speechSynthesis) { setTimeout(done, 0); return; }
+    var fired = false;
+    var finish = function () { if (!fired) { fired = true; done(); } };
     try {
       var u = new SpeechSynthesisUtterance(BG.letter(n) + ', ' + n);
       u.rate = 0.92;
+      var started = false;
+      u.onstart = function () { started = true; };
+      u.onend = finish;
+      u.onerror = finish;
       speechSynthesis.cancel();
       speechSynthesis.speak(u);
-    } catch (e) {}
+      // A blocked or voiceless engine must not freeze the game: no 'start'
+      // after 900ms means it is not coming — reveal. And browsers do lose
+      // 'end' events, so a started utterance still reveals after 8s.
+      setTimeout(function () { if (!started) finish(); }, 900);
+      setTimeout(finish, 8000);
+    } catch (e) { finish(); }
   }
 
-  // Every device speaks each call as it arrives — the caller's phone in
-  // doCall, everyone else's when the adopted call list grows (mpRefresh).
-  // -1 = no round adopted yet; adoption snaps it to the backlog length so a
-  // late joiner never gets thirty numbers recited at them.
-  var spokenN = -1;
+  function pumpReveal() {
+    if (revealBusy) return;
+    var called = currentCalled();
+    if (currentEnded()) {
+      // The round is over — no suspense left to keep. Show the whole board.
+      if (revealedN < called.length) {
+        revealedN = called.length;
+        if (view === 'play') renderPlay();
+      }
+      return;
+    }
+    if (revealedN >= called.length) return;
+    var epoch = revealEpoch;
+    revealBusy = true;
+    speakThenReveal(called[revealedN], function () {
+      if (epoch !== revealEpoch) return; // a new round started mid-utterance
+      revealBusy = false;
+      revealedN++;
+      if (view === 'play') renderPlay();
+      else pumpReveal();
+    });
+  }
 
   // Fireworks on EVERY screen when a verified bingo lands. Pure canvas,
   // removes itself when the last spark dies.
@@ -137,6 +183,7 @@
     mp.on = false;
     lastStamp = null;
     lastCallShown = null;
+    snapReveal(0);
     stopAuto();
     openPlay();
   }
@@ -155,6 +202,9 @@
 
   function doCall() {
     var n = null;
+    // One ball at a time: while a call is still being spoken, the caller
+    // cannot draw the next — a hall announces before it draws again.
+    if (revealedN < currentCalled().length) return;
     if (localPlay) {
       if (localPlay.ended) return;
       if (localPlay.called.length >= localPlay.bag.length) {
@@ -164,8 +214,7 @@
       }
       n = localPlay.bag[localPlay.called.length];
       localPlay.called = localPlay.called.concat([n]);
-      speakCall(n);
-      renderPlay();
+      renderPlay(); // paints nothing new — the reveal pump speaks first
       return;
     }
     if (!mp.on || !mp.adopted) return;
@@ -180,9 +229,7 @@
     }
     n = b[called.length];
     called.push(n);
-    speakCall(n);
-    spokenN = called.length; // the refresh echo of my own put must not re-speak
-    putMe({ called: called, phase: 'play' });
+    putMe({ called: called, phase: 'play' }); // the echo drives the reveal pump
   }
 
   $('callBtn').onclick = function () { doCall(); };
@@ -423,7 +470,7 @@
       mp.auto = false;
       localPlay = null;
       lastStamp = null;
-      spokenN = -1;
+      snapReveal(0);
       stopAuto();
       show('lobby');
       setChip('ready', 'A room');
@@ -449,6 +496,7 @@
   $('lobbyLeave').onclick = mpLeave;
   $('playLeave').onclick = function () {
     stopAuto();
+    snapReveal(0); // silence any half-spoken call on the way out
     if (mp.on) mpLeave();
     else { localPlay = null; show('home'); setChip('', 'Ready'); }
   };
@@ -494,7 +542,7 @@
       mp.auto = false;
       lastStamp = null;
       lastCallShown = null;
-      spokenN = (ad.called || []).length; // adopt the backlog silently
+      snapReveal((ad.called || []).length); // the backlog is old news — show it silently
       stopAuto();
       if (!mp.row || mp.row.round !== ad.round || mp.row.seed !== ad.seed) {
         putMe({
@@ -522,12 +570,6 @@
       }
       ad.phase = 'ended';
       stopAuto();
-    }
-    // A call that arrived from the host's row gets spoken HERE too — the old
-    // code only spoke inside doCall, so joiners' phones were silent.
-    if (ad && spokenN >= 0 && (ad.called || []).length > spokenN) {
-      if (ad.phase !== 'ended') speakCall(ad.called[ad.called.length - 1]);
-      spokenN = ad.called.length;
     }
     mp.adopted = ad;
     if (ad && (ad.phase === 'play' || ad.phase === 'ended')) {
@@ -591,7 +633,11 @@
     var ended = currentEnded();
     var host = true;
     var winner = null;
-    var last = called.length ? called[called.length - 1] : null;
+    // `called` is the truth (claims, round end). `shown` is what the screen
+    // may paint: only calls whose voice has finished on THIS device — the
+    // caller's own ball included.
+    var shown = revealedN < called.length ? called.slice(0, revealedN) : called;
+    var last = shown.length ? shown[shown.length - 1] : null;
     var role = 'solo';
 
     if (localPlay) {
@@ -623,7 +669,7 @@
       $('callNum').textContent = String(last);
       ball.className = 'call-ball ' + BG.letter(last).toLowerCase() + (last !== lastCallShown ? ' fresh' : '');
       lastCallShown = last;
-      $('callHint').textContent = BG.callName(last) + ' · ' + called.length + ' of 75';
+      $('callHint').textContent = BG.callName(last) + ' · ' + shown.length + ' of 75';
     } else {
       $('callLetter').textContent = '';
       $('callNum').textContent = host ? 'CALL' : '…';
@@ -633,10 +679,10 @@
     }
 
     var strip = '', i, n, from;
-    from = Math.max(0, called.length - 8);
-    for (i = from; i < called.length; i++) {
-      n = called[i];
-      strip += '<span class="' + (i === called.length - 1 ? 'last' : '') + '">' +
+    from = Math.max(0, shown.length - 8);
+    for (i = from; i < shown.length; i++) {
+      n = shown[i];
+      strip += '<span class="' + (i === shown.length - 1 ? 'last' : '') + '">' +
         esc(BG.callName(n)) + '</span>';
     }
     $('calledStrip').innerHTML = strip;
@@ -667,15 +713,16 @@
     $('bingoCard').innerHTML = html;
     $('bingoCard').className = 'bingo-card' + (winner ? ' won' : '');
 
-    renderFlashboard(called, last);
+    renderFlashboard(shown, last);
     $('flashboard').hidden = false;
 
     // The button wakes only once YOU have daubed a full pattern — nothing
     // announces it, and the claim is still checked against the real calls.
     $('bingoBtn').disabled = ended || !BG.hasWin(grid, marked);
+    var speaking = revealedN < called.length && !ended;
     $('callBtn').hidden = !host;
-    $('callBtn').disabled = ended || called.length >= 75;
-    $('callBall').disabled = !host || ended || called.length >= 75;
+    $('callBtn').disabled = ended || speaking || called.length >= 75;
+    $('callBall').disabled = !host || ended || speaking || called.length >= 75;
     $('autoBtn').hidden = !host;
     $('autoBtn').disabled = ended;
     var autoOn = localPlay ? localPlay.auto : mp.auto;
@@ -724,8 +771,9 @@
         ? ''
         : (host ? 'You call. Everyone finds their own numbers.' : 'The host calls. Find each number yourself.');
       rev.hidden = true;
-      setChip('play', called.length ? BG.callName(last) : 'Calling');
+      setChip('play', shown.length ? BG.callName(last) : 'Calling');
     }
+    pumpReveal(); // speak (then show) anything the screen is still owed
   }
 
   if (window.gifos && gifos.onBack) {
@@ -733,7 +781,7 @@
       if (view === 'play') {
         stopAuto();
         if (mp.on) { show('lobby'); mpRefresh(); }
-        else { localPlay = null; show('home'); setChip('', 'Ready'); }
+        else { localPlay = null; snapReveal(0); show('home'); setChip('', 'Ready'); }
         return true;
       }
       if (view === 'lobby') {
@@ -766,6 +814,7 @@
       mp.on = false;
       lastStamp = hits[hits.length - 1] || null;
       lastCallShown = null;
+      snapReveal(called.length); // the cover is a still — no voice, all revealed
       stopAuto();
       document.body.classList.add('cover');
       openPlay();

@@ -38,7 +38,10 @@ spoil an honest line, per `deal.js validClaim`). A verified bingo fires
 fireworks on every screen.
 
 Call out loud — in the room, or in a GifOS meeting around the app. Every
-device also says each call as it arrives (speech synthesis, where allowed).
+device also says each call as it arrives (speech synthesis, where allowed) —
+and **ears come first**: no screen, the caller's included, shows a call
+until its own voice has finished saying it (`revealedN` / the reveal pump
+in `app.js`; a blocked or absent voice falls back to showing it directly).
 
 ## capabilities
 
