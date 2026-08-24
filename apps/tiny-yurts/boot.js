@@ -1,8 +1,8 @@
 /*
  * Tiny Yurts — GifOS shell.
- * Invite is OS chrome. Best score is private. Hydrate gifos.db INTO the
- * localStorage stub BEFORE vendor/game.js runs, so the title highscore and
- * the sound/grid toggles read what this file actually saved.
+ * Invite is OS chrome. Best score is private. gifos.db hydrates into the
+ * localStorage stub; the title highscore is painted on after that. The jam
+ * itself is a static script so the packer inlines it.
  */
 (function (root) {
   'use strict';
@@ -21,7 +21,6 @@
   var others = {};
   var started = false;
   var lastScore = 0;
-  var gameTag = document.querySelector('script[data-game]');
 
   function currentScore() {
     var v = root.localStorage && root.localStorage.getItem('Tiny Yurts');
@@ -173,24 +172,17 @@
     }).catch(function () {});
   }
 
-  function afterGame() {
-    fitBoard();
-    root.addEventListener('resize', fitBoard);
-    if (root.visualViewport) root.visualViewport.addEventListener('resize', fitBoard);
+  /* vendor/game.js is a static <script> so the packer inlines it. A dynamic
+     src= fetch from this iframe has nowhere to go (about:srcdoc). The jam
+     already ran and read localStorage; we paint the saved highscore over the
+     title and fit the valley to the phone. */
+  fitBoard();
+  root.addEventListener('resize', fitBoard);
+  if (root.visualViewport) root.visualViewport.addEventListener('resize', fitBoard);
+
+  if (!saveDb) { bootNet(); return; }
+  saveDb.get('prefs').then(function (row) {
+    hydrate(row);
     paintHi(currentScore());
-    bootNet();
-  }
-
-  function loadGame() {
-    if (root.TinyYurts) { afterGame(); return; }
-    if (!gameTag) { afterGame(); return; }
-    var s = document.createElement('script');
-    s.src = gameTag.getAttribute('data-game') || 'vendor/game.js';
-    s.onload = afterGame;
-    s.onerror = afterGame;
-    document.body.appendChild(s);
-  }
-
-  if (!saveDb) { loadGame(); return; }
-  saveDb.get('prefs').then(hydrate).catch(function () {}).then(loadGame);
+  }).catch(function () {}).then(bootNet);
 })(window);

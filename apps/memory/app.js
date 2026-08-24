@@ -271,6 +271,7 @@
     }
     if (r.reason === 'level') {
       statusEl.textContent = 'Good. Level ' + G.level + '.';
+      startBtn.textContent = 'Level ' + G.level;
       persist();
       paint();
       publish();

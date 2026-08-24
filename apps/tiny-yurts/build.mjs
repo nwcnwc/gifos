@@ -79,9 +79,9 @@ const files = {
 
 const html = files['index.html'];
 if (!html.includes('src="shim.js"') || !html.includes('src="boot.js"')) throw new Error('missing shim/boot');
-if (!html.includes('data-game="vendor/game.js"')) throw new Error('boot must load the game after hydrate');
-if (html.indexOf('shim.js') > html.indexOf('boot.js')) throw new Error('shim.js must load before boot');
-if (html.includes('src="vendor/game.js"')) throw new Error('game.js must not run before hydrate');
+if (!html.includes('src="vendor/game.js"')) throw new Error('game.js must be a static script so the packer inlines it');
+if (html.indexOf('shim.js') > html.indexOf('vendor/game.js')) throw new Error('shim.js must load before the game');
+if (html.indexOf('vendor/game.js') > html.indexOf('boot.js')) throw new Error('boot.js must load after the game');
 if (/type=["']module["']/.test(html)) throw new Error('no type=module');
 if (html.includes('id="invite"')) throw new Error('Invite is OS chrome');
 if (!files['shim.js'].includes('localStorage')) throw new Error('shim must stub localStorage');
