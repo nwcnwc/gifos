@@ -7,7 +7,7 @@ GifOS is a **web desktop** where every app is a GIF file. It has four layers, al
 1. **The Desktop** — `index.html` — a persistent, local-first desktop of icons and folders.
 2. **App GIFs** — GIFs that pack a filesystem; if they contain an `index.html`, they run as apps.
 3. **The Runtime Library** — an API the desktop exposes to a running app, providing database + networking so any browser can act as a server.
-4. **The Relay** — `gifos.app`, a stateless message/GIF passthrough that connects browsers for multiplayer. It stores nothing.
+4. **The Relay** — `relay.gifos.app`, a stateless greeter + door that introduces browsers for multiplayer (app bytes and state travel peer-to-peer, never through it). It stores nothing.
 
 Everything the user owns is a file. Nothing the user owns lives on our servers.
 
@@ -19,7 +19,7 @@ The desktop is the only "installed" component: a single HTML file that behaves l
 
 - Renders **icons** for every GIF and file the user has dropped in — GIFs animate right in the icon.
 - Supports **drag-and-drop of any file**, **folders**, grid-snap arrangement (mouse and touch), rename, resize.
-- **System bar**: the GifOS menu (About, whole-desktop Backup/Restore, Empty Trash, Settings, Reset), an ＋ Add button (file picker, New Folder, paste-an-AI-app, `.zip` import), and a storage pill (quota usage + persistent-storage request).
+- **System bar**: the GifOS menu (About, App Store, Arrange icons, whole-Home-Screen Backup/Restore, Empty Trash, Settings — erase lives deep in Settings → Advanced), an Invites button, and an ＋ Add button (the App Store, file picker, New Folder, paste-an-AI-app, add-by-URL, `.zip` import). Persistent storage is requested automatically; usage lives in Settings.
 - **Trash**: deletes are recoverable until emptied.
 - **Icon context menu**: Open, **Download** (exports the file — for apps, with saved state repacked in — without launching it), Rename, Bigger/Smaller icon, Move to Trash.
 - **Double-click dispatch:**
@@ -148,10 +148,12 @@ app.gif
   Settings → AI models. Providers are network-less by hard rule, recognized
   only inside the Providers system folder, and mounted as hidden per-tab
   services — the full design is [providers.md](./providers.md).
-- `assets` (optional) — **install-time downloads, sealed by the OS**
+- `assets` (optional) — **install-time downloads, held by the OS**
   (`[{ url, sha256, path, bytes }]`): the trusted origin fetches each pinned
-  URL at install (or first run), verifies the hash, seals the bytes into the
-  GIF under `.assets/`, and hands them to the app via `gifos.assets(path)`.
+  URL at install (or first run), verifies the hash, caches the bytes in the
+  computer's asset store (IndexedDB `appassets`, keyed by the icon — beside
+  the GIF, deliberately not in it, so backups stay quick), and hands them to
+  the app via `gifos.assets(path)`.
   Reserved for weights genuinely too big to ride in-GIF — public model files
   in the tens of MB and up (the catalog enforces an 8 MB per-asset floor);
   anything smaller packs into the GIF instead. Details in
@@ -271,9 +273,9 @@ The app developer writes against **one DB API**. Whether it resolves as the auth
 - The runtime enforces `manifest.json` **capabilities**: an app without `db` gets no database; an app can only reach `network` hosts it declared.
 - **Join URLs are capability tokens.** A guest's URL grants access to one specific room and nothing else (see Layer 4): the link secret derives the join token and the end-to-end key, and without it neither the door nor the ciphertext opens.
 
-## Layer 4 — The Relay (`gifos.app`) and Join URLs
+## Layer 4 — The Relay (`relay.gifos.app`) and Join URLs
 
-`gifos.app` is a **stateless relay** — since the one-runtime flag day
+`relay.gifos.app` is a **stateless relay** — since the one-runtime flag day
 ([one-runtime.md](./one-runtime.md)) a **greeter + door and nothing else**. It
 introduces peers (the sealed knock → greeter-list handshake of
 [healing-laws.md](./healing-laws.md)), carries targeted WebRTC signaling
@@ -294,8 +296,9 @@ Details in [cors-and-networking.md](cors-and-networking.md).
 
 ### Apps inside meetings
 
-Since the one-runtime flag day there is only ONE entrance. `run.html` and its
-star bus are DELETED; `run.html` is the room page, and it holds **live media
+Since the one-runtime flag day there is only ONE entrance. The old app-runner
+page and its star bus are DELETED, and the meeting page was renamed onto the
+name: today's `run.html` is the room page, and it holds **live media
 and a shared app at once**. An app opened alone (`run.html#id=<fileId>`) is
 simply that same room with nobody else in it yet — which is why inviting someone
 into a running app needs no migration, only a link. It composes the two session
@@ -450,7 +453,9 @@ differs (authoritative store vs owner-verified mirror).
 
 ### State lives with the icon
 
-On the server, an app's state is **always associated with its GIF icon on the desktop** (stored under `/appstate/<gifId>/`). Close the tab and double-click the icon again → the app resumes exactly where you left off. Nothing is lost by closing a tab.
+An app's state is **always associated with its GIF icon on the desktop**
+(rows in the `appstate` IndexedDB store, keyed by the icon's fileId — there
+is no server). Close the tab and double-click the icon again → the app resumes exactly where you left off. Nothing is lost by closing a tab.
 
 ### Snapshots
 
@@ -487,7 +492,7 @@ one.
 
 ## Computer Images — GifOS Boots Inside Itself
 
-**GifOS menu → Back up desktop** packs the entire computer into one GIF: every
+**GifOS menu → Back up Home Screen** packs the entire computer into one GIF: every
 file's bytes, every icon position, every app's saved state, all inside a
 `{ "type": "desktop" }` manifest. That GIF is a **computer image**, and it can
 be *booted*, not just restored.
@@ -497,7 +502,7 @@ Double-clicking a computer image offers two paths:
 | Action | Effect |
 |--------|--------|
 | **▶ Boot this computer** | `boot.html` hydrates the image into its own IndexedDB namespace (`gifos_vm_<fileId>`) and runs the full desktop shell against it in a new tab. The host desktop is untouched. |
-| **Replace this desktop** | The classic destructive restore into the current namespace. |
+| **Replace this Home Screen** | The classic destructive restore into the current namespace. |
 
 Properties of a booted image:
 
@@ -551,8 +556,9 @@ Each app runs in a **sandboxed iframe** (`allow-scripts allow-forms`, no
 
 A **Content-Security-Policy** `<meta>` is injected as the first child of every
 app document (`default-src 'none'`; `connect-src 'none'`; inline script/style
-and `data:`/`blob:` assets only; `form-action`, `frame-src`, `object-src`,
-`base-uri` all `'none'`). The browser therefore refuses every direct network
+and `data:`/`blob:` assets only; `form-action`, `frame-src`, `object-src`
+all `'none'`, `base-uri about:` — only `about:`, so the OS can pin the app's
+base to `about:srcdoc`). The browser therefore refuses every direct network
 primitive from app code — `fetch`, `XMLHttpRequest`, `WebSocket`,
 `EventSource`, `sendBeacon`, image/media beacons, external form posts. WebRTC
 (whose DataChannels bypass `connect-src`, and whose CSP directive isn't
@@ -612,8 +618,9 @@ one-shot, low-bandwidth, and destroys the app UI in plain sight.
   - **Lifetime** — how long the link admits *new* joiners. `close` (default) is
     a fresh id each open, retired for good on close/rotate; `1h`/`24h` set an
     admission deadline; `forever` never expires. Expiry only shuts the door —
-    an *unknown* peer past `exp` is refused (`ended (expired)`) while every
-    already-connected peer stays. It never ends a live session.
+    as built it decides whether the HOST reuses its stored session record (an
+    expired invite says "Invite link expired — open Invite to make a new
+    one"); it never ends a live session.
   - **Resilience** (`heal`) — whether the room may elect a successor when the
     owner drops. Off by default (writes freeze until the owner returns —
     safest for private data), which mints an **owned** link (above); on
@@ -719,7 +726,6 @@ GIF has no hard size limit; the practical limit is what platforms will transmit 
   In-app purchases are the part still unbuilt.
 - **Versioning** — upgrade an app GIF while keeping its embedded state compatible.
 - **Merge** — combine two snapshots (git-style merge for shared app state).
-- **Encryption** — password-protected GIFs and end-to-end encrypted relay sessions.
 - **Multi-server** — sharded or replicated DBs for larger sessions instead of a single host browser.
 - **Signed-app phone-home (possibility, not a commitment)** — let an app
   signed by a domain talk to *that domain only*: the signature would
