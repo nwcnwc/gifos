@@ -1,0 +1,32 @@
+{
+  "tagline": "A cron expression, said in English. Nothing is uploaded.",
+  "description": "Type a five-field schedule (minute hour day month weekday). The app says it in English: every five minutes, at noon on weekdays, at midnight on the first of the month. Nothing is sent anywhere — there is no account, and the expression never leaves this device.\n\nThe last expression you typed comes back the next time you open the app. Press Invite (the GifOS bar) if you want the same sentence to show up, read-only, for everyone in a meeting.\n\nAn unofficial port of cRonstrue by bradymholt. English only.",
+  "author": {
+    "name": "bradymholt",
+    "url": "https://github.com/bradymholt/cRonstrue"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "cRonstrue",
+    "url": "https://github.com/bradymholt/cRonstrue",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Developer",
+    "Utilities"
+  ],
+  "tags": [
+    "cron",
+    "schedule",
+    "english",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/cron-speak",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

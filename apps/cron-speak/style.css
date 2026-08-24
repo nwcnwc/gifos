@@ -1,0 +1,53 @@
+:root {
+  --bg: #0a0a0f;
+  --ink: #f4f1e8;
+  --muted: #9a9486;
+  --card: #16161e;
+  --line: #2a2a36;
+  --accent: #5aa0dc;
+  --err: #e0574a;
+  --field: #101018;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, sans-serif;
+}
+body { min-height: 100vh; }
+.wrap { max-width: 520px; margin: 0 auto; padding: 1.2rem 1rem 2.5rem; }
+h1 { font-size: 1.7rem; margin: 0; letter-spacing: -.02em; }
+h2 { font-size: 1rem; margin: 0 0 .45rem; color: var(--muted); font-weight: 600; }
+.lead { color: var(--muted); margin: .45rem 0 1.1rem; }
+.field { display: block; font-size: .82rem; color: var(--muted); font-weight: 600; }
+input[type=text] {
+  display: block; width: 100%; margin-top: .28rem;
+  background: var(--field); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: .7rem .75rem;
+  font: 1.15rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+input[type=text]:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, black); border-color: var(--accent); }
+.hint { color: var(--muted); font-size: .82rem; margin: .35rem 0 .8rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; }
+.chips button {
+  background: var(--card); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 999px; font: .82rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  height: 34px; padding: 0 .75rem; cursor: pointer;
+}
+.chips button:hover { border-color: var(--accent); }
+.out-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 1rem 1.1rem; min-height: 6rem;
+}
+.out { font-size: 1.35rem; line-height: 1.35; margin: 0; letter-spacing: -.01em; }
+.err { color: var(--err); margin: .5rem 0 0; font-size: .9rem; }
+.check {
+  display: flex; align-items: center; gap: .5rem;
+  font-weight: 500; margin: .35rem 0;
+}
+#settings { margin: 1rem 0; }
+.meet { color: var(--muted); font-size: .9rem; margin: 0; }
+.meet.live { color: var(--ink); }
+body.guest #expr, body.guest #settings, body.guest .chips { pointer-events: none; opacity: .85; }
