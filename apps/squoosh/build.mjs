@@ -278,6 +278,15 @@ const codecsJs = read('codecs.js');
 const indexHtml = read('index.html');
 const styleCss = read('style.css');
 
+// A packed script must PARSE. A SyntaxError ships an app that is dead at
+// boot — codecs.js once did exactly that: a glob path with a star-slash in
+// its header comment terminated the comment early and the tail parsed as
+// code. vm.Script compiles without executing, so this is a pure parse check.
+for (const [n, s] of [['app.js', appJs], ['codecs.js', codecsJs]]) {
+  try { new vm.Script(s, { filename: n }); }
+  catch (e) { throw new Error(n + ' does not parse — the app would be dead at boot: ' + e.message); }
+}
+
 for (const [n, s] of [['app.js', appJs], ['codecs.js', codecsJs], ['index.html', indexHtml]]) {
   const code = s.split('\n').filter((l) => {
     const t = l.trim();
