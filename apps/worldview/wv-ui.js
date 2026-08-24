@@ -83,11 +83,19 @@
      * buttons — 1,200 px of empty black on a 1920 screen, and one less thing
      * floating over the imagery.
      */
+    /*
+     * DESKTOP ONLY. It went into the bar on anything wider than a phone, and
+     * at 834px the coordinates, the scale bar and the GIBS credit are 350px
+     * the bar does not have: the day stepper lost its arrows, "Months" was
+     * clipped to "Month" and "Years" fell off the end. Worse, opening the
+     * panel at that width fades the readout to opacity 0 — so an invisible
+     * 350px element was shoving the controls off the screen.
+     */
     var row = el.time.querySelector('.time-row');
-    if (m === 'phone') {
-      if (el.readout.parentNode !== el.app) el.app.appendChild(el.readout);
-    } else if (el.readout.parentNode !== row) {
-      row.insertBefore(el.readout, el.tlScale);
+    if (m === 'desktop') {
+      if (el.readout.parentNode !== row) row.insertBefore(el.readout, el.tlScale);
+    } else if (el.readout.parentNode !== el.app) {
+      el.app.appendChild(el.readout);
     }
     // The layer panel is open by default where there is room for it and
     // closed where it would cover the map.
