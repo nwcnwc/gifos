@@ -3,8 +3,22 @@
 **Status: Phase 2 (Base Sepolia testnet only). No mainnet asset is reachable by
 this code path.** Ratified 2026-08-11.
 
+**As built (checked 2026-08-24):** the four payment modules exist and are
+unit-gated but are LOADED BY NO PAGE — `gifos-x402.js` (the 402 wire),
+`gifos-charge.js` (the selling gate), `gifos-purse.js` (permissions + spend
+ledger), and `gifos-pay.js` (parked Solana-devnet groundwork, not the x402
+implementation). The broker (`runtime.js`) has no 402 path yet, no Base
+Account connection code exists, `capabilities.pay` is not in the
+acknowledgement sheet, `gifos.charge`/`gifos.entitled` are not on the app API
+surface, and Settings has no permissions/ledger panel. The only money that
+moves today is the tip / feature-a-listing links (`gifos-cash.js`, live in
+the store). Present-tense mechanism descriptions below are the ratified
+design; this block is what has landed.
+
 The live App Store has a **separate** optional fiat CTA (`site/js/gifos-cash.js`)
-— a tip or "feature this listing" button baked from `STRIPE_PAYMENT_LINK` by `scripts/stamp-pay-link.js`. That
+— a tip or "feature this listing" button, plus an optional Stripe CTA meant
+to be baked from `STRIPE_PAYMENT_LINK` by `scripts/stamp-pay-link.js` (the
+stamp step is not wired into deploy yet, so that CTA stays hidden). That
 is not this x402 path, does not paywall the catalog, and must not be rewritten
 into Coinbase/x402.
 
@@ -31,8 +45,10 @@ Common to both: **every payment is authenticated by a human**, and no app ever
 sees a key or a balance. The
 mechanism is [x402](https://www.x402.org/): the resource server answers a plain
 HTTP request with `402 Payment Required` and a challenge, the payer signs, and
-the request is retried. This document is the doctrine; `site/js/gifos-pay.js`
-is the implementation.
+the request is retried. This document is the doctrine; `site/js/gifos-x402.js` is the wire
+implementation, `gifos-charge.js` the selling gate, `gifos-purse.js` the
+permission/ledger store (`gifos-pay.js` is parked Solana groundwork — see
+the as-built block above).
 
 ## Why this fits GifOS at all
 
@@ -114,8 +130,9 @@ So GifOS offers both, and the user chooses per app:
 The OS shows amount, asset and recipient before *any* passkey prompt, including
 the one that grants a permission — a WebAuthn dialog says only "use your
 passkey", so the trusted display of what is being authorised is ours either way.
-Granted permissions are listed in Settings with their cap, spend-to-date and
-expiry, and a one-click revoke.
+Granted permissions are to be listed in Settings with their cap,
+spend-to-date and expiry, and a one-click revoke (`gifos-purse.js` holds the
+API; the Settings surface is not built yet).
 
 ## What the OS holds — a connection, not a key
 
@@ -129,9 +146,10 @@ ledger:
   session, no ledger entry may live in app storage where sharing would leak it.
 - `gifos.pay` exposes **no** signing primitive to the sandbox. The only thing an
   app can cause is a payment the human then authenticates.
-- The Base Account SDK runs **only on the OS page**, never in an app frame, and
-  is vendored and hash-pinned like `js/vendor/nacl-fast.js` — no CDN at runtime,
-  consistent with the rest of the site.
+- The Base Account SDK will run **only on the OS page**, never in an app
+  frame, vendored and hash-pinned like `js/vendor/nacl-fast.js` — no CDN at
+  runtime, consistent with the rest of the site. (Not vendored yet — no
+  Base Account code is in the tree.)
 
 **The dependency is accepted deliberately.** Payments now require Coinbase's
 account service to be reachable and working. If it is down, GifOS does no
@@ -152,12 +170,14 @@ another developer's revenue.
 
 `gifos-sign.js` already solves this. Its canonical hash covers the app's files
 (including `manifest.json`) and EXCLUDES the signature block and `.state/**`,
-so saving app state never voids a signature but changing the payout address
-does. Its verdicts are honest: **signed / unsigned / TAMPERED**. Therefore:
+(alongside `.lock/**` and `.assets/**`), so saving app state never voids a
+signature but changing the payout address does. Its verdicts are honest:
+**valid / unsigned / tampered / unverified**. Therefore:
 
-- **An app may charge only when it verifies as `signed`.** `unsigned` and
-  `TAMPERED` cannot charge at all — not with a warning, not with a scary
-  colour. Refused.
+- **An app may charge only when it verifies as `valid`** (`gifos-charge.js`
+  additionally refuses `keyChanged` — a payee whose signing key differs from
+  the one first seen). `unsigned`, `tampered` and `unverified` cannot charge
+  at all — not with a warning, not with a scary colour. Refused.
 - The approval sheet names the **verified identity**, not a hex string: "paying
   **nathan@example.com** (verified)". Signing identity is a domain (key at
   `https://<domain>/gifos.key`) or an email (public keyserver), so "signed by
@@ -175,7 +195,9 @@ then sharing that GIF would hand the purchase to everyone who received it.
 
 So what was bought is recorded by the **OS**, per computer, keyed by
 `(appId, sku)`, excluded from GIF export exactly like the asset cache. The app
-asks, it does not remember:
+asks, it does not remember (the API to expose — the modules attach
+`GifOS.charge`/`GifOS.purse` on the OS global today, and nothing forwards
+them into the sandbox yet):
 
 ```js
 await gifos.entitled('pro')        // -> true | false        (OS-held)
@@ -229,8 +251,9 @@ absent human was both unsafe and a solution to a problem nobody has.
 
 What replaces it:
 
-- `capabilities.pay` in the manifest, named plainly in the acknowledgement
-  sheet like every other capability;
+- `capabilities.pay` in the manifest, to be named plainly in the
+  acknowledgement sheet like every other capability (not in `gifos-perms.js`
+  CAP_LABELS yet);
 - **a WebAuthn (passkey) signature behind every spend** — either per payment, or
   the Spend Permission that authorised it. Hardware-backed on any modern device
   (Secure Enclave / TPM / Android Keystore), so it is a real biometric or PIN,
@@ -242,7 +265,9 @@ What replaces it:
 - a per-app and per-call **ceiling** still exists as a hard limit on what may be
   approved for that app, and for permissioned apps it is the cap the human
   actually signed;
-- every payment lands in a spend ledger in Settings, per app, with revoke.
+- every payment lands in the purse's spend ledger, per app, with revoke
+  (`gifos-purse.js` `record`/`history`; the Settings surface is not built
+  yet).
 
 **Providers may not pay at all.** A provider runs in a hidden mount with no
 visible window, so there is no surface on which to show a human what they are
@@ -260,9 +285,10 @@ skip the human:
    pay without a human. **But enforcement is our own JavaScript**, so an XSS in
    the OS page can simply call the signer and skip the check. The gesture is a
    policy, not a proof.
-2. **On-chain (stronger).** The passkey itself is the spending authority,
-   verified by Solana's **secp256r1 precompile (SIMD-0075, Implemented)** —
-   which is why this is possible on Solana without an ERC-4337 stack. A payment
+2. **On-chain (stronger).** The passkey itself is the spending authority.
+   (This subsection predates the Base decision — it argued the Solana route
+   via the secp256r1 precompile, SIMD-0075; on Base the same property comes
+   from the Smart Wallet's own passkey owner model.) A payment
    is invalid on-chain unless it carries a fresh passkey signature, so a
    compromised page **cannot** move funds at all. The cost is a wallet
    *program*: the precompile verifies a signature, it does not by itself make a
@@ -293,12 +319,13 @@ badly-behaved apps, not against an attacker who reaches the OS page.
 
 ## Threat model, stated plainly
 
-1. **Malicious app.** Bounded by the per-app budget and per-call cap. It cannot
-   read the key, cannot sign anything but a broker-built payment, and cannot
-   raise its own budget.
+1. **Malicious app.** Bounded by the per-call ceiling (`policy.maxAmount`)
+   and the on-chain Spend Permission cap (the earlier "budget" model is dead
+   — see above). There is no key in this design for it to read; it cannot
+   sign anything but a broker-built payment and cannot raise its own caps.
 2. **XSS in the OS page.** The serious one. The attacker becomes a signing
    oracle while they hold the page and can drain the account's balance — but
-   cannot steal the key itself, so the damage stops when the page closes and
+   there is no key to steal, so the damage stops when the page closes and
    is bounded by what is in the account. Keep the balance small; this is why
    the "transit account" framing is a security control, not marketing.
 3. **Hostile facilitator/sponsor.** It sees the transaction, adds the fee
