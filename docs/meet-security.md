@@ -52,11 +52,14 @@ Admin power = knowledge of the admin password, proven cryptographically:
   The room verifier `V` (in the URL, part of the room's identity) is a hash
   commitment to the PUBLIC key: `H(pubkey)` startsWith `V`.
 - Privileged orders (mod table, ban/unban, setpw/re-key — including the sealed
-  `pwinfo` peers adopt — banlist re-seed, and stopping the room's shared app)
-  travel **individually signed** `{ sp, sig, pub }`. Any peer — and the relay,
+  `pwinfo` peers adopt — banlist re-seed, stopping the room's shared app, and
+  the `cdel` chat-delete tombstone) travel **individually signed**
+  `{ sp, sig, pub }`. Any peer — and the relay,
   for its door duties — verifies the same proof: commitment, signature over
   the exact signed string, right action, fresh timestamp (5-min replay
-  window). No socket is "an admin socket"; no transport confers authority.
+  window; the one exemption is `cdel`, verified with no age limit so `hi`
+  backfill can re-prove old deletes to late joiners — replaying a delete
+  deletes the same message again, which is idempotent). No socket is "an admin socket"; no transport confers authority.
 - A plain room (no `V`) can never have an admin; joining a `V` room is
   structural consent to be administered.
 
@@ -76,8 +79,11 @@ the room instead of the relay. The sender tries, in order:
    the relay-socketed seats (its entry gateway and the greeter pool — the
    room's public front door, healing-laws R2/E3 — preferring a socketed seat
    already wired next to the target: its owner, head, or row-mates). The
-   sealed envelope rides the relay TO that door as an ordinary opaque
-   `{t:'peer'}` frame, and the door carries it onward over its channels.
+   sealed envelope rides the relay TO the doors as ordinary opaque
+   `{t:'peer'}` frames — fanned, not single-door: `fsig` goes to 3 doors
+   (one door alone was the permanent late-join wedge), `fmesh` HELLO/CLAIM
+   to every door, other `fmesh` to one (throttled per target) — and each
+   door carries it onward over its channels.
 
 Onward travel is **ttl-bounded UNICAST hop-forwarding** (never a flood): each
 hop delivers on a direct channel if it holds one, else takes one mesh step
@@ -94,9 +100,11 @@ path immediately instead of retrying blind. This leaks nothing: the roster
 already broadcasts which peers hold sockets, and routePeer stays targeted —
 the scope rule ("the relay hears only from joiners and greeters") is about
 what the relay is *told*, not a refusal to route or to answer honestly.
-Deep-seated newcomers also hold their relay socket until their FIRST
-DataChannel opens (hard-capped ~2 min — mesh-wire `wired()`), so the answer
-leg of their very first handshakes has a path back.
+Deep-seated newcomers also hold their relay socket until EVERY named
+neighbour holds a live DataChannel (mesh-wire `wired()` is all-links; the
+socket drops only after a ~20-tick grace once fully wired, and re-opens
+whenever wiring regresses — no wall-clock cap), so the answer leg of their
+very first handshakes has a path back.
 
 **Trust note:** the relay's authoritative `from` does not cover this path — an
 in-room impostor could already disrupt via gossip; connection-level guards
