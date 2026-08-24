@@ -165,30 +165,48 @@ export function screenshotPng() {
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
   fill(0, 0, W, H, 2, 8, 10);
-  drawText(put, 40, 36, 'LOST IN CYBERSPACE', 4, 17, 255, 204);
-  drawText(put, 40, 92, 'HACKER', 3, 17, 255, 204);
-  drawText(put, 640, 92, 'NAVIGATOR', 3, 17, 255, 204);
-  drawText(put, 40, 140, '04:16', 5, 255, 204, 51);
-  drawText(put, 40, 200, '> ACCESS CODE', 3, 200, 255, 244);
-  drawText(put, 40, 240, '  0xC16F8', 3, 17, 255, 204);
-  drawText(put, 40, 300, 'TARGET NODE', 3, 255, 48, 80);
-  drawText(put, 40, 360, 'TWO SEATS  ONE MAZE', 3, 8, 90, 80);
-  drawText(put, 40, 420, 'CODES ARE THE MAP', 3, 8, 90, 80);
-  drawText(put, 40, 500, 'NO JAM SERVER', 3, 17, 255, 204);
+  // first-person corridor on the left
+  for (let y = 0; y < H; y++) {
+    const t = y / H;
+    const ceil = t < 0.42;
+    const k = ceil ? t / 0.42 : (t - 0.42) / 0.58;
+    const r = ceil ? 2 + k * 6 : 4 + k * 40;
+    const g = ceil ? 8 + k * 20 : 20 + k * 90;
+    const b = ceil ? 10 + k * 18 : 18 + k * 70;
+    fill(0, y, 620, y + 1, r, g, b);
+  }
+  const farL = 170, farR = 450, horizon = 250, floorY = 560;
+  fill(farL, horizon, farR, floorY, 8, 70, 62);
+  // door ahead
+  fill(260, 330, 360, 560, 2, 8, 10);
+  for (let y = 330; y < 560; y++) {
+    put(260, y, 200, 255, 244); put(360, y, 200, 255, 244);
+  }
+  for (let x = 260; x < 360; x++) {
+    put(x, 330, 200, 255, 244); put(x, 560, 200, 255, 244);
+  }
+  drawText(put, 278, 430, 'DOOR', 3, 17, 255, 204);
+  // left side door
+  fill(20, 380, 110, 620, 2, 8, 10);
+  drawText(put, 40, 40, '04:12  N  2,1', 3, 17, 255, 204);
+  drawText(put, 40, 620, '> ACCESS CODE', 2, 200, 255, 244);
+  drawText(put, 40, 660, '  0xC16F8', 3, 17, 255, 204);
 
-  // nmap-ish grid on the right
-  const gx = 640, gy = 160, cell = 52, gap = 8;
+  // nmap grid on the right — mid-scan, three layers in
+  drawText(put, 640, 36, 'NMAP', 3, 17, 255, 204);
+  const gx = 640, gy = 90, cell = 56, gap = 8;
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
     const x0 = gx + c * (cell + gap), y0 = gy + r * (cell + gap);
     const trap = (c + r * 3) % 11 === 0;
     const tgt = c === 6 && r === 5;
     const here = c === 2 && r === 1;
-    let col = trap ? [180, 40, 50] : ((c < 4 ? r < 4 : r >= 4) ? [10, 80, 70] : [10, 50, 90]);
-    if (tgt) col = [255, 204, 51];
-    if (here) col = [17, 255, 204];
-    fill(x0, y0, x0 + cell, y0 + cell, col[0], col[1], col[2]);
+    let rgb = trap ? [180, 40, 50] : ((c < 4 ? r < 4 : r >= 4) ? [10, 90, 78] : [10, 50, 100]);
+    if (tgt) rgb = [255, 204, 51];
+    if (here) rgb = [17, 255, 204];
+    fill(x0, y0, x0 + cell, y0 + cell, rgb[0], rgb[1], rgb[2]);
+    if (c < 7 && (c === 1 || c === 4)) fill(x0 + cell, y0 + cell / 2 - 2, x0 + cell + gap, y0 + cell / 2 + 2, 8, 90, 80);
   }
-  drawText(put, 640, 660, 'NMAP  0xC16F8', 3, 17, 255, 204);
+  drawText(put, 640, 660, 'TARGET  6,5', 3, 255, 204, 51);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
