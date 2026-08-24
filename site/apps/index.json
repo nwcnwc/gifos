@@ -2950,6 +2950,55 @@
       "sha256": "d28ed82601d27d8d8e8c47b22a71633b7eeac3adde4f783918e138b2ddcc713f"
     },
     {
+      "slug": "lrc-maker",
+      "appId": "lrc-maker",
+      "name": "LRC Maker",
+      "shortName": "LRC",
+      "version": "1.0.0",
+      "tagline": "Load a local song, tap lyric timings, export LRC. Nothing is uploaded.",
+      "author": {
+        "name": "magic-akari",
+        "url": "https://github.com/magic-akari/lrc-maker"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "lrc-maker",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "lyrics",
+        "lrc",
+        "audio",
+        "karaoke",
+        "timing",
+        "offline"
+      ],
+      "accent": [
+        57,
+        208,
+        197
+      ],
+      "cover": "/apps/lrc-maker/cover.jpg",
+      "bytes": 189400,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "fe3bb7fb17afc45c7a21610753437d7b66dc2f74cea0ff056e420ba62047508b"
+    },
+    {
       "slug": "ludo",
       "appId": "ludo",
       "name": "Ludo",
@@ -3093,6 +3142,54 @@
       "sha256": "142471eef1dd0b8857a8f398515b8dc218bf0203d54956f55b80437b76e1b08b"
     },
     {
+      "slug": "mermaid",
+      "appId": "mermaid",
+      "name": "Mermaid",
+      "shortName": "Mermaid",
+      "version": "1.0.0",
+      "tagline": "Type a diagram. See it live. The file is the save.",
+      "author": {
+        "name": "mermaid-js",
+        "url": "https://github.com/mermaid-js/mermaid"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "mermaid",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Productivity"
+      ],
+      "tags": [
+        "diagram",
+        "flowchart",
+        "sequence",
+        "markdown",
+        "offline"
+      ],
+      "accent": [
+        255,
+        91,
+        135
+      ],
+      "cover": "/apps/mermaid/cover.jpg",
+      "bytes": 1684038,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "7031c2166d1045d5f8f39717e9c00bcb0f3993128d2914452a5af380fe7d309d"
+    },
+    {
       "slug": "metronome",
       "appId": "metronome",
       "name": "Metronome",
@@ -3140,6 +3237,55 @@
         "ts": "2026-08-24"
       },
       "sha256": "82cf3af77d7a7a06efbab6e151f0343961579a8359e2510a8c22b915ef683330"
+    },
+    {
+      "slug": "mini-photo-editor",
+      "appId": "mini-photo-editor",
+      "name": "Mini Photo Editor",
+      "shortName": "Photo",
+      "version": "1.0.0",
+      "tagline": "Crop, rotate and filter a photo on this device. Nothing is uploaded.",
+      "author": {
+        "name": "xdadda",
+        "url": "https://github.com/xdadda/mini-photo-editor"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "mini-photo-editor",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "photo",
+        "crop",
+        "rotate",
+        "filter",
+        "edit",
+        "offline"
+      ],
+      "accent": [
+        196,
+        92,
+        38
+      ],
+      "cover": "/apps/mini-photo-editor/cover.jpg",
+      "bytes": 189798,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "6b2be56fead142e1a02d00b41da9b2a6bb4f34bf75b75a973a2066447b9cb2e8"
     },
     {
       "slug": "mykonos",

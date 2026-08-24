@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mini Photo Editor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">Mini Photo Editor</div>
+      <div id="which">crop · rotate · filter</div>
+    </header>
+    <div class="actions">
+      <label class="file">Open<input id="open" type="file" accept="image/*"></label>
+      <button type="button" id="shareBtn">Play together</button>
+      <button type="button" id="rotL">Rotate ←</button>
+      <button type="button" id="rotR">Rotate →</button>
+      <button type="button" id="resetBtn">Reset</button>
+      <button type="button" id="saveBtn">Download</button>
+    </div>
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. They get your sliders and look, not your photo. Nothing is uploaded.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions"><button type="button" id="leaveBtn">← Solo</button></div>
+    </div>
+    <div id="stage"><canvas id="preview">Open a photo.</canvas></div>
+    <div id="filters">
+      <button type="button" data-id="none" class="on">None</button>
+      <button type="button" data-id="grayscale">Grey</button>
+      <button type="button" data-id="vintage">Vintage</button>
+      <button type="button" data-id="polaroid">Polaroid</button>
+      <button type="button" data-id="kodak">Kodak</button>
+      <button type="button" data-id="browni">Browni</button>
+    </div>
+    <div id="knobs">
+      <label>Bright <input id="brightness" type="range" min="-1" max="1" step="0.01" value="0"></label>
+      <label>Contrast <input id="contrast" type="range" min="-1" max="1" step="0.01" value="0"></label>
+      <label>Sat <input id="saturation" type="range" min="-1" max="1" step="0.01" value="0"></label>
+      <label>Warmth <input id="warmth" type="range" min="-1" max="1" step="0.01" value="0"></label>
+      <label>Vignette <input id="vignette" type="range" min="0" max="1" step="0.01" value="0"></label>
+    </div>
+    <p id="how">Open a photo on this device. Drag on the picture to crop. Rotate, pick a look, turn the sliders. Download keeps a JPEG here. Nothing is uploaded.</p>
+    <p class="foot">Unofficial port of mini-photo-editor by xdadda (MIT). Playing alone is the original tool. A shared recipe is the sliders — nobody writes on anybody else’s row.</p>
+  </div>
+  <script src="vendor/mini-photo.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>
