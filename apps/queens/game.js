@@ -1,6 +1,6 @@
 /*
- * Queens — LinkedIn-style: one queen per row, column, and region,
- * and none may touch diagonally. Logic from samimsu/queens-game (MIT).
+ * Queens — one queen per row, column, and region, and none may touch
+ * diagonally. Logic from samimsu/queens-game (MIT).
  */
 (function (root) {
   'use strict';

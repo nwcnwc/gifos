@@ -19,17 +19,21 @@ Queens do not attack down a whole diagonal the way they do in chess — only the
 
 **Drag** across empty squares to stamp Xes. That is the fast way to mark a row or a region.
 
-**Undo** walks back one tap. **Clear** empties the board. **Auto X** (on by default) fills the row, column, region, and neighbouring corners with Xes when you place a queen.
+**Undo** walks back one tap (`Ctrl`/`⌘`+`Z` does the same). **Clear** empties the board. **Auto X** (on by default) fills the row, column, region, and neighbouring corners with Xes when you place a queen.
 
-A clash — two queens in the same row, column, region, or touching at a corner — lights those queens red.
+A clash — two queens in the same row, column, region, or touching at a corner — lights those queens red. The line under the title counts queens and clashes.
+
+**Back** (the phone’s Back, or ←) returns to the level list. It does not close the app.
 
 ## Levels
 
-Hundreds of boards, from small 6×6 up. Finished levels stay marked. **Next** and **Prev** walk the list. The level picker is the grid of numbers on the home card.
+768 boards, from 6×6 up. Finished levels stay marked in green. Filter by size, hide the ones you have solved, or type a number and press **Open**. **Play** resumes the board you were in the middle of, or the first unsolved one.
+
+**Next** and **Prev** walk the list.
 
 ## Play with a friend
 
-Press **Invite** in the bar above the app. The host’s current puzzle is the one everyone sees. Each person marks their own board; a win on this device is yours. There is no account and no game server.
+Press **Invite** in the bar above the app. The puzzle someone opens is the one everyone sees — if they go Next, your board switches too. Each person marks their own squares; a win on this device is yours. There is no account and no game server.
 
 ## What is saved
 

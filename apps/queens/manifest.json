@@ -3,7 +3,7 @@
   "appId": "queens",
   "name": "Queens",
   "shortName": "Queens",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "description": "Place N queens so none share a row, a column, a region, or a diagonal touch.",
   "entry": "index.html",

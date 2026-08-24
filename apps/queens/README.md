@@ -1,7 +1,7 @@
 # Queens
 
-LinkedIn-style Queens as a GifOS app. Hundreds of tap levels. The file is
-the save. Invite is the room.
+Hundreds of tap puzzles as a GifOS app. The file is the save. Invite is
+the room.
 
 An unofficial port of **[Queens](https://github.com/samimsu/queens-game)** by
 samimsu (MIT). The Vite / React / Vercel / Giscus / Patreon stack is gone.
