@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Tiny Platformer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="hud">
+    <span id="coins">coins 0</span>
+    <span id="kills">stomps 0</span>
+    <span id="best"></span>
+  </div>
+  <canvas id="canvas">This game needs a canvas.</canvas>
+</div>
+
+<div id="touch" hidden>
+  <div id="t-left" class="t-col">
+    <button class="t-btn" data-key="left" type="button" aria-label="Left">◀</button>
+    <button class="t-btn" data-key="right" type="button" aria-label="Right">▶</button>
+  </div>
+  <div id="t-right" class="t-col">
+    <button class="t-btn wide" data-key="jump" type="button" aria-label="Jump">JUMP</button>
+  </div>
+</div>
+
+<script src="boot.js"></script>
+<script src="vendor/level.js"></script>
+<script src="vendor/platformer.js"></script>
+<script src="touch.js"></script>
+</body>
+</html>

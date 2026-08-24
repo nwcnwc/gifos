@@ -1,0 +1,31 @@
+{
+  "tagline": "Jump, grab the gold, stomp the grey blocks. Best run lives in the file.",
+  "description": "A little yellow square in a brick cave. Run, jump, pick up the gold, bounce on the grey ones. Hit one from the side and you start over. There is one cave, and that is the whole game.\n\nOn a phone the buttons sit under your thumbs — left, right, jump. On a computer it is the arrows and the space bar, the way it always was. Close it, come back: your best coins and stomps are still there, inside the file.\n\nAn unofficial port of Tiny Platformer by Jake Gordon, MIT-licensed. This copy adds the phone buttons and keeps the score in the file.",
+  "author": {
+    "name": "Jake Gordon",
+    "url": "https://github.com/jakesgordon/javascript-tiny-platformer"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Tiny Platformer",
+    "url": "https://github.com/jakesgordon/javascript-tiny-platformer",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "platformer",
+    "arcade",
+    "jump",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tiny-platformer",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

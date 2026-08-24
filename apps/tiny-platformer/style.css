@@ -1,0 +1,59 @@
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #0a0a0f; color: #ecd078;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  touch-action: none; user-select: none;
+}
+#stage {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#canvas {
+  display: block;
+  width: min(100vw, calc(100vh * 4 / 3));
+  height: min(100vh, calc(100vw * 3 / 4));
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #111;
+}
+#hud {
+  position: fixed; left: max(.8rem, env(safe-area-inset-left));
+  top: max(.6rem, env(safe-area-inset-top));
+  z-index: 5; display: flex; gap: 1rem;
+  font-size: clamp(11px, 2.4vw, 14px);
+  letter-spacing: .06em;
+  color: #ecd078;
+  text-shadow: 0 1px 0 #000;
+  pointer-events: none;
+}
+#kills { color: #53777a; }
+#best { color: #d95b43; }
+#best:empty { display: none; }
+
+#touch {
+  position: fixed; inset: 0; z-index: 20; pointer-events: none;
+  touch-action: none; user-select: none;
+}
+#touch[hidden] { display: none; }
+.t-col {
+  position: absolute; bottom: max(1.2rem, env(safe-area-inset-bottom));
+  display: flex; gap: .55rem; pointer-events: none;
+}
+#t-left { left: max(.8rem, env(safe-area-inset-left)); }
+#t-right { right: max(.8rem, env(safe-area-inset-right)); }
+.t-btn {
+  pointer-events: auto;
+  width: 5.2rem; height: 5.2rem;
+  border-radius: .9rem;
+  border: 1px solid rgba(236, 208, 120, .4);
+  background: rgba(10, 10, 16, .58);
+  color: #ecd078;
+  font: 700 .9rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.t-btn.wide { width: 6.4rem; height: 6.4rem; }
+.t-btn.on { background: rgba(236, 208, 120, .28); }
+body:not(.touch) #touch { display: none; }
