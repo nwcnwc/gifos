@@ -46,25 +46,96 @@
   }
 
   // ------------------------------------------------------------ date pick ---
+  /*
+   * A real calendar, not a native date field.
+   *
+   * The question a date picker has to answer in this app is not "what day is
+   * it" — it is "which days actually have imagery for what I am looking at".
+   * A MODIS 8-day composite exists on eight days a year out of every eight; an
+   * instrument launched in 2018 has nothing before it; today's pass may not
+   * have landed yet. So the grid greys out the days the visible layers do not
+   * publish, and says which layer it is deferring to.
+   */
+  function leadLayer() {
+    for (var i = 0; i < state.layers.length; i++) {
+      var L = D.layer(state.layers[i].id);
+      if (L && state.layers[i].on && !L.builtin && L.period !== 'static' && !L.ref) return L;
+    }
+    return null;
+  }
+
   UI.openDatePick = function (forB) {
     UI.openModal(forB ? 'Compare with…' : 'Pick a day', function (body) {
       var cur = forB ? state.compare.date : state.date;
-      var set = function (d) {
+      var shownMonth = cur.slice(0, 7);
+      var L = leadLayer();
+
+      function set(d) {
         if (forB) { state.compare.date = d; UI.renderCompare(); M.invalidate(); app.save(); }
         else app.setDate(d);
         UI.closeSheets();
-      };
-      var f = row(body, 'field-row');
-      f.appendChild(dateInput(cur, set));
+      }
+
+      var head = row(body, 'cal-head');
+      var prev = button('‹', 'cal-nav', function () { shownMonth = shiftMonth(shownMonth, -1); paint(); });
+      prev.setAttribute('aria-label', 'Previous month');
+      var title = U.el('b', 'cal-title', '');
+      var next = button('›', 'cal-nav', function () { shownMonth = shiftMonth(shownMonth, 1); paint(); });
+      next.setAttribute('aria-label', 'Next month');
+      head.appendChild(prev);
+      head.appendChild(title);
+      head.appendChild(next);
+
+      var grid = row(body, 'cal-grid');
+      var note = U.el('p', 'field-note', '');
+      body.appendChild(note);
+
       var chips = row(body, 'chips');
       [['Today', 0], ['Yesterday', -1], ['A week ago', -7], ['A month ago', -30],
        ['A year ago', -365], ['Five years ago', -1826]].forEach(function (c) {
-        chips.appendChild(button(c[0], 'chip-btn', function () {
-          set(U.addDays(U.latestDay(), c[1]));
-        }));
+        chips.appendChild(button(c[0], 'chip-btn', function () { set(U.addDays(U.latestDay(), c[1])); }));
       });
-      var p = U.el('p', '', 'The archive starts in 1981 for sea surface temperature, 2000 for MODIS true colour, and later for newer instruments — each layer says when it begins.');
-      body.appendChild(p);
+
+      function shiftMonth(m, n) {
+        var y = +m.slice(0, 4), mo = +m.slice(5, 7) - 1 + n;
+        var d = new Date(Date.UTC(y, mo, 1));
+        return d.getUTCFullYear() + '-' + U.pad(d.getUTCMonth() + 1);
+      }
+
+      function paint() {
+        var y = +shownMonth.slice(0, 4), mo = +shownMonth.slice(5, 7) - 1;
+        title.textContent = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                             'August', 'September', 'October', 'November', 'December'][mo] + ' ' + y;
+        grid.innerHTML = '';
+        ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach(function (d, i) {
+          grid.appendChild(U.el('span', 'cal-dow', d));
+        });
+        var first = new Date(Date.UTC(y, mo, 1));
+        var lead = (first.getUTCDay() + 6) % 7;                 // Monday-first
+        for (var i = 0; i < lead; i++) grid.appendChild(U.el('span', 'cal-pad'));
+        var days = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+        var latest = U.latestDay();
+        for (var d = 1; d <= days; d++) {
+          var iso = y + '-' + U.pad(mo + 1) + '-' + U.pad(d);
+          var b = U.el('button', 'cal-day', String(d));
+          b.type = 'button';
+          var future = U.dayMs(iso) > U.dayMs(latest);
+          var has = !future && (!L || D.coverage(L, iso).ok) && (!L || U.snapDay(iso, L) === iso || L.period === 'daily');
+          if (future) b.classList.add('out');
+          else if (!has) b.classList.add('thin');
+          if (iso === cur) b.classList.add('on');
+          if (iso === latest) b.classList.add('today');
+          if (future) b.disabled = true;
+          b.addEventListener('click', function (iso2) {
+            return function () { set(iso2); };
+          }(iso));
+          grid.appendChild(b);
+        }
+        note.textContent = L
+          ? 'Dimmed days are days ' + L.title + ' (' + (L.sub || 'GIBS') + ') does not publish.'
+          : 'Every day in the archive is available for the layers you have on.';
+      }
+      paint();
     });
   };
 
@@ -196,7 +267,7 @@
           .then(function (r) {
             UI.toast(r && r.myMedia ? 'Saved to My Media' : (r && r.missing) || 'Saved');
           })
-          .catch(function (e) { UI.toast(String(e && e.message || e), true); });
+          .catch(function (e) { UI.toast(String(e && e.message || e), { bad: true }); });
       }));
     }
     wrap.appendChild(acts);
@@ -359,7 +430,7 @@
       acts2.appendChild(button('Clear the browsing cache', 'ghost', function () {
         T.clearCache(true).then(function () { UI.toast('Cleared — pinned tiles kept'); UI.openStorage(); });
       }));
-      acts2.appendChild(button('Clear everything, pins too', 'ghost', function () {
+      acts2.appendChild(button('Clear everything, pins too', 'ghost danger', function () {
         T.clearCache(false).then(function () { UI.toast('All saved imagery cleared'); UI.openStorage(); });
       }));
 

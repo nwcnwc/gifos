@@ -88,12 +88,27 @@
   };
 
   App.removeLayer = function (id) {
-    state.layers = state.layers.filter(function (r) { return r.id !== id; });
+    var at = -1, gone = null;
+    for (var i = 0; i < state.layers.length; i++) {
+      if (state.layers[i].id === id) { at = i; gone = state.layers[i]; }
+    }
+    if (at < 0) return;
+    state.layers.splice(at, 1);
     UI.renderStack();
     UI.renderDate();
     UI.renderTimeline();
     M.invalidate();
     queueSave();
+    var L = D.layer(id);
+    UI.toast('Removed ' + (L ? L.title : id), {
+      action: 'Undo',
+      fn: function () {
+        state.layers.splice(Math.min(at, state.layers.length), 0, gone);
+        UI.renderStack();
+        M.invalidate();
+        queueSave();
+      },
+    });
   };
 
   /*
@@ -215,10 +230,13 @@
     var c = state.compare;
     c.on = !c.on;
     if (c.on && !c.date) c.date = U.addDays(state.date, -365);
+    // The layer panel covers a third of the "before" side; comparing is a mode
+    // where the map is the whole point, so it gets out of the way.
+    if (c.on && UI.panelOpen()) UI.setPanel(false);
     UI.renderCompare();
+    UI.renderInspector();
     M.invalidate();
     queueSave();
-    if (c.on) UI.toast('Comparing ' + U.prettyDate(state.date) + ' with ' + U.prettyDate(c.date) + ' — drag the handle');
   };
 
   App.toggleMeasure = function () {
@@ -482,7 +500,7 @@
       // Opened outside GifOS: the offline half still works, and saying so is
       // better than a map that silently never loads a tile.
       U.$('app').classList.remove('boot');
-      UI.toast('Open this inside GifOS for live NASA imagery — the offline map still works here.', true);
+      UI.toast('Open this inside GifOS for live NASA imagery — the offline map still works here.', { bad: true });
       return;
     }
 
@@ -521,7 +539,7 @@
       applyLaunch(args);
     }).catch(function (e) {
       U.$('app').classList.remove('boot');
-      UI.toast('Something went wrong starting up: ' + (e && e.message), true);
+      UI.toast('Something went wrong starting up: ' + (e && e.message), { bad: true });
     });
 
     if (gifos.onBack) {

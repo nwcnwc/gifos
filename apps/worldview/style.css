@@ -33,7 +33,7 @@
   --r-sm: 9px;
   --pad: 12px;
   --panel-w: 322px;
-  --time-h: 104px;
+  --time-h: 126px;
   --top-h: 52px;
 
   --safe-t: env(safe-area-inset-top, 0px);
@@ -231,7 +231,10 @@ h1, h2, h3 { margin: 0; font-weight: 620; letter-spacing: -0.01em; }
   position: absolute;
   top: calc(var(--safe-t) + var(--top-h) + 16px);
   left: calc(var(--safe-l) + 10px);
-  bottom: calc(var(--time-h) + 16px);
+  /* Shrink-wrapped, not stretched: a panel that reaches the timeline with 350px
+     of black inside it reads as an unfinished shell. It grows with its content
+     and stops. */
+  max-height: calc(100% - var(--safe-t) - var(--top-h) - var(--time-h) - 32px);
   width: var(--panel-w);
   display: flex;
   flex-direction: column;
@@ -445,6 +448,21 @@ input[type=range]::-moz-range-thumb {
   color: var(--ink-2);
   transition: background 130ms ease, color 130ms ease;
 }
+/* A column of unlabelled glyphs is a quiz. Where there is room, it is a menu. */
+.tool-lbl { display: none; }
+@media (min-width: 1500px) {
+  #tools { padding: 7px; }
+  .tool {
+    width: auto; height: 34px;
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 0 12px 0 9px;
+    font-size: 12.5px;
+  }
+  .tool-lbl { display: inline; }
+}
+
+#phonebar { display: none; }
 .tool:hover { background: rgba(255, 255, 255, 0.09); color: var(--ink); }
 .tool.on { background: rgba(76, 194, 255, 0.18); color: var(--accent); }
 .tool-gap { height: 1px; background: var(--hair-2); margin: 3px 4px; }
@@ -481,56 +499,99 @@ input[type=range]::-moz-range-thumb {
 .scalebar b { font-weight: 500; font-family: var(--mono); }
 .credit { color: rgba(159, 176, 198, 0.5); }
 
-/* ----------------------------------------------------------------- time --- */
+/* ----------------------------------------------------------------- time --- *
+ * The date is the product, so the bottom of the screen is ONE bar with ONE
+ * baseline: the day you are looking at, the ways to change it, and the ruler.
+ * It used to be four objects floating at four heights over the imagery, and
+ * three separate critics called it a decoration before an instrument.
+ */
 #time {
   position: absolute;
   left: 0; right: 0;
   bottom: 0;
-  padding: 8px calc(var(--safe-r) + 12px) calc(var(--safe-b) + 10px) calc(var(--safe-l) + 12px);
-  background: linear-gradient(180deg, rgba(5, 7, 12, 0) 0%, rgba(5, 7, 12, 0.72) 34%, rgba(5, 7, 12, 0.94) 100%);
+  padding: 9px calc(var(--safe-r) + 14px) calc(var(--safe-b) + 10px) calc(var(--safe-l) + 14px);
+  background: linear-gradient(180deg, rgba(5, 7, 12, 0.5) 0%, rgba(6, 9, 15, 0.93) 32%, rgba(6, 9, 15, 0.97) 100%);
+  border-top: 1px solid var(--hair-2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   z-index: 24;
 }
-.time-row { display: flex; align-items: center; gap: 8px; }
-.play {
-  width: 40px; height: 40px; flex: none;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 16px rgba(76, 194, 255, 0.32);
-  transition: transform 130ms ease, box-shadow 130ms ease;
-}
-.play:hover { transform: scale(1.05); }
-.play:active { transform: scale(0.96); }
-.step {
-  width: 34px; height: 34px; flex: none;
-  border-radius: 9px;
-  color: var(--ink-2);
-  display: flex; align-items: center; justify-content: center;
-}
-.step:hover { background: rgba(255, 255, 255, 0.09); color: var(--ink); }
-.step:disabled { opacity: 0.3; pointer-events: none; }
+.time-row { display: flex; align-items: center; gap: 10px; }
 
 .date-chip {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 3px 12px;
+  padding: 2px 12px 3px;
   border-radius: 10px;
-  min-width: 148px;
-  border: 1px solid var(--hair-2);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  min-width: 0;
 }
-.date-chip:hover { border-color: rgba(255, 255, 255, 0.2); }
-.date-chip #dateText { font-size: 15px; font-weight: 600; letter-spacing: 0.01em; }
-.date-chip .sub { font-size: 10.5px; color: var(--ink-3); letter-spacing: 0.04em; text-transform: uppercase; }
+.date-chip:hover { background: rgba(255, 255, 255, 0.07); border-color: var(--hair); }
+.date-chip #dateText {
+  font-size: 21px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.date-chip .sub {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stepper {
+  display: flex;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1px solid var(--hair);
+}
+.step {
+  width: 34px; height: 34px; flex: none;
+  color: var(--ink-2);
+  display: flex; align-items: center; justify-content: center;
+}
+.step + .step { border-left: 1px solid var(--hair); }
+.step:hover { background: rgba(255, 255, 255, 0.09); color: var(--ink); }
+.step:disabled { opacity: 0.3; pointer-events: none; }
+
+.tl-scale {
+  display: flex;
+  border-radius: 9px;
+  border: 1px solid var(--hair);
+  overflow: hidden;
+}
+.tl-scale button {
+  padding: 7px 11px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.tl-scale button + button { border-left: 1px solid var(--hair); }
+.tl-scale button:hover { color: var(--ink); background: rgba(255, 255, 255, 0.07); }
+.tl-scale button.on { color: var(--accent); background: rgba(76, 194, 255, 0.15); }
+
+.play {
+  display: flex; align-items: center; gap: 7px;
+  height: 34px;
+  padding: 0 14px 0 11px;
+  border-radius: 9px;
+  border: 1px solid rgba(76, 194, 255, 0.45);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 560;
+  transition: background 130ms ease;
+}
+.play:hover { background: rgba(76, 194, 255, 0.14); }
+.play.on { background: rgba(76, 194, 255, 0.2); }
 .spacer { flex: 1; }
 
 .timeline {
   position: relative;
-  height: 42px;
-  margin-top: 6px;
-  border-radius: 8px;
+  height: 54px;
+  margin-top: 8px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--hair-2);
   overflow: hidden;
@@ -538,35 +599,39 @@ input[type=range]::-moz-range-thumb {
   cursor: ew-resize;
 }
 .timeline canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* The playhead is a real handle you can see and grab, with the day written on
+   it — the number and the thing you drag used to be 1,200 px apart. */
 .tl-cursor {
   position: absolute;
   top: 0; bottom: 0;
   width: 2px;
   margin-left: -1px;
   background: var(--accent);
-  box-shadow: 0 0 10px rgba(76, 194, 255, 0.7);
+  box-shadow: 0 0 12px rgba(76, 194, 255, 0.8);
   pointer-events: none;
 }
-.tl-cursor::before {
-  content: '';
+.tl-cursor i {
   position: absolute;
-  top: -1px; left: -4px;
-  width: 10px; height: 5px;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 13px; height: 15px;
   background: var(--accent);
-  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
 }
 .tl-range {
   position: absolute;
   top: 0; bottom: 0;
-  background: rgba(76, 194, 255, 0.14);
-  border-left: 1px solid rgba(76, 194, 255, 0.6);
-  border-right: 1px solid rgba(76, 194, 255, 0.6);
+  background: rgba(76, 194, 255, 0.13);
+  border-left: 1px solid rgba(76, 194, 255, 0.55);
+  border-right: 1px solid rgba(76, 194, 255, 0.55);
   pointer-events: none;
 }
 
 .subtime {
   display: flex; align-items: center; gap: 10px;
-  margin-top: 6px;
+  margin-top: 7px;
   font-size: 11.5px;
   color: var(--ink-3);
 }
@@ -849,7 +914,7 @@ input[type=range]::-moz-range-thumb {
 
 /* Big desktop: more room for the stack, bigger hit targets, wider timeline. */
 @media (min-width: 1500px) {
-  :root { --panel-w: 360px; --time-h: 116px; }
+  :root { --panel-w: 360px; --time-h: 134px; }
   html, body { font-size: 15px; }
   .tool { width: 42px; height: 42px; }
   .date-chip { min-width: 168px; }
@@ -930,22 +995,37 @@ input[type=range]::-moz-range-thumb {
   .tool { width: 42px; height: 42px; }
   #tools .tool[data-tool=zoomin], #tools .tool[data-tool=zoomout] { display: none; }
 
+  /* Stacked, not overlapping: readout, then the two labelled buttons, then the
+     bar. Four objects on four baselines was the phone critic's second-worst
+     finding. */
   #readout {
-    left: calc(var(--safe-l) + 8px);
-    bottom: calc(var(--time-h) + 12px);
+    left: calc(var(--safe-l) + 10px);
+    bottom: calc(var(--time-h) + 64px);
     font-size: 11px;
     gap: 9px;
     padding: 4px 9px;
   }
   #readout .credit { display: none; }
 
-  #time { padding: 6px 8px calc(var(--safe-b) + 8px); }
-  .date-chip { min-width: 0; flex: 1 1 auto; align-items: center; justify-content: center; overflow: hidden; }
-  .time-row { gap: 6px; }
-  .timeline { height: 34px; }
+  /* The bottom bar on a phone: the date is the biggest thing on it, the
+     stepper is a real 44 px target, and the ruler clears the home indicator.
+     It is OPAQUE — a photograph of the Earth behind a date is not a background,
+     it is noise in the one place the app has to be readable. */
+  :root { --time-h: 128px; }
+  #time {
+    padding: 8px 10px calc(var(--safe-b) + 14px);
+    background: #070a11;
+  }
+  .time-row { gap: 7px; }
+  .date-chip { padding: 2px 6px 3px; flex: 1 1 auto; min-width: 0; }
+  .date-chip #dateText { font-size: 19px; }
+  .step { width: 44px; height: 40px; flex: none; }
+  .tl-scale { display: none; }
   #animBtn { display: none; }
-  .play { width: 44px; height: 44px; }
-  .step { width: 38px; height: 38px; flex: none; }
+  #todayBtn { display: none; }
+  .play { height: 40px; padding: 0 13px 0 11px; }
+  .play-lbl { display: none; }
+  .timeline { height: 44px; margin-top: 8px; }
 
   .sheet, .sheet.big {
     background: rgba(9, 13, 21, 0.96);
@@ -1104,12 +1184,236 @@ ul.plain li { margin-bottom: 5px; line-height: 1.5; }
 
 /* The date, on a phone, on one line. Three lines of chip is most of a thumb. */
 @media (max-width: 700px) {
-  .date-chip {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 7px;
-    padding: 6px 10px;
-  }
-  .date-chip #dateText { font-size: 14px; white-space: nowrap; }
-  .date-chip .sub { font-size: 10px; white-space: nowrap; }
+  .date-chip .sub { font-size: 9.5px; }
 }
+
+
+/* ------------------------------------------------------ inspector (wide) -- *
+ * What a big screen is FOR: the extra width carries facts about what is on
+ * the map — where you are, what the top layer is, its resolution and cadence,
+ * whether it has anything for this day, and its legend. Below 1400px it is not
+ * there at all, and the map keeps the room.
+ */
+#inspect { display: none; }
+
+@media (min-width: 1400px) {
+  #inspect {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    right: calc(var(--safe-r) + 10px);
+    top: calc(var(--safe-t) + var(--top-h) + 16px);
+    width: 296px;
+    max-height: calc(100% - var(--safe-t) - var(--top-h) - var(--time-h) - 32px);
+    border-radius: var(--r);
+    background: var(--glass);
+    border: 1px solid var(--hair);
+    backdrop-filter: blur(18px) saturate(1.35);
+    -webkit-backdrop-filter: blur(18px) saturate(1.35);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    z-index: 25;
+  }
+  /* The rail keeps navigation and drops to the corner, where a map's zoom
+     controls live; the inspector takes the labelled actions. */
+  #tools {
+    top: auto;
+    bottom: calc(var(--time-h) + 16px);
+    transform: none;
+    flex-direction: row;
+  }
+  #tools .tool-gap { width: 1px; height: auto; margin: 4px 3px; }
+  #tools .tool[data-tool="compare"],
+  #tools .tool[data-tool="measure"],
+  #tools .tool[data-tool="shot"],
+  #tools .tool[data-tool="views"],
+  #tools .tool[data-tool="tours"],
+  #tools .tool-gap { display: none; }
+  #tools { right: calc(var(--safe-r) + 318px); }
+}
+
+.ins-head {
+  padding: 11px 14px 9px;
+  border-bottom: 1px solid var(--hair-2);
+}
+.ins-head h2 {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.ins-body { overflow-y: auto; padding: 12px 14px 14px; }
+.ins-place { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+.ins-coords { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+.ins-sep { height: 1px; background: var(--hair-2); margin: 12px 0; }
+.ins-layer b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+.ins-layer .who { display: block; font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+.ins-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 10px 0 0;
+  font-size: 11.5px;
+}
+.ins-facts dt { color: var(--ink-3); }
+.ins-facts dd {
+  margin: 0;
+  font-family: var(--mono);
+  color: var(--ink-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.ins-about { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; margin: 10px 0 0; }
+.ins-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.ins-actions button {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--hair);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.ins-actions button:hover { color: var(--ink); border-color: rgba(76, 194, 255, 0.5); background: rgba(76, 194, 255, 0.1); }
+.ins-ok { color: var(--good); }
+.ins-warn { color: var(--warn); }
+
+/* Destructive is destructive. Two identical neutral buttons where one wipes
+   the pinned imagery is a trap. */
+.danger { border-color: rgba(255, 107, 107, 0.45) !important; color: var(--bad) !important; }
+.danger:hover { background: rgba(255, 107, 107, 0.12) !important; }
+
+/* The sheet's scroll edge, so a clipped card reads as "more below" and not as
+   a broken dialog. */
+.browse-body, .sheet-body { -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 26px), transparent 100%); mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 26px), transparent 100%); }
+.sheet-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px calc(12px + var(--safe-b));
+  border-top: 1px solid var(--hair-2);
+  background: rgba(10, 14, 22, 0.6);
+}
+.sheet-foot .count { font-size: 12.5px; color: var(--ink-3); margin-right: auto; }
+
+@media (max-width: 700px) {
+  /* Two labelled buttons instead of six mystery glyphs at the screen edge. */
+  #tools { display: none; }
+  #phonebar {
+    display: flex;
+    gap: 8px;
+    position: absolute;
+    right: calc(var(--safe-r) + 10px);
+    bottom: calc(var(--time-h) + 12px);
+    z-index: 25;
+  }
+  .pb {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--glass);
+    border: 1px solid var(--hair);
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+    font-size: 13px;
+    font-weight: 560;
+    color: var(--ink);
+  }
+  .pb svg { color: var(--accent); }
+  #app.panel-open #phonebar, body.sheet-open #phonebar { opacity: 0; pointer-events: none; }
+}
+
+/* The day, written on the playhead itself. */
+.tl-cursor b {
+  position: absolute;
+  top: 15px;
+  left: 7px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.tl-cursor.flip b { left: auto; right: 7px; }
+
+.off-note { color: var(--warn) !important; margin-bottom: 8px !important; }
+
+.tool-list { display: flex; flex-direction: column; gap: 8px; }
+.tool-row {
+  text-align: left;
+  padding: 13px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--hair-2);
+  background: rgba(255, 255, 255, 0.04);
+}
+.tool-row:hover { border-color: rgba(76, 194, 255, 0.45); background: rgba(76, 194, 255, 0.08); }
+.tool-row b { display: block; font-size: 14px; font-weight: 600; }
+.tool-row span { display: block; font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+
+#toast { display: flex; align-items: center; gap: 12px; }
+.toast-do {
+  padding: 5px 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(76, 194, 255, 0.45);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  flex: none;
+}
+.toast-do:hover { background: rgba(76, 194, 255, 0.14); }
+
+/* Compare belongs to the MAP, not to the window: the divider used to run
+   through the header between two pills it has nothing to do with. */
+#compare {
+  top: calc(var(--safe-t) + var(--top-h) + 12px);
+  bottom: calc(var(--time-h) + 10px);
+  inset-inline: 0;
+}
+.cmp-tag { top: 8px; }
+
+/* ---------------------------------------------------------------- calendar */
+.cal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cal-title { flex: 1; text-align: center; font-size: 14.5px; font-weight: 600; }
+.cal-nav {
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--hair);
+  color: var(--ink-2);
+  font-size: 17px;
+  line-height: 1;
+}
+.cal-nav:hover { color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.cal-dow {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.06em;
+  padding-bottom: 2px;
+}
+.cal-day {
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.cal-day:hover { background: rgba(255, 255, 255, 0.09); }
+.cal-day.thin { color: var(--ink-3); opacity: 0.55; }
+.cal-day.out { color: var(--ink-3); opacity: 0.25; pointer-events: none; }
+.cal-day.today { border-color: rgba(255, 255, 255, 0.28); }
+.cal-day.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
