@@ -15,7 +15,9 @@ The picture is the old 256×240 screen. It scales up to fill the window. There i
 
 **Phone**
 
-The first time you put a finger on the screen, a pad appears: four directions, **FIRE**, **START**, and pause. A mouse never shows the pad, even on a laptop with a touchscreen.
+The first time you put a finger on the screen, a pad appears: four directions on the left, **FIRE** on the right, and one button above the pad — **START** on the title screen, pause once the fight begins. A mouse never shows the pad, even on a laptop with a touchscreen.
+
+A tap counts. You do not have to hold a direction down: a quick tap turns the tank and nudges it one step.
 
 ## Rules
 
