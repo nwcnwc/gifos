@@ -94,7 +94,7 @@
     'B. If you cannot run code: reply with a complete single-file index.html in a ```html code block (the paste box takes one file; multi-file needs a .zip) and tell me to paste it into GifOS → ＋ Add → the app builder.',
     '',
     'SIGNING (optional, recommended when I plan to share the app): after delivering the .gif, mention that I can sign it at https://gifos.app/sign.html with my domain (publishes a key at https://mydomain/gifos.key) or my email (my own PGP key via keys.openpgp.org — Ed25519 or RSA), so everyone who receives it sees "Signed by me" — and tampering is detected. Signing is done BY ME on that page, after the GIF is final. NEVER ask for my private key.',
-    'IDENTITY (manifest "shortName" and "version"): set "shortName" to a compact label (≤ ~14 chars, e.g. "Chess" for "Chess Grandmaster") and "version" to a short string like "1.0" or "2.3". GifOS shows them together as an identity pill — "Chess v1.0" — on the app\'s desktop tile and in its runtime header, BUT ONLY once the app is signed (an unsigned GIF could claim any name, so GifOS never vouches for one). Bump "version" whenever you ship a change.',
+    'IDENTITY (manifest "shortName" and "version"): set "shortName" to a compact label (≤ ~14 chars, e.g. "Chess" for "Chess Grandmaster") and "version" to a short string like "1.0" or "2.3". GifOS shows them together as a NAMEPLATE — "Chess v1.0" — which on the Home Screen takes the place of the tile\'s filename entirely, and appears again in the app\'s runtime header, BUT ONLY once the app is signed (an unsigned GIF could claim any name, so GifOS never vouches for one, and its tile just shows the filename). Bump "version" whenever you ship a change.',
     '',
     'MODDING IS ENCOURAGED: if I hand you an EXISTING GifOS app .gif and ask for changes, do not rebuild from scratch — extract its files, apply my changes, and splice them back into the SAME GIF so its animation and my saved data survive. To extract (Python): find b"\\x21\\xff\\x0bGIFOS1.0GOS" in the bytes; after those 14 header bytes read length-prefixed sub-blocks until a zero byte; the joined payload (skipping its first flag byte) is raw-deflate JSON {"files": {path: base64}}. Cut that whole block out of the GIF, modify the files, keep every ".state/…" entry unchanged (my data), then run pack_gifos on the remaining bytes. Cut out any "GIFOSSIG" block the same way — a mod is a new work I can re-sign.',
     '',
@@ -633,7 +633,7 @@
 
   // ---------- decorations: everything an icon wears that costs a read --------
   //
-  // The shield, the identity pill, the Provider ✕, the NEW tag and the MIRROR
+  // The shield, the nameplate, the Provider ✕, the NEW tag and the MIRROR
   // band all answer questions that can only be settled by reading the app —
   // and reading an app means pulling hundreds of megabytes out of IndexedDB and
   // inflating its filesystem. Doing that before the first icon appears is what
@@ -732,7 +732,7 @@
     if (changed && renderSeq === seq) render();
   }
 
-  // The signed app's declared short name + version   // (for the identity pill on its
+  // The signed app's declared short name + version   // (for the nameplate on its
   // tile). Reading it means decoding the GIF's manifest, so we do it once per
   // fileId and cache the promise; bytes changing calls forgetFile, which clears it.
   const appMetaCache = new Map(); // fileId -> Promise<{ shortName, version }>
@@ -797,7 +797,9 @@
   function iconKey(it, file, fresh, meta, hasArt) {
     const trash = it.id === TRASH_ID ? (items.some((i) => i.parent === TRASH_ID) ? 'full' : 'empty') : '';
     const verdict = (sigVerdicts.get(it.fileId) || {}).status || '';
-    const idpill = meta && meta.signed ? (meta.shortName + '@' + meta.version) : '';
+    // The nameplate REPLACES the label text on a signed app, so it is doubly
+    // part of the look: it changes the badge AND what the tile is called.
+    const plate = meta && meta.signed ? (meta.shortName + '@' + meta.version) : '';
     // A Provider app outside its folder wears the red ✕ — position is part of
     // the LOOK, so the flag lives in the key and a move repaints immediately.
     const provX = (meta && meta.provides && meta.provides.length && (it.parent || null) !== 'sys_providers') ? 'provX' : '';
@@ -810,7 +812,7 @@
     const shield = (decor.get(it.fileId) || {}).signed ? 'sig' : '';
     return [it.fileId || '', it.name, it.x | 0, it.y | 0, it.iconSize || 64, it.kind,
       file ? file.kind : '', file ? (file.appId || '') : '', trash, verdict, fresh ? 'new' : '',
-      idpill, provX, hasArt ? 'art' : '', shield, it.passkey ? 'pk' : ''].join('\x01');
+      plate, provX, hasArt ? 'art' : '', shield, it.passkey ? 'pk' : ''].join('\x01');
   }
 
   const FILE_EMOJI = { gif: '🖼️', other: '📄' };
@@ -825,7 +827,7 @@
   //
   // This used to read every visible icon's FILE — the whole app, hundreds of
   // megabytes of it — and then inflate each one's filesystem to read two lines
-  // of manifest.json for the identity pill, and scan each for a signature, and
+  // of manifest.json for the nameplate, and scan each for a signature, and
   // ask the state store twice per tile, and it awaited ALL of that before
   // appending a single icon. Measured on a return visit with 50 MB of apps
   // installed: the page was ready at 183 ms and the first icon appeared at
@@ -834,7 +836,7 @@
   // So the paint now reads only what an icon IS — its position and name from
   // the item, its picture and kind from the ornament beside it — and puts the
   // icons on screen. Everything that can only be learned by reading the app
-  // (the signature shield, the identity pill, the Provider ✕, the NEW tag, the
+  // (the signature shield, the nameplate, the Provider ✕, the NEW tag, the
   // MIRROR band) is a DECORATION, applied by decorate() once the screen is up,
   // and remembered so the next visit does not learn it again.
   //
@@ -962,6 +964,31 @@
     }, { once: true });
     return img;
   }
+  // A SIGNED app's nameplate: the app's OWN declared short name and version,
+  // the pair the manifest calls "shortName"/"version". It is only ever built
+  // for a signed GIF — an unsigned one could claim any name, and GifOS does not
+  // repeat a claim it cannot check.
+  //
+  // WHY IT IS NOT ON THE PICTURE ANY MORE. As a pill floated over the top
+  // border of the animation it sat ON the art it was labelling, and the tile
+  // then said the app's name TWICE — once in the pill, once again underneath in
+  // the filename. The nameplate now takes the filename's place: one name per
+  // tile, the official one, off the artwork.
+  //
+  // The filename is not lost, only unpublished: it is still what Rename edits,
+  // still what a download is called, and still on this plate's tooltip.
+  function buildNameplate(meta, fileName) {
+    const np = document.createElement('span');
+    np.className = 'nameplate';
+    const nm = meta.shortName ? (meta.shortName.length > 14 ? meta.shortName.slice(0, 13) + '…' : meta.shortName) : '';
+    if (nm) { const s = document.createElement('span'); s.textContent = nm; np.appendChild(s); }
+    if (meta.version) { const s = document.createElement('span'); s.className = 'ver'; s.textContent = (nm ? ' ' : '') + 'v' + meta.version; np.appendChild(s); }
+    np.title = (meta.shortName ? meta.shortName + ' ' : '') + (meta.version ? 'version ' + meta.version : '')
+      + ' — the app’s own name and version, shown because this app is signed.'
+      + (fileName ? '\nThe file is named “' + fileName + '” (Rename to change that).' : '');
+    return np;
+  }
+
   function buildIcon(it, file, fresh, meta, isMirror, art) {
     const el = document.createElement('div');
     el.className = 'icon' + (it.kind === 'folder' ? ' folder' : '') + (it.id === selectedId ? ' selected' : '');
@@ -970,6 +997,10 @@
     el.dataset.id = it.id;
     const isize = it.iconSize || 64;
     el.style.setProperty('--isize', isize + 'px');
+
+    // Set below iff this is a signed app with a nameplate to show; it then
+    // stands in for the filename in the label slot.
+    let plate = null;
 
     const thumb = document.createElement('div');
     thumb.className = 'thumb';
@@ -1018,15 +1049,10 @@
           sys.title = SYSTEM_LAUNCHERS[file.appId];
           thumb.appendChild(sys);
         } else if (meta && meta.signed && (meta.shortName || meta.version)) {
-          // Identity pill (top-center, like SYSTEM): the signed app's own short
-          // name + version. Only signed tiles reach here — see render().
-          const idp = document.createElement('span');
-          idp.className = 'idbadge';
-          const nm = meta.shortName ? (meta.shortName.length > 14 ? meta.shortName.slice(0, 13) + '…' : meta.shortName) : '';
-          if (nm) { const s = document.createElement('span'); s.textContent = nm; idp.appendChild(s); }
-          if (meta.version) { const s = document.createElement('span'); s.className = 'ver'; s.textContent = (nm ? ' ' : '') + 'v' + meta.version; idp.appendChild(s); }
-          idp.title = (meta.shortName ? meta.shortName + ' ' : '') + (meta.version ? 'version ' + meta.version : '') + ' — the app’s own name and version, shown because this app is signed.';
-          thumb.appendChild(idp);
+          // NAMEPLATE: the signed app's own short name + version. It used to
+          // float over the top border of the animation, on top of the picture;
+          // it now goes in the LABEL slot, in place of the filename (see below).
+          plate = buildNameplate(meta, it.name);
         }
         // Provider app outside the Providers folder: big red ✕ over the tile.
         // The GIF is intact and shareable — the ✕ means "inert here": the OS
@@ -1051,9 +1077,16 @@
       ribbon.title = 'Synced mirror — re-syncs to the original every time you open it.';
       thumb.appendChild(ribbon);
     }
+    // THE LABEL SLOT HOLDS ONE NAME, AND THE SIGNED ONE WINS.
+    // A signed app shows its nameplate here and its filename NOWHERE on the
+    // Home Screen — tidy display, and the name shown is the one that was
+    // signed rather than whatever this computer happens to call the file.
+    // Everything else (folders, plain files, unsigned GIFs) keeps its filename:
+    // it is the only name they have.
     const label = document.createElement('div');
-    label.className = 'label';
-    label.textContent = it.name;
+    label.className = 'label' + (plate ? ' plated' : '');
+    if (plate) label.appendChild(plate);
+    else label.textContent = it.name;
 
     el.appendChild(thumb);
     el.appendChild(label);
