@@ -13,6 +13,7 @@
 // because it is a re-encoding of assets/ that would otherwise be a second,
 // drifting copy of the same 500 KB.
 import { worldviewIcon } from './icon.mjs';
+import { creditsJson, CREDITS_PATH } from '../../scripts/app-credits.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -111,6 +112,18 @@ for (const s of SCRIPTS) {
 if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
 files['help.md'] = read('help.md');
 if (files['help.md'].trim().length < 400) throw new Error('help.md is too short');
+
+/*
+ * CREDITS UNDER THE SEAL. Who made this, who ported it and what it is a port
+ * of travel INSIDE the GIF, so a stolen copy, a guest's copy on the wire and a
+ * Save all carry the same credit — and it is covered by the gifos.app
+ * signature rather than being a claim on a desktop record. Derived from
+ * listing.json through scripts/app-credits.mjs, which is also what
+ * build-app-catalog.mjs --check compares the packed bytes against: pack it
+ * anywhere else and the two would eventually disagree.
+ */
+if (!existsSync(join(dir, 'listing.json'))) throw new Error('listing.json is missing');
+files[CREDITS_PATH] = creditsJson(JSON.parse(read('listing.json')));
 
 // The runtime inlines every <script src> it finds by rewriting the tag, so a
 // script the HTML never references would travel in the GIF and never run.
