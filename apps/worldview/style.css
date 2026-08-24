@@ -33,7 +33,7 @@
   --r-sm: 9px;
   --pad: 12px;
   --panel-w: 322px;
-  --time-h: 126px;
+  --time-h: 142px;
   --top-h: 52px;
 
   --safe-t: env(safe-area-inset-top, 0px);
@@ -271,7 +271,14 @@ h1, h2, h3 { margin: 0; font-weight: 620; letter-spacing: -0.01em; }
 }
 .icon-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--ink); }
 
-.panel-scroll { flex: 1; overflow-y: auto; padding: 10px; -webkit-overflow-scrolling: touch; }
+.panel-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 10px 18px;
+  -webkit-overflow-scrolling: touch;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 20px), transparent 100%);
+}
 
 /* --- a layer row --- */
 .stack { display: flex; flex-direction: column; gap: 7px; }
@@ -417,6 +424,7 @@ input[type=range]::-moz-range-thumb {
 .mini:hover { color: var(--ink); background: rgba(255, 255, 255, 0.06); }
 .mini.ghost {
   color: var(--ink-2);
+  white-space: nowrap;
   border: 1px solid var(--hair);
   text-align: center;
   padding: 7px 12px;
@@ -448,19 +456,12 @@ input[type=range]::-moz-range-thumb {
   color: var(--ink-2);
   transition: background 130ms ease, color 130ms ease;
 }
-/* A column of unlabelled glyphs is a quiz. Where there is room, it is a menu. */
+/* The rail is navigation only — zoom and Whole Earth — and it is icons with
+   tooltips. The LABELLED actions (compare, measure, picture, views, explore)
+   live in the inspector on a wide screen and in the Tools sheet on a phone,
+   because a column of unlabelled glyphs is a quiz and a labelled button in a
+   40px rail is a clipped word ("Whole Eart"). */
 .tool-lbl { display: none; }
-@media (min-width: 1500px) {
-  #tools { padding: 7px; }
-  .tool {
-    width: auto; height: 34px;
-    justify-content: flex-start;
-    gap: 9px;
-    padding: 0 12px 0 9px;
-    font-size: 12.5px;
-  }
-  .tool-lbl { display: inline; }
-}
 
 #phonebar { display: none; }
 .tool:hover { background: rgba(255, 255, 255, 0.09); color: var(--ink); }
@@ -509,7 +510,7 @@ input[type=range]::-moz-range-thumb {
   position: absolute;
   left: 0; right: 0;
   bottom: 0;
-  padding: 9px calc(var(--safe-r) + 14px) calc(var(--safe-b) + 10px) calc(var(--safe-l) + 14px);
+  padding: 9px calc(var(--safe-r) + 14px) calc(var(--safe-b) + 16px) calc(var(--safe-l) + 14px);
   background: linear-gradient(180deg, rgba(5, 7, 12, 0.5) 0%, rgba(6, 9, 15, 0.93) 32%, rgba(6, 9, 15, 0.97) 100%);
   border-top: 1px solid var(--hair-2);
   backdrop-filter: blur(16px);
@@ -589,7 +590,7 @@ input[type=range]::-moz-range-thumb {
 
 .timeline {
   position: relative;
-  height: 54px;
+  height: 66px;
   margin-top: 8px;
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.035);
@@ -678,7 +679,7 @@ input[type=range]::-moz-range-thumb {
 }
 .sheet-head h2 { font-size: 16px; }
 .sheet-head .close { margin-left: auto; }
-.sheet-body { padding: 16px 18px 20px; overflow-y: auto; }
+.sheet-body { padding: 16px 18px 34px; overflow-y: auto; }
 .sheet-body p { margin: 0 0 12px; color: var(--ink-2); line-height: 1.6; }
 .sheet-body p:last-child { margin-bottom: 0; }
 .sheet-body h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-3); margin: 18px 0 8px; }
@@ -720,7 +721,7 @@ input[type=range]::-moz-range-thumb {
 .tabs button:hover { color: var(--ink); background: rgba(255, 255, 255, 0.06); }
 .tabs button.on { color: var(--accent); background: rgba(76, 194, 255, 0.14); border-color: rgba(76, 194, 255, 0.3); }
 
-.browse-body { flex: 1; overflow-y: auto; padding: 12px 16px 18px; }
+.browse-body { flex: 1; overflow-y: auto; padding: 12px 16px 34px; }
 .meas { margin-bottom: 20px; }
 .meas > h3 { font-size: 13.5px; color: var(--ink); text-transform: none; letter-spacing: 0; margin: 0 0 2px; }
 .meas > p { margin: 0 0 9px; font-size: 12px; color: var(--ink-3); }
@@ -895,15 +896,20 @@ input[type=range]::-moz-range-thumb {
 .cmp-tag {
   position: absolute;
   top: calc(var(--safe-t) + var(--top-h) + 20px);
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  background: rgba(16, 22, 33, 0.86);
-  border: 1px solid var(--hair);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  background: rgba(16, 22, 33, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   color: var(--ink);
+  pointer-events: auto;
+  cursor: pointer;
 }
+.cmp-tag:hover { border-color: var(--accent); color: var(--accent); }
+.cmp-tag::after { content: ' ▾'; opacity: 0.6; }
+.cmp-b { border-color: rgba(255, 180, 84, 0.55); }
 .cmp-a { left: calc(var(--x, 50%) - 12px); transform: translateX(-100%); }
 .cmp-b { left: calc(var(--x, 50%) + 12px); }
 
@@ -914,7 +920,7 @@ input[type=range]::-moz-range-thumb {
 
 /* Big desktop: more room for the stack, bigger hit targets, wider timeline. */
 @media (min-width: 1500px) {
-  :root { --panel-w: 360px; --time-h: 134px; }
+  :root { --panel-w: 380px; --time-h: 150px; }
   html, body { font-size: 15px; }
   .tool { width: 42px; height: 42px; }
   .date-chip { min-width: 168px; }
@@ -1011,7 +1017,7 @@ input[type=range]::-moz-range-thumb {
      stepper is a real 44 px target, and the ruler clears the home indicator.
      It is OPAQUE — a photograph of the Earth behind a date is not a background,
      it is noise in the one place the app has to be readable. */
-  :root { --time-h: 128px; }
+  :root { --time-h: 140px; }
   #time {
     padding: 8px 10px calc(var(--safe-b) + 14px);
     background: #070a11;
@@ -1025,7 +1031,7 @@ input[type=range]::-moz-range-thumb {
   #todayBtn { display: none; }
   .play { height: 40px; padding: 0 13px 0 11px; }
   .play-lbl { display: none; }
-  .timeline { height: 44px; margin-top: 8px; }
+  .timeline { height: 54px; margin-top: 8px; }
 
   .sheet, .sheet.big {
     background: rgba(9, 13, 21, 0.96);
@@ -1261,7 +1267,7 @@ ul.plain li { margin-bottom: 5px; line-height: 1.5; }
   font-family: var(--mono);
   color: var(--ink-2);
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   font-size: 11px;
 }
 .ins-about { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; margin: 10px 0 0; }
@@ -1344,7 +1350,7 @@ ul.plain li { margin-bottom: 5px; line-height: 1.5; }
 }
 .tl-cursor.flip b { left: auto; right: 7px; }
 
-.off-note { color: var(--warn) !important; margin-bottom: 8px !important; }
+.off-note { color: var(--ink-3) !important; margin-bottom: 8px !important; }
 
 .tool-list { display: flex; flex-direction: column; gap: 8px; }
 .tool-row {
@@ -1417,3 +1423,157 @@ ul.plain li { margin-bottom: 5px; line-height: 1.5; }
 .cal-day.out { color: var(--ink-3); opacity: 0.25; pointer-events: none; }
 .cal-day.today { border-color: rgba(255, 255, 255, 0.28); }
 .cal-day.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+/* ------------------------------------------------------------- loading ---- *
+ * Imagery arrives tile by tile over a connection that may be a train window.
+ * A map that is quietly working looks identical to a map that has given up, so
+ * one hairline says which — indeterminate, because the app genuinely does not
+ * know how many tiles a pan will need until it has drawn the frame.
+ */
+#loading {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  overflow: hidden;
+  z-index: 32;
+  pointer-events: none;
+}
+#loading i {
+  display: block;
+  height: 100%;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: sweep 1.1s ease-in-out infinite;
+}
+@keyframes sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}
+
+/* Shortcut sheet */
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; align-items: baseline; }
+.keys kbd {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--hair);
+  white-space: nowrap;
+}
+.keys span { font-size: 13px; color: var(--ink-2); }
+
+/* The legend, inline in the layer row. */
+.row-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+}
+.row-legend i {
+  display: block;
+  height: 7px;
+  flex: none;
+  width: 11px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+}
+.row-legend i.ramp { flex: 1; width: auto; min-width: 40px; }
+.row-legend b {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.row-legend b.hi { margin-left: auto; }
+
+/* The welcome globe is drawn, not gradient-guessed. */
+.w-globe { width: 88px; height: 88px; display: block; margin: 0 auto 14px; background: none; box-shadow: none; }
+
+/* Tools sheet rows carry their glyph. */
+.tool-row { display: flex; align-items: flex-start; gap: 12px; }
+.tool-row svg { color: var(--accent); flex: none; margin-top: 1px; }
+.tool-txt { min-width: 0; }
+
+/* Segmented control (animation step, and anywhere else a short list of
+   mutually exclusive words beats a native select). */
+.seg { display: inline-flex; border-radius: 9px; border: 1px solid var(--hair); overflow: hidden; }
+.seg button { padding: 7px 11px; font-size: 12.5px; color: var(--ink-3); }
+.seg button + button { border-left: 1px solid var(--hair); }
+.seg button:hover { color: var(--ink); background: rgba(255, 255, 255, 0.07); }
+.seg button.on { color: var(--accent); background: rgba(76, 194, 255, 0.15); }
+
+/* A field that is really a button (it opens the app's own calendar). */
+.field-btn { display: inline-flex; align-items: center; min-width: 132px; justify-content: center; }
+.field-btn:hover { border-color: rgba(76, 194, 255, 0.5); color: var(--accent); }
+
+/* Year grid in the calendar. */
+.cal-years {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  gap: 5px;
+  max-height: 232px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.cal-year {
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--hair-2);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.cal-year:hover { border-color: rgba(76, 194, 255, 0.5); color: var(--ink); }
+.cal-year.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+/* Storage: one meter beats four decorative numbers. */
+.stat .sub { font-size: 10.5px; color: var(--ink-3); opacity: 0.8; }
+.meter { margin: 2px 0 18px; }
+.meter-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  border: 1px solid var(--hair-2);
+}
+.meter-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 260ms ease; }
+
+/* A destructive control should look like a decision, not like a twin. */
+.linky {
+  border: 0 !important;
+  padding: 8px 4px !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 12.5px;
+}
+
+/* The calendar's month title is a control: it opens the years. */
+.cal-title { border-radius: 9px; padding: 6px 10px; }
+.cal-title::after { content: ' ▾'; font-size: 11px; opacity: 0.55; }
+.cal-title:hover { background: rgba(255, 255, 255, 0.07); }
+
+/* The readout, once it lives inside the bottom bar. */
+.time-row #readout {
+  position: static;
+  margin: 0 auto;
+  background: none;
+  border: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0;
+  opacity: 1;
+  gap: 14px;
+}
+#app.panel-open .time-row #readout { left: auto; }
+
+@media (max-width: 700px) {
+  /* With a sheet up, the top bar is behind glass and its icons read as
+     smudges. It goes with the rest of the furniture. */
+  #app.panel-open #top, body.sheet-open #top {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease;
+  }
+}

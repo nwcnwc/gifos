@@ -52,10 +52,10 @@
   "cover": "/apps/worldview/cover.jpg",
   "screenshots": [],
   "gif": "/apps/worldview/worldview.gif",
-  "bytes": 1026674,
+  "bytes": 1074622,
   "download": 0,
   "provides": null,
-  "sha256": "9161cc96e982815a8743a3c8876c1b95c9bbb7fd5044150618579897e077645c",
+  "sha256": "0bd717c4c7cee6b6c3e29ab656a220f7cf29d877779bfa3826377109534ae2f4",
   "signature": null,
   "porter": {
     "name": "GifOS",

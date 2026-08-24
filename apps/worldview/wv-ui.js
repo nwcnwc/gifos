@@ -49,7 +49,8 @@
      'searchInput', 'searchResults', 'searchClear', 'menuBtn', 'panelClose', 'addLayerBtn',
      'compare', 'cmpTagA', 'cmpTagB', 'welcome', 'wStart', 'wTour', 'netChip', 'storageBtn',
      'aboutBtn', 'subtime', 'subtimeInput', 'subtimeText', 'app', 'sheetGrip', 'tlScale',
-     'todayBtn', 'tlCursorDate', 'inspect', 'insBody', 'phonebar', 'browseCount', 'browseDone'].forEach(function (id) {
+     'todayBtn', 'tlCursorDate', 'inspect', 'insBody', 'phonebar', 'browseCount', 'browseDone',
+     'loading'].forEach(function (id) {
       el[id] = U.$(id);
     });
   }
@@ -64,6 +65,19 @@
     document.body.dataset.mode = m;
     el.searchInput.placeholder = m === 'phone'
       ? 'Search places' : 'Search 1,240 places — works offline';
+    /*
+     * Where the coordinate readout lives is a size question. On a phone it is a
+     * pill over the map, because the bottom bar is full. On anything wider it
+     * moves INTO the bottom bar, in the gap between "Today" and the scale
+     * buttons — 1,200 px of empty black on a 1920 screen, and one less thing
+     * floating over the imagery.
+     */
+    var row = el.time.querySelector('.time-row');
+    if (m === 'phone') {
+      if (el.readout.parentNode !== el.app) el.app.appendChild(el.readout);
+    } else if (el.readout.parentNode !== row) {
+      row.insertBefore(el.readout, el.tlScale);
+    }
     // The layer panel is open by default where there is room for it and
     // closed where it would cover the map.
     if (m === 'desktop') UI.setPanel(state.ui.panel !== false);
@@ -175,6 +189,7 @@
   var TRASH = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 7h16M10 4h4M6 7l1 13h10l1-13M10 10.5v6M14 10.5v6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   function bindPanel() {
+    dismissable(el.panel);
     el.addLayerBtn.addEventListener('click', function () { UI.openBrowse(); });
     el.storageBtn.addEventListener('click', function () { UI.openStorage(); });
     el.aboutBtn.addEventListener('click', function () { UI.openAbout(); });
@@ -217,6 +232,12 @@
       });
       main.appendChild(text);
 
+      // The legend, in the row, without opening anything: a fire layer whose
+      // colours mean nothing until you expand it is a layer you cannot read.
+      // Fetched once per layer and kept in the file; absent when there is no
+      // connection and no cached copy, never guessed.
+      if (row.on && !L.builtin && L.group !== 'base') ensureRowLegend(L, text);
+
       var actions = U.el('div', 'lyr-actions');
       var del = U.el('button', 'row-del');
       del.innerHTML = TRASH;
@@ -228,8 +249,8 @@
 
       var more = U.el('div', 'lyr-more');
       if (!row.on) {
-        var offNote = U.el('p', 'lyr-note off-note', 'Hidden — tap the eye to show it.');
-        more.appendChild(offNote);
+        more.appendChild(U.el('p', 'lyr-note off-note',
+          'Hidden — ' + (mode === 'phone' ? 'tap' : 'click') + ' the eye to show it.'));
       }
       var op = U.el('div', 'lyr-opacity');
       var slider = document.createElement('input');
@@ -254,10 +275,12 @@
         more.appendChild(note);
       }
       var meta = U.el('p', 'lyr-note');
-      meta.innerHTML = '<b>' + U.esc(L.id) + '</b>' +
-        (L.builtin ? ' · inside this app' :
-          ' · ' + U.esc(L.set) + ' · ' + U.esc(periodWord(L.period)) +
-          (L.start ? ' · from ' + U.esc(U.prettyDate(L.start)) : ''));
+      // `wv:grid` is this app's own bookkeeping and means nothing to a person;
+      // a GIBS id is the thing you would paste into an API call, so it stays.
+      meta.innerHTML = L.builtin
+        ? 'Packed inside this app — no connection needed.'
+        : '<b>' + U.esc(L.id) + '</b> · ' + U.esc(L.set) + ' · ' + U.esc(periodWord(L.period)) +
+          (L.start ? ' · from ' + U.esc(U.prettyDate(L.start)) : '');
       more.appendChild(meta);
 
       if (!L.builtin && L.group !== 'base') {
@@ -310,6 +333,39 @@
     UI.renderInspector();
   };
 
+  function ensureRowLegend(L, into) {
+    var lg = legendCache[L.id];
+    if (lg === 'none') return;
+    if (!lg) {
+      if (legendPending[L.id]) return;
+      legendPending[L.id] = 1;
+      app.legend(L.id).then(function (got) {
+        legendCache[L.id] = got || 'none';
+        delete legendPending[L.id];
+        if (got) UI.renderStack();
+      }).catch(function () { delete legendPending[L.id]; });
+      return;
+    }
+    var bar = U.el('span', 'row-legend');
+    if (lg.type === 'classification' || lg.entries.length <= 12) {
+      lg.entries.slice(0, 10).forEach(function (e) {
+        var i = U.el('i');
+        i.style.background = e.rgb;
+        bar.appendChild(i);
+      });
+    } else {
+      var stops = lg.entries.map(function (e, i) {
+        return e.rgb + ' ' + ((i / (lg.entries.length - 1)) * 100).toFixed(1) + '%';
+      });
+      var strip = U.el('i', 'ramp');
+      strip.style.background = 'linear-gradient(90deg,' + stops.join(',') + ')';
+      bar.appendChild(strip);
+      if (lg.min) bar.appendChild(U.el('b', '', lg.min + (lg.units ? ' ' + lg.units : '')));
+      if (lg.max) bar.appendChild(U.el('b', 'hi', lg.max));
+    }
+    into.appendChild(bar);
+  }
+
   function periodWord(p) {
     return { daily: 'daily', monthly: 'monthly', yearly: 'yearly', static: 'no date',
              '8day': 'every 8 days', '16day': 'every 16 days',
@@ -361,6 +417,7 @@
    * simply absent when there is no connection and no cached copy.
    */
   var legendCache = {};
+  var legendPending = {};
   function loadLegend(L, box) {
     if (L.builtin) return;
     var id = L.id;
@@ -668,6 +725,20 @@
     { ms: 10 * 365.25 * U.MS_DAY, label: 'decade' },
   ];
 
+  /*
+   * The ruler. Three jobs, and it used to do one:
+   *
+   *   1. say where you are in time (ticks, labels, the playhead with the day
+   *      written on it, and the B playhead when two days are being compared);
+   *   2. say WHERE THE DATA IS — one band per visible dated layer showing the
+   *      years it covers, and, when the scale is fine enough, the individual
+   *      days it publishes. A satellite archive's timeline that shows no
+   *      availability is a decoration;
+   *   3. never clip. Labels are inset from both ends, because a ruler whose
+   *      first word reads "un" instead of "Jun" looks broken.
+   */
+  var TRACK_COLOURS = ['#4cc2ff', '#ffb454', '#57d9a3', '#ff8fa3'];
+
   UI.renderTimeline = function () {
     var cvs = el.tlCanvas;
     var r = el.timeline.getBoundingClientRect();
@@ -685,33 +756,25 @@
     var right = tl.center + w / 2 * tl.mpp;
     function x(ms) { return (ms - left) / tl.mpp; }
 
-    // The band a layer actually has. The topmost visible dated layer decides,
-    // because that is the one you are looking at — and "why is the map empty"
-    // should be answerable from the timeline without reading anything.
-    var lead = null;
-    for (var i = 0; i < state.layers.length; i++) {
+    // The layers that have a record worth drawing, top of the stack first.
+    var tracks = [];
+    for (var i = 0; i < state.layers.length && tracks.length < 4; i++) {
       var L = D.layer(state.layers[i].id);
-      if (L && state.layers[i].on && !L.builtin && L.period !== 'static' && !L.ref) { lead = L; break; }
+      if (L && state.layers[i].on && !L.builtin && L.period !== 'static' && !L.ref) tracks.push(L);
     }
-    if (lead) {
-      var s = lead.start ? U.dayMs(lead.start) : left;
-      var e2 = lead.end ? U.dayMs(lead.end) : Date.now();
-      c.fillStyle = 'rgba(76,194,255,0.10)';
-      c.fillRect(x(s), 0, Math.max(1, x(e2) - x(s)), h);
-      c.fillStyle = 'rgba(255,255,255,0.03)';
-      if (s > left) c.fillRect(0, 0, x(s), h);
-      if (e2 < right) c.fillRect(x(e2), 0, w - x(e2), h);
-    }
+    var bandH = tracks.length ? Math.min(5, Math.floor((h * 0.42) / tracks.length) - 1) : 0;
+    var bandTop = h - (bandH + 1) * tracks.length - 7;
+    var rulerH = tracks.length ? bandTop - 2 : h;
 
-    // Ticks: pick the coarsest unit that still gives room to write a label.
+    // Ticks: the coarsest unit that still has room for a label.
     var unit = TL_UNITS[TL_UNITS.length - 1];
     for (var u = 0; u < TL_UNITS.length; u++) {
       if (TL_UNITS[u].ms / tl.mpp >= 62) { unit = TL_UNITS[u]; break; }
     }
     c.font = '10px ui-monospace, monospace';
     c.textBaseline = 'top';
-    var d0 = new Date(left);
     var ticks = [];
+    var d0 = new Date(left);
     if (unit.ms >= 300 * U.MS_DAY) {
       var stepY = Math.max(1, Math.round(unit.ms / (365.25 * U.MS_DAY)));
       var y0 = Math.floor(d0.getUTCFullYear() / stepY) * stepY;
@@ -738,14 +801,16 @@
     }
     ticks.forEach(function (t) {
       var px2 = x(t.ms);
-      c.strokeStyle = t.big ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.12)';
+      c.strokeStyle = t.big ? 'rgba(255,255,255,0.26)' : 'rgba(255,255,255,0.11)';
       c.lineWidth = 1;
       c.beginPath();
-      c.moveTo(Math.round(px2) + 0.5, t.big ? 0 : h * 0.55);
-      c.lineTo(Math.round(px2) + 0.5, h);
+      c.moveTo(Math.round(px2) + 0.5, t.big ? 0 : rulerH * 0.5);
+      c.lineTo(Math.round(px2) + 0.5, rulerH);
       c.stroke();
-      if (t.big || unit.ms / tl.mpp > 56) {
-        c.fillStyle = t.big ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.34)';
+      // Inset: a label that would be cut by either edge is not drawn at all.
+      var lw = c.measureText(t.label).width;
+      if ((t.big || unit.ms / tl.mpp > 56) && px2 + 4 > 2 && px2 + 4 + lw < w - 4) {
+        c.fillStyle = t.big ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.33)';
         c.fillText(t.label, Math.round(px2) + 4, 3);
       }
     });
@@ -754,13 +819,52 @@
     var nowX = x(Date.now());
     if (nowX < w) {
       c.fillStyle = 'rgba(255,255,255,0.05)';
-      c.fillRect(nowX, 0, w - nowX, h);
-      c.strokeStyle = 'rgba(255,255,255,0.35)';
+      c.fillRect(nowX, 0, w - nowX, rulerH);
+      c.strokeStyle = 'rgba(255,255,255,0.32)';
       c.beginPath();
       c.moveTo(Math.round(nowX) + 0.5, 0);
-      c.lineTo(Math.round(nowX) + 0.5, h);
+      c.lineTo(Math.round(nowX) + 0.5, rulerH);
       c.stroke();
     }
+
+    // The availability bands.
+    tracks.forEach(function (L, i) {
+      var y = bandTop + i * (bandH + 1);
+      var s0 = L.start ? U.dayMs(L.start) : left;
+      var e0 = L.end ? U.dayMs(L.end) : Date.now();
+      if (L.recent) s0 = Math.max(s0, Date.now() - L.recent * U.MS_DAY);
+      var colour = TRACK_COLOURS[i % TRACK_COLOURS.length];
+      c.fillStyle = 'rgba(255,255,255,0.05)';
+      c.fillRect(0, y, w, bandH);
+      var a = Math.max(0, x(s0)), b = Math.min(w, x(e0));
+      if (b > a) {
+        c.globalAlpha = 0.75;
+        c.fillStyle = colour;
+        c.fillRect(a, y, Math.max(1.5, b - a), bandH);
+        c.globalAlpha = 1;
+        // Periodic layers: draw the days they actually publish, once the ruler
+        // is fine enough for a day to be more than a pixel.
+        var step = L.period === '8day' ? 8 : L.period === '16day' ? 16 : 0;
+        if (step && U.MS_DAY / tl.mpp > 1.2) {
+          c.fillStyle = 'rgba(6,9,15,0.85)';
+          var dayPx = U.MS_DAY / tl.mpp;
+          for (var t2 = Math.max(s0, left); t2 < Math.min(e0, right); t2 += U.MS_DAY) {
+            var iso = U.msDay(t2);
+            if (U.snapDay(iso, L) !== iso) c.fillRect(x(t2), y, Math.max(1, dayPx), bandH);
+          }
+        }
+        if (L.period === 'monthly' && U.MS_DAY / tl.mpp > 0.6) {
+          c.fillStyle = 'rgba(6,9,15,0.85)';
+          for (var t3 = Math.max(s0, left); t3 < Math.min(e0, right); t3 += U.MS_DAY) {
+            var iso3 = U.msDay(t3);
+            if (iso3.slice(8) !== '01') c.fillRect(x(t3), y, Math.max(1, U.MS_DAY / tl.mpp), bandH);
+          }
+        }
+      }
+    });
+    el.timeline.title = tracks.length
+      ? 'Coverage: ' + tracks.map(function (L) { return L.title; }).join(' · ')
+      : '';
 
     var cx = x(U.dayMs(state.date));
     el.tlCursor.style.left = cx + 'px';
@@ -768,9 +872,34 @@
     el.tlCursorDate.textContent = U.prettyDate(state.date);
     el.tlCursor.classList.toggle('flip', cx > w - 120);
 
-    var a = state.anim;
-    if (a && a.from && a.to && (state.ui.showRange || window.WVAnim.playing())) {
-      var rx = x(U.dayMs(a.from)), rw = x(U.dayMs(a.to)) - rx;
+    // The other day, when two are being compared: the ruler has to know that a
+    // second time exists.
+    if (state.compare && state.compare.on) {
+      var bx = x(U.dayMs(state.compare.date));
+      if (bx > -4 && bx < w + 4) {
+        c.strokeStyle = '#ffb454';
+        c.lineWidth = 2;
+        c.setLineDash([4, 3]);
+        c.beginPath();
+        c.moveTo(Math.round(bx), 0);
+        c.lineTo(Math.round(bx), rulerH);
+        c.stroke();
+        c.setLineDash([]);
+        c.fillStyle = '#ffb454';
+        c.font = '600 10px ui-monospace, monospace';
+        var lbl = 'B · ' + U.prettyDate(state.compare.date);
+        var lw2 = c.measureText(lbl).width;
+        var lx = Math.min(Math.max(4, bx + 5), w - lw2 - 4);
+        c.fillStyle = 'rgba(6,9,15,0.8)';
+        c.fillRect(lx - 3, rulerH - 15, lw2 + 6, 13);
+        c.fillStyle = '#ffb454';
+        c.fillText(lbl, lx, rulerH - 14);
+      }
+    }
+
+    var a2 = state.anim;
+    if (a2 && a2.from && a2.to && (state.ui.showRange || window.WVAnim.playing())) {
+      var rx = x(U.dayMs(a2.from)), rw = x(U.dayMs(a2.to)) - rx;
       el.tlRange.hidden = false;
       el.tlRange.style.left = rx + 'px';
       el.tlRange.style.width = Math.max(2, rw) + 'px';
@@ -839,6 +968,7 @@
     node.hidden = false;
     node.dataset.open = '1';
     document.body.classList.add('sheet-open');
+    dismissable(node);
   }
   UI.closeSheets = function (keepScrim) {
     [el.browse, el.modal].forEach(function (n) { n.hidden = true; delete n.dataset.open; });
@@ -848,6 +978,39 @@
     }
   };
   UI.sheetOpen = function () { return !el.browse.hidden || !el.modal.hidden; };
+
+  /*
+   * Drag a sheet down to dismiss it. On a phone the ✕ sits in the top-right —
+   * the hardest point on the screen for a right thumb — and the handle at the
+   * top of the sheet is a promise that this gesture works. It has to.
+   */
+  function dismissable(node) {
+    var head = node.querySelector('.sheet-head, .panel-head');
+    if (!head || head.dataset.swipe) return;
+    head.dataset.swipe = '1';
+    head.addEventListener('pointerdown', function (e) {
+      if (mode === 'desktop' || e.target.closest('button')) return;
+      var y0 = e.clientY, dy = 0;
+      head.setPointerCapture(e.pointerId);
+      node.style.transition = 'none';
+      function move(ev) {
+        dy = Math.max(0, ev.clientY - y0);
+        node.style.transform = 'translateY(' + dy + 'px)';
+      }
+      function up() {
+        head.removeEventListener('pointermove', move);
+        head.removeEventListener('pointerup', up);
+        node.style.transition = '';
+        node.style.transform = '';
+        if (dy > 90) {
+          if (node === el.panel) UI.setPanel(false);
+          else UI.closeSheets();
+        }
+      }
+      head.addEventListener('pointermove', move);
+      head.addEventListener('pointerup', up);
+    });
+  }
 
   UI.openModal = function (title, build) {
     el.modalTitle.textContent = title;
@@ -884,6 +1047,17 @@
     if (!text) { el.busy.hidden = true; return; }
     el.busyText.textContent = text;
     el.busy.hidden = false;
+  };
+
+  var busySince = 0;
+  UI.renderBusy = function () {
+    var n = T.busy();
+    if (n > 0 && !busySince) busySince = Date.now();
+    if (!n) busySince = 0;
+    // Only after a moment: a bar that flashes on every pan is noise, and the
+    // question it answers ("is this thing still working?") only comes up when
+    // something is slow.
+    el.loading.hidden = !(busySince && Date.now() - busySince > 600);
   };
 
   UI.renderNet = function () {
@@ -944,6 +1118,7 @@
       if (k === 'a' || k === 'A') { UI.openBrowse(); return; }
       if (k === 'c' || k === 'C') { app.toggleCompare(); return; }
       if (k === '/') { e.preventDefault(); el.searchInput.focus(); return; }
+      if (k === '?') { UI.openKeys(); return; }
       var pan = e.shiftKey ? 320 : 90;
       if (k === 'ArrowLeft') { M.pan(pan, 0); e.preventDefault(); }
       else if (k === 'ArrowRight') { M.pan(-pan, 0); e.preventDefault(); }
@@ -1005,7 +1180,10 @@
       var dl = U.el('dl', 'ins-facts');
       function fact(k, val, cls) {
         dl.appendChild(U.el('dt', '', k));
-        dl.appendChild(U.el('dd', cls || '', val));
+        // A GIBS identifier is a token people copy into an API call. Left to
+        // the browser it breaks mid-word ("…CorrectedReflectanc / e_TrueColor");
+        // zero-width spaces after the underscores break it where it reads.
+        dl.appendChild(U.el('dd', cls || '', String(val).replace(/_/g, '_\u200b')));
       }
       if (top.builtin) {
         fact('source', 'inside this app');
@@ -1049,6 +1227,13 @@
   UI.openTools = function () {
     UI.openModal('Tools', function (body) {
       var list = U.el('div', 'tool-list');
+      var GLYPH = {
+        compare: '<path d="M12 3v18" stroke="currentColor" stroke-width="1.7"/><path d="M4 6h6v12H4zM14 6h6v12h-6z" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+        measure: '<path d="M3 15 15 3l6 6L9 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m7 13 2 2m2-6 2 2m2-6 2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+        shot: '<path d="M4 8h3.2l1.4-2h6.8l1.4 2H20v11H4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.4" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+        views: '<path d="M6 3.6h12v17l-6-4.4-6 4.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+        home: '<circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.6 12h16.8M12 3.6c2.6 2.6 2.6 14.2 0 16.8-2.6-2.6-2.6-14.2 0-16.8" fill="none" stroke="currentColor" stroke-width="1.4"/>'
+      };
       [['compare', 'Compare two days', 'Split the screen and drag between them'],
        ['measure', 'Measure', 'Tap points for a running distance'],
        ['shot', 'Save a picture', 'This view as an image, with the date on it'],
@@ -1056,12 +1241,40 @@
        ['home', 'Whole Earth', 'Back out to the whole planet']].forEach(function (t) {
         var b = U.el('button', 'tool-row');
         b.type = 'button';
-        b.appendChild(U.el('b', '', t[1]));
-        b.appendChild(U.el('span', '', t[2]));
+        var ic = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        ic.setAttribute('viewBox', '0 0 24 24');
+        ic.setAttribute('width', '22');
+        ic.setAttribute('height', '22');
+        ic.innerHTML = GLYPH[t[0]];
+        b.appendChild(ic);
+        var tx = U.el('span', 'tool-txt');
+        tx.appendChild(U.el('b', '', t[1]));
+        tx.appendChild(U.el('span', '', t[2]));
+        b.appendChild(tx);
         b.addEventListener('click', function () { UI.closeSheets(); runTool(t[0]); });
         list.appendChild(b);
       });
       body.appendChild(list);
+    });
+  };
+
+  UI.openKeys = function () {
+    UI.openModal('Keyboard', function (body) {
+      var box = U.el('div', 'keys');
+      [['drag / arrows', 'Move the map'],
+       ['scroll / + −', 'Zoom'],
+       [', .', 'A day back, a day forward'],
+       ['space', 'Play or pause the animation'],
+       ['/', 'Search places'],
+       ['L', 'Show or hide the layer list'],
+       ['A', 'Add layers'],
+       ['C', 'Compare two days'],
+       ['esc', 'Close whatever is open'],
+       ['?', 'This list']].forEach(function (r) {
+        box.appendChild(U.el('kbd', '', r[0]));
+        box.appendChild(U.el('span', '', r[1]));
+      });
+      body.appendChild(box);
     });
   };
 

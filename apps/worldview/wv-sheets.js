@@ -27,17 +27,6 @@
   function row(parent, cls) { var d = U.el('div', cls); parent.appendChild(d); return d; }
   function label(parent, text) { var l = U.el('label', 'field-label', text); parent.appendChild(l); return l; }
 
-  function dateInput(value, onChange) {
-    var i = document.createElement('input');
-    i.type = 'date';
-    i.className = 'field';
-    i.value = value;
-    i.max = U.latestDay();
-    i.min = '1981-01-01';
-    i.addEventListener('change', function () { if (i.value) onChange(i.value); });
-    return i;
-  }
-
   function button(text, cls, fn) {
     var b = U.el('button', cls || 'ghost', text);
     b.type = 'button';
@@ -64,36 +53,65 @@
     return null;
   }
 
-  UI.openDatePick = function (forB) {
-    UI.openModal(forB ? 'Compare with…' : 'Pick a day', function (body) {
-      var cur = forB ? state.compare.date : state.date;
-      var shownMonth = cur.slice(0, 7);
+  /*
+   * UI.pickDate(current, onPick, opts) — the app's own calendar.
+   *
+   * It is used by the date chip, by the compare tags AND by the animation
+   * range, because an app that has a calendar which knows what the layer
+   * publishes has no business also shipping the browser's native date box in
+   * another sheet.
+   *
+   * The archive is 26 years long, so the header steps by month AND by year, and
+   * the month title opens a grid of years — 280 taps to reach March 2003 is not
+   * navigation. A date can also just be typed.
+   */
+  UI.pickDate = function (current, onPick, opts) {
+    var o = opts || {};
+    UI.openModal(o.title || 'Pick a day', function (body) {
+      var shownMonth = String(current).slice(0, 7);
+      var yearMode = false;
       var L = leadLayer();
 
-      function set(d) {
-        if (forB) { state.compare.date = d; UI.renderCompare(); M.invalidate(); app.save(); }
-        else app.setDate(d);
-        UI.closeSheets();
-      }
-
       var head = row(body, 'cal-head');
+      var back = button('‹‹', 'cal-nav', function () { shownMonth = shiftMonth(shownMonth, -12); paint(); });
+      back.title = 'A year back';
       var prev = button('‹', 'cal-nav', function () { shownMonth = shiftMonth(shownMonth, -1); paint(); });
-      prev.setAttribute('aria-label', 'Previous month');
-      var title = U.el('b', 'cal-title', '');
+      prev.title = 'A month back';
+      var title = button('', 'cal-title', function () { yearMode = !yearMode; paint(); });
+      title.title = 'Pick a year';
       var next = button('›', 'cal-nav', function () { shownMonth = shiftMonth(shownMonth, 1); paint(); });
-      next.setAttribute('aria-label', 'Next month');
-      head.appendChild(prev);
-      head.appendChild(title);
-      head.appendChild(next);
+      next.title = 'A month on';
+      var fwd = button('››', 'cal-nav', function () { shownMonth = shiftMonth(shownMonth, 12); paint(); });
+      fwd.title = 'A year on';
+      [back, prev, title, next, fwd].forEach(function (n) { head.appendChild(n); });
 
       var grid = row(body, 'cal-grid');
       var note = U.el('p', 'field-note', '');
       body.appendChild(note);
 
+      var typed = row(body, 'field-row');
+      label(typed, 'Or type one');
+      var box = document.createElement('input');
+      box.type = 'text';
+      box.className = 'field';
+      box.placeholder = 'YYYY-MM-DD';
+      box.value = String(current).slice(0, 10);
+      box.setAttribute('inputmode', 'numeric');
+      typed.appendChild(box);
+      typed.appendChild(button('Go', 'chip-btn', function () {
+        var v = box.value.trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { UI.toast('A date looks like 2019-07-04.', { bad: true }); return; }
+        if (U.dayMs(v) > U.dayMs(U.latestDay())) { UI.toast('That day has not happened yet.', { bad: true }); return; }
+        onPick(v);
+      }));
+      box.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') typed.querySelector('.chip-btn').click();
+      });
+
       var chips = row(body, 'chips');
       [['Today', 0], ['Yesterday', -1], ['A week ago', -7], ['A month ago', -30],
-       ['A year ago', -365], ['Five years ago', -1826]].forEach(function (c) {
-        chips.appendChild(button(c[0], 'chip-btn', function () { set(U.addDays(U.latestDay(), c[1])); }));
+       ['A year ago', -365], ['Five years ago', -1826]].forEach(function (ch) {
+        chips.appendChild(button(ch[0], 'chip-btn', function () { onPick(U.addDays(U.latestDay(), ch[1])); }));
       });
 
       function shiftMonth(m, n) {
@@ -102,12 +120,30 @@
         return d.getUTCFullYear() + '-' + U.pad(d.getUTCMonth() + 1);
       }
 
-      function paint() {
-        var y = +shownMonth.slice(0, 4), mo = +shownMonth.slice(5, 7) - 1;
-        title.textContent = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
-                             'August', 'September', 'October', 'November', 'December'][mo] + ' ' + y;
+      function paintYears() {
+        grid.className = 'cal-years';
         grid.innerHTML = '';
-        ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach(function (d, i) {
+        var nowY = +U.latestDay().slice(0, 4);
+        for (var y = nowY; y >= 1979; y--) {
+          var b = U.el('button', 'cal-year' + (String(y) === shownMonth.slice(0, 4) ? ' on' : ''), String(y));
+          b.type = 'button';
+          b.addEventListener('click', function (yy) {
+            return function () { shownMonth = yy + shownMonth.slice(4); yearMode = false; paint(); };
+          }(String(y)));
+          grid.appendChild(b);
+        }
+        note.textContent = 'The archive runs from 1981 (sea surface temperature) and 2000 (MODIS) to today.';
+      }
+
+      function paint() {
+        title.textContent = yearMode ? shownMonth.slice(0, 4) + ' — pick a year'
+          : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+             'September', 'October', 'November', 'December'][+shownMonth.slice(5, 7) - 1] + ' ' + shownMonth.slice(0, 4);
+        if (yearMode) return paintYears();
+        grid.className = 'cal-grid';
+        grid.innerHTML = '';
+        var y = +shownMonth.slice(0, 4), mo = +shownMonth.slice(5, 7) - 1;
+        ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach(function (d) {
           grid.appendChild(U.el('span', 'cal-dow', d));
         });
         var first = new Date(Date.UTC(y, mo, 1));
@@ -115,26 +151,21 @@
         for (var i = 0; i < lead; i++) grid.appendChild(U.el('span', 'cal-pad'));
         var days = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
         var latest = U.latestDay();
-        for (var d = 1; d <= days; d++) {
-          var iso = y + '-' + U.pad(mo + 1) + '-' + U.pad(d);
-          var b = U.el('button', 'cal-day', String(d));
-          b.type = 'button';
+        var gaps = 0;
+        for (var d2 = 1; d2 <= days; d2++) {
+          var iso = y + '-' + U.pad(mo + 1) + '-' + U.pad(d2);
+          var b2 = U.el('button', 'cal-day', String(d2));
+          b2.type = 'button';
           var future = U.dayMs(iso) > U.dayMs(latest);
-          var has = !future && (!L || D.coverage(L, iso).ok) && (!L || U.snapDay(iso, L) === iso || L.period === 'daily');
-          if (future) b.classList.add('out');
-          else if (!has) b.classList.add('thin');
-          if (iso === cur) b.classList.add('on');
-          if (iso === latest) b.classList.add('today');
-          if (future) b.disabled = true;
-          b.addEventListener('click', function (iso2) {
-            return function () { set(iso2); };
-          }(iso));
-          grid.appendChild(b);
+          var has = !future && (!L || (D.coverage(L, iso).ok &&
+                    (L.period === 'daily' || U.snapDay(iso, L) === iso)));
+          if (future) { b2.classList.add('out'); b2.disabled = true; }
+          else if (!has) { b2.classList.add('thin'); gaps++; }
+          if (iso === String(current).slice(0, 10)) b2.classList.add('on');
+          if (iso === latest) b2.classList.add('today');
+          b2.addEventListener('click', function (iso2) { return function () { onPick(iso2); }; }(iso));
+          grid.appendChild(b2);
         }
-        // Two different kinds of dimmed day, and saying the wrong one is worse
-        // than saying nothing: tomorrow is not "a day this layer does not
-        // publish", it is a day that has not happened.
-        var gaps = grid.querySelectorAll('.cal-day.thin').length;
         var parts = ['Days after today are not in the archive yet.'];
         if (L && gaps) parts.unshift('Dimmed days are days ' + L.title + ' (' + (L.sub || 'GIBS') + ') does not publish.');
         else if (L) parts.unshift(L.title + ' publishes every day of this month.');
@@ -144,6 +175,22 @@
     });
   };
 
+  function leadLayer() {
+    for (var i = 0; i < state.layers.length; i++) {
+      var L = D.layer(state.layers[i].id);
+      if (L && state.layers[i].on && !L.builtin && L.period !== 'static' && !L.ref) return L;
+    }
+    return null;
+  }
+
+  UI.openDatePick = function (forB) {
+    UI.pickDate(forB ? state.compare.date : state.date, function (d) {
+      if (forB) { state.compare.date = d; UI.renderCompare(); UI.renderTimeline(); M.invalidate(); app.save(); }
+      else app.setDate(d);
+      UI.closeSheets();
+    }, { title: forB ? 'Compare with…' : 'Pick a day' });
+  };
+
   // ------------------------------------------------------------- animate ----
   UI.openAnimate = function () {
     UI.openModal('Animate', function (body) {
@@ -151,24 +198,37 @@
       state.ui.showRange = true;
       UI.renderTimeline();
 
+      // The app has a calendar that knows what each layer publishes; using the
+      // browser's native date box in this one sheet would be two date pickers
+      // in one product, and the worse one would be here.
       var f1 = row(body, 'field-row');
       label(f1, 'From');
-      f1.appendChild(dateInput(a.from, function (v) { a.from = v; UI.renderTimeline(); est(); }));
+      var fromBtn = button(U.prettyDate(a.from), 'field field-btn', function () {
+        UI.pickDate(a.from, function (v) { a.from = v; UI.openAnimate(); }, { title: 'Animate from…' });
+      });
+      f1.appendChild(fromBtn);
       label(f1, 'to');
-      f1.appendChild(dateInput(a.to, function (v) { a.to = v; UI.renderTimeline(); est(); }));
+      var toBtn = button(U.prettyDate(a.to), 'field field-btn', function () {
+        UI.pickDate(a.to, function (v) { a.to = v; UI.openAnimate(); }, { title: 'Animate to…' });
+      });
+      f1.appendChild(toBtn);
 
       var f2 = row(body, 'field-row');
       label(f2, 'A frame every');
-      var sel = document.createElement('select');
-      sel.className = 'field';
-      [['day', 'day'], ['week', 'week'], ['month', 'month'], ['year', 'year']].forEach(function (o) {
-        var op = document.createElement('option');
-        op.value = o[0]; op.textContent = o[1];
-        if (a.step === o[0]) op.selected = true;
-        sel.appendChild(op);
+      var seg = U.el('div', 'seg');
+      [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['year', 'Year']].forEach(function (o) {
+        var b = U.el('button', a.step === o[0] ? 'on' : '', o[1]);
+        b.type = 'button';
+        b.addEventListener('click', function () {
+          a.step = o[0];
+          var bs = seg.querySelectorAll('button');
+          for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].textContent === o[1]);
+          est();
+          UI.renderTimeline();
+        });
+        seg.appendChild(b);
       });
-      sel.addEventListener('change', function () { a.step = sel.value; est(); UI.renderTimeline(); });
-      f2.appendChild(sel);
+      f2.appendChild(seg);
 
       label(f2, 'Speed');
       var fps = document.createElement('input');
@@ -391,24 +451,44 @@
       var s = T.cacheStats();
       var head = U.el('p', '');
       head.innerHTML = T.net === 'offline'
-        ? '<b>No connection.</b> The map is drawing from the Blue Marble packed inside this app and from tiles you have already looked at.'
-        : '<b>Connected.</b> Tiles arrive from NASA GIBS and are kept here as you look at them.';
+        ? '<b>No connection.</b> The map is drawing from the Blue Marble packed inside this app and from imagery you have already looked at.'
+        : '<b>Connected.</b> Imagery arrives from NASA GIBS and is kept in this file as you look at it.';
       body.appendChild(head);
 
+      // Three tiles, all in the same unit, because "15 tiles" beside "15
+      // fetched" beside "0 B" is four numbers that do not rhyme and cannot be
+      // compared with each other.
       var stats = U.el('div', 'stat-grid');
-      [['Imagery kept in this file', U.fmtBytes(s.bytes)],
-       ['Tiles', String(s.tiles)],
-       ['Pinned for offline', U.fmtBytes(s.pinnedBytes)],
-       ['Fetched this session', String(T.stats.fetched)]].forEach(function (p) {
+      [[U.fmtBytes(s.bytes), 'kept in this file', s.tiles + ' tiles'],
+       [U.fmtBytes(s.pinnedBytes), 'pinned for offline', s.pinned + ' tiles'],
+       [U.fmtBytes(T.stats.bytes), 'fetched this session', T.stats.fetched + ' tiles']].forEach(function (p) {
         var c = U.el('div', 'stat');
-        c.appendChild(U.el('b', '', p[1]));
-        c.appendChild(U.el('span', '', p[0]));
+        c.appendChild(U.el('b', '', p[0]));
+        c.appendChild(U.el('span', '', p[1]));
+        c.appendChild(U.el('span', 'sub', p[2]));
         stats.appendChild(c);
       });
       body.appendChild(stats);
 
+      var meter = U.el('div', 'meter');
+      var bar = U.el('div', 'meter-bar');
+      var fill = U.el('i');
+      bar.appendChild(fill);
+      meter.appendChild(bar);
+      var meterNote = U.el('p', 'field-note', 'Checking what this browser has given GifOS…');
+      meter.appendChild(meterNote);
+      body.appendChild(meter);
+      if (window.gifos && gifos.storage) {
+        gifos.storage().then(function (st) {
+          if (!st || !st.quota) { meter.hidden = true; return; }
+          fill.style.width = U.clamp((st.usage / st.quota) * 100, 0.5, 100) + '%';
+          meterNote.textContent = U.fmtBytes(st.usage) + ' used of ' + U.fmtBytes(st.quota) +
+            ' — shared by every app on this Home Screen.';
+        }).catch(function () { meter.hidden = true; });
+      } else { meter.hidden = true; }
+
       body.appendChild(U.el('h3', '', 'Take this view on a plane'));
-      body.appendChild(U.el('p', '', 'Downloads every tile for what is on screen now, at this zoom and one closer, and pins them so they are never evicted. Then the app works with the connection off.'));
+      body.appendChild(U.el('p', '', 'Downloads every tile for what is on screen now, at this zoom and one closer, and pins them so they are never evicted. The app then works with the connection off.'));
       var prog = U.el('p', 'field-note', '');
       var acts = row(body, 'actions');
       acts.appendChild(button('Pin this view', 'primary', function () {
@@ -430,23 +510,15 @@
       body.appendChild(prog);
 
       body.appendChild(U.el('h3', '', 'Clearing up'));
-      body.appendChild(U.el('p', '', 'Everything above is inside this app\'s own file on this device. It is what makes the GIF you share carry the imagery with it — and it is why it is worth watching the number.'));
+      body.appendChild(U.el('p', '', 'All of it is inside this app\'s own file on this device — which is what lets the GIF you share carry the imagery with it, and why the number above is worth watching.'));
       var acts2 = row(body, 'actions');
       acts2.appendChild(button('Clear the browsing cache', 'ghost', function () {
-        T.clearCache(true).then(function () { UI.toast('Cleared — pinned tiles kept'); UI.openStorage(); });
+        T.clearCache(true).then(function () { UI.toast('Cleared — pinned imagery kept'); UI.openStorage(); });
       }));
-      acts2.appendChild(button('Clear everything, pins too', 'ghost danger', function () {
+      var wipe = button('Clear everything, pins too', 'linky danger', function () {
         T.clearCache(false).then(function () { UI.toast('All saved imagery cleared'); UI.openStorage(); });
-      }));
-
-      if (window.gifos && gifos.storage) {
-        gifos.storage().then(function (st) {
-          if (!st || !st.quota) return;
-          var p = U.el('p', 'field-note', 'This browser has given GifOS ' +
-            U.fmtBytes(st.usage) + ' of ' + U.fmtBytes(st.quota) + ' — shared by every app on the Home Screen.');
-          body.appendChild(p);
-        }).catch(function () {});
-      }
+      });
+      acts2.appendChild(wipe);
     });
   };
 
