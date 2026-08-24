@@ -2,7 +2,8 @@
 
 An unofficial port of **[Aim and Shoot](https://github.com/victorqribeiro/aimAndShoot)**
 by Victor Ribeiro (MIT). A neuroevolution canvas shooter: you aim, the bots
-learn. Phone sticks, best generation in the file.
+learn. Phone stick + right-side aim + FIRE under the thumb. Best generation
+in the file.
 
 ![screenshot](screenshot.png)
 

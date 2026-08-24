@@ -112,25 +112,61 @@ export function screenshotPng() {
       for (let x = Math.max(0, x0 | 0); x < Math.min(W, x1 | 0); x++) put(x, y, r, g, b);
   };
   fill(0, 0, W, H, 236, 236, 236);
-  fill(20, 20, 1180, 60, 20, 20, 22);
-  // "Generation: 4"
-  for (let i = 0; i < 9; i++) fill(40 + i * 18, 28, 52 + i * 18, 52, 255, 255, 255);
-  function body(cx, cy, r, g, b, size) {
+  function body(cx, cy, r, g, b, size, hp) {
     for (let y = cy - size; y <= cy + size * 1.6; y++) for (let x = cx - size; x <= cx + size; x++) {
       const dx = x - cx, dy = y - cy;
       if (dx * dx + Math.min(dy, 0) * Math.min(dy, 0) < size * size || (dy > 0 && dy < size * 1.5 && Math.abs(dx) < size * 0.7))
         put(x, y, r, g, b);
     }
+    const bar = size * 2.4;
+    fill(cx - bar / 2, cy - size - 22, cx + bar / 2, cy - size - 12, 200, 40, 40);
+    fill(cx - bar / 2, cy - size - 22, cx - bar / 2 + bar * hp, cy - size - 12, 40, 180, 40);
+    fill(cx - bar / 2, cy - size - 10, cx + bar / 2, cy - size - 4, 40, 160, 70);
   }
-  body(600, 360, 20, 20, 22, 36);
-  body(220, 200, 180, 40, 40, 28);
-  body(980, 240, 40, 70, 180, 28);
-  body(860, 500, 40, 140, 60, 28);
-  body(300, 520, 180, 80, 40, 28);
+  body(600, 380, 20, 20, 22, 42, 0.85);
+  body(220, 210, 180, 40, 40, 30, 0.55);
+  body(980, 250, 40, 70, 180, 30, 0.7);
+  body(860, 520, 40, 140, 60, 28, 0.35);
+  body(300, 540, 180, 80, 40, 28, 0.2);
+  body(1080, 480, 90, 40, 120, 26, 0.9);
+  // gun barrel on the player
+  for (let i = 0; i < 18; i++) {
+    const x = 630 + i * 6, y = 370 - i * 3;
+    fill(x, y, x + 10, y + 8, 20, 20, 22);
+  }
   // shot
-  for (let i = 0; i < 40; i++) {
-    const x = 640 + i * 8, y = 340 - i * 2;
-    fill(x, y, x + 6, y + 6, 40, 40, 40);
+  for (let i = 0; i < 28; i++) {
+    const x = 750 + i * 8, y = 318 - i * 4;
+    fill(x, y, x + 7, y + 7, 30, 30, 32);
+  }
+  // Generation: 4
+  fill(18, 16, 1182, 70, 18, 18, 20);
+  drawGlyphs();
+  function drawGlyphs() {
+    const G = {
+      G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
+      E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
+      N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
+      R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
+      A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+      T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
+      I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+      O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+      4: [0b10001, 0b10001, 0b10001, 0b11111, 0b00001, 0b00001, 0b00001],
+      ' ': [0, 0, 0, 0, 0, 0, 0],
+      ':': [0, 0b00100, 0, 0, 0b00100, 0, 0],
+    };
+    const str = 'GENERATION: 4';
+    let cx = 40;
+    for (const ch of str) {
+      const gph = G[ch];
+      if (gph) {
+        for (let row = 0; row < 7; row++) for (let col = 0; col < 5; col++) {
+          if (gph[row] & (1 << (4 - col))) fill(cx + col * 5, 28 + row * 5, cx + col * 5 + 4, 28 + row * 5 + 4, 255, 255, 255);
+        }
+      }
+      cx += 32;
+    }
   }
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
