@@ -19,6 +19,50 @@ html, body {
   color: #c4a070;
 }
 
+/* First paint, before the packed pictures parse. Not a black void. */
+#house-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #100c08;
+  color: #e6c48a;
+  font: 18px/1.4 georgia, serif;
+  text-align: center;
+  gap: 8px;
+  pointer-events: none;
+}
+#house-boot .sub {
+  color: #a07848;
+  font-size: 13px;
+  max-width: 16em;
+  margin: 0;
+}
+#house-boot p { margin: 0 16px; }
+#house-boot.gone {
+  opacity: 0;
+  transition: opacity 0.6s linear;
+  pointer-events: none;
+}
+.house-boot-mark {
+  width: 72px;
+  height: 64px;
+  margin-bottom: 18px;
+  background:
+    linear-gradient(#c4a070, #c4a070) 50% 8px / 12px 36px no-repeat,
+    linear-gradient(#6a4a28, #6a4a28) 50% 100% / 48px 28px no-repeat,
+    linear-gradient(to top left, transparent 49%, #8a6238 50%) 0 0 / 36px 32px no-repeat,
+    linear-gradient(to top right, transparent 49%, #8a6238 50%) 100% 0 / 36px 32px no-repeat;
+  animation: house-boot-float 2.4s ease-in-out infinite;
+}
+@keyframes house-boot-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}
+
 /* SM2 leftover movie box — never a Flash object, never a hole in the room. */
 #sm2-container,
 .sm2-object-box,

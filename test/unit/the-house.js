@@ -192,6 +192,11 @@ check('app.js loads in a vm and exposes HousePort', !!(HP && HP.remapSrc && HP.f
     man.capabilities && man.capabilities.db === true && !man.capabilities.network && !man.capabilities.fullscreen && !man.capabilities.multiplayer);
   check('save collection is private', man.data && man.data.save && man.data.save.visibility === 'private');
   check('minBuild stays 947', man.minBuild === 947);
+
+  const html = read('index.html');
+  check('first-run is a house assembling, not a black frame', html.indexOf('id="house-boot"') !== -1);
+  check('the huge picture/sound maps are deferred so the card can paint',
+    /src="images\.js" defer/.test(html) && /src="sounds\.js" defer/.test(html));
 }
 
 if (failures) {

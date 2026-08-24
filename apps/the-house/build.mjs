@@ -163,6 +163,10 @@ for (const s of SCRIPTS) {
 }
 if (!html.includes('href="style.css"')) throw new Error('style.css');
 if (!html.includes('href="vendor/css/game.css"')) throw new Error('game.css');
+if (!html.includes('id="house-boot"')) throw new Error('first-run boot card');
+if (!html.includes('src="images.js" defer')) throw new Error('defer images');
+if (!html.includes('src="sounds.js" defer')) throw new Error('defer sounds');
+if (!html.includes('src="app.js" defer')) throw new Error('defer app');
 if (/type=["']module["']/.test(html)) throw new Error('module');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('url');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html) || /id=["']invite/i.test(html)) throw new Error('Invite');
