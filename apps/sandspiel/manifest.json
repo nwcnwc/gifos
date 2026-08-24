@@ -1,0 +1,20 @@
+{
+  "gifos": "1.0",
+  "appId": "sandspiel",
+  "name": "Sandspiel",
+  "shortName": "Sand",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Pour sand, water, fire, plants. Save the board. A meeting wall of friends' worlds.",
+  "entry": "index.html",
+  "accent": [230, 196, 110],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" },
+    "boards": { "visibility": "read-write" }
+  }
+}

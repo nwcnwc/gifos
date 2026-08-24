@@ -5362,6 +5362,57 @@
       "sha256": "b0129b7587a8ca90f4b962cb35a3073b894a8990aec2f6e3f97d5349dcd5b53a"
     },
     {
+      "slug": "sandspiel",
+      "appId": "sandspiel",
+      "name": "Sandspiel",
+      "shortName": "Sand",
+      "version": "1.0.0",
+      "tagline": "Pour sand, water, fire and plants. Keep boards here. A meeting wall of friends' worlds — no account.",
+      "author": {
+        "name": "Max Bittker",
+        "url": "https://github.com/MaxBittker/sandspiel"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Sandspiel",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity",
+        "Games"
+      ],
+      "tags": [
+        "sand",
+        "falling-sand",
+        "elements",
+        "paint",
+        "toy",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        230,
+        196,
+        110
+      ],
+      "cover": "/apps/sandspiel/cover.jpg",
+      "bytes": 1899313,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "94a7f43fcc45eeec2431560ce4484add2fd3b05ed6193f491b667467071a3ff3"
+    },
+    {
       "slug": "signature-pad",
       "appId": "signature-pad",
       "name": "Signature Pad",

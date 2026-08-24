@@ -1,0 +1,25 @@
+MaxBittker/sandspiel
+https://github.com/MaxBittker/sandspiel
+MIT, Copyright (c) 2018 Max Bittker
+
+Pinned from master (dc77827b36adc5c04ea063515de4173ce28dbf2c) via the
+Rust cellular-automaton sources:
+
+  crate/src/species.rs
+  crate/src/lib.rs
+  crate/src/utils.rs
+
+Upstream is a React + webpack site. The live loop is a tiny JS loader
+that fetches a hashed .module.wasm built from that crate, plus a WebGL
+fluid / wind field, a Firebase gallery, Sentry, ads, and a service
+worker. None of that ships here.
+
+This port is a classic-script rewrite of the species tick (Empty, Wall,
+Sand, Water, Gas, Cloner, Fire, Wood, Lava, Ice, Plant, Acid, Stone,
+Dust, Mite, Oil, Rocket, Fungus, Seed). Grid is 180×120 (column-major
+index = x*height+y, same as the crate). Wind / blow_wind and the fluid
+sim are skipped; fire still rises randomly; dust / stone / ice skip the
+pressure>120 branches.
+
+What stays behind: rustc, wasm-pack, the hashed wasm payload, WebGL
+fluid, Firebase, React, webpack, Sentry, ads, the service worker.
