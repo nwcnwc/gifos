@@ -17,12 +17,17 @@
  * waits until they choose "Upgrade this computer" in Settings → Advanced → Version.
  */
 (function () {
-  if (!('serviceWorker' in navigator)) return;
+  // READING navigator.serviceWorker throws (not undefined) where workers are
+  // disabled — a sandboxed iframe without allow-same-origin, or a driver that
+  // blocks them — so the property access itself needs the guard.
+  var sw = null;
+  try { sw = navigator.serviceWorker; } catch (e) { return; }
+  if (!sw) return;
   function isEdge() {
     try { return localStorage.getItem('gifos_channel') === 'edge' && !localStorage.getItem('gifos_pin'); } catch (e) { return false; }
   }
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/sw.js').then(function (reg) {
+    sw.register('/sw.js').then(function (reg) {
       if (!reg || !isEdge()) return;               // release/pinned → opt-in upgrade, untouched
       var apply = function () { if (reg.waiting) reg.waiting.postMessage({ type: 'gifos-apply-update' }); };
       apply();                                      // a worker already waiting from a prior visit

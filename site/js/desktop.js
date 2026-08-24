@@ -2349,7 +2349,8 @@
   //    shell asset fresh, and wait for its ack.
   // Falls back to dropShellCaches() when nothing is controlling the page.
   function refreshShell() {
-    const nav = navigator.serviceWorker;
+    let nav = null;
+    try { nav = navigator.serviceWorker; } catch (e) {} // the READ throws where workers are disabled
     if (!(nav && nav.controller)) return dropShellCaches();
     return nav.getRegistration().catch(() => null).then((reg) => new Promise((resolve) => {
       let done = false; const finish = () => { if (!done) { done = true; resolve(); } };
