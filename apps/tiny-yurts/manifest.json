@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "tiny-yurts",
+  "name": "Tiny Yurts",
+  "shortName": "Yurts",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Drag paths from yurts to farms. Keep the animals happy. js13k 2023, 4th place.",
+  "entry": "index.html",
+  "accent": [90, 160, 70],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "players": { "visibility": "read-write" }
+  }
+}

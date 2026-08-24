@@ -1,0 +1,16 @@
+burntcustard/tiny-yurts
+https://github.com/burntcustard/tiny-yurts
+commit: 682fdf012260e7b815f38bbd119cdd9ccc0aae30
+MIT, Copyright (c) 2023 John
+
+Js13kGames 2023, 4th place. Source is Vite ESM + kontra. GifOS drops
+type=module, and the packed dist/index.html is a Roadroller eval blob, so
+vendor/game.js is an esbuild IIFE of src/main.js + kontra@9.0.0:
+
+  npx esbuild@0.21.5 src/main.js --bundle --format=iife --target=es2017
+
+localStorage is stubbed by boot.js (the sandbox has none). Highscore,
+sound, and grid-lock keys ('Tiny Yurts', 'Tiny Yurtss', 'Tiny Yurtsg')
+are the same as upstream.
+
+kontra.js is MIT (Steven Lambert) — COPYING-kontra.txt.
