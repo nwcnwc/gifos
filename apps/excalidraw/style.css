@@ -50,6 +50,9 @@ body { overflow: hidden; }
 .g-pill.saved { border-color: rgba(90, 180, 130, .55); }
 .g-pill.saving { border-color: rgba(220, 180, 80, .55); }
 
+/* display:flex would override the UA's [hidden]{display:none}, leaving the
+   modal permanently over the canvas — keep the attribute authoritative. */
+.g-modal[hidden] { display: none; }
 .g-modal {
   position: absolute;
   inset: 0;
