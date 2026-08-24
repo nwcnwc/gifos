@@ -3,17 +3,19 @@
   "appId": "mini-photo-editor",
   "name": "Mini Photo Editor",
   "shortName": "Photo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "description": "Crop, rotate and filter a photo on this device. Nothing is uploaded.",
   "entry": "index.html",
   "accent": [196, 92, 38],
   "capabilities": {
     "db": true,
-    "multiplayer": true
+    "multiplayer": true,
+    "camera": true
   },
   "data": {
     "save": { "visibility": "private" },
-    "room": { "visibility": "read-write" }
+    "pic": { "visibility": "private" },
+    "room": { "visibility": "read-only" }
   }
 }

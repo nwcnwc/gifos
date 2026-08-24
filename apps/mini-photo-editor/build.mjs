@@ -33,7 +33,7 @@ const gif = globalThis.GifOS.gif;
 const read = (p) => readFileSync(join(dir, p), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-const ENGINE_SHA = '57ec7e057e5f07b96af219739ee52be850073fde4daa2487269d208093953810';
+const ENGINE_SHA = '59ab35e5a2c8c5854f7dcedc35ac003baef768758f2a701945b9a3a09e9028d0';
 
 for (const need of ['vendor/mini-photo.js', 'vendor/COPYING-mini-photo-editor.txt', 'vendor/UPSTREAM.txt']) {
   if (!existsSync(join(dir, need))) throw new Error(need + ' is missing');
@@ -45,8 +45,10 @@ for (const need of ['vendor/mini-photo.js', 'vendor/COPYING-mini-photo-editor.tx
 }
 
 if (manifest.minBuild !== 947 || manifest.appId !== 'mini-photo-editor') throw new Error('manifest');
-if (!manifest.capabilities.db || !manifest.capabilities.multiplayer) throw new Error('caps');
+if (!manifest.capabilities.db || !manifest.capabilities.multiplayer || !manifest.capabilities.camera) throw new Error('caps');
 if (manifest.capabilities.network) throw new Error('no network');
+if (!manifest.data.pic || manifest.data.pic.visibility !== 'private') throw new Error('pic must be private');
+if (!manifest.data.room || manifest.data.room.visibility !== 'read-only') throw new Error('room must be read-only');
 if (listing.basedOn.blessed !== false || listing.basedOn.name !== 'mini-photo-editor') throw new Error('basedOn');
 if (listing.author.name !== 'xdadda' || listing.porter.name !== 'GifOS') throw new Error('author');
 if (listing.license !== 'MIT' || listing.categories[0] !== 'Creativity') throw new Error('meta');
@@ -79,6 +81,13 @@ if (/type=["']module["']/.test(html)) throw new Error('no type=module');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('external URL');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html)) throw new Error('Invite is OS chrome');
 if (!files['mp.js'].includes('Invite') || !files['app.js'].includes("db('save')")) throw new Error('Invite/save');
+if (!files['app.js'].includes('takePhoto') || !files['app.js'].includes("db('pic')")) throw new Error('takePhoto/save pic');
+if (!files['app.js'].includes("addEventListener('drop'") && !files['app.js'].includes('addEventListener("drop"')) {
+  throw new Error('drop a picture onto the stage');
+}
+if (!files['vendor/mini-photo.js'].includes('applyPixels') || !files['vendor/mini-photo.js'].includes('hitHandle')) {
+  throw new Error('filter pipeline + crop handles');
+}
 if (!files['COPYING-mini-photo-editor.txt'].includes('xdadda')) throw new Error('COPYING');
 
 for (const [n, s] of Object.entries(files)) {
@@ -92,7 +101,8 @@ for (const [n, s] of Object.entries(files)) {
 }
 
 {
-  const ctx = { console, Math, Uint8Array, document: { createElement() { return { getContext() { return null; } }; } } };
+  const ctx = { console, Math, Uint8Array, Uint8ClampedArray, document: { createElement() { return { getContext() { return null; } }; } } };
+  ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx;
   vm.runInNewContext(files['vendor/mini-photo.js'] + '\n' +
     'result = (function () {\n' +
     '  if (!MiniPhoto || !MiniPhoto.MTX.polaroid || !MiniPhoto.MTX.kodak) throw new Error("mtx");\n' +
@@ -100,6 +110,15 @@ for (const [n, s] of Object.entries(files)) {
     '  if (MiniPhoto.getFilter() !== "vintage") throw new Error("filter");\n' +
     '  var st = MiniPhoto.getState();\n' +
     '  if (st.adj.brightness !== 0) throw new Error("adj");\n' +
+    '  var red = new Uint8Array([255, 0, 0, 255]);\n' +
+    '  MiniPhoto.applyPixels(red, 1, 1, { brightness: 0, contrast: 0, saturation: 0, warmth: 0, vignette: 0 }, "grayscale");\n' +
+    '  if (Math.abs(red[0] - red[1]) > 1 || Math.abs(red[1] - red[2]) > 1) throw new Error("grey " + red);\n' +
+    '  MiniPhoto.setSource({ width: 100, height: 80 });\n' +
+    '  MiniPhoto.setCrop({ x: 10, y: 10, w: 50, h: 40 });\n' +
+    '  MiniPhoto.rotate(1);\n' +
+    '  var c = MiniPhoto.getCrop();\n' +
+    '  if (c.W !== 80 || c.H !== 100) throw new Error("dims " + c.W + "x" + c.H);\n' +
+    '  if (c.w !== 40 || c.h !== 50) throw new Error("crop rot " + JSON.stringify(c));\n' +
     '  return Object.keys(MiniPhoto.MTX).length;\n' +
     '})();', ctx);
   console.log('Mini Photo MTX looks ok —', ctx.result);

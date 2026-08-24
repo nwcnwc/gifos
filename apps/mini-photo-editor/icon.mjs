@@ -1,15 +1,16 @@
-// Procedural Mini Photo Editor icon: dark card, crop window.
+// Procedural Mini Photo Editor icon: a landscape with a crop window that
+// shrinks, then a warm filter wash. Super-sample → box-downsample.
 import { deflateSync } from 'node:zlib';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
 const CARD = [32, 32, 32];
-const CARD_D = [20, 20, 20];
-const INK = [244, 241, 187];
-const CORAL = [237, 106, 90];
-const TEAL = [112, 193, 179];
-const GOLD = [255, 224, 102];
-const MINT = [199, 239, 207];
-const COLS = [CORAL, TEAL, GOLD, MINT, [155, 193, 188], [240, 182, 127]];
+const SKY = [110, 170, 220];
+const SKY2 = [240, 196, 120];
+const GROUND = [46, 120, 72];
+const SUN = [255, 214, 90];
+const TREE = [28, 72, 44];
+const WHITE = [255, 255, 255];
+const CORAL = [196, 92, 38];
 
 function mix(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -24,7 +25,7 @@ function inCard(x, y, m, r) {
 }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD, CARD_D, INK, CORAL, TEAL, GOLD, MINT]) {
+  for (const b of [CARD, SKY, SKY2, GROUND, SUN, TREE, WHITE, CORAL]) {
     for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.12).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.35).map(Math.round));
   }
@@ -41,28 +42,42 @@ function nearest(pal, r, g, b) {
 }
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const m = 8, rad = 22, t = f / FRAMES;
+  const m = 8, rad = 22, t = f / (FRAMES - 1);
+  const inset = 14 + t * 16;
+  const warm = t * 0.45;
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     if (!inCard(x, y, m, rad)) continue;
-    const col = mix(CARD, CARD_D, Math.max(0, Math.min(1, (y - m) / (OUT - 2 * m))));
+    let col;
+    if (y < 70) col = mix(SKY, SKY2, Math.max(0, Math.min(1, (y - 12) / 58)));
+    else col = mix(GROUND, TREE, Math.max(0, Math.min(1, (y - 70) / 40)));
+    const sd = (x - 42) * (x - 42) + (y - 38) * (y - 38);
+    if (sd < 14 * 14) col = SUN;
+    if (x > 78 && x < 92 && y > 52 && y < 92) col = TREE;
+    if (x > 72 && x < 98 && y > 44 && y < 58) col = TREE;
+    const inCrop = x >= m + inset && x <= OUT - m - inset && y >= m + inset && y <= OUT - m - inset * 0.7;
+    if (!inCrop) col = mix(col, [8, 8, 10], 0.55);
+    col = mix(col, [220, 140, 60], warm);
     const o = (py * RW + px) * 4;
     rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
   }
-  for (let i = 0; i < 70; i++) {
-    const ang = i * 2.399 + t * 1.4;
-    const dist = 8 + (i % 17) * 2.1 + Math.sin(t * 6.28 + i) * 4;
-    const cx = 64 + Math.cos(ang) * dist;
-    const cy = 64 + Math.sin(ang * 1.1) * dist * 0.85;
-    const col = COLS[i % COLS.length];
-    const s = 1 + (i % 3);
-    for (let sy = -s; sy <= s; sy++) for (let sx = -s; sx <= s; sx++) {
-      const x = cx + sx, y = cy + sy;
-      if (x < 0 || y < 0 || x >= OUT || y >= OUT) continue;
-      if (!inCard(x, y, m, rad)) continue;
-      for (let qy = 0; qy < SS; qy++) for (let qx = 0; qx < SS; qx++) {
-        const o = ((((y | 0) * SS + qy) * RW) + ((x | 0) * SS + qx)) * 4;
-        rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
+  const x0 = m + inset, x1 = OUT - m - inset, y0 = m + inset, y1 = OUT - m - inset * 0.7;
+  for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
+    const x = px / SS, y = py / SS;
+    const on = (Math.abs(x - x0) < 1.6 || Math.abs(x - x1) < 1.6) && y >= y0 && y <= y1
+      || (Math.abs(y - y0) < 1.6 || Math.abs(y - y1) < 1.6) && x >= x0 && x <= x1;
+    if (!on) continue;
+    const o = (py * RW + px) * 4;
+    rgba[o] = 255; rgba[o + 1] = 255; rgba[o + 2] = 255; rgba[o + 3] = 1;
+  }
+  const hs = 3.2;
+  const corners = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]];
+  for (const [cx, cy] of corners) {
+    for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
+      const x = px / SS, y = py / SS;
+      if (Math.abs(x - cx) <= hs && Math.abs(y - cy) <= hs) {
+        const o = (py * RW + px) * 4;
+        rgba[o] = 196; rgba[o + 1] = 92; rgba[o + 2] = 38; rgba[o + 3] = 1;
       }
     }
   }
@@ -104,33 +119,33 @@ function pngChunk(tag, data) {
   return Buffer.concat([len, body, c]);
 }
 const GLYPHS = {
-  'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
-  'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
-  'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
-  'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
-  'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
-  'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
-  'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  'P': [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
-  'R': [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
-  'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
-  'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
-  'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
-  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
-  'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
-  'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
-  'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
-  'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
-  'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b01010, 0b00100],
-  'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b10101, 0b01010],
-  'X': [0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001],
-  'J': [0b00111, 0b00001, 0b00001, 0b00001, 0b00001, 0b10001, 0b01110],
-  'Q': [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101],
-  'Z': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
+  A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
+  D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
+  E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
+  F: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
+  G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
+  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+  K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
+  L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
+  M: [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
+  N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
+  O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
+  R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
+  S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
+  T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
+  U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  V: [0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b01010, 0b00100],
+  W: [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b10101, 0b01010],
+  Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
+  ':': [0, 0b00100, 0b00100, 0, 0b00100, 0b00100, 0],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
+  '6': [0b01110, 0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -158,22 +173,58 @@ export function screenshotPng() {
     for (let y = Math.max(0, y0 | 0); y < Math.min(H, y1 | 0); y++)
       for (let x = Math.max(0, x0 | 0); x < Math.min(W, x1 | 0); x++) put(x, y, r, g, b);
   };
-  fill(0, 0, W, H, 32, 32, 32);
-  drawText(put, 48, 56, 'MINI', 6, 238, 234, 227);
-  drawText(put, 48, 120, 'PHOTO', 6, 196, 92, 38);
-  drawText(put, 48, 200, 'CROP ROTATE FILTER', 3, 224, 180, 92);
-  drawText(put, 48, 280, 'CROP ON THIS DEVICE', 3, 42, 122, 82);
-  drawText(put, 48, 360, 'NOTHING UPLOADED', 3, 238, 234, 227);
-  fill(560, 140, 1140, 620, 70, 120, 180);
-  fill(560, 140, 1140, 360, 120, 180, 230);
-  fill(560, 360, 1140, 620, 50, 140, 70);
-  fill(820, 200, 980, 360, 255, 210, 80);
-  fill(700, 420, 780, 620, 160, 80, 40);
+  const rr = (x0, y0, x1, y1, rad, r, g, b) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const cx = Math.min(Math.max(x, x0 + rad), x1 - rad - 1);
+      const cy = Math.min(Math.max(y, y0 + rad), y1 - rad - 1);
+      if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= rad * rad) put(x, y, r, g, b);
+    }
+  };
+
+  fill(0, 0, W, H, 18, 18, 20);
+  drawText(put, 36, 28, 'MINI PHOTO EDITOR', 4, 238, 234, 227);
+  drawText(put, 36, 72, 'CROP ROTATE FILTER  ON THIS DEVICE', 2, 196, 92, 38);
+
+  // landscape
+  for (let y = 110; y < 560; y++) {
+    const t = (y - 110) / 280;
+    const r = 90 + t * 80, g = 140 - t * 20, b = 210 - t * 90;
+    fill(36, y, 1164, y + 1, r, g, b);
+  }
+  fill(36, 380, 1164, 560, 42, 122, 70);
+  // sun
+  for (let y = 150; y < 250; y++) for (let x = 160; x < 260; x++) {
+    if ((x - 210) * (x - 210) + (y - 200) * (y - 200) < 48 * 48) put(x, y, 255, 214, 90);
+  }
+  fill(780, 260, 860, 420, 30, 80, 44);
+  fill(740, 220, 900, 280, 30, 80, 44);
+
+  // dim outside crop
+  fill(36, 110, 1164, 170, 12, 12, 14);
+  fill(36, 500, 1164, 560, 12, 12, 14);
+  fill(36, 170, 220, 500, 12, 12, 14);
+  fill(980, 170, 1164, 500, 12, 12, 14);
+
   // crop frame
-  fill(640, 200, 1060, 204, 255, 255, 255);
-  fill(640, 556, 1060, 560, 255, 255, 255);
-  fill(640, 200, 644, 560, 255, 255, 255);
-  fill(1056, 200, 1060, 560, 255, 255, 255);
+  fill(220, 170, 980, 176, 255, 255, 255);
+  fill(220, 494, 980, 500, 255, 255, 255);
+  fill(220, 170, 226, 500, 255, 255, 255);
+  fill(974, 170, 980, 500, 255, 255, 255);
+  const hs = 18;
+  [[220, 170], [980, 170], [220, 500], [980, 500]].forEach(([cx, cy]) => {
+    fill(cx - hs, cy - hs, cx + hs, cy + hs, 196, 92, 38);
+  });
+
+  // chips
+  const looks = ['NONE', 'GREY', 'VINTAGE', 'POLAROID', 'KODAK', 'BROWNI'];
+  looks.forEach((name, i) => {
+    const x0 = 36 + i * 192;
+    const on = name === 'VINTAGE';
+    rr(x0, 580, x0 + 180, 640, 16, on ? 196 : 28, on ? 92 : 27, on ? 38 : 24);
+    drawText(put, x0 + 16, 598, name, 2, 238, 234, 227);
+  });
+  drawText(put, 36, 660, 'BRIGHT  CONTRAST  SAT  WARMTH  VIGNETTE', 2, 184, 176, 164);
+
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;
