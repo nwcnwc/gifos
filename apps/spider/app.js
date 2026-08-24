@@ -48,14 +48,15 @@
     el.className = 'card' + (card.faceUp ? '' : ' back') + (SUIT_RED[card.suit] ? ' red' : '');
     el.innerHTML = '';
     if (!card.faceUp) return;
-    var label = rankName(card.rank) + SUIT_CH[card.suit | 0];
-    function pip(cls) {
+    var suit = SUIT_CH[card.suit | 0];
+    function pip(cls, text) {
       var s = document.createElement('span');
       s.className = 'pip ' + cls;
-      s.textContent = label;
+      s.textContent = text;
       el.appendChild(s);
     }
-    pip('tl'); pip('br'); pip('center');
+    pip('tl', rankName(card.rank) + suit);
+    pip('center', suit);
   }
 
   function legalTargets(pi, ci) {
@@ -105,7 +106,7 @@
   function render() {
     $('score').textContent = String(board.score);
     $('found').textContent = String(board.foundation);
-    $('record').textContent = (stats.won | 0) + '–' + Math.max(0, (stats.played | 0) - (stats.won | 0));
+    $('record').textContent = (stats.won | 0) ? ((stats.won | 0) + 'W') : '';
     $('undo').disabled = !board.history || board.history.length === 0;
     var i;
     for (i = 0; i < 3; i++) {
@@ -383,12 +384,8 @@
         if (rec && rec.board) {
           var loaded = S.hydrateBoard(rec.board);
           if (loaded) board = loaded;
-        } else if (!rec) {
-          stats.played = Math.max(stats.played | 0, 1);
         }
       } catch (e) {}
-    } else {
-      stats.played = 1;
     }
     render();
     if (window.gifos && gifos.launch) {

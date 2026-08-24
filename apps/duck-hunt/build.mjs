@@ -107,9 +107,12 @@ for (const [n, s] of Object.entries(files)) {
   }
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89) throw new Error('screenshot');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (!existsSync(shotPath) || process.env.REWRITE_SHOT) {
+  const shot = screenshotPng();
+  if (shot[0] !== 0x89) throw new Error('screenshot');
+  writeFileSync(shotPath, shot);
+}
 const bytes = await gif.encode(files, { preview: duckHuntIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'duck-hunt', 'duck-hunt.gif');
 mkdirSync(dirname(out), { recursive: true });
