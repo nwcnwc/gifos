@@ -15,25 +15,39 @@
 
   <div class="actions">
     <button type="button" id="photoBtn">Take a photo</button>
-    <button type="button" id="fileBtn" class="ghost">Choose a file</button>
+    <button type="button" id="fileBtn" class="ghost">Choose a picture</button>
     <input type="file" id="file" accept="image/*" hidden>
   </div>
-  <p id="dropHint" class="hint">Or drop a picture onto this page.</p>
+  <p id="dropHint" class="hint">On a computer, you can also put a picture on this page.</p>
   <p id="status" class="status" role="status"></p>
 
   <div class="stage">
-    <canvas id="preview" width="320" height="240" aria-label="Picture"></canvas>
+    <div id="previewWrap" class="preview-wrap is-empty">
+      <canvas id="preview" width="320" height="240" hidden aria-label="Picture"></canvas>
+      <div id="emptyShot" class="empty-shot">
+        <div class="ghost-qr" aria-hidden="true"></div>
+        <p class="empty-title">No picture yet</p>
+        <p>Take a still photo, or choose one already on this device. There is no live camera.</p>
+      </div>
+    </div>
     <div class="result">
-      <h2>Decoded</h2>
-      <pre id="out" class="out"></pre>
-      <button type="button" id="copyBtn" class="ghost" hidden>Copy</button>
+      <div class="result-head">
+        <h2>Decoded</h2>
+        <span id="kindChip" class="kind-chip" hidden></span>
+      </div>
+      <p id="kindHint" class="kind-hint" hidden></p>
+      <pre id="out" class="out">The words will show up here.</pre>
+      <div class="result-actions">
+        <button type="button" id="copyBtn" class="ghost" hidden>Copy</button>
+        <button type="button" id="clearShotBtn" class="ghost" hidden>Clear picture</button>
+      </div>
     </div>
   </div>
 
   <section class="history">
     <div class="hist-head">
       <h2>History</h2>
-      <button type="button" id="clearBtn" class="ghost small">Clear history</button>
+      <button type="button" id="clearBtn" class="ghost small" hidden>Clear history</button>
     </div>
     <ul id="hist"></ul>
     <p id="histEmpty" class="hint">Successful reads stay in this file on this device.</p>

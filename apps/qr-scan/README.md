@@ -3,11 +3,13 @@
 Read a code from a photo. Nothing is uploaded.
 
 An unofficial port of **[jsQR](https://github.com/cozmo/jsQR)** by cozmo
-(Apache-2.0). Decode from `gifos.takePhoto` or a dropped image — never a live
-camera stream.
+(Apache-2.0). Decode from `gifos.takePhoto` or a chosen / dropped image —
+never a live camera stream. Empty state is obvious until a still arrives.
+History lives in a private collection. Payloads are classified (link, phone,
+SMS, email, contact, Wi-Fi) for display; copy still copies the raw text.
 
 ```
-index.html              shell: take / drop, result, history
+index.html              shell: take / choose, empty state, result, history
 style.css               dark tool UI
 app.js                  brokered capture + jsQR, private history
 icon.mjs                procedural sticker and the 1200×720 cover
@@ -19,8 +21,8 @@ vendor/jsQR.js          cozmo/jsQR dist, Apache-2.0, pinned
 
 The sandbox never hands an app a live camera stream. Upstream's demo page
 does — that path is stripped. A still arrives from **brokered** capture
-(`gifos.takePhoto`) or a file drop, then jsQR reads the pixels. History lives
-in a **private** collection.
+(`gifos.takePhoto`) or a file the user chose, then jsQR reads the pixels.
+History lives in a **private** collection.
 
 ## capabilities
 

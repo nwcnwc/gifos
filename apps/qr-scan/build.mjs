@@ -108,6 +108,18 @@ if (!files['app.js'].includes('takePhoto') || !files['app.js'].includes('jsQR(')
   throw new Error('app.js must decode via jsQR from takePhoto or a drop');
 }
 if (!files['app.js'].includes("db('history')")) throw new Error('app.js must save history privately');
+if (!files['app.js'].includes('classify') || !files['app.js'].includes('inversionAttempts')) {
+  throw new Error('app.js must classify payloads and try both inversions');
+}
+if (!files['app.js'].includes('onBack') || !files['app.js'].includes('clearShot')) {
+  throw new Error('app.js must register gifos.onBack to return to the empty picture');
+}
+if (!html.includes('No picture yet') || !html.includes('empty-shot')) {
+  throw new Error('empty state when no photo must be obvious');
+}
+if (/if you want/i.test(listing.description) || /\bdrop\b/i.test(listing.description)) {
+  throw new Error('listing copy must not say "drop" or "if you want"');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
