@@ -224,3 +224,19 @@ equally-unavailable layers, and nothing anywhere had a keyboard focus ring.
 - **The App GIF is unsigned.** `node scripts/sign-apps.mjs` needs the private
   key, which is not on this machine — `--require-signed` will fail until the
   owner signs it.
+- **No permalink, and that is the one the reviewer minded most.** Worldview's
+  URL *is* the citation: it is how a view gets into a paper, an email or a
+  ticket. An app inside a sandboxed frame cannot write the address bar, so
+  there is nothing to copy. Saved views live in the file and the file travels —
+  a real answer for a colleague, and no answer at all for a footnote. If
+  anything here earns platform work, it is a way for an app to mint a link back
+  into itself; the launch keys (`at`, `date`, `layers`, `tour`) are already
+  there waiting for one.
+- **No handoff to the data.** Worldview's "Download data" hands a view to
+  Earthdata Search and turns a picture into granules. An app frame has nowhere
+  to navigate to, so the About sheet prints the addresses as text. That is the
+  honest workaround, not a solution.
+- **74 layers against Worldview's ~1,000.** No L2 swath products, and most of
+  the atmospheric chemistry suite is absent. Enough to look, not always enough
+  to find one specific product — and the catalogue is a hand-kept file
+  (`tools/layers.curated.json`), so growing it is an edit, not a rewrite.
