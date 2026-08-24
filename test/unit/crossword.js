@@ -187,6 +187,8 @@ check('index.html has a QWERTY pad mount', html.includes('id="keys"'));
 check('app.js builds a QWERTY pad', appJs.includes('QWERTYUIOP'));
 check('app.js enterLetter advances along the clue',
   appJs.includes('enterLetter') && appJs.includes('cells[idx + 1]'));
+check('setGridCell is called with the DOM cell, not the model cell',
+  appJs.includes('cellElement') && appJs.includes('setGridCell(el'));
 check('pad is shown at phone width without waiting for touchstart',
   css.includes('max-width: 620px') && css.includes('#keys { display: flex; }'));
 check('no in-app Invite button', !html.includes('id="invite"') && !/>\s*Invite\s*</.test(html));
