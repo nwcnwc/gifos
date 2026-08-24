@@ -300,7 +300,13 @@
         var g = T.freshLane(GHOST_ID, nameOf(GHOST_ID));
         if (S.race && S.race.startAt) {
           g.position = T.ghostAt(S.best && S.best.samples, S.race.startAt, t, T.SAMPLE_MS);
-          if (g.position >= T.FINISH && S.best && S.best.timeMs) {
+          /* The ghost finishes on its recorded TIME, not on its samples:
+             sampling used to stop the instant the run finished, so no saved
+             best ever contains a 100 and position-only detection left the
+             ghost stalled one step short of the tape forever — Ghost mode
+             could never be lost. Time-based finish also heals every best
+             already saved in the icon. */
+          if (S.best && S.best.timeMs && t >= S.race.startAt + S.best.timeMs) {
             g.finishedAt = S.race.startAt + S.best.timeMs;
             g.position = T.FINISH;
           }
@@ -334,6 +340,12 @@
     while (S.history.length > 2 && S.history[0].t < cut) S.history.shift();
     if (S.mine && S.race.startAt && t >= S.race.startAt && !S.mine.finishedAt) {
       T.samplePush(S.samples, S.race.startAt, t, S.mine.position || 0, T.SAMPLE_MS);
+    } else if (S.mine && S.mine.finishedAt && S.samples.length &&
+               S.samples[S.samples.length - 1] < T.FINISH) {
+      /* One last sample AT the tape, so future replays carry the 100 the
+         old recordings never did. */
+      T.samplePush(S.samples, S.race.startAt, S.mine.finishedAt, T.FINISH, T.SAMPLE_MS);
+      S.samples[S.samples.length - 1] = T.FINISH;
     }
   }
 
