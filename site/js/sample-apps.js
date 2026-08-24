@@ -477,11 +477,14 @@
   render();
 </script>`;
 
-  const CHAT_HTML = `<!doctype html><meta charset="utf-8">
+  const CHAT_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   *{box-sizing:border-box} html,body{height:100%}
   body{font:15px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column}
-  header{background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#5cdcb4)}
+  header{background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#5cdcb4);display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  header .who{color:var(--muted,#8888aa);font-size:12px;font-weight:500}
+  .empty{color:var(--muted,#8888aa);text-align:center;padding:48px 18px;line-height:1.5;max-width:28em;margin:auto}
+  .empty b{color:var(--accent,#5cdcb4)}
   #log{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px}
   .m{max-width:80%;padding:8px 12px;border-radius:12px;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f)}
   .m.mine{align-self:flex-end;background:color-mix(in srgb,var(--accent,#5cdcb4) 18%,var(--surface,#173a30));border-color:var(--accent,#2a5a48)}
@@ -494,7 +497,7 @@
   .m a.file{display:inline-flex;gap:6px;align-items:center;color:var(--accent,#5cdcb4);margin-top:4px;text-decoration:none;border:1px solid var(--accent,#2a5a48);border-radius:8px;padding:6px 10px}
   .m .fsz{color:var(--muted,#889);font-size:11px;font-weight:400}
   form{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#2a2a3f)}
-  input{flex:1;padding:10px 12px;border:1px solid var(--border,#2a2a3f);border-radius:8px;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font:inherit}
+  input{flex:1;min-width:0;padding:10px 12px;border:1px solid var(--border,#2a2a3f);border-radius:8px;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);font:inherit}
   button{padding:10px 16px;border:0;border-radius:8px;background:var(--accent,#5cdcb4);color:var(--onaccent,#04231b);font-weight:700;cursor:pointer}
   #att{background:var(--surface,#1c1c2b);padding:10px 12px}
   #ai{background:var(--surface,#1c1c2b);padding:10px 12px}
@@ -502,12 +505,12 @@
   .quick{display:flex;gap:4px;padding:0 18px 8px}
   .quick button{background:var(--surface,#1c1c2b);font-size:18px;padding:6px 10px}
 </style>
-<header>Chat</header>
+<header><span>Chat</span><span class="who" id="who">just you — Invite</span></header>
 <div id="log"></div>
 <div class="quick" id="quick"></div>
-<form id="f"><button type="button" id="att" title="Attach a photo or file">📎</button><input type="file" id="fi" hidden><input id="t" placeholder="Message… (press Invite to chat with friends)" autocomplete="off"><button type="button" id="ai" title="Draft a reply with YOUR AI — it fills the box for you to review and edit; it never sends">✨</button><button>Send</button></form>
+<form id="f"><button type="button" id="att" title="Attach a photo or file">📎</button><input type="file" id="fi" hidden><input id="t" placeholder="Message…" autocomplete="off"><button type="button" id="ai" title="Draft a reply with YOUR AI — it fills the box for you to review and edit; it never sends">✨</button><button>Send</button></form>
 <script>
-  const db=gifos.db('messages'), fdb=gifos.db('files'), log=document.getElementById('log');
+  const db=gifos.db('messages'), fdb=gifos.db('files'), pres=(window.gifos&&gifos.db)?gifos.db('presence'):null, log=document.getElementById('log');
   // Attachments ride gifos.db. The runtime fragments oversized messages, but
   // subscribers re-download a whole collection on every change — so file
   // bytes are base64-chunked (CS chars ≈ 64KB raw each) into the separate
@@ -515,8 +518,12 @@
   // fan-out, and capped at MAX bytes (the relay-fallback path is bandwidth-
   // throttled by design). Images are shrunk to fit automatically.
   const MAX=256*1024, CS=87000, MAXCHUNKS=16;
-  let me={id:'local',name:'You'}, last=[];
-  if(window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; });
+  let me={id:'local',name:'You'}, last=[], others=0;
+  function setWho(){
+    var el=document.getElementById('who'); if(!el) return;
+    el.textContent = others>0 ? ((others+1)+' here') : 'just you — Invite';
+  }
+  if(window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; beat(); });
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function hhmm(t){ if(!t) return ''; const d=new Date(t); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
   function fmt(n){ n=+n||0; return n>=1e6?(n/1e6).toFixed(1)+' MB':n>=1024?Math.round(n/1024)+' KB':n+' B'; }
@@ -560,7 +567,13 @@
     const seen={}; last.forEach(function(m){ if(m.id!=null) seen[m.id]=1; });
     pend=pend.filter(function(p){ return !seen[p.id]; });
     const items=last.concat(pend).sort(function(a,b){return (a.t||0)-(b.t||0);});
-    log.innerHTML=items.map(function(m){ return '<div class="m'+(m.uid===me.id?' mine':'')+'"'+(m.state==='failed'?' data-retry="'+esc(m.id)+'"':'')+'><b>'+esc(m.by||'anon')+'<small>'+hhmm(m.t)+'</small>'+mark(m)+'</b>'+body(m)+'</div>'; }).join('');
+    if(!items.length){
+      log.innerHTML='<div class="empty">'+(others>0
+        ? 'No messages yet. Say hi — everyone in the room will see it.'
+        : 'No messages yet.<br>Press <b>Invite</b> in the top bar and send the link. Friends land in this same thread.')+'</div>';
+      return;
+    }
+    log.innerHTML=items.map(function(m){ return '<div class="m'+(m.uid===me.id?' mine':'')+'"'+(m.state==='failed'?' data-retry="'+esc(m.id)+'"':'')+'><b>'+esc(m.by||'anon')+' <small>'+hhmm(m.t)+'</small>'+mark(m)+'</b>'+body(m)+'</div>'; }).join('');
     log.scrollTop=log.scrollHeight;
     items.forEach(function(m){ if(m.kind==='file'&&m.att&&!atts[m.att]) fetchAtt(m); });
   }
@@ -610,10 +623,13 @@
         let model='cheapest';
         try{ const mm=await gifos.ai.models(); const av=(mm&&mm.available)||[];
           model = av.indexOf('cheapest')>=0?'cheapest':(av.indexOf('smartest')>=0?'smartest':'cheapest'); }catch(_){ }
-        const r=await gifos.ai.chat({model:model,messages:messages,maxTokens:160,temperature:0.7,hint:'Draft a chat reply'});
-        const text=String((r&&r.text)||'').trim().replace(/^["']+|["']+$/g,'').trim();
+        t.value=''; t.setAttribute('placeholder','Drafting with your AI…');
+        const r=await gifos.ai.chat({model:model,messages:messages,maxTokens:160,temperature:0.7,hint:'Draft a chat reply',
+          onDelta:function(piece){ if(piece) t.value+=piece; }});
+        const text=String((r&&r.text)||t.value||'').trim().replace(/^["']+|["']+$/g,'').trim();
+        t.setAttribute('placeholder',PH);
         if(text){ t.value=text; t.focus(); try{ t.setSelectionRange(t.value.length,t.value.length); }catch(_){ } }
-        else { t.setAttribute('placeholder','The AI returned nothing — try again.'); setTimeout(function(){ t.setAttribute('placeholder',PH); },4000); }
+        else { t.value=''; t.setAttribute('placeholder','The AI returned nothing — try again.'); setTimeout(function(){ t.setAttribute('placeholder',PH); },4000); }
       }catch(err){
         // A missing model pops the runtime's own Settings prompt (NOT_CONFIGURED);
         // anything else we surface briefly in the placeholder, then restore it.
@@ -627,6 +643,16 @@
       }finally{ aiBtn.disabled=false; aiBtn.textContent=glyph; }
     };
   }
+  function beat(){ if(!pres||!me.id||me.id==='local') return; pres.put({id:'p:'+me.id,name:me.name,ts:Date.now()}); }
+  if(pres&&pres.subscribe){
+    pres.subscribe(function(rows){
+      var now=Date.now(); others=0;
+      (rows||[]).forEach(function(r){ if(r&&r.id&&r.id.indexOf('p:')===0&&r.id!=='p:'+me.id&&(now-(r.ts||0))<35000) others++; });
+      setWho(); if(!last.length&&!pend.length) paint();
+    });
+    setInterval(function(){ if(document.visibilityState!=='hidden') beat(); },15000);
+  }
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') beat(); });
   // ---- attachments ----
   const fi=document.getElementById('fi'), attBtn=document.getElementById('att');
   attBtn.onclick=function(){ fi.click(); };
@@ -5644,13 +5670,13 @@ A live room for text, photos, and files.
 
 Type and tap **Send**, or tap a quick emoji under the thread. **📎** attaches a photo or file. Images shrink to fit; attachments cap at 256 KB — for bigger files, share them in a Meeting instead.
 
-**✨** drafts a reply with *your* AI into the box; it never sends. Edit it, then Send. You need a model in Settings for that button to work.
+**✨** drafts a reply with *your* AI into the box as the words arrive; it never sends. Edit it, then Send. You need a model in Settings for that button to work. If AI is off in Abilities, the box says so instead of pretending.
 
 Your own lines show a clock while they travel, a check when the host has them, and a warning you can tap to resend if they did not land.
 
 ## Play together
 
-**Invite** (top bar). Everyone shares one thread. The ✨ draft uses each person’s own model, never the host’s.
+On your own the header says **just you — Invite**. **Invite** (top bar) and send the link. Friends appear in the header and share one thread. The ✨ draft uses each person’s own model, never the host’s.
 
 ## Saved
 
@@ -6010,7 +6036,7 @@ The Store itself does not keep a shopping cart in this icon.
         app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML, { capabilities: { db: true, multiplayer: true }, data: { entries: RW, presence: RW } }),
         // The "✨ AI draft" button uses YOUR OWN AI model/key (from Settings),
         // brokered locally per person — declares ai so the runtime allows it.
-        app('Chat', 'chat', [92, 220, 180], CHAT_HTML, { capabilities: { db: true, multiplayer: true, ai: ['cheapest', 'smartest'], network: [] }, data: { messages: RW, files: RW } }),
+        app('Chat', 'chat', [92, 220, 180], CHAT_HTML, { capabilities: { db: true, multiplayer: true, ai: ['cheapest', 'smartest'], network: [] }, data: { messages: RW, files: RW, presence: RW } }),
       ] },
       // Party games where the phone just facilitates — dealing secrets,
       // keeping time, counting votes — and the action happens in person.
