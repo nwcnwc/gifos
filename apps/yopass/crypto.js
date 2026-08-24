@@ -67,16 +67,28 @@
 
   function unlock(rec, passphrase) {
     if (!rec || !rec.ct || !rec.iv) return Promise.reject(new Error('Nothing locked.'));
-    var iv = unb64(rec.iv);
-    var ct = unb64(rec.ct);
+    var iv, ct, salt, rawKey, usedPass = false;
+    try {
+      iv = unb64(rec.iv);
+      ct = unb64(rec.ct);
+    } catch (e) {
+      return Promise.reject(new Error('Could not open it. The bytes were changed.'));
+    }
     var keyP;
     if (rec.hasPass) {
       if (!passphrase) return Promise.reject(new Error('This secret needs a passphrase.'));
       if (!rec.salt) return Promise.reject(new Error('This secret is missing its salt.'));
-      keyP = derive(passphrase, unb64(rec.salt));
+      try { salt = unb64(rec.salt); } catch (e) {
+        return Promise.reject(new Error('Could not open it. The bytes were changed.'));
+      }
+      usedPass = true;
+      keyP = derive(passphrase, salt);
     } else {
       if (!rec.key) return Promise.reject(new Error('This secret is missing its key.'));
-      keyP = importRaw(unb64(rec.key));
+      try { rawKey = unb64(rec.key); } catch (e) {
+        return Promise.reject(new Error('Could not open it. The bytes were changed.'));
+      }
+      keyP = importRaw(rawKey);
     }
     return keyP.then(function (key) {
       return subtle().then(function (s) { return s.decrypt({ name: 'AES-GCM', iv: iv }, key, ct); });
@@ -84,8 +96,9 @@
       return new TextDecoder().decode(pt);
     }).catch(function (err) {
       var m = String(err && err.message || err);
-      if (/passphrase|salt|key|locked/i.test(m)) throw err;
-      throw new Error('Could not open it. Wrong passphrase, or the bytes were changed.');
+      if (/passphrase|salt|key|locked|Nothing locked|bytes were changed/i.test(m)) throw err;
+      if (usedPass) throw new Error('Wrong passphrase.');
+      throw new Error('Could not open it. The bytes were changed.');
     });
   }
 

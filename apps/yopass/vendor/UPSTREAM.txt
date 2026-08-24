@@ -10,7 +10,8 @@ The GifOS port is a rewrite of the idea, not their backend:
 - Ciphertext lives in this file / the Invite room, on the host's
   browser. Invite is the one-time URL.
 - Encryption is Web Crypto AES-GCM (optional passphrase via PBKDF2),
-  not OpenPGP.js. Same job: a secret you can hand someone without
-  putting it in Slack in the clear. Different bytes.
+  not OpenPGP.js. Optional 1 hour / 1 day / 1 week timer matches
+  their Redis TTL, client-side. Same job: a secret you can hand
+  someone without putting it in Slack in the clear. Different bytes.
 
 This is an unofficial port. Bugs go to GifOS, not upstream.

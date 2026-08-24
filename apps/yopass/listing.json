@@ -1,6 +1,6 @@
 {
-  "tagline": "Lock a secret. Invite is the one-time room. No server.",
-  "description": "Type a password, a note, an API token. It is encrypted in this tab. Press Invite in the bar above the app: whoever opens the link is in the one-time room and can read it. Optionally burn it after the first look, and optionally lock it again with a passphrase they have to type.\n\nThere is no Yopass website in the middle. Nothing is uploaded to Redis, nothing hits their Go server, and there is no account. The ciphertext lives in this file, on this device, and in the room while people are connected.\n\nAn unofficial port of Yopass by Johan Haals. Same job — share a secret without putting it in a chat in the clear. Not their backend, and not their OpenPGP bytes.",
+  "tagline": "Nothing is uploaded. The invite is the room. Works on a plane.",
+  "description": "Type a password, a note, an API token. It is encrypted in this tab. Nothing is uploaded — there is no Yopass website in the middle, no Redis, no Go server, and no account. Press Invite in the bar above the app: whoever opens the link is in the one-time room and can read it. Optionally burn it after the first look, optionally a passphrase they still have to type, optionally a 1 hour / 1 day / 1 week timer.\n\nThe ciphertext lives in this file on this device, and in the room while people are connected. It works on a plane.\n\nAn unofficial port of Yopass by Johan Haals. Same job — share a secret without putting it in a chat in the clear. Not their backend, and not their OpenPGP bytes.",
   "author": {
     "name": "Johan Haals",
     "url": "https://github.com/jhaals/yopass"
