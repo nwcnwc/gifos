@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "json-editor",
+  "appId": "json-editor",
+  "name": "JSON Editor",
+  "shortName": "JSON",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Tree and code for a document that lives in the file. Nothing is uploaded.",
+  "description": "Open a document as a tree you can expand, or as text you can type. Search, tidy the layout, and switch modes from the toolbar. The last document comes back the next time you open the app — still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of JSONEditor by Jos de Jong. Same tree and code views. Their online service is not in this app.",
+  "author": {
+    "name": "Jos de Jong",
+    "url": "https://github.com/josdejong/jsoneditor"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Developer",
+    "Utilities"
+  ],
+  "tags": [
+    "editor",
+    "tree",
+    "code",
+    "document",
+    "offline"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/json-editor",
+  "accent": [
+    255,
+    165,
+    0
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/json-editor/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/json-editor/json-editor.gif",
+  "bytes": 791411,
+  "download": 0,
+  "provides": null,
+  "sha256": "9c333e27b3d3dccf49dd87bd96997a40f51a40d40cfdf5c9669af975e92ac517",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JSONEditor",
+    "url": "https://github.com/josdejong/jsoneditor",
+    "blessed": false
+  }
+}

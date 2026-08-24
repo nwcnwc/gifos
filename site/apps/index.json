@@ -1683,6 +1683,54 @@
       "sha256": "8b7dadd7598f5583934fc5ea02c700a164593b461225a7eb781d24785920899e"
     },
     {
+      "slug": "fend",
+      "appId": "fend",
+      "name": "fend",
+      "shortName": "fend",
+      "version": "1.0",
+      "tagline": "Units, fractions, dice. Type 1 ft to cm. The pad stays on this device.",
+      "author": {
+        "name": "printfn",
+        "url": "https://github.com/printfn/fend"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "fend",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "calculator",
+        "units",
+        "math",
+        "notepad",
+        "offline"
+      ],
+      "accent": [
+        200,
+        80,
+        40
+      ],
+      "cover": "/apps/fend/cover.jpg",
+      "bytes": 593035,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "616c2c92d746ade99c8c53ddd06a97bec38570c7ad44464ceaea46e7de25dbc0"
+    },
+    {
       "slug": "fieldplay",
       "appId": "fieldplay",
       "name": "Field Play",
@@ -2733,6 +2781,55 @@
       "sha256": "2e949efd6f953889458c12c5d7b6ef9b60de8bb39a415d96d6e3e1d07e0ffaa5"
     },
     {
+      "slug": "json-editor",
+      "appId": "json-editor",
+      "name": "JSON Editor",
+      "shortName": "JSON",
+      "version": "1.0",
+      "tagline": "Tree and code for a document that lives in the file. Nothing is uploaded.",
+      "author": {
+        "name": "Jos de Jong",
+        "url": "https://github.com/josdejong/jsoneditor"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "JSONEditor",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Developer",
+        "Utilities"
+      ],
+      "tags": [
+        "editor",
+        "tree",
+        "code",
+        "document",
+        "offline"
+      ],
+      "accent": [
+        255,
+        165,
+        0
+      ],
+      "cover": "/apps/json-editor/cover.jpg",
+      "bytes": 791411,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "9c333e27b3d3dccf49dd87bd96997a40f51a40d40cfdf5c9669af975e92ac517"
+    },
+    {
       "slug": "jspaint",
       "appId": "jspaint",
       "name": "JS Paint",
@@ -3396,6 +3493,54 @@
         "ts": "2026-08-24"
       },
       "sha256": "6b2be56fead142e1a02d00b41da9b2a6bb4f34bf75b75a973a2066447b9cb2e8"
+    },
+    {
+      "slug": "my-mind",
+      "appId": "my-mind",
+      "name": "My Mind",
+      "shortName": "Mind",
+      "version": "1.0",
+      "tagline": "A map of ideas. Tab adds a child, Enter a sibling. The map is the save.",
+      "author": {
+        "name": "Ondřej Žára",
+        "url": "https://github.com/ondras/my-mind"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "My Mind",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Productivity"
+      ],
+      "tags": [
+        "mindmap",
+        "outline",
+        "notes",
+        "ideas",
+        "offline"
+      ],
+      "accent": [
+        68,
+        136,
+        221
+      ],
+      "cover": "/apps/my-mind/cover.jpg",
+      "bytes": 387327,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "70d2894758b3daae00e60dc8de96d1433ef32b0dd7d3a9cfa50d6176d31bb3f1"
     },
     {
       "slug": "mykonos",

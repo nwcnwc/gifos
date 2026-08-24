@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "json-editor",
+  "name": "JSON Editor",
+  "shortName": "JSON",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Tree and code editor for a document that lives in the file.",
+  "entry": "index.html",
+  "accent": [255, 165, 0],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}
