@@ -1,0 +1,82 @@
+{
+  "puzzles": [
+    {
+      "id": "heart",
+      "title": "Heart",
+      "blurb": "A 5×5 word square. The same five words read across and down.",
+      "document": { "mimetype": "application/vnd.js-crossword", "version": "1.0" },
+      "source": { "title": "Heart", "url": "https://github.com/nwcnwc/gifos/tree/main/apps/crossword" },
+      "setter": { "title": "GifOS", "url": "https://gifos.app" },
+      "width": 5,
+      "height": 5,
+      "acrossClues": [
+        { "x": 1, "y": 1, "clue": "1. Center of the matter (5)", "solution": "HEART" },
+        { "x": 1, "y": 2, "clue": "6. Last glow in the grate (5)", "solution": "EMBER" },
+        { "x": 1, "y": 3, "clue": "7. Treat badly (5)", "solution": "ABUSE" },
+        { "x": 1, "y": 4, "clue": "8. Pine's sticky sap (5)", "solution": "RESIN" },
+        { "x": 1, "y": 5, "clue": "9. What a chart of sales may show (5)", "solution": "TREND" }
+      ],
+      "downClues": [
+        { "x": 1, "y": 1, "clue": "1. Organ that beats (5)", "solution": "HEART" },
+        { "x": 2, "y": 1, "clue": "2. Coal before it dies (5)", "solution": "EMBER" },
+        { "x": 3, "y": 1, "clue": "3. Mistreat (5)", "solution": "ABUSE" },
+        { "x": 4, "y": 1, "clue": "4. Violin bow stuff (5)", "solution": "RESIN" },
+        { "x": 5, "y": 1, "clue": "5. Direction, as of fashion (5)", "solution": "TREND" }
+      ]
+    },
+    {
+      "id": "racecar",
+      "title": "Racecar",
+      "blurb": "A 7×7 of palindromes. Every long answer reads the same in reverse.",
+      "document": { "mimetype": "application/vnd.js-crossword", "version": "1.0" },
+      "source": { "title": "Racecar", "url": "https://github.com/nwcnwc/gifos/tree/main/apps/crossword" },
+      "setter": { "title": "GifOS", "url": "https://gifos.app" },
+      "width": 7,
+      "height": 7,
+      "acrossClues": [
+        { "x": 1, "y": 1, "clue": "1. Pitch for a road (3)", "solution": "TAR" },
+        { "x": 5, "y": 1, "clue": "4. Maze runner in a lab (3)", "solution": "RAT" },
+        { "x": 1, "y": 2, "clue": "7. \"Got it!\" (3)", "solution": "AHA" },
+        { "x": 5, "y": 2, "clue": "8. Cry on solving a clue (3)", "solution": "AHA" },
+        { "x": 1, "y": 3, "clue": "9. Palindrome at the track (7)", "solution": "RACECAR" },
+        { "x": 3, "y": 4, "clue": "11. Looker in the face (3)", "solution": "EYE" },
+        { "x": 1, "y": 5, "clue": "12. Speedster that is a palindrome (7)", "solution": "RACECAR" },
+        { "x": 1, "y": 6, "clue": "13. Eureka (3)", "solution": "AHA" },
+        { "x": 5, "y": 6, "clue": "14. \"I see it now!\" (3)", "solution": "AHA" },
+        { "x": 1, "y": 7, "clue": "15. Sticky black stuff (3)", "solution": "TAR" },
+        { "x": 5, "y": 7, "clue": "16. Informer, slangily (3)", "solution": "RAT" }
+      ],
+      "downClues": [
+        { "x": 1, "y": 1, "clue": "1. Roofing goo (3)", "solution": "TAR" },
+        { "x": 2, "y": 1, "clue": "2. Light-bulb moment (3)", "solution": "AHA" },
+        { "x": 3, "y": 1, "clue": "3. It reads the same in the mirror (7)", "solution": "RACECAR" },
+        { "x": 5, "y": 1, "clue": "4. Indy palindrome (7)", "solution": "RACECAR" },
+        { "x": 6, "y": 1, "clue": "5. \"That's it!\" (3)", "solution": "AHA" },
+        { "x": 7, "y": 1, "clue": "6. Road coating (3)", "solution": "TAR" },
+        { "x": 4, "y": 3, "clue": "10. Pupil's place (3)", "solution": "EYE" }
+      ]
+    },
+    {
+      "id": "sand",
+      "title": "Sand",
+      "blurb": "The original 4×4 word square. SAND, AREA, NEED, DADS.",
+      "document": { "mimetype": "application/vnd.js-crossword", "version": "1.0" },
+      "source": { "title": "GifOS Mini — Sand", "url": "https://github.com/nwcnwc/gifos/tree/main/apps/crossword" },
+      "setter": { "title": "GifOS", "url": "https://gifos.app" },
+      "width": 4,
+      "height": 4,
+      "acrossClues": [
+        { "x": 1, "y": 1, "clue": "1. Fine grit on a beach (4)", "solution": "SAND" },
+        { "x": 1, "y": 2, "clue": "5. Region or neighbourhood (4)", "solution": "AREA" },
+        { "x": 1, "y": 3, "clue": "6. Require (4)", "solution": "NEED" },
+        { "x": 1, "y": 4, "clue": "7. Fathers (4)", "solution": "DADS" }
+      ],
+      "downClues": [
+        { "x": 1, "y": 1, "clue": "1. Fine grit on a beach (4)", "solution": "SAND" },
+        { "x": 2, "y": 1, "clue": "2. Region or neighbourhood (4)", "solution": "AREA" },
+        { "x": 3, "y": 1, "clue": "3. Require (4)", "solution": "NEED" },
+        { "x": 4, "y": 1, "clue": "4. Fathers (4)", "solution": "DADS" }
+      ]
+    }
+  ]
+}

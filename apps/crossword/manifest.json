@@ -3,9 +3,9 @@
   "appId": "crossword",
   "name": "Crossword",
   "shortName": "Crossword",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
-  "description": "A crossword in a file. Tap a square, type a letter, check when you are stuck.",
+  "description": "A crossword in a file. Type on the phone. Close it — the letters stay.",
   "entry": "index.html",
   "accent": [40, 80, 160],
   "capabilities": {

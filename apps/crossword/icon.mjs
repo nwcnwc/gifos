@@ -1,9 +1,10 @@
-// Crossword icon: a grid that fills in. Super-sample → box-downsample.
+// Crossword icon: a grid filling in letters. Super-sample → box-downsample.
 import { deflateSync } from 'node:zlib';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 8;
 const CARD_A = [24, 28, 40], CARD_B = [12, 14, 20];
 const PAPER = [244, 241, 232], INK = [20, 22, 28], BLUE = [80, 130, 200];
+const GOLD = [247, 227, 122];
 
 function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 function inCard(x, y, m, r) {
@@ -16,7 +17,7 @@ function inCard(x, y, m, r) {
 }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD_A, CARD_B, PAPER, INK, BLUE, [255, 255, 255]]) {
+  for (const b of [CARD_A, CARD_B, PAPER, INK, BLUE, GOLD, [255, 255, 255]]) {
     for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.3).map(Math.round));
   }
@@ -31,10 +32,69 @@ function nearest(pal, r, g, b) {
   return bi;
 }
 
+const GLYPHS = {
+  A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
+  C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
+  D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
+  E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
+  F: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
+  G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
+  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+  K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
+  L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
+  M: [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
+  N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
+  O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
+  R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
+  S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
+  T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
+  U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  V: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
+  W: [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
+  Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  ' ': [0, 0, 0, 0, 0, 0, 0],
+  '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
+  ',': [0, 0, 0, 0, 0, 0b00100, 0b01000],
+  '!': [0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0, 0b00100],
+  "'": [0b00100, 0b00100, 0, 0, 0, 0, 0],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '3': [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '6': [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
+  '(': [0b00010, 0b00100, 0b01000, 0b01000, 0b01000, 0b00100, 0b00010],
+  ')': [0b01000, 0b00100, 0b00010, 0b00010, 0b00010, 0b00100, 0b01000],
+};
+
+const HEART = ['HEART', 'EMBER', 'ABUSE', 'RESIN', 'TREND'];
+
+function stampGlyph(rgba, x0, y0, ch, s, col) {
+  const gph = GLYPHS[String(ch).toUpperCase()];
+  if (!gph) return;
+  for (let row = 0; row < 7; row++) for (let colb = 0; colb < 5; colb++) {
+    if (!(gph[row] & (1 << (4 - colb)))) continue;
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) {
+      const x = Math.round((x0 + colb * s + dx) * SS);
+      const y = Math.round((y0 + row * s + dy) * SS);
+      if (x < 0 || y < 0 || x >= RW || y >= RW) continue;
+      const o = (y * RW + x) * 4;
+      rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
+    }
+  }
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const n = 4, origin = 28, cell = 18;
-  const filled = Math.min(16, f * 2);
+  const n = 5, origin = 22, cell = 17;
+  const filled = Math.min(25, 5 + f * 3);
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
@@ -44,13 +104,19 @@ function frameIndices(pal, f) {
       const cx = Math.floor((x - origin) / cell), cy = Math.floor((y - origin) / cell);
       if (cx >= 0 && cx < n && cy >= 0 && cy < n) {
         const i = cy * n + cx;
-        col = i < filled ? PAPER : mix(PAPER, INK, 0.08);
-        if ((x - origin) % cell < 1.2 || (y - origin) % cell < 1.2) col = INK;
-        if (i < filled && i % 3 === 0) col = BLUE;
+        col = i === 0 && f > 1 ? GOLD : PAPER;
+        if ((x - origin) % cell < 1.15 || (y - origin) % cell < 1.15) col = INK;
       }
     }
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
+  }
+  for (let i = 0; i < filled && i < 25; i++) {
+    const cx = i % n, cy = (i / n) | 0;
+    const ch = HEART[cy][cx];
+    const x = origin + cx * cell + 4;
+    const y = origin + cy * cell + 5;
+    stampGlyph(rgba, x, y, ch, 1.15, INK);
   }
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
@@ -92,6 +158,7 @@ export function screenshotPng() {
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
   const put = (x, y, r, g, b) => {
+    x = x | 0; y = y | 0;
     if (x < 0 || y < 0 || x >= W || y >= H) return;
     const o = (y * W + x) * 4;
     rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = 255;
@@ -100,17 +167,46 @@ export function screenshotPng() {
     for (let y = Math.max(0, y0 | 0); y < Math.min(H, y1 | 0); y++)
       for (let x = Math.max(0, x0 | 0); x < Math.min(W, x1 | 0); x++) put(x, y, r, g, b);
   };
-  fill(0, 0, W, H, 18, 20, 28);
-  const letters = ['S', 'A', 'N', 'D', 'A', 'R', 'E', 'A', 'N', 'E', 'E', 'D', 'D', 'A', 'D', 'S'];
-  const size = 110, gap = 8, ox = 80, oy = 90;
-  for (let i = 0; i < 16; i++) {
-    const c = i % 4, r = (i / 4) | 0;
-    const x = ox + c * (size + gap), y = oy + r * (size + gap);
-    fill(x, y, x + size, y + size, 244, 241, 232);
-    fill(x, y, x + 4, y + size, 20, 22, 28);
-    fill(x, y, x + size, y + 4, 20, 22, 28);
+  function drawText(x, y, str, s, r, g, b) {
+    let cx = x;
+    for (const ch of String(str).toUpperCase()) {
+      const gph = GLYPHS[ch];
+      if (!gph) { cx += 6 * s; continue; }
+      for (let row = 0; row < 7; row++) for (let col = 0; col < 5; col++) if (gph[row] & (1 << (4 - col)))
+        for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) put(cx + col * s + dx, y + row * s + dy, r, g, b);
+      cx += 6 * s;
+    }
   }
-  fill(700, 80, 1140, 640, 24, 28, 40);
+  fill(0, 0, W, H, 18, 20, 28);
+  /* Mid-solve 5×5 Heart — letters in, current clue lit, clues beside it. */
+  const grid = ['HEART', 'EMBER', 'ABU  ', 'RESIN', 'TREND'];
+  const size = 92, gap = 6, ox = 70, oy = 110;
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+    const x = ox + c * (size + gap), y = oy + r * (size + gap);
+    const on = r === 2;
+    if (on) fill(x, y, x + size, y + size, 247, 227, 122);
+    else fill(x, y, x + size, y + size, 244, 241, 232);
+    fill(x, y, x + 3, y + size, 20, 22, 28);
+    fill(x, y, x + size, y + 3, 20, 22, 28);
+    const ch = grid[r][c];
+    if (ch && ch !== ' ') drawText(x + 22, y + 24, ch, 7, 20, 22, 28);
+    if (r === 0) drawText(x + 6, y + 6, String(c + 1), 2, 80, 130, 200);
+  }
+  fill(640, 80, 1148, 640, 24, 28, 40);
+  drawText(668, 110, '7 ACROSS', 4, 110, 160, 232);
+  drawText(668, 170, 'TREAT BADLY (5)', 3, 236, 236, 242);
+  const clues = [
+    '1  CENTER OF THE MATTER',
+    '6  LAST GLOW IN THE GRATE',
+    '7  TREAT BADLY',
+    '8  PINE\'S STICKY SAP',
+    '9  WHAT SALES MAY SHOW',
+  ];
+  clues.forEach((line, i) => {
+    const y = 280 + i * 58;
+    if (i === 2) fill(656, y - 12, 1132, y + 42, 28, 36, 51);
+    drawText(676, y, line, 3, i === 2 ? 236 : 184, i === 2 ? 236 : 196, i === 2 ? 242 : 208);
+  });
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;
