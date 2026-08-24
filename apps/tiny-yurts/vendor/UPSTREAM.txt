@@ -9,8 +9,14 @@ vendor/game.js is an esbuild IIFE of src/main.js + kontra@9.0.0:
 
   npx esbuild@0.21.5 src/main.js --bundle --format=iife --target=es2017
 
-localStorage is stubbed by boot.js (the sandbox has none). Highscore,
+localStorage is stubbed by shim.js (the sandbox has none); boot.js
+hydrates gifos.db into that stub before this file runs. Highscore,
 sound, and grid-lock keys ('Tiny Yurts', 'Tiny Yurtss', 'Tiny Yurtsg')
 are the same as upstream.
+
+Phone patch in this IIFE (keep when re-bundling): isDraw() treats a
+primary touch as a left-drag, setPointerCapture on pointerdown, clientX
+instead of event.x. Portrait fit lives in boot.js. TinyYurts is exported
+for the unit suite.
 
 kontra.js is MIT (Steven Lambert) — COPYING-kontra.txt.

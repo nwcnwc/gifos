@@ -2323,6 +2323,11 @@
   };
 
   // src/pointer.js
+  // Touch pointermove often reports buttons=0; treat a primary finger as a
+  // left-drag so a path can actually be drawn on a phone. Mouse is unchanged.
+  var isDraw = (event) => event.buttons === 1 || (event.pointerType === "touch" || event.pointerType === "pen") && event.type !== "pointerup" && event.type !== "pointercancel";
+  var px = (event) => event.clientX != null ? event.clientX : event.x;
+  var py = (event) => event.clientY != null ? event.clientY : event.y;
   var dragStartCell = {};
   var isDragging = false;
   var yurtInCell = (x, y) => yurts.find((yurt) => yurt.x === x && yurt.y === y);
@@ -2339,9 +2344,11 @@
   pathShadowLayer.append(pathDragIndicatorWrapper);
   var handlePointerdown = (event) => {
     event.stopPropagation();
+    try { gridPointerLayer.setPointerCapture(event.pointerId); } catch (e) {}
+    if (typeof event.preventDefault === "function") event.preventDefault();
     const rect = gridPointerLayer.getBoundingClientRect();
-    const { x: cellX, y: cellY } = getBoardCell(event.x - rect.left, event.y - rect.top);
-    if (event.buttons === 1 && !gridRedState.locked) {
+    const { x: cellX, y: cellY } = getBoardCell(px(event) - rect.left, py(event) - rect.top);
+    if (isDraw(event) && !gridRedState.locked) {
       gridShow();
       const pondInStartCell = pondInCell(cellX, cellY);
       const pondPathInStartCell = pondPathInCell(cellX, cellY);
@@ -2378,7 +2385,7 @@
   var handlePointerup = (event) => {
     event.stopPropagation();
     const rect = gridPointerLayer.getBoundingClientRect();
-    const { x: cellX, y: cellY } = getBoardCell(event.x - rect.left, event.y - rect.top);
+    const { x: cellX, y: cellY } = getBoardCell(px(event) - rect.left, py(event) - rect.top);
     const yurtInStartCell = yurtInCell(dragStartCell.x, dragStartCell.y);
     const yurtInEndCell = yurtInCell(cellX, cellY);
     const pondInStartCell = pondInCell(cellX, cellY);
@@ -2403,8 +2410,8 @@
   var handlePointermove = (event) => {
     event.stopPropagation();
     const rect = gridPointerLayer.getBoundingClientRect();
-    const { x: cellX, y: cellY } = getBoardCell(event.x - rect.left, event.y - rect.top);
-    if (event.buttons === 2 || event.buttons === 1 && gridRedState.locked) {
+    const { x: cellX, y: cellY } = getBoardCell(px(event) - rect.left, py(event) - rect.top);
+    if (event.buttons === 2 || isDraw(event) && gridRedState.locked) {
       gridRedShow();
       removePath(cellX, cellY);
       return;
@@ -2417,14 +2424,14 @@
       gridPointerLayer.style.cursor = "not-allowed";
       return;
     }
-    if (yurtInEndCell && event.buttons !== 1) {
+    if (yurtInEndCell && !isDraw(event)) {
       gridPointerLayer.style.cursor = "grab";
-    } else if (event.buttons === 1 && (yurtInStartCell && yurtInEndCell || yurtInStartCell && !yurtInEndCell)) {
+    } else if (isDraw(event) && (yurtInStartCell && yurtInEndCell || yurtInStartCell && !yurtInEndCell)) {
       gridPointerLayer.style.cursor = "grabbing";
     } else if (!samePathInBothCell(dragStartCell.x, dragStartCell.y, cellX, cellY)) {
       gridPointerLayer.style.cursor = "cell";
     }
-    if (event.buttons !== 1) return;
+    if (!isDraw(event)) return;
     gridRedHide();
     gridShow();
     if (!isDragging) return;
@@ -2446,7 +2453,7 @@
     pathDragIndicator.style.transition = `all.2s, scale.4s cubic-bezier(.5,2,.5,1)`;
     pathDragIndicator.style.scale = 1;
     if (!isPastHalfwayInto({
-      pointer: { x: event.x - rect.left, y: event.y - rect.top },
+      pointer: { x: px(event) - rect.left, y: py(event) - rect.top },
       from: { x: dragStartCell.x, y: dragStartCell.y },
       to: { x: cellX, y: cellY }
     })) return;
@@ -4181,7 +4188,7 @@
       startButtonWrapper.style.transition = `opacity .5s .8s`;
       menuText1.style.transition = `opacity .5s 1s`;
     }
-    menuText1.innerHTML = localStorage.getItem("Tiny Yurts") ? `Highscore: ${localStorage.getItem("Tiny Yurts")}` : "Tip: Left click & drag to connect yurts to<br>farms, or delete paths with right click.";
+    menuText1.innerHTML = localStorage.getItem("Tiny Yurts") ? `Highscore: ${localStorage.getItem("Tiny Yurts")}` : "Tip: Drag from a yurt onto a farm. The red grid erases a path.";
     const farmPxPosition = svgPxToDisplayPx(
       focus.x - gridWidth / 2 - boardOffsetX + focus.width / 2,
       focus.y - gridHeight / 2 - boardOffsetY + focus.height / 2
@@ -4546,4 +4553,20 @@
   setTimeout(() => {
     loop.start();
   }, 1e3);
+  globalThis.TinyYurts = {
+    inventory,
+    Path,
+    removePath,
+    getBoardCell,
+    isPastHalfwayInto,
+    get paths() { return paths; },
+    get yurts() { return yurts; },
+    get farms() { return farms; },
+    get gameStarted() { return gameStarted; },
+    get gridPointerLayer() { return gridPointerLayer; },
+    startGame,
+    handlePointerdown,
+    handlePointermove,
+    handlePointerup
+  };
 })();

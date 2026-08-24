@@ -4,11 +4,24 @@ html, body {
   background: #6a9a4a;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-tap-highlight-color: transparent;
+  touch-action: none;
 }
 #roster {
   position: fixed; right: .6rem; top: .6rem; z-index: 40;
   background: rgba(20, 30, 16, .7); color: #e8f4dc;
   border-radius: .5rem; padding: .35rem .55rem; font-size: .78rem;
+  pointer-events: none;
 }
 #roster[hidden] { display: none; }
 #roster .me { font-weight: 650; }
+
+/* Portrait: the valley sits in the upper half so thumbs can drag it.
+   The jam UI chrome (clock, pause, path tiles) stays in the corners. */
+body.portrait svg[viewBox^="0 0 208"] {
+  touch-action: none;
+}
+@media (max-width: 520px) {
+  button {
+    min-height: 48px;
+  }
+}

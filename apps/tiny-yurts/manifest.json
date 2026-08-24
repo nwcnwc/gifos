@@ -3,7 +3,7 @@
   "appId": "tiny-yurts",
   "name": "Tiny Yurts",
   "shortName": "Yurts",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "description": "Drag paths from yurts to farms. Keep the animals happy. js13k 2023, 4th place.",
   "entry": "index.html",
