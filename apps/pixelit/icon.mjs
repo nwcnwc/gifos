@@ -12,8 +12,10 @@ const HILL = [45, 106, 58];
 const HILL2 = [62, 122, 68];
 const HOUSE = [196, 92, 58];
 const PAL = [
-  [48, 0, 48], [96, 40, 120], [248, 144, 32], [248, 240, 136],
-  [13, 43, 69], [208, 129, 89], [255, 170, 94], [31, 14, 28],
+  [140, 143, 174], [88, 69, 99], [62, 33, 55], [154, 99, 72],
+  [215, 155, 125], [245, 237, 186], [192, 199, 65], [100, 125, 52],
+  [228, 148, 58], [157, 48, 59], [210, 100, 113], [112, 55, 127],
+  [126, 196, 193], [52, 133, 157], [23, 67, 75], [31, 14, 28],
 ];
 
 function mix(a, b, t) {
@@ -143,6 +145,12 @@ const GLYPHS = {
   Z: [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b10101, 0b01010],
+  'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  'M': [0b10001, 0b11011, 0b10101, 0b10001, 0b10001, 0b10001, 0b10001],
+  'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -172,12 +180,21 @@ export function screenshotPng() {
     x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
+  const roundFill = (x0, y0, x1, y1, r, cr, cg, cb) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const dx = x < x0 + r ? x0 + r - x : x > x1 - r ? x - (x1 - r) : 0;
+      const dy = y < y0 + r ? y0 + r - y : y > y1 - r ? y - (y1 - r) : 0;
+      if (dx * dx + dy * dy > r * r) continue;
+      put(x, y, cr, cg, cb);
+    }
+  };
   fill(0, 0, W, H, 18, 16, 24);
-  drawText(put, 48, 36, 'PIXEL IT', 6, 244, 239, 230);
-  drawText(put, 48, 92, 'PHOTO TO PIXEL ART. NOTHING UPLOADED.', 3, 180, 168, 150);
+  drawText(put, 36, 22, 'PIXEL IT', 5, 244, 239, 230);
+  drawText(put, 36, 62, 'PHOTO TO PIXEL ART. NOTHING UPLOADED.', 2, 180, 168, 150);
 
   const pal = PAL;
-  const block = 14;
+  const block = 10;
+  roundFill(28, 96, 1172, 560, 16, 11, 10, 14);
   function paintScene(x0, y0, w, h, pixel) {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const sx = pixel ? Math.floor(x / block) * block + block / 2 : x;
@@ -188,15 +205,26 @@ export function screenshotPng() {
       if (dx * dx + dy * dy < (h * 0.12) * (h * 0.12)) col = SUN;
       if (v > 0.5 && v > 0.85 - u * 0.5) col = HILL;
       if (u > 0.68 && u < 0.86 && v > 0.52 && v < 0.88) col = HOUSE;
+      if (u > 0.72 && u < 0.76 && v > 0.68 && v < 0.88) col = [80, 40, 28];
       if (pixel) col = nearestPal(col[0], col[1], col[2]);
       put(x0 + x, y0 + y, col[0] | 0, col[1] | 0, col[2] | 0);
     }
   }
-  paintScene(48, 160, 520, 480, false);
-  paintScene(632, 160, 520, 480, true);
-  drawText(put, 48, 652, 'ORIGINAL', 3, 180, 168, 150);
-  drawText(put, 632, 652, 'PIXELATED', 3, 228, 148, 58);
-  pal.forEach((c, i) => fill(632 + i * 28, 130, 632 + i * 28 + 24, 150, c[0], c[1], c[2]));
+  paintScene(36, 108, 1128, 436, true);
+  drawText(put, 420, 520, 'HOLD TO SEE THE ORIGINAL', 2, 180, 168, 150);
+
+  roundFill(36, 580, 220, 628, 8, 228, 148, 58);
+  drawText(put, 52, 594, 'TAKE PHOTO', 2, 26, 18, 8);
+  roundFill(236, 580, 360, 628, 8, 28, 24, 36);
+  drawText(put, 256, 594, 'CHOOSE', 2, 244, 239, 230);
+  roundFill(376, 580, 560, 628, 8, 28, 24, 36);
+  drawText(put, 392, 594, 'DOWNLOAD PNG', 2, 244, 239, 230);
+
+  drawText(put, 36, 644, 'BLOCK 8', 2, 180, 168, 150);
+  fill(160, 654, 700, 660, 58, 51, 72);
+  fill(268, 646, 296, 668, 228, 148, 58);
+  pal.forEach((c, i) => fill(720 + i * 52, 644, 720 + i * 52 + 44, 676, c[0], c[1], c[2]));
+  drawText(put, 36, 688, 'CLASSIC PALETTE', 2, 228, 148, 58);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

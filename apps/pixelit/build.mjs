@@ -128,14 +128,29 @@ if (!html.includes('id="pixelitcanvas"') || !html.includes('id="pixelitimg"')) {
 if (!html.includes('id="photoBtn"') || !html.includes('Take photo')) {
   throw new Error('index.html must offer Take photo');
 }
+if (!html.includes('id="empty"') || !html.includes('No photo yet')) {
+  throw new Error('index.html must ship a first-run empty state');
+}
+if (!html.includes('Try a sample') || !html.includes('id="sampleBtn"')) {
+  throw new Error('index.html must offer Try a sample');
+}
+if (!html.includes('Hold to see the original')) {
+  throw new Error('index.html must offer hold-to-compare');
+}
 
 const src = files['app.js'];
 for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(', 'getUserMedia']) {
   if (src.includes(bad)) throw new Error('app.js uses ' + bad);
 }
 if (!src.includes("db('save')")) throw new Error('app.js must use gifos.db save');
+if (!src.includes("id: 'src'")) throw new Error('app.js must persist the ORIGINAL picture as pic/src, not the pixelated output');
 if (!src.includes('takePhoto')) throw new Error('app.js must use gifos.takePhoto — never a live camera');
 if (!src.includes('PALETTES')) throw new Error('app.js must ship the original palettes');
+if (!src.includes('onBack')) throw new Error('app.js must register gifos.onBack so hold-to-compare dismisses');
+if (!src.includes('pickRestoreUrl')) throw new Error('app.js must restore src (new) or out (old saves)');
+if (listing.tagline.toLowerCase().includes('drop ') || listing.description.toLowerCase().includes('drop a')) {
+  throw new Error('listing copy must not say drop');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -158,12 +173,20 @@ if (!files['COPYING-pixelit.txt'].includes('José Moreira') && !files['COPYING-p
     '  var A = PixelitApp;\n' +
     '  if (A.clampScale(0) !== 1 || A.clampScale(99) !== 50) throw new Error("scale");\n' +
     '  if (A.PALETTES.length < 8) throw new Error("palettes");\n' +
+    '  if (A.PALETTE_NAMES.length !== A.PALETTES.length) throw new Error("names");\n' +
     '  var def = A.PALETTES[8];\n' +
     '  var hit = A.similarColor([140, 143, 174], def);\n' +
     '  if (hit[0] !== 140 || hit[1] !== 143) throw new Error("exact " + hit);\n' +
     '  var near = A.similarColor([230, 150, 60], def);\n' +
     '  if (!near || near.length !== 3) throw new Error("near");\n' +
     '  if (A.colorSim([0,0,0],[255,255,255]) <= A.colorSim([0,0,0],[1,1,1])) throw new Error("sim");\n' +
+    '  if (A.pickRestoreUrl({png:"SRC"}, {png:"OUT"}) !== "SRC") throw new Error("restore prefers src");\n' +
+    '  if (A.pickRestoreUrl(null, {png:"OUT"}) !== "OUT") throw new Error("restore old out");\n' +
+    '  var d = A.downscaleNeed(1600, 900, 800);\n' +
+    '  if (d.w !== 800 || d.h !== 450) throw new Error("downscale " + d.w + "x" + d.h);\n' +
+    '  var px = [228,148,58,255, 10,10,10,255];\n' +
+    '  A.applyPaletteToPixels(px, def);\n' +
+    '  if (px[0] !== 228 || px[1] !== 148) throw new Error("snap exact");\n' +
     '  return A.PALETTES.length;\n' +
     '})();',
     ctx
