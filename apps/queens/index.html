@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Queens</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand">Queens</div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+<main>
+  <section class="card setup" id="home">
+    <h2>Place the queens</h2>
+    <p class="lede">One per row, column, and colour. None may touch at a corner. Hundreds of boards, in this file.</p>
+    <button class="primary" id="playBtn" type="button">Play</button>
+    <button class="ghost wide" id="friendBtn" type="button">Play with friends</button>
+    <p class="lvlnote">Play with friends: press Invite in the GifOS menu and send the link. You each mark your own board on the same puzzle.</p>
+    <div class="levels" id="levelGrid"></div>
+  </section>
+
+  <section class="game" id="play" hidden>
+    <div class="bar">
+      <button class="ghost tiny" id="backBtn" type="button">←</button>
+      <h2 id="playTitle">Level 1</h2>
+      <label class="auto"><input type="checkbox" id="autoX" checked> Auto X</label>
+    </div>
+    <p class="statusline" id="status"></p>
+    <div class="board-wrap">
+      <div class="board" id="board" role="grid"></div>
+    </div>
+    <div class="controls">
+      <button class="ghost" id="undoBtn" type="button">Undo</button>
+      <button class="ghost" id="clearBtn" type="button">Clear</button>
+      <button class="ghost" id="prevBtn" type="button">Prev</button>
+      <button class="primary" id="nextBtn" type="button">Next</button>
+    </div>
+    <div class="win" id="win" hidden>
+      <p>All queens placed.</p>
+      <button class="primary" id="winNext" type="button">Next puzzle</button>
+    </div>
+  </section>
+</main>
+<script src="vendor/levels.js"></script>
+<script src="game.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -3770,6 +3770,54 @@
       "sha256": "be167f4458c7e272257f7b5d0fe675bc17b697917f22e663c9fe65b69f88458a"
     },
     {
+      "slug": "queens",
+      "appId": "queens",
+      "name": "Queens",
+      "shortName": "Queens",
+      "version": "1.0",
+      "tagline": "Hundreds of tap puzzles in a GIF. No server.",
+      "author": {
+        "name": "samimsu",
+        "url": "https://github.com/samimsu/queens-game"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Queens",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "puzzle",
+        "queens",
+        "logic",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        94,
+        79,
+        162
+      ],
+      "cover": "/apps/queens/cover.jpg",
+      "bytes": 242245,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "6963a4ee45686f0e71a990bc5f42f192182957ad36dec0cdfc02cad3981d0d4b"
+    },
+    {
       "slug": "quiz-buzzer",
       "appId": "quiz-buzzer",
       "name": "Quiz Buzzer",
