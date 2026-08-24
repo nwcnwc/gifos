@@ -2,9 +2,16 @@
 (function () {
   'use strict';
 
-  var IM = window.HOUSE_IMAGES || {};
-  var SND = window.HOUSE_SOUNDS || {};
-  var ROOMS = window.HOUSE_ROOMS || {};
+  function IM() { return window.HOUSE_IMAGES || {}; }
+  function SND() { return window.HOUSE_SOUNDS || {}; }
+  function ROOMS() { return window.HOUSE_ROOMS || {}; }
+
+  function hideBoot() {
+    var el = document.getElementById('house-boot');
+    if (!el || el.classList.contains('gone')) return;
+    el.classList.add('gone');
+    setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 700);
+  }
 
   function remapSrc(src) {
     if (!src || /^data:|^blob:/i.test(src)) return src;
@@ -12,14 +19,17 @@
     u = u.replace(/^\.\//, '');
     while (u.indexOf('../') === 0) u = u.slice(3);
     if (u.charAt(0) === '/') u = u.slice(1);
-    if (IM[u]) return IM[u];
-    if (SND[u]) return SND[u];
-    var m = u.match(/(images\/[^/?#]+)$/);
-    if (m && IM[m[1]]) return IM[m[1]];
-    m = u.match(/(fonts\/[^/?#]+)$/);
-    if (m && IM[m[1]]) return IM[m[1]];
-    m = u.match(/(sound\/[^/?#]+)$/);
-    if (m && SND[m[1]]) return SND[m[1]];
+    var images = IM(), sounds = SND();
+    if (images[u]) return images[u];
+    if (sounds[u]) return sounds[u];
+    var m = u.match(/((?:images|fonts|sound)\/[^/?#]+)$/);
+    if (m) {
+      if (images[m[1]]) return images[m[1]];
+      if (sounds[m[1]]) return sounds[m[1]];
+    }
+    /* SM2 concatenates location.pathname + 'sound/x.mp3' → 'srcdocsound/x.mp3' */
+    m = u.match(/sound\/([^/?#]+)$/);
+    if (m && sounds['sound/' + m[1]]) return sounds['sound/' + m[1]];
     return src;
   }
 
@@ -71,7 +81,7 @@
         enumerable: ih.enumerable,
         get: ih.get,
         set: function (v) {
-          if (typeof v === 'string' && (v.indexOf('images/') !== -1 || v.indexOf('url(') !== -1 || v.indexOf('fonts/') !== -1)) {
+          if (typeof v === 'string' && (v.indexOf('images/') !== -1 || v.indexOf('url(') !== -1 || v.indexOf('fonts/') !== -1 || v.indexOf('sound/') !== -1)) {
             v = remapHtml(v);
           }
           ih.set.call(this, v);
@@ -104,11 +114,14 @@
   function roomKey(url) {
     var u = String(url || '').split('?')[0].replace(/^\.\//, '');
     if (u.charAt(0) === '/') u = u.slice(1);
-    if (ROOMS[u] != null) return u;
+    var rooms = ROOMS();
+    if (rooms[u] != null) return u;
     var base = u.indexOf('/') >= 0 ? u.slice(u.lastIndexOf('/') + 1) : u;
-    if (ROOMS[base] != null) return base;
+    if (rooms[base] != null) return base;
     return null;
   }
+
+  var skipIntro = false;
 
   function patchJquery() {
     if (!window.jQuery) return;
@@ -117,8 +130,13 @@
     $.fn.load = function (url, data, complete) {
       if (typeof url === 'string' && /\.html/i.test(url)) {
         var key = roomKey(url);
-        if (key && ROOMS[key] != null) {
-          this.html(ROOMS[key]);
+        if (key === 'intro.html' && skipIntro) {
+          resumeRoom();
+          return this;
+        }
+        if (key && ROOMS()[key] != null) {
+          this.html(remapHtml(ROOMS()[key]));
+          hideBoot();
           var cb = typeof complete === 'function' ? complete : (typeof data === 'function' ? data : null);
           if (cb) {
             var el = this[0];
@@ -164,6 +182,105 @@
     };
   }
 
+  function patchDrag() {
+    if (!window.room || !room.draggable) return;
+    var orig = room.draggable;
+    room.draggable = function () {
+      orig.call(room);
+      try {
+        var $el = $('#the_game').children('div:first-child');
+        if ($el.length && $el.draggable) {
+          $el.draggable('option', 'distance', 22);
+          $el.draggable('option', 'cancel',
+            '#note, [data-tooltip], [data-info], .close, #enter, #logo, #head_hole, #button, #switch_sound, #settings, #settings_reset, #options, #lightbox, a, button');
+        }
+      } catch (e) {}
+    };
+  }
+
+  /* A tap is a click. jQuery UI 1.8 only listens to mouse, so a phone would
+     pan the page (or drag the room 2px and swallow the click). */
+  function punchTouch() {
+    var touching = false, moved = false, sx = 0, sy = 0, last = null;
+    function mouseFromTouch(type, touch, target) {
+      var ev;
+      try {
+        ev = new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          detail: 1,
+          screenX: touch.screenX,
+          screenY: touch.screenY,
+          clientX: touch.clientX,
+          clientY: touch.clientY,
+          button: 0
+        });
+      } catch (e) {
+        ev = document.createEvent('MouseEvents');
+        ev.initMouseEvent(type, true, true, window, 1,
+          touch.screenX, touch.screenY, touch.clientX, touch.clientY,
+          false, false, false, false, 0, null);
+      }
+      (target || touch.target).dispatchEvent(ev);
+    }
+    document.addEventListener('touchstart', function (e) {
+      if (!e.touches || e.touches.length !== 1) return;
+      touching = true;
+      moved = false;
+      sx = e.touches[0].clientX;
+      sy = e.touches[0].clientY;
+      last = e.touches[0];
+      mouseFromTouch('mousedown', last);
+    }, true);
+    document.addEventListener('touchmove', function (e) {
+      if (!touching || !e.touches || e.touches.length !== 1) return;
+      last = e.touches[0];
+      var dx = last.clientX - sx, dy = last.clientY - sy;
+      if (dx * dx + dy * dy > 64) moved = true;
+      if (moved) e.preventDefault();
+      mouseFromTouch('mousemove', last);
+    }, { capture: true, passive: false });
+    document.addEventListener('touchend', function (e) {
+      if (!touching) return;
+      touching = false;
+      var t = (e.changedTouches && e.changedTouches[0]) || last;
+      if (!t) return;
+      var el = document.elementFromPoint(t.clientX, t.clientY) || t.target;
+      e.preventDefault();
+      mouseFromTouch('mouseup', t, el);
+      if (!moved) mouseFromTouch('click', t, el);
+    }, true);
+  }
+
+  function fillArray(dest, src) {
+    var i, s = Array.isArray(src) ? src : [];
+    if (!dest || !dest.splice) {
+      dest = [];
+    } else {
+      dest.length = 0;
+    }
+    for (i = 0; i < s.length; i++) dest.push(s[i]);
+    return dest;
+  }
+
+  function snapshotStore(jst) {
+    var obj = {}, keys, i;
+    if (!jst || !jst.index) return obj;
+    keys = jst.index();
+    for (i = 0; i < keys.length; i++) obj[keys[i]] = jst.get(keys[i]);
+    return obj;
+  }
+
+  function restoreStore(jst, store, setFn) {
+    if (!jst || !store) return;
+    var k, set = setFn || (jst.set && jst.set.bind(jst));
+    if (!set) return;
+    for (k in store) {
+      if (Object.prototype.hasOwnProperty.call(store, k)) set.call(jst, k, store[k]);
+    }
+  }
+
   var saveDb = null;
   var saveTimer = 0;
   var origSet = null;
@@ -174,12 +291,16 @@
   function syncGlobals() {
     if (!window.jQuery || !$.jStorage) return;
     try {
-      collected = $.jStorage.get('collected', []);
-      used = $.jStorage.get('used', []);
-      played = $.jStorage.get('played', []);
+      collected = fillArray(typeof collected !== 'undefined' ? collected : [], $.jStorage.get('collected', []));
+      used = fillArray(typeof used !== 'undefined' ? used : [], $.jStorage.get('used', []));
+      played = fillArray(typeof played !== 'undefined' ? played : [], $.jStorage.get('played', []));
+      fish = fillArray(typeof fish !== 'undefined' ? fish : [], $.jStorage.get('fish', []));
+      path = fillArray(typeof path !== 'undefined' ? path : [], $.jStorage.get('temp_path', []));
       is_in = $.jStorage.get('is_in');
-      fish = $.jStorage.get('fish', []);
-      path = $.jStorage.get('temp_path');
+      if (window.room && room.settings) {
+        room.settings.collected_items = collected;
+        room.settings.used_items = used;
+      }
     } catch (e) {}
   }
 
@@ -188,10 +309,7 @@
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; }
     var write = function () {
       saveTimer = 0;
-      var obj = {};
-      var keys = $.jStorage.index();
-      var i;
-      for (i = 0; i < keys.length; i++) obj[keys[i]] = $.jStorage.get(keys[i]);
+      var obj = snapshotStore($.jStorage);
       saveDb.put({ id: 'last', store: obj }).catch(function () {});
     };
     if (now) write();
@@ -202,9 +320,10 @@
     origSet = $.jStorage.set;
     origFlush = $.jStorage.flush;
     origDelete = $.jStorage.deleteKey;
-    $.jStorage.set = function () {
+    $.jStorage.set = function (key) {
       var r = origSet.apply(this, arguments);
-      persist(false);
+      var now = key === 'is_in' || key === 'collected' || key === 'used' || key === 'played';
+      persist(now);
       return r;
     };
     $.jStorage.flush = function () {
@@ -223,10 +342,7 @@
 
   function restore(store) {
     if (!store) return;
-    var k;
-    for (k in store) {
-      if (Object.prototype.hasOwnProperty.call(store, k)) origSet.call($.jStorage, k, store[k]);
-    }
+    restoreStore($.jStorage, store, origSet);
     syncGlobals();
   }
 
@@ -262,6 +378,7 @@
   }
 
   function houseShowIntro() {
+    skipIntro = false;
     $('#lightbox, #items, #switch_sound, #settings').hide();
     $('#the_game').load('intro.html', function () {
       var enterPulse = 500, houseFloat = 2000;
@@ -328,26 +445,99 @@
     settings.fullScreen = function () {};
   }
 
+  function bindBack() {
+    if (!window.gifos || typeof gifos.onBack !== 'function') return;
+    gifos.onBack(function () {
+      try {
+        if ($('#lightbox').is(':visible')) {
+          $('#lightbox').empty().hide();
+          return true;
+        }
+        if ($('#room_view').length && $('.close').length) {
+          $('.close').first().trigger('click');
+          return true;
+        }
+        if ($('#dialogue_box').length) {
+          if (window.dialogue_box && dialogue_box.destroy) dialogue_box.destroy();
+          else $('#dialogue_box').remove();
+          return true;
+        }
+        if ($('#settings').hasClass('on')) {
+          $('#settings').trigger('click');
+          return true;
+        }
+        if ($('#button').hasClass('up')) {
+          $('#button').trigger('click');
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    });
+  }
+
+  var started = false;
   function start(rec) {
-    hookImages();
-    patchJquery();
-    patchSounds();
-    bakeCss();
+    if (started) return;
+    started = true;
     wrapStorage();
     if (rec && rec.store) restore(rec.store);
     else syncGlobals();
     wrapSettings();
+    bindBack();
     try {
       window.location.reload = houseRestart;
     } catch (e) {}
-    if (window.soundManager && soundManager.beginDelayedInit) {
+    skipIntro = !!(window.jQuery && $.jStorage && $.jStorage.get('is_in'));
+    if (window.__houseReleaseSM) window.__houseReleaseSM();
+    else if (window.soundManager && soundManager.beginDelayedInit) {
       soundManager.beginDelayedInit();
     }
+    setTimeout(function () {
+      if (!$('#the_game').children().length) houseShowIntro();
+    }, 2800);
   }
 
-  if (saveDb && saveDb.get) {
-    saveDb.get('last').then(start).catch(function () { start(null); });
-  } else {
-    start(null);
+  window.HousePort = {
+    remapSrc: remapSrc,
+    remapHtml: remapHtml,
+    remapCssUrls: remapCssUrls,
+    fillArray: fillArray,
+    snapshotStore: snapshotStore,
+    restoreStore: restoreStore,
+    syncGlobals: syncGlobals,
+    persistNow: function () { persist(true); },
+    roomKey: roomKey
+  };
+
+  if (window.HOUSE_TEST) return;
+
+  function mapsReady() {
+    return Object.keys(IM()).length > 50 && Object.keys(SND()).length > 10 && ROOMS()['intro.html'] && ROOMS()['room.html'];
   }
+
+  function bootWhenReady() {
+    if (!mapsReady()) {
+      setTimeout(bootWhenReady, 40);
+      return;
+    }
+    hookImages();
+    patchJquery();
+    patchSounds();
+    patchDrag();
+    bakeCss();
+    punchTouch();
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') persist(true);
+    });
+
+    if (saveDb && saveDb.get) {
+      saveDb.get('last').then(start).catch(function () { start(null); });
+      setTimeout(function () { start(null); }, 4000);
+    } else {
+      start(null);
+    }
+  }
+  bootWhenReady();
+  setTimeout(hideBoot, 12000);
 })();

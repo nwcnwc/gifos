@@ -8,6 +8,11 @@
 <link rel="stylesheet" href="vendor/css/game.css">
 </head>
 <body oncontextmenu="return false">
+<div id="house-boot" role="status">
+  <div class="house-boot-mark" aria-hidden="true"></div>
+  <p>The house is assembling.</p>
+  <p class="sub">A short walk. The file will keep the room you reach.</p>
+</div>
 <div id="return"></div>
 
 <div id="the_game"></div>
@@ -58,9 +63,9 @@
 <script src="vendor/js/min/scenes-min.js"></script>
 <script src="vendor/js/min/npcs-min.js"></script>
 <script src="vendor/js/min/game-min.js"></script>
-<script src="images.js"></script>
-<script src="sounds.js"></script>
-<script src="rooms.js"></script>
-<script src="app.js"></script>
+<script src="images.js" defer></script>
+<script src="sounds.js" defer></script>
+<script src="rooms.js" defer></script>
+<script src="app.js" defer></script>
 </body>
 </html>
