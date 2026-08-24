@@ -1,0 +1,51 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: #0b1220; color: #e8eef8;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  display: flex; flex-direction: column;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 10px calc(8px + env(safe-area-inset-bottom, 0px));
+}
+#shell { flex: 1; min-height: 0; max-width: 1200px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; }
+#hud { display: flex; align-items: baseline; gap: 10px; }
+#brand { font-size: 18px; font-weight: 700; }
+#which { margin-left: auto; font-size: 13px; color: #8ab4d4; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions button, #leaveBtn {
+  font: inherit; font-size: 15px; font-weight: 700; padding: 8px 14px; min-height: 40px;
+  border: 1px solid #2a3a50; background: #182030; color: #e8eef8; border-radius: 6px; cursor: pointer;
+}
+#shareBtn { background: #ff5b87; color: #fff; border-color: #ff7aa0; }
+body.friend #shareBtn { display: none; }
+#friend-bar { background: #182030; border: 1px solid #2a3a50; border-radius: 8px; padding: 10px 12px 8px; }
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+#friend-hint b { color: #ffd25a; }
+#friend-scores { list-style: none; margin: 0 0 8px; padding: 0; }
+#friend-scores li { display: flex; justify-content: space-between; padding: 4px 0; border-top: 1px solid #243044; }
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .me .name { color: #ffd25a; }
+.friend-actions { display: flex; justify-content: flex-end; }
+#split { flex: 1; min-height: 0; display: flex; gap: 8px; }
+#src {
+  flex: 1; min-width: 0; resize: none;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #0c121c; color: #d7e6f5; border: 1px solid #2a3a50; border-radius: 8px; padding: 10px;
+}
+#preview {
+  flex: 1; min-width: 0; overflow: auto; background: #0c121c;
+  border: 1px solid #2a3a50; border-radius: 8px; padding: 10px;
+}
+#view svg { max-width: 100%; height: auto; }
+#err { margin: 0 0 8px; color: #ff8a8a; font-size: 13px; white-space: pre-wrap; }
+#err[hidden] { display: none; }
+#how, .foot { margin: 0; font-size: 13px; line-height: 1.4; color: #8ab4d4; }
+.foot { opacity: 0.85; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+@media (max-width: 700px) {
+  #split { flex-direction: column; }
+  #src { min-height: 140px; flex: 0 0 auto; }
+}
