@@ -8,18 +8,30 @@
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>Metronome</h1>
-    <p class="lead">A click that keeps time. No microphone. Nothing is uploaded.</p>
-  </header>
+  <div class="pyramid" id="pyramid" aria-hidden="true">
+    <div class="py-body">
+      <div class="py-window">
+        <div class="py-arm" id="pendArm"><i class="py-bob"></i></div>
+      </div>
+    </div>
+    <div class="py-base"></div>
+  </div>
 
   <div class="tempo-row">
-    <span class="bpm" id="bpm">120</span>
-    <span class="unit">BPM</span>
+    <button type="button" id="tempoDown" class="step" aria-label="Slower">−</button>
+    <div class="tempo-read">
+      <div class="tempo-num">
+        <span class="bpm" id="bpm">120</span>
+        <span class="unit">BPM</span>
+      </div>
+      <div class="mark" id="mark">Allegro</div>
+    </div>
+    <button type="button" id="tempoUp" class="step" aria-label="Faster">+</button>
   </div>
-  <label class="num">Tempo
+  <label class="num host-only">Tempo
     <input type="range" id="tempo" min="30" max="240" step="1" value="120">
   </label>
+  <div class="marks host-only" id="marks" role="group" aria-label="Tempo marks"></div>
 
   <div id="beats" class="beats" aria-hidden="true"></div>
 
@@ -28,12 +40,32 @@
     <button type="button" id="tapBtn" class="ghost">Tap tempo</button>
   </div>
 
-  <fieldset>
+  <fieldset class="host-only">
     <legend>Signature</legend>
-    <label class="radio"><input type="radio" name="sig" value="2/4"> 2/4</label>
-    <label class="radio"><input type="radio" name="sig" value="3/4"> 3/4</label>
-    <label class="radio"><input type="radio" name="sig" value="4/4" checked> 4/4</label>
-    <label class="radio"><input type="radio" name="sig" value="6/8"> 6/8</label>
+    <div class="chips" id="sigs">
+      <button type="button" data-sig="2/4">2/4</button>
+      <button type="button" data-sig="3/4">3/4</button>
+      <button type="button" data-sig="4/4" class="on">4/4</button>
+      <button type="button" data-sig="6/8">6/8</button>
+    </div>
+  </fieldset>
+
+  <fieldset class="host-only">
+    <legend>Subdivision</legend>
+    <div class="chips" id="subs">
+      <button type="button" data-sub="beat" class="on">Beat</button>
+      <button type="button" data-sub="8th">8ths</button>
+      <button type="button" data-sub="trip">Triplets</button>
+      <button type="button" data-sub="16th">16ths</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Sound</legend>
+    <div class="chips" id="sounds">
+      <button type="button" data-sound="click" class="on">Click</button>
+      <button type="button" data-sound="beep">Beep</button>
+    </div>
   </fieldset>
 
   <label class="num">Volume
