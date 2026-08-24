@@ -2793,6 +2793,54 @@
       "sha256": "5079ea5f49d31e9ee8ba96b87d45009babef4698a0c86124d572c4ac1cbd8ffb"
     },
     {
+      "slug": "pacman",
+      "appId": "pacman",
+      "name": "Pac-Man",
+      "shortName": "Pac-Man",
+      "version": "1.0.0",
+      "tagline": "Twelve mazes, four ghosts, a pad for your thumb. Scores on the cabinet.",
+      "author": {
+        "name": "Haole Zheng",
+        "url": "https://github.com/mumuy/pacman"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Pacman",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "pacman",
+        "arcade",
+        "maze",
+        "retro",
+        "offline"
+      ],
+      "accent": [
+        255,
+        230,
+        0
+      ],
+      "cover": "/apps/pacman/cover.jpg",
+      "bytes": 170163,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "5dfc31f028d7b60f945da81265e25229eba067599d1c076c00cefb292574dfa2"
+    },
+    {
       "slug": "paint-board",
       "appId": "paint-board",
       "name": "Paint Board",

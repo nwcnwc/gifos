@@ -1,0 +1,14 @@
+mumuy/pacman
+https://github.com/mumuy/pacman
+commit: 8a96194f7cf0102db2d7f0e69450166beb1d7116
+MIT, Copyright (c) 2016 Haole Zheng
+
+vendor/game.js is the original static/script/game.js (small canvas engine).
+vendor/index.js is static/script/index.js with three GifOS patches:
+  - drop FontFace load of PressStart2P.ttf (sandbox has no relative fetch)
+  - canvas text uses monospace instead of that font
+  - drop window.open on the copyright mark
+  - expose window.Pacman {score, life, game} and call game.init() immediately
+
+The 12 mazes, ghost AI, pellets, and scoring are unchanged.
+The PressStart2P.ttf (OFL) is not shipped — nothing is fetched.

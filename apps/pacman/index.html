@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Pac-Man</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="hi">HI 0</div>
+    <div id="status">Arrows or the pad. Space pauses.</div>
+  </header>
+  <div id="stage">
+    <canvas id="canvas" width="960" height="640">Canvas is required.</canvas>
+  </div>
+  <div id="roster" hidden></div>
+  <div id="touch" hidden>
+    <div class="pad">
+      <button type="button" class="gap"></button>
+      <button type="button" data-key="38" aria-label="Up">▲</button>
+      <button type="button" class="gap"></button>
+      <button type="button" data-key="37" aria-label="Left">◀</button>
+      <button type="button" data-key="32" class="pause" aria-label="Pause">PAUSE</button>
+      <button type="button" data-key="39" aria-label="Right">▶</button>
+      <button type="button" class="gap"></button>
+      <button type="button" data-key="40" aria-label="Down">▼</button>
+      <button type="button" class="gap"></button>
+    </div>
+  </div>
+</div>
+<script src="vendor/game.js"></script>
+<script src="vendor/index.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>
