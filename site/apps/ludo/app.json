@@ -1,0 +1,58 @@
+{
+  "catalog": "1.0",
+  "slug": "ludo",
+  "appId": "ludo",
+  "name": "Ludo",
+  "shortName": "Ludo",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Four seats, one invite, no lobby.",
+  "description": "Send the invite. The people who open it sit Red, Green, Yellow, and Blue. There is no account, no lobby code, and no game server. The room is the link.\n\nEach colour has four tokens. Roll a six to leave the yard. Race them clockwise around the board and up your own home stretch. Land on someone who is not on a start square and they go back to the yard. You stay. A six is another roll, unless you throw three in a row. An exact count takes a token home. First to get all four home wins.\n\nOn your own, pass the phone — two, three, or four colours, all on this device. A game in progress lives in the file.\n\nAn unofficial port of Ludo by chukwumaijem. The original is a desktop app with a lobby. This copy is the same race without the lobby.",
+  "author": {
+    "name": "chukwumaijem",
+    "url": "https://github.com/chukwumaijem/ludo-game"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "ludo",
+    "board",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/ludo",
+  "accent": [
+    42,
+    138,
+    74
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/ludo/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/ludo/ludo.gif",
+  "bytes": 187474,
+  "download": 0,
+  "provides": null,
+  "sha256": "0ef78fb3eab9e9b9abfd421f937921bad120b80d2bd37de7016400f4fc6cca4f",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Ludo",
+    "url": "https://github.com/chukwumaijem/ludo-game",
+    "blessed": false
+  }
+}

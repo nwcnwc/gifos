@@ -1,0 +1,12 @@
+chukwumaijem/ludo-game
+https://github.com/chukwumaijem/ludo-game
+commit:  b8cff73bb60b3320eeaa798ba60c997dd817d13e
+license: MIT, Copyright (c) 2019 Chukwuma Ezumezu (COPYING-ludo.txt)
+
+Upstream is a React + Electron desktop Ludo with a lobby. GifOS cannot
+inline that stack, so this directory is a classic-script rewrite of the
+rules (six to leave the yard, 56 steps home, capture sends the other
+token back, extra turn on a six). The board is generic Ludo — not a
+branded product. Invite is the four seats; there is no lobby.
+
+The notice travels INSIDE the GIF as well as beside it here.
