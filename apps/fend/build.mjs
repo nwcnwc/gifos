@@ -94,6 +94,18 @@ if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'l
 if (!files['app.js'].includes('initSync') || !files['app.js'].includes('FEND_WASM_B64')) {
   throw new Error('app.js must instantiate wasm from bytes');
 }
+if (!files['app.js'].includes('The calculator engine did not start on this device.')) {
+  throw new Error('WASM miss must be one user-facing sentence');
+}
+if (!files['app.js'].includes('out.message') && !files['app.js'].includes('answerOf')) {
+  throw new Error('errors must surface the engine message');
+}
+if (!html.includes('id="pad"') || !html.includes('data-token="ft"') || !html.includes('inputmode="none"')) {
+  throw new Error('phone keypad (pad + unit chips + inputmode none) required');
+}
+if (!files['style.css'].includes('max-width: 640px') || !files['style.css'].includes('.pad { display: grid; }')) {
+  throw new Error('keypad must show on a phone-width screen');
+}
 if (!files['vendor/fend_wasm.js'].includes('window.Fend') && !files['vendor/fend_wasm.js'].includes('root.Fend')) {
   throw new Error('glue must expose Fend');
 }

@@ -13,11 +13,50 @@
     <button type="button" id="clear">Clear pad</button>
   </header>
   <p class="lead">Units, fractions, dice. Try <code>1 ft to cm</code>. The pad stays in this file.</p>
-  <pre id="log" class="log" aria-live="polite"></pre>
+  <div id="log" class="log" aria-live="polite"></div>
   <form id="form" class="prompt">
-    <span class="gt">&gt;</span>
-    <input id="input" type="text" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="1 ft to cm">
+    <span class="gt" aria-hidden="true">&gt;</span>
+    <input id="input" type="text" autocomplete="off" autocorrect="off" spellcheck="false"
+           enterkeyhint="go" inputmode="none" placeholder="1 ft to cm" aria-label="Expression">
+    <button type="submit" class="go" id="go">Enter</button>
   </form>
+  <div id="chips" class="chips" aria-label="Units and words">
+    <button type="button" data-token="ft" data-kind="unit">ft</button>
+    <button type="button" data-token="cm" data-kind="unit">cm</button>
+    <button type="button" data-token="kg" data-kind="unit">kg</button>
+    <button type="button" data-token="lb" data-kind="unit">lb</button>
+    <button type="button" data-token="in" data-kind="unit">in</button>
+    <button type="button" data-token="m" data-kind="unit">m</button>
+    <button type="button" data-token="C" data-kind="unit">°C</button>
+    <button type="button" data-token="F" data-kind="unit">°F</button>
+    <button type="button" data-token="to" data-kind="word">to</button>
+    <button type="button" data-token="roll" data-kind="word">roll</button>
+    <button type="button" data-token="sqrt(" data-kind="key">√</button>
+    <button type="button" data-token="pi" data-kind="key">π</button>
+    <button type="button" id="abc" data-token="abc" data-kind="abc">abc</button>
+  </div>
+  <div id="pad" class="pad" aria-label="Keypad">
+    <button type="button" data-token="7">7</button>
+    <button type="button" data-token="8">8</button>
+    <button type="button" data-token="9">9</button>
+    <button type="button" data-token="⌫" data-kind="bksp" class="muted">⌫</button>
+    <button type="button" data-token="4">4</button>
+    <button type="button" data-token="5">5</button>
+    <button type="button" data-token="6">6</button>
+    <button type="button" data-token="/" class="op">÷</button>
+    <button type="button" data-token="1">1</button>
+    <button type="button" data-token="2">2</button>
+    <button type="button" data-token="3">3</button>
+    <button type="button" data-token="*" class="op">×</button>
+    <button type="button" data-token="0">0</button>
+    <button type="button" data-token=".">.</button>
+    <button type="button" data-token="-">−</button>
+    <button type="button" data-token="+" class="op">+</button>
+    <button type="button" data-token="(">(</button>
+    <button type="button" data-token=")">)</button>
+    <button type="button" data-token="spc" data-kind="spc" class="muted">␣</button>
+    <button type="button" data-token="=" data-kind="go" class="go-key">↵</button>
+  </div>
   <p id="status" class="status"></p>
 </div>
 <script src="fend-wasm.js"></script>

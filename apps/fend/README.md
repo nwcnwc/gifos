@@ -10,7 +10,7 @@ from bytes (`capabilities.wasm`). Glue converted from ESM to a classic IIFE;
 ```
 index.html
 style.css
-app.js                 REPL + private last pad
+app.js                 REPL + private last pad + phone keypad
 fend-wasm.js           generated: window.FEND_WASM_B64
 vendor/fend_wasm.js    wasm-bindgen glue, patched
 vendor/fend_wasm_bg.wasm
@@ -23,7 +23,8 @@ vendor/fend_wasm_bg.wasm
 | `db` | Last pad in a `private` collection. |
 | `wasm` | fend engine compiled to WebAssembly, from bytes. |
 
-`minBuild` is **947** (wasm is older than the store).
+`minBuild` is **947** (wasm is older than the store). No network path: currency
+conversions fail with the engine's own "not available" message.
 
 ```bash
 node apps/fend/build.mjs
