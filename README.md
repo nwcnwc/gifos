@@ -4,7 +4,7 @@
 
 > One HTML shell. A desktop of GIFs. Every app is a file you own — and a whole computer is one GIF.
 
-🌐 **Live at [gifos.app](https://gifos.app)** · relay at `relay.gifos.app` · each digit subdomain (`0.gifos.app` … `9.gifos.app`) is a separate computer
+🌐 **Live at [gifos.app](https://gifos.app)** · relay at `relay.gifos.app` · each themed subdomain (`0.gifos.app` … `9.gifos.app`, plus named ones like `imagine.gifos.app`) is a separate computer
 
 ## What is GifOS?
 
@@ -28,13 +28,13 @@ install and no store. See [Ship Your App by Sending a Link](#ship-your-app-by-se
 - **Drop any file** onto the Home Screen — it becomes an icon. GIFs animate right in the icon.
 - **Folders, drag-to-arrange (grid snap), rename, resize icons** — works with touch too.
 - **Trash** — deletes are recoverable until you empty it.
-- **System bar** — the GifOS menu (About, whole-Home-Screen Backup/Restore, Empty Trash, Settings, Reset) and an ＋ Add button (files, folders, paste-an-AI-app, zip import). Persistent storage is requested automatically; usage details live under Settings → Advanced.
+- **System bar** — the GifOS menu (About, App Store, Arrange icons, whole-Home-Screen Backup/Restore, Empty Trash, Settings — erasing the computer lives deep in Settings → Advanced, on purpose), an Invites button, and an ＋ Add button (the App Store, files, folders, paste-an-AI-app, add-by-URL, zip import). Persistent storage is requested automatically; usage details live under Settings → Advanced.
 - **Right-click any icon** → Open, **Download** (snapshot the GIF — with saved state folded in — without launching it), Rename, resize, Trash.
 - **Cross-tab live sync** — two tabs of the same desktop stay identical in real time.
 
-Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four, Minesweeper, Chess Tournament with time controls), **Studio** (Paint), **Tools** (Notes, Calculator, Timer & Stopwatch, Fortune), **Social** (Guestbook, Chat), and **IRL Games** — party games for game night where everyone joins from their own phone (Fake Facts, One Clue, Same Brain, One Night Wolves) with pass-the-phone versions in a **Single Phone** subfolder (Odd Word Out, Catch the Spy, Tilt, The Dial, Party Roulette) — plus **Welcome** and **Meeting** right on the Home Screen. Every icon is a genuine App GIF with animated artwork on a transparent background, drawn in the computer's **icon pack**.
+Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four, Minesweeper, Chess Tournament with time controls, Ping Pong), **Studio** (Paint), **Tools** (Notes, Calculator, Stopwatch, Fortune, Bible Browser, Speech Coach, Ask AI, Reader), **Social** (Guestbook, Chat), and **IRL Games** — party games for game night where everyone joins from their own phone (Fake Facts, One Clue, Same Brain, One Night Wolves) with pass-the-phone versions in a **Single Phone** subfolder (Odd Word Out, Catch the Spy, Tilt, The Dial, Party Roulette) — plus **Welcome**, **Camera**, **My Media**, **Meeting**, **Broadcast** and the **App Store** right on the Home Screen. Every icon is a genuine App GIF with animated artwork on a transparent background, drawn in the computer's **icon pack**.
 
-**Eleven computers, eleven worlds.** gifos.app ships **Aurora** — holographic glass, the flagship. Each numbered subdomain is its own isolated computer (separate origin, separate IndexedDB) with its own look: **0 Terminal Zero** (phosphor CRT, for the terminal people) · **1 Letterpress** (engraved paper, for people who want a calm serious tool) · **2 Sticker Meadow** (the hand-drawn kawaii original — the kids' computer) · **3 Toybox** (glossy pastel squish) · **4 Stadium** (varsity night game) · **5 Countdown** (chrome-and-ember space age) · **6 Watercolor** (loose ink over wet paint, for artists & dreamers) · **7 Lucky Sevens** (neon glitch, buzzing signs) · **8 8-Bit** (true pixel art) · **9 Zen Garden** (sumi-e ink wash). Icon art is baked into each app GIF at seed time, so an app stolen from a numbered computer carries its birthplace's art forever. Themes live in [`site/themes/`](site/themes): the default is the top-level folder, and each computer's overrides go in a `themes/<label>/` subfolder named after its subdomain (`themes/0`, `themes/neon`) — reskin one by editing its folder.
+**Fourteen computers, fourteen worlds.** gifos.app ships **Aurora** — holographic glass, the flagship. Each numbered subdomain is its own isolated computer (separate origin, separate IndexedDB) with its own look: **0 Terminal Zero** (phosphor CRT, for the terminal people) · **1 Letterpress** (engraved paper, for people who want a calm serious tool) · **2 Sticker Meadow** (the hand-drawn kawaii original — the kids' computer) · **3 Toybox** (glossy pastel squish) · **4 Stadium** (varsity night game) · **5 Countdown** (chrome-and-ember space age) · **6 Watercolor** (loose ink over wet paint, for artists & dreamers) · **7 Lucky Sevens** (neon glitch, buzzing signs) · **8 8-Bit** (true pixel art) · **9 Zen Garden** (sumi-e ink wash) — plus the named computers **Imagine**, **David Welk** and **Orrery**. Icon art is baked into each app GIF at seed time, so an app stolen from a numbered computer carries its birthplace's art forever. Themes live in [`site/themes/`](site/themes): the default is the top-level folder, and each computer's overrides go in a `themes/<label>/` subfolder named after its subdomain (`themes/0`, `themes/neon`) — reskin one by editing its folder.
 
 ## How an App GIF Runs
 
@@ -49,7 +49,7 @@ Default apps come organized in folders — **Games** (Tic-Tac-Toe, Connect Four,
 
 **Or let your AI do the whole thing.** Point any code-capable AI (Claude, etc.) at [`gifos.app/llms.txt`](site/llms.txt) and just say *"build me a habit tracker for GifOS"* — the guide teaches it to write the app, design a pixel-art animated icon, and pack it all into a **finished `.gif` file** with a short Python recipe, which it attaches for you to drop on your Home Screen. AIs that can't run code produce paste-into-＋Add HTML instead. No connector, no server, nothing to sign up for — the format is a public spec.
 
-**Mod anyone's app — encouraged.** Apps are files, and files get remixed. Hand any GifOS app GIF to an AI — *"add a dark mode"*, *"make the buttons bigger"*, *"turn this counter into a tracker"* — and get a modified `.gif` back: the `llms.txt` recipe opens everything inside, splices the changes back into the **same GIF**, so the animation survives byte-for-byte and saved data rides along. See an app you like in a friend's session? **Steal App** drops a fresh copy into your *Stolen Apps* treasure chest to hack on. A modified app ships unsigned — a remix is a new work, and the modder can sign their version.
+**Mod anyone's app — encouraged.** Apps are files, and files get remixed. Hand any GifOS app GIF to an AI — *"add a dark mode"*, *"make the buttons bigger"*, *"turn this counter into a tracker"* — and get a modified `.gif` back: the `llms.txt` recipe opens everything inside, splices the changes back into the **same GIF**, so the animation survives byte-for-byte and saved data rides along. See an app you like in a friend's session? **Steal** drops a fresh copy into your *Stolen Apps* treasure chest to hack on. A modified app ships unsigned — a remix is a new work, and the modder can sign their version.
 
 ## Ship Your App by Sending a Link
 
@@ -114,12 +114,12 @@ shown to every GifOS user with GitHub as the only backend.
 
 Press **Invite** in a running app: your browser becomes the host and the tab shows a share link. Friends open the link, receive the app GIF, and join your session — moves, messages, and scores attributed to each player's **screen name**.
 
-- **P2P-first.** Traffic upgrades to a direct, DTLS-encrypted **WebRTC DataChannel** (~80–90% of networks); the relay stays connected as automatic fallback. The status bar shows *P2P direct* or *Via relay*.
+- **P2P-first, P2P-only for state.** Traffic runs over direct, DTLS-encrypted **WebRTC DataChannels** (with a friend's browser as the bridge when a pair can't connect); the relay is a greeter + door that introduces browsers and carries no app state.
 - **State lives with the icon.** Close the host tab and clients are locked out; reopen the icon and the **same share link resumes**.
 - **Your invite links are yours by default.** An app invite is an **owned** link: only your copy can host it, because holding the host slot takes a secret your app generated and keeps to itself — never in the link, never shown to you, never on any server. The link carries only the secret's *verifier* (a hash), which lets the relay recognize the real host and admit guests **without letting any of them take over or impersonate you**. A signed app's link reads `/join/<app-name>/…`; an unsigned one reads `/join/<app-name>-anon/…` — same ownership, the `-anon` only flags that nobody vouched for who built it.
 - **…or hand the room to everyone.** Toggle **"Let a friend keep it going"** at Invite and you mint the opposite on purpose: an **anyone-owns**, self-healing link — no secret, no owner, a *dotless* id. Anyone holding it can host, and if you drop off, a still-connected friend's browser takes over automatically so the session never dies. You're trading the ownership guarantee for a room that outlives any one host. It's a deliberate, labeled choice, never the default — and the same shape a plain meeting link has.
-- **Failover (anyone-owns links only).** On a self-healing link, clients mirror the host's state; if the host stays gone (~25s), the freshest mirror **takes over automatically** and the same link keeps working — no clicks. An owned link has exactly one host — yours — by design, so there's nothing to take over.
-- **Meeting** (front and center on the Home Screen) is strictly P2P mesh with **no size limit** — two people or two million, it runs the same. The relay is only a **zero-knowledge greeter** that introduces browsers; its **bandwidth guard refuses to carry media**. It scales by folding the crowd into itself (the **stadium** model): you're directly wired only to the handful in your **row**, and the rest of the room composites into **Section** and **Stadium** tiers, so your phone only ever carries its own corner. Quality auto-steps (720p → 480p → 360p → 240p) within a tier as neighbours join and back up as they leave. Audio-only is fine — the camera is always optional. How it all fits together: [docs/meeting.md](docs/meeting.md).
+- **Failover (anyone-owns links only).** On a self-healing link, clients mirror the host's state; if the host stays confirmed-gone (~60s), every member computes the **same successor** (deterministic — lowest present peer id), which adopts the app from its verified mirror and the same link keeps working — no clicks. An owned link has exactly one host — yours — by design, so there's nothing to take over.
+- **Meeting** (front and center on the Home Screen) is strictly P2P mesh with **no size limit** — two people or two million, it runs the same. The relay is only a **zero-knowledge greeter** that introduces browsers; its **bandwidth guard refuses to carry media**. It scales by folding the crowd into itself (the **stadium** model): you're directly wired only to the handful in your **row**, and the rest of the room composites into the **Stadium** tier, so your phone only ever carries its own corner. Quality auto-steps (720p → 480p → 360p → 240p) within a tier as neighbours join and back up as they leave. Audio-only is fine — the camera is always optional. How it all fits together: [docs/meeting.md](docs/meeting.md).
 - **Run an app inside a meeting.** Press **Run app** and everyone on the meeting shares one live app on stage — same state, same moves, exactly like joining an app by link, now with voice, video and recording around it. Two doors, one room: start a meeting and load an app, or open an app and hit **Meeting** in its tab to turn it into one. The app rides the room's own mesh, owner-signed (its ad rides the status heartbeat, so late joiners auto-mount); the app never touches the camera, which stays with the trusted room page.
 - **A front door, not a cold plunge.** Opening Meeting no longer drops you straight into a random room with the camera already on — it opens a **lobby** that asks what you came to do: **start a meeting** (open room, random id), **start a room you run** (pick a name and admin password right there), **join a link** (paste a full invite URL *or* just a meeting id), or reopen a **recent** meeting — most-recent-first, with the ones you keep coming back to kept as ★ bookmarks. The camera stays off until you choose, so there's no light and no permission prompt just to read the menu. A real invite link (or `/meet/<room>`) skips the lobby and takes you straight in — the link already says why you came.
 - **A meeting is a permanent, host-less room.** The room IS its URL: nobody owns it, the creator leaving changes nothing, an emptied room revives on the next join — a meeting link works forever. Sockets self-heal, broken pairs re-offer with ICE restarts, and a locked phone keeps its tile through a grace window.
@@ -158,7 +158,7 @@ There's no switcher UI and no setup — just type a digit in front of the domain
 
 Move things between computers the GifOS way: snapshot an app (or back up a whole desktop) to a GIF on one, drop the GIF on another. Multiplayer works from any computer — share links carry everything a friend needs regardless of which number you're on.
 
-Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cloudflare Worker ([`mirror/`](mirror)) re-serves the same site on the theme subdomains via an **explicit allow-list of routes** (the ten digits today; named ones as themes ship) — never a wildcard, so traffic to any un-listed subdomain never invokes (or bills) the Worker.
+Under the hood: GitHub Pages serves only the apex domain, so a tiny stateless Cloudflare Worker ([`mirror/`](mirror)) re-serves the same site on the theme subdomains via an **explicit allow-list of routes** (the ten digits plus each named computer) — never a wildcard, so traffic to any un-listed subdomain never invokes (or bills) the Worker.
 
 ## Every Computer Has Its Own Theme (and you can build one)
 
@@ -234,11 +234,9 @@ node test/mesh/mesh-harness.js            # meeting mesh: JS control plane vs th
 node test/browser/e2e.js                  # the desktop, sandbox, versioning (Chromium)
 node test/browser/e2e-fetch-bridge.js     # fetch bridge: redirect-bypass + first-party denylist
 node test/browser/e2e-store.js            # per-record store: orphan safety + delete/replace invariants
-node test/browser/e2e-relay.js            # multiplayer: P2P mesh (the relay is a greeter)
-node test/browser/e2e-failover.js         # host death → client takeover, same session
+node test/browser/e2e-knock-first.js      # multiplayer: the greeter door + P2P mesh
 node test/browser/e2e-video.js            # video rooms: mesh, permanence, moderation, passwords
 node test/browser/e2e-media-recovery.js   # denied camera re-asks on tap; black camera auto-restarts
-node test/browser/e2e-reconnect.js        # sockets die like on phones; sessions self-heal
 node test/browser/e2e-irl.js              # 4 phones play One Night Wolves over the real stack
 node test/browser/e2e-boot.js             # computer images: boot, isolate, reboot fresh
 ```
@@ -252,7 +250,7 @@ node test/browser/e2e-boot.js             # computer images: boot, isolate, rebo
 |-------|-------|----------------|
 | Desktop site | GitHub Pages → `gifos.app` | **Automatic** on every push to `main` ([`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes `site/` only) |
 | Relay | Cloudflare Worker → `relay.gifos.app` | **Manual**: `cd relay && npx wrangler deploy` |
-| Subdomain mirror | Cloudflare Worker → `0.gifos.app` … `9.gifos.app` | **Manual**: `cd mirror && npx wrangler deploy` |
+| Subdomain mirror | Cloudflare Worker → `0.gifos.app` … `9.gifos.app` + the named computers | **Manual**: `cd mirror && npx wrangler deploy` |
 | CORS proxy | Cloudflare Worker → `cors-proxy.gifos.app` | **Manual**: `cd cors-proxy && npx wrangler deploy` |
 
 The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wrangler deploy` from that directory.
@@ -261,7 +259,7 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 
 ## Project Status
 
-**Live and tested end-to-end** (170+ automated checks across ten suites):
+**Live and tested end-to-end** (250+ test scripts across twelve suite directories — unit, sim, relay, browser, drills, behavior and more):
 
 - ✅ Persistent desktop: folders, grid-snap drag (mouse + touch), Trash, rename, resize, cross-tab sync
 - ✅ GIF filesystem codec: deflate-compressed `GIFOS1.0` extension block inside a real animated GIF; `repack()` swaps data without touching artwork
@@ -291,9 +289,9 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 
 - [docs/meeting.md](docs/meeting.md) — the map: what a participant sees and does, and how the four planes below fit together.
 - [docs/healing-laws.md](docs/healing-laws.md) — the control plane: the greeter registry, seating, and the self-healing laws (canonical).
-- [docs/media-plane.md](docs/media-plane.md) — the four media channels (Row, Section, Stage, Stadium) and how composites fan up and down the tree.
+- [docs/media-plane.md](docs/media-plane.md) — the three media channels (Row, Stage, Stadium) and how composites fan up and down the tree.
 - [docs/meet-security.md](docs/meet-security.md) — the door lock, signed admin authority, and sponsor-forwarded signaling.
-- [docs/app-mesh.md](docs/app-mesh.md) — apps as mesh sessions: sharing app state over the same tree (design).
+- [docs/app-mesh.md](docs/app-mesh.md) — apps as mesh sessions: sharing app state over the same tree (shipped 2026-08-01).
 
 ## License
 
@@ -306,10 +304,13 @@ Bundled apps under `apps/<slug>/` carry their **own** licenses, which govern
 those subtrees and the App GIFs built from them (Apache-2.0 does not relicense
 them):
 
-- [`apps/fluence`](apps/fluence) — MIT
-- [`apps/chess-grandmaster`](apps/chess-grandmaster) — GPL-3.0-or-later (it
-  bundles the Stockfish engine; see
-  [`COPYING-stockfish.txt`](apps/chess-grandmaster/COPYING-stockfish.txt))
+every `apps/<slug>/listing.json` declares its license (mostly MIT and
+Apache-2.0 ports, credited to their upstream authors), and the copyleft ones
+vendor their notices — e.g.
+[`apps/chess-grandmaster`](apps/chess-grandmaster) — GPL-3.0-or-later
+(bundles Stockfish; see
+[`COPYING-stockfish.txt`](apps/chess-grandmaster/COPYING-stockfish.txt)) and
+[`apps/offline-tts`](apps/offline-tts) — GPL-3.0 (eSpeak).
 
 Contributions are accepted under Apache-2.0 (License §5, inbound = outbound).
 "GifOS" and its logo are trademarks and are not licensed by the code license
