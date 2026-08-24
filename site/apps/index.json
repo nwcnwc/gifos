@@ -1606,6 +1606,55 @@
       "sha256": "0070deee5a4f5a84fdfe0f95e5793d879886e69c2442cc7c290b133bd14979c2"
     },
     {
+      "slug": "fluid",
+      "appId": "fluid",
+      "name": "Fluid",
+      "shortName": "Fluid",
+      "version": "1.0",
+      "tagline": "Drag a finger through ink. The swirl stays on this device.",
+      "author": {
+        "name": "Pavel Dobryakov",
+        "url": "https://github.com/PavelDoGreat/WebGL-Fluid-Simulation"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "WebGL Fluid Simulation",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "fluid",
+        "ink",
+        "webgl",
+        "toy",
+        "touch",
+        "offline"
+      ],
+      "accent": [
+        0,
+        180,
+        220
+      ],
+      "cover": "/apps/fluid/cover.jpg",
+      "bytes": 236485,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "386ef81893b56b481586dda3074888e03c8b7a2ac7358124ca4f0563bb4b1e40"
+    },
+    {
       "slug": "fortune-sheet",
       "appId": "fortune-sheet",
       "name": "Fortune Sheet",
@@ -4846,6 +4895,55 @@
       "sha256": "4cf2a9098b60f7c342703d532d94ead0bb92ec0257135e8cbd50568d4dc29604"
     },
     {
+      "slug": "texgen",
+      "appId": "texgen",
+      "name": "TexGen",
+      "shortName": "TexGen",
+      "version": "1.0",
+      "tagline": "Procedural textures, live. Download a PNG. Nothing is uploaded.",
+      "author": {
+        "name": "mrdoob",
+        "url": "https://github.com/mrdoob/texgen.js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "texgen.js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "texture",
+        "procedural",
+        "png",
+        "noise",
+        "generator",
+        "offline"
+      ],
+      "accent": [
+        80,
+        180,
+        220
+      ],
+      "cover": "/apps/texgen/cover.jpg",
+      "bytes": 189996,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "00310b3781d975dccc434d1ebcc87317e0b82f7b89f88b4d5d74034b58b55903"
+    },
+    {
       "slug": "thinktank",
       "appId": "thinktank",
       "name": "Thinktank",
@@ -5027,6 +5125,53 @@
         "ts": "2026-08-24"
       },
       "sha256": "6ee6583369c6ae759322dd10c74090d41f5812393eb2f32b125e63c7ef756b41"
+    },
+    {
+      "slug": "tiny-yurts",
+      "appId": "tiny-yurts",
+      "name": "Tiny Yurts",
+      "shortName": "Yurts",
+      "version": "1.0.0",
+      "tagline": "Drag a path from the yurt to the farm. Keep the animals happy.",
+      "author": {
+        "name": "burntcustard",
+        "url": "https://github.com/burntcustard/tiny-yurts"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Tiny Yurts",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "puzzle",
+        "js13k",
+        "paths",
+        "offline"
+      ],
+      "accent": [
+        90,
+        160,
+        70
+      ],
+      "cover": "/apps/tiny-yurts/cover.jpg",
+      "bytes": 203111,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "413fe8ae890259199a6e5ce94d2f1672c52ba5c38c5792434f4b2869fd2e2a87"
     },
     {
       "slug": "tosios",

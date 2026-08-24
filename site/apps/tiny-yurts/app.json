@@ -1,0 +1,58 @@
+{
+  "catalog": "1.0",
+  "slug": "tiny-yurts",
+  "appId": "tiny-yurts",
+  "name": "Tiny Yurts",
+  "shortName": "Yurts",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Drag a path from the yurt to the farm. Keep the animals happy.",
+  "description": "A tiny path-drawing game in the spirit of Mini Motorways, small enough to have come 4th in js13k 2023. Your people live in yurts. Farms need tending. Draw a path with a finger or the left mouse button; right-click (or the red grid) rubs a path out. Score is settlers plus animals. You get a handful of path tiles each year — spend them well.\n\nPause to think; you can still draw. Fullscreen helps on a phone. Sound is a little plucked string, off if you like.\n\nYour best score lives in the file. Press Invite in the bar above and a friend sees the score you have reached — each of you plays your own valley.\n\nAn unofficial port of Tiny Yurts by burntcustard (John). The farms, the yurts, and the animals are his.",
+  "author": {
+    "name": "burntcustard",
+    "url": "https://github.com/burntcustard/tiny-yurts"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "puzzle",
+    "js13k",
+    "paths",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tiny-yurts",
+  "accent": [
+    90,
+    160,
+    70
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/tiny-yurts/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/tiny-yurts/tiny-yurts.gif",
+  "bytes": 203111,
+  "download": 0,
+  "provides": null,
+  "sha256": "413fe8ae890259199a6e5ce94d2f1672c52ba5c38c5792434f4b2869fd2e2a87",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Tiny Yurts",
+    "url": "https://github.com/burntcustard/tiny-yurts",
+    "blessed": false
+  }
+}

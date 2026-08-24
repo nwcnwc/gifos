@@ -1,0 +1,31 @@
+{
+  "tagline": "Drag a path from the yurt to the farm. Keep the animals happy.",
+  "description": "A tiny path-drawing game in the spirit of Mini Motorways, small enough to have come 4th in js13k 2023. Your people live in yurts. Farms need tending. Draw a path with a finger or the left mouse button; right-click (or the red grid) rubs a path out. Score is settlers plus animals. You get a handful of path tiles each year — spend them well.\n\nPause to think; you can still draw. Fullscreen helps on a phone. Sound is a little plucked string, off if you like.\n\nYour best score lives in the file. Press Invite in the bar above and a friend sees the score you have reached — each of you plays your own valley.\n\nAn unofficial port of Tiny Yurts by burntcustard (John). The farms, the yurts, and the animals are his.",
+  "author": {
+    "name": "burntcustard",
+    "url": "https://github.com/burntcustard/tiny-yurts"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Tiny Yurts",
+    "url": "https://github.com/burntcustard/tiny-yurts",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "puzzle",
+    "js13k",
+    "paths",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tiny-yurts",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

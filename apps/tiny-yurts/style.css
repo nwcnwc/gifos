@@ -1,0 +1,14 @@
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  overflow: hidden;
+  background: #6a9a4a;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+#roster {
+  position: fixed; right: .6rem; top: .6rem; z-index: 40;
+  background: rgba(20, 30, 16, .7); color: #e8f4dc;
+  border-radius: .5rem; padding: .35rem .55rem; font-size: .78rem;
+}
+#roster[hidden] { display: none; }
+#roster .me { font-weight: 650; }
