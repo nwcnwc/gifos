@@ -196,45 +196,48 @@ export function screenshotPng() {
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
 
-  fill(0, 0, W, H, 30, 30, 32);
-  drawText(put, 40, 28, 'JSON EDITOR', 6, 232, 232, 230);
-  drawText(put, 40, 82, 'TREE AND CODE. THE FILE IS THE DOCUMENT.', 3, 156, 156, 150);
+  fill(0, 0, W, H, 10, 10, 15);
+  drawText(put, 40, 24, 'JSON EDITOR', 6, 244, 241, 232);
+  drawText(put, 40, 78, 'TREE OR CODE. THE FILE IS THE DOCUMENT.', 3, 154, 148, 134);
 
-  fill(40, 130, 1160, 178, 45, 45, 48);
-  fill(52, 140, 160, 168, 255, 165, 0);
-  drawText(put, 64, 146, 'TREE', 2, 30, 30, 32);
-  fill(176, 140, 284, 168, 55, 55, 58);
-  drawText(put, 188, 146, 'CODE', 2, 200, 200, 196);
-  fill(300, 140, 408, 168, 55, 55, 58);
-  drawText(put, 312, 146, 'TEXT', 2, 200, 200, 196);
+  fill(40, 118, 220, 162, 255, 165, 0);
+  drawText(put, 72, 132, 'TREE', 3, 26, 18, 4);
+  fill(236, 118, 416, 162, 30, 30, 40);
+  drawText(put, 268, 132, 'CODE', 3, 200, 196, 188);
 
-  fill(40, 178, 600, 640, 37, 37, 38);
-  fill(600, 178, 1160, 640, 30, 30, 32);
-  fill(598, 178, 602, 640, 55, 55, 58);
+  fill(40, 178, 1160, 226, 22, 22, 30);
+  drawText(put, 56, 192, 'NEW   SAMPLE   FORMAT   COMPACT   REPAIR', 2, 200, 196, 188);
+
+  fill(40, 238, 620, 640, 18, 18, 26);
+  fill(628, 238, 1160, 640, 12, 12, 18);
+  fill(620, 238, 628, 640, 42, 42, 54);
 
   const tree = [
-    [64, 200, '{', 255, 165, 0],
-    [88, 248, 'GREETING : "HELLO"', 156, 220, 254],
-    [88, 296, 'ITEMS : [1, 2, 3]', 156, 220, 254],
-    [88, 344, 'NESTED', 156, 220, 254],
-    [120, 392, 'OK : TRUE', 206, 145, 120],
-    [64, 440, '}', 255, 165, 0]
+    [64, 258, '{', 255, 165, 0],
+    [96, 306, 'PROJECT : "NOTES"', 156, 220, 254],
+    [96, 354, 'OFFLINE : TRUE', 86, 156, 214],
+    [96, 402, 'MODES : ["TREE", "CODE"]', 156, 220, 254],
+    [96, 450, 'USER', 156, 220, 254],
+    [128, 498, 'ID : "A1"', 206, 145, 120],
+    [128, 546, 'ROLE : "EDITOR"', 206, 145, 120],
+    [64, 594, '}', 255, 165, 0]
   ];
   for (const [x, y, s, r, g, b] of tree) drawText(put, x, y, s, 3, r, g, b);
-  for (const y of [256, 304, 352]) fill(72, y, 80, y + 40, 70, 70, 74);
+  for (const y of [318, 366, 414, 462]) fill(76, y, 84, y + 36, 70, 70, 82);
 
   const code = [
-    [628, 200, '{', 255, 165, 0],
-    [652, 248, '"GREETING": "HELLO",', 206, 145, 120],
-    [652, 296, '"ITEMS": [1, 2, 3],', 156, 220, 254],
-    [652, 344, '"NESTED": {', 156, 220, 254],
-    [676, 392, '"OK": TRUE', 206, 145, 120],
-    [652, 440, '}', 255, 165, 0],
-    [628, 488, '}', 255, 165, 0]
+    [656, 258, '{', 255, 165, 0],
+    [680, 306, '"PROJECT": "NOTES",', 206, 145, 120],
+    [680, 354, '"OFFLINE": TRUE,', 86, 156, 214],
+    [680, 402, '"MODES": ["TREE", "CODE"],', 156, 220, 254],
+    [680, 450, '"USER": {', 156, 220, 254],
+    [704, 498, '"ID": "A1",', 206, 145, 120],
+    [704, 546, '"ROLE": "EDITOR"', 206, 145, 120],
+    [680, 594, '}', 255, 165, 0]
   ];
   for (const [x, y, s, r, g, b] of code) drawText(put, x, y, s, 3, r, g, b);
 
-  drawText(put, 40, 664, 'LAST DOCUMENT STAYS ON THIS DEVICE', 3, 156, 156, 150);
+  drawText(put, 40, 664, 'SAVED ON THIS DEVICE. NOTHING IS UPLOADED.', 3, 154, 148, 134);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

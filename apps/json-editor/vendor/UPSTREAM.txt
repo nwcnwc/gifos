@@ -11,4 +11,4 @@ Vendored from the published npm dist (not the repo workspace):
   sha256: 45c98bf0ee865dac9104d0bf659253b9d9c7ba2dd43e45f55544855750cfd01e
 
 The last document is saved privately. Their jsoneditoronline.org service is
-not wired. Invite is not wired in v1.
+not wired. A meeting can watch a read-only copy via Invite (OS chrome).
