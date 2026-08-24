@@ -3,12 +3,15 @@ https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
 MIT, Copyright (c) 2017 Pavel Dobryakov
 file: script.js (patched)
   original sha256: 291d86de38ea23b8fb63d1879afeea77e9a4556900bbd67e13bc1d5ea007ce4e
-  patched sha256:  fc68acb50a45f1121f360ca8bc826a5c48d6cddfad87d5abcbccbba98df786f0
+  patched sha256:  20a14f1537ec11d891cb1ef9f3ac7d17dbb255c1325623e4760c27a566cb1783
 Patches:
   - stub ga()
   - strip App Store / Play promo and social GUI buttons
   - inline LDR_LLL1_0.png as a data URL (createTextureAsync)
   - expose window.FluidConfig and window.FluidApply so settings can be saved
+  - if WebGL is missing, set window.FluidNoGL and skip shaders (honest black-screen)
+  - cap devicePixelRatio on phones; FluidFrame / FluidOnChange / FluidOnCapture hooks
+  - FluidGUI exposed so Back can close the panel
 file: dat.gui.min.js
 sha256: 27976ca8ac2e125de97163455131890e8686ed2afc2007cd5524080b7d53ef7b
 MIT, Copyright (c) 2013 dataarts / Google (dat.GUI)

@@ -21,7 +21,7 @@ build.mjs               packs the GIF into site/apps/fluid/fluid.gif
 
 | capability | why |
 |---|---|
-| `db` | Last quality/dye settings in a `private` collection. |
+| `db` | Last quality/dye settings and a still of the swirl in a `private` collection. |
 
 Needs nothing newer than the App Store itself, so `minBuild` is **947**.
 
