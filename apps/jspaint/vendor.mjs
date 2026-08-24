@@ -206,6 +206,27 @@ const PATCHES = [
     replace: () => 'const available_languages = ["en"];',
     why: 'localization JSON is not shipped; English is the language of this copy',
   },
+  // ONE tools array, shared across BOTH bundles. core.js and app.js each
+  // bundle their own copy of tools.js, but src/app-state.js (a classic script
+  // that runs between them) captures selected_tool via core's
+  // window.get_tool_by_id — core's pencil OBJECT. app.js's toolbox then hangs
+  // $button only on its OWN copy's tool objects, so the very first
+  // update_selected_tool() crashed on selected_tool.$button === undefined and
+  // aborted the rest of app.js's top level: blank screen, no UI. Sharing the
+  // array through window makes both bundles decorate the same objects, the
+  // way upstream's single module graph does.
+  {
+    file: 'src/tools.js',
+    find: /^const tools = \[\{/m,
+    replace: () => 'const tools_local = [{',
+    why: 'tools array is shared across the two bundles (1/2)',
+  },
+  {
+    file: 'src/tools.js',
+    find: /^tools\.forEach\(\(tool\) => \{/m,
+    replace: () => 'const tools = window.__gifos_tools || (window.__gifos_tools = tools_local);\ntools.forEach((tool) => {',
+    why: 'tools array is shared across the two bundles (2/2)',
+  },
   {
     file: 'src/msgbox.js',
     find: /const CHORD_WAV_URL = "audio\/chord\.wav";/,
@@ -416,7 +437,11 @@ const cssParts = [
   flattenCss('styles/layout.css'),
   flattenCss('lib/os-gui/build/layout.css'),
   flattenCss('lib/98.css/98.custom-build.css'),
-  flattenCss('styles/print.css'),
+  // Upstream links print.css with media="print". Flattened into the one
+  // stylesheet it MUST keep that guard: unguarded, its `display: none` on
+  // .menus/.window/.component-area and `* { background: transparent }` hide
+  // the entire UI on screen — white page, no menus, no toolbox.
+  '@media print {\n' + flattenCss('styles/print.css') + '\n}',
 ];
 const styleCss = cssParts.join('\n') + `
 html, body { height: 100%; margin: 0; overflow: hidden; }
