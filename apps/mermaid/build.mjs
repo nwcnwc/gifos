@@ -84,6 +84,12 @@ if (/<button\b[^>]*>\s*Invite\s*</i.test(html)) throw new Error('Invite is OS ch
 if (!files['mp.js'].includes('Invite') || !files['app.js'].includes("db('save')")) throw new Error('Invite/save');
 if (!files['COPYING-mermaid.txt'].includes('Knut Sveidqvist')) throw new Error('COPYING');
 if (!files['app.js'].includes('htmlLabels: false')) throw new Error('htmlLabels must be off');
+if (!files['app.js'].includes('tidyError') || !files['app.js'].includes("trim()")) {
+  throw new Error('empty/error handling missing');
+}
+if (!files['index.html'].includes('tabSrc') || !files['style.css'].includes('tab-pic')) {
+  throw new Error('phone recipe/picture tabs missing');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;

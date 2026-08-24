@@ -39,9 +39,23 @@ function nearest(pal, r, g, b) {
   }
   return bi;
 }
+function fillBox(rgba, x0, y0, x1, y1, col) {
+  x0 = x0 | 0; y0 = y0 | 0; x1 = x1 | 0; y1 = y1 | 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    if (x < 0 || y < 0 || x >= OUT || y >= OUT) continue;
+    for (let qy = 0; qy < SS; qy++) for (let qx = 0; qx < SS; qx++) {
+      const o = (((y * SS + qy) * RW) + (x * SS + qx)) * 4;
+      rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
+    }
+  }
+}
+function vbar(rgba, x, y0, y1, col) { fillBox(rgba, x, y0, x + 3, y1, col); }
+function hbar(rgba, x0, x1, y, col) { fillBox(rgba, x0, y, x1, y + 3, col); }
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const m = 8, rad = 22, t = f / FRAMES;
+  const m = 8, rad = 22;
+  const t = f / (FRAMES - 1);
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     if (!inCard(x, y, m, rad)) continue;
@@ -49,23 +63,21 @@ function frameIndices(pal, f) {
     const o = (py * RW + px) * 4;
     rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
   }
-  for (let i = 0; i < 70; i++) {
-    const ang = i * 2.399 + t * 1.4;
-    const dist = 8 + (i % 17) * 2.1 + Math.sin(t * 6.28 + i) * 4;
-    const cx = 64 + Math.cos(ang) * dist;
-    const cy = 64 + Math.sin(ang * 1.1) * dist * 0.85;
-    const col = COLS[i % COLS.length];
-    const s = 1 + (i % 3);
-    for (let sy = -s; sy <= s; sy++) for (let sx = -s; sx <= s; sx++) {
-      const x = cx + sx, y = cy + sy;
-      if (x < 0 || y < 0 || x >= OUT || y >= OUT) continue;
-      if (!inCard(x, y, m, rad)) continue;
-      for (let qy = 0; qy < SS; qy++) for (let qx = 0; qx < SS; qx++) {
-        const o = ((((y | 0) * SS + qy) * RW) + ((x | 0) * SS + qx)) * 4;
-        rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
-      }
-    }
-  }
+  const line = [200, 200, 210];
+  fillBox(rgba, 42, 22, 86, 44, CORAL);
+  fillBox(rgba, 22, 78, 58, 104, TEAL);
+  fillBox(rgba, 70, 78, 106, 104, GOLD);
+  vbar(rgba, 62, 44, 62, line);
+  hbar(rgba, 38, 88, 60, line);
+  vbar(rgba, 38, 62, 78, line);
+  vbar(rgba, 86, 62, 78, line);
+  const path = [];
+  for (let y = 44; y <= 60; y++) path.push([63, y]);
+  for (let x = 63; x >= 39; x--) path.push([x, 61]);
+  for (let y = 61; y <= 78; y++) path.push([39, y]);
+  const pi = Math.min(path.length - 1, Math.floor(t * (path.length - 1)));
+  const tok = path[pi];
+  fillBox(rgba, tok[0] - 3, tok[1] - 3, tok[0] + 4, tok[1] + 4, MINT);
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
     let r = 0, g = 0, b = 0, a = 0, nn = SS * SS;
@@ -131,6 +143,8 @@ const GLYPHS = {
   'Q': [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101],
   'Z': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
   ' ': [0, 0, 0, 0, 0, 0, 0],
+  '-': [0, 0, 0, 0b11111, 0, 0, 0],
+  '>': [0b00001, 0b00010, 0b00100, 0b01000, 0b00100, 0b00010, 0b00001],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -158,21 +172,28 @@ export function screenshotPng() {
     for (let y = Math.max(0, y0 | 0); y < Math.min(H, y1 | 0); y++)
       for (let x = Math.max(0, x0 | 0); x < Math.min(W, x1 | 0); x++) put(x, y, r, g, b);
   };
-  fill(0, 0, W, H, 32, 32, 32);
-  drawText(put, 48, 56, 'MERMAID', 6, 232, 238, 248);
-  drawText(put, 48, 120, 'DIAGRAM', 6, 255, 91, 135);
-  drawText(put, 48, 200, 'TEXT TO CHART', 3, 255, 210, 90);
-  drawText(put, 48, 280, 'LIVE PREVIEW', 3, 90, 220, 180);
-  drawText(put, 48, 360, 'FILE IS THE SAVE', 3, 232, 238, 248);
-  fill(720, 180, 940, 280, 60, 90, 160);
-  fill(560, 400, 780, 500, 60, 90, 160);
-  fill(880, 400, 1100, 500, 60, 90, 160);
-  fill(820, 280, 840, 400, 200, 200, 210);
-  fill(660, 380, 680, 400, 200, 200, 210);
-  fill(980, 380, 1000, 400, 200, 200, 210);
-  drawText(put, 760, 210, "START", 3, 255, 255, 255);
-  drawText(put, 600, 430, "LEFT", 3, 255, 255, 255);
-  drawText(put, 940, 430, "RIGHT", 3, 255, 255, 255);
+  fill(0, 0, W, H, 18, 22, 32);
+  fill(0, 0, 520, H, 12, 16, 24);
+  drawText(put, 36, 36, 'MERMAID', 5, 232, 238, 248);
+  drawText(put, 36, 90, 'TYPE A DIAGRAM', 3, 255, 91, 135);
+  drawText(put, 36, 140, 'SEE IT LIVE', 3, 90, 220, 180);
+  drawText(put, 36, 200, 'FLOWCHART TD', 2, 180, 190, 210);
+  drawText(put, 36, 240, 'A START  -->  B EDIT ME', 2, 210, 220, 235);
+  drawText(put, 36, 280, 'B YES  C NICE', 2, 210, 220, 235);
+  drawText(put, 36, 320, 'B NO   D TRY A SEQUENCE', 2, 210, 220, 235);
+  drawText(put, 36, 360, 'C --> E SAVED IN THIS FILE', 2, 210, 220, 235);
+  drawText(put, 36, 640, 'OFFLINE   FILE IS THE SAVE', 2, 140, 160, 180);
+
+  fill(700, 80, 1080, 200, 237, 106, 90);
+  fill(580, 430, 820, 560, 112, 193, 179);
+  fill(960, 430, 1160, 560, 255, 224, 102);
+  fill(880, 200, 900, 360, 200, 200, 210);
+  fill(680, 360, 700, 430, 200, 200, 210);
+  fill(1040, 360, 1060, 430, 200, 200, 210);
+  fill(700, 348, 1060, 366, 200, 200, 210);
+  drawText(put, 790, 120, 'START', 4, 255, 255, 255);
+  drawText(put, 630, 475, 'YES', 3, 12, 16, 24);
+  drawText(put, 1010, 475, 'NO', 3, 12, 16, 24);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

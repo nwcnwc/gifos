@@ -14,13 +14,27 @@
     </header>
     <div class="actions">
       <button type="button" id="shareBtn">Play together</button>
+      <label class="kind">
+        <span class="sr">Sample kind</span>
+        <select id="kind" aria-label="Sample kind">
+          <option value="flowchart">Flowchart</option>
+          <option value="sequence">Sequence</option>
+          <option value="class">Class</option>
+          <option value="pie">Pie</option>
+        </select>
+      </label>
       <button type="button" id="sampleBtn">Sample</button>
+      <button type="button" id="copyBtn">Copy SVG</button>
     </div>
     <div id="friend-bar" hidden>
       <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both edit the same diagram.</p>
       <p id="friend-status"></p>
       <ul id="friend-scores"></ul>
       <div class="friend-actions"><button type="button" id="leaveBtn">← Solo</button></div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tabSrc" class="on" aria-selected="true">Recipe</button>
+      <button type="button" role="tab" id="tabPic" aria-selected="false">Picture</button>
     </div>
     <div id="split">
       <label class="sr" for="src">Diagram text</label>
@@ -31,7 +45,7 @@
       </div>
     </div>
     <p id="how">Type a flowchart, sequence, or class diagram on the left. The picture updates as you type. The last diagram stays in this file.</p>
-    <p class="foot">Unofficial wrap of mermaid (the engine), not the SvelteKit live editor. </p>
+    <p class="foot">Unofficial wrap of mermaid (the engine), not the mermaid live editor website. </p>
   </div>
   <script src="vendor/mermaid.min.js"></script>
   <script src="app.js"></script>
