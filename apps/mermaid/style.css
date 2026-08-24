@@ -20,6 +20,18 @@ body {
 }
 #shareBtn { background: #ff5b87; color: #fff; border-color: #ff7aa0; }
 body.friend #shareBtn { display: none; }
+.kind select, #copyBtn {
+  font: inherit; font-size: 15px; font-weight: 700; padding: 8px 12px; min-height: 40px;
+  border: 1px solid #2a3a50; background: #182030; color: #e8eef8; border-radius: 6px;
+}
+.kind select { max-width: 46vw; }
+.tabs { display: none; gap: 6px; }
+.tabs button {
+  flex: 1; font: inherit; font-size: 15px; font-weight: 700; padding: 8px 12px; min-height: 40px;
+  border: 1px solid #2a3a50; background: #182030; color: #8ab4d4; border-radius: 6px;
+}
+.tabs button.on { background: #ff5b87; color: #fff; border-color: #ff7aa0; }
+.empty { margin: 24px 8px; color: #8ab4d4; font-size: 14px; line-height: 1.45; }
 #friend-bar { background: #182030; border: 1px solid #2a3a50; border-radius: 8px; padding: 10px 12px 8px; }
 #friend-bar[hidden] { display: none; }
 #friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
@@ -46,6 +58,11 @@ body.friend #shareBtn { display: none; }
 .foot { opacity: 0.85; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 @media (max-width: 700px) {
+  .tabs { display: flex; }
   #split { flex-direction: column; }
-  #src { min-height: 140px; flex: 0 0 auto; }
+  #src { min-height: 180px; flex: 1; }
+  body.tab-src #preview { display: none; }
+  body.tab-pic #src { display: none; }
+  body.tab-pic #preview { flex: 1; }
+  #how { display: none; }
 }
