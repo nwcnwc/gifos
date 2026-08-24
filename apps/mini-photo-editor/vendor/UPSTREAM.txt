@@ -1,0 +1,14 @@
+vendor/mini-photo.js is the GifOS classic-IIFE wrap of xdadda/mini-photo-editor's
+crop / rotate / filter loop. Upstream is mini-js + mini-gl (local file:
+packages, ESM). GifOS inlines classic scripts, so the jobs are re-hosted on
+a 2D canvas. MTX looks (polaroid, kodak, vintage, browni) match their
+_filters.js names.
+
+package: xdadda/mini-photo-editor
+url:     https://github.com/xdadda/mini-photo-editor
+commit:  475a0e9dcb5bb6925d9b7f3c522a1312aeefad3d (main)
+COPYING-mini-photo-editor.txt  MIT, Copyright (c) 2025 xdadda
+
+LUT PNG Instagram-style maps, heal brush, perspective, histogram and exif
+are not in this wrap. The photo stays on this device. Invite shares the
+recipe, not the picture.
