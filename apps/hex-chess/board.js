@@ -335,8 +335,12 @@
     return out;
   }
 
-  function outcome(pieces, turn) {
-    var probe = { pieces: pieces, turn: turn, ep: null, winner: null };
+  function outcome(pieces, turn, ep) {
+    /* The probe must carry the REAL en-passant target: with ep stripped, a
+       position whose only legal move is the ep capture counts as having no
+       moves at all — a false stalemate (scored as a WIN here, per Glinski),
+       or a false mate when ep is the only escape from check. */
+    var probe = { pieces: pieces, turn: turn, ep: ep || null, winner: null };
     var ms = legalMoves(probe);
     var check = inCheck(pieces, turn);
     if (ms.length) return { winner: null, check: check, result: '' };
@@ -373,7 +377,7 @@
     if (!found) return null;
     var u = applyUnsafe(s, found);
     var nextTurn = s.turn === WHITE ? BLACK : WHITE;
-    var end = outcome(u.pieces, nextTurn);
+    var end = outcome(u.pieces, nextTurn, u.ep);
     return {
       pieces: u.pieces,
       turn: end.winner ? s.turn : nextTurn,
