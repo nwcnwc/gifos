@@ -2927,20 +2927,56 @@
   // is only ever passed for a SOLO mount of MY OWN icon (run.html #id=): an app
   // I joined over somebody else's link is their mount, and their URL has no
   // business arming my copy. declaredLaunch() filters it against the manifest.
+  // A launch is never a blank pane: statusEl lives in .bar, which the solo
+  // chrome hides, so the ONLY place feedback is guaranteed visible is the
+  // mount itself. This splash paints immediately, names the app once its
+  // record lands, and is replaced the moment the sandbox iframe mounts
+  // (bootDecoded clears mountEl). Refusals land here too, or a locked app's
+  // "why" is invisible in a solo tab.
+  function launchSplash(mountEl) {
+    const wrap = document.createElement('div');
+    wrap.setAttribute('style',
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+      'height:100%;gap:10px;font:15px/1.5 system-ui,sans-serif;color:var(--muted,#8888aa);text-align:center;padding:0 16px');
+    const dot = document.createElement('div');
+    dot.setAttribute('style',
+      'width:10px;height:10px;border-radius:50%;background:var(--accent,#7b5cff);' +
+      'animation:gifos-launch-pulse 1.1s ease-in-out infinite');
+    if (!document.getElementById('gifos-launch-pulse')) {
+      const st = document.createElement('style');
+      st.id = 'gifos-launch-pulse';
+      st.textContent = '@keyframes gifos-launch-pulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.6);opacity:1}}';
+      document.head.appendChild(st);
+    }
+    const line = document.createElement('div');
+    line.textContent = 'Opening…';
+    wrap.appendChild(dot);
+    wrap.appendChild(line);
+    mountEl.innerHTML = '';
+    mountEl.appendChild(wrap);
+    return {
+      say: (m) => { if (wrap.parentNode) line.textContent = m; },
+      gone: () => !wrap.parentNode,
+    };
+  }
+
   function boot(mountEl, fileId, statusEl, launch) {
     const setStatus = (m) => { if (statusEl) statusEl.textContent = m; };
     const noop = { save: () => Promise.resolve(null), becomeHost: () => Promise.reject(new Error('nothing running')), help: () => '' };
     const lock = GifOS.lock;
+    const splash = launchSplash(mountEl);
+    const refuse = (m) => { setStatus(m); splash.say(m); return noop; };
     return Promise.all([store.getFile(fileId), store.allItems()]).then(([rec, all]) => {
-      if (!rec) { setStatus('File not found on this desktop.'); return noop; }
+      if (!rec) return refuse('File not found on this desktop.');
+      splash.say('Opening ' + String(rec.name || 'app').replace(/\.gif$/i, '') +
+        (rec.bytes && rec.bytes.length > 2097152 ? ' — unpacking ' + (rec.bytes.length / 1048576).toFixed(0) + ' MB…' : '…'));
       const item = lock ? lock.itemOfFile(all, fileId) : null;
       const lockKey = (lock && lock.session.get(fileId)) || null;
       const appBytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
       return Promise.all([gif.decode(appBytes), store.getState(fileId)]).then(([archive, st]) => {
         const locked = !!(lock && (lock.isLockedItem(item) || lock.isSealed(st)));
         if (locked && !lockKey) {
-          setStatus('This app is passkey-locked on this device. Unlock it with your passkey to open.');
-          return noop;
+          return refuse('This app is passkey-locked on this device. Unlock it with your passkey to open.');
         }
         const go = (arch) => {
           if (!lockKey) return bootDecoded(arch, appBytes, rec, null, null);
@@ -2955,7 +2991,7 @@
     });
 
     function bootDecoded(archive, appBytes, rec, lockKey, lockState) {
-      if (!archive) { setStatus('Not a GifOS app — nothing to run.'); return noop; }
+      if (!archive) return refuse('Not a GifOS app — nothing to run.');
       const files = archive.files;
       const manifest = gif.readManifest(archive) || { name: rec.name || 'App' };
       // System apps run as trusted first-party pages, not in the sandbox —

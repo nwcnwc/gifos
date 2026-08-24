@@ -12067,6 +12067,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     function setAppGif(bytes, name) {
       if (!bytes || !bytes.length) return;
       const img = document.getElementById('appgif');
+      // Display-only <img>: strip the packed filesystem (gifos-gif.js
+      // stripForDisplay — sanctioned for exactly this) so the app-bar icon
+      // blobs the animation, not a 20 MB archive the decoder must step over.
+      try { if (GifOS.gif && GifOS.gif.stripForDisplay) bytes = GifOS.gif.stripForDisplay(bytes); } catch (e) {}
       if (appGifUrl) { try { URL.revokeObjectURL(appGifUrl); } catch (e) {} }
       appGifUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
       img.src = appGifUrl; img.alt = name || 'App'; img.title = name || 'App';

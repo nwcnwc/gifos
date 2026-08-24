@@ -25,13 +25,24 @@
     }
     return out;
   }
+  // Decode via a 256-entry lookup, skipping non-alphabet bytes inline — the
+  // exact behavior of the old regex-strip, without its full-string copy or the
+  // 64-way indexOf per character. This runs on every app open over the whole
+  // payload (a 23 MB app is ~30 MB of base64), so it is decode's hot loop.
+  const B64LUT = (() => {
+    const t = new Int16Array(256).fill(-1);
+    for (let i = 0; i < B64.length; i++) t[B64.charCodeAt(i)] = i;
+    return t;
+  })();
   function b64decode(str) {
-    const clean = str.replace(/[^A-Za-z0-9+/]/g, '');
-    const len = Math.floor((clean.length * 3) / 4);
-    const out = new Uint8Array(len);
+    const n = str.length;
+    const out = new Uint8Array(Math.floor((n * 3) / 4));
     let p = 0, buf = 0, bits = 0;
-    for (let i = 0; i < clean.length; i++) {
-      buf = (buf << 6) | B64.indexOf(clean[i]);
+    for (let i = 0; i < n; i++) {
+      const c = str.charCodeAt(i);
+      const v = c < 256 ? B64LUT[c] : -1;
+      if (v < 0) continue; // whitespace, '=', or noise — never part of the data
+      buf = (buf << 6) | v;
       bits += 6;
       if (bits >= 8) { bits -= 8; out[p++] = (buf >> bits) & 0xff; }
     }
