@@ -1,0 +1,13 @@
+vendor/* is GENERATED. Do not edit it; run node apps/onoff/vendor.mjs.
+
+upstream: https://github.com/starzonmyarmz/js13k-2018
+commit:   cb1e2e4615af6195aeb0dade06c08738511dd3b6
+license:  MIT (COPYING.txt) — Daniel Marino and Brad Dunbar
+
+onoff.js is the ESM sources concatenated in dependency order with
+import/export stripped (classic IIFE). The URL custom-level loader is
+removed (about:srcdoc has no query). refs/ (font, sketch, m4a) are not copied.
+
+sha256:
+  onoff.js     c1ffdada645624d4a05964e3d32085689f5668c8828ea9557a8ed9533805f902
+  COPYING.txt  5d902754c43ae352f9d7a880736cae6173ab4f8a2510a858bec382c0be2d8f26

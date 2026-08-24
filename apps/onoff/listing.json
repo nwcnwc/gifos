@@ -1,0 +1,21 @@
+{
+  "tagline": "Twenty-five rooms. Flip the world. Don't touch the spikes.",
+  "description": "A little robot, two layers of platforms, and a button that swaps which one is solid. Walk, jump, toggle. Spikes kill you. The door at the other side is the level.\n\nTwenty-five hand-made rooms from the 2018 js13kGames jam. On a phone: left, right, jump, and ON/OFF under your thumbs. On a computer it is WASD or the arrows, space to flip.\n\nAn unofficial port of OnOff by Daniel Marino and Brad Dunbar, MIT-licensed. Close it, come back: how far you got is still in the file.",
+  "author": {
+    "name": "Daniel Marino and Brad Dunbar",
+    "url": "https://github.com/starzonmyarmz/js13k-2018"
+  },
+  "porter": { "name": "GifOS", "url": "https://gifos.app" },
+  "basedOn": {
+    "name": "OnOff",
+    "url": "https://github.com/starzonmyarmz/js13k-2018",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": ["Games"],
+  "tags": ["platformer", "js13k", "puzzle", "offline"],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/onoff",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

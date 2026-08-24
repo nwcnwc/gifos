@@ -3614,6 +3614,53 @@
       "sha256": "5079ea5f49d31e9ee8ba96b87d45009babef4698a0c86124d572c4ac1cbd8ffb"
     },
     {
+      "slug": "onoff",
+      "appId": "onoff",
+      "name": "OnOff",
+      "shortName": "OnOff",
+      "version": "1.0.0",
+      "tagline": "Twenty-five rooms. Flip the world. Don't touch the spikes.",
+      "author": {
+        "name": "Daniel Marino and Brad Dunbar",
+        "url": "https://github.com/starzonmyarmz/js13k-2018"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "OnOff",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "platformer",
+        "js13k",
+        "puzzle",
+        "offline"
+      ],
+      "accent": [
+        232,
+        232,
+        232
+      ],
+      "cover": "/apps/onoff/cover.jpg",
+      "bytes": 205572,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "c88a1d232261a432e49dbd6312a3296a4bfb6ed6d3d594d2b1402f17c20ce57b"
+    },
+    {
       "slug": "orca",
       "appId": "orca",
       "name": "Orca",
