@@ -88,6 +88,20 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     return s.style.display === 'none' && hd.style.display === 'none';
   }));
   check('grid is dark (no call layer yet)', await h.evaluate(() => !document.body.classList.contains('call-on')));
+  // THE DOOR. The meeting bar (mic/cam) is hidden in a dark app room, so a
+  // person needs a visible way in: the A/V button on the app bar. Every click
+  // below is a REAL Playwright click — it refuses a hidden element — because
+  // this suite once drove #cam with a programmatic click, which a hidden
+  // button answers, and shipped an app room nobody could start a call from.
+  const vis = (pg, id) => pg.evaluate((i) => { const e = document.getElementById(i); return !!(e && e.offsetParent && getComputedStyle(e).display !== 'none'); }, id);
+  await h.click('#inv-done'); // close the invite sheet the way a person does — it sits over the app bar
+  await h.waitForFunction(() => { const m = document.getElementById('inv-modal'); return !m || getComputedStyle(m).display === 'none'; }, null, { timeout: 10000 });
+  check('the host sees an A/V button on the app bar once the room exists', await vis(h, 'appav'));
+  check('…and the mic/cam controls are NOT shown before it is tapped (the room starts dark)', !(await vis(h, 'cam')) && !(await vis(h, 'mic')));
+  await h.click('#appav');
+  check('tapping A/V reveals the real mic and camera controls', (await vis(h, 'cam')) && (await vis(h, 'mic')));
+  check('A/V itself asks for nothing — still zero getUserMedia', (await h.evaluate(() => window.__gumCount)) === 0);
+  check('…and the room is still dark until a control is tapped', await h.evaluate(() => !document.body.classList.contains('call-on')));
 
   // ---- client: open the room link ------------------------------------------
   const cCtx = await mkCtx('Cleo');
@@ -103,10 +117,23 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     && (await c.evaluate(() => (window.__gifosConns || []).every((s) => { try { const w = s._raw && s._raw(); return !(w && /[?&]role=host\b/.test(w.url || '')); } catch (e) { return true; } }))));
 
   // ---- call layer: host opts in, client sees the banner --------------------
-  await h.evaluate(() => { document.getElementById('cam').click(); }); // host joins the call (lateMedia asks now)
+  await h.click('#cam'); // a REAL click on the visible control — the host joins the call (lateMedia asks now)
   await h.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 15000 });
   check('host tapping camera opts THEM into the call layer', true);
   check('…and only now does the host ask for media', (await h.evaluate(() => window.__gumCount)) > 0);
+  check('camera and mic are INDEPENDENT: camera on, mic still muted', await h.evaluate(() => {
+    const v = window.__gifosVideo; const st = v.myStatus ? v.myStatus() : null;
+    return st ? (!st.camOff && st.muted) : document.getElementById('mic').classList.contains('off');
+  }));
+  await h.click('#mic');
+  await h.waitForFunction(() => !document.getElementById('mic').classList.contains('off'), null, { timeout: 15000 });
+  check('…mic turns on by itself', true);
+  await h.click('#cam');
+  await h.waitForFunction(() => document.getElementById('cam').classList.contains('off'), null, { timeout: 15000 });
+  check('…and camera turns off by itself, mic stays on', !(await h.evaluate(() => document.getElementById('mic').classList.contains('off'))));
+  await h.click('#cam'); // back on for the rest of the scenario
+  await h.waitForFunction(() => !document.getElementById('cam').classList.contains('off'), null, { timeout: 15000 });
+  check('the guest sees the same A/V door on their app bar', await vis(c, 'appav'));
   await c.waitForFunction(() => document.getElementById('callbanner').style.display !== 'none', null, { timeout: 20000 });
   check('the client sees the call banner (never silent tiles)', true);
   check('the client still has not asked for media', (await c.evaluate(() => window.__gumCount)) === 0);
