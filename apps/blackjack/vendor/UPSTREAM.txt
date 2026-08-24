@@ -1,0 +1,10 @@
+hanhaechi/blackjack
+https://github.com/hanhaechi/blackjack
+commit 95fb6328bfe6cffd1c5f215442d5a8f349b6ed74
+MIT, Copyright (c) 2018 - Modesta Naciute
+
+Player vs dealer blackjack in vanilla JS (casino / blackjack / cards
+modules) with session save over AJAX to a sample API. The server is
+gone. The dealer runs in the host browser. Invite is extra seats: each
+person has a hand; the host deals. Toy chips, no cash. Cards are drawn
+in CSS — the PNG deck and the Bootstrap/jQuery/CDN stack stay behind.

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Blackjack</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Blackjack</div>
+  <div class="chips">Chips <span id="chips">200</span></div>
+</header>
+<p class="toy">Toy chips. No cash. Ever.</p>
+<section class="dealer">
+  <h2>Dealer <span id="dTotal">~</span></h2>
+  <div class="cards" id="dCards"></div>
+</section>
+<section class="you">
+  <h2>You <span id="pTotal">~</span></h2>
+  <div class="cards" id="pCards"></div>
+</section>
+<div class="seats" id="seats"></div>
+<p class="msg" id="msg">Deal when you are ready.</p>
+<div class="bar">
+  <button type="button" id="deal">Deal</button>
+  <button type="button" id="hit" hidden>Hit</button>
+  <button type="button" id="stand" hidden>Stand</button>
+</div>
+<p class="hint">Press Invite in the bar to sit extra seats at this table.</p>
+<script src="bj.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

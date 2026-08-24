@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "blackjack",
+  "appId": "blackjack",
+  "name": "Blackjack",
+  "shortName": "Blackjack",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Beat the dealer to 21. Invite is extra seats. No cash.",
+  "description": "A shoe of cards, a dealer, and toy chips. Hit or stand. Aces are soft until they have to be one. The dealer stands on 17. Nothing is wagered for real and nothing is paid out.\n\nOn your own you play this device. Press Invite and everyone who opens the link takes a seat at the same table. The host deals. Each person hits or stands on their own hand; the dealer plays in the host's browser.\n\nAn unofficial port of blackjack by hanhaechi. The original saved the hand on a server. This copy does not.",
+  "author": {
+    "name": "hanhaechi",
+    "url": "https://github.com/hanhaechi/blackjack"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "blackjack",
+    "cards",
+    "party",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/blackjack",
+  "accent": [
+    26,
+    122,
+    58
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/blackjack/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/blackjack/blackjack.gif",
+  "bytes": 186516,
+  "download": 0,
+  "provides": null,
+  "sha256": "3bebf0521a99cec3bbc68e1f193d5ff45f6fe5e28cffc091a644511f0d6b0470",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "blackjack",
+    "url": "https://github.com/hanhaechi/blackjack",
+    "blessed": false
+  }
+}
