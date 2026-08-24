@@ -220,12 +220,13 @@ function loadGame() {
   const boot = fs.readFileSync(path.join(APP, 'boot.js'), 'utf8');
   const html = fs.readFileSync(path.join(APP, 'index.html'), 'utf8');
   const css = fs.readFileSync(path.join(APP, 'style.css'), 'utf8');
-  check('index.html does not run game.js before boot hydrates',
-    !/src=["']vendor\/game\.js["']/.test(html) && /data-game=["']vendor\/game\.js["']/.test(html));
+  check('game.js is a static script (a dynamic src cannot load in the sandbox)',
+    /src=["']vendor\/game\.js["']/.test(html));
   check('shim.js still loads first (the sandbox has no localStorage)',
-    html.indexOf('shim.js') < html.indexOf('boot.js'));
-  check('boot hydrates prefs then loadGame()',
-    /hydrate/.test(boot) && /loadGame/.test(boot) && boot.indexOf('hydrate') < boot.indexOf('loadGame'));
+    html.indexOf('shim.js') < html.indexOf('vendor/game.js') &&
+    html.indexOf('vendor/game.js') < html.indexOf('boot.js'));
+  check('boot hydrates the saved highscore onto the title',
+    /hydrate/.test(boot) && /paintHi/.test(boot));
   check('portrait uses meet so the valley is not cropped',
     /xMidYMid meet/.test(boot));
   check('Back is registered and does not always swallow',

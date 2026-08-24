@@ -10,11 +10,11 @@ Upstream is Vite ESM + kontra. The jam `dist/index.html` is a Roadroller
 `eval` blob, which the sandbox will not run. `vendor/game.js` is an esbuild
 IIFE of `src/main.js`, with a small phone-drag patch (touch counts as a
 left-drag, pointer capture). `shim.js` stubs `localStorage`. `boot.js`
-hydrates `gifos.db` **before** the game runs, then fits the valley on a
-portrait phone.
+hydrates `gifos.db` into the stub and paints the highscore, then fits the
+valley on a portrait phone.
 
 ```
-index.html      shim, then boot (game loads after hydrate)
+index.html      shim, game, boot (game is a static script so the packer inlines it)
 style.css       full-bleed, touch-action none
 boot.js         save + roster + portrait fit + Back
 icon.mjs        yurt + path + 1200×720 cover
