@@ -184,7 +184,7 @@ const check = (name, cond, d) => { console.log((cond ? 'PASS' : 'FAIL') + ' — 
     const v = await (await fetch(b + '/version.json?ts=' + Date.now(), { cache: 'no-store' })).json();
     const cl = await (await fetch(b + '/changelog.json?ts=' + Date.now(), { cache: 'no-store' })).json();
     const cur = (cl.entries || []).find((e) => e && e.version === v.current);
-    return { current: v.current, prev: (v.versions || [])[1], curHasNotes: !!(cur && Array.isArray(cur.notes) && cur.notes.length) };
+    return { current: v.current, prev: (v.versions || [])[1], curHasNotes: !!(cur && ['features', 'fixes', 'notes'].some((k) => Array.isArray(cur[k]) && cur[k].length)) };
   }, BASE);
   check('the live release (' + vinfo.current + ') has changelog notes — a release is never cut without them', vinfo.curHasNotes);
 

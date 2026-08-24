@@ -66,6 +66,7 @@ body {
 /* release notes, shown inside a row's fold */
 .cl-date { color: var(--muted); font-size: .74rem; }
 .cl-headline { font-size: .82rem; font-weight: 600; margin: .4rem 0 .1rem; }
+.cl-sub { font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: .45rem 0 0; }
 .cl-notes { margin: .2rem 0 0; padding-left: 1.1rem; }
 .cl-notes li { color: var(--muted); font-size: .8rem; line-height: 1.45; margin: .1rem 0; }
 

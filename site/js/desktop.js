@@ -3001,7 +3001,7 @@
       const isLive = v === latestVersion;
       const isRunning = !onEdge && (pinned ? v === pinned : v === VERSION);
       const e = notesFor(v);
-      const hasNotes = !!(e && ((Array.isArray(e.notes) && e.notes.length) || e.headline));
+      const hasNotes = entryHasNotes(e);
       const critical = !!(e && e.critical && !onEdge && cmpVer(v, VERSION) > 0);
       // "New to you": newer than what you run, no newer than the live release.
       const newSince = !onEdge && cmpVer(v, VERSION) > 0 && cmpVer(v, latestVersion) <= 0;
@@ -3047,12 +3047,22 @@
     if (!Array.isArray(changelog)) return null;
     return changelog.find((e) => e && e.version === v) || null;
   }
-  // A single release's notes, rendered for the fold behind its picker row.
+  // Does a changelog entry have anything to unfold? Notes are split into
+  // "features" and "fixes" (short bullets); "notes" is the old flat list.
+  function entryHasNotes(e) {
+    return !!(e && (['features', 'fixes', 'notes'].some((k) => Array.isArray(e[k]) && e[k].length) || e.headline));
+  }
+  // A single release's notes, rendered for the fold behind its picker row:
+  // headline, then "New" and "Fixed" bullet lists (whichever the release has).
   function releaseNotesHtml(e) {
     if (!e) return '';
-    const notes = (Array.isArray(e.notes) ? e.notes : []).map((n) => '<li>' + escapeHtml(String(n)) + '</li>').join('');
+    const list = (title, arr) => {
+      if (!Array.isArray(arr) || !arr.length) return '';
+      return (title ? '<div class="cl-sub">' + title + '</div>' : '') +
+        '<ul class="cl-notes">' + arr.map((n) => '<li>' + escapeHtml(String(n)) + '</li>').join('') + '</ul>';
+    };
     return (e.headline ? '<div class="cl-headline">' + escapeHtml(e.headline) + '</div>' : '') +
-           (notes ? '<ul class="cl-notes">' + notes + '</ul>' : '');
+           list('New', e.features) + list('Fixed', e.fixes) + list('', e.notes);
   }
 
   addBtn.addEventListener('click', showAddDialog);
