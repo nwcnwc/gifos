@@ -1,0 +1,15 @@
+davidshimjs/qrcodejs
+https://github.com/davidshimjs/qrcodejs
+commit 04f46c6a0708418cb7b96fc563eacae0fbf77674 (master)
+file: qrcode.js
+sha256: 3ee72de9f69c668f9567363a9358df955960bae9000d9ebd66414670f88e8735
+MIT, Copyright (c) 2012 davidshimjs
+
+The generator inside qrcode.js is Kazuhiko Arase's QRCode for JavaScript
+(http://www.d-project.com/), MIT, Copyright (c) 2009 Kazuhiko Arase.
+QR Code is a registered trademark of DENSO WAVE INCORPORATED.
+
+GifOS inlines classic scripts. jQuery is not shipped — QRCode.js has no
+dependency on it. The last payload is saved privately. Press Invite to show
+the same code in a meeting. Upstream is a library with a demo page, not an
+app: this directory is the wrap.

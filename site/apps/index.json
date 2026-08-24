@@ -2473,6 +2473,54 @@
       "sha256": "dc46bcb060cddca03a8ff90d88099df5a202605e2b7a26580aecda94ad68bd0e"
     },
     {
+      "slug": "json-diff",
+      "appId": "json-diff",
+      "name": "JSON Diff",
+      "shortName": "Diff",
+      "version": "1.0",
+      "tagline": "Paste two documents, see the difference. Nothing is uploaded.",
+      "author": {
+        "name": "benjamine",
+        "url": "https://github.com/benjamine/jsondiffpatch"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "jsondiffpatch",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Developer"
+      ],
+      "tags": [
+        "diff",
+        "compare",
+        "json",
+        "offline",
+        "developer"
+      ],
+      "accent": [
+        80,
+        170,
+        90
+      ],
+      "cover": "/apps/json-diff/cover.jpg",
+      "bytes": 238329,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "2e949efd6f953889458c12c5d7b6ef9b60de8bb39a415d96d6e3e1d07e0ffaa5"
+    },
+    {
       "slug": "jspaint",
       "appId": "jspaint",
       "name": "JS Paint",
@@ -4202,6 +4250,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "be167f4458c7e272257f7b5d0fe675bc17b697917f22e663c9fe65b69f88458a"
+    },
+    {
+      "slug": "qr-code",
+      "appId": "qr-code",
+      "name": "QR Code",
+      "shortName": "QR",
+      "version": "1.0",
+      "tagline": "Type text or a URL, get a code. Nothing is uploaded.",
+      "author": {
+        "name": "davidshimjs",
+        "url": "https://github.com/davidshimjs/qrcodejs"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "qrcodejs",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "qr",
+        "code",
+        "url",
+        "text",
+        "offline",
+        "print"
+      ],
+      "accent": [
+        240,
+        196,
+        32
+      ],
+      "cover": "/apps/qr-code/cover.jpg",
+      "bytes": 202105,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "6f3f0e3529a06559af105418aab238fa081abc5c61371fc7f605243accfa6e15"
     },
     {
       "slug": "qr-scan",
