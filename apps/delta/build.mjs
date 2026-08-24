@@ -29,7 +29,7 @@ const listing = JSON.parse(read('listing.json'));
 for (const need of ['vendor/delta.js', 'vendor/game.js', 'vendor/vendor.js', 'vendor/assets.js', 'vendor/COPYING.txt']) {
   if (!existsSync(join(dir, need))) throw new Error(need + ' missing — run vendor.mjs');
 }
-const SCRIPTS = ['vendor/vendor.js', 'vendor/assets.js', 'vendor/game.js', 'vendor/delta.js', 'boot.js', 'touch.js'];
+const SCRIPTS = ['vendor/vendor.js', 'vendor/assets.js', 'vendor/game.js', 'vendor/delta.js', 'sfx.js', 'boot.js', 'touch.js'];
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),

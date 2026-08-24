@@ -8,14 +8,18 @@ Fly a ship on the left of the field. Aliens arrive in patterns from the right. S
 
 ## Controls
 
-**Keyboard:** arrows or **WASD** to move. **Space** (or Enter) to fire. Space on the title starts. **Esc** quits back to the title.
+**Keyboard:** arrows or **WASD** to move. **Space** (or Enter) to fire. Space on the title starts. **Esc** (or the phone Back button) quits back to the title.
 
-**Phone:** the **D-pad** moves, **FIRE** shoots. The pad appears on a phone, or after a finger lands. Tap the field on the title to start.
+**Phone:** the round **D-pad** under your left thumb moves — slide it for diagonals. **FIRE** on the right shoots. A tap on FIRE or on the field starts from the title. The pad appears on a phone, or after a finger lands.
 
 ## Scoring
 
-Each alien you destroy is points. The value depends on the kind. There is no extra ship. Your **best** score sits under the current one.
+Each alien you destroy is points. The value depends on the kind. There is no extra ship. Your **best** score sits under the current one and is saved in this copy of the app.
+
+## Sound
+
+Shoot and explode are short beeps. The original title tune was a SID recording and is not here. The speaker icon (top-right of the field) mutes; that choice is remembered.
 
 ## What is saved
 
-Your high score on this copy of the app. A run in progress is not kept.
+Your high score, and whether sound is muted. A run in progress is not kept.

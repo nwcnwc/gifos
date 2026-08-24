@@ -65,9 +65,9 @@ dj = dj.replace(
       this.sounds = sounds || {};
       this.sounds.title = dummy;
       this.sounds.game = dummy;
-      this.sounds.shoot = dummy;
-      this.sounds.explode = dummy;
-      this.toggleMute(true);`
+      this.sounds.shoot = { play: function () { if (window.DeltaSfx) window.DeltaSfx.shoot(); }, stop: function () {}, fade: function () {} };
+      this.sounds.explode = { play: function () { if (window.DeltaSfx) window.DeltaSfx.explode(); }, stop: function () {}, fade: function () {} };
+      this.toggleMute(this.isMute());`
 );
 dj = dj.replace(
   'play:      function(s) { if (this.isNotMute()) return s.play(); },',
@@ -75,6 +75,9 @@ dj = dj.replace(
 );
 if (dj.includes('sounds/title') || dj.includes('sounds/game')) throw new Error('music paths remain');
 if (/<\/script/i.test(dj)) throw new Error('</script');
+if (!dj.includes('window.sounds')) {
+  dj = dj.replace('window.renderer = renderer;', 'window.renderer = renderer;\n  window.sounds   = sounds;');
+}
 writeFileSync(join(out, 'delta.js'), dj);
 
 const sha = (p) => createHash('sha256').update(readFileSync(join(out, p))).digest('hex');
@@ -86,7 +89,7 @@ commit:   ${PIN}
 license:  MIT (COPYING.txt) for the code.
 
 NOT copied: sounds/title.* and sounds/game.* (Rob Hubbard SID recordings).
-Shoot/explode SFX are also omitted; the port is silent.
+Shoot/explode are hooked to window.DeltaSfx (synthesized in sfx.js), never the SID.
 
 sha256:
   delta.js     ${sha('delta.js')}

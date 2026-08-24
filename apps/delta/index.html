@@ -20,26 +20,24 @@
   <h2 id="start" style="display:none;">press space / tap to start</h2>
   <h1 id="prepare" style="display:none;">Fasten Your Seatbelt</h1>
   <canvas id="canvas">This game needs a canvas.</canvas>
-  <div id="instructions">arrows move, space shoot</div>
-  <div id="sound" class="on" title="mute" style="display:none;"></div>
+  <div id="instructions">arrows or WASD move · space shoot</div>
+  <div id="sound" class="on" title="mute"></div>
 </div>
 <div id="touch" hidden>
-  <div id="t-left" class="t-col t-pad">
-    <button class="t-btn" data-dir="up" type="button" aria-label="Up">▲</button>
-    <div class="t-row">
-      <button class="t-btn" data-dir="left" type="button" aria-label="Left">◀</button>
-      <button class="t-btn" data-dir="right" type="button" aria-label="Right">▶</button>
-    </div>
-    <button class="t-btn" data-dir="down" type="button" aria-label="Down">▼</button>
+  <div id="dpad" aria-label="Move">
+    <button class="d-up" data-dir="up" type="button" aria-label="Up" tabindex="-1">▲</button>
+    <button class="d-left" data-dir="left" type="button" aria-label="Left" tabindex="-1">◀</button>
+    <button class="d-right" data-dir="right" type="button" aria-label="Right" tabindex="-1">▶</button>
+    <button class="d-down" data-dir="down" type="button" aria-label="Down" tabindex="-1">▼</button>
+    <i id="d-knob"></i>
   </div>
-  <div id="t-right" class="t-col">
-    <button class="t-btn wide" data-dir="fire" type="button">FIRE</button>
-  </div>
+  <button id="t-fire" data-dir="fire" type="button" aria-label="Fire">FIRE</button>
 </div>
 <script src="vendor/vendor.js"></script>
 <script src="vendor/assets.js"></script>
 <script src="vendor/game.js"></script>
 <script src="vendor/delta.js"></script>
+<script src="sfx.js"></script>
 <script src="boot.js"></script>
 <script src="touch.js"></script>
 </body>

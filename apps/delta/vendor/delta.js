@@ -864,9 +864,9 @@ Delta = function() {
       this.sounds = sounds || {};
       this.sounds.title = dummy;
       this.sounds.game = dummy;
-      this.sounds.shoot = dummy;
-      this.sounds.explode = dummy;
-      this.toggleMute(true);
+      this.sounds.shoot = { play: function () { if (window.DeltaSfx) window.DeltaSfx.shoot(); }, stop: function () {}, fade: function () {} };
+      this.sounds.explode = { play: function () { if (window.DeltaSfx) window.DeltaSfx.explode(); }, stop: function () {}, fade: function () {} };
+      this.toggleMute(this.isMute());
       $('sound').on('click', this.onClickMute.bind(this)).show();
     },
 
@@ -1114,6 +1114,7 @@ Delta = function() {
   window.rocks    = rocks;
   window.stars    = stars;
   window.renderer = renderer;
+  window.sounds   = sounds;
 
   //-----------------------------------------------------------------------------------------------
 

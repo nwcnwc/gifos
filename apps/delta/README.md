@@ -1,10 +1,11 @@
 # Delta
 
 Jake Gordon's HTML5 homage to C64 Delta, as a GifOS app. Formations, rocks,
-three lives. The original SID recording is not shipped.
+three lives. The original SID recording is not shipped; shoot/explode are
+synthesized. Best score lives in `gifos.db`.
 
 ```
-index.html / style.css / boot.js / touch.js
+index.html / style.css / boot.js / touch.js / sfx.js
 vendor.mjs    pin + data-URI sprites, no music
 build.mjs     packs site/apps/delta/delta.gif
 ```
