@@ -7,20 +7,35 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header id="hud">
+<header id="hud" hidden>
   <div class="progress" id="progress"></div>
 </header>
 <nav id="nav"></nav>
-<main>
+<div id="tools" hidden>
+  <button type="button" id="undo">Undo</button>
+  <button type="button" id="retry">Retry</button>
+</div>
+<main id="stage">
   <div id="menu" class="difficulty-buttons">
-    <button type="button" data-diff="0">Easy</button>
-    <button type="button" data-diff="10">Medium</button>
-    <button type="button" data-diff="20">Hard</button>
+    <p class="lede">Push every pink cube down.</p>
+    <p class="sub" id="menu-sub">Thirty jam levels. Your best stays in this file.</p>
+    <button type="button" id="resume" hidden>Resume</button>
+    <button type="button" class="diff easy" data-diff="0">Easy</button>
+    <button type="button" class="diff medium" data-diff="10">Medium</button>
+    <button type="button" class="diff hard" data-diff="20">Hard</button>
   </div>
   <div id="level" class="level" hidden></div>
+  <div id="overlay" hidden></div>
 </main>
+<div id="pad" hidden>
+  <button type="button" class="ne" data-dr="-1" data-dc="0" aria-label="up right">↗</button>
+  <button type="button" class="se" data-dr="0" data-dc="1" aria-label="down right">↘</button>
+  <button type="button" class="sw" data-dr="1" data-dc="0" aria-label="down left">↙</button>
+  <button type="button" class="nw" data-dr="0" data-dc="-1" aria-label="up left">↖</button>
+</div>
 <p class="msg" id="msg"></p>
 <script src="levels.js"></script>
+<script src="game.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
