@@ -55,6 +55,13 @@
     return cells;
   }
 
+  function setCell(cell, ch) {
+    if (!ctrl || !cell || !cell.light) return;
+    /* setGridCell wants the DOM node (dataset.xy), not the model cell. */
+    var el = ctrl.cellElement(cell);
+    if (el) ctrl.setGridCell(el, ch);
+  }
+
   function applyCells(cells) {
     if (!ctrl || !cells) return;
     applying = true;
@@ -64,7 +71,7 @@
       var cell = col && col[+p[1]];
       if (cell && cell.light) {
         var ch = cells[k];
-        ctrl.setGridCell(cell, ch && ch.trim() ? String(ch).charAt(0).toUpperCase() : ' ');
+        setCell(cell, ch && ch.trim() ? String(ch).charAt(0).toUpperCase() : ' ');
       }
     });
     applying = false;
@@ -108,7 +115,7 @@
     if (!ctrl || !ctrl.currentCell) return false;
     ch = String(ch || '');
     if (ch === 'Backspace' || ch === 'Delete' || ch === 'DEL') {
-      ctrl.setGridCell(ctrl.currentCell, ' ');
+      setCell(ctrl.currentCell, ' ');
       var clueDel = ctrl.currentClue;
       var cellsDel = clueDel && clueDel.cells;
       if (cellsDel) {
@@ -122,7 +129,7 @@
     ch = ch.toUpperCase();
     if (!/^[A-Z]$/.test(ch)) return false;
     var cell = ctrl.currentCell;
-    ctrl.setGridCell(cell, ch);
+    setCell(cell, ch);
     var clue = ctrl.currentClue;
     var cells = clue && clue.cells;
     if (cells) {

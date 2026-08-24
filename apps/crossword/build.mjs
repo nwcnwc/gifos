@@ -137,6 +137,7 @@ if (!files['app.js'].includes('inputmode') && !files['index.html'].includes('inp
   throw new Error('native phone keyboard input');
 }
 if (!files['app.js'].includes('enterLetter')) throw new Error('pad must advance via enterLetter');
+if (!files['app.js'].includes('cellElement')) throw new Error('setGridCell needs the DOM cell');
 if (!files['app.js'].includes("selectPuzzle('sand'") && !files['app.js'].includes('puzzleOf(\'sand\')')) {
   throw new Error('v1 Sand progress must still load');
 }
