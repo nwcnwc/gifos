@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "pacman",
+  "appId": "pacman",
+  "name": "Pac-Man",
+  "shortName": "Pac-Man",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Twelve mazes, four ghosts, a pad for your thumb. Scores on the cabinet.",
+  "description": "You are the yellow one. Eat every pellet in the maze, grab a power pellet to turn the tables on the ghosts, and do not let them catch you. There are twelve mazes, five lives, and a score that lives in the file you keep.\n\nOn a computer it is the arrows (or WASD) and space to pause. On a phone a pad sits under your thumb. Close it and come back: your best score is still there.\n\nPress Invite in the bar above and everyone who opens the link is on the same cabinet. Each of you plays your own maze; the roster shows lives and score. There is no game server and no account.\n\nAn unofficial port of mumuy's HTML5 Pac-Man (MIT). The mazes and the ghost AI are theirs. The pad and the shared cabinet are ours. Pac-Man is a trademark of Bandai Namco — this is not affiliated.",
+  "author": {
+    "name": "Haole Zheng",
+    "url": "https://github.com/mumuy/pacman"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "pacman",
+    "arcade",
+    "maze",
+    "retro",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pacman",
+  "accent": [
+    255,
+    230,
+    0
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/pacman/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/pacman/pacman.gif",
+  "bytes": 170163,
+  "download": 0,
+  "provides": null,
+  "sha256": "5dfc31f028d7b60f945da81265e25229eba067599d1c076c00cefb292574dfa2",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Pacman",
+    "url": "https://github.com/mumuy/pacman",
+    "blessed": false
+  }
+}
