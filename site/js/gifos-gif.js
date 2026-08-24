@@ -361,7 +361,11 @@
     const out = { files: {} };
     let i = 0, done = 0, total = 0;
     for (let k = 0; k < paths.length; k++) total += archive.files[paths[k]].length;
-    const SLICE = 4 * 1024 * 1024;
+    // 2 MB slices: frequent enough that the launch counter visibly ticks on a
+    // throttled phone, and the first report lands BEFORE any slice is decoded
+    // (a counter that only appears mid-unpack reads as a late start).
+    const SLICE = 2 * 1024 * 1024;
+    if (onProgress && total) { try { onProgress(0, 0, total); } catch (e) {} }
     return new Promise((resolve) => {
       const step = () => {
         try {

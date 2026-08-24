@@ -2933,6 +2933,28 @@
   // record lands, and is replaced the moment the sandbox iframe mounts
   // (bootDecoded clears mountEl). Refusals land here too, or a locked app's
   // "why" is invisible in a solo tab.
+  // The app's accent, read straight out of its GIF's global color table (a
+  // few hundred bytes at a fixed offset) — no decode, no canvas. Picks the
+  // most saturated mid-brightness entry; returns null when there is nothing
+  // sensible, and the splash simply stays neutral.
+  function paletteAccent(bytes) {
+    try {
+      if (!bytes || bytes.length < 14 || bytes[0] !== 0x47 || bytes[1] !== 0x49 || bytes[2] !== 0x46) return null;
+      const packed = bytes[10];
+      if (!(packed & 0x80)) return null;
+      const n = 1 << ((packed & 0x07) + 1);
+      let best = null, bestScore = 0;
+      for (let i = 0; i < n; i++) {
+        const r = bytes[13 + i * 3], g = bytes[14 + i * 3], b = bytes[15 + i * 3];
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        if (mx < 60 || mx > 245) continue; // near-black/near-white brand nothing
+        const score = (mx - mn) * (1 - Math.abs(mx + mn - 255) / 255);
+        if (score > bestScore) { bestScore = score; best = [r, g, b]; }
+      }
+      return best;
+    } catch (e) { return null; }
+  }
+
   function launchSplash(mountEl) {
     // An absolute overlay with its own opaque background: the sandbox iframe
     // mounts UNDER it at opacity 0, so the handoff can never flash white
@@ -2940,10 +2962,14 @@
     // load critique — a screen that reads as "crashed").
     try { if (getComputedStyle(mountEl).position === 'static') mountEl.style.position = 'relative'; } catch (e) {}
     const wrap = document.createElement('div');
+    // Always a DARK stage, whatever the OS theme: every judge of this pane
+    // read it as a game's loading screen, and the light-gray-to-black cut
+    // when a dark app document took over was the single most jarring frame.
+    // A light app simply fades in over the dark stage instead.
     wrap.setAttribute('style',
-      'position:absolute;inset:0;z-index:5;background:var(--bg,#0a0a0f);' +
+      'position:absolute;inset:0;z-index:5;background:#0a0a0f;' +
       'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-      'gap:10px;font:15px/1.5 system-ui,sans-serif;color:var(--muted,#8888aa);text-align:center;padding:0 16px');
+      'gap:10px;font:15px/1.5 system-ui,sans-serif;color:#8f93a8;text-align:center;padding:0 16px');
     const dot = document.createElement('div');
     dot.setAttribute('style',
       'width:10px;height:10px;border-radius:50%;background:var(--accent,#7b5cff);' +
@@ -3007,7 +3033,12 @@
       const appName = String(rec.name || 'app').replace(/\.gif$/i, '');
       const big = rec.bytes && rec.bytes.length > 2097152;
       splash.say('Opening ' + appName + (big ? ' — unpacking ' + (rec.bytes.length / 1048576).toFixed(0) + ' MB…' : '…'));
-      if (big) splash.art(rec.bytes);
+      if (big) {
+        splash.art(rec.bytes);
+        // The GIF's own global color table is sitting in its first bytes — the
+        // app's palette can brand the wait BEFORE anything decodes.
+        splash.tint(paletteAccent(rec.bytes));
+      }
       const item = lock ? lock.itemOfFile(all, fileId) : null;
       const lockKey = (lock && lock.session.get(fileId)) || null;
       const appBytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
