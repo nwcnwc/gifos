@@ -53,11 +53,15 @@
   "cover": "/apps/worldview/cover.jpg",
   "screenshots": [],
   "gif": "/apps/worldview/worldview.gif",
-  "bytes": 1095584,
+  "bytes": 1095771,
   "download": 0,
   "provides": null,
-  "sha256": "c7fb5d022e675b7506e42e906c91313fddd7ceaad79b45680e1b362ecafd042d",
-  "signature": null,
+  "sha256": "da2da35c0d447fa23d0b4791e861ae038b84f3b436704acfe6ae98eb73c6fc93",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"
