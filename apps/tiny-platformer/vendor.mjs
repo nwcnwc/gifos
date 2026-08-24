@@ -150,6 +150,145 @@ js = js.replace(
   }`
 );
 
+js = js.replace(
+  'KEY      = { SPACE: 32, LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40 };',
+  'KEY      = { SPACE: 32, LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, A: 65, D: 68, W: 87, R: 82 };'
+);
+
+js = js.replace(
+  `function onkey(ev, key, down) {
+    switch(key) {
+      case KEY.LEFT:  player.left  = down; ev.preventDefault(); return false;
+      case KEY.RIGHT: player.right = down; ev.preventDefault(); return false;
+      case KEY.SPACE: player.jump  = down; ev.preventDefault(); return false;
+    }
+  }`,
+  `function onkey(ev, key, down) {
+    switch(key) {
+      case KEY.LEFT:
+      case KEY.A:     player.left  = down; ev.preventDefault(); return false;
+      case KEY.RIGHT:
+      case KEY.D:     player.right = down; ev.preventDefault(); return false;
+      case KEY.SPACE:
+      case KEY.UP:
+      case KEY.W:     player.jump  = down; ev.preventDefault(); return false;
+      case KEY.R:     if (down) restart(); ev.preventDefault(); return false;
+    }
+  }`
+);
+
+js = js.replace(
+  `    if (entity.jump && !entity.jumping && !falling) {
+      entity.ddy = entity.ddy - entity.impulse; // an instant big force impulse
+      entity.jumping = true;
+    }`,
+  `    if (entity.player) {
+      entity.coyote = entity.coyote || 0;
+      entity.jbuf   = entity.jbuf   || 0;
+      if (!falling) entity.coyote = 0.08;
+      else          entity.coyote = Math.max(0, entity.coyote - dt);
+      if (entity.jump) entity.jbuf = 0.08;
+      else             entity.jbuf = Math.max(0, entity.jbuf - dt);
+      if ((entity.jump || entity.jbuf > 0) && !entity.jumping && (!falling || entity.coyote > 0)) {
+        entity.ddy = entity.ddy - entity.impulse;
+        entity.jumping = true;
+        entity.coyote = 0;
+        entity.jbuf = 0;
+      }
+    } else if (entity.jump && !entity.jumping && !falling) {
+      entity.ddy = entity.ddy - entity.impulse; // an instant big force impulse
+      entity.jumping = true;
+    }`
+);
+
+js = js.replace(
+  `function killPlayer(player) {
+    player.x = player.start.x;
+    player.y = player.start.y;
+    player.dx = player.dy = 0;
+  }`,
+  `function killPlayer(player) {
+    player.x = player.start.x;
+    player.y = player.start.y;
+    player.dx = player.dy = 0;
+    player.hurt = 18;
+    if (window.Tiny && window.Tiny.onHurt) window.Tiny.onHurt(player);
+  }
+
+  function caveCleared() {
+    var n;
+    for (n = 0; n < treasure.length; n++) if (!treasure[n].collected) return false;
+    for (n = 0; n < monsters.length; n++) if (!monsters[n].dead) return false;
+    return treasure.length > 0;
+  }
+
+  function restart() {
+    var n, m;
+    player.x = player.start.x;
+    player.y = player.start.y;
+    player.dx = player.dy = 0;
+    player.collected = 0;
+    player.killed = 0;
+    player.jumping = false;
+    player.falling = false;
+    player.left = player.right = player.jump = false;
+    player.coyote = player.jbuf = 0;
+    player.hurt = 0;
+    for (n = 0; n < treasure.length; n++) treasure[n].collected = false;
+    for (n = 0; n < monsters.length; n++) {
+      m = monsters[n];
+      m.dead = false;
+      m.x = m.start.x;
+      m.y = m.start.y;
+      m.dx = m.dy = 0;
+      m.left = m.startLeft;
+      m.right = m.startRight;
+    }
+    if (window.Tiny && window.Tiny.onProgress) window.Tiny.onProgress(player);
+  }`
+);
+
+js = js.replace(
+  `    entity.left     = obj.properties.left;
+    entity.right    = obj.properties.right;
+    entity.start    = { x: obj.x, y: obj.y }
+    entity.killed = entity.collected = 0;`,
+  `    entity.left      = obj.properties.left;
+    entity.right     = obj.properties.right;
+    entity.startLeft = !!obj.properties.left;
+    entity.startRight= !!obj.properties.right;
+    entity.start     = { x: obj.x, y: obj.y };
+    entity.killed = entity.collected = 0;`
+);
+
+js = js.replace(
+  `  window.Tiny = window.Tiny || {};
+  window.Tiny.player = function () { return player; };
+  window.Tiny.onkey = onkey;
+  window.Tiny.KEY = KEY;
+  window.Tiny.TILE = TILE;`,
+  `  window.Tiny = window.Tiny || {};
+  window.Tiny.player = function () { return player; };
+  window.Tiny.monsters = function () { return monsters; };
+  window.Tiny.treasure = function () { return treasure; };
+  window.Tiny.totals = function () { return { coins: treasure.length, stomps: monsters.length }; };
+  window.Tiny.cleared = caveCleared;
+  window.Tiny.restart = restart;
+  window.Tiny.step = function (n) {
+    var i, times = n == null ? 1 : n;
+    for (i = 0; i < times; i++) update(step);
+  };
+  window.Tiny.onkey = onkey;
+  window.Tiny.KEY = KEY;
+  window.Tiny.TILE = TILE;
+  window.Tiny.COLOR = COLOR;`
+);
+
+js = js.replace(
+  'if (!window.TINY_LEVEL) throw new Error("TINY_LEVEL missing");\n  setup(window.TINY_LEVEL);\n  frame();',
+  'if (!window.TINY_LEVEL) throw new Error("TINY_LEVEL missing");\n  setup(window.TINY_LEVEL);\n  if (!(window.Tiny && window.Tiny.headless)) frame();'
+);
+
 if (/<\/script/i.test(js)) throw new Error('platformer.js contains </script');
 if (js.includes('get("level.json"')) throw new Error('XHR load of level.json still present');
 if (js.includes('new FPSMeter')) throw new Error('FPSMeter still constructed');

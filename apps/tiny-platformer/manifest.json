@@ -3,7 +3,7 @@
   "appId": "tiny-platformer",
   "name": "Tiny Platformer",
   "shortName": "Platformer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minBuild": 947,
   "entry": "index.html",
   "accent": [236, 208, 120],

@@ -9,10 +9,11 @@
 <body>
 <div id="stage">
   <div id="hud">
-    <span id="coins">coins 0</span>
-    <span id="kills">stomps 0</span>
+    <span id="coins">gold 0/8</span>
+    <span id="kills">stomps 0/8</span>
     <span id="best"></span>
   </div>
+  <div id="banner" hidden></div>
   <canvas id="canvas">This game needs a canvas.</canvas>
 </div>
 
@@ -22,6 +23,7 @@
     <button class="t-btn" data-key="right" type="button" aria-label="Right">▶</button>
   </div>
   <div id="t-right" class="t-col">
+    <button class="t-btn slim" data-key="restart" type="button" aria-label="Restart">RESTART</button>
     <button class="t-btn wide" data-key="jump" type="button" aria-label="Jump">JUMP</button>
   </div>
 </div>

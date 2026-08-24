@@ -2,7 +2,8 @@
 
 Jake Gordon's minimal canvas platformer, running as a sandboxed GifOS app.
 Solo it is the original cave: a yellow square, gold, grey patrols. This copy
-adds on-screen jump/left/right and keeps the best run in the file.
+adds on-screen jump/left/right, follows the player with a camera, and keeps
+the best run in the file.
 
 The engine is
 **[javascript-tiny-platformer](https://github.com/jakesgordon/javascript-tiny-platformer)**
@@ -12,9 +13,9 @@ only and loads `level.json` with XHR.
 ```
 index.html              canvas, HUD, touch markup
 style.css               dark stage, thumb buttons
-boot.js                 gifos.db high score, HUD
-touch.js                LEFT / RIGHT / JUMP → player.left/right/jump
-icon.mjs                jumping square + 1200×720 cover
+boot.js                 gifos.db high score, HUD, canvas fit
+touch.js                LEFT / RIGHT / JUMP / RESTART
+icon.mjs                jumping square + cover from the real cave
 vendor.mjs              rebuilds vendor/ from the pinned commit
 build.mjs               packs site/apps/tiny-platformer/tiny-platformer.gif
 vendor/platformer.js    original loop, camera + no XHR
