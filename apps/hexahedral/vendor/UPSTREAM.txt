@@ -6,5 +6,6 @@ MIT, Copyright (c) 2018 Matthew Miner
 Global Game Jam 2016: push every raised block down in the fewest moves.
 Upstream is webpack + Redux + virtual-dom + FastClick, with optional
 sound. This port destacks to classic scripts. The thirty jam levels
-are kept. Progress is a private save. Tap an adjacent block or swipe;
-arrow keys still work. Audio stays behind (Safari already skipped it).
+are kept. Progress is a private save (level + bests). Drag the green cube
+and it slides along the isometric faces; tap an adjacent block; arrow
+keys still work. Audio stays behind (Safari already skipped it).

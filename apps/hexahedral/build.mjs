@@ -33,7 +33,7 @@ const gif = globalThis.GifOS.gif;
 const read = (p) => readFileSync(join(dir, p), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-const SCRIPTS = ['levels.js', 'app.js'];
+const SCRIPTS = ['levels.js', 'game.js', 'app.js'];
 if (!existsSync(join(dir, 'vendor', 'COPYING-hexahedral.txt'))) throw new Error('COPYING');
 
 const files = {
@@ -41,6 +41,7 @@ const files = {
   'index.html': read('index.html'),
   'style.css': read('style.css'),
   'levels.js': read('levels.js'),
+  'game.js': read('game.js'),
   'app.js': read('app.js'),
   'COPYING-hexahedral.txt': read('vendor/COPYING-hexahedral.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
@@ -69,6 +70,8 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 }
 if (!files['COPYING-hexahedral.txt'].includes('Matthew Miner')) throw new Error('COPYING');
 if (!files['app.js'].includes("db('save')")) throw new Error('save');
+if (!files['game.js'].includes('isoDir') || !files['game.js'].includes('bests')) throw new Error('engine');
+if (!files['app.js'].includes('setPointerCapture') || !files['app.js'].includes('isoDrag')) throw new Error('slide');
 if (/require\(|createStore|h\('/.test(files['app.js'])) throw new Error('shell must stay behind');
 
 for (const [n, s] of Object.entries(files)) {
