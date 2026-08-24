@@ -341,11 +341,14 @@
       st.textContent = 'Time ran out.';
     } else {
       st.className = 'statusline';
-      st.textContent = node.target
-        ? 'This is the TARGET. HACK it.'
-        : (mp.on
+      if (node.target) st.textContent = 'This is the TARGET. HACK it.';
+      else if (M.doorAhead(state)) {
+        st.textContent = mp.on
           ? 'Read the code. Send it, or shout it. Walk through the door ahead.'
-          : 'Read the code. Switch to Navigator to nmap it. Door ahead, or turn.');
+          : 'Read the code. Switch to Navigator to nmap it. Door ahead.';
+      } else {
+        st.textContent = 'A wall ahead. Turn — a door may be left, right, or behind you.';
+      }
     }
   }
 

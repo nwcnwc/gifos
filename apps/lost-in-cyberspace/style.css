@@ -154,6 +154,7 @@ body.trap-on #view{box-shadow:0 0 24px var(--trap)}
   #view{max-height:34vh}
   .hud{flex-wrap:wrap;gap:6px}
   .hud-time{font-size:18px}
+  .hud-xy{display:none}
 }
 @media (max-height:560px){
   #view{max-height:28vh}
