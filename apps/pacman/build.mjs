@@ -135,6 +135,15 @@ if (!files['boot.js'].includes('data-key') && !files['index.html'].includes('dat
 if (!files['boot.js'].includes("db('save')") || !files['boot.js'].includes("db('players')")) {
   throw new Error('boot.js must save hi-score and publish cabinet rows');
 }
+if (!files['boot.js'].includes('onBack')) throw new Error('onBack required');
+if (!files['boot.js'].includes('bestLevel')) throw new Error('furthest maze must be saved');
+if (!files['boot.js'].includes('phoneish') && !files['style.css'].includes('pointer: coarse')) {
+  throw new Error('pad must show on a phone without waiting for first touch');
+}
+if (!files['vendor/index.js'].includes('steer:')) throw new Error('Pacman.steer required');
+if (/Namco|NAMCO|Bandai/i.test(files['vendor/game.js'] + files['vendor/index.js'] + files['boot.js'] + files['index.html'])) {
+  throw new Error('do not ship Namco/Bandai in the product');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -151,10 +160,12 @@ if (!files['COPYING-pacman.txt'].includes('Haole Zheng')) {
   throw new Error('COPYING-pacman.txt is not Haole Zheng\'s MIT notice');
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-if (shot.length < 1000) throw new Error('screenshot png looks empty');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+if (!process.argv.includes('--keep-shot')) {
+  const shot = screenshotPng();
+  if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
+  if (shot.length < 1000) throw new Error('screenshot png looks empty');
+  writeFileSync(join(dir, 'screenshot.png'), shot);
+}
 
 const bytes = await gif.encode(files, { preview: pacmanIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'pacman', 'pacman.gif');
@@ -162,5 +173,4 @@ mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, bytes);
 console.log('wrote site/apps/pacman/pacman.gif —', bytes.length, 'bytes,', (bytes.length / 1024).toFixed(0), 'KB, from',
             Object.keys(files).length, 'files');
-console.log('wrote apps/pacman/screenshot.png —', (shot.length / 1024).toFixed(0), 'KB');
 console.log('catalog is owned elsewhere — do not run build-app-catalog.mjs from this tree');

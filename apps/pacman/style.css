@@ -2,8 +2,8 @@
   --bg: #050508;
   --fg: #ffe600;
   --muted: #8a8aa0;
-  --pad: rgba(12, 12, 20, .62);
-  --line: rgba(255, 230, 0, .35);
+  --pad: rgba(12, 12, 20, .72);
+  --line: rgba(255, 230, 0, .4);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
@@ -18,13 +18,16 @@ html, body {
 }
 header {
   display: flex; align-items: baseline; justify-content: space-between;
-  gap: .8rem; padding: .1rem .2rem .35rem; flex-shrink: 0;
+  gap: .8rem; padding: .1rem .2rem .2rem; flex-shrink: 0;
 }
 #hi { color: var(--fg); font-weight: 700; letter-spacing: .08em; white-space: nowrap; }
-#status { color: var(--muted); font-size: .82rem; text-align: right; }
+#hud { color: #eee; font-size: .9rem; text-align: right; }
+#status { color: var(--muted); font-size: .82rem; margin: 0 0 .25rem; flex-shrink: 0; }
+#nosupport { color: #f88; margin: .5rem; }
 #stage {
   flex: 1; min-height: 0;
   display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
 }
 #canvas {
   display: block;
@@ -54,27 +57,40 @@ header {
 
 #touch {
   flex-shrink: 0;
-  display: flex; justify-content: center;
+  display: none;
+  justify-content: center;
   padding-top: .35rem;
   touch-action: none;
 }
-#touch[hidden] { display: none; }
 .pad {
   display: grid;
-  grid-template-columns: 4.2rem 4.2rem 4.2rem;
-  grid-template-rows: 4.2rem 4.2rem 4.2rem;
-  gap: .35rem;
+  grid-template-columns: 4.6rem 4.6rem 4.6rem;
+  grid-template-rows: 4.6rem 4.6rem 4.6rem;
+  gap: .4rem;
 }
 .pad button {
   border: 1px solid var(--line);
   background: var(--pad);
   color: var(--fg);
   border-radius: .7rem;
-  font: 700 .85rem/1 "Courier New", Courier, monospace;
+  font: 700 .9rem/1 "Courier New", Courier, monospace;
   cursor: pointer;
+  min-height: 44px;
+  touch-action: none;
 }
 .pad button.gap { visibility: hidden; pointer-events: none; }
 .pad button.pause { font-size: .62rem; letter-spacing: .06em; color: #ccc; }
 .pad button.on { background: rgba(255, 230, 0, .28); }
-body:not(.touch) #touch { display: none; }
+
+/* A mouse never sees the pad. A finger, or a narrow cabinet, always does —
+   waiting for the first touch left a blank slab under the maze. */
+@media (pointer: coarse), (max-width: 720px) {
+  body { --pad-on: 1; }
+  #touch { display: flex; }
+  #status { display: none; }
+  #canvas { border-radius: 0; max-height: none; }
+}
+
+body.touch #touch { display: flex; }
 body.touch #status { display: none; }
+body.mouse #touch { display: none; }
