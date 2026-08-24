@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "the-house",
+  "name": "The House",
+  "shortName": "House",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "You're in a strange house. Click to look around. Find the way out.",
+  "entry": "index.html",
+  "accent": [176, 110, 48],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}

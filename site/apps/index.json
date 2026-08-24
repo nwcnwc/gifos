@@ -5465,6 +5465,55 @@
       "sha256": "94a7f43fcc45eeec2431560ce4484add2fd3b05ed6193f491b667467071a3ff3"
     },
     {
+      "slug": "server-survival",
+      "appId": "server-survival",
+      "name": "Server Survival",
+      "shortName": "Servers",
+      "version": "1.0",
+      "tagline": "Build a cloud. Survive the traffic. Learn the architecture.",
+      "author": {
+        "name": "Kostyantyn Pshenychnyy",
+        "url": "https://github.com/pshenok/server-survival"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Server Survival",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games",
+        "Learning"
+      ],
+      "tags": [
+        "tower-defense",
+        "cloud",
+        "infrastructure",
+        "campaign",
+        "offline"
+      ],
+      "accent": [
+        0,
+        255,
+        133
+      ],
+      "cover": "/apps/server-survival/cover.jpg",
+      "bytes": 13252633,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "7e6707a31906fae006a766bd7ecb2a2bc95aaebae623d6a0cdb23ec1235e9a50"
+    },
+    {
       "slug": "signature-pad",
       "appId": "signature-pad",
       "name": "Signature Pad",
@@ -6344,6 +6393,54 @@
         "ts": "2026-08-24"
       },
       "sha256": "8cf032fd6f409c21c09e42fc9824129436e321961660be6df6d877f27b9de465"
+    },
+    {
+      "slug": "the-house",
+      "appId": "the-house",
+      "name": "The House",
+      "shortName": "House",
+      "version": "1.0.0",
+      "tagline": "You're in a strange house. Click to look. Find the way out.",
+      "author": {
+        "name": "Artur Kot",
+        "url": "https://github.com/arturkot"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "The House",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "adventure",
+        "point-and-click",
+        "walking-sim",
+        "escape",
+        "offline"
+      ],
+      "accent": [
+        176,
+        110,
+        48
+      ],
+      "cover": "/apps/the-house/cover.jpg",
+      "bytes": 23227010,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "069e74e8e5ce864d25099e1cd9dfb1a5f469b685faae46acaeb01391a09b05c3"
     },
     {
       "slug": "thinktank",
