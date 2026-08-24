@@ -1,0 +1,10 @@
+mminer/hexahedral
+https://github.com/mminer/hexahedral
+commit a2641001e13afe15ca8488be7d739203471fee77
+MIT, Copyright (c) 2018 Matthew Miner
+
+Global Game Jam 2016: push every raised block down in the fewest moves.
+Upstream is webpack + Redux + virtual-dom + FastClick, with optional
+sound. This port destacks to classic scripts. The thirty jam levels
+are kept. Progress is a private save. Tap an adjacent block or swipe;
+arrow keys still work. Audio stays behind (Safari already skipped it).

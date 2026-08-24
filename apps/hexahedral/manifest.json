@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "hexahedral",
+  "name": "Hexahedral",
+  "shortName": "Hexahedral",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Push every block down in the fewest moves. Thirty jam levels.",
+  "entry": "index.html",
+  "accent": [211, 45, 143],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}

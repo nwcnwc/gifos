@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Hexahedral</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="hud">
+  <div class="progress" id="progress"></div>
+</header>
+<nav id="nav"></nav>
+<main>
+  <div id="menu" class="difficulty-buttons">
+    <button type="button" data-diff="0">Easy</button>
+    <button type="button" data-diff="10">Medium</button>
+    <button type="button" data-diff="20">Hard</button>
+  </div>
+  <div id="level" class="level" hidden></div>
+</main>
+<p class="msg" id="msg"></p>
+<script src="levels.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
