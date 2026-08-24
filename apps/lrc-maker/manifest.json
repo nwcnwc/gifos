@@ -3,7 +3,7 @@
   "appId": "lrc-maker",
   "name": "LRC Maker",
   "shortName": "LRC",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "description": "Load a local song, tap lyric timings, export LRC. Nothing is uploaded.",
   "entry": "index.html",

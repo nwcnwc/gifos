@@ -2,16 +2,18 @@
 
 An unofficial local port of
 **[lrc-maker](https://github.com/magic-akari/lrc-maker)** (MIT) by
-magic-akari. Load a local song, tap timings, export LRC. Audio stays
-on this device. The React app is not packed; `@lrc-maker/lrc-parser`
-is vendored as classic UMD.
+magic-akari. Load a local song, tap timings, export LRC. The song and
+the lyrics live in the file (`gifos.db`). The React app is not packed;
+`@lrc-maker/lrc-parser` is vendored as classic UMD. On a phone, Stamp
+sits under the thumb.
 
 ![screenshot](screenshot.png)
 
 ## capabilities
 
 `db` + `multiplayer`. `minBuild` **947**. No network, no microphone.
-Invite shares lyrics + stamps, not the audio file.
+The song bytes stay in the private save. Invite shares lyrics + stamps,
+not the audio file.
 
 ```bash
 node apps/lrc-maker/build.mjs

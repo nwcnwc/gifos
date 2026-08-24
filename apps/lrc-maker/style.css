@@ -7,23 +7,24 @@ html, body {
 }
 body {
   display: flex; flex-direction: column;
-  padding: calc(6px + env(safe-area-inset-top, 0px)) 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 0;
 }
 #shell { flex: 1; min-height: 0; max-width: 900px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; }
 #hud { display: flex; align-items: baseline; gap: 10px; }
 #brand { font-size: 18px; font-weight: 700; }
 #clock { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 18px; color: #7ee0ff; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.actions button, #leaveBtn, .file {
+.actions button, #leaveBtn, .file, #dock button {
   font: inherit; font-size: 15px; font-weight: 700; padding: 8px 14px; min-height: 40px;
   border: 1px solid #2a3a50; background: #182030; color: #e8eef8; border-radius: 6px; cursor: pointer;
 }
 .file { display: inline-flex; align-items: center; position: relative; overflow: hidden; }
 .file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-#shareBtn { background: #1f6feb; color: #fff; border-color: #388bfd; }
-#stampBtn { background: #39d0c5; color: #082018; border-color: #2bb8ae; }
+#shareBtn { background: #182030; color: #c5d4e8; }
 body.friend #shareBtn { display: none; }
 #track { margin: 0; font-size: 13px; color: #8ab4d4; }
+#seek-wrap { padding: 0 2px; }
+#seek { width: 100%; accent-color: #39d0c5; height: 28px; }
 #friend-bar { background: #182030; border: 1px solid #2a3a50; border-radius: 8px; padding: 10px 12px 8px; }
 #friend-bar[hidden] { display: none; }
 #friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
@@ -34,20 +35,41 @@ body.friend #shareBtn { display: none; }
 #friend-scores .me .name { color: #7ee0ff; }
 .friend-actions { display: flex; justify-content: flex-end; }
 #lines {
-  flex: 1; min-height: 120px; overflow: auto; list-style: none; margin: 0; padding: 0;
+  flex: 1; min-height: 80px; overflow: auto; list-style: none; margin: 0; padding: 0;
   background: #0c121c; border: 1px solid #2a3a50; border-radius: 8px;
+  -webkit-overflow-scrolling: touch;
 }
-#lines li { display: flex; gap: 10px; padding: 8px 10px; border-top: 1px solid #1a2434; cursor: pointer; }
+#lines li { display: flex; gap: 10px; padding: 10px 12px; border-top: 1px solid #1a2434; cursor: pointer; min-height: 44px; align-items: center; }
 #lines li:first-child { border-top: none; }
 #lines li.on { background: #1a3a5c; }
+#lines li.sing { background: #16382e; }
+#lines li.sing.on { background: #1c4a3c; }
 #lines li.timed .t { color: #39d0c5; }
-#lines .t { font-variant-numeric: tabular-nums; width: 5.5em; color: #5a7088; }
-#lines .empty { color: #8ab4d4; }
+#lines .t { font-variant-numeric: tabular-nums; width: 5.5em; flex: 0 0 auto; color: #5a7088; }
+#lines .empty { color: #8ab4d4; cursor: pointer; }
+#editor { flex: 0 0 auto; }
 #lyrics {
-  width: 100%; min-height: 80px; max-height: 140px; resize: vertical;
+  width: 100%; min-height: 88px; max-height: 160px; resize: vertical;
   font: 14px/1.4 system-ui, sans-serif; background: #0c121c; color: #e8eef8;
   border: 1px solid #2a3a50; border-radius: 6px; padding: 8px;
 }
-#how, .foot { margin: 0; font-size: 13px; line-height: 1.4; color: #8ab4d4; }
-.foot { opacity: 0.85; }
+.err { margin: 0; color: #f08080; font-size: 13px; }
+#editor[hidden], .err[hidden] { display: none; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+#dock {
+  display: flex; gap: 8px; align-items: stretch;
+  padding: 8px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+  background: #10141c;
+  flex: 0 0 auto;
+}
+#dock #playBtn { min-width: 88px; }
+#stampBtn {
+  flex: 1.8 1 auto;
+  background: #39d0c5; color: #082018; border-color: #2bb8ae;
+  min-height: 56px; font-size: 18px; letter-spacing: 0.02em;
+}
+#stampBtn:disabled, #playBtn:disabled { opacity: 0.45; cursor: default; }
+@media (max-width: 640px) {
+  #stampBtn { min-height: 64px; font-size: 20px; }
+  #dock button { min-height: 56px; }
+}
