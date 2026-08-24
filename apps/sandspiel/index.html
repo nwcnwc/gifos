@@ -14,7 +14,7 @@
     </header>
 
     <div class="actions">
-      <button type="button" id="shareBtn">Play together</button>
+      <button type="button" id="shareBtn"><span class="wide">Play together</span><span class="narrow">Together</span></button>
       <button type="button" id="pauseBtn">Pause</button>
       <button type="button" id="undoBtn">Undo</button>
       <button type="button" id="resetBtn">Reset</button>
@@ -36,22 +36,25 @@
 
     <div id="stage">
       <canvas id="world" width="180" height="120">This toy needs a canvas.</canvas>
+      <p id="hint" hidden>Tap to pour water</p>
+      <p id="fail" hidden role="alert"></p>
     </div>
 
     <div id="palette" role="list"></div>
     <div id="brushes" aria-label="Brush size"></div>
 
-    <div id="saves">
+    <div id="saves" class="empty">
       <input id="saveName" type="text" maxlength="40" placeholder="Name this board" autocomplete="off">
       <button type="button" id="keepBtn">Keep</button>
       <ul id="saveList"></ul>
     </div>
 
-    <p id="how">Paint elements. Sand piles, water flows, fire rises, plants drink. Pause to look. Keep a board, or Play together for a wall of worlds.</p>
-    <p class="foot">Unofficial port of Sandspiel by Max Bittker (MIT). Playing alone is the original toy. A wall is cards in a meeting — nobody writes on anybody else’s row.</p>
+    <p class="foot">Unofficial port of Sandspiel by Max Bittker (MIT). The file is the world. A wall is cards in a meeting.</p>
   </div>
 
   <script src="species.js"></script>
+  <script src="wasm-bytes.js"></script>
+  <script src="wasm.js"></script>
   <script src="app.js"></script>
   <script src="wall.js"></script>
 </body>

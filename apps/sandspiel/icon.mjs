@@ -2,8 +2,9 @@
 // 128 animated GIF frames + 1200×720 cover. Deterministic.
 import { deflateSync } from 'node:zlib';
 
-const OUT = 128, SS = 2, RW = OUT * SS, FRAMES = 128;
+const OUT = 128, SS = 2, RW = OUT * SS, FRAMES = 16;
 const CARD = [26, 20, 16];
+const TABLE = [56, 42, 32];
 const GLASS = [74, 64, 56];
 const SAND = [230, 196, 110];
 const WATER = [74, 144, 217];
@@ -122,7 +123,7 @@ export function sandspielIcon() {
   for (let i = 0; i < pal.length && i < CT; i++) {
     flat[i * 3] = pal[i][0] | 0; flat[i * 3 + 1] = pal[i][1] | 0; flat[i * 3 + 2] = pal[i][2] | 0;
   }
-  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 3, transparentIndex: 0 };
+  return { width: OUT, height: OUT, palette: flat, numColors: CT, minCodeSize: 6, frames, delayCs: 8, transparentIndex: 0 };
 }
 
 function crc(buf) {
@@ -147,6 +148,7 @@ const GLYPHS = {
   D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
   F: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
+  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
   L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
   N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
@@ -154,6 +156,7 @@ const GLYPHS = {
   P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
   R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
   S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
+  T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   W: [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
   ' ': [0, 0, 0, 0, 0, 0, 0],
@@ -189,7 +192,7 @@ export function screenshotPng() {
   };
   fill(0, 0, W, H, 26, 20, 16);
   drawText(put, 48, 28, 'SANDSPIEL', 7, 230, 196, 110);
-  drawText(put, 48, 88, 'POUR. SAVE. A WALL OF BOARDS.', 3, 184, 168, 140);
+  drawText(put, 48, 88, 'THE FILE IS THE WORLD.', 3, 184, 168, 140);
 
   const palStrip = [SAND, WATER, FIRE, WOOD, LAVA, PLANT, ICE, [196, 94, 200], [232, 120, 160], [184, 224, 64]];
   palStrip.forEach((c, i) => fill(48 + i * 52, 128, 48 + i * 52 + 44, 152, c[0], c[1], c[2]));
@@ -216,7 +219,7 @@ export function screenshotPng() {
     if (water) return mix(WATER, ICE, (ny - 0.82) * 2);
     if (dune) return mix(SAND, [200, 160, 80], ((cx * 5 + cy) % 6) / 8);
     if (ny > 0.5 && nx > 0.4 && nx < 0.48 && ((cx + cy * 3) % 11 === 0)) return [232, 120, 160];
-    return CARD;
+    return TABLE;
   }
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
