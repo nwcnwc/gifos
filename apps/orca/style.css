@@ -1,6 +1,36 @@
 /* GifOS extras on top of Orca's own main.css. */
 html, body { height: 100%; }
 body { max-height: none; }
+
+.lesson {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  top: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--f_high, #eee);
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid var(--b_med, #72dec2);
+  font-family: input_mono_medium, ui-monospace, monospace;
+  z-index: 5;
+}
+.lesson[hidden] { display: none; }
+.lesson b { color: var(--b_med, #72dec2); }
+.lesson button {
+  font: inherit;
+  font-size: 12px;
+  margin-left: 8px;
+  padding: 4px 10px;
+  min-height: 32px;
+  color: #000;
+  background: var(--b_med, #72dec2);
+  border: 0;
+  cursor: pointer;
+}
+
 .meet {
   position: fixed;
   left: 12px;
@@ -11,5 +41,55 @@ body { max-height: none; }
   color: var(--f_low, #6a6a6a);
   pointer-events: none;
   font-family: input_mono_medium, ui-monospace, monospace;
+  z-index: 4;
 }
 .meet b { color: var(--f_high, #eee); }
+
+#pad { display: none; }
+#keys {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  left: 0;
+  bottom: 0;
+}
+
+@media (pointer: coarse), (max-width: 700px) {
+  body { padding-bottom: 168px; }
+  .meet { bottom: 168px; }
+  #pad {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: #000;
+    z-index: 6;
+  }
+  .pad-row {
+    display: flex;
+    gap: 6px;
+    justify-content: stretch;
+  }
+  #pad button {
+    flex: 1;
+    font-family: input_mono_medium, ui-monospace, monospace;
+    font-size: 16px;
+    font-weight: 700;
+    min-height: 40px;
+    padding: 6px 4px;
+    color: #eee;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    touch-action: manipulation;
+  }
+  #pad .glyphs button { font-size: 18px; color: #72dec2; }
+  #hear { background: #72dec2; color: #000; border-color: #72dec2; }
+  #play { background: #ffb545; color: #000; border-color: #ffb545; }
+}

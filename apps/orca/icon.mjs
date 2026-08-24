@@ -93,31 +93,45 @@ function putGlyph(rgba, w, x, y, ch, s, col) {
   }
 }
 
-const CELLS = [
-  [1, 1, 'D'], [2, 1, '4'], [3, 1, ':'], [4, 1, 'a'],
-  [1, 3, '*'], [3, 3, 'C'], [4, 3, 'a'],
-  [6, 2, 'E'], [7, 2, '4'], [8, 2, 'T'],
+/* A running Orca program at icon size: D4 bangs :04C. The * flashes. */
+const GRID = [
+  '.D4.....',
+  '........',
+  '.:04C...',
+  '........',
+  '..E4....',
+  '........',
 ];
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const t = f / FRAMES;
-  const m = 8, rad = 16;
+  const m = 6, rad = 18;
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = (px + 0.5) / SS, y = (py + 0.5) / SS;
     if (!inCard(x, y, m, rad)) continue;
     const o = (py * RW + px) * 4;
     rgba[o] = BG[0]; rgba[o + 1] = BG[1]; rgba[o + 2] = BG[2]; rgba[o + 3] = 1;
   }
-  const cell = 28;
-  const ox = 36, oy = 40;
-  CELLS.forEach((c, i) => {
-    const lit = ((f + i) % FRAMES) < 6;
-    const ch = c[2].toUpperCase();
-    const col = c[2] === '*' ? HI : (lit ? MED : DIM);
-    putGlyph(rgba, RW, (ox + c[0] * cell) * SS / SS, (oy + c[1] * cell) * SS / SS, ch, 3, col);
-    putGlyph(rgba, RW, ox + c[0] * 9, oy + c[1] * 11, ch, 3, col);
-  });
+  const cols = GRID[0].length, rows = GRID.length;
+  const cell = 13;
+  const ox = Math.round((OUT - cols * cell) / 2) + 2;
+  const oy = Math.round((OUT - rows * cell) / 2) + 2;
+  const bangOn = (f % 4) === 0;
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+    let ch = GRID[y][x];
+    if (x === 1 && y === 1) ch = bangOn ? '*' : '.';
+    const gx = ox + x * cell, gy = oy + y * cell;
+    if (ch === '.') {
+      const px = (gx + 5) * SS, py = (gy + 6) * SS;
+      if (px >= 0 && py >= 0 && px < RW && py < RW) {
+        const oo = (py * RW + px) * 4;
+        rgba[oo] = 40; rgba[oo + 1] = 40; rgba[oo + 2] = 40; rgba[oo + 3] = 1;
+      }
+      continue;
+    }
+    const col = ch === '*' ? HI : (ch === 'D' || ch === ':' || ch === 'E' ? MED : FG);
+    putGlyph(rgba, RW, gx * SS, gy * SS, ch === '*' ? '*' : ch.toUpperCase(), 2 * SS, col);
+  }
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
     let r = 0, g = 0, b = 0, a = 0, n = SS * SS;
@@ -189,19 +203,22 @@ export function screenshotPng() {
   fill(0, 0, W, H, 8, 8, 8);
   drawText(put, 48, 28, 'ORCA', 6, 238, 238, 238);
   drawText(put, 48, 80, 'A LIVECODING SEQUENCER. THE GRID IS THE SAVE.', 2, 114, 222, 194);
+  drawText(put, 48, 112, 'OPEN IT  A C IS ALREADY PLAYING. MIDI IS OPTIONAL.', 2, 68, 68, 68);
 
   const grid = [
-    'D4....:04C',
-    '....*.....',
-    'C4T......E',
-    '..........',
-    '....D8*...',
-    ':a4.......',
-    '..........',
-    '..E4......'
+    '.D4....:04C........:04E',
+    '....*..................',
+    '.C4T......E....D2......',
+    '.......................',
+    '....D8*....:a4.........',
+    ':a4....................',
+    '..E4......T............',
+    '.......................',
+    '.D4....:04C..D4....:04G',
+    '....*..............*...'
   ];
-  const cw = 22, cellH = 32, ox = 80, oy = 160;
-  for (let y = 0; y < 16; y++) for (let x = 0; x < 40; x++) {
+  const cw = 22, cellH = 36, ox = 56, oy = 160;
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 46; x++) {
     const gx = ox + x * cw, gy = oy + y * cellH;
     const mark = x % 8 === 0 && y % 8 === 0;
     put(gx, gy, 40, 40, 40);
@@ -215,7 +232,8 @@ export function screenshotPng() {
       drawText(put, ox + x * cw, oy + y * cellH, glyph, 3, col[0], col[1], col[2]);
     }
   });
-  drawText(put, 80, 660, 'D4 CLOCK    : MIDI NOTE    * BANG    SPACE PLAY', 2, 68, 68, 68);
+  drawText(put, 56, 620, 'D4 BANGS EVERY 4 FRAMES', 2, 114, 222, 194);
+  drawText(put, 56, 652, ':04C  A C IN THIS BROWSER    * BANG    SPACE PLAY    HEAR UNLOCKS SOUND', 2, 68, 68, 68);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
