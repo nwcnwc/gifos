@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "pixelit",
+  "name": "Pixel It",
+  "shortName": "PixelIt",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Turn a photo into pixel art on this device. Drop a picture or take one. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [228, 148, 58],
+  "capabilities": {
+    "db": true,
+    "camera": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "pic": { "visibility": "private" }
+  }
+}

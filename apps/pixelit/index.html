@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pixel It</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<img id="pixelitimg" alt="" hidden>
+<div class="wrap">
+  <header>
+    <h1>Pixel It</h1>
+    <p class="lead">Turn a photo into pixel art on this device. Nothing is uploaded.</p>
+  </header>
+
+  <div id="drop" class="drop">
+    <div class="drop-ico" aria-hidden="true">▣</div>
+    <p><b>Drop a picture here</b> or tap to choose</p>
+    <p class="hint">JPEG, PNG, WebP. On a phone, Take photo is easier.</p>
+  </div>
+  <input type="file" id="file" accept="image/*">
+
+  <div class="row">
+    <button type="button" id="photoBtn">Take photo</button>
+    <button type="button" id="saveBtn" class="ghost">Download PNG</button>
+  </div>
+
+  <section class="controls">
+    <label>Block size <span id="blockvalue">8</span>
+      <input type="range" id="blocksize" min="1" max="50" value="8">
+    </label>
+    <label class="chk"><input type="checkbox" id="greyscale"> Greyscale</label>
+    <label class="chk"><input type="checkbox" id="palette" checked> Use palette</label>
+  </section>
+
+  <section class="palettes">
+    <div class="row-head">Palette</div>
+    <div id="palettelist"></div>
+  </section>
+
+  <div class="stage">
+    <canvas id="pixelitcanvas"></canvas>
+  </div>
+  <p id="status" role="status"></p>
+  <p class="foot">Unofficial port of Pixel It by giventofly. The picture never leaves this device.</p>
+</div>
+<script src="vendor/pixelit.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
