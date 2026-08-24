@@ -644,8 +644,8 @@
       "appId": "blackjack",
       "name": "Blackjack",
       "shortName": "Blackjack",
-      "version": "1.0",
-      "tagline": "Beat the dealer to 21. Invite is extra seats. No cash.",
+      "version": "1.1.0",
+      "tagline": "No cash. The file holds your chips. Invite is extra seats.",
       "author": {
         "name": "hanhaechi",
         "url": "https://github.com/hanhaechi/blackjack"
@@ -677,7 +677,7 @@
         58
       ],
       "cover": "/apps/blackjack/cover.jpg",
-      "bytes": 186516,
+      "bytes": 192516,
       "download": 0,
       "provides": null,
       "signature": {
@@ -685,7 +685,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "3bebf0521a99cec3bbc68e1f193d5ff45f6fe5e28cffc091a644511f0d6b0470"
+      "sha256": "27b622f3d0eeca6d9e80392c48138dd90640b8883c1e3035cf1d3093eebbf98d"
     },
     {
       "slug": "bowling",
@@ -1707,8 +1707,8 @@
       "appId": "fend",
       "name": "fend",
       "shortName": "fend",
-      "version": "1.0",
-      "tagline": "Units, fractions, dice. Type 1 ft to cm. The pad stays on this device.",
+      "version": "1.1",
+      "tagline": "Type 1 ft to cm. The pad stays in this file. Nothing is uploaded.",
       "author": {
         "name": "printfn",
         "url": "https://github.com/printfn/fend"
@@ -1740,7 +1740,7 @@
         40
       ],
       "cover": "/apps/fend/cover.jpg",
-      "bytes": 593035,
+      "bytes": 596797,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1748,7 +1748,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "616c2c92d746ade99c8c53ddd06a97bec38570c7ad44464ceaea46e7de25dbc0"
+      "sha256": "1073d50a0a7256399f04759987af61235faa5b40c242b2b7fb5e43271b4e2e5a"
     },
     {
       "slug": "fieldplay",
@@ -2375,8 +2375,8 @@
       "appId": "hexahedral",
       "name": "Hexahedral",
       "shortName": "Hexahedral",
-      "version": "1.0",
-      "tagline": "Push every block down. Thirty jam levels. The file is the save.",
+      "version": "1.1",
+      "tagline": "Drag the green cube. Thirty jam levels. Your best lives in the file.",
       "author": {
         "name": "mminer",
         "url": "https://github.com/mminer/hexahedral"
@@ -2408,7 +2408,7 @@
         143
       ],
       "cover": "/apps/hexahedral/cover.jpg",
-      "bytes": 185656,
+      "bytes": 192059,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2416,7 +2416,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "ef7a33371c93a8412f15874de8aa3e3d5440e0697a246c1d1bef4c4699fd5200"
+      "sha256": "ea201182812a2a3e58b7f95c4ebd81afbdab0a37428d9d2180e4559b895ad3ce"
     },
     {
       "slug": "invaderz",
@@ -2715,7 +2715,7 @@
       "name": "JSON Crack",
       "shortName": "JSON",
       "version": "1.0",
-      "tagline": "Paste JSON, see it as a graph of cards. Nothing is uploaded.",
+      "tagline": "Paste JSON, see the graph. Nothing is uploaded — the file is the document.",
       "author": {
         "name": "Aykut Saraç",
         "url": "https://github.com/AykutSarac/jsoncrack.com"
@@ -2749,7 +2749,7 @@
         241
       ],
       "cover": "/apps/json-crack/cover.jpg",
-      "bytes": 193315,
+      "bytes": 198400,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2757,7 +2757,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "b5738ef982abbf224950aab3d4aa7a7fc140e4b9cb77fc05b2cbbdc49ee6f1b9"
+      "sha256": "78fb76c478a3c9db081a0c56719e18f691db6c9e0455feaefb5435e302d70bd8"
     },
     {
       "slug": "json-diff",
@@ -2812,8 +2812,8 @@
       "appId": "json-editor",
       "name": "JSON Editor",
       "shortName": "JSON",
-      "version": "1.0",
-      "tagline": "Tree and code for a document that lives in the file. Nothing is uploaded.",
+      "version": "1.1",
+      "tagline": "Tree or code. The file is the document. Nothing is uploaded.",
       "author": {
         "name": "Jos de Jong",
         "url": "https://github.com/josdejong/jsoneditor"
@@ -2846,7 +2846,7 @@
         0
       ],
       "cover": "/apps/json-editor/cover.jpg",
-      "bytes": 791411,
+      "bytes": 800940,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2854,7 +2854,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "9c333e27b3d3dccf49dd87bd96997a40f51a40d40cfdf5c9669af975e92ac517"
+      "sha256": "bf51f9dd5186b87fb3b772bd196d5f363358fc45f694a217c1eba11fc0d54aa8"
     },
     {
       "slug": "jspaint",
@@ -3534,8 +3534,8 @@
       "appId": "my-mind",
       "name": "My Mind",
       "shortName": "Mind",
-      "version": "1.0",
-      "tagline": "A map of ideas. Tab adds a child, Enter a sibling. The map is the save.",
+      "version": "1.1",
+      "tagline": "The file is the map. Tab a child, Enter a sibling. Nothing is uploaded.",
       "author": {
         "name": "Ondřej Žára",
         "url": "https://github.com/ondras/my-mind"
@@ -3567,7 +3567,7 @@
         221
       ],
       "cover": "/apps/my-mind/cover.jpg",
-      "bytes": 387327,
+      "bytes": 394265,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3575,7 +3575,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "70d2894758b3daae00e60dc8de96d1433ef32b0dd7d3a9cfa50d6176d31bb3f1"
+      "sha256": "565448bb82c30c61cbac53f5e0b7f82c849139523daae5ce75ecc8355942ee4e"
     },
     {
       "slug": "mykonos",
@@ -4438,8 +4438,8 @@
       "appId": "piano-trainer",
       "name": "Piano Trainer",
       "shortName": "Piano",
-      "version": "1.0",
-      "tagline": "Scales, chords, fifths, a quiz. Home row or tap.",
+      "version": "1.1",
+      "tagline": "Scales, chords, fifths, a quiz — offline, in this file.",
       "author": {
         "name": "Zane Helton",
         "url": "https://github.com/ZaneH/piano-trainer"
@@ -4472,7 +4472,7 @@
         96
       ],
       "cover": "/apps/piano-trainer/cover.jpg",
-      "bytes": 189313,
+      "bytes": 199050,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4480,7 +4480,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "2d2d2fe8a31589852ccdd760ba6cf8ca5a0cf4aca152fb4261933b233eb924e7"
+      "sha256": "688611071317257f14a3a0ef7af5911f14308ddd9691db1decfaf860198b2f3e"
     },
     {
       "slug": "pickr",
@@ -5418,8 +5418,8 @@
       "appId": "sandspiel",
       "name": "Sandspiel",
       "shortName": "Sand",
-      "version": "1.0.0",
-      "tagline": "Pour sand, water, fire and plants. Keep boards here. A meeting wall of friends' worlds — no account.",
+      "version": "1.1.0",
+      "tagline": "The file is the world. Pour sand, water, fire and plants — no account.",
       "author": {
         "name": "Max Bittker",
         "url": "https://github.com/MaxBittker/sandspiel"
@@ -5454,7 +5454,7 @@
         110
       ],
       "cover": "/apps/sandspiel/cover.jpg",
-      "bytes": 1899313,
+      "bytes": 283156,
       "download": 0,
       "provides": null,
       "signature": {
@@ -5462,7 +5462,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "94a7f43fcc45eeec2431560ce4484add2fd3b05ed6193f491b667467071a3ff3"
+      "sha256": "3f153e8a1742035117aed81ee96e5844844b07393ec1f3232a8928d2befa4d61"
     },
     {
       "slug": "server-survival",
@@ -7018,8 +7018,8 @@
       "appId": "vintage-poker",
       "name": "Vintage Poker",
       "shortName": "Poker",
-      "version": "1.0",
-      "tagline": "Texas Hold'em. Host is the dealer. Invite is the seats.",
+      "version": "1.1",
+      "tagline": "No account, no cash. Invite is the table.",
       "author": {
         "name": "Patrick Obermeier",
         "url": "https://github.com/Pobermeier/vintage-poker"
@@ -7052,7 +7052,7 @@
         58
       ],
       "cover": "/apps/vintage-poker/cover.jpg",
-      "bytes": 196075,
+      "bytes": 199266,
       "download": 0,
       "provides": null,
       "signature": {
@@ -7060,7 +7060,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "26ad66a5e6e0046c0df27c54c18964a1373a52c161412355c825aa73995f29d8"
+      "sha256": "c61141aa1d9c0131f4883acd48e316d4b04608d857df624615e76172a149e869"
     },
     {
       "slug": "vocal-remover",

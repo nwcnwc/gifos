@@ -4,10 +4,10 @@
   "appId": "piano-trainer",
   "name": "Piano Trainer",
   "shortName": "Piano",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Scales, chords, fifths, a quiz. Home row or tap.",
-  "description": "A two-octave keyboard. Pick a key and a mode: play the scale, the triads, the sevenths, or walk the circle of fifths. A short quiz asks which key or which fifth.\n\nTap the keys, or use the home row (A to quote). A MIDI keyboard is optional if this device has one.\n\nHard mode hides the next note. Shuffle picks a new starting degree each round. Your last key, mode, and quiz score stay in this copy of the app.\n\nPress Practice together, then Invite in the bar above the app, and a friend sees the same prompt.\n\nAn unofficial port of Piano Trainer by Zane Helton. The original is a React desktop app that loads a soundfont from the network. This copy does not.",
+  "tagline": "Scales, chords, fifths, a quiz — offline, in this file.",
+  "description": "Practice scales, triads, sevenths, and the circle of fifths on a two-octave keyboard. There is no account and nothing to install: this copy is the app, and your quiz score and finished rounds stay in the file.\n\nTap the keys on a phone, or use the home row (A to quote). A MIDI keyboard is optional. Hard mode hides the next note. Shuffle starts each round on a new degree. Hear plays the notes you are about to find.\n\nThe quiz asks which fifth, the key signature, the name of a chord, or to play a named note — tap an answer, no MIDI required.\n\nPress Practice together, then Invite in the bar above, and a friend sees the same prompt.\n\nAn unofficial port of Piano Trainer by Zane Helton. The original is a React desktop app that loads a soundfont from the network. This copy keeps the piano inside the file.",
   "author": {
     "name": "Zane Helton",
     "url": "https://github.com/ZaneH/piano-trainer"
@@ -39,10 +39,10 @@
   "cover": "/apps/piano-trainer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/piano-trainer/piano-trainer.gif",
-  "bytes": 189313,
+  "bytes": 199050,
   "download": 0,
   "provides": null,
-  "sha256": "2d2d2fe8a31589852ccdd760ba6cf8ca5a0cf4aca152fb4261933b233eb924e7",
+  "sha256": "688611071317257f14a3a0ef7af5911f14308ddd9691db1decfaf860198b2f3e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

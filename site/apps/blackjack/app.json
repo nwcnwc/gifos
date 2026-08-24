@@ -4,10 +4,10 @@
   "appId": "blackjack",
   "name": "Blackjack",
   "shortName": "Blackjack",
-  "version": "1.0",
+  "version": "1.1.0",
   "minBuild": 947,
-  "tagline": "Beat the dealer to 21. Invite is extra seats. No cash.",
-  "description": "A shoe of cards, a dealer, and toy chips. Hit or stand. Aces are soft until they have to be one. The dealer stands on 17. Nothing is wagered for real and nothing is paid out.\n\nOn your own you play this device. Press Invite and everyone who opens the link takes a seat at the same table. The host deals. Each person hits or stands on their own hand; the dealer plays in the host's browser.\n\nAn unofficial port of blackjack by hanhaechi. The original saved the hand on a server. This copy does not.",
+  "tagline": "No cash. The file holds your chips. Invite is extra seats.",
+  "description": "Toy chips, never cash — no account, nothing is paid out. Your pile lives in the file, so sharing the GIF shares the table and the bankroll. One link sits friends at the same table. The host deals. The dealer plays in the host's browser.\n\nHit, stand, or double. Split a pair. Aces are soft until they have to be one. The dealer stands on 17. A natural 21 pays 3:2. Go broke and the table says so; restock is still toy chips.\n\nAn unofficial port of blackjack by hanhaechi. The original saved the hand on a server. This copy does not.",
   "author": {
     "name": "hanhaechi",
     "url": "https://github.com/hanhaechi/blackjack"
@@ -38,10 +38,10 @@
   "cover": "/apps/blackjack/cover.jpg",
   "screenshots": [],
   "gif": "/apps/blackjack/blackjack.gif",
-  "bytes": 186516,
+  "bytes": 192516,
   "download": 0,
   "provides": null,
-  "sha256": "3bebf0521a99cec3bbc68e1f193d5ff45f6fe5e28cffc091a644511f0d6b0470",
+  "sha256": "27b622f3d0eeca6d9e80392c48138dd90640b8883c1e3035cf1d3093eebbf98d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

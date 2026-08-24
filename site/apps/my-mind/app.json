@@ -4,10 +4,10 @@
   "appId": "my-mind",
   "name": "My Mind",
   "shortName": "Mind",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "A map of ideas. Tab adds a child, Enter a sibling. The map is the save.",
-  "description": "Click a bubble and type. Tab inserts a child, Enter a sibling, arrows walk the map, Delete removes a node. Drag to pan, wheel to zoom. Colours, layouts (map, graph, tree), shapes, and a yes/no status live on each item.\n\nThe last map comes back the next time you open the app, still only on this device. New starts a blank map. There is no account, and nothing is sent anywhere — their Drive, Firebase, and WebDAV doors are not in this app.\n\nAn unofficial port of My Mind by Ondřej Žára. Same map, same keys.",
+  "tagline": "The file is the map. Tab a child, Enter a sibling. Nothing is uploaded.",
+  "description": "The map lives in this GIF, on this device. Close it, come back, or hand someone the file — the same bubbles are there. No account, and nothing is sent anywhere. Their Drive, Firebase, and WebDAV doors are not in this app.\n\nClick a bubble and type. Tab inserts a child, Enter a sibling, arrows walk the map, Delete removes a node. Drag to pan, wheel to zoom. Colours, layouts (map, graph, tree), shapes, and a yes/no status live on each item. New starts a blank map.\n\nOn a phone, tap a bubble to select it, tap again to type, and use Child / Sibling / Edit / Delete at the bottom.\n\nPress Invite in the bar above so a friend can watch the same map.\n\nAn unofficial port of My Mind by Ondřej Žára. Same map, same keys.",
   "author": {
     "name": "Ondřej Žára",
     "url": "https://github.com/ondras/my-mind"
@@ -32,15 +32,16 @@
     221
   ],
   "capabilities": {
-    "db": true
+    "db": true,
+    "multiplayer": true
   },
   "cover": "/apps/my-mind/cover.jpg",
   "screenshots": [],
   "gif": "/apps/my-mind/my-mind.gif",
-  "bytes": 387327,
+  "bytes": 394265,
   "download": 0,
   "provides": null,
-  "sha256": "70d2894758b3daae00e60dc8de96d1433ef32b0dd7d3a9cfa50d6176d31bb3f1",
+  "sha256": "565448bb82c30c61cbac53f5e0b7f82c849139523daae5ce75ecc8355942ee4e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
