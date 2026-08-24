@@ -37,7 +37,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     await ctx.addInitScript(() => {
       window.__gumCount = 0;
       const md = navigator.mediaDevices;
-      if (md && md.getUserMedia) { const real = md.getUserMedia.bind(md); md.getUserMedia = (c) => { window.__gumCount++; return real(c); }; }
+      if (md && md.getUserMedia) { const real = md.getUserMedia.bind(md); md.getUserMedia = (c) => { window.__gumCount++; window.__gumLast = c; return real(c); }; }
     });
     return ctx;
   };
@@ -88,20 +88,29 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     return s.style.display === 'none' && hd.style.display === 'none';
   }));
   check('grid is dark (no call layer yet)', await h.evaluate(() => !document.body.classList.contains('call-on')));
-  // THE DOOR. The meeting bar (mic/cam) is hidden in a dark app room, so a
-  // person needs a visible way in: the A/V button on the app bar. Every click
-  // below is a REAL Playwright click — it refuses a hidden element — because
-  // this suite once drove #cam with a programmatic click, which a hidden
-  // button answers, and shipped an app room nobody could start a call from.
+  // ROOM AUDIO — the app host's switch. An app-pinned room is AUDIO-ONLY in
+  // 0.9.12: the host flips room audio (a flag on the app ad that rides the
+  // status channel), everyone then owns their own mic, nobody ever gets a
+  // camera. Every click below is a REAL Playwright click — it refuses a
+  // hidden element — because this suite once drove #cam programmatically,
+  // which a hidden button answers, and shipped an app room nobody could
+  // start a call from.
   const vis = (pg, id) => pg.evaluate((i) => { const e = document.getElementById(i); return !!(e && e.offsetParent && getComputedStyle(e).display !== 'none'); }, id);
-  await h.click('#inv-done'); // close the invite sheet the way a person does — it sits over the app bar
+  // A seeded app's own Abilities sheet can sit over the page; a person taps
+  // Done on it. Then close the invite sheet — it sits over the app bar.
+  const settle = async (pg) => {
+    for (let i = 0; i < 4; i++) {
+      const b = pg.locator('.perm-modal:visible .done:visible');
+      if (!(await b.count())) break;
+      await b.last().click({ timeout: 3000 }).catch(() => {});
+      await pg.waitForTimeout(400);
+    }
+  };
+  await settle(h);
+  await h.click('#inv-done');
   await h.waitForFunction(() => { const m = document.getElementById('inv-modal'); return !m || getComputedStyle(m).display === 'none'; }, null, { timeout: 10000 });
-  check('the host sees an A/V button on the app bar once the room exists', await vis(h, 'appav'));
-  check('…and the mic/cam controls are NOT shown before it is tapped (the room starts dark)', !(await vis(h, 'cam')) && !(await vis(h, 'mic')));
-  await h.click('#appav');
-  check('tapping A/V reveals the real mic and camera controls', (await vis(h, 'cam')) && (await vis(h, 'mic')));
-  check('A/V itself asks for nothing — still zero getUserMedia', (await h.evaluate(() => window.__gumCount)) === 0);
-  check('…and the room is still dark until a control is tapped', await h.evaluate(() => !document.body.classList.contains('call-on')));
+  check('the host sees an Audio switch on the app bar, off', (await vis(h, 'appaudio')) && /off/i.test(await h.locator('#appaudio').textContent()));
+  check('…and no mic/cam controls before it is flipped (the room starts dark)', !(await vis(h, 'cam')) && !(await vis(h, 'mic')));
 
   // ---- client: open the room link ------------------------------------------
   const cCtx = await mkCtx('Cleo');
@@ -116,30 +125,46 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     (await h.evaluate(() => (window.__gifosConns || []).every((s) => { try { const w = s._raw && s._raw(); return !(w && /[?&]role=host\b/.test(w.url || '')); } catch (e) { return true; } })))
     && (await c.evaluate(() => (window.__gifosConns || []).every((s) => { try { const w = s._raw && s._raw(); return !(w && /[?&]role=host\b/.test(w.url || '')); } catch (e) { return true; } }))));
 
-  // ---- call layer: host opts in, client sees the banner --------------------
-  await h.click('#cam'); // a REAL click on the visible control — the host joins the call (lateMedia asks now)
-  await h.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 15000 });
-  check('host tapping camera opts THEM into the call layer', true);
-  check('…and only now does the host ask for media', (await h.evaluate(() => window.__gumCount)) > 0);
-  check('camera and mic are INDEPENDENT: camera on, mic still muted', await h.evaluate(() => {
-    const v = window.__gifosVideo; const st = v.myStatus ? v.myStatus() : null;
-    return st ? (!st.camOff && st.muted) : document.getElementById('mic').classList.contains('off');
-  }));
-  await h.click('#mic');
+  // ---- room audio: host flips it, everyone owns their own mic --------------
+  await settle(c);
+  check('the guest has NO Audio switch — only the app host decides', !(await vis(c, 'appaudio')));
+  check('…and no mic control while the room is quiet', !(await vis(c, 'mic')));
+  await settle(h);
+  await h.click('#appaudio');
+  await h.waitForFunction(() => document.body.classList.contains('audio-on'), null, { timeout: 10000 });
+  check('host flips room audio ON — the switch says so', /on/i.test(await h.locator('#appaudio').textContent()));
+  check('…which reveals the host\'s own mic control, and NEVER a camera', (await vis(h, 'mic')) && !(await vis(h, 'cam')));
+  check('flipping the switch asks for nothing — still zero getUserMedia', (await h.evaluate(() => window.__gumCount)) === 0);
+  await h.click('#mic'); // a REAL click on the visible control — lateMedia asks now
   await h.waitForFunction(() => !document.getElementById('mic').classList.contains('off'), null, { timeout: 15000 });
-  check('…mic turns on by itself', true);
-  await h.click('#cam');
-  await h.waitForFunction(() => document.getElementById('cam').classList.contains('off'), null, { timeout: 15000 });
-  check('…and camera turns off by itself, mic stays on', !(await h.evaluate(() => document.getElementById('mic').classList.contains('off'))));
-  await h.click('#cam'); // back on for the rest of the scenario
-  await h.waitForFunction(() => !document.getElementById('cam').classList.contains('off'), null, { timeout: 15000 });
-  check('the guest sees the same A/V door on their app bar', await vis(c, 'appav'));
-  await c.waitForFunction(() => document.getElementById('callbanner').style.display !== 'none', null, { timeout: 20000 });
-  check('the client sees the call banner (never silent tiles)', true);
-  check('the client still has not asked for media', (await c.evaluate(() => window.__gumCount)) === 0);
-  await c.evaluate(() => document.getElementById('callbanner-join').click());
+  check('host tapping mic turns it on', true);
+  check('…and the ask was for AUDIO ONLY — an app room never touches a camera',
+    await h.evaluate(() => window.__gumCount > 0 && !!window.__gumLast && window.__gumLast.audio === true && !window.__gumLast.video), await h.evaluate(() => JSON.stringify(window.__gumLast)));
+  await h.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 15000 }); // the status beat flips it
+  check('…which opens the call layer for the host', true);
+  await c.waitForFunction(() => document.body.classList.contains('audio-on'), null, { timeout: 20000 });
+  check('the guest learns room audio is on from the host\'s ad (data on the data channel)', true);
+  check('…and now sees their OWN mic control, and no camera, and no Audio switch',
+    (await vis(c, 'mic')) && !(await vis(c, 'cam')) && !(await vis(c, 'appaudio')));
+  check('the guest still has not asked for media', (await c.evaluate(() => window.__gumCount)) === 0);
+  await settle(c);
+  await c.click('#mic');
+  await c.waitForFunction(() => !document.getElementById('mic').classList.contains('off'), null, { timeout: 15000 });
+  check('the guest turns their mic on themselves — audio only',
+    await c.evaluate(() => !!window.__gumLast && window.__gumLast.audio === true && !window.__gumLast.video));
   await c.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 15000 });
   check('joining reveals the grid for the client', true);
+  // Host turns the room quiet: every mic goes with it, and a guest cannot unmute.
+  await h.click('#appaudio');
+  await c.waitForFunction(() => !document.body.classList.contains('audio-on') && document.getElementById('mic').classList.contains('off'), null, { timeout: 20000 });
+  check('host flips room audio OFF — the guest\'s mic is muted for them and the control folds away', !(await vis(c, 'mic')));
+  check('…and the host\'s own mic is muted too', await h.evaluate(() => document.getElementById('mic').classList.contains('off')));
+  await c.evaluate(() => document.getElementById('mic').click()); // even a programmatic tap is refused while the room is quiet
+  check('a guest cannot unmute while the room is quiet', await c.evaluate(() => document.getElementById('mic').classList.contains('off')));
+  await h.click('#appaudio'); // back on for the rest of the scenario
+  await c.waitForFunction(() => document.body.classList.contains('audio-on'), null, { timeout: 20000 });
+  await c.click('#mic');
+  await c.waitForFunction(() => !document.getElementById('mic').classList.contains('off'), null, { timeout: 15000 });
 
   // ---- steal: a guest takes a copy — three ways -----------------------------
   // The engine has always had three modes and the modal that offered them was
