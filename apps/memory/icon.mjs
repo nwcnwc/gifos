@@ -1,10 +1,11 @@
-// Four pads lighting in sequence. Super-sample → box-downsample.
+// Four pads lighting in sequence, then a mid-play cover with a live score.
 import { deflateSync } from 'node:zlib';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 8;
 const CARD_A = [18, 22, 32], CARD_B = [10, 12, 18];
 const RED = [192, 57, 43], BLUE = [36, 113, 163], GREEN = [30, 132, 73], GOLD = [183, 149, 11];
 const PADS = [RED, BLUE, GREEN, GOLD];
+const INK = [240, 244, 250];
 
 function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 function inCard(x, y, m, r) {
@@ -15,9 +16,15 @@ function inCard(x, y, m, r) {
   if (y >= lo + r && y <= hi - r) return true;
   return (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
 }
+function inRound(x, y, x0, y0, x1, y1, rad) {
+  if (x < x0 || x > x1 || y < y0 || y > y1) return false;
+  const cx = Math.min(Math.max(x, x0 + rad), x1 - rad);
+  const cy = Math.min(Math.max(y, y0 + rad), y1 - rad);
+  return (x - cx) ** 2 + (y - cy) ** 2 <= rad * rad;
+}
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD_A, CARD_B, ...PADS, [255, 255, 255]]) {
+  for (const b of [CARD_A, CARD_B, ...PADS, INK, [255, 255, 255]]) {
     for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.12).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.3).map(Math.round));
   }
@@ -34,17 +41,18 @@ function nearest(pal, r, g, b) {
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const lit = f % 4;
-  const boxes = [[22, 22, 62, 62], [66, 22, 106, 62], [22, 66, 106, 106], [66, 66, 106, 106]].map((b, i) => i < 2 ? b : i === 2 ? [22, 66, 62, 106] : [66, 66, 106, 106]);
+  const seq = [0, 2, 1, 3, 0, 2, 1, 3];
+  const lit = seq[f % seq.length];
+  const boxes = [[18, 18, 62, 62], [66, 18, 110, 62], [18, 66, 62, 110], [66, 66, 110, 110]];
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
-    if (inCard(x, y, 6, 22)) {
+    if (inCard(x, y, 5, 24)) {
       a = 1;
-      col = mix(CARD_A, CARD_B, (y - 6) / 116);
+      col = mix(CARD_A, CARD_B, (y - 5) / 118);
       boxes.forEach((b, i) => {
-        if (x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3]) {
-          col = i === lit ? mix(PADS[i], [255, 255, 255], 0.35) : mix(PADS[i], [0, 0, 0], 0.25);
+        if (inRound(x, y, b[0], b[1], b[2], b[3], 10)) {
+          col = i === lit ? mix(PADS[i], [255, 255, 255], 0.38) : mix(PADS[i], [0, 0, 0], 0.28);
         }
       });
     }
@@ -103,12 +111,40 @@ export function screenshotPng() {
     }
   };
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) put(x, y, 18, 21, 28);
-  const cols = [[192, 57, 43], [36, 113, 163], [30, 132, 73], [183, 149, 11]];
-  const boxes = [[80, 80, 560, 360], [640, 80, 1120, 360], [80, 400, 560, 680], [640, 400, 1120, 680]];
+
+  // header
+  rr(40, 28, 280, 78, 8, 28, 34, 48);
+  // "score" chips
+  rr(820, 28, 980, 78, 8, 28, 34, 48);
+  rr(1000, 28, 1160, 78, 8, 28, 34, 48);
+  // pale ticks on chips (Best 12 / Score 8)
+  for (let x = 850; x < 950; x++) for (let y = 46; y < 60; y++) put(x, y, 154, 163, 181);
+  for (let x = 1030; x < 1130; x++) for (let y = 46; y < 60; y++) put(x, y, 143, 212, 168);
+
+  const cols = [[192, 57, 43], [36, 113, 163], [30, 132, 73], [183, 149, 11], [108, 52, 131], [26, 82, 118]];
+  // 6 pads, mid-round — one lit with a step number block
+  const boxes = [
+    [48, 110, 428, 330], [436, 110, 816, 330], [824, 110, 1152, 330],
+    [48, 350, 428, 570], [436, 350, 816, 570], [824, 350, 1152, 570],
+  ];
   boxes.forEach((b, i) => {
-    const c = i === 1 ? mix(cols[i], [255, 255, 255], 0.25).map(Math.round) : mix(cols[i], [0, 0, 0], 0.1).map(Math.round);
+    const lit = i === 1;
+    const c = lit ? mix(cols[i], [255, 255, 255], 0.28).map(Math.round) : mix(cols[i], [0, 0, 0], 0.12).map(Math.round);
     rr(b[0], b[1], b[2], b[3], 36, c[0], c[1], c[2]);
   });
+  // step "3" on the lit pad
+  const n3 = (x, y, r, g, b) => {
+    rr(x, y, x + 54, y + 12, 2, r, g, b);
+    rr(x + 42, y, x + 54, y + 70, 2, r, g, b);
+    rr(x, y + 30, x + 54, y + 42, 2, r, g, b);
+    rr(x, y + 58, x + 54, y + 70, 2, r, g, b);
+  };
+  n3(596, 190, 255, 255, 255);
+
+  // Start bar
+  rr(48, 600, 860, 688, 18, 58, 125, 92);
+  rr(880, 600, 1152, 688, 18, 42, 51, 72);
+
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

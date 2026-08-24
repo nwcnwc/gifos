@@ -8,11 +8,12 @@ Invite is a two-device race on the same sequence.
 
 Upstream is SweetAlert + particles + Font Awesome + Bensound. None of that
 fits the sandbox. This tree is classic scripts with the original rules
-(4 pads, extra pads at 7 and 14, the speed curve).
+(4 pads, extra pads at 7 and 14, the speed curve), local Web Audio tones,
+and a pad that answers a finger.
 
 ```
-index.html      pads, score, start
-style.css       dark pads
+index.html      pads, score, start, mute
+style.css       dark pads, 4/6/8 layouts
 app.js          rules + gifos.db + race
 icon.mjs        four pads lighting + 1200×720 cover
 build.mjs       packs site/apps/memory/memory.gif

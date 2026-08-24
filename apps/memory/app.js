@@ -3,12 +3,15 @@
  *
  * Same rules as vendor/script.js: 4 pads, a growing sequence, extra pads
  * after level 7 and 14, speed 2500 down to 550. No SweetAlert, no CDN, no
- * music. Best score in gifos.db. Invite is a race on the same seeded sequence.
+ * music. Pad tones are local Web Audio. Best score in gifos.db. Invite is a
+ * race on the same seeded sequence — whoever taps Start publishes the seed.
  */
 (function (root) {
   'use strict';
 
   var COLORS = ['#c0392b', '#2471a3', '#1e8449', '#b7950b', '#6c3483', '#1a5276', '#922b21', '#117a65'];
+  var NAMES = ['Red', 'Blue', 'Green', 'Gold', 'Purple', 'Teal', 'Crimson', 'Jade'];
+  var TONES = [415, 310, 252, 209, 349, 277, 466, 185];
   var MUT1 = 7, MUT2 = 14;
   var SPEED0 = 2500, SPEED_STEP = 400, SPEED_MIN = 550, OFFSET = 700;
 
@@ -37,21 +40,62 @@
     return out;
   }
 
+  function create() {
+    return {
+      level: 1, score: 0, best: 0, pads: 4,
+      seq: [], step: 0, phase: 'idle', seed: 1
+    };
+  }
+  function begin(G, seed) {
+    G.level = 1;
+    G.score = 0;
+    G.seed = (seed >>> 0) || 1;
+    G.pads = padsFor(G.level);
+    G.seq = sequenceOf(G.seed, G.level);
+    G.step = 0;
+    G.phase = 'demo';
+    return G;
+  }
+  function ready(G) {
+    G.phase = 'play';
+    G.step = 0;
+    return G;
+  }
+  function tap(G, i) {
+    if (G.phase !== 'play') return { ok: false, reason: 'not-play' };
+    i = i | 0;
+    if (G.seq[G.step] !== i) {
+      G.phase = 'over';
+      return { ok: false, reason: 'miss', expected: G.seq[G.step], got: i, score: G.score };
+    }
+    G.step++;
+    if (G.step >= G.seq.length) {
+      G.score += 1;
+      if (G.score > G.best) G.best = G.score;
+      G.level += 1;
+      G.pads = padsFor(G.level);
+      G.seq = sequenceOf(G.seed, G.level);
+      G.step = 0;
+      G.phase = 'demo';
+      return { ok: true, reason: 'level', level: G.level, score: G.score, best: G.best };
+    }
+    return { ok: true, reason: 'step', left: G.seq.length - G.step };
+  }
+
   root.MemoryRules = {
     padsFor: padsFor, speedFor: speedFor, sequenceOf: sequenceOf,
-    mut1: MUT1, mut2: MUT2, speed0: SPEED0
+    mut1: MUT1, mut2: MUT2, speed0: SPEED0,
+    create: create, begin: begin, ready: ready, tap: tap
   };
 
   var $ = function (id) { return document.getElementById(id); };
   var board = $('board'), startBtn = $('start'), statusEl = $('status');
-  var scoreEl = $('score'), bestEl = $('best');
+  var scoreEl = $('score'), bestEl = $('best'), muteBtn = $('mute');
   var versusEl = $('versus'), pillsEl = $('pills'), vsNote = $('vsNote');
+  if (!board || !startBtn) return;
 
-  var G = {
-    level: 1, score: 0, best: 0, pads: 4,
-    seq: [], step: 0, phase: 'idle', // idle | demo | play | over
-    seed: 1, timers: []
-  };
+  var G = create();
+  G.muted = false;
 
   var api = typeof gifos !== 'undefined' ? gifos : null;
   var saveDb = null, matchDb = null, playersDb = null;
@@ -67,25 +111,20 @@
   var others = [];
   var match = null;
   var started = false;
+  var ac = null;
+  var timers = [];
 
   function versusOn() { return others.length > 0; }
-  function iAmManager() {
-    var ids = [me.id].concat(others.map(function (p) { return p.id; }));
-    ids.sort();
-    return ids[0] === me.id;
-  }
 
   function clearTimers() {
-    G.timers.forEach(function (t) { clearTimeout(t); });
-    G.timers = [];
+    timers.forEach(function (t) { clearTimeout(t); });
+    timers = [];
   }
-  function later(fn, ms) { G.timers.push(setTimeout(fn, ms)); }
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
 
-  function persistBest() {
-    if (!saveDb || G.score <= G.best) return;
-    G.best = G.score;
-    bestEl.textContent = 'Best ' + G.best;
-    saveDb.put({ id: 'best', score: G.best }).catch(function () {});
+  function persist() {
+    if (!saveDb) return;
+    saveDb.put({ id: 'best', score: G.best, muted: !!G.muted }).catch(function () {});
   }
 
   function publish() {
@@ -100,6 +139,8 @@
   function paint() {
     scoreEl.textContent = 'Score ' + G.score;
     bestEl.textContent = 'Best ' + G.best;
+    if (muteBtn) muteBtn.textContent = G.muted ? 'Sound off' : 'Sound on';
+    if (muteBtn) muteBtn.setAttribute('aria-pressed', G.muted ? 'true' : 'false');
     if (!versusOn()) { versusEl.hidden = true; return; }
     versusEl.hidden = false;
     vsNote.textContent = 'Same sequence. Higher score wins.';
@@ -108,9 +149,29 @@
         return { id: p.id, name: p.name, mine: false, score: p.score || 0, phase: p.phase };
       }));
     pillsEl.innerHTML = rows.map(function (p) {
+      var tag = p.phase === 'over' ? ' · miss' : (p.phase === 'play' || p.phase === 'demo' ? ' · L' + (p.score + 1) : '');
       return '<span class="' + (p.mine ? 'me' : '') + '">' +
-        (p.name || 'Player').replace(/[<>&]/g, '') + ' · ' + p.score + '</span>';
+        (p.name || 'Player').replace(/[<>&]/g, '') + ' · ' + p.score + tag + '</span>';
     }).join('');
+  }
+
+  function beep(i) {
+    if (G.muted) return;
+    try {
+      var Ctx = root.AudioContext || root.webkitAudioContext;
+      if (!Ctx) return;
+      if (!ac) ac = new Ctx();
+      if (ac.state === 'suspended') ac.resume().catch(function () {});
+      var o = ac.createOscillator();
+      var g = ac.createGain();
+      o.type = 'square';
+      o.frequency.value = TONES[(i % TONES.length + TONES.length) % TONES.length];
+      g.gain.setValueAtTime(0.09, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.2);
+      o.connect(g); g.connect(ac.destination);
+      o.start();
+      o.stop(ac.currentTime + 0.22);
+    } catch (e) {}
   }
 
   function buildBoard(n) {
@@ -123,8 +184,8 @@
       b.className = 'pad';
       b.style.background = COLORS[i % COLORS.length];
       b.setAttribute('data-i', String(i));
-      b.setAttribute('aria-label', 'Pad ' + (i + 1));
-      b.addEventListener('click', onPad);
+      b.setAttribute('aria-label', NAMES[i] || ('Pad ' + (i + 1)));
+      b.addEventListener('pointerdown', onPad, { passive: false });
       board.appendChild(b);
     }
   }
@@ -136,92 +197,113 @@
     el.textContent = on && label ? String(label) : '';
   }
 
+  function demoMs() {
+    var s = speedFor(G.level);
+    var on = s * 0.28;
+    if (on > 640) on = 640;
+    if (on < 220) on = 220;
+    return { on: on, gap: 160 };
+  }
+
   function demo() {
     G.phase = 'demo';
     G.step = 0;
     statusEl.textContent = 'Watch.';
     startBtn.textContent = 'Level ' + G.level;
+    startBtn.disabled = true;
     var i = 0;
-    var speed = speedFor(G.level);
+    var t = demoMs();
     function step() {
       if (i >= G.seq.length) {
         later(function () {
-          G.phase = 'play';
-          statusEl.textContent = 'Your turn.';
+          ready(G);
+          statusEl.textContent = 'Your turn — ' + G.seq.length + ' tap' + (G.seq.length === 1 ? '' : 's') + '.';
+          startBtn.disabled = true;
+          paint();
+          publish();
         }, 280);
         return;
       }
       var idx = G.seq[i];
       flash(idx, true, i + 1);
+      beep(idx);
       later(function () {
         flash(idx, false);
         i++;
-        later(step, OFFSET * 0.45);
-      }, speed * 0.45);
+        later(step, t.gap);
+      }, t.on);
     }
-    later(step, 400);
+    later(step, 360);
   }
 
-  function beginRound(seed, keepScore) {
+  function beginRound(seed) {
     clearTimers();
-    if (!keepScore) { G.level = 1; G.score = 0; }
-    G.seed = (seed >>> 0) || ((Math.random() * 0x7fffffff) | 1);
-    G.pads = padsFor(G.level);
+    [].forEach.call(board.children, function (el) { el.classList.remove('bad', 'hint'); });
+    begin(G, seed);
     buildBoard(G.pads);
-    G.seq = sequenceOf(G.seed, G.level);
-    G.phase = 'demo';
     paint();
     publish();
     demo();
   }
 
-  function nextLevel() {
-    G.score += 1;
-    persistBest();
-    G.level += 1;
-    G.pads = padsFor(G.level);
-    buildBoard(G.pads);
-    G.seq = sequenceOf(G.seed, G.level);
-    paint();
-    publish();
-    later(demo, 500);
-  }
-
-  function miss(i) {
-    G.phase = 'over';
-    if (board.children[i]) board.children[i].classList.add('bad');
-    statusEl.textContent = 'Miss. Score ' + G.score + '.';
-    startBtn.textContent = 'Start';
-    persistBest();
-    paint();
-    publish();
-  }
-
   function onPad(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (e && e.button && e.button !== 0) return;
     if (G.phase !== 'play') return;
     var i = parseInt(e.currentTarget.getAttribute('data-i'), 10);
-    flash(i, true, G.step + 1);
-    later(function () { flash(i, false); }, 220);
-    if (G.seq[G.step] !== i) { miss(i); return; }
-    G.step++;
-    if (G.step >= G.seq.length) {
-      G.phase = 'idle';
-      statusEl.textContent = 'Good.';
-      later(nextLevel, 500);
+    var shown = G.step + 1;
+    var r = tap(G, i);
+    flash(i, true, r.ok ? String(shown) : '');
+    beep(i);
+    later(function () { flash(i, false); }, 180);
+    if (!r.ok && r.reason === 'miss') {
+      if (board.children[i]) board.children[i].classList.add('bad');
+      var exp = board.children[r.expected];
+      if (exp) exp.classList.add('hint');
+      statusEl.textContent = 'Miss. That was ' + (NAMES[r.expected] || ('pad ' + (r.expected + 1))) +
+        '. Score ' + G.score + '.';
+      startBtn.textContent = 'Start';
+      startBtn.disabled = false;
+      persist();
+      paint();
+      publish();
+      return;
     }
+    if (r.reason === 'level') {
+      statusEl.textContent = 'Good. Level ' + G.level + '.';
+      persist();
+      paint();
+      publish();
+      later(function () {
+        buildBoard(G.pads);
+        demo();
+      }, 480);
+      return;
+    }
+    statusEl.textContent = r.left + ' left.';
   }
 
   startBtn.addEventListener('click', function () {
     if (G.phase === 'demo' || G.phase === 'play') return;
-    if (versusOn() && iAmManager() && matchDb) {
-      var rec = { id: 'round', n: Date.now(), seed: ((Math.random() * 0x7fffffff) | 1) };
-      matchDb.put(rec).catch(function () {});
+    var seed = ((Math.random() * 0x7fffffff) | 1);
+    if (versusOn() && matchDb) {
+      var rec = { id: 'round', n: Date.now(), seed: seed };
+      matchDb.put(rec).catch(function (err) {
+        statusEl.textContent = (err && err.message) || 'Could not share the round.';
+      });
       match = { id: rec.n, seed: rec.seed };
-      beginRound(rec.seed, false);
-    } else {
-      beginRound(((Math.random() * 0x7fffffff) | 1), false);
     }
+    beginRound(seed);
   });
+
+  if (muteBtn) {
+    muteBtn.addEventListener('click', function () {
+      G.muted = !G.muted;
+      persist();
+      paint();
+      if (!G.muted) beep(1);
+    });
+  }
 
   function ingestMatch(list) {
     var row = null;
@@ -229,7 +311,7 @@
     if (!row || !row.n) return;
     if (!match || row.n !== match.id) {
       match = { id: row.n, seed: row.seed };
-      beginRound(row.seed, false);
+      beginRound(row.seed);
     }
   }
 
@@ -242,8 +324,30 @@
     paint();
   }
 
+  document.addEventListener('keydown', function (e) {
+    if (e.repeat) return;
+    var map = {
+      Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3,
+      Digit5: 4, Digit6: 5, Digit7: 6, Digit8: 7,
+      Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3,
+      KeyQ: 0, KeyW: 1, KeyA: 2, KeyS: 3
+    };
+    if (e.code === 'Space' || e.code === 'Enter') {
+      if (G.phase === 'idle' || G.phase === 'over') startBtn.click();
+      e.preventDefault();
+      return;
+    }
+    if (map[e.code] == null) return;
+    var i = map[e.code];
+    var el = board.children[i];
+    if (!el) return;
+    e.preventDefault();
+    onPad({ currentTarget: el, preventDefault: function () {}, button: 0 });
+  });
+
   buildBoard(4);
   paint();
+  statusEl.textContent = 'Watch the pads, then tap them back.';
 
   function boot() {
     if (!api || !api.db) return;
@@ -253,7 +357,10 @@
       var p = Promise.resolve();
       if (saveDb) {
         p = saveDb.get('best').then(function (row) {
-          if (row && row.score) { G.best = row.score | 0; bestEl.textContent = 'Best ' + G.best; }
+          if (!row) return;
+          if (row.score) G.best = row.score | 0;
+          if (row.muted) G.muted = !!row.muted;
+          paint();
         }).catch(function () {});
       }
       return p;
@@ -268,7 +375,17 @@
 
   if (api && api.onBack) {
     api.onBack(function () {
-      if (G.phase === 'demo' || G.phase === 'play') { miss(0); return true; }
+      if (G.phase === 'demo' || G.phase === 'play') {
+        G.phase = 'over';
+        clearTimers();
+        statusEl.textContent = 'Round stopped. Score ' + G.score + '.';
+        startBtn.textContent = 'Start';
+        startBtn.disabled = false;
+        persist();
+        paint();
+        publish();
+        return true;
+      }
       return false;
     });
   }

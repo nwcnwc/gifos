@@ -78,6 +78,9 @@ if (html.includes('id="invite"')) throw new Error('Invite is OS chrome');
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes('sequenceOf')) {
   throw new Error('app.js must save and expose sequence rules');
 }
+if (!files['app.js'].includes('pointerdown')) throw new Error('pads must use pointerdown');
+if (!files['app.js'].includes('function tap(')) throw new Error('engine must expose tap()');
+if (files['app.js'].includes('iAmManager')) throw new Error('guest Start must not roll a private seed');
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -90,7 +93,8 @@ for (const [n, s] of Object.entries(files)) {
 if (!files['COPYING-mnimi.txt'].includes('Sepand Haghighi')) throw new Error('COPYING');
 
 {
-  const ctx = { console, document: { getElementById: () => ({ addEventListener() {}, textContent: '', hidden: true, innerHTML: '', className: '', children: [], appendChild() {}, style: {} }), createElement: () => ({ addEventListener() {}, setAttribute() {}, style: {}, classList: { toggle() {}, add() {} } }) } };
+  const el = () => ({ addEventListener() {}, setAttribute() {}, getAttribute() { return '0'; }, textContent: '', hidden: true, innerHTML: '', className: '', disabled: false, children: [], appendChild() {}, style: {}, classList: { toggle() {}, add() {}, remove() {} } });
+  const ctx = { console, document: { getElementById: el, createElement: el, addEventListener() {} }, setTimeout() { return 0; }, clearTimeout() {} };
   ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext(files['app.js'], ctx);
@@ -101,6 +105,10 @@ if (!files['COPYING-mnimi.txt'].includes('Sepand Haghighi')) throw new Error('CO
   const a = R.sequenceOf(1, 8), b = R.sequenceOf(1, 8);
   if (a.join() !== b.join()) throw new Error('sequence not deterministic');
   if (a.slice(0, 7).some((n) => n > 3)) throw new Error('early steps must stay on 4 pads');
+  const G = R.create(); R.begin(G, 5); R.ready(G);
+  if (R.tap(G, G.seq[0] === 0 ? 1 : 0).reason !== 'miss') throw new Error('miss');
+  R.begin(G, 5); R.ready(G);
+  if (R.tap(G, G.seq[0]).reason !== 'level') throw new Error('clear');
 }
 
 const cover = screenshotPng();

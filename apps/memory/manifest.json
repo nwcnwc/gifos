@@ -3,7 +3,7 @@
   "appId": "memory",
   "name": "Memory",
   "shortName": "Memory",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "description": "Watch the pads light up. Tap them back. The sequence gets longer.",
   "entry": "index.html",
