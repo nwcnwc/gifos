@@ -911,7 +911,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      with #appaudio; the flag rides the host's app ad (myStatus.app.audio), so
      guests learn it from the ad that won. While it is on, the meeting bar
      shows and everyone owns their own mic. Video — with its blur / password /
-     admin rules — is ROADMAP for app rooms; a regular meeting that runs the
+     admin rules — is ROADMAP for app rooms; the button says Talk, not Audio,
+     because a game has its own audio; a regular meeting that runs the
      app has all of it today. */
   body.app-room:not(.audio-on) .bar { display: none !important; }
   body.app-room #cam, body.app-room #flipcam, body.app-room .blurctl, body.app-room #bartoggle,
@@ -1129,7 +1130,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       <button id="appinvite" style="display:none" title="Share this app live — friends join with one link">Invite</button>
       <button id="appsave" style="display:none" title="Save a snapshot GIF — the app with its data, yours to keep">Save</button>
       <button id="apphelp" title="How this app works">Help</button>
-      <button id="appaudio" style="display:none" title="Room audio — when on, everyone here gets their own mic control (host only)">Audio: off</button>
+      <button id="appaudio" style="display:none" title="Talk with the people in this app — when on, everyone here gets their own mic control (host only)">Talk: off</button>
       <button id="appsteal" style="display:none" title="Steal a copy of this app — it goes to your desktop's Stolen Apps, data and all">Steal</button>
       <button class="perms" id="appperms" title="What this app can do — review or turn things off" style="display:none"></button>
       <button id="applead" style="display:none"></button>
@@ -11522,7 +11523,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
 
     micBtn.onclick = () => {
-      if (document.body.classList.contains('app-room') && !roomAudioOn()) { setStatus('Room audio is off — only the app host can turn it on.'); return; }
+      if (document.body.classList.contains('app-room') && !roomAudioOn()) { setStatus('Talk is off — only the app host can turn it on.'); return; }
       if (!localStream) return lateMedia('mic');
       const track = localStream.getAudioTracks()[0]; if (!track) return lateMedia('mic');
       if (!track.enabled && amGloballyMuted()) {
@@ -12086,7 +12087,8 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       refreshStealBtn();
       refreshAudioBtn();
     }
-    // ROOM AUDIO — the app host's switch, a piece of DATA on the data channel.
+    // TALK — the app host's switch, a piece of DATA on the data channel. (Named
+    // Talk, not Audio: an app has its own sounds; this is about people talking.)
     // An app-pinned room starts dark: no call layer, the meeting bar hidden.
     // Nothing in the UI ever opened that loop (0.9.12): the plumbing was all
     // there and the only test drove #cam with a programmatic click, which a
@@ -12108,7 +12110,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       const show = ROOM.kind === 'app' && !ROOM.solo && document.body.classList.contains('app-room') && appMode === 'host';
       b.style.display = show ? '' : 'none';
       const on = roomAudioOn();
-      b.textContent = on ? 'Audio: on' : 'Audio: off';
+      b.textContent = on ? 'Talk: on' : 'Talk: off';
       b.classList.toggle('on', on);
     }
     function applyRoomAudio() {
@@ -12121,14 +12123,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         const tr = localStream.getAudioTracks()[0];
         if (tr && tr.enabled) { tr.enabled = false; myStatus.muted = true; paintControls(); broadcastStatus(); }
       }
-      if (was !== on) { refreshAudioBtn(); if (!on) setStatus('The app host turned room audio off.'); }
+      if (was !== on) { refreshAudioBtn(); if (!on) setStatus('The app host turned Talk off.'); }
     }
     document.getElementById('appaudio').onclick = () => {
       if (appMode !== 'host' || !myStatus.app) return;
       myStatus.app.audio = !myStatus.app.audio;
       broadcastStatus();
       applyRoomAudio(); refreshAudioBtn();
-      setStatus(myStatus.app.audio ? 'Room audio on — everyone here can turn on their mic.' : 'Room audio off — every mic is quiet.');
+      setStatus(myStatus.app.audio ? 'Talk is on — everyone here can turn on their mic.' : 'Talk is off — every mic is quiet.');
     };
     function refreshStealBtn() {
       document.getElementById('appsteal').style.display = (ROOM.kind === 'app' && appMode === 'client') ? '' : 'none';
