@@ -38,7 +38,7 @@ const listing = JSON.parse(read('listing.json'));
 const PINS = {
   'vendor/three.min.js': '6fb7a49250a57704831fd137e7e155d642d064da1f512ec3ef48279ed14d1db3',
   'vendor/shaders.js': '09910a630616d514f5dbea09eac1af4dab02b3dd5751f8b199bd3b677bb6539f',
-  'vendor/shredder.js': 'edfc13e2f60f395b37712b2f01308e60acb91a44084d752a22fe2a336e224c8a',
+  'vendor/shredder.js': '668b984bf52c656457fbd9aef44432ed8a991d1e438ba7e7350922a253025ad0',
 };
 
 for (const need of [
