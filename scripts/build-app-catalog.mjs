@@ -565,6 +565,13 @@ for (const slug of slugs) {
 // The index carries only what the GRID needs — no `description`, so browsing
 // the store stays a small download however long the listings grow. The detail
 // page fetches app.json.
+function hasNetwork(caps) {
+  const n = caps && caps.network;
+  if (!n) return false;
+  if (Array.isArray(n)) return n.length > 0;
+  if (typeof n === 'object') return Object.keys(n).length > 0;
+  return !!n;
+}
 const index = {
   catalog: CATALOG_VERSION,
   categories: CATEGORIES,
@@ -584,6 +591,10 @@ const index = {
     // on it — and the grid would go on advertising an app their computer
     // cannot run as though it were ready to install.
     minBuild: r.minBuild,
+    // "Works offline" on the card: the manifest declares NO network hosts. The
+    // runtime enforces capabilities.network; this is that fact, precomputed
+    // so the grid never has to fetch app.json to say it.
+    offline: !hasNetwork(r.capabilities),
     releaseDate: r.releaseDate, updated: r.updated,
     categories: r.categories, tags: r.tags, accent: r.accent,
     cover: r.cover, bytes: r.bytes, download: r.download, provides: r.provides, signature: r.signature,
