@@ -60,6 +60,53 @@
       "sha256": "decc73503c336601fc89e5216b2d94eb7a8d7c23df776c649c67cd2c8b8eb07f"
     },
     {
+      "slug": "aim-and-shoot",
+      "appId": "aim-and-shoot",
+      "name": "Aim and Shoot",
+      "shortName": "Aim",
+      "version": "1.0.0",
+      "tagline": "You aim. The robots learn. Don't touch the walls.",
+      "author": {
+        "name": "Victor Ribeiro",
+        "url": "https://github.com/victorqribeiro/aimAndShoot"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Aim and Shoot",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "arcade",
+        "shooter",
+        "ai",
+        "offline"
+      ],
+      "accent": [
+        40,
+        40,
+        40
+      ],
+      "cover": "/apps/aim-and-shoot/cover.jpg",
+      "bytes": 241144,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "48c5ac5db8b1bbaef91c7c276892714911dde91c5bfc4f49dbc53f9a7bd26f5f"
+    },
+    {
       "slug": "air-hockey",
       "appId": "air-hockey",
       "name": "Air Hockey",
@@ -3276,6 +3323,56 @@
         "ts": "2026-08-23"
       },
       "sha256": "7e1d4f240a164f28b0928ed32c1c9a6676e81f79d83a5bb65b21e9c2b3321aba"
+    },
+    {
+      "slug": "pivot",
+      "appId": "pivot",
+      "name": "Pivot",
+      "shortName": "Pivot",
+      "version": "1.0",
+      "tagline": "Drag fields onto a grid. The table is the save. Nothing is uploaded.",
+      "author": {
+        "name": "Nicolas Kruchten",
+        "url": "https://github.com/nicolaskruchten/pivottable"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "PivotTable.js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Productivity",
+        "Utilities"
+      ],
+      "tags": [
+        "pivot",
+        "table",
+        "spreadsheet",
+        "csv",
+        "grid",
+        "offline"
+      ],
+      "accent": [
+        26,
+        115,
+        232
+      ],
+      "cover": "/apps/pivot/cover.jpg",
+      "bytes": 376082,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "477409e3903db46f83b51474e0ed7616f423de95076c12db3ecf396646841261"
     },
     {
       "slug": "pixel-paint",
