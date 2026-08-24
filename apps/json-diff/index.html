@@ -21,16 +21,22 @@
   </div>
 
   <div class="panes">
-    <label class="field field-left">Left — old
+    <div class="field field-left">
+      <label for="left">Left — old</label>
       <textarea id="left" rows="10" spellcheck="false" autocomplete="off" placeholder='{"name": "Ada"}'></textarea>
       <span id="leftErr" class="err" hidden></span>
-      <input id="leftFile" class="file" type="file" accept=".json,application/json,text/plain">
-    </label>
-    <label class="field field-right">Right — new
+      <label class="file">Choose a JSON file
+        <input id="leftFile" type="file" accept=".json,application/json,text/plain">
+      </label>
+    </div>
+    <div class="field field-right">
+      <label for="right">Right — new</label>
       <textarea id="right" rows="10" spellcheck="false" autocomplete="off" placeholder='{"name": "Ada Lovelace"}'></textarea>
       <span id="rightErr" class="err" hidden></span>
-      <input id="rightFile" class="file" type="file" accept=".json,application/json,text/plain">
-    </label>
+      <label class="file">Choose a JSON file
+        <input id="rightFile" type="file" accept=".json,application/json,text/plain">
+      </label>
+    </div>
   </div>
 
   <div class="actions">
