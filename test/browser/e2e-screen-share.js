@@ -241,11 +241,14 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
   await p.waitForFunction(() => document.body.classList.contains('app-room'), null, { timeout: 30000 });
   // Turn the call layer on, so the meeting bar is actually rendered — the point
   // is that Share screen is missing BY RULE, not because no bar is drawn.
-  // A DOM .click(), not a Playwright click: in an app room the bar is hidden
-  // UNTIL the call layer is on, and the camera button is what turns it on —
-  // an actionability check can never pass on the control that makes itself
-  // visible. (Same idiom as e2e-app-room.js for the same reason.)
-  await p.evaluate(() => { document.getElementById('cam').click(); });
+  // An app-pinned room is AUDIO-ONLY (0.9.12): the host flips Talk, which
+  // reveals the bar, and a mic tap is what turns the call layer on — #cam is
+  // refused in an app room. DOM clicks, not Playwright clicks: the app's own
+  // consent sheet can sit over the bar (same idiom as e2e-app-room.js).
+  await p.waitForFunction(() => { const b = document.getElementById('appaudio'); return !!(b && b.offsetParent); }, null, { timeout: 20000 }); // shown once the host's ad exists
+  await p.evaluate(() => { document.getElementById('appaudio').click(); });
+  await p.waitForFunction(() => document.body.classList.contains('audio-on'), null, { timeout: 15000 });
+  await p.evaluate(() => { document.getElementById('mic').click(); });
   await p.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 25000 });
   const pinned = await p.evaluate(() => {
     const vis = (id) => { const el = document.getElementById(id); return !!(el && el.offsetParent !== null); };
@@ -253,7 +256,8 @@ const info = (p) => p.evaluate(() => window.__gifosVideo.screenInfo());
       share: vis('sharebtn'), runapp: vis('appbtn'), chat: vis('chatbtn'), mic: vis('mic') };
   });
   check('an app-pinned room is up with its call layer on', pinned.appRoom && pinned.callOn, JSON.stringify(pinned));
-  check('…and the meeting bar really is rendered there', pinned.chat && pinned.mic, JSON.stringify(pinned));
+  // Audio-only app room: the bar that renders is the mic; More/chat stay folded away by rule.
+  check('…and the meeting bar really is rendered there', pinned.mic, JSON.stringify(pinned));
   check('…but an app-pinned room offers NO Share screen', pinned.share === false);
   check('…and no app picker either (the app IS the room)', pinned.runapp === false);
   check('an app-pinned room never reached screen capture', (await gdm(p)) === 0, 'gdm=' + (await gdm(p)));
