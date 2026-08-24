@@ -3013,8 +3013,10 @@
       // is a dissolve, not a light-to-black cut.
       tint: (accent) => {
         if (!wrap.parentNode || !accent || accent.length < 3) return;
-        const c = (i) => Math.max(0, Math.min(80, Math.round(accent[i] * 0.25)));
-        wrap.style.background = 'rgb(' + (c(0) + 8) + ',' + (c(1) + 8) + ',' + (c(2) + 10) + ')';
+        // deep, near-black tint: dark app documents open over this without a
+        // brightness step (the judged seam was brown-dark → near-black)
+        const c = (i) => Math.max(0, Math.min(48, Math.round(accent[i] * 0.12)));
+        wrap.style.background = 'rgb(' + (c(0) + 6) + ',' + (c(1) + 6) + ',' + (c(2) + 8) + ')';
         wrap.style.color = 'rgb(' + Math.min(255, accent[0] + 60) + ',' + Math.min(255, accent[1] + 60) + ',' + Math.min(255, accent[2] + 60) + ')';
         dot.style.background = 'rgb(' + accent[0] + ',' + accent[1] + ',' + accent[2] + ')';
       },
@@ -3042,8 +3044,12 @@
       const item = lock ? lock.itemOfFile(all, fileId) : null;
       const lockKey = (lock && lock.session.get(fileId)) || null;
       const appBytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
+      // "step 1 of 2": a heavy app counts twice (the OS unpacks the archive,
+      // then the app carries its own assets in), and an unlabeled second
+      // count reads as progress being thrown away — so both counters say
+      // which step they are.
       const unpackNote = big ? {
-        onProgress: (frac, done, total) => splash.say('Unpacking ' + appName + ' — ' +
+        onProgress: (frac, done, total) => splash.say('Unpacking ' + appName + ' (step 1 of 2) — ' +
           (done * 0.75 / 1048576).toFixed(1) + ' of ' + (total * 0.75 / 1048576).toFixed(1) + ' MB…'),
       } : undefined;
       return Promise.all([gif.decode(appBytes, unpackNote), store.getState(fileId)]).then(([archive, st]) => {

@@ -37,10 +37,10 @@
   "cover": "/apps/the-house/cover.jpg",
   "screenshots": [],
   "gif": "/apps/the-house/the-house.gif",
-  "bytes": 18350330,
+  "bytes": 18350305,
   "download": 0,
   "provides": null,
-  "sha256": "2f16ce5011019e43c8c8d3ce9ec11967df119f512c6505f14d072078d642074f",
+  "sha256": "c1ce659903e8fcea9dd123b195026e027f98a596667418ebc14590eafb0bce00",
   "signature": null,
   "porter": {
     "name": "GifOS",
