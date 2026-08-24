@@ -80,6 +80,13 @@ html, body {
   50% { transform: translateY(8px); }
 }
 
+/* The character's light halo is DECORATION, and it is huge (587×562,
+   z-index 999 in the room). Depending on where the character stands it can
+   sit over the HUD and eat the click that would open the items tray — the
+   playtest caught the tray button dead at the exact moment the game first
+   highlights it. A glow never takes a click. */
+#the_game #glow { pointer-events: none; }
+
 /* SM2 leftover movie box — never a Flash object, never a hole in the room. */
 #sm2-container,
 .sm2-object-box,

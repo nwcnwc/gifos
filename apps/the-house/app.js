@@ -493,7 +493,7 @@
         dialogue_box.display({
           character: false,
           picture: false,
-          text: 'The game will start from the beggining. Save data will be erased.',
+          text: 'The game will start from the beginning. Save data will be erased.',
           options: ['Ok', 'Cancel']
         });
         $('#options').unbind('click').delegate('#option_0', 'click', function () {
