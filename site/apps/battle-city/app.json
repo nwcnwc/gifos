@@ -38,11 +38,15 @@
   "cover": "/apps/battle-city/cover.jpg",
   "screenshots": [],
   "gif": "/apps/battle-city/battle-city.gif",
-  "bytes": 282039,
+  "bytes": 282226,
   "download": 0,
   "provides": null,
-  "sha256": "e5d7ba522e0aaca4cc6842d0fbc1c9b21a7256561ca848607c15722a8e077b06",
-  "signature": null,
+  "sha256": "113e82891eaf1b9ce3ce07f0a42d4f6875c9a59079d3e6943a3a0d3e5fd0f6f1",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

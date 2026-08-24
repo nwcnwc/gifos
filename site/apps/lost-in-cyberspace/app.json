@@ -4,10 +4,10 @@
   "appId": "lost-in-cyberspace",
   "name": "Lost in Cyberspace",
   "shortName": "Cyberspace",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "tagline": "Two devices, one maze. Access codes are the map. No jam server.",
-  "description": "One of you is a HACKER lost in an 8×8 corporate network. The other is a NAVIGATOR at a terminal. Walk the maze, read the access codes, type them into nmap, find the TARGET node, and hack it before the locator catches you. The codes ARE the maze — colours, walls, traps, the target.\n\nThe original connection is your voice. Press Invite in the bar above the app and the other person is in the same room: you can still shout the codes, or the hacker can send one they found so the navigator does not have to type it. There is no jam server.\n\nOn one device you can play either seat, or switch. A trap costs you time. Hacking the wrong node costs you more. Time runs out and you are lost in CYBERSPACE.\n\nAn unofficial port of Lost in CYBERSPACE by Bartek Szopka and Zofia Korcz (js13kGames 2017). The A-Frame VR headset scene stays behind; the maze and the terminal are the game.",
+  "description": "Send the invite — the other person is in the same room, no jam server, no account. One of you is a HACKER lost in an 8×8 corporate network. The other is a NAVIGATOR at a terminal. Walk the maze, read the access codes, type them into nmap together, find the TARGET, and hack it before the locator catches you. The codes ARE the maze — colours, walls, traps, the target.\n\nThe original connection is your voice. You can still shout the codes in a meeting, or the hacker taps Send code and the navigator’s map fills in, layer by layer. On one device you switch seats without losing the maze.\n\nA trap costs you time. Hacking the wrong node costs you more. Time runs out and you are lost in CYBERSPACE. Top scores live in this file.\n\nAn unofficial port of Lost in CYBERSPACE by Bartek Szopka and Zofia Korcz (js13kGames 2017). The A-Frame VR headset scene stays behind; the maze and the terminal are the game.",
   "author": {
     "name": "Bartek Szopka & Zofia Korcz",
     "url": "https://github.com/bartaz/lost-in-cyberspace"
@@ -39,10 +39,10 @@
   "cover": "/apps/lost-in-cyberspace/cover.jpg",
   "screenshots": [],
   "gif": "/apps/lost-in-cyberspace/lost-in-cyberspace.gif",
-  "bytes": 204945,
+  "bytes": 209235,
   "download": 0,
   "provides": null,
-  "sha256": "d28ed82601d27d8d8e8c47b22a71633b7eeac3adde4f783918e138b2ddcc713f",
+  "sha256": "6db65bee750af57765d48bdfdac1b8cf130d1b2ca22a0b6d5415442268f927cc",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

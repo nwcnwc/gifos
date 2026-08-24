@@ -4,10 +4,10 @@
   "appId": "pixelit",
   "name": "Pixel It",
   "shortName": "PixelIt",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Turn a photo into pixel art on this device. Nothing is uploaded.",
-  "description": "Drop a picture, or take one with the camera. Drag the block size. Tick greyscale if you want a game-boy look, or pick a colour palette from the list. The canvas updates on this device — the picture never leaves it.\n\nThe last conversion comes back the next time you open the app, still only here. There is no account, and nothing is sent anywhere.\n\nThis is a converter, not a drawing app: you start from a photo. An unofficial port of Pixel It by giventofly.",
+  "tagline": "Photo to pixel art on this device. Nothing is uploaded.",
+  "description": "A photo becomes pixel art on this computer. Take a still or open a picture — nothing is sent anywhere. Drag the block size, tick greyscale, or snap the colours to a palette. Hold the picture to see the original.\n\nThe last picture and the last recipe live in the app file. Close it, open it later, they are still here. There is no account.\n\nThis is a converter, not a drawing app: you start from a photo. An unofficial port of Pixel It by giventofly.",
   "author": {
     "name": "giventofly",
     "url": "https://github.com/giventofly/pixelit"
@@ -39,10 +39,10 @@
   "cover": "/apps/pixelit/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pixelit/pixelit.gif",
-  "bytes": 190333,
+  "bytes": 193432,
   "download": 0,
   "provides": null,
-  "sha256": "5bf008094e5d2fa7df28271aec71baa8413b5a26dfc3c9538b96e91209aeb824",
+  "sha256": "94561f5e2c1d55900a21fe2d4f89c944e40a2ac74f460df46f36160c11cb77d7",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

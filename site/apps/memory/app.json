@@ -4,10 +4,10 @@
   "appId": "memory",
   "name": "Memory",
   "shortName": "Memory",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
-  "tagline": "Watch the pads. Tap them back. The sequence gets longer.",
-  "description": "Four coloured pads light up in a sequence. Repeat it. Each round adds one more step, then the pads get faster, then two more pads appear, then two more again. Miss and the round is over.\n\nOn your own it is a quiet streak. Your best score lives in the file you keep. Press Invite in the bar above and a friend gets the same sequence — a race. You never see their taps, only the level they have reached. First to slip loses the round if the other is still going; higher score wins if you both finish the same far.\n\nAn unofficial port of Mnimi by Sepand Haghighi, a Simon-style memory game. The sequence, the extra pads, and the speed curve are his.",
+  "tagline": "Watch the pads. Tap them back. The file keeps your best.",
+  "description": "Works offline, no account, no install. Your best score lives in the file you keep. Press Invite in the bar above and a friend gets the same sequence — a race. You never see their taps, only the level they have reached.\n\nFour coloured pads light up. Repeat them. Each round adds one more step, then the pads get faster, then two more appear, then two more again. Miss and the round is over. On a phone the pads are thumb-sized and each one has a tone; on a computer you can also use 1–4 or Q W A S.\n\nAn unofficial port of Mnimi by Sepand Haghighi, a Simon-style memory game. The sequence, the extra pads, and the speed curve are his.",
   "author": {
     "name": "Sepand Haghighi",
     "url": "https://github.com/sepandhaghighi/mnimi"
@@ -37,10 +37,10 @@
   "cover": "/apps/memory/cover.jpg",
   "screenshots": [],
   "gif": "/apps/memory/memory.gif",
-  "bytes": 125957,
+  "bytes": 128098,
   "download": 0,
   "provides": null,
-  "sha256": "142471eef1dd0b8857a8f398515b8dc218bf0203d54956f55b80437b76e1b08b",
+  "sha256": "b0e359d1b05d777374948b3f40c1730c903baf198923ffe1818f78872d38baf0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

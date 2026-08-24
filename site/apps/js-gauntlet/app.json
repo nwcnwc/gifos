@@ -2,12 +2,12 @@
   "catalog": "1.0",
   "slug": "js-gauntlet",
   "appId": "js-gauntlet",
-  "name": "Gauntlet",
-  "shortName": "Gauntlet",
-  "version": "1.0.0",
+  "name": "Dungeon Party",
+  "shortName": "Dungeon",
+  "version": "1.0.1",
   "minBuild": 947,
   "tagline": "Four classes, one invite, one dungeon. No server.",
-  "description": "Send the Invite in the bar above. Extra adventurers drop into the same dungeon — warrior, valkyrie, wizard, elf. There is no lobby, no account, and no game server. The room is the link.\n\nOn your own it is Jake Gordon's HTML5 Gauntlet: pick a class, shoot the generators, grab the key, find the exit. Health ticks down on its own. Potions clear the room.\n\nOn a phone the pad sits under your thumbs — move, fire, potion. On a computer it is the arrows, space, and enter. Your high score and how far you got live in the file.\n\nAn unofficial port of HTML5 Gauntlet by Jake Gordon, MIT-licensed. This copy adds the extra adventurers. The dungeon is silent: the original music was licensed only for that project.",
+  "description": "Send Invite in the bar above. Extra adventurers walk into the same dungeon — warrior, valkyrie, wizard, elf. There is no lobby, no account, and no game server. The room is the link.\n\nOn your own it is Jake Gordon's HTML5 dungeon crawler: pick a class, shoot the generators, grab the key, find the exit. Health ticks down on its own. Potions clear the room.\n\nOn a phone the pad is move, fire, and potion. On a computer it is the arrows or WASD, space to fire, enter for a potion. Your high score and how far you got live in the file.\n\nAn unofficial port of HTML5 Gauntlet by Jake Gordon, MIT-licensed. This copy adds the extra adventurers. The dungeon is silent: the original music was licensed only for that project. Not affiliated with Namco.",
   "author": {
     "name": "Jake Gordon",
     "url": "https://github.com/jakesgordon/javascript-gauntlet"
@@ -18,7 +18,6 @@
     "Games"
   ],
   "tags": [
-    "gauntlet",
     "dungeon",
     "arcade",
     "co-op",
@@ -38,10 +37,10 @@
   "cover": "/apps/js-gauntlet/cover.jpg",
   "screenshots": [],
   "gif": "/apps/js-gauntlet/js-gauntlet.gif",
-  "bytes": 1266298,
+  "bytes": 1154893,
   "download": 0,
   "provides": null,
-  "sha256": "dc46bcb060cddca03a8ff90d88099df5a202605e2b7a26580aecda94ad68bd0e",
+  "sha256": "e10258566d1c5d1091d5c61dbf73c27d6343a47bedbc9c0d142723c9af8c91c4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

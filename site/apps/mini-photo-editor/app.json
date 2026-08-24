@@ -4,10 +4,10 @@
   "appId": "mini-photo-editor",
   "name": "Mini Photo Editor",
   "shortName": "Photo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "tagline": "Crop, rotate and filter a photo on this device. Nothing is uploaded.",
-  "description": "Open a picture from this computer. Drag on it to crop. Rotate left or right. Pick a look — Vintage, Polaroid, Kodak, Browni — or stay with the original. Bright, contrast, sat, warmth and vignette sit underneath. Download keeps a JPEG here.\n\nThis is not a drawing app and not a compressor. It is the crop / rotate / filter loop.\n\nThe last recipe you left stays on this device. The photo itself stays in memory until you open another.\n\nWant a friend using the same recipe? Press Play together, then Invite (in the GifOS menu). They get your sliders and look, not your photo.\n\nAn unofficial port of mini-photo-editor. ",
+  "description": "Open a picture or take one. Drag a corner to crop. Rotate, flip, pick a look — Vintage, Polaroid, Kodak, Browni — and turn bright, contrast, sat, warmth and vignette. Download keeps a JPEG here. Nothing is sent anywhere: no account, and the picture never leaves this device.\n\nThis is not a drawing app and not a compressor. It is the crop / rotate / filter loop.\n\nThe last picture and the last recipe come back the next time you open the app, still only on this device. Press Invite (the GifOS bar) and a friend gets your sliders and look, not your photo.\n\nAn unofficial port of mini-photo-editor by xdadda.",
   "author": {
     "name": "xdadda",
     "url": "https://github.com/xdadda/mini-photo-editor"
@@ -34,15 +34,16 @@
   ],
   "capabilities": {
     "db": true,
-    "multiplayer": true
+    "multiplayer": true,
+    "camera": true
   },
   "cover": "/apps/mini-photo-editor/cover.jpg",
   "screenshots": [],
   "gif": "/apps/mini-photo-editor/mini-photo-editor.gif",
-  "bytes": 189798,
+  "bytes": 194441,
   "download": 0,
   "provides": null,
-  "sha256": "6b2be56fead142e1a02d00b41da9b2a6bb4f34bf75b75a973a2066447b9cb2e8",
+  "sha256": "16533896ea620d45fd4ec8e7c2830ee9ad523c0f6c35af53a78dfcde5d5869ee",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
