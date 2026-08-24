@@ -1,0 +1,148 @@
+{
+  "_": [
+    "Explore — the scenes the app opens with.",
+    "",
+    "Each one is a real day at a real place with the layers that show it. The",
+    "coordinates and dates are taken from NASA Worldview's own curated stories",
+    "(nasa-gibs/worldview, config/.../wv.json/stories), so they point at imagery",
+    "that exists; the words are ours. `span` is how many degrees of longitude to",
+    "fit, so the same tour frames correctly on a phone and on a large monitor.",
+    "`date: latest` resolves to the newest whole day in the archive.",
+    "`anim` is [from, to, step] and turns the tour into something to press play on."
+  ],
+  "tours": [
+    {
+      "id": "today",
+      "title": "Today, from orbit",
+      "blurb": "The whole planet as it was this morning — cloud, snow, dust and smoke, in true colour. Three hours old at most.",
+      "where": "everywhere",
+      "date": "latest",
+      "lat": 15, "lon": 10, "span": 330,
+      "layers": ["Coastlines_15m", "MODIS_Terra_CorrectedReflectance_TrueColor"]
+    },
+    {
+      "id": "fires-today",
+      "title": "Where it is burning right now",
+      "blurb": "Every pixel VIIRS found hot enough to be a fire in the last 24 hours, over the picture it took at the same moment.",
+      "where": "everywhere",
+      "date": "latest",
+      "lat": 15, "lon": 20, "span": 300,
+      "layers": ["Coastlines_15m", "VIIRS_SNPP_Thermal_Anomalies_375m_Day", "VIIRS_SNPP_CorrectedReflectance_TrueColor"]
+    },
+    {
+      "id": "florence",
+      "title": "Hurricane Florence, hour by hour",
+      "blurb": "A category-4 storm filling the western Atlantic, with the rain it was dropping painted over it. Press play and watch it walk into the Carolinas.",
+      "where": "western Atlantic",
+      "date": "2018-09-12",
+      "lat": 31.5, "lon": -74.4, "span": 34,
+      "layers": ["Reference_Labels_15m", "Coastlines_15m", "IMERG_Precipitation_Rate", "MODIS_Terra_CorrectedReflectance_TrueColor"],
+      "anim": ["2018-09-10", "2018-09-16", "day"]
+    },
+    {
+      "id": "dorian",
+      "title": "Dorian stalls over the Bahamas",
+      "blurb": "One of the strongest Atlantic landfalls ever recorded, sitting still for a day and a half. The eye is the hole you can see the sea through.",
+      "where": "the Bahamas",
+      "date": "2019-09-02",
+      "lat": 26, "lon": -77, "span": 33,
+      "layers": ["Reference_Labels_15m", "Coastlines_15m", "VIIRS_SNPP_CorrectedReflectance_TrueColor"],
+      "anim": ["2019-08-30", "2019-09-07", "day"]
+    },
+    {
+      "id": "australia",
+      "title": "The Black Summer",
+      "blurb": "Australia's 2019-20 bushfire season from above: fire detections in red, and the smoke running out over the Tasman Sea.",
+      "where": "south-east Australia",
+      "date": "2020-01-04",
+      "lat": -35.5, "lon": 149, "span": 22,
+      "layers": ["Coastlines_15m", "VIIRS_SNPP_Thermal_Anomalies_375m_Day", "VIIRS_SNPP_CorrectedReflectance_TrueColor"],
+      "anim": ["2019-12-20", "2020-01-12", "day"]
+    },
+    {
+      "id": "campfire",
+      "title": "Camp Fire, the morning it started",
+      "blurb": "8 November 2018. A plume that reached San Francisco by lunchtime, from a fire you can watch begin at the top of the smoke.",
+      "where": "northern California",
+      "date": "2018-11-08",
+      "lat": 38.2, "lon": -122.6, "span": 16,
+      "layers": ["Reference_Labels_15m", "VIIRS_SNPP_Thermal_Anomalies_375m_Day", "MODIS_Terra_CorrectedReflectance_TrueColor"],
+      "anim": ["2018-11-08", "2018-11-16", "day"]
+    },
+    {
+      "id": "a68",
+      "title": "The iceberg that left Larsen C",
+      "blurb": "July 2017: a crack finishes crossing an ice shelf and a berg the size of a small country floats free. The line is 200 km long.",
+      "where": "Antarctic Peninsula",
+      "date": "2017-07-12",
+      "lat": -67.9, "lon": -61.3, "span": 7,
+      "layers": ["Coastlines_15m", "MODIS_Terra_CorrectedReflectance_TrueColor"]
+    },
+    {
+      "id": "aral",
+      "title": "The Aral Sea, year by year",
+      "blurb": "One frame each August from 2000. A sea the size of Ireland becomes a salt desert while you watch — the clearest thing satellite imagery has ever shown.",
+      "where": "Kazakhstan and Uzbekistan",
+      "date": "2000-08-01",
+      "lat": 44.9, "lon": 59.3, "span": 13,
+      "layers": ["Reference_Labels_15m", "Coastlines_15m", "MODIS_Terra_CorrectedReflectance_TrueColor"],
+      "anim": ["2000-08-01", "2024-08-01", "year"]
+    },
+    {
+      "id": "night",
+      "title": "Earth at night",
+      "blurb": "The VIIRS day-night band is sensitive enough to see a fishing boat's lamps. Cities, gas flares, and the moonlight on the clouds between them.",
+      "where": "everywhere",
+      "date": "2022-02-06",
+      "lat": 25, "lon": 20, "span": 320,
+      "layers": ["Coastlines_15m", "VIIRS_SNPP_DayNightBand_ENCC"]
+    },
+    {
+      "id": "elnino",
+      "title": "El Niño, as a temperature map",
+      "blurb": "Sea surface temperature anomalies across the Pacific in late 2023 — how far each patch of ocean is from its own normal for that week.",
+      "where": "the Pacific",
+      "date": "2023-10-22",
+      "lat": 0, "lon": -150, "span": 220,
+      "layers": ["Coastlines_15m", "GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies"],
+      "anim": ["2023-06-01", "2024-02-01", "month"]
+    },
+    {
+      "id": "dust",
+      "title": "Saharan dust crossing an ocean",
+      "blurb": "June 2020: a plume big enough to be named crosses the Atlantic and reaches the Caribbean. True colour, with aerosol depth on top.",
+      "where": "the tropical Atlantic",
+      "date": "2020-06-24",
+      "lat": 18, "lon": -45, "span": 85,
+      "layers": ["Coastlines_15m", "MODIS_Combined_Value_Added_AOD", "MODIS_Terra_CorrectedReflectance_TrueColor"],
+      "anim": ["2020-06-15", "2020-06-30", "day"]
+    },
+    {
+      "id": "sinabung",
+      "title": "Sinabung erupts",
+      "blurb": "19 February 2018. An ash column punching through the cloud deck over Sumatra, seen from 700 km up.",
+      "where": "Sumatra",
+      "date": "2018-02-19",
+      "lat": 3, "lon": 98.1, "span": 6,
+      "layers": ["Reference_Labels_15m", "Coastlines_15m", "MODIS_Terra_CorrectedReflectance_TrueColor"]
+    },
+    {
+      "id": "sunglint",
+      "title": "Sunglint",
+      "blurb": "When the sea reflects the sun straight back at the sensor, the ocean turns to hammered metal and every current and slick shows up in it.",
+      "where": "the south Pacific",
+      "date": "2019-02-10",
+      "lat": -16, "lon": -131, "span": 64,
+      "layers": ["MODIS_Terra_CorrectedReflectance_TrueColor"]
+    },
+    {
+      "id": "lesotho",
+      "title": "Snow in southern Africa",
+      "blurb": "August 2018, and the Drakensberg is white. A reminder that the map is not a picture of the usual — it is a picture of that day.",
+      "where": "Lesotho",
+      "date": "2018-08-06",
+      "lat": -29.9, "lon": 28.1, "span": 12,
+      "layers": ["Reference_Labels_15m", "Coastlines_15m", "MODIS_Terra_CorrectedReflectance_TrueColor"]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "gifos": "1.0",
+  "appId": "worldview",
+  "name": "Worldview",
+  "shortName": "worldview",
+  "version": "1.0.0",
+  "minBuild": 1089,
+  "description": "NASA's satellite imagery of the whole Earth, every day since 2000, in a GIF. 74 layers from the Global Imagery Browse Services, a timeline you can scrub and animate, A/B compare, and an offline base map so the world is still there on a plane. One invite and someone else is looking at the same map, live.",
+  "entry": "index.html",
+  "accent": [76, 194, 255],
+  "help": "help.md",
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "network": ["gibs.earthdata.nasa.gov"],
+    "pool": ["gibs.earthdata.nasa.gov"]
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "tiles": { "visibility": "private" },
+    "tilecache": { "visibility": "private" },
+    "legends": { "visibility": "private" },
+    "views": { "visibility": "read-write" },
+    "session": { "visibility": "read-write" },
+    "cursors": { "visibility": "read-write" }
+  },
+  "lead": [
+    { "collection": "session", "id": "view" }
+  ],
+  "launch": {
+    "at": {
+      "label": "Open looking at a place",
+      "detail": "A place name, or coordinates like 51.5,-0.12."
+    },
+    "date": {
+      "label": "Open on a particular day",
+      "detail": "A day like 2018-09-12 — the imagery from that date."
+    },
+    "layers": {
+      "label": "Open with these layers switched on",
+      "detail": "A comma-separated list of GIBS layer identifiers."
+    },
+    "tour": {
+      "label": "Open one of the built-in scenes",
+      "detail": "Sets the place, the day and the layers for a scene like the Aral Sea or Hurricane Florence."
+    }
+  }
+}
