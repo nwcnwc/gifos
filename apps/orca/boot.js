@@ -310,7 +310,9 @@
     var list = (rows || []).filter(function (r) { return r && r.id; });
     var others = list.filter(function (r) { return r.id !== me.id; });
     var n = others.length;
+    var was = jamOn;
     jamOn = n > 0;
+    if (jamOn && !was) { lastPub = ''; save(); }
     if (!jamOn) {
       bar.innerHTML = 'The grid stays on this device. Press <b>Invite</b> (top bar) to jam on the same canvas.';
       return;
