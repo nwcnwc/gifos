@@ -57,10 +57,21 @@
 
   // ------------------------------------------------------------------ mode --
   var mode = '';
+  var wasWide = null;
   function applyMode() {
     var w = window.innerWidth;
     var m = w < 701 ? 'phone' : (w < 1024 ? 'tablet' : 'desktop');
-    if (m === mode) return;
+    /*
+     * The inspector appears at 1400, which is INSIDE 'desktop' — so a window
+     * dragged from 1440 to 1200 never changed mode and the layer rows kept
+     * deferring to a column that had just gone away ("Described in full under
+     * Looking at →", pointing at nothing). Crossing that line is a re-render
+     * even when the mode word does not change.
+     */
+    var wide = w >= 1400;
+    if (m === mode && wide === wasWide) return;
+    wasWide = wide;
+    if (m === mode) { UI.renderStack(); M.resize(); return; }
     mode = m;
     document.body.dataset.mode = m;
     el.searchInput.placeholder = m === 'phone'
@@ -269,7 +280,8 @@
       op.appendChild(pct);
       more.appendChild(op);
 
-      if (L.about) {
+      var dup = inspectorHas(L);
+      if (L.about && !dup) {
         var note = U.el('p', 'lyr-note');
         note.textContent = L.about;
         more.appendChild(note);
@@ -279,11 +291,13 @@
       // a GIBS id is the thing you would paste into an API call, so it stays.
       meta.innerHTML = L.builtin
         ? 'Packed inside this app — no connection needed.'
-        : '<b>' + U.esc(L.id) + '</b> · ' + U.esc(L.set) + ' · ' + U.esc(periodWord(L.period)) +
-          (L.start ? ' · from ' + U.esc(U.prettyDate(L.start)) : '');
+        : dup
+          ? 'Described in full under <b>Looking at</b> →'
+          : '<b>' + U.esc(L.id) + '</b> · ' + U.esc(L.set) + ' · ' + U.esc(periodWord(L.period)) +
+            (L.start ? ' · from ' + U.esc(U.prettyDate(L.start)) : '');
       more.appendChild(meta);
 
-      if (!L.builtin && L.group !== 'base') {
+      if (!L.builtin && L.group !== 'base' && !dup) {
         var legend = U.el('div', 'lyr-legend');
         more.appendChild(legend);
         if (row.open) loadLegend(L, legend);
@@ -302,6 +316,43 @@
    * the record, or the satellite simply did not see this patch of the world
    * today. "Nothing here" is an answer; a blank map is not.
    */
+  /*
+   * WHICH LAYER THE INSPECTOR IS DESCRIBING. The wide-screen column answers
+   * "what am I looking at", so it picks the topmost thing actually painting
+   * imagery — not the topmost row (that is usually Place labels).
+   */
+  function inspectorTop() {
+    var i, L;
+    for (i = 0; i < state.layers.length; i++) {
+      L = D.layer(state.layers[i].id);
+      if (L && state.layers[i].on && !L.ref && !L.builtin) return L;
+    }
+    // Nothing from GIBS on: describe the base you ARE looking at, not the
+    // topmost reference layer. "Place labels" is not what is on the screen.
+    for (i = state.layers.length - 1; i >= 0; i--) {
+      L = D.layer(state.layers[i].id);
+      if (L && state.layers[i].on && !L.ref) return L;
+    }
+    for (i = 0; i < state.layers.length; i++) {
+      L = D.layer(state.layers[i].id);
+      if (L && state.layers[i].on) return L;
+    }
+    return null;
+  }
+
+  /*
+   * Is the inspector ALREADY answering this, two inches to the right? On a
+   * wide screen the expanded row and the inspector were printing the same
+   * NASA paragraph, the same GIBS id and the same legend side by side — the
+   * longest text on the screen, twice. The row keeps its controls; the reading
+   * matter belongs to whichever surface is bigger.
+   */
+  function inspectorHas(L) {
+    if (!el.inspect || el.inspect.hidden || !el.inspect.offsetParent) return false;
+    var t = inspectorTop();
+    return !!(t && L && t.id === L.id);
+  }
+
   function subLine(L, row) {
     if (!row.on) return L.sub || '';
     var cov = D.coverage(L, state.date);
@@ -1158,25 +1209,7 @@
     body.appendChild(co);
     body.appendChild(U.el('div', 'ins-sep'));
 
-    var top = null;
-    for (var i = 0; i < state.layers.length; i++) {
-      var L = D.layer(state.layers[i].id);
-      if (L && state.layers[i].on && !L.ref && !L.builtin) { top = L; break; }
-    }
-    if (!top) {
-      // Nothing from GIBS on: describe the base you ARE looking at, not the
-      // topmost reference layer. "Place labels" is not what is on the screen.
-      for (var j = state.layers.length - 1; j >= 0; j--) {
-        var Lb = D.layer(state.layers[j].id);
-        if (Lb && state.layers[j].on && !Lb.ref) { top = Lb; break; }
-      }
-    }
-    if (!top) {
-      for (var k = 0; k < state.layers.length; k++) {
-        var Lc = D.layer(state.layers[k].id);
-        if (Lc && state.layers[k].on) { top = Lc; break; }
-      }
-    }
+    var top = inspectorTop();
     if (top) {
       var box = U.el('div', 'ins-layer');
       box.appendChild(U.el('b', '', top.title));
