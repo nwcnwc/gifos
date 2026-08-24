@@ -1,0 +1,33 @@
+{
+  "tagline": "Scales, chords, fifths, a quiz. Home row or tap.",
+  "description": "A two-octave keyboard. Pick a key and a mode: play the scale, the triads, the sevenths, or walk the circle of fifths. A short quiz asks which key or which fifth.\n\nTap the keys, or use the home row (A to quote). A MIDI keyboard is optional if this device has one.\n\nHard mode hides the next note. Shuffle picks a new starting degree each round. Your last key, mode, and quiz score stay in this copy of the app.\n\nPress Practice together, then Invite in the bar above the app, and a friend sees the same prompt.\n\nAn unofficial port of Piano Trainer by Zane Helton. The original is a React desktop app that loads a soundfont from the network. This copy does not.",
+  "author": {
+    "name": "Zane Helton",
+    "url": "https://github.com/ZaneH/piano-trainer"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Piano Trainer",
+    "url": "https://github.com/ZaneH/piano-trainer",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "piano",
+    "scales",
+    "chords",
+    "quiz",
+    "music",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/piano-trainer",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

@@ -1,0 +1,20 @@
+ZaneH/piano-trainer
+https://github.com/ZaneH/piano-trainer
+MIT, Copyright © 2022 Zane Helton
+
+Upstream is a React + Tauri desktop app. It loads MIDI soundfonts from
+a CDN via soundfont-player, talks to a keyboard over Web MIDI, and
+persists settings in a native store. None of that ships here.
+
+This port is a classic-script rewrite of the trainer loop: scales,
+triads, seventh chords, circle of fifths, and a short quiz. Notes
+play from oscillators in this tab (the CDN soundfont stays behind).
+MIDI is optional if the browser offers it. Home-row keys play the
+same notes as tapping the on-screen keyboard.
+
+What was kept: major / natural-minor / melodic-minor scale shapes,
+triads and sevenths built on scale degrees, fifths around the circle,
+the quiz of keys and fifths.
+
+What stays behind: React, Tauri, Sentry, i18n packs, and remote
+soundfont files.
