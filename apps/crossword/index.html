@@ -11,10 +11,13 @@
 <div class="app">
   <header>
     <h1>Crossword</h1>
-    <span id="status">Sand.</span>
+    <span id="status">Heart.</span>
   </header>
+  <nav id="puzzles" aria-label="Puzzles"></nav>
+  <p id="cluebar"><strong id="clueId"></strong> <span id="clueText">Tap a square, then type a letter.</span></p>
   <div id="tools">
     <button type="button" id="check">Check word</button>
+    <button type="button" id="checkAll">Check puzzle</button>
     <button type="button" id="reveal">Reveal letter</button>
     <button type="button" id="reset">Reset</button>
   </div>
@@ -22,6 +25,7 @@
     <div id="grid"></div>
     <div id="clues"></div>
   </div>
+  <input id="kb" class="kb" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="2" aria-label="Type a letter">
   <div id="keys" aria-label="Letters"></div>
 </div>
 <script src="vendor/crosswords.js"></script>

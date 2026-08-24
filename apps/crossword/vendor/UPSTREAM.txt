@@ -6,8 +6,9 @@ MIT, Copyright (c) 2015 Dave Kerr
 vendor/crosswords.js is dist/crosswords.umd.cjs (classic UMD, window.crosswords).
 vendor/crosswords.css is dist/crosswords.css.
 
-The baked puzzle (vendor/puzzle.json) is an original 4×4 word square
-written for this port — not a Guardian or Alberich grid. Progress is
-saved in gifos.db. A QWERTY pad covers phones.
+vendor/puzzle.json is the original 4×4 word square (Sand). vendor/puzzles.json
+adds two more original grids (Heart 5×5, Racecar 7×7). None of them are
+Guardian or Alberich puzzles. Progress is saved in the file. A QWERTY pad
+plus a hidden <input inputmode="text"> covers phones.
 
 js-yaml 4.1.0 is bundled inside the UMD (MIT, Nodeca).

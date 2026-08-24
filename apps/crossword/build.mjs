@@ -35,7 +35,9 @@ const read = (p) => readFileSync(join(dir, p), 'utf8');
 
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-const puzzle = JSON.parse(read('vendor/puzzle.json'));
+const packed = JSON.parse(read('vendor/puzzles.json'));
+const puzzles = packed.puzzles || packed;
+const sand = JSON.parse(read('vendor/puzzle.json'));
 
 if (!existsSync(join(dir, 'vendor', 'crosswords.js'))) throw new Error('vendor/crosswords.js missing');
 const PIN = '06ad23a960f37085ca1f99ade3d46f36d0fa40ebbbcfe80cdbfb6f09a4efe865';
@@ -58,12 +60,21 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']
   if (listingBlob.includes(bad)) throw new Error('listing mentions ' + bad);
 }
 
-const across = puzzle.acrossClues || [];
-if (across.length < 3) throw new Error('puzzle must have several across clues');
-if (!across.every((c) => c.solution && c.clue)) throw new Error('every across clue needs solution + clue');
-if (!(puzzle.downClues || []).every((c) => c.solution && c.clue)) throw new Error('every down clue needs solution');
+if (!Array.isArray(puzzles) || puzzles.length < 3) throw new Error('need at least three puzzles');
+const ids = puzzles.map((p) => p.id);
+if (!ids.includes('sand') || !ids.includes('heart') || !ids.includes('racecar')) {
+  throw new Error('puzzles must include heart, racecar, sand');
+}
+if (sand.width !== 4 || (sand.acrossClues || []).length < 4) throw new Error('vendor/puzzle.json is the v1 Sand grid');
+for (const puzzle of puzzles) {
+  const across = puzzle.acrossClues || [];
+  if (across.length < 3) throw new Error(puzzle.id + ' must have several across clues');
+  if (!across.every((c) => c.solution && c.clue)) throw new Error(puzzle.id + ' every across clue needs solution + clue');
+  if (!(puzzle.downClues || []).every((c) => c.solution && c.clue)) throw new Error(puzzle.id + ' every down clue needs solution');
+}
 
-const puzzleJs = 'window.CROSSWORD_PUZZLE = ' + JSON.stringify(puzzle) + ';\n';
+const puzzleJs = 'window.CROSSWORD_PUZZLES = ' + JSON.stringify(puzzles) + ';\n'
+  + 'window.CROSSWORD_PUZZLE = window.CROSSWORD_PUZZLES[0];\n';
 if (/<\/script/i.test(puzzleJs)) throw new Error('puzzle </script');
 
 {
@@ -83,11 +94,13 @@ if (/<\/script/i.test(puzzleJs)) throw new Error('puzzle </script');
   if (!ctx.crosswords || typeof ctx.crosswords.compileCrossword !== 'function') {
     throw new Error('UMD did not attach window.crosswords.compileCrossword');
   }
-  const model = ctx.crosswords.compileCrossword(puzzle);
-  if (!model || !model.lightCells || model.lightCells.length < 12) {
-    throw new Error('puzzle did not compile to a complete grid');
+  for (const puzzle of puzzles) {
+    const model = ctx.crosswords.compileCrossword(puzzle);
+    if (!model || !model.lightCells || model.lightCells.length < 12) {
+      throw new Error(puzzle.id + ' did not compile to a complete grid');
+    }
+    console.log(puzzle.id, 'compiles —', model.lightCells.length, 'lights');
   }
-  console.log('puzzle compiles —', model.lightCells.length, 'lights');
 }
 
 const files = {
@@ -119,6 +132,13 @@ if (!files['app.js'].includes("db('save')") || !files['app.js'].includes('newCro
 }
 if (!files['app.js'].includes('qwertyuiop') && !files['app.js'].includes('QWERTYUIOP')) {
   throw new Error('phone letter pad');
+}
+if (!files['app.js'].includes('inputmode') && !files['index.html'].includes('inputmode')) {
+  throw new Error('native phone keyboard input');
+}
+if (!files['app.js'].includes('enterLetter')) throw new Error('pad must advance via enterLetter');
+if (!files['app.js'].includes("selectPuzzle('sand'") && !files['app.js'].includes('puzzleOf(\'sand\')')) {
+  throw new Error('v1 Sand progress must still load');
 }
 
 for (const [n, s] of Object.entries(files)) {
