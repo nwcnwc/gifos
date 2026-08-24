@@ -10,13 +10,15 @@
 <div id="app">
   <header>
     <div id="hi">HI 0</div>
-    <div id="status">Arrows or the pad. Space pauses.</div>
+    <div id="hud"><span id="score">0</span> · maze <span id="maze">1</span> · <span id="lives">5</span> up</div>
   </header>
+  <p id="status">Arrows or the pad. Space pauses.</p>
+  <p id="nosupport" hidden>This cabinet needs a canvas. Try another browser.</p>
   <div id="stage">
     <canvas id="canvas" width="960" height="640">Canvas is required.</canvas>
   </div>
   <div id="roster" hidden></div>
-  <div id="touch" hidden>
+  <div id="touch">
     <div class="pad">
       <button type="button" class="gap"></button>
       <button type="button" data-key="38" aria-label="Up">▲</button>

@@ -9,7 +9,8 @@ for a thumb. Invite puts scores on a shared cabinet.
 Upstream is a static canvas page with a CDN font and a site chrome that
 anti-frames. GifOS inlines classic scripts and the sandbox has nowhere to
 fetch a font from, so this tree is the engine + mazes, monospace text, a
-d-pad, and `gifos.db` for the high score.
+d-pad that is visible on a phone, swipe-to-turn, and `gifos.db` for the
+high score and furthest maze.
 
 ```
 index.html      canvas, pad, roster

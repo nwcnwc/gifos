@@ -3,7 +3,7 @@
   "appId": "pacman",
   "name": "Pac-Man",
   "shortName": "Pac-Man",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "description": "Eat the pellets, dodge the ghosts. Twelve mazes. A friend on the cabinet shares the score.",
   "entry": "index.html",

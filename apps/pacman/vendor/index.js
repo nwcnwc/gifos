@@ -1075,7 +1075,35 @@
 	window.Pacman = {
 		score: function () { return _SCORE; },
 		life: function () { return _LIFE; },
-		game: game
+		game: game,
+		stageIndex: function () {
+			var stages = game.getStages(), i;
+			for (i = 0; i < stages.length; i++) {
+				if (stages[i].status === 1 || stages[i].status === 2 || stages[i].status === 3) return i;
+			}
+			return 0;
+		},
+		phase: function () {
+			var i = this.stageIndex(), stages = game.getStages();
+			if (i === 0) return 'title';
+			if (i === stages.length - 1) return 'over';
+			if (stages[i].status === 2) return 'pause';
+			if (stages[i].status === 3) return 'die';
+			return 'play';
+		},
+		steer: function (ori) {
+			var i = this.stageIndex(), stages = game.getStages();
+			if (i === 0 || i === stages.length - 1) return false;
+			var player = stages[i].getItemsByType(1)[0];
+			if (!player) return false;
+			player.control = { orientation: ori };
+			return true;
+		},
+		player: function () {
+			var i = this.stageIndex(), stages = game.getStages();
+			if (i === 0 || i === stages.length - 1) return null;
+			return stages[i].getItemsByType(1)[0] || null;
+		}
 	};
 	game.init();
 })();
