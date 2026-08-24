@@ -12,12 +12,18 @@
     <h1>Duck Hunt</h1>
     <p class="sub">Click the ducks. The dog laughs. In a GIF, no server.</p>
     <button id="gate-go" type="button" disabled>Play</button>
-    <p class="keys">Click or tap a duck. <b>P</b> pauses · <b>M</b> mutes</p>
+    <p class="keys">Tap a duck. Three shots a wave. On a phone the tap is the zapper.</p>
     <p class="best" id="best"></p>
-    <p class="room" id="gate-room">Press Invite in the bar above to send the link.</p>
+    <p class="room" id="gate-room">Press Invite in the bar above. A friend sits their own pond — two zappers, one scoreboard.</p>
   </div>
 </div>
+<div id="hud" hidden>
+  <button type="button" id="btn-pause">Pause</button>
+  <button type="button" id="btn-mute">Mute</button>
+  <span id="best-live"></span>
+</div>
 <div id="tally" hidden></div>
+<div id="pond" hidden></div>
 <script src="vendor/assets.js"></script>
 <script src="fetch-hook.js"></script>
 <script src="vendor/duckhunt.js"></script>
