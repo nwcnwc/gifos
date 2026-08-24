@@ -310,7 +310,7 @@
       ctx.globalAlpha = alpha;
       if (L.builtin) paintBuiltin(L, row);
       else {
-        status[L.id] = { drawn: 0, missing: 0, pending: 0 };
+        status[L.id] = { drawn: 0, missing: 0, pending: 0, failed: 0 };
         paintTiles(L, day, minutes, status[L.id]);
       }
       ctx.globalAlpha = 1;
@@ -502,6 +502,18 @@
             if (st) st.drawn++;
           } else if (T.isMissing(key)) {
             if (st) st.missing++;
+          } else if (T.isFailed(key)) {
+            /*
+             * A tile the server said NO DATA to and a tile that never arrived
+             * are not the same fact, and the layer row has to be able to tell
+             * them apart. With the connection off, every tile lands here — and
+             * because this used to fall through to "pending", the honest
+             * "Nothing here on this day" went quiet exactly when the app had
+             * nothing at all. Still draw the parent-tile placeholder, and still
+             * let the queue retry; just do not call it pending.
+             */
+            if (st) st.failed++;
+            drawAncestor(L, time, level, row, col, X, Y, Wd, Hd);
           } else {
             {
               if (st) st.pending++;
