@@ -13,7 +13,7 @@
   };
 
   var PAL = [];
-  PAL[0] = [26, 20, 16];
+  PAL[0] = [56, 42, 32];
   PAL[1] = [74, 64, 56];
   PAL[2] = [230, 196, 110];
   PAL[3] = [74, 144, 217];
@@ -126,6 +126,15 @@
     }
     return bytesToB64(bytes);
   }
+  function packRaw(raw) {
+    var n = (raw.length / 4) | 0, bytes = new Uint8Array(n * 3), i;
+    for (i = 0; i < n; i++) {
+      bytes[i * 3] = raw[i * 4];
+      bytes[i * 3 + 1] = raw[i * 4 + 1];
+      bytes[i * 3 + 2] = raw[i * 4 + 2];
+    }
+    return bytesToB64(bytes);
+  }
   function unpackCells(b64, n) {
     var bytes = b64ToBytes(b64);
     var cells = new Array(n), i, o;
@@ -139,6 +148,18 @@
       };
     }
     return cells;
+  }
+  function unpackRaw(b64, n) {
+    var packed = b64ToBytes(b64);
+    var raw = new Uint8Array(n * 4), i, o;
+    for (i = 0; i < n; i++) {
+      o = i * 3;
+      raw[i * 4] = packed[o] || 0;
+      raw[i * 4 + 1] = packed[o + 1] || 0;
+      raw[i * 4 + 2] = packed[o + 2] || 0;
+      raw[i * 4 + 3] = 0;
+    }
+    return raw;
   }
 
   function SandApi(uni) {
@@ -921,7 +942,11 @@
     Universe: Universe,
     makeCell: makeCell,
     packCells: packCells,
+    packRaw: packRaw,
     unpackCells: unpackCells,
+    unpackRaw: unpackRaw,
+    b64ToBytes: b64ToBytes,
+    bytesToB64: bytesToB64,
     paintThumb: paintThumb
   };
 })(window);

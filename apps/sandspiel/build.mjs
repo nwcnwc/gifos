@@ -1,9 +1,11 @@
 // Pack apps/sandspiel/ into site/apps/sandspiel/sandspiel.gif
 import { sandspielIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import vm from 'node:vm';
 
 {
@@ -33,15 +35,36 @@ const gif = globalThis.GifOS.gif;
 const read = (p) => readFileSync(join(dir, p), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-const SCRIPTS = ['species.js', 'app.js', 'wall.js'];
+const SCRIPTS = ['species.js', 'wasm-bytes.js', 'wasm.js', 'app.js', 'wall.js'];
 if (!existsSync(join(dir, 'vendor', 'COPYING-sandspiel.txt'))) throw new Error('COPYING');
 if (!existsSync(join(dir, 'vendor', 'UPSTREAM.txt'))) throw new Error('UPSTREAM');
+if (!existsSync(join(dir, 'vendor', 'kernel.c'))) throw new Error('kernel.c');
+
+function compileKernel() {
+  const src = join(dir, 'vendor', 'kernel.c');
+  const out = join(tmpdir(), 'sandspiel-kernel-' + process.pid + '.wasm');
+  const r = spawnSync('clang', [
+    '--target=wasm32', '-nostdlib', '-O2', '-fno-builtin', '-ffreestanding',
+    '-c', '-o', out, src,
+  ], { encoding: 'utf8' });
+  if (r.status !== 0) {
+    throw new Error('clang --target=wasm32 failed: ' + (r.stderr || r.stdout || r.status));
+  }
+  const bytes = readFileSync(out);
+  try { unlinkSync(out); } catch (e) {}
+  if (bytes.length < 1000 || bytes[0] !== 0x00 || bytes[1] !== 0x61) throw new Error('kernel.wasm');
+  return bytes;
+}
+const kernel = compileKernel();
+const wasmBytesJs = 'window.SAND_WASM_B64=' + JSON.stringify(kernel.toString('base64')) + ';';
 
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
   'style.css': read('style.css'),
   'species.js': read('species.js'),
+  'wasm-bytes.js': wasmBytesJs,
+  'wasm.js': read('wasm.js'),
   'app.js': read('app.js'),
   'wall.js': read('wall.js'),
   'COPYING-sandspiel.txt': read('vendor/COPYING-sandspiel.txt'),
@@ -58,7 +81,7 @@ if (/type=["']module["']/.test(html)) throw new Error('module');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('url');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html) || /id=["']invite/i.test(html)) throw new Error('Invite');
 if (manifest.minBuild !== 947) throw new Error('minBuild');
-if (!manifest.capabilities.db || !manifest.capabilities.multiplayer) throw new Error('caps');
+if (!manifest.capabilities.db || !manifest.capabilities.multiplayer || !manifest.capabilities.wasm) throw new Error('caps');
 if (manifest.capabilities.network) throw new Error('network');
 if (manifest.capabilities.fullscreen) throw new Error('fullscreen');
 if (manifest.capabilities.camera) throw new Error('camera');
@@ -82,7 +105,16 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
   if (helpBlob.includes(bad)) throw new Error('help ' + bad);
 }
 if (!files['COPYING-sandspiel.txt'].includes('Max Bittker')) throw new Error('COPYING');
+if (!/file is the world/i.test(listing.tagline)) throw new Error('tagline');
 if (!files['app.js'].includes("db('save')")) throw new Error('db save');
+if (!files['wasm.js'].includes('WebAssembly.instantiate')) throw new Error('wasm instantiate');
+if (!files['app.js'].includes('This toy needs a canvas')) throw new Error('canvas fail sentence');
+if (!files['app.js'].includes('gifos.onBack')) throw new Error('onBack');
+if (!files['index.html'].includes('id="hint"') || !files['index.html'].includes('Tap to pour')) throw new Error('empty hint');
+if (!files['style.css'].includes('touch-action: none')) throw new Error('touch-action');
+if (files['app.js'].includes('persist();') && /if \(!paused\) \{\s*uni\.tick\(\);\s*dirty = true;\s*persist\(\);/m.test(files['app.js'])) {
+  throw new Error('do not persist every frame');
+}
 if (!files['wall.js'].includes("db('room')") || !files['wall.js'].includes("db('boards')")) throw new Error('db room/boards');
 if (!files['wall.js'].includes('Invite')) throw new Error('Invite copy');
 if (!files['wall.js'].includes("kind: 'card'") || !files['wall.js'].includes("kind: 'here'")) throw new Error('wall kinds');
@@ -185,6 +217,39 @@ for (const [n, s] of Object.entries(files)) {
     ctx
   );
   console.log('sand / water / lava / fire / paint / pack ok —', ctx.result);
+}
+
+{
+  const mod = await WebAssembly.compile(kernel);
+  const mem = new WebAssembly.Memory({ initial: 8 });
+  const sp = new WebAssembly.Global({ value: 'i32', mutable: true }, 65536);
+  const tab = new WebAssembly.Table({ initial: 8, element: 'anyfunc' });
+  const env = {};
+  for (const i of WebAssembly.Module.imports(mod)) {
+    if (i.module !== 'env') continue;
+    if (i.kind === 'memory') env[i.name] = mem;
+    if (i.kind === 'global') env[i.name] = sp;
+    if (i.kind === 'table') env[i.name] = tab;
+  }
+  const inst = await WebAssembly.instantiate(mod, { env });
+  const e = inst.exports;
+  if (e.sand_width() !== 180 || e.sand_height() !== 120) throw new Error('wasm size');
+  e.sand_init();
+  e.sand_set(2, 2, 2, 120, 0);
+  e.sand_tick();
+  if ((e.sand_get(2, 3) & 255) !== 2) throw new Error('wasm sand fall');
+  if ((e.sand_get(2, 2) & 255) !== 0) throw new Error('wasm sand left');
+  e.sand_init();
+  e.sand_set(1, 1, 3, 120, 0);
+  e.sand_tick();
+  if ((e.sand_get(1, 2) & 255) !== 3) throw new Error('wasm water fall');
+  e.sand_init();
+  e.sand_set(4, 4, 1, 80, 0);
+  e.sand_paint(4, 4, 1, 2);
+  if ((e.sand_get(4, 4) & 255) !== 1) throw new Error('wasm paint overwrite');
+  e.sand_paint(3, 4, 1, 2);
+  if ((e.sand_get(3, 4) & 255) !== 2) throw new Error('wasm paint empty');
+  console.log('wasm kernel sand / water / paint ok —', kernel.length, 'bytes');
 }
 
 const shot = screenshotPng();
