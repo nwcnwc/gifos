@@ -80,7 +80,12 @@
           if (mat) obj.material = mat;
         }
       });
-      onLoad(object);
+      /* Deliver ASYNCHRONOUSLY, like the XHR loader this replaces. hockey.js
+         writes `var me = this` AFTER its loadModels() call, so a synchronous
+         callback reaches modelsLoaded while `me` is still undefined — the
+         scene then never gets physics, AI, or the PLAYING state, and the app
+         is a black screen with a score bar. */
+      setTimeout(function () { onLoad(object); }, 0);
     };
   }
 
