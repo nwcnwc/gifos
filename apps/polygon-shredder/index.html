@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Polygon Shredder</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">Polygon Shredder</div>
+      <div id="which">confetti</div>
+    </header>
+    <div class="actions">
+      <button type="button" id="shareBtn">Play together</button>
+      <button type="button" id="pauseBtn">Pause</button>
+    </div>
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both get the same knobs. Turn one — they see it.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+    <div id="stage"></div>
+    <p id="err" hidden></p>
+    <div id="knobs">
+      <label>Factor <input id="factor" type="range" min="0.1" max="1" step="0.01" value="0.5"></label>
+      <label>Evolution <input id="evolution" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+      <label>Rotation <input id="rotation" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+      <label>Radius <input id="radius" type="range" min="0" max="4" step="0.05" value="2"></label>
+      <label>Scale <input id="scale" type="range" min="0.1" max="2" step="0.05" value="1"></label>
+      <label class="check"><input id="pulsate" type="checkbox"> Pulsate</label>
+    </div>
+    <p id="how">Move to spawn. Drag to orbit, scroll to zoom. Factor is speed; Evolution twists the flow; Radius is the bubble that shoves cubes away.</p>
+    <p class="foot">Unofficial port of The Polygon Shredder by spite (MIT). Playing alone is the original toy. A shared shred is the same knobs — nobody writes on anybody else’s row.</p>
+  </div>
+  <script src="vendor/three.min.js"></script>
+  <script src="vendor/OrbitControls.js"></script>
+  <script src="vendor/shaders.js"></script>
+  <script src="vendor/Simulation.js"></script>
+  <script src="vendor/shredder.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>

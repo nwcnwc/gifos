@@ -1,0 +1,61 @@
+{
+  "catalog": "1.0",
+  "slug": "polygon-shredder",
+  "appId": "polygon-shredder",
+  "name": "Polygon Shredder",
+  "shortName": "Shredder",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "A cloud of cubes that shreds into confetti. The knobs live in the file.",
+  "description": "Move around the picture and cubes pour out, then tear apart into coloured flakes. Drag to orbit. Scroll to zoom. Factor is how fast they run; Evolution twists the flow over time; Radius is the bubble that shoves them away.\n\nThe last knobs you left stay on this device, inside the app.\n\nWant a friend looking at the same shred? Press Play together, then Invite in the bar above the app, and send the link. You both get the same knobs. When you turn one, they see it.\n\nAn unofficial port of The Polygon Shredder by spite.",
+  "author": {
+    "name": "spite",
+    "url": "https://github.com/spite/polygon-shredder"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "confetti",
+    "cubes",
+    "toy",
+    "particles",
+    "art",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/polygon-shredder",
+  "accent": [
+    237,
+    106,
+    90
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/polygon-shredder/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/polygon-shredder/polygon-shredder.gif",
+  "bytes": 405085,
+  "download": 0,
+  "provides": null,
+  "sha256": "1f03007421170f040da685d0d4e250b141a9b711f0c9694606762021479d07ea",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "The Polygon Shredder",
+    "url": "https://github.com/spite/polygon-shredder",
+    "blessed": false
+  }
+}
