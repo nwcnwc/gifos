@@ -905,7 +905,8 @@ syncDebug();
 <style>
   *{box-sizing:border-box}
   body{font:14px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);height:100vh;display:flex;flex-direction:column;overflow:hidden}
-  header{background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:8px 14px;font-weight:700;color:var(--accent,#5cc8ff);flex:none}
+  header{background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:8px 14px;font-weight:700;color:var(--accent,#5cc8ff);flex:none;display:flex;align-items:center;gap:12px}
+  header #tabs{margin-left:auto;font-weight:700}
   #wrap{flex:1;display:flex;min-height:0}
   #side{width:290px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--border,#2a2a3f);background:var(--surface,#101018)}
   #rows{flex:1;overflow-y:auto;min-height:0}
@@ -916,8 +917,9 @@ syncDebug();
   .row input.ex{width:100%;background:transparent;border:0;outline:0;color:var(--text,#e0e0f0);font:16px ui-monospace,Menlo,monospace;padding:4px 0}
   .val{color:var(--muted,#8888aa);font:13px ui-monospace,monospace;padding-bottom:2px}
   .err{color:#ff7878;font-size:12px;padding-bottom:2px}
-  .del{flex:none;background:none;border:0;color:var(--muted,#8888aa);font-size:16px;cursor:pointer;padding:2px 6px;margin-top:3px}
-  .del:hover{color:#ff7878}
+  .row-del{flex:none;background:none;border:0;color:var(--muted,#8888aa);cursor:pointer;padding:4px 6px;margin-top:2px;line-height:0}
+  .row-del:hover{color:#ff7878}
+  .row-del svg{pointer-events:none}
   .sl{display:flex;align-items:center;gap:6px;padding:2px 0 4px}
   .sl input[type=range]{flex:1;accent-color:var(--accent,#5cc8ff)}
   .sl input[type=number]{width:58px;background:var(--bg,#0a0a0f);border:1px solid var(--border,#2a2a3f);border-radius:5px;color:var(--text,#e0e0f0);font-size:12px;padding:2px 4px}
@@ -930,11 +932,24 @@ syncDebug();
   #keypad button:hover{background:var(--border,#26263a)}
   #gwrap{flex:1;position:relative;min-width:0}
   #g{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
-  #gbtns{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+  #gbtns{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:2}
   #gbtns button{width:34px;height:34px;border-radius:8px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#14141f);color:var(--text,#e0e0f0);font-size:17px;cursor:pointer;opacity:.9}
-  @media (max-width:640px){ #wrap{flex-direction:column-reverse} #side{width:100%;height:45%;border-right:0;border-top:1px solid var(--border,#2a2a3f)} }
+  #ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+  #readout{position:absolute;left:10px;bottom:10px;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:8px;padding:6px 10px;font:12px ui-monospace,Menlo,monospace;pointer-events:none;display:none;max-width:72%;z-index:2;line-height:1.45;color:var(--text,#e0e0f0)}
+  #readout.on{display:block}
+  #tabs{display:none;gap:0;flex:none}
+  #tabs button{flex:1;padding:8px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted,#8888aa);font:inherit;font-weight:700;cursor:pointer}
+  #tabs button.on{color:var(--accent,#5cc8ff);border-bottom-color:var(--accent,#5cc8ff)}
+  @media (max-width:640px){
+    #tabs{display:flex}
+    #wrap{flex-direction:column}
+    #side{width:100%;height:auto;flex:1;border-right:0;border-top:1px solid var(--border,#2a2a3f)}
+    body.mode-graph #side{display:none}
+    body.mode-list #gwrap{display:none}
+    body.mode-graph #wrap,body.mode-list #wrap{flex-direction:column}
+  }
 </style>
-<header>Calculator</header>
+<header>Calculator <div id="tabs"><button type="button" id="tabG" class="on">Graph</button><button type="button" id="tabL">List</button></div></header>
 <div id="wrap">
   <div id="side">
     <div id="rows"></div>
@@ -943,6 +958,8 @@ syncDebug();
   </div>
   <div id="gwrap">
     <canvas id="g"></canvas>
+    <canvas id="ov"></canvas>
+    <div id="readout"></div>
     <div id="gbtns"><button id="zin">+</button><button id="zout">−</button><button id="zhome" title="Reset view">⌂</button></div>
   </div>
 </div>
@@ -1231,12 +1248,15 @@ function classify(r){
 function envNow(){var vars={},k;for(k in sliders)vars[k]=sliders[k].v;return{vars:vars,funcs:funcs};}
 // ---------- viewport / canvas ----------
 var cv=document.getElementById('g'),ctx=cv.getContext('2d');
+var ov=document.getElementById('ov'),octx=ov.getContext('2d');
+var readout=document.getElementById('readout');
 var view={cx:0,cy:0,ppu:40};  // pixels per unit; equal aspect
-var W=0,H=0,DPR=1;
+var W=0,H=0,DPR=1,traceX=null;
 function resize(){
   DPR=window.devicePixelRatio||1;
   W=cv.clientWidth;H=cv.clientHeight;
   cv.width=Math.max(1,Math.round(W*DPR));cv.height=Math.max(1,Math.round(H*DPR));
+  ov.width=cv.width;ov.height=cv.height;
   draw();
 }
 function sx(x){return (x-view.cx)*view.ppu+W/2;}
@@ -1284,6 +1304,18 @@ function draw(){
   var ax=Math.min(Math.max(sy(0),12),H-4),ay=Math.min(Math.max(sx(0),4),W-30);
   for(v=Math.ceil(x0/step)*step;v<=x1;v+=step){if(Math.abs(v)>step/1e6)ctx.fillText(fmtTick(v,step),sx(v)+3,ax-3);}
   for(v=Math.ceil(y0/step)*step;v<=y1;v+=step){if(Math.abs(v)>step/1e6)ctx.fillText(fmtTick(v,step),ay+4,sy(v)-3);}
+  ctx.fillStyle=axis;ctx.font='12px system-ui';
+  ctx.fillText('x', W-14, Math.min(Math.max(sy(0)-6,12),H-6));
+  ctx.fillText('y', Math.min(Math.max(sx(0)+6,4),W-12), 14);
+  var polar=false,pi;
+  for(pi=0;pi<plots.length;pi++) if(plots[pi]&&plots[pi].kind==='polar'&&!plots[pi].hidden) polar=true;
+  if(polar){
+    ctx.strokeStyle=grid;ctx.globalAlpha=0.45;ctx.lineWidth=1;
+    var rmax=Math.max(Math.abs(x0),Math.abs(x1),Math.abs(y0),Math.abs(y1)),rr,k,ang;
+    for(rr=step;rr<=rmax+step;rr+=step){ctx.beginPath();ctx.arc(sx(0),sy(0),rr*view.ppu,0,7);ctx.stroke();}
+    for(k=0;k<12;k++){ang=k*Math.PI/6;ctx.beginPath();ctx.moveTo(sx(0),sy(0));ctx.lineTo(sx(rmax*Math.cos(ang)),sy(rmax*Math.sin(ang)));ctx.stroke();}
+    ctx.globalAlpha=1;
+  }
   // plots
   stats={curves:0,segs:0};
   var env=envNow(),pi2;
@@ -1301,6 +1333,30 @@ function draw(){
     else if(P2.kind==='implicit')drawImplicit(P2,env,c2);
     else if(P2.kind==='point')drawPoint(P2,env,c2);
   }
+  drawTrace();
+}
+function drawTrace(){
+  if(!octx)return;
+  octx.setTransform(DPR,0,0,DPR,0,0);
+  octx.clearRect(0,0,W,H);
+  if(traceX==null||!isFinite(traceX)){readout.className='';readout.textContent='';return;}
+  var x=traceX, px=sx(x), env=envNow(), lines=['x = '+fmtVal(Math.round(x*1e6)/1e6)], i;
+  octx.strokeStyle=theme('--text','#e0e0f0');octx.globalAlpha=0.4;octx.lineWidth=1;
+  octx.beginPath();octx.moveTo(px,0);octx.lineTo(px,H);octx.stroke();octx.globalAlpha=1;
+  for(i=0;i<plots.length;i++){
+    var P=plots[i];if(!P||P.hidden||P.kind!=='explicit')continue;
+    env.vars[P.pv||'x']=x;
+    var y=ev(P.node,env);
+    delete env.vars[P.pv||'x'];
+    if(!isFinite(y)||Math.abs(y)>1e9)continue;
+    octx.fillStyle=P.color;octx.beginPath();octx.arc(px,sy(y),5,0,7);octx.fill();
+    octx.strokeStyle=theme('--bg','#0a0a0f');octx.lineWidth=1.5;octx.stroke();
+    lines.push('<span style="color:'+P.color+'">'+escTrace(P.src||'y')+'</span> = '+fmtVal(y));
+  }
+  readout.className='on';readout.innerHTML=lines.join('<br>');
+}
+function escTrace(s){
+  return String(s).replace(/[&<>]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':'&gt;';}).slice(0,36);
 }
 function drawExplicit(P,env,col,side){
   var n=Math.max(64,Math.ceil((side?H:W)/2)),i,started=false,prev=null;
@@ -1410,17 +1466,25 @@ function rebuild(){
     inp.autocapitalize='off';inp.autocomplete='off';
     inp.oninput=function(){r.s=inp.value;refresh();saveSoon();};
     inp.onfocus=function(){focused=inp;};
+    inp.onkeydown=function(e){
+      if(e.key!=='Enter')return;
+      e.preventDefault();
+      var idx=rows.indexOf(r);
+      rows.splice(idx+1,0,newRow(''));save();rebuild();
+      var nx=rowsEl.querySelector('[data-rid="'+rows[idx+1].id+'"] .ex');if(nx)nx.focus();
+    };
     mid.appendChild(inp);
     var meta=document.createElement('div');
     mid.appendChild(meta);
-    var del=document.createElement('button');del.className='del';del.textContent='×';del.title='Delete row';
+    var del=document.createElement('button');del.className='row-del';del.title='Delete row';
+    del.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
     del.onclick=function(){rows=rows.filter(function(q){return q!==r;});save();rebuild();};
     el.appendChild(sw);el.appendChild(mid);el.appendChild(del);
     rowsEl.appendChild(el);
     r._meta=meta;r._sw=sw;
     renderMeta(r,cls,color);
     if(cls.kind!=='err'&&cls.kind!=='value'&&cls.kind!=='slider'&&cls.kind!=='def'){
-      plots.push({kind:cls.kind,node:cls.node,pv:cls.pv,op:cls.op,color:color,hidden:r.hidden});
+      plots.push({kind:cls.kind,node:cls.node,pv:cls.pv,op:cls.op,color:color,hidden:r.hidden,src:r.s});
     }
   });
   draw();
@@ -1435,7 +1499,7 @@ function refresh(){
     var cls=classify(r);
     renderMeta(r,cls,color);
     if(cls.kind!=='err'&&cls.kind!=='value'&&cls.kind!=='slider'&&cls.kind!=='def'){
-      plots.push({kind:cls.kind,node:cls.node,pv:cls.pv,op:cls.op,color:color,hidden:r.hidden});
+      plots.push({kind:cls.kind,node:cls.node,pv:cls.pv,op:cls.op,color:color,hidden:r.hidden,src:r.s});
     }
   });
   draw();
@@ -1496,7 +1560,7 @@ function animate(){
 // ---------- keypad ----------
 var KEYS=[['π','π'],['θ','θ'],['²','²'],['^','^'],['√','√('],['≤','≤'],['≥','≥'],
   ['x','x'],['y','y'],['(',' ('],[')',')'],['=','='],['<','<'],['>','>'],
-  ['sin','sin('],['cos','cos('],['tan','tan('],['ln','ln('],['log','log('],['|a|','abs('],['!','!']];
+  ['sin','sin('],['cos','cos('],['tan','tan('],['ln','ln('],['log','log('],['|a|','abs('],['e','e']];
 var pad=document.getElementById('keypad');
 KEYS.forEach(function(k){
   var b=document.createElement('button');b.textContent=k[0];
@@ -1515,18 +1579,36 @@ KEYS.forEach(function(k){
 document.getElementById('addrow').onclick=function(){
   rows.push(newRow(''));save();rebuild();
   var inps=rowsEl.querySelectorAll('.ex');if(inps.length)inps[inps.length-1].focus();
+  if(window.matchMedia && matchMedia('(max-width:640px)').matches) setMode('list');
 };
-// ---------- pan / zoom ----------
-var drag=null,pins={};
+function setMode(m){
+  document.body.className=m==='list'?'mode-list':'mode-graph';
+  document.getElementById('tabG').className=m==='graph'?'on':'';
+  document.getElementById('tabL').className=m==='list'?'on':'';
+  if(m==='graph') resize();
+}
+document.getElementById('tabG').onclick=function(){setMode('graph');};
+document.getElementById('tabL').onclick=function(){setMode('list');};
+if(window.matchMedia && matchMedia('(max-width:640px)').matches) setMode('graph');
+// ---------- pan / zoom / trace ----------
+var drag=null,pins={},moved=0,downPt=null;
+function traceAt(clientX, clientY){
+  var r=cv.getBoundingClientRect();
+  traceX=ux(clientX-r.left);drawTrace();
+}
 cv.addEventListener('pointerdown',function(e){
   cv.setPointerCapture(e.pointerId);
   pins[e.pointerId]={x:e.clientX,y:e.clientY};
+  moved=0;downPt={x:e.clientX,y:e.clientY};
   var ks=Object.keys(pins);
   if(ks.length===1)drag={x:e.clientX,y:e.clientY};
   else drag=null;
 });
 cv.addEventListener('pointermove',function(e){
-  if(!(e.pointerId in pins))return;
+  if(!(e.pointerId in pins)){
+    if(e.pointerType==='mouse' && !(e.buttons&1)){traceAt(e.clientX,e.clientY);cv.style.cursor='crosshair';}
+    return;
+  }
   var ks=Object.keys(pins);
   if(ks.length===2){
     var o=pins[e.pointerId],other=pins[ks[0]==String(e.pointerId)?ks[1]:ks[0]];
@@ -1540,13 +1622,21 @@ cv.addEventListener('pointermove',function(e){
     return;
   }
   if(!drag)return;
+  moved+=Math.hypot(e.clientX-drag.x,e.clientY-drag.y);
+  if(moved>7){traceX=null;drawTrace();}
   view.cx-=(e.clientX-drag.x)/view.ppu;
   view.cy+=(e.clientY-drag.y)/view.ppu;
   drag={x:e.clientX,y:e.clientY};
   draw();savePrefsSoon();
 });
-function lift(e){delete pins[e.pointerId];drag=null;var ks=Object.keys(pins);if(ks.length===1){var q=pins[ks[0]];drag={x:q.x,y:q.y};}}
+function lift(e){
+  var was=moved;
+  delete pins[e.pointerId];drag=null;var ks=Object.keys(pins);if(ks.length===1){var q=pins[ks[0]];drag={x:q.x,y:q.y};}
+  if(was<=7 && downPt){traceAt(e.clientX,e.clientY);}
+  downPt=null;moved=0;
+}
 cv.addEventListener('pointerup',lift);cv.addEventListener('pointercancel',lift);
+cv.addEventListener('pointerleave',function(e){ if(e.pointerType==='mouse' && !Object.keys(pins).length){ traceX=null; drawTrace(); cv.style.cursor='grab'; } });
 cv.addEventListener('wheel',function(e){
   e.preventDefault();
   zoomAt(e.clientX-cv.getBoundingClientRect().left,e.clientY-cv.getBoundingClientRect().top,Math.pow(1.0015,-e.deltaY));
@@ -1617,6 +1707,7 @@ function syncDebug(){
     rows:rows.map(function(r,i){return{s:r.s,kind:classify(r).kind,hidden:!!r.hidden};}),
     sliders:Object.keys(sliders).map(function(k){return{name:k,v:sliders[k].v};}),
     stats:stats,
+    traceX:traceX,
     evalRow:function(i,x){
       var cls=classify(rows[i]);
       if(cls.kind!=='explicit')return null;
@@ -5346,11 +5437,11 @@ Every keystroke is saved in this icon. Close the tab and they are still here.
 `,
       calc: `# Calculator
 
-A graphing calculator. Type an expression on the left; the graph is on the right. Plain arithmetic still answers under the row (\`= 7\`).
+A graphing calculator. Type an expression on the left; the graph is on the right. Plain arithmetic still answers under the row (\`= 7\`). Hover or tap the graph to read values off a curve.
 
 ## Expressions
 
-Tap **+ expression** for a new row. Examples:
+Tap **+ expression** (or press Enter) for a new row. Examples:
 
 - \`2+2\` — a number
 - \`y = x^2\` — a curve
@@ -5360,11 +5451,13 @@ Tap **+ expression** for a new row. Examples:
 - \`a = 1\` — a slider (drag, or tap ▶ to animate)
 - \`(1, 2)\` — a point
 
-Tap a row’s colour dot to hide that plot. × deletes the row. The keypad inserts π, θ, powers, roots, and functions without hunting the keyboard.
+Tap a row’s colour dot to hide that plot. The trash deletes the row. The keypad inserts π, e, θ, powers, roots, and functions without hunting the keyboard.
 
 ## Graph
 
-Drag to pan, pinch or scroll to zoom. **+** / **−** zoom, **⌂** resets the view.
+Drag to pan, pinch or scroll to zoom. **+** / **−** zoom, **⌂** resets the view. Hover (or tap, on a phone) traces each curve at that x. Polar plots get a polar grid.
+
+On a phone, **Graph** / **List** switch between the plot and the expression list.
 
 ## Private vs shared
 
