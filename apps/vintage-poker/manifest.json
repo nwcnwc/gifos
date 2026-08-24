@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "vintage-poker",
+  "name": "Vintage Poker",
+  "shortName": "Poker",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Texas Hold'em. Host is the dealer. Toy chips, no cash. Invite is the seats.",
+  "entry": "index.html",
+  "accent": [26, 122, 58],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
