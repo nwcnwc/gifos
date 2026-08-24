@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "fend",
+  "name": "fend",
+  "shortName": "fend",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Unit-aware calculator. Type 1 ft to cm. The pad stays in the file.",
+  "entry": "index.html",
+  "accent": [200, 80, 40],
+  "capabilities": {
+    "db": true,
+    "wasm": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}

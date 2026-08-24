@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "fend",
+  "appId": "fend",
+  "name": "fend",
+  "shortName": "fend",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Units, fractions, dice. Type 1 ft to cm. The pad stays on this device.",
+  "description": "A notepad calculator that knows units. Type an expression, press Enter, get an exact answer: 1 ft to cm, 2 + 2, 5 kg in lb, 4d6, sqrt(2), 0xFF. History scrolls above the prompt. The last pad comes back the next time you open the app. Nothing is uploaded.\n\nAn unofficial port of fend by printfn. Same engine as their web calculator. Their website is not in this app.",
+  "author": {
+    "name": "printfn",
+    "url": "https://github.com/printfn/fend"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "calculator",
+    "units",
+    "math",
+    "notepad",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fend",
+  "accent": [
+    200,
+    80,
+    40
+  ],
+  "capabilities": {
+    "db": true,
+    "wasm": true
+  },
+  "cover": "/apps/fend/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/fend/fend.gif",
+  "bytes": 593035,
+  "download": 0,
+  "provides": null,
+  "sha256": "616c2c92d746ade99c8c53ddd06a97bec38570c7ad44464ceaea46e7de25dbc0",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "fend",
+    "url": "https://github.com/printfn/fend",
+    "blessed": false
+  }
+}

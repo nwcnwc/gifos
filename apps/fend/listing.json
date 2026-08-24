@@ -1,0 +1,32 @@
+{
+  "tagline": "Units, fractions, dice. Type 1 ft to cm. The pad stays on this device.",
+  "description": "A notepad calculator that knows units. Type an expression, press Enter, get an exact answer: 1 ft to cm, 2 + 2, 5 kg in lb, 4d6, sqrt(2), 0xFF. History scrolls above the prompt. The last pad comes back the next time you open the app. Nothing is uploaded.\n\nAn unofficial port of fend by printfn. Same engine as their web calculator. Their website is not in this app.",
+  "author": {
+    "name": "printfn",
+    "url": "https://github.com/printfn/fend"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "fend",
+    "url": "https://github.com/printfn/fend",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "calculator",
+    "units",
+    "math",
+    "notepad",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fend",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
