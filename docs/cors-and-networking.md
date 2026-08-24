@@ -170,8 +170,8 @@ The relay routes **peer-to-peer envelopes** so any two participants in a
 session can exchange WebRTC introductions directly:
 
 ```
-any → relay : { t:'peer', to:<peerId|'host'>, msg:{...} }
-relay → dest: { t:'peer', from:<peerId|'host'>, msg:{...} }
+any → relay : { t:'peer', to:<peerId>, msg:{...} }
+relay → dest: { t:'peer', from:<peerId>, msg:{...} }
 relay → all : { t:'roster', peers:[...] }     ← current participant list
 ```
 
@@ -196,8 +196,10 @@ degenerate case — and larger rooms scale by the tree
 - **WebSocket hibernation**: the Durable Object accepts sockets through the
   Hibernation API, so an idle session or meeting room is evicted from memory and
   accrues **no duration charges** — Cloudflare bills actual messages, not
-  wall-clock meeting length. Each socket's identity (role, peer id, name, ip,
-  token, room password) rides in its serialized attachment, which survives
+  wall-clock meeting length. Each socket's identity (role, peer id, salted
+  IP tag, token, room password proof) rides in its serialized attachment —
+  no display name (the `?name=` param is deliberately ignored) and never the
+  raw IP, which survives
   eviction but dies with the connection — **the relay persists nothing,
   ever**. A room's token and password are properties of its current
   occupants: the first arrival to an empty room re-establishes them from
@@ -205,7 +207,8 @@ degenerate case — and larger rooms scale by the tree
   subtlety learned the hard way: with hibernation the server must **echo
   `ws.close()`** from `webSocketClose`, or the browser's close handshake
   never completes and client-side reconnect logic never fires.
-- **Abuse guards**: 64 sockets per session, 8 per IP per session, 120
+- **Abuse guards**: C²+C = 30 sockets per session (the greeter pool plus
+  knock churn — see above), 8 per IP per session, 120
   joins/min per IP per session, plus a best-effort per-IP upgrade limiter in
   the outer Worker. Generous for humans (a NAT'd household of flappy phones
   never notices), hostile to loops. The bandwidth token-bucket (1 MB burst,
@@ -238,9 +241,12 @@ The Meeting system app (`run.html`) is the proof of the guard:
   frame — signaling gossip, chat, file chunks — is sealed with an AES-GCM key
   derived from the same code and sent nowhere. Anyone holding the link derives
   the key offline, so there is no key exchange to fail.
-- Every participant holds one `RTCPeerConnection` per other participant. For
-  each pair, exactly one side initiates, chosen by peer-id order — the same
-  deterministic rule for joins, rejoins, and reloads, so there is no glare.
+- Bounded degree is the law: a seat holds `RTCPeerConnection`s only to its
+  row-mates, its cross-link, its up/down tree edges and (in Section 1) its
+  column neighbours — net ≤ C+2, however big the room; every face beyond the
+  row arrives composited (docs/media-plane.md). For each pair, exactly one
+  side initiates, chosen by peer-id order — the same deterministic rule for
+  joins, rejoins, and reloads, so there is no glare.
 - **Peer relay (P1) — a volunteer bridge made of friends, never a TURN
   server.** GifOS configures **STUN only, no TURN, ever** (`site/js/gifos-net.js`
   ice servers) — a TURN server is a media relay, which the whole design forbids.
@@ -267,13 +273,16 @@ The Meeting system app (`run.html`) is the proof of the guard:
   backgrounding is re-acquired and `replaceTrack`ed into every link; and a
   participant with no camera permission joins view-only instead of being
   locked out.
-- **Media flows only browser-to-browser.** The relay carries SDP/ICE envelopes
-  and nothing else; if no direct route exists for a pair, that pair simply has
-  no video — there is no fallback, by design.
-- **Adaptive quality ladder**: with a mesh, upload cost grows with (n−1) links,
-  so the app steps resolution, framerate, and per-link `maxBitrate` down as
-  people join (720p/1.8Mbps → 480p/800k → 360p/450k → 240p/250k) and back up
-  as they leave. Unlimited participants, degrading gracefully.
+- **Media flows only browser-to-browser.** The relay never carries media —
+  only sealed signaling and the door verbs above; a pair with no direct route
+  falls back to the P1 friend-relay (a browser, never our server), and if no
+  friend can bridge either, that pair has no video. There is no
+  infrastructure fallback, by design.
+- **Adaptive quality ladder**: upload cost grows toward one full section and
+  then PLATEAUS — a full section is all any seat ever carries — and the app
+  steps resolution, framerate, and per-link `maxBitrate` down as links fill
+  (720p/1.8Mbps → 480p/800k → 360p/450k → 240p/250k) and back up as they
+  free. Unlimited participants, degrading gracefully.
 - It's a **system app** (trusted first-party page): the sandbox neuters WebRTC
   and an opaque origin can't get camera permission, so live media runs at the
   system level, routed from a whitelisted manifest field (see architecture doc).
@@ -406,12 +415,14 @@ A self-hosted GifOS points its apps at its own copy by setting
 |----------|-----|------|
 | `gifos.app` (GitHub Pages) | Serve the static desktop + runtime — byte-for-byte what's in the public repo, so anyone can audit it | — |
 | `relay.gifos.app` (Worker + Durable Objects, deployed from [`relay/`](../relay)) | For app sessions: WebRTC signaling, peer routing, and bandwidth-guarded fallback transport (**never media**). For meetings: a **zero-knowledge greeter registry** only (`docs/healing-laws.md` R2). Stores nothing but per-connection socket state | Part 1 |
-| `0.gifos.app` … `9.gifos.app` (Worker, deployed from [`mirror/`](../mirror)) | Re-serve the same static site so each digit subdomain is an isolated computer (per-origin storage); ten explicit routes, so other subdomains never invoke (or bill) the Worker | — |
+| `0.gifos.app` … `9.gifos.app` (Worker, deployed from [`mirror/`](../mirror)) | Re-serve the same static site so each digit subdomain is an isolated computer (per-origin storage); an explicit route per computer (the ten digits plus the named computers in
+`mirror/wrangler.toml`), so other subdomains never invoke (or bill) the Worker | — |
 | `cors-proxy.gifos.app` (Worker, deployed from [`cors-proxy/`](../cors-proxy)) | Add CORS headers so apps can reach header-stingy third-party APIs — gated to `gifos.app` origins and an allow-list of hosts, stores nothing | Part 2 |
 
-Deploys: the site auto-publishes from `main` via GitHub Actions; the Workers
-are manual (`npx wrangler deploy` inside `relay/` or `mirror/`) — **changing
-relay code requires a redeploy**, pushing to GitHub is not enough.
+Deploys: the site auto-publishes from `main` via GitHub Actions; the three
+Workers are manual (`./deploy-all.sh`, or `npx wrangler deploy` inside
+`relay/`, `mirror/` or `cors-proxy/`) — **changing relay code requires a
+redeploy**, pushing to GitHub is not enough.
 
 ## Future Enhancements
 
