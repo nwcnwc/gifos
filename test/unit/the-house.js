@@ -212,6 +212,12 @@ check('app.js loads in a vm and exposes HousePort', !!(HP && HP.remapSrc && HP.f
     !/src="images/.test(html) && !/src="sounds/.test(html));
   check('the asset index and fonts are deferred so the card can paint',
     /src="assets-index\.js" defer/.test(html) && /src="fonts\.js" defer/.test(html));
+  const css = read('style.css');
+  // The character's 587x562 z-999 halo could sit over the HUD and eat the
+  // click that opens the items tray (playtest: tray dead at the exact moment
+  // the game first highlights it). Decoration never takes a click.
+  check('the glow is click-transparent (pointer-events none)',
+    /#the_game #glow\s*\{\s*pointer-events:\s*none/.test(css));
   const build = read('build.mjs');
   check('the packer sends art and sound as raw .assets/ files',
     build.indexOf(".assets/' + key") !== -1 && build.indexOf('assetIndex[key]') !== -1);
