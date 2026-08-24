@@ -169,18 +169,24 @@ button{font:inherit}
   container-type:size;
   display:flex;align-items:center;justify-content:center;
   background:#fffdf6;border:1px solid #d8ccb4;border-radius:12px;
-  font-weight:800;font-size:clamp(18px,46cqi,34px);line-height:1;
+  font-weight:800;line-height:1;
   color:var(--ink);cursor:pointer;padding:0;overflow:hidden;
   user-select:none;-webkit-user-select:none;touch-action:manipulation;
   box-shadow:inset 0 -2px 0 rgba(26,20,16,.06);
 }
-.cell .n{position:relative;z-index:1}
-.cell.free{font-size:clamp(8px,18cqi,12px);letter-spacing:.1em;color:#8a7060;cursor:default}
-.cell.free .n{letter-spacing:.08em}
-.cell.daubed .n{color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.4)}
+/* Number sizing lives on .n, NOT on .cell: cq units on the container element
+   itself resolve against the VIEWPORT (no ancestor container), which is how
+   numbers ended up wider than the daub ball on short phone cells. On .n they
+   resolve against the cell, so min(cqi,cqb) tracks its short side. */
+.cell .n{position:relative;z-index:1;font-size:clamp(14px,min(40cqi,52cqb),34px)}
+.cell.free{letter-spacing:.1em;color:#8a7060;cursor:default}
+/* A daubed number sits INSIDE the ball: white, and sized to the ball. */
+.cell.daubed .n{color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.4);font-size:clamp(12px,min(32cqi,42cqb),26px)}
+/* After .cell.daubed .n — FREE is free+daubed, and this sizing must win. */
+.cell.free .n{letter-spacing:.06em;font-size:clamp(7px,min(13cqi,17cqb),11px)}
 .cell.daubed::before{
   content:"";position:absolute;left:50%;top:50%;
-  width:min(80cqi,76cqb);height:auto;aspect-ratio:1;
+  width:min(92cqi,90cqb);height:auto;aspect-ratio:1;
   transform:translate(-50%,-50%);
   border-radius:50% 46% 52% 48% / 48% 52% 46% 52%;
   background:radial-gradient(circle at 38% 32%, #ff7a7a, var(--accent) 58%, #8a1818);
@@ -193,16 +199,10 @@ button{font:inherit}
   70%{transform:translate(-50%,-50%) scale(1.14)}
   100%{transform:translate(-50%,-50%) scale(1)}
 }
-.cell.hit:not(.daubed){
-  box-shadow:inset 0 0 0 3px var(--accent), 0 0 0 1px rgba(196,40,48,.15);
-  animation:hitglow 1.15s ease-in-out infinite;
-}
-.cell.fresh-hit:not(.daubed){animation:hitpop .38s ease, hitglow 1.15s ease-in-out .38s infinite}
-@keyframes hitglow{
-  50%{box-shadow:inset 0 0 0 3px var(--accent), 0 0 14px rgba(196,40,48,.5)}
-}
-@keyframes hitpop{50%{transform:scale(1.06)}}
+/* The .hit call-highlight is gone ON PURPOSE: the card never marks or glows
+   a called number for you. Spotting it yourself is the game. */
 .cell:disabled{cursor:default}
+.fireworks{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
 .bingo-card.won .cell.daubed::before{box-shadow:inset 0 -3px 6px rgba(0,0,0,.28), 0 0 0 2px var(--gold)}
 
 .flashboard{
@@ -292,7 +292,6 @@ body.cover .bingo-card{max-width:520px}
 }
 
 @media (max-width:360px){
-  .cell{font-size:20px}
   .call-ball{width:64px;height:64px}
   .call-ball .num{font-size:22px}
 }
