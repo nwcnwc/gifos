@@ -154,7 +154,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.evaluate(async () => {
     for (let y = 0; y < document.body.scrollHeight; y += 300) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 30)); }
   });
-  await sleep(600);
+  // Wait for the CLAIM (every cover decoded), not a deadline: 600ms stood in
+  // for it and missed one screenful once the cards grew an action row.
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('.card .shot')).every((e) => e.complete), null, { timeout: 30000 }).catch(() => {});
   const covers = await page.$$eval('.card .shot', (els) => els.map((e) => ({ src: e.getAttribute('src'), loaded: e.complete && e.naturalWidth > 0 })));
   check('every card shows its cover image', covers.length === cards && covers.every((c) => c.loaded), JSON.stringify(covers.map((c) => c.loaded)));
   check('every card image is a cover.jpg', covers.every((c) => /\.jpe?g$/i.test(c.src || '')));
