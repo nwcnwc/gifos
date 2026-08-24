@@ -22,11 +22,15 @@
 
   function friendlyError(e) {
     var msg = String((e && e.message) || e || 'parse error');
+    msg = msg.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '');
+    msg = msg.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+    msg = msg.replace(/\s+/g, ' ').trim();
     msg = msg.replace(/^JSON\.parse:\s*/i, '');
-    if (/Unexpected end/i.test(msg)) {
+    if (msg.length > 180) msg = msg.slice(0, 177) + '…';
+    if (/Unexpected end|got 'EOF'|got \"EOF\"/i.test(msg)) {
       return 'Not valid JSON — the text ends early. A quote or bracket may be missing. (' + msg + ')';
     }
-    if (/Unexpected token|Expected|Unexpected character|Bad control/i.test(msg)) {
+    if (/Unexpected token|Expected|Expecting|Unexpected character|Bad control|Parse error/i.test(msg)) {
       return 'Not valid JSON — ' + msg;
     }
     return 'Not valid JSON — ' + msg;
@@ -223,7 +227,20 @@
     try {
       var ace = ed && ed.aceEditor;
       if (ace && ace.session && ace.session.setUseWorker) ace.session.setUseWorker(false);
+      if (ace && ace.setOption) ace.setOption('useWorker', false);
     } catch (e) {}
+  }
+
+  function wrapEditor(ed) {
+    if (!ed || ed.__gifosWrapped) return ed;
+    ed.__gifosWrapped = true;
+    var orig = ed.setMode.bind(ed);
+    ed.setMode = function (m) {
+      orig(m);
+      disableAceWorker(ed);
+      setTimeout(function () { disableAceWorker(ed); }, 0);
+    };
+    return ed;
   }
 
   function editorText() {
@@ -282,6 +299,9 @@
     applying = true;
     var next = wantMode || (parsed.error ? 'code' : (parsed.empty ? 'tree' : mode));
     if (parsed.error) next = 'code';
+    if (next === 'code' && parsed.value !== undefined && !parsed.error) {
+      parsed = { value: parsed.value, text: JSON.stringify(parsed.value, null, 2), empty: parsed.empty };
+    }
     try {
       if (next === 'code') {
         try { editor.setMode('code'); } catch (e) { editor.setMode('text'); }
@@ -345,6 +365,7 @@
     if (guest || !editor) return;
     var text = JSON.stringify(SAMPLE, null, 2);
     applyParsed(parseJson(text), mode === 'code' ? 'code' : 'tree');
+    try { if (mode !== 'code' && editor.expandAll) editor.expandAll(); } catch (e) {}
     persistNow();
     if (root.JsonEditorMp) root.JsonEditorMp.publish();
     setStatus('Sample document');
@@ -454,7 +475,7 @@
       },
       onEditable: function () { return !guest; }
     };
-    var ed = new root.JSONEditor(el, opts);
+    var ed = wrapEditor(new root.JSONEditor(el, opts));
     disableAceWorker(ed);
     return ed;
   }

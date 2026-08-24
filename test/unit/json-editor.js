@@ -97,6 +97,8 @@ const FIXTURE = {
   check('repair of valid JSON is not marked repaired', already.repaired === false && already.value.a === 1);
   const hopeless = App.repairText('{');
   check('repair of truncated JSON stays an error', !!(hopeless.error && /valid JSON/i.test(hopeless.message)));
+  const html = App.friendlyError({ message: "Parse error on line 1:<br>{<br>-^<br>Expecting 'STRING', '}', got 'EOF'" });
+  check('friendlyError strips html from ace parse errors', html.indexOf('<') < 0 && /valid JSON/i.test(html) && /EOF/i.test(html), html);
 }
 
 {
@@ -132,6 +134,7 @@ const FIXTURE = {
 
   check('Tree and Code tabs exist', html.indexOf('tabTree') >= 0 && html.indexOf('tabCode') >= 0 && html.indexOf('phone-tabs') >= 0);
   check('phone CSS uses a 640px break', css.indexOf('max-width: 640px') >= 0);
+  check('phone CSS cancels jsoneditor negative menu margin', css.indexOf('has-main-menu-bar') >= 0 && css.indexOf('margin-top: 0') >= 0);
   check('Back is registered', src.indexOf('gifos.onBack') >= 0);
   check('Ace workers are turned off', src.indexOf('setUseWorker') >= 0);
   check('no in-app Invite button', !/<button\b[^>]*>\s*Invite\s*</i.test(html));
