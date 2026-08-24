@@ -518,6 +518,7 @@
   var browseTab = 'featured';
   UI.openBrowse = function () {
     show(el.browse);
+    browseCached = (T.cachedLayers && T.cachedLayers()) || {};
     el.browseSearch.value = '';
     renderTabs();
     renderBrowse();
@@ -534,12 +535,37 @@
     });
   }
 
+  /*
+   * WITH THE CONNECTION OFF, MOST OF THIS LIST IS A PROMISE THE FILE CANNOT
+   * KEEP. Offline you could tick any of 74 layers and every one of them drew
+   * nothing, with no warning until the empty map. The file knows exactly which
+   * layers it is holding bytes for, so say it: a banner at the top, an "in this
+   * file" tag on the ones that will draw, and the rest visibly not available
+   * yet. Nothing is disabled — reconnect and they all work — it just stops
+   * pretending.
+   */
+  var browseCached = null;
+
   function renderBrowse() {
     var body = el.browseBody;
     body.innerHTML = '';
     var n = state.layers.filter(function (r) { return r.on; }).length;
     el.browseCount.textContent = n + (n === 1 ? ' layer on the map' : ' layers on the map');
     var q = el.browseSearch.value.trim();
+
+    if (T.net === 'offline') {
+      var held = 0;
+      for (var ck in (browseCached || {})) held++;
+      var warn = U.el('p', 'browse-offline');
+      // Careful with the claim: the file holds tiles for the days and places
+      // you have already been, not for the whole layer. "Has something" is
+      // true; "will draw" would not be.
+      warn.textContent = held
+        ? 'You are offline. ' + held + (held === 1 ? ' layer here has' : ' layers here have') +
+          ' imagery already in this file — for the days and places you have been. The rest need a connection.'
+        : 'You are offline. Anything you add here stays blank until you reconnect — only the built-in layers draw with no connection at all.';
+      body.appendChild(warn);
+    }
 
     if (q) {
       var hits = D.searchLayers(q) || [];
@@ -604,6 +630,12 @@
     card.appendChild(tick);
     var txt = U.el('span');
     txt.appendChild(U.el('span', 't', cardTitle(L, groupTitle)));
+    /*
+     * The instrument is not a footnote. Under "Corrected Reflectance" there
+     * are nine cards and three of them are called "True Color"; the ONLY thing
+     * that tells them apart is Terra vs Aqua vs Suomi NPP vs NOAA-20, and it
+     * was the dimmest line on the card.
+     */
     txt.appendChild(U.el('span', 's', L.sub || ''));
     var bits = [];
     if (L.builtin) bits.push('offline');
@@ -613,6 +645,22 @@
       if (L.start) bits.push(L.start.slice(0, 4) + '→' + (L.end ? L.end.slice(0, 4) : 'now'));
     }
     txt.appendChild(U.el('span', 'meta', bits.join(' · ')));
+    if (T.net === 'offline' && !L.builtin) {
+      /*
+       * Badge the EXCEPTION, not the rule. Tagging all sixty-odd unreachable
+       * cards "needs a connection" is the same sentence sixty times, competing
+       * with the line that actually tells two True Colors apart. The rare
+       * green one carries the information; the rest are dimmed, and say it in
+       * their label so a screen reader gets what the dimming is doing.
+       */
+      if (browseCached && browseCached[L.id]) {
+        txt.appendChild(U.el('span', 'lcard-tag ok', 'in this file'));
+      } else {
+        card.classList.add('unreachable');
+        card.setAttribute('aria-label', cardTitle(L, groupTitle) + ' — ' + (L.sub || '') +
+          ' — no imagery in this file yet; needs a connection');
+      }
+    }
     card.appendChild(txt);
     card.addEventListener('click', function () {
       if (state.layers.some(function (r) { return r.id === L.id; })) app.removeLayer(L.id);

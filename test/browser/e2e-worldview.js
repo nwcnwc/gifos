@@ -368,6 +368,33 @@ async function settle(fr, ms) {
   check('it says it is offline rather than pretending', netState.net === 'offline' && netState.chip === 'Offline',
         netState.net + ' / ' + netState.chip);
 
+  /*
+   * THE LAYER BROWSER MUST NOT SELL WHAT THE FILE CANNOT DELIVER. Offline, all
+   * 74 layers used to look equally available; ticking one gave you a blank map
+   * and no explanation. The file knows which layers it holds bytes for, and
+   * the browser has to say so — the badge goes on the ones it HAS, and the
+   * others are marked unreachable.
+   */
+  const browse = await off.fr.evaluate(async () => {
+    window.WVUI.openBrowse();
+    await new Promise((r) => setTimeout(r, 600));
+    const badged = [...document.querySelectorAll('.lcard')]
+      .filter((c) => c.querySelector('.lcard-tag.ok')).length;
+    return {
+      banner: (document.querySelector('.browse-offline') || {}).textContent || '',
+      badged: badged,
+      unreachable: document.querySelectorAll('.lcard.unreachable').length,
+      held: Object.keys(window.WVTiles.cachedLayers()).length,
+    };
+  });
+  check('offline, the layer browser says so instead of listing 74 equal choices',
+    /offline/i.test(browse.banner), browse.banner.slice(0, 80));
+  check('the layers this file actually holds are the ones badged',
+    browse.held > 0 && browse.badged > 0 && browse.badged <= browse.held,
+    browse.badged + ' badged of ' + browse.held + ' held');
+  check('the layers it does not hold are marked unreachable, not offered as equals',
+    browse.unreachable > 0, browse.unreachable + ' dimmed');
+
   await boot.close();
   await browser.close();
 
