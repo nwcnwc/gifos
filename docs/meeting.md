@@ -36,12 +36,12 @@ is dead:
 - **Row** — the handful of people right next to you. You hold a **direct** WebRTC
   link to each of your `C-1` row-mates: this is your real conversation, lowest
   latency, full quality.
-- **Section** — an internal `C×C` block of the tree (25 seats). You see it as a
-  live composited mosaic, assembled by you from feeds arriving over your
-  cross-link. A section is **not** its own relay session — it is pure P2P tree
-  structure.
+- **Section** — an internal `C×C` block of the tree (25 seats). Pure P2P tree
+  structure, **not** its own relay session — and not its own picture either:
+  the Section composite was dropped, so section-mates beyond your row simply
+  appear in the Stadium like everyone else.
 - **Stadium** — the whole room = **one** relay session = **one** URL. Everyone
-  beyond your section folds down into a single composited backdrop and one summed
+  beyond your row folds down into a single composited backdrop and one summed
   "roar."
 - **Stage** — a *special*, deliberately-chosen broadcast tier, capped at `C`,
   seen and heard first by everyone in the room (a speaker, a song leader, a
@@ -62,8 +62,8 @@ no matter how large the room grows — a phone only ever carries its own little
 corner. The room scales by getting **deeper**, and depth adds a little latency to
 the far-stadium backdrop (physically unavoidable: you cannot show a composite of
 the whole room before the whole room has been composited), never per-seat load.
-See [`media-plane.md`](media-plane.md) for the four channels (Row, Section,
-Stage, Stadium) and exactly how composites are built and fanned up/down the tree.
+See [`media-plane.md`](media-plane.md) for the three channels (Row, Stage,
+Stadium) and exactly how composites are built and fanned up/down the tree.
 
 ---
 
@@ -103,11 +103,9 @@ infrastructure nothing at all.
 ## What a participant sees and does
 
 The screen is **one endless vertical scroll, nearest-first**: the **Stage** on
-top, then **your row's** live faces, then the rest of **your section** as a
-mosaic, and finally the **far stadium**, folded smaller the farther out it sits.
-In a room that fits inside one section, the mosaic simply *is* your section; the
-far-stadium tier only appears once the room grows past it. Tap any folded tile to
-zoom it; tap again to fold it back.
+top, then **your row's** live faces, and finally the **stadium** — everyone
+else, folded smaller the farther out they sit. Tap any folded tile to zoom
+it; tap again to fold it back.
 
 The controls worth knowing:
 
@@ -118,10 +116,10 @@ The controls worth knowing:
   step down.
 - **Hand** — raise it to join the room-wide **hand queue** (below), in order.
 - **Password** — the key to *clear* video (see the door, below).
-- **Mix** — your own private sound board: independent faders for **Stage**, **My
-  row**, and **The stadium** that appear as the room grows big enough to need
-  them, plus a **Timing** control (Conversation / Unison / Song). It only
-  changes what *you* hear.
+- **Settings** — holds your own private sound board: independent faders for
+  **Stage**, **My row**, and **The stadium** that appear as the room grows big
+  enough to need them, plus a **Timing** control (Conversation / Unison /
+  Song). It only changes what *you* hear.
 - **Float** — pops the meeting's best video into a mini window that rides along
   while you use other apps (picture-in-picture). Browsers that allow it also
   float automatically when you switch away.
@@ -167,8 +165,8 @@ app-switch), coming back triggers a clean automatic rejoin instead of a stale
 **Battery is a first-class law, not a mode**: hardware video encoding,
 blur rendered small (a blur has no detail to preserve), one-pipe media with
 parked standbys, and dormant everything-nobody-watches are the BASELINE.
-On top of that, quality steps down as your battery does (on battery / under
-50% / under 25%), a phone whose charger is losing ground cuts to minimum, a
+On top of that, quality steps down as your battery does (unplugged at all is
+one step down; at or below 50% is the bottom rung), a phone whose charger is losing ground cuts to minimum, a
 camera that stays off for 20s releases the sensor itself, and a phone nobody
 has touched or spoken into for a few minutes lets its screen rest (we release
 our wake lock — the screen-off decision stays the OS's, and screen
