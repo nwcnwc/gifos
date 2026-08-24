@@ -1,0 +1,23 @@
+vendor/fieldplay.js is the GifOS classic-IIFE extraction of anvaka/fieldplay's
+GPU particle loop (ping-pong textures, RGBA float packing, RK4, user
+get_velocity GLSL). Do not edit it to "improve" the math; run vendor.mjs
+when moving the pin, then re-extract if the shaders change.
+
+package: anvaka/fieldplay
+url:     https://github.com/anvaka/fieldplay
+commit:  f05173e18c9152d6d38a590ef7edea10d27b4350 (main, 2026-04)
+sha256:  (engine is the extraction — pin COPYING instead)
+entry:   src/lib/shaderGraph/* + src/lib/programs/* + src/lib/autoPresets.js
+
+COPYING-fieldplay.txt  MIT, Copyright (c) 2017-2026 Andrei Kashcha
+COPYING-webgl-wind.txt ISC, Copyright (c) 2016, Mapbox / Vladimir Agafonkin
+                       https://github.com/mapbox/webgl-wind
+
+Simplex noise in the engine is Ashima Arts / stegu, MIT, inlined in the
+shader (https://github.com/stegu/webgl-noise).
+
+vendor/presets.js is GENERATED from src/lib/autoPresets.js. Texture-fetching
+presets (Miserables graph, Roads) are dropped — the sandbox has no network.
+
+The Vue UI, CodeMirror, query-state URL, audio, and gist texture inputs are
+not in this port. Settings live in the file. Press Invite for a shared field.
