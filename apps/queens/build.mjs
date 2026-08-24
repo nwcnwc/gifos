@@ -120,9 +120,11 @@ for (const [n, s] of Object.entries(files)) {
   console.log('queens self-test ok —', ctx.result, 'levels');
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89) throw new Error('screenshot not png');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+if (!process.argv.includes('--keep-shot')) {
+  const shot = screenshotPng();
+  if (shot[0] !== 0x89) throw new Error('screenshot not png');
+  writeFileSync(join(dir, 'screenshot.png'), shot);
+}
 
 const bytes = await gif.encode(files, { preview: queensIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'queens', 'queens.gif');

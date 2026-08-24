@@ -150,6 +150,7 @@
     save.board = state.board;
     $('playTitle').textContent = 'Level ' + lv.id + ' · ' + lv.size + '×' + lv.size;
     $('win').hidden = true;
+    setChip('play', 'Level ' + lv.id);
     renderBoard();
     show('play');
     persist();
@@ -249,6 +250,8 @@
     var r = +t.getAttribute('data-r'), c = +t.getAttribute('data-c');
     var i;
     for (i = 0; i < drag.length; i++) if (drag[i][0] === r && drag[i][1] === c) return;
+    /* A finger jiggle on one cell is a tap, not a drag. */
+    if (drag.length === 1 && r === drag[0][0] && c === drag[0][1]) return;
     drag.push([r, c]);
     if (state.board[r][c] === 'Q') return;
     var squares = [[r, c]];
