@@ -12,6 +12,7 @@
   <!-- THE MAP. Everything else floats over it. -->
   <canvas id="map" aria-label="Satellite imagery map"></canvas>
   <div id="mapfx" aria-hidden="true"></div>
+  <div id="loading" hidden aria-hidden="true"><i></i></div>
 
   <!-- Compare handle (only while comparing) -->
   <div id="compare" hidden>
@@ -210,7 +211,30 @@
   <!-- The first thing a stranger sees -->
   <div id="welcome" hidden>
     <div class="w-card">
-      <div class="w-globe" aria-hidden="true"></div>
+      <svg class="w-globe" viewBox="0 0 88 88" aria-hidden="true">
+        <defs>
+          <clipPath id="wgClip"><circle cx="44" cy="44" r="36"/></clipPath>
+          <linearGradient id="wgSea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#2b7fc4"/><stop offset="1" stop-color="#123a63"/>
+          </linearGradient>
+        </defs>
+        <circle cx="44" cy="44" r="37.5" fill="none" stroke="#4cc2ff" stroke-opacity=".45" stroke-width="1.5"/>
+        <circle cx="44" cy="44" r="36" fill="url(#wgSea)"/>
+        <g clip-path="url(#wgClip)" fill="#6f9a5c">
+          <path d="M31 20c6-3 15-2 18 2s-3 8-8 9-8 5-6 9 8 4 9 9-5 9-9 12-5 8-9 7-6-7-7-12-4-9-2-14 8-9 14-12Z"/>
+          <path d="M58 26c5 1 10 4 12 9s-2 9-6 10-9-1-11-5 0-14 5-14Z"/>
+          <path d="M60 52c4-1 8 2 8 6s-4 8-8 7-6-5-5-8 3-5 5-5Z"/>
+        </g>
+        <g clip-path="url(#wgClip)" fill="#ffffff" fill-opacity=".82">
+          <ellipse cx="30" cy="34" rx="13" ry="4"/>
+          <ellipse cx="56" cy="44" rx="10" ry="3.4"/>
+          <ellipse cx="40" cy="62" rx="15" ry="4.2"/>
+        </g>
+        <g clip-path="url(#wgClip)">
+          <rect x="49" y="8" width="2" height="72" fill="#9ee0ff" opacity=".9"/>
+          <rect x="51" y="8" width="9" height="72" fill="#9ee0ff" opacity=".16"/>
+        </g>
+      </svg>
       <h1>The whole Earth, every day since 2000</h1>
       <p>Real NASA satellite imagery, most of it less than three hours old. Pick a day, put layers on top of it, watch it move — and keep what you find inside this file.</p>
       <div class="w-actions">

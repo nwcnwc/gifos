@@ -218,10 +218,53 @@
   // ---------------------------------------------------------------- paint ---
   function px(v) { return Math.round(v * dpr); }
 
+  /*
+   * Space, not "empty black".
+   *
+   * Plate carrée is 2:1 and a screen is not, so at whole-Earth zoom there is a
+   * band above and below the world. Left flat black it reads as a layout that
+   * ran out of map. A faint field of stars — deterministic, so it never
+   * shimmers between frames — says the planet is in space, which is where it
+   * is, and makes the zoomed-out view look deliberate.
+   */
+  var stars = null;
+  function starField() {
+    if (stars) return stars;
+    stars = [];
+    var seed = 1337;
+    for (var i = 0; i < 260; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      var a = (seed % 10000) / 10000;
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      var b = (seed % 10000) / 10000;
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      var m = (seed % 10000) / 10000;
+      stars.push({ x: a, y: b, m: 0.25 + m * 0.75 });
+    }
+    return stars;
+  }
+
+  function paintSpace() {
+    var g = ctx.createLinearGradient(0, 0, 0, cv.height);
+    g.addColorStop(0, '#05070d');
+    g.addColorStop(0.5, '#030408');
+    g.addColorStop(1, '#05070d');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    var f = starField();
+    for (var i = 0; i < f.length; i++) {
+      var s = f[i];
+      ctx.globalAlpha = 0.16 + s.m * 0.5;
+      ctx.fillStyle = '#cfe4ff';
+      var r = Math.max(1, s.m * 1.5 * dpr);
+      ctx.fillRect(s.x * cv.width, s.y * cv.height, r, r);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function draw() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#04060a';
-    ctx.fillRect(0, 0, cv.width, cv.height);
+    paintSpace();
     if (!state) return;
 
     var cmp = state.compare;

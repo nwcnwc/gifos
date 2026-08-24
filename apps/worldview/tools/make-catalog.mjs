@@ -122,9 +122,19 @@ function blurbFrom(md) {
              .replace(/[*_`#>]/g, '')
              .replace(/\s+/g, ' ')
              .trim();
-  if (text.length > 480) {
-    const cut = text.slice(0, 480);
-    text = cut.slice(0, Math.max(cut.lastIndexOf('. ') + 1, 300)).trim() || cut.trim();
+  // Trim on a SENTENCE if there is one, otherwise on a WORD, and say that it
+  // was trimmed. "…thermal anomalies, such as volcanoes, and gas flares. Fire
+  // is oft" is a description amputated mid-word, and it reads as a bug in the
+  // panel rather than as an edit.
+  if (text.length > 460) {
+    const cut = text.slice(0, 460);
+    const dot = cut.lastIndexOf('. ');
+    if (dot > 240) {
+      text = cut.slice(0, dot + 1).trim();
+    } else {
+      const sp = cut.lastIndexOf(' ');
+      text = cut.slice(0, sp > 240 ? sp : cut.length).trim() + '…';
+    }
   }
   return text;
 }

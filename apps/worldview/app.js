@@ -477,6 +477,7 @@
     var lastStatus = 0;
     M.onFrame(function () {
       UI.renderNet();
+      UI.renderBusy();
       var now = Date.now();
       if (now - lastStatus > 400) { lastStatus = now; UI.refreshStatus(); }
     });
