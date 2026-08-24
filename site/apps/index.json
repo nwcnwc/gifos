@@ -7303,11 +7303,11 @@
         255
       ],
       "cover": "/apps/worldview/cover.jpg",
-      "bytes": 1025067,
+      "bytes": 1026674,
       "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "30080c84fb1ca7c6240da577db3febbc8cbc9b5a536ad4f388d6381a84743e31"
+      "sha256": "9161cc96e982815a8743a3c8876c1b95c9bbb7fd5044150618579897e077645c"
     },
     {
       "slug": "yahtzee",
