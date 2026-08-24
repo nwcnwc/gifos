@@ -27,7 +27,9 @@ vendor/assets/sounds/      menu + game BGM + clicks
 ## capabilities
 
 `db`. `minBuild` **947**. No network. Solo + private save of progress and
-settings. A shared match is extra, not this pass.
+settings. The memory `localStorage` shim is a scratch pad; `gifos.db('save')`
+is the real persist. A shared match is extra, not this pass. Phone HUD
+collapses stacked panels so a thumb can place and upgrade.
 
 ## Building
 

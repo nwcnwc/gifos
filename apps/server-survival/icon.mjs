@@ -225,14 +225,15 @@ export function screenshotPng() {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if ((x % 48 === 0 || y % 36 === 0) && y > 140) put(x, y, 15, 28, 36);
   }
-  drawText(put, 48, 36, 'SERVER SURVIVAL', 6, 0, 255, 133);
-  drawText(put, 48, 96, 'BUILD INFRA. SURVIVE TRAFFIC.', 3, 148, 163, 184);
-  drawText(put, 48, 140, 'BUDGET $500', 3, 74, 222, 128);
-  drawText(put, 320, 140, 'REPUTATION 100%', 3, 250, 204, 21);
-  drawText(put, 620, 140, 'LOAD 12.4 RPS', 3, 96, 165, 250);
+  drawText(put, 48, 28, 'SERVER SURVIVAL', 6, 0, 255, 133);
+  drawText(put, 48, 84, 'NO SERVER. FILE IS THE SAVE.', 3, 250, 204, 21);
+  drawText(put, 48, 118, 'BUILD INFRA. SURVIVE TRAFFIC.', 3, 148, 163, 184);
+  drawText(put, 48, 154, 'BUDGET $500', 3, 74, 222, 128);
+  drawText(put, 320, 154, 'REPUTATION 100%', 3, 250, 204, 21);
+  drawText(put, 620, 154, 'LOAD 12.4 RPS', 3, 96, 165, 250);
 
   // HUD panel
-  fill(40, 190, 380, 680, 15, 23, 42);
+  fill(40, 200, 380, 680, 15, 23, 42);
   drawText(put, 56, 210, 'FRONT DOOR', 2, 34, 211, 238);
   drawText(put, 56, 250, 'GEODNS   FIREWALL', 2, 226, 232, 240);
   drawText(put, 56, 280, 'CDN      API GW', 2, 226, 232, 240);

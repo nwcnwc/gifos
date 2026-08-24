@@ -1,8 +1,9 @@
 // Opaque-origin sandbox has no localStorage / sessionStorage — reading either
 // throws. The game still touches them for the last run, campaign stars,
 // trophies, sound prefs, language, tutorial, and toolbar tab. This in-memory
-// stub dies with the tab; what comes back next launch is the row gifos.db
-// kept (app.js).
+// stub dies with the tab. Keys from gifos.db are written in HERE, before
+// vendor/game.js parses, so i18n/achievements/Continue see the real save —
+// not after the game has already read an empty store (app.js only persists).
 (function () {
   'use strict';
   function memoryStore() {
@@ -29,7 +30,21 @@
   var saveDb = null;
   try { if (window.gifos && window.gifos.db) saveDb = window.gifos.db('save'); } catch (e) {}
   window.__ssSaveDb = saveDb;
+
+  function applyKeys(keys) {
+    if (!keys) return;
+    var k;
+    for (k in keys) {
+      if (Object.prototype.hasOwnProperty.call(keys, k) && keys[k] != null) {
+        try { localStorage.setItem(k, keys[k]); } catch (e) {}
+      }
+    }
+  }
+
   window.__ssReady = saveDb && saveDb.get
-    ? saveDb.get('last').catch(function () { return null; })
+    ? saveDb.get('last').then(function (row) {
+        if (row && row.keys) applyKeys(row.keys);
+        return row;
+      }).catch(function () { return null; })
     : Promise.resolve(null);
 })();
