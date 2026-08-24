@@ -1,5 +1,5 @@
 // Procedural TexGen icon: XOR + sine stripes that drift. Super-sample →
-// box-downsample; deterministic.
+// box-downsample; deterministic. Cover is the classic XOR sample, mid-edit.
 import { deflateSync } from 'node:zlib';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
@@ -96,25 +96,53 @@ function pngChunk(tag, data) {
 }
 const GLYPHS = {
   A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
+  C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
   D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
+  F: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
   G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
+  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+  J: [0b00111, 0b00010, 0b00010, 0b00010, 0b00010, 0b10010, 0b01100],
+  K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
   L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
+  M: [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
   N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
+  Q: [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101],
   R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
+  S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  V: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
+  W: [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
   X: [0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001],
+  Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  Z: [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
+  0: [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  1: [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  2: [0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111],
+  3: [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  4: [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  5: [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  6: [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  7: [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  8: [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  9: [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
+  '+': [0, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0],
+  '-': [0, 0, 0, 0b11111, 0, 0, 0],
+  '/': [0b00001, 0b00010, 0b00010, 0b00100, 0b01000, 0b01000, 0b10000],
+  '×': [0, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0],
+  '^': [0b00100, 0b01010, 0b10001, 0, 0, 0, 0],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
   for (const ch of String(str).toUpperCase()) {
-    const gph = GLYPHS[ch];
-    if (!gph) { cx += 6 * s; continue; }
+    const gph = GLYPHS[ch] || GLYPHS[' '];
     for (let row = 0; row < 7; row++) for (let col = 0; col < 5; col++) {
       if (gph[row] & (1 << (4 - col))) {
         for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) put(cx + col * s + dx, y + row * s + dy, r, g, b);
@@ -122,6 +150,42 @@ function drawText(put, x, y, str, s, r, g, b) {
     }
     cx += 6 * s;
   }
+}
+function fillRound(put, x0, y0, x1, y1, rad, rr, gg, bb) {
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const cx = Math.min(Math.max(x, x0 + rad), x1 - rad - 1);
+    const cy = Math.min(Math.max(y, y0 + rad), y1 - rad - 1);
+    let ok = true;
+    if ((x < x0 + rad || x > x1 - rad) && (y < y0 + rad || y > y1 - rad)) {
+      ok = (x - cx) * (x - cx) + (y - cy) * (y - cy) <= rad * rad;
+    }
+    if (ok) put(x, y, rr, gg, bb);
+  }
+}
+
+function hashRNG(seed, x, y) {
+  seed = (Math.abs(seed % 2147483648) === 0) ? 1 : seed;
+  let a = ((seed * (x + 1) * 777) ^ (seed * (y + 1) * 123)) % 2147483647;
+  a = (a ^ 61) ^ (a >> 16);
+  a = a + (a << 3);
+  a = a ^ (a >> 4);
+  a = a * 0x27d4eb2d;
+  a = a ^ (a >> 15);
+  return a / 2147483647;
+}
+function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+// Same operators as SAMPLE: XOR + SinX − SinY + Noise.
+function samplePixel(x, y, w) {
+  const xor = (x ^ y) / w;
+  let r = xor * 1, g = xor * 0.5, b = xor * 0.7;
+  const sx = Math.sin(x * 0.012566);
+  r += sx * 0.25;
+  const sy = Math.sin(y * 0.012566);
+  r -= sy * 0.25;
+  const n = hashRNG(1, x, y);
+  r += n * 0.1; g += n * 0.1; b += n * 0.2;
+  return [clamp01(r) * 255, clamp01(g) * 255, clamp01(b) * 255];
 }
 
 export function screenshotPng() {
@@ -139,17 +203,33 @@ export function screenshotPng() {
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
   fill(0, 0, W, H, 16, 18, 23);
-  drawText(put, 48, 36, 'TEXGEN', 6, 80, 180, 220);
-  drawText(put, 48, 92, 'PROCEDURAL TEXTURE. NOTHING UPLOADED.', 3, 110, 154, 181);
+  drawText(put, 48, 28, 'TEXGEN', 5, 80, 180, 220);
+  drawText(put, 48, 72, 'THE FILE HOLDS THE RECIPE.', 3, 110, 154, 181);
 
-  for (let y = 0; y < 480; y++) for (let x = 0; x < 480; x++) {
-    const col = tex((x / 480) * 128, (y / 480) * 128, 6);
-    put(48 + x, 160 + y, col[0] | 0, col[1] | 0, col[2] | 0);
+  const TW = 520;
+  for (let y = 0; y < TW; y++) for (let x = 0; x < TW; x++) {
+    const col = samplePixel((x / TW) * 256 | 0, (y / TW) * 256 | 0, 256);
+    put(40 + x, 120 + y, col[0] | 0, col[1] | 0, col[2] | 0);
   }
-  fill(560, 160, 1152, 640, 26, 31, 40);
-  const names = ['+ XOR TINT PINK', '+ SINX', '- SINY', '+ NOISE'];
-  names.forEach((n, i) => drawText(put, 580, 190 + i * 70, n, 3, 200, 228, 255));
-  drawText(put, 580, 500, 'DOWNLOAD PNG', 3, 80, 180, 220);
+
+  fillRound(put, 580, 120, 1160, 640, 10, 26, 31, 40);
+  drawText(put, 600, 140, 'CLASSIC XOR', 3, 80, 180, 220);
+  const rows = [
+    ['+ XOR', 'TINT PINK'],
+    ['+ SINX', 'STRIPES'],
+    ['- SINY', 'STRIPES'],
+    ['+ NOISE', 'SEED 1'],
+  ];
+  rows.forEach((r, i) => {
+    const y = 200 + i * 70;
+    fillRound(put, 600, y, 1140, y + 56, 8, 22, 27, 36);
+    drawText(put, 618, y + 18, r[0], 3, 200, 228, 255);
+    drawText(put, 900, y + 18, r[1], 2, 110, 154, 181);
+  });
+  fillRound(put, 600, 500, 860, 556, 8, 80, 180, 220);
+  drawText(put, 628, 516, 'PNG', 3, 7, 20, 28);
+  drawText(put, 880, 516, '256 X 256', 3, 80, 180, 220);
+  drawText(put, 600, 580, 'NOTHING UPLOADED.', 2, 110, 154, 181);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

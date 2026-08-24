@@ -3,9 +3,9 @@
   "appId": "texgen",
   "name": "TexGen",
   "shortName": "TexGen",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "description": "Procedural textures, live. Stack layers, download a PNG. Nothing is uploaded.",
+  "description": "Procedural textures, live. The file holds the recipe. Download a PNG. Nothing is uploaded.",
   "entry": "index.html",
   "accent": [80, 180, 220],
   "capabilities": {
@@ -13,5 +13,11 @@
   },
   "data": {
     "save": { "visibility": "private" }
+  },
+  "launch": {
+    "preset": {
+      "label": "Open a named texture",
+      "detail": "classic, twirl, checkers, circle, moire, pixel, …"
+    }
   }
 }
