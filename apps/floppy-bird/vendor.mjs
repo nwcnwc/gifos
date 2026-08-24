@@ -100,6 +100,21 @@ let jquery = readFileSync(join(vendor, 'jquery.min.js'), 'utf8');
 jquery = jquery.replace(/\n\/\/@ sourceMappingURL=.*\n/, '\n');
 writeFileSync(join(vendor, 'jquery.min.js'), jquery);
 
+// buzz ignores the promise HTMLMediaElement.play() returns, so the splash
+// swoosh — played at boot, before any user gesture — dies on the autoplay
+// policy as an UNHANDLED rejection (a boot pageerror in the sandbox sweep).
+// Catch it the way apps/battle-city/sound.js does; the sound simply stays
+// silent until the user has interacted, which is the policy working as
+// intended.
+let buzz = readFileSync(join(vendor, 'buzz.min.js'), 'utf8');
+buzz = mustReplace(
+  buzz,
+  'this.play=function(){return l?(this.sound.play(),this):this}',
+  'this.play=function(){if(!l)return this;var p=this.sound.play();if(p&&p.catch)p.catch(function(){});return this}',
+  'buzz play() promise guard (autoplay policy)',
+);
+writeFileSync(join(vendor, 'buzz.min.js'), buzz);
+
 let main = readFileSync(join(src, 'js', 'main.js'), 'utf8');
 
 function mustReplace(srcText, find, replace, why) {
