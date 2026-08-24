@@ -101,6 +101,10 @@
   }
 
   // A small bar under the app bar. Dismiss is ✕ (dismiss, never delete).
+  // The bar lands on pages themed by whatever app is running, so every color
+  // in it is fixed — nothing may inherit from the page. The link especially:
+  // left unstyled it takes the browser's default (visited) purple, which is
+  // unreadable on the dark panel.
   function render(d) {
     let el = document.getElementById('appupd');
     if (!el) {
@@ -109,7 +113,7 @@
       el.setAttribute('role', 'status');
       el.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);max-width:min(92vw,560px);' +
         'z-index:9000;padding:.6rem .9rem;border-radius:10px;font:.85rem/1.35 system-ui,sans-serif;' +
-        'background:var(--panel,#1c1c28);color:var(--fg,#eee);border:1px solid var(--border,#3a3a50);' +
+        'background:#1c1c28;color:#f2f2f7;border:1px solid #3a3a50;' +
         'box-shadow:0 6px 24px rgba(0,0,0,.35);display:flex;gap:.6rem;align-items:flex-start';
       document.body.appendChild(el);
     }
@@ -117,6 +121,9 @@
     el.setAttribute('data-slug', d.slug);
     el.innerHTML = '<span class="txt" style="flex:1">' + message(d) + '</span>' +
       '<button class="close" aria-label="Dismiss" style="background:none;border:0;color:inherit;font-size:1rem;cursor:pointer;padding:0 .2rem">✕</button>';
+    el.querySelectorAll('a').forEach((a) => {
+      a.style.cssText = 'color:#a9c7ff;font-weight:600;text-decoration:underline';
+    });
     el.querySelector('.close').onclick = () => { el.remove(); };
     return el;
   }
