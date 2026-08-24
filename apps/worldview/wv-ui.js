@@ -244,6 +244,9 @@
       var sub = U.el('span', 'lyr-sub');
       sub.dataset.id = row.id;
       sub.textContent = subLine(L, row);
+      // Same test as refreshStatus: a row built while the map is already empty
+      // must look as alarming as one that turns empty a second later.
+      sub.classList.toggle('warn', /^(Nothing|Not in this file|Could not)/.test(sub.textContent));
       text.appendChild(title);
       text.appendChild(sub);
       text.addEventListener('click', function () {
@@ -362,13 +365,46 @@
     return !!(t && L && t.id === L.id);
   }
 
+  /*
+   * WHAT THIS ROW IS ACTUALLY SHOWING YOU. Three different nothings, and the
+   * app used to blur two of them into silence:
+   *
+   *  - the layer has no record for this day at all (before launch, after the
+   *    end, outside a rolling window) — coverage says so;
+   *  - GIBS answered NO DATA for every tile over this view — a swath gap,
+   *    polar night, cloud;
+   *  - nothing arrived, because there is no connection. This one used to be
+   *    counted as "still loading" for ever, so with the network off the honest
+   *    warning went quiet exactly when the app had nothing at all to show.
+   *
+   * And one thing it is showing you that is NOT the day you asked for: an
+   * 8-day or 16-day composite publishes on its start day and on no other, so
+   * on the days in between the map is drawing an older composite. That is what
+   * NASA serves and it is correct — but the app has to say which day it is.
+   */
   function subLine(L, row) {
     if (!row.on) return L.sub || '';
     var cov = D.coverage(L, state.date);
     if (!cov.ok) return 'Nothing on this day — ' + cov.why;
     var st = M.layerStatus && M.layerStatus(L.id);
+    /*
+     * With no connection, a request that is still outstanding is not "loading",
+     * it is never arriving — and waiting for the RPC to time out before saying
+     * so is thirty seconds of a spinner in the one situation the user most
+     * needs a straight answer. Known-offline plus nothing drawn IS the answer.
+     */
+    if (st && !st.drawn && T.net === 'offline' && (st.failed || st.pending)) {
+      return 'Not in this file — this layer needs a connection';
+    }
+    if (st && !st.drawn && st.failed) {
+      return 'Could not reach NASA for this one — check the connection';
+    }
     if (st && !st.drawn && st.missing && !st.pending) {
       return 'Nothing here on this day — try another date or move the map';
+    }
+    var snapped = U.snapDay(state.date, L);
+    if (snapped && snapped !== String(state.date).slice(0, 10)) {
+      return 'Showing the ' + periodWord(L.period) + ' from ' + U.prettyDate(snapped);
     }
     return L.sub || '';
   }
@@ -387,7 +423,10 @@
       var text = subLine(L, row);
       if (subs[i].textContent !== text) {
         subs[i].textContent = text;
-        subs[i].classList.toggle('warn', text.indexOf('Nothing') === 0);
+        // Which of these is a WARNING and which is a fact about the data is
+        // not something to infer from the first word — the composite line is
+        // information, the rest mean you are looking at an empty map.
+        subs[i].classList.toggle('warn', /^(Nothing|Not in this file|Could not)/.test(text));
       }
     }
     UI.renderInspector();
@@ -1326,10 +1365,27 @@
         fact('id', top.id);
         var cov = D.coverage(top, state.date);
         var st = M.layerStatus && M.layerStatus(top.id);
+        /*
+         * "from this file" was asserted from T.net alone: offline meant the
+         * app claimed the imagery had come out of the GIF, whether or not a
+         * single tile had. With an empty cache it read "from this file" over a
+         * bare Blue Marble. The file has to have actually drawn something
+         * before it takes the credit.
+         */
         var word = !cov.ok ? 'none on this day'
+          : (st && !st.drawn && T.net === 'offline' && (st.failed || st.pending)) ? 'not in this file'
+          : (st && !st.drawn && st.failed) ? 'could not reach NASA'
           : (st && !st.drawn && st.missing && !st.pending) ? 'nothing over this view'
-          : (T.net === 'offline' ? 'from this file' : 'live');
-        fact('this day', word, cov.ok && word !== 'nothing over this view' ? 'ins-ok' : 'ins-warn');
+          : (st && st.drawn && T.net === 'offline') ? 'from this file'
+          : (T.net === 'offline' ? 'nothing yet' : 'live');
+        var good = cov.ok && (word === 'live' || word === 'from this file');
+        fact('this day', word, good ? 'ins-ok' : 'ins-warn');
+        // The day on the map is not always the day in the box: a composite
+        // publishes on its start day and the map draws it all week.
+        var snap = U.snapDay(state.date, top);
+        if (snap && snap !== String(state.date).slice(0, 10)) {
+          fact('showing', U.prettyDate(snap), 'ins-warn');
+        }
       }
       box.appendChild(dl);
       if (!top.builtin) {

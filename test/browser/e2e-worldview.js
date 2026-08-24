@@ -369,6 +369,41 @@ async function settle(fr, ms) {
         netState.net + ' / ' + netState.chip);
 
   /*
+   * THREE DIFFERENT NOTHINGS, AND ONE SOMETHING THAT IS NOT THE DAY YOU ASKED
+   * FOR. Offline with nothing cached for a layer, every tile FAILS rather than
+   * coming back as no-data — and a failed tile used to be counted as "still
+   * loading", so the honest warning went silent exactly where the app had
+   * nothing at all, while the inspector claimed the imagery was "from this
+   * file". Meanwhile an 8-day composite publishes on its start day only: on
+   * the days between, the map is showing an older composite and never said so.
+   */
+  // The inspector only exists at 1400px and up, so a check that reads it from a
+  // narrower page passes without ever looking at anything — exactly the shape
+  // of a guard that guards nothing.
+  await app.setViewportSize({ width: 1500, height: 900 });
+  const honest = await off.fr.evaluate(async () => {
+    window.WVUI.closeSheets();
+    window.WVApp.addLayer('MODIS_Terra_NDVI_8Day');
+    await new Promise((r) => setTimeout(r, 4000));
+    const row = () => [...document.querySelectorAll('.lyr-sub')]
+      .map((e) => e.textContent).filter((t) => /file|reach|Nothing|Showing/.test(t));
+    const ins = () => {
+      const dl = document.querySelector('#inspect .ins-facts');
+      return dl ? dl.textContent : '';
+    };
+    return { rows: row(), ins: ins(), all: [...document.querySelectorAll('.lyr-sub')].map((e) => e.textContent),
+             st: window.WVMap.layerStatus('MODIS_Terra_NDVI_8Day'), net: window.WVTiles.net,
+             stack: window.WVApp.state.layers.map((r) => r.id + (r.on ? '+' : '-')) };
+  });
+  console.log('  [honest diag]', JSON.stringify(honest).slice(0, 600));
+  check('offline with nothing cached, the row says so instead of loading for ever',
+    honest.rows.some((t) => /Not in this file/.test(t)), JSON.stringify(honest.rows).slice(0, 140));
+  check('the inspector is actually on screen for that check to mean anything',
+    /this day/.test(honest.ins), honest.ins.slice(0, 60));
+  check('the inspector does not claim "from this file" when nothing came from the file',
+    /this day/.test(honest.ins) && !/from this file/.test(honest.ins), honest.ins.slice(0, 90));
+
+  /*
    * TWO DAYS ON SCREEN, ONE PLAYHEAD ON THE RULER. Turning compare on did not
    * repaint the timeline at all, so the B playhead only ever appeared after
    * some unrelated event redrew it — you split the screen between 2020 and
