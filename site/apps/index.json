@@ -7258,6 +7258,58 @@
       "sha256": "61f13f7daf619ed99c4b4bc5eba8dc0e266b604d0feaa58ed2b4604951308653"
     },
     {
+      "slug": "worldview",
+      "appId": "worldview",
+      "name": "Worldview",
+      "shortName": "worldview",
+      "version": "1.0.0",
+      "tagline": "NASA's satellite pictures of the whole Earth, every day since 2000 — and the map is still there on a plane.",
+      "author": {
+        "name": "NASA EOSDIS Worldview",
+        "url": "https://worldview.earthdata.nasa.gov"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "NASA Worldview",
+        "blessed": false
+      },
+      "minBuild": 1089,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Learning",
+        "Utilities",
+        "Media"
+      ],
+      "tags": [
+        "nasa",
+        "satellite",
+        "earth",
+        "imagery",
+        "weather",
+        "climate",
+        "fires",
+        "map",
+        "offline",
+        "worldview",
+        "gibs"
+      ],
+      "accent": [
+        76,
+        194,
+        255
+      ],
+      "cover": "/apps/worldview/cover.jpg",
+      "bytes": 1025067,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "30080c84fb1ca7c6240da577db3febbc8cbc9b5a536ad4f388d6381a84743e31"
+    },
+    {
       "slug": "yahtzee",
       "appId": "yahtzee",
       "name": "Yahtzee",
