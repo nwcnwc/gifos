@@ -73,13 +73,22 @@
 
   function lengthOf(s) { return s.body.length + (s.grow || 0); }
 
-  // Original: if already turning this tick, queue one premove; refuse 180
-  // except on the first key of a life.
+  // Original: if already turning this tick, queue one premove; refuse 180.
+  // The original ALSO allowed a 180 on the first key of a life — safe there,
+  // because its snake spawned as ONE cell. Ours spawns as four (see
+  // freshSnake), so that inherited exemption stepped the head straight into
+  // body[1]: the player whose first keypress was the reverse direction died
+  // on tick 1, before anything moved. Refuse the 180 always; the key still
+  // starts the run so a reversed first press is a nudge forward, not a death.
   function setDir(s, dir) {
     if (!s || !s.alive || dir < 0 || dir > 3) return;
     if (s.d !== s.last && s.d >= 0) s.pre = dir;
-    if (!opposite(dir, s.last) || s.first) {
+    if (!opposite(dir, s.last)) {
       s.d = dir;
+      s.first = false;
+      s.moving = true;
+    } else if (s.first) {
+      s.d = s.last;
       s.first = false;
       s.moving = true;
     }
