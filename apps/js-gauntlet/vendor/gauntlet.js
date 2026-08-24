@@ -223,10 +223,18 @@ Gauntlet = function() {
       { key: Game.Key.RIGHT,  mode: 'down', state: 'playing', action: function()    { this.player.moveRight(true);     } },
       { key: Game.Key.UP,     mode: 'down', state: 'playing', action: function()    { this.player.moveUp(true);        } },
       { key: Game.Key.DOWN,   mode: 'down', state: 'playing', action: function()    { this.player.moveDown(true);      } },
+      { key: Game.Key.A,      mode: 'down', state: 'playing', action: function()    { this.player.moveLeft(true);      } },
+      { key: Game.Key.D,      mode: 'down', state: 'playing', action: function()    { this.player.moveRight(true);     } },
+      { key: Game.Key.W,      mode: 'down', state: 'playing', action: function()    { this.player.moveUp(true);        } },
+      { key: Game.Key.S,      mode: 'down', state: 'playing', action: function()    { this.player.moveDown(true);      } },
       { key: Game.Key.LEFT,   mode: 'up',   state: 'playing', action: function()    { this.player.moveLeft(false);     } },
       { key: Game.Key.RIGHT,  mode: 'up',   state: 'playing', action: function()    { this.player.moveRight(false);    } },
       { key: Game.Key.UP,     mode: 'up',   state: 'playing', action: function()    { this.player.moveUp(false);       } },
       { key: Game.Key.DOWN,   mode: 'up',   state: 'playing', action: function()    { this.player.moveDown(false);     } },
+      { key: Game.Key.A,      mode: 'up',   state: 'playing', action: function()    { this.player.moveLeft(false);     } },
+      { key: Game.Key.D,      mode: 'up',   state: 'playing', action: function()    { this.player.moveRight(false);    } },
+      { key: Game.Key.W,      mode: 'up',   state: 'playing', action: function()    { this.player.moveUp(false);       } },
+      { key: Game.Key.S,      mode: 'up',   state: 'playing', action: function()    { this.player.moveDown(false);     } },
       { key: Game.Key.SPACE,  mode: 'down', state: 'playing', action: function()    { this.player.fire(true);          } },
       { key: Game.Key.SPACE,  mode: 'up',   state: 'playing', action: function()    { this.player.fire(false);         } },
       { key: Game.Key.RETURN, mode: 'up',   state: 'playing', action: function()    { this.player.nuke();              } },
@@ -1234,7 +1242,7 @@ Gauntlet = function() {
     },
 
     onStartLevel: function(map) {
-      map.occupy(map.start.x + (this.slot || 0) * TILE, map.start.y, this);
+      map.occupy(map.start.x + ((this.slot || 0) % 2) * TILE, map.start.y + Math.floor((this.slot || 0) / 2) * TILE, this);
       this.keys    = DEBUG.KEYS || 0;
       this.dead    = false;
       this.exiting = false;

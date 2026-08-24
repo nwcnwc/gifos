@@ -3,17 +3,26 @@ html, body {
   background: #0a0a0f;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
+  margin: 0;
 }
 #gauntlet {
-  margin: 0;
-  width: 100%; height: 100%;
+  margin: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  align-items: stretch;
+  align-items: center;
   background: #0a0a0f;
+  position: relative;
 }
-#canvas { max-width: 72vh; max-height: 100%; }
+#canvas {
+  max-width: min(72vh, 100%);
+  max-height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
 #scoreboard {
   max-width: 16rem;
   overflow: auto;
@@ -21,40 +30,121 @@ html, body {
 }
 #scoreboard .player .multi { display: none; }
 #scoreboard .player { cursor: pointer; }
+#scoreboard .player.taken { opacity: 0.35; pointer-events: none; }
 #instructions { width: 100%; text-align: center; padding-bottom: env(safe-area-inset-bottom); }
+
+#title-card {
+  display: none;
+  box-sizing: border-box;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 40%, #2a1810 0%, #0a0a0f 70%);
+  border: 2px solid #403228;
+  color: #ecd078;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  padding: 1.2rem;
+}
+#gauntlet.menu #title-card { display: flex; }
+#gauntlet.menu #canvas { display: none; }
+#title-card h1 {
+  margin: 0 0 .8rem;
+  font-size: clamp(1.4rem, 5vw, 2.4rem);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #f0d080;
+  text-shadow: 0 2px 0 #401810;
+}
+#title-card .classes { margin: 0 0 1rem; font-size: clamp(11px, 2.4vw, 14px); letter-spacing: .04em; }
+#title-card .c-w { color: #F90503; }
+#title-card .c-v { color: #08B4F0; }
+#title-card .c-z { color: #F5FC00; }
+#title-card .c-e { color: #00FF03; }
+#title-card .classes span { margin: 0 .35rem; font-weight: 700; }
+#title-card .hint { margin: 0; color: #999; font-size: 12px; }
+#title-card .hint b { color: #ddd; }
+
+#room-status {
+  width: 100%;
+  text-align: center;
+  color: #ecd078;
+  font-size: 12px;
+  padding: .3rem;
+}
+#room-status[hidden] { display: none; }
 
 #touch {
   position: fixed; inset: 0; z-index: 20; pointer-events: none;
   touch-action: none; user-select: none;
 }
 #touch[hidden] { display: none; }
-.t-col {
-  position: absolute; bottom: max(1rem, env(safe-area-inset-bottom));
-  display: flex; flex-direction: column; gap: .4rem; pointer-events: none;
-  align-items: center;
-}
-#t-left { left: max(.6rem, env(safe-area-inset-left)); }
-#t-right { right: max(.6rem, env(safe-area-inset-right)); }
-.t-row { display: flex; gap: .4rem; }
-.t-btn {
+#touch button {
   pointer-events: auto;
-  width: 4.4rem; height: 4.4rem;
-  border-radius: .8rem;
-  border: 1px solid rgba(232, 200, 80, .4);
-  background: rgba(10, 10, 16, .58);
+  -webkit-tap-highlight-color: transparent;
+  border: 2px solid rgba(232, 200, 80, .55);
+  background: rgba(40, 32, 24, .72);
   color: #ecd078;
-  font: 700 .72rem/1 ui-monospace, Menlo, Consolas, monospace;
+  font: 700 .75rem/1 ui-monospace, Menlo, Consolas, monospace;
   letter-spacing: .06em;
   cursor: pointer;
 }
-.t-btn.wide { width: 5.6rem; height: 5.6rem; }
-.t-btn.on { background: rgba(236, 208, 120, .28); }
+#touch button.on { background: rgba(236, 208, 120, .4); color: #111; }
+
+#dpad {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: 156px;
+  height: 156px;
+}
+#dpad .t-btn {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+}
+.d-up    { left: 52px; top: 0; }
+.d-down  { left: 52px; bottom: 0; }
+.d-left  { left: 0; top: 52px; }
+.d-right { right: 0; top: 52px; }
+
+#t-fire {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  font-size: 16px !important;
+}
+#t-potion {
+  position: absolute;
+  right: max(118px, env(safe-area-inset-right));
+  bottom: max(40px, env(safe-area-inset-bottom));
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+}
+
 body:not(.touch) #touch { display: none; }
 
 @media (max-width: 720px) {
-  #gauntlet { flex-direction: column; }
+  #gauntlet { flex-direction: column; align-items: stretch; justify-content: flex-start; }
   #canvas { width: 100%; max-width: none; height: auto; }
-  #scoreboard { max-width: none; width: 100%; display: flex; flex-wrap: wrap; justify-content: center; }
-  #scoreboard #logo { display: none; }
-  #scoreboard .player { flex: 1 1 40%; margin: .25rem; height: auto; }
+  #scoreboard {
+    max-width: none;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-height: 7.2rem;
+    overflow: hidden;
+    order: -1;
+  }
+  #scoreboard .player { flex: 1 1 22%; margin: .15rem; height: auto; padding: .2rem 0; }
+  #scoreboard .player .press { margin-top: .2rem; font-size: 9px; }
+  #instructions { display: none; }
+  #title-card { width: 100%; min-height: 12rem; }
 }

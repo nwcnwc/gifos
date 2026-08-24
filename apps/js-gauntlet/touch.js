@@ -1,5 +1,5 @@
 /*
- * Gauntlet — D-pad + FIRE + POTION. Writes the same Player.move* / fire / nuke
+ * Dungeon — D-pad + FIRE + POTION. Writes the same Player.move* / fire / nuke
  * the keyboard does.
  */
 (function (root) {
@@ -11,8 +11,8 @@
   function phoneish() {
     var pts = (root.navigator && root.navigator.maxTouchPoints) || 0;
     var coarse = !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches);
-    var narrow = Math.min(root.innerWidth || 0, root.innerHeight || 0) <= 520;
-    return (pts > 0 && coarse) || (pts > 0 && narrow);
+    var narrow = (root.innerWidth || 0) <= 720;
+    return coarse || (pts > 0 && narrow) || narrow;
   }
 
   function me() {
@@ -35,6 +35,11 @@
     var set = function (on) {
       if (dir === 'potion') {
         if (on && me() && me().nuke) me().nuke();
+        if (root.GauntletNet) {
+          held.potion = !!on;
+          root.GauntletNet.noteInput(held);
+          held.potion = false;
+        }
         return;
       }
       held[dir] = on;
@@ -55,6 +60,7 @@
     node.addEventListener('pointerdown', down);
     node.addEventListener('pointerup', up);
     node.addEventListener('pointercancel', up);
+    node.addEventListener('pointerleave', up);
     node.addEventListener('lostpointercapture', function () { set(false); });
   }
 
@@ -64,6 +70,7 @@
     document.body.classList.add('touch');
     var wrap = document.getElementById('touch');
     if (wrap) wrap.hidden = false;
+    if (root.GauntletFit) root.GauntletFit();
   }
 
   function init() {

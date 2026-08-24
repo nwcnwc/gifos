@@ -44,19 +44,25 @@ function nearest(pal, r, g, b) {
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / FRAMES;
-  const shotX = 40 + t * 62;
-  const genPulse = 0.6 + Math.sin(t * Math.PI * 2) * 0.4;
+  const shotX = 38 + t * 64;
+  const genPulse = 0.55 + Math.sin(t * Math.PI * 2) * 0.45;
+  const SIZE = 14;
   for (let py = 0; py < RW; py++) {
     for (let px = 0; px < RW; px++) {
       const x = px / SS, y = py / SS;
       if (!inCard(x, y, 6, 20)) continue;
       let col = mix(FLOOR, CARD_B, (y - 6) / 116);
-      if (x < 18 || x > 110 || y < 18 || y > 110) col = WALL;
-      if (inRect(x, y, 18, 18, 10, 40) || inRect(x, y, 100, 70, 10, 40)) col = WALL;
-      if (inRect(x, y, 26, 78, 14, 18)) col = RED;
-      if (inRect(x, y, 88, 36, 16, 16)) col = mix(RED, GOLD, genPulse);
-      if (Math.hypot(x - shotX, y - 86) < 3) col = SPARK;
-      if (f % 3 === 0 && inRect(x, y, 60, 50, 10, 10)) col = GHOST;
+      if (x < 16 || x > 112 || y < 16 || y > 112) col = WALL;
+      if (inRect(x, y, 16, 16, 12, 36) || inRect(x, y, 100, 72, 12, 36)) col = WALL;
+      if (inRect(x, y, 48, 16, 32, 12)) col = WALL;
+      // four classes, reading at Home Screen size
+      if (inRect(x, y, 22, 78, SIZE, SIZE)) col = RED;
+      if (inRect(x, y, 40, 92, SIZE, SIZE)) col = BLUE;
+      if (inRect(x, y, 22, 50, SIZE - 2, SIZE - 2)) col = GOLD;
+      if (inRect(x, y, 44, 62, SIZE - 2, SIZE - 2)) col = GREEN;
+      if (inRect(x, y, 86, 30, 18, 18)) col = mix(RED, GOLD, genPulse);
+      if (Math.hypot(x - shotX, y - 84) < 3.5) col = SPARK;
+      if (f % 3 === 0 && inRect(x, y, 64, 48, 12, 12)) col = GHOST;
       const o = (py * RW + px) * 4;
       rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
     }
@@ -119,23 +125,30 @@ export function screenshotPng() {
     x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
-  fill(0, 0, W, H, 10, 10, 15);
-  fill(0, 0, W, H, 36, 24, 18);
-  for (let i = 0; i < 18; i++) {
-    fill(0, i * 40, 48, i * 40 + 36, 70, 50, 40);
-    fill(W - 48, i * 40, W, i * 40 + 36, 70, 50, 40);
+  fill(0, 0, W, H, 28, 18, 14);
+  const WALLC = [74, 52, 40], FLOORC = [42, 28, 22];
+  fill(48, 48, W - 48, H - 48, FLOORC[0], FLOORC[1], FLOORC[2]);
+  for (let i = 0; i < 20; i++) {
+    fill(0, i * 40, 56, i * 40 + 32, WALLC[0], WALLC[1], WALLC[2]);
+    fill(W - 56, i * 40, W, i * 40 + 32, WALLC[0], WALLC[1], WALLC[2]);
   }
-  fill(200, 160, 1000, 200, 70, 50, 40);
-  fill(400, 400, 800, 440, 70, 50, 40);
-  fill(180, 500, 220, 540, 249, 5, 3);
-  fill(280, 480, 316, 516, 8, 180, 240);
-  fill(860, 300, 900, 340, 245, 252, 0);
-  fill(980, 520, 1016, 556, 0, 255, 3);
-  fill(640, 240, 680, 280, 180, 40, 40);
-  fill(520, 320, 548, 348, 200, 200, 220);
-  fill(720, 360, 748, 388, 200, 80, 80);
-  fill(240, 510, 400, 518, 255, 220, 160);
-  fill(40, 24, 200, 56, 249, 5, 3);
+  fill(0, 0, W, 56, WALLC[0], WALLC[1], WALLC[2]);
+  fill(0, H - 56, W, H, WALLC[0], WALLC[1], WALLC[2]);
+  fill(220, 140, 980, 188, WALLC[0], WALLC[1], WALLC[2]);
+  fill(360, 360, 840, 408, WALLC[0], WALLC[1], WALLC[2]);
+  fill(160, 520, 240, 600, 249, 5, 3);
+  fill(260, 500, 332, 572, 8, 180, 240);
+  fill(820, 260, 892, 332, 245, 252, 0);
+  fill(960, 500, 1032, 572, 0, 255, 3);
+  fill(620, 200, 692, 272, 180, 40, 40);
+  fill(500, 280, 548, 328, 200, 200, 220);
+  fill(700, 320, 748, 368, 200, 80, 80);
+  fill(240, 556, 520, 568, 255, 220, 160);
+  fill(880, 300, 980, 312, 255, 220, 160);
+  fill(160, 80, 280, 112, 249, 5, 3);
+  fill(300, 80, 420, 112, 8, 180, 240);
+  fill(760, 80, 880, 112, 245, 252, 0);
+  fill(900, 80, 1020, 112, 0, 255, 3);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
