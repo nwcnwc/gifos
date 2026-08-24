@@ -1,0 +1,15 @@
+MattSurabian/DuckHunt-JS
+https://github.com/MattSurabian/DuckHunt-JS
+commit:  5a28db7442ebc7dc8060342413df24c0319f4190
+files:   dist/duckhunt.js dist/sprites.png dist/sprites.json dist/audio.ogg
+sha256:  duckhunt.js fca8b3198a28c06d60c16164a2415047e0da566392e18655bce92dd37f38c2ca
+         sprites.png 55d1b2ad30e5476bcf34a438c05eb0c14dea4aa336dbd1d53e0ec49330febeeb
+         sprites.json 4b131e6747ff03418a72ac9ebac3ec8dfd82f587b7d9d17e228f1e3455cb67a8
+         audio.ogg    df182f6ee99e30ca9311cd3d057fd47abcc216fa11b7bff919f798ae9a92f507
+license: MIT, Copyright (c) 2015 Matt Surabian (COPYING-duckhunt.txt)
+
+Vendored playable dist (Pixi / Howler / GSAP). Audio is the ogg sprite,
+inlined as a data URL so Howler never fetches. Spritesheet JSON + PNG
+are served from a fetch hook (no network). The webpack bundle is patched
+to expose DuckHuntStart instead of auto-booting.
+Looks like the NES zapper game — unofficial, same class as floppy-bird.

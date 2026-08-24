@@ -965,6 +965,54 @@
       "sha256": "7ee7420b9a8d9ab9fb1a751c9aebf742e829ec352ac3d1bb32e97f9272be8cb8"
     },
     {
+      "slug": "cron-speak",
+      "appId": "cron-speak",
+      "name": "Cron Speak",
+      "shortName": "Cron",
+      "version": "1.0",
+      "tagline": "A cron expression, said in English. Nothing is uploaded.",
+      "author": {
+        "name": "bradymholt",
+        "url": "https://github.com/bradymholt/cRonstrue"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "cRonstrue",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Developer",
+        "Utilities"
+      ],
+      "tags": [
+        "cron",
+        "schedule",
+        "english",
+        "offline"
+      ],
+      "accent": [
+        90,
+        160,
+        220
+      ],
+      "cover": "/apps/cron-speak/cover.jpg",
+      "bytes": 198547,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "e0558dd13ed093a22425ef0178f9c5453cea09fcc114cac5c260f3f44ce5f8b7"
+    },
+    {
       "slug": "css-doodle",
       "appId": "css-doodle",
       "name": "CSS Doodle",
@@ -1315,6 +1363,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "23aa2cbb033b7f5a9fa26ee7cee1df9eb5be763527e119b90bbee6c8c24d4a30"
+    },
+    {
+      "slug": "duck-hunt",
+      "appId": "duck-hunt",
+      "name": "Duck Hunt",
+      "shortName": "Duck Hunt",
+      "version": "1.0",
+      "tagline": "Click the ducks. The dog laughs. In a GIF, no server.",
+      "author": {
+        "name": "MattSurabian",
+        "url": "https://github.com/MattSurabian/DuckHunt-JS"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "DuckHunt JS",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "arcade",
+        "shooter",
+        "tap",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        100,
+        176,
+        255
+      ],
+      "cover": "/apps/duck-hunt/cover.jpg",
+      "bytes": 1378514,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "30011cd13959fe4305550c20263cb520770eb3798acc2dd7e25f319e3dcefc68"
     },
     {
       "slug": "emoji-minesweeper",
