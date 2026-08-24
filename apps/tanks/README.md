@@ -6,14 +6,15 @@ An unofficial port of
 **[Realtime Multiplayer in HTML5](https://github.com/ruby0x1/realtime-multiplayer-in-html5)**
 by Sven Bergström (MIT). Upstream is the Build New Games demo: an
 Express + socket.io tick and two rectangles. **The server is gone.**
-The host's browser holds the room. Tanks have turrets now. Phone
-sticks. Invite is the arena.
+The host's browser holds the room. Tanks have turrets. Phone sticks.
+Invite is the arena.
 
 ```
 index.html
 style.css
-net.js              each player owns one row
-app.js              arena, tanks, shells, drones, touch
+sim.js             arena, tanks, shells, drones (DOM-free)
+net.js             each player owns one row
+app.js             paint, sticks, gifos wiring
 icon.mjs
 build.mjs
 vendor/COPYING-tanks.txt
@@ -24,7 +25,7 @@ vendor/UPSTREAM.txt
 
 | capability | why |
 |---|---|
-| `db` | `players` (read-write) and private `prefs`. |
+| `db` | `players` (read-write) and private `prefs` (career). |
 | `multiplayer` | The invite is the arena. |
 
 No `network`. `minBuild` is **947**.

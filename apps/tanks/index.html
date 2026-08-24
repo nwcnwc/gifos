@@ -9,20 +9,21 @@
 <body>
 <div id="hud">
   <span id="hearts">♥♥♥</span>
-  <span id="tally">0 / 0</span>
+  <span id="tally" title="Open tally">0 / 0</span>
   <span id="hint">Invite in the bar — the yard is the room</span>
 </div>
 <canvas id="view" width="720" height="480"></canvas>
 <div id="pads">
-  <div class="stick" id="movePad"><i></i></div>
-  <div class="stick" id="aimPad"><i></i></div>
+  <div class="stick" id="movePad" data-label="MOVE"><i></i></div>
+  <div class="stick" id="aimPad" data-label="AIM"><i></i></div>
 </div>
 <button type="button" id="fireBtn">FIRE</button>
 <div id="scores" hidden>
   <h2>Tally</h2>
   <ul id="scoreList"></ul>
-  <p class="note">Press Invite in the GifOS menu to send the link. There is no game server.</p>
+  <p class="note">Press Invite in the GifOS menu to send the link. There is no game server. Career kills and deaths stay in this file.</p>
 </div>
+<script src="sim.js"></script>
 <script src="net.js"></script>
 <script src="app.js"></script>
 </body>

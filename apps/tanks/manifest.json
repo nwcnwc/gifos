@@ -3,7 +3,7 @@
   "appId": "tanks",
   "name": "Tanks",
   "shortName": "Tanks",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "description": "Drive a tank. Invite is the arena. No game server.",
   "entry": "index.html",

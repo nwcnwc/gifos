@@ -1,6 +1,6 @@
 {
-  "tagline": "Drive a tank. Invite is the arena. No game server.",
-  "description": "A top-down tank, a turret, shells. Drive around a walled yard and shoot the other tanks. Three hits and you respawn. On your own, two drones patrol. Press Invite in the bar above the app and the drones stand down — everyone who opens the link is in the same yard.\n\nThe original tutorial ran a Node tick over socket.io. That process is gone. The host's browser holds the room. There is no account and no lobby code.\n\nOn a phone, left thumb drives, right thumb aims; holding the right stick fires. On a computer it is WASD to drive, the mouse to aim, click or space to shoot.\n\nAn unofficial port of Realtime Multiplayer in HTML5 by Sven Bergström. The Node server stays behind. The meeting is the arena.",
+  "tagline": "Drive a tank. One link is the arena. No game server.",
+  "description": "The original tutorial ran a Node tick over socket.io. That process is gone. One invite link is the room — everyone who opens it lands in the same walled yard. No account, no lobby code, nothing to install.\n\nA top-down tank, a turret, shells. Three hits and you respawn behind a brief shield. Walls and other tanks stop you. On your own, two drones patrol and shoot back; when a friend arrives they stand down.\n\nOn a phone, left thumb drives, right thumb aims; holding the right stick fires. On a computer it is WASD to drive, the mouse to aim, click or space to shoot. Tab (or the tally) opens the scoreboard. Career kills stay in this file.\n\nAn unofficial port of Realtime Multiplayer in HTML5 by Sven Bergström. The Node server stays behind.",
   "author": {
     "name": "Sven Bergström",
     "url": "https://github.com/ruby0x1/realtime-multiplayer-in-html5"
