@@ -18,7 +18,39 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
 const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (d ? '  (' + d + ')' : '')); if (!c) failures++; };
 
+// Section 4 EDITS FILES ON DISK and expects the browser to see the edit. That
+// only holds if the server at BASE is rooted in THIS tree. It was not, once:
+// port 8099 was held by a server rooted in ~/release-process/gifos (a gate's),
+// so the edit never reached the browser and the suite reported "edge does not
+// revalidate" — a product red that was pure harness. Refuse to judge instead.
+async function assertServingThisTree() {
+  // A content comparison is not enough — two clones at the same commit serve
+  // byte-identical files. Write a probe file HERE and ask BASE for it.
+  const name = '.e2e-tree-probe-' + process.pid + '-' + Date.now() + '.txt';
+  const token = 'tree-probe ' + Date.now();
+  fs.writeFileSync('site/' + name, token);
+  let served = null;
+  try {
+    served = await new Promise((resolve) => {
+      require('http').get(BASE + '/' + name, (res) => {
+        let b = ''; res.setEncoding('utf8'); res.on('data', (c) => { b += c; }); res.on('end', () => resolve(res.statusCode === 200 ? b : null));
+      }).on('error', () => resolve(null));
+    });
+  } finally { try { fs.unlinkSync('site/' + name); } catch (e) {} }
+  if (served === token) return;
+  console.log('WRONG-TREE — the server at ' + BASE + ' is not serving this clone (' + process.cwd() + '/site).');
+  console.log('  A probe file written here was ' + (served === null ? 'not found' : 'different') + ' at ' + BASE + '.');
+  console.log('  This suite edits files on disk and needs the browser to see them; against another');
+  console.log('  tree the edge-revalidation check can only ever read RED. Not a product failure.');
+  console.log('  Check who holds the port (ss -ltnp | grep 8099) — a release-clone server, most');
+  console.log('  likely — and run against a server rooted here: python3 -m http.server 8098 -d site,');
+  console.log('  then BASE=http://127.0.0.1:8098.');
+  console.log('WRONG-TREE — 0 PASSED, 0 FAILED, no verdict was reached, on purpose.');
+  process.exit(2);
+}
+
 (async () => {
+  await assertServingThisTree();
   const browser = await chromium.launch({ executablePath: CHROME });
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
