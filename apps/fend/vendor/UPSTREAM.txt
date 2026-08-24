@@ -1,0 +1,14 @@
+printfn/fend  (fend-wasm-web 1.5.8)
+https://github.com/printfn/fend
+MIT, Copyright (c) 2020-2025
+files:
+  fend_wasm_bg.wasm
+  sha256: 85007e78314c433158767514f7a3874dbc872156c1e290604c75911834cffc71
+  fend_wasm.js (wasm-bindgen web glue, rewritten as a classic IIFE)
+  original sha256: cd9e525351be605f0094356ba8be8f9bc5c632e4ce8bb7dc1847b1a5a87da4c5
+  rewritten sha256: 71335d51907a19f7e36798cb4759590d37e84d1f03bf149610505fd62f498f4a
+Patches:
+  - export → window.Fend
+  - init requires bytes (no import.meta.url / fetch of the wasm)
+  - new Function (wasm-bindgen "return this") → window
+The last pad is saved privately. Their website is not shipped.

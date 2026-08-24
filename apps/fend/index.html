@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>fend</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>fend</h1>
+    <button type="button" id="clear">Clear pad</button>
+  </header>
+  <p class="lead">Units, fractions, dice. Try <code>1 ft to cm</code>. The pad stays in this file.</p>
+  <pre id="log" class="log" aria-live="polite"></pre>
+  <form id="form" class="prompt">
+    <span class="gt">&gt;</span>
+    <input id="input" type="text" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="1 ft to cm">
+  </form>
+  <p id="status" class="status"></p>
+</div>
+<script src="fend-wasm.js"></script>
+<script src="vendor/fend_wasm.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
