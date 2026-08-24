@@ -170,7 +170,7 @@ for (const s of SCRIPTS) {
 // Credits under the seal (scripts/app-credits.mjs): sign-apps.mjs would pack
 // exactly these bytes before signing; packing them here keeps a fresh build
 // catalog-valid, and the signer's repack then only adds the signature.
-files[CREDITS_PATH] = creditsJson(listing);
+files[CREDITS_PATH] = creditsJson(listing, 'the-house');
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {
