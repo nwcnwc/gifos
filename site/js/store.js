@@ -664,17 +664,14 @@
   // the icon, its placement and the app's saved data (all keyed by fileId)
   // survive — the code is the only thing that changes. This is exactly the
   // swap the seeded-app reseed does; store installs finally get it too.
-  // What the Help screen credits, frozen at install time. The listing can
-  // change after the install (an author renames, a port gets blessed); the
-  // copy on this desktop says what was true for THIS version, on THIS day —
-  // and it is re-snapshotted on every Update, so credit follows the version.
-  // Rendered by gifos-help.js creditsMd, under the OS footer.
+  // The install record: WHEN this copy was installed and WHICH catalog entry
+  // it came from. It deliberately carries NO author / porter / basedOn — who
+  // made an app is credits.json INSIDE the GIF, under the gifos.app seal
+  // (scripts/app-credits.mjs), so a desktop record can never say otherwise.
+  // gifos-help.js prints installedAt under the sealed credits.
   function storeSnapshot(app) {
-    const pick = (p) => (p && typeof p === 'object') ? { name: p.name || '', url: p.url || '', by: p.by || undefined, blessed: p.blessed } : (p || undefined);
     return {
-      slug: app.slug || null, appId: app.appId || null, name: app.name || '', version: app.version || '',
-      author: pick(app.author), porter: pick(app.porter), basedOn: pick(app.basedOn), inspiredBy: pick(app.inspiredBy),
-      license: app.license || '', homepage: app.homepage || '', releaseDate: app.releaseDate || '', updated: app.updated || '',
+      slug: app.slug || null, appId: app.appId || null, version: app.version || '',
       sha256: app.sha256 || null, installedAt: new Date().toISOString(),
     };
   }

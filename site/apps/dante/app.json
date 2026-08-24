@@ -44,14 +44,14 @@
   "cover": "/apps/dante/cover.jpg",
   "screenshots": [],
   "gif": "/apps/dante/dante.gif",
-  "bytes": 226660,
+  "bytes": 227366,
   "download": 0,
   "provides": null,
-  "sha256": "3b8f04902b8d59ebc504b6491e8ccf7719b27e35f40426e349a5f822cc11ef1e",
+  "sha256": "6631c4945ce95d3468af8a145f6b8157521df291885de4b3bbc07ff6ae27baf1",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

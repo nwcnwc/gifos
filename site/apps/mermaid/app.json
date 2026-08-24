@@ -38,10 +38,10 @@
   "cover": "/apps/mermaid/cover.jpg",
   "screenshots": [],
   "gif": "/apps/mermaid/mermaid.gif",
-  "bytes": 1684038,
+  "bytes": 1689101,
   "download": 0,
   "provides": null,
-  "sha256": "7031c2166d1045d5f8f39717e9c00bcb0f3993128d2914452a5af380fe7d309d",
+  "sha256": "8e62cd0be59ee922d0fb00f52f16cb8b9234a1cc89e97dac0f33bf21079eb1ea",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

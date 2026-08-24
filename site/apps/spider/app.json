@@ -37,10 +37,10 @@
   "cover": "/apps/spider/cover.jpg",
   "screenshots": [],
   "gif": "/apps/spider/spider.gif",
-  "bytes": 186019,
+  "bytes": 186438,
   "download": 0,
   "provides": null,
-  "sha256": "a7d617cf287485cd01a5d904571f975c27d9c47501f65011036b62909f6b0fae",
+  "sha256": "c1b119df43da7db1b9847c34ce89b3b2d80ac32d7638499cb61cf286cda41ce5",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

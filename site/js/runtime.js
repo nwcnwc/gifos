@@ -3336,6 +3336,8 @@
           becomeHost, sessionInfo, endSession,
           // OS Help: markdown from help.md (or manifest.help) inside the GIF.
           help: () => (GifOS.help && GifOS.help.read) ? GifOS.help.read(files, manifest) : '',
+          // Credits: credits.json + manifest name/version from the same sealed bytes.
+          credits: () => (GifOS.help && GifOS.help.readCredits) ? GifOS.help.readCredits(files, manifest) : null,
         };
       });
     }
@@ -3609,6 +3611,7 @@
         gifBytes: () => appBytes,
         // OS Help: same help.md the host packed. Empty until the bytes land.
         help: () => (GifOS.help && GifOS.help.read) ? GifOS.help.read(filesRef, manifestRef) : '',
+        credits: () => (GifOS.help && GifOS.help.readCredits) ? GifOS.help.readCredits(filesRef, manifestRef) : null,
       };
     });
   }

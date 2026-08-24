@@ -6,7 +6,7 @@
  * subset: headings, paragraphs, lists, bold/italic, inline code, fenced
  * blocks, https links. HTML in the file is escaped, never executed.
  *
- * Attaches to GifOS.help = { read, render, parse, withOsFooter, creditsMd }.
+ * Attaches to GifOS.help = { read, readCredits, render, parse, withOsFooter, creditsMd }.
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
@@ -165,14 +165,39 @@
 
   const EMPTY_INTRO = '# Help\n\nThis app did not ship its own Help page.';
 
-  // CREDITS — the App Store record, as it was THE DAY THIS COPY WAS INSTALLED.
-  // store.js snapshots the listing onto the file record (`storeMeta`) at
-  // install and again at every Update, so a running app names its author,
-  // its porter, what it is based on and who inspired it, from inside the app,
-  // with no network and no catalog lookup: the credit travels with the copy.
+  // CREDITS — UNDER THE SEAL. Who made an app is read from credits.json
+  // INSIDE the GIF (packed by scripts/sign-apps.mjs from the store listing,
+  // covered by the gifos.app signature like every other packed file), so the
+  // credit is the same in a stolen copy, on a guest's device, in a Save —
+  // and cannot be edited on a desktop record without breaking the seal. A
+  // GIF without one (hand-built, remixed, or installed before credits were
+  // packed) credits only what its own sealed manifest says: name + version.
+  // The file record adds one LOCAL fact — when this copy was installed.
   // Rendered LAST, under the OS footer — the very bottom of every Help.
   // Text goes through the same renderer as help.md, so raw HTML is escaped
   // and only https links become hrefs; a listing can't script the Help modal.
+  const CREDITS_PATH = 'credits.json';
+  function readCredits(files, manifest) {
+    const m = manifest || {};
+    const out = { name: typeof m.name === 'string' ? m.name : '', version: typeof m.version === 'string' ? m.version : '' };
+    if (!out.name && !out.version && !(files && files[CREDITS_PATH])) return null;
+    const bytes = files && files[CREDITS_PATH];
+    if (bytes) {
+      try {
+        let s = bytesToText(bytes);
+        if (typeof s === 'string' && s.length <= 16384) {
+          const c = JSON.parse(s.replace(/^\uFEFF/, ''));
+          if (c && typeof c === 'object' && !Array.isArray(c)) {
+            for (const k of ['tagline', 'author', 'porter', 'basedOn', 'inspiredBy', 'license', 'homepage', 'releaseDate']) {
+              if (c[k] != null) out[k] = c[k];
+            }
+            out.sealed = true;
+          }
+        }
+      } catch (e) { /* a broken credits.json credits nothing beyond the manifest */ }
+    }
+    return out;
+  }
   function mdText(s) {
     return String(s == null ? '' : s).replace(/[\[\]\\]/g, '').replace(/\s+/g, ' ').trim();
   }
@@ -207,9 +232,16 @@
     if (home) out.push('- **Home** [' + home.replace(/^https:\/\//, '') + '](' + home + ')');
     const rel = mdText(meta.releaseDate);
     if (rel) out.push('- **Released** ' + rel);
+    if (!name && !author && !porter && !based && out.length === 2) return '';
     const when = mdText(meta.installedAt);
+    const signer = mdText(meta.signedBy);
+    const tail = [];
+    if (signer) tail.push('Sealed inside this GIF and signed by **' + signer + '**');
+    else if (meta.sealed) tail.push('Sealed inside this GIF');
+    else tail.push('From this GIF\u2019s own manifest');
+    if (when) tail.push('installed on this device on ' + when.slice(0, 10));
     out.push('');
-    out.push('From the GifOS App Store' + (when ? ', as listed when this copy was installed on ' + when.slice(0, 10) : '') + '.');
+    out.push(tail.join('; ') + '.');
     return out.join('\n');
   }
 
@@ -221,5 +253,5 @@
     return body + '\n\n---\n\n' + tail;
   }
 
-  GifOS.help = { read, render, parse, withOsFooter, creditsMd };
+  GifOS.help = { read, readCredits, render, parse, withOsFooter, creditsMd };
 })(typeof window !== 'undefined' ? window : globalThis);

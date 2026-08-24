@@ -37,14 +37,14 @@
   "cover": "/apps/hat-sh/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hat-sh/hat-sh.gif",
-  "bytes": 661363,
+  "bytes": 661056,
   "download": 0,
   "provides": null,
-  "sha256": "32bbc3870a62b5a682510a59377737694cc21063f639afd267ca15a00d0ecc19",
+  "sha256": "8ec7b9f7cf1ef4bc27100137ef3d88f780273bd6245843914a58314c6205bdef",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

@@ -39,10 +39,10 @@
   "cover": "/apps/tuner/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tuner/tuner.gif",
-  "bytes": 184869,
+  "bytes": 185235,
   "download": 0,
   "provides": null,
-  "sha256": "47c2ebf9aa5280f2b076670559b762b3dd7ea9be0efce4c5fa70b12c22e4d2a5",
+  "sha256": "a15d837d320ca31c9360bfa1e251127c3d0cac4cb850a1e9ee5974b019f7afbf",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

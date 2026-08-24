@@ -39,14 +39,14 @@
   "cover": "/apps/nonogram/cover.jpg",
   "screenshots": [],
   "gif": "/apps/nonogram/nonogram.gif",
-  "bytes": 199555,
+  "bytes": 200084,
   "download": 0,
   "provides": null,
-  "sha256": "d2aac90d8018e70f86a18e8196ccb79ec9da7103684fcd65713e67cbe64dffa7",
+  "sha256": "b5fc4fe602b99754fedc013fb04bc9cb1d3d01cd8b0ba417a47adfc338a5620d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

@@ -36,14 +36,14 @@
   "cover": "/apps/bip39/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bip39/bip39.gif",
-  "bytes": 2140881,
+  "bytes": 2143912,
   "download": 0,
   "provides": null,
-  "sha256": "78f224fe733b1e8da46b83f48ae78dd26603ec869f2828200b77cace9e8ddf53",
+  "sha256": "bab51aedf209ac2ffe821084f87825f57093608cfea8d4ace999e978cb5d1a28",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

@@ -39,10 +39,10 @@
   "cover": "/apps/pixelit/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pixelit/pixelit.gif",
-  "bytes": 190333,
+  "bytes": 190808,
   "download": 0,
   "provides": null,
-  "sha256": "5bf008094e5d2fa7df28271aec71baa8413b5a26dfc3c9538b96e91209aeb824",
+  "sha256": "7c1e4d891a9c404aed356e015dc6cc0b6f4b04be17fa01fcd2210f894467e21a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

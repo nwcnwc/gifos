@@ -38,11 +38,15 @@
   "cover": "/apps/tanks/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tanks/tanks.gif",
-  "bytes": 190910,
+  "bytes": 191379,
   "download": 0,
   "provides": null,
-  "sha256": "0e46c2e1cd2c5ef2657f6f383f201c2d2be8c9d8ae285a0fc65996bc4e5010fe",
-  "signature": null,
+  "sha256": "362b81c319ee557cc97a6f34ae2bf5c963b4ed1fc57ce60da9bd46eb2a9d4c17",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

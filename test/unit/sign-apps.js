@@ -35,11 +35,20 @@ function run(args, extraEnv) {
 const dry = run(['--dry-run']);
 check('dry-run exits 0 without a key', dry.status === 0, 'status=' + dry.status + ' ' + dry.stderr.slice(0, 200));
 check('dry-run lists fluence as already signed gifos.app',
-  /^fluence\tdomain:gifos.app$/m.test(dry.stdout), dry.stdout.slice(0, 400));
+  /^fluence\tdomain:gifos.app(\t|$)/m.test(dry.stdout), dry.stdout.slice(0, 400));
 // The catalog is signed. Requiring an unsigned listing here turned green
 // the day we finished signing, into a product-shaped red the next.
 check('dry-run lists catalog GIFs as signed gifos.app (unsigned is not required)',
-  /^[^\t]+\tdomain:gifos.app$/m.test(dry.stdout), dry.stdout.slice(0, 200));
+  /^[^\t]+\tdomain:gifos.app(\t|$)/m.test(dry.stdout), dry.stdout.slice(0, 200));
+
+// CREDITS UNDER THE SEAL: dry-run reports, per GIF, whether the packed
+// credits.json matches apps/<slug>/listing.json. Every listed app must say
+// credits:ok — a stale or missing one credits the wrong people inside every
+// installed copy, and build-app-catalog --check refuses it too.
+const creditLines = dry.stdout.split('\n').filter((l) => /\t/.test(l));
+const notOk = creditLines.filter((l) => !/\tcredits:ok$/.test(l));
+check('every listed GIF carries credits.json equal to its listing (dry-run says credits:ok)',
+  creditLines.length > 0 && notOk.length === 0, notOk.slice(0, 5).join(' | '));
 
 const unset = run([], { GIFOS_SIGN_KEY: '' });
 check('unset GIFOS_SIGN_KEY exits 2 and names GitHub Secrets as the wrong place',
@@ -65,7 +74,7 @@ check('a key that does not match site/gifos.key exits 3 and does not write',
 
 const cat = run(['--dry-run']); // catalog GIFs untouched
 check('a refused key leaves fluence still signed in dry-run (nothing was rewritten)',
-  /^fluence\tdomain:gifos.app$/m.test(cat.stdout));
+  /^fluence\tdomain:gifos.app(\t|$)/m.test(cat.stdout));
 
 if (failures) { console.log('\n' + failures + ' FAILURE(S)'); process.exit(1); }
 console.log('\nALL PASS');

@@ -37,10 +37,10 @@
   "cover": "/apps/aim-and-shoot/cover.jpg",
   "screenshots": [],
   "gif": "/apps/aim-and-shoot/aim-and-shoot.gif",
-  "bytes": 241144,
+  "bytes": 240573,
   "download": 0,
   "provides": null,
-  "sha256": "48c5ac5db8b1bbaef91c7c276892714911dde91c5bfc4f49dbc53f9a7bd26f5f",
+  "sha256": "9e4eac47ec90966630b703006ad56f13f920c9135aac9d18a78f7c1f4e5cf259",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
