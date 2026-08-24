@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tuner</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tuner</h1>
+    <p class="lead">Record a note. See the pitch. Nothing is uploaded.</p>
+  </header>
+  <div id="detector" class="vague">
+    <div class="note" id="note">—</div>
+    <div class="hz"><span id="pitch">—</span> Hz</div>
+    <div id="detune" class="">
+      <span id="detune_amt">—</span>
+      <span id="flat"> cents ♭</span>
+      <span id="sharp"> cents ♯</span>
+    </div>
+    <canvas id="needle" width="280" height="80"></canvas>
+  </div>
+  <canvas id="wave" width="560" height="80"></canvas>
+  <button type="button" id="recBtn">Record a note</button>
+  <p id="status" role="status">Play or sing one pitch, then stop. This is a take, not a live needle.</p>
+  <p class="foot">Unofficial port of PitchDetect by Chris Wilson. No live microphone.</p>
+</div>
+<script src="vendor/pitch.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

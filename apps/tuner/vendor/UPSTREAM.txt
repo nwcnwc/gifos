@@ -1,0 +1,10 @@
+cwilso/PitchDetect
+https://github.com/cwilso/PitchDetect
+pin: 13cb49e51dde5e52464d354410216cb4c2e87a7e
+MIT, Copyright (c) 2014 Chris Wilson
+
+Upstream holds a live getUserMedia stream and runs autocorrelation every
+animation frame. GifOS never hands an app a live mic. vendor/pitch.js is
+the ACF2+ detector, noteFromPitch, and centsOffFromPitch as a classic
+script. The app records a short take with gifos.recordAudio, then names
+the pitch. Honest UI: "Record a note". Last reading stays in the file.

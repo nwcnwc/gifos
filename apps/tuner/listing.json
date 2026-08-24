@@ -1,0 +1,33 @@
+{
+  "tagline": "Record a note. See the pitch. Nothing is uploaded.",
+  "description": "Press Record a note, play or sing one pitch, then stop. The app names the note, the frequency in Hertz, and how many cents sharp or flat you were. It is a take, not a live needle — you record, then it reads.\n\nThe last reading comes back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of PitchDetect by Chris Wilson. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Chris Wilson",
+    "url": "https://github.com/cwilso/PitchDetect"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "PitchDetect",
+    "url": "https://github.com/cwilso/PitchDetect",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Learning"
+  ],
+  "tags": [
+    "tuner",
+    "pitch",
+    "guitar",
+    "note",
+    "audio",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tuner",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
