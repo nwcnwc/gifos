@@ -118,7 +118,9 @@ const GLYPHS = {
   M: [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
   N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
   P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
+  Q: [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101],
   R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
   S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
@@ -160,9 +162,14 @@ export function screenshotPng() {
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
   fill(0, 0, W, H, 14, 17, 22);
-  drawText(put, 48, 36, 'PIVOT', 7, 232, 237, 245);
-  drawText(put, 48, 100, 'DRAG FIELDS ONTO A GRID. NOTHING UPLOADED.', 3, 139, 149, 167);
-  const ox = 48, oy = 170, cw = 180, ch = 70;
+  drawText(put, 48, 28, 'PIVOT', 7, 232, 237, 245);
+  drawText(put, 48, 88, 'THE TABLE LIVES IN THE FILE. NOTHING UPLOADED.', 3, 139, 149, 167);
+  fill(48, 130, 260, 168, 36, 72, 140);
+  drawText(put, 62, 140, 'PROVINCE', 2, 232, 237, 245);
+  fill(276, 130, 430, 168, 36, 72, 140);
+  drawText(put, 290, 140, 'PARTY', 2, 232, 237, 245);
+  drawText(put, 450, 140, 'COUNT  ·  308 ROWS', 2, 139, 149, 167);
+  const ox = 48, oy = 186, cw = 180, ch = 70;
   const headers = ['', 'NDP', 'LIBERAL', 'CONSERVATIVE', 'BLOC'];
   const rows = ['QUEBEC', 'ONTARIO', 'BC', 'ALBERTA', 'PRAIRIES'];
   const nums = [
@@ -187,7 +194,7 @@ export function screenshotPng() {
       drawText(put, ox + (c + 1) * cw + 20, oy + (r + 1) * ch + 24, String(v), 3, 232, 237, 245);
     }
   }
-  drawText(put, 48, 660, 'LAST TABLE STAYS ON THIS DEVICE', 3, 139, 149, 167);
+  drawText(put, 48, 660, 'LAST TABLE STAYS ON THIS DEVICE. TAP A ROLE ON A PHONE.', 3, 139, 149, 167);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;
