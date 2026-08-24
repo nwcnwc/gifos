@@ -223,13 +223,24 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
 .sig-badge.sig-bad { background: #ff5c5c; }
 .sig-badge.sig-unk { background: #8888aa; }
 
-/* "NEW" tag on apps that hold no data yet (bottom-left — opposite the shield) */
+/* THE FRESH PILL on apps that hold no data yet (bottom-left — opposite the
+   shield). It reads "NEW", or on a SIGNED app the VERSION that arrived.
+   Same slot, same colour, same disappearing act: a version is worth reading
+   once, when a copy lands, and is noise from then on — so it lives exactly as
+   long as "NEW" would have, and the nameplate keeps its whole width for the
+   name. A version tag gets a hair more room and drops the wide tracking,
+   because "v11.4.0" is a string to read, not a word to shout. */
 .new-badge {
   position: absolute; left: -4px; bottom: -4px; pointer-events: none;
   font-size: .5rem; font-weight: 800; letter-spacing: .06em; line-height: 1;
   padding: .16rem .3rem; border-radius: .3rem; color: #fff; border: 2px solid var(--bg);
   background: var(--accent, #7b5cff);
+  white-space: nowrap; max-width: calc(var(--cell, 104px) - 8px); overflow: hidden;
 }
+/* pointer-events stays NONE, exactly as for NEW: this pill sits on the corner
+   of the thumb, and a hoverable badge there would swallow a drag that started
+   on it. The version is on the nameplate's tooltip, which IS hoverable. */
+.new-badge.isver { letter-spacing: 0; }
 
 /* "SYS" tag on trusted system-app launchers (Meeting/Broadcast/App Store):
    honest signage that this icon opens a first-party page with powers the
@@ -268,37 +279,36 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
   box-shadow: 0 2px 6px rgba(0,0,0,.45);
 }
 
-/* NAMEPLATE on a SIGNED app's tile: its own declared short name + version,
-   IN PLACE OF THE FILENAME. It used to float over the top border of the
-   animation while the filename sat underneath — the tile named the app twice,
-   and one of the two names was written across the artwork. Now there is one
-   name per tile: the signed one, in the label slot, off the picture.
+/* NAMEPLATE on a SIGNED app's tile: its own declared short name, IN PLACE OF
+   THE FILENAME. It used to float over the top border of the animation while
+   the filename sat underneath — the tile named the app twice, and one of the
+   two names was written across the artwork. Now there is one name per tile:
+   the signed one, in the label slot, off the picture. Deep navy, its own
+   family, so provenance never reads as "system privilege". Only signed tiles
+   get one (see desktop.js buildIcon); everything else shows its filename.
 
-   Deep navy with a cyan version — its own family, so provenance never reads as
-   "system privilege". Only signed tiles get one (see desktop.js buildIcon);
-   everything else still shows its filename there.
+   IT WRAPS, IT DOES NOT CUT. A 104px cell fits about 13 characters on a line,
+   and the first cut of this plate spent five of them on a version — which is
+   how "Scanned PDF Tables" became "Scanned…". The version moved to the fresh
+   pill, and what is left uses the whole width and a SECOND LINE before it
+   gives up any letters. Two lines cost the grid nothing: rows are already tall
+   enough for two lines of ordinary label text, which is larger than this.
 
-   A plate never spills past its cell, so a long name has to give somewhere —
-   and the version is where it must NOT. flex + min-width:0 on the name alone
-   means "Anyroad v1.0.0" too wide becomes "Anyro… v1.0.0", never "Anyroad
-   v1....": a version is short and exact, and being exact is the whole reason
-   the pair is shown. text-shadow is switched OFF — .label carries a wallpaper
-   shadow meant for bare text, which smears letters against a plate. */
+   It may also run the full width of the tile. Bare text stops 4px short each
+   side so a long filename stays off its neighbours; a plate is a solid box
+   that never overlaps one, so it can have those 8px back.
+
+   text-shadow is switched OFF — .label carries a wallpaper shadow meant for
+   bare text, which smears letters against a plate. */
 .nameplate {
-  display: inline-flex; align-items: baseline; gap: .26em; max-width: 100%; box-sizing: border-box;
-  font-size: .6rem; font-weight: 700; letter-spacing: .01em; line-height: 1.3;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  max-width: 100%; max-height: 2.9em; overflow: hidden; box-sizing: border-box;
+  font-size: .6rem; font-weight: 700; letter-spacing: .01em; line-height: 1.25;
   padding: .16rem .34rem; border-radius: .3rem; cursor: help;
-  white-space: nowrap; vertical-align: top;
+  overflow-wrap: anywhere; vertical-align: top; text-align: center;
   background: #0e1526; color: #e4ebf8; border: 1px solid #3b4d6b;
   box-shadow: 0 2px 6px rgba(0,0,0,.3); text-shadow: none;
 }
-.nameplate .nm  { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.nameplate .ver { color: #57ccff; font-weight: 800; flex: 0 0 auto; }
-/* A plated label holds a bar, not a wrapping name: no shadow to bleed past its
-   edge, and no 2-line allowance to reserve. It may also run the full width of
-   the tile — bare text stops 4px short on each side to keep a long filename off
-   its neighbours, but a plate is one line and cannot wrap into them, and those
-   4px are the difference between "Anyroad v1.0.0" and "Anyr… v1.0.0". */
 .icon .label.plated {
   text-shadow: none; max-height: none; overflow: visible;
   max-width: calc(var(--cell, 104px) - 8px);

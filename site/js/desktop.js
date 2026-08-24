@@ -94,7 +94,7 @@
     'B. If you cannot run code: reply with a complete single-file index.html in a ```html code block (the paste box takes one file; multi-file needs a .zip) and tell me to paste it into GifOS → ＋ Add → the app builder.',
     '',
     'SIGNING (optional, recommended when I plan to share the app): after delivering the .gif, mention that I can sign it at https://gifos.app/sign.html with my domain (publishes a key at https://mydomain/gifos.key) or my email (my own PGP key via keys.openpgp.org — Ed25519 or RSA), so everyone who receives it sees "Signed by me" — and tampering is detected. Signing is done BY ME on that page, after the GIF is final. NEVER ask for my private key.',
-    'IDENTITY (manifest "shortName" and "version"): set "shortName" to a compact label (≤ ~14 chars, e.g. "Chess" for "Chess Grandmaster") and "version" to a short string like "1.0" or "2.3". GifOS shows them together as a NAMEPLATE — "Chess v1.0" — which on the Home Screen takes the place of the tile\'s filename entirely, and appears again in the app\'s runtime header, BUT ONLY once the app is signed (an unsigned GIF could claim any name, so GifOS never vouches for one, and its tile just shows the filename). Bump "version" whenever you ship a change.',
+    'IDENTITY (manifest "shortName" and "version"): set "shortName" to a compact label (≤ ~20 chars, e.g. "Chess" for "Chess Grandmaster") and "version" to a short string like "1.0" or "2.3". On the Home Screen the shortName becomes the tile\'s NAMEPLATE, taking the place of the filename entirely — a tidy tile shows the name you signed, not whatever the file was saved as — and the version rides the tile\'s "new" pill until the app is first used, then bows out. Both appear again in the app\'s runtime header. ALL OF THIS ONLY ONCE THE APP IS SIGNED: an unsigned GIF could claim any name, so GifOS never vouches for one, and its tile just shows the filename. Bump "version" whenever you ship a change.',
     '',
     'MODDING IS ENCOURAGED: if I hand you an EXISTING GifOS app .gif and ask for changes, do not rebuild from scratch — extract its files, apply my changes, and splice them back into the SAME GIF so its animation and my saved data survive. To extract (Python): find b"\\x21\\xff\\x0bGIFOS1.0GOS" in the bytes; after those 14 header bytes read length-prefixed sub-blocks until a zero byte; the joined payload (skipping its first flag byte) is raw-deflate JSON {"files": {path: base64}}. Cut that whole block out of the GIF, modify the files, keep every ".state/…" entry unchanged (my data), then run pack_gifos on the remaining bytes. Cut out any "GIFOSSIG" block the same way — a mod is a new work I can re-sign.',
     '',
@@ -964,10 +964,10 @@
     }, { once: true });
     return img;
   }
-  // A SIGNED app's nameplate: the app's OWN declared short name and version,
-  // the pair the manifest calls "shortName"/"version". It is only ever built
-  // for a signed GIF — an unsigned one could claim any name, and GifOS does not
-  // repeat a claim it cannot check.
+  // A SIGNED app's nameplate: the app's OWN declared short name, the one the
+  // manifest calls "shortName". It is only ever built for a signed GIF — an
+  // unsigned one could claim any name, and GifOS does not repeat a claim it
+  // cannot check.
   //
   // WHY IT IS NOT ON THE PICTURE ANY MORE. As a pill floated over the top
   // border of the animation it sat ON the art it was labelling, and the tile
@@ -975,27 +975,51 @@
   // the filename. The nameplate now takes the filename's place: one name per
   // tile, the official one, off the artwork.
   //
-  // The filename is not lost, only unpublished: it is still what Rename edits,
-  // still what a download is called, and still on this plate's tooltip.
+  // WHY THE VERSION IS NOT ON IT. It used to ride here as "Chess v1.0.1", and
+  // it cost the NAME its room: a 104px cell fits about 13 characters, the
+  // version ate five of them, and "Scanned PDF Tables" came out as "Scanned…".
+  // A version is worth reading ONCE, when a copy arrives — after that it is a
+  // number the user has no decision to make about, charging rent on the one
+  // line that says what the app IS. So it moved to the fresh pill, which is
+  // already the tile's "this just arrived" slot and already goes away by
+  // itself (see buildFreshBadge). What is left here spends the whole width on
+  // the name, and wraps to a second line rather than cutting.
+  //
+  // Neither name is lost, only unpublished: the version is on this plate's
+  // tooltip for as long as the app exists, and so is the filename — which is
+  // still what Rename edits and still what a download is called.
+  const PLATE_MAX = 22;   // ~2 wrapped lines in a default cell
   function buildNameplate(meta, fileName) {
     const np = document.createElement('span');
     np.className = 'nameplate';
-    const nm = meta.shortName ? (meta.shortName.length > 14 ? meta.shortName.slice(0, 13) + '…' : meta.shortName) : '';
-    // Two spans, and the CSS gives way in only ONE of them: when the plate is
-    // wider than the cell it is the NAME that ellipsizes, never the version.
-    // "Anyroad v1...." is the one truncation that must not happen — a version
-    // is short, exact, and the whole reason the pair is shown at all.
-    if (nm) { const s = document.createElement('span'); s.className = 'nm'; s.textContent = nm; np.appendChild(s); }
-    // A REAL space between them, not just the flex gap: the gap is a drawing,
-    // and a screen reader (or a test reading textContent) would otherwise hear
-    // "Anyroadv1.0.0". A whitespace-only anonymous flex item is not rendered,
-    // so it costs the layout nothing.
-    if (nm && meta.version) np.appendChild(document.createTextNode(' '));
-    if (meta.version) { const s = document.createElement('span'); s.className = 'ver'; s.textContent = 'v' + meta.version; np.appendChild(s); }
-    np.title = (meta.shortName ? meta.shortName + ' ' : '') + (meta.version ? 'version ' + meta.version : '')
-      + ' — the app’s own name and version, shown because this app is signed.'
+    np.textContent = meta.shortName.length > PLATE_MAX
+      ? meta.shortName.slice(0, PLATE_MAX - 1) + '…' : meta.shortName;
+    np.title = meta.shortName + (meta.version ? ' — version ' + meta.version : '')
+      + '\nThe app’s own name, shown because this app is signed.'
       + (fileName ? '\nThe file is named “' + fileName + '” (Rename to change that).' : '');
     return np;
+  }
+
+  // THE FRESH PILL — bottom-left, opposite the shield. It has always meant
+  // "you haven't put anything into this yet", and it goes away the moment you
+  // do (decorate() -> stateHasData). That lifecycle is exactly what a version
+  // number wants: you want to know which copy just landed, and once you have
+  // used the app the number is noise. So on a SIGNED app the pill spends its
+  // short life saying "v1.0.1" instead of "NEW" — same slot, same colour, same
+  // disappearance, one more fact while it is still worth having.
+  //
+  // Unsigned apps still say NEW: a version, like a name, is a claim, and an
+  // unsigned GIF's claims are not repeated here.
+  function buildFreshBadge(meta) {
+    const ver = meta && meta.signed && meta.version ? 'v' + meta.version : '';
+    const nb = document.createElement('span');
+    nb.className = 'new-badge' + (ver ? ' isver' : '');
+    nb.textContent = ver || 'NEW';
+    nb.title = ver
+      ? 'Version ' + meta.version + ' — the copy that arrived. Fresh: you haven’t saved '
+        + 'anything in this app yet, and this tag goes away once you do.'
+      : 'Fresh — you haven’t saved anything in this app yet.';
+    return nb;
   }
 
   function buildIcon(it, file, fresh, meta, isMirror, art) {
@@ -1032,15 +1056,12 @@
         else thumb.textContent = FILE_EMOJI.gif;   // until its ornament is cut
         signableFiles.add(it.fileId); // it's a GIF — signing/verifying applies
         addSigBadge(thumb, it); // shield, once decorate() has learned there is one
-        // "NEW" tag (bottom-left, opposite the shield) on apps you haven't put
-        // anything into yet — freshly seeded defaults, or a just-stolen empty
-        // copy. `fresh` is computed in render() and baked into the icon key.
-        if (fresh) {
-          const nb = document.createElement('span');
-          nb.className = 'new-badge'; nb.textContent = 'NEW';
-          nb.title = 'Fresh — you haven’t saved anything in this app yet.';
-          thumb.appendChild(nb);
-        }
+        // The fresh pill (bottom-left, opposite the shield) on apps you haven't
+        // put anything into yet — freshly seeded defaults, or a just-stolen
+        // empty copy. It reads "NEW", or the VERSION on a signed app; either
+        // way it goes when the app has data. `fresh` is computed in render()
+        // and baked into the icon key, and so is `meta`.
+        if (fresh) thumb.appendChild(buildFreshBadge(meta));
         if (it.passkey) {
           const lb = document.createElement('span');
           lb.className = 'lock-badge'; lb.textContent = '🔒';
@@ -1057,10 +1078,13 @@
           sys.textContent = 'SYS';
           sys.title = SYSTEM_LAUNCHERS[file.appId];
           thumb.appendChild(sys);
-        } else if (meta && meta.signed && (meta.shortName || meta.version)) {
-          // NAMEPLATE: the signed app's own short name + version. It used to
-          // float over the top border of the animation, on top of the picture;
-          // it now goes in the LABEL slot, in place of the filename (see below).
+        } else if (meta && meta.signed && meta.shortName) {
+          // A NAME is what the plate is for. A signed app with a version but no
+          // shortName has nothing to put there, so it keeps its filename — and
+          // still gets its version on the fresh pill.
+          // NAMEPLATE: it used to float over the top border of the animation,
+          // on top of the picture; it now goes in the LABEL slot, in place of
+          // the filename (see below).
           plate = buildNameplate(meta, it.name);
         }
         // Provider app outside the Providers folder: big red ✕ over the tile.
