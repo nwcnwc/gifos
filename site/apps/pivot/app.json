@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "pivot",
+  "appId": "pivot",
+  "name": "Pivot",
+  "shortName": "Pivot",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Drag fields onto a grid. The table is the save. Nothing is uploaded.",
+  "description": "Drop a spreadsheet, or start from the baked sample of Canadian MPs. Drag names onto rows and columns. Pick a count, a sum, or a list. The grid rearranges as you drag — a pivot table, in the file, on this device.\n\nPaste or type comma-separated text if you have no file. Change the view (table, heatmap, TSV) from the menu in the corner. Close the app and come back: the last table and the last arrangement come back with it. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of PivotTable.js by Nicolas Kruchten. Same drag-and-drop grid. Charts that need extra libraries are not in this app.",
+  "author": {
+    "name": "Nicolas Kruchten",
+    "url": "https://github.com/nicolaskruchten/pivottable"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Productivity",
+    "Utilities"
+  ],
+  "tags": [
+    "pivot",
+    "table",
+    "spreadsheet",
+    "csv",
+    "grid",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pivot",
+  "accent": [
+    26,
+    115,
+    232
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/pivot/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/pivot/pivot.gif",
+  "bytes": 376082,
+  "download": 0,
+  "provides": null,
+  "sha256": "477409e3903db46f83b51474e0ed7616f423de95076c12db3ecf396646841261",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "PivotTable.js",
+    "url": "https://github.com/nicolaskruchten/pivottable",
+    "blessed": false
+  }
+}
