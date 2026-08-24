@@ -36,7 +36,7 @@ const read = (p) => readFileSync(join(dir, p), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
 
-const ENGINE_SHA = 'd354522aa9de9a9b6276b6a2127946ca4602c2b9ddb6aace8cf956a4a06a5bac';
+const ENGINE_SHA = 'e496bb06b9d5423e865665eb6c8731ebbee6ae8c844e7f8a2550bc7f9541329e';
 const PRESET_SHA = 'b3e5e32ce6ce7fa956b4cdcafcc99f1aab3aad8f4b03b985cf612de86b62f59f';
 
 for (const need of [
@@ -120,6 +120,13 @@ if (/<button\b[^>]*>\s*Invite\s*</i.test(html) || /<button\b[^>]*id=["'][^"']*in
 if (!files['mp.js'].includes('Invite') || !files['app.js'].includes("db('save')")) {
   throw new Error('tell the player to press Invite; save the last field');
 }
+if (!files['vendor/fieldplay.js'].includes('dropAt') || !files['vendor/fieldplay.js'].includes('pinch0')) {
+  throw new Error('engine must pour on tap and pinch-zoom');
+}
+if (!files['app.js'].includes('follow-finger') || !files['app.js'].includes('gifos.onBack')) {
+  throw new Error('finger-follow field and Back-closes-sheet required');
+}
+if (!manifest.launch || !manifest.launch.field) throw new Error('launch.field required');
 if (!files['COPYING-fieldplay.txt'].includes('Andrei Kashcha')) {
   throw new Error('COPYING-fieldplay.txt is not Andrei Kashcha\'s MIT notice');
 }

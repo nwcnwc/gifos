@@ -15,5 +15,11 @@
   "data": {
     "save": { "visibility": "private" },
     "room": { "visibility": "read-write" }
+  },
+  "launch": {
+    "field": {
+      "label": "Open a named field",
+      "detail": "A field name such as black-hole, rain, or follow-finger."
+    }
   }
 }
