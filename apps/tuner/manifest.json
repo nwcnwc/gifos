@@ -1,0 +1,18 @@
+{
+  "gifos": "1.0",
+  "appId": "tuner",
+  "name": "Tuner",
+  "shortName": "Tuner",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Record a note. See the pitch. Nothing is uploaded. No live microphone.",
+  "entry": "index.html",
+  "accent": [52, 135, 129],
+  "capabilities": {
+    "db": true,
+    "microphone": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}
