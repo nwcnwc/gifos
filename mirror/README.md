@@ -1,7 +1,8 @@
 # gifos-mirror
 
 Serves the GifOS site on **the theme subdomains** — `0.gifos.app` through
-`9.gifos.app` today, plus any named computers added later. The routes in
+`9.gifos.app`, plus the named computers (see `wrangler.toml` for the current
+list — `imagine`, `davidwelk`, `orrery` so far). The routes in
 `wrangler.toml` are an **explicit allow-list** (never a `*.gifos.app` wildcard),
 so an un-listed subdomain never invokes or bills this Worker and nobody can
 spin up infinite computers. Each hostname is a distinct browser origin with its
@@ -49,17 +50,19 @@ GitHub can serve its certificate), the wildcard must be proxied for the
 Worker to run. Cloudflare's free Universal SSL already covers `*.gifos.app`.
 
 **Verify:** open `https://7.gifos.app` → the GifOS desktop, with its own
-separate storage. `https://anything-else.gifos.app` → redirects to gifos.app.
+separate storage. `https://anything-else.gifos.app` never invokes the Worker
+at all (no route), so it falls through to the zone's DNS target.
 
 ## How relay.gifos.app stays out of the mirror's hands
 
 **Cloudflare's precedence rule: ROUTES BEAT CUSTOM DOMAINS.** When a request
 matches both a Worker route and another Worker's custom domain, the route
-Worker runs — specificity only breaks ties *between routes*. So the mirror's
-`*.gifos.app/*` wildcard route will happily swallow `relay.gifos.app` even
-after the relay's custom domain exists (this bit us in production: every
-invite died with "relay connection failed" while `wrangler deploy` looked
-perfectly successful).
+Worker runs — specificity only breaks ties *between routes*. So when the
+mirror briefly held a `*.gifos.app/*` wildcard route, it happily swallowed
+`relay.gifos.app` even though the relay's custom domain existed (this bit us
+in production: every invite died with "relay connection failed" while
+`wrangler deploy` looked perfectly successful). The wildcard is gone — the
+mirror is an explicit allow-list now — and the belt-and-braces below stays.
 
 The fix, baked into `relay/wrangler.toml`, is that the relay binds **both**:
 
