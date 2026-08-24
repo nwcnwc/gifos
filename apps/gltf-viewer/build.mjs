@@ -99,6 +99,11 @@ const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage', 'WebRTC']) {
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
 }
+if (/\bDrop\b/.test(listing.tagline) || /\bDrop\b/.test(listing.description)) {
+  throw new Error('listing copy: say Open, not Drop');
+}
+if (!/nothing is uploaded/i.test(listing.description)) throw new Error('listing must say nothing is uploaded');
+if (!/unofficial port/i.test(listing.description)) throw new Error('listing must say unofficial port');
 
 const SCRIPTS = ['vendor/three-viewer.js', 'viewer.js', 'app.js'];
 
@@ -137,6 +142,18 @@ if (!files['app.js'].includes('Invite')) {
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'last'")) {
   throw new Error('app.js must save the last model privately');
 }
+if (!files['app.js'].includes('onBack')) {
+  throw new Error('app.js must register gifos.onBack so Back closes Inspect');
+}
+if (!files['style.css'].includes('touch-action: none')) {
+  throw new Error('style.css must set touch-action: none on the canvas so pinch orbits');
+}
+if (!files['viewer.js'].includes('EXT_meshopt_compression') || !files['viewer.js'].includes('KHR_texture_basisu')) {
+  throw new Error('viewer.js must refuse Meshopt and KTX2 the same way it refuses Draco');
+}
+if (files['index.html'].includes('.ktx2')) {
+  throw new Error('do not advertise .ktx2 in the file picker — this copy does not unpack it');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -174,6 +191,12 @@ if (files['viewer.js'].includes('unpkg') || files['app.js'].includes('unpkg')) {
     '  var threw = false;\n' +
     '  try { V.inlineGltf("{\\"extensionsUsed\\":[\\"KHR_draco_mesh_compression\\"]}", new Map()); } catch (e) { threw = /Draco/.test(e.message); }\n' +
     '  if (!threw) throw new Error("draco should refuse");\n' +
+    '  threw = false;\n' +
+    '  try { V.inlineGltf("{\\"extensionsUsed\\":[\\"EXT_meshopt_compression\\"]}", new Map()); } catch (e) { threw = /Meshopt/.test(e.message); }\n' +
+    '  if (!threw) throw new Error("meshopt should refuse");\n' +
+    '  threw = false;\n' +
+    '  try { V.inlineGltf("{\\"buffers\\":[{\\"uri\\":\\"a.bin\\",\\"byteLength\\":3}]}", new Map()); } catch (e) { threw = /a\\.bin/.test(e.message); }\n' +
+    '  if (!threw) throw new Error("missing sidecar should name the file");\n' +
     '  return true;\n' +
     '})();',
     ctx

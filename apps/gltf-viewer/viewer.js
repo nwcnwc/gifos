@@ -118,10 +118,38 @@
     return 'application/octet-stream';
   }
 
+  function refuseCompressed(json) {
+    var used = [].concat(json.extensionsUsed || [], json.extensionsRequired || []);
+    function has(n) { return used.indexOf(n) >= 0; }
+    if (has('KHR_draco_mesh_compression')) {
+      throw new Error('This file uses Draco compression, which this copy does not unpack. Export a plain .glb and open that.');
+    }
+    if (has('EXT_meshopt_compression')) {
+      throw new Error('This file uses Meshopt compression, which this copy does not unpack. Export a plain .glb and open that.');
+    }
+    if (has('KHR_texture_basisu')) {
+      throw new Error('This file uses KTX2 textures, which this copy does not unpack. Export a plain .glb and open that.');
+    }
+  }
+
+  function glbJson(buf) {
+    var u = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
+    if (u.length < 20) return null;
+    var dv = new DataView(u.buffer, u.byteOffset, u.byteLength);
+    var jsonLen = dv.getUint32(12, true);
+    var jsonType = dv.getUint32(16, true);
+    if (jsonType !== 0x4E4F534A) return null;
+    if (20 + jsonLen > u.length) return null;
+    var slice = u.subarray(20, 20 + jsonLen);
+    var s = utf8(slice).replace(/\0+$/g, '').replace(/\s+$/g, '');
+    try { return JSON.parse(s); } catch (e) { return null; }
+  }
+
   /* Rewrite a .gltf JSON so buffers/images that were sibling files become
    * data: URIs. GLB is already self-contained. */
   function inlineGltf(jsonText, files) {
     var json = typeof jsonText === 'string' ? JSON.parse(jsonText) : jsonText;
+    refuseCompressed(json);
     function find(uri) {
       if (!uri || uri.indexOf('data:') === 0) return null;
       var tail = decodeURI(uri).replace(/^\.\//, '');
@@ -141,18 +169,17 @@
     (json.buffers || []).forEach(function (b) {
       if (b.uri && b.uri.indexOf('data:') !== 0) {
         var f = find(b.uri);
-        if (f) b.uri = asData(b.uri, f, 'application/octet-stream');
+        if (!f) throw new Error('This .gltf needs ' + b.uri + '. Select that file too.');
+        b.uri = asData(b.uri, f, 'application/octet-stream');
       }
     });
     (json.images || []).forEach(function (im) {
       if (im.uri && im.uri.indexOf('data:') !== 0) {
         var f = find(im.uri);
-        if (f) im.uri = asData(im.uri, f, guessMime(im.uri));
+        if (!f) throw new Error('This .gltf needs ' + im.uri + '. Select that file too.');
+        im.uri = asData(im.uri, f, guessMime(im.uri));
       }
     });
-    if (json.extensionsUsed && json.extensionsUsed.indexOf('KHR_draco_mesh_compression') >= 0) {
-      throw new Error('This file uses Draco compression, which this copy does not unpack. Export a plain .glb and drop that.');
-    }
     return json;
   }
 
@@ -185,6 +212,7 @@
       wireframe: false,
       grid: false,
       autoRotate: false,
+      skeleton: false,
       punctualLights: true,
       ambientIntensity: 0.3,
       directIntensity: 0.8 * Math.PI,
@@ -205,12 +233,19 @@
     this.renderer.setPixelRatio(Math.min(root.devicePixelRatio || 1, 2));
     this.renderer.setSize(w, h);
     this.renderer.toneMapping = THREE.LinearToneMapping;
+    this.renderer.domElement.style.touchAction = 'none';
+    this.renderer.domElement.style.width = '100%';
+    this.renderer.domElement.style.height = '100%';
 
     this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
     this.neutralEnvironment = this.pmremGenerator.fromScene(new RoomEnvironment()).texture;
 
     this.controls = new OrbitControls(this.defaultCamera, this.renderer.domElement);
     this.controls.screenSpacePanning = true;
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.08;
+    this.controls.enablePan = true;
+    this.controls.enableZoom = true;
     this.el.appendChild(this.renderer.domElement);
 
     this.addLights();
@@ -220,6 +255,10 @@
     this.resize = this.resize.bind(this);
     root.requestAnimationFrame(this.animate);
     root.addEventListener('resize', this.resize, false);
+    if (typeof ResizeObserver !== 'undefined') {
+      this._ro = new ResizeObserver(this.resize);
+      this._ro.observe(this.el);
+    }
   }
 
   Viewer.prototype.animate = function (time) {
@@ -253,6 +292,8 @@
       }
       try {
         if (isGlb(buffer)) {
+          var gjson = glbJson(buffer);
+          if (gjson) refuseCompressed(gjson);
           loader.parse(buffer, '', onGltf, reject);
           return;
         }
@@ -294,6 +335,10 @@
     this.resize();
   };
 
+  Viewer.prototype.resetView = function () {
+    this.controls.reset();
+  };
+
   Viewer.prototype.setClips = function (clips) {
     if (this.mixer) {
       this.mixer.stopAllAction();
@@ -319,6 +364,12 @@
     this.clips.forEach(function (clip, i) { self.playClip(i, true); });
   };
 
+  Viewer.prototype.pauseAll = function () {
+    var self = this;
+    if (!this.mixer) return;
+    this.clips.forEach(function (clip, i) { self.playClip(i, false); });
+  };
+
   Viewer.prototype.addLights = function () {
     var a = new THREE.AmbientLight(0xffffff, this.state.ambientIntensity);
     a.name = 'ambient_light';
@@ -342,27 +393,43 @@
     this.scene.background = this.backgroundColor;
   };
 
-  Viewer.prototype.updateDisplay = function () {
+  Viewer.prototype._clearHelpers = function () {
     var self = this;
-    if (!this.content) {
-      this.controls.autoRotate = this.state.autoRotate;
-      return;
-    }
-    traverseMaterials(this.content, function (material) {
-      material.wireframe = self.state.wireframe;
-    });
-    if (this.state.grid && !this.gridHelper) {
-      this.gridHelper = new THREE.GridHelper();
-      this.axesHelper = new THREE.AxesHelper();
-      this.scene.add(this.gridHelper);
-      this.scene.add(this.axesHelper);
-    } else if (!this.state.grid && this.gridHelper) {
+    if (this.gridHelper) {
       this.scene.remove(this.gridHelper);
       this.scene.remove(this.axesHelper);
       this.gridHelper = null;
       this.axesHelper = null;
     }
+    this.skeletonHelpers.forEach(function (h) { self.scene.remove(h); });
+    this.skeletonHelpers = [];
+  };
+
+  Viewer.prototype.updateDisplay = function () {
+    var self = this;
     this.controls.autoRotate = this.state.autoRotate;
+    if (!this.content) return;
+    traverseMaterials(this.content, function (material) {
+      material.wireframe = self.state.wireframe;
+    });
+    this._clearHelpers();
+    if (this.state.grid) {
+      var box = new THREE.Box3().setFromObject(this.content);
+      var size = Math.max(1, box.getSize(new THREE.Vector3()).length());
+      this.gridHelper = new THREE.GridHelper(size, 10);
+      this.axesHelper = new THREE.AxesHelper(size / 2);
+      this.scene.add(this.gridHelper);
+      this.scene.add(this.axesHelper);
+    }
+    if (this.state.skeleton && THREE.SkeletonHelper) {
+      this.content.traverse(function (n) {
+        if (n.isSkinnedMesh) {
+          var h = new THREE.SkeletonHelper(n);
+          self.skeletonHelpers.push(h);
+          self.scene.add(h);
+        }
+      });
+    }
   };
 
   Viewer.prototype.flash = function (uuid) {
@@ -424,6 +491,7 @@
   };
 
   Viewer.prototype.clear = function () {
+    this._clearHelpers();
     if (!this.content) return;
     this.scene.remove(this.content);
     this.content.traverse(function (node) {
@@ -441,6 +509,8 @@
   Viewer.utf8 = utf8;
   Viewer.isGlb = isGlb;
   Viewer.inlineGltf = inlineGltf;
+  Viewer.glbJson = glbJson;
+  Viewer.refuseCompressed = refuseCompressed;
   Viewer.patchThree = patchThree;
   root.GltfViewer = Viewer;
 })(typeof window !== 'undefined' ? window : this);

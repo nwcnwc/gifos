@@ -21,8 +21,9 @@ vendor/three-viewer.js  three + GLTFLoader + OrbitControls + RoomEnvironment, II
 Upstream is a Vite page that loads HDR from Google Cloud and decoders from
 unpkg. The GifOS port never leaves the device: GLB bytes are parsed in memory,
 textures paint through `img-src data:/blob:`, lighting is a local RoomEnvironment.
-The last model is stored in a **private** collection. Press **Invite** (OS chrome)
-to look together — each person drops their own file.
+The last model is stored in a **private** collection (up to 8 MB). Press **Invite**
+(OS chrome) to look together — each person opens their own file. On a phone,
+Inspect is a sheet; one finger orbits and a pinch zooms.
 
 ## capabilities
 

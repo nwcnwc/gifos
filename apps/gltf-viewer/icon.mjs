@@ -94,6 +94,17 @@ function frameIndices(pal, f) {
     const g = 18 + ((x + y) * 0.15) % 4;
     rgba[o] = g; rgba[o + 1] = g + 2; rgba[o + 2] = g + 8; rgba[o + 3] = 1;
   }
+  // perspective floor grid — the cube turning over it is the job
+  for (let gz = -3; gz <= 3; gz++) {
+    const a = project(rotX(rotY([-3, -1.35, gz], 0), 0.55), RW, RW, 140);
+    const b = project(rotX(rotY([3, -1.35, gz], 0), 0.55), RW, RW, 140);
+    stroke(rgba, RW, RW, a[0], a[1], b[0], b[1], LINE, 1.4);
+  }
+  for (let gx = -3; gx <= 3; gx++) {
+    const a = project(rotX(rotY([gx, -1.35, -3], 0), 0.55), RW, RW, 140);
+    const b = project(rotX(rotY([gx, -1.35, 3], 0), 0.55), RW, RW, 140);
+    stroke(rgba, RW, RW, a[0], a[1], b[0], b[1], LINE, 1.4);
+  }
   const verts = CUBE.map((p) => {
     let q = rotY(p, ang);
     q = rotX(q, 0.45);
@@ -192,6 +203,20 @@ function drawText(put, x, y, str, s, r, g, b) {
   }
 }
 
+function blob(put, cx, cy, rx, ry, col, lx, ly, lz) {
+  const x0 = Math.max(0, (cx - rx) | 0), x1 = (cx + rx) | 0;
+  const y0 = Math.max(0, (cy - ry) | 0), y1 = (cy + ry) | 0;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const nx = (x - cx) / rx, ny = (y - cy) / ry;
+    const d = nx * nx + ny * ny;
+    if (d > 1) continue;
+    const nz = Math.sqrt(Math.max(0, 1 - d));
+    const nd = Math.max(0, nx * lx + ny * ly + nz * lz);
+    const s = 0.22 + 0.78 * nd;
+    put(x, y, col[0] * s, col[1] * s, col[2] * s);
+  }
+}
+
 export function screenshotPng() {
   const W = 1200, H = 720;
   const rgba = Buffer.alloc(W * H * 4, 0);
@@ -209,39 +234,36 @@ export function screenshotPng() {
 
   fill(0, 0, W, H, 16, 16, 18);
   fill(0, 0, 900, H, 12, 12, 14);
-  fill(900, 0, W, H, 28, 28, 30);
+  fill(900, 0, W, H, 29, 29, 31);
 
-  // floor grid
-  for (let i = 0; i < 18; i++) {
-    const y = 420 + i * 16;
-    const shade = 28 + i * 2;
-    fill(40, y, 860, y + 1, shade, shade + 4, shade + 10);
+  // perspective floor
+  for (let i = 0; i < 16; i++) {
+    const y = 430 + i * 16;
+    const inset = 40 + i * 8;
+    fill(inset, y, 860 - i * 6, y + 1, 28 + i, 30 + i, 36 + i);
+  }
+  for (let i = 0; i < 11; i++) {
+    const x = 80 + i * 72;
+    fill(x, 430, x + 1, 690, 32, 34, 40);
   }
 
-  const verts = CUBE.map((p) => {
-    let q = rotY(p, 0.7);
-    q = rotX(q, 0.5);
-    const pr = project(q, 900, 720, 280);
-    return [pr[0] + 40, pr[1] + 20, pr[2]];
-  });
-  function thickLine(x0, y0, x1, y1, col, th) {
-    const dx = x1 - x0, dy = y1 - y0;
-    const n = Math.max(2, Math.hypot(dx, dy) | 0);
-    for (let i = 0; i <= n; i++) {
-      const t = i / n;
-      const x = x0 + dx * t, y = y0 + dy * t;
-      for (let oy = -th; oy <= th; oy++) for (let ox = -th; ox <= th; ox++) {
-        if (ox * ox + oy * oy <= th * th) put(x + ox, y + oy, col[0], col[1], col[2]);
-      }
-    }
-  }
-  EDGES.forEach(([a, b], i) => {
-    const col = i % 3 === 0 ? BLUE : (i % 3 === 1 ? GOLD : [200, 210, 230]);
-    thickLine(verts[a][0], verts[a][1], verts[b][0], verts[b][1], col, 3);
-  });
+  const gold = [230, 190, 90], goldD = [180, 120, 40], beak = [240, 140, 50], ink = [30, 24, 18];
+  const Lx = -0.35, Ly = -0.45, Lz = 0.82;
+  blob(put, 430, 430, 170, 110, gold, Lx, Ly, Lz);          // body
+  blob(put, 400, 455, 90, 55, goldD, Lx, Ly, Lz);            // wing
+  blob(put, 575, 310, 72, 64, gold, Lx, Ly, Lz);             // head
+  blob(put, 655, 325, 48, 22, beak, Lx, Ly, Lz);             // beak
+  blob(put, 560, 298, 10, 10, ink, 0, 0, 1);                 // eye
+  blob(put, 360, 500, 28, 18, goldD, Lx, Ly, Lz);            // foot
+  blob(put, 455, 505, 28, 18, goldD, Lx, Ly, Lz);
 
-  drawText(put, 40, 28, 'GLTF VIEWER', 5, 232, 236, 242);
-  drawText(put, 40, 78, 'DROP A MODEL. NOTHING UPLOADED.', 2, 154, 160, 166);
+  // HUD chips
+  fill(24, 24, 108, 62, 22, 22, 24);
+  fill(116, 24, 200, 62, 22, 22, 24);
+  fill(208, 24, 320, 62, 43, 108, 176);
+  drawText(put, 40, 34, 'OPEN', 2, 232, 236, 242);
+  drawText(put, 132, 34, 'RESET', 2, 232, 236, 242);
+  drawText(put, 220, 34, 'INSPECT', 2, 232, 236, 242);
 
   drawText(put, 924, 28, 'SCENE', 3, 154, 160, 166);
   drawText(put, 924, 80, 'DUCK.GLB', 2, 232, 236, 242);
@@ -249,7 +271,7 @@ export function screenshotPng() {
   drawText(put, 924, 150, '2 MATERIALS', 2, 154, 160, 166);
   drawText(put, 924, 180, '1840 TRIANGLES', 2, 154, 160, 166);
   drawText(put, 924, 240, 'DISPLAY', 3, 154, 160, 166);
-  drawText(put, 924, 290, 'WIREFRAME', 2, 88, 166, 255);
+  drawText(put, 924, 290, 'WIREFRAME', 2, 154, 160, 166);
   drawText(put, 924, 320, 'GRID', 2, 232, 236, 242);
   drawText(put, 924, 350, 'AUTO-ROTATE', 2, 232, 236, 242);
   drawText(put, 924, 380, 'NEUTRAL LIGHT', 2, 230, 190, 90);

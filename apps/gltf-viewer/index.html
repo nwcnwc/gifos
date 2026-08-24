@@ -10,20 +10,25 @@
 <div id="app">
   <header>
     <h1>glTF Viewer</h1>
-    <p class="lead">Drop a <code>.glb</code> or <code>.gltf</code>. Orbit it. Inspect the scene. Nothing is uploaded.</p>
+    <p class="lead">Open a <code>.glb</code> or <code>.gltf</code> on this device. Orbit it. Inspect the scene. Nothing is uploaded.</p>
   </header>
 
   <div id="stage">
     <div id="drop" class="drop">
+      <input type="file" id="file-input" accept=".glb,.gltf,.bin,.png,.jpg,.jpeg,.webp" multiple>
       <div class="placeholder" id="placeholder">
-        <p>Drag a glTF 2.0 file here</p>
-        <div class="upload-btn">
-          <input type="file" id="file-input" accept=".glb,.gltf,.bin,.png,.jpg,.jpeg,.webp,.ktx2" multiple>
-          <label for="file-input">Choose file</label>
-        </div>
+        <p>Open a glTF 2.0 file</p>
+        <p class="hint">A <code>.glb</code> is one file and always works. A <code>.gltf</code> that points at extra <code>.bin</code> or images needs those selected too.</p>
+        <label class="btn" for="file-input">Choose file</label>
       </div>
       <div id="viewer" class="viewer" hidden></div>
+      <div id="hud" hidden>
+        <label class="chip" for="file-input">Open</label>
+        <button type="button" class="chip" id="resetView">Reset</button>
+        <button type="button" class="chip" id="toggleInspect">Inspect</button>
+      </div>
       <div id="spinner" class="spinner" hidden></div>
+      <p id="toast" class="toast" hidden></p>
     </div>
     <aside id="panel">
       <section>
@@ -31,12 +36,16 @@
         <label class="check"><input type="checkbox" id="wireframe"> Wireframe</label>
         <label class="check"><input type="checkbox" id="grid"> Grid</label>
         <label class="check"><input type="checkbox" id="autoRotate"> Auto-rotate</label>
+        <label class="check"><input type="checkbox" id="skeleton"> Skeleton</label>
         <label class="check"><input type="checkbox" id="neutral" checked> Neutral light</label>
       </section>
       <section id="anim-sec" hidden>
         <h2>Animation</h2>
         <div id="clips"></div>
-        <button type="button" id="playAll">Play all</button>
+        <div class="row-btns">
+          <button type="button" id="playAll">Play all</button>
+          <button type="button" id="pauseAll">Pause</button>
+        </div>
       </section>
       <section>
         <h2>Scene</h2>
@@ -47,7 +56,7 @@
     </aside>
   </div>
 
-  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to look together. Each person drops a file on their own device. Nothing is uploaded on its own.</p>
+  <p id="meet" class="meet">Press <b>Invite</b> in the bar above to look together. Each person opens a file on their own device. Nothing is uploaded.</p>
 </div>
 
 <!-- Order matters: the runtime inlines each <script src> where it stands. -->
