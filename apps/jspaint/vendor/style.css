@@ -2078,6 +2078,7 @@ summary:focus {
 */
 
 /*# sourceMappingURL=98.custom-build.css.map */
+@media print {
 
 html, body, .jspaint {
 	width: 100%;
@@ -2118,5 +2119,6 @@ button,
 	background: transparent !important;
 }
 
+}
 html, body { height: 100%; margin: 0; overflow: hidden; }
 body { background: var(--AppWorkspace, #808080); }

@@ -152,4 +152,38 @@
   root.__gifosReady = load();
   root.__gifosPersist = persistKey;
   root.__gifosFlush = flush;
+
+  // fetch() of a data: URI is blocked by the sandbox's connect-src 'none' even
+  // though it touches no wire. Upstream's msgbox.js loads the error-ding
+  // (audio/chord.wav, a data URL from vendor/assets.js) with exactly such a
+  // fetch, at script parse time — so it rejected at boot, and then EVERY
+  // "Internal application error" dialog re-awaited the same dead promise,
+  // whose new unhandled rejection opened ANOTHER dialog: a self-sustaining
+  // error storm that froze boot (1400+ dialogs in seconds). Serve data: URIs
+  // in-process — decode the bytes ourselves, no connectivity gained — and pass
+  // everything else through untouched so a real network fetch still fails
+  // loudly.
+  (function () {
+    var origFetch = typeof root.fetch === 'function' ? root.fetch.bind(root) : null;
+    root.fetch = function (input, init) {
+      var url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (/^data:/i.test(url)) {
+        try {
+          var comma = url.indexOf(',');
+          if (comma < 0) throw new Error('malformed data: URI');
+          var header = url.slice(5, comma);
+          var body = url.slice(comma + 1);
+          var mime = header.split(';')[0] || 'application/octet-stream';
+          var bytes = /(^|;)base64$/i.test(header)
+            ? Uint8Array.from(atob(body), function (c) { return c.charCodeAt(0); })
+            : new TextEncoder().encode(decodeURIComponent(body));
+          return Promise.resolve(new Response(new Blob([bytes], { type: mime }), { status: 200 }));
+        } catch (e) {
+          return Promise.reject(new TypeError('Failed to fetch (bad data: URI)'));
+        }
+      }
+      if (!origFetch) return Promise.reject(new TypeError('Failed to fetch'));
+      return origFetch(input, init);
+    };
+  })();
 })(typeof window !== 'undefined' ? window : globalThis);
