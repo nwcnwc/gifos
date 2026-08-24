@@ -3,7 +3,7 @@
 The mesh-scale simulator, ported to C++ for compiled speed + shared-memory
 threading (Node tops out ~thousands of seats/sec; goal is billions — everyone
 on Earth). Faithful port of the NO-ROOT topology + all healing laws
-(P, D1-D4, H1-H7, C1-C3, W1-W5, E1-E3, R1-R4) from test/mesh-scale.js.
+(P, D1-D4, H1-H8, C1-C3, W1-W6, E1-E3, R1-R4) from the deleted Node sim (git history: test/mesh-scale.js).
 
     g++ -O2 -std=c++17 -o mesh test/sim/mesh.cpp
     ./mesh 100000 0            # batch: JOIN 100k, report convergence + ticks/s

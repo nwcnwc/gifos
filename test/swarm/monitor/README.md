@@ -33,7 +33,7 @@ cd ~/projects/gifos && git pull origin main
 ./test/swarm/monitor/install.sh
 ```
 
-`install.sh` is idempotent and retires the old hand-rolled
+`install.sh`, `moto-keeper.js` (invoked by `run.sh` every pass) is idempotent and retires the old hand-rolled
 `gifos-monitor.service` (a bespoke `monitor.js` under `~/.openclaw`, pre
 2026-07-25) if it finds one. Requirements on the box: `tmux`, `node` with
 playwright resolvable (meet.js tries `/opt/node22/...`, then `playwright` on
