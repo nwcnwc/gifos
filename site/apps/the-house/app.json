@@ -38,11 +38,15 @@
   "cover": "/apps/the-house/cover.jpg",
   "screenshots": [],
   "gif": "/apps/the-house/the-house.gif",
-  "bytes": 18350320,
+  "bytes": 18350507,
   "download": 0,
   "provides": null,
-  "sha256": "0a84f6731a80dc538e0d55b7181e69144b2690fde706337d4e943d06d5b5ebb2",
-  "signature": null,
+  "sha256": "57190b8c1456affc4f3375bc00e1d55887824a86ee9ba36efd1ed2d4496a43e2",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

@@ -529,11 +529,15 @@
         48
       ],
       "cover": "/apps/bingo/cover.jpg",
-      "bytes": 202160,
+      "bytes": 202347,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "4c04c2c804ef9403238c826f939017ec73b08502270a386b7ee1917c0c566c60"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "131073859b7d461732b628ca13fa8a33c3e6b1031082f30ac0fa63424cdc9415"
     },
     {
       "slug": "bip39",
@@ -6427,11 +6431,15 @@
         48
       ],
       "cover": "/apps/the-house/cover.jpg",
-      "bytes": 18350320,
+      "bytes": 18350507,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "0a84f6731a80dc538e0d55b7181e69144b2690fde706337d4e943d06d5b5ebb2"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "57190b8c1456affc4f3375bc00e1d55887824a86ee9ba36efd1ed2d4496a43e2"
     },
     {
       "slug": "thinktank",
@@ -7298,11 +7306,15 @@
         255
       ],
       "cover": "/apps/worldview/cover.jpg",
-      "bytes": 1095584,
+      "bytes": 1095771,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "c7fb5d022e675b7506e42e906c91313fddd7ceaad79b45680e1b362ecafd042d"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "da2da35c0d447fa23d0b4791e861ae038b84f3b436704acfe6ae98eb73c6fc93"
     },
     {
       "slug": "yahtzee",
