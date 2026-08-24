@@ -1,0 +1,34 @@
+:root{
+  --bg:#0a0a0f; --felt:#0e3a22; --text:#f4ece0; --muted:#9ab0a0;
+  --gold:#e8c460; --red:#c42830; --ink:#1a1410;
+  --cw:min(72px, 18vw); --ch:calc(var(--cw) * 1.4);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;color:var(--text);
+  font:15px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;
+  background:radial-gradient(900px 520px at 50% -8%, #16482c 0%, var(--bg) 58%);
+  overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;max-width:640px;margin:0 auto}
+.brand{font-weight:800;display:flex;align-items:center;gap:8px}
+.logo{width:22px;height:22px;border-radius:50%;background:#1a7a3a;box-shadow:inset 0 0 0 2px var(--gold)}
+.chips{color:var(--gold);font-weight:800}
+.toy{text-align:center;color:var(--gold);font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 8px}
+section{max-width:640px;margin:0 auto;padding:8px 14px}
+h2{margin:0 0 8px;font-size:15px;color:var(--muted);font-weight:700}
+.cards{display:flex;flex-wrap:wrap;gap:8px;min-height:var(--ch)}
+.card{width:var(--cw);height:var(--ch);border-radius:8px;border:1px solid #111;background:#f7f3ea;color:var(--ink);
+  position:relative;font-weight:800;box-shadow:1px 2px 0 #000}
+.card .tl{position:absolute;top:5px;left:6px;font-size:calc(var(--cw)*0.28);line-height:1}
+.card .c{position:absolute;left:50%;top:55%;transform:translate(-50%,-50%);font-size:calc(var(--cw)*0.42)}
+.card.red{color:var(--red)}
+.card.back{background:#1a2a78;background-image:repeating-linear-gradient(45deg,transparent 0 5px,#fff 5px 6px);color:transparent}
+.seats{max-width:640px;margin:0 auto;padding:0 14px;display:flex;flex-direction:column;gap:8px}
+.seat{background:#123424;border:1px solid #2a5840;border-radius:12px;padding:8px 10px}
+.seat .name{font-size:12px;color:var(--muted)}
+.msg{text-align:center;min-height:1.4em;margin:10px;font-weight:800;color:var(--gold)}
+.bar{display:flex;gap:8px;max-width:640px;margin:0 auto;padding:8px 14px 16px}
+.bar button{flex:1;padding:14px;border:0;border-radius:12px;font:inherit;font-weight:800;cursor:pointer;
+  background:linear-gradient(180deg,#3a9a58,#1a7a3a);color:#fff;touch-action:manipulation}
+.bar button[hidden]{display:none}
+#hit,#stand{background:linear-gradient(180deg,#e8c460,#c4a030);color:#1a1208}
+.hint{text-align:center;color:var(--muted);font-size:12.5px;padding:0 14px 16px}

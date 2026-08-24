@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "blackjack",
+  "name": "Blackjack",
+  "shortName": "Blackjack",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Beat the dealer to 21. Toy chips, no cash. Invite is extra seats.",
+  "entry": "index.html",
+  "accent": [26, 122, 58],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

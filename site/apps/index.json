@@ -628,6 +628,54 @@
       "sha256": "390b73f9cc33ac358ff7deb37bbac8564287c3e7d55fa81f69a25a58bf277e2e"
     },
     {
+      "slug": "blackjack",
+      "appId": "blackjack",
+      "name": "Blackjack",
+      "shortName": "Blackjack",
+      "version": "1.0",
+      "tagline": "Beat the dealer to 21. Invite is extra seats. No cash.",
+      "author": {
+        "name": "hanhaechi",
+        "url": "https://github.com/hanhaechi/blackjack"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "blackjack",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "blackjack",
+        "cards",
+        "party",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        26,
+        122,
+        58
+      ],
+      "cover": "/apps/blackjack/cover.jpg",
+      "bytes": 186516,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "3bebf0521a99cec3bbc68e1f193d5ff45f6fe5e28cffc091a644511f0d6b0470"
+    },
+    {
       "slug": "bowling",
       "appId": "bowling",
       "name": "Bowling",
@@ -2247,6 +2295,54 @@
       "sha256": "897ed4145d7817786dea7caa425ba930393cf8cb8bf4182d063fff30039b3126"
     },
     {
+      "slug": "hexahedral",
+      "appId": "hexahedral",
+      "name": "Hexahedral",
+      "shortName": "Hexahedral",
+      "version": "1.0",
+      "tagline": "Push every block down. Thirty jam levels. The file is the save.",
+      "author": {
+        "name": "mminer",
+        "url": "https://github.com/mminer/hexahedral"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Hexahedral",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "puzzle",
+        "hex",
+        "jam",
+        "blocks",
+        "offline"
+      ],
+      "accent": [
+        211,
+        45,
+        143
+      ],
+      "cover": "/apps/hexahedral/cover.jpg",
+      "bytes": 185656,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "ef7a33371c93a8412f15874de8aa3e3d5440e0697a246c1d1bef4c4699fd5200"
+    },
+    {
       "slug": "invaderz",
       "appId": "invaderz",
       "name": "InvaderZ",
@@ -2537,6 +2633,56 @@
         "ts": "2026-08-24"
       },
       "sha256": "dc46bcb060cddca03a8ff90d88099df5a202605e2b7a26580aecda94ad68bd0e"
+    },
+    {
+      "slug": "json-crack",
+      "appId": "json-crack",
+      "name": "JSON Crack",
+      "shortName": "JSON",
+      "version": "1.0",
+      "tagline": "Paste JSON, see it as a graph of cards. Nothing is uploaded.",
+      "author": {
+        "name": "Aykut Saraç",
+        "url": "https://github.com/AykutSarac/jsoncrack.com"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "JSON Crack",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Developer",
+        "Utilities"
+      ],
+      "tags": [
+        "json",
+        "graph",
+        "tree",
+        "viewer",
+        "editor",
+        "offline"
+      ],
+      "accent": [
+        99,
+        102,
+        241
+      ],
+      "cover": "/apps/json-crack/cover.jpg",
+      "bytes": 193315,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "b5738ef982abbf224950aab3d4aa7a7fc140e4b9cb77fc05b2cbbdc49ee6f1b9"
     },
     {
       "slug": "json-diff",
