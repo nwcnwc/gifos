@@ -173,6 +173,74 @@ MAIN.push(async () => {
   check('burn-after-read does not yank the revealed screen', /revealing/.test(app) && /lastScreen === 'revealed'/.test(app));
   check('empty secret is refused in the UI', /Type a secret first/.test(app));
   check('guest cannot lock', /Only the person who opened the room can lock/.test(app));
+  check('guest is gifos.info().owner === false',
+    /gifos\.info/.test(app) && /inf\.owner !== false/.test(app));
+});
+
+MAIN.push(async () => {
+  const ids = [
+    'chip', 'chipText', 'home', 'locked', 'open', 'revealed', 'waiting', 'gone',
+    'plain', 'plainCount', 'pass', 'passEye', 'life', 'burn', 'lockBtn', 'lockStatus',
+    'lockedLede', 'lockedMeta', 'openMine', 'burnNow', 'newSecret',
+    'openLede', 'openMeta', 'openPass', 'openPassRow', 'openPassEye', 'openBtn', 'openStatus',
+    'revTitle', 'revText', 'revNote', 'copyBtn', 'hideBtn',
+    'goneTitle', 'goneLede', 'goneLock'
+  ];
+  const els = {};
+  function makeEl(id) {
+    return {
+      id, hidden: id !== 'home', className: '', textContent: '', value: '',
+      checked: id === 'burn', disabled: false, type: id === 'pass' || id === 'openPass' ? 'password' : '',
+      onclick: null, oninput: null, onkeydown: null, style: {},
+      getAttribute() { return null; },
+      setAttribute() {},
+      querySelectorAll() { return []; }
+    };
+  }
+  ids.forEach((id) => { els[id] = makeEl(id); });
+  const label = { hidden: false };
+  const sandbox = {
+    console, crypto: webcrypto,
+    btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
+    atob: (s) => Buffer.from(s, 'base64').toString('binary'),
+    TextEncoder, TextDecoder, Uint8Array, Promise, Date, String, Number, Boolean, Object, Array,
+    setInterval() { return 0; }, clearInterval() {},
+    document: {
+      getElementById: (id) => els[id] || null,
+      querySelector: (sel) => /openPass/.test(sel) ? label : els.life,
+      createElement: () => ({ value: '', setAttribute() {}, style: {}, select() {} }),
+      body: { appendChild() {}, removeChild() {} },
+      execCommand() { return false; }
+    },
+    navigator: { clipboard: null }
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  const room = { rows: {}, subs: [] };
+  sandbox.gifos = {
+    db(name) {
+      if (name !== 'room' && name !== 'save') return null;
+      const bag = name === 'room' ? room : { rows: {}, subs: [] };
+      return {
+        put(r) { bag.rows[r.id] = r; return Promise.resolve(r); },
+        get() { return Promise.resolve(null); },
+        delete() { return Promise.resolve(true); },
+        subscribe(cb) { bag.subs.push(cb); cb(Object.values(bag.rows)); }
+      };
+    },
+    me() { return Promise.resolve({ id: 'guest', name: 'G' }); },
+    info() { return Promise.resolve({ owner: false, appId: 'yopass' }); },
+    onBack() {}
+  };
+  vm.createContext(sandbox);
+  for (const f of ['crypto.js', 'core.js', 'app.js']) {
+    vm.runInContext(fs.readFileSync(path.join(APP, f), 'utf8'), sandbox, { filename: f });
+  }
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  check('guest with an empty room sees waiting, not the lock form',
+    els.waiting.hidden === false && els.home.hidden === true,
+    { waiting: els.waiting.hidden, home: els.home.hidden, chip: els.chipText.textContent });
 });
 
 (async () => {

@@ -77,7 +77,7 @@
     if (scr === 'locked') {
       show('locked');
       $('lockedLede').textContent = rec.hasPass
-        ? 'Locked with a passphrase. Invite hands the ciphertext; they still type the passphrase.'
+        ? 'Locked with a passphrase. Invite hands the locked secret; they still type the passphrase.'
         : 'Locked. Invite is the one-time room — anyone who opens the link can read it.';
       paintMeta($('lockedMeta'), rec);
       setChip('lock', 'Locked');

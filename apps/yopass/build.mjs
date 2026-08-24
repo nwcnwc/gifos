@@ -135,9 +135,12 @@ if (!files['COPYING-yopass.txt'].includes('Apache License')) throw new Error('CO
   console.log('AES-GCM lock/unlock ok');
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89) throw new Error('screenshot is not a PNG');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (!existsSync(shotPath) || readFileSync(shotPath)[0] !== 0x89) {
+  const shot = screenshotPng();
+  if (shot[0] !== 0x89) throw new Error('screenshot is not a PNG');
+  writeFileSync(shotPath, shot);
+}
 const bytes = await gif.encode(files, { preview: yopassIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'yopass', 'yopass.gif');
 mkdirSync(dirname(out), { recursive: true });
