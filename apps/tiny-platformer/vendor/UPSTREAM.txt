@@ -1,0 +1,28 @@
+vendor/* is GENERATED. Do not edit it; run node apps/tiny-platformer/vendor.mjs.
+
+upstream: https://github.com/jakesgordon/javascript-tiny-platformer
+commit:   50cbd06c410efe768b7c76f4458387a194130339
+date:     2025-06-01
+license:  MIT (COPYING.txt)
+
+Copied:
+  level.json        original Tiled map (coins, monsters, platforms)
+  level.js          same map as window.TINY_LEVEL (classic script)
+  platformer.js     original engine with these GifOS-only edits:
+    - level.json is window.TINY_LEVEL (no XHR)
+    - FPSMeter stubbed (debug overlay not shipped)
+    - camera follows the player (phone-readable)
+    - window.Tiny exposes player + onkey for the overlay
+    - onProgress hook when a coin or monster is taken
+
+NOT copied:
+  fpsmeter.min.js   debug overlay
+  tiles.png         unused by the current renderer (coloured rects)
+  level.tmx         Tiled source of level.json
+
+sha256:
+  platformer.js  e66986f058a3e3ca41df69563dc4e0e3ae9d781b2dc77225b07e4216ce540ec7
+  level.json     7943215a4c9162a7e9bdcb9937d8dd80bebb311b13b383932e62b9967e422eda
+  COPYING.txt    127d037a038179131264d54a0cd2d49419d824a4545d2337a3d208dd5be05295
+
+The MIT notice travels INSIDE the GIF as COPYING.txt as well as here.
