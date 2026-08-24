@@ -1,0 +1,58 @@
+{
+  "catalog": "1.0",
+  "slug": "spider",
+  "appId": "spider",
+  "name": "Spider",
+  "shortName": "Spider",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Spider patience. Eight runs, ten piles. The file is the tableau.",
+  "description": "One-suit Spider. Build descending runs king to ace. A finished run leaves the tableau. Deal a row from the stock when you are stuck — every pile must have a card first. Empty piles take any run.\n\nTap a face-up card to pick up the run from there. Tap a pile that will take it. Undo goes back one move. Close it and come back: the tableau is where you left it.\n\nAn unofficial port of spider-solitaire by lklynet. Same deal and the same moves; the React shell stays behind.",
+  "author": {
+    "name": "lklynet",
+    "url": "https://github.com/lklynet/spider-solitaire"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "spider",
+    "solitaire",
+    "cards",
+    "patience",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/spider",
+  "accent": [
+    48,
+    90,
+    48
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/spider/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/spider/spider.gif",
+  "bytes": 186019,
+  "download": 0,
+  "provides": null,
+  "sha256": "a7d617cf287485cd01a5d904571f975c27d9c47501f65011036b62909f6b0fae",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "spider-solitaire",
+    "url": "https://github.com/lklynet/spider-solitaire",
+    "blessed": false
+  }
+}
