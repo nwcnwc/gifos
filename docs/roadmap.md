@@ -153,7 +153,11 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   - Composes with V1: the stale-client prompt is a *modal* (blocks join),
     the operator notice is a *banner* (never blocks). Distinct surfaces.
 
-- **V3 — Home-page update prompt ("your gifos.app is behind").** The desktop
+- **V3 — Home-page update prompt ("your gifos.app is behind") — SHIPPED**
+  (as a dismissible update bar + the Version panel, not a modal:
+  `checkForUpdate`/`applyUpdateBar` in desktop.js read `version.json`
+  cache-busted; critical releases flagged from changelog.json; gate
+  `e2e-version.js`). Original sketch: the desktop
   (`site/index.html` / `boot.html`, running `window.GIFOS_VERSION`) can sit open
   for days across deploys. Compare the running `GIFOS_VERSION` against the
   **currently deployed** version — read from a tiny static file the deploy
@@ -180,7 +184,7 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   dismissible top-of-page banner as **V2**, but sourced from a **static JSON
   file in `/site`** (e.g. `/site/notice.json`) instead of the relay greeter
   package, and shown on **every first-party surface: the desktop/home
-  (`index.html` / `boot.html`), `run.html`, and `run.html`.** Nathan
+  (`index.html` / `boot.html`) and the room page `run.html`.** Nathan
   edits/commits that file (a push auto-deploys via Pages) to raise a notice;
   **when the file is missing (404), no banner is shown** — that is the normal
   state.
@@ -208,8 +212,8 @@ meetings **picks one** (R5) — never silent merge via sole-bridge.
   - V4 is to the whole site what V2 is to the meeting; factor the banner render
     + per-`id` dismissal into **one shared helper** every surface (home, meet,
     run) calls, differing only in **source** (relay greeter package for V2's
-    meeting banner vs static `/site` JSON for V4's site-wide banner). `run.html`
-    and the home page have no relay, so they show only the V4 static notice.
+    meeting banner vs static `/site` JSON for V4's site-wide banner). the home page has no relay, so it
+    shows only the V4 static notice.
 
 - **G1 — Presence holdover for throttled phones (SHIPPED to edge 2026-07-25,
   commit 61dfc80; gate `test/browser/e2e-away-holdover.js` — 12 checks green).**
@@ -1163,9 +1167,9 @@ carries `client_reference_id`). This is not the x402 IAP rail.
     drive (and now fly) anywhere on Earth; OSM roads/buildings + AWS terrarium
     elevation + satellite-classified forests; races, wildlife, blaster,
     breachable walls; multiplayer via app rooms; in the store, with
-    progression that survives updates. (NOT yet domain-signed — Chess and
-    Fluence are; Anyroad, Sound It Out and Offline TTS still install with no
-    pill. Worth closing before it is the app we point strangers at.) The port idea is retired — Hop.Earth
+    progression that survives updates. (Since domain-signed like the whole
+    catalog — 2026-08-23, `sign-apps.mjs`; the store gate runs
+    `--require-signed`.) The port idea is retired — Hop.Earth
     keeps the credit as the proof-of-demand that started it. What remains
     portable from its playbook is marketing shape, not code: one-click "Hop
     Here" from a shared link into a race is still the demo that explains
@@ -1194,8 +1198,8 @@ carries `client_reference_id`). This is not the x402 IAP rail.
 **Open questions.**
 - Curation bar (signed makers only? theme-computer stores?). Fluence was
   **signed by gifos.app** by hand (2026-08-02) as a working-reference test;
-  `scripts/sign-apps.mjs` is the bulk step for the rest of the catalog (local
-  key, not GitHub Secrets). A "signed makers only" bar then has a real
+  `scripts/sign-apps.mjs` then signed the whole catalog (2026-08-23 — local
+  key, not GitHub Secrets; `--require-signed` gates the store). A "signed makers only" bar then has a real
   reference; the open question is the policy for **third-party** makers —
   self-signed + reputation, a GifOS counter-signature, or domain-key proof.
 - IAP entitlement storage (local-only vs maker server); restore on new device
@@ -1204,7 +1208,12 @@ carries `client_reference_id`). This is not the x402 IAP rail.
   on IAP rail.
 - Platform fee bps on IAP; self-hosted store mirrors with fee = 0.
 
-### 6a. Catalog seeding: port MIT-licensed open source at scale
+### 6a. Catalog seeding: port MIT-licensed open source at scale — EXECUTED
+
+*(Done at scale: ~84 of the 103 catalog listings are ports carrying the
+shipped schema — upstream `author`, GifOS `porter`, `basedOn` with upstream
+URL/donate/blessed — with vendored upstream licenses and a unit gate,
+`test/unit/app-catalog-ports.js`. The section stands as the playbook.)*
 
 **What.** A deliberate push to **fill the store fast** by turning popular
 **permissively-licensed** open-source projects — MIT above all, plus BSD /
@@ -1646,7 +1655,13 @@ over the shared `mesh-app.js` node so the divergence stays cosmetic.
   `site/changelog.json`, and the relay's own header promise (`relay.js:28`),
   which should be rewritten from "control traffic only" to greeter+door.
 
-## 8. Lock a GIF with a passcode (encrypted App GIFs + computer backups)
+## 8. Lock a GIF with a passcode (encrypted App GIFs + computer backups) — APP HALF SHIPPED
+
+*(Shipped for apps: `gifos-lock.js` — AES-GCM wrap of the private payload
+inside the GIFOS extension, frames left animating, lock/remove in the icon
+menu, 🔒 badge, unlock gated on open and export, via a WebAuthn PRF passkey
+rather than the PIN/passphrase sketched below; gates `e2e-app-lock.js` +
+`unit/app-lock.js`. Still open: locking a whole-computer backup GIF.)*
 
 **What.** Optionally **encrypt the contents of a GIF behind a passcode** so it
 can't be opened, run, or restored without unlocking it. Two headline uses: lock
@@ -1876,7 +1891,8 @@ floors at 14-20s across deep piped chains (rate limits x hops), so while my
 camera is on the Stage a ~3s sender-side jiggle bounds any consumer's key
 wait to one pulse, making the wait invisible. Verdict at healthy fps across
 5 devices: frza21/frza22 ZERO freeze events at every receiver seat for the
-full runs, pipe queues at 0-4 frames (were pinned at 21-38). Gate: e2e-pipe LEG 3
+full runs, pipe queues at 0-4 frames (were pinned at 21-38). Gate: LEG 3 (now in
+e2e-pipe-mesh.js — the mesh legs moved out of e2e-pipe 2026-08-17)
 watches every seat's stg/sgs feeds for the exact bright-stall shape. §9b's
 fan collapse shipped with the first wave for free (one tap fans to N pipes).
 
@@ -2510,10 +2526,11 @@ arrived and its river could sit 26 m above the ground permanently — that
 alone produced "water disagrees with its ground" symptoms no levelling change
 could ever fix (roads.js, the borrow loop in waterMesh).
 
-**What the fixture still cannot do.** Its water rings are 5 points. Testing any
-per-vertex or per-tile levelling needs a LONG river ring — hundreds of vertices
-descending the canyon — so that "local" means something. That fixture is the
-prerequisite for the fix below, not an optional extra.
+**The long-ring fixture has since LANDED (2026-08-16):** e2e-anyroad's
+canyon leg now demands >100 water vertices over >100 m of relief and refuses
+to judge without them, and the five deliberately-RED assertions were
+rewritten around it. The prerequisite is met; the fix below (the per-tile
+clipper — roads.js still CULLS, not clips) is what remains.
 
 **The fix, and it is the one from the original brief.** Clip each ring to the
 tile that draws it, so a tile draws its OWN piece and can level that piece
