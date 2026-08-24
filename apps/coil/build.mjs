@@ -29,7 +29,7 @@ const listing = JSON.parse(read('listing.json'));
 for (const need of ['vendor/coil.js', 'vendor/jquery.min.js', 'vendor/util.js', 'vendor/assets.js', 'vendor/COPYING.txt']) {
   if (!existsSync(join(dir, need))) throw new Error(need + ' missing');
 }
-const SCRIPTS = ['vendor/jquery.min.js', 'vendor/assets.js', 'vendor/util.js', 'vendor/coil.js', 'boot.js'];
+const SCRIPTS = ['vendor/jquery.min.js', 'vendor/assets.js', 'vendor/util.js', 'core.js', 'vendor/coil.js', 'boot.js'];
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -51,6 +51,8 @@ if (manifest.capabilities.multiplayer) throw new Error('coil does not sync a roo
 if (manifest.minBuild !== 947) throw new Error('minBuild 947');
 if ((listing.author && listing.author.name) === 'GifOS') throw new Error('author is THEM');
 if (html.includes('facebook') || html.includes('twitter-share')) throw new Error('no share widgets');
+if (!html.includes('src="core.js"')) throw new Error('core.js not loaded');
+if (!read('vendor/coil.js').includes('CoilCore.pointInPoly')) throw new Error('vendor must enclose via CoilCore');
 for (const [n, s] of Object.entries(files)) {
   if (n.endsWith('.js') && /<\/script/i.test(s)) throw new Error(n + ' </script');
 }
