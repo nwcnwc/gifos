@@ -38,10 +38,10 @@
   "cover": "/apps/pacman/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pacman/pacman.gif",
-  "bytes": 173639,
+  "bytes": 174107,
   "download": 0,
   "provides": null,
-  "sha256": "06437bf8a2c4677dca1f4a8512e44460ee7517c29548f38760d16aacd0d3c930",
+  "sha256": "66f0d819733d4fed7803e060af85203301d2241c0b9ac0370fab9f8c9353d333",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

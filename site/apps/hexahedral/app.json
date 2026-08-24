@@ -37,10 +37,10 @@
   "cover": "/apps/hexahedral/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hexahedral/hexahedral.gif",
-  "bytes": 192059,
+  "bytes": 192482,
   "download": 0,
   "provides": null,
-  "sha256": "ea201182812a2a3e58b7f95c4ebd81afbdab0a37428d9d2180e4559b895ad3ce",
+  "sha256": "9bfe40dfb0f71ec483c21c56a3f14a8bc57a826456ca970e7a85152040be17de",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

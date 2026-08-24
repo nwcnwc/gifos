@@ -36,10 +36,10 @@
   "cover": "/apps/coil/cover.jpg",
   "screenshots": [],
   "gif": "/apps/coil/coil.gif",
-  "bytes": 368463,
+  "bytes": 367428,
   "download": 0,
   "provides": null,
-  "sha256": "963c1e9d9b945bd0ef9b1e044fe3d782491ae68b0c49f1b7a646c4dc11d64e80",
+  "sha256": "7a3c065864aa77e9639ff1b6b10038473a539137153d1b42c80c3287eacb2efe",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

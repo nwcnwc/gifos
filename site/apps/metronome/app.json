@@ -39,10 +39,10 @@
   "cover": "/apps/metronome/cover.jpg",
   "screenshots": [],
   "gif": "/apps/metronome/metronome.gif",
-  "bytes": 195022,
+  "bytes": 195475,
   "download": 0,
   "provides": null,
-  "sha256": "f4f5825ad332b9f438c8e10b42fb1668921e555aa2673ae560e7f6d95d8d6be6",
+  "sha256": "9bb7dd0f7532ad7a41d600657dce623d99bbb0e85dd7bf126ebd4948e2a6f6dc",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

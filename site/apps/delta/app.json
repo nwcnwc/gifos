@@ -37,10 +37,10 @@
   "cover": "/apps/delta/cover.jpg",
   "screenshots": [],
   "gif": "/apps/delta/delta.gif",
-  "bytes": 321781,
+  "bytes": 321721,
   "download": 0,
   "provides": null,
-  "sha256": "6cd07a62c70343aadb6ddf6dde9d2d600cea5a3ddb5cc9d2b83ae90d0129cb22",
+  "sha256": "cdc6da096cc687eaca4e139e9f815bfecbabc941c2aaca6becb0fcb3d1937167",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -44,14 +44,14 @@
   "cover": "/apps/restfox/cover.jpg",
   "screenshots": [],
   "gif": "/apps/restfox/restfox.gif",
-  "bytes": 200269,
+  "bytes": 200764,
   "download": 0,
   "provides": null,
-  "sha256": "281a66ffa647e2efb5f2b743795bda8c554197290b4eb4484d9f1d1adf04d13a",
+  "sha256": "2792f77b00a6693fc6cec6191b7317fbf20376eaaa2653470f89ff83779c0d28",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

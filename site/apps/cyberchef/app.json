@@ -43,14 +43,14 @@
   "cover": "/apps/cyberchef/cover.jpg",
   "screenshots": [],
   "gif": "/apps/cyberchef/cyberchef.gif",
-  "bytes": 11896485,
+  "bytes": 11834719,
   "download": 0,
   "provides": null,
-  "sha256": "45e8b3649c1c059cd9e326aa6040c988a6e1ce093ac3981af501c70c24eef2dd",
+  "sha256": "79d43236288b82e32a04e58da240a473708c483196ea5b85a25fd1ffb94122d5",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

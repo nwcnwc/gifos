@@ -39,14 +39,14 @@
   "cover": "/apps/svgomg/cover.jpg",
   "screenshots": [],
   "gif": "/apps/svgomg/svgomg.gif",
-  "bytes": 507551,
+  "bytes": 508997,
   "download": 0,
   "provides": null,
-  "sha256": "b558afaac70d59b7dbae2f7c8469138e3c9f6dcf8412b62d26d6bd60b24da49b",
+  "sha256": "007faf8ea57c13422a371cca8a5ac573d88fe5cc8abf03b3800dfd4282fd17e8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

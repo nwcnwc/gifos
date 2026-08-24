@@ -41,10 +41,10 @@
   "cover": "/apps/fieldplay/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fieldplay/fieldplay.gif",
-  "bytes": 205802,
+  "bytes": 206281,
   "download": 0,
   "provides": null,
-  "sha256": "a4503d32f009b5aa507a531eb65d135d3402230ae9d9439a47ffcf253f3c88e3",
+  "sha256": "9e30532ba890a262316a8ab1a3ee32233f5ecd870106a0a279d5929bee87f1e0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

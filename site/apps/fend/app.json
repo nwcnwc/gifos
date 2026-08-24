@@ -38,10 +38,10 @@
   "cover": "/apps/fend/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fend/fend.gif",
-  "bytes": 596797,
+  "bytes": 594039,
   "download": 0,
   "provides": null,
-  "sha256": "1073d50a0a7256399f04759987af61235faa5b40c242b2b7fb5e43271b4e2e5a",
+  "sha256": "aada031187e85f5f54da5412728cda94b93e6d35a4bc1d6e401ad9186e5699bd",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

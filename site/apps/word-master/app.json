@@ -38,14 +38,14 @@
   "cover": "/apps/word-master/cover.jpg",
   "screenshots": [],
   "gif": "/apps/word-master/word-master.gif",
-  "bytes": 208080,
+  "bytes": 209583,
   "download": 0,
   "provides": null,
-  "sha256": "1e90bb943f64ac578b3a2f60582a3be6ed0065c204132a5eb216dc2e937f1a85",
+  "sha256": "61f13f7daf619ed99c4b4bc5eba8dc0e266b604d0feaa58ed2b4604951308653",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

@@ -7088,15 +7088,25 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // flow, and for SOLO no network object at all. The meeting entry keeps its
     // exact flow.
     let soloCtl = null; // the running solo app's runtime control — Invite (step 2) hosts from it
-    // The App Store record snapshotted onto this copy at install (store.js
-    // storeMeta) — Help prints it as Credits. Null for a guest's mount: the
-    // credit lives on the owner's file record, not in the bytes on the wire.
-    let appStoreMeta = null;
+    // LOCAL facts about this copy for the Credits at the bottom of Help: when
+    // it was installed here (store.js storeMeta.installedAt) and who signed
+    // the bytes (GIFOSSIG). WHO MADE IT is never taken from here — the ctl's
+    // credits() reads credits.json out of the sealed GIF. Null for a guest.
+    let appInstall = null;
+    function installFactsOf(rec) {
+      if (!rec) return null;
+      let signedBy = '';
+      try {
+        const sig = GifOS.sign && GifOS.sign.readSig && rec.bytes ? GifOS.sign.readSig(rec.bytes) : null;
+        if (sig && sig.type === 'domain' && sig.id) signedBy = sig.id;
+      } catch (e) {}
+      return { installedAt: (rec.storeMeta && rec.storeMeta.installedAt) || '', signedBy };
+    }
     function bootSoloApp() {
       document.body.classList.add('solo-app');
       GifOS.store.getFile(ROOM.fileId).then((rec) => {
         if (!rec) throw new Error('file not found on this desktop');
-        appStoreMeta = rec.storeMeta || null;
+        appInstall = installFactsOf(rec);
         const nm = (rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         document.title = nm + ' — GifOS';
         const mount = () => {
@@ -12069,9 +12079,18 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } catch (e) {}
       return '';
     }
+    function currentAppCredits() {
+      let c = null;
+      try {
+        const ctl = soloCtl || appHostCtl || appClientCtl;
+        if (ctl && typeof ctl.credits === 'function') c = ctl.credits();
+      } catch (e) {}
+      if (!c) return null;
+      return Object.assign({}, c, appInstall || {});
+    }
     function openAppHelp() {
       const H = window.GifOS && GifOS.help;
-      const md = (H && H.withOsFooter) ? H.withOsFooter(currentAppHelpMd(), appStoreMeta) : (currentAppHelpMd() || '');
+      const md = (H && H.withOsFooter) ? H.withOsFooter(currentAppHelpMd(), currentAppCredits()) : (currentAppHelpMd() || '');
       const parsed = (H && H.parse) ? H.parse(md) : { title: '', html: '' };
       const titleEl = document.getElementById('apphelp-title');
       const bodyEl = document.getElementById('apphelp-body');
@@ -12200,7 +12219,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // host boot replaces the DOM (the iframe goes with it either way).
         if (appClientStop) { try { appClientStop(); } catch (e) {} appClientStop = null; }
         const rec = await GifOS.store.getFile(fileId);
-        appStoreMeta = (rec && rec.storeMeta) || null;
+        appInstall = installFactsOf(rec);
         name = name || (rec && rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         appMode = 'host'; appKey = null;
         showAppPane(name, ROOM.appPinned ? 'you host it' : '· you are hosting it for the meeting');
@@ -12257,7 +12276,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function mountClientApp(app) {
       appEv('client-mount', { s: String(app.s).slice(0, 8), ts: app.ts || 0, by: app.byName || null });
-      appMode = 'client'; appKey = app.s; appStoreMeta = null;
+      appMode = 'client'; appKey = app.s; appInstall = null;
       showAppPane(app.name, '· shared with the meeting' + (app.byName ? ' by ' + app.byName : ''));
       try {
         // §11: when the host drives the mesh Stage data lane (app.mesh) and the

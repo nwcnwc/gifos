@@ -38,14 +38,14 @@
   "cover": "/apps/invaderz/cover.jpg",
   "screenshots": [],
   "gif": "/apps/invaderz/invaderz.gif",
-  "bytes": 195923,
+  "bytes": 196412,
   "download": 0,
   "provides": null,
-  "sha256": "54ff114db7cc2dcca764423c5c48101b504189fa5c3ad4e07306cc3a4cc3be90",
+  "sha256": "922b5b945439e5ed6e35c7ed2ee9c1eb3313a1c11b70277789acf5b19af5ad69",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

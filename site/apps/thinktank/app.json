@@ -38,14 +38,14 @@
   "cover": "/apps/thinktank/cover.jpg",
   "screenshots": [],
   "gif": "/apps/thinktank/thinktank.gif",
-  "bytes": 208187,
+  "bytes": 208721,
   "download": 0,
   "provides": null,
-  "sha256": "1dfe91e45a5d1bc589715f45fd6f5916e838d096b50ef83e55696def8d84de5f",
+  "sha256": "4e1639c01ace5c2bc228b9f8620739bf22e466cc180488f9b882aa0130601065",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

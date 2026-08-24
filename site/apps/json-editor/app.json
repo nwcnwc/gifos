@@ -39,10 +39,10 @@
   "cover": "/apps/json-editor/cover.jpg",
   "screenshots": [],
   "gif": "/apps/json-editor/json-editor.gif",
-  "bytes": 800940,
+  "bytes": 802556,
   "download": 0,
   "provides": null,
-  "sha256": "bf51f9dd5186b87fb3b772bd196d5f363358fc45f694a217c1eba11fc0d54aa8",
+  "sha256": "198d1ce988f194675eb97f89a6c23705ccbb3da249b32091343ef2798315b82e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -40,10 +40,10 @@
   "cover": "/apps/polygon-shredder/cover.jpg",
   "screenshots": [],
   "gif": "/apps/polygon-shredder/polygon-shredder.gif",
-  "bytes": 408680,
+  "bytes": 409859,
   "download": 0,
   "provides": null,
-  "sha256": "4cf86a5bbd62469c6b859462f0a6a0ccbd4001bc1a9460e979d7c25166bc354e",
+  "sha256": "8651a19dd2d511b19379929e4fe581f838672266fb161d0294b8a50f9b009329",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

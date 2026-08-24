@@ -39,10 +39,10 @@
   "cover": "/apps/lrc-maker/cover.jpg",
   "screenshots": [],
   "gif": "/apps/lrc-maker/lrc-maker.gif",
-  "bytes": 192593,
+  "bytes": 192996,
   "download": 0,
   "provides": null,
-  "sha256": "f619a467d13170a8f0560d8fcd1cb4b529e1ca06314e9649bc8f3506672c5b8b",
+  "sha256": "e40a299295d30619a152f597a6ad3ba821d14caba71c1efc9b6c9edf1b717e47",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

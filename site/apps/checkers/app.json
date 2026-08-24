@@ -38,14 +38,14 @@
   "cover": "/apps/checkers/cover.jpg",
   "screenshots": [],
   "gif": "/apps/checkers/checkers.gif",
-  "bytes": 198037,
+  "bytes": 198546,
   "download": 0,
   "provides": null,
-  "sha256": "c0cc5652710e507b5bb73b557f090de3f58e3a4fd0095c5b0a87eefb0bf5de97",
+  "sha256": "4fb8e8c30154b117fa83f69616bcba55498ee56bdedf0b011f7cdb92ce023eec",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

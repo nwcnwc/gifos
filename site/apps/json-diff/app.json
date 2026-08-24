@@ -38,10 +38,10 @@
   "cover": "/apps/json-diff/cover.jpg",
   "screenshots": [],
   "gif": "/apps/json-diff/json-diff.gif",
-  "bytes": 244635,
+  "bytes": 245130,
   "download": 0,
   "provides": null,
-  "sha256": "d1bc11bc3dec9fe2133a8f8661cdfbf60ca323375ead7c445be0af000328b560",
+  "sha256": "23ae8be34090e0e640b87bff007a03840ad710d2db8e891a343d1a9e5114f39f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
