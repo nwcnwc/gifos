@@ -10,7 +10,7 @@ it?** — including the part where the answer might be "no, fix something else."
 A provider is mounted **per tab**: `providerServices` is a Map in the
 `runtime.js` module (`fileId -> Promise<{call}>`), so it lives and dies with the
 page. Apps open in their own tab — `root.open('run.html#id=…', '_blank')`
-(`desktop.js:1437`) — so every app tab that asks for AI mounts its own hidden
+(`desktop.js:1520`) — so every app tab that asks for AI mounts its own hidden
 provider iframe, boots its own wasm engine, and loads its own copy of the
 weights.
 
@@ -139,9 +139,9 @@ that tab lives.
    today two tabs generate in parallel (paying memory for it). A shared host
    serialises them, and tab B waits behind tab A with no way to know why. That
    is a behaviour change users will feel, not an implementation detail.
-3. **Guard ownership.** `providerGuard` refuses a provider whose icon is not a
-   direct child of `sys_providers`, reads `gifos_ai_config`, and raises the
-   system setup modal on failure. If the host mounts on behalf of another tab,
+3. **Guard ownership.** `providerCall` (the inline guard in runtime.js)
+   refuses a provider whose icon is not a direct child of `sys_providers`,
+   reads `gifos_ai_config`, and raises the system setup modal on failure. If the host mounts on behalf of another tab,
    **which tab's guard decision counts?** The asking tab holds the user's
    assignment and should almost certainly stay the one that guards and the one
    that shows the modal — but that must be settled, not assumed.
