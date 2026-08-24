@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Duck Hunt</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="gate">
+  <div class="gate-box">
+    <h1>Duck Hunt</h1>
+    <p class="sub">Click the ducks. The dog laughs. In a GIF, no server.</p>
+    <button id="gate-go" type="button" disabled>Play</button>
+    <p class="keys">Click or tap a duck. <b>P</b> pauses · <b>M</b> mutes</p>
+    <p class="best" id="best"></p>
+    <p class="room" id="gate-room">Press Invite in the bar above to send the link.</p>
+  </div>
+</div>
+<div id="tally" hidden></div>
+<script src="vendor/assets.js"></script>
+<script src="fetch-hook.js"></script>
+<script src="vendor/duckhunt.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

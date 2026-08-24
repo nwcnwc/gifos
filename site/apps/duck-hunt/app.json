@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "duck-hunt",
+  "appId": "duck-hunt",
+  "name": "Duck Hunt",
+  "shortName": "Duck Hunt",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Click the ducks. The dog laughs. In a GIF, no server.",
+  "description": "This is Duck Hunt in a GIF. There is no install and no server. Open the file, click a duck, and the dog will tell you how you did. Close it, come back — your best run lives in the file.\n\nDucks fly left and right. You have three shots a wave. Miss too many and the dog laughs. Hit enough and the next round is faster.\n\nOn a phone it is the same tap. There is no zapper to plug in.\n\nSend the invite and a friend can sit the same pond on their device. There is no lobby. The room is the link.\n\nAn unofficial remake based on DuckHunt JS by MattSurabian, MIT-licensed. Pictures and sounds are from that port. This copy adds the save.",
+  "author": {
+    "name": "MattSurabian",
+    "url": "https://github.com/MattSurabian/DuckHunt-JS"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "arcade",
+    "shooter",
+    "tap",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/duck-hunt",
+  "accent": [
+    100,
+    176,
+    255
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/duck-hunt/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/duck-hunt/duck-hunt.gif",
+  "bytes": 1378514,
+  "download": 0,
+  "provides": null,
+  "sha256": "30011cd13959fe4305550c20263cb520770eb3798acc2dd7e25f319e3dcefc68",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "DuckHunt JS",
+    "url": "https://github.com/MattSurabian/DuckHunt-JS",
+    "blessed": false
+  }
+}
