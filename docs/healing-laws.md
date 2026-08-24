@@ -680,7 +680,8 @@ confirmation rides frames the seating already produces.)*
     instrumented rebuild to see. A seated greeter refused THREE registrations
     running, spanning 60+ ticks, now requeues through the front door — the join
     dance re-teaches the room's real key, or its own re-mint sticks once the
-    squatting claim lapses. Guard: `test/mesh/ghost-genesis-client.js`.- **R4. Seating is a ping.** Pick a RANDOM Section-1 seat off the roster and
+    squatting claim lapses. Guard: `test/mesh/ghost-genesis-client.js`.
+- **R4. Seating is a ping.** Pick a RANDOM Section-1 seat off the roster and
   descend its tree, dense-before-deep, to a definitive vacancy — with the home
   itself filled row-major first (H7): while Section 1 has an admissible cell,
   the FIND converges on that cell's designated admitter; only a full home
