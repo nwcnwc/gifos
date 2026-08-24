@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "solitaire",
+  "name": "Solitaire",
+  "shortName": "Solitaire",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Klondike. Build the four suits. The file is the tableau.",
+  "entry": "index.html",
+  "accent": [26, 122, 58],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}

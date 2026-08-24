@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Solitaire</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Solitaire</div>
+  <button type="button" id="js-reset" class="new-game">New game</button>
+</header>
+<div class="solitaire" id="js-solitaire">
+  <div class="top-row">
+    <div class="deck">
+      <div id="js-deck-pile" class="deck__pile"></div>
+      <div id="js-deck-deal" class="deck__deal"></div>
+    </div>
+    <div id="js-finish" class="finish-deck"></div>
+  </div>
+  <div id="js-board" class="board-deck"></div>
+</div>
+<p class="win" id="win" hidden>You win. New game?</p>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+{
+  "catalog": "1.0",
+  "slug": "solitaire",
+  "appId": "solitaire",
+  "name": "Solitaire",
+  "shortName": "Solitaire",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Klondike on a phone. The file is the tableau.",
+  "description": "Seven columns, four foundations, a three-card waste. Red on black, black on red, kings in empty spaces, aces up the foundations. Tap a face-up card and it jumps to the first legal home. Drag works too, with a mouse or a finger.\n\nClose it and come back — the tableau is where you left it, inside this copy of the app. New game shuffles a fresh deck.\n\nAn unofficial port of js-solitaire by rjanjic. Same Klondike rules; cards drawn in CSS so it fits a phone.",
+  "author": {
+    "name": "rjanjic",
+    "url": "https://github.com/rjanjic/js-solitaire"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "solitaire",
+    "klondike",
+    "cards",
+    "patience",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/solitaire",
+  "accent": [
+    26,
+    122,
+    58
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/solitaire/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/solitaire/solitaire.gif",
+  "bytes": 187793,
+  "download": 0,
+  "provides": null,
+  "sha256": "d6ad0dd83f4da2c46b6e303b2b6abe06166e0d4291702ef18aed3dddcc5b3e52",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "js-solitaire",
+    "url": "https://github.com/rjanjic/js-solitaire",
+    "blessed": false
+  }
+}

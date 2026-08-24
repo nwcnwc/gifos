@@ -1,0 +1,32 @@
+{
+  "tagline": "Klondike on a phone. The file is the tableau.",
+  "description": "Seven columns, four foundations, a three-card waste. Red on black, black on red, kings in empty spaces, aces up the foundations. Tap a face-up card and it jumps to the first legal home. Drag works too, with a mouse or a finger.\n\nClose it and come back — the tableau is where you left it, inside this copy of the app. New game shuffles a fresh deck.\n\nAn unofficial port of js-solitaire by rjanjic. Same Klondike rules; cards drawn in CSS so it fits a phone.",
+  "author": {
+    "name": "rjanjic",
+    "url": "https://github.com/rjanjic/js-solitaire"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "js-solitaire",
+    "url": "https://github.com/rjanjic/js-solitaire",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "solitaire",
+    "klondike",
+    "cards",
+    "patience",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/solitaire",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
