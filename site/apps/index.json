@@ -4201,6 +4201,56 @@
       "sha256": "5bf008094e5d2fa7df28271aec71baa8413b5a26dfc3c9538b96e91209aeb824"
     },
     {
+      "slug": "polygon-shredder",
+      "appId": "polygon-shredder",
+      "name": "Polygon Shredder",
+      "shortName": "Shredder",
+      "version": "1.0.0",
+      "tagline": "A cloud of cubes that shreds into confetti. The knobs live in the file.",
+      "author": {
+        "name": "spite",
+        "url": "https://github.com/spite/polygon-shredder"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "The Polygon Shredder",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "confetti",
+        "cubes",
+        "toy",
+        "particles",
+        "art",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        237,
+        106,
+        90
+      ],
+      "cover": "/apps/polygon-shredder/cover.jpg",
+      "bytes": 405085,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "1f03007421170f040da685d0d4e250b141a9b711f0c9694606762021479d07ea"
+    },
+    {
       "slug": "pong",
       "appId": "pong",
       "name": "Pong",

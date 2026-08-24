@@ -1,0 +1,21 @@
+vendor/three.min.js, OrbitControls.js, Simulation.js and shaders.js are
+copied from spite/polygon-shredder (MIT). Do not edit them to "improve"
+the look; run vendor.mjs when moving the pin.
+
+package: spite/polygon-shredder
+url:     https://github.com/spite/polygon-shredder
+commit:  41162311223fcb6862d33a40dd21e8eeca4c74f5 (master)
+entry:   js/main-boxels.js + js/Simulation.js + shaders in index.html
+         + js/three.min.js (three.js r73-era, as shipped)
+
+COPYING-polygon-shredder.txt  MIT, Copyright (c) 2016 Jaume Sanchez
+COPYING-three.txt             MIT, three.js authors
+
+Curl noise GLSL is from Isaac Cohen / Ashima Arts (MIT), already in the
+simulation fragment shader.
+
+spotlight.jpg is NOT packed. vendor/shredder.js draws a radial gradient
+instead so the sandbox never fetches a texture.
+
+Facebook / Twitter / Google+ widgets, dat.gui, FBOHelper and the Google
+font are dropped. Settings live in the file. Press Invite for a shared shred.

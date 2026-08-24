@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "polygon-shredder",
+  "name": "Polygon Shredder",
+  "shortName": "Shredder",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "A cloud of cubes that shreds into confetti. Drag to orbit.",
+  "entry": "index.html",
+  "accent": [237, 106, 90],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
