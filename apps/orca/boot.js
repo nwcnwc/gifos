@@ -155,6 +155,8 @@
   function dismissLesson() {
     taught = true;
     setHud('');
+    document.body.classList.remove('has-lesson');
+    if (client && client.resize) client.resize();
     save();
   }
 
@@ -163,13 +165,20 @@
       setHud('');
       return;
     }
-    var hear = actx && actx.state === 'running' ? '' : ' Tap <b>Hear</b> if the browser is silent.';
     var msg = first
-      ? 'This grid is already a program. <b>D</b> bangs every 4 frames, <b>*</b> is the bang, <b>:04C</b> is a C.' + hear
-      : 'Tap <b>Hear</b> once — the browser needs a tap before it will play.';
-    setHud(msg + ' <button type="button" id="gotit">Got it</button>');
+      ? 'This grid is already a program. <b>D</b> bangs every 4 frames, <b>*</b> is the bang, <b>:04C</b> is a C.'
+      : 'The browser needs one tap before it will play.';
+    setHud(msg + ' <button type="button" id="hudHear">Hear</button> <button type="button" id="gotit">Got it</button>');
+    document.body.classList.add('has-lesson');
     var b = document.getElementById('gotit');
     if (b) b.addEventListener('click', function (e) { e.preventDefault(); dismissLesson(); });
+    var h = document.getElementById('hudHear');
+    if (h) h.addEventListener('click', function (e) {
+      e.preventDefault();
+      unlockAudio();
+      if (client.clock.isPaused) client.clock.play();
+      client.update();
+    });
   }
 
   function mkBtn(label, title, fn) {
@@ -339,8 +348,10 @@
         loadStarter();
         taught = false;
       }
+      client.toggleGuide(false);
       showLesson(true);
       if (client.clock.isPaused) client.clock.play();
+      if (client.resize) client.resize();
     }
 
     if (db && db.get) {

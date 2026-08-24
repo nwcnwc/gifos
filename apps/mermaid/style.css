@@ -32,6 +32,7 @@ body.friend #shareBtn { display: none; }
 }
 .tabs button.on { background: #ff5b87; color: #fff; border-color: #ff7aa0; }
 .empty { margin: 24px 8px; color: #8ab4d4; font-size: 14px; line-height: 1.45; }
+.error-icon, .error-text { display: none !important; }
 #friend-bar { background: #182030; border: 1px solid #2a3a50; border-radius: 8px; padding: 10px 12px 8px; }
 #friend-bar[hidden] { display: none; }
 #friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
