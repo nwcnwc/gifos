@@ -542,7 +542,9 @@ input[type=range]::-moz-range-thumb {
   -webkit-backdrop-filter: blur(16px);
   z-index: 24;
 }
-.time-row { display: flex; align-items: center; gap: 10px; }
+/* min-width:0 so a long date cannot push the controls past the viewport edge;
+   the children that must never shrink say so themselves. */
+.time-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 
 .date-chip {
   display: flex;
@@ -986,6 +988,15 @@ input[type=range]::-moz-range-thumb {
   #app.panel-open #readout { left: calc(var(--safe-l) + 10px); opacity: 0; }
   .panel { box-shadow: 0 22px 60px rgba(0, 0, 0, 0.7); }
   .search { width: min(320px, 38vw); }
+
+  /* The bottom bar has to hold the same seven controls in 800px instead of
+     1400. Everything gives a little; nothing is dropped. */
+  .time-row { gap: 8px; }
+  .date-chip { padding: 2px 8px 3px; flex: 0 1 auto; overflow: hidden; }
+  .date-chip #dateText { font-size: 18px; }
+  .stepper, .tl-scale, .play, #todayBtn, #animBtn { flex: none; }
+  .tl-scale button { padding: 7px 9px; font-size: 11.5px; }
+  .step { width: 32px; height: 32px; }
 }
 
 /* Phone: the panel becomes a bottom sheet, tools go to the bottom right, and
