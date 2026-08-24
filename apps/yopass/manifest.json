@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "yopass",
+  "name": "Yopass",
+  "shortName": "Yopass",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Lock a secret. Invite is the one-time room. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [46, 125, 210],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

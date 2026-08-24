@@ -1,0 +1,33 @@
+{
+  "tagline": "Lock a secret. Invite is the one-time room. No server.",
+  "description": "Type a password, a note, an API token. It is encrypted in this tab. Press Invite in the bar above the app: whoever opens the link is in the one-time room and can read it. Optionally burn it after the first look, and optionally lock it again with a passphrase they have to type.\n\nThere is no Yopass website in the middle. Nothing is uploaded to Redis, nothing hits their Go server, and there is no account. The ciphertext lives in this file, on this device, and in the room while people are connected.\n\nAn unofficial port of Yopass by Johan Haals. Same job — share a secret without putting it in a chat in the clear. Not their backend, and not their OpenPGP bytes.",
+  "author": {
+    "name": "Johan Haals",
+    "url": "https://github.com/jhaals/yopass"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Yopass",
+    "url": "https://github.com/jhaals/yopass",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "secret",
+    "password",
+    "privacy",
+    "paste",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/yopass",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
