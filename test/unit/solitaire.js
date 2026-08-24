@@ -242,6 +242,8 @@ check('minBuild stays 947', manifest.minBuild === 947);
 check('no CDN / webfont / remote at load',
   !/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, '')) && !/@import|fonts\.google/i.test(css));
 check('classic scripts only', !/type=["']module["']/.test(html));
+check('face-up pips nested in a face-down parent stay visible',
+  /\.card--back\s*>\s*\.pip/.test(css) && !/\.card--back\s+\.pip\s*\{/.test(css));
 check('phone overlap leaves ranks readable',
   /@media \(max-width:420px\)[\s\S]*top:15px/.test(css.replace(/\s+/g, '')) ||
   /max-width:420px[\s\S]{0,200}top:\s*15px/.test(css));

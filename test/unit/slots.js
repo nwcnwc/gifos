@@ -149,6 +149,8 @@ check('old saves without stake still load (stake is optional)',
   /rec\.stake/.test(app) && /clampStake/.test(app));
 check('space/enter pulls', /Spacebar/.test(app) && /pull\(\)/.test(app));
 check('top-up restocks toy credits', html.includes('id="refill"') && /REFILL/.test(app));
+check('top-up [hidden] is not overridden by display:block',
+  /\.refill\[hidden\]\s*\{\s*display:\s*none/.test(css));
 check('no CDN / webfont / remote at load',
   !/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, '')) &&
   !/@import|fonts\.google/i.test(css));
