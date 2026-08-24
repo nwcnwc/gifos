@@ -37,10 +37,10 @@
   "cover": "/apps/crossword/cover.jpg",
   "screenshots": [],
   "gif": "/apps/crossword/crossword.gif",
-  "bytes": 165873,
+  "bytes": 166409,
   "download": 0,
   "provides": null,
-  "sha256": "ff8176a099b3ebdae1a46f64339fe64bfc475231e685e8ffbf61fe40b3dd5eba",
+  "sha256": "4c49965fd53464ad8455d4b6b7e03877f83fe0667cd132ab571b58480b143546",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

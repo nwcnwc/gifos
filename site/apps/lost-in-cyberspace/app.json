@@ -39,10 +39,10 @@
   "cover": "/apps/lost-in-cyberspace/cover.jpg",
   "screenshots": [],
   "gif": "/apps/lost-in-cyberspace/lost-in-cyberspace.gif",
-  "bytes": 209235,
+  "bytes": 209702,
   "download": 0,
   "provides": null,
-  "sha256": "6db65bee750af57765d48bdfdac1b8cf130d1b2ca22a0b6d5415442268f927cc",
+  "sha256": "cb5f87293fc2eac6e34eb4eae882a6cb6edc8ab044c111f35678148d9454e305",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -41,10 +41,10 @@
   "cover": "/apps/backdooms/cover.jpg",
   "screenshots": [],
   "gif": "/apps/backdooms/backdooms.gif",
-  "bytes": 193323,
+  "bytes": 193857,
   "download": 0,
   "provides": null,
-  "sha256": "3e32efc4a38e678731595507da7eddfaeccb08b78d4cc8b41b2583f0769af413",
+  "sha256": "ce7b1a091caafc363871112ea0149705e572e4e946068a6596102a024b02c0aa",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

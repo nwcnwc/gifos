@@ -38,10 +38,10 @@
   "cover": "/apps/blackjack/cover.jpg",
   "screenshots": [],
   "gif": "/apps/blackjack/blackjack.gif",
-  "bytes": 192516,
+  "bytes": 192954,
   "download": 0,
   "provides": null,
-  "sha256": "27b622f3d0eeca6d9e80392c48138dd90640b8883c1e3035cf1d3093eebbf98d",
+  "sha256": "1aaa12666725f0563ae1eca0b2636d6e74b42dee6950b564dc15ca25d1089c6f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

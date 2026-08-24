@@ -38,10 +38,10 @@
   "cover": "/apps/hex-chess/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hex-chess/hex-chess.gif",
-  "bytes": 204189,
+  "bytes": 204447,
   "download": 0,
   "provides": null,
-  "sha256": "67a4d4d526a9e00e4ee61a52e2ec9259a4fb108230b6483b0242083e849f131d",
+  "sha256": "f69dba02875a3b16900179f12965f26b9b509b9b46b7877a698ba6ead39fea19",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

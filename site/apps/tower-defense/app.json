@@ -38,14 +38,14 @@
   "cover": "/apps/tower-defense/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tower-defense/tower-defense.gif",
-  "bytes": 230371,
+  "bytes": 230822,
   "download": 0,
   "provides": null,
-  "sha256": "3fed058ac9a798f50dc9794107ffc0d86df7ddbe3def24998364b895af50ccc8",
+  "sha256": "fba01bb2200801b992b0e48c055355210f2a3aa97e48b8a651757778245e7767",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

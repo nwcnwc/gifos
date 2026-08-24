@@ -39,10 +39,10 @@
   "cover": "/apps/vintage-poker/cover.jpg",
   "screenshots": [],
   "gif": "/apps/vintage-poker/vintage-poker.gif",
-  "bytes": 199266,
+  "bytes": 199820,
   "download": 0,
   "provides": null,
-  "sha256": "c61141aa1d9c0131f4883acd48e316d4b04608d857df624615e76172a149e869",
+  "sha256": "3890dd49b88ee1687cacc002b330a0f743c5a0eb895ae45714cee546fdf49249",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -37,14 +37,14 @@
   "cover": "/apps/battleboat/cover.jpg",
   "screenshots": [],
   "gif": "/apps/battleboat/battleboat.gif",
-  "bytes": 230220,
+  "bytes": 230728,
   "download": 0,
   "provides": null,
-  "sha256": "e664ea615e81c789c8f7310e85772c1f6db1bada6c301c208167517671bbc45b",
+  "sha256": "43476d6a709306670e6f030e72c38c43612ef3304966156b4af973ce6045e7d6",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

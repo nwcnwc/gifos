@@ -39,10 +39,10 @@
   "cover": "/apps/piano-trainer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/piano-trainer/piano-trainer.gif",
-  "bytes": 199050,
+  "bytes": 199558,
   "download": 0,
   "provides": null,
-  "sha256": "688611071317257f14a3a0ef7af5911f14308ddd9691db1decfaf860198b2f3e",
+  "sha256": "12f69aca2b232b8c078fd879dbb8f3190c9b6a6f974f496cd3c5d7082d226b51",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

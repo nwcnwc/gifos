@@ -37,10 +37,10 @@
   "cover": "/apps/memory/cover.jpg",
   "screenshots": [],
   "gif": "/apps/memory/memory.gif",
-  "bytes": 128098,
+  "bytes": 128531,
   "download": 0,
   "provides": null,
-  "sha256": "b0e359d1b05d777374948b3f40c1730c903baf198923ffe1818f78872d38baf0",
+  "sha256": "923b2c464f218ec13ed80e4f41dac1414d30b2b0b464dd914c5bc2009c223dac",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

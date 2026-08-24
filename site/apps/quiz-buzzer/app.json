@@ -39,14 +39,14 @@
   "cover": "/apps/quiz-buzzer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/quiz-buzzer/quiz-buzzer.gif",
-  "bytes": 204054,
+  "bytes": 204539,
   "download": 0,
   "provides": null,
-  "sha256": "52dd903cab69f7d2e7381812b3c604931d34b1e496e12e42519fb74ee2368576",
+  "sha256": "1044afb096ca4b459b6e3555edc992e837bca2d077c8f331bb93b98990e4c0a8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "inspiredBy": {
     "name": "Kahoot!",

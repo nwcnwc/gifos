@@ -39,14 +39,14 @@
   "cover": "/apps/besogo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/besogo/besogo.gif",
-  "bytes": 219982,
+  "bytes": 220478,
   "download": 0,
   "provides": null,
-  "sha256": "9aa2690b19d98a76b7f04181db07e3aa9354bce160845678e13b80f18c1786d7",
+  "sha256": "38de73540e46bcf600047ad2621ef8ac7289047e16be109d05c61f4f74caf2a1",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

@@ -39,14 +39,14 @@
   "cover": "/apps/sokoban/cover.jpg",
   "screenshots": [],
   "gif": "/apps/sokoban/sokoban.gif",
-  "bytes": 200420,
+  "bytes": 200928,
   "download": 0,
   "provides": null,
-  "sha256": "8425de341374e96b03221332b20109f156c42fa24b0044c22755f8d7967fed59",
+  "sha256": "ac91c2ce02799639a73abf3e8b78b97ab15d282686df4b1bf5c4d9d3afac412a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

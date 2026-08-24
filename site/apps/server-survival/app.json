@@ -38,10 +38,10 @@
   "cover": "/apps/server-survival/cover.jpg",
   "screenshots": [],
   "gif": "/apps/server-survival/server-survival.gif",
-  "bytes": 13255731,
+  "bytes": 13173614,
   "download": 0,
   "provides": null,
-  "sha256": "dc542ab5d4ad9722d86204fd3a22fc00de7ee06834d98ea20fe45d3c8b639da6",
+  "sha256": "163a68c1fc1413df9b691470d5a78b9b4da37a52dcc7ee36ae5590fa849030bc",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -38,10 +38,10 @@
   "cover": "/apps/queens/cover.jpg",
   "screenshots": [],
   "gif": "/apps/queens/queens.gif",
-  "bytes": 246249,
+  "bytes": 246185,
   "download": 0,
   "provides": null,
-  "sha256": "9783f054bd8a2734dbb560a3933ba9abf93b96d4d24ba7d66ad54825ab3df119",
+  "sha256": "830c5743b3ccc4e289e17f9eed17ea8885ea9ee1b8a3aacdd550101df62a3578",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

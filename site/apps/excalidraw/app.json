@@ -39,10 +39,10 @@
   "cover": "/apps/excalidraw/cover.jpg",
   "screenshots": [],
   "gif": "/apps/excalidraw/excalidraw.gif",
-  "bytes": 4596637,
+  "bytes": 4596960,
   "download": 0,
   "provides": null,
-  "sha256": "ac89597689cf80806b75d66dbe883b8ca4137f451dd35f49e0153a7dcf22e396",
+  "sha256": "3442d0205da2c2eeaf9414db6a31831a2d01496becaf3c1a6daee0987f58fd8c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

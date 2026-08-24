@@ -43,14 +43,14 @@
   "cover": "/apps/vocal-remover/cover.jpg",
   "screenshots": [],
   "gif": "/apps/vocal-remover/vocal-remover.gif",
-  "bytes": 12582155,
+  "bytes": 12486342,
   "download": 0,
   "provides": null,
-  "sha256": "9b732a3b609d218099fb6a80c4f8d0dafef4bfe608446c9b3189892b29f8a800",
+  "sha256": "5ddc36397b09735ffca95b0b5ff10597602d1de4089e71dbec28279ea79c3c77",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

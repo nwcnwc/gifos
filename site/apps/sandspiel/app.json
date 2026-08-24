@@ -42,10 +42,10 @@
   "cover": "/apps/sandspiel/cover.jpg",
   "screenshots": [],
   "gif": "/apps/sandspiel/sandspiel.gif",
-  "bytes": 283156,
+  "bytes": 283703,
   "download": 0,
   "provides": null,
-  "sha256": "3f153e8a1742035117aed81ee96e5844844b07393ec1f3232a8928d2befa4d61",
+  "sha256": "2d4ad70bb8bafa688db73d6ecd1295702bbb5cf90c06425f1acca46b2177ac0b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

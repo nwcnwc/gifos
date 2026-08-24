@@ -39,10 +39,10 @@
   "cover": "/apps/slots/cover.jpg",
   "screenshots": [],
   "gif": "/apps/slots/slots.gif",
-  "bytes": 194156,
+  "bytes": 194611,
   "download": 0,
   "provides": null,
-  "sha256": "75cfb4ba257620e99ab347822c46e682c8caa644c486111906df7bc54283f0e0",
+  "sha256": "9a0f3a1f64b9eb462f78e1548b8715c64661334ca06b6dacf219b2979b71a978",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

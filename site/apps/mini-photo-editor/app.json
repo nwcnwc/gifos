@@ -40,10 +40,10 @@
   "cover": "/apps/mini-photo-editor/cover.jpg",
   "screenshots": [],
   "gif": "/apps/mini-photo-editor/mini-photo-editor.gif",
-  "bytes": 194441,
+  "bytes": 194883,
   "download": 0,
   "provides": null,
-  "sha256": "16533896ea620d45fd4ec8e7c2830ee9ad523c0f6c35af53a78dfcde5d5869ee",
+  "sha256": "ee84bc30caac4ff8730e0276806512d228bf34220cd36cb6559408767456d707",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
