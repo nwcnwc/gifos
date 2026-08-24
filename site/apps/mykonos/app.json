@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2026 boona13",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/mykonos",
   "accent": [
     27,
@@ -39,10 +40,10 @@
   "cover": "/apps/mykonos/cover.jpg",
   "screenshots": [],
   "gif": "/apps/mykonos/mykonos.gif",
-  "bytes": 198669,
+  "bytes": 198468,
   "download": 0,
   "provides": null,
-  "sha256": "4f204baa5eff6d810dbc3463e409a69658f8a71e32a2355753d384b1e537e81a",
+  "sha256": "fcdea75faea233188263a08bb8febbad30a63046c2d6113e9b4dc9b49e90058a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2025 xdadda",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/mini-photo-editor",
   "accent": [
     196,
@@ -40,10 +41,10 @@
   "cover": "/apps/mini-photo-editor/cover.jpg",
   "screenshots": [],
   "gif": "/apps/mini-photo-editor/mini-photo-editor.gif",
-  "bytes": 194883,
+  "bytes": 194731,
   "download": 0,
   "provides": null,
-  "sha256": "ee84bc30caac4ff8730e0276806512d228bf34220cd36cb6559408767456d707",
+  "sha256": "ea2012045fed2b2424665d643e8ebd1248e62213f3d5061e1e64a11491aa6a1e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

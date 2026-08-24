@@ -29,6 +29,7 @@
     "ai"
   ],
   "license": "MIT (app + engine); weights under the Gemma Terms of Use",
+  "copyright": "Copyright (c) 2024 Xuan Son NGUYEN",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/offline-llm-gemma",
   "accent": [
     122,
@@ -41,14 +42,14 @@
   "cover": "/apps/offline-llm-gemma/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-llm-gemma/offline-llm-gemma.gif",
-  "bytes": 10227807,
+  "bytes": 10331368,
   "download": 806058240,
   "provides": {
     "ai": [
       "cheapest"
     ]
   },
-  "sha256": "c4d724c3781e15e892d0c5b9c5911ab7e816cdf36ba1011f179eeccd294a1a56",
+  "sha256": "16df0ee506c2c16cfdb1cc8a5c3027e99d48977ba90b251cfa16f6efc5188831",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

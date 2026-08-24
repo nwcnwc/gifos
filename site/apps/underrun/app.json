@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2014 Nicolas Vanhoren; Copyright (c) 2011 Marcus Geelnard; Copyright (c) 2008-2009 Jake Taylor; Copyright (c) 2018 Dominic Szablewski",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/underrun",
   "accent": [
     204,
@@ -39,10 +40,10 @@
   "cover": "/apps/underrun/cover.jpg",
   "screenshots": [],
   "gif": "/apps/underrun/underrun.gif",
-  "bytes": 215765,
+  "bytes": 215647,
   "download": 0,
   "provides": null,
-  "sha256": "f8dd4b7c531bfe54d99bb55ffba21b7d828d86a6f5b27dbea6fd16f62be9e641",
+  "sha256": "62285c8f3866253414ffb6422038429c193ece764e53efbe833561eea16b8d67",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

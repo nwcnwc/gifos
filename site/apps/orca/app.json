@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017 Hundredrabbits",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/orca",
   "accent": [
     114,
@@ -40,10 +41,10 @@
   "cover": "/apps/orca/cover.jpg",
   "screenshots": [],
   "gif": "/apps/orca/orca.gif",
-  "bytes": 268761,
+  "bytes": 269378,
   "download": 0,
   "provides": null,
-  "sha256": "88ce534e0076d76a46031689184d248a14c9c0915f562cd9dbaf835485cab6f5",
+  "sha256": "d331d155ad7b48283809ae380027903a5c0e6a262661b0b9d54b0b484564db19",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

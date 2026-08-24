@@ -25,6 +25,7 @@
     "table-tennis"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2011, 2012, 2013, 2014, 2015, 2016 Jake Gordon and contributors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pong",
   "accent": [
     90,
@@ -38,10 +39,10 @@
   "cover": "/apps/pong/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pong/pong.gif",
-  "bytes": 260257,
+  "bytes": 260155,
   "download": 0,
   "provides": null,
-  "sha256": "42a6f732f301c3e5f17f17ce8528bc44b4aa8ae4c5e22424a659a6032926fc80",
+  "sha256": "1d29a6f83cc5b5a430b24dd386ea2cc6c381ea456a6cbc0e0f3f21bdea496ab1",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

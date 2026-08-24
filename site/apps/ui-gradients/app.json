@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017 Indrashish Ghosh",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/ui-gradients",
   "accent": [
     221,
@@ -40,10 +41,10 @@
   "cover": "/apps/ui-gradients/cover.jpg",
   "screenshots": [],
   "gif": "/apps/ui-gradients/ui-gradients.gif",
-  "bytes": 202000,
+  "bytes": 201925,
   "download": 0,
   "provides": null,
-  "sha256": "971cf478a1ca97a1922bc2089e57616b47acb71581d9a10c240b80ffa672703a",
+  "sha256": "8820194effd87e056d57a464574a7ca23fcf3e1cb09df1cf2389f527a163d7fa",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -1,4 +1,4 @@
-# Pac-Man
+# Pellets
 
 You are the yellow one. Eat every pellet in the maze before the ghosts catch you. There are **twelve mazes** and **five lives**.
 

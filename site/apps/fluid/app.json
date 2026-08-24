@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017 Pavel Dobryakov",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fluid",
   "accent": [
     0,
@@ -38,10 +39,10 @@
   "cover": "/apps/fluid/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fluid/fluid.gif",
-  "bytes": 240100,
+  "bytes": 239739,
   "download": 0,
   "provides": null,
-  "sha256": "0f04cd2ba6ab2bed085a86a88b4a07d1eb74f42fea57deb8cc9d270422349380",
+  "sha256": "bfc5c6405a902d007fe1bba9525b1972e94589b30fdd8b80fc84bacc37751c85",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

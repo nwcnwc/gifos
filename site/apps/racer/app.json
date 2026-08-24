@@ -26,6 +26,7 @@
     "touch"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2012, 2013, 2014, 2015, 2016 Jake Gordon and contributors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/racer",
   "accent": [
     255,
@@ -39,10 +40,10 @@
   "cover": "/apps/racer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/racer/racer.gif",
-  "bytes": 514181,
+  "bytes": 516324,
   "download": 0,
   "provides": null,
-  "sha256": "66d762d5421519b68f57e92d479e4adb2418807aa1b7bfc93b174a4cebe076a6",
+  "sha256": "1497dc543a5a9f1f57aa37cc0985fc5418db15c39265ae2f6a145c382e911d49",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -579,7 +579,7 @@
               ? ' <span class="pill">release ' + esc(releaseWith(needsBuild(app))) + ' and up</span>'
               : ' <span class="pill">no release yet — edge build</span>')
           : 'not stated') +
-        fact('License', esc(app.license)) +
+        fact('License', esc(app.license) + (app.copyright ? ' · ' + esc(app.copyright) : '')) +
         fact('Signature', app.signature && app.signature.id
           ? '✓ signed by ' + esc(app.signature.id) : 'not signed') +
         (caps.length ? fact('Abilities', '<span class="caps">' + caps.map((c) => '<span class="pill">' + esc(c) + '</span>').join(' ') + '</span>') : '') +

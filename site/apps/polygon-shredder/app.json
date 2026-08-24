@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2016 Jaume Sanchez; Copyright © 2010-2014 three.js authors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/polygon-shredder",
   "accent": [
     237,
@@ -40,10 +41,10 @@
   "cover": "/apps/polygon-shredder/cover.jpg",
   "screenshots": [],
   "gif": "/apps/polygon-shredder/polygon-shredder.gif",
-  "bytes": 409859,
+  "bytes": 409032,
   "download": 0,
   "provides": null,
-  "sha256": "8651a19dd2d511b19379929e4fe581f838672266fb161d0294b8a50f9b009329",
+  "sha256": "cd1ff745f7723e37834afdd2f31ebab2aff7d8e41ef19fc5bc42c874e688a7eb",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

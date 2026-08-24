@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2013 Yao Yujian",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/gomoku",
   "accent": [
     196,
@@ -38,10 +39,10 @@
   "cover": "/apps/gomoku/cover.jpg",
   "screenshots": [],
   "gif": "/apps/gomoku/gomoku.gif",
-  "bytes": 263574,
+  "bytes": 263366,
   "download": 0,
   "provides": null,
-  "sha256": "a7d969b09147ddc0e75a03ace9e11b5ef30b0742716ec971eedeefab764c58a8",
+  "sha256": "51cd031e6a3b66f5a40daf2a8bd0bd01de4be9bb530d102078f9a9a41a8dae9d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

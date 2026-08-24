@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 - present Simon Reinisch",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pickr",
   "accent": [
     232,
@@ -38,10 +39,10 @@
   "cover": "/apps/pickr/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pickr/pickr.gif",
-  "bytes": 200883,
+  "bytes": 200682,
   "download": 0,
   "provides": null,
-  "sha256": "265aff34897792e620a45908e71523a4ae348846f90bc27bc0f68cb3ab4a6ad8",
+  "sha256": "71f3298d8b8be3948ec23afd8a4c568d82be2de66c094aeba7dd7bb43e429c37",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

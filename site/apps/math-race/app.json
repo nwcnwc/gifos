@@ -26,6 +26,7 @@
     "quiz"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2012 Iván Loire",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/math-race",
   "accent": [
     125,
@@ -39,10 +40,10 @@
   "cover": "/apps/math-race/cover.jpg",
   "screenshots": [],
   "gif": "/apps/math-race/math-race.gif",
-  "bytes": 197985,
+  "bytes": 197840,
   "download": 0,
   "provides": null,
-  "sha256": "d6edec7a587cb71eac3fd4ec8070a7916386d8dabcdbe05a180d056ab38f2048",
+  "sha256": "2d974c838f19d3dda650575fd31452eacd9d72838a008c4601daa8136a79121f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

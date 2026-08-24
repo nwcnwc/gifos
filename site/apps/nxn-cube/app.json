@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2021-present, Pengfei Wang; Copyright © 2010-2021 three.js authors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/nxn-cube",
   "accent": [
     251,
@@ -39,10 +40,10 @@
   "cover": "/apps/nxn-cube/cover.jpg",
   "screenshots": [],
   "gif": "/apps/nxn-cube/nxn-cube.gif",
-  "bytes": 406495,
+  "bytes": 405455,
   "download": 0,
   "provides": null,
-  "sha256": "0fc0a12abfe5faebe3461a9578a7045dfd68edb9df04547c379208080a76b6ce",
+  "sha256": "482ce1c3ecb6a9e1dc08bf39cc460f76d8f297069948b2ce9bd8804d2029ecbf",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

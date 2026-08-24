@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 Victor Ribeiro",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/isocity",
   "accent": [
     176,
@@ -39,10 +40,10 @@
   "cover": "/apps/isocity/cover.jpg",
   "screenshots": [],
   "gif": "/apps/isocity/isocity.gif",
-  "bytes": 649044,
+  "bytes": 651657,
   "download": 0,
   "provides": null,
-  "sha256": "0be543c26b124abd4a54300868cb29265afec84a2f434cb8aba1394316b4ae28",
+  "sha256": "24d92895acc4c0e6d80f14b96583827b15491ddb9c9f1be9fe26176f37b03e0d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

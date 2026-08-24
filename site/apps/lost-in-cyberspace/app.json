@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017 Bartek Szopka & Zofia Korcz",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/lost-in-cyberspace",
   "accent": [
     17,
@@ -39,10 +40,10 @@
   "cover": "/apps/lost-in-cyberspace/cover.jpg",
   "screenshots": [],
   "gif": "/apps/lost-in-cyberspace/lost-in-cyberspace.gif",
-  "bytes": 209702,
+  "bytes": 209548,
   "download": 0,
   "provides": null,
-  "sha256": "cb5f87293fc2eac6e34eb4eae882a6cb6edc8ab044c111f35678148d9454e305",
+  "sha256": "db843eee3f13126ade2d1a669b74e6608973d185c9c90059bdc31f021320889d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -28,6 +28,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2020 Adam Kulidjian",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pixel-paint",
   "accent": [
     60,
@@ -41,10 +42,10 @@
   "cover": "/apps/pixel-paint/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pixel-paint/pixel-paint.gif",
-  "bytes": 213245,
+  "bytes": 213066,
   "download": 0,
   "provides": null,
-  "sha256": "055bcd81e6dc5c3b1aedd0cead40c5ece811336293e6c52d7d29f9de17a225c4",
+  "sha256": "6c7a5f7ec24fdd114f047c8205ca62693472667beac34673621ef5a7c9039729",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

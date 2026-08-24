@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2016-2018 Endel Dreyer",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tic-tac-toe",
   "accent": [
     232,
@@ -38,10 +39,10 @@
   "cover": "/apps/tic-tac-toe/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tic-tac-toe/tic-tac-toe.gif",
-  "bytes": 253847,
+  "bytes": 253657,
   "download": 0,
   "provides": null,
-  "sha256": "91a140e5f13df2be55cb467a50903c0cf474c56541f36257040228dbe0d7c99f",
+  "sha256": "5a65bf53ae1bc9af33b803c7dc73807f4e5c9d9b25c00fff93507c0f8aba82c3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

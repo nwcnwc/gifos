@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 Alhissar",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/yahtzee",
   "accent": [
     26,
@@ -38,10 +39,10 @@
   "cover": "/apps/yahtzee/cover.jpg",
   "screenshots": [],
   "gif": "/apps/yahtzee/yahtzee.gif",
-  "bytes": 338058,
+  "bytes": 339471,
   "download": 0,
   "provides": null,
-  "sha256": "6536206515a54c99dcda1fd872423967809045c82c40e985860ff23fd8b589ea",
+  "sha256": "bdd5c7c38758324bee795d04458e945c61e1584c16f02dbd512b6727d0111af6",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 Victor Ribeiro",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/aim-and-shoot",
   "accent": [
     40,
@@ -37,10 +38,10 @@
   "cover": "/apps/aim-and-shoot/cover.jpg",
   "screenshots": [],
   "gif": "/apps/aim-and-shoot/aim-and-shoot.gif",
-  "bytes": 243411,
+  "bytes": 244299,
   "download": 0,
   "provides": null,
-  "sha256": "3c3a14d117fb4731fc2bdc7dc39ad40192e4af0d03cca9386d0a2e5c4136a5d3",
+  "sha256": "060cfc86900000a4e080b382a095951497e3cc99eef2300072c56266ac3b4290",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -25,6 +25,7 @@
     "multiplayer"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2022 GitHub",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/queens",
   "accent": [
     94,
@@ -38,10 +39,10 @@
   "cover": "/apps/queens/cover.jpg",
   "screenshots": [],
   "gif": "/apps/queens/queens.gif",
-  "bytes": 246185,
+  "bytes": 246560,
   "download": 0,
   "provides": null,
-  "sha256": "830c5743b3ccc4e289e17f9eed17ea8885ea9ee1b8a3aacdd550101df62a3578",
+  "sha256": "ec649760dbcd6d18c591e00c3bd6d8baac565c39da7a6c0354547c7e32101f92",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -27,6 +27,7 @@
     "bitmap"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2022 Isaiah Odhner",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/jspaint",
   "accent": [
     0,
@@ -39,10 +40,10 @@
   "cover": "/apps/jspaint/cover.jpg",
   "screenshots": [],
   "gif": "/apps/jspaint/jspaint.gif",
-  "bytes": 1211434,
+  "bytes": 1212159,
   "download": 0,
   "provides": null,
-  "sha256": "a6ffdbc010a72dfccbeed354fc2d5e97c739545a7239b907ef8c020de1a4917c",
+  "sha256": "3239c6fa482816f597aa86b436e485d44ba277f7e94ccee74cd837e8d03c8b55",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 阿卡琳",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/lrc-maker",
   "accent": [
     57,
@@ -39,10 +40,10 @@
   "cover": "/apps/lrc-maker/cover.jpg",
   "screenshots": [],
   "gif": "/apps/lrc-maker/lrc-maker.gif",
-  "bytes": 192996,
+  "bytes": 192884,
   "download": 0,
   "provides": null,
-  "sha256": "e40a299295d30619a152f597a6ad3ba821d14caba71c1efc9b6c9edf1b717e47",
+  "sha256": "6e89e08ce3654adf8a2d834ba8468accf7243a071bb5ac110f568de419632868",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

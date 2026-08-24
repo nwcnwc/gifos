@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2022 LH_R",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/paint-board",
   "accent": [
     255,
@@ -40,10 +41,10 @@
   "cover": "/apps/paint-board/cover.jpg",
   "screenshots": [],
   "gif": "/apps/paint-board/paint-board.gif",
-  "bytes": 194125,
+  "bytes": 193996,
   "download": 0,
   "provides": null,
-  "sha256": "e28b2c563c93a5071d57b70345a9db205cff8e76027ac1af36109f24b0730c60",
+  "sha256": "26a958b5d4285e83fb9c23ff4906c1c9efef0790fe706f615356b21271abdb3a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

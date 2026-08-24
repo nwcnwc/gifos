@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 Victor Ribeiro",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/invaderz",
   "accent": [
     0,
@@ -38,10 +39,10 @@
   "cover": "/apps/invaderz/cover.jpg",
   "screenshots": [],
   "gif": "/apps/invaderz/invaderz.gif",
-  "bytes": 196412,
+  "bytes": 196266,
   "download": 0,
   "provides": null,
-  "sha256": "922b5b945439e5ed6e35c7ed2ee9c1eb3313a1c11b70277789acf5b19af5ad69",
+  "sha256": "73f3d4b36dc16178ea7f6b50411219c9752e0142935436d0b5d3590c4dfc05b2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

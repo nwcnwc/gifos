@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2014 - 2022 Knut Sveidqvist",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/mermaid",
   "accent": [
     255,
@@ -38,10 +39,10 @@
   "cover": "/apps/mermaid/cover.jpg",
   "screenshots": [],
   "gif": "/apps/mermaid/mermaid.gif",
-  "bytes": 1691615,
+  "bytes": 1686805,
   "download": 0,
   "provides": null,
-  "sha256": "85404ac10fddba6439e221f51f10ce8bfbb239dc823e3f0c01a78335b200f69b",
+  "sha256": "26c21372bc5f1fed44929ba6c7e095e071b4f74a99394b7701591223ccea1d2d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

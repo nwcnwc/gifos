@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 Artur Kot",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/the-house",
   "accent": [
     176,
@@ -37,10 +38,10 @@
   "cover": "/apps/the-house/cover.jpg",
   "screenshots": [],
   "gif": "/apps/the-house/the-house.gif",
-  "bytes": 23241063,
+  "bytes": 23241090,
   "download": 0,
   "provides": null,
-  "sha256": "5863b0dcd4f23cc20a791fcfee4476e6d8d85b0ac080fe738de3fe62de66ce83",
+  "sha256": "51aaa69d98693c6aef9be399cc0daae2a8b53b00917cc14f4c065bd52b3a6210",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2022-2024 Alexander Berson",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/reversi",
   "accent": [
     58,
@@ -38,10 +39,10 @@
   "cover": "/apps/reversi/cover.jpg",
   "screenshots": [],
   "gif": "/apps/reversi/reversi.gif",
-  "bytes": 256741,
+  "bytes": 256595,
   "download": 0,
   "provides": null,
-  "sha256": "05c8c9de9bb5b13a99297d96c9720bda879ec820bcd9b99ade6413cde08af618",
+  "sha256": "4d6386a1d069e2da13d00e80ce465898c1050d662d924eee10dcd1f0122f7043",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

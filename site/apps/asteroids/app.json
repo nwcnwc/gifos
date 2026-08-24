@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2010 Doug McInnes",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/asteroids",
   "accent": [
     196,
@@ -39,10 +40,10 @@
   "cover": "/apps/asteroids/cover.jpg",
   "screenshots": [],
   "gif": "/apps/asteroids/asteroids.gif",
-  "bytes": 263366,
+  "bytes": 263263,
   "download": 0,
   "provides": null,
-  "sha256": "e1eb1042b637048bb7ef8ce3ea20d2d801983129ba323f3e2970a5c2dc223a16",
+  "sha256": "c9ab7b7b024cdd3f2f001ca107e54dd8ccdbc8362550e348df40233b139b1d5b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

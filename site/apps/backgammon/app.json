@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2015 quasoft",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/backgammon",
   "accent": [
     139,
@@ -38,10 +39,10 @@
   "cover": "/apps/backgammon/cover.jpg",
   "screenshots": [],
   "gif": "/apps/backgammon/backgammon.gif",
-  "bytes": 228105,
+  "bytes": 227810,
   "download": 0,
   "provides": null,
-  "sha256": "f4a1fe3571c6826ee216d361666c2a744c99f38e969951b3dba0675a31dd095c",
+  "sha256": "ffea8fc7541c5bce414c67e4992b584517d753acca554cf2ef23f2c6fa5c6afe",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

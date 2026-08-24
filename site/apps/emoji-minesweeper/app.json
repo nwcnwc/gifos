@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 Mu-An Chiou",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/emoji-minesweeper",
   "accent": [
     255,
@@ -39,10 +40,10 @@
   "cover": "/apps/emoji-minesweeper/cover.jpg",
   "screenshots": [],
   "gif": "/apps/emoji-minesweeper/emoji-minesweeper.gif",
-  "bytes": 195628,
+  "bytes": 195470,
   "download": 0,
   "provides": null,
-  "sha256": "b785c51349829364b9161e1f10f875d696fdd9afde54cb3b4689155106679830",
+  "sha256": "4044b52eb01b566bc8e8014be0ea0be21df0b0a2978360f415b57f40202f6841",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

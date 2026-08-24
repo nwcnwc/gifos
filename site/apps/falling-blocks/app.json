@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2012 Dionysis \"dionyziz\" Zindros dionyziz@gmail.com",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/falling-blocks",
   "accent": [
     0,
@@ -39,10 +40,10 @@
   "cover": "/apps/falling-blocks/cover.jpg",
   "screenshots": [],
   "gif": "/apps/falling-blocks/falling-blocks.gif",
-  "bytes": 256095,
+  "bytes": 255956,
   "download": 0,
   "provides": null,
-  "sha256": "6f2644e008f3b7b6da177b408c33e396762b4bd53101c2fd11d971decf0f251f",
+  "sha256": "6ebd31fece10d9a35cc145705f6038ced1c9cae2bf3d4185e4790b4beb0872fe",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

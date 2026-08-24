@@ -26,6 +26,7 @@
     "deathmatch"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2022 Aymeric Chauvin",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tosios",
   "accent": [
     220,
@@ -39,10 +40,10 @@
   "cover": "/apps/tosios/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tosios/tosios.gif",
-  "bytes": 200053,
+  "bytes": 199857,
   "download": 0,
   "provides": null,
-  "sha256": "c3bfa9e7b68324e9b309d5f1b524eedb24ba5d69ff10b6adba21ad551a3613c2",
+  "sha256": "8c1d90150c85a2d55b01d66d79e85c4ac276aebe3faf972be4018346b57ef55b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

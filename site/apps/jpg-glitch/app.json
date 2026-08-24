@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2015 Georg Fischer",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/jpg-glitch",
   "accent": [
     255,
@@ -39,10 +40,10 @@
   "cover": "/apps/jpg-glitch/cover.jpg",
   "screenshots": [],
   "gif": "/apps/jpg-glitch/jpg-glitch.gif",
-  "bytes": 190580,
+  "bytes": 190425,
   "download": 0,
   "provides": null,
-  "sha256": "ee14b2a95aac03304dcbc1451ebc4e53d9ced8a5d1046e959c0efa952786bbdf",
+  "sha256": "35775cd556a498dbeee9b795e2b43774013d74e70da8cc265a0ab78de9695d29",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

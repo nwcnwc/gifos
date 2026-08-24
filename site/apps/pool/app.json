@@ -25,6 +25,7 @@
     "classic"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) [2018] [Chen Shmilovich]",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pool",
   "accent": [
     46,
@@ -38,10 +39,10 @@
   "cover": "/apps/pool/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pool/pool.gif",
-  "bytes": 401188,
+  "bytes": 402391,
   "download": 0,
   "provides": null,
-  "sha256": "0c04fa695b426f9f948b48a77e7e1a21a6e87acea90ec9b1bc92231261360d5f",
+  "sha256": "004a21e140e91a0397b70600713237e95ed1ea8868d566515e1f6588c9dea64d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

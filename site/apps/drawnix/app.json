@@ -28,6 +28,7 @@
     "canvas"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2024 Drawnix; Copyright (c) Meta Platforms, Inc. and affiliates.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/drawnix",
   "accent": [
     70,
@@ -40,10 +41,10 @@
   "cover": "/apps/drawnix/cover.jpg",
   "screenshots": [],
   "gif": "/apps/drawnix/drawnix.gif",
-  "bytes": 2234042,
+  "bytes": 2227373,
   "download": 0,
   "provides": null,
-  "sha256": "81b0569b93074c272c83675d06c9a9c87980f77591114127e980e922c07429e0",
+  "sha256": "7d76d2c953767d5ef684c3bb6d0bd54af34e347862555b83e53a483ba09b6f5c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2023 Don McCurdy; Copyright © 2010-2025 three.js authors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/gltf-viewer",
   "accent": [
     88,
@@ -40,10 +41,10 @@
   "cover": "/apps/gltf-viewer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/gltf-viewer/gltf-viewer.gif",
-  "bytes": 504883,
+  "bytes": 503591,
   "download": 0,
   "provides": null,
-  "sha256": "bc1c92f2815a3d5ff93a2a3b8a65749d7183dde6d6c4f58bffa22feb3f0b070c",
+  "sha256": "394ce8cbd9c4fc001d5a3326c9672ec96ef8f2261aae9a0da41881b940425e29",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

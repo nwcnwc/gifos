@@ -27,6 +27,7 @@
     "contact"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2009 Kazuhiko Arase; Copyright (c) 2012 davidshimjs",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/qr-code",
   "accent": [
     240,
@@ -40,10 +41,10 @@
   "cover": "/apps/qr-code/cover.jpg",
   "screenshots": [],
   "gif": "/apps/qr-code/qr-code.gif",
-  "bytes": 211137,
+  "bytes": 210871,
   "download": 0,
   "provides": null,
-  "sha256": "766fd029cb1e72bc4dcede490738051291ecd9760fe3c84704781dbff43fc539",
+  "sha256": "4ae18a282846a4d7080b67ce1917081a67f01d775f1fc9def686f4a3e5ea36ac",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

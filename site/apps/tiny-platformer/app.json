@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2013, 2014, 2015, 2016 Jake Gordon and contributors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tiny-platformer",
   "accent": [
     236,
@@ -36,10 +37,10 @@
   "cover": "/apps/tiny-platformer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tiny-platformer/tiny-platformer.gif",
-  "bytes": 191661,
+  "bytes": 191531,
   "download": 0,
   "provides": null,
-  "sha256": "316301fc5f121bcbc4171353a28e07dda88c0114d67d5a1cf2b90005058f44ce",
+  "sha256": "c18be694e66f9597aad3bfb22335686bc0c0b3f1709b834ae4baeeb980587816",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

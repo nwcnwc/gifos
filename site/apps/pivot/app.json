@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2015 Matthew Holt; Copyright (c) 2012 Nicolas Kruchten, Datacratic, other contributors; Copyright 2011–2014, Dave Furfero",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pivot",
   "accent": [
     26,
@@ -39,10 +40,10 @@
   "cover": "/apps/pivot/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pivot/pivot.gif",
-  "bytes": 382590,
+  "bytes": 381950,
   "download": 0,
   "provides": null,
-  "sha256": "568ddfd3085efc760aef8984e1d46588537522b2302a96fe209bd64c2019e4ff",
+  "sha256": "e1527e0480af7408f9ae81fdf5d7ea977c117bbbb046aa37c5ccc0f5afb122a7",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

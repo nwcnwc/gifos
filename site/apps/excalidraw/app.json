@@ -27,6 +27,7 @@
     "excalidraw"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2020 Excalidraw; Copyright (c) Facebook, Inc. and its affiliates.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/excalidraw",
   "accent": [
     105,
@@ -39,10 +40,10 @@
   "cover": "/apps/excalidraw/cover.jpg",
   "screenshots": [],
   "gif": "/apps/excalidraw/excalidraw.gif",
-  "bytes": 4596960,
+  "bytes": 4603987,
   "download": 0,
   "provides": null,
-  "sha256": "3442d0205da2c2eeaf9414db6a31831a2d01496becaf3c1a6daee0987f58fd8c",
+  "sha256": "01ba73c406f8f30f57d756a7d029d90ec4f800ddaa36b01f5f80417d1345e297",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

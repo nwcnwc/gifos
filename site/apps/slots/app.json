@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017 Johannes Kronmüller",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/slots",
   "accent": [
     212,
@@ -39,10 +40,10 @@
   "cover": "/apps/slots/cover.jpg",
   "screenshots": [],
   "gif": "/apps/slots/slots.gif",
-  "bytes": 194611,
+  "bytes": 194479,
   "download": 0,
   "provides": null,
-  "sha256": "9a0f3a1f64b9eb462f78e1548b8715c64661334ca06b6dacf219b2979b71a978",
+  "sha256": "a79c0d30bad305421ca1f99602ee42090f7ad1fa26db5455f6da00980c17b6b2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

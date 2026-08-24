@@ -28,6 +28,7 @@
     "ai"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2024 Xuan Son NGUYEN",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/offline-llm-bitnet",
   "accent": [
     92,
@@ -40,14 +41,14 @@
   "cover": "/apps/offline-llm-bitnet/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-llm-bitnet/offline-llm-bitnet.gif",
-  "bytes": 10227495,
+  "bytes": 10331105,
   "download": 1105874048,
   "provides": {
     "ai": [
       "cheapest"
     ]
   },
-  "sha256": "df72fd94b17dd846f92ef4fb5f10337cd95c1930025aa829e2bd11ab212b2b33",
+  "sha256": "90acbf74d1736fddc13d622171fedf909c5b13852d64afff06b1d987555540ab",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

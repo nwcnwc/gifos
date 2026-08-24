@@ -25,6 +25,7 @@
     "multiplayer"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2020 Evan Bailey",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/longwave",
   "accent": [
     118,
@@ -38,10 +39,10 @@
   "cover": "/apps/longwave/cover.jpg",
   "screenshots": [],
   "gif": "/apps/longwave/longwave.gif",
-  "bytes": 203006,
+  "bytes": 202854,
   "download": 0,
   "provides": null,
-  "sha256": "42710870d101a2a4c7f54b689cc583b7544af020dc19936d5cfdc7017eb6862b",
+  "sha256": "b59d34d2438a8b3106abfb1ad0335790eae026eee120c1baf9ca38443a0eff81",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

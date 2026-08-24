@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright 2018 stroibot",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/checkers",
   "accent": [
     166,
@@ -38,10 +39,10 @@
   "cover": "/apps/checkers/cover.jpg",
   "screenshots": [],
   "gif": "/apps/checkers/checkers.gif",
-  "bytes": 198546,
+  "bytes": 198348,
   "download": 0,
   "provides": null,
-  "sha256": "4fb8e8c30154b117fa83f69616bcba55498ee56bdedf0b011f7cdb92ce023eec",
+  "sha256": "7c82ec4620497c8810a6c4a2ad9405824fcfa6e76f02170dd1b8422db819a45b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

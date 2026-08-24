@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2020 Tanner Krewson",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/spyfall",
   "accent": [
     196,
@@ -38,10 +39,10 @@
   "cover": "/apps/spyfall/cover.jpg",
   "screenshots": [],
   "gif": "/apps/spyfall/spyfall.gif",
-  "bytes": 198526,
+  "bytes": 198336,
   "download": 0,
   "provides": null,
-  "sha256": "96bf9cfa7a288b8ec3066afcad4f3a02ceda37e4a20213765d1c9c54ec48b9a7",
+  "sha256": "376cc8f43702707bcaff5e805f300fe6f8b6c018985c822641a751f77c72ee36",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

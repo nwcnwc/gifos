@@ -1,4 +1,4 @@
-# Duck Hunt
+# Pond Hunt
 
 Click the ducks before they fly away. Three shots a wave. Miss too many and the dog laughs.
 

@@ -188,7 +188,7 @@
         if (typeof s === 'string' && s.length <= 16384) {
           const c = JSON.parse(s.replace(/^\uFEFF/, ''));
           if (c && typeof c === 'object' && !Array.isArray(c)) {
-            for (const k of ['tagline', 'author', 'porter', 'basedOn', 'inspiredBy', 'license', 'homepage', 'releaseDate']) {
+            for (const k of ['tagline', 'author', 'porter', 'basedOn', 'inspiredBy', 'license', 'copyright', 'homepage', 'releaseDate']) {
               if (c[k] != null) out[k] = c[k];
             }
             out.sealed = true;
@@ -227,7 +227,9 @@
       out.push('- **Inspired by** ' + person(insp) + (by ? ' by ' + by : ''));
     }
     const lic = mdText(meta.license);
-    if (lic) out.push('- **License** ' + lic);
+    const copy = mdText(meta.copyright);
+    if (lic) out.push('- **License** ' + lic + (copy ? ' — ' + copy : ''));
+    else if (copy) out.push('- **Copyright** ' + copy);
     const home = typeof meta.homepage === 'string' && /^https:\/\/[^\s)]+$/.test(meta.homepage.trim()) ? meta.homepage.trim() : '';
     if (home) out.push('- **Home** [' + home.replace(/^https:\/\//, '') + '](' + home + ')');
     const rel = mdText(meta.releaseDate);

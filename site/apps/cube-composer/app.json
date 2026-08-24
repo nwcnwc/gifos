@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2015-2016 David Peter",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/cube-composer",
   "accent": [
     235,
@@ -39,10 +40,10 @@
   "cover": "/apps/cube-composer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/cube-composer/cube-composer.gif",
-  "bytes": 172156,
+  "bytes": 171976,
   "download": 0,
   "provides": null,
-  "sha256": "749cfb528c5beecb0b71ed9226f1841a61034c41f341c9bc261153423c391a98",
+  "sha256": "e0b96cb85c535804f9d2743914759ef4470a60b9772d86afb90f7097e5a749ab",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

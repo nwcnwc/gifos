@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2020 Avery Crespi",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/thinktank",
   "accent": [
     226,
@@ -38,10 +39,10 @@
   "cover": "/apps/thinktank/cover.jpg",
   "screenshots": [],
   "gif": "/apps/thinktank/thinktank.gif",
-  "bytes": 208721,
+  "bytes": 208523,
   "download": 0,
   "provides": null,
-  "sha256": "4e1639c01ace5c2bc228b9f8620739bf22e466cc180488f9b882aa0130601065",
+  "sha256": "7ab5d57ac07a7d41b98a2ebad4a9e1a4d24f890740e96b0396f425f3deb7b43c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

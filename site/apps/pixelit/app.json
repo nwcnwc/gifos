@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 José Moreira",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pixelit",
   "accent": [
     228,
@@ -39,10 +40,10 @@
   "cover": "/apps/pixelit/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pixelit/pixelit.gif",
-  "bytes": 193900,
+  "bytes": 193713,
   "download": 0,
   "provides": null,
-  "sha256": "2d9c339e814f73c357e3ecb37d879e05cab07d3a313c078f4265207c248f7ce7",
+  "sha256": "deaf097af0ef8c6238edb3e6b6467da74f56f868f9aa0d41fbf6f5ca3adaa62b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -1,4 +1,4 @@
-# Pac-Man
+# Pellets
 
 An unofficial port of **[mumuy/pacman](https://github.com/mumuy/pacman)** by Haole
 Zheng (MIT). Twelve mazes, real-time ghost pathfinding, power pellets. A pad

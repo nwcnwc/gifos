@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2014 Chris Wilson",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/metronome",
   "accent": [
     232,
@@ -39,10 +40,10 @@
   "cover": "/apps/metronome/cover.jpg",
   "screenshots": [],
   "gif": "/apps/metronome/metronome.gif",
-  "bytes": 195475,
+  "bytes": 195339,
   "download": 0,
   "provides": null,
-  "sha256": "9bb7dd0f7532ad7a41d600657dce623d99bbb0e85dd7bf126ebd4948e2a6f6dc",
+  "sha256": "a35eb05a8620d556fa63055d437443081d841304e1a35c30fdbd2f8cb973c514",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

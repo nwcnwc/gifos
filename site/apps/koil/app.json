@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright 2024 Alexey Kutepov <reximkut@gmail.com>",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/koil",
   "accent": [
     140,
@@ -38,10 +39,10 @@
   "cover": "/apps/koil/cover.jpg",
   "screenshots": [],
   "gif": "/apps/koil/koil.gif",
-  "bytes": 274795,
+  "bytes": 275639,
   "download": 0,
   "provides": null,
-  "sha256": "d1141c66d1c5e6fe94aeb626d5cb79d0957016e7808554b8ddf509dc826d96c6",
+  "sha256": "71d4c1d3620efcd8a40025a23c89b88b76a7c3d7e6c5f0d84393af16d75ed0d3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

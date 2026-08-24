@@ -26,6 +26,7 @@
     "bip39"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2014-2016 Ian Coleman; Copyright (c) 2013 Pavol Rusnak",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/bip39",
   "accent": [
     196,
@@ -36,10 +37,10 @@
   "cover": "/apps/bip39/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bip39/bip39.gif",
-  "bytes": 2143912,
+  "bytes": 2141267,
   "download": 0,
   "provides": null,
-  "sha256": "bab51aedf209ac2ffe821084f87825f57093608cfea8d4ace999e978cb5d1a28",
+  "sha256": "ffc0d995609ffc7601489489ff5e7d5ee661531bf7a355edcb60f8183cfc3f13",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

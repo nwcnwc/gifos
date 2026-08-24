@@ -120,7 +120,7 @@ const gif = globalThis.GifOS.gif;
 // swaps only the data block — every pixel of the artwork stays. A GIF whose
 // packed credits already match is left byte-identical (and keeps its sig).
 async function withCredits(slug, bytes) {
-  const want = creditsJson(JSON.parse(fs.readFileSync(path.join(SRC, slug, 'listing.json'), 'utf8')));
+  const want = creditsJson(JSON.parse(fs.readFileSync(path.join(SRC, slug, 'listing.json'), 'utf8')), slug);
   const archive = await gif.decode(bytes);
   if (!archive || !archive.files) throw new Error(slug + ': not a GifOS app GIF');
   const have = archive.files[CREDITS_PATH] ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : '';
@@ -131,7 +131,7 @@ async function withCredits(slug, bytes) {
 }
 async function creditsState(slug, bytes) {
   try {
-    const want = creditsJson(JSON.parse(fs.readFileSync(path.join(SRC, slug, 'listing.json'), 'utf8')));
+    const want = creditsJson(JSON.parse(fs.readFileSync(path.join(SRC, slug, 'listing.json'), 'utf8')), slug);
     const archive = await gif.decode(bytes);
     const have = archive && archive.files && archive.files[CREDITS_PATH] ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : '';
     return have === want ? 'credits:ok' : (have ? 'credits:stale' : 'credits:missing');

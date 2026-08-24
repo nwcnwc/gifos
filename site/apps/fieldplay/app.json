@@ -28,6 +28,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017-2026 Andrei Kashcha; Copyright (c) 2016, Mapbox",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fieldplay",
   "accent": [
     57,
@@ -41,10 +42,10 @@
   "cover": "/apps/fieldplay/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fieldplay/fieldplay.gif",
-  "bytes": 206281,
+  "bytes": 206101,
   "download": 0,
   "provides": null,
-  "sha256": "9e30532ba890a262316a8ab1a3ee32233f5ecd870106a0a279d5929bee87f1e0",
+  "sha256": "9d08e9bd59566a07553c4f0f50f817174b1457880a6333458cb447f964df1155",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -28,6 +28,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017-2025 Yuan Chuan <yuanchuan23@gmail.com>",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/css-doodle",
   "accent": [
     96,
@@ -41,10 +42,10 @@
   "cover": "/apps/css-doodle/cover.jpg",
   "screenshots": [],
   "gif": "/apps/css-doodle/css-doodle.gif",
-  "bytes": 243098,
+  "bytes": 242780,
   "download": 0,
   "provides": null,
-  "sha256": "73e94f848fc483e26440179dd52cdf581ffdd7fd2add8585da2bf3b17da5268e",
+  "sha256": "a3c211dab2180b229cfadf8b68fa408c602b7c32e8ca749efad7b8484364e81d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

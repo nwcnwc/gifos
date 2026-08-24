@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 Chukwuma Ezumezu",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/ludo",
   "accent": [
     42,
@@ -37,10 +38,10 @@
   "cover": "/apps/ludo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/ludo/ludo.gif",
-  "bytes": 192035,
+  "bytes": 191882,
   "download": 0,
   "provides": null,
-  "sha256": "d5b00933919d2e45909f8566ba129039c8deb22b73b80416986640724cc2d0d9",
+  "sha256": "c2d94790f056897fd1bcb8edeb7999aa9c15087a3cc2bc3ee39b001bd3fcb53d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

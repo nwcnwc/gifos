@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 Sepand Haghighi",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/memory",
   "accent": [
     80,
@@ -37,10 +38,10 @@
   "cover": "/apps/memory/cover.jpg",
   "screenshots": [],
   "gif": "/apps/memory/memory.gif",
-  "bytes": 128531,
+  "bytes": 128367,
   "download": 0,
   "provides": null,
-  "sha256": "923b2c464f218ec13ed80e4f41dac1414d30b2b0b464dd914c5bc2009c223dac",
+  "sha256": "43b0ffb384546126d5fc278eee37f0c8212fabbcc244365da66d8cb8e96419d0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

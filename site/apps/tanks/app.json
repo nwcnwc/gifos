@@ -25,6 +25,7 @@
     "arena"
   ],
   "license": "MIT",
+  "copyright": "Copyright © 2012-2016 Sven \"underscorediscovery\" Bergström http://underscorediscovery.ca",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tanks",
   "accent": [
     200,
@@ -38,10 +39,10 @@
   "cover": "/apps/tanks/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tanks/tanks.gif",
-  "bytes": 195485,
+  "bytes": 195352,
   "download": 0,
   "provides": null,
-  "sha256": "ca9bc62c7cc2696109a85d321d1db3c874ad8c0644b3e5ab109fd213ffe10cf2",
+  "sha256": "92d8fc87813d2d2f9960f3810564501ff8e474a191b22bce1b8a8af344e61838",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

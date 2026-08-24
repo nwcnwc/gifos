@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 Matthew Miner",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hexahedral",
   "accent": [
     211,
@@ -37,10 +38,10 @@
   "cover": "/apps/hexahedral/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hexahedral/hexahedral.gif",
-  "bytes": 192482,
+  "bytes": 192330,
   "download": 0,
   "provides": null,
-  "sha256": "9bfe40dfb0f71ec483c21c56a3f14a8bc57a826456ca970e7a85152040be17de",
+  "sha256": "ea42f052ee939ad164b1e098ac6707602b1cdc000e11a6b5a2f3b87a3a8379e2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

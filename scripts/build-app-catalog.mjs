@@ -46,7 +46,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import zlib from 'node:zlib';
 import { Readable, Writable } from 'node:stream';
-import { creditsJson, CREDITS_PATH } from './app-credits.mjs';
+import { creditsJson, creditsOf, CREDITS_PATH } from './app-credits.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'apps');
@@ -338,7 +338,7 @@ async function buildApp(slug) {
     const archive = await gifCodec.decode(new Uint8Array(gifBytes));
     const have = archive && archive.files && archive.files[CREDITS_PATH]
       ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : '';
-    if (have !== creditsJson(l)) {
+    if (have !== creditsJson(l, slug)) {
       fail(slug + ': ' + CREDITS_PATH + ' inside the GIF is ' + (have ? 'stale' : 'missing')
         + ' — credits must be sealed bytes: node scripts/sign-apps.mjs ' + slug);
     }
@@ -521,6 +521,7 @@ async function buildApp(slug) {
     categories: l.categories,
     tags: l.tags || [],
     license: l.license,
+    copyright: creditsOf(l, slug).copyright || '',
     homepage: l.homepage || '',
     accent: m.accent || null,
     capabilities: m.capabilities || {},

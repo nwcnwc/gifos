@@ -29,6 +29,7 @@
     "headers"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2022 Flawid D'Souza",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/restfox",
   "accent": [
     127,
@@ -44,10 +45,10 @@
   "cover": "/apps/restfox/cover.jpg",
   "screenshots": [],
   "gif": "/apps/restfox/restfox.gif",
-  "bytes": 200764,
+  "bytes": 200602,
   "download": 0,
   "provides": null,
-  "sha256": "2792f77b00a6693fc6cec6191b7317fbf20376eaaa2653470f89ff83779c0d28",
+  "sha256": "aa121a7970a812fda08d57273ff9f31fbe84055ea98f185518787549aa047ffa",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2023 Tom Nick",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/super-sudoku",
   "accent": [
     13,
@@ -39,10 +40,10 @@
   "cover": "/apps/super-sudoku/cover.jpg",
   "screenshots": [],
   "gif": "/apps/super-sudoku/super-sudoku.gif",
-  "bytes": 297826,
+  "bytes": 299508,
   "download": 0,
   "provides": null,
-  "sha256": "3f1bc87fdce3421abd693cf14cc7025d626481fdfb24298384c6095ad5949959",
+  "sha256": "abf84d67643c1acbce4cf7e84eea440288fc22f462575d7c82278d36a264d918",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

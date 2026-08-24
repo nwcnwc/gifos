@@ -69,7 +69,7 @@ if (!existsSync(join(dir, 'help.md'))) throw new Error('help.md is missing');
 // Credits under the seal, from the same composer sign-apps.mjs uses, so a
 // fresh build already satisfies the catalog's byte-compare — sign-apps then
 // leaves a matching pack byte-identical and only adds the signature.
-files[CREDITS_PATH] = creditsJson(listing);
+files[CREDITS_PATH] = creditsJson(listing, 'bingo');
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

@@ -29,6 +29,7 @@
     "ai"
   ],
   "license": "Apache-2.0",
+  "copyright": "Copyright (c) Microsoft Corporation",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/offline-tts-kokoro",
   "accent": [
     124,
@@ -42,14 +43,14 @@
   "cover": "/apps/offline-tts-kokoro/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-tts-kokoro/offline-tts-kokoro.gif",
-  "bytes": 18537457,
+  "bytes": 18707460,
   "download": 163234740,
   "provides": {
     "ai": [
       "tts"
     ]
   },
-  "sha256": "8ec559de28ef2db802272a1e3bfa2cef07f479db28b33b8d6b13342bebeced75",
+  "sha256": "a782fb1009875fcfb7ca8bdb10997d93859b75c51255e0a00c01135b4fae2972",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

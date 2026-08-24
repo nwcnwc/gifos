@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2016 Vincent Riemer",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/io-808",
   "accent": [
     255,
@@ -40,10 +41,10 @@
   "cover": "/apps/io-808/cover.jpg",
   "screenshots": [],
   "gif": "/apps/io-808/io-808.gif",
-  "bytes": 203716,
+  "bytes": 203553,
   "download": 0,
   "provides": null,
-  "sha256": "800823f94fc07a63e3412f8d317c9217cfb494f6cacc56bc34dc200418e35798",
+  "sha256": "99012b49b21a6a89e5002084c24ac0207f65b63f891a30ff7b6a1adfa5d958ff",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

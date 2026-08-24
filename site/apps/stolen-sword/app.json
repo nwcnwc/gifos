@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2020 Ian Chiao",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/stolen-sword",
   "accent": [
     104,
@@ -40,10 +41,10 @@
   "cover": "/apps/stolen-sword/cover.jpg",
   "screenshots": [],
   "gif": "/apps/stolen-sword/stolen-sword.gif",
-  "bytes": 196286,
+  "bytes": 196160,
   "download": 0,
   "provides": null,
-  "sha256": "4c99ae250fc52626f75ce17a1388bdee9a982f8e754ee87b854c2d2d3ca58997",
+  "sha256": "17f8343bf7258fa255eae6befaacda0ce0084cf18dde97c87ebee5c180ec7716",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

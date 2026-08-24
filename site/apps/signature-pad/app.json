@@ -26,6 +26,7 @@
     "multiplayer"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 Szymon Nowak",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/signature-pad",
   "accent": [
     36,
@@ -39,10 +40,10 @@
   "cover": "/apps/signature-pad/cover.jpg",
   "screenshots": [],
   "gif": "/apps/signature-pad/signature-pad.gif",
-  "bytes": 201019,
+  "bytes": 200858,
   "download": 0,
   "provides": null,
-  "sha256": "43cccb8427dcbc1bcbd6c249cdddeb3802912d709ca050485ae58ce8431d68ca",
+  "sha256": "560f7924c1ca6f0b11a36f662f1741f267bd5bbdf963fb2604341560e57727cf",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

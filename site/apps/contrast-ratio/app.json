@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2013 Lea Verou",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/contrast-ratio",
   "accent": [
     94,
@@ -38,10 +39,10 @@
   "cover": "/apps/contrast-ratio/cover.jpg",
   "screenshots": [],
   "gif": "/apps/contrast-ratio/contrast-ratio.gif",
-  "bytes": 189733,
+  "bytes": 189586,
   "download": 0,
   "provides": null,
-  "sha256": "44cff4db68b2dbd528bc74164d505e887260d050b4cef34cd7b6322213b5553f",
+  "sha256": "23c547365bd3257f52c5e4510cde8c412eff0f76ca3d69a5591a85ae5b8b7650",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

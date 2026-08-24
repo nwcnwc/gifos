@@ -123,7 +123,7 @@ if (files['help.md'].trim().length < 400) throw new Error('help.md is too short'
  * anywhere else and the two would eventually disagree.
  */
 if (!existsSync(join(dir, 'listing.json'))) throw new Error('listing.json is missing');
-files[CREDITS_PATH] = creditsJson(JSON.parse(read('listing.json')));
+files[CREDITS_PATH] = creditsJson(JSON.parse(read('listing.json')), 'worldview');
 
 // The runtime inlines every <script src> it finds by rewriting the tag, so a
 // script the HTML never references would travel in the GIF and never run.

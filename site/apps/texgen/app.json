@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2015 texgen.js authors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/texgen",
   "accent": [
     80,
@@ -38,10 +39,10 @@
   "cover": "/apps/texgen/cover.jpg",
   "screenshots": [],
   "gif": "/apps/texgen/texgen.gif",
-  "bytes": 197743,
+  "bytes": 197600,
   "download": 0,
   "provides": null,
-  "sha256": "0dcd5dd265b6c94e65c68edf3e6b9a6c44fda2b26e8c57454d8bdc6f9c62a722",
+  "sha256": "032d2b4fa0955b992cf7439c3d23285c744a20d87389d0f5b9dd66dc580229cf",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

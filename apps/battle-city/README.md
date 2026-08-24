@@ -1,4 +1,4 @@
-# Battle City
+# Eagle Defense
 
 A tank game that runs as an ordinary sandboxed GifOS app. Solo, you defend
 the eagle against waves of computer tanks across thirty-five stages. Send

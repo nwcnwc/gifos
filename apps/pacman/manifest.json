@@ -1,9 +1,9 @@
 {
   "gifos": "1.0",
   "appId": "pacman",
-  "name": "Pac-Man",
-  "shortName": "Pac-Man",
-  "version": "1.1.0",
+  "name": "Pellets",
+  "shortName": "Pellets",
+  "version": "1.2.0",
   "minBuild": 947,
   "description": "Eat the pellets, dodge the ghosts. Twelve mazes. A friend on the cabinet shares the score.",
   "entry": "index.html",
