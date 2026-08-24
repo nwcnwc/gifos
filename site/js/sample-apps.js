@@ -2622,514 +2622,906 @@ function syncDebug(){
   render();
 </script>`;
 
+  // Ping Pong gauntlet: 3D table tennis, bar = Table Tennis Touch (Yakuto).
+  // Finger tracks the paddle; hits are automatic (no "tap the ball"). First to 11
+  // win by 2. Host runs physics; guest paddle/serve via gifos.db('pingpong').
+  // Keep game/guest record ids and hostScore/guestScore so old GIFs still load.
   const PINGPONG_HTML = `<!doctype html>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <style>
-  * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
-  html, body { height: 100%; margin: 0; overflow: hidden; background: #1a1512; color: #f0f0f0; font-family: system-ui, sans-serif; touch-action: none; }
-  header { position: fixed; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: rgba(20,20,31,0.92); border-bottom: 1px solid #2a2a3f; z-index: 5; }
-  h1 { font-size: 18px; margin: 0; color: #ff8c3c; }
-  .score { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff; }
-  .sub { font-size: 11px; color: #8888aa; margin-left: 6px; }
-  #wrap { position: fixed; top: 56px; left: 0; right: 0; bottom: 0; }
-  canvas { display: block; width: 100%; height: 100%; }
-  #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(0,0,0,.85); z-index: 10; padding: 24px; text-align: center; }
+  * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: #070b14; color: #f4f4f8; font-family: system-ui, sans-serif; touch-action: none; }
+  #wrap { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #reset {
+    position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); right: 10px;
+    z-index: 6; pointer-events: auto; padding: 7px 11px; border: 0; border-radius: 9px;
+    background: rgba(0,0,0,.45); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.18);
+  }
+  #status {
+    position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); left: 10px; right: 88px;
+    z-index: 6; pointer-events: none; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; color: rgba(255,255,255,.72); text-shadow: 0 1px 6px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #banner {
+    position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%);
+    z-index: 8; pointer-events: none; text-align: center; opacity: 0; transition: opacity .12s;
+    text-shadow: 0 6px 24px #000, 0 1px 0 #000;
+  }
+  #banner.on { opacity: 1; }
+  #banner h2 { margin: 0; font-size: clamp(28px, 8vw, 52px); font-weight: 900; letter-spacing: .02em; }
+  #banner p { margin: 6px 0 0; font-size: 14px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #ffd56a; }
+  #hint {
+    position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%); z-index: 6; pointer-events: none; max-width: 92%;
+    font-size: 13px; font-weight: 650; color: #e8e8f0; background: rgba(0,0,0,.55);
+    padding: 8px 14px; border-radius: 12px; text-align: center; line-height: 1.35;
+  }
+  #hint.hide { display: none; }
+  #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(0,0,0,.82); z-index: 10; padding: 24px; text-align: center; }
   #overlay.on { display: flex; }
-  #overlay h2 { margin: 0 0 10px; color: #ff8c3c; font-size: 24px; }
-  #overlay p { max-width: 300px; margin: 0 0 20px; color: #b8b8d0; font-size: 15px; line-height: 1.5; }
-  #readyBtn { padding: 14px 28px; border: 0; border-radius: 12px; background: #ff8c3c; color: #1a0f00; font-size: 17px; font-weight: 800; cursor: pointer; }
+  #overlay h2 { margin: 0 0 10px; color: #7dffb0; font-size: 26px; }
+  #overlay p { max-width: 300px; margin: 0 0 20px; color: #c8c8dc; font-size: 15px; line-height: 1.5; }
+  #readyBtn { padding: 14px 28px; border: 0; border-radius: 12px; background: #7dffb0; color: #062014; font-size: 17px; font-weight: 800; cursor: pointer; }
   #readyBtn:active { transform: scale(0.97); }
-  #hint { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); font-size: 12px; color: #a0a0b0; background: rgba(0,0,0,.55); padding: 6px 12px; border-radius: 10px; pointer-events: none; z-index: 6; text-align: center; }
-  #reset { margin-left: 12px; padding: 6px 12px; border: 1px solid #2a2a3f; border-radius: 8px; background: #1c1c2b; color: #f0f0f0; font-size: 12px; cursor: pointer; }
 </style>
-<header>
-  <div><h1>Ping Pong</h1><span class="sub" id="sub">…</span></div>
-  <div><span class="score" id="score">0 — 0</span><button id="reset">New game</button></div>
-</header>
 <div id="wrap"><canvas id="game"></canvas></div>
+<div id="status">First to 11</div>
+<button id="reset">New game</button>
+<div id="banner"><h2 id="bt"></h2><p id="bp"></p></div>
+<div id="hint">Drag to move your paddle — it hits for you. Tap to serve.</div>
 <div id="overlay">
   <h2 id="ot">Ready?</h2>
-  <p id="ob">Tap the button when you are back online so you can return the next ball.</p>
+  <p id="ob">Tap the button when you are back so you can return the next ball.</p>
   <button id="readyBtn">I'm ready</button>
 </div>
-<div id="hint">Drag paddle to move · Touch the ball to hit it · Swipe for power/spin</div>
 <script>
-  const db = gifos.db('pingpong');
-  let me = { id: 'local', name: 'You' }, owner = false;
+  var db = (window.gifos && gifos.db) ? gifos.db('pingpong') : { subscribe: function () {}, put: function () {} };
+  var me = { id: 'local', name: 'You' }, owner = !window.gifos;
   if (window.gifos) {
-    gifos.me().then(m => { me.id = m.id; me.name = m.name || 'You'; });
-    gifos.info().then(i => { owner = !!(i && i.owner); boot(); });
-  } else { boot(); }
+    gifos.me().then(function (m) { me.id = m.id; me.name = m.name || 'You'; });
+    gifos.info().then(function (i) { owner = !!(i && i.owner); boot(); });
+  } else boot();
 
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-  const sub = document.getElementById('sub');
-  const scoreEl = document.getElementById('score');
-  const overlay = document.getElementById('overlay');
-  const ot = document.getElementById('ot');
-  const ob = document.getElementById('ob');
-  const readyBtn = document.getElementById('readyBtn');
-  const resetBtn = document.getElementById('reset');
+  var canvas = document.getElementById('game');
+  var ctx = canvas.getContext('2d');
+  var statusEl = document.getElementById('status');
+  var overlay = document.getElementById('overlay');
+  var ot = document.getElementById('ot');
+  var ob = document.getElementById('ob');
+  var readyBtn = document.getElementById('readyBtn');
+  var resetBtn = document.getElementById('reset');
+  var hint = document.getElementById('hint');
+  var banner = document.getElementById('banner');
+  var bt = document.getElementById('bt');
+  var bp = document.getElementById('bp');
 
-  // Coordinates: x across table width (-9..9), y down table length (0..36),
-  // z height above table in small units. The projection maps this to a phone-
-  // friendly trapezoid. These units keep the physics tuned and rallies playable.
-  const TW = 18, TL = 36, NH = 2.6, BR = 0.75, PADW = 4.0, PADH = 1.0;
-  const GRAV = -0.00025;
-  const AIR_DRAG = 0.9998;
-  const DT = 16;
-  const BROADCAST = 3;
-  const GUEST_TIMEOUT = 3500;
-  const STATE_TIMEOUT = 3000;
+  var TW = 18, TL = 36, NH = 2.2, BR = 0.62, PADW = 4.1;
+  var HOST_Y = 2.55, GUEST_Y = TL - 2.55;
+  var G = -0.00005, REST = 0.9, DT = 16, BROADCAST = 3;
+  var GUEST_TIMEOUT = 3500, STATE_TIMEOUT = 3000;
+  var WIN = 11;
 
-  let game = freshGame();
-  let gst = { id: 'guest', x: 0, y: TL - 4, heartbeat: 0, ready: false, swing: null, t: 0 };
-  let pointer = null;
-  let tick = 0, lastGuestBeat = 0, lastStateAt = 0;
-  let bounces = { side: null, count: 0 };
-  let nextSwing = { host: null, guest: null };
-  let cpu = { targetX: 0, targetY: TL - 4, swingQueued: false };
+  var game = freshGame();
+  var gst = { id: 'guest', x: 0, y: GUEST_Y, heartbeat: 0, ready: false, swing: null, t: 0, name: '' };
+  var pointer = null;
+  var tick = 0, lastGuestBeat = 0, lastStateAt = 0, lastNow = 0;
+  var nextSwing = { host: null, guest: null };
+  var cpu = { err: 0, serveAt: 0, vx: 0, reactUntil: 0, lastToward: false };
+  var rules = { needOwn: false, needOpp: false };
+  var pointOver = false;
+  var freezeUntil = 0, matchOver = false, matchWinner = null, pendingServer = null;
+  var myVx = 0, prevMyX = 0, hitFlash = 0, hitsDone = 0;
+  var bannerUntil = 0, overlayMode = '';
+  var sparks = [];
+  var _W = 0, _H = 0, dpr = 1;
+  var hoverOk = false;
+  try { hoverOk = window.matchMedia('(hover:hover) and (pointer:fine)').matches; } catch (e) {}
 
   function freshGame() {
     return {
       id: 'game',
-      bx: 0, by: 4, bz: 5, vx: 0, vy: 0, vz: 0,
+      bx: 0, by: HOST_Y + 0.8, bz: 3, vx: 0, vy: 0, vz: 0,
       sx: 0, sy: 0, sz: 0, sp: 0,
-      hostX: 0, hostY: 3,
-      guestX: 0, guestY: TL - 4,
+      hostX: 0, hostY: HOST_Y,
+      guestX: 0, guestY: GUEST_Y,
       hostScore: 0, guestScore: 0,
       serving: 'host', lastHitter: null,
-      paused: false, pausedBy: null, pausedAt: 0, t: 0
+      paused: false, pausedBy: null, pausedAt: 0, t: 0,
+      rally: 0, why: '', msgWho: null
     };
   }
 
+  function adopt(g) {
+    if (!g || g.id !== 'game') return game;
+    if (typeof g.hostScore !== 'number') g.hostScore = 0;
+    if (typeof g.guestScore !== 'number') g.guestScore = 0;
+    if (g.hostY == null) g.hostY = HOST_Y;
+    if (g.guestY == null) g.guestY = GUEST_Y;
+    if (g.rally == null) g.rally = 0;
+    return g;
+  }
+
   function boot() {
-    sub.textContent = owner ? 'Drag paddle to move · touch the ball to hit (solo vs computer)' : 'Waiting for host to serve';
     if (!owner) resetBtn.style.display = 'none';
     resize();
     window.addEventListener('resize', resize);
     bindInput();
     bindOverlay();
-    db.subscribe(items => {
-      const g = items.find(x => x.id === 'game');
-      if (g) { game = g; lastStateAt = Date.now(); }
+    db.subscribe(function (items) {
+      var g = items.find(function (x) { return x.id === 'game'; });
+      if (g) {
+        var prevH = game.hostScore, prevG = game.guestScore;
+        game = adopt(g);
+        lastStateAt = Date.now();
+        if (!owner && (game.hostScore !== prevH || game.guestScore !== prevG)) {
+          onScoreSeen();
+        }
+      }
       if (owner) {
-        const n = items.find(x => x.id === 'guest');
-        if (n) { gst = n; lastGuestBeat = n.heartbeat || n.t || 0; if (n.ready && game.paused) { game.paused = false; game.pausedBy = null; } }
+        var n = items.find(function (x) { return x.id === 'guest'; });
+        if (n) {
+          gst = n;
+          lastGuestBeat = n.heartbeat || n.t || 0;
+          if (n.ready && game.paused) { game.paused = false; game.pausedBy = null; }
+        }
       }
       updateOverlay();
     });
+    lastNow = Date.now();
     setInterval(owner ? hostTick : guestTick, DT);
     requestAnimationFrame(render);
+    showBanner('PING PONG', 'first to 11 · win by 2', 1600);
   }
 
   function isCpu() { return owner && (!lastGuestBeat || (Date.now() - lastGuestBeat > GUEST_TIMEOUT)); }
 
+  function themName() {
+    if (isCpu()) return 'CPU';
+    return (gst && gst.name) ? gst.name : (owner ? 'Friend' : 'Host');
+  }
+
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function clampX(x) { return clamp(x, -TW / 2 + PADW / 2, TW / 2 - PADW / 2); }
+
+  function serverFor(h, g) {
+    var tot = h + g;
+    if (h >= 10 && g >= 10) return (tot % 2 === 0) ? 'host' : 'guest';
+    return (Math.floor(tot / 2) % 2 === 0) ? 'host' : 'guest';
+  }
+
+  function won(a, b) { return a >= WIN && a - b >= 2; }
+
   function hostTick() {
-    const now = Date.now();
+    var now = Date.now();
+    var dt = clamp(now - lastNow, 8, 48);
+    lastNow = now;
     if (!isCpu() && lastGuestBeat && now - lastGuestBeat > GUEST_TIMEOUT && !game.paused) {
       game.paused = true; game.pausedBy = 'guest'; game.pausedAt = now;
     }
+    if (isCpu() && game.paused) { game.paused = false; game.pausedBy = null; }
     if (gst.swing) { nextSwing.guest = gst.swing; gst.swing = null; }
-    if (isCpu()) {
-      runCpu(now);
-    } else {
-      game.guestX = clampX(gst.x || game.guestX);
-      game.guestY = clamp(gst.y || game.guestY, TL / 2, TL - 1);
-    }
     if (pointer) {
-      game.hostX = clampX(pointer.tableX);
-      // Host can also move a little forward/back with their finger y.
-      const ty = screenToTableY(pointer.y);
-      game.hostY = clamp(ty, 0.5, 8);
+      var nx = clampX(pointer.tableX);
+      myVx = myVx * 0.55 + (nx - game.hostX) / dt * 0.45;
+      game.hostX = nx;
+    } else {
+      myVx *= 0.85;
     }
-    if (!game.paused) step(DT);
+    game.hostY = HOST_Y;
+    if (isCpu()) runCpu(dt, now);
+    else {
+      game.guestX = clampX(gst.x || game.guestX);
+      game.guestY = GUEST_Y;
+    }
+    if (pendingServer && now >= freezeUntil && !matchOver) {
+      resetBall(pendingServer);
+      pendingServer = null;
+    }
+    if (!game.paused && now >= freezeUntil && !matchOver) step(dt);
     game.t = now;
+    game.hostY = HOST_Y;
+    game.guestY = GUEST_Y;
     if (++tick % BROADCAST === 0) db.put(game);
+    updateHud();
   }
 
   function guestTick() {
-    const now = Date.now();
+    var now = Date.now();
+    var dt = clamp(now - lastNow, 8, 48);
+    lastNow = now;
     if (pointer) {
-      gst.x = clampX(pointer.tableX);
-      // Guest local y maps to shared guest y; their bottom of screen = far end.
-      const ty = screenToTableY(pointer.y);
-      gst.y = clamp(TL - ty, TL / 2, TL - 1);
-    }
-    gst.heartbeat = now; gst.t = now;
+      var nx = clampX(pointer.tableX);
+      myVx = myVx * 0.55 + (nx - gst.x) / dt * 0.45;
+      gst.x = nx;
+    } else myVx *= 0.85;
+    gst.y = GUEST_Y;
+    gst.heartbeat = now; gst.t = now; gst.name = me.name;
     if (!game.paused) gst.ready = false;
     if (++tick % BROADCAST === 0) db.put(gst);
+    updateHud();
   }
 
   function step(dt) {
-    if (game.serving) { serve(); return; }
-    game.vz += GRAV * dt;
+    if (game.serving) { holdServe(dt); return; }
+    pointOver = false;
+    var n = clamp(Math.ceil(Math.abs(game.vy) * dt / 0.7), 1, 5);
+    var s = dt / n;
+    for (var i = 0; i < n; i++) { substep(s); if (pointOver) return; }
+  }
+
+  function holdServe() {
+    var who = game.serving;
+    var px = who === 'host' ? game.hostX : game.guestX;
+    var py = who === 'host' ? HOST_Y + 1.55 : GUEST_Y - 1.55;
+    game.bx = px; game.by = py;
+    game.bz = 2.7 + Math.sin(Date.now() / 170) * 0.38;
+    game.vx = 0; game.vy = 0; game.vz = 0;
+    if (who === 'guest' && nextSwing.guest) {
+      var gs = nextSwing.guest; nextSwing.guest = null;
+      doServe('guest', gs.force, gs.smudgeX);
+      return;
+    }
+    if (isCpu() && who === 'guest') {
+      if (!cpu.serveAt) cpu.serveAt = Date.now() + 520 + Math.random() * 380;
+      if (Date.now() >= cpu.serveAt) {
+        cpu.serveAt = 0;
+        doServe('guest', 0.42 + Math.random() * 0.22, (Math.random() - 0.5) * 22);
+      }
+    }
+  }
+
+  function substep(dt) {
+    var prevY = game.by, prevZ = game.bz, prevX = game.bx;
+    game.vz += G * dt;
+    game.vx *= 0.99992; game.vy *= 0.99992;
     game.bx += game.vx * dt;
     game.by += game.vy * dt;
     game.bz += game.vz * dt;
-    game.sp += Math.sqrt(game.sx * game.sx + game.sy * game.sy + game.sz * game.sz) * dt;
-    game.sx *= 0.9998; game.sy *= 0.9998; game.sz *= 0.9998;
+    game.sp += Math.sqrt(game.sx * game.sx + game.sy * game.sy + game.sz * game.sz) * dt * 0.9;
+    game.sx *= 0.9996; game.sy *= 0.9996; game.sz *= 0.9996;
 
-    if (game.bz < -3) { miss(); return; }
-    if (game.bz <= BR && game.by > 0 && game.by < TL) bounce();
-    if (Math.abs(game.by - TL / 2) < 0.7 && game.bz < NH && game.vz < 0) { miss(); return; }
-    if (game.by > TL) { score('host'); return; }
-    if (game.by < 0) { score('guest'); return; }
-    hit('host');
-    hit('guest');
-  }
+    var crossed = (prevY - TL / 2) * (game.by - TL / 2) <= 0 && prevY !== game.by;
+    if (crossed) {
+      var t = (TL / 2 - prevY) / (game.by - prevY);
+      var zAt = prevZ + (game.bz - prevZ) * t;
+      var xAt = prevX + (game.bx - prevX) * t;
+      if (Math.abs(xAt) <= TW / 2 + 0.4 && zAt < NH + BR) {
+        if (rules.needOwn) { endPoint(game.lastHitter === 'host' ? 'guest' : 'host', 'net'); return; }
+        endPoint(game.lastHitter === 'host' ? 'guest' : 'host', 'net');
+        return;
+      }
+    }
 
-  function serve() {
-    const s = game.serving;
-    game.vx = 0; game.vz = 0.12;
-    game.vy = s === 'host' ? 0.020 : -0.020;
-    game.sx = 0; game.sy = 0; game.sz = 0; game.sp = 0;
-    game.lastHitter = s;
-    game.serving = null;
-    bounces = { side: null, count: 0 };
+    if (game.bz <= BR) {
+      var on = game.by > 0.05 && game.by < TL - 0.05 && Math.abs(game.bx) <= TW / 2;
+      if (on) { bounce(); if (game.serving) return; }
+      else if (game.bz < -0.2) { missOff(); return; }
+    }
+
+    if (game.by > TL + 0.6) { passEnd('guest'); return; }
+    if (game.by < -0.6) { passEnd('host'); return; }
+
+    tryHit('host');
+    tryHit('guest');
   }
 
   function bounce() {
     game.bz = BR;
-    game.vz = -game.vz * 0.82;
-    game.vx += game.sz * 0.0025;
-    game.vy += game.sy * 0.0012;
-    const side = game.by < TL / 2 ? 'host' : 'guest';
-    if (bounces.side === side) bounces.count++;
-    else { bounces.side = side; bounces.count = 1; }
-    if (bounces.count >= 2) miss();
+    game.vz = -game.vz * REST;
+    game.vx += game.sz * 0.1;
+    game.vy += game.sy * 0.04;
+    playSound('table');
+    var side = game.by < TL / 2 ? 'host' : 'guest';
+    if (rules.needOwn) {
+      if (side !== game.lastHitter) { endPoint(side, 'fault'); return; }
+      rules.needOwn = false;
+      var dir = game.lastHitter === 'host' ? 1 : -1;
+      if (game.vz < 0.026) game.vz = 0.027 + Math.random() * 0.004;
+      game.vy = dir * Math.max(Math.abs(game.vy), 0.026);
+      return;
+    }
+    if (side === game.lastHitter) { endPoint(side === 'host' ? 'guest' : 'host', 'drop'); return; }
+    if (!rules.needOpp) { endPoint(side === 'host' ? 'guest' : 'host', 'double'); return; }
+    rules.needOpp = false;
   }
 
-  function miss() { score(game.lastHitter === 'host' ? 'guest' : 'host'); }
+  function passEnd(end) {
+    if (rules.needOwn || rules.needOpp) endPoint(game.lastHitter === 'host' ? 'guest' : 'host', 'out');
+    else endPoint(end === 'host' ? 'guest' : 'host', 'miss');
+  }
 
-  function score(to) {
+  function missOff() {
+    if (rules.needOwn || rules.needOpp) endPoint(game.lastHitter === 'host' ? 'guest' : 'host', 'out');
+    else endPoint(game.by < TL / 2 ? 'guest' : 'host', 'miss');
+  }
+
+  function tryHit(who) {
+    if (game.serving) return;
+    var isHost = who === 'host';
+    var py = isHost ? game.hostY : game.guestY;
+    var px = isHost ? game.hostX : game.guestX;
+    var toward = (isHost && game.vy < 0) || (!isHost && game.vy > 0);
+    if (!toward) return;
+    if (game.lastHitter === who) return;
+    if (isHost) { if (game.by > 8.8 || game.by < -1.3) return; }
+    else { if (game.by < TL - 8.8 || game.by > TL + 1.3) return; }
+    var dx = game.bx - px;
+    var reach = PADW / 2 + BR + 0.35;
+    if (Math.abs(dx) > reach) return;
+    if (game.bz > 8.2 || game.bz < -0.2) return;
+    if (who === 'guest' && isCpu() && Math.abs(dx) > 0.85 && Math.random() < 0.62) return;
+
+    var swing = consumeSwing(who);
+    var padV = isHost ? myVx : (isCpu() ? cpu.vx : (gst.svx || 0));
+    var force = swing ? clamp(swing.force, 0.2, 1) : 0.52;
+    if (swing && Math.abs(swing.smudgeY) > 18) force = clamp(force + 0.18, 0, 1);
+    var speed = 0.026 + force * 0.022 + Math.min(0.012, Math.abs(game.vy) * 0.25);
+    var aim = clampX(-dx * 3.8 + padV * 90 + (swing ? swing.smudgeX * 0.03 : 0));
+    if (who === 'guest' && isCpu() && Math.random() < 0.3) {
+      aim = clampX((Math.random() < 0.5 ? -1 : 1) * (4.6 + Math.random() * 2.4));
+    } else if (Math.abs(aim) < 0.4) aim += (Math.random() - 0.5) * 2.2;
+    var landY = isHost ? (TL - 3.6 + Math.random() * 1.6) : (3.6 - Math.random() * 1.6);
+    launchShot(game.bx, game.by, Math.max(game.bz, 1.2), aim, landY, speed);
+    var smx = swing ? swing.smudgeX : padV * 40;
+    game.sz += smx * 0.0005;
+    game.sy += (isHost ? 1 : -1) * (0.002 + force * 0.003);
+    game.sx += (swing ? -swing.smudgeY : 0) * 0.0003;
+    game.lastHitter = who;
+    game.rally = (game.rally || 0) + 1;
+    rules.needOwn = false;
+    rules.needOpp = true;
+    hitFlash = 1;
+    hitsDone++;
+    if (hitsDone >= 1) hint.classList.add('hide');
+    addSpark(game.bx, game.by, game.bz);
+    playSound(force > 0.78 ? 'smash' : 'paddle');
+  }
+
+  function consumeSwing(who) {
+    var s = nextSwing[who];
+    if (!s) return null;
+    nextSwing[who] = null;
+    if (performance.now() - s.t > 300) return null;
+    return s;
+  }
+
+  function launchShot(fromX, fromY, fromZ, toX, toY, speed) {
+    speed = clamp(speed, 0.022, 0.056);
+    var dy = toY - fromY;
+    var T = Math.abs(dy) / speed;
+    T = clamp(T, 320, 980);
+    var vy = dy / T;
+    var vx = (toX - fromX) / T;
+    var vz = (BR + 0.15 - fromZ - 0.5 * G * T * T) / T;
+    var tNet = (TL / 2 - fromY) / vy;
+    if (tNet > 40 && tNet < T) {
+      var zNet = fromZ + vz * tNet + 0.5 * G * tNet * tNet;
+      if (zNet < NH + BR + 0.45) {
+        T = clamp(T * 1.2, 360, 1100);
+        vy = dy / T; vx = (toX - fromX) / T;
+        vz = (BR + 0.2 - fromZ - 0.5 * G * T * T) / T;
+      }
+    }
+    game.vx = vx; game.vy = vy; game.vz = vz;
+  }
+
+  function doServe(who, force, smx) {
+    if (!game.serving || game.serving !== who) return;
+    force = clamp(force == null ? 0.5 : force, 0.2, 1);
+    var dir = who === 'host' ? 1 : -1;
+    var px = who === 'host' ? game.hostX : game.guestX;
+    game.bx = px;
+    game.by = who === 'host' ? HOST_Y + 0.9 : GUEST_Y - 0.9;
+    game.bz = 3.05;
+    game.vx = clamp((smx || 0) * 0.00022, -0.007, 0.007);
+    game.vy = dir * (0.022 + force * 0.006);
+    game.vz = 0.0015;
+    game.sx = 0; game.sy = dir * 0.002; game.sz = (smx || 0) * 0.00025; game.sp = 0;
+    game.serving = null;
+    game.lastHitter = who;
+    game.rally = 1;
+    game.why = '';
+    rules.needOwn = true;
+    rules.needOpp = true;
+    playSound('paddle');
+    hint.classList.add('hide');
+  }
+
+  function endPoint(to, why) {
+    if (pointOver) return;
+    pointOver = true;
     if (to === 'host') game.hostScore++; else game.guestScore++;
-    game.serving = to;
-    resetBall(to);
-    bounces = { side: null, count: 0 };
-    nextSwing = { host: null, guest: null };
-    cpu.swingQueued = false;
+    game.why = why || '';
+    game.msgWho = to;
+    game.rally = game.rally || 0;
+    game.vx = 0; game.vy = 0; game.vz = 0;
     playSound('score');
+    var my = owner ? to === 'host' : to === 'guest';
+    var label = why === 'net' ? 'NET' : why === 'out' ? 'OUT' : why === 'double' ? 'DOUBLE BOUNCE' : why === 'fault' ? 'FAULT' : why === 'drop' ? 'DROP' : why === 'miss' ? 'MISS' : 'POINT';
+    var big = my ? 'YOUR POINT' : (isCpu() ? 'CPU POINT' : 'THEIR POINT');
+    if (game.rally >= 5) label = game.rally + ' SHOT RALLY · ' + label;
+    showBanner(big, label, 900);
+    freezeUntil = Date.now() + 900;
+    if (won(game.hostScore, game.guestScore) || won(game.guestScore, game.hostScore)) {
+      matchOver = true;
+      matchWinner = won(game.hostScore, game.guestScore) ? 'host' : 'guest';
+      pendingServer = null;
+      freezeUntil = Date.now() + 999999;
+      var iWin = owner ? matchWinner === 'host' : matchWinner === 'guest';
+      showBanner(iWin ? 'YOU WIN' : (isCpu() ? 'CPU WINS' : 'THEY WIN'), game.hostScore + '  —  ' + game.guestScore, 4000);
+      updateOverlay();
+    } else {
+      pendingServer = serverFor(game.hostScore, game.guestScore);
+      game.serving = pendingServer;
+    }
+    rules.needOwn = false; rules.needOpp = false;
+    nextSwing = { host: null, guest: null };
+    cpu.serveAt = 0;
   }
 
   function resetBall(server) {
     game.bx = 0;
-    game.by = server === 'host' ? 4 : TL - 4;
-    game.bz = 5;
+    game.by = server === 'host' ? HOST_Y + 0.8 : GUEST_Y - 0.8;
+    game.bz = 2.8;
     game.vx = 0; game.vy = 0; game.vz = 0;
     game.sx = 0; game.sy = 0; game.sz = 0; game.sp = 0;
     game.lastHitter = null;
-    cpu.targetY = TL - 4;
+    game.serving = server;
   }
 
-  function hit(who) {
-    const isHost = who === 'host';
-    const py = isHost ? game.hostY : game.guestY;
-    const movingToward = (isHost && game.vy < 0) || (!isHost && game.vy > 0);
-    if (!movingToward) return;
-    const dy = Math.abs(game.by - py);
-    if (dy > 3.5) return;
-    const px = isHost ? game.hostX : game.guestX;
-    const dx = Math.abs(game.bx - px);
-    if (dx > PADW / 2 + BR || game.bz > BR + 22) return;
-    const s = nextSwing[who];
-    if (s) nextSwing[who] = null;
-    const force = s ? s.force : 0.5;
-    const smx = s ? s.smudgeX : 0;
-    const smy = s ? s.smudgeY : 0;
-    const base = 0.018 + force * 0.022;
-    game.vy = (isHost ? 1 : -1) * base;
-    game.vx += (game.bx - px) * 0.0012 + smx * 0.00025;
-    game.vz = 0.10 + Math.max(0, -smy) * 0.0002;
-    game.sx += smy * 0.0004;
-    game.sy += smx * 0.00025;
-    game.sz += smx * 0.0004;
-    game.lastHitter = who;
-    bounces = { side: null, count: 0 };
-    playSound('paddle');
+  function onScoreSeen() {
+    var to = game.msgWho;
+    if (!to) return;
+    var my = to === 'guest';
+    showBanner(my ? 'YOUR POINT' : 'THEIR POINT', (game.why || 'POINT').toUpperCase(), 900);
+    if (won(game.hostScore, game.guestScore) || won(game.guestScore, game.hostScore)) {
+      matchOver = true;
+      matchWinner = won(game.hostScore, game.guestScore) ? 'host' : 'guest';
+      var iWin = matchWinner === 'guest';
+      showBanner(iWin ? 'YOU WIN' : 'THEY WIN', game.hostScore + '  —  ' + game.guestScore, 4000);
+      updateOverlay();
+    }
   }
 
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-  function clampX(x) { return Math.max(-TW / 2 + PADW / 2, Math.min(TW / 2 - PADW / 2, x)); }
+  function runCpu(dt, now) {
+    var toward = !game.serving && game.vy > 0;
+    if (toward && !cpu.lastToward) cpu.reactUntil = now + 90 + Math.random() * 90;
+    cpu.lastToward = toward;
+    game.guestY = GUEST_Y;
+    if (toward && now < cpu.reactUntil) { cpu.vx *= 0.8; return; }
+    var target = game.guestX;
+    var maxV;
+    if (toward) {
+      target = predictX(GUEST_Y);
+      cpu.err += (Math.random() - 0.5) * 0.06;
+      cpu.err *= 0.93;
+      target = clampX(target + cpu.err * 1.3);
+      maxV = Math.abs(game.vy) > 0.042 ? 0.008 : 0.01;
+    } else {
+      target = 0;
+      cpu.err *= 0.88;
+      maxV = 0.01;
+    }
+    var dx = target - game.guestX;
+    var stepX = clamp(dx, -maxV * dt, maxV * dt);
+    cpu.vx = stepX / dt;
+    game.guestX = clampX(game.guestX + stepX);
+  }
 
-  function bindInput() {
-    canvas.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      const r = canvas.getBoundingClientRect();
-      const px = e.clientX - r.left;
-      pointer = {
-        id: e.pointerId, down: true,
-        x: px, y: e.clientY - r.top,
-        startX: px, startY: e.clientY - r.top,
-        t: performance.now(), pressure: e.pressure || 0,
-        tableX: screenToTableX(px)
-      };
-      // A quick tap while the ball is near the local paddle triggers an aggressive swing.
-      const localWho = owner ? 'host' : 'guest';
-      const localX = owner ? game.hostX : game.guestX;
-      const localY = owner ? game.hostY : game.guestY;
-      const byLocal = owner ? game.by : TL - game.by;
-      if (game.serving) {
-        // Tap during the toss adds a little extra pace to the auto-serve.
-        nextSwing[localWho] = { force: 0.9, smudgeX: 0, smudgeY: -5, tableX: localX, t: performance.now() };
-      } else if (Math.abs(game.bx - localX) < PADW + BR &&
-                 Math.abs(byLocal - localY) < 4 && game.bz < 16) {
-        const aimX = clampX(game.bx + (Math.random() - 0.5) * 4);
-        const smx = (aimX - localX) * 2;
-        nextSwing[localWho] = { force: 0.8, smudgeX: smx, smudgeY: -4, tableX: localX, t: performance.now() };
-      }
-    });
-    window.addEventListener('pointermove', e => {
-      if (!pointer || pointer.id !== e.pointerId) return;
-      const r = canvas.getBoundingClientRect();
-      pointer.x = e.clientX - r.left; pointer.y = e.clientY - r.top;
-      pointer.pressure = Math.max(pointer.pressure, e.pressure || 0);
-      pointer.tableX = screenToTableX(pointer.x);
-    });
-    window.addEventListener('pointerup', e => {
-      if (!pointer || pointer.id !== e.pointerId) return;
-      const dt = performance.now() - pointer.t;
-      const force = estimateForce(pointer.pressure, dt);
-      const sx = pointer.x - pointer.startX;
-      const sy = pointer.y - pointer.startY;
-      recordSwing(force, sx, sy, pointer.tableX);
-      pointer = null;
-    });
-    window.addEventListener('pointercancel', () => { pointer = null; });
+  function predictX(atY) {
+    var x = game.bx, y = game.by, z = game.bz, vx = game.vx, vy = game.vy, vz = game.vz;
+    for (var i = 0; i < 220; i++) {
+      vz += G * DT; x += vx * DT; y += vy * DT; z += vz * DT;
+      if (z <= BR && y > 0 && y < TL && Math.abs(x) <= TW / 2) { z = BR; vz = -vz * REST; }
+      if (vy > 0 && y >= atY) return x;
+      if (vy < 0 && y <= atY) return x;
+      if (y < -3 || y > TL + 3) return x;
+    }
+    return x;
   }
 
   function screenToTableX(px) {
-    const W = canvas.clientWidth, cx = W / 2, nearW = W * 0.88;
-    const dir = owner ? 1 : -1;
-    return dir * (px - cx) / (nearW / TW);
+    var nearW = _W * 0.96;
+    var dir = owner ? 1 : -1;
+    return dir * (px - _W / 2) / (nearW / TW);
   }
 
-  function screenToTableY(py) {
-    const H = canvas.clientHeight;
-    // Map screen y to table y: bottom of screen = 0, top of screen = TL.
-    return (1 - (py / H)) * TL * 1.15;
+  function bindInput() {
+    canvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      var r = canvas.getBoundingClientRect();
+      var px = e.clientX - r.left;
+      pointer = {
+        id: e.pointerId, x: px, y: e.clientY - r.top,
+        startX: px, startY: e.clientY - r.top, t: performance.now(),
+        pressure: e.pressure || 0, tableX: screenToTableX(px)
+      };
+      applyPointer();
+    });
+    window.addEventListener('pointermove', function (e) {
+      var r = canvas.getBoundingClientRect();
+      var px = e.clientX - r.left;
+      if (pointer && pointer.id === e.pointerId) {
+        pointer.x = px; pointer.y = e.clientY - r.top;
+        pointer.pressure = Math.max(pointer.pressure, e.pressure || 0);
+        pointer.tableX = screenToTableX(px);
+        applyPointer();
+      } else if (hoverOk && !pointer) {
+        var dummy = { tableX: screenToTableX(px) };
+        if (owner) game.hostX = clampX(dummy.tableX);
+        else gst.x = clampX(dummy.tableX);
+      }
+    });
+    window.addEventListener('pointerup', function (e) {
+      if (!pointer || pointer.id !== e.pointerId) return;
+      var dt = performance.now() - pointer.t;
+      var sx = pointer.x - pointer.startX;
+      var sy = pointer.y - pointer.startY;
+      var force = estimateForce(pointer.pressure, dt, sx, sy);
+      var localWho = owner ? 'host' : 'guest';
+      if (game.serving === localWho && !matchOver) {
+        if (owner) doServe(localWho, force, sx);
+        else {
+          gst.swing = { force: force, smudgeX: sx, smudgeY: sy, tableX: pointer.tableX, t: performance.now() };
+          db.put(gst);
+        }
+      } else {
+        recordSwing(force, sx, sy, pointer.tableX);
+        if (!owner) db.put(gst);
+      }
+      pointer = null;
+    });
+    window.addEventListener('pointercancel', function () { pointer = null; });
   }
 
-  function estimateForce(pressure, dt) {
-    if (pressure > 0) return Math.min(1, pressure * 1.3);
-    return Math.min(1, Math.max(0.25, 1.1 - dt / 350));
+  function applyPointer() {
+    if (!pointer) return;
+    if (owner) game.hostX = clampX(pointer.tableX);
+    else gst.x = clampX(pointer.tableX);
+  }
+
+  function estimateForce(pressure, dt, sx, sy) {
+    var dist = Math.sqrt(sx * sx + sy * sy);
+    var fromSwipe = clamp(dist / 140, 0, 1);
+    var fromTap = clamp(1.05 - dt / 380, 0.25, 1);
+    var p = pressure > 0.05 ? clamp(pressure * 1.2, 0, 1) : 0;
+    return clamp(Math.max(fromSwipe, fromTap * 0.7, p), 0.28, 1);
   }
 
   function recordSwing(force, smudgeX, smudgeY, tableX) {
-    const s = { force, smudgeX, smudgeY, tableX, t: performance.now() };
+    var s = { force: force, smudgeX: smudgeX, smudgeY: smudgeY, tableX: tableX, t: performance.now() };
     if (owner) nextSwing.host = s; else gst.swing = s;
   }
 
   function bindOverlay() {
-    readyBtn.addEventListener('click', () => {
+    readyBtn.addEventListener('click', function () {
+      if (overlayMode === 'match' && owner) { newMatch(); return; }
       if (!owner) { gst.ready = true; db.put(gst); }
       else { game.paused = false; game.pausedBy = null; db.put(game); }
       overlay.classList.remove('on');
     });
-    resetBtn.addEventListener('click', () => {
-      if (!owner) return;
-      game = freshGame();
-      db.put(game);
-    });
+    resetBtn.addEventListener('click', function () { if (owner) newMatch(); });
+  }
+
+  function newMatch() {
+    game = freshGame();
+    matchOver = false; matchWinner = null; freezeUntil = 0; pendingServer = null;
+    rules = { needOwn: false, needOpp: false };
+    cpu.serveAt = 0; hitsDone = 0;
+    hint.classList.remove('hide');
+    overlay.classList.remove('on'); overlayMode = '';
+    showBanner('PING PONG', 'first to 11', 1200);
+    db.put(game);
   }
 
   function updateOverlay() {
-    const now = Date.now();
-    let show = false, title = '', body = '';
-    if (!owner && now - lastStateAt > STATE_TIMEOUT) {
-      show = true; title = 'Connection paused'; body = 'Tap Ready when you are back online so you can return the next ball.';
+    var now = Date.now();
+    var show = false, title = '', body = '', btn = "I'm ready";
+    overlayMode = '';
+    if (matchOver) {
+      show = true; overlayMode = 'match';
+      var iWin = owner ? matchWinner === 'host' : matchWinner === 'guest';
+      title = iWin ? 'You win!' : (isCpu() ? 'CPU wins' : 'They win');
+      body = game.hostScore + '  —  ' + game.guestScore + '. First to 11, win by 2.';
+      btn = owner ? 'Play again' : 'Waiting for host';
+      readyBtn.style.display = owner ? '' : 'none';
+    } else if (!owner && now - lastStateAt > STATE_TIMEOUT && lastStateAt) {
+      show = true; title = 'Connection paused'; body = 'Tap Ready when you are back so you can return the next ball.';
+      readyBtn.style.display = '';
     } else if (owner && game.paused && !isCpu()) {
       show = true; title = 'Opponent away'; body = 'Waiting for them to come back online and tap Ready.';
+      readyBtn.style.display = 'none';
     }
     overlay.classList.toggle('on', show);
-    if (show) { ot.textContent = title; ob.textContent = body; }
+    if (show) { ot.textContent = title; ob.textContent = body; readyBtn.textContent = btn; }
   }
 
-  function runCpu(now) {
-    // CPU paddle tracks ball x/y; lead it so it reaches the interception point.
-    const leadT = 160;
-    let leadX = game.bx + game.vx * leadT;
-    let leadY = game.by + game.vy * leadT;
-    cpu.targetX += (leadX - cpu.targetX) * 0.22;
-    cpu.targetY += (leadY - cpu.targetY) * 0.18;
-    game.guestX = clampX(cpu.targetX);
-    game.guestY = clamp(cpu.targetY, TL / 2, TL - 1);
-
-    const movingToward = game.vy > 0;
-    const dy = Math.abs(game.by - game.guestY);
-    const inReachY = dy < 3.5;
-    const inReachX = Math.abs(game.bx - game.guestX) < PADW / 2 + 1.4;
-    const inReachZ = game.bz < 22;
-    if (movingToward && inReachY && inReachX && inReachZ && !cpu.swingQueued && !nextSwing.guest) {
-      cpu.swingQueued = true;
-      const delay = 10 + Math.random() * 40;
-      setTimeout(() => {
-        const aimX = clampX((Math.random() - 0.5) * 9);
-        const smx = (aimX - game.guestX) * 2.2;
-        const smy = -(3 + Math.random() * 3);
-        const force = 0.45 + Math.random() * 0.35;
-        nextSwing.guest = { force, smudgeX: smx, smudgeY: smy, t: performance.now() };
-        cpu.swingQueued = false;
-      }, delay);
-    }
+  function updateHud() {
+    var servingMe = game.serving && ((owner && game.serving === 'host') || (!owner && game.serving === 'guest'));
+    var servingThem = game.serving && !servingMe;
+    if (matchOver) statusEl.textContent = 'Match over';
+    else if (game.paused) statusEl.textContent = 'Paused';
+    else if (servingMe) statusEl.textContent = 'Your serve — tap or swipe';
+    else if (servingThem) statusEl.textContent = themName() + ' serving';
+    else statusEl.textContent = themName() + '  ·  first to 11';
+    canvas.dataset.score = game.hostScore + '-' + game.guestScore;
+    canvas.dataset.rally = String(game.rally || 0);
+    canvas.dataset.phase = matchOver ? 'match' : (game.serving ? 'serve' : 'rally');
   }
 
-  // ---- audio ----
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function showBanner(title, sub, ms) {
+    bt.textContent = title;
+    bp.textContent = sub || '';
+    banner.classList.add('on');
+    bannerUntil = Date.now() + (ms || 900);
+  }
+
+  function addSpark(x, y, z) { sparks.push({ x: x, y: y, z: z, t: 1 }); }
+
+  var audioCtx = null;
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
   function playSound(kind) {
     if (!audioCtx) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    var t = audioCtx.currentTime;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
     if (kind === 'paddle') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(900, t);
-      osc.frequency.exponentialRampToValueAtTime(300, t + 0.08);
-      gain.gain.setValueAtTime(0.25, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-      osc.start(t); osc.stop(t + 0.08);
+      osc.type = 'sine'; osc.frequency.setValueAtTime(980, t); osc.frequency.exponentialRampToValueAtTime(280, t + 0.07);
+      gain.gain.setValueAtTime(0.2, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+      osc.start(t); osc.stop(t + 0.07);
+    } else if (kind === 'smash') {
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(520, t); osc.frequency.exponentialRampToValueAtTime(140, t + 0.11);
+      gain.gain.setValueAtTime(0.28, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+      osc.start(t); osc.stop(t + 0.11);
     } else if (kind === 'table') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(180, t);
-      osc.frequency.exponentialRampToValueAtTime(60, t + 0.12);
-      gain.gain.setValueAtTime(0.18, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-      osc.start(t); osc.stop(t + 0.12);
-    } else if (kind === 'net') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(220, t);
-      gain.gain.setValueAtTime(0.08, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-      osc.start(t); osc.stop(t + 0.05);
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(210, t); osc.frequency.exponentialRampToValueAtTime(70, t + 0.09);
+      gain.gain.setValueAtTime(0.14, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+      osc.start(t); osc.stop(t + 0.09);
     } else if (kind === 'score') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(600, t);
-      gain.gain.setValueAtTime(0.12, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-      osc.start(t); osc.stop(t + 0.25);
+      osc.type = 'sine'; osc.frequency.setValueAtTime(660, t); osc.frequency.exponentialRampToValueAtTime(990, t + 0.18);
+      gain.gain.setValueAtTime(0.12, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+      osc.start(t); osc.stop(t + 0.22);
     }
   }
 
-  // ---- rendering ----
-  let _W = 0, _H = 0;
+  function p(wx, wy, wz) {
+    var y = wy; if (!owner) y = TL - y;
+    var t = y / TL;
+    var sc = 1 - 0.5 * t;
+    var ny = _H * 0.90, fy = _H * 0.14, nw = _W * 0.96;
+    return { x: _W / 2 + wx * (nw / TW) * sc, y: ny - t * (ny - fy) - wz * (_H * 0.042) * sc, sc: sc };
+  }
+
   function render() {
-    const W = canvas.width, H = canvas.height;
-    _W = W; _H = H;
+    if (Date.now() > bannerUntil) banner.classList.remove('on');
+    hitFlash *= 0.85;
+    var W = _W, H = _H;
     ctx.clearRect(0, 0, W, H);
-
-    // Gym background
-    ctx.fillStyle = '#2a221c';
-    ctx.fillRect(0, 0, W, H);
-
-    // Floor
-    const cy = H * 0.55;
-    const grd = ctx.createLinearGradient(0, cy, 0, H);
-    grd.addColorStop(0, '#5c4a3a');
-    grd.addColorStop(1, '#3e3228');
-    ctx.fillStyle = grd;
-    ctx.beginPath();
-    ctx.moveTo(0, H);
-    ctx.lineTo(W, H);
-    ctx.lineTo(W * 0.85, cy);
-    ctx.lineTo(W * 0.15, cy);
-    ctx.closePath();
-    ctx.fill();
-
-    const flip = !owner;
-    const cx = W / 2, ny = H * 0.86, fy = H * 0.22, nw = W * 0.88;
-    function p(wx, wy, wz) {
-      let y = wy; if (flip) y = TL - y;
-      const t = y / TL;
-      const sc = 1 - 0.34 * t;
-      return { x: cx + wx * (nw / TW) * sc, y: ny - y * (ny - fy) / TL - wz * (H * 0.026) * sc, sc: sc };
-    }
-    drawTable(p);
-    drawNet(p);
-    const guestX = owner ? game.guestX : gst.x;
-    const guestY = owner ? game.guestY : gst.y;
-    drawPaddle(p, game.hostX, owner ? game.hostY : (TL - game.hostY), '#ff4444');
-    drawPaddle(p, guestX, guestY, '#4488ff');
-    drawBall(p);
-    scoreEl.textContent = game.hostScore + ' — ' + game.guestScore;
+    drawArena();
+    drawFloor();
+    drawTable();
+    var myX = owner ? game.hostX : (gst.x != null ? gst.x : game.guestX);
+    var myY = owner ? HOST_Y : GUEST_Y;
+    var theirX = owner ? game.guestX : game.hostX;
+    var theirY = owner ? GUEST_Y : HOST_Y;
+    var ballViewY = owner ? game.by : TL - game.by;
+    var myViewY = owner ? myY : TL - myY;
+    var ballFar = ballViewY > TL * 0.5;
+    var ballInFront = !ballFar && ballViewY <= myViewY + 1.1;
+    drawPaddle(theirX, theirY, '#1a1a1a', false);
+    if (ballFar) drawBall();
+    drawNet();
+    if (!ballFar && !ballInFront) drawBall();
+    drawPaddle(myX, myY, '#d4222a', true);
+    if (ballInFront) drawBall();
+    drawScores();
+    drawSparks();
     requestAnimationFrame(render);
   }
 
-  function drawTable(p) {
-    const c = [p(-TW / 2, 0, 0), p(TW / 2, 0, 0), p(TW / 2, TL, 0), p(-TW / 2, TL, 0)];
-    ctx.fillStyle = '#0b6b3e';
-    ctx.beginPath(); ctx.moveTo(c[0].x, c[0].y); for (let i = 1; i < 4; i++) ctx.lineTo(c[i].x, c[i].y); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(c[0].x, c[0].y); for (let i = 1; i < 4; i++) ctx.lineTo(c[i].x, c[i].y); ctx.closePath(); ctx.stroke();
-    const m1 = p(0, 0, 0), m2 = p(0, TL, 0);
-    ctx.beginPath(); ctx.moveTo(m1.x, m1.y); ctx.lineTo(m2.x, m2.y); ctx.stroke();
+  function drawArena() {
+    ctx.fillStyle = '#070b14';
+    ctx.fillRect(0, 0, _W, _H);
+    var g = ctx.createRadialGradient(_W / 2, _H * 0.42, 30, _W / 2, _H * 0.48, _H * 0.8);
+    g.addColorStop(0, 'rgba(70,110,170,0.20)');
+    g.addColorStop(0.55, 'rgba(20,40,70,0.08)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, _W, _H);
   }
 
-  function drawNet(p) {
-    const n = [p(-TW / 2, TL / 2, 0), p(TW / 2, TL / 2, 0), p(TW / 2, TL / 2, NH), p(-TW / 2, TL / 2, NH)];
-    ctx.strokeStyle = 'rgba(230,230,245,.55)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(n[0].x, n[0].y); for (let i = 1; i < 4; i++) ctx.lineTo(n[i].x, n[i].y); ctx.closePath(); ctx.stroke();
-    ctx.strokeStyle = 'rgba(230,230,245,.25)';
-    for (let i = 1; i < 6; i++) {
-      const a = p(-TW / 2 + (TW * i / 6), TL / 2, NH * 0.2);
-      const b = p(-TW / 2 + (TW * i / 6), TL / 2, NH * 0.9);
+  function drawFloor() {
+    var ny = _H * 0.90, fy = _H * 0.14;
+    ctx.fillStyle = '#121826';
+    ctx.beginPath();
+    ctx.moveTo(0, _H); ctx.lineTo(_W, _H);
+    ctx.lineTo(_W * 0.78, fy + 24); ctx.lineTo(_W * 0.22, fy + 24);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.035)'; ctx.lineWidth = 1;
+    for (var i = 0; i < 8; i++) {
+      var t = i / 7;
+      var y = ny - t * (ny - fy - 20);
+      var w = _W * (0.96 - 0.5 * t);
+      ctx.beginPath(); ctx.moveTo(_W / 2 - w / 2, y); ctx.lineTo(_W / 2 + w / 2, y); ctx.stroke();
+    }
+  }
+
+  function drawTable() {
+    var nw = p(-TW / 2, 0, 0), ne = p(TW / 2, 0, 0), se = p(TW / 2, TL, 0), sw = p(-TW / 2, TL, 0);
+    var drop = Math.max(16, _H * 0.028);
+    ctx.fillStyle = '#082818';
+    ctx.beginPath();
+    ctx.moveTo(nw.x, nw.y); ctx.lineTo(ne.x, ne.y);
+    ctx.lineTo(ne.x + 2, ne.y + drop); ctx.lineTo(nw.x - 2, nw.y + drop);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#061c12';
+    ctx.beginPath(); ctx.moveTo(nw.x, nw.y); ctx.lineTo(sw.x, sw.y); ctx.lineTo(sw.x - 8, sw.y + drop * 0.45); ctx.lineTo(nw.x - 2, nw.y + drop); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(ne.x, ne.y); ctx.lineTo(se.x, se.y); ctx.lineTo(se.x + 8, se.y + drop * 0.45); ctx.lineTo(ne.x + 2, ne.y + drop); ctx.closePath(); ctx.fill();
+
+    var sg = ctx.createLinearGradient(0, se.y, 0, nw.y);
+    sg.addColorStop(0, '#0c5c30');
+    sg.addColorStop(0.45, '#168a44');
+    sg.addColorStop(1, '#1eaa54');
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.moveTo(nw.x, nw.y); ctx.lineTo(ne.x, ne.y); ctx.lineTo(se.x, se.y); ctx.lineTo(sw.x, sw.y); ctx.closePath(); ctx.fill();
+
+    var gloss = ctx.createLinearGradient(nw.x, 0, ne.x, 0);
+    gloss.addColorStop(0, 'rgba(255,255,255,0)');
+    gloss.addColorStop(0.35, 'rgba(255,255,255,0.07)');
+    gloss.addColorStop(0.5, 'rgba(255,255,255,0.02)');
+    gloss.addColorStop(1, 'rgba(0,0,0,0.08)');
+    ctx.fillStyle = gloss;
+    ctx.fill();
+
+    ctx.strokeStyle = '#f3f6f1'; ctx.lineWidth = 2.4; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(nw.x, nw.y); ctx.lineTo(ne.x, ne.y); ctx.lineTo(se.x, se.y); ctx.lineTo(sw.x, sw.y); ctx.closePath(); ctx.stroke();
+    var m1 = p(0, 0, 0.02), m2 = p(0, TL, 0.02);
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(m1.x, m1.y); ctx.lineTo(m2.x, m2.y); ctx.stroke();
+
+    if (!game.serving && game.lastHitter && ((owner && game.vy < 0) || (!owner && game.vy > 0))) {
+      var a = p(-TW / 2, owner ? 0.15 : TL - 0.15, 0.03), b = p(TW / 2, owner ? 0.15 : TL - 0.15, 0.03);
+      ctx.strokeStyle = 'rgba(255,230,120,0.35)'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
   }
 
-  const PADDLE_RX = 0.11, PADDLE_RY = 0.13, PADDLE_Z = 1.2;
-  const BALL_R = 0.06;
+  function drawNet() {
+    var n0 = p(-TW / 2, TL / 2, 0), n1 = p(TW / 2, TL / 2, 0);
+    var n2 = p(TW / 2, TL / 2, NH), n3 = p(-TW / 2, TL / 2, NH);
+    var postL0 = p(-TW / 2 - 0.25, TL / 2, 0), postL1 = p(-TW / 2 - 0.25, TL / 2, NH + 0.15);
+    var postR0 = p(TW / 2 + 0.25, TL / 2, 0), postR1 = p(TW / 2 + 0.25, TL / 2, NH + 0.15);
+    ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(postL0.x, postL0.y); ctx.lineTo(postL1.x, postL1.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(postR0.x, postR0.y); ctx.lineTo(postR1.x, postR1.y); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,230,240,0.12)';
+    ctx.beginPath(); ctx.moveTo(n0.x, n0.y); ctx.lineTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y); ctx.lineTo(n3.x, n3.y); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(230,230,245,0.28)'; ctx.lineWidth = 1;
+    var i, a, b;
+    for (i = 1; i < 10; i++) {
+      a = p(-TW / 2 + TW * i / 10, TL / 2, 0.1); b = p(-TW / 2 + TW * i / 10, TL / 2, NH);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    for (i = 1; i < 4; i++) {
+      a = p(-TW / 2, TL / 2, NH * i / 4); b = p(TW / 2, TL / 2, NH * i / 4);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    ctx.strokeStyle = '#f7f7f7'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(n3.x, n3.y); ctx.lineTo(n2.x, n2.y); ctx.stroke();
+  }
 
-  function drawPaddle(p, x, y, color) {
-    const pos = p(x, y, PADDLE_Z);
-    const sc = pos.sc;
-    const rx = PADDLE_RX * _W * 0.88 / TW * sc;
-    const ry = rx * 1.25;
+  function drawPaddle(x, y, rubber, near) {
+    var pos = p(x, y, 1.25);
+    var sh = p(x, y, 0);
+    var sc = pos.sc;
+    var rx = (PADW / 2) * 0.78 * (_W * 0.96 / TW) * sc;
+    var ry = rx * 1.18;
     ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,' + (near ? 0.32 : 0.22) + ')';
+    ctx.beginPath(); ctx.ellipse(sh.x, sh.y + 4 * sc, rx * 0.95, ry * 0.28, 0, 0, Math.PI * 2); ctx.fill();
     ctx.translate(pos.x, pos.y);
-    ctx.scale(1, 0.82);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    var tilt = (near ? myVx : (cpu.vx || 0)) * 8;
+    ctx.rotate(clamp(tilt, -0.35, 0.35));
+    ctx.scale(1, 0.78);
+    var handle = ry * 0.95;
+    ctx.save();
+    ctx.rotate(near ? 0.12 : Math.PI + 0.12);
+    ctx.fillStyle = '#5a3a22';
+    ctx.fillRect(-rx * 0.16, ry * 0.72, rx * 0.32, handle);
+    ctx.fillStyle = '#3a2416';
+    ctx.fillRect(-rx * 0.12, ry * 0.72, rx * 0.24, handle * 0.92);
     ctx.restore();
-
-    const handleLen = 18 * sc;
-    const handleAngle = (y < TL / 2) ? Math.PI / 2 + 0.25 : -Math.PI / 2 - 0.25;
-    ctx.save();
-    ctx.translate(pos.x, pos.y);
-    ctx.rotate(handleAngle);
-    ctx.fillStyle = '#c4a06d';
-    ctx.fillRect(-3 * sc, ry * 0.82 - 2 * sc, 6 * sc, handleLen);
+    ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#d9b07a'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, rx * 0.88, ry * 0.88, 0, 0, Math.PI * 2);
+    ctx.fillStyle = rubber; ctx.fill();
+    if (hitFlash > 0.2 && near) {
+      ctx.globalAlpha = hitFlash * 0.5;
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.beginPath(); ctx.ellipse(-rx * 0.28, -ry * 0.28, rx * 0.28, ry * 0.18, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1.4; ctx.stroke();
     ctx.restore();
   }
 
-  function drawBall(p) {
-    const b = p(game.bx, game.by, game.bz);
-    const r = BALL_R * _W * 0.88 / TW * b.sc;
-    ctx.save(); ctx.translate(b.x, b.y);
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
-    ctx.rotate(game.sp);
-    ctx.fillStyle = '#ff8c3c';
+  function drawBall() {
+    var b = p(game.bx, game.by, game.bz);
+    var s = p(game.bx, game.by, 0);
+    var r = Math.max(6.5, BR * 1.45 * (_W * 0.96 / TW) * b.sc);
+    var lift = Math.max(0.15, Math.min(1.2, game.bz / 6));
+    ctx.fillStyle = 'rgba(0,0,0,' + (0.32 / lift) + ')';
+    ctx.beginPath(); ctx.ellipse(s.x, s.y, r * 0.9, r * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+    var g = ctx.createRadialGradient(b.x - r * 0.35, b.y - r * 0.4, r * 0.12, b.x, b.y, r);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.55, '#f0f0f2');
+    g.addColorStop(1, '#b8b8c4');
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+    ctx.save();
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.clip();
+    ctx.translate(b.x, b.y); ctx.rotate(game.sp);
+    ctx.fillStyle = 'rgba(220, 64, 48, 0.85)';
     ctx.fillRect(-r, -r * 0.16, r * 2, r * 0.32);
     ctx.restore();
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  function drawScores() {
+    var my = owner ? game.hostScore : game.guestScore;
+    var th = owner ? game.guestScore : game.hostScore;
+    var far = p(0, TL * 0.78, 0.05);
+    var near = p(0, TL * 0.18, 0.05);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.font = '800 ' + Math.round(_W * 0.16) + 'px system-ui, sans-serif';
+    ctx.fillText(String(th), far.x, far.y);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.font = '800 ' + Math.round(_W * 0.2) + 'px system-ui, sans-serif';
+    ctx.fillText(String(my), near.x, near.y);
+    ctx.font = '700 ' + Math.round(_W * 0.028) + 'px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillText(themName(), far.x, far.y + _W * 0.055);
+    ctx.fillText('YOU', near.x, near.y + _W * 0.07);
+    ctx.restore();
+  }
+
+  function drawSparks() {
+    for (var i = sparks.length - 1; i >= 0; i--) {
+      var s = sparks[i];
+      s.t -= 0.08;
+      if (s.t <= 0) { sparks.splice(i, 1); continue; }
+      var q = p(s.x, s.y, s.z);
+      ctx.globalAlpha = s.t;
+      ctx.fillStyle = '#fff6c8';
+      ctx.beginPath(); ctx.arc(q.x, q.y, 10 * s.t * q.sc, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
   }
 
   function resize() {
-    const r = document.getElementById('wrap').getBoundingClientRect();
-    canvas.width = r.width; canvas.height = r.height;
+    var box = document.getElementById('wrap').getBoundingClientRect();
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, box.width * dpr);
+    canvas.height = Math.max(1, box.height * dpr);
+    canvas.style.width = box.width + 'px';
+    canvas.style.height = box.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    _W = box.width; _H = box.height;
   }
-</script>`;
+</script>
+`;
 
-  // Shown only if this GIF is run somewhere WITHOUT the GifOS system routing
-  // (an old build, another host). On a real desktop the runtime never mounts
-  // this — it routes the icon straight to the trusted run.html page.
   const MEET_FALLBACK_HTML = `<!doctype html><meta charset="utf-8"><style>
   body{font:15px system-ui;background:#0a0a0f;color:#e0e0f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
   .card{max-width:420px;padding:2rem;border:1px solid #2a2a3f;border-radius:1rem;background:#14141f}
@@ -6028,25 +6420,25 @@ The whole tournament — lobby, settings, boards, clocks, and results — lives 
 `,
       pingpong: `# Ping Pong
 
-Table tennis on this screen. Rally until someone misses. Score is shown at the top.
+Table tennis from your end of the table. First to 11, win by 2. Serve changes every two points (every point at 10–10).
 
 ## Controls
 
-- **Drag** to move your paddle.
-- **Touch the ball** (or tap near it) to hit.
-- **Swipe** as you hit: harder / longer swipes add power and spin. A press-and-hold with more pressure hits harder too.
+- **Move** — slide one finger (or the mouse) to move your paddle. The paddle is live: if the ball meets it, it returns. You do not have to tap the ball.
+- **Serve** — when it is your serve the ball floats on your paddle. Tap or swipe toward the table to send it. A legal serve bounces on your side first, then theirs.
+- **Aim / spin** — hit the ball off-centre to angle it. A swipe as you make contact adds pace and spin (the stripe on the ball shows the spin).
 
-The host serves first, then the scorer serves. Two bounces on the same side, a net-on-the-way-down, or a miss awards the point.
+A miss, a shot into the net, a shot that never lands on their side, or a double bounce on one side is a point.
 
 ## Solo or a friend
 
-- **Alone (host):** you play the near end against a computer at the far end.
-- **Invite** (top bar): a friend takes the far end on their phone. If they drop off, the table pauses until they tap **I'm ready**.
+- **Alone:** you are the near end, a computer plays the far end. It returns honest shots and can be wrong-footed.
+- **Invite** (top bar): a friend gets the far end on their phone, looking the other way down the table. If they drop off, the table pauses until they tap **I'm ready**.
 - Only the host sees **New game**.
 
 ## Saved
 
-The score, ball, and paddles live in this icon for the shared room. Close and reopen and you are still on the table.
+The score, ball, and paddles live in this icon. Close and reopen and you are still on the table.
 `,
       paint: `# Paint
 
@@ -6620,8 +7012,8 @@ The Store itself does not keep a shopping cart in this icon.
         // legal-move list (from its own generator) so the model picks among
         // real moves, never a hallucinated one. Key stays in the runtime.
         app('Chess Tournament', 'chess', [232, 195, 122], CHESS_HTML, { capabilities: { db: true, multiplayer: true, network: [], ai: ['smartest'] }, data: { chess: RW } }),
-        // Real-time table tennis: host runs physics, guest sends swings.
-        // Pressure-aware taps set hit power; smudge direction sets spin.
+        // 3D table tennis: finger tracks paddle, hits are automatic, first to 11.
+        // Host runs physics; guest sends paddle + serve via gifos.db('pingpong').
         app('Ping Pong', 'pingpong', [255, 140, 60], PINGPONG_HTML, { data: { pingpong: RW } }),
       ] },
       { name: 'Studio', apps: [
