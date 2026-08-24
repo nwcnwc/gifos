@@ -3183,6 +3183,55 @@
       "sha256": "8676658e865cca95ab48f2eee2b7af58900f7db66baadfbfa4419c885a0d0b03"
     },
     {
+      "slug": "pixelit",
+      "appId": "pixelit",
+      "name": "Pixel It",
+      "shortName": "PixelIt",
+      "version": "1.0",
+      "tagline": "Turn a photo into pixel art on this device. Nothing is uploaded.",
+      "author": {
+        "name": "giventofly",
+        "url": "https://github.com/giventofly/pixelit"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Pixel It",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "pixel",
+        "pixel-art",
+        "photo",
+        "palette",
+        "convert",
+        "offline"
+      ],
+      "accent": [
+        228,
+        148,
+        58
+      ],
+      "cover": "/apps/pixelit/cover.jpg",
+      "bytes": 190333,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "5bf008094e5d2fa7df28271aec71baa8413b5a26dfc3c9538b96e91209aeb824"
+    },
+    {
       "slug": "pong",
       "appId": "pong",
       "name": "Pong",

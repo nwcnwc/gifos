@@ -1,0 +1,11 @@
+giventofly/pixelit
+https://github.com/giventofly/pixelit
+pin: 9c53dfa191fcb2f4a4507c21f40647c29e352939
+file: dist/pixelit.js
+sha256: b20c9b22c8809b5c83ddc2525629ff50b608b713f4ed115e0a08843ed3021df6
+MIT, Copyright (c) 2019 José Moreira
+
+Photo → pixel art, with optional greyscale and a colour palette. The
+library is classic JS already (no import/export). GifOS adds a Take photo
+clip (never a live camera) and keeps the last picture and settings in the
+file. Palettes below are the ones from the original demo page.
