@@ -1100,7 +1100,11 @@
   function bindKeys() {
     document.addEventListener('keydown', function (e) {
       var tag = (e.target.tagName || '').toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
+      // A select eats its own arrows, and so does anything editable. Without
+      // them here, arrowing through the animation's step list also panned the
+      // map underneath it.
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' ||
+          e.target.isContentEditable) return;
       var k = e.key;
       if (k === 'Escape') {
         if (UI.sheetOpen()) UI.closeSheets();
