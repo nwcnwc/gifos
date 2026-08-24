@@ -1,6 +1,6 @@
 {
   "tagline": "A cron expression, said in English. Nothing is uploaded.",
-  "description": "Type a five-field schedule (minute hour day month weekday). The app says it in English: every five minutes, at noon on weekdays, at midnight on the first of the month. Nothing is sent anywhere — there is no account, and the expression never leaves this device.\n\nThe last expression you typed comes back the next time you open the app. Press Invite (the GifOS bar) if you want the same sentence to show up, read-only, for everyone in a meeting.\n\nAn unofficial port of cRonstrue by bradymholt. English only.",
+  "description": "Type a five-field schedule. The app says it in English, names each field, and lists the next times it fires — on this device, with no account and nothing sent anywhere.\n\nThe last expression you typed comes back the next time you open the app. Press Invite (the GifOS bar) and the same sentence shows up, read-only, for everyone in a meeting.\n\nAn unofficial port of cRonstrue by bradymholt. English only.",
   "author": {
     "name": "bradymholt",
     "url": "https://github.com/bradymholt/cRonstrue"

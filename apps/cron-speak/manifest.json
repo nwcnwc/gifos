@@ -3,7 +3,7 @@
   "appId": "cron-speak",
   "name": "Cron Speak",
   "shortName": "Cron",
-  "version": "1.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "description": "A cron expression, said in English. Nothing is uploaded.",
   "entry": "index.html",
@@ -11,6 +11,12 @@
   "capabilities": {
     "db": true,
     "multiplayer": true
+  },
+  "launch": {
+    "expr": {
+      "label": "Open with this cron expression",
+      "detail": "A five-field schedule, or a special like @daily."
+    }
   },
   "data": {
     "save": { "visibility": "private" },
