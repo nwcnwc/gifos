@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Ludo</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand">Ludo</div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+<main>
+  <section class="card setup" id="home">
+    <h2>Four colours, one link</h2>
+    <p class="lede">Get all four tokens home. A six leaves the yard. Land on someone and they go back. There is no lobby and no server.</p>
+    <div class="seg" id="nSeg">
+      <button type="button" data-n="2">2</button>
+      <button type="button" data-n="3">3</button>
+      <button type="button" data-n="4" class="on">4</button>
+    </div>
+    <button class="primary" id="soloBtn" type="button">Play on this device</button>
+    <button class="ghost wide" id="friendBtn" type="button">Play with friends</button>
+    <p class="lvlnote">Play with friends: press Invite in the GifOS menu. Seats fill as people open the link — Red, Green, Yellow, Blue. Pass this phone for a hotseat game.</p>
+  </section>
+  <section class="game" id="play" hidden>
+    <div class="bar">
+      <button class="ghost tiny" id="backBtn" type="button">←</button>
+      <p class="statusline" id="status"></p>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="controls">
+      <button class="die" id="die" type="button">·</button>
+      <button class="primary" id="rollBtn" type="button">Roll</button>
+      <button class="ghost" id="newBtn" type="button">New game</button>
+    </div>
+  </section>
+</main>
+<script src="rules.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
