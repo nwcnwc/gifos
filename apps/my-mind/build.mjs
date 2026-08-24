@@ -43,7 +43,7 @@ const listing = JSON.parse(read('listing.json'));
 pin('vendor/my-mind.js', '4f665de9666d0fd1ad9f5fc568b686354f35c7af9a35139fefc74ba205aaad73');
 pin('vendor/my-mind.css', 'bf6038b3dd37f9b8178827c6f483ee0e6c3891b035076992b33f0db588be4682');
 
-for (const need of ['vendor/map-css.js', 'vendor/COPYING-my-mind.txt', 'vendor/UPSTREAM.txt', 'ls-stub.js']) {
+for (const need of ['vendor/map-css.js', 'vendor/COPYING-my-mind.txt', 'vendor/UPSTREAM.txt', 'ls-stub.js', 'mp.js']) {
   if (!existsSync(join(dir, need))) throw new Error(need + ' is missing');
 }
 if (manifest.minBuild !== 947) throw new Error('minBuild must be 947');
@@ -55,6 +55,9 @@ if (listing.basedOn.url !== 'https://github.com/ondras/my-mind') throw new Error
 if (!listing.porter || listing.porter.name !== 'GifOS') throw new Error('porter must be GifOS');
 if (!listing.author || /gifos/i.test(listing.author.name)) throw new Error('author is them, never GifOS');
 if (listing.license !== 'MIT') throw new Error('listing.license must be MIT');
+if (!/file is the map/i.test(listing.tagline)) throw new Error('tagline must lead with the file is the map');
+if (!/Invite/.test(listing.description)) throw new Error('listing must claim Invite watch');
+if (!/Child/.test(listing.description)) throw new Error('listing must mention the phone Child bar');
 const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage', 'WebRTC']) {
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad);
@@ -66,6 +69,7 @@ const files = {
   'style.css': read('style.css'),
   'ls-stub.js': read('ls-stub.js'),
   'app.js': read('app.js'),
+  'mp.js': read('mp.js'),
   'vendor/map-css.js': read('vendor/map-css.js'),
   'vendor/my-mind.js': read('vendor/my-mind.js'),
   'vendor/my-mind.css': read('vendor/my-mind.css'),
@@ -78,15 +82,30 @@ const files = {
   files['help.md'] = helpMd;
 }
 const html = files['index.html'];
-for (const s of ['ls-stub.js', 'vendor/map-css.js', 'app.js', 'vendor/my-mind.js']) {
+for (const s of ['ls-stub.js', 'vendor/map-css.js', 'app.js', 'mp.js', 'vendor/my-mind.js']) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);
 }
+if (!html.includes('id="phone-bar"') || !html.includes('data-cmd="insert-child"')) {
+  throw new Error('index.html must ship a phone bar with Child');
+}
+if (!html.includes('id="empty"')) throw new Error('index.html must ship an empty-map hint');
 if (/type=["']module["']/.test(html)) throw new Error('classic scripts only');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('index.html has an external URL');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html)) throw new Error('do not draw an Invite button');
 if (/gtag\(|firebase|googletagmanager/i.test(html + files['app.js'])) throw new Error('tracking leaked');
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'last'")) {
   throw new Error('app.js must save the map privately');
+}
+if (!files['app.js'].includes('MMMap') || !files['app.js'].includes('addChild')) {
+  throw new Error('app.js must expose MMMap.addChild for the node loop');
+}
+if (!files['mp.js'].includes("db('room')")) throw new Error('mp.js must open the room');
+if (/\bInvite\b/.test(files['help.md']) || /\bSave\b/.test(files['help.md'])) {
+  throw new Error('help.md must not document Invite/Save');
+}
+if (!manifest.capabilities.multiplayer) throw new Error('must declare capabilities.multiplayer');
+if (!manifest.data || !manifest.data.room || manifest.data.room.visibility !== 'read-write') {
+  throw new Error('room must be read-write');
 }
 if (!files['vendor/my-mind.js'].includes('window.MyMind') || !files['vendor/my-mind.js'].includes('MYMIND_MAP_CSS')) {
   throw new Error('my-mind.js must expose MyMind and skip fetch(map.css)');

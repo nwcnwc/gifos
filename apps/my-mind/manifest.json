@@ -3,15 +3,17 @@
   "appId": "my-mind",
   "name": "My Mind",
   "shortName": "Mind",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "description": "A mind map in the file. Tab adds a child, Enter adds a sibling.",
   "entry": "index.html",
   "accent": [68, 136, 221],
   "capabilities": {
-    "db": true
+    "db": true,
+    "multiplayer": true
   },
   "data": {
-    "save": { "visibility": "private" }
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
   }
 }

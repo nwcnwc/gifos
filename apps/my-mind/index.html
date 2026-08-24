@@ -10,6 +10,10 @@
 <body>
 <main>
   <div id="tip">Tab inserts a child. Enter inserts a sibling. The map stays in this file.</div>
+  <div id="empty" hidden>
+    <span class="desk">A blank map. Tab inserts a child. Enter inserts a sibling.</span>
+    <span class="phone">A blank map. Tap the bubble to type, or <b>Child</b> below to grow it.</span>
+  </div>
 </main>
 
 <div id="ui" class="pane">
@@ -143,9 +147,19 @@
   <button data-command="center"></button>
 </div>
 
+<div id="phone-bar" role="toolbar" aria-label="Map actions">
+  <button type="button" data-cmd="insert-child">Child</button>
+  <button type="button" data-cmd="insert-sibling">Sibling</button>
+  <button type="button" data-cmd="edit">Edit</button>
+  <button type="button" data-cmd="delete">Delete</button>
+  <button type="button" data-cmd="undo">Undo</button>
+</div>
+<p id="meet" class="meet">Press <b>Invite</b> (top bar) so a friend can watch this map. Nothing is uploaded on its own.</p>
+
 <script src="ls-stub.js"></script>
 <script src="vendor/map-css.js"></script>
 <script src="app.js"></script>
+<script src="mp.js"></script>
 <script src="vendor/my-mind.js"></script>
 </body>
 </html>

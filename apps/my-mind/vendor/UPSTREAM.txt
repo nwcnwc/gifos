@@ -14,4 +14,6 @@ Patches:
   - init14 reads window.MYMIND_MAP_CSS instead of fetch("map.css")
   - window.MyMind { getJSON, loadJSON, newMap, subscribe }; preserves onReady
 Analytics, gtag, firebase scripts, and the Font Awesome CDN are not shipped.
-The last map is saved privately.
+The last map is saved privately (gifos collection `save` / id `last`).
+Named maps from Open/Save-as dump through the memory localStorage facade
+into the same private collection (id `ls`). Invite watches the map via `room`.
