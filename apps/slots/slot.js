@@ -90,18 +90,18 @@
     config = config || {};
     Symbol.preload();
     this.currentSymbols = [
-      ['seven', 'seven', 'seven'],
-      ['seven', 'seven', 'seven'],
-      ['seven', 'seven', 'seven'],
-      ['seven', 'seven', 'seven'],
-      ['seven', 'seven', 'seven']
+      ['cherry', 'lemon', 'grape'],
+      ['bell', 'seven', 'bar'],
+      ['star', 'diamond', 'clover'],
+      ['grape', 'bar', 'cherry'],
+      ['seven', 'star', 'lemon']
     ];
     this.nextSymbols = [
-      ['seven', 'seven', 'seven'],
-      ['seven', 'seven', 'seven'],
-      ['seven', 'seven', 'seven'],
-      ['seven', 'seven', 'seven'],
-      ['seven', 'seven', 'seven']
+      ['cherry', 'lemon', 'grape'],
+      ['bell', 'seven', 'bar'],
+      ['star', 'diamond', 'clover'],
+      ['grape', 'bar', 'cherry'],
+      ['seven', 'star', 'lemon']
     ];
     this.container = domElement;
     this.reels = Array.prototype.slice.call(

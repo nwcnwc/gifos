@@ -17,7 +17,7 @@ header{width:100%;max-width:760px;margin:0 auto;display:flex;align-items:center;
 .hud{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;
   font-weight:700;color:var(--gold);font-size:13px}
 .hud .dot{color:var(--muted);font-weight:400}
-.solitaire{width:100%;max-width:760px;margin:0 auto;padding:6px 8px 8px;position:relative;min-height:58vh}
+.solitaire{width:100%;max-width:760px;margin:0 auto;padding:6px 8px 8px;position:relative}
 .top-row{display:flex;justify-content:space-between;align-items:flex-start;padding:0 4px;min-height:var(--card-h)}
 .deck{position:relative;width:calc(var(--card-w) * 2.7);height:var(--card-h)}
 .deck__pile{width:var(--card-w);height:var(--card-h);position:absolute;left:0;top:0;
@@ -38,7 +38,8 @@ header{width:100%;max-width:760px;margin:0 auto;display:flex;align-items:center;
 .deck__deal .card:first-child{left:0}
 .deck__deal .card:first-child + .card:last-child{left:calc(var(--card-w) * 0.18)}
 .finish-deck{display:flex;gap:8px}
-.board-deck{display:flex;justify-content:space-between;margin-top:16px;padding:0 2px}
+.board-deck{display:flex;justify-content:space-between;margin-top:16px;padding:0 2px 12px;
+  min-height:calc(var(--card-h) + 200px)}
 .seven,.aces{position:relative;width:var(--card-w);height:var(--card-h);border:1px dotted #2a6a44;
   border-radius:8px;flex:0 0 var(--card-w)}
 .aces{background-image:linear-gradient(45deg,transparent 44.9%,#1a3a28 45%,#1a3a28 55%,transparent 55.1%),
@@ -53,10 +54,10 @@ header{width:100%;max-width:760px;margin:0 auto;display:flex;align-items:center;
     repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,.18) 6px 7px),
     repeating-linear-gradient(-45deg, transparent 0 6px, rgba(255,255,255,.18) 6px 7px);
   color:transparent}
-.card--back .pip{display:none}
-.card--front{cursor:pointer}
-.card--hearts .pip,.card--diamonds .pip{color:var(--red)}
-.card--clubs .pip,.card--spades .pip{color:var(--black)}
+.card--back > .pip{display:none}
+.card--front{cursor:pointer;color:var(--ink)}
+.card--front.card--hearts .pip,.card--front.card--diamonds .pip{color:var(--red)}
+.card--front.card--clubs .pip,.card--front.card--spades .pip{color:var(--black)}
 .pip{position:absolute;font-weight:800;line-height:1;pointer-events:none;letter-spacing:-0.04em}
 .pip.tl{top:4px;left:5px;font-size:calc(var(--card-w) * 0.26)}
 .pip.br{bottom:4px;right:5px;font-size:calc(var(--card-w) * 0.26);transform:rotate(180deg)}
@@ -70,7 +71,8 @@ header{width:100%;max-width:760px;margin:0 auto;display:flex;align-items:center;
 .finish-dest{box-shadow:0 0 0 2px #03ffff}
 
 .bar{width:100%;max-width:760px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px;
-  padding:8px 12px 18px;justify-content:center}
+  padding:8px 12px 18px;justify-content:center;position:relative;z-index:6;
+  background:linear-gradient(180deg, transparent, #0a0a0f 28%)}
 .bar button,.ask button,.new-game{
   min-height:44px;padding:8px 14px;border:1px solid #2a5840;border-radius:10px;
   background:#123424;color:var(--text);font:inherit;font-weight:700;cursor:pointer;

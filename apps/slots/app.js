@@ -215,6 +215,10 @@
   function onRoom(items) {
     mp.items = items || [];
     if (!mp.on) return;
+    var nLive = mp.livePeople(mp.items).length;
+    if (nLive > 1) {
+      $('mpHint').textContent = 'Anyone at the table can pull. Credits stay on this device.';
+    }
     if (!$('slot').classList.contains('play') && !$('slot').classList.contains('hit')) {
       setChip('', liveLabel());
     }
@@ -262,7 +266,6 @@
       await mp.putMe();
       mp.startHeartbeat();
       setChip('', liveLabel());
-      $('mpHint').textContent = 'Anyone at the table can pull. Credits stay on this device.';
     }
     if (window.gifos && gifos.onBack) {
       gifos.onBack(function () {
