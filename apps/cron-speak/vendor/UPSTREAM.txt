@@ -1,0 +1,12 @@
+bradymholt/cRonstrue
+https://github.com/bradymholt/cRonstrue
+tag v3.24.0 (tree 37b3e63f48c5cd0e5587a3054894cb2177a8ae50)
+file: dist/cronstrue.js (UMD from the npm package of that tag)
+sha256: eea8fee17bec8fbe61445d51853590fa819cab4525b18354b2b9984f370c25d8
+MIT, Copyright (c) 2017 Brady Holt
+
+GifOS inlines classic scripts. This is the English-only UMD (not the i18n
+bundle). Type a cron expression, read it in English. Last expression is
+saved privately. Press Invite to show the same translation, read-only, in a
+meeting. Upstream is a library with a demo page; this directory is the wrap.
+Nothing is fetched.

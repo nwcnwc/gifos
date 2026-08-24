@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cron Speak</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Cron Speak</h1>
+    <p class="lead">Type a cron expression. The app says it in English. Nothing is uploaded.</p>
+  </header>
+
+  <label class="field">Expression
+    <input id="expr" type="text" spellcheck="false" autocomplete="off" autocapitalize="none" placeholder="*/5 * * * *">
+  </label>
+  <p class="hint">minute · hour · day-of-month · month · day-of-week</p>
+
+  <div id="chips" class="chips"></div>
+
+  <section class="out-card">
+    <h2>In English</h2>
+    <p id="out" class="out"></p>
+    <p id="err" class="err" hidden></p>
+  </section>
+
+  <section id="settings">
+    <label class="check"><input type="checkbox" id="h24"> 24-hour time</label>
+    <label class="check"><input type="checkbox" id="verbose"> Verbose</label>
+    <label class="check"><input type="checkbox" id="dow0" checked> Sunday = 0</label>
+  </section>
+  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to show this sentence, read-only, in a meeting.</p>
+</div>
+
+<script src="vendor/cronstrue.js"></script>
+<script src="mp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
