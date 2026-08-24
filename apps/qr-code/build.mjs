@@ -143,6 +143,24 @@ if (!files['mp.js'].includes('Invite') || !files['app.js'].includes('Invite')) {
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'last'")) {
   throw new Error('app.js must save the last payload privately');
 }
+if (!manifest.launch || !manifest.launch.text || !manifest.launch.url) {
+  throw new Error('manifest.launch must declare text and url');
+}
+if (!files['app.js'].includes('gifos.launch') || !files['app.js'].includes('encodeKind')) {
+  throw new Error('app.js must encode kinds and honour gifos.launch');
+}
+if (!html.includes('data-kind="url"') || !html.includes('data-kind="contact"')) {
+  throw new Error('index.html must offer URL and contact kinds — not only a textarea');
+}
+if (!files['app.js'].includes('onBack')) {
+  throw new Error('app.js must register gifos.onBack');
+}
+if (!html.includes('empty-state') || !html.includes('Type something to draw a code')) {
+  throw new Error('empty state must be obvious');
+}
+if (/if you want/i.test(listing.description) || /\bdrop\b/i.test(listing.description)) {
+  throw new Error('listing copy must not say "drop" or "if you want"');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;

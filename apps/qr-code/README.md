@@ -1,14 +1,16 @@
 # QR Code
 
-Type text or a URL, get a code. Nothing is uploaded.
+Type a link or any text, get a code. Nothing is uploaded.
 
 An unofficial port of **[qrcodejs](https://github.com/davidshimjs/qrcodejs)** by
-davidshimjs (MIT). General maker — wifi-card is Wi-Fi only.
+davidshimjs (MIT). General maker — wifi-card is Wi-Fi only. Text, URL, phone,
+SMS, email, and a vCard contact; last payload + recents in a private collection;
+a launch link can open already filled in.
 
 ```
-index.html              shell: the box, the code, print / download
+index.html              shell: kinds, fields, the code, print / download
 style.css               dark chrome around a white code card
-app.js                  QRCode.js wrap, private last payload
+app.js                  QRCode.js wrap, encode helpers, private last payload
 mp.js                   optional meeting: the same code, read-only
 icon.mjs                procedural sticker and the 1200×720 cover
 build.mjs               packs the GIF into site/apps/qr-code/qr-code.gif
@@ -20,7 +22,8 @@ vendor/qrcode.js        davidshimjs/qrcodejs, MIT, pinned
 Upstream is a library with a demo page. The GifOS port is a complete tool:
 `connect-src` stays `'none'`. The last payload is stored in a **private**
 collection. Press **Invite** (OS chrome) to show the same code in a meeting —
-the room collection is **read-only**, so guests see the host’s code.
+the room collection is **read-only**, so guests see the host’s code. `launch`
+lets a shared URL open the app onto text or a link.
 
 ## capabilities
 

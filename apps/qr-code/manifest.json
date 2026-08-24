@@ -3,9 +3,9 @@
   "appId": "qr-code",
   "name": "QR Code",
   "shortName": "QR",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "description": "Type text or a URL, get a code. Nothing is uploaded.",
+  "description": "Type a link or any text, get a code. Nothing is uploaded.",
   "entry": "index.html",
   "accent": [240, 196, 32],
   "capabilities": {
@@ -15,5 +15,15 @@
   "data": {
     "save": { "visibility": "private" },
     "room": { "visibility": "read-only" }
+  },
+  "launch": {
+    "text": {
+      "label": "Open with this text already in the box",
+      "detail": "Words to draw as a code. Nothing is sent anywhere."
+    },
+    "url": {
+      "label": "Open with this link already in the box",
+      "detail": "A web address to draw as a code."
+    }
   }
 }
