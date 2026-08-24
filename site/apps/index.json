@@ -2281,6 +2281,54 @@
       "sha256": "2ade4310bcc2f710a15428d424a0023d46ff11daa2bd627f469b8fe51a101449"
     },
     {
+      "slug": "js-gauntlet",
+      "appId": "js-gauntlet",
+      "name": "Gauntlet",
+      "shortName": "Gauntlet",
+      "version": "1.0.0",
+      "tagline": "Four classes, one invite, one dungeon. No server.",
+      "author": {
+        "name": "Jake Gordon",
+        "url": "https://github.com/jakesgordon/javascript-gauntlet"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "HTML5 Gauntlet",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "gauntlet",
+        "dungeon",
+        "arcade",
+        "co-op",
+        "offline"
+      ],
+      "accent": [
+        249,
+        5,
+        3
+      ],
+      "cover": "/apps/js-gauntlet/cover.jpg",
+      "bytes": 1266298,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "dc46bcb060cddca03a8ff90d88099df5a202605e2b7a26580aecda94ad68bd0e"
+    },
+    {
       "slug": "jspaint",
       "appId": "jspaint",
       "name": "JS Paint",
@@ -2663,6 +2711,53 @@
         "ts": "2026-08-23"
       },
       "sha256": "154888834149a850f57a83cd9b1b3faa0744317795b53d6eb761d667c137a95a"
+    },
+    {
+      "slug": "memory",
+      "appId": "memory",
+      "name": "Memory",
+      "shortName": "Memory",
+      "version": "1.0.0",
+      "tagline": "Watch the pads. Tap them back. The sequence gets longer.",
+      "author": {
+        "name": "Sepand Haghighi",
+        "url": "https://github.com/sepandhaghighi/mnimi"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Mnimi",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "memory",
+        "simon",
+        "puzzle",
+        "offline"
+      ],
+      "accent": [
+        80,
+        180,
+        220
+      ],
+      "cover": "/apps/memory/cover.jpg",
+      "bytes": 125957,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "142471eef1dd0b8857a8f398515b8dc218bf0203d54956f55b80437b76e1b08b"
     },
     {
       "slug": "mykonos",
@@ -4450,6 +4545,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "8425de341374e96b03221332b20109f156c42fa24b0044c22755f8d7967fed59"
+    },
+    {
+      "slug": "solitaire",
+      "appId": "solitaire",
+      "name": "Solitaire",
+      "shortName": "Solitaire",
+      "version": "1.0",
+      "tagline": "Klondike on a phone. The file is the tableau.",
+      "author": {
+        "name": "rjanjic",
+        "url": "https://github.com/rjanjic/js-solitaire"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "js-solitaire",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "solitaire",
+        "klondike",
+        "cards",
+        "patience",
+        "offline"
+      ],
+      "accent": [
+        26,
+        122,
+        58
+      ],
+      "cover": "/apps/solitaire/cover.jpg",
+      "bytes": 187793,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "d6ad0dd83f4da2c46b6e303b2b6abe06166e0d4291702ef18aed3dddcc5b3e52"
     },
     {
       "slug": "sound-it-out",

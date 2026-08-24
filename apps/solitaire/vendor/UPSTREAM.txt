@@ -1,0 +1,11 @@
+rjanjic/js-solitaire
+https://github.com/rjanjic/js-solitaire
+commit f67a187afd2cff31ed8d04929d544fa2f032f457
+MIT, Copyright (c) 2021 Radovan Janjic
+
+Klondike: seven tableau columns, four foundations, a three-card waste.
+Upstream is a webpack/SCSS page with a card sprite and a Win95 chrome
+frame. This port destacks to classic scripts, draws the cards in CSS
+(the sprite is a placeholder in the repo), and keeps the tableau in the
+file. Tap a face-up card to auto-move it; drag still works with a mouse
+or a finger.
