@@ -4,13 +4,11 @@ People live in yurts. Animals live on farms. Draw a path between them so the set
 
 ## Controls
 
-- **Draw a path:** touch or left-click and drag from a yurt or a path onto a farm (or another path).
-- **Delete a path:** right-click, or turn on the red grid and tap the tile.
-- **Pause:** the pause button. You can still draw while paused.
-- **Sound / grid:** the buttons on the right.
-- **Fullscreen:** on the title. Helps on a phone; the game is wide.
-
-A mouse on a laptop works the same as the original. A finger draws like a left drag.
+- **Draw a path:** drag with a finger, or left-click and drag, from a yurt or an existing path onto a farm (or another path). Adjacent tiles only.
+- **Delete a path:** tap the red-grid button, then tap the tile. On a mouse, right-click drag also erases.
+- **Pause:** the pause button. You can still draw while paused. Back on a phone pauses first, then leaves.
+- **Sound / grid:** the buttons on the right. Grid lock keeps the lines visible while you plan.
+- The game is wide. In portrait the whole valley stays on screen so a drag does not fall off the edge.
 
 ## Scoring
 
@@ -18,7 +16,7 @@ Score is **settlers** (two per yurt) **plus animals**. You get more path tiles a
 
 ## A friend
 
-Press **Invite** in the bar above the app. Each of you plays your own valley. The roster shows the score you have reached.
+Press **Invite** in the bar above the app. Each of you plays your own valley. The roster in the corner shows the best score you have each reached.
 
 ## What is saved
 

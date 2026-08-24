@@ -36,7 +36,7 @@ const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
 
 if (!existsSync(join(dir, 'vendor', 'game.js'))) throw new Error('vendor/game.js missing');
-const GAME_SHA256 = '5f6f0f06750dac8cfa8ff97de3bd21e8115a7e5094bf96e442231acf2c2c3a78';
+const GAME_SHA256 = '7203ed1474e376b6e1b4ead4d3342faea1620bbf54d586b8abdb25786e561289';
 const gameBuf = readFileSync(join(dir, 'vendor', 'game.js'));
 const gameHex = createHash('sha256').update(gameBuf).digest('hex');
 if (gameHex !== GAME_SHA256) throw new Error('vendor/game.js sha256 ' + gameHex + ' ≠ pin ' + GAME_SHA256);
@@ -60,7 +60,6 @@ const game = gameBuf.toString('utf8');
 if (/eval\(/.test(game) || /new Function\(/.test(game)) throw new Error('game.js uses eval');
 if (/<\/script/i.test(game)) throw new Error('game.js </script');
 
-const SCRIPTS = ['shim.js', 'vendor/game.js', 'boot.js'];
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
@@ -79,16 +78,20 @@ const files = {
 }
 
 const html = files['index.html'];
-for (const s of SCRIPTS) {
-  if (!html.includes('src="' + s + '"')) throw new Error('missing ' + s);
-}
-if (html.indexOf('shim.js') > html.indexOf('vendor/game.js')) {
-  throw new Error('shim.js must load before the game');
-}
+if (!html.includes('src="shim.js"') || !html.includes('src="boot.js"')) throw new Error('missing shim/boot');
+if (!html.includes('data-game="vendor/game.js"')) throw new Error('boot must load the game after hydrate');
+if (html.indexOf('shim.js') > html.indexOf('boot.js')) throw new Error('shim.js must load before boot');
+if (html.includes('src="vendor/game.js"')) throw new Error('game.js must not run before hydrate');
 if (/type=["']module["']/.test(html)) throw new Error('no type=module');
 if (html.includes('id="invite"')) throw new Error('Invite is OS chrome');
 if (!files['shim.js'].includes('localStorage')) throw new Error('shim must stub localStorage');
 if (!files['boot.js'].includes("db('save')")) throw new Error('boot must save');
+if (!files['boot.js'].includes('setPointerCapture') && !game.includes('setPointerCapture')) {
+  throw new Error('phone drag must capture the pointer');
+}
+if (!game.includes('isDraw')) throw new Error('touch must count as a left-drag');
+if (!files['boot.js'].includes('xMidYMid meet')) throw new Error('portrait must show the whole valley');
+if (!files['boot.js'].includes('onBack')) throw new Error('Back must be registered');
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js') || n.startsWith('vendor/')) continue;
