@@ -76,7 +76,13 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1rem; }
   .card { border: 1px solid var(--border, #2a2a3f); border-radius: .9rem; overflow: hidden; cursor: pointer;
           background: var(--surface, #14141f); text-align: left; font: inherit; color: inherit; padding: 0; display: flex; flex-direction: column; }
-  .card:hover { border-color: var(--accent, #7b5cff); }
+  .card:hover, .card:focus-visible { border-color: var(--accent, #7b5cff); outline: none; }
+  .card .cardact { display: flex; align-items: center; gap: .6rem; padding: 0 .85rem .8rem; }
+  .card .act { padding: .42rem .95rem; border-radius: .55rem; font-size: .86rem; text-decoration: none; }
+  .card .cnote { font-size: .76rem; color: var(--muted, #8888aa); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .cnote.err { color: #ff6b6b; white-space: normal; }
+  .card .cprog { margin: 0 .85rem .8rem; height: 4px; width: auto; }
+  .pill.offline { border-color: #3ecf8e; color: #3ecf8e; }
   /* The cover is a JPEG. NEVER the App GIF — see js/store.js. */
   .card .shot { width: 100%; aspect-ratio: 16/10; object-fit: cover; object-position: top center; display: block;
                 background: var(--bg, #0a0a0f); border-bottom: 1px solid var(--border, #2a2a3f); }

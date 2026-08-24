@@ -32,6 +32,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -79,6 +80,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -126,6 +128,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -170,6 +173,7 @@
         "by": "Pawel Misiurski / DVLP"
       },
       "minBuild": 1089,
+      "offline": false,
       "releaseDate": "2026-08-06",
       "updated": "2026-08-07",
       "categories": [
@@ -221,6 +225,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -270,6 +275,7 @@
         "blessed": false
       },
       "minBuild": 1314,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -319,6 +325,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -367,6 +374,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -415,6 +423,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -462,6 +471,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -511,6 +521,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -559,6 +570,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -608,6 +620,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -659,6 +672,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -707,6 +721,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -755,6 +770,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -803,6 +819,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -843,6 +860,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-07-09",
       "updated": "2026-08-12",
       "categories": [
@@ -887,6 +905,7 @@
         "by": "Maxis / Electronic Arts"
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -936,6 +955,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -983,6 +1003,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1030,6 +1051,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1079,6 +1101,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -1127,6 +1150,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -1174,6 +1198,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1225,6 +1250,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1274,6 +1300,7 @@
         "blessed": false
       },
       "minBuild": 1178,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -1327,6 +1354,7 @@
         "blessed": false
       },
       "minBuild": 1314,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1379,6 +1407,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -1427,6 +1456,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -1478,6 +1508,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1526,6 +1557,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -1574,6 +1606,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1623,6 +1656,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -1673,6 +1707,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1722,6 +1757,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -1770,6 +1806,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -1821,6 +1858,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1870,6 +1908,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -1910,6 +1949,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-07-09",
       "updated": "2026-07-20",
       "categories": [
@@ -1959,6 +1999,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -2008,6 +2049,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -2057,6 +2099,7 @@
         "blessed": false
       },
       "minBuild": 1314,
+      "offline": true,
       "releaseDate": "2026-08-15",
       "updated": "2026-08-15",
       "categories": [
@@ -2106,6 +2149,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -2156,6 +2200,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -2204,6 +2249,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -2254,6 +2300,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -2302,6 +2349,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -2342,6 +2390,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -2390,6 +2439,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -2438,6 +2488,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -2486,6 +2537,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -2536,6 +2588,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -2584,6 +2637,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -2633,6 +2687,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -2682,6 +2737,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -2729,6 +2785,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -2779,6 +2836,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -2827,6 +2885,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -2876,6 +2935,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -2918,6 +2978,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -2966,6 +3027,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -3016,6 +3078,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -3066,6 +3129,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -3114,6 +3178,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -3162,6 +3227,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -3211,6 +3277,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -3260,6 +3327,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -3307,6 +3375,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -3356,6 +3425,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -3403,6 +3473,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -3451,6 +3522,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -3500,6 +3572,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -3549,6 +3622,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -3597,6 +3671,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -3646,6 +3721,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -3695,6 +3771,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -3736,6 +3813,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 1205,
+      "offline": true,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
@@ -3783,6 +3861,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 1205,
+      "offline": true,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
@@ -3831,6 +3910,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 1205,
+      "offline": true,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
@@ -3881,6 +3961,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 1177,
+      "offline": true,
       "releaseDate": "2026-08-09",
       "updated": "2026-08-09",
       "categories": [
@@ -3926,6 +4007,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 1250,
+      "offline": true,
       "releaseDate": "2026-08-11",
       "updated": "2026-08-11",
       "categories": [
@@ -3974,6 +4056,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 1205,
+      "offline": true,
       "releaseDate": "2026-08-11",
       "updated": "2026-08-11",
       "categories": [
@@ -4020,6 +4103,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -4069,6 +4153,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -4116,6 +4201,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -4166,6 +4252,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -4213,6 +4300,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -4263,6 +4351,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -4305,6 +4394,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 1205,
+      "offline": true,
       "releaseDate": "2026-08-12",
       "updated": "2026-08-12",
       "categories": [
@@ -4349,6 +4439,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 1250,
+      "offline": true,
       "releaseDate": "2026-08-12",
       "updated": "2026-08-12",
       "categories": [
@@ -4403,6 +4494,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -4452,6 +4544,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -4501,6 +4594,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -4550,6 +4644,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -4601,6 +4696,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -4651,6 +4747,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -4702,6 +4799,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -4751,6 +4849,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -4801,6 +4900,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -4849,6 +4949,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -4897,6 +4998,7 @@
         "blessed": false
       },
       "minBuild": 1314,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -4946,6 +5048,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -4996,6 +5099,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -5044,6 +5148,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -5088,6 +5193,7 @@
         "by": "Kahoot!"
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5137,6 +5243,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5186,6 +5293,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5235,6 +5343,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5285,6 +5394,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": false,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -5337,6 +5447,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5385,6 +5496,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5432,6 +5544,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -5483,6 +5596,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -5532,6 +5646,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5581,6 +5696,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5631,6 +5747,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -5680,6 +5797,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5728,6 +5846,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5777,6 +5896,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -5817,6 +5937,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-08",
       "updated": "2026-08-09",
       "categories": [
@@ -5868,6 +5989,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -5916,6 +6038,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -5966,6 +6089,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6014,6 +6138,7 @@
         "blessed": false
       },
       "minBuild": 1178,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -6069,6 +6194,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6117,6 +6243,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6167,6 +6294,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6216,6 +6344,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6266,6 +6395,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -6314,6 +6444,7 @@
         "blessed": false
       },
       "minBuild": 1381,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -6364,6 +6495,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -6413,6 +6545,7 @@
         "blessed": false
       },
       "minBuild": 1206,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -6461,6 +6594,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6501,6 +6635,7 @@
         "url": "https://gifos.app"
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6549,6 +6684,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6597,6 +6733,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -6644,6 +6781,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -6691,6 +6829,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6740,6 +6879,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6788,6 +6928,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6836,6 +6977,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -6885,6 +7027,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6933,6 +7076,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -6983,6 +7127,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -7032,6 +7177,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -7081,6 +7227,7 @@
         "blessed": false
       },
       "minBuild": 1381,
+      "offline": true,
       "releaseDate": "2026-08-22",
       "updated": "2026-08-22",
       "categories": [
@@ -7133,6 +7280,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -7183,6 +7331,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -7232,6 +7381,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -7280,6 +7430,7 @@
         "blessed": false
       },
       "minBuild": 1089,
+      "offline": false,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
@@ -7336,6 +7487,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-23",
       "updated": "2026-08-23",
       "categories": [
@@ -7384,6 +7536,7 @@
         "blessed": false
       },
       "minBuild": 947,
+      "offline": true,
       "releaseDate": "2026-08-24",
       "updated": "2026-08-24",
       "categories": [
