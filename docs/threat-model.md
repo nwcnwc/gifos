@@ -316,12 +316,13 @@ Being explicit here prevents false confidence:
 - **A compromised GifOS first party.** We *are* the trusted origin. If `gifos.app`
   or the Workers are compromised, the sandbox model doesn't save you — that's a
   deployment/ops concern, not an app-sandbox concern.
-- **Confidentiality of app-DB traffic from the relay operator.** Traffic to the
-  relay is TLS-encrypted in transit, but the relay *could* observe app ops
-  server-side; it simply **stores none of it**, and **media never transits it**.
-  When a direct P2P DataChannel is established, that path is DTLS between peers.
-  For data you wouldn't want the relay operator to see, rely on the P2P path and
-  the trust model accordingly.
+- **Metadata visible to the relay operator.** Content is not: every frame the
+  relay carries is AES-256-GCM ciphertext under a key derived from the link
+  secret, which the relay never sees ("derive, don't send",
+  `site/js/gifos-net.js`), it **stores none of it**, and **media never transits
+  it**. What the operator *can* still observe is metadata — IP addresses,
+  session ids (derived, but linkable per room), timing, and frame sizes. If
+  that exposure matters, it is not defended against here.
 - **Safety guarantees from signatures.** See boundary G — authorship ≠ safety.
 - **A user's own informed choices.** If a user approves a wildcard-network
   ("Unsafe") app, GifOS honors it. We make the risk loud; we don't override the
