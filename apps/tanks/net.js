@@ -10,7 +10,6 @@
   var STALE_MS = 9000;
   var HIT_RING = 8;
   var SHOT_RING = 6;
-  var CLAIM_TTL = 12000;
 
   var api = null;
   var me = { id: null, name: 'Player' };
@@ -92,20 +91,31 @@
   }
 
   function drainClaims(p) {
-    if (!p.hits || !p.hits.length || !onHit) return;
-    var i, h, key, cutoff;
-    for (i = 0; i < p.hits.length; i++) {
-      h = p.hits[i];
-      if (!h || h.to !== me.id) continue;
+    if (!onHit) return;
+    var i, h, key;
+    var hits = p.hits || [];
+    var live = {};
+    for (i = 0; i < hits.length; i++) {
+      h = hits[i];
+      if (!h) continue;
       key = p.id + ':' + h.n;
+      live[key] = 1;
+      if (h.to !== me.id) continue;
       if (appliedClaims[key]) continue;
-      appliedClaims[key] = now();
+      appliedClaims[key] = 1;
       if (h.sp != null && h.sp !== self.spawn) continue;
       if (!self.alive) continue;
       onHit(h.d || 1, p.id, p.name || 'Player');
     }
-    cutoff = now() - CLAIM_TTL;
-    for (key in appliedClaims) if (appliedClaims[key] < cutoff) delete appliedClaims[key];
+    /* Forget a claim only when the SHOOTER's row no longer carries it. The
+       old prune was a 12s clock — but the shooter republishes its hit ring
+       with EVERY row at 8 Hz, so the moment the clock forgot a claim the
+       next delivery re-applied it: one bullet dealt its damage again every
+       12s until the victim was dead. (seenShots never pruned, which is why
+       muzzle flashes never replayed — the two maps now agree.) */
+    for (key in appliedClaims) {
+      if (key.lastIndexOf(p.id + ':', 0) === 0 && !live[key]) delete appliedClaims[key];
+    }
   }
 
   function drainShots(p) {
