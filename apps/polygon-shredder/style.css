@@ -17,7 +17,7 @@ body {
 #brand { font-size: 18px; font-weight: 700; }
 #which { margin-left: auto; font-size: 13px; color: #9bc1bc; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.actions button, #leaveBtn {
+.actions button, #leaveBtn, #resetKnobs {
   font: inherit; font-size: 15px; font-weight: 700;
   padding: 8px 14px; min-height: 40px;
   border: 1px solid #50514f; background: #2a2a2a; color: #f4f1bb;
@@ -25,6 +25,7 @@ body {
 }
 #shareBtn { background: #ed6a5a; color: #fff; border-color: #fe5f55; }
 body.friend #shareBtn { display: none; }
+body.show-knobs #knobsBtn { background: #ed6a5a; color: #fff; border-color: #fe5f55; }
 #friend-bar { background: #2a2a2a; border: 1px solid #50514f; border-radius: 8px; padding: 10px 12px 8px; }
 #friend-bar[hidden] { display: none; }
 #friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
@@ -34,12 +35,35 @@ body.friend #shareBtn { display: none; }
 #friend-scores li:first-child { border-top: none; }
 #friend-scores .me .name { color: #ffe066; }
 .friend-actions { display: flex; justify-content: flex-end; }
-#stage { flex: 1; min-height: 200px; border-radius: 8px; overflow: hidden; background: #202020; position: relative; }
-#stage canvas { display: block; width: 100%; height: 100%; }
+#stage {
+  flex: 1; min-height: 220px; border-radius: 8px; overflow: hidden;
+  background: #202020; position: relative;
+}
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 #err { margin: 0; color: #fe5f55; }
 #err[hidden] { display: none; }
-#knobs { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: #9bc1bc; }
+#gpu-note {
+  margin: 0; color: #ffe066; font-size: 13px;
+}
+#gpu-note[hidden] { display: none; }
+#sheet { display: none; }
+body.show-knobs #sheet { display: block; }
+#knobs { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: #9bc1bc; align-items: center; }
 #knobs label { display: flex; align-items: center; gap: 6px; }
 #knobs input[type="range"] { width: 90px; }
+#knobs select {
+  font: inherit; background: #2a2a2a; color: #f4f1bb;
+  border: 1px solid #50514f; border-radius: 4px; padding: 4px 6px;
+}
 #how, .foot { margin: 0; font-size: 13px; line-height: 1.4; color: #9bc1bc; }
 .foot { opacity: 0.85; }
+
+@media (max-width: 700px) {
+  #brand { font-size: 16px; }
+  #stage { min-height: 0; flex: 1 1 auto; }
+  #how, .foot { display: none; }
+  #friend-hint { display: none; }
+  body.show-knobs #sheet { max-height: 36%; overflow: auto; }
+  body.show-knobs #stage { flex: 0 0 48%; min-height: 160px; }
+  .actions button { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+}

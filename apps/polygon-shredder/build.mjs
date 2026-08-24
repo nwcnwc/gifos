@@ -38,7 +38,7 @@ const listing = JSON.parse(read('listing.json'));
 const PINS = {
   'vendor/three.min.js': '6fb7a49250a57704831fd137e7e155d642d064da1f512ec3ef48279ed14d1db3',
   'vendor/shaders.js': '09910a630616d514f5dbea09eac1af4dab02b3dd5751f8b199bd3b677bb6539f',
-  'vendor/shredder.js': '34761dbfb4767263667b9aeb676252670390eb52715a876882a3bfba6db86073',
+  'vendor/shredder.js': 'edfc13e2f60f395b37712b2f01308e60acb91a44084d752a22fe2a336e224c8a',
 };
 
 for (const need of [
@@ -107,6 +107,12 @@ if (/type=["']module["']/.test(html)) throw new Error('no type=module');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('external URL');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html)) throw new Error('Invite is OS chrome');
 if (!files['mp.js'].includes('Invite') || !files['app.js'].includes("db('save')")) throw new Error('Invite/save');
+if (!files['vendor/shredder.js'].includes('aimFromEvent') || !files['vendor/shredder.js'].includes('pickFloat')) {
+  throw new Error('first-tap aim and float-texture probe required');
+}
+if (!files['app.js'].includes('gifos.onBack') || !files['app.js'].includes('bootMount')) {
+  throw new Error('Back-closes-knobs and GPU remount required');
+}
 if (!files['COPYING-polygon-shredder.txt'].includes('Jaume Sanchez')) throw new Error('COPYING');
 if (!files['vendor/shredder.js'].includes('spotlightTexture')) throw new Error('procedural spotlight required');
 if (files['vendor/shredder.js'].includes('spotlight.jpg')) throw new Error('do not fetch spotlight.jpg');

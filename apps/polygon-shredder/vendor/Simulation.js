@@ -52,7 +52,9 @@ function Simulation( renderer, width, height ) {
 	}.bind( this ) );*/
 
 
-	var floatType = (typeof isMobile!=="undefined"&&isMobile.apple&&isMobile.apple.device) ? THREE.HalfFloatType : THREE.FloatType;
+	var floatType = (typeof window !== 'undefined' && window.__psFloatType)
+		? window.__psFloatType
+		: ((typeof isMobile!=="undefined"&&isMobile.apple&&isMobile.apple.device) ? THREE.HalfFloatType : THREE.FloatType);
 
 	this.texture = new THREE.DataTexture( this.data, this.width, this.height, THREE.RGBAFormat, THREE.FloatType );
 	this.texture.minFilter = THREE.NearestFilter;

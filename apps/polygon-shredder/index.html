@@ -15,9 +15,10 @@
     <div class="actions">
       <button type="button" id="shareBtn">Play together</button>
       <button type="button" id="pauseBtn">Pause</button>
+      <button type="button" id="knobsBtn" aria-expanded="false" aria-controls="sheet">Knobs</button>
     </div>
     <div id="friend-bar" hidden>
-      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both get the same knobs. Turn one — they see it.</p>
+      <p id="friend-hint">Press <b>Invite</b> in the bar above the app, then send the link. You both get the same knobs. Turn one — they see it.</p>
       <p id="friend-status"></p>
       <ul id="friend-scores"></ul>
       <div class="friend-actions">
@@ -26,15 +27,26 @@
     </div>
     <div id="stage"></div>
     <p id="err" hidden></p>
-    <div id="knobs">
-      <label>Factor <input id="factor" type="range" min="0.1" max="1" step="0.01" value="0.5"></label>
-      <label>Evolution <input id="evolution" type="range" min="0" max="1" step="0.01" value="0.5"></label>
-      <label>Rotation <input id="rotation" type="range" min="0" max="1" step="0.01" value="0.5"></label>
-      <label>Radius <input id="radius" type="range" min="0" max="4" step="0.05" value="2"></label>
-      <label>Scale <input id="scale" type="range" min="0.1" max="2" step="0.05" value="1"></label>
-      <label class="check"><input id="pulsate" type="checkbox"> Pulsate</label>
+    <p id="gpu-note" hidden></p>
+    <div id="sheet">
+      <div id="knobs">
+        <label>Factor <input id="factor" type="range" min="0.1" max="1" step="0.01" value="0.5"></label>
+        <label>Evolution <input id="evolution" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+        <label>Rotation <input id="rotation" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+        <label>Radius <input id="radius" type="range" min="0" max="4" step="0.05" value="2"></label>
+        <label>Scale <input id="scale" type="range" min="0.1" max="2" step="0.05" value="1"></label>
+        <label class="check"><input id="pulsate" type="checkbox"> Pulsate</label>
+        <label>Cloud
+          <select id="quality">
+            <option value="16">Lite</option>
+            <option value="32">Medium</option>
+            <option value="64">Full</option>
+          </select>
+        </label>
+        <button type="button" id="resetKnobs">Reset knobs</button>
+      </div>
     </div>
-    <p id="how">Move to spawn. Drag to orbit, scroll to zoom. Factor is speed; Evolution twists the flow; Radius is the bubble that shoves cubes away.</p>
+    <p id="how">Move to spawn. Drag to orbit, pinch or scroll to zoom. Factor is speed; Evolution twists the flow; Radius is the bubble that shoves cubes away. On a weak GPU the cloud shrinks so the shred still runs.</p>
     <p class="foot">Unofficial port of The Polygon Shredder by spite (MIT). Playing alone is the original toy. A shared shred is the same knobs — nobody writes on anybody else’s row.</p>
   </div>
   <script src="vendor/three.min.js"></script>
