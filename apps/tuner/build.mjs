@@ -99,6 +99,9 @@ if (/type=["']module["']/.test(html)) throw new Error('classic scripts only');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('index.html has an external URL');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html)) throw new Error('do not draw an Invite button');
 if (!html.includes('Record a note')) throw new Error('honest UI: Record a note');
+if (!html.includes('No clip yet')) throw new Error('honest empty state before a clip');
+if (!files['app.js'].includes('Too quiet')) throw new Error('honest when it cannot hear');
+if (!files['app.js'].includes('no live microphone')) throw new Error('say there is no live microphone');
 
 const src = files['app.js'] + files['vendor/pitch.js'];
 for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(', 'getUserMedia']) {
@@ -121,10 +124,10 @@ if (!files['COPYING-pitchdetect.txt'].includes('Chris Wilson')) {
 
 {
   const ctx = {
-    window: {}, console, Math, Array, String, Number,
+    window: {}, console, Math, Object, Array, JSON, Date, String, Number, Boolean,
     document: { getElementById: function () { return null; } }
   };
-  ctx.window = ctx;
+  ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx;
   vm.runInNewContext(
     files['vendor/pitch.js'] + '\n' + files['app.js'] + '\n' +
     'result = (function () {\n' +
@@ -137,6 +140,12 @@ if (!files['COPYING-pitchdetect.txt'].includes('Chris Wilson')) {
     '  if (Math.abs(r.hz - 440) > 2) throw new Error("hz " + r.hz);\n' +
     '  var e329 = P.detect(P.sine(329.63, 44100, 4096), 44100);\n' +
     '  if (!e329 || e329.name !== "E") throw new Error("E4 " + (e329 && e329.name));\n' +
+    '  var T = TunerApp;\n' +
+    '  var a = T.detectAt(P.sine(440, 44100, 4096), 44100, 440);\n' +
+    '  if (!a || a.name !== "A" || a.octave !== 4) throw new Error("A4 wrap");\n' +
+    '  var quiet = []; for (var i = 0; i < 2048; i++) quiet[i] = 0.001;\n' +
+    '  var q = T.classify(quiet, 44100, 440);\n' +
+    '  if (q.kind !== "quiet") throw new Error("quiet " + q.kind);\n' +
     '  return Math.round(r.hz);\n' +
     '})();',
     ctx

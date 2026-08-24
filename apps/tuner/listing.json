@@ -1,6 +1,6 @@
 {
   "tagline": "Record a note. See the pitch. Nothing is uploaded.",
-  "description": "Press Record a note, play or sing one pitch, then stop. The app names the note, the frequency in Hertz, and how many cents sharp or flat you were. It is a take, not a live needle — you record, then it reads.\n\nThe last reading comes back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of PitchDetect by Chris Wilson. Bugs go to GifOS, not upstream.",
+  "description": "Works offline. No account, no install, no live microphone. Press Record a note, play or sing one pitch, then stop. The app names the note, the frequency in Hertz, and how many cents sharp or flat you were. It is a take, not a live needle — you record, then it reads. If the take is too quiet or has no clear pitch, it says so.\n\nThe last reading comes back the next time you open the app, still only on this device. Pick guitar, ukulele or bass to aim at an open string, and tap a string to hear the target.\n\nAn unofficial port of PitchDetect by Chris Wilson. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "Chris Wilson",
     "url": "https://github.com/cwilso/PitchDetect"
