@@ -204,6 +204,55 @@
       "sha256": "91eb53843c5c028c215f7f78e2ecb0042f6af7d68a1e7aa49516841bebbe48b5"
     },
     {
+      "slug": "backdooms",
+      "appId": "backdooms",
+      "name": "Backdooms",
+      "shortName": "Backdooms",
+      "version": "1.0",
+      "tagline": "DOOM in the Backrooms, in a GIF. No server.",
+      "author": {
+        "name": "Kuberwastaken",
+        "url": "https://github.com/Kuberwastaken/backdooms"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Backdooms",
+        "blessed": false
+      },
+      "minBuild": 1314,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "doom",
+        "backrooms",
+        "fps",
+        "shooter",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        196,
+        156,
+        36
+      ],
+      "cover": "/apps/backdooms/cover.jpg",
+      "bytes": 189429,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "639a1509edc21460817615bd7e0c1252bafafb00b08c04f3bbcdbb3dc471e7e9"
+    },
+    {
       "slug": "backgammon",
       "appId": "backgammon",
       "name": "Backgammon",
@@ -3864,6 +3913,55 @@
       "sha256": "5a39a70fde6aba267d242f0a3c56c5a50196d158c1a7110f66cf2ea202e96c37"
     },
     {
+      "slug": "slots",
+      "appId": "slots",
+      "name": "Slots",
+      "shortName": "Slots",
+      "version": "1.0",
+      "tagline": "Pull the lever. The meeting sees the same reels. No cash.",
+      "author": {
+        "name": "johakr",
+        "url": "https://github.com/johakr/html5-slot-machine"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "html5-slot-machine",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "slots",
+        "party",
+        "reels",
+        "arcade",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        212,
+        160,
+        48
+      ],
+      "cover": "/apps/slots/cover.jpg",
+      "bytes": 188294,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "53f951f83a3293562c33735602198f23703bf1bef5f3604971b288e61bb43a28"
+    },
+    {
       "slug": "snake",
       "appId": "snake",
       "name": "Snake",
@@ -4538,6 +4636,53 @@
         "ts": "2026-08-23"
       },
       "sha256": "2c11ac1421c1f7d6fb0dad4f009c23af3a8121db5474eaa7a87008ea192a5cfe"
+    },
+    {
+      "slug": "tiny-platformer",
+      "appId": "tiny-platformer",
+      "name": "Tiny Platformer",
+      "shortName": "Platformer",
+      "version": "1.0.0",
+      "tagline": "Jump, grab the gold, stomp the grey blocks. Best run lives in the file.",
+      "author": {
+        "name": "Jake Gordon",
+        "url": "https://github.com/jakesgordon/javascript-tiny-platformer"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Tiny Platformer",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "platformer",
+        "arcade",
+        "jump",
+        "offline"
+      ],
+      "accent": [
+        236,
+        208,
+        120
+      ],
+      "cover": "/apps/tiny-platformer/cover.jpg",
+      "bytes": 188955,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "6ee6583369c6ae759322dd10c74090d41f5812393eb2f32b125e63c7ef756b41"
     },
     {
       "slug": "tosios",

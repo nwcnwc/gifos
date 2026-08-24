@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "slots",
+  "name": "Slots",
+  "shortName": "Slots",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Pull the lever. Five reels, fake credits, no cash. Invite and the meeting sees the same spin.",
+  "entry": "index.html",
+  "accent": [212, 160, 48],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

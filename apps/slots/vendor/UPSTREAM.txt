@@ -1,0 +1,14 @@
+johakr/html5-slot-machine
+https://github.com/johakr/html5-slot-machine
+commit 347fc31ddd227674d8dc93e238d6664784e1872d
+MIT, Copyright (c) 2017 Johannes Kronmüller
+
+Vanilla Web Animations slot: five reels, a spin button, autoplay.
+Upstream ships Star Wars–style icons by KPD Media (IconStore: personal
+and commercial use, no attribution; redistribution of the icon pack is
+not allowed). This port keeps the reel engine and draws its own fruit
+symbols instead, so the GIF does not redistribute that pack.
+
+Webpack, the bootstrap reboot CDN, and the photo backgrounds stay
+behind. Credits live in a private save. Press Invite and everyone in
+the room sees the same reels.

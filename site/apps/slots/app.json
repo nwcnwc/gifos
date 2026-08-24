@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "slots",
+  "appId": "slots",
+  "name": "Slots",
+  "shortName": "Slots",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Pull the lever. The meeting sees the same reels. No cash.",
+  "description": "Five reels, a spin button, and a pile of toy credits. Land three of a kind on the payline and the credits jump. Nothing is wagered and nothing is paid out — it is a party toy, not a casino.\n\nOn your own the last credit pile comes back with the file. Press Invite in the bar and everyone who opens the link watches the same spin. Anyone at the table can pull.\n\nAn unofficial port of html5-slot-machine by johakr. Same Web Animations reels; fruit symbols instead of the original icon pack.",
+  "author": {
+    "name": "johakr",
+    "url": "https://github.com/johakr/html5-slot-machine"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "slots",
+    "party",
+    "reels",
+    "arcade",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/slots",
+  "accent": [
+    212,
+    160,
+    48
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/slots/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/slots/slots.gif",
+  "bytes": 188294,
+  "download": 0,
+  "provides": null,
+  "sha256": "53f951f83a3293562c33735602198f23703bf1bef5f3604971b288e61bb43a28",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "html5-slot-machine",
+    "url": "https://github.com/johakr/html5-slot-machine",
+    "blessed": false
+  }
+}
