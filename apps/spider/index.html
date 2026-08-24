@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Spider</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Spider</div>
+  <div class="stats"><span id="score">500</span> · <span id="found">0</span>/8</div>
+</header>
+<div class="tableau" id="tableau"></div>
+<div class="bar">
+  <button type="button" id="undo">Undo</button>
+  <button type="button" id="hint">Hint</button>
+  <button type="button" id="stock" class="stock">Stock <span id="stockN">50</span></button>
+  <button type="button" id="new">New</button>
+</div>
+<p class="msg" id="msg"></p>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "spider",
+  "name": "Spider",
+  "shortName": "Spider",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Spider patience. Build eight king-to-ace runs. The file is the tableau.",
+  "entry": "index.html",
+  "accent": [48, 90, 48],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}
