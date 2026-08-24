@@ -276,8 +276,9 @@ The Workers do not auto-deploy — after changing `relay/` or `mirror/`, run `wr
 - ✅ Scale-hardened relay: WebSocket hibernation (idle sessions cost nothing), zero persistence, per-IP and per-session abuse guards
 - ✅ Computer images: whole-desktop backup GIFs that **boot** in isolated namespaces, recursively
 - ✅ Version pinning: archived builds under `/versions/`, update bar, additive-only data migrations
+- ✅ End-to-end encrypted sessions: every content frame is AES-256-GCM sealed under keys derived from the link secret ("derive, don't send") — the relay routes on a separate derivation and only ever carries ciphertext
 
-**Next ideas**: app directory, snapshot merge (git-style), end-to-end encrypted relay sessions, SharedWorker hosting so sessions survive tab close.
+**Next ideas**: snapshot merge (git-style), SharedWorker hosting so sessions survive tab close.
 
 ## Architecture
 
