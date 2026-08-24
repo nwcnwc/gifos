@@ -53,12 +53,12 @@ h1 { flex: 1; margin: 0; font-size: 1.05rem; letter-spacing: .08em; text-transfo
 #grid { display: flex; align-items: center; justify-content: center; min-height: 0; }
 #clues { overflow: auto; font-size: .86rem; min-height: 0; -webkit-overflow-scrolling: touch; }
 .crosswords-js.crossword-grid {
-  width: min(100%, 420px);
+  width: min-content;
   max-width: 100%;
 }
 .crossword-grid {
-  --grid-cell-size: clamp(1.55rem, 11vw, 2.35rem);
-  --letter-size: clamp(.95rem, 6.2vw, 1.45rem);
+  --grid-cell-size: clamp(1.7rem, 12vw, 2.7rem);
+  --letter-size: clamp(1rem, 6.5vw, 1.55rem);
   --label-size: .55rem;
 }
 .cwcell.dark { background: #0c0d12; }
@@ -76,9 +76,10 @@ h1 { flex: 1; margin: 0; font-size: 1.05rem; letter-spacing: .08em; text-transfo
 }
 #keys {
   display: none;
-  flex-wrap: wrap; gap: .22rem; justify-content: center;
+  flex-direction: column; gap: .22rem; align-items: center;
   padding: .4rem 0 .15rem; flex: 0 0 auto;
 }
+#keys .keyrow { display: flex; gap: .22rem; justify-content: center; width: 100%; }
 #keys button {
   width: 9vw; max-width: 2.15rem; min-width: 1.55rem;
   height: 2.55rem; min-height: 44px;

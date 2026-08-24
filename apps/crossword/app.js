@@ -44,13 +44,26 @@
     return byId[id] || puzzles[0] || null;
   }
 
+  function letterOf(c) {
+    var ch;
+    if (c.acrossClue && c.acrossClue.answer) {
+      ch = c.acrossClue.answer.charAt(c.acrossClueLetterIndex);
+      if (ch && ch.trim()) return ch.toUpperCase();
+    }
+    if (c.downClue && c.downClue.answer) {
+      ch = c.downClue.answer.charAt(c.downClueLetterIndex);
+      if (ch && ch.trim()) return ch.toUpperCase();
+    }
+    ch = (c.answer || '').trim();
+    return ch ? ch.toUpperCase() : '';
+  }
+
   function snapshot() {
     if (!ctrl || !ctrl.model) return {};
     var cells = {}, list = ctrl.model.lightCells || [];
     for (var n = 0; n < list.length; n++) {
       var c = list[n];
-      var ch = (c.answer || ' ').trim();
-      cells[c.x + ',' + c.y] = ch || '';
+      cells[c.x + ',' + c.y] = letterOf(c);
     }
     return cells;
   }
@@ -60,6 +73,7 @@
     /* setGridCell wants the DOM node (dataset.xy), not the model cell. */
     var el = ctrl.cellElement(cell);
     if (el) ctrl.setGridCell(el, ch);
+    cell.answer = ch;
   }
 
   function applyCells(cells) {
@@ -145,12 +159,14 @@
     var rows = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
     keysEl.innerHTML = '';
     rows.forEach(function (row, ri) {
+      var wrap = document.createElement('div');
+      wrap.className = 'keyrow';
       row.split('').forEach(function (ch) {
         var b = document.createElement('button');
         b.type = 'button';
         b.textContent = ch;
         b.addEventListener('click', function () { enterLetter(ch); focusKb(); });
-        keysEl.appendChild(b);
+        wrap.appendChild(b);
       });
       if (ri === 2) {
         var del = document.createElement('button');
@@ -158,8 +174,9 @@
         del.className = 'wide';
         del.textContent = 'DEL';
         del.addEventListener('click', function () { enterLetter('DEL'); focusKb(); });
-        keysEl.appendChild(del);
+        wrap.appendChild(del);
       }
+      keysEl.appendChild(wrap);
     });
   }
 
