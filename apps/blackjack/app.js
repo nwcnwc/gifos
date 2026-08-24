@@ -4,15 +4,19 @@
   'use strict';
   var BJ = window.BJ;
   var $ = function (id) { return document.getElementById(id); };
-  var STAKE = 10, START = 200;
-  var chips = START;
+  var chips = BJ.START;
   var saveDb = null, roomDb = null;
   var me = { id: 'local', name: 'you' };
   var owner = true;
-  var mp = false;
-  var local = null; // {shoe, dealer, player, phase}
+  var mp = { on: false, joined: 0, seq: 0, row: null };
+  var local = null;
+  var hostTable = null;
   var items = [];
-  var PRES_TTL = 12000, HB_MS = 3000, hb = 0;
+  var lastSettled = null;
+  var applied = {};
+  var handSeq = 0;
+  var hb = 0;
+  var HB_MS = 3000;
 
   try {
     if (window.gifos) {
@@ -22,12 +26,12 @@
   } catch (e) {}
 
   function nowMs() { return Date.now ? Date.now() : 0; }
-  function live(list) {
-    var t = nowMs();
-    return (list || []).filter(function (it) {
-      return it && it.kind === 'seat' && it.t && (t - it.t) < PRES_TTL;
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>]/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch];
     });
   }
+  function peopleNow() { return BJ.liveSeats(items, nowMs()); }
   function tableRec(list) {
     var i, it;
     for (i = 0; i < (list || []).length; i++) {
@@ -36,10 +40,17 @@
     }
     return null;
   }
-  function isHost(people) {
-    if (!people.length) return owner;
-    people = people.slice().sort(function (a, b) { return (a.joined || 0) - (b.joined || 0); });
-    return people[0].id === me.id;
+  function amHost(people) {
+    var hid = BJ.hostId(people, owner ? me.id : null);
+    return hid === me.id;
+  }
+  function tabNow() {
+    if (mp.on && hostTable && amHost(peopleNow())) return hostTable;
+    if (mp.on) {
+      var rec = tableRec(items);
+      if (rec && rec.phase) return rec;
+    }
+    return local;
   }
 
   function paintHand(el, hand, hideHole) {
@@ -57,217 +68,309 @@
   function showChips() { $('chips').textContent = String(chips); }
   function persistChips() {
     if (!saveDb) return;
-    saveDb.put({ id: 'last', chips: chips }).catch(function () {});
+    saveDb.put({ id: 'last', chips: chips, settled: lastSettled }).catch(function () {});
   }
-  function settle(result) {
-    if (result.winner === 1) chips += result.bj ? Math.floor(STAKE * 1.5) : STAKE;
-    else if (result.winner === 0) chips = Math.max(0, chips - STAKE);
-    showChips(); persistChips();
+  function persistShoe(tab) {
+    if (!saveDb || !owner || !tab) return;
+    saveDb.put({
+      id: 'shoe',
+      handId: tab.handId,
+      shoe: tab.shoe,
+      dealer: tab.dealer,
+      hands: tab.hands,
+      phase: tab.phase,
+      stake: tab.stake,
+      msg: tab.msg
+    }).catch(function () {});
   }
 
-  function setButtons(phase, myTurn) {
-    $('deal').hidden = phase === 'play';
+  function setButtons(tab) {
+    var phase = tab ? tab.phase : 'idle';
+    var people = peopleNow();
+    var host = !mp.on || amHost(people);
+    var mine = tab ? BJ.activeHand(tab, me.id) : null;
+    var myTurn = !!(tab && phase === 'play' && mine);
+    var broke = !BJ.canDeal(chips, BJ.STAKE);
+    $('deal').hidden = phase === 'play' || !host || broke;
     $('hit').hidden = !myTurn;
     $('stand').hidden = !myTurn;
+    $('double').hidden = !(myTurn && BJ.canDouble(tab, me.id, chips));
+    $('split').hidden = !(myTurn && BJ.canSplit(tab, me.id, chips));
+    $('refill').hidden = !(broke && phase !== 'play');
   }
 
-  function renderLocal() {
-    if (!local) {
-      paintHand($('dCards'), []);
-      paintHand($('pCards'), []);
-      $('dTotal').textContent = '~';
-      $('pTotal').textContent = '~';
-      setButtons('idle', false);
-      return;
-    }
-    var hide = local.phase === 'play';
-    paintHand($('dCards'), local.dealer, hide);
-    paintHand($('pCards'), local.player, false);
-    $('pTotal').textContent = String(BJ.total(local.player));
-    $('dTotal').textContent = hide ? String(local.dealer[0] ? BJ.total([local.dealer[0]]) : '~') : String(BJ.total(local.dealer));
-    setButtons(local.phase, local.phase === 'play');
-  }
-
-  function startLocal() {
-    var shoe = BJ.shuffle(BJ.makeDeck());
-    var player = BJ.draw(shoe, 2);
-    var dealer = BJ.draw(shoe, 2);
-    local = { shoe: shoe, dealer: dealer, player: player, phase: 'play' };
-    var nat = BJ.decide(dealer, player);
-    if (BJ.isBj(player) || BJ.isBj(dealer)) {
-      local.phase = 'done';
-      $('msg').textContent = nat.msg;
-      settle(nat);
-    } else $('msg').textContent = 'Hit or stand.';
-    renderLocal();
-  }
-  function hitLocal() {
-    if (!local || local.phase !== 'play') return;
-    local.player.push(BJ.draw(local.shoe, 1)[0]);
-    if (BJ.total(local.player) > 21) {
-      local.phase = 'done';
-      var r = BJ.decide(local.dealer, local.player);
-      $('msg').textContent = r.msg;
-      settle(r);
-    }
-    renderLocal();
-  }
-  function standLocal() {
-    if (!local || local.phase !== 'play') return;
-    BJ.dealerPlay(local.dealer, local.shoe);
-    local.phase = 'done';
-    var r = BJ.decide(local.dealer, local.player);
-    $('msg').textContent = r.msg;
-    settle(r);
-    renderLocal();
-  }
-
-  async function putSeat(extra) {
-    extra = extra || {};
-    if (!roomDb || !mp) return;
-    var rec = { id: me.id, kind: 'seat', name: me.name || 'player', t: nowMs(), joined: extra.joined };
-    var k;
-    for (k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) rec[k] = extra[k];
-    try { await roomDb.put(rec); } catch (e) {}
-  }
-  async function putTable(rec) {
-    if (!roomDb || !mp) return;
-    rec.id = 'table';
-    rec.kind = 'table';
-    rec.t = nowMs();
-    rec.host = me.id;
-    try { await roomDb.put(rec); } catch (e) {}
-  }
-
-  function renderTable(tab, people) {
-    if (!tab) {
-      renderLocal();
-      return;
-    }
-    var hide = tab.phase === 'play';
-    paintHand($('dCards'), tab.dealer || [], hide);
-    var mine = (tab.hands && tab.hands[me.id]) || { cards: [] };
-    paintHand($('pCards'), mine.cards || [], false);
-    $('pTotal').textContent = mine.cards && mine.cards.length ? String(BJ.total(mine.cards)) : '~';
-    $('dTotal').textContent = hide && tab.dealer && tab.dealer[0]
-      ? String(BJ.total([tab.dealer[0]]))
-      : (tab.dealer ? String(BJ.total(tab.dealer)) : '~');
-    var myTurn = tab.phase === 'play' && mine.cards && !mine.stood && !mine.bust;
-    setButtons(tab.phase === 'play' ? 'play' : 'idle', myTurn);
-    $('msg').textContent = tab.msg || (myTurn ? 'Hit or stand.' : 'Waiting.');
-    var box = $('seats');
+  function paintMine(tab) {
+    var mine = tab ? BJ.myHands(tab, me.id) : [];
+    var box = $('pHands');
     box.innerHTML = '';
-    people.forEach(function (p) {
-      if (p.id === me.id) return;
-      var h = tab.hands && tab.hands[p.id];
+    if (!mine.length) {
       var row = document.createElement('div');
-      row.className = 'seat';
-      row.innerHTML = '<div class="name">' + (p.name || 'player') + (h && h.stood ? ' · stand' : '') + '</div>';
+      row.className = 'hand';
+      row.innerHTML = '<h2>You <span>~</span></h2>';
       var cards = document.createElement('div');
       cards.className = 'cards';
-      paintHand(cards, (h && h.cards) || [], false);
+      row.appendChild(cards);
+      box.appendChild(row);
+      return;
+    }
+    var acting = tab.phase === 'play' ? BJ.activeHand(tab, me.id) : null;
+    mine.forEach(function (h, i) {
+      var row = document.createElement('div');
+      row.className = 'hand' + (acting && acting === h ? ' on' : '');
+      var lab = mine.length > 1 ? 'You · ' + (i + 1) : 'You';
+      if (h.doubled) lab += ' · double';
+      if (h.stood && !h.bust && tab.phase === 'play') lab += ' · stand';
+      if (h.bust) lab += ' · bust';
+      var tot = BJ.totalLabel(h.cards);
+      row.innerHTML = '<h2>' + esc(lab) + ' <span>' + tot + '</span></h2>';
+      var cards = document.createElement('div');
+      cards.className = 'cards';
+      paintHand(cards, h.cards, false);
       row.appendChild(cards);
       box.appendChild(row);
     });
   }
 
-  function dealTable(people) {
-    var shoe = BJ.shuffle(BJ.makeDeck());
-    var dealer = BJ.draw(shoe, 2);
-    var hands = {}, i, p;
-    for (i = 0; i < people.length; i++) {
-      p = people[i];
-      hands[p.id] = { cards: BJ.draw(shoe, 2), stood: false, bust: false };
-    }
-    var tab = { phase: 'play', dealer: dealer, hands: hands, shoe: shoe, msg: 'Hit or stand.' };
-    var mine = hands[me.id];
-    if (mine && BJ.isBj(mine.cards)) {
-      mine.stood = true;
-    }
-    maybeFinish(tab, people);
-    putTable(tab);
-  }
-
-  function maybeFinish(tab, people) {
-    var ids = Object.keys(tab.hands || {});
-    var allDone = ids.every(function (id) {
-      var h = tab.hands[id];
-      return h.stood || h.bust;
+  function paintSeats(tab, people) {
+    var box = $('seats');
+    box.innerHTML = '';
+    (people || []).forEach(function (p) {
+      if (p.id === me.id) return;
+      var hs = tab ? BJ.myHands(tab, p.id) : [];
+      var row = document.createElement('div');
+      var acting = tab && tab.phase === 'play' && BJ.activeHand(tab, p.id);
+      row.className = 'seat' + (acting ? ' on' : '');
+      var name = (p.name || 'player') + (hs[0] && hs[0].stood && tab && tab.phase === 'play' ? ' · stand' : '');
+      row.innerHTML = '<div class="name">' + esc(name) + '</div>';
+      hs.forEach(function (h) {
+        var cards = document.createElement('div');
+        cards.className = 'cards';
+        paintHand(cards, h.cards || [], false);
+        row.appendChild(cards);
+        if (h.cards && h.cards.length) {
+          var t = document.createElement('div');
+          t.className = 'tot';
+          t.textContent = h.bust ? 'bust' : BJ.totalLabel(h.cards);
+          row.appendChild(t);
+        }
+      });
+      box.appendChild(row);
     });
-    if (!allDone) return;
-    BJ.dealerPlay(tab.dealer, tab.shoe);
-    tab.phase = 'done';
-    var mine = tab.hands[me.id];
-    if (mine) {
-      var r = BJ.decide(tab.dealer, mine.cards);
-      tab.msg = r.msg;
-      settle(r);
-    } else tab.msg = 'Dealer ' + BJ.total(tab.dealer);
+    var who = $('who');
+    if (!mp.on || !people || people.length < 2) {
+      who.textContent = '';
+      who.hidden = true;
+    } else {
+      who.hidden = false;
+      who.textContent = people.map(function (p) {
+        return (p.name || 'player') + (p.id === me.id ? ' (you)' : '');
+      }).join(' · ');
+    }
   }
 
-  function applyAction(tab, people, actorId, action) {
-    var h = tab.hands[actorId];
-    if (!h || h.stood || h.bust || tab.phase !== 'play') return;
-    if (action === 'hit') {
-      h.cards.push(BJ.draw(tab.shoe, 1)[0]);
-      if (BJ.total(h.cards) > 21) { h.bust = true; h.stood = true; }
-    } else if (action === 'stand') {
-      h.stood = true;
+  function render() {
+    var tab = tabNow();
+    var people = peopleNow();
+    var hide = !!(tab && tab.phase === 'play');
+    paintHand($('dCards'), tab ? tab.dealer : [], hide);
+    if (!tab || !tab.dealer || !tab.dealer.length) {
+      $('dTotal').textContent = '~';
+    } else if (hide) {
+      $('dTotal').textContent = BJ.totalLabel([tab.dealer[0]]);
+    } else {
+      $('dTotal').textContent = BJ.totalLabel(tab.dealer);
     }
-    maybeFinish(tab, people);
-    putTable(tab);
+    paintMine(tab);
+    paintSeats(tab, people);
+    setButtons(tab);
+    var hasCards = !!(tab && tab.dealer && tab.dealer.length);
+    var idle = $('feltIdle');
+    if (idle) idle.hidden = hasCards;
+    if ($('dealer')) $('dealer').hidden = !hasCards;
+    if ($('pHands')) $('pHands').hidden = !hasCards;
+    var msg = $('msg');
+    if (!tab) {
+      if (mp.on && people.length && !amHost(people)) msg.textContent = 'Waiting for the host to deal.';
+      else if (!BJ.canDeal(chips, BJ.STAKE)) msg.textContent = 'You are out of chips. They are toys — restock 200.';
+      else msg.textContent = 'Deal when you are ready.';
+    } else if (tab.phase === 'play') {
+      var mine = BJ.activeHand(tab, me.id);
+      if (mine) {
+        if (BJ.canSplit(tab, me.id, chips)) msg.textContent = 'Hit, stand, double, or split.';
+        else if (BJ.canDouble(tab, me.id, chips)) msg.textContent = 'Hit, stand, or double.';
+        else msg.textContent = 'Hit or stand.';
+      } else if (mp.on) msg.textContent = 'Waiting on the table.';
+      else msg.textContent = 'Hit or stand.';
+    } else {
+      msg.textContent = tab.msg || '';
+    }
+    showChips();
+  }
+
+  function settleFrom(tab) {
+    if (!tab || tab.phase !== 'done') return;
+    if (tab.handId === lastSettled) return;
+    if (!BJ.myHands(tab, me.id).length) return;
+    lastSettled = tab.handId;
+    var net = BJ.netFor(tab, me.id);
+    chips = BJ.applyDeltas(chips, [net]);
+    showChips();
+    persistChips();
+  }
+
+  function startLocal() {
+    if (!BJ.canDeal(chips, BJ.STAKE)) {
+      $('msg').textContent = 'You are out of chips. They are toys — restock 200.';
+      render();
+      return;
+    }
+    handSeq += 1;
+    local = BJ.createTable({
+      players: [{ id: me.id, name: me.name || 'you' }],
+      stake: BJ.STAKE,
+      handId: handSeq
+    });
+    if (local.phase === 'done') settleFrom(local);
+    render();
+  }
+
+  function dealTable(people) {
+    if (!BJ.canDeal(chips, BJ.STAKE)) return;
+    handSeq += 1;
+    var seats = (people && people.length) ? people : [{ id: me.id, name: me.name || 'you' }];
+    hostTable = BJ.createTable({
+      players: seats.map(function (p) { return { id: p.id, name: p.name || 'player' }; }),
+      stake: BJ.STAKE,
+      handId: 'h' + nowMs() + '-' + handSeq
+    });
+    local = null;
+    persistShoe(hostTable);
+    putTable(hostTable);
+    if (hostTable.phase === 'done') settleFrom(hostTable);
+    render();
+  }
+
+  async function putSeat(extra) {
+    extra = extra || {};
+    if (!roomDb || !mp.on) return;
+    var rec = {
+      id: me.id,
+      kind: 'seat',
+      name: me.name || 'player',
+      at: nowMs(),
+      joined: mp.joined,
+      t: nowMs()
+    };
+    if (mp.row) {
+      ['action', 'actionT', 'seq'].forEach(function (k) {
+        if (mp.row[k] !== undefined) rec[k] = mp.row[k];
+      });
+    }
+    var k;
+    for (k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) rec[k] = extra[k];
+    mp.row = rec;
+    try { await roomDb.put(rec); } catch (e) {}
+  }
+  async function putTable(tab) {
+    if (!roomDb || !mp.on) return;
+    var pub = BJ.publicTable(tab) || {};
+    pub.id = 'table';
+    pub.kind = 'table';
+    pub.at = nowMs();
+    pub.t = nowMs();
+    pub.host = me.id;
+    try { await roomDb.put(pub); } catch (e) {}
+  }
+
+  function act(action) {
+    var tab = tabNow();
+    var people = peopleNow();
+    if (mp.on) {
+      if (tab && amHost(people)) {
+        BJ.applyAction(tab, me.id, action, chips);
+        persistShoe(tab);
+        putTable(tab);
+        if (tab.phase === 'done') settleFrom(tab);
+        render();
+      } else {
+        mp.seq += 1;
+        putSeat({ action: action, actionT: nowMs(), seq: mp.seq });
+      }
+      return;
+    }
+    if (!local) return;
+    BJ.applyAction(local, me.id, action, chips);
+    if (local.phase === 'done') settleFrom(local);
+    render();
   }
 
   $('deal').onclick = function () {
-    if (mp) {
-      var people = live(items);
-      if (!isHost(people) && people.length) {
+    if (mp.on) {
+      var people = peopleNow();
+      if (!amHost(people) && people.length) {
         $('msg').textContent = 'The host deals.';
         return;
       }
-      local = null;
       dealTable(people.length ? people : [{ id: me.id, name: me.name }]);
       return;
     }
     startLocal();
   };
-  $('hit').onclick = function () {
-    if (mp) {
-      var tab = tableRec(items);
-      var people = live(items);
-      if (tab && isHost(people)) applyAction(tab, people, me.id, 'hit');
-      else putSeat({ action: 'hit', actionT: nowMs() });
-      return;
-    }
-    hitLocal();
-  };
-  $('stand').onclick = function () {
-    if (mp) {
-      var tab = tableRec(items);
-      var people = live(items);
-      if (tab && isHost(people)) applyAction(tab, people, me.id, 'stand');
-      else putSeat({ action: 'stand', actionT: nowMs() });
-      return;
-    }
-    standLocal();
+  $('hit').onclick = function () { act('hit'); };
+  $('stand').onclick = function () { act('stand'); };
+  $('double').onclick = function () { act('double'); };
+  $('split').onclick = function () { act('split'); };
+  $('refill').onclick = function () {
+    chips = chips + BJ.REFILL;
+    showChips();
+    persistChips();
+    $('msg').textContent = '200 toy chips. Nothing is paid out.';
+    render();
   };
 
-  var lastAct = {};
   function onRoom(list) {
     items = list || [];
-    var people = live(items);
-    var tab = tableRec(items);
-    if (isHost(people) && tab && tab.phase === 'play') {
+    var people = peopleNow();
+    var rec = tableRec(items);
+    if (amHost(people) && hostTable && hostTable.phase === 'play') {
       people.forEach(function (p) {
         if (p.id === me.id) return;
-        if (p.action && p.actionT && lastAct[p.id] !== p.actionT) {
-          lastAct[p.id] = p.actionT;
-          applyAction(tab, people, p.id, p.action);
-        }
+        if (!p.action || !p.seq) return;
+        var key = p.id + ':' + p.seq;
+        if (applied[key]) return;
+        applied[key] = 1;
+        BJ.applyAction(hostTable, p.id, p.action, 1e9);
+        persistShoe(hostTable);
+        putTable(hostTable);
       });
+      if (hostTable.phase === 'done') settleFrom(hostTable);
     }
-    renderTable(tab, people);
+    if (!amHost(people) && rec && rec.phase === 'done') settleFrom(rec);
+    render();
   }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    var k = e.key;
+    if ((k === 'Enter' || k === ' ') && !$('deal').hidden) {
+      e.preventDefault();
+      $('deal').click();
+    } else if ((k === 'h' || k === 'H') && !$('hit').hidden) {
+      e.preventDefault();
+      $('hit').click();
+    } else if ((k === 's' || k === 'S') && !$('stand').hidden) {
+      e.preventDefault();
+      $('stand').click();
+    } else if ((k === 'd' || k === 'D') && !$('double').hidden) {
+      e.preventDefault();
+      $('double').click();
+    } else if ((k === 'p' || k === 'P') && !$('split').hidden) {
+      e.preventDefault();
+      $('split').click();
+    }
+  });
 
   async function boot() {
     if (window.gifos) {
@@ -281,17 +384,29 @@
     if (saveDb) {
       try {
         var rec = await saveDb.get('last');
-        if (rec && typeof rec.chips === 'number') chips = rec.chips;
+        if (rec && typeof rec.chips === 'number' && rec.chips >= 0) chips = rec.chips;
+        if (rec && rec.settled != null) lastSettled = rec.settled;
+      } catch (e) {}
+      try {
+        var sh = await saveDb.get('shoe');
+        if (owner && sh && sh.phase === 'play' && sh.shoe && sh.dealer) {
+          hostTable = {
+            handId: sh.handId, phase: sh.phase, dealer: sh.dealer,
+            shoe: sh.shoe, hands: sh.hands, stake: sh.stake || BJ.STAKE, msg: sh.msg
+          };
+          local = null;
+        }
       } catch (e) {}
     }
     showChips();
     if (roomDb) {
-      mp = true;
+      mp.on = true;
+      mp.joined = nowMs();
       roomDb.subscribe(onRoom);
-      await putSeat({ joined: nowMs() });
+      await putSeat();
       hb = setInterval(function () { putSeat(); }, HB_MS);
     }
-    renderLocal();
+    render();
   }
   boot();
 })();

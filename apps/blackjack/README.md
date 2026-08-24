@@ -2,13 +2,12 @@
 
 Beat the dealer to 21. Invite is extra seats. No cash.
 
-An unofficial port of **[blackjack](https://github.com/hanhaechi/blackjack)** by hanhaechi (MIT). Upstream is vanilla JS plus jQuery, Bootstrap, a PNG deck, and AJAX to a sample API. **The server is gone.** The dealer runs in the host browser. Cards are CSS.
+An unofficial port of **[blackjack](https://github.com/hanhaechi/blackjack)** by hanhaechi (MIT). Upstream is vanilla JS plus jQuery, Bootstrap, a PNG deck, and AJAX to a sample API. **The server is gone.** The dealer runs in the host browser. Cards are CSS. Toy chips live in the file.
 
 ```
-index.html          felt, dealer, seats, deal / hit / stand
+index.html          felt, dealer, seats, deal / hit / stand / double / split
 style.css           dark felt, CSS cards
-casino.js           destack of the 52-card shoe
-blackjack.js        destack of Game (deal, hit, stand, aces)
+bj.js               shoe, totals, S17, 3:2, double, split, seating helpers
 app.js              solo table + extra seats, private chips
 icon.mjs            procedural 21 icon + 1200×720 cover
 build.mjs           packs the GIF into site/apps/blackjack/blackjack.gif

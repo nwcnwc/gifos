@@ -12,22 +12,26 @@
   <div class="chips">Chips <span id="chips">200</span></div>
 </header>
 <p class="toy">Toy chips. No cash. Ever.</p>
-<section class="dealer">
-  <h2>Dealer <span id="dTotal">~</span></h2>
-  <div class="cards" id="dCards"></div>
-</section>
-<section class="you">
-  <h2>You <span id="pTotal">~</span></h2>
-  <div class="cards" id="pCards"></div>
-</section>
-<div class="seats" id="seats"></div>
+<div class="felt">
+  <p class="felt-idle" id="feltIdle">Beat the dealer to 21. Toy chips. No cash.</p>
+  <section class="dealer" id="dealer">
+    <h2>Dealer <span id="dTotal">~</span></h2>
+    <div class="cards" id="dCards"></div>
+  </section>
+  <section class="you" id="pHands"></section>
+  <div class="seats" id="seats"></div>
+</div>
+<p class="who" id="who" hidden></p>
 <p class="msg" id="msg">Deal when you are ready.</p>
 <div class="bar">
-  <button type="button" id="deal">Deal</button>
-  <button type="button" id="hit" hidden>Hit</button>
-  <button type="button" id="stand" hidden>Stand</button>
+  <button type="button" id="deal" aria-label="Deal">Deal · 10</button>
+  <button type="button" id="hit" hidden aria-label="Hit">Hit</button>
+  <button type="button" id="stand" hidden aria-label="Stand">Stand</button>
+  <button type="button" id="double" hidden aria-label="Double">Double</button>
+  <button type="button" id="split" hidden aria-label="Split">Split</button>
+  <button type="button" id="refill" hidden aria-label="Restock toy chips">Restock 200</button>
 </div>
-<p class="hint">Press Invite in the bar to sit extra seats at this table.</p>
+<p class="hint">Hit, stand, double, or split a pair. Extra seats join this table. Stake 10.</p>
 <script src="bj.js"></script>
 <script src="app.js"></script>
 </body>
