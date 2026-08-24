@@ -157,48 +157,75 @@
   document.getElementById('back').onclick = function(){ sel=null; render(); };
 </script>`;
 
-  const GUESTBOOK_HTML = `<!doctype html><meta charset="utf-8">
+  const GUESTBOOK_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-  body{font:15px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0}
-  header{background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#7b5cff}
-  .hint{color:#8888aa;font-size:12px;padding:8px 18px}
-  form{display:flex;gap:8px;padding:8px 18px 14px;flex-wrap:wrap}
-  input{padding:9px 12px;border:1px solid #2a2a3f;border-radius:8px;font:inherit;background:#1c1c2b;color:#e0e0f0}
-  #name{width:130px}#msg{flex:1;min-width:160px}
-  button{padding:9px 14px;border:0;border-radius:8px;background:#7b5cff;color:#fff;cursor:pointer;font:inherit}
-  ul{list-style:none;margin:0;padding:0 18px 18px}
-  li{padding:10px 12px;background:#14141f;border:1px solid #2a2a3f;border-radius:8px;margin-bottom:8px}
-  li b{color:#ff5caa}
+  *{box-sizing:border-box}
+  body{font:15px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;min-height:100vh}
+  header{background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  header .ttl{font-weight:700;color:var(--accent,#ff5caa)}
+  header .who{color:var(--muted,#8888aa);font-size:12px;font-weight:500}
+  .hint{color:var(--muted,#8888aa);font-size:12px;padding:8px 18px;line-height:1.45}
+  .hint b{color:var(--accent,#ff5caa)}
+  form{display:flex;gap:8px;padding:8px 18px 14px}
+  input{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--border,#2a2a3f);border-radius:8px;font:inherit;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0)}
+  button{padding:9px 14px;border:0;border-radius:8px;background:var(--accent,#ff5caa);color:var(--onaccent,#fff);cursor:pointer;font:inherit;font-weight:700}
+  .stamps{display:flex;gap:6px;padding:0 18px 10px;flex-wrap:wrap}
+  .stamps button{background:var(--surface,#1c1c2b);border:1px solid var(--border,#2a2a3f);font-size:17px;padding:5px 9px;border-radius:8px;cursor:pointer;color:inherit;font-weight:400}
+  ul{list-style:none;margin:0;padding:0 18px 18px;flex:1}
+  li{padding:10px 12px;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:8px;margin-bottom:8px}
+  li b{color:var(--accent,#ff5caa)}
+  li .when{color:var(--muted,#8888aa);font-size:11px;font-weight:400;margin-left:6px}
+  .empty{color:var(--muted,#8888aa);padding:28px 12px;text-align:center;line-height:1.5}
+  .empty b{color:var(--accent,#ff5caa)}
 </style>
-<header>Shared Guestbook</header>
-<div class="hint" id="hint">Press Invite and share the link — everyone signs with their screen name.</div>
+<header><span class="ttl">Guestbook</span><span class="who" id="who">just you — Invite</span></header>
+<div class="hint" id="hint">Press <b>Invite</b> in the top bar and share the link — everyone signs with their screen name.</div>
 <form id="f">
   <input id="msg" placeholder="Say something…" autocomplete="off">
   <button>Sign</button>
 </form>
-<div style="display:flex;gap:6px;padding:0 18px 10px" id="stamps"></div>
+<div class="stamps" id="stamps"></div>
 <ul id="list"></ul>
 <script>
-  const db = gifos.db('entries'), list = document.getElementById('list');
-  ['💜','','⭐','🌈','✍️','🐸'].forEach(function(s){
+  const db = gifos.db('entries'), pres = (window.gifos&&gifos.db)?gifos.db('presence'):null, list = document.getElementById('list');
+  ['💜','✨','⭐','🌈','✍️','🐸'].forEach(function(s){
     const b=document.createElement('button'); b.type='button'; b.textContent=s;
-    b.style.cssText='background:#1c1c2b;border:1px solid #2a2a3f;font-size:17px;padding:5px 9px;border-radius:8px;cursor:pointer';
     b.onclick=function(){ const m=document.getElementById('msg'); m.value+=s; m.focus(); };
     document.getElementById('stamps').appendChild(b);
   });
-  let me = { name: 'You' };
-  if (window.gifos) gifos.me().then(m => { me = { id: m.id, name: m.name || 'You' };
-    document.getElementById('hint').textContent = 'Signing as ' + me.name + '. Press Invite to sign with friends.'; });
+  let me = { id:'local', name: 'You' }, others=0;
   const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  function setWho(){
+    document.getElementById('who').textContent = others>0 ? ((others+1)+' here') : 'just you — Invite';
+    var h=document.getElementById('hint');
+    h.innerHTML = 'Signing as <b>'+esc(me.name)+'</b>. '+(others>0
+      ? 'Friends in this room sign with their screen name — new lines appear here.'
+      : 'Press <b>Invite</b> in the top bar to sign with friends.');
+  }
+  if (window.gifos) gifos.me().then(function(m){ me = { id: m.id, name: m.name || 'You' }; setWho(); beat(); });
+  function ago(t){ if(!t) return ''; var d=Date.now()-t; if(d<45000) return 'just now'; if(d<3600000) return Math.max(1,Math.floor(d/60000))+'m ago'; if(d<86400000) return Math.floor(d/3600000)+'h ago'; var dt=new Date(t); return (dt.getMonth()+1)+'/'+dt.getDate(); }
   function render(items){
-    list.innerHTML = items.map(e => '<li><b>'+esc(e.by||'anon')+'</b>: '+esc(e.msg)+'</li>').reverse().join('');
+    items=items||[];
+    list.innerHTML = items.length
+      ? items.slice().reverse().map(function(e){ return '<li><b>'+esc(e.by||'anon')+'</b><span class="when">'+esc(ago(e.t))+'</span><div>'+esc(e.msg)+'</div></li>'; }).join('')
+      : '<div class="empty">No one has signed yet. You are the first.<br>Press <b>Invite</b> in the top bar and send the link.</div>';
   }
   db.subscribe(render);
   document.getElementById('f').onsubmit = async e => {
     e.preventDefault();
     const msg = document.getElementById('msg');
-    if (msg.value.trim()) { await db.put({ by: me.name, msg: msg.value.trim() }); msg.value=''; }
+    if (msg.value.trim()) { await db.put({ by: me.name, uid: me.id, msg: msg.value.trim(), t: Date.now() }); msg.value=''; }
   };
+  function beat(){ if(!pres||!me.id||me.id==='local') return; pres.put({id:'p:'+me.id,name:me.name,ts:Date.now()}); }
+  if(pres&&pres.subscribe){
+    pres.subscribe(function(rows){
+      var now=Date.now(); others=0;
+      (rows||[]).forEach(function(r){ if(r&&r.id&&r.id.indexOf('p:')===0&&r.id!=='p:'+me.id&&(now-(r.ts||0))<35000) others++; });
+      setWho();
+    });
+    setInterval(function(){ if(document.visibilityState!=='hidden') beat(); },15000);
+  }
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') beat(); });
 </script>`;
 
   const TICTACTOE_HTML = `<!doctype html><meta charset="utf-8">
@@ -5271,7 +5298,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     // contrast choices) and the tools whose own hue (calc blue, chat teal,
     // timer red, fortune gold) must become the computer's accent. Everything
     // else is a plain chrome app that takes the full remap.
-    const VAR_APPS = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1, pingpong: 1, calc: 1, chat: 1, timer: 1, fortune: 1, bible: 1, paint: 1, notes: 1 };
+    const VAR_APPS = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1, pingpong: 1, calc: 1, chat: 1, timer: 1, fortune: 1, bible: 1, paint: 1, notes: 1, guestbook: 1 };
     // OS Help markdown packed into each seeded GIF. Filled per appId; a
     // missing entry still shows Help (the OS fallback for Invite/Save/Steal).
     const SAMPLE_HELP = {
@@ -5599,11 +5626,11 @@ Type something and tap **Sign**. You sign as your screen name (set on this compu
 
 The stamp row inserts an emoji into the box; you can mix stamps with words.
 
-Newest entries sit at the top. There is no edit and no delete — treat it like a real guest book.
+Newest entries sit at the top, with when they were signed. There is no edit and no delete — treat it like a real guest book.
 
 ## Play together
 
-On your own it is a private wall. **Invite** (top bar) and everyone in the room can sign. Their names and lines show up for all of you.
+On your own it is a private wall, and the header says **just you — Invite**. **Invite** (top bar) and send the link. Friends appear in the header as they join, and their names and lines show up for all of you.
 
 ## Saved
 
@@ -5980,7 +6007,7 @@ The Store itself does not keep a shopping cart in this icon.
         app('Reader', 'reader', [255, 170, 90], READER_HTML, { capabilities: { db: true, ai: ['tts'], network: [] }, data: { texts: PRIV } }),
       ] },
       { name: 'Social', apps: [
-        app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML, { data: { entries: RW } }),
+        app('Guestbook', 'guestbook', [255, 92, 170], GUESTBOOK_HTML, { capabilities: { db: true, multiplayer: true }, data: { entries: RW, presence: RW } }),
         // The "✨ AI draft" button uses YOUR OWN AI model/key (from Settings),
         // brokered locally per person — declares ai so the runtime allows it.
         app('Chat', 'chat', [92, 220, 180], CHAT_HTML, { capabilities: { db: true, multiplayer: true, ai: ['cheapest', 'smartest'], network: [] }, data: { messages: RW, files: RW } }),
