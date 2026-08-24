@@ -42,6 +42,7 @@
   var audioErr = '';
   var persistErr = '';
   var sized = false;
+  var armed = false;
 
   try { if (root.gifos && root.gifos.db) saveDb = root.gifos.db('save'); } catch (e) {}
 
@@ -154,6 +155,7 @@
         osc.connect(gain);
         osc.start();
       }
+      armed = true;
       sayAudio('');
       return actx;
     } catch (e) {
@@ -298,8 +300,8 @@
   function paintHear() {
     var btn = $('hearBtn');
     if (!btn) return;
-    btn.textContent = vol > 0 ? 'Mute' : 'Hear';
-    btn.setAttribute('data-on', vol > 0 ? '1' : '0');
+    btn.textContent = (vol > 0 && armed) ? 'Mute' : 'Hear';
+    btn.setAttribute('data-on', (vol > 0 && armed) ? '1' : '0');
     var hz = $('hz');
     if (hz) hz.textContent = audibleHz() + ' Hz';
     var pause = $('pauseBtn');
@@ -408,9 +410,13 @@
   }
 
   function toggleHear() {
-    vol = vol > 0 ? 0 : 0.4;
+    if (vol > 0 && armed) {
+      vol = 0;
+    } else {
+      if (!(vol > 0)) vol = 0.4;
+      ensureAudio();
+    }
     if ($('vol')) $('vol').value = String(vol);
-    if (vol > 0) ensureAudio();
     readControls();
   }
 
