@@ -1,30 +1,21 @@
-// Procedural Polygon Shredder icon: dark card, coloured flakes bursting.
+// Procedural Polygon Shredder icon: coloured flakes bursting on a transparent
+// sticker, plus a 1200×720 mid-use cover (no lettered tile).
 import { deflateSync } from 'node:zlib';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
-const CARD = [32, 32, 32];
-const CARD_D = [20, 20, 20];
-const INK = [244, 241, 187];
 const CORAL = [237, 106, 90];
 const TEAL = [112, 193, 179];
 const GOLD = [255, 224, 102];
 const MINT = [199, 239, 207];
-const COLS = [CORAL, TEAL, GOLD, MINT, [155, 193, 188], [240, 182, 127]];
+const CREAM = [244, 241, 187];
+const COLS = [CORAL, TEAL, GOLD, MINT, [155, 193, 188], [240, 182, 127], CREAM];
 
 function mix(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }
-function inCard(x, y, m, r) {
-  const lo = m, hi = OUT - m;
-  if (x < lo || x > hi || y < lo || y > hi) return false;
-  const cx = Math.min(Math.max(x, lo + r), hi - r), cy = Math.min(Math.max(y, lo + r), hi - r);
-  if (x >= lo + r && x <= hi - r) return true;
-  if (y >= lo + r && y <= hi - r) return true;
-  return (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r;
-}
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD, CARD_D, INK, CORAL, TEAL, GOLD, MINT]) {
+  for (const b of [CORAL, TEAL, GOLD, MINT, CREAM, [32, 32, 32]]) {
     for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.12).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.35).map(Math.round));
   }
@@ -39,27 +30,35 @@ function nearest(pal, r, g, b) {
   }
   return bi;
 }
+function inDisk(x, y, cx, cy, r) {
+  const dx = x - cx, dy = y - cy;
+  return dx * dx + dy * dy <= r * r;
+}
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const m = 8, rad = 22, t = f / FRAMES;
+  const t = f / FRAMES;
+  // faint core cube so it reads at 64px
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
-    if (!inCard(x, y, m, rad)) continue;
-    const col = mix(CARD, CARD_D, Math.max(0, Math.min(1, (y - m) / (OUT - 2 * m))));
-    const o = (py * RW + px) * 4;
-    rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
+    const dx = Math.abs(x - 64), dy = Math.abs(y - 64);
+    if (dx < 8 && dy < 8) {
+      const o = (py * RW + px) * 4;
+      const col = mix(CORAL, GOLD, t);
+      rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
+    }
   }
-  for (let i = 0; i < 70; i++) {
-    const ang = i * 2.399 + t * 1.4;
-    const dist = 8 + (i % 17) * 2.1 + Math.sin(t * 6.28 + i) * 4;
+  for (let i = 0; i < 80; i++) {
+    const ang = i * 2.399 + t * 2.2;
+    const dist = 6 + (i % 18) * 2.4 + Math.sin(t * 6.28 + i) * 6;
     const cx = 64 + Math.cos(ang) * dist;
-    const cy = 64 + Math.sin(ang * 1.1) * dist * 0.85;
+    const cy = 64 + Math.sin(ang * 1.08) * dist * 0.88;
+    if (!inDisk(cx, cy, 64, 64, 58)) continue;
     const col = COLS[i % COLS.length];
     const s = 1 + (i % 3);
     for (let sy = -s; sy <= s; sy++) for (let sx = -s; sx <= s; sx++) {
       const x = cx + sx, y = cy + sy;
       if (x < 0 || y < 0 || x >= OUT || y >= OUT) continue;
-      if (!inCard(x, y, m, rad)) continue;
+      if (!inDisk(x, y, 64, 64, 60)) continue;
       for (let qy = 0; qy < SS; qy++) for (let qx = 0; qx < SS; qx++) {
         const o = ((((y | 0) * SS + qy) * RW) + ((x | 0) * SS + qx)) * 4;
         rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
@@ -73,7 +72,7 @@ function frameIndices(pal, f) {
       const o = (((y * SS + sy) * RW) + (x * SS + sx)) * 4;
       r += rgba[o]; g += rgba[o + 1]; b += rgba[o + 2]; a += rgba[o + 3];
     }
-    if (a / nn < 0.5) { idx[y * OUT + x] = 0; continue; }
+    if (a / nn < 0.22) { idx[y * OUT + x] = 0; continue; }
     idx[y * OUT + x] = nearest(pal, r / nn, g / nn, b / nn);
   }
   return idx;
@@ -103,35 +102,11 @@ function pngChunk(tag, data) {
   const c = Buffer.alloc(4); c.writeUInt32BE(crc(body));
   return Buffer.concat([len, body, c]);
 }
-const GLYPHS = {
-  'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
-  'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
-  'E': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
-  'H': [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  'I': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
-  'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
-  'N': [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
-  'O': [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  'P': [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
-  'R': [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
-  'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
-  'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
-  'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
-  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
-  ' ': [0, 0, 0, 0, 0, 0, 0],
-};
-function drawText(put, x, y, str, s, r, g, b) {
-  let cx = x;
-  for (const ch of String(str).toUpperCase()) {
-    const gph = GLYPHS[ch];
-    if (!gph) { cx += 6 * s; continue; }
-    for (let row = 0; row < 7; row++) for (let col = 0; col < 5; col++) {
-      if (gph[row] & (1 << (4 - col))) {
-        for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) put(cx + col * s + dx, y + row * s + dy, r, g, b);
-      }
-    }
-    cx += 6 * s;
+function rr(put, x0, y0, x1, y1, rad, r, g, b, a) {
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const cx = Math.min(Math.max(x, x0 + rad), x1 - rad - 1);
+    const cy = Math.min(Math.max(y, y0 + rad), y1 - rad - 1);
+    if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= rad * rad) put(x, y, r, g, b, a);
   }
 }
 export function screenshotPng() {
@@ -143,25 +118,35 @@ export function screenshotPng() {
     const o = (y * W + x) * 4;
     rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a == null ? 255 : a;
   };
-  const fill = (x0, y0, x1, y1, r, g, b) => {
-    for (let y = Math.max(0, y0 | 0); y < Math.min(H, y1 | 0); y++)
-      for (let x = Math.max(0, x0 | 0); x < Math.min(W, x1 | 0); x++) put(x, y, r, g, b);
-  };
-  fill(0, 0, W, H, 32, 32, 32);
-  drawText(put, 48, 56, 'POLYGON', 6, 244, 241, 187);
-  drawText(put, 48, 120, 'SHREDDER', 6, 237, 106, 90);
-  drawText(put, 48, 200, 'CUBES TO CONFETTI', 3, 255, 224, 102);
-  drawText(put, 48, 280, 'PLAY TOGETHER', 3, 112, 193, 179);
-  drawText(put, 48, 360, 'DRAG TO ORBIT', 3, 244, 241, 187);
-  for (let i = 0; i < 900; i++) {
-    const ang = i * 0.37, dist = 40 + (i % 80) * 3;
-    const x = 820 + Math.cos(ang) * dist;
-    const y = 360 + Math.sin(ang * 1.15) * dist * 0.7;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) put(x, y, 32, 32, 32);
+  // cubes near the centre
+  for (let i = 0; i < 40; i++) {
+    const ang = i * 0.31, dist = 8 + (i % 7) * 6;
+    const x = 600 + Math.cos(ang) * dist;
+    const y = 330 + Math.sin(ang) * dist * 0.6;
     const c = COLS[i % COLS.length];
-    put(x, y, c[0], c[1], c[2]);
-    put(x + 1, y, c[0], c[1], c[2]);
-    put(x, y + 1, c[0], c[1], c[2]);
+    for (let dy = -7; dy <= 7; dy++) for (let dx = -7; dx <= 7; dx++) {
+      if (Math.abs(dx) > 6 && Math.abs(dy) > 6) continue;
+      put(x + dx, y + dy, c[0], c[1], c[2]);
+    }
   }
+  // flakes bursting out
+  for (let i = 0; i < 1800; i++) {
+    const ang = i * 0.37 + 0.4;
+    const dist = 30 + (i % 110) * 4.2;
+    const x = 600 + Math.cos(ang) * dist;
+    const y = 340 + Math.sin(ang * 1.12) * dist * 0.72;
+    const c = COLS[i % COLS.length];
+    const s = 1 + (i % 3);
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) put(x + dx, y + dy, c[0], c[1], c[2]);
+  }
+  rr(put, 24, 640, 1176, 700, 16, 24, 24, 24, 230);
+  rr(put, 40, 652, 170, 688, 14, 237, 106, 90);
+  rr(put, 184, 652, 310, 688, 14, 42, 42, 42);
+  rr(put, 324, 652, 470, 688, 14, 42, 42, 42);
+  rr(put, 980, 652, 1060, 688, 10, 42, 42, 42);
+  rr(put, 1074, 652, 1160, 688, 10, 112, 193, 179);
+
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

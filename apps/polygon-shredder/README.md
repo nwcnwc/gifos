@@ -24,7 +24,8 @@ vendor/shredder.js         main loop, no social, procedural spotlight
 ## capabilities
 
 `db` + `multiplayer`. `minBuild` **947**. No network. The original
-`spotlight.jpg` is generated as a radial, not fetched.
+`spotlight.jpg` is generated as a radial, not fetched. A weak GPU
+gets a smaller cloud (Lite / Medium / Full) instead of a black screen.
 
 ## Building
 

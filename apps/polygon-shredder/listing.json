@@ -1,6 +1,6 @@
 {
-  "tagline": "A cloud of cubes that shreds into confetti. The knobs live in the file.",
-  "description": "Move around the picture and cubes pour out, then tear apart into coloured flakes. Drag to orbit. Scroll to zoom. Factor is how fast they run; Evolution twists the flow over time; Radius is the bubble that shoves them away.\n\nThe last knobs you left stay on this device, inside the app.\n\nWant a friend looking at the same shred? Press Play together, then Invite in the bar above the app, and send the link. You both get the same knobs. When you turn one, they see it.\n\nAn unofficial port of The Polygon Shredder by spite.",
+  "tagline": "Cubes shred into confetti. The knobs live in the file.",
+  "description": "Works offline, in one GIF. The last knobs live in the file, so the copy you keep is the save. Press Play together, then Invite in the bar above the app, and a friend lands on the same shred — no account, no install, no server.\n\nMove around the picture and cubes pour out, then tear apart into coloured flakes. Drag to orbit. Pinch or scroll to zoom. Factor is how fast they run; Evolution twists the flow over time; Radius is the bubble that shoves them away.\n\nOn a phone the knobs start closed so the cloud fills the screen. A weak GPU gets a smaller cloud instead of a black screen.\n\nAn unofficial port of The Polygon Shredder by spite.",
   "author": {
     "name": "spite",
     "url": "https://github.com/spite/polygon-shredder"

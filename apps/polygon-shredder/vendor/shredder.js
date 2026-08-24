@@ -45,6 +45,33 @@
   var scale = 0, nScale = 1;
   var clock, m, v;
   var mounted = false;
+  var lastError = '';
+  var frameCb = null;
+
+  function defaultSize(el) {
+    var w = (el && el.clientWidth) || 400;
+    var dpr = root.devicePixelRatio || 1;
+    if (w < 500 || dpr < 1.2) return 32;
+    return 64;
+  }
+  function pickFloat(gl) {
+    var hasFloat = !!(gl.getExtension('OES_texture_float')
+      || gl.getExtension('EXT_color_buffer_float')
+      || gl.getExtension('WEBGL_color_buffer_float'));
+    var hasHalf = !!(gl.getExtension('OES_texture_half_float')
+      || gl.getExtension('EXT_color_buffer_half_float')
+      || gl.getExtension('OES_texture_half_float_linear'));
+    if (hasFloat) return 'float';
+    if (hasHalf) return 'half';
+    return null;
+  }
+  function aimFromEvent(e) {
+    if (!renderer || !mouse || !e) return;
+    var r = renderer.domElement.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  }
 
   function spotlightTexture() {
     var c = document.createElement('canvas');
@@ -63,9 +90,29 @@
 
   function init(el, q) {
     container = el;
-    size = q || 64;
-    renderer = new THREE.WebGLRenderer({ antialias: true, canvas: null });
+    size = q || defaultSize(el);
+    if (size !== 16 && size !== 32 && size !== 64) size = defaultSize(el);
+    isMobile.any = ((el && el.clientWidth) || 400) < 500;
+    isMobile.apple.device = /iPhone|iPad|iPod/i.test((root.navigator && root.navigator.userAgent) || '');
+    renderer = new THREE.WebGLRenderer({ antialias: size >= 48, canvas: null });
     renderer.setClearColor(0x202020);
+    var gl = renderer.getContext();
+    if (!gl) {
+      lastError = 'This toy needs WebGL, and this browser does not have it.';
+      throw new Error(lastError);
+    }
+    var kind = pickFloat(gl);
+    if (!kind) {
+      lastError = 'This GPU cannot run the shred — it has no floating-point textures. A newer phone or computer will.';
+      renderer.dispose();
+      renderer = null;
+      throw new Error(lastError);
+    }
+    root.__psFloatType = (kind === 'half' || isMobile.apple.device) ? THREE.HalfFloatType : THREE.FloatType;
+    renderer.domElement.style.touchAction = 'none';
+    renderer.domElement.style.display = 'block';
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
     container.appendChild(renderer.domElement);
 
     scene = new THREE.Scene();
@@ -108,8 +155,8 @@
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     sim = new Simulation(renderer, size, size);
 
-    var gl = renderer.getContext();
-    var shadowBufferSize = Math.min(1024, gl.getParameter(gl.MAX_TEXTURE_SIZE));
+    gl = renderer.getContext();
+    var shadowBufferSize = Math.min(size >= 64 ? 1024 : (size >= 32 ? 512 : 256), gl.getParameter(gl.MAX_TEXTURE_SIZE));
     shadowBuffer = new THREE.WebGLRenderTarget(shadowBufferSize, shadowBufferSize, {
       wrapS: THREE.ClampToEdgeWrapping,
       wrapT: THREE.ClampToEdgeWrapping,
@@ -204,16 +251,28 @@
     m = new THREE.Matrix4();
     v = new THREE.Vector3();
 
-    renderer.domElement.addEventListener('pointermove', function (e) {
-      var r = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
-      mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
-    });
-    renderer.domElement.addEventListener('pointerdown', function () { nScale = 2; });
+    renderer.domElement.addEventListener('pointermove', function (e) { aimFromEvent(e); });
+    renderer.domElement.addEventListener('pointerdown', function (e) { aimFromEvent(e); nScale = 2; });
     renderer.domElement.addEventListener('pointerup', function () { nScale = 0.5; });
 
     fit();
-    mounted = true;
+  }
+
+  function destroy() {
+    pause();
+    if (controls && controls.dispose) {
+      try { controls.dispose(); } catch (e) {}
+    }
+    if (renderer) {
+      try { renderer.dispose(); } catch (e) {}
+      if (renderer.domElement && renderer.domElement.parentNode) {
+        renderer.domElement.parentNode.removeChild(renderer.domElement);
+      }
+    }
+    scene = camera = light = encasing = renderer = controls = null;
+    mesh = material = shadowMaterial = plane = sim = proxy = null;
+    shadowBuffer = shadowCamera = null;
+    mounted = false;
   }
 
   function fit() {
@@ -289,6 +348,7 @@
     if (!running) return;
     raf = root.requestAnimationFrame(loop);
     render();
+    if (frameCb) frameCb();
   }
 
   function play() {
@@ -305,17 +365,33 @@
 
   root.PolygonShredder = {
     mount: function (el, q) {
-      if (mounted) return true;
+      lastError = '';
       if (typeof THREE === 'undefined' || typeof Simulation !== 'function' || !root.PSShaders) {
+        lastError = 'This toy could not load.';
         return false;
       }
-      try { init(el, q); } catch (e) { return false; }
-      return true;
+      if (mounted) {
+        if (q && q !== size) destroy();
+        else return true;
+      }
+      try {
+        init(el, q);
+        mounted = true;
+        return true;
+      } catch (e) {
+        if (!lastError) lastError = 'The shred failed to start on this GPU.';
+        try { destroy(); } catch (e2) {}
+        return false;
+      }
     },
     play: play,
     pause: pause,
     fit: fit,
+    destroy: destroy,
     isRunning: function () { return running; },
+    quality: function () { return size; },
+    lastError: function () { return lastError; },
+    onFrame: function (fn) { frameCb = fn; },
     getParams: function () {
       return {
         factor: params.factor, evolution: params.evolution, rotation: params.rotation,
