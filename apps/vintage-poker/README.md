@@ -1,6 +1,6 @@
 # Vintage Poker
 
-Texas Hold'em. Host is the dealer. Invite is the seats. Toy chips, no cash.
+No account, no cash. Invite is the table. Host is the dealer. Toy chips.
 
 An unofficial port of
 **[Vintage Poker](https://github.com/Pobermeier/vintage-poker)**

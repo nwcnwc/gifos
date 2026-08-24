@@ -75,9 +75,22 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 if (!files['COPYING-vintage-poker.txt'].includes('Patrick Obermeier')) throw new Error('COPYING');
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("db('room')")) throw new Error('db');
 if (!files['app.js'].includes('Invite')) throw new Error('Invite copy');
+if (/>\s*Invite\s*</.test(files['index.html']) || /id=["']invite/i.test(files['index.html'])) {
+  throw new Error('in-app Invite');
+}
+if (!files['app.js'].includes('if (roomDb && !owner) mpEnter()')) throw new Error('guests must sit');
+if (!files['style.css'].includes('min-height:48px')) throw new Error('phone targets');
+if (!files['style.css'].includes('[hidden]{display:none !important}')) throw new Error('hidden');
+if (/class="card[\s"]/.test(files['index.html'])) throw new Error('setup is not a playing card');
+if (!files['app.js'].includes("t.phase !== 'showdown' && t.phase !== 'idle'")) throw new Error('chips persist at hand end');
 if (/socket\.io|express|mongoose|pokersolver|lodash/i.test(files['app.js'] + files['poker.js'])) {
   throw new Error('their server stays behind');
 }
+if (!/^No account, no cash/.test(listing.description)) throw new Error('listing must lead with no-account / no-cash');
+if (!/invite is the table/i.test(listing.description) || !/no game server/i.test(listing.description)) {
+  throw new Error('listing invite/server');
+}
+if (/gifos\.db|sandbox|localStorage|WebRTC/.test(files['help.md'])) throw new Error('help internals');
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -129,6 +142,19 @@ for (const [n, s] of Object.entries(files)) {
     '  PK.applyAction(t, t.toAct, "fold");\n' +
     '  if (t.phase !== "showdown") throw new Error("fold wins " + t.phase);\n' +
     '  if (!t.winners.length) throw new Error("winner");\n' +
+    '  var t2 = PK.newTable();\n' +
+    '  PK.sit(t2, "a", "A", 1000, false);\n' +
+    '  PK.sit(t2, "b", "B", 1000, false);\n' +
+    '  if (!PK.startHand(t2, rng)) throw new Error("deal2");\n' +
+    '  var g = 0;\n' +
+    '  while (t2.phase !== "showdown" && g++ < 80) {\n' +
+    '    var L2 = PK.legal(t2, t2.toAct);\n' +
+    '    if (!PK.applyAction(t2, t2.toAct, L2.toCall > 0 ? "call" : "check")) throw new Error("act");\n' +
+    '  }\n' +
+    '  if (t2.phase !== "showdown") throw new Error("calldown " + t2.phase);\n' +
+    '  if (t2.board.length !== 5) throw new Error("board " + t2.board.length);\n' +
+    '  var sum = t2.pot; t2.seats.forEach(function (s) { sum += s.stack; });\n' +
+    '  if (sum !== 2000) throw new Error("chips " + sum);\n' +
     '  return PK.label({ r: 14, s: "s" });\n' +
     '})();',
     ctx

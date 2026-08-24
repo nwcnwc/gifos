@@ -84,6 +84,22 @@ function drawText(put, x, y, str, s, r, g, b) {
     cx += 6 * s;
   }
 }
+function drawSpade(put, x, y, s, r, g, b) {
+  // stem + two lobes, generic pip
+  for (let dy = 0; dy < 5 * s; dy++) for (let dx = -2 * s; dx <= 2 * s; dx++) {
+    const ny = dy / s, nx = dx / s;
+    if (ny < 3 && nx * nx + (ny - 1.2) * (ny - 1.2) < 2.4) put(x + dx, y + dy, r, g, b);
+    if (ny >= 3 && Math.abs(nx) <= 0.7) put(x + dx, y + dy, r, g, b);
+  }
+}
+function drawHeart(put, x, y, s, r, g, b) {
+  for (let dy = 0; dy < 5 * s; dy++) for (let dx = -3 * s; dx <= 3 * s; dx++) {
+    const ny = dy / s, nx = Math.abs(dx / s);
+    const top = (nx - 1.2) * (nx - 1.2) + (ny - 1.1) * (ny - 1.1) < 1.5;
+    const bot = ny > 1.4 && ny < 4.4 && nx < (4.2 - ny) * 0.85;
+    if (top || bot) put(x + dx, y + dy, r, g, b);
+  }
+}
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
@@ -110,11 +126,13 @@ function frameIndices(pal, f) {
       rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b;
     }
   }
-  drawText(put, 28, 84, 'A', 4, 26, 18, 8);
-  drawText(put, 50, 84, 'K', 4, 196, 40, 48);
-  if (flop > 0.2) drawText(put, 28, 34, 'Q', 3, 26, 18, 8);
-  if (flop > 0.45) drawText(put, 56, 34, 'J', 3, 196, 40, 48);
-  if (flop > 0.7) drawText(put, 84, 34, '10', 2, 26, 18, 8);
+  drawText(put, 26, 78, 'A', 3, 26, 18, 8);
+  drawSpade(put, 36, 96, 2, 26, 18, 8);
+  drawText(put, 50, 78, 'K', 3, 196, 40, 48);
+  drawHeart(put, 60, 96, 2, 196, 40, 48);
+  if (flop > 0.2) { drawText(put, 26, 26, 'Q', 2, 26, 18, 8); drawSpade(put, 34, 40, 2, 26, 18, 8); }
+  if (flop > 0.45) { drawText(put, 54, 26, 'J', 2, 196, 40, 48); drawHeart(put, 62, 40, 2, 196, 40, 48); }
+  if (flop > 0.7) { drawText(put, 82, 26, '10', 2, 26, 18, 8); drawSpade(put, 94, 40, 2, 26, 18, 8); }
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
     let r = 0, g = 0, b = 0, a = 0, n = SS * SS;
@@ -177,25 +195,40 @@ export function screenshotPng() {
     }
   };
   fill(0, 0, W, H, 10, 10, 15);
-  rr(40, 30, 1160, 690, 40, 12, 58, 36);
-  drawText(put, 64, 48, 'TEXAS HOLDEM', 7, 247, 243, 234);
-  drawText(put, 64, 120, 'TOY CHIPS  NO CASH', 3, 232, 196, 96);
-  // flop
+  rr(40, 24, 1160, 696, 36, 12, 58, 36);
+  drawText(put, 64, 40, 'NO ACCOUNT  NO CASH', 4, 232, 196, 96);
+  drawText(put, 64, 84, 'INVITE IS THE TABLE', 4, 247, 243, 234);
+  // community
   const labels = ['Q', 'J', '10', '9', '2'];
   const reds = [0, 1, 0, 1, 0];
   for (let i = 0; i < 5; i++) {
-    const x = 80 + i * 150;
-    rr(x, 200, x + 130, 400, 14, 247, 243, 234);
+    const x = 70 + i * 118;
+    rr(x, 140, x + 104, 310, 12, 247, 243, 234);
     const col = reds[i] ? [196, 40, 48] : [26, 18, 8];
-    drawText(put, x + 24, 250, labels[i], 8, col[0], col[1], col[2]);
+    drawText(put, x + 18, 180, labels[i], 7, col[0], col[1], col[2]);
   }
-  rr(80, 440, 220, 640, 14, 247, 243, 234);
-  drawText(put, 110, 500, 'A', 10, 26, 18, 8);
-  rr(240, 440, 380, 640, 14, 247, 243, 234);
-  drawText(put, 270, 500, 'K', 10, 196, 40, 48);
-  drawText(put, 430, 470, 'POT  240', 5, 232, 196, 96);
-  drawText(put, 430, 540, 'YOUR HOLE', 4, 244, 236, 224);
-  drawText(put, 430, 610, 'HOST DEALS', 4, 184, 196, 176);
+  rr(70, 340, 176, 510, 12, 247, 243, 234);
+  drawText(put, 92, 380, 'A', 8, 26, 18, 8);
+  rr(190, 340, 296, 510, 12, 247, 243, 234);
+  drawText(put, 214, 380, 'K', 8, 196, 40, 48);
+  drawText(put, 330, 360, 'POT  240', 5, 232, 196, 96);
+  drawText(put, 330, 420, 'YOUR HOLE', 3, 244, 236, 224);
+  drawText(put, 330, 462, 'ADA TO ACT', 3, 184, 196, 176);
+  // seats
+  rr(70, 530, 300, 600, 10, 18, 52, 36);
+  drawText(put, 86, 550, 'YOU  990', 3, 247, 243, 234);
+  rr(320, 530, 560, 600, 10, 18, 52, 36);
+  drawText(put, 336, 550, 'ADA  1000', 3, 232, 196, 96);
+  rr(580, 530, 830, 600, 10, 18, 52, 36);
+  drawText(put, 596, 550, 'CHIP  995', 3, 247, 243, 234);
+  // action bar — the phone targets
+  rr(70, 620, 300, 686, 12, 90, 40, 40);
+  drawText(put, 120, 640, 'FOLD', 4, 247, 243, 234);
+  rr(320, 620, 560, 686, 12, 232, 196, 96);
+  drawText(put, 370, 640, 'CALL', 4, 26, 18, 8);
+  rr(580, 620, 830, 686, 12, 232, 196, 96);
+  drawText(put, 620, 640, 'RAISE', 4, 26, 18, 8);
+  drawText(put, 860, 640, 'TOY CHIPS', 3, 232, 196, 96);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

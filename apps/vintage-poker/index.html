@@ -13,44 +13,54 @@
 </header>
 <p class="toy">Toy chips. No cash. Ever.</p>
 
-<section class="card setup" id="home">
+<section class="panel setup" id="home">
   <h2>Texas Hold'em at one table</h2>
-  <p class="lede">The host deals. Invite is the seats. No server, no account, no cash.</p>
+  <p class="lede">No account, no cash, no server. The host deals. Invite is the seats.</p>
   <button class="primary" id="soloBtn" type="button">Play on this device</button>
   <button class="ghost wide" id="friendBtn" type="button">Play with friends</button>
-  <p class="lvlnote">Play with friends: press Invite in the GifOS menu and send the link. Two people sit, the host deals.</p>
+  <p class="lvlnote">Play with friends: press Invite in the GifOS menu and send the link. Everyone who opens it takes a seat.</p>
 </section>
 
 <section class="game" id="lobby" hidden>
   <div class="vhead"><h2>The table</h2><button class="ghost tiny" id="lobbyLeave" type="button">Leave</button></div>
-  <p class="statusline" id="lobbyStatus">Waiting for friends… press Invite in the GifOS menu to send the link.</p>
+  <p class="statusline" id="lobbyStatus">This table is empty.</p>
   <ul class="lobby-list" id="lobbyList"></ul>
+  <p class="empty-note" id="lobbyEmpty">Press Invite in the GifOS menu — the link is a seat.</p>
   <button class="primary" id="dealLobby" type="button">Deal</button>
 </section>
 
-<section class="game" id="play" hidden>
-  <button class="ghost tiny leave" id="playLeave" type="button">←</button>
+<section class="game play" id="play" hidden>
+  <div class="vhead">
+    <button class="ghost tiny" id="playLeave" type="button">Leave</button>
+    <button class="ghost tiny" id="topupBtn" type="button" hidden>Top up 1000</button>
+  </div>
   <p class="statusline" id="playStatus"></p>
   <div class="felt" id="felt">
     <div class="pot" id="pot">Pot 0</div>
     <div class="board" id="board"></div>
-    <div class="seats" id="seats"></div>
   </div>
+  <div class="seats" id="seats"></div>
   <div class="hole" id="holeWrap">
     <p class="hole-lab">Your cards</p>
     <div class="cards" id="hole"></div>
   </div>
   <p class="legal" id="legalHint"></p>
-  <div class="bar" id="actBar">
-    <button type="button" id="foldBtn">Fold</button>
-    <button type="button" id="checkBtn">Check</button>
-    <button type="button" id="callBtn">Call</button>
-    <button type="button" id="raiseBtn">Raise</button>
-    <button type="button" id="dealBtn">Deal</button>
-  </div>
-  <div class="raise-row" id="raiseRow" hidden>
-    <input type="range" id="raiseRange" min="20" max="1000" step="5" value="20">
-    <span id="raiseAmt">20</span>
+  <div class="dock" id="actDock">
+    <div class="bar" id="actBar">
+      <button type="button" id="foldBtn" aria-label="Fold">Fold</button>
+      <button type="button" id="checkBtn" aria-label="Check">Check</button>
+      <button type="button" id="callBtn" aria-label="Call">Call</button>
+      <button type="button" id="raiseBtn" aria-label="Raise">Raise</button>
+      <button type="button" id="dealBtn" aria-label="Deal next hand">Deal</button>
+    </div>
+    <p class="wait-pill" id="waitPill" hidden></p>
+    <div class="raise-row" id="raiseRow" hidden>
+      <button type="button" id="raiseMin" class="chipbtn">Min</button>
+      <button type="button" id="raisePot" class="chipbtn">Pot</button>
+      <button type="button" id="raiseAll" class="chipbtn">All-in</button>
+      <input type="range" id="raiseRange" min="20" max="1000" step="5" value="20" aria-label="Raise amount">
+      <span id="raiseAmt">20</span>
+    </div>
   </div>
 </section>
 
