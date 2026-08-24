@@ -326,7 +326,14 @@ class Cast {
     // smooth weighted order (interleaved, not block-wise) so a small cast
     // still spreads across machines instead of stacking on the heaviest
     const cycle = hosts
-      .flatMap((h) => Array.from({ length: h.weight || 1 }, (_, i) => ({ h, pos: (i + 1) / (h.weight || 1) })))
+      .flatMap((h) => {
+        // weight 0 is the orchestrator (or a resident box): it must not take
+        // actors. `h.weight || 1` treated 0 as 1, so 00-levers parked `dot`
+        // on local and SIGTERM'd it (NO-VERDICT).
+        const w = (h.weight === undefined || h.weight === null) ? 1 : Number(h.weight);
+        if (!(w > 0)) return [];
+        return Array.from({ length: w }, (_, i) => ({ h, pos: (i + 1) / w }));
+      })
       .sort((a, b) => a.pos - b.pos).map((x) => x.h);
     let ci = 0;
     // A host that declares `engines` only takes roles it can actually launch;
