@@ -519,6 +519,13 @@
         if (seat !== 'psychic' || b.phase !== 'clue') return;
         var tgt = intent.target | 0;
         if (tgt < 0 || tgt > LW.MAX) return;
+        /* Idempotent, like the guess branch below: 'deal' never bumps seq, so
+           the psychic's intent row keeps matching until the clue lands — and
+           without this guard every subscription event re-marked the board
+           changed and re-put an identical row, a continuous write loop from
+           deal to clue against a collection whose subscribers re-download
+           everything per change. */
+        if (b.dealt && b.target === tgt && b.cardIndex === (intent.cardIndex | 0)) return;
         b.target = tgt;
         b.cardIndex = intent.cardIndex | 0;
         b.dealt = true;
