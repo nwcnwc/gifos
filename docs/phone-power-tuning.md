@@ -12,8 +12,10 @@
 >   into roadmap §9b, where it is what §9a delivers for free.
 >
 > Surviving levers from this doc: **fan off-phone** (roadmap: "compositor
-> duty on phones", a LAW change needing sim-first work and Nathan's sign-off)
-> and **composite fps split**. The measurements themselves stand.
+> duty on phones", a LAW change needing sim-first work and Nathan's sign-off).
+> The composite fps split has since SHIPPED (`compFps()` cuts phones to 0.6×
+> the base COMP_FPS=8, floor 4; byte-identical frames are skipped).
+> The measurements themselves stand.
 
 Nathan's bar: **draining while plugged in is unacceptable.** The g24
 measurements (docs/phone-power-scaling-2026-07-29.md) put a phone's meeting
@@ -67,8 +69,10 @@ a knob that moves encode off `cpu`-limited is worth more than its watts.
 - **Fan off-phone**: distributor roles (sdm/stg fans) currently land by seat
   arithmetic; a phone-aware compositor-duty law (sim-first, the deacon-death
   survivor) would move the 6-encoder burden to plugged desktops.
-- **Composite fps split**: stadium/strip repaint at 15 Hz regardless of
-  content; a 8-10 Hz composite tick on phones halves packer draw cost.
+- **Composite fps split — SHIPPED**: composites tick at COMP_FPS=8 (the
+  Stage strip has its own 20/15/10 ladder), phones in a deep tier run 0.6×
+  with a floor of 4 (`compFps()`), and byte-identical frames are skipped —
+  the "repaint regardless of content" premise no longer holds.
 - **One-encoder fan**: fans to N row-mates re-encode per PC; RTCRtpSender
   cloning the SAME encoded stream (simulcast-style) would collapse N encoder
   sessions to 1 — the MediaCodec session ceiling measured on the g24.
