@@ -40,7 +40,7 @@ const pin = (rel, hex) => {
 
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-pin('vendor/script.js', 'fc68acb50a45f1121f360ca8bc826a5c48d6cddfad87d5abcbccbba98df786f0');
+pin('vendor/script.js', '20a14f1537ec11d891cb1ef9f3ac7d17dbb255c1325623e4760c27a566cb1783');
 pin('vendor/dat.gui.min.js', '27976ca8ac2e125de97163455131890e8686ed2afc2007cd5524080b7d53ef7b');
 
 for (const need of ['vendor/COPYING-fluid.txt', 'vendor/COPYING-dat-gui.txt', 'vendor/UPSTREAM.txt']) {
@@ -91,6 +91,12 @@ if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'l
 }
 if (!files['vendor/script.js'].includes('window.FluidConfig') || !files['vendor/script.js'].includes('function ga(){}')) {
   throw new Error('script.js must expose FluidConfig and stub ga');
+}
+if (!files['vendor/script.js'].includes('window.FluidNoGL') || !files['app.js'].includes('FluidNoGL')) {
+  throw new Error('must degrade honestly when WebGL is missing');
+}
+if (!files['app.js'].includes('snap') || !files['app.js'].includes('onBack')) {
+  throw new Error('app.js must snapshot the swirl and handle Back');
 }
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;

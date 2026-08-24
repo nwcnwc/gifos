@@ -78,19 +78,23 @@ let pointers = [];
 let splatStack = [];
 pointers.push(new pointerPrototype());
 
-const { gl, ext } = getWebGLContext(canvas);
+var _fluidGL = { gl: null, ext: {} };
+try { _fluidGL = getWebGLContext(canvas); } catch (e) { _fluidGL = { gl: null, ext: {} }; }
+var gl = _fluidGL.gl;
+var ext = _fluidGL.ext || {};
+window.FluidNoGL = !gl || !ext.formatRGBA;
 
-if (isMobile()) {
+if (!window.FluidNoGL && isMobile()) {
     config.DYE_RESOLUTION = 512;
 }
-if (!ext.supportLinearFiltering) {
+if (!window.FluidNoGL && !ext.supportLinearFiltering) {
     config.DYE_RESOLUTION = 512;
     config.SHADING = false;
     config.BLOOM = false;
     config.SUNRAYS = false;
 }
 
-startGUI();
+// startGUI runs after shaders exist (see boot below)
 
 function getWebGLContext (canvas) {
     const params = { alpha: true, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false };
@@ -99,6 +103,10 @@ function getWebGLContext (canvas) {
     const isWebGL2 = !!gl;
     if (!isWebGL2)
         gl = canvas.getContext('webgl', params) || canvas.getContext('experimental-webgl', params);
+
+    if (!gl) {
+        return { gl: null, ext: { formatRGBA: null, formatRG: null, formatR: null, halfFloatTexType: null, supportLinearFiltering: false } };
+    }
 
     let halfFloat;
     let supportLinearFiltering;
@@ -112,7 +120,10 @@ function getWebGLContext (canvas) {
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-    const halfFloatTexType = isWebGL2 ? gl.HALF_FLOAT : halfFloat.HALF_FLOAT_OES;
+    const halfFloatTexType = isWebGL2 ? gl.HALF_FLOAT : (halfFloat && halfFloat.HALF_FLOAT_OES);
+    if (!isWebGL2 && !halfFloat) {
+        return { gl: null, ext: { formatRGBA: null, formatRG: null, formatR: null, halfFloatTexType: null, supportLinearFiltering: false } };
+    }
     let formatRGBA;
     let formatRG;
     let formatR;
@@ -183,30 +194,37 @@ function supportRenderTextureFormat (gl, internalFormat, format, type) {
 }
 
 function startGUI () {
-    var gui = new dat.GUI({ width: 300 });
-    gui.add(config, 'DYE_RESOLUTION', { 'high': 1024, 'medium': 512, 'low': 256, 'very low': 128 }).name('quality').onFinishChange(initFramebuffers);
-    gui.add(config, 'SIM_RESOLUTION', { '32': 32, '64': 64, '128': 128, '256': 256 }).name('sim resolution').onFinishChange(initFramebuffers);
-    gui.add(config, 'DENSITY_DISSIPATION', 0, 4.0).name('density diffusion');
-    gui.add(config, 'VELOCITY_DISSIPATION', 0, 4.0).name('velocity diffusion');
-    gui.add(config, 'PRESSURE', 0.0, 1.0).name('pressure');
-    gui.add(config, 'CURL', 0, 50).name('vorticity').step(1);
-    gui.add(config, 'SPLAT_RADIUS', 0.01, 1.0).name('splat radius');
-    gui.add(config, 'SHADING').name('shading').onFinishChange(updateKeywords);
-    gui.add(config, 'COLORFUL').name('colorful');
-    gui.add(config, 'PAUSED').name('paused').listen();
+    var gui = new dat.GUI({ width: isMobile() ? 260 : 300 });
+    window.FluidGUI = gui;
+    function afterGL(fn) {
+        return function () {
+            if (fn) fn.apply(this, arguments);
+            if (window.FluidOnChange) window.FluidOnChange();
+        };
+    }
+    gui.add(config, 'DYE_RESOLUTION', { 'high': 1024, 'medium': 512, 'low': 256, 'very low': 128 }).name('quality').onFinishChange(afterGL(initFramebuffers));
+    gui.add(config, 'SIM_RESOLUTION', { '32': 32, '64': 64, '128': 128, '256': 256 }).name('sim resolution').onFinishChange(afterGL(initFramebuffers));
+    gui.add(config, 'DENSITY_DISSIPATION', 0, 4.0).name('density diffusion').onFinishChange(afterGL());
+    gui.add(config, 'VELOCITY_DISSIPATION', 0, 4.0).name('velocity diffusion').onFinishChange(afterGL());
+    gui.add(config, 'PRESSURE', 0.0, 1.0).name('pressure').onFinishChange(afterGL());
+    gui.add(config, 'CURL', 0, 50).name('vorticity').step(1).onFinishChange(afterGL());
+    gui.add(config, 'SPLAT_RADIUS', 0.01, 1.0).name('splat radius').onFinishChange(afterGL());
+    gui.add(config, 'SHADING').name('shading').onFinishChange(afterGL(updateKeywords));
+    gui.add(config, 'COLORFUL').name('colorful').onFinishChange(afterGL());
+    gui.add(config, 'PAUSED').name('paused').listen().onFinishChange(afterGL());
 
     gui.add({ fun: () => {
         splatStack.push(parseInt(Math.random() * 20) + 5);
     } }, 'fun').name('Random splats');
 
     let bloomFolder = gui.addFolder('Bloom');
-    bloomFolder.add(config, 'BLOOM').name('enabled').onFinishChange(updateKeywords);
-    bloomFolder.add(config, 'BLOOM_INTENSITY', 0.1, 2.0).name('intensity');
-    bloomFolder.add(config, 'BLOOM_THRESHOLD', 0.0, 1.0).name('threshold');
+    bloomFolder.add(config, 'BLOOM').name('enabled').onFinishChange(afterGL(updateKeywords));
+    bloomFolder.add(config, 'BLOOM_INTENSITY', 0.1, 2.0).name('intensity').onFinishChange(afterGL());
+    bloomFolder.add(config, 'BLOOM_THRESHOLD', 0.0, 1.0).name('threshold').onFinishChange(afterGL());
 
     let sunraysFolder = gui.addFolder('Sunrays');
-    sunraysFolder.add(config, 'SUNRAYS').name('enabled').onFinishChange(updateKeywords);
-    sunraysFolder.add(config, 'SUNRAYS_WEIGHT', 0.3, 1.0).name('weight');
+    sunraysFolder.add(config, 'SUNRAYS').name('enabled').onFinishChange(afterGL(updateKeywords));
+    sunraysFolder.add(config, 'SUNRAYS_WEIGHT', 0.3, 1.0).name('weight').onFinishChange(afterGL());
 
     let captureFolder = gui.addFolder('Capture');
     captureFolder.addColor(config, 'BACK_COLOR').name('background color');
@@ -231,6 +249,9 @@ function captureScreenshot () {
 
     let captureCanvas = textureToCanvas(texture, target.width, target.height);
     let datauri = captureCanvas.toDataURL();
+    if (typeof window.FluidOnCapture === 'function') {
+        try { window.FluidOnCapture(datauri, captureCanvas); } catch (e) {}
+    }
     downloadURI('fluid.png', datauri);
     URL.revokeObjectURL(datauri);
 }
@@ -285,6 +306,7 @@ function downloadURI (filename, uri) {
     document.body.removeChild(link);
 }
 
+if (!window.FluidNoGL) {
 class Material {
     constructor (vertexShader, fragmentShaderSource) {
         this.vertexShader = vertexShader;
@@ -1102,6 +1124,7 @@ function updateKeywords () {
     displayMaterial.setKeywords(displayKeywords);
 }
 
+startGUI();
 updateKeywords();
 initFramebuffers();
 multipleSplats(parseInt(Math.random() * 20) + 5);
@@ -1125,6 +1148,7 @@ function update () {
 function calcDeltaTime () {
     let now = Date.now();
     let dt = (now - lastUpdateTime) / 1000;
+    if (window.FluidFrame) window.FluidFrame(dt);
     dt = Math.min(dt, 0.016666);
     lastUpdateTime = now;
     return dt;
@@ -1569,6 +1593,8 @@ function getTextureScale (texture, width, height) {
 
 function scaleByPixelRatio (input) {
     let pixelRatio = window.devicePixelRatio || 1;
+    if (pixelRatio > 2) pixelRatio = 2;
+    if (isMobile()) pixelRatio = Math.min(pixelRatio, 1.5);
     return Math.floor(input * pixelRatio);
 }
 
@@ -1582,3 +1608,4 @@ function hashCode (s) {
     return hash;
 };
 window.FluidApply = function () { try { updateKeywords(); initFramebuffers(); } catch (e) {} };
+}

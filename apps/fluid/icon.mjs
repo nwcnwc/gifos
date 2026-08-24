@@ -172,8 +172,8 @@ export function screenshotPng() {
     else if (s.fall > 0.15) col = mix(col, CYAN, s.fall * 0.35);
     put(x, y, col[0], col[1], col[2]);
   }
-  drawText(put, 48, 48, 'FLUID', 8, 255, 255, 255);
-  drawText(put, 48, 120, 'DRAG A FINGER. NOTHING UPLOADED.', 3, 220, 230, 240);
+  drawText(put, 48, 48, 'FLUID', 6, 255, 255, 255);
+  drawText(put, 48, 110, 'NOTHING UPLOADED', 3, 180, 210, 230);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

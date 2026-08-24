@@ -14,7 +14,10 @@ canvas { width: 100%; height: 100%; display: block; }
 </head>
 <body>
 <canvas></canvas>
-<p id="hint" class="hint">Drag to swirl. Settings stay in this file.</p>
+<img id="lastStill" class="last-still" alt="" hidden>
+<p id="hint" class="hint">Drag to swirl. Settings and a still stay in this file.</p>
+<p id="nogl" class="nogl" hidden>This device has no WebGL, so there is nothing to stir. The original is the same: it needs a GPU the browser will share.</p>
+<p id="note" class="note" hidden></p>
 <script src="vendor/dat.gui.min.js"></script>
 <script src="vendor/script.js"></script>
 <script src="app.js"></script>
