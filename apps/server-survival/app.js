@@ -1,6 +1,7 @@
 /*
  * Server Survival — GifOS chrome. Classic IIFE. No fetch, no sockets, no eval.
  * The engine is vendor/game.js. Progress and prefs live in gifos.db('save').
+ * The memory localStorage in shim.js is only the game's scratch pad.
  */
 (function () {
   'use strict';
@@ -11,6 +12,7 @@
   var ready = false;
   var origSet = null;
   var origRemove = null;
+  var silentSave = false;
 
   try {
     origSet = localStorage.setItem.bind(localStorage);
@@ -38,16 +40,6 @@
       saveTimer = 0;
       saveDb.put({ id: 'last', keys: snapshot() }).catch(function () {});
     }, 400);
-  }
-
-  function applyKeys(keys) {
-    if (!keys) return;
-    var k;
-    for (k in keys) {
-      if (Object.prototype.hasOwnProperty.call(keys, k) && keys[k] != null) {
-        origSet(k, keys[k]);
-      }
-    }
   }
 
   function paintSound() {
@@ -97,12 +89,166 @@
     localStorage.removeItem = function (k) { origRemove(k); persist(); };
   } catch (e) {}
 
+  function isNarrow() {
+    return window.innerWidth < 700 || window.innerHeight < 640;
+  }
+
+  function markNarrow() {
+    document.documentElement.classList.toggle('ss-narrow', isNarrow());
+    var sand = document.getElementById('sandboxPanel');
+    if (!sand || document.getElementById('ss-lab-toggle')) return;
+    var t = document.createElement('button');
+    t.id = 'ss-lab-toggle';
+    t.className = 'ss-lab-toggle';
+    t.type = 'button';
+    t.textContent = 'Lab';
+    t.setAttribute('aria-label', 'Sandbox lab controls');
+    t.addEventListener('click', function () {
+      sand.classList.toggle('ss-open');
+    });
+    document.body.appendChild(t);
+  }
+
+  function hideShareLink() {
+    var btn = document.getElementById('btn-share-link');
+    var desc = document.getElementById('share-desc');
+    if (btn) btn.style.display = 'none';
+    if (desc) {
+      desc.textContent = 'Download a snapshot of the board. Sharing the app itself is the GifOS bar above this window.';
+    }
+    var hud = document.getElementById('btn-share');
+    if (hud) {
+      hud.setAttribute('title', 'Download board snapshot');
+      hud.setAttribute('data-i18n-title', '');
+    }
+  }
+
+  function fitTutorial() {
+    var tut = window.tutorial;
+    if (!tut || typeof tut.positionPopup !== 'function') return;
+    var orig = tut.positionPopup.bind(tut);
+    tut.positionPopup = function (step) {
+      orig(step);
+      if (!isNarrow() || !this.popup) return;
+      this.popup.style.left = '8px';
+      this.popup.style.right = '8px';
+      this.popup.style.top = '8px';
+      this.popup.style.bottom = 'auto';
+      this.popup.style.transform = 'none';
+      this.popup.style.maxWidth = 'none';
+      this.popup.style.maxHeight = '36vh';
+      this.popup.style.overflowY = 'auto';
+    };
+  }
+
+  function wrapSilentSave() {
+    var inner = window.saveGameState;
+    if (typeof inner !== 'function') return;
+    window.saveGameState = function (saveAs) {
+      if (saveAs === 'silent') {
+        if (silentSave) return;
+        silentSave = true;
+        var play = window.STATE && STATE.sound && STATE.sound.playPlace;
+        if (play) STATE.sound.playPlace = function () {};
+        try { inner('browser'); } catch (e) {}
+        if (play) STATE.sound.playPlace = play;
+        var modal = document.getElementById('save-modal');
+        if (modal) modal.classList.add('hidden');
+        silentSave = false;
+        return;
+      }
+      return inner(saveAs);
+    };
+  }
+
+  function snapshotRun() {
+    if (typeof window.saveGameState !== 'function') return;
+    if (!window.STATE || !STATE.gameStarted) return;
+    try { window.saveGameState('silent'); } catch (e) {}
+  }
+
+  function topModal() {
+    var ids = [
+      'tutorial-modal', 'faq-modal', 'save-modal', 'share-modal',
+      'trophies-modal', 'campaign-debrief-modal', 'campaign-briefing-modal',
+      'campaign-select-modal', 'modal'
+    ];
+    var i, el;
+    for (i = 0; i < ids.length; i++) {
+      el = document.getElementById(ids[i]);
+      if (el && !el.classList.contains('hidden')) return ids[i];
+    }
+    el = document.getElementById('main-menu-modal');
+    if (el && !el.classList.contains('hidden')) return 'main-menu-modal';
+    return null;
+  }
+
+  function closeTop() {
+    var which = topModal();
+    if (which === 'tutorial-modal' && window.tutorial && typeof window.tutorial.skip === 'function') {
+      window.tutorial.skip();
+      return true;
+    }
+    if (which === 'faq-modal' && typeof window.closeFAQ === 'function') {
+      window.closeFAQ();
+      return true;
+    }
+    if (which === 'save-modal' && typeof window.closeSaveModal === 'function') {
+      window.closeSaveModal();
+      return true;
+    }
+    if (which === 'share-modal' && typeof window.closeShareModal === 'function') {
+      window.closeShareModal();
+      return true;
+    }
+    if (which === 'trophies-modal' && typeof window.closeTrophies === 'function') {
+      window.closeTrophies();
+      return true;
+    }
+    if (which === 'campaign-debrief-modal' && typeof window.exitCampaignToMap === 'function') {
+      window.exitCampaignToMap();
+      return true;
+    }
+    if (which === 'campaign-briefing-modal' && typeof window.exitCampaignToMap === 'function') {
+      window.exitCampaignToMap();
+      return true;
+    }
+    if (which === 'campaign-select-modal' && typeof window.exitCampaignToMenu === 'function') {
+      window.exitCampaignToMenu();
+      return true;
+    }
+    if (which === 'modal' && typeof window.toggleFailureModal === 'function') {
+      window.toggleFailureModal();
+      return true;
+    }
+    if (which !== 'main-menu-modal' && window.STATE && STATE.gameStarted) {
+      snapshotRun();
+      var ev = document.createEvent('Event');
+      ev.initEvent('keydown', true, true);
+      ev.key = 'Escape';
+      document.dispatchEvent(ev);
+      return true;
+    }
+    return false;
+  }
+
   function boot(row) {
-    if (row && row.keys) applyKeys(row.keys);
     applyLive();
+    markNarrow();
+    hideShareLink();
+    fitTutorial();
+    wrapSilentSave();
     ready = true;
     persist();
+    if (window.gifos && typeof gifos.onBack === 'function') {
+      gifos.onBack(function () { return closeTop(); });
+    }
   }
+
+  window.addEventListener('resize', markNarrow);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) snapshotRun();
+  });
 
   var pending = window.__ssReady;
   if (pending && typeof pending.then === 'function') pending.then(boot).catch(function () { boot(null); });

@@ -41,11 +41,11 @@
           <span id="money-display"
             class="text-green-400 font-mono text-xl font-bold transition-colors duration-300">$500</span>
         </div>
-        <div class="flex justify-between items-center text-xs">
+        <div class="flex justify-between items-center text-xs ss-desk-only">
           <span data-i18n="upkeep_cost" class="text-gray-500">Upkeep Cost</span>
           <span id="upkeep-display" class="text-red-400 font-mono">-$0.00/s</span>
         </div>
-        <div class="flex justify-between items-center text-xs">
+        <div class="flex justify-between items-center text-xs ss-desk-only">
           <span data-i18n="elapsed_time" class="text-gray-500">Elapsed Time</span>
           <span id="elapsed-time" class="text-gray-400 font-mono">00:00</span>
         </div>
@@ -73,7 +73,7 @@
           <span data-i18n="load_rps" class="text-gray-400 text-sm">LOAD (RPS)</span>
           <span id="rps-display" class="text-blue-300 font-mono text-sm">0.0 req/s</span>
         </div>
-        <div class="flex justify-between items-center text-xs" id="rps-milestone-row">
+        <div class="flex justify-between items-center text-xs ss-desk-only" id="rps-milestone-row">
           <span data-i18n="next_rps_surge" class="text-gray-500">Next RPS Surge</span>
           <div class="flex items-center gap-2 font-mono">
             <span id="rps-next" class="text-orange-400">×1.0</span>
@@ -81,7 +81,7 @@
           <span id="rps-countdown" class="text-cyan-400">0:00</span>
           </div>
         </div>
-        <div class="flex justify-between items-center pt-1">
+        <div class="flex justify-between items-center pt-1 ss-desk-only">
           <span data-i18n="traffic" class="text-gray-400 text-sm">TRAFFIC</span>
           <div class="flex gap-1 text-[10px] font-mono">
             <span class="text-green-400" id="mix-static" data-i18n-title="traffic_static" title="Static GET">ST</span>
@@ -95,7 +95,7 @@
         </div>
 
         <!-- Failures Table -->
-        <div id="failures-panel" class="mt-2 pt-2 border-t border-gray-700/50 hidden">
+        <div id="failures-panel" class="mt-2 pt-2 border-t border-gray-700/50 hidden ss-desk-only">
           <div class="flex justify-between items-center mb-2">
             <span data-i18n="failures" class="text-gray-500 text-xs uppercase">Failures</span>
             <span id="failures-total" class="text-red-400 font-mono text-xs">0 <span data-i18n="total">total</span></span>
@@ -159,7 +159,7 @@
           </table>
         </div>
 
-        <div class="flex justify-between items-center pt-3 border-t border-gray-700 mt-2">
+        <div class="flex justify-between items-center pt-3 border-t border-gray-700 mt-2 ss-desk-only">
           <span data-i18n="total_score" class="text-gray-300 font-bold text-lg">TOTAL SCORE</span>
           <span id="total-score-display" class="text-white font-mono text-2xl font-bold">0</span>
         </div>
@@ -168,7 +168,7 @@
              at 100 for most of a run. Shows "--" until the window has data:
              an idle board has no goodput, and printing 100% for "nothing
              happened" is the exact lie reputation already tells. -->
-        <div class="flex justify-between items-center pt-2">
+        <div class="flex justify-between items-center pt-2 ss-desk-only">
           <span data-i18n="goodput_label" data-i18n-title="goodput_hint" class="text-gray-400 text-sm"
                 title="Share of the last 30 seconds of demand answered while someone still wanted it.">GOODPUT (30s)</span>
           <span id="goodput-display" class="text-gray-500 font-mono text-lg font-bold">--</span>
@@ -328,7 +328,7 @@
     </div>
 
     <!-- Time Control Panel (Top Center) -->
-    <div
+    <div id="time-bar"
       class="absolute top-4 left-1/2 transform -translate-x-1/2 glass-panel rounded-xl p-2 pointer-events-auto flex gap-2">
       <!-- Language Switcher -->
       <div class="flex items-center bg-gray-800 rounded-lg px-1 border border-gray-600 mr-1">
@@ -847,6 +847,7 @@
 
         <button onclick="onClickContinueGame()" id="load-btn"
           data-i18n="continue_game"
+          style="display:none"
           class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-cyan-400/50">
           Continue Game
         </button>
@@ -881,8 +882,9 @@
         <button onclick="saveGameState('browser')"
           data-i18n="save_browser"
           class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-green-400/50">
-          Save in Browser
+          Save in this copy
         </button>
+        <p id="save-copy-note" class="text-xs text-gray-400 -mt-2">Stays in this copy of the app. The file is the save.</p>
 
         <button onclick="saveGameState('file')" id="btn-download-save"
           data-i18n="save_download"
@@ -912,8 +914,8 @@
         Share Architecture
       </h1>
 
-      <p data-i18n="share_desc" class="text-sm text-gray-400 mb-6">
-        Download a snapshot of your build, or copy a link that opens it in Sandbox.
+      <p id="share-desc" data-i18n="share_desc" class="text-sm text-gray-400 mb-6">
+        Download a snapshot of the board.
       </p>
 
       <div class="space-y-4">
@@ -926,6 +928,7 @@
 
         <button onclick="copyShareLink()" id="btn-share-link"
           data-i18n="share_copy_link"
+          style="display:none"
           class="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-teal-400/50">
           Copy Link
         </button>

@@ -63,6 +63,12 @@ if (listing.author.name !== 'Kostyantyn Pshenychnyy' || listing.porter.name !== 
 if (/gifos/i.test(listing.author.name)) throw new Error('author is never GifOS');
 if (listing.license !== 'MIT' || listing.releaseDate !== '2026-08-24') throw new Error('listing');
 if (listing.homepage !== 'https://github.com/nwcnwc/gifos/tree/main/apps/server-survival') throw new Error('homepage');
+if (!/no server/i.test(listing.tagline) || !/file is the save/i.test(listing.tagline)) {
+  throw new Error('tagline must lead with no server / file is the save');
+}
+if (!/^The original is a webpage/.test(listing.description)) {
+  throw new Error('description must lead with why this copy');
+}
 
 const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage', 'WebRTC']) {
@@ -118,6 +124,16 @@ if (/cdn\.tailwindcss|cdnjs\.cloudflare|unpkg|jsdelivr|googleapis/i.test(html)) 
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html) || /id=["']invite/i.test(html)) throw new Error('Invite is OS chrome');
 if (!files['COPYING-server-survival.txt'].includes('Kostyantyn Pshenychnyy')) throw new Error('COPYING');
 if (!files['app.js'].includes("db('save')")) throw new Error('db save');
+if (!files['app.js'].includes('gifos.onBack')) throw new Error('onBack');
+if (!files['app.js'].includes("saveDb.put")) throw new Error('gifos.db is the real save');
+if (!files['shim.js'].includes('memoryStore')) throw new Error('shim is memory only');
+if (!files['style.css'].includes('ss-narrow')) throw new Error('phone HUD');
+if (!files['style.css'].includes('ss-desk-only')) throw new Error('phone stats compact');
+if (!files['index.html'].includes('id="time-bar"')) throw new Error('time-bar id');
+if (!files['index.html'].includes('btn-share-link')) throw new Error('share link button');
+if (!/btn-share-link[\s\S]*style="display:none"/.test(files['index.html'])) {
+  throw new Error('Copy Link must stay hidden — Invite is OS chrome');
+}
 if (!files['vendor/game.js'].includes('window.startGame')) throw new Error('game bundle');
 if (/^\s*import\s/m.test(files['vendor/game.js'])) throw new Error('game.js still ESM');
 

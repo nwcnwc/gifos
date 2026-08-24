@@ -10,6 +10,7 @@ body {
 #canvas-container {
   width: 100vw;
   height: 100vh;
+  touch-action: none;
 }
 
 /* Glassmorphism UI */
@@ -347,5 +348,128 @@ body {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+.ss-lab-toggle { display: none; }
+
+/* Phone: HUD cannot eat the board. Tutorial cannot cover the toolbar.
+   A 390×844 viewport used to stack stats + details + health + metrics
+   + finances + a max-w-xl tutorial card over the grid, so a thumb could
+   not place or upgrade anything. */
+@media (max-width: 700px) {
+  html.ss-narrow #statsPanel {
+    top: 52px;
+    left: 8px;
+    width: auto;
+    min-width: 11.5rem;
+    max-width: 56%;
+    padding: 6px 8px;
+  }
+  html.ss-narrow #statsPanel h1 {
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+  }
+  html.ss-narrow .ss-desk-only {
+    display: none !important;
+  }
+  html.ss-narrow #detailsPanel,
+  html.ss-narrow #healthPanel,
+  html.ss-narrow #metricsPanel,
+  html.ss-narrow #financesPanel,
+  html.ss-narrow #objectivesPanel {
+    display: none !important;
+  }
+  html.ss-narrow #time-bar {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    width: auto;
+    justify-content: center;
+    padding: 4px;
+  }
+  html.ss-narrow #time-bar .time-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  html.ss-narrow #sandboxPanel {
+    display: none;
+  }
+  html.ss-narrow #sandboxPanel.ss-open {
+    display: block;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    bottom: 5.5rem;
+    max-height: 36vh;
+    overflow-y: auto;
+    padding: 8px;
+  }
+  html.ss-narrow .ss-lab-toggle {
+    display: block;
+    position: absolute;
+    left: auto;
+    right: 8px;
+    bottom: 5.75rem;
+    z-index: 20;
+    pointer-events: auto;
+    background: rgba(15, 23, 42, 0.92);
+    color: #c4b5fd;
+    border: 1px solid rgba(168, 85, 247, 0.5);
+    border-radius: 8px;
+    font: 700 11px/1 ui-monospace, monospace;
+    padding: 8px 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  html.ss-narrow #tutorial-popup {
+    left: 8px !important;
+    right: 8px !important;
+    top: 8px !important;
+    bottom: auto !important;
+    max-width: none !important;
+    width: auto !important;
+    transform: none !important;
+    max-height: 36vh;
+    overflow-y: auto;
+    padding: 12px !important;
+  }
+  html.ss-narrow #tutorial-skip {
+    font-size: 14px;
+    padding: 8px 12px;
+    color: #e5e7eb;
+    border: 1px solid #6b7280;
+    border-radius: 8px;
+  }
+  html.ss-narrow .service-btn.w-16 {
+    width: 3rem;
+    height: 3rem;
+    padding: 0.25rem;
+  }
+  html.ss-narrow #main-menu-modal > div,
+  html.ss-narrow #save-modal > div,
+  html.ss-narrow #share-modal > div {
+    padding: 1.25rem;
+    max-height: 100%;
+    overflow-y: auto;
+    margin: 8px;
+  }
+  html.ss-narrow #main-menu-modal h1,
+  html.ss-narrow #save-modal h1,
+  html.ss-narrow #share-modal h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  html.ss-narrow #main-menu-modal button,
+  html.ss-narrow #save-modal button,
+  html.ss-narrow #share-modal button {
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+    font-size: 0.9rem;
+  }
+  html.ss-narrow #upgrade-indicator,
+  html.ss-narrow #asg-indicator {
+    transform: none;
   }
 }
