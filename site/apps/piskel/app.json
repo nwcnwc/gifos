@@ -40,15 +40,11 @@
   "cover": "/apps/piskel/cover.jpg",
   "screenshots": [],
   "gif": "/apps/piskel/piskel.gif",
-  "bytes": 2482761,
+  "bytes": 2460811,
   "download": 0,
   "provides": null,
-  "sha256": "7e1d4f240a164f28b0928ed32c1c9a6676e81f79d83a5bb65b21e9c2b3321aba",
-  "signature": {
-    "type": "domain",
-    "id": "gifos.app",
-    "ts": "2026-08-23"
-  },
+  "sha256": "f85bcf2988626408c7c9a8315acd2e6806fb80e2ee8490fc2617a8e907cdfc8d",
+  "signature": null,
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

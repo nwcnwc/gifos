@@ -38,13 +38,9 @@
   "cover": "/apps/thumb-sprint/cover.jpg",
   "screenshots": [],
   "gif": "/apps/thumb-sprint/thumb-sprint.gif",
-  "bytes": 224961,
+  "bytes": 225373,
   "download": 0,
   "provides": null,
-  "sha256": "0035ad542986d90c87ffa603ed8d81a3cf2d4029fbadcc2be410ddb31ae40e26",
-  "signature": {
-    "type": "domain",
-    "id": "gifos.app",
-    "ts": "2026-08-23"
-  }
+  "sha256": "a777c7568425022ef059946fe3d378c095a002ce73f82348d203db96f71e1379",
+  "signature": null
 }

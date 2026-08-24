@@ -38,15 +38,11 @@
   "cover": "/apps/snake/cover.jpg",
   "screenshots": [],
   "gif": "/apps/snake/snake.gif",
-  "bytes": 197790,
+  "bytes": 198002,
   "download": 0,
   "provides": null,
-  "sha256": "e80b4e4df597683145f50825b0176d59bc805608bf9a7cf424837adbe5a995ee",
-  "signature": {
-    "type": "domain",
-    "id": "gifos.app",
-    "ts": "2026-08-23"
-  },
+  "sha256": "16d53b574052bf39acd599ce88cdfb4eaa91e299b0d567eae8a9b15c57c790df",
+  "signature": null,
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

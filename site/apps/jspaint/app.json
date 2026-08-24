@@ -39,15 +39,11 @@
   "cover": "/apps/jspaint/cover.jpg",
   "screenshots": [],
   "gif": "/apps/jspaint/jspaint.gif",
-  "bytes": 1210641,
+  "bytes": 1210919,
   "download": 0,
   "provides": null,
-  "sha256": "987b5b4cc673c9cf08c7dd957b7f8bffdba52118ed8c4544cf8369ecf8e5415f",
-  "signature": {
-    "type": "domain",
-    "id": "gifos.app",
-    "ts": "2026-08-23"
-  },
+  "sha256": "3aeefb3e0c143e00baebc7611d6eecb53aa5367e0792c6f56dbade840ccc1c43",
+  "signature": null,
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"
