@@ -43,6 +43,18 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   }, SYS);
   check('seeded desktop exposes a runnable app fileId', !!appId);
   if (!appId) { await browser.close(); process.exit(1); }
+  // Stamp the App Store snapshot a store install would have left on this
+  // file (store.js storeSnapshot) — Help must credit it at the very bottom.
+  await d.evaluate(async (id) => {
+    const rec = await GifOS.store.getFile(id);
+    await GifOS.store.putFile(Object.assign({}, rec, { storeMeta: {
+      name: 'Credited App', version: '9.9.9',
+      author: { name: 'Ada Author', url: 'https://example.com/ada' },
+      porter: { name: 'GifOS', url: 'https://gifos.app' },
+      basedOn: { name: 'The Original', url: 'https://example.com/original' },
+      license: 'MIT', installedAt: '2026-08-24T00:00:00.000Z',
+    } }));
+  }, appId);
   await d.close();
 
   // the solo entry
@@ -66,6 +78,16 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     };
   });
   check('Help opens a modal with content', !!(helpOpen.flex && helpOpen.text.length > 40), helpOpen.text.slice(0, 80));
+  const credits = await p.evaluate(() => {
+    const body = document.getElementById('apphelp-body');
+    const h = Array.from(body.querySelectorAll('h4')).map((x) => x.textContent.trim());
+    const a = Array.from(body.querySelectorAll('a')).map((x) => x.getAttribute('href'));
+    return { lastHeading: h[h.length - 1], text: body.textContent, links: a };
+  });
+  check('Help credits the App Store listing at the VERY BOTTOM (author, porter, basedOn, install date)',
+    credits.lastHeading === 'Credits' && /Ada Author/.test(credits.text) && /Brought to GifOS by/.test(credits.text)
+    && /The Original/.test(credits.text) && /installed on 2026-08-24/.test(credits.text)
+    && credits.links.indexOf('https://example.com/ada') !== -1, credits.lastHeading);
   await p.click('#apphelp-close');
   check('Got it closes Help', await p.evaluate(() => {
     const m = document.getElementById('apphelp-modal');

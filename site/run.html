@@ -7088,10 +7088,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     // flow, and for SOLO no network object at all. The meeting entry keeps its
     // exact flow.
     let soloCtl = null; // the running solo app's runtime control — Invite (step 2) hosts from it
+    // The App Store record snapshotted onto this copy at install (store.js
+    // storeMeta) — Help prints it as Credits. Null for a guest's mount: the
+    // credit lives on the owner's file record, not in the bytes on the wire.
+    let appStoreMeta = null;
     function bootSoloApp() {
       document.body.classList.add('solo-app');
       GifOS.store.getFile(ROOM.fileId).then((rec) => {
         if (!rec) throw new Error('file not found on this desktop');
+        appStoreMeta = rec.storeMeta || null;
         const nm = (rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         document.title = nm + ' — GifOS';
         const mount = () => {
@@ -12066,7 +12071,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function openAppHelp() {
       const H = window.GifOS && GifOS.help;
-      const md = (H && H.withOsFooter) ? H.withOsFooter(currentAppHelpMd()) : (currentAppHelpMd() || '');
+      const md = (H && H.withOsFooter) ? H.withOsFooter(currentAppHelpMd(), appStoreMeta) : (currentAppHelpMd() || '');
       const parsed = (H && H.parse) ? H.parse(md) : { title: '', html: '' };
       const titleEl = document.getElementById('apphelp-title');
       const bodyEl = document.getElementById('apphelp-body');
@@ -12195,6 +12200,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         // host boot replaces the DOM (the iframe goes with it either way).
         if (appClientStop) { try { appClientStop(); } catch (e) {} appClientStop = null; }
         const rec = await GifOS.store.getFile(fileId);
+        appStoreMeta = (rec && rec.storeMeta) || null;
         name = name || (rec && rec.name && rec.name.replace(/\.gif$/i, '')) || 'App';
         appMode = 'host'; appKey = null;
         showAppPane(name, ROOM.appPinned ? 'you host it' : '· you are hosting it for the meeting');
@@ -12251,7 +12257,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function mountClientApp(app) {
       appEv('client-mount', { s: String(app.s).slice(0, 8), ts: app.ts || 0, by: app.byName || null });
-      appMode = 'client'; appKey = app.s;
+      appMode = 'client'; appKey = app.s; appStoreMeta = null;
       showAppPane(app.name, '· shared with the meeting' + (app.byName ? ' by ' + app.byName : ''));
       try {
         // §11: when the host drives the mesh Stage data lane (app.mesh) and the
