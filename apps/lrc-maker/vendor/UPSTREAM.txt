@@ -1,0 +1,16 @@
+vendor/lrc-parser.js is @lrc-maker/lrc-parser@0.1.17 UMD (MIT).
+The GifOS UI is a classic wrap of magic-akari/lrc-maker's loop (load
+audio, stamp lines, export LRC). The React + wavesurfer app is not packed.
+
+package: @lrc-maker/lrc-parser@0.1.17
+npm:     https://registry.npmjs.org/@lrc-maker/lrc-parser/-/lrc-parser-0.1.17.tgz
+file:    build/umd/lrc-parser.js
+sha256:  81238094b41d0c42a6ab46d2d7c1873ba365714197f460de9ba1ae0cc379fbb5
+
+basedOn: magic-akari/lrc-maker
+url:     https://github.com/magic-akari/lrc-maker
+commit:  fdf21d27d443ea66513c4a9a68410e5529d11fd2
+
+COPYING-lrc-parser.txt / COPYING-lrc-maker.txt  MIT, Copyright (c) 阿卡琳
+
+Audio is never uploaded. Lyrics and stamps live in the file.

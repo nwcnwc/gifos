@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "lrc-maker",
+  "name": "LRC Maker",
+  "shortName": "LRC",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "description": "Load a local song, tap lyric timings, export LRC. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [57, 208, 197],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

@@ -1,0 +1,26 @@
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+
+const dir = dirname(fileURLToPath(import.meta.url));
+const TAG = '0.1.17';
+const TARBALL = 'https://registry.npmjs.org/@lrc-maker/lrc-parser/-/lrc-parser-' + TAG + '.tgz';
+const JS_SHA256 = '81238094b41d0c42a6ab46d2d7c1873ba365714197f460de9ba1ae0cc379fbb5';
+const vendor = join(dir, 'vendor');
+mkdirSync(vendor, { recursive: true });
+const tmp = mkdtempSync(join(tmpdir(), 'lrc-parser-'));
+const tgz = join(tmp, 'p.tgz');
+const res = await fetch(TARBALL);
+if (!res.ok) throw new Error('download failed ' + res.status);
+writeFileSync(tgz, Buffer.from(await res.arrayBuffer()));
+execFileSync('tar', ['-xzf', tgz, '-C', tmp], { timeout: 30000 });
+const jsBuf = readFileSync(join(tmp, 'package', 'build', 'umd', 'lrc-parser.js'));
+const hex = createHash('sha256').update(jsBuf).digest('hex');
+if (hex !== JS_SHA256) throw new Error('sha256 ' + hex + ' ≠ pin ' + JS_SHA256);
+writeFileSync(join(vendor, 'lrc-parser.js'), jsBuf);
+console.log('wrote vendor/lrc-parser.js', jsBuf.length, 'lrc-parser@' + TAG);
+rmSync(tmp, { recursive: true, force: true });
