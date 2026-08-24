@@ -36,11 +36,15 @@
   "cover": "/apps/onoff/cover.jpg",
   "screenshots": [],
   "gif": "/apps/onoff/onoff.gif",
-  "bytes": 205634,
+  "bytes": 206200,
   "download": 0,
   "provides": null,
-  "sha256": "50012e175b04fdfe952f99b6ce1b64c4fa31ebdc50a97fb7b45e543770ff0f32",
-  "signature": null,
+  "sha256": "77bb3dce949143dd8d09f3f547253c04946542f387acae8f4a05e307ca4b03a1",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

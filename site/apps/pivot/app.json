@@ -39,10 +39,10 @@
   "cover": "/apps/pivot/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pivot/pivot.gif",
-  "bytes": 376082,
+  "bytes": 377109,
   "download": 0,
   "provides": null,
-  "sha256": "477409e3903db46f83b51474e0ed7616f423de95076c12db3ecf396646841261",
+  "sha256": "a39af610cd504c0ecdc15915d0b69be1679f49fb4d12be75c82eed78b616d1b7",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

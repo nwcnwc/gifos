@@ -41,14 +41,14 @@
   "cover": "/apps/bitsy/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bitsy/bitsy.gif",
-  "bytes": 294566,
+  "bytes": 295226,
   "download": 0,
   "provides": null,
-  "sha256": "390b73f9cc33ac358ff7deb37bbac8564287c3e7d55fa81f69a25a58bf277e2e",
+  "sha256": "67205814b5ef3230134bb0b09ad370bda8cefeda4ce8bd80f760851e2be44896",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

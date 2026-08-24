@@ -37,10 +37,10 @@
   "cover": "/apps/solitaire/cover.jpg",
   "screenshots": [],
   "gif": "/apps/solitaire/solitaire.gif",
-  "bytes": 187793,
+  "bytes": 188176,
   "download": 0,
   "provides": null,
-  "sha256": "d6ad0dd83f4da2c46b6e303b2b6abe06166e0d4291702ef18aed3dddcc5b3e52",
+  "sha256": "67138ae3522acd411d615851a18bef91a5258800cf132312ab8e67898a1bcd8a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

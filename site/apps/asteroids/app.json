@@ -39,14 +39,14 @@
   "cover": "/apps/asteroids/cover.jpg",
   "screenshots": [],
   "gif": "/apps/asteroids/asteroids.gif",
-  "bytes": 262914,
+  "bytes": 263366,
   "download": 0,
   "provides": null,
-  "sha256": "91eb53843c5c028c215f7f78e2ecb0042f6af7d68a1e7aa49516841bebbe48b5",
+  "sha256": "e1eb1042b637048bb7ef8ce3ea20d2d801983129ba323f3e2970a5c2dc223a16",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

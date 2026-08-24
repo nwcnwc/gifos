@@ -37,10 +37,10 @@
   "cover": "/apps/ludo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/ludo/ludo.gif",
-  "bytes": 187474,
+  "bytes": 187913,
   "download": 0,
   "provides": null,
-  "sha256": "0ef78fb3eab9e9b9abfd421f937921bad120b80d2bd37de7016400f4fc6cca4f",
+  "sha256": "18fe5b7c788a6a0d214dff3d70034ed1f9db87fe55781fc7035d99953e655a5a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

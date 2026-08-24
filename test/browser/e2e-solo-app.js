@@ -64,17 +64,20 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   }, SYS);
   check('seeded desktop exposes a runnable app that asks for no ability and no host', !!appId);
   if (!appId) { await browser.close(); process.exit(1); }
-  // Stamp the App Store snapshot a store install would have left on this
-  // file (store.js storeSnapshot) — Help must credit it at the very bottom.
+  // Pack credits.json INTO the app's bytes (what sign-apps.mjs does for every
+  // listed GIF) and stamp the local install date the store leaves on the
+  // record. Help must credit the sealed file, at the very bottom.
   await d.evaluate(async (id) => {
     const rec = await GifOS.store.getFile(id);
-    await GifOS.store.putFile(Object.assign({}, rec, { storeMeta: {
-      name: 'Credited App', version: '9.9.9',
+    const archive = await GifOS.gif.decode(rec.bytes);
+    const files = Object.assign({}, archive.files, { 'credits.json': JSON.stringify({
       author: { name: 'Ada Author', url: 'https://example.com/ada' },
       porter: { name: 'GifOS', url: 'https://gifos.app' },
       basedOn: { name: 'The Original', url: 'https://example.com/original' },
-      license: 'MIT', installedAt: '2026-08-24T00:00:00.000Z',
-    } }));
+      license: 'MIT',
+    }) });
+    const bytes = await GifOS.gif.repack(rec.bytes, files);
+    await GifOS.store.putFile(Object.assign({}, rec, { bytes, storeMeta: { installedAt: '2026-08-24T00:00:00.000Z' } }));
   }, appId);
   await d.close();
 
@@ -105,9 +108,10 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     const a = Array.from(body.querySelectorAll('a')).map((x) => x.getAttribute('href'));
     return { lastHeading: h[h.length - 1], text: body.textContent, links: a };
   });
-  check('Help credits the App Store listing at the VERY BOTTOM (author, porter, basedOn, install date)',
+  check('Help credits the SEALED credits.json at the VERY BOTTOM (author, porter, basedOn, install date)',
     credits.lastHeading === 'Credits' && /Ada Author/.test(credits.text) && /Brought to GifOS by/.test(credits.text)
-    && /The Original/.test(credits.text) && /installed on 2026-08-24/.test(credits.text)
+    && /The Original/.test(credits.text) && /Sealed inside this GIF/.test(credits.text)
+    && /installed on this device on 2026-08-24/.test(credits.text)
     && credits.links.indexOf('https://example.com/ada') !== -1, credits.lastHeading);
   await p.click('#apphelp-close');
   check('Got it closes Help', await p.evaluate(() => {

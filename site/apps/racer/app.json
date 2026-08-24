@@ -39,14 +39,14 @@
   "cover": "/apps/racer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/racer/racer.gif",
-  "bytes": 515883,
+  "bytes": 514181,
   "download": 0,
   "provides": null,
-  "sha256": "1b0fbc1f7aa2c4eb04f355eef8af7a24d9714bfb38ae925979ac90e8bb1f52c4",
+  "sha256": "66d762d5421519b68f57e92d479e4adb2418807aa1b7bfc93b174a4cebe076a6",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",

@@ -36,10 +36,10 @@
   "cover": "/apps/tiny-platformer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tiny-platformer/tiny-platformer.gif",
-  "bytes": 188955,
+  "bytes": 189497,
   "download": 0,
   "provides": null,
-  "sha256": "6ee6583369c6ae759322dd10c74090d41f5812393eb2f32b125e63c7ef756b41",
+  "sha256": "0f5d481805d2073522b2c4db1db875431183ad3f2fe8d75b483586a0f1f9ecd7",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

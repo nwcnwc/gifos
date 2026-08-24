@@ -39,14 +39,14 @@
   "cover": "/apps/civiclock/cover.jpg",
   "screenshots": [],
   "gif": "/apps/civiclock/civiclock.gif",
-  "bytes": 236699,
+  "bytes": 237171,
   "download": 0,
   "provides": null,
-  "sha256": "dd8136b9d16c8d5d388906dcfd86abc16d8faa2dfdd56f73ece00e714a9d5cf7",
+  "sha256": "ac1a0d5160d853a679e97ba94a539cc5f9d61b77ccd60c4b81492a3ef1453968",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "inspiredBy": {
     "name": "SimCity",

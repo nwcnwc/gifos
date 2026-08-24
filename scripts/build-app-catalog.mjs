@@ -43,9 +43,31 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import zlib from 'node:zlib';
+import { Readable, Writable } from 'node:stream';
+import { creditsJson, CREDITS_PATH } from './app-credits.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'apps');
+// The GIF codec, to read the packed credits.json back out. Node < 22 lacks
+// deflate-raw in CompressionStream; wrap zlib the way sign-apps.mjs does.
+(function installDeflateRaw() {
+  let ok = false;
+  try { new globalThis.DecompressionStream('deflate-raw'); ok = true; } catch (e) {}
+  if (ok) return;
+  globalThis.DecompressionStream = class {
+    constructor(format) {
+      if (format !== 'deflate-raw') throw new TypeError('unsupported format ' + format);
+      const t = zlib.createInflateRaw();
+      this.readable = Readable.toWeb(t);
+      this.writable = Writable.toWeb(t);
+    }
+  };
+})();
+if (!globalThis.crypto) globalThis.crypto = crypto.webcrypto;
+createRequire(import.meta.url)(path.join(ROOT, 'site/js/gifos-gif.js'));
+const gifCodec = globalThis.GifOS.gif;
 const OUT = path.join(ROOT, 'site', 'apps');
 const CHECK = process.argv.includes('--check');
 const REQUIRE_SIGNED = process.argv.includes('--require-signed');
@@ -221,6 +243,30 @@ function coverIsCurrent(srcPng, outJpg) {
   // stamp copied from the source can compare as older than the source.
   return fs.statSync(outJpg).mtimeMs + 5 >= fs.statSync(srcPng).mtimeMs;
 }
+// --check on a FRESH CLONE: git gives every file its checkout time, so a
+// cover can read "older than its source" purely from checkout order. Seven
+// did on the 0.9.12 release clone (2026-08-24) and turned the app-store
+// suite RED TWICE on a catalog that was current. When the stamp says stale,
+// ask the only question that matters — would we write different bytes? —
+// by regenerating in memory and comparing. sharp is deterministic for the
+// same input and version; a real edit still fails, a mere checkout does not.
+async function coverIsCurrentByContent(srcPng, outJpg, crop) {
+  if (coverIsCurrent(srcPng, outJpg)) return true;
+  if (!fs.existsSync(outJpg)) return false;
+  try {
+    const sharp = (await import('sharp')).default;
+    let img = sharp(srcPng);
+    const c = crop || {};
+    if (c.top || c.bottom || c.left || c.right) {
+      const m = await img.metadata();
+      const left = c.left || 0, top = c.top || 0;
+      img = img.extract({ left, top, width: m.width - left - (c.right || 0), height: m.height - top - (c.bottom || 0) });
+    }
+    const buf = await img.resize({ width: 1200, withoutEnlargement: true })
+      .jpeg({ quality: 82, progressive: true, mozjpeg: true }).toBuffer();
+    return Buffer.compare(buf, fs.readFileSync(outJpg)) === 0;
+  } catch (e) { return false; }
+}
 
 
 // A first-party app that took its IDEA from someone else's product, without
@@ -272,6 +318,19 @@ async function buildApp(slug) {
   for (const f of ['tagline', 'description', 'author', 'releaseDate', 'categories', 'license']) {
     if (!l[f]) fail(slug + ': listing.json is missing "' + f + '"');
   }
+  // CREDITS UNDER THE SEAL: the GIF must carry credits.json equal to what
+  // this listing says (scripts/app-credits.mjs). A listing edit that is not
+  // re-packed and re-signed would credit one thing in the store and another
+  // inside every installed copy. sign-apps.mjs packs it; this refuses drift.
+  try {
+    const archive = await gifCodec.decode(new Uint8Array(gifBytes));
+    const have = archive && archive.files && archive.files[CREDITS_PATH]
+      ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : '';
+    if (have !== creditsJson(l)) {
+      fail(slug + ': ' + CREDITS_PATH + ' inside the GIF is ' + (have ? 'stale' : 'missing')
+        + ' — credits must be sealed bytes: node scripts/sign-apps.mjs ' + slug);
+    }
+  } catch (e) { fail(slug + ': could not read the GIF filesystem — ' + (e.message || e)); }
   if (!m.appId) fail(slug + ': manifest.json has no appId');
   if (!m.version) fail(slug + ': manifest.json has no version');
 
@@ -421,7 +480,7 @@ async function buildApp(slug) {
   const coverSrc = path.join(dir, l.cover || 'screenshot.png');
   const coverOut = path.join(outDir, 'cover.jpg');
   if (!fs.existsSync(coverSrc)) fail(slug + ': cover art missing at ' + path.relative(ROOT, coverSrc));
-  else if (CHECK) { if (!coverIsCurrent(coverSrc, coverOut)) fail(path.relative(ROOT, coverOut) + ' is missing or older than its source'); }
+  else if (CHECK) { if (!(await coverIsCurrentByContent(coverSrc, coverOut, l.coverCrop))) fail(path.relative(ROOT, coverOut) + ' is missing or differs from its source (regenerate: node scripts/build-app-catalog.mjs)'); }
   else if (!coverIsCurrent(coverSrc, coverOut)) {
     await coverFrom(coverSrc, coverOut, l.coverCrop);
     // writeOut skips a byte-identical JPEG, so the cover's mtime stays old

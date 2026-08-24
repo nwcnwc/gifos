@@ -40,10 +40,10 @@
   "cover": "/apps/orca/cover.jpg",
   "screenshots": [],
   "gif": "/apps/orca/orca.gif",
-  "bytes": 264068,
+  "bytes": 263952,
   "download": 0,
   "provides": null,
-  "sha256": "7f2111936edf3073ea82d4274638c51fa0b33398090b8ee6cd1d9f54398678db",
+  "sha256": "1e20f8c293dfe63b2342a16b0f700ef7c26b630c3ab6a01bdac2d2a5f70fd06e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

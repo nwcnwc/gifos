@@ -88,23 +88,35 @@ check('withOsFooter plugs remix: save the GIF, ask an AI, add it back',
 check('an empty help.md still gets the OS footer (and a title)',
   /^# Help/.test(help.withOsFooter('')) && /\*\*Invite\*\*/.test(help.withOsFooter('')));
 check('run.html opens Help through withOsFooter, so every screen gets the footer',
-  /withOsFooter\(currentAppHelpMd\(\), appStoreMeta\)/.test(run));
+  /withOsFooter\(currentAppHelpMd\(\), currentAppCredits\(\)\)/.test(run));
 
-// CREDITS — the App Store record snapshotted at install, at the VERY BOTTOM.
-// Authors, porters and inspirations get their credit inside the running app,
-// as listed the day this copy was installed (a later listing edit does not
-// rewrite history on someone's desktop; an Update re-snapshots).
+// CREDITS — UNDER THE SEAL, at the VERY BOTTOM. Who made an app is read from
+// credits.json INSIDE the GIF (packed + signed by scripts/sign-apps.mjs), never
+// from a desktop record; the record adds only WHEN this copy was installed.
 const store = fs.readFileSync(path.join(ROOT, 'site', 'js', 'store.js'), 'utf8');
-check('creditsMd is on GifOS.help', typeof help.creditsMd === 'function');
-const META = {
-  name: 'Air Hockey', version: '1.0.0',
+check('readCredits and creditsMd are on GifOS.help',
+  typeof help.readCredits === 'function' && typeof help.creditsMd === 'function');
+const CREDITS = {
+  tagline: 'Two paddles on the ice.',
   author: { name: 'MortimerGoro', url: 'https://github.com/MortimerGoro/AirHockeyWebGL' },
   porter: { name: 'GifOS', url: 'https://gifos.app' },
-  basedOn: { name: 'AirHockeyWebGL', url: 'https://github.com/MortimerGoro/AirHockeyWebGL' },
+  basedOn: { name: 'AirHockeyWebGL', url: 'https://github.com/MortimerGoro/AirHockeyWebGL', blessed: false },
   inspiredBy: { name: '<img src=x onerror=alert(1)>', url: 'javascript:alert(1)', by: { name: 'Someone' } },
-  license: 'MIT', homepage: 'https://github.com/nwcnwc/gifos/tree/main/apps/air-hockey',
-  releaseDate: '2026-08-23', installedAt: '2026-08-24T17:40:00.000Z',
+  license: 'MIT', homepage: 'https://github.com/nwcnwc/gifos/tree/main/apps/air-hockey', releaseDate: '2026-08-23',
 };
+const MAN = { name: 'Air Hockey', version: '1.0.0' };
+const sealed = help.readCredits({ 'credits.json': JSON.stringify(CREDITS) }, MAN);
+check('readCredits merges credits.json with the manifest name/version and marks it sealed',
+  sealed && sealed.sealed === true && sealed.name === 'Air Hockey' && sealed.version === '1.0.0'
+  && sealed.author.name === 'MortimerGoro' && sealed.porter.name === 'GifOS' && sealed.license === 'MIT');
+const bare = help.readCredits({ 'help.md': '# x' }, MAN);
+check('a GIF with no credits.json credits only its own manifest (name + version), unsealed',
+  bare && !bare.sealed && bare.name === 'Air Hockey' && bare.version === '1.0.0' && !bare.author);
+check('a broken credits.json falls back to the manifest instead of throwing',
+  (() => { const c = help.readCredits({ 'credits.json': '{not json' }, MAN); return c && !c.sealed && c.name === 'Air Hockey'; })());
+check('nothing to credit → null', help.readCredits({}, {}) === null);
+
+const META = Object.assign({}, sealed, { installedAt: '2026-08-24T17:40:00.000Z', signedBy: 'gifos.app' });
 const credited = help.withOsFooter('# Hi\n\nBody.\n', META);
 const creditsAt = credited.indexOf('## Credits');
 check('credits render author, porter, basedOn, inspiredBy, license',
@@ -112,22 +124,33 @@ check('credits render author, porter, basedOn, inspiredBy, license',
   && /Brought to GifOS by\*\* \[GifOS\]\(https:\/\/gifos\.app\)/.test(credited)
   && /Based on\*\* \[AirHockeyWebGL\]/.test(credited) && /Inspired by\*\* .* by Someone/.test(credited)
   && /License\*\* MIT/.test(credited));
-check('credits say WHEN this copy was installed', /installed on 2026-08-24/.test(credited));
+check('credits say they are sealed in the GIF, who signed it, and when this copy was installed',
+  /Sealed inside this GIF and signed by \*\*gifos\.app\*\*; installed on this device on 2026-08-24\./.test(credited));
 check('credits are the VERY BOTTOM — after the app help AND the OS footer',
   creditsAt > credited.indexOf('## Make it yours') && credited.indexOf('## Make it yours') > credited.indexOf('Body.'));
 const creditedHtml = help.render(credited.slice(creditsAt));
 check('a listing cannot script the Help modal (HTML escaped, javascript: dropped)',
   creditedHtml.indexOf('<img') === -1 && /&lt;img/.test(creditedHtml) && !/javascript:/i.test(creditedHtml));
-check('no snapshot, no Credits section (seeded and hand-built apps)',
+check('an unsealed GIF still credits its manifest name + version and says where that came from',
+  /\*\*Air Hockey 1\.0\.0\*\*/.test(help.withOsFooter('# Hi', bare)) && /From this GIF.s own manifest\./.test(help.withOsFooter('# Hi', bare)));
+check('no credits, no Credits section',
   help.withOsFooter('# Hi\n\nBody.\n').indexOf('## Credits') === -1 && help.withOsFooter('# Hi', null).indexOf('## Credits') === -1);
-check('the store snapshots the listing onto BOTH install paths (fresh install and Update)',
+
+// The seal rule, mechanically: the desktop record carries WHEN and WHICH, never WHO.
+check('store.js install record has installedAt + sha256 and NO author/porter/basedOn fields',
+  /function storeSnapshot\(app\)/.test(store) && /installedAt: new Date\(\)\.toISOString\(\)/.test(store) && /sha256: app\.sha256/.test(store)
+  && !/author: /.test(store.slice(store.indexOf('function storeSnapshot'), store.indexOf('async function install'))));
+check('the store stamps the record on BOTH install paths (fresh install and Update)',
   (store.match(/storeMeta: storeSnapshot\(app\)/g) || []).length === 2);
-check('the snapshot carries author, porter, basedOn, inspiredBy, license and installedAt',
-  /function storeSnapshot\(app\)/.test(store) && /author: pick\(app\.author\)/.test(store) && /porter: pick\(app\.porter\)/.test(store)
-  && /basedOn: pick\(app\.basedOn\)/.test(store) && /inspiredBy: pick\(app\.inspiredBy\)/.test(store)
-  && /license: app\.license/.test(store) && /installedAt: new Date\(\)\.toISOString\(\)/.test(store));
-check('run.html reads the snapshot off the file record for solo AND host mounts, and clears it for a guest',
-  (runtime.length > 0) && (run.match(/appStoreMeta = (\(rec && )?rec\.storeMeta/g) || []).length === 2 && /appStoreMeta = null;/.test(run));
+check('runtime ctl exposes credits() from the sealed files at BOTH mounts (host/solo and guest)',
+  (runtime.match(/credits: \(\) => \(GifOS\.help && GifOS\.help\.readCredits\)/g) || []).length === 2);
+check('run.html credits from ctl.credits() plus local install facts; a guest gets no local facts',
+  /withOsFooter\(currentAppHelpMd\(\), currentAppCredits\(\)\)/.test(run) && /ctl\.credits\(\)/.test(run)
+  && (run.match(/appInstall = installFactsOf\(rec\)/g) || []).length === 2 && /appInstall = null;/.test(run)
+  && !/storeMeta\.author/.test(run));
+check('scripts derive the packed credits from ONE module (signer and catalog check cannot disagree)',
+  /from '\.\/app-credits\.mjs'/.test(fs.readFileSync(path.join(ROOT, 'scripts', 'sign-apps.mjs'), 'utf8'))
+  && /from '\.\/app-credits\.mjs'/.test(fs.readFileSync(path.join(ROOT, 'scripts', 'build-app-catalog.mjs'), 'utf8')));
 
 console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
 process.exit(failures ? 1 : 0);

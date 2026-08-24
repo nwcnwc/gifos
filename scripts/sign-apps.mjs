@@ -28,6 +28,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import { creditsJson, CREDITS_PATH } from './app-credits.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'apps');
@@ -111,6 +112,31 @@ require(path.join(ROOT, 'site/js/gifos-ed.js'));
 require(path.join(ROOT, 'site/js/gifos-sign.js'));
 const sign = globalThis.GifOS.sign;
 const ed = globalThis.GifOS.ed;
+const gif = globalThis.GifOS.gif;
+
+// CREDITS UNDER THE SEAL. The listing's author / porter / basedOn /
+// inspiredBy / license go INTO the GIF as credits.json (scripts/app-credits.mjs)
+// so the Help screen's credit is signed bytes, not a store record. repack
+// swaps only the data block — every pixel of the artwork stays. A GIF whose
+// packed credits already match is left byte-identical (and keeps its sig).
+async function withCredits(slug, bytes) {
+  const want = creditsJson(JSON.parse(fs.readFileSync(path.join(SRC, slug, 'listing.json'), 'utf8')));
+  const archive = await gif.decode(bytes);
+  if (!archive || !archive.files) throw new Error(slug + ': not a GifOS app GIF');
+  const have = archive.files[CREDITS_PATH] ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : '';
+  if (have === want) return { bytes, changed: false };
+  const files = Object.assign({}, archive.files);
+  files[CREDITS_PATH] = want;
+  return { bytes: await gif.repack(bytes, files), changed: true };
+}
+async function creditsState(slug, bytes) {
+  try {
+    const want = creditsJson(JSON.parse(fs.readFileSync(path.join(SRC, slug, 'listing.json'), 'utf8')));
+    const archive = await gif.decode(bytes);
+    const have = archive && archive.files && archive.files[CREDITS_PATH] ? Buffer.from(archive.files[CREDITS_PATH]).toString('utf8') : '';
+    return have === want ? 'credits:ok' : (have ? 'credits:stale' : 'credits:missing');
+  } catch (e) { return 'credits:unreadable'; }
+}
 
 const all = listedSlugs();
 const slugs = slugsWanted.length ? slugsWanted : all;
@@ -122,9 +148,10 @@ if (DRY) {
   for (const slug of slugs) {
     const gifPath = path.join(OUT, slug, slug + '.gif');
     if (!fs.existsSync(gifPath)) { console.log(slug + '\tMISSING ' + path.relative(ROOT, gifPath)); continue; }
-    const claim = claimOf(fs.readFileSync(gifPath));
+    const raw = fs.readFileSync(gifPath);
+    const claim = claimOf(raw);
     const who = claim && claim.id ? (claim.type + ':' + claim.id) : 'unsigned';
-    console.log(slug + '\t' + who);
+    console.log(slug + '\t' + who + '\t' + await creditsState(slug, new Uint8Array(raw)));
   }
   process.exit(0);
 }
@@ -168,9 +195,11 @@ for (const slug of slugs) {
   const gifPath = path.join(OUT, slug, slug + '.gif');
   if (!fs.existsSync(gifPath)) die(slug + ': no GIF at ' + path.relative(ROOT, gifPath));
   const raw = fs.readFileSync(gifPath);
-  const bytes = new Uint8Array(raw);
-  const claim = claimOf(raw);
-  if (!FORCE && claim && claim.type === 'domain' && claim.id === DOMAIN) {
+  const packed = await withCredits(slug, new Uint8Array(raw));
+  const bytes = packed.bytes;
+  const claim = claimOf(Buffer.from(bytes));
+  if (packed.changed) console.log('credits ' + slug + '  packed ' + CREDITS_PATH + ' — re-signing');
+  if (!packed.changed && !FORCE && claim && claim.type === 'domain' && claim.id === DOMAIN) {
     const chHex = Buffer.from(await sign.contentHash(bytes)).toString('hex');
     const st = sign.statement('domain', DOMAIN, chHex);
     const ok = await sign._ed25519Verify(new Uint8Array(expectedPub), sign._b64ToBytes(claim.sig), st);

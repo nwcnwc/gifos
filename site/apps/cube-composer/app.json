@@ -39,14 +39,14 @@
   "cover": "/apps/cube-composer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/cube-composer/cube-composer.gif",
-  "bytes": 171643,
+  "bytes": 172156,
   "download": 0,
   "provides": null,
-  "sha256": "fc55bfbbef9e980726203f7ec75f41e94072232e4891096eaadd3b621ef33b49",
+  "sha256": "749cfb528c5beecb0b71ed9226f1841a61034c41f341c9bc261153423c391a98",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-23"
+    "ts": "2026-08-24"
   },
   "porter": {
     "name": "GifOS",
