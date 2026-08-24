@@ -281,6 +281,10 @@ h1, h2, h3 { margin: 0; font-weight: 620; letter-spacing: -0.01em; }
 }
 .panel-head h2 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
 .panel-head .icon-btn { margin-left: auto; }
+/* The day, in the layers header. It only exists on a phone: everywhere else
+   the bottom bar is on screen at the same time and this would be the date
+   twice. */
+.panel-day { display: none; }
 
 .icon-btn {
   width: 32px; height: 32px;
@@ -432,7 +436,9 @@ input[type=range]::-moz-range-thumb {
 }
 .add-layer:hover { background: rgba(76, 194, 255, 0.1); border-color: var(--accent); }
 
-.panel-foot { margin-top: 14px; display: flex; flex-direction: column; gap: 2px; }
+/* Pulled out by the .mini's own padding so the words start on the same
+   gutter as the layer cards above them, not 8px inside it. */
+.panel-foot { margin: 14px -8px 0; display: flex; flex-direction: column; gap: 2px; }
 .mini {
   font-size: 12px;
   color: var(--ink-3);
@@ -994,6 +1000,19 @@ input[type=range]::-moz-range-thumb {
     background: rgba(255, 255, 255, 0.22);
   }
   .panel-head { position: relative; }
+  .panel-day {
+    display: inline-block;
+    margin-left: auto;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--hair);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--ink);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .panel-head .icon-btn { margin-left: 6px; }
 
   #tools {
     top: auto;

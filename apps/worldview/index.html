@@ -51,6 +51,10 @@
   <aside id="panel" class="panel">
     <div class="panel-head">
       <h2>Layers</h2>
+      <!-- Phone only: opening this sheet hides the whole bottom bar, and the
+           day with it. A row that says "Nothing on this day" is unreadable
+           when the day itself is off screen. Tap it to pick another. -->
+      <button type="button" id="panelDay" class="panel-day">—</button>
       <button type="button" id="panelClose" class="icon-btn" aria-label="Close layers">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
