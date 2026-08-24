@@ -169,6 +169,11 @@ async function invite(page, lifetime, resilient) {
   const sbReveal = await sbPhones[0].app.locator('main').textContent();
   check('matching answers group despite case/spacing', /×2/.test(sbReveal));
   check('the lone answer earns the Pink Cow', /Pink Cow/.test(sbReveal) && /pineapple/i.test(sbReveal));
+  // gifos uids are user_<hex>; taking split('_')[1] of a vote/answer id
+  // used to name every player "?" and score nobody. The groups must show
+  // the real screen names.
+  check('grouped answers name the real players, not ?',
+    /Host/.test(sbReveal) && /Eve/.test(sbReveal) && /Fox/.test(sbReveal) && !/\?/.test(sbReveal));
   check('answers stayed hidden until everyone was in', true); // reveal only fired after 3/3
 
   await browser.close();
