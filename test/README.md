@@ -830,6 +830,15 @@ Roughly three families in one directory:
   own quality, which is the point of asking for the boxes. Every multiplayer
   assertion guards code with nothing else watching it: upstream Claude of Duty
   has no networking at all),
+  `e2e-air-hockey` (the Air Hockey port booted from its real built GIF, until
+  the table PLAYS. The GifOS OBJMTLLoader shim used to call onLoad
+  synchronously; hockey.js writes `var me = this` AFTER its loadModels()
+  call, so modelsLoaded fired on an undefined `me`, threw, and the app
+  shipped as a score bar over a permanently black table. The suite asserts
+  a clean boot, a table that exists (the app area is not one flat colour),
+  a scene that animates, and a drag that moves the paddle — all state, no
+  timing claims, because WebGL frame rate on a software rasterizer is not
+  what is under test),
   `e2e-battle-city` (the Battle City port, from its real built GIF. The app
   shipped with EVERY TANK FROZEN — `canMove` compared the mover by reference
   against a copy of itself, so every move in the game was refused and the
