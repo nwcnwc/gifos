@@ -98,9 +98,10 @@ table.pvtTable tbody tr td {
   border-color: var(--line);
   color: var(--ink);
 }
-select, .pvtFilterBox {
+select, .pvtFilterBox, .pvtAggregator, .pvtRenderer {
   background: var(--field);
   color: var(--ink);
+  color-scheme: dark;
 }
 .pvtFilterBox { border-color: var(--line); }
 .pvtTriangle { color: var(--muted); }
@@ -113,6 +114,7 @@ select, .pvtFilterBox {
 }
 @media (max-width: 700px), (pointer: coarse) {
   .assign.has-fields { display: block; }
+  .pvtUnused { display: none !important; }
   .pvtHorizList li span.pvtAttr, .pvtVertList li span.pvtAttr {
     padding: 8px 12px;
     font-size: 15px;
