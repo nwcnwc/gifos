@@ -115,7 +115,11 @@
       if (!rec || !rec.cells) return;
       root.SandApp.loadPacked(rec.w || S.WIDTH, rec.h || S.HEIGHT, rec.cells);
       root.SandApp.setPaused(true);
-    }).catch(function () {});
+    }).catch(function (err) {
+      if (root.SandApp && root.SandApp.note) {
+        root.SandApp.note((err && err.message) || 'Could not open that board.');
+      }
+    });
   }
 
   function putOnWall() {
@@ -141,7 +145,11 @@
       });
     }).then(function () {
       $('wallTitle').value = '';
-    }).catch(function () {});
+    }).catch(function (err) {
+      if (root.SandApp && root.SandApp.note) {
+        root.SandApp.note((err && err.message) || 'Could not put this board on the wall.');
+      }
+    });
   }
 
   function onRoom(list) {

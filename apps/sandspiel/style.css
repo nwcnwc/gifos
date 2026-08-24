@@ -1,4 +1,4 @@
-/* Warm dark sand, gold accent, friend-mode chrome. */
+/* Warm dark sand, gold accent, friend-mode chrome. World first on a phone. */
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
@@ -6,7 +6,7 @@ html, body {
   overflow: hidden;
   background: #1a1410;
   color: #f0e6d4;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
@@ -45,15 +45,17 @@ body {
   font-size: 15px;
   font-weight: 700;
   padding: 8px 14px;
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid #4a4038;
   background: #2a221c;
   color: #f0e6d4;
   border-radius: 6px;
   cursor: pointer;
   white-space: nowrap;
+  touch-action: manipulation;
 }
 #shareBtn { background: #e6c46e; color: #1a1410; border-color: #c4a45a; }
+#shareBtn .narrow { display: none; }
 #pauseBtn.on { background: #4a90d9; color: #fff; border-color: #3a78b8; }
 body.friend #shareBtn { display: none; }
 
@@ -63,7 +65,7 @@ body.friend #shareBtn { display: none; }
   border-radius: 8px;
   padding: 8px 12px 6px;
   flex: 0 0 auto;
-  max-height: 42%;
+  max-height: 28%;
   overflow: auto;
 }
 #friend-bar[hidden] { display: none; }
@@ -96,9 +98,9 @@ body.friend #shareBtn { display: none; }
   flex: 1;
   min-width: 0;
   font: inherit;
-  font-size: 14px;
+  font-size: 16px;
   padding: 8px 10px;
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid #4a4038;
   background: #1a1410;
   color: #f0e6d4;
@@ -141,46 +143,96 @@ body.friend #shareBtn { display: none; }
 .card .a { display: block; font-size: 10px; color: #a09080; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 #stage {
+  position: relative;
   flex: 1 1 auto;
-  min-height: 140px;
+  min-height: 220px;
   display: grid;
   place-items: center;
   background: #120e0c;
   border-radius: 8px;
   overflow: hidden;
   touch-action: none;
+  border: 1px solid #3a3028;
+  container-type: size;
 }
 #world {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: contain;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  max-height: 100%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   cursor: crosshair;
   touch-action: none;
-  background: #1a1410;
+  background: #382a20;
 }
+@supports (width: 1cqw) {
+  #world {
+    width: min(100cqw, calc(100cqh * 1.5));
+    height: min(100cqh, calc(100cqw * 2 / 3));
+  }
+}
+#hint, #fail {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  pointer-events: none;
+  text-align: center;
+}
+#hint {
+  bottom: 12px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  background: rgba(26, 20, 16, 0.82);
+  color: #e6c46e;
+  font-weight: 700;
+  font-size: 15px;
+}
+#hint[hidden], #fail[hidden] { display: none; }
+#fail {
+  top: 12px;
+  bottom: auto;
+  background: rgba(48, 24, 16, 0.94);
+  color: #f0e6d4;
+  font-size: 15px;
+  line-height: 1.4;
+  pointer-events: auto;
+  cursor: pointer;
+  max-height: 70%;
+  overflow: auto;
+}
+#fail.sticky { cursor: default; }
 
 #palette {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
   flex: 0 0 auto;
-  max-height: 72px;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
 }
 #palette button {
   font: inherit;
   font-size: 12px;
   font-weight: 700;
-  padding: 6px 8px;
-  min-height: 32px;
+  padding: 8px 10px;
+  min-height: 36px;
   border: 1px solid #4a4038;
   background: #2a221c;
   color: #f0e6d4;
   border-radius: 999px;
   cursor: pointer;
+  flex: 0 0 auto;
+  touch-action: manipulation;
 }
 #palette button.on { outline: 2px solid #e6c46e; outline-offset: 1px; }
 
@@ -191,8 +243,8 @@ body.friend #shareBtn { display: none; }
   flex: 0 0 auto;
 }
 #brushes button {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border: 1px solid #4a4038;
   background: #2a221c;
   border-radius: 50%;
@@ -200,6 +252,7 @@ body.friend #shareBtn { display: none; }
   padding: 0;
   display: grid;
   place-items: center;
+  touch-action: manipulation;
 }
 #brushes button.on { background: #e6c46e; border-color: #c4a45a; }
 #brushes button span {
@@ -225,6 +278,7 @@ body.friend #shareBtn { display: none; }
   gap: 6px;
   width: 100%;
 }
+#saves.empty #saveList { display: none; }
 #saveList li {
   display: flex;
   align-items: center;
@@ -250,22 +304,22 @@ button.row-del {
   color: #a09080;
   cursor: pointer;
   padding: 6px;
+  touch-action: manipulation;
 }
 button.row-del:hover { color: #e0574a; }
 button.row-del svg { display: block; pointer-events: none; }
 
-#how, .foot {
+.foot {
   margin: 0;
   font-size: 13px;
   line-height: 1.4;
-  color: #a09080;
+  color: #6a5e52;
   flex: 0 0 auto;
 }
-.foot { color: #6a5e52; }
 
 @media (max-width: 480px) {
   #brand { font-size: 16px; }
-  #how, .foot { display: none; }
+  .foot { display: none; }
   #friend-hint { display: none; }
   .actions { flex-wrap: nowrap; }
   .actions button, #leaveBtn {
@@ -274,4 +328,8 @@ button.row-del svg { display: block; pointer-events: none; }
     font-size: 14px;
     flex: 1 1 0;
   }
+  #shareBtn .wide { display: none; }
+  #shareBtn .narrow { display: inline; }
+  #stage { min-height: 260px; }
+  #friend-bar { max-height: 22%; }
 }
