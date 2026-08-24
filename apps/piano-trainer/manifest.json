@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "piano-trainer",
+  "name": "Piano Trainer",
+  "shortName": "Piano",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Scales, chords, fifths, a quiz. Tap the keys or use the home row.",
+  "entry": "index.html",
+  "accent": [232, 196, 96],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

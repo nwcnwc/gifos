@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Piano Trainer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Piano Trainer</div>
+  <div class="score">Quiz <span id="quizScore">0</span></div>
+</header>
+
+<div class="modes" id="modes">
+  <button type="button" data-mode="scales" class="on">Scales</button>
+  <button type="button" data-mode="chords">Chords</button>
+  <button type="button" data-mode="sevenths">Sevenths</button>
+  <button type="button" data-mode="fifths">Fifths</button>
+  <button type="button" data-mode="quiz">Quiz</button>
+</div>
+
+<div class="row">
+  <select id="tonic"></select>
+  <label class="tog"><input type="checkbox" id="hard"> Hard</label>
+  <label class="tog"><input type="checkbox" id="shuffle"> Shuffle</label>
+</div>
+
+<p class="prompt" id="prompt">Play the scale.</p>
+<div class="quiz" id="quizBox" hidden></div>
+
+<div class="piano" id="piano"></div>
+<p class="hint" id="hint">Home row: A S D F G H J K L ; '  ·  black: W E T Y U O P</p>
+<p class="midi" id="midiHint"></p>
+
+<div class="bar">
+  <button type="button" class="ghost" id="togetherBtn">Practice together</button>
+</div>
+<p class="note" id="togetherNote" hidden>Press Invite in the GifOS menu. A friend sees the same prompt.</p>
+
+<script src="theory.js"></script>
+<script src="sound.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

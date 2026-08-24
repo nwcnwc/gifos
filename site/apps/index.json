@@ -4391,6 +4391,55 @@
       "sha256": "c19a8088e0f0926df7f48092cc8ae2f7e7f900b89eb3cc4ecf62cf7b3483d901"
     },
     {
+      "slug": "piano-trainer",
+      "appId": "piano-trainer",
+      "name": "Piano Trainer",
+      "shortName": "Piano",
+      "version": "1.0",
+      "tagline": "Scales, chords, fifths, a quiz. Home row or tap.",
+      "author": {
+        "name": "Zane Helton",
+        "url": "https://github.com/ZaneH/piano-trainer"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Piano Trainer",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "piano",
+        "scales",
+        "chords",
+        "quiz",
+        "music",
+        "offline"
+      ],
+      "accent": [
+        232,
+        196,
+        96
+      ],
+      "cover": "/apps/piano-trainer/cover.jpg",
+      "bytes": 189313,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "2d2d2fe8a31589852ccdd760ba6cf8ca5a0cf4aca152fb4261933b233eb924e7"
+    },
+    {
       "slug": "pickr",
       "appId": "pickr",
       "name": "Pickr",
