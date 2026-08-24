@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "json-crack",
+  "name": "JSON Crack",
+  "shortName": "JSON",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Paste JSON, see it as a graph. The document stays here.",
+  "entry": "index.html",
+  "accent": [99, 102, 241],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}

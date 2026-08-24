@@ -1,0 +1,77 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  background: #0b0d13;
+  color: #e5e7eb;
+  font-family: Helvetica, Arial, sans-serif;
+}
+body { overflow: hidden; }
+#app { display: flex; flex-direction: column; height: 100%; }
+header { padding: 10px 14px 4px; flex: 0 0 auto; }
+h1 { margin: 0; font-size: 18px; font-weight: 600; }
+.lead { margin: 4px 0 0; font-size: 13px; color: #9ca3af; }
+#toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px; flex: 0 0 auto;
+}
+button, .file {
+  font: inherit; cursor: pointer; border: 0;
+  background: #312e81; color: #e0e7ff;
+  padding: 6px 12px; border-radius: 6px;
+}
+button:hover, .file:hover { background: #4338ca; }
+.file input { display: none; }
+.meta { margin-left: auto; font-size: 12px; color: #9ca3af; }
+#split { flex: 1 1 auto; display: flex; min-height: 0; }
+#editor {
+  width: 38%; min-width: 180px;
+  display: flex; flex-direction: column;
+  border-right: 1px solid #1f2430;
+}
+#src {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0; outline: none; resize: none;
+  background: #11131a; color: #e5e7eb;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 10px 12px;
+}
+.err { margin: 0; padding: 6px 12px; color: #fca5a5; font-size: 12px; }
+#stage {
+  flex: 1 1 auto;
+  overflow: hidden;
+  position: relative;
+  background:
+    radial-gradient(circle at 1px 1px, #1c2230 1px, transparent 0) 0 0 / 18px 18px;
+  touch-action: none;
+}
+#graph-inner {
+  transform-origin: 0 0;
+  will-change: transform;
+}
+svg { display: block; overflow: visible; }
+.card { fill: #171a24; stroke: #2a3142; }
+.accent { fill: #6366f1; }
+.title { fill: #c7d2fe; font: 12px Helvetica, Arial, sans-serif; }
+.fold { fill: #a5b4fc; font: 14px Helvetica, Arial, sans-serif; text-anchor: middle; cursor: pointer; }
+.k { fill: #9ca3af; font: 11px ui-monospace, Menlo, monospace; }
+.v { font: 11px ui-monospace, Menlo, monospace; }
+.t-string { fill: #86efac; }
+.t-number { fill: #7dd3fc; }
+.t-boolean { fill: #f0abfc; }
+.t-null { fill: #6b7280; }
+.edge { stroke: #4b5563; stroke-width: 1.6; }
+.elabel { fill: #6b7280; font: 10px Helvetica, Arial, sans-serif; text-anchor: middle; }
+.node { cursor: pointer; }
+.meet {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 14px 10px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+@media (max-width: 640px) {
+  #split { flex-direction: column; }
+  #editor { width: 100%; height: 38%; border-right: 0; border-bottom: 1px solid #1f2430; }
+}

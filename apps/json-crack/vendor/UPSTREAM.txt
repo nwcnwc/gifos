@@ -1,0 +1,15 @@
+AykutSarac/jsoncrack.com
+https://github.com/AykutSarac/jsoncrack.com
+Apache-2.0, Copyright 2025 Aykut Saraç
+
+Upstream is a Next.js / Turborepo app (apps/www) plus a React embed
+(packages/jsoncrack-react). That stack cannot ride in as classic scripts.
+
+This directory is the port of the GRAPH VIEW: the same node rule (an
+object or array is a card; nested objects/arrays become children with
+an edge labelled by the key; primitives stay on the parent card), a
+left-to-right layout, pan and zoom. The editor is a textarea. Accounts,
+cloud, VS Code, Chrome extras and ToDiagram are not shipped.
+
+The document is saved on this device. Press Invite to show the same
+document in a meeting. Upstream is a public website.
