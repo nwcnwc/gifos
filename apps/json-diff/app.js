@@ -329,6 +329,7 @@
     settings.left = SAMPLE_LEFT;
     settings.right = SAMPLE_RIGHT;
     writeUi();
+    if (isPhone()) setTab('diff');
     onChange();
   }
 
@@ -336,6 +337,7 @@
     settings.left = '';
     settings.right = '';
     writeUi();
+    if (isPhone()) setTab('left');
     onChange();
   }
 
@@ -427,8 +429,8 @@
 
   function boot() {
     writeUi();
-    setTab('left');
     paint();
+    setTab(isPhone() ? 'diff' : 'left');
     if ($('left')) $('left').addEventListener('input', onChange);
     if ($('right')) $('right').addEventListener('input', onChange);
     if ($('unchanged')) $('unchanged').addEventListener('change', onChange);
