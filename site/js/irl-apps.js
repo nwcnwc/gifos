@@ -171,11 +171,12 @@ function scoreTable(sc){ const ks=Object.keys(sc); if(!ks.length) return '';
 // ---------- pass-the-phone flow ----------
 function rSetup(){
   M.innerHTML='<div class="card"><h2>One phone, everyone plays</h2>'
-    +'<div class="muted">Everyone gets the same secret word — except one imposter with a near-miss word. One clue each, out loud. Then point at the faker! 4+ players.</div></div>'
+    +'<div class="muted">Everyone gets the same secret word — except one imposter with a near-miss word. One clue each, out loud. Then point at the faker! 3+ players.</div></div>'
     +'<div class="card"><h2>Who\\'s playing?</h2><div class="chips" id="chips"></div>'
     +'<input type="text" id="nm" placeholder="Add a name, press Enter"></div>'
     +'<button class="btn" id="go" '+(localNames.length<3?'disabled':'')+'>Deal the words</button>'
-    +(IRL.players.length>1?'<button class="btn alt" id="net">Everyone\\'s on their own phone → play that way</button>':'')
+    +IRL.lobby(3,'Or everyone has a phone 📲',
+      'Tap <b>Invite</b> in the top bar. Friends appear here; each phone peeks its own word — no passing.','Deal to every phone')
     +scoreTable(L.scores);
   const chips=document.getElementById('chips');
   chips.innerHTML=localNames.map(function(n,i){return '<span class="chip" data-i="'+i+'">'+IRL.esc(n)+' ✕</span>';}).join('')||'<span class="muted">No players yet</span>';
@@ -183,7 +184,7 @@ function rSetup(){
   const nm=document.getElementById('nm');
   nm.onkeydown=function(e){ if(e.key==='Enter'&&nm.value.trim()){ localNames.push(nm.value.trim()); rSetup(); } };
   document.getElementById('go').onclick=function(){ startRound(L, localNames); render(); };
-  const nb=document.getElementById('net'); if(nb) nb.onclick=function(){ netStart(); };
+  IRL.bindLobby(function(){ if(IRL.players.length>=3) netStart(); });
 }
 function rDeal(){
   const i=L.dealt, name=L.names[i];
@@ -340,6 +341,13 @@ IRL.init().then(render); render();
     ['Castle','royalty|knight|jester|cook|wizard|tourist'],
     ['North Pole Workshop','the boss in red|elf|reindeer handler|toy tester|list checker|mail sorter'],
     ['Desert Island','castaway|treasure hunter|coconut chef|raft builder|volleyball friend|rescue pilot'],
+    ['Art Gallery','painter|critic|security|buyer|student copier|the artists mum'],
+    ['Recording Studio','producer|vocalist|session guitarist|intern|sound engineer|groupie'],
+    ['Courtroom','judge|lawyer|jury member|defendant|stenographer|sketch artist'],
+    ['Bakery','head baker|cashier|cake decorator|regular|health inspector|delivery driver'],
+    ['Observatory','astronomer|tour guide|night janitor|stargazer|radio operator|intern'],
+    ['Newsroom','anchor|camera op|meteorologist|editor|intern|angry caller'],
+    ['Subway','conductor|busker|commuter|pickpocket|transit cop|tourist with a map'],
   ];
 
   const SPY_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -376,10 +384,12 @@ function scoreTable(sc){ const ks=Object.keys(sc); if(!ks.length) return '';
 
 function rSetup(){
   M.innerHTML='<div class="card"><h2>Somebody here is a spy 👀</h2>'
-    +'<div class="muted">Everyone learns the secret place — except the spy. Take turns asking each other questions about it. Too vague? Suspicious. Too specific? You just told the spy. 4+ players.</div></div>'
-    +'<div class="card"><h2>Who\\'s playing?</h2><div class="chips" id="chips"></div>'
+    +'<div class="muted">Everyone learns the secret place — except the spy. Take turns asking each other questions about it. Too vague? Suspicious. Too specific? You just told the spy. 3+ players.</div></div>'
+    +'<div class="card"><h2>Pass this phone</h2><div class="chips" id="chips"></div>'
     +'<input type="text" id="nm" placeholder="Add a name, press Enter"></div>'
     +'<button class="btn" id="go" '+(localNames.length<3?'disabled':'')+'>Deal the roles</button>'
+    +IRL.lobby(3,'Or everyone has a phone 📲',
+      'Tap <b>Invite</b> in the top bar. Each phone peeks its own place (or learns it is the spy). No passing.','Deal to every phone')
     +scoreTable(L.scores);
   const chips=document.getElementById('chips');
   chips.innerHTML=localNames.map(function(n,i){return '<span class="chip" data-i="'+i+'">'+IRL.esc(n)+' ✕</span>';}).join('')||'<span class="muted">No players yet</span>';
@@ -387,6 +397,7 @@ function rSetup(){
   const nm=document.getElementById('nm');
   nm.onkeydown=function(e){ if(e.key==='Enter'&&nm.value.trim()){ localNames.push(nm.value.trim()); rSetup(); } };
   document.getElementById('go').onclick=function(){ startRound(L,localNames); render(); };
+  IRL.bindLobby(function(){ if(IRL.players.length>=3) netStart(); });
 }
 function rDeal(){
   const i=L.dealt, name=L.names[i], isSpy=i===L.spy;
@@ -402,7 +413,7 @@ function rDeal(){
 function rPlay(){
   M.innerHTML='<div class="card center"><h2>Interrogate each other</h2>'
     +'<div class="muted"><b>'+IRL.esc(L.first)+'</b> asks first. Answer, then YOU ask someone else. Phones down — except to peek at the place list.</div>'
-    +'<div class="timer" id="tm">--:--</div></div>'
+    +'<div class="timer" id="tm">'+L.mins+':00</div></div>'
     +'<button class="btn alt" id="list">📜 Peek at all possible places</button>'
     +'<button class="btn" id="acc">🫵 We\\'re accusing someone!</button>'
     +'<button class="btn alt" id="spyup">🕶 The spy surrenders &amp; guesses the place</button>';
@@ -452,9 +463,95 @@ function rResult(){
   document.getElementById('next').onclick=function(){ startRound(L,L.names); render(); };
   document.getElementById('reset').onclick=function(){ L={phase:'setup',scores:{}}; localNames=[]; render(); };
 }
-function render(){ ({setup:rSetup,deal:rDeal,play:rPlay,accuse:rAccuse,spyguess:rSpyGuess,result:rResult})[L.phase](); }
-IRL.onchange=function(){};
-IRL.init(); render();
+
+// ---------- own-phone: each screen peeks its own place, votes stay hidden ----------
+function netStart(){
+  const ids=IRL.players.map(function(p){return p.id.slice(2);});
+  const names=IRL.players.map(function(p){return p.name;});
+  const place=Math.floor(Math.random()*PLACES.length);
+  const spy=Math.floor(Math.random()*ids.length);
+  const roles=IRL.shuffle(PLACES[place][1].split('|'));
+  IRL.save({ net:true, phase:'play', round:(IRL.g&&IRL.g.round||0)+1, ids:ids, names:names,
+    place:place, spy:spy, roles:ids.map(function(_,i){ return roles[i%roles.length]; }),
+    first:names[Math.floor(Math.random()*names.length)],
+    mins:ids.length>=6?8:6, t0:Date.now(), scores:(IRL.g&&IRL.g.scores)||{} });
+}
+function netName(g,i){ return g.names[i]||'?'; }
+function netScore(g){ const sc=g.scores||{}; const ks=g.ids.slice().sort(function(a,b){return (sc[b]||0)-(sc[a]||0);});
+  if(!ks.some(function(k){return sc[k];})) return '';
+  return '<div class="card"><h2>Scores</h2><table class="scores">'+ks.map(function(k,i){return '<tr><td>'+IRL.esc(g.names[g.ids.indexOf(k)])+'</td><td><b>'+(sc[k]||0)+'</b></td></tr>';}).join('')+'</table></div>'; }
+function rNet(){
+  const g=IRL.g; if(!g) return;
+  const i=g.ids.indexOf(IRL.me.id), isSpy=i===g.spy;
+  const secret=i<0?'(watching)':(isSpy?'🕶 YOU ARE THE SPY\\nFigure out where everyone is!':('📍 '+PLACES[g.place][0]+'\\nYour role: '+g.roles[i]));
+  if(g.phase==='play'){
+    M.innerHTML='<div class="card center"><h2>Interrogate each other</h2>'
+      +'<div class="muted"><b>'+IRL.esc(g.first)+'</b> asks first. Answer, then YOU ask someone else.</div>'
+      +'<div class="timer" id="tm">'+g.mins+':00</div></div>'
+      +'<div class="peek"><div class="muted" style="color:#bbb">Hold to peek — your secret</div><div class="w" id="w" style="white-space:pre-line">·····</div></div>'
+      +'<button class="btn alt" id="list">📜 All possible places</button>'
+      +'<button class="btn" id="acc">🫵 Accuse someone</button>'
+      +(isSpy?'<button class="btn alt" id="spyup">I think I know the place</button>':'');
+    const w=document.getElementById('w');
+    ['pointerdown','touchstart'].forEach(function(ev){ w.parentElement.addEventListener(ev,function(e){e.preventDefault(); w.textContent=secret;}); });
+    ['pointerup','pointerleave','touchend'].forEach(function(ev){ w.parentElement.addEventListener(ev,function(){ w.textContent='·····'; }); });
+    const t=document.getElementById('tm');
+    clearInterval(tickInt);
+    const tick=function(){
+      const left=g.mins*60000-(Date.now()-g.t0);
+      if(left<=0){ clearInterval(tickInt); IRL.beep(660,400); if(IRL.coordinator(g)) IRL.save(Object.assign({},g,{phase:'vote',timeUp:true})); return; }
+      const s=Math.ceil(left/1000); t.textContent=Math.floor(s/60)+':'+('0'+s%60).slice(-2); t.classList.toggle('low',s<60);
+    };
+    tick(); tickInt=setInterval(tick,250);
+    document.getElementById('list').onclick=function(){
+      clearInterval(tickInt);
+      M.innerHTML='<div class="card"><h2>All possible places</h2>'+placeList(-1)+'</div><button class="btn" id="back">← Back</button>';
+      document.getElementById('back').onclick=render;
+    };
+    document.getElementById('acc').onclick=function(){ clearInterval(tickInt); IRL.save(Object.assign({},g,{phase:'vote'})); };
+    const su=document.getElementById('spyup'); if(su) su.onclick=function(){ clearInterval(tickInt); IRL.save(Object.assign({},g,{phase:'spyguess'})); };
+  } else if(g.phase==='vote'){
+    const votes=IRL.docs('v',g.round);
+    const mine=votes.find(function(v){return IRL.who(v.id,'v',g.round)===IRL.me.id;});
+    M.innerHTML='<div class="card center"><h2>'+(g.timeUp?'⏰ Time\\'s up — vote!':'🫵 Who is the spy?')+'</h2>'
+      +'<div class="muted">Votes stay hidden until everyone\\'s in ('+votes.length+'/'+g.ids.length+').</div></div>'
+      +g.names.map(function(n,j){return '<button class="btn alt" data-v="'+j+'">'+IRL.esc(n)+(mine&&mine.t===j?' ✓':'')+'</button>';}).join('')
+      +netScore(g);
+    M.querySelectorAll('[data-v]').forEach(function(el){ el.onclick=function(){ IRL.put({id:'v'+g.round+'_'+IRL.me.id,t:+el.dataset.v}); }; });
+    if(votes.length>=g.ids.length&&IRL.coordinator(g)){
+      const tally={}; votes.forEach(function(v){ tally[v.t]=(tally[v.t]||0)+1; });
+      let best=0,acc=0; Object.keys(tally).forEach(function(k){ if(tally[k]>best){best=tally[k];acc=+k;} });
+      const sc=Object.assign({},g.scores||{});
+      let result;
+      if(acc===g.spy){ g.ids.forEach(function(id,idx){ if(idx!==g.spy) sc[id]=(sc[id]||0)+1; });
+        result='✅ Got \\'em! '+netName(g,g.spy)+' was the spy at the '+PLACES[g.place][0]+'.'; }
+      else { sc[g.ids[g.spy]]=(sc[g.ids[g.spy]]||0)+2;
+        result='😱 '+netName(g,acc)+' was innocent! The spy was '+netName(g,g.spy)+' — spy +2.'; }
+      IRL.save(Object.assign({},g,{phase:'result',scores:sc,result:result}));
+    }
+  } else if(g.phase==='spyguess'){
+    M.innerHTML='<div class="card"><h2>'+(isSpy?'Spy — where is everyone?':'The spy is guessing…')+'</h2>'
+      +(isSpy?'<div class="muted">Tap your guess. Wrong, and everyone else scores.</div>':'<div class="muted">Bite your tongue.</div>')
+      +'<div class="places">'+PLACES.map(function(p,j){return '<div class="pl" data-i="'+j+'">'+IRL.esc(p[0])+'</div>';}).join('')+'</div></div>';
+    if(isSpy) M.querySelectorAll('[data-i]').forEach(function(el){ el.onclick=function(){
+      const guess=+el.dataset.i, sc=Object.assign({},g.scores||{}); let result;
+      if(guess===g.place){ sc[g.ids[g.spy]]=(sc[g.ids[g.spy]]||0)+4; result='🎯 The spy guessed it — '+PLACES[g.place][0]+'! Spy +4.'; }
+      else { g.ids.forEach(function(id,idx){ if(idx!==g.spy) sc[id]=(sc[id]||0)+1; }); result='❌ Wrong! It was the '+PLACES[g.place][0]+'. Everyone else +1.'; }
+      IRL.save(Object.assign({},g,{phase:'result',scores:sc,result:result}));
+    }; });
+  } else if(g.phase==='result'){
+    M.innerHTML='<div class="card center"><h2>'+IRL.esc(g.result||'')+'</h2>'
+      +'<div class="muted">The place was the '+IRL.esc(PLACES[g.place][0])+'. Spy: '+IRL.esc(netName(g,g.spy))+'.</div></div>'
+      +netScore(g)+'<button class="btn" id="next">Next round</button>';
+    document.getElementById('next').onclick=netStart;
+  }
+}
+function render(){
+  if(IRL.g&&IRL.g.net&&IRL.g.phase&&IRL.g.phase!=='lobby'){ rNet(); return; }
+  ({setup:rSetup,deal:rDeal,play:rPlay,accuse:rAccuse,spyguess:rSpyGuess,result:rResult})[L.phase]();
+}
+IRL.onchange=render;
+IRL.init().then(render); render();
 </script>`;
 
   // ================================ TILT =====================================
@@ -491,24 +588,30 @@ IRL.init(); render();
 ${PARTY_LIB}
 const DECKS=${JSON.stringify(TILT_DECKS)};
 const M=document.getElementById('m'), stage=document.getElementById('stage');
-let deckName=null, results=[], scores=[], timer=null, tleft=0, cur='', pool=[], armed=true, orientOK=false;
+let deckName=null, results=[], scores=[], timer=null, tleft=0, cur='', pool=[], armed=true, orientOK=false, guesser='', motionOff=null;
 
 function rMenu(){
   stage.classList.remove('on');
   M.innerHTML='<div class="card"><h2>Stick this phone on your forehead 😄</h2>'
     +'<div class="muted">Screen facing your friends. They shout clues (or act them out — the deck says which). Tilt DOWN when you get it, UP to pass. 60 seconds. Then pass the phone!</div></div>'
     +'<div class="card"><h2>Pick a deck</h2>'+Object.keys(DECKS).map(function(d){return '<button class="btn alt" data-d="'+IRL.esc(d)+'">'+IRL.esc(d)+'</button>';}).join('')+'</div>'
-    +(scores.length?'<div class="card"><h2>This session</h2>'+scores.map(function(s){return '<div class="res"><span>'+IRL.esc(s.deck)+'</span><b>'+s.n+' ✓</b></div>';}).join('')+'</div>':'');
+    +(scores.length?'<div class="card"><h2>This session</h2>'+scores.map(function(s){return '<div class="res"><span>'+IRL.esc(s.who||s.deck)+' · '+IRL.esc(s.deck)+'</span><b>'+s.n+' ✓</b></div>';}).join('')+'</div>':'');
   M.onclick=function(e){ const d=e.target.dataset.d; if(!d) return; deckName=d; rReady(); };
 }
 function rReady(){
   M.innerHTML='<div class="card center"><h2>'+IRL.esc(deckName)+'</h2>'
-    +'<div class="muted">Hand the phone to the guesser. When it\\'s on their forehead, anyone taps Start.</div></div>'
+    +'<div class="muted">Hand the phone to the guesser. Type their name, put it on their forehead, tap Start.</div>'
+    +'<input type="text" id="nm" placeholder="Who\\'s guessing?" value="'+IRL.esc(guesser)+'"></div>'
     +'<button class="btn" id="go">Start (3·2·1)</button><button class="btn alt" id="back">← Decks</button>';
   document.getElementById('back').onclick=rMenu;
   document.getElementById('go').onclick=async function(){
-    try{ if(window.DeviceOrientationEvent&&DeviceOrientationEvent.requestPermission){ orientOK=(await DeviceOrientationEvent.requestPermission())==='granted'; }
-      else orientOK=('ondeviceorientation' in window); }catch(e){ orientOK=false; }
+    const n=document.getElementById('nm').value.trim(); if(n) guesser=n;
+    try{
+      if(window.gifos&&gifos.motion){ if(motionOff) motionOff(); motionOff=gifos.motion(onOrient); orientOK=true; }
+      else if(window.DeviceOrientationEvent&&DeviceOrientationEvent.requestPermission){ orientOK=(await DeviceOrientationEvent.requestPermission())==='granted'; }
+      else orientOK=('ondeviceorientation' in window);
+    }catch(e){ orientOK=false; }
+    try{ const el=document.documentElement; if(el.requestFullscreen) await el.requestFullscreen(); }catch(e){}
     countdown(3);
   };
 }
@@ -536,22 +639,24 @@ function mark(hit){
 }
 function endRun(){
   clearInterval(timer); IRL.beep(200,600); stage.classList.remove('on');
+  try{ if(document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen(); }catch(e){}
   const n=results.filter(function(r){return r.ok;}).length;
-  scores.push({deck:deckName,n:n});
-  M.innerHTML='<div class="card center"><h2>'+n+' correct! </h2></div>'
+  scores.push({deck:deckName,n:n,who:guesser||'Player'});
+  M.innerHTML='<div class="card center"><h2>'+(guesser?IRL.esc(guesser)+': ':'')+n+' correct! </h2></div>'
     +'<div class="card">'+results.map(function(r){return '<div class="res"><span>'+IRL.esc(r.w)+'</span><b>'+(r.ok?'✓':'✗')+'</b></div>';}).join('')+'</div>'
     +'<button class="btn" id="again">Next player, same deck</button><button class="btn alt" id="menu">Change deck</button>';
-  document.getElementById('again').onclick=rReady;
+  document.getElementById('again').onclick=function(){ guesser=''; rReady(); };
   document.getElementById('menu').onclick=rMenu;
 }
-document.getElementById('zoneUp').addEventListener('pointerdown',function(){mark(false);});
-document.getElementById('zoneDown').addEventListener('pointerdown',function(){mark(true);});
-window.addEventListener('deviceorientation',function(e){
-  if(!stage.classList.contains('on')||e.beta===null) return;
+function onOrient(e){
+  if(!stage.classList.contains('on')||e.beta===null||e.beta===undefined) return;
   const b=e.beta; // phone held vertically on forehead ≈ 90
   if(armed){ if(b>140){ armed=false; mark(true); } else if(b<40){ armed=false; mark(false); } }
   else if(b>65&&b<115) armed=true; // back upright → re-arm
-});
+}
+document.getElementById('zoneUp').addEventListener('pointerdown',function(){mark(false);});
+document.getElementById('zoneDown').addEventListener('pointerdown',function(){mark(true);});
+window.addEventListener('deviceorientation',onOrient);
 IRL.init(); rMenu();
 </script>`;
 
@@ -570,6 +675,9 @@ IRL.init(); rMenu();
     ['Kids’ movie','Grown-up movie'],['Worst chore','Best chore'],['Soft','Crunchy'],
     ['Famous','Obscure'],['Healthy','Delicious'],['Introvert hobby','Extrovert hobby'],
     ['Survives the horror movie','Doomed in the horror movie'],['Breakfast food','Dinner food'],['Whisper','Shout'],
+    ['Would date','Would be friends with'],['Low-budget','Hollywood'],['Spicy','Mild'],
+    ['Indoor cat energy','Outdoor dog energy'],['DIY','Call a professional'],['Forgotten','Iconic'],
+    ['Sad song','Gym song'],['Conspiracy','Just a coincidence'],['Snack of champions','Regret food'],
   ];
 
   const DIAL_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -620,15 +728,18 @@ function bindDial(onmove){
 function rMenu(){
   M.innerHTML='<div class="card"><h2>How in-sync is this room? </h2>'
     +'<div class="muted">Each round one psychic secretly sees a target on a spectrum and gives ONE clue that sits right there. The room argues and turns the dial. 7 rounds, score the group. 3+ players.</div></div>'
-    +'<div class="card"><h2>Who\\'s playing?</h2><div class="chips" id="chips"></div>'
+    +'<div class="card"><h2>Pass this phone</h2><div class="chips" id="chips"></div>'
     +'<input type="text" id="nm" placeholder="Add a name, press Enter"></div>'
-    +'<button class="btn" id="go" '+(names.length<2?'disabled':'')+'>Start (7 rounds)</button>';
+    +'<button class="btn" id="go" '+(names.length<2?'disabled':'')+'>Start (7 rounds)</button>'
+    +IRL.lobby(3,'Or everyone has a phone 📲',
+      'Tap <b>Invite</b>. The psychic sees the target on THEIR phone and types one clue; everyone else shares the dial. No looking away.','Start on every phone');
   const chips=document.getElementById('chips');
   chips.innerHTML=names.map(function(n,i){return '<span class="chip" data-i="'+i+'">'+IRL.esc(n)+' ✕</span>';}).join('')||'<span class="muted">No players yet</span>';
   chips.onclick=function(e){ const i=e.target.dataset.i; if(i!==undefined){ names.splice(+i,1); rMenu(); } };
   const nm=document.getElementById('nm');
   nm.onkeydown=function(e){ if(e.key==='Enter'&&nm.value.trim()){ names.push(nm.value.trim()); rMenu(); } };
   document.getElementById('go').onclick=function(){ L={phase:'peek',round:1,total:0,psychic:0}; newTarget(); render(); };
+  IRL.bindLobby(function(){ if(IRL.players.length>=3) netStart(); });
 }
 function newTarget(){ L.spec=SPECS[Math.floor(Math.random()*SPECS.length)]; L.target=8+Math.floor(Math.random()*84); dial=50; }
 function rPeek(){
@@ -674,8 +785,78 @@ function rVerdict(){
     +'<button class="btn" id="again">Play again</button>';
   document.getElementById('again').onclick=function(){ L={phase:'menu',round:0,total:0,psychic:0}; render(); };
 }
-function render(){ ({menu:rMenu,peek:rPeek,guess:rGuess,reveal:rReveal,verdict:rVerdict})[L.phase](); }
-IRL.init(); render();
+function netStart(){
+  const ids=IRL.players.map(function(p){return p.id.slice(2);});
+  const names=IRL.players.map(function(p){return p.name;});
+  const spec=SPECS[Math.floor(Math.random()*SPECS.length)];
+  IRL.save({ net:true, phase:'clue', round:1, total:0, psychic:0, ids:ids, names:names,
+    spec:spec, target:8+Math.floor(Math.random()*84), dial:50, clue:'' });
+}
+function netPts(d){ d=Math.abs(d); return d<=6?4:d<=12?3:d<=18?2:0; }
+function rNet(){
+  const g=IRL.g; if(!g) return;
+  const psy=g.ids[g.psychic%g.ids.length], amPsy=IRL.me.id===psy, psyName=g.names[g.psychic%g.ids.length];
+  L.target=g.target; L.spec=g.spec; dial=typeof g.dial==='number'?g.dial:50;
+  if(g.phase==='clue'){
+    if(amPsy){
+      IRL.setHtml(M, '<div class="card center"><h2>You\\'re the psychic — round '+g.round+' of 7</h2>'
+        +'<div class="muted">Everyone else has a blank dial. Peek the target, type ONE clue that sits right there.</div></div>'
+        +'<div class="card"><div id="dial">'+dialSvg(true)+'</div>'
+        +'<div class="ends"><span>◀ '+IRL.esc(g.spec[0])+'</span><span>'+IRL.esc(g.spec[1])+' ▶</span></div></div>'
+        +'<input type="text" id="inp" maxlength="40" placeholder="Your one clue">'
+        +'<button class="btn" id="sub">Send the clue</button>');
+      document.getElementById('sub').onclick=function(){
+        const c=(document.getElementById('inp').value||'').trim(); if(!c) return;
+        IRL.save(Object.assign({},g,{phase:'guess',clue:c}));
+      };
+    } else {
+      M.innerHTML='<div class="card center"><h2>'+IRL.esc(psyName)+' is the psychic</h2>'
+        +'<div class="muted">Look at them, not their phone. A clue is coming.</div></div>'
+        +'<div class="card"><div id="dial">'+dialSvg(false)+'</div>'
+        +'<div class="ends"><span>◀ '+IRL.esc(g.spec[0])+'</span><span>'+IRL.esc(g.spec[1])+' ▶</span></div></div>';
+    }
+  } else if(g.phase==='guess'){
+    M.innerHTML='<div class="card center"><h2>'+(amPsy?'Bite your tongue — they\\'re guessing':'Where does this land?')+'</h2>'
+      +'<div class="bigword" style="font-size:26px">“'+IRL.esc(g.clue||'')+'”</div>'
+      +'<div class="muted">'+(amPsy?'You can watch the needle. Do not hint.':'Argue, drag the needle, lock it in.')+'</div></div>'
+      +'<div class="card"><div id="dial">'+dialSvg(amPsy)+'</div>'
+      +'<div class="ends"><span>◀ '+IRL.esc(g.spec[0])+'</span><span>'+IRL.esc(g.spec[1])+' ▶</span></div></div>'
+      +(amPsy?'':'<button class="btn" id="lock">Lock it in!</button>');
+    if(!amPsy){
+      bindDial(function(){ moveNeedle(); });
+      const box=document.getElementById('dialbox');
+      if(box) box.addEventListener('pointerup',function(){ IRL.save(Object.assign({},g,{dial:dial})); });
+      document.getElementById('lock').onclick=function(){
+        const pts=netPts(dial-g.target);
+        IRL.save(Object.assign({},g,{phase:'reveal',dial:dial,pts:pts,total:(g.total||0)+pts}));
+      };
+    }
+  } else if(g.phase==='reveal'){
+    M.innerHTML='<div class="card center"><h2>'+(g.pts?'+'+g.pts+' points! '+(g.pts===4?'🎯 Bullseye!':''):'0 points 😅')+'</h2>'
+      +'<div class="muted">Clue: “'+IRL.esc(g.clue||'')+'” · psychic: '+IRL.esc(psyName)+'</div></div>'
+      +'<div class="card"><div>'+dialSvg(true)+'</div>'
+      +'<div class="ends"><span>◀ '+IRL.esc(g.spec[0])+'</span><span>'+IRL.esc(g.spec[1])+' ▶</span></div></div>'
+      +'<button class="btn" id="next">'+(g.round>=7?'See the verdict':'Next psychic')+'</button>';
+    document.getElementById('next').onclick=function(){
+      if(g.round>=7){ IRL.save(Object.assign({},g,{phase:'verdict'})); return; }
+      const spec=SPECS[Math.floor(Math.random()*SPECS.length)];
+      IRL.save(Object.assign({},g,{phase:'clue',round:g.round+1,psychic:g.psychic+1,spec:spec,
+        target:8+Math.floor(Math.random()*84),dial:50,clue:'',pts:0}));
+    };
+  } else if(g.phase==='verdict'){
+    const t=g.total||0;
+    const v=t>=21?'✨ SAME BRAIN. Genuinely spooky.':t>=14?'📡 In sync! You people hang out too much.':t>=7?'🌫 Some static on the line…':'📴 Do you even know each other?';
+    M.innerHTML='<div class="card center"><h2>'+t+' / 28 points</h2><div class="bigword" style="font-size:24px">'+v+'</div></div>'
+      +'<button class="btn" id="again">Play again</button>';
+    document.getElementById('again').onclick=function(){ IRL.save({phase:'lobby'}); };
+  }
+}
+function render(){
+  if(IRL.g&&IRL.g.net&&IRL.g.phase&&IRL.g.phase!=='lobby'){ rNet(); return; }
+  ({menu:rMenu,peek:rPeek,guess:rGuess,reveal:rReveal,verdict:rVerdict})[L.phase]();
+}
+IRL.onchange=function(){ if(dragging&&IRL.g&&IRL.g.phase==='guess') return; render(); };
+IRL.init().then(render); render();
 </script>`;
 
   // ============================ PARTY ROULETTE ===============================
@@ -721,7 +902,7 @@ IRL.init(); render();
 
   const ROULETTE_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>${STYLE('#7b5cff')}
-  .prompt{font-size:24px;font-weight:800;line-height:1.35;text-align:center;padding:30px 8px;min-height:150px;display:flex;align-items:center;justify-content:center}
+  .prompt{font-size:24px;font-weight:800;line-height:1.35;text-align:center;padding:30px 8px;min-height:150px}
   .count{text-align:center;color:#7a7391;font-size:13px}
 </style>
 <header>Party Roulette</header>
@@ -737,29 +918,52 @@ function rSetup(){
     +'<div class="muted">Add everyone\\'s name, put the phone in the middle, tap for a card, do what it says. That\\'s it. That\\'s the game.</div></div>'
     +'<div class="card"><h2>Who\\'s in?</h2><div class="chips" id="chips"></div>'
     +'<input type="text" id="nm" placeholder="Add a name, press Enter"></div>'
-    +'<button class="btn" id="go" '+(names.length<2?'disabled':'')+'>Shuffle up &amp; deal</button>';
+    +'<button class="btn" id="go" '+(names.length<2?'disabled':'')+'>Shuffle up &amp; deal</button>'
+    +IRL.lobby(2,'Or everyone has a phone 📲',
+      'Tap <b>Invite</b>. The same card lands on every screen — no huddling around one phone.','Deal to every phone');
   const chips=document.getElementById('chips');
   chips.innerHTML=names.map(function(x,i){return '<span class="chip" data-i="'+i+'">'+IRL.esc(x)+' ✕</span>';}).join('')||'<span class="muted">No players yet</span>';
   chips.onclick=function(e){ const i=e.target.dataset.i; if(i!==undefined){ names.splice(+i,1); rSetup(); } };
   const nm=document.getElementById('nm');
   nm.onkeydown=function(e){ if(e.key==='Enter'&&nm.value.trim()){ names.push(nm.value.trim()); rSetup(); } };
   document.getElementById('go').onclick=function(){ deck=IRL.shuffle(CARDS); n=0; rCard(); };
+  IRL.bindLobby(function(){ if(IRL.players.length>=2) netStart(); });
 }
-function fill(c){
-  const pool=IRL.shuffle(names);
+function fill(c, list, seed){
+  const pool=seed!=null?IRL.seededShuffle(list,seed):IRL.shuffle(list);
   return c.replace('{p}','<b>'+IRL.esc(pool[0])+'</b>').replace('{q}','<b>'+IRL.esc(pool[1]||pool[0])+'</b>');
 }
 function rCard(){
   if(n>=deck.length){ deck=IRL.shuffle(CARDS); n=0; }
-  M.innerHTML='<div class="card"><div class="prompt">'+fill(deck[n])+'</div></div>'
+  M.innerHTML='<div class="card"><div class="prompt">'+fill(deck[n],names)+'</div></div>'
     +'<div class="count">card '+(n+1)+'</div>'
     +'<button class="btn" id="next">Next card →</button>'
     +'<button class="btn alt small" id="players">Players</button>';
   n++;
   document.getElementById('next').onclick=rCard;
-  document.getElementById('players').onclick=rSetup;
+  document.getElementById('players').onclick=function(){ deck=[]; rSetup(); };
 }
-IRL.init(); rSetup();
+function netStart(){
+  const ids=IRL.players.map(function(p){return p.id.slice(2);});
+  const nm=IRL.players.map(function(p){return p.name;});
+  IRL.save({ net:true, phase:'card', ids:ids, names:nm, seed:Math.floor(Math.random()*1e9), n:0 });
+}
+function rNet(){
+  const g=IRL.g; if(!g) return;
+  const deck=IRL.seededShuffle(CARDS,g.seed);
+  const i=g.n%deck.length;
+  M.innerHTML='<div class="card"><div class="prompt">'+fill(deck[i],g.names,g.seed+g.n*13)+'</div></div>'
+    +'<div class="count">card '+(g.n+1)+'</div>'
+    +'<button class="btn" id="next">Next card →</button>';
+  document.getElementById('next').onclick=function(){ IRL.save(Object.assign({},g,{n:g.n+1})); };
+}
+function render(){
+  if(IRL.g&&IRL.g.net&&IRL.g.phase&&IRL.g.phase!=='lobby'){ rNet(); return; }
+  if(deck.length) return; // local deal in progress — don't wipe the card
+  rSetup();
+}
+IRL.onchange=render;
+IRL.init().then(render); render();
 </script>`;
 
   // ============================ FAKE FACTS ===================================
@@ -794,6 +998,12 @@ IRL.init(); rSetup();
     ['An octopus has ___ hearts','three'],
     ['It is impossible for most people to lick their own ___','elbow'],
     ['A bolt of lightning is five times hotter than the surface of the ___','sun'],
+    ['A snail can sleep for ___ years','three'],
+    ['Cleopatra lived closer in time to the moon landing than to the building of the ___','pyramids'],
+    ['The inventor of the Pringles can is buried in ___','one'],
+    ['A group of pugs is called a ___','grumble'],
+    ['Oxford University is older than the ___','Aztec Empire'],
+    ['There are more stars in the universe than grains of sand on every ___','earth beach'],
   ];
 
   const FAKEFACTS_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -958,7 +1168,7 @@ IRL.init().then(render); render();
   // ============================ ONE CLUE =====================================
   // Cooperative: everyone secretly writes ONE one-word clue; duplicates
   // vanish before the guesser sees them. Four people writing "banana" is the game.
-  const ONECLUE_WORDS = ['Pirate','Chocolate','Rainbow','Dentist','Volcano','Paris','Guitar','Penguin','Birthday','Shadow','Honey','Astronaut','Pillow','Thunder','Circus','Spaghetti','Diamond','Robot','Beach','Winter','Magician','Bridge','Cactus','Whisper','Trophy','Jungle','Clock','Marshmallow','Lighthouse','Karate'];
+  const ONECLUE_WORDS = ['Pirate','Chocolate','Rainbow','Dentist','Volcano','Paris','Guitar','Penguin','Birthday','Shadow','Honey','Astronaut','Pillow','Thunder','Circus','Spaghetti','Diamond','Robot','Beach','Winter','Magician','Bridge','Cactus','Whisper','Trophy','Jungle','Clock','Marshmallow','Lighthouse','Karate','Submarine','Telescope','Umbrella','Fireworks','Backpack','Tornado','Mustache','Library','Octopus','Carnival','Snowman','Compass','Popcorn','Unicorn','Suitcase','Lightning','Hammock','Yo-yo','Avalanche','Binoculars','Trampoline','Seahorse','Typewriter','Igloo','Boomerang','Hot-air balloon','Scissors','Lantern','Coconut','Moonwalk'];
 
   const ONECLUE_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>${STYLE('#3ba5a0')}
@@ -1485,7 +1695,7 @@ If you catch the imposter, they try to say the group’s word out loud; the grou
 
 ## Own phones
 
-**Invite** in the top bar. When friends appear, this copy can deal over the wire instead of passing the phone (use **Everyone's on their own phone** if you see it). Hold to peek your word; votes stay hidden until all are in.
+**Invite** in the top bar. Friends appear as chips. **Deal to every phone** (3+ players). Hold to peek your word; votes stay hidden until all are in.
 
 ## Saved
 
@@ -1496,23 +1706,27 @@ Scores live in this icon. The pass-the-phone deal is on this device only.
 
 Everyone learns a secret place and a role — except one spy, who knows neither. Ask questions about the place. Too vague? Suspicious. Too specific? You just told the spy.
 
-## Setup
+## One phone
 
-This is the **one-phone** version. Add names (Enter after each), at least three, then **Deal the roles**. Pass the phone. Each person **holds to peek**, then **Got it — pass on**.
+Add names (Enter after each), at least three, then **Deal the roles**. Pass the phone. Each person **holds to peek**, then **Got it — pass on**.
+
+## Own phones
+
+**Invite** in the top bar. Friends appear as chips. **Deal to every phone**. Each screen peeks its own place (or learns it is the spy). Accuse votes stay hidden until everyone is in. Only the spy can guess the place from their phone.
 
 ## Play
 
-Phones down. The named person asks first; answer, then you ask someone else. A timer runs (6 minutes, or 8 with six or more players).
+The named person asks first; answer, then you ask someone else. A timer runs (6 minutes, or 8 with six or more players).
 
-- **Peek at all possible places** if you need the list.
-- **We're accusing someone** — tap who the group points at. Catch the spy: everyone else +1. Accuse an innocent: spy +2.
-- **The spy surrenders & guesses the place** — they tap a place. Right: spy +4. Wrong: everyone else +1.
+- **All possible places** if you need the list.
+- **Accuse someone** — majority vote. Catch the spy: everyone else +1. Accuse an innocent: spy +2.
+- **I think I know the place** (spy only) — they tap a place. Right: spy +4. Wrong: everyone else +1.
 
 Time’s up forces a final vote. **Next round** or **New group**.
 
 ## Saved
 
-Scores live in this icon on this phone. Invite is not how this copy deals roles — pass the device.
+Scores live in this icon for the shared room.
 `;
 
   const TILT_HELP = `# Tilt
@@ -1522,31 +1736,33 @@ Stick this phone on your forehead, screen facing the room. They shout clues (or 
 ## Play
 
 1. Pick a deck (Animals, Act It Out, Jobs, Foods, Around the House, Legends & Heroes).
-2. Hand the phone to the guesser. Anyone taps **Start (3·2·1)**. Allow motion access if the phone asks.
+2. Type the guesser’s name. Hand them the phone. Anyone taps **Start (3·2·1)**. Allow motion access if the phone asks — the game needs to feel the tilt.
 3. During the round you can also **tap** the top of the screen to pass, or the bottom to mark a hit.
 
 Bring the phone back upright to arm the next tilt.
 
-When time is up you see what you got. **Next player, same deck** or **Change deck**.
+When time is up you see what you got, under that guesser’s name. **Next player, same deck** or **Change deck**.
 
-This game is one phone by design. **Invite** does not deal words to other devices.
+This game is one phone by design (it lives on a forehead). **Invite** does not deal words to other devices.
 
 ## Saved
 
-This session’s per-deck scores stay on screen until you leave. Nothing is stored in the icon.
+This session’s per-player scores stay on screen until you leave. Nothing is stored in the icon.
 `;
 
   const DIAL_HELP = `# The Dial
 
 How in-sync is this room? Each round one psychic secretly sees a target on a spectrum and gives **one** clue that sits right there. Everyone else argues and turns the dial.
 
-## Setup
+## One phone
 
-This is the **one-phone** version. Add names (Enter after each), at least two (three feels better), then **Start (7 rounds)**.
+Add names (Enter after each), at least two (three feels better), then **Start (7 rounds)**. Everyone except the named psychic looks away. Psychic: **Hold to peek at the target**, think of one clue, hide it, say the clue out loud, then **Clue given**.
+
+## Own phones
+
+**Invite** in the top bar. **Start on every phone** (3+). The psychic sees the target on THEIR phone and types one clue — it appears on every screen. Everyone else drags the shared needle. No looking away.
 
 ## Play
-
-Everyone except the named psychic looks away. Psychic: **Hold to peek at the target**, think of one clue, hide it, say the clue out loud, then **Clue given**.
 
 The room drags the needle and taps **Lock it in**.
 
@@ -1559,7 +1775,7 @@ Seven rounds, psychics rotate. Total is out of 28.
 
 ## Saved
 
-Nothing is stored in the icon. Invite is not how this copy hides the target — look away.
+The round lives in this icon for the shared room. A pass-the-phone deal is on this device only.
 `;
 
   const ROULETTE_HELP = `# Party Roulette
@@ -1574,15 +1790,16 @@ Add everyone (Enter after each; tap a chip to remove someone), at least two, the
 
 There is no score and no winner. When the deck runs out it shuffles again.
 
-This is one phone in the middle. **Invite** does not deal cards to other devices.
+**Invite** puts the same card on every phone, so nobody huddles around one screen. **Deal to every phone**, then **Next card** advances everyone together.
 
 Skip a card you hate: tap **Next card** and pretend it never happened.
 
 ## Saved
 
-Nothing is stored in the icon. Close the app and the deck forgets where you were.
+The shared deck lives in this icon for the room. A pass-the-phone deal is on this device only.
 `;
 
+  const PARTY = { data: { party: { visibility: 'read-write' } } };
   GifOS.irl = {
     netApps: [
       { name: 'Fake Facts',       appId: 'fakefacts', accent: [212, 112, 61],  html: FAKEFACTS_HTML, help: FAKEFACTS_HELP },
@@ -1591,11 +1808,12 @@ Nothing is stored in the icon. Close the app and the deck forgets where you were
       { name: 'One Night Wolves', appId: 'wolves',    accent: [90, 74, 138],   html: WOLVES_HTML,    help: WOLVES_HELP },
     ],
     apps: [
-      { name: 'Odd Word Out',   appId: 'imposter', accent: [59, 165, 93],   html: ODDWORD_HTML,  help: ODDWORD_HELP },
-      { name: 'Catch the Spy',  appId: 'spy',      accent: [77, 124, 214],  html: SPY_HTML,      help: SPY_HELP },
-      { name: 'Tilt',           appId: 'tilt',     accent: [232, 163, 60],  html: TILT_HTML,     help: TILT_HELP },
-      { name: 'The Dial',       appId: 'dial',     accent: [198, 92, 204],  html: DIAL_HTML,     help: DIAL_HELP },
-      { name: 'Party Roulette', appId: 'roulette', accent: [123, 92, 255],  html: ROULETTE_HTML, help: ROULETTE_HELP },
+      { name: 'Odd Word Out',   appId: 'imposter', accent: [59, 165, 93],   html: ODDWORD_HTML,  help: ODDWORD_HELP,  manifest: PARTY },
+      { name: 'Catch the Spy',  appId: 'spy',      accent: [77, 124, 214],  html: SPY_HTML,      help: SPY_HELP,      manifest: PARTY },
+      { name: 'Tilt',           appId: 'tilt',     accent: [232, 163, 60],  html: TILT_HTML,     help: TILT_HELP,
+        manifest: { capabilities: { db: true, multiplayer: true, network: [], motion: true, fullscreen: true } } },
+      { name: 'The Dial',       appId: 'dial',     accent: [198, 92, 204],  html: DIAL_HTML,     help: DIAL_HELP,     manifest: PARTY },
+      { name: 'Party Roulette', appId: 'roulette', accent: [123, 92, 255],  html: ROULETTE_HTML, help: ROULETTE_HELP, manifest: PARTY },
     ],
   };
 })(typeof window !== 'undefined' ? window : globalThis);
