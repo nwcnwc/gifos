@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LRC Maker</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">LRC Maker</div>
+      <div id="clock">00:00.00</div>
+    </header>
+    <div class="actions">
+      <label class="file">Song<input id="audioFile" type="file" accept="audio/*"></label>
+      <button type="button" id="playBtn">Play</button>
+      <button type="button" id="backBtn">−5s</button>
+      <button type="button" id="fwdBtn">+5s</button>
+      <button type="button" id="stampBtn">Stamp</button>
+      <button type="button" id="exportBtn">Export LRC</button>
+      <button type="button" id="shareBtn">Play together</button>
+    </div>
+    <p id="track">No song yet — the file stays on this device.</p>
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. They get the lyrics and stamps, not the song file.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions"><button type="button" id="leaveBtn">← Solo</button></div>
+    </div>
+    <ul id="lines"></ul>
+    <label class="sr" for="lyrics">Lyrics</label>
+    <textarea id="lyrics" placeholder="Paste unsung lyrics here, one line each. Then play the song and press Stamp (or Space) as each line is sung."></textarea>
+    <p id="how">Space stamps the current line. ↑↓ pick a line. ←→ skip 5 seconds. Ctrl+Enter plays or pauses. Backspace clears a stamp. Export writes an .lrc file. The song is never uploaded.</p>
+    <p class="foot">Unofficial port of lrc-maker by magic-akari (MIT). Playing alone is the original tool. A shared sheet is the lyrics — nobody writes on anybody else’s row.</p>
+  </div>
+  <script src="vendor/lrc-parser.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>
