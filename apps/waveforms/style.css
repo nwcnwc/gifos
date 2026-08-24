@@ -21,7 +21,7 @@ html, body {
   font: 16px/1.45 system-ui, -apple-system, Segoe UI, sans-serif;
 }
 body {
-  padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
 }
 .wrap {
   max-width: 640px;
