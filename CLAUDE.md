@@ -23,8 +23,8 @@ the always-commit-and-push rule still applies there, to the branch.)
 
 A release gate, a fleet actor, or `archive-version.sh` must run from a
 **separate clone**: `~/release-process/gifos`, checked out at the freeze tag
-(e.g. `v0.9.10-freeze`). `~/projects/gifos` is for ongoing development on
-`main`. The two collide: fleet `dir` used to point at the development tree, so
+(e.g. `v0.9.10-freeze`). The development clone (`~/projects2/gifos` on this
+box) is for ongoing development on `main`. The two collide: fleet `dir` used to point at the development tree, so
 a gate `cd`'d in, pushed `test/swarm/.bb-meet.js`, and `git pull`'d while
 someone was mid-edit. That is how a cut and a Camera session fought over one
 folder.
@@ -35,7 +35,7 @@ folder.
   Symlink `node_modules` from a development clone if needed; do not `git pull`
   that tree onto `main`.
 - The local hosts file (`~/.gifos-behavior-hosts.json`) `dir` for every fleet
-  host is `~/release-process/gifos`, never `~/projects/gifos`.
+  host is `~/release-process/gifos`, never the development clone.
 - Cut from the freeze clone. `v<x.y.z>` itself is tagged on the archive
   commit, after `scripts/archive-version.sh`.
 - **Bugfixes during a cut land TWICE.** `main` keeps moving while the gate
@@ -59,9 +59,10 @@ where a suite was red, dead, or unrunnable:
   that failed — was written pointing at a chromium path that does not exist. It
   had never executed once. All 10 drills, the swarm and the behavior battery
   shared that dead path.
-- `e2e.js`'s version-pinning assertions call `window.gifosPinTarget`, which was
-  deleted from the site during a loader redesign. They fail as a TypeError, in
-  precisely the area that broke in production.
+- `e2e.js`'s version-pinning assertions call `window.gifosPinTarget`, which had
+  been deleted from the site during a loader redesign. They failed as a
+  TypeError, in precisely the area that broke in production. (Since restored on
+  every loader page; `test/unit/channel-loader.js` guards it.)
 - Nobody could tell which of those reds were "expected", so all of them were
   ignored equally.
 
@@ -103,7 +104,7 @@ node test/servers/fake-ai.js              # only for AI suites (port 8791)
 node test/servers/fake-keyapi.js          # only for e2e-api (port 8792)
 node test/servers/fake-cors-proxy.js      # only for e2e-api (port 8793)
 
-node test/browser/e2e-relay.js            # any suite runs standalone
+node test/browser/e2e-knock-first.js      # any suite runs standalone
 ```
 
 `test/unit/` and `test/tools/` need nothing; `test/drills/` spawn their own
@@ -111,16 +112,18 @@ servers (safe from a worktree); `test/swarm/` is scale/production-hitting.
 
 Note: e2e-fetch-bridge spawns its OWN server on 8791 — kill fake-ai first.
 
-Playwright + Chromium paths are hardcoded in the tests (already installed).
-If suites start timing out on page-opens for no reason, kill leftover Chromium
-processes first — and kill BOTH binaries, because the suites are split between
-them: a suite run under `MEET_CHROME` launches `chrome-linux/chrome`, while one
-taking Playwright's default channel launches `chrome-linux/headless_shell`.
+Playwright + Chromium are resolved by SEARCH in `test/lib/pw.js` (newest
+installed build first — the hardcoded paths are gone, and the unpacked dir is
+`chrome-linux/` or `chrome-linux64/` depending on the build). If suites start
+timing out on page-opens for no reason, kill leftover Chromium processes first —
+and kill BOTH binaries, because the suites are split between them: a suite run
+under `MEET_CHROME` launches `…/chrome`, while one taking Playwright's default
+channel launches `…/headless_shell`.
 Measured mid-gate 2026-08-02: 12 of the first and 2 of the second alive at once.
 Hunting only one leaves the other piling up invisibly while the box sits at
 loadavg 18 and suites "flake".
 
-    pkill -f "[c]hrome-linux/chrome"; pkill -f "[h]eadless_shel"
+    pkill -f "[c]hrome-linux"    # matches chrome-linux/ AND chrome-linux64/, chrome AND headless_shell
 
 Bracket the pattern or pgrep matches its own command line. Check `nproc` and
 `/proc/loadavg` BEFORE believing any red: this box is 4 cores and a browser
@@ -222,9 +225,11 @@ new; then build freely if the bug needs machinery that isn't there.
   preflight's VERDICT is feature detection only and must stay that way — the
   table chooses words, never outcomes. Honesty is enforced mechanically:
   `supported` must carry a version, `unknown`/`unsupported` must not (an
-  unknown with a number is a guess). The floor today is set by WebCrypto
-  Ed25519 (mandatory at every join, `mesh-wire.js` S4): Chrome/Edge 137,
-  Firefox 129, Safari 17.
+  unknown with a number is a guess). Ed25519 is still mandatory at
+  every join (`mesh-wire.js` S4), but a built-in fallback signer
+  (`gifos-ed.js` + `vendor/nacl-fast.js`) covers browsers without WebCrypto
+  Ed25519, so it no longer sets a version floor — the floor is the ES6
+  baseline; `site/browser-support.json` is the source of truth.
 - An icon's picture is an **ORNAMENT**, and it is NOT the file. An app GIF
   carries a whole filesystem (hundreds of MB); the Home Screen shows only the
   animation. `GifOS.gif.stripForDisplay()` cuts the GifOS Application Extension

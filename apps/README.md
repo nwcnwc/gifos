@@ -173,18 +173,18 @@ and refuses an install onto a computer that is older — because an app is not
 free to install when installing it costs a gigabyte of weights and ends in an
 icon that opens onto nothing.
 
-This exists because it happened. Offline Cheap Text LLM BitNet needs the
-install-time asset tier (`site/js/gifos-assets.js`), which is in NO release cut
-so far — not even 0.9.5, the release most visitors run. The store happily
-offered it to them, downloaded it, and installed something that could never
-work.
+This exists because it happened. Offline Cheap Text LLM BitNet needed the
+install-time asset tier (`site/js/gifos-assets.js`) before any release carried
+it — 0.9.5, then the release most visitors ran, happily offered it, downloaded
+it, and installed something that could never work. (The tier shipped in 0.9.6,
+build 1206; every release since carries it.)
 
 Build numbers, not release numbers, because the build number is the thing that
 is monotonic and always present: `site/js/build.js` carries the running build,
 and `site/version.json`'s `builds` map turns each release into the edge build it
 was cut from, so the store can translate the requirement into "release 0.9.6 and
 up" for a human. A requirement newer than every release is a legitimate and
-important state to be able to say — it is the state BitNet is in today.
+important state to be able to say — it was BitNet's state until 0.9.6 shipped.
 
 Derive the number; do not guess it:
 
@@ -345,7 +345,7 @@ address:
   metres. Every data source is swappable at runtime, and the optional satellite
   drape runs on the player's own key via `gifos.api`, so the app ships on
   genuinely open data with no account. Finished GIF:
-  [`site/apps/anyroad/anyroad.gif`](../site/apps/anyroad/anyroad.gif) (~160 KB).
+  [`site/apps/anyroad/anyroad.gif`](../site/apps/anyroad/anyroad.gif) (~400 KB).
 - **[fps-simple](fps-simple/)** — a first-person shooter in the sandbox. Solo, a
   garrison patrols a market street and hunts you; send the invite link and the
   same street becomes a deathmatch. The engine is
@@ -436,7 +436,7 @@ address:
   sample-exact parity with a numpy transcription of `separate.py`
   (`test/unit/vocal-remover.js`). Finished GIF:
   [`site/apps/vocal-remover/vocal-remover.gif`](../site/apps/vocal-remover/vocal-remover.gif) (~12.5 MB).
-  Its pins are verified against the live host by `tools/verify-pins.py` — bytes,
+  Its pins are verified against the live host by `vocal-remover/tools/verify-pins.py` — bytes,
   the CORS header, and UVR's own model hash, which is the one that catches a
   mirror serving a same-named re-export the app would then run at the wrong
   settings.
