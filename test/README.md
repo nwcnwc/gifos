@@ -713,6 +713,9 @@ Roughly three families in one directory:
   airborne, and a link making the TTS provider speak),
   `e2e-app-store` (the store catalog, its listings, and Install — including
   the rule that browsing must fetch ZERO App GIFs),
+  `e2e-app-update` (opening a store-installed app says when the catalog has
+  a newer version — and says UPDATE GIFOS FIRST when the new version's build
+  floor is above this computer; once per catalog hash, never a GIF fetch),
   `e2e-app-frame-escape` (AN APP MAY NEVER NAVIGATE ITSELF OUT OF ITS OWN
   FRAME. A `srcdoc` document inherits its base URL from the parent, so for the
   runtime's whole life every app's base was run.html's own address — and

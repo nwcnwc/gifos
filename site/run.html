@@ -1464,6 +1464,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   <script src="js/gifos-assets.js"></script>
   <script src="js/gifos-store.js"></script>
   <script src="js/gifos-lock.js"></script>
+  <script src="js/app-update.js"></script>
   <script src="js/gifos-net.js"></script>
   <script src="js/mesh.js"></script>
   <script src="js/mesh-identity.js"></script>
@@ -7107,7 +7108,14 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
             if (P && typeof P.requireMeeting === 'function') P.requireMeeting(inviteFromSolo);
             else inviteFromSolo();
           };
-          return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl, ROOM.solo ? LAUNCH : null).then((ctl) => { soloCtl = ctl; });
+          return GifOS.runtime.boot(appMountEl, ROOM.fileId, statusEl, ROOM.solo ? LAUNCH : null).then((ctl) => {
+            soloCtl = ctl;
+            // AFTER the app is up, never before: is there a newer version of a
+            // store-installed app in the catalog? (app-update.js — one small
+            // fetch, silent on failure, says "update GifOS first" when the new
+            // version's build floor is above this computer.)
+            if (GifOS.appUpdate) GifOS.appUpdate.nudge(rec).catch(() => {});
+          });
         };
         // Passkey lock: GifOS sheet, then WebAuthn, then unwrap — all in OS
         // chrome, before makeIframe. Cancel does not mount the sandbox.
