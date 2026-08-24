@@ -203,8 +203,8 @@ leverage:
 4. **Formalize the signed event log.** Treat gossip, app state changes,
    messages, and agent actions as one signed event stream. Search and audit
    become free features.
-5. **Build a gallery of micro-apps.** A daily-hole game, a shared notepad, a
-   kanban, a budget sheet — each as a single .gif or URL. Show, don't tell,
+5. **Build a gallery of micro-apps — SHIPPED as the App Store** (103 apps
+   in `site/apps/`, Wordle-shaped `word-master` included). Show, don't tell,
    what "single-purpose sandboxed gadget" means.
 6. **Contrast with Cloudflare OS / Buzz explicitly.** GIFOS is *lighter* (no
    server required), *more portable* (the app is a file), and *more local*

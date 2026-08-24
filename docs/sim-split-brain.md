@@ -2,12 +2,14 @@
 
 > **RE-VERIFIED 2026-08-06 (ce294be) — reference doc, still accurate.** Rook
 > geometry, E2 first-hand-only liveness (plus the 03c local-evidence rules)
-> and the probe-gated `RING_HOLD` all match the twins today; guards
-> (`sweep.sh`, `c-sweep.sh`) are in the gate's sim tier. Its one "real case",
+> and the probe-gated `RING_HOLD` all match the twins today; guards:
+> `c-sweep.sh` is in the gate's sim tier, `sweep.sh` runs from
+> `mesh-churn.sh` (not the gate). Its one "real case",
 > a partitioned half freezing, is the sanctioned graveyard entry in
 > `known-unfixed.sh` — accepted, not open. Keep for the service-mode trap:
-> `init` does NOT revive killed seats or reset TICK, so reusing one
-> `--service` session across seed+kill cycles leaks state and reports bogus
+> one `--service` session per (seed, kill) — `init` does reset TICK and the
+> seat table, but the message bus, ADMIT_LOG, MOVES/EVICTIONS and forcedSever
+> are globals it does NOT clear, so reuse leaks state and reports bogus
 > failures.
 
 This note documents the mechanics the C++ reference sim (`mesh.cpp` +
@@ -86,8 +88,9 @@ The Section-1 refill machinery, all probe-gated:
   Section-1 subtrees), so a broken/stale deep chain no longer silently swallows
   every FINDLEAF and strands a home hole.
 
-The relay-greeter ring bridge / max-id cross-partition reconciliation (old E5,
-commit f29e2ef) is deliberately NOT present. A torn home is two rooms; there is
+The relay-greeter ring bridge / max-id cross-partition reconciliation (old
+E5; its commit no longer resolves in this repo) is deliberately NOT
+present. A torn home is two rooms; there is
 no P2P reunion and no relay tie-break.
 
 ## The one real case — a TOTAL network partition
@@ -108,10 +111,11 @@ client's manual retry), so once its side's greeter pool stabilises it re-seats.
 `check` fails LOUDLY on any stranded seat, surviving duplicate, teleport>0, or
 non-convergence (Section 1 ≠ 25, seated ≠ N). A teleport is independently fatal
 (`teleportExplode` aborts). Sweep harness: `test/sim/sweep.sh` (quick, or `full`).
-NOTE: service-mode `init` does NOT revive killed seats or reset `TICK`, so each
-(seed, kill) must run in its OWN process — the sweep does exactly this. Reusing
-one `--service` session across seed+kill cycles leaks state and reports bogus
-failures. The port's test harness must respect the same reset boundary.
+NOTE: each (seed, kill) must run in its OWN `--service` process — the sweep
+does exactly this. `init` resets `TICK` and the seat table, but the message
+bus, `ADMIT_LOG`, `MOVES`/`EVICTIONS` and `forcedSever` are globals it does
+NOT clear, so reuse leaks state and reports bogus failures. The port's test
+harness must respect the same reset boundary.
 
 ### Verified (this sim, C=5, N=400 unless noted)
 - **Node loss, seeds 1..50 × kill {0.1,0.2,0.3,0.4,0.5,0.6} = 300/300 PASS**:

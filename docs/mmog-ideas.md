@@ -30,7 +30,7 @@ folding the crowd into itself:
 | **Stadium** | Whole room = one URL = one relay session | The city / arena / festival — ambient everyone else |
 | **Stage** (≤`C`, deliberate) | Chosen broadcasters; collect/fan independent of seating | Spotlight, arena floor, ceremony, shared app |
 | **Gossip / app state** | Flood + anti-entropy over the mesh | Scores, pools, quests, soft places, economy |
-| **Relay** | Zero-knowledge greeter only | Never the game server; never media; never inventory DB |
+| **Relay** | Zero-knowledge greeter + door (it also tallies the live vote-off majority) | Never the game server; never media; never inventory DB |
 | **Vote-off** | Personal device lists + live majority | Hard exclusion without a server ban DB — also a **game weapon** if framed carefully |
 | **App GIFs** | Portable apps + state as files | Merch, booths, weapons-as-files, steal/remix culture |
 

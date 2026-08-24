@@ -102,8 +102,10 @@ structure from *any* corrupted global state. Named results seen:
 **Ideas worth being aware of (not tasks):**
 - These numbers are just *context* for the already-separately-tracked idea of a
   relay tier; they are not themselves a decision. They do suggest that "direct or
-  nothing" leaves some fraction of peer pairs unable to connect — how large a
-  fraction, for our actual user base, is unmeasured.
+  nothing" leaves some fraction of peer pairs unable to connect — since
+  addressed: the E5§1 friend-relay carries media through a mutual
+  co-member's browser when a direct pair fails ("📡 via <friend>"). How
+  large the residual no-friend-can-bridge fraction is stays unmeasured.
 
 ## 5. Rootless rendezvous & bootstrap — prior art for sealed discovery
 
