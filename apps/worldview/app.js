@@ -374,20 +374,44 @@
 
   // --------------------------------------------------------------- legends --
   var legendDb = null;
+  /*
+   * A legend that is not there has THREE different reasons, and the panel used
+   * to show the same blank space for all of them:
+   *
+   *   'none'   NASA publishes no colour map for this layer. True colour is a
+   *            photograph, not a measurement — there is nothing to key, and
+   *            saying so is an answer.
+   *   'wire'   we could not reach NASA. It will be there next time; the file
+   *            keeps it once it has arrived.
+   *   'bad'    a colour map came back and could not be read. That is our bug,
+   *            not the user's, and it must not look like "no legend exists".
+   *
+   * Resolves to a legend object, or a string naming which of the three it is.
+   * Never to a silent null.
+   */
   App.legend = function (id) {
     var get = legendDb ? legendDb.get('lg_' + id) : Promise.resolve(null);
     return get.catch(function () { return null; }).then(function (rec) {
       if (rec && rec.lg) return rec.lg;
-      if (!window.gifos || !gifos.fetch) return null;
+      if (rec && rec.none) return 'none';
+      if (!window.gifos || !gifos.fetch) return 'wire';
       return gifos.fetch('https://gibs.earthdata.nasa.gov/colormaps/v1.3/' + id + '.xml')
-        .then(function (r) { return r.ok ? r.text() : null; })
-        .then(function (xml) {
-          if (!xml) return null;
-          var lg = parseColorMap(xml);
-          if (lg && legendDb) legendDb.put({ id: 'lg_' + id, lg: lg }).catch(function () {});
-          return lg;
+        .then(function (r) {
+          // A 404 is NASA's answer: this layer has no colour map. Remember it,
+          // so the app never asks again and can say so with the wire down.
+          if (r.status === 404 || r.status === 400) {
+            if (legendDb) legendDb.put({ id: 'lg_' + id, none: 1 }).catch(function () {});
+            return 'none';
+          }
+          if (!r.ok) return 'wire';
+          return r.text().then(function (xml) {
+            var lg = xml && parseColorMap(xml);
+            if (!lg) return 'bad';
+            if (legendDb) legendDb.put({ id: 'lg_' + id, lg: lg }).catch(function () {});
+            return lg;
+          });
         })
-        .catch(function () { return null; });
+        .catch(function () { return 'wire'; });
     });
   };
 

@@ -434,14 +434,19 @@
 
   function ensureRowLegend(L, into) {
     var lg = legendCache[L.id];
-    if (lg === 'none') return;
+    // The inline strip in a collapsed row is a decoration: a string here is one
+    // of the three reasons there is no legend, and the words for it belong in
+    // the expanded row, not squeezed into a 40px ramp.
+    if (typeof lg === 'string') return;
     if (!lg) {
       if (legendPending[L.id]) return;
       legendPending[L.id] = 1;
       app.legend(L.id).then(function (got) {
-        legendCache[L.id] = got || 'none';
+        // Only 'none' is remembered. A connection failure must not turn into a
+        // permanent "this layer has no legend" for the rest of the session.
+        if (got && typeof got !== 'string') { legendCache[L.id] = got; UI.renderStack(); }
+        else if (got === 'none') legendCache[L.id] = 'none';
         delete legendPending[L.id];
-        if (got) UI.renderStack();
       }).catch(function () { delete legendPending[L.id]; });
       return;
     }
@@ -517,23 +522,35 @@
    */
   var legendCache = {};
   var legendPending = {};
+  // What to say when there is no colour bar. Silence was the old answer to all
+  // three, and it reads as a broken panel — the reviewer who went looking for
+  // legends found empty boxes and concluded the app simply has none.
+  var NO_LEGEND = {
+    none: 'NASA publishes no colour map for this layer, so there is nothing to key here.',
+    wire: 'The legend comes from NASA and needs a connection once. It is kept in this file after that.',
+    bad: 'NASA sent a colour map this app could not read. That is a bug here, not a gap in the data.',
+  };
+
   function loadLegend(L, box) {
     if (L.builtin) return;
     var id = L.id;
-    if (legendCache[id] === 'none') return;
-    if (legendCache[id]) return paintLegend(legendCache[id], box);
+    var have = legendCache[id];
+    if (typeof have === 'string') { box.innerHTML = '<p class="lyr-note">' + NO_LEGEND[have] + '</p>'; return; }
+    if (have) return paintLegend(have, box);
     box.innerHTML = '<p class="lyr-note">Legend…</p>';
     app.legend(id).then(function (lg) {
-      if (!lg) {
-        legendCache[id] = 'none';
-        box.innerHTML = T.net === 'offline'
-          ? '<p class="lyr-note">Legend needs a connection once — it is kept in the file after that.</p>'
-          : '';
+      if (!lg || typeof lg === 'string') {
+        var why = typeof lg === 'string' ? lg : 'wire';
+        // A failure to REACH is not remembered — the connection comes back.
+        if (why === 'none') legendCache[id] = 'none';
+        box.innerHTML = '<p class="lyr-note">' + NO_LEGEND[why] + '</p>';
         return;
       }
       legendCache[id] = lg;
       paintLegend(lg, box);
-    }).catch(function () { box.innerHTML = ''; });
+    }).catch(function () {
+      box.innerHTML = '<p class="lyr-note">' + NO_LEGEND.wire + '</p>';
+    });
   }
 
   function paintLegend(lg, box) {

@@ -123,7 +123,15 @@ async function settle(fr, ms) {
   const gifBytes = readFileSync(appGif('worldview'));
 
   // ---- 1. the artifact ------------------------------------------------------
-  const boot = await openApp(browser, { legend: LEGEND_XML });
+  /*
+   * GIBS answers a colour map for the layers that MEASURE and a 404 for the
+   * ones that are photographs. Both answers have to reach the panel as words:
+   * an empty box is what made a reviewer conclude the app has no legends at
+   * all, in the same breath as the listing claiming it does.
+   */
+  const boot = await openApp(browser, {
+    legend: (id) => (id === 'VIIRS_SNPP_Thermal_Anomalies_375m_Day' ? null : LEGEND_XML),
+  });
   const { fr, log, app } = boot;
 
   check('the built GIF is a valid GifOS app', await boot.desk.evaluate(async (b64) => {
@@ -258,6 +266,28 @@ async function settle(fr, ms) {
   await sleep(300);
   check('a legend already in the file is not fetched twice', log.colormaps === colormapsAfter,
         log.colormaps + ' colormap requests');
+
+  /*
+   * AND WHEN THERE IS NO LEGEND, IT HAS TO SAY WHY. Silence was the old answer
+   * to all three reasons — NASA publishes none for this layer, we could not
+   * reach NASA, or the colour map would not parse — and an empty box reads as
+   * a broken panel rather than as an answer. True colour is a photograph: it
+   * has no colour scale, and that is worth a sentence.
+   */
+  const noLegend = await fr.evaluate(async () => {
+    window.WVApp.addLayer('VIIRS_SNPP_Thermal_Anomalies_375m_Day');
+    await new Promise((r) => setTimeout(r, 500));
+    const row = window.WVApp.state.layers
+      .filter((r) => r.id === 'VIIRS_SNPP_Thermal_Anomalies_375m_Day')[0];
+    row.open = true;
+    window.WVUI.setPanel(true);
+    window.WVUI.renderStack();
+    await new Promise((r) => setTimeout(r, 2000));
+    return [...document.querySelectorAll('.lyr-legend')]
+      .map((e) => e.textContent.trim()).filter((t) => t.length);
+  });
+  check('a layer NASA publishes no colour map for says so, instead of an empty box',
+    noLegend.some((t) => /publishes no colour map/.test(t)), JSON.stringify(noLegend).slice(0, 120));
 
   // ---- 8. the GIF export ----------------------------------------------------
   const gif = await fr.evaluate(async () => {

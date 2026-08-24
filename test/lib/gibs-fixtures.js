@@ -90,7 +90,10 @@ function tileBytes(level, row, col) {
  *
  *   opts.has(layerId)  -> false to answer 404 for that layer (a day with no
  *                         data, which is a normal GIBS answer, not a failure)
- *   opts.legend        -> XML string served for /colormaps/v1.3/*.xml
+ *   opts.legend        -> XML served for /colormaps/v1.3/<layer>.xml. Either a
+ *                         string for every layer, or a function of the layer
+ *                         id returning XML (or null for NASA's own 404, which
+ *                         is what a layer with no colour scale answers).
  *
  * Returns a live log: { tiles: [...], byLayer: {id: n}, colormaps: n, dead }
  * `dead` flips the whole host to "no connection", the way airplane mode does.
@@ -98,9 +101,9 @@ function tileBytes(level, row, col) {
 async function routeGibs(context, opts) {
   const o = opts || {};
   const log = {
-    tiles: [], byLayer: {}, colormaps: 0, dead: false, bad: [],
+    tiles: [], byLayer: {}, colormaps: 0, colormapsFor: [], dead: false, bad: [],
     setDead(v) { log.dead = v !== false; },
-    reset() { log.tiles.length = 0; log.byLayer = {}; log.colormaps = 0; log.bad.length = 0; },
+    reset() { log.tiles.length = 0; log.byLayer = {}; log.colormaps = 0; log.colormapsFor.length = 0; log.bad.length = 0; },
     layersAsked() { return Object.keys(log.byLayer); },
     forLayer(id) { return log.tiles.filter((t) => t.layer === id); },
   };
@@ -112,8 +115,17 @@ async function routeGibs(context, opts) {
 
     if (u.pathname.indexOf('/colormaps/') === 0) {
       log.colormaps++;
-      if (!o.legend) return route.fulfill({ status: 404, headers: cors, body: 'no colormap' });
-      return route.fulfill({ status: 200, headers: cors, contentType: 'text/xml', body: o.legend });
+      /*
+       * GIBS publishes a colour map for the layers that MEASURE something and
+       * none at all for the ones that are photographs — a 404 there is an
+       * answer, not a failure, and the app has to say two different things.
+       * So `legend` may be a function of the layer id, not just one string.
+       */
+      const lid = decodeURIComponent(u.pathname.split('/').pop().replace(/\.xml$/, ''));
+      log.colormapsFor.push(lid);
+      const xml = typeof o.legend === 'function' ? o.legend(lid) : o.legend;
+      if (!xml) return route.fulfill({ status: 404, headers: cors, body: 'no colormap' });
+      return route.fulfill({ status: 200, headers: cors, contentType: 'text/xml', body: xml });
     }
 
     const m = TILE_RE.exec(u.pathname);
