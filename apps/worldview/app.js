@@ -238,6 +238,12 @@
     // where the map is the whole point, so it gets out of the way.
     if (c.on && UI.panelOpen()) UI.setPanel(false);
     UI.renderCompare();
+    // The ruler carries the B playhead, so turning compare ON or OFF changes
+    // what it has to draw. Without this it kept the old picture until some
+    // unrelated event repainted it — you switched to comparing two days and
+    // the timeline went on showing one, which is the control you would reach
+    // for next.
+    UI.renderTimeline();
     UI.renderInspector();
     M.invalidate();
     queueSave();

@@ -369,6 +369,39 @@ async function settle(fr, ms) {
         netState.net + ' / ' + netState.chip);
 
   /*
+   * TWO DAYS ON SCREEN, ONE PLAYHEAD ON THE RULER. Turning compare on did not
+   * repaint the timeline at all, so the B playhead only ever appeared after
+   * some unrelated event redrew it — you split the screen between 2020 and
+   * 2025 and the ruler went on showing a single date. And when B is outside
+   * the visible window (five years away at the Days scale, which is the
+   * default) it was drawn nowhere, with no hint that a second date existed or
+   * which way it lay.
+   */
+  const cmp = await off.fr.evaluate(async () => {
+    window.WVUI.closeSheets();
+    window.WVApp.setDate('2020-08-01');
+    window.WVApp.state.compare.date = '2025-08-24';
+    await new Promise((r) => setTimeout(r, 400));
+    window.WVApp.toggleCompare();
+    await new Promise((r) => setTimeout(r, 700));
+    const far = window.WVUI.tlDrew();
+    window.WVApp.state.compare.date = '2020-08-10';
+    window.WVUI.renderTimeline();
+    const near = window.WVUI.tlDrew();
+    window.WVApp.toggleCompare();
+    await new Promise((r) => setTimeout(r, 300));
+    return { far: far, near: near, off: window.WVUI.tlDrew() };
+  });
+  check('turning compare on repaints the ruler, so the second date is on it',
+    cmp.far.compare === true && cmp.far.bDate === '2025-08-24');
+  check('a B date past the edge of the ruler is pinned to the edge it went out of',
+    cmp.far.b === 'edge-right', String(cmp.far.b));
+  check('a B date inside the window is drawn where it belongs',
+    cmp.near.b === 'on-ruler', String(cmp.near.b));
+  check('turning compare off takes the second date off the ruler',
+    cmp.off.compare === false && cmp.off.b === null);
+
+  /*
    * THE LAYER BROWSER MUST NOT SELL WHAT THE FILE CANNOT DELIVER. Offline, all
    * 74 layers used to look equally available; ticking one gave you a blank map
    * and no explanation. The file knows which layers it holds bytes for, and

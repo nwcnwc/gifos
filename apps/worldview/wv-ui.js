@@ -839,6 +839,15 @@
    */
   var TRACK_COLOURS = ['#4cc2ff', '#ffb454', '#57d9a3', '#ff8fa3'];
 
+  /*
+   * What the last ruler paint actually put on screen. A seam for the suite:
+   * the B playhead is drawn on a canvas, so "is the second date visible" can
+   * only be asserted from pixels or from here, and pixels cannot tell you
+   * WHICH date they are. Set on every render, read by e2e-worldview.
+   */
+  var tlDrew = { compare: false, b: null, bDate: null };
+  UI.tlDrew = function () { return tlDrew; };
+
   UI.renderTimeline = function () {
     var cvs = el.tlCanvas;
     var r = el.timeline.getBoundingClientRect();
@@ -974,9 +983,35 @@
 
     // The other day, when two are being compared: the ruler has to know that a
     // second time exists.
+    tlDrew = { compare: !!(state.compare && state.compare.on), b: null, bDate: null };
     if (state.compare && state.compare.on) {
       var bx = x(U.dayMs(state.compare.date));
-      if (bx > -4 && bx < w + 4) {
+      tlDrew.b = (bx <= -4 ? 'edge-left' : bx >= w + 4 ? 'edge-right' : 'on-ruler');
+      tlDrew.bDate = state.compare.date;
+      if (bx <= -4 || bx >= w + 4) {
+        /*
+         * B IS OFF THE RULER. Comparing August 2020 with August 2025 at the
+         * Days scale puts the second day five years past the right-hand edge,
+         * and the ruler drew nothing at all — one playhead, no hint that a
+         * second date even existed, let alone which way it lay. Pin it to the
+         * edge it went out of, pointing the way.
+         */
+        var offRight = bx >= w;
+        c.font = '600 10px ui-monospace, monospace';
+        var oLbl = (offRight ? 'B · ' + U.prettyDate(state.compare.date) + ' →'
+                             : '← B · ' + U.prettyDate(state.compare.date));
+        var ow = c.measureText(oLbl).width;
+        var ox2 = offRight ? w - ow - 8 : 8;
+        c.fillStyle = 'rgba(6,9,15,0.86)';
+        c.fillRect(ox2 - 4, rulerH - 16, ow + 8, 14);
+        c.strokeStyle = 'rgba(255,180,84,0.55)';
+        c.lineWidth = 1;
+        c.setLineDash([3, 2]);
+        c.strokeRect(ox2 - 4.5, rulerH - 16.5, ow + 9, 15);
+        c.setLineDash([]);
+        c.fillStyle = '#ffb454';
+        c.fillText(oLbl, ox2, rulerH - 15);
+      } else {
         c.strokeStyle = '#ffb454';
         c.lineWidth = 2;
         c.setLineDash([4, 3]);
