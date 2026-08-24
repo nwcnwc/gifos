@@ -981,8 +981,17 @@
     const np = document.createElement('span');
     np.className = 'nameplate';
     const nm = meta.shortName ? (meta.shortName.length > 14 ? meta.shortName.slice(0, 13) + '…' : meta.shortName) : '';
-    if (nm) { const s = document.createElement('span'); s.textContent = nm; np.appendChild(s); }
-    if (meta.version) { const s = document.createElement('span'); s.className = 'ver'; s.textContent = (nm ? ' ' : '') + 'v' + meta.version; np.appendChild(s); }
+    // Two spans, and the CSS gives way in only ONE of them: when the plate is
+    // wider than the cell it is the NAME that ellipsizes, never the version.
+    // "Anyroad v1...." is the one truncation that must not happen — a version
+    // is short, exact, and the whole reason the pair is shown at all.
+    if (nm) { const s = document.createElement('span'); s.className = 'nm'; s.textContent = nm; np.appendChild(s); }
+    // A REAL space between them, not just the flex gap: the gap is a drawing,
+    // and a screen reader (or a test reading textContent) would otherwise hear
+    // "Anyroadv1.0.0". A whitespace-only anonymous flex item is not rendered,
+    // so it costs the layout nothing.
+    if (nm && meta.version) np.appendChild(document.createTextNode(' '));
+    if (meta.version) { const s = document.createElement('span'); s.className = 'ver'; s.textContent = 'v' + meta.version; np.appendChild(s); }
     np.title = (meta.shortName ? meta.shortName + ' ' : '') + (meta.version ? 'version ' + meta.version : '')
       + ' — the app’s own name and version, shown because this app is signed.'
       + (fileName ? '\nThe file is named “' + fileName + '” (Rename to change that).' : '');

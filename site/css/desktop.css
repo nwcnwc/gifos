@@ -278,21 +278,31 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
    "system privilege". Only signed tiles get one (see desktop.js buildIcon);
    everything else still shows its filename there.
 
-   inline-block, NOT flex: the ellipsis on a too-long name only works if the
-   spans inside stay inline. And text-shadow is switched OFF — .label carries a
-   wallpaper shadow for bare text, which smears letters against the plate. */
+   A plate never spills past its cell, so a long name has to give somewhere —
+   and the version is where it must NOT. flex + min-width:0 on the name alone
+   means "Anyroad v1.0.0" too wide becomes "Anyro… v1.0.0", never "Anyroad
+   v1....": a version is short and exact, and being exact is the whole reason
+   the pair is shown. text-shadow is switched OFF — .label carries a wallpaper
+   shadow meant for bare text, which smears letters against a plate. */
 .nameplate {
-  display: inline-block; max-width: calc(var(--cell, 104px) - 10px); box-sizing: border-box;
-  font-size: .62rem; font-weight: 700; letter-spacing: .01em; line-height: 1.25;
-  padding: .16rem .42rem; border-radius: .3rem; cursor: help;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: top;
+  display: inline-flex; align-items: baseline; gap: .26em; max-width: 100%; box-sizing: border-box;
+  font-size: .6rem; font-weight: 700; letter-spacing: .01em; line-height: 1.3;
+  padding: .16rem .34rem; border-radius: .3rem; cursor: help;
+  white-space: nowrap; vertical-align: top;
   background: #0e1526; color: #e4ebf8; border: 1px solid #3b4d6b;
   box-shadow: 0 2px 6px rgba(0,0,0,.3); text-shadow: none;
 }
-.nameplate .ver { color: #57ccff; font-weight: 800; }
+.nameplate .nm  { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nameplate .ver { color: #57ccff; font-weight: 800; flex: 0 0 auto; }
 /* A plated label holds a bar, not a wrapping name: no shadow to bleed past its
-   edge, and no 2-line allowance to reserve. */
-.icon .label.plated { text-shadow: none; max-height: none; overflow: visible; }
+   edge, and no 2-line allowance to reserve. It may also run the full width of
+   the tile — bare text stops 4px short on each side to keep a long filename off
+   its neighbours, but a plate is one line and cannot wrap into them, and those
+   4px are the difference between "Anyroad v1.0.0" and "Anyr… v1.0.0". */
+.icon .label.plated {
+  text-shadow: none; max-height: none; overflow: visible;
+  max-width: calc(var(--cell, 104px) - 8px);
+}
 
 /* Passkey lock: the icon still plays; this says Open will ask. Top-right so
    it does not sit on the signature shield (bottom-right) or NEW (bottom-left). */
