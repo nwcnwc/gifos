@@ -1,0 +1,12 @@
+{
+  "gifos": "1.0",
+  "appId": "coil",
+  "name": "Coil",
+  "shortName": "Coil",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "entry": "index.html",
+  "accent": [0, 200, 220],
+  "capabilities": { "db": true },
+  "data": { "prefs": { "visibility": "private" } }
+}

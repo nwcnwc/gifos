@@ -1,0 +1,21 @@
+{
+  "tagline": "Wrap a trail around the orbs before they burst. Best score lives in the file.",
+  "description": "Drag a glowing trail with a finger or the mouse. Loop it around the blue orbs before they explode. Close a loop around more than one and the multiplier climbs. Red ones are bombs — do not wrap those.\n\nOn a phone the trail is your thumb. On a computer it is the mouse. There is no account and nothing leaves this file.\n\nAn unofficial port of Coil by Hakim El Hattab, MIT-licensed.",
+  "author": {
+    "name": "Hakim El Hattab",
+    "url": "https://github.com/leereilly/Coil"
+  },
+  "porter": { "name": "GifOS", "url": "https://gifos.app" },
+  "basedOn": {
+    "name": "Coil",
+    "url": "https://github.com/leereilly/Coil",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": ["Games"],
+  "tags": ["arcade", "trail", "reflex", "offline"],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/coil",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
