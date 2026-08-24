@@ -341,6 +341,14 @@ async function runConsumer(page, context, label, outTimeout, openTimeout) {
     check('the Kokoro provider answers gifos.ai.tts with a real WAV (self-test model, fully offline)',
       m[1] === 'RIFF' && Number(m[2]) > 20000 && m[3] === 'audio/wav', out.slice(0, 120));
     check('…which means the JSEP ORT bundle, espeak-ng, the Kokoro vocab/style and the WAV encoder all ran in the sandbox', m[1] === 'RIFF');
+    // The hidden provider mount must carry the SAME webgpu delegation
+    // mountApp grants (capabilities.gpu → allow="webgpu"): without it
+    // navigator.gpu is absent in the opaque-origin sandbox and the engine
+    // silently serves from WASM in every provider mount — the fallback this
+    // suite exercises must be headless Chromium's missing GPU, never a
+    // missing delegation.
+    const provAllow = await app.locator('iframe[data-gifos-provider="offline-tts-kokoro"]').getAttribute('allow');
+    check('the hidden provider mount delegates the webgpu allow-policy (capabilities.gpu)', /webgpu/.test(provAllow || ''), provAllow || '(none)');
     await app.close();
   }
 
