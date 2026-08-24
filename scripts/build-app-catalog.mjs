@@ -253,6 +253,18 @@ function coverIsCurrent(srcPng, outJpg) {
 async function coverIsCurrentByContent(srcPng, outJpg, crop) {
   if (coverIsCurrent(srcPng, outJpg)) return true;
   if (!fs.existsSync(outJpg)) return false;
+  // Git first: a source+cover pair that is tracked and unmodified in the
+  // working tree IS the pair the last builder run committed (this very check
+  // gated that commit). That answers a fresh clone without sharp, which the
+  // gate boxes do not carry — the content compare below is for a pair that
+  // someone has actually touched.
+  try {
+    const { spawnSync } = await import('node:child_process');
+    const rel = [srcPng, outJpg].map((f) => path.relative(ROOT, f));
+    const tracked = spawnSync('git', ['ls-files', '--error-unmatch', '--', ...rel], { cwd: ROOT, stdio: 'ignore' }).status === 0;
+    const dirty = spawnSync('git', ['status', '--porcelain', '--', ...rel], { cwd: ROOT, encoding: 'utf8' });
+    if (tracked && dirty.status === 0 && !dirty.stdout.trim()) return true;
+  } catch (e) { /* no git here — fall through to the content compare */ }
   try {
     const sharp = (await import('sharp')).default;
     let img = sharp(srcPng);
