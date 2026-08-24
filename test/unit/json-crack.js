@@ -221,6 +221,7 @@ const listing = JSON.parse(fs.readFileSync(path.join(APP, 'listing.json'), 'utf8
 check('phone Text/Graph tabs exist', html.includes('tab-text') && html.includes('tab-graph') && css.includes('tab-graph'));
 check('zoom +/−/Fit exist (phones have no wheel)', html.includes('zoom-in') && html.includes('zoom-out') && html.includes('zoom-fit'));
 check('pinch-zoom is wired', app.includes('pinch') && css.includes('touch-action: none'));
+check('first view frames the root at 1×, not a microscopic fit-all', app.includes('frameRoot') && /fittedOnce = true; frameRoot/.test(app));
 check('app.js saves the last document privately', app.includes("db('save')") && app.includes("id: 'last'"));
 check('empty saved text is restored, not replaced by the sample', /typeof rec\.text === 'string'/.test(app));
 check('gifos.onBack is registered', app.includes('gifos.onBack'));

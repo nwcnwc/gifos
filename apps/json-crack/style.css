@@ -120,5 +120,5 @@ svg { display: block; overflow: visible; }
   body.tab-graph #editor { display: none; }
   body.tab-graph #stage { flex: 1; }
   body.tab-text #editor { flex: 1; min-height: 0; }
-  .meta { width: 100%; margin-left: 0; }
+  .meta { display: none; }
 }
