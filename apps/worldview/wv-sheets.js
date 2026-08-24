@@ -151,7 +151,7 @@
         for (var i = 0; i < lead; i++) grid.appendChild(U.el('span', 'cal-pad'));
         var days = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
         var latest = U.latestDay();
-        var gaps = 0;
+        var gaps = 0, fut = 0;
         for (var d2 = 1; d2 <= days; d2++) {
           var iso = y + '-' + U.pad(mo + 1) + '-' + U.pad(d2);
           var b2 = U.el('button', 'cal-day', String(d2));
@@ -159,17 +159,58 @@
           var future = U.dayMs(iso) > U.dayMs(latest);
           var has = !future && (!L || (D.coverage(L, iso).ok &&
                     (L.period === 'daily' || U.snapDay(iso, L) === iso)));
-          if (future) { b2.classList.add('out'); b2.disabled = true; }
+          if (future) { b2.classList.add('out'); b2.disabled = true; fut++; }
           else if (!has) { b2.classList.add('thin'); gaps++; }
           if (iso === String(current).slice(0, 10)) b2.classList.add('on');
           if (iso === latest) b2.classList.add('today');
           b2.addEventListener('click', function (iso2) { return function () { onPick(iso2); }; }(iso));
           grid.appendChild(b2);
         }
-        var parts = ['Days after today are not in the archive yet.'];
-        if (L && gaps) parts.unshift('Dimmed days are days ' + L.title + ' (' + (L.sub || 'GIBS') + ') does not publish.');
-        else if (L) parts.unshift(L.title + ' publishes every day of this month.');
-        note.textContent = parts.join(' ');
+        /*
+         * What the dimming MEANS, in the layer's own words. Two traps here,
+         * both found by looking at June 1999 with MODIS on:
+         *
+         *  - A title that already ends in a parenthesis ("Corrected
+         *    Reflectance (True Color)") plus a parenthesised instrument reads
+         *    as "(True Color) (Terra / MODIS)". Use a separator, not a second
+         *    bracket.
+         *  - When EVERY day of the month is dimmed, "dimmed days are days X
+         *    does not publish" is true and useless: the month is empty and
+         *    there is no route out of it but stepping a month at a time. Say
+         *    where the record actually is, and offer to go there.
+         */
+        note.innerHTML = '';
+        var who = L ? (L.title + (L.sub ? ' · ' + L.sub : '')) : '';
+        var lines = [];
+        // A month that has not happened yet is not a month with gaps in it.
+        if (fut >= days) {
+          note.textContent = 'None of this month has happened yet.';
+          return;
+        }
+        if (L && gaps >= days - fut) {
+          var cov = D.coverage(L, shownMonth + '-01');
+          var edge = cov.before ? L.start : (cov.after && L.end ? L.end : null);
+          lines.push('Nothing from ' + who + ' anywhere in this month.');
+          if (edge) {
+            lines.push('Its record ' + (cov.before ? 'starts ' : 'ends ') + U.prettyDate(edge, { full: true }) + '.');
+          } else if (cov.why) {
+            // A rolling window ("only the last 30 days are kept") has no edge
+            // to jump to — but saying nothing leaves the month looking broken.
+            lines.push('For this layer, ' + cov.why + '.');
+          }
+          note.appendChild(document.createTextNode(lines.join(' ') + ' '));
+          if (edge) {
+            var jump = U.el('button', 'linky', cov.before ? 'Go to the first day it has' : 'Go to its last day');
+            jump.type = 'button';
+            jump.addEventListener('click', function () { onPick(String(edge).slice(0, 10)); });
+            note.appendChild(jump);
+          }
+          return;
+        }
+        if (L && gaps) lines.push('Dimmed days: nothing from ' + who + '.');
+        else if (L) lines.push(who + ' publishes every day this month.');
+        lines.push('Days after today are not in the archive yet.');
+        note.textContent = lines.join(' ');
       }
       paint();
     });
