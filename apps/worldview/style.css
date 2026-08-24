@@ -1442,6 +1442,16 @@ ul.plain li { margin-bottom: 5px; line-height: 1.5; }
 .cal-day.out { color: var(--ink-3); opacity: 0.25; pointer-events: none; }
 .cal-day.today { border-color: rgba(255, 255, 255, 0.28); }
 .cal-day.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+/* The day you are ON, but the layer has nothing for it. A solid accent chip
+   here says "this one is good"; it is the opposite. Keep the ring so you can
+   still find yourself in the month, drop the fill. */
+.cal-day.on.thin {
+  background: none;
+  color: var(--ink-2);
+  opacity: 1;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 
 /* ------------------------------------------------------------- loading ---- *
  * Imagery arrives tile by tile over a connection that may be a train window.
