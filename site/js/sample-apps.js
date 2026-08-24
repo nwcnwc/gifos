@@ -538,38 +538,254 @@
   }
 </script>`;
 
-  const PAINT_HTML = `<!doctype html><meta charset="utf-8">
+  const PAINT_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
-  body{font:14px system-ui;margin:0;background:#0a0a0f;color:#e0e0f0;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  header{width:100%;box-sizing:border-box;background:#14141f;border-bottom:1px solid #2a2a3f;padding:14px 18px;font-weight:700;color:#ff5caa}
-  .board{display:grid;grid-template-columns:repeat(16,var(--px,20px));gap:1px;background:#2a2a3f;padding:1px;margin:14px;touch-action:none;--px:min(20px,5.2vw)}
-  .px{width:var(--px,20px);height:var(--px,20px);background:#14141f}
-  .palette{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:0 12px}
-  .sw{width:26px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent}
-  .sw.sel{border-color:#fff}
-  button{margin:12px;padding:8px 16px;border:0;border-radius:8px;background:#ff5caa;color:#fff;cursor:pointer}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font:13px system-ui;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;overflow:hidden}
+  .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);flex:none}
+  .bar h1{font-size:14px;font-weight:700;margin:0 8px 0 0;color:var(--accent2,#ff5caa);white-space:nowrap}
+  .tools{display:flex;gap:4px}
+  .tools button,.bar .act{width:36px;height:36px;padding:0;border:1px solid var(--border,#2a2a3f);border-radius:8px;background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .tools button.on{background:var(--accent2,#ff5caa);color:var(--onaccent,#fff);border-color:transparent}
+  .tools button:disabled,.bar .act:disabled{opacity:.35;cursor:default}
+  .bar .act.danger{color:#ff7878}
+  .pal{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+  .sw{width:22px;height:22px;border-radius:6px;cursor:pointer;border:2px solid transparent;flex:none}
+  .sw.sel{border-color:var(--text,#e0e0f0);box-shadow:0 0 0 1px var(--bg,#0a0a0f)}
+  #custom{width:28px;height:28px;border:0;padding:0;background:none;cursor:pointer}
+  .sz{display:flex;align-items:center;gap:6px;flex:1;min-width:90px}
+  .sz input{flex:1;accent-color:var(--accent2,#ff5caa)}
+  .sz span{font:11px ui-monospace,monospace;color:var(--muted,#8888aa);min-width:28px}
+  #stage{flex:1;min-height:0;position:relative;background:var(--bg,#0a0a0f)}
+  #cv{position:absolute;inset:0;margin:auto;touch-action:none;cursor:crosshair;background:#fff;border-radius:4px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+  .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;color:#888;font-size:15px;text-align:center;padding:24px}
+  .hint.hide{display:none}
+  #ask{display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:4}
+  #ask.on{display:flex}
+  #ask .box{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:12px;padding:16px 18px;max-width:280px;color:var(--text,#e0e0f0)}
+  #ask .box p{margin:0 0 12px}
+  #ask .row{display:flex;gap:8px;justify-content:flex-end}
+  #ask button{padding:8px 14px;border-radius:8px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);cursor:pointer;font:inherit}
+  #ask #askyes{background:var(--accent2,#ff5caa);color:var(--onaccent,#fff);border-color:transparent}
 </style>
-<header>Paint — draw together</header>
-<div class="palette" id="pal"></div>
-<div class="board" id="board"></div>
-<button id="clear">Clear</button>
+<div class="bar">
+  <h1>Paint</h1>
+  <div class="tools" id="tools">
+    <button id="tbrush" class="on" title="Brush (B)" aria-label="Brush"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19l8.5-8.5 3 3L8 22H5v-3z"/><path d="M14 7l3 3 3.5-3.5a2.1 2.1 0 0 0 0-3L19 2a2.1 2.1 0 0 0-3 0L14 7z"/></svg></button>
+    <button id="terase" title="Eraser (E)" aria-label="Eraser"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 17l8-8 7 7-4 4H8z"/><path d="M14 9l-7 7"/></svg></button>
+    <button id="tfill" title="Fill (G)" aria-label="Fill"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16"/><path d="M7 16l5-11 5 11"/><path d="M9 12h6"/></svg></button>
+    <button id="tpick" title="Eyedropper (I)" aria-label="Eyedropper"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 7l5 5"/><path d="M4 20l7-7 3 3-7 7H4v-3z"/><path d="M16 3l5 5-4 4-5-5z"/></svg></button>
+  </div>
+  <div class="pal" id="pal"></div>
+  <input id="custom" type="color" value="#ff5c5c" title="Custom colour">
+  <div class="sz"><input id="sz" type="range" min="1" max="64" value="8" title="Brush size"><span id="szv">8</span></div>
+  <button class="act" id="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 8H5V4"/><path d="M5 8a9 9 0 1 1 2.2 5.7"/></svg></button>
+  <button class="act" id="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 8h4V4"/><path d="M19 8a9 9 0 1 0-2.2 5.7"/></svg></button>
+  <button class="act danger" id="clear" title="Clear">Clear</button>
+</div>
+<div id="stage">
+  <canvas id="cv" width="1024" height="1024"></canvas>
+  <div class="hint" id="hint">Draw on the page. Undo is in the bar. The picture lives in this icon — Invite to draw together.</div>
+  <div id="ask"><div class="box"><p>Clear the picture? This cannot be undone.</p><div class="row"><button id="askno">Keep</button><button id="askyes">Clear</button></div></div></div>
+</div>
 <script>
-  const db=gifos.db('canvas'), N=16, COLORS=['#14141f','#ff5c5c','#ff8f3c','#ffd23c','#5cff7b','#5cdcb4','#5cc8ff','#7b5cff','#ff5caa','#a06a4a','#8888aa','#ffffff'];
-  let board={ id:'board', cells:new Array(N*N).fill(0) }, color=1, painting=false, pending=false;
-  const boardEl=document.getElementById('board'), palEl=document.getElementById('pal');
-  COLORS.forEach(function(c,i){ const s=document.createElement('div'); s.className='sw'+(i===1?' sel':''); s.style.background=c;
-    s.onclick=function(){ color=i; palEl.querySelectorAll('.sw').forEach(function(x){x.classList.remove('sel');}); s.classList.add('sel'); }; palEl.appendChild(s); });
-  const cellEls=[];
-  for(let i=0;i<N*N;i++){ const d=document.createElement('div'); d.className='px'; cellEls.push(d);
-    const paint=function(){ if(board.cells[i]===color) return; board.cells=board.cells.slice(); board.cells[i]=color; d.style.background=COLORS[color]; schedule(); };
-    d.addEventListener('pointerdown',function(e){ e.preventDefault(); painting=true; paint(); });
-    d.addEventListener('pointerenter',function(){ if(painting) paint(); });
-    boardEl.appendChild(d); }
-  window.addEventListener('pointerup',function(){ painting=false; });
-  function schedule(){ if(pending) return; pending=true; setTimeout(function(){ pending=false; db.put(board); }, 60); }
-  function render(){ for(let i=0;i<N*N;i++) cellEls[i].style.background=COLORS[board.cells[i]||0]; }
-  db.subscribe(function(items){ const b=items.find(function(x){return x.id==='board';}); if(b){ board=b; render(); } });
-  document.getElementById('clear').onclick=function(){ board={id:'board',cells:new Array(N*N).fill(0)}; render(); db.put(board); };
+'use strict';
+var db=gifos.db('canvas');
+var PAPER=1024, COLORS=['#14141f','#ff5c5c','#ff8f3c','#ffd23c','#5cff7b','#5cdcb4','#5cc8ff','#7b5cff','#ff5caa','#a06a4a','#8888aa','#ffffff'];
+var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+var tool='brush', color=COLORS[1], size=8, painting=false;
+var cells=null;            // legacy 16x16 colour indices, still drawn as the base layer
+var strokes=[];            // {k:'s'|'e'|'f', c, w, p:[x,y,...]}  paper-space
+var undoStack=[], redoStack=[];
+var lastPut='', pending=false, lastPt=null, live=null;
+var beforeTool='brush';
+function paperPt(e){
+  var r=cv.getBoundingClientRect();
+  return {x:(e.clientX-r.left)/r.width*PAPER, y:(e.clientY-r.top)/r.height*PAPER};
+}
+function layout(){
+  var st=document.getElementById('stage'), pad=12;
+  var W=st.clientWidth-pad*2, H=st.clientHeight-pad*2, s=Math.max(80, Math.min(W,H));
+  cv.style.width=s+'px'; cv.style.height=s+'px';
+}
+function drawStroke(op, preview){
+  if(op.k==='f'){ flood(op.p[0]|0, op.p[1]|0, op.c); return; }
+  ctx.save();
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.lineWidth=op.w||1;
+  if(op.k==='e'){ ctx.globalCompositeOperation='destination-out'; ctx.strokeStyle='#000'; }
+  else { ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=op.c; }
+  var p=op.p, i;
+  ctx.beginPath();
+  if(p.length<4){ ctx.arc(p[0], p[1], (op.w||1)/2, 0, 7); ctx.fillStyle=ctx.strokeStyle; ctx.fill(); }
+  else {
+    ctx.moveTo(p[0], p[1]);
+    for(i=2;i<p.length;i+=2) ctx.lineTo(p[i], p[i+1]);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawCells(){
+  if(!cells||!cells.length) return;
+  if(!cells.some(function(v){return v;})) return;
+  var n=Math.round(Math.sqrt(cells.length))||16, s=PAPER/n, i, x, y;
+  for(i=0;i<n*n && i<cells.length;i++){
+    x=i%n; y=(i/n)|0;
+    ctx.fillStyle=COLORS[cells[i]||0]||COLORS[0];
+    ctx.fillRect(x*s, y*s, s+0.5, s+0.5);
+  }
+}
+function replay(){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,PAPER,PAPER);
+  drawCells();
+  var i; for(i=0;i<strokes.length;i++) drawStroke(strokes[i]);
+  if(live) drawStroke(live, true);
+  document.getElementById('hint').className='hint'+(strokes.length|| (cells && cells.some(function(v){return v;})) ?' hide':'');
+  syncBtns();
+  syncDebug();
+}
+function hexOf(r,g,b){
+  return '#'+[r,g,b].map(function(v){ var s=v.toString(16); return s.length<2?'0'+s:s; }).join('');
+}
+function flood(sx,sy,hex){
+  var img=ctx.getImageData(0,0,PAPER,PAPER), d=img.data;
+  var w=PAPER, h=PAPER, x0=Math.max(0,Math.min(w-1,sx|0)), y0=Math.max(0,Math.min(h-1,sy|0));
+  var i0=(y0*w+x0)*4, tr=d[i0], tg=d[i0+1], tb=d[i0+2], ta=d[i0+3];
+  var m=hex.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i);
+  if(!m) return;
+  var nr=parseInt(m[1],16), ng=parseInt(m[2],16), nb=parseInt(m[3],16);
+  if(tr===nr && tg===ng && tb===nb && ta===255) return;
+  var seen=new Uint8Array(w*h), stack=[x0,y0], si=2, x, y, i, p;
+  while(si){
+    y=stack[--si]; x=stack[--si];
+    p=y*w+x; if(seen[p]) continue; seen[p]=1;
+    i=p*4; if(d[i]!==tr||d[i+1]!==tg||d[i+2]!==tb||d[i+3]!==ta) continue;
+    d[i]=nr; d[i+1]=ng; d[i+2]=nb; d[i+3]=255;
+    if(x>0){ stack[si++]=x-1; stack[si++]=y; }
+    if(x<w-1){ stack[si++]=x+1; stack[si++]=y; }
+    if(y>0){ stack[si++]=x; stack[si++]=y-1; }
+    if(y<h-1){ stack[si++]=x; stack[si++]=y+1; }
+  }
+  ctx.putImageData(img,0,0);
+}
+function pickAt(x,y){
+  var p=ctx.getImageData(Math.max(0,x|0), Math.max(0,y|0), 1, 1).data;
+  return hexOf(p[0], p[1], p[2]);
+}
+function setColor(c){
+  color=c; document.getElementById('custom').value=c;
+  var sw=document.getElementById('pal').querySelectorAll('.sw');
+  [].forEach.call(sw, function(el){ el.className='sw'+(el.dataset.c.toLowerCase()===c.toLowerCase()?' sel':''); });
+}
+function setTool(t){
+  tool=t;
+  ['brush','erase','fill','pick'].forEach(function(name){
+    document.getElementById('t'+name).className=name===t?'on':'';
+  });
+  cv.style.cursor=t==='pick'?'copy':t==='fill'?'cell':'crosshair';
+}
+function snap(){ return {cells:cells?cells.slice():null, strokes:strokes.map(function(s){ return {k:s.k,c:s.c,w:s.w,p:s.p.slice()}; })}; }
+function applySnap(s){ cells=s.cells; strokes=s.strokes; replay(); }
+function pushUndo(){ undoStack.push(snap()); if(undoStack.length>40) undoStack.shift(); redoStack=[]; syncBtns(); }
+function syncBtns(){
+  document.getElementById('undo').disabled=!undoStack.length;
+  document.getElementById('redo').disabled=!redoStack.length;
+}
+function docOf(){ return {id:'board', v:2, cells:cells, strokes:strokes}; }
+function save(){
+  var doc=docOf(), j=JSON.stringify(doc);
+  if(j===lastPut) return;
+  lastPut=j; db.put(doc);
+}
+function saveSoon(){ if(pending) return; pending=true; setTimeout(function(){ pending=false; save(); }, 80); }
+function loadDoc(b){
+  if(!b) return;
+  var j=JSON.stringify(b);
+  if(j===lastPut) return;
+  lastPut=j;
+  if(b.v===2 || (b.strokes && b.strokes.length) || (b.cells && b.cells.length && !b.v)){
+    cells=Array.isArray(b.cells)?b.cells:null;
+    strokes=Array.isArray(b.strokes)?b.strokes:[];
+  } else if(Array.isArray(b.cells)){ cells=b.cells; strokes=[]; }
+  undoStack=[]; redoStack=[];
+  replay();
+}
+db.subscribe(function(items){
+  if(painting) return;
+  var b=items.find(function(x){ return x.id==='board'; });
+  if(b) loadDoc(b);
+});
+// palette
+COLORS.forEach(function(c,i){
+  var s=document.createElement('button'); s.type='button'; s.className='sw'+(i===1?' sel':''); s.style.background=c; s.dataset.c=c;
+  s.title=i===0?'Dark':''; s.setAttribute('aria-label','Colour '+c);
+  s.onclick=function(){ setColor(c); if(tool==='erase') setTool('brush'); };
+  document.getElementById('pal').appendChild(s);
+});
+document.getElementById('custom').oninput=function(){ setColor(this.value); if(tool==='erase') setTool('brush'); };
+document.getElementById('sz').oninput=function(){ size=+this.value; document.getElementById('szv').textContent=String(size); };
+document.getElementById('tbrush').onclick=function(){ setTool('brush'); };
+document.getElementById('terase').onclick=function(){ setTool('erase'); };
+document.getElementById('tfill').onclick=function(){ setTool('fill'); };
+document.getElementById('tpick').onclick=function(){ beforeTool=tool==='pick'?beforeTool:'brush'; setTool('pick'); };
+document.getElementById('undo').onclick=function(){
+  if(!undoStack.length) return;
+  redoStack.push(snap()); applySnap(undoStack.pop()); save();
+};
+document.getElementById('redo').onclick=function(){
+  if(!redoStack.length) return;
+  undoStack.push(snap()); applySnap(redoStack.pop()); save();
+};
+document.getElementById('clear').onclick=function(){ document.getElementById('ask').className='on'; };
+document.getElementById('askno').onclick=function(){ document.getElementById('ask').className=''; };
+document.getElementById('askyes').onclick=function(){
+  document.getElementById('ask').className='';
+  pushUndo(); cells=null; strokes=[]; live=null; replay(); save();
+};
+cv.addEventListener('pointerdown', function(e){
+  if(e.button!=null && e.button!==0) return;
+  e.preventDefault(); cv.setPointerCapture(e.pointerId);
+  var pt=paperPt(e);
+  if(tool==='pick'){ setColor(pickAt(pt.x, pt.y)); setTool(beforeTool||'brush'); return; }
+  if(tool==='fill'){ pushUndo(); strokes.push({k:'f', c:color, w:0, p:[pt.x, pt.y]}); live=null; replay(); save(); return; }
+  painting=true; live={k:tool==='erase'?'e':'s', c:color, w:size, p:[pt.x, pt.y]}; lastPt=pt; replay();
+});
+cv.addEventListener('pointermove', function(e){
+  if(!painting||!live) return;
+  var pt=paperPt(e);
+  live.p.push(pt.x, pt.y); lastPt=pt;
+  drawStroke({k:live.k,c:live.c,w:live.w,p:[live.p[live.p.length-4]||pt.x, live.p[live.p.length-3]||pt.y, pt.x, pt.y]});
+});
+function endStroke(){
+  if(!painting) return;
+  painting=false;
+  if(live && live.p.length>=2){ pushUndo(); strokes.push(live); saveSoon(); }
+  live=null; lastPt=null; replay();
+}
+cv.addEventListener('pointerup', endStroke);
+cv.addEventListener('pointercancel', endStroke);
+window.addEventListener('keydown', function(e){
+  var k=(e.key||'').toLowerCase();
+  if((e.ctrlKey||e.metaKey) && k==='z'){ e.preventDefault(); if(e.shiftKey) document.getElementById('redo').click(); else document.getElementById('undo').click(); return; }
+  if((e.ctrlKey||e.metaKey) && k==='y'){ e.preventDefault(); document.getElementById('redo').click(); return; }
+  if(e.target && (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')) return;
+  if(k==='b') setTool('brush');
+  else if(k==='e') setTool('erase');
+  else if(k==='g') setTool('fill');
+  else if(k==='i') setTool('pick');
+  else if(k==='['){ var el=document.getElementById('sz'); el.value=String(Math.max(1,(+el.value)-2)); el.dispatchEvent(new Event('input')); }
+  else if(k===']'){ var el2=document.getElementById('sz'); el2.value=String(Math.min(64,(+el2.value)+2)); el2.dispatchEvent(new Event('input')); }
+});
+window.addEventListener('resize', layout);
+layout();
+replay();
+function syncDebug(){
+  window.__paint={ tool:tool, color:color, size:size, n:strokes.length, cells:cells?cells.length:0, canUndo:!!undoStack.length, canRedo:!!redoStack.length };
+}
+syncDebug();
 </script>`;
 
   // The Calculator is a GRAPHING calculator in the Desmos idiom: an expression
@@ -4728,7 +4944,7 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     // contrast choices) and the tools whose own hue (calc blue, chat teal,
     // timer red, fortune gold) must become the computer's accent. Everything
     // else is a plain chrome app that takes the full remap.
-    const VAR_APPS = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1, pingpong: 1, calc: 1, chat: 1, timer: 1, fortune: 1, bible: 1 };
+    const VAR_APPS = { tictactoe: 1, connect4: 1, minesweeper: 1, chess: 1, pingpong: 1, calc: 1, chat: 1, timer: 1, fortune: 1, bible: 1, paint: 1, notes: 1 };
     // OS Help markdown packed into each seeded GIF. Filled per appId; a
     // missing entry still shows Help (the OS fallback for Invite/Save/Steal).
     const SAMPLE_HELP = {
@@ -4847,23 +5063,30 @@ The score, ball, and paddles live in this icon for the shared room. Close and re
 `,
       paint: `# Paint
 
-A 16×16 pixel pad you can doodle on together.
+A sketch pad. The picture lives in this icon, so Save (top bar) is how you take it with you, and **Invite** is how a friend draws on the same page.
 
 ## Draw
 
-Tap a colour in the palette, then drag across the grid. Keep the pointer down to paint a stroke; lift to stop.
+Drag on the page to paint. The bar along the top is:
 
-The first swatch is an eraser (the empty dark colour). After that: reds, oranges, yellow, greens, blues, purple, pink, brown, grey, and white.
+- **Brush** — freehand ink (keyboard **B**)
+- **Eraser** — lift ink off the page (**E**)
+- **Fill** — flood a region with the current colour (**G**)
+- **Eyedropper** — tap the page to pick a colour already on it (**I**)
 
-**Clear** wipes every pixel for everyone in the room. There is no undo except to paint over, so treat Clear as gone.
+Tap a swatch, or the colour chip, to change ink. The slider is brush size (**[** / **]**).
 
-## Play together
+## Undo
 
-On your own, it is a tiny sketchpad. **Invite** (top bar) and you share one canvas — their pixels land on yours as they draw. Anyone can Clear.
+**Undo** / **Redo** (or Ctrl+Z / Ctrl+Shift+Z) walk back through your strokes. **Clear** wipes the whole page for everyone — it asks first, and it cannot be undone after you confirm.
+
+## Together
+
+On your own it is a sketchbook. **Invite** and you share one page: their strokes land on yours as they draw. Anyone can Clear.
 
 ## Saved
 
-The picture lives in this icon. Close it and the pixels are still here.
+Every stroke is stored in this icon. Close it and the picture is still here. A doodle from the old 16×16 pad still opens as the base layer you can paint over.
 `,
       notes: `# Notes
 
