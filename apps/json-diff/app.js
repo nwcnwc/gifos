@@ -107,16 +107,20 @@
     var L = parseJson(leftText);
     var R = parseJson(rightText);
     if (L.empty && R.empty) {
-      return { empty: true, message: 'Paste both sides to compare.' };
+      return { empty: true, left: L, right: R, message: 'Paste both sides to compare.' };
     }
-    if (L.empty) return { empty: true, message: 'Left is empty — paste the old document.' };
-    if (R.empty) return { empty: true, message: 'Right is empty — paste the new document.' };
-    if (L.error || R.error) {
+    var bits = [];
+    if (L.empty) bits.push('Left is empty — paste the old document.');
+    else if (L.error) bits.push('Left is not valid JSON.');
+    if (R.empty) bits.push('Right is empty — paste the new document.');
+    else if (R.error) bits.push('Right is not valid JSON.');
+    if (bits.length) {
       return {
-        invalid: true,
+        empty: !!(L.empty || R.empty) && !L.error && !R.error,
+        invalid: !!(L.error || R.error),
         left: L,
         right: R,
-        message: 'Cannot compare until both sides are valid JSON.'
+        message: bits.join(' ')
       };
     }
     var out = diffPair(L.value, R.value, opts);

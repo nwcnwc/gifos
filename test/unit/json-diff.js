@@ -76,6 +76,8 @@ check('app.js exports parseJson / diffPair / compareTexts', !!(App && App.parseJ
   check('empty right is named', !!(R.empty && /right/i.test(R.message)), R);
   const bad = App.compareTexts('{', '{"a":1}');
   check('invalid vs valid refuses to compare', !!(bad.invalid && /valid JSON/i.test(bad.message)), bad);
+  const mixed = App.compareTexts('{', '');
+  check('invalid left and empty right names both', !!(mixed.invalid && /left/i.test(mixed.message) && /right/i.test(mixed.message)), mixed);
 }
 
 {
