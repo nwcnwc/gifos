@@ -127,14 +127,30 @@ const SCRIPTS = [
   'app.js',
 ];
 
-function jsLiteral(name, obj) {
-  // Inlined as <script>…</script>; a raw </script> inside a JSON string would
-  // close the tag. JSON never needs a real less-than in keys/values we emit.
-  return 'window.' + name + ' = ' + JSON.stringify(obj).replace(/<\/script/gi, '<\\/script') + ';\n';
+function assignLiteral(name, obj) {
+  // One JSON.parse of a modest string, then Object.assign. A single 24 MB
+  // object literal / JSON.parse hangs Chromium's parser for minutes.
+  const json = JSON.stringify(obj).replace(/</g, '\\u003c');
+  return 'window.' + name + ' = window.' + name + ' || {};\n' +
+    'Object.assign(window.' + name + ', JSON.parse(' + JSON.stringify(json) + '));\n';
 }
-const imagesJs = jsLiteral('HOUSE_IMAGES', images);
-const soundsJs = jsLiteral('HOUSE_SOUNDS', sounds);
-const roomsJs = jsLiteral('HOUSE_ROOMS', rooms);
+function chunkObj(obj, maxBytes) {
+  const keys = Object.keys(obj);
+  const chunks = [];
+  let cur = {}, size = 2;
+  for (const k of keys) {
+    const piece = JSON.stringify(obj[k]).length + k.length + 8;
+    if (Object.keys(cur).length && size + piece > maxBytes) {
+      chunks.push(cur);
+      cur = {};
+      size = 2;
+    }
+    cur[k] = obj[k];
+    size += piece;
+  }
+  if (Object.keys(cur).length) chunks.push(cur);
+  return chunks;
+}
 
 const files = {
   'manifest.json': JSON.stringify(manifest),
@@ -143,9 +159,6 @@ const files = {
   'vendor/css/game.css': gameCss,
   'COPYING-the-house.txt': read('vendor/COPYING-the-house.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
-  'images.js': imagesJs,
-  'sounds.js': soundsJs,
-  'rooms.js': roomsJs,
 };
 for (const s of SCRIPTS) {
   if (s === 'images.js' || s === 'sounds.js' || s === 'rooms.js') continue;
@@ -170,6 +183,28 @@ if (!html.includes('src="app.js" defer')) throw new Error('defer app');
 if (/type=["']module["']/.test(html)) throw new Error('module');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('url');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html) || /id=["']invite/i.test(html)) throw new Error('Invite');
+
+function emitChunks(prefix, name, obj, maxBytes) {
+  const chunks = chunkObj(obj, maxBytes);
+  if (!chunks.length) throw new Error(prefix + ' empty');
+  const names = [];
+  chunks.forEach((c, i) => {
+    const n = prefix + '-' + String(i).padStart(2, '0') + '.js';
+    files[n] = assignLiteral(name, c);
+    names.push(n);
+  });
+  return names;
+}
+const imageNames = emitChunks('images', 'HOUSE_IMAGES', images, 450000);
+const soundNames = emitChunks('sounds', 'HOUSE_SOUNDS', sounds, 450000);
+files['rooms.js'] = assignLiteral('HOUSE_ROOMS', rooms);
+const scriptTags = (arr) => arr.map((n) => '<script src="' + n + '"></script>').join('\n');
+files['index.html'] = files['index.html']
+  .replace(/<script src="images\.js"[^>]*><\/script>/, scriptTags(imageNames))
+  .replace(/<script src="sounds\.js"[^>]*><\/script>/, scriptTags(soundNames));
+if (!files['index.html'].includes('src="' + imageNames[0] + '"')) throw new Error('chunked images');
+if (imageNames.length < 4) throw new Error('too few image chunks ' + imageNames.length);
+console.log('chunks images', imageNames.length, 'sounds', soundNames.length);
 
 if (manifest.minBuild !== 947) throw new Error('minBuild');
 if (manifest.appId !== 'the-house') throw new Error('appId');
@@ -224,7 +259,7 @@ if (!rooms['room.html'].includes('id="note"')) throw new Error('room note hotspo
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
   if (/<\/script/i.test(s)) throw new Error(n + ' </script');
-  if (n.startsWith('vendor/') || n === 'images.js' || n === 'sounds.js' || n === 'rooms.js') continue;
+  if (n.startsWith('vendor/') || n.startsWith('images-') || n.startsWith('sounds-') || n === 'rooms.js') continue;
   if (/^\s*import\s/m.test(s) || /^\s*export\s/m.test(s)) throw new Error(n + ' ESM');
   for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(']) {
     if (s.includes(bad)) throw new Error(n + ' ' + bad);
