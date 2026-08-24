@@ -60,6 +60,13 @@ const GLYPHS = {
   'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '3': [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  '·': [0, 0, 0, 0b00100, 0, 0, 0],
+  '#': [0b01010, 0b11111, 0b01010, 0b01010, 0b11111, 0b01010, 0b00000],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -77,9 +84,10 @@ function drawText(put, x, y, str, s, r, g, b) {
 
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
-  const t = f / (FRAMES - 1);
-  const press = Math.sin(t * Math.PI);
-  const lit = 2 + Math.floor(t * 6) % 7;
+  // C major scale walking the white keys — the app, in one loop.
+  const scale = [0, 1, 2, 3, 4, 5, 6, 0];
+  const lit = scale[f % scale.length];
+  const press = f % 8 === 7 ? 0.35 : 1;
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
@@ -158,11 +166,26 @@ export function screenshotPng() {
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
   fill(0, 0, W, H, 18, 16, 24);
-  drawText(put, 48, 36, 'C MAJOR  SCALE', 6, 232, 196, 96);
-  drawText(put, 48, 100, 'PLAY  C D E F G A B C', 3, 244, 236, 220);
+  drawText(put, 36, 28, 'CHORDS', 4, 232, 196, 96);
+  drawText(put, 36, 78, 'C MAJOR  I  C E G', 5, 244, 236, 220);
+  drawText(put, 900, 28, 'QUIZ 7', 4, 232, 196, 96);
+  // Circle of fifths, C and G lit (tonic + fifth).
+  const cx = 1000, cy = 210, rr = 92;
+  const fifths = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'];
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const x = cx + Math.cos(a) * rr;
+    const y = cy + Math.sin(a) * rr;
+    const on = fifths[i] === 'C' || fifths[i] === 'G';
+    const r = on ? 232 : 40, g = on ? 196 : 36, b = on ? 96 : 48;
+    for (let dy = -16; dy <= 16; dy++) for (let dx = -16; dx <= 16; dx++) {
+      if (dx * dx + dy * dy <= 16 * 16) put((x + dx) | 0, (y + dy) | 0, r, g, b);
+    }
+    drawText(put, (x - (fifths[i].length === 2 ? 10 : 6)) | 0, (y - 8) | 0, fifths[i], 2, on ? 26 : 244, on ? 18 : 236, on ? 8 : 220);
+  }
   const whites = 14;
-  const ww = 70, x0 = 50, y0 = 200, wh = 420;
-  const goldKeys = { 0: 1, 2: 1, 4: 1, 5: 1, 7: 1, 9: 1, 11: 1 }; // C D E F G A B
+  const ww = 70, x0 = 36, y0 = 340, wh = 300;
+  const goldKeys = { 0: 1, 2: 1, 4: 1 }; // C E G — the I triad, mid-use
   for (let i = 0; i < whites; i++) {
     const x = x0 + i * ww;
     const lit = goldKeys[i];
@@ -172,9 +195,9 @@ export function screenshotPng() {
   const blackAt = [0, 1, 3, 4, 5, 7, 8, 10, 11, 12];
   for (const i of blackAt) {
     const x = x0 + i * ww + 48;
-    fill(x, y0, x + 38, y0 + 250, 22, 18, 24);
+    fill(x, y0, x + 38, y0 + 180, 22, 18, 24);
   }
-  drawText(put, 48, 650, 'HOME ROW OR TAP', 3, 184, 196, 176);
+  drawText(put, 36, 660, 'TAP THE KEYS  HOME ROW OR MIDI', 3, 184, 196, 176);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

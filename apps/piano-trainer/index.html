@@ -9,10 +9,13 @@
 <body>
 <header>
   <div class="brand"><span class="logo" aria-hidden="true"></span> Piano Trainer</div>
-  <div class="score">Quiz <span id="quizScore">0</span></div>
+  <div class="stats">
+    <span class="chip" id="doneChip" hidden></span>
+    <div class="score">Quiz <span id="quizScore">—</span></div>
+  </div>
 </header>
 
-<div class="modes" id="modes">
+<div class="modes" id="modes" role="tablist">
   <button type="button" data-mode="scales" class="on">Scales</button>
   <button type="button" data-mode="chords">Chords</button>
   <button type="button" data-mode="sevenths">Sevenths</button>
@@ -21,13 +24,18 @@
 </div>
 
 <div class="row">
-  <select id="tonic"></select>
+  <select id="tonic" aria-label="Key"></select>
   <label class="tog"><input type="checkbox" id="hard"> Hard</label>
   <label class="tog"><input type="checkbox" id="shuffle"> Shuffle</label>
 </div>
 
-<p class="prompt" id="prompt">Play the scale.</p>
+<div class="prompt-wrap">
+  <p class="prompt" id="prompt">Play the scale.</p>
+  <button type="button" class="hear" id="hearBtn">Hear</button>
+</div>
+<p class="coach" id="coach" hidden>Gold keys are next. Start on C — tap it, or press A.</p>
 <div class="quiz" id="quizBox" hidden></div>
+<div class="circle" id="circle" hidden></div>
 
 <div class="piano" id="piano"></div>
 <p class="hint" id="hint">Home row: A S D F G H J K L ; '  ·  black: W E T Y U O P</p>
@@ -37,6 +45,7 @@
   <button type="button" class="ghost" id="togetherBtn">Practice together</button>
 </div>
 <p class="note" id="togetherNote" hidden>Press Invite in the GifOS menu. A friend sees the same prompt.</p>
+<p class="note" id="friendNote" hidden></p>
 
 <script src="theory.js"></script>
 <script src="sound.js"></script>

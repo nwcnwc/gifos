@@ -76,7 +76,18 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 if (!files['COPYING-piano-trainer.txt'].includes('Zane Helton')) throw new Error('COPYING');
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("db('room')")) throw new Error('db');
 if (!files['app.js'].includes('Invite')) throw new Error('Invite copy');
-if (/soundfont|tauri|sentry/i.test(files['app.js'] + files['sound.js'])) throw new Error('CDN soundfont stays behind');
+{
+  const js = files['app.js'] + files['sound.js'] + files['theory.js'];
+  if (/gleitz|soundfont-player|@tauri-apps|src-tauri|tauri-plugin-sentry|react-scripts|create-react-app/i.test(js)) {
+    throw new Error('CDN samples / Tauri / CRA stay behind');
+  }
+  if (!files['sound.js'].includes('AudioContext') || !files['sound.js'].includes('createBuffer')) {
+    throw new Error('local piano bank (Web Audio) missing');
+  }
+  if (!files['app.js'].includes('pointermove') || !files['app.js'].includes('pointerId')) {
+    throw new Error('phone pointer tracking missing');
+  }
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;

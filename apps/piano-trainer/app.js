@@ -4,20 +4,13 @@
   var PT = window.PT, Snd = window.PTSound;
   var $ = function (id) { return document.getElementById(id); };
 
-  var WHITES = [48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72];
-  var BLACKS = [49, 51, 54, 56, 58, 61, 63, 66, 68, 70];
-  var HOME = {
-    KeyA: 48, KeyS: 50, KeyD: 52, KeyF: 53, KeyG: 55, KeyH: 57, KeyJ: 59,
-    KeyK: 60, KeyL: 62, Semicolon: 64, Quote: 65,
-    KeyW: 49, KeyE: 51, KeyT: 54, KeyY: 56, KeyU: 58, KeyO: 61, KeyP: 63
-  };
-
-  var state = {
-    mode: 'scales', tonicId: 'c-major', hard: false, shuffle: false,
-    held: {}, step: 0, target: [], quiz: null, quizScore: 0, together: false
-  };
+  var trainer = PT.Trainer.create();
   var saveDb = null, roomDb = null, me = { id: 'local', name: 'You' };
   var saveTimer = 0;
+  var together = false;
+  var pointers = {};
+  var firstRun = true;
+  var flashTimer = 0;
 
   try {
     if (window.gifos) {
@@ -26,106 +19,155 @@
     }
   } catch (e) {}
 
-  function tonic() {
-    var i;
-    for (i = 0; i < PT.TONICS.length; i++) if (PT.TONICS[i].id === state.tonicId) return PT.TONICS[i];
-    return PT.TONICS[0];
-  }
   function persist() {
     if (!saveDb) return;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       saveTimer = 0;
-      saveDb.put({
-        id: 'last', mode: state.mode, tonicId: state.tonicId,
-        hard: state.hard, shuffle: state.shuffle, quizScore: state.quizScore
-      }).catch(function () {});
-    }, 200);
+      var rec = PT.snapshot(trainer);
+      rec.seen = true;
+      saveDb.put(rec).catch(function () {});
+    }, 180);
   }
+
   function publish() {
-    if (!state.together || !roomDb || !me.id) return;
+    if (!together || !roomDb || !me.id) return;
     roomDb.put({
       id: me.id, name: me.name, at: Date.now(),
-      mode: state.mode, tonicId: state.tonicId, step: state.step,
-      quizPrompt: state.quiz && state.quiz.prompt
+      mode: trainer.mode, tonicId: trainer.tonicId, step: trainer.step,
+      quizPrompt: trainer.quiz && trainer.quiz.prompt
     }).catch(function () {});
   }
 
-  function buildTarget() {
-    var t = tonic();
-    var scale = PT.scaleNotes(t);
-    var mode = state.mode;
-    if (mode === 'quiz') {
-      state.target = [];
-      state.quiz = PT.quizItem();
-      state.step = 0;
-      return;
-    }
-    state.quiz = null;
-    var start = 0;
-    if (state.shuffle) start = Math.floor(Math.random() * 7);
-    if (mode === 'scales') {
-      var up = scale.slice(start).concat(scale.slice(1, start + 1).map(function (n) { return n + 12; }));
-      var down = up.slice().reverse().slice(1);
-      state.target = up.concat(down);
-    } else if (mode === 'chords') {
-      state.target = [];
-      var i;
-      for (i = 0; i < 7; i++) state.target.push(PT.triad(scale, (start + i) % 7));
-    } else if (mode === 'sevenths') {
-      state.target = [];
-      for (i = 0; i < 7; i++) state.target.push(PT.seventh(scale, (start + i) % 7));
-    } else if (mode === 'fifths') {
-      var note = scale[start];
-      state.target = [note, PT.fifthOf(scale, note)];
-    }
-    state.step = 0;
+  function paintCircle() {
+    var el = $('circle');
+    if (trainer.mode !== 'fifths') { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '';
+    var t = trainer.tonic();
+    var fifthName = PT.fifthAbove(t.name);
+    PT.FIFTHS.forEach(function (n, i) {
+      var a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'wedge' + (n === t.name ? ' on' : '') + (n === fifthName ? ' fifth' : '');
+      b.textContent = n;
+      b.setAttribute('aria-label', n + ' major');
+      b.style.left = (50 + 38 * Math.cos(a)) + '%';
+      b.style.top = (50 + 38 * Math.sin(a)) + '%';
+      b.onclick = function () {
+        var match = PT.TONICS.filter(function (x) { return x.kind === 'major' && x.name === n; })[0];
+        if (!match) return;
+        trainer.tonicId = match.id;
+        trainer.reset();
+        paint(); persist(); publish();
+      };
+      el.appendChild(b);
+    });
+    var hub = document.createElement('span');
+    hub.className = 'hub';
+    hub.textContent = t.name;
+    el.appendChild(hub);
   }
 
-  function currentWant() {
-    var w = state.target[state.step];
-    if (w == null) return [];
-    return Array.isArray(w) ? w : [w];
+  function midiFromPoint(x, y) {
+    var stack = document.elementsFromPoint ? document.elementsFromPoint(x, y) : [document.elementFromPoint(x, y)];
+    var i, el, m;
+    for (i = 0; i < stack.length; i++) {
+      el = stack[i];
+      if (!el || !el.getAttribute) continue;
+      m = parseInt(el.getAttribute('data-midi'), 10);
+      if (m) return m;
+    }
+    return 0;
   }
 
   function paintPiano() {
     var el = $('piano');
     el.innerHTML = '';
-    var want = currentWant();
+    var want = trainer.want();
     var nextSet = {};
-    if (!state.hard) want.forEach(function (n) { nextSet[n] = 1; nextSet[n + 12] = 1; nextSet[n - 12] = 1; });
-    var wCount = WHITES.length;
-    WHITES.forEach(function (midi, i) {
+    if (trainer.mode !== 'quiz' && !trainer.hard) {
+      want.forEach(function (n) {
+        nextSet[n] = 1; nextSet[n + 12] = 1; nextSet[n - 12] = 1;
+      });
+    }
+    if (trainer.mode === 'quiz' && trainer.quiz && trainer.quiz.type === 'play' && trainer.quiz.midi && !trainer.hard) {
+      nextSet[trainer.quiz.midi] = 1;
+      nextSet[trainer.quiz.midi + 12] = 1;
+    }
+    var wCount = PT.WHITES.length;
+    PT.WHITES.forEach(function (midi, i) {
       var k = document.createElement('button');
       k.type = 'button';
-      k.className = 'key white' + (state.held[midi] ? ' on' : '') + (nextSet[midi] ? ' next' : '');
+      k.className = 'key white' + (trainer.held[midi] ? ' on' : '') + (nextSet[midi] ? ' next' : '');
       k.style.left = (i * (100 / wCount)) + '%';
       k.style.width = (100 / wCount) + '%';
       k.setAttribute('data-midi', midi);
       k.setAttribute('aria-label', PT.noteName(midi));
+      var lab = document.createElement('span');
+      lab.className = 'letter';
+      lab.textContent = PT.noteName(midi);
+      k.appendChild(lab);
+      if (PT.HOME_LABEL[midi]) {
+        var h = document.createElement('span');
+        h.className = 'home';
+        h.textContent = PT.HOME_LABEL[midi];
+        k.appendChild(h);
+      }
       el.appendChild(k);
     });
-    BLACKS.forEach(function (midi) {
+    PT.BLACKS.forEach(function (midi) {
       var k = document.createElement('button');
       k.type = 'button';
-      k.className = 'key black' + (state.held[midi] ? ' on' : '') + (nextSet[midi] ? ' next' : '');
+      k.className = 'key black' + (trainer.held[midi] ? ' on' : '') + (nextSet[midi] ? ' next' : '');
       var after = -1, i;
-      for (i = 0; i < WHITES.length; i++) if (WHITES[i] < midi) after = i;
+      for (i = 0; i < PT.WHITES.length; i++) if (PT.WHITES[i] < midi) after = i;
       var slot = 100 / wCount;
-      k.style.left = ((after + 0.72) * slot) + '%';
+      k.style.left = ((after + 0.68) * slot) + '%';
       k.setAttribute('data-midi', midi);
       k.setAttribute('aria-label', PT.noteName(midi));
+      if (PT.HOME_LABEL[midi]) {
+        var hb = document.createElement('span');
+        hb.className = 'home';
+        hb.textContent = PT.HOME_LABEL[midi];
+        k.appendChild(hb);
+      }
       el.appendChild(k);
     });
   }
 
+  function degreeLabel() {
+    if (trainer.mode === 'quiz' || trainer.mode === 'scales') return '';
+    var t = trainer.tonic();
+    var rom = PT.romanOf(t.kind);
+    var idx = trainer.step % 7;
+    return rom[idx] || '';
+  }
+
   function paintPrompt() {
-    if (state.mode === 'quiz' && state.quiz) {
-      $('prompt').textContent = state.quiz.prompt;
+    $('quizScore').textContent = trainer.quizAsked ? String(trainer.quizScore) : '—';
+    var rounds = trainer.rounds | 0;
+    var chip = $('doneChip');
+    if (rounds) {
+      chip.hidden = false;
+      chip.textContent = rounds + (rounds === 1 ? ' round' : ' rounds');
+    } else {
+      chip.hidden = true;
+    }
+    var coach = $('coach');
+    if (firstRun && trainer.mode === 'scales' && trainer.step === 0 && !trainer.quizAsked) {
+      coach.hidden = false;
+      coach.textContent = 'Gold keys are next. Start on C — tap it, or press A.';
+    } else {
+      coach.hidden = true;
+    }
+    if (trainer.mode === 'quiz' && trainer.quiz) {
+      $('prompt').textContent = trainer.quiz.prompt;
       var box = $('quizBox');
       box.hidden = false;
       box.innerHTML = '';
-      state.quiz.options.forEach(function (opt) {
+      trainer.quiz.options.forEach(function (opt) {
         var b = document.createElement('button');
         b.type = 'button';
         b.textContent = opt;
@@ -134,57 +176,65 @@
       });
       return;
     }
-    $('quizBox').hidden = true;
-    var t = tonic();
-    var want = currentWant();
+    var boxOff = $('quizBox');
+    boxOff.hidden = true;
+    boxOff.innerHTML = '';
+    var t = trainer.tonic();
+    var want = trainer.want();
     var names = want.map(function (n) { return PT.noteName(n); }).join(' · ');
-    var label = { scales: 'scale', chords: 'triad', sevenths: 'seventh', fifths: 'fifth' }[state.mode] || 'notes';
-    $('prompt').textContent = t.label + ' · ' + label + (names && !state.hard ? ' · ' + names : '');
-    $('quizScore').textContent = String(state.quizScore);
+    var label = { scales: 'scale', chords: 'triad', sevenths: 'seventh', fifths: 'fifth' }[trainer.mode] || 'notes';
+    var deg = degreeLabel();
+    var bits = [t.label, label];
+    if (deg) bits.push(deg);
+    if (names && !trainer.hard) bits.push(names);
+    $('prompt').textContent = bits.join(' · ');
   }
 
   function answerQuiz(opt, btn) {
-    if (!state.quiz) return;
-    var ok = opt === state.quiz.answer;
-    btn.className = ok ? 'good' : 'bad';
-    if (ok) state.quizScore++;
+    if (trainer.mode !== 'quiz' || !trainer.quiz) return;
+    var ok = PT.scoreQuiz(trainer.quiz, opt).ok;
+    if (btn) btn.className = ok ? 'good' : 'bad';
+    trainer.answer(opt);
     persist();
-    setTimeout(function () { buildTarget(); paint(); publish(); }, 650);
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { paint(); publish(); }, ok ? 420 : 700);
   }
 
-  function paint() { paintPrompt(); paintPiano(); }
+  function paint() {
+    paintPrompt();
+    paintCircle();
+    paintPiano();
+    [].forEach.call($('modes').querySelectorAll('button'), function (x) {
+      x.classList.toggle('on', x.getAttribute('data-mode') === trainer.mode);
+    });
+    $('tonic').value = trainer.tonicId;
+    $('hard').checked = trainer.hard;
+    $('shuffle').checked = trainer.shuffle;
+  }
 
   function down(midi) {
-    if (state.held[midi]) return;
-    state.held[midi] = 1;
+    if (!midi || trainer.held[midi]) return;
     Snd.attack(midi);
-    checkProgress();
-    paintPiano();
-  }
-  function up(midi) {
-    if (!state.held[midi]) return;
-    delete state.held[midi];
-    Snd.release(midi);
-    paintPiano();
-  }
-
-  function checkProgress() {
-    if (state.mode === 'quiz') return;
-    var want = currentWant();
-    if (!want.length) return;
-    var held = Object.keys(state.held).map(Number);
-    if (want.length === 1) {
-      var hit = held.some(function (h) { return PT.samePitch(h, want[0]); });
-      if (!hit) return;
-    } else if (!PT.chordMatch(held, want)) return;
-    state.step++;
-    if (state.step >= state.target.length) {
+    var r = trainer.down(midi);
+    if (firstRun) { firstRun = false; trainer.seen = true; }
+    if (r.quiz && r.ok) persist();
+    if (r.complete) {
       $('prompt').textContent = 'Nice. Again.';
-      setTimeout(function () { buildTarget(); paint(); publish(); }, 500);
+      persist();
+      if (flashTimer) clearTimeout(flashTimer);
+      flashTimer = setTimeout(function () { paint(); publish(); }, 420);
+      paintPiano();
       return;
     }
     paint();
-    publish();
+    if (r.advanced) publish();
+  }
+
+  function up(midi) {
+    if (!midi || !trainer.held[midi]) return;
+    trainer.up(midi);
+    Snd.release(midi);
+    paintPiano();
   }
 
   function fillTonic() {
@@ -195,55 +245,103 @@
       o.value = t.id; o.textContent = t.label;
       sel.appendChild(o);
     });
-    sel.value = state.tonicId;
+    sel.value = trainer.tonicId;
+  }
+
+  function setMode(mode) {
+    if (PT.MODES.indexOf(mode) < 0) return;
+    if (flashTimer) clearTimeout(flashTimer);
+    trainer.mode = mode;
+    trainer.reset();
+    paint(); persist(); publish();
   }
 
   $('tonic').onchange = function () {
-    state.tonicId = this.value;
-    buildTarget(); paint(); persist(); publish();
+    trainer.tonicId = this.value;
+    trainer.reset(); paint(); persist(); publish();
   };
-  $('hard').onchange = function () { state.hard = this.checked; paint(); persist(); };
-  $('shuffle').onchange = function () { state.shuffle = this.checked; buildTarget(); paint(); persist(); };
+  $('hard').onchange = function () { trainer.hard = this.checked; paint(); persist(); };
+  $('shuffle').onchange = function () { trainer.shuffle = this.checked; trainer.reset(); paint(); persist(); };
   $('modes').onclick = function (e) {
     var b = e.target;
     if (!b.getAttribute || !b.getAttribute('data-mode')) return;
-    state.mode = b.getAttribute('data-mode');
-    [].forEach.call($('modes').querySelectorAll('button'), function (x) {
-      x.classList.toggle('on', x.getAttribute('data-mode') === state.mode);
-    });
-    buildTarget(); paint(); persist(); publish();
+    setMode(b.getAttribute('data-mode'));
+  };
+  $('hearBtn').onclick = function () {
+    var notes = trainer.mode === 'quiz' && trainer.quiz && trainer.quiz.notes
+      ? trainer.quiz.notes
+      : trainer.want();
+    if (!notes.length && trainer.quiz && trainer.quiz.midi) notes = [trainer.quiz.midi];
+    if (!notes.length) return;
+    Snd.playList(notes, notes.length > 1 ? 0.14 : 0);
   };
 
-  $('piano').addEventListener('pointerdown', function (e) {
-    var el = e.target;
-    var midi = el && el.getAttribute && parseInt(el.getAttribute('data-midi'), 10);
+  var piano = $('piano');
+  piano.addEventListener('pointerdown', function (e) {
+    var midi = midiFromPoint(e.clientX, e.clientY);
     if (!midi) return;
     e.preventDefault();
+    try { piano.setPointerCapture(e.pointerId); } catch (err) {}
+    if (pointers[e.pointerId] && pointers[e.pointerId] !== midi) up(pointers[e.pointerId]);
+    pointers[e.pointerId] = midi;
     down(midi);
-    var upOnce = function () { up(midi); window.removeEventListener('pointerup', upOnce); };
-    window.addEventListener('pointerup', upOnce);
   });
+  piano.addEventListener('pointermove', function (e) {
+    if (pointers[e.pointerId] == null) return;
+    var midi = midiFromPoint(e.clientX, e.clientY);
+    if (!midi || midi === pointers[e.pointerId]) return;
+    up(pointers[e.pointerId]);
+    pointers[e.pointerId] = midi;
+    down(midi);
+  });
+  function pointerEnd(e) {
+    var midi = pointers[e.pointerId];
+    if (!midi) return;
+    delete pointers[e.pointerId];
+    up(midi);
+  }
+  piano.addEventListener('pointerup', pointerEnd);
+  piano.addEventListener('pointercancel', pointerEnd);
+  piano.addEventListener('lostpointercapture', pointerEnd);
 
   window.addEventListener('keydown', function (e) {
     if (e.repeat) return;
-    var midi = HOME[e.code];
+    if (e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT')) return;
+    var midi = PT.HOME[e.code];
     if (!midi) return;
     e.preventDefault();
     down(midi);
   });
   window.addEventListener('keyup', function (e) {
-    var midi = HOME[e.code];
+    var midi = PT.HOME[e.code];
     if (!midi) return;
     up(midi);
   });
 
   $('togetherBtn').onclick = function () {
-    state.together = !state.together;
-    this.classList.toggle('on', state.together);
-    $('togetherNote').hidden = !state.together;
-    if (state.together) {
+    together = !together;
+    this.classList.toggle('on', together);
+    $('togetherNote').hidden = !together;
+    if (together) {
       publish();
-      if (roomDb) roomDb.subscribe(function () {});
+      if (roomDb && roomDb.subscribe) {
+        roomDb.subscribe(function (rows) {
+          var list = rows || [];
+          var other = null, i;
+          for (i = 0; i < list.length; i++) {
+            if (list[i] && list[i].id && list[i].id !== me.id) {
+              if (!other || (list[i].at || 0) > (other.at || 0)) other = list[i];
+            }
+          }
+          var note = $('friendNote');
+          if (!other) { note.hidden = true; return; }
+          note.hidden = false;
+          note.textContent = (other.name || 'Friend') + ' · ' + (other.mode || '') +
+            (other.quizPrompt ? ' · ' + other.quizPrompt : '');
+        });
+      }
+    } else {
+      $('friendNote').hidden = true;
     }
   };
 
@@ -264,9 +362,24 @@
     }).catch(function () {});
   }
 
+  function applyLaunch(go) {
+    if (!go) return;
+    if (go.mode) setMode(String(go.mode));
+    if (go.key) {
+      var want = String(go.key).toLowerCase();
+      var hit = PT.TONICS.filter(function (t) {
+        return t.id === want || t.label.toLowerCase() === want || t.id === want.replace(/\s+/g, '-');
+      })[0];
+      if (hit) {
+        trainer.tonicId = hit.id;
+        trainer.reset();
+        paint(); persist();
+      }
+    }
+  }
+
   function boot() {
     fillTonic();
-    buildTarget();
     paint();
     var p = Promise.resolve();
     if (window.gifos && gifos.me) {
@@ -278,24 +391,27 @@
     p.then(function () {
       if (!saveDb) return;
       return saveDb.get('last').then(function (rec) {
-        if (!rec) return;
-        if (rec.mode) state.mode = rec.mode;
-        if (rec.tonicId) state.tonicId = rec.tonicId;
-        state.hard = !!rec.hard;
-        state.shuffle = !!rec.shuffle;
-        state.quizScore = rec.quizScore | 0;
-        $('hard').checked = state.hard;
-        $('shuffle').checked = state.shuffle;
-        $('tonic').value = state.tonicId;
-        [].forEach.call($('modes').querySelectorAll('button'), function (x) {
-          x.classList.toggle('on', x.getAttribute('data-mode') === state.mode);
-        });
-        buildTarget(); paint();
+        if (!rec) {
+          firstRun = true;
+          trainer.reset();
+          paint();
+          return;
+        }
+        PT.applySave(trainer, rec);
+        firstRun = !rec.seen && !(rec.rounds | 0) && !(rec.quizAsked | 0);
+        trainer.reset();
+        paint();
       }).catch(function () {});
+    }).then(function () {
+      if (window.gifos && gifos.launch) {
+        return gifos.launch().then(applyLaunch).catch(function () {});
+      }
     }).then(tryMidi);
     if (window.gifos && gifos.onBack) {
       gifos.onBack(function () {
-        if (state.together) { $('togetherBtn').onclick(); return true; }
+        if (together) { $('togetherBtn').onclick(); return true; }
+        var coachEl = $('coach');
+        if (coachEl && !coachEl.hidden) { firstRun = false; paint(); return true; }
         return false;
       });
     }
