@@ -2959,12 +2959,39 @@
     }
     const line = document.createElement('div');
     line.textContent = 'Opening…';
+    const img = document.createElement('img');
+    img.setAttribute('style', 'width:96px;height:96px;object-fit:contain;image-rendering:pixelated;border-radius:12px;display:none');
+    img.alt = '';
+    let artUrl = null;
+    wrap.appendChild(img);
     wrap.appendChild(dot);
     wrap.appendChild(line);
     mountEl.innerHTML = '';
     mountEl.appendChild(wrap);
     return {
       say: (m) => { if (wrap.parentNode) line.textContent = m; },
+      // The app's own animation IS on-device before anything decodes — the
+      // splash shows it (display-only stripped bytes) so the wait is branded
+      // by the app from the first second, not by generic OS chrome.
+      art: (bytes) => {
+        try {
+          const shown = gif.stripForDisplay(bytes);
+          artUrl = URL.createObjectURL(new Blob([shown], { type: 'image/gif' }));
+          img.src = artUrl;
+          img.style.display = 'block';
+          setTimeout(() => { try { URL.revokeObjectURL(artUrl); } catch (e) {} }, 60000);
+        } catch (e) { /* identity is a nicety, never a blocker */ }
+      },
+      // Once the manifest lands, the wait takes the app's own color: a dark
+      // ground tinted with its accent, so the handoff to a dark app document
+      // is a dissolve, not a light-to-black cut.
+      tint: (accent) => {
+        if (!wrap.parentNode || !accent || accent.length < 3) return;
+        const c = (i) => Math.max(0, Math.min(80, Math.round(accent[i] * 0.25)));
+        wrap.style.background = 'rgb(' + (c(0) + 8) + ',' + (c(1) + 8) + ',' + (c(2) + 10) + ')';
+        wrap.style.color = 'rgb(' + Math.min(255, accent[0] + 60) + ',' + Math.min(255, accent[1] + 60) + ',' + Math.min(255, accent[2] + 60) + ')';
+        dot.style.background = 'rgb(' + accent[0] + ',' + accent[1] + ',' + accent[2] + ')';
+      },
       gone: () => !wrap.parentNode,
     };
   }
@@ -2977,12 +3004,18 @@
     const refuse = (m) => { setStatus(m); splash.say(m); return noop; };
     return Promise.all([store.getFile(fileId), store.allItems()]).then(([rec, all]) => {
       if (!rec) return refuse('File not found on this desktop.');
-      splash.say('Opening ' + String(rec.name || 'app').replace(/\.gif$/i, '') +
-        (rec.bytes && rec.bytes.length > 2097152 ? ' — unpacking ' + (rec.bytes.length / 1048576).toFixed(0) + ' MB…' : '…'));
+      const appName = String(rec.name || 'app').replace(/\.gif$/i, '');
+      const big = rec.bytes && rec.bytes.length > 2097152;
+      splash.say('Opening ' + appName + (big ? ' — unpacking ' + (rec.bytes.length / 1048576).toFixed(0) + ' MB…' : '…'));
+      if (big) splash.art(rec.bytes);
       const item = lock ? lock.itemOfFile(all, fileId) : null;
       const lockKey = (lock && lock.session.get(fileId)) || null;
       const appBytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
-      return Promise.all([gif.decode(appBytes), store.getState(fileId)]).then(([archive, st]) => {
+      const unpackNote = big ? {
+        onProgress: (frac, done, total) => splash.say('Unpacking ' + appName + ' — ' +
+          (done * 0.75 / 1048576).toFixed(1) + ' of ' + (total * 0.75 / 1048576).toFixed(1) + ' MB…'),
+      } : undefined;
+      return Promise.all([gif.decode(appBytes, unpackNote), store.getState(fileId)]).then(([archive, st]) => {
         const locked = !!(lock && (lock.isLockedItem(item) || lock.isSealed(st)));
         if (locked && !lockKey) {
           return refuse('This app is passkey-locked on this device. Unlock it with your passkey to open.');
@@ -3003,6 +3036,7 @@
       if (!archive) return refuse('Not a GifOS app — nothing to run.');
       const files = archive.files;
       const manifest = gif.readManifest(archive) || { name: rec.name || 'App' };
+      if (manifest.accent) splash.tint(manifest.accent);
       // System apps run as trusted first-party pages, not in the sandbox —
       // live media (camera/mic + WebRTC) is impossible from an opaque origin.
       // Whitelist only; a manifest can't route to arbitrary URLs.

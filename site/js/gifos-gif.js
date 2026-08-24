@@ -354,12 +354,13 @@
   // reads as a dead tap. The per-file loop now yields between ~4 MB slices
   // so paints and timers keep flowing; JSON.parse remains the one
   // unavoidable block. Returns Promise<archive|null>.
-  function parseArchive(jsonBytes) {
+  function parseArchive(jsonBytes, onProgress) {
     let archive;
     try { archive = JSON.parse(bytesToText(jsonBytes)); } catch (e) { return Promise.resolve(null); }
     const paths = Object.keys((archive && archive.files) || {});
     const out = { files: {} };
-    let i = 0;
+    let i = 0, done = 0, total = 0;
+    for (let k = 0; k < paths.length; k++) total += archive.files[paths[k]].length;
     const SLICE = 4 * 1024 * 1024;
     return new Promise((resolve) => {
       const step = () => {
@@ -369,9 +370,11 @@
             const p = paths[i++];
             const s = archive.files[p];
             budget -= s.length;
+            done += s.length;
             out.files[p] = b64decode(s);
           }
         } catch (e) { resolve(null); return; }
+        if (onProgress && total) { try { onProgress(done / total, done, total); } catch (e) { /* a UI hiccup never fails a decode */ } }
         if (i < paths.length) setTimeout(step, 0);
         else resolve(out);
       };
@@ -380,13 +383,18 @@
   }
 
 
-  function decode(bytes) {
+  // opts.onProgress(fraction, doneChars, totalChars) — called between decode
+  // slices so a launch surface can show a DETERMINATE unpack (an indeterminate
+  // spinner over a multi-second unpack reads as a hang; a blind critique
+  // failed the launch on exactly that). Optional and additive.
+  function decode(bytes, opts) {
+    const onProgress = opts && opts.onProgress;
     const payload = extractPayload(bytes);
     if (!payload || payload.length === 0) return Promise.resolve(null);
     if (payload[0] === COMPRESSED_FLAG) {
-      return inflate(payload.subarray(1)).then(parseArchive).catch(() => null);
+      return inflate(payload.subarray(1)).then((j) => parseArchive(j, onProgress)).catch(() => null);
     }
-    return parseArchive(payload); // legacy uncompressed JSON
+    return parseArchive(payload, onProgress); // legacy uncompressed JSON
   }
 
   // ---- display-only: the animation, without the filesystem ------------------
