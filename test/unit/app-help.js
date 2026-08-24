@@ -88,7 +88,46 @@ check('withOsFooter plugs remix: save the GIF, ask an AI, add it back',
 check('an empty help.md still gets the OS footer (and a title)',
   /^# Help/.test(help.withOsFooter('')) && /\*\*Invite\*\*/.test(help.withOsFooter('')));
 check('run.html opens Help through withOsFooter, so every screen gets the footer',
-  /withOsFooter\(currentAppHelpMd\(\)\)/.test(run));
+  /withOsFooter\(currentAppHelpMd\(\), appStoreMeta\)/.test(run));
+
+// CREDITS — the App Store record snapshotted at install, at the VERY BOTTOM.
+// Authors, porters and inspirations get their credit inside the running app,
+// as listed the day this copy was installed (a later listing edit does not
+// rewrite history on someone's desktop; an Update re-snapshots).
+const store = fs.readFileSync(path.join(ROOT, 'site', 'js', 'store.js'), 'utf8');
+check('creditsMd is on GifOS.help', typeof help.creditsMd === 'function');
+const META = {
+  name: 'Air Hockey', version: '1.0.0',
+  author: { name: 'MortimerGoro', url: 'https://github.com/MortimerGoro/AirHockeyWebGL' },
+  porter: { name: 'GifOS', url: 'https://gifos.app' },
+  basedOn: { name: 'AirHockeyWebGL', url: 'https://github.com/MortimerGoro/AirHockeyWebGL' },
+  inspiredBy: { name: '<img src=x onerror=alert(1)>', url: 'javascript:alert(1)', by: { name: 'Someone' } },
+  license: 'MIT', homepage: 'https://github.com/nwcnwc/gifos/tree/main/apps/air-hockey',
+  releaseDate: '2026-08-23', installedAt: '2026-08-24T17:40:00.000Z',
+};
+const credited = help.withOsFooter('# Hi\n\nBody.\n', META);
+const creditsAt = credited.indexOf('## Credits');
+check('credits render author, porter, basedOn, inspiredBy, license',
+  creditsAt !== -1 && /\*\*By\*\* \[MortimerGoro\]\(https:\/\/github\.com\/MortimerGoro\/AirHockeyWebGL\)/.test(credited)
+  && /Brought to GifOS by\*\* \[GifOS\]\(https:\/\/gifos\.app\)/.test(credited)
+  && /Based on\*\* \[AirHockeyWebGL\]/.test(credited) && /Inspired by\*\* .* by Someone/.test(credited)
+  && /License\*\* MIT/.test(credited));
+check('credits say WHEN this copy was installed', /installed on 2026-08-24/.test(credited));
+check('credits are the VERY BOTTOM — after the app help AND the OS footer',
+  creditsAt > credited.indexOf('## Make it yours') && credited.indexOf('## Make it yours') > credited.indexOf('Body.'));
+const creditedHtml = help.render(credited.slice(creditsAt));
+check('a listing cannot script the Help modal (HTML escaped, javascript: dropped)',
+  creditedHtml.indexOf('<img') === -1 && /&lt;img/.test(creditedHtml) && !/javascript:/i.test(creditedHtml));
+check('no snapshot, no Credits section (seeded and hand-built apps)',
+  help.withOsFooter('# Hi\n\nBody.\n').indexOf('## Credits') === -1 && help.withOsFooter('# Hi', null).indexOf('## Credits') === -1);
+check('the store snapshots the listing onto BOTH install paths (fresh install and Update)',
+  (store.match(/storeMeta: storeSnapshot\(app\)/g) || []).length === 2);
+check('the snapshot carries author, porter, basedOn, inspiredBy, license and installedAt',
+  /function storeSnapshot\(app\)/.test(store) && /author: pick\(app\.author\)/.test(store) && /porter: pick\(app\.porter\)/.test(store)
+  && /basedOn: pick\(app\.basedOn\)/.test(store) && /inspiredBy: pick\(app\.inspiredBy\)/.test(store)
+  && /license: app\.license/.test(store) && /installedAt: new Date\(\)\.toISOString\(\)/.test(store));
+check('run.html reads the snapshot off the file record for solo AND host mounts, and clears it for a guest',
+  (runtime.length > 0) && (run.match(/appStoreMeta = (\(rec && )?rec\.storeMeta/g) || []).length === 2 && /appStoreMeta = null;/.test(run));
 
 console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
 process.exit(failures ? 1 : 0);

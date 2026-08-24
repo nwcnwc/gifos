@@ -664,6 +664,21 @@
   // the icon, its placement and the app's saved data (all keyed by fileId)
   // survive — the code is the only thing that changes. This is exactly the
   // swap the seeded-app reseed does; store installs finally get it too.
+  // What the Help screen credits, frozen at install time. The listing can
+  // change after the install (an author renames, a port gets blessed); the
+  // copy on this desktop says what was true for THIS version, on THIS day —
+  // and it is re-snapshotted on every Update, so credit follows the version.
+  // Rendered by gifos-help.js creditsMd, under the OS footer.
+  function storeSnapshot(app) {
+    const pick = (p) => (p && typeof p === 'object') ? { name: p.name || '', url: p.url || '', by: p.by || undefined, blessed: p.blessed } : (p || undefined);
+    return {
+      slug: app.slug || null, appId: app.appId || null, name: app.name || '', version: app.version || '',
+      author: pick(app.author), porter: pick(app.porter), basedOn: pick(app.basedOn), inspiredBy: pick(app.inspiredBy),
+      license: app.license || '', homepage: app.homepage || '', releaseDate: app.releaseDate || '', updated: app.updated || '',
+      sha256: app.sha256 || null, installedAt: new Date().toISOString(),
+    };
+  }
+
   async function install(app, into) {
     const btn = $(into ? 'update' : 'install'), note = $('note'), prog = $('prog'), err = $('err');
     const fail = (msg) => { err.style.display = ''; err.textContent = msg; btn.disabled = false; prog.style.display = 'none'; };
@@ -800,7 +815,7 @@
         // new bytes. No placement hand-off: the icon already lives somewhere.
         await store.putFile({ id: into.id, name: into.name || (app.name + '.gif'), bytes, kind: 'gif',
           isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif',
-          storeSha: app.sha256 || null });
+          storeSha: app.sha256 || null, storeMeta: storeSnapshot(app) });
         await rememberInstall(into.id);
         await fetchAssets(into.id);
         await refreshInstalled();
@@ -816,7 +831,7 @@
       if (past && !(await store.getFile(past).catch(() => null))) fileId = past;
       await store.putFile({ id: fileId, name: app.name + '.gif', bytes, kind: 'gif',
         isApp: true, appId: m.appId, accent: m.accent || app.accent || null, mime: 'image/gif',
-        storeSha: app.sha256 || null });
+        storeSha: app.sha256 || null, storeMeta: storeSnapshot(app) });
       await rememberInstall(fileId);
       await fetchAssets(fileId);
       // Hand the placement to desktop.js's saveItem — the only writer of items.
