@@ -622,7 +622,10 @@
     '8': [0x0e,0x11,0x11,0x0e,0x11,0x11,0x0e], '9': [0x0e,0x11,0x11,0x0f,0x01,0x02,0x0c],
     '-': [0x00,0x00,0x00,0x1f,0x00,0x00,0x00], '.': [0x00,0x00,0x00,0x00,0x00,0x06,0x06],
     ':': [0x00,0x06,0x06,0x00,0x06,0x06,0x00], ' ': [0,0,0,0,0,0,0],
-    '!': [0x04,0x04,0x04,0x04,0x04,0x00,0x04]
+    '!': [0x04,0x04,0x04,0x04,0x04,0x00,0x04],
+    'Q': [0x0e,0x11,0x11,0x11,0x15,0x12,0x0d], 'X': [0x11,0x11,0x0a,0x04,0x0a,0x11,0x11],
+    '(': [0x02,0x04,0x08,0x08,0x08,0x04,0x02], ')': [0x08,0x04,0x02,0x02,0x02,0x04,0x08],
+    ',': [0x00,0x00,0x00,0x00,0x06,0x06,0x08], '/': [0x01,0x02,0x02,0x04,0x08,0x08,0x10]
   };
   function drawText(ctx, x, y, str, scale, color) {
     scale = scale || 1;
@@ -712,6 +715,31 @@
     }
     ctx.restore();
   }
+  /* Sparks and blasts are drawn as filled pixel bursts, not as an expanding
+     stroked circle: at 4 + t/30 that ring grew past a whole tile and read as a
+     rendering fault rather than an explosion. */
+  var BOOM_STEPS = [
+    { r: 3, c: ['#FFFFFF'] },
+    { r: 6, c: ['#E79C21', '#FFFFFF'] },
+    { r: 9, c: ['#B53121', '#E79C21', '#FFFFFF'] },
+    { r: 7, c: ['#B53121', '#E79C21'] },
+    { r: 4, c: ['#6B0800', '#B53121'] }
+  ];
+  function drawBoom(ctx, f) {
+    var life = f.big ? 450 : 180;
+    var span = f.big ? BOOM_STEPS.length : 3;
+    var k = Math.floor((f.t / life) * span);
+    if (k < 0 || k >= span) return;
+    var step = BOOM_STEPS[f.big ? k : k + 1];
+    var cx = f.x + 8, cy = f.y + 8, scale = f.big ? 1 : 0.6;
+    for (var i = step.c.length - 1; i >= 0; i--) {
+      var rad = Math.max(1, Math.round(step.r * scale * (i + 1) / step.c.length));
+      ctx.fillStyle = step.c[i];
+      ctx.fillRect(cx - rad, cy - rad + 1, rad * 2, rad * 2 - 2);
+      ctx.fillRect(cx - rad + 1, cy - rad, rad * 2 - 2, rad * 2);
+    }
+  }
+
   function drawPup(ctx, pup) {
     if (!pup) return;
     if (((pup.blink / 120) | 0) % 2) return;
@@ -726,6 +754,7 @@
     ctx.fillStyle = '#757575'; ctx.fillRect(0, 0, 256, 240);
     ctx.save();
     ctx.translate(B, B);
+    ctx.beginPath(); ctx.rect(0, 0, SIZE, SIZE); ctx.clip();
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SIZE, SIZE);
     var t = g.time || 0;
     for (var i = 0; i < N_TILE * N_TILE; i++) {
@@ -745,11 +774,7 @@
     for (i = 0; i < g.tanks.length; i++) drawTank(ctx, g.tanks[i], t);
     for (i = 0; i < N_TILE * N_TILE; i++) if (g.map.forests[i]) drawForest(ctx, (i % N_TILE) * B, ((i / N_TILE) | 0) * B);
     drawPup(ctx, g.pup);
-    for (i = 0; i < g.fx.length; i++) {
-      var f = g.fx[i], rad = 4 + f.t / 30;
-      ctx.strokeStyle = f.big ? '#E79C21' : '#fff';
-      ctx.beginPath(); ctx.arc(f.x + 8, f.y + 8, rad, 0, Math.PI * 2); ctx.stroke();
-    }
+    for (i = 0; i < g.fx.length; i++) drawBoom(ctx, g.fx[i]);
     ctx.restore();
 
     /* HUD */

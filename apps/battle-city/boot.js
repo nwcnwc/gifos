@@ -15,20 +15,49 @@
   var lastWorldAt = 0;
   var guestFireN = 0;
   var touchOn = false;
+  var startBtn = null, pauseBtn = null;
   var g = BC.create();
 
+  /* The board is 256x240. Fill the screen with it: an integer-only scale threw
+     away half a phone (390x844 floors to 1x — a postage stamp in the corner
+     with the pad marooned 500px below it). Quarter steps keep the pixels even
+     enough at any sane density and never waste more than 8%. */
   function fit() {
     var w = root.innerWidth, h = root.innerHeight;
-    var scale = Math.floor(Math.min(w / 256, h / 240));
-    if (scale < 1) scale = Math.min(w / 256, h / 240);
-    canvas.style.width = Math.floor(256 * scale) + 'px';
-    canvas.style.height = Math.floor(240 * scale) + 'px';
+    var padH = touchOn ? Math.min(300, Math.max(226, h * 0.30)) : 0; /* pad + the button slot above it */
+    var availH = Math.max(120, h - padH);
+    var scale = Math.min(w / 256, availH / 240);
+    if (scale >= 1) scale = Math.floor(scale * 4) / 4;
+    canvas.style.width = Math.round(256 * scale) + 'px';
+    canvas.style.height = Math.round(240 * scale) + 'px';
+    document.body.style.paddingBottom = padH + 'px';
   }
   fit();
   root.addEventListener('resize', fit);
+  if (root.visualViewport) root.visualViewport.addEventListener('resize', fit);
 
-  function pushDir(d) { if (dirStack.indexOf(d) < 0) dirStack.push(d); }
-  function pullDir(d) { var i = dirStack.indexOf(d); if (i >= 0) dirStack.splice(i, 1); }
+  /* A tap is shorter than a frame, so press+release used to land in the same
+     gap between two ticks and the tank never saw it — a d-pad tap did nothing
+     at all, and neither did a tap on the menu. Hold a direction for a beat
+     after release so a tap is always worth one turn and a short nudge. */
+  var MIN_HOLD = 120;
+  var holdUntil = {}, holdTok = {};
+
+  function dropDir(d) { var i = dirStack.indexOf(d); if (i >= 0) dirStack.splice(i, 1); }
+  function pushDir(d) {
+    if (dirStack.indexOf(d) < 0) dirStack.push(d);
+    holdUntil[d] = Date.now() + MIN_HOLD;
+    holdTok[d] = (holdTok[d] || 0) + 1;
+  }
+  function pullDir(d) {
+    var left = (holdUntil[d] || 0) - Date.now();
+    if (left > 0) {
+      var tok = holdTok[d];
+      root.setTimeout(function () { if (holdTok[d] === tok) dropDir(d); }, left);
+      return;
+    }
+    dropDir(d);
+  }
   function currentDir() { return dirStack.length ? dirStack[dirStack.length - 1] : null; }
 
   function onKey(e, down) {
@@ -66,6 +95,7 @@
       touchOn = true;
       document.body.classList.add('touch');
       wrap.hidden = false;
+      fit(); /* the pad now owns the bottom strip — re-fit the board above it */
       document.removeEventListener('touchstart', reveal);
     }
     document.addEventListener('touchstart', reveal, { passive: true });
@@ -89,7 +119,18 @@
     bindHold(document.getElementById('t-fire'), function () { fireEdge = true; keys.fire = 1; }, function () { keys.fire = 0; });
     bindHold(document.getElementById('t-start'), function () { startEdge = true; }, function () {});
     bindHold(document.getElementById('t-pause'), function () { pauseEdge = true; }, function () {});
+    startBtn = document.getElementById('t-start');
+    pauseBtn = document.getElementById('t-pause');
   })();
+
+  /* START belongs to the title and the game-over screen; PAUSE belongs to the
+     fight. Showing both always put two chrome buttons over the board. */
+  function syncPad() {
+    if (!touchOn) return;
+    var titleish = g.phase === 'title' || g.phase === 'over' || g.phase === 'win';
+    if (startBtn) startBtn.style.display = titleish ? '' : 'none';
+    if (pauseBtn) pauseBtn.style.display = titleish ? 'none' : '';
+  }
 
   function playSfx(list) {
     if (!list || !Sfx) return;
@@ -213,6 +254,7 @@
 
     publishMine(fireEdge);
     fireEdge = false; startEdge = false; pauseEdge = false;
+    syncPad();
     BC.render(ctx, g);
     root.requestAnimationFrame(frame);
   }

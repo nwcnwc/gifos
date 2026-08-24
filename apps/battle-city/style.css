@@ -2,6 +2,7 @@ html, body {
   margin: 0;
   padding: 0;
   background: #000;
+  box-sizing: border-box;
   color: #e7e794;
   font-family: ui-monospace, "Cascadia Mono", "Courier New", monospace;
   height: 100%;
@@ -10,16 +11,17 @@ html, body {
   user-select: none;
   -webkit-user-select: none;
 }
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 #game {
   display: block;
-  margin: 0 auto;
+  margin: 0;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #757575;
-  max-width: 100vw;
-  max-height: 100vh;
-  width: auto;
-  height: 100%;
 }
 
 #touch {
@@ -27,13 +29,20 @@ html, body {
   inset: 0;
   pointer-events: none;
 }
+/* On a black page a 45%-black button is invisible: the pad read as four
+   floating arrows with no target to aim at. Give every control a rim. */
 #touch button {
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
-  border: 0;
+  border: 2px solid rgba(231, 156, 33, 0.55);
   color: #e7e794;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(90, 90, 90, 0.28);
   font: 700 16px/1 ui-monospace, monospace;
+  transition: background 60ms linear;
+}
+#touch button:active {
+  background: rgba(231, 156, 33, 0.45);
+  color: #000;
 }
 
 #dpad {
@@ -64,15 +73,20 @@ html, body {
   font-size: 18px !important;
   letter-spacing: 0.08em;
 }
+/* START and PAUSE used to sit at the top-right, directly over the enemy
+   counter and the score column. They live in the empty strip between the pad
+   and FIRE instead, where nothing is drawn. */
 #t-start, #t-pause {
   position: absolute;
-  top: max(10px, env(safe-area-inset-top));
-  width: 72px;
-  height: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 76px;
+  height: 38px;
   border-radius: 8px;
   font-size: 12px !important;
 }
-#t-start { right: max(96px, env(safe-area-inset-right)); }
-#t-pause { right: max(16px, env(safe-area-inset-right)); }
-
-body.touch #game { height: 100%; }
+/* Above the d-pad, not beside it: the centre column between the pad and FIRE
+   is only ~114px on a 390pt phone and vanishes entirely on a 320pt one, so a
+   button parked there lands on the right arrow. Only one of the two is ever
+   visible, so they share the slot. */
+#t-start, #t-pause { bottom: calc(max(16px, env(safe-area-inset-bottom)) + 172px); }
