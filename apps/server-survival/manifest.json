@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "server-survival",
+  "name": "Server Survival",
+  "shortName": "Servers",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Build a cloud, survive the traffic. A tower defense that teaches infrastructure.",
+  "entry": "index.html",
+  "accent": [0, 255, 133],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}

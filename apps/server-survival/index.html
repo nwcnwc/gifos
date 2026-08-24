@@ -1,0 +1,1717 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Server Survival — learn cloud architecture by playing</title>
+  <meta name="description"
+    content="A browser game that teaches real cloud architecture: load balancing, caching, autoscaling, circuit breakers, multi-region failover and GPU inference economics. 25 campaign levels, 11 languages, no install." />
+  <meta name="theme-color" content="#050505" />
+<!-- Link previews: a bare URL in a chat or a tweet showed nothing at all,
+       which is the whole first impression for a project people arrive at
+       through links. -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Server Survival — learn cloud architecture by playing" />
+  <meta property="og:description"
+    content="Build a cloud that survives real traffic: caching, autoscaling, circuit breakers, multi-region failover, GPU inference. Free, open source, runs in the browser." />
+<meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Server Survival — learn cloud architecture by playing" />
+  <meta name="twitter:description"
+    content="Build a cloud that survives real traffic. 25 campaign levels, 11 languages, no install." />
+<link rel="stylesheet" href="vendor/tailwind.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <!-- UI Overlay: Top Bar -->
+  <div class="absolute top-0 left-0 w-full h-full pointer-events-none">
+    <!-- Stats Panel (Top Left) -->
+    <div id="statsPanel" class="absolute top-4 left-4 glass-panel rounded-xl p-5 w-80 pointer-events-auto">
+      <div class="flex justify-between items-end mb-3 border-b border-gray-700 pb-2">
+        <h1 data-i18n="survival" class="text-2xl font-bold text-red-500 tracking-widest animate-pulse">
+          SURVIVAL
+        </h1>
+        <span class="text-xs text-gray-500 font-mono">v3.0</span>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex justify-between items-center">
+          <span data-i18n="budget" class="text-gray-400 text-sm">BUDGET</span>
+          <span id="money-display"
+            class="text-green-400 font-mono text-xl font-bold transition-colors duration-300">$500</span>
+        </div>
+        <div class="flex justify-between items-center text-xs">
+          <span data-i18n="upkeep_cost" class="text-gray-500">Upkeep Cost</span>
+          <span id="upkeep-display" class="text-red-400 font-mono">-$0.00/s</span>
+        </div>
+        <div class="flex justify-between items-center text-xs">
+          <span data-i18n="elapsed_time" class="text-gray-500">Elapsed Time</span>
+          <span id="elapsed-time" class="text-gray-400 font-mono">00:00</span>
+        </div>
+        <!-- Power grid (#87): shown only once a GPU or Substation exists -->
+        <div id="power-row" class="flex justify-between items-center text-xs hidden">
+          <span class="flex items-center gap-1 text-gray-500">
+            <svg viewBox="0 0 16 16" class="w-3 h-3 text-yellow-400" fill="none" stroke="currentColor"
+              stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 1.5 3.5 9h3L7 14.5 12.5 7h-3Z" />
+            </svg>
+            <span data-i18n="power_label">Power</span>
+          </span>
+          <span id="power-display" class="text-yellow-300 font-mono">0/8 kW</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span data-i18n="reputation" class="text-gray-400 text-sm">REPUTATION</span>
+          <div class="flex items-center gap-2">
+            <div class="w-24 h-3 bg-gray-800 rounded-full overflow-hidden relative">
+              <div id="rep-bar" class="h-full bg-yellow-500 transition-all duration-500" style="width: 100%"></div>
+            </div>
+            <span id="rep-display" class="text-yellow-400 font-mono text-sm w-10 text-right">100%</span>
+          </div>
+        </div>
+        <div class="flex justify-between items-center pt-1">
+          <span data-i18n="load_rps" class="text-gray-400 text-sm">LOAD (RPS)</span>
+          <span id="rps-display" class="text-blue-300 font-mono text-sm">0.0 req/s</span>
+        </div>
+        <div class="flex justify-between items-center text-xs" id="rps-milestone-row">
+          <span data-i18n="next_rps_surge" class="text-gray-500">Next RPS Surge</span>
+          <div class="flex items-center gap-2 font-mono">
+            <span id="rps-next" class="text-orange-400">×1.0</span>
+          <span data-i18n="in" class="text-gray-600">in</span>
+          <span id="rps-countdown" class="text-cyan-400">0:00</span>
+          </div>
+        </div>
+        <div class="flex justify-between items-center pt-1">
+          <span data-i18n="traffic" class="text-gray-400 text-sm">TRAFFIC</span>
+          <div class="flex gap-1 text-[10px] font-mono">
+            <span class="text-green-400" id="mix-static" data-i18n-title="traffic_static" title="Static GET">ST</span>
+            <span class="text-blue-400" id="mix-read" data-i18n-title="traffic_read" title="Read GET">RD</span>
+            <span class="text-orange-400" id="mix-write" data-i18n-title="traffic_write" title="Write POST">WR</span>
+            <span class="text-yellow-400" id="mix-upload" data-i18n-title="traffic_upload" title="Upload">UP</span>
+            <span class="text-cyan-400" id="mix-search" data-i18n-title="traffic_search" title="Search">SR</span>
+            <span class="text-fuchsia-400" id="mix-inference" data-i18n-title="traffic_inference" title="Inference">AI</span>
+            <span class="text-red-400" id="mix-malicious" data-i18n-title="traffic_malicious" title="Malicious">⚠️</span>
+          </div>
+        </div>
+
+        <!-- Failures Table -->
+        <div id="failures-panel" class="mt-2 pt-2 border-t border-gray-700/50 hidden">
+          <div class="flex justify-between items-center mb-2">
+            <span data-i18n="failures" class="text-gray-500 text-xs uppercase">Failures</span>
+            <span id="failures-total" class="text-red-400 font-mono text-xs">0 <span data-i18n="total">total</span></span>
+            <button id="clear-all" class="text-gray-500 hover:text-white text-[10px] font-mono transition" title="Clear all failures" > Clear </button>
+          </div>
+          <table class="w-full text-[10px] font-mono">
+            <thead>
+              <tr class="text-gray-500">
+                <th data-i18n="type" class="text-left font-normal">Type</th>
+                <th data-i18n="count" class="text-right font-normal">Count</th>
+                <th data-i18n="rep_loss" class="text-right font-normal">Rep Loss</th>
+              </tr>
+            </thead>
+            <tbody id="failures-tbody">
+              <tr class="text-purple-400" id="fail-row-malicious">
+                <td data-i18n="fraud_leak">🛡️ Fraud Leak</td>
+                <td class="text-right" id="fail-malicious">0</td>
+                <td class="text-right text-red-400" id="fail-malicious-rep">
+                  0
+                </td>
+              </tr>
+              <tr class="text-green-400" id="fail-row-static">
+                <td data-i18n="fail_static">ST Static</td>
+                <td class="text-right" id="fail-static">0</td>
+                <td class="text-right text-red-400" id="fail-static-rep">
+                  0
+                </td>
+              </tr>
+              <tr class="text-blue-400" id="fail-row-read">
+                <td data-i18n="fail_read">RD Read</td>
+                <td class="text-right" id="fail-read">0</td>
+                <td class="text-right text-red-400" id="fail-read-rep">0</td>
+              </tr>
+              <tr class="text-orange-400" id="fail-row-write">
+                <td data-i18n="fail_write">WR Write</td>
+                <td class="text-right" id="fail-write">0</td>
+                <td class="text-right text-red-400" id="fail-write-rep">0</td>
+              </tr>
+              <tr class="text-yellow-400" id="fail-row-upload">
+                <td data-i18n="fail_upload">UP Upload</td>
+                <td class="text-right" id="fail-upload">0</td>
+                <td class="text-right text-red-400" id="fail-upload-rep">
+                  0
+                </td>
+              </tr>
+              <tr class="text-cyan-400" id="fail-row-search">
+                <td data-i18n="fail_search">SR Search</td>
+                <td class="text-right" id="fail-search">0</td>
+                <td class="text-right text-red-400" id="fail-search-rep">
+                  0
+                </td>
+              </tr>
+              <tr class="text-fuchsia-400" id="fail-row-inference">
+                <td data-i18n="fail_inference">AI Inference</td>
+                <td class="text-right" id="fail-inference">0</td>
+                <td class="text-right text-red-400" id="fail-inference-rep">
+                  0
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex justify-between items-center pt-3 border-t border-gray-700 mt-2">
+          <span data-i18n="total_score" class="text-gray-300 font-bold text-lg">TOTAL SCORE</span>
+          <span id="total-score-display" class="text-white font-mono text-2xl font-bold">0</span>
+        </div>
+        <!-- Rolling goodput (#261): a BOUNDED ratio over the last 30 game
+             seconds, unlike reputation which is an unbounded integral pinned
+             at 100 for most of a run. Shows "--" until the window has data:
+             an idle board has no goodput, and printing 100% for "nothing
+             happened" is the exact lie reputation already tells. -->
+        <div class="flex justify-between items-center pt-2">
+          <span data-i18n="goodput_label" data-i18n-title="goodput_hint" class="text-gray-400 text-sm"
+                title="Share of the last 30 seconds of demand answered while someone still wanted it.">GOODPUT (30s)</span>
+          <span id="goodput-display" class="text-gray-500 font-mono text-lg font-bold">--</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="absolute top-4 right-4 flex flex-col gap-3 items-end pointer-events-none">
+      <!-- Score Details Panel (Top Right) -->
+      <div id="detailsPanel" class="glass-panel rounded-xl p-4 w-60 pointer-events-auto">
+        <h3 data-i18n="traffic_score_details" class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 border-b border-gray-700 pb-1">
+          Traffic Score Details
+        </h3>
+        <div class="space-y-1 text-sm font-mono">
+          <div class="flex justify-between items-center">
+            <span data-i18n="storage_s3" class="text-gray-500">Storage (S3)</span>
+            <span id="score-storage" class="text-emerald-300">0</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span data-i18n="database_sql" class="text-gray-500">Database (SQL)</span>
+            <span id="score-database" class="text-red-300">0</span>
+          </div>
+          <div class="flex justify-between items-center pt-1 border-t border-gray-800">
+            <span data-i18n="attacks_blocked" class="text-purple-300 font-bold">ATTACKS BLOCKED</span>
+            <span id="score-malicious" class="text-purple-300">0</span>
+          </div>
+          <!-- Score lost to failures. Hidden until something fails, so a clean
+               board is not decorated with a zero; shown when it is, so the
+               three rows plus this one add up to the TOTAL SCORE above. -->
+          <div id="score-penalties-row" class="flex justify-between items-center hidden">
+            <span data-i18n="failures" class="text-gray-500">Failures</span>
+            <span id="score-penalties" class="text-red-300">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Service Health Panel (Under Score Details) -->
+      <div id="healthPanel" class="glass-panel rounded-xl p-4 w-72 pointer-events-auto transition-all duration-300">
+        <div class="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
+          <h3 data-i18n="service_health" class="text-xs font-bold text-red-400 uppercase tracking-wider">
+            Service Health
+          </h3>
+          <div class="flex items-center gap-2">
+            <button id="auto-repair-toggle" onclick="toggleAutoRepair()"
+              class="px-2 py-0.5 rounded text-xs font-mono bg-gray-700 text-gray-400 hover:bg-gray-600 transition"
+              title="Auto-repair services (+10% upkeep)"
+              data-i18n="auto_repair"
+              data-i18n-title="auto_repair_hint">
+              Auto-Repair: OFF
+            </button>
+            <button onclick="togglePanel('health-panel-content', 'health-panel-icon')"
+              class="w-6 h-6 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 text-gray-400 transition">
+              <span id="health-panel-icon" class="text-[10px]">▲</span>
+            </button>
+          </div>
+        </div>
+        <div id="health-panel-content">
+          <div id="service-health-list" class="text-sm font-mono mb-2">
+            <div data-i18n="all_services_healthy" class="text-green-400 text-xs">All services healthy</div>
+          </div>
+          <div id="repair-cost-table" class="text-xs border-t border-gray-700 pt-2 hidden">
+            <div class="grid grid-cols-3 gap-1 text-gray-500 mb-1">
+              <span data-i18n="service">Service</span>
+              <span data-i18n="repair" class="text-center">Repair</span>
+              <span data-i18n="auto_repair_min" class="text-right">Auto Repair/min</span>
+            </div>
+            <div id="repair-cost-rows" class="space-y-0.5"></div>
+          </div>
+          <div class="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-700 space-y-1">
+            <div data-i18n="manual_repair_hint">🔧 Click damaged services to repair manually</div>
+            <div data-i18n="auto_repair_hint">⚡ Auto-Repair: Heals services at 10% of service cost/min</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metrics Panel (#194 — Under Service Health, locked until a Monitoring service is placed) -->
+      <div id="metricsPanel" class="glass-panel rounded-xl p-4 w-72 pointer-events-auto transition-all duration-300">
+        <div class="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
+          <h3 data-i18n="metrics" class="text-xs font-bold text-teal-400 uppercase tracking-wider">
+            Metrics
+          </h3>
+          <button onclick="togglePanel('metrics-panel-content', 'metrics-panel-icon')"
+            class="w-6 h-6 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 text-gray-400 transition">
+            <span id="metrics-panel-icon" class="text-[10px]">▲</span>
+          </button>
+        </div>
+        <div id="metrics-panel-content">
+          <div id="metrics-locked" class="text-xs space-y-1">
+            <div data-i18n="metrics_locked" class="text-gray-400">Place a Monitoring service to unlock live metrics.</div>
+            <div data-i18n="metrics_locked_providers" class="text-gray-600">Real-world equivalents: AWS CloudWatch · Azure Monitor · Google Cloud Operations.</div>
+            <div data-i18n="metrics_locked_teach" class="text-teal-600 italic">You can't fix what you can't see.</div>
+          </div>
+          <div id="metrics-rows" class="hidden space-y-1"></div>
+        </div>
+      </div>
+
+      <!-- Finances Panel (Under Service Health) -->
+      <div id="financesPanel" class="glass-panel rounded-xl p-4 w-72 pointer-events-auto transition-all duration-300">
+        <div class="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
+          <h3 data-i18n="finances" class="text-xs font-bold text-green-400 uppercase tracking-wider">
+            Finances
+          </h3>
+          <button onclick="togglePanel('finances-panel-content', 'finances-panel-icon')"
+            class="w-6 h-6 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 text-gray-400 transition">
+            <span id="finances-panel-icon" class="text-[10px]">▲</span>
+          </button>
+        </div>
+
+        <div id="finances-panel-content">
+          <!-- Income Section -->
+          <div class="mb-3">
+            <div class="text-xs text-gray-500 mb-1 flex justify-between">
+              <span data-i18n="income_by_type">Income by Request Type</span>
+              <span id="income-total" class="text-green-400 font-bold">$0</span>
+            </div>
+            <div id="income-details" class="space-y-0.5 text-xs pl-2 border-l border-gray-700">
+              <!-- Dynamic rows will be inserted here -->
+            </div>
+          </div>
+
+          <!-- Expenses Section -->
+          <div class="mb-3">
+            <div class="text-xs text-gray-500 mb-1 flex justify-between">
+              <span data-i18n="expenses_breakdown">Expenses Breakdown</span>
+              <span id="expense-total" class="text-red-400 font-bold">$0</span>
+            </div>
+            <div id="expense-details" class="space-y-0.5 text-xs pl-2 border-l border-gray-700">
+              <!-- Dynamic rows will be inserted here -->
+            </div>
+          </div>
+
+          <!-- Net Profit -->
+          <div class="border-t border-gray-700 pt-2 mt-2">
+            <div class="grid grid-cols-2 gap-1 text-xs">
+              <span data-i18n="net_profit" class="text-gray-300 font-bold">Net Profit</span>
+              <span id="net-profit" class="text-right font-bold text-yellow-400">$0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Event Indicator Bar -->
+    <div id="active-event-bar" class="fixed top-0 left-0 right-0 h-8 z-40 hidden">
+      <div class="h-full flex items-center justify-center gap-3 text-white font-bold text-sm event-active-bar">
+        <span id="active-event-icon">⚡</span>
+        <span data-i18n="event_active" id="active-event-text">EVENT ACTIVE</span>
+        <span id="active-event-timer" class="font-mono bg-black/30 px-2 rounded"></span>
+      </div>
+      <div id="active-event-progress" class="absolute bottom-0 left-0 h-1 bg-white/50 transition-all duration-100"
+        style="width: 100%"></div>
+    </div>
+
+    <!-- Intervention Warnings Container (Center Top) -->
+    <div id="intervention-warnings"
+      class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center">
+    </div>
+
+    <!-- Time Control Panel (Top Center) -->
+    <div
+      class="absolute top-4 left-1/2 transform -translate-x-1/2 glass-panel rounded-xl p-2 pointer-events-auto flex gap-2">
+      <!-- Language Switcher -->
+      <div class="flex items-center bg-gray-800 rounded-lg px-1 border border-gray-600 mr-1">
+        <select onchange="i18n.setLocale(this.value)" id="lang-select"
+          class="bg-transparent text-[10px] font-bold text-gray-400 hover:text-white transition-colors cursor-pointer outline-none py-1 px-1">
+          <option value="en" class="bg-gray-800 text-white">EN</option>
+          <option value="uk" class="bg-gray-800 text-white">UK</option>
+          <option value="zh" class="bg-gray-800 text-white">ZH</option>
+          <option value="pt-BR" class="bg-gray-800 text-white">PT-BR</option>
+          <option value="de" class="bg-gray-800 text-white">DE</option>
+          <option value="fr" class="bg-gray-800 text-white">FR</option>
+          <option value="ko" class="bg-gray-800 text-white">KO</option>
+          <option value="ru" class="bg-gray-800 text-white">RU</option>
+          <option value="it" class="bg-gray-800 text-white">IT</option>
+          <option value="ne" class="bg-gray-800 text-white">NE</option>
+          <option value="hi" class="bg-gray-800 text-white">हिन्दी</option>
+        </select>
+      </div>
+      <button onclick="showSaveModal()" id="btn-save"
+        class="time-btn w-10 h-10 rounded-lg border border-gray-600 text-gray-400 hover:text-white hover:border-green-500 hover:text-green-400 flex items-center justify-center"
+        data-i18n-title="save_game"
+        title="Save Game">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M8 7H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+        </svg>
+      </button>
+      <button onclick="showShareModal()" id="btn-share"
+        class="time-btn w-10 h-10 rounded-lg border border-gray-600 text-gray-400 hover:text-white hover:border-cyan-500 hover:text-cyan-400 flex items-center justify-center"
+        data-i18n-title="share_arch"
+        title="Share Architecture">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
+        </svg>
+      </button>
+      <button onclick="restartGame()" id="btn-restart"
+        class="time-btn w-10 h-10 rounded-lg border border-gray-600 text-gray-400 hover:text-white hover:border-red-500 hover:text-red-400 flex items-center justify-center mr-2"
+        data-i18n-title="restart_game"
+        title="Restart Game">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+          </path>
+        </svg>
+      </button>
+      <div class="w-px bg-gray-700 mx-1"></div>
+      <button onclick="handleGameState(0)" id="btn-pause"
+        class="time-btn w-10 h-10 rounded-lg border border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 flex items-center justify-center">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+        </svg>
+      </button>
+      <button onclick="handleGameState(1)" id="btn-play"
+        class="time-btn active w-10 h-10 rounded-lg border border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 flex items-center justify-center">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </button>
+      <button onclick="handleGameState(3)" id="btn-fast"
+        class="time-btn w-10 h-10 rounded-lg border border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 flex items-center justify-center relative">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Sandbox Control Panel (Bottom Left - replaces objectives in sandbox mode) -->
+    <div id="sandboxPanel" class="hidden absolute bottom-24 left-4 glass-panel rounded-xl p-4 pointer-events-auto w-80">
+      <div class="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
+        <h3 data-i18n="sandbox" class="text-sm font-bold text-purple-400">SANDBOX</h3>
+        <button onclick="clearAllServices()"
+          class="text-xs text-red-400 hover:text-red-300 px-2 py-1 border border-red-900 rounded"
+          data-i18n="clear_all">
+          Clear All
+        </button>
+      </div>
+
+      <!-- BUDGET -->
+      <div class="mb-3">
+        <div data-i18n="budget" class="text-xs text-gray-400 mb-1">Budget ($)</div>
+        <div class="flex items-center gap-2">
+          <input type="range" id="budget-slider" min="0" max="10000" step="100" value="2000"
+            oninput="setSandboxBudget(this.value)" class="flex-1 h-2 bg-gray-700 rounded-lg accent-green-500" />
+          <input type="number" id="budget-input" value="2000" min="0" onchange="setSandboxBudget(this.value)"
+            class="w-20 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-green-400 text-sm text-center font-mono" />
+        </div>
+        <div class="flex gap-2 mt-2">
+          <button onclick="resetBudget()"
+            class="flex-1 text-xs py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
+            data-i18n="reset_budget">
+            Reset $
+          </button>
+          <button onclick="toggleUpkeep()" id="upkeep-toggle"
+            class="flex-1 text-xs py-1.5 bg-green-900/50 text-gray-300 rounded border border-gray-600">
+            <span data-i18n="upkeep_toggle">Upkeep</span>: <span data-i18n="off">OFF</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- RPS -->
+      <div class="mb-3">
+        <div data-i18n="traffic_rate" class="text-xs text-gray-400 mb-1">Traffic Rate (req/s)</div>
+        <div class="flex items-center gap-2">
+          <input type="range" id="rps-slider" min="0" max="50" step="0.5" value="1" oninput="setSandboxRPS(this.value)"
+            class="flex-1 h-2 bg-gray-700 rounded-lg accent-blue-500" />
+          <input type="number" id="rps-input" value="1" min="0" step="0.5" onchange="setSandboxRPS(this.value)"
+            class="w-20 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-blue-400 text-sm text-center font-mono" />
+        </div>
+      </div>
+
+      <!-- TRAFFIC MIX -->
+      <div class="mb-3">
+        <div data-i18n="traffic_mix" class="text-xs text-gray-400 mb-1">Traffic Mix (%)</div>
+        <!-- STATIC -->
+        <div class="flex items-center gap-2 mb-1">
+          <span data-i18n="traffic_static" class="text-xs text-green-400 truncate max-w-[6rem]">STATIC</span>
+          <input type="range" id="static-slider" min="0" max="100" value="30"
+            oninput="setTrafficMix('STATIC',this.value)" class="flex-1 min-w-0 h-1.5 bg-gray-700 rounded-lg accent-green-500" />
+          <input type="number" id="static-input" value="30" min="0" max="100"
+            onchange="setTrafficMix('STATIC',this.value)"
+            class="w-14 flex-shrink-0 px-1 py-0.5 bg-gray-800 border border-gray-600 rounded text-green-400 text-xs text-center font-mono" />
+        </div>
+        <!-- READ -->
+        <div class="flex items-center gap-2 mb-1">
+          <span data-i18n="traffic_read" class="text-xs text-blue-400 truncate max-w-[6rem]">READ</span>
+          <input type="range" id="read-slider" min="0" max="100" value="20" oninput="setTrafficMix('READ',this.value)"
+            class="flex-1 min-w-0 h-1.5 bg-gray-700 rounded-lg accent-blue-500" />
+          <input type="number" id="read-input" value="20" min="0" max="100" onchange="setTrafficMix('READ',this.value)"
+            class="w-14 flex-shrink-0 px-1 py-0.5 bg-gray-800 border border-gray-600 rounded text-blue-400 text-xs text-center font-mono" />
+        </div>
+        <!-- WRITE -->
+        <div class="flex items-center gap-2 mb-1">
+          <span data-i18n="traffic_write" class="text-xs text-orange-400 truncate max-w-[6rem]">WRITE</span>
+          <input type="range" id="write-slider" min="0" max="100" value="15" oninput="setTrafficMix('WRITE',this.value)"
+            class="flex-1 min-w-0 h-1.5 bg-gray-700 rounded-lg accent-orange-500" />
+          <input type="number" id="write-input" value="15" min="0" max="100"
+            onchange="setTrafficMix('WRITE',this.value)"
+            class="w-14 flex-shrink-0 px-1 py-0.5 bg-gray-800 border border-gray-600 rounded text-orange-400 text-xs text-center font-mono" />
+        </div>
+        <!-- UPLOAD -->
+        <div class="flex items-center gap-2 mb-1">
+          <span data-i18n="traffic_upload" class="text-xs text-yellow-400 truncate max-w-[6rem]">UPLOAD</span>
+          <input type="range" id="upload-slider" min="0" max="100" value="5"
+            oninput="setTrafficMix('UPLOAD',this.value)"
+            class="flex-1 min-w-0 h-1.5 bg-gray-700 rounded-lg accent-yellow-500" />
+          <input type="number" id="upload-input" value="5" min="0" max="100"
+            onchange="setTrafficMix('UPLOAD',this.value)"
+            class="w-14 flex-shrink-0 px-1 py-0.5 bg-gray-800 border border-gray-600 rounded text-yellow-400 text-xs text-center font-mono" />
+        </div>
+        <!-- SEARCH -->
+        <div class="flex items-center gap-2 mb-1">
+          <span data-i18n="traffic_search" class="text-xs text-cyan-400 truncate max-w-[6rem]">SEARCH</span>
+          <input type="range" id="search-slider" min="0" max="100" value="10"
+            oninput="setTrafficMix('SEARCH',this.value)" class="flex-1 min-w-0 h-1.5 bg-gray-700 rounded-lg accent-cyan-500" />
+          <input type="number" id="search-input" value="10" min="0" max="100"
+            onchange="setTrafficMix('SEARCH',this.value)"
+            class="w-14 flex-shrink-0 px-1 py-0.5 bg-gray-800 border border-gray-600 rounded text-cyan-400 text-xs text-center font-mono" />
+        </div>
+        <!-- INFERENCE (#87) -->
+        <div class="flex items-center gap-2 mb-1">
+          <span data-i18n="traffic_inference" class="text-xs text-fuchsia-400 truncate max-w-[6rem]">INFERENCE</span>
+          <input type="range" id="inference-slider" min="0" max="100" value="0"
+            oninput="setTrafficMix('INFERENCE',this.value)"
+            class="flex-1 min-w-0 h-1.5 bg-gray-700 rounded-lg accent-fuchsia-500" />
+          <input type="number" id="inference-input" value="0" min="0" max="100"
+            onchange="setTrafficMix('INFERENCE',this.value)"
+            class="w-14 flex-shrink-0 px-1 py-0.5 bg-gray-800 border border-gray-600 rounded text-fuchsia-400 text-xs text-center font-mono" />
+        </div>
+        <!-- MALICIOUS -->
+        <div class="flex items-center gap-2">
+          <span data-i18n="traffic_attack" class="text-xs text-red-400 truncate max-w-[6rem]">ATTACK</span>
+          <input type="range" id="malicious-slider" min="0" max="100" value="20"
+            oninput="setTrafficMix('MALICIOUS',this.value)"
+            class="flex-1 min-w-0 h-1.5 bg-gray-700 rounded-lg accent-red-500" />
+          <input type="number" id="malicious-input" value="20" min="0" max="100"
+            onchange="setTrafficMix('MALICIOUS',this.value)"
+            class="w-14 flex-shrink-0 px-1 py-0.5 bg-gray-800 border border-gray-600 rounded text-red-400 text-xs text-center font-mono" />
+        </div>
+      </div>
+
+      <!-- BURST -->
+      <div class="border-t border-gray-700 pt-2">
+        <div class="flex items-center gap-2 mb-2">
+          <span data-i18n="burst_label" class="text-xs text-gray-400">Burst:</span>
+          <input type="number" id="burst-input" value="10" min="1" onchange="setBurstCount(this.value)"
+            class="w-16 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs text-center font-mono" />
+        </div>
+        <div class="flex gap-1 flex-wrap">
+          <button onclick="spawnBurst('STATIC')"
+            data-i18n="traffic_static"
+            class="flex-1 bg-green-900/50 hover:bg-green-800 text-green-400 text-xs py-1.5 rounded border border-green-700/50">
+            STATIC
+          </button>
+          <button onclick="spawnBurst('READ')"
+            data-i18n="traffic_read"
+            class="flex-1 bg-blue-900/50 hover:bg-blue-800 text-blue-400 text-xs py-1.5 rounded border border-blue-700/50">
+            READ
+          </button>
+          <button onclick="spawnBurst('WRITE')"
+            data-i18n="traffic_write"
+            class="flex-1 bg-orange-900/50 hover:bg-orange-800 text-orange-400 text-xs py-1.5 rounded border border-orange-700/50">
+            WRITE
+          </button>
+        </div>
+        <div class="flex gap-1 flex-wrap mt-1">
+          <button onclick="spawnBurst('UPLOAD')"
+            data-i18n="traffic_upload"
+            class="flex-1 bg-yellow-900/50 hover:bg-yellow-800 text-yellow-400 text-xs py-1.5 rounded border border-yellow-700/50">
+            UPLOAD
+          </button>
+          <button onclick="spawnBurst('SEARCH')"
+            data-i18n="traffic_search"
+            class="flex-1 bg-cyan-900/50 hover:bg-cyan-800 text-cyan-400 text-xs py-1.5 rounded border border-cyan-700/50">
+            SEARCH
+          </button>
+          <button onclick="spawnBurst('MALICIOUS')"
+            data-i18n="traffic_ddos"
+            class="flex-1 bg-red-900/50 hover:bg-red-800 text-red-400 text-xs py-1.5 rounded border border-red-700/50">
+            DDoS
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Objective Panel (Bottom Left) -->
+    <div id="objectivesPanel" class="absolute bottom-24 left-4 glass-panel rounded-xl p-4 pointer-events-auto max-w-xs">
+      <div class="flex justify-between items-center mb-2">
+        <h3 data-i18n="current_objectives" class="text-xs font-bold text-gray-400 uppercase tracking-wider">
+          Current Objectives
+        </h3>
+        <span data-i18n="live"
+          class="text-[10px] bg-red-900/50 px-2 py-0.5 rounded text-red-400 border border-red-800 animate-pulse">LIVE</span>
+      </div>
+      <ul class="text-xs text-gray-300 space-y-2 font-mono">
+        <li class="flex items-center">
+          <span class="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
+          <span data-i18n="survive_endless">Survive Endless Traffic</span>
+        </li>
+        <li id="goal-storage" class="flex items-center">
+          <span class="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+          <span data-i18n="route_storage">Route STATIC/UPLOAD → Storage</span>
+        </li>
+        <li id="goal-db" class="flex items-center">
+          <span class="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
+          <span data-i18n="route_db">Route READ/WRITE/SEARCH → Database</span>
+        </li>
+        <li id="goal-waf" class="flex items-center">
+          <span class="w-2 h-2 rounded-full bg-purple-500 mr-2"></span>
+          <span data-i18n="block_malicious">Block MALICIOUS with Firewall</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- UI Overlay: Bottom Toolbar -->
+  <!-- Layout (toolbar categories, 2026-07-24): build tools · service palette ·
+       settings. The palette is a tab strip plus the active category's buttons,
+       both filled by src/ui/toolbar.js — the flat 23-button run that used to
+       live here was ~2000px wide, so half of it hung off-screen, and the bar
+       scrolled on the wrong axis (overflow-y) while overflowing horizontally. -->
+  <div class="absolute bottom-6 left-0 w-full z-10 pointer-events-none flex justify-center px-4">
+    <div class="glass-panel rounded-2xl p-2 pointer-events-auto max-w-full overflow-x-auto overflow-y-hidden flex items-center gap-2 shadow-2xl">
+      <!-- Build tools: modes, not services, so they stay visible in every category -->
+      <div class="flex gap-1 pr-2 border-r border-gray-700">
+        <button id="tool-select"
+          class="service-btn active bg-gray-800 text-gray-200 p-2 rounded-lg w-16 h-16 flex flex-col items-center justify-center border border-transparent"
+          onclick="setTool('select')">
+          <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122">
+            </path>
+          </svg>
+          <span data-i18n="select" class="text-[10px] uppercase">Select</span>
+        </button>
+
+        <button id="tool-connect"
+          class="service-btn bg-gray-800 text-gray-200 p-2 rounded-lg w-16 h-16 flex flex-col items-center justify-center border border-transparent"
+          onclick="setTool('connect')">
+          <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1">
+            </path>
+          </svg>
+          <span data-i18n="link" class="text-[10px] uppercase">Link</span>
+        </button>
+
+        <button id="tool-delete"
+          class="service-btn bg-red-900/30 text-red-200 p-2 rounded-lg w-16 h-16 flex flex-col items-center justify-center border border-transparent hover:bg-red-900/50"
+          onclick="setTool('delete')">
+          <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+            </path>
+          </svg>
+          <span data-i18n="demolish" class="text-[10px] uppercase">Demolish</span>
+        </button>
+
+        <button id="tool-unlink"
+          class="service-btn bg-orange-900/30 text-orange-200 p-2 rounded-lg w-16 h-16 flex flex-col items-center justify-center border border-transparent hover:bg-orange-900/50"
+          onclick="setTool('unlink')">
+          <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+          </svg>
+          <span data-i18n="unlink" class="text-[10px] uppercase">Unlink</span>
+        </button>
+      </div>
+
+      <!-- Service palette — category tabs above, the active category's service
+           buttons below. Both are rendered by src/ui/toolbar.js. -->
+      <div class="flex flex-col gap-1 px-1">
+        <div id="service-tabs" class="flex gap-1"></div>
+        <div id="service-palette" class="flex gap-2"></div>
+      </div>
+
+      <!-- Settings: help / music / sfx. Icon-only and out at the edge — they
+           are settings, not gameplay, and used to hold the three leftmost slots. -->
+      <div class="flex gap-1 pl-2 border-l border-gray-700">
+        <button id="tool-help" title="Help" data-i18n-title="help"
+          class="service-btn bg-gray-700 text-gray-200 rounded-lg w-8 h-8 flex items-center justify-center border border-gray-600"
+          onclick="showFAQ()">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6" />
+            <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="12" r="9" />
+          </svg>
+        </button>
+
+        <!-- Music / SFX toggles (#112) -->
+        <button id="tool-music" title="Music" data-i18n-title="music"
+          class="service-btn bg-gray-700 text-gray-200 rounded-lg w-8 h-8 flex items-center justify-center border border-gray-600 bg-red-900 pulse-green"
+          onclick="toggleMusic()">
+          <svg id="music-icon" class="w-4 h-4 opacity-40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 18V6l10-2v12" />
+            <circle cx="7" cy="18" r="2" />
+            <circle cx="17" cy="16" r="2" />
+          </svg>
+        </button>
+        <button id="tool-sfx" title="SFX" data-i18n-title="sfx"
+          class="service-btn bg-gray-700 text-gray-200 rounded-lg w-8 h-8 flex items-center justify-center border border-gray-600 bg-red-900 pulse-green"
+          onclick="toggleSfx()">
+          <svg id="sfx-icon" class="w-4 h-4 opacity-40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5 6 9H3v6h3l5 4V5z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" />
+          </svg>
+        </button>
+
+        <!-- Failure-reason badges toggle (#156). Default ON — the labels are
+             the teaching half of every failure — with the preference persisted
+             in localStorage exactly like the sound channels above. -->
+        <button id="tool-badges" title="Failure reasons" data-i18n-title="failure_badges"
+          class="service-btn bg-gray-700 text-gray-200 rounded-lg w-8 h-8 flex items-center justify-center border border-gray-600"
+          onclick="toggleFailureBadges()">
+          <svg id="badges-icon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v10H9l-4 4V5z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5v3" />
+            <circle cx="12" cy="12.8" r="0.7" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hover Tooltip -->
+  <div id="tooltip" class="tooltip"></div>
+
+  <!-- Upgrade Indicator -->
+  <div id="upgrade-indicator"
+    class="hidden absolute z-30 pointer-events-auto cursor-pointer flex flex-col items-center transform -translate-x-1/2 -translate-y-full transition-transform hover:scale-110">
+    <div class="text-2xl animate-bounce">⬆️</div>
+    <div id="upgrade-cost"
+      class="bg-green-600 text-white text-xs px-2 py-1 rounded font-bold font-mono shadow-lg border border-green-400 mt-1">
+      $100
+    </div>
+  </div>
+
+  <!-- Auto-Scaling toggle (#195) — floats under the hovered Compute node -->
+  <div id="asg-indicator"
+    class="hidden absolute z-30 pointer-events-auto cursor-pointer flex flex-col items-center transform -translate-x-1/2 transition-transform hover:scale-110">
+    <div id="asg-badge"
+      class="flex items-center gap-1 bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded font-bold font-mono shadow-lg border border-gray-500">
+      <svg viewBox="0 0 16 16" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="1.8"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M8 12.5V3.5" />
+        <path d="M4.5 7 8 3.5 11.5 7" />
+        <path d="M2.5 14.5h11" />
+      </svg>
+      <span id="asg-label">AUTO</span>
+    </div>
+    <div id="asg-warming" class="hidden mt-1 text-[10px] font-mono text-amber-300"></div>
+  </div>
+
+  <!-- Game Canvas -->
+  <div id="canvas-container"></div>
+
+  <!-- End/Next Level Modal -->
+  <div id="modal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+    <div id="modal-card" class="relative glass-panel p-8 rounded-2xl text-center max-w-md border border-gray-600 pointer-events-auto">
+      <button onclick="toggleFailureModal()" title="Minimize" data-i18n-title="minimize"
+        class="absolute top-3 right-3 w-6 h-6 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 text-gray-400 transition">
+        <span class="text-[10px]">─</span>
+      </button>
+      <h2 id="modal-title" data-i18n="system_failure" class="text-4xl font-bold mb-4 text-white font-mono tracking-tighter">
+        SYSTEM FAILURE
+      </h2>
+      <div class="h-px w-full bg-gray-700 mb-6"></div>
+      <p id="modal-desc" data-i18n="infra_collapsed" class="text-gray-300 mb-8 text-sm leading-relaxed">
+        Infrastructure collapsed.
+      </p>
+      <div class="flex justify-center gap-4">
+        <button onclick="retryWithSameArchitecture()"
+          data-i18n="retry_same"
+          class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-sm">
+          Retry Same Setup
+        </button>
+        <button onclick="restartGame()"
+          data-i18n="start_fresh"
+          class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-sm">
+          Start Fresh
+        </button>
+      </div>
+    </div>
+    <button id="modal-restore" onclick="toggleFailureModal()"
+      data-i18n="show_results"
+      class="hidden absolute bottom-6 right-6 pointer-events-auto glass-panel px-4 py-2 rounded-lg border border-red-500/50 text-red-400 text-sm font-mono hover:text-white transition">
+      ⚠ Show Results
+    </button>
+  </div>
+
+  <!-- Main Menu Modal -->
+  <div id="main-menu-modal" class="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div
+      class="relative bg-gray-900/90 p-12 rounded-2xl border border-blue-500/30 shadow-2xl max-w-md w-full text-center">
+      <!-- Menu Music / SFX toggles (#112) -->
+      <div class="absolute top-4 right-4 flex gap-1">
+        <button id="menu-music-btn" onclick="toggleMusic()" title="Music"
+          class="text-gray-400 hover:text-white transition p-2 rounded-full pulse-green">
+          <svg id="menu-music-icon" class="w-5 h-5 opacity-40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 18V6l10-2v12" />
+            <circle cx="7" cy="18" r="2" />
+            <circle cx="17" cy="16" r="2" />
+          </svg>
+        </button>
+        <button id="menu-sfx-btn" onclick="toggleSfx()" title="SFX"
+          class="text-gray-400 hover:text-white transition p-2 rounded-full pulse-green">
+          <svg id="menu-sfx-icon" class="w-5 h-5 opacity-40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5 6 9H3v6h3l5 4V5z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" />
+          </svg>
+        </button>
+      </div>
+
+      <h1
+        data-i18n="title"
+        class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300 mb-2 tracking-tighter filter drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+        SERVER<br />SURVIVAL
+      </h1>
+
+      <div class="space-y-4">
+        <button id="resume-btn" onclick="resumeGame()"
+          data-i18n="resume_game"
+          class="hidden w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-blue-400/50">
+          Resume Game
+        </button>
+
+        <button onclick="startGame()"
+          data-i18n="start_survival"
+          class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-green-400/50">
+          Start Survival
+        </button>
+
+        <button onclick="openCampaignSelect()"
+          class="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-yellow-400/50 flex justify-between items-center">
+          <span data-i18n="campaign_mode">Campaign</span>
+          <span id="campaign-progress-label" class="text-xs opacity-75 font-normal">0/25 ★0</span>
+        </button>
+
+        <!-- Replay the walkthrough (#263). The tutorial now respects its own
+             completed flag, so this is the way back in for anyone who wants
+             it again — and the way in for a player who skipped it. -->
+        <button onclick="startTutorial()"
+          class="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-2 px-8 rounded-lg transition font-mono uppercase text-sm border border-gray-600">
+          <span data-i18n="replay_tutorial">Replay tutorial</span>
+        </button>
+
+        <button onclick="startSandbox()"
+          data-i18n="sandbox_mode"
+          class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-purple-400/50">
+          Sandbox Mode
+        </button>
+
+        <button onclick="showTrophies()"
+          class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-amber-400/50 flex justify-between items-center">
+          <span class="flex items-center gap-2">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 21h8" />
+              <path d="M12 17v4" />
+              <path d="M7 4h10v5a5 5 0 0 1-10 0z" />
+              <path d="M7 6H4a1 1 0 0 0-1 1 4 4 0 0 0 4 4" />
+              <path d="M17 6h3a1 1 0 0 1 1 1 4 4 0 0 1-4 4" />
+            </svg>
+            <span data-i18n="trophies">Trophies</span>
+          </span>
+          <span id="trophies-progress-label" class="text-xs opacity-75 font-normal">0/38</span>
+        </button>
+
+        <button onclick="document.getElementById('upload-file-input')?.click()" id="upload-btn"
+          data-i18n="upload_game"
+          class="w-full bg-blue-400 hover:bg-blue-300 text-black font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-cyan-400/50">
+          Upload Game
+        </button>
+
+        <button onclick="onClickContinueGame()" id="load-btn"
+          data-i18n="continue_game"
+          class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-cyan-400/50">
+          Continue Game
+        </button>
+
+        <button onclick="showFAQ()"
+          data-i18n="manual_faq"
+          class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 px-8 rounded-lg border border-gray-600 transition hover:text-white font-mono uppercase">
+          Manual / FAQ
+        </button>
+
+        <input type="file" id="upload-file-input" accept=".json" class="hidden" onchange="onSaveGameFileUpload(event)" />
+
+      </div>
+
+      <div class="mt-8 text-xs text-gray-500 font-mono"></div>
+    </div>
+  </div>
+
+  <!-- Save Game Modal -->
+  <div id="save-modal" class="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+    <div
+      class="relative bg-gray-900/90 p-12 rounded-2xl border border-blue-500/30 shadow-2xl max-w-md w-full text-center">
+
+      <h1
+        data-i18n="save_title"
+        class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300 mb-2 tracking-tighter filter drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+        Save Game
+      </h1>
+
+      <div class="space-y-4">
+
+        <button onclick="saveGameState('browser')"
+          data-i18n="save_browser"
+          class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-green-400/50">
+          Save in Browser
+        </button>
+
+        <button onclick="saveGameState('file')" id="btn-download-save"
+          data-i18n="save_download"
+          class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-purple-400/50">
+          Download Save File
+        </button>
+
+        <button onclick="closeSaveModal()"
+          data-i18n="cancel"
+          class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 px-8 rounded-lg border border-gray-600 transition hover:text-white font-mono uppercase">
+          Cancel
+        </button>
+      </div>
+
+      <div class="mt-8 text-xs text-gray-500 font-mono"></div>
+    </div>
+  </div>
+
+  <!-- Share Architecture Modal (#157) -->
+  <div id="share-modal" class="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+    <div
+      class="relative bg-gray-900/90 p-12 rounded-2xl border border-cyan-500/30 shadow-2xl max-w-md w-full text-center">
+
+      <h1
+        data-i18n="share_title"
+        class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-teal-300 mb-2 tracking-tighter filter drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">
+        Share Architecture
+      </h1>
+
+      <p data-i18n="share_desc" class="text-sm text-gray-400 mb-6">
+        Download a snapshot of your build, or copy a link that opens it in Sandbox.
+      </p>
+
+      <div class="space-y-4">
+
+        <button onclick="downloadArchitecturePNG()" id="btn-share-png"
+          data-i18n="share_png"
+          class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-cyan-400/50">
+          Download PNG
+        </button>
+
+        <button onclick="copyShareLink()" id="btn-share-link"
+          data-i18n="share_copy_link"
+          class="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition hover:scale-105 font-mono uppercase text-lg border border-teal-400/50">
+          Copy Link
+        </button>
+
+        <div id="share-status" class="text-sm font-mono h-5"></div>
+
+        <button onclick="closeShareModal()"
+          data-i18n="cancel"
+          class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 px-8 rounded-lg border border-gray-600 transition hover:text-white font-mono uppercase">
+          Cancel
+        </button>
+      </div>
+
+      <div class="mt-8 text-xs text-gray-500 font-mono"></div>
+    </div>
+  </div>
+
+  <!-- Tutorial Modal (no backdrop - allows interaction with game) -->
+  <div id="tutorial-modal" class="fixed inset-0 z-[60] pointer-events-none hidden">
+    <!-- Tutorial popup -->
+    <div id="tutorial-popup"
+      class="absolute glass-panel rounded-xl p-6 max-w-xl pointer-events-auto border-2 border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.3)]">
+      <div class="flex items-center gap-3 mb-4">
+        <div id="tutorial-icon"
+          class="w-12 h-12 rounded-lg flex items-center justify-center text-2xl bg-cyan-900/50 border border-cyan-500/30">
+        </div>
+        <div>
+          <h3 id="tutorial-title" class="text-lg font-bold text-white"></h3>
+          <div id="tutorial-step-container" class="text-xs text-gray-400">
+            Step <span id="tutorial-step-num">1</span> of
+            <span id="tutorial-total-steps">10</span>
+          </div>
+        </div>
+      </div>
+
+      <p id="tutorial-text" class="text-gray-300 text-sm leading-relaxed mb-4"></p>
+
+      <div id="tutorial-hint" class="bg-gray-800/50 rounded-lg p-3 mb-4 border border-gray-700 hidden">
+        <div class="flex items-start gap-2">
+          <span class="text-yellow-400">💡</span>
+          <p id="tutorial-hint-text" class="text-xs text-gray-400"></p>
+        </div>
+      </div>
+
+      <div class="flex justify-between items-center">
+        <button id="tutorial-skip" class="text-gray-500 hover:text-gray-300 text-sm transition"
+          data-i18n="skip_tutorial"
+          onclick="window.tutorial?.skip()">
+          Skip Tutorial
+        </button>
+        <div class="flex gap-2">
+          <button id="tutorial-next"
+            data-i18n="next"
+            class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-6 rounded-lg transition hidden">
+            Next
+          </button>
+        </div>
+      </div>
+
+      <!-- Progress dots -->
+      <div id="tutorial-progress" class="flex justify-center gap-1.5 mt-4 pt-3 border-t border-gray-700"></div>
+    </div>
+
+    <!-- Highlight ring for elements -->
+    <div id="tutorial-highlight"
+      class="absolute pointer-events-none border-2 border-cyan-400 rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.5)] hidden"
+      style="transition: all 0.3s ease"></div>
+  </div>
+
+  <!-- FAQ Modal -->
+  <div id="faq-modal" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
+    <div class="glass-panel p-8 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-700">
+      <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+        <h2 data-i18n="operator_manual" class="text-2xl font-bold text-white">OPERATOR MANUAL</h2>
+        <button onclick="closeFAQ()" class="text-gray-400 hover:text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Traffic Types -->
+        <div>
+          <h3 data-i18n="traffic_types" class="text-lg font-bold text-blue-400 mb-4">TRAFFIC TYPES</h3>
+          <div class="space-y-3">
+            <div class="bg-gray-800/50 p-3 rounded border border-green-900/50">
+              <strong data-i18n="traffic_static_full" class="text-green-400">STATIC (GET)</strong>
+              <p data-i18n="traffic_static_desc" class="text-sm text-gray-400">
+                Images, CSS, JS. Route to
+                <span class="text-emerald-400">Storage</span>. 90% cache hit
+                rate.
+              </p>
+            </div>
+            <div class="bg-gray-800/50 p-3 rounded border border-blue-900/50">
+              <strong data-i18n="traffic_read_full" class="text-blue-400">READ (GET)</strong>
+              <p data-i18n="traffic_read_desc" class="text-sm text-gray-400">
+                API data fetch. Route to
+                <span class="text-red-400">SQL DB</span>. 40% cache hit rate.
+              </p>
+            </div>
+            <div class="bg-gray-800/50 p-3 rounded border border-orange-900/50">
+              <strong data-i18n="traffic_write_full" class="text-orange-400">WRITE (POST/PUT)</strong>
+              <p data-i18n="traffic_write_desc" class="text-sm text-gray-400">
+                Database writes. Route to
+                <span class="text-red-400">SQL DB</span>. Never cached.
+              </p>
+            </div>
+            <div class="bg-gray-800/50 p-3 rounded border border-yellow-900/50">
+              <strong data-i18n="traffic_upload_full" class="text-yellow-400">UPLOAD (POST)</strong>
+              <p data-i18n="traffic_upload_desc" class="text-sm text-gray-400">
+                File uploads. Route to
+                <span class="text-emerald-400">Storage</span>. Never cached.
+                Heavy processing.
+              </p>
+            </div>
+            <div class="bg-gray-800/50 p-3 rounded border border-cyan-900/50">
+              <strong data-i18n="traffic_search_full" class="text-cyan-400">SEARCH (GET)</strong>
+              <p data-i18n="traffic_search_desc" class="text-sm text-gray-400">
+                Complex queries. Route to
+                <span class="text-red-400">SQL DB</span>. 15% cache hit. Heavy
+                processing.
+              </p>
+            </div>
+            <div class="bg-gray-800/50 p-3 rounded border border-red-900/50">
+              <strong data-i18n="traffic_malicious" class="text-red-400">MALICIOUS</strong>
+              <p data-i18n="traffic_malicious_desc" class="text-sm text-gray-400">
+                DDoS & attacks. Block with
+                <span class="text-purple-400">Firewall</span>.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Services -->
+        <div>
+          <h3 data-i18n="services" class="text-lg font-bold text-blue-400 mb-4">SERVICES</h3>
+          <ul class="space-y-2 text-sm text-gray-300">
+            <li class="flex justify-between">
+              <span data-i18n="firewall" class="text-purple-400 font-bold">Firewall</span>
+              <span data-i18n="fw_desc_short">Blocks Fraud ($40)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="message_queue" class="text-orange-500 font-bold">Message Queue</span>
+              <span data-i18n="queue_desc_short">Buffers 200 requests ($35)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="load_balancer" class="text-blue-400 font-bold">Load Balancer</span>
+              <span data-i18n="lb_desc_short">Distributes Traffic ($50)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="compute" class="text-orange-400 font-bold">Compute</span>
+              <span data-i18n="compute_desc_short">Processes Requests ($60)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="serverless" class="text-amber-400 font-bold">Serverless Function</span>
+              <span data-i18n="serverless_desc_short">Pay-per-use compute ($45)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="relational_db" class="text-red-400 font-bold">Relational DB</span>
+              <span data-i18n="db_desc_short">Stores API Data ($150)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="memory_cache" class="text-red-500 font-bold">Memory Cache</span>
+              <span data-i18n="cache_desc_short">Cache layer ($60)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="file_storage" class="text-emerald-400 font-bold">File Storage</span>
+              <span data-i18n="storage_desc_short">Stores Web Data ($25)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="search_engine" class="text-cyan-400 font-bold">Search Engine</span>
+              <span data-i18n="search_desc_short">Fast SEARCH queries ($120)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="read_replica" class="text-pink-400 font-bold">Read Replica</span>
+              <span data-i18n="replica_desc_short">Offloads READ from DB ($100)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="monitor" class="text-teal-400 font-bold">Monitoring</span>
+              <span data-i18n="monitor_desc_short">Live metrics + alerts ($75)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="dlq" class="text-stone-400 font-bold">Dead-Letter Queue</span>
+              <span data-i18n="dlq_desc_short">Catches failed requests ($55)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="pubsub" class="text-indigo-400 font-bold">Pub/Sub Topic</span>
+              <span data-i18n="pubsub_desc_short">Fan-out to subscribers ($65)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="auth" class="text-yellow-400 font-bold">Identity Provider</span>
+              <span data-i18n="auth_desc_short">Auth + attack catch ($55)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="scheduler" class="text-sky-400 font-bold">Scheduler</span>
+              <span data-i18n="scheduler_desc_short">Timed batch bursts ($50)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="notify" class="text-rose-400 font-bold">Notification</span>
+              <span data-i18n="notify_desc_short">Sends events, earns rep ($40)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="container" class="text-blue-400 font-bold">Container Cluster</span>
+              <span data-i18n="container_desc_short">Dense flat-fee compute ($120)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="stream" class="text-teal-400 font-bold">Stream</span>
+              <span data-i18n="stream_desc_short">Ordered partitions ($90)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="dns" class="text-lime-400 font-bold">GeoDNS</span>
+              <span data-i18n="dns_desc_short">Multi-region front door ($50)</span>
+            </li>
+            <li class="flex justify-between">
+              <span data-i18n="warehouse" class="text-amber-500 font-bold">Data Warehouse</span>
+              <span data-i18n="warehouse_desc_short">Cheap analytics store ($90)</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Tools -->
+      <div class="mt-8">
+        <h3 data-i18n="tools_controls" class="text-lg font-bold text-blue-400 mb-4">TOOLS & CONTROLS</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div class="bg-gray-800/30 p-3 rounded border border-gray-700">
+            <div class="flex items-center mb-2">
+              <div class="w-6 h-6 bg-blue-600 rounded flex items-center justify-center mr-2">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122">
+                  </path>
+                </svg>
+              </div>
+              <strong data-i18n="select" class="text-white">SELECT</strong>
+            </div>
+            <p data-i18n="tool_select_desc" class="text-gray-400">
+              Inspect services to see load and stats. Click Compute/DB to
+              upgrade.
+            </p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded border border-gray-700">
+            <div class="flex items-center mb-2">
+              <div class="w-6 h-6 bg-gray-700 rounded flex items-center justify-center mr-2">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1">
+                  </path>
+                </svg>
+              </div>
+              <strong data-i18n="link" class="text-white">CONNECT</strong>
+            </div>
+            <p data-i18n="tool_connect_desc" class="text-gray-400">
+              Link nodes together. Click
+              <span class="text-green-400">Source</span> then
+              <span class="text-blue-400">Destination</span>.
+            </p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded border border-gray-700">
+            <div class="flex items-center mb-2">
+              <div class="w-6 h-6 bg-red-900/50 rounded flex items-center justify-center mr-2">
+                <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                  </path>
+                </svg>
+              </div>
+              <strong data-i18n="demolish" class="text-white">DELETE</strong>
+            </div>
+            <p data-i18n="tool_delete_desc" class="text-gray-400">Remove services. Refunds 50% of cost.</p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded border border-gray-700">
+            <div class="flex items-center mb-2">
+              <div class="w-6 h-6 bg-orange-900/50 rounded flex items-center justify-center mr-2">
+                <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636">
+                  </path>
+                </svg>
+              </div>
+              <strong data-i18n="tool_unlink" class="text-white">UNLINK</strong>
+            </div>
+            <p data-i18n="tool_unlink_desc" class="text-gray-400">
+              Remove connections between services. Click on a link to delete
+              it.
+            </p>
+          </div>
+
+          <div class="bg-gray-800/30 p-3 rounded border border-gray-700">
+            <div class="flex items-center mb-2">
+              <strong data-i18n="hud" class="text-white">HUD</strong>
+            </div>
+            <p data-i18n="hud_desc" class="text-gray-400">Press H for hiding HUD.</p>
+          </div>
+
+          <div class="bg-gray-800/30 p-3 rounded border border-gray-700">
+            <div class="flex items-center mb-2">
+              <strong data-i18n="view" class="text-white">View</strong>
+            </div>
+            <p data-i18n="view_desc" class="text-gray-400">Press R for reset view.</p>
+          </div>
+
+          <div class="bg-gray-800/30 p-3 rounded border border-gray-700">
+            <div class="flex items-center mb-2">
+              <strong data-i18n="rotate" class="text-white">Rotate</strong>
+            </div>
+            <p data-i18n="rotate_desc" class="text-gray-400">Press Q/E or drag with the middle mouse button to rotate the view.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mechanics -->
+      <div class="mt-8">
+        <h3 data-i18n="mechanics" class="text-lg font-bold text-blue-400 mb-4">MECHANICS</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div class="bg-gray-800/30 p-3 rounded">
+            <strong data-i18n="mech_upgrades" class="text-white block mb-1">Upgrades</strong>
+            <p data-i18n="mech_upgrades_desc" class="text-gray-400">
+              Click existing Compute/DB/Cache instances to upgrade capacity
+              (Tier 1-3).
+            </p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded">
+            <strong data-i18n="mech_lb" class="text-white block mb-1">Load Balancing</strong>
+            <p data-i18n="mech_lb_desc" class="text-gray-400">
+              Load Balancers use Round Robin to distribute traffic evenly.
+            </p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded">
+            <strong data-i18n="mech_fail" class="text-white block mb-1">Failure Conditions</strong>
+            <p data-i18n="mech_fail_desc" class="text-gray-400">
+              Reputation reaches 0% or Money reaches -$1000.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Advanced Services -->
+      <div class="mt-8">
+        <h3 data-i18n="advanced_services" class="text-lg font-bold text-blue-400 mb-4">
+          ADVANCED SERVICES
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div class="bg-gray-800/30 p-3 rounded border border-orange-900/50">
+            <strong data-i18n="mq_full" class="text-orange-400 block mb-1">Message Queue</strong>
+            <p data-i18n="mq_desc" class="text-gray-400 text-xs">
+              Massive buffer holding 200 requests. Place after Firewall to
+              smooth DDoS spikes, or before Compute to prevent overload. Cheap
+              insurance against traffic bursts.
+            </p>
+            <p data-i18n="mq_flow" class="text-gray-500 text-xs mt-1">
+              Flow: Firewall → Queue → Load Balancer or Load Balancer → Queue
+              → Compute
+            </p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded border border-red-900/50">
+            <strong data-i18n="cache_full" class="text-red-400 block mb-1">Memory Cache</strong>
+            <p data-i18n="cache_desc_long" class="text-gray-400 text-xs">
+              Caching layer with 35-65% hit rate. Cache hits complete
+              instantly without hitting DB/Storage. Upgrade tiers for higher
+              hit rates. Great for reducing DB costs.
+            </p>
+            <p data-i18n="cache_flow" class="text-gray-500 text-xs mt-1">
+              Flow: Compute → Cache → DB/Storage
+            </p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded border border-fuchsia-900/50">
+            <strong data-i18n="apigw_full" class="text-fuchsia-400 block mb-1">API Gateway</strong>
+            <p data-i18n="apigw_desc_long" class="text-gray-400 text-xs">
+              Rate limits incoming traffic. When requests exceed the rate limit,
+              excess requests are throttled with only -0.2 reputation loss (vs -1.0 for failures).
+              Upgrade tiers to increase rate limit (20/40/80 RPS).
+            </p>
+            <p data-i18n="apigw_flow" class="text-gray-500 text-xs mt-1">
+              Flow: Internet → API GW → ALB or WAF → API GW → ALB
+            </p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded border border-violet-900/50">
+            <strong data-i18n="nosql_full" class="text-violet-400 block mb-1">NoSQL Database</strong>
+            <p data-i18n="nosql_desc_long" class="text-gray-400 text-xs">
+              Faster and cheaper than SQL for READ/WRITE traffic (150ms vs 300ms processing).
+              Cannot handle SEARCH queries — keep SQL DB for those.
+              Upgrade tiers for higher capacity (15/30/50).
+            </p>
+            <p data-i18n="nosql_flow" class="text-gray-500 text-xs mt-1">
+              Flow: Compute → NoSQL or Compute → Cache → NoSQL
+            </p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-cyan-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="search_full" class="text-cyan-400">Search Engine</strong>
+              <span class="text-green-400 font-mono text-sm">$120</span>
+            </div>
+            <p data-i18n="search_desc_long" class="text-sm text-gray-400 mt-1">
+              Processes SEARCH traffic 3× faster than SQL DB (100ms vs 300ms). Only accepts SEARCH queries — other traffic types will fail. Upgrade tiers for higher capacity (12/25/40).
+            </p>
+            <p data-i18n="search_flow" class="text-xs text-gray-500 mt-1">Flow: Compute → Search Engine or Cache → Search Engine</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-pink-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="replica_full" class="text-pink-400">Read Replica</strong>
+              <span class="text-green-400 font-mono text-sm">$100</span>
+            </div>
+            <p data-i18n="replica_desc_long" class="text-sm text-gray-400 mt-1">
+              Processes READ traffic faster than master DB (200ms vs 300ms). Must be connected to a SQL DB or NoSQL DB to function. Only accepts READ queries.
+            </p>
+            <p data-i18n="replica_flow" class="text-xs text-gray-500 mt-1">Flow: Compute → Replica → DB or Cache → Replica → DB</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-amber-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="serverless_full" class="text-amber-400">Serverless Function</strong>
+              <span class="text-green-400 font-mono text-sm">$45</span>
+            </div>
+            <p data-i18n="serverless_desc_long" class="text-sm text-gray-400 mt-1">
+              Auto-scales with traffic (capacity 30). Very low upkeep ($2/min) but charges $0.03 per completed request. Cheap for bursty / low-volume traffic; expensive at sustained high RPS. Same connection topology as Compute.
+            </p>
+            <p data-i18n="serverless_flow" class="text-xs text-gray-500 mt-1">Flow: ALB / Queue → Serverless → Cache / DB / NoSQL / S3</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-orange-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="compute_full" class="text-orange-400">Compute Node</strong>
+              <span class="text-green-400 font-mono text-sm">$60</span>
+            </div>
+            <p data-i18n="compute_desc_long" class="text-sm text-gray-400 mt-1">
+              Processes every request type and routes it onward. Upgrade tiers scale it UP (capacity 4/10/18). Toggle AUTO to scale it OUT instead: an Auto-Scaling Group boots an instance whenever utilization stays above 70% and retires one below 30%, between 1 and 5 instances. A new instance needs 3s to warm up and carries no traffic until it does — that cold start is why you pre-scale ahead of a known peak — and every instance is billed from the moment it boots. Real-world equivalents: AWS Auto Scaling Group · Azure VM Scale Set · GCP Managed Instance Group.
+            </p>
+            <p data-i18n="compute_flow" class="text-xs text-gray-500 mt-1">Flow: LB / Queue → Compute → Cache / DB / NoSQL / Storage</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-teal-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="monitor_full" class="text-teal-400">Monitoring</strong>
+              <span class="text-green-400 font-mono text-sm">$75</span>
+            </div>
+            <p data-i18n="monitor_desc_long" class="text-sm text-gray-400 mt-1">
+              Collects utilization, queue depth, error rate and latency from every service and raises alerts before overloads become outages. Never receives traffic — place it anywhere. Real-world equivalents: AWS CloudWatch · Azure Monitor · Google Cloud Operations.
+            </p>
+            <p data-i18n="monitor_flow" class="text-xs text-gray-500 mt-1">Flow: standalone — no connections; watches every service</p>
+          </div>
+          <!-- Sandbox archetypes, batch 1 (#197) -->
+          <div class="bg-gray-800/50 p-3 rounded border border-stone-700/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="dlq_full" class="text-stone-400">Dead-Letter Queue</strong>
+              <span class="text-green-400 font-mono text-sm">$55</span>
+            </div>
+            <p data-i18n="dlq_desc_long" class="text-sm text-gray-400 mt-1">
+              Catches requests that finally failed (retry exhausted or no route) at any connected upstream, parking them instead of dropping them. It then drains slowly on its own, recovering each parked request for a small money cost and refunding a little reputation. If it overflows its cap, further dead requests fail normally plus an extra reputation penalty — an unmanaged DLQ is worse than none. Real-world equivalents: AWS SQS dead-letter queue · Azure Service Bus dead-letter queue.
+            </p>
+            <p data-i18n="dlq_flow" class="text-xs text-gray-500 mt-1">Flow: Compute / Serverless / LB / API GW → DLQ (drains automatically)</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-indigo-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="pubsub_full" class="text-indigo-400">Pub/Sub Topic</strong>
+              <span class="text-green-400 font-mono text-sm">$65</span>
+            </div>
+            <p data-i18n="pubsub_desc_long" class="text-sm text-gray-400 mt-1">
+              Fan-out: one inbound event is delivered to every connected subscriber — one copy each, capped at the number of subscribers. It is the only node that multiplies traffic, so a single event becomes N independent deliveries that each run their own path. Wire it after a Load Balancer or API Gateway and out to processors, storage, or a Notification sink. Real-world equivalents: AWS SNS · Azure Event Grid · Google Cloud Pub/Sub.
+            </p>
+            <p data-i18n="pubsub_flow" class="text-xs text-gray-500 mt-1">Flow: LB / API GW → Pub/Sub → Compute / Serverless / Notification / Storage (×N)</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-yellow-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="auth_full" class="text-yellow-400">Identity Provider</strong>
+              <span class="text-green-400 font-mono text-sm">$55</span>
+            </div>
+            <p data-i18n="auth_desc_long" class="text-sm text-gray-400 mt-1">
+              Sits in-line on the request path and trades latency for security: every request through it pays an extra processing delay, and half the Malicious traffic that reaches it is caught — the session-based attacks a WAF alone misses. What it does not catch slips through and breaches downstream, so it is a second layer, not a replacement for the firewall. Real-world equivalents: AWS Cognito · Microsoft Entra ID · AWS IAM.
+            </p>
+            <p data-i18n="auth_flow" class="text-xs text-gray-500 mt-1">Flow: Internet / WAF → Auth → Load Balancer / API Gateway / Compute</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-sky-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="scheduler_full" class="text-sky-400">Scheduler</strong>
+              <span class="text-green-400 font-mono text-sm">$50</span>
+            </div>
+            <p data-i18n="scheduler_desc_long" class="text-sm text-gray-400 mt-1">
+              A traffic source, not a processor: every 8 seconds it injects its own burst of batch jobs into its downstream, independent of the external request rate. It teaches capacity planning for known peaks — provision for the wave before it lands. It freezes when the game is paused and never leaks jobs. Real-world equivalents: AWS EventBridge Scheduler · Google Cloud Scheduler.
+            </p>
+            <p data-i18n="scheduler_flow" class="text-xs text-gray-500 mt-1">Flow: Scheduler → Queue / Load Balancer / Compute / Serverless</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-rose-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="notify_full" class="text-rose-400">Notification</strong>
+              <span class="text-green-400 font-mono text-sm">$40</span>
+            </div>
+            <p data-i18n="notify_desc_long" class="text-sm text-gray-400 mt-1">
+              A terminal 'send': it completes an event and, unlike Storage or the database, its success earns bonus reputation (user goodwill), so it is valuable even when the money reward is small. Its overload failures are silent — no alarm, only a quiet drip of dissatisfaction rather than a scored, sonified drop. Real-world equivalents: AWS SES/SNS · SendGrid-class email/SMS senders.
+            </p>
+            <p data-i18n="notify_flow" class="text-xs text-gray-500 mt-1">Flow: LB / Pub/Sub / Scheduler → Notification (terminal 'send')</p>
+          </div>
+          <!-- Sandbox archetypes, batch 2 (#198) -->
+          <div class="bg-gray-800/50 p-3 rounded border border-blue-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="container_full" class="text-blue-400">Container Cluster</strong>
+              <span class="text-green-400 font-mono text-sm">$120</span>
+            </div>
+            <p data-i18n="container_desc_long" class="text-sm text-gray-400 mt-1">
+              The economic anti-twin of Serverless: dense fixed capacity (12, three times a Tier-1 Compute) at a flat per-cluster fee with no per-request charge. It shares Compute's processing brain, so the different choice is purely economic — it wins steady high-throughput, where the flat price beats Serverless's per-request bleed and its density beats paying upkeep for many Compute instances. Toggle AUTO to scale it out, but its node pool warms up far slower than an ASG Compute VM, so pre-scale before a known peak. Real-world equivalents: Amazon EKS · Azure AKS · Google GKE.
+            </p>
+            <p data-i18n="container_flow" class="text-xs text-gray-500 mt-1">Flow: LB / Queue / API GW → Container Cluster → Cache / DB / NoSQL / Storage</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-teal-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="stream_full" class="text-teal-400">Stream</strong>
+              <span class="text-green-400 font-mono text-sm">$90</span>
+            </div>
+            <p data-i18n="stream_desc_long" class="text-sm text-gray-400 mt-1">
+              High-throughput ingestion split across independent partitions, each processed in strict order. It is the only node that models head-of-line blocking: if a partition's head cannot forward because its consumer is saturated, the whole partition waits behind it — it never skips ahead — while the other partitions keep flowing. That is the ordering-vs-throughput lesson: order is preserved per partition, but one slow consumer stalls its partition's tail. Real-world equivalents: Amazon Kinesis · Azure Event Hubs · Apache Kafka.
+            </p>
+            <p data-i18n="stream_flow" class="text-xs text-gray-500 mt-1">Flow: LB / API GW → Stream (partitioned) → Compute / Serverless / Storage / Warehouse</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-lime-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="dns_full" class="text-lime-400">GeoDNS</strong>
+              <span class="text-green-400 font-mono text-sm">$50</span>
+            </div>
+            <p data-i18n="dns_desc_long" class="text-sm text-gray-400 mt-1">
+              The front-most entry point: it sits in front of the internet-facing tier and splits traffic across two or more independent regional stacks, each its own WAF → ALB → … pipeline. Where a Load Balancer distributes workers within one stack, GeoDNS distributes whole stacks at the very front — the basis for multi-region and regional failover. Wire the Internet to it, then wire it out to the front door (WAF / ALB / API Gateway) of each region. Real-world equivalents: AWS Route 53 · Azure Traffic Manager · Google Cloud DNS.
+            </p>
+            <p data-i18n="dns_flow" class="text-xs text-gray-500 mt-1">Flow: Internet → GeoDNS → WAF / ALB / API GW of each region (×N)</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-amber-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="warehouse_full" class="text-amber-500">Data Warehouse</strong>
+              <span class="text-green-400 font-mono text-sm">$90</span>
+            </div>
+            <p data-i18n="warehouse_desc_long" class="text-sm text-gray-400 mt-1">
+              An analytics store with the inverse profile of a database: it completes WRITE and UPLOAD traffic — slowly and cheaply at high volume — but fails any realtime READ or SEARCH that reaches it, because a warehouse is OLAP, not OLTP. You load it, you do not serve user reads from it. Feed it an analytics copy from a Pub/Sub fan-out, a scheduled batch load from the Scheduler, or a Stream. That read-rejection plus cheap-high-capacity is the OLTP-vs-OLAP lesson. Real-world equivalents: Amazon Redshift · Azure Synapse · Google BigQuery.
+            </p>
+            <p data-i18n="warehouse_flow" class="text-xs text-gray-500 mt-1">Flow: Pub/Sub / Scheduler / Stream → Data Warehouse (analytics terminal)</p>
+          </div>
+          <!-- The AI Wave (#87) -->
+          <div class="bg-gray-800/50 p-3 rounded border border-fuchsia-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="gpu_full" class="text-fuchsia-400">GPU Cluster</strong>
+              <span class="text-green-400 font-mono text-sm">$300</span>
+            </div>
+            <p data-i18n="gpu_desc_long" class="text-sm text-gray-400 mt-1">
+              The only node that batches: INFERENCE requests accumulate (up to the batch size, or 1.5s from the first arrival) and run as ONE job, so a full batch amortizes the fixed cost and a lonely request pays nearly full price — utilization IS the economics. Tiers are model size: bigger batches AND a lower bad-answer risk (10%/4%/1%, printed on the upgrade card), paid for with a longer model load (12/20/30s) during which the node serves nothing — upgrade in a lull, never mid-surge. It draws 6 kW from the power grid. Real-world equivalents: AWS P5/Inferentia · Azure ND-series · GCP A3/TPU.
+            </p>
+            <p data-i18n="gpu_flow" class="text-xs text-gray-500 mt-1">Flow: Compute / Serverless / Cluster / Inference GW → GPU (terminal; batches INFERENCE only)</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-fuchsia-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="infgw_full" class="text-fuchsia-500">Inference Gateway</strong>
+              <span class="text-green-400 font-mono text-sm">$70</span>
+            </div>
+            <p data-i18n="infgw_desc_long" class="text-sm text-gray-400 mt-1">
+              The honest pitch: a direct-wired GPU has only its tiny bounded intake — during a model load or an overload, requests die fast. The gateway holds up to 20 requests with deadline honesty: anything older than 6 seconds is failed as an SLO breach (a stale answer is worthless), everything else is dispatched to the least-loaded GPU with room in its batch. Its value is measured in reputation saved during warmup and burst windows, not in revenue. Real-world equivalents: vLLM router · NVIDIA Triton · Amazon Bedrock.
+            </p>
+            <p data-i18n="infgw_flow" class="text-xs text-gray-500 mt-1">Flow: LB / API GW / Compute tier → Inference GW → GPU (deadline queue, INFERENCE only)</p>
+          </div>
+          <div class="bg-gray-800/50 p-3 rounded border border-yellow-900/50">
+            <div class="flex justify-between items-center">
+              <strong data-i18n="power_full" class="text-yellow-400">Substation</strong>
+              <span class="text-green-400 font-mono text-sm">$150</span>
+            </div>
+            <p data-i18n="power_desc_long" class="text-sm text-gray-400 mt-1">
+              Not a traffic node — it is never wired to anything. The base grid supplies 8 kW, every GPU draws 6, and a GPU cannot be placed past the cap: each substation adds +6 kW, so a three-GPU fleet needs two of them. Watts are a standing marginal cost of AI capacity, not a one-time unlock — and a substation whose loss would strand powered GPUs refuses to be demolished until the GPUs go first. Real-world equivalents: datacenter power provisioning · rack power budgets · utility interconnect queues.
+            </p>
+            <p data-i18n="power_flow" class="text-xs text-gray-500 mt-1">Flow: standalone — no connections; +6 kW grid capacity per substation</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resilience & failover (#196): concept cards, not services — these
+           mechanics are always on, on every node. -->
+      <div class="mt-8">
+        <h3 data-i18n="resilience_section" class="text-lg font-bold text-blue-400 mb-4">
+          RESILIENCE
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div class="bg-gray-800/30 p-3 rounded border border-red-900/50">
+            <div class="flex items-center gap-2 mb-1">
+              <svg class="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12h5l2-4 3 8 2-4h6" />
+              </svg>
+              <strong data-i18n="breaker_full" class="text-red-400">Circuit Breaker</strong>
+            </div>
+            <p data-i18n="breaker_desc_long" class="text-gray-400 text-xs">
+              Automatic, on every service. When more than 50% of a node's recent outcomes are failures (at least 8 events), its breaker OPENS: routing skips that node for 5 seconds, traffic reroutes to a healthy peer, and requests with no alternative fail fast instead of piling onto a dying node. It then goes HALF-OPEN and lets 3 probe requests through — all three succeed and it closes, one fails and it opens again. Real-world equivalents: Netflix Hystrix · Envoy outlier detection · AWS App Mesh.
+            </p>
+            <p data-i18n="breaker_flow" class="text-gray-500 text-xs mt-1">
+              States: closed → open (5s) → half-open → closed
+            </p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded border border-amber-900/50">
+            <div class="flex items-center gap-2 mb-1">
+              <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 1 1 3 6.7" />
+                <polyline points="3 6 3 12 9 12" />
+              </svg>
+              <strong data-i18n="retry_full" class="text-amber-400">Retry &amp; Backoff</strong>
+            </div>
+            <p data-i18n="retry_desc_long" class="text-gray-400 text-xs">
+              When a node drops a request under load, the request waits 0.3s and is sent once more to an identical healthy node — if one exists. One retry, never more: retrying everything against an overloaded system is exactly how a small failure becomes a retry storm. A retried request is counted once, when it finally succeeds or fails. Real-world equivalents: exponential backoff with jitter · gRPC retry policy · AWS SDK retry modes.
+            </p>
+            <p data-i18n="retry_flow" class="text-gray-500 text-xs mt-1">
+              Flow: failure → 0.3s backoff → healthy peer of the same type → normal path
+            </p>
+          </div>
+          <div class="bg-gray-800/30 p-3 rounded border border-green-900/50">
+            <div class="flex items-center gap-2 mb-1">
+              <svg class="w-4 h-4 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="8" height="6" rx="1" />
+                <rect x="13" y="14" width="8" height="6" rx="1" />
+                <path d="M7 10v4a3 3 0 0 0 3 3h3" />
+              </svg>
+              <strong data-i18n="redundancy_full" class="text-green-400">Redundancy (N+1)</strong>
+            </div>
+            <p data-i18n="redundancy_desc_long" class="text-gray-400 text-xs">
+              Everything that spreads traffic in this game — the Internet entry point, Load Balancers, API Gateways, Compute — only picks among connected nodes that are still routable, skipping the ones that are offline or tripped. So a second node of the same type wired to the same upstream IS your failover: it absorbs the traffic the moment the first one dies. A type with only one instance on the traffic path is a single point of failure, and the game will warn you about it. Real-world equivalents: multi-AZ instance groups · N+1 capacity planning · health-check failover.
+            </p>
+            <p data-i18n="redundancy_flow" class="text-gray-500 text-xs mt-1">
+              Flow: upstream → any healthy node of that type; a dead node is simply skipped
+            </p>
+          </div>
+          <!-- Multi-region failover (#221): a concept card like its three
+               siblings — the mechanic is GeoDNS + isRoutable, always on. -->
+          <div class="bg-gray-800/30 p-3 rounded border border-cyan-900/50">
+            <div class="flex items-center gap-2 mb-1">
+              <svg class="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="5" r="2.5" />
+                <rect x="2" y="14" width="8" height="6" rx="1" />
+                <rect x="14" y="14" width="8" height="6" rx="1" />
+                <path d="M10.5 7l-3.5 7M13.5 7l3.5 7" />
+              </svg>
+              <strong data-i18n="multiregion_full" class="text-cyan-400">Multi-Region (Active-Active)</strong>
+            </div>
+            <p data-i18n="multiregion_desc_long" class="text-gray-400 text-xs">
+              GeoDNS in front of two complete regional stacks, both serving live traffic at once. When a whole region goes dark — the scenario Availability Zones exist for — routing simply stops resolving to its front door: every new request lands on the surviving region, and when the dead one returns, traffic spreads back on its own. Both directions are automatic; the bill is not. Two of everything means double upkeep every second the sky is blue, and that standing cost is exactly what you are buying: the right to lose a region and stay up. Active-passive halves the bill with a cold standby — and pays in failover time and a region nobody has tested. Real-world equivalents: Route 53 health checks · Azure Traffic Manager · Google Cloud DNS.
+            </p>
+            <p data-i18n="multiregion_flow" class="text-gray-500 text-xs mt-1">
+              Flow: Internet → GeoDNS → region A / region B front doors → shared backend; a dark region is simply skipped, in both directions
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8 text-center">
+        <button onclick="closeFAQ()"
+          data-i18n="close_manual"
+          class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-8 rounded-lg transition">
+          Close Manual
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Campaign: Level Select Modal -->
+  <!-- Trophies (achievements) panel (#158) — reachable from the main menu only -->
+  <div id="trophies-modal"
+    class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden overflow-y-auto">
+    <div class="min-h-screen flex items-start justify-center p-6">
+      <div class="glass-panel rounded-2xl p-8 max-w-3xl w-full border border-amber-500/30">
+        <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+          <div class="flex items-center gap-3">
+            <svg class="w-8 h-8 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 21h8" />
+              <path d="M12 17v4" />
+              <path d="M7 4h10v5a5 5 0 0 1-10 0z" />
+              <path d="M7 6H4a1 1 0 0 0-1 1 4 4 0 0 0 4 4" />
+              <path d="M17 6h3a1 1 0 0 1 1 1 4 4 0 0 1-4 4" />
+            </svg>
+            <h2 class="text-3xl font-bold text-amber-400" data-i18n="trophies_title">TROPHIES</h2>
+            <span id="trophies-count"
+              class="text-sm bg-amber-900/50 px-3 py-1 rounded-full text-amber-300 border border-amber-700 font-mono">0/38</span>
+          </div>
+          <button onclick="closeTrophies()"
+            class="text-gray-400 hover:text-white text-2xl">×</button>
+        </div>
+        <div id="trophies-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- populated by renderTrophiesPanel() -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="campaign-select-modal"
+    class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden overflow-y-auto">
+    <div class="min-h-screen flex items-start justify-center p-6">
+      <div class="glass-panel rounded-2xl p-8 max-w-2xl w-full border border-yellow-500/30">
+        <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+          <h2 class="text-3xl font-bold text-yellow-400" data-i18n="campaign_select_title">CAMPAIGN</h2>
+          <button onclick="exitCampaignToMenu()"
+            class="text-gray-400 hover:text-white text-2xl">×</button>
+        </div>
+        <div id="campaign-levels-list" class="space-y-6">
+          <!-- populated by renderCampaignLevels() -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Campaign: Briefing Modal -->
+  <div id="campaign-briefing-modal"
+    class="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm hidden overflow-y-auto">
+    <div class="min-h-screen flex items-center justify-center p-6">
+      <div class="glass-panel rounded-2xl p-8 max-w-3xl w-full border border-cyan-500/30">
+        <div class="flex items-center gap-4 mb-4">
+          <div id="campaign-briefing-icon" class="text-5xl"></div>
+          <div>
+            <div class="text-xs text-gray-500 font-mono" id="campaign-briefing-chapter"></div>
+            <h2 id="campaign-briefing-title" class="text-2xl font-bold text-white"></h2>
+          </div>
+        </div>
+
+        <div id="campaign-briefing-diagram" class="my-4 rounded-lg overflow-hidden border border-gray-700"></div>
+
+        <p id="campaign-briefing-scenario" class="text-gray-300 mb-4 leading-relaxed"></p>
+
+        <div class="bg-blue-900/30 border border-blue-500/40 rounded-lg p-3 mb-3">
+          <div class="text-blue-400 text-xs font-bold uppercase mb-1">📚 <span data-i18n="campaign_learn">Learn</span></div>
+          <p id="campaign-briefing-learn" class="text-gray-200 text-sm"></p>
+        </div>
+
+        <div class="bg-green-900/30 border border-green-500/40 rounded-lg p-3 mb-3">
+          <div class="text-green-400 text-xs font-bold uppercase mb-1">🎯 <span data-i18n="campaign_goals">Goals</span></div>
+          <ul id="campaign-briefing-goals" class="text-gray-200 text-sm space-y-1"></ul>
+        </div>
+
+        <div class="bg-yellow-900/30 border border-yellow-500/40 rounded-lg p-3 mb-4">
+          <div class="text-yellow-400 text-xs font-bold uppercase mb-1">⭐ <span data-i18n="campaign_bonus">Bonus</span></div>
+          <ul id="campaign-briefing-bonus" class="text-gray-200 text-sm space-y-1"></ul>
+        </div>
+
+        <div class="flex justify-between gap-4">
+          <button onclick="exitCampaignToMap()"
+            class="bg-gray-700 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-mono uppercase text-sm">
+            ← Back
+          </button>
+          <button onclick="campaignStartCurrentLevel()"
+            class="bg-cyan-600 hover:bg-cyan-500 text-white py-3 px-8 rounded-lg font-mono uppercase text-sm font-bold">
+            Start Level →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Campaign: Debrief Modal -->
+  <div id="campaign-debrief-modal"
+    class="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm hidden">
+    <div class="min-h-screen flex items-center justify-center p-6">
+      <div class="glass-panel rounded-2xl p-8 max-w-md w-full text-center border border-gray-600">
+        <div id="campaign-debrief-icon" class="text-6xl mb-2"></div>
+        <h2 id="campaign-debrief-title" class="text-3xl font-bold mb-2 text-white"></h2>
+        <div id="campaign-debrief-stars" class="text-3xl mb-1"></div>
+        <!-- Why the third star is missing (#256). The screen showed the empty
+             star and never said what would fill it. -->
+        <p id="campaign-debrief-star-hint" class="text-gray-500 mb-3 text-xs"></p>
+        <p id="campaign-debrief-reason" class="text-gray-400 mb-3 text-sm"></p>
+        <div class="bg-blue-900/30 border border-blue-500/40 rounded-lg p-3 mb-6 text-left">
+          <div class="text-blue-400 text-xs font-bold uppercase mb-1">💡 Tip</div>
+          <p id="campaign-debrief-tip" class="text-gray-200 text-sm"></p>
+        </div>
+        <!-- The run report (#252): what actually happened on THIS attempt.
+             Populated by renderRunReport() in src/ui/campaign-ui.js; hidden
+             when there is nothing to say. -->
+        <div id="campaign-debrief-report" class="hidden text-left bg-gray-900/60 border border-gray-700 rounded-lg p-3 mb-4"></div>
+        <div class="flex justify-center gap-3">
+          <button onclick="campaignRetryLevel()"
+            class="bg-yellow-600 hover:bg-yellow-500 text-white py-3 px-6 rounded-lg font-mono uppercase text-sm">
+            Retry
+          </button>
+          <button id="campaign-debrief-next-btn" onclick="campaignNextLevel()"
+            class="bg-green-600 hover:bg-green-500 text-white py-3 px-6 rounded-lg font-mono uppercase text-sm hidden">
+            Next →
+          </button>
+          <button onclick="exitCampaignToMap()"
+            class="bg-gray-700 hover:bg-gray-600 text-white py-3 px-6 rounded-lg font-mono uppercase text-sm">
+            Map
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="shim.js"></script>
+  <script src="vendor/three.min.js"></script>
+  <script src="vendor/game.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,33 @@
+{
+  "tagline": "Build a cloud. Survive the traffic. Learn the architecture.",
+  "description": "You are the cloud architect. Packets are already on the wire: static files, database reads and writes, search, uploads, inference jobs, and a DDoS that wants your reputation. Place a firewall, a CDN, compute, queues, caches, databases, even a GPU cluster, then wire them together. Money arrives when requests land. Reputation dies when they fail or when an attack slips through.\n\nSurvival never ends — load multiplies, random outages hit, services wear down. Campaign is 25 levels that each teach one idea: caching, autoscaling, multi-region failover, inference economics. Sandbox Mode is a lab with no game over.\n\nLeft click places and connects. Right-drag pans. Scroll zooms. WASD moves the camera. Esc opens the menu.\n\nYour last run, campaign stars, sound prefs and language stay in this copy of the app. The game that teaches you to run servers, running with none.\n\nAn unofficial port of Server Survival by Kostyantyn Pshenychnyy.",
+  "author": {
+    "name": "Kostyantyn Pshenychnyy",
+    "url": "https://github.com/pshenok/server-survival"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Server Survival",
+    "url": "https://github.com/pshenok/server-survival",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "tower-defense",
+    "cloud",
+    "infrastructure",
+    "campaign",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/server-survival",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

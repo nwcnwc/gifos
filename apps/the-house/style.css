@@ -1,0 +1,16 @@
+/* GifOS shell around the original isometric rooms. Original css/styles.css paints the house. */
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: #000;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#the_game {
+  min-width: 100%;
+  min-height: 100%;
+}
+#author p {
+  color: #c4a070;
+}

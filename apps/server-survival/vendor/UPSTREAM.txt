@@ -1,0 +1,25 @@
+Server Survival (pshenok/server-survival) classic-ified for GifOS.
+
+package: pshenok/server-survival
+url:     https://github.com/pshenok/server-survival
+commit:  23fdd6b45959fc201f63bafc8168f9ce9564e2c9 (main)
+license: MIT, Copyright (c) 2025 Kostyantyn Pshenychnyy
+
+Conversion:
+  - Native ESM graph (game.js + src/**) bundled with esbuild 0.25.9
+    as a classic IIFE (vendor/game.js). No type=module in packed HTML.
+  - three.js r128 vendored from cdnjs (the same build upstream loaded).
+  - Tailwind Play CDN replaced with a compiled vendor/tailwind.css
+    (tailwindcss 3.4.17 scanning the game markup + bundle).
+  - Soundtrack packed as assets/sounds/*.mp3 (menu 7.4 MB, game 4.1 MB,
+    plus click SFX). Paths match upstream so new Audio(...) still works.
+
+Do not edit vendor/game.js / three.min.js / tailwind.css to "improve"
+the game; re-run vendor.mjs when moving the pin.
+
+sha256:
+  vendor/three.min.js  9274bbcec8d96168626c732b5d31c775aa8cfb7eaa0599bec0c175908a2c1ce2
+  vendor/game.js  b664a83e07380f9b9308d2be964787ee7d62834604f7d4e93c076742dd368ba2
+  vendor/tailwind.css  a7de9c50b74d96819a43c149437dfbdd26c5cef095344b68e250eb67bc4b7f31
+  vendor/assets/sounds/game-background.mp3  f7a0059346a82ddcc84e8a6f34710da55b781aa0368c88f5014bd3258d9f5396
+  vendor/assets/sounds/menu.mp3  42cb66a26edce5db5e34444a4c2b9ecfdd83c4c7f3504ebbbbbdb16fea23f706

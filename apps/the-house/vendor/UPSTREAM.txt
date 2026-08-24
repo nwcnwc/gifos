@@ -1,0 +1,19 @@
+arturkot/the-house-game
+https://github.com/arturkot/the-house-game
+commit:  5b255969cbc5751a3d2768a2c708097c1b8d704c
+branch:  gh-pages
+license: MIT (COPYING-the-house.txt) — code by Artur Kot, 2019
+artwork: Creative Commons Attribution 3.0 (see upstream README)
+
+This directory is a snapshot of the playable static site: room HTML,
+css/styles.css, js/, images/, sound/, fonts/. Flash SWF, CodeKit configs,
+CNAME, and the upstream README are left behind.
+
+GifOS does not rewrite the rooms. The shell (index.html + app.js) loads the
+original scripts in order, serves room HTML from a packed map instead of a
+network get, remaps picture and sound paths onto packed bytes, and keeps
+inventory / room progress in this copy of the app. SoundManager 2 is HTML5
+only (no Flash). Google Analytics from the original index is not shipped.
+
+Do not edit vendor files to “fix” the game; wrap in app.js instead.
+Rebuild with: node apps/the-house/build.mjs

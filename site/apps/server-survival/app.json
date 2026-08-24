@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "server-survival",
+  "appId": "server-survival",
+  "name": "Server Survival",
+  "shortName": "Servers",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Build a cloud. Survive the traffic. Learn the architecture.",
+  "description": "You are the cloud architect. Packets are already on the wire: static files, database reads and writes, search, uploads, inference jobs, and a DDoS that wants your reputation. Place a firewall, a CDN, compute, queues, caches, databases, even a GPU cluster, then wire them together. Money arrives when requests land. Reputation dies when they fail or when an attack slips through.\n\nSurvival never ends — load multiplies, random outages hit, services wear down. Campaign is 25 levels that each teach one idea: caching, autoscaling, multi-region failover, inference economics. Sandbox Mode is a lab with no game over.\n\nLeft click places and connects. Right-drag pans. Scroll zooms. WASD moves the camera. Esc opens the menu.\n\nYour last run, campaign stars, sound prefs and language stay in this copy of the app. The game that teaches you to run servers, running with none.\n\nAn unofficial port of Server Survival by Kostyantyn Pshenychnyy.",
+  "author": {
+    "name": "Kostyantyn Pshenychnyy",
+    "url": "https://github.com/pshenok/server-survival"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games",
+    "Learning"
+  ],
+  "tags": [
+    "tower-defense",
+    "cloud",
+    "infrastructure",
+    "campaign",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/server-survival",
+  "accent": [
+    0,
+    255,
+    133
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/server-survival/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/server-survival/server-survival.gif",
+  "bytes": 13252633,
+  "download": 0,
+  "provides": null,
+  "sha256": "7e6707a31906fae006a766bd7ecb2a2bc95aaebae623d6a0cdb23ec1235e9a50",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Server Survival",
+    "url": "https://github.com/pshenok/server-survival",
+    "blessed": false
+  }
+}
