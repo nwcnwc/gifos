@@ -478,7 +478,13 @@ if want drills; then
     # (cast.js never auto-spawns). The loopback BASE is not enough if those
     # are set: casualty-noverdict then ssh-fails as a product red (exit 1)
     # instead of NO-VERDICT (exit 4).
-    unset GIFOS_FLEET BEHAVIOR_HOSTS
+    # And `unset` was never enough either: cast.js and fleet.js fall back to
+    # ~/.gifos-behavior-hosts.json when the variable is absent, so on ANY box
+    # that carries a hosts file — every gate box, once the file was synced
+    # fleet-wide on 2026-08-24 — the drills went fleet anyway, pushed meet.js
+    # over ssh, and casualty-noverdict was RED TWICE on two gates in a row.
+    # Point both at a path that reads as no file at all.
+    export GIFOS_FLEET=/dev/null BEHAVIOR_HOSTS=/dev/null
     run_tier drills 900 test/drills/*.js
   )
 fi
