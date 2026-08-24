@@ -96,6 +96,17 @@ function hall(x, y, swing) {
     const hit = cone ? 1 : 0.25;
     col = mix(KEY, AMBER, hit);
   }
+  // figure walking the boards toward the door (the loop is a walk, not a wiggle)
+  const walk = (swing + 1) / 2;
+  const wx = 26 + walk * 28;
+  const wy = 114 - walk * 20;
+  const dxw = x - wx, dyw = y - wy;
+  const body = Math.abs(dxw) < 1.7 && dyw > -11 && dyw < 3;
+  const head = dxw * dxw + (y - (wy - 12)) ** 2 < 5.5;
+  if (body || head) {
+    const lit = cone ? 0.35 : 0.12;
+    col = mix([210, 214, 224], BEAM, lit);
+  }
   return col;
 }
 
@@ -242,7 +253,7 @@ export function screenshotPng() {
   }
 
   drawText(put, 48, 36, 'THE HOUSE', 7, 244, 214, 160);
-  drawText(put, 48, 96, 'CLICK TO LOOK. FIND THE WAY OUT.', 3, 196, 148, 88);
+  drawText(put, 48, 96, 'THE FILE IS THE SAVE.', 3, 196, 148, 88);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

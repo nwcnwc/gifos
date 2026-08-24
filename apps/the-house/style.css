@@ -4,13 +4,82 @@ html, body {
   height: 100%;
   margin: 0;
   background: #000;
-  touch-action: manipulation;
+  overflow: hidden;
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
 #the_game {
   min-width: 100%;
   min-height: 100%;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
 }
 #author p {
   color: #c4a070;
+}
+
+/* SM2 leftover movie box — never a Flash object, never a hole in the room. */
+#sm2-container,
+.sm2-object-box,
+object[type="application/x-shockwave-flash"],
+embed[type="application/x-shockwave-flash"] {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+}
+
+/* Phone: the original intro parks "Enter" at top: 610px, off a 390×844 frame. */
+@media (max-width: 520px), (max-height: 740px) {
+  #intro #head_back,
+  #intro #head_hole,
+  #intro .head {
+    top: 8px;
+    transform: scale(0.58);
+    transform-origin: top center;
+  }
+  #intro #house {
+    top: 36px;
+    transform: scale(0.78);
+    transform-origin: top center;
+  }
+  #intro #logo {
+    top: auto;
+    bottom: 88px;
+  }
+  #intro #enter {
+    top: auto;
+    bottom: 28px;
+    font-size: 18px;
+    line-height: 1.2;
+    padding: 14px 22px;
+    width: auto;
+    margin-left: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 6px;
+  }
+}
+
+/* Coarse pointer: the note is 58×34 — a thumb misses it next to the desk. */
+@media (pointer: coarse) {
+  #room #note {
+    min-width: 58px;
+    min-height: 44px;
+    padding-bottom: 12px;
+    background-position: right top;
+  }
+  #intro #enter,
+  #intro #logo,
+  #intro #head_hole,
+  #switch_sound,
+  #items #button,
+  #settings,
+  #settings li,
+  .close {
+    min-height: 44px;
+  }
 }
