@@ -1,20 +1,147 @@
+:root {
+  --bg: #0a0a0f;
+  --ink: #f4f1e8;
+  --muted: #9a9486;
+  --card: #16161e;
+  --line: #2a2a36;
+  --accent: #ffa500;
+  --err: #e0574a;
+  --field: #12121a;
+  --key: #9cdcfe;
+  --str: #ce9178;
+  --num: #b5cea8;
+  --kw: #569cd6;
+}
+* { box-sizing: border-box; }
 html, body {
   margin: 0; height: 100%;
-  background: #1e1e1e; color: #eee;
-  font: 15px/1.4 system-ui, -apple-system, sans-serif;
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.45 system-ui, -apple-system, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
   display: flex; flex-direction: column;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 0 calc(8px + env(safe-area-inset-bottom, 0px));
 }
-.bar {
-  display: flex; align-items: center; gap: .7rem;
-  padding: .5rem .8rem; background: #252526; border-bottom: 1px solid #333;
-  flex: none;
+.shell {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  max-width: 1100px; width: 100%;
+  margin: 0 auto; padding: 0 .85rem;
 }
-h1 { font-size: 1rem; margin: 0; font-weight: 650; }
-button {
-  background: #3c3c3c; color: #eee; border: 1px solid #555;
-  border-radius: 6px; padding: .3rem .7rem; font: inherit; cursor: pointer;
+.top { flex: none; }
+h1 { font-size: 1.35rem; margin: 0; letter-spacing: -.02em; font-weight: 700; }
+.lead { color: var(--muted); margin: .25rem 0 .7rem; font-size: .95rem; }
+.mode-tabs, .phone-tabs {
+  display: flex; gap: .4rem; flex: none; margin: 0 0 .55rem;
 }
-.status { color: #9a9a9a; font-size: .85rem; }
-.editor { flex: 1; min-height: 0; }
-.jsoneditor { border: none !important; height: 100%; }
-.jsoneditor-menu { background: #333 !important; border-bottom: 1px solid #444 !important; }
+.tab {
+  flex: 1; max-width: 11rem;
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 8px;
+  font: inherit; font-weight: 700; height: 42px; cursor: pointer;
+}
+.tab.on, .tab[aria-selected="true"] {
+  color: #1a1204; background: var(--accent); border-color: var(--accent);
+}
+.actions {
+  display: flex; flex-wrap: wrap; gap: .45rem; align-items: center;
+  flex: none; margin: 0 0 .55rem;
+}
+button, .file {
+  background: #1e1e28; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px;
+  font: inherit; font-weight: 650; height: 42px; padding: 0 .9rem; cursor: pointer;
+}
+button:active, .file:active { background: #2a2a36; }
+.file { display: inline-flex; align-items: center; position: relative; overflow: hidden; }
+.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.err {
+  flex: none; margin: 0 0 .45rem; color: var(--err);
+  font-size: .9rem; font-weight: 600;
+}
+.err[hidden], .hint[hidden] { display: none; }
+.hint { flex: none; margin: 0 0 .45rem; color: var(--muted); font-size: .92rem; }
+.editor { flex: 1; min-height: 12rem; position: relative; }
+.status, .meet { flex: none; margin: .45rem 0 0; color: var(--muted); font-size: .88rem; }
+.meet.live { color: var(--ink); }
+.meet b { color: var(--accent); }
+
+body.guest .actions, body.guest .file { pointer-events: none; opacity: .55; }
+body.guest #copyBtn { pointer-events: auto; opacity: 1; }
+
+.jsoneditor {
+  border: 1px solid var(--line) !important;
+  border-radius: 8px;
+  height: 100%;
+  background: var(--field) !important;
+  color: var(--ink);
+}
+.jsoneditor-menu {
+  background: var(--card) !important;
+  border-bottom: 1px solid var(--line) !important;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.jsoneditor-modes { display: none !important; }
+.jsoneditor-navigation-bar {
+  background: var(--card) !important;
+  color: var(--muted) !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+.jsoneditor-tree { background: var(--field); }
+.jsoneditor-outer { background: var(--field) !important; }
+div.jsoneditor td, div.jsoneditor th, .jsoneditor-field, .jsoneditor-value {
+  color: var(--ink);
+}
+div.jsoneditor-field { color: var(--key) !important; }
+div.jsoneditor-value.jsoneditor-string { color: var(--str) !important; }
+div.jsoneditor-value.jsoneditor-number { color: var(--num) !important; }
+div.jsoneditor-value.jsoneditor-boolean,
+div.jsoneditor-value.jsoneditor-null { color: var(--kw) !important; }
+.jsoneditor-readonly { color: var(--muted) !important; }
+.jsoneditor-highlight { background: #2a2a36 !important; }
+.jsoneditor-search input {
+  background: #1e1e28 !important; color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+}
+.jsoneditor-frame {
+  background: var(--card) !important;
+  border: 1px solid var(--line) !important;
+}
+.jsoneditor-contextmenu, .jsoneditor-contextmenu ul,
+.jsoneditor-modal, .jsoneditor-popover {
+  background: var(--card) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+.jsoneditor-contextmenu a, .jsoneditor-modal, .jsoneditor-modal label {
+  color: var(--ink) !important;
+}
+.jsoneditor-parse-error-icon, .jsoneditor td.jsoneditor-tree .jsoneditor-parse-error-icon {
+  filter: none;
+}
+
+.ace-jsoneditor.ace_editor,
+.ace-jsoneditor .ace_scroller { background-color: #12121a !important; }
+.ace-jsoneditor .ace_gutter { background: #16161e !important; color: #7a7468 !important; }
+.ace-jsoneditor .ace_text-layer, .ace-jsoneditor .ace_variable { color: #d4d4d4 !important; }
+.ace-jsoneditor .ace_cursor { border-left-color: #f4f1e8 !important; }
+.ace-jsoneditor .ace_marker-layer .ace_active-line { background: #242432 !important; }
+.ace-jsoneditor .ace_gutter-active-line { background: #242432 !important; }
+.ace-jsoneditor .ace_marker-layer .ace_selection { background: #3a3a4c !important; }
+.ace-jsoneditor .ace_string { color: var(--str) !important; }
+.ace-jsoneditor .ace_constant.ace_numeric { color: var(--num) !important; }
+.ace-jsoneditor .ace_constant.ace_language { color: var(--kw) !important; }
+.ace-jsoneditor .ace_invalid { background: #4a1d1d !important; color: #ffd0d0 !important; }
+
+@media (max-width: 640px) {
+  h1 { font-size: 1.2rem; }
+  .lead { display: none; }
+  .mode-tabs .tab { max-width: none; }
+  .editor { min-height: 0; }
+  .jsoneditor-menu > button,
+  .jsoneditor-menu > .jsoneditor-menu-button {
+    min-width: 36px; min-height: 36px;
+  }
+}

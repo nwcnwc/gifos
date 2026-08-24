@@ -48,8 +48,16 @@ for (const need of ['vendor/COPYING-jsoneditor.txt', 'vendor/NOTICE.txt', 'vendo
 }
 if (manifest.minBuild !== 947) throw new Error('minBuild must be 947');
 if (manifest.appId !== 'json-editor') throw new Error('appId must be json-editor');
-if (!manifest.capabilities || manifest.capabilities.db !== true) throw new Error('must declare capabilities.db');
+if (!manifest.capabilities || manifest.capabilities.db !== true || manifest.capabilities.multiplayer !== true) {
+  throw new Error('must declare capabilities.db and capabilities.multiplayer');
+}
 if (manifest.capabilities.network) throw new Error('no network path');
+if (!manifest.data || !manifest.data.save || manifest.data.save.visibility !== 'private') {
+  throw new Error('save must be private');
+}
+if (!manifest.data.room || manifest.data.room.visibility !== 'read-only') {
+  throw new Error('room must be read-only');
+}
 if (!listing.basedOn || listing.basedOn.blessed !== false) throw new Error('basedOn.blessed must be false');
 if (listing.basedOn.url !== 'https://github.com/josdejong/jsoneditor') throw new Error('basedOn.url');
 if (!listing.porter || listing.porter.name !== 'GifOS') throw new Error('porter must be GifOS');
@@ -66,6 +74,7 @@ const files = {
   'style.css': read('style.css'),
   'vendor/jsoneditor.min.js': read('vendor/jsoneditor.min.js'),
   'vendor/jsoneditor.min.css': read('vendor/jsoneditor.min.css'),
+  'mp.js': read('mp.js'),
   'app.js': read('app.js'),
   'COPYING-jsoneditor.txt': read('vendor/COPYING-jsoneditor.txt'),
   'NOTICE.txt': read('vendor/NOTICE.txt'),
@@ -77,17 +86,24 @@ const files = {
   files['help.md'] = helpMd;
 }
 const html = files['index.html'];
-for (const s of ['vendor/jsoneditor.min.js', 'app.js']) {
+for (const s of ['vendor/jsoneditor.min.js', 'mp.js', 'app.js']) {
   if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);
 }
 if (!html.includes('href="vendor/jsoneditor.min.css"')) throw new Error('missing css');
+if (!html.includes('tabTree') || !html.includes('tabCode')) throw new Error('Tree/Code tabs missing');
 if (/type=["']module["']/.test(html)) throw new Error('classic scripts only');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('index.html has an external URL');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html)) throw new Error('do not draw an Invite button');
+if (!files['mp.js'].includes('Invite') || !files['app.js'].includes('Invite')) {
+  throw new Error('tell the player to press Invite');
+}
 if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'last'")) {
   throw new Error('app.js must save the document privately');
 }
 if (!files['app.js'].includes('JSONEditor')) throw new Error('app.js must construct JSONEditor');
+if (!files['app.js'].includes('parseJson') || !files['app.js'].includes('repairText')) {
+  throw new Error('app.js must export parseJson / repairText');
+}
 if (!files['vendor/jsoneditor.min.css'].includes('data:image/svg+xml')) {
   throw new Error('css must inline the icon sprite');
 }
