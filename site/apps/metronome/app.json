@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "metronome",
+  "appId": "metronome",
+  "name": "Metronome",
+  "shortName": "Metro",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "A click that keeps time. Tempo lives in this file. No microphone.",
+  "description": "Set a tempo and a time signature, press Start, and the click holds. The first beat of the bar is higher. Tap the pad a few times to catch a tempo from your thumb. Nothing is sent anywhere — there is no account, and there is no microphone.\n\nThe last tempo and signature come back the next time you open the app. Press Invite (the GifOS bar) if you want friends in a meeting to see the same numbers; each device plays its own click.\n\nAn unofficial port of the Web Audio metronome by Chris Wilson (cwilso). Same lookahead scheduling that keeps the click honest.",
+  "author": {
+    "name": "cwilso",
+    "url": "https://github.com/cwilso/metronome"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Creativity",
+    "Media"
+  ],
+  "tags": [
+    "metronome",
+    "tempo",
+    "click",
+    "audio",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/metronome",
+  "accent": [
+    232,
+    80,
+    64
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/metronome/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/metronome/metronome.gif",
+  "bytes": 188887,
+  "download": 0,
+  "provides": null,
+  "sha256": "82cf3af77d7a7a06efbab6e151f0343961579a8359e2510a8c22b915ef683330",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "metronome",
+    "url": "https://github.com/cwilso/metronome",
+    "blessed": false
+  }
+}

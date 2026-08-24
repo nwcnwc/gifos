@@ -1,0 +1,50 @@
+:root {
+  --bg: #0a0a0f;
+  --ink: #f4f1e8;
+  --muted: #9a9486;
+  --card: #16161e;
+  --line: #2a2a36;
+  --accent: #e85040;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, sans-serif;
+}
+body { min-height: 100vh; }
+.wrap { max-width: 420px; margin: 0 auto; padding: 1.2rem 1rem 2.5rem; }
+h1 { font-size: 1.7rem; margin: 0; letter-spacing: -.02em; }
+.lead { color: var(--muted); margin: .45rem 0 1.1rem; }
+.tempo-row { display: flex; align-items: baseline; gap: .4rem; margin: .4rem 0 .2rem; }
+.bpm { font-size: 4.2rem; font-weight: 720; letter-spacing: -.04em; line-height: 1; }
+.unit { color: var(--muted); font-weight: 700; }
+.num { display: block; color: var(--muted); font-size: .82rem; font-weight: 600; margin: .5rem 0 1rem; }
+input[type=range] { display: block; width: 100%; margin-top: .35rem; }
+.beats { display: flex; gap: .45rem; margin: .4rem 0 1.1rem; }
+.beats span {
+  flex: 1; height: 14px; border-radius: 999px;
+  background: var(--line);
+}
+.beats span.on { background: var(--accent); }
+.beats span.accent { background: #f0c420; }
+.actions { display: flex; gap: .6rem; flex-wrap: wrap; margin: .2rem 0 1rem; }
+button {
+  background: var(--accent); color: #fff; border: none; border-radius: 8px;
+  font: inherit; font-weight: 700; height: 52px; padding: 0 1.3rem; cursor: pointer;
+  min-width: 120px;
+}
+button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+button:hover { filter: brightness(1.06); }
+fieldset { border: none; margin: 0 0 1rem; padding: 0; }
+legend { font-size: .82rem; color: var(--muted); font-weight: 600; margin-bottom: .3rem; }
+.radio {
+  display: inline-flex; align-items: center; gap: .4rem;
+  margin: .25rem .9rem .25rem 0; font-weight: 500;
+}
+.meet { color: var(--muted); font-size: .9rem; margin: 0; }
+.meet.live { color: var(--ink); }
+body.guest #tempo, body.guest #vol, body.guest fieldset, body.guest #tapBtn {
+  pointer-events: none; opacity: .85;
+}

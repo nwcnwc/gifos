@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Metronome</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Metronome</h1>
+    <p class="lead">A click that keeps time. No microphone. Nothing is uploaded.</p>
+  </header>
+
+  <div class="tempo-row">
+    <span class="bpm" id="bpm">120</span>
+    <span class="unit">BPM</span>
+  </div>
+  <label class="num">Tempo
+    <input type="range" id="tempo" min="30" max="240" step="1" value="120">
+  </label>
+
+  <div id="beats" class="beats" aria-hidden="true"></div>
+
+  <div class="actions">
+    <button type="button" id="playBtn">Start</button>
+    <button type="button" id="tapBtn" class="ghost">Tap tempo</button>
+  </div>
+
+  <fieldset>
+    <legend>Signature</legend>
+    <label class="radio"><input type="radio" name="sig" value="2/4"> 2/4</label>
+    <label class="radio"><input type="radio" name="sig" value="3/4"> 3/4</label>
+    <label class="radio"><input type="radio" name="sig" value="4/4" checked> 4/4</label>
+    <label class="radio"><input type="radio" name="sig" value="6/8"> 6/8</label>
+  </fieldset>
+
+  <label class="num">Volume
+    <input type="range" id="vol" min="0" max="100" step="1" value="80">
+  </label>
+  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to show these numbers in a meeting. Each device plays its own click.</p>
+</div>
+
+<script src="mp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

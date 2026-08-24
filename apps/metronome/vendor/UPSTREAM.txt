@@ -1,0 +1,19 @@
+cwilso/metronome
+https://github.com/cwilso/metronome
+commit 28a6e49d9dd75985d67d94fa9f45327d7310d62f (main)
+files: js/metronome.js, js/metronomeworker.js
+sha256 metronome.js:        cc5d3ef430b709ade60f6b34ebc5bc38cf1a969bc452e9f232a9cbba2fa2583f
+sha256 metronomeworker.js:  9e5895b24ecdf56b4a55ffced5f5d39bdf415e1611b20fea796188d1fa267630
+MIT, Copyright (c) 2014 Chris Wilson
+
+The original demo auto-inits a Worker from a relative path
+(js/metronomeworker.js) and draws a full-window canvas. GifOS inlines
+classic scripts into about:srcdoc — that Worker URL has nowhere to go.
+The scheduler in app.js is the same lookahead + Web Audio oscillator
+click (scheduleAheadTime 0.1s, lookahead 25ms). setTimeout on the main
+thread is enough: audible audio prevents timer throttling (Chris notes
+this on the README of this commit). Original files are pinned here and
+packed inside the GIF.
+
+Tempo and time signature are saved privately. No microphone. Nothing is
+fetched. AudioContext-MonkeyPatch and the GitHub ribbon are stripped.
