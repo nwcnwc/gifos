@@ -25,11 +25,15 @@
  * NODE_PATH holding a MATCHING playwright) — installed alongside whatever that
  * box already uses, so its own suites keep their pin.
  */
-const { chromium } = require('playwright');
+// Through pw.js, never a bare require: playwright is resolved by SEARCH there
+// (repo node_modules, the global installs), and a bare require('playwright')
+// throws on any box that only has a global install — which read as a product
+// red in every suite that pulled this file in.
+const { chromium, PW_VERSION } = require('./pw');
 const { spawn } = require('child_process');
 const casualty = require('./casualty');
 
-const LOCAL_PW = require('playwright/package.json').version;
+const LOCAL_PW = PW_VERSION;
 const BASE_PORT = Number(process.env.FLEET_PORT_BASE || 9400);
 
 function remoteLauncher(h, args) {

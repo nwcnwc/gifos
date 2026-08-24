@@ -39,9 +39,13 @@ function loadPlaywright() {
     '/usr/local/lib/node_modules/playwright',
   );
   for (const c of cands) {
-    try { return require(c); } catch (e) { /* next */ }
+    try { const m = require(c); loadPlaywright.dir = c; return m; } catch (e) { /* next */ }
   }
-  try { return require('playwright'); } catch (e) { /* fall through to throw */ }
+  try {
+    const m = require('playwright');
+    loadPlaywright.dir = path.dirname(require.resolve('playwright/package.json'));
+    return m;
+  } catch (e) { /* fall through to throw */ }
   throw new Error('pw.js: cannot find playwright. Looked in:\n' + tried(cands.concat(['(bare) playwright'])));
 }
 
@@ -171,5 +175,11 @@ const chromium = new Proxy(pw.chromium, {
   },
 });
 
+// The RESOLVED install's version — fleet-browsers compares it against each
+// remote host's. A bare require('playwright/package.json') resolves from a
+// DIFFERENT search than the one above, so on a box that only has the global
+// install it throws while this file loads fine.
+const PW_VERSION = require(path.join(loadPlaywright.dir, 'package.json')).version;
+
 module.exports = { ...pw, chromium, CHROME: findChrome(), findChrome, findEngine,
-  deathExpected: casualty.deathExpected, casualty };
+  PW_VERSION, deathExpected: casualty.deathExpected, casualty };
