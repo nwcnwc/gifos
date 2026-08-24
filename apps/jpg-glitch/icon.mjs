@@ -124,6 +124,24 @@ const GLYPHS = {
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '-': [0, 0, 0, 0b11111, 0, 0, 0],
   '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
+  'M': [0b10001, 0b11011, 0b10101, 0b10001, 0b10001, 0b10001, 0b10001],
+  'R': [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
+  'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
+  'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
+  'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b10101, 0b01010],
+  'F': [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
+  'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b01010, 0b00100],
+  '2': [0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '6': [0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110],
+  '3': [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100],
+  'Q': [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -154,8 +172,8 @@ export function screenshotPng() {
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
   fill(0, 0, W, H, 14, 10, 18);
-  drawText(put, 48, 36, 'JPG GLITCH', 6, 255, 70, 160);
-  drawText(put, 48, 92, 'DATABEND A STILL. NOTHING UPLOADED.', 3, 180, 154, 170);
+  drawText(put, 36, 22, 'JPG GLITCH', 5, 255, 70, 160);
+  drawText(put, 36, 62, 'DATABEND A STILL. NOTHING UPLOADED.', 2, 180, 154, 170);
 
   function portrait(x0, y0, w, h, glitch) {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -174,13 +192,38 @@ export function screenshotPng() {
       }
       if (glitch && (Math.floor(y / 6) % 4 === 0)) col = mix(col, PINK, 0.65);
       if (glitch && (Math.floor(x / 11) % 5 === 0)) col = mix(col, CYAN, 0.4);
+      if (glitch && Math.abs(y - 180) < 3) col = YEL;
       put(x0 + x, y0 + y, col[0] | 0, col[1] | 0, col[2] | 0);
     }
   }
-  portrait(48, 150, 520, 500, false);
-  portrait(632, 150, 520, 500, true);
-  drawText(put, 48, 662, 'STILL', 3, 180, 154, 170);
-  drawText(put, 632, 662, 'GLITCHED', 3, 255, 70, 160);
+  const roundFill = (x0, y0, x1, y1, r, cr, cg, cb) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const dx = x < x0 + r ? x0 + r - x : x > x1 - r ? x - (x1 - r) : 0;
+      const dy = y < y0 + r ? y0 + r - y : y > y1 - r ? y - (y1 - r) : 0;
+      if (dx * dx + dy * dy > r * r) continue;
+      put(x, y, cr, cg, cb);
+    }
+  };
+  roundFill(28, 96, 1172, 520, 16, 9, 7, 12);
+  portrait(36, 108, 1128, 396, true);
+  drawText(put, 420, 480, 'HOLD TO SEE THE ORIGINAL', 2, 180, 154, 170);
+
+  roundFill(36, 540, 220, 588, 8, 255, 70, 160);
+  drawText(put, 52, 554, 'TAKE PHOTO', 2, 26, 8, 18);
+  roundFill(236, 540, 360, 588, 8, 26, 21, 32);
+  drawText(put, 256, 554, 'CHOOSE', 2, 246, 238, 245);
+  roundFill(376, 540, 500, 588, 8, 255, 70, 160);
+  drawText(put, 400, 554, 'HEAVY', 2, 26, 8, 18);
+  roundFill(516, 540, 700, 588, 8, 26, 21, 32);
+  drawText(put, 532, 554, 'RANDOM SEED', 2, 246, 238, 245);
+
+  drawText(put, 36, 608, 'AMOUNT 62', 2, 180, 154, 170);
+  fill(200, 618, 780, 624, 62, 49, 72);
+  fill(560, 610, 588, 632, 255, 70, 160);
+  drawText(put, 36, 652, 'SEED 17   ITER 44   QUAL 28', 2, 180, 154, 170);
+  fill(36, 688, 180, 708, 255, 70, 160);
+  fill(196, 688, 340, 708, 40, 220, 230);
+  fill(356, 688, 500, 708, 255, 220, 70);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

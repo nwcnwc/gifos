@@ -13,37 +13,49 @@
     <p class="lead">Databend a still on this device. Nothing is uploaded.</p>
   </header>
 
-  <div id="drop" class="drop">
-    <div class="drop-ico" aria-hidden="true">▧</div>
-    <p><b>Drop a picture here</b> or tap to choose</p>
-    <p class="hint">JPEG, PNG, WebP. On a phone, Take photo is easier.</p>
+  <div id="stage" class="stage">
+    <div id="empty" class="empty">
+      <div class="empty-ico" aria-hidden="true">▧</div>
+      <p class="empty-title">No photo yet</p>
+      <p class="empty-copy">Take a still or open a picture. Four sliders smash the JPEG here — the file never leaves this device.</p>
+      <div class="empty-actions">
+        <button type="button" id="emptyPhoto">Take photo</button>
+        <button type="button" id="emptyChoose" class="ghost">Choose a picture</button>
+        <button type="button" id="sampleBtn" class="ghost">Try a sample</button>
+      </div>
+    </div>
+    <canvas id="out" hidden></canvas>
+    <canvas id="orig" hidden></canvas>
+    <p id="holdhint" class="holdhint" hidden>Hold to see the original</p>
   </div>
+
+  <div id="work" class="work" hidden>
+    <div class="row">
+      <button type="button" id="photoBtn">Take photo</button>
+      <button type="button" id="chooseBtn" class="ghost">Choose</button>
+      <button type="button" id="saveBtn" class="ghost">Download JPEG</button>
+      <button type="button" id="randBtn" class="ghost">Random seed</button>
+    </div>
+
+    <section class="presets" id="presets"></section>
+
+    <section class="controls">
+      <label>Amount <span id="amountVal">24</span>
+        <input type="range" id="amount" min="0" max="99" value="24">
+      </label>
+      <label>Seed <span id="seedVal">53</span>
+        <input type="range" id="seed" min="0" max="100" value="53">
+      </label>
+      <label>Iterations <span id="iterVal">21</span>
+        <input type="range" id="iterations" min="0" max="100" value="21">
+      </label>
+      <label>Quality <span id="qualVal">46</span>
+        <input type="range" id="quality" min="1" max="99" value="46">
+      </label>
+    </section>
+  </div>
+
   <input type="file" id="file" accept="image/*">
-
-  <div class="row">
-    <button type="button" id="photoBtn">Take photo</button>
-    <button type="button" id="saveBtn" class="ghost">Download JPEG</button>
-    <button type="button" id="randBtn" class="ghost">Random seed</button>
-  </div>
-
-  <section class="controls">
-    <label>Amount <span id="amountVal">24</span>
-      <input type="range" id="amount" min="0" max="99" value="24">
-    </label>
-    <label>Seed <span id="seedVal">53</span>
-      <input type="range" id="seed" min="0" max="100" value="53">
-    </label>
-    <label>Iterations <span id="iterVal">21</span>
-      <input type="range" id="iterations" min="0" max="100" value="21">
-    </label>
-    <label>Quality <span id="qualVal">46</span>
-      <input type="range" id="quality" min="1" max="99" value="46">
-    </label>
-  </section>
-
-  <div class="stage">
-    <canvas id="out"></canvas>
-  </div>
   <p id="status" role="status"></p>
   <p class="foot">Unofficial port of jpg-glitch by snorpey. The picture never leaves this device.</p>
 </div>
