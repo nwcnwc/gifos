@@ -12,8 +12,9 @@ into a networked one. Payments will not repeat it.
 
 ## Tier 1 — pure unit (no network, no chain, no wallet)
 
-`test/unit/x402-wire.js`, `test/unit/pay-encoding.js`. Runs in the normal unit
-tier, in Node, in milliseconds.
+`test/unit/x402-wire.js`, `test/unit/pay-encoding.js` — and, added since:
+`charge-gate.js`, `charge-signed-payee.js`, `purse.js`, `cash-link.js`. All
+run in the normal unit tier, in Node, in milliseconds.
 
 Proves: the wire format parses; **every refusal fires** (mainnet quote, unknown
 token, over-ceiling, no-ceiling, bad scheme, non-address payee, non-integer
@@ -23,9 +24,15 @@ vectors and real on-chain addresses; a sealed key signs and refuses export.
 
 Cannot prove: that any of it moves money.
 
-## Tier 2 — hermetic browser gate (still no network, no chain, no money)
+## Tier 2 — hermetic browser gate (still no network, no chain, no money) — NOT BUILT
 
-The suite that runs on every push. `test/servers/fake-x402.js` plays a paid
+*(Nothing runs this tier yet: `fake-x402.js` exists but no battery or browser
+suite starts it, there is no fake payee/wallet server, and no e2e suite
+touches charge/entitlement — matching the doctrine's as-built status: the
+payment modules are loaded by no page. This section is the spec for when the
+OS surface lands.)*
+
+The suite that will run on every push. `test/servers/fake-x402.js` plays a paid
 resource server and a sponsor, on Base Sepolia's real identifiers, with flags to
 serve deliberately hostile quotes (`?mainnet=1`, `?huge=1`, `?scheme=upto`). A
 matching **fake payee + fake wallet** does the same for the selling direction:
