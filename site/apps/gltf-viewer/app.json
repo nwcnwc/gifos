@@ -1,0 +1,61 @@
+{
+  "catalog": "1.0",
+  "slug": "gltf-viewer",
+  "appId": "gltf-viewer",
+  "name": "glTF Viewer",
+  "shortName": "glTF",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Drop a 3D model, orbit it, inspect the scene. Nothing is uploaded.",
+  "description": "Open a .glb or .gltf on this device. Drag to orbit, pinch or scroll to zoom, and read the scene tree — meshes, materials, cameras, animations. Play a clip if the file has one. Switch wireframe, a floor grid, or a slow auto-rotate. Lighting is a local studio (a neutral room); nothing is fetched from the internet.\n\nThe last model you opened comes back the next time you open the app, still only on this device. Press Invite in the bar above if you want a friend to sit with you while you look. They drop their own file; yours is not sent anywhere.\n\nAn unofficial port of Don McCurdy's glTF Viewer. Same job: drop a model, look at it. This copy keeps the file here and drops the remote sky maps.",
+  "author": {
+    "name": "Don McCurdy",
+    "url": "https://github.com/donmccurdy/three-gltf-viewer"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Utilities",
+    "Developer"
+  ],
+  "tags": [
+    "3d",
+    "gltf",
+    "glb",
+    "viewer",
+    "inspect",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/gltf-viewer",
+  "accent": [
+    88,
+    166,
+    255
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/gltf-viewer/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/gltf-viewer/gltf-viewer.gif",
+  "bytes": 500694,
+  "download": 0,
+  "provides": null,
+  "sha256": "dbafbe6a23f9800ef826542ed4c01da45fc7f917621e5e8e56c54885d4d53284",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "glTF Viewer",
+    "url": "https://github.com/donmccurdy/three-gltf-viewer",
+    "blessed": false
+  }
+}
