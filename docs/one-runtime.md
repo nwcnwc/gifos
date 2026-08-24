@@ -70,9 +70,10 @@ to build now; the relay host-race is deleted.
 - **Resilient / anyone-owns rooms (`/join/<code>`):** deterministic,
   S4-verified succession. When the owner's seat is confirmed gone (the mesh's
   own departure detection + a grace period), every seat computes the SAME
-  successor — the lowest-seated participant holding a full state mirror. The
-  successor mints a fresh owner key and announces it signed with its S4
-  identity; every verifier re-pins on that signed, deterministic claim. No
+  successor — as built, the lowest present S4 peer id (mirror possession is
+  discovered at adoption, not ranked). The successor mints a fresh owner key
+  and announces it signed with its S4 identity; every verifier re-pins on
+  that signed, deterministic claim. No
   race, no impersonation, no server.
 - **Owned / branded rooms (`/join/<shortname>/<verifier>/…`):** NO automatic
   succession — the verifier is the maker's trust anchor and never silently
@@ -82,7 +83,8 @@ to build now; the relay host-race is deleted.
 
 ## One page
 
-`run.html` and `run.html` collapse into ONE room page backed by one runtime.
+`run.html` (the old app runner) and `meet.html` collapse into ONE room page
+(kept under the name `run.html`) backed by one runtime.
 The `404.html` router maps both URL families to it; the entry decides only
 `{appPinned, mediaPinned}` and the starting component set. The old pages die.
 No thin-shell interim — the collapse happens now, pre-launch.
@@ -106,25 +108,28 @@ in `test/servers/relay-local.js`.
 ## Explicitly OUT of this build
 
 - **W7 rook link-set** (home ring integrity): a mesh law change, sim-first,
-  its own effort. This build leans on S4 (live), not W7.
+  its own effort. This build leaned on S4 (live); W7 has SINCE SHIPPED and is
+  load-bearing across mesh and media plane.
 - **S4's first-contact edge** (first-pin race / sybil at join) stays open, as
   documented in `mesh-identity.js` — succession claims are signed by pinned
   identities, so the edge is no worse here than for seat healing.
 
 ## Deliverables
 
-1. **The room page IS the evolved `run.html`** (reframed 2026-08-01, after
-   tracing the seam). run.html already runs the whole room core — mesh node,
-   peer/DC machinery, §FWD sponsor forwarding, gossip, the app pane on the
-   Stage lane, invite. Extracting its peer machinery into a separate
-   `mesh-app.js` library for run.html to consume would be motion, not
+1. **The room page IS the evolved meeting page** (reframed 2026-08-01, after
+   tracing the seam). The then-meet.html already ran the whole room core —
+   mesh node, peer/DC machinery, §FWD sponsor forwarding, gossip, the app
+   pane on the Stage lane, invite. Extracting its peer machinery into a
+   separate `mesh-app.js` library for the app runner to consume would be
+   motion, not
    progress: under ONE PAGE, "no duplication" is achieved by having exactly
    ONE consumer of one mesh core — the room page, with the media plane simply
    never initialized when the room starts media-off. (A `mesh-app.js` module
    only appears if a genuinely page-free consumer materializes later, e.g.
    headless bots; none is needed for this build.)
 
-   **run.html's unique surface migrates INTO the room page's app chrome:**
+   **The old app runner's unique surface migrates INTO the room page's app
+   chrome:**
    - identity chrome: app GIF favicon/art, `appid` pill, `sig` (signature)
      pill, `perms` pill;
    - the Invite mint flow: link modal, lifetime picker, the owned-vs-resilient
@@ -137,8 +142,9 @@ in `test/servers/relay-local.js`.
    - `become-host`/Take Over DIES — replaced by succession.
    The runtime pieces these drive (stealApp, mirrors, lifetimeToSpec,
    sessionInfo, snapshots) already live page-agnostic in `runtime.js`.
-2. The one room page + router rewrite; `run.html` deleted, `run.html`
-   renamed/kept as the room page (router maps both URL families to it).
+2. The one room page + router rewrite; the old app runner deleted,
+   `meet.html` renamed to `run.html` and kept as the room page (router maps
+   both URL families to it).
 3. Runtime: solo boot with no auto-rehost; Invite = room mint + owner lane
    (reusing `attachStageBus` / `bootClientBus` / `app-owner.js`); star-bus
    host/client code (`becomeHost` sockets, `bootClient`, mirrors of it) deleted.
@@ -171,7 +177,7 @@ Every commit on the branch green; the product cut only lands on main whole.
 4. **Media plane off-at-start + the opt-in call layer** (banner, postures in
    the roster) for app-pinned rooms; media-pinned rooms unchanged.
 5. **Succession** (S4-signed deterministic takeover; owned rooms freeze).
-6. **Delete** run.html + the star bus (`bootClient`, `becomeHost` sockets,
+6. **Delete** the old app-runner page + the star bus (`bootClient`, `becomeHost` sockets,
    `openHostSocket`, AUTO_TAKEOVER) → **strip the relay** to greeter + door
    (mirror in relay-local) → **DS bump** → router rewrite.
 7. Full battery green → merge to main as the flag day.

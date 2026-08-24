@@ -26,14 +26,16 @@ The whole geometry derives from `C` (`site/js/gifos-net.js` SCALE, C=5) and the
 link primitives in `test/sim/topo.h` (ported to `net.topo`):
 
 - **row mesh** — a seat is fully meshed with its `C-1` row-mates.
-- **cross-link** — every non-head (column > 0) holds one link to its transpose
-  partner `(r,i) ↔ (i,r)` within the section; these make the C×C section one
-  connected graph.
+- **cross-link** — in DEEP sections, every non-head (column > 0) holds one
+  link to its transpose partner `(r,i) ↔ (i,r)`; these make the C×C section
+  one connected graph. Section 1 has NO cross-links — it runs the W7 rook
+  instead: every S1 seat links its whole row AND its whole column.
 - **up** — a **head** (column 0, not Section 1) holds one link to its parent.
 - **down** — **every** seat holds one link to one child head (`down(pc,r,i) =
   (childPath(pc,i), r, 0)`), whose `up` is exactly this edge.
 
-Bounded degree ≤ C+1 per seat, always. Nothing else exists to route media over.
+Bounded degree, always: ≤ C+1 per deep seat, 2C−1 at Section 1 (the rook).
+Nothing else exists to route media over.
 
 ---
 
@@ -57,7 +59,7 @@ CLAUDE.md), capped at `C`. **Entry** is per room type: self step-up in open
 rooms, admin-granted in admin rooms. **Membership rides phone-home**: a stager
 announces its coord + a stage flag/timestamp in its status heartbeat, so every
 seat knows who is on Stage and in what tile order (the cap-C set is
-deterministic — earliest timestamp wins, ties by coord), and joining is just
+deterministic — earliest timestamp wins, ties by peer id), and joining is just
 flipping your own flag.
 
 **Assembly — the Stage is a "row fold" assembled at Section 1, not down-tree:**
@@ -67,8 +69,9 @@ flipping your own flag.
    (An earlier design had the stager open one direct off-tree link to a known S1
    seat; the deployed code relays it up the tree instead, so the collect leg is a
    single up-chain, not a 1-hop link.)
-2. **Spread (~2 hops).** That S1 seat relays the feed across the Section-1
-   row+cross mesh (the W5 roster fabric), so **every** S1 seat holds all ≤C feeds.
+2. **Spread (~2 hops).** That S1 seat floods the feed across the Section-1
+   row+column rook fabric (W7 — 8 independent neighbours, once per streamId),
+   so **every** S1 seat holds all ≤C feeds.
 3. **Composite + fan down (video).** Each Section-1 seat composites the ≤C feeds
    into **one** horizontal Stage strip **itself** (redundant, parallel, no
    election — the Stadium doctrine) and fans that single **video-only** stream
@@ -208,7 +211,7 @@ The final mosaic (`stadiumGrid`, the `'stad'` pack shape) is packed for a
   — square-ish near 25 (5×5), a tall ~**1:4** rectangle by ~100 (5×20).
 - **Cap + densify** (> ~100): the **footprint stops growing** (held at the
   ~100-person tall rectangle) and each person's **square shrinks** to pack more
-  in — pixels/person fall, footprint fixed. `createPacker('stad')` sizes the
+  in — pixels/person fall, footprint fixed. `createPacker({shape:'stad', …})` sizes the
   square against a fixed footprint width, so `cols > 5 ⇒ smaller square` falls
   out automatically.
 
@@ -223,9 +226,10 @@ signal that its audio is blended into the mix.
 
 ### The Section-1 finish (redundant, parallel, no election)
 Section 1 (`pc=0`) has **no up-links** — it is the top. Each Section-1 head has
-assembled everything beneath its own subtree; it then exchanges its assembled
-block with the other Section-1 rows over the **cross-links** (`x1`→`x2`→`sdrow`)
-and from those blocks packs the mix-minus **views** below (`'stad'` shape) —
+assembled everything beneath its own subtree; it then ships its product
+DIRECT to every other head over the head column (the W7 rook's 1-hop
+primary), with a fully link-disjoint second copy relayed through the
+row+column fabric (`x1`→`x2`→`sdrow`), and from those blocks packs the mix-minus **views** below (`'stad'` shape) —
 its own row's view and one down-ingredient per child branch — rather than one
 identical whole-Stadium for everyone. **Every** Section-1 head does this
 independently. It is deliberately redundant: computing it C times in parallel
@@ -380,8 +384,9 @@ for.
 ---
 
 ## Load & distribution
-Every seat: holds its row (C-1), one cross-link and (heads) one up-link, one
-down-link — degree ≤ C+1. Every **row head** additionally composites **one**
+Every deep seat: holds its row (C-1), one cross-link and (heads) one
+up-link, one down-link — degree ≤ C+1; a Section-1 seat holds row + column
+(the rook) + down — degree 2C−1. Every **row head** additionally composites **one**
 frame per Stadium tick (its row's live faces + its down-links' blocks, repacked
 flat) — O(C) tiles, constant work, and heads are 1-in-C seats so the compositing
 load is spread evenly. The cross-link now also carries a **redundant** copy of
