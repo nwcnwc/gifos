@@ -1,0 +1,9 @@
+html, body { height: 100%; margin: 0; background: #fff; }
+#tip {
+  position: absolute; left: 12px; bottom: 12px;
+  background: rgba(255,255,230,.92); border: 1px solid #ccc;
+  padding: .4rem .7rem; font: 13px/1.4 system-ui, sans-serif;
+  max-width: 22rem; z-index: 2;
+}
+#throbber { display: none; }
+.pane footer, a[href^="https://github.com"] { display: none; }

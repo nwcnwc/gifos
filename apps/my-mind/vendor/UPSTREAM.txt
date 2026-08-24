@@ -1,0 +1,17 @@
+ondras/my-mind
+https://github.com/ondras/my-mind
+MIT, Copyright (c) 2013-2019 Ondrej Zara
+files:
+  my-mind.js (patched)
+  original sha256: f294733e19a504137e2ed824f7ceb8c7a01abbbe1db68eca2cd159076e4d20c8
+  patched sha256:  4f665de9666d0fd1ad9f5fc568b686354f35c7af9a35139fefc74ba205aaad73
+  my-mind.css
+  sha256: bf6038b3dd37f9b8178827c6f483ee0e6c3891b035076992b33f0db588be4682
+  map.css (as map-css.js)
+  sha256: 6867ba7d409f7e089e88ebb571d107f26d75524f5a721d2cad90ce91a202a8f2
+Patches:
+  - I/O backends: Local + File + Image only (no Firebase / Drive / WebDAV)
+  - init14 reads window.MYMIND_MAP_CSS instead of fetch("map.css")
+  - window.MyMind { getJSON, loadJSON, newMap, subscribe }; preserves onReady
+Analytics, gtag, firebase scripts, and the Font Awesome CDN are not shipped.
+The last map is saved privately.

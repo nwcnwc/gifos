@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "my-mind",
+  "name": "My Mind",
+  "shortName": "Mind",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A mind map in the file. Tab adds a child, Enter adds a sibling.",
+  "entry": "index.html",
+  "accent": [68, 136, 221],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}
