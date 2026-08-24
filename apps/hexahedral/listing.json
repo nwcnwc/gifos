@@ -1,0 +1,32 @@
+{
+  "tagline": "Push every block down. Thirty jam levels. The file is the save.",
+  "description": "A green cube on a field of pink and blue blocks. Step onto a pink one and it drops. Step onto a blue one and it rises. Clear the pinks before you run out of moves. Broken beige tiles are walls.\n\nTap an adjacent block, swipe, or use the arrows. Easy, medium, and hard — ten levels each, the Global Game Jam set. Close it and come back: the level you reached is still in the file.\n\nAn unofficial port of Hexahedral by mminer. Same thirty puzzles; the Redux/virtual-dom shell stays behind.",
+  "author": {
+    "name": "mminer",
+    "url": "https://github.com/mminer/hexahedral"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Hexahedral",
+    "url": "https://github.com/mminer/hexahedral",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "puzzle",
+    "hex",
+    "jam",
+    "blocks",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hexahedral",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
