@@ -9,6 +9,6 @@ Patches: touch detection, texture data URI, CoilOnStop hook,
   CoilAPI, menu fit on a small screen.
 
 sha256:
-  coil.js      06e7257288ecb5a79372b34e8e3938ac540aa916f380ae403ec4d5741a98f717
+  coil.js      95d823ba3b22452c94012c52a6505b33ceb299397c0bb09a909181a617a7dd8e
   util.js      e0fcb75ab19a0741d9eadd45e799de22158c256ede9231e2eaf60264ea5eae32
   COPYING.txt  7e0ba5d1b1073b5a9fa0f92dce648d4226bb37e02f801539b8dfcf5060aca6a0

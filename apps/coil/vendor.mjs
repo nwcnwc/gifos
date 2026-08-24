@@ -308,6 +308,50 @@ js = js.replace(
 );
 
 js = js.replace(
+  `\t\tcontext.save();
+		context.translate( padding, padding );
+		
+			// Energy label
+			context.font = "10px Arial";`,
+  `\t\tcontext.save();
+		context.translate( padding, padding );
+
+		if (world.width < 560) {
+			context.font = "bold 13px Arial";
+			context.save();
+			context.fillStyle = 'rgba(40,40,40,0.9)';
+			context.fillRect(0, 4, 90, 8);
+			context.fillStyle = 'rgba(0,200,220,0.95)';
+			context.fillRect(0, 4, (player.animatedEnergy / 100) * 90, 8);
+			context.restore();
+			var pi = MULTIPLIER_LIMIT - 1, px = 108;
+			while (pi--) {
+				context.beginPath();
+				context.fillStyle = pi < multiplier.major ? 'rgba(0,200,220,0.95)' : 'rgba(40,40,40,0.9)';
+				context.arc(px + pi * 16, 8, 6, 0, Math.PI * 2, true);
+				context.fill();
+			}
+			context.fillStyle = 'rgba(0,200,220,0.95)';
+			context.fillText(Math.round(duration / 1000) + 's  ' + String(Math.floor(score)), 164, 12);
+			context.restore();
+			invalidate(0, 0, world.width, HEADER_HEIGHT + 5);
+			return;
+		}
+		
+			// Energy label
+			context.font = "10px Arial";`
+);
+
+js = js.replace(
+  `if( score !== 0 ) {
+			renderHeader();
+		}`,
+  `if( playing || score !== 0 ) {
+			renderHeader();
+		}`
+);
+
+js = js.replace(
   `\tinitialize();
 	
 })();`,
@@ -344,7 +388,7 @@ license:  MIT, Hakim El Hattab (COPYING.txt)
 
 Patches: touch detection, texture data URI, CoilOnStop hook,
   pointer-to-canvas coords, CoilCore enclosure (no getImageData),
-  CoilAPI, menu fit on a small screen.
+  CoilAPI, menu fit on a small screen, compact HUD under 560px.
 
 sha256:
   coil.js      ${sha('coil.js')}
