@@ -213,6 +213,9 @@
   $('toggleInspect').addEventListener('click', function () {
     setInspect(!inspectOn);
   });
+  $('closeInspect').addEventListener('click', function () {
+    setInspect(false);
+  });
   $('file-input').addEventListener('change', function (e) {
     onFiles(e.target);
     e.target.value = '';
