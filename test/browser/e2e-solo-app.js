@@ -45,7 +45,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // `find()` on the first default app then clicked Help through that modal
   // for 30s. Choose by MANIFEST, not by position, so a reseed cannot do it
   // again. The gated set mirrors gifos-perms.js CAP_LABELS; hosts mirror
-  // runtime.js policy.hasNetwork.
+  // runtime.js networkHosts (manifest.capabilities.network).
   const appId = await d.evaluate(async (SYS) => {
     const GATED = ['microphone', 'camera', 'motion', 'ai', 'api', 'agent', 'wasm', 'gpu', 'pointer', 'fullscreen', 'pool'];
     const files = (await GifOS.store.allFiles()).filter((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
@@ -56,7 +56,8 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
       try { m = (await GifOS.gif.decode(rec.bytes)).manifest || {}; } catch (e) { continue; }
       const caps = m.capabilities || {};
       if (GATED.some((k) => caps[k])) continue;
-      if ((m.hosts && m.hosts.length) || (m.network && m.network.hosts && m.network.hosts.length)) continue;
+      const net = caps.network; // runtime.js networkHosts reads manifest.capabilities.network
+      if (net && (Array.isArray(net) ? net.length : net === true || Object.keys(net).length)) continue;
       return f.id;
     }
     return null;
