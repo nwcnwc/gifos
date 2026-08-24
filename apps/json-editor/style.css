@@ -58,7 +58,7 @@ button:active, .file:active { background: #2a2a36; }
 .file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .err {
   flex: none; margin: 0 0 .45rem; color: var(--err);
-  font-size: .9rem; font-weight: 600;
+  font-size: .9rem; font-weight: 600; white-space: pre-wrap;
 }
 .err[hidden], .hint[hidden] { display: none; }
 .hint { flex: none; margin: 0 0 .45rem; color: var(--muted); font-size: .92rem; }
@@ -89,8 +89,18 @@ body.guest #copyBtn { pointer-events: auto; opacity: 1; }
   color: var(--muted) !important;
   border-bottom: 1px solid var(--line) !important;
 }
-.jsoneditor-tree { background: var(--field); }
-.jsoneditor-outer { background: var(--field) !important; }
+div.jsoneditor-tree,
+div.jsoneditor-outer,
+.jsoneditor-tree,
+.jsoneditor-outer {
+  background: var(--field) !important;
+}
+.jsoneditor-statusbar {
+  background: var(--card) !important;
+  color: var(--muted) !important;
+  border-top: 1px solid var(--line) !important;
+}
+.jsoneditor-frame { background: var(--card) !important; }
 div.jsoneditor td, div.jsoneditor th, .jsoneditor-field, .jsoneditor-value {
   color: var(--ink);
 }
@@ -140,8 +150,11 @@ div.jsoneditor-value.jsoneditor-null { color: var(--kw) !important; }
   .lead { display: none; }
   .mode-tabs .tab { max-width: none; }
   .editor { min-height: 0; }
-  .jsoneditor-menu > button,
-  .jsoneditor-menu > .jsoneditor-menu-button {
-    min-width: 36px; min-height: 36px;
+  .jsoneditor-menu { display: none !important; }
+  div.jsoneditor-outer.has-main-menu-bar,
+  div.jsoneditor-outer.has-nav-bar.has-main-menu-bar,
+  div.jsoneditor-outer.has-nav-bar {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
   }
 }
