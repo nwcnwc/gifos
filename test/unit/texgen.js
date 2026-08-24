@@ -132,6 +132,7 @@ check('no eval / Function / fetch / getUserMedia',
   !/eval\(|new Function\(|fetch\(|getUserMedia|XMLHttpRequest|WebSocket/.test(js));
 check('row-del uses the shared trash glyph', /row-del/.test(js) && /viewBox="0 0 16 16"/.test(js));
 check('params are sliders, not a wall of number boxes', /inp\.type = 'range'/.test(js));
+check('param labels are words (Width), not size[0]', /niceLabel/.test(js) && /Width/.test(js));
 check('buttons are 44px tall', /min-height:\s*44px/.test(css));
 check('canvas stays on screen while you edit', /position:\s*sticky/.test(css));
 check('no webfont import', !/@import|fonts\.google|typekit/i.test(css));

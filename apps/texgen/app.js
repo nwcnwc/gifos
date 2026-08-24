@@ -462,13 +462,33 @@
       if (val == null) val = defs[key];
       if (val instanceof Array) {
         val.forEach(function (n, idx) {
-          wrap.appendChild(sliderField(layer, key, idx, n, key + '[' + idx + ']'));
+          wrap.appendChild(sliderField(layer, key, idx, n, niceLabel(layer.type, key, idx)));
         });
       } else {
-        wrap.appendChild(sliderField(layer, key, null, val, key));
+        wrap.appendChild(sliderField(layer, key, null, val, niceLabel(layer.type, key, null)));
       }
     });
     return wrap;
+  }
+
+  function niceLabel(type, key, idx) {
+    var axis = {
+      position: ['X', 'Y'],
+      size: (type === 'CheckerBoard' || type === 'Pixelate' || type === 'Rect') ? ['Width', 'Height'] : ['Size X', 'Size Y'],
+      offset: ['Offset X', 'Offset Y'],
+      amplitude: ['Amp X', 'Amp Y'],
+      sines: ['Sines X', 'Sines Y'],
+      scale: ['Scale X', 'Scale Y']
+    };
+    if (idx != null && axis[key]) return axis[key][idx] || (key + ' ' + idx);
+    var names = {
+      frequency: 'Frequency', offset: 'Offset', seed: 'Seed',
+      baseFrequency: 'Base frequency', amplitude: 'Amplitude',
+      persistence: 'Persistence', octaves: 'Octaves', step: 'Step',
+      radius: 'Radius', delta: 'Soft edge', strength: 'Strength',
+      angle: 'Angle', rowShift: 'Row shift'
+    };
+    return names[key] || key;
   }
 
   function sliderField(layer, key, idx, value, labelText) {

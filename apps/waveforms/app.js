@@ -213,13 +213,15 @@
     sized = true;
   }
 
-  function strokePoints(ctx, points, h, color, width) {
+  function strokePoints(ctx, points, h, pad, color, width) {
     if (!points || !points.length || !M) return;
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.beginPath();
     points.forEach(function (p, i) {
-      var y = M.translateAxisRelativeYValue(p.y, h);
+      var y = M.translateAxisRelativeYValue(p.y, h - pad * 2) + pad;
       if (i === 0) ctx.moveTo(p.x, y);
       else ctx.lineTo(p.x, y);
     });
@@ -231,6 +233,7 @@
     if (!canvas || !M) return;
     var ctx = canvas.getContext('2d');
     var w = canvas.width, h = canvas.height;
+    var pad = Math.max(10, h * 0.08);
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = '#cfc8b8';
     ctx.lineWidth = Math.max(1, w / 640);
@@ -242,10 +245,10 @@
     if (harm > 0 && conv < 1) {
       pack.extras.forEach(function (ex, i) {
         var a = 0.18 + (1 - conv) * 0.12;
-        strokePoints(ctx, ex.points, h, i % 2 ? 'rgba(255,93,143,' + a + ')' : 'rgba(125,255,179,' + a + ')', 1);
+        strokePoints(ctx, ex.points, h, pad, i % 2 ? 'rgba(255,93,143,' + a + ')' : 'rgba(125,255,179,' + a + ')', 1);
       });
     }
-    strokePoints(ctx, pack.mixed, h, '#0380f4', Math.max(2.5, w / 220));
+    strokePoints(ctx, pack.mixed, h, pad, '#0380f4', Math.max(2.5, w / 220));
   }
 
   function drawAir() {
@@ -370,7 +373,7 @@
     if ($('conv')) $('conv').value = String(conv);
     if ($('vol')) $('vol').value = String(vol);
     if ($('ampVal')) $('ampVal').textContent = amp.toFixed(2);
-    if ($('freqVal')) $('freqVal').textContent = freq.toFixed(1);
+    if ($('freqVal')) $('freqVal').textContent = freq.toFixed(1) + ' cycles';
     if ($('harmVal')) $('harmVal').textContent = String(harm);
     if ($('convVal')) $('convVal').textContent = conv.toFixed(2);
     if ($('volVal')) $('volVal').textContent = vol.toFixed(2);
@@ -391,7 +394,7 @@
     if ($('conv')) conv = +$('conv').value;
     if ($('vol')) vol = +$('vol').value;
     if ($('ampVal')) $('ampVal').textContent = amp.toFixed(2);
-    if ($('freqVal')) $('freqVal').textContent = freq.toFixed(1);
+    if ($('freqVal')) $('freqVal').textContent = freq.toFixed(1) + ' cycles';
     if ($('harmVal')) $('harmVal').textContent = String(harm);
     if ($('convVal')) $('convVal').textContent = conv.toFixed(2);
     if ($('volVal')) $('volVal').textContent = vol.toFixed(2);
