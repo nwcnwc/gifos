@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "json-diff",
+  "name": "JSON Diff",
+  "shortName": "Diff",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Paste two documents, see the difference. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [80, 170, 90],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-only" }
+  }
+}

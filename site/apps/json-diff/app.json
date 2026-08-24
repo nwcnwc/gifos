@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "json-diff",
+  "appId": "json-diff",
+  "name": "JSON Diff",
+  "shortName": "Diff",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Paste two documents, see the difference. Nothing is uploaded.",
+  "description": "Paste the old document on the left and the new one on the right. Added bits light up green, removed bits red, and changed bits show both. Nothing is sent anywhere — there is no account, and the text never leaves this device.\n\nThe last pair you pasted comes back the next time you open the app. Press Invite (the GifOS bar) if you want the same difference to show up, read-only, for everyone in a meeting. They can look; they do not type over it.\n\nAn unofficial port of jsondiffpatch by benjamine. Same visual difference the original demo draws.",
+  "author": {
+    "name": "benjamine",
+    "url": "https://github.com/benjamine/jsondiffpatch"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Developer"
+  ],
+  "tags": [
+    "diff",
+    "compare",
+    "json",
+    "offline",
+    "developer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/json-diff",
+  "accent": [
+    80,
+    170,
+    90
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/json-diff/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/json-diff/json-diff.gif",
+  "bytes": 238329,
+  "download": 0,
+  "provides": null,
+  "sha256": "2e949efd6f953889458c12c5d7b6ef9b60de8bb39a415d96d6e3e1d07e0ffaa5",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "jsondiffpatch",
+    "url": "https://github.com/benjamine/jsondiffpatch",
+    "blessed": false
+  }
+}
