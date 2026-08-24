@@ -1,0 +1,35 @@
+{
+  "tagline": "Drop particles on a field of arrows. Remix the recipe. The file is the save.",
+  "description": "Every point on the plane has a little arrow. Drop thousands of particles and they follow those arrows \u2014 spirals, cogs, rain, a black hole. Tap a named field to try one. Change a number in the recipe underneath, press Apply, and the flow becomes yours. Drag to pan. Scroll to zoom.\n\nThe last field you left stays on this device, inside the app. Close it, come back, it is still there.\n\nWant a friend looking at the same flow? Press Play together, then Invite in the bar above the app, and send the link. You both see the same recipe. When you apply a new one, they get it.\n\nAn unofficial port of Field Play by anvaka.",
+  "author": {
+    "name": "anvaka",
+    "url": "https://github.com/anvaka/fieldplay"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Field Play",
+    "url": "https://github.com/anvaka/fieldplay",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "particles",
+    "field",
+    "flow",
+    "toy",
+    "math",
+    "art",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fieldplay",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

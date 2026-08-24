@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Field Play</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">Field Play</div>
+      <div id="which">Field</div>
+    </header>
+
+    <div class="actions">
+      <button type="button" id="shareBtn">Play together</button>
+      <button type="button" id="applyBtn">Apply</button>
+      <button type="button" id="pauseBtn">Pause</button>
+      <button type="button" id="resetBtn">Reset</button>
+    </div>
+
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both get the same field. Change the recipe and press Apply — they see it.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions">
+        <button type="button" id="leaveBtn">← Solo</button>
+      </div>
+    </div>
+
+    <div id="stage">
+      <canvas id="field">This toy needs a canvas.</canvas>
+    </div>
+    <p id="err" hidden></p>
+
+    <div id="chips" role="list"></div>
+
+    <label class="sr" for="recipe">Vector field recipe</label>
+    <textarea id="recipe" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+
+    <div id="knobs">
+      <label>Step <input id="dt" type="range" min="0.001" max="0.04" step="0.001" value="0.01"> <span id="dtN">0.010</span></label>
+      <label>Fade <input id="fade" type="range" min="0.90" max="0.999" step="0.001" value="0.998"></label>
+      <label>Drop <input id="drop" type="range" min="0" max="0.05" step="0.001" value="0.009"></label>
+      <label>Colour
+        <select id="color">
+          <option value="1">Uniform</option>
+          <option value="2">Speed</option>
+        </select>
+      </label>
+    </div>
+
+    <p id="how">Tap a named field. Drag to pan, pinch or scroll to zoom. Edit the recipe and press Apply. Particles follow the arrows at every point.</p>
+    <p class="foot">Unofficial port of Field Play by anvaka (MIT). Playing alone is the original toy. A shared field is the same recipe — nobody writes on anybody else’s row.</p>
+  </div>
+
+  <!-- Order matters: the runtime inlines each <script src> where it stands. -->
+  <script src="vendor/fieldplay.js"></script>
+  <script src="vendor/presets.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>

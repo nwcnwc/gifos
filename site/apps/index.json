@@ -1417,6 +1417,57 @@
       "sha256": "8b7dadd7598f5583934fc5ea02c700a164593b461225a7eb781d24785920899e"
     },
     {
+      "slug": "fieldplay",
+      "appId": "fieldplay",
+      "name": "Field Play",
+      "shortName": "Field",
+      "version": "1.0.0",
+      "tagline": "Drop particles on a field of arrows. Remix the recipe. The file is the save.",
+      "author": {
+        "name": "anvaka",
+        "url": "https://github.com/anvaka/fieldplay"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Field Play",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "particles",
+        "field",
+        "flow",
+        "toy",
+        "math",
+        "art",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        57,
+        208,
+        197
+      ],
+      "cover": "/apps/fieldplay/cover.jpg",
+      "bytes": 201683,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "29f3d2e5f5caaf283fc280f33bdaebfa0687c768aad63ef06b97665d28b09bc7"
+    },
+    {
       "slug": "finger-pool",
       "appId": "finger-pool",
       "name": "Finger Pool",
@@ -1651,6 +1702,56 @@
         "ts": "2026-08-23"
       },
       "sha256": "4d9c5528188a2db7f54a2a600826d53c32de11470a4a92d30811df7f0aa4b970"
+    },
+    {
+      "slug": "gltf-viewer",
+      "appId": "gltf-viewer",
+      "name": "glTF Viewer",
+      "shortName": "glTF",
+      "version": "1.0",
+      "tagline": "Drop a 3D model, orbit it, inspect the scene. Nothing is uploaded.",
+      "author": {
+        "name": "Don McCurdy",
+        "url": "https://github.com/donmccurdy/three-gltf-viewer"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "glTF Viewer",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Utilities",
+        "Developer"
+      ],
+      "tags": [
+        "3d",
+        "gltf",
+        "glb",
+        "viewer",
+        "inspect",
+        "offline"
+      ],
+      "accent": [
+        88,
+        166,
+        255
+      ],
+      "cover": "/apps/gltf-viewer/cover.jpg",
+      "bytes": 500694,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "dbafbe6a23f9800ef826542ed4c01da45fc7f917621e5e8e56c54885d4d53284"
     },
     {
       "slug": "gomoku",
@@ -2415,6 +2516,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "81750625ad91d491a90134c652c6e89460db7cac097d2a325cb93de6004376d9"
+    },
+    {
+      "slug": "lost-in-cyberspace",
+      "appId": "lost-in-cyberspace",
+      "name": "Lost in Cyberspace",
+      "shortName": "Cyberspace",
+      "version": "1.0",
+      "tagline": "Two devices, one maze. Access codes are the map. No jam server.",
+      "author": {
+        "name": "Bartek Szopka & Zofia Korcz",
+        "url": "https://github.com/bartaz/lost-in-cyberspace"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Lost in CYBERSPACE",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "coop",
+        "maze",
+        "terminal",
+        "js13k",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        17,
+        255,
+        204
+      ],
+      "cover": "/apps/lost-in-cyberspace/cover.jpg",
+      "bytes": 204945,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "d28ed82601d27d8d8e8c47b22a71633b7eeac3adde4f783918e138b2ddcc713f"
     },
     {
       "slug": "math-race",

@@ -1,0 +1,148 @@
+/* Dark navy field, cyan chips, friend-mode chrome around it. */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #13294f;
+  color: #e8eef8;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 10px calc(8px + env(safe-area-inset-bottom, 0px));
+}
+#shell {
+  flex: 1;
+  min-height: 0;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+}
+#brand { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+#which { margin-left: auto; font-size: 13px; color: #8ab4d4; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions button, #leaveBtn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 8px 14px;
+  min-height: 40px;
+  border: 1px solid #2a4a70;
+  background: #0f1c33;
+  color: #e8eef8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#shareBtn { background: #1f6feb; color: #fff; border-color: #388bfd; }
+#applyBtn { background: #39d0c5; color: #082018; border-color: #2bb8ae; }
+body.friend #shareBtn { display: none; }
+
+#friend-bar {
+  background: #0f1c33;
+  border: 1px solid #2a4a70;
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+}
+#friend-bar[hidden] { display: none; }
+#friend-hint, #friend-status { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+#friend-hint b { color: #7ee0ff; }
+#friend-status { font-weight: 700; min-height: 1.2em; }
+#friend-scores { list-style: none; margin: 0 0 8px; padding: 0; }
+#friend-scores li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid #1a3355;
+}
+#friend-scores li:first-child { border-top: none; }
+#friend-scores .name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#friend-scores .me .name { color: #7ee0ff; }
+#friend-scores .meta { color: #8ab4d4; font-size: 13px; white-space: nowrap; }
+.friend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+#stage {
+  flex: 1;
+  min-height: 180px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #13294f;
+  position: relative;
+}
+#field { display: block; width: 100%; height: 100%; touch-action: none; }
+#err {
+  margin: 0;
+  color: #ff8a8a;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+#err[hidden] { display: none; }
+
+#chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 72px;
+  overflow: auto;
+}
+#chips button {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid #2a4a70;
+  background: #0f1c33;
+  color: #c5d8ec;
+  border-radius: 999px;
+  cursor: pointer;
+}
+#chips button.on { background: #1f6feb; color: #fff; border-color: #388bfd; }
+
+#recipe {
+  width: 100%;
+  min-height: 88px;
+  max-height: 160px;
+  resize: vertical;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #0b1628;
+  color: #d7e6f5;
+  border: 1px solid #2a4a70;
+  border-radius: 6px;
+  padding: 8px;
+}
+#knobs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 13px;
+  color: #8ab4d4;
+}
+#knobs label { display: flex; align-items: center; gap: 6px; }
+#knobs input[type="range"] { width: 90px; }
+#knobs select {
+  font: inherit;
+  background: #0f1c33;
+  color: #e8eef8;
+  border: 1px solid #2a4a70;
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+#how, .foot { margin: 0; font-size: 13px; line-height: 1.4; color: #8ab4d4; }
+.foot { opacity: 0.85; }
+.sr {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+}
