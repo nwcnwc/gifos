@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>glTF Viewer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>glTF Viewer</h1>
+    <p class="lead">Drop a <code>.glb</code> or <code>.gltf</code>. Orbit it. Inspect the scene. Nothing is uploaded.</p>
+  </header>
+
+  <div id="stage">
+    <div id="drop" class="drop">
+      <div class="placeholder" id="placeholder">
+        <p>Drag a glTF 2.0 file here</p>
+        <div class="upload-btn">
+          <input type="file" id="file-input" accept=".glb,.gltf,.bin,.png,.jpg,.jpeg,.webp,.ktx2" multiple>
+          <label for="file-input">Choose file</label>
+        </div>
+      </div>
+      <div id="viewer" class="viewer" hidden></div>
+      <div id="spinner" class="spinner" hidden></div>
+    </div>
+    <aside id="panel">
+      <section>
+        <h2>Display</h2>
+        <label class="check"><input type="checkbox" id="wireframe"> Wireframe</label>
+        <label class="check"><input type="checkbox" id="grid"> Grid</label>
+        <label class="check"><input type="checkbox" id="autoRotate"> Auto-rotate</label>
+        <label class="check"><input type="checkbox" id="neutral" checked> Neutral light</label>
+      </section>
+      <section id="anim-sec" hidden>
+        <h2>Animation</h2>
+        <div id="clips"></div>
+        <button type="button" id="playAll">Play all</button>
+      </section>
+      <section>
+        <h2>Scene</h2>
+        <p id="meta" class="meta">No model yet.</p>
+        <div id="tree" class="tree"></div>
+      </section>
+      <p id="err" class="err" hidden></p>
+    </aside>
+  </div>
+
+  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to look together. Each person drops a file on their own device. Nothing is uploaded on its own.</p>
+</div>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="vendor/three-viewer.js"></script>
+<script src="viewer.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+donmccurdy/three-gltf-viewer
+https://github.com/donmccurdy/three-gltf-viewer
+commit: bd83b39339a525708387006aba976342f036713e
+MIT, Copyright (c) 2023 Don McCurdy
+
+Viewer behaviour (drop a .gltf/.glb, orbit, wireframe/grid/auto-rotate,
+play clips, inspect the scene, Neutral room lighting) is from that app.
+Remote HDR environments (Venice Sunset, Footprint Court), the glTF
+validator, Draco/KTX2/Meshopt decoder fetches from unpkg, dat.gui, and
+analytics are stripped — the sandbox has no network path.
+
+mrdoob/three.js
+https://github.com/mrdoob/three.js
+version: 0.176.0  (the pin in three-gltf-viewer's package.json)
+file: vendor/three-viewer.js
+sha256: 28b59a3964eb9d9fe337a4e378815cfbcdb5b2f4147620c9e6aa554fc4eaee5e
+bytes: 757352
+MIT, Copyright © 2010-2025 three.js authors
+
+IIFE bundle of three + GLTFLoader + OrbitControls + RoomEnvironment.
+Rebuilt by node apps/gltf-viewer/vendor.mjs (esbuild 0.25.9). Image and
+file loaders are patched at runtime so they never fetch: textures ride
+img-src data:/blob:, GLB bytes are parsed in memory.
+
+The last model you dropped is saved on this device. Press Invite to look
+at it together; guests drop their own file. Upstream is a public page
+that never kept the file.
