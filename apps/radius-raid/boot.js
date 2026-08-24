@@ -49,6 +49,19 @@
     get length() { return Object.keys(mem).length; }
   };
 
+  // Upstream (vendor/js/storage.js) hangs getObject/setObject/removeObject on
+  // Storage.prototype and calls them on localStorage. A plain-object shim does
+  // not inherit those, so $.setupStorage dies with "getObject is not a
+  // function" and the game never boots. Inherit Storage.prototype so the
+  // upstream extensions land on the shim too; every Storage method the game
+  // actually calls (getItem/setItem/...) is an own property above, so the
+  // native prototype's illegal-invocation traps are never reached.
+  try {
+    if (typeof Storage !== 'undefined' && Storage.prototype) {
+      Object.setPrototypeOf(ls, Storage.prototype);
+    }
+  } catch (e0) {}
+
   var nativeOk = false;
   try {
     var probe = root.localStorage;
