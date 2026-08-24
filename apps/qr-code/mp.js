@@ -20,6 +20,8 @@
       hostId: me.id,
       name: me.name,
       payload: s.payload || '',
+      kind: s.kind || 'text',
+      fields: s.fields || {},
       ecc: s.ecc || 'M',
       size: s.size || 224,
       dark: s.dark || '#000000',

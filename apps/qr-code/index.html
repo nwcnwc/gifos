@@ -10,20 +10,40 @@
 <div class="wrap">
   <header>
     <h1>QR Code</h1>
-    <p class="lead">Type text or a URL. A code appears. Nothing is uploaded.</p>
+    <p class="lead">Type a link or any text. A code appears. Nothing is uploaded.</p>
   </header>
 
-  <label class="field">Text or URL
-    <textarea id="payload" rows="4" maxlength="2000" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="gifos.app or any text"></textarea>
-  </label>
+  <div id="kinds" class="kinds" role="tablist" aria-label="What to encode">
+    <button type="button" class="kind on" data-kind="text" role="tab" aria-selected="true">Text</button>
+    <button type="button" class="kind" data-kind="url" role="tab" aria-selected="false">Link</button>
+    <button type="button" class="kind" data-kind="phone" role="tab" aria-selected="false">Phone</button>
+    <button type="button" class="kind" data-kind="sms" role="tab" aria-selected="false">SMS</button>
+    <button type="button" class="kind" data-kind="email" role="tab" aria-selected="false">Email</button>
+    <button type="button" class="kind" data-kind="contact" role="tab" aria-selected="false">Contact</button>
+  </div>
+
+  <div id="fields"></div>
+  <p id="count" class="count" hidden></p>
 
   <article id="card" class="card">
-    <div id="qr" class="qr" aria-label="QR code"></div>
+    <div id="empty" class="empty-state">
+      <div class="ghost-qr" aria-hidden="true"></div>
+      <p>Type something to draw a code.</p>
+    </div>
+    <div id="qr" class="qr" hidden aria-label="QR code"></div>
+    <p id="caption" class="caption" hidden></p>
     <p id="err" class="err" hidden></p>
-    <p id="empty" class="empty">Type something to draw a code.</p>
+    <p id="warn" class="warn" hidden></p>
   </article>
 
-  <section id="settings">
+  <div class="actions">
+    <button type="button" id="pngBtn" disabled>Download PNG</button>
+    <button type="button" id="copyBtn" class="ghost" disabled>Copy picture</button>
+    <button type="button" id="printBtn" class="ghost" disabled>Print</button>
+  </div>
+
+  <details id="looks">
+    <summary>Size and colours</summary>
     <fieldset>
       <legend>Error correction</legend>
       <label class="radio"><input type="radio" name="ecc" value="L"> L — smallest</label>
@@ -39,12 +59,13 @@
       <label>Dark <input type="color" id="dark" value="#000000"></label>
       <label>Light <input type="color" id="light" value="#ffffff"></label>
     </div>
+  </details>
+
+  <section id="recents" class="recents" hidden>
+    <h2>Recent</h2>
+    <ul id="recentList"></ul>
   </section>
 
-  <div class="actions">
-    <button type="button" id="pngBtn">Download PNG</button>
-    <button type="button" id="printBtn" class="ghost">Print</button>
-  </div>
   <p id="meet" class="meet">Press <b>Invite</b> (top bar) to show this code in a meeting. Nothing is uploaded on its own.</p>
 </div>
 
