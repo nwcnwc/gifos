@@ -36,7 +36,7 @@ const read = (p) => readFileSync(join(dir, p), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
 
-const ENGINE_SHA = 'e496bb06b9d5423e865665eb6c8731ebbee6ae8c844e7f8a2550bc7f9541329e';
+const ENGINE_SHA = 'c22aa20e86b9fbe2455e8aff82177460809366be049bcc4d674e521477f60aa9';
 const PRESET_SHA = 'b3e5e32ce6ce7fa956b4cdcafcc99f1aab3aad8f4b03b985cf612de86b62f59f';
 
 for (const need of [

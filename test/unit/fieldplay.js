@@ -153,6 +153,8 @@ check('Back closes the recipe sheet then leaves a room',
   /onBack/.test(src.app) && /sheetOpen/.test(src.app) && /FPMp\.leave/.test(src.app));
 check('canvas is touch-action none', /touch-action:\s*none/.test(src.css) && /touchAction = 'none'/.test(src.engine));
 check('engine pours particles on a tap (dropAt)', /function dropAt/.test(src.engine) && /wasTap/.test(src.engine));
+check('GLSL defines get_velocity before rk4 uses it',
+  /VELOCITY_FWD,\s*userCode,\s*RK4/.test(src.engine) && /vec2 get_velocity\(vec2 p\);/.test(src.engine));
 check('engine pinch-zooms with two pointers', /pinch0/.test(src.engine) && /pointerCount/.test(src.engine));
 check('pan/zoom persist via onView', /onView/.test(src.engine) && /FP\.onView/.test(src.app));
 check('empty recipe does not wipe the field', /recipe box is empty/.test(src.app));

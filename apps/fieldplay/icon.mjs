@@ -137,16 +137,9 @@ export function screenshotPng() {
     rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a == null ? 255 : a;
   };
 
-  // Full-bleed field, mid-flow — the store card is the toy, not a title card.
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const nx = (x / W) * 8 - 4;
-    const ny = (y / H) * 6 - 3;
-    const v = fieldAt(nx, ny);
-    const sp = Math.min(1, Math.hypot(v.vx, v.vy));
-    const g = 36 + 28 * sp;
-    put(x, y, 12, 22 + g * 0.2, 48 + g * 0.4);
-  }
-  for (let i = 0; i < 4200; i++) {
+  // Full-bleed field, mid-flow — black plane, cyan specks, a pour, matching the toy.
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) put(x, y, 6, 8, 14);
+  for (let i = 0; i < 14000; i++) {
     let px = ((i * 17.13) % 1) * 8 - 4;
     let py = ((i * 9.71) % 1) * 6 - 3;
     for (let s = 0; s < 22; s++) {
@@ -155,18 +148,16 @@ export function screenshotPng() {
     }
     const x = (px + 4) / 8 * W;
     const y = (py + 3) / 6 * H;
-    const sp = Math.min(1, Math.hypot(Math.cos(py), Math.cos(px)));
-    put(x, y, 70 + 150 * sp, 170 + 40 * (1 - sp), 210, 255);
+    put(x, y, 90, 210, 230);
     put(x + 1, y, 57, 208, 197);
-    put(x, y + 1, 90, 200, 220);
   }
-  // a denser pour near the right third, as if a finger just tapped
-  for (let i = 0; i < 900; i++) {
+  // denser pour, as if a finger just tapped
+  for (let i = 0; i < 1100; i++) {
     const ang = (i * 2.399) % (Math.PI * 2);
-    const rad = (i % 70) * 0.9;
-    const x = 820 + Math.cos(ang) * rad;
-    const y = 330 + Math.sin(ang) * rad * 0.85;
-    put(x, y, 255, 210, 90);
+    const rad = (i % 80) * 0.85;
+    const x = 780 + Math.cos(ang) * rad;
+    const y = 310 + Math.sin(ang) * rad * 0.85;
+    put(x, y, 180, 240, 255);
     put(x + 1, y, 57, 208, 197);
   }
 

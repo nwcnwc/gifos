@@ -177,10 +177,18 @@
     var box = $('chips');
     if (!box) return;
     box.textContent = '';
+    var SHORT = {
+      'four-counterclockwise-cogs-pushing-parti': 'Four cogs',
+      'particle-grinder': 'Grinder',
+      'follow-finger': 'Follow the finger',
+      'around-the-tap': 'Around the tap'
+    };
     presets().forEach(function (sn) {
       var b = document.createElement('button');
       b.type = 'button';
-      b.textContent = sn.name.replace(/\s*\[interactive\]/i, '');
+      var name = SHORT[sn.id] || sn.name.replace(/\s*\[interactive\]/i, '');
+      b.textContent = name;
+      b.title = sn.name;
       b.setAttribute('data-id', sn.id);
       b.addEventListener('click', function (e) {
         e.preventDefault();
@@ -313,8 +321,7 @@
     if (first) loadPreset(first);
     else applyCode('vec2 get_velocity(vec2 p) {\n  vec2 v = vec2(0.);\n  v.x = cos(p.y);\n  v.y = cos(p.x);\n  return v;\n}');
     FP.play();
-    if (typeof matchMedia === 'function' && matchMedia('(max-width: 700px)').matches) setSheet(false);
-    else setSheet(true);
+    setSheet(false);
 
     if (!api || !api.db) return;
     saveDb = api.db('save');
