@@ -1202,7 +1202,15 @@ input[type=checkbox] {
 .chip-btn:hover { color: var(--ink); border-color: rgba(76, 194, 255, 0.5); background: rgba(76, 194, 255, 0.1); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; align-items: center; }
-.actions a.primary { text-decoration: none; display: inline-block; }
+/*
+ * `.sheet-body a { color: var(--accent) }` is specificity (0,1,1) and beats
+ * `.primary` (0,1,0) — so the Download link at the end of a GIF render was
+ * accent text on an accent background: a 1:1 contrast slab with an invisible
+ * label, as the primary call to action after a ten-second wait. Any anchor
+ * wearing a button's clothes takes the button's ink.
+ */
+.actions a.primary, .sheet-body a.primary { text-decoration: none; display: inline-block; color: var(--accent-ink); }
+.actions a.ghost, .sheet-body a.ghost { text-decoration: none; display: inline-block; color: var(--ink); }
 
 .progress { margin: 14px 0 0; }
 .progress-bar {

@@ -727,6 +727,7 @@
     else if (t === 'shot') UI.openSnapshot();
     else if (t === 'views') UI.openViews();
     else if (t === 'tours') UI.openTours();
+    else if (t === 'anim') UI.openAnimate();
     else if (t === 'phonetools') UI.openTools();
   }
   UI.runTool = runTool;
@@ -1419,9 +1420,17 @@
         measure: '<path d="M3 15 15 3l6 6L9 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m7 13 2 2m2-6 2 2m2-6 2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
         shot: '<path d="M4 8h3.2l1.4-2h6.8l1.4 2H20v11H4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.4" fill="none" stroke="currentColor" stroke-width="1.5"/>',
         views: '<path d="M6 3.6h12v17l-6-4.4-6 4.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+        anim: '<rect x="3.2" y="6" width="14.6" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M20.8 9v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M9 10.2v5.6l4.6-2.8z" fill="currentColor"/>',
         home: '<circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.6 12h16.8M12 3.6c2.6 2.6 2.6 14.2 0 16.8-2.6-2.6-2.6-14.2 0-16.8" fill="none" stroke="currentColor" stroke-width="1.4"/>'
       };
+      /*
+       * "Animate…" sits in the bottom bar, and the bottom bar collapses on a
+       * phone — so the app's flagship feature, the thing that turns the GIF
+       * into a GIF, had NO entry point at all on the device the app is best
+       * on. You could only reach it by calling the function.
+       */
       [['compare', 'Compare two days', 'Split the screen and drag between them'],
+       ['anim', 'Make a GIF', 'Turn a range of days into an animation, on this device'],
        ['measure', 'Measure', 'Tap points for a running distance'],
        ['shot', 'Save a picture', 'This view as an image, with the date on it'],
        ['views', 'Saved views', 'Places and days you kept in this file'],

@@ -581,7 +581,7 @@
       body.appendChild(U.el('p', '', 'NASA Worldview and GIBS are made by NASA\'s Earth Science Data and Information System (ESDIS) project. This is an independent port to GifOS — the original lives at worldview.earthdata.nasa.gov, and the imagery service at gibs.earthdata.nasa.gov.'));
       body.appendChild(U.el('p', '', 'NASA imagery is generally free to use; the agency asks that it is credited, and that its logos are not used to imply endorsement.'));
       body.appendChild(U.el('h3', '', 'Where your things go'));
-      body.appendChild(U.el('p', '', 'Nowhere. Saved views, pinned imagery and pins live inside this app\'s icon on this device. Share the GIF and they travel with it; press Invite and whoever holds the link sees the same map, live, with nothing in between.'));
+      body.appendChild(U.el('p', '', 'Nowhere. Saved views, pinned imagery and pins live inside this app\'s icon on this device. Share the GIF and they travel with it; use Invite on the GifOS bar above this app and whoever holds the link sees the same map, live, with nothing in between.'));
     });
   };
 

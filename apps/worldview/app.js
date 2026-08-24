@@ -40,6 +40,11 @@
       layers: [
         { id: 'wv:places', on: false, opacity: 1 },
         { id: 'wv:grid', on: false, opacity: 1 },
+        // Off, but PRESENT. It was shipped, drawn and offline-capable, and the
+        // only way to find it was the Reference tab of the layer browser — so
+        // a reader counting the offline layers in the Layers panel found four
+        // where the help promises five, and concluded the help was lying.
+        { id: 'wv:borders', on: false, opacity: 1 },
         { id: 'wv:coast', on: true, opacity: 1 },
         { id: 'MODIS_Terra_CorrectedReflectance_TrueColor', on: true, opacity: 1 },
         { id: 'wv:base', on: true, opacity: 1 },
