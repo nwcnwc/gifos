@@ -224,6 +224,8 @@ check('tap-to-move uses tapDests (foundation first, then a second tap if several
   app.includes('tapDests') && app.includes('tryTap'));
 check('drag uses a movement threshold, not a 180ms long-press',
   /dx \* dx \+ dy \* dy > 64/.test(app) && !/setTimeout\([^,]+,\s*180\)/.test(app));
+check('a mouse click is a tap (drag arms only after 8px, never on pointerdown)',
+  !/if\s*\(\s*mouse\s*\)\s*arm\(\)/.test(app));
 check('onBack undoes (or cancels a selection / new-game ask)',
   /onBack/.test(app) && /doUndo/.test(app));
 check('old saves still load through restore()', app.includes('K.restore') && app.includes("get('game')"));

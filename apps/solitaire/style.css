@@ -61,6 +61,7 @@ header{width:100%;max-width:760px;margin:0 auto;display:flex;align-items:center;
 .pip.tl{top:4px;left:5px;font-size:calc(var(--card-w) * 0.26)}
 .pip.br{bottom:4px;right:5px;font-size:calc(var(--card-w) * 0.26);transform:rotate(180deg)}
 .pip.center{left:50%;top:54%;transform:translate(-50%,-50%);font-size:calc(var(--card-w) * 0.46)}
+.card--ten .pip.tl,.card--ten .pip.br{font-size:calc(var(--card-w) * 0.20);letter-spacing:-0.08em}
 .card.sel{box-shadow:0 0 0 2px var(--gold), 0 4px 10px rgba(0,0,0,.4);z-index:5}
 .card.hint{box-shadow:0 0 0 2px #03ffff, 0 0 12px #03ffff}
 .card--moving{position:fixed;z-index:20;pointer-events:none}
