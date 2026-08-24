@@ -90,16 +90,22 @@ for (const [n, s] of Object.entries(files)) {
     'result = (function () {\n' +
     '  var d = BJ.makeDeck();\n' +
     '  if (d.length !== 52) throw new Error("deck " + d.length);\n' +
-    '  var ace = {value:"a", suit:"spades", game_value:11};\n' +
-    '  var ten = {value:"10", suit:"hearts", game_value:10};\n' +
-    '  var six = {value:"6", suit:"clubs", game_value:6};\n' +
+    '  var ace = BJ.card("a","spades");\n' +
+    '  var ten = BJ.card("10","hearts");\n' +
+    '  var six = BJ.card("6","clubs");\n' +
     '  if (BJ.total([ace, ten]) !== 21) throw new Error("bj total");\n' +
     '  if (BJ.total([ace, ace, six]) !== 18) throw new Error("soft aces");\n' +
     '  if (!BJ.isBj([ace, ten])) throw new Error("isBj");\n' +
     '  var r = BJ.decide([ten, six], [ace, ten]);\n' +
     '  if (r.winner !== 1 || !r.bj) throw new Error("player bj");\n' +
+    '  if (BJ.chipDelta(10, r) !== 15) throw new Error("3:2");\n' +
     '  var bust = BJ.decide([{game_value:10},{game_value:8}], [{game_value:10},{game_value:10},{game_value:5}]);\n' +
     '  if (bust.winner !== 0) throw new Error("bust");\n' +
+    '  if (BJ.canDeal(0, 10) || !BJ.canDeal(10, 10)) throw new Error("broke");\n' +
+    '  var shoe = [BJ.card("a","spades"), BJ.card("9","clubs"), BJ.card("10","hearts"), BJ.card("6","diamonds")];\n' +
+    '  var tab = BJ.createTable({ shoe: shoe, players: [{id:"p", name:"you"}], handId: 1 });\n' +
+    '  if (tab.phase !== "done" || BJ.netFor(tab, "p") !== 15) throw new Error("natural");\n' +
+    '  if (BJ.publicTable(tab).shoe) throw new Error("shoe leaked");\n' +
     '  return BJ.total([ace, ten]);\n' +
     '})();',
     ctx
@@ -108,8 +114,10 @@ for (const [n, s] of Object.entries(files)) {
   console.log('blackjack rules ok — 21');
 }
 
-const shot = screenshotPng();
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (!existsSync(shotPath) || process.env.BJ_SHOT === 'proc') {
+  writeFileSync(shotPath, screenshotPng());
+}
 const bytes = await gif.encode(files, { preview: blackjackIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'blackjack', 'blackjack.gif');
 mkdirSync(dirname(out), { recursive: true });
