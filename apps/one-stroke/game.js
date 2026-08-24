@@ -85,6 +85,7 @@
       seats: seats,
       names: opts.names ? clone(opts.names) : {},
       strokes: [],
+      roundStart: 0,
       turn: 0,
       seq: opts.seq || 0,
       phase: 'draw',
@@ -103,8 +104,16 @@
 
   function drewThisRound(pic, playerId) {
     var n = (pic.seats && pic.seats.length) || 0;
-    if (!n) return false;
-    var start = pic.strokes.length - (pic.strokes.length % n);
+    if (n < 2) return false;
+    /* The round's strokes start at the RECORDED index, never at a modulo
+       guess: skipAbsent ends a round with fewer strokes than seats, so
+       `length % seats` reached back into the previous round after "Another
+       round" and refused the actor's own stroke forever — the host silently
+       bricked the room. Old picture rows predate roundStart; fall back to
+       the modulo for them rather than scanning from zero. */
+    var start = (pic.roundStart != null)
+      ? pic.roundStart
+      : pic.strokes.length - (pic.strokes.length % n);
     var i;
     for (i = start; i < pic.strokes.length; i++) {
       if (pic.strokes[i] && pic.strokes[i].by === playerId) return true;
@@ -203,6 +212,7 @@
       next.seq = pic.seq + 1;
       next.votes = {};
       next.round = (pic.round || 1) + 1;
+      next.roundStart = next.strokes.length;
       return next;
     }
 
@@ -249,6 +259,28 @@
     next.turn = (pic.turn + 1) % pic.seats.length;
     next.seq = pic.seq + 1;
     return maybeEndRound(next);
+  }
+
+  /* The draw phase copes with an absent seat (skipAbsent); the vote phase
+     had no equivalent, so one permanent leaver stalled every round at the
+     vote forever — allIn could never be true. The host settles the vote as
+     soon as every LIVE seat has voted (and someone has). */
+  function settleVotes(pic, liveIds) {
+    if (!pic || pic.phase !== 'vote') return null;
+    var votes = pic.votes || {}, i, id, liveN = 0, all = true, any = false;
+    for (i = 0; i < pic.seats.length; i++) {
+      id = pic.seats[i];
+      if (votes[id]) any = true;
+      if (!liveIds || !liveIds[id]) continue;
+      liveN++;
+      if (!votes[id]) all = false;
+    }
+    if (!liveN || !all || !any) return null;
+    var next = clone(pic);
+    next.title = winningTitle(next);
+    next.phase = 'play';
+    next.seq = pic.seq + 1;
+    return next;
   }
 
   function playback(picOrStrokes) {
@@ -305,6 +337,7 @@
     applyIntent: applyIntent,
     applyIntents: applyIntents,
     skipAbsent: skipAbsent,
+    settleVotes: settleVotes,
     playback: playback,
     compactPts: compactPts,
     pathLen: pathLen,

@@ -611,6 +611,13 @@
     });
     var applied = OS.applyIntents(pic, rows);
     if (applied) { pic = applied; ch = true; }
+
+    /* Votes land above; if the only seats still missing are ones that left
+       the room, finish the vote rather than waiting on them forever. */
+    if (pic.phase === 'vote') {
+      var settled = OS.settleVotes(pic, live);
+      if (settled) { pic = settled; ch = true; }
+    }
     return ch ? pic : null;
   }
 
