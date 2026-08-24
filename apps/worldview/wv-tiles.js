@@ -138,17 +138,39 @@
     db = gifos.db('tiles');
     idxDb = gifos.db('tilecache');
     if (opts && opts.budget) budget = opts.budget;
+    // The index is what makes a cached tile findable on the next boot, so it
+    // must not be left in a debounce when the tab goes away.
+    window.addEventListener('pagehide', writeIndex);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') writeIndex();
+    });
     return idxDb.get('idx').then(function (rec) {
       if (rec && rec.keys) index = { id: 'idx', keys: rec.keys, bytes: rec.bytes || 0 };
       return true;
     }).catch(function () { return false; });
   };
 
-  var flushIndex = U.debounce(function () {
+  /*
+   * The index is flushed on a debounce AND every 20 tiles.
+   *
+   * The debounce alone loses it: while imagery is streaming, every arrival
+   * resets the timer, and a page that goes away mid-stream takes the whole
+   * index with it — an unload handler cannot help, because the write is an
+   * async RPC and the frame is gone before it lands. Twenty tiles is the most
+   * the file can forget it is holding.
+   */
+  var sinceFlush = 0;
+  function writeIndex() {
     if (!idxDb || !indexDirty) return;
     indexDirty = false;
+    sinceFlush = 0;
     idxDb.put({ id: 'idx', keys: index.keys, bytes: index.bytes }).catch(function () {});
-  }, 1500);
+  }
+  var flushSoon = U.debounce(writeIndex, 1200);
+  function flushIndex() {
+    if (++sinceFlush >= 20) writeIndex();
+    else flushSoon();
+  }
 
   T.cacheStats = function () {
     var pinned = 0, pinnedBytes = 0, n = 0;
@@ -241,6 +263,7 @@
   // ---- the queue -----------------------------------------------------------
   var queue = [];                 // { key, url, layer, pri, pin }
   var inflight = 0;
+  var consecutiveFails = 0;
   var pending = new Set();
   var onTile = null;              // called when a tile lands: repaint
 
@@ -277,11 +300,17 @@
 
   function run(job) {
     var key = job.key;
-    // The device's own copy first — it is faster than the wire and it is the
-    // whole point of the cache when there is no wire at all.
-    var local = index.keys[key] && db
-      ? db.get(key).catch(function () { return null; })
-      : Promise.resolve(null);
+    /*
+     * The device's own copy first — it is faster than the wire and it is the
+     * whole point of the cache when there is no wire at all.
+     *
+     * The index is consulted as a fast path, but with no connection the
+     * database is asked ANYWAY: an index flush that did not land before the tab
+     * closed would otherwise turn a file full of imagery into an empty map,
+     * which is precisely the moment the imagery matters.
+     */
+    var known = db && (index.keys[key] || T.net === 'offline');
+    var local = known ? db.get(key).catch(function () { return null; }) : Promise.resolve(null);
 
     local.then(function (rec) {
       if (rec && rec.b) {
@@ -305,6 +334,7 @@
     var key = job.key;
     if (!window.gifos || !gifos.fetch) { failed.set(key, Date.now()); done(key); return; }
     return gifos.fetch(job.url, { method: 'GET' }).then(function (r) {
+      consecutiveFails = 0;
       if (r.status === 404 || r.status === 400) {
         // GIBS answers 404 for a tile with no data — a cloudless swath gap, a
         // day before the instrument flew. That is information, not a failure:
@@ -315,6 +345,7 @@
         return;
       }
       if (!r.ok) throw new Error('HTTP ' + r.status);
+      consecutiveFails = 0;
       return r.arrayBuffer().then(function (buf) {
         var bytes = new Uint8Array(buf);
         T.net = 'live';
@@ -333,8 +364,17 @@
         });
       });
     }).catch(function (err) {
+      /*
+       * What counts as "offline" is not a message. The runtime, the browser and
+       * the OS all word a dead connection differently ("OFFLINE:", "Failed to
+       * fetch", "net::ERR_INTERNET_DISCONNECTED", a bare abort), and matching
+       * strings is how an app ends up cheerfully saying "Live" in aeroplane
+       * mode. Three consecutive failures with no success in between IS the
+       * signal; one success anywhere clears it.
+       */
       var msg = String(err && err.message || err);
-      if (/^OFFLINE|^UNREACHABLE|Failed to fetch|NetworkError/.test(msg)) T.net = 'offline';
+      if (/^OFFLINE|^UNREACHABLE/.test(msg)) T.net = 'offline';
+      else if (++consecutiveFails >= 3) T.net = 'offline';
       failed.set(key, Date.now());
       T.stats.failed++;
       done(key);
