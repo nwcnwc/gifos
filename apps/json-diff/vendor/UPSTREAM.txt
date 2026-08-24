@@ -1,0 +1,17 @@
+benjamine/jsondiffpatch
+https://github.com/benjamine/jsondiffpatch
+tag v0.5.0 (commit ca250fb5901bc60c80cb5fe489016448ed838dd5)
+file: dist/jsondiffpatch.umd.js (classic UMD — later releases dropped it)
+sha256 (stock v0.5.0): 955a67f9cbeab05b13169e65249a9f5d6c3c3bb0d450315cf835fda710fbbbe8
+sha256 (this pin):     eb65a73d668481786577fd7939cb8f2c86e108867ebe376a8abd2bb4617e9590
+                       one-character escape of <\/script> in the HTML formatter
+                       (srcdoc inline would close the script tag).
+MIT, Copyright (c) 2018 Benjamin Eidelman
+
+html.css is dist/formatters-styles/html.css from the same tag
+sha256: e9c3a085b7bcf600e8cb21ef82c8b004f262cbb51048cfdb54720310555397c0
+
+v0.6+ is ESM-only. GifOS inlines classic scripts, so this port pins the last
+UMD. Two paste boxes, the HTML visual formatter, last pair saved privately.
+Press Invite to show a read-only view of the same pair. Upstream is a library
+with a demo page; this directory is the wrap. Nothing is fetched.

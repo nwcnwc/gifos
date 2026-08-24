@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>JSON Diff</title>
+<link rel="stylesheet" href="vendor/html.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>JSON Diff</h1>
+    <p class="lead">Paste two documents. Added is green, removed is red. Nothing is uploaded.</p>
+  </header>
+
+  <div class="panes">
+    <label class="field">Left — old
+      <textarea id="left" rows="10" spellcheck="false" autocomplete="off"></textarea>
+      <span id="leftErr" class="err" hidden></span>
+    </label>
+    <label class="field">Right — new
+      <textarea id="right" rows="10" spellcheck="false" autocomplete="off"></textarea>
+      <span id="rightErr" class="err" hidden></span>
+    </label>
+  </div>
+
+  <div class="actions">
+    <button type="button" id="prettyBtn" class="ghost">Pretty</button>
+    <button type="button" id="sampleBtn" class="ghost">Sample</button>
+    <label class="check"><input type="checkbox" id="unchanged"> Show unchanged</label>
+  </div>
+
+  <section class="visual">
+    <h2>Difference</h2>
+    <div id="delta" class="delta"></div>
+    <p id="same" class="hint" hidden>No difference.</p>
+  </section>
+  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to show this difference, read-only, in a meeting.</p>
+</div>
+
+<script src="vendor/jsondiffpatch.umd.js"></script>
+<script src="mp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
