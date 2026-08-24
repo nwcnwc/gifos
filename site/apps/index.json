@@ -5470,7 +5470,7 @@
       "name": "Server Survival",
       "shortName": "Servers",
       "version": "1.0",
-      "tagline": "Build a cloud. Survive the traffic. Learn the architecture.",
+      "tagline": "No server. The file is the save. Build a cloud, survive the traffic.",
       "author": {
         "name": "Kostyantyn Pshenychnyy",
         "url": "https://github.com/pshenok/server-survival"
@@ -5503,7 +5503,7 @@
         133
       ],
       "cover": "/apps/server-survival/cover.jpg",
-      "bytes": 13252633,
+      "bytes": 13255731,
       "download": 0,
       "provides": null,
       "signature": {
@@ -5511,7 +5511,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "7e6707a31906fae006a766bd7ecb2a2bc95aaebae623d6a0cdb23ec1235e9a50"
+      "sha256": "dc542ab5d4ad9722d86204fd3a22fc00de7ee06834d98ea20fe45d3c8b639da6"
     },
     {
       "slug": "signature-pad",
