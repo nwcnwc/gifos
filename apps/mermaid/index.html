@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mermaid</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <header id="hud">
+      <div id="brand">Mermaid</div>
+      <div id="which">text → chart</div>
+    </header>
+    <div class="actions">
+      <button type="button" id="shareBtn">Play together</button>
+      <button type="button" id="sampleBtn">Sample</button>
+    </div>
+    <div id="friend-bar" hidden>
+      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both edit the same diagram.</p>
+      <p id="friend-status"></p>
+      <ul id="friend-scores"></ul>
+      <div class="friend-actions"><button type="button" id="leaveBtn">← Solo</button></div>
+    </div>
+    <div id="split">
+      <label class="sr" for="src">Diagram text</label>
+      <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      <div id="preview">
+        <p id="err" hidden></p>
+        <div id="view"></div>
+      </div>
+    </div>
+    <p id="how">Type a flowchart, sequence, or class diagram on the left. The picture updates as you type. The last diagram stays in this file.</p>
+    <p class="foot">Unofficial wrap of mermaid (the engine), not the SvelteKit live editor. </p>
+  </div>
+  <script src="vendor/mermaid.min.js"></script>
+  <script src="app.js"></script>
+  <script src="mp.js"></script>
+</body>
+</html>

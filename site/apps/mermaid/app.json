@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "mermaid",
+  "appId": "mermaid",
+  "name": "Mermaid",
+  "shortName": "Mermaid",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "Type a diagram. See it live. The file is the save.",
+  "description": "A box on the left, a picture on the right. Type a flowchart, a sequence, a class diagram — mermaid's own language — and the picture updates as you type. Sample drops in a starter chart. The last diagram you left stays on this device, inside the app.\n\nThis is an unofficial wrap of the mermaid engine, not the mermaid live editor website. There is no account and nothing is uploaded.\n\nWant a friend looking at the same chart? Press Play together, then Invite (in the GifOS menu) and send the link. When you type, they see it.\n\n",
+  "author": {
+    "name": "mermaid-js",
+    "url": "https://github.com/mermaid-js/mermaid"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Productivity"
+  ],
+  "tags": [
+    "diagram",
+    "flowchart",
+    "sequence",
+    "markdown",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/mermaid",
+  "accent": [
+    255,
+    91,
+    135
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/mermaid/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/mermaid/mermaid.gif",
+  "bytes": 1684038,
+  "download": 0,
+  "provides": null,
+  "sha256": "7031c2166d1045d5f8f39717e9c00bcb0f3993128d2914452a5af380fe7d309d",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "mermaid",
+    "url": "https://github.com/mermaid-js/mermaid",
+    "blessed": false
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "tagline": "Type a diagram. See it live. The file is the save.",
+  "description": "A box on the left, a picture on the right. Type a flowchart, a sequence, a class diagram \u2014 mermaid's own language \u2014 and the picture updates as you type. Sample drops in a starter chart. The last diagram you left stays on this device, inside the app.\n\nThis is an unofficial wrap of the mermaid engine, not the mermaid live editor website. There is no account and nothing is uploaded.\n\nWant a friend looking at the same chart? Press Play together, then Invite (in the GifOS menu) and send the link. When you type, they see it.\n\n",
+  "author": {
+    "name": "mermaid-js",
+    "url": "https://github.com/mermaid-js/mermaid"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "mermaid",
+    "url": "https://github.com/mermaid-js/mermaid",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Productivity"
+  ],
+  "tags": [
+    "diagram",
+    "flowchart",
+    "sequence",
+    "markdown",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/mermaid",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

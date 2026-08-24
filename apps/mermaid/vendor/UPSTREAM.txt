@@ -1,0 +1,16 @@
+vendor/mermaid.min.js is mermaid@10.9.8 UMD IIFE from npm (MIT).
+This app is a classic wrap of the engine (textarea + live SVG), NOT a
+pack of mermaid-js/mermaid-live-editor (SvelteKit).
+
+package: mermaid@10.9.8
+npm:     https://registry.npmjs.org/mermaid/-/mermaid-10.9.8.tgz
+file:    dist/mermaid.min.js
+sha256:  8d607d7ef1d077a8aa202e18e62212bfa992c68bfeabc5cf45d51a128fe6675d
+commit:  49c1a1c7d1faa995b07cc7224543bd0d9a7a9e70 (tag v10.9.8)
+
+COPYING-mermaid.txt  MIT, Copyright (c) 2014 - 2022 Knut Sveidqvist
+
+basedOn: mermaid (the engine)
+url:     https://github.com/mermaid-js/mermaid
+
+htmlLabels are off. No CDN, no iconify. The document lives in the file.

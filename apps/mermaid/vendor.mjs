@@ -1,0 +1,26 @@
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync, readFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
+
+const dir = dirname(fileURLToPath(import.meta.url));
+const TAG = '10.9.8';
+const TARBALL = 'https://registry.npmjs.org/mermaid/-/mermaid-' + TAG + '.tgz';
+const JS_SHA256 = '8d607d7ef1d077a8aa202e18e62212bfa992c68bfeabc5cf45d51a128fe6675d';
+const vendor = join(dir, 'vendor');
+mkdirSync(vendor, { recursive: true });
+const tmp = mkdtempSync(join(tmpdir(), 'mermaid-'));
+const tgz = join(tmp, 'm.tgz');
+const res = await fetch(TARBALL);
+if (!res.ok) throw new Error('download failed ' + res.status);
+writeFileSync(tgz, Buffer.from(await res.arrayBuffer()));
+execFileSync('tar', ['-xzf', tgz, '-C', tmp], { timeout: 60000 });
+const jsBuf = readFileSync(join(tmp, 'package', 'dist', 'mermaid.min.js'));
+const hex = createHash('sha256').update(jsBuf).digest('hex');
+if (hex !== JS_SHA256) throw new Error('sha256 ' + hex + ' ≠ pin ' + JS_SHA256);
+if (/<\/script/i.test(jsBuf.toString('utf8'))) throw new Error('</script in mermaid.min.js');
+writeFileSync(join(vendor, 'mermaid.min.js'), jsBuf);
+console.log('wrote vendor/mermaid.min.js', (jsBuf.length / 1024).toFixed(0), 'KB, mermaid@' + TAG);
+rmSync(tmp, { recursive: true, force: true });
