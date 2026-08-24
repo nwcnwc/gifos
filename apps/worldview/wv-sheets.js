@@ -131,9 +131,14 @@
           }(iso));
           grid.appendChild(b);
         }
-        note.textContent = L
-          ? 'Dimmed days are days ' + L.title + ' (' + (L.sub || 'GIBS') + ') does not publish.'
-          : 'Every day in the archive is available for the layers you have on.';
+        // Two different kinds of dimmed day, and saying the wrong one is worse
+        // than saying nothing: tomorrow is not "a day this layer does not
+        // publish", it is a day that has not happened.
+        var gaps = grid.querySelectorAll('.cal-day.thin').length;
+        var parts = ['Days after today are not in the archive yet.'];
+        if (L && gaps) parts.unshift('Dimmed days are days ' + L.title + ' (' + (L.sub || 'GIBS') + ') does not publish.');
+        else if (L) parts.unshift(L.title + ' publishes every day of this month.');
+        note.textContent = parts.join(' ');
       }
       paint();
     });
