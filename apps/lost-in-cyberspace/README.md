@@ -24,10 +24,13 @@ vendor/UPSTREAM.txt
 
 ## What you can play
 
-- **Play on this device** — pick HACKER or NAVIGATOR, or switch.
+- **Play on this device** — pick HACKER or NAVIGATOR, then switch seats
+  without losing the maze. Codes you have already read are waiting on
+  the navigator.
 - **Play with a friend** — send the invite (top bar; that button is OS
   chrome). One person is the hacker, the other the navigator. The hacker
-  can send a code they found so the navigator does not have to type it.
+  can send a code they found; the navigator’s `nmap` fills in **all**
+  received codes, not one layer at a time.
 
 ## capabilities
 

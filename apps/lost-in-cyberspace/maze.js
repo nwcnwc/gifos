@@ -106,8 +106,11 @@
     return true;
   }
 
+  var FACING = ['N', 'E', 'S', 'W'];
+
   function turnLeft(state) { state.facing = (state.facing + 3) % 4; }
   function turnRight(state) { state.facing = (state.facing + 1) % 4; }
+  function turnBack(state) { state.facing = (state.facing + 2) % 4; }
 
   var DIR = [{ dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }];
 
@@ -150,7 +153,10 @@
     if (node.target) {
       state.win = true;
       state.ticking = false;
-      state.scoreCode = scoreToCode(state.time, Math.max(0, state.moves));
+      // Score codes pack time in two hex digits (0–255). 256 left is a
+      // spawn-hack of a target that spawned on 0,0 — clamp so the code
+      // still round-trips.
+      state.scoreCode = scoreToCode(Math.min(255, Math.max(0, state.time)), Math.max(0, state.moves));
       return 'win';
     }
     if (!state.ticking) state.ticking = true;
@@ -173,9 +179,54 @@
     if (state.time <= 0) lose(state);
   }
 
+  function facingName(state) {
+    return FACING[state.facing] || 'N';
+  }
+
+  // Codes the hacker has actually stood in front of (visited that sector).
+  // Solo seat-switch uses these — you read them off the terminal. Invite
+  // send is a separate list (state.sent): only what you chose to pass on.
+  function foundCodes(state) {
+    var seen = {}, out = [], key, parts, s, c;
+    if (!state || !state.visited || !state.codes) return [];
+    for (key in state.visited) {
+      if (!state.visited[key]) continue;
+      parts = key.split(',');
+      s = sectorOf(+parts[0], +parts[1]);
+      c = state.codes[s];
+      if (c && !seen[c]) { seen[c] = 1; out.push(c); }
+    }
+    return out;
+  }
+
+  function rememberSent(state, code) {
+    if (!state || !code) return state && state.sent || [];
+    if (!state.sent) state.sent = [];
+    if (state.sent.indexOf(code) < 0) state.sent.push(code);
+    return state.sent;
+  }
+
+  // Merge codes for nmap: one code is one layer; all four is the maze.
+  function mergeCodes(a, b) {
+    var seen = {}, out = [], i, c, lists = [a, b], li, list;
+    for (li = 0; li < lists.length; li++) {
+      list = lists[li] || [];
+      for (i = 0; i < list.length; i++) {
+        c = list[i];
+        if (!c || seen[c]) continue;
+        seen[c] = 1;
+        out.push(c);
+      }
+    }
+    return out;
+  }
+
   root.LIC = {
     GAME_TIME: GAME_TIME,
+    TRAP_COST: TRAP_COST,
+    WRONG_HACK: WRONG_HACK,
     sectorOf: sectorOf,
+    oppositeSector: oppositeSector,
     canGo: canGo,
     isTrap: isTrap,
     isTarget: isTarget,
@@ -184,12 +235,19 @@
     tryMove: tryMove,
     turnLeft: turnLeft,
     turnRight: turnRight,
+    turnBack: turnBack,
     walkForward: walkForward,
     doorAhead: doorAhead,
     doors: doors,
     here: here,
     hack: hack,
     tick: tick,
-    DIR: DIR
+    lose: lose,
+    DIR: DIR,
+    FACING: FACING,
+    facingName: facingName,
+    foundCodes: foundCodes,
+    rememberSent: rememberSent,
+    mergeCodes: mergeCodes
   };
 })(window);
