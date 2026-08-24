@@ -6749,6 +6749,55 @@
       "sha256": "2ca5eca44cc7144c9440d5b628fe41405ad28583c7ae0cf54d4b10d79abfd599"
     },
     {
+      "slug": "vintage-poker",
+      "appId": "vintage-poker",
+      "name": "Vintage Poker",
+      "shortName": "Poker",
+      "version": "1.0",
+      "tagline": "Texas Hold'em. Host is the dealer. Invite is the seats.",
+      "author": {
+        "name": "Patrick Obermeier",
+        "url": "https://github.com/Pobermeier/vintage-poker"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Vintage Poker",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "poker",
+        "holdem",
+        "cards",
+        "party",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        26,
+        122,
+        58
+      ],
+      "cover": "/apps/vintage-poker/cover.jpg",
+      "bytes": 196075,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "26ad66a5e6e0046c0df27c54c18964a1373a52c161412355c825aa73995f29d8"
+    },
+    {
       "slug": "vocal-remover",
       "appId": "vocal-remover",
       "name": "Vocal Remover",

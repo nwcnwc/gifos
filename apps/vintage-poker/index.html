@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Vintage Poker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Vintage Poker</div>
+  <div class="chips">Chips <span id="chips">1000</span></div>
+</header>
+<p class="toy">Toy chips. No cash. Ever.</p>
+
+<section class="card setup" id="home">
+  <h2>Texas Hold'em at one table</h2>
+  <p class="lede">The host deals. Invite is the seats. No server, no account, no cash.</p>
+  <button class="primary" id="soloBtn" type="button">Play on this device</button>
+  <button class="ghost wide" id="friendBtn" type="button">Play with friends</button>
+  <p class="lvlnote">Play with friends: press Invite in the GifOS menu and send the link. Two people sit, the host deals.</p>
+</section>
+
+<section class="game" id="lobby" hidden>
+  <div class="vhead"><h2>The table</h2><button class="ghost tiny" id="lobbyLeave" type="button">Leave</button></div>
+  <p class="statusline" id="lobbyStatus">Waiting for friends… press Invite in the GifOS menu to send the link.</p>
+  <ul class="lobby-list" id="lobbyList"></ul>
+  <button class="primary" id="dealLobby" type="button">Deal</button>
+</section>
+
+<section class="game" id="play" hidden>
+  <button class="ghost tiny leave" id="playLeave" type="button">←</button>
+  <p class="statusline" id="playStatus"></p>
+  <div class="felt" id="felt">
+    <div class="pot" id="pot">Pot 0</div>
+    <div class="board" id="board"></div>
+    <div class="seats" id="seats"></div>
+  </div>
+  <div class="hole" id="holeWrap">
+    <p class="hole-lab">Your cards</p>
+    <div class="cards" id="hole"></div>
+  </div>
+  <p class="legal" id="legalHint"></p>
+  <div class="bar" id="actBar">
+    <button type="button" id="foldBtn">Fold</button>
+    <button type="button" id="checkBtn">Check</button>
+    <button type="button" id="callBtn">Call</button>
+    <button type="button" id="raiseBtn">Raise</button>
+    <button type="button" id="dealBtn">Deal</button>
+  </div>
+  <div class="raise-row" id="raiseRow" hidden>
+    <input type="range" id="raiseRange" min="20" max="1000" step="5" value="20">
+    <span id="raiseAmt">20</span>
+  </div>
+</section>
+
+<script src="poker.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

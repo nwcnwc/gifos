@@ -1,0 +1,19 @@
+Pobermeier/vintage-poker
+https://github.com/Pobermeier/vintage-poker
+MIT, Copyright © 2024 Patrick Obermeier
+
+Upstream is a MERN poker site: React, Node, Express, Mongo, JWT,
+socket.io, Contentful, nodemailer. Accounts, a lobby of cash tables,
+and a virtual-currency wallet. None of that ships here.
+
+This port is a classic-script rewrite of Texas Hold'em at one table.
+The host's browser is the dealer. Invite is the seats. Chips are toys —
+nothing is wagered and nothing is paid out. Card faces are generic
+rank+suit glyphs, not a branded deck.
+
+What was kept: Hold'em streets (preflop, flop, turn, river, showdown),
+blinds, fold / check / call / raise, a 52-card shoe, best-five-of-seven
+ranking.
+
+What stays behind: the Node process, socket.io, Express, Mongo, JWT,
+the wallet, the lobby, Contentful, and the React SPA.
