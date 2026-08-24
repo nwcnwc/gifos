@@ -3,7 +3,7 @@
   "appId": "qr-scan",
   "name": "QR Scan",
   "shortName": "Scan",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "description": "Read a code from a photo. Nothing is uploaded.",
   "entry": "index.html",
