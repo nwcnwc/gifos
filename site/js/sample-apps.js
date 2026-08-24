@@ -229,251 +229,598 @@
 </script>`;
 
   const TICTACTOE_HTML = `<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
-  body{font:16px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  header{width:100%;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#5cff7b);box-sizing:border-box}
-  .status{margin:16px 0 4px;font-size:15px;color:var(--muted,#8888aa);min-height:22px}
-  .board{display:grid;grid-template-columns:repeat(3,88px);grid-template-rows:repeat(3,88px);gap:8px;margin:14px 0}
-  .cell{background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);border-radius:12px;font-size:44px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none}
-  .cell:hover{border-color:var(--accent,#5cff7b)}
-  .cell.x{color:var(--accent,#7b5cff)}.cell.o{color:var(--accent2,#ff5caa)}
-  .cell.win{background:color-mix(in srgb,var(--accent,#5cff7b) 24%,var(--surface,#233a18));border-color:var(--accent,#5cff7b)}
-  .score{color:var(--text,#e0e0f0);font-size:14px;margin-top:2px}
-  button{margin:10px 0 24px;padding:9px 20px;border:0;border-radius:8px;background:var(--accent,#5cff7b);color:var(--onaccent,#0a0a0f);cursor:pointer;font:inherit;font-weight:700}
-  .ask{margin:-6px 0 22px;color:var(--muted,#8888aa);text-align:center;padding:0 12px;min-height:1px}
-  .ask button{margin:6px 5px 0;padding:7px 15px}
-  .ask .no{background:var(--surface,#14141f);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{font:15px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);
+    display:flex;flex-direction:column;align-items:center;min-height:100vh;min-height:100dvh;padding:0 0 env(safe-area-inset-bottom)}
+  header{width:100%;flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:10px 14px;color:var(--accent,#5cff7b)}
+  .brand{font-weight:800;display:flex;align-items:center;gap:8px}
+  .logo{width:22px;height:22px;border-radius:6px;background:#f3e6c8;box-shadow:inset 0 0 0 1.5px #3a3226;position:relative;flex:none}
+  .logo:before,.logo:after{content:"";position:absolute;background:#3a3226}
+  .logo:before{left:7px;top:3px;bottom:3px;width:1.5px}
+  .logo:after{top:7px;left:3px;right:3px;height:1.5px}
+  .chip{font-size:11px;font-weight:700;color:var(--muted,#8888aa);background:var(--bg,#0a0a0f);
+    border:1px solid var(--border,#2a2a3f);border-radius:999px;padding:4px 10px;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  main{width:100%;max-width:440px;flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 14px 16px}
+  .seats{display:flex;gap:8px;width:100%}
+  .seat{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 8px;min-height:52px;
+    border-radius:12px;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);color:var(--muted,#8888aa);font-weight:700;font-size:13px}
+  .seat .mk{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+    font-size:16px;line-height:1;font-weight:800;background:#f3e6c8;color:#1a1612;box-shadow:inset 0 0 0 1px #3a3226}
+  .seat.o .mk{color:#9b3044}
+  .seat .nm{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .seat .nm:empty{display:none}
+  .seat .you{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent,#5cff7b)}
+  .seat.on{color:var(--text,#e0e0f0);border-color:var(--accent,#5cff7b);box-shadow:0 0 0 2px var(--accent,#5cff7b) inset}
+  .seat.win{color:#6dce7a;border-color:#6dce7a}
+  .status{min-height:22px;font-weight:700;text-align:center}
+  .status.good{color:#6dce7a}.status.warn{color:#ff7a6b}
+  .hint{font-size:12.5px;color:var(--muted,#8888aa);text-align:center;min-height:16px;padding:0 4px}
+  .score{display:flex;gap:18px;align-items:baseline;justify-content:center;font-variant-numeric:tabular-nums}
+  .score b{font-size:22px;font-weight:800}
+  .score span{font-size:13px;font-weight:700;color:var(--muted,#8888aa);margin-left:5px}
+  .boardwrap{position:relative;width:min(92vw,calc(100dvh - 250px),400px);min-width:240px;aspect-ratio:1;flex:none}
+  .board{width:100%;height:100%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:0;
+    background:linear-gradient(180deg,rgba(255,255,255,.28),transparent 42%),#f3e6c8;border-radius:14px;
+    box-shadow:0 14px 36px rgba(0,0,0,.42),inset 0 0 0 1px rgba(58,50,38,.18);padding:3.4%;touch-action:manipulation}
+  .cell{position:relative;border:0;background:transparent;cursor:pointer;padding:0;appearance:none;-webkit-appearance:none;
+    min-width:0;min-height:44px;font:800 clamp(40px,14vw,72px)/1 ui-sans-serif,system-ui,'Segoe UI',sans-serif;color:transparent}
+  .cell:not(:nth-child(3n)){border-right:3px solid #3a3226}
+  .cell:nth-child(-n+6){border-bottom:3px solid #3a3226}
+  .cell:disabled{cursor:default}
+  .cell:not(:disabled):active{background:rgba(58,50,38,.08)}
+  .cell.x{color:#1a1612}
+  .cell.o{color:#9b3044}
+  .cell.last{background:rgba(232,208,148,.28)}
+  .cell.win{background:rgba(196,60,60,.16)}
+  .cell.x:not(.settled),.cell.o:not(.settled){animation:pop .22s ease}
+  @keyframes pop{from{transform:scale(.45);opacity:0}to{transform:scale(1);opacity:1}}
+  .winline{position:absolute;inset:3.4%;pointer-events:none;overflow:visible}
+  .winline line{stroke:#c43c3c;stroke-width:3.4;stroke-linecap:round;fill:none;opacity:0}
+  .winline.on line{opacity:1;animation:draw .45s ease both}
+  @keyframes draw{from{stroke-dasharray:150;stroke-dashoffset:150}to{stroke-dasharray:150;stroke-dashoffset:0}}
+  .controls{display:flex;gap:8px;width:100%}
+  button.act{flex:1;min-height:44px;padding:10px 14px;border:0;border-radius:11px;cursor:pointer;
+    background:var(--accent,#5cff7b);color:var(--onaccent,#0a0a0f);font:inherit;font-weight:800}
+  button.act.ghost{background:var(--surface,#14141f);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
+  button.act:disabled{opacity:.45;cursor:default}
+  button.act:active{transform:translateY(1px)}
+  .ask{width:100%;color:var(--muted,#8888aa);text-align:center;padding:0 4px;min-height:1px}
+  .ask .row{display:flex;gap:8px;margin-top:8px}
+  @media (max-width:420px){
+    header{padding:8px 12px}
+    main{padding:8px 10px 12px;gap:8px}
+    .boardwrap{width:min(94vw,calc(100dvh - 232px),420px)}
+  }
 </style>
-<header>Tic-Tac-Toe</header>
-<div class="status" id="status">Loading…</div>
-<div class="score" id="score"></div>
-<div class="board" id="board"></div>
-<button id="new">New game</button>
-<div class="ask" id="ask"></div>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Tic-Tac-Toe</div>
+  <div class="chip" id="chip">Alone</div>
+</header>
+<main>
+  <div class="seats" aria-live="polite">
+    <div class="seat x" id="seatX"><span class="mk" aria-hidden="true">X</span><span class="nm" id="nameX">X</span><span class="you" id="youX" hidden>You</span></div>
+    <div class="seat o" id="seatO"><span class="mk" aria-hidden="true">O</span><span class="nm" id="nameO">O</span><span class="you" id="youO" hidden>You</span></div>
+  </div>
+  <div class="status" id="status">Loading…</div>
+  <div class="hint" id="hint"></div>
+  <div class="score" id="score"><div><b id="sx">0</b><span>X</span></div><div><b id="sd">0</b><span>draws</span></div><div><b id="so">0</b><span>O</span></div></div>
+  <div class="boardwrap">
+    <div class="board" id="board" role="grid" aria-label="Tic-tac-toe board"></div>
+    <svg class="winline" id="win" viewBox="0 0 100 100" aria-hidden="true"><line id="seg" x1="0" y1="0" x2="0" y2="0"/></svg>
+  </div>
+  <div class="controls"><button class="act" id="new" type="button">New game</button></div>
+  <div class="ask" id="ask"></div>
+</main>
 <script>
   const db = gifos.db('game');
   const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-  const fresh = () => ({ id:'board', cells:[null,null,null,null,null,null,null,null,null], turn:'X', starts:'X', winner:null, line:null, players:{}, names:{}, score:{X:0,O:0,D:0} });
+  const PFX = 'p:';
+  const LIVE = 8000;
+  const fresh = function(){ return { id:'board', cells:[null,null,null,null,null,null,null,null,null], turn:'X', starts:'X', winner:null, line:null, players:{}, names:{}, score:{X:0,O:0,D:0} }; };
   let current = fresh();
-  let askLocal = false;   // solo confirm-before-reset flag (local, never shared)
-  let me = { id: 'local', name: 'You' };
-  if (window.gifos) gifos.me().then(function(m){ me = { id: m.id, name: m.name || 'You' }; render(); });
-  const boardEl = document.getElementById('board'), statusEl = document.getElementById('status');
-  function lineOf(c){ for (const w of WINS) if (c[w[0]] && c[w[0]]===c[w[1]] && c[w[0]]===c[w[2]]) return w; return null; }
-  function winnerOf(c){ const l=lineOf(c); if(l) return c[l[0]];
-    return c.every(Boolean) ? 'draw' : null; }
+  let askLocal = false;
+  let me = { id:'local', name:'You' };
+  let here = {};
+  if (window.gifos) gifos.me().then(function(m){ me = { id:m.id, name:m.name || 'You' }; beat(); render(); });
+  const boardEl = document.getElementById('board');
+  const statusEl = document.getElementById('status');
+  const hintEl = document.getElementById('hint');
+  const chipEl = document.getElementById('chip');
+  const winEl = document.getElementById('win');
+  const segEl = document.getElementById('seg');
+  function now(){ return Date.now ? Date.now() : 0; }
+  function lineOf(c){ for (let i=0;i<WINS.length;i++){ const w=WINS[i]; if(c[w[0]] && c[w[0]]===c[w[1]] && c[w[0]]===c[w[2]]) return w; } return null; }
+  function winnerOf(c){ const l=lineOf(c); if(l) return c[l[0]]; return c.every(Boolean) ? 'draw' : null; }
   function myMark(){ return current.players.X===me.id ? 'X' : current.players.O===me.id ? 'O' : null; }
-  function opponentPresent(){
-    return (current.players.X && current.players.X!==me.id) || (current.players.O && current.players.O!==me.id);
-  }
+  function liveIds(){ const t=now(), out=[]; for (const id in here){ if (here[id] && (t-(here[id].t||0))<LIVE) out.push(id); } return out; }
+  function opponentLive(){ return liveIds().some(function(id){ return id!==me.id; }); }
+  function friendName(){ const ids=liveIds(); for (let i=0;i<ids.length;i++){ if(ids[i]!==me.id) return (here[ids[i]] && here[ids[i]].name) || 'a friend'; } return ''; }
+  function label(s){ return (current.names && current.names[s]) ? current.names[s] : s; }
+  function boardEmpty(){ return current.cells.every(function(v){ return !v; }); }
   function canPlayTurn(){
     if (current.winner) return false;
-    if (!opponentPresent()) return true;          // alone → hot-seat, play both marks
+    if (!opponentLive()) return true;
     const mm = myMark();
-    if (mm) return current.turn === mm;           // real opponent → locked to my seat
-    return !current.players[current.turn];        // unseated → may take the still-open seat on its turn
+    if (mm) return current.turn === mm;
+    return !current.players[current.turn];
   }
-  function label(s){ return current.names && current.names[s] ? current.names[s] : (s==='X'||s==='O'? s : ''); }
-  function render(){
+  function beat(){
+    if (!window.gifos || me.id==='local') return;
+    db.put({ id:PFX+me.id, name:me.name, t:now() }).catch(function(){});
+  }
+  function ensureBoard(){
+    if (boardEl.children.length===9) return;
     boardEl.innerHTML = '';
-    const playable = canPlayTurn();
-    current.cells.forEach(function(v,i){
-      const d = document.createElement('div');
-      d.className = 'cell' + (v ? ' ' + v.toLowerCase() : '');
-      d.textContent = v || '';
-      d.onclick = async function(){
-        if (current.cells[i] || !canPlayTurn()) return;
-        if (current.rematch) delete current.rematch;   // a move supersedes any pending new-game request
-        askLocal = false;
-        const seat = current.turn;
-        current.players = Object.assign({}, current.players); current.players[seat] = current.players[seat] || me.id;
-        current.names = Object.assign({}, current.names); if (current.players[seat]===me.id) current.names[seat] = me.name;
-        current.cells = current.cells.slice(); current.cells[i] = seat;
-        current.winner = winnerOf(current.cells);
-        current.line = lineOf(current.cells);
-        if (current.winner){ const sc = Object.assign({X:0,O:0,D:0}, current.score);
-          sc[current.winner==='draw'?'D':current.winner]++; current.score = sc; }
-        current.turn = seat === 'X' ? 'O' : 'X';
-        await db.put(current);
-        render();
-      };
-      if (current.line && current.line.indexOf(i) >= 0) d.classList.add('win');
+    for (let i=0;i<9;i++){
+      const d=document.createElement('button');
+      d.type='button'; d.className='cell'; d.setAttribute('data-i', String(i));
+      d.setAttribute('aria-label','empty');
+      d.onclick=function(){ play(i); };
       boardEl.appendChild(d);
+    }
+  }
+  function paintWin(){
+    const line = current.line;
+    if (!line){ winEl.classList.remove('on'); return; }
+    const a=line[0], b=line[2];
+    segEl.setAttribute('x1', String(((a%3)+0.5)/3*100));
+    segEl.setAttribute('y1', String((((a/3)|0)+0.5)/3*100));
+    segEl.setAttribute('x2', String(((b%3)+0.5)/3*100));
+    segEl.setAttribute('y2', String((((b/3)|0)+0.5)/3*100));
+    if (!winEl.classList.contains('on')) winEl.classList.add('on');
+  }
+  function setSeat(el, youEl, nameEl, mark, on, win){
+    const claimed = current.players && current.players[mark];
+    const mine = claimed === me.id;
+    const named = claimed && current.names && current.names[mark];
+    nameEl.textContent = named ? current.names[mark] : (opponentLive() && !claimed ? 'Open' : '');
+    youEl.hidden = !mine;
+    el.classList.toggle('on', !!on);
+    el.classList.toggle('win', !!win);
+  }
+  function render(){
+    ensureBoard();
+    const playable = canPlayTurn();
+    const live = opponentLive();
+    const mm = myMark();
+    current.cells.forEach(function(v,i){
+      const d = boardEl.children[i];
+      const win = current.line && current.line.indexOf(i)>=0;
+      const last = current.last===i && !win;
+      const animate = !!(v && current.last===i && !win);
+      d.textContent = v || '';
+      const cls = 'cell'+(v?' '+v.toLowerCase():'')+(win?' win':'')+(last?' last':'')+((v&&!animate)?' settled':'');
+      if (d.className !== cls) d.className = cls;
+      d.disabled = !!(current.winner || v || !playable);
+      d.setAttribute('aria-label', v || 'empty');
     });
-    const vs = 'X: ' + label('X') + '  ·  O: ' + label('O');
-    statusEl.textContent = current.winner === 'draw' ? 'Draw! Tap New game. — ' + vs
-      : current.winner ? label(current.winner) + ' (' + current.winner + ') wins! — ' + vs
-      : (playable ? 'Your move (' + current.turn + ')' : 'Waiting for ' + (label(current.turn) || current.turn)) + '  —  ' + vs;
+    paintWin();
+    const xOn = !current.winner && current.turn==='X';
+    const oOn = !current.winner && current.turn==='O';
+    setSeat(document.getElementById('seatX'), document.getElementById('youX'), document.getElementById('nameX'), 'X', xOn, current.winner==='X');
+    setSeat(document.getElementById('seatO'), document.getElementById('youO'), document.getElementById('nameO'), 'O', oOn, current.winner==='O');
     const sc = Object.assign({X:0,O:0,D:0}, current.score);
-    document.getElementById('score').textContent = 'Series — X: ' + sc.X + ' · O: ' + sc.O + ' · draws: ' + sc.D;
+    document.getElementById('sx').textContent = String(sc.X);
+    document.getElementById('so').textContent = String(sc.O);
+    document.getElementById('sd').textContent = String(sc.D);
+    statusEl.className = 'status';
+    hintEl.textContent = '';
+    if (current.winner==='draw'){
+      statusEl.textContent = 'Draw.';
+      hintEl.textContent = 'New game keeps the series and swaps who starts.';
+    } else if (current.winner){
+      const w = current.winner;
+      const you = !!(live && mm===w);
+      statusEl.textContent = you ? 'You win.' : (label(w)+' wins.');
+      statusEl.className = 'status '+(you?'good':(live && mm ? 'warn':''));
+    } else if (playable){
+      if (live && !mm) statusEl.textContent = 'Tap a square to sit as '+current.turn+'.';
+      else if (live) statusEl.textContent = 'Your move.';
+      else statusEl.textContent = 'Your move — '+current.turn+'.';
+    } else {
+      statusEl.textContent = 'Waiting for '+(label(current.turn) || current.turn)+'.';
+    }
+    if (!current.winner && !live) hintEl.textContent = 'Alone: play both marks. Invite (top bar) to play a friend.';
+    else if (!current.winner && live && !mm) hintEl.textContent = 'First tap on a turn claims that seat. Then you only move on your turn.';
+    else if (!current.winner && live && mm) hintEl.textContent = 'You are '+mm+'.';
+    chipEl.textContent = live ? ('vs '+(friendName()||'a friend')) : 'Alone';
     renderConsent();
   }
-  db.subscribe(function(items){ const b = items.find(function(x){ return x.id === 'board'; }); if (b) current = b; render(); });
-  // "New game" wipes the shared board, so it is guarded. With a real opponent
-  // present it needs their consent (the request rides the shared board doc);
-  // playing solo it still asks a local yes/no to guard against a fat-finger
-  // reset. Either way an untouched board just starts fresh, and the series
-  // score / alternating starter always carry over.
+  function play(i){
+    if (current.cells[i] || !canPlayTurn()) return;
+    if (current.rematch) delete current.rematch;
+    askLocal = false;
+    const seat = current.turn;
+    if (opponentLive()){
+      current.players = Object.assign({}, current.players);
+      current.players[seat] = current.players[seat] || me.id;
+      current.names = Object.assign({}, current.names);
+      if (current.players[seat]===me.id) current.names[seat] = me.name;
+    }
+    current.cells = current.cells.slice();
+    current.cells[i] = seat;
+    current.last = i;
+    current.winner = winnerOf(current.cells);
+    current.line = lineOf(current.cells);
+    if (current.winner){
+      const sc = Object.assign({X:0,O:0,D:0}, current.score);
+      sc[current.winner==='draw'?'D':current.winner]++;
+      current.score = sc;
+    }
+    current.turn = seat==='X' ? 'O' : 'X';
+    db.put(current);
+    render();
+  }
   function startNew(){
     askLocal = false;
     const nxt = fresh();
     nxt.score = Object.assign({X:0,O:0,D:0}, current.score);
-    nxt.starts = current.starts === 'X' ? 'O' : 'X'; nxt.turn = nxt.starts;
+    nxt.starts = current.starts==='X' ? 'O' : 'X'; nxt.turn = nxt.starts;
     nxt.players = current.players; nxt.names = current.names;
-    return db.put(nxt);   // fresh() carries no rematch flag, so this also clears any pending request
+    return db.put(nxt);
   }
   function clearRematch(){ const c = Object.assign({}, current); delete c.rematch; current = c; return db.put(c).then(render); }
   function cancelLocal(){ askLocal = false; render(); }
   function askButtons(askEl, text, onYes, onNo){
-    const span = document.createElement('span'); span.textContent = text;
-    const yes = document.createElement('button'); yes.textContent = 'Start new game'; yes.onclick = onYes;
-    const no = document.createElement('button'); no.className = 'no'; no.textContent = 'Keep playing'; no.onclick = onNo;
-    askEl.appendChild(span); askEl.appendChild(yes); askEl.appendChild(no);
+    const span = document.createElement('div'); span.textContent = text;
+    const row = document.createElement('div'); row.className = 'row';
+    const yes = document.createElement('button'); yes.className='act'; yes.textContent='Start new game'; yes.onclick=onYes;
+    const no = document.createElement('button'); no.className='act ghost'; no.textContent='Keep playing'; no.onclick=onNo;
+    row.appendChild(yes); row.appendChild(no);
+    askEl.appendChild(span); askEl.appendChild(row);
   }
   function renderConsent(){
     const askEl = document.getElementById('ask'), btn = document.getElementById('new');
     askEl.textContent = '';
     const req = current.rematch;
-    if (req && req.by !== me.id){                 // opponent asked — I decide
+    if (req && req.by !== me.id){
       btn.style.display = 'none';
-      askButtons(askEl, (req.name ? req.name : 'Your opponent') + ' wants to start a new game. ', startNew, clearRematch);
-    } else if (req){                              // my own request — waiting on the opponent
-      btn.textContent = 'Cancel request'; btn.style.display = '';
+      askButtons(askEl, (req.name ? req.name : 'Your opponent')+' wants to start a new game.', startNew, clearRematch);
+    } else if (req){
+      btn.textContent = 'Cancel request'; btn.style.display = ''; btn.className = 'act ghost';
       askEl.textContent = 'Waiting for the other player to accept a new game…';
-    } else if (askLocal){                         // solo — confirm before wiping the board
+    } else if (askLocal){
       btn.style.display = 'none';
-      askButtons(askEl, 'Start a new game? ', startNew, cancelLocal);
+      askButtons(askEl, 'Start a new game? The series score stays.', startNew, cancelLocal);
     } else {
-      btn.textContent = 'New game'; btn.style.display = '';
+      btn.textContent = 'New game'; btn.style.display = ''; btn.className = 'act';
     }
   }
   document.getElementById('new').onclick = function(){
-    if (current.rematch && current.rematch.by === me.id) return clearRematch();   // cancel my pending request
-    if (opponentPresent()){                                                       // real opponent — ask them to consent
-      const c = Object.assign({}, current); c.rematch = { by: me.id, name: me.name }; current = c;
+    if (current.rematch && current.rematch.by===me.id) return clearRematch();
+    if (opponentLive()){
+      const c = Object.assign({}, current); c.rematch = { by:me.id, name:me.name }; current = c;
       return db.put(c).then(render);
     }
-    askLocal = true; render();                                                    // solo — always confirm (fat-finger guard)
+    if (boardEmpty()) return;
+    if (current.winner) return startNew();
+    askLocal = true; render();
   };
+  document.addEventListener('keydown', function(e){
+    const k = e.key;
+    if (k>='1' && k<='9') play(parseInt(k,10)-1);
+  });
+  db.subscribe(function(items){
+    const b = items.find(function(x){ return x.id==='board'; });
+    if (b){
+      current = b;
+      if (!current.cells || current.cells.length!==9) current.cells = fresh().cells;
+      current.score = Object.assign({X:0,O:0,D:0}, current.score||{});
+      current.players = current.players || {};
+      current.names = current.names || {};
+    }
+    const next = {};
+    const t = now();
+    items.forEach(function(x){
+      if (x && typeof x.id==='string' && x.id.indexOf(PFX)===0 && x.t && (t-x.t)<LIVE)
+        next[x.id.slice(PFX.length)] = x;
+    });
+    here = next;
+    render();
+  });
+  setInterval(beat, 2000);
+  beat();
   render();
 </script>`;
 
   const CONNECT_FOUR_HTML = `<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
-  body{font:15px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  header{width:100%;box-sizing:border-box;background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#ffb43c)}
-  .status{margin:14px 0 6px;color:var(--muted,#8888aa);min-height:20px;text-align:center;padding:0 12px}
-  /* The blue board + red/yellow discs are Connect Four's universal identity —
-     they read on any computer's background, so only the chrome follows the theme. */
-  .grid{display:grid;grid-template-columns:repeat(7,44px);gap:6px;background:#12203a;padding:10px;border-radius:12px;margin:6px 0}
-  .cell{width:44px;height:44px;border-radius:50%;background:var(--bg,#0a0a0f);cursor:pointer}
-  .cell.r{background:#ff5c5c}.cell.y{background:#ffd23c}
-  .cell.win{box-shadow:0 0 0 4px var(--accent,#5cff7b) inset,0 0 10px var(--accent,#5cff7b)}
-  .score{color:var(--text,#e0e0f0);font-size:14px}
-  button{margin:12px;padding:9px 18px;border:0;border-radius:8px;background:var(--accent,#ffb43c);color:var(--onaccent,#0a0a0f);font-weight:700;cursor:pointer}
-  .ask{margin:0 0 12px;color:var(--muted,#8888aa);text-align:center;padding:0 12px;min-height:1px}
-  .ask button{margin:6px 5px 0;padding:7px 15px}
-  .ask .no{background:var(--surface,#14141f);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{font:15px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);
+    display:flex;flex-direction:column;align-items:center;min-height:100vh;min-height:100dvh;padding:0 0 env(safe-area-inset-bottom)}
+  header{width:100%;flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:10px 14px;color:var(--accent,#ffb43c)}
+  .brand{font-weight:800;display:flex;align-items:center;gap:8px}
+  .logo{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff8a7a,#ef453b);
+    box-shadow:0 1px 3px rgba(0,0,0,.45),inset 0 -2px 6px rgba(0,0,0,.35);flex:none}
+  .chip{font-size:11px;font-weight:700;color:var(--muted,#8888aa);background:var(--bg,#0a0a0f);
+    border:1px solid var(--border,#2a2a3f);border-radius:999px;padding:4px 10px;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  main{width:100%;max-width:480px;flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 12px 14px}
+  .seats{display:flex;gap:8px;width:100%}
+  .seat{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 10px;min-height:48px;
+    border-radius:12px;background:var(--surface,#14141f);border:1px solid var(--border,#2a2a3f);color:var(--muted,#8888aa);font-weight:700;font-size:13px}
+  .seat .disc{width:18px;height:18px;border-radius:50%;flex:none;box-shadow:inset -2px -3px 5px rgba(0,0,0,.35),0 1px 2px rgba(0,0,0,.4)}
+  .seat.r .disc{background:radial-gradient(circle at 35% 30%,#ff8a7a,#ef453b)}
+  .seat.y .disc{background:radial-gradient(circle at 35% 30%,#ffe27a,#e6b800)}
+  .seat .nm{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .seat .you{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent,#ffb43c)}
+  .seat.r.on{color:var(--text,#e0e0f0);border-color:#ef453b;box-shadow:0 0 0 2px #ff8a7a inset}
+  .seat.y.on{color:var(--text,#e0e0f0);border-color:#e6b800;box-shadow:0 0 0 2px #ffe27a inset}
+  .seat.win{border-color:#6dce7a;color:#6dce7a}
+  .status{min-height:22px;font-weight:700;text-align:center}
+  .status.good{color:#6dce7a}.status.warn{color:#ff7a6b}
+  .hint{font-size:12.5px;color:var(--muted,#8888aa);text-align:center;min-height:16px;padding:0 4px}
+  .score{display:flex;gap:18px;align-items:baseline;justify-content:center;font-variant-numeric:tabular-nums}
+  .score b{font-size:22px;font-weight:800}
+  .score span{font-size:12px;font-weight:600;color:var(--muted,#8888aa);margin-left:5px}
+  .frame{width:min(96vw,calc((100dvh - 250px)*7/7.6),440px);min-width:280px;flex:none;display:flex;flex-direction:column}
+  .rail{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:2px 10px 6px;min-height:40px;align-items:end}
+  .peek{width:78%;aspect-ratio:1;max-height:44px;margin:0 auto;border-radius:50%;opacity:0;transform:translateY(6px);transition:opacity .12s,transform .12s;
+    box-shadow:inset -2px -3px 5px rgba(0,0,0,.35),0 1px 2px rgba(0,0,0,.4)}
+  .peek.on{opacity:.95;transform:none}
+  .peek.r{background:radial-gradient(circle at 35% 30%,#ff8a7a,#ef453b)}
+  .peek.y{background:radial-gradient(circle at 35% 30%,#ffe27a,#e6b800)}
+  .cols{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;background:#1a4fa3;padding:10px;border-radius:16px;
+    box-shadow:0 16px 36px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);touch-action:manipulation}
+  .col{display:grid;grid-template-rows:repeat(6,1fr);gap:6px;border:0;padding:0;background:transparent;cursor:pointer;min-width:0;min-height:0;border-radius:10px}
+  .col.locked{cursor:default}
+  .col:not(.locked):hover,.col:not(.locked):focus-visible{background:rgba(255,255,255,.08)}
+  .col:not(.locked):active{background:rgba(0,0,0,.12)}
+  .cell{width:100%;aspect-ratio:1;border-radius:50%;background:#070b12;box-shadow:inset 0 3px 6px rgba(0,0,0,.55)}
+  .cell.r,.cell.y{box-shadow:inset -2px -3px 6px rgba(0,0,0,.4),0 1px 2px rgba(0,0,0,.35)}
+  .cell.r{background:radial-gradient(circle at 35% 30%,#ff8a7a,#ef453b)}
+  .cell.y{background:radial-gradient(circle at 35% 30%,#ffe27a,#e6b800)}
+  .cell.win{box-shadow:0 0 0 3px #ffd23c,0 0 14px rgba(255,210,60,.75),inset -2px -3px 6px rgba(0,0,0,.4)}
+  .cell.last:not(.win){box-shadow:0 0 0 2px rgba(255,255,255,.55),inset -2px -3px 6px rgba(0,0,0,.4)}
+  .cell.fall{animation:fall .42s cubic-bezier(.15,.75,.25,1.12) both}
+  @keyframes fall{from{transform:translateY(var(--from,-280px))}to{transform:none}}
+  .controls{display:flex;gap:8px;width:100%}
+  button.act{flex:1;min-height:44px;padding:10px 14px;border:0;border-radius:11px;cursor:pointer;
+    background:var(--accent,#ffb43c);color:var(--onaccent,#0a0a0f);font:inherit;font-weight:800}
+  button.act.ghost{background:var(--surface,#14141f);color:var(--text,#e0e0f0);border:1px solid var(--border,#2a2a3f)}
+  button.act:disabled{opacity:.45;cursor:default}
+  button.act:active{transform:translateY(1px)}
+  .ask{width:100%;color:var(--muted,#8888aa);text-align:center;padding:0 4px;min-height:1px}
+  .ask .row{display:flex;gap:8px;margin-top:8px}
+  @media (max-width:420px){
+    header{padding:8px 12px}
+    main{padding:8px 8px 12px;gap:6px}
+    .frame{width:min(96vw,calc((100dvh - 232px)*7/7.6),440px)}
+    .cols{padding:8px;gap:5px;border-radius:14px}
+    .col{gap:5px}
+    .rail{padding:0 8px;gap:5px}
+  }
 </style>
-<header>Connect Four</header>
-<div class="status" id="status">Loading…</div>
-<div class="score" id="score"></div>
-<div class="grid" id="grid"></div>
-<button id="new">New game</button>
-<div class="ask" id="ask"></div>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Connect Four</div>
+  <div class="chip" id="chip">Alone</div>
+</header>
+<main>
+  <div class="seats" aria-live="polite">
+    <div class="seat r" id="seatR"><i class="disc" aria-hidden="true"></i><span class="nm" id="nameR">Red</span><span class="you" id="youR" hidden>You</span></div>
+    <div class="seat y" id="seatY"><i class="disc" aria-hidden="true"></i><span class="nm" id="nameY">Yellow</span><span class="you" id="youY" hidden>You</span></div>
+  </div>
+  <div class="status" id="status">Loading…</div>
+  <div class="hint" id="hint"></div>
+  <div class="score"><div><b id="sr">0</b><span>red</span></div><div><b id="sd">0</b><span>draws</span></div><div><b id="sy">0</b><span>yellow</span></div></div>
+  <div class="frame" id="frame">
+    <div class="rail" id="rail" aria-hidden="true"></div>
+    <div class="cols" id="cols" role="grid" aria-label="Connect Four board"></div>
+  </div>
+  <div class="controls"><button class="act" id="new" type="button">New game</button></div>
+  <div class="ask" id="ask"></div>
+</main>
 <script>
-  const db = gifos.db('game'), W=7, H=6;
-  const fresh = () => ({ id:'board', cells:new Array(W*H).fill(null), turn:'R', starts:'R', winner:null, line:null, players:{}, names:{}, score:{R:0,Y:0,D:0} });
-  let cur = fresh(), me = { id:'local', name:'You' }, askLocal = false;   // askLocal: solo confirm-before-reset flag (local, never shared)
-  if (window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; render(); });
-  const gridEl = document.getElementById('grid'), statusEl = document.getElementById('status');
-  function opp(){ return (cur.players.R&&cur.players.R!==me.id)||(cur.players.Y&&cur.players.Y!==me.id); }
+  const db = gifos.db('game'), W=7, H=6, PFX='p:', LIVE=8000;
+  const fresh = function(){ return { id:'board', cells:new Array(W*H).fill(null), turn:'R', starts:'R', winner:null, line:null, players:{}, names:{}, score:{R:0,Y:0,D:0} }; };
+  let cur = fresh(), me = { id:'local', name:'You' }, askLocal = false, here = {}, hover = -1;
+  if (window.gifos) gifos.me().then(function(m){ me={id:m.id,name:m.name||'You'}; beat(); render(); });
+  const colsEl = document.getElementById('cols');
+  const railEl = document.getElementById('rail');
+  const statusEl = document.getElementById('status');
+  const hintEl = document.getElementById('hint');
+  const chipEl = document.getElementById('chip');
+  const cellEls = [];
+  const peekEls = [];
+  function now(){ return Date.now ? Date.now() : 0; }
+  function liveIds(){ const t=now(), out=[]; for (const id in here){ if (here[id] && (t-(here[id].t||0))<LIVE) out.push(id); } return out; }
+  function opp(){ return liveIds().some(function(id){ return id!==me.id; }); }
+  function friendName(){ const ids=liveIds(); for (let i=0;i<ids.length;i++){ if(ids[i]!==me.id) return (here[ids[i]] && here[ids[i]].name) || 'a friend'; } return ''; }
   function myMark(){ return cur.players.R===me.id?'R':cur.players.Y===me.id?'Y':null; }
   function canPlay(){ if(cur.winner) return false; if(!opp()) return true; const mm=myMark(); return mm?cur.turn===mm:!cur.players[cur.turn]; }
-  function label(s){ return cur.names&&cur.names[s]?cur.names[s]:s; }
+  function label(s){ return cur.names&&cur.names[s]?cur.names[s]:(s==='R'?'Red':s==='Y'?'Yellow':s); }
+  function boardEmpty(){ return cur.cells.every(function(v){ return !v; }); }
+  function colFull(c){ return !!cur.cells[c]; }
+  function beat(){ if(!window.gifos || me.id==='local') return; db.put({id:PFX+me.id,name:me.name,t:now()}).catch(function(){}); }
   function win(cells){
     const dirs=[[1,0],[0,1],[1,1],[1,-1]];
-    for(let y=0;y<H;y++)for(let x=0;x<W;x++){ const c=cells[y*W+x]; if(!c) continue;
-      for(const d of dirs){ const run=[y*W+x]; for(let k=1;k<4;k++){ const nx=x+d[0]*k,ny=y+d[1]*k; if(nx<0||nx>=W||ny<0||ny>=H||cells[ny*W+nx]!==c) break; run.push(ny*W+nx); } if(run.length>=4) return {mark:c,cells:run}; } }
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const c=cells[y*W+x]; if(!c) continue;
+      for(let di=0;di<dirs.length;di++){
+        const d=dirs[di], run=[y*W+x];
+        for(let k=1;k<4;k++){ const nx=x+d[0]*k, ny=y+d[1]*k; if(nx<0||nx>=W||ny<0||ny>=H||cells[ny*W+nx]!==c) break; run.push(ny*W+nx); }
+        if(run.length>=4) return {mark:c,cells:run};
+      }
+    }
     return cells.every(Boolean)?{mark:'draw',cells:[]}:null;
+  }
+  function ensure(){
+    if (colsEl.children.length===W) return;
+    colsEl.innerHTML=''; railEl.innerHTML=''; cellEls.length=0; peekEls.length=0;
+    for(let c=0;c<W;c++){
+      const peek=document.createElement('div'); peek.className='peek'; railEl.appendChild(peek); peekEls.push(peek);
+      const col=document.createElement('button'); col.type='button'; col.className='col';
+      col.setAttribute('aria-label','Column '+(c+1));
+      col.addEventListener('click', function(){ drop(c); });
+      col.addEventListener('pointerenter', function(){ setHover(c); });
+      col.addEventListener('pointerleave', function(){ if(hover===c) setHover(-1); });
+      for(let r=0;r<H;r++){
+        const d=document.createElement('div'); d.className='cell';
+        col.appendChild(d); cellEls[r*W+c]=d;
+      }
+      colsEl.appendChild(col);
+    }
+  }
+  function setHover(c){ hover=c; paintPeek(); }
+  function paintPeek(){
+    const playable=canPlay();
+    for(let c=0;c<W;c++){
+      const p=peekEls[c]; if(!p) continue;
+      const show = playable && hover===c && !colFull(c);
+      p.className='peek'+(show?' on '+(cur.turn.toLowerCase()):'');
+    }
+  }
+  function setSeat(el, youEl, nameEl, mark, on, isWin){
+    const claimed = cur.players && cur.players[mark];
+    const mine = claimed===me.id;
+    nameEl.textContent = claimed ? label(mark) : (opp() ? 'Open' : (mark==='R'?'Red':'Yellow'));
+    youEl.hidden = !mine;
+    el.classList.toggle('on', !!on);
+    el.classList.toggle('win', !!isWin);
+  }
+  function render(){
+    ensure();
+    const playable=canPlay();
+    const live=opp();
+    const mm=myMark();
+    for(let i=0;i<W*H;i++){
+      const d=cellEls[i]; const v=cur.cells[i];
+      const isWin = cur.line && cur.line.indexOf(i)>=0;
+      const last = cur.last===i && !isWin;
+      const animate = !!(v && cur.last===i);
+      const row=(i/W)|0;
+      const cls='cell'+(v?' '+v.toLowerCase():'')+(isWin?' win':'')+(last?' last':'')+(animate?' fall':'');
+      if (d.className !== cls) d.className = cls;
+      if (animate) d.style.setProperty('--from', (-(row+1)*58)+'px');
+      else d.style.removeProperty('--from');
+    }
+    for(let c=0;c<W;c++){
+      const col=colsEl.children[c];
+      const locked = !!(cur.winner || !playable || colFull(c));
+      col.classList.toggle('locked', locked);
+      col.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    }
+    paintPeek();
+    setSeat(document.getElementById('seatR'), document.getElementById('youR'), document.getElementById('nameR'), 'R', !cur.winner && cur.turn==='R', cur.winner==='R');
+    setSeat(document.getElementById('seatY'), document.getElementById('youY'), document.getElementById('nameY'), 'Y', !cur.winner && cur.turn==='Y', cur.winner==='Y');
+    const sc=Object.assign({R:0,Y:0,D:0}, cur.score);
+    document.getElementById('sr').textContent=String(sc.R);
+    document.getElementById('sy').textContent=String(sc.Y);
+    document.getElementById('sd').textContent=String(sc.D);
+    statusEl.className='status';
+    hintEl.textContent='';
+    if (cur.winner==='draw'){
+      statusEl.textContent='Draw.';
+      hintEl.textContent='New game keeps the series and swaps who starts.';
+    } else if (cur.winner){
+      const you = mm===cur.winner;
+      statusEl.textContent=(you?'You win.':label(cur.winner)+' wins.');
+      statusEl.className='status '+(you?'good':(mm?'warn':''));
+    } else if (playable){
+      if (live && !mm) statusEl.textContent='Tap a column to sit as '+(cur.turn==='R'?'Red':'Yellow')+'.';
+      else if (live) statusEl.textContent='Your move.';
+      else statusEl.textContent='Your move — '+(cur.turn==='R'?'Red':'Yellow')+'.';
+    } else {
+      statusEl.textContent='Waiting for '+(label(cur.turn)||cur.turn)+'.';
+    }
+    if (!cur.winner && !live) hintEl.textContent='Alone: play both colours. Invite (top bar) to play a friend.';
+    else if (!cur.winner && live && !mm) hintEl.textContent='First drop on a turn claims that colour. Then you only move on your turn.';
+    else if (!cur.winner && live && mm) hintEl.textContent='You are '+(mm==='R'?'Red':'Yellow')+'. Tap a column to drop.';
+    chipEl.textContent = live ? ('vs '+(friendName()||'a friend')) : 'Alone';
+    renderConsent();
   }
   function drop(col){
     if(!canPlay()) return;
     let row=-1; for(let y=H-1;y>=0;y--){ if(!cur.cells[y*W+col]){ row=y; break; } }
     if(row<0) return;
-    if(cur.rematch) delete cur.rematch;   // a move supersedes any pending new-game request
+    if(cur.rematch) delete cur.rematch;
     askLocal=false;
     const seat=cur.turn;
-    cur.players=Object.assign({},cur.players); cur.players[seat]=cur.players[seat]||me.id;
-    cur.names=Object.assign({},cur.names); if(cur.players[seat]===me.id) cur.names[seat]=me.name;
+    if(opp()){
+      cur.players=Object.assign({},cur.players); cur.players[seat]=cur.players[seat]||me.id;
+      cur.names=Object.assign({},cur.names); if(cur.players[seat]===me.id) cur.names[seat]=me.name;
+    }
     cur.cells=cur.cells.slice(); cur.cells[row*W+col]=seat;
+    cur.last=row*W+col;
     const w=win(cur.cells);
     cur.winner=w?w.mark:null; cur.line=w?w.cells:null;
     if(cur.winner){ const sc=Object.assign({R:0,Y:0,D:0},cur.score); sc[cur.winner==='draw'?'D':cur.winner]++; cur.score=sc; }
     cur.turn=seat==='R'?'Y':'R';
     db.put(cur); render();
   }
-  function render(){
-    gridEl.innerHTML='';
-    for(let i=0;i<W*H;i++){ const d=document.createElement('div'); const v=cur.cells[i];
-      d.className='cell'+(v?' '+v.toLowerCase():'');
-      if(cur.line&&cur.line.indexOf(i)>=0) d.classList.add('win');
-      d.onclick=function(){ drop(i%W); }; gridEl.appendChild(d); }
-    const vs='🔴 '+label('R')+'  vs  🟡 '+label('Y');
-    statusEl.textContent = cur.winner==='draw'?'Draw! — '+vs
-      : cur.winner?label(cur.winner)+' wins! — '+vs
-      : (canPlay()?'Your move':'Waiting for '+label(cur.turn))+'  —  '+vs;
-    const sc=Object.assign({R:0,Y:0,D:0},cur.score);
-    document.getElementById('score').textContent='Series — 🔴 '+sc.R+' · 🟡 '+sc.Y+' · draws: '+sc.D;
-    renderConsent();
-  }
-  db.subscribe(function(items){ const b=items.find(function(x){return x.id==='board';}); if(b) cur=b; render(); });
-  // "New game" wipes the shared board, so it is guarded. With a real opponent
-  // present it needs their consent (the request rides the shared board doc);
-  // playing solo it still asks a local yes/no to guard against a fat-finger
-  // reset. Either way an untouched board just starts fresh, and the series
-  // score / alternating starter always carry over.
   function startNew(){
     askLocal=false;
     const nxt=fresh();
     nxt.score=Object.assign({R:0,Y:0,D:0},cur.score);
     nxt.starts=cur.starts==='R'?'Y':'R'; nxt.turn=nxt.starts;
     nxt.players=cur.players; nxt.names=cur.names;
-    return db.put(nxt);   // fresh() carries no rematch flag, so this also clears any pending request
+    hover=-1;
+    return db.put(nxt);
   }
   function clearRematch(){ const c=Object.assign({},cur); delete c.rematch; cur=c; return db.put(c).then(render); }
   function cancelLocal(){ askLocal=false; render(); }
   function askButtons(askEl,text,onYes,onNo){
-    const span=document.createElement('span'); span.textContent=text;
-    const yes=document.createElement('button'); yes.textContent='Start new game'; yes.onclick=onYes;
-    const no=document.createElement('button'); no.className='no'; no.textContent='Keep playing'; no.onclick=onNo;
-    askEl.appendChild(span); askEl.appendChild(yes); askEl.appendChild(no);
+    const span=document.createElement('div'); span.textContent=text;
+    const row=document.createElement('div'); row.className='row';
+    const yes=document.createElement('button'); yes.className='act'; yes.textContent='Start new game'; yes.onclick=onYes;
+    const no=document.createElement('button'); no.className='act ghost'; no.textContent='Keep playing'; no.onclick=onNo;
+    row.appendChild(yes); row.appendChild(no);
+    askEl.appendChild(span); askEl.appendChild(row);
   }
   function renderConsent(){
     const askEl=document.getElementById('ask'), btn=document.getElementById('new');
     askEl.textContent='';
     const req=cur.rematch;
-    if(req && req.by!==me.id){                    // opponent asked — I decide
+    if(req && req.by!==me.id){
       btn.style.display='none';
-      askButtons(askEl,(req.name?req.name:'Your opponent')+' wants to start a new game. ',startNew,clearRematch);
-    } else if(req){                              // my own request — waiting on the opponent
-      btn.textContent='Cancel request'; btn.style.display='';
+      askButtons(askEl,(req.name?req.name:'Your opponent')+' wants to start a new game.',startNew,clearRematch);
+    } else if(req){
+      btn.textContent='Cancel request'; btn.style.display=''; btn.className='act ghost';
       askEl.textContent='Waiting for the other player to accept a new game…';
-    } else if(askLocal){                         // solo — confirm before wiping the board
+    } else if(askLocal){
       btn.style.display='none';
-      askButtons(askEl,'Start a new game? ',startNew,cancelLocal);
+      askButtons(askEl,'Start a new game? The series score stays.',startNew,cancelLocal);
     } else {
-      btn.textContent='New game'; btn.style.display='';
+      btn.textContent='New game'; btn.style.display=''; btn.className='act';
     }
   }
   document.getElementById('new').onclick=function(){
-    if(cur.rematch && cur.rematch.by===me.id) return clearRematch();   // cancel my pending request
-    if(opp()){                                                         // real opponent — ask them to consent
+    if(cur.rematch && cur.rematch.by===me.id) return clearRematch();
+    if(opp()){
       const c=Object.assign({},cur); c.rematch={by:me.id,name:me.name}; cur=c;
       return db.put(c).then(render);
     }
-    askLocal=true; render();                                          // solo — always confirm (fat-finger guard)
+    if(boardEmpty()) return;
+    if(cur.winner) return startNew();
+    askLocal=true; render();
   };
+  document.addEventListener('keydown', function(e){
+    const k=e.key;
+    if(k>='1' && k<='7') drop(parseInt(k,10)-1);
+  });
+  db.subscribe(function(items){
+    const b=items.find(function(x){return x.id==='board';});
+    if(b){
+      cur=b;
+      if(!cur.cells || cur.cells.length!==W*H) cur.cells=fresh().cells;
+      cur.score=Object.assign({R:0,Y:0,D:0},cur.score||{});
+      cur.players=cur.players||{}; cur.names=cur.names||{};
+    }
+    const next={}; const t=now();
+    items.forEach(function(x){
+      if(x && typeof x.id==='string' && x.id.indexOf(PFX)===0 && x.t && (t-x.t)<LIVE)
+        next[x.id.slice(PFX.length)]=x;
+    });
+    here=next; render();
+  });
+  setInterval(beat, 2000);
+  beat();
   render();
 </script>`;
 
@@ -5330,22 +5677,22 @@ stopBtn.onclick=()=>{ playing=false; session++; if(window.__cur){ try{ window.__
     const SAMPLE_HELP = {
       tictactoe: `# Tic-Tac-Toe
 
-Get three of your mark in a row — across, down, or diagonal.
+Get three of your mark in a row — across, down, or diagonal. Whose turn it is is the glowing seat, not just a sentence.
 
 ## Play
 
-Tap an empty square. **X** always starts the first game of a series; after that the starter alternates.
+Tap an empty square. **X** always starts the first game of a series; after that the starter alternates. Keys **1–9** place a mark too (top row is 1 2 3).
 
 ## Solo or a friend
 
 - **Alone:** you play both marks. Pass the device, or just play both sides.
-- **Invite** (top bar): send the link. The first tap on a turn claims that seat, so you lock to **X** or **O**. Then you only move on your turn.
+- **Invite** (top bar): send the link. When a friend is here, the first tap on a turn claims that seat, so you lock to **X** or **O**. Then you only move on your turn.
 
 ## New game
 
 **New game** clears the board but keeps the series score and who starts.
 
-- Alone, it asks you to confirm so a stray tap does not wipe a close game.
+- Alone, a finished game (or an empty board) starts at once. Mid-game it asks you to confirm so a stray tap does not wipe a close game.
 - With a friend it sends them a request. They tap **Start new game** or **Keep playing**. You can **Cancel request** while you wait. A move on the board cancels a pending request.
 
 ## Saved
@@ -5354,22 +5701,22 @@ The board, whose turn it is, the seats, and the series (**X / O / draws**) live 
 `,
       connect4: `# Connect Four
 
-Drop discs down a seven-wide, six-high grid. First to four in a row — across, down, or diagonal — wins.
+Drop discs down a seven-wide, six-high grid. First to four in a row — across, down, or diagonal — wins. Whose turn it is is the glowing seat.
 
 ## Play
 
-Tap any disc in a column to drop yours to the lowest empty slot. **Red** starts the first game of a series; then the starter alternates.
+Tap any disc in a column to drop yours to the lowest empty slot. **Red** starts the first game of a series; then the starter alternates. Keys **1–7** pick a column.
 
 ## Solo or a friend
 
 - **Alone:** you play both colours. Pass the device.
-- **Invite** (top bar): send the link. The first drop on a turn claims that colour, then you only move on your turn.
+- **Invite** (top bar): send the link. When a friend is here, the first drop on a turn claims that colour, then you only move on your turn.
 
 ## New game
 
 **New game** clears the grid but keeps the series score and who starts.
 
-- Alone, confirm so a stray tap does not wipe the board.
+- Alone, a finished game (or an empty grid) starts at once. Mid-game it asks you to confirm so a stray tap does not wipe the board.
 - With a friend they must accept. **Cancel request** while you wait. A drop cancels a pending request.
 
 ## Saved
