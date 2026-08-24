@@ -1,5 +1,6 @@
 // Pack apps/the-house/ into site/apps/the-house/the-house.gif
 import { houseIcon, screenshotPng } from './icon.mjs';
+import { creditsJson, CREDITS_PATH } from '../../scripts/app-credits.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, unlinkSync, rmdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -114,7 +115,6 @@ const gameCss = reset + '\n' + styles;
 const SCRIPTS = [
   'boot.js',
   'vendor/js/libs/modernizr.custom.13520.js',
-  'vendor/js/libs/min/soundmanager2-nodebug-jsmin-min.js',
   'patch.js',
   'vendor/js/libs/jquery-1.7.min.js',
   'vendor/js/libs/jquery.animate-colors-min.js',
@@ -167,6 +167,10 @@ for (const s of SCRIPTS) {
   if (help.length < 400) throw new Error('help.md too short (' + help.length + ')');
   files['help.md'] = help;
 }
+// Credits under the seal (scripts/app-credits.mjs): sign-apps.mjs would pack
+// exactly these bytes before signing; packing them here keeps a fresh build
+// catalog-valid, and the signer's repack then only adds the signature.
+files[CREDITS_PATH] = creditsJson(listing);
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {
