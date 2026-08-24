@@ -56,6 +56,60 @@
     } catch (e) {}
   }
 
+  // Every device speaks each call as it arrives — the caller's phone in
+  // doCall, everyone else's when the adopted call list grows (mpRefresh).
+  // -1 = no round adopted yet; adoption snaps it to the backlog length so a
+  // late joiner never gets thirty numbers recited at them.
+  var spokenN = -1;
+
+  // Fireworks on EVERY screen when a verified bingo lands. Pure canvas,
+  // removes itself when the last spark dies.
+  function celebrate() {
+    var cv = document.createElement('canvas');
+    cv.className = 'fireworks';
+    document.body.appendChild(cv);
+    var ctx = cv.getContext('2d');
+    if (!ctx) { document.body.removeChild(cv); return; }
+    var W = cv.width = window.innerWidth;
+    var H = cv.height = window.innerHeight;
+    var COLORS = ['#ff5a62', '#ffd24a', '#6dce7a', '#5aa0ff', '#ff9a3a', '#f4ece0'];
+    var parts = [], bursts = 6, next = 0, t0 = nowMs();
+    function burst(x, y) {
+      var i, a, v;
+      for (i = 0; i < 46; i++) {
+        a = Math.random() * Math.PI * 2;
+        v = 2 + Math.random() * 4.2;
+        parts.push({
+          x: x, y: y,
+          vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.2,
+          life: 60 + Math.random() * 30,
+          c: COLORS[(Math.random() * COLORS.length) | 0]
+        });
+      }
+    }
+    function tick() {
+      var t = nowMs() - t0, i, p;
+      if (next < bursts && t > next * 380) {
+        burst(W * (0.15 + Math.random() * 0.7), H * (0.12 + Math.random() * 0.45));
+        next++;
+      }
+      ctx.clearRect(0, 0, W, H);
+      for (i = parts.length - 1; i >= 0; i--) {
+        p = parts[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.055; p.vx *= 0.985; p.life--;
+        if (p.life <= 0) { parts.splice(i, 1); continue; }
+        ctx.globalAlpha = Math.min(1, p.life / 30);
+        ctx.fillStyle = p.c;
+        ctx.fillRect(p.x, p.y, 3, 3);
+      }
+      ctx.globalAlpha = 1;
+      if (next < bursts || parts.length) requestAnimationFrame(tick);
+      else if (cv.parentNode) cv.parentNode.removeChild(cv);
+    }
+    requestAnimationFrame(tick);
+  }
+  var cheered = null; // seed:winnerId of the bingo already celebrated
+
   // ---- local (this device) ----
   var localPlay = null;
   var autoTimer = 0;
@@ -127,6 +181,7 @@
     n = b[called.length];
     called.push(n);
     speakCall(n);
+    spokenN = called.length; // the refresh echo of my own put must not re-speak
     putMe({ called: called, phase: 'play' });
   }
 
@@ -188,6 +243,8 @@
     return !!(mp.adopted && mp.adopted.phase === 'ended');
   }
 
+  // No hints, no guard rails: any number daubs, called or not — mishearing
+  // is part of bingo. The claim check is where a wrong daub catches up.
   function daub(c, r) {
     if (currentEnded()) return;
     var grid = currentCard();
@@ -195,7 +252,6 @@
     var n = grid[c][r];
     var k = BG.key(c, r);
     if (n === 0) return;
-    if (!BG.inCall(currentCalled(), n)) return;
     if (localPlay) {
       if (localPlay.marked[k]) {
         delete localPlay.marked[k];
@@ -224,9 +280,14 @@
     var grid = currentCard();
     var marked = currentMarked();
     var called = currentCalled();
+    if (!BG.hasWin(grid, marked)) {
+      $('playStatus').textContent = 'Daub a full line first.';
+      $('playStatus').className = 'statusline warn';
+      return;
+    }
     var win = BG.validClaim(grid, marked, called);
     if (!win) {
-      $('playStatus').textContent = 'Not yet — daub a full line first.';
+      $('playStatus').textContent = 'Not bingo — that line holds a number that was never called.';
       $('playStatus').className = 'statusline warn';
       return;
     }
@@ -362,6 +423,7 @@
       mp.auto = false;
       localPlay = null;
       lastStamp = null;
+      spokenN = -1;
       stopAuto();
       show('lobby');
       setChip('ready', 'A room');
@@ -432,6 +494,7 @@
       mp.auto = false;
       lastStamp = null;
       lastCallShown = null;
+      spokenN = (ad.called || []).length; // adopt the backlog silently
       stopAuto();
       if (!mp.row || mp.row.round !== ad.round || mp.row.seed !== ad.seed) {
         putMe({
@@ -459,6 +522,12 @@
       }
       ad.phase = 'ended';
       stopAuto();
+    }
+    // A call that arrived from the host's row gets spoken HERE too — the old
+    // code only spoke inside doCall, so joiners' phones were silent.
+    if (ad && spokenN >= 0 && (ad.called || []).length > spokenN) {
+      if (ad.phase !== 'ended') speakCall(ad.called[ad.called.length - 1]);
+      spokenN = ad.called.length;
     }
     mp.adopted = ad;
     if (ad && (ad.phase === 'play' || ad.phase === 'ended')) {
@@ -581,15 +650,14 @@
         cell = grid[c][r];
         k = BG.key(c, r);
         cls = 'cell';
+        // Deliberately NO called-number highlight: spotting your own numbers
+        // is the game. The card only ever shows what YOU daubed.
         if (cell === 0) { cls += ' free daubed'; label = 'FREE'; }
         else {
           label = String(cell);
           if (marked[k]) {
             cls += ' daubed';
             if (lastStamp === k) cls += ' just';
-          } else if (BG.inCall(called, cell)) {
-            cls += ' hit';
-            if (cell === last) cls += ' fresh-hit';
           }
         }
         html += '<button type="button" class="' + cls + '" data-c="' + c + '" data-r="' + r + '"' +
@@ -602,8 +670,9 @@
     renderFlashboard(called, last);
     $('flashboard').hidden = false;
 
-    var win = BG.validClaim(grid, marked, called);
-    $('bingoBtn').disabled = ended || !win;
+    // The button wakes only once YOU have daubed a full pattern — nothing
+    // announces it, and the claim is still checked against the real calls.
+    $('bingoBtn').disabled = ended || !BG.hasWin(grid, marked);
     $('callBtn').hidden = !host;
     $('callBtn').disabled = ended || called.length >= 75;
     $('callBall').disabled = !host || ended || called.length >= 75;
@@ -632,6 +701,8 @@
     var status = $('playStatus');
     var rev = $('reveal');
     if (ended && winner) {
+      var ckey = (localPlay ? localPlay.seed : (mp.adopted && mp.adopted.seed)) + ':' + winner.id;
+      if (cheered !== ckey) { cheered = ckey; celebrate(); }
       status.className = 'statusline good';
       status.textContent = (winner.id === (localPlay ? 'local' : mp.id) ? 'You' : (winner.name || 'They')) +
         ' — bingo on ' + patternName(winner.pattern) + '.';
@@ -645,30 +716,16 @@
       status.textContent = called.length >= 75 ? 'The bag is empty.' : 'Round over.';
       rev.hidden = true;
       setChip('ready', 'Round over');
-    } else if (win) {
-      status.className = 'statusline good';
-      status.textContent = 'You have ' + patternName(win) + '. Shout bingo!';
-      rev.hidden = true;
-      setChip('play', 'Bingo ready');
     } else {
+      // No coaching while the round runs: nothing says whether a call is on
+      // your card, and nothing announces that you have a line. Pay attention.
       status.className = 'statusline';
       status.textContent = last
-        ? (BG.inCall && grid ? hitLine(grid, last, marked) : '')
-        : (host ? 'You call. Everyone daubs.' : 'The host calls. Daub the numbers on your card.');
+        ? ''
+        : (host ? 'You call. Everyone finds their own numbers.' : 'The host calls. Find each number yourself.');
       rev.hidden = true;
       setChip('play', called.length ? BG.callName(last) : 'Calling');
     }
-  }
-
-  function hitLine(grid, last, marked) {
-    var c, r;
-    for (c = 0; c < 5; c++) for (r = 0; r < 5; r++) {
-      if (grid[c][r] === last) {
-        if (marked[BG.key(c, r)]) return BG.callName(last) + ' — daubed.';
-        return 'You have ' + BG.callName(last) + '. Daub it.';
-      }
-    }
-    return BG.callName(last) + ' — not on this card.';
   }
 
   if (window.gifos && gifos.onBack) {

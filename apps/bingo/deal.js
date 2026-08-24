@@ -99,26 +99,42 @@
     return out;
   }
 
-  function hasWin(grid, marked) {
-    var m = markedSet(marked), r, c, ok, i;
+  // The four pattern families as cell lists, in claim-priority order.
+  function patterns() {
+    var out = [], r, c, i, cells;
     for (r = 0; r < 5; r++) {
-      ok = true;
-      for (c = 0; c < 5; c++) if (!m[key(c, r)]) { ok = false; break; }
-      if (ok) return { kind: 'row', at: r };
+      cells = [];
+      for (c = 0; c < 5; c++) cells.push([c, r]);
+      out.push({ kind: 'row', at: r, cells: cells });
     }
     for (c = 0; c < 5; c++) {
-      ok = true;
-      for (r = 0; r < 5; r++) if (!m[key(c, r)]) { ok = false; break; }
-      if (ok) return { kind: 'col', at: c };
+      cells = [];
+      for (r = 0; r < 5; r++) cells.push([c, r]);
+      out.push({ kind: 'col', at: c, cells: cells });
     }
-    ok = true;
-    for (i = 0; i < 5; i++) if (!m[key(i, i)]) { ok = false; break; }
-    if (ok) return { kind: 'diag', at: 0 };
-    ok = true;
-    for (i = 0; i < 5; i++) if (!m[key(i, 4 - i)]) { ok = false; break; }
-    if (ok) return { kind: 'diag', at: 1 };
-    if (m[key(0, 0)] && m[key(4, 0)] && m[key(0, 4)] && m[key(4, 4)]) {
-      return { kind: 'corners' };
+    cells = [];
+    for (i = 0; i < 5; i++) cells.push([i, i]);
+    out.push({ kind: 'diag', at: 0, cells: cells });
+    cells = [];
+    for (i = 0; i < 5; i++) cells.push([i, 4 - i]);
+    out.push({ kind: 'diag', at: 1, cells: cells });
+    out.push({ kind: 'corners', cells: [[0, 0], [4, 0], [0, 4], [4, 4]] });
+    return out;
+  }
+
+  function won(p) {
+    return p.kind === 'corners' ? { kind: 'corners' } : { kind: p.kind, at: p.at };
+  }
+
+  function hasWin(grid, marked) {
+    var m = markedSet(marked), ps = patterns(), i, j, ok, cells;
+    for (i = 0; i < ps.length; i++) {
+      cells = ps[i].cells;
+      ok = true;
+      for (j = 0; j < cells.length; j++) {
+        if (!m[key(cells[j][0], cells[j][1])]) { ok = false; break; }
+      }
+      if (ok) return won(ps[i]);
     }
     return null;
   }
@@ -129,18 +145,24 @@
     return s;
   }
 
-  // A bingo claim is honest only if every daubed number (except FREE) has
-  // been called, and the daubs cover one of the four patterns.
+  // A bingo claim is honest if SOME fully-daubed pattern is also fully
+  // CALLED (FREE counts as called). Checked per pattern, the way a hall
+  // checks the claimed line: a mis-daub elsewhere on the card does not
+  // spoil an honest row — but a mis-daub INSIDE the claimed line kills it.
   function validClaim(grid, marked, called) {
-    var cs = callSet(called), m = markedSet(marked), c, r, n, k;
+    var cs = callSet(called), m = markedSet(marked), ps = patterns(), i, j, cells, ok, n;
     if (!grid) return null;
-    for (c = 0; c < 5; c++) for (r = 0; r < 5; r++) {
-      k = key(c, r);
-      if (!m[k]) continue;
-      n = grid[c][r];
-      if (n !== 0 && !cs[n]) return null;
+    for (i = 0; i < ps.length; i++) {
+      cells = ps[i].cells;
+      ok = true;
+      for (j = 0; j < cells.length; j++) {
+        if (!m[key(cells[j][0], cells[j][1])]) { ok = false; break; }
+        n = grid[cells[j][0]][cells[j][1]];
+        if (n !== 0 && !cs[n]) { ok = false; break; }
+      }
+      if (ok) return won(ps[i]);
     }
-    return hasWin(grid, m);
+    return null;
   }
 
   function inCall(called, n) {

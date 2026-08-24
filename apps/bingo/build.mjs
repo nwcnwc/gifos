@@ -184,6 +184,9 @@ for (const [n, s] of Object.entries(files)) {
     '  if (!BG.validClaim(c1, marks, called)) throw new Error("honest row claim refused");\n' +
     '  if (BG.validClaim(c1, marks, [c1[0][0]])) throw new Error("uncalled daub must not win");\n' +
     '  if (BG.hasWin(c1, {"0,0":1,"1,0":1})) throw new Error("partial row is not a win");\n' +
+    '  marks["3,3"] = 1;\n' +
+    '  if (!BG.validClaim(c1, marks, called)) throw new Error("a mis-daub OUTSIDE the line must not spoil an honest row");\n' +
+    '  if (BG.validClaim(c1, marks, called.slice(1))) throw new Error("an uncalled number INSIDE the line must kill the claim");\n' +
     '  return BG.callName(42);\n' +
     '})();',
     ctx
