@@ -57,6 +57,11 @@ if (/type=["']module["']/.test(html)) throw new Error('no type=module');
 if (/>\s*Invite\s*</.test(html) || /id=["']invite/i.test(html)) throw new Error('Invite is OS chrome');
 if (!files['app.js'].includes('Invite')) throw new Error('tell the player to press Invite');
 if (!files['app.js'].includes("db('save')")) throw new Error('save');
+if (!files['app.js'].includes('putMe') || !files['rules.js'].includes('seatPeople')) {
+  throw new Error('guests must publish presence; host assigns seats');
+}
+if (!files['app.js'].includes('onBack')) throw new Error('onBack');
+if (!files['style.css'].includes('nth-child')) throw new Error('destack tokens on a square');
 if (!listing.basedOn || listing.basedOn.blessed !== false) throw new Error('unofficial');
 if (listing.basedOn.url !== 'https://github.com/chukwumaijem/ludo-game') throw new Error('basedOn.url');
 if (!listing.author || listing.author.name !== 'chukwumaijem' || /gifos/i.test(listing.author.name)) {
@@ -91,6 +96,11 @@ for (const [n, s] of Object.entries(files)) {
   ctx.window = ctx;
   vm.runInNewContext(files['rules.js'] + '\n' +
     'result = (function () {\n' +
+    '  if (typeof LUDO.seatPeople !== "function") throw new Error("seatPeople");\n' +
+    '  var seats = LUDO.seatPeople([null,null,null,null], ["a","b","c"]);\n' +
+    '  if (seats[0] !== "a" || seats[1] !== "b" || seats[2] !== "c" || seats[3] !== null) throw new Error("seats " + seats);\n' +
+    '  var two = LUDO.seatPeople(["a",null,null,null], ["a","x"]);\n' +
+    '  if (two[0] !== "a" || two[1] !== "x") throw new Error("guest stole red");\n' +
     '  if (LUDO.LOOP.length !== 52) throw new Error("loop " + LUDO.LOOP.length);\n' +
     '  var s = LUDO.fresh(4);\n' +
     '  if (LUDO.moves(Object.assign(LUDO.clone(s), {die:1, rolled:true, turn:0})).length) throw new Error("1 leaves yard");\n' +

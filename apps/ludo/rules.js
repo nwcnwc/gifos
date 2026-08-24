@@ -77,12 +77,45 @@
   }
 
   function nextTurn(s) {
-    var i, p = s.turn;
+    var i, p = s.turn, found = false;
     for (i = 0; i < 4; i++) {
       p = (p + 1) % 4;
-      if (s.playing[p] && !allHome(s, p)) { s.turn = p; break; }
+      if (s.playing[p] && !allHome(s, p)) { s.turn = p; found = true; break; }
     }
+    if (!found) s.turn = s.turn;
     s.sixes = 0; s.die = 0; s.rolled = false;
+  }
+
+  /* Live people sit Red, Green, Yellow, Blue in join order. Existing
+     assignments stick while that id is still in the room, so two guests
+     never both sit Green. */
+  function seatPeople(seats, liveIds) {
+    var out = [null, null, null, null], taken = {}, i, id;
+    seats = seats || [];
+    liveIds = liveIds || [];
+    for (i = 0; i < 4; i++) {
+      id = seats[i];
+      if (id && liveIds.indexOf(id) !== -1 && !taken[id]) {
+        out[i] = id;
+        taken[id] = 1;
+      }
+    }
+    for (i = 0; i < liveIds.length; i++) {
+      id = liveIds[i];
+      if (!id || taken[id]) continue;
+      var s;
+      for (s = 0; s < 4; s++) if (!out[s]) { out[s] = id; taken[id] = 1; break; }
+    }
+    return out;
+  }
+
+  function playingFromSeats(seats) {
+    return [
+      !!(seats && seats[0]),
+      !!(seats && seats[1]),
+      !!(seats && seats[2]),
+      !!(seats && seats[3])
+    ];
   }
 
   function allHome(s, p) {
@@ -149,10 +182,10 @@
     return s;
   }
 
-  function roll(s) {
+  function roll(s, forced) {
     s = clone(s);
     if (s.rolled) return s;
-    var die = 1 + Math.floor(Math.random() * 6);
+    var die = (forced >= 1 && forced <= 6) ? (forced | 0) : (1 + Math.floor(Math.random() * 6));
     s.die = die;
     s.rolled = true;
     s.log = NAMES[s.turn] + ' rolled ' + die;
@@ -182,6 +215,7 @@
     COLORS: COLORS, NAMES: NAMES, LOOP: LOOP, HOME: HOME, YARD: YARD,
     START: START, cellOf: cellOf, fresh: fresh, clone: clone,
     moves: moves, apply: apply, roll: roll, allHome: allHome,
-    passIfStuck: passIfStuck, occupant: occupant
+    passIfStuck: passIfStuck, occupant: occupant,
+    nextTurn: nextTurn, seatPeople: seatPeople, playingFromSeats: playingFromSeats
   };
 })(window);
