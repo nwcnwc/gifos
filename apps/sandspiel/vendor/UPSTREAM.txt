@@ -16,10 +16,12 @@ worker. None of that ships here.
 
 This port is a classic-script rewrite of the species tick (Empty, Wall,
 Sand, Water, Gas, Cloner, Fire, Wood, Lava, Ice, Plant, Acid, Stone,
-Dust, Mite, Oil, Rocket, Fungus, Seed). Grid is 180×120 (column-major
-index = x*height+y, same as the crate). Wind / blow_wind and the fluid
-sim are skipped; fire still rises randomly; dust / stone / ice skip the
-pressure>120 branches.
+Dust, Mite, Oil, Rocket, Fungus, Seed), plus the same tick compiled to
+wasm32 from vendor/kernel.c (clang -c, no libc) and packed inside the
+GIF. Grid is 180×120 (column-major index = x*height+y, same as the
+crate). Wind / blow_wind and the fluid sim are skipped; fire still
+rises randomly; dust / stone / ice skip the pressure>120 branches.
 
-What stays behind: rustc, wasm-pack, the hashed wasm payload, WebGL
-fluid, Firebase, React, webpack, Sentry, ads, the service worker.
+What stays behind: rustc, wasm-pack, the hashed wasm payload fetched
+from the network, WebGL fluid, Firebase, React, webpack, Sentry, ads,
+the service worker.
