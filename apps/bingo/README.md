@@ -29,8 +29,16 @@ vendor/UPSTREAM.txt
   claim is checked against the card and the calls. Nobody writes anybody
   else's row.
 
-Call out loud — in the room, or in a GifOS meeting around the app. The
-host can also let the device say the number.
+**No hints, like a real hall.** The card never marks or glows a called
+number — you listen and find it yourself — and a number that was never
+called still daubs (mishearing is part of the game). The **Bingo!** button
+wakes only once YOUR daubs cover a pattern; the claim check then requires
+the claimed line to be fully called (a stray mis-daub elsewhere does not
+spoil an honest line, per `deal.js validClaim`). A verified bingo fires
+fireworks on every screen.
+
+Call out loud — in the room, or in a GifOS meeting around the app. Every
+device also says each call as it arrives (speech synthesis, where allowed).
 
 ## capabilities
 
