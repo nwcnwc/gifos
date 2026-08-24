@@ -3,9 +3,16 @@
 **Status: BUILT AND LIVE (status corrected 2026-08-06).** The design below
 shipped and is canonical: `scripts/archive-version.sh` cuts frozen snapshots
 into `site/versions/<x.y.z>/`, `site/version.json` is the release pointer,
-the site root stays the edge build, and the channel loader (edge / stable /
-pinned, `?edge` `?stable` `?pin`) rides every entry page — releases 0.8.x
-through 0.9.3 were all cut this way. Where the prose below says "today" it
+the site root stays the edge build, and the channel loader rides every entry
+page (as built, its flags are `?edge`, `?unpin` and `?latest`; pinning is a
+Version-panel act that stores `localStorage.gifos_pin` and navigates to
+`/versions/<v>/` — there is no `?v=`/`?pin` URL form). Releases 0.8.x
+onward were all cut this way. Parts of the design below never shipped and
+should be read as the road not taken: the thin-loader root (as built, the
+root IS the full edge build), the `staging` pointer, the
+`protocol`/`minProtocol` meet-version prompt, and `minData` enforcement (the
+key is emitted but nothing reads it). The live `version.json` carries
+`current`, `versions`, `builds`, `edgeBuild`, `minData`, `note`. Where the prose below says "today" it
 describes the PRE-BUILD world of 2026-07; read it as history of why the shape
 was chosen. Two doctrine amendments since: snapshots are addressed as
 run.html PERIOD (the 0.9.3 no-shims flag day — meet.html is deleted and
@@ -42,7 +49,7 @@ adding a server (GitHub Pages is static, and staying static is the point).
 - **The load-bearing data invariant, already stated** in `version.json`'s note:
   *migrations are additive-only and the App-GIF `window.gifos` API is a stable,
   add-only contract, so any archived build can safely read the current desktop.*
-  This is what makes code rollback safe (see [Data compatibility](#data-compatibility)).
+  This is what makes code rollback safe (see [Data compatibility](#data-compatibility-the-invariant-everything-rests-on)).
 
 The one thing that changes: **the web root stops being production.** It becomes
 the loader + the edge lane. Production becomes whatever the pointer names.
@@ -92,10 +99,14 @@ read `version.json`, pick the channel, hand off. Nothing else.
 }
 ```
 
+*(As built: `current`, `versions`, `builds` and `edgeBuild` shipped;
+`staging` and `protocol`/`minProtocol` never did, and `minData` is written
+but read by nothing.)*
+
 - `current` — the Stable/production pointer.
 - `staging` — the Edge pointer (optional; omit when nothing is staged).
 - `minData` — oldest build guaranteed to read the current IndexedDB. The loader
-  refuses to pin below it.
+  was meant to refuse to pin below it (not enforced as built).
 - `protocol` / `minProtocol` — the meeting/app wire + `DS`-derivation tags of the
   current build, and the oldest still interoperable (see
   [Meetings](#meetings-detect-and-prompt-never-silently-fail)).
@@ -145,8 +156,9 @@ doctrine, now enforced):
 Consequences:
 - Rolling `current` back is always safe — the older code finds a superset of
   what it expects.
-- The loader **refuses to pin below `minData`** (or warns hard), because that's
-  the one case where an old build might not understand the DB.
+- The loader was designed to **refuse to pin below `minData`** (not enforced
+  as built — nothing reads the key), because that's the one case where an old
+  build might not understand the DB.
 - A change that *can't* be additive is a **data flag day**: it bumps `minData`
   and forfeits clean rollback across that line. Those must be rare and loud.
 
@@ -159,11 +171,11 @@ keep arriving. An app written against one of those additions simply does not
 work on a build cut before it.
 
 That asymmetry was invisible until the App Store made it purchasable. Offline
-Cheap Text LLM BitNet needs the install-time asset tier
-(`site/js/gifos-assets.js`), which exists in no release cut so far — not 0.9.5,
-the release most visitors run. The store offered it to them, downloaded a
-gigabyte of weights, and left an icon that opened onto nothing. Nothing lied;
-nobody had ever written down what the app needed.
+Cheap Text LLM BitNet needed the install-time asset tier
+(`site/js/gifos-assets.js`) before any release carried it — 0.9.5, then the
+release most visitors ran, offered it to them, downloaded a gigabyte of
+weights, and left an icon that opened onto nothing. Nothing lied; nobody had
+ever written down what the app needed. (The tier shipped in 0.9.6.)
 
 So an app **states its floor**: `manifest.minBuild`, the oldest build number it
 runs on, carried into the published catalog by
@@ -182,10 +194,10 @@ Two properties matter for it to be usable:
   the build it was cut from whenever a human needs to hear "release 0.9.6 and
   up".
 - **It must be able to say "newer than every release there is."** That is not
-  an edge case, it is the normal state of a freshly built app and the exact
-  state BitNet is in today. A floor no release meets sends the player to the
-  edge build, never to "update" — that player would open the Version panel and
-  find every release on offer still too old.
+  an edge case, it is the normal state of a freshly built app — the exact
+  state BitNet was in until 0.9.6 shipped. A floor no release meets sends the
+  player to the edge build, never to "update" — that player would open the
+  Version panel and find every release on offer still too old.
 
 The store gates on the CATALOG, which reads the source manifest, so a floor
 takes effect as soon as the catalog is rebuilt. The copy of the manifest inside
@@ -193,7 +205,13 @@ the built GIF picks the field up at the app's next build, which is why it lives
 in the manifest rather than the listing: it rides into the GIF, where the
 runtime can eventually enforce it for GIFs that arrive by other routes.
 
-## Meetings: detect and prompt, never silently fail
+## Meetings: detect and prompt, never silently fail — DESIGNED, NOT BUILT
+
+*(No `protocol`/`minProtocol` fields exist and no client compares them. What
+shipped instead: the `DS` derivation tag makes a protocol change a flag day —
+old and new builds derive different relay sessions — and the browser-support
+preflight tells too-old browsers what they need. The prompt below remains a
+good idea nobody has needed yet.)*
 
 Meetings are P2P over the relay, with the session id derived from the room +
 the `DS` protocol tag. A protocol change is a flag day: two builds with
@@ -231,11 +249,11 @@ not this release). Fleet `dir` in `~/.gifos-behavior-hosts.json` is
 
 1. `scripts/archive-version.sh <next>` — immutable snapshot into `/versions/<next>/`.
    Run this in the freeze clone so the snapshot is that SHA, not a later `main`.
-2. Set `version.json.staging = <next>` (Edge only; Stable users untouched).
-3. Exercise it on the **Edge** URL — full suite, the swarm, a real phone.
-4. When green, **promote**: set `version.json.current = <next>` (and clear
-   `staging`). Production moves. Purge `version.json` at Cloudflare so it
-   propagates in seconds.
+2. *(As built there is no `staging` step:)* the release gate runs BEFORE the
+   cut, on the freeze tag — every suite green or there is no release
+   (CLAUDE.md "The release gate").
+3. `archive-version.sh` itself rewrites `version.json.current = <next>`;
+   commit + push and Pages deploys. Production moves on the push.
 5. **Tag it in git**: `git tag v<next> && git push --tags` on the archive
    commit (the freeze tag is the source; this tag is the cut).
 
@@ -265,7 +283,8 @@ So build this **before** the mesh swap, not after.
 
 ## Open decisions (resolve before building)
 
-- **Pin/edge URL form:** `?v=` (loader-resolved) vs `/v/<x.y.z>/…` (Pages-direct).
+- **Pin/edge URL form** *(resolved as built: neither — `localStorage.gifos_pin`
+  plus a `/versions/<v>/` navigation from the Version panel)*.
 - **Loader vs. router:** how much the thin loader does vs. the existing
   `404.html` pretty-link router; they overlap and should merge cleanly.
 - **SW migration:** moving from today's root-app caching to versioned caching
