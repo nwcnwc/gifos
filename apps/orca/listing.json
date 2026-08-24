@@ -1,6 +1,6 @@
 {
-  "tagline": "A livecoding sequencer. Each letter is an operator. The grid is the save.",
-  "description": "A two-dimensional canvas of letters. Each letter is an operator: a clock, a random, a MIDI note, a bang that wakes its neighbours. Type on the grid, press Space to play or pause, and watch the program run. There is no account and nothing is uploaded.\n\nThe grid comes back the next time you open the app, still only on this device. Press Invite in the bar above if you want a friend to sit with you. They have their own grid; yours is not sent.\n\nMIDI hardware is optional — Orca talks to a connected device when the browser allows it. OSC and UDP ports from the desktop app are silent here; they needed a native socket.\n\nAn unofficial port of Orca by Hundredrabbits. Same operators, same canvas. This copy keeps the grid in the file.",
+  "tagline": "Type letters. They become a sequencer. The file is the save.",
+  "description": "A two-dimensional livecoding machine in one GIF. There is no install, no account, and nothing is uploaded. The grid stays in the file — close it, come back, the same cells are still running.\n\nOpen it and a tiny program is already playing a C in this browser. D bangs every 4 frames, * is the bang, :04C is the note. MIDI hardware is optional; without a device you still hear it.\n\nOn a phone the pad under the grid types the same operators. Press Invite in the bar above and a friend jams on the same canvas.\n\nAn unofficial port of Orca by Hundredrabbits. Same operators, same canvas. OSC and UDP stay silent here; they needed a native socket.",
   "author": {
     "name": "Hundredrabbits",
     "url": "https://github.com/hundredrabbits/Orca"

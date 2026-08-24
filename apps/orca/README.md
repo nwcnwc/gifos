@@ -4,7 +4,9 @@ A livecoding sequencer. Each letter is an operator. The grid is the save.
 
 An unofficial port of **[Orca](https://github.com/hundredrabbits/Orca)** by
 Hundredrabbits (MIT). The browser PWA, wrapped: same operators, same canvas.
-UDP/OSC stay silent. MIDI is optional.
+UDP/OSC stay silent. MIDI is optional — without a device, notes play here as
+square waves. First boot loads a tiny `D4` / `:04C` program so a stranger hears
+a C without reading the manual.
 
 ```
 index.html          shell

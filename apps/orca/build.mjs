@@ -164,6 +164,15 @@ if (!files['boot.js'].includes('Invite')) {
 if (!files['boot.js'].includes("db('save')") || !files['boot.js'].includes("id: 'grid'")) {
   throw new Error('boot.js must save the grid privately');
 }
+if (!files['boot.js'].includes(':04C') || !files['boot.js'].includes('STARTER')) {
+  throw new Error('boot.js must ship the D4/:04C first-run program');
+}
+if (!files['boot.js'].includes('AudioContext') || !files['boot.js'].includes('hearNote')) {
+  throw new Error('boot.js must hear notes in-browser when MIDI is missing');
+}
+if (!files['style.css'].includes('pointer: coarse') || !files['boot.js'].includes('pad')) {
+  throw new Error('phone pad is missing');
+}
 if (files['vendor/clock.js'].includes('new Worker')) {
   throw new Error('clock.js still uses a blob Worker — keep the setInterval patch');
 }

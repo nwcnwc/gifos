@@ -1,16 +1,24 @@
 # Orca
 
-A livecoding sequencer. The canvas is a grid of letters. Each letter is an operator. There is no account; the grid stays on this device.
+A livecoding sequencer. The canvas is a grid of letters. Each letter is an operator. There is no account; the grid stays on this device, inside the file.
+
+## The one thing
+
+Open it and a tiny program is already running:
+
+- **D** with a **4** to its right bangs every 4 frames.
+- `*` is a bang. It lasts one frame and wakes its neighbours.
+- **:04C** is a MIDI note: channel 0, octave 4, note C.
+
+You hear the C in this browser. MIDI hardware is optional. If the machine is silent, tap **Hear** once — the browser needs a tap before it will play.
+
+Press **Space** to play or pause. `>` and `<` change speed.
 
 ## Type a program
 
-Click a cell and type a letter. Lowercase is a silent operator (it only runs when a neighbour bangs it). Uppercase is always awake. `.` is empty.
+Click or tap a cell and type a letter. Lowercase is a silent operator (it only runs when a neighbour bangs it). Uppercase is always awake. `.` is empty.
 
-Press **Space** to play or pause. The frame counter at the bottom walks while it plays. `>` and `<` change speed.
-
-A tiny starter: type `D4` then `:*` to the right of it — `D` is a clock that bangs every 4 frames, `*` is a bang, `:` is a MIDI note. Without a MIDI device you still see the bangs fire.
-
-Press **Ctrl/Cmd+G** to show or hide the operator guide on the canvas.
+**Ctrl/Cmd+G** shows or hides the operator guide on the canvas.
 
 ## Move around
 
@@ -21,15 +29,11 @@ Press **Ctrl/Cmd+G** to show or hide the operator guide on the canvas.
 - **Ctrl/Cmd+K** commander (type `bpm:140`, `frame:0`, `find:D`…).
 - **Ctrl/Cmd+O** open a `.orca` file. **Ctrl/Cmd+S** export one.
 
-On a phone, tap a cell then type with the keyboard. Two-finger pinch is not a zoom — use **Ctrl/Cmd+=** / **-**.
+On a phone, the pad under the grid types the same operators. **Keyboard** opens the phone keyboard. **Hear** unlocks sound. Two-finger pinch is not a zoom — use **+** / **−** on the pad, or **Ctrl/Cmd+=** / **-**.
 
 ## MIDI, OSC, UDP
 
-If this browser can see a MIDI device, Orca talks to it (`:` comments a note, `;` a CC). OSC and UDP from the desktop app are silent here.
-
-## A live friend
-
-Press **Invite** in the bar above the app. A friend who opens the link sits with you. Each of you has a grid on your own device.
+If this browser can see a MIDI device, Orca talks to it (`:` a note, `;` a CC). Without a device, notes still play here as square waves. OSC and UDP from the desktop app are silent here.
 
 ## What is saved
 
