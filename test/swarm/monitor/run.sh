@@ -83,8 +83,11 @@ while true; do
       done ) &
     MOTO=$!
   fi
-  # --foreground keeps the REPL interactive on the tty; at RECYCLE_SECS the
-  # child gets TERM (exit 124) and the loop respawns it onto current code.
+  # --foreground keeps the REPL interactive on the tty. It also means timeout
+  # does NOT signal chrome children (man timeout) — meet.js must reap its
+  # own tree on SIGTERM, or the next loop launches a second browser beside
+  # the orphan. At RECYCLE_SECS the child gets TERM (exit 124) and the loop
+  # respawns it onto current code.
   # GIFOS_RESIDENT=1 rides into the browser process environment (meet.js
   # passes env through outside drive mode) and marks this browser as a
   # RESIDENT SERVICE: release.sh's reap_browsers() exempts it. Without the

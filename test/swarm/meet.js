@@ -585,6 +585,19 @@ function armForkAuto() {
   }, 4000);
 }
 let intentionalKill = false; // die/quit set this — an EXPECTED browser death
+// timeout --foreground (the monitor's supervisor) SIGTERMs meet.js and
+// deliberately does NOT signal chrome children — that is the flag. SIGINT
+// used to close the browser; SIGTERM did not. The chrome tree then got
+// reparented to init and the next respawn launched a second one. Kill the
+// descendants of THIS pid, now, no await: browser.close() hung on the Pi
+// ("will force kill") and lost the race to the next launch.
+function reapBrowserTree() {
+  intentionalKill = true;
+  for (const pid of browserTreePids()) {
+    try { process.kill(pid, 'SIGKILL'); } catch (e) {}
+  }
+  browser = null; ctx = null; page = null;
+}
 // ---- A DEAD BROWSER IS NOT A VERDICT --------------------------------------
 // In drive mode the orchestrator owns actor lifecycles, so an unexpected
 // browser death used to return early from the handlers below and say NOTHING
@@ -1533,7 +1546,14 @@ function startEnsurePass() {
 
 // ---- main -----------------------------------------------------------------
 (async () => {
-  process.on('SIGINT', async () => { intentionalKill = true; try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
+  process.on('SIGINT', () => { reapBrowserTree(); process.exit(0); });
+  process.on('SIGTERM', () => { reapBrowserTree(); process.exit(0); });
+  process.on('SIGHUP', () => { reapBrowserTree(); process.exit(0); });
+  process.on('uncaughtException', (e) => {
+    console.error('FATAL ' + (e && e.message || e));
+    reapBrowserTree();
+    process.exit(1);
+  });
   startJsonl();
   startEnsurePass();
 
@@ -1603,4 +1623,4 @@ function startEnsurePass() {
   rl.prompt();
   rl.on('line', async (line) => { let cont = true; try { cont = await runCmd(line); } catch (e) { console.log('  ! ' + String(e).slice(0, 200)); } if (!cont) { rl.close(); return; } rl.prompt(); });
   rl.on('close', async () => { try { if (browser) await browser.close(); } catch (e) {} process.exit(0); });
-})().catch((e) => { console.error('FATAL ' + (e && e.message || e)); process.exit(1); });
+})().catch((e) => { console.error('FATAL ' + (e && e.message || e)); reapBrowserTree(); process.exit(1); });
