@@ -39,6 +39,16 @@ function nearest(pal, r, g, b) {
   }
   return bi;
 }
+function fillRect(rgba, x0, y0, x1, y1, col, m, rad) {
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    if (x < 0 || y < 0 || x >= OUT || y >= OUT) continue;
+    if (!inCard(x, y, m, rad)) continue;
+    for (let qy = 0; qy < SS; qy++) for (let qx = 0; qx < SS; qx++) {
+      const o = ((((y | 0) * SS + qy) * RW) + ((x | 0) * SS + qx)) * 4;
+      rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
+    }
+  }
+}
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 22, t = f / FRAMES;
@@ -49,23 +59,18 @@ function frameIndices(pal, f) {
     const o = (py * RW + px) * 4;
     rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
   }
-  for (let i = 0; i < 70; i++) {
-    const ang = i * 2.399 + t * 1.4;
-    const dist = 8 + (i % 17) * 2.1 + Math.sin(t * 6.28 + i) * 4;
-    const cx = 64 + Math.cos(ang) * dist;
-    const cy = 64 + Math.sin(ang * 1.1) * dist * 0.85;
-    const col = COLS[i % COLS.length];
-    const s = 1 + (i % 3);
-    for (let sy = -s; sy <= s; sy++) for (let sx = -s; sx <= s; sx++) {
-      const x = cx + sx, y = cy + sy;
-      if (x < 0 || y < 0 || x >= OUT || y >= OUT) continue;
-      if (!inCard(x, y, m, rad)) continue;
-      for (let qy = 0; qy < SS; qy++) for (let qx = 0; qx < SS; qx++) {
-        const o = ((((y | 0) * SS + qy) * RW) + ((x | 0) * SS + qx)) * 4;
-        rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
-      }
-    }
+  const rows = 4;
+  const sing = Math.floor(t * rows) % rows;
+  for (let i = 0; i < rows; i++) {
+    const y = 22 + i * 22;
+    const lit = i <= sing;
+    const on = i === sing;
+    fillRect(rgba, 18, y, 110, y + 16, on ? [24, 72, 64] : [28, 32, 40], m, rad);
+    fillRect(rgba, 22, y + 5, 46, y + 11, lit ? TEAL : [90, 100, 110], m, rad);
+    fillRect(rgba, 52, y + 5, 102, y + 11, on ? INK : [160, 170, 180], m, rad);
   }
+  const caretY = 22 + (t * rows * 22) % (rows * 22);
+  fillRect(rgba, 16, caretY, 18, caretY + 16, GOLD, m, rad);
   const idx = new Uint8Array(OUT * OUT);
   for (let y = 0; y < OUT; y++) for (let x = 0; x < OUT; x++) {
     let r = 0, g = 0, b = 0, a = 0, nn = SS * SS;
@@ -131,6 +136,19 @@ const GLYPHS = {
   'Q': [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101],
   'Z': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
   ' ': [0, 0, 0, 0, 0, 0, 0],
+  ':': [0, 0b00100, 0, 0, 0, 0b00100, 0],
+  '-': [0, 0, 0, 0b11111, 0, 0, 0],
+  '.': [0, 0, 0, 0, 0, 0, 0b00100],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '3': [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '6': [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -158,19 +176,34 @@ export function screenshotPng() {
     for (let y = Math.max(0, y0 | 0); y < Math.min(H, y1 | 0); y++)
       for (let x = Math.max(0, x0 | 0); x < Math.min(W, x1 | 0); x++) put(x, y, r, g, b);
   };
-  fill(0, 0, W, H, 32, 32, 32);
-  drawText(put, 48, 56, 'LRC', 7, 232, 238, 248);
-  drawText(put, 48, 120, 'MAKER', 7, 88, 180, 255);
-  drawText(put, 48, 200, 'TAP THE LINE', 3, 255, 210, 90);
-  drawText(put, 48, 280, 'EXPORT LRC', 3, 90, 220, 180);
-  drawText(put, 48, 360, 'AUDIO STAYS HERE', 3, 232, 238, 248);
-  fill(560, 160, 1140, 600, 24, 26, 32);
-  fill(560, 160, 1140, 230, 40, 80, 120);
-  fill(560, 300, 1140, 370, 32, 48, 56);
-  fill(560, 440, 1140, 510, 32, 48, 56);
-  drawText(put, 590, 180, "00:12  FIRST LINE", 3, 238, 234, 227);
-  drawText(put, 590, 320, "00:19  SECOND LINE", 3, 90, 180, 230);
-  drawText(put, 590, 460, "00:27  THIRD LINE", 3, 160, 160, 168);
+  fill(0, 0, W, H, 16, 20, 28);
+  fill(40, 24, 1160, 696, 12, 18, 28);
+  drawText(put, 64, 48, 'LRC MAKER', 5, 232, 238, 248);
+  drawText(put, 900, 48, '00:19.40', 5, 126, 224, 255);
+
+  fill(64, 110, 1136, 122, 24, 40, 48);
+  fill(64, 110, 420, 122, 57, 208, 197);
+
+  const rows = [
+    ['00:12.08', 'I KEEP THE SONG HERE', false],
+    ['00:19.40', 'TAP STAMP ON THE LINE', true],
+    ['00:27.15', 'EXPORT AN LRC FILE', false],
+    ['--:--.--', 'THE NEXT LINE WAITS', false],
+  ];
+  rows.forEach((row, i) => {
+    const y = 160 + i * 88;
+    if (row[2]) fill(64, y, 1136, y + 76, 22, 56, 48);
+    else fill(64, y, 1136, y + 76, 14, 22, 32);
+    drawText(put, 88, y + 24, row[0], 4, row[2] ? 57 : 90, row[2] ? 208 : 160, row[2] ? 197 : 180);
+    drawText(put, 360, y + 24, row[1], 4, 232, 238, 248);
+  });
+
+  fill(64, 540, 220, 620, 24, 32, 48);
+  fill(240, 540, 430, 620, 24, 32, 48);
+  fill(450, 540, 1136, 620, 57, 208, 197);
+  drawText(put, 96, 564, 'PLAY', 4, 232, 238, 248);
+  drawText(put, 280, 564, '-5S', 4, 232, 238, 248);
+  drawText(put, 680, 564, 'STAMP', 4, 8, 32, 24);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

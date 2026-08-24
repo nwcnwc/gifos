@@ -12,27 +12,35 @@
       <div id="brand">LRC Maker</div>
       <div id="clock">00:00.00</div>
     </header>
-    <div class="actions">
-      <label class="file">Song<input id="audioFile" type="file" accept="audio/*"></label>
-      <button type="button" id="playBtn">Play</button>
-      <button type="button" id="backBtn">−5s</button>
-      <button type="button" id="fwdBtn">+5s</button>
-      <button type="button" id="stampBtn">Stamp</button>
-      <button type="button" id="exportBtn">Export LRC</button>
-      <button type="button" id="shareBtn">Play together</button>
+    <p id="track">No song yet — pick one. It stays in this file.</p>
+    <div id="seek-wrap">
+      <input id="seek" type="range" min="0" max="0" step="0.01" value="0" aria-label="Seek" disabled>
     </div>
-    <p id="track">No song yet — the file stays on this device.</p>
+    <div class="actions" id="tools">
+      <label class="file">Song<input id="audioFile" type="file" accept="audio/*"></label>
+      <label class="file">Open LRC<input id="lrcFile" type="file" accept=".lrc,text/plain"></label>
+      <button type="button" id="exportBtn">Export LRC</button>
+      <button type="button" id="editBtn">Edit lyrics</button>
+      <button type="button" id="shareBtn">Look together</button>
+    </div>
     <div id="friend-bar" hidden>
-      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. They get the lyrics and stamps, not the song file.</p>
+      <p id="friend-hint">Press <b>Invite</b> in the bar above to send a friend the link. They get the lyrics and stamps, not the song file.</p>
       <p id="friend-status"></p>
       <ul id="friend-scores"></ul>
       <div class="friend-actions"><button type="button" id="leaveBtn">← Solo</button></div>
     </div>
     <ul id="lines"></ul>
-    <label class="sr" for="lyrics">Lyrics</label>
-    <textarea id="lyrics" placeholder="Paste unsung lyrics here, one line each. Then play the song and press Stamp (or Space) as each line is sung."></textarea>
-    <p id="how">Space stamps the current line. ↑↓ pick a line. ←→ skip 5 seconds. Ctrl+Enter plays or pauses. Backspace clears a stamp. Export writes an .lrc file. The song is never uploaded.</p>
-    <p class="foot">Unofficial port of lrc-maker by magic-akari (MIT). Playing alone is the original tool. A shared sheet is the lyrics — nobody writes on anybody else’s row.</p>
+    <div id="editor" hidden>
+      <label class="sr" for="lyrics">Lyrics</label>
+      <textarea id="lyrics" placeholder="Paste unsung lyrics here, one line each."></textarea>
+    </div>
+    <p id="err" class="err" hidden></p>
+    <div id="dock">
+      <button type="button" id="backBtn" aria-label="Skip back 5 seconds">−5s</button>
+      <button type="button" id="playBtn">Play</button>
+      <button type="button" id="fwdBtn" aria-label="Skip forward 5 seconds">+5s</button>
+      <button type="button" id="stampBtn">Stamp</button>
+    </div>
   </div>
   <script src="vendor/lrc-parser.js"></script>
   <script src="app.js"></script>

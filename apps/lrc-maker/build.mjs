@@ -55,6 +55,14 @@ const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage', 'WebGL', 'CDN', 'React']) {
   if (listingBlob.includes(bad)) throw new Error('listing ' + bad);
 }
+if (/\bDrop\b/.test(listing.tagline) || /\bDrop\b/.test(listing.description)) {
+  throw new Error('listing copy: say Open, not Drop');
+}
+if (!/nothing is uploaded/i.test(listing.description) && !/never leaves this device/i.test(listing.description)) {
+  throw new Error('listing must say it stays on this device');
+}
+if (!/unofficial port/i.test(listing.description)) throw new Error('listing must say unofficial port');
+if (!/Stamp/i.test(listing.description)) throw new Error('listing must mention Stamp');
 
 const SCRIPTS = ['vendor/lrc-parser.js', 'app.js', 'mp.js'];
 const files = {
@@ -79,6 +87,18 @@ if (/type=["']module["']/.test(html)) throw new Error('no type=module');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('external URL');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html)) throw new Error('Invite is OS chrome');
 if (!files['mp.js'].includes('Invite') || !files['app.js'].includes("db('save')")) throw new Error('Invite/save');
+if (!files['app.js'].includes('audioBytes') || !files['app.js'].includes('LRCCore')) {
+  throw new Error('app.js must persist audio in the file and expose LRCCore');
+}
+if (!files['app.js'].includes('onBack')) throw new Error('app.js must register gifos.onBack');
+if (!files['app.js'].includes('singingAt')) throw new Error('app.js must highlight the singing line');
+if (!files['style.css'].includes('min-height: 56px')) {
+  throw new Error('Stamp must be at least 56px tall so a thumb can hit it');
+}
+if (!files['index.html'].includes('id="stampBtn"') || !files['index.html'].includes('id="dock"')) {
+  throw new Error('Stamp lives in the dock, under the thumb');
+}
+if (/<button\b[^>]*>\s*Invite\s*</i.test(files['index.html'])) throw new Error('Invite is OS chrome');
 if (!files['COPYING-lrc-maker.txt'].includes('阿卡琳')) throw new Error('COPYING');
 
 for (const [n, s] of Object.entries(files)) {
@@ -92,9 +112,11 @@ for (const [n, s] of Object.entries(files)) {
 }
 
 {
-  const ctx = { console, Math, Map, Number, Intl, isFinite };
+  const ctx = { console, Math, Map, Number, Intl, isFinite, Uint8Array, Array, Object, JSON, setTimeout, clearTimeout };
   ctx.globalThis = ctx;
-  vm.runInNewContext(files['vendor/lrc-parser.js'] + '\n' +
+  ctx.window = ctx;
+  vm.runInNewContext(
+    files['vendor/lrc-parser.js'] + '\n' + files['app.js'] + '\n' +
     'result = (function () {\n' +
     '  var P = lrcParser;\n' +
     '  var st = P.parser("[00:01.00]Hello\\nWorld");\n' +
@@ -104,6 +126,15 @@ for (const [n, s] of Object.entries(files)) {
     '  if (out.indexOf("[00:01.00]Hello") < 0) throw new Error("stringify " + out);\n' +
     '  var tag = P.convertTimeToTag(65.5, 2, true);\n' +
     '  if (tag.indexOf("[01:05.50]") < 0) throw new Error("tag " + tag);\n' +
+    '  var C = LRCCore;\n' +
+    '  if (!C) throw new Error("no LRCCore");\n' +
+    '  var parsed = C.parseText("[00:01.00]Hello\\nWorld");\n' +
+    '  if (parsed.lines.length !== 2) throw new Error("core parse");\n' +
+    '  C.stampLine(parsed.lines, 1, 2.5);\n' +
+    '  if (parsed.lines[1].time !== 2.5) throw new Error("stamp");\n' +
+    '  if (C.singingAt(parsed.lines, 1.2) !== 0) throw new Error("sing");\n' +
+    '  var rec = C.persistRecord({ lines: parsed.lines, cur: 1, audioBytes: new Uint8Array(4), audioName: "a.mp3", audioMime: "audio/mpeg" });\n' +
+    '  if (!rec.audioBytes || rec.audioBytes.length !== 4) throw new Error("audio persist");\n' +
     '  return tag;\n' +
     '})();', ctx);
   console.log('LRC parser roundtrip ok —', ctx.result);
