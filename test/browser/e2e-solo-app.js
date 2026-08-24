@@ -37,32 +37,55 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   d.on('pageerror', (e) => console.log('  [desk] ' + e.message));
   await d.goto(BASE + '/index.html');
   await d.waitForSelector('.icon', { timeout: 30000 });
-  // Pick a seeded app that asks for NOTHING. An app that declares a gated
-  // ability (motion, fullscreen, camera, …) or a network host opens the OS
-  // Abilities consent on first launch — a modal over the whole app bar —
-  // and that is correct product behaviour, not this suite's subject. The
-  // seed order changed (Tilt, a motion+fullscreen game, became first) and
-  // `find()` on the first default app then clicked Help through that modal
-  // for 30s. Choose by MANIFEST, not by position, so a reseed cannot do it
-  // again. The gated set mirrors gifos-perms.js CAP_LABELS; hosts mirror
-  // runtime.js networkHosts (manifest.capabilities.network).
-  const appId = await d.evaluate(async (SYS) => {
+  // Pick a seeded app that asks for NOTHING — and PROVE it before touching Help.
+  // An app that declares a gated ability (motion, fullscreen, camera, AI, …)
+  // or a network host opens the OS Abilities consent — correct product
+  // behaviour, a modal over the whole app bar, not this suite's subject.
+  // Two lessons paid for here: the seed order changed (Tilt, motion +
+  // fullscreen, became first) and `find()` clicked Help through that modal
+  // for 30s; then the manifest filter alone picked Chat, whose AI ask lands
+  // ~5s AFTER mount — sometimes before the click, sometimes after — a flake
+  // on two boxes. So: filter by manifest (fast), then boot each candidate and
+  // watch for a .perm-modal for a few seconds; the first that stays quiet is
+  // the one. The gated set mirrors gifos-perms.js CAP_LABELS; a role list
+  // under capabilities.ai / .api / .pool counts, and so does a network host.
+  const candidates = await d.evaluate(async (SYS) => {
     const GATED = ['microphone', 'camera', 'motion', 'ai', 'api', 'agent', 'wasm', 'gpu', 'pointer', 'fullscreen', 'pool'];
     const files = (await GifOS.store.allFiles()).filter((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
+    const out = [];
     for (const f of files) {
       const rec = await GifOS.store.getFile(f.id);
       if (!rec || !rec.bytes) continue;
       let m = null;
       try { m = (await GifOS.gif.decode(rec.bytes)).manifest || {}; } catch (e) { continue; }
       const caps = m.capabilities || {};
-      if (GATED.some((k) => caps[k])) continue;
+      if (GATED.some((k) => Array.isArray(caps[k]) ? caps[k].length : caps[k])) continue;
       const net = caps.network; // runtime.js networkHosts reads manifest.capabilities.network
       if (net && (Array.isArray(net) ? net.length : net === true || Object.keys(net).length)) continue;
-      return f.id;
+      out.push({ id: f.id, appId: f.appId });
+      if (out.length >= 6) break;
     }
-    return null;
+    return out;
   }, SYS);
-  check('seeded desktop exposes a runnable app that asks for no ability and no host', !!appId);
+  let appId = null;
+  const asked = [];
+  for (const c of candidates) {
+    const t = await ctx.newPage();
+    try {
+      await t.goto(BASE + '/run.html#id=' + c.id);
+      await t.waitForSelector('#appmount iframe', { timeout: 30000 });
+      let modal = null;
+      for (let i = 0; i < 6 && !modal; i++) {
+        await t.waitForTimeout(1000);
+        modal = await t.evaluate(() => { const m = document.querySelector('.perm-modal'); return m ? (m.innerText || '').split('\n')[0] : null; });
+      }
+      if (modal) { asked.push(c.appId + ': ' + modal); } else { appId = c.id; }
+    } catch (e) { asked.push(c.appId + ': ' + e.message.split('\n')[0]); }
+    await t.close();
+    if (appId) break;
+  }
+  if (asked.length) console.log('  skipped (asked for something): ' + asked.join(' | '));
+  check('seeded desktop exposes a runnable app that asks for nothing (proven, not inferred)', !!appId, candidates.map((c) => c.appId).join(','));
   if (!appId) { await browser.close(); process.exit(1); }
   // Pack credits.json INTO the app's bytes (what sign-apps.mjs does for every
   // listed GIF) and stamp the local install date the store leaves on the
