@@ -5615,6 +5615,54 @@
       "sha256": "b558afaac70d59b7dbae2f7c8469138e3c9f6dcf8412b62d26d6bd60b24da49b"
     },
     {
+      "slug": "tanks",
+      "appId": "tanks",
+      "name": "Tanks",
+      "shortName": "Tanks",
+      "version": "1.0",
+      "tagline": "Drive a tank. Invite is the arena. No game server.",
+      "author": {
+        "name": "Sven Bergström",
+        "url": "https://github.com/ruby0x1/realtime-multiplayer-in-html5"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Realtime Multiplayer in HTML5",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "tanks",
+        "shooter",
+        "multiplayer",
+        "canvas",
+        "arena"
+      ],
+      "accent": [
+        200,
+        140,
+        40
+      ],
+      "cover": "/apps/tanks/cover.jpg",
+      "bytes": 190485,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "957e67f9fbbb4117a5859d446cd5998d4c77cf63e966692fbb2b3084de7f3fd0"
+    },
+    {
       "slug": "tesseract",
       "appId": "tesseract",
       "name": "Tesseract OCR",

@@ -151,7 +151,7 @@ export function screenshotPng() {
   drawText(put, 48, 56, 'POLYGON', 6, 244, 241, 187);
   drawText(put, 48, 120, 'SHREDDER', 6, 237, 106, 90);
   drawText(put, 48, 200, 'CUBES TO CONFETTI', 3, 255, 224, 102);
-  drawText(put, 48, 280, 'SHARE THE SHRED', 3, 112, 193, 179);
+  drawText(put, 48, 280, 'PLAY TOGETHER', 3, 112, 193, 179);
   drawText(put, 48, 360, 'DRAG TO ORBIT', 3, 244, 241, 187);
   for (let i = 0; i < 900; i++) {
     const ang = i * 0.37, dist = 40 + (i % 80) * 3;
