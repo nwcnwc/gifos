@@ -4,10 +4,10 @@
   "appId": "fluid",
   "name": "Fluid",
   "shortName": "Fluid",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "tagline": "Drag a finger through ink. The swirl stays on this device.",
-  "description": "Press and drag. Colour blooms behind the pointer, then folds into itself — a Navier–Stokes toy that already ran on phones. The quality, dye, bloom, and pause settings you pick come back the next time you open the file. Nothing is uploaded.\n\nA random splat button and a screenshot live in the panel. On a phone the panel starts closed; tap the gear. There is no account and no store badge.\n\nAn unofficial port of WebGL Fluid Simulation by Pavel Dobryakov. Same ink, same pointer, no analytics.",
+  "description": "Press and drag. Colour blooms behind the pointer, then folds into itself — a Navier–Stokes toy that already ran on phones. Nothing is uploaded, there is no account, and no store badge. The quality, dye, bloom, and pause settings you pick come back with the file, along with a still of the last swirl.\n\nA random-splat button and a screenshot live in the panel. On a phone the panel starts closed; tap the bar. If this GPU cannot keep up, quality steps down and the app says so. If there is no WebGL, it says that too, instead of a black screen.\n\nAn unofficial port of WebGL Fluid Simulation by Pavel Dobryakov. Same ink, same pointer, no analytics.",
   "author": {
     "name": "Pavel Dobryakov",
     "url": "https://github.com/PavelDoGreat/WebGL-Fluid-Simulation"
@@ -38,10 +38,10 @@
   "cover": "/apps/fluid/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fluid/fluid.gif",
-  "bytes": 236485,
+  "bytes": 239431,
   "download": 0,
   "provides": null,
-  "sha256": "386ef81893b56b481586dda3074888e03c8b7a2ac7358124ca4f0563bb4b1e40",
+  "sha256": "44880aee3d3444fff0c9ef97bb80a6d9c548bf834c4faf581728e69163823e97",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

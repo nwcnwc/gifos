@@ -4,10 +4,10 @@
   "appId": "qr-scan",
   "name": "QR Scan",
   "shortName": "Scan",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Read a code from a photo. Nothing is uploaded.",
-  "description": "Take a still photo, or drop a picture. The words inside the code appear on the screen. There is no live camera view — one picture at a time, on this device. Nothing is sent anywhere, and there is no account.\n\nA short history of what you have read stays in this file. It never leaves this device. Press Invite (the GifOS bar) if you want a friend to open the same app in a meeting; their history stays on their side.\n\nAn unofficial port of jsQR by cozmo. For making a code, use QR Code. For a Wi-Fi fridge card, use WiFi Card.",
+  "tagline": "Read a code from a still photo. Nothing is uploaded.",
+  "description": "Take a still photo or choose a picture already on this device. The words inside the code appear on the screen. There is no live camera — one picture at a time, on this device. Nothing is sent anywhere, and there is no account.\n\nA short history of what you have read stays in this file. It never leaves this device. A friend who opens the same app in a meeting keeps their own history.\n\nUnofficial port of jsQR by cozmo. For making a code, use QR Code. For a Wi-Fi fridge card, use WiFi Card.",
   "author": {
     "name": "cozmo",
     "url": "https://github.com/cozmo/jsQR"
@@ -38,10 +38,10 @@
   "cover": "/apps/qr-scan/cover.jpg",
   "screenshots": [],
   "gif": "/apps/qr-scan/qr-scan.gif",
-  "bytes": 267325,
+  "bytes": 271291,
   "download": 0,
   "provides": null,
-  "sha256": "e8df93cc17386045e3490747db162afe977c0a450ec055a10c2c2aede3bdb25b",
+  "sha256": "1d16c42e743115743763a69fabdafad997cb007d0f53824280dc126a3407ddc0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

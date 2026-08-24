@@ -4,10 +4,10 @@
   "appId": "jpg-glitch",
   "name": "JPG Glitch",
   "shortName": "Glitch",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "tagline": "Databend a still on this device. Save the glitch. Nothing is uploaded.",
-  "description": "Drop a picture, or take one. Four sliders — amount, seed, iterations, quality — smash the JPEG so the photo tears, blooms, and bands. The glitch is the point. Download it when you like what you see.\n\nThe last picture and the last slider settings come back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of jpg-glitch by snorpey.",
+  "description": "Corrupt a still so it tears, blooms and bands. Four sliders — amount, seed, iterations, quality — smash the JPEG in this tab. The picture never leaves the device. There is no account.\n\nThe last picture and the last slider values live in the app file. Close it, open it later, they are still here, smashed with the same recipe — not glitched twice.\n\nA thumb can work the sliders. Take a still from the camera, or open a picture already on the phone. Hold the picture to see the original. If a smash decodes as a grey smear, try Random seed.\n\nAn unofficial port of jpg-glitch by snorpey.",
   "author": {
     "name": "snorpey",
     "url": "https://github.com/snorpey/jpg-glitch"
@@ -39,10 +39,10 @@
   "cover": "/apps/jpg-glitch/cover.jpg",
   "screenshots": [],
   "gif": "/apps/jpg-glitch/jpg-glitch.gif",
-  "bytes": 186793,
+  "bytes": 190123,
   "download": 0,
   "provides": null,
-  "sha256": "2ade4310bcc2f710a15428d424a0023d46ff11daa2bd627f469b8fe51a101449",
+  "sha256": "f4aef4a27578ed381c3f4d75f274b8e34e1d571499591dd427dbc28256e3202c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

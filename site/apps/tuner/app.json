@@ -4,10 +4,10 @@
   "appId": "tuner",
   "name": "Tuner",
   "shortName": "Tuner",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "tagline": "Record a note. See the pitch. Nothing is uploaded.",
-  "description": "Press Record a note, play or sing one pitch, then stop. The app names the note, the frequency in Hertz, and how many cents sharp or flat you were. It is a take, not a live needle — you record, then it reads.\n\nThe last reading comes back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of PitchDetect by Chris Wilson. Bugs go to GifOS, not upstream.",
+  "description": "Works offline. No account, no install, no live microphone. Press Record a note, play or sing one pitch, then stop. The app names the note, the frequency in Hertz, and how many cents sharp or flat you were. It is a take, not a live needle — you record, then it reads. If the take is too quiet or has no clear pitch, it says so.\n\nThe last reading comes back the next time you open the app, still only on this device. Pick guitar, ukulele or bass to aim at an open string, and tap a string to hear the target.\n\nAn unofficial port of PitchDetect by Chris Wilson. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "Chris Wilson",
     "url": "https://github.com/cwilso/PitchDetect"
@@ -39,10 +39,10 @@
   "cover": "/apps/tuner/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tuner/tuner.gif",
-  "bytes": 184869,
+  "bytes": 192102,
   "download": 0,
   "provides": null,
-  "sha256": "47c2ebf9aa5280f2b076670559b762b3dd7ea9be0efce4c5fa70b12c22e4d2a5",
+  "sha256": "cba0c52af18bb416dd29f8bd862091e2d0f1d38758c1ab12758543f05d5b7017",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

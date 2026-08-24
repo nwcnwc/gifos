@@ -4,10 +4,10 @@
   "appId": "onoff",
   "name": "OnOff",
   "shortName": "OnOff",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
-  "tagline": "Twenty-five rooms. Flip the world. Don't touch the spikes.",
-  "description": "A little robot, two layers of platforms, and a button that swaps which one is solid. Walk, jump, toggle. Spikes kill you. The door at the other side is the level.\n\nTwenty-five hand-made rooms from the 2018 js13kGames jam. On a phone: left, right, jump, and ON/OFF under your thumbs. On a computer it is WASD or the arrows, space to flip.\n\nAn unofficial port of OnOff by Daniel Marino and Brad Dunbar, MIT-licensed. Close it, come back: how far you got is still in the file.",
+  "tagline": "Twenty-five rooms. Flip the world. The file remembers the room.",
+  "description": "Close it on room 18, open it on room 18. The furthest room lives in this GIF — no account, no install, works offline.\n\nA little robot, two layers of platforms, and a button that swaps which one is solid. Walk, jump, toggle. Spikes kill you. Reach the pulsing goal. Twenty-five hand-made rooms from the 2018 js13kGames jam.\n\nOn a phone: left, right, JUMP, and ON/OFF under your thumbs. On a computer it is WASD or the arrows, space to flip.\n\nAn unofficial port of OnOff by Daniel Marino and Brad Dunbar, MIT-licensed.",
   "author": {
     "name": "Daniel Marino and Brad Dunbar",
     "url": "https://github.com/starzonmyarmz/js13k-2018"
@@ -36,11 +36,15 @@
   "cover": "/apps/onoff/cover.jpg",
   "screenshots": [],
   "gif": "/apps/onoff/onoff.gif",
-  "bytes": 205634,
+  "bytes": 208142,
   "download": 0,
   "provides": null,
-  "sha256": "50012e175b04fdfe952f99b6ce1b64c4fa31ebdc50a97fb7b45e543770ff0f32",
-  "signature": null,
+  "sha256": "6ce7783d6caea1e249d7995993ca53ebc95f8234646823cc40ff976262e75020",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

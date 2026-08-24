@@ -4,10 +4,10 @@
   "appId": "spider",
   "name": "Spider",
   "shortName": "Spider",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Spider patience. Eight runs, ten piles. The file is the tableau.",
-  "description": "One-suit Spider. Build descending runs king to ace. A finished run leaves the tableau. Deal a row from the stock when you are stuck — every pile must have a card first. Empty piles take any run.\n\nTap a face-up card to pick up the run from there. Tap a pile that will take it. Undo goes back one move. Close it and come back: the tableau is where you left it.\n\nAn unofficial port of spider-solitaire by lklynet. Same deal and the same moves; the React shell stays behind.",
+  "tagline": "1, 2 or 4 suits. The tableau lives in the file.",
+  "description": "Close it on a plane, open it tomorrow — the same ten piles, the same score, inside this GIF. No account, no install, no Windows.\n\nBuild king-to-ace runs. A finished same-suit run of 13 leaves the tableau; eight of those and you win. Deal a row from the stock only when every pile has a card — the real Spider rule, not a house rule. 1-suit is the teacher, 2-suit is the middle, 4-suit is the game Microsoft players mean.\n\nTap a face-up card and tap where it goes, or drag. Empty piles take any run. Undo puts the cards back. A phone-sized tableau fans so you can still read the ranks.\n\nAn unofficial port of spider-solitaire by lklynet. Same engine; this copy adds 1/2/4-suit deals and a tableau that travels with the file.",
   "author": {
     "name": "lklynet",
     "url": "https://github.com/lklynet/spider-solitaire"
@@ -37,10 +37,10 @@
   "cover": "/apps/spider/cover.jpg",
   "screenshots": [],
   "gif": "/apps/spider/spider.gif",
-  "bytes": 186019,
+  "bytes": 193700,
   "download": 0,
   "provides": null,
-  "sha256": "a7d617cf287485cd01a5d904571f975c27d9c47501f65011036b62909f6b0fae",
+  "sha256": "88f60b27e6b296ae1e8388fcd3bc239aef59c5aa67e124cd32feaaeecd525dff",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -4,10 +4,10 @@
   "appId": "metronome",
   "name": "Metronome",
   "shortName": "Metro",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "tagline": "A click that keeps time. Tempo lives in this file. No microphone.",
-  "description": "Set a tempo and a time signature, press Start, and the click holds. The first beat of the bar is higher. Tap the pad a few times to catch a tempo from your thumb. Nothing is sent anywhere — there is no account, and there is no microphone.\n\nThe last tempo and signature come back the next time you open the app. Press Invite (the GifOS bar) if you want friends in a meeting to see the same numbers; each device plays its own click.\n\nAn unofficial port of the Web Audio metronome by Chris Wilson (cwilso). Same lookahead scheduling that keeps the click honest.",
+  "description": "Works offline. No account, no install, no microphone. Set a tempo, press Start, and the click holds — the same lookahead Web Audio scheduling as Chris Wilson's metronome, with a pendulum and a wood click so it feels like the box on the piano.\n\nThe last tempo, signature and subdivision come back the next time you open the app, because they live in this file. Hand someone the GIF and they open it already at your rehearsal speed.\n\nPress Invite in the bar above the app to show the same numbers in a meeting. Each device plays its own click; there is no shared speaker.\n\nUnofficial port of the Web Audio metronome by Chris Wilson (cwilso). Bugs go to GifOS, not upstream.",
   "author": {
     "name": "cwilso",
     "url": "https://github.com/cwilso/metronome"
@@ -39,10 +39,10 @@
   "cover": "/apps/metronome/cover.jpg",
   "screenshots": [],
   "gif": "/apps/metronome/metronome.gif",
-  "bytes": 188887,
+  "bytes": 195022,
   "download": 0,
   "provides": null,
-  "sha256": "82cf3af77d7a7a06efbab6e151f0343961579a8359e2510a8c22b915ef683330",
+  "sha256": "f4f5825ad332b9f438c8e10b42fb1668921e555aa2673ae560e7f6d95d8d6be6",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

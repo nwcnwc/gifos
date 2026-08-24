@@ -4,10 +4,10 @@
   "appId": "qr-code",
   "name": "QR Code",
   "shortName": "QR",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Type text or a URL, get a code. Nothing is uploaded.",
-  "description": "Type any text or a link. A code appears that a phone can point at. Hold the screen up, print it, or keep it in this file. Nothing is sent anywhere — there is no account, and the words never leave this device.\n\nThe last thing you typed comes back the next time you open the app. Press Invite (the GifOS bar) if you want the same code to show up for everyone in a meeting. They can point a phone at it too.\n\nAn unofficial port of qrcodejs by davidshimjs. A general maker — not only Wi-Fi. For a fridge card with the network name and password, use WiFi Card instead.",
+  "tagline": "Type a link or any text. A code appears. Nothing is uploaded.",
+  "description": "Works offline, with no account: type a link, a phone number, a message, or a contact, and a code appears on this screen. Nothing is sent anywhere — the words never leave this device.\n\nThe last code you made comes back the next time you open the app, still inside this file. A shared link can open the app already filled in. Press Invite in the GifOS bar to put the same code on everyone else's screen in a meeting.\n\nUnofficial port of qrcodejs by davidshimjs. A general maker — not only Wi-Fi. For a fridge card with the network name and password, use WiFi Card instead.",
   "author": {
     "name": "davidshimjs",
     "url": "https://github.com/davidshimjs/qrcodejs"
@@ -23,7 +23,8 @@
     "url",
     "text",
     "offline",
-    "print"
+    "print",
+    "contact"
   ],
   "license": "MIT",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/qr-code",
@@ -39,10 +40,10 @@
   "cover": "/apps/qr-code/cover.jpg",
   "screenshots": [],
   "gif": "/apps/qr-code/qr-code.gif",
-  "bytes": 202105,
+  "bytes": 210581,
   "download": 0,
   "provides": null,
-  "sha256": "6f3f0e3529a06559af105418aab238fa081abc5c61371fc7f605243accfa6e15",
+  "sha256": "c8ba1a17b6f60f8c6fe3293a69eab6c0a84616d78d9a647964f86781b9a69cf7",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

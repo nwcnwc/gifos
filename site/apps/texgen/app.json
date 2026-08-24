@@ -4,10 +4,10 @@
   "appId": "texgen",
   "name": "TexGen",
   "shortName": "TexGen",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Procedural textures, live. Download a PNG. Nothing is uploaded.",
-  "description": "Stack generators — XOR, sine, noise, circles, checkerboards — and combine them with add, multiply, xor and the rest. Tint each layer. The texture draws as you change it. Download a PNG when you like it.\n\nThe last stack comes back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of texgen.js by mrdoob.",
+  "tagline": "Procedural textures, live. The file holds the recipe.",
+  "description": "Upstream texgen.js is a library. This is an editor: stack XOR, sines, noise, checkers, twirls; combine with add, multiply, xor; tint each layer; download a PNG. It runs fully offline. There is no account, and nothing is sent anywhere.\n\nThe stack is the save. Name a recipe, keep it, close the app — it is still there. Share the GIF and the recipe travels with it. Presets from the original examples are one tap, including the classic XOR look.\n\nUnofficial port of texgen.js by mrdoob. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "mrdoob",
     "url": "https://github.com/mrdoob/texgen.js"
@@ -38,10 +38,10 @@
   "cover": "/apps/texgen/cover.jpg",
   "screenshots": [],
   "gif": "/apps/texgen/texgen.gif",
-  "bytes": 189996,
+  "bytes": 197276,
   "download": 0,
   "provides": null,
-  "sha256": "00310b3781d975dccc434d1ebcc87317e0b82f7b89f88b4d5d74034b58b55903",
+  "sha256": "8cf032fd6f409c21c09e42fc9824129436e321961660be6df6d877f27b9de465",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

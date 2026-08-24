@@ -4,10 +4,10 @@
   "appId": "ludo",
   "name": "Ludo",
   "shortName": "Ludo",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "tagline": "Four seats, one invite, no lobby.",
-  "description": "Send the invite. The people who open it sit Red, Green, Yellow, and Blue. There is no account, no lobby code, and no game server. The room is the link.\n\nEach colour has four tokens. Roll a six to leave the yard. Race them clockwise around the board and up your own home stretch. Land on someone who is not on a start square and they go back to the yard. You stay. A six is another roll, unless you throw three in a row. An exact count takes a token home. First to get all four home wins.\n\nOn your own, pass the phone — two, three, or four colours, all on this device. A game in progress lives in the file.\n\nAn unofficial port of Ludo by chukwumaijem. The original is a desktop app with a lobby. This copy is the same race without the lobby.",
+  "tagline": "Four seats fill as people open the invite. No lobby, no server.",
+  "description": "Send the invite. The people who open it sit Red, Green, Yellow, and Blue — you only roll on your colour. There is no account, no lobby code, and no game server. The room is the link.\n\nEach colour has four tokens. Roll a six to leave the yard. Race them clockwise around the board and up your own home stretch. Land on someone who is not on a start square and they go back to the yard. You stay. A six is another roll, unless you throw three in a row. An exact count takes a token home. First to get all four home wins.\n\nOn your own, pass the phone — two, three, or four colours, all on this device. A game in progress lives in the file; close it and Continue picks it up.\n\nAn unofficial port of Ludo by chukwumaijem. The original is a desktop app with a lobby. This copy is the same race without the lobby.",
   "author": {
     "name": "chukwumaijem",
     "url": "https://github.com/chukwumaijem/ludo-game"
@@ -37,10 +37,10 @@
   "cover": "/apps/ludo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/ludo/ludo.gif",
-  "bytes": 187474,
+  "bytes": 191582,
   "download": 0,
   "provides": null,
-  "sha256": "0ef78fb3eab9e9b9abfd421f937921bad120b80d2bd37de7016400f4fc6cca4f",
+  "sha256": "c10b0dfdd7cc76495219b2ab573cc2e85d9bcd7894288da44cdb7e2bf48054b4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

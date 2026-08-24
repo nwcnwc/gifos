@@ -4,10 +4,10 @@
   "appId": "duck-hunt",
   "name": "Duck Hunt",
   "shortName": "Duck Hunt",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "tagline": "Click the ducks. The dog laughs. In a GIF, no server.",
-  "description": "This is Duck Hunt in a GIF. There is no install and no server. Open the file, click a duck, and the dog will tell you how you did. Close it, come back — your best run lives in the file.\n\nDucks fly left and right. You have three shots a wave. Miss too many and the dog laughs. Hit enough and the next round is faster.\n\nOn a phone it is the same tap. There is no zapper to plug in.\n\nSend the invite and a friend can sit the same pond on their device. There is no lobby. The room is the link.\n\nAn unofficial remake based on DuckHunt JS by MattSurabian, MIT-licensed. Pictures and sounds are from that port. This copy adds the save.",
+  "description": "Open the file, tap a duck, and the dog will tell you how you did. There is no install and no server. Close it, come back — your best run lives in the file.\n\nDucks fly left and right. You have three shots a wave. Miss too many and the dog laughs. Hit enough and the next round is faster. On a phone the tap is the zapper; a thumb does not have to be pixel-perfect.\n\nSend the invite and a friend sits their own pond on their device. Two zappers, two dogs, one board of bests. There is no lobby. The room is the link.\n\nAn unofficial remake based on DuckHunt JS by MattSurabian, MIT-licensed. Pictures and sounds are from that port. This copy adds the save and the pond.",
   "author": {
     "name": "MattSurabian",
     "url": "https://github.com/MattSurabian/DuckHunt-JS"
@@ -38,11 +38,15 @@
   "cover": "/apps/duck-hunt/cover.jpg",
   "screenshots": [],
   "gif": "/apps/duck-hunt/duck-hunt.gif",
-  "bytes": 1539646,
+  "bytes": 1552864,
   "download": 0,
   "provides": null,
-  "sha256": "e73c1a09b10c12dddf75fc34439fa149b0be0a91dd0a36a75d1875ecfe79ba80",
-  "signature": null,
+  "sha256": "d678d93a7189d6419b4ce078ed91775b29e355f7126c0bb13bad48f865bc5418",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
   "porter": {
     "name": "GifOS",
     "url": "https://gifos.app"

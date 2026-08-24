@@ -64,7 +64,7 @@
       "appId": "aim-and-shoot",
       "name": "Aim and Shoot",
       "shortName": "Aim",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "tagline": "You aim. The robots learn. Don't touch the walls.",
       "author": {
         "name": "Victor Ribeiro",
@@ -96,7 +96,7 @@
         40
       ],
       "cover": "/apps/aim-and-shoot/cover.jpg",
-      "bytes": 241144,
+      "bytes": 243984,
       "download": 0,
       "provides": null,
       "signature": {
@@ -104,7 +104,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "48c5ac5db8b1bbaef91c7c276892714911dde91c5bfc4f49dbc53f9a7bd26f5f"
+      "sha256": "f6f4042e20ddf6376073a4f1b029948ac07e2faeb30a99c9c59d88fefa1346c1"
     },
     {
       "slug": "air-hockey",
@@ -144,11 +144,15 @@
         196
       ],
       "cover": "/apps/air-hockey/cover.jpg",
-      "bytes": 1463589,
+      "bytes": 1463776,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "cdc4105e333fc77fcc18fdb3a30325e3684a2f3a17b2bf57e6f545822069b5ea"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "2dd1df769f50ed1f620ac8e626a4c91e3f1c24dc9d5382e48c1bb824351ceeaa"
     },
     {
       "slug": "anyroad",
@@ -251,7 +255,7 @@
       "appId": "backdooms",
       "name": "Backdooms",
       "shortName": "Backdooms",
-      "version": "1.0",
+      "version": "1.1",
       "tagline": "DOOM in the Backrooms, in a GIF. No server.",
       "author": {
         "name": "Kuberwastaken",
@@ -285,11 +289,15 @@
         36
       ],
       "cover": "/apps/backdooms/cover.jpg",
-      "bytes": 189617,
+      "bytes": 193323,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "229848a7a1a2f641f9b396ad9edc80142c1e29eb4166c161e6ce37543452eaea"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "3e32efc4a38e678731595507da7eddfaeccb08b78d4cc8b41b2583f0769af413"
     },
     {
       "slug": "backgammon",
@@ -377,11 +385,15 @@
         33
       ],
       "cover": "/apps/battle-city/cover.jpg",
-      "bytes": 282039,
+      "bytes": 282226,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "e5d7ba522e0aaca4cc6842d0fbc1c9b21a7256561ca848607c15722a8e077b06"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "113e82891eaf1b9ce3ce07f0a42d4f6875c9a59079d3e6943a3a0d3e5fd0f6f1"
     },
     {
       "slug": "battleboat",
@@ -909,8 +921,8 @@
       "appId": "coil",
       "name": "Coil",
       "shortName": "Coil",
-      "version": "1.0.0",
-      "tagline": "Wrap a trail around the orbs before they burst. Best score lives in the file.",
+      "version": "1.1.0",
+      "tagline": "Loop a trail around the orbs. Best score lives in the file.",
       "author": {
         "name": "Hakim El Hattab",
         "url": "https://github.com/leereilly/Coil"
@@ -941,7 +953,7 @@
         220
       ],
       "cover": "/apps/coil/cover.jpg",
-      "bytes": 363345,
+      "bytes": 368463,
       "download": 0,
       "provides": null,
       "signature": {
@@ -949,7 +961,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "f984f2da96d8218884341c0d6e2fc88c78103ccdfa812ed9895c713d1b0c5ca7"
+      "sha256": "963c1e9d9b945bd0ef9b1e044fe3d782491ae68b0c49f1b7a646c4dc11d64e80"
     },
     {
       "slug": "connect-four",
@@ -1052,7 +1064,7 @@
       "appId": "cron-speak",
       "name": "Cron Speak",
       "shortName": "Cron",
-      "version": "1.0",
+      "version": "1.1.0",
       "tagline": "A cron expression, said in English. Nothing is uploaded.",
       "author": {
         "name": "bradymholt",
@@ -1085,7 +1097,7 @@
         220
       ],
       "cover": "/apps/cron-speak/cover.jpg",
-      "bytes": 198547,
+      "bytes": 207172,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1093,15 +1105,15 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "e0558dd13ed093a22425ef0178f9c5453cea09fcc114cac5c260f3f44ce5f8b7"
+      "sha256": "5c72c6378bebead496c8351b69a97bc2e69aef78bcd4ede68a04f41b3f8b301c"
     },
     {
       "slug": "crossword",
       "appId": "crossword",
       "name": "Crossword",
       "shortName": "Crossword",
-      "version": "1.0.0",
-      "tagline": "A crossword in a file. Type a letter, check when you are stuck.",
+      "version": "1.1.0",
+      "tagline": "A crossword in a file. Type on the phone. Close it — the letters stay.",
       "author": {
         "name": "Dave Kerr",
         "url": "https://github.com/dwmkerr/crosswords-js"
@@ -1132,7 +1144,7 @@
         160
       ],
       "cover": "/apps/crossword/cover.jpg",
-      "bytes": 161126,
+      "bytes": 165873,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1140,7 +1152,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "ab14e62ad0524602ab3348af2441cac7fe95aaa2d15dc58bffba5054b8ef195b"
+      "sha256": "ff8176a099b3ebdae1a46f64339fe64bfc475231e685e8ffbf61fe40b3dd5eba"
     },
     {
       "slug": "css-doodle",
@@ -1352,8 +1364,8 @@
       "appId": "delta",
       "name": "Delta",
       "shortName": "Delta",
-      "version": "1.0.0",
-      "tagline": "A C64-style shmup. Formations come. You shoot. Best score lives in the file.",
+      "version": "1.1.0",
+      "tagline": "A C64-style shmup. Best score lives in the file.",
       "author": {
         "name": "Jake Gordon",
         "url": "https://github.com/jakesgordon/javascript-delta"
@@ -1385,7 +1397,7 @@
         255
       ],
       "cover": "/apps/delta/cover.jpg",
-      "bytes": 318279,
+      "bytes": 321781,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1393,7 +1405,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "a69c0c36409ce86b6d56eedfd79f20114b498a431a01f0b0512aa51aa5eed497"
+      "sha256": "6cd07a62c70343aadb6ddf6dde9d2d600cea5a3ddb5cc9d2b83ae90d0129cb22"
     },
     {
       "slug": "drawnix",
@@ -1499,7 +1511,7 @@
       "appId": "duck-hunt",
       "name": "Duck Hunt",
       "shortName": "Duck Hunt",
-      "version": "1.0",
+      "version": "1.1",
       "tagline": "Click the ducks. The dog laughs. In a GIF, no server.",
       "author": {
         "name": "MattSurabian",
@@ -1532,11 +1544,15 @@
         255
       ],
       "cover": "/apps/duck-hunt/cover.jpg",
-      "bytes": 1539646,
+      "bytes": 1552864,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "e73c1a09b10c12dddf75fc34439fa149b0be0a91dd0a36a75d1875ecfe79ba80"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "d678d93a7189d6419b4ce078ed91775b29e355f7126c0bb13bad48f865bc5418"
     },
     {
       "slug": "emoji-minesweeper",
@@ -1627,11 +1643,15 @@
         219
       ],
       "cover": "/apps/excalidraw/cover.jpg",
-      "bytes": 4596450,
+      "bytes": 4596637,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "4a182b68f271d292025b3bd3097e461e933e81a3fb9db31362e2aa71fc07f566"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "ac89597689cf80806b75d66dbe883b8ca4137f451dd35f49e0153a7dcf22e396"
     },
     {
       "slug": "falling-blocks",
@@ -1736,7 +1756,7 @@
       "name": "Field Play",
       "shortName": "Field",
       "version": "1.0.0",
-      "tagline": "Drop particles on a field of arrows. Remix the recipe. The file is the save.",
+      "tagline": "A plane of arrows. Pour particles with a finger. The file is the save.",
       "author": {
         "name": "anvaka",
         "url": "https://github.com/anvaka/fieldplay"
@@ -1771,7 +1791,7 @@
         197
       ],
       "cover": "/apps/fieldplay/cover.jpg",
-      "bytes": 201683,
+      "bytes": 205802,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1779,7 +1799,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "29f3d2e5f5caaf283fc280f33bdaebfa0687c768aad63ef06b97665d28b09bc7"
+      "sha256": "a4503d32f009b5aa507a531eb65d135d3402230ae9d9439a47ffcf253f3c88e3"
     },
     {
       "slug": "finger-pool",
@@ -1868,11 +1888,15 @@
         202
       ],
       "cover": "/apps/floppy-bird/cover.jpg",
-      "bytes": 302826,
+      "bytes": 303013,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "fe39be2383d128eeeb911dd7cf0aa0038f84bd603c59cc7890cd815e81d4aa3d"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "c3a8a1a01ecff4131efc80809964b1a1cae71e95eee7335eb96049a2af0690f5"
     },
     {
       "slug": "fluence",
@@ -1920,7 +1944,7 @@
       "appId": "fluid",
       "name": "Fluid",
       "shortName": "Fluid",
-      "version": "1.0",
+      "version": "1.1",
       "tagline": "Drag a finger through ink. The swirl stays on this device.",
       "author": {
         "name": "Pavel Dobryakov",
@@ -1954,7 +1978,7 @@
         220
       ],
       "cover": "/apps/fluid/cover.jpg",
-      "bytes": 236485,
+      "bytes": 239431,
       "download": 0,
       "provides": null,
       "signature": {
@@ -1962,7 +1986,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "386ef81893b56b481586dda3074888e03c8b7a2ac7358124ca4f0563bb4b1e40"
+      "sha256": "44880aee3d3444fff0c9ef97bb80a6d9c548bf834c4faf581728e69163823e97"
     },
     {
       "slug": "fortune-sheet",
@@ -2067,8 +2091,8 @@
       "appId": "gltf-viewer",
       "name": "glTF Viewer",
       "shortName": "glTF",
-      "version": "1.0",
-      "tagline": "Drop a 3D model, orbit it, inspect the scene. Nothing is uploaded.",
+      "version": "1.1.0",
+      "tagline": "Open a 3D model on this device. Orbit it, inspect the scene.",
       "author": {
         "name": "Don McCurdy",
         "url": "https://github.com/donmccurdy/three-gltf-viewer"
@@ -2102,7 +2126,7 @@
         255
       ],
       "cover": "/apps/gltf-viewer/cover.jpg",
-      "bytes": 500694,
+      "bytes": 503293,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2110,7 +2134,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "dbafbe6a23f9800ef826542ed4c01da45fc7f917621e5e8e56c54885d4d53284"
+      "sha256": "8cfde0f4efbde20b405348b7c69a1e9c02a0a5e0f1609703101bd8b687c51521"
     },
     {
       "slug": "gomoku",
@@ -2336,11 +2360,15 @@
         39
       ],
       "cover": "/apps/hex-chess/cover.jpg",
-      "bytes": 204002,
+      "bytes": 204189,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "897ed4145d7817786dea7caa425ba930393cf8cb8bf4182d063fff30039b3126"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "67a4d4d526a9e00e4ee61a52e2ec9259a4fb108230b6483b0242083e849f131d"
     },
     {
       "slug": "hexahedral",
@@ -2590,7 +2618,7 @@
       "appId": "jpg-glitch",
       "name": "JPG Glitch",
       "shortName": "Glitch",
-      "version": "1.0",
+      "version": "1.1",
       "tagline": "Databend a still on this device. Save the glitch. Nothing is uploaded.",
       "author": {
         "name": "snorpey",
@@ -2624,7 +2652,7 @@
         160
       ],
       "cover": "/apps/jpg-glitch/cover.jpg",
-      "bytes": 186793,
+      "bytes": 190123,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2632,14 +2660,14 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "2ade4310bcc2f710a15428d424a0023d46ff11daa2bd627f469b8fe51a101449"
+      "sha256": "f4aef4a27578ed381c3f4d75f274b8e34e1d571499591dd427dbc28256e3202c"
     },
     {
       "slug": "js-gauntlet",
       "appId": "js-gauntlet",
-      "name": "Gauntlet",
-      "shortName": "Gauntlet",
-      "version": "1.0.0",
+      "name": "Dungeon Party",
+      "shortName": "Dungeon",
+      "version": "1.0.1",
       "tagline": "Four classes, one invite, one dungeon. No server.",
       "author": {
         "name": "Jake Gordon",
@@ -2660,7 +2688,6 @@
         "Games"
       ],
       "tags": [
-        "gauntlet",
         "dungeon",
         "arcade",
         "co-op",
@@ -2672,7 +2699,7 @@
         3
       ],
       "cover": "/apps/js-gauntlet/cover.jpg",
-      "bytes": 1266298,
+      "bytes": 1154893,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2680,7 +2707,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "dc46bcb060cddca03a8ff90d88099df5a202605e2b7a26580aecda94ad68bd0e"
+      "sha256": "e10258566d1c5d1091d5c61dbf73c27d6343a47bedbc9c0d142723c9af8c91c4"
     },
     {
       "slug": "json-crack",
@@ -2737,8 +2764,8 @@
       "appId": "json-diff",
       "name": "JSON Diff",
       "shortName": "Diff",
-      "version": "1.0",
-      "tagline": "Paste two documents, see the difference. Nothing is uploaded.",
+      "version": "1.1",
+      "tagline": "Paste two JSON documents, see the difference. Nothing is uploaded.",
       "author": {
         "name": "benjamine",
         "url": "https://github.com/benjamine/jsondiffpatch"
@@ -2770,7 +2797,7 @@
         90
       ],
       "cover": "/apps/json-diff/cover.jpg",
-      "bytes": 238329,
+      "bytes": 244635,
       "download": 0,
       "provides": null,
       "signature": {
@@ -2778,7 +2805,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "2e949efd6f953889458c12c5d7b6ef9b60de8bb39a415d96d6e3e1d07e0ffaa5"
+      "sha256": "d1bc11bc3dec9fe2133a8f8661cdfbf60ca323375ead7c445be0af000328b560"
     },
     {
       "slug": "json-editor",
@@ -2869,11 +2896,15 @@
         128
       ],
       "cover": "/apps/jspaint/cover.jpg",
-      "bytes": 1210919,
+      "bytes": 1211106,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "3aeefb3e0c143e00baebc7611d6eecb53aa5367e0792c6f56dbade840ccc1c43"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "f0636e3423ae0775f4ff0d006ed6553fe5601ac72984b85b8b801be5e602d551"
     },
     {
       "slug": "jungle",
@@ -3101,18 +3132,22 @@
         214
       ],
       "cover": "/apps/longwave/cover.jpg",
-      "bytes": 202484,
+      "bytes": 202671,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "a7a990f41cdce6db9866bba6c09a07955ae67b7bf42d420e54af95205cea6ae5"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "cbddc1b4fecbca047d56503b355e0bf592058358cde626826807407a6595203a"
     },
     {
       "slug": "lost-in-cyberspace",
       "appId": "lost-in-cyberspace",
       "name": "Lost in Cyberspace",
       "shortName": "Cyberspace",
-      "version": "1.0",
+      "version": "1.1",
       "tagline": "Two devices, one maze. Access codes are the map. No jam server.",
       "author": {
         "name": "Bartek Szopka & Zofia Korcz",
@@ -3146,7 +3181,7 @@
         204
       ],
       "cover": "/apps/lost-in-cyberspace/cover.jpg",
-      "bytes": 204945,
+      "bytes": 209235,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3154,15 +3189,15 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "d28ed82601d27d8d8e8c47b22a71633b7eeac3adde4f783918e138b2ddcc713f"
+      "sha256": "6db65bee750af57765d48bdfdac1b8cf130d1b2ca22a0b6d5415442268f927cc"
     },
     {
       "slug": "lrc-maker",
       "appId": "lrc-maker",
       "name": "LRC Maker",
       "shortName": "LRC",
-      "version": "1.0.0",
-      "tagline": "Load a local song, tap lyric timings, export LRC. Nothing is uploaded.",
+      "version": "1.1.0",
+      "tagline": "Tap lyric timings to a song on this device. Export LRC.",
       "author": {
         "name": "magic-akari",
         "url": "https://github.com/magic-akari/lrc-maker"
@@ -3195,7 +3230,7 @@
         197
       ],
       "cover": "/apps/lrc-maker/cover.jpg",
-      "bytes": 189400,
+      "bytes": 192593,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3203,15 +3238,15 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "fe3bb7fb17afc45c7a21610753437d7b66dc2f74cea0ff056e420ba62047508b"
+      "sha256": "f619a467d13170a8f0560d8fcd1cb4b529e1ca06314e9649bc8f3506672c5b8b"
     },
     {
       "slug": "ludo",
       "appId": "ludo",
       "name": "Ludo",
       "shortName": "Ludo",
-      "version": "1.0",
-      "tagline": "Four seats, one invite, no lobby.",
+      "version": "1.1",
+      "tagline": "Four seats fill as people open the invite. No lobby, no server.",
       "author": {
         "name": "chukwumaijem",
         "url": "https://github.com/chukwumaijem/ludo-game"
@@ -3242,7 +3277,7 @@
         74
       ],
       "cover": "/apps/ludo/cover.jpg",
-      "bytes": 187474,
+      "bytes": 191582,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3250,7 +3285,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "0ef78fb3eab9e9b9abfd421f937921bad120b80d2bd37de7016400f4fc6cca4f"
+      "sha256": "c10b0dfdd7cc76495219b2ab573cc2e85d9bcd7894288da44cdb7e2bf48054b4"
     },
     {
       "slug": "math-race",
@@ -3306,8 +3341,8 @@
       "appId": "memory",
       "name": "Memory",
       "shortName": "Memory",
-      "version": "1.0.0",
-      "tagline": "Watch the pads. Tap them back. The sequence gets longer.",
+      "version": "1.1.0",
+      "tagline": "Watch the pads. Tap them back. The file keeps your best.",
       "author": {
         "name": "Sepand Haghighi",
         "url": "https://github.com/sepandhaghighi/mnimi"
@@ -3338,7 +3373,7 @@
         220
       ],
       "cover": "/apps/memory/cover.jpg",
-      "bytes": 125957,
+      "bytes": 128098,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3346,7 +3381,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "142471eef1dd0b8857a8f398515b8dc218bf0203d54956f55b80437b76e1b08b"
+      "sha256": "b0e359d1b05d777374948b3f40c1730c903baf198923ffe1818f78872d38baf0"
     },
     {
       "slug": "mermaid",
@@ -3386,7 +3421,7 @@
         135
       ],
       "cover": "/apps/mermaid/cover.jpg",
-      "bytes": 1684038,
+      "bytes": 1686506,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3394,14 +3429,14 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "7031c2166d1045d5f8f39717e9c00bcb0f3993128d2914452a5af380fe7d309d"
+      "sha256": "5f4e69e19cba6c04bf1756924a472f4738c8db575e577640674d3177a13f740f"
     },
     {
       "slug": "metronome",
       "appId": "metronome",
       "name": "Metronome",
       "shortName": "Metro",
-      "version": "1.0",
+      "version": "1.1",
       "tagline": "A click that keeps time. Tempo lives in this file. No microphone.",
       "author": {
         "name": "cwilso",
@@ -3435,7 +3470,7 @@
         64
       ],
       "cover": "/apps/metronome/cover.jpg",
-      "bytes": 188887,
+      "bytes": 195022,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3443,14 +3478,14 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "82cf3af77d7a7a06efbab6e151f0343961579a8359e2510a8c22b915ef683330"
+      "sha256": "f4f5825ad332b9f438c8e10b42fb1668921e555aa2673ae560e7f6d95d8d6be6"
     },
     {
       "slug": "mini-photo-editor",
       "appId": "mini-photo-editor",
       "name": "Mini Photo Editor",
       "shortName": "Photo",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "tagline": "Crop, rotate and filter a photo on this device. Nothing is uploaded.",
       "author": {
         "name": "xdadda",
@@ -3484,7 +3519,7 @@
         38
       ],
       "cover": "/apps/mini-photo-editor/cover.jpg",
-      "bytes": 189798,
+      "bytes": 194441,
       "download": 0,
       "provides": null,
       "signature": {
@@ -3492,7 +3527,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "6b2be56fead142e1a02d00b41da9b2a6bb4f34bf75b75a973a2066447b9cb2e8"
+      "sha256": "16533896ea620d45fd4ec8e7c2830ee9ad523c0f6c35af53a78dfcde5d5869ee"
     },
     {
       "slug": "my-mind",
@@ -4004,19 +4039,23 @@
         93
       ],
       "cover": "/apps/one-stroke/cover.jpg",
-      "bytes": 199256,
+      "bytes": 199443,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "8fe510dcee578163f075a9c8df7ed2cdfcea681d9a912dd95f63c65c3a4b00da"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "615f3558054f56c038e4c9df539dd3b891b34f6f72a9722ba9c05f3fb3af253b"
     },
     {
       "slug": "onoff",
       "appId": "onoff",
       "name": "OnOff",
       "shortName": "OnOff",
-      "version": "1.0.0",
-      "tagline": "Twenty-five rooms. Flip the world. Don't touch the spikes.",
+      "version": "1.1.0",
+      "tagline": "Twenty-five rooms. Flip the world. The file remembers the room.",
       "author": {
         "name": "Daniel Marino and Brad Dunbar",
         "url": "https://github.com/starzonmyarmz/js13k-2018"
@@ -4047,11 +4086,15 @@
         232
       ],
       "cover": "/apps/onoff/cover.jpg",
-      "bytes": 205634,
+      "bytes": 208142,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "50012e175b04fdfe952f99b6ce1b64c4fa31ebdc50a97fb7b45e543770ff0f32"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "6ce7783d6caea1e249d7995993ca53ebc95f8234646823cc40ff976262e75020"
     },
     {
       "slug": "orca",
@@ -4059,7 +4102,7 @@
       "name": "Orca",
       "shortName": "Orca",
       "version": "1.0",
-      "tagline": "A livecoding sequencer. Each letter is an operator. The grid is the save.",
+      "tagline": "Type letters. They become a sequencer. The file is the save.",
       "author": {
         "name": "Hundredrabbits",
         "url": "https://github.com/hundredrabbits/Orca"
@@ -4093,7 +4136,7 @@
         194
       ],
       "cover": "/apps/orca/cover.jpg",
-      "bytes": 264068,
+      "bytes": 268981,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4101,15 +4144,15 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "7f2111936edf3073ea82d4274638c51fa0b33398090b8ee6cd1d9f54398678db"
+      "sha256": "0296d1fe0e33f8cf04d170c4787f97ec3b24d829eb02563fef96e729509460d7"
     },
     {
       "slug": "pacman",
       "appId": "pacman",
       "name": "Pac-Man",
       "shortName": "Pac-Man",
-      "version": "1.0.0",
-      "tagline": "Twelve mazes, four ghosts, a pad for your thumb. Scores on the cabinet.",
+      "version": "1.1.0",
+      "tagline": "Twelve mazes and a thumb pad. The high score lives in the file.",
       "author": {
         "name": "Haole Zheng",
         "url": "https://github.com/mumuy/pacman"
@@ -4141,7 +4184,7 @@
         0
       ],
       "cover": "/apps/pacman/cover.jpg",
-      "bytes": 170163,
+      "bytes": 173639,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4149,7 +4192,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "5dfc31f028d7b60f945da81265e25229eba067599d1c076c00cefb292574dfa2"
+      "sha256": "06437bf8a2c4677dca1f4a8512e44460ee7517c29548f38760d16aacd0d3c930"
     },
     {
       "slug": "paint-board",
@@ -4529,19 +4572,23 @@
         0
       ],
       "cover": "/apps/piskel/cover.jpg",
-      "bytes": 2460811,
+      "bytes": 2460998,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "f85bcf2988626408c7c9a8315acd2e6806fb80e2ee8490fc2617a8e907cdfc8d"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "f1d7f0a6aef0a14dfb00f7d53b4ade92c4451bc5d3241c548edea58d40becf18"
     },
     {
       "slug": "pivot",
       "appId": "pivot",
       "name": "Pivot",
       "shortName": "Pivot",
-      "version": "1.0",
-      "tagline": "Drag fields onto a grid. The table is the save. Nothing is uploaded.",
+      "version": "1.1",
+      "tagline": "A pivot table that lives in the file. Nothing is uploaded.",
       "author": {
         "name": "Nicolas Kruchten",
         "url": "https://github.com/nicolaskruchten/pivottable"
@@ -4575,7 +4622,7 @@
         232
       ],
       "cover": "/apps/pivot/cover.jpg",
-      "bytes": 376082,
+      "bytes": 381659,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4583,7 +4630,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "477409e3903db46f83b51474e0ed7616f423de95076c12db3ecf396646841261"
+      "sha256": "c642f0de73d286617933eb012371bba872fd2cffa8161fe88691b968b1d5b296"
     },
     {
       "slug": "pixel-paint",
@@ -4641,8 +4688,8 @@
       "appId": "pixelit",
       "name": "Pixel It",
       "shortName": "PixelIt",
-      "version": "1.0",
-      "tagline": "Turn a photo into pixel art on this device. Nothing is uploaded.",
+      "version": "1.1",
+      "tagline": "Photo to pixel art on this device. Nothing is uploaded.",
       "author": {
         "name": "giventofly",
         "url": "https://github.com/giventofly/pixelit"
@@ -4675,7 +4722,7 @@
         58
       ],
       "cover": "/apps/pixelit/cover.jpg",
-      "bytes": 190333,
+      "bytes": 193432,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4683,7 +4730,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "5bf008094e5d2fa7df28271aec71baa8413b5a26dfc3c9538b96e91209aeb824"
+      "sha256": "94561f5e2c1d55900a21fe2d4f89c944e40a2ac74f460df46f36160c11cb77d7"
     },
     {
       "slug": "polygon-shredder",
@@ -4691,7 +4738,7 @@
       "name": "Polygon Shredder",
       "shortName": "Shredder",
       "version": "1.0.0",
-      "tagline": "A cloud of cubes that shreds into confetti. The knobs live in the file.",
+      "tagline": "Cubes shred into confetti. The knobs live in the file.",
       "author": {
         "name": "spite",
         "url": "https://github.com/spite/polygon-shredder"
@@ -4725,7 +4772,7 @@
         90
       ],
       "cover": "/apps/polygon-shredder/cover.jpg",
-      "bytes": 405085,
+      "bytes": 408680,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4733,7 +4780,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "1f03007421170f040da685d0d4e250b141a9b711f0c9694606762021479d07ea"
+      "sha256": "4cf86a5bbd62469c6b859462f0a6a0ccbd4001bc1a9460e979d7c25166bc354e"
     },
     {
       "slug": "pong",
@@ -4885,8 +4932,8 @@
       "appId": "qr-code",
       "name": "QR Code",
       "shortName": "QR",
-      "version": "1.0",
-      "tagline": "Type text or a URL, get a code. Nothing is uploaded.",
+      "version": "1.1",
+      "tagline": "Type a link or any text. A code appears. Nothing is uploaded.",
       "author": {
         "name": "davidshimjs",
         "url": "https://github.com/davidshimjs/qrcodejs"
@@ -4911,7 +4958,8 @@
         "url",
         "text",
         "offline",
-        "print"
+        "print",
+        "contact"
       ],
       "accent": [
         240,
@@ -4919,7 +4967,7 @@
         32
       ],
       "cover": "/apps/qr-code/cover.jpg",
-      "bytes": 202105,
+      "bytes": 210581,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4927,15 +4975,15 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "6f3f0e3529a06559af105418aab238fa081abc5c61371fc7f605243accfa6e15"
+      "sha256": "c8ba1a17b6f60f8c6fe3293a69eab6c0a84616d78d9a647964f86781b9a69cf7"
     },
     {
       "slug": "qr-scan",
       "appId": "qr-scan",
       "name": "QR Scan",
       "shortName": "Scan",
-      "version": "1.0",
-      "tagline": "Read a code from a photo. Nothing is uploaded.",
+      "version": "1.1",
+      "tagline": "Read a code from a still photo. Nothing is uploaded.",
       "author": {
         "name": "cozmo",
         "url": "https://github.com/cozmo/jsQR"
@@ -4967,7 +5015,7 @@
         140
       ],
       "cover": "/apps/qr-scan/cover.jpg",
-      "bytes": 267325,
+      "bytes": 271291,
       "download": 0,
       "provides": null,
       "signature": {
@@ -4975,15 +5023,15 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "e8df93cc17386045e3490747db162afe977c0a450ec055a10c2c2aede3bdb25b"
+      "sha256": "1d16c42e743115743763a69fabdafad997cb007d0f53824280dc126a3407ddc0"
     },
     {
       "slug": "queens",
       "appId": "queens",
       "name": "Queens",
       "shortName": "Queens",
-      "version": "1.0",
-      "tagline": "Hundreds of tap puzzles in a GIF. No server.",
+      "version": "1.1",
+      "tagline": "768 tap puzzles. Progress lives in the file.",
       "author": {
         "name": "samimsu",
         "url": "https://github.com/samimsu/queens-game"
@@ -5015,7 +5063,7 @@
         162
       ],
       "cover": "/apps/queens/cover.jpg",
-      "bytes": 242245,
+      "bytes": 246249,
       "download": 0,
       "provides": null,
       "signature": {
@@ -5023,7 +5071,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "6963a4ee45686f0e71a990bc5f42f192182957ad36dec0cdfc02cad3981d0d4b"
+      "sha256": "9783f054bd8a2734dbb560a3933ba9abf93b96d4d24ba7d66ad54825ab3df119"
     },
     {
       "slug": "quiz-buzzer",
@@ -5158,11 +5206,15 @@
         255
       ],
       "cover": "/apps/radius-raid/cover.jpg",
-      "bytes": 225110,
+      "bytes": 225297,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "37a5a3457b64f1c69b07cec270ab07f2da368026593e558b4112f75d43de07fe"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "4909fae074080f9b83f6b750f905fc95604142ffb556e317abbcb1894520ca9b"
     },
     {
       "slug": "regexper",
@@ -5516,8 +5568,8 @@
       "appId": "slots",
       "name": "Slots",
       "shortName": "Slots",
-      "version": "1.0",
-      "tagline": "Pull the lever. The meeting sees the same reels. No cash.",
+      "version": "1.1",
+      "tagline": "Toy reels the whole table watches. The file holds your credits.",
       "author": {
         "name": "johakr",
         "url": "https://github.com/johakr/html5-slot-machine"
@@ -5550,7 +5602,7 @@
         48
       ],
       "cover": "/apps/slots/cover.jpg",
-      "bytes": 188294,
+      "bytes": 194156,
       "download": 0,
       "provides": null,
       "signature": {
@@ -5558,7 +5610,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "53f951f83a3293562c33735602198f23703bf1bef5f3604971b288e61bb43a28"
+      "sha256": "75cfb4ba257620e99ab347822c46e682c8caa644c486111906df7bc54283f0e0"
     },
     {
       "slug": "snake",
@@ -5598,11 +5650,15 @@
         72
       ],
       "cover": "/apps/snake/cover.jpg",
-      "bytes": 198002,
+      "bytes": 198189,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "16d53b574052bf39acd599ce88cdfb4eaa91e299b0d567eae8a9b15c57c790df"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "69fc7d24b6a7ab879e69e751ab26eb2e4337daad15170bf19e5987f09b9a1a27"
     },
     {
       "slug": "sokoban",
@@ -5658,8 +5714,8 @@
       "appId": "solitaire",
       "name": "Solitaire",
       "shortName": "Solitaire",
-      "version": "1.0",
-      "tagline": "Klondike on a phone. The file is the tableau.",
+      "version": "1.1",
+      "tagline": "Klondike with undo, on a phone. The file is the tableau.",
       "author": {
         "name": "rjanjic",
         "url": "https://github.com/rjanjic/js-solitaire"
@@ -5691,7 +5747,7 @@
         58
       ],
       "cover": "/apps/solitaire/cover.jpg",
-      "bytes": 187793,
+      "bytes": 193077,
       "download": 0,
       "provides": null,
       "signature": {
@@ -5699,7 +5755,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "d6ad0dd83f4da2c46b6e303b2b6abe06166e0d4291702ef18aed3dddcc5b3e52"
+      "sha256": "cf5b37fa401ba9871d994c892e922b7b4d11723d1a2955bbacdfc6c5870df40b"
     },
     {
       "slug": "sound-it-out",
@@ -5749,8 +5805,8 @@
       "appId": "spider",
       "name": "Spider",
       "shortName": "Spider",
-      "version": "1.0",
-      "tagline": "Spider patience. Eight runs, ten piles. The file is the tableau.",
+      "version": "1.1",
+      "tagline": "1, 2 or 4 suits. The tableau lives in the file.",
       "author": {
         "name": "lklynet",
         "url": "https://github.com/lklynet/spider-solitaire"
@@ -5782,7 +5838,7 @@
         48
       ],
       "cover": "/apps/spider/cover.jpg",
-      "bytes": 186019,
+      "bytes": 193700,
       "download": 0,
       "provides": null,
       "signature": {
@@ -5790,7 +5846,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "a7d617cf287485cd01a5d904571f975c27d9c47501f65011036b62909f6b0fae"
+      "sha256": "88f60b27e6b296ae1e8388fcd3bc239aef59c5aa67e124cd32feaaeecd525dff"
     },
     {
       "slug": "splat",
@@ -5935,11 +5991,15 @@
         255
       ],
       "cover": "/apps/squoosh/cover.jpg",
-      "bytes": 2631963,
+      "bytes": 2632150,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "c46a6b1682573014c3c40319eb055e19c1e5df5a28b3b9ecf59167a690ca7e37"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "ce590b44b989e1002852dfaaf9b55826a0fa3bee99cfc51842dda8a5de20181d"
     },
     {
       "slug": "star-battle",
@@ -6143,8 +6203,8 @@
       "appId": "tanks",
       "name": "Tanks",
       "shortName": "Tanks",
-      "version": "1.0",
-      "tagline": "Drive a tank. Invite is the arena. No game server.",
+      "version": "1.1",
+      "tagline": "Drive a tank. One link is the arena. No game server.",
       "author": {
         "name": "Sven Bergström",
         "url": "https://github.com/ruby0x1/realtime-multiplayer-in-html5"
@@ -6176,11 +6236,15 @@
         40
       ],
       "cover": "/apps/tanks/cover.jpg",
-      "bytes": 190910,
+      "bytes": 194995,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "0e46c2e1cd2c5ef2657f6f383f201c2d2be8c9d8ae285a0fc65996bc4e5010fe"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "0d45e9eb584876736f7d380f4862211cf1ab0c63bc0c45f8ebfeabac2c05cf30"
     },
     {
       "slug": "tesseract",
@@ -6237,8 +6301,8 @@
       "appId": "texgen",
       "name": "TexGen",
       "shortName": "TexGen",
-      "version": "1.0",
-      "tagline": "Procedural textures, live. Download a PNG. Nothing is uploaded.",
+      "version": "1.1",
+      "tagline": "Procedural textures, live. The file holds the recipe.",
       "author": {
         "name": "mrdoob",
         "url": "https://github.com/mrdoob/texgen.js"
@@ -6271,7 +6335,7 @@
         220
       ],
       "cover": "/apps/texgen/cover.jpg",
-      "bytes": 189996,
+      "bytes": 197276,
       "download": 0,
       "provides": null,
       "signature": {
@@ -6279,7 +6343,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "00310b3781d975dccc434d1ebcc87317e0b82f7b89f88b4d5d74034b58b55903"
+      "sha256": "8cf032fd6f409c21c09e42fc9824129436e321961660be6df6d877f27b9de465"
     },
     {
       "slug": "thinktank",
@@ -6359,11 +6423,15 @@
         74
       ],
       "cover": "/apps/thumb-sprint/cover.jpg",
-      "bytes": 225373,
+      "bytes": 225560,
       "download": 0,
       "provides": null,
-      "signature": null,
-      "sha256": "a777c7568425022ef059946fe3d378c095a002ce73f82348d203db96f71e1379"
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "7e6f6203ce1c5b737810e06ec09eafa8755c20a1fdcf3fcda7b2389a9aefc211"
     },
     {
       "slug": "tic-tac-toe",
@@ -6418,8 +6486,8 @@
       "appId": "tiny-platformer",
       "name": "Tiny Platformer",
       "shortName": "Platformer",
-      "version": "1.0.0",
-      "tagline": "Jump, grab the gold, stomp the grey blocks. Best run lives in the file.",
+      "version": "1.0.1",
+      "tagline": "A yellow square, a brick cave, and your best run inside the file.",
       "author": {
         "name": "Jake Gordon",
         "url": "https://github.com/jakesgordon/javascript-tiny-platformer"
@@ -6450,7 +6518,7 @@
         120
       ],
       "cover": "/apps/tiny-platformer/cover.jpg",
-      "bytes": 188955,
+      "bytes": 191128,
       "download": 0,
       "provides": null,
       "signature": {
@@ -6458,15 +6526,15 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "6ee6583369c6ae759322dd10c74090d41f5812393eb2f32b125e63c7ef756b41"
+      "sha256": "c6980b9c1d8ae8f5ca95eb16efae3538607c077023af1f371c2fec4973500fec"
     },
     {
       "slug": "tiny-yurts",
       "appId": "tiny-yurts",
       "name": "Tiny Yurts",
       "shortName": "Yurts",
-      "version": "1.0.0",
-      "tagline": "Drag a path from the yurt to the farm. Keep the animals happy.",
+      "version": "1.1.0",
+      "tagline": "Drag a path from the yurt to the farm. The file keeps your best.",
       "author": {
         "name": "burntcustard",
         "url": "https://github.com/burntcustard/tiny-yurts"
@@ -6497,7 +6565,7 @@
         70
       ],
       "cover": "/apps/tiny-yurts/cover.jpg",
-      "bytes": 203111,
+      "bytes": 205502,
       "download": 0,
       "provides": null,
       "signature": {
@@ -6505,7 +6573,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "413fe8ae890259199a6e5ce94d2f1672c52ba5c38c5792434f4b2869fd2e2a87"
+      "sha256": "d84b05c0d22c4daa693002370e270a7df93da52a52eb511d62687e17a82ce1e0"
     },
     {
       "slug": "tosios",
@@ -6657,7 +6725,7 @@
       "appId": "tuner",
       "name": "Tuner",
       "shortName": "Tuner",
-      "version": "1.0",
+      "version": "1.1",
       "tagline": "Record a note. See the pitch. Nothing is uploaded.",
       "author": {
         "name": "Chris Wilson",
@@ -6691,7 +6759,7 @@
         129
       ],
       "cover": "/apps/tuner/cover.jpg",
-      "bytes": 184869,
+      "bytes": 192102,
       "download": 0,
       "provides": null,
       "signature": {
@@ -6699,7 +6767,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "47c2ebf9aa5280f2b076670559b762b3dd7ea9be0efce4c5fa70b12c22e4d2a5"
+      "sha256": "cba0c52af18bb416dd29f8bd862091e2d0f1d38758c1ab12758543f05d5b7017"
     },
     {
       "slug": "typing",
@@ -6954,8 +7022,8 @@
       "appId": "waveforms",
       "name": "Waveforms",
       "shortName": "Waves",
-      "version": "1.0",
-      "tagline": "An explorable guide to sound waves. Hear sine, square, saw.",
+      "version": "1.1",
+      "tagline": "Hear sine, square, and saw. An explorable that fits a phone.",
       "author": {
         "name": "Josh Comeau",
         "url": "https://github.com/joshwcomeau/waveforms"
@@ -6984,12 +7052,12 @@
         "offline"
       ],
       "accent": [
-        3,
-        128,
-        244
+        77,
+        163,
+        255
       ],
       "cover": "/apps/waveforms/cover.jpg",
-      "bytes": 188480,
+      "bytes": 193938,
       "download": 0,
       "provides": null,
       "signature": {
@@ -6997,7 +7065,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "b35c04c5674dc088601811845cec09e25f824330b393e557eea3ae2fce88386b"
+      "sha256": "c528978b4b1b43911b913ab92993d22a6277551d70c50a80c460cde94ab99e25"
     },
     {
       "slug": "wifi-card",
@@ -7150,7 +7218,7 @@
       "name": "Yopass",
       "shortName": "Yopass",
       "version": "1.0",
-      "tagline": "Lock a secret. Invite is the one-time room. No server.",
+      "tagline": "Nothing is uploaded. The invite is the room. Works on a plane.",
       "author": {
         "name": "Johan Haals",
         "url": "https://github.com/jhaals/yopass"
@@ -7183,7 +7251,7 @@
         210
       ],
       "cover": "/apps/yopass/cover.jpg",
-      "bytes": 192426,
+      "bytes": 256383,
       "download": 0,
       "provides": null,
       "signature": {
@@ -7191,7 +7259,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "0bc580b471cc63ded1c263b0d3d9402b39e228c1019c35c229fccc4961540656"
+      "sha256": "f88a87327828291402e4c9394431d9b50e1f8c848135d16e9d2d11211d367276"
     }
   ]
 }
