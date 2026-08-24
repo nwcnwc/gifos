@@ -89,9 +89,15 @@ if (!files['COPYING-tanks.txt'].includes('Bergström') && !files['COPYING-tanks.
   throw new Error('COPYING is not the upstream MIT notice');
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89) throw new Error('screenshot is not a PNG');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (existsSync(shotPath) && readFileSync(shotPath)[0] === 0x89) {
+  const keep = readFileSync(shotPath);
+  if (keep.length < 1000) throw new Error('screenshot.png looks empty');
+} else {
+  const shot = screenshotPng();
+  if (shot[0] !== 0x89) throw new Error('screenshot is not a PNG');
+  writeFileSync(shotPath, shot);
+}
 const bytes = await gif.encode(files, { preview: tanksIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'tanks', 'tanks.gif');
 mkdirSync(dirname(out), { recursive: true });

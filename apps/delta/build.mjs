@@ -54,8 +54,14 @@ if ((listing.author && listing.author.name) === 'GifOS') throw new Error('author
 for (const [n, s] of Object.entries(files)) {
   if (n.endsWith('.js') && /<\/script/i.test(s)) throw new Error(n + ' </script');
 }
-const shot = screenshotPng();
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (existsSync(shotPath) && readFileSync(shotPath)[0] === 0x89) {
+  const keep = readFileSync(shotPath);
+  if (keep.length < 1000) throw new Error('screenshot.png looks empty');
+} else {
+  const shot = screenshotPng();
+  writeFileSync(shotPath, shot);
+}
 const bytes = await gif.encode(files, { preview: deltaIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'delta', 'delta.gif');
 mkdirSync(dirname(out), { recursive: true });
