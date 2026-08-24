@@ -168,17 +168,88 @@
     };
   }
 
+  /* SM2 sniffs playability from the URL's extension. A remapped blob: URL has
+     none, so without a type hint every sound is "unplayable" and the house
+     goes silent. The hint comes from the extension the game ASKED for. */
+  function soundMime(u) {
+    u = String(u || '').split('?')[0];
+    if (/\.ogg$/i.test(u)) return 'audio/ogg';
+    if (/\.mp3$/i.test(u)) return 'audio/mpeg';
+    return null;
+  }
+
   function patchSounds() {
     var sm = window.soundManager;
     if (!sm || !sm.createSound) return;
     var orig = sm.createSound;
     sm.createSound = function (opts, url) {
       if (typeof opts === 'string') {
+        var t = soundMime(url);
         url = remapSrc(url || '');
-        return orig.call(this, opts, url);
+        return orig.call(this, { id: opts, url: url, type: t });
       }
-      if (opts && opts.url) opts.url = remapSrc(opts.url);
+      if (opts && opts.url) {
+        var askType = soundMime(opts.url);
+        opts.url = remapSrc(opts.url);
+        if (askType && !opts.type) opts.type = askType;
+      }
       return orig.call(this, opts);
+    };
+  }
+
+  /* The vendor preloader scrapes document.styleSheets and regex-matches image
+     paths out of every rule's concatenated cssText. After bakeCss() that text
+     holds the packed art itself — megabytes of data:/blob: URL where upstream
+     had "images/x.jpg" — and its [^("]+\.(gif|jpg|…) match BACKTRACKS
+     CATASTROPHICALLY: measured >20 s for 0.9 MB of it, and the real sheet is
+     ~11 MB, i.e. the page wedges solid with every timer dead behind it. That
+     wedge was the whole "The house is assembling forever" hang. The port
+     already KNOWS every picture — the packed map — so preloading is a walk
+     over IM(), never a scrape of the CSSOM. */
+  function patchPreloader() {
+    if (!window.jQuery) return;
+    $.preloadCssImages = function (opts) {
+      opts = opts || {};
+      var images = IM(), urls = [], k;
+      for (k in images) {
+        if (Object.prototype.hasOwnProperty.call(images, k) && k.indexOf('images/') === 0) urls.push(images[k]);
+      }
+      var bar = opts.statusBarEl ? $(opts.statusBarEl) : null;
+      var n = 0, inflight = 0, i = 0;
+      function lift() {
+        $('#black').animate({ opacity: 0 }, 500, function () { $(this).remove(); });
+      }
+      function step() {
+        n++;
+        if (bar && bar.length && urls.length) {
+          var w = bar.width();
+          bar.css('background-position', -(w - (w * n / urls.length).toFixed(0)) + 'px 50%');
+        }
+        if (n >= urls.length) { lift(); return; }
+        pump();
+      }
+      function pump() {
+        while (inflight < 4 && i < urls.length) {
+          (function (src) {
+            inflight++;
+            var im = new Image();
+            var settled = false;
+            var fin = function () {
+              if (settled) return;
+              settled = true;
+              inflight--;
+              step();
+            };
+            im.onload = fin;
+            im.onerror = fin;
+            setTimeout(fin, 1500); // a picture that will not decode must not hold the door
+            im.src = src;
+          })(urls[i++]);
+        }
+      }
+      if (!urls.length) { lift(); return []; }
+      pump();
+      return urls;
     };
   }
 
@@ -515,29 +586,125 @@
     return Object.keys(IM()).length > 50 && Object.keys(SND()).length > 10 && ROOMS()['intro.html'] && ROOMS()['room.html'];
   }
 
+  /* ---- the assembling card is a real gauge, not a mood ------------------- */
+  function bootNote(msg) {
+    var el = document.getElementById('house-boot-note');
+    if (el) el.textContent = msg;
+  }
+  function bootBar(frac) {
+    var el = document.getElementById('house-boot-bar');
+    if (el) el.style.width = Math.max(0, Math.min(100, frac * 100)).toFixed(1) + '%';
+  }
+
+  /* The art and sounds ride the GIF as raw .assets/ files — bytes, not 24 MB
+     of base64 inside the page — and arrive here on demand, so first paint is
+     immediate and this bar moves by real megabytes. Legacy builds that still
+     inline chunk scripts have no index and simply wait for the parser. */
+  function loadPackedAssets(done) {
+    var idx = window.HOUSE_ASSET_INDEX;
+    if (!idx) {
+      (function waitChunks() {
+        if (mapsReady()) return done();
+        setTimeout(waitChunks, 40);
+      })();
+      return;
+    }
+    var g = window.gifos;
+    var keys = Object.keys(idx);
+    if (!g || typeof g.assets !== 'function' || typeof URL === 'undefined' || !URL.createObjectURL) {
+      bootNote('This GifOS cannot hand the house its pictures — update GifOS, then open the app again.');
+      done();
+      return;
+    }
+    var images = window.HOUSE_IMAGES = window.HOUSE_IMAGES || {};
+    var sounds = window.HOUSE_SOUNDS = window.HOUSE_SOUNDS || {};
+    var total = 0, got = 0, i;
+    for (i = 0; i < keys.length; i++) total += idx[keys[i]] || 1;
+    var next = 0, inflight = 0, missing = [];
+    var mb = function (n) { return (n / 1048576).toFixed(1); };
+    function mimeOf(k) {
+      if (/\.png$/i.test(k)) return 'image/png';
+      if (/\.jpe?g$/i.test(k)) return 'image/jpeg';
+      if (/\.gif$/i.test(k)) return 'image/gif';
+      if (/\.mp3$/i.test(k)) return 'audio/mpeg';
+      if (/\.ogg$/i.test(k)) return 'audio/ogg';
+      return 'application/octet-stream';
+    }
+    function land(k, buf) {
+      var url = URL.createObjectURL(new Blob([buf], { type: mimeOf(k) }));
+      (k.indexOf('sound/') === 0 ? sounds : images)[k] = url;
+    }
+    function settle(k) {
+      got += idx[k] || 1;
+      inflight--;
+      bootBar(got / total);
+      bootNote('Carrying things in — ' + mb(got) + ' of ' + mb(total) + ' MB.');
+      pump();
+    }
+    function fetchOne(k, retried) {
+      inflight++;
+      g.assets(k).then(function (buf) {
+        land(k, buf);
+        settle(k);
+      }).catch(function () {
+        inflight--;
+        if (!retried) { fetchOne(k, true); return; }
+        missing.push(k);
+        inflight++; // settle() undoes it — one bookkeeping path
+        settle(k);
+      });
+    }
+    function pump() {
+      while (inflight < 4 && next < keys.length) fetchOne(keys[next++], false);
+      if (!inflight && next >= keys.length) {
+        bootBar(1);
+        if (missing.length) bootNote(missing.length + ' pieces of the house did not arrive — it may look patchy.');
+        done();
+      }
+    }
+    bootNote('Carrying things in — 0.0 of ' + mb(total) + ' MB.');
+    pump();
+  }
+
+  function libsReady() {
+    return !!(window.jQuery && window.game && window.scene && window.soundManager &&
+      ROOMS()['intro.html'] != null && ROOMS()['room.html'] != null);
+  }
+
   function bootWhenReady() {
-    if (!mapsReady()) {
+    if (!libsReady()) {
       setTimeout(bootWhenReady, 40);
       return;
     }
-    hookImages();
-    patchJquery();
-    patchSounds();
-    patchDrag();
-    bakeCss();
-    punchTouch();
+    loadPackedAssets(function () {
+      if (!mapsReady()) {
+        bootBar(0);
+        bootNote('The house could not be assembled on this computer. Close the app and open it again.');
+        return; // an honest refusal on the card beats a blank room
+      }
+      hookImages();
+      patchJquery();
+      patchSounds();
+      patchDrag();
+      patchPreloader();
+      bakeCss();
+      punchTouch();
 
-    document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'hidden') persist(true);
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') persist(true);
+      });
+
+      if (saveDb && saveDb.get) {
+        saveDb.get('last').then(start).catch(function () { start(null); });
+        setTimeout(function () { start(null); }, 4000);
+      } else {
+        start(null);
+      }
+      // The card normally leaves when the first room's markup lands (the
+      // $.fn.load hook). If anything downstream stalls, it must never trap
+      // the player behind an opaque card.
+      setTimeout(hideBoot, 20000);
     });
-
-    if (saveDb && saveDb.get) {
-      saveDb.get('last').then(start).catch(function () { start(null); });
-      setTimeout(function () { start(null); }, 4000);
-    } else {
-      start(null);
-    }
   }
   bootWhenReady();
-  setTimeout(hideBoot, 12000);
 })();

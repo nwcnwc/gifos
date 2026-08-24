@@ -66,19 +66,31 @@ function walk(rel, acc) {
   return acc;
 }
 
-const images = {};
+// Art and sound ride as RAW .assets/ files (runtime replyAsset serves them to
+// the sandbox as transferred ArrayBuffers; app.js turns them into blob: URLs
+// and fills HOUSE_IMAGES/HOUSE_SOUNDS at boot, moving a real progress bar).
+// They must NEVER ride as base64 inside script chunks again: that put 24 MB
+// of text into the app document, and the vendor preloader's regex over the
+// baked CSSOM then wedged the page for minutes (see app.js patchPreloader).
+const assetFiles = {}; // '.assets/<key>' -> bytes
+const assetIndex = {}; // '<key>' -> byte length (the boot gauge's total)
+const images = {};     // data-URI map — FONTS ONLY now (font-src is data:-only)
+const sounds = {};     // stays empty at build time; app.js fills it at boot
 for (const p of walk('vendor/images', [])) {
   const key = p.replace(/^vendor\//, '');
-  images[key] = dataUri(p, readBin(p));
+  const bin = readBin(p);
+  assetFiles['.assets/' + key] = bin;
+  assetIndex[key] = bin.length;
+}
+for (const p of walk('vendor/sound', [])) {
+  const key = p.replace(/^vendor\//, '');
+  const bin = readBin(p);
+  assetFiles['.assets/' + key] = bin;
+  assetIndex[key] = bin.length;
 }
 for (const p of walk('vendor/fonts', [])) {
   const key = p.replace(/^vendor\//, '');
   images[key] = dataUri(p, readBin(p));
-}
-const sounds = {};
-for (const p of walk('vendor/sound', [])) {
-  const key = p.replace(/^vendor\//, '');
-  sounds[key] = dataUri(p, readBin(p));
 }
 const rooms = {};
 for (const name of readdirSync(join(dir, 'vendor'))) {
@@ -86,8 +98,11 @@ for (const name of readdirSync(join(dir, 'vendor'))) {
   if (name === 'index.html') continue; // original shell — we ship our own
   rooms[name] = read(join('vendor', name));
 }
-if (Object.keys(images).length < 100) throw new Error('too few images ' + Object.keys(images).length);
-if (Object.keys(sounds).length < 20) throw new Error('too few sounds ' + Object.keys(sounds).length);
+const assetImageCount = Object.keys(assetIndex).filter((k) => k.startsWith('images/')).length;
+const assetSoundCount = Object.keys(assetIndex).filter((k) => k.startsWith('sound/')).length;
+if (assetImageCount < 100) throw new Error('too few images ' + assetImageCount);
+if (assetSoundCount < 20) throw new Error('too few sounds ' + assetSoundCount);
+if (Object.keys(images).length < 2) throw new Error('too few fonts ' + Object.keys(images).length);
 if (!rooms['intro.html'] || !rooms['room.html'] || !rooms['corridor.html']) {
   throw new Error('missing core rooms');
 }
@@ -121,8 +136,8 @@ const SCRIPTS = [
   'vendor/js/min/scenes-min.js',
   'vendor/js/min/npcs-min.js',
   'vendor/js/min/game-min.js',
-  'images.js',
-  'sounds.js',
+  'fonts.js',
+  'assets-index.js',
   'rooms.js',
   'app.js',
 ];
@@ -134,23 +149,6 @@ function assignLiteral(name, obj) {
   return 'window.' + name + ' = window.' + name + ' || {};\n' +
     'Object.assign(window.' + name + ', JSON.parse(' + JSON.stringify(json) + '));\n';
 }
-function chunkObj(obj, maxBytes) {
-  const keys = Object.keys(obj);
-  const chunks = [];
-  let cur = {}, size = 2;
-  for (const k of keys) {
-    const piece = JSON.stringify(obj[k]).length + k.length + 8;
-    if (Object.keys(cur).length && size + piece > maxBytes) {
-      chunks.push(cur);
-      cur = {};
-      size = 2;
-    }
-    cur[k] = obj[k];
-    size += piece;
-  }
-  if (Object.keys(cur).length) chunks.push(cur);
-  return chunks;
-}
 
 const files = {
   'manifest.json': JSON.stringify(manifest),
@@ -161,7 +159,7 @@ const files = {
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
 };
 for (const s of SCRIPTS) {
-  if (s === 'images.js' || s === 'sounds.js' || s === 'rooms.js') continue;
+  if (s === 'fonts.js' || s === 'assets-index.js' || s === 'rooms.js') continue;
   files[s] = read(s);
 }
 {
@@ -177,36 +175,40 @@ for (const s of SCRIPTS) {
 if (!html.includes('href="style.css"')) throw new Error('style.css');
 if (!html.includes('href="vendor/css/game.css"')) throw new Error('game.css');
 if (!html.includes('id="house-boot"')) throw new Error('first-run boot card');
-if (!html.includes('src="images.js" defer')) throw new Error('defer images');
-if (!html.includes('src="sounds.js" defer')) throw new Error('defer sounds');
+if (!html.includes('id="house-boot-bar"')) throw new Error('boot gauge bar');
+if (!html.includes('id="house-boot-note"')) throw new Error('boot gauge note');
+if (!html.includes('src="fonts.js" defer')) throw new Error('defer fonts');
+if (!html.includes('src="assets-index.js" defer')) throw new Error('defer asset index');
 if (!html.includes('src="app.js" defer')) throw new Error('defer app');
 if (/type=["']module["']/.test(html)) throw new Error('module');
 if (/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, ''))) throw new Error('url');
 if (/<button\b[^>]*>\s*Invite\s*</i.test(html) || /id=["']invite/i.test(html)) throw new Error('Invite');
 
-function emitChunks(prefix, name, obj, maxBytes) {
-  const chunks = chunkObj(obj, maxBytes);
-  if (!chunks.length) throw new Error(prefix + ' empty');
-  const names = [];
-  chunks.forEach((c, i) => {
-    const n = prefix + '-' + String(i).padStart(2, '0') + '.js';
-    files[n] = assignLiteral(name, c);
-    names.push(n);
-  });
-  return names;
-}
-const imageNames = emitChunks('images', 'HOUSE_IMAGES', images, 450000);
-const soundNames = emitChunks('sounds', 'HOUSE_SOUNDS', sounds, 450000);
+files['fonts.js'] = assignLiteral('HOUSE_IMAGES', images); // fonts only — font-src is data:-only
+files['assets-index.js'] = 'window.HOUSE_ASSET_INDEX = JSON.parse(' +
+  JSON.stringify(JSON.stringify(assetIndex).replace(/</g, '\\u003c')) + ');\n';
 files['rooms.js'] = assignLiteral('HOUSE_ROOMS', rooms);
-const scriptTags = (arr) => arr.map((n) => '<script src="' + n + '"></script>').join('\n');
-files['index.html'] = files['index.html']
-  .replace(/<script src="images\.js"[^>]*><\/script>/, scriptTags(imageNames))
-  .replace(/<script src="sounds\.js"[^>]*><\/script>/, scriptTags(soundNames));
-if (!files['index.html'].includes('src="' + imageNames[0] + '"')) throw new Error('chunked images');
-if (imageNames.length < 4) throw new Error('too few image chunks ' + imageNames.length);
-console.log('chunks images', imageNames.length, 'sounds', soundNames.length);
+for (const [n, b] of Object.entries(assetFiles)) files[n] = b;
 
-if (manifest.minBuild !== 947) throw new Error('minBuild');
+// THE WEIGHT RULE: everything outside .assets/ is inlined into the app
+// document by the runtime. 24 MB of inline base64 is what made first paint
+// take minutes; the document must stay light or the bug is back.
+let srcdocBytes = 0;
+for (const [n, s] of Object.entries(files)) {
+  if (n.startsWith('.assets/')) continue;
+  srcdocBytes += typeof s === 'string' ? Buffer.byteLength(s) : s.length;
+}
+if (srcdocBytes > 3 * 1024 * 1024) {
+  throw new Error('app document too heavy: ' + srcdocBytes + ' bytes — art and sound must ride .assets/, never inline');
+}
+const assetBytes = Object.values(assetFiles).reduce((s, b) => s + b.length, 0);
+console.log('app document', (srcdocBytes / 1048576).toFixed(2), 'MB; .assets/',
+  Object.keys(assetFiles).length, 'files,', (assetBytes / 1048576).toFixed(1), 'MB');
+
+// minBuild 1206 = 0.9.6, the first runtime whose replyAsset serves packed
+// .assets/ files into the sandbox — older builds would boot a silent, artless
+// house. Bumping further needs a reason written here.
+if (manifest.minBuild !== 1206) throw new Error('minBuild');
 if (manifest.appId !== 'the-house') throw new Error('appId');
 if (!manifest.capabilities.db) throw new Error('caps.db');
 if (manifest.capabilities.network) throw new Error('network');
@@ -247,6 +249,13 @@ if (!files['app.js'].includes('onBack')) throw new Error('onBack');
 if (!files['app.js'].includes('fillArray')) throw new Error('collected in place');
 if (!files['app.js'].includes('skipIntro')) throw new Error('resume skips splash');
 if (!files['app.js'].includes('collected_items')) throw new Error('room.settings collected');
+// The three legs of the fast start — each was a measured multi-minute hang or
+// a silent house when missing:
+if (!files['app.js'].includes('patchPreloader')) throw new Error('preloader wedge guard');
+if (!files['app.js'].includes('$.preloadCssImages = function')) throw new Error('preloader override');
+if (!files['app.js'].includes('HOUSE_ASSET_INDEX')) throw new Error('asset index loader');
+if (!files['app.js'].includes('soundMime')) throw new Error('blob sound type hint');
+if (!files['app.js'].includes('house-boot-bar')) throw new Error('boot gauge wiring');
 if (/\.swf/i.test(files['boot.js'] + files['patch.js'] + files['app.js'])) throw new Error('swf in wrap');
 if (!/^Works offline/i.test(listing.description)) throw new Error('listing lead');
 if (!/file/i.test(listing.tagline) || !/save/i.test(listing.tagline)) throw new Error('tagline file-is-save');
@@ -259,7 +268,7 @@ if (!rooms['room.html'].includes('id="note"')) throw new Error('room note hotspo
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
   if (/<\/script/i.test(s)) throw new Error(n + ' </script');
-  if (n.startsWith('vendor/') || n.startsWith('images-') || n.startsWith('sounds-') || n === 'rooms.js') continue;
+  if (n.startsWith('vendor/') || n === 'fonts.js' || n === 'assets-index.js' || n === 'rooms.js') continue;
   if (/^\s*import\s/m.test(s) || /^\s*export\s/m.test(s)) throw new Error(n + ' ESM');
   for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(']) {
     if (s.includes(bad)) throw new Error(n + ' ' + bad);

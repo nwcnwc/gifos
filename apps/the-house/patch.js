@@ -38,9 +38,17 @@
     if (released) return;
     released = true;
     sm.onready = origReady;
-    var i;
-    for (i = 0; i < hold.length; i++) origReady(hold[i][0], hold[i][1]);
-    hold = [];
+    /* Init FIRST, flush SECOND. SM2's real onready queues callbacks until
+       init completes — but flushing into a never-initialized SM2 ran them
+       immediately, audio.js's first createSound died on a null _createSound,
+       and the throw aborted this loop AND the caller's boot: no error on
+       screen, no intro, ever. Each handler is fenced so one bad callback
+       can never silence the rest of the house. */
     if (sm.beginDelayedInit) sm.beginDelayedInit();
+    var i;
+    for (i = 0; i < hold.length; i++) {
+      try { origReady(hold[i][0], hold[i][1]); } catch (e) {}
+    }
+    hold = [];
   };
 })();

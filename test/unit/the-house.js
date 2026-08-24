@@ -191,15 +191,35 @@ check('app.js loads in a vm and exposes HousePort', !!(HP && HP.remapSrc && HP.f
   check('db only — no network, no fullscreen, no fake multiplayer',
     man.capabilities && man.capabilities.db === true && !man.capabilities.network && !man.capabilities.fullscreen && !man.capabilities.multiplayer);
   check('save collection is private', man.data && man.data.save && man.data.save.visibility === 'private');
-  check('minBuild stays 947', man.minBuild === 947);
+  // minBuild 1206 = 0.9.6, the first runtime whose replyAsset serves packed
+  // .assets/ files — on anything older the house would boot artless and mute.
+  check('minBuild is 1206 (packed .assets/ serving)', man.minBuild === 1206);
 
   const html = read('index.html');
   check('first-run is a house assembling, not a black frame', html.indexOf('id="house-boot"') !== -1);
-  check('the huge picture/sound maps are deferred so the card can paint',
-    /src="images\.js" defer/.test(html) && /src="sounds\.js" defer/.test(html));
+  check('the boot card is a gauge — bar and note, not a mood',
+    html.indexOf('id="house-boot-bar"') !== -1 && html.indexOf('id="house-boot-note"') !== -1);
+  // THE WEIGHT RULE (measured 2026-08-24): art/sound inlined as base64 script
+  // chunks made the app document 24 MB, and the vendor CSS preloader's regex
+  // over the data-URI-baked CSSOM backtracked catastrophically — the page
+  // wedged for minutes with every timer dead. Art rides .assets/, the app
+  // document stays light, and the preloader is replaced with a map walk.
+  check('no inline picture/sound chunk scripts in index.html',
+    !/src="images/.test(html) && !/src="sounds/.test(html));
+  check('the asset index and fonts are deferred so the card can paint',
+    /src="assets-index\.js" defer/.test(html) && /src="fonts\.js" defer/.test(html));
   const build = read('build.mjs');
-  check('the packer splits the 24 MB maps into chunks (one script is a hang)',
-    build.indexOf('emitChunks') !== -1 && build.indexOf('assignLiteral') !== -1);
+  check('the packer sends art and sound as raw .assets/ files',
+    build.indexOf(".assets/' + key") !== -1 && build.indexOf('assetIndex[key]') !== -1);
+  check('the packer enforces the app-document weight ceiling',
+    build.indexOf('app document too heavy') !== -1);
+  const appSrc = read('app.js');
+  check('the vendor CSS preloader is replaced, never allowed to scrape the CSSOM',
+    appSrc.indexOf('$.preloadCssImages = function') !== -1 && appSrc.indexOf('patchPreloader') !== -1);
+  check('blob sounds carry a type hint (SM2 sniffs extensions, blobs have none)',
+    appSrc.indexOf('soundMime') !== -1);
+  check('the boot gauge moves by bytes, not vibes',
+    appSrc.indexOf('HOUSE_ASSET_INDEX') !== -1 && appSrc.indexOf('house-boot-bar') !== -1);
 }
 
 if (failures) {
