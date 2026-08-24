@@ -15,6 +15,7 @@ header{
   width:100%;max-width:640px;margin:0 auto;
   display:flex;align-items:center;justify-content:space-between;
   padding:10px 14px 4px;
+  padding-top:max(10px, env(safe-area-inset-top));
 }
 .brand{font-weight:800;letter-spacing:.04em}
 .engine-chip{
@@ -24,45 +25,76 @@ header{
 .engine-chip .dot{width:8px;height:8px;border-radius:50%;background:#c98b3a}
 .engine-chip.ready .dot{background:var(--good)}
 .engine-chip.win .dot{background:#e8c460}
+.engine-chip.err .dot{background:#d53e4f}
 main{width:100%;max-width:640px;margin:0 auto;padding:8px 12px 16px;display:flex;flex-direction:column;gap:12px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 16px}
 h2{margin:0 0 8px}
-.lede,.lvlnote,.statusline{color:var(--muted);margin:0 0 12px}
+.lede,.lvlnote,.statusline,.empty{color:var(--muted);margin:0 0 12px}
+.progress{margin:0 0 12px;font-weight:700;color:var(--good)}
 button{
   appearance:none;border:0;cursor:pointer;font:inherit;font-weight:700;
-  border-radius:10px;padding:10px 16px;
+  border-radius:10px;padding:10px 16px;min-height:44px;
 }
-.primary{background:#5e4fa2;color:#fff}
+.primary{background:#5e4fa2;color:#fff;width:100%}
 .ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
-.wide{width:100%;margin-top:8px}
-.tiny{padding:6px 10px;font-size:13px}
+.tiny{padding:6px 10px;font-size:13px;min-height:36px;width:auto}
+.sizes{
+  display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 8px;
+}
+.size{
+  padding:6px 10px;min-height:36px;font-size:13px;
+  background:#1a1624;color:var(--text);border:1px solid var(--border);border-radius:999px;
+}
+.size.on{background:#5e4fa2;border-color:#5e4fa2;color:#fff}
+.hide-done{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin:4px 0 8px}
+.jump{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--muted);font-size:13px}
+.jump input{
+  width:6rem;background:#1a1624;color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:8px 10px;font:inherit;
+}
 .levels{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px;
-  max-height:42vh;overflow:auto;margin-top:12px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;
+  max-height:42vh;overflow:auto;margin-top:4px;
+  -webkit-overflow-scrolling:touch;
 }
 .lv{
-  padding:8px 0;background:#1a1624;color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;
+  padding:8px 0;min-height:40px;background:#1a1624;color:var(--text);
+  border:1px solid var(--border);border-radius:8px;font-size:12px;
 }
 .lv.done{background:#2a4a30;border-color:#4a8a50}
+.lv.cur{outline:2px solid #e8c460;outline-offset:-2px}
 .bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .bar h2{flex:1;margin:0;font-size:1rem}
-.auto{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
-.board-wrap{display:flex;justify-content:center}
+.auto{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;min-height:44px}
+.board-wrap{display:flex;justify-content:center;touch-action:none}
 .board{
   --n:8;
   display:grid;grid-template-columns:repeat(var(--n),1fr);
-  width:min(92vw, 520px); aspect-ratio:1;
+  width:min(96vw, 520px); aspect-ratio:1;
   border:2px solid #111;gap:1px;background:#111;
+  touch-action:none;
 }
 .cell{
-  border:0;border-radius:0;padding:0;font-size:clamp(12px, 4vw, 22px);
+  border:0;border-radius:0;padding:0;font-size:clamp(14px, 5vw, 24px);
   display:flex;align-items:center;justify-content:center;
-  color:#111;font-weight:900;
+  color:#111;font-weight:900;min-height:0;
+  touch-action:none;
 }
-.cell.x{color:rgba(0,0,0,.45)}
+.cell.x{color:rgba(0,0,0,.5)}
 .cell.q{color:#111}
 .cell.clash{outline:2px solid #d53e4f; outline-offset:-2px; color:#d53e4f}
 .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.controls .ghost, .controls .primary{flex:1;width:auto;min-width:4.5rem}
+.room{
+  margin-top:12px;padding:10px 12px;background:#1a1624;border:1px solid var(--border);
+  border-radius:12px;font-size:13px;color:var(--muted);
+}
+.room .row{display:flex;justify-content:space-between;gap:.6rem;padding:.15rem 0}
+.room .me{color:var(--text)}
 .win{
   margin-top:12px;padding:12px;background:#2a4a30;border-radius:12px;text-align:center;
+}
+.win .primary{margin-top:8px}
+@media (min-width: 560px){
+  .primary{width:auto}
 }

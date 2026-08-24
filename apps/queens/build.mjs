@@ -61,8 +61,13 @@ const html = files['index.html'];
 for (const s of SCRIPTS) if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);
 if (/type=["']module["']/.test(html)) throw new Error('no type=module');
 if (/>\s*Invite\s*</.test(html) || /id=["']invite/i.test(html)) throw new Error('Invite is OS chrome');
-if (!files['app.js'].includes('Invite')) throw new Error('tell the player to press Invite');
+if (!files['app.js'].includes('Invite') && !files['index.html'].includes('Invite')) {
+  throw new Error('tell the player to press Invite');
+}
 if (!files['app.js'].includes("db('save')")) throw new Error('save required');
+if (!files['app.js'].includes('onBack')) throw new Error('onBack required');
+if (!files['app.js'].includes('row.board')) throw new Error('restore in-progress board');
+if (!files['app.js'].includes("db('room')")) throw new Error('room subscribe');
 
 if (!listing.basedOn || listing.basedOn.blessed !== false) throw new Error('unofficial');
 if (listing.basedOn.url !== 'https://github.com/samimsu/queens-game') throw new Error('basedOn.url');
@@ -75,6 +80,9 @@ if (listing.releaseDate !== '2026-08-24') throw new Error('releaseDate');
 const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage', 'WebRTC', 'Vite']) {
   if (listingBlob.includes(bad)) throw new Error('listing mentions ' + bad);
+}
+if (/LinkedIn/i.test(files['app.js'] + files['game.js'] + files['index.html'] + files['help.md'] + listingBlob)) {
+  throw new Error('do not claim LinkedIn');
 }
 if (manifest.minBuild !== 947) throw new Error('minBuild 947');
 if (manifest.appId !== 'queens') throw new Error('appId');
