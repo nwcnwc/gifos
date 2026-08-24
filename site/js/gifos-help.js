@@ -6,7 +6,7 @@
  * subset: headings, paragraphs, lists, bold/italic, inline code, fenced
  * blocks, https links. HTML in the file is escaped, never executed.
  *
- * Attaches to GifOS.help = { read, render, parse, withOsFooter }.
+ * Attaches to GifOS.help = { read, render, parse, withOsFooter, creditsMd }.
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
@@ -165,11 +165,61 @@
 
   const EMPTY_INTRO = '# Help\n\nThis app did not ship its own Help page.';
 
-  function withOsFooter(md) {
-    const body = String(md || '').replace(/^\uFEFF/, '').replace(/\s+$/, '');
-    if (!body) return EMPTY_INTRO + '\n\n' + OS_FOOTER;
-    return body + '\n\n---\n\n' + OS_FOOTER;
+  // CREDITS — the App Store record, as it was THE DAY THIS COPY WAS INSTALLED.
+  // store.js snapshots the listing onto the file record (`storeMeta`) at
+  // install and again at every Update, so a running app names its author,
+  // its porter, what it is based on and who inspired it, from inside the app,
+  // with no network and no catalog lookup: the credit travels with the copy.
+  // Rendered LAST, under the OS footer — the very bottom of every Help.
+  // Text goes through the same renderer as help.md, so raw HTML is escaped
+  // and only https links become hrefs; a listing can't script the Help modal.
+  function mdText(s) {
+    return String(s == null ? '' : s).replace(/[\[\]\\]/g, '').replace(/\s+/g, ' ').trim();
+  }
+  function person(p) {
+    if (!p) return '';
+    if (typeof p === 'string') return mdText(p);
+    const name = mdText(p.name);
+    if (!name) return '';
+    const url = typeof p.url === 'string' && /^https:\/\/[^\s)]+$/.test(p.url.trim()) ? p.url.trim() : '';
+    return url ? '[' + name + '](' + url + ')' : name;
+  }
+  function creditsMd(meta) {
+    if (!meta || typeof meta !== 'object') return '';
+    const out = ['## Credits', ''];
+    const name = mdText(meta.name);
+    const ver = mdText(meta.version);
+    if (name) out.push('**' + name + (ver ? ' ' + ver : '') + '**');
+    const author = person(meta.author);
+    if (author) out.push('- **By** ' + author);
+    const porter = person(meta.porter);
+    if (porter) out.push('- **Brought to GifOS by** ' + porter);
+    const based = person(meta.basedOn);
+    if (based) out.push('- **Based on** ' + based);
+    const insp = meta.inspiredBy;
+    if (insp && (insp.name || typeof insp === 'string')) {
+      const by = insp && typeof insp === 'object' ? person(insp.by) : '';
+      out.push('- **Inspired by** ' + person(insp) + (by ? ' by ' + by : ''));
+    }
+    const lic = mdText(meta.license);
+    if (lic) out.push('- **License** ' + lic);
+    const home = typeof meta.homepage === 'string' && /^https:\/\/[^\s)]+$/.test(meta.homepage.trim()) ? meta.homepage.trim() : '';
+    if (home) out.push('- **Home** [' + home.replace(/^https:\/\//, '') + '](' + home + ')');
+    const rel = mdText(meta.releaseDate);
+    if (rel) out.push('- **Released** ' + rel);
+    const when = mdText(meta.installedAt);
+    out.push('');
+    out.push('From the GifOS App Store' + (when ? ', as listed when this copy was installed on ' + when.slice(0, 10) : '') + '.');
+    return out.join('\n');
   }
 
-  GifOS.help = { read, render, parse, withOsFooter };
+  function withOsFooter(md, storeMeta) {
+    const body = String(md || '').replace(/^\uFEFF/, '').replace(/\s+$/, '');
+    const credits = creditsMd(storeMeta);
+    const tail = OS_FOOTER + (credits ? '\n\n---\n\n' + credits : '');
+    if (!body) return EMPTY_INTRO + '\n\n' + tail;
+    return body + '\n\n---\n\n' + tail;
+  }
+
+  GifOS.help = { read, render, parse, withOsFooter, creditsMd };
 })(typeof window !== 'undefined' ? window : globalThis);
