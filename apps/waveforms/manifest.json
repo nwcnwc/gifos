@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "waveforms",
+  "name": "Waveforms",
+  "shortName": "Waves",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "An explorable guide to sound waves. Hear sine, square, saw. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [3, 128, 244],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}
