@@ -86,7 +86,37 @@ const ORDER = [
   'index.js',
 ];
 
-let bundle = '(function () {\n\'use strict\';\n';
+let bundle = `(function () {
+'use strict';
+function FakeAudioContext() {
+  function param() {
+    return {
+      value: 0,
+      setValueAtTime: function () {},
+      linearRampToValueAtTime: function () {},
+      exponentialRampToValueAtTime: function () {},
+      setTargetAtTime: function () {},
+      cancelScheduledValues: function () {}
+    };
+  }
+  this.currentTime = 0;
+  this.destination = {};
+  this.createGain = function () { return { connect: function (n) { return n || this; }, gain: param() }; };
+  this.createBiquadFilter = function () { return { connect: function (n) { return n || this; }, type: '', frequency: param(), gain: param(), Q: param() }; };
+  this.createOscillator = function () {
+    return {
+      connect: function () {}, start: function () {}, stop: function () {}, disconnect: function () {},
+      frequency: param(), type: '', onended: null, setPeriodicWave: function () {}
+    };
+  };
+  this.createPeriodicWave = function () { return {}; };
+}
+var AudioContext = (function () {
+  var AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
+  if (!AC) return FakeAudioContext;
+  try { new AC(); return AC; } catch (e) { return FakeAudioContext; }
+})();
+`;
 for (const rel of ORDER) {
   const name = rel.split('/').pop();
   let code = readFileSync(join(src, rel), 'utf8');
@@ -111,7 +141,26 @@ for (const rel of ORDER) {
   }
   bundle += '\n/* ---- ' + rel + ' ---- */\n' + transform(code, name) + '\n';
 }
+bundle = bundle.replace(
+  'var playMusic = () => {\n  MUSIC_LOW_A.play()',
+  'var playMusic = () => {\n  try {\n  MUSIC_LOW_A.play()'
+);
+bundle = bundle.replace(
+  '  MUSIC_WINNING_HIGH.stop()\n}',
+  '  MUSIC_WINNING_HIGH.stop()\n  } catch (err) {}\n}'
+);
+bundle = bundle.replace(
+  'var playWin = () => {\n  MUSIC_LOW_A.stop()',
+  'var playWin = () => {\n  try {\n  MUSIC_LOW_A.stop()'
+);
+bundle = bundle.replace(
+  '  MUSIC_WINNING_HIGH.play()\n}',
+  '  MUSIC_WINNING_HIGH.play()\n  } catch (err) {}\n}'
+);
+bundle = bundle.replace('playMusic()\n', 'try { playMusic() } catch (err) {}\n');
+
 bundle += '\nwindow.ONOFF_DOWN = DOWN;\nwindow.ONOFF_PRESSED = PRESSED;\nwindow.ONOFF_upKey = upKey;\n';
+bundle += 'window.ONOFF_LEVELS = levels;\n';
 bundle += 'if (typeof game !== "undefined") window.ONOFF_GAME = game;\n';
 bundle += '})();\n';
 
@@ -133,6 +182,8 @@ license:  MIT (COPYING.txt) — Daniel Marino and Brad Dunbar
 onoff.js is the ESM sources concatenated in dependency order with
 import/export stripped (classic IIFE). The URL custom-level loader is
 removed (about:srcdoc has no query). refs/ (font, sketch, m4a) are not copied.
+AudioContext is faked when the browser refuses it so a missing sound
+device cannot kill the rooms. ONOFF_LEVELS is exported for the suite.
 
 sha256:
   onoff.js     ${sha('onoff.js')}

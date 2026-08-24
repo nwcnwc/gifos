@@ -1,12 +1,14 @@
 (function (root) {
   'use strict';
   var active = false;
+  var MIN_HOLD = 80;
+  var holdTok = {};
 
   function phoneish() {
     var pts = (root.navigator && root.navigator.maxTouchPoints) || 0;
     var coarse = !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches);
     var narrow = Math.min(root.innerWidth || 0, root.innerHeight || 0) <= 520;
-    return (pts > 0 && coarse) || (pts > 0 && narrow);
+    return (pts > 0 && coarse) || (pts > 0 && narrow) || (coarse && narrow);
   }
 
   function downSet() { return root.ONOFF_DOWN; }
@@ -32,8 +34,22 @@
   function bind(node) {
     var key = node.getAttribute('data-key');
     var set = function (on) {
-      apply(key, on);
-      if (on) node.classList.add('on'); else node.classList.remove('on');
+      if (on) {
+        holdTok[key] = (holdTok[key] || 0) + 1;
+        apply(key, true);
+        node.classList.add('on');
+        return;
+      }
+      var tok = holdTok[key];
+      node.classList.remove('on');
+      if (key === 'toggle') {
+        apply(key, false);
+        return;
+      }
+      root.setTimeout(function () {
+        if (holdTok[key] !== tok) return;
+        apply(key, false);
+      }, MIN_HOLD);
     };
     var down = function (e) {
       e.preventDefault();
