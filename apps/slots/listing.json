@@ -1,0 +1,33 @@
+{
+  "tagline": "Pull the lever. The meeting sees the same reels. No cash.",
+  "description": "Five reels, a spin button, and a pile of toy credits. Land three of a kind on the payline and the credits jump. Nothing is wagered and nothing is paid out — it is a party toy, not a casino.\n\nOn your own the last credit pile comes back with the file. Press Invite in the bar and everyone who opens the link watches the same spin. Anyone at the table can pull.\n\nAn unofficial port of html5-slot-machine by johakr. Same Web Animations reels; fruit symbols instead of the original icon pack.",
+  "author": {
+    "name": "johakr",
+    "url": "https://github.com/johakr/html5-slot-machine"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "html5-slot-machine",
+    "url": "https://github.com/johakr/html5-slot-machine",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "slots",
+    "party",
+    "reels",
+    "arcade",
+    "multiplayer",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/slots",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

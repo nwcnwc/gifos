@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Slots</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Slots</div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+<main>
+  <p class="toy">Toy credits. No cash. Ever.</p>
+  <div id="slot">
+    <div id="jackpot">Credits: <span id="jp">1000</span></div>
+    <div id="pay">Payline ×10 / 7s ×50 / five ×100 · stake 10</div>
+    <div id="reels">
+      <div class="reel"></div>
+      <div class="reel"></div>
+      <div class="reel"></div>
+      <div class="reel"></div>
+      <div class="reel"></div>
+    </div>
+    <div id="line" aria-hidden="true"></div>
+    <p class="status" id="status">Pull to spin.</p>
+    <div id="controls">
+      <button type="button" id="spin">Spin</button>
+      <label>
+        <input type="checkbox" name="autoplay" id="autoplay">
+        Autoplay
+      </label>
+    </div>
+    <p class="hint" id="mpHint">Press Invite in the bar to show the same reels in the room.</p>
+  </div>
+</main>
+<script src="symbols.js"></script>
+<script src="slot.js"></script>
+<script src="mp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
