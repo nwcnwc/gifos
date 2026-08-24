@@ -3,7 +3,7 @@
   "appId": "fend",
   "name": "fend",
   "shortName": "fend",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "description": "Unit-aware calculator. Type 1 ft to cm. The pad stays in the file.",
   "entry": "index.html",

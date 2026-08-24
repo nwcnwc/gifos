@@ -1,12 +1,16 @@
-// Procedural Pivot icon: a grid that fills in as fields land on axes.
+// Procedural fend sticker: a pocket calculator whose display converts 1 ft → 30.48 cm.
 import { deflateSync } from 'node:zlib';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
-const CARD = [23, 28, 38];
+const BODY = [28, 32, 42];
+const BODYD = [18, 21, 28];
+const ORANGE = [200, 80, 40];
+const DISP = [12, 16, 20];
 const INK = [232, 237, 245];
-const BLUE = [26, 115, 232];
-const CELL = [36, 48, 68];
-const HEAT = [80, 150, 240];
+const GREEN = [120, 210, 130];
+const KEY = [42, 48, 62];
+const KEYL = [58, 66, 84];
+const OUTLINE = [8, 10, 14];
 
 function mix(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -21,11 +25,21 @@ function inCard(x, y, m, r) {
   const dx = x - cx, dy = y - cy;
   return dx * dx + dy * dy <= r * r;
 }
+function inRound(x, y, x0, y0, x1, y1, r) {
+  if (x < x0 || x > x1 || y < y0 || y > y1) return false;
+  const cx = Math.min(Math.max(x, x0 + r), x1 - r);
+  const cy = Math.min(Math.max(y, y0 + r), y1 - r);
+  if (x >= x0 + r && x <= x1 - r) return true;
+  if (y >= y0 + r && y <= y1 - r) return true;
+  const dx = x - cx, dy = y - cy;
+  return dx * dx + dy * dy <= r * r;
+}
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD, INK, BLUE, CELL, HEAT, [255, 255, 255]]) {
-    for (let s = 0; s <= 3; s++) pal.push(mix(b, [255, 255, 255], s * 0.12).map(Math.round));
-    pal.push(mix(b, [0, 0, 0], 0.28).map(Math.round));
+  for (const b of [BODY, BODYD, ORANGE, DISP, INK, GREEN, KEY, KEYL, OUTLINE, [255, 255, 255]]) {
+    pal.push(b);
+    for (let s = 1; s <= 2; s++) pal.push(mix(b, [255, 255, 255], s * 0.14).map(Math.round));
+    pal.push(mix(b, [0, 0, 0], 0.3).map(Math.round));
   }
   return pal.slice(0, 64);
 }
@@ -39,27 +53,92 @@ function nearest(pal, r, g, b) {
   return bi;
 }
 
+const GLYPHS = {
+  A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
+  C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
+  D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
+  E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
+  F: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
+  G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
+  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+  K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
+  L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
+  M: [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
+  N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
+  O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
+  R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
+  S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
+  T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
+  U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  V: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
+  W: [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
+  X: [0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001],
+  Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  ' ': [0, 0, 0, 0, 0, 0, 0],
+  '-': [0, 0, 0, 0b11111, 0, 0, 0],
+  '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
+  '+': [0, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0],
+  '>': [0b01000, 0b00100, 0b00010, 0b00001, 0b00010, 0b00100, 0b01000],
+  '=': [0, 0b11111, 0, 0, 0b11111, 0, 0],
+  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  '3': [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110],
+  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
+};
+
+function glyphAt(ch, col, row) {
+  const g = GLYPHS[String(ch).toUpperCase()];
+  if (!g) return false;
+  return !!(g[row] & (1 << (4 - col)));
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / (FRAMES - 1);
-  const m = 8, rad = 18;
-  const gx = 22, gy = 36, cw = 20, ch = 16, cols = 4, rows = 4;
-  const filled = Math.floor(t * cols * rows);
+  const showAns = t > 0.42;
+  const typed = '1 FT';
+  const shown = typed.slice(0, Math.max(1, Math.ceil(Math.min(1, t / 0.42) * typed.length)));
+  const ans = '30.48 CM';
+  const lit = Math.floor(t * 12);
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = (px + 0.5) / SS, y = (py + 0.5) / SS;
-    if (!inCard(x, y, m, rad)) continue;
-    let col = CARD;
-    const cx = Math.floor((x - gx) / cw);
-    const cy = Math.floor((y - gy) / ch);
+    let col = null;
+    if (inCard(x, y, 14, 16)) col = OUTLINE;
+    if (inCard(x, y, 16, 14)) col = mix(BODY, BODYD, (y - 16) / 96);
+    if (inRound(x, y, 24, 22, 104, 52, 6)) col = OUTLINE;
+    if (inRound(x, y, 26, 24, 102, 50, 5)) col = DISP;
+    if (y > 54 && y < 58 && x > 28 && x < 100) col = ORANGE;
+    const gx0 = 26, gy0 = 62, cw = 18, ch = 16, cols = 4, rows = 3;
+    const cx = Math.floor((x - gx0) / cw);
+    const cy = Math.floor((y - gy0) / ch);
     if (cx >= 0 && cy >= 0 && cx < cols && cy < rows) {
-      const ix = cy * cols + cx;
-      const inCell = (x - gx) % cw > 1.2 && (y - gy) % ch > 1.2;
-      if (inCell) {
-        if (cy === 0 || cx === 0) col = CELL;
-        else if (ix <= filled) col = mix(BLUE, HEAT, (ix % 5) / 5);
+      const kx = gx0 + cx * cw, ky = gy0 + cy * ch;
+      if (inRound(x, y, kx + 1.5, ky + 1.2, kx + cw - 1.5, ky + ch - 1.2, 3)) {
+        const ix = cy * cols + cx;
+        col = ix === lit % 12 ? mix(KEY, ORANGE, 0.45) : KEY;
       }
     }
-    if (y > 18 && y < 30 && x > 22 && x < 22 + t * 84) col = BLUE;
+    const plot = (str, ox, oy, s, rgb) => {
+      let cxp = ox;
+      for (const ch of str) {
+        for (let row = 0; row < 7; row++) for (let coln = 0; coln < 5; coln++) {
+          if (!glyphAt(ch, coln, row)) continue;
+          const px1 = cxp + coln * s, py1 = oy + row * s;
+          if (x >= px1 && x < px1 + s && y >= py1 && y < py1 + s) col = rgb;
+        }
+        cxp += 6 * s;
+      }
+    };
+    if (!showAns) plot(shown, 32, 30, 2, INK);
+    else plot(ans, 30, 30, 2, GREEN);
+    if (!col) continue;
     const o = (py * RW + px) * 4;
     rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
   }
@@ -104,44 +183,6 @@ function pngChunk(tag, data) {
   return Buffer.concat([len, body, c]);
 }
 
-const GLYPHS = {
-  A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
-  C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
-  D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
-  E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
-  F: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
-  G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
-  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
-  K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
-  L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
-  M: [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
-  N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
-  O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
-  R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
-  S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
-  T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
-  U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  V: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
-  W: [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
-  Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
-  ' ': [0, 0, 0, 0, 0, 0, 0],
-  '-': [0, 0, 0, 0b11111, 0, 0, 0],
-  '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
-  '+': [0, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0],
-  '>': [0b01000, 0b00100, 0b00010, 0b00001, 0b00010, 0b00100, 0b01000],
-  '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
-  '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
-  '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
-  '3': [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110],
-  '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
-  '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
-  '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
-  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
-};
-
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
   for (const ch of String(str).toUpperCase()) {
@@ -170,16 +211,39 @@ export function screenshotPng() {
     x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
-  fill(0, 0, W, H, 14, 17, 22);
-  drawText(put, 48, 36, 'FEND', 7, 232, 237, 245);
-  drawText(put, 48, 100, 'UNITS. FRACTIONS. DICE. NOTHING UPLOADED.', 3, 139, 149, 167);
-  fill(80, 180, 1120, 620, 22, 26, 32);
-  drawText(put, 110, 220, '1 FT TO CM', 4, 180, 190, 210);
-  drawText(put, 110, 290, '30.48 CM', 5, 80, 220, 140);
-  drawText(put, 110, 380, '5 KG IN LB', 4, 180, 190, 210);
-  drawText(put, 110, 450, '11.023 LB', 5, 80, 220, 140);
-  drawText(put, 110, 540, '>  2 + 2', 4, 255, 210, 90);
-  drawText(put, 48, 660, 'THE PAD STAYS ON THIS DEVICE', 3, 139, 149, 167);
+  const roundFill = (x0, y0, x1, y1, rad, r, g, b) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const cx = Math.min(Math.max(x, x0 + rad), x1 - rad);
+      const cy = Math.min(Math.max(y, y0 + rad), y1 - rad);
+      let ok = false;
+      if (x >= x0 + rad && x < x1 - rad) ok = true;
+      else if (y >= y0 + rad && y < y1 - rad) ok = true;
+      else {
+        const dx = x - cx, dy = y - cy;
+        ok = dx * dx + dy * dy <= rad * rad;
+      }
+      if (ok) put(x, y, r, g, b);
+    }
+  };
+  fill(0, 0, W, H, 17, 19, 24);
+  drawText(put, 48, 28, 'FEND', 6, 232, 237, 245);
+  drawText(put, 48, 82, 'TYPE A LINE. THE PAD STAYS IN THIS FILE.', 3, 139, 149, 167);
+  roundFill(40, 140, 1160, 560, 18, 26, 30, 38);
+  drawText(put, 72, 168, '>  1 FT TO CM', 4, 232, 237, 245);
+  drawText(put, 72, 220, '30.48 CM', 5, 157, 222, 122);
+  drawText(put, 72, 290, '>  5 KG IN LB', 4, 232, 237, 245);
+  drawText(put, 72, 342, 'APPROX. 11.023 LBS', 4, 157, 222, 122);
+  drawText(put, 72, 410, '>  100 C TO F', 4, 232, 237, 245);
+  drawText(put, 72, 462, '212 F', 5, 157, 222, 122);
+  drawText(put, 72, 528, '>  1 FT TO CM', 4, 200, 80, 40);
+  const chips = ['FT', 'CM', 'KG', 'LB', 'TO', 'ROLL'];
+  let cx = 48;
+  for (const c of chips) {
+    roundFill(cx, 590, cx + 110, 650, 16, 34, 40, 52);
+    drawText(put, cx + 22, 606, c, 3, 232, 237, 245);
+    cx += 122;
+  }
+  drawText(put, 48, 672, 'NOTHING IS UPLOADED', 3, 139, 149, 167);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;
