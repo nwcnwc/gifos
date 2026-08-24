@@ -12116,7 +12116,10 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
     }
     function refreshAudioBtn() {
       const b = document.getElementById('appaudio');
-      const show = ROOM.kind === 'app' && !ROOM.solo && document.body.classList.contains('app-room') && appMode === 'host';
+      // Only once the host's ad EXISTS: the switch is a flag on that ad, and
+      // appMode turns 'host' a beat before the ad is minted — a tap in that
+      // window would be silently lost. The mint below refreshes right away.
+      const show = ROOM.kind === 'app' && !ROOM.solo && document.body.classList.contains('app-room') && appMode === 'host' && !!myStatus.app;
       b.style.display = show ? '' : 'none';
       const on = roomAudioOn();
       b.textContent = on ? 'Talk: on' : 'Talk: off';
@@ -12345,6 +12348,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         myStatus.app = { s: sess.sid, k: sess.lsec, relay: sess.relay, name: name, mesh: meshBus, pk: meshPk,
           ts: Math.max(Date.now(), ((appStops.get(sess.sid) || {}).at || 0) + 1), byName: myName(), audio: keepAudio };
         broadcastStatus();
+        try { refreshAudioBtn(); } catch (e) {}
         warnRecorderNewApp(); // a tiles recording won't capture the app I just shared
       } catch (e) { clearAppView('runApp-error'); myStatus.app = null; broadcastStatus(); setStatus('Could not run the app: ' + (e && e.message || e)); }
       appBooting = false;

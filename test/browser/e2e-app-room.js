@@ -109,6 +109,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await settle(h);
   await h.click('#inv-done');
   await h.waitForFunction(() => { const m = document.getElementById('inv-modal'); return !m || getComputedStyle(m).display === 'none'; }, null, { timeout: 10000 });
+  await h.waitForFunction(() => { const b = document.getElementById('appaudio'); return !!(b && b.offsetParent); }, null, { timeout: 20000 }); // shown once the host's ad exists
   check('the host sees a Talk switch on the app bar, off', (await vis(h, 'appaudio')) && /off/i.test(await h.locator('#appaudio').textContent()));
   check('…and no mic/cam controls before it is flipped (the room starts dark)', !(await vis(h, 'cam')) && !(await vis(h, 'mic')));
 
