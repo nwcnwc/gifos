@@ -67,7 +67,7 @@ void main(void) {
 <div id="game">
   <canvas id="effects"></canvas>
   <canvas id="world"></canvas>
-  <p id="lag-warning">Looks like the game is running slowly. <a href="#">Disable grid effects?</a></p>
+  <p id="lag-warning">Looks like the game is running slowly. <a href="#fx-off">Disable grid effects?</a></p>
   <div id="menu">
     <h1>Coil</h1>
     <div id="score">
@@ -75,16 +75,18 @@ void main(void) {
       <p>0</p>
     </div>
     <p id="best"></p>
+    <p id="db-err" hidden></p>
     <section class="welcome">
       <h2>Instructions</h2>
-      <p>Enclose the blue orbs before they explode. Gain bonus points by enclosing multiple orbs at once. Drag a trail with a finger or the mouse.</p>
-      <a class="button" id="start-button" href="#">Start Game</a>
+      <p>Enclose the blue orbs before they explode. Catch several in one loop for a multiplier. Red orbs are bombs — do not wrap those. Drag the trail with a finger or the mouse.</p>
+      <button type="button" class="button" id="start-button">Start Game</button>
     </section>
   </div>
 </div>
 <script src="vendor/jquery.min.js"></script>
 <script src="vendor/assets.js"></script>
 <script src="vendor/util.js"></script>
+<script src="core.js"></script>
 <script src="vendor/coil.js"></script>
 <script src="boot.js"></script>
 </body>

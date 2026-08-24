@@ -185,6 +185,10 @@ var Coil = (function(){
 			canvas.addEventListener('touchstart', onCanvasTouchStartHandler, false);
 			canvas.addEventListener('touchmove', onCanvasTouchMoveHandler, false);
 			canvas.addEventListener('touchend', onCanvasTouchEndHandler, false);
+			document.addEventListener('pointerdown', onDocumentPointerDownHandler, false);
+			document.addEventListener('pointermove', onDocumentPointerMoveHandler, false);
+			document.addEventListener('pointerup', onDocumentPointerUpHandler, false);
+			document.addEventListener('pointercancel', onDocumentPointerUpHandler, false);
 			window.addEventListener('resize', onWindowResizeHandler, false);
 			
 			// Force an initial layout
@@ -588,7 +592,7 @@ var Coil = (function(){
 	}
 	
 	function solveIntersections() {
-		
+		var loopPolys = [];
 		while( intersections.length ) {
 			var ix = intersections.pop();
 			
@@ -619,11 +623,6 @@ var Coil = (function(){
 			
 			var center = bounds.center();
 			
-			// Solid fill, faster
-			// context.fillStyle = 'rgba(0,255,255,0.2)';
-			// context.closePath();
-			
-			// Gradient fill, prettier
 			var gradient = context.createRadialGradient( center.x, center.y, 0, center.x, center.y, bounds.size() );
 			gradient.addColorStop(1,'rgba(0, 255, 255, 0.0)');
 			gradient.addColorStop(0,'rgba(0, 255, 255, 0.2)');
@@ -631,65 +630,35 @@ var Coil = (function(){
 			context.closePath();
 			
 			context.fill();
+
+			loopPolys.push(points);
 			
 		}
-		
-		// Only check for collisions every third frame to reduce lag
-		if ( frameCount % 2 == 1 ) {
-			
-			var bmp = context.getImageData(0, 0, world.width, world.height);
-			var bmpw = bmp.width;
-			var pixels = bmp.data;
-			
-			var casualties = [];
-			
-			var i = enemies.length;
-			
-			while (i--) {
-				var enemy = enemies[i];
-				
-				var ex = Math.round( enemy.x );
-				var ey = Math.round( enemy.y );
-				
-				var indices = [	
-					((ey * bmpw) + Math.round(ex - ENEMY_SIZE)) * 4, 
-					((ey * bmpw) + Math.round(ex + ENEMY_SIZE)) * 4, 
-					((Math.round(ey - ENEMY_SIZE) * bmpw) + ex) * 4, 
-					((Math.round(ey + ENEMY_SIZE) * bmpw) + ex) * 4
-				];
-				
-				var j = indices.length;
-				
-				while (j--) {
-					var index = indices[j];
-					
-					if (pixels[index + 1] === 255 && pixels[index + 2] === 255) {
-					
-						if (enemy.type === ENEMY_TYPE_BOMB || enemy.type === ENEMY_TYPE_BOMB_MOVER) {
-							handleBombInClosure(enemy);
-						}
-						else {
-							handleEnemyInClosure(enemy);
-							
-							casualties.push(enemy);
-						}
-						
-						enemies.splice(i, 1);
-						
-						break;
-					}
-				}
+
+		var casualties = [];
+		var ei = enemies.length;
+		var inPoly = (window.CoilCore && window.CoilCore.pointInPoly) ? window.CoilCore.pointInPoly : function(){ return false; };
+
+		while (ei--) {
+			var enemy = enemies[ei];
+			var enclosed = false;
+			var pi = loopPolys.length;
+			while (pi--) {
+				if (inPoly(loopPolys[pi], enemy.x, enemy.y)) { enclosed = true; break; }
 			}
-			
-			// If more than one enemy was killed, show the multiplier
-			if (casualties.length > 1) {
-				// Increase the score exponential depending on the number of
-				// casualties
-				var scoreChange = adjustScore(casualties.length * SCORE_PER_ENEMY);
-				
-				notify(scoreChange, player.x, player.y - 10, casualties.length / 1.5, [250, 250, 100]);
+			if (!enclosed) continue;
+			if (enemy.type === ENEMY_TYPE_BOMB || enemy.type === ENEMY_TYPE_BOMB_MOVER) {
+				handleBombInClosure(enemy);
+			} else {
+				handleEnemyInClosure(enemy);
+				casualties.push(enemy);
 			}
-			
+			enemies.splice(ei, 1);
+		}
+
+		if (casualties.length > 1) {
+			var scoreChange = adjustScore(casualties.length * SCORE_PER_ENEMY);
+			notify(scoreChange, player.x, player.y - 10, casualties.length / 1.5, [250, 250, 100]);
 		}
 	}
 	
@@ -1258,15 +1227,35 @@ var Coil = (function(){
 		mouse.down = true;
 	}
 	
-	function onDocumentMouseMoveHandler(event){
+	function pointerToWorld(clientX, clientY, pointerType) {
+		var rect = canvas.getBoundingClientRect();
+		var rw = rect.width || world.width || 1;
+		var rh = rect.height || world.height || 1;
 		mouse.previousX = mouse.x;
 		mouse.previousY = mouse.y;
-		
-		mouse.x = event.clientX - (window.innerWidth - world.width) * 0.5;
-		mouse.y = event.clientY - (window.innerHeight - world.height) * 0.5;
-		
+		mouse.x = (clientX - rect.left) * (world.width / rw);
+		mouse.y = (clientY - rect.top) * (world.height / rh);
+		if (pointerType === 'touch') mouse.y -= 28;
 		mouse.velocityX = Math.abs( mouse.x - mouse.previousX ) / world.width;
 		mouse.velocityY = Math.abs( mouse.y - mouse.previousY ) / world.height;
+	}
+
+	function onDocumentMouseMoveHandler(event){
+		if (event.pointerType) return;
+		pointerToWorld(event.clientX, event.clientY, 'mouse');
+	}
+
+	function onDocumentPointerDownHandler(event){
+		mouse.down = true;
+		pointerToWorld(event.clientX, event.clientY, event.pointerType);
+	}
+
+	function onDocumentPointerMoveHandler(event){
+		pointerToWorld(event.clientX, event.clientY, event.pointerType);
+	}
+
+	function onDocumentPointerUpHandler(event){
+		mouse.down = false;
 	}
 	
 	function onDocumentMouseUpHandler(event) {
@@ -1276,10 +1265,7 @@ var Coil = (function(){
 	function onCanvasTouchStartHandler(event) {
 		if(event.touches.length == 1) {
 			event.preventDefault();
-			
-			mouse.x = event.touches[0].pageX - (window.innerWidth - world.width) * 0.5;
-			mouse.y = event.touches[0].pageY - (window.innerHeight - world.height) * 0.5;
-			
+			pointerToWorld(event.touches[0].clientX, event.touches[0].clientY, 'touch');
 			mouse.down = true;
 		}
 	}
@@ -1287,9 +1273,7 @@ var Coil = (function(){
 	function onCanvasTouchMoveHandler(event) {
 		if(event.touches.length == 1) {
 			event.preventDefault();
-
-			mouse.x = event.touches[0].pageX - (window.innerWidth - world.width) * 0.5;
-			mouse.y = event.touches[0].pageY - (window.innerHeight - world.height) * 0.5 - 20;
+			pointerToWorld(event.touches[0].clientX, event.touches[0].clientY, 'touch');
 		}
 	}
 	
@@ -1320,10 +1304,14 @@ var Coil = (function(){
 			top: cy
 		} );
 		
-		// Center the menu
+		// Center the menu, and shrink it when the field is a phone
+		var mw = Math.min(menu.width() || 830, Math.max(200, world.width - 16));
+		var mh = Math.min(menu.height() || 440, Math.max(160, world.height - 16));
 		menu.css( {
-			left: ( world.width - menu.width() ) / 2,
-			top: ( world.height - menu.height() ) / 2
+			left: Math.max(8, ( world.width - mw ) / 2),
+			top: Math.max(8, ( world.height - mh ) / 2),
+			width: mw,
+			maxHeight: world.height - 16
 		} );
 		
 		// Update the WebGL canvas if it exists
@@ -1338,6 +1326,17 @@ var Coil = (function(){
 		}
 	}
 	
+	window.CoilAPI = {
+		start: start,
+		stop: stop,
+		isPlaying: function(){ return playing; },
+		score: function(){ return score; },
+		energy: function(){ return player ? player.energy : 0; },
+		setPointer: function(x,y){ mouse.x = x; mouse.y = y; },
+		disableEffects: disable3dEffects,
+		effectsOn: function(){ return effectsEnabled; }
+	};
+
 	initialize();
 	
 })();

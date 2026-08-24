@@ -3,7 +3,7 @@
   "appId": "coil",
   "name": "Coil",
   "shortName": "Coil",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "entry": "index.html",
   "accent": [0, 200, 220],
