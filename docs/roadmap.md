@@ -2816,3 +2816,32 @@ colours.
   small enough to afford it.
 - help.md per app per locale is the long tail — translate on a popularity
   gradient rather than gating any release on full coverage.
+
+## Video in an app-pinned room
+
+**What.** Camera (and screen) for the people inside an app-pinned room, not
+only audio. 0.9.12 ships app rooms **audio-only**: the app host flips room
+audio (a flag on the host's app ad that rides the status channel), everyone
+then owns their own mic, and no app room ever asks for a camera.
+
+**Why it fits.** The call plumbing already exists in the app room (lateMedia,
+the independent toggles, the tile grid); what is missing is the *governance*
+video drags in, and shipping it half-decided would have meant faces blurred
+behind a rule nobody could see.
+
+**Sketch.** The switch stays the host's; video adds the meeting's consent
+doctrine, which today needs a room **password** before any face goes clear
+(`setPersonalBlur`, "faces stay blurred until this room has a password") and
+an **admin** for admin rooms. Decide: does an app-pinned room's host mint a
+`V` verifier (host = room admin, Password button in the app bar, `e2e-meet-
+password` gets an app-room case), or does app-room video use a simpler
+consent rule of its own? Then un-hide `#cam`/`.blurctl` for app rooms and let
+`lateMedia` ask for video there again.
+
+**Workaround today.** Start a regular meeting and run the app from inside it:
+full A/V under the meeting's rules, unchanged.
+
+**Open questions.** Host-as-admin or not; whether the room password is the
+right key for an app room's E2E re-key; what "owner-away freezes" means for a
+call in an owned room.
+
