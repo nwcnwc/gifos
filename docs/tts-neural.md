@@ -52,7 +52,9 @@ Three things make it the right pick rather than merely a possible one:
 - **Piper** (VITS/ONNX, the obvious candidate). Bigger for the same job:
   `en_US` *low* voices come back around 63 MB and medium 30–80 MB. It is a
   fine engine; it is simply a worse size/quality point than KittenTTS Nano.
-- **Kokoro-82M.** Better voice, ~80 MB class even quantized. Out of budget.
+- **Kokoro-82M.** Better voice, ~80 MB class even quantized. Out of budget
+  for THIS app — it later shipped as its own GPU provider
+  (`apps/offline-tts-kokoro/`, fp16 ONNX via the asset tier).
 - **Web Speech API** (`speechSynthesis`). Zero bytes and often excellent — but
   the voice is whatever that device has, several platforms route it through the
   cloud, and it cannot travel inside a GIF. It is the opposite of the property
@@ -68,7 +70,7 @@ Three things make it the right pick rather than merely a possible one:
 | `kitten-tts-nano` int8 `.onnx` | ~24–25 MB | **pinned asset** (downloaded at install, hash-verified) |
 | voice embeddings | **3.3 MB**, not "small" | in-GIF (under the 8 MB asset floor) |
 | `onnxruntime-web` WASM (MIT) | ~10–11 MB | in-GIF |
-| espeak-ng phonemizer (`phonemizer`, npm) | ~2.6 MB packed | in-GIF |
+| espeak-ng phonemizer (`phonemizer`, npm) | ~2.6 MB packed (BUILT: 1.3 MB) | in-GIF |
 
 So **~35–40 MB all in**, not 15–25. The reference browser demo quotes ~50 MB of
 model files total. Say this plainly in the listing rather than quoting the
@@ -93,7 +95,7 @@ wrapped to `window.__ESpeak`, and it is there to make *audio*. Whether it can be
 driven to emit phoneme strings instead is the question that decides the design:
 
 - **If yes** — reuse ~5.6 MB we already vendor, and the new app gets smaller.
-- **If no** — vendor `phonemizer` from npm (2.6 MB packed) and carry a second
+- **If no** — vendor `phonemizer` from npm (1.3 MB packed as built) and carry a second
   eSpeak. Note its npm metadata says Apache-2.0 while espeak-ng itself is
   GPLv3; that needs reading before shipping, not assuming. We already ship
   GPLv3 in `offline-tts` with `COPYING-espeak.txt`, so it is workable either
@@ -190,8 +192,10 @@ playback, so a long article still pauses between passages. Small passages turn
 one long hole into short even ones; only a faster model removes them.
 
 This app does **not** need the EXPERIMENTAL treatment the three LLMs just got.
-A 25 MB download for a neural voice that starts talking in about a second is a
-defensible everyday trade; six minutes for a paragraph is not.
+A 25 MB download for a neural voice is a defensible everyday trade; six
+minutes for a paragraph is not. (BUILT: first sound is ~16 s on a long
+article — 11 s of it engine load — not "about a second"; the listing says so
+plainly, and the instant eSpeak voice remains the zero-wait option.)
 
 ## What blocked building it (resolved)
 

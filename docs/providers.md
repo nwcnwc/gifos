@@ -34,13 +34,15 @@ be a machine for exfiltrating every app's AI traffic. So:
 **A manifest with `provides` may not declare `capabilities.network` or
 `capabilities.api`. Not a consent checkbox — refused mechanically.**
 
-Enforced at serve time (`providerGuard` in runtime.js refuses to mount it) and
-at assignment time (the Settings picker won't list it). With the rule in place
+Enforced at serve time (the refusals live inline in `providerCall`,
+runtime.js — role, network-less, and place checks) and at assignment time
+(the Settings picker won't list it). With the rule in place
 the existing sandbox does the privacy work — `connect-src 'none'` means the
 provider physically cannot leak what it sees — and the consumer's ack sheet can
 truthfully say "answered on this device; nothing leaves this browser."
-(Residual, visible leak: a provider could persist what it sees into its own
-saved state, which rides its snapshots. Named in the threat model, accepted.)
+(And a provider in its service mount gets NO db at all — every op that is
+not `provider-*`/`info`/`asset` is refused — so it cannot even persist what
+it sees.)
 
 ## The Providers folder — recognition is a PLACE
 
@@ -247,6 +249,10 @@ bytes ever diverge from the catalog's.
   Stockfish), `provides: { ai: ["tts"] }`, no network. Engine + voice ride
   **inside the GIF** (~1.6 MB deflated) — at 5.6 MB raw it sits well under
   the assets floor, so download-then-seal would only add a failure mode.
+- **Offline Neural TTS (Kokoro, GPU)** (`apps/offline-tts-kokoro/`, App
+  Store) — the THIRD tts provider: Kokoro-82M over WebGPU (fp16 ONNX,
+  ~163 MB via the asset tier, wasm fallback), for machines with a real
+  graphics chip.
 - **Offline Neural Text to Speech** (`apps/offline-tts-neural/`, App Store) —
   the SECOND tts provider, proving a role can have more than one and that the
   user chooses: eSpeak stays the 1.6 MB instant robot, this is a 15M-parameter
