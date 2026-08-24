@@ -1,0 +1,13 @@
+dwmkerr/crosswords-js
+https://github.com/dwmkerr/crosswords-js
+commit: 005dac1aded8f8f5acaf4e15dba56284015ae249
+MIT, Copyright (c) 2015 Dave Kerr
+
+vendor/crosswords.js is dist/crosswords.umd.cjs (classic UMD, window.crosswords).
+vendor/crosswords.css is dist/crosswords.css.
+
+The baked puzzle (vendor/puzzle.json) is an original 4×4 word square
+written for this port — not a Guardian or Alberich grid. Progress is
+saved in gifos.db. A QWERTY pad covers phones.
+
+js-yaml 4.1.0 is bundled inside the UMD (MIT, Nodeca).

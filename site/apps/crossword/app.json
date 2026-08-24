@@ -1,0 +1,58 @@
+{
+  "catalog": "1.0",
+  "slug": "crossword",
+  "appId": "crossword",
+  "name": "Crossword",
+  "shortName": "Crossword",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "A crossword in a file. Type a letter, check when you are stuck.",
+  "description": "A small crossword you can finish on a phone. Tap a square, type a letter (or use the pad at the bottom). Check a word, reveal a letter if you are stuck, or start over. Close it and come back: the letters you already typed are still there, inside the file.\n\nPress Invite in the bar above and everyone in the room fills the same grid. There is no account and nothing is uploaded.\n\nAn unofficial port of crosswords-js by Dave Kerr. The player is his. The baked puzzle is a little original grid that ships in the GIF.",
+  "author": {
+    "name": "Dave Kerr",
+    "url": "https://github.com/dwmkerr/crosswords-js"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "crossword",
+    "puzzle",
+    "words",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/crossword",
+  "accent": [
+    40,
+    80,
+    160
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/crossword/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/crossword/crossword.gif",
+  "bytes": 161126,
+  "download": 0,
+  "provides": null,
+  "sha256": "ab14e62ad0524602ab3348af2441cac7fe95aaa2d15dc58bffba5054b8ef195b",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "crosswords-js",
+    "url": "https://github.com/dwmkerr/crosswords-js",
+    "blessed": false
+  }
+}

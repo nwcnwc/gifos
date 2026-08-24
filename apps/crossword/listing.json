@@ -1,0 +1,31 @@
+{
+  "tagline": "A crossword in a file. Type a letter, check when you are stuck.",
+  "description": "A small crossword you can finish on a phone. Tap a square, type a letter (or use the pad at the bottom). Check a word, reveal a letter if you are stuck, or start over. Close it and come back: the letters you already typed are still there, inside the file.\n\nPress Invite in the bar above and everyone in the room fills the same grid. There is no account and nothing is uploaded.\n\nAn unofficial port of crosswords-js by Dave Kerr. The player is his. The baked puzzle is a little original grid that ships in the GIF.",
+  "author": {
+    "name": "Dave Kerr",
+    "url": "https://github.com/dwmkerr/crosswords-js"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "crosswords-js",
+    "url": "https://github.com/dwmkerr/crosswords-js",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "crossword",
+    "puzzle",
+    "words",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/crossword",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

@@ -869,6 +869,53 @@
       "sha256": "dd8136b9d16c8d5d388906dcfd86abc16d8faa2dfdd56f73ece00e714a9d5cf7"
     },
     {
+      "slug": "coil",
+      "appId": "coil",
+      "name": "Coil",
+      "shortName": "Coil",
+      "version": "1.0.0",
+      "tagline": "Wrap a trail around the orbs before they burst. Best score lives in the file.",
+      "author": {
+        "name": "Hakim El Hattab",
+        "url": "https://github.com/leereilly/Coil"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Coil",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "arcade",
+        "trail",
+        "reflex",
+        "offline"
+      ],
+      "accent": [
+        0,
+        200,
+        220
+      ],
+      "cover": "/apps/coil/cover.jpg",
+      "bytes": 363345,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "f984f2da96d8218884341c0d6e2fc88c78103ccdfa812ed9895c713d1b0c5ca7"
+    },
+    {
       "slug": "connect-four",
       "appId": "connect-four",
       "name": "Connect Four",
@@ -1011,6 +1058,53 @@
         "ts": "2026-08-24"
       },
       "sha256": "e0558dd13ed093a22425ef0178f9c5453cea09fcc114cac5c260f3f44ce5f8b7"
+    },
+    {
+      "slug": "crossword",
+      "appId": "crossword",
+      "name": "Crossword",
+      "shortName": "Crossword",
+      "version": "1.0.0",
+      "tagline": "A crossword in a file. Type a letter, check when you are stuck.",
+      "author": {
+        "name": "Dave Kerr",
+        "url": "https://github.com/dwmkerr/crosswords-js"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "crosswords-js",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "crossword",
+        "puzzle",
+        "words",
+        "offline"
+      ],
+      "accent": [
+        40,
+        80,
+        160
+      ],
+      "cover": "/apps/crossword/cover.jpg",
+      "bytes": 161126,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "ab14e62ad0524602ab3348af2441cac7fe95aaa2d15dc58bffba5054b8ef195b"
     },
     {
       "slug": "css-doodle",
@@ -5943,6 +6037,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "8926737b401463f49ac00dad37ac16f213d67a4707633727e9a6266d81a3c561"
+    },
+    {
+      "slug": "tuner",
+      "appId": "tuner",
+      "name": "Tuner",
+      "shortName": "Tuner",
+      "version": "1.0",
+      "tagline": "Record a note. See the pitch. Nothing is uploaded.",
+      "author": {
+        "name": "Chris Wilson",
+        "url": "https://github.com/cwilso/PitchDetect"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "PitchDetect",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Learning"
+      ],
+      "tags": [
+        "tuner",
+        "pitch",
+        "guitar",
+        "note",
+        "audio",
+        "offline"
+      ],
+      "accent": [
+        52,
+        135,
+        129
+      ],
+      "cover": "/apps/tuner/cover.jpg",
+      "bytes": 184869,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "47c2ebf9aa5280f2b076670559b762b3dd7ea9be0efce4c5fa70b12c22e4d2a5"
     },
     {
       "slug": "typing",

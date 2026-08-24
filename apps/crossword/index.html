@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Crossword</title>
+<link rel="stylesheet" href="vendor/crosswords.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Crossword</h1>
+    <span id="status">Sand.</span>
+  </header>
+  <div id="tools">
+    <button type="button" id="check">Check word</button>
+    <button type="button" id="reveal">Reveal letter</button>
+    <button type="button" id="reset">Reset</button>
+  </div>
+  <div id="play">
+    <div id="grid"></div>
+    <div id="clues"></div>
+  </div>
+  <div id="keys" aria-label="Letters"></div>
+</div>
+<script src="vendor/crosswords.js"></script>
+<script src="puzzle.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
