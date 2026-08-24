@@ -65,7 +65,16 @@ if (/type=["']module["']/.test(html)) throw new Error('no type=module');
 if (/>\s*Invite\s*</.test(html) || /id=["']invite/i.test(html)) throw new Error('Invite is OS chrome');
 if (!files['boot.js'].includes('Invite')) throw new Error('tell the player to press Invite');
 if (!files['boot.js'].includes("db('save')")) throw new Error('save');
+if (!files['boot.js'].includes('onScore')) throw new Error('score hook');
+if (!files['boot.js'].includes('replay')) throw new Error('replay');
+if (!files['boot.js'].includes('onBack')) throw new Error('onBack');
 if (!files['vendor/duckhunt.js'].includes('DuckHuntStart')) throw new Error('vendor not patched');
+if (!files['vendor/duckhunt.js'].includes('DHSave.onScore')) throw new Error('vendor score hook');
+if (files['vendor/duckhunt.js'].includes('window.location=window.location.pathname')) {
+  throw new Error('replay must not navigate');
+}
+if (files['vendor/duckhunt.js'].includes('creator.html')) throw new Error('no creator escape');
+if (!files['index.html'].includes('btn-mute')) throw new Error('phone mute');
 if (!files['fetch-hook.js'].includes('sprites.json')) throw new Error('fetch-hook must serve sprites');
 
 if (!listing.basedOn || listing.basedOn.blessed !== false) throw new Error('unofficial');

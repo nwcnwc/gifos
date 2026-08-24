@@ -121,7 +121,33 @@ js = js.replace(PW, 'config:{preferWorkers:!1,preferCreateImageBitmap:!0,crossOr
 const BOOT_RE = /document\.addEventListener\("DOMContentLoaded",function\(\)\{new ([A-Za-z$_][\w$]*)\(\{spritesheet:"sprites\.json"\}\)\.load\(\)\},!1\)/;
 const bootHit = js.match(BOOT_RE);
 if (!bootHit) throw new Error('boot snippet moved — update vendor.mjs');
-js = js.replace(BOOT_RE, 'window.DuckHuntStart=function(){new ' + bootHit[1] + '({spritesheet:"sprites.json"}).load()}');
+js = js.replace(BOOT_RE, 'window.DuckHuntStart=function(){var g=new ' + bootHit[1] + '({spritesheet:"sprites.json"});window.__DHGame=g;g.load();return g}');
+
+function once(src, a, b, label) {
+  const n = src.split(a).length - 1;
+  if (n !== 1) throw new Error('gifos patch ' + label + ' hit ' + n);
+  return src.replace(a, b);
+}
+js = once(js,
+  'set:function(t){this.scoreVal=t,this.stage&&this.stage.hud&&(Object.prototype.hasOwnProperty.call(this.stage.hud,"score")',
+  'set:function(t){this.scoreVal=t,window.DHSave&&window.DHSave.onScore(t),this.stage&&this.stage.hud&&(Object.prototype.hasOwnProperty.call(this.stage.hud,"score")',
+  'score');
+js = once(js,
+  'this.gameStatus="You Win!",this.showReplay(this.getScoreMessage())',
+  'this.gameStatus="You Win!",window.DHSave&&window.DHSave.onEnd(!0,this.score),this.showReplay(this.getScoreMessage())',
+  'win');
+js = once(js,
+  'this.gameStatus="You Lose!",this.showReplay(this.getScoreMessage())',
+  'this.gameStatus="You Lose!",window.DHSave&&window.DHSave.onEnd(!1,this.score),this.showReplay(this.getScoreMessage())',
+  'loss');
+js = once(js, 'window.location=window.location.pathname', 'window.DHSave&&window.DHSave.replay()', 'replay');
+js = once(js, 'window.open("/creator.html","_blank")', 'window.DHSave&&window.DHSave.noop()', 'creator');
+js = once(js, 'this.stage.hud.levelCreatorLink="level creator (c)"', 'this.stage.hud.levelCreatorLink=""', 'creatorLink');
+js = once(js, '"c"===e.key&&t.openLevelCreator(),', '', 'keyC');
+js = once(js,
+  'this.updateScore(this.stage.shotsFired(e,this.level.radius))',
+  'this.updateScore(this.stage.shotsFired(e,this.level.radius+("touch"===t.pointerType||"pen"===t.pointerType?28:0)))',
+  'touch');
 
 // Howler: the ogg sprite becomes a data: URL so nothing is ever fetched.
 const oggUrl = 'data:audio/ogg;base64,' + bufs['audio.ogg'].toString('base64');

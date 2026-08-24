@@ -26,20 +26,31 @@ function fill(rgba,x,y,w,h,col){
 }
 function frameIndices(pal, f) {
   const rgba=new Float32Array(RW*RW*4);
-  const t=f/FRAMES, duckX=20+t*70, duckY=36+Math.sin(t*Math.PI*2)*8;
+  const t=f/FRAMES;
+  const shot = t>0.42 && t<0.55;
+  const falling = t>=0.5;
+  const laugh = t>0.7;
+  const duckX = falling ? 62 : 18+t*90;
+  const duckY = falling ? (36 + (t-0.5)*90) : (34+Math.sin(t*Math.PI*2)*10);
   for(let py=0;py<RW;py++) for(let px=0;px<RW;px++){
     const x=px/SS,y=py/SS; if(!inCard(x,y,4,16)) continue;
-    let col = y>88 ? mix(DARK,GRASS,(y-88)/40) : SKY;
+    let col = y>88 ? mix(DARK,GRASS,(y-88)/40) : (shot ? [250,250,250] : SKY);
     const o=(py*RW+px)*4; rgba[o]=col[0];rgba[o+1]=col[1];rgba[o+2]=col[2];rgba[o+3]=1;
   }
-  fill(rgba, 18, 48, 16, 48, TREE);
-  fill(rgba, duckX, duckY, 22, 10, DUCK);
-  fill(rgba, duckX+18, duckY+2, 8, 5, BEAK);
-  fill(rgba, duckX+6, duckY-6, 10, 8, WHITE);
-  fill(rgba, 48, 92, 28, 18, DOG);
-  fill(rgba, 70, 96, 14, 12, DOG);
-  fill(rgba, 80, 100, 4, 4, NOSE);
-  if (t>0.55) fill(rgba, duckX+8, duckY+12, 3, 10, BEAK);
+  fill(rgba, 16, 44, 18, 52, TREE);
+  fill(rgba, 10, 40, 30, 14, TREE);
+  if (duckY < 92) {
+    fill(rgba, duckX, duckY, 22, falling?8:10, DUCK);
+    fill(rgba, duckX+18, duckY+2, 8, 5, BEAK);
+    fill(rgba, duckX+6, duckY-6, 10, 8, WHITE);
+  }
+  const dogY = laugh ? 78 : 92;
+  fill(rgba, 48, dogY, 28, 18, DOG);
+  fill(rgba, 70, dogY+4, 14, 12, DOG);
+  fill(rgba, 80, dogY+8, 4, 4, NOSE);
+  fill(rgba, 54, dogY-8, 10, 10, WHITE);
+  if (laugh) fill(rgba, 76, dogY+10, 8, 6, [40,24,16]);
+  if (shot) fill(rgba, duckX+8, duckY+10, 3, 14, BEAK);
   const idx=new Uint8Array(OUT*OUT);
   for(let y=0;y<OUT;y++) for(let x=0;x<OUT;x++){
     let r=0,g=0,b=0,a=0,n=SS*SS;
@@ -63,6 +74,9 @@ const GLYPHS={
   I:[31,4,4,4,4,4,31],K:[17,18,20,24,20,18,17],L:[16,16,16,16,16,16,31],
   N:[17,25,21,19,17,17,17],O:[14,17,17,17,17,17,14],S:[15,16,16,14,1,1,30],
   T:[31,4,4,4,4,4,4],U:[17,17,17,17,17,17,14],' ':[0,0,0,0,0,0,0],
+  W:[17,17,17,21,21,27,17],V:[17,17,17,17,17,10,4],R:[30,17,17,30,20,18,17],
+  '0':[14,17,19,21,25,17,14],'1':[4,12,4,4,4,4,14],'2':[14,17,1,6,8,16,31],
+  '4':[2,6,10,18,31,2,2],
 };
 function drawText(put,x,y,str,s,r,g,b){
   let cx=x; for(const ch of str.toUpperCase()){ const gph=GLYPHS[ch]; if(!gph){cx+=6*s;continue;}
@@ -74,14 +88,19 @@ export function screenshotPng(){
   const W=1200,H=720,rgba=Buffer.alloc(W*H*4,0);
   const put=(x,y,r,g,b)=>{x=x|0;y=y|0;if(x<0||y<0||x>=W||y>=H)return; const o=(y*W+x)*4; rgba[o]=r;rgba[o+1]=g;rgba[o+2]=b;rgba[o+3]=255;};
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-    if(y>520) put(x,y,56,160,64); else put(x,y,100,176,255);
+    if(y>500) put(x,y,56,160,64); else put(x,y,100,176,255);
   }
-  for(let y=200;y<520;y++) for(let x=80;x<220;x++) put(x,y,36,100,44);
+  for(let y=160;y<500;y++) for(let x=40;x<210;x++) put(x,y,36,100,44);
+  for(let y=210;y<500;y++) for(let x=90;x+y*0.15<280;x++) put(x,y,28,80,36);
   function oval(cx,cy,rx,ry,r,g,b){ for(let y=-ry;y<=ry;y++) for(let x=-rx;x<=rx;x++) if((x*x)/(rx*rx)+(y*y)/(ry*ry)<=1) put(cx+x,cy+y,r,g,b); }
-  oval(700,260,90,36,232,176,48); oval(790,255,28,16,220,80,32); oval(680,230,40,22,250,250,250);
-  oval(420,560,70,40,196,140,72); oval(490,570,36,24,196,140,72); oval(520,575,8,6,32,24,16);
-  drawText(put, 36, 36, 'DUCK HUNT', 8, 20, 40, 80);
-  drawText(put, 36, 110, 'CLICK THE DUCKS', 4, 20, 40, 80);
+  oval(780,230,100,40,232,176,48); oval(880,222,32,18,220,80,32); oval(750,198,44,24,250,250,250);
+  oval(640,210,70,28,232,176,48); oval(700,205,22,12,220,80,32);
+  oval(520,560,80,44,196,140,72); oval(600,572,40,26,196,140,72); oval(636,578,9,7,32,24,16);
+  oval(545,530,22,20,250,250,250); oval(548,528,6,6,32,24,16);
+  for(let i=0;i<3;i++) oval(70+i*34, 640, 8, 14, 220, 80, 32);
+  for(let i=0;i<6;i++) oval(70+i*22, 680, 8, 8, i<4?32:180, i<4?32:40, i<4?32:40);
+  drawText(put, 36, 28, 'SCORE  1400', 5, 20, 40, 80);
+  drawText(put, 36, 90, 'WAVE 2', 4, 20, 40, 80);
   const raw=Buffer.alloc((W*4+1)*H);
   for(let y=0;y<H;y++){ raw[y*(W*4+1)]=0; rgba.copy(raw,y*(W*4+1)+1,y*W*4,(y+1)*W*4); }
   const ihdr=Buffer.alloc(13); ihdr.writeUInt32BE(W,0); ihdr.writeUInt32BE(H,4); ihdr[8]=8; ihdr[9]=6;
