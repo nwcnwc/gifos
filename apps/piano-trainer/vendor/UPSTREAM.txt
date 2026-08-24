@@ -8,13 +8,15 @@ persists settings in a native store. None of that ships here.
 
 This port is a classic-script rewrite of the trainer loop: scales,
 triads, seventh chords, circle of fifths, and a short quiz. Notes
-play from oscillators in this tab (the CDN soundfont stays behind).
-MIDI is optional if the browser offers it. Home-row keys play the
-same notes as tapping the on-screen keyboard.
+play from a local piano bank synthesized in this tab (the CDN
+soundfont stays behind). MIDI is optional if the browser offers it.
+Home-row keys play the same notes as tapping the on-screen keyboard.
+Progress (last key, mode, quiz score, finished rounds) stays in the
+file.
 
-What was kept: major / natural-minor / melodic-minor scale shapes,
-triads and sevenths built on scale degrees, fifths around the circle,
-the quiz of keys and fifths.
+What was kept: major / natural-minor / melodic-minor / harmonic-minor
+scale shapes, triads and sevenths built on scale degrees, fifths
+around the circle, the quiz of keys and fifths (plus chord names).
 
-What stays behind: React, Tauri, Sentry, i18n packs, and remote
+What stays behind: React, Tauri, Sentry, i18n packs, CRA, and remote
 soundfont files.
