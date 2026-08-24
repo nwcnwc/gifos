@@ -56,6 +56,25 @@
    the one place that decides what hidden means. */
 [hidden] { display: none !important; }
 
+/* KEYBOARD IS A DEVICE TOO. Every control in here is a dark shape on a dark
+   panel over imagery, and the browser's default ring is invisible against it —
+   so a Tab press moved a cursor nobody could see and the whole instrument was
+   pointer-only. One ring, drawn in the accent, on :focus-visible ONLY so a
+   mouse click never paints one. outline follows each element's own radius. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* .field:focus kills the outline below (a text box gets a border instead);
+   that must not also kill it for the keyboard. */
+.field:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* These sit flush against their neighbours (a segmented control, the day
+   stepper, the tool rail, a layer row's grip), so a ring drawn OUTSIDE them is
+   clipped by the next control. Draw it inside instead. */
+.seg button:focus-visible, .stepper .step:focus-visible,
+#tools .tool:focus-visible, .lyr-grip:focus-visible,
+.tl-scale button:focus-visible { outline-offset: -2px; }
+
 html, body {
   margin: 0;
   padding: 0;
