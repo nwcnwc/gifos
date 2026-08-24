@@ -1,0 +1,21 @@
+{
+  "gifos": "1.0",
+  "appId": "backdooms",
+  "name": "Backdooms",
+  "shortName": "Backdooms",
+  "version": "1.0",
+  "minBuild": 1314,
+  "description": "A shotgun, yellow halls, things that walk toward you. The file is the save.",
+  "entry": "index.html",
+  "accent": [196, 156, 36],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true,
+    "pointer": true,
+    "fullscreen": true
+  },
+  "data": {
+    "prefs": { "visibility": "private" },
+    "players": { "visibility": "read-write" }
+  }
+}

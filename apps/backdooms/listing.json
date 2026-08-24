@@ -1,0 +1,34 @@
+{
+  "tagline": "DOOM in the Backrooms, in a GIF. No server.",
+  "description": "This is Backdooms in a GIF. There is no QR to scan, no jam page, and no server. Open the file and you are in the yellow halls. Close it, come back — your best score lives in the file.\n\nYou wake on damp carpet under buzzing lights. The walls go on. Things the colour of dried blood walk toward you. Click or tap to shoot. A six to the chest puts one down. They do not stay gone for long.\n\nOn a computer it is WASD and the mouse. On a phone the left thumb walks and FIRE sits under the right.\n\nSend the invite and extra people appear in the same halls. They look like you. Do not shoot them — or do. There is no game server. The room is the link.\n\nAn unofficial port of Backdooms by Kuber Mehta. Inspired by DOOM (1993) and The Backrooms. This copy adds the save, the pointer lock, and the extra bodies.",
+  "author": {
+    "name": "Kuberwastaken",
+    "url": "https://github.com/Kuberwastaken/backdooms"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Backdooms",
+    "url": "https://github.com/Kuberwastaken/backdooms",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "doom",
+    "backrooms",
+    "fps",
+    "shooter",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/backdooms",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

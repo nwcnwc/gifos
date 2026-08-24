@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Backdooms</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c" width="320" height="240"></canvas>
+
+<div id="hud">
+  <span id="hp-label">HP</span>
+  <span id="ammo-label"></span>
+  <span id="score-label"></span>
+  <span id="best-label"></span>
+</div>
+<div id="tally" hidden></div>
+
+<div id="gate">
+  <div class="gate-box">
+    <h1>Backdooms</h1>
+    <p class="sub">DOOM in the Backrooms, in a GIF. No server.
+       Send the invite and extra people appear in the same halls.</p>
+    <div id="gate-actions">
+      <button id="gate-go" type="button">Play</button>
+    </div>
+    <div id="gate-keys">
+      <b>WASD</b> walk · <b>mouse</b> look · <b>click</b> fire
+    </div>
+    <div id="gate-keys-phone">
+      Left thumb walks · right side looks · <b>FIRE</b> shoots
+    </div>
+    <p class="opts">
+      <span id="speed-label">Look speed</span>
+      <input id="m" type="range" value="10" min="1" max="40">
+    </p>
+    <p class="best" id="gate-best"></p>
+    <div id="gate-room"></div>
+  </div>
+</div>
+
+<div id="over" hidden>
+  <div class="gate-box">
+    <h1>You fell</h1>
+    <p id="over-score"></p>
+    <button id="over-go" type="button">Again</button>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
+  <div id="t-look"></div>
+  <button class="t-btn" id="t-fire" type="button">FIRE</button>
+</div>
+
+<script src="game.js"></script>
+<script src="net.js"></script>
+<script src="touch.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

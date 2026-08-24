@@ -1,0 +1,96 @@
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #000; color: #eee;
+  font-family: system-ui, sans-serif;
+  touch-action: none;
+}
+#c {
+  display: block; width: 100%; height: 100%;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  object-fit: contain; background: #000; cursor: crosshair;
+}
+#hud {
+  position: absolute; top: 8px; left: 10px; right: 10px;
+  display: none; pointer-events: none;
+  font: 700 12px/1.2 ui-monospace, Menlo, monospace;
+  color: #fff; text-shadow: 0 1px 3px #000;
+  justify-content: space-between;
+}
+body.play #hud { display: flex; }
+#tally {
+  position: absolute; top: 8px; right: 12px;
+  font: 700 12px/1 system-ui, sans-serif;
+  color: #ffd36a; text-shadow: 0 1px 3px #000;
+}
+
+#gate, #over {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 6, 2, .86);
+  z-index: 20;
+}
+#over[hidden], #gate[hidden] { display: none; }
+.gate-box {
+  width: min(420px, 92vw);
+  padding: 28px 22px 22px;
+  background: #1a160c;
+  border: 1px solid #6a5420;
+  color: #f0e6c8;
+  text-align: center;
+}
+.gate-box h1 {
+  font-size: 1.8rem; letter-spacing: .08em;
+  color: #e8c024; margin-bottom: 8px;
+}
+.gate-box .sub { font-size: .92rem; color: #cbb98a; margin-bottom: 16px; }
+#gate-actions { margin: 12px 0; }
+#gate-go, #over-go {
+  appearance: none; border: 0; cursor: pointer;
+  background: #c49c24; color: #1a1408;
+  font: 700 1rem/1 system-ui, sans-serif;
+  padding: 12px 28px;
+}
+#gate-go:disabled { opacity: .5; cursor: wait; }
+#gate-keys, #gate-keys-phone {
+  font-size: .8rem; color: #a89870; margin-top: 12px;
+}
+#gate-keys-phone { display: none; }
+body.phone #gate-keys { display: none; }
+body.phone #gate-keys-phone { display: block; }
+.opts { margin-top: 14px; font-size: .8rem; color: #a89870; }
+.opts input { vertical-align: middle; }
+.best { margin-top: 10px; color: #e8c024; font-size: .85rem; }
+#gate-room { margin-top: 10px; font-size: .8rem; color: #8a7a52; }
+
+#touch { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+#t-move {
+  position: absolute; left: max(12px, env(safe-area-inset-left));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  width: 120px; height: 120px; pointer-events: auto;
+}
+.t-stick {
+  border-radius: 50%;
+  background: rgba(255,255,255,.08);
+  border: 2px solid rgba(255,255,255,.25);
+}
+.t-knob {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255,255,255,.55);
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+}
+#t-look {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 40%;
+  pointer-events: auto;
+}
+#t-fire {
+  position: absolute; right: max(16px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: 76px; height: 76px; border-radius: 50%;
+  border: 0; pointer-events: auto;
+  background: linear-gradient(45deg, #800, #f00);
+  color: #fff; font: 700 13px/1 system-ui, sans-serif;
+  box-shadow: 0 0 18px rgba(255,140,0,.35);
+}
+#t-fire:active { transform: scale(.95); }

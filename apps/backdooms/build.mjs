@@ -1,0 +1,123 @@
+// Pack apps/backdooms/ into site/apps/backdooms/backdooms.gif
+import { backdoomsIcon, screenshotPng } from './icon.mjs';
+import { deflateRawSync } from 'node:zlib';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+{
+  const Orig = globalThis.CompressionStream;
+  globalThis.CompressionStream = class CompressionStream {
+    constructor(format) {
+      if (format !== 'deflate-raw') {
+        if (Orig) return new Orig(format);
+        throw new TypeError('unsupported format ' + format);
+      }
+      const chunks = [];
+      const ts = new TransformStream({
+        transform(chunk) { chunks.push(Buffer.from(chunk)); },
+        flush(controller) {
+          controller.enqueue(new Uint8Array(deflateRawSync(Buffer.concat(chunks))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  };
+}
+await import('../../site/js/gifos-gif.js');
+
+const dir = dirname(fileURLToPath(import.meta.url));
+const gif = globalThis.GifOS.gif;
+const read = (p) => readFileSync(join(dir, p), 'utf8');
+
+const manifest = JSON.parse(read('manifest.json'));
+const listing = JSON.parse(read('listing.json'));
+const SCRIPTS = ['game.js', 'net.js', 'touch.js', 'boot.js'];
+
+if (!existsSync(join(dir, 'vendor', 'COPYING-backdooms.txt'))) {
+  throw new Error('vendor/COPYING-backdooms.txt is missing');
+}
+
+const files = {
+  'manifest.json': JSON.stringify(manifest),
+  'index.html': read('index.html'),
+  'style.css': read('style.css'),
+  'COPYING-backdooms.txt': read('vendor/COPYING-backdooms.txt'),
+  'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
+};
+for (const s of SCRIPTS) files[s] = read(s);
+{
+  const help = read('help.md').trim();
+  if (help.length < 400) throw new Error('help.md is missing or shorter than 400 chars');
+  files['help.md'] = help;
+}
+
+const html = files['index.html'];
+for (const s of SCRIPTS) {
+  if (!html.includes('src="' + s + '"')) throw new Error('index.html does not load ' + s);
+}
+if (!html.includes('href="style.css"')) throw new Error('index.html does not load style.css');
+if (/type=["']module["']/.test(html)) throw new Error('classic scripts only — no type=module');
+if (/<button\b[^>]*>\s*Invite\s*</i.test(html) || /id=["']invite/i.test(html)) {
+  throw new Error('do not draw an Invite button — that is OS chrome');
+}
+
+if (!listing.basedOn || listing.basedOn.blessed !== false) {
+  throw new Error('basedOn.blessed must be false');
+}
+if (listing.basedOn.name !== 'Backdooms') throw new Error('basedOn.name must be Backdooms');
+if (listing.basedOn.url !== 'https://github.com/Kuberwastaken/backdooms') {
+  throw new Error('basedOn.url must be Kuberwastaken/backdooms');
+}
+if (!listing.author || listing.author.name !== 'Kuberwastaken' || /gifos/i.test(listing.author.name)) {
+  throw new Error('author is Kuberwastaken, never GifOS');
+}
+if (!listing.porter || listing.porter.name !== 'GifOS') throw new Error('porter must be GifOS');
+if (listing.license !== 'MIT') throw new Error('license must be MIT');
+if (!listing.categories || listing.categories[0] !== 'Games') throw new Error('categories must include Games');
+if (listing.releaseDate !== '2026-08-24') throw new Error('releaseDate must be 2026-08-24');
+if (!/in a GIF/i.test(listing.tagline) || !/no server/i.test(listing.tagline)) {
+  throw new Error('listing.tagline must lead with in a GIF / no server');
+}
+const listingBlob = JSON.stringify(listing);
+for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage', 'WebRTC']) {
+  if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad);
+}
+
+if (!manifest.capabilities || manifest.capabilities.db !== true) throw new Error('db required');
+if (!manifest.capabilities.multiplayer) throw new Error('multiplayer required');
+if (!manifest.capabilities.pointer) throw new Error('pointer required');
+if (!manifest.capabilities.fullscreen) throw new Error('fullscreen required');
+if (manifest.capabilities.network) throw new Error('no network path');
+if (manifest.minBuild !== 1314) throw new Error('minBuild must be 1314 — pointer lock is 1285 and fullscreen is 1314');
+if (manifest.appId !== 'backdooms') throw new Error('appId must be backdooms');
+if (!files['COPYING-backdooms.txt'].includes('Kuber Mehta')) {
+  throw new Error('COPYING-backdooms.txt is not the upstream MIT notice');
+}
+if (!files['boot.js'].includes('Invite') || !files['net.js'].includes('Invite')) {
+  throw new Error('tell the player to press Invite');
+}
+if (!files['boot.js'].includes("db('prefs')")) throw new Error('boot.js must save prefs');
+
+for (const [n, s] of Object.entries(files)) {
+  if (!n.endsWith('.js')) continue;
+  if (/<\/script/i.test(s)) throw new Error(n + ' contains </script');
+  if (/^\s*import\s|^\s*export\s/m.test(s)) throw new Error(n + ' uses ESM');
+  for (const bad of ['XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(']) {
+    if (s.includes(bad)) throw new Error(n + ' uses ' + bad);
+  }
+  if (/\bfetch\s*\(/.test(s)) throw new Error(n + ' uses fetch(');
+}
+
+const shot = screenshotPng();
+if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
+writeFileSync(join(dir, 'screenshot.png'), shot);
+
+const bytes = await gif.encode(files, { preview: backdoomsIcon(), accent: manifest.accent });
+const out = join(dir, '..', '..', 'site', 'apps', 'backdooms', 'backdooms.gif');
+mkdirSync(dirname(out), { recursive: true });
+writeFileSync(out, bytes);
+console.log('wrote site/apps/backdooms/backdooms.gif —', (bytes.length / 1024).toFixed(0), 'KB, from',
+            Object.keys(files).length, 'files');
+console.log('catalog is owned elsewhere — do not run build-app-catalog.mjs from this tree');
