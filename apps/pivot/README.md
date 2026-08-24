@@ -7,9 +7,9 @@ by Nicolas Kruchten (MIT). Same `pivotUI()`, English only. Chart add-ons that
 need C3 / D3 / Google Charts are not shipped.
 
 ```
-index.html              shell: paste/drop CSV, the pivot surface
+index.html              shell: paste/choose CSV, tap-to-assign, the pivot surface
 style.css               dark compact chrome around upstream's table CSS
-app.js                  Papa Parse, pivotUI, private last table
+app.js                  Papa Parse, pivotUI, tap-to-assign, private last table
 icon.mjs                procedural grid icon and the 1200×720 cover
 build.mjs               packs the GIF into site/apps/pivot/pivot.gif
 vendor/jquery.min.js    jQuery 3.6.0, MIT, pinned

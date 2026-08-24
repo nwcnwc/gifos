@@ -140,6 +140,21 @@ if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'l
 if (!files['app.js'].includes('pivotUI') || !files['app.js'].includes('Papa.parse')) {
   throw new Error('app.js must call pivotUI and Papa.parse');
 }
+if (!files['app.js'].includes('parseTable') || !files['app.js'].includes('pivotValue')) {
+  throw new Error('app.js must export parseTable and pivotValue');
+}
+if (!files['app.js'].includes('looksSpreadsheet') || !files['app.js'].includes('xlsx')) {
+  throw new Error('app.js must refuse Excel workbooks honestly');
+}
+if (!files['app.js'].includes('gifos.onBack') || !files['app.js'].includes('applyAssign')) {
+  throw new Error('app.js must handle Back and tap-to-assign');
+}
+if (!html.includes('id="assign"') || !html.includes('id="copyTable"')) {
+  throw new Error('index.html must have the assign panel and copy-table');
+}
+if (/if you want/i.test(listingBlob) || /\bDrop\b/.test(listing.description)) {
+  throw new Error('listing copy must not say "if you want" or "Drop"');
+}
 if (!files['vendor/sample.js'].includes('PIVOT_SAMPLE_CSV')) {
   throw new Error('sample.js must export PIVOT_SAMPLE_CSV');
 }

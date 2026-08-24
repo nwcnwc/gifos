@@ -3,9 +3,9 @@
   "appId": "pivot",
   "name": "Pivot",
   "shortName": "Pivot",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "description": "Drag fields onto a grid. The table is the save. Nothing is uploaded.",
+  "description": "A pivot table that lives in the file. Nothing is uploaded.",
   "entry": "index.html",
   "accent": [26, 115, 232],
   "capabilities": {

@@ -11,23 +11,40 @@
 <div class="wrap">
   <header>
     <h1>Pivot</h1>
-    <p class="lead">Drag field names onto rows and columns. The table stays in this file. Nothing is uploaded.</p>
+    <p class="lead">Put fields on rows and columns. The table stays in this file. Nothing is uploaded.</p>
   </header>
 
   <section class="toolbar" aria-label="Load a table">
     <label class="file">
       Choose a CSV
-      <input id="file" type="file" accept=".csv,text/csv,text/plain">
+      <input id="file" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain">
     </label>
     <button type="button" id="sample">Reset sample</button>
     <button type="button" id="blank">New blank</button>
+    <button type="button" id="copyTable">Copy table</button>
     <span id="status" class="status">Canadian MPs sample</span>
   </section>
 
-  <label class="paste">Paste or type comma-separated text
+  <details class="paste-wrap" id="pasteWrap">
+    <summary>Paste or type comma-separated text</summary>
     <textarea id="csv" rows="4" spellcheck="false" placeholder="item,region,qty&#10;Widget,East,12"></textarea>
-  </label>
+  </details>
 
+  <section id="assign" class="assign" aria-label="Field layout">
+    <p class="assign-lead">On a phone, pick a role for each field. On a computer, you can also drag the chips on the grid.</p>
+    <div id="assignFields"></div>
+    <div class="assign-opts">
+      <label>Summarise
+        <select id="aggSel"></select>
+      </label>
+      <label>View
+        <select id="renSel"></select>
+      </label>
+    </div>
+  </section>
+
+  <p id="error" class="err" hidden></p>
+  <p id="copyMsg" class="hint" hidden></p>
   <div id="output" class="output"></div>
 </div>
 
