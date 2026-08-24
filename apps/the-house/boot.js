@@ -35,4 +35,10 @@
       window.localStorage = fake;
     }
   }
+
+  /* audio.js reads Modernizr.audio.mp3. The custom build includes audio, but
+     a missing Modernizr.audio would throw before any room painted. */
+  var M = window.Modernizr;
+  if (!M || typeof M !== 'object') window.Modernizr = { audio: { mp3: true, ogg: true } };
+  else if (!M.audio) M.audio = { mp3: true, ogg: true };
 })();

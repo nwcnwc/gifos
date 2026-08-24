@@ -6399,8 +6399,8 @@
       "appId": "the-house",
       "name": "The House",
       "shortName": "House",
-      "version": "1.0.0",
-      "tagline": "You're in a strange house. Click to look. Find the way out.",
+      "version": "1.0.1",
+      "tagline": "The file is the save. Tap to look. Find the way out.",
       "author": {
         "name": "Artur Kot",
         "url": "https://github.com/arturkot"
@@ -6432,7 +6432,7 @@
         48
       ],
       "cover": "/apps/the-house/cover.jpg",
-      "bytes": 22919251,
+      "bytes": 23241063,
       "download": 0,
       "provides": null,
       "signature": {
@@ -6440,7 +6440,7 @@
         "id": "gifos.app",
         "ts": "2026-08-24"
       },
-      "sha256": "876c3b78157088747078323e25761eabe2dd4859bf81fad190bafa2b50af915b"
+      "sha256": "5863b0dcd4f23cc20a791fcfee4476e6d8d85b0ac080fe738de3fe62de66ce83"
     },
     {
       "slug": "thinktank",
