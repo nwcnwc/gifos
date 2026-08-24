@@ -396,6 +396,92 @@
   };
 
   // Paint — porcelain palette, candy wells, a brush that dips.
+  // Ping Pong — a glossy side-view table with a net, two paddles, and a ball
+  // playing a LEGAL rally across the loop: right strikes → over the net →
+  // bounces left → left strikes → over the net → bounces right → loops. The
+  // icon demonstrates the game; nothing merely wiggles.
+  ART.pingpong = (a, f) => {
+    const base = toHex(candy(a));                       // right paddle rubber (the accent)
+    const tg = grad(), td = grad(), rp = grad(), lp = grad(), wd = grad(), sh = grad();
+    const defs = lg(tg, [[0, '#3ed47e'], [0.5, '#1eaa54'], [1, '#0c5c30']])   // table top
+      + lg(td, [[0, '#0a4a26'], [1, '#052914']])                              // depth face
+      + bodyGrad(rp, base)                                                    // right rubber
+      + bodyGrad(lp, '#3f6ae8')                                               // left rubber
+      + lg(wd, [[0, '#f4d489'], [0.5, '#e0ac4e'], [1, '#a8762a']])            // wood handles
+      + sheenGrad(sh);
+    // The rally, one station per frame. Bounce frames kiss the tabletop
+    // (surface y=82) and ring it; hit frames flash and swing the striker.
+    const BALL = [
+      { x: 97, y: 58, hitR: 1 },          // f0 right paddle strikes
+      { x: 70, y: 34 },                   // f1 clearing the net, going left
+      { x: 42, y: 76, bounce: 1 },        // f2 bounces on the left half
+      { x: 31, y: 56, hitL: 1 },          // f3 left paddle strikes
+      { x: 58, y: 34 },                   // f4 clearing the net, going right
+      { x: 86, y: 76, bounce: 1 },        // f5 bounces on the right half
+    ];
+    const b = BALL[f], prev = BALL[(f + FR - 1) % FR];
+    // A paddle held at the table end: blade + wood handle drawn around the
+    // grip, the whole arm rotated for the stroke. lunge leans the striker
+    // into the ball's frame so the hit reads as a swing, not a twitch.
+    const paddle = (x, y, fill, ang, lunge, flip) =>
+      "<g transform='translate(" + (x + (flip ? -lunge : lunge)) + ',' + y + ") rotate(" + ang + ")'>"
+      + "<path d='" + rr(-2.8, 8, 5.6, 14, 2.8) + "' fill='url(#" + wd + ")' transform='rotate(" + (flip ? 30 : -30) + ")'/>"
+      + "<ellipse cx='1.4' cy='1.6' rx='9.5' ry='11' fill='" + INK + "' opacity='.3'/>"
+      + "<ellipse cx='0' cy='0' rx='9.5' ry='11' fill='url(#" + fill + ")'/>"
+      + "<ellipse cx='0' cy='0' rx='9.5' ry='11' fill='url(#" + sh + ")' opacity='.6'/>"
+      + "<ellipse cx='-2.8' cy='-3.8' rx='3.4' ry='2.5' fill='#fff' opacity='.55' filter='url(#fsoft)'/>"
+      + '</g>';
+    // Stroke timing: wind back on the bounce before your hit, strike on it.
+    const rAng = b.hitR ? -34 : (f === 5 ? 14 : -8);
+    const rLunge = b.hitR ? -5 : 0;
+    const lAng = b.hitL ? 34 : (f === 2 ? -14 : 8);
+    const lLunge = b.hitL ? 5 : 0;
+    // Motion trail: two ghosts back along the path, so the ball's direction
+    // is legible even in a paused frame.
+    const trail = "<circle cx='" + ((b.x + prev.x) / 2) + "' cy='" + ((b.y + prev.y) / 2 - 4)
+      + "' r='4' fill='#fff' opacity='.26'/>"
+      + "<circle cx='" + prev.x + "' cy='" + prev.y + "' r='3' fill='#fff' opacity='.12'/>";
+    const art =
+      // table slab: depth face, glossy green top, bright edge line, sheen
+      "<path d='" + rr(14, 86, 100, 9, 3) + "' fill='url(#" + td + ")'/>"
+      + "<path d='" + rr(14, 81, 100, 8, 3) + "' fill='url(#" + tg + ")'/>"
+      + "<rect x='14' y='81' width='100' height='2.4' rx='1.2' fill='#f3f6f1' opacity='.92'/>"
+      + "<path d='" + rr(14, 81, 100, 4, 3) + "' fill='url(#" + sh + ")' opacity='.5'/>"
+      // centre-line tick on each half, like the real table's white edge lines
+      + "<rect x='36' y='84.6' width='18' height='1.4' rx='.7' fill='#eaf2ea' opacity='.35'/>"
+      + "<rect x='74' y='84.6' width='18' height='1.4' rx='.7' fill='#eaf2ea' opacity='.35'/>"
+      // splayed legs under the slab
+      + "<path d='M30 95 l-6 13 h5 l6 -13 z' fill='#0a3a1e'/>"
+      + "<path d='M98 95 l6 13 h-5 l-6 -13 z' fill='#0a3a1e'/>"
+      // net, seen edge-on: a bright post with a whisper of mesh and a white
+      // tape cap. Side-on it is a RIBBON — a wide panel here rendered as a
+      // dark tower squatting mid-table.
+      + "<rect x='62.2' y='60' width='3.6' height='22' rx='1.8' fill='#eef0f8'/>"
+      + "<rect x='59.6' y='62' width='8.8' height='20' rx='2' fill='#dfe6f2' opacity='.14'/>"
+      + "<path d='M60.8 64 v17 M67.2 64 v17' stroke='#e6ecf8' stroke-width='.9' opacity='.35'/>"
+      + "<rect x='57.5' y='58.6' width='13' height='3.8' rx='1.9' fill='#ffffff'/>"
+      + "<rect x='57.5' y='58.6' width='13' height='1.6' rx='.8' fill='#fff' opacity='.6'/>"
+      // the rally
+      + trail
+      + paddle(19, 62, lp, lAng, lLunge, true)
+      + paddle(109, 62, rp, rAng, rLunge, false)
+      // bounce ring: the "ping" on the tabletop under the ball
+      + (b.bounce ? "<ellipse cx='" + b.x + "' cy='82' rx='8' ry='2.4' fill='none' stroke='#fff' stroke-width='1.8' opacity='.8'/>"
+        + "<ellipse cx='" + b.x + "' cy='82' rx='12.5' ry='3.4' fill='none' stroke='#fff' stroke-width='1' opacity='.32'/>" : '')
+      // hit flash: the strike glows in the striker's rubber colour
+      + (b.hitR ? "<circle cx='" + b.x + "' cy='" + b.y + "' r='10' fill='" + base + "' opacity='.5' filter='url(#fglow)'/>" : '')
+      + (b.hitL ? "<circle cx='" + b.x + "' cy='" + b.y + "' r='10' fill='#6f92ff' opacity='.5' filter='url(#fglow)'/>" : '')
+      // the ball: big celluloid white, squashed slightly on the bounce frames
+      + "<g transform='translate(" + b.x + ',' + b.y + ")" + (b.bounce ? " scale(1.18,0.82)" : '') + "'>"
+      + "<circle r='6' fill='#ffffff'/>"
+      + "<circle r='6' fill='" + INK + "' opacity='.14' transform='translate(1.1,1.2)'/>"
+      + "<circle cx='-1.9' cy='-2' r='2' fill='#fff'/>"
+      + "<circle cx='-1.8' cy='-1.9' r='2.8' fill='#fff' opacity='.75' filter='url(#fsoft)'/>"
+      + '</g>'
+      + sparkle(112, 36, 0.9, f);
+    return { defs, art, shadowRx: 48 };
+  };
+
   ART.paint = (a, f) => {
     const base = toHex(candy(a));
     const g1 = grad(), g2 = grad(), g3 = grad(), sh = grad();
