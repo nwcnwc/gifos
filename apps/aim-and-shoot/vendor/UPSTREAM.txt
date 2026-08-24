@@ -1,0 +1,15 @@
+victorqribeiro/aimAndShoot
+https://github.com/victorqribeiro/aimAndShoot
+commit: 988d141892711b805f608a178bc940f6e9bb4323
+MIT, Copyright (c) 2019 Victor Ribeiro
+
+Classic scripts under js/ plus artwork.png and sounds/shoot.mp3.
+
+vendor/main.js is patched:
+  - artwork and shot URLs come from window.AAS (data: URLs from assets.js)
+  - resize updates the mouse scale instead of restarting the round
+  - window.AASShowPad() builds the phone sticks (boot calls it on a finger)
+  - AAS.onGeneration / AAS.onGameover so the shell can save a best
+
+The neuroevolution loop, bots, and sticks are unchanged.
+aux.js (service worker) is not shipped.
