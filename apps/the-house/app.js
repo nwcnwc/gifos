@@ -630,7 +630,7 @@
       got += idx[k] || 1;
       inflight--;
       bootBar(got / total);
-      bootNote('Carrying things in — ' + mb(got) + ' of ' + mb(total) + ' MB.');
+      bootNote('Carrying things in (step 2 of 2) — ' + mb(got) + ' of ' + mb(total) + ' MB.');
       pump();
     }
     function fetchOne(k, retried) {
@@ -658,7 +658,7 @@
         done();
       }
     }
-    bootNote('Carrying things in — 0.0 of ' + mb(total) + ' MB.');
+    bootNote('Carrying things in (step 2 of 2) — 0.0 of ' + mb(total) + ' MB.');
     pump();
   }
 
