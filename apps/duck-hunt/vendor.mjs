@@ -148,6 +148,15 @@ js = once(js,
   'this.updateScore(this.stage.shotsFired(e,this.level.radius))',
   'this.updateScore(this.stage.shotsFired(e,this.level.radius+("touch"===t.pointerType||"pen"===t.pointerType?28:0)))',
   'touch');
+js = once(js, 'this.stage.hud.pauseLink="pause (p)"', 'this.stage.hud.pauseLink=""', 'pauseHud');
+js = once(js, 'this.stage.hud.muteLink="mute (m)"', 'this.stage.hud.muteLink=""', 'muteHud');
+js = once(js, 'this.stage.hud.fullscreenLink="fullscreen (f)"', 'this.stage.hud.fullscreenLink=""', 'fsHud');
+js = once(js, 'this.stage.hud.pauseLink=this.paused?"pause (p)":"unpause (p)"', 'this.stage.hud.pauseLink=""', 'pauseToggle');
+js = once(js, 'this.stage.hud.muteLink=this.muted?"mute (m)":"unmute (m)"', 'this.stage.hud.muteLink=""', 'muteToggle');
+js = once(js,
+  't.stage.hud.fullscreenLink="unfullscreen (f)":t.stage.hud.fullscreenLink="fullscreen (f)"',
+  't.stage.hud.fullscreenLink=""',
+  'fsToggle');
 
 // Howler: the ogg sprite becomes a data: URL so nothing is ever fetched.
 const oggUrl = 'data:audio/ogg;base64,' + bufs['audio.ogg'].toString('base64');

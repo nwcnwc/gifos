@@ -28,5 +28,6 @@
   "license": "MIT",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/duck-hunt",
   "cover": "screenshot.png",
+  "coverCrop": { "top": 88 },
   "screenshots": []
 }

@@ -114,8 +114,8 @@ for (const [n, s] of Object.entries(files)) {
   console.log('spider deal: 54 on table, 50 in stock');
 }
 
-const shot = screenshotPng();
-writeFileSync(join(dir, 'screenshot.png'), shot);
+const shotPath = join(dir, 'screenshot.png');
+if (!existsSync(shotPath) || process.env.REWRITE_SHOT) writeFileSync(shotPath, screenshotPng());
 const bytes = await gif.encode(files, { preview: spiderIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'spider', 'spider.gif');
 mkdirSync(dirname(out), { recursive: true });

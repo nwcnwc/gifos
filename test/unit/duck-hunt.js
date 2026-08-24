@@ -128,6 +128,7 @@ async function runAsync() {
   check('touch shots get extra radius', vendor.includes('pointerType') && vendor.includes('28'));
   check('DuckHuntStart stores the game', vendor.includes('window.__DHGame'));
   check('phone mute/pause buttons', html.includes('btn-mute') && html.includes('btn-pause'));
+  check('canvas no longer paints pause (p)', !vendor.includes('pause (p)'));
   check('canvas touch-action none (phone aim)', /touch-action:\s*none/.test(css));
   check('Invite is mentioned, not an in-app button', boot.includes('Invite') && !/>\s*Invite\s*</.test(html));
   check('help covers tap and the pond', /tap/i.test(help) && /Invite/.test(help) && /best/i.test(help));

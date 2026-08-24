@@ -57,9 +57,8 @@ header{display:flex;justify-content:space-between;align-items:center;padding:8px
 .card.hint{outline:2px solid var(--gold)}
 .card.red{color:var(--red)}
 .pip{position:absolute;line-height:1;pointer-events:none}
-.pip.tl{top:3px;left:4px;font-size:calc(var(--card-w) * .30)}
-.pip.br{bottom:3px;right:4px;font-size:calc(var(--card-w) * .30);transform:rotate(180deg)}
-.pip.center{left:50%;top:58%;transform:translate(-50%,-50%);font-size:calc(var(--card-w) * .42);opacity:.9}
+.pip.tl{top:3px;left:4px;font-size:calc(var(--card-w) * .32);font-weight:800}
+.pip.center{left:50%;top:62%;transform:translate(-50%,-50%);font-size:calc(var(--card-w) * .46);opacity:.95}
 .bar{display:flex;gap:8px;padding:6px 10px 14px;max-width:960px;margin:0 auto}
 .bar button{flex:1;padding:12px 8px;border:1px solid #2a5840;border-radius:10px;background:#123424;color:var(--text);
   font:inherit;font-weight:700;cursor:pointer;touch-action:manipulation}
@@ -78,7 +77,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:8px
 .ghost .card{position:relative;left:auto;right:auto;margin-top:calc(var(--fan-up) * -1);box-shadow:0 6px 16px rgba(0,0,0,.4)}
 .ghost .card:first-child{margin-top:0}
 @media (max-width:420px){
-  :root{ --card-w:min(36px, 9.2vw); --fan-up:16px; --fan-dn:8px }
+  :root{ --card-w:min(36px, 9.2vw); --fan-up:20px; --fan-dn:8px }
   header{padding:6px 8px 0}
   .diff button{padding:5px 8px;font-size:12px}
   .bar button{padding:14px 6px}
