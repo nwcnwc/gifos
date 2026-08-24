@@ -67,9 +67,22 @@ if (!tours.length) throw new Error('tours.json has no tours');
 // of buttons that quietly do nothing.
 const known = new Set(catalog.layers.map((l) => l.id));
 ['wv:base', 'wv:coast', 'wv:borders', 'wv:places', 'wv:grid'].forEach((id) => known.add(id));
+/*
+ * A tour REPLACES the layer stack, so a tour that reaches for the GIBS
+ * reference rasters (Coastlines_15m, Reference_Labels_15m) silently throws
+ * away the offline vectors the app boots with. Take one, get on a plane, and
+ * the coastlines you had are gone — the one thing this port is FOR. The
+ * built-in equivalents are packed in the GIF; a tour uses those.
+ */
+const NETWORK_FURNITURE = { Coastlines_15m: 'wv:coast', Reference_Labels_15m: 'wv:places' };
 for (const t of tours) {
   for (const id of t.layers) {
     if (!known.has(id)) throw new Error('tour ' + t.id + ' wants unknown layer ' + id);
+    if (NETWORK_FURNITURE[id]) {
+      throw new Error('tour ' + t.id + ' uses the network layer ' + id +
+        ' for map furniture — use the built-in ' + NETWORK_FURNITURE[id] +
+        ', or taking the tour costs the user their offline basemap');
+    }
   }
   if (t.date !== 'latest' && !/^\d{4}-\d{2}-\d{2}$/.test(t.date)) {
     throw new Error('tour ' + t.id + ' has a bad date: ' + t.date);
