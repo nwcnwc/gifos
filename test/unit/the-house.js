@@ -197,6 +197,9 @@ check('app.js loads in a vm and exposes HousePort', !!(HP && HP.remapSrc && HP.f
   check('first-run is a house assembling, not a black frame', html.indexOf('id="house-boot"') !== -1);
   check('the huge picture/sound maps are deferred so the card can paint',
     /src="images\.js" defer/.test(html) && /src="sounds\.js" defer/.test(html));
+  const build = read('build.mjs');
+  check('the packer splits the 24 MB maps into chunks (one script is a hang)',
+    build.indexOf('emitChunks') !== -1 && build.indexOf('assignLiteral') !== -1);
 }
 
 if (failures) {
