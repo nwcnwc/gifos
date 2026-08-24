@@ -348,14 +348,37 @@
     return null;
   }
 
+  // Async on purpose: decoding a big app used to be one synchronous block
+  // (JSON.parse plus every file's base64), and on a slow phone that froze
+  // the page's own "Opening…" feedback for the whole unpack — a launch that
+  // reads as a dead tap. The per-file loop now yields between ~4 MB slices
+  // so paints and timers keep flowing; JSON.parse remains the one
+  // unavoidable block. Returns Promise<archive|null>.
   function parseArchive(jsonBytes) {
-    try {
-      const archive = JSON.parse(bytesToText(jsonBytes));
-      const out = { files: {} };
-      for (const path in archive.files) out.files[path] = b64decode(archive.files[path]);
-      return out;
-    } catch (e) { return null; }
+    let archive;
+    try { archive = JSON.parse(bytesToText(jsonBytes)); } catch (e) { return Promise.resolve(null); }
+    const paths = Object.keys((archive && archive.files) || {});
+    const out = { files: {} };
+    let i = 0;
+    const SLICE = 4 * 1024 * 1024;
+    return new Promise((resolve) => {
+      const step = () => {
+        try {
+          let budget = SLICE;
+          while (i < paths.length && budget > 0) {
+            const p = paths[i++];
+            const s = archive.files[p];
+            budget -= s.length;
+            out.files[p] = b64decode(s);
+          }
+        } catch (e) { resolve(null); return; }
+        if (i < paths.length) setTimeout(step, 0);
+        else resolve(out);
+      };
+      step();
+    });
   }
+
 
   function decode(bytes) {
     const payload = extractPayload(bytes);
@@ -363,7 +386,7 @@
     if (payload[0] === COMPRESSED_FLAG) {
       return inflate(payload.subarray(1)).then(parseArchive).catch(() => null);
     }
-    return Promise.resolve(parseArchive(payload)); // legacy uncompressed JSON
+    return parseArchive(payload); // legacy uncompressed JSON
   }
 
   // ---- display-only: the animation, without the filesystem ------------------
