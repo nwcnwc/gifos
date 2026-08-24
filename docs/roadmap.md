@@ -2711,3 +2711,108 @@ nearly free.
   `Authorization` must pass through to the upstream), so a deploy-time secret
   in a custom header (`x-gifos-proxy-key`, stored next to the proxy URL in
   Settings) is the honest, adequate answer for single-tenant Workers.
+
+## 18. Stats in a GIF: public datasets you hold offline
+
+**What.** A store app family for **publicly available datasets** — country
+indicators, climate normals, election results, sports records, the periodic
+table's numeric cousins — packed INTO the GIF, with a browse/query/chart
+surface that works entirely offline. The GIF **is** the database: download
+World Stats.gif once and every table, index and chart works on a plane,
+forever, exactly as published. Hand the file to someone and you have handed
+them the dataset, provenance included.
+
+**Why it fits.** This is the file-is-the-save doctrine pointed at data:
+nothing else distributes a queryable dataset as one file that runs itself,
+needs no account, no API, no connection, and can be re-shared peer to peer.
+Every platform power lands for free: offline is structural (the sandbox has
+no network unless declared — a stats app declares NONE, which is the whole
+pitch); a **launch link** deep-links a shared URL to a specific table or
+chart (`#` hash, never the query — the channel loader drops the query);
+**invite** turns it into looking at the same chart together, shared viewport
+and cursor over `gifos.db`; and a frozen snapshot per release is citable in
+a way a live dashboard never is — "World Stats 2026.1" says exactly what the
+numbers were.
+
+**Sketch.**
+- **Vendor pipeline, dataset edition.** Each dataset gets the `vendor.mjs`
+  treatment: fetch the pinned upstream release from its canonical source at
+  re-vendor time (never at build, never at run), normalize into a compact
+  columnar form, record source URL + version + license the way ports record
+  UPSTREAM.txt/COPYING. Public-domain and CC-BY class sources only.
+- **One shared shell, many data GIFs.** A single query/chart engine
+  (apps/<slug>/ classic scripts — table view, filter, group, a handful of
+  chart types) reused across dataset builds, so "add a dataset" is a data
+  drop plus a listing, not a new app. Whether datasets ship as separate GIFs
+  or as data packs one Stats app imports is the first open question below.
+- **Size discipline.** The GIF's own filesystem already deflates; columnar
+  layout + dictionary encoding should put most curated tables in single-digit
+  MB. The cover rule applies unchanged: the store card never pulls the data
+  to paint a screenshot.
+- **Charts offline.** The chart layer is hand-rolled canvas (the repo already
+  draws everything from calc to anyroad) — no chart CDN, nothing remote.
+
+**Open questions.**
+- One Stats app importing data packs vs one GIF per dataset (the theming
+  precedent says bake-per-GIF; the store favors many small listings).
+- Snapshot cadence when upstream revises: new release per revision (frozen
+  snapshots are the feature) — but does the old GIF say a newer one exists
+  (run.html's catalog-version nudge already does this shape)?
+- First shelf: which 3–5 datasets prove the shell (indicators, climate,
+  elements, film ratings, Olympic records are the obvious candidates).
+- Query power: filter/group/sort is clearly enough for v1 — is a real
+  expression language (calc's parser exists) worth it, and when?
+
+## 19. Going full i18n
+
+**What.** GifOS in the user's language, end to end: the OS chrome (desktop,
+run.html, meeting UI, store), the seeded default apps, the Abilities and
+preflight copy, help pages, and store listings — with RTL layout, correct
+number/date formatting (`Intl`), and a translation workflow that works
+without any server.
+
+**Why it fits — and the shape it must take.** No accounts means language is
+a **property of the computer**, not a profile: detect from
+`navigator.languages`, override in Settings, store the choice in `gifos.db`
+like any other per-computer preference. And GifOS already has the exact
+mechanism i18n needs: **seeding bakes the computer into the GIF.** Themes
+inject the computer's palette into seeded apps at seed time, and
+`reseedDefaultsIfNeeded` swaps seeded code in place after a deploy — the
+same two mechanisms bake the computer's LANGUAGE into seeded apps and
+re-seed them when the user switches. A GIF born on a French computer speaks
+French wherever it travels, exactly as it already keeps its birthplace's
+colours.
+
+**Sketch.**
+- **Strings are DATA** (browser-support doctrine): one committed catalog per
+  locale, single source of truth, nothing user-facing hard-codes a sentence.
+  Where a page cannot fetch — run.html's ES5 preflight is the canon example —
+  its strings are GENERATED but COMMITTED between markers, same as its
+  support table.
+- **Chrome first, then seeds, then the store.** Desktop/run.html/meet UI
+  read the catalog at boot; seeded apps get strings baked at seed time and
+  re-baked on language switch (the reseed path, code+icon swap in place,
+  saved data kept); `listing.json` grows optional per-locale
+  tagline/description fields and the store falls back to English.
+- **RTL** via CSS logical properties, audited page by page; `dir` set from
+  the locale.
+- **Games keep their arcade voice.** Hand-drawn pixel fonts (battle-city's
+  5×7 glyphs) are Latin-only; ported games' in-canvas text stays as-authored
+  — the surrounding chrome, help.md and listing translate. Growing glyph
+  sets is per-game polish, not a platform gate.
+- **Mechanical honesty gates**: a unit suite that fails on any key missing
+  from any shipped locale, and a pseudo-locale (padded, accented) build for
+  catching truncation and hard-coded strings.
+
+**Open questions.**
+- First languages (usage says es/pt/fr/de/ja/zh; RTL needs ar/he early or
+  the CSS debt compounds).
+- Translation workflow with no server: committed catalogs + community PRs is
+  the honest default — is machine-draft-then-human-review acceptable for
+  bootstrapping, and how is that provenance recorded?
+- Does a chrome-class GIF carry ALL locales (size cost, runtime switch) or
+  one baked locale (theming precedent, but the recipient of a shared GIF may
+  not read it)? Likely: bake the default, ship the catalog for chrome apps
+  small enough to afford it.
+- help.md per app per locale is the long tail — translate on a popularity
+  gradient rather than gating any release on full coverage.
