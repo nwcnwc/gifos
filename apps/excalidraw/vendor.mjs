@@ -120,8 +120,14 @@ if (/<\/script/i.test(js)) {
 // Neutralise the esm.sh / esm.run font CDN fallback. Fonts are data: URLs in
 // this bundle; if a code path still concatenates ASSET_PATH, a remote fetch
 // would hit connect-src none and spam the console.
-const CDN_RE = /https:\/\/esm\.(?:sh|run)\/[^"'`\s)]+/g;
-const UNPKG_RE = /https:\/\/(?:unpkg\.com|cdn\.jsdelivr\.net)\/[^"'`\s)]+/g;
+// The URL char class MUST NOT cross a template-literal `${` interpolation:
+// upstream builds ASSETS_FALLBACK_URL as `https://esm.sh/${cond?`…`:"…"}/…`,
+// and a greedy [^"'`]+ once ate the `${cond?` opener (stopping only at the
+// NESTED backtick), which broke the template structure and made the whole
+// bundle a SyntaxError ("missing ) after argument list"). So: any URL char
+// except quote/backtick/space/paren, and a $ only when NOT followed by {.
+const CDN_RE = /https:\/\/esm\.(?:sh|run)\/(?:[^"'`\s)$]|\$(?!\{))*/g;
+const UNPKG_RE = /https:\/\/(?:unpkg\.com|cdn\.jsdelivr\.net)\/(?:[^"'`\s)$]|\$(?!\{))*/g;
 const cdnHits = (js.match(CDN_RE) || []).length + (js.match(UNPKG_RE) || []).length;
 if (cdnHits) {
   js = js.replace(CDN_RE, 'data:,').replace(UNPKG_RE, 'data:,');
