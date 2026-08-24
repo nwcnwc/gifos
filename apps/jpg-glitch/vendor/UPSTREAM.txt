@@ -1,0 +1,10 @@
+snorpey/jpg-glitch
+https://github.com/snorpey/jpg-glitch
+pin: 37822042dd41ac9692133b42699953c94261666c
+MIT, Copyright (c) 2015 Georg Fischer
+
+The glitch is glitch-canvas (same author): JPEG-encode the still, smash
+bytes past the SOS marker, decode. Worker path dropped — the sandbox has
+no workers. Sliders (amount, seed, iterations, quality) match
+config.defaultControlParams. GifOS adds a Take photo clip and saves the
+last glitch in the file. No Imgur, no share, no webcam stream.

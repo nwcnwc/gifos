@@ -2035,6 +2035,55 @@
       "sha256": "8fcfeb73ce40529bdeed1f471c66e236d92009e32398d326ab0ab901fc0c8a76"
     },
     {
+      "slug": "jpg-glitch",
+      "appId": "jpg-glitch",
+      "name": "JPG Glitch",
+      "shortName": "Glitch",
+      "version": "1.0",
+      "tagline": "Databend a still on this device. Save the glitch. Nothing is uploaded.",
+      "author": {
+        "name": "snorpey",
+        "url": "https://github.com/snorpey/jpg-glitch"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "jpg-glitch",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity"
+      ],
+      "tags": [
+        "glitch",
+        "jpeg",
+        "photo",
+        "databend",
+        "art",
+        "offline"
+      ],
+      "accent": [
+        255,
+        70,
+        160
+      ],
+      "cover": "/apps/jpg-glitch/cover.jpg",
+      "bytes": 186793,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "2ade4310bcc2f710a15428d424a0023d46ff11daa2bd627f469b8fe51a101449"
+    },
+    {
       "slug": "jspaint",
       "appId": "jspaint",
       "name": "JS Paint",

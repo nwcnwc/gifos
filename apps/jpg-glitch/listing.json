@@ -1,0 +1,33 @@
+{
+  "tagline": "Databend a still on this device. Save the glitch. Nothing is uploaded.",
+  "description": "Drop a picture, or take one. Four sliders \u2014 amount, seed, iterations, quality \u2014 smash the JPEG so the photo tears, blooms, and bands. The glitch is the point. Download it when you like what you see.\n\nThe last picture and the last slider settings come back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of jpg-glitch by snorpey.",
+  "author": {
+    "name": "snorpey",
+    "url": "https://github.com/snorpey/jpg-glitch"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "jpg-glitch",
+    "url": "https://github.com/snorpey/jpg-glitch",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "glitch",
+    "jpeg",
+    "photo",
+    "databend",
+    "art",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/jpg-glitch",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

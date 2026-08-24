@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "jpg-glitch",
+  "name": "JPG Glitch",
+  "shortName": "Glitch",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Databend a still on this device. Drag the sliders. Save the glitch. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [255, 70, 160],
+  "capabilities": {
+    "db": true,
+    "camera": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "pic": { "visibility": "private" }
+  }
+}
