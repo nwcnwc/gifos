@@ -197,6 +197,63 @@ def make_places(src):
     return p, len(rows)
 
 
+# ------------------------------------------------------------- landmask.bin --
+# A 1-bit land/sea mask on an equirectangular grid, packed eight pixels to a
+# byte. It exists for ONE reason: the app's icon is drawn procedurally in Node
+# at build time (icon.mjs), with no image decoder available, and an icon of the
+# Earth needs to know where the land is. 512x256 bits is 16 KB and reads as a
+# recognisable planet at 64 px, which is the size it is judged at.
+MASK_W, MASK_H = 512, 256
+
+
+def make_landmask(src):
+    from PIL import Image, ImageDraw
+    topo = json.load(open(os.path.join(src, 'countries-50m.json')))
+    tr = topo['transform']
+    arcs = topo['arcs']
+
+    def decode(i):
+        rev = i < 0
+        if rev:
+            i = ~i
+        pts, x, y = [], 0, 0
+        for dx, dy in arcs[i]:
+            x += dx
+            y += dy
+            pts.append((x * tr['scale'][0] + tr['translate'][0],
+                        y * tr['scale'][1] + tr['translate'][1]))
+        return pts[::-1] if rev else pts
+
+    im = Image.new('1', (MASK_W, MASK_H), 0)
+    dr = ImageDraw.Draw(im)
+
+    def ring_px(ring):
+        pts = []
+        for a in ring:
+            pts.extend(decode(a))
+        return [((lon + 180) / 360 * MASK_W, (90 - lat) / 180 * MASK_H) for lon, lat in pts]
+
+    for g in topo['objects']['land']['geometries']:
+        polys = [g['arcs']] if g['type'] == 'Polygon' else g['arcs']
+        for poly in polys:
+            for ri, ring in enumerate(poly):
+                px = ring_px(ring)
+                if len(px) < 3:
+                    continue
+                dr.polygon(px, fill=1 if ri == 0 else 0)
+
+    bits = bytearray(MASK_W * MASK_H // 8)
+    px = im.load()
+    for y in range(MASK_H):
+        for x in range(MASK_W):
+            if px[x, y]:
+                i = y * MASK_W + x
+                bits[i >> 3] |= 0x80 >> (i & 7)
+    p = os.path.join(OUT, 'landmask.bin')
+    open(p, 'wb').write(bytes(bits))
+    return p
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--src', required=True, help='directory holding the three upstream files')
@@ -205,7 +262,8 @@ def main():
     b = make_base(a.src)
     w, nc, nb = make_world(a.src)
     pl, np_ = make_places(a.src)
-    for p in (b, w, pl):
+    lm = make_landmask(a.src)
+    for p in (b, w, pl, lm):
         print('%-42s %8.1f KB' % (os.path.relpath(p), os.path.getsize(p) / 1024))
     print('coastline polylines: %d, border polylines: %d, places: %d' % (nc, nb, np_))
 
