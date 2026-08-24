@@ -88,7 +88,10 @@
     'vec2 rotate(vec2 p,float a) {',
     '	return cos(a)*p+sin(a)*vec2(p.y,-p.x);',
     '}',
-    'float audio(float index) { return 0.0; }',
+    'float audio(float index) { return 0.0; }'
+  ].join('\n');
+
+  var RK4 = [
     'vec2 rk4(const vec2 point) {',
     '  vec2 k1 = get_velocity( point );',
     '  vec2 k2 = get_velocity( point + k1 * u_h * 0.5);',
@@ -97,6 +100,8 @@
     '  return k1 * u_h / 6. + k2 * u_h/3. + k3 * u_h/3. + k4 * u_h/6.;',
     '}'
   ].join('\n');
+
+  var VELOCITY_FWD = 'vec2 get_velocity(vec2 p);';
 
   function exp2(exponent) { return Math.exp(exponent * Math.LN2); }
 
@@ -219,7 +224,9 @@
       ENCODE,
       SNOISE,
       HELPERS,
+      VELOCITY_FWD,
       userCode,
+      RK4,
       'void main() {',
       '  vec2 pos = vec2(',
       '    decodeFloatRGBA(texture2D(u_particles_x, v_tex_pos)),',
@@ -271,7 +278,9 @@
       DECODE,
       SNOISE,
       HELPERS,
+      VELOCITY_FWD,
       userCode,
+      RK4,
       'void main() {',
       '  vec2 txPos = vec2(fract(a_index / u_particles_res), floor(a_index / u_particles_res) / u_particles_res);',
       '  vec2 v_particle_pos = vec2(',
@@ -400,11 +409,21 @@
     if (loc(prog, 'cursor')) gl.uniform4f(loc(prog, 'cursor'), cursor.clickX, cursor.clickY, cursor.hoverX, cursor.hoverY);
   }
 
+  function tidyShaderError(err) {
+    var lines = String(err || '').split('\n').map(function (s) {
+      return s.replace(/^ERROR:\s*\d+:\d+:\s*/, '').trim();
+    }).filter(Boolean);
+    var uniq = [];
+    lines.forEach(function (l) { if (uniq.indexOf(l) < 0) uniq.push(l); });
+    if (!uniq.length) return 'This recipe could not run.';
+    return 'This recipe could not run.\n' + uniq.slice(0, 5).join('\n');
+  }
+
   function compile(userCode) {
     var u = createProgram(gl, QUAD_VS, updateFS(userCode));
-    if (u.error) return u;
+    if (u.error) return { error: tidyShaderError(u.error) };
     var d = createProgram(gl, drawVS(userCode, settings.colorMode), DRAW_FS);
-    if (d.error) { gl.deleteProgram(u.program); return d; }
+    if (d.error) { gl.deleteProgram(u.program); return { error: tidyShaderError(d.error) }; }
     if (updateProg) gl.deleteProgram(updateProg.program);
     if (drawProg) gl.deleteProgram(drawProg.program);
     updateProg = u;
