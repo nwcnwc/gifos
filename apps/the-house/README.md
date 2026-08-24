@@ -20,14 +20,17 @@ measured cause of the old "assembling forever" hang (app.js
 data-URIs (the sandbox CSP's font-src is data:-only).
 
 The file is the save: inventory, the room you reached, and played scenes
-live in `gifos.db('save')`. SoundManager 2 is HTML5 only (no Flash). A
-phone tap is a click — jQuery UI 1.8 only listened to the mouse.
+live in `gifos.db('save')`. The vendored SoundManager 2 (V2.97a.2011)
+could not make a sound without Flash — its createSound dies on the
+never-created movie — so `patch.js` replaces it with a small HTML5 Audio
+shim covering the eight verbs the game uses. A phone tap is a click —
+jQuery UI 1.8 only listened to the mouse.
 
 ```
 index.html          GifOS shell; original #the_game chrome
 style.css           shell + phone intro/tap
 boot.js             SM2 defer + in-memory store polyfill
-patch.js            construct SoundManager (HTML5, hold onready)
+patch.js            soundManager = HTML5 Audio shim (SM2 replaced; holds onready)
 app.js              room-HTML map, picture/sound remap, private save, tap
 icon.mjs
 build.mjs
@@ -51,6 +54,10 @@ second player.
 
 ```bash
 node apps/the-house/build.mjs
+node scripts/build-app-catalog.mjs   # the GIF changed → the committed catalog must follow
 ```
 
-Do not run `scripts/build-app-catalog.mjs` from this change.
+The build packs `credits.json` (scripts/app-credits.mjs) so a fresh GIF is
+catalog-valid; the gifos.app signature itself is the key-holder's step
+(`node scripts/sign-apps.mjs the-house`, GIFOS_SIGN_KEY) and the catalog
+shows the app UNSIGNED until they run it.

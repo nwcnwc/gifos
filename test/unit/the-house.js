@@ -170,8 +170,12 @@ check('app.js loads in a vm and exposes HousePort', !!(HP && HP.remapSrc && HP.f
   check('gifos.db("save") is the save', app.indexOf("db('save')") !== -1);
   check('a phone tap synthesizes click (touchend)', app.indexOf('touchend') !== -1);
   check('Back closes a close-up, not the house', app.indexOf('onBack') !== -1);
-  check('SM2 is deferred then HTML5-only',
-    boot.indexOf('SM2_DEFER') !== -1 && patch.indexOf('useHTML5Audio') !== -1 && patch.indexOf('preferFlash') !== -1);
+  // SM2 V2.97a.2011 cannot createSound without Flash (null._createSound,
+  // measured in the sandbox) — patch.js replaces it with an HTML5 Audio shim.
+  check('soundManager is the HTML5 Audio shim, not Flash-era SM2',
+    boot.indexOf('SM2_DEFER') !== -1 && patch.indexOf('useHTML5Audio') !== -1 &&
+    patch.indexOf('new Audio') !== -1 && patch.indexOf('onfinish') !== -1 &&
+    patch.indexOf('stopAll') !== -1 && patch.indexOf('unmute') !== -1);
   check('onready is held until the save is in', patch.indexOf('__houseReleaseSM') !== -1);
   check('Flash is ignored', patch.indexOf('ignoreFlash') !== -1);
   check('the wrap does not point at a .swf', !/\.swf/i.test(wrap));
