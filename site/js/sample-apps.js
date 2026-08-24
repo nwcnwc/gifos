@@ -2774,7 +2774,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   // from adviceslip.com through gifos.fetch(), so opening it shows the network
   // acknowledgement in action. It also degrades gracefully if the site is
   // unreachable OR the user has switched its internet off from the tab.
-  const FORTUNE_HTML = `<!doctype html><meta charset="utf-8">
+  const FORTUNE_HTML = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   body{font:16px system-ui;margin:0;background:var(--bg,#0a0a0f);color:var(--text,#e0e0f0);display:flex;flex-direction:column;min-height:100vh}
   header{background:var(--surface,#14141f);border-bottom:1px solid var(--border,#2a2a3f);padding:14px 18px;font-weight:700;color:var(--accent,#ffce6b)}
@@ -2784,6 +2784,7 @@ Home Screen, so this icon opens the built-in store page instead of running here.
   .slip{background:#fffdf2;color:#3a3320;border-radius:14px;padding:20px 22px;min-height:56px;width:100%;box-sizing:border-box;
         display:flex;align-items:center;justify-content:center;text-align:center;font-size:18px;line-height:1.5;box-shadow:0 8px 30px rgba(0,0,0,.4)}
   .slip.err{background:#2a1710;color:#ffcbab;border:1px solid #ff8a3d}
+  .src{color:var(--muted,#6a6a86);font-size:.72rem;min-height:1em;text-align:center}
   .row{display:flex;gap:10px}
   button{padding:11px 18px;border-radius:10px;border:1px solid var(--border,#2a2a3f);background:var(--surface,#1c1c2b);color:var(--text,#e0e0f0);cursor:pointer;font-size:15px}
   button.go{background:var(--accent,#ffce6b);color:var(--onaccent,#3a2c05);border-color:var(--accent,#ffce6b);font-weight:700}
@@ -2798,34 +2799,58 @@ Home Screen, so this icon opens the built-in store page instead of running here.
 <main>
   <div class="cookie">🥠</div>
   <div class="slip" id="slip">Crack open a cookie for a little wisdom…</div>
+  <div class="src" id="src"></div>
   <div class="row">
     <button class="go" id="crack">Crack a cookie</button>
     <button id="keep" disabled>Keep it</button>
   </div>
   <div class="kept" id="keptWrap" style="display:none"><h4>Kept fortunes</h4><div id="kept"></div></div>
-  <p class="foot">Fortunes come from adviceslip.com over the internet — tap the “Internet” button up top to see or change that.</p>
+  <p class="foot">Fortunes come from adviceslip.com over the internet — tap the “Internet” button up top to see or change that. This app never invents a line.</p>
 </main>
 <script>
   var slip=document.getElementById('slip'),crack=document.getElementById('crack'),keepBtn=document.getElementById('keep');
-  var keptWrap=document.getElementById('keptWrap'),keptEl=document.getElementById('kept'),current=null;
+  var srcEl=document.getElementById('src');
+  var keptWrap=document.getElementById('keptWrap'),keptEl=document.getElementById('kept'),current=null,seq=0;
   var db=(window.gifos&&gifos.db)?gifos.db('fortunes'):null;
   function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
   function showKept(items){items=(items||[]).slice().reverse();keptWrap.style.display=items.length?'':'none';
     keptEl.innerHTML=items.map(function(x){return '<div class="k">“'+esc(x.text)+'”</div>';}).join('');}
   if(db)db.subscribe(showKept);
-  function fail(msg){current=null;slip.className='slip err';slip.textContent=msg;keepBtn.disabled=true;crack.disabled=false;}
+  function whyFail(err){
+    var msg=String(err&&err.message||err||'');
+    if(!window.gifos||!gifos.fetch) return 'Open this from GifOS to reach the internet. This app will not invent a fortune.';
+    if(/Network denied/i.test(msg)) return 'Internet is off for this app. Tap “Internet” in the top bar to allow adviceslip.com. This app will not invent a fortune.';
+    if(/timeout/i.test(msg)) return 'adviceslip.com took too long. Try again when you have a better connection.';
+    if(/HTTP\\s*\\d+/i.test(msg)) return 'adviceslip.com returned '+(msg.match(/HTTP\\s*\\d+/i)||['an error'])[0]+' — not a fortune.';
+    if(/empty|no advice/i.test(msg)) return 'That reply had no advice in it. Try another cookie.';
+    return 'Couldn’t reach adviceslip.com. You may be offline. This app will not make a fortune up.';
+  }
+  function fail(err){current=null;slip.className='slip err';slip.textContent=whyFail(err);srcEl.textContent='';keepBtn.disabled=true;crack.disabled=false;}
+  function fetchAdvice(){
+    return new Promise(function(resolve,reject){
+      var done=false;
+      var to=setTimeout(function(){ if(done)return; done=true; reject(new Error('timeout')); }, 8000);
+      gifos.fetch('https://api.adviceslip.com/advice?t='+Date.now())
+        .then(function(r){ if(done)return; if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+        .then(function(d){ if(done)return; done=true; clearTimeout(to);
+          var text=d&&d.slip&&String(d.slip.advice||'').trim(); if(!text) throw new Error('empty'); resolve(text); })
+        .catch(function(e){ if(done)return; done=true; clearTimeout(to); reject(e); });
+    });
+  }
   function crackOne(){
-    slip.className='slip';slip.textContent='Cracking…';keepBtn.disabled=true;crack.disabled=true;
-    if(!window.gifos||!gifos.fetch){fail('Open this from GifOS to reach the internet.');return;}
-    gifos.fetch('https://api.adviceslip.com/advice?t='+Date.now())
-      .then(function(r){if(!r.ok)throw new Error('bad');return r.json();})
-      .then(function(d){current=(d&&d.slip&&d.slip.advice)||'…';slip.textContent='“'+current+'”';
-        keepBtn.disabled=false;crack.disabled=false;})
-      .catch(function(){fail('Couldn’t reach the fortune teller. You may be offline — or you’ve switched this app’s internet off with the “Internet” button up top.');});
+    var n=++seq;
+    slip.className='slip';slip.textContent='Asking adviceslip.com…';srcEl.textContent='';keepBtn.disabled=true;crack.disabled=true;current=null;
+    if(!window.gifos||!gifos.fetch){fail(new Error('no gifos'));return;}
+    fetchAdvice().then(function(text){
+      if(n!==seq) return;
+      current=text; slip.className='slip'; slip.textContent='“'+text+'”';
+      srcEl.textContent='from adviceslip.com'; keepBtn.disabled=!db; crack.disabled=false;
+    }, function(err){ if(n!==seq) return; fail(err); });
   }
   crack.onclick=crackOne;
   keepBtn.onclick=function(){if(current&&db){db.put({text:current,t:Date.now()});keepBtn.disabled=true;}};
-  crackOne();
+  if(typeof navigator!=='undefined' && navigator.onLine===false) fail(new Error('offline'));
+  else crackOne();
 </script>`;
 
   // Bible Browser — reads the Recovery Version straight from
@@ -5371,15 +5396,15 @@ The time, whether it is running, and the laps live in this icon, so closing the 
 `,
       fortune: `# Fortune
 
-Crack a cookie for a short piece of advice.
+Crack a cookie for a short piece of advice from the internet.
 
 ## Use it
 
-**Crack a cookie** fetches a new line onto the slip. **Keep it** adds the current one to **Kept fortunes** at the bottom.
+**Crack a cookie** asks adviceslip.com for a new line. **Keep it** adds the current one to **Kept fortunes** at the bottom.
 
-The Keep button stays off until a new crack succeeds, so you cannot save the same slip twice in a row.
+The Keep button stays off until a crack actually returns advice, so you cannot save a blank slip or the same one twice in a row.
 
-Fortunes come from the internet (adviceslip.com). If you are offline, or you have turned this app’s **Internet** off in the top bar, cracking fails instead of inventing a line.
+Fortunes come from adviceslip.com. This app never invents a line. If you are offline, the site is down, the request times out, or you have turned this app’s **Internet** off in the top bar, the slip says so in those words.
 
 ## Private vs shared
 
