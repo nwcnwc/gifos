@@ -7,7 +7,9 @@ license:  MIT (COPYING.txt) — Daniel Marino and Brad Dunbar
 onoff.js is the ESM sources concatenated in dependency order with
 import/export stripped (classic IIFE). The URL custom-level loader is
 removed (about:srcdoc has no query). refs/ (font, sketch, m4a) are not copied.
+AudioContext is faked when the browser refuses it so a missing sound
+device cannot kill the rooms. ONOFF_LEVELS is exported for the suite.
 
 sha256:
-  onoff.js     c1ffdada645624d4a05964e3d32085689f5668c8828ea9557a8ed9533805f902
+  onoff.js     a4c0e93cdba040959e59dd08ace489ed0ffb92e0cb5634b3f8e87afb8c1c7799
   COPYING.txt  5d902754c43ae352f9d7a880736cae6173ab4f8a2510a858bec382c0be2d8f26

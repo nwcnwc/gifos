@@ -49,6 +49,10 @@ if (!manifest.capabilities || manifest.capabilities.db !== true) throw new Error
 if (manifest.capabilities.multiplayer) throw new Error('onoff does not sync a room');
 if (manifest.minBuild !== 947) throw new Error('minBuild 947');
 if ((listing.author && listing.author.name) === 'GifOS') throw new Error('author is THEM');
+if (!read('vendor/onoff.js').includes('FakeAudioContext')) throw new Error('need FakeAudioContext');
+if (!read('vendor/onoff.js').includes('ONOFF_LEVELS')) throw new Error('need ONOFF_LEVELS');
+if (!html.includes('id="from-start"')) throw new Error('from-start missing');
+if (!read('boot.js').includes('resumeIndex')) throw new Error('continue missing');
 for (const [n, s] of Object.entries(files)) {
   if (n.endsWith('.js') && /<\/script/i.test(s)) throw new Error(n + ' </script');
 }

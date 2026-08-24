@@ -1,5 +1,34 @@
 (function () {
 'use strict';
+function FakeAudioContext() {
+  function param() {
+    return {
+      value: 0,
+      setValueAtTime: function () {},
+      linearRampToValueAtTime: function () {},
+      exponentialRampToValueAtTime: function () {},
+      setTargetAtTime: function () {},
+      cancelScheduledValues: function () {}
+    };
+  }
+  this.currentTime = 0;
+  this.destination = {};
+  this.createGain = function () { return { connect: function (n) { return n || this; }, gain: param() }; };
+  this.createBiquadFilter = function () { return { connect: function (n) { return n || this; }, type: '', frequency: param(), gain: param(), Q: param() }; };
+  this.createOscillator = function () {
+    return {
+      connect: function () {}, start: function () {}, stop: function () {}, disconnect: function () {},
+      frequency: param(), type: '', onended: null, setPeriodicWave: function () {}
+    };
+  };
+  this.createPeriodicWave = function () { return {}; };
+}
+var AudioContext = (function () {
+  var AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
+  if (!AC) return FakeAudioContext;
+  try { new AC(); return AC; } catch (e) { return FakeAudioContext; }
+})();
+
 
 /* ---- src/dimensions.js ---- */
 var WIDTH = 768
@@ -1017,6 +1046,7 @@ setInterval(function() {
 }, 300)
 
 var playMusic = () => {
+  try {
   MUSIC_LOW_A.play()
   MUSIC_MID_A.play()
   MUSIC_HIGH_A.play()
@@ -1025,9 +1055,11 @@ var playMusic = () => {
   MUSIC_HIGH_B.play()
   MUSIC_WINNING_LOW.stop()
   MUSIC_WINNING_HIGH.stop()
+  } catch (err) {}
 }
 
 var playWin = () => {
+  try {
   MUSIC_LOW_A.stop()
   MUSIC_MID_A.stop()
   MUSIC_HIGH_A.stop()
@@ -1036,9 +1068,10 @@ var playWin = () => {
   MUSIC_HIGH_B.stop()
   MUSIC_WINNING_LOW.play()
   MUSIC_WINNING_HIGH.play()
+  } catch (err) {}
 }
 
-playMusic()
+try { playMusic() } catch (err) {}
 
 //  Sound Effects
 
@@ -1983,5 +2016,6 @@ requestAnimationFrame(function tick (time) {
 window.ONOFF_DOWN = DOWN;
 window.ONOFF_PRESSED = PRESSED;
 window.ONOFF_upKey = upKey;
+window.ONOFF_LEVELS = levels;
 if (typeof game !== "undefined") window.ONOFF_GAME = game;
 })();
