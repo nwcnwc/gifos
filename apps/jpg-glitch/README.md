@@ -1,15 +1,15 @@
 # JPG Glitch
 
-Databend a still on this device. Drop a picture or take one. Save the glitch.
-Nothing is uploaded.
+Databend a still on this device. Take a still or open a picture. Save the glitch.
+Nothing is uploaded. The last original picture and sliders live in the file.
 
 An unofficial port of **[jpg-glitch](https://github.com/snorpey/jpg-glitch)**
 by Georg Fischer / snorpey (MIT).
 
 ```
-index.html      drop, take photo, four sliders, canvas
-style.css       dark chrome
-app.js          gifos.db save + pic, takePhoto clip
+index.html      empty state, take photo, four sliders, canvas
+style.css       dark chrome, fat phone sliders, stage-first
+app.js          gifos.db original + sliders, takePhoto clip, hold-to-compare, presets
 icon.mjs        procedural glitch icon + 1200×720 cover
 build.mjs       packs the GIF into site/apps/jpg-glitch/jpg-glitch.gif
 vendor/         glitch-canvas (no worker) + MIT notice + UPSTREAM.txt

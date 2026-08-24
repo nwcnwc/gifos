@@ -106,13 +106,29 @@ if (!html.includes('id="amount"') || !html.includes('id="seed"') || !html.includ
   throw new Error('index.html must offer the four glitch sliders');
 }
 if (!html.includes('Take photo')) throw new Error('index.html must offer Take photo');
+if (!html.includes('id="empty"') || !html.includes('No photo yet')) {
+  throw new Error('index.html must ship a first-run empty state');
+}
+if (!html.includes('Try a sample') || !html.includes('id="sampleBtn"')) {
+  throw new Error('index.html must offer Try a sample');
+}
+if (!html.includes('Hold to see the original')) {
+  throw new Error('index.html must offer hold-to-compare');
+}
+if (!html.includes('id="presets"')) throw new Error('index.html must host named looks');
 
 const src = files['app.js'];
 for (const bad of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'navigator.sendBeacon', 'eval(', 'new Function(', 'getUserMedia']) {
   if (src.includes(bad)) throw new Error('app.js uses ' + bad);
 }
 if (!src.includes("db('save')")) throw new Error('app.js must use gifos.db save');
+if (!src.includes("id: 'src'")) throw new Error('app.js must persist the ORIGINAL picture as pic/src, not the glitched output');
 if (!src.includes('takePhoto')) throw new Error('app.js must use gifos.takePhoto');
+if (!src.includes('onBack')) throw new Error('app.js must register gifos.onBack so hold-to-compare dismisses');
+if (!src.includes('pickRestoreUrl')) throw new Error('app.js must restore src (new) or out (old saves)');
+if (listing.tagline.toLowerCase().includes('drop ') || listing.description.toLowerCase().includes('drop a')) {
+  throw new Error('listing copy must not say drop');
+}
 if (files['vendor/glitch-canvas.js'].includes('new Worker') || files['vendor/glitch-canvas.js'].includes('getUserMedia')) {
   throw new Error('vendor must not spawn a worker or hold a live camera');
 }
@@ -150,6 +166,11 @@ if (!files['COPYING-jpg-glitch.txt'].includes('Georg Fischer')) {
     '  if (changed < 1) throw new Error("smash did nothing");\n' +
     '  if (JpgGlitchApp.clamp(-3, 0, 99) !== 0) throw new Error("clamp");\n' +
     '  if (JpgGlitchApp.DEFAULTS.amount !== 24) throw new Error("defaults");\n' +
+    '  if (JpgGlitchApp.pickRestoreUrl({jpg:"SRC"}, {jpg:"OUT"}) !== "SRC") throw new Error("restore prefers src");\n' +
+    '  if (JpgGlitchApp.pickRestoreUrl(null, {jpg:"OUT"}) !== "OUT") throw new Error("restore old out");\n' +
+    '  if (JpgGlitchApp.matchingPreset(JpgGlitchApp.DEFAULTS) !== "classic") throw new Error("classic preset");\n' +
+    '  var d = JpgGlitchApp.downscaleNeed(1600, 900, 800);\n' +
+    '  if (d.w !== 800 || d.h !== 450) throw new Error("downscale");\n' +
     '  return changed;\n' +
     '})();',
     ctx
