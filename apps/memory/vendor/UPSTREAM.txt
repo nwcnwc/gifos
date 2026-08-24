@@ -1,0 +1,13 @@
+sepandhaghighi/mnimi
+https://github.com/sepandhaghighi/mnimi
+commit: e36b034ae200ff8ecde1e64b1f8fd774f7df807b
+MIT, Copyright (c) 2019 Sepand Haghighi
+
+Mnimi is a Simon-style memory game (not a pair-matching board). Upstream
+pulls SweetAlert, particles.js, Font Awesome, and Bensound MP3s from the
+page; none of those ride in this GIF.
+
+vendor/script.js is the original js/script.js (the rules: 4 pads, a growing
+sequence, extra pads after level 7 and 14, speed 2500→550). app.js is the
+classic-script port of those rules: gifos.db for best score, a race over
+Invite, no CDN, no music.
