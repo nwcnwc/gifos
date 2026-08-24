@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "texgen",
+  "appId": "texgen",
+  "name": "TexGen",
+  "shortName": "TexGen",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Procedural textures, live. Download a PNG. Nothing is uploaded.",
+  "description": "Stack generators — XOR, sine, noise, circles, checkerboards — and combine them with add, multiply, xor and the rest. Tint each layer. The texture draws as you change it. Download a PNG when you like it.\n\nThe last stack comes back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of texgen.js by mrdoob.",
+  "author": {
+    "name": "mrdoob",
+    "url": "https://github.com/mrdoob/texgen.js"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "texture",
+    "procedural",
+    "png",
+    "noise",
+    "generator",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/texgen",
+  "accent": [
+    80,
+    180,
+    220
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/texgen/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/texgen/texgen.gif",
+  "bytes": 189996,
+  "download": 0,
+  "provides": null,
+  "sha256": "00310b3781d975dccc434d1ebcc87317e0b82f7b89f88b4d5d74034b58b55903",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "texgen.js",
+    "url": "https://github.com/mrdoob/texgen.js",
+    "blessed": false
+  }
+}

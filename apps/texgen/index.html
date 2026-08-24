@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TexGen</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>TexGen</h1>
+    <p class="lead">Procedural textures, live. Nothing is uploaded.</p>
+  </header>
+  <div class="stage">
+    <canvas id="tex" width="256" height="256"></canvas>
+  </div>
+  <div class="row">
+    <button type="button" id="saveBtn">Download PNG</button>
+    <button type="button" id="resetBtn" class="ghost">Reset sample</button>
+  </div>
+  <section class="add">
+    <label>Add layer
+      <select id="addType">
+        <option>XOR</option>
+        <option>OR</option>
+        <option>SinX</option>
+        <option>SinY</option>
+        <option>Noise</option>
+        <option>FractalNoise</option>
+        <option>CheckerBoard</option>
+        <option>Rect</option>
+        <option>Circle</option>
+        <option>SineDistort</option>
+        <option>Twirl</option>
+        <option>Transform</option>
+        <option>Pixelate</option>
+        <option>Posterize</option>
+        <option>Number</option>
+      </select>
+    </label>
+    <button type="button" id="addBtn">Add</button>
+  </section>
+  <div id="layers"></div>
+  <p id="status" role="status"></p>
+  <p class="foot">Unofficial port of texgen.js by mrdoob. The texture never leaves this device.</p>
+</div>
+<script src="vendor/texgen.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "texgen",
+  "name": "TexGen",
+  "shortName": "TexGen",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Procedural textures, live. Stack layers, download a PNG. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [80, 180, 220],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}
