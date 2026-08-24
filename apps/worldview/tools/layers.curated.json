@@ -1,0 +1,163 @@
+{
+  "_": [
+    "THE CURATED GIBS LAYER SET — the hand-kept half of assets/catalog.json.",
+    "",
+    "Every id here was checked to exist in NASA's own Worldview configuration",
+    "(nasa-gibs/worldview, config/default/common/config/wv.json/layers/**). The",
+    "machine-readable half — imagery resolution (which becomes the WMTS tile",
+    "matrix set), temporal resolution, and the layer description — is parsed out",
+    "of that same checkout by make-catalog.mjs, so this file only carries what a",
+    "human has to decide: which layers are worth a place, what to call them, when",
+    "the record starts, and where they sit in the browser.",
+    "",
+    "fmt is derived (base imagery = jpg, anything drawn over it = png) and can be",
+    "overridden per layer. 'set' and 'period' can be overridden the same way when",
+    "the upstream description does not state a resolution.",
+    "",
+    "start dates are the beginning of the GIBS record where it is known, and the",
+    "instrument's own start otherwise. A start that is too late only hides old",
+    "days; the map itself never lies about a day with no data — it says so."
+  ],
+
+  "categories": [
+    { "id": "featured", "title": "Featured", "measurements": [
+      "corrected-reflectance", "earth-at-night", "geostationary", "fires",
+      "surface-reflectance", "blue-marble", "reference" ] },
+    { "id": "hazards", "title": "Hazards & Disasters", "measurements": [
+      "fires", "aerosol", "dust", "surface-water", "vegetation-disturbance",
+      "geostationary" ] },
+    { "id": "atmosphere", "title": "Atmosphere", "measurements": [
+      "aerosol", "water-vapor", "clouds", "precipitation", "air-quality", "dust" ] },
+    { "id": "land", "title": "Land", "measurements": [
+      "surface-reflectance", "land-temp", "vegetation", "snow", "land-cover",
+      "population", "vegetation-disturbance", "surface-water" ] },
+    { "id": "ocean", "title": "Ocean & Ice", "measurements": [
+      "sst", "chlorophyll", "sea-ice", "snow" ] },
+    { "id": "reference", "title": "Reference", "measurements": [
+      "reference", "orbits", "blue-marble" ] }
+  ],
+
+  "measurements": [
+    { "id": "corrected-reflectance", "title": "Corrected Reflectance", "blurb": "What the satellite saw, as close to a photograph as an instrument gets — every day since 2000." },
+    { "id": "earth-at-night", "title": "Earth at Night", "blurb": "City light, gas flares, fishing fleets and the moonlit clouds between them." },
+    { "id": "geostationary", "title": "Geostationary", "blurb": "One hemisphere, every ten minutes. This is what a hurricane looks like while it turns." },
+    { "id": "fires", "title": "Fires & Thermal Anomalies", "blurb": "Pixels hot enough to be burning, detected twice a day per satellite." },
+    { "id": "surface-reflectance", "title": "Land Surface Reflectance", "blurb": "Atmosphere removed — the ground's own colour, and false-colour bands that pull vegetation, burn scars and cities apart." },
+    { "id": "blue-marble", "title": "Blue Marble", "blurb": "The cloudless Earth. No date, no gaps — the reference picture." },
+    { "id": "reference", "title": "Reference", "blurb": "Coastlines, borders and labels to hang the imagery on." },
+    { "id": "aerosol", "title": "Aerosol Optical Depth", "blurb": "How much smoke, dust and haze the air column is carrying." },
+    { "id": "dust", "title": "Dust", "blurb": "Saharan and Gobi dust, scored from infrared." },
+    { "id": "surface-water", "title": "Surface Water Extent", "blurb": "Where there is water today that usually isn't — flooding, at 30 m." },
+    { "id": "vegetation-disturbance", "title": "Vegetation Disturbance", "blurb": "Land that has lost its cover since last year: fire, logging, drought, development." },
+    { "id": "water-vapor", "title": "Water Vapour", "blurb": "The invisible ocean overhead." },
+    { "id": "clouds", "title": "Clouds", "blurb": "Cloud fraction and cloud-top temperature — how much sky is covered and how high the tops are." },
+    { "id": "precipitation", "title": "Precipitation", "blurb": "Rain and snow rate, merged from a constellation." },
+    { "id": "air-quality", "title": "Air Quality", "blurb": "Nitrogen dioxide, carbon monoxide and total column ozone." },
+    { "id": "land-temp", "title": "Land Surface Temperature", "blurb": "The skin temperature of the ground itself — day and night." },
+    { "id": "vegetation", "title": "Vegetation Indices", "blurb": "How green the land is, and how that changes with the seasons." },
+    { "id": "snow", "title": "Snow Cover", "blurb": "Snow on the ground, and how much water is in it." },
+    { "id": "land-cover", "title": "Land Cover", "blurb": "Forest, cropland, urban, ice — classified once a year." },
+    { "id": "population", "title": "Population Density", "blurb": "Where people are, on the same grid as the imagery." },
+    { "id": "sst", "title": "Sea Surface Temperature", "blurb": "Ocean skin temperature, and how far it is from normal." },
+    { "id": "chlorophyll", "title": "Chlorophyll a", "blurb": "Where the ocean is alive — phytoplankton, blooms and currents." },
+    { "id": "sea-ice", "title": "Sea Ice", "blurb": "Ice concentration at both poles, daily since 2012." },
+    { "id": "orbits", "title": "Orbital Tracks", "blurb": "Where the satellite actually flew, with the time it passed." }
+  ],
+
+  "layers": [
+    { "id": "MODIS_Terra_CorrectedReflectance_TrueColor", "title": "Corrected Reflectance (True Color)", "sub": "Terra / MODIS", "m": "corrected-reflectance", "start": "2000-02-24", "featured": 1 },
+    { "id": "MODIS_Terra_CorrectedReflectance_Bands721", "title": "Corrected Reflectance (Bands 7-2-1)", "sub": "Terra / MODIS", "m": "corrected-reflectance", "start": "2000-02-24" },
+    { "id": "MODIS_Terra_CorrectedReflectance_Bands367", "title": "Corrected Reflectance (Bands 3-6-7)", "sub": "Terra / MODIS", "m": "corrected-reflectance", "start": "2000-02-24" },
+    { "id": "MODIS_Aqua_CorrectedReflectance_TrueColor", "title": "Corrected Reflectance (True Color)", "sub": "Aqua / MODIS", "m": "corrected-reflectance", "start": "2002-07-04", "featured": 1 },
+    { "id": "MODIS_Aqua_CorrectedReflectance_Bands721", "title": "Corrected Reflectance (Bands 7-2-1)", "sub": "Aqua / MODIS", "m": "corrected-reflectance", "start": "2002-07-04" },
+    { "id": "VIIRS_SNPP_CorrectedReflectance_TrueColor", "title": "Corrected Reflectance (True Color)", "sub": "Suomi NPP / VIIRS", "m": "corrected-reflectance", "start": "2015-11-24", "featured": 1 },
+    { "id": "VIIRS_SNPP_CorrectedReflectance_BandsM11-I2-I1", "title": "Corrected Reflectance (Bands M11-I2-I1)", "sub": "Suomi NPP / VIIRS", "m": "corrected-reflectance", "start": "2015-11-24" },
+    { "id": "VIIRS_SNPP_CorrectedReflectance_BandsM3-I3-M11", "title": "Corrected Reflectance (Bands M3-I3-M11)", "sub": "Suomi NPP / VIIRS", "m": "corrected-reflectance", "start": "2015-11-24" },
+    { "id": "VIIRS_NOAA20_CorrectedReflectance_TrueColor", "title": "Corrected Reflectance (True Color)", "sub": "NOAA-20 / VIIRS", "m": "corrected-reflectance", "start": "2018-01-05" },
+    { "id": "VIIRS_NOAA20_CorrectedReflectance_BandsM11-I2-I1", "title": "Corrected Reflectance (Bands M11-I2-I1)", "sub": "NOAA-20 / VIIRS", "m": "corrected-reflectance", "start": "2018-01-05" },
+    { "id": "VIIRS_NOAA21_CorrectedReflectance_TrueColor", "title": "Corrected Reflectance (True Color)", "sub": "NOAA-21 / VIIRS", "m": "corrected-reflectance", "start": "2023-02-10" },
+
+    { "id": "VIIRS_SNPP_DayNightBand_ENCC", "title": "Earth at Night", "sub": "Suomi NPP / VIIRS Day-Night Band", "m": "earth-at-night", "start": "2016-11-30", "set": "500m", "featured": 1 },
+
+    { "id": "BlueMarble_ShadedRelief_Bathymetry", "title": "Blue Marble, Shaded Relief and Bathymetry", "sub": "NASA Visible Earth", "m": "blue-marble", "period": "static", "set": "500m" },
+    { "id": "BlueMarble_ShadedRelief", "title": "Blue Marble, Shaded Relief", "sub": "NASA Visible Earth", "m": "blue-marble", "period": "static", "set": "500m" },
+    { "id": "BlueMarble_NextGeneration", "title": "Blue Marble, Next Generation", "sub": "NASA Visible Earth — a month at a time", "m": "blue-marble", "period": "monthly", "start": "2004-01-01", "end": "2004-12-01", "set": "500m" },
+
+    { "id": "MODIS_Terra_SurfaceReflectance_Bands143", "title": "Surface Reflectance (Bands 1-4-3)", "sub": "Terra / MODIS", "m": "surface-reflectance", "start": "2000-02-24", "set": "250m" },
+    { "id": "MODIS_Terra_SurfaceReflectance_Bands721", "title": "Surface Reflectance (Bands 7-2-1)", "sub": "Terra / MODIS", "m": "surface-reflectance", "start": "2000-02-24", "set": "250m" },
+    { "id": "MODIS_Aqua_SurfaceReflectance_Bands143", "title": "Surface Reflectance (Bands 1-4-3)", "sub": "Aqua / MODIS", "m": "surface-reflectance", "start": "2002-07-04", "set": "250m" },
+    { "id": "Landsat_WELD_CorrectedReflectance_TrueColor_Global_Annual", "title": "Landsat WELD True Color (annual)", "sub": "Landsat 7 / ETM+ — one image per year, 30 m", "m": "surface-reflectance", "period": "yearly", "start": "1999-01-01", "end": "2011-01-01", "set": "31.25m" },
+    { "id": "HLS_False_Color_Landsat", "title": "False Colour (Landsat, 30 m)", "sub": "HLS — Harmonized Landsat Sentinel-2", "m": "surface-reflectance", "start": "2013-04-11", "set": "31.25m" },
+    { "id": "HLS_False_Color_Sentinel", "title": "False Colour (Sentinel-2, 30 m)", "sub": "HLS — Harmonized Landsat Sentinel-2", "m": "surface-reflectance", "start": "2015-11-28", "set": "31.25m" },
+
+    { "id": "GOES-East_ABI_GeoColor", "title": "GeoColor", "sub": "GOES-East / ABI — every 10 minutes", "m": "geostationary", "period": "10min", "start": "2019-01-01", "set": "1km", "recent": 30 },
+    { "id": "GOES-West_ABI_GeoColor", "title": "GeoColor", "sub": "GOES-West / ABI — every 10 minutes", "m": "geostationary", "period": "10min", "start": "2019-01-01", "set": "1km", "recent": 30 },
+    { "id": "Himawari_AHI_Band3_Red_Visible_1km", "title": "Red Visible (Band 3)", "sub": "Himawari / AHI — every 10 minutes", "m": "geostationary", "period": "10min", "start": "2019-01-01", "set": "1km", "recent": 30 },
+    { "id": "GOES-East_ABI_Band13_Clean_Infrared", "title": "Clean Infrared (Band 13)", "sub": "GOES-East / ABI — every 10 minutes", "m": "geostationary", "period": "10min", "start": "2019-01-01", "set": "2km", "recent": 30 },
+    { "id": "GOES-East_ABI_FireTemp", "title": "Fire Temperature", "sub": "GOES-East / ABI — every 10 minutes", "m": "geostationary", "period": "10min", "start": "2019-01-01", "set": "2km", "recent": 30 },
+
+    { "id": "MODIS_Terra_Thermal_Anomalies_Day", "title": "Fires and Thermal Anomalies (day)", "sub": "Terra / MODIS", "m": "fires", "start": "2000-11-01", "set": "1km", "featured": 1 },
+    { "id": "MODIS_Terra_Thermal_Anomalies_Night", "title": "Fires and Thermal Anomalies (night)", "sub": "Terra / MODIS", "m": "fires", "start": "2000-11-01", "set": "1km" },
+    { "id": "MODIS_Aqua_Thermal_Anomalies_Day", "title": "Fires and Thermal Anomalies (day)", "sub": "Aqua / MODIS", "m": "fires", "start": "2002-07-04", "set": "1km" },
+    { "id": "VIIRS_SNPP_Thermal_Anomalies_375m_Day", "title": "Fires and Thermal Anomalies, 375 m (day)", "sub": "Suomi NPP / VIIRS", "m": "fires", "start": "2015-11-24", "set": "250m", "featured": 1 },
+    { "id": "VIIRS_SNPP_Thermal_Anomalies_375m_Night", "title": "Fires and Thermal Anomalies, 375 m (night)", "sub": "Suomi NPP / VIIRS", "m": "fires", "start": "2015-11-24", "set": "250m" },
+    { "id": "VIIRS_NOAA20_Thermal_Anomalies_375m_Day", "title": "Fires and Thermal Anomalies, 375 m (day)", "sub": "NOAA-20 / VIIRS", "m": "fires", "start": "2018-01-05", "set": "250m" },
+
+    { "id": "MODIS_Combined_Value_Added_AOD", "title": "Aerosol Optical Depth (combined)", "sub": "Terra + Aqua / MODIS", "m": "aerosol", "start": "2000-02-24", "set": "2km", "opacity": 0.8 },
+    { "id": "MODIS_Terra_Aerosol", "title": "Aerosol Optical Depth", "sub": "Terra / MODIS", "m": "aerosol", "start": "2000-02-24", "set": "2km", "opacity": 0.8 },
+    { "id": "MODIS_Aqua_Aerosol", "title": "Aerosol Optical Depth", "sub": "Aqua / MODIS", "m": "aerosol", "start": "2002-07-04", "set": "2km", "opacity": 0.8 },
+
+    { "id": "AIRS_L2_Dust_Score_Day", "title": "Dust Score (day)", "sub": "Aqua / AIRS", "m": "dust", "start": "2013-01-01", "set": "2km", "opacity": 0.8 },
+    { "id": "AIRS_L2_Dust_Score_Night", "title": "Dust Score (night)", "sub": "Aqua / AIRS", "m": "dust", "start": "2013-01-01", "set": "2km", "opacity": 0.8 },
+    { "id": "GOES-East_ABI_Dust", "title": "Dust RGB", "sub": "GOES-East / ABI — every 10 minutes", "m": "dust", "period": "10min", "start": "2019-01-01", "set": "2km", "recent": 30 },
+
+    { "id": "OPERA_L3_Dynamic_Surface_Water_Extent-HLS", "title": "Dynamic Surface Water Extent (30 m)", "sub": "OPERA / HLS", "m": "surface-water", "start": "2023-04-10", "set": "31.25m" },
+    { "id": "OPERA_L3_DIST-ALERT-HLS_Color_Index", "title": "Vegetation Disturbance Alert (30 m)", "sub": "OPERA / HLS", "m": "vegetation-disturbance", "start": "2022-01-01", "set": "31.25m" },
+
+    { "id": "MODIS_Terra_Water_Vapor_5km_Day", "title": "Water Vapour (day)", "sub": "Terra / MODIS", "m": "water-vapor", "start": "2000-02-24", "set": "2km", "opacity": 0.8 },
+    { "id": "MODIS_Aqua_Water_Vapor_5km_Day", "title": "Water Vapour (day)", "sub": "Aqua / MODIS", "m": "water-vapor", "start": "2002-07-04", "set": "2km", "opacity": 0.8 },
+    { "id": "MODIS_Terra_Cloud_Fraction_Day", "title": "Cloud Fraction (day)", "sub": "Terra / MODIS", "m": "clouds", "start": "2000-02-24", "set": "2km", "opacity": 0.8 },
+    { "id": "MODIS_Terra_Cloud_Top_Temp_Day", "title": "Cloud Top Temperature (day)", "sub": "Terra / MODIS", "m": "clouds", "start": "2000-02-24", "set": "2km", "opacity": 0.8 },
+
+    { "id": "IMERG_Precipitation_Rate", "title": "Precipitation Rate", "sub": "GPM / IMERG — every 30 minutes", "m": "precipitation", "period": "30min", "start": "2000-06-01", "set": "2km", "opacity": 0.8 },
+    { "id": "GMI_Precipitation_Rate_Asc", "title": "Precipitation Rate (ascending)", "sub": "GPM / GMI", "m": "precipitation", "start": "2014-03-04", "set": "2km", "opacity": 0.8 },
+
+    { "id": "OMI_Nitrogen_Dioxide_Tropo_Column", "title": "Nitrogen Dioxide (tropospheric column)", "sub": "Aura / OMI", "m": "air-quality", "start": "2004-10-01", "set": "2km", "opacity": 0.8 },
+    { "id": "OMPS_Ozone_Total_Column", "title": "Ozone (total column)", "sub": "Suomi NPP / OMPS", "m": "air-quality", "start": "2012-01-25", "set": "2km", "opacity": 0.8 },
+    { "id": "AIRS_L3_Carbon_Monoxide_500hPa_Volume_Mixing_Ratio_Daily_Day", "title": "Carbon Monoxide at 500 hPa (day)", "sub": "Aqua / AIRS", "m": "air-quality", "start": "2002-08-30", "set": "2km", "opacity": 0.8 },
+
+    { "id": "MODIS_Terra_Land_Surface_Temp_Day", "title": "Land Surface Temperature (day)", "sub": "Terra / MODIS", "m": "land-temp", "start": "2000-02-24", "set": "1km", "opacity": 0.8 },
+    { "id": "MODIS_Terra_Land_Surface_Temp_Night", "title": "Land Surface Temperature (night)", "sub": "Terra / MODIS", "m": "land-temp", "start": "2000-02-24", "set": "1km", "opacity": 0.8 },
+    { "id": "MODIS_Aqua_Land_Surface_Temp_Day", "title": "Land Surface Temperature (day)", "sub": "Aqua / MODIS", "m": "land-temp", "start": "2002-07-04", "set": "1km", "opacity": 0.8 },
+
+    { "id": "MODIS_Terra_NDVI_8Day", "title": "Vegetation Index, NDVI (8-day)", "sub": "Terra / MODIS", "m": "vegetation", "period": "8day", "start": "2000-02-18", "set": "250m", "opacity": 0.85 },
+    { "id": "MODIS_Terra_L3_NDVI_Monthly", "title": "Vegetation Index, NDVI (monthly)", "sub": "Terra / MODIS", "m": "vegetation", "period": "monthly", "start": "2000-02-01", "set": "1km", "opacity": 0.85 },
+    { "id": "HLS_NDVI_Landsat", "title": "Vegetation Index, NDVI (30 m)", "sub": "HLS / Landsat", "m": "vegetation", "start": "2013-04-11", "set": "31.25m", "opacity": 0.85 },
+
+    { "id": "MODIS_Terra_NDSI_Snow_Cover", "title": "Snow Cover (NDSI)", "sub": "Terra / MODIS", "m": "snow", "start": "2000-02-24", "set": "500m", "opacity": 0.85 },
+    { "id": "MODIS_Aqua_NDSI_Snow_Cover", "title": "Snow Cover (NDSI)", "sub": "Aqua / MODIS", "m": "snow", "start": "2002-07-04", "set": "500m", "opacity": 0.85 },
+    { "id": "AMSRU2_Snow_Water_Equivalent_Daily", "title": "Snow Water Equivalent", "sub": "GCOM-W1 / AMSR2", "m": "snow", "start": "2012-07-02", "set": "2km", "opacity": 0.85 },
+
+    { "id": "MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual", "title": "Land Cover Type (IGBP, annual)", "sub": "Terra + Aqua / MODIS", "m": "land-cover", "period": "yearly", "start": "2001-01-01", "set": "500m", "opacity": 0.85 },
+    { "id": "GPW_Population_Density_2020", "title": "Population Density (2020)", "sub": "SEDAC / GPWv4", "m": "population", "period": "static", "set": "1km", "opacity": 0.8 },
+
+    { "id": "GHRSST_L4_MUR_Sea_Surface_Temperature", "title": "Sea Surface Temperature", "sub": "MUR — multi-scale ultra-high resolution, 1 km", "m": "sst", "start": "2002-06-01", "set": "1km", "opacity": 0.9, "featured": 1 },
+    { "id": "GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies", "title": "Sea Surface Temperature Anomalies", "sub": "MUR — difference from the seasonal normal", "m": "sst", "start": "2002-06-01", "set": "1km", "opacity": 0.9 },
+    { "id": "GHRSST_L4_AVHRR-OI_Sea_Surface_Temperature", "title": "Sea Surface Temperature (AVHRR OI)", "sub": "NOAA / AVHRR optimum interpolation", "m": "sst", "start": "1981-09-01", "set": "2km", "opacity": 0.9 },
+
+    { "id": "MODIS_Aqua_L2_Chlorophyll_A", "title": "Chlorophyll a", "sub": "Aqua / MODIS", "m": "chlorophyll", "start": "2002-07-04", "set": "1km", "opacity": 0.9 },
+    { "id": "VIIRS_SNPP_L2_Chlorophyll_A", "title": "Chlorophyll a", "sub": "Suomi NPP / VIIRS", "m": "chlorophyll", "start": "2015-11-24", "set": "1km", "opacity": 0.9 },
+    { "id": "OCI_PACE_Chlorophyll_a", "title": "Chlorophyll a", "sub": "PACE / OCI", "m": "chlorophyll", "start": "2024-03-05", "set": "1km", "opacity": 0.9 },
+
+    { "id": "AMSRU2_Sea_Ice_Concentration_12km", "title": "Sea Ice Concentration (12 km)", "sub": "GCOM-W1 / AMSR2", "m": "sea-ice", "start": "2012-07-02", "set": "2km", "opacity": 0.9 },
+    { "id": "GHRSST_L4_MUR25_Sea_Ice_Concentration", "title": "Sea Ice Concentration (25 km)", "sub": "MUR25", "m": "sea-ice", "start": "2002-09-01", "set": "2km", "opacity": 0.9 },
+
+    { "id": "Coastlines_15m", "title": "Coastlines", "sub": "OpenStreetMap / Natural Earth, 15 m", "m": "reference", "period": "static", "set": "250m", "ref": 1 },
+    { "id": "Reference_Features_15m", "title": "Borders and Roads", "sub": "OpenStreetMap / Natural Earth, 15 m", "m": "reference", "period": "static", "set": "250m", "ref": 1 },
+    { "id": "Reference_Labels_15m", "title": "Place Labels", "sub": "OpenStreetMap / Natural Earth, 15 m", "m": "reference", "period": "static", "set": "250m", "ref": 1 },
+
+    { "id": "OrbitTracks_Aqua_Ascending", "title": "Orbital Track, Aqua (ascending)", "sub": "Aqua — with crossing times", "m": "orbits", "start": "2002-07-04", "set": "2km", "ref": 1 },
+    { "id": "OrbitTracks_Terra_Descending", "title": "Orbital Track, Terra (descending)", "sub": "Terra — with crossing times", "m": "orbits", "start": "2000-02-24", "set": "2km", "ref": 1 },
+    { "id": "OrbitTracks_Suomi_NPP_Ascending", "title": "Orbital Track, Suomi NPP (ascending)", "sub": "Suomi NPP — with crossing times", "m": "orbits", "start": "2015-11-24", "set": "2km", "ref": 1 }
+  ]
+}
