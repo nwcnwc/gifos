@@ -1597,6 +1597,19 @@
       // Hidden, not display:none — some engines size a canvas/context at boot.
       iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;border:0;visibility:hidden';
       iframe.setAttribute('data-gifos-provider', manifest.appId || '');
+      // WebGPU delegation — the SAME hatch mountApp opens, for the same
+      // reason: it is a Permissions-Policy feature, fixed at navigation, and
+      // a sandboxed (opaque-origin) frame gets navigator.gpu only if the
+      // parent delegates it here. Without this line a GPU engine
+      // (capabilities.gpu — Kokoro) silently fell back to WASM in every
+      // provider mount while running full-speed as a normal app. The rest of
+      // mountApp's delegations stay off DELIBERATELY: fullscreen, pointer
+      // lock and orientation lock need a gesture in a visible frame this
+      // hidden mount can never have, autoplay rides only on a link's ask,
+      // and motion would feed device sensors to a frame the user never sees
+      // — a permission surface that grants nothing is the one lie it must
+      // never tell.
+      if (hasCap(manifest, 'gpu') && !capDisabled(manifest, 'gpu')) { try { iframe.setAttribute('allow', 'webgpu'); } catch (e) {} }
       const pending = new Map();
       let ready = false, idSeq = 0;
       const fail = (err) => { root.removeEventListener('message', handler); try { iframe.remove(); } catch (e) {} reject(err); };
