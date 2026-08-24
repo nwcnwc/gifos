@@ -199,6 +199,7 @@
       return;
     }
     showErr('');
+    setEditor(false);
     var t = audio.currentTime || 0;
     if (root.LRMp && root.LRMp.onStamp && root.LRMp.onStamp(cur, t)) return;
     cur = stampLine(lines, cur, t);
@@ -296,7 +297,7 @@
       clearTimeout(lyricTimer);
       lyricTimer = setTimeout(ingestLyrics, 200);
     });
-    ta.addEventListener('change', ingestLyrics);
+    ta.addEventListener('change', function () { ingestLyrics(); if (lines.length) setEditor(false); });
     $('lines').addEventListener('click', function (e) {
       if (e.target.closest && e.target.closest('#emptyHint')) { setEditor(true); return; }
       var li = e.target.closest('li[data-i]');
