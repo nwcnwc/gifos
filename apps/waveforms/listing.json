@@ -1,0 +1,34 @@
+{
+  "tagline": "An explorable guide to sound waves. Hear sine, square, saw.",
+  "description": "A walk-through of what a waveform actually is. The graph is displacement over time. Drag amplitude to change loudness, frequency to change pitch. Hear a sine, a square, a triangle, a saw. Watch air molecules pass a vibration along. Add simple tones together until they become a richer one.\n\nYour place in the guide, the last sliders, and the volume come back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of Waveforms by Josh Comeau. Bugs go to GifOS, not upstream.",
+  "author": {
+    "name": "Josh Comeau",
+    "url": "https://github.com/joshwcomeau/waveforms"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Waveforms",
+    "url": "https://github.com/joshwcomeau/waveforms",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Learning",
+    "Creativity"
+  ],
+  "tags": [
+    "sound",
+    "waveform",
+    "sine",
+    "synthesis",
+    "explorable",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/waveforms",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

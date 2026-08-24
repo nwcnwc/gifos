@@ -2664,6 +2664,53 @@
       "sha256": "d28ed82601d27d8d8e8c47b22a71633b7eeac3adde4f783918e138b2ddcc713f"
     },
     {
+      "slug": "ludo",
+      "appId": "ludo",
+      "name": "Ludo",
+      "shortName": "Ludo",
+      "version": "1.0",
+      "tagline": "Four seats, one invite, no lobby.",
+      "author": {
+        "name": "chukwumaijem",
+        "url": "https://github.com/chukwumaijem/ludo-game"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Ludo",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "ludo",
+        "board",
+        "multiplayer",
+        "offline"
+      ],
+      "accent": [
+        42,
+        138,
+        74
+      ],
+      "cover": "/apps/ludo/cover.jpg",
+      "bytes": 187474,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "0ef78fb3eab9e9b9abfd421f937921bad120b80d2bd37de7016400f4fc6cca4f"
+    },
+    {
       "slug": "math-race",
       "appId": "math-race",
       "name": "Math Race",
@@ -5661,6 +5708,56 @@
       "sha256": "9b732a3b609d218099fb6a80c4f8d0dafef4bfe608446c9b3189892b29f8a800"
     },
     {
+      "slug": "waveforms",
+      "appId": "waveforms",
+      "name": "Waveforms",
+      "shortName": "Waves",
+      "version": "1.0",
+      "tagline": "An explorable guide to sound waves. Hear sine, square, saw.",
+      "author": {
+        "name": "Josh Comeau",
+        "url": "https://github.com/joshwcomeau/waveforms"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Waveforms",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Learning",
+        "Creativity"
+      ],
+      "tags": [
+        "sound",
+        "waveform",
+        "sine",
+        "synthesis",
+        "explorable",
+        "offline"
+      ],
+      "accent": [
+        3,
+        128,
+        244
+      ],
+      "cover": "/apps/waveforms/cover.jpg",
+      "bytes": 188480,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "b35c04c5674dc088601811845cec09e25f824330b393e557eea3ae2fce88386b"
+    },
+    {
       "slug": "wifi-card",
       "appId": "wifi-card",
       "name": "WiFi Card",
@@ -5804,6 +5901,55 @@
         "ts": "2026-08-23"
       },
       "sha256": "99d8ae00b7fffc45978138cb4dabdf58d1435ccf750cfc0e34ddef57e12cc600"
+    },
+    {
+      "slug": "yopass",
+      "appId": "yopass",
+      "name": "Yopass",
+      "shortName": "Yopass",
+      "version": "1.0",
+      "tagline": "Lock a secret. Invite is the one-time room. No server.",
+      "author": {
+        "name": "Johan Haals",
+        "url": "https://github.com/jhaals/yopass"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Yopass",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "secret",
+        "password",
+        "privacy",
+        "paste",
+        "offline",
+        "multiplayer"
+      ],
+      "accent": [
+        46,
+        125,
+        210
+      ],
+      "cover": "/apps/yopass/cover.jpg",
+      "bytes": 192426,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "0bc580b471cc63ded1c263b0d3d9402b39e228c1019c35c229fccc4961540656"
     }
   ]
 }

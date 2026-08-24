@@ -1,0 +1,11 @@
+joshwcomeau/waveforms
+https://github.com/joshwcomeau/waveforms
+pin: bc57bf89916bb074c000388a296c44de1311fd71
+MIT, Copyright 2018-present Joshua Comeau
+
+Upstream is a React + styled-components explorable. GifOS drops
+type=module and cannot ship a React ESM bundle. vendor/waveform.js is
+the math from src/helpers/waveform.helpers.js (sine/square/saw/triangle,
+harmonics, addition) as a classic script. The app is the same explorable
+as a step-through: graphs, sliders, air molecules, additive synthesis,
+and the original teaching copy. Settings stay in the file.

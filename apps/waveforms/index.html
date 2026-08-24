@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Waveforms</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <canvas id="wave" width="640" height="240"></canvas>
+  <canvas id="air" width="640" height="140" hidden></canvas>
+  <div id="copy"></div>
+  <section class="controls" id="controls">
+    <label id="ampRow">Amplitude <span id="ampVal">1.00</span>
+      <input type="range" id="amp" min="0" max="1" step="0.01" value="1">
+    </label>
+    <label id="freqRow">Frequency <span id="freqVal">1.0</span> Hz
+      <input type="range" id="freq" min="0.5" max="4" step="0.1" value="1">
+    </label>
+    <label id="shapeRow">Shape
+      <select id="shape">
+        <option value="sine">Sine</option>
+        <option value="triangle">Triangle</option>
+        <option value="square">Square</option>
+        <option value="sawtooth">Sawtooth</option>
+      </select>
+    </label>
+    <label id="harmRow" hidden>Harmonics <span id="harmVal">0</span>
+      <input type="range" id="harm" min="0" max="12" step="1" value="0">
+    </label>
+    <label id="convRow" hidden>Converge <span id="convVal">0</span>
+      <input type="range" id="conv" min="0" max="1" step="0.01" value="0">
+    </label>
+    <label>Volume <span id="volVal">0</span>
+      <input type="range" id="vol" min="0" max="1" step="0.01" value="0">
+    </label>
+  </section>
+  <div class="nav">
+    <button type="button" id="backBtn" class="ghost">Back</button>
+    <span id="stepn"></span>
+    <button type="button" id="nextBtn">Next</button>
+  </div>
+</div>
+<script src="vendor/waveform.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
