@@ -1,0 +1,33 @@
+{
+  "tagline": "Tree and code for a document that lives in the file. Nothing is uploaded.",
+  "description": "Open a document as a tree you can expand, or as text you can type. Search, tidy the layout, and switch modes from the toolbar. The last document comes back the next time you open the app — still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of JSONEditor by Jos de Jong. Same tree and code views. Their online service is not in this app.",
+  "author": {
+    "name": "Jos de Jong",
+    "url": "https://github.com/josdejong/jsoneditor"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JSONEditor",
+    "url": "https://github.com/josdejong/jsoneditor",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Developer",
+    "Utilities"
+  ],
+  "tags": [
+    "editor",
+    "tree",
+    "code",
+    "document",
+    "offline"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/json-editor",
+  "cover": "screenshot.png",
+  "screenshots": []
+}

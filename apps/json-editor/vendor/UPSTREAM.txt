@@ -1,0 +1,14 @@
+josdejong/jsoneditor 10.4.3
+https://github.com/josdejong/jsoneditor
+Apache-2.0, Copyright (C) 2011-2026 Jos de Jong
+Vendored from the published npm dist (not the repo workspace):
+  dist/jsoneditor.min.js
+  sha256: 360304912c19bcc2ec39e15af0031903634a2f19c47f0f1afeff3e93aafdbae4
+  dist/jsoneditor.min.css (icons sprite inlined as a data URL)
+  original css sha256: e15d39dc77408d08c47ff55b73cb9373d9d795f7b5cc4772be726b0b28b5f5ed
+  rewritten css sha256: c73be501ba5b0c24113323e815475994205bd2abbfe818644772b6ff22b00e80
+  dist/img/jsoneditor-icons.svg
+  sha256: 45c98bf0ee865dac9104d0bf659253b9d9c7ba2dd43e45f55544855750cfd01e
+
+The last document is saved privately. Their jsoneditoronline.org service is
+not wired. Invite is not wired in v1.
