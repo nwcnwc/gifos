@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Yopass</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand">Yopass</div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+
+<main>
+  <section class="card" id="home">
+    <h2>Lock a secret. Hand the invite.</h2>
+    <p class="lede">Encrypted in this tab. Invite is the one-time room. Nothing is uploaded. Unofficial port — not their website, not their server.</p>
+    <label class="lab" for="plain">Secret</label>
+    <textarea id="plain" rows="6" maxlength="8000" placeholder="A password, a note, a token…"></textarea>
+    <label class="lab" for="pass">Passphrase <span class="opt">(optional)</span></label>
+    <input id="pass" type="password" autocomplete="off" spellcheck="false" placeholder="They will have to type this too">
+    <label class="check"><input id="burn" type="checkbox" checked> Burn after reading</label>
+    <button class="primary" id="lockBtn" type="button">Lock</button>
+    <p class="statusline" id="lockStatus"></p>
+    <p class="lvlnote">After it is locked, press <b>Invite</b> in the GifOS menu and send the link. That is the room. If you set a passphrase, tell them that separately — or in the meeting.</p>
+  </section>
+
+  <section class="card" id="locked" hidden>
+    <h2>Locked</h2>
+    <p class="lede" id="lockedLede">The secret is encrypted in this tab.</p>
+    <p class="meta" id="lockedMeta"></p>
+    <p class="statusline good" id="handHint">Press <b>Invite</b> in the bar above the app to hand it over. One invite is the room.</p>
+    <button class="ghost wide" id="openMine" type="button">Open it here</button>
+    <button class="ghost wide" id="burnNow" type="button">Burn now</button>
+    <button class="ghost wide" id="newSecret" type="button">Lock another</button>
+  </section>
+
+  <section class="card" id="open" hidden>
+    <h2>A locked secret is here</h2>
+    <p class="lede" id="openLede">Someone locked a secret in this room.</p>
+    <label class="lab" for="openPass">Passphrase</label>
+    <input id="openPass" type="password" autocomplete="off" spellcheck="false" placeholder="If they set one">
+    <button class="primary" id="openBtn" type="button">Open</button>
+    <p class="statusline" id="openStatus"></p>
+  </section>
+
+  <section class="card" id="revealed" hidden>
+    <h2 id="revTitle">Secret</h2>
+    <pre class="secret" id="revText"></pre>
+    <p class="statusline" id="revNote"></p>
+    <button class="ghost wide" id="copyBtn" type="button">Copy</button>
+    <button class="ghost wide" id="hideBtn" type="button">Hide</button>
+  </section>
+</main>
+
+<script src="crypto.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

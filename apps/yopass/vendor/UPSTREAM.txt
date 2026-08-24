@@ -1,0 +1,16 @@
+jhaals/yopass
+https://github.com/jhaals/yopass
+commit: 23cdc9f26e92862481fb729ad864ffd97897b883
+Apache-2.0, Copyright (c) Johan Haals
+
+Yopass is a Go + Redis + OpenPGP secret-sharing website (yopass.se).
+The GifOS port is a rewrite of the idea, not their backend:
+
+- No Go server, no Redis, no accounts, no OpenID, no webhooks.
+- Ciphertext lives in this file / the Invite room, on the host's
+  browser. Invite is the one-time URL.
+- Encryption is Web Crypto AES-GCM (optional passphrase via PBKDF2),
+  not OpenPGP.js. Same job: a secret you can hand someone without
+  putting it in Slack in the clear. Different bytes.
+
+This is an unofficial port. Bugs go to GifOS, not upstream.
