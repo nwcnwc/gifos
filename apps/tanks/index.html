@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Tanks</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="hud">
+  <span id="hearts">♥♥♥</span>
+  <span id="tally">0 / 0</span>
+  <span id="hint">Invite in the bar — the yard is the room</span>
+</div>
+<canvas id="view" width="720" height="480"></canvas>
+<div id="pads">
+  <div class="stick" id="movePad"><i></i></div>
+  <div class="stick" id="aimPad"><i></i></div>
+</div>
+<button type="button" id="fireBtn">FIRE</button>
+<div id="scores" hidden>
+  <h2>Tally</h2>
+  <ul id="scoreList"></ul>
+  <p class="note">Press Invite in the GifOS menu to send the link. There is no game server.</p>
+</div>
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
