@@ -28,7 +28,7 @@ workers — is denied by default and granted narrowly.
 |---|---|---|
 | The user's local computer | IndexedDB (`gifos` DB): files, per-app state, desktop layout | It's everything the user owns; there is no server copy |
 | The user's device | The browser/OS running GifOS | An app must not pivot from "runs in a tab" to "attacks the machine" |
-| The GifOS first-party origin(s) | `gifos.app`, `relay.gifos.app`, `cors-proxy.gifos.app`, `0–9.gifos.app` | A malicious app must not use us as a proxy or reach our own services |
+| The GifOS first-party origin(s) | `gifos.app`, `relay.gifos.app`, `cors-proxy.gifos.app`, the mirror computers (`0–9` and the named subdomains in `mirror/wrangler.toml`) | A malicious app must not use us as a proxy or reach our own services |
 | Provenance private keys | The signer's own machine — **never** in client JS, the repo, GitHub Actions secrets, Workers, or any AI channel | If a signing key leaks, authorship claims become forgeable |
 | The relay | A stateless Cloudflare Worker | It must stay a dumb, cheap pipe — no data at rest, no media |
 | Live media | Camera/mic in video calls | Media must stay peer-to-peer and consented; it must never transit our servers |
@@ -96,20 +96,30 @@ the GifOS first-party infrastructure as adversaries (see §7).
   `localStorage`, and `IndexedDB` throw; there is nothing to share or collide in.
 - An injected **CSP** is the first child of `<head>` on every app document:
   `default-src 'none'`, `connect-src 'none'` (kills `fetch`/XHR/WebSocket/
-  `EventSource`/beacons), **no `worker-src`** (workers blocked), `frame-src
-  'none'`, `object-src 'none'`, `base-uri 'none'`. Scripts/styles are
-  `'unsafe-inline'` only because the app *is* inline; `img/media/font` allow
-  `data:`/`blob:` so bundled assets render, with no network reach.
+  `EventSource`/beacons), no `worker-src` (workers blocked), `frame-src
+  'none'`, `object-src 'none'`, `base-uri about:` (only `about:`, so the OS
+  can pin the app's base to `about:srcdoc` — `'none'` would block the OS's own
+  `<base>`). Scripts/styles are `'unsafe-inline'` only because the app *is*
+  inline; `img/media/font` allow `data:`/`blob:` so bundled assets render,
+  with no network reach. One declared relaxation: `capabilities.wasm` opens
+  the wasm hatch — `'wasm-unsafe-eval'`, `worker-src blob:`, `connect-src
+  blob: data:` — still nothing that reaches the network.
 - `RTCPeerConnection`/`RTCDataChannel` constructors are **hard-deleted** in the
   client shim before app code runs (CSP's `webrtc` directive isn't portable).
 - The **postMessage bridge validates `e.source === iframe.contentWindow`** and a
-  namespace tag, and exposes a **fixed, small op set** only: `db`, `fetch`,
-  `save`, `info`, `me`, `setName`, `storage`. There is no op to write files,
-  change capabilities, or reach another icon.
+  namespace tag, and exposes a **fixed op set** only (`db`, `fetch`, `save`,
+  `capture` (camera/mic, capability-gated), `libraryPut`/`libraryOpen` (hand a
+  finished photo/clip to My Media, and jump there), `ai`/`api`/`agentChat`
+  (brokered, capability-gated), `asset`, `launch`, `info`, `me`, `setName`,
+  `storage`). There is no op to change capabilities or to read another icon's
+  data.
 - App DB access is **namespaced by the icon's `fileId`**, hard-wired in the
   runtime — `gifos.db(name)` names a collection *within the calling app's own
-  partition*; the bridge message carries no `fileId`, so cross-app access is
-  structurally impossible (this is why there's no `capabilities.db` gate).
+  partition*; the bridge message carries no `fileId`, so reading another app's
+  data is structurally impossible (this is why there's no `capabilities.db`
+  gate). The one deliberate outward write is `libraryPut`, which files a
+  finished photo/clip into My Media's partition — append-only, into one known
+  app.
 - DB writes are rebuilt on a **null-prototype object** with `__proto__`/
   `constructor`/`prototype` dropped — a stored value can't reach `Object`'s
   prototype (prototype-pollution guard).
@@ -123,9 +133,14 @@ fill its own state up to the origin quota). It cannot reach out of the box.
 trusted GifOS origin; SSRFs internal services via a redirect.
 
 **Mitigations**
-- The bridge is the **only** egress, and it's **manifest-gated**: an app can only
-  reach hosts it declares in `capabilities.network`. A self-contained GIF
-  declares none and can never touch the internet.
+- The bridge is the **only** egress, and every path through it is
+  **manifest-gated**: `gifos.fetch` reaches only hosts declared in
+  `capabilities.network`, and the brokered `gifos.ai` / `gifos.api` calls
+  (their own capabilities, their own acknowledgement lines) reach only the
+  user's configured provider or named API. A GIF that declares none of these
+  can never touch the internet — and note an app WITH `capabilities.ai` can
+  ship what it hands the model off-device via the user's provider, which is
+  why `ai`/`api` are named in the acknowledgement sheet like network hosts.
 - The user **sees and controls** the list: a plain-language acknowledgement on
   first run (and again only if the app changes the hosts it asks for), a
   per-host revoke checkbox, and an always-available tab chip. `"*"` is allowed
@@ -193,19 +208,24 @@ appears.
 clients; a lost reply causes duplicate writes on reconnect.
 
 **Mitigations**
-- The **host is authoritative**: clients forward DB *ops*; the host applies them
-  against its own store and broadcasts changes.
-- **The host slot is owned, not first-come.** By default an app invite is an
-  *owned* link: its session id is `"<room>.<verifier>"`, and the relay only lets a
-  socket hold the host slot if it proves a secret (`adm`) whose SHA-256 begins with
-  the verifier. That secret is generated by the creator's app, **never shown to a
-  human, and never in the link** — the link carries only the verifier. So a
-  link-holder can join and read the shared state, but can **never seize the host
-  slot to impersonate the owner or serve poisoned state under their name**. The
-  relay derives the verifier from the id with one helper (`verifierOf`) shared with
-  meetings, so apps and meetings authenticate authority identically. A creator who
-  instead picks "Let a friend keep it going" mints a *dotless* (anyone-owns) id,
-  where by design any holder may host — see the residual note.
+- The **owner is authoritative**: app state rides the room's own mesh as
+  owner-SIGNED frames (`site/js/app-owner.js`); peers verify the signature
+  before applying. There is no relay app-session at all any more — the relay
+  is a greeter + door, and a socket claiming any role but `mesh` is refused
+  (one-runtime flag day; `relay/src/relay.js`).
+- **Authority is a signature, never a socket** (docs/meet-security.md §SIG).
+  In a `"<room>.<verifier>"` room the verifier is a hash commitment to an
+  Ed25519 PUBLIC key; every privileged order arrives individually signed as
+  `{sp, sig, pub}` and the relay verifies the same proof any peer verifies —
+  commitment, signature, right action, fresh timestamp. No secret query
+  param, no admin sockets, no stamps. So a link-holder can join and read the
+  shared state, but can never impersonate the owner or serve poisoned state
+  under their name. The relay derives the verifier from the id with one
+  helper (`verifierOf`) shared with meetings, so apps and meetings
+  authenticate authority identically. A creator who instead picks "Let a
+  friend keep it going" mints a *resilient* room, where succession is
+  deterministic (lowest present peer id adopts from its verified mirror) —
+  see the residual note.
 - **Replay is idempotent**: the host remembers each peer's recent `put` op-ids and
   resends the prior reply instead of re-applying, so a reconnect can't mint a
   duplicate record.
