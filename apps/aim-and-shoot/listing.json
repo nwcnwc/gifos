@@ -1,6 +1,6 @@
 {
   "tagline": "You aim. The robots learn. Don't touch the walls.",
-  "description": "You are the black one in the middle. Move, aim, shoot the robots before they shoot you. Each wave the survivors breed: they get better at dodging, better at hitting, better at not walking into the walls — which hurt you too.\n\nOn a computer, WASD or arrows to move, the mouse to aim, click to fire. On a phone a stick on the left moves you, a stick on the right aims, and the small circles fire. Tap the title art to start.\n\nYour best generation lives in the file. Press Invite in the bar above and a friend sees how far you got — each of you plays your own arena.\n\nAn unofficial port of Aim and Shoot by Victor Ribeiro, a neuroevolution experiment. The bots, the gun, and the joke about Nole Ksum are his.",
+  "description": "The file is the save, and it works on a plane. You are the black one in the middle. Move, aim, shoot the robots before they shoot you. Each wave the survivors breed: they get better at dodging, better at hitting, better at not walking into the walls — which hurt you too. Your best generation lives in the file. No account, no install.\n\nOn a computer, WASD or arrows to move, the mouse to aim, click to fire. On a phone a stick on the left moves you, a drag on the right aims, and FIRE sits under the right thumb. Tap the title art to start.\n\nPress Invite in the bar above and a friend sees how far you got — each of you plays your own arena.\n\nAn unofficial port of Aim and Shoot by Victor Ribeiro, a neuroevolution experiment. The bots, the gun, and the joke about Nole Ksum are his.",
   "author": {
     "name": "Victor Ribeiro",
     "url": "https://github.com/victorqribeiro/aimAndShoot"
@@ -15,6 +15,7 @@
     "blessed": false
   },
   "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
   "categories": [
     "Games"
   ],

@@ -13,7 +13,10 @@ You are the black figure. The others are robots run by neural nets. Kill them al
 
 **Phone**
 
-The first finger on the screen shows two sticks and two fire buttons. Left stick moves. Right stick aims. The small circles fire. Tap the title to start.
+- Left thumb **walks** (the pad in the corner)
+- Drag on the right half of the screen to **aim**
+- **FIRE** under the right thumb
+- Tap the title to start, tap again after a wipe to retry
 
 ## Rules
 

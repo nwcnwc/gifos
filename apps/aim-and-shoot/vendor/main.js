@@ -73,6 +73,18 @@ const init = function(){
 }
 
 
+function syncAAS(){
+	window.AAS = window.AAS || {};
+	AAS.player = player;
+	AAS.enemies = enemies;
+	AAS.bullets = bullets;
+	AAS.generation = generation;
+	AAS.isStarting = isStarting;
+	AAS.isGameover = isGameover;
+	AAS.w = w;
+	AAS.h = h;
+}
+
 const update = function(){
 
 	nextTime = Date.now();
@@ -80,6 +92,8 @@ const update = function(){
 	deltaTime = nextTime - prevTime;
 
 	totalTime += deltaTime;
+
+	if (player && window.AAS && AAS.applyPad) AAS.applyPad(player);
 
 	for(let i = bullets.length-1; i >= 0; i--){
 
@@ -133,6 +147,8 @@ const update = function(){
 
 	prevTime = nextTime;
 
+	syncAAS();
+
 	u = requestAnimationFrame( update );
 
 }
@@ -140,7 +156,9 @@ const update = function(){
 
 const draw = function(){
 
-	c.clearRect(0, 0, w, h);
+	c.fillStyle = "#ececec";
+
+	c.fillRect(0, 0, w, h);
 
 	for(let i = 0; i < bullets.length; i++){
 
@@ -187,13 +205,15 @@ const endRound = function(){
 
 const startScreen = function(){
 
-	c.clearRect(0,0,w,h);
+	c.fillStyle = "#ececec";
+
+	c.fillRect(0,0,w,h);
 
 	c.drawImage(artwork, 0, 0, artwork.width, artwork.height, 0, 0, w, h);
 
-	c.fillColor = "black";
+	c.fillStyle = "black";
 
-	c.fillText("Click to Start", w-w2/2, h2 )
+	c.fillText((window.AAS && AAS.coarse) ? "Tap to Start" : "Click to Start", w-w2/2, h2 )
 
 }
 
@@ -206,6 +226,10 @@ const gameover = function(){
 	if (window.AAS && AAS.onGameover) AAS.onGameover(generation);
 
 	generation = 1;
+
+	isGameover = true;
+
+	syncAAS();
 
 	let i = 0;
 
@@ -227,9 +251,7 @@ const gameover = function(){
 
 		}else{
 
-			c.fillText("Click to try again.", w2, h2/2);
-
-			isGameover = true;
+			c.fillText((window.AAS && AAS.coarse) ? "Tap to try again." : "Click to try again.", w2, h2/2);
 
 		}
 
@@ -332,15 +354,13 @@ const addEventsListener = function(){
 
 	});
 
-	document.body.addEventListener('mousedown', e => {
-
-		e.preventDefault();
+	function pressStartOrShoot(){
 
 		if( isGameover ){
 
 			init();
 
-			return;
+			return true;
 
 		}
 
@@ -350,13 +370,33 @@ const addEventsListener = function(){
 
 			update();
 
-			return;
+			return true;
 
 		}
+
+		return false;
+
+	}
+
+	document.body.addEventListener('mousedown', e => {
+
+		e.preventDefault();
+
+		if( pressStartOrShoot() ) return;
 
 		player.isShooting = true;
 
 	});
+
+	document.body.addEventListener('touchend', e => {
+
+		if( pressStartOrShoot() ){
+
+			e.preventDefault();
+
+		}
+
+	}, {passive: false});
 
 	window.onresize = _ => {
 		if (!canvas) return;
@@ -379,7 +419,23 @@ artwork.onload = _ => {
 
 	init();
 
-	window.AASShowPad = function () { if (!window._aasPad) { window._aasPad = new GuiControls(); } };
+	syncAAS();
 
+	window.AASShowPad = function () { if (window.AAS && AAS.showPad) AAS.showPad(); };
+
+	AAS.startPlay = function () {
+		if (isStarting) { isStarting = false; update(); }
+	};
+
+	AAS.retry = function () { init(); };
+
+	AAS.goTitle = function () {
+		if (u) cancelAnimationFrame(u);
+		isStarting = true;
+		isGameover = false;
+		generation = 1;
+		startScreen();
+		syncAAS();
+	};
 
 }
