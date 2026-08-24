@@ -1,7 +1,7 @@
 // Pack apps/the-house/ into site/apps/the-house/the-house.gif
 import { houseIcon, screenshotPng } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, unlinkSync, rmdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, posix } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -266,6 +266,7 @@ function composeCover() {
     unlinkSync(player);
     unlinkSync(door);
     if (existsSync(out)) unlinkSync(out);
+    rmdirSync(tmpDir);
   } catch (e) {}
   return buf && buf[0] === 0x89 ? buf : null;
 }
