@@ -10,7 +10,9 @@ This is not 90-ball. There is no full house, no extra cards, and no shop.
 
 You call **and** you daub. Tap the big ball (or **Call**) to draw the next number from the bag of 75. **Auto** draws every five seconds. The device can also **say** the number out loud if your browser allows speech.
 
-Tap a number on the card to daub it. You can only daub a number that has already been called. Tap again to undaub. When a pattern is complete, **Bingo!** lights up — press it.
+Tap a number on the card to daub it; tap again to undaub. **There are no hints**: the card never marks itself, and nothing tells you whether a called number is on it — spotting your own numbers is the game. Nothing stops you daubing a number that was never called, either. Mishearing is part of bingo; the claim check is where it catches up with you.
+
+Once you have daubed a full pattern yourself, **Bingo!** wakes up. Press it — an honest line wins the round with fireworks, and a line holding an uncalled number is turned away (fix your card and play on).
 
 If the bag empties with no bingo, the round is over.
 
@@ -20,9 +22,9 @@ Press **Play with friends**, then **Invite** in the bar above the app. One invit
 
 You need **two people** before **Start calling** works. The host (the first person in the room) calls. Everyone else gets a phone-sized card. The host has a card too, plus a full flashboard of 1–75.
 
-Each phone derives its own card from the round. **Your daubs stay on this device.** A bingo claim is checked against your card and the numbers that were actually called. You cannot fake a line.
+Each phone derives its own card from the round. **Your daubs stay on this device.** A bingo claim is checked against your card and the numbers that were actually called — the claimed line must be fully called, so you cannot fake a line, though a stray mis-daub elsewhere on your card will not spoil an honest one. A verified bingo sets off fireworks on **every** screen.
 
-Call out loud in a meeting if you want the voice around the app. **Auto** on the host still speaks and draws.
+Every phone **speaks each call** as it arrives, if the browser allows speech — mute your device if you would rather read the ball. Call out loud in a meeting if you want the real voice around the app. **Auto** on the host still speaks and draws.
 
 The **←** button in a friend game **leaves the room**. To sit in the lobby without dropping everyone, use the system Back control instead.
 
