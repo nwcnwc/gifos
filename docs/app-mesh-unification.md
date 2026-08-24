@@ -1,7 +1,11 @@
 # Unifying apps and meetings onto ONE control plane (design study)
 
-Status: **DESIGN STUDY — research + recommendation, no code.** Written
-2026-07-18. This is the wide, deep companion to the existing narrow migration
+Status: **DECIDED AND BUILT** — see §DECIDED below (app-owner.js,
+attachStageBus, bootClientBus all shipped; the one-runtime flag day
+2026-08-01 then went further than this study's scope — every app room is a
+mesh room and the relay app-session no longer exists at all). Originally
+written 2026-07-18 as a design study; the research sections are retained as
+history. This is the wide, deep companion to the existing narrow migration
 note [`app-mesh.md`](app-mesh.md): where that note scopes a *bus swap* (replace
 the relay broadcast with `meshNode.gossip`), this study asks the bigger
 question the directive poses — *should an app-share and a meeting become the
@@ -255,7 +259,7 @@ Everything above builds a live room with no camera. "Turning the meeting on" is
    (`showAppPane` 5101).
 
 The proof that it is additive: the app-on-Stage feature already treats an app
-as a **data stream, not A/V** (`media-plane.md` lines 80–88) — the app occupies
+as a **data stream, not A/V** (`media-plane.md`, "An APP on Stage carries a DATA stream") — the app occupies
 a Stage slot and broadcasts state deltas down the Stage path, taking *no* slot
 in the A/V strip. Under the unified model that is just the app's gossip lane
 projected onto the Stage fan for the "shared app on the broadcast tier" case;
@@ -371,10 +375,10 @@ runtime is *reused*, not deleted:
 - App-in-meeting stops opening a second session: `mountClientApp` (`run.html`
   5142) binds the runtime client to the *meeting's* meshNode instead of calling
   `bootClient` with a separate `{s,k,relay}`.
-- Standalone app-share gets a headless meshNode via a new reusable module
-  (`app-mesh.md` calls it `site/js/mesh-app.js`) that `run.html` and `run.html`
-  both consume — factoring the node bring-up + DC signaling glue out of
-  `run.html`.
+- Standalone app-share gets a headless meshNode via a proposed reusable
+  module (`app-mesh.md` called it `site/js/mesh-app.js`) that the app runner
+  and the meeting page would both consume. (As built, no such module was
+  needed — the two pages became ONE `run.html`, and §DECIDED below says so.)
 
 **Deleted once baked:**
 - The relay's app-broadcast: `{t:'bcast'}` fan-out and the mesh `{t:'gossip'}`
@@ -472,7 +476,10 @@ S4** before the host-heal step ships.
 
 The open decisions above are now **made and built** (branch `app-mesh-unify`).
 The unified model shipped as a runtime-side adapter over the existing `sga`
-Stage DATA lane — `run.html` and the mesh control plane were NOT touched.
+Stage DATA lane. (Written when that was true of the then-meet.html; the
+one-runtime flag day then DID touch `run.html` and `gifos-net.js` — becomeHost
+is laneless, `deriveJoin` deleted, DS bumped to 'gifos-net-2' — see "Changes
+OUTSIDE my files" below.)
 
 ### The model, settled
 
@@ -496,13 +503,16 @@ Stage DATA lane — `run.html` and the mesh control plane were NOT touched.
 
 ### What was built (all in `site/js/`)
 
-- **`app-owner.js`** — a pure, transport-free module: `createSigner()` (Ed25519,
-  private key non-extractable, never leaves the tab), `makeVerifier(sid)` (pins
+- **`app-owner.js`** — a pure, transport-free module: `createSigner()`
+  (Ed25519 from a random 32-byte seed via gifos-ed.js — the former
+  non-extractable generateKey path was removed: the seed already lives in JS
+  memory, so non-extractability bought nothing), `makeVerifier(sid)` (pins
   the owner pubkey on first valid frame; binds it to the sid tail when the link
   commits to one — `room.<sha256(pk) prefix>`), a canonical serializer, and the
   snap/delta/op reducers. Node-testable, browser-loadable.
-- **`runtime.js` → `becomeHost().attachStageBus(bus)`** (host side): tears down
-  the redundant relay app-session, mints an owner signer, subscribes for `act`
+- **`runtime.js` → `becomeHost().attachStageBus(bus)`** (host side): mints an
+  owner signer (there is no relay app-session to tear down any more —
+  becomeHost is laneless since the flag day), subscribes for `act`
   proposals (validated against collection visibility + the leadership fence,
   exactly as the relay host's `handleRpc` did), applies them to the
   authoritative store, and broadcasts owner-signed `snap` (app bytes + filtered
@@ -516,10 +526,12 @@ Stage DATA lane — `run.html` and the mesh control plane were NOT touched.
 
 ### What was DELETED
 
-- **The second relay app-session for app-in-meeting.** Clients now take the mesh
-  bus (`bootClientBus`) — they never open the app's own relay session. The host
-  side's relay app-session is **torn down inside `attachStageBus`** the moment
-  the mesh bus is attached. App-state is no longer duplicated over the relay.
+- **Every relay app-session** — for app-in-meeting first (this work), then for
+  standalone apps too on the flag day. Clients take the mesh bus
+  (`bootClientBus`) — they never open an app relay session, and the host never
+  mints one (`attachHost`/`openHostSocket`/`bootClient` and the mirror trio
+  are deleted from `runtime.js`). App-state is no longer duplicated over the
+  relay.
 
 ### Late joiner
 
@@ -536,18 +548,22 @@ snap convergence, `act`-proposal round-trip, read-only refusal, **impostor-op
 rejection**, tamper rejection, late-joiner snapshot, delete convergence, and
 sid-bound first-frame binding. The full browser flow (iframe mount + IndexedDB
 store + real mesh transport) still needs a stable WebRTC environment to exercise
-end to end — `test/browser/e2e-meeting-app.js` loads the runtime cleanly but the
-headless cross-participant meshing is flaky on the CI box (upstream of any app
-code).
+end to end — `test/browser/e2e-meeting-app.js` loads the runtime cleanly but
+late joiners adopt a running app unreliably. Measured verdict since
+(test/batteries/known-unfixed.sh): it is an APP-LANE RACE — app state rides
+the structural-neighbour `sga` flood while presence rides `meshNode.gossip` —
+not the environment; this doc's unified lane is the named fix that owes it.
 
 ### Accepted limitations (per the decided scope — NOT bugs)
 
-- **Owner away → writes pause.** Tearing down the relay app-session also retires
-  its `AUTO_TAKEOVER` host-race for the meeting-app case. Host-slot healing over
-  the mesh is the decided replacement but is **S4/W7-gated future work** (§6
-  step 5); until then an owner leaving freezes app-state (acceptable for
-  owner-centric apps; co-admin keys are future work). The app survives as the
-  owner's saved GIF or any client's snapshot, and a new share re-mints an owner.
+- **Owner away → writes pause — SINCE SUPERSEDED for resilient rooms.** The
+  relay AUTO_TAKEOVER host-race is deleted for every case. Succession over
+  the mesh then shipped on the flag day: in a RESILIENT room every member
+  computes the same successor (lowest present S4 peer id), which adopts the
+  app from its owner-verified mirror and re-hosts after a confirmed-gone gate
+  (60 s); an OWNED room still freezes by design. The app survives as the
+  owner's saved GIF or any client's snapshot, and a new share re-mints an
+  owner.
 - **First-frame TOFU on healing-link sids.** For a meeting-app the sid is an
   opaque healing sid (no pubkey commitment), so the client pins the owner pubkey
   trust-on-first-valid-frame. An impostor racing the owner's first `snap` onto
@@ -568,10 +584,12 @@ code).
   `bootClientBus` params, so the client pins the owner key from the
   **authenticated ad** instead of TOFU — the first-frame race for healing-link
   sids is closed. (`runtime.js` seeds `makeVerifier(sid, params.pk)`.)
-- **`noRelay` (DONE 2026-08-01):** `becomeHost({ noRelay: true })` skips
-  `openHostSocket` entirely; `run.html` `runApp` passes it, so a
-  meeting-hosted app never registers even a momentary relay app-session.
-  Guarded by `e2e-meeting-app.js` ("sharing opened NO relay app-session" —
-  asserts no `role=host` socket ever existed on the host page).
-- **No mesh/relay/`gifos-net.js` changes were required** — the adapter rides the
-  already-merged `sga` lane and `GifOS.meetStageData` API as-is.
+- **`noRelay` (DONE 2026-08-01, since subsumed):** the flag made
+  `becomeHost` skip the relay app-session; the flag day then deleted
+  `openHostSocket` outright, so `becomeHost` is laneless always and the flag
+  (still passed by `run.html`) is inert. No app ever registers a relay
+  app-session, guarded by `e2e-meeting-app.js`.
+- **No mesh changes were required for the adapter itself** — it rides the
+  already-merged `sga` lane and `GifOS.meetStageData` API as-is. (The flag
+  day that followed DID change `gifos-net.js` and the relay: `deriveJoin`
+  deleted, DS → 'gifos-net-2', `role=host`/`client` refused.)

@@ -2,8 +2,10 @@
 
 Status: **COMPLETE (2026-08-01, the one-runtime flag day — docs/one-runtime.md).**
 Both halves shipped: in-meeting apps ride the Stage DATA lane (2026-07-18), and
-STANDALONE app-shares are now mesh rooms too — run.html and the relay star bus
-(`t:'bcast'`, `role=host`/`client`) are DELETED, the relay is a greeter + door,
+STANDALONE app-shares are now mesh rooms too — the OLD pre-one-runtime app
+runner page and the relay star bus (`t:'bcast'`, `role=host`/`client`) are
+DELETED (today's `run.html` is the former meet.html, renamed — the one room
+page), the relay is a greeter + door,
 and one derivation (deriveMeet, DS 'gifos-net-2') covers every room. The
 migration plan below is retained as history of how the shape was found.
 

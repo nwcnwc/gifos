@@ -28,10 +28,10 @@ Today: the app GIF itself.
 
 **Mechanism.** The owner broadcasts the bytes **once** as an owner-signed
 `app` frame; every node that receives one **retains** it
-(`site/run.html:9537` `sgaDeliver`); a latecomer pulls from whichever *peer*
-already holds it (`sga-appreq` / `sga-app`, `run.html:9600`, `:9624`).
-Distribution is a bounded-degree flood with dedup (`sgaFan` `:9514` over
-`sgaTargets` `:9485`).
+(`site/run.html:10168` `sgaDeliver`); a latecomer pulls from whichever *peer*
+already holds it (`sga-appreq` / `sga-app`, `run.html:10209`, `:10267`).
+Distribution is a bounded-degree flood with dedup (`sgaFan` `:10145` over
+`sgaTargets` `:10116`).
 
 **Cost:** owner O(1). One frame per session, ever.
 
@@ -40,7 +40,7 @@ of those three matters — drop any of them and this pattern stops being the
 answer.
 
 **History worth keeping.** This was a star until 2026-08-02: every guest
-dialled the owner for the file. `runtime.js:2230` records why that died — *"it
+dialled the owner for the file. `runtime.js:3136` records why that died — *"it
 makes the owner (typically a phone) an origin server for every guest who ever
 arrives… and it did not even work at two people."*
 
@@ -50,12 +50,12 @@ arrives… and it did not even work at two people."*
 independently ask for. Today: Anyroad's Overpass map tiles.
 
 **Mechanism, and it is transparent.** The app calls ordinary
-`gifos.fetch(url)`. `runtime.js:1946` silently routes it through
+`gifos.fetch(url)`. `runtime.js:2077` (`pooledFetch`) silently routes it through
 `pooledFetch` when the manifest declares that host under `capabilities.pool`.
 Anyroad's source never mentions the pool; its manifest lists four Overpass
 mirrors and that is the whole integration.
 
-Two subtleties, both solved, both documented at `runtime.js:1437`:
+Two subtleties, both solved, both documented at `runtime.js:1899`:
 
 - **Claim before fetching.** At a cold start nobody holds anything, so all N
   miss at once and "share what you downloaded" engages *after* every request it
@@ -227,9 +227,9 @@ and the C-sweep.
 **Mechanism.** The owner holds the authoritative store. A guest write is a
 **proposal**: an `act` frame floods to the owner, which validates it against the
 manifest's visibility rules and the leadership fence, applies it, then signs and
-floods the result (`runtime.js:2293` `onAct`, `:2278` `sendDelta`, `:2271`
+floods the result (`runtime.js:3195` `onAct`, `:3180` `sendDelta`, `:3173`
 `sendSnap`). A late joiner pulls the retained snap from any peer holding it. On
-the client, a `db-change` notification triggers a full `getAll` (`:197`).
+the client, a `db-change` notification triggers a full `getAll` (`:156`).
 
 **Cost:** every change is a full-state re-serialise, an Ed25519 signature on the
 owner's main thread, and a room-wide flood. The client then re-reads the whole
@@ -242,7 +242,7 @@ writer resolving conflicts is a feature. For that, full-state + owner-signing is
 a perfectly reasonable design and the cost is irrelevant.
 
 **Its real ceiling.** Measured: one `approom-host` stopped serving app bytes
-altogether after ~20 sequential guests (`test/README.md:197`).
+altogether after ~20 sequential guests (`test/README.md`, "ONE BOX CANNOT ANSWER…" §approom).
 
 **The point of this document.** Anyroad's `players` collection is service 3
 traffic in service 4's clothing — 5N writes/sec, each triggering a full-state
