@@ -105,7 +105,8 @@ seat, `occ=1`, `links=0`), and the data was garbage. It is also the box Nathan
 talks to Claude on, so loading it makes the session laggy. Put bots on
 **<gate-host> (8 cores)**; <llm-box> is available but runs a privacy stack that
 must be restored. Always check `nproc` and `/proc/loadavg` before believing a
-red, and `pkill -f "headless_shel[l]"` (bracketed) to clean up.
+red, and `pkill -f "[c]hrome-linux"` (bracketed; matches both the real-Chrome
+bots and any headless_shell) to clean up.
 
 MonitorBot is a systemd user unit on the <monitor-pi> in room `test` — it shows
 up as `meet.js --room test`. Never broad-pkill there; target your own room.
