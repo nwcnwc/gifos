@@ -58,18 +58,24 @@
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
+  function frameRoot() {
+    pan.s = 1;
+    pan.x = 16;
+    pan.y = 16;
+    applyPan();
+  }
+
   function fit() {
     var stage = $('stage');
     var laid = lastLaid;
     if (!stage || !laid) {
-      pan.x = 24; pan.y = 24; pan.s = 1;
-      applyPan();
+      frameRoot();
       return;
     }
     var sw = stage.clientWidth || 640;
     var sh = stage.clientHeight || 400;
     var s = Math.min((sw - 32) / Math.max(laid.width, 1), (sh - 32) / Math.max(laid.height, 1));
-    pan.s = Math.max(0.25, Math.min(1.15, s));
+    pan.s = Math.max(0.35, Math.min(1.15, s));
     pan.x = Math.max(8, (sw - laid.width * pan.s) / 2);
     pan.y = Math.max(8, (sh - laid.height * pan.s) / 2);
     applyPan();
@@ -137,7 +143,7 @@
       onCopy: function (text) { copyText(text); }
     });
     $('meta').textContent = laid.nodes.length + ' cards · ' + laid.edges.length + ' edges';
-    if (!fittedOnce) { fittedOnce = true; fit(); }
+    if (!fittedOnce) { fittedOnce = true; frameRoot(); }
   }
 
   function parseAndDraw() {
