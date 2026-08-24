@@ -1,0 +1,18 @@
+hundredrabbits/Orca
+https://github.com/hundredrabbits/Orca
+commit: 223e45c84db14cb77fb1d31e29a3ad94652080d8
+MIT, Copyright (c) 2017 Hundredrabbits
+homepage: https://hundredrabbits.github.io/Orca/
+
+Classic browser PWA (index.html + desktop/sources). Vendored as classic
+scripts. Service worker dropped (the GIF is the cache). UDP/OSC operators
+call require('dgram') / require('node-osc') — the browser stub logs and
+they stay silent. Web MIDI is optional.
+
+GifOS patch, clock.js only: upstream used a blob Worker for the 4-tick
+timer. The sandbox has no worker-src, so the same interval runs on the
+main thread. Everything else is unmodified source.
+
+The grid is saved on this device. Press Invite to look together; each
+person has their own canvas. Upstream wrote the grid to a .orca download
+and remembered zoom/bpm in localStorage.

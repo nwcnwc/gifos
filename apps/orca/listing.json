@@ -1,0 +1,34 @@
+{
+  "tagline": "A livecoding sequencer. Each letter is an operator. The grid is the save.",
+  "description": "A two-dimensional canvas of letters. Each letter is an operator: a clock, a random, a MIDI note, a bang that wakes its neighbours. Type on the grid, press Space to play or pause, and watch the program run. There is no account and nothing is uploaded.\n\nThe grid comes back the next time you open the app, still only on this device. Press Invite in the bar above if you want a friend to sit with you. They have their own grid; yours is not sent.\n\nMIDI hardware is optional — Orca talks to a connected device when the browser allows it. OSC and UDP ports from the desktop app are silent here; they needed a native socket.\n\nAn unofficial port of Orca by Hundredrabbits. Same operators, same canvas. This copy keeps the grid in the file.",
+  "author": {
+    "name": "Hundredrabbits",
+    "url": "https://github.com/hundredrabbits/Orca"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Orca",
+    "url": "https://github.com/hundredrabbits/Orca",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Creativity",
+    "Media"
+  ],
+  "tags": [
+    "livecoding",
+    "sequencer",
+    "midi",
+    "grid",
+    "orca",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/orca",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
