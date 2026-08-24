@@ -830,6 +830,18 @@ Roughly three families in one directory:
   own quality, which is the point of asking for the boxes. Every multiplayer
   assertion guards code with nothing else watching it: upstream Claude of Duty
   has no networking at all),
+  `e2e-battle-city` (the Battle City port, from its real built GIF. The app
+  shipped with EVERY TANK FROZEN — `canMove` compared the mover by reference
+  against a copy of itself, so every move in the game was refused and the
+  first stage could not be finished — and nothing caught it because nothing
+  opened the app. Two legs, one box each, all state: **desktop** boots the GIF
+  in the sandbox, checks all five scripts and 35 stages rode inside it, and
+  drives the tank with the arrow keys, J and P; **phone** proves a real touch
+  reveals the pad, the board is scaled to the screen rather than left at 1x in
+  a corner, no control is drawn over the board or over another control, and a
+  d-pad TAP moves the tank — press and release land between two frames, and
+  the first build threw the direction away. The rules of the game itself are
+  pinned headless in `test/unit/battle-city.js`),
   `e2e-pool` (capabilities.pool — two peers in one meeting, one URL, and the
   upstream is asked ONCE; spawns its own counting server on 8801 and asserts
   the COUNT, not the source, so a cache or a second code path cannot fake it.

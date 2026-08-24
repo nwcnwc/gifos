@@ -352,7 +352,7 @@
       "appId": "battle-city",
       "name": "Battle City",
       "shortName": "Tanks",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tagline": "Tanks, bricks, and the eagle. A friend on the other pad.",
       "author": {
         "name": "feichao93",
@@ -385,15 +385,11 @@
         33
       ],
       "cover": "/apps/battle-city/cover.jpg",
-      "bytes": 280525,
+      "bytes": 282039,
       "download": 0,
       "provides": null,
-      "signature": {
-        "type": "domain",
-        "id": "gifos.app",
-        "ts": "2026-08-23"
-      },
-      "sha256": "8df99b0d259cbb6a33fdeb68aa7c7436dbeac912ff24c2dfea35707586090d9b"
+      "signature": null,
+      "sha256": "e5d7ba522e0aaca4cc6842d0fbc1c9b21a7256561ca848607c15722a8e077b06"
     },
     {
       "slug": "battleboat",

@@ -3,7 +3,7 @@
   "appId": "battle-city",
   "name": "Battle City",
   "shortName": "Tanks",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minBuild": 947,
   "entry": "index.html",
   "accent": [231, 156, 33],
