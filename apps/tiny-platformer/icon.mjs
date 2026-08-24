@@ -1,6 +1,9 @@
 // Procedural Tiny Platformer icon: a yellow square hops a brick, stomps a
 // grey patrol, gold pulses. Pure Node, super-sample → downsample → palette.
 import { deflateSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
 
@@ -51,34 +54,33 @@ function nearest(pal, r, g, b) {
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / FRAMES;
-  const hop = Math.sin(Math.min(1, t * 1.4) * Math.PI);
-  const px = 28 + t * 54;
-  const py = 78 - hop * 38;
-  const mx = 86 + Math.sin(t * Math.PI * 2) * 6;
-  const my = 86;
-  const dead = t > 0.62;
-  const goldPulse = 0.7 + Math.sin(t * Math.PI * 2) * 0.3;
-  const gx = 54, gy = 70;
+  // Hop, stomp, hold. Reads as a jump at 64px Home Screen size.
+  const hop = Math.sin(Math.min(1, t * 1.55) * Math.PI);
+  const px = 24 + t * 62;
+  const py = 82 - hop * 44;
+  const mx = 88 + Math.sin(t * Math.PI) * 4;
+  const my = 82;
+  const dead = t > 0.58;
+  const goldPulse = 0.75 + Math.sin(t * Math.PI * 2) * 0.25;
+  const gx = 58, gy = 64;
+  const SIZE = 20;
 
   for (let pyi = 0; pyi < RW; pyi++) {
     for (let pxi = 0; pxi < RW; pxi++) {
       const x = pxi / SS, y = pyi / SS;
       if (!inCard(x, y, 6, 20)) continue;
       let col = mix(CARD_A, CARD_B, Math.max(0, Math.min(1, (y - 6) / (OUT - 12))));
-      // floor bricks
-      if (y > 98 && y < 118) {
-        const bx = Math.floor((x - 10) / 14);
-        col = (bx + Math.floor(y / 10)) % 2 ? BRICK : mix(BRICK, PINK, 0.35);
+      if (y > 100 && y < 120) {
+        const bx = Math.floor((x - 8) / 16);
+        col = (bx + Math.floor(y / 10)) % 2 ? BRICK : mix(BRICK, PINK, 0.4);
       }
-      if (inRect(x, y, 18, 88, 36, 12)) col = PURPLE;
-      if (inRect(x, y, 70, 88, 40, 12)) col = PURPLE;
-      // gold
-      if (!dead && Math.hypot(x - gx, y - gy) < 6 * goldPulse) col = GOLD;
-      // monster
-      if (!dead && inRect(x, y, mx - 8, my - 8, 16, 16)) col = GREY;
-      if (dead && inRect(x, y, mx - 10, my + 2, 20, 6)) col = mix(GREY, CARD_A, 0.4);
-      // player
-      if (inRect(x, y, px - 8, py - 8, 16, 16)) col = YELLOW;
+      if (inRect(x, y, 16, 92, 40, 10)) col = PURPLE;
+      if (inRect(x, y, 68, 92, 44, 10)) col = PURPLE;
+      const gs = 7 * goldPulse;
+      if (!dead && inRect(x, y, gx - gs, gy - gs * 0.6, gs * 2, gs * 1.2)) col = GOLD;
+      if (!dead && inRect(x, y, mx - SIZE / 2, my - SIZE / 2, SIZE, SIZE)) col = GREY;
+      if (dead && inRect(x, y, mx - 12, my + 6, 24, 8)) col = mix(GREY, CARD_A, 0.35);
+      if (inRect(x, y, px - SIZE / 2, py - SIZE / 2, SIZE, SIZE)) col = YELLOW;
       const o = (pyi * RW + pxi) * 4;
       rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
     }
@@ -148,44 +150,53 @@ export function screenshotPng() {
     x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
-  fill(0, 0, W, H, 10, 10, 15);
-  const COLORS = [
+  const PAL = [
+    [17, 17, 17],
     [236, 208, 120],
     [217, 91, 67],
     [192, 41, 66],
     [84, 36, 55],
     [51, 51, 51],
   ];
-  const T = 24;
-  // brick bands
-  for (let row = 0; row < 8; row++) {
-    const y = 80 + row * T;
-    const c = COLORS[(row % 4) + 1];
-    fill(40, y, 520, y + T - 2, c[0], c[1], c[2]);
-    fill(680, y + 120, 1160, y + 120 + T - 2, c[0], c[1], c[2]);
+  const TILE = 32;
+  const dir = dirname(fileURLToPath(import.meta.url));
+  const level = JSON.parse(readFileSync(join(dir, 'vendor/level.json'), 'utf8'));
+  const data = level.layers[0].data;
+  const tw = level.width, th = level.height;
+  const objs = level.layers[1].objects;
+  // Mid-run crop: the long brick shelf with gold and a grey patrol, player in the air.
+  // Zoom past the 20×15 play camera so the cover is full of cave, not sky.
+  const camX = 620, camY = 210;
+  const scale = 2.25;
+  fill(0, 0, W, H, 10, 10, 15);
+  for (let ty = 0; ty < th; ty++) {
+    for (let tx = 0; tx < tw; tx++) {
+      const cell = data[tx + ty * tw];
+      if (!cell) continue;
+      const c = PAL[cell] || PAL[5];
+      const x0 = (tx * TILE - camX) * scale;
+      const y0 = (ty * TILE - camY) * scale;
+      fill(x0, y0, x0 + TILE * scale - 1, y0 + TILE * scale - 1, c[0], c[1], c[2]);
+    }
   }
-  fill(0, H - 80, W, H, 84, 36, 55);
-  fill(0, H - 56, W, H, 51, 51, 51);
-  // platforms
-  fill(80, 480, 420, 504, 84, 36, 55);
-  fill(520, 360, 860, 384, 217, 91, 67);
-  fill(900, 520, 1140, 544, 84, 36, 55);
-  // gold
-  fill(220, 448, 244, 472, 255, 215, 0);
-  fill(300, 448, 324, 472, 255, 215, 0);
-  fill(700, 328, 724, 352, 255, 215, 0);
-  fill(980, 488, 1004, 512, 255, 215, 0);
-  // monsters
-  fill(360, 456, 384, 480, 83, 119, 122);
-  fill(780, 336, 804, 360, 83, 119, 122);
-  fill(1040, 496, 1064, 520, 83, 119, 122);
-  // player mid-jump
-  fill(610, 250, 646, 286, 236, 208, 120);
-  // HUD
-  fill(48, 28, 72, 52, 255, 215, 0);
-  fill(80, 28, 104, 52, 255, 215, 0);
-  fill(112, 28, 136, 52, 255, 215, 0);
-  fill(48, 60, 72, 84, 83, 119, 122);
+  for (const o of objs) {
+    const x0 = (o.x - camX) * scale;
+    const y0 = (o.y - camY) * scale;
+    const s = TILE * scale;
+    if (o.type === 'treasure') {
+      fill(x0, y0 + s / 3, x0 + s, y0 + s, 255, 215, 0);
+    } else if (o.type === 'monster') {
+      fill(x0, y0, x0 + s, y0 + s, 83, 119, 122);
+    }
+  }
+  // Player mid-jump above the shelf, not sitting on a spawn.
+  const px = (820 - camX) * scale, py = (300 - camY) * scale, s = TILE * scale;
+  fill(px, py, px + s, py + s, 236, 208, 120);
+  // HUD pips — gold taken, one stomp
+  fill(36, 28, 60, 52, 255, 215, 0);
+  fill(68, 28, 92, 52, 255, 215, 0);
+  fill(100, 28, 124, 52, 255, 215, 0);
+  fill(36, 60, 60, 84, 83, 119, 122);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
