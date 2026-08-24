@@ -392,7 +392,24 @@
     $('empty').style.display = list.length ? 'none' : '';
     $('grid').innerHTML = list.map((a) => {
       const installed = installedOf(a);
-      return '<button class="card" data-slug="' + esc(a.slug) + '">' +
+      // ONE action per card, labelled by the player's state with this app:
+      // Install (not here yet), Update (here, catalog moved on), Open (here
+      // and current). Open is a plain link to the running app; Install and
+      // Update run the SAME install() the detail page uses, reporting into
+      // the card. No detail visit needed, and — the cover rule — still no
+      // GIF on the wire until the button is pressed: the click fetches the
+      // app.json record (a few KB) and only install() fetches the GIF.
+      const act = tooOld(a)
+        ? '<button class="btn ghost act" disabled>Needs a newer GifOS</button>'
+        : installed
+          ? (outdated(a)
+              ? '<button class="btn act" data-act="update">Update</button>'
+              : '<a class="btn act" data-act="open" href="' + BASE + 'run.html#id=' + encodeURIComponent(installed.id) + ns('&db=') + '">Open</a>')
+          : '<button class="btn act" data-act="install">Install</button>';
+      // The card is a DIV, not a <button>: a button may not contain the action
+      // button (interactive content inside interactive content), and browsers
+      // flatten that in ways that swallow the inner click.
+      return '<div class="card" role="link" tabindex="0" data-slug="' + esc(a.slug) + '">' +
         // loading="lazy": below-the-fold covers don't even fetch until scrolled to.
         '<img class="shot" src="' + esc(a.cover) + '" alt="" loading="lazy" decoding="async">' +
         '<div class="body">' +
@@ -415,8 +432,15 @@
                 revOf(a.slug).stars + ' (' + revOf(a.slug).count + ')</span>'
               : '') +
             (a.categories || []).map((c) => '<span class="pill">' + esc(c) + '</span>').join('') +
+            // "Works offline": the manifest declares NO capabilities.network,
+            // so nothing in this app ever reaches the internet (the runtime
+            // enforces that; the pill just says it up front). Computed by the
+            // catalog builder into the index as `offline`, never guessed here.
+            (a.offline ? '<span class="pill offline" title="Declares no network access — runs entirely on this device">Works offline</span>' : '') +
           '</div>' +
-        '</div></button>';
+          '<div class="cardact">' + act + '<span class="cnote"></span></div>' +
+          '<div class="prog cprog" style="display:none"><i></i></div>' +
+        '</div></div>';
     }).join('');
   }
 
@@ -676,8 +700,13 @@
     };
   }
 
-  async function install(app, into) {
-    const btn = $(into ? 'update' : 'install'), note = $('note'), prog = $('prog'), err = $('err');
+  // `ui` is where this install reports: the detail page's own elements by
+  // default, or a CARD's (see renderGrid) so a listing can be installed,
+  // updated or opened straight from the grid without a detail visit. `after`
+  // runs when an UPDATE finishes (a fresh install leaves for the Home Screen).
+  async function install(app, into, ui) {
+    ui = ui || {};
+    const btn = ui.btn || $(into ? 'update' : 'install'), note = ui.note || $('note'), prog = ui.prog || $('prog'), err = ui.err || $('err');
     const fail = (msg) => { err.style.display = ''; err.textContent = msg; btn.disabled = false; prog.style.display = 'none'; };
     // The floor, enforced where the download actually happens rather than only
     // where the button is drawn. A disabled attribute is a rendering decision
@@ -759,7 +788,9 @@
     // that the runtime backfills on first launch.
     const fetchAssets = async (fid) => {
       const A = GifOS.assets; if (!A) return;
-      const dl2 = $('dl2'), note2 = $('note2'), bar2 = $('prog2');
+      // Detail-page elements; absent when a CARD drove this install, in which
+      // case the asset download reports through the card's note instead.
+      const dl2 = $('dl2'), note2 = $('note2') || note, bar2 = $('prog2') || prog;
       try {
         const cache = A.assetCache(store, fid);
         const need = await A.missing(archive.files, m, cache, { requiredOnly: true });
@@ -767,7 +798,7 @@
         // The first line has finished its job; let it say so, so the moving
         // line below is unambiguously the one still working.
         note.textContent = 'App file ✓';
-        dl2.style.display = '';
+        if (dl2) dl2.style.display = '';
         bar2.firstChild.style.width = '0';
         await A.ensure(archive.files, m, (s, frac) => {
           note2.textContent = s;
@@ -816,6 +847,7 @@
         await rememberInstall(into.id);
         await fetchAssets(into.id);
         await refreshInstalled();
+        if (ui.after) { ui.after(); return; }
         await showDetail(app.slug, false);   // re-renders: Update button gone, sha now matches
         const n2 = $('note');
         if (n2) n2.textContent = 'Updated ✓ — your saved data is untouched.';
@@ -887,8 +919,35 @@
     });
     $('grid').addEventListener('click', (e) => {
       const c = e.target.closest('.card');
-      if (c) showDetail(c.dataset.slug, true);
+      if (!c) return;
+      const a = e.target.closest('.act');
+      if (!a) { showDetail(c.dataset.slug, true); return; }
+      if (a.dataset.act === 'open') return;        // a plain link: let it navigate
+      e.preventDefault();
+      cardInstall(c, a.dataset.act === 'update');
     });
+    $('grid').addEventListener('keydown', (e) => {
+      const c = e.target.closest('.card');
+      if (c && e.target === c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showDetail(c.dataset.slug, true); }
+    });
+    // Install / Update from the grid: fetch the listing's record (app.json —
+    // gif path, signature, assets), then the ordinary install() reporting into
+    // this card. An UPDATE re-renders the grid so the button turns into Open.
+    async function cardInstall(card, update) {
+      const btn = card.querySelector('.act'), note = card.querySelector('.cnote'), prog = card.querySelector('.cprog');
+      btn.disabled = true; note.textContent = 'Loading…'; note.classList.remove('err');
+      let app = null;
+      try {
+        const r = await fetch('/apps/' + encodeURIComponent(card.dataset.slug) + '/app.json', { cache: 'no-cache' });
+        if (!r.ok) throw new Error('listing returned ' + r.status);
+        app = await r.json();
+      } catch (e) { note.classList.add('err'); note.textContent = 'Couldn’t load this listing — ' + (e.message || e); btn.disabled = false; return; }
+      const live = installedOf(app);
+      await install(app, update && live ? { id: live.id, name: live.name } : null, {
+        btn, note, prog, err: note,
+        after: () => { renderGrid(); },
+      });
+    }
     root.addEventListener('popstate', () => route(false));
 
     // A deep link arrives from 404.html as #app=<slug>; rewrite it to the

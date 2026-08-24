@@ -397,6 +397,36 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.waitForSelector('.card', { timeout: 15000 });
   check('the grid marks an installed app as installed',
     (await page.locator('.card[data-slug="' + target.slug + '"] .installed').count()) === 1);
+
+  // ---- ONE action per card: Install / Update / Open, straight from the grid --
+  // A listing is installable without a detail visit, and the button says what
+  // THIS player can do next. Still no GIF on the wire until it is pressed.
+  const actOf = (slug) => page.locator('.card[data-slug="' + slug + '"] .act');
+  check('every card carries exactly one action button', (await page.locator('.card .act').count()) === (await page.locator('.card').count()));
+  check('the installed app\'s card says Open, and Open is a link to the running app',
+    /^Open$/.test(((await actOf(target.slug).textContent()) || '').trim())
+    && /run\.html#id=/.test((await actOf(target.slug).getAttribute('href')) || ''));
+  // "Works offline" = the index says the manifest declares no network host;
+  // the pill count on screen must equal the index's count, no more, no less.
+  const offlineInIndex = index.apps.filter((a) => a.offline).length;
+  check('"Works offline" pills match the index (declares no capabilities.network)',
+    (await page.locator('.card .pill.offline').count()) === offlineInIndex && offlineInIndex > 0 && offlineInIndex < index.apps.length,
+    (await page.locator('.card .pill.offline').count()) + ' of ' + index.apps.length);
+  check('…and a networked app (anyroad) has no such pill', (await page.locator('.card[data-slug="anyroad"] .pill.offline').count()) === 0);
+  const second = index.apps.filter((a) => a.slug !== target.slug && a.bytes < 2e6).sort((a, b) => a.bytes - b.bytes)[0];
+  const secondLabel = ((await actOf(second.slug).textContent()) || '').trim();
+  check('a not-yet-installed app\'s card says Install', secondLabel === 'Install', second.slug + ': ' + secondLabel);
+  const hitsBefore = gifHits.length;
+  await actOf(second.slug).click();
+  await page.waitForURL(/index\.html/, { timeout: 60000 });
+  await page.waitForSelector('.modal', { timeout: 30000 });
+  check('Install from the CARD lands on the Home Screen with the same confirmation',
+    /is installed/.test((await page.locator('.modal h3').textContent()) || ''));
+  check('…and fetched that app\'s GIF exactly once, and nothing else', gifHits.length === hitsBefore + 1 && new RegExp('/apps/' + second.slug + '/').test(gifHits[gifHits.length - 1]), gifHits.slice(hitsBefore).join(', '));
+  check('…and it is really installed', await page.evaluate(async (appId) => !!(await GifOS.store.allFiles()).find((x) => x.appId === appId && x.isApp), second.appId));
+  await page.goto(BASE + '/store.html');
+  await page.waitForSelector('.card', { timeout: 15000 });
+  check('back in the store its card now says Open', /^Open$/.test(((await actOf(second.slug).textContent()) || '').trim()));
   await page.locator('.card[data-slug="' + target.slug + '"]').click();
   await page.waitForSelector('#install', { timeout: 10000 });
   const openHref = await page.locator('.actions a.btn').getAttribute('href').catch(() => '');
