@@ -1253,7 +1253,7 @@ jQuery.support = (function() {
 
 	// Preliminary tests
 	div.setAttribute( "className", "t" );
-	div.innerHTML = "  <link/><table><\/table><a href='/a'>a<\/a><input type='checkbox'/>";
+	div.innerHTML = "  <link/><table></table><a href='/a'>a</a><input type='checkbox'/>";
 
 	all = div.getElementsByTagName("*");
 	a = div.getElementsByTagName("a")[ 0 ];
@@ -1315,7 +1315,7 @@ jQuery.support = (function() {
 
 		// Makes sure cloning an html5 element does not cause problems
 		// Where outerHTML is undefined, this still works
-		html5Clone: document.createElement("nav").cloneNode( true ).outerHTML !== "<:nav><\/:nav>",
+		html5Clone: document.createElement("nav").cloneNode( true ).outerHTML !== "<:nav></:nav>",
 
 		// jQuery.support.boxModel DEPRECATED in 1.8 since we don't support Quirks Mode
 		boxModel: ( document.compatMode === "CSS1Compat" ),
@@ -1434,7 +1434,7 @@ jQuery.support = (function() {
 		// display:none (it is still safe to use offsets if a parent element is
 		// hidden; don safety goggles and see bug #4512 for more information).
 		// (only IE 8 fails this test)
-		div.innerHTML = "<table><tr><td><\/td><td>t<\/td><\/tr><\/table>";
+		div.innerHTML = "<table><tr><td></td><td>t</td></tr></table>";
 		tds = div.getElementsByTagName("td");
 		tds[ 0 ].style.cssText = "padding:0;margin:0;border:0;display:none";
 		isSupported = ( tds[ 0 ].offsetHeight === 0 );
@@ -1487,7 +1487,7 @@ jQuery.support = (function() {
 			// (IE 6 does this)
 			div.style.display = "block";
 			div.style.overflow = "visible";
-			div.innerHTML = "<div><\/div>";
+			div.innerHTML = "<div></div>";
 			div.firstChild.style.width = "5px";
 			support.shrinkWrapBlocks = ( div.offsetWidth !== 3 );
 
@@ -3797,7 +3797,7 @@ var cachedruns,
 
 	// Check if attributes should be retrieved by attribute nodes
 	assertAttributes = assert(function( div ) {
-		div.innerHTML = "<select><\/select>";
+		div.innerHTML = "<select></select>";
 		var type = typeof div.lastChild.getAttribute("multiple");
 		// IE8 returns a string for some attributes even when not present
 		return type !== "boolean" && type !== "string";
@@ -3808,7 +3808,7 @@ var cachedruns,
 	assertUsableName = assert(function( div ) {
 		// Inject content
 		div.id = expando + 0;
-		div.innerHTML = "<a name='" + expando + "'><\/a><div name='" + expando + "'><\/div>";
+		div.innerHTML = "<a name='" + expando + "'></a><div name='" + expando + "'></div>";
 		docElem.insertBefore( div, docElem.firstChild );
 
 		// Test
@@ -3834,7 +3834,7 @@ var cachedruns,
 
 	// Check if getAttribute returns normalized href attributes
 	assertHrefNotNormalized = assert(function( div ) {
-		div.innerHTML = "<a href='#'><\/a>";
+		div.innerHTML = "<a href='#'></a>";
 		return div.firstChild && typeof div.firstChild.getAttribute !== strundefined &&
 			div.firstChild.getAttribute("href") === "#";
 	}),
@@ -3842,7 +3842,7 @@ var cachedruns,
 	// Check if getElementsByClassName can be trusted
 	assertUsableClassName = assert(function( div ) {
 		// Opera can't find a second classname (in 9.6)
-		div.innerHTML = "<div class='hidden e'><\/div><div class='hidden'><\/div>";
+		div.innerHTML = "<div class='hidden e'></div><div class='hidden'></div>";
 		if ( !div.getElementsByClassName || div.getElementsByClassName("e").length === 0 ) {
 			return false;
 		}
@@ -5007,7 +5007,7 @@ if ( document.querySelectorAll ) {
 		// Build QSA regex
 		// Regex strategy adopted from Diego Perini
 		assert(function( div ) {
-			div.innerHTML = "<select><option selected><\/option><\/select>";
+			div.innerHTML = "<select><option selected></option></select>";
 
 			// IE8 - Some boolean attributes are not treated correctly
 			if ( !div.querySelectorAll("[selected]").length ) {
@@ -5026,7 +5026,7 @@ if ( document.querySelectorAll ) {
 
 			// Opera 10-12/IE9 - ^= $= *= and empty values
 			// Should not select anything
-			div.innerHTML = "<p test=''><\/p>";
+			div.innerHTML = "<p test=''></p>";
 			if ( div.querySelectorAll("[test^='']").length ) {
 				rbuggyQSA.push( "[*^$]=" + whitespace + "*(?:\"\"|'')" );
 			}
@@ -5463,13 +5463,13 @@ var nodeNames = "abbr|article|aside|audio|bdi|canvas|data|datalist|details|figca
 	rscriptType = /\/(java|ecma)script/i,
 	rcleanScript = /^\s*<!(?:\[CDATA\[|\-\-)|[\]\-]{2}>\s*$/g,
 	wrapMap = {
-		option: [ 1, "<select multiple='multiple'>", "<\/select>" ],
-		legend: [ 1, "<fieldset>", "<\/fieldset>" ],
-		thead: [ 1, "<table>", "<\/table>" ],
-		tr: [ 2, "<table><tbody>", "<\/tbody><\/table>" ],
-		td: [ 3, "<table><tbody><tr>", "<\/tr><\/tbody><\/table>" ],
-		col: [ 2, "<table><tbody><\/tbody><colgroup>", "<\/colgroup><\/table>" ],
-		area: [ 1, "<map>", "<\/map>" ],
+		option: [ 1, "<select multiple='multiple'>", "</select>" ],
+		legend: [ 1, "<fieldset>", "</fieldset>" ],
+		thead: [ 1, "<table>", "</table>" ],
+		tr: [ 2, "<table><tbody>", "</tbody></table>" ],
+		td: [ 3, "<table><tbody><tr>", "</tr></tbody></table>" ],
+		col: [ 2, "<table><tbody></tbody><colgroup>", "</colgroup></table>" ],
+		area: [ 1, "<map>", "</map>" ],
 		_default: [ 0, "", "" ]
 	},
 	safeFragment = createSafeFragment( document ),
@@ -5482,7 +5482,7 @@ wrapMap.th = wrapMap.td;
 // IE6-8 can't serialize link, script, style, or any html5 (NoScope) tags,
 // unless wrapped in a div with non-breaking characters in front of it.
 if ( !jQuery.support.htmlSerialize ) {
-	wrapMap._default = [ 1, "X<div>", "<\/div>" ];
+	wrapMap._default = [ 1, "X<div>", "</div>" ];
 }
 
 jQuery.fn.extend({
@@ -5668,7 +5668,7 @@ jQuery.fn.extend({
 				( jQuery.support.leadingWhitespace || !rleadingWhitespace.test( value ) ) &&
 				!wrapMap[ ( rtagName.exec( value ) || ["", ""] )[1].toLowerCase() ] ) {
 
-				value = value.replace( rxhtmlTag, "<$1><\/$2>" );
+				value = value.replace( rxhtmlTag, "<$1></$2>" );
 
 				try {
 					for (; i < l; i++ ) {
@@ -6105,7 +6105,7 @@ jQuery.extend({
 					div = div || safe.appendChild( context.createElement("div") );
 
 					// Fix "XHTML"-style tags in all browsers
-					elem = elem.replace(rxhtmlTag, "<$1><\/$2>");
+					elem = elem.replace(rxhtmlTag, "<$1></$2>");
 
 					// Go to html and back, then peel off extra wrappers
 					tag = ( rtagName.exec( elem ) || ["", ""] )[1].toLowerCase();
@@ -9316,7 +9316,7 @@ $.fn.extend({
 					// IE returns 0 when zIndex is not specified
 					// other browsers return a string
 					// we ignore the case of nested elements with an explicit value of 0
-					// <div style="z-index: -10;"><div style="z-index: 0;"><\/div><\/div>
+					// <div style="z-index: -10;"><div style="z-index: 0;"></div></div>
 					value = parseInt( elem.css( "zIndex" ), 10 );
 					if ( !isNaN( value ) && value !== 0 ) {
 						return value;
@@ -10433,7 +10433,7 @@ $.widget("ui.sortable", $.ui.mouse, {
 			this.storedCursor = body.css( "cursor" );
 			body.css( "cursor", o.cursor );
 
-			this.storedStylesheet = $( "<style>*{ cursor: "+o.cursor+" !important; }<\/style>" ).appendTo( body );
+			this.storedStylesheet = $( "<style>*{ cursor: "+o.cursor+" !important; }</style>" ).appendTo( body );
 		}
 
 		if(o.opacity) { // opacity option
@@ -10963,7 +10963,7 @@ $.widget("ui.sortable", $.ui.mouse, {
 
 					if ( nodeName === "tr" ) {
 						that.currentItem.children().each(function() {
-							$( "<td>&#160;<\/td>", that.document[0] )
+							$( "<td>&#160;</td>", that.document[0] )
 								.attr( "colspan", $( this ).attr( "colspan" ) || 1 )
 								.appendTo( element );
 						});
@@ -11771,7 +11771,7 @@ $.widget("ui.sortable", $.ui.mouse, {
     animation: true
   , placement: 'top'
   , selector: false
-  , template: '<div class="tooltip"><div class="tooltip-arrow"><\/div><div class="tooltip-inner"><\/div><\/div>'
+  , template: '<div class="tooltip"><div class="tooltip-arrow"></div><div class="tooltip-inner"></div></div>'
   , trigger: 'hover'
   , title: ''
   , delay: 0
@@ -15880,9 +15880,9 @@ zlib.js 2012 - imaya [ https://github.com/imaya/zlib.js ] The MIT License
     })(),
     replaceInput = [
         "<div class='sp-replacer'>",
-            "<div class='sp-preview'><div class='sp-preview-inner'><\/div><\/div>",
-            "<div class='sp-dd'>&#9660;<\/div>",
-        "<\/div>"
+            "<div class='sp-preview'><div class='sp-preview-inner'></div></div>",
+            "<div class='sp-dd'>&#9660;</div>",
+        "</div>"
     ].join(''),
     markup = (function () {
 
@@ -15891,43 +15891,43 @@ zlib.js 2012 - imaya [ https://github.com/imaya/zlib.js ] The MIT License
         var gradientFix = "";
         if (IE) {
             for (var i = 1; i <= 6; i++) {
-                gradientFix += "<div class='sp-" + i + "'><\/div>";
+                gradientFix += "<div class='sp-" + i + "'></div>";
             }
         }
 
         return [
             "<div class='sp-container sp-hidden'>",
                 "<div class='sp-palette-container'>",
-                    "<div class='sp-palette sp-thumb sp-cf'><\/div>",
-                "<\/div>",
+                    "<div class='sp-palette sp-thumb sp-cf'></div>",
+                "</div>",
                 "<div class='sp-picker-container'>",
                     "<div class='sp-top sp-cf'>",
-                        "<div class='sp-fill'><\/div>",
+                        "<div class='sp-fill'></div>",
                         "<div class='sp-top-inner'>",
                             "<div class='sp-color'>",
                                 "<div class='sp-sat'>",
                                     "<div class='sp-val'>",
-                                        "<div class='sp-dragger'><\/div>",
-                                    "<\/div>",
-                                "<\/div>",
-                            "<\/div>",
+                                        "<div class='sp-dragger'></div>",
+                                    "</div>",
+                                "</div>",
+                            "</div>",
                             "<div class='sp-hue'>",
-                                "<div class='sp-slider'><\/div>",
+                                "<div class='sp-slider'></div>",
                                 gradientFix,
-                            "<\/div>",
-                        "<\/div>",
-                        "<div class='sp-alpha'><div class='sp-alpha-inner'><div class='sp-alpha-handle'><\/div><\/div><\/div>",
-                    "<\/div>",
+                            "</div>",
+                        "</div>",
+                        "<div class='sp-alpha'><div class='sp-alpha-inner'><div class='sp-alpha-handle'></div></div></div>",
+                    "</div>",
                     "<div class='sp-input-container sp-cf'>",
                         "<input class='sp-input' type='text' spellcheck='false'  />",
-                    "<\/div>",
-                    "<div class='sp-initial sp-thumb sp-cf'><\/div>",
+                    "</div>",
+                    "<div class='sp-initial sp-thumb sp-cf'></div>",
                     "<div class='sp-button-container sp-cf'>",
-                        "<a class='sp-cancel' href='#'><\/a>",
-                        "<button class='sp-choose'><\/button>",
-                    "<\/div>",
-                "<\/div>",
-            "<\/div>"
+                        "<a class='sp-cancel' href='#'></a>",
+                        "<button class='sp-choose'></button>",
+                    "</div>",
+                "</div>",
+            "</div>"
         ].join("");
     })();
 
@@ -15939,9 +15939,9 @@ zlib.js 2012 - imaya [ https://github.com/imaya/zlib.js ] The MIT License
             c += (tinycolor.equals(color, p[i])) ? " sp-thumb-active" : "";
 
             var swatchStyle = rgbaSupport ? ("background-color:" + tiny.toRgbString()) : "filter:" + tiny.toFilter();
-            html.push('<span title="' + tiny.toRgbString() + '" data-color="' + tiny.toRgbString() + '" class="' + c + '"><span class="sp-thumb-inner" style="' + swatchStyle + ';" /><\/span>');
+            html.push('<span title="' + tiny.toRgbString() + '" data-color="' + tiny.toRgbString() + '" class="' + c + '"><span class="sp-thumb-inner" style="' + swatchStyle + ';" /></span>');
         }
-        return "<div class='sp-cf " + className + "'>" + html.join('') + "<\/div>";
+        return "<div class='sp-cf " + className + "'>" + html.join('') + "</div>";
     }
 
     function hideAll() {
@@ -22869,7 +22869,7 @@ return Q;
       var zoom = pskl.app.drawingController.compositeRenderer
         .getZoom()
         .toFixed(2);
-      html += '<div class="drawing-zoom">x' + zoom + "<\/div>";
+      html += '<div class="drawing-zoom">x' + zoom + "</div>";
     }
 
     this.coordinatesContainer.innerHTML =
@@ -22885,7 +22885,7 @@ return Q;
         currentFrameIndex +
         "/" +
         frameCount +
-        "<\/div>"
+        "</div>"
       );
     };
 
@@ -23840,7 +23840,7 @@ return Q;
     newFrameButton.setAttribute("data-test-id", "add-frame-button");
     newFrameButton.innerHTML =
       '<div class="add-frame-action-icon icon-frame-plus-white">' +
-      '<\/div><div class="label">Add new frame<\/div>';
+      '</div><div class="label">Add new frame</div>';
     this.previewList.appendChild(newFrameButton);
     this.addFrameTile = newFrameButton;
 
@@ -25566,7 +25566,7 @@ return Q;
     var html = palettes
       .map(function (palette) {
         return pskl.utils.Template.replace(
-          '<option value="{{id}}">{{name}}<\/option>',
+          '<option value="{{id}}">{{name}}</option>',
           palette
         );
       })
@@ -25890,7 +25890,7 @@ return Q;
     message.className = "user-message";
     message.innerHTML = messageInfo.content;
     message.innerHTML =
-      message.innerHTML + '<div title="Close message" class="close">x<\/div>';
+      message.innerHTML + '<div title="Close message" class="close">x</div>';
     document.body.appendChild(message);
 
     message
@@ -26110,7 +26110,7 @@ return Q;
             "Performance problem detected, " +
             '<a href="#" style="color:red;"' +
             'onclick="pskl.controller.UserWarningController.showPerformanceInfoDialog()">' +
-            "learn more?<\/a>",
+            "learn more?</a>",
           hideDelay: 5000
         }
       ]);
@@ -26583,7 +26583,7 @@ return Q;
 
   ns.GifExportController.prototype.updatePreview_ = function (src) {
     this.previewContainerEl.innerHTML =
-      '<div><img style="max-width:32px;" src="' + src + '"/><\/div>';
+      '<div><img style="max-width:32px;" src="' + src + '"/></div>';
   };
 
   ns.GifExportController.prototype.renderAsImageDataAnimatedGIF = function (
@@ -28468,7 +28468,7 @@ return Q;
     key = key.replace(/right/i, "&rarr;");
     key = key.replace(/down/i, "&darr;");
     key = key.replace(/>/g, "&gt;");
-    key = key.replace(/<\/g, "&lt;");
+    key = key.replace(/</g, "&lt;");
     // add spaces around '+' delimiters
     key = key.replace(/([^ ])\+([^ ])/g, "$1 + $2");
     return key;
@@ -28484,11 +28484,11 @@ return Q;
 
     var helptextTitle = helpItems.reduce(function (p, n) {
       return (
-        p + '<div class="cheatsheet-helptext-tooltip-item">' + n + "<\/div>"
+        p + '<div class="cheatsheet-helptext-tooltip-item">' + n + "</div>"
       );
     }, "");
     helptextTitle =
-      '<div class="cheatsheet-helptext-tooltip">' + helptextTitle + "<\/div>";
+      '<div class="cheatsheet-helptext-tooltip">' + helptextTitle + "</div>";
     return helptextTitle;
   };
 })();
@@ -28990,7 +28990,7 @@ return Q;
       anchorInfo.innerHTML = [
         '<div class="import-resize-warning">',
         "  Imported content will be cropped!",
-        "<\/div>",
+        "</div>",
         "Select crop anchor:"
       ].join("");
     } else if (isBigger) {
@@ -29898,15 +29898,15 @@ return Q;
   var OPTION_CLASSNAME = "anchor-option";
   // Maybe move to HTML ...
   var WIDGET_TEMPLATE =
-    '<div class="anchor-option"  title="top left"      data-origin="TOPLEFT"><\/div>' +
-    '<div class="anchor-option"  title="top"           data-origin="TOP"><\/div>' +
-    '<div class="anchor-option"  title="top right"     data-origin="TOPRIGHT"><\/div>' +
-    '<div class="anchor-option"  title="middle left"   data-origin="MIDDLELEFT"><\/div>' +
-    '<div class="anchor-option"  title="middle"        data-origin="MIDDLE"><\/div>' +
-    '<div class="anchor-option"  title="middle right"  data-origin="MIDDLERIGHT"><\/div>' +
-    '<div class="anchor-option"  title="bottom left"   data-origin="BOTTOMLEFT"><\/div>' +
-    '<div class="anchor-option"  title="bottom"        data-origin="BOTTOM"><\/div>' +
-    '<div class="anchor-option"  title="bottom right"  data-origin="BOTTOMRIGHT"><\/div>';
+    '<div class="anchor-option"  title="top left"      data-origin="TOPLEFT"></div>' +
+    '<div class="anchor-option"  title="top"           data-origin="TOP"></div>' +
+    '<div class="anchor-option"  title="top right"     data-origin="TOPRIGHT"></div>' +
+    '<div class="anchor-option"  title="middle left"   data-origin="MIDDLELEFT"></div>' +
+    '<div class="anchor-option"  title="middle"        data-origin="MIDDLE"></div>' +
+    '<div class="anchor-option"  title="middle right"  data-origin="MIDDLERIGHT"></div>' +
+    '<div class="anchor-option"  title="bottom left"   data-origin="BOTTOMLEFT"></div>' +
+    '<div class="anchor-option"  title="bottom"        data-origin="BOTTOM"></div>' +
+    '<div class="anchor-option"  title="bottom right"  data-origin="BOTTOMRIGHT"></div>';
 
   ns.AnchorWidget = function (container, onChangeCallback) {
     this.onChangeCallback = onChangeCallback;
@@ -30147,7 +30147,7 @@ return Q;
       }.bind(this)
     );
 
-    html += '<li class="create-palette-new-color">+<\/li>';
+    html += '<li class="create-palette-new-color">+</li>';
 
     this.colorsList.innerHTML = html;
   };
@@ -30185,14 +30185,14 @@ return Q;
   var ns = $.namespace("pskl.widgets");
 
   var WIDGET_MARKUP =
-    '<div class="frame-viewer"><\/div>' +
+    '<div class="frame-viewer"></div>' +
     '<div class="frame-nav">' +
-    '<button class="button frame-nav-first">&lt;&lt;<\/button>' +
-    '<button class="button frame-nav-previous">&lt;<\/button>' +
+    '<button class="button frame-nav-first">&lt;&lt;</button>' +
+    '<button class="button frame-nav-previous">&lt;</button>' +
     '<input class="textfield frame-nav-input" type="text">' +
-    '<button class="button frame-nav-next">&gt;<\/button>' +
-    '<button class="button frame-nav-last">&gt;&gt;<\/button>' +
-    "<\/div>";
+    '<button class="button frame-nav-next">&gt;</button>' +
+    '<button class="button frame-nav-last">&gt;&gt;</button>' +
+    "</div>";
 
   /**
    * The frame picker widget displays a a simple UI to view the frames of a piskel.
@@ -36840,7 +36840,7 @@ ns.ToolsHelper = {
 
     var testSuiteStatus = document.createElement("li");
     testSuiteStatus.innerHTML = pskl.utils.Template.replace(
-      "<b>Test Suite [{{path}}]<\/b>",
+      "<b>Test Suite [{{path}}]</b>",
       { path: this.shortenPath_(this.suitePath) }
     );
     this.testListElt.appendChild(testSuiteStatus);
@@ -36880,7 +36880,7 @@ ns.ToolsHelper = {
     var testCaseStatus = document.createElement("li");
 
     testCaseStatus.innerHTML = pskl.utils.Template.replace(
-      '[{{path}}] finished : <b style="color:{{color}}">{{status}} ({{performance}})<\/b>',
+      '[{{path}}] finished : <b style="color:{{color}}">{{status}} ({{performance}})</b>',
       {
         path: this.shortenPath_(testPath),
         status: success ? "OK" : "KO",
@@ -36901,7 +36901,7 @@ ns.ToolsHelper = {
 
     var testSuiteStatus = document.createElement("li");
     testSuiteStatus.innerHTML = pskl.utils.Template.replace(
-      "<b>Test finished : {{status}}<\/b> ({{elapsed}}s, performance: {{performance}})",
+      "<b>Test finished : {{status}}</b> ({{elapsed}}s, performance: {{performance}})",
       {
         status: status,
         elapsed: elapsed,
