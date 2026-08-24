@@ -1,0 +1,13 @@
+ruby0x1/realtime-multiplayer-in-html5
+https://github.com/ruby0x1/realtime-multiplayer-in-html5
+commit: 00af50dd57baa29f30809925881a624bc50234f1
+MIT, Copyright © 2012-2016 Sven "underscorediscovery" Bergström
+
+The Build New Games demo: Node + socket.io + two coloured rectangles
+on a 720×480 canvas, with client prediction and a server tick. That
+Node process, socket.io, express, and dat.gui stay behind.
+
+This port keeps the arena size and the idea (two — now many — players
+in one room, host browser is the authority) and draws actual tanks
+with turrets, bullets, walls, and phone sticks. Each player writes
+only their own row. Invite is the room.

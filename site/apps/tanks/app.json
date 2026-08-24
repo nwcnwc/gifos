@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "tanks",
+  "appId": "tanks",
+  "name": "Tanks",
+  "shortName": "Tanks",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Drive a tank. Invite is the arena. No game server.",
+  "description": "A top-down tank, a turret, shells. Drive around a walled yard and shoot the other tanks. Three hits and you respawn. On your own, two drones patrol. Press Invite in the bar above the app and the drones stand down — everyone who opens the link is in the same yard.\n\nThe original tutorial ran a Node tick over socket.io. That process is gone. The host's browser holds the room. There is no account and no lobby code.\n\nOn a phone, left thumb drives, right thumb aims; holding the right stick fires. On a computer it is WASD to drive, the mouse to aim, click or space to shoot.\n\nAn unofficial port of Realtime Multiplayer in HTML5 by Sven Bergström. The Node server stays behind. The meeting is the arena.",
+  "author": {
+    "name": "Sven Bergström",
+    "url": "https://github.com/ruby0x1/realtime-multiplayer-in-html5"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "tanks",
+    "shooter",
+    "multiplayer",
+    "canvas",
+    "arena"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tanks",
+  "accent": [
+    200,
+    140,
+    40
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/tanks/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/tanks/tanks.gif",
+  "bytes": 190485,
+  "download": 0,
+  "provides": null,
+  "sha256": "957e67f9fbbb4117a5859d446cd5998d4c77cf63e966692fbb2b3084de7f3fd0",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Realtime Multiplayer in HTML5",
+    "url": "https://github.com/ruby0x1/realtime-multiplayer-in-html5",
+    "blessed": false
+  }
+}
