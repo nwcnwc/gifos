@@ -650,7 +650,11 @@
       while (inflight < 4 && next < keys.length) fetchOne(keys[next++], false);
       if (!inflight && next >= keys.length) {
         bootBar(1);
-        if (missing.length) bootNote(missing.length + ' pieces of the house did not arrive — it may look patchy.');
+        // Not silence at a full bar: the beat between "everything carried in"
+        // and the intro painting is a named step, or it reads as a stall.
+        bootNote(missing.length
+          ? missing.length + ' pieces of the house did not arrive — it may look patchy.'
+          : 'Opening the door…');
         done();
       }
     }
