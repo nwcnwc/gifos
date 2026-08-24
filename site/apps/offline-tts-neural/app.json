@@ -27,6 +27,7 @@
     "ai"
   ],
   "license": "Apache-2.0",
+  "copyright": "Copyright (c) Microsoft Corporation",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/offline-tts-neural",
   "accent": [
     255,
@@ -39,14 +40,14 @@
   "cover": "/apps/offline-tts-neural/cover.jpg",
   "screenshots": [],
   "gif": "/apps/offline-tts-neural/offline-tts-neural.gif",
-  "bytes": 12423413,
+  "bytes": 12530374,
   "download": 24369971,
   "provides": {
     "ai": [
       "tts"
     ]
   },
-  "sha256": "f5371208ba791bd11d37118dfd36c9fe4b1bb226fb0fc9c5212159941dec0774",
+  "sha256": "5a37dd3a8523224b4a6455f40dd29ddd060b985090e81030e27a4c4b5b3fe71c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

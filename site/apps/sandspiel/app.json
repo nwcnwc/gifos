@@ -28,6 +28,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 Max Bittker",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/sandspiel",
   "accent": [
     230,
@@ -42,10 +43,10 @@
   "cover": "/apps/sandspiel/cover.jpg",
   "screenshots": [],
   "gif": "/apps/sandspiel/sandspiel.gif",
-  "bytes": 283703,
+  "bytes": 283453,
   "download": 0,
   "provides": null,
-  "sha256": "2d4ad70bb8bafa688db73d6ecd1295702bbb5cf90c06425f1acca46b2177ac0b",
+  "sha256": "42a7d428db4541fcdc715f9c725a793ea92ef8d92b82305bf8a8634d671989d9",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

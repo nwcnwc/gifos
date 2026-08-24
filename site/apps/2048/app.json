@@ -24,6 +24,7 @@
     "multiplayer"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2014 Gabriele Cirulli",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/2048",
   "accent": [
     237,
@@ -37,10 +38,10 @@
   "cover": "/apps/2048/cover.jpg",
   "screenshots": [],
   "gif": "/apps/2048/2048.gif",
-  "bytes": 308451,
+  "bytes": 309483,
   "download": 0,
   "provides": null,
-  "sha256": "da873722d254707787d0f523525edbc23828ab335bc8779f5941c5649f7f1f19",
+  "sha256": "d83a69d342942707333cb7d2085263ceca3e7d6f6d6da8f97c04c340bb877030",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

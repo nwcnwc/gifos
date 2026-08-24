@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2022 Hunar Ahmad",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/particle-life",
   "accent": [
     0,
@@ -40,10 +41,10 @@
   "cover": "/apps/particle-life/cover.jpg",
   "screenshots": [],
   "gif": "/apps/particle-life/particle-life.gif",
-  "bytes": 193552,
+  "bytes": 193418,
   "download": 0,
   "provides": null,
-  "sha256": "a4945ef2ed95d0e4c829b16142457dc468be66474cbf47241d60e623d67153cc",
+  "sha256": "54d8e9901ba7cf5d747d7cf4039fe48b1c31288ec9f32900f78a595acbb600d6",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

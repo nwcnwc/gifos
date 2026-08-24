@@ -26,6 +26,7 @@
     "js13k"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2014 Jack Rugile",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/radius-raid",
   "accent": [
     0,
@@ -39,10 +40,10 @@
   "cover": "/apps/radius-raid/cover.jpg",
   "screenshots": [],
   "gif": "/apps/radius-raid/radius-raid.gif",
-  "bytes": 225629,
+  "bytes": 225432,
   "download": 0,
   "provides": null,
-  "sha256": "4570ad3c843628c2e4d29a2c7d29570414d878219b99e62bbe124b243f085897",
+  "sha256": "0fb184c2264e051b8f577940b88896bfbbecba12a001c0b65c6afbed1a6a88af",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

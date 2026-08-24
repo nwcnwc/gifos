@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2014 Chris Wilson",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tuner",
   "accent": [
     52,
@@ -39,10 +40,10 @@
   "cover": "/apps/tuner/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tuner/tuner.gif",
-  "bytes": 192559,
+  "bytes": 192428,
   "download": 0,
   "provides": null,
-  "sha256": "06feef3d91a4e2694ade298110af0f8a269f44c3dbaf3c6ceacac6df8aafa2d9",
+  "sha256": "4e1c782530e601f1a4ab924d738b7382217e9a6e0f24b5bdab111334cbf028d5",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

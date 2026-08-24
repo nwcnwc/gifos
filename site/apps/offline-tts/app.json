@@ -26,6 +26,7 @@
     "ai"
   ],
   "license": "GPL-3.0",
+  "copyright": "",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/offline-tts",
   "accent": [
     123,

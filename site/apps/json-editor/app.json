@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "Apache-2.0",
+  "copyright": "Copyright (C) 2011-2026 Jos de Jong",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/json-editor",
   "accent": [
     255,
@@ -39,10 +40,10 @@
   "cover": "/apps/json-editor/cover.jpg",
   "screenshots": [],
   "gif": "/apps/json-editor/json-editor.gif",
-  "bytes": 802556,
+  "bytes": 801215,
   "download": 0,
   "provides": null,
-  "sha256": "198d1ce988f194675eb97f89a6c23705ccbb3da249b32091343ef2798315b82e",
+  "sha256": "8d2e44adb878f0617ca932647055ebdc5ccda74e2a8205bece57da9192eaefb8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

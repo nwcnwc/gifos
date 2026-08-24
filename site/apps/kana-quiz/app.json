@@ -27,6 +27,7 @@
     "multiplayer"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2016 Antti Pilto",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/kana-quiz",
   "accent": [
     232,
@@ -40,10 +41,10 @@
   "cover": "/apps/kana-quiz/cover.jpg",
   "screenshots": [],
   "gif": "/apps/kana-quiz/kana-quiz.gif",
-  "bytes": 202374,
+  "bytes": 202243,
   "download": 0,
   "provides": null,
-  "sha256": "b9416e00bb9eabb4529bbb21493b6145bb78dad21f2601064b7fd1eb77f8f146",
+  "sha256": "bb946f7c15bb4b23ec6f7d440ff61a0b2e8a186a451a0f462c497b383c1edd0b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

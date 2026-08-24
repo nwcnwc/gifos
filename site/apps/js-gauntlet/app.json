@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2013, 2014, 2015, 2016 Jake Gordon and contributors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/js-gauntlet",
   "accent": [
     249,
@@ -37,10 +38,10 @@
   "cover": "/apps/js-gauntlet/cover.jpg",
   "screenshots": [],
   "gif": "/apps/js-gauntlet/js-gauntlet.gif",
-  "bytes": 1144566,
+  "bytes": 1155298,
   "download": 0,
   "provides": null,
-  "sha256": "c40b90701e576987fa19bed210012443ddcfe890bbb10e5e031ec7ad1e105beb",
+  "sha256": "e56c4ccf07c1bb78cf4eeaf3eb8793691f2b41bc73c57e0ecec8dffd6ed85f74",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2021 Ganlv; Copyright (c) 2018 Richard Davey, Photon Storm Ltd.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/catch-the-cat",
   "accent": [
     232,
@@ -38,10 +39,10 @@
   "cover": "/apps/catch-the-cat/cover.jpg",
   "screenshots": [],
   "gif": "/apps/catch-the-cat/catch-the-cat.gif",
-  "bytes": 578069,
+  "bytes": 577043,
   "download": 0,
   "provides": null,
-  "sha256": "3768f78eeaba4349254ff5f31abd09d1c33ba30399e502b8ecb90a307c276ae0",
+  "sha256": "f6df1377c2db83deb606b95a56f5141e17ff36ccd2e6d28896456585cb1677ef",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

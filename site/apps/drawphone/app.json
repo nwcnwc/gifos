@@ -25,6 +25,7 @@
     "pictionary"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2016 Tanner Krewson",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/drawphone",
   "accent": [
     232,
@@ -38,10 +39,10 @@
   "cover": "/apps/drawphone/cover.jpg",
   "screenshots": [],
   "gif": "/apps/drawphone/drawphone.gif",
-  "bytes": 204805,
+  "bytes": 204562,
   "download": 0,
   "provides": null,
-  "sha256": "20b1023fec41e1344069ac594dbc7ea08d76df0900532f34109a53572f6fd875",
+  "sha256": "cc2221aa758da56ba9d47956c31f31de6b5706e3a3ef6c7cb1d6513b756bc9e2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

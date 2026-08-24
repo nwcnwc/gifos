@@ -29,6 +29,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (C) 2022 Salvatore Previti; Copyright 2026 GifOS contributors.; Copyright (c) 2022 Salvatore Previti; Copyright (c) 2011-2013 Marcus Geelnard",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/dante",
   "accent": [
     246,
@@ -44,10 +45,10 @@
   "cover": "/apps/dante/cover.jpg",
   "screenshots": [],
   "gif": "/apps/dante/dante.gif",
-  "bytes": 227366,
+  "bytes": 227124,
   "download": 0,
   "provides": null,
-  "sha256": "6631c4945ce95d3468af8a145f6b8157521df291885de4b3bbc07ff6ae27baf1",
+  "sha256": "4df7880d97862ce6d7e170dcfb7757e4ea3baf78876a418071385fe3923f5a58",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

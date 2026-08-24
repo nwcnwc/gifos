@@ -25,6 +25,7 @@
     "developer"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 Benjamin Eidelman, https://twitter.com/beneidel",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/json-diff",
   "accent": [
     80,
@@ -38,10 +39,10 @@
   "cover": "/apps/json-diff/cover.jpg",
   "screenshots": [],
   "gif": "/apps/json-diff/json-diff.gif",
-  "bytes": 245130,
+  "bytes": 244882,
   "download": 0,
   "provides": null,
-  "sha256": "23ae8be34090e0e640b87bff007a03840ad710d2db8e891a343d1a9e5114f39f",
+  "sha256": "b441c15a85000eb6d3b684ff898f24529d447c735aaf1688b220b9a4f05d3e3a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

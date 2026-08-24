@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 Laurent Thiebault",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/rockets",
   "accent": [
     255,
@@ -37,10 +38,10 @@
   "cover": "/apps/rockets/cover.jpg",
   "screenshots": [],
   "gif": "/apps/rockets/rockets.gif",
-  "bytes": 204855,
+  "bytes": 204625,
   "download": 0,
   "provides": null,
-  "sha256": "a72e31485cbbfcabf8a551955a9ea95e352aa055090676b4eac74a0891ad9bb8",
+  "sha256": "a903b5393e1b1b890555b826541e6dc604d23a862c831d74334716aeb2db755a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

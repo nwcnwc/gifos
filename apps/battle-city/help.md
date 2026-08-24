@@ -1,4 +1,4 @@
-# Battle City
+# Eagle Defense
 
 You are a yellow tank at the bottom of a brick city. Twenty enemy tanks come for the **eagle**. Destroy them all before they blow the eagle — or you — up. There are **35 stages**. This copy always starts at stage 1; there is no stage picker.
 

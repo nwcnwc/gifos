@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2015-2018 Ye Wang",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/besogo",
   "accent": [
     196,
@@ -39,10 +40,10 @@
   "cover": "/apps/besogo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/besogo/besogo.gif",
-  "bytes": 220478,
+  "bytes": 220318,
   "download": 0,
   "provides": null,
-  "sha256": "38de73540e46bcf600047ad2621ef8ac7289047e16be109d05c61f4f74caf2a1",
+  "sha256": "ef68c3543b8016a2bf427e92ef0f7d8af092fe5a73c5e57c6e98c98f44486f26",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

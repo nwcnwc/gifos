@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 Daniel Marino and Brad Dunbar",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/onoff",
   "accent": [
     232,
@@ -36,10 +37,10 @@
   "cover": "/apps/onoff/cover.jpg",
   "screenshots": [],
   "gif": "/apps/onoff/onoff.gif",
-  "bytes": 208787,
+  "bytes": 208566,
   "download": 0,
   "provides": null,
-  "sha256": "a1646db1db406d99d3fbfabc28e9f25a80fad2eb48e0867eb82920efaaf4325f",
+  "sha256": "0ad5594cfef86c33ac410ece486ce1fe783f1e9d8de29dc2cf6604fb15f62afc",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

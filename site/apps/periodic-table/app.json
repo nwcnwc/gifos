@@ -26,6 +26,7 @@
     "multiplayer"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2025 Caleb Ephrem",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/periodic-table",
   "accent": [
     232,
@@ -39,10 +40,10 @@
   "cover": "/apps/periodic-table/cover.jpg",
   "screenshots": [],
   "gif": "/apps/periodic-table/periodic-table.gif",
-  "bytes": 176965,
+  "bytes": 176702,
   "download": 0,
   "provides": null,
-  "sha256": "72db828abc01ac2c5bac53c63f8845d9b17b11669a98b625f7de70841bc306f4",
+  "sha256": "83841e064cd1c85aed50d2347f87f6a5d44a7b2826ca16da75c37865a59f904e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

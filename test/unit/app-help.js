@@ -102,13 +102,15 @@ const CREDITS = {
   porter: { name: 'GifOS', url: 'https://gifos.app' },
   basedOn: { name: 'AirHockeyWebGL', url: 'https://github.com/MortimerGoro/AirHockeyWebGL', blessed: false },
   inspiredBy: { name: '<img src=x onerror=alert(1)>', url: 'javascript:alert(1)', by: { name: 'Someone' } },
-  license: 'MIT', homepage: 'https://github.com/nwcnwc/gifos/tree/main/apps/air-hockey', releaseDate: '2026-08-23',
+  license: 'MIT', copyright: 'Copyright (c) 2015 MortimerGoro',
+  homepage: 'https://github.com/nwcnwc/gifos/tree/main/apps/air-hockey', releaseDate: '2026-08-23',
 };
 const MAN = { name: 'Air Hockey', version: '1.0.0' };
 const sealed = help.readCredits({ 'credits.json': JSON.stringify(CREDITS) }, MAN);
 check('readCredits merges credits.json with the manifest name/version and marks it sealed',
   sealed && sealed.sealed === true && sealed.name === 'Air Hockey' && sealed.version === '1.0.0'
-  && sealed.author.name === 'MortimerGoro' && sealed.porter.name === 'GifOS' && sealed.license === 'MIT');
+  && sealed.author.name === 'MortimerGoro' && sealed.porter.name === 'GifOS'
+  && sealed.license === 'MIT' && sealed.copyright === 'Copyright (c) 2015 MortimerGoro');
 const bare = help.readCredits({ 'help.md': '# x' }, MAN);
 check('a GIF with no credits.json credits only its own manifest (name + version), unsealed',
   bare && !bare.sealed && bare.name === 'Air Hockey' && bare.version === '1.0.0' && !bare.author);
@@ -123,7 +125,7 @@ check('credits render author, porter, basedOn, inspiredBy, license',
   creditsAt !== -1 && /\*\*By\*\* \[MortimerGoro\]\(https:\/\/github\.com\/MortimerGoro\/AirHockeyWebGL\)/.test(credited)
   && /Brought to GifOS by\*\* \[GifOS\]\(https:\/\/gifos\.app\)/.test(credited)
   && /Based on\*\* \[AirHockeyWebGL\]/.test(credited) && /Inspired by\*\* .* by Someone/.test(credited)
-  && /License\*\* MIT/.test(credited));
+  && /License\*\* MIT — Copyright \(c\) 2015 MortimerGoro/.test(credited));
 check('credits say they are sealed in the GIF, who signed it, and when this copy was installed',
   /Sealed inside this GIF and signed by \*\*gifos\.app\*\*; installed on this device on 2026-08-24\./.test(credited));
 check('credits are the VERY BOTTOM — after the app help AND the OS footer',

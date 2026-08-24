@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017 oldj; Copyright 2011–2017 oldj; Copyright 2026 GifOS contributors.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tower-defense",
   "accent": [
     26,
@@ -38,10 +39,10 @@
   "cover": "/apps/tower-defense/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tower-defense/tower-defense.gif",
-  "bytes": 230822,
+  "bytes": 230723,
   "download": 0,
   "provides": null,
-  "sha256": "fba01bb2200801b992b0e48c055355210f2a3aa97e48b8a651757778245e7767",
+  "sha256": "aee6a48cc4ea57d1413d6a86aa99a88635182f95983d0aa969022a5e8e33bd90",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -25,6 +25,7 @@
     "race"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 BMQB, Inc; Copyright 2018 BMQB, Inc / iamkun; Copyright 2026 GifOS contributors.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/tower-game",
   "accent": [
     249,
@@ -38,10 +39,10 @@
   "cover": "/apps/tower-game/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tower-game/tower-game.gif",
-  "bytes": 875629,
+  "bytes": 882501,
   "download": 0,
   "provides": null,
-  "sha256": "daf03165cd914b812901a8b258fd637dbb4b09afa95215d96624e47ea806627c",
+  "sha256": "91bafb1bcdc986970e04ab9a9a9d9873596ea4037e0370ec253055ed355bad85",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

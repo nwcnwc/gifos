@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017 Anatoli Makarevich",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/guitar-bro",
   "accent": [
     124,
@@ -41,10 +42,10 @@
   "cover": "/apps/guitar-bro/cover.jpg",
   "screenshots": [],
   "gif": "/apps/guitar-bro/guitar-bro.gif",
-  "bytes": 173576,
+  "bytes": 173409,
   "download": 0,
   "provides": null,
-  "sha256": "214e40288c1cf9d8e306677ca7bd8b81284a367319b05a5ee81afa44aefb6914",
+  "sha256": "be4b594bc346ea712c0dd00bf32f968c95bcb20a01a039127f96f7567a24ecb5",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

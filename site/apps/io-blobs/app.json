@@ -25,6 +25,7 @@
     "eat"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 Victor Zhou",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/io-blobs",
   "accent": [
     48,
@@ -38,10 +39,10 @@
   "cover": "/apps/io-blobs/cover.jpg",
   "screenshots": [],
   "gif": "/apps/io-blobs/io-blobs.gif",
-  "bytes": 202695,
+  "bytes": 202545,
   "download": 0,
   "provides": null,
-  "sha256": "d818886f29a44503a2f5f7773778f8d6d5d19dead4c78d963fff1c7ad096102b",
+  "sha256": "8259047302f06ebd94cbe6613f3d6814759ebe49f7c8f78509413fc4bb7ed328",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

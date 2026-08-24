@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (C) 2013 Daniel Hough; Copyright 2026 GifOS contributors.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/skifree",
   "accent": [
     40,
@@ -41,10 +42,10 @@
   "cover": "/apps/skifree/cover.jpg",
   "screenshots": [],
   "gif": "/apps/skifree/skifree.gif",
-  "bytes": 215218,
+  "bytes": 215264,
   "download": 0,
   "provides": null,
-  "sha256": "1f4d37f39e203ce577b5e596086cfe5e899e78a4c48e321daa6184aa270a1421",
+  "sha256": "abf3eeba57e100b505b61d2e1c3260f50e9567dce26313d243ff93b0e0c2b785",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

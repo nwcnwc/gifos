@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2015 Dave Kerr",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/crossword",
   "accent": [
     40,
@@ -37,10 +38,10 @@
   "cover": "/apps/crossword/cover.jpg",
   "screenshots": [],
   "gif": "/apps/crossword/crossword.gif",
-  "bytes": 166409,
+  "bytes": 166155,
   "download": 0,
   "provides": null,
-  "sha256": "4c49965fd53464ad8455d4b6b7e03877f83fe0667cd132ab571b58480b143546",
+  "sha256": "b18f05bb42923c404bfee60e4cfe1696d0d51f26182b506b722e738f0ad6a71f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

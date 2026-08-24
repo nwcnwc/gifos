@@ -27,6 +27,7 @@
     "svgomg"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) Kir Belevich; Copyright (c) 2015 Jake Archibald",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/svgomg",
   "accent": [
     63,
@@ -39,10 +40,10 @@
   "cover": "/apps/svgomg/cover.jpg",
   "screenshots": [],
   "gif": "/apps/svgomg/svgomg.gif",
-  "bytes": 508997,
+  "bytes": 507879,
   "download": 0,
   "provides": null,
-  "sha256": "007faf8ea57c13422a371cca8a5ac573d88fe5cc8abf03b3800dfd4282fd17e8",
+  "sha256": "a3073a65c8e167269bf96bcba869fe0bed377c44fa7e9ad395e6768cd3072a9a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

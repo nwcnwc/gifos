@@ -84,8 +84,8 @@ async function install(ctx, label) {
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const fid = GifOS.store.uid('file');
-    await GifOS.store.putFile({ id: fid, name: 'Battle City.gif', bytes, kind: 'gif', isApp: true, appId: 'battle-city', mime: 'image/gif' });
-    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Battle City.gif', parent: null, x: 40, y: 40, iconSize: 64 });
+    await GifOS.store.putFile({ id: fid, name: 'Eagle Defense.gif', bytes, kind: 'gif', isApp: true, appId: 'battle-city', mime: 'image/gif' });
+    await GifOS.store.putItem({ id: GifOS.store.uid('item'), kind: 'file', fileId: fid, name: 'Eagle Defense.gif', parent: null, x: 40, y: 40, iconSize: 64 });
     await GifOS.desktop.load(); await GifOS.desktop.render();
     const f = (await GifOS.store.allFiles()).find((x) => x.appId === 'battle-city');
     return f ? f.id : null;

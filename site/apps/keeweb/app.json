@@ -27,6 +27,7 @@
     "keeweb"
   ],
   "license": "MIT",
+  "copyright": "Copyright (C) 2021 Antelle; Copyright (c) 2021 Antelle https://antelle.net; Copyright (c) 2022 Paul Miller (https://paulmillr.com)",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/keeweb",
   "accent": [
     107,
@@ -39,10 +40,10 @@
   "cover": "/apps/keeweb/cover.jpg",
   "screenshots": [],
   "gif": "/apps/keeweb/keeweb.gif",
-  "bytes": 263204,
+  "bytes": 262764,
   "download": 0,
   "provides": null,
-  "sha256": "2f03135822c39e99ab67e39290d430af088fed4df107b69cda3dd6ad9950e36f",
+  "sha256": "ccf8216a484ba14c80775a43d3f865944bdbf426f17c7e2e3918584a5ad5ca95",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

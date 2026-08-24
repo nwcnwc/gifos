@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2026 mshumer; Copyright © 2010-2025 three.js authors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fps-simple",
   "accent": [
     214,
@@ -41,10 +42,10 @@
   "cover": "/apps/fps-simple/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fps-simple/fps-simple.gif",
-  "bytes": 1112159,
+  "bytes": 1109198,
   "download": 0,
   "provides": null,
-  "sha256": "8dbd51cdbcd338712b1e4d5835a69d324f1297be991b90eb81a47e2efeccfa48",
+  "sha256": "864e9a661c6d6b08bc469135b28d8b8a891b9bb9e9667e79444c78a2e2aabfe4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

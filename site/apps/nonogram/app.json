@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2016 Zhou Qi",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/nonogram",
   "accent": [
     14,
@@ -39,10 +40,10 @@
   "cover": "/apps/nonogram/cover.jpg",
   "screenshots": [],
   "gif": "/apps/nonogram/nonogram.gif",
-  "bytes": 200084,
+  "bytes": 199866,
   "download": 0,
   "provides": null,
-  "sha256": "b5fc4fe602b99754fedc013fb04bc9cb1d3d01cd8b0ba417a47adfc338a5620d",
+  "sha256": "9a5e900cf311c4262e5676d30e65c02de30f887488393a254c3f83f092fcbe21",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

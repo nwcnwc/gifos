@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2020-2025",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/fend",
   "accent": [
     200,
@@ -38,10 +39,10 @@
   "cover": "/apps/fend/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fend/fend.gif",
-  "bytes": 594039,
+  "bytes": 597083,
   "download": 0,
   "provides": null,
-  "sha256": "aada031187e85f5f54da5412728cda94b93e6d35a4bc1d6e401ad9186e5699bd",
+  "sha256": "bcb8fda898343b7be401b6c812a29f44d12f5eea607da185ded55f64aa89bb22",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

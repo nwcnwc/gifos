@@ -25,6 +25,7 @@
     "multiplayer"
   ],
   "license": "GPL-3.0-or-later",
+  "copyright": "",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/chess-grandmaster",
   "accent": [
     201,

@@ -25,6 +25,7 @@
     "table"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2014 MortimerGoro; Copyright (c) 2006-2007 Erin Catto http://www.gphysics.com; Copyright © 2010-2014 three.js authors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/air-hockey",
   "accent": [
     32,
@@ -38,10 +39,10 @@
   "cover": "/apps/air-hockey/cover.jpg",
   "screenshots": [],
   "gif": "/apps/air-hockey/air-hockey.gif",
-  "bytes": 1464155,
+  "bytes": 1469369,
   "download": 0,
   "provides": null,
-  "sha256": "186ef72d9dcd2bf3686baf6f4f311f9fc95de09d3989c89288c9a096b477f94a",
+  "sha256": "6dcee6462ebd4c2c3910f46b3e86f18432b2eb16bbd218a7b356a1483f460791",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

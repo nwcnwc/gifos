@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2025 Gregor",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/sokoban",
   "accent": [
     201,
@@ -39,10 +40,10 @@
   "cover": "/apps/sokoban/cover.jpg",
   "screenshots": [],
   "gif": "/apps/sokoban/sokoban.gif",
-  "bytes": 200928,
+  "bytes": 200764,
   "download": 0,
   "provides": null,
-  "sha256": "ac91c2ce02799639a73abf3e8b78b97ab15d282686df4b1bf5c4d9d3afac412a",
+  "sha256": "784e5ad59f221488a21fc0110e7e322c2f1a2d648bbb572304afa62cff4641a3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

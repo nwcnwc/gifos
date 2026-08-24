@@ -29,6 +29,7 @@
     "gpu"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) Ultimate Vocal Remover GUI — Anjok07, aufr33 and contributors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/vocal-remover",
   "accent": [
     236,
@@ -43,10 +44,10 @@
   "cover": "/apps/vocal-remover/cover.jpg",
   "screenshots": [],
   "gif": "/apps/vocal-remover/vocal-remover.gif",
-  "bytes": 12486342,
+  "bytes": 12582550,
   "download": 0,
   "provides": null,
-  "sha256": "5ddc36397b09735ffca95b0b5ff10597602d1de4089e71dbec28279ea79c3c77",
+  "sha256": "0456fc4cd0330950bdf986d262fca4e37d537c7b688a4b02d29950455070611c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

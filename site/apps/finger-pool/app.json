@@ -26,6 +26,7 @@
     "touch"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2021 Victor Ribeiro",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/finger-pool",
   "accent": [
     17,
@@ -39,10 +40,10 @@
   "cover": "/apps/finger-pool/cover.jpg",
   "screenshots": [],
   "gif": "/apps/finger-pool/finger-pool.gif",
-  "bytes": 219814,
+  "bytes": 219629,
   "download": 0,
   "provides": null,
-  "sha256": "aafb2684c37b56dcf60dd217595812f3d5fcc812e476e41e068c2e1ae6964caa",
+  "sha256": "ba6c51467ef27050d83e891ea229fa40e226c331ad6541fce8c60742d1b9f6bf",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

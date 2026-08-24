@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2018 - Modesta Naciute",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/blackjack",
   "accent": [
     26,
@@ -38,10 +39,10 @@
   "cover": "/apps/blackjack/cover.jpg",
   "screenshots": [],
   "gif": "/apps/blackjack/blackjack.gif",
-  "bytes": 192954,
+  "bytes": 192830,
   "download": 0,
   "provides": null,
-  "sha256": "1aaa12666725f0563ae1eca0b2636d6e74b42dee6950b564dc15ca25d1089c6f",
+  "sha256": "442d22a583d3a8979be33eda3f3019619346940cf866982005c0a5c2f2ca9a84",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

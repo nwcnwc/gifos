@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2024 Patrick Obermeier",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/vintage-poker",
   "accent": [
     26,
@@ -39,10 +40,10 @@
   "cover": "/apps/vintage-poker/cover.jpg",
   "screenshots": [],
   "gif": "/apps/vintage-poker/vintage-poker.gif",
-  "bytes": 199820,
+  "bytes": 199567,
   "download": 0,
   "provides": null,
-  "sha256": "3890dd49b88ee1687cacc002b330a0f743c5a0eb895ae45714cee546fdf49249",
+  "sha256": "937d31706305ff30af7083a1c998625d79faa97398086dbf19f28a23c2ab9a3b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

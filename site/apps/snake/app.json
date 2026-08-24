@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright © Patrick Gillespie, http://patorjk.com",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/snake",
   "accent": [
     56,
@@ -38,10 +39,10 @@
   "cover": "/apps/snake/cover.jpg",
   "screenshots": [],
   "gif": "/apps/snake/snake.gif",
-  "bytes": 198503,
+  "bytes": 198364,
   "download": 0,
   "provides": null,
-  "sha256": "2a50836b1d110646faccf0a45690041877fdbd99db5b2139763555c95331987b",
+  "sha256": "9bd0fb4032a231d460dba90f363dcd60a94f3481cb37cb4f1dfa2d3783abceee",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

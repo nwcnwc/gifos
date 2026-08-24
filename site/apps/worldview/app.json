@@ -33,6 +33,7 @@
     "gibs"
   ],
   "license": "MIT",
+  "copyright": "",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/worldview",
   "accent": [
     76,
@@ -52,10 +53,10 @@
   "cover": "/apps/worldview/cover.jpg",
   "screenshots": [],
   "gif": "/apps/worldview/worldview.gif",
-  "bytes": 1086029,
+  "bytes": 1095584,
   "download": 0,
   "provides": null,
-  "sha256": "797364678321a5f8fd26d80dd1f797f99d897c765c83d0cae6dfd21b56f639cb",
+  "sha256": "c7fb5d022e675b7506e42e906c91313fddd7ceaad79b45680e1b362ecafd042d",
   "signature": null,
   "porter": {
     "name": "GifOS",

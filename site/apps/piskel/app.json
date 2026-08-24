@@ -28,6 +28,7 @@
     "piskel"
   ],
   "license": "Apache-2.0",
+  "copyright": "Copyright 2013-2026 Julian Descottes; Copyright 2026 GifOS contributors.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/piskel",
   "accent": [
     255,
@@ -40,10 +41,10 @@
   "cover": "/apps/piskel/cover.jpg",
   "screenshots": [],
   "gif": "/apps/piskel/piskel.gif",
-  "bytes": 2461265,
+  "bytes": 2482963,
   "download": 0,
   "provides": null,
-  "sha256": "7a50ca4ece692f2b5b7afc648ebc010668edd31a91dad66e4f8c93d017b2b4cb",
+  "sha256": "b9616c40941165b787beff6a697999f7b9b328b8beb175412a75959f7a2222c8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

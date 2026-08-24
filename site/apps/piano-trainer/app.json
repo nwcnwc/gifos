@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2022 Zane Helton",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/piano-trainer",
   "accent": [
     232,
@@ -39,10 +40,10 @@
   "cover": "/apps/piano-trainer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/piano-trainer/piano-trainer.gif",
-  "bytes": 199558,
+  "bytes": 199389,
   "download": 0,
   "provides": null,
-  "sha256": "12f69aca2b232b8c078fd879dbb8f3190c9b6a6f974f496cd3c5d7082d226b51",
+  "sha256": "3ff7afd58a0a823dc76272c3e53ecd2c6e77e343062f19fff545654349a7f140",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

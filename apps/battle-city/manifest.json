@@ -1,9 +1,9 @@
 {
   "gifos": "1.0",
   "appId": "battle-city",
-  "name": "Battle City",
-  "shortName": "Tanks",
-  "version": "1.0.1",
+  "name": "Eagle Defense",
+  "shortName": "Eagle",
+  "version": "1.1.0",
   "minBuild": 947,
   "entry": "index.html",
   "accent": [231, 156, 33],

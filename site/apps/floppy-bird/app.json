@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "Apache-2.0",
+  "copyright": "Copyright 2014 Nebez Briefkani; Copyright 2026 GifOS contributors.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/floppy-bird",
   "accent": [
     78,
@@ -38,10 +39,10 @@
   "cover": "/apps/floppy-bird/cover.jpg",
   "screenshots": [],
   "gif": "/apps/floppy-bird/floppy-bird.gif",
-  "bytes": 303280,
+  "bytes": 304670,
   "download": 0,
   "provides": null,
-  "sha256": "02c98bede7b0b48f7340bab8cb87ac5182200f6de8c70701a0e02475c45404ce",
+  "sha256": "5ff6f21369de5dc08c2cec4a74c34716ef2de669837707cc99a7cf108005e527",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

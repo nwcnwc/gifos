@@ -27,6 +27,7 @@
     "regexper"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2010-2012 James Coglan; Copyright (c) 2014 Iconic (P.J. Onori); Copyright (c) 2014 Jeffrey Avallone",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/regexper",
   "accent": [
     186,
@@ -37,10 +38,10 @@
   "cover": "/apps/regexper/cover.jpg",
   "screenshots": [],
   "gif": "/apps/regexper/regexper.gif",
-  "bytes": 297540,
+  "bytes": 297003,
   "download": 0,
   "provides": null,
-  "sha256": "2c7965bad370fedf898dd6f6aa7c212a03914451b9a4d3a32315be7b4b3f5d20",
+  "sha256": "80eabfcdf53c004cad05e3cba501bfccfe355f8bcfb24f0b86cbc337641da340",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

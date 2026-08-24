@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (C) 2011 Hakim El Hattab, http://hakim.se",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/coil",
   "accent": [
     0,
@@ -36,10 +37,10 @@
   "cover": "/apps/coil/cover.jpg",
   "screenshots": [],
   "gif": "/apps/coil/coil.gif",
-  "bytes": 367428,
+  "bytes": 368885,
   "download": 0,
   "provides": null,
-  "sha256": "7a3c065864aa77e9639ff1b6b10038473a539137153d1b42c80c3287eacb2efe",
+  "sha256": "62798a410e108152b3879a16a6e4849acab5e26430212ced59cfb2d5642cdb1a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

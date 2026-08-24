@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 simonjsuh",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/hangman",
   "accent": [
     156,
@@ -38,10 +39,10 @@
   "cover": "/apps/hangman/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hangman/hangman.gif",
-  "bytes": 172082,
+  "bytes": 172228,
   "download": 0,
   "provides": null,
-  "sha256": "a072fd17e36270b7050230a8a4a690f1dc0dbdaed283997ba3e97906da976a58",
+  "sha256": "9c1ad78d77e1c90914486caa324f1ab9dfe75603a4e77a49a63ef07bbe4a6539",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

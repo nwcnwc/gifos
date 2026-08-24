@@ -1,4 +1,4 @@
-# Duck Hunt
+# Pond Hunt
 
 The zapper game as a GifOS app. Click/tap ducks. The file is the save.
 

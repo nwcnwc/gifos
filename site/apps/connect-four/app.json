@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) Kenrick",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/connect-four",
   "accent": [
     239,
@@ -37,10 +38,10 @@
   "cover": "/apps/connect-four/cover.jpg",
   "screenshots": [],
   "gif": "/apps/connect-four/connect-four.gif",
-  "bytes": 258051,
+  "bytes": 257844,
   "download": 0,
   "provides": null,
-  "sha256": "68efce6e57c42b3a30eea0f341e187a77c122e2fa93ee870d59edca7138cf709",
+  "sha256": "35a88f9d8692b9dfa958278527e9b50779e0611a158f5961cbcecf889cb22924",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

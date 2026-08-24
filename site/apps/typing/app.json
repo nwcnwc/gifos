@@ -25,6 +25,7 @@
     "multiplayer"
   ],
   "license": "MIT",
+  "copyright": "Copyright 2021 climech",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/typing",
   "accent": [
     255,
@@ -38,10 +39,10 @@
   "cover": "/apps/typing/cover.jpg",
   "screenshots": [],
   "gif": "/apps/typing/typing.gif",
-  "bytes": 202255,
+  "bytes": 202047,
   "download": 0,
   "provides": null,
-  "sha256": "3b3ffdaf69e61f0b20a70ad12e9e483325f13af80e3522a4fb3e100884d1c113",
+  "sha256": "80b6b7a5c885f024bd0b0033df05d520584d6be51a18aa2056164cd093d3aa25",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

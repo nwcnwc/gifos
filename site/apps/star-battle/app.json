@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2019 4Ark",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/star-battle",
   "accent": [
     232,
@@ -38,10 +39,10 @@
   "cover": "/apps/star-battle/cover.jpg",
   "screenshots": [],
   "gif": "/apps/star-battle/star-battle.gif",
-  "bytes": 789369,
+  "bytes": 797228,
   "download": 0,
   "provides": null,
-  "sha256": "a3602b52705ded715947950a0f04f6113ad29d24bc9b241cf5ddc909d710f840",
+  "sha256": "38d90b5d9b844062c2163e4586dbe6237932dfd9a3d88c8e477eaa918961c337",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

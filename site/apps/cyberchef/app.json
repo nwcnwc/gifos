@@ -30,6 +30,7 @@
     "cyberchef"
   ],
   "license": "Apache-2.0",
+  "copyright": "Copyright 2016-2026 Crown Copyright; Copyright 2026 GifOS contributors.",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/cyberchef",
   "accent": [
     244,
@@ -43,10 +44,10 @@
   "cover": "/apps/cyberchef/cover.jpg",
   "screenshots": [],
   "gif": "/apps/cyberchef/cyberchef.gif",
-  "bytes": 11834719,
+  "bytes": 11896990,
   "download": 0,
   "provides": null,
-  "sha256": "79d43236288b82e32a04e58da240a473708c483196ea5b85a25fd1ffb94122d5",
+  "sha256": "172093f006b7cfd0419f3790ff78760d18a8521c91ab637f290bb99110fcda17",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

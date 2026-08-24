@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2013-2019 Ondrej Zara",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/my-mind",
   "accent": [
     68,
@@ -38,10 +39,10 @@
   "cover": "/apps/my-mind/cover.jpg",
   "screenshots": [],
   "gif": "/apps/my-mind/my-mind.gif",
-  "bytes": 393070,
+  "bytes": 394576,
   "download": 0,
   "provides": null,
-  "sha256": "9b2b695c9106fb9108c5f6fcaec06f8281dc64a036e228b7cfb6d972535754bf",
+  "sha256": "57e14149de25865280c7de336e904248c51eb54812ce7e38b7a5eb28d7e271a8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

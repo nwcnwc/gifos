@@ -801,8 +801,8 @@
   function drawTitle(ctx, g) {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 256, 240);
     var bricks = [[0,0],[1,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2]]; /* unused */
-    drawText(ctx, 28, 36, 'BATTLE', 4, '#E79C21');
-    drawText(ctx, 52, 72, 'CITY', 4, '#E79C21');
+    drawText(ctx, 28, 36, 'EAGLE', 4, '#E79C21');
+    drawText(ctx, 44, 72, 'GUARD', 4, '#E79C21');
     var items = g.menu;
     for (var i = 0; i < items.length; i++) {
       var y = 130 + i * 18;

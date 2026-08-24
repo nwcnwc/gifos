@@ -25,6 +25,7 @@
     "classic"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2026 scotty888",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/bowling",
   "accent": [
     196,
@@ -38,10 +39,10 @@
   "cover": "/apps/bowling/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bowling/bowling.gif",
-  "bytes": 199861,
+  "bytes": 199647,
   "download": 0,
   "provides": null,
-  "sha256": "ed40ca8d146c7e7c5e13e38872186006d78192d407d98138b2da4bc2d8cc2e00",
+  "sha256": "e45ced54ef60da1681b53bfd4b2127ca819ebb474567cc53e412be314b6a9537",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

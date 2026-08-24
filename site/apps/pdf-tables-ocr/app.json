@@ -31,6 +31,7 @@
     "insurance"
   ],
   "license": "Apache-2.0",
+  "copyright": "Copyright (c) Microsoft Corporation; Copyright (c) PaddlePaddle Authors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/pdf-tables-ocr",
   "accent": [
     58,
@@ -44,10 +45,10 @@
   "cover": "/apps/pdf-tables-ocr/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pdf-tables-ocr/pdf-tables-ocr.gif",
-  "bytes": 27920740,
+  "bytes": 28169167,
   "download": 0,
   "provides": null,
-  "sha256": "ec95664988120be831ef00e3a382622c7519589aab6c99949c16a156409cc4a9",
+  "sha256": "6a573faf26f6f951b4b5dac2727849f2f8e2415c15017898b30ec3e86003fb8e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

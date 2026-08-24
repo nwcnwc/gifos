@@ -24,6 +24,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2014 Bill Mei",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/battleboat",
   "accent": [
     255,
@@ -37,10 +38,10 @@
   "cover": "/apps/battleboat/cover.jpg",
   "screenshots": [],
   "gif": "/apps/battleboat/battleboat.gif",
-  "bytes": 230728,
+  "bytes": 230514,
   "download": 0,
   "provides": null,
-  "sha256": "43476d6a709306670e6f030e72c38c43612ef3304966156b4af973ce6045e7d6",
+  "sha256": "ad99babad283d137f8b1efc14968ee699612f2e94a339a75c8dcadb8e72aaba2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

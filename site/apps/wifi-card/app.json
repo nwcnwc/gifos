@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2009 Kazuhiko Arase; Copyright (c) 2020 Ben Woodward",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/wifi-card",
   "accent": [
     33,
@@ -39,10 +40,10 @@
   "cover": "/apps/wifi-card/cover.jpg",
   "screenshots": [],
   "gif": "/apps/wifi-card/wifi-card.gif",
-  "bytes": 210005,
+  "bytes": 209870,
   "download": 0,
   "provides": null,
-  "sha256": "cc8e619e985cc32383cccc6f234f25fb3f7f22f407c5b9f1d3bf5fbdfd07754c",
+  "sha256": "ce1e786e512499957d1bb21e00682038422dd22b68eb6b93ffa2a0d8b5992793",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

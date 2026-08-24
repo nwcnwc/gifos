@@ -26,6 +26,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2025 Kostyantyn Pshenychnyy; Copyright © 2010-2021 three.js authors",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/server-survival",
   "accent": [
     0,
@@ -38,10 +39,10 @@
   "cover": "/apps/server-survival/cover.jpg",
   "screenshots": [],
   "gif": "/apps/server-survival/server-survival.gif",
-  "bytes": 13173614,
+  "bytes": 13256152,
   "download": 0,
   "provides": null,
-  "sha256": "163a68c1fc1413df9b691470d5a78b9b4da37a52dcc7ee36ae5590fa849030bc",
+  "sha256": "5de98db158f211f423e22de56dd724d9a9a3369bcc6398e7fa7f4f7d135c57dc",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2025 Lee Kelly",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/spider",
   "accent": [
     48,
@@ -37,10 +38,10 @@
   "cover": "/apps/spider/cover.jpg",
   "screenshots": [],
   "gif": "/apps/spider/spider.gif",
-  "bytes": 194146,
+  "bytes": 193972,
   "download": 0,
   "provides": null,
-  "sha256": "ada42a8aa880c7e1068533df7bb5d2ca96a7b1bc83e5b45b43e2c04b32cdbdc3",
+  "sha256": "703e2fbec67c1d1ae3b4ed03f1c273bbb76d553794278269d2ebe17a9942b3da",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

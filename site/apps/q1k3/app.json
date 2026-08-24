@@ -26,6 +26,7 @@
     "multiplayer"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2021 Dominic Szablewski; Copyright (c) 2014 Nicolas Vanhoren; Copyright (c) 2011 Marcus Geelnard; Copyright (c) 2008-2009 Jake Taylor",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/q1k3",
   "accent": [
     196,
@@ -41,10 +42,10 @@
   "cover": "/apps/q1k3/cover.jpg",
   "screenshots": [],
   "gif": "/apps/q1k3/q1k3.gif",
-  "bytes": 234499,
+  "bytes": 234378,
   "download": 0,
   "provides": null,
-  "sha256": "f503289d84f8cef53d3897929e1f783933e7b08d8ee0dcc5ab21f3f7b2e661e0",
+  "sha256": "c87a427dffb36760328c4da3d278122d00289c5db34d9f8357db7f5a0c8fdf6f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

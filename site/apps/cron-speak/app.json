@@ -25,6 +25,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright (c) 2017 Brady Holt",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/cron-speak",
   "accent": [
     90,
@@ -38,10 +39,10 @@
   "cover": "/apps/cron-speak/cover.jpg",
   "screenshots": [],
   "gif": "/apps/cron-speak/cron-speak.gif",
-  "bytes": 207658,
+  "bytes": 207483,
   "download": 0,
   "provides": null,
-  "sha256": "ee77f34e868545118340c2942b01d9a446e7cf0a890c3dc4cd5bde2da1c9661a",
+  "sha256": "0fb78b8b54973d85bf2d44c22b40c8f13d837babf873807cc9a2e1cfcc8e6050",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

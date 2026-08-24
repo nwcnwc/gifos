@@ -27,6 +27,7 @@
     "offline"
   ],
   "license": "MIT",
+  "copyright": "Copyright 2018-present Joshua Comeau",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/waveforms",
   "accent": [
     77,
@@ -39,10 +40,10 @@
   "cover": "/apps/waveforms/cover.jpg",
   "screenshots": [],
   "gif": "/apps/waveforms/waveforms.gif",
-  "bytes": 194407,
+  "bytes": 194280,
   "download": 0,
   "provides": null,
-  "sha256": "4e48a1520845f685a3fb5dad5a2c4f985eae629873ecb18bbd14196b30a5ed5e",
+  "sha256": "83847fcab15b0f3b9bfb6b22148136e1fc43bfdad5decb4a53714b22692606f3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
