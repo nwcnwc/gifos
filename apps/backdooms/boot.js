@@ -93,8 +93,11 @@
   });
 
   addEventListener('keydown', function (ev) {
+    // Backdooms.keys() is undefined until start() has run once — an unguarded
+    // write here threw on every pre-game keypress, and the throw landed BEFORE
+    // the Enter/Space lines below, so the keyboard could not start the game.
     var k = Backdooms.keys();
-    k[ev.key] = 1;
+    if (k) k[ev.key] = 1;
     if (ev.key === 'Enter' && !playing) begin();
     if (ev.key === ' ' && !playing) { ev.preventDefault(); begin(); }
     if (ev.key === 'Escape' && document.pointerLockElement) {
@@ -102,7 +105,8 @@
     }
   });
   addEventListener('keyup', function (ev) {
-    Backdooms.keys()[ev.key] = 0;
+    var k = Backdooms.keys();
+    if (k) k[ev.key] = 0;
   });
   canvas.addEventListener('click', function () {
     if (!playing) return;
