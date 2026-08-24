@@ -29,6 +29,7 @@
   var others = {};
   var chip = null, applying = false;
 
+  var owner = true;               // false on a guest, from gifos.info()
   var COLOURS = ['#57d9a3', '#ffb454', '#ff8fa3', '#b39dff', '#4cc2ff', '#ffe066'];
   function colourFor(id) {
     var n = 0;
@@ -42,7 +43,26 @@
     if (!window.gifos || !gifos.db) return;
     sessionDb = gifos.db('session');
     cursorsDb = gifos.db('cursors');
+    /*
+     * SOMEBODY HAS TO SPEAK FIRST. Both sides used to write only once they had
+     * seen the other — the host waited for a cursor, the guest waited for the
+     * room's view — and two people in the same room sat in silence looking at
+     * different maps. A guest announces itself the moment it arrives, and keeps
+     * a heartbeat so the host knows it is still there.
+     */
     gifos.me().then(function (m) { me = m || me; }).catch(function () {});
+    gifos.info().then(function (i) {
+      owner = !(i && i.owner === false);
+      if (!owner) {
+        // A join is a race on this side too: the app is ready before the room's
+        // lane necessarily is, and a presence record written into a room that
+        // is not listening yet is simply lost — leaving the host with no idea
+        // anyone is there and the guest on its own default Earth. So say hello
+        // several times while the room settles, then keep a slow heartbeat.
+        [0, 900, 2500, 5000, 9000].forEach(function (ms) { setTimeout(hello, ms); });
+        setInterval(hello, 12000);
+      }
+    }).catch(function () {});
 
     sessionDb.subscribe(function (recs) {
       var rec = recs.filter(function (r) { return r.id === 'view'; })[0];
@@ -76,6 +96,16 @@
     });
   };
 
+  // A guest's "I am here": its own cursor record, at the middle of its view.
+  function hello() {
+    if (!cursorsDb) return;
+    var c = M.toWorld(M.size().w / 2, M.size().h / 2);
+    cursorsDb.put({
+      id: me.id, name: me.name || '', at: Date.now(),
+      lon: U.wrapLon(c.lon), lat: c.lat,
+    }).catch(function () {});
+  }
+
   function seen(id, name) {
     if (!id || id === me.id) return;
     var was = others[id];
@@ -83,6 +113,21 @@
     if (!was) {
       window.WVUI.toast((name || 'Someone') + ' joined — you are looking at the same map');
       paintChip();
+      /*
+       * Somebody just walked in: hand them the view NOW, and again a few times
+       * over the next few seconds. Waiting for the next pan leaves a guest on
+       * their own default Earth until the host happens to move — the first
+       * thing they see and the last thing they should. The repeats are there
+       * because a join is a race: the guest's app may still have been mounting
+       * when the first record went out, and one missed record is a room that
+       * looks broken until someone touches the map.
+       */
+      if (owner) {
+        MP.push(true);
+        [2000, 6000, 12000].forEach(function (ms) {
+          setTimeout(function () { if (activeOthers()) MP.push(true); }, ms);
+        });
+      }
     }
   }
 
@@ -121,7 +166,10 @@
 
   MP.push = function (force) {
     if (!sessionDb || applying) return;
-    if (!force && !activeOthers()) return;
+    // A guest pushes as soon as it moves — it already knows the room is there,
+    // it just arrived in it. A host waits until somebody else is present rather
+    // than writing a shared-view record into a solo file for ever.
+    if (!force && owner && !activeOthers()) return;
     var now = Date.now();
     clearTimeout(pushTimer);
     var wait = Math.max(0, 400 - (now - lastPush));
@@ -146,7 +194,7 @@
   };
 
   MP.cursor = function (world) {
-    if (!cursorsDb || !activeOthers()) return;
+    if (!cursorsDb || (owner && !activeOthers())) return;
     var now = Date.now();
     if (now - lastCursor < 140) return;
     lastCursor = now;
@@ -154,6 +202,12 @@
       id: me.id, name: me.name || '', at: now,
       lon: U.wrapLon(world.lon), lat: world.lat,
     }).catch(function () {});
+  };
+
+  // A seam for the multiplayer suite (and for anyone debugging a room that
+  // looks silent): who this tab thinks it is, and who it thinks is here.
+  MP.debug = function () {
+    return { owner: owner, me: me.id, follow: follow, others: Object.keys(others).length };
   };
 
   window.WVMP = MP;

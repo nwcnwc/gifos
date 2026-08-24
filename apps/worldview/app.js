@@ -85,6 +85,7 @@
     UI.renderTimeline();
     M.invalidate();
     queueSave();
+    App.mpPush();
   };
 
   App.removeLayer = function (id) {
@@ -146,6 +147,7 @@
     UI.renderTimeline();
     M.invalidate();
     queueSave();
+    App.mpPush();
     var cov = D.coverage(L, state.date);
     if (!cov.ok) UI.toast(L.title + ' has no data on ' + U.prettyDate(state.date) + ' — ' + cov.why);
   };
@@ -156,6 +158,7 @@
     row.opacity = v;
     M.invalidate();
     queueSave();
+    App.mpPush();
   };
 
   App.reorder = function (from, to) {
@@ -164,6 +167,7 @@
     UI.renderStack();
     M.invalidate();
     queueSave();
+    App.mpPush();
   };
 
   // ------------------------------------------------------------------ time --

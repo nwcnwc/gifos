@@ -95,6 +95,26 @@ endorsed by NASA" line. Every claim in it is true of the build it ships beside;
 the unit test checks the layer count in the copy against the catalogue and
 refuses any "syncs across your devices" language, because there is no cloud.
 
+## Round 2 — the invite, driven for real (2026-08-24)
+
+`test/browser/e2e-worldview-mp.js` opens two browsers on one invite link
+through a real relay. It found the room silent, and two reasons for it:
+
+- **Nobody spoke first.** The host only pushed its view once it knew someone
+  was there, and it learns that from the guest's presence record — while the
+  guest waited to be told where to look. Two people in a room, two different
+  Earths. A guest now announces itself on arrival (and again while the room
+  settles, because a join is a race and a record written into a lane that is
+  not listening yet is simply lost); the host answers with its view
+  immediately and three more times over the next twelve seconds.
+- **Layer changes were not part of the shared view.** Panning synced; switching
+  a layer on did not. Every layer mutation pushes now.
+
+Ten checks green: the room link, the guest mounting the app with no install,
+converging on the host's place and day, following the host's move, the guest's
+cursor on the host's map, a layer arriving in the guest's stack, and "on your
+own" really detaching.
+
 ## What is still missing
 
 - **A live-imagery cover and a live catalogue verification.** Every layer id is
@@ -108,10 +128,6 @@ refuses any "syncs across your devices" language, because there is no cloud.
 - **Events (EONET).** Worldview lists live natural events and flies you to
   them. Explore is baked and offline, which is the trade this port makes, but
   "what is happening today" is a real gap.
-- **The multiplayer leg has not been driven through a live Invite in two
-  browsers** in this run. The shared collections are declared and wired
-  (`session` read-write with a `lead` entry, `cursors` per person); the e2e
-  suite does not yet open a second browser against a room.
 - **The App GIF is unsigned.** `node scripts/sign-apps.mjs` needs the private
   key, which is not on this machine — `--require-signed` will fail until the
   owner signs it.
