@@ -53,8 +53,7 @@ function dataUrl(abs) {
 const IMAGE_FILES = [
   'images/backgrounds.png',
   'images/entities.png',
-  'images/splash.jpg',
-  'images/logo.jpg',
+  // splash.jpg / logo.jpg copy the arcade wordmark — not packed.
   'images/key.png',
   'images/potion.png',
   'images/mute.png',
@@ -169,10 +168,10 @@ gj = gj.replace(
   'play:      function(s) { if (s && this.isNotMute()) return s.play(); },'
 );
 
-// Extra adventurers: occupy start + a slot offset, occupied() hits any of them.
+// Extra adventurers: occupy start + a 2×2 slot offset, occupied() hits any of them.
 gj = gj.replace(
   'map.occupy(map.start.x, map.start.y, this);',
-  'map.occupy(map.start.x + (this.slot || 0) * TILE, map.start.y, this);'
+  'map.occupy(map.start.x + ((this.slot || 0) % 2) * TILE, map.start.y + Math.floor((this.slot || 0) / 2) * TILE, this);'
 );
 gj = gj.replace(
   `if ((game.player != ignore) && overlapEntity(x, y, w, h, game.player))
@@ -244,6 +243,23 @@ gj = gj.replace(
 gj = gj.replace(
   'PLAYERS   = [ PLAYER.WARRIOR, PLAYER.VALKYRIE, PLAYER.WIZARD, PLAYER.ELF ],',
   'PLAYERS   = [ PLAYER.WARRIOR, PLAYER.VALKYRIE, PLAYER.WIZARD, PLAYER.ELF ],\n      _expose = (window.GAUNTLET_TYPES = PLAYER),'
+);
+
+gj = gj.replace(
+  `{ key: Game.Key.DOWN,   mode: 'down', state: 'playing', action: function()    { this.player.moveDown(true);      } },`,
+  `{ key: Game.Key.DOWN,   mode: 'down', state: 'playing', action: function()    { this.player.moveDown(true);      } },
+      { key: Game.Key.A,      mode: 'down', state: 'playing', action: function()    { this.player.moveLeft(true);      } },
+      { key: Game.Key.D,      mode: 'down', state: 'playing', action: function()    { this.player.moveRight(true);     } },
+      { key: Game.Key.W,      mode: 'down', state: 'playing', action: function()    { this.player.moveUp(true);        } },
+      { key: Game.Key.S,      mode: 'down', state: 'playing', action: function()    { this.player.moveDown(true);      } },`
+);
+gj = gj.replace(
+  `{ key: Game.Key.DOWN,   mode: 'up',   state: 'playing', action: function()    { this.player.moveDown(false);     } },`,
+  `{ key: Game.Key.DOWN,   mode: 'up',   state: 'playing', action: function()    { this.player.moveDown(false);     } },
+      { key: Game.Key.A,      mode: 'up',   state: 'playing', action: function()    { this.player.moveLeft(false);     } },
+      { key: Game.Key.D,      mode: 'up',   state: 'playing', action: function()    { this.player.moveRight(false);    } },
+      { key: Game.Key.W,      mode: 'up',   state: 'playing', action: function()    { this.player.moveUp(false);       } },
+      { key: Game.Key.S,      mode: 'up',   state: 'playing', action: function()    { this.player.moveDown(false);     } },`
 );
 
 if (gj.includes("name: 'sounds/")) throw new Error('gauntlet.js still references sound files');

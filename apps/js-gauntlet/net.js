@@ -15,6 +15,8 @@
   var world = null;
   var STALE = 4000;
   var TYPES = ['WARRIOR', 'VALKYRIE', 'WIZARD', 'ELF'];
+  var joining = false;
+  var nuked = {};
 
   function now() { return Date.now(); }
   function db(n) { return api && api.db ? api.db(n) : null; }
@@ -31,6 +33,14 @@
     return p && p.type && p.type.name ? p.type.name.toUpperCase() : null;
   }
 
+  function status(msg) {
+    var el = document.getElementById('room-status');
+    if (!el) return;
+    if (!msg) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
   function taken() {
     var g = root.game, have = [], i, o, t;
     if (g && g.player) {
@@ -40,13 +50,19 @@
     if (g && g.party) {
       for (i = 0; i < g.party.length; i++) {
         t = typeOf(g.party[i]);
-        if (t) have.push(t);
+        if (t && have.indexOf(t) < 0) have.push(t);
       }
     }
     var live = liveOthers();
     for (i = 0; i < live.length; i++) {
       o = live[i];
       if (o.type && have.indexOf(o.type) < 0) have.push(o.type);
+    }
+    if (!owner && world && world.p) {
+      for (i = 0; i < world.p.length; i++) {
+        t = world.p[i] && world.p[i].t;
+        if (t && have.indexOf(t) < 0) have.push(t);
+      }
     }
     return have;
   }
@@ -59,33 +75,63 @@
     return null;
   }
 
+  function paintTaken() {
+    var have = taken(), i, id, node, g = root.game, mine = g && g.player ? typeOf(g.player) : null;
+    for (i = 0; i < TYPES.length; i++) {
+      id = TYPES[i].toLowerCase();
+      node = document.getElementById(id);
+      if (!node) continue;
+      if (have.indexOf(TYPES[i]) >= 0 && TYPES[i] !== mine) node.classList.add('taken');
+      else node.classList.remove('taken');
+    }
+  }
+
+  function findParty(g, id) {
+    var i;
+    g.party = g.party || [];
+    for (i = 0; i < g.party.length; i++) {
+      if (g.party[i].netId === id) return g.party[i];
+    }
+    return null;
+  }
+
+  function spawnParty(g, id, typeName, slot) {
+    if (!root.GauntletPlayer || !root.GAUNTLET_TYPES || !root.GAUNTLET_TYPES[typeName]) return null;
+    var p = new root.GauntletPlayer();
+    p.netId = id;
+    p.slot = slot;
+    p.join(root.GAUNTLET_TYPES[typeName]);
+    if (g.map) p.onStartLevel(g.map);
+    g.party.push(p);
+    return p;
+  }
+
   function ensureParty(g) {
     if (!g || !owner || !root.GauntletPlayer || !root.GAUNTLET_TYPES) return;
     g.party = g.party || [];
-    var live = liveOthers(), i, o, p, t, found, slot;
+    var live = liveOthers(), i, o, found, keep = {}, slot;
     for (i = 0; i < live.length; i++) {
       o = live[i];
       if (!o.type || !root.GAUNTLET_TYPES[o.type]) continue;
-      found = null;
-      for (slot = 0; slot < g.party.length; slot++) {
-        if (g.party[slot].netId === o.id) { found = g.party[slot]; break; }
-      }
+      keep[o.id] = true;
+      found = findParty(g, o.id);
       if (!found) {
-        p = new root.GauntletPlayer();
-        p.netId = o.id;
-        p.slot = g.party.length + 1;
-        p.join(root.GAUNTLET_TYPES[o.type]);
-        if (g.map) p.onStartLevel(g.map);
-        g.party.push(p);
-        found = p;
+        slot = g.party.length + 1;
+        found = spawnParty(g, o.id, o.type, slot);
+        if (!found) continue;
       }
       found.moveLeft(!!o.l);
       found.moveRight(!!o.r);
       found.moveUp(!!o.u);
       found.moveDown(!!o.d);
       found.fire(!!o.f);
-      if (o.n) found.nuke();
+      if (o.n && !nuked[o.id]) {
+        found.nuke();
+        nuked[o.id] = true;
+      }
+      if (!o.n) nuked[o.id] = false;
     }
+    g.party = g.party.filter(function (p) { return keep[p.netId]; });
   }
 
   function snapEnt(e) {
@@ -104,6 +150,7 @@
     var folks = g.allPlayers(), i, p, plist = [], ents = [], e;
     for (i = 0; i < folks.length; i++) {
       p = folks[i];
+      if (!p) continue;
       plist.push({
         id: p.netId || me.id,
         t: typeOf(p),
@@ -128,6 +175,28 @@
       type: { sx: sx, sy: sy },
       x: x, y: y, frame: fr, dx: 0, dy: 0
     };
+  }
+
+  function syncVisuals(g) {
+    if (!g || !world || !world.p) return;
+    g.party = g.party || [];
+    var i, e, found, keep = {}, slot;
+    for (i = 0; i < world.p.length; i++) {
+      e = world.p[i];
+      if (!e || e.id === me.id || !e.t) continue;
+      keep[e.id] = true;
+      found = findParty(g, e.id);
+      if (!found) {
+        slot = g.party.length + 1;
+        found = spawnParty(g, e.id, e.t, slot);
+        if (!found) continue;
+      }
+      found.x = e.x; found.y = e.y; found.dir = e.d;
+      found.health = e.h; found.score = e.s;
+      found.keys = e.k; found.potions = e.o;
+      found.frame = e.fr; found.dead = !!e.dead;
+    }
+    g.party = g.party.filter(function (p) { return keep[p.netId]; });
   }
 
   function applyWorld(g) {
@@ -155,7 +224,25 @@
         }
       }
     }
+    syncVisuals(g);
     if (g.viewport && g.player) g.viewport.update(0, g.player, g.map, g.viewport);
+  }
+
+  function maybeJoin() {
+    if (owner || joining) return;
+    var g = root.game;
+    if (!g || !world) return;
+    if (g.current !== 'menu') return;
+    var T = root.GAUNTLET_TYPES;
+    var t = freeType();
+    if (!t || !T || !T[t] || !g.start) {
+      status('Watching — all four classes are taken.');
+      return;
+    }
+    joining = true;
+    status('');
+    try { g.start(T[t], world.n); }
+    catch (err) { joining = false; }
   }
 
   function writeSelf() {
@@ -174,6 +261,8 @@
     delete rec.dwn;
     d.put(rec).catch(function () {});
     held.potion = false;
+    maybeJoin();
+    paintTaken();
   }
 
   function onPlayers(rows) {
@@ -184,12 +273,15 @@
       r.seen = r.seen || now();
       others[r.id] = r;
     }
+    paintTaken();
+    maybeJoin();
   }
 
   function onWorld(rows) {
     for (var i = 0; i < rows.length; i++) {
       if (rows[i] && rows[i].id === 'world') world = rows[i];
     }
+    maybeJoin();
   }
 
   function refreshBoard(g) {
@@ -211,39 +303,42 @@
       var pd = db('players'), wd = db('world');
       if (pd && pd.subscribe) pd.subscribe(onPlayers);
       if (wd && wd.subscribe) wd.subscribe(onWorld);
+      if (!owner) status('Waiting for the host to start the dungeon.');
       setInterval(writeSelf, 100);
-    }).catch(function () {});
+    }).catch(function (err) {
+      status((err && err.message) || 'Could not join the room.');
+    });
   }
 
   root.GauntletNet = {
     init: init,
     publish: publish,
     applyWorld: applyWorld,
+    ensureParty: ensureParty,
+    maybeJoin: maybeJoin,
     refreshBoard: refreshBoard,
     guestWatching: function () {
       return !owner && !!world && !!(root.game && root.game.map);
     },
     noteInput: function (h) { held = h || held; },
-    freeType: freeType
+    freeType: freeType,
+    taken: taken,
+    isOwner: function () { return owner; },
+    _setIdentity: function (id, isOwner) { me = { id: id, name: id }; owner = !!isOwner; },
+    _setOthers: onPlayers,
+    _setWorld: function (row) { world = row; maybeJoin(); }
   };
 
-  document.addEventListener('keydown', function (ev) {
-    var c = ev.keyCode;
-    if (c === 37) held.left = true;
-    else if (c === 39) held.right = true;
-    else if (c === 38) held.up = true;
-    else if (c === 40) held.down = true;
-    else if (c === 32) held.fire = true;
-    else if (c === 13) held.potion = true;
-  });
-  document.addEventListener('keyup', function (ev) {
-    var c = ev.keyCode;
-    if (c === 37) held.left = false;
-    else if (c === 39) held.right = false;
-    else if (c === 38) held.up = false;
-    else if (c === 40) held.down = false;
-    else if (c === 32) held.fire = false;
-  });
+  function bindKey(c, on) {
+    if (c === 37 || c === 65) held.left = on;
+    else if (c === 39 || c === 68) held.right = on;
+    else if (c === 38 || c === 87) held.up = on;
+    else if (c === 40 || c === 83) held.down = on;
+    else if (c === 32) held.fire = on;
+    else if (c === 13 && on) held.potion = true;
+  }
+  document.addEventListener('keydown', function (ev) { bindKey(ev.keyCode, true); });
+  document.addEventListener('keyup', function (ev) { bindKey(ev.keyCode, false); });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else setTimeout(init, 0);

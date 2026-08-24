@@ -8,7 +8,10 @@ license:  MIT (COPYING.txt) for the code.
 NOT copied (licensed only for the original project, see upstream README):
   sounds/music.*     Lucky Lion Studios
   sounds/*.ogg/mp3   Premium Beat SFX
+  images/splash.jpg  arcade-style wordmark / box art
+  images/logo.jpg    arcade-style wordmark
 Boot.js / the Sounds stub synthesise nothing — the dungeon is silent.
+The facing name is Dungeon Party; the arcade wordmark is not shipped.
 
 Copied and lightly patched:
   js/vendor.js, js/game.js, js/gauntlet.js, css, images, level PNGs.
