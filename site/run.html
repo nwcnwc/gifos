@@ -6,6 +6,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0a0a0f">
+<!-- First paint is dark GROUND, immediately: the real theme gate lives ~400
+     lines down (#theme-gate), and on a slow phone the parser takes over a
+     second to get there — every frame before that painted WHITE. Same rule,
+     same fallback, hoisted above everything so no white frame can exist. -->
+<style>html{background:var(--bg,#0a0a0f)}</style>
 <!-- ════ PREFLIGHT: can this browser actually hold a meeting? ════════════════════
      A browser that cannot run the meeting used to find that out the slow way:
      it booted, knocked, never seated, and after four seconds got the joining

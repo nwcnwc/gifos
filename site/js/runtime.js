@@ -2934,10 +2934,16 @@
   // (bootDecoded clears mountEl). Refusals land here too, or a locked app's
   // "why" is invisible in a solo tab.
   function launchSplash(mountEl) {
+    // An absolute overlay with its own opaque background: the sandbox iframe
+    // mounts UNDER it at opacity 0, so the handoff can never flash white
+    // (the blank-iframe white void was the top finding of the first blind
+    // load critique — a screen that reads as "crashed").
+    try { if (getComputedStyle(mountEl).position === 'static') mountEl.style.position = 'relative'; } catch (e) {}
     const wrap = document.createElement('div');
     wrap.setAttribute('style',
+      'position:absolute;inset:0;z-index:5;background:var(--bg,#0a0a0f);' +
       'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-      'height:100%;gap:10px;font:15px/1.5 system-ui,sans-serif;color:var(--muted,#8888aa);text-align:center;padding:0 16px');
+      'gap:10px;font:15px/1.5 system-ui,sans-serif;color:var(--muted,#8888aa);text-align:center;padding:0 16px');
     const dot = document.createElement('div');
     dot.setAttribute('style',
       'width:10px;height:10px;border-radius:50%;background:var(--accent,#7b5cff);' +
@@ -3018,8 +3024,27 @@
 
       const hasEntry = !!files[norm(manifest.entry || 'index.html')] || !!files['index.html'];
       const iframe = makeIframe();
-      mountEl.innerHTML = ''; mountEl.appendChild(iframe);
-      if (!hasEntry) { iframe.srcdoc = buildFolderHtml(files); setStatus('Browsable filesystem (no index.html).'); return noop; }
+      // The splash stays up while the sandbox document parses; the frame fades
+      // in on its load event — capped, so a document that never finishes
+      // loading still cannot park the splash over a working app forever.
+      iframe.style.opacity = '0';
+      iframe.style.transition = 'opacity 0.2s linear';
+      let revealed = false;
+      const reveal = () => {
+        if (revealed) return;
+        revealed = true;
+        iframe.style.opacity = '1';
+        setTimeout(() => {
+          let n = mountEl.firstChild;
+          while (n) { const nx = n.nextSibling; if (n !== iframe) mountEl.removeChild(n); n = nx; }
+        }, 250);
+      };
+      iframe.addEventListener('load', reveal);
+      setTimeout(reveal, 3000);
+      let stale = mountEl.firstChild; // drop stale frames from a re-mount; keep the splash
+      while (stale) { const nx = stale.nextSibling; if (stale.tagName === 'IFRAME') mountEl.removeChild(stale); stale = nx; }
+      mountEl.appendChild(iframe);
+      if (!hasEntry) { iframe.srcdoc = buildFolderHtml(files); setStatus('Browsable filesystem (no index.html).'); reveal(); return noop; }
 
       let hostApi = null;
       // When this host is sharing its app over the mesh Stage DATA lane (an
