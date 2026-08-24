@@ -1,0 +1,15 @@
+/* GifOS extras on top of Orca's own main.css. */
+html, body { height: 100%; }
+body { max-height: none; }
+.meet {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 6px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--f_low, #6a6a6a);
+  pointer-events: none;
+  font-family: input_mono_medium, ui-monospace, monospace;
+}
+.meet b { color: var(--f_high, #eee); }

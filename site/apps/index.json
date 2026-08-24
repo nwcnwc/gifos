@@ -3279,6 +3279,56 @@
       "sha256": "5079ea5f49d31e9ee8ba96b87d45009babef4698a0c86124d572c4ac1cbd8ffb"
     },
     {
+      "slug": "orca",
+      "appId": "orca",
+      "name": "Orca",
+      "shortName": "Orca",
+      "version": "1.0",
+      "tagline": "A livecoding sequencer. Each letter is an operator. The grid is the save.",
+      "author": {
+        "name": "Hundredrabbits",
+        "url": "https://github.com/hundredrabbits/Orca"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "Orca",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity",
+        "Media"
+      ],
+      "tags": [
+        "livecoding",
+        "sequencer",
+        "midi",
+        "grid",
+        "orca",
+        "offline"
+      ],
+      "accent": [
+        114,
+        222,
+        194
+      ],
+      "cover": "/apps/orca/cover.jpg",
+      "bytes": 264068,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "7f2111936edf3073ea82d4274638c51fa0b33398090b8ee6cd1d9f54398678db"
+    },
+    {
       "slug": "pacman",
       "appId": "pacman",
       "name": "Pac-Man",
@@ -4683,6 +4733,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "ff2ce7784e899bd509dad8729d83b46cd6e061856c796222373b3c05aa3ff760"
+    },
+    {
+      "slug": "spider",
+      "appId": "spider",
+      "name": "Spider",
+      "shortName": "Spider",
+      "version": "1.0",
+      "tagline": "Spider patience. Eight runs, ten piles. The file is the tableau.",
+      "author": {
+        "name": "lklynet",
+        "url": "https://github.com/lklynet/spider-solitaire"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "spider-solitaire",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "spider",
+        "solitaire",
+        "cards",
+        "patience",
+        "offline"
+      ],
+      "accent": [
+        48,
+        90,
+        48
+      ],
+      "cover": "/apps/spider/cover.jpg",
+      "bytes": 186019,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "a7d617cf287485cd01a5d904571f975c27d9c47501f65011036b62909f6b0fae"
     },
     {
       "slug": "splat",
