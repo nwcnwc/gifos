@@ -17,6 +17,9 @@
   function rankCh(r) { return RANK_CH[r] || String(r); }
   function label(c) { return rankCh(c.r) + GLYPH[c.s]; }
   function cloneCard(c) { return { r: c.r, s: c.s }; }
+  function actMsg(s, they, you) {
+    return (s && s.name === 'You') ? ('You ' + you) : ((s && s.name || 'Player') + ' ' + they);
+  }
 
   function makeDeck() {
     var d = [], s, r;
@@ -90,19 +93,17 @@
   }
 
   function eval7(hole, board) {
-    var all = hole.concat(board);
-    if (all.length < 5) return eval5(all.concat([{ r: 0, s: 's' }, { r: 0, s: 'h' }]).slice(0, 5));
+    var all = (hole || []).concat(board || []).filter(function (c) { return c && c.r; });
+    if (all.length < 5) {
+      while (all.length < 5) all.push({ r: 0, s: 's' });
+      return eval5(all.slice(0, 5));
+    }
     if (all.length === 5) return eval5(all);
-    var best = null, i, set, e;
-    var sets = all.length === 6 ? combos5(all.concat([{ r: 0, s: 's' }])).filter(function (c) {
-      return c[0].r && c[1].r && c[2].r && c[3].r && c[4].r;
-    }) : combos5(all);
+    var sets = [], i, set, e, best = null;
     if (all.length === 6) {
-      // 6 cards: C(6,5)=6
-      sets = [];
-      for (i = 0; i < 6; i++) {
-        set = all.slice(); set.splice(i, 1); sets.push(set);
-      }
+      for (i = 0; i < 6; i++) { set = all.slice(); set.splice(i, 1); sets.push(set); }
+    } else {
+      sets = combos5(all);
     }
     for (i = 0; i < sets.length; i++) {
       e = eval5(sets[i]);
@@ -135,13 +136,34 @@
   function unfolded(t) {
     return t.seats.filter(function (s) { return s.id && !s.sittingOut && !s.folded; });
   }
+  function canActSeats(t) {
+    return t.seats.filter(function (s) {
+      return s.id && !s.sittingOut && !s.folded && !s.allIn;
+    });
+  }
   function nextLive(t, from, pred) {
     var i, n = MAX, idx;
+    from = from == null ? MAX - 1 : from;
     for (i = 1; i <= n; i++) {
       idx = (from + i) % n;
       if (pred(t.seats[idx])) return idx;
     }
     return -1;
+  }
+  function seatById(t, id) {
+    var i;
+    for (i = 0; i < t.seats.length; i++) if (t.seats[i].id === id) return i;
+    return -1;
+  }
+  function rebuy(t, id, amt) {
+    var i = seatById(t, id), s;
+    if (i < 0) return false;
+    s = t.seats[i];
+    amt = amt | 0;
+    if (amt <= 0) return false;
+    s.stack += amt;
+    if (s.stack > 0) s.sittingOut = false;
+    return true;
   }
 
   function sit(t, id, name, stack, isBot) {
@@ -196,7 +218,10 @@
     });
     live = liveSeats(t);
     if (live.length < 2) { t.phase = 'idle'; t.msg = 'Need two stacks.'; return false; }
-    t.dealer = nextLive(t, t.dealer, function (s) { return s.id && !s.sittingOut && s.stack > 0; });
+    // First hand: button on the first live seat. Later hands: it moves.
+    t.dealer = nextLive(t, t.handNo === 1 ? MAX - 1 : t.dealer, function (s) {
+      return s.id && !s.sittingOut && s.stack > 0;
+    });
     var heads = live.length === 2;
     var sbI, bbI;
     if (heads) {
@@ -262,21 +287,21 @@
     kind = String(kind || '').toLowerCase();
     if (kind === 'fold') {
       s.folded = true; s.lastAction = 'fold'; s.acted = true;
-      t.msg = s.name + ' folds.';
+      t.msg = actMsg(s, 'folds.', 'fold.');
     } else if (kind === 'check') {
       if (!L.check) return false;
       s.lastAction = 'check'; s.acted = true;
-      t.msg = s.name + ' checks.';
+      t.msg = actMsg(s, 'checks.', 'check.');
     } else if (kind === 'call') {
       if (L.toCall <= 0) {
         if (!L.check) return false;
         s.lastAction = 'check'; s.acted = true;
-        t.msg = s.name + ' checks.';
+        t.msg = actMsg(s, 'checks.', 'check.');
       } else {
         t.pot += post(s, L.toCall);
         s.lastAction = s.allIn ? 'all-in' : 'call';
         s.acted = true;
-        t.msg = s.name + ' ' + (s.allIn ? 'is all-in' : 'calls') + '.';
+        t.msg = s.allIn ? actMsg(s, 'is all-in.', 'are all-in.') : actMsg(s, 'calls.', 'call.');
       }
     } else if (kind === 'raise') {
       amount = amount | 0;
@@ -296,7 +321,9 @@
       }
       s.lastAction = s.allIn ? 'all-in' : 'raise';
       s.acted = true;
-      t.msg = s.name + (s.allIn ? ' is all-in for ' : ' raises to ') + amount + '.';
+      t.msg = s.allIn
+        ? actMsg(s, 'is all-in for ' + amount + '.', 'are all-in for ' + amount + '.')
+        : actMsg(s, 'raises to ' + amount + '.', 'raise to ' + amount + '.');
     } else {
       return false;
     }
@@ -324,14 +351,14 @@
     else if (t.phase === 'flop') { dealBoard(t, 1); t.phase = 'turn'; t.msg = 'Turn.'; }
     else if (t.phase === 'turn') { dealBoard(t, 1); t.phase = 'river'; t.msg = 'River.'; }
     else { showdown(t); return; }
+    // One player left with chips against all-ins: no more betting, run it out.
+    if (canActSeats(t).length < 2) {
+      nextStreet(t);
+      return;
+    }
     var first = nextLive(t, t.dealer, function (s) {
       return s.id && !s.sittingOut && !s.folded && !s.allIn;
     });
-    if (first < 0 || stillToAct(t).length === 0) {
-      // everyone all-in: run out the board
-      while (t.phase !== 'showdown' && t.phase !== 'idle') nextStreet(t);
-      return;
-    }
     t.toAct = first;
   }
 
@@ -342,42 +369,81 @@
     if (u.length === 1) {
       u[0].stack += t.pot;
       t.winners = [{ i: u[0].i, name: u[0].name, amount: t.pot, nameHand: 'uncontested' }];
-      t.msg = u[0].name + ' wins ' + t.pot + '.';
+      t.msg = actMsg(u[0], 'wins ' + t.pot + '.', 'win ' + t.pot + '.');
     } else {
       t.winners = [];
       t.msg = 'Hand over.';
     }
     t.pot = 0;
+    t.seats.forEach(function (s) { s.bet = 0; });
   }
 
   function showdown(t) {
     t.phase = 'showdown';
     t.toAct = null;
-    var u = unfolded(t);
-    var i, e, ranked = [];
-    for (i = 0; i < u.length; i++) {
-      e = eval7(u[i].hand, t.board);
-      ranked.push({ seat: u[i], eval: e });
+    var contribs = t.seats.filter(function (s) { return s.contrib > 0; });
+    var levels = [], seen = {}, i, s, lvl, prev = 0, layerPot, eligible, ranked, best, champs, share, rem;
+    for (i = 0; i < contribs.length; i++) {
+      lvl = contribs[i].contrib;
+      if (!seen[lvl]) { seen[lvl] = 1; levels.push(lvl); }
     }
-    ranked.sort(function (a, b) { return b.eval.score - a.eval.score; });
-    // Simple pots: if one winner takes all; ties split.
-    var best = ranked[0].eval.score;
-    var champs = ranked.filter(function (x) { return x.eval.score === best; });
-    var share = Math.floor(t.pot / champs.length);
-    var rem = t.pot - share * champs.length;
+    levels.sort(function (a, b) { return a - b; });
     t.winners = [];
-    champs.forEach(function (c, n) {
-      var amt = share + (n === 0 ? rem : 0);
-      c.seat.stack += amt;
-      t.winners.push({
-        i: c.seat.i, name: c.seat.name, amount: amt,
-        nameHand: c.eval.name, score: c.eval.score
+    for (i = 0; i < levels.length; i++) {
+      lvl = levels[i];
+      layerPot = 0;
+      t.seats.forEach(function (seat) { if (seat.contrib >= lvl) layerPot += (lvl - prev); });
+      prev = lvl;
+      eligible = t.seats.filter(function (seat) {
+        return seat.id && !seat.folded && !seat.sittingOut && seat.contrib >= lvl;
       });
-    });
-    t.msg = t.winners.map(function (w) {
-      return w.name + ' wins ' + w.amount + ' with ' + w.nameHand;
-    }).join('. ') + '.';
+      if (!eligible.length || layerPot <= 0) continue;
+      if (eligible.length === 1) {
+        eligible[0].stack += layerPot;
+        if (t.seats.filter(function (seat) { return seat.contrib >= lvl; }).length > 1) {
+          t.winners.push({
+            i: eligible[0].i, name: eligible[0].name, amount: layerPot,
+            nameHand: 'uncontested', score: 0
+          });
+        }
+        continue;
+      }
+      ranked = eligible.map(function (seat) {
+        return { seat: seat, eval: eval7(seat.hand, t.board) };
+      });
+      ranked.sort(function (a, b) { return b.eval.score - a.eval.score; });
+      best = ranked[0].eval.score;
+      champs = ranked.filter(function (x) { return x.eval.score === best; });
+      share = Math.floor(layerPot / champs.length);
+      rem = layerPot - share * champs.length;
+      champs.forEach(function (c, n) {
+        var amt = share + (n === 0 ? rem : 0);
+        c.seat.stack += amt;
+        t.winners.push({
+          i: c.seat.i, name: c.seat.name, amount: amt,
+          nameHand: c.eval.name, score: c.eval.score
+        });
+      });
+    }
+    // Merge side-pot slices per seat so the banner names each winner once.
+    var merged = {}, key, w, list = [];
+    for (i = 0; i < t.winners.length; i++) {
+      w = t.winners[i];
+      key = String(w.i);
+      if (!merged[key]) merged[key] = { i: w.i, name: w.name, amount: 0, nameHand: w.nameHand, score: w.score };
+      merged[key].amount += w.amount;
+    }
+    for (key in merged) if (Object.prototype.hasOwnProperty.call(merged, key)) list.push(merged[key]);
+    t.winners = list;
+    t.msg = t.winners.length
+      ? t.winners.map(function (win) {
+        var they = 'wins ' + win.amount + ' with ' + win.nameHand;
+        var you = 'win ' + win.amount + ' with ' + win.nameHand;
+        return win.name === 'You' ? ('You ' + you) : (win.name + ' ' + they);
+      }).join('. ') + '.'
+      : 'Hand over.';
     t.pot = 0;
+    t.seats.forEach(function (s) { s.bet = 0; });
   }
 
   function advance(t) {
@@ -460,6 +526,7 @@
     newTable: newTable, sit: sit, stand: stand, startHand: startHand,
     legal: legal, applyAction: applyAction, botKind: botKind,
     liveSeats: liveSeats, unfolded: unfolded, publicTable: publicTable,
-    canAct: canAct, cloneCard: cloneCard
+    canAct: canAct, cloneCard: cloneCard, seatById: seatById, rebuy: rebuy,
+    canActSeats: canActSeats
   };
 })(typeof window !== 'undefined' ? window : globalThis);

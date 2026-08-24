@@ -3,9 +3,9 @@
   "appId": "vintage-poker",
   "name": "Vintage Poker",
   "shortName": "Poker",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "description": "Texas Hold'em. Host is the dealer. Toy chips, no cash. Invite is the seats.",
+  "description": "No account, no cash. Invite is the table. Host deals. Toy chips.",
   "entry": "index.html",
   "accent": [26, 122, 58],
   "capabilities": {
