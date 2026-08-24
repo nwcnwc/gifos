@@ -143,6 +143,9 @@ const GLYPHS = {
   U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
+  0: [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  1: [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  2: [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
@@ -172,10 +175,10 @@ export function screenshotPng() {
     if (y < HORIZON) {
       const wall = Math.abs(dx) / Math.max(8, (HORIZON - y) * 1.4 + 40);
       if (wall > 0.48) put(x, y, dx < 0 ? 210 : 168, dx < 0 ? 176 : 132, dx < 0 ? 52 : 32);
-      else put(x, y, 220, 200, 96);
+      else put(x, y, 228, 206, 92);
     } else {
       const d = (y - HORIZON) / (H - HORIZON);
-      put(x, y, 150 + d * 40, 122 + d * 20, 36);
+      put(x, y, 138 + d * 36, 108 + d * 18, 28);
       const wall = Math.abs(dx) / Math.max(8, (y - HORIZON) * 1.2 + 20);
       if (wall > 0.68) put(x, y, dx < 0 ? 186 : 140, dx < 0 ? 150 : 108, dx < 0 ? 40 : 24);
     }
@@ -185,18 +188,24 @@ export function screenshotPng() {
     for (let y = cy - s * 0.28; y < cy; y++) for (let x = cx - s * 0.16; x < cx + s * 0.16; x++) put(x, y, 40, 14, 10);
     put(cx - s * 0.06, cy - s * 0.16, 220, 36, 24);
     put(cx + s * 0.06, cy - s * 0.16, 220, 36, 24);
+    const barW = s * 0.4;
+    for (let x = cx - barW; x < cx + barW; x++) put(x, cy - s * 0.36, 20, 80, 20);
   }
   fig(VPX + 20, 310, 160);
   fig(VPX - 140, 280, 70);
+  fig(VPX + 220, 295, 90);
   for (let y = 430; y < 700; y++) {
     const w = 14 + (y - 430) * 0.1;
     for (let x = VPX - w; x < VPX + w; x++) put(x, y, 78, 74, 66);
   }
   for (let i = 0; i < 180; i++) {
-    const ang = Math.random() * Math.PI * 2, rad = Math.random() * 40;
+    const ang = (i * 2.399) % (Math.PI * 2), rad = (i * 17 % 40);
     put(VPX + Math.cos(ang) * rad, 340 + Math.sin(ang) * rad * 0.6, 255, 220, 120);
   }
+  for (let x = 36; x < 36 + 220; x++) for (let y = 28; y < 42; y++) put(x, y, 200, 24, 24);
+  for (let x = 36; x < 36 + 90; x++) for (let y = 48; y < 56; y++) put(x, y, 240, 210, 40);
   drawText(put, 36, H - 64, 'BACKDOOMS', 5, 240, 220, 140);
+  drawText(put, 36, 64, 'SCORE 12', 4, 255, 255, 255);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

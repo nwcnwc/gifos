@@ -22,15 +22,18 @@ body.play #hud { display: flex; }
   position: absolute; top: 8px; right: 12px;
   font: 700 12px/1 system-ui, sans-serif;
   color: #ffd36a; text-shadow: 0 1px 3px #000;
+  pointer-events: none;
 }
 
-#gate, #over {
+#gate, #over, #resume {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   background: rgba(8, 6, 2, .86);
   z-index: 20;
 }
-#over[hidden], #gate[hidden] { display: none; }
+#over[hidden], #gate[hidden], #resume[hidden] { display: none; }
+#resume { background: rgba(8, 6, 2, .45); z-index: 18; cursor: pointer; }
+#resume .gate-box { background: #1a160c; padding: 18px 28px; }
 .gate-box {
   width: min(420px, 92vw);
   padding: 28px 22px 22px;
@@ -92,5 +95,11 @@ body.phone #gate-keys-phone { display: block; }
   background: linear-gradient(45deg, #800, #f00);
   color: #fff; font: 700 13px/1 system-ui, sans-serif;
   box-shadow: 0 0 18px rgba(255,140,0,.35);
+  animation: pulse 2s infinite;
 }
-#t-fire:active { transform: scale(.95); }
+#t-fire:active { transform: scale(.95); animation: none; }
+@keyframes pulse {
+  0% { box-shadow: 0 0 18px rgba(255,140,0,.25); }
+  50% { box-shadow: 0 0 28px rgba(255,140,0,.5); }
+  100% { box-shadow: 0 0 18px rgba(255,140,0,.25); }
+}

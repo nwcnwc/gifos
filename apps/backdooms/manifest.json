@@ -3,7 +3,7 @@
   "appId": "backdooms",
   "name": "Backdooms",
   "shortName": "Backdooms",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 1314,
   "description": "A shotgun, yellow halls, things that walk toward you. The file is the save.",
   "entry": "index.html",
