@@ -3,9 +3,9 @@
   "appId": "solitaire",
   "name": "Solitaire",
   "shortName": "Solitaire",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "description": "Klondike. Build the four suits. The file is the tableau.",
+  "description": "Klondike with undo, on a phone. The file is the tableau.",
   "entry": "index.html",
   "accent": [26, 122, 58],
   "capabilities": {

@@ -33,7 +33,7 @@ const gif = globalThis.GifOS.gif;
 const read = (p) => readFileSync(join(dir, p), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-const SCRIPTS = ['app.js'];
+const SCRIPTS = ['klondike.js', 'app.js'];
 
 if (!existsSync(join(dir, 'vendor', 'COPYING-solitaire.txt'))) {
   throw new Error('vendor/COPYING-solitaire.txt is missing');
@@ -43,6 +43,7 @@ const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
   'style.css': read('style.css'),
+  'klondike.js': read('klondike.js'),
   'app.js': read('app.js'),
   'COPYING-solitaire.txt': read('vendor/COPYING-solitaire.txt'),
   'UPSTREAM.txt': read('vendor/UPSTREAM.txt'),
@@ -83,6 +84,10 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 }
 if (!files['COPYING-solitaire.txt'].includes('Radovan Janjic')) throw new Error('COPYING');
 if (!files['app.js'].includes("db('save')")) throw new Error('must save privately');
+if (!files['klondike.js'].includes('fisherYates')) throw new Error('shuffle must be Fisher–Yates');
+if (/Math\.random\(\)\s*<\s*0\.5/.test(files['klondike.js'] + files['app.js'])) {
+  throw new Error('biased Array.sort shuffle is banned');
+}
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -96,31 +101,20 @@ for (const [n, s] of Object.entries(files)) {
 }
 
 {
-  const ctx = { window: {}, console, document: { getElementById: () => ({ onclick: null, hidden: true, appendChild: () => {}, addEventListener: () => {} }) }, Date };
+  const ctx = { window: {}, console, Math, Object, Array, JSON };
   ctx.window = ctx;
-  // stub enough DOM for the IIFE to boot without throwing on missing nodes
-  const stub = () => {
-    const el = {
-      className: '', classList: { add() {}, remove() {}, toggle() {} },
-      style: {}, innerHTML: '', onclick: null, onpointerdown: null,
-      appendChild() { return el; }, querySelector() { return { textContent: '' }; },
-      querySelectorAll() { return []; }, getBoundingClientRect() { return { top: 0, left: 0, width: 10, height: 10 }; }
-    };
-    return el;
-  };
-  ctx.document = {
-    getElementById: stub,
-    createElement: stub,
-    addEventListener() {}
-  };
-  ctx.window.addEventListener = () => {};
+  ctx.globalThis = ctx;
   vm.runInNewContext(
-    files['app.js'] + '\n' +
+    files['klondike.js'] + '\n' +
     'result = (function () {\n' +
     '  if (!Klondike.canPlace(12, "h", 13, "s")) throw new Error("qh on ks");\n' +
     '  if (Klondike.canPlace(12, "h", 13, "d")) throw new Error("same colour");\n' +
     '  if (!Klondike.kingOnEmpty(13) || Klondike.kingOnEmpty(12)) throw new Error("king");\n' +
     '  if (!Klondike.aceOnFoundation(1) || Klondike.aceOnFoundation(2)) throw new Error("ace");\n' +
+    '  var s = Klondike.newGame(function () { return 0.1; });\n' +
+    '  if (s.cards.length !== 52) throw new Error("deck");\n' +
+    '  var n = 0; for (var i = 0; i < 7; i++) n += s.desk[i].length;\n' +
+    '  if (n !== 28 || s.pile.length !== 24) throw new Error("deal " + n + " " + s.pile.length);\n' +
     '  return "ok";\n' +
     '})();',
     ctx
