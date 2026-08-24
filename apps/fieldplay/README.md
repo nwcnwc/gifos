@@ -2,9 +2,9 @@
 
 An unofficial local port of
 **[Field Play](https://github.com/anvaka/fieldplay)** (MIT) by anvaka.
-Drop particles on a field of arrows. Remix a named field. Playing
-alone is that toy. Press **Play together**, then **Invite**, and a
-friend sees the same recipe.
+Pour particles on a field of arrows with a tap. Remix a named field.
+Playing alone is that toy. Press **Play together**, then **Invite**, and a
+friend sees the same recipe. The last field lives in the file.
 
 ![screenshot](screenshot.png)
 
@@ -27,6 +27,7 @@ vendor/COPYING-*.txt       Andrei Kashcha MIT + Mapbox webgl-wind ISC
 |---|---|
 | `db` | Last field (private) and the room’s recipe (read-write). Needs nothing newer than the App Store itself, so `minBuild` is **947**. |
 | `multiplayer` | The room. Invite is OS chrome — this app never draws its own share sheet. |
+| `launch.field` | A shared URL can open a named field (`?run=fieldplay&go.field=black-hole`). |
 
 No `network`, no `wasm`. Texture-backed presets from upstream that fetched gists are not shipped.
 

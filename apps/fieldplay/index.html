@@ -15,13 +15,13 @@
 
     <div class="actions">
       <button type="button" id="shareBtn">Play together</button>
-      <button type="button" id="applyBtn">Apply</button>
       <button type="button" id="pauseBtn">Pause</button>
       <button type="button" id="resetBtn">Reset</button>
+      <button type="button" id="recipeBtn" aria-expanded="false" aria-controls="sheet">Recipe</button>
     </div>
 
     <div id="friend-bar" hidden>
-      <p id="friend-hint">Press <b>Invite</b> (GifOS menu) to send a friend the link. You both get the same field. Change the recipe and press Apply — they see it.</p>
+      <p id="friend-hint">Press <b>Invite</b> in the bar above the app, then send the link. You both get the same field. Change the recipe and press Apply — they see it.</p>
       <p id="friend-status"></p>
       <ul id="friend-scores"></ul>
       <div class="friend-actions">
@@ -31,27 +31,41 @@
 
     <div id="stage">
       <canvas id="field">This toy needs a canvas.</canvas>
+      <p id="hint">Tap to pour particles. Drag to pan. Pinch to zoom.</p>
     </div>
     <p id="err" hidden></p>
 
     <div id="chips" role="list"></div>
 
-    <label class="sr" for="recipe">Vector field recipe</label>
-    <textarea id="recipe" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
-
-    <div id="knobs">
-      <label>Step <input id="dt" type="range" min="0.001" max="0.04" step="0.001" value="0.01"> <span id="dtN">0.010</span></label>
-      <label>Fade <input id="fade" type="range" min="0.90" max="0.999" step="0.001" value="0.998"></label>
-      <label>Drop <input id="drop" type="range" min="0" max="0.05" step="0.001" value="0.009"></label>
-      <label>Colour
-        <select id="color">
-          <option value="1">Uniform</option>
-          <option value="2">Speed</option>
-        </select>
-      </label>
+    <div id="sheet">
+      <label class="sr" for="recipe">Vector field recipe</label>
+      <textarea id="recipe" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      <div class="sheet-row">
+        <button type="button" id="applyBtn">Apply</button>
+        <p class="sheet-note">Change a number, then Apply. Ctrl+Enter also applies.</p>
+      </div>
+      <div id="knobs">
+        <label>Step <input id="dt" type="range" min="0.001" max="0.04" step="0.001" value="0.01"> <span id="dtN">0.010</span></label>
+        <label>Fade <input id="fade" type="range" min="0.90" max="0.999" step="0.001" value="0.998"></label>
+        <label>Restart <input id="drop" type="range" min="0" max="0.05" step="0.001" value="0.009"></label>
+        <label>Colour
+          <select id="color">
+            <option value="1">Uniform</option>
+            <option value="2">Speed</option>
+            <option value="3">Angle</option>
+          </select>
+        </label>
+        <label>Cloud
+          <select id="quality">
+            <option value="64">Lite</option>
+            <option value="96">Medium</option>
+            <option value="128">Fine</option>
+          </select>
+        </label>
+      </div>
     </div>
 
-    <p id="how">Tap a named field. Drag to pan, pinch or scroll to zoom. Edit the recipe and press Apply. Particles follow the arrows at every point.</p>
+    <p id="how">Tap a named field. Tap the picture to pour particles. Drag to pan, pinch or scroll to zoom. Edit the recipe and press Apply.</p>
     <p class="foot">Unofficial port of Field Play by anvaka (MIT). Playing alone is the original toy. A shared field is the same recipe — nobody writes on anybody else’s row.</p>
   </div>
 

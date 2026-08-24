@@ -246,6 +246,12 @@
         '  float t = clamp(sp * 4.0, 0.0, 1.0);',
         '  v_particle_color = vec4(0.2 + 0.8*t, 0.55 + 0.4*(1.0-t), 1.0, 0.9);'
       ].join('\n');
+    } else if (colorMode === 3) {
+      colorMain = [
+        '  vec2 vel = get_velocity(v_particle_pos);',
+        '  float ang = atan(vel.y, vel.x) / 6.28318530718 + 0.5;',
+        '  v_particle_color = vec4(0.25 + 0.75*ang, 0.55 + 0.35*(1.0-ang), 1.0 - 0.35*ang, 0.9);'
+      ].join('\n');
     } else {
       colorMain = '  v_particle_color = vec4(0.55, 0.85, 1.0, 0.85);';
     }
@@ -319,6 +325,16 @@
   var cursor = { clickX: 0, clickY: 0, hoverX: 0, hoverY: 0 };
   var dragging = false;
   var lastPtr = null;
+  var pointers = {};
+  var pinch0 = null;
+  var tapMoved = 0;
+  var viewCb = null;
+  function notifyView() { if (viewCb) viewCb(); }
+  function pointerCount() {
+    var n = 0, k;
+    for (k in pointers) if (Object.prototype.hasOwnProperty.call(pointers, k)) n++;
+    return n;
+  }
 
   function loc(prog, name) { return prog.loc[name]; }
 
@@ -492,33 +508,97 @@
     };
   }
 
+  function dropAt(wx, wy, count) {
+    if (!gl || !texX[ping]) return false;
+    count = Math.max(16, Math.min(count || 480, res * 4));
+    var width = res;
+    var height = Math.max(1, Math.ceil(count / width));
+    var n = width * height;
+    var x = new Uint8Array(n * 4);
+    var y = new Uint8Array(n * 4);
+    var spread = Math.max(settings.w, settings.h) * 0.04;
+    var i, ang, rad;
+    for (i = 0; i < n; i++) {
+      ang = Math.random() * Math.PI * 2;
+      rad = Math.random() * spread;
+      encodeFloatRGBA(wx + Math.cos(ang) * rad, x, i * 4);
+      encodeFloatRGBA(wy + Math.sin(ang) * rad, y, i * 4);
+    }
+    gl.bindTexture(gl.TEXTURE_2D, texX[ping]);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, x);
+    gl.bindTexture(gl.TEXTURE_2D, texY[ping]);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, y);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    return true;
+  }
+
   function onDown(e) {
-    if (e.button != null && e.button !== 0) return;
+    if (e.button != null && e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
-    dragging = true;
-    lastPtr = { x: e.clientX, y: e.clientY };
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var n = pointerCount();
     var w = worldFromEvent(e);
-    cursor.clickX = w.x; cursor.clickY = w.y;
     cursor.hoverX = w.x; cursor.hoverY = w.y;
+    if (n === 1) {
+      dragging = true;
+      tapMoved = 0;
+      lastPtr = { x: e.clientX, y: e.clientY };
+      cursor.clickX = w.x; cursor.clickY = w.y;
+    } else if (n === 2) {
+      dragging = false;
+      var pts = [];
+      var id;
+      for (id in pointers) if (Object.prototype.hasOwnProperty.call(pointers, id)) pts.push(pointers[id]);
+      pinch0 = {
+        dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+        w: settings.w, h: settings.h
+      };
+    }
   }
   function onMove(e) {
+    if (pointers[e.pointerId]) pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
     var w = worldFromEvent(e);
     cursor.hoverX = w.x; cursor.hoverY = w.y;
+    if (pointerCount() === 2 && pinch0) {
+      var pts = [], id;
+      for (id in pointers) if (Object.prototype.hasOwnProperty.call(pointers, id)) pts.push(pointers[id]);
+      var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (pinch0.dist > 8 && dist > 8) {
+        var f = pinch0.dist / dist;
+        settings.w = Math.max(0.4, Math.min(400, pinch0.w * f));
+        settings.h = Math.max(0.4, Math.min(400, pinch0.h * f));
+      }
+      return;
+    }
     if (!dragging) return;
     var dx = e.clientX - lastPtr.x;
     var dy = e.clientY - lastPtr.y;
+    tapMoved += Math.abs(dx) + Math.abs(dy);
     lastPtr = { x: e.clientX, y: e.clientY };
+    if (tapMoved < 12) return;
     var rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     settings.cx -= dx / rect.width * settings.w;
     settings.cy += dy / rect.height * settings.h;
   }
-  function onUp() { dragging = false; }
+  function onUp(e) {
+    var wasTap = dragging && tapMoved < 12 && pointerCount() === 1;
+    if (e && e.pointerId != null) delete pointers[e.pointerId];
+    if (pointerCount() < 2) pinch0 = null;
+    if (pointerCount() === 0) dragging = false;
+    if (wasTap) {
+      var w = worldFromEvent(e);
+      dropAt(w.x, w.y, 520);
+    }
+    notifyView();
+  }
   function onWheel(e) {
     e.preventDefault();
     var factor = e.deltaY > 0 ? 1.12 : 1 / 1.12;
-    settings.w *= factor;
-    settings.h *= factor;
+    settings.w = Math.max(0.4, Math.min(400, settings.w * factor));
+    settings.h = Math.max(0.4, Math.min(400, settings.h * factor));
+    notifyView();
   }
 
   function fitCanvas() {
@@ -549,7 +629,12 @@
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
     screenProg = createProgram(gl, QUAD_VS, SCREEN_FS);
     if (screenProg.error) { lastError = screenProg.error; return false; }
+    if ((canvas.clientWidth || 400) < 500 && settings.particleRes === 128) {
+      res = 96;
+      settings.particleRes = 96;
+    }
     fitCanvas();
+    canvas.style.touchAction = 'none';
     canvas.addEventListener('pointerdown', onDown);
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerup', onUp);
@@ -621,9 +706,11 @@
     play: play,
     pause: pause,
     reset: reset,
+    dropAt: dropAt,
     fitCanvas: fitCanvas,
     isRunning: function () { return running; },
     lastError: function () { return lastError; },
+    onView: function (fn) { viewCb = fn; },
     encodeFloatRGBA: encodeFloatRGBA
   };
 })(this);

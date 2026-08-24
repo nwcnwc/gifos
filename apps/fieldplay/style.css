@@ -31,9 +31,17 @@ body {
   gap: 6px 14px;
 }
 #brand { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
-#which { margin-left: auto; font-size: 13px; color: #8ab4d4; }
+#which {
+  margin-left: auto;
+  font-size: 13px;
+  color: #8ab4d4;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.actions button, #leaveBtn {
+.actions button, #leaveBtn, #applyBtn {
   font: inherit;
   font-size: 15px;
   font-weight: 700;
@@ -47,7 +55,9 @@ body {
 }
 #shareBtn { background: #1f6feb; color: #fff; border-color: #388bfd; }
 #applyBtn { background: #39d0c5; color: #082018; border-color: #2bb8ae; }
+#recipeBtn { background: #0f1c33; }
 body.friend #shareBtn { display: none; }
+body.show-recipe #recipeBtn { background: #1f6feb; color: #fff; border-color: #388bfd; }
 
 #friend-bar {
   background: #0f1c33;
@@ -75,13 +85,27 @@ body.friend #shareBtn { display: none; }
 
 #stage {
   flex: 1;
-  min-height: 180px;
+  min-height: 220px;
   border-radius: 8px;
   overflow: hidden;
   background: #13294f;
   position: relative;
 }
 #field { display: block; width: 100%; height: 100%; touch-action: none; }
+#hint {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(11, 22, 40, 0.78);
+  color: #d7e6f5;
+  font-size: 13px;
+  pointer-events: none;
+}
+#hint[hidden] { display: none; }
 #err {
   margin: 0;
   color: #ff8a8a;
@@ -92,10 +116,11 @@ body.friend #shareBtn { display: none; }
 
 #chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
-  max-height: 72px;
-  overflow: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
 }
 #chips button {
   font: inherit;
@@ -106,9 +131,24 @@ body.friend #shareBtn { display: none; }
   color: #c5d8ec;
   border-radius: 999px;
   cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 #chips button.on { background: #1f6feb; color: #fff; border-color: #388bfd; }
 
+#sheet {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+}
+body.show-recipe #sheet { display: flex; }
+.sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sheet-note { margin: 0; font-size: 12px; color: #8ab4d4; }
 #recipe {
   width: 100%;
   min-height: 88px;
@@ -144,5 +184,20 @@ body.friend #shareBtn { display: none; }
   position: absolute;
   width: 1px; height: 1px;
   overflow: hidden;
-  clip: rect(0,0,0,0);
+  clip: rect(0, 0, 0, 0);
+}
+
+@media (max-width: 700px) {
+  #brand { font-size: 16px; }
+  #stage { min-height: 0; flex: 1 1 auto; }
+  #how, .foot { display: none; }
+  #sheet { display: none; }
+  body.show-recipe #sheet {
+    display: flex;
+    max-height: 42%;
+    overflow: auto;
+  }
+  body.show-recipe #stage { flex: 0 0 38%; min-height: 140px; }
+  #friend-hint { display: none; }
+  .actions button { min-height: 36px; padding: 6px 12px; font-size: 14px; }
 }
