@@ -7,8 +7,8 @@ by Chris Wilson (MIT). Upstream holds getUserMedia; GifOS records a clip
 with `gifos.recordAudio`, then runs the same autocorrelation.
 
 ```
-index.html      record button, note, Hz, cents, wave
-style.css       dark tuner chrome
+index.html      record, needle, strings, A4, empty state
+style.css       dark tuner chrome, phone-sized targets
 app.js          recordAudio clip → detect, gifos.db last reading
 icon.mjs        needle icon + 1200×720 cover
 build.mjs       packs the GIF into site/apps/tuner/tuner.gif

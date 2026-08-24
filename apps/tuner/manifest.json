@@ -3,7 +3,7 @@
   "appId": "tuner",
   "name": "Tuner",
   "shortName": "Tuner",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
   "description": "Record a note. See the pitch. Nothing is uploaded. No live microphone.",
   "entry": "index.html",

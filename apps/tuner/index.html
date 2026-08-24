@@ -6,25 +6,52 @@
 <title>Tuner</title>
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="empty">
 <div class="wrap">
   <header>
     <h1>Tuner</h1>
     <p class="lead">Record a note. See the pitch. Nothing is uploaded.</p>
   </header>
+
   <div id="detector" class="vague">
     <div class="note" id="note">—</div>
+    <div class="oct" id="oct"></div>
     <div class="hz"><span id="pitch">—</span> Hz</div>
     <div id="detune" class="">
       <span id="detune_amt">—</span>
       <span id="flat"> cents ♭</span>
       <span id="sharp"> cents ♯</span>
+      <span id="intune"> in tune</span>
     </div>
-    <canvas id="needle" width="280" height="80"></canvas>
+    <canvas id="needle" width="560" height="140"></canvas>
+    <p id="aimed" class="aimed" hidden></p>
   </div>
-  <canvas id="wave" width="560" height="80"></canvas>
+
+  <p id="empty" class="empty-msg">No clip yet. Play or sing one pitch, then press Record a note.</p>
+
   <button type="button" id="recBtn">Record a note</button>
-  <p id="status" role="status">Play or sing one pitch, then stop. This is a take, not a live needle.</p>
+  <p id="status" role="status">This is a take, not a live needle. There is no live microphone in here.</p>
+
+  <canvas id="wave" width="560" height="72"></canvas>
+
+  <fieldset>
+    <legend>Instrument</legend>
+    <div class="chips" id="insts">
+      <button type="button" data-inst="chromatic" class="on">Chromatic</button>
+      <button type="button" data-inst="guitar">Guitar</button>
+      <button type="button" data-inst="uke">Ukulele</button>
+      <button type="button" data-inst="bass">Bass</button>
+    </div>
+  </fieldset>
+  <div class="chips strings" id="strings" hidden></div>
+
+  <div class="a4-row">
+    <span class="a4-lab">A4</span>
+    <button type="button" id="a4Down" class="step" aria-label="Lower A4">−</button>
+    <span id="a4" class="a4">440</span>
+    <button type="button" id="a4Up" class="step" aria-label="Raise A4">+</button>
+    <button type="button" id="pipeBtn" class="ghost">Play A4</button>
+  </div>
   <p class="foot">Unofficial port of PitchDetect by Chris Wilson. No live microphone.</p>
 </div>
 <script src="vendor/pitch.js"></script>
