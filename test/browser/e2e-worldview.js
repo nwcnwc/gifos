@@ -268,6 +268,39 @@ async function settle(fr, ms) {
         log.colormaps + ' colormap requests');
 
   /*
+   * THE PRIMARY BUTTON MUST BE READABLE. `.sheet-body a` sets the accent colour
+   * at specificity (0,1,1) and beats `.primary` at (0,1,0), so the Download
+   * link at the end of a GIF render was accent-on-accent: a 1:1 contrast slab
+   * with an invisible label, and the only way out of a ten-second wait. This
+   * probes the cascade directly rather than rendering a GIF to look at it.
+   */
+  const contrast = await fr.evaluate(() => {
+    const body = document.querySelector('.sheet-body') || document.body;
+    const a = document.createElement('a');
+    a.className = 'primary';
+    a.href = '#';
+    a.textContent = 'Download';
+    body.appendChild(a);
+    const cs = getComputedStyle(a);
+    const out = { color: cs.color, bg: cs.backgroundColor };
+    a.remove();
+    return out;
+  });
+  const lum = (c) => {
+    const [r, g, b] = c.match(/\d+/g).map(Number).map((v) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (() => {
+    const a = lum(contrast.color), b = lum(contrast.bg);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  })();
+  check('a primary link inside a sheet has a readable label, not accent on accent',
+    ratio >= 4.5, ratio.toFixed(1) + ':1  ' + contrast.color + ' on ' + contrast.bg);
+
+  /*
    * AND WHEN THERE IS NO LEGEND, IT HAS TO SAY WHY. Silence was the old answer
    * to all three reasons — NASA publishes none for this layer, we could not
    * reach NASA, or the colour map would not parse — and an empty box reads as
