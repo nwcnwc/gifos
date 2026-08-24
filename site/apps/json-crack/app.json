@@ -1,0 +1,61 @@
+{
+  "catalog": "1.0",
+  "slug": "json-crack",
+  "appId": "json-crack",
+  "name": "JSON Crack",
+  "shortName": "JSON",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Paste JSON, see it as a graph of cards. Nothing is uploaded.",
+  "description": "Paste a JSON document on the left. On the right it becomes a graph: each object or array is a card, nested values hang off to the side, primitives stay on the parent. Drag to pan, scroll to zoom, tap a card to fold its children. Format or minify the text. Nothing is sent anywhere.\n\nThe last document comes back the next time you open the app, still only on this device. Press Invite in the bar above if you want a friend to see the same document. Either of you can edit it; you both see the graph.\n\nAn unofficial port of JSON Crack by Aykut Saraç. Same idea: paste JSON, see the tree. This copy is the graph view, on this device, with no account.",
+  "author": {
+    "name": "Aykut Saraç",
+    "url": "https://github.com/AykutSarac/jsoncrack.com"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Developer",
+    "Utilities"
+  ],
+  "tags": [
+    "json",
+    "graph",
+    "tree",
+    "viewer",
+    "editor",
+    "offline"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/json-crack",
+  "accent": [
+    99,
+    102,
+    241
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/json-crack/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/json-crack/json-crack.gif",
+  "bytes": 193315,
+  "download": 0,
+  "provides": null,
+  "sha256": "b5738ef982abbf224950aab3d4aa7a7fc140e4b9cb77fc05b2cbbdc49ee6f1b9",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "JSON Crack",
+    "url": "https://github.com/AykutSarac/jsoncrack.com",
+    "blessed": false
+  }
+}

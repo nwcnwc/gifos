@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>JSON Crack</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>JSON Crack</h1>
+    <p class="lead">Paste JSON. See it as a graph. Nothing is uploaded.</p>
+  </header>
+  <div id="toolbar">
+    <button type="button" id="format">Format</button>
+    <button type="button" id="minify">Minify</button>
+    <label class="file">
+      <input type="file" id="file-input" accept=".json,application/json">
+      Choose file
+    </label>
+    <span id="meta" class="meta"></span>
+  </div>
+  <div id="split">
+    <section id="editor">
+      <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      <p id="err" class="err" hidden></p>
+    </section>
+    <section id="stage">
+      <div id="graph-inner"></div>
+    </section>
+  </div>
+  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to show this document in a meeting. Nothing is uploaded on its own.</p>
+</div>
+<script src="graph.js"></script>
+<script src="mp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
