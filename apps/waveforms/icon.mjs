@@ -1,10 +1,11 @@
-// Procedural Waveforms icon: a travelling sine on a cream card.
+// Procedural Waveforms icon: a travelling wave that morphs sine→square→saw.
 import { deflateSync } from 'node:zlib';
 
 const OUT = 128, SS = 3, RW = OUT * SS, FRAMES = 12;
-const CARD = [255, 254, 252];
+const CARD = [244, 241, 234];
 const INK = [3, 128, 244];
 const AXIS = [176, 190, 197];
+const PINK = [233, 30, 99];
 
 function mix(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -21,7 +22,7 @@ function inCard(x, y, m, r) {
 }
 function buildPalette() {
   const pal = [[0, 0, 0]];
-  for (const b of [CARD, INK, AXIS, [233, 30, 99], [33, 33, 33], [255, 255, 255]]) {
+  for (const b of [CARD, INK, AXIS, PINK, [33, 33, 33], [255, 255, 255], [15, 18, 32]]) {
     for (let s = 0; s <= 4; s++) pal.push(mix(b, [255, 255, 255], s * 0.1).map(Math.round));
     pal.push(mix(b, [0, 0, 0], 0.25).map(Math.round));
   }
@@ -36,6 +37,32 @@ function nearest(pal, r, g, b) {
   }
   return bi;
 }
+
+function sineY(t) { return Math.sin(t); }
+function triY(t) {
+  const p = ((t / (Math.PI * 2)) % 1 + 1) % 1;
+  if (p < 0.25) return p / 0.25;
+  if (p < 0.5) return 1 - (p - 0.25) / 0.25;
+  if (p < 0.75) return -(p - 0.5) / 0.25;
+  return -1 + (p - 0.75) / 0.25;
+}
+function sqY(t) { return Math.sin(t) >= 0 ? 1 : -1; }
+function sawY(t) {
+  const p = ((t / (Math.PI * 2)) % 1 + 1) % 1;
+  return p * 2 - 1;
+}
+function morphY(t, f) {
+  // 0–3 sine, 3–6 → square, 6–9 → saw, 9–12 → sine
+  const x = f / FRAMES;
+  let a, b, u;
+  if (x < 0.25) { a = sineY; b = sineY; u = 0; }
+  else if (x < 0.5) { a = sineY; b = sqY; u = (x - 0.25) / 0.25; }
+  else if (x < 0.75) { a = sqY; b = sawY; u = (x - 0.5) / 0.25; }
+  else { a = sawY; b = sineY; u = (x - 0.75) / 0.25; }
+  const s = u * u * (3 - 2 * u);
+  return a(t) * (1 - s) + b(t) * s;
+}
+
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const m = 8, rad = 20, phase = f / FRAMES * Math.PI * 2;
@@ -43,9 +70,12 @@ function frameIndices(pal, f) {
     const x = (px + 0.5) / SS, y = (py + 0.5) / SS;
     if (!inCard(x, y, m, rad)) continue;
     let col = CARD;
-    if (Math.abs(y - 64) < 0.8) col = AXIS;
-    const yy = 64 - Math.sin((x / 128) * Math.PI * 2 * 2 + phase) * 28;
-    if (Math.abs(y - yy) < 2.2) col = INK;
+    if (Math.abs(y - 64) < 0.7) col = AXIS;
+    const t = (x / 128) * Math.PI * 2 * 2 + phase;
+    const yy = 64 - morphY(t, f) * 28;
+    const d = Math.abs(y - yy);
+    if (d < 2.4) col = mix(INK, PINK, (f / FRAMES) * 0.35);
+    else if (d < 3.2) col = mix(CARD, INK, 0.45);
     const o = (py * RW + px) * 4;
     rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1;
   }
@@ -89,32 +119,77 @@ function pngChunk(tag, data) {
   const c = Buffer.alloc(4); c.writeUInt32BE(crc(body));
   return Buffer.concat([len, body, c]);
 }
+
+// 5×7 glyphs, full A–Z 0–9 plus the punctuation the covers need.
 const GLYPHS = {
   A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
+  C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
   D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
   E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
   F: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000],
+  G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
+  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
+  J: [0b00111, 0b00010, 0b00010, 0b00010, 0b00010, 0b10010, 0b01100],
+  K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
+  L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
   M: [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
+  N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
   O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
+  Q: [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101],
   R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
   S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
+  T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
   V: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
   W: [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
+  X: [0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001],
+  Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  Z: [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
+  0: [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  1: [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  2: [0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111],
+  3: [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+  4: [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  5: [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  6: [0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110],
+  7: [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  8: [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  9: [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110],
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '.': [0, 0, 0, 0, 0, 0b00100, 0b00100],
+  ',': [0, 0, 0, 0, 0b00100, 0b00100, 0b01000],
+  '-': [0, 0, 0, 0b11111, 0, 0, 0],
+  '/': [0b00001, 0b00010, 0b00010, 0b00100, 0b01000, 0b01000, 0b10000],
+  ':': [0, 0b00100, 0b00100, 0, 0b00100, 0b00100, 0],
+  '+': [0, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0],
+  '×': [0, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0],
 };
 function drawText(put, x, y, str, s, r, g, b) {
   let cx = x;
   for (const ch of String(str).toUpperCase()) {
-    const gph = GLYPHS[ch];
-    if (!gph) { cx += 6 * s; continue; }
+    const gph = GLYPHS[ch] || GLYPHS[' '];
     for (let row = 0; row < 7; row++) for (let col = 0; col < 5; col++) {
       if (gph[row] & (1 << (4 - col))) {
         for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) put(cx + col * s + dx, y + row * s + dy, r, g, b);
       }
     }
     cx += 6 * s;
+  }
+  return cx;
+}
+function fillRound(put, x0, y0, x1, y1, r, rr, gg, bb) {
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const cx = Math.min(Math.max(x, x0 + r), x1 - r - 1);
+    const cy = Math.min(Math.max(y, y0 + r), y1 - r - 1);
+    let ok = true;
+    if (x < x0 + r && y < y0 + r) ok = (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+    else if (x > x1 - r && y < y0 + r) ok = (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+    else if (x < x0 + r && y > y1 - r) ok = (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+    else if (x > x1 - r && y > y1 - r) ok = (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+    if (ok) put(x, y, rr, gg, bb);
   }
 }
 
@@ -132,18 +207,64 @@ export function screenshotPng() {
     x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
   };
-  fill(0, 0, W, H, 255, 254, 252);
-  drawText(put, 48, 36, 'WAVEFORMS', 6, 3, 128, 244);
-  drawText(put, 48, 92, 'AN EXPLORABLE GUIDE TO SOUND WAVES.', 3, 97, 97, 97);
-  fill(48, 150, 1152, 520, 255, 255, 255);
-  for (let x = 48; x < 1152; x++) put(x, 335, 176, 190, 197);
-  for (let x = 48; x < 1152; x++) {
-    const t = (x - 48) / 1104;
-    const y = 335 - Math.sin(t * Math.PI * 2 * 2) * 120;
-    for (let t2 = -2; t2 <= 2; t2++) put(x, y + t2, 3, 128, 244);
+
+  // Dark phone chrome around a cream graph — mid-lesson, square assembling.
+  fill(0, 0, W, H, 15, 18, 32);
+  fillRound(put, 40, 28, 1160, 430, 18, 244, 241, 234);
+  for (let x = 56; x < 1144; x++) put(x, 228, 196, 190, 178);
+
+  // Ghost harmonics + mixed square (converge ~0.65). Connect vertical edges
+  // so a square jump is a wall, not a gap.
+  const mixSq = (t) => {
+    let y = Math.sin(t);
+    y += Math.sin(t * 3) / 3;
+    y += Math.sin(t * 5) / 5;
+    y += Math.sin(t * 7) / 7;
+    const sq = Math.sin(t) >= 0 ? 1 : -1;
+    return y * 0.35 + sq * 0.65;
+  };
+  let prevY = null;
+  for (let x = 56; x < 1144; x++) {
+    const u = (x - 56) / 1088;
+    const t = u * Math.PI * 2 * 2;
+    const y3 = 228 - Math.sin(t * 3) * 70;
+    const y5 = 228 - Math.sin(t * 5) * 42;
+    put(x, y3 | 0, 125, 200, 170);
+    put(x, y5 | 0, 230, 120, 150);
+    const y = 228 - mixSq(t) * 150;
+    const lo = prevY == null ? y : Math.min(prevY, y);
+    const hi = prevY == null ? y : Math.max(prevY, y);
+    for (let yy = lo; yy <= hi; yy++) {
+      for (let t2 = -2; t2 <= 2; t2++) put(x, (yy + t2) | 0, 3, 128, 244);
+    }
+    prevY = y;
   }
-  drawText(put, 48, 560, 'SINE  SQUARE  SAW. AMPLITUDE. FREQUENCY.', 3, 97, 97, 97);
-  drawText(put, 48, 620, 'NOTHING UPLOADED.', 3, 3, 128, 244);
+
+  // Hear pill + Hz on the cream card's footer.
+  fillRound(put, 56, 360, 210, 410, 10, 233, 30, 99);
+  drawText(put, 78, 374, 'MUTE', 3, 255, 255, 255);
+  drawText(put, 230, 376, '220 HZ', 3, 74, 74, 88);
+
+  // Copy + chips + sliders on the dark body.
+  drawText(put, 48, 454, 'SQUARE', 5, 77, 163, 255);
+  drawText(put, 48, 500, 'ODD HARMONICS ASSEMBLE THE SHAPE. CONVERGE TO HEAR IT.', 2, 200, 208, 230);
+
+  const chips = [
+    { label: 'SINE', on: false },
+    { label: 'TRI', on: false },
+    { label: 'SQUARE', on: true },
+    { label: 'SAW', on: false },
+  ];
+  chips.forEach((c, i) => {
+    const x0 = 48 + i * 180;
+    if (c.on) fillRound(put, x0, 548, x0 + 166, 612, 10, 30, 58, 102);
+    else fillRound(put, x0, 548, x0 + 166, 612, 10, 23, 27, 46);
+    drawText(put, x0 + 18, 568, c.label, 3, c.on ? 255 : 180, c.on ? 255 : 190, c.on ? 255 : 210);
+  });
+
+  fillRound(put, 48, 632, 1152, 662, 6, 23, 27, 46);
+  fillRound(put, 48, 632, 48 + Math.round(1104 * 0.7), 662, 6, 77, 163, 255);
+  drawText(put, 48, 676, 'HARMONICS 8   CONVERGE 0.65   PLACE SAVED IN THIS FILE.', 2, 139, 144, 168);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

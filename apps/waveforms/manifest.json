@@ -3,15 +3,25 @@
   "appId": "waveforms",
   "name": "Waveforms",
   "shortName": "Waves",
-  "version": "1.0",
+  "version": "1.1",
   "minBuild": 947,
-  "description": "An explorable guide to sound waves. Hear sine, square, saw. Nothing is uploaded.",
+  "description": "Hear sine, square, and saw. An explorable that fits a phone. Nothing is uploaded.",
   "entry": "index.html",
-  "accent": [3, 128, 244],
+  "accent": [77, 163, 255],
   "capabilities": {
     "db": true
   },
   "data": {
     "save": { "visibility": "private" }
+  },
+  "launch": {
+    "step": {
+      "label": "Open at a step of the guide",
+      "detail": "A step number (1–15) or id such as square, air, saw."
+    },
+    "shape": {
+      "label": "Start on a waveform shape",
+      "detail": "sine, triangle, square, or sawtooth."
+    }
   }
 }
