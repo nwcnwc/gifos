@@ -775,8 +775,38 @@ input[type=range]::-moz-range-thumb {
 }
 .lcard.on .tick { background: var(--accent); border-color: var(--accent); }
 .lcard .t { display: block; font-size: 13px; font-weight: 560; }
-.lcard .s { display: block; font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+/* The instrument, not a footnote: three cards under "Corrected Reflectance"
+   are all called True Color and this line is the only thing between them. */
+.lcard .s { display: block; font-size: 12px; color: var(--ink-2); margin-top: 2px; }
 .lcard .meta { display: block; font-size: 10.5px; color: var(--ink-3); margin-top: 4px; font-family: var(--mono); opacity: 0.8; }
+
+/* Offline: what this file can actually draw. Nothing is disabled — a layer
+   you tick now works the moment the connection is back — the card just stops
+   implying it will appear. */
+.lcard-tag {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+  border: 1px solid var(--hair);
+}
+.lcard-tag.ok { color: var(--good); border-color: rgba(87, 217, 163, 0.4); }
+.lcard.unreachable { opacity: 0.62; }
+.lcard.unreachable:hover { opacity: 1; }
+
+.browse-offline {
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 180, 84, 0.34);
+  background: rgba(255, 180, 84, 0.09);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
 
 /* ------------------------------------------------------------- tour cards - */
 .tour-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }

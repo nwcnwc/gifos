@@ -182,6 +182,21 @@
     return { tiles: n, bytes: index.bytes, pinned: pinned, pinnedBytes: pinnedBytes, budget: budget };
   };
 
+  /*
+   * Which layers this file is actually holding bytes for, and how many tiles
+   * each. The cache key starts with the layer id, so this is a scan of the
+   * index and no reads at all — it is called to decorate a list of 74 layers
+   * and must never touch the tile store.
+   */
+  T.cachedLayers = function () {
+    var out = {};
+    for (var k in index.keys) {
+      var id = k.slice(0, k.indexOf('|'));
+      if (id) out[id] = (out[id] || 0) + 1;
+    }
+    return out;
+  };
+
   T.clearCache = function (keepPinned) {
     if (!db) return Promise.resolve();
     var keys = Object.keys(index.keys).filter(function (k) {
