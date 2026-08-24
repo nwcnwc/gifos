@@ -3,8 +3,10 @@ https://github.com/lklynet/spider-solitaire
 commit d4478182a93da6b02ab9f590bb2f7409461077a4
 MIT, Copyright (c) 2025 Lee Kelly
 
-One-suit Spider: eight 13-card runs, ten tableau piles, a stock that
-deals one card onto each pile. Upstream is React + Zustand + Vite with
-themes and a hint engine. This port destacks the engine (deck, moves,
-replay) to classic scripts. The tableau is a private save. Tap a run,
-tap where it goes.
+Spider: eight 13-card same-suit runs, ten tableau piles, a stock that
+deals one card onto each pile only when no pile is empty. 1/2/4-suit
+deals match Microsoft Spider (eight, four, or two copies of each rank
+per suit). Upstream is React + Zustand + Vite with themes and a hint
+engine. This port destacks the engine (deck, moves, replay) to classic
+scripts. The tableau is a private save. Tap a run, tap where it goes;
+drag works too.
