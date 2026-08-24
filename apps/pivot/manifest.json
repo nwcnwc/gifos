@@ -1,0 +1,17 @@
+{
+  "gifos": "1.0",
+  "appId": "pivot",
+  "name": "Pivot",
+  "shortName": "Pivot",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "Drag fields onto a grid. The table is the save. Nothing is uploaded.",
+  "entry": "index.html",
+  "accent": [26, 115, 232],
+  "capabilities": {
+    "db": true
+  },
+  "data": {
+    "save": { "visibility": "private" }
+  }
+}

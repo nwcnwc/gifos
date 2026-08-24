@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pivot</title>
+<link rel="stylesheet" href="vendor/pivot.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Pivot</h1>
+    <p class="lead">Drag field names onto rows and columns. The table stays in this file. Nothing is uploaded.</p>
+  </header>
+
+  <section class="toolbar" aria-label="Load a table">
+    <label class="file">
+      Choose a CSV
+      <input id="file" type="file" accept=".csv,text/csv,text/plain">
+    </label>
+    <button type="button" id="sample">Reset sample</button>
+    <button type="button" id="blank">New blank</button>
+    <span id="status" class="status">Canadian MPs sample</span>
+  </section>
+
+  <label class="paste">Paste or type comma-separated text
+    <textarea id="csv" rows="4" spellcheck="false" placeholder="item,region,qty&#10;Widget,East,12"></textarea>
+  </label>
+
+  <div id="output" class="output"></div>
+</div>
+
+<script src="vendor/jquery.min.js"></script>
+<script src="vendor/jquery-ui.min.js"></script>
+<script src="vendor/jquery.ui.touch-punch.min.js"></script>
+<script src="vendor/papaparse.min.js"></script>
+<script src="vendor/pivot.js"></script>
+<script src="vendor/export_renderers.js"></script>
+<script src="vendor/sample.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

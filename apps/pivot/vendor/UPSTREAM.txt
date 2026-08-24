@@ -1,0 +1,40 @@
+nicolaskruchten/pivottable
+https://github.com/nicolaskruchten/pivottable
+MIT, Copyright (c) 2012 Nicolas Kruchten, Datacratic, other contributors
+files:
+  dist/pivot.js
+  sha256: f84311f4637bdcc8adc73d0bebf1470e45bed0174cc32b30b36a07256ca92f93
+  dist/pivot.css
+  sha256: 981360950761479088fdcea6b0f9a1120e784dd885b55775981340ed54252091
+  dist/export_renderers.js
+  sha256: 21ed04edadcb7445fe9bf27c2ec3020a2533184e0bdcd1baeafaf12fb483ebc4
+  examples/mps.csv (baked as sample.js)
+
+jquery/jquery 3.6.0
+https://github.com/jquery/jquery
+file: jquery.min.js
+sha256: ff1523fb7389539c84c65aba19260648793bb4f5e29329d2ee8804bc37a3fe6e
+MIT, Copyright OpenJS Foundation and other contributors
+
+jquery/jquery-ui 1.13.2
+https://github.com/jquery/jquery-ui
+file: jquery-ui.min.js
+sha256: 9528ca634fecad433d044ddd3e6f9ce1f068d5d932dafdbb19d8e6daea1968bd
+MIT, Copyright jQuery Foundation and other contributors
+
+furf/jquery-ui-touch-punch
+https://github.com/furf/jquery-ui-touch-punch
+file: jquery.ui.touch-punch.min.js
+sha256: 000854d782781aff1b16ea5451c1da3d07efadd35ab911ccb7e4b851571a25bd
+MIT, Copyright 2011–2014 Dave Furfero
+
+mholt/PapaParse 5.4.1
+https://github.com/mholt/PapaParse
+file: papaparse.min.js
+sha256: b8e870c5d2b29772f10c9fa9a693c8b896aac8540ed6701e3cc6304c683febdb
+MIT, Copyright (c) 2015 Matthew Holt
+
+GifOS inlines classic scripts and drops type=module. Upstream examples load
+jQuery from cdnjs and send Google Analytics pageviews — those are stripped.
+C3 / D3 / Google chart renderers are not shipped. The last CSV and the last
+pivot arrangement are saved privately. Upstream has no save.
