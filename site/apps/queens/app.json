@@ -1,0 +1,59 @@
+{
+  "catalog": "1.0",
+  "slug": "queens",
+  "appId": "queens",
+  "name": "Queens",
+  "shortName": "Queens",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Hundreds of tap puzzles in a GIF. No server.",
+  "description": "This is Queens in a GIF. There is no account, no Patreon pack, and no server. Open the file and the board is waiting. Close it, come back — the levels you have finished live in the file.\n\nEach board is split into coloured regions. Place one queen in every row, every column, and every region. Two queens may not sit on squares that touch at a corner. Tap a cell to mark it with an X, tap again to drop a queen, tap again to clear it. Drag to stamp Xes. A clash lights up red.\n\nOn a phone it is the same tap. There is nothing else to learn.\n\nSend the invite and a friend can sit the same puzzle on their device. There is no lobby. The room is the link.\n\nAn unofficial port of Queens by samimsu. The boards are the community levels from that project. Analytics, comments, and paid packs stay behind.",
+  "author": {
+    "name": "samimsu",
+    "url": "https://github.com/samimsu/queens-game"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "puzzle",
+    "queens",
+    "logic",
+    "offline",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/queens",
+  "accent": [
+    94,
+    79,
+    162
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/queens/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/queens/queens.gif",
+  "bytes": 242245,
+  "download": 0,
+  "provides": null,
+  "sha256": "6963a4ee45686f0e71a990bc5f42f192182957ad36dec0cdfc02cad3981d0d4b",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "Queens",
+    "url": "https://github.com/samimsu/queens-game",
+    "blessed": false
+  }
+}

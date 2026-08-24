@@ -1,0 +1,9 @@
+samimsu/queens-game
+https://github.com/samimsu/queens-game
+commit:  4b0cad39a36a99c974d427bea9f1cad43518e97a
+files:   src/utils/community-levels/level*.ts (768 levels)
+sha256:  936dfaf62db725dd0f5d03bf9128ec2d941ba8ee471ca6f097b0b412ddee1269  vendor/levels.js
+license: MIT (COPYING-queens.txt; upstream copyright line is the codespaces template leftover)
+
+Patreon packs, Vercel analytics, and Giscus comments are not packed.
+The board is a classic-script rewrite of src/utils/gameLogic.ts + useGameLogic.ts.
