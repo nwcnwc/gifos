@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Lost in CYBERSPACE</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand">Lost in <span class="logo">CYBERSPACE</span></div>
+  <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
+</header>
+
+<main>
+  <section class="card setup" id="home">
+    <h2>Two seats. One maze.</h2>
+    <p class="lede">A hacker walks an 8×8 corporate network. A navigator types the access codes into a terminal. The codes ARE the maze. The original connection is your voice — Invite is the room.</p>
+    <button class="primary" id="soloHacker" type="button">Play as HACKER</button>
+    <button class="ghost wide" id="soloNav" type="button">Play as NAVIGATOR</button>
+    <button class="ghost wide" id="friendBtn" type="button">Play with a friend</button>
+    <p class="lvlnote">Play with a friend: press Invite in the GifOS menu and send the link. One of you is the hacker, the other the navigator. You can shout the codes, or send one from the maze.</p>
+  </section>
+
+  <section class="game" id="lobby" hidden>
+    <div class="vhead"><h2>The room</h2><button class="ghost tiny" id="lobbyLeave" type="button">Leave</button></div>
+    <p class="statusline" id="lobbyStatus">Waiting… press Invite in the GifOS menu to send the link.</p>
+    <ul class="lobby-list" id="lobbyList"></ul>
+    <button class="primary" id="roleHacker" type="button">I am the HACKER</button>
+    <button class="ghost wide" id="roleNav" type="button">I am the NAVIGATOR</button>
+  </section>
+
+  <section class="game play" id="hacker" hidden>
+    <div class="hud">
+      <button class="ghost tiny leave" id="hackerLeave" type="button">←</button>
+      <span class="hud-time" id="hudTime">04:16</span>
+      <span class="hud-xy" id="hudXy">0,0</span>
+      <span class="hud-moves" id="hudMoves">0</span>
+    </div>
+    <canvas id="view" width="640" height="400" aria-label="Cyberspace"></canvas>
+    <pre class="term" id="nodeTerm"></pre>
+    <div class="pad">
+      <button type="button" id="turnL" aria-label="Turn left">◀</button>
+      <button type="button" id="goFwd" aria-label="Walk">▲</button>
+      <button type="button" id="turnR" aria-label="Turn right">▶</button>
+    </div>
+    <div class="actions">
+      <button class="ghost" id="helpBtn" type="button">HELP</button>
+      <button class="primary" id="hackBtn" type="button">HACK</button>
+      <button class="ghost" id="sendBtn" type="button" hidden>Send code</button>
+    </div>
+    <p class="statusline" id="hackerStatus"></p>
+    <div class="minimap" id="minimap" aria-hidden="true"></div>
+  </section>
+
+  <section class="game play nav" id="navigator" hidden>
+    <div class="hud">
+      <button class="ghost tiny leave" id="navLeave" type="button">←</button>
+      <span class="hud-role">NAVIGATOR</span>
+      <button class="ghost tiny" id="switchSeat" type="button" hidden>Hacker</button>
+    </div>
+    <div class="crt" id="crt">
+      <div class="t" id="terminal"></div>
+      <p class="ti-wrapper"><input class="ti" id="ti" type="text" spellcheck="false" autocomplete="off" autocapitalize="off"></p>
+    </div>
+    <div class="inbox" id="inbox" hidden>
+      <p class="inbox-label">Codes from the hacker</p>
+      <div id="inboxList"></div>
+    </div>
+  </section>
+</main>
+
+<script src="vendor/network.js"></script>
+<script src="maze.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

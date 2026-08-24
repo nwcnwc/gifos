@@ -1,0 +1,20 @@
+bartaz/lost-in-cyberspace
+https://github.com/bartaz/lost-in-cyberspace
+commit: f47d9601be5280e4b60acf5342105f773a0229bc
+MIT, Copyright (c) 2017 Bartek Szopka & Zofia Korcz
+
+js13kGames 2017 co-op. One player is the HACKER in an 8×8 corporate
+network; the other is the NAVIGATOR at a terminal. Access codes encode
+the maze (colours, walls, traps, target). The original connection is
+voice — there is no game server. The A-Frame VR scene loaded
+aframe.io from a CDN and cannot ride in a GifOS GIF.
+
+This directory pins the maze / code generator (js/network/network.js,
+sha256 018b19a1749a8219ef21cc26023f4e55cd8af345bd617370e4cf88bd9fa2b7ea).
+The HACKER view is a canvas rewrite of that maze (no A-Frame, no
+WebRTC). The NAVIGATOR terminal is the original command set (nmap,
+help, top, cat, sandwich) talking to the same generator.
+
+Invite is the room: the hacker can send a code they found so the
+navigator does not have to type it. Scores live in this file, not
+localStorage.

@@ -1,0 +1,19 @@
+{
+  "gifos": "1.0",
+  "appId": "lost-in-cyberspace",
+  "name": "Lost in Cyberspace",
+  "shortName": "Cyberspace",
+  "version": "1.0",
+  "minBuild": 947,
+  "description": "A two-player co-op maze. One of you is lost in the network. The other reads the map. Access codes are the maze.",
+  "entry": "index.html",
+  "accent": [17, 255, 204],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "data": {
+    "save": { "visibility": "private" },
+    "room": { "visibility": "read-write" }
+  }
+}
