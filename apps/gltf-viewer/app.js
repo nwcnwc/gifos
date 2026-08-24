@@ -1,7 +1,8 @@
-/* Drop a .glb/.gltf, inspect it. Last model is private. Invite is OS chrome. */
+/* Open a .glb/.gltf, inspect it. Last model is private. Invite is OS chrome. */
 (function (root) {
   'use strict';
 
+  var MAX_BYTES = 8 * 1024 * 1024;
   var $ = function (id) { return document.getElementById(id); };
   var saveDb = null;
   var roomDb = null;
@@ -10,6 +11,7 @@
   var lastBuf = null;
   var applying = false;
   var saveTimer = 0;
+  var inspectOn = false;
 
   try { if (root.gifos && root.gifos.db) saveDb = root.gifos.db('save'); } catch (e) {}
   try { if (root.gifos && root.gifos.db) roomDb = root.gifos.db('room'); } catch (e) {}
@@ -19,14 +21,33 @@
     if (!msg) { el.hidden = true; el.textContent = ''; return; }
     el.hidden = false;
     el.textContent = String(msg);
+    setInspect(true);
+  }
+
+  function toast(msg) {
+    var el = $('toast');
+    if (!el) return;
+    if (!msg) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    el.textContent = String(msg);
   }
 
   function spinner(on) { $('spinner').hidden = !on; }
+
+  function setInspect(on) {
+    inspectOn = !!on;
+    document.body.classList.toggle('inspect', inspectOn);
+    var b = $('toggleInspect');
+    if (b) b.textContent = inspectOn ? 'Close' : 'Inspect';
+    if (viewer) setTimeout(function () { viewer.resize(); }, 50);
+  }
 
   function ensureViewer() {
     if (viewer) return viewer;
     $('placeholder').hidden = true;
     $('viewer').hidden = false;
+    $('hud').hidden = false;
+    document.body.classList.add('loaded');
     viewer = new root.GltfViewer($('viewer'), {});
     syncControlsToViewer();
     return viewer;
@@ -37,6 +58,7 @@
     viewer.state.wireframe = $('wireframe').checked;
     viewer.state.grid = $('grid').checked;
     viewer.state.autoRotate = $('autoRotate').checked;
+    viewer.state.skeleton = $('skeleton').checked;
     viewer.state.environment = $('neutral').checked;
     viewer.updateDisplay();
     viewer.updateEnvironment();
@@ -98,9 +120,10 @@
       wireframe: $('wireframe').checked,
       grid: $('grid').checked,
       autoRotate: $('autoRotate').checked,
+      skeleton: $('skeleton').checked,
       neutral: $('neutral').checked
     };
-    if (lastBuf && lastBuf.byteLength < 4 * 1024 * 1024) {
+    if (lastBuf && lastBuf.byteLength <= MAX_BYTES) {
       rec.bytes = new Uint8Array(lastBuf);
     }
     saveDb.put(rec).catch(function () {});
@@ -114,6 +137,7 @@
   function openBuffer(name, buf, files) {
     spinner(true);
     showErr('');
+    toast('');
     var v = ensureViewer();
     return v.loadBytes(name, buf, files).then(function () {
       lastName = name;
@@ -121,6 +145,9 @@
       paintMeta();
       persist();
       spinner(false);
+      if (buf && buf.byteLength > MAX_BYTES) {
+        toast('This model is too large to keep in the file (8 MB). Open it again next time.');
+      }
     }).catch(function (e) {
       spinner(false);
       showErr((e && e.message) || String(e));
@@ -153,7 +180,7 @@
           rootName = name;
         }
       });
-      if (!rootFile) throw new Error('No .gltf or .glb in that drop.');
+      if (!rootFile) throw new Error('No .gltf or .glb in that selection.');
       return openBuffer(rootName, rootFile, files);
     });
   }
@@ -168,7 +195,7 @@
     });
   }
 
-  ['wireframe', 'grid', 'autoRotate', 'neutral'].forEach(function (id) {
+  ['wireframe', 'grid', 'autoRotate', 'skeleton', 'neutral'].forEach(function (id) {
     $(id).addEventListener('change', function () {
       syncControlsToViewer();
       scheduleSave();
@@ -176,6 +203,15 @@
   });
   $('playAll').addEventListener('click', function () {
     if (viewer) viewer.playAll();
+  });
+  $('pauseAll').addEventListener('click', function () {
+    if (viewer) viewer.pauseAll();
+  });
+  $('resetView').addEventListener('click', function () {
+    if (viewer) viewer.resetView();
+  });
+  $('toggleInspect').addEventListener('click', function () {
+    setInspect(!inspectOn);
   });
   $('file-input').addEventListener('change', function (e) {
     onFiles(e.target);
@@ -198,11 +234,14 @@
     $('wireframe').checked = !!rec.wireframe;
     $('grid').checked = !!rec.grid;
     $('autoRotate').checked = !!rec.autoRotate;
+    $('skeleton').checked = !!rec.skeleton;
     $('neutral').checked = rec.neutral !== false;
     applying = false;
     if (rec.bytes && rec.bytes.byteLength) {
       var buf = rec.bytes.buffer ? rec.bytes.buffer.slice(rec.bytes.byteOffset, rec.bytes.byteOffset + rec.bytes.byteLength) : rec.bytes;
       openBuffer(rec.name || 'saved.glb', buf, new Map());
+    } else if (rec.name) {
+      toast(rec.name + ' was here last time, but was too large to keep. Open it again.');
     }
   }
 
@@ -214,8 +253,15 @@
     roomDb.subscribe(function (rows) {
       var n = (rows || []).filter(function (r) { return r && r.id; }).length;
       if (n > 1) {
-        $('meet').innerHTML = 'A friend is here. Each of you drops a file on your own device — nothing is uploaded.';
+        $('meet').innerHTML = 'A friend is here. Each of you opens a file on your own device — nothing is uploaded.';
       }
+    });
+  }
+
+  if (root.gifos && root.gifos.onBack) {
+    root.gifos.onBack(function () {
+      if (inspectOn) { setInspect(false); return true; }
+      return false;
     });
   }
 })(typeof window !== 'undefined' ? window : this);
