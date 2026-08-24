@@ -73,11 +73,15 @@ export function ludoIcon() {
 function crc(buf){ let c=~0; for(let i=0;i<buf.length;i++){ c^=buf[i]; for(let k=0;k<8;k++) c=(c>>>1)^(0xedb88320&-(c&1)); } return (~c)>>>0; }
 function pngChunk(tag,data){ const t=Buffer.from(tag),len=Buffer.alloc(4); len.writeUInt32BE(data.length); const body=Buffer.concat([t,data]),c=Buffer.alloc(4); c.writeUInt32BE(crc(body)); return Buffer.concat([len,body,c]); }
 const GLYPHS={
-  A:[14,17,17,31,17,17,17],D:[30,17,17,17,17,17,30],E:[31,16,16,30,16,16,31],
-  F:[31,16,16,30,16,16,16],I:[31,4,4,4,4,4,31],L:[16,16,16,16,16,16,31],
-  N:[17,25,21,19,17,17,17],O:[14,17,17,17,17,17,14],R:[30,17,17,30,20,18,17],
-  S:[15,16,16,14,1,1,30],T:[31,4,4,4,4,4,4],U:[17,17,17,17,17,17,14],
-  V:[17,17,17,17,17,10,4],Y:[17,17,10,4,4,4,4],' ':[0,0,0,0,0,0,0],
+  A:[14,17,17,31,17,17,17],B:[30,17,17,30,17,17,30],C:[14,17,16,16,16,17,14],
+  D:[30,17,17,17,17,17,30],E:[31,16,16,30,16,16,31],F:[31,16,16,30,16,16,16],
+  G:[14,17,16,19,17,17,14],H:[17,17,17,31,17,17,17],I:[31,4,4,4,4,4,31],
+  K:[17,18,20,24,20,18,17],L:[16,16,16,16,16,16,31],M:[17,27,21,21,17,17,17],
+  N:[17,25,21,19,17,17,17],O:[14,17,17,17,17,17,14],P:[30,17,17,30,16,16,16],
+  R:[30,17,17,30,20,18,17],S:[15,16,16,14,1,1,30],T:[31,4,4,4,4,4,4],
+  U:[17,17,17,17,17,17,14],V:[17,17,17,17,17,10,4],W:[17,17,17,21,21,27,17],
+  Y:[17,17,10,4,4,4,4],X:[17,17,10,4,10,17,17],' ':[0,0,0,0,0,0,0],
+  '6':[14,17,30,17,17,17,14],
 };
 function drawText(put,x,y,str,s,r,g,b){
   let cx=x; for(const ch of str.toUpperCase()){ const gph=GLYPHS[ch]; if(!gph){cx+=6*s;continue;}
@@ -101,14 +105,19 @@ export function screenshotPng(){
   }
   function tok(cx,cy,col){ for(let y=-10;y<=10;y++) for(let x=-10;x<=10;x++) if(x*x+y*y<=100) put(cx+x,cy+y,col[0],col[1],col[2]); }
   tok(ox+2*S+18, oy+11*S+18, [255,240,240]);
-  tok(ox+2*S+18, oy+8*S+18, RED);
-  tok(ox+2*S+18, oy+2*S+18, GREEN);
-  tok(ox+11*S+18, oy+2*S+18, YEL);
+  tok(ox+6*S+18, oy+10*S+18, RED);
+  tok(ox+6*S+18, oy+4*S+18, GREEN);
+  tok(ox+10*S+18, oy+6*S+18, YEL);
+  tok(ox+8*S+18, oy+11*S+18, BLUE);
   tok(ox+11*S+18, oy+11*S+18, BLUE);
-  drawText(put, 640, 140, 'LUDO', 12, 244, 238, 228);
-  drawText(put, 640, 280, 'FOUR SEATS', 5, 184, 196, 176);
-  drawText(put, 640, 360, 'ONE INVITE', 5, 184, 196, 176);
-  drawText(put, 640, 440, 'NO LOBBY', 5, 184, 196, 176);
+  /* die */
+  for(let y=0;y<90;y++) for(let x=0;x<90;x++) put(640+x, 430+y, 244, 238, 228);
+  tok(640+45, 430+45, RED);
+  drawText(put, 640, 90, 'LUDO', 12, 244, 238, 228);
+  drawText(put, 640, 200, 'RED TO ROLL', 5, 196, 40, 48);
+  drawText(put, 640, 270, 'FOUR SEATS', 5, 184, 196, 176);
+  drawText(put, 640, 330, 'ONE INVITE', 5, 184, 196, 176);
+  drawText(put, 640, 390, 'NO LOBBY', 5, 184, 196, 176);
   const raw=Buffer.alloc((W*4+1)*H);
   for(let y=0;y<H;y++){ raw[y*(W*4+1)]=0; rgba.copy(raw,y*(W*4+1)+1,y*W*4,(y+1)*W*4); }
   const ihdr=Buffer.alloc(13); ihdr.writeUInt32BE(W,0); ihdr.writeUInt32BE(H,4); ihdr[8]=8; ihdr[9]=6;
