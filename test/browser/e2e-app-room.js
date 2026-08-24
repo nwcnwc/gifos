@@ -109,7 +109,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   await settle(h);
   await h.click('#inv-done');
   await h.waitForFunction(() => { const m = document.getElementById('inv-modal'); return !m || getComputedStyle(m).display === 'none'; }, null, { timeout: 10000 });
-  check('the host sees an Audio switch on the app bar, off', (await vis(h, 'appaudio')) && /off/i.test(await h.locator('#appaudio').textContent()));
+  check('the host sees a Talk switch on the app bar, off', (await vis(h, 'appaudio')) && /off/i.test(await h.locator('#appaudio').textContent()));
   check('…and no mic/cam controls before it is flipped (the room starts dark)', !(await vis(h, 'cam')) && !(await vis(h, 'mic')));
 
   // ---- client: open the room link ------------------------------------------
@@ -127,12 +127,12 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
 
   // ---- room audio: host flips it, everyone owns their own mic --------------
   await settle(c);
-  check('the guest has NO Audio switch — only the app host decides', !(await vis(c, 'appaudio')));
+  check('the guest has NO Talk switch — only the app host decides', !(await vis(c, 'appaudio')));
   check('…and no mic control while the room is quiet', !(await vis(c, 'mic')));
   await settle(h);
   await h.click('#appaudio');
   await h.waitForFunction(() => document.body.classList.contains('audio-on'), null, { timeout: 10000 });
-  check('host flips room audio ON — the switch says so', /on/i.test(await h.locator('#appaudio').textContent()));
+  check('host flips Talk ON — the switch says so', /on/i.test(await h.locator('#appaudio').textContent()));
   check('…which reveals the host\'s own mic control, and NEVER a camera', (await vis(h, 'mic')) && !(await vis(h, 'cam')));
   check('flipping the switch asks for nothing — still zero getUserMedia', (await h.evaluate(() => window.__gumCount)) === 0);
   await h.click('#mic'); // a REAL click on the visible control — lateMedia asks now
@@ -144,7 +144,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('…which opens the call layer for the host', true);
   await c.waitForFunction(() => document.body.classList.contains('audio-on'), null, { timeout: 20000 });
   check('the guest learns room audio is on from the host\'s ad (data on the data channel)', true);
-  check('…and now sees their OWN mic control, and no camera, and no Audio switch',
+  check('…and now sees their OWN mic control, and no camera, and no Talk switch',
     (await vis(c, 'mic')) && !(await vis(c, 'cam')) && !(await vis(c, 'appaudio')));
   check('the guest still has not asked for media', (await c.evaluate(() => window.__gumCount)) === 0);
   await settle(c);
@@ -157,7 +157,7 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   // Host turns the room quiet: every mic goes with it, and a guest cannot unmute.
   await h.click('#appaudio');
   await c.waitForFunction(() => !document.body.classList.contains('audio-on') && document.getElementById('mic').classList.contains('off'), null, { timeout: 20000 });
-  check('host flips room audio OFF — the guest\'s mic is muted for them and the control folds away', !(await vis(c, 'mic')));
+  check('host flips Talk OFF — the guest\'s mic is muted for them and the control folds away', !(await vis(c, 'mic')));
   check('…and the host\'s own mic is muted too', await h.evaluate(() => document.getElementById('mic').classList.contains('off')));
   await c.evaluate(() => document.getElementById('mic').click()); // even a programmatic tap is refused while the room is quiet
   check('a guest cannot unmute while the room is quiet', await c.evaluate(() => document.getElementById('mic').classList.contains('off')));
