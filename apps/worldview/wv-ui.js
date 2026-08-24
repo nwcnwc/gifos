@@ -985,9 +985,17 @@
       if (L && state.layers[i].on && !L.ref && !L.builtin) { top = L; break; }
     }
     if (!top) {
-      for (var j = 0; j < state.layers.length; j++) {
+      // Nothing from GIBS on: describe the base you ARE looking at, not the
+      // topmost reference layer. "Place labels" is not what is on the screen.
+      for (var j = state.layers.length - 1; j >= 0; j--) {
         var Lb = D.layer(state.layers[j].id);
-        if (Lb && state.layers[j].on) { top = Lb; break; }
+        if (Lb && state.layers[j].on && !Lb.ref) { top = Lb; break; }
+      }
+    }
+    if (!top) {
+      for (var k = 0; k < state.layers.length; k++) {
+        var Lc = D.layer(state.layers[k].id);
+        if (Lc && state.layers[k].on) { top = Lc; break; }
       }
     }
     if (top) {
