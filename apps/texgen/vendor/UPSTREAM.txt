@@ -1,0 +1,13 @@
+mrdoob/texgen.js
+https://github.com/mrdoob/texgen.js
+pin: d7b94906d6def40a43d556bc645690c2e4a13b58
+file: src/TexGen.js
+sha256 (orig): 598d8d218f31cb3d227b31033494ab5587e3d32b49a02e7979214e264641be9d
+MIT, Copyright (c) 2015 texgen.js authors
+
+Upstream compiles each generator with new Function(). GifOS CSP is
+script-src 'unsafe-inline' with no unsafe-eval, so that cannot run.
+vendor/texgen.js is the same operators, params and pixels with a fill()
+per generator instead of a compiled string. The live editor (layers,
+ops, tint, PNG out) is the GifOS surface; settings stay in the file.
+TexGen.orig.js is the pinned original and is not packed.

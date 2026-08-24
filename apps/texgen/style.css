@@ -1,0 +1,78 @@
+:root {
+  --bg: #101217;
+  --card: #1a1f28;
+  --border: #2d3642;
+  --text: #c8e4ff;
+  --muted: #6e9ab5;
+  --accent: #50b4dc;
+  --accent-ink: #07141c;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.wrap {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+h1 { margin: 0 0 4px; font-size: 1.5rem; color: #e8f4ff; }
+.lead { margin: 0 0 14px; color: var(--muted); }
+.stage {
+  background: #0b0d12;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+#tex { image-rendering: pixelated; image-rendering: crisp-edges; max-width: 100%; height: auto; }
+.row, .add { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: end; }
+.add label { flex: 1; color: var(--muted); font-size: 12px; }
+select, input[type=number], input[type=range] {
+  width: 100%;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font: inherit;
+}
+button {
+  font: inherit;
+  font-weight: 700;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+button.ghost, button.row-del {
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 0 0 2px var(--border);
+}
+button.row-del { padding: 6px 10px; font-size: 12px; }
+.layer {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.layer.on { border-color: var(--accent); }
+.layer-head { display: flex; gap: 8px; align-items: center; }
+.layer-head b { flex: 1; }
+.params { display: grid; gap: 6px; margin-top: 8px; }
+.params label { color: var(--muted); font-size: 12px; }
+.tint { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+#status { min-height: 1.3em; color: var(--muted); font-size: 12px; }
+.foot { color: var(--muted); font-size: 12px; }

@@ -1,0 +1,33 @@
+{
+  "tagline": "Procedural textures, live. Download a PNG. Nothing is uploaded.",
+  "description": "Stack generators \u2014 XOR, sine, noise, circles, checkerboards \u2014 and combine them with add, multiply, xor and the rest. Tint each layer. The texture draws as you change it. Download a PNG when you like it.\n\nThe last stack comes back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of texgen.js by mrdoob.",
+  "author": {
+    "name": "mrdoob",
+    "url": "https://github.com/mrdoob/texgen.js"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "texgen.js",
+    "url": "https://github.com/mrdoob/texgen.js",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Creativity"
+  ],
+  "tags": [
+    "texture",
+    "procedural",
+    "png",
+    "noise",
+    "generator",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/texgen",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
