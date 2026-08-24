@@ -102,9 +102,8 @@ function glyphAt(ch, col, row) {
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / (FRAMES - 1);
-  const showAns = t > 0.42;
-  const typed = '1 FT';
-  const shown = typed.slice(0, Math.max(1, Math.ceil(Math.min(1, t / 0.42) * typed.length)));
+  const showAns = t > 0.45;
+  const shown = '1 FT';
   const ans = '30.48 CM';
   const lit = Math.floor(t * 12);
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
@@ -235,7 +234,7 @@ export function screenshotPng() {
   drawText(put, 72, 342, 'APPROX. 11.023 LBS', 4, 157, 222, 122);
   drawText(put, 72, 410, '>  100 C TO F', 4, 232, 237, 245);
   drawText(put, 72, 462, '212 F', 5, 157, 222, 122);
-  drawText(put, 72, 528, '>  1 FT TO CM', 4, 200, 80, 40);
+  drawText(put, 72, 528, '> ', 4, 200, 80, 40);
   const chips = ['FT', 'CM', 'KG', 'LB', 'TO', 'ROLL'];
   let cx = 48;
   for (const c of chips) {
