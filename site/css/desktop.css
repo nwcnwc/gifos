@@ -268,20 +268,31 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
   box-shadow: 0 2px 6px rgba(0,0,0,.45);
 }
 
-/* Identity pill on a SIGNED app's tile: its own declared short name + version.
-   Top-center (the SYS tag lives bottom-left, in NEW's corner), deep navy with
-   a cyan version — its own family, so provenance never reads as "system
-   privilege". Only signed tiles get one (see desktop.js render). */
-.idbadge {
-  position: absolute; left: 50%; transform: translateX(-50%); top: -7px;
-  max-width: calc(var(--isize, 64px) + 26px); box-sizing: border-box;
-  font-size: .5rem; font-weight: 700; letter-spacing: .01em; line-height: 1;
-  padding: .18rem .4rem; border-radius: .3rem; pointer-events: auto; cursor: help;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+/* NAMEPLATE on a SIGNED app's tile: its own declared short name + version,
+   IN PLACE OF THE FILENAME. It used to float over the top border of the
+   animation while the filename sat underneath — the tile named the app twice,
+   and one of the two names was written across the artwork. Now there is one
+   name per tile: the signed one, in the label slot, off the picture.
+
+   Deep navy with a cyan version — its own family, so provenance never reads as
+   "system privilege". Only signed tiles get one (see desktop.js buildIcon);
+   everything else still shows its filename there.
+
+   inline-block, NOT flex: the ellipsis on a too-long name only works if the
+   spans inside stay inline. And text-shadow is switched OFF — .label carries a
+   wallpaper shadow for bare text, which smears letters against the plate. */
+.nameplate {
+  display: inline-block; max-width: calc(var(--cell, 104px) - 10px); box-sizing: border-box;
+  font-size: .62rem; font-weight: 700; letter-spacing: .01em; line-height: 1.25;
+  padding: .16rem .42rem; border-radius: .3rem; cursor: help;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: top;
   background: #0e1526; color: #e4ebf8; border: 1px solid #3b4d6b;
-  box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  box-shadow: 0 2px 6px rgba(0,0,0,.3); text-shadow: none;
 }
-.idbadge .ver { color: #57ccff; font-weight: 800; }
+.nameplate .ver { color: #57ccff; font-weight: 800; }
+/* A plated label holds a bar, not a wrapping name: no shadow to bleed past its
+   edge, and no 2-line allowance to reserve. */
+.icon .label.plated { text-shadow: none; max-height: none; overflow: visible; }
 
 /* Passkey lock: the icon still plays; this says Open will ask. Top-right so
    it does not sit on the signature shield (bottom-right) or NEW (bottom-left). */
