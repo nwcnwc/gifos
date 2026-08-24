@@ -179,6 +179,8 @@ check('app.js still opens a v1 progress row on Sand',
   appJs.includes("selectPuzzle('sand'") || appJs.includes('selectPuzzle("sand"'));
 check('save writes puzzle id on progress',
   appJs.includes("puzzle: currentId") || appJs.includes('puzzle:currentId'));
+check('snapshot reads the clue letter, not a stale cell.answer',
+  appJs.includes('function letterOf') && appJs.includes('acrossClue.answer'));
 
 // Phone: native keyboard + pad + pad visible on a narrow screen without waiting for touchstart.
 check('index.html has inputmode=text for the phone keyboard',

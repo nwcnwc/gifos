@@ -42,6 +42,9 @@ check('the loop is 52 squares', L.LOOP.length === 52, L.LOOP.length);
   check('a 6 frees every yard token', L.moves(s).length === 4, L.moves(s).length);
   s = L.apply(s, 0);
   check('leaving the yard lands on start (step 0)', s.tokens[0][0] === 0, s.tokens[0][0]);
+  var yard = L.cellOf(0, -1, 0);
+  check('a yard cell is {r,c} so paint can find the square',
+    yard && typeof yard.r === 'number' && typeof yard.c === 'number', yard);
   check('a 6 is another roll', s.turn === 0 && !s.rolled, { turn: s.turn, rolled: s.rolled });
 
   // Walk without three sixes in a row: 6, 6, 5 (turn passes), opponent

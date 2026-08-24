@@ -46,7 +46,10 @@
   })();
 
   function cellOf(p, steps, slot) {
-    if (steps < 0) return YARD[p][slot];
+    if (steps < 0) {
+      var y = YARD[p][slot];
+      return { r: y[0], c: y[1] };
+    }
     if (steps <= 50) return LOOP[(START[p] + steps) % 52];
     if (steps < 56) return HOME[p][steps - 51];
     return { r: 7, c: 7 };
