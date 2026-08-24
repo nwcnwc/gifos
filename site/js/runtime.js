@@ -2947,7 +2947,10 @@
     const dot = document.createElement('div');
     dot.setAttribute('style',
       'width:10px;height:10px;border-radius:50%;background:var(--accent,#7b5cff);' +
-      'animation:gifos-launch-pulse 1.1s ease-in-out infinite');
+      // will-change promotes the pulse to the compositor: it keeps beating
+      // even while the main thread chews the unpack, which is the whole
+      // point of showing it (a frozen "Opening…" reads as a dead tap).
+      'will-change:transform,opacity;animation:gifos-launch-pulse 1.1s ease-in-out infinite');
     if (!document.getElementById('gifos-launch-pulse')) {
       const st = document.createElement('style');
       st.id = 'gifos-launch-pulse';
