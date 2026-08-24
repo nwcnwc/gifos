@@ -138,6 +138,7 @@ function load() {
     navigator: { maxTouchPoints: 0 },
     matchMedia: () => ({ matches: false, addListener() {}, addEventListener() {} }),
     addEventListener() {},
+    setTimeout: (fn) => { fn(); return 0; },
     gifos: undefined,
   };
   sandbox.window = sandbox;
@@ -237,6 +238,8 @@ const manifest = JSON.parse(src('manifest.json'));
 
 check('the playfield is the original light lab, not a dark void',
   main.includes('#ececec') && css.includes('#ececec') && !/background:\s*#111/.test(css));
+check('the canvas keeps its aspect on a phone (contain, not a squash)',
+  /#game[\s\S]{0,180}object-fit:\s*contain/.test(css));
 check('phone pad markup is in the page (FIRE under the thumb)',
   html.includes('id="p-move"') && html.includes('id="p-fire"') && html.includes('id="p-look"'));
 check('FIRE is a real button', /<button[^>]*id="p-fire"/.test(html));

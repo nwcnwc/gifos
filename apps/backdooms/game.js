@@ -30,7 +30,7 @@
     opts = opts || {};
     seed = opts.seed != null ? opts.seed : Math.random() * 100;
     x = 4; y = 4; a = 0; hp = 100; ammo = 25; recoil = 0; flash = 0; score = 0;
-    enemies = [{ x: 5, y: 4, h: 100 }, { x: 4, y: 5, h: 100 }];
+    enemies = [{ x: 6.5, y: 4, h: 100 }, { x: 4, y: 6.5, h: 100 }];
     keys = keys || {};
     keys._jx = 0; keys._jy = 0;
     running = true;
