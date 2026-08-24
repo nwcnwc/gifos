@@ -114,12 +114,14 @@
     if (config.inverted) this.container.classList.add('inverted');
     this.config = config;
     this.busy = false;
+    this.fromRoom = false;
+    this._autoTimer = 0;
   }
   Slot.prototype.setNext = function (symbols) {
     this.nextSymbols = symbols;
   };
   Slot.prototype.randomGrid = function () {
-    return [
+    return g.SlotsMath ? g.SlotsMath.randomGrid() : [
       [Symbol.random(), Symbol.random(), Symbol.random()],
       [Symbol.random(), Symbol.random(), Symbol.random()],
       [Symbol.random(), Symbol.random(), Symbol.random()],
@@ -127,8 +129,16 @@
       [Symbol.random(), Symbol.random(), Symbol.random()]
     ];
   };
-  Slot.prototype.spinTo = function (symbols) {
+  Slot.prototype.cancelAuto = function () {
+    if (this._autoTimer) {
+      clearTimeout(this._autoTimer);
+      this._autoTimer = 0;
+    }
+  };
+  Slot.prototype.spinTo = function (symbols, fromRoom) {
     var self = this;
+    this.cancelAuto();
+    this.fromRoom = !!fromRoom;
     this.currentSymbols = this.nextSymbols;
     this.nextSymbols = symbols;
     this.onSpinStart(this.nextSymbols);
@@ -142,16 +152,22 @@
   };
   Slot.prototype.onSpinStart = function (symbols) {
     this.busy = true;
-    this.spinButton.disabled = true;
+    if (this.spinButton) this.spinButton.disabled = true;
     if (this.config.onSpinStart) this.config.onSpinStart(symbols);
   };
   Slot.prototype.onSpinEnd = function (symbols) {
     var self = this;
     this.busy = false;
-    this.spinButton.disabled = false;
+    if (this.spinButton) this.spinButton.disabled = false;
     if (this.config.onSpinEnd) this.config.onSpinEnd(symbols);
-    if (this.autoPlayCheckbox.checked) {
-      return window.setTimeout(function () { self.spin(); }, 200);
+    // Autoplay MUST go through config.onAutoPlay (app.js pull()), never
+    // Slot.spin() — that path skipped the stake and the room.
+    var autoOn = this.autoPlayCheckbox && this.autoPlayCheckbox.checked;
+    if (autoOn && !this.fromRoom && this.config.onAutoPlay) {
+      this._autoTimer = window.setTimeout(function () {
+        self._autoTimer = 0;
+        if (self.autoPlayCheckbox && self.autoPlayCheckbox.checked) self.config.onAutoPlay();
+      }, 700);
     }
   };
 

@@ -1,13 +1,15 @@
 :root{
   --bg:#0a0a0f; --felt:#14141c; --gold:#d4a030; --gold2:#f0d080;
-  --text:#f4ece0; --muted:#9a9080; --line:#ffd76a;
+  --text:#f4ece0; --muted:#9a9080; --line:#ffd76a; --ink:#1a1208;
+  --win:#6dce7a;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;color:var(--text);
   font:15px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;
   background:
     radial-gradient(900px 480px at 50% -10%, #2a1c08 0%, var(--bg) 58%);
-  overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+  overscroll-behavior:none;-webkit-tap-highlight-color:transparent;
+  touch-action:manipulation}
 header{
   width:100%;max-width:640px;margin:0 auto;
   display:flex;align-items:center;justify-content:space-between;
@@ -22,20 +24,64 @@ header{
   background:var(--felt);border:1px solid #2a2a38;border-radius:20px;padding:5px 11px}
 .engine-chip .dot{width:8px;height:8px;border-radius:50%;background:#c98b3a}
 .engine-chip.play .dot{background:var(--gold);animation:pulse 1.2s infinite}
-.engine-chip.win .dot{background:#6dce7a;box-shadow:0 0 8px #6dce7a}
+.engine-chip.win .dot{background:var(--win);box-shadow:0 0 8px var(--win)}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
-main{width:100%;max-width:640px;margin:0 auto;padding:0 12px 16px}
-.toy{margin:0 0 8px;color:var(--gold);font-size:12px;letter-spacing:.08em;text-transform:uppercase;text-align:center}
-#slot{position:relative;background:var(--felt);border:1px solid #2e2e3c;border-radius:18px;padding:14px 10px 16px;
-  box-shadow:inset 0 0 40px rgba(0,0,0,.45)}
-#jackpot{color:var(--gold2);font-size:28px;text-align:center;font-weight:800;letter-spacing:.02em}
-#pay{color:var(--muted);font-size:12px;text-align:center;margin:2px 0 10px}
+main{width:100%;max-width:640px;margin:0 auto;padding:0 12px 20px}
+
+.cabinet{
+  position:relative;
+  background:
+    linear-gradient(180deg,#1c1810 0%, var(--felt) 18%, #101018 100%);
+  border:2px solid #6a5420;
+  border-radius:22px;
+  padding:12px 10px 16px;
+  box-shadow:
+    inset 0 0 40px rgba(0,0,0,.45),
+    0 0 0 4px #2a2418,
+    0 18px 40px rgba(0,0,0,.45);
+}
+.cabinet.hit{box-shadow:inset 0 0 40px rgba(0,0,0,.45),0 0 0 4px #2a2418,0 0 28px rgba(255,215,106,.55)}
+.marquee{
+  display:flex;justify-content:space-between;gap:6px;padding:0 8px 8px}
+.marquee .bulb{
+  flex:1;height:10px;border-radius:50%;
+  background:#3a3018;box-shadow:inset 0 0 4px #000;
+  animation:chase 1.2s linear infinite}
+.marquee .bulb:nth-child(2){animation-delay:.15s}
+.marquee .bulb:nth-child(3){animation-delay:.3s}
+.marquee .bulb:nth-child(4){animation-delay:.45s}
+.marquee .bulb:nth-child(5){animation-delay:.6s}
+.marquee .bulb:nth-child(6){animation-delay:.75s}
+.marquee .bulb:nth-child(7){animation-delay:.9s}
+.marquee .bulb:nth-child(8){animation-delay:1.05s}
+@keyframes chase{
+  0%,70%{background:#3a3018;box-shadow:inset 0 0 4px #000}
+  80%,100%{background:#ffd76a;box-shadow:0 0 8px #ffd76a}
+}
+.cabinet.play .marquee .bulb{animation-duration:.45s}
+.cabinet.hit .marquee .bulb{animation-duration:.2s;background:#fff}
+
+.toy{margin:0 0 6px;color:var(--gold);font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;text-align:center;font-weight:700}
+#jackpot{color:var(--gold2);font-size:32px;text-align:center;font-weight:800;
+  letter-spacing:.04em;font-variant-numeric:tabular-nums}
+#jackpot .lbl{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);font-weight:700}
+#pay{color:var(--muted);font-size:11.5px;text-align:center;margin:6px 0 10px;
+  display:flex;flex-wrap:wrap;justify-content:center;gap:6px 12px}
+#pay b{color:var(--gold2);font-weight:800}
+
+.stage{display:flex;align-items:stretch;gap:8px;justify-content:center}
+.window{
+  position:relative;flex:1;min-width:0;
+  background:#0c0c12;border-radius:12px;overflow:hidden;
+  border:3px solid #8a7030;
+  box-shadow:inset 0 0 18px rgba(0,0,0,.6), 0 0 0 1px #3a3020}
 #reels{
   display:flex;width:100%;height:calc((3 / 5) * 100vw);
-  max-height:min(320px, calc(56vh - 40px));
-  max-width:calc((5 / 3) * min(320px, calc(56vh - 40px)));
-  margin:0 auto;background:#0c0c12;border-radius:10px;overflow:hidden;
-  border:2px solid #3a3020}
+  max-height:min(300px, calc(50vh - 24px));
+  max-width:calc((5 / 3) * min(300px, calc(50vh - 24px)));
+  margin:0 auto}
 .reel{overflow:hidden;width:20%;height:100%;position:relative;border-right:1px solid #2a2418}
 .reel:last-child{border-right:0}
 .reel > .icons{position:relative}
@@ -43,21 +89,65 @@ main{width:100%;max-width:640px;margin:0 auto;padding:0 12px 16px}
   width:calc(100% + 6px);margin:-3px 0 0 -3px;height:auto;
   transform:translate3d(0,0,0);display:block}
 #line{
-  position:absolute;left:12px;right:12px;height:3px;background:var(--line);
-  top:calc(14px + 28px + 16px + min(320px, calc(56vh - 40px)) / 2);
-  pointer-events:none;opacity:.85;box-shadow:0 0 8px var(--line)}
-.status{text-align:center;min-height:1.4em;margin:10px 0 8px;color:var(--gold2);font-weight:700}
+  position:absolute;left:0;right:0;height:3px;background:var(--line);
+  top:50%;transform:translateY(-50%);
+  pointer-events:none;opacity:.9;box-shadow:0 0 10px var(--line);z-index:2}
+.cabinet.hit #line{height:5px;box-shadow:0 0 16px #fff}
+
+.lever{
+  width:44px;flex:0 0 44px;border:0;background:transparent;padding:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  cursor:pointer;touch-action:manipulation}
+.lever .knob{
+  width:28px;height:28px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #ff6a6a, #c42030 62%, #7a1018);
+  box-shadow:0 2px 6px rgba(0,0,0,.5);z-index:1}
+.lever .arm{
+  width:8px;flex:1;min-height:80px;margin-top:-4px;
+  background:linear-gradient(90deg,#bbb,#eee 40%,#888);
+  border-radius:4px;box-shadow:inset 0 0 2px #fff}
+.lever.pulled .knob{transform:translateY(36px);transition:transform .18s ease-in}
+.lever.pulled .arm{transform:scaleY(.72);transform-origin:bottom;transition:transform .18s ease-in}
+.lever:not(.pulled) .knob,.lever:not(.pulled) .arm{transition:transform .35s ease-out}
+
+.status{text-align:center;min-height:1.4em;margin:10px 0 4px;color:var(--gold2);font-weight:700}
+.who{text-align:center;margin:0 0 6px;color:var(--muted);font-size:12.5px}
+
+#stakes{display:flex;justify-content:center;gap:8px;margin:6px 0 10px}
+.stake{
+  min-width:52px;min-height:40px;padding:6px 10px;border-radius:20px;cursor:pointer;
+  border:1px solid #3a3428;background:#1a1814;color:var(--text);font:inherit;font-weight:800;
+  touch-action:manipulation}
+.stake.on{background:linear-gradient(180deg,#f0d080,var(--gold));color:var(--ink);border-color:var(--gold)}
+
 #controls{
-  background:rgba(255,255,255,.08);height:56px;display:flex;
-  justify-content:space-between;align-items:center;padding:6px 16px;border-radius:12px}
-#controls label{display:flex;align-items:center;margin:0;gap:8px;font-weight:700}
+  background:rgba(255,255,255,.06);min-height:56px;display:flex;
+  justify-content:space-between;align-items:center;gap:8px;
+  padding:6px 10px;border-radius:14px}
+#controls .auto{display:flex;align-items:center;margin:0;gap:8px;font-weight:700}
 input[type="checkbox"]{width:28px;height:28px;accent-color:var(--gold)}
 #spin{
-  min-width:120px;padding:12px 22px;border:0;border-radius:12px;cursor:pointer;
-  background:linear-gradient(180deg,#f0d080,var(--gold));color:#1a1208;font-weight:800;font-size:18px;
+  min-width:132px;min-height:48px;padding:12px 22px;border:0;border-radius:12px;cursor:pointer;
+  background:linear-gradient(180deg,#f0d080,var(--gold));color:var(--ink);font-weight:800;font-size:18px;
   touch-action:manipulation;box-shadow:0 8px 18px rgba(212,160,48,.32)}
 #spin:disabled{opacity:.55;cursor:default;filter:grayscale(.3);box-shadow:none}
 #spin:active{transform:translateY(1px)}
+.ghost{
+  min-height:40px;padding:8px 12px;border-radius:10px;cursor:pointer;
+  border:1px solid #3a3428;background:#1a1814;color:var(--text);font:inherit;font-weight:700;
+  touch-action:manipulation}
+.ghost[aria-pressed="true"]{color:var(--muted);text-decoration:line-through}
+.refill{
+  display:block;width:100%;margin:10px 0 0;min-height:44px;
+  border:1px dashed #6a5420;border-radius:12px;background:transparent;
+  color:var(--gold2);font:inherit;font-weight:700;cursor:pointer;touch-action:manipulation}
 .hint{margin:10px 8px 0;color:var(--muted);font-size:12.5px;text-align:center}
 #slot.inverted .reel{transform:scaleY(-1)}
 #slot.inverted .reel > .icons > img{transform:scaleY(-1)}
+
+@media (max-width:420px){
+  #jackpot{font-size:28px}
+  .lever{display:none}
+  #spin{flex:1;min-width:0}
+  .stake{min-width:44px;padding:6px 8px}
+}

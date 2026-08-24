@@ -35,7 +35,7 @@ const read = (p) => readFileSync(join(dir, p), 'utf8');
 
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-const SCRIPTS = ['symbols.js', 'slot.js', 'mp.js', 'app.js'];
+const SCRIPTS = ['symbols.js', 'math.js', 'slot.js', 'mp.js', 'app.js'];
 
 if (!existsSync(join(dir, 'vendor', 'COPYING-slots.txt'))) {
   throw new Error('vendor/COPYING-slots.txt is missing');
@@ -46,6 +46,7 @@ const files = {
   'index.html': read('index.html'),
   'style.css': read('style.css'),
   'symbols.js': read('symbols.js'),
+  'math.js': read('math.js'),
   'slot.js': read('slot.js'),
   'mp.js': read('mp.js'),
   'app.js': read('app.js'),
@@ -102,6 +103,12 @@ if (!files['COPYING-slots.txt'].includes('Johannes Kronmüller')) {
 if (!files['app.js'].includes("db('save')") || !files['mp.js'].includes("db('room')") && !files['app.js'].includes("db('room')")) {
   throw new Error('must use gifos.db save + room');
 }
+if (!files['slot.js'].includes('onAutoPlay') || !files['app.js'].includes('onAutoPlay')) {
+  throw new Error('autoplay must go through onAutoPlay → pull() so the stake and the room both see it');
+}
+if (files['slot.js'].includes('self.spin()')) {
+  throw new Error('slot.js must not auto-spin via Slot.spin() — that skipped credits');
+}
 if (!files['mp.js'].includes('Invite') && !files['app.js'].includes('Invite')) {
   throw new Error('tell the player to press Invite');
 }
@@ -121,13 +128,13 @@ for (const [n, s] of Object.entries(files)) {
   const ctx = { window: {}, console };
   ctx.window = ctx;
   vm.runInNewContext(
-    files['symbols.js'] + '\n' + files['slot.js'] + '\n' +
+    files['symbols.js'] + '\n' + files['math.js'] + '\n' +
     'result = (function () {\n' +
     '  if (SLOT_NAMES.length !== 9) throw new Error("symbol count " + SLOT_NAMES.length);\n' +
     '  if (!SlotSymbols.seven || !SlotSymbols.cherry) throw new Error("missing symbol");\n' +
-    '  var n = SlotSymbol.random();\n' +
-    '  if (SLOT_NAMES.indexOf(n) < 0) throw new Error("random " + n);\n' +
-    '  return n;\n' +
+    '  var g = SlotsMath.grid(["seven","seven","seven","cherry","lemon"]);\n' +
+    '  if (SlotsMath.payout(g, 10) !== 500) throw new Error("three 7s");\n' +
+    '  return "ok";\n' +
     '})();',
     ctx
   );

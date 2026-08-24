@@ -12,30 +12,61 @@
   <div class="engine-chip" id="chip"><span class="dot"></span><span id="chipText">Ready</span></div>
 </header>
 <main>
-  <p class="toy">Toy credits. No cash. Ever.</p>
-  <div id="slot">
-    <div id="jackpot">Credits: <span id="jp">1000</span></div>
-    <div id="pay">Payline ×10 / 7s ×50 / five ×100 · stake 10</div>
-    <div id="reels">
-      <div class="reel"></div>
-      <div class="reel"></div>
-      <div class="reel"></div>
-      <div class="reel"></div>
-      <div class="reel"></div>
+  <div id="slot" class="cabinet">
+    <div class="marquee" aria-hidden="true">
+      <span class="bulb"></span><span class="bulb"></span><span class="bulb"></span>
+      <span class="bulb"></span><span class="bulb"></span><span class="bulb"></span>
+      <span class="bulb"></span><span class="bulb"></span>
     </div>
-    <div id="line" aria-hidden="true"></div>
+    <p class="toy">Toy credits. No cash. Ever.</p>
+    <div id="jackpot">
+      <span class="lbl">Credits</span>
+      <span id="jp">1000</span>
+    </div>
+    <div id="pay">
+      <span>3× <b>10</b></span>
+      <span>4× <b>25</b></span>
+      <span>5× <b>100</b></span>
+      <span>7s <b>50 / 100 / 250</b></span>
+    </div>
+    <div class="stage">
+      <div class="window" id="window">
+        <div id="reels">
+          <div class="reel"></div>
+          <div class="reel"></div>
+          <div class="reel"></div>
+          <div class="reel"></div>
+          <div class="reel"></div>
+        </div>
+        <div id="line" aria-hidden="true"></div>
+      </div>
+      <button type="button" id="lever" class="lever" aria-label="Pull the lever">
+        <span class="knob"></span>
+        <span class="arm"></span>
+      </button>
+    </div>
     <p class="status" id="status">Pull to spin.</p>
+    <p class="who" id="who" hidden></p>
+    <div id="stakes" role="group" aria-label="Stake">
+      <button type="button" class="stake" data-stake="10">10</button>
+      <button type="button" class="stake" data-stake="25">25</button>
+      <button type="button" class="stake" data-stake="50">50</button>
+      <button type="button" class="stake" data-stake="100">100</button>
+    </div>
     <div id="controls">
       <button type="button" id="spin">Spin</button>
-      <label>
+      <label class="auto">
         <input type="checkbox" name="autoplay" id="autoplay">
-        Autoplay
+        Auto
       </label>
+      <button type="button" id="mute" class="ghost" aria-pressed="false" aria-label="Mute">Sound</button>
     </div>
-    <p class="hint" id="mpHint">Press Invite in the bar to show the same reels in the room.</p>
+    <button type="button" id="refill" class="refill" hidden>Top up 1000 toy credits</button>
+    <p class="hint" id="mpHint">The pile comes back with this file. A friend at the table sees the same reels.</p>
   </div>
 </main>
 <script src="symbols.js"></script>
+<script src="math.js"></script>
 <script src="slot.js"></script>
 <script src="mp.js"></script>
 <script src="app.js"></script>
