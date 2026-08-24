@@ -13,8 +13,9 @@ test/swarm/swarm-videos/
 Generated with Grok Imagine: `image_gen` (portrait) → `image_to_video`
 (talking-head intro motion). **Visual only for speech** — mouth/head motion is
 synthesized; there is no reliable lip-synced dialogue track of the roster
-lines. Use existing `test/swarm/swarm-voices.js` espeak clips for real mic audio, or
-mux your own later.
+lines. With the pack present the clip's OWN audio is the bot's mic (the ~6 s
+intro plays once); the `test/swarm/swarm-voices.js` espeak clips are the
+no-pack fallback.
 
 ## Sizes
 
@@ -23,13 +24,12 @@ mux your own later.
 
 ## Using with `swarm.js`
 
-`swarm.js` currently paints solid-color canvases. To drive a bot camera from
-these files, replace `fakeCam` so `getUserMedia` returns a looping
-`<video>` → `captureStream()` (or `HTMLVideoElement.captureStream()`), e.g.
-load `clips/((idx % 50) + 1).padStart(2,'0')-*.mp4` as a data URL / file URL
-and set `loop = true`, `muted = true` (mic stays the WebAudio path).
-
-Index mapping: bot `idx` → clip `(idx % 50) + 1` (1-based roster id).
+Already wired in: `swarm.js` loads this pack from `test/swarm/swarm-videos`
+(override with `--videos <dir>`) and each bot's camera IS one of these clips
+(`fakeCamVideo` — a looping `<video>` → `captureStream()`), the person chosen
+at random per bot; the clip's own audio becomes the bot's mic. Solid-color
+swatch cams + espeak voices remain the fallback when the pack is absent (or
+under `LITE`).
 
 ## Roster names (01–50)
 

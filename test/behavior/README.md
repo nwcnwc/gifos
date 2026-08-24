@@ -1,4 +1,4 @@
-# The behavior battery — 25 use cases, real people, real phones
+# The behavior battery — 26 use cases, real people, real phones
 
 Launch truth: there will be **no monitors in production**. Billions of rooms,
 zero pis, nobody watching. Every problem a meeting can have must be one the
@@ -7,7 +7,7 @@ to *rehearse the actual meetings people will hold* — not protocol fragments,
 but whole stories: who these people are, what devices they hold, what their
 phones do to the call while life happens around it.
 
-This battery is that rehearsal. Twenty-four use cases of 2–8-person meetings, each
+This battery is that rehearsal. Twenty-six use cases of 2–8-person rooms, each
 with named personas and 1–3 **interaction patterns** (a pattern = one runnable
 scenario script). Every role is played by a real `test/swarm/meet.js` instance
 — a full Playwright participant recording debug state — orchestrated by
@@ -62,11 +62,13 @@ skipping its logic.
   ssh, 1-2 per box — the only way a timing number here means anything, since
   one box running five browsers plus the relay is a shape no meeting has.
 
-## The 25 use cases
+## The 26 use cases
 
 Order is by how common we judge the meeting shape at launch, not severity.
 Scripts live in `scenarios/` as `<nn><letter>-<case>-<pattern>.js`.
-**CORE** marks the must-run set (`batteries/behavior.sh --core`).
+**CORE** marks the must-run set (`batteries/behavior.sh --core`; the
+authoritative list is `CORE=` in `batteries/behavior.sh` — 21a, 24a, 25a and
+26a are in it even where a tag below is missing).
 
 ---
 
@@ -269,16 +271,17 @@ The same room founded → filled → emptied → re-founded, three times.
 sharing her wifi hotspot — same IP).
 **Story:** Sunday's game: who drives, who brings the kit, vote on the time.
 
-- **12a `12a-team-founding-vote.js`** [CORE] — Cap founds, burst arrivals,
-  a stage vote runs to completion. Asserts: vote need tracks the engaged
-  majority, result lands for all, founding under burst is single.
+- **12a `12a-team-founding.js`** [CORE] — Cap founds, burst arrivals, the
+  plan gets made in chat and the captain takes the Stage briefly to settle
+  it. Asserts: the settled plan lands for all, founding under burst is
+  single.
 - **12b `12b-team-car-death.js`** — Ferg's phone dies at 1% (abrupt `die`,
   same egress IP as Petra). Asserts: D5 vanish — seat freed, no corpse-echo
   occ flap >60s (the D-class open residual: measure and report flap count),
   Petra (same IP) unaffected.
-- **12c `12c-team-vote-churn.js`** — a vote runs WHILE Min freezes and Jo
-  tunnels. Asserts: the vote still resolves with the honest engaged set,
-  returners see the outcome, no double-count after Min's self-heal reload.
+- **12c `12c-team-decision-churn.js`** — the plan gets settled WHILE Min's
+  tab freezes and Jo tunnels. Asserts: chat state survives the churn,
+  returners see the outcome after Min's self-heal reload.
 
 ### 13. The church small group — 5, the long quiet hour
 **Cast:** Pastor Ann (**desktop**), four members on **phones** in living
@@ -487,6 +490,18 @@ were never under a gate.
   `BEHAVIOR_ENGINE=<role>=firefox`, or `BEHAVIOR_ENGINE=firefox` for an
   all-Gecko room.
 
+### 26. Three people driving round one city — an APP room in the battery
+**Cast:** Ada (wheel), Ben (stick), Cyd (tilt) — three steering schemes in one
+shared Anyroad world.
+**Story:** the only place the three steering schemes are exercised at once; a
+scheme nobody drives breaks silently for whichever player chose it.
+
+- **26a `26a-anyroad-three-drivers.js`** [CORE] — deliberately does NOT use
+  `lib/cast.js` (an app room driven by pointer/orientation events is not a
+  meeting): it runs `test/browser/e2e-anyroad-mp.js` through the app-as-room
+  door and translates its output into the battery's contract. One
+  implementation, two front doors.
+
 ---
 
 ## Script index → what reality each covers
@@ -502,7 +517,7 @@ were never under a gate.
 | abrupt death (`die`) | 9a 12b 18b 20a |
 | relay deploy [relay-dev] | 4b 16b (20a opportunistic) |
 | locked door / admin | 2b 8b 18a |
-| stage / vote / handq | 5a 5b 7a 12a 12c 19b |
+| stage / vote / handq | 5a 5b 7a 19b (12a/12c settle their plan in chat + a brief Stage turn) |
 | late join vs settled room | 2b 14a 16a 16b 20a 21b |
 | minutes-long user silence | 21a 21b 21c |
 | shared app (`app run`, --seed-desktop) | 21c |
@@ -511,7 +526,7 @@ were never under a gate.
 | the Broadcast skin (`bc`, ticket, call-up, chat-off) | 24a |
 | a NON-CHROMIUM participant (firefox/Gecko, VP8) | 25a (+ any scenario under `BEHAVIOR_ENGINE`) |
 
-57 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
+58 pattern scripts (+ `00-levers-selftest`, the tool gate: every lever proven
 by its observable effect — run it FIRST when a scenario goes red, it says
 whether the lever machinery or the app broke). The three open bugs this
 battery once carried as expected-RED scenarios are all FIXED and their
@@ -529,7 +544,7 @@ guards for exactly those fixes.
 test/servers/relay-dev.sh                    # only for the [relay-dev] scenarios
 
 node test/behavior/scenarios/01a-household-rolling.js       # one scenario
-test/batteries/behavior.sh --core            # the CORE set (24 scripts, ~1.5h)
+test/batteries/behavior.sh --core            # the CORE set (25 scripts, ~1.5h)
 test/batteries/behavior.sh                   # everything (several hours)
 ```
 

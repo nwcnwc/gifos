@@ -15,7 +15,7 @@ differs between them.
 | `browser/` | site on 8099 + relay on 8790 | Playwright suites |
 | `drills/` | nothing | self-contained: spawn their OWN relay + site |
 | `swarm/` | the production site | scale bots + live meeting tools |
-| `behavior/` | site 8099 + relay (auto-spawned); relay-dev for deploys | the BEHAVIOR battery: 25 real-life use cases as persona-driven scenarios, spreadable over a FLEET of boxes — see `behavior/README.md` |
+| `behavior/` | site 8099 + relay (auto-spawned); relay-dev for deploys | the BEHAVIOR battery: 26 real-life use cases as persona-driven scenarios, spreadable over a FLEET of boxes — see `behavior/README.md` |
 | `tools/` | varies | utilities, not assertion tests |
 | `batteries/` | everything below it | cross-environment GATES — run before pushing |
 
@@ -147,6 +147,13 @@ verdict, one log. Everything else should SPREAD across whatever boxes are up:
 
 
 ## SOME SUITES REQUIRE ISOLATED MACHINES, AND NOW THEY SAY SO
+
+(A third, narrower refusal exists beside NEEDS-FLEET and NO-VERDICT:
+**WRONG-TREE, exit 2** — `browser/e2e-update-erase.js` edits files on disk
+and must refuse to judge when the server at BASE is not serving this clone;
+a probe file written into `site/` and fetched back tells the two apart.
+Added 2026-08-23 after a release-clone server on 8099 made the suite read
+as a product red.)
 
 A suite whose verdict depends on real per-client hardware calls
 `await needFleet(n, {why, roles})` (`test/lib/fleet.js`) and **exits 3 having
@@ -308,16 +315,17 @@ loses a browser it did not ask to lose renders **NO VERDICT**, exit **4**.
 - `crash` is a lever (`chrome://crash`, chromium only): the death nobody asked
   for, as opposed to `die`. It is how the gate is provable.
 
-**And it is not only the behaviour battery.** 98 suites in `test/browser` and
-`test/drills` drive Playwright directly and resolve chromium through
+**And it is not only the behaviour battery.** 110+ suites in `test/browser`
+and `test/drills` drive Playwright directly and resolve chromium through
 `test/lib/pw.js`, where `chromium.launch()` now returns a **watched** browser —
-same report, same exit 4 — so the identical bug is closed in 98 more places from
+same report, same exit 4 — so the identical bug is closed in all of them from
 one wrapper. `test/lib/casualty.js` holds the shared vocabulary (what counts as
 a death, the exit code, the capacity arithmetic) so the two halves cannot drift.
 **A death you MEANT to cause must be declared:** `deathExpected(browser)` before
 you kill one. `e2e-vanish-browser` SIGKILLs a victim's whole process tree — that
-is the drill — and it is the only suite in the repo that kills a browser on
-purpose.
+is the drill — and, with `drills/casualty-noverdict.js` (which crashes one
+renderer and `die`s another to prove the gate itself), they are the only
+suites in the repo that kill a browser on purpose.
 
 Guards: `test/unit/behavior-casualty.js` holds the whole chain — classifier,
 the deliberate-death exemption, the capacity line, and the fact that meet.js,
@@ -542,8 +550,7 @@ its whole fleet from one IP, so the production per-IP cap of 8 is precisely
 wrong locally — it silently starved the swarm once and the release gate's
 browser tier a second time (e2e-handq meshed exactly 8/10, forever). Set
 `RELAY_PROD=1` to mirror the production abuse guards (8 sockets/IP,
-30/session, frame meter) — e2e-relay does this on its own private relay to
-assert them. Ban/eviction/owned-slot semantics are core session logic and
+30/session, frame meter). Ban/eviction/owned-slot semantics are core session logic and
 are active in BOTH modes.
 
 **node 22 or newer, always.** `gifos-net.js` opens the relay socket with the
@@ -567,12 +574,15 @@ Gotchas:
   `e2e-wasm` SKIPPED when the file was missing: moving the artifact would have
   turned the real-Stockfish test green having asserted nothing.
 - `browser/e2e-fetch-bridge.js` spawns its OWN server on 8791 — kill fake-ai first.
-- `relay/relay-owned.js` (8792) and `relay/relay-device-dedupe.js` (8791)
-  hardcode ports that collide with the fake servers; don't run them concurrently.
+- `relay/relay-device-dedupe.js` (8791) hardcodes a port that collides with
+  fake-ai; don't run them concurrently. (`relay-owned.js` moved to its own
+  8795 and no longer collides.)
 - `tools/browser-image-check.js` reads `unit/sample.gif`, which
   `unit/node-roundtrip.js` writes — run that one first.
-- `swarm/squat.js` is pinned to a `chromium_headless_shell` path that isn't
-  installed here; every other suite uses `/opt/pw-browsers/chromium-1194`.
+- Chromium is resolved by SEARCH in `test/lib/pw.js` (newest installed build
+  under `/opt/pw-browsers` or `~/.cache/ms-playwright` — both `chrome-linux/`
+  and `chrome-linux64/` spellings); `swarm/squat.js` takes Playwright's
+  default channel.
 
 ## batteries/ — cross-environment gates
 
@@ -581,7 +591,8 @@ needs whatever they need. Run one before pushing a change in its area.
 
 | battery | gate |
 |---|---|
-| `behavior.sh` | the BEHAVIOR battery: `test/behavior/scenarios/*` run SERIALLY — 25 use cases / 57 persona scripts driving `meet.js --drive` actors through phone realities (dropouts, hidden+frozen tabs, battery states, parked phones, reload churn, relay deploys, and one MIXED-ENGINE room). `--core` = the 24-script core (~1.5h); full = several hours. 04b/16b are the post-deploy WHOHOME repro; they were fixed by 95ca143 and both PASS (verified 2026-08-06 on a full 58/58 run) — this line used to say they stay RED, which was stale, and behavior.sh's own header is the authority. Needs `relay-dev.sh` up for the deploy scenarios (else they SKIP); 25a needs a playwright firefox (else it SKIPs). A SKIP is a failure of the run, not a pass — check for them explicitly. Discovery is a glob, so a new `scenarios/*.js` is gated the moment it lands. Prefer an idle multi-core box — or better, give it a `BEHAVIOR_HOSTS` fleet and put 1-2 actors per machine: 5-browser scenarios saturate 4 cores and starvation reads as flapping (fails are stamped with loadavg for exactly this reason), and a 5-phone cast needs ~1950 MB of *available* RAM (each scenario now logs `capacity` before it spawns). Exit codes: 1 = a red, **4 = NO VERDICT** — a scenario's browser died, see "A DEAD BROWSER IS NOT A VERDICT" — 0 = green. |
+| `release.sh` | **THE RELEASE GATE** — every tier (unit, sim, tools, relay, browser, drills, behavior core) in order; green end to end or there is no cut. The rest of this document is largely its anatomy. |
+| `behavior.sh` | the BEHAVIOR battery: `test/behavior/scenarios/*` run SERIALLY — 26 use cases / 58 persona scripts driving `meet.js --drive` actors through phone realities (dropouts, hidden+frozen tabs, battery states, parked phones, reload churn, relay deploys, and one MIXED-ENGINE room). `--core` = the 25-script core (~1.5h); full = several hours. 04b/16b are the post-deploy WHOHOME repro; they were fixed by 95ca143 and both PASS (verified 2026-08-06 on a full 58/58 run) — this line used to say they stay RED, which was stale, and behavior.sh's own header is the authority. Needs `relay-dev.sh` up for the deploy scenarios (else they SKIP); 25a needs a playwright firefox (else it SKIPs). A SKIP is a failure of the run, not a pass — check for them explicitly. Discovery is a glob, so a new `scenarios/*.js` is gated the moment it lands. Prefer an idle multi-core box — or better, give it a `BEHAVIOR_HOSTS` fleet and put 1-2 actors per machine: 5-browser scenarios saturate 4 cores and starvation reads as flapping (fails are stamped with loadavg for exactly this reason), and a 5-phone cast needs ~1950 MB of *available* RAM (each scenario now logs `capacity` before it spawns). Exit codes: 1 = a red, **4 = NO VERDICT** — a scenario's browser died, see "A DEAD BROWSER IS NOT A VERDICT" — 0 = green. |
 | `join.sh` | everything that must stay true about **JOINING** — arrival patterns (burst/serial/batch/window, seating AND H7 shape), loss wedge, atomic-move / cascade scooch, churn combos, adversary fabrics, compaction, H-CHAIN / headless-row, `mesh.js` harness + flood + wire, browser link-completeness ladders, adversary-room + late-join drills. `--quick` skips the browser ladders. |
 | `c-sweep.sh` | **The multi-section confidence battery.** Rebuilds the sim at C in {2,3,4,5} (`-DGIFOS_C`) and drives rooms big enough to form DEEP multi-section trees, checking the invariants that must hold however the tree branches: all seated, ZERO duplicate cells, zero stranded, full Section 1, and no split-brain under partition. Production is C=5, where a second section needs >25 people; low C reaches deep trees with a handful of seats, so C=2/3/4 exercise cross-section seating/heal/churn/partition/compaction cheaply. Verdict gates on C>=4 (incl. production C=5); C=2/3 duplicate-minting under stress is a known degenerate-tiny-section finding (see `known-unfixed.sh`). Sim-only, seconds per C. |
 | `known-unfixed.sh` | **THE GRAVEYARD — every check in it is EXPECTED TO FAIL.** Behaviours we understood and DECIDED not to fix: too hard, not worth it, or a rule we want to keep would have to change. Not a gate, not run by CI, not called by any battery. Run it only when **we change our mind** and want to try again. RED is correct; a GREEN entry means someone fixed it — promote that check back into its real gate and delete it from here. Never soften an assertion to make it green. |
@@ -641,6 +652,10 @@ so a suite can prove which transport ran), plus a `/wsonly` base that answers
 REST without CORS to exercise the Settings WS-probe ladder. All the fakes and
 the suites that use them honor `FAKE_AI_PORT` / `FAKE_KEYAPI_PORT` /
 `FAKE_PROXY_PORT`, so they can run beside a gate that owns the defaults.
+Also here: `fake-x402.js` (the paid-resource/sponsor fake for the payments
+tier-2 spec — started by nothing yet, and its default 8794 collides with
+`relay-dev.sh`) and `pause-forwarder.js` (a TCP forwarder drills use to
+freeze a link mid-flight).
 
 ## unit/ — pure Node
 
@@ -662,6 +677,8 @@ the suites that use them honor `FAKE_AI_PORT` / `FAKE_KEYAPI_PORT` /
 | suite | covers |
 |---|---|
 | `mesh-harness.js` | the Node reference harness for `site/js/mesh.js` — replays the C++ sim's scenarios (JOIN, 50%-kill, s1row, s1all) and asserts its convergence targets at N=500/1000. With `mesh.js` it IS the JS reference implementation. |
+| `churn-rejoin-livelock.js` / `entry-resume.js` / `greeter-expiry.js` / `ghost-genesis-client.js` / `zombie-genesis.js` | churn/rejoin livelock, entry resume, greeter TTL expiry, and the two genesis-ghost arms |
+| `digest.js` / `q5-designation.js` | the mesh digest surface, and Q5 designation (run by `join.sh`) |
 | `requeue-pacing.js` | the entry-pacing invariant: a paced-out (same-tick) `join()`/`askSeat()` defers the SEND, never the STATE — a requeue whose rejoin got paced out must never wedge seated-looking-but-coordless (the behavior-04a radio-blip solo, 2026-08-03) |
 | `flood.js` | N nodes hit a FRESH relay in one synchronous burst (no stagger) — the genesis-flood claim |
 | `e2e-mesh-wire.js` | mesh↔wire over a real relay and real sealing |
@@ -677,9 +694,10 @@ is pure logic (imports `originAllowed` straight from `relay/src/relay.js` — no
 server at all); `relay-privacy` runs `relay-local.js` in-process via `require`;
 the rest each spawn their own `relay-local.js` child on a private port:
 `relay-knock`, `relay-device-dedupe` (port 8791 — kill fake-ai first),
-`relay-owned` (the §SIG signed-adminship door; port 8792 — kill fake-keyapi
-first), `relay-voteoff` (majority boot, standing votes, admin rooms never
-vote-kick), `relay-adminban` (forged vs signed ban, banlist re-seed).
+`relay-owned` (the §SIG signed-adminship door; its own port 8795),
+`relay-voteoff` (majority boot, standing votes, admin rooms never
+vote-kick), `relay-adminban` (forged vs signed ban, banlist re-seed),
+`relay-genesis-claim` (the R3 founding race).
 
 ## browser/ — Playwright
 
@@ -749,8 +767,8 @@ Roughly three families in one directory:
   same expression is correct. Poll from outside; a broken waiter reports a
   working app as a TimeoutError),
   `e2e-join-prettyurl`, `e2e-perms-share`, `e2e-owned-app`, `e2e-mymedia`,
-  `e2e-mymedia-share`, `e2e-theme-wallpaper`, `e2e-invite-lifetime`,
-  `e2e-wasm`, `e2e-irl`, `e2e-bible-nav`, `e2e-mirror`,
+  `e2e-mymedia-share`, `e2e-theme-wallpaper`,
+  `e2e-wasm`, `e2e-irl`,
   `e2e-sound-it-out-share` (what a shared app shares: the sight-word list is
   CURRICULUM and must reach a guest both ways, while private prefs must never
   appear in the mirror — it lived in private prefs and silently did not cross).
@@ -762,8 +780,7 @@ Roughly three families in one directory:
   chain, and the one-tap fan-out that guards the detached-buffer bug — one box,
   no room, no relay) and `e2e-pipe-mesh` (its six-seat room, which DECLARES
   NEEDS-FLEET; see the worked example above),
-  `e2e-meeting-app`, `e2e-mymedia-meet`, `e2e-app-governance`, `e2e-autoheal`,
-  `e2e-failover`, `e2e-reconnect`, `e2e-relay`, `e2e-chess-mp`, `e2e-pip`
+  `e2e-meeting-app`, `e2e-mymedia-meet`, `e2e-chess-mp`, `e2e-pip`
   (backgrounding floats the best room video in a PiP overlay; source picker
   never floats your own preview), `e2e-away-holdover` (G1: pocketed phones —
   consent holds without flapping, roster never blinks, vote need drops to the
@@ -826,6 +843,7 @@ Each spawns its own relay and its own static server for THIS checkout's
 
 | drill | proves |
 |---|---|
+| `e2e-fork-heal.js` / `e2e-ghost-genesis.js` / `e2e-pw-heal.js` / `e2e-relay-blip.js` | fork healing, ghost-genesis at the door, password re-key healing, and a relay blip mid-room |
 | `e2e-latejoin.js` | the late-join deadlock: greeter-door sponsor entry, ttl-bounded `fsig`/`fmesh` hops, the `nosock` bounce (meet-security §FWD, healing-laws R2) |
 | `e2e-peer-relay-reunion.js` | E5 §1 friend-relay among co-members: ICE-split pair in ONE room, third co-member joins same room → "via Hub" (not a two-meeting merge; that stays R5 pick-one) |
 | `e2e-r5-fork-pick.js` | R5 / E5§2 browser rung: same-key dual greeter halves (forceSeat tear + ICE block) → `#fork-modal` → pick-one → seat only one half. Clustering/faces unit is `mesh/r5-fork-pick.js` (already in `join.sh`) |
@@ -863,8 +881,10 @@ If you are chasing a media red that the gate has and you do not, set it first.
 ## swarm/ — scale and live tools
 
 **Production is the default, but nothing here is production-only.** With no
-flags `swarm.js`, `meet.js`, `squat.js` and `vanish-drill.js` load
-`https://gifos.app` and hit the real relay. Both knobs redirect them at the
+flags `swarm.js`, `meet.js` and `squat.js` load
+`https://gifos.app` and hit the real relay (`vanish-drill.js` is the
+exception — self-contained, it spawns its own relay + static server and is
+always local). Both knobs redirect them at the
 dev stack — pass BOTH, or a bot loads the local page and still meshes over the
 production relay:
 
@@ -1164,8 +1184,6 @@ decision and so are deliberately kept out of that script.
   (`forceSeat` + `learnOcc`) so the deadlock leg is measured every run. Needs
   `RELAY_DEV=1` on its own relay (the frame meter otherwise looks like the
   deadlock). Prefer the browser-capable gate box for the browser drills.
-- `browser/e2e-relay.js` times out waiting for the desktop `.icon` to render.
-  Predates this work — it fails identically at `421ecc5`.
 - `drills/adversary-room.js` has, on at least one run, caught every coord being
   held by two participants with populations disagreeing (3–6 of 11). Whether
   that split survives the current wire is unconfirmed. It is the reason the
