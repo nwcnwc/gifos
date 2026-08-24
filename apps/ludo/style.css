@@ -45,16 +45,16 @@ button{appearance:none;border:0;cursor:pointer;font:inherit;font-weight:700;bord
 .sq.yellow:not(.yard){background:#f0dc8a}
 .sq.blue:not(.yard){background:#8ab0e0}
 .tok{
-  position:absolute;left:18%;top:18%;width:64%;height:64%;min-height:0;
+  position:absolute;left:8%;top:8%;width:84%;height:84%;min-height:0;
   border-radius:50%;padding:0;border:2px solid #fff;
-  box-shadow:0 1px 3px rgba(0,0,0,.4);
+  box-shadow:0 1px 3px rgba(0,0,0,.45), inset 0 -3px 0 rgba(0,0,0,.18);
 }
 .sq .tok:nth-child(1):not(:only-child){left:6%;top:6%;width:44%;height:44%}
 .sq .tok:nth-child(2){left:auto;right:6%;top:6%;width:44%;height:44%}
 .sq .tok:nth-child(3){left:6%;top:auto;bottom:6%;width:44%;height:44%}
 .sq .tok:nth-child(4){left:auto;right:6%;top:auto;bottom:6%;width:44%;height:44%}
-.tok.red{background:#c42830}.tok.green{background:#2a8a4a}
-.tok.yellow{background:#e0b024}.tok.blue{background:#2a5aa8}
+.tok.red{background:#ef535a}.tok.green{background:#3cb86a}
+.tok.yellow{background:#f0c84a}.tok.blue{background:#4a7fd0}
 .tok.lit{outline:2px solid #fff;z-index:2}
 .controls{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px}
 .die{
