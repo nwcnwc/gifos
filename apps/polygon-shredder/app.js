@@ -163,8 +163,7 @@
         return false;
       });
     }
-    if (typeof matchMedia === 'function' && matchMedia('(max-width: 700px)').matches) setSheet(false);
-    else setSheet(true);
+    setSheet(false);
 
     if (!bootMount()) return;
     watchFps();

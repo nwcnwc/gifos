@@ -153,7 +153,20 @@
     encasing.rotation.z += Math.PI / 2;
 
     controls = new THREE.OrbitControls(camera, renderer.domElement);
-    sim = new Simulation(renderer, size, size);
+    function trySim(type) {
+      root.__psFloatType = type;
+      return new Simulation(renderer, size, size);
+    }
+    try {
+      sim = trySim(root.__psFloatType || THREE.FloatType);
+    } catch (e1) {
+      try {
+        sim = trySim(THREE.HalfFloatType);
+      } catch (e2) {
+        lastError = 'This GPU cannot run the shred — it cannot simulate the cloud.';
+        throw e2;
+      }
+    }
 
     gl = renderer.getContext();
     var shadowBufferSize = Math.min(size >= 64 ? 1024 : (size >= 32 ? 512 : 256), gl.getParameter(gl.MAX_TEXTURE_SIZE));
@@ -379,7 +392,9 @@
         mounted = true;
         return true;
       } catch (e) {
-        if (!lastError) lastError = 'The shred failed to start on this GPU.';
+        if (!lastError) {
+          lastError = 'This GPU cannot run the shred — it cannot simulate the cloud. A phone or computer with a stronger GPU will.';
+        }
         try { destroy(); } catch (e2) {}
         return false;
       }
