@@ -41,7 +41,10 @@
   #who{color:var(--muted,#999);font-size:12px;flex:1}
   #saved{color:var(--muted,#999);font-size:12px}
   #body{flex:1;width:100%;border:0;resize:none;padding:16px 18px;font:16px/1.5 system-ui;background:transparent;color:var(--text,#1a1a2e);outline:0}
-  #nobody{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted,#999);padding:24px;text-align:center;line-height:1.45}
+  #body[hidden]{display:none}
+  #nobody{flex:1;align-items:center;justify-content:center;color:var(--muted,#999);padding:24px;text-align:center;line-height:1.45}
+  #nobody:not([hidden]){display:flex}
+  #nobody[hidden]{display:none}
   @media (max-width:640px){
     #listwrap{width:100%;border-right:0}
     #pane{display:none}
@@ -1058,7 +1061,7 @@
   .sw{width:22px;height:22px;border-radius:6px;cursor:pointer;border:2px solid transparent;flex:none}
   .sw.sel{border-color:var(--text,#e0e0f0);box-shadow:0 0 0 1px var(--bg,#0a0a0f)}
   #custom{width:28px;height:28px;border:0;padding:0;background:none;cursor:pointer}
-  .sz{display:flex;align-items:center;gap:6px;flex:1;min-width:90px}
+  .sz{display:flex;align-items:center;gap:6px;flex:1;min-width:90px;max-width:220px}
   .sz input{flex:1;accent-color:var(--accent2,#ff5caa)}
   .sz span{font:11px ui-monospace,monospace;color:var(--muted,#8888aa);min-width:28px}
   #stage{flex:1;min-height:0;position:relative;background:var(--bg,#0a0a0f)}
@@ -1078,7 +1081,7 @@
   <div class="tools" id="tools">
     <button id="tbrush" class="on" title="Brush (B)" aria-label="Brush"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19l8.5-8.5 3 3L8 22H5v-3z"/><path d="M14 7l3 3 3.5-3.5a2.1 2.1 0 0 0 0-3L19 2a2.1 2.1 0 0 0-3 0L14 7z"/></svg></button>
     <button id="terase" title="Eraser (E)" aria-label="Eraser"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 17l8-8 7 7-4 4H8z"/><path d="M14 9l-7 7"/></svg></button>
-    <button id="tfill" title="Fill (G)" aria-label="Fill"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16"/><path d="M7 16l5-11 5 11"/><path d="M9 12h6"/></svg></button>
+    <button id="tfill" title="Fill (G)" aria-label="Fill"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l7-8 7 8H4z"/><path d="M6 13v2a4 4 0 0 0 4 4"/><path d="M16 19c1.2 0 2.5 1 2.5 2.4 0 1.6-2.5 2.6-2.5 2.6"/></svg></button>
     <button id="tpick" title="Eyedropper (I)" aria-label="Eyedropper"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 7l5 5"/><path d="M4 20l7-7 3 3-7 7H4v-3z"/><path d="M16 3l5 5-4 4-5-5z"/></svg></button>
   </div>
   <div class="pal" id="pal"></div>
@@ -1754,6 +1757,7 @@ function drawTrace(){
     lines.push('<span style="color:'+P.color+'">'+escTrace(P.src||'y')+'</span> = '+fmtVal(y));
   }
   readout.className='on';readout.innerHTML=lines.join('<br>');
+  if(window.__calc) window.__calc.traceX=traceX;
 }
 function escTrace(s){
   return String(s).replace(/[&<>]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':'&gt;';}).slice(0,36);
