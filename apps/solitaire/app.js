@@ -55,7 +55,8 @@
   function paint(i) {
     var c = s.cards[i], el = els[i];
     var suit = K.SUIT_CLASS[c.type] || 'spades';
-    el.className = 'card card--' + suit + (c.facingUp ? ' card--front' : ' card--back');
+    el.className = 'card card--' + suit + (c.facingUp ? ' card--front' : ' card--back') +
+      (c.number === 10 ? ' card--ten' : '');
     el.classList.toggle('sel', selected === i);
     el.classList.toggle('hint', !!(hintOn && hintOn.card === i));
     el.querySelector('.rank').textContent = K.rankName(c.number);
@@ -268,7 +269,6 @@
       if (!K.playable(s, i)) return;
       e.stopPropagation();
       var start = point(e);
-      var mouse = e.pointerType === 'mouse';
       var armed = false;
       var hits = [];
       function arm() {
@@ -292,7 +292,7 @@
         var p = point(ev);
         if (!armed) {
           var dx = p.x - start.x, dy = p.y - start.y;
-          if (mouse || dx * dx + dy * dy > 64) arm();
+          if (dx * dx + dy * dy > 64) arm();
           else return;
         }
         moveAt(p);
@@ -326,7 +326,6 @@
       window.addEventListener('pointermove', onMove, { passive: false });
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onUp);
-      if (mouse) arm();
     };
   }
 
