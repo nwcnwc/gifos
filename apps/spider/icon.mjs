@@ -89,15 +89,27 @@ function drawText(put, x, y, str, s, r, g, b) {
 function frameIndices(pal, f) {
   const rgba = new Float32Array(RW * RW * 4);
   const t = f / (FRAMES - 1);
-  const n = 4 + Math.floor(t * 6);
+  const done = Math.min(8, Math.floor(t * 9));
   for (let py = 0; py < RW; py++) for (let px = 0; px < RW; px++) {
     const x = px / SS, y = py / SS;
     let col = null, a = 0;
     if (inRR(x, y, 6, 6, 122, 122, 18)) { a = 1; col = FELT; }
     for (let i = 0; i < 8; i++) {
-      const x0 = 14 + i * 13;
-      const h = 18 + ((i * 3 + n) % 7) * 8;
-      if (inRR(x, y, x0, 24, x0 + 11, 24 + h, 2)) col = i % 2 ? CREAM : [26, 58, 120];
+      const x0 = 10 + i * 13;
+      if (i < done) {
+        if (inRR(x, y, x0, 16, x0 + 11, 30, 2)) col = CREAM;
+      }
+    }
+    for (let i = 0; i < 10; i++) {
+      const x0 = 9 + i * 11;
+      const h = 22 + ((i * 3 + Math.floor(t * 4)) % 5) * 7;
+      const y0 = 38;
+      if (inRR(x, y, x0, y0, x0 + 10, y0 + h, 2)) col = (i + done) % 2 ? CREAM : [26, 58, 120];
+    }
+    if (t > 0.55) {
+      const lift = (t - 0.55) / 0.45;
+      const y0 = 50 - lift * 28;
+      if (inRR(x, y, 52, y0, 76, y0 + 34, 3)) col = GOLD;
     }
     const o = (py * RW + px) * 4;
     if (a) { rgba[o] = col[0]; rgba[o + 1] = col[1]; rgba[o + 2] = col[2]; rgba[o + 3] = 1; }
@@ -174,21 +186,52 @@ export function screenshotPng() {
     }
   };
   fill(0, 0, W, H, 10, 10, 15);
-  rr(30, 24, 1170, 696, 24, 18, 48, 28);
-  drawText(put, 48, 40, 'SPIDER', 8, 247, 243, 234);
-  drawText(put, 48, 118, 'EIGHT RUNS  TEN PILES', 3, 232, 196, 96);
-  const labs = ['K', 'Q', 'J', '10', '9', '8', '7', 'A'];
+  rr(18, 14, 1182, 706, 22, 18, 48, 28);
+  drawText(put, 36, 28, 'SPIDER', 6, 247, 243, 234);
+  drawText(put, 280, 36, '487', 4, 232, 196, 96);
+  drawText(put, 400, 36, '3 OF 8', 4, 232, 196, 96);
+  drawText(put, 520, 36, '1 SUIT  2 SUITS  4 SUITS', 3, 232, 196, 96);
+  for (let i = 0; i < 8; i++) {
+    const x0 = 36 + i * 52;
+    rr(x0, 88, x0 + 44, 148, 4, i < 3 ? 247 : 10, i < 3 ? 243 : 40, i < 3 ? 234 : 22);
+    if (i < 3) drawText(put, x0 + 8, 104, 'K', 3, 26, 20, 16);
+  }
+  for (let i = 0; i < 4; i++) {
+    rr(980 + i * 4, 88 + i * 3, 980 + i * 4 + 70, 88 + i * 3 + 92, 5, 26, 42, 120);
+  }
+  drawText(put, 1060, 120, '3', 3, 232, 196, 96);
+  const COLS = [
+    ['Kd', 'Qd', 'Jd', '10d'],
+    ['Kh', 'Qh', '9s'],
+    ['back', 'back', 'As', '2s', '3s'],
+    ['8c', '7c', '6h'],
+    ['back', 'Ks', 'Qs', 'Js', '10s', '9s'],
+    ['5d', '4d', '3d'],
+    ['back', 'back', '7s'],
+    ['Qc', 'Jc', '10c', '9c', '8c'],
+    ['6s', '5h', '4s'],
+    ['back', 'Ah'],
+  ];
+  function paintFace(x0, y0, x1, y1, lab, red) {
+    rr(x0, y0, x1, y1, 6, 247, 243, 234);
+    const ink = red ? [196, 40, 48] : [26, 20, 16];
+    drawText(put, x0 + 8, y0 + 8, lab, 3, ink[0], ink[1], ink[2]);
+  }
   for (let c = 0; c < 10; c++) {
-    const x0 = 40 + c * 112;
-    rr(x0, 180, x0 + 100, 320, 8, 10, 40, 22);
-    const n = 3 + (c % 5);
-    for (let r = 0; r < n; r++) {
-      const y0 = 190 + r * 22;
-      rr(x0 + 6, y0, x0 + 94, y0 + 130, 6, 247, 243, 234);
-      drawText(put, x0 + 16, y0 + 8, labs[r % labs.length], 3, 26, 20, 16);
+    const x0 = 28 + c * 116;
+    const pile = COLS[c];
+    rr(x0, 168, x0 + 104, 196, 6, 10, 40, 22);
+    for (let r = 0; r < pile.length; r++) {
+      const y0 = 176 + r * 28;
+      const lab = pile[r];
+      if (lab === 'back') rr(x0 + 6, y0, x0 + 98, y0 + 132, 6, 26, 42, 120);
+      else {
+        const red = /[hd]$/.test(lab);
+        paintFace(x0 + 6, y0, x0 + 98, y0 + 132, lab.slice(0, -1), red);
+      }
     }
   }
-  drawText(put, 48, 640, 'THE FILE IS THE TABLEAU', 3, 232, 196, 96);
+  drawText(put, 36, 668, 'THE FILE IS THE TABLEAU', 3, 232, 196, 96);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

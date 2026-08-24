@@ -74,6 +74,10 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 }
 if (!files['COPYING-spider.txt'].includes('Lee Kelly')) throw new Error('COPYING');
 if (!files['app.js'].includes("db('save')")) throw new Error('save');
+if (!files['engine.js'].includes('suit')) throw new Error('suits');
+if (!files['app.js'].includes('onBack')) throw new Error('onBack');
+if (!files['app.js'].includes('data-suits')) throw new Error('1/2/4');
+if (!files['help.md'].includes('4 suits')) throw new Error('help 4-suit');
 
 for (const [n, s] of Object.entries(files)) {
   if (typeof s !== 'string' || !n.endsWith('.js')) continue;
@@ -97,8 +101,11 @@ for (const [n, s] of Object.entries(files)) {
     '  var n = 0; b.tableau.forEach(function (p) { n += p.length; });\n' +
     '  if (n + b.stock.length !== 104) throw new Error("cards " + n + " " + b.stock.length);\n' +
     '  if (b.tableau[0].length !== 6 || b.tableau[4].length !== 5) throw new Error("deal shape");\n' +
-    '  if (!Spider.isValidMoveGroup([{rank:13},{rank:12},{rank:11}])) throw new Error("run");\n' +
-    '  if (Spider.isValidMoveGroup([{rank:13},{rank:11}])) throw new Error("gap");\n' +
+    '  if (!Spider.isValidMoveGroup([{rank:13,suit:0},{rank:12,suit:0},{rank:11,suit:0}])) throw new Error("run");\n' +
+    '  if (Spider.isValidMoveGroup([{rank:13,suit:0},{rank:12,suit:1}])) throw new Error("mixed suit moved");\n' +
+    '  if (Spider.isValidMoveGroup([{rank:13,suit:0},{rank:11,suit:0}])) throw new Error("gap");\n' +
+    '  var b4 = Spider.createBoardState("seed-1", 4);\n' +
+    '  if (b4.suits !== 4) throw new Error("4-suit");\n' +
     '  return b.stock.length;\n' +
     '})();',
     ctx
