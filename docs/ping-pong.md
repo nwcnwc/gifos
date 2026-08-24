@@ -1,5 +1,17 @@
 # Ping Pong — Design Document
 
+**Status: design doc; the app SHIPPED (`site/js/sample-apps.js`, Games
+folder) and diverged in the details.** As built: TWO shared records (`game`,
+host-authored, and `guest` — paddle, heartbeat, ready, swing); short field
+names (`sx/sy/sz/sp`, `hostX/hostY/guestX/guestY`); a single pending swing on
+the `guest` record rather than a `swings` queue (captured at pointerdown/up,
+default force 0.5 — hits fire on proximity, not only while pressed); no
+`epoch`, no `resetAt`; timeouts are `STATE_TIMEOUT = 3000` /
+`GUEST_TIMEOUT = 3500` and no `window.online/offline` listener; scores run
+unbounded (no first-to-11 — "New game" resets); and a CPU opponent shipped
+as the default solo mode. The mechanism arguments below still explain WHY the
+shape is what it is.
+
 A real-time, two-player table-tennis game for GifOS. Each player opens the app, presses **Invite**, and joins from their own phone or computer. Both players see the table from their own end; the host runs the physics and broadcasts state, while the guest sends swing inputs back to the host.
 
 ## 1. Goals
@@ -52,7 +64,7 @@ This gives each player a natural first-person view without maintaining two copie
 
 ## 5. Game state
 
-A single shared record `id: 'game'` in the `pingpong` collection:
+A shared record `id: 'game'` in the `pingpong` collection (as built, a second `id: 'guest'` record carries the guest's paddle/heartbeat/ready/swing):
 
 ```js
 {
@@ -215,15 +227,14 @@ Because we accumulate `spinPhase` from the spin vector's magnitude, a fast-spinn
 GifOS already tracks connection health and will promote a guest to host if the original host disappears. The app adds its own player-level pause:
 
 1. Each client watches the timestamp of the latest state record it received.
-2. If no fresh state arrives within `MISSING_MS` (e.g. 2000 ms), the app shows the overlay:
+2. If no fresh state arrives within `STATE_TIMEOUT` (3000 ms as built), the app shows the overlay:
    - "Connection paused. Tap Ready when you're back online."
-3. The client also listens to `window.online` / `window.offline` for a quick UI hint.
 4. When the player taps the overlay button, the client writes a `ready` intent to the shared record (or just waits until state resumes). Once fresh state is flowing again, the overlay disappears automatically.
 5. While paused, the **host freezes physics** so the ball does not fly past a disconnected player. This is the key requirement: the returning player must be ready when the ball comes at them.
 
 ### 9.1 Host pause rule
 
-The host checks the last time it received any input or state heartbeat from the guest. If the guest is quiet for more than `GUEST_TIMEOUT_MS` (e.g. 3000 ms), the host sets `paused: true` and stops advancing the ball. It keeps broadcasting the frozen state.
+The host checks the last time it received any input or state heartbeat from the guest. If the guest is quiet for more than `GUEST_TIMEOUT` (3500 ms as built), the host sets `paused: true` and stops advancing the ball. It keeps broadcasting the frozen state.
 
 When the guest returns and sends a `ready: true` flag (or any new input), the host unpauses. If the ball was in mid-air toward the guest, it resumes from exactly that point.
 
@@ -233,7 +244,7 @@ When the guest returns and sends a `ready: true` flag (or any new input), the ho
 2. Host taps **Invite**; guest joins via the link.
 3. Both see the table. Host serves by tapping/clicking.
 4. Rally continues until someone misses. Host awards the point and resets the ball to the server's side.
-5. First to 11 (by 2) wins. A "New game" button clears scores and re-serves.
+5. Scores accumulate (no win condition as built). A "New game" button clears scores and re-serves.
 
 ## 11. Files to change
 
@@ -260,4 +271,4 @@ No changes are required to the runtime, mesh, or relay: the game uses the existi
 
 - Should the app support single-device hot-seat mode for quick testing? (Likely yes: if no guest is present, the same player controls both paddles top and bottom.)
 - Should we add sound on paddle hits? (Yes, via a short Web Audio beep; no external assets needed.)
-- Should there be an AI opponent? (Out of scope for the first version; the real opponent is another person.)
+- Should there be an AI opponent? (SHIPPED: a CPU opponent is the default solo experience — `runCpu` tracks, leads and swings with randomized force/aim.)
