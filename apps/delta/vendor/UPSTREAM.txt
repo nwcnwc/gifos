@@ -5,9 +5,9 @@ commit:   ef19b22f9afe7f6054dae3fbf7dc8a4510725c88
 license:  MIT (COPYING.txt) for the code.
 
 NOT copied: sounds/title.* and sounds/game.* (Rob Hubbard SID recordings).
-Shoot/explode SFX are also omitted; the port is silent.
+Shoot/explode are hooked to window.DeltaSfx (synthesized in sfx.js), never the SID.
 
 sha256:
-  delta.js     0d0d7302f66cd4b14fb2ac289248357dc1b565885ecefe5d6aa94802ae84c7e2
+  delta.js     52f397d8f31a9faef07c75c3d5a58eac8eae147247acbe5875655e06dd42c85a
   game.js      8a27031b0b1adc4828a375596c1a976c9393fc2070573fe678b7689bae7d9cfa
   COPYING.txt  bb0da05207f56f11085de44778dac0eccf0b362e2f210f1447734585d3a95f0f
