@@ -199,6 +199,24 @@ function loadGame() {
     TY.removePath(8, 6);
     check('erasing the tile removes the path', TY.paths.length === before,
       TY.paths.length);
+
+    // A finger reports buttons=0. The jam used to ignore that drag entirely.
+    const layer = TY.gridPointerLayer;
+    if (layer) {
+      layer.getBoundingClientRect = () => ({ left: 0, top: 0, width: 160, height: 80, right: 160, bottom: 80 });
+      const ev = (type, x, y) => ({
+        type: type, pointerId: 1, pointerType: 'touch', isPrimary: true,
+        buttons: 0, button: 0, clientX: x, clientY: y, x: x, y: y,
+        stopPropagation() {}, preventDefault() {},
+      });
+      const nTiles = TY.inventory.paths;
+      TY.handlePointerdown(ev('pointerdown', 12, 12));
+      TY.handlePointermove(ev('pointermove', 20, 12));
+      TY.handlePointermove(ev('pointermove', 36, 12));
+      TY.handlePointerup(ev('pointerup', 36, 12));
+      check('a buttons=0 touch drag is accepted (tiles spent or handlers did not throw)',
+        TY.inventory.paths <= nTiles);
+    }
   }
 }
 
