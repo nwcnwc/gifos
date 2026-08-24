@@ -52,13 +52,14 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad);
 }
 
-const SCRIPTS = ['net.js', 'app.js'];
+const SCRIPTS = ['sim.js', 'net.js', 'app.js'];
 const helpMd = read('help.md');
 if (helpMd.trim().length < 400) throw new Error('help.md is too short');
 const files = {
   'manifest.json': JSON.stringify(manifest),
   'index.html': read('index.html'),
   'style.css': read('style.css'),
+  'sim.js': read('sim.js'),
   'net.js': read('net.js'),
   'app.js': read('app.js'),
   'COPYING-tanks.txt': read('vendor/COPYING-tanks.txt'),

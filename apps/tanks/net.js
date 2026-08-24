@@ -129,6 +129,13 @@
       seenShots[key] = now();
       onShot({ x: s.x, y: s.y, a: s.a, by: p.id });
     }
+    var live = {};
+    for (i = 0; i < p.shots.length; i++) {
+      if (p.shots[i]) live[p.id + ':' + p.shots[i].n] = 1;
+    }
+    for (key in seenShots) {
+      if (key.lastIndexOf(p.id + ':', 0) === 0 && !live[key]) delete seenShots[key];
+    }
   }
 
   function claimHit(toId, dmg) {
