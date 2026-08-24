@@ -27,6 +27,13 @@ let failures = 0;
 const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (d ? '  (' + d + ')' : '')); if (!c) failures++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// serviceWorkers:'block' works by injecting `if (navigator.serviceWorker) …`
+// into EVERY frame — and in the sandboxed app iframe (opaque origin) that READ
+// throws a SecurityError. It is Playwright's own snippet failing, not site or
+// app code, so it never counts as a page error (same filter as
+// drills/e2e-meet-app-guest-perms.js).
+const pwNoise = (e) => /serviceWorker/.test(e.message);
+
 (async () => {
   const index = JSON.parse(fs.readFileSync(path.join(SITE, 'apps', 'index.json'), 'utf8'));
   const SLUG = '2048';
@@ -36,7 +43,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const NEW_SHA = 'f'.repeat(64);
 
   const browser = await chromium.launch({ executablePath: CHROME });
-  const context = await browser.newContext();
+  // serviceWorkers:'block' — the seed page (index.html) registers the offline
+  // worker, and a worker-served fetch never passes through context.route: the
+  // test's catalog/build/version stubs would silently stop applying and every
+  // launch would see the REAL index.json (same sha as the install → no nudge).
+  const context = await browser.newContext({ serviceWorkers: 'block' });
   let gifFetches = 0;
   context.on('request', (r) => { if (/\/apps\/[^/]+\/[^/]+\.gif/.test(r.url())) gifFetches++; });
 
@@ -52,7 +63,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // Seed a desktop with two copies of the same app: one that came from the
   // store (storeSha stamped) and one the player brought themselves.
   const seed = await context.newPage();
-  seed.on('pageerror', (e) => console.log('  [pageerror]', e.message));
+  seed.on('pageerror', (e) => { if (!pwNoise(e)) console.log('  [pageerror]', e.message); });
   await seed.goto(BASE + '/index.html');
   await seed.waitForSelector('.icon', { timeout: 15000 });
   const ids = await seed.evaluate(async ({ b64, sha, appId }) => {
@@ -68,7 +79,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   const open = async (fileId) => {
     const page = await context.newPage();
-    page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
+    page.on('pageerror', (e) => { if (!pwNoise(e)) console.log('  [pageerror]', e.message); });
     await page.goto(BASE + '/run.html#id=' + encodeURIComponent(fileId));
     await page.waitForSelector('body.has-app', { timeout: 15000 });
     await sleep(1200);
@@ -154,7 +165,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await context.route(/\/apps\/index\.json(\?|$)/, (route) => route.fulfill({ status: 404, body: 'gone' }));
   let errs = 0;
   p = await context.newPage();
-  p.on('pageerror', () => errs++);
+  p.on('pageerror', (e) => { if (!pwNoise(e)) errs++; });
   await p.goto(BASE + '/run.html#id=' + encodeURIComponent(ids.store));
   await p.waitForSelector('body.has-app', { timeout: 15000 });
   await sleep(1200);
