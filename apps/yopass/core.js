@@ -78,7 +78,7 @@
     if (!rec) return [];
     var bits = [];
     bits.push(rec.hasPass ? 'Passphrase on' : 'Anyone in the room');
-    bits.push(rec.burn ? 'Burns after reading' : 'Does not burn on open');
+    bits.push(rec.burn ? 'Burns after reading' : 'Stays until burned');
     if (rec.expiresAt) bits.push(remain(rec.expiresAt, now) || lifeLabel(rec.lifetime));
     else bits.push(lifeLabel(rec.lifetime));
     return bits;
