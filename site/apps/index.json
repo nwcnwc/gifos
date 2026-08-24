@@ -1170,6 +1170,54 @@
       "sha256": "3b8f04902b8d59ebc504b6491e8ccf7719b27e35f40426e349a5f822cc11ef1e"
     },
     {
+      "slug": "delta",
+      "appId": "delta",
+      "name": "Delta",
+      "shortName": "Delta",
+      "version": "1.0.0",
+      "tagline": "A C64-style shmup. Formations come. You shoot. Best score lives in the file.",
+      "author": {
+        "name": "Jake Gordon",
+        "url": "https://github.com/jakesgordon/javascript-delta"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "HTML5 Delta",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Games"
+      ],
+      "tags": [
+        "shmup",
+        "arcade",
+        "c64",
+        "delta",
+        "offline"
+      ],
+      "accent": [
+        160,
+        160,
+        255
+      ],
+      "cover": "/apps/delta/cover.jpg",
+      "bytes": 318279,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "a69c0c36409ce86b6d56eedfd79f20114b498a431a01f0b0512aa51aa5eed497"
+    },
+    {
       "slug": "drawnix",
       "appId": "drawnix",
       "name": "Drawnix",
@@ -2807,6 +2855,55 @@
       "sha256": "142471eef1dd0b8857a8f398515b8dc218bf0203d54956f55b80437b76e1b08b"
     },
     {
+      "slug": "metronome",
+      "appId": "metronome",
+      "name": "Metronome",
+      "shortName": "Metro",
+      "version": "1.0",
+      "tagline": "A click that keeps time. Tempo lives in this file. No microphone.",
+      "author": {
+        "name": "cwilso",
+        "url": "https://github.com/cwilso/metronome"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "metronome",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Creativity",
+        "Media"
+      ],
+      "tags": [
+        "metronome",
+        "tempo",
+        "click",
+        "audio",
+        "offline"
+      ],
+      "accent": [
+        232,
+        80,
+        64
+      ],
+      "cover": "/apps/metronome/cover.jpg",
+      "bytes": 188887,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "82cf3af77d7a7a06efbab6e151f0343961579a8359e2510a8c22b915ef683330"
+    },
+    {
       "slug": "mykonos",
       "appId": "mykonos",
       "name": "Mykonos",
@@ -4009,6 +4106,54 @@
         "ts": "2026-08-23"
       },
       "sha256": "be167f4458c7e272257f7b5d0fe675bc17b697917f22e663c9fe65b69f88458a"
+    },
+    {
+      "slug": "qr-scan",
+      "appId": "qr-scan",
+      "name": "QR Scan",
+      "shortName": "Scan",
+      "version": "1.0",
+      "tagline": "Read a code from a photo. Nothing is uploaded.",
+      "author": {
+        "name": "cozmo",
+        "url": "https://github.com/cozmo/jsQR"
+      },
+      "porter": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "basedOn": {
+        "name": "jsQR",
+        "blessed": false
+      },
+      "minBuild": 947,
+      "releaseDate": "2026-08-24",
+      "updated": "2026-08-24",
+      "categories": [
+        "Utilities"
+      ],
+      "tags": [
+        "qr",
+        "scan",
+        "photo",
+        "decode",
+        "offline"
+      ],
+      "accent": [
+        64,
+        180,
+        140
+      ],
+      "cover": "/apps/qr-scan/cover.jpg",
+      "bytes": 267325,
+      "download": 0,
+      "provides": null,
+      "signature": {
+        "type": "domain",
+        "id": "gifos.app",
+        "ts": "2026-08-24"
+      },
+      "sha256": "e8df93cc17386045e3490747db162afe977c0a450ec055a10c2c2aede3bdb25b"
     },
     {
       "slug": "queens",

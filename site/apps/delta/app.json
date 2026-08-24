@@ -1,0 +1,58 @@
+{
+  "catalog": "1.0",
+  "slug": "delta",
+  "appId": "delta",
+  "name": "Delta",
+  "shortName": "Delta",
+  "version": "1.0.0",
+  "minBuild": 947,
+  "tagline": "A C64-style shmup. Formations come. You shoot. Best score lives in the file.",
+  "description": "You are a little ship on the left. Waves of aliens come from the right in C64 Delta formations — lines, loops, rocks that scrape the hull. Three lives. The score sits in the corner.\n\nOn a phone the D-pad and FIRE sit under your thumbs. On a computer it is the arrows (or WASD) and the space bar. Tap or press space on the title to start.\n\nAn unofficial port of HTML5 Delta by Jake Gordon, MIT-licensed. The original title tune was a SID recording and is not in this copy — the formations are. Close it, come back: your best is still there.",
+  "author": {
+    "name": "Jake Gordon",
+    "url": "https://github.com/jakesgordon/javascript-delta"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "shmup",
+    "arcade",
+    "c64",
+    "delta",
+    "offline"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/delta",
+  "accent": [
+    160,
+    160,
+    255
+  ],
+  "capabilities": {
+    "db": true
+  },
+  "cover": "/apps/delta/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/delta/delta.gif",
+  "bytes": 318279,
+  "download": 0,
+  "provides": null,
+  "sha256": "a69c0c36409ce86b6d56eedfd79f20114b498a431a01f0b0512aa51aa5eed497",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "HTML5 Delta",
+    "url": "https://github.com/jakesgordon/javascript-delta",
+    "blessed": false
+  }
+}

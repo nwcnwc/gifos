@@ -1,0 +1,73 @@
+/*******************************/
+/* global document body styles */
+/*******************************/
+
+body {
+  background: black;
+  color:      #CCC;
+  user-select: none;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  overflow: hidden;
+}
+
+/**************************/
+/* unique id-based styles */
+/**************************/
+
+#delta   { margin: 2em auto; position: relative; background: black; border: 1px solid grey; }
+#booting { position: absolute; width: 6%; left: 47%; top: 47%;      } 
+#canvas  { display: inline-block; width: 100%; height: 100%; -webkit-box-sizing: border-box; -moz-box-sizing: border-box; box-sizing: border-box; position: absolute; }
+
+h1         { margin: 0px; font-weight: bold;   color: white; display: block; width: 100%; text-align: center; vertical-align: center; z-index: 1; position: absolute;           }
+h2         { margin: 0px; font-weight: normal; color: white; display: block; width: 100%; text-align: center; vertical-align: center; z-index: 1; position: absolute; top: 8em; }
+h1#title   { font-size: 10em; }
+h1#prepare { font-size: 2em;  color: #C0A0A0; }
+h2#start   { font-size: 1em;  color: #A0A0FF; }
+
+#scoreboard               { position: absolute; top: -1.5em; vertical-align: top; line-height: 1.5em; width: 100%; font-size: 1.2em; color: white; }
+#scoreboard .lives        { visibility: hidden; }
+#scoreboard .lives .label { padding: 0 0.5em; color: #808080; }
+#scoreboard .lives  img   { margin-right: 0.5em; }
+#scoreboard .score        { position: absolute; right: 0.5em; }
+#scoreboard .score .label { padding: 0 0.5em; color: #808080; }
+#scoreboard .score .value { display: inline-block; width: 4em; }
+
+#scoreboard .lives.zero img.one   { display: none; }
+#scoreboard .lives.zero img.two   { display: none; }
+#scoreboard .lives.zero img.three { display: none; }
+#scoreboard .lives.one  img.two   { display: none; }
+#scoreboard .lives.one  img.three { display: none; }
+#scoreboard .lives.two  img.three { display: none; }
+
+#instructions { position: absolute; bottom: -1.5em; text-align: right; line-height: 1em; width: 100%; color: #A0A0A0; }
+
+#sound     { width: 24px; height: 24px; background: url(data:image/png;base64,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); display: inline-block; cursor: pointer; position: absolute; left: -2.5em; }
+#sound.on  { background-position:   0   0; }
+#sound.off { background-position: -24px 0; }
+
+#delta.preparing #scoreboard .lives   { visibility: visible; }
+#delta.playing   #scoreboard .lives   { visibility: visible; }
+
+h2#start {
+  -webkit-animation: pulsate 1s ease-out infinite;
+     -moz-animation: pulsate 1s ease-out infinite;
+       -o-animation: pulsate 1s ease-out infinite;
+          animation: pulsate 1s ease-out infinite;
+}
+
+@-webkit-keyframes pulsate { 0% { opacity: 0.0; } 50% { opacity: 1.0; } 100% { opacity: 0.0; } }
+   @-moz-keyframes pulsate { 0% { opacity: 0.0; } 50% { opacity: 1.0; } 100% { opacity: 0.0; } }
+     @-o-keyframes pulsate { 0% { opacity: 0.0; } 50% { opacity: 1.0; } 100% { opacity: 0.0; } }
+        @keyframes pulsate { 0% { opacity: 0.0; } 50% { opacity: 1.0; } 100% { opacity: 0.0; } }
+
+/*****************************/
+/* @media query based layout */
+/*****************************/
+
+@media screen and (min-width:    0px) and (min-height:    0px) { #delta { width:  512px; height: 384px; line-height: 384px; font-size:  7pt; } }
+@media screen and (min-width:  840px) and (min-height:  550px) { #delta { width:  640px; height: 480px; line-height: 480px; font-size:  9pt; } }
+@media screen and (min-width:  968px) and (min-height:  646px) { #delta { width:  768px; height: 576px; line-height: 576px; font-size: 11pt; } }
+@media screen and (min-width: 1096px) and (min-height:  742px) { #delta { width:  896px; height: 672px; line-height: 672px; font-size: 13pt; } }
+@media screen and (min-width: 1224px) and (min-height:  838px) { #delta { width: 1024px; height: 768px; line-height: 768px; font-size: 15pt; } }
+@media screen and (min-width: 1480px) and (min-height: 1030px) { #delta { width: 1280px; height: 960px; line-height: 960px; font-size: 17pt; } }
+
