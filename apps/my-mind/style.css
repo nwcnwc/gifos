@@ -48,12 +48,22 @@ html, body { height: 100%; margin: 0; background: #eed; }
     color: #223;
     padding: 0 4px;
   }
-  #tip { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 24px); }
+  #tip { display: none; }
+  #empty { top: 62%; max-width: 16rem; }
   #empty .desk { display: none; }
   #empty .phone { display: inline; }
   .meet {
-    top: auto; bottom: calc(62px + env(safe-area-inset-bottom, 0px));
-    left: 8px; right: 8px; max-width: none;
+    top: auto;
+    left: 0; right: 0;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    max-width: none;
+    border-radius: 0;
+    border: none;
+    border-top: 1px solid #ddd;
+    background: #f7f4ea;
+    font-size: 11px;
+    padding: 4px 10px;
   }
-  .pane#ui { width: min(220px, 72vw); }
+  .pane#ui { width: min(220px, 78vw); }
+  .pane#ui button[data-command=help] { display: none; }
 }

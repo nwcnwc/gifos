@@ -157,6 +157,7 @@
       }
       ready = true;
       paintEmpty();
+      fitChrome();
       if (root.MyMind.subscribe) {
         root.MyMind.subscribe('item-change', persist);
         root.MyMind.subscribe('map-new', persist);
@@ -179,12 +180,22 @@
 
   if (root.MMLocal && root.MMLocal._onPersist) root.MMLocal._onPersist(persistLs);
 
+  function fitChrome() {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    var ui = document.getElementById('ui');
+    if (!ui) return;
+    var wide = window.innerWidth > 700;
+    if (wide && ui.hidden) { ui.hidden = false; window.dispatchEvent(new Event('resize')); }
+    if (!wide && !ui.hidden) { ui.hidden = true; window.dispatchEvent(new Event('resize')); }
+  }
+
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function () { wirePhone(); wireBack(); });
+      document.addEventListener('DOMContentLoaded', function () { wirePhone(); wireBack(); fitChrome(); });
     } else {
       wirePhone();
       wireBack();
+      fitChrome();
     }
   }
 
