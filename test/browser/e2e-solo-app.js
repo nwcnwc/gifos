@@ -37,11 +37,31 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   d.on('pageerror', (e) => console.log('  [desk] ' + e.message));
   await d.goto(BASE + '/index.html');
   await d.waitForSelector('.icon', { timeout: 30000 });
+  // Pick a seeded app that asks for NOTHING. An app that declares a gated
+  // ability (motion, fullscreen, camera, …) or a network host opens the OS
+  // Abilities consent on first launch — a modal over the whole app bar —
+  // and that is correct product behaviour, not this suite's subject. The
+  // seed order changed (Tilt, a motion+fullscreen game, became first) and
+  // `find()` on the first default app then clicked Help through that modal
+  // for 30s. Choose by MANIFEST, not by position, so a reseed cannot do it
+  // again. The gated set mirrors gifos-perms.js CAP_LABELS; hosts mirror
+  // runtime.js policy.hasNetwork.
   const appId = await d.evaluate(async (SYS) => {
-    const f = (await GifOS.store.allFiles()).find((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
-    return f ? f.id : null;
+    const GATED = ['microphone', 'camera', 'motion', 'ai', 'api', 'agent', 'wasm', 'gpu', 'pointer', 'fullscreen', 'pool'];
+    const files = (await GifOS.store.allFiles()).filter((x) => x.isApp && x.isDefault && x.appId && SYS.indexOf(x.appId) === -1);
+    for (const f of files) {
+      const rec = await GifOS.store.getFile(f.id);
+      if (!rec || !rec.bytes) continue;
+      let m = null;
+      try { m = (await GifOS.gif.decode(rec.bytes)).manifest || {}; } catch (e) { continue; }
+      const caps = m.capabilities || {};
+      if (GATED.some((k) => caps[k])) continue;
+      if ((m.hosts && m.hosts.length) || (m.network && m.network.hosts && m.network.hosts.length)) continue;
+      return f.id;
+    }
+    return null;
   }, SYS);
-  check('seeded desktop exposes a runnable app fileId', !!appId);
+  check('seeded desktop exposes a runnable app that asks for no ability and no host', !!appId);
   if (!appId) { await browser.close(); process.exit(1); }
   // Stamp the App Store snapshot a store install would have left on this
   // file (store.js storeSnapshot) — Help must credit it at the very bottom.
