@@ -1,0 +1,60 @@
+{
+  "catalog": "1.0",
+  "slug": "qr-code",
+  "appId": "qr-code",
+  "name": "QR Code",
+  "shortName": "QR",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Type text or a URL, get a code. Nothing is uploaded.",
+  "description": "Type any text or a link. A code appears that a phone can point at. Hold the screen up, print it, or keep it in this file. Nothing is sent anywhere — there is no account, and the words never leave this device.\n\nThe last thing you typed comes back the next time you open the app. Press Invite (the GifOS bar) if you want the same code to show up for everyone in a meeting. They can point a phone at it too.\n\nAn unofficial port of qrcodejs by davidshimjs. A general maker — not only Wi-Fi. For a fridge card with the network name and password, use WiFi Card instead.",
+  "author": {
+    "name": "davidshimjs",
+    "url": "https://github.com/davidshimjs/qrcodejs"
+  },
+  "releaseDate": "2026-08-24",
+  "updated": "2026-08-24",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "qr",
+    "code",
+    "url",
+    "text",
+    "offline",
+    "print"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/qr-code",
+  "accent": [
+    240,
+    196,
+    32
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/qr-code/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/qr-code/qr-code.gif",
+  "bytes": 202105,
+  "download": 0,
+  "provides": null,
+  "sha256": "6f3f0e3529a06559af105418aab238fa081abc5c61371fc7f605243accfa6e15",
+  "signature": {
+    "type": "domain",
+    "id": "gifos.app",
+    "ts": "2026-08-24"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "qrcodejs",
+    "url": "https://github.com/davidshimjs/qrcodejs",
+    "blessed": false
+  }
+}

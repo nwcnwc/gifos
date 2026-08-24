@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>QR Code</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>QR Code</h1>
+    <p class="lead">Type text or a URL. A code appears. Nothing is uploaded.</p>
+  </header>
+
+  <label class="field">Text or URL
+    <textarea id="payload" rows="4" maxlength="2000" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="gifos.app or any text"></textarea>
+  </label>
+
+  <article id="card" class="card">
+    <div id="qr" class="qr" aria-label="QR code"></div>
+    <p id="err" class="err" hidden></p>
+    <p id="empty" class="empty">Type something to draw a code.</p>
+  </article>
+
+  <section id="settings">
+    <fieldset>
+      <legend>Error correction</legend>
+      <label class="radio"><input type="radio" name="ecc" value="L"> L — smallest</label>
+      <label class="radio"><input type="radio" name="ecc" value="M" checked> M — default</label>
+      <label class="radio"><input type="radio" name="ecc" value="Q"> Q — tougher</label>
+      <label class="radio"><input type="radio" name="ecc" value="H"> H — toughest</label>
+    </fieldset>
+    <label class="num">Size
+      <input type="range" id="size" min="128" max="320" step="16" value="224">
+      <span id="sizeVal">224</span>
+    </label>
+    <div class="colors">
+      <label>Dark <input type="color" id="dark" value="#000000"></label>
+      <label>Light <input type="color" id="light" value="#ffffff"></label>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button type="button" id="pngBtn">Download PNG</button>
+    <button type="button" id="printBtn" class="ghost">Print</button>
+  </div>
+  <p id="meet" class="meet">Press <b>Invite</b> (top bar) to show this code in a meeting. Nothing is uploaded on its own.</p>
+</div>
+
+<div id="print-area" hidden></div>
+
+<!-- Order matters: the runtime inlines each <script src> where it stands. -->
+<script src="vendor/qrcode.js"></script>
+<script src="mp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

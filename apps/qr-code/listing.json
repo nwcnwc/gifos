@@ -1,0 +1,33 @@
+{
+  "tagline": "Type text or a URL, get a code. Nothing is uploaded.",
+  "description": "Type any text or a link. A code appears that a phone can point at. Hold the screen up, print it, or keep it in this file. Nothing is sent anywhere — there is no account, and the words never leave this device.\n\nThe last thing you typed comes back the next time you open the app. Press Invite (the GifOS bar) if you want the same code to show up for everyone in a meeting. They can point a phone at it too.\n\nAn unofficial port of qrcodejs by davidshimjs. A general maker — not only Wi-Fi. For a fridge card with the network name and password, use WiFi Card instead.",
+  "author": {
+    "name": "davidshimjs",
+    "url": "https://github.com/davidshimjs/qrcodejs"
+  },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "basedOn": {
+    "name": "qrcodejs",
+    "url": "https://github.com/davidshimjs/qrcodejs",
+    "blessed": false
+  },
+  "releaseDate": "2026-08-24",
+  "categories": [
+    "Utilities"
+  ],
+  "tags": [
+    "qr",
+    "code",
+    "url",
+    "text",
+    "offline",
+    "print"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/qr-code",
+  "cover": "screenshot.png",
+  "screenshots": []
+}
