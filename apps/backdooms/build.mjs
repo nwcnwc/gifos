@@ -33,7 +33,7 @@ const read = (p) => readFileSync(join(dir, p), 'utf8');
 
 const manifest = JSON.parse(read('manifest.json'));
 const listing = JSON.parse(read('listing.json'));
-const SCRIPTS = ['game.js', 'net.js', 'touch.js', 'boot.js'];
+const SCRIPTS = ['art.js', 'render.js', 'game.js', 'net.js', 'touch.js', 'boot.js'];
 
 if (!existsSync(join(dir, 'vendor', 'COPYING-backdooms.txt'))) {
   throw new Error('vendor/COPYING-backdooms.txt is missing');
@@ -95,8 +95,22 @@ if (manifest.appId !== 'backdooms') throw new Error('appId must be backdooms');
 if (!files['COPYING-backdooms.txt'].includes('Kuber Mehta')) {
   throw new Error('COPYING-backdooms.txt is not the upstream MIT notice');
 }
-if (!files['boot.js'].includes('Invite') || !files['net.js'].includes('Invite')) {
+if (!Object.values(files).some((f) => /Press Invite/.test(f))) {
   throw new Error('tell the player to press Invite');
+}
+// The renderer is the whole point of the 1.2 ascent: never ship the flat-fill
+// build again. These are the four things that made a corridor read.
+{
+  const r = files['render.js'];
+  if (!/perpWallDist|perp =/.test(r)) throw new Error('render.js must raycast with a perpendicular distance (DDA)');
+  if (!/side === 1 \? 0\./.test(r)) throw new Error('render.js must shade N/S walls differently from E/W');
+  if (!/rowDist/.test(r)) throw new Error('render.js must cast the floor and ceiling in perspective');
+  if (!/function fog/.test(r)) throw new Error('render.js must diminish light with distance');
+  if (!/createImageData/.test(r)) throw new Error('render.js must write pixels, not fillRect columns');
+  const a = files['art.js'];
+  for (const t of ['makeWall', 'makeCarpet', 'makeCeiling', 'gunBody', 'figure']) {
+    if (!a.includes(t)) throw new Error('art.js must generate ' + t);
+  }
 }
 if (!files['boot.js'].includes("db('prefs')")) throw new Error('boot.js must save prefs');
 

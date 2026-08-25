@@ -1,0 +1,506 @@
+/*
+ * Backdooms — every picture in the game, COMPUTED.
+ *
+ * There is not one image file in this app and there is nothing to fetch: the
+ * wallpaper, the carpet, the ceiling tiles, the figures and the shotgun are
+ * all rasterised here at start into flat typed arrays that render.js samples
+ * by integer index. That is not a stunt — it is the sandbox law (every asset
+ * inside the GIF, no CDN, no remote anything at load) met the cheapest way
+ * there is, and it keeps the whole app under a couple of hundred KB.
+ *
+ * Textures are TEX x TEX RGB (3 bytes/texel). Sprites are RGBA (4), because a
+ * figure has to be cut out of its own bounding box.
+ *
+ * The lighting model lives in render.js; everything here is unlit albedo,
+ * EXCEPT the ceiling's light panels, which carry their own emission channel.
+ */
+(function (root) {
+  'use strict';
+
+  var TEX = 64;
+
+  /* ---- small tools -------------------------------------------------- */
+
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function b255(v) { return v < 0 ? 0 : v > 255 ? 255 : v | 0; }
+
+  /* A wrapping value-noise field, sampled bilinearly. Low frequencies are the
+     stains and the damp; the raw per-texel field is the grain. */
+  function field(n, seed) {
+    var f = new Float32Array(n * n), r = rng(seed), i;
+    for (i = 0; i < f.length; i++) f[i] = r();
+    return f;
+  }
+  function sampleField(f, n, u, v) {
+    var x = u * n, y = v * n;
+    var x0 = Math.floor(x), y0 = Math.floor(y);
+    var fx = x - x0, fy = y - y0;
+    var x1 = (x0 + 1) % n, y1 = (y0 + 1) % n;
+    x0 = ((x0 % n) + n) % n; y0 = ((y0 % n) + n) % n;
+    x1 = ((x1 % n) + n) % n; y1 = ((y1 % n) + n) % n;
+    var a = f[y0 * n + x0], b = f[y0 * n + x1];
+    var c = f[y1 * n + x0], d = f[y1 * n + x1];
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    return (a + (b - a) * fx) + ((c + (d - c) * fx) - (a + (b - a) * fx)) * fy;
+  }
+  /* Two octaves is all a 64px texture can show. */
+  function fbm(f8, f16, u, v) {
+    return sampleField(f8, 8, u, v) * 0.65 + sampleField(f16, 16, u, v) * 0.35;
+  }
+
+  /* ---- the wall: Backrooms wallpaper, a chair rail, a baseboard ------ */
+  /*
+   * The horizontal bands are the whole point. A corridor reads as a corridor
+   * because the rail and the baseboard converge on the vanishing point; flat
+   * colour has nothing to converge. Upstream had no texture at all, so its
+   * only depth cue was brightness — and our port then spent that cue on a
+   * floor the same colour as the wall.
+   */
+  function makeWall() {
+    var t = new Uint8Array(TEX * TEX * 3);
+    var grain = field(TEX, 0x51A2), f8 = field(8, 0x9E11), f16 = field(16, 0x3C77);
+    var RAIL = 40, BASE = 53;
+    for (var v = 0; v < TEX; v++) {
+      for (var u = 0; u < TEX; u++) {
+        var uu = u / TEX, vv = v / TEX;
+        var damp = fbm(f8, f16, uu, vv);
+        var r, g, b;
+
+        if (v >= BASE) {
+          /* baseboard — scuffed olive-brown, lit along its top lip */
+          var bt = (v - BASE) / (TEX - BASE);
+          var k = 0.62 + 0.30 * (1 - bt) - 0.18 * bt;
+          if (v === BASE) k = 1.15;
+          if (v === BASE + 1) k = 0.95;
+          r = 96 * k; g = 78 * k; b = 34 * k;
+          r -= damp * 22; g -= damp * 20; b -= damp * 10;
+        } else if (v >= RAIL && v < RAIL + 3) {
+          /* chair rail — a lit lip, then its own shadow */
+          var lit = v === RAIL ? 1.34 : v === RAIL + 1 ? 1.06 : 0.66;
+          r = 186 * lit; g = 158 * lit; b = 66 * lit;
+        } else {
+          /* wallpaper field: a wide stripe with a hairline seam */
+          var stripe = ((u % 16) < 8) ? 1.0 : 0.955;
+          if ((u % 16) === 0) stripe = 0.83;
+          if ((u % 16) === 15) stripe = 1.06;
+          /* upper wall sits in the light, lower wall is grubbier */
+          var band = v < RAIL ? (0.90 + 0.16 * (v / RAIL)) : 0.86;
+          var kk = stripe * band;
+          r = 201 * kk; g = 172 * kk; b = 68 * kk;
+          /* damp bleeding up from the skirting and down from the ceiling */
+          var bleed = Math.max(0, (v - 30) / 22) * 0.55 + Math.max(0, (5 - v) / 5) * 0.4;
+          var stain = clamp(damp * 1.5 - 0.55, 0, 1) * (0.35 + bleed);
+          r -= stain * 96; g -= stain * 88; b -= stain * 34;
+        }
+        var gr = (grain[v * TEX + u] - 0.5) * 13;
+        var o = (v * TEX + u) * 3;
+        t[o] = b255(r + gr); t[o + 1] = b255(g + gr); t[o + 2] = b255(b + gr * 0.6);
+      }
+    }
+    return t;
+  }
+
+  /* ---- the floor: damp hotel carpet --------------------------------- */
+  function makeCarpet() {
+    var t = new Uint8Array(TEX * TEX * 3);
+    var grain = field(TEX, 0xB33F), f8 = field(8, 0x7711), f16 = field(16, 0x22A5);
+    for (var v = 0; v < TEX; v++) {
+      for (var u = 0; u < TEX; u++) {
+        var damp = fbm(f8, f16, u / TEX, v / TEX);
+        /* the weave: a coarse over-under, which is what makes carpet read as
+           carpet and not as brown paint */
+        var weave = (((u >> 1) + (v >> 1)) & 1) ? 1.06 : 0.94;
+        weave *= ((u & 1) === (v & 1)) ? 1.03 : 0.97;
+        var k = weave * (0.78 + damp * 0.44);
+        var r = 134 * k, g = 113 * k, b = 50 * k;
+        /* stains, and the border strip every half-cell */
+        var stain = clamp(damp * 1.7 - 0.85, 0, 1);
+        r -= stain * 70; g -= stain * 64; b -= stain * 26;
+        /* NO grid line here. Carpet is laid in broadloom, not tiles, and a
+           dark texel at u=0 became a hard black line down the exact centre of
+           the screen whenever the player faced along an axis — the ceiling's
+           T-bar does converge on the vanishing point, and it should, but the
+           floor joining in read as a rendering seam. */
+        var gr = (grain[v * TEX + u] - 0.5) * 30;
+        var o = (v * TEX + u) * 3;
+        t[o] = b255(r + gr); t[o + 1] = b255(g + gr); t[o + 2] = b255(b + gr * 0.7);
+      }
+    }
+    return t;
+  }
+
+  /* ---- the ceiling: acoustic tiles, four to a cell ------------------- */
+  /*
+   * TILES ONLY. The fixtures are NOT in here, and the first cut of this file
+   * getting that wrong is instructive: a lamp baked into the texture is a lamp
+   * in EVERY cell, because the texture tiles once per cell. The ceiling came
+   * out as a repeating field of grey lozenges with no rhythm to it, and no
+   * amount of tuning the brightness was going to fix a fixture that is
+   * everywhere. Where a light hangs is a fact about the LEVEL, so the level
+   * answers it (game.js `light()`) and render.js draws the panel.
+   *
+   * Kept dimmer and warmer than it wants to be, too. Mineral fibre is pale,
+   * but on screen the ceiling is a third of the frame and the monsters are not
+   * in it — if it is the brightest surface in the room the eye goes up.
+   */
+  function makeCeiling() {
+    var t = new Uint8Array(TEX * TEX * 3);
+    var grain = field(TEX, 0x1D4E), f8 = field(8, 0x5AB3), f16 = field(16, 0x6C21);
+    var Q = TEX / 2; /* two tiles across a world cell */
+    for (var v = 0; v < TEX; v++) {
+      for (var u = 0; u < TEX; u++) {
+        var tu = u % Q, tv = v % Q;
+        var damp = fbm(f8, f16, u / TEX, v / TEX);
+        var r, g, b;
+        var edge = (tu === 0 || tv === 0 || tu === Q - 1 || tv === Q - 1);
+        if (edge) {
+          /* the T-bar grid, which is the only strong line up there and so is
+             what actually draws the perspective on the ceiling */
+          var lip = (tu === 0 || tv === 0);
+          var k = lip ? 0.60 : 0.84;
+          r = 132 * k; g = 126 * k; b = 106 * k;
+        } else {
+          var pit = grain[v * TEX + u];
+          var k2 = 0.88 + damp * 0.18 - (pit > 0.86 ? 0.16 : 0);
+          r = 146 * k2; g = 141 * k2; b = 120 * k2;
+          /* the brown bloom of a leak */
+          var leak = clamp(damp * 1.8 - 1.08, 0, 1);
+          r -= leak * 34; g -= leak * 54; b -= leak * 74;
+        }
+        var gr = (grain[v * TEX + u] - 0.5) * 6;
+        var o = (v * TEX + u) * 3;
+        t[o] = b255(r + gr); t[o + 1] = b255(g + gr); t[o + 2] = b255(b + gr);
+      }
+    }
+    return t;
+  }
+
+  /* ---- sprite kit ---------------------------------------------------- */
+
+  function sprite(w, h) {
+    return { w: w, h: h, px: new Uint8ClampedArray(w * h * 4) };
+  }
+  function put(s, x, y, r, g, b, a) {
+    x = x | 0; y = y | 0;
+    if (x < 0 || y < 0 || x >= s.w || y >= s.h) return;
+    var o = (y * s.w + x) * 4;
+    if (a >= 250) { s.px[o] = r; s.px[o + 1] = g; s.px[o + 2] = b; s.px[o + 3] = 255; return; }
+    var da = s.px[o + 3] / 255, sa = a / 255, out = sa + da * (1 - sa);
+    if (out <= 0) return;
+    s.px[o] = (r * sa + s.px[o] * da * (1 - sa)) / out;
+    s.px[o + 1] = (g * sa + s.px[o + 1] * da * (1 - sa)) / out;
+    s.px[o + 2] = (b * sa + s.px[o + 2] * da * (1 - sa)) / out;
+    s.px[o + 3] = out * 255;
+  }
+
+  /*
+   * A tapered capsule with a cylinder's shading — one primitive builds a whole
+   * body. The key light is up and to the LEFT for every sprite in the game, so
+   * the figures agree with the corridor they stand in.
+   */
+  function capsule(s, x0, y0, x1, y1, r0, r1, col, opt) {
+    opt = opt || {};
+    var lo = opt.shade == null ? 0.46 : opt.shade;
+    var rim = opt.rim == null ? 0.30 : opt.rim;
+    var dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy || 1e-6;
+    var maxR = Math.max(r0, r1) + 1;
+    var bx0 = Math.floor(Math.min(x0, x1) - maxR), bx1 = Math.ceil(Math.max(x0, x1) + maxR);
+    var by0 = Math.floor(Math.min(y0, y1) - maxR), by1 = Math.ceil(Math.max(y0, y1) + maxR);
+    for (var y = by0; y <= by1; y++) {
+      for (var x = bx0; x <= bx1; x++) {
+        var t = ((x - x0) * dx + (y - y0) * dy) / len2;
+        t = clamp(t, 0, 1);
+        var cx = x0 + dx * t, cy = y0 + dy * t;
+        var r = r0 + (r1 - r0) * t;
+        var d = Math.hypot(x - cx, y - cy);
+        if (d > r) continue;
+        /* n across the limb, -1 on the lit side */
+        var nx = r > 0.01 ? (x - cx) / r : 0;
+        var round = Math.sqrt(Math.max(0, 1 - nx * nx));
+        var k = lo + (1 - lo) * round - nx * rim;
+        /* a hot edge on the lit rim, and the far edge falls into the dark */
+        if (nx < -0.72) k += 0.22;
+        var a = d > r - 0.9 ? clamp((r - d) / 0.9, 0, 1) * 255 : 255;
+        put(s, x, y, col[0] * k, col[1] * k, col[2] * k, a);
+      }
+    }
+  }
+  function blob(s, cx, cy, rx, ry, col, opt) {
+    opt = opt || {};
+    var lo = opt.shade == null ? 0.44 : opt.shade;
+    for (var y = Math.floor(cy - ry) - 1; y <= cy + ry + 1; y++) {
+      for (var x = Math.floor(cx - rx) - 1; x <= cx + rx + 1; x++) {
+        var nx = (x - cx) / rx, ny = (y - cy) / ry;
+        var d = nx * nx + ny * ny;
+        if (d > 1) continue;
+        var round = Math.sqrt(Math.max(0, 1 - d));
+        var k = lo + (1 - lo) * round - nx * 0.26 - ny * 0.16;
+        var a = d > 0.86 ? clamp((1 - d) / 0.14, 0, 1) * 255 : 255;
+        put(s, x, y, col[0] * k, col[1] * k, col[2] * k, a);
+      }
+    }
+  }
+  function glow(s, cx, cy, r, col, power) {
+    for (var y = Math.floor(cy - r) - 1; y <= cy + r + 1; y++) {
+      for (var x = Math.floor(cx - r) - 1; x <= cx + r + 1; x++) {
+        var d = Math.hypot(x - cx, y - cy) / r;
+        if (d > 1) continue;
+        var f = Math.pow(1 - d, 2) * power;
+        var o = (((y | 0) * s.w + (x | 0)) * 4);
+        if (x < 0 || y < 0 || x >= s.w || y >= s.h) continue;
+        if (!s.px[o + 3]) continue; /* a glow does not create silhouette */
+        s.px[o] = b255(s.px[o] + col[0] * f);
+        s.px[o + 1] = b255(s.px[o + 1] + col[1] * f);
+        s.px[o + 2] = b255(s.px[o + 2] + col[2] * f);
+      }
+    }
+  }
+
+  /* ---- the things that walk toward you ------------------------------- */
+  /*
+   * Upstream drew a filled rectangle with two smaller rectangles for eyes, and
+   * so did our port. At three metres that is a maroon wall with red dots on
+   * it — the screenshot in this repo's own store listing was exactly that. A
+   * monster has to have a SILHOUETTE: something that is unmistakably a body
+   * even as eight dark pixels at the end of a hall. Hence the long arms and
+   * the low, forward head — the outline reads before any detail does.
+   */
+  var FW = 42, FH = 74;
+
+  function figure(pal, phase, opt) {
+    opt = opt || {};
+    var s = sprite(FW, FH);
+    var sw = Math.sin(phase), cw = Math.cos(phase * 2);
+    var bob = cw * 1.3;
+    var cx = FW / 2;
+    var lean = opt.lean == null ? 2.6 : opt.lean;
+    var hipY = 44 + bob, shY = 22 + bob, headY = 16 + bob;
+    var body = pal.body, dark = pal.dark, skin = pal.skin;
+    var FAR_ = { shade: 0.24, rim: 0.10 };   /* the far limb is nearly a shadow */
+    var NEAR = { shade: 0.34, rim: 0.40 };
+
+    /* ---- far leg, far arm: behind the torso, and DARK. The gap of
+       background between a far limb and the body is what makes a walking
+       silhouette read at eight pixels tall. ---- */
+    legs(s, cx - 3.2, hipY, -sw, dark, FAR_, 0.86);
+    arm(s, cx - 7 + lean, shY + 3, -sw, dark, FAR_, 0.88);
+
+    /* ---- legs: digitigrade, so it is plainly not a person ---- */
+    legs(s, cx + 3.2, hipY, sw, body, NEAR, 1);
+
+    /* ---- torso: narrow waist, shoulder blades hunched up past the head ---- */
+    capsule(s, cx - lean * 0.5, hipY - 2, cx + lean * 0.8, shY + 4, 5.6, 8.2, body, NEAR);
+    for (var i = 0; i < 4; i++) {
+      capsule(s, cx - 4.6 + lean, shY + 8 + i * 4.2, cx + 4.6 + lean, shY + 9.2 + i * 4.2,
+        0.85, 0.85, dark, { shade: 0.86, rim: 0 });
+    }
+    /* the blades, standing proud on either side of the sunken head */
+    capsule(s, cx - 7.5 + lean, shY + 5, cx - 5.5 + lean, shY - 3.5, 3.6, 2.6, body, { shade: 0.30, rim: 0.5 });
+    capsule(s, cx + 7.5 + lean, shY + 5, cx + 5.5 + lean, shY - 3.5, 3.6, 2.6, body, { shade: 0.30, rim: 0.2 });
+
+    /* ---- head: no neck, pushed forward and DOWN between the blades ---- */
+    capsule(s, cx + lean, shY + 1, cx + lean + 1.6, headY + 4, 3.0, 2.6, dark, { shade: 0.5, rim: 0.2 });
+    blob(s, cx + lean + 1.4, headY, 6.2, 5.4, skin, { shade: 0.30 });
+    /* a heavy brow: the eyes have to sit in shadow or they read as buttons */
+    capsule(s, cx + lean - 4.6, headY - 2.0, cx + lean + 6.6, headY - 2.0, 2.0, 2.0, dark, { shade: 0.78, rim: 0 });
+
+    /* ---- near arm: long enough to reach the ankle ---- */
+    arm(s, cx + 7.5 + lean, shY + 3, sw, body, NEAR, 1);
+
+    /* ---- eyes ---- */
+    var ec = pal.eye, ex = cx + lean + 1.4;
+    blob(s, ex - 2.8, headY + 0.8, 1.6, 1.3, ec, { shade: 1 });
+    blob(s, ex + 3.0, headY + 0.8, 1.6, 1.3, ec, { shade: 1 });
+    glow(s, ex - 2.8, headY + 0.8, 7, ec, 0.55);
+    glow(s, ex + 3.0, headY + 0.8, 7, ec, 0.55);
+    put(s, ex - 2.8, headY + 0.6, 255, 246, 230, 255);
+    put(s, ex + 3.0, headY + 0.6, 255, 246, 230, 255);
+    return s;
+  }
+
+  /* thigh forward, shin back, then a long flat foot — a dog's leg on a body
+     the size of a man's, which the eye reads as WRONG before it reads as
+     anything else */
+  function legs(s, hx, hy, swing, col, opt, k) {
+    var kneeX = hx + swing * 4.5, kneeY = hy + 12;
+    var ankX = hx + swing * 1.2 - 1.6, ankY = FH - 8;
+    capsule(s, hx, hy, kneeX, kneeY, 4.6 * k, 3.0 * k, col, opt);
+    capsule(s, kneeX, kneeY, ankX, ankY, 3.0 * k, 2.0 * k, col, opt);
+    capsule(s, ankX, ankY, ankX + 4.2 + swing * 2, FH - 4, 2.4 * k, 1.7 * k, col,
+      { shade: (opt.shade || 0.34) * 0.85, rim: 0 });
+  }
+
+  /* shoulder to elbow to a splayed hand, hanging past the knee */
+  function arm(s, sx, sy, swing, col, opt, k) {
+    var ex = sx + swing * 3.4, ey = sy + 15;
+    var hx = sx + swing * 6.5 + 1.2, hy = sy + 30;
+    capsule(s, sx, sy, ex, ey, 3.4 * k, 2.5 * k, col, opt);
+    capsule(s, ex, ey, hx, hy, 2.5 * k, 1.9 * k, col, opt);
+    for (var c = -1; c <= 1; c++) {
+      capsule(s, hx, hy, hx + c * 2.6, hy + 5.0, 1.15 * k, 0.5, col,
+        { shade: (opt.shade || 0.34) * 0.8, rim: 0 });
+    }
+  }
+
+  /* Death: it folds forward onto the carpet. It does not fade out standing up,
+     and it does not leave a floating slab behind — the stain is drawn flat at
+     the sprite's feet, which is where the floor is. */
+  function figureDie(pal, t) {
+    var s = sprite(FW, FH);
+    var cx = FW / 2;
+    var fall = t * t;
+    var body = pal.body, dark = pal.dark, skin = pal.skin;
+
+    /* the stain, first, so everything else lands on it */
+    var stain = [52, 14, 11];
+    for (var x = -15; x <= 15; x++) {
+      var hw = Math.sqrt(Math.max(0, 225 - x * x)) * 0.24 * t;
+      for (var yy = -hw; yy <= hw; yy++) put(s, cx + x, FH - 3 + yy, stain[0], stain[1], stain[2], 210 * t);
+    }
+    if (t >= 0.97) return s;
+
+    var topY = 20 + fall * 44;
+    var spread = 1 + t * 1.05;
+    /* the mass, going down and out */
+    capsule(s, cx - 8 * spread, FH - 7 - (1 - fall) * 8, cx + 8 * spread, FH - 5,
+      6.2 - t * 1.8, 5.2 - t * 1.4, body, { shade: 0.28, rim: 0.34 });
+    /* limbs thrown out sideways */
+    capsule(s, cx - 4, FH - 9, cx - 12 * spread, FH - 4, 2.6, 1.6, dark, { shade: 0.3 });
+    capsule(s, cx + 4, FH - 9, cx + 13 * spread, FH - 4, 2.6, 1.6, dark, { shade: 0.3 });
+    if (t < 0.82) {
+      capsule(s, cx + 1, topY + 14, cx + 2, FH - 10, 5.0, 5.4, body, { shade: 0.28, rim: 0.34 });
+      blob(s, cx + 1.4, topY, 5.8 - t * 1.2, 5.0 - t * 1.8, skin, { shade: 0.26 });
+      var f = 1 - t / 0.82;
+      var dim = [pal.eye[0] * f, pal.eye[1] * f, pal.eye[2] * f];
+      blob(s, cx - 1.4, topY + 0.8, 1.5, 1.2, dim, { shade: 1 });
+      blob(s, cx + 4.4, topY + 0.8, 1.5, 1.2, dim, { shade: 1 });
+    }
+    return s;
+  }
+
+  var PAL_THING = {
+    body: [96, 33, 26], dark: [34, 11, 9], skin: [124, 48, 36], eye: [255, 104, 30]
+  };
+  /* Another player is UNMISTAKABLY not a monster: cold instead of warm, lit
+     instead of sunk, and its eyes do not burn. You must never shoot a friend
+     because you could not tell. */
+  var PAL_PALE = {
+    body: [168, 180, 202], dark: [72, 84, 106], skin: [214, 224, 238], eye: [120, 214, 255]
+  };
+
+  /* ---- the shotgun --------------------------------------------------- */
+  /*
+   * Two layers, because the pump has to move: BODY is barrel, receiver, stock
+   * and the trigger hand; PUMP is the forestock and the hand riding it. The
+   * whole reason DOOM's shotgun feels good is that you SEE the action cycle.
+   */
+  var GW = 168, GH = 130;
+
+  function gunBody() {
+    var s = sprite(GW, GH);
+    var steel = [104, 106, 112], dsteel = [58, 60, 66], wood = [116, 74, 38];
+    /* magazine tube, sitting under and behind the barrel */
+    capsule(s, 70, 26, 80, 82, 6.0, 6.4, dsteel, { shade: 0.34, rim: 0.42 });
+    /* barrel */
+    capsule(s, 76, 2, 87, 84, 8.2, 8.8, steel, { shade: 0.30, rim: 0.5 });
+    /* the muzzle ring, so the barrel has an opening and not a dome */
+    blob(s, 76, 3, 8.0, 3.6, [140, 142, 148], { shade: 0.6 });
+    blob(s, 76, 3, 4.6, 2.0, [16, 16, 18], { shade: 1 });
+    /* a bead front sight */
+    blob(s, 76, 7, 1.8, 1.6, [190, 190, 196], { shade: 0.7 });
+    /* receiver */
+    capsule(s, 86, 84, 100, 104, 12.0, 11.0, dsteel, { shade: 0.36, rim: 0.4 });
+    capsule(s, 84, 82, 102, 88, 3.0, 3.0, [138, 140, 146], { shade: 0.7, rim: 0.2 });
+    /* ejection port */
+    capsule(s, 96, 88, 104, 94, 3.2, 3.0, [22, 22, 24], { shade: 0.9, rim: 0 });
+    /* stock, running off the bottom-right corner */
+    capsule(s, 100, 100, 140, 130, 11.0, 15.0, wood, { shade: 0.34, rim: 0.42 });
+    /* trigger guard + trigger hand */
+    capsule(s, 92, 104, 104, 110, 2.0, 2.0, dsteel, { shade: 0.6 });
+    capsule(s, 96, 100, 112, 116, 8.0, 9.0, [186, 150, 120], { shade: 0.40, rim: 0.34 });
+    for (var i = 0; i < 3; i++) {
+      capsule(s, 98 + i * 1.2, 104 + i * 4, 108 + i * 1.2, 106 + i * 4, 2.2, 2.0,
+        [206, 172, 142], { shade: 0.6, rim: 0.2 });
+    }
+    return s;
+  }
+  function gunPump() {
+    var s = sprite(GW, GH);
+    var wood = [124, 80, 42];
+    /* forestock */
+    capsule(s, 80, 46, 88, 76, 11.5, 11.5, wood, { shade: 0.34, rim: 0.44 });
+    /* the grooves are what say "pump" at a glance */
+    for (var i = 0; i < 5; i++) {
+      capsule(s, 72, 52 + i * 5, 96, 53.5 + i * 5, 1.0, 1.0, [72, 44, 22], { shade: 0.9, rim: 0 });
+    }
+    /* the hand on it */
+    capsule(s, 66, 56, 86, 70, 9.0, 8.0, [178, 142, 112], { shade: 0.38, rim: 0.36 });
+    capsule(s, 68, 52, 84, 56, 4.2, 4.0, [200, 166, 136], { shade: 0.55, rim: 0.24 });
+    for (var k = 0; k < 3; k++) {
+      capsule(s, 70 + k * 1.0, 58 + k * 4.4, 88, 59 + k * 4.4, 2.6, 2.2,
+        [196, 160, 130], { shade: 0.6, rim: 0.2 });
+    }
+    return s;
+  }
+  /* Muzzle flash: a hot core with irregular petals, so two shots never look
+     like the same rubber stamp. */
+  function flash(seed) {
+    var FS = 96, s = sprite(FS, FS), r = rng(seed), c = FS / 2;
+    var petals = 5 + (r() * 3 | 0), i, y, x;
+    for (i = 0; i < petals; i++) {
+      var ang = (i / petals) * 6.283 + r() * 0.6;
+      var len = 14 + r() * 24;
+      capsule(s, c, c, c + Math.cos(ang) * len, c + Math.sin(ang) * len,
+        7 + r() * 4, 1.5, [255, 214, 128], { shade: 0.9, rim: 0 });
+    }
+    blob(s, c, c, 16, 15, [255, 236, 190], { shade: 0.95 });
+    blob(s, c, c, 9, 8.5, [255, 255, 244], { shade: 1 });
+    /* soften it into a real flare rather than a sticker */
+    for (y = 0; y < FS; y++) for (x = 0; x < FS; x++) {
+      var o = (y * FS + x) * 4;
+      if (!s.px[o + 3]) continue;
+      var d = Math.hypot(x - c, y - c) / (FS / 2);
+      s.px[o + 3] = s.px[o + 3] * clamp(1.25 - d * 1.25, 0, 1);
+    }
+    return s;
+  }
+
+  /* ---- build once ---------------------------------------------------- */
+
+  var built = null;
+  function build() {
+    if (built) return built;
+    var walk = [], die = [], pale = [], i;
+    for (i = 0; i < 8; i++) walk.push(figure(PAL_THING, (i / 8) * 6.283));
+    for (i = 0; i < 6; i++) die.push(figureDie(PAL_THING, i / 5));
+    for (i = 0; i < 8; i++) pale.push(figure(PAL_PALE, (i / 8) * 6.283, { lean: 1.0 }));
+    built = {
+      TEX: TEX,
+      wall: makeWall(),
+      carpet: makeCarpet(),
+      ceil: makeCeiling(),
+      walk: walk,
+      die: die,
+      pale: pale,
+      figW: FW, figH: FH,
+      gunBody: gunBody(),
+      gunPump: gunPump(),
+      gunW: GW, gunH: GH,
+      flashes: [flash(0x11), flash(0x57), flash(0xA3)]
+    };
+    return built;
+  }
+
+  root.Art = { build: build, TEX: TEX };
+})(window);

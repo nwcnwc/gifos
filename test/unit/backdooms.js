@@ -200,7 +200,15 @@ check('look-side tap fires (pointerup on t-look)',
 check('prefs live in gifos.db', boot.includes("db('prefs')"));
 check('the room shares a maze seed', net.includes('sharedSeed') && net.includes('seed:'));
 check('a shot at a friend is published', net.includes('onShot') && net.includes('hits'));
-check('phone pad is at least 76px', /#t-fire[^}]*width:\s*76px/.test(css) && /#t-move[^}]*width:\s*120px/.test(css));
+// The claim is a MINIMUM, so read the number and compare it. Pinning the
+// literal '76px' turned a floor into an exact-match, and the honest fix that
+// made FIRE bigger read as a regression.
+const cssPx = (sel, prop) => {
+  const m = new RegExp(sel + '[^}]*' + prop + ':\\s*(\\d+)px').exec(css);
+  return m ? +m[1] : 0;
+};
+check('phone pad is at least 76px', cssPx('#t-fire', 'width') >= 76 && cssPx('#t-move', 'width') >= 120,
+  { fire: cssPx('#t-fire', 'width'), move: cssPx('#t-move', 'width') });
 check('help covers keyboard, phone, save, friends',
   /WASD/.test(help) && /FIRE/.test(help) && /best score/i.test(help) && /Invite/.test(help));
 check('listing leads with the GIF / no server',

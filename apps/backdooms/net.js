@@ -1,7 +1,8 @@
 /*
  * Extra bodies — each player writes ONLY their own row.
- * The seed on the oldest row is the maze: everyone who presses Play
- * walks the same halls. Invite is OS chrome.
+ * The seed on the oldest row is the maze: everyone who presses Play walks the
+ * same halls. Invite is OS chrome, so this file never draws a button; it only
+ * counts who turned up and hands the number to the HUD.
  */
 (function (root) {
   'use strict';
@@ -46,24 +47,13 @@
       hits = r.hits || [];
       if (seq && seq !== lastShot[r.id] && hits.indexOf(me.id) >= 0) {
         lastShot[r.id] = seq;
-        if (root.Backdooms && root.Backdooms.hurt) root.Backdooms.hurt(50);
+        if (root.Backdooms && root.Backdooms.hurt) root.Backdooms.hurt(34);
       } else if (seq) {
         lastShot[r.id] = seq;
       }
     }
     if (root.Backdooms && root.Backdooms.setRemotes) root.Backdooms.setRemotes(list);
-    var n = 1 + list.length;
-    var tally = document.getElementById('tally');
-    var room = document.getElementById('gate-room');
-    if (tally) {
-      tally.hidden = n < 2;
-      tally.textContent = n + ' in the halls';
-    }
-    if (room) {
-      room.textContent = n < 2
-        ? 'Press Invite in the bar above to send the link.'
-        : n + ' in the halls. Same maze. Extra people appear as pale figures.';
-    }
+    if (root.Hud) root.Hud.room(1 + list.length);
   }
 
   function publish(force) {
@@ -85,18 +75,9 @@
     publish(true);
   }
 
-  function tick() { publish(false); paintHud(); }
-
-  function paintHud() {
-    var s = root.Backdooms.state();
-    var ammo = document.getElementById('ammo-label');
-    var score = document.getElementById('score-label');
-    var best = document.getElementById('best-label');
-    var hp = document.getElementById('hp-label');
-    if (hp) hp.textContent = 'HP ' + Math.max(0, s.hp | 0);
-    if (ammo) ammo.textContent = 'AMMO ' + s.ammo;
-    if (score) score.textContent = 'SCORE ' + s.score;
-    if (best && root.Boot) best.textContent = root.Boot.best ? ('BEST ' + root.Boot.best) : '';
+  function tick() {
+    publish(false);
+    if (root.Hud) root.Hud.paint();
   }
 
   root.Net = {

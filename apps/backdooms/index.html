@@ -9,30 +9,45 @@
 <body>
 <canvas id="c" width="320" height="240"></canvas>
 
-<div id="hud">
-  <span id="hp-label">HP</span>
-  <span id="ammo-label"></span>
-  <span id="score-label"></span>
-  <span id="best-label"></span>
+<div id="hud" hidden>
+  <div id="cross"><i></i><i></i><i></i><i></i></div>
+  <div class="pod pod-l">
+    <div class="pod-k">HEALTH</div>
+    <div class="pod-v" id="hp-val">100</div>
+    <div class="pod-bar"><i id="hp-bar"></i></div>
+  </div>
+  <div class="pod pod-r">
+    <div class="pod-k">SHELLS</div>
+    <div class="pod-v" id="ammo-val">25</div>
+    <div class="shells" id="shells"></div>
+  </div>
+  <div id="score-pod">
+    <span class="pod-k">DOWNED</span>
+    <span class="pod-v" id="score-val">0</span>
+    <span id="best-val"></span>
+  </div>
+  <div id="tally" hidden></div>
+  <div id="lowammo" hidden>OUT OF SHELLS — KEEP MOVING</div>
 </div>
-<div id="tally" hidden></div>
+<div id="vig"></div>
+<div id="pain"></div>
 
 <div id="gate">
   <div class="gate-box">
+    <div class="mark" aria-hidden="true"><span></span><span></span><span></span></div>
     <h1>Backdooms</h1>
-    <p class="sub">DOOM in the Backrooms, in a GIF. No server.
-       Send the invite and extra people appear in the same halls.</p>
+    <p class="sub">DOOM in the Backrooms, in a GIF. No server.</p>
     <div id="gate-actions">
-      <button id="gate-go" type="button">Play</button>
+      <button id="gate-go" type="button">Enter the halls</button>
     </div>
     <div id="gate-keys">
       <b>WASD</b> walk · <b>mouse</b> look · <b>click</b> fire
     </div>
     <div id="gate-keys-phone">
-      Left thumb walks · right side looks · tap or <b>FIRE</b> shoots
+      Left thumb walks · right side looks · <b>FIRE</b> shoots
     </div>
     <p class="opts">
-      <span id="speed-label">Look speed</span>
+      <label id="speed-label" for="m">Look speed</label>
       <input id="m" type="range" value="10" min="1" max="40">
     </p>
     <p class="best" id="gate-best"></p>
@@ -42,14 +57,15 @@
 
 <div id="over" hidden>
   <div class="gate-box">
-    <h1>You fell</h1>
+    <h1 class="dead">You fell</h1>
     <p id="over-score"></p>
+    <p id="over-note"></p>
     <button id="over-go" type="button">Again</button>
   </div>
 </div>
 
 <div id="resume" hidden>
-  <div class="gate-box">
+  <div class="gate-box small">
     <p>Click to look</p>
   </div>
 </div>
@@ -60,6 +76,8 @@
   <button class="t-btn" id="t-fire" type="button">FIRE</button>
 </div>
 
+<script src="art.js"></script>
+<script src="render.js"></script>
 <script src="game.js"></script>
 <script src="net.js"></script>
 <script src="touch.js"></script>
