@@ -58,7 +58,7 @@
     for (var i = 0; i < SHELLS; i++) shellsEl.appendChild(document.createElement('i'));
   })();
 
-  var painT = 0;
+  var painT = 0, growlT = 0;
 
   var Hud = {
     paint: function () {
@@ -99,15 +99,31 @@
         last.score = s.score;
         document.getElementById('score-val').textContent = s.score;
       }
+      var view = Backdooms.view ? Backdooms.view() : null;
       var best = (root.Boot && root.Boot.best) | 0;
       if (best !== last.best) {
         last.best = best;
         document.getElementById('best-val').textContent = best ? ('BEST ' + best) : '';
       }
+      /* Something is close, and you should know before you can see it. */
+      growlT -= 16;
+      if (growlT <= 0 && view && !s.paused) {
+        var near = 99;
+        for (var g = 0; g < view.sprites.length; g++) {
+          var sp = view.sprites[g];
+          if (sp.dying != null || sp.pale) continue;
+          var dd = Math.hypot(sp.x - view.x, sp.y - view.y);
+          if (dd < near) near = dd;
+        }
+        if (near < 9) {
+          Sfx.growl(near);
+          growlT = 900 + Math.random() * 2200;
+        } else growlT = 400;
+      }
+
       /* The damage flash is CSS, not a repaint of the world — and it POINTS.
          A vignette that glows evenly all round tells you only that you are
          being eaten; it does not tell you to turn left. */
-      var view = Backdooms.view ? Backdooms.view() : null;
       var hurt = view && view.pain > 0.55;
       if (hurt !== painT) {
         painT = hurt;
@@ -241,6 +257,41 @@
             c.connect(bp); bp.connect(cg); cg.connect(a.destination);
             c.start(ct); c.stop(ct + 0.06);
           }
+        } catch (e) {}
+      },
+      /*
+       * The thing in the dark. Added because the listing and the help both
+       * promised 'you hear them before the lights find them' and the build did
+       * not do it — an overclaim in the copy is a bug in the build, and this
+       * was the better end to fix. A body-sized rasp: two detuned saws through
+       * a low band-pass, pitched down and quietened with distance, so a growl
+       * from eight metres is a different sound from one at two.
+       */
+      growl: function (d) {
+        var a = ctxOk();
+        if (!a) return;
+        try {
+          var t = a.currentTime;
+          var near = Math.max(0, 1 - d / 9);
+          var g = a.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.020 + 0.055 * near * near, t + 0.09);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.62);
+          var bp = a.createBiquadFilter();
+          bp.type = 'lowpass';
+          bp.frequency.setValueAtTime(300 + 420 * near, t);
+          bp.frequency.exponentialRampToValueAtTime(110, t + 0.6);
+          bp.Q.value = 3.2;
+          bp.connect(g); g.connect(a.destination);
+          [1, 1.48].forEach(function (m, i) {
+            var o = a.createOscillator();
+            o.type = i ? 'sawtooth' : 'square';
+            var f0 = (52 + Math.random() * 16) * m;
+            o.frequency.setValueAtTime(f0 * 1.28, t);
+            o.frequency.exponentialRampToValueAtTime(f0 * 0.72, t + 0.58);
+            o.connect(bp);
+            o.start(t); o.stop(t + 0.66);
+          });
         } catch (e) {}
       },
       ow: function () {

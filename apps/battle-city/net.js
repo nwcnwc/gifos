@@ -1,5 +1,5 @@
 /*
- * Battle City — two devices, no game server.
+ * Eagle Defense — two devices, no game server.
  *
  * The only channel is the replicated collection. Each player owns exactly one
  * row in `players` and only ever writes that row. The host owns the single

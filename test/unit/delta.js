@@ -194,7 +194,7 @@ const deltaSrc = read('vendor/delta.js');
 const sfx = read('sfx.js');
 
 check('index.html has a #dpad and #t-fire', /id="dpad"/.test(html) && /id="t-fire"/.test(html));
-check('d-pad is a 156px disc with four arrows (battle-city sized)',
+check('d-pad is a 156px disc with four arrows (Eagle Defense sized)',
   /#dpad\s*\{[^}]*width:\s*156px/.test(css) && /d-up/.test(css) && /d-left/.test(css));
 check('FIRE is a 92px circle on the right', /#t-fire\s*\{[^}]*width:\s*92px/.test(css) && /border-radius:\s*50%/.test(css));
 check('touch.js drives the pad from pointer events (not touch-only)',

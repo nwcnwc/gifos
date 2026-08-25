@@ -1,6 +1,6 @@
 // THE STORE'S HAND-WRITTEN GAMES, HELD TO THE BUGS THAT ACTUALLY SHIPPED.
 //
-// After battle-city shipped with every tank frozen, every store app whose game
+// After Eagle Defense shipped with every tank frozen, every store app whose game
 // logic is GifOS-authored (not vendored upstream) was audited by PLAYING it
 // headless. This suite pins each core-play bug that audit confirmed, replayed
 // through the SHIPPED source in a vm — so none of them can come back:

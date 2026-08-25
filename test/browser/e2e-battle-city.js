@@ -1,5 +1,5 @@
 /*
- * Battle City — the real GIF, installed and PLAYED in the real sandbox.
+ * Eagle Defense — the real GIF, installed and PLAYED in the real sandbox.
  *
  * test/unit/battle-city.js plays the simulation headless, and that is where the
  * game rules are pinned. This suite exists for the half a vm cannot see: that

@@ -1,4 +1,4 @@
-// BATTLE CITY HAS TO ACTUALLY MOVE.
+// EAGLE DEFENSE HAS TO ACTUALLY MOVE.
 //
 // The app shipped with every tank frozen to its spawn tile. `tryMove` tests a
 // COPY of the mover and handed it to `canMove`, which skipped the mover with a

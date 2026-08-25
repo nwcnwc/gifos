@@ -2796,7 +2796,7 @@ colours.
   tagline/description fields and the store falls back to English.
 - **RTL** via CSS logical properties, audited page by page; `dir` set from
   the locale.
-- **Games keep their arcade voice.** Hand-drawn pixel fonts (battle-city's
+- **Games keep their arcade voice.** Hand-drawn pixel fonts (Eagle Defense's
   5×7 glyphs) are Latin-only; ported games' in-canvas text stays as-authored
   — the surrounding chrome, help.md and listing translate. Growing glyph
   sets is per-game polish, not a platform gate.

@@ -1,4 +1,4 @@
-/* Battle City — shell: input, resize, host/guest loop. Invite is OS chrome. */
+/* Eagle Defense — shell: input, resize, host/guest loop. Invite is OS chrome. */
 (function (root) {
   'use strict';
 
