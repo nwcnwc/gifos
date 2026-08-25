@@ -110,6 +110,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       retire: t('vRetire'), spend: t('vSpend'),
       fanRead: t('fanRead'), curveRead: t('curveRead'),
       stackRead: t('stackRead'), worstHead: t('worstHead'),
+      adviceHead: t('adviceHead'), adviceSub: t('adviceSub'),
+      advice: Array.prototype.map.call(document.querySelectorAll('#adviceList .advice'),
+        (e) => e.querySelector('b').textContent + ' — ' + e.querySelector('p').textContent),
       charts: document.querySelectorAll('svg.chart').length,
       paths: document.querySelectorAll('svg.chart path').length,
       height: document.body.scrollHeight
@@ -120,7 +123,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await browser.close();
 
   console.log('--- app state ---');
-  for (const k of Object.keys(state)) console.log(String(k).padEnd(10), state[k]);
+  for (const k of Object.keys(state)) {
+    if (Array.isArray(state[k])) { console.log(k + ':'); state[k].forEach((v) => console.log('   •', v)); }
+    else console.log(String(k).padEnd(11), state[k]);
+  }
   if (problems.length) {
     console.log('\n--- PROBLEMS (' + problems.length + ') ---');
     for (const p of problems.slice(0, 40)) console.log(' ', p);
