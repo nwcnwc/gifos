@@ -5,7 +5,7 @@
  * scoreboard: you could see a friend's generation number and nothing else.
  * An invite is a door into the same yard, so there is now exactly one fight.
  *
- * Authority, borrowed whole from Battle City: the app OWNER simulates. Bots,
+ * Authority, borrowed whole from Eagle Defense: the app OWNER simulates. Bots,
  * bullets, physics, breeding and death all happen in one tab. Guests publish
  * INPUT — sticks, aim point, trigger — into `players`, and render the owner's
  * `world` snapshot. Nothing is simulated twice, so nothing can disagree.

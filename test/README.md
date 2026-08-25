@@ -683,7 +683,7 @@ freeze a link mid-flight).
 | suite | covers |
 |---|---|
 | `topo.js` | `net.topo`: rook degree 9, colMates, deep C+1 — the topology pins |
-| `store-games.js` | the store's hand-written games held to the bugs that actually shipped: snake's reverse-press death, tanks' 12s hit-claim replay, one-stroke's two host deadlocks, thumb-sprint's unfinishable ghost, hex-chess's ep-blind endgame, plus source pins for longwave's deal guard and air-hockey's async loader shim. Battle City has its own suite (`battle-city.js`) |
+| `store-games.js` | the store's hand-written games held to the bugs that actually shipped: snake's reverse-press death, tanks' 12s hit-claim replay, one-stroke's two host deadlocks, thumb-sprint's unfinishable ghost, hex-chess's ep-blind endgame, plus source pins for longwave's deal guard and air-hockey's async loader shim. Eagle Defense has its own suite (`battle-city.js`) |
 | `mosaic-rook.js` | the rook's-graph mosaic assembly |
 | `mosaic-route.js` | mosaic routing invariants across sections |
 | `mirror-route.js` | `sdnMirrorRoute` exhaustively at C=5 and C=2 (media-plane Phase 2) |
@@ -864,7 +864,7 @@ Roughly three families in one directory:
   a scene that animates, and a drag that moves the paddle — all state, no
   timing claims, because WebGL frame rate on a software rasterizer is not
   what is under test),
-  `e2e-battle-city` (the Battle City port, from its real built GIF. The app
+  `e2e-battle-city` (the Eagle Defense port, from its real built GIF. The app
   shipped with EVERY TANK FROZEN — `canMove` compared the mover by reference
   against a copy of itself, so every move in the game was refused and the
   first stage could not be finished — and nothing caught it because nothing

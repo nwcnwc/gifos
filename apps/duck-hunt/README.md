@@ -5,7 +5,7 @@ The zapper game as a GifOS app. Click/tap ducks. The file is the save.
 An unofficial port of **[DuckHunt-JS](https://github.com/MattSurabian/DuckHunt-JS)**
 by MattSurabian (MIT). The committed dist (Pixi / Howler / GSAP) is vendored
 and hash-pinned. Looks like the 1984 duck-shooting game — unofficial, same
-class as floppy-bird / battle-city. Do not ship a trademarked name, logo, or
+class as Floppy Bird / Eagle Defense. Do not ship a trademarked name, logo, or
 original console CHR; the sprites are the MIT port's.
 
 `minBuild` is **947**. No wasm, no network. Fetch of the spritesheet is

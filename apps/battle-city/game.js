@@ -1,4 +1,4 @@
-/* Battle City remake — canvas sim + draw. Classic script, no modules.
+/* Eagle Defense — canvas sim + draw. Classic script, no modules.
    Stages and SFX from feichao93/battle-city (MIT). Host ticks; guests paint. */
 (function (root) {
   'use strict';
