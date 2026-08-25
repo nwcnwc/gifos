@@ -7416,7 +7416,7 @@
       "name": "Worldview",
       "shortName": "worldview",
       "version": "1.0.0",
-      "tagline": "NASA's satellite pictures of the whole Earth, every day since 2000 — and the map is still there on a plane.",
+      "tagline": "NASA's satellite pictures of the whole Earth, every day since 2000 — most of them hours old.",
       "author": {
         "name": "NASA EOSDIS Worldview",
         "url": "https://worldview.earthdata.nasa.gov"
@@ -7457,7 +7457,7 @@
         255
       ],
       "cover": "/apps/worldview/cover.jpg",
-      "bytes": 1086279,
+      "bytes": 1086278,
       "download": 0,
       "provides": null,
       "signature": {
@@ -7465,7 +7465,7 @@
         "id": "gifos.app",
         "ts": "2026-08-25"
       },
-      "sha256": "9ea2423995e39086fde4fb230517347db11dd884bd179ec5831a08c8956f695e"
+      "sha256": "d95e95a7dc47cc764648d65089c106d0939266f8287bbd3b623b16fed3f68325"
     },
     {
       "slug": "yahtzee",
