@@ -21,7 +21,20 @@
       <p class="game-intro">Join the numbers and get to the <strong>2048 tile!</strong></p>
       <div class="game-buttons">
         <a class="friend-button" id="friendBtn">Play a friend</a>
+        <a class="hist-button" id="histBtn">Games</a>
         <a class="restart-button">New Game</a>
+      </div>
+    </div>
+
+    <div id="hist-panel" hidden>
+      <div class="hist-card" role="dialog" aria-label="Your games">
+        <div class="hist-head">
+          <h2>Your games</h2>
+          <span id="hist-count"></span>
+          <button type="button" id="hist-close" title="Close" aria-label="Close">&#10005;</button>
+        </div>
+        <ul id="hist-list"></ul>
+        <p class="hist-foot">Every game is kept until you delete it. Tap one to pick it back up.</p>
       </div>
     </div>
 
@@ -88,9 +101,11 @@
   <script src="vendor/html_actuator.js"></script>
   <script src="vendor/grid.js"></script>
   <script src="vendor/tile.js"></script>
+  <script src="hist.js"></script>
   <script src="storage.js"></script>
   <script src="vendor/game_manager.js"></script>
   <script src="mp.js"></script>
+  <script src="hist-ui.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

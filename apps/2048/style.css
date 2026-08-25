@@ -6,7 +6,7 @@ body { margin: 20px 0 36px; }
 .container { max-width: 500px; width: calc(100% - 24px); }
 
 .game-buttons { float: right; display: flex; gap: 8px; }
-.friend-button, #leaveBtn, #againBtn {
+.friend-button, .hist-button, #leaveBtn, #againBtn {
   display: inline-block;
   background: #8f7a66;
   border-radius: 3px;
@@ -20,7 +20,9 @@ body { margin: 20px 0 36px; }
   cursor: pointer;
 }
 .friend-button { background: #edc22e; color: #f9f6f2; }
+.hist-button { background: #bbada0; padding: 0 14px; }
 body.friend .friend-button,
+body.friend .hist-button,
 body.friend .restart-button { display: none; }
 body.friend .keep-playing-button { display: none !important; }
 body.friend .game-intro { display: none; }
@@ -118,4 +120,172 @@ body.friend .heading { margin-bottom: 8px; }
 
 @media screen and (max-height: 700px) {
   .game-explanation, .foot { display: none; }
+}
+
+
+/* ---- Your games -----------------------------------------------------------
+   The archive panel. Upstream 2048 keeps one board and New Game erases it;
+   here every game is a row that only the trash button removes, and the little
+   4x4 preview is how you recognise the one you want back. */
+#hist-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(119, 110, 101, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#hist-panel[hidden] { display: none !important; }
+.hist-card {
+  background: #faf8ef;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(119, 110, 101, 0.35);
+  overflow: hidden;
+}
+.hist-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #eee4da;
+  color: #776e65;
+}
+.hist-head h2 { margin: 0; font-size: 18px; font-weight: bold; }
+#hist-count { font-size: 13px; color: #a39489; flex: 1; }
+#hist-close {
+  background: none;
+  border: 0;
+  color: #8f7a66;
+  font-size: 17px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+#hist-close:hover { color: #776e65; }
+#hist-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+.hg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  padding: 2px 6px 2px 2px;
+}
+.hg + .hg { margin-top: 2px; }
+.hg.now { background: #eee4da; }
+.hg-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: 0;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: #776e65;
+}
+.hg-open:hover { background: #eee4da; }
+.hg.now .hg-open:hover { background: #ede0c8; }
+.prev {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  width: 46px;
+  height: 46px;
+  flex: none;
+  background: #bbada0;
+  border-radius: 3px;
+  padding: 2px;
+  box-sizing: border-box;
+}
+.prev .pv { display: block; border-radius: 1px; background: rgba(238, 228, 218, 0.35); }
+.pv-2 { background: #eee4da; }
+.pv-4 { background: #ede0c8; }
+.pv-8 { background: #f2b179; }
+.pv-16 { background: #f59563; }
+.pv-32 { background: #f67c5f; }
+.pv-64 { background: #f65e3b; }
+.pv-128 { background: #edcf72; }
+.pv-256 { background: #edcc61; }
+.pv-512 { background: #edc850; }
+.pv-1024 { background: #edc53f; }
+.pv-2048 { background: #edc22e; }
+.pv-super { background: #3c3a32; }
+.hg-meta { min-width: 0; flex: 1; display: block; }
+.hg-top { display: flex; align-items: center; gap: 8px; }
+.hg-score { font-weight: bold; font-variant-numeric: tabular-nums; }
+.hg-state { color: #a39489; font-size: 12px; }
+.hg-now { color: #f67c5f; font-size: 12px; font-weight: bold; }
+.hg-sub { display: block; color: #a39489; font-size: 12px; margin-top: 2px; }
+.hg .chip {
+  display: inline-block;
+  min-width: 2.4em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  color: #f9f6f2;
+  background: #bbada0;
+}
+.hg .chip-2, .hg .chip-4 { background: #eee4da; color: #776e65; }
+.hg .chip-8 { background: #f2b179; }
+.hg .chip-16 { background: #f59563; }
+.hg .chip-32 { background: #f67c5f; }
+.hg .chip-64 { background: #f65e3b; }
+.hg .chip-128 { background: #edcf72; }
+.hg .chip-256 { background: #edcc61; }
+.hg .chip-512 { background: #edc850; }
+.hg .chip-1024 { background: #edc53f; }
+.hg .chip-2048 { background: #edc22e; }
+.hg .chip-super { background: #3c3a32; }
+button.row-del {
+  background: none;
+  border: 0;
+  color: #bbada0;
+  cursor: pointer;
+  padding: 6px;
+  line-height: 0;
+  flex: none;
+}
+button.row-del:hover { color: #f65e3b; }
+button.row-del svg { display: block; pointer-events: none; }
+.hg-confirm { display: flex; align-items: center; gap: 6px; flex: none; font-size: 12px; color: #776e65; }
+.hg-yes, .hg-no {
+  border: 0;
+  border-radius: 3px;
+  padding: 5px 9px;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+}
+.hg-yes { background: #f65e3b; color: #f9f6f2; }
+.hg-no { background: #bbada0; color: #f9f6f2; }
+.hg-empty { padding: 22px 16px; color: #a39489; font-size: 14px; line-height: 1.5; text-align: center; }
+.hist-foot { margin: 0; padding: 10px 14px; background: #eee4da; color: #a39489; font-size: 12px; line-height: 1.4; }
+
+@media screen and (max-width: 520px) {
+  .hist-button { float: none; flex: 1; padding: 0; }
+  .game-buttons { gap: 6px; }
+  .friend-button, .hist-button, .restart-button { font-size: 13px; }
+  #hist-panel { padding: 8px; }
+  .hist-card { max-height: 92vh; }
+  .hg-open { gap: 10px; padding: 7px 6px; }
 }

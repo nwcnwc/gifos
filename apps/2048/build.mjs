@@ -59,9 +59,11 @@ const SCRIPTS = [
   'vendor/html_actuator.js',
   'vendor/grid.js',
   'vendor/tile.js',
+  'hist.js',
   'storage.js',
   'vendor/game_manager.js',
   'mp.js',
+  'hist-ui.js',
   'app.js',
 ];
 
@@ -92,6 +94,18 @@ if (!manifest.capabilities.multiplayer) {
 }
 if (!manifest.data || !manifest.data.save || manifest.data.save.visibility !== 'private') {
   throw new Error('manifest.data.save must be private — the solo game does not leave this device.');
+}
+// hist.js must load before storage.js (storage builds the archive on it) and
+// hist-ui.js after game_manager.js (it drives a live GameManager). A reorder
+// here is silent at build time and a blank panel at run time.
+if (SCRIPTS.indexOf('hist.js') > SCRIPTS.indexOf('storage.js')) {
+  throw new Error('hist.js must be listed before storage.js');
+}
+if (SCRIPTS.indexOf('hist-ui.js') < SCRIPTS.indexOf('vendor/game_manager.js')) {
+  throw new Error('hist-ui.js must be listed after vendor/game_manager.js');
+}
+if (!html.includes('id="hist-panel"') || !html.includes('id="hist-list"') || !html.includes('id="histBtn"')) {
+  throw new Error('index.html is missing the Games panel — history has no way in.');
 }
 if (!manifest.data.room || manifest.data.room.visibility !== 'read-write') {
   throw new Error('manifest.data.room must be read-write — live scores have to sync.');
