@@ -65,7 +65,7 @@
       "appId": "aim-and-shoot",
       "name": "Aim and Shoot",
       "shortName": "Aim",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "tagline": "You aim. The robots learn. One arena, with your friends.",
       "author": {
         "name": "Victor Ribeiro",
@@ -98,7 +98,7 @@
         40
       ],
       "cover": "/apps/aim-and-shoot/cover.jpg",
-      "bytes": 257250,
+      "bytes": 259837,
       "download": 0,
       "provides": null,
       "signature": {
@@ -106,7 +106,7 @@
         "id": "gifos.app",
         "ts": "2026-08-25"
       },
-      "sha256": "87ad0f81c0a62acdf1a11dd4d32efac333dad0164b1348737f86d85ed21cc3b0"
+      "sha256": "1833feffaf75437f6eede7a0fbf1b4d4bfc964ff093d672b67a12bace95df70e"
     },
     {
       "slug": "air-hockey",

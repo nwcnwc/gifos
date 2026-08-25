@@ -26,10 +26,14 @@ The number in the corner is the **generation**. Higher means the bots have had m
 
 ## A friend
 
-Press **Invite** in the bar above the app. Each of you plays your own arena. The roster shows the generation you have reached. Nobody aims for you.
+Press **Invite** in the bar above the app and send the link. Whoever opens it lands in **your** arena — same bots, same wave, same walls — with no start screen to press: the link is the door.
+
+You are blue, they are green with their name over them. Your bullets pass straight through each other, so nobody can shoot the person they came to play with. When one of you drops, the wave carries on and you get back up a few seconds later; only the whole team going down at once ends the run, and even then the room stays open at generation 1.
+
+The person who sent the link runs the fight. If they are still on the title art, everyone else sees *waiting for them to start* — and their screen says who is waiting.
 
 ## What is saved
 
-Your **best generation** stays in the file. A round in progress is not kept, and neither is the room.
+Your **best generation** stays in the file. A round in progress is not kept, and neither is the room — close the link and the arena is gone.
 
 Unofficial port of [Aim and Shoot](https://github.com/victorqribeiro/aimAndShoot) by Victor Ribeiro.

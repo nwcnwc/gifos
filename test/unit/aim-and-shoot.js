@@ -275,8 +275,14 @@ check('the player is in the middle of the arena',
   p.health = 10;
 }
 
+// The ONLY size control the game has: bodies are 30 units of radius in pinned
+// upstream code, so the short side of the screen decides how big a bot looks.
+// 1366x768 letterboxed made one nine pixels wide; 620 put it at a tenth of the
+// screen, which was a shade too big to read a crowd.
 check('the arena takes the shape of its box, short side fixed',
-  Math.min(AAS.w, AAS.h) === 620, { w: AAS.w, h: AAS.h });
+  Math.min(AAS.w, AAS.h) === 700, { w: AAS.w, h: AAS.h });
+check('a body is under a tenth of the short side',
+  (AAS.player.size * 2) / 700 < 0.095, { diameter: AAS.player.size * 2 });
 
 {
   const g0 = AAS.generation;
@@ -467,6 +473,60 @@ function finish() {
   check('the guest knows which body is its own',
     GA.bodies().some((b) => b.you === true), GA.bodies().map((b) => !!b.you));
 
+  // ---- TWO PEOPLE, TWO GAMES ----------------------------------------------
+  // The deadlock that made "more than one player" mean "more than one game":
+  // a host published nothing until it had heard from a guest, and a guest
+  // published nothing until it had seen a world row — with a four second
+  // window from BOOT (not from the press of Start) as the only way out of the
+  // circle. Read the title art for five seconds, which everybody does, and the
+  // link had quietly handed you two private arenas, each convinced it was
+  // alone. A guest now joins on the link, publishes from the first frame, and
+  // never simulates no matter how long the silence lasts.
+  const W = load({ id: 'bob', name: 'Bob', owner: false });
+  await flush();
+  const WA = W.sandbox.AAS;
+  check('a guest joins on the link — there is no start screen to press',
+    WA.isStarting === false, WA.isStarting);
+  const frozen = WA.enemies.map((e) => e.pos.x + ',' + e.pos.y).join('|');
+  const wgen = WA.generation;
+  for (let i = 0; i < 80; i++) W.tick(200);          // sixteen seconds of silence
+  check('a guest publishes input long before any snapshot arrives',
+    !!W.net.last('players', 'bob'), W.net.last('players', 'bob'));
+  check('a guest with nothing to draw NEVER breeds an arena of its own',
+    WA.generation === wgen &&
+    WA.enemies.map((e) => e.pos.x + ',' + e.pos.y).join('|') === frozen,
+    { gen: WA.generation, was: wgen });
+  check('and it says which silence this is, rather than showing a blank field',
+    /Joining the arena/.test(W.sandbox.AASCoop.waitText() || ''),
+    W.sandbox.AASCoop.waitText());
+
+  // The other half: a host still on the title art, with somebody in the room,
+  // says so — so the guest can name who it is waiting for, and the host can
+  // see that anyone is waiting at all.
+  const H2 = load({ id: 'host-2', name: 'Nathan', owner: true });
+  await flush();
+  const H2A = H2.sandbox.AAS;
+  H2.net.push('players', { id: 'cid', name: 'Cid', t: 1, mv: {}, lx: 10, ly: 10 });
+  await flush();
+  const bea = H2.net.last('world', 'host');
+  check('a host on the title art tells the room it is there',
+    !!bea && bea.state === 'title' && bea.name === 'Nathan', bea);
+  check('the host screen names who is waiting, and what to press',
+    /Cid is waiting/.test(H2.sandbox.document.getElementById('status').textContent),
+    H2.sandbox.document.getElementById('status').textContent);
+  H2A.startPlay();
+  for (let i = 0; i < 20; i++) { H2A.player.health = 99; H2.tick(200); }
+  H2.net.push('players', { id: 'cid', name: 'Cid', t: 2, mv: {}, lx: 10, ly: 10 });
+  await flush();
+  check('and stops beaconing the moment it is playing — the snapshot says it all',
+    H2.net.last('world', 'host').t === bea.t,
+    { now: H2.net.last('world', 'host').t, was: bea.t });
+
   finish();
-})();
+})().catch((err) => {
+  /* A suite that dies mid-run is not a suite that passed: every check after
+     the throw simply never printed. Say so, loudly, and exit red. */
+  console.log('FAIL — the room suite threw before it finished  ' + ((err && err.stack) || err));
+  process.exit(1);
+});
 

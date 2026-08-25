@@ -6,8 +6,14 @@ let artwork, canvas, rect, _x, _y,  c, w, h, w2, h2, TWOPI, genetics, player, en
    a tank was nine pixels wide. The field now takes the shape of the box it
    is drawn in, with the short side fixed at ARENA_SHORT, so a tank is
    always the same fraction of the screen and the wall band around the
-   canvas (style.css #arena) hugs the exact line a tank bounces off. */
-const ARENA_SHORT = 620;
+   canvas (style.css #arena) hugs the exact line a tank bounces off.
+
+   The number is the ONLY size control there is: a body is 30 units of radius
+   in pinned upstream code, so what changes is how many units the short side
+   of the screen is worth. 1366x768 letterboxed made a tank nine pixels wide;
+   620 overshot the other way and put a bot at a tenth of the screen. 700 is
+   the number a room full of them reads at. */
+const ARENA_SHORT = 700;
 
 /* Humans who are not at this keyboard. The host drives them from the input
    they publish; they stand in `players` beside the local one, so physics,
@@ -241,7 +247,7 @@ const init = function(){
 }
 
 
-const joiningScreen = function(){
+const joiningScreen = function(text){
 
 	c.fillStyle = "#ececec";
 
@@ -251,7 +257,7 @@ const joiningScreen = function(){
 
 	c.textAlign = "center";
 
-	c.fillText("Joining the arena\u2026", w2, h2);
+	c.fillText(text || "Joining the arena\u2026", w2, h2);
 
 };
 
@@ -356,9 +362,11 @@ const update = function(){
 
 			draw();
 
-			if( coop.quiet() ) AAS.notice("Waiting for the host\u2026");
+			const line = coop.waitText && coop.waitText();
 
-		}else joiningScreen();
+			if( line ) AAS.notice(line);
+
+		}else joiningScreen(coop.waitText && coop.waitText());
 
 		prevTime = nextTime;
 
@@ -770,6 +778,12 @@ function bootGame(){
 	syncAAS();
 	if (window.AASCoop) AASCoop.init().then(function (on) {
 		if (on && window.AAS && AAS.onCoop) AAS.onCoop(AASCoop);
+		/* A GUEST DID NOT COME FOR A TITLE SCREEN. Opening the link IS the
+		   press of Start: the loop begins, input goes out from the first
+		   frame — which is the only way the host ever learns it has company —
+		   and the arena appears as soon as the host sends one. Nothing is
+		   simulated here either way, so an early start costs nothing. */
+		if (on && AASCoop.guest() && isStarting) { isStarting = false; syncAAS(); update(); }
 	});
 	window.AASShowPad = function () { if (window.AAS && AAS.showPad) AAS.showPad(); };
 	AAS.startPlay = function () {
