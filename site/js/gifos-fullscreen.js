@@ -2,11 +2,12 @@
  * gifos-fullscreen.js — the fullscreen toggle, one implementation for every bar.
  *
  * Two surfaces want the same button: the Home Screen menubar (index.html /
- * boot.html, which fullscreens the whole document) and the app bar in run.html
- * (which fullscreens the app pane, so an app fills the screen while the
- * meeting's feed and the browser's chrome step out of the way). They are the
- * same control, so they are the same code and the same glyph — a second copy
- * would drift on exactly the details below.
+ * boot.html) and the app bar in run.html, where an app fills the screen while
+ * the meeting's feed and the browser's chrome step out of the way. BOTH ask the
+ * browser for the same thing — the document — and run.html adds a body class so
+ * its own CSS gives the app pane the glass (opts.fill; see the trap below).
+ * They are the same control, so they are the same code and the same glyph — a
+ * second copy would drift on exactly the details below.
  *
  * THE BUTTON HIDES WHEN THE BROWSER HAS NO FULLSCREEN. Feature detection, never
  * a version number (site/browser-support.json is the only place version cutoffs
@@ -19,6 +20,33 @@
  * which pass through our click handler. So the glyph is painted from
  * document.fullscreenElement on every fullscreenchange, and the button holds no
  * boolean of its own to fall out of sync.
+ *
+ * FULLSCREENING A *PANE* IS A TRAP, AND opts.fill IS THE WAY OUT. Ask the
+ * browser to fullscreen an element other than the root and that element moves
+ * into the TOP LAYER — a layer above the whole page, painted over an opaque
+ * ::backdrop. Everything outside its subtree is still in the DOM, still
+ * display:flex, still the size you gave it, and completely invisible and
+ * unclickable. That is not a z-index race you can win: .perm-modal already
+ * carries z-index 2147483000 and the top layer beats it anyway.
+ *
+ * Measured on run.html: full-screening #apppane (the app pane, so an app fills
+ * the glass) left Help, Abilities, Settings, Share and every other modal —
+ * which live outside #apppane, as page-level modals must — dead. Clicking Help
+ * set display:flex on a 1280x720 modal that nobody could see; elementFromPoint
+ * at its centre returned the app's iframe. The only cure was to leave
+ * fullscreen, which is what the bug report said.
+ *
+ * So a pane never takes the screen. The ROOT takes the screen — nothing can be
+ * outside that subtree, so every modal the page has now and every one it grows
+ * later just renders — and the page's own CSS makes the pane fill the viewport,
+ * keyed off a class this module puts on <body> (opts.fill). One button, one
+ * gesture, the same picture; the difference is that the rest of the document is
+ * merely COVERED (ordinary stacking, z-index applies) instead of banished.
+ *
+ * The class is painted by paint(), from document.fullscreenElement, for exactly
+ * the reason above: Esc must undo BOTH halves, and a boolean of ours would
+ * strand the page filled-but-not-fullscreen the first time a request was
+ * refused.
  */
 (function (root) {
   const GifOS = (root.GifOS = root.GifOS || {});
@@ -72,6 +100,10 @@
 
   // Wire a button that already exists in the bar's markup (a bar's contents are
   // its page's, not ours). Returns a repaint function; callers rarely need it.
+  //
+  // opts.fill is a class name toggled on <body> while the target holds the
+  // screen — the page's half of the pane-fills-the-glass picture, and the whole
+  // reason a pane no longer asks for fullscreen itself.
   function attach(btn, target, opts) {
     if (!btn) return function () {};
     const o = opts || {};
@@ -84,6 +116,9 @@
     btn.style.display = '';
     function paint() {
       const on = active() === (el(target) || doc.documentElement);
+      // Both halves, from the one source of truth, on every fullscreenchange —
+      // so Esc and the browser's own affordance drop the fill class too.
+      if (o.fill && doc.body) doc.body.classList.toggle(o.fill, on);
       btn.innerHTML = glyph(on);
       btn.title = on ? outLabel : inLabel;
       btn.setAttribute('aria-label', btn.title);
