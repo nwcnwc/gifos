@@ -101,11 +101,11 @@ details.adv.danger-zone[open] summary { color: color-mix(in srgb, #ff5c5c 62%, v
   background: var(--surface); color: var(--text); cursor: pointer; font-size: .8rem;
 }
 .menubar button:hover { border-color: var(--accent); box-shadow: 0 0 16px var(--glow); }
-/* The fullscreen toggle is a GLYPH, not a word: it sits between the crumbs and
-   the bar's named actions, where a label would crowd a phone. Square padding so
-   the icon centres, and the pressed state borrows the accent — the browser's own
-   fullscreen chrome disappears, so the bar is the only thing left that can say
-   which mode you're in. */
+/* The fullscreen toggle is a GLYPH, not a word, and it sits in the far corner —
+   last in the bar, past the named actions, the same right-hand cluster the app
+   bar puts it in. Square padding so the icon centres, and the pressed state
+   borrows the accent: the browser's own fullscreen chrome disappears, so the bar
+   is the only thing left that can say which mode you're in. */
 .menubar .fs-btn { display: inline-flex; align-items: center; justify-content: center;
   padding: .3rem .45rem; line-height: 0; color: var(--muted); }
 .menubar .fs-btn:hover { color: var(--text); }
