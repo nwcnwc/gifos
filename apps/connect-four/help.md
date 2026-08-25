@@ -14,14 +14,14 @@ A full column will not take another disc. If the board fills with no four, it is
 
 From **New game**, pick **Computer** or **Two here**, then **Start game**.
 
-- **Computer** — you are red. Blue thinks on this phone. There is no game server. **Undo** takes back your last drop *and* the computer’s reply.
+- **Computer** — you are red. Blue thinks on this phone. **Undo** takes back your last drop *and* the computer’s reply.
 - **Two here** — pass the device. Red, then blue. **Undo** takes back the last disc.
 
 **New game** returns to the setup screen. A gold line marks the winning four. The two coloured seats show whose turn it is.
 
 ## A live friend
 
-Press **Play a friend**, then **Invite** in the bar above the app, and send the link. There is no game server.
+Press **Play a friend**, then **Invite** in the bar above the app, and send the link.
 
 The first two people sit red and blue. Anyone else **watches**. You only drop on your own turn. Extra people in the room do not play until a seat opens.
 

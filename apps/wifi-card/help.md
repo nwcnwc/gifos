@@ -27,6 +27,6 @@ The password rides with that card, so only Invite people you would hand the frid
 
 ## What is saved
 
-Network name, password, and the options live in this file on this device. They come back the next time you open it. Nothing is sent anywhere until you Invite.
+Network name, password, and the options live in this file on this device. They come back the next time you open it.
 
 Unofficial port of [wifi-card](https://github.com/bndw/wifi-card) by bndw. English only.

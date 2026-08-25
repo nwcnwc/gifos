@@ -1,8 +1,8 @@
 # Yopass
 
-Lock a secret and hand it to someone. Nothing is uploaded to a paste site. The ciphertext lives in this file on this device. While people are connected to the same room, they can open it.
+Lock a secret and hand it to someone. No paste site ever holds it: the encrypted text stays with the app. While people are connected to the same room, they can open it.
 
-This is an unofficial port. There is no Yopass server — no Redis, no account, no website that holds the bytes.
+This is an unofficial port. It does not use the Yopass servers.
 
 ## Lock a secret
 

@@ -55,7 +55,7 @@ if (listing.basedOn.url !== 'https://github.com/ondras/my-mind') throw new Error
 if (!listing.porter || listing.porter.name !== 'GifOS') throw new Error('porter must be GifOS');
 if (!listing.author || /gifos/i.test(listing.author.name)) throw new Error('author is them, never GifOS');
 if (listing.license !== 'MIT') throw new Error('listing.license must be MIT');
-if (!/file is the map/i.test(listing.tagline)) throw new Error('tagline must lead with the file is the map');
+if (!/Tab for a child/i.test(listing.tagline)) throw new Error('tagline must lead with the keys');
 if (!/Invite/.test(listing.description)) throw new Error('listing must claim Invite watch');
 if (!/Child/.test(listing.description)) throw new Error('listing must mention the phone Child bar');
 const listingBlob = JSON.stringify(listing);

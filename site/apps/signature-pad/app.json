@@ -40,10 +40,10 @@
   "cover": "/apps/signature-pad/cover.jpg",
   "screenshots": [],
   "gif": "/apps/signature-pad/signature-pad.gif",
-  "bytes": 201048,
+  "bytes": 201033,
   "download": 0,
   "provides": null,
-  "sha256": "2832444133ccda3550839d62bb3d9dce7e03bf832fb5f2c3670180c99813c3c5",
+  "sha256": "c66326894b39a7134bf9d9f33c78b56e6a754d7a3446cc463ea3637c81580b0c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -39,10 +39,10 @@
   "cover": "/apps/backgammon/cover.jpg",
   "screenshots": [],
   "gif": "/apps/backgammon/backgammon.gif",
-  "bytes": 228136,
+  "bytes": 228125,
   "download": 0,
   "provides": null,
-  "sha256": "0cb96d237afbbd9c78bda5a433155c5342d6155f6e96d05f750f6722ac0a6910",
+  "sha256": "59f744e47e50af8addbe7e14b4361d3e3c1c1d1f5f39db86f3d793566a5b19c8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

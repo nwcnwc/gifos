@@ -40,14 +40,14 @@
   "cover": "/apps/super-sudoku/cover.jpg",
   "screenshots": [],
   "gif": "/apps/super-sudoku/super-sudoku.gif",
-  "bytes": 299508,
+  "bytes": 297837,
   "download": 0,
   "provides": null,
-  "sha256": "abf84d67643c1acbce4cf7e84eea440288fc22f462575d7c82278d36a264d918",
+  "sha256": "c41213dfb60ad125e3350ae409ff6243f9e097a636a7f72a66a62a121aa07420",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

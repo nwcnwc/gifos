@@ -42,10 +42,10 @@
   "cover": "/apps/skifree/cover.jpg",
   "screenshots": [],
   "gif": "/apps/skifree/skifree.gif",
-  "bytes": 215259,
+  "bytes": 215228,
   "download": 0,
   "provides": null,
-  "sha256": "b3e845c60e549a493417aa79b538a2a05565def7babf6b7605fe6dd35fec4923",
+  "sha256": "d4b641fd73d86c93d6abacabd1c0df7b91128d08de441a3f393e85df42babd94",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

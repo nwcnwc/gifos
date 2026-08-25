@@ -38,7 +38,7 @@ Each kill adds its value (tougher shapes are worth more). **SCORE** is this run;
 
 ## Alone and with a friend
 
-Alone, this is the original game. Press **Invite** in the bar above the app to send a link. Extra ships drop into the same arena, firing on the same swarm. Homing enemies chase the nearest living ship. There is no lobby and no account.
+Alone, this is the original game. Press **Invite** in the bar above the app to send a link. Extra ships drop into the same arena, firing on the same swarm. Homing enemies chase the nearest living ship.
 
 In a shared round the score on screen is the host’s — one number for the room. If you blow up while a friend is still flying, you drop back in. If the person running the swarm leaves, the remaining ships keep firing at a frozen wave until someone starts a new round.
 

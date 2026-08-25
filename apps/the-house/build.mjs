@@ -261,12 +261,11 @@ if (!files['app.js'].includes('HOUSE_ASSET_INDEX')) throw new Error('asset index
 if (!files['app.js'].includes('soundMime')) throw new Error('blob sound type hint');
 if (!files['app.js'].includes('house-boot-bar')) throw new Error('boot gauge wiring');
 if (/\.swf/i.test(files['boot.js'] + files['patch.js'] + files['app.js'])) throw new Error('swf in wrap');
-if (!/^Works offline/i.test(listing.description)) throw new Error('listing lead');
-if (!/file/i.test(listing.tagline) || !/save/i.test(listing.tagline)) throw new Error('tagline file-is-save');
+if (!/^The room you reached/i.test(listing.description)) throw new Error('listing lead');
+if (!/wake in a room/i.test(listing.tagline)) throw new Error('tagline scene');
 if (!/Tap/i.test(listing.description)) throw new Error('listing tap');
-if (!/Flash/i.test(listing.description)) throw new Error('listing Flash');
 if (!/Tap/i.test(helpBlob)) throw new Error('help tap');
-if (!/file you keep is the save/i.test(helpBlob)) throw new Error('help save');
+if (!/progress is saved/i.test(helpBlob)) throw new Error('help save');
 if (!rooms['room.html'].includes('id="note"')) throw new Error('room note hotspot');
 
 for (const [n, s] of Object.entries(files)) {

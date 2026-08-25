@@ -39,10 +39,10 @@
   "cover": "/apps/my-mind/cover.jpg",
   "screenshots": [],
   "gif": "/apps/my-mind/my-mind.gif",
-  "bytes": 393088,
+  "bytes": 393030,
   "download": 0,
   "provides": null,
-  "sha256": "78bba94ba94bac4b3f07e4312977dee27cc09b9a72099b48fcf2535ee1ae4006",
+  "sha256": "8ad98cad3e1dcecac638e9b7987045e91e006f51c7457bdb3a6aa8634376c508",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -1,6 +1,6 @@
 # QR Scan
 
-Read the **words inside a code** from a still photo. Nothing is uploaded. There is no live camera view — one picture at a time.
+Read the **words inside a code** from a still photo. There is no live camera view — one picture at a time.
 
 ## Read a code
 

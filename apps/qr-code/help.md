@@ -1,6 +1,6 @@
 # QR Code
 
-Type a **link, a phone number, a message, a contact, or any text**. A code appears that a phone can point at. Nothing is uploaded. This is a general maker — for a fridge card with the Wi-Fi name and password, use **WiFi Card** instead.
+Type a **link, a phone number, a message, a contact, or any text**. A code appears that a phone can point at. This is a general maker — for a fridge card with the Wi-Fi name and password, use **WiFi Card** instead.
 
 ## Make a code
 

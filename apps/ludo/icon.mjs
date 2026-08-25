@@ -117,7 +117,7 @@ export function screenshotPng(){
   drawText(put, 640, 200, 'RED TO ROLL', 5, 196, 40, 48);
   drawText(put, 640, 270, 'FOUR SEATS', 5, 184, 196, 176);
   drawText(put, 640, 330, 'ONE INVITE', 5, 184, 196, 176);
-  drawText(put, 640, 390, 'NO LOBBY', 5, 184, 196, 176);
+  drawText(put, 640, 390, 'ROLL A SIX', 5, 184, 196, 176);
   const raw=Buffer.alloc((W*4+1)*H);
   for(let y=0;y<H;y++){ raw[y*(W*4+1)]=0; rgba.copy(raw,y*(W*4+1)+1,y*W*4,(y+1)*W*4); }
   const ihdr=Buffer.alloc(13); ihdr.writeUInt32BE(W,0); ihdr.writeUInt32BE(H,4); ihdr[8]=8; ihdr[9]=6;

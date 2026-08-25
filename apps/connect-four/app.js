@@ -640,7 +640,7 @@
     $('setup').hidden = true; $('friend').hidden = true; $('game').hidden = false;
     setChip('ready', 'Ready');
     localStatus();
-    setStatus($('statusLine'), 'No game server.', '');
+    setStatus($('statusLine'), '', '');
     paint($('board'), state.s, { hover: -1, pulse: nowMs() });
     startPulse();
     requestAnimationFrame(function () {

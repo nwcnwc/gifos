@@ -102,8 +102,8 @@ const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage']) {
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
 }
-if (!/^Race a ghost/i.test(listing.tagline || '')) {
-  throw new Error('listing.tagline must lead with racing a ghost');
+if (!/ghost/i.test(listing.tagline || '')) {
+  throw new Error('listing.tagline must mention the ghost');
 }
 if (!/one link/i.test(listing.tagline || '') && !/the link/i.test(listing.description || '')) {
   throw new Error('listing must say the race is one link');

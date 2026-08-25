@@ -39,10 +39,10 @@
   "cover": "/apps/texgen/cover.jpg",
   "screenshots": [],
   "gif": "/apps/texgen/texgen.gif",
-  "bytes": 197769,
+  "bytes": 197753,
   "download": 0,
   "provides": null,
-  "sha256": "601df83cb9c211a68fc7d012293ebf855b4f0bc9cb2a20de2a36ccf8fb3abbf9",
+  "sha256": "0dab2e65127091bf0a0d31720094686701d7ff9685211124c5526f05e044dd66",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -80,8 +80,8 @@ const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage', 'WebRTC']) {
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad);
 }
-if (!/^Nothing is uploaded/i.test(listing.description)) {
-  throw new Error('listing description must lead with nothing uploaded');
+if (!/^Paste JSON/i.test(listing.description)) {
+  throw new Error('listing description must lead with paste-and-see');
 }
 if (/\bif you want\b/i.test(listing.description) || /\bdrop\b/i.test(listing.description)) {
   throw new Error('listing copy forbids "if you want" / "drop"');

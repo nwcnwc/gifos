@@ -28,7 +28,7 @@ Pick a seat. **Navigator** / **Hacker** in the bar switches without resetting th
 
 ## Play with a friend
 
-Press **Play with a friend**, then **Invite** in the bar above the app. One invite is the room. There is no jam server.
+Press **Play with a friend**, then **Invite** in the bar above the app.
 
 One of you taps **I am the HACKER**, the other **I am the NAVIGATOR**. The hacker generates the maze. You can still shout the codes if you are in a meeting. The hacker can also press **Send code** to put every code they choose onto the navigator’s terminal — the map updates with **all** of them, not one layer at a time.
 

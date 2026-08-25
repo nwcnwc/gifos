@@ -26,7 +26,7 @@ Two of you on **this** screen: press `2` before the rally. You take left (`Q`/`A
 
 A friend on **another** phone or computer: press **Invite** in the bar above the app. They take the right paddle. You stay left. Names at the top tell you who is who. A third person who opens the link can watch; they do not get a paddle.
 
-When a friend joins, the score resets. When they leave, the computer takes the right paddle back. There is no game server.
+When a friend joins, the score resets. When they leave, the computer takes the right paddle back.
 
 ## What is saved
 

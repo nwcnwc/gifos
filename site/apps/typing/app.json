@@ -39,10 +39,10 @@
   "cover": "/apps/typing/cover.jpg",
   "screenshots": [],
   "gif": "/apps/typing/typing.gif",
-  "bytes": 202277,
+  "bytes": 202257,
   "download": 0,
   "provides": null,
-  "sha256": "960c61d10cc07dbf853bb3d721c6f694ad80dfcaefd911359499bd9c2b9fdd8f",
+  "sha256": "c0aecbd09e6efce2cc5a12df25c13995694b4376d7984609bec691c7cf0452bd",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

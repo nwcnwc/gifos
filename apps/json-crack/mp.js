@@ -54,7 +54,7 @@
   function statusOf(players) {
     var others = players.filter(function (p) { return p.id !== me.id; });
     if (!others.length) {
-      return 'Press Invite (top bar) to show this document in a meeting. Nothing is uploaded on its own.';
+      return 'Press Invite (top bar) to show this document in a meeting.';
     }
     if (guest) {
       var h = hostOf(players);

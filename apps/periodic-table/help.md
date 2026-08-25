@@ -22,7 +22,7 @@ Misses show as chips at the end. **Play again** starts a new set. Your **best** 
 
 ## A friend
 
-Open **A friend**, then press **Invite** in the bar above the app and send the link. You both get the **same** questions and race to **ten right**. First done wins; the next race starts on its own. No account.
+Open **A friend**, then press **Invite** in the bar above the app and send the link. You both get the **same** questions and race to **ten right**. First done wins; the next race starts on its own.
 
 Until someone opens the link, you wait. **← Leave** drops you out of the race. Invite shares only the live quiz and scores — not your saved best.
 

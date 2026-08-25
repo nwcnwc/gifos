@@ -1,6 +1,6 @@
 # JPG Glitch
 
-Corrupt a **still photo** so it looks glitched. The tears, the colour bands, the broken blocks — that is the picture. Nothing is uploaded.
+Corrupt a **still photo** so it looks glitched. The tears, the colour bands, the broken blocks — that is the picture.
 
 ## Load a picture
 

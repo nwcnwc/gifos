@@ -25,7 +25,7 @@
 
   function statusOf() {
     if (guest) return 'Showing a read-only view of the host\'s document.';
-    return 'Press Invite (top bar) to let a meeting watch this document, read-only. Nothing is uploaded.';
+    return 'Press Invite (top bar) to let a meeting watch this document, read-only.';
   }
 
   function applyList(list) {

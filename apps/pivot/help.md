@@ -1,6 +1,6 @@
 # Pivot
 
-Rearrange a table by putting field names on **rows** and **columns**. Counts, sums, and lists fill the cells. Nothing is uploaded.
+Rearrange a table by putting field names on **rows** and **columns**. Counts, sums, and lists fill the cells.
 
 ## Start
 

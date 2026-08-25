@@ -6,7 +6,7 @@ The five ships: **Carrier** (5), **Battleship** (4), **Destroyer** (3), **Submar
 
 ## New game
 
-**Play the computer** hunts on this device. **Play a friend** is a second person on another phone or computer — press **Invite** in the bar above the app to send the link. There is no game server.
+**Play the computer** hunts on this device. **Play a friend** is a second person on another phone or computer — press **Invite** in the bar above the app to send the link.
 
 ## Place your ships
 

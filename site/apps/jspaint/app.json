@@ -40,10 +40,10 @@
   "cover": "/apps/jspaint/cover.jpg",
   "screenshots": [],
   "gif": "/apps/jspaint/jspaint.gif",
-  "bytes": 1211468,
+  "bytes": 1211438,
   "download": 0,
   "provides": null,
-  "sha256": "52850bae7841299f7e60b05e8f0c941e9ac1dc73eeae4fe92fa657f9108430a2",
+  "sha256": "660fc366fb254041e6fb1add14603f7192e40be7426faa8ab7da13c6d1fc741f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -1,6 +1,6 @@
 # JSON Editor
 
-View and edit a document as a **tree** or as **code**. The last document stays in this file. Nothing is uploaded.
+View and edit a document as a **tree** or as **code**. The last document comes back next time.
 
 ## The two views
 

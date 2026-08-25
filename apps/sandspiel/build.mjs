@@ -105,7 +105,7 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
   if (helpBlob.includes(bad)) throw new Error('help ' + bad);
 }
 if (!files['COPYING-sandspiel.txt'].includes('Max Bittker')) throw new Error('COPYING');
-if (!/file is the world/i.test(listing.tagline)) throw new Error('tagline');
+if (!/^Pour sand/i.test(listing.tagline)) throw new Error('tagline');
 if (!files['app.js'].includes("db('save')")) throw new Error('db save');
 if (!files['wasm.js'].includes('WebAssembly.instantiate')) throw new Error('wasm instantiate');
 if (!files['app.js'].includes('This toy needs a canvas')) throw new Error('canvas fail sentence');

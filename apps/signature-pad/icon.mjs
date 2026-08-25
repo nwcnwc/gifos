@@ -215,7 +215,7 @@ export function screenshotPng() {
 
   drawText(put, 48, 48, 'SIGNATURE PAD', 8, 197, 212, 240);
   drawText(put, 48, 140, 'SIGN WITH A FINGER', 4, 220, 220, 228);
-  drawText(put, 48, 190, 'NOTHING IS UPLOADED', 4, 220, 220, 228);
+  drawText(put, 48, 190, 'SIGN WITH A FINGER', 4, 220, 220, 228);
   rr(48, 250, 340, 310, 10, 58, 106, 212);
   drawText(put, 72, 268, 'PASS THE PAD', 3, 244, 247, 255);
   drawText(put, 48, 340, 'CLEAR  UNDO  SAVE PNG', 3, 180, 180, 188);

@@ -220,7 +220,7 @@ export function screenshotPng() {
 
   fill(0, 0, W, H, 10, 10, 15);
   drawText(put, 48, 28, 'JSON DIFF', 6, 80, 170, 90);
-  drawText(put, 48, 84, 'PASTE TWO DOCUMENTS. NOTHING UPLOADED.', 3, 154, 148, 134);
+  drawText(put, 48, 84, 'PASTE TWO DOCUMENTS. SEE WHAT CHANGED.', 3, 154, 148, 134);
 
   rr(48, 140, 392, 430, 12, 16, 16, 24);
   drawText(put, 68, 158, 'LEFT  OLD', 2, 154, 148, 134);

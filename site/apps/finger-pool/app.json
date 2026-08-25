@@ -40,14 +40,14 @@
   "cover": "/apps/finger-pool/cover.jpg",
   "screenshots": [],
   "gif": "/apps/finger-pool/finger-pool.gif",
-  "bytes": 219629,
+  "bytes": 219742,
   "download": 0,
   "provides": null,
-  "sha256": "ba6c51467ef27050d83e891ea229fa40e226c331ad6541fce8c60742d1b9f6bf",
+  "sha256": "7ea1daf59cbca356346f208f949d1b8ce605fdacf900e39d61e6b1449aedd7b9",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

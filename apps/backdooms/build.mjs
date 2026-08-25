@@ -77,8 +77,8 @@ if (!listing.porter || listing.porter.name !== 'GifOS') throw new Error('porter 
 if (listing.license !== 'MIT') throw new Error('license must be MIT');
 if (!listing.categories || listing.categories[0] !== 'Games') throw new Error('categories must include Games');
 if (listing.releaseDate !== '2026-08-24') throw new Error('releaseDate must be 2026-08-24');
-if (!/in a GIF/i.test(listing.tagline) || !/no server/i.test(listing.tagline)) {
-  throw new Error('listing.tagline must lead with in a GIF / no server');
+if (!/DOOM/i.test(listing.tagline) || !/GIF/i.test(listing.tagline)) {
+  throw new Error('listing.tagline must lead with DOOM in a GIF');
 }
 const listingBlob = JSON.stringify(listing);
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage', 'WebRTC']) {

@@ -242,7 +242,7 @@ export function screenshotPng() {
     drawText(put, cx + 22, 606, c, 3, 232, 237, 245);
     cx += 122;
   }
-  drawText(put, 48, 672, 'NOTHING IS UPLOADED', 3, 139, 149, 167);
+  drawText(put, 48, 672, 'TYPE 1 FT TO CM', 3, 139, 149, 167);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

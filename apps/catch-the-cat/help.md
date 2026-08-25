@@ -25,7 +25,7 @@ Press **Invite** in the bar above this app. Everyone who opens the link gets the
 
 A list of names appears when someone else is in the room. **New board** hands everyone a new shared start. Until a friend joins, you just play the honeycomb in front of you.
 
-There is no game server. Nobody can play your taps for you.
+Nobody can play your taps for you.
 
 ## What is saved
 

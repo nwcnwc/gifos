@@ -32,8 +32,6 @@ Press **Play a friend**, then **Invite** in the **bar above the app**. They sit 
 - **Resign** ends that game; the next one starts on its own.
 - **Leave** returns to setup.
 
-There is no game server. The room is the invite.
-
 ## What is saved
 
 A local game in progress stays in the file — mode, colour, level, and every stone. Close it and come back: the board is still there. A finished game is not restored. A live match is the room, not the file.

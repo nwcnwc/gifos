@@ -27,7 +27,7 @@ A real finger brings up two pads (a laptop with a touchscreen keeps the keyboard
 
 ## A friend
 
-Press **Invite** in the bar above the app. Whoever opens the link appears on the same island, walking the same paths. There is no score and no lobby. The room is the link.
+Press **Invite** in the bar above the app. Whoever opens the link appears on the same island, walking the same paths. There is no score — it is a walk.
 
 Each of you starts on a different cobble so you do not land on top of each other. Names show when more than one person is here.
 

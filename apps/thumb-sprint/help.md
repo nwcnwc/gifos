@@ -29,7 +29,7 @@ On your own, pick **Ghost** or **Computer** in the header:
 - **Computer** — a fair cadence. Beatable if you mash, not asleep if you don't.
 - **Ghost** — a replay of your best time in the next lane. The first finished run sets a time; later runs race that ghost.
 
-**Invite** (in the bar above the app) puts a friend in the next lane. Two to four lanes. There is no race server. The person who opened the app starts the gun; guests wait for GO on the pad. A fifth person watches.
+**Invite** (in the bar above the app) puts a friend in the next lane. Two to four lanes. The person who opened the app starts the gun; guests wait for GO on the pad. A fifth person watches.
 
 Invite is OS chrome — this app does not draw a share button.
 

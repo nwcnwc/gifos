@@ -2,7 +2,7 @@
 
 Type a regular expression. Press **Display**. You get a railroad diagram of what it matches: boxes for the letters, loops for things that repeat, branches where there is a choice. That is often easier to read than the punctuation.
 
-The picture is drawn on this device. Nothing is uploaded.
+Save the picture as an SVG or a PNG.
 
 ## What you do
 
@@ -30,6 +30,6 @@ You can wrap the expression in `/slashes/` and add flags (`i`, `g`, `m`). Bare t
 
 ## Private
 
-Nothing is saved in this file. **Invite** does not share a diagram. There is no account and no history.
+Nothing is saved between sessions, and **Invite** does not share a diagram.
 
 Unofficial port of [Regexper](https://github.com/javallone/regexper-static) by javallone.

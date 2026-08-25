@@ -298,7 +298,7 @@ export function screenshotPng() {
   drawText(put, 760, 230, 'FIVE IN A ROW', 4, 196, 154, 96);
   drawText(put, 760, 360, 'COMPUTER', 3, 232, 220, 200);
   drawText(put, 760, 410, 'OR A FRIEND', 3, 232, 220, 200);
-  drawText(put, 760, 500, 'NO SERVER', 3, 176, 140, 96);
+  drawText(put, 760, 500, 'FIVE IN A ROW', 3, 176, 140, 96);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

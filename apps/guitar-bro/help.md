@@ -35,7 +35,7 @@ The neck is the whole screen. Use a thumb on the fret row. Listen still works if
 
 Press **Play a friend**, then **Invite** in the **bar above the app**. You both get the same song, string, speed, and chart. You play at the same time on your own necks. Highest score when the song ends wins.
 
-**Play again** starts the next round on that chart. **← Solo** leaves the race. Pause is off during a race. There is no game server.
+**Play again** starts the next round on that chart. **← Solo** leaves the race. Pause is off during a race.
 
 ## What is saved
 

@@ -1,6 +1,6 @@
 # Tuner
 
-Record a **note**, then see its **pitch**. Nothing is uploaded. There is no live microphone inside the app.
+Record a **note**, then see its **pitch**.
 
 ## Record a note
 

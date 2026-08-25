@@ -32,7 +32,7 @@ The phone layout only appears after a real finger touches the screen, so a lapto
 
 ## A live friend
 
-Press **Invite** in the **bar above the app** — not inside the game. Everyone who opens the link lands in the same street, same buildings, same sun. The garrison stands down; the other players are the opposition. There is no lobby and no game server.
+Press **Invite** in the **bar above the app** — not inside the game. Everyone who opens the link lands in the same street, same buildings, same sun. The garrison stands down; the other players are the opposition.
 
 Comfortable up to about six people. Friends glide a fraction of a second behind you. This is a deathmatch over a link, not a ranked match.
 

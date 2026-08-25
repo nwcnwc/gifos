@@ -42,5 +42,3 @@ Need two people before turns start. While you wait, send the Invite.
 Your solo doodle lives **in this file**. Close it, open it later, the lines are where you left them.
 
 A live round lives in the shared room. Leaving with **← Solo** puts you back on your private page. The friend’s picture does not overwrite your doodle.
-
-Nothing is uploaded. There is no lobby code and no game server. The room is the link.

@@ -190,7 +190,7 @@ export function screenshotPng() {
 
   fill(0, 0, W, H, 10, 10, 15);
   drawText(put, 64, 48, 'QR CODE', 6, 240, 196, 32);
-  drawText(put, 64, 110, 'TYPE A LINK. GET A CODE. NOTHING UPLOADED.', 3, 154, 148, 134);
+  drawText(put, 64, 110, 'TYPE A LINK. GET A CODE.', 3, 154, 148, 134);
 
   rr(64, 180, 560, 660, 16, 255, 255, 255);
   const qx = 120, qy = 230, s = 12, n = 25;

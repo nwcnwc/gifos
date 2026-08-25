@@ -63,10 +63,10 @@ if (listing.author.name !== 'Kostyantyn Pshenychnyy' || listing.porter.name !== 
 if (/gifos/i.test(listing.author.name)) throw new Error('author is never GifOS');
 if (listing.license !== 'MIT' || listing.releaseDate !== '2026-08-24') throw new Error('listing');
 if (listing.homepage !== 'https://github.com/nwcnwc/gifos/tree/main/apps/server-survival') throw new Error('homepage');
-if (!/no server/i.test(listing.tagline) || !/file is the save/i.test(listing.tagline)) {
-  throw new Error('tagline must lead with no server / file is the save');
+if (!/cloud architect/i.test(listing.tagline)) {
+  throw new Error('tagline must lead with the cloud architect');
 }
-if (!/^The original is a webpage/.test(listing.description)) {
+if (!/^Close it mid-wave/.test(listing.description)) {
   throw new Error('description must lead with why this copy');
 }
 

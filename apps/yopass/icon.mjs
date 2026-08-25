@@ -243,7 +243,7 @@ export function screenshotPng() {
 
   // invite callout
   radfill(160, 520, 1040, 600, 16, 19, 34, 56);
-  const call = 'INVITE IS THE ROOM  -  NOTHING WAS UPLOADED';
+  const call = 'THE INVITE OPENS A ONE TIME ROOM';
   drawText(put, 600 - textWidth(call, 3) / 2, 548, call, 3, 200, 220, 245);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);

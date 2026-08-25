@@ -143,6 +143,7 @@ function pngChunk(tag, data) {
 }
 
 const GLYPHS = {
+  C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
   A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
@@ -192,7 +193,7 @@ export function screenshotPng() {
   };
   fill(0, 0, W, H, 26, 20, 16);
   drawText(put, 48, 28, 'SANDSPIEL', 7, 230, 196, 110);
-  drawText(put, 48, 88, 'THE FILE IS THE WORLD.', 3, 184, 168, 140);
+  drawText(put, 48, 88, 'POUR SAND AND WATCH IT REACT.', 3, 184, 168, 140);
 
   const palStrip = [SAND, WATER, FIRE, WOOD, LAVA, PLANT, ICE, [196, 94, 200], [232, 120, 160], [184, 224, 64]];
   palStrip.forEach((c, i) => fill(48 + i * 52, 128, 48 + i * 52 + 44, 152, c[0], c[1], c[2]));

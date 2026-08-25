@@ -253,7 +253,7 @@ export function screenshotPng() {
   }
 
   drawText(put, 48, 36, 'THE HOUSE', 7, 244, 214, 160);
-  drawText(put, 48, 96, 'THE FILE IS THE SAVE.', 3, 196, 148, 88);
+  drawText(put, 48, 96, 'FIND THE WAY OUT.', 3, 196, 148, 88);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

@@ -21,7 +21,7 @@ Grab several in a row (within about a second and a half) and a combo bonus stack
 
 ## Alone and with a friend
 
-Alone you play against the clock. Press **Invite** in the bar above the app and a friend lands in the same sky — live scores, the same stars, a bump if you cross. There is no lobby and no account. The room is the link.
+Alone you play against the clock. Press **Invite** in the bar above the app and a friend lands in the same sky — live scores, the same stars, a bump if you cross.
 
 The person who opened the room writes the starfield. If they leave, the stars freeze until someone starts a new room. Two rockets cannot collect the same star twice; first claim wins.
 

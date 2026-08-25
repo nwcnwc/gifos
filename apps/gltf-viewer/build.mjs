@@ -102,7 +102,7 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'localStorage',
 if (/\bDrop\b/.test(listing.tagline) || /\bDrop\b/.test(listing.description)) {
   throw new Error('listing copy: say Open, not Drop');
 }
-if (!/nothing is uploaded/i.test(listing.description)) throw new Error('listing must say nothing is uploaded');
+if (!/model is not sent/i.test(listing.description)) throw new Error('listing must say the model is not sent');
 if (!/unofficial port/i.test(listing.description)) throw new Error('listing must say unofficial port');
 
 const SCRIPTS = ['vendor/three-viewer.js', 'viewer.js', 'app.js'];

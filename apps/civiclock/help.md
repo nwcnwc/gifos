@@ -1,6 +1,6 @@
 # Civiclock
 
-You are mayor of a small land that **ticks**. Paint zones, keep the lights and the taps on, and people show up because the city works. They leave when it does not. The city lives in this file. There is no account and no server.
+You are mayor of a small land that **ticks**. Paint zones, keep the lights and the taps on, and people show up because the city works. They leave when it does not. The city is saved in this file.
 
 ## Land
 

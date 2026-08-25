@@ -495,7 +495,7 @@
     var Mp = root.JsonEditorMp;
     var meet = $('meet');
     if (meet && meet.textContent.indexOf('Invite') < 0) {
-      meet.textContent = 'Press Invite (top bar) to let a meeting watch this document, read-only. Nothing is uploaded.';
+      meet.textContent = 'Press Invite (top bar) to let a meeting watch this document, read-only.';
     }
     if (Mp) {
       Mp.getState = function () {

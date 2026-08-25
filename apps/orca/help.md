@@ -1,6 +1,6 @@
 # Orca
 
-A livecoding sequencer. The canvas is a grid of letters. Each letter is an operator. There is no account; the grid stays on this device, inside the file.
+A livecoding sequencer. The canvas is a grid of letters. Each letter is an operator. The grid is saved with the app.
 
 ## The one thing
 

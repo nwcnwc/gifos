@@ -40,10 +40,10 @@
   "cover": "/apps/jpg-glitch/cover.jpg",
   "screenshots": [],
   "gif": "/apps/jpg-glitch/jpg-glitch.gif",
-  "bytes": 190587,
+  "bytes": 190574,
   "download": 0,
   "provides": null,
-  "sha256": "e4158c972aa22d904251fc2426701694b100c9f537b8a526d3b2a9fe091df8bb",
+  "sha256": "4d5df8d70e96650e139571ec85b696be6ed7272892c7ddadbaa33408e4ca6b26",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

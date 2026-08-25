@@ -198,7 +198,7 @@ export function screenshotPng() {
 
   fill(0, 0, W, H, 10, 10, 15);
   drawText(put, 40, 24, 'JSON EDITOR', 6, 244, 241, 232);
-  drawText(put, 40, 78, 'TREE OR CODE. THE FILE IS THE DOCUMENT.', 3, 154, 148, 134);
+  drawText(put, 40, 78, 'TREE OR CODE SIDE BY SIDE.', 3, 154, 148, 134);
 
   fill(40, 118, 220, 162, 255, 165, 0);
   drawText(put, 72, 132, 'TREE', 3, 26, 18, 4);
@@ -237,7 +237,7 @@ export function screenshotPng() {
   ];
   for (const [x, y, s, r, g, b] of code) drawText(put, x, y, s, 3, r, g, b);
 
-  drawText(put, 40, 664, 'SAVED ON THIS DEVICE. NOTHING IS UPLOADED.', 3, 154, 148, 134);
+  drawText(put, 40, 664, 'YOUR DOCUMENT STAYS ON THIS DEVICE.', 3, 154, 148, 134);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

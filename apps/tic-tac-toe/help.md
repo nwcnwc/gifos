@@ -16,7 +16,7 @@ Tap or click an empty square. **Undo** takes back your last mark (and the comput
 
 ## Play a friend
 
-Press **Play a friend**, then **Invite** in the bar above the app, and send the link. There is no game server. First to sit is X, second is O. Extra people watch.
+Press **Play a friend**, then **Invite** in the bar above the app, and send the link. First to sit is X, second is O. Extra people watch.
 
 After a win or a draw, the next game starts in a few seconds. If someone leaves mid-game, the remaining player wins.
 

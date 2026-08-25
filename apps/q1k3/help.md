@@ -34,7 +34,7 @@ Close it mid-map and come back: **Continue** starts in the hall you reached. **F
 
 On your own this is the original campaign.
 
-Press **Invite** in the bar above the app. Extra people appear in the same halls. They look like the monsters already in the game, and you **can shoot them** — they can shoot you. Hold **Tab** (or tap the “in the halls” tally on a phone) for kills and deaths. This is not a co-op campaign and not a tournament. There is no game server.
+Press **Invite** in the bar above the app. Extra people appear in the same halls. They look like the monsters already in the game, and you **can shoot them** — they can shoot you. Hold **Tab** (or tap the “in the halls” tally on a phone) for kills and deaths. This is not a co-op campaign and not a tournament.
 
 ## What is saved
 

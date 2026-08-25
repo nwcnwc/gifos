@@ -1,6 +1,6 @@
 # Signature Pad
 
-A cream sheet you sign with a finger or a mouse. The line thickens and thins the way a pen does. Nothing is uploaded. There is no account.
+A cream sheet you sign with a finger or a mouse. The line thickens and thins the way a pen does. Nothing is uploaded.
 
 ## Sign
 

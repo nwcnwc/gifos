@@ -312,7 +312,7 @@ export function screenshotPng() {
   rr(put, 600, 430, 1148, 520, 12, 232, 197, 71);
   drawText(put, 624, 460, 'PLAY A FRIEND', 4, 26, 70, 36);
   drawText(put, 600, 560, 'A TABLE OVER A MEETING', 3, 244, 239, 228);
-  drawText(put, 600, 614, 'NO SERVER  SCORES IN THE FILE', 3, 210, 230, 200);
+  drawText(put, 600, 614, 'EVERYONE SEES THE SAME DICE', 3, 210, 230, 200);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

@@ -1,6 +1,6 @@
 # My Mind
 
-A mind map. Click a bubble and type. The map is the file. Nothing is uploaded.
+A mind map. Click a bubble and type. The map is saved with the app.
 
 ## Keys
 

@@ -1,6 +1,6 @@
 # Drawnix
 
-An all-in-one whiteboard: mind maps, flowcharts, and pencil sketches on **one infinite canvas**. Nothing is uploaded. The board auto-saves on this device, inside the app.
+An all-in-one whiteboard: mind maps, flowcharts, and pencil sketches on **one infinite canvas**. The board auto-saves on this device.
 
 ## The jobs
 

@@ -1,6 +1,6 @@
 # TexGen
 
-Build a **procedural texture** from stacked generators. Download a PNG. Nothing is uploaded. The stack lives in this file.
+Build a **procedural texture** from stacked generators. Download a PNG. Your stack is saved with the app.
 
 ## Layers
 

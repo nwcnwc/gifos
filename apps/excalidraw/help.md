@@ -1,6 +1,6 @@
 # Excalidraw
 
-A hand-drawn whiteboard for boxes, arrows, handwriting, and diagrams. The rough ink is the point. What you draw is saved on this device, inside the app. There is no account and no cloud.
+A hand-drawn whiteboard for boxes, arrows, handwriting, and diagrams. The rough ink is the point. What you draw is saved on this device, inside the app.
 
 ## The jobs
 

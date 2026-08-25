@@ -1,6 +1,6 @@
 # SVGOMG
 
-Make an SVG picture smaller, on this device. Nothing is uploaded.
+Make an SVG picture smaller, on this device.
 
 Drop a file, paste markup, or tap **Demo** for the included car. Toggle clean-up steps, watch the picture and the size change, then **Download** or **Copy**.
 
@@ -39,7 +39,7 @@ A bigger result is possible — some steps, or **Prettify markup**, can grow a t
 - **Download** saves the cleaned SVG under the same name.
 - **Copy** puts the markup on the clipboard.
 
-The picture never leaves this device. There is no account and no upload.
+The picture never leaves this device.
 
 ## Invite and save
 

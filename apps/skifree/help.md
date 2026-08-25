@@ -44,8 +44,6 @@ On your own it is SkiFree, plus that ghost of your best.
 
 **Invite** lives in the bar **above** the slope, not inside the game. A friend opens the link and you both ski **your own run**. They show up as a tinted **ghost** a little ahead or behind. Same trees are not shared — each slope is yours. **Farthest when everyone is out wins.** If you wipe out first, wait: the race is not over until the last skier is gone.
 
-There is no account and no game server. The race is the link.
-
 ## What is saved
 
 Your **best distance** and a short tape of that best run stay in the file. Lives, the current run, and a live race are not.

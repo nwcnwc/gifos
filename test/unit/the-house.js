@@ -187,7 +187,7 @@ check('app.js loads in a vm and exposes HousePort', !!(HP && HP.remapSrc && HP.f
   check('listing claims a tap works', /Tap/i.test(listing.description));
   check('listing is an unofficial port of The House', listing.basedOn && listing.basedOn.name === 'The House' && listing.basedOn.blessed === false);
   check('author is Artur Kot, not GifOS', listing.author && listing.author.name === 'Artur Kot');
-  check('help tells you the file is the save', /file you keep is the save/i.test(help));
+  check('help tells you progress is saved', /progress is saved/i.test(help));
   check('help mentions tap', /Tap/i.test(help));
   check('help does not name gifos.db', help.indexOf('gifos.db') === -1);
 

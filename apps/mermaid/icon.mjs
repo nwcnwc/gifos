@@ -116,6 +116,7 @@ function pngChunk(tag, data) {
   return Buffer.concat([len, body, c]);
 }
 const GLYPHS = {
+  '.': [0, 0, 0, 0, 0, 0b01100, 0b01100],
   'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
   'D': [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
@@ -182,7 +183,7 @@ export function screenshotPng() {
   drawText(put, 36, 280, 'B YES  C NICE', 2, 210, 220, 235);
   drawText(put, 36, 320, 'B NO   D TRY A SEQUENCE', 2, 210, 220, 235);
   drawText(put, 36, 360, 'C --> E SAVED IN THIS FILE', 2, 210, 220, 235);
-  drawText(put, 36, 640, 'OFFLINE   FILE IS THE SAVE', 2, 140, 160, 180);
+  drawText(put, 36, 640, 'TYPE A DIAGRAM. SEE IT LIVE.', 2, 140, 160, 180);
 
   fill(700, 80, 1080, 200, 237, 106, 90);
   fill(580, 430, 820, 560, 112, 193, 179);

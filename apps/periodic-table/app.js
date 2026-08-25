@@ -464,7 +464,7 @@
       $('fPrompt').innerHTML =
         '<div class="waitcard"><h3>Waiting for a friend</h3>' +
         '<p>Press <b>Invite</b> in the bar above the app, and send the link. You both get the same questions. First to ' +
-        (q.n || QN) + ' right wins. No account.</p></div>';
+        (q.n || QN) + ' right wins.</p></div>';
       $('fChoices').innerHTML = '';
       $('fNote').textContent = '';
       return;
