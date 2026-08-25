@@ -170,7 +170,9 @@
     rosterEl.hidden = false;
     rosterEl.classList.toggle('coop', mode === 'coop');
     if (list.length < 2) {
-      rosterEl.innerHTML = '<div class="wait">Waiting for someone else — they get this same board.</div>';
+      rosterEl.innerHTML = '<div class="wait">' + (mode === 'coop'
+        ? 'Waiting for someone else — they get a cat of their own on this board.'
+        : 'Waiting for someone else — they get this same board.') + '</div>';
       return;
     }
     if (mode === 'coop') { drawTeam(list); return; }

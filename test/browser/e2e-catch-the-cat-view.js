@@ -91,8 +91,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
 
   // ------------------------------------------------ 1. a step takes time
+  //
+  // Everything asserted here is a CLOCK claim, deliberately, because a frame
+  // COUNT is a fact about the box and not about the app. This box is six cores
+  // and a browser suite can drag it to 10 fps, at which a perfectly good 620 ms
+  // walk is only six samples — so "at least ten frames" is a check that goes
+  // red when the kernel is busy and green when it is not, which is the exact
+  // shape of a guard people learn to ignore. The frame counts below are
+  // PRINTED, never asserted.
   {
-    const trace = await page.evaluate(async () => {
+    const step = await page.evaluate(async () => {
       const R = window.GifCat.rules, E = window.GifCat.engine;
       const el = document.querySelector('.cat');
       const at = () => {
@@ -102,41 +110,58 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const art = () => document.querySelector('.cat .art').getAttribute('src');
       const rec = [];
       let stop = false;
-      const t0 = performance.now();
-      const tick = () => { if (stop) return; rec.push([performance.now() - t0, at(), art()]); requestAnimationFrame(tick); };
+      const tick = () => { if (stop) return; rec.push([performance.now(), at(), art()]); requestAnimationFrame(tick); };
+
+      const from = at();
       requestAnimationFrame(tick);
-      // A wall next to the cat, so the cat certainly steps.
       const me = R.cats()[0];
       const spot = E.neighbours(me.i, me.j).find((n) => E.inside(n.i, n.j) && !R.isWall(n.i, n.j));
+      const t0 = performance.now();
       R.tap(spot.i, spot.j);
       window.GifCat.view.setWalls(R.isWall);
       window.GifCat.view.setCats(R.cats());
-      await new Promise((r) => setTimeout(r, 1400));
+      const wait = (ms) => new Promise((r) => setTimeout(r, Math.max(0, t0 + ms - performance.now())));
+      await wait(380);
+      const mid = at();
+      await wait(1600);
+      const end = at();
       stop = true;
-      return rec;
+      const d = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const total = d(from, end);
+      const moved = rec.filter((x) => x[1]);
+      let biggest = 0;
+      for (let n = 1; n < moved.length; n++) biggest = Math.max(biggest, d(moved[n - 1][1], moved[n][1]));
+      return {
+        total, biggest,
+        midFrac: total > 0 ? d(from, mid) / total : 0,
+        endFrac: total > 0 ? d(from, end) / total : 0,
+        sprites: new Set(rec.map((x) => x[2]).filter(Boolean)).size,
+        samples: moved.length,
+        pitch: 2 * Number(getComputedStyle(document.getElementById('plate')).getPropertyValue('--r').replace('px', '')),
+      };
     });
-    const moved = trace.filter((s) => s[1]);
-    const first = moved[0][1], last = moved[moved.length - 1][1];
-    const total = Math.hypot(last[0] - first[0], last[1] - first[1]);
-    let biggest = 0, movingFrames = 0, tStart = null, tEnd = null;
-    for (let n = 1; n < moved.length; n++) {
-      const d = Math.hypot(moved[n][1][0] - moved[n - 1][1][0], moved[n][1][1] - moved[n - 1][1][1]);
-      if (d > 0.01) { movingFrames++; if (tStart === null) tStart = moved[n - 1][0]; tEnd = moved[n][0]; }
-      if (d > biggest) biggest = d;
-    }
-    const dur = tEnd - tStart;
-    check('a tap moves the cat a whole hex', total > 20, { total });
-    check('...over many frames, not one', movingFrames >= 10, { movingFrames });
-    check('...taking a readable amount of time', dur > 320 && dur < 1500, { dur: Math.round(dur) });
-    check('...and no single frame covers the hex', biggest < total * 0.45, { biggest, total });
-    const frames = new Set(trace.map((s) => s[2]).filter(Boolean));
-    check('...cycling the stride frames as it goes', frames.size >= 3, { frames: frames.size });
+    console.log('     (box: ' + step.samples + ' animation frames sampled across the step)');
+    check('a tap moves the cat exactly one hex', Math.abs(step.total - step.pitch) < step.pitch * 0.06,
+      { moved: step.total.toFixed(1), hexPitch: step.pitch });
+    // THE GUARD. A teleport is at the far hex the instant the tap lands, so it
+    // reads 1.0 here whatever the box is doing; a walk cannot be, whatever the
+    // box is doing.
+    check('380 ms after the tap the cat is still crossing', step.midFrac < 0.9,
+      { fractionOfHexCovered: step.midFrac.toFixed(3) });
+    check('...and it does arrive', step.endFrac > 0.999, { endFrac: step.endFrac });
+    check('...cycling the stride frames on the way', step.sprites >= 3, { distinctSprites: step.sprites });
+    check('...without one frame covering the hex', step.biggest < step.total * 0.6,
+      { biggestFrameStep: step.biggest.toFixed(1), total: step.total.toFixed(1) });
   }
 
   // -------------------------------------- 2. tapping mid-stride never skips
+  //
+  // The old failure exactly: four taps inside one stride. Same clock-not-frames
+  // rule — the claim is that a moment after the fourth tap the DRAWN cat is
+  // still hexes behind the logical one, which a skip cannot be.
   {
-    const walked = await page.evaluate(async () => {
-      const R = window.GifCat.rules, E = window.GifCat.engine;
+    const run = await page.evaluate(async () => {
+      const R = window.GifCat.rules, E = window.GifCat.engine, V = window.GifCat.view;
       const el = () => document.querySelector('.cat');
       const at = () => {
         const m = /translate3d\(([-\d.]+)px, *([-\d.]+)px/.exec(el().style.transform);
@@ -147,31 +172,35 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const tick = () => { if (stop) return; const p = at(); if (p) path.push(p); requestAnimationFrame(tick); };
       requestAnimationFrame(tick);
       const hexes = [[R.cats()[0].i, R.cats()[0].j]];
-      // Four taps in a row, far faster than a 620 ms stride.
       for (let n = 0; n < 4; n++) {
         const me = R.cats()[0];
         const spot = E.neighbours(me.i, me.j).find((x) => E.inside(x.i, x.j) && !R.isWall(x.i, x.j));
         if (!spot || R.state() !== 'chasing') break;
         R.tap(spot.i, spot.j);
-        window.GifCat.view.setWalls(R.isWall);
-        window.GifCat.view.setCats(R.cats());
+        V.setWalls(R.isWall); V.setCats(R.cats());
         hexes.push([R.cats()[0].i, R.cats()[0].j]);
-        await new Promise((r) => setTimeout(r, 90));
+        await new Promise((r) => setTimeout(r, 80));
       }
-      await new Promise((r) => setTimeout(r, 2500));
+      await new Promise((r) => setTimeout(r, 120));
+      const behind = at();
+      await new Promise((r) => setTimeout(r, 3000));
       stop = true;
-      // The drawn path, sampled every frame. Where a hex was SKIPPED there is
-      // a single jump the size of a hex; where it was WALKED there is not.
+      const arrived = at();
       let biggest = 0;
       for (let n = 1; n < path.length; n++) {
-        const d = Math.hypot(path[n][0] - path[n - 1][0], path[n][1] - path[n - 1][1]);
-        if (d > biggest) biggest = d;
+        biggest = Math.max(biggest, Math.hypot(path[n][0] - path[n - 1][0], path[n][1] - path[n - 1][1]));
       }
-      return { hexes, biggest, samples: path.length, pitch: 2 * Number(getComputedStyle(document.getElementById('plate')).getPropertyValue('--r').replace('px', '')) };
+      return {
+        hexes, biggest, samples: path.length,
+        lag: Math.hypot(arrived[0] - behind[0], arrived[1] - behind[1]),
+        pitch: 2 * Number(getComputedStyle(document.getElementById('plate')).getPropertyValue('--r').replace('px', '')),
+      };
     });
-    check('four fast taps step the cat four times', walked.hexes.length === 5, walked.hexes);
-    check('...and it walks every one of them, rather than skipping',
-      walked.biggest < walked.pitch * 0.55, { biggestFrameStep: walked.biggest.toFixed(1), hexPitch: walked.pitch });
+    check('four fast taps step the cat four times', run.hexes.length === 5, run.hexes);
+    check('...and it is still walking them well after the last tap',
+      run.lag > run.pitch * 1.2, { stillToCover: run.lag.toFixed(1), hexPitch: run.pitch });
+    check('...never jumping a hex to catch up',
+      run.biggest < run.pitch * 0.75, { biggestFrameStep: run.biggest.toFixed(1), hexPitch: run.pitch });
   }
 
   // ---------------------------------------- 3. turn the board, then tap it

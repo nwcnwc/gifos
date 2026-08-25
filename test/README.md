@@ -818,7 +818,21 @@ Roughly three families in one directory:
   The co-op CLEAR verdict is deliberately NOT here — penning a cat is the game,
   there is no short scripted line that wins, and a drill good enough to win
   would be testing its own heuristic; that arithmetic is pinned on two real
-  net.js clients in `unit/catch-the-cat.js` instead).
+  net.js clients in `unit/catch-the-cat.js` instead),
+  `e2e-catch-the-cat-view` (HOW LONG DOES THE CAT TAKE TO GET ANYWHERE — the
+  question no suite had ever asked, which is why the walk could stop being
+  reachable without a single red. Upstream moves the cat on
+  'animationcomplete'; playerClick() opens with `anims.stop()`; Phaser 3.16's
+  stop() EMITS 'animationcomplete'. A tap inside the ~380 ms stride therefore
+  fired the queued move at once, and tapping faster than the stride meant it
+  never walked at all. This samples the cat's own transform across a step and
+  pins that the step takes many frames and a readable duration, that no single
+  frame covers the hex, that the stride frames cycle, and that four taps fired
+  far faster than one stride still WALK four hexes. It also pins the pointer
+  paths: a drag turns the board and is never a move, a tap after a turn still
+  lands on the hex under the finger, the wheel dollies, and a spun board
+  changes which sprite the billboarded cat wears. Own server, no relay, no
+  runtime — `e2e-app-frame-escape` already boots this GIF for real).
 - **meeting** — `e2e-meet-lobby`, `e2e-meet-invite`, `e2e-meet-prettyurl`,
   `e2e-meet-quiet`, `e2e-meet-record-app`, `e2e-meet-mod` (blur/mute/undo,
   stage, vote, admin rooms — 48 checks), `e2e-meet-password`, `e2e-video`,
