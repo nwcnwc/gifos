@@ -129,13 +129,21 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     const body = document.getElementById('apphelp-body');
     const h = Array.from(body.querySelectorAll('h4')).map((x) => x.textContent.trim());
     const a = Array.from(body.querySelectorAll('a')).map((x) => x.getAttribute('href'));
-    return { lastHeading: h[h.length - 1], text: body.textContent, links: a };
+    return { heads: h, text: body.textContent, links: a };
   });
-  check('Help credits the SEALED credits.json at the VERY BOTTOM (author, porter, basedOn, install date)',
-    credits.lastHeading === 'Credits' && /Ada Author/.test(credits.text) && /Brought to GifOS by/.test(credits.text)
+  // Credits are the last CONTENT section; the ONLY thing under them is the
+  // 'Something wrong?' report link (d698478c — a deliberate decision, pinned
+  // with its rationale in test/unit/app-help.js: the report link is the very
+  // last section of every Help). This check used to demand Credits be the
+  // final heading outright; it predated that feature and sat RED on main
+  // while the unit suite asserted the opposite order — the stale side was
+  // this one, so it moved (the fix-the-test rule, said here as required).
+  check('Help credits the SEALED credits.json at the bottom (author, porter, basedOn, install date), only the report link below',
+    credits.heads[credits.heads.length - 2] === 'Credits' && credits.heads[credits.heads.length - 1] === 'Something wrong?'
+    && /Ada Author/.test(credits.text) && /Brought to GifOS by/.test(credits.text)
     && /The Original/.test(credits.text) && /Sealed inside this GIF/.test(credits.text)
     && /installed on this device on 2026-08-24/.test(credits.text)
-    && credits.links.indexOf('https://example.com/ada') !== -1, credits.lastHeading);
+    && credits.links.indexOf('https://example.com/ada') !== -1, credits.heads.slice(-2).join(' → '));
   await p.click('#apphelp-close');
   check('Got it closes Help', await p.evaluate(() => {
     const m = document.getElementById('apphelp-modal');
