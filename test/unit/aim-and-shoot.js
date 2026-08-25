@@ -37,7 +37,7 @@ function seededMath(seed) {
 function fakeCtx() {
   return {
     fillRect() {}, clearRect() {}, strokeRect() {},
-    beginPath() {}, arc() {}, fill() {}, save() {}, restore() {},
+    beginPath() {}, arc() {}, fill() {}, stroke() {}, save() {}, restore() {},
     translate() {}, rotate() {}, drawImage() {}, fillText() {},
     font: '', textAlign: 'center', fillStyle: '', strokeStyle: '',
     shadowColor: '', shadowBlur: 0, textBaseline: 'alphabetic',
@@ -154,6 +154,7 @@ function load() {
     'vendor/Genetics.js',
     'vendor/GuiControls.js',
     'vendor/main.js',
+    'boot.js',
   ].map((f) => fs.readFileSync(path.join(APP, f), 'utf8'));
   vm.runInContext(files.join('\n;\n'), sandbox, { filename: 'aim-and-shoot.js' });
   return {
@@ -210,6 +211,44 @@ check('the player is in the middle of the arena',
   p.isShooting = false;
 }
 
+// THE GUN RELOADS. Upstream refilled the magazine only on frames a player
+// was NOT shooting, so anything holding the trigger — a bot whose net says
+// fire, or a phone player whose FIRE button had no way to come back up —
+// fired ~20 shots once and was dry for the rest of its life.
+{
+  const p = AAS.player;
+  p.lookAt(p.pos.x + 100, p.pos.y);
+  p.isShooting = true;
+  for (let i = 0; i < 400; i++) { p.health = 99; run.tick(16); }
+  const drained = p.shootsFired;
+  for (let i = 0; i < 200; i++) { p.health = 99; run.tick(16); }
+  check('the gun still fires after a long hold on the trigger',
+    p.shootsFired > drained, { after400: drained, after600: p.shootsFired });
+  check('a held trigger never pins the magazine at empty forever',
+    p.coolDown > 0 || p.shootsFired > drained, { coolDown: p.coolDown });
+  p.isShooting = false;
+  p.health = 10;
+}
+
+// THE PAD CAN LET GO. applyPad only ever raised isShooting; one tap of FIRE
+// left the trigger held down for the rest of the run.
+{
+  const p = AAS.player;
+  p.isShooting = false;
+  AAS.pad.fire = true;
+  p.health = 99;
+  run.tick(16);
+  check('FIRE on the pad pulls the trigger', p.isShooting === true, p.isShooting);
+  AAS.pad.fire = false;
+  p.health = 99;
+  run.tick(16);
+  check('releasing FIRE lets the trigger go', p.isShooting === false, p.isShooting);
+  p.health = 10;
+}
+
+check('the arena takes the shape of its box, short side fixed',
+  Math.min(AAS.w, AAS.h) === 620, { w: AAS.w, h: AAS.h });
+
 {
   const g0 = AAS.generation;
   (AAS.enemies || []).forEach((e) => { e.health = 0; e.isDead = true; });
@@ -240,6 +279,17 @@ check('the playfield is the original light lab, not a dark void',
   main.includes('#ececec') && css.includes('#ececec') && !/background:\s*#111/.test(css));
 check('the canvas keeps its aspect on a phone (contain, not a squash)',
   /#game[\s\S]{0,180}object-fit:\s*contain/.test(css));
+check('the walls are ON SCREEN — a hazard band framing the canvas',
+  html.includes('id="arena"') && /#arena[\s\S]{0,320}repeating-linear-gradient/.test(css) &&
+  /#arena[\s\S]{0,200}padding:/.test(css));
+check('the controls sit off the field on a phone',
+  /body\.touch\s+#arena[\s\S]{0,200}bottom:/.test(css));
+check('the field is sized from its box, not nailed to 1366x768',
+  main.includes('fitArena') && main.includes('clientWidth') && main.includes('ARENA_SHORT'));
+check('the gun reloads under fire, from the shell (Player.js is pinned)',
+  boot.includes('coolDown') && boot.includes('Player.prototype.update'));
+check('FIRE captures its pointer so a sliding thumb cannot hold it down',
+  /function fireOn[\s\S]{0,400}capture\(fire/.test(boot));
 check('phone pad markup is in the page (FIRE under the thumb)',
   html.includes('id="p-move"') && html.includes('id="p-fire"') && html.includes('id="p-look"'));
 check('FIRE is a real button', /<button[^>]*id="p-fire"/.test(html));
