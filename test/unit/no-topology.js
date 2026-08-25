@@ -172,6 +172,21 @@ if (!fleet) {
   // pushed, which is a rewrite — and a rewrite is what the whole apparatus
   // exists to make unnecessary. Re-introducing a baseline to make this green
   // converts a bill into a habit, which is exactly how the 73 accumulated.
+  // THE ONLY THREE EXEMPTIONS, and they are unreachable rather than forgiven.
+  // GitHub pins every pull request's head under refs/pull/<n>/head — a ref it
+  // owns, that no force-push rewrites and no API deletes. PR #3 (closed, branch
+  // gone) pins these three, they sit on no branch, and the rewrite went past
+  // them. Nothing but asking GitHub to delete the PR reaches them, which is not
+  // worth doing for three commits nobody navigates to.
+  //
+  // MAY ONLY EVER SHRINK. Adding a sha here to get out of a scrub is the same
+  // move as moving a baseline forward, and that is how 73 messages accumulated.
+  const EXEMPT_COMMITS = new Set([
+    '153835b0e12092203f8aa004c848a845d68bed4d',
+    '0c46e6b1ae7d582bba61a2b8eaa4c2e8f7a0e80f',
+    '8abc71ca27bdd92ccadf99bf5086a1adb1d42cc8',
+  ]);
+
   const git = (args) => execFileSync('git', ['-C', ROOT].concat(args), { maxBuffer: 1 << 28 }).toString();
   let msgs = [];
   try { msgs = git(['log', '--format=%H%x1f%B%x1e', '--branches', '--tags']).split('\x1e').filter((r) => r.trim()); }
@@ -179,6 +194,7 @@ if (!fleet) {
   const guilty = [];
   for (const rec of msgs) {
     const [sha, body] = rec.replace(/^\n/, '').split('\x1f');
+    if (EXEMPT_COMMITS.has(sha)) continue;
     for (const n of hostish) {
       if ((body || '').toLowerCase().includes(n.toLowerCase())) { guilty.push(sha.slice(0, 8)); break; }
     }
@@ -189,24 +205,6 @@ if (!fleet) {
   // NOT VACUOUS. A shallow clone, or one fetched with no tags, can legitimately
   // see almost nothing — and "0 scanned, no hits" must not read as a pass.
   check('the commit-message scan actually read history', msgs.length > 50, msgs.length + ' commit(s) visible');
-
-  // THE THREE COMMITS THIS GUARD WILL NEVER COVER, and that is a decision, not
-  // an oversight. GitHub pins the head of every pull request under
-  // `refs/pull/<n>/head` — a ref GitHub owns, that no force-push can rewrite
-  // and no API can delete. PR #3 (closed 2026-07-22, its branch long deleted)
-  // pins three commits that name a machine and that live on NO branch:
-  //
-  //     153835b0   0c46e6b1   8abc71ca
-  //
-  // The 2026-08-25 rewrite could not reach them and nothing short of asking
-  // GitHub to delete the pull request can. That is not worth doing for three
-  // commits nobody navigates to, so these are the ONLY sanctioned exceptions to
-  // the no-topology rule — the equivalent of test/batteries/known-unfixed.sh,
-  // and like it, this list may only ever SHRINK.
-  //
-  // This scan reads `--branches --tags`, which is why it stays green: PR refs
-  // are not branches. If you ever fetch `refs/pull/*` into a clone, do not
-  // fetch it into a namespace this walks.
 
   // An annotated tag carries a message of its own that `git log` never shows,
   // and `git push --tags` publishes it. Four of the eleven rewritten tags had
