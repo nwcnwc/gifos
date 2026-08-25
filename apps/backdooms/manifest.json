@@ -3,11 +3,15 @@
   "appId": "backdooms",
   "name": "Backdooms",
   "shortName": "Backdooms",
-  "version": "1.1",
+  "version": "1.2",
   "minBuild": 1314,
-  "description": "A shotgun, yellow halls, things that walk toward you. The file is the save.",
+  "description": "A pump shotgun, yellow halls that go on forever, and things that walk toward you. The file is the save.",
   "entry": "index.html",
-  "accent": [196, 156, 36],
+  "accent": [
+    196,
+    156,
+    36
+  ],
   "capabilities": {
     "db": true,
     "multiplayer": true,
@@ -15,7 +19,11 @@
     "fullscreen": true
   },
   "data": {
-    "prefs": { "visibility": "private" },
-    "players": { "visibility": "read-write" }
+    "prefs": {
+      "visibility": "private"
+    },
+    "players": {
+      "visibility": "read-write"
+    }
   }
 }

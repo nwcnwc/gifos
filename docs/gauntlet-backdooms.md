@@ -38,6 +38,35 @@ this run pays off.
 6. A weapon sprite that bobs, fires, and lights the room.
 7. A status bar you can read at a glance.
 
+## Round 1 — "I kept randomly falling with no clue why"
+
+Reported by the user about the pre-run build, and it reproduces exactly. Four
+things stacked:
+
+1. **The drain was ~62 HP a second, per thing.** `tickEnemies` ran its enemy
+   loop INSIDE the per-frame loop, and any enemy within 0.5 units did
+   `hp--` every 16 ms step. Both things you wake next to were 2.5 metres away
+   and walked straight in, so at contact you were taking about **125 HP a
+   second — dead in under a second** from full health.
+2. **There was no health readout.** `style.css` had `#hud { display: none }`,
+   so the entire HTML HUD never rendered. The only health signal was a red bar
+   drawn at canvas coordinates (10, 10) of a 320x240 buffer that
+   `object-fit: fill` then stretched across the whole window: a thin red smear
+   in the corner, with no number.
+3. **The damage flash was the same variable as the muzzle flash.** One `flash`
+   served both, so "something is eating you" and "you pulled the trigger"
+   rendered as the identical 2-frame orange wash.
+4. **You could not see the attacker.** At 0.5 units a maroon rectangle fills
+   the screen, and the flat mustard-on-mustard renderer gave it no edge.
+
+So: under a second to live, no number, a warning that looked like your own
+gunshot, no sound, and an attacker that was an unreadable slab. "Randomly
+falling with no clue why" is the correct description of that.
+
+Fixed across the run: 6 damage per 950 ms per thing (about a tenth of the old
+rate), two seconds of grace at spawn, a HEALTH number in real DOM that throbs
+under 30, a grunt on the hit, and a red arc that POINTS at whatever bit you.
+
 ## Pieces
 
 | # | piece | state |
