@@ -39,10 +39,10 @@
   "cover": "/apps/contrast-ratio/cover.jpg",
   "screenshots": [],
   "gif": "/apps/contrast-ratio/contrast-ratio.gif",
-  "bytes": 190968,
+  "bytes": 192053,
   "download": 0,
   "provides": null,
-  "sha256": "e8a966b783b0e9c3dfdac004d11296e2e4bda46661970a2656ee6edb9c8d0e9f",
+  "sha256": "7ad4b10f227b69a8a41262c5a6705baca563fff4b1526061f6a6e62eb79c10ec",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

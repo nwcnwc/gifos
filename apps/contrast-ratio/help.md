@@ -10,6 +10,8 @@ Check whether **text can be read** on a colour. Type two colours. The number in 
 
 You can type a name (`white`, `black`, `rebeccapurple`), a hex (`#333` or `333`), `rgb()`, `hsl()`, or `hsla()` with a see-through amount. The **swatch** at the left of each box shows the colour and opens a colour picker when you tap it.
 
+Whatever you type, the **hex** is always on screen, at the right of that box's label: `rebeccapurple` reads `#663399`, `hsl(40, 90%, 60%)` reads `#f5b83d`. A see-through colour gets eight digits — `#000000b3` is black at 70%. That is the form to paste back into a stylesheet.
+
 The **⇆** button between the two boxes flips the pair.
 
 **Best** in either box fills that box with the colour that has the most contrast against the *other* one. The answer is always **black or white**: contrast only grows as two colours move apart, so the most there can ever be sits at one end of the scale. Which end wins is measured rather than guessed — on a mid grey it is black, by a whisker.

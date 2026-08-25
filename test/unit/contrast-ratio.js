@@ -143,11 +143,33 @@ check('best background under black text is white', best(BLACK, true).value === '
     [...values].every((v) => v === 'black' || v === 'white'), [...values]);
 }
 
+// ---- the hex readout --------------------------------------------------------
+// It is on screen whatever was typed, so it has to be right for every form —
+// including the one color.js gets wrong. toHex() multiplies alpha by 255 and
+// never rounds, so 70% formats as "b2.8": a hex with a decimal point in it.
+{
+  check('hexOf is exported', typeof App.hexOf === 'function');
+  check('an opaque colour is 6 digits, no alpha tail', App.hexOf(c('ffffff')) === '#ffffff', App.hexOf(c('ffffff')));
+  check('black is #000000', App.hexOf(c('000000')) === '#000000', App.hexOf(c('000000')));
+  check('a short hex is expanded', App.hexOf(c('777')) === '#777777', App.hexOf(c('777')));
+  check('an odd value keeps its digits', App.hexOf(c('123456')) === '#123456', App.hexOf(c('123456')));
+  const sheer = App.hexOf(c('000000', 0.7));
+  check('a see-through colour gets an 8-digit hex', sheer === '#000000b3', sheer);
+  check('…with no decimal point in it', !/\./.test(sheer), sheer);
+  check('vendor toHex is the thing being worked around', /\./.test(c('000000', 0.7).toHex(true)), c('000000', 0.7).toHex(true));
+  check('fully transparent is #00000000', App.hexOf(c('000000', 0)) === '#00000000', App.hexOf(c('000000', 0)));
+  check('a composited colour rounds instead of emitting garbage',
+    /^#[0-9a-f]{6}$/.test(App.hexOf(c('000000', 0.7).overlayOn(Color.WHITE))), App.hexOf(c('000000', 0.7).overlayOn(Color.WHITE)));
+  check('nothing in, nothing out', App.hexOf(null) === '');
+}
+
 // ---- the markup the buttons need --------------------------------------------
 {
   const html = fs.readFileSync(path.join(APP, 'index.html'), 'utf8');
   check('index.html carries both Best buttons',
     html.includes('id="backgroundBest"') && html.includes('id="foregroundBest"'));
+  check('index.html carries both hex readouts',
+    html.includes('id="backgroundHex"') && html.includes('id="foregroundHex"'));
   const js = fs.readFileSync(path.join(APP, 'app.js'), 'utf8');
   check('app.js wires both of them', /backgroundBest'\)\.addEventListener/.test(js) && /foregroundBest'\)\.addEventListener/.test(js));
 }

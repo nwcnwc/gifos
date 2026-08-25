@@ -41,9 +41,24 @@ body {
   flex: 1 1 11rem;
   min-width: 9rem;
 }
+/* Whatever was typed — a name, an hsla(), a picker click — the hex is on
+ * screen next to the field. It is the form you paste back into CSS. */
+.field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .5rem;
+  margin: 0 .1rem .2rem;
+}
+.hex {
+  font: .72rem/1 ui-monospace, Consolas, Monaco, monospace;
+  color: var(--muted);
+  user-select: all;
+  white-space: nowrap;
+}
 .field label {
   display: block;
-  margin: 0 0 .2rem .1rem;
+  margin: 0;
   font-size: .72rem;
   font-weight: 600;
   letter-spacing: .03em;

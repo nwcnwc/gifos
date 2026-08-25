@@ -107,6 +107,25 @@
     else saveTimer = setTimeout(write, 250);
   }
 
+  // The hex, whatever was typed. A name, an hsla(), a picker click — all of
+  // it lands here as the form you can paste back into a stylesheet, and it is
+  // on screen at all times rather than hidden behind the picker.
+  //
+  // Built here rather than with color.js's toHex(): that one multiplies alpha
+  // by 255 without rounding, so a 70% colour formats as "b2.8" — a hex with a
+  // decimal point in it. Alpha is shown ONLY when there is any, so an opaque
+  // colour reads #ffffff and never #ffffffff.
+  function hex2(n) {
+    var v = Math.max(0, Math.min(255, Math.round(Number(n) || 0))).toString(16);
+    return v.length < 2 ? '0' + v : v;
+  }
+  function hexOf(color) {
+    if (!color || !color.rgb) return '';
+    var out = '#' + hex2(color.rgb[0]) + hex2(color.rgb[1]) + hex2(color.rgb[2]);
+    if (color.alpha < 1) out += hex2(color.alpha * 255);
+    return out;
+  }
+
   // Luminance, short: one number, or a range when the colour is see-through.
   function luminance(input) {
     var color = input && input.color;
@@ -128,6 +147,11 @@
     var note = $('note');
     var detail = $('detail');
     if (!bg || !fg || !bg.color || !fg.color) return;
+
+    var bgHex = $('backgroundHex');
+    var fgHex = $('foregroundHex');
+    if (bgHex) bgHex.textContent = hexOf(bg.color);
+    if (fgHex) fgHex.textContent = hexOf(fg.color);
 
     var contrast = bg.color.contrast(fg.color);
     var min = contrast.min;
@@ -311,5 +335,5 @@
     persist(true);
   });
 
-  root.ContrastRatio = { floor: floor, verdicts: verdicts, bestAgainst: bestAgainst };
+  root.ContrastRatio = { floor: floor, verdicts: verdicts, bestAgainst: bestAgainst, hexOf: hexOf };
 })(window);
