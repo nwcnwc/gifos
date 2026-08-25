@@ -63,6 +63,18 @@
   var Hud = {
     paint: function () {
       if (!playing) return;
+      /*
+       * Blur alone is not enough. A frame that never HAD focus never loses it,
+       * and the sandbox's permission sheet can go up before the player has
+       * clicked anything inside the app — so the honest question, asked every
+       * frame, is whether this document has the keyboard right now. If it does
+       * not, something else owns the screen and the clock stops. Clicking back
+       * in re-locks the pointer, which un-pauses through onLockChange.
+       */
+      if (!IS_TOUCH && !document.hasFocus() && !Backdooms.state().paused) {
+        Backdooms.setPaused(true);
+        showResume(true);
+      }
       var s = Backdooms.state();
       var hp = Math.max(0, s.hp | 0);
       if (hp !== last.hp) {
@@ -422,6 +434,33 @@
   }
   document.addEventListener('pointerlockchange', onLockChange);
   document.addEventListener('webkitpointerlockchange', onLockChange);
+
+  /*
+   * SOMETHING ELSE HAS THE SCREEN — stop the clock.
+   *
+   * Found by booting the packed GIF in the real sandbox: the first launch puts
+   * up the OS permission sheet (pointer lock, fullscreen), which is drawn by
+   * the shell OUTSIDE this frame. The iframe is still visible, so
+   * requestAnimationFrame keeps firing and the sim keeps stepping — health was
+   * down to 88 by the time the sheet had been read. You do not get eaten while
+   * reading a dialog you were required to read.
+   *
+   * Blur is the signal (visibilitychange does not fire — the frame is not
+   * hidden, it is just not focused). Touch resumes on the next touch rather
+   * than on focus, because a phone may never hand focus back to the frame.
+   */
+  addEventListener('blur', function () {
+    if (!playing) return;
+    Backdooms.setPaused(true);
+    if (!IS_TOUCH) showResume(true);
+  });
+  addEventListener('focus', function () {
+    if (!playing || IS_TOUCH) return;
+    if (document.pointerLockElement === canvas) Backdooms.setPaused(false);
+  });
+  addEventListener('pointerdown', function () {
+    if (playing && IS_TOUCH) Backdooms.setPaused(false);
+  }, true);
 
   if (root.gifos && root.gifos.onBack) {
     root.gifos.onBack(function () {
