@@ -759,11 +759,14 @@
       if (b) runTool(b.dataset.tool);
     });
     el.browseSearch.addEventListener('input', renderBrowse);
-    el.browseDone.addEventListener('click', UI.closeSheets);
+    // NOT `addEventListener('click', UI.closeSheets)`: the click event would
+    // land in closeSheets's keepScrim parameter, the sheet would hide and the
+    // scrim would stay — a blurred, unclickable map with nothing on it.
+    el.browseDone.addEventListener('click', function () { UI.closeSheets(); });
     document.addEventListener('click', function (e) {
       if (e.target.closest('.sheet-head .close')) UI.closeSheets();
     });
-    el.scrim.addEventListener('click', UI.closeSheets);
+    el.scrim.addEventListener('click', function () { UI.closeSheets(); });
     el.wStart && el.wStart.addEventListener('click', function () { app.dismissWelcome(); });
     el.wTour && el.wTour.addEventListener('click', function () { app.dismissWelcome(); UI.openTours(); });
   }
@@ -1174,7 +1177,7 @@
   }
   UI.closeSheets = function (keepScrim) {
     [el.browse, el.modal].forEach(function (n) { n.hidden = true; delete n.dataset.open; });
-    if (!keepScrim) {
+    if (keepScrim !== true) {
       el.scrim.hidden = true;
       document.body.classList.remove('sheet-open');
     }
