@@ -1,7 +1,7 @@
 /*
  * Aim and Shoot — GifOS shell.
- * Invite is OS chrome. Best generation is private. A room is a cabinet of
- * generations — each player aims in their own arena.
+ * Invite is OS chrome. Best generation is private. A room is ONE arena: the
+ * roster below is a team sheet, not a table of separate scores.
  */
 (function (root) {
   'use strict';
@@ -19,6 +19,7 @@
   var statusEl = document.getElementById('status');
   var best = 1;
   var gen = 1;
+  var roomStatus = '';
   var COARSE = !!(root.matchMedia && (
     root.matchMedia('(pointer: coarse)').matches ||
     root.matchMedia('(hover: none)').matches
@@ -49,7 +50,11 @@
      never writes it. */
   function paintRoster(list) {
     list = list || [];
-    if (list.length < 2) { rosterEl.hidden = true; return; }
+    if (list.length < 2) {
+      rosterEl.hidden = true;
+      if (statusEl && roomStatus) statusEl.textContent = roomStatus;
+      return;
+    }
     rosterEl.hidden = false;
     rosterEl.innerHTML = list.map(function (p) {
       return '<div class="' + (p.me ? 'me' : '') + (p.down ? ' down' : '') + '">' +
@@ -57,6 +62,17 @@
         (p.down ? ' · down' : '') +
         '</div>';
     }).join('');
+    /* THE HOST IS THE ONE WHO HAS TO PRESS SOMETHING. A guest is dropped
+       straight into the arena by the link, so when the person who sent it is
+       still looking at the title art, their friends are standing in an empty
+       room waiting on them — and nothing on the host's screen said so. */
+    if (!statusEl) return;
+    var who = list.filter(function (p) { return !p.me; })
+                  .map(function (p) { return (p.name || 'Player').slice(0, 14); });
+    statusEl.textContent = (AAS.isStarting && who.length)
+      ? (who.length === 1 ? who[0] + ' is' : who.join(', ') + ' are') +
+        ' waiting in the arena — ' + (COARSE ? 'tap' : 'click') + ' to start.'
+      : roomStatus;
   }
 
   root.AAS.onGeneration = function (g) {
@@ -69,11 +85,12 @@
   };
   /* coop.js announces the room the moment it knows there is one. */
   root.AAS.onCoop = function (coop) {
-    coop.onRoster(paintRoster);
-    paintRoster(coop.roster());
-    if (statusEl) statusEl.textContent = COARSE
+    roomStatus = COARSE
       ? 'One arena. Your friends are on your side.'
       : 'One arena · WASD moves, mouse aims, click fires. Friends are on your side.';
+    coop.onRoster(paintRoster);
+    paintRoster(coop.roster());
+    if (statusEl) statusEl.textContent = roomStatus;
   };
 
   /* THE GUN RELOADS EVEN WHILE THE TRIGGER IS HELD.
@@ -99,7 +116,7 @@
     Player.prototype._aasReload = true;
   }
 
-  /* A 5-unit dot crossing a 620-unit room is not something you can dodge,
+  /* A 5-unit dot crossing a 700-unit room is not something you can dodge,
      and in a crowd you could not tell which black circle was you. Paint
      only — the hit test in the pinned Bullet.js is untouched. */
   if (typeof Bullet !== 'undefined' && Bullet.prototype && !Bullet.prototype._aasShow) {

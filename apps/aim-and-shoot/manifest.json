@@ -3,7 +3,7 @@
   "appId": "aim-and-shoot",
   "name": "Aim and Shoot",
   "shortName": "Aim",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "minBuild": 947,
   "description": "Aim at the robots. They learn. One arena, with your friends.",
   "entry": "index.html",

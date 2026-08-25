@@ -26,7 +26,8 @@
   var PUBLISH_HZ = 12;      /* input rows and world snapshots */
   var STALE_MS = 7000;      /* a row that stopped changing is a player gone */
   var DOWN_MS = 3000;       /* how long a downed human stays down */
-  var WAIT_MS = 4000;       /* no world row by now: the host is not co-op */
+  var BEACON_MS = 1200;     /* how often a host that is NOT playing says it is there */
+  var QUIET_MS = 6000;      /* a snapshot this old is a photograph, not an arena */
   var MAX_SHOWN_BULLETS = 48;
   var BULLET_SPEED = 1.2;   /* Bullet.js, per ms */
 
@@ -41,7 +42,9 @@
   var ghostBullets = [];
   var world = null;         /* latest snapshot (guest side) */
   var worldAt = 0;
-  var bornAt = 0;
+  var beacon = null;        /* the host saying what it is doing (guest side) */
+  var beaconAt = 0;
+  var lastBeacon = 0;       /* host side: when we last said it */
   var lastIn = 0, lastOut = 0;
   var lastFire = false;
   var solo = true;          /* nobody else here: behave exactly like upstream */
@@ -58,7 +61,6 @@
 
   function init() {
     api = root.gifos;
-    bornAt = now();
     if (!api || !api.db || !api.me) return Promise.resolve(false);
     var infoP = api.info ? api.info().catch(function () { return { owner: true }; })
                          : Promise.resolve({ owner: true });
@@ -71,7 +73,10 @@
       db('players').subscribe(function (list) { ingestInput(list || []); });
       db('world').subscribe(function (list) {
         for (var i = 0; i < (list || []).length; i++) {
-          if (list[i] && list[i].id === 'world') { world = list[i]; worldAt = now(); }
+          var row = list[i];
+          if (!row) continue;
+          if (row.id === 'world') { world = row; worldAt = now(); }
+          else if (row.id === 'host') { beacon = row; beaconAt = now(); }
         }
       });
       return true;
@@ -98,17 +103,69 @@
       if (!seen[i] || t - inputs[i].seen > STALE_MS) { delete inputs[i]; dropMate(i); }
     }
     solo = !anyone();
+    sayHostIsHere();
     if (onRoster) onRoster(roster());
   }
 
   function anyone() { for (var k in inputs) return true; return false; }
 
-  /* Only the app owner ever LOOKS like a host to itself; a guest that has not
-     heard a world row within WAIT_MS is alone in practice and plays its own
-     arena rather than staring at an empty field. */
-  function guest() { return joined && !owner && (world != null || now() - bornAt < WAIT_MS); }
+  /*
+   * A GUEST NEVER SIMULATES. Not while it waits, not if the host is slow, not
+   * ever — being mounted as a non-owner MEANS somebody else's room, so there
+   * is a host by definition and inventing a second arena is never the right
+   * answer.
+   *
+   * It used to time out: no world row within four seconds of boot and the
+   * guest bred its own private wave. That four seconds began at BOOT, not at
+   * the press of Start, and it deadlocked against the other half of the rule —
+   * a host publishes nothing until it has heard from a guest, and a guest
+   * published nothing until it had a world row. Read the title screen for five
+   * seconds (everybody does) and the link had put the two of you in two
+   * different games, each of them convinced it was alone. That is the whole
+   * bug: it looked like co-op that "did not work", and it was two solo games.
+   *
+   * So a guest joins the moment it knows it is a guest, publishes input from
+   * the first frame — which is what tells the host it has company — and if
+   * there is nothing to draw it SAYS SO and waits.
+   */
+  function guest() { return joined && !owner; }
   function hosting() { return joined && owner && !solo; }
   function active() { return guest() || hosting(); }
+
+  /* What the host is doing, for a guest with nothing to draw. Only while the
+     host is NOT playing: a live snapshot at 12 Hz already says everything, and
+     a beacon nobody needs is a write and a broadcast per second forever. */
+  function playingNow() {
+    var A = root.AAS || {};
+    return !A.isStarting && !A.isGameover;
+  }
+
+  function sayHostIsHere() {
+    if (!joined || !owner || solo || playingNow()) return;
+    var t = now();
+    if (t - lastBeacon < BEACON_MS) return;
+    lastBeacon = t;
+    db('world').put({
+      id: 'host', t: t, name: me.name,
+      state: (root.AAS && root.AAS.isGameover) ? 'over' : 'title'
+    }).catch(function () {});
+  }
+
+  /* The line a waiting guest is shown, or null when there is a live arena.
+     A guest that cannot see the fight must say which of the two silences this
+     is — nobody has spoken yet, or the host is standing on its title screen. */
+  function waitText() {
+    if (!guest()) return null;
+    var t = now();
+    if (world && t - worldAt < QUIET_MS) return null;
+    if (beacon && t - beaconAt < STALE_MS) {
+      var who = beacon.name || 'the host';
+      return beacon.state === 'over'
+        ? 'Waiting for ' + who + ' to start the next run\u2026'
+        : 'Waiting for ' + who + ' to start\u2026';
+    }
+    return world ? 'Waiting for the host\u2026' : 'Joining the arena\u2026';
+  }
 
   function roster() {
     var out = [], id, i, row;
@@ -337,7 +394,7 @@
   }
 
   function quiet() {
-    return guest() && world != null && now() - worldAt > 6000;
+    return guest() && world != null && now() - worldAt > QUIET_MS;
   }
 
   root.AASCoop = {
@@ -349,6 +406,7 @@
     afterHost: afterHost,
     guestFrame: guestFrame,
     quiet: quiet,
+    waitText: waitText,
     onDown: onDown,
     down: function (id) { return !!down[id || me.id]; },
     roster: roster,
