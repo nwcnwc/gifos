@@ -71,7 +71,7 @@ if (!phaser.includes('t.Phaser=e()')) {
   throw new Error('phaser.js is not the UMD build that attaches window.Phaser');
 }
 
-const SCRIPTS = ['vendor/phaser.js', 'vendor/game.js', 'net.js', 'boot.js'];
+const SCRIPTS = ['vendor/phaser.js', 'vendor/game.js', 'engine.js', 'view.js', 'rules.js', 'net.js', 'boot.js'];
 
 const helpMd = read('help.md');
 if (helpMd.trim().length < 400) throw new Error('help.md is too short');
@@ -82,6 +82,9 @@ const files = {
   'style.css': read('style.css'),
   'vendor/phaser.js': phaser,
   'vendor/game.js': game,
+  'engine.js': read('engine.js'),
+  'view.js': read('view.js'),
+  'rules.js': read('rules.js'),
   'net.js': read('net.js'),
   'boot.js': read('boot.js'),
   'COPYING-catch-the-cat.txt': read('vendor/COPYING-catch-the-cat.txt'),
@@ -96,6 +99,19 @@ for (const s of SCRIPTS) {
 if (!html.includes('href="style.css"')) throw new Error('index.html does not load style.css');
 if (/type=["']module["']/.test(html)) {
   throw new Error('index.html uses type=module — the runtime drops that, so the app would never boot.');
+}
+// The order matters and nothing else enforces it: engine.js must install its
+// hook on Phaser's SVG loader BEFORE the game is built, and boot.js must find
+// all three modules already defined. The runtime inlines these in document
+// order, so document order IS the load order.
+{
+  const at = (n) => html.indexOf('src="' + n + '"');
+  const order = ['vendor/phaser.js', 'vendor/game.js', 'engine.js', 'view.js', 'rules.js', 'net.js', 'boot.js'];
+  for (let n = 1; n < order.length; n++) {
+    if (at(order[n]) < at(order[n - 1])) {
+      throw new Error('index.html loads ' + order[n] + ' before ' + order[n - 1] + ' — the shell would boot on undefined modules.');
+    }
+  }
 }
 if (!manifest.capabilities || manifest.capabilities.db !== true || manifest.capabilities.multiplayer !== true) {
   throw new Error('manifest must declare capabilities.db and capabilities.multiplayer');
