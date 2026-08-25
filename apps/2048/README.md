@@ -76,9 +76,13 @@ Two boards upstream never writes, and this does:
 Rules, deliberately:
 
 - **No cap, no expiry, no LRU.** A game leaves only through the trash button,
-  which asks first. The honest cost is unbounded growth — roughly 600 bytes a
-  game, so thousands of games is single-digit MB inside the GIF. If that ever
-  needs a bound, it needs a UI for it, not a silent prune.
+  which asks first. The honest cost is unbounded growth: a row is under 1 KB
+  (measured 876 bytes for a full 16-tile board), so a thousand games is under
+  a megabyte — and that megabyte rides inside the GIF when you save or send
+  the file, because the file IS the save. Boot reads the whole collection in
+  one `getAll`. If this ever needs a bound it needs a UI for it, not a silent
+  prune: a cap that quietly ate the 4096 board would be the original bug back
+  again, wearing a number.
 - **A board nobody moved is not a game.** `detach()` drops a row with zero
   moves, so changing your mind about a deal leaves no trace and the list stays
   the games that matter.
