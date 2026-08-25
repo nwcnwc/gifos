@@ -6,8 +6,8 @@
   "shortName": "Glitch",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Databend a still on this device. Save the glitch. Nothing is uploaded.",
-  "description": "Corrupt a still so it tears, blooms and bands. Four sliders — amount, seed, iterations, quality — smash the JPEG in this tab. The picture never leaves the device. There is no account.\n\nThe last picture and the last slider values live in the app file. Close it, open it later, they are still here, smashed with the same recipe — not glitched twice.\n\nA thumb can work the sliders. Take a still from the camera, or open a picture already on the phone. Hold the picture to see the original. If a smash decodes as a grey smear, try Random seed.\n\nAn unofficial port of jpg-glitch by snorpey.",
+  "tagline": "Glitch a photo on your device and save the result.",
+  "description": "Corrupt a still so it tears, blooms and bands. Four sliders — amount, seed, iterations, quality — smash the JPEG in this tab. The picture never leaves the device.\n\nThe last picture and the last slider values are remembered. Close it, open it later, they are still here, smashed with the same recipe — not glitched twice.\n\nA thumb can work the sliders. Take a still from the camera, or open a picture already on the phone. Hold the picture to see the original. If a smash decodes as a grey smear, try Random seed.\n\nAn unofficial port of jpg-glitch by snorpey.",
   "author": {
     "name": "snorpey",
     "url": "https://github.com/snorpey/jpg-glitch"
@@ -40,14 +40,14 @@
   "cover": "/apps/jpg-glitch/cover.jpg",
   "screenshots": [],
   "gif": "/apps/jpg-glitch/jpg-glitch.gif",
-  "bytes": 190425,
+  "bytes": 190587,
   "download": 0,
   "provides": null,
-  "sha256": "35775cd556a498dbeee9b795e2b43774013d74e70da8cc265a0ab78de9695d29",
+  "sha256": "e4158c972aa22d904251fc2426701694b100c9f537b8a526d3b2a9fe091df8bb",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

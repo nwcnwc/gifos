@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 947,
   "tagline": "Push the boxes onto the spots. Race a friend on the same warehouse.",
-  "description": "You are in a warehouse. Push every box onto a marked spot. You can only push, never pull, and you cannot push two boxes at once. Undo if you get stuck. There are fifty rooms, from a first easy one up to a last few that take some thinking.\n\nOn your own it is the original game, saved on this device inside the app. Close it and pick up where you left off. Send the invite and you both get the same room: first to park every box wins, and you can see each other's moves as you go. There is no account and no game server. The room is the link.\n\nAn unofficial port of sokoban by klevze. This copy adds the race, and a pad so a phone can push.",
+  "description": "You are in a warehouse. Push every box onto a marked spot. You can only push, never pull, and you cannot push two boxes at once. Undo if you get stuck. There are fifty rooms, from a first easy one up to a last few that take some thinking.\n\nOn your own it is the original game, saved on this device inside the app. Close it and pick up where you left off. Send the invite and you both get the same room: first to park every box wins, and you can see each other's moves as you go.\n\nAn unofficial port of sokoban by klevze. This copy adds the race, and a pad so a phone can push.",
   "author": {
     "name": "klevze",
     "url": "https://github.com/klevze/sokoban"

@@ -1,6 +1,6 @@
 {
-  "tagline": "Race a friend from one link. Same shapes, two boards, on this device.",
-  "description": "Press Play a friend, then Invite in the bar above, and send the link. You both get the same shapes, each on your own board. Last one still stacking wins. No account, no install — the race is the invite, and your best score lives in the file.\n\nOn your own it is the original falling-blocks game. Slide, turn, and drop the shapes. Fill a row and it vanishes. The pile grows; the game is over when it reaches the top. Close it, come back, your best is still here.\n\nOn a phone, use the pad at the bottom or swipe the board. Hold left or right to slide; tap to turn; swipe down or press drop to drop.\n\nAn unofficial port of canvas-tetris by dionyziz, MIT-licensed. This copy puts two boards in one room, and adds a pad that works with a thumb.",
+  "tagline": "Race a friend: same falling shapes, two boards, first to top out loses.",
+  "description": "Press Play a friend, then Invite in the bar above, and send the link. You both get the same shapes, each on your own board. Last one still stacking wins.\n\nOn your own it is the original falling-blocks game. Slide, turn, and drop the shapes. Fill a row and it vanishes. The pile grows; the game is over when it reaches the top. Close it, come back, your best is still here.\n\nOn a phone, use the pad at the bottom or swipe the board. Hold left or right to slide; tap to turn; swipe down or press drop to drop.\n\nAn unofficial port of canvas-tetris by dionyziz, MIT-licensed. This copy puts two boards in one room, and adds a pad that works with a thumb.",
   "author": {
     "name": "dionyziz",
     "url": "https://github.com/dionyziz/canvas-tetris"

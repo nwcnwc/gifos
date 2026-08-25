@@ -1,6 +1,6 @@
 {
-  "tagline": "Two devices, one link, no server. Red against yellow, then the black.",
-  "description": "Press Invite and a friend takes the other turn on their own phone or computer. There is no game server, no account, and no lobby. The room is the link.\n\nFifteen coloured balls, the black in the triangle, the white on its spot. Pot your colours, then the black. A foul and you place the white yourself.\n\nOn your own you play a computer that tries a handful of shots and picks the best. Two of you can pass the same screen. On a phone, pull back with your finger to aim and let go to shoot — the table turns to fill the screen.\n\nAn unofficial port of Classic Pool Game by henshmi. This copy adds a friend on a second device, and touch.",
+  "tagline": "Pool across two phones. Red against yellow, then the black.",
+  "description": "Press Invite and a friend takes the other turn on their own phone or computer.\n\nFifteen coloured balls, the black in the triangle, the white on its spot. Pot your colours, then the black. A foul and you place the white yourself.\n\nOn your own you play a computer that tries a handful of shots and picks the best. Two of you can pass the same screen. On a phone, pull back with your finger to aim and let go to shoot — the table turns to fill the screen.\n\nAn unofficial port of Classic Pool Game by henshmi. This copy adds a friend on a second device, and touch.",
   "author": {
     "name": "henshmi",
     "url": "https://github.com/henshmi/Classic-Pool-Game"

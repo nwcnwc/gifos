@@ -6,8 +6,8 @@
   "shortName": "Shredder",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Cubes shred into confetti. The knobs live in the file.",
-  "description": "Works offline, in one GIF. The last knobs live in the file, so the copy you keep is the save. Press Play together, then Invite in the bar above the app, and a friend lands on the same shred — no account, no install, no server.\n\nMove around the picture and cubes pour out, then tear apart into coloured flakes. Drag to orbit. Pinch or scroll to zoom. Factor is how fast they run; Evolution twists the flow over time; Radius is the bubble that shoves them away.\n\nOn a phone the knobs start closed so the cloud fills the screen. A weak GPU gets a smaller cloud instead of a black screen.\n\nAn unofficial port of The Polygon Shredder by spite.",
+  "tagline": "Cubes shred into confetti. Twiddle the knobs, save the look.",
+  "description": "The knobs you set are remembered. Press Play together, then Invite in the bar above the app, and a friend lands on the same shred.\n\nMove around the picture and cubes pour out, then tear apart into coloured flakes. Drag to orbit. Pinch or scroll to zoom. Factor is how fast they run; Evolution twists the flow over time; Radius is the bubble that shoves them away.\n\nOn a phone the knobs start closed so the cloud fills the screen. A weak GPU gets a smaller cloud instead of a black screen.\n\nAn unofficial port of The Polygon Shredder by spite.",
   "author": {
     "name": "spite",
     "url": "https://github.com/spite/polygon-shredder"
@@ -41,14 +41,14 @@
   "cover": "/apps/polygon-shredder/cover.jpg",
   "screenshots": [],
   "gif": "/apps/polygon-shredder/polygon-shredder.gif",
-  "bytes": 409032,
+  "bytes": 409939,
   "download": 0,
   "provides": null,
-  "sha256": "cd1ff745f7723e37834afdd2f31ebab2aff7d8e41ef19fc5bc42c874e688a7eb",
+  "sha256": "a5b4c55bb54c755b42e2fe7ccfbd068529f6c13014fdd8c13402c87c326cf829",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

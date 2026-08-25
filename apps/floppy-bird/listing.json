@@ -1,6 +1,6 @@
 {
-  "tagline": "Race a friend from one link. Tap on this phone. High score lives in the file.",
-  "description": "Send the invite and a friend is on the same pipes as you, on this device. You see their bird as a ghost, a little ahead or a little behind. First to hit a pipe is losing; the one who flies farthest wins. No account, no install — the race is the link.\n\nOn your own it is Floppy Bird. Tap, or hit space, and the bird flaps. The pipes keep coming. Last as long as you can. Close it and come back: your best score is still there, inside the file.\n\nAn unofficial port of Floppy Bird by nebez, Apache-2.0. Pictures and sounds from the 2014 tap-flap game by Dong Nguyen / .GEARS. This copy adds the race. Bugs go to GifOS, not upstream.",
+  "tagline": "Flappy Bird, plus a race mode — a friend flies beside you from one link.",
+  "description": "Send the invite and a friend is on the same pipes as you, on this device. You see their bird as a ghost, a little ahead or a little behind. First to hit a pipe is losing; the one who flies farthest wins.\n\nOn your own it is Floppy Bird. Tap, or hit space, and the bird flaps. The pipes keep coming. Last as long as you can. Close it and come back: your best score is still there.\n\nAn unofficial port of Floppy Bird by nebez, Apache-2.0. Pictures and sounds from the 2014 tap-flap game by Dong Nguyen / .GEARS. This copy adds the race. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "nebez",
     "url": "https://github.com/nebez/floppybird"

@@ -6,8 +6,8 @@
   "shortName": "Math Race",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Same equation on both phones. First correct scores. Nothing to host — the invite is the room.",
-  "description": "The original needed a game server, and the public demo is gone. This one works on a plane. Scores live in the file. One invite is the room — no account, nothing to host.\n\nAn equation lands on every phone at once. Type the answer on the number pad. First correct scores, and the next one is already there. Thirty, sixty, or ninety seconds.\n\nOn your own it is you against the clock, on this device. Easy is plus and minus of small numbers; medium is times tables; hard mixes them. Mid-race you can see You versus Best. Close it and come back — last runs and your best stay in the file.\n\nPress Play a friend, then Invite in the bar above the app. Live scores. When the clock hits zero, the round is over.\n\nA wrong answer does not freeze you. It flashes. Same equation. Try again.\n\nAn unofficial port of math-race by iloire.",
+  "tagline": "Same equation on every phone — first correct answer scores.",
+  "description": "An equation lands on every phone at once. Type the answer on the number pad. First correct scores, and the next one is already there. Thirty, sixty, or ninety seconds.\n\nOn your own it is you against the clock, on this device. Easy is plus and minus of small numbers; medium is times tables; hard mixes them. Mid-race you can see You versus Best. Close it and come back — last runs and your best are saved.\n\nPress Play a friend, then Invite in the bar above the app. Live scores. When the clock hits zero, the round is over.\n\nA wrong answer does not freeze you. It flashes. Same equation. Try again.\n\nAn unofficial port of math-race by iloire.",
   "author": {
     "name": "iloire",
     "url": "https://github.com/iloire/math-race"
@@ -40,14 +40,14 @@
   "cover": "/apps/math-race/cover.jpg",
   "screenshots": [],
   "gif": "/apps/math-race/math-race.gif",
-  "bytes": 197840,
+  "bytes": 197982,
   "download": 0,
   "provides": null,
-  "sha256": "2d974c838f19d3dda650575fd31452eacd9d72838a008c4601daa8136a79121f",
+  "sha256": "3476eaa72d130f7444f16a20554a1f4515b056099112ea1aa90b98b85c607482",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

@@ -6,8 +6,8 @@
   "shortName": "Tanks",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Drive a tank. One link is the arena. No game server.",
-  "description": "The original tutorial ran a Node tick over socket.io. That process is gone. One invite link is the room — everyone who opens it lands in the same walled yard. No account, no lobby code, nothing to install.\n\nA top-down tank, a turret, shells. Three hits and you respawn behind a brief shield. Walls and other tanks stop you. On your own, two drones patrol and shoot back; when a friend arrives they stand down.\n\nOn a phone, left thumb drives, right thumb aims; holding the right stick fires. On a computer it is WASD to drive, the mouse to aim, click or space to shoot. Tab (or the tally) opens the scoreboard. Career kills stay in this file.\n\nAn unofficial port of Realtime Multiplayer in HTML5 by Sven Bergström. The Node server stays behind.",
+  "tagline": "Drive a tank. Friends who open your link drive the rest.",
+  "description": "Everyone who opens your invite link lands in the same walled yard.\n\nA top-down tank, a turret, shells. Three hits and you respawn behind a brief shield. Walls and other tanks stop you. On your own, two drones patrol and shoot back; when a friend arrives they stand down.\n\nOn a phone, left thumb drives, right thumb aims; holding the right stick fires. On a computer it is WASD to drive, the mouse to aim, click or space to shoot. Tab (or the tally) opens the scoreboard. Career kills are saved.\n\nAn unofficial port of Realtime Multiplayer in HTML5 by Sven Bergström.",
   "author": {
     "name": "Sven Bergström",
     "url": "https://github.com/ruby0x1/realtime-multiplayer-in-html5"
@@ -39,14 +39,14 @@
   "cover": "/apps/tanks/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tanks/tanks.gif",
-  "bytes": 195352,
+  "bytes": 195529,
   "download": 0,
   "provides": null,
-  "sha256": "92d8fc87813d2d2f9960f3810564501ff8e474a191b22bce1b8a8af344e61838",
+  "sha256": "3244c4a3a4d3ca1d7cb6c37f6c4d55fc61fc5aecfb8e7939972db558411b6c8d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

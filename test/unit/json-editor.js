@@ -143,7 +143,7 @@ const FIXTURE = {
   check('mp.js tells the player to press Invite', mp.indexOf('Invite') >= 0);
   check('listing does not say if you want', !/if you want/i.test(listing));
   check('listing does not say Drop', !/\bDrop\b/.test(JSON.parse(listing).description));
-  check('listing leads with the file as the document', /file is the document/i.test(JSON.parse(listing).tagline));
+  check('tagline leads with tree and code', /tree/i.test(JSON.parse(listing).tagline) && /code/i.test(JSON.parse(listing).tagline));
   check('help names invalid JSON and empty first-run', /valid JSON/i.test(help) && /empty/i.test(help) && /Sample/i.test(help));
   check('help names Tree and Code tabs', /Tree/i.test(help) && /Code/i.test(help));
   check('help.md does not document Invite/Save', !/\bInvite\b/.test(help) && !/\bSave\b/.test(help));

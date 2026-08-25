@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "minBuild": 947,
   "tagline": "Two paddles on the ice. Drag yours. A friend takes the other end.",
-  "description": "A low table, a red paddle, a sliding puck. Drag a finger or the mouse and the paddle follows. On your own you play a computer that chases the puck on the far side. Press Invite and send the link: a friend sits at the other end, on their phone or their computer — there is no game server, no account, and no lobby. The room is the link.\n\nYour paddle stays on your half. The puck is the same one both of you see.\n\nAn unofficial port of MortimerGoro's table-ice game, MIT-licensed. This copy adds a friend on a second device, and keeps the original table, paddles and ice.",
+  "description": "A low table, a red paddle, a sliding puck. Drag a finger or the mouse and the paddle follows. On your own you play a computer that chases the puck on the far side. Press Invite and send the link: a friend sits at the other end, on their phone or their computer.\n\nYour paddle stays on your half. The puck is the same one both of you see.\n\nAn unofficial port of MortimerGoro's table-ice game, MIT-licensed. This copy adds a friend on a second device, and keeps the original table, paddles and ice.",
   "author": {
     "name": "MortimerGoro",
     "url": "https://github.com/MortimerGoro/AirHockeyWebGL"

@@ -261,8 +261,8 @@ function loadGame() {
   const help = fs.readFileSync(path.join(APP, 'help.md'), 'utf8');
   const boot = fs.readFileSync(path.join(APP, 'boot.js'), 'utf8');
   check('tagline fits a store card', listing.tagline.length <= 120 && listing.tagline.length > 20);
-  check('description leads with why this version (offline / file / invite)',
-    /offline/i.test(listing.description) && /file/i.test(listing.description) && /Invite/.test(listing.description));
+  check('description says the score is saved and a friend can watch',
+    /saved/i.test(listing.description) && /Invite/.test(listing.description));
   check('listing does not mention internals',
     !/gifos\.db|WASM|sandbox|localStorage/.test(JSON.stringify(listing)));
   check('unofficial port of the named original',

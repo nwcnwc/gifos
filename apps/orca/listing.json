@@ -1,6 +1,6 @@
 {
-  "tagline": "Type letters. They become a sequencer. The file is the save.",
-  "description": "A two-dimensional livecoding machine in one GIF. There is no install, no account, and nothing is uploaded. The grid stays in the file — close it, come back, the same cells are still running.\n\nOpen it and a tiny program is already playing a C in this browser. D bangs every 4 frames, * is the bang, :04C is the note. MIDI hardware is optional; without a device you still hear it.\n\nOn a phone the pad under the grid types the same operators. Press Invite in the bar above and a friend jams on the same canvas.\n\nAn unofficial port of Orca by Hundredrabbits. Same operators, same canvas. OSC and UDP stay silent here; they needed a native socket.",
+  "tagline": "Type letters on a grid; they become a music sequencer.",
+  "description": "A two-dimensional livecoding machine in one GIF. Close it, come back — the same cells are still running.\n\nOpen it and a tiny program is already playing a C in this browser. D bangs every 4 frames, * is the bang, :04C is the note. MIDI hardware is optional; without a device you still hear it.\n\nOn a phone the pad under the grid types the same operators. Press Invite in the bar above and a friend jams on the same canvas.\n\nAn unofficial port of Orca by Hundredrabbits. Same operators, same canvas. OSC and UDP stay silent here; they needed a native socket.",
   "author": {
     "name": "Hundredrabbits",
     "url": "https://github.com/hundredrabbits/Orca"

@@ -116,8 +116,8 @@ check('no fetch/XHR/WebSocket/eval in app chrome',
   !['fetch(', 'XMLHttpRequest', 'WebSocket', 'eval(', 'new Function('].some((b) => src.app.includes(b) || src.mp.includes(b)));
 check('help.md covers pinch, knobs sheet, GPU honesty',
   /Pinch/.test(src.help) && /Knobs/.test(src.help) && /black square/.test(src.help));
-check('listing leads with the file-is-the-save reason',
-  /live in the file/.test(src.listing) && /unofficial port of The Polygon Shredder/i.test(src.listing));
+check('listing says the knobs are remembered, and credits the port',
+  /are remembered/.test(src.listing) && /unofficial port of The Polygon Shredder/i.test(src.listing));
 check('listing does not mention gifos.db / WASM / sandbox / WebGL',
   !/gifos\.db|WASM|sandbox|localStorage|CDN|WebGL|Three\.js/.test(src.listing));
 check('save stays private; room is read-write',

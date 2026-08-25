@@ -6,8 +6,8 @@
   "shortName": "Yahtzee",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "A table over a meeting. One invite, no server.",
-  "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You each have your own scorecard. You both roll at the same time. Highest total when every card is full. No account, no install, no game server — the table is the meeting, and the scores live in the file.\n\nOn your own it is five dice and a scorecard. Tap the dice you want to keep. Three rolls a turn. Ones through sixes, three of a kind, a full house, a straight, Yahtzee. Close it and come back: the game is still there.\n\nUnofficial port of the felt-table Yahtzee by Alhissar. Not a Hasbro product.",
+  "tagline": "Yahtzee over a meeting — everyone sees the same dice.",
+  "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You each have your own scorecard. You both roll at the same time. Highest total when every card is full.\n\nOn your own it is five dice and a scorecard. Tap the dice you want to keep. Three rolls a turn. Ones through sixes, three of a kind, a full house, a straight, Yahtzee. Close it and come back: the game is still there.\n\nUnofficial port of the felt-table Yahtzee by Alhissar. Not a Hasbro product.",
   "author": {
     "name": "Alhissar",
     "url": "https://github.com/Alhissar/Yahtzee"
@@ -39,14 +39,14 @@
   "cover": "/apps/yahtzee/cover.jpg",
   "screenshots": [],
   "gif": "/apps/yahtzee/yahtzee.gif",
-  "bytes": 339471,
+  "bytes": 338104,
   "download": 0,
   "provides": null,
-  "sha256": "bdd5c7c38758324bee795d04458e945c61e1584c16f02dbd512b6727d0111af6",
+  "sha256": "7121c9d3743240648ba5476f21ba60186aa053b672c3b44e4c51a2dab4df131e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

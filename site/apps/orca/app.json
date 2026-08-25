@@ -6,8 +6,8 @@
   "shortName": "Orca",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Type letters. They become a sequencer. The file is the save.",
-  "description": "A two-dimensional livecoding machine in one GIF. There is no install, no account, and nothing is uploaded. The grid stays in the file — close it, come back, the same cells are still running.\n\nOpen it and a tiny program is already playing a C in this browser. D bangs every 4 frames, * is the bang, :04C is the note. MIDI hardware is optional; without a device you still hear it.\n\nOn a phone the pad under the grid types the same operators. Press Invite in the bar above and a friend jams on the same canvas.\n\nAn unofficial port of Orca by Hundredrabbits. Same operators, same canvas. OSC and UDP stay silent here; they needed a native socket.",
+  "tagline": "Type letters on a grid; they become a music sequencer.",
+  "description": "A two-dimensional livecoding machine in one GIF. Close it, come back — the same cells are still running.\n\nOpen it and a tiny program is already playing a C in this browser. D bangs every 4 frames, * is the bang, :04C is the note. MIDI hardware is optional; without a device you still hear it.\n\nOn a phone the pad under the grid types the same operators. Press Invite in the bar above and a friend jams on the same canvas.\n\nAn unofficial port of Orca by Hundredrabbits. Same operators, same canvas. OSC and UDP stay silent here; they needed a native socket.",
   "author": {
     "name": "Hundredrabbits",
     "url": "https://github.com/hundredrabbits/Orca"
@@ -41,14 +41,14 @@
   "cover": "/apps/orca/cover.jpg",
   "screenshots": [],
   "gif": "/apps/orca/orca.gif",
-  "bytes": 269378,
+  "bytes": 268808,
   "download": 0,
   "provides": null,
-  "sha256": "d331d155ad7b48283809ae380027903a5c0e6a262661b0b9d54b0b484564db19",
+  "sha256": "eb9652d951ddbf446ac28a2d19328cf72f35aa6d5c5425d9c490972bb50a678e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

@@ -1,6 +1,6 @@
 {
-  "tagline": "Send the link. Same arena. No server.",
-  "description": "Press Invite in the bar above the game and send the link. Everyone who opens it drops into the same arena — no game server, no account, no lobby. The room is the link.\n\nYou are a small coloured blob. Steer, swallow the dots, grow. Bigger blobs swallow smaller ones, and a spiked ball knocks a chunk off you if you get greedy. On your own, a few wandering blobs keep you company; they scatter the moment another person arrives.\n\nOn a computer, point the mouse, or use WASD or the arrows. Space is a burst of speed that costs a little size. On a phone, put a thumb down and drag; Boost is the same burst.\n\nAn unofficial port of example-.io-game by vzhou842, MIT-licensed. The original needs a game server. This copy does not.",
+  "tagline": "An agar-style arena. Everyone who opens your link swims in it with you.",
+  "description": "Press Invite in the bar above the game and send the link. Everyone who opens it drops into the same arena.\n\nYou are a small coloured blob. Steer, swallow the dots, grow. Bigger blobs swallow smaller ones, and a spiked ball knocks a chunk off you if you get greedy. On your own, a few wandering blobs keep you company; they scatter the moment another person arrives.\n\nOn a computer, point the mouse, or use WASD or the arrows. Space is a burst of speed that costs a little size. On a phone, put a thumb down and drag; Boost is the same burst.\n\nAn unofficial port of example-.io-game by vzhou842, MIT-licensed.",
   "author": {
     "name": "vzhou842",
     "url": "https://github.com/vzhou842/example-.io-game"

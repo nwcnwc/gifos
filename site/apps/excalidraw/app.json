@@ -6,8 +6,8 @@
   "shortName": "Draw",
   "version": "0.18.1",
   "minBuild": 947,
-  "tagline": "A hand-drawn whiteboard that lives in the GIF. Nothing is uploaded.",
-  "description": "Sketch boxes, arrows, handwriting and diagrams the way Excalidraw always has — the rough ink, the infinite canvas, undo, export to PNG or SVG or the open .excalidraw file. This copy has no account, no live collaboration room, and no sticker library from the internet. What you draw is saved on this device, inside the app, and is still there when you open it again.\n\nDrop a .excalidraw file on the canvas to open it. Export when you want a picture or a file you can email. Images you paste stay in the drawing, on this computer. There is no share-link, because there is no server to put it on.\n\nAn unofficial port of Excalidraw (MIT). This copy drops the collaboration cloud and keeps the editor.",
+  "tagline": "The hand-drawn whiteboard. Drawings save into the app's own file.",
+  "description": "Sketch boxes, arrows, handwriting and diagrams the way Excalidraw always has — the rough ink, the infinite canvas, undo, export to PNG or SVG or the open .excalidraw file. This copy is the editor alone — no live collaboration room. What you draw is saved on this device and is still there when you open it again.\n\nDrop a .excalidraw file on the canvas to open it. Export when you want a picture or a file you can email. Images you paste stay in the drawing, on this computer. There is no share-link, because there is no server to put it on.\n\nAn unofficial port of Excalidraw (MIT). This copy drops the collaboration cloud and keeps the editor.",
   "author": {
     "name": "Excalidraw",
     "url": "https://github.com/excalidraw/excalidraw"
@@ -40,14 +40,14 @@
   "cover": "/apps/excalidraw/cover.jpg",
   "screenshots": [],
   "gif": "/apps/excalidraw/excalidraw.gif",
-  "bytes": 4603987,
+  "bytes": 4596988,
   "download": 0,
   "provides": null,
-  "sha256": "01ba73c406f8f30f57d756a7d029d90ec4f800ddaa36b01f5f80417d1345e297",
+  "sha256": "9fa96e0db7c84565baff668af983cae213aa8e8823f060363b7223dbf1c5b0a8",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

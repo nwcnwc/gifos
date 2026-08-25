@@ -6,8 +6,8 @@
   "shortName": "Paint",
   "version": "1.1.0",
   "minBuild": 947,
-  "tagline": "Classic MS Paint, on this device. Nothing is uploaded.",
-  "description": "Every tool from MS Paint, running as an ordinary app: pencil, brush, eraser, fill, airbrush, text, select, shapes, undo that keeps every branch, zoom with a grid, and Save As PNG, GIF, JPEG or BMP. The picture auto-saves on this computer, inside the app. Close it, open it later, the canvas is where you left it.\n\nAn unofficial port of JS Paint by Isaiah Odhner, MIT-licensed. This copy is local. There is no account, no Imgur, no multiplayer session, no speech-to-Google, and no tracker. File > Open and File > Save As stay on the device. Themes included are Classic Light and Classic Dark.\n\nNot in this copy: Load from URL, Upload to Imgur, online sessions, eye tracking, speech recognition, or extra seasonal skins. The drawing tools are.",
+  "tagline": "Classic MS Paint, faithfully remade.",
+  "description": "Every tool from MS Paint, running as an ordinary app: pencil, brush, eraser, fill, airbrush, text, select, shapes, undo that keeps every branch, zoom with a grid, and Save As PNG, GIF, JPEG or BMP. The picture auto-saves on this computer, inside the app. Close it, open it later, the canvas is where you left it.\n\nAn unofficial port of JS Paint by Isaiah Odhner, MIT-licensed. This copy is local: File > Open and File > Save As stay on the device. Themes included are Classic Light and Classic Dark.\n\nNot in this copy: Load from URL, Upload to Imgur, online sessions, eye tracking, speech recognition, or extra seasonal skins. The drawing tools are.",
   "author": {
     "name": "Isaiah Odhner",
     "url": "https://github.com/1j01/jspaint"
@@ -40,14 +40,14 @@
   "cover": "/apps/jspaint/cover.jpg",
   "screenshots": [],
   "gif": "/apps/jspaint/jspaint.gif",
-  "bytes": 1212159,
+  "bytes": 1211468,
   "download": 0,
   "provides": null,
-  "sha256": "3239c6fa482816f597aa86b436e485d44ba277f7e94ccee74cd837e8d03c8b55",
+  "sha256": "52850bae7841299f7e60b05e8f0c941e9ac1dc73eeae4fe92fa657f9108430a2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

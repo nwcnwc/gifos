@@ -233,9 +233,9 @@ check('help.md teaches paste, pan/zoom, empty, fold, copy',
 check('help.md does not document Invite/Save', !/\bInvite\b/.test(help) && !/\bSave\b/.test(help));
 check('listing is an unofficial port of JSON Crack',
   /unofficial port of JSON Crack/i.test(listing.description) && listing.basedOn.name === 'JSON Crack');
-check('listing leads with nothing uploaded', /^Nothing is uploaded/i.test(listing.description));
-check('listing says the file is the document', /file is the document/i.test(listing.tagline));
-check('listing has no account funnel', /no account/i.test(listing.description));
+check('listing leads with paste-and-see', /^Paste JSON/i.test(listing.description));
+check('tagline says the data never leaves', /never leaves your device/i.test(listing.tagline));
+check('listing says the data stays here', /never leaves this device/i.test(listing.description));
 check('author is Aykut Saraç, never GifOS', listing.author.name === 'Aykut Saraç' && listing.porter.name === 'GifOS');
 
 const manifest = JSON.parse(fs.readFileSync(path.join(APP, 'manifest.json'), 'utf8'));

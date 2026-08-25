@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 947,
   "tagline": "Catch stars in a dark sky. One link puts a friend in it with you.",
-  "description": "You are a little rocket in a field of stars. Fly, catch them, score. On your own it is you against the clock — a minute of sky, then your best lives in the file, ready for the next round.\n\nSend the invite and a friend lands in the same sky. Live scores, the same stars, a bump if you cross. There is no game server, no account, no lobby. The room is the link.\n\nOn a phone, a thumb anywhere is the stick. On a laptop, arrows, WASD, or point the mouse.\n\nAn unofficial port of Rocket Universe by lauthieb. The original needs a game server. This copy does not: the sky lives in the room.",
+  "description": "You are a little rocket in a field of stars. Fly, catch them, score. On your own it is you against the clock — a minute of sky, then your best is saved, ready for the next round.\n\nSend the invite and a friend lands in the same sky. Live scores, the same stars, a bump if you cross.\n\nOn a phone, a thumb anywhere is the stick. On a laptop, arrows, WASD, or point the mouse.\n\nAn unofficial port of Rocket Universe by lauthieb.",
   "author": {
     "name": "lauthieb",
     "url": "https://github.com/lauthieb/rocket-universe"

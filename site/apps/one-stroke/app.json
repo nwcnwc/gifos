@@ -6,8 +6,8 @@
   "shortName": "OneStroke",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "One stroke each. Not a whiteboard. The invite is the studio.",
-  "description": "One stroke each. The invite is the studio. The doodle lives in the file. No account.\n\nDraw one line. Lift. Send it. That is the whole turn. Nobody else may draw until you do. After a round you name the picture, then it plays back as a loop of the strokes arriving, in order — a doodle a whiteboard will not play for you.\n\nOn your own it is you against the page: one stroke at a time, a stack of lines, a looping picture that stays inside this file. Close it, open it later, it is where you left it.\n\nWant a studio? Press With friends, then press Invite in the bar above and send the link. Everyone who opens it sits around the same page. Whose turn it is sits on the paper. You cannot draw when it is not your turn. There is no lobby code and no game server. The room is the link.\n\nThis is not a whiteboard. A whiteboard lets anyone draw anything, anytime. One Stroke is the constraint — one line each — so the picture can only exist because several people opened the same file.",
+  "tagline": "A drawing game: one stroke each, then watch the picture replay.",
+  "description": "Draw one line. Lift. Send it. That is the whole turn. Nobody else may draw until you do. After a round you name the picture, then it plays back as a loop of the strokes arriving, in order — a doodle a whiteboard will not play for you.\n\nOn your own it is you against the page: one stroke at a time, a stack of lines, a looping picture that is still there when you come back.\n\nWant a studio? Press With friends, then press Invite in the bar above and send the link. Everyone who opens it sits around the same page. Whose turn it is sits on the paper. You cannot draw when it is not your turn.\n\nThis is not a whiteboard. A whiteboard lets anyone draw anything, anytime. One Stroke is the constraint — one line each — so the picture can only exist because several people opened the same file.",
   "author": {
     "name": "GifOS",
     "url": "https://gifos.app"
@@ -40,13 +40,13 @@
   "cover": "/apps/one-stroke/cover.jpg",
   "screenshots": [],
   "gif": "/apps/one-stroke/one-stroke.gif",
-  "bytes": 199659,
+  "bytes": 199663,
   "download": 0,
   "provides": null,
-  "sha256": "549bff34c24a409ce1c1c2e355cff3e0095a94a4c05911b6e12f8c0b9600a104",
+  "sha256": "eb2d503fbfc016d5509fcbcfed152d10176e0933143d9f420b3e66cd50be822a",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   }
 }

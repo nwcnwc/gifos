@@ -65,9 +65,8 @@ check('listing author is printfn, porter GifOS, unofficial',
   listing.author && listing.author.name === 'printfn' &&
   listing.porter && listing.porter.name === 'GifOS' &&
   listing.basedOn && listing.basedOn.blessed === false);
-check('listing leads with offline / file / no website',
-  /offline/i.test(listing.description) && /this file/i.test(listing.description) &&
-  /no website/i.test(listing.description));
+check('listing says the last pad comes back',
+  /last pad comes back/i.test(listing.description));
 check('listing claims 1 ft to cm', /1 ft to cm/.test(listing.tagline + listing.description));
 check('listing does not mention WASM or gifos.db',
   !/WASM|gifos\.db|sandbox|WebRTC|localStorage/i.test(JSON.stringify(listing)));

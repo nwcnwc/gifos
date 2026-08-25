@@ -1,6 +1,6 @@
 {
-  "tagline": "Twelve mazes and a thumb pad. The high score lives in the file.",
-  "description": "Twelve mazes, four ghosts, a pad for your thumb. Works on a plane. Your best score and furthest maze live in the file you keep — no account, no install.\n\nYou are the yellow one. Eat every pellet, grab a power pellet to turn the ghosts blue, and do not let them catch you. Five lives. Arrows or WASD on a computer; a d-pad and swipe on a phone. Space pauses. Close it and come back: the high score is still in the corner.\n\nPress Invite in the bar above and everyone who opens the link is on the same cabinet. Each of you plays your own maze; the roster shows lives and score. There is no game server.\n\nAn unofficial port of mumuy's HTML5 maze game (MIT). The mazes and the ghost AI are theirs. The pad and the shared cabinet are ours. Not affiliated with Bandai Namco.",
+  "tagline": "Twelve mazes and a thumb pad. Your high score is saved.",
+  "description": "Twelve mazes, four ghosts, a pad for your thumb. Your best score and furthest maze are saved.\n\nYou are the yellow one. Eat every pellet, grab a power pellet to turn the ghosts blue, and do not let them catch you. Five lives. Arrows or WASD on a computer; a d-pad and swipe on a phone. Space pauses. Close it and come back: the high score is still in the corner.\n\nPress Invite in the bar above and everyone who opens the link is on the same cabinet. Each of you plays your own maze; the roster shows lives and score.\n\nAn unofficial port of mumuy's HTML5 maze game (MIT). The mazes and the ghost AI are theirs. The pad and the shared cabinet are ours. Not affiliated with Bandai Namco.",
   "author": {
     "name": "Haole Zheng",
     "url": "https://github.com/mumuy/pacman"

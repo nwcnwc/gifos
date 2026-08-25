@@ -175,7 +175,7 @@ check('no in-app Invite button', !/>\s*Invite\s*</.test(html) && !/id=["']invite
 check('app.js still tells the player to press Invite', /Invite/.test(appJs) || /Invite/.test(html));
 check('listing does not claim LinkedIn', !/linkedin/i.test(listing));
 check('help/readme/game do not claim LinkedIn', !/linkedin/i.test(help + readme + gameJs + appJs));
-check('listing leads with the file / no account', /file/.test(listing) && /no account/i.test(listing));
+check('listing says finished boards are saved', /are saved/.test(listing));
 check('help says what is saved', /stay in this file/.test(help) && /Auto X/.test(help));
 check('save format still writes done/auto/cur/board/idx',
   /done:\s*save\.done/.test(appJs) && /board:\s*state\.board/.test(appJs) && /idx:\s*state\.idx/.test(appJs));

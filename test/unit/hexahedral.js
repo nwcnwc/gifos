@@ -152,8 +152,8 @@ check('all 30 jam levels are aboard', HEX.count === 30 && (S.HEX_LEVELS || []).l
   check('no in-app Invite', !/>\s*Invite\s*</.test(html) && !/id=["']invite/i.test(html));
   check('help.md covers drag, arrows, undo, and what is saved',
     /Drag/i.test(help) && /Arrow/i.test(help) && /Undo/i.test(help) && /best/i.test(help) && !/gifos\.db/.test(help));
-  check('listing leads with the file, not a changelog',
-    /no account/.test(listing) && /file/.test(listing) && !/gifos\.db/.test(listing) && !/\bdrop\b/.test(listing));
+  check('listing says the level you reached is saved',
+    /best moves are saved/.test(listing) && !/gifos\.db/.test(listing) && !/\bdrop\b/.test(listing));
   check('game.js is a classic script in the GIF', /src="game.js"/.test(html) && !/export /.test(read('game.js')));
 }
 

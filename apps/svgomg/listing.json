@@ -1,6 +1,6 @@
 {
-  "tagline": "Make SVG pictures smaller, on this device. Nothing is uploaded.",
-  "description": "Drop an SVG and it comes back smaller. Turn clean-up steps on and off, watch the picture and the file size change, then download. Paste the markup if you would rather not pick a file. A sample picture is included so you can try it straight away.\n\nAn unofficial port of SVGOMG by jakearchibald. The original is a website; this copy keeps the same clean-up steps, with tracking stripped and no path out to a server. The picture you drop in never leaves this device. There is no account, no queue and no upload.\n\nWhat you choose — which clean-up steps, how many decimal places — stays in the app so the next picture starts where you left off.\n\nNothing is fetched, and nothing you drop in is sent anywhere.",
+  "tagline": "Make SVG files smaller. Watch the bytes fall as you tune.",
+  "description": "Drop an SVG and it comes back smaller. Turn clean-up steps on and off, watch the picture and the file size change, then download. Paste the markup if you would rather not pick a file. A sample picture is included so you can try it straight away.\n\nAn unofficial port of SVGOMG by jakearchibald. The picture you drop in never leaves this device.\n\nWhat you choose — which clean-up steps, how many decimal places — stays in the app so the next picture starts where you left off.",
   "author": {
     "name": "jakearchibald",
     "url": "https://github.com/jakearchibald/svgomg"

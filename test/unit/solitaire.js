@@ -232,9 +232,8 @@ check('old saves still load through restore()', app.includes('K.restore') && app
 check('no in-app Invite button', !/>\s*Invite\s*</.test(html) && !/id=["']invite/i.test(html));
 check('help covers undo, draw 1 or 3, and tap-to-move',
   /undo/i.test(help) && /draw/i.test(help) && /tap/i.test(help));
-check('listing leads with offline / file is the save / no account',
-  /offline/i.test(listing.description) && /file is the save/i.test(listing.description) &&
-  /no account/i.test(listing.description));
+check('listing says the tableau keeps',
+  /tableau is where you left it/i.test(listing.description));
 check('listing tagline fits a card', listing.tagline.length <= 80);
 check('author is rjanjic, porter GifOS', listing.author.name === 'rjanjic' && listing.porter.name === 'GifOS');
 check('one-player: no multiplayer capability', !manifest.capabilities.multiplayer);

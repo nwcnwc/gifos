@@ -7,7 +7,7 @@
   "version": "1.1",
   "minBuild": 947,
   "tagline": "Hear sine, square, and saw. An explorable that fits a phone.",
-  "description": "The original Waveforms is a long article. This is the same lesson — displacement, frequency, air molecules, harmonics — as a walk-through you can finish with a thumb, fully offline, with no account.\n\nTap Hear for a bass tone. Drag amplitude for loudness, frequency for pitch. Watch a square assemble from odd harmonics, and hear it happen. Your place in the guide lives in this file: close it, open it later, you are still there. Nothing is uploaded.\n\nUnofficial port of Waveforms by Josh Comeau. Bugs go to GifOS, not upstream.",
+  "description": "The original Waveforms is a long article. This is the same lesson — displacement, frequency, air molecules, harmonics — as a walk-through you can finish with a thumb.\n\nTap Hear for a bass tone. Drag amplitude for loudness, frequency for pitch. Watch a square assemble from odd harmonics, and hear it happen. Your place in the guide is saved: close it, open it later, you are still there.\n\nUnofficial port of Waveforms by Josh Comeau. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "Josh Comeau",
     "url": "https://github.com/joshwcomeau/waveforms"

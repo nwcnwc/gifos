@@ -1,6 +1,6 @@
 {
-  "tagline": "Hiragana and katakana on this device — no account, race a friend from one link.",
-  "description": "Hiragana and katakana live on this device. No account, no install. Tap the rows you know — you see the actual あ か さ, not a list of names — then a kana, four sounds. Or flip it: the sound first, pick the kana. Right or wrong lands at once.\n\nMiss one and it comes back until it sticks. Close the app and come back: your place is still there, inside the icon.\n\nPress Play a friend, then Invite in the bar above. You both get the same shuffled deck. First to ten right wins, or whoever has more when the cards run out.\n\nAn unofficial port of Kana Quiz by anzzstuff. The tables are the ones that shipped with that quiz.",
+  "tagline": "Learn hiragana and katakana. Quiz yourself, or race a friend.",
+  "description": "Tap the rows you know — you see the actual あ か さ, not a list of names — then a kana, four sounds. Or flip it: the sound first, pick the kana. Right or wrong lands at once.\n\nMiss one and it comes back until it sticks. Close the app and come back: your place is still there.\n\nPress Play a friend, then Invite in the bar above. You both get the same shuffled deck. First to ten right wins, or whoever has more when the cards run out.\n\nAn unofficial port of Kana Quiz by anzzstuff. The tables are the ones that shipped with that quiz.",
   "author": {
     "name": "anzzstuff",
     "url": "https://github.com/anzzstuff/kanaquiz"

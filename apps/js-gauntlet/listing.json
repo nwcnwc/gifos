@@ -1,6 +1,6 @@
 {
-  "tagline": "Four classes, one invite, one dungeon. No server.",
-  "description": "Send Invite in the bar above. Extra adventurers walk into the same dungeon — warrior, valkyrie, wizard, elf. There is no lobby, no account, and no game server. The room is the link.\n\nOn your own it is Jake Gordon's HTML5 dungeon crawler: pick a class, shoot the generators, grab the key, find the exit. Health ticks down on its own. Potions clear the room.\n\nOn a phone the pad is move, fire, and potion. On a computer it is the arrows or WASD, space to fire, enter for a potion. Your high score and how far you got live in the file.\n\nAn unofficial port of HTML5 Gauntlet by Jake Gordon, MIT-licensed. This copy adds the extra adventurers. The dungeon is silent: the original music was licensed only for that project. Not affiliated with Namco.",
+  "tagline": "Gauntlet: four classes, one dungeon, friends join from one invite.",
+  "description": "Send Invite in the bar above. Extra adventurers walk into the same dungeon — warrior, valkyrie, wizard, elf.\n\nOn your own it is Jake Gordon's HTML5 dungeon crawler: pick a class, shoot the generators, grab the key, find the exit. Health ticks down on its own. Potions clear the room.\n\nOn a phone the pad is move, fire, and potion. On a computer it is the arrows or WASD, space to fire, enter for a potion. Your high score and how far you got are saved.\n\nAn unofficial port of HTML5 Gauntlet by Jake Gordon, MIT-licensed. This copy adds the extra adventurers. The dungeon is silent: the original music was licensed only for that project. Not affiliated with Namco.",
   "author": {
     "name": "Jake Gordon",
     "url": "https://github.com/jakesgordon/javascript-gauntlet"

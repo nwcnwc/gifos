@@ -1,6 +1,6 @@
 {
-  "tagline": "Two devices, one link, no game server. Hide a fleet. Sink theirs.",
-  "description": "Send a friend the invite. They hide a fleet on their phone, you hide one on yours. There is no account and no game server — the room is the link. Hits and misses show up on both screens. First to sink all five wins.\n\nOn your own you play the original computer. It hunts by where a ship is most likely to sit, then finishes it off once it has a hit. Place the five ships or scatter them, then tap the other map. It fires back at once.\n\nAn unofficial port of Battleboat by Bill Mei. The computer is his.",
+  "tagline": "Battleship on two phones. Hide your fleet, send the link, sink theirs.",
+  "description": "Send a friend the invite. They hide a fleet on their phone, you hide one on yours. Hits and misses show up on both screens. First to sink all five wins.\n\nOn your own you play the original computer. It hunts by where a ship is most likely to sit, then finishes it off once it has a hit. Place the five ships or scatter them, then tap the other map. It fires back at once.\n\nAn unofficial port of Battleboat by Bill Mei. The computer is his.",
   "author": {
     "name": "billmei",
     "url": "https://github.com/billmei/battleboat"

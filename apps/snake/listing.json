@@ -1,6 +1,6 @@
 {
-  "tagline": "Two snakes on one grid. Send the link — no server.",
-  "description": "Send the Invite in the bar above the game. A friend opens the link and drops onto the same board as you — two snakes, one apple, last one still moving wins. No account, no install, no game server. The room is the link.\n\nOn your own it is the classic: eat, grow, don't hit the wall. Arrows or WASD on a computer; swipe or the pad on a phone. Your best length lives in the file, so the copy you keep is the save.\n\nAn unofficial port of JavaScript Snake by patorjk.",
+  "tagline": "Two snakes on one grid. Send a friend the link.",
+  "description": "Send the Invite in the bar above the game. A friend opens the link and drops onto the same board as you — two snakes, one apple, last one still moving wins.\n\nOn your own it is the classic: eat, grow, don't hit the wall. Arrows or WASD on a computer; swipe or the pad on a phone. Your best length is saved.\n\nAn unofficial port of JavaScript Snake by patorjk.",
   "author": {
     "name": "patorjk",
     "url": "https://github.com/patorjk/JavaScript-Snake"

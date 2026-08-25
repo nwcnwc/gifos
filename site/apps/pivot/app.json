@@ -6,8 +6,8 @@
   "shortName": "Pivot",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "A pivot table that lives in the file. Nothing is uploaded.",
-  "description": "Choose a CSV or paste comma-separated text. Put fields on rows and columns — drag them on a computer, tap a role on a phone. Count, sum, or list unique values. Close the app and come back: the last table and the last arrangement come back with it. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of PivotTable.js by Nicolas Kruchten. Same drag-and-drop grid. Charts that need extra libraries are not in this app.",
+  "tagline": "Drop in a CSV, drag fields, get a pivot table.",
+  "description": "Choose a CSV or paste comma-separated text. Put fields on rows and columns — drag them on a computer, tap a role on a phone. Count, sum, or list unique values. Close the app and come back: the last table and the last arrangement come back with it. Your data stays on your device.\n\nAn unofficial port of PivotTable.js by Nicolas Kruchten. Same drag-and-drop grid. Charts that need extra libraries are not in this app.",
   "author": {
     "name": "Nicolas Kruchten",
     "url": "https://github.com/nicolaskruchten/pivottable"
@@ -40,14 +40,14 @@
   "cover": "/apps/pivot/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pivot/pivot.gif",
-  "bytes": 381950,
+  "bytes": 382615,
   "download": 0,
   "provides": null,
-  "sha256": "e1527e0480af7408f9ae81fdf5d7ea977c117bbbb046aa37c5ccc0f5afb122a7",
+  "sha256": "11edf5e48e66139c32665dd31d65d6b45005752d344d49e249262b0c4e83c7db",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

@@ -62,10 +62,10 @@ check('Copy Link (in-app share) is hidden — Invite is OS chrome',
   /id="btn-share-link"[\s\S]*style="display:none"/.test(html));
 check('Continue Game is hidden until a save exists',
   /id="load-btn"[\s\S]*style="display:none"/.test(html));
-check('listing tagline leads with no server / file is the save',
-  /no server/i.test(JSON.parse(listing).tagline) && /file is the save/i.test(JSON.parse(listing).tagline));
-check('listing description leads with why this copy (original is a webpage)',
-  /^The original is a webpage/.test(JSON.parse(listing).description));
+check('listing tagline leads with the cloud architect',
+  /cloud architect/i.test(JSON.parse(listing).tagline));
+check('listing description leads with the save that keeps',
+  /^Close it mid-wave/.test(JSON.parse(listing).description));
 check('listing does not mention gifos.db / localStorage / sandbox',
   !/gifos\.db|localStorage|sandbox|WebRTC|WASM|connect-src/.test(listing));
 check('help.md does not mention gifos.db / localStorage',

@@ -136,8 +136,8 @@ check('param labels are words (Width), not size[0]', /niceLabel/.test(js) && /Wi
 check('buttons are 44px tall', /min-height:\s*44px/.test(css));
 check('canvas stays on screen while you edit', /position:\s*sticky/.test(css));
 check('no webfont import', !/@import|fonts\.google|typekit/i.test(css));
-check('listing leads with offline / file holds the recipe',
-  /offline/i.test(listing) && /recipe/i.test(listing) && /file/i.test(listing));
+check('listing says the recipe travels with the GIF',
+  /recipe/i.test(listing) && /travels with it/i.test(listing));
 check('listing does not mention internals',
   !/gifos\.db|WASM|sandbox|localStorage|WebRTC/.test(listing));
 check('help covers layers, presets, PNG, and what is saved',

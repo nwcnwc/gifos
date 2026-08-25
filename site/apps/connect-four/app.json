@@ -6,8 +6,8 @@
   "shortName": "C4",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Computer on this device. A friend sits the other colour from one link. No game server.",
-  "description": "The computer thinks here, on this phone. There is no game server. Press Play a friend, send the invite, and they sit the other colour on the same board.\n\nSeven columns. Drop a disc. First to four in a line — across, down, or diagonal — wins. Close it and come back: the file is the save.\n\nOn your own you play the original computer, on this device. Pass the phone for two people in the same room, or send one link.\n\nAn unofficial port of c4 by kenrick95. The computer is the same one that shipped with that game.",
+  "tagline": "Play the computer, or send a link and a friend drops the other colour.",
+  "description": "The computer thinks here, on this phone. Press Play a friend, send the invite, and they sit the other colour on the same board.\n\nSeven columns. Drop a disc. First to four in a line — across, down, or diagonal — wins. Close it and come back: the board keeps.\n\nOn your own you play the original computer, on this device. Pass the phone for two people in the same room, or send one link.\n\nAn unofficial port of c4 by kenrick95. The computer is the same one that shipped with that game.",
   "author": {
     "name": "kenrick95",
     "url": "https://github.com/kenrick95/c4"
@@ -38,14 +38,14 @@
   "cover": "/apps/connect-four/cover.jpg",
   "screenshots": [],
   "gif": "/apps/connect-four/connect-four.gif",
-  "bytes": 257844,
+  "bytes": 258062,
   "download": 0,
   "provides": null,
-  "sha256": "35a88f9d8692b9dfa958278527e9b50779e0611a158f5961cbcecf889cb22924",
+  "sha256": "1988e19b8845c05734b814a65d8cd764295878632f529d916b41d36ac0eed4ed",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

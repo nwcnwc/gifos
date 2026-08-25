@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "minBuild": 947,
   "tagline": "A mint-green corridor, a handful of keys, and whoever walks in with you.",
-  "description": "You wake up in a small tiled hall with a checkerboard floor that brightens as it recedes, mint walls with dark windows, and a few things sitting on the ground: a line of keys, a bomb. Walk, turn, pick them up. Space throws the bomb; it bounces, rings off the walls, and bursts into sparks.\n\nSend the invite and the same hall is a room. Other people show up as little silhouettes down the corridor, picking up what you have not yet reached, tossing bombs of their own. There is no lobby and no account. The room is the link.\n\nOn a phone, the left thumb walks and the right thumb looks; tap Throw for the bomb. On a computer it is WASD or the arrows, and Space.\n\nAn unofficial port of Koil by tsoding. The original talked to a game server on your machine. This copy does not: the people you invited are the whole network.",
+  "description": "You wake up in a small tiled hall with a checkerboard floor that brightens as it recedes, mint walls with dark windows, and a few things sitting on the ground: a line of keys, a bomb. Walk, turn, pick them up. Space throws the bomb; it bounces, rings off the walls, and bursts into sparks.\n\nSend the invite and the same hall is a room. Other people show up as little silhouettes down the corridor, picking up what you have not yet reached, tossing bombs of their own.\n\nOn a phone, the left thumb walks and the right thumb looks; tap Throw for the bomb. On a computer it is WASD or the arrows, and Space.\n\nAn unofficial port of Koil by tsoding.",
   "author": {
     "name": "tsoding",
     "url": "https://github.com/tsoding/koil"

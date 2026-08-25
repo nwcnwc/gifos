@@ -6,8 +6,8 @@
   "shortName": "Blocks",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Race a friend from one link. Same shapes, two boards, on this device.",
-  "description": "Press Play a friend, then Invite in the bar above, and send the link. You both get the same shapes, each on your own board. Last one still stacking wins. No account, no install — the race is the invite, and your best score lives in the file.\n\nOn your own it is the original falling-blocks game. Slide, turn, and drop the shapes. Fill a row and it vanishes. The pile grows; the game is over when it reaches the top. Close it, come back, your best is still here.\n\nOn a phone, use the pad at the bottom or swipe the board. Hold left or right to slide; tap to turn; swipe down or press drop to drop.\n\nAn unofficial port of canvas-tetris by dionyziz, MIT-licensed. This copy puts two boards in one room, and adds a pad that works with a thumb.",
+  "tagline": "Race a friend: same falling shapes, two boards, first to top out loses.",
+  "description": "Press Play a friend, then Invite in the bar above, and send the link. You both get the same shapes, each on your own board. Last one still stacking wins.\n\nOn your own it is the original falling-blocks game. Slide, turn, and drop the shapes. Fill a row and it vanishes. The pile grows; the game is over when it reaches the top. Close it, come back, your best is still here.\n\nOn a phone, use the pad at the bottom or swipe the board. Hold left or right to slide; tap to turn; swipe down or press drop to drop.\n\nAn unofficial port of canvas-tetris by dionyziz, MIT-licensed. This copy puts two boards in one room, and adds a pad that works with a thumb.",
   "author": {
     "name": "dionyziz",
     "url": "https://github.com/dionyziz/canvas-tetris"
@@ -40,14 +40,14 @@
   "cover": "/apps/falling-blocks/cover.jpg",
   "screenshots": [],
   "gif": "/apps/falling-blocks/falling-blocks.gif",
-  "bytes": 255956,
+  "bytes": 256160,
   "download": 0,
   "provides": null,
-  "sha256": "6ebd31fece10d9a35cc145705f6038ced1c9cae2bf3d4185e4790b4beb0872fe",
+  "sha256": "6ce512981e62f92c2f2186764ab284409c52fdb6e1385301266582553694f600",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

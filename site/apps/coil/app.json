@@ -6,8 +6,8 @@
   "shortName": "Coil",
   "version": "1.1.0",
   "minBuild": 947,
-  "tagline": "Loop a trail around the orbs. Best score lives in the file.",
-  "description": "Works offline, no account, and the high score is saved inside this GIF — close it, copy it, the number comes with the file.\n\nDrag a glowing trail with a finger or the mouse. Wrap it around the blue orbs before they burst. Catch several in one loop and the multiplier climbs. Red orbs are bombs: looping one costs energy. Energy hitting zero ends the run.\n\nAn unofficial port of Coil by Hakim El Hattab, MIT-licensed.",
+  "tagline": "Loop a trail around the orbs. Your best score is saved.",
+  "description": "The high score is saved inside the GIF — close it, copy it, the number comes with the file.\n\nDrag a glowing trail with a finger or the mouse. Wrap it around the blue orbs before they burst. Catch several in one loop and the multiplier climbs. Red orbs are bombs: looping one costs energy. Energy hitting zero ends the run.\n\nAn unofficial port of Coil by Hakim El Hattab, MIT-licensed.",
   "author": {
     "name": "Hakim El Hattab",
     "url": "https://github.com/leereilly/Coil"
@@ -37,14 +37,14 @@
   "cover": "/apps/coil/cover.jpg",
   "screenshots": [],
   "gif": "/apps/coil/coil.gif",
-  "bytes": 368885,
+  "bytes": 367488,
   "download": 0,
   "provides": null,
-  "sha256": "62798a410e108152b3879a16a6e4849acab5e26430212ced59cfb2d5642cdb1a",
+  "sha256": "354ec60e25613c0e9fbec2c44263642694f06d10b07b6353e33312a43e695b09",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

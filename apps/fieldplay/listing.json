@@ -1,6 +1,6 @@
 {
-  "tagline": "A plane of arrows. Pour particles with a finger. The file is the save.",
-  "description": "Works offline, in one GIF. The last field, camera, and knobs live in the file, so the copy you keep is the save. Press Play together, then Invite in the bar above the app, and a friend lands on the same recipe — no account, no install, no server.\n\nEvery point on the plane has a little arrow. Particles follow those arrows: spirals, cogs, rain, a black hole. Tap a named field to try one. Tap the picture to pour more particles. Drag to pan, pinch or scroll to zoom. Change a number in the recipe, press Apply, and the flow becomes yours.\n\nOn a phone the recipe sheet starts closed so the field fills the screen. Recipe opens the program and the knobs.\n\nAn unofficial port of Field Play by anvaka.",
+  "tagline": "A plane of arrows. Pour particles with a finger and watch them flow.",
+  "description": "The last field, camera, and knobs are saved with the app. Press Play together, then Invite in the bar above the app, and a friend lands on the same recipe.\n\nEvery point on the plane has a little arrow. Particles follow those arrows: spirals, cogs, rain, a black hole. Tap a named field to try one. Tap the picture to pour more particles. Drag to pan, pinch or scroll to zoom. Change a number in the recipe, press Apply, and the flow becomes yours.\n\nOn a phone the recipe sheet starts closed so the field fills the screen. Recipe opens the program and the knobs.\n\nAn unofficial port of Field Play by anvaka.",
   "author": {
     "name": "anvaka",
     "url": "https://github.com/anvaka/fieldplay"

@@ -1,6 +1,6 @@
 {
-  "tagline": "Call bingo over a meeting. One invite is the hall — no server.",
-  "description": "Call the numbers from one phone. Everyone else daubs a card on theirs. One invite is the room: no account, no game server, no lobby code. Whoever sent the invite calls \u2014 and can hand the ball to anyone in the room, or take it back. Open it in a GifOS meeting and you already have the voice.\n\nOn your own, you call and daub on this device. The card lives in the file, so the game you started is the game you hand someone.\n\nA line, a column, a diagonal, or the four corners is bingo. The first honest line takes the round.\n\nAn unofficial port of bingo by mihailgaberov. The original needs a login and a game server. This copy does not.",
+  "tagline": "Call bingo over a meeting. Everyone who opens the invite gets a card.",
+  "description": "Call the numbers from one phone. Everyone else daubs a card on theirs. Whoever sent the invite calls — and can hand the ball to anyone in the room, or take it back. Open it in a GifOS meeting and you already have the voice.\n\nOn your own, you call and daub on this device. Your card is saved with the app.\n\nA line, a column, a diagonal, or the four corners is bingo. The first honest line takes the round.\n\nAn unofficial port of bingo by mihailgaberov.",
   "author": {
     "name": "mihailgaberov",
     "url": "https://github.com/mihailgaberov/bingo"

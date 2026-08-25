@@ -382,8 +382,8 @@ check('FIRE clears the shells readout',
   { fire: cssPxCalc('#t-fire', 'bottom'), pod: cssPxCalc('.pod', 'bottom') });
 check('help covers keyboard, phone, save, friends',
   /WASD/.test(help) && /FIRE/.test(help) && /best score/i.test(help) && /Invite/.test(help));
-check('listing leads with the GIF / no server',
-  /in a GIF/i.test(listing.tagline) && /no server/i.test(listing.tagline));
+check('listing leads with DOOM in a GIF',
+  /DOOM/i.test(listing.tagline) && /GIF/i.test(listing.tagline));
 check('listing does not mention internals',
   !/gifos\.db|WASM|sandbox|localStorage|WebRTC/.test(JSON.stringify(listing)));
 check('author is Kuber, porter is GifOS',

@@ -6,8 +6,8 @@
   "shortName": "Sheets",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "A local Excel-like spreadsheet. Your workbook lives in the icon, not in anyone's cloud.",
-  "description": "A full spreadsheet: cells, formulas, formatting, freeze, sort, filter, comments, and as many sheets as you need. Type a budget, a roster, a grade book — it stays on this device, inside the app. There is no account and no server of theirs (or ours) that your numbers ever visit.\n\nIt opens on a small demo sheet so you can see formulas working, then it is yours. Every edit is saved a moment after you make it; close the app and come back, the grid is where you left it. New workbook wipes the grid, not the app.\n\nAn unofficial port of FortuneSheet by ruilisi, MIT-licensed. Their live collaboration is not in this app. What you type is saved here, not synced to a service.",
+  "tagline": "An Excel-like spreadsheet. Your workbook is saved on your device, not a cloud.",
+  "description": "A full spreadsheet: cells, formulas, formatting, freeze, sort, filter, comments, and as many sheets as you need. Type a budget, a roster, a grade book — it stays on this device, inside the app — your numbers never visit anyone's server.\n\nIt opens on a small demo sheet so you can see formulas working, then it is yours. Every edit is saved a moment after you make it; close the app and come back, the grid is where you left it. New workbook wipes the grid, not the app.\n\nAn unofficial port of FortuneSheet by ruilisi, MIT-licensed. Their live collaboration is not in this app.",
   "author": {
     "name": "ruilisi",
     "url": "https://github.com/ruilisi/fortune-sheet"
@@ -39,14 +39,14 @@
   "cover": "/apps/fortune-sheet/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fortune-sheet/fortune-sheet.gif",
-  "bytes": 1267704,
+  "bytes": 1267070,
   "download": 0,
   "provides": null,
-  "sha256": "6b50234ddb06075d1ea39573bbc74fc260f7740915315378a097bd6d050f0838",
+  "sha256": "69c1ceea373fe15ba9a3167c2cd6fc9dbb99d7b863762b5e01a566e3b1d9aba0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

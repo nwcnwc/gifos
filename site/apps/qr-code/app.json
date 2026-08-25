@@ -6,8 +6,8 @@
   "shortName": "QR",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Type a link or any text. A code appears. Nothing is uploaded.",
-  "description": "Works offline, with no account: type a link, a phone number, a message, or a contact, and a code appears on this screen. Nothing is sent anywhere — the words never leave this device.\n\nThe last code you made comes back the next time you open the app, still inside this file. A shared link can open the app already filled in. Press Invite in the GifOS bar to put the same code on everyone else's screen in a meeting.\n\nUnofficial port of qrcodejs by davidshimjs. A general maker — not only Wi-Fi. For a fridge card with the network name and password, use WiFi Card instead.",
+  "tagline": "Type a link or any text. A QR code appears.",
+  "description": "Type a link, a phone number, a message, or a contact, and a code appears on this screen.\n\nThe last code you made comes back the next time you open the app. A shared link can open the app already filled in. Press Invite in the GifOS bar to put the same code on everyone else's screen in a meeting.\n\nUnofficial port of qrcodejs by davidshimjs. A general maker — not only Wi-Fi. For a fridge card with the network name and password, use WiFi Card instead.",
   "author": {
     "name": "davidshimjs",
     "url": "https://github.com/davidshimjs/qrcodejs"
@@ -41,14 +41,14 @@
   "cover": "/apps/qr-code/cover.jpg",
   "screenshots": [],
   "gif": "/apps/qr-code/qr-code.gif",
-  "bytes": 210871,
+  "bytes": 211141,
   "download": 0,
   "provides": null,
-  "sha256": "4ae18a282846a4d7080b67ce1917081a67f01d775f1fc9def686f4a3e5ea36ac",
+  "sha256": "32a8740bb33b44578e550d2007c940c1f31432334d69f8b510f94385fc778e12",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

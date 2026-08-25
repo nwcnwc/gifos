@@ -56,8 +56,8 @@ check('hit-claim forgets only when the shooter drops the ring (no 12s clock)',
 check('seenShots prune agrees with the live ring',
   /for \(key in seenShots\)/.test(netSrc) && /delete seenShots/.test(netSrc));
 check('sim refuses overlapping tanks', /overlapTank/.test(simSrc) && /tryMove/.test(simSrc));
-check('listing leads with no game server / one link',
-  /invite link is the room/i.test(listing.description) && /socket\.io/i.test(listing.description));
+check('listing says the invite link is the way in',
+  /opens your invite link lands in the same walled yard/i.test(listing.description));
 check('help.md names dual sticks, shield, career',
   /MOVE/.test(help) && /AIM/.test(help) && /shield/.test(help) && /Career/.test(help));
 check('icon.mjs does not stamp TANKS letters on the GIF frames',

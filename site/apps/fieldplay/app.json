@@ -6,8 +6,8 @@
   "shortName": "Field",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "A plane of arrows. Pour particles with a finger. The file is the save.",
-  "description": "Works offline, in one GIF. The last field, camera, and knobs live in the file, so the copy you keep is the save. Press Play together, then Invite in the bar above the app, and a friend lands on the same recipe — no account, no install, no server.\n\nEvery point on the plane has a little arrow. Particles follow those arrows: spirals, cogs, rain, a black hole. Tap a named field to try one. Tap the picture to pour more particles. Drag to pan, pinch or scroll to zoom. Change a number in the recipe, press Apply, and the flow becomes yours.\n\nOn a phone the recipe sheet starts closed so the field fills the screen. Recipe opens the program and the knobs.\n\nAn unofficial port of Field Play by anvaka.",
+  "tagline": "A plane of arrows. Pour particles with a finger and watch them flow.",
+  "description": "The last field, camera, and knobs are saved with the app. Press Play together, then Invite in the bar above the app, and a friend lands on the same recipe.\n\nEvery point on the plane has a little arrow. Particles follow those arrows: spirals, cogs, rain, a black hole. Tap a named field to try one. Tap the picture to pour more particles. Drag to pan, pinch or scroll to zoom. Change a number in the recipe, press Apply, and the flow becomes yours.\n\nOn a phone the recipe sheet starts closed so the field fills the screen. Recipe opens the program and the knobs.\n\nAn unofficial port of Field Play by anvaka.",
   "author": {
     "name": "anvaka",
     "url": "https://github.com/anvaka/fieldplay"
@@ -42,14 +42,14 @@
   "cover": "/apps/fieldplay/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fieldplay/fieldplay.gif",
-  "bytes": 206101,
+  "bytes": 206310,
   "download": 0,
   "provides": null,
-  "sha256": "9d08e9bd59566a07553c4f0f50f817174b1457880a6333458cb447f964df1155",
+  "sha256": "9293b54a63128058bf6704cb769da50da050143a020015a46e88f330dfab9c40",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

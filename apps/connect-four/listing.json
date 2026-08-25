@@ -1,6 +1,6 @@
 {
-  "tagline": "Computer on this device. A friend sits the other colour from one link. No game server.",
-  "description": "The computer thinks here, on this phone. There is no game server. Press Play a friend, send the invite, and they sit the other colour on the same board.\n\nSeven columns. Drop a disc. First to four in a line — across, down, or diagonal — wins. Close it and come back: the file is the save.\n\nOn your own you play the original computer, on this device. Pass the phone for two people in the same room, or send one link.\n\nAn unofficial port of c4 by kenrick95. The computer is the same one that shipped with that game.",
+  "tagline": "Play the computer, or send a link and a friend drops the other colour.",
+  "description": "The computer thinks here, on this phone. Press Play a friend, send the invite, and they sit the other colour on the same board.\n\nSeven columns. Drop a disc. First to four in a line — across, down, or diagonal — wins. Close it and come back: the board keeps.\n\nOn your own you play the original computer, on this device. Pass the phone for two people in the same room, or send one link.\n\nAn unofficial port of c4 by kenrick95. The computer is the same one that shipped with that game.",
   "author": {
     "name": "kenrick95",
     "url": "https://github.com/kenrick95/c4"

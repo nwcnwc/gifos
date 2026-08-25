@@ -1,6 +1,6 @@
 {
-  "tagline": "Two devices, one link, no server. First to nine.",
-  "description": "Send a friend the invite. They take the other paddle on their phone or their computer — there is no game server, no account, and no lobby. The room is the link.\n\nOn your own you play a computer that gets sharper when it is behind and sloppier when it is winning. Drag your paddle with a finger, or use Q and A on the left and P and L on the right. First to nine. Close it, come back: the file keeps your wins.\n\nAn unofficial port of Jake Gordon's JavaScript Pong. This copy adds a friend on a second device, and a paddle you can drag.",
+  "tagline": "Pong across two phones. Send the link, first to nine.",
+  "description": "Send a friend the invite. They take the other paddle on their phone or their computer.\n\nOn your own you play a computer that gets sharper when it is behind and sloppier when it is winning. Drag your paddle with a finger, or use Q and A on the left and P and L on the right. First to nine. Close it, come back: your wins are remembered.\n\nAn unofficial port of Jake Gordon's JavaScript Pong. This copy adds a friend on a second device, and a paddle you can drag.",
   "author": {
     "name": "Jake Gordon",
     "url": "https://github.com/jakesgordon/javascript-pong"

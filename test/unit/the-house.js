@@ -182,9 +182,9 @@ check('app.js loads in a vm and exposes HousePort', !!(HP && HP.remapSrc && HP.f
   check('resume skips the splash when is_in is set', app.indexOf('skipIntro') !== -1);
   check('room.settings.collected_items is rebound', app.indexOf('collected_items') !== -1);
 
-  check('listing leads with why this copy (offline)', /^Works offline/i.test(listing.description));
-  check('tagline says the file is the save', /file/i.test(listing.tagline) && /save/i.test(listing.tagline));
-  check('listing claims a tap, and no Flash', /Tap/i.test(listing.description) && /Flash/i.test(listing.description));
+  check('listing leads with the save that keeps', /^The room you reached/i.test(listing.description));
+  check('tagline sets the scene', /wake in a room/i.test(listing.tagline));
+  check('listing claims a tap works', /Tap/i.test(listing.description));
   check('listing is an unofficial port of The House', listing.basedOn && listing.basedOn.name === 'The House' && listing.basedOn.blessed === false);
   check('author is Artur Kot, not GifOS', listing.author && listing.author.name === 'Artur Kot');
   check('help tells you the file is the save', /file you keep is the save/i.test(help));

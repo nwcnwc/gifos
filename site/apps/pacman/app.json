@@ -6,8 +6,8 @@
   "shortName": "Pellets",
   "version": "1.2.0",
   "minBuild": 947,
-  "tagline": "Twelve mazes and a thumb pad. The high score lives in the file.",
-  "description": "Twelve mazes, four ghosts, a pad for your thumb. Works on a plane. Your best score and furthest maze live in the file you keep — no account, no install.\n\nYou are the yellow one. Eat every pellet, grab a power pellet to turn the ghosts blue, and do not let them catch you. Five lives. Arrows or WASD on a computer; a d-pad and swipe on a phone. Space pauses. Close it and come back: the high score is still in the corner.\n\nPress Invite in the bar above and everyone who opens the link is on the same cabinet. Each of you plays your own maze; the roster shows lives and score. There is no game server.\n\nAn unofficial port of mumuy's HTML5 maze game (MIT). The mazes and the ghost AI are theirs. The pad and the shared cabinet are ours. Not affiliated with Bandai Namco.",
+  "tagline": "Twelve mazes and a thumb pad. Your high score is saved.",
+  "description": "Twelve mazes, four ghosts, a pad for your thumb. Your best score and furthest maze are saved.\n\nYou are the yellow one. Eat every pellet, grab a power pellet to turn the ghosts blue, and do not let them catch you. Five lives. Arrows or WASD on a computer; a d-pad and swipe on a phone. Space pauses. Close it and come back: the high score is still in the corner.\n\nPress Invite in the bar above and everyone who opens the link is on the same cabinet. Each of you plays your own maze; the roster shows lives and score.\n\nAn unofficial port of mumuy's HTML5 maze game (MIT). The mazes and the ghost AI are theirs. The pad and the shared cabinet are ours. Not affiliated with Bandai Namco.",
   "author": {
     "name": "Haole Zheng",
     "url": "https://github.com/mumuy/pacman"
@@ -38,14 +38,14 @@
   "cover": "/apps/pacman/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pacman/pacman.gif",
-  "bytes": 173937,
+  "bytes": 174111,
   "download": 0,
   "provides": null,
-  "sha256": "17ad1dfd77fd150aa306d0cc80cd66d555ec5cdab36b089bb74f8150e1a1e6fb",
+  "sha256": "1a787f9eb41c03d6a9f2557427990296bdedae4f2b36efea9cc9d51a36caf43f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

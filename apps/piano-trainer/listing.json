@@ -1,6 +1,6 @@
 {
-  "tagline": "Scales, chords, fifths, a quiz — offline, in this file.",
-  "description": "Practice scales, triads, sevenths, and the circle of fifths on a two-octave keyboard. There is no account and nothing to install: this copy is the app, and your quiz score and finished rounds stay in the file.\n\nTap the keys on a phone, or use the home row (A to quote). A MIDI keyboard is optional. Hard mode hides the next note. Shuffle starts each round on a new degree. Hear plays the notes you are about to find.\n\nThe quiz asks which fifth, the key signature, the name of a chord, or to play a named note — tap an answer, no MIDI required.\n\nPress Practice together, then Invite in the bar above, and a friend sees the same prompt.\n\nAn unofficial port of Piano Trainer by Zane Helton. The original is a React desktop app that loads a soundfont from the network. This copy keeps the piano inside the file.",
+  "tagline": "Scales, chords, the circle of fifths, and a quiz to drill them.",
+  "description": "Practice scales, triads, sevenths, and the circle of fifths on a two-octave keyboard. Your quiz score and finished rounds are saved.\n\nTap the keys on a phone, or use the home row (A to quote). A MIDI keyboard is optional. Hard mode hides the next note. Shuffle starts each round on a new degree. Hear plays the notes you are about to find.\n\nThe quiz asks which fifth, the key signature, the name of a chord, or to play a named note — tap an answer, no MIDI required.\n\nPress Practice together, then Invite in the bar above, and a friend sees the same prompt.\n\nAn unofficial port of Piano Trainer by Zane Helton. The piano sounds are built in.",
   "author": {
     "name": "Zane Helton",
     "url": "https://github.com/ZaneH/piano-trainer"

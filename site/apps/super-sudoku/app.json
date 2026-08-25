@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 947,
   "tagline": "A full sudoku. Race a friend on the same puzzle.",
-  "description": "Fill every square so each row, column and box has the numbers 1 to 9. Tap a square, then tap a number. Pencil notes if you want to keep your options open. Five difficulties — easy through evil — and thousands of puzzles.\n\nOn your own it is the original game, saved on this device inside the app. Close it and pick up where you left off. Send the invite and you both get the same puzzle: first to finish wins, and you can see each other's times as you go. There is no account and no game server. The room is the link.\n\nAn unofficial port of Super Sudoku by TN1ck. This copy adds the race.",
+  "description": "Fill every square so each row, column and box has the numbers 1 to 9. Tap a square, then tap a number. Pencil notes if you want to keep your options open. Five difficulties — easy through evil — and thousands of puzzles.\n\nOn your own it is the original game, saved on this device inside the app. Close it and pick up where you left off. Send the invite and you both get the same puzzle: first to finish wins, and you can see each other's times as you go.\n\nAn unofficial port of Super Sudoku by TN1ck. This copy adds the race.",
   "author": {
     "name": "TN1ck",
     "url": "https://github.com/TN1ck/super-sudoku"

@@ -145,8 +145,8 @@ check('tap tempo control is there', /tapBtn/.test(html) && /tapTempo/.test(app))
 check('6/8 is offered', /data-sig="6\/8"/.test(html));
 check('help names the jobs', help.length >= 400 && /Tap tempo/.test(help) && /subdivision/i.test(help));
 check('help does not re-document OS Save', !/\*\*Save\*\*/.test(help));
-check('listing leads with offline / no account', /^Works offline/i.test(listing.description));
-check('listing claims a file-is-save', /live in this file/.test(listing.description));
+check('listing leads with the tempo', /^Set a tempo/i.test(listing.description));
+check('listing says the tempo comes back', /come back the next time you open the app/.test(listing.description));
 check('listing credits cwilso', listing.author && listing.author.name === 'cwilso');
 check('listing is an unofficial port', listing.basedOn && listing.basedOn.blessed === false);
 check('no mic in the manifest', !manifest.capabilities.microphone && !manifest.capabilities.network);

@@ -6,8 +6,8 @@
   "shortName": "Splat",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "A tiny 3D scene you spin with a finger. The scene lives in this app.",
-  "description": "Open it and you are already standing in a small 3D scene — a ring of colour, a few glossy balls, a patch of ground. Drag to look around. On a phone, one finger orbits; pinch with two to move closer or farther. Arrow keys walk, and the letter keys turn, if you have a keyboard.\n\nThe scene is packed in this app. Nothing is downloaded, and nothing is sent anywhere.\n\nAn unofficial port of splat by antimatter15. The original loads a scene from the internet; this copy carries a tiny one of its own, so it works with no network at all.\n\nIf you have a scene file, drop it on the window to look at that instead. What you drop stays on this device.",
+  "tagline": "A small 3D scene you can walk around, packed whole into the app.",
+  "description": "Open it and you are already standing in a small 3D scene — a ring of colour, a few glossy balls, a patch of ground. Drag to look around. On a phone, one finger orbits; pinch with two to move closer or farther. Arrow keys walk, and the letter keys turn, if you have a keyboard.\n\nThe scene is packed inside the app.\n\nAn unofficial port of splat by antimatter15. The original loads a scene from the internet; this copy carries a tiny one of its own, so it works with no network at all.\n\nIf you have a scene file, drop it on the window to look at that instead. What you drop stays on this device.",
   "author": {
     "name": "antimatter15",
     "url": "https://github.com/antimatter15/splat"
@@ -38,14 +38,14 @@
   "cover": "/apps/splat/cover.jpg",
   "screenshots": [],
   "gif": "/apps/splat/splat.gif",
-  "bytes": 199705,
+  "bytes": 199953,
   "download": 0,
   "provides": null,
-  "sha256": "26f68937d47b8a7c9c5a80e3a3ade1e3efb76091dfe2c75a0b6d85cbb59cc330",
+  "sha256": "5e5708d940913072a0f69ebd5ff7d7f69e1b4198aadfd30fa089221bfc0433be",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

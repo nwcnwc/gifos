@@ -1,6 +1,6 @@
 {
-  "tagline": "Crop, rotate and filter a photo on this device. Nothing is uploaded.",
-  "description": "Open a picture or take one. Drag a corner to crop. Rotate, flip, pick a look — Vintage, Polaroid, Kodak, Browni — and turn bright, contrast, sat, warmth and vignette. Download keeps a JPEG here. Nothing is sent anywhere: no account, and the picture never leaves this device.\n\nThis is not a drawing app and not a compressor. It is the crop / rotate / filter loop.\n\nThe last picture and the last recipe come back the next time you open the app, still only on this device. Press Invite (the GifOS bar) and a friend gets your sliders and look, not your photo.\n\nAn unofficial port of mini-photo-editor by xdadda.",
+  "tagline": "Crop, rotate and filter a photo — right on your device.",
+  "description": "Open a picture or take one. Drag a corner to crop. Rotate, flip, pick a look — Vintage, Polaroid, Kodak, Browni — and turn bright, contrast, sat, warmth and vignette. Download keeps a JPEG here. The picture never leaves this device.\n\nThis is not a drawing app and not a compressor. It is the crop / rotate / filter loop.\n\nThe last picture and the last recipe come back the next time you open the app. Press Invite (the GifOS bar) and a friend gets your sliders and look, not your photo.\n\nAn unofficial port of mini-photo-editor by xdadda.",
   "author": {
     "name": "xdadda",
     "url": "https://github.com/xdadda/mini-photo-editor"

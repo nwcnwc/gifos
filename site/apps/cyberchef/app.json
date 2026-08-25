@@ -7,7 +7,7 @@
   "version": "11.4.0",
   "minBuild": 1178,
   "tagline": "Encode, decode, encrypt, hash, compress — hundreds of operations, all on this device.",
-  "description": "Drag operations into a recipe, drop some data in, and Bake. Base64, AES, gzip, hex dumps, hashes, timestamps, character encodings, and hundreds more, chained in whatever order you like. Nothing is uploaded: every conversion runs in this app, on this device.\n\nFavourites, options and saved recipes stay on this computer, inside the app. There is no account and no cloud copy.\n\nAn unofficial port of GCHQ's CyberChef, the Cyber Swiss Army Knife. GCHQ did not endorse this listing. This copy keeps the same operations. Recipes save on this device. There is no path out to the internet, so operations that would have fetched a URL (an HTTP request, or extra language files for reading pictures) simply cannot, and say so.",
+  "description": "Drag operations into a recipe, drop some data in, and Bake. Base64, AES, gzip, hex dumps, hashes, timestamps, character encodings, and hundreds more, chained in whatever order you like. Nothing is uploaded: every conversion runs in this app, on this device.\n\nFavourites, options and saved recipes stay on this computer, inside the app.\n\nAn unofficial port of GCHQ's CyberChef, the Cyber Swiss Army Knife. GCHQ did not endorse this listing. This copy keeps the same operations. There is no path out to the internet, so operations that would have fetched a URL (an HTTP request, or extra language files for reading pictures) simply cannot, and say so.",
   "author": {
     "name": "GCHQ",
     "url": "https://github.com/gchq/CyberChef"

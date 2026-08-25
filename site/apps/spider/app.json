@@ -6,8 +6,8 @@
   "shortName": "Spider",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "1, 2 or 4 suits. The tableau lives in the file.",
-  "description": "Close it on a plane, open it tomorrow — the same ten piles, the same score, inside this GIF. No account, no install, no Windows.\n\nBuild king-to-ace runs. A finished same-suit run of 13 leaves the tableau; eight of those and you win. Deal a row from the stock only when every pile has a card — the real Spider rule, not a house rule. 1-suit is the teacher, 2-suit is the middle, 4-suit is the game Microsoft players mean.\n\nTap a face-up card and tap where it goes, or drag. Empty piles take any run. Undo puts the cards back. A phone-sized tableau fans so you can still read the ranks.\n\nAn unofficial port of spider-solitaire by lklynet. Same engine; this copy adds 1/2/4-suit deals and a tableau that travels with the file.",
+  "tagline": "Spider solitaire with 1, 2 or 4 suits. Your deal is saved.",
+  "description": "Close it mid-game, open it tomorrow — the same ten piles, the same score.\n\nBuild king-to-ace runs. A finished same-suit run of 13 leaves the tableau; eight of those and you win. Deal a row from the stock only when every pile has a card — the real Spider rule, not a house rule. 1-suit is the teacher, 2-suit is the middle, 4-suit is the game Microsoft players mean.\n\nTap a face-up card and tap where it goes, or drag. Empty piles take any run. Undo puts the cards back. A phone-sized tableau fans so you can still read the ranks.\n\nAn unofficial port of spider-solitaire by lklynet. Same engine; this copy adds the 1/2/4-suit deals.",
   "author": {
     "name": "lklynet",
     "url": "https://github.com/lklynet/spider-solitaire"
@@ -38,14 +38,14 @@
   "cover": "/apps/spider/cover.jpg",
   "screenshots": [],
   "gif": "/apps/spider/spider.gif",
-  "bytes": 193972,
+  "bytes": 194196,
   "download": 0,
   "provides": null,
-  "sha256": "703e2fbec67c1d1ae3b4ed03f1c273bbb76d553794278269d2ebe17a9942b3da",
+  "sha256": "1eeff12309f6173fc48aade730df1126727439e854b499ec65d3e8145b1e9f4c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

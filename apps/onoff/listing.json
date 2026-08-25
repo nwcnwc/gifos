@@ -1,19 +1,29 @@
 {
-  "tagline": "Twenty-five rooms. Flip the world. The file remembers the room.",
-  "description": "Close it on room 18, open it on room 18. The furthest room lives in this GIF — no account, no install, works offline.\n\nA little robot, two layers of platforms, and a button that swaps which one is solid. Walk, jump, toggle. Spikes kill you. Reach the pulsing goal. Twenty-five hand-made rooms from the 2018 js13kGames jam.\n\nOn a phone: left, right, JUMP, and ON/OFF under your thumbs. On a computer it is WASD or the arrows, space to flip.\n\nAn unofficial port of OnOff by Daniel Marino and Brad Dunbar, MIT-licensed.",
+  "tagline": "Twenty-five puzzle rooms where flipping a switch flips the world.",
+  "description": "Close it on room 18, open it on room 18 — the furthest room you reached is saved.\n\nA little robot, two layers of platforms, and a button that swaps which one is solid. Walk, jump, toggle. Spikes kill you. Reach the pulsing goal. Twenty-five hand-made rooms from the 2018 js13kGames jam.\n\nOn a phone: left, right, JUMP, and ON/OFF under your thumbs. On a computer it is WASD or the arrows, space to flip.\n\nAn unofficial port of OnOff by Daniel Marino and Brad Dunbar, MIT-licensed.",
   "author": {
     "name": "Daniel Marino and Brad Dunbar",
     "url": "https://github.com/starzonmyarmz/js13k-2018"
   },
-  "porter": { "name": "GifOS", "url": "https://gifos.app" },
+  "porter": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
   "basedOn": {
     "name": "OnOff",
     "url": "https://github.com/starzonmyarmz/js13k-2018",
     "blessed": false
   },
   "releaseDate": "2026-08-24",
-  "categories": ["Games"],
-  "tags": ["platformer", "js13k", "puzzle", "offline"],
+  "categories": [
+    "Games"
+  ],
+  "tags": [
+    "platformer",
+    "js13k",
+    "puzzle",
+    "offline"
+  ],
   "license": "MIT",
   "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/onoff",
   "cover": "screenshot.png",

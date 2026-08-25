@@ -6,8 +6,8 @@
   "shortName": "Chess",
   "version": "1.0.1",
   "minBuild": 947,
-  "tagline": "The real Stockfish engine, on this device. It plays on a plane.",
-  "description": "The real chess engine — Stockfish 18 — running on this device. Not a simplified stand-in, and not a server: it never needs the network. It plays on a plane.\n\nPick your level from about 1320 up through Grandmaster, plus a top rung with no handicap at all — stronger than any human alive. Every search can show the engine's win / draw / loss odds and the best line it has found. Turn the coaching off if you just want to play.\n\nHints only ever appear when you press Hint. Take-backs, resign and a promotion picker are all there. Finished games are saved in the icon so you can step through any of them move by move, and your game in progress auto-saves — close the tab, come back, resume.\n\nOr press Play a friend and send the invite: the same board, live, on two devices.",
+  "tagline": "The real Stockfish engine, running on your device — no internet needed.",
+  "description": "The real chess engine — Stockfish 18 — running on this device. Not a simplified stand-in: it never needs the network.\n\nPick your level from about 1320 up through Grandmaster, plus a top rung with no handicap at all — stronger than any human alive. Every search can show the engine's win / draw / loss odds and the best line it has found. Turn the coaching off if you just want to play.\n\nHints only ever appear when you press Hint. Take-backs, resign and a promotion picker are all there. Finished games are saved so you can step through any of them move by move, and your game in progress auto-saves — close the tab, come back, resume.\n\nOr press Play a friend and send the invite: the same board, live, on two devices.",
   "author": {
     "name": "GifOS",
     "url": "https://gifos.app"
@@ -40,13 +40,13 @@
   "cover": "/apps/chess-grandmaster/cover.jpg",
   "screenshots": [],
   "gif": "/apps/chess-grandmaster/chess-grandmaster.gif",
-  "bytes": 8322486,
+  "bytes": 8322496,
   "download": 0,
   "provides": null,
-  "sha256": "866f3c16427de0c564838271829b7f5b53e206940c539bfead0183e20b6e0f75",
+  "sha256": "0c72b802fda81a3651ee3d22e62c3a2a206358714f704f544063e6764b8cf3e9",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   }
 }

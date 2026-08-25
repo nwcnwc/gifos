@@ -6,8 +6,8 @@
   "shortName": "Regexper",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Type a regular expression. See a railroad diagram. On this device.",
-  "description": "Type a regular expression and press Display. You get a picture of what it matches: a railroad diagram, with boxes for the letters, loops for things that repeat, and branches where there is a choice. That is often easier to read than the punctuation.\n\nThe picture is drawn on this device. Nothing is uploaded, and nothing is sent anywhere. You can save it as an SVG or a PNG.\n\nAn unofficial port of Regexper by javallone. He did not endorse this listing. Same diagrams. There is no path out to the internet.",
+  "tagline": "Type a regular expression, see it as a railroad diagram.",
+  "description": "Type a regular expression and press Display. You get a picture of what it matches: a railroad diagram, with boxes for the letters, loops for things that repeat, and branches where there is a choice. That is often easier to read than the punctuation.\n\nYou can save it as an SVG or a PNG.\n\nAn unofficial port of Regexper by javallone. He did not endorse this listing. Same diagrams.",
   "author": {
     "name": "javallone",
     "url": "https://github.com/javallone/regexper-static"
@@ -38,14 +38,14 @@
   "cover": "/apps/regexper/cover.jpg",
   "screenshots": [],
   "gif": "/apps/regexper/regexper.gif",
-  "bytes": 297003,
+  "bytes": 297629,
   "download": 0,
   "provides": null,
-  "sha256": "80eabfcdf53c004cad05e3cba501bfccfe355f8bcfb24f0b86cbc337641da340",
+  "sha256": "05dc259fe7a273a53e9fc22b12c9b07fd82bac0d054613d99b9edbb409e05a58",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

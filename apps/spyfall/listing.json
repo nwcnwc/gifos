@@ -1,6 +1,6 @@
 {
-  "tagline": "One invite is the room. No game server. One of you is the spy.",
-  "description": "Send the invite. Everyone who opens it is in the same game, each on their own phone. There is no lobby code and no game server. The locations live in this file. The original needs a Node room. This copy does not.\n\nEveryone but one person is at the same place — a bank, a pirate ship, a circus tent — and each of you has a job there. The spy does not know the place. Ask questions. Try not to give it away. Catch the spy, or, if you are the spy, guess where you are.\n\nOr pass this phone around the table. Add names, deal, tap your own name, look at your card, hide it, pass it on. Nobody else's card is waiting on the screen.\n\nAn unofficial port of Spyfall by tannerkrewson.",
+  "tagline": "One link deals everyone a role. One of you is the spy.",
+  "description": "Send the invite. Everyone who opens it is in the same game, each on their own phone. There is no lobby code to type.\n\nEveryone but one person is at the same place — a bank, a pirate ship, a circus tent — and each of you has a job there. The spy does not know the place. Ask questions. Try not to give it away. Catch the spy, or, if you are the spy, guess where you are.\n\nOr pass this phone around the table. Add names, deal, tap your own name, look at your card, hide it, pass it on. Nobody else's card is waiting on the screen.\n\nAn unofficial port of Spyfall by tannerkrewson.",
   "author": {
     "name": "tannerkrewson",
     "url": "https://github.com/tannerkrewson/spyfall"

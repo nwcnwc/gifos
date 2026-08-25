@@ -6,8 +6,8 @@
   "shortName": "Longwave",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "One invite is the room. No game server. Find the mark.",
-  "description": "There is no game server. Press Play a friend, then Invite in the bar above the app, and send the link. Whoever opens it is the other seat — the invite is the room. The spectrum lives in this file, so you can close it, come back, or hand the GIF to someone.\n\nOne of you is the psychic. They see a mark sitting somewhere between two opposites — hot and cold, friend and enemy, trashy and classy. They give a clue: one thought that belongs on that line, right where the mark is. The other is the guesser. They slide the needle to where they think the clue lives.\n\nThe closer the needle, the more you score. Dead on is four (counted as three, and you keep the card). Close is three or two. A miss is nothing. Seven cards, and you swap seats after each one. Sit together on one device, or play from two.\n\nAn unofficial port of Longwave by cynicaloptimist. The original needs a game server. This copy does not.",
+  "tagline": "One of you is the psychic. Read their clue, find the mark on the dial.",
+  "description": "Press Play a friend, then Invite in the bar above the app, and send the link. Whoever opens it is the other seat. Close it mid-game and come back; nothing is lost.\n\nOne of you is the psychic. They see a mark sitting somewhere between two opposites — hot and cold, friend and enemy, trashy and classy. They give a clue: one thought that belongs on that line, right where the mark is. The other is the guesser. They slide the needle to where they think the clue lives.\n\nThe closer the needle, the more you score. Dead on is four (counted as three, and you keep the card). Close is three or two. A miss is nothing. Seven cards, and you swap seats after each one. Sit together on one device, or play from two.\n\nAn unofficial port of Longwave by cynicaloptimist.",
   "author": {
     "name": "cynicaloptimist",
     "url": "https://github.com/cynicaloptimist/longwave"
@@ -39,14 +39,14 @@
   "cover": "/apps/longwave/cover.jpg",
   "screenshots": [],
   "gif": "/apps/longwave/longwave.gif",
-  "bytes": 202854,
+  "bytes": 202990,
   "download": 0,
   "provides": null,
-  "sha256": "b59d34d2438a8b3106abfb1ad0335790eae026eee120c1baf9ca38443a0eff81",
+  "sha256": "0c705b1688699021305897f1ed5b8bc1e0bab54cbfade7498d1ea6cbe1b0d9d6",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

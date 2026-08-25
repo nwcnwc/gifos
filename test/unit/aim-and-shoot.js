@@ -339,8 +339,8 @@ check('applyPad writes analog into the player',
   boot.includes('applyPad') && main.includes('AAS.applyPad'));
 check('help covers keyboard, phone, walls, save',
   /arrow keys/i.test(help) && /FIRE/.test(help) && /walls hurt/i.test(help) && /best generation/i.test(help));
-check('listing leads with the file / plane / no account',
-  /file is the save/i.test(listing.description) && /no account/i.test(listing.description));
+check('listing says the robots learn and your best generation is saved',
+  /breed/i.test(listing.description) && /best generation is saved/i.test(listing.description));
 check('listing does not mention internals',
   !/gifos\.db|WASM|sandbox|localStorage/.test(JSON.stringify(listing)));
 check('author is Victor Ribeiro, porter is GifOS',

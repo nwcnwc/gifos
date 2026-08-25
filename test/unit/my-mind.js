@@ -201,7 +201,7 @@ function flush() {
   check('help.md teaches Tab/Enter and the phone bar', help.includes('Tab') && help.includes('Child') && help.includes('blank map'));
   check('help.md does not document Invite/Save', !/\bInvite\b/.test(help) && !/\bSave\b/.test(help));
   check('listing is an unofficial port of My Mind', /unofficial port/i.test(listing.description) && listing.basedOn.name === 'My Mind');
-  check('listing leads with the file as the map', /file is the map/i.test(listing.tagline));
+  check('tagline leads with the keys', /Tab for a child/i.test(listing.tagline));
   check('listing mentions the phone bar and Invite watch', /Child/.test(listing.description) && /Invite/.test(listing.description));
   check('manifest claims db + multiplayer, minBuild 947',
     manifest.capabilities.db === true && manifest.capabilities.multiplayer === true &&

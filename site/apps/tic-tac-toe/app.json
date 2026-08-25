@@ -6,8 +6,8 @@
   "shortName": "TicTacToe",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "The computer plays here, perfectly. A friend from one link. No game server.",
-  "description": "The computer thinks on this phone, and it does not lose. There is no game server. Press Play a friend, send the invite, and they sit the other mark on the same board.\n\nA three-by-three grid. One of you is X, the other is O. Take turns putting a mark down. First to three in a line — across, down, or diagonal — wins. Close it and come back: the file is the save.\n\nOn your own you play a perfect computer, on this device. Pass the phone for two people in the same room, or send one link.\n\nAn unofficial port of Colyseus Tic-Tac-Toe. The original needs a game server. This copy does not.",
+  "tagline": "The computer plays perfectly. Bring a friend if you want to win.",
+  "description": "The computer thinks on this phone, and it does not lose. Press Play a friend, send the invite, and they sit the other mark on the same board.\n\nA three-by-three grid. One of you is X, the other is O. Take turns putting a mark down. First to three in a line — across, down, or diagonal — wins. Close it and come back: the game keeps.\n\nOn your own you play a perfect computer, on this device. Pass the phone for two people in the same room, or send one link.\n\nAn unofficial port of Colyseus Tic-Tac-Toe.",
   "author": {
     "name": "Colyseus",
     "url": "https://github.com/colyseus/demo-tic-tac-toe"
@@ -39,14 +39,14 @@
   "cover": "/apps/tic-tac-toe/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tic-tac-toe/tic-tac-toe.gif",
-  "bytes": 253657,
+  "bytes": 253882,
   "download": 0,
   "provides": null,
-  "sha256": "5a65bf53ae1bc9af33b803c7dc73807f4e5c9d9b25c00fff93507c0f8aba82c3",
+  "sha256": "b972015bd97a99ec0d9815fcbd65b674f1a841738141eec3b4e2b5fa3a42bbbe",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

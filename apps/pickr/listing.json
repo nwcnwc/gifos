@@ -1,6 +1,6 @@
 {
-  "tagline": "A color picker you can actually use. Copy the code. Nothing is uploaded.",
-  "description": "Pick a color with a finger or a mouse. The whole screen fills with it, so you can see what you chose. Drag the palette, the hue, the opacity. Tap a line to copy hex, RGB, HSL or CMYK — that code is yours to paste into whatever you are making.\n\nColors you picked recently stay on this computer, inside the app. Close it, open it later, they are still there. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of Pickr by simonwep. Bugs go to GifOS, not upstream.",
+  "tagline": "A color picker you can actually use. Copy the code.",
+  "description": "Pick a color with a finger or a mouse. The whole screen fills with it, so you can see what you chose. Drag the palette, the hue, the opacity. Tap a line to copy hex, RGB, HSL or CMYK — that code is yours to paste into whatever you are making.\n\nColors you picked recently are remembered — close it, open it later, they are still there.\n\nAn unofficial port of Pickr by simonwep. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "simonwep",
     "url": "https://github.com/simonwep/pickr"

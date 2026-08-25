@@ -1,6 +1,6 @@
 {
-  "tagline": "Tap lyric timings to a song on this device. Export LRC.",
-  "description": "The song and the lyrics live in the file, so you can close it and come back still mid-song. Nothing is uploaded, and there is no account.\n\nOpen an audio file, paste the unsung words, press Play, and tap Stamp as each line is sung. The times land on the line. Export writes an .lrc you can take to a player. During playback the current line lights up.\n\nOn a phone the Stamp button sits under your thumb, big enough to hit while the song plays.\n\nPress Invite in the bar above and a friend sees the same lyrics and times. The song stays on each device.\n\nAn unofficial port of lrc-maker by magic-akari. No account, no gist, no upload.",
+  "tagline": "Tap lyric timings along to a song, export the LRC file.",
+  "description": "Close it and come back still mid-song — the song and the lyrics are saved.\n\nOpen an audio file, paste the unsung words, press Play, and tap Stamp as each line is sung. The times land on the line. Export writes an .lrc you can take to a player. During playback the current line lights up.\n\nOn a phone the Stamp button sits under your thumb, big enough to hit while the song plays.\n\nPress Invite in the bar above and a friend sees the same lyrics and times. The song stays on each device.\n\nAn unofficial port of lrc-maker by magic-akari.",
   "author": {
     "name": "magic-akari",
     "url": "https://github.com/magic-akari/lrc-maker"

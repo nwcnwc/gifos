@@ -6,8 +6,8 @@
   "shortName": "JSON",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Paste JSON, see the graph. Nothing is uploaded — the file is the document.",
-  "description": "Nothing is uploaded. Paste JSON on the left and it becomes a graph of cards on the right: each object or array is a card, nested values hang off to the side, primitives stay on the parent. The last document stays inside this file, on this device. There is no account.\n\nOn a phone, Text and Graph swap so the keyboard does not cover the cards. Drag to pan, pinch or the +/− buttons to zoom. A bad paste shows a short error; the last good graph stays until you fix it. Tap a row to copy that value. Format, minify, or open a file from this device.\n\nPress Invite in the GifOS bar to show the same document in a meeting. Either of you can type; you both see the graph.\n\nAn unofficial port of JSON Crack by Aykut Saraç. Graph view only — no accounts, no cloud, no ToDiagram.",
+  "tagline": "Paste JSON, see it as a graph. Your data never leaves your device.",
+  "description": "Paste JSON on the left and it becomes a graph of cards on the right: each object or array is a card, nested values hang off to the side, primitives stay on the parent. The last document is remembered, and your data never leaves this device.\n\nOn a phone, Text and Graph swap so the keyboard does not cover the cards. Drag to pan, pinch or the +/− buttons to zoom. A bad paste shows a short error; the last good graph stays until you fix it. Tap a row to copy that value. Format, minify, or open a file from this device.\n\nPress Invite in the GifOS bar to show the same document in a meeting. Either of you can type; you both see the graph.\n\nAn unofficial port of JSON Crack by Aykut Saraç. Graph view only.",
   "author": {
     "name": "Aykut Saraç",
     "url": "https://github.com/AykutSarac/jsoncrack.com"
@@ -41,14 +41,14 @@
   "cover": "/apps/json-crack/cover.jpg",
   "screenshots": [],
   "gif": "/apps/json-crack/json-crack.gif",
-  "bytes": 198892,
+  "bytes": 198883,
   "download": 0,
   "provides": null,
-  "sha256": "ad89d43513f142da8129cd3acc3fe7f0ffe0bc8d327f2c5a91e79f01e6739e46",
+  "sha256": "d127cbdfe15a0b753cf9a779c6b09bae84f97ac6f4e1d6e3a8732a8a6af2bd11",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",
