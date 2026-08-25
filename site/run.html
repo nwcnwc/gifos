@@ -799,6 +799,16 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      the password is part of joining. */
   #joinveil { position: fixed; inset: 0; z-index: 35; background: rgba(10,10,15,.82);
     display: flex; align-items: center; justify-content: center; }
+  /* The app-room arrival panel (#appwait) wears the join veil's clothes but
+     sits UNDER it (z 30): the veil answers "am I even in the room?", this
+     answers "I'm in — where is the app?". An empty app room used to answer
+     with a blank page. */
+  #appwait { position: fixed; inset: 0; z-index: 30; background: var(--bg, #0a0a0f);
+    display: flex; align-items: center; justify-content: center; }
+  #appwait .jv-box { text-align: center; max-width: 340px; padding: 1.5rem; }
+  #appwait h3 { color: var(--text, #e0e0f0); margin-bottom: .5rem; }
+  #appwait p { color: var(--muted, #b0b0c8); font-size: .88rem; line-height: 1.5; }
+  #appwait .aw-home { display: inline-block; margin-top: 1rem; font-size: .85rem; }
   #joinveil .jv-box { text-align: center; max-width: 320px; padding: 1.5rem; }
   #joinveil h3 { color: var(--text, #e0e0f0); margin-bottom: .5rem; }
   #joinveil p { color: var(--muted, #b0b0c8); font-size: .88rem; line-height: 1.5; }
@@ -5011,6 +5021,57 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
       } else if (waited > 20000) {
         joinVeilEl.querySelector('#jv-t').textContent = 'Still trying to reach the meeting…';
         joinVeilEl.querySelector('#jv-p').textContent = 'Nobody is answering the door of this meeting yet — it may be your internet connection. We keep knocking, and you’ll be in the moment it answers.';
+      }
+    }, 1000);
+
+    // ---- THE EMPTY APP ROOM (#appwait) ---------------------------------------
+    // A guest opening an app invite gets the app from WHOEVER IS IN THE ROOM
+    // holding it — there is no server copy. So an invite opened after the
+    // friend closed the app lands in an empty room: seated fine, no ad ever
+    // comes, and until this panel existed the page just sat BLANK, explaining
+    // nothing (reported from a day-old invite link, 2026-08-25). The panel is
+    // the app-room counterpart of the join veil above and yields to it (z 30
+    // vs 35): the veil answers "am I in?", this answers "I'm in — where's the
+    // app?". Two honest escalations, decided each tick so a returning host
+    // dissolves it the moment their ad lands (mountClientApp → has-app):
+    //   < 12s   spinner — the ad normally lands in the first status beats
+    //   ≥ 12s   no ad + nobody else here  → the invite is dormant, say why
+    //           no ad + others waiting too → the HOST is the missing piece
+    // It never shows for a founder (their own runApp mounts has-app) and
+    // never over the call layer (call-on: the room is visibly alive).
+    let appWaitEl = null, appWaitSince = 0;
+    setInterval(() => {
+      const kill = () => { appWaitSince = 0; if (appWaitEl) { appWaitEl.remove(); appWaitEl = null; } };
+      if (!ROOM.appPinned || ROOM.solo || !sessId) return kill();
+      if (document.body.classList.contains('has-app') || appKey || myStatus.app
+        || document.body.classList.contains('call-on')) return kill();
+      const now = Date.now();
+      if (!appWaitSince) { appWaitSince = now; return; }
+      if (now - appWaitSince < 2000) return; // instant mounts never see it
+      if (!appWaitEl) {
+        appWaitEl = document.createElement('div');
+        appWaitEl.id = 'appwait';
+        appWaitEl.innerHTML = '<div class="jv-box"><div class="jv-spin"></div><h3 id="aw-t">Looking for the app…</h3><p id="aw-p">You’re in the room. The app comes over from whoever is sharing it.</p></div>';
+        document.body.appendChild(appWaitEl);
+      }
+      if (now - appWaitSince < 12000) return;
+      // Long enough: the ad rides the first status beats, and 12s is past
+      // every join+gossip horizon. Nothing is coming — say which piece is
+      // missing. (No spinner from here on: nothing is spinning.)
+      const spin = appWaitEl.querySelector('.jv-spin');
+      if (spin) spin.remove();
+      let others = 0;
+      for (const [pid] of statusOf) if (String(pid) !== String(myId)) others++;
+      if (appWaitEl.dataset.said === String(others)) return; // same story — don't rewrite it every tick
+      appWaitEl.dataset.said = String(others);
+      if (others > 0) {
+        appWaitEl.querySelector('#aw-t').textContent = 'The app’s host isn’t here';
+        appWaitEl.querySelector('#aw-p').textContent = (others === 1 ? 'One other person is' : others + ' other people are')
+          + ' waiting here too, but the friend who hosts the app isn’t right now. The app appears the moment they open it again — this link stays good.';
+      } else {
+        appWaitEl.querySelector('#aw-t').textContent = 'This invite isn’t live right now';
+        appWaitEl.querySelector('#aw-p').innerHTML = 'An app invite works while the friend who shared it has the app open — the app comes from their device, not from a server. Nobody is in the room, so the link has gone quiet. Ask them to open the app again and this same link comes back to life.'
+          + '<a class="aw-home" href="/">Meanwhile, get GifOS — and apps of your own</a>';
       }
     }, 1000);
 
