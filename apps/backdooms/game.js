@@ -45,7 +45,7 @@
      opening is not a game: a phone review of the previous build died at 7.4
      seconds on six runs out of six, to the tick, having pressed nothing —
      both starting things were 2.5 metres away and simply walked in. */
-  var GRACE = 2000;
+  var GRACE = 2500;
 
   /* ---- the level ------------------------------------------------------- */
 
@@ -122,8 +122,11 @@
     mflash = 0; flashId = 0; kick = 0; pain = 0; painFrom = 0; pumpT = -1; bob = 0;
     graceT = GRACE;
     enemies = [
-      { x: 7.2, y: 4, h: 100, phase: 0, hurt: 0, dying: null, cool: 0, size: 1.06 },
-      { x: 4, y: 7.2, h: 100, phase: 3, hurt: 0, dying: null, cool: 0, size: 0.94 }
+      /* ACROSS THE ROOM, and the room is 0..8 — you wake at (4,4), so these
+         coordinates are 4.5 metres out, not 7.2. Getting that wrong is what
+         left the opening at nine seconds when the arithmetic said fourteen. */
+      { x: 8.5, y: 4, h: 100, phase: 0, hurt: 0, dying: null, cool: 0, size: 1.06 },
+      { x: 4, y: 8.5, h: 100, phase: 3, hurt: 0, dying: null, cool: 0, size: 0.94 }
     ];
     keys = keys || {};
     keys._jx = 0; keys._jy = 0;
@@ -343,14 +346,22 @@
       o.hurt = Math.max(0, o.hurt - 0.09 * frames);
       if (o.dying != null) { o.dying += dt / 420; continue; }   /* and it STAYS: see the filter */
       dx = x - o.x; dy = y - o.y; di = P(dx, dy);
-      if (di > 0.2) {
+      /*
+       * STANDOFF. They used to close to 0.2 units — that is inside your head:
+       * the sprite fills the entire screen, you cannot see the room, you
+       * cannot see the other one, and you cannot tell what is happening to
+       * you. Measured on a passive run they sat at 0.25 for seven seconds
+       * while the health bar drained. They stop at arm's length now, which is
+       * also where their reach ends.
+       */
+      if (di > 0.62) {
         /* Upstream's closing speed is 0.0015 + 0.003/di per 16 ms frame — at
            five metres that is THIRTEEN CENTIMETRES A SECOND against a player
            who moves at six metres a second. They can never reach you, so
            nothing in the halls is a threat and there is no reason to shoot
            anything. About a third of the player's pace, quickening as it
            closes, is a monster. */
-        var sp = (0.020 + 0.016 / Math.max(0.6, di)) * frames;
+        var sp = (0.020 + 0.012 / Math.max(1.2, di)) * frames;
         nx = o.x + dx / di * sp;
         ny = o.y + dy / di * sp;
         if (!solid(nx, o.y)) o.x = nx;
