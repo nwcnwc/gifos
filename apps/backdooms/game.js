@@ -89,8 +89,8 @@
     x = 4; y = 4; a = 0; hp = 100; ammo = 25; score = 0;
     mflash = 0; flashId = 0; kick = 0; pain = 0; pumpT = -1; bob = 0; hurtT = 0;
     enemies = [
-      { x: 6.5, y: 4, h: 100, phase: 0, hurt: 0, dying: null, cool: 0 },
-      { x: 4, y: 6.5, h: 100, phase: 3, hurt: 0, dying: null, cool: 0 }
+      { x: 6.5, y: 4, h: 100, phase: 0, hurt: 0, dying: null, cool: 0, size: 1.06 },
+      { x: 4, y: 6.5, h: 100, phase: 3, hurt: 0, dying: null, cool: 0, size: 0.94 }
     ];
     keys = keys || {};
     keys._jx = 0; keys._jy = 0;
@@ -261,7 +261,12 @@
       dist = 3.2 + Math.random() * 4.5;
       X = x + M(t) * dist; Y = y + N(t) * dist;
       if (cell(Math.floor(X), Math.floor(Y)) === '0') {
-        enemies.push({ x: X, y: Y, h: 100, phase: Math.random() * 8, hurt: 0, dying: null, cool: 0 });
+        enemies.push({
+          x: X, y: Y, h: 100, phase: Math.random() * 8, hurt: 0, dying: null, cool: 0,
+          /* not one of them is the same height. A dozen identical silhouettes
+             in a room reads as clip art, not as a crowd. */
+          size: 0.86 + Math.random() * 0.36
+        });
         return;
       }
     }
@@ -275,7 +280,10 @@
         for (i = 0; i < enemies.length; i++) {
           if (enemies[i].dying == null && P(enemies[i].x - x, enemies[i].y - y) < 6) local++;
         }
-        if (local < 5 && Math.random() < 0.02) {
+        /* A hard ceiling as well as a local one: without it a long run turns
+           into a mob and the halls stop being lonely, which is the only thing
+           the Backrooms has going for it. */
+        if (local < 5 && enemies.length < 22 && Math.random() < 0.02) {
           n = 1 + (Math.random() * 3 | 0);
           for (i = 0; i < n; i++) spawnNear();
         }
@@ -336,12 +344,12 @@
     var list = [], i, o;
     for (i = 0; i < enemies.length; i++) {
       o = enemies[i];
-      list.push({ x: o.x, y: o.y, phase: o.phase, hurt: o.hurt, dying: o.dying, pale: false });
+      list.push({ x: o.x, y: o.y, phase: o.phase, hurt: o.hurt, dying: o.dying, pale: false, size: o.size || 1 });
     }
     for (i = 0; i < remotes.length; i++) {
       o = remotes[i];
       if (!o) continue;
-      list.push({ x: o.x, y: o.y, phase: o.phase || 0, hurt: 0, dying: null, pale: true });
+      list.push({ x: o.x, y: o.y, phase: o.phase || 0, hurt: 0, dying: null, pale: true, size: 1 });
     }
     /* The pump kicks the muzzle up and drops it back — the recoil you SEE is
        most of what a shotgun feels like. */
