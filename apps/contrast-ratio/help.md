@@ -5,29 +5,27 @@ Check whether **text can be read** on a colour. Type two colours. The number in 
 ## The loop
 
 1. Put the **page colour** in **Background**.
-2. Put the **word colour** in **Text color**.
-3. Read the circle, then the sentence under it.
+2. Put the **word colour** in **Text**.
+3. Read the circle and the line beside it.
 
-You can type a name (`white`, `black`, `rebeccapurple`), a hex (`#333` or `333`), `rgb()`, `hsl()`, or `hsla()` with a see-through amount. The little swatch next to each box is a colour picker.
+You can type a name (`white`, `black`, `rebeccapurple`), a hex (`#333` or `333`), `rgb()`, `hsl()`, or `hsla()` with a see-through amount. The **swatch** at the left of each box shows the colour and opens a colour picker when you tap it.
 
-**Swap colors** flips the pair.
+The **⇆** button between the two boxes flips the pair.
 
-The sample paragraph on the left paints in those two colours so you can *see* the verdict, not only read it.
+The panel below the verdict is painted in those two colours, at large size and at ordinary reading size, so you can *see* the answer as well as read it.
 
 ## What the circle means
 
-The circle’s colour is the verdict:
+The circle’s colour is the verdict, and the words beside it say the same thing:
 
-- **Red** — too close. Ordinary text fails.
-- **Amber** — only good enough for **large** type (about 18pt, or bold 14pt) and for icons.
-- **Yellow-green** — ordinary text is fine (**AA**).
-- **Green** — the strict level (**AAA**) for any size.
+- **Red — Fails.** Too close. Not readable at any size.
+- **Amber — Large text only.** Good enough above 18pt, or bold above 14pt, and for icons and controls.
+- **Yellow-green — Passes AA.** Ordinary text is fine at any size.
+- **Green — Passes AAA.** The strict level, at any size.
 
-The sentence under the circle spells that out. A second number is the exact ratio (or a range, if a colour is see-through).
+The small grey line underneath is the detail: the exact ratio, then how light each colour is on its own (its luminance).
 
-When a colour is **see-through**, the number is a range, because what sits underneath changes the result. The circle may split into more than one colour; the list below names each case.
-
-Each box also shows **luminance** — how light that colour is on its own.
+When a colour is **see-through**, there is no single answer — what sits underneath changes the result. The verdict then reads **Between 4.75 and 21**, the line beneath names every case it could be, and the circle splits into those colours.
 
 ## Private vs Invite
 

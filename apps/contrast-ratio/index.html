@@ -7,51 +7,50 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <section class="color-display" id="backgroundDisplay">
-    <h2>How to use</h2>
-    <p>As you type, the number in the circle updates. A bigger number means the words are easier to read. When a colour is see-through, the number is a range, because what sits underneath changes the result.</p>
-    <p class="sample">This sample text attempts to visually demonstrate how readable this color combination is, for normal, <i>italic</i>, <b>bold</b>, or <b><i>bold italic</i></b> text of various sizes and font styles.</p>
-  </section>
-  <section class="color-display" id="foregroundDisplay">
-    <button type="button" id="swap">Swap colors</button>
-  </section>
-
-  <div id="stage">
-    <h1>
-      <span>Contrast</span>
-      <strong>ratio</strong>
-    </h1>
-
-    <div class="row">
-      <label class="background">
-        <span>Background:</span>
-        <div class="input-wrapper">
-          <input id="background" class="text-input" value="white" autocomplete="off" spellcheck="false" autocapitalize="off">
-          <input id="backgroundColorPicker" class="color-picker" type="color" tabindex="-1" aria-label="Background colour">
-        </div>
-        <output for="background" class="rl" id="backgroundLum" aria-live="polite"></output>
-      </label>
-
-      <output for="background foreground" class="contrast" id="contrast" tabindex="0" aria-live="polite">
-        <strong id="ratio">?</strong>
-        <span class="error" id="error"></span>
-      </output>
-
-      <label class="foreground">
-        <span>Text color:</span>
-        <div class="input-wrapper">
-          <input id="foreground" class="text-input" value="hsla(200,0%,0%,.7)" autocomplete="off" spellcheck="false" autocapitalize="off">
-          <input id="foregroundColorPicker" class="color-picker" type="color" tabindex="-1" aria-label="Text colour">
-        </div>
-        <output for="foreground" class="rl" id="foregroundLum" aria-live="polite"></output>
-      </label>
+  <header id="bar">
+    <div class="field">
+      <label for="background">Background</label>
+      <span class="entry">
+        <span class="swatch">
+          <span class="swatch-color" id="backgroundSwatch"></span>
+          <input id="backgroundColorPicker" class="color-picker" type="color" tabindex="-1" aria-label="Pick a background colour">
+        </span>
+        <input id="background" class="text-input" value="white" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
+      </span>
     </div>
 
-    <section id="results">
-      <output for="background foreground" id="preciseContrast"></output>
+    <button type="button" id="swap" title="Swap the two colours" aria-label="Swap the two colours">&#8646;</button>
+
+    <div class="field">
+      <label for="foreground">Text</label>
+      <span class="entry">
+        <span class="swatch">
+          <span class="swatch-color" id="foregroundSwatch"></span>
+          <input id="foregroundColorPicker" class="color-picker" type="color" tabindex="-1" aria-label="Pick a text colour">
+        </span>
+        <input id="foreground" class="text-input" value="hsla(200,0%,0%,.7)" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
+      </span>
+    </div>
+  </header>
+
+  <section id="verdict">
+    <output for="background foreground" class="contrast" id="contrast" tabindex="0" aria-live="polite">
+      <strong id="ratio">?</strong>
+      <span class="error" id="error"></span>
+    </output>
+    <div id="results">
       <output for="background foreground" id="wcag"></output>
-    </section>
-  </div>
+      <output for="background foreground" id="note"></output>
+      <output for="background foreground" id="detail"></output>
+    </div>
+  </section>
+
+  <section id="preview">
+    <div class="preview-inner">
+      <p class="big">Large text, 24 pixels</p>
+      <p class="sample">Ordinary text at reading size. This paragraph is here so you can see the pair, not only read the number &mdash; in <i>italic</i>, <b>bold</b>, and <b><i>bold italic</i></b>.</p>
+    </div>
+  </section>
 
   <p id="foot">Unofficial port of contrast-ratio by siege-media. Originally by Lea Verou.</p>
 
