@@ -37,7 +37,15 @@ cd "$(dirname "$0")/../.."
 # steering schemes are driven at once, and "the tilt option still works" is
 # exactly the kind of claim that rots without anybody noticing — it breaks for
 # whichever player chose it while the other two are fine.
-CORE="00 01a 01b 01c 02a 03a 04a 04b 05a 06a 07a 08a 09a 10a 11a 12a 14a 16a 17a 18a 20a 21a 24a 25a 26a"
+# 27a is in CORE because it is the ONLY place FOUR clients share one app's
+# state at once, and four is not three with an extra body: the shared-state
+# cost is superlinear in N (docs/app-services.md 4 — every write is
+# owner-validated, signed over the WHOLE collection and flooded, and every
+# client then re-reads all N rows), so three players is a shape where a
+# traffic regression hides and four is where it shows. It is also the only
+# scenario that asserts a game's multiplayer claims — one maze, everyone sees
+# everyone, a shot crosses machines, leaving empties the halls.
+CORE="00 01a 01b 01c 02a 03a 04a 04b 05a 06a 07a 08a 09a 10a 11a 12a 14a 16a 17a 18a 20a 21a 24a 25a 26a 27a"
 LOGDIR=/tmp/behavior-battery
 mkdir -p "$LOGDIR"
 
