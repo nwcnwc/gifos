@@ -362,11 +362,31 @@
            anything. About a third of the player's pace, quickening as it
            closes, is a monster. */
         var sp = (0.020 + 0.012 / Math.max(1.2, di)) * frames;
-        nx = o.x + dx / di * sp;
-        ny = o.y + dy / di * sp;
-        if (!solid(nx, o.y)) o.x = nx;
-        else if (!solid(nx, o.y + dy / di * sp)) o.x = nx;
-        if (!solid(o.x, ny)) o.y = ny;
+        var ux = dx / di, uy = dy / di;
+        nx = o.x + ux * sp;
+        ny = o.y + uy * sp;
+        var moved = 0;
+        if (!solid(nx, o.y)) { o.x = nx; moved = 1; }
+        if (!solid(o.x, ny)) { o.y = ny; moved = 1; }
+        /*
+         * WALL-FOLLOW. Walking straight at the player is fine on an open
+         * plain and useless in a building: at an inside corner both axes are
+         * blocked and the thing stands there forever. That is how a level made
+         * mostly of solid mass quietly re-created the bug this whole run
+         * started with — things that cannot reach you — with a competent bot
+         * surviving the full three-minute cap on 100 health, untouched,
+         * because everything hunting it was pressed against a wall four metres
+         * away. Blocked, it picks a side (once, and keeps it) and slides along
+         * the wall until the way ahead opens again.
+         */
+        if (!moved) {
+          if (!o.side) o.side = (o.x * 7 + o.y * 13) % 2 < 1 ? 1 : -1;
+          var px = -uy * o.side, py = ux * o.side;
+          if (!solid(o.x + px * sp, o.y)) o.x += px * sp;
+          if (!solid(o.x, o.y + py * sp)) o.y += py * sp;
+        } else if (o.side) {
+          o.side = 0;
+        }
         o.phase += sp * 5.2;
       }
       o.cool -= dt;
