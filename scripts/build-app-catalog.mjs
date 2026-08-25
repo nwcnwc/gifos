@@ -23,6 +23,7 @@
  *   site/apps/index.json        one fetch for the whole store grid
  *   site/apps/<slug>/app.json   the detail page's record
  *   site/apps/<slug>/cover.jpg  the card/detail image
+ *   site/go/<slug>/index.html   tweet card: cover.jpg, then /?run=<slug>
  *
  * THE COVER RULE. The store must never reference the App GIF as an image. A
  * grid of 8 MB GIFs would download the entire store to render one screen. The
@@ -47,6 +48,7 @@ import { createRequire } from 'node:module';
 import zlib from 'node:zlib';
 import { Readable, Writable } from 'node:stream';
 import { creditsJson, creditsOf, CREDITS_PATH } from './app-credits.mjs';
+import { writeGoPages } from './build-go-pages.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'apps');
@@ -614,6 +616,10 @@ const index = {
   })),
 };
 writeOut(path.join(OUT, 'index.json'), JSON.stringify(index, null, 2) + '\n');
+
+// Tweet / chat unfurl pages. cover.jpg is the listing graphic; /?run=<slug>
+// is the actual launch. See scripts/build-go-pages.mjs.
+errors += writeGoPages(records, { check: CHECK });
 
 // A stray directory under site/apps with no source tree is a leftover: it would
 // still be published, and still be installable, with nobody maintaining it.
