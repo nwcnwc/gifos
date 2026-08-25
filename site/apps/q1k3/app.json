@@ -42,10 +42,10 @@
   "cover": "/apps/q1k3/cover.jpg",
   "screenshots": [],
   "gif": "/apps/q1k3/q1k3.gif",
-  "bytes": 234624,
+  "bytes": 234634,
   "download": 0,
   "provides": null,
-  "sha256": "e409ee6c1d4e2a6f01e770312d25e0f619c704ae83026312753b952929431317",
+  "sha256": "16c75cf083282875b4928de13cc9988fa9e0d7ed402b946781d53a59273c1ec5",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

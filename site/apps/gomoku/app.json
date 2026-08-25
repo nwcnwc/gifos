@@ -39,10 +39,10 @@
   "cover": "/apps/gomoku/cover.jpg",
   "screenshots": [],
   "gif": "/apps/gomoku/gomoku.gif",
-  "bytes": 263606,
+  "bytes": 263574,
   "download": 0,
   "provides": null,
-  "sha256": "c7ed67539de9c9d2ec38d96f39218a26c7f4ca121719db85eb42cdaaa5b917b0",
+  "sha256": "fd81287bc1360c923dbec8e5cc9353c6c74b38ecdd81a943e03d8f217e8b098b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

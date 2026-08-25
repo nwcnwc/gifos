@@ -6,7 +6,7 @@ Fifteen checkers, two dice, a wooden table. Play the computer on this device, pa
 
 The first screen is setup, not the board.
 
-- **Computer** — you pick white or black. White always goes first. The computer thinks **on this device**; there is no game server.
+- **Computer** — you pick white or black. White always goes first. The computer thinks **on this device**.
 - **Two here** — pass the device. White goes first.
 - **Play a friend** — then press **Invite** in the bar above the app and send the link.
 

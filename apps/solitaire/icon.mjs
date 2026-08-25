@@ -183,7 +183,7 @@ export function screenshotPng() {
   fill(0, 0, W, H, 10, 10, 15);
   rr(32, 24, 1168, 696, 24, 14, 58, 34);
   drawText(put, 56, 40, 'SOLITAIRE', 7, 247, 243, 234);
-  drawText(put, 56, 104, 'THE FILE IS THE TABLEAU', 3, 232, 196, 96);
+  drawText(put, 56, 104, 'KLONDIKE FOR A PHONE', 3, 232, 196, 96);
   drawText(put, 820, 48, '120  ·  18  ·  1:12', 3, 232, 196, 96);
   // stock + waste
   rr(56, 150, 168, 300, 10, 26, 42, 120);

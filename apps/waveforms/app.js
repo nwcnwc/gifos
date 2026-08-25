@@ -21,7 +21,7 @@
     { id: 'tri', title: 'Triangle', body: 'A triangle also uses odd harmonics, but they fall off faster (1/n²) and every second one is inverted. Brighter than a sine, softer than a square.', shape: 'triangle', amp: 1, freq: 1, air: false, harm: true, showAmp: true, showFreq: true, showShape: true },
     { id: 'saw', title: 'Sawtooth', body: 'A saw uses every integer harmonic: 2×, 3×, 4×… The buzzy one, the classic synth lead. Converge the harmonics to hear it assemble.', shape: 'sawtooth', amp: 1, freq: 1, air: false, harm: true, showAmp: true, showFreq: true, showShape: true },
     { id: 'add', title: 'Additive synthesis', body: 'Any periodic tone can be built from sines. That is additive synthesis — how the square, triangle and saw above are made. Play with shape, harmonics, and converge.', shape: 'sawtooth', amp: 1, freq: 1, air: false, harm: true, showAmp: true, showFreq: true, showShape: true },
-    { id: 'end', title: 'That is a waveform', body: 'A graph of displacement over time. Amplitude is how far. Frequency is how often. Shape is the extra frequencies on top of the fundamental.\n\nYou can hear all of that on this device. Nothing is uploaded. Your place in the guide lives in this file.', shape: 'sine', amp: 1, freq: 1, air: false, harm: false, showAmp: true, showFreq: true, showShape: true }
+    { id: 'end', title: 'That is a waveform', body: 'A graph of displacement over time. Amplitude is how far. Frequency is how often. Shape is the extra frequencies on top of the fundamental.\n\nYou can hear all of that on this device, and your place in the guide is saved.', shape: 'sine', amp: 1, freq: 1, air: false, harm: false, showAmp: true, showFreq: true, showShape: true }
   ];
 
   var SHAPES = ['sine', 'triangle', 'square', 'sawtooth'];

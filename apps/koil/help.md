@@ -32,7 +32,7 @@ The hall is tiny — a handful of wall blocks, six things on the floor. Walk the
 
 ## A live friend
 
-**Invite** in the bar **above** the app is the room. Other people appear as silhouettes down the same hall. They pick up what you have not reached yet and throw bombs of their own. First pickup each client sees keeps the item. There is no lobby and no account.
+**Invite** in the bar **above** the app is the room. Other people appear as silhouettes down the same hall. They pick up what you have not reached yet and throw bombs of their own. First pickup each client sees keeps the item.
 
 Invite is OS chrome. This game does not draw its own share button.
 

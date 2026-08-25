@@ -226,7 +226,7 @@
         C.moneyStr(world.income - world.expense) + '</td></tr>' +
       '<tr><td>Treasury</td><td>' + C.moneyStr(world.money) + '</td></tr>' +
       '</tbody></table>' +
-      '<p class="lvl">Invite in the bar above this app puts a friend on the same land as co-mayor. No account.</p>' +
+      '<p class="lvl">Invite in the bar above this app puts a friend on the same land as co-mayor.</p>' +
       '<button type="button" class="ghost wide danger" id="newEmpty">New empty land</button>' +
       '<button type="button" class="ghost wide" id="newVillage">New village</button>';
     showSheet(true);

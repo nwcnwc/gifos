@@ -173,7 +173,7 @@ export function screenshotPng() {
   };
   fill(0, 0, W, H, 14, 17, 22);
   drawText(put, 48, 28, 'PIVOT', 7, 232, 237, 245);
-  drawText(put, 48, 88, 'THE TABLE LIVES IN THE FILE. NOTHING UPLOADED.', 3, 139, 149, 167);
+  drawText(put, 48, 88, 'DRAG FIELDS. GET A PIVOT TABLE.', 3, 139, 149, 167);
   fill(48, 130, 260, 168, 36, 72, 140);
   drawText(put, 62, 140, 'PROVINCE', 2, 232, 237, 245);
   fill(276, 130, 430, 168, 36, 72, 140);

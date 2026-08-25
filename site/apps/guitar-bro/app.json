@@ -42,14 +42,14 @@
   "cover": "/apps/guitar-bro/cover.jpg",
   "screenshots": [],
   "gif": "/apps/guitar-bro/guitar-bro.gif",
-  "bytes": 173409,
+  "bytes": 173532,
   "download": 0,
   "provides": null,
-  "sha256": "be4b594bc346ea712c0dd00bf32f968c95bcb20a01a039127f96f7567a24ecb5",
+  "sha256": "a3a46cef4bf607e104d1b19408a5aed5f3f2cf2230d26f95a0ef080f460f4b0c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

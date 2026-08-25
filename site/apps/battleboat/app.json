@@ -6,7 +6,7 @@
   "shortName": "Battleboat",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Battleship on two phones. Hide your fleet, send the link, sink theirs.",
+  "tagline": "Hide a fleet on your phone, send the link, sink theirs.",
   "description": "Send a friend the invite. They hide a fleet on their phone, you hide one on yours. Hits and misses show up on both screens. First to sink all five wins.\n\nOn your own you play the original computer. It hunts by where a ship is most likely to sit, then finishes it off once it has a hit. Place the five ships or scatter them, then tap the other map. It fires back at once.\n\nAn unofficial port of Battleboat by Bill Mei. The computer is his.",
   "author": {
     "name": "billmei",
@@ -38,10 +38,10 @@
   "cover": "/apps/battleboat/cover.jpg",
   "screenshots": [],
   "gif": "/apps/battleboat/battleboat.gif",
-  "bytes": 230758,
+  "bytes": 230756,
   "download": 0,
   "provides": null,
-  "sha256": "06ede3b49bb939a9fbbe812663be7256e9eda06410452a5fa69655a6ee8d886f",
+  "sha256": "622d8ebe7d98d230124cb53fa4800342fe13099dc18cbcd20604ecfb32eb9b35",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -78,8 +78,8 @@ if (!html.includes('id="c"')) throw new Error('index.html is missing canvas#c');
 if (!html.includes('id="t-gun"')) throw new Error('index.html is missing the GUN button');
 if (!html.includes('id="gate-keys-phone"')) throw new Error('index.html is missing phone gate keys');
 if (!html.includes('id="gate-cont"')) throw new Error('index.html is missing Continue');
-if (!/in a GIF/i.test(listing.tagline) || !/no server/i.test(listing.tagline)) {
-  throw new Error('listing.tagline must lead with in a GIF / no server');
+if (!/13 kB/i.test(listing.tagline)) {
+  throw new Error('listing.tagline must lead with Quake in 13 kB');
 }
 if (!/^This is Q1K3 in a GIF/i.test(listing.description)) {
   throw new Error('listing.description must lead with in a GIF');

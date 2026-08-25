@@ -131,14 +131,14 @@ for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'gifos.fetch', 
   if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
 }
 const lead = (listing.tagline + '\n' + listing.description).toLowerCase();
-if (!/computer/.test(lead) || !/invite|one link|friend/.test(lead) || !/no game server|there is no game server/.test(lead)) {
-  throw new Error('listing must lead with computer here / friend from one link / no server');
+if (!/computer/.test(lead) || !/invite|one link|friend/.test(lead)) {
+  throw new Error('listing must lead with computer here / friend from one link');
 }
 if (!/unofficial/.test(lead) || !/kenrick/.test(lead)) {
   throw new Error('listing must credit kenrick95 as unofficial');
 }
-if (!/file is the save/.test(lead)) {
-  throw new Error('listing must say the file is the save');
+if (!/board keeps/.test(lead)) {
+  throw new Error('listing must say the board keeps');
 }
 
 // Sanity: empty board, AI returns a legal column; a vertical four is a win.

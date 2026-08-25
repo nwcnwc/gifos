@@ -20,6 +20,6 @@ Things you pick up sit in the **tray** at the edge of the screen. Open it, then 
 
 ## What is saved
 
-The room you reached, the things you are carrying, and which scenes have already played stay in this copy of the app. Close it and come back: you are still in that corridor, still holding the note. The file you keep is the save.
+The room you reached, the things you are carrying, and which scenes have already played stay in this copy of the app. Close it and come back: you are still in that corridor, still holding the note — your progress is saved.
 
 This is a short game. It is meant to be finished in one sitting, but the file will wait if you do not.

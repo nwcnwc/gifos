@@ -441,7 +441,7 @@ export function screenshotPng() {
 
   drawText(put, 48, 250, 'RACE A FRIEND', 5, 255, 255, 255);
   drawText(put, 48, 316, 'FROM ONE LINK', 5, 255, 214, 80);
-  drawText(put, 48, 400, 'NO SERVER', 4, 255, 248, 220);
+  drawText(put, 48, 400, 'TAP TO DROP', 4, 255, 248, 220);
   drawText(put, 48, 456, 'TAP TO DROP', 4, 255, 248, 220);
   drawText(put, 48, 530, 'SCORE IN THE FILE', 3, 255, 252, 246);
   drawText(put, 48, 620, 'TALLEST TOWER WINS', 3, 255, 230, 140);

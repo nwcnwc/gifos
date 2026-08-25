@@ -209,7 +209,7 @@ function flush() {
   check('icon is a growing mind map, not a leftover pivot grid',
     icon.includes('myMindIcon') && /ROOT|WEEKEND|child/i.test(icon) && !/Pivot icon/i.test(icon) && !/cols = 4, rows = 4/.test(icon));
   check('cover is a mid-use map (WEEKEND / PACK / BOOK)',
-    icon.includes('WEEKEND') && icon.includes('PACK') && icon.includes('BOOK') && icon.includes('THE FILE IS THE MAP'));
+    icon.includes('WEEKEND') && icon.includes('PACK') && icon.includes('BOOK') && icon.includes('TAB A CHILD'));
 
   const vendor = fs.readFileSync(path.join(APP, 'vendor', 'my-mind.js'), 'utf8');
   check('vendored My Mind exposes getJSON/loadJSON', vendor.includes('window.MyMind') && vendor.includes('getJSON') && vendor.includes('MYMIND_MAP_CSS'));

@@ -50,7 +50,7 @@
   modal.innerHTML =
     '<div class="g-card" role="dialog" aria-labelledby="g-title">' +
       '<h2 id="g-title">Boards</h2>' +
-      '<p>Saved on this device, inside the app. Nothing is uploaded.</p>' +
+      '<p>Saved on this device, inside the app.</p>' +
       '<input type="text" id="g-name" maxlength="80" placeholder="Name this board">' +
       '<ul class="g-list" id="g-list"></ul>' +
       '<div class="g-row">' +

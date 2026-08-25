@@ -116,8 +116,8 @@ if (listing.license !== 'MIT') throw new Error('listing.license must be MIT');
 if (!listing.categories || listing.categories[0] !== 'Learning') {
   throw new Error('listing.categories must start with Learning');
 }
-if (!listing.description.toLowerCase().includes('118') || !listing.description.toLowerCase().includes('no account')) {
-  throw new Error('listing must lead with 118 on this device and no account');
+if (!listing.description.toLowerCase().includes('118')) {
+  throw new Error('listing must lead with all 118 elements');
 }
 for (const bad of ['gifos.db', 'WASM', 'sandbox', 'connect-src', 'gifos.fetch', 'JSON', 'React']) {
   if (listing.description.includes(bad) || listing.tagline.includes(bad)) {

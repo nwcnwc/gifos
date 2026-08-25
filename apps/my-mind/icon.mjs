@@ -222,7 +222,7 @@ export function screenshotPng() {
   elbow(600, 336, 570, 550);
   elbow(600, 134, 1000, 250);
   elbow(1000, 306, 1010, 400);
-  drawText(put, 36, 672, 'THE FILE IS THE MAP. NOTHING IS UPLOADED.', 3, 90, 90, 80);
+  drawText(put, 36, 672, 'TAB A CHILD. ENTER A SIBLING.', 3, 90, 90, 80);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

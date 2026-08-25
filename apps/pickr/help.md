@@ -1,6 +1,6 @@
 # Pickr
 
-Pick a color. See it fill the screen. Copy the code. Nothing is uploaded.
+Pick a color. See it fill the screen. Copy the code.
 
 ## Pick
 

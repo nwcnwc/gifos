@@ -36,7 +36,7 @@
 
   function statusOf() {
     if (guest) return 'Showing the same code from the host. Point a phone at it.';
-    return 'Press Invite (top bar) to show this code in a meeting. Nothing is uploaded on its own.';
+    return 'Press Invite (top bar) to show this code in a meeting.';
   }
 
   function applyList(list) {

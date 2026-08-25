@@ -287,7 +287,7 @@ export function screenshotPng() {
   fill(0, 0, W, H, 11, 13, 19);
   fill(0, 0, 340, H, 17, 19, 26);
   drawText(put, 24, 24, 'JSON CRACK', 4, 199, 210, 254);
-  drawText(put, 24, 70, 'NOTHING IS UPLOADED.', 2, 156, 163, 175);
+  drawText(put, 24, 70, 'PASTE JSON. SEE THE GRAPH.', 2, 156, 163, 175);
   drawText(put, 24, 128, '{', 3, 99, 102, 241);
   drawText(put, 48, 168, 'SQUADNAME:', 2, 156, 163, 175);
   drawText(put, 48, 198, '"SUPER HERO SQUAD"', 2, 134, 239, 172);
@@ -300,7 +300,7 @@ export function screenshotPng() {
   drawText(put, 72, 448, '{ NAME, AGE.. }', 2, 156, 163, 175);
   drawText(put, 48, 486, ']', 2, 165, 180, 252);
   drawText(put, 24, 530, '}', 3, 99, 102, 241);
-  drawText(put, 24, 660, 'THE FILE IS THE DOCUMENT.', 2, 107, 114, 128);
+  drawText(put, 24, 660, 'IT NEVER LEAVES THIS DEVICE.', 2, 107, 114, 128);
 
   const JC = loadGraph();
   const COVER = {

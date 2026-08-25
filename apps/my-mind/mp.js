@@ -56,7 +56,7 @@
   function statusOf(players) {
     var others = players.filter(function (p) { return p.id !== me.id; });
     if (!others.length) {
-      return 'Press Invite (top bar) so a friend can watch this map. Nothing is uploaded on its own.';
+      return 'Press Invite (top bar) so a friend can watch this map.';
     }
     if (guest) {
       var h = hostOf(players);

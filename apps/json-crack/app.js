@@ -84,7 +84,7 @@
   function showEmpty() {
     lastLaid = null;
     var inner = $('graph-inner');
-    inner.innerHTML = '<div class="empty"><p><b>Paste JSON.</b> The graph of cards draws here.</p><p>Nothing is uploaded — this file is the document.</p></div>';
+    inner.innerHTML = '<div class="empty"><p><b>Paste JSON.</b> The graph of cards draws here.</p><p>It never leaves this device.</p></div>';
     $('meta').textContent = '';
     pan.x = 0; pan.y = 0; pan.s = 1;
     applyPan();

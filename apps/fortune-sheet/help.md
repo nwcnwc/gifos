@@ -1,6 +1,6 @@
 # Fortune Sheet
 
-A spreadsheet on this device. Cells, formulas, formatting, freeze, sort, filter, comments, charts, and as many sheets as you need. There is no account and no cloud of theirs (or ours).
+A spreadsheet on this device. Cells, formulas, formatting, freeze, sort, filter, comments, charts, and as many sheets as you need. Your numbers stay on this device.
 
 ## What it is for
 

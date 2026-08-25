@@ -157,7 +157,7 @@
         room.textContent = n > 1
           ? n + ' in the halls, walking the same maze. They show up pale. They can be shot.'
           : hosted
-            ? 'Press Invite in the bar above to send the link. Whoever opens it walks the same halls — no account, no server.'
+            ? 'Press Invite in the bar above to send the link. Whoever opens it walks the same halls.'
             : 'Open this file in GifOS and one invite link puts a friend in the same halls.';
       }
     }

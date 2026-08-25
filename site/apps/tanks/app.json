@@ -39,10 +39,10 @@
   "cover": "/apps/tanks/cover.jpg",
   "screenshots": [],
   "gif": "/apps/tanks/tanks.gif",
-  "bytes": 195529,
+  "bytes": 195506,
   "download": 0,
   "provides": null,
-  "sha256": "3244c4a3a4d3ca1d7cb6c37f6c4d55fc61fc5aecfb8e7939972db558411b6c8d",
+  "sha256": "5aa118677ca49bd06764ae3e990748e32e90da99a47cb5ef097014b70e25a2cb",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

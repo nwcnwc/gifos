@@ -16,7 +16,7 @@ Captures are listed under the board as **Taken**.
 
 ## A friend
 
-**Play a friend**, then press **Invite** in the bar above the app. There is no game server. The first two people to open the link sit black and white (black is seated first). Anyone else watches.
+**Play a friend**, then press **Invite** in the bar above the app. The first two people to open the link sit black and white (black is seated first). Anyone else watches.
 
 Tap an empty point on your turn. **Pass**, **Undo**, and **Resign** appear once both seats are filled.
 

@@ -16,7 +16,7 @@ Waves of ducks. Shoot the quota (about six in ten) to go on. Later waves are fas
 
 ## Play with a friend
 
-Press **Invite** in the bar above the app. A friend who opens the link sits their own pond on their device — two zappers, two dogs. Each best score is written onto the pond board. There is no game server.
+Press **Invite** in the bar above the app. A friend who opens the link sits their own pond on their device — two zappers, two dogs. Each best score is written onto the pond board.
 
 ## What is saved
 

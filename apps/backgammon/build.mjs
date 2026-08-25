@@ -154,10 +154,10 @@ if (listing.homepage !== 'https://github.com/nwcnwc/gifos/tree/main/apps/backgam
   throw new Error('listing.homepage must be the gifos tree');
 }
 if (listing.tagline.length > 120) throw new Error('tagline is over 120 chars');
-if (!/^Play the computer on this device/.test(listing.tagline)) {
-  throw new Error('tagline must lead with computer on this device');
+if (!/^Play the computer/.test(listing.tagline)) {
+  throw new Error('tagline must lead with the computer');
 }
-if (!listing.description.includes('There is no game server')) {
+if (!listing.description.includes('The computer thinks on this device')) {
   throw new Error('listing must say there is no game server');
 }
 if (!listing.description.includes('unofficial')) {

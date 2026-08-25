@@ -20,7 +20,7 @@ If the bag empties with no bingo, the round is over.
 
 ## Play with friends
 
-Press **Play with friends**, then **Invite** in the bar above the app. One invite is the hall. There is no account and no game server.
+Press **Play with friends**, then **Invite** in the bar above the app, and send the link.
 
 You need **two people** before **Start calling** works. **Whoever sent the invite calls** — it is their room. Everyone else gets a phone-sized card; the caller has a card too, plus a full flashboard of 1–75.
 

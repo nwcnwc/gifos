@@ -38,7 +38,7 @@ Score: 100 / 200 / 300 / 400 by enemy type, 500 for a prize.
 
 ## A friend
 
-Alone, it is you against the computer. Press **Invite** in the bar above the app and a friend on another phone or computer is the green tank — same stage, same eagle, two guns. There is no game server. Pick **2 PLAYERS** on the title (it says **2 PLAYERS (INVITE)** until someone is in the room). If they join mid-stage they become green on the **next** stage.
+Alone, it is you against the computer. Press **Invite** in the bar above the app and a friend on another phone or computer is the green tank — same stage, same eagle, two guns. Pick **2 PLAYERS** on the title (it says **2 PLAYERS (INVITE)** until someone is in the room). If they join mid-stage they become green on the **next** stage.
 
 The host of the room runs the stage. Guests send move and fire.
 

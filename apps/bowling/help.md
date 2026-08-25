@@ -37,8 +37,6 @@ Banners call **Strike!**, **Spare!**, **Gutter**, or the pin count.
 
 If your friend leaves, you land back at the menu.
 
-There is no game server and no account.
-
 ## What is saved
 
 Only whether sound is on. The score sheet is not kept after you close the app. A live friend’s scores live in the room for as long as the room does.

@@ -1,6 +1,6 @@
 # Squoosh
 
-Drop a photo, pick a format, drag the quality — a smaller file comes back on this device. Nothing is uploaded. There is no account, no queue, and no path out to a server.
+Drop a photo, pick a format, drag the quality — a smaller file comes back on this device. Nothing is uploaded.
 
 ## Compress an image
 

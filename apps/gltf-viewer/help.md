@@ -1,6 +1,6 @@
 # glTF Viewer
 
-Open a 3D model on this page and look at it. Nothing is uploaded. The last file you opened comes back the next time you open the app (if it fits in the file — about 8 MB).
+Open a 3D model on this page and look at it. The last file you opened comes back the next time you open the app (if it fits in the file — about 8 MB).
 
 ## Open a model
 
@@ -23,7 +23,7 @@ The inspect panel lists nodes, meshes, materials, cameras and clips. Tap a row t
 
 ## A live friend
 
-Press **Invite** in the bar above the app. A friend who opens the link sits with you. Each of you opens a file on your own device; the model is not sent. There is no account.
+Press **Invite** in the bar above the app. A friend who opens the link sits with you. Each of you opens a file on your own device; the model is not sent.
 
 ## What is saved
 

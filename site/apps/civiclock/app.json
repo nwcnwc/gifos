@@ -40,10 +40,10 @@
   "cover": "/apps/civiclock/cover.jpg",
   "screenshots": [],
   "gif": "/apps/civiclock/civiclock.gif",
-  "bytes": 237195,
+  "bytes": 237153,
   "download": 0,
   "provides": null,
-  "sha256": "25bb60108cd90d553d407503f327e75286c2cf0cca4d5055ae8a7c72ba4f6624",
+  "sha256": "c5f14805c7e44108fefe785b400f8133851562d8a272d943e61f2b395de39cf9",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

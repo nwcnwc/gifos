@@ -106,6 +106,7 @@ function pngChunk(tag, data) {
   return Buffer.concat([len, body, c]);
 }
 const GLYPHS = {
+  '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
   A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
   D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
@@ -173,7 +174,7 @@ export function screenshotPng() {
   };
   fill(0, 0, W, H, 14, 10, 18);
   drawText(put, 36, 22, 'JPG GLITCH', 5, 255, 70, 160);
-  drawText(put, 36, 62, 'DATABEND A STILL. NOTHING UPLOADED.', 2, 180, 154, 170);
+  drawText(put, 36, 62, 'DATABEND A STILL PHOTO.', 2, 180, 154, 170);
 
   function portrait(x0, y0, w, h, glitch) {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {

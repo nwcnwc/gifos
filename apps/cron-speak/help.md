@@ -1,6 +1,6 @@
 # Cron Speak
 
-Type a **cron expression**. The app says it in **English**, names each field, and lists the **next times** it fires. Nothing is uploaded.
+Type a **cron expression**. The app says it in **English**, names each field, and lists the **next times** it fires.
 
 A cron expression is five fields, in order:
 

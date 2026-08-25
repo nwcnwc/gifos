@@ -235,7 +235,7 @@ export function screenshotPng() {
       }
     }
   }
-  drawText(put, 36, 668, 'THE FILE IS THE TABLEAU', 3, 232, 196, 96);
+  drawText(put, 36, 668, '1 2 OR 4 SUITS', 3, 232, 196, 96);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

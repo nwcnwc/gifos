@@ -1,6 +1,6 @@
 # Pixel It
 
-Turn a **photo** into **pixel art** on this device. Nothing is uploaded.
+Turn a **photo** into **pixel art** on this device.
 
 This is a converter, not a drawing app. You start from a picture. You do not paint pixels by hand.
 

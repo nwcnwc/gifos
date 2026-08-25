@@ -1,6 +1,6 @@
 # Contrast Ratio
 
-Check whether **text can be read** on a colour. Type two colours. The number in the circle is the contrast: **bigger is easier to read**. Nothing is uploaded.
+Check whether **text can be read** on a colour. Type two colours. The number in the circle is the contrast: **bigger is easier to read**.
 
 ## The loop
 
@@ -31,7 +31,7 @@ Each box also shows **luminance** — how light that colour is on its own.
 
 ## Private vs Invite
 
-The last pair you typed comes back the next time you open this file. It stays on this device. There is no account.
+The last pair you typed comes back the next time you open the app.
 
 This app has no shared board. **Invite** in the bar above the app shares the app itself, not the colours you typed.
 

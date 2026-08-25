@@ -1,6 +1,6 @@
 # Metronome
 
-A **click that keeps time**. Set a tempo, press Start. Nothing is uploaded, and there is no microphone.
+A **click that keeps time**. Set a tempo, press Start.
 
 ## Play
 

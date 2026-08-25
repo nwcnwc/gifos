@@ -256,7 +256,7 @@
     roomDb.subscribe(function (rows) {
       var n = (rows || []).filter(function (r) { return r && r.id; }).length;
       if (n > 1) {
-        $('meet').innerHTML = 'A friend is here. Each of you opens a file on your own device — nothing is uploaded.';
+        $('meet').innerHTML = 'A friend is here. Each of you opens a file on your own device; the model is not sent.';
       }
     });
   }

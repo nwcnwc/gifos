@@ -39,10 +39,10 @@
   "cover": "/apps/duck-hunt/cover.jpg",
   "screenshots": [],
   "gif": "/apps/duck-hunt/duck-hunt.gif",
-  "bytes": 1542153,
+  "bytes": 1542107,
   "download": 0,
   "provides": null,
-  "sha256": "912838920d096d6e653dae504467176ad3b0aad39777c19dc497197f535cc51a",
+  "sha256": "7b4f82fda4dc097b907393d7db643f6b6cc036cba68eee241ea9488bd9f5d4f7",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

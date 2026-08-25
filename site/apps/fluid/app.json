@@ -39,10 +39,10 @@
   "cover": "/apps/fluid/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fluid/fluid.gif",
-  "bytes": 240120,
+  "bytes": 240109,
   "download": 0,
   "provides": null,
-  "sha256": "372fe55e9ac6c38a5bd39842d9d7d01aca837ca99f36d945cd91bc5efbd32468",
+  "sha256": "d603d403dfeb7423a5015085e0d017c22286c0bee6a4fe447992ebfc57df7462",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

@@ -39,10 +39,10 @@
   "cover": "/apps/spyfall/cover.jpg",
   "screenshots": [],
   "gif": "/apps/spyfall/spyfall.gif",
-  "bytes": 198584,
+  "bytes": 198513,
   "download": 0,
   "provides": null,
-  "sha256": "94c784aa4951e4333c3de62b32c01cca027800353b114555b89966daf6478c2b",
+  "sha256": "19f805812973672881cf809ea261e4d883a4546a5f17e198954db357cd6719f2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

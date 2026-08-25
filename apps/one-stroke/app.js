@@ -736,7 +736,7 @@
       setChip('wait', 'Waiting');
       wait.hidden = false;
       $('fWaitName').textContent = 'Invite is the studio';
-      $('fWaitMsg').textContent = 'Send the link from the bar above. No account. The doodle lives in this file.';
+      $('fWaitMsg').textContent = 'Send the link from the bar above. Everyone who opens it sits at the same page.';
       setControls('fControls', 'empty');
     } else if (pic.phase === 'vote') {
       paintVotes(pic);

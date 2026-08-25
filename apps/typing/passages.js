@@ -12,7 +12,7 @@
   T.ENGLISH = [
     'The home row is where your fingers rest. asdf jkl; eight keys, every time. Speed comes later; first the hands learn where each letter lives.',
     'A good typist looks at the screen, not the keyboard. Trust the hands. They know more than the eyes give them credit for.',
-    'Practice on this device. There is no account and nothing to sign in to. Close the app and come back; the last runs are still here.',
+    'Close the app and come back whenever you like; the last runs are still here.',
     'The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump.',
     'Rain tapped the window while the kettle clicked off. She typed one more sentence, then another, until the page felt finished.',
     'Count the errors, then forget them. The next line is a clean start. Accuracy first; speed is what accuracy turns into.',

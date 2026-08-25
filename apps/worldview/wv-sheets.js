@@ -313,7 +313,7 @@
       }));
       acts.appendChild(button('Save as a GIF', 'ghost', function () { exportGif(body); }));
 
-      var p = U.el('p', '', 'The GIF is made here, on this device, out of the frames this map draws — nothing is uploaded and nothing is queued. Every frame carries its date.');
+      var p = U.el('p', '', 'The GIF is made here, on this device, out of the frames this map draws. Every frame carries its date.');
       body.appendChild(p);
     });
   };

@@ -258,7 +258,7 @@ export function screenshotPng() {
   drawText(put, 740, 350, 'COMPUTER', 3, 220, 232, 226);
   drawText(put, 740, 400, 'OR A FRIEND', 3, 220, 232, 226);
   drawText(put, 740, 490, 'ONE LINK', 3, 155, 176, 168);
-  drawText(put, 740, 540, 'NO SERVER', 3, 155, 176, 168);
+  drawText(put, 740, 540, 'TRAPPED DISCS FLIP', 3, 155, 176, 168);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {

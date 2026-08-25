@@ -1,6 +1,6 @@
 # Waveforms
 
-An **explorable** of sound waves. No prior knowledge needed. Nothing is uploaded.
+An **explorable** of sound waves. No prior knowledge needed.
 
 ## Walk through
 

@@ -192,7 +192,7 @@ export function screenshotPng() {
 
   fill(0, 0, W, H, 10, 10, 15);
   drawText(put, 64, 48, 'QR SCAN', 6, 64, 180, 140);
-  drawText(put, 64, 110, 'READ A CODE FROM A PHOTO. NOTHING UPLOADED.', 3, 154, 148, 134);
+  drawText(put, 64, 110, 'READ A CODE FROM A STILL PHOTO.', 3, 154, 148, 134);
 
   rr(64, 180, 560, 660, 16, 255, 255, 255);
   const qx = 120, qy = 230, s = 12, n = 25;

@@ -2,7 +2,7 @@
 
 Build a cloud. Survive the traffic. You are the architect: place services, wire them, and keep reputation and budget alive while the load climbs.
 
-This is an unofficial port of Server Survival by Kostyantyn Pshenychnyy. No server, no account, no install — the last save, campaign stars, sound and language stay in this copy of the app.
+This is an unofficial port of Server Survival by Kostyantyn Pshenychnyy. The last save, campaign stars, sound and language stay in this copy of the app.
 
 ## Modes
 

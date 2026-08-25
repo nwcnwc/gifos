@@ -1,6 +1,6 @@
 # JSON Diff
 
-Paste **two documents**. Added bits light up **green**, removed bits **red**, and changed bits show both sides. Nothing is uploaded.
+Paste **two documents**. Added bits light up **green**, removed bits **red**, and changed bits show both sides.
 
 ## Compare
 

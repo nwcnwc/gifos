@@ -100,8 +100,8 @@ if (listing.tagline.length > 120) throw new Error('tagline is over 120 chars');
     if (listingBlob.includes(bad)) throw new Error('listing.json mentions ' + bad + ' — keep it non-technical');
   }
   const lead = (listing.tagline + '\n' + listing.description).toLowerCase();
-  if (!/two devices/.test(lead) || !/one link/.test(lead) || !/no game server/.test(lead)) {
-    throw new Error('listing must lead with two devices / one link / no game server');
+  if (!/fleet/.test(lead) || !/link|invite/.test(lead)) {
+    throw new Error('listing must lead with the fleet and the link');
   }
   if (!/unofficial/.test(lead) || !/bill mei/.test(lead)) {
     throw new Error('listing must credit Bill Mei as unofficial');

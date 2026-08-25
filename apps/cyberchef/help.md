@@ -1,6 +1,6 @@
 # CyberChef
 
-The Cyber Swiss Army Knife. Drag operations into a **recipe**, put data in **Input**, and **Bake**. Encoding, hashing, encryption, compression — chained in whatever order you like. Nothing is uploaded. Every conversion runs on this device.
+The Cyber Swiss Army Knife. Drag operations into a **recipe**, put data in **Input**, and **Bake**. Encoding, hashing, encryption, compression — chained in whatever order you like. Every conversion runs on this device.
 
 This copy is unofficial. GCHQ did not endorse it.
 
@@ -35,7 +35,7 @@ Save a recipe with the disk icon (a name on this device, or a Chef / JSON blob y
 
 ## What stays private
 
-Favourites, Options (theme, wrap, Magic, …), and named recipes stay **on this device**, inside the app. There is no account and no cloud copy.
+Favourites, Options (theme, wrap, Magic, …), and named recipes stay **on this device**, inside the app.
 
 **Invite** in the bar above the app shares the app, not your input or your recipe. Do not paste secrets into a recipe you then send to someone else.
 

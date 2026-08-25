@@ -12,7 +12,7 @@ Tap or click a dotted square. If you have no legal square, the turn passes back.
 
 On **New game**, leave **Computer** selected and pick **Black** or **White**. Black goes first, so white waits for the opening move. **Start game**.
 
-The computer thinks on this device — about a second and a half a move. The chip at the top says when it is thinking. There is no game server.
+The computer thinks on this device — about a second and a half a move. The chip at the top says when it is thinking.
 
 - **Undo** takes back your last exchange (your move and its reply). In two-here it takes back one place.
 - **New game** returns to the setup card.

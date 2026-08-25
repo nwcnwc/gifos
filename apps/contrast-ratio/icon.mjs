@@ -191,7 +191,7 @@ export function screenshotPng() {
 
   drawText(put, 64, 48, 'CONTRAST RATIO', 6, 28, 28, 32);
   drawText(put, 64, 112, 'CHECK TEXT CONTRAST', 3, 80, 80, 86);
-  drawText(put, 64, 160, 'NOTHING IS UPLOADED', 3, 80, 80, 86);
+  drawText(put, 64, 160, 'BIGGER IS EASIER TO READ', 3, 80, 80, 86);
 
   drawText(put, 64, 240, 'BACKGROUND', 3, 120, 120, 128);
   drawText(put, 64, 280, 'WHITE', 4, 28, 28, 32);

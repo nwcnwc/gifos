@@ -60,6 +60,6 @@ Invite is OS chrome — this app does not draw a share button.
 
 Your current solo puzzle, notes, time, hint count, and settings stay in this file. A race is not written over that save. When the friend leaves, you return to your own puzzle.
 
-Thousands of puzzles ship inside the app. Nothing is uploaded.
+Thousands of puzzles ship inside the app.
 
 Unofficial port of [Super Sudoku](https://github.com/TN1ck/super-sudoku) by TN1ck.

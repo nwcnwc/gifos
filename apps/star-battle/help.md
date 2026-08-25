@@ -33,7 +33,7 @@ Stars in the background are scenery. They do not score.
 
 Solo is the original game: one ship, one wave, a rank list on this device.
 
-**Invite** in the bar above the app puts extra ships in the **same** sky. Everyone shoots the same wave. There is no lobby and no game server.
+**Invite** in the bar above the app puts extra ships in the **same** sky. Everyone shoots the same wave.
 
 - The host (the person who sent the invite) runs the wave. Guests wait until that first ship is in the sky.
 - Your fuel is your own. A hit you land is yours.

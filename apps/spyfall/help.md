@@ -6,7 +6,7 @@ One of you is the spy. The rest of you are at the same place, each with a job th
 
 **Pass this phone** — one device, around the table. Add at least three names, pick 6 / 8 / 10 minutes, then **Deal**. Each person taps **their own name**, looks at their card, and taps **Hide this card**. Hide never opens the next card. Hand the phone on. When everyone has looked, **Start the round**.
 
-**Play with friends** — everyone on their own phone. This button opens the room. It does **not** send the link. Press **Invite** in the bar above the app, then send that link. Whoever opens it is in the same game. There is no lobby code and no game server. Need three people to deal.
+**Play with friends** — everyone on their own phone. This button opens the room. It does **not** send the link. Press **Invite** in the bar above the app, then send that link. Whoever opens it is in the same game. Need three people to deal.
 
 ## Roles
 

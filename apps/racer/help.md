@@ -36,7 +36,7 @@ A race with a friend is a separate thing:
 
 Until the host starts a race you are just driving, even if a friend is already a car on the road. A guest cannot start the race.
 
-There is no game server. Comfortable for a handful of friends, not a stadium.
+Comfortable for a handful of friends, not a stadium.
 
 ## What is saved
 

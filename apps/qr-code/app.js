@@ -661,7 +661,7 @@
       };
       Mp.watch();
     } else if ($('meet')) {
-      $('meet').textContent = 'Press Invite (top bar) to show this code in a meeting. Nothing is uploaded on its own.';
+      $('meet').textContent = 'Press Invite (top bar) to show this code in a meeting.';
     }
 
     if (root.gifos && root.gifos.launch) {

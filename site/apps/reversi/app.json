@@ -39,10 +39,10 @@
   "cover": "/apps/reversi/cover.jpg",
   "screenshots": [],
   "gif": "/apps/reversi/reversi.gif",
-  "bytes": 256799,
+  "bytes": 256798,
   "download": 0,
   "provides": null,
-  "sha256": "3b5616ebb1560e77231e08482c3b4935d05b57e669e6262032e7ad53d9d1459d",
+  "sha256": "32137af24491141cb0ad473cd5a13c7f2710a24df43596d56ef41583c8b80136",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

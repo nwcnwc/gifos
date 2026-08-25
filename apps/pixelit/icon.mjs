@@ -190,7 +190,7 @@ export function screenshotPng() {
   };
   fill(0, 0, W, H, 18, 16, 24);
   drawText(put, 36, 22, 'PIXEL IT', 5, 244, 239, 230);
-  drawText(put, 36, 62, 'PHOTO TO PIXEL ART. NOTHING UPLOADED.', 2, 180, 168, 150);
+  drawText(put, 36, 62, 'PHOTO TO PIXEL ART.', 2, 180, 168, 150);
 
   const pal = PAL;
   const block = 10;

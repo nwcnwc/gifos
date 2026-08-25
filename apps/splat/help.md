@@ -1,6 +1,6 @@
 # Splat
 
-Open it and you are already standing in a small 3D scene — a ring of colour, a few glossy balls, a patch of ground. The scene lives in this app. Nothing is downloaded, and nothing is sent anywhere.
+Open it and you are already standing in a small 3D scene — a ring of colour, a few glossy balls, a patch of ground. The scene is packed inside the app.
 
 This is a viewer. There is no score and no opponent. Drag, pinch, or walk until the ring sits where you want it.
 

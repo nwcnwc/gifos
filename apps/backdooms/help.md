@@ -37,7 +37,7 @@ Close it and come back: your **best score** is still in this file, along with yo
 
 On your own this is the corridor and whatever is in it.
 
-Press **Invite** in the bar above the app. Whoever opens that link wakes in the same maze, from the same seed, and appears down the hall as a **pale figure** — cold and lit, so you can always tell one from a thing. You can watch them walk. You can shoot them, and they can shoot you. There is no game server and no lobby. The room is the link.
+Press **Invite** in the bar above the app. Whoever opens that link wakes in the same maze, from the same seed, and appears down the hall as a **pale figure** — cold and lit, so you can always tell one from a thing. You can watch them walk. You can shoot them, and they can shoot you.
 
 ## What is saved
 

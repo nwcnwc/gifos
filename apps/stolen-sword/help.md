@@ -32,8 +32,6 @@ Solo is the original campaign. Progress through the lands is yours.
 
 **Invite** in the bar above the app puts extra swordsmen in the same grove, flying their own lines. They are **ghosts**: tinted, see-through, only drawn if they are on the same land. Everyone fights their own grove. You cannot cut a friend, and they cannot cut your marks. Tap the sword-count chip for who is where.
 
-There is no lobby and no account. The room is the link.
-
 ## What is saved
 
 The land you reached and whether you have seen the tutorial stay in this app. A live room is not. Next open, you continue the chase from that land.

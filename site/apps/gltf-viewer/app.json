@@ -41,10 +41,10 @@
   "cover": "/apps/gltf-viewer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/gltf-viewer/gltf-viewer.gif",
-  "bytes": 504912,
+  "bytes": 504829,
   "download": 0,
   "provides": null,
-  "sha256": "d5e5a8cba805c36b902ddac2869ac594766665149bc246f2d98ae974fdbc6bbf",
+  "sha256": "5ee920252789a777eea8bf47731021436e160d14142dd2799737579a266780e4",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

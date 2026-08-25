@@ -156,6 +156,7 @@ function pngChunk(tag, data) {
 }
 
 const GLYPHS = {
+  'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
   'A': [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
   'B': [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
   'C': [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
@@ -268,7 +269,7 @@ export function screenshotPng() {
   drawText(put, 830, 200, 'N', 6, 255, 230, 210);
   drawText(put, 790, 258, '32', 12, 255, 255, 255);
   drawText(put, 700, 440, 'ONE INVITE', 4, 184, 196, 176);
-  drawText(put, 700, 500, 'NO SERVER', 4, 184, 196, 176);
+  drawText(put, 700, 500, 'DAUB YOUR CARD', 4, 184, 196, 176);
   drawText(put, 700, 570, 'YOUR CARD', 4, 232, 196, 96);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);

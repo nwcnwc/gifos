@@ -226,7 +226,7 @@ export function screenshotPng() {
     if ((x % 48 === 0 || y % 36 === 0) && y > 140) put(x, y, 15, 28, 36);
   }
   drawText(put, 48, 28, 'SERVER SURVIVAL', 6, 0, 255, 133);
-  drawText(put, 48, 84, 'NO SERVER. FILE IS THE SAVE.', 3, 250, 204, 21);
+  drawText(put, 48, 84, 'SURVIVE THE TRAFFIC.', 3, 250, 204, 21);
   drawText(put, 48, 118, 'BUILD INFRA. SURVIVE TRAFFIC.', 3, 148, 163, 184);
   drawText(put, 48, 154, 'BUDGET $500', 3, 74, 222, 128);
   drawText(put, 320, 154, 'REPUTATION 100%', 3, 250, 204, 21);

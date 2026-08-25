@@ -53,8 +53,7 @@ until its imagery has arrived, so an animation plays smoothly instead of
 flickering.
 
 **Save as a GIF** writes the animation here on your device — every frame
-stamped with its date — and hands you the file. Nothing is uploaded and there
-is no queue.
+stamped with its date — and hands you the file.
 
 ## Comparing two days
 

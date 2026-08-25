@@ -33,7 +33,7 @@ A clash — two queens in the same row, column, region, or touching at a corner 
 
 ## Play with a friend
 
-Press **Invite** in the bar above the app. The puzzle someone opens is the one everyone sees — if they go Next, your board switches too. Each person marks their own squares; a win on this device is yours. There is no account and no game server.
+Press **Invite** in the bar above the app. The puzzle someone opens is the one everyone sees — if they go Next, your board switches too. Each person marks their own squares; a win on this device is yours.
 
 ## What is saved
 

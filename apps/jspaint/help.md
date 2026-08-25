@@ -1,6 +1,6 @@
 # JS Paint
 
-Classic MS Paint on this device. Pencil, brush, eraser, fill, airbrush, text, select, and shapes. Nothing is uploaded.
+Classic MS Paint on this device. Pencil, brush, eraser, fill, airbrush, text, select, and shapes.
 
 ## Draw
 

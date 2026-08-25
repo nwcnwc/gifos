@@ -40,14 +40,14 @@
   "cover": "/apps/waveforms/cover.jpg",
   "screenshots": [],
   "gif": "/apps/waveforms/waveforms.gif",
-  "bytes": 194280,
+  "bytes": 194428,
   "download": 0,
   "provides": null,
-  "sha256": "83847fcab15b0f3b9bfb6b22148136e1fc43bfdad5decb4a53714b22692606f3",
+  "sha256": "33512cf4c7020630ecba7843967399b6af6c676e17a32dab07efb5d8c5b3dcea",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

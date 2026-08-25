@@ -1,6 +1,6 @@
 # Fluid
 
-Drag a finger (or the mouse) through dark water. Colour follows and folds. Nothing is uploaded.
+Drag a finger (or the mouse) through dark water. Colour follows and folds.
 
 ## Play
 

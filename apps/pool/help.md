@@ -41,7 +41,7 @@ The name that lights up at the top is the person who shoots. Once colours are se
 
 **Invite** in the bar above the app — a friend takes the other turn on their own phone or computer. You go first (the host, who opened the app). They join, a fresh frame starts. They leave, you are back at the menu. A third person can watch; they do not get a stick.
 
-There is no game server. The host runs the balls; the friend sends the shot.
+The host runs the balls; the friend sends the shot.
 
 ## What is saved
 

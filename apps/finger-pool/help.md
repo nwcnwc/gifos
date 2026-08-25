@@ -40,8 +40,6 @@ Each colour you pocket is **one point**. White does not score. On your own the t
 
 For a friend on **another** phone or computer: press **Invite** in the bar **above** this app (not inside the table), then send the link. You take turns, one flick at a time. The other person watches the balls roll. When they join, you start a **fresh rack**. If they leave, you land back on the menu.
 
-There is no game server and no lobby. The room is the link.
-
 ## What is saved
 
 Sound on/off stays on this device. Scores live only for this rack / this room. Closing the app does not keep the table.

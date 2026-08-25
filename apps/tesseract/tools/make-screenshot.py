@@ -69,8 +69,8 @@ sample = [
     "",
     "Pack my box with five dozen",
     "liquor jugs — a photograph of",
-    "the page, typed back on this",
-    "device. Nothing uploaded.",
+    "the page, typed back as",
+    "text you can copy.",
 ]
 y = 500
 for line in sample:

@@ -200,7 +200,7 @@ export function screenshotPng() {
 
   fill(0, 0, W, H, 246, 247, 251);
   drawText(put, 64, 48, 'WIFI CARD', 6, 28, 36, 52);
-  drawText(put, 64, 110, 'PRINT A CARD. NOTHING UPLOADED.', 3, 91, 101, 120);
+  drawText(put, 64, 110, 'POINT A PHONE AT THE CODE.', 3, 91, 101, 120);
 
   rr(64, 170, 1136, 660, 18, 255, 255, 255);
   // fake card edge

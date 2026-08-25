@@ -39,14 +39,14 @@
   "cover": "/apps/koil/cover.jpg",
   "screenshots": [],
   "gif": "/apps/koil/koil.gif",
-  "bytes": 275639,
+  "bytes": 274833,
   "download": 0,
   "provides": null,
-  "sha256": "71d4c1d3620efcd8a40025a23c89b88b76a7c3d7e6c5f0d84393af16d75ed0d3",
+  "sha256": "3ab5133931ce00beff62b03ed8d4f12d994610aac7cab504b74c86f65938e93e",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

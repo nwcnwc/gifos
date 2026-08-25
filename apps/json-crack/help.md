@@ -1,6 +1,6 @@
 # JSON Crack
 
-Paste JSON on the left. See it as a graph of cards on the right. Nothing is uploaded.
+Paste JSON on the left. See it as a graph of cards on the right.
 
 ## Edit
 

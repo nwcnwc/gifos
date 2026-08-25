@@ -39,10 +39,10 @@
   "cover": "/apps/qr-scan/cover.jpg",
   "screenshots": [],
   "gif": "/apps/qr-scan/qr-scan.gif",
-  "bytes": 272022,
+  "bytes": 271991,
   "download": 0,
   "provides": null,
-  "sha256": "a5191341a3abea537f519878d50850643475860f68fec0e1322b7e9d158d1fe6",
+  "sha256": "6a4ea5a2a895a20a5f4598b409cb9d9a0be3c9ad936020c502308105cd7bbaad",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

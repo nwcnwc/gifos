@@ -229,7 +229,7 @@ export function screenshotPng() {
   fillRound(put, 600, 500, 860, 556, 8, 80, 180, 220);
   drawText(put, 628, 516, 'PNG', 3, 7, 20, 28);
   drawText(put, 880, 516, '256 X 256', 3, 80, 180, 220);
-  drawText(put, 600, 580, 'NOTHING UPLOADED.', 2, 110, 154, 181);
+  drawText(put, 600, 580, 'TWEAK THE RECIPE.', 2, 110, 154, 181);
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
