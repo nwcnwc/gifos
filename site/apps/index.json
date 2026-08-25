@@ -755,7 +755,7 @@
       "appId": "catch-the-cat",
       "name": "Catch the Cat",
       "shortName": "Cat",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "tagline": "Tap the dots. Wall the cat in before it reaches the edge.",
       "author": {
         "name": "ganlvtech",
@@ -772,7 +772,7 @@
       "minBuild": 947,
       "offline": true,
       "releaseDate": "2026-08-23",
-      "updated": "2026-08-23",
+      "updated": "2026-08-25",
       "categories": [
         "Games"
       ],
