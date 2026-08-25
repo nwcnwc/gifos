@@ -34,6 +34,7 @@ function inRR(x, y, x0, y0, x1, y1, r) {
 }
 
 const GLYPHS = {
+  'J': [0b00111, 0b00010, 0b00010, 0b00010, 0b00010, 0b10010, 0b01100],
   '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
   'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   'L': [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
@@ -212,7 +213,7 @@ export function screenshotPng() {
   }
   rr(100, 590, 420, 650, 14, 240, 208, 128);
   drawText(put, 150, 606, 'SPIN', 5, 26, 18, 8);
-  drawText(put, 460, 614, 'TOY CREDITS  NO CASH', 3, 154, 144, 128);
+  drawText(put, 460, 614, 'FIVE 7S IS THE JACKPOT', 3, 154, 144, 128);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

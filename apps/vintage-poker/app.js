@@ -339,7 +339,7 @@
   function hostDeal() {
     var people = livePeople(_items);
     if (people.length < 2) {
-      $('lobbyStatus').textContent = 'This table is empty. Press Invite in the GifOS menu — the link is a seat.';
+      $('lobbyStatus').textContent = 'This table is empty. Press Invite in the GifOS menu and send friends the link.';
       $('lobbyEmpty').hidden = false;
       return;
     }
@@ -395,11 +395,11 @@
     $('dealLobby').hidden = !(host && n >= 2);
     $('lobbyEmpty').hidden = n >= 2;
     if (!roomDb) {
-      $('lobbyStatus').textContent = 'Open this inside GifOS. Press Invite in the bar — the link is a seat.';
+      $('lobbyStatus').textContent = 'Open this inside GifOS, then press Invite in the bar and send friends the link.';
       $('dealLobby').hidden = true;
       $('lobbyEmpty').hidden = true;
     } else if (n < 2) {
-      $('lobbyStatus').textContent = 'This table is empty. Press Invite in the GifOS menu — the link is a seat.';
+      $('lobbyStatus').textContent = 'This table is empty. Press Invite in the GifOS menu and send friends the link.';
     } else {
       $('lobbyStatus').textContent = host
         ? (n + ' seated. Deal when you are ready.')

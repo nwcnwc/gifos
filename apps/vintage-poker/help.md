@@ -1,6 +1,6 @@
 # Vintage Poker
 
-Texas Hold'em at one table. **Toy chips. No cash.** Nothing is wagered and nothing is paid out.
+Texas Hold'em at one table.
 
 Each seated player gets **two hole cards**. Five community cards come out in three streets: the **flop** (three), the **turn** (one), the **river** (one). Best **five of those seven** wins the pot. Aces play high, and also low in a wheel straight (A-2-3-4-5).
 
@@ -14,7 +14,7 @@ Hands, strongest first: royal flush, straight flush, four of a kind, full house,
 
 ## Play on this device
 
-Two bots sit across from you. You start with **1000** chips. **Deal** starts a hand when it is idle. Fold, Call, and Raise sit in the bar at the bottom — large enough for a thumb. If your stack is gone, **Top up 1000** restocks the toy pile.
+Two bots sit across from you. You start with **1000** chips. **Deal** starts a hand when it is idle. Fold, Call, and Raise sit in the bar at the bottom — large enough for a thumb. If your stack is gone, **Top up 1000** restores your chips.
 
 ## Play with friends
 

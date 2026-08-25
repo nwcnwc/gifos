@@ -81,7 +81,7 @@ const grid = M.grid;
 
   c = 0;
   c = c + M.REFILL;
-  check('top-up adds 1000 toy credits', c === 1000);
+  check('top-up adds 1000 credits', c === 1000);
 }
 
 check('stakes are 10 25 50 100', M.STAKES.join(',') === '10,25,50,100');
@@ -138,17 +138,20 @@ check('Spin is a 44px+ thumb target',
 check('phone hides the lever and keeps Spin full-width',
   /@media \(max-width:420px\)[\s\S]*\.lever\{display:none\}/.test(css.replace(/\s+/g, '')) ||
   /@media \(max-width:420px\)[\s\S]*\.lever\s*\{\s*display:\s*none/.test(css));
-check('help says toy / never cash',
-  /never cash/i.test(help) && /toy credits/i.test(help));
-check('listing leads with offline / file / link / no cash',
-  /offline/i.test(listing.description) && /file/i.test(listing.description) &&
-  /link/i.test(listing.description) && /cash/i.test(listing.description));
+check('help explains the payline and the jackpot',
+  /middle row/i.test(help) && /jackpot/i.test(help));
+// No nervous "toy credits, never cash" protesting — it is a computer game.
+check('no cash disclaimers anywhere a user reads',
+  !/no cash|toy (credit|reel|pile)|never cash|nothing is (wagered|paid)|casino/i
+    .test(listing.tagline + ' ' + listing.description + ' ' + help + ' ' + html + ' ' + app));
+check('listing says friends watch the same spin from a link',
+  /link/i.test(listing.description) && /same spin/i.test(listing.description));
 check('listing tagline fits a card', listing.tagline.length <= 80);
 check('author is johakr, not GifOS', listing.author.name === 'johakr' && listing.porter.name === 'GifOS');
 check('old saves without stake still load (stake is optional)',
   /rec\.stake/.test(app) && /clampStake/.test(app));
 check('space/enter pulls', /Spacebar/.test(app) && /pull\(\)/.test(app));
-check('top-up restocks toy credits', html.includes('id="refill"') && /REFILL/.test(app));
+check('top-up restocks credits', html.includes('id="refill"') && /REFILL/.test(app));
 check('top-up [hidden] is not overridden by display:block',
   /\.refill\[hidden\]\s*\{\s*display:\s*none/.test(css));
 check('no CDN / webfont / remote at load',

@@ -1,6 +1,6 @@
 {
-  "tagline": "No account, no cash. Invite is the table.",
-  "description": "No account, no cash, no game server. Invite is the table — everyone who opens the link takes a seat, the host deals. Works offline. Your chip pile lives in this file, so sharing the GIF shares the stack.\n\nTexas Hold'em at one felt. Two hole cards, then the flop, the turn, the river. Fold, check, call, or raise. Best five of seven takes the pot. Toy chips only — nothing is wagered and nothing is paid out. Card faces are generic ranks and suits, not a branded deck.\n\nOn your own, two bots sit across from you. With friends, press Invite in the bar; two seats and the host can deal.\n\nAn unofficial port of Vintage Poker by Patrick Obermeier. The original is a React site on Node, Express and socket.io, with accounts and a wallet. This copy is not.",
+  "tagline": "Texas Hold'em with friends. Everyone who opens your link takes a seat.",
+  "description": "Texas Hold'em at one felt. Two hole cards, then the flop, the turn, the river. Fold, check, call, or raise. Best five of seven takes the pot.\n\nOn your own, two bots sit across from you. With friends, press Invite and send the link \u2014 everyone who opens it takes a seat, and the host deals. Your chip stack is saved with your copy of the app.\n\nAn unofficial port of Vintage Poker by Patrick Obermeier.",
   "author": {
     "name": "Patrick Obermeier",
     "url": "https://github.com/Pobermeier/vintage-poker"

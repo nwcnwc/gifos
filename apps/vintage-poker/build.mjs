@@ -86,9 +86,9 @@ if (!files['app.js'].includes("t.phase !== 'showdown' && t.phase !== 'idle'")) t
 if (/socket\.io|express|mongoose|pokersolver|lodash/i.test(files['app.js'] + files['poker.js'])) {
   throw new Error('their server stays behind');
 }
-if (!/^No account, no cash/.test(listing.description)) throw new Error('listing must lead with no-account / no-cash');
-if (!/invite is the table/i.test(listing.description) || !/no game server/i.test(listing.description)) {
-  throw new Error('listing invite/server');
+if (!/^Texas Hold'em/.test(listing.description)) throw new Error('listing must lead with the game');
+if (!/takes a seat/i.test(listing.description) || !/host deals/i.test(listing.description)) {
+  throw new Error('listing must say friends take seats and the host deals');
 }
 if (/gifos\.db|sandbox|localStorage|WebRTC/.test(files['help.md'])) throw new Error('help internals');
 

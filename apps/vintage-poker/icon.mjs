@@ -196,8 +196,8 @@ export function screenshotPng() {
   };
   fill(0, 0, W, H, 10, 10, 15);
   rr(40, 24, 1160, 696, 36, 12, 58, 36);
-  drawText(put, 64, 40, 'NO ACCOUNT  NO CASH', 4, 232, 196, 96);
-  drawText(put, 64, 84, 'INVITE IS THE TABLE', 4, 247, 243, 234);
+  drawText(put, 64, 40, 'TEXAS HOLDEM', 4, 232, 196, 96);
+  drawText(put, 64, 84, 'FRIENDS FILL THE SEATS', 4, 247, 243, 234);
   // community
   const labels = ['Q', 'J', '10', '9', '2'];
   const reds = [0, 1, 0, 1, 0];
@@ -228,7 +228,7 @@ export function screenshotPng() {
   drawText(put, 370, 640, 'CALL', 4, 26, 18, 8);
   rr(580, 620, 830, 686, 12, 232, 196, 96);
   drawText(put, 620, 640, 'RAISE', 4, 26, 18, 8);
-  drawText(put, 860, 640, 'TOY CHIPS', 3, 232, 196, 96);
+  drawText(put, 860, 640, 'BLINDS 5 AND 10', 3, 232, 196, 96);
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;
