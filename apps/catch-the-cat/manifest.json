@@ -3,7 +3,7 @@
   "appId": "catch-the-cat",
   "name": "Catch the Cat",
   "shortName": "Cat",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "minBuild": 947,
   "entry": "index.html",
   "accent": [232, 176, 90],
