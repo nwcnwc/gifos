@@ -1,78 +1,200 @@
+/*
+ * Backdooms — the chrome around the canvas.
+ *
+ * The world is drawn at a low resolution on purpose and blown up with
+ * `image-rendering: pixelated`; the HUD is NOT. Everything you have to READ —
+ * health, shells, the count of who is in the halls — is real DOM at the
+ * screen's own resolution, so it stays sharp while the corridor stays chunky.
+ * That split is the whole reason the numbers are legible on a phone.
+ */
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
   width: 100%; height: 100%; overflow: hidden;
   background: #000; color: #eee;
-  font-family: system-ui, sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   touch-action: none;
+  user-select: none; -webkit-user-select: none;
 }
 #c {
   display: block; width: 100%; height: 100%;
   image-rendering: pixelated; image-rendering: crisp-edges;
-  object-fit: fill; background: #000; cursor: crosshair;
+  background: #000; cursor: crosshair;
 }
-#hud { display: none; }
+body.play #c { cursor: none; }
+
+/* ---- HUD ------------------------------------------------------------- */
+
+#hud { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
+#hud[hidden] { display: none; }
+
+#cross { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; }
+#cross i {
+  position: absolute; background: rgba(255, 250, 235, .82);
+  box-shadow: 0 0 2px rgba(0, 0, 0, .95);
+}
+#cross i:nth-child(1) { left: 10px; top: 0; width: 2px; height: 7px; }
+#cross i:nth-child(2) { left: 10px; bottom: 0; width: 2px; height: 7px; }
+#cross i:nth-child(3) { top: 10px; left: 0; height: 2px; width: 7px; }
+#cross i:nth-child(4) { top: 10px; right: 0; height: 2px; width: 7px; }
+
+.pod {
+  position: absolute; bottom: max(14px, env(safe-area-inset-bottom));
+  padding: 0 4px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .9);
+}
+.pod-l { left: max(16px, env(safe-area-inset-left)); }
+.pod-r { right: max(16px, env(safe-area-inset-right)); text-align: right; }
+.pod-k {
+  display: block;
+  font: 700 10px/1 system-ui, sans-serif; letter-spacing: .22em;
+  color: #b6a06a;
+}
+.pod-v {
+  display: block;
+  font: 800 40px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: -.02em; color: #f6ecd0;
+  font-variant-numeric: tabular-nums;
+}
+.pod-l .pod-v { color: #ffd9d0; }
+body.lowhp .pod-l .pod-v { color: #ff6a52; animation: throb .7s steps(2) infinite; }
+@keyframes throb { 50% { opacity: .45; } }
+
+.pod-bar {
+  width: 116px; height: 5px; margin-top: 6px;
+  background: rgba(0, 0, 0, .55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+}
+.pod-bar i {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, #b8221a, #f0503a);
+  transition: width .12s linear;
+}
+.shells { margin-top: 7px; display: flex; gap: 3px; justify-content: flex-end; }
+.shells i {
+  display: block; width: 5px; height: 13px;
+  background: linear-gradient(180deg, #d9b23a 0 4px, #b0322a 4px);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .5);
+}
+.shells i.spent { opacity: .18; }
+
+#score-pod {
+  position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%); text-align: center;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .9);
+}
+#score-pod .pod-v { font-size: 26px; color: #ffe07a; }
+#best-val { display: block; font: 600 10px/1.6 system-ui, sans-serif; letter-spacing: .16em; color: #8d7c50; }
+
 #tally {
-  position: absolute; top: 8px; right: 12px;
-  font: 700 12px/1 system-ui, sans-serif;
-  color: #ffd36a; text-shadow: 0 1px 3px #000;
-  pointer-events: none;
+  position: absolute; top: max(12px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  font: 700 11px/1 system-ui, sans-serif; letter-spacing: .12em;
+  color: #9fd8ff; text-shadow: 0 2px 6px rgba(0, 0, 0, .9);
 }
+#tally[hidden] { display: none; }
+
+#lowammo {
+  position: absolute; left: 50%; top: 62%; transform: translateX(-50%);
+  font: 800 12px/1 system-ui, sans-serif; letter-spacing: .18em;
+  color: #ff8a5c; text-shadow: 0 2px 8px #000;
+  animation: throb 1s steps(2) infinite;
+}
+#lowammo[hidden] { display: none; }
+
+/* The corners fall away. Cheap, and it keeps the eye in the corridor. */
+#vig {
+  position: absolute; inset: 0; z-index: 6; pointer-events: none; display: none;
+  background: radial-gradient(ellipse 78% 72% at 50% 52%, transparent 42%, rgba(0, 0, 0, .58) 100%);
+}
+body.play #vig { display: block; }
+
+/* Damage. Driven from boot.js so it can pulse without repainting the world. */
+#pain {
+  position: absolute; inset: 0; z-index: 7; pointer-events: none;
+  opacity: 0; transition: opacity .28s ease-out;
+  background: radial-gradient(ellipse 92% 88% at 50% 50%, transparent 30%, rgba(190, 22, 14, .78) 100%);
+}
+body.hurt #pain { opacity: 1; transition: opacity .05s; }
+
+/* ---- gate / over / resume --------------------------------------------- */
 
 #gate, #over, #resume {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(8, 6, 2, .86);
+  background: radial-gradient(ellipse at 50% 40%, rgba(38, 30, 10, .82), rgba(6, 5, 2, .95));
   z-index: 20;
 }
 #over[hidden], #gate[hidden], #resume[hidden] { display: none; }
-#resume { background: rgba(8, 6, 2, .45); z-index: 18; cursor: pointer; }
-#resume .gate-box { background: #1a160c; padding: 18px 28px; }
+#resume { background: rgba(8, 6, 2, .5); z-index: 18; cursor: pointer; }
+
 .gate-box {
-  width: min(420px, 92vw);
-  padding: 28px 22px 22px;
-  background: #1a160c;
+  width: min(430px, 92vw);
+  padding: 30px 24px 24px;
+  background: linear-gradient(180deg, #221c0d, #16120a);
   border: 1px solid #6a5420;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), 0 24px 60px rgba(0, 0, 0, .6);
   color: #f0e6c8;
   text-align: center;
 }
-.gate-box h1 {
-  font-size: 1.8rem; letter-spacing: .08em;
-  color: #e8c024; margin-bottom: 8px;
+.gate-box.small { width: auto; padding: 14px 26px; }
+
+/* three fluorescent tubes receding — the app's own image, in CSS */
+.mark { display: flex; gap: 7px; justify-content: center; align-items: flex-end; height: 26px; margin-bottom: 14px; }
+.mark span {
+  display: block; width: 44px; background: #ffeeb0;
+  box-shadow: 0 0 14px rgba(255, 226, 130, .7);
 }
-.gate-box .sub { font-size: .92rem; color: #cbb98a; margin-bottom: 16px; }
-#gate-actions { margin: 12px 0; }
+.mark span:nth-child(1) { height: 7px; opacity: .35; width: 26px; }
+.mark span:nth-child(2) { height: 9px; opacity: .7; width: 36px; }
+.mark span:nth-child(3) { height: 11px; }
+
+.gate-box h1 {
+  font-size: 2.05rem; line-height: 1; letter-spacing: .10em;
+  color: #f0c93a; margin-bottom: 10px;
+  text-shadow: 0 0 22px rgba(240, 201, 58, .35);
+}
+.gate-box h1.dead { color: #e8533c; text-shadow: 0 0 22px rgba(232, 83, 60, .3); }
+.gate-box .sub { font-size: .92rem; color: #cbb98a; margin-bottom: 4px; }
+#gate-actions { margin: 20px 0 6px; }
 #gate-go, #over-go {
   appearance: none; border: 0; cursor: pointer;
-  background: #c49c24; color: #1a1408;
-  font: 700 1rem/1 system-ui, sans-serif;
-  padding: 12px 28px;
+  background: linear-gradient(180deg, #e8bb2e, #b98c14);
+  color: #1a1408;
+  font: 800 1rem/1 system-ui, sans-serif; letter-spacing: .03em;
+  padding: 14px 30px;
+  box-shadow: 0 3px 0 #6f5209, 0 8px 22px rgba(0, 0, 0, .5);
 }
+#gate-go:active, #over-go:active { transform: translateY(2px); box-shadow: 0 1px 0 #6f5209; }
 #gate-go:disabled { opacity: .5; cursor: wait; }
-#gate-keys, #gate-keys-phone {
-  font-size: .8rem; color: #a89870; margin-top: 12px;
-}
+#gate-keys, #gate-keys-phone { font-size: .8rem; color: #a89870; margin-top: 12px; }
+#gate-keys b, #gate-keys-phone b { color: #d8c489; }
 #gate-keys-phone { display: none; }
 body.phone #gate-keys { display: none; }
 body.phone #gate-keys-phone { display: block; }
-.opts { margin-top: 14px; font-size: .8rem; color: #a89870; }
-.opts input { vertical-align: middle; }
-.best { margin-top: 10px; color: #e8c024; font-size: .85rem; }
-#gate-room { margin-top: 10px; font-size: .8rem; color: #8a7a52; }
+.opts { margin-top: 16px; font-size: .78rem; color: #a89870; }
+.opts input { vertical-align: middle; accent-color: #e8bb2e; width: 140px; }
+.best { margin-top: 12px; color: #f0c93a; font-size: .85rem; letter-spacing: .06em; }
+#over-score { font-size: 1.05rem; color: #f0e6c8; margin-bottom: 4px; }
+#over-note { font-size: .82rem; color: #a89870; margin-bottom: 16px; min-height: 1em; }
+#gate-room { margin-top: 12px; font-size: .78rem; color: #8a7a52; line-height: 1.5; }
+
+/* ---- phone ------------------------------------------------------------- */
 
 #touch { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+#touch[hidden] { display: none; }
 #t-move {
   position: absolute; left: max(12px, env(safe-area-inset-left));
-  bottom: max(18px, env(safe-area-inset-bottom));
+  bottom: max(84px, calc(env(safe-area-inset-bottom) + 84px));
   width: 120px; height: 120px; pointer-events: auto;
 }
 .t-stick {
   border-radius: 50%;
-  background: rgba(255,255,255,.08);
-  border: 2px solid rgba(255,255,255,.25);
+  background: rgba(255, 255, 255, .06);
+  border: 2px solid rgba(255, 240, 190, .22);
 }
 .t-knob {
   width: 48px; height: 48px; border-radius: 50%;
-  background: rgba(255,255,255,.55);
+  background: rgba(255, 246, 220, .5);
+  box-shadow: 0 0 14px rgba(0, 0, 0, .5);
   position: absolute; left: 50%; top: 50%;
   transform: translate(-50%, -50%);
 }
@@ -82,17 +204,11 @@ body.phone #gate-keys-phone { display: block; }
 }
 #t-fire {
   position: absolute; right: max(16px, env(safe-area-inset-right));
-  bottom: max(22px, env(safe-area-inset-bottom));
-  width: 76px; height: 76px; border-radius: 50%;
-  border: 0; pointer-events: auto;
-  background: linear-gradient(45deg, #800, #f00);
-  color: #fff; font: 700 13px/1 system-ui, sans-serif;
-  box-shadow: 0 0 18px rgba(255,140,0,.35);
-  animation: pulse 2s infinite;
+  bottom: max(84px, calc(env(safe-area-inset-bottom) + 84px));
+  width: 84px; height: 84px; border-radius: 50%;
+  border: 2px solid rgba(255, 190, 120, .35); pointer-events: auto;
+  background: radial-gradient(circle at 38% 32%, #d8452c, #7a1508);
+  color: #fff; font: 800 13px/1 system-ui, sans-serif; letter-spacing: .1em;
+  box-shadow: 0 0 20px rgba(255, 120, 40, .3);
 }
-#t-fire:active { transform: scale(.95); animation: none; }
-@keyframes pulse {
-  0% { box-shadow: 0 0 18px rgba(255,140,0,.25); }
-  50% { box-shadow: 0 0 28px rgba(255,140,0,.5); }
-  100% { box-shadow: 0 0 18px rgba(255,140,0,.25); }
-}
+#t-fire:active { transform: scale(.94); background: radial-gradient(circle at 38% 32%, #ff7a4a, #a02410); }
