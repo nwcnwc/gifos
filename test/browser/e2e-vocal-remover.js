@@ -149,7 +149,7 @@ async function measureStems(fr, hz, amp) {
     // By id, never by label: decorate() repaints an app icon's label as the
     // app's own nameplate (this one reads "Vocals"), and on a fast box that
     // lands before the locator looks — 'Vocal Remover' then matches nothing
-    // and the suite dies with zero assertions (nvidia-laptop, every run of
+    // and the suite dies with zero assertions (the <gpu-box>, every run of
     // the 0.9.13 gate; the slower fleet boxes matched the filename first).
     page.locator('.icon[data-id="' + itemId + '"]').dblclick(),
   ]);

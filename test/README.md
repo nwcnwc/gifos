@@ -350,7 +350,7 @@ one.** Do not reach for exit 3 or 4 to make it quiet, and do not call it
 environmental noise in a report — fix the box.
 
 The red is doing its job precisely by being loud. On 2026-08-25
-`test/unit/sandspiel.js` was red on jetson3 with `FAIL — clang --target=wasm32
+`test/unit/sandspiel.js` was red on a `<behavior-box>` with `FAIL — clang --target=wasm32
 builds the kernel`, because clang was not installed. `apt-get install clang`
 took a minute, and the suite went from 41 pass + 1 red to **49 pass**: the
 check sits above `if (r.status !== 0) return;`, so eight assertions on the wasm

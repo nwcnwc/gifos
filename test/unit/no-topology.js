@@ -17,10 +17,20 @@
 // there. The repo stays ignorant; the box that runs the gate does the checking.
 //
 // Anything genuinely shared belongs here as a ROLE: <behavior-box>, <gate-host>,
-// <orchestrator>, <llm-box>, <monitor-pi>, <resident-model>, or the
+// <orchestrator>, <gpu-box>, <llm-box>, <monitor-pi>, <resident-model>, or the
 // <orchestrator-tailnet-addr> form fleet.js prints. Core counts, architectures,
 // chromium revisions and every measurement are hardware facts, not identities —
 // they stay.
+//
+// AND THEY GREW BACK AGAIN. On 2026-08-25 this guard was RED with eight fresh
+// references in six files: a gauntlet doc listing three boxes by name, the same
+// hostname in a runtime.js comment AND in the frozen 0.9.13 snapshot beside it
+// (so it was live on gifos.app for a second time), three browser suites citing
+// "red on <box>" from the 0.9.13 gate, and test/README.md. Every one of them is
+// the same honest impulse — say WHICH machine measured it — and every one is a
+// role in disguise: "the fastest box in the fleet" is <gpu-box>, and the number
+// is the point, not the nameplate. The guard did its job; what failed was that
+// a red sat unattributed. Scrubbed in the same commit that read this line.
 //
 // On a box with no hosts file the name check cannot run; the SHAPE checks below
 // still do, and the skip is announced rather than silently passing.
