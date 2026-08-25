@@ -1,0 +1,51 @@
+{
+  "catalog": "1.0",
+  "slug": "retirement",
+  "appId": "retirement",
+  "name": "Retirement Calculator",
+  "shortName": "Retirement",
+  "version": "1.0",
+  "minBuild": 947,
+  "tagline": "Will your money last? Tested against every real retirement since 1871.",
+  "description": "It opens with an answer. Six numbers are already filled in, so you can see whether the money lasts before you have typed a thing — then change what is wrong about them and watch the answer move.\n\nNothing you type leaves your computer. No account, no sign-up, nothing sent anywhere. Your plans are saved inside this app's own picture, so the file is the save: hand someone the file and they get your plans with it. It all works with the wi-fi switched off.\n\nYour numbers are run against every stretch of real market history long enough to hold them — 1871 to this year, more than a thousand retirements — with the crashes, the recoveries and the inflation in the order they actually happened. You are told how many of those retirements your money survived, and shown the single one that went worst. It is usually not 1929.\n\nThen it tells you what to change. Spend this much less. Work one more year. Agree now to trim after a bad year, and watch a plan that survived 40% of history survive 92%. Every one of those was measured by running your plan again — none of it is a rule of thumb.\n\nKeep as many plans as you like, name them, and put two side by side. Send one invite link and somebody else is in the same plans with you, live, while it still touches no server.\n\nIt does not work out your tax. Add what you expect to pay to your yearly spending.",
+  "author": {
+    "name": "GifOS",
+    "url": "https://gifos.app"
+  },
+  "releaseDate": "2026-08-25",
+  "updated": "2026-08-25",
+  "categories": [
+    "Productivity",
+    "Utilities"
+  ],
+  "tags": [
+    "retirement",
+    "money",
+    "savings",
+    "pension",
+    "fire",
+    "planning",
+    "investing",
+    "offline"
+  ],
+  "license": "MIT",
+  "copyright": "",
+  "homepage": "https://github.com/nwcnwc/gifos/tree/main/apps/retirement",
+  "accent": [
+    57,
+    135,
+    229
+  ],
+  "capabilities": {
+    "db": true,
+    "multiplayer": true
+  },
+  "cover": "/apps/retirement/cover.jpg",
+  "screenshots": [],
+  "gif": "/apps/retirement/retirement.gif",
+  "bytes": 379279,
+  "download": 0,
+  "provides": null,
+  "sha256": "b4a86e217aad13bbadda7bc97a180dd30014267a270c976d1cb57d34dca51c7f",
+  "signature": null
+}

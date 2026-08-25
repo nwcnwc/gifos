@@ -730,6 +730,72 @@
 
   // ---- what history says about where we are standing -------------------------
 
+  /* ---- how likely you are to still be here -------------------------------
+   *
+   * The counterweight to every number above it. A retirement plan asks "will
+   * the money last to 95?" while quietly declining to mention that a 65-year-old
+   * man has a 24% chance of seeing 90 at all. Both facts belong on the same
+   * screen, because a 5% chance of running out at 92 reads very differently
+   * beside a 76% chance of not being there.
+   *
+   * who: 'm' | 'f' | 'couple' (a couple is the probability EITHER is alive —
+   * the money has to last as long as the longest-lived of them, which is the
+   * whole reason couples plan longer than individuals).
+   */
+  function survival(fromAge, toAge, who) {
+    var L = root.MORTALITY;
+    if (!L) return null;
+    var lo = Math.max(L.from, Math.round(fromAge));
+    var hi = Math.round(toAge);
+    var last = L.from + L.m.length - 1;
+    if (hi <= lo) return 1;
+    if (hi > last) return 0;
+    var one = function (a) {
+      return a[hi - L.from] / a[lo - L.from];
+    };
+    if (who === 'm') return one(L.m);
+    if (who === 'f') return one(L.f);
+    var sm = one(L.m), sf = one(L.f);
+    return 1 - (1 - sm) * (1 - sf);          // at least one still here
+  }
+
+  /* Each year of the plan resolved into the four states a person can actually
+   * be in, as fractions of 1. They always sum to 1, which is what makes this
+   * readable as a picture rather than four charts.
+   */
+  function outcomeStates(plan, result, who) {
+    var years = result.years;
+    var out = [];
+    var runs = result.runs;
+    var retireYear = result.retireYear;
+    // From RETIREMENT onward only. "Rich, broke, or gone" has no meaning while
+    // you are still working — and worse, the comparison is against the balance
+    // AT retirement, so every pre-retirement year scores as 'less than you
+    // retired with' and the chart opens on a wall of the wrong colour.
+    for (var y = retireYear; y <= years; y++) {
+      var age = plan.currentAge + y;
+      var alive = survival(plan.currentAge, age, who);
+      if (alive === null) alive = 1;
+      var broke = 0, under = 0, over = 0;
+      for (var i = 0; i < runs.length; i++) {
+        var bal = runs[i].balances[y];
+        var start = runs[i].balances[retireYear];
+        if (bal <= 0 || (runs[i].failed && age >= runs[i].failAge)) broke++;
+        else if (bal < start) under++;
+        else over++;
+      }
+      var n = runs.length || 1;
+      out.push({
+        age: age,
+        dead: 1 - alive,
+        broke: alive * broke / n,
+        under: alive * under / n,
+        over: alive * over / n
+      });
+    }
+    return out;
+  }
+
   function latestCape() {
     var M = data();
     for (var i = M.cape.length - 1; i >= 0; i--) if (M.cape[i] !== null) {
@@ -753,6 +819,8 @@
     yearsToFI: yearsToFI,
     coastNumber: coastNumber,
     latestCape: latestCape,
+    survival: survival,
+    outcomeStates: outcomeStates,
     monthName: monthName,
     percentile: percentile,
     BANDS: BANDS

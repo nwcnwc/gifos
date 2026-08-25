@@ -67,6 +67,7 @@
     compareId: null,
     comparing: false,
     span: 'all',
+    who: 'couple',
     dirty: false,
     result: null,
     compareResult: null,
@@ -468,7 +469,67 @@
     renderStack();
     renderWorst();
     renderCurve();
+    renderStates();
     renderCompare();
+  }
+
+  /* Rich, broke, or gone.
+   *
+   * The single most useful reframing in this category, and one almost nobody
+   * ships: a plan that reports "a 6% chance of running out at 92" is telling
+   * you about one risk while silently omitting the other one on the same axis.
+   * A 65-year-old man has a 24% chance of seeing 90 at all. Both belong on one
+   * picture, because the first number reads completely differently beside the
+   * second — and the honest conclusion is usually "spend it".
+   *
+   * Grey is not a series colour and neither is red: they are status, and they
+   * keep their meaning. The two money states are one hue at two steps, brighter
+   * for more, which is the right direction on a dark surface.
+   */
+  function renderStates() {
+    var r = state.result, p = state.plan;
+    var card = $('cardStates');
+    if (!r || !r.cycles || !window.MORTALITY) { card.hidden = true; return; }
+    card.hidden = false;
+    var st = S.outcomeStates(p, r, state.who);
+    var n = st.length;
+
+    var series = [
+      { label: 'Not here any more', colour: '#52525c', values: st.map(function (a) { return a.dead; }) },
+      { label: 'Ran out of money', colour: COL.critical, values: st.map(function (a) { return a.broke; }) },
+      { label: 'Less than you retired with', colour: '#184f95', values: st.map(function (a) { return a.under; }) },
+      { label: 'More than you retired with', colour: COL.s1, values: st.map(function (a) { return a.over; }) }
+    ];
+
+    C.stack($('chartStates'), {
+      height: 210, years: n, startAge: st[0].age, series: series, share: true, colours: COL
+    });
+    C.legend($('legStates'), series.map(function (x) { return { label: x.label, colour: x.colour }; }));
+
+    // Read the sentence off the year that makes the point: the age where being
+    // gone first outweighs being broke.
+    var read = $('statesRead');
+    read.textContent = '';
+    var end = st[n - 1];
+    var whoWord = state.who === 'm' ? 'a man your age' : state.who === 'f' ? 'a woman your age' : 'at least one of a couple your age';
+    add(read, 'By ' + end.age + ', ');
+    addB(read, Math.round(end.broke * 100) + '%');
+    add(read, ' of these retirements have run out of money — and ');
+    addB(read, Math.round(end.dead * 100) + '%');
+    add(read, ' of the time ' + whoWord + ' is no longer alive to mind. ');
+    var cross = null;
+    for (var i = 1; i < n; i++) if (st[i].dead > st[i].broke && cross === null && st[i].broke > 0) cross = st[i].age;
+    if (cross !== null && cross < end.age) {
+      add(read, 'From age ' + cross + ' onward, not being here is the likelier outcome than being broke.');
+    } else {
+      add(read, 'Survival odds come from the Social Security period life table.');
+    }
+
+    var rows = [], step = Math.max(1, Math.round(n / 12));
+    for (var y = 0; y < n; y += step) {
+      rows.push([String(st[y].age), C.pct(st[y].over), C.pct(st[y].under), C.pct(st[y].broke), C.pct(st[y].dead)]);
+    }
+    C.table($('tblStates'), ['Age', 'Ahead', 'Behind', 'Broke', 'Gone'], rows);
   }
 
   /* Two plans against the same history. The point of a comparison table is the
@@ -919,12 +980,25 @@
     var note = document.createElement('p');
     note.className = 'read';
     note.textContent = '';
-    if (r.kind !== 'bootstrap') {
-      add(note, 'The worst retirement in the American record is usually not the one people expect. It is ');
-      addB(note, 'January 1966');
-      add(note, ' — not 1929. A crash that ends quickly is survivable; fifteen years of inflation eating a portfolio you are already drawing on is what actually empties it.');
-    } else {
+    if (r.kind === 'bootstrap') {
       add(note, 'These lifetimes are stitched from real five-year blocks, so a run this bad is one history could plausibly have dealt — it simply never dealt exactly this one.');
+    } else {
+      var yr = wname ? parseInt(wname.replace(/\D+/g, ''), 10) : 0;
+      if (yr >= 1962 && yr <= 1982) {
+        add(note, 'That is the inflation era, and it — not 1929 — is the worst thing that has ever happened to American retirees. ');
+        addB(note, 'A crash that ends quickly is survivable.');
+        add(note, ' Fifteen years of inflation eating a portfolio you are already drawing on is what actually empties it, which is why this app keeps every number in today’s money.');
+      } else if (yr >= 1925 && yr <= 1934) {
+        add(note, 'The Crash and the Depression. Worth knowing: for a retiree this was ');
+        addB(note, 'not');
+        add(note, ' the worst case — prices FELL for years afterwards, so a fixed budget bought more each year. The inflation of the 1960s and 70s did more damage to more retirements.');
+      } else if (yr >= 1998 && yr <= 2010) {
+        add(note, 'Two crashes eight years apart, at the start of a retirement, is the shape that does the damage — the losses land while the withdrawals are still coming out of a full-sized portfolio.');
+      } else {
+        add(note, 'The worst run is rarely the year people expect. What decides a retirement is not how deep the fall is but ');
+        addB(note, 'how early it lands');
+        add(note, ' — the first ten years explain most of the outcome, and the last twenty explain almost none of it.');
+      }
     }
     host.appendChild(note);
   }
@@ -1274,6 +1348,17 @@
         all[i].setAttribute('aria-checked', all[i] === b ? 'true' : 'false');
       }
       renderFan();
+    });
+
+    $('whoPick').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-v]');
+      if (!b) return;
+      state.who = b.getAttribute('data-v');
+      var all = $('whoPick').querySelectorAll('button');
+      for (var i = 0; i < all.length; i++) {
+        all[i].setAttribute('aria-checked', all[i] === b ? 'true' : 'false');
+      }
+      renderStates();
     });
 
     $('modePick').addEventListener('click', function (e) {

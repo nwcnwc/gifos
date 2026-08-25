@@ -335,6 +335,7 @@ svg.chart { display: block; width: 100%; overflow: visible; }
 .line-compare { stroke: var(--s2); }
 .line-over    { stroke: var(--ink); stroke-width: 1.5; stroke-opacity: .55; }
 .stack-layer  { stroke: var(--surface); stroke-width: 2; }
+.stack-layer.flush { stroke: none; }
 .dot { stroke: var(--surface); stroke-width: 2; }
 .dot-now { fill: var(--s1); }
 

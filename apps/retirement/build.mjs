@@ -97,7 +97,7 @@ if (!/nothing sent anywhere|leaves your computer/i.test(listing.description)) {
 
 // ---- the files ---------------------------------------------------------------
 
-const SCRIPTS = ['data/market.js', 'sim.js', 'chart.js', 'advice.js', 'app.js'];
+const SCRIPTS = ['data/market.js', 'data/mortality.js', 'sim.js', 'chart.js', 'advice.js', 'app.js'];
 
 for (const need of SCRIPTS.concat(['index.html', 'style.css', 'help.md'])) {
   if (!existsSync(join(dir, need))) throw new Error(need + ' is missing');
@@ -148,10 +148,25 @@ if (/innerHTML\s*=\s*[^;]*\+/.test(files['app.js'])) {
 const sandbox = { console, Math, JSON, Object, Array, Number, String, Boolean, Date, isFinite, parseFloat, parseInt, Float64Array, Uint8Array, Infinity };
 sandbox.window = sandbox; sandbox.self = sandbox; sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
-for (const s of ['data/market.js', 'sim.js', 'advice.js']) {
+for (const s of ['data/market.js', 'data/mortality.js', 'sim.js', 'advice.js']) {
   vm.runInContext(files[s], sandbox, { filename: s });
 }
 const M = sandbox.MARKET, S = sandbox.RetireSim;
+
+{
+  // The published couple-survival figures. If these drift, the second-most
+  // important sentence in the app has quietly become false.
+  const L = sandbox.MORTALITY;
+  if (!L || L.from !== 30) throw new Error('mortality table missing or re-based');
+  const one = S.survival(65, 90, 'couple');
+  if (Math.abs(one - 0.506) > 0.01) {
+    throw new Error('a 65/65 couple reaching 90 came out ' + (one * 100).toFixed(1) + '%, published 50.6%');
+  }
+  const m90 = S.survival(65, 90, 'm');
+  if (Math.abs(m90 - 0.241) > 0.01) {
+    throw new Error('a 65-year-old man reaching 90 came out ' + (m90 * 100).toFixed(1) + '%, published 24.1%');
+  }
+}
 
 if (M.start[0] !== 1871 || M.start[1] !== 1) throw new Error('market data must begin 1871-01');
 if (M.months !== M.stock.length || M.months !== M.bond.length || M.months !== M.cpi.length) {
