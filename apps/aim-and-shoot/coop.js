@@ -336,6 +336,10 @@
     return true;
   }
 
+  function quiet() {
+    return guest() && world != null && now() - worldAt > 6000;
+  }
+
   root.AASCoop = {
     init: init,
     guest: guest,
@@ -344,6 +348,7 @@
     beforeHost: beforeHost,
     afterHost: afterHost,
     guestFrame: guestFrame,
+    quiet: quiet,
     onDown: onDown,
     down: function (id) { return !!down[id || me.id]; },
     roster: roster,
