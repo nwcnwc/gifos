@@ -17,8 +17,8 @@
       "appId": "2048",
       "name": "2048",
       "shortName": "2048",
-      "version": "1.0",
-      "tagline": "Race a friend to 2048 from one link. The file is the save.",
+      "version": "1.1",
+      "tagline": "Race a friend to 2048 — and never lose a board again.",
       "author": {
         "name": "Gabriele Cirulli",
         "url": "https://github.com/gabrielecirulli/2048"
@@ -42,7 +42,8 @@
         "2048",
         "puzzle",
         "arcade",
-        "multiplayer"
+        "multiplayer",
+        "history"
       ],
       "accent": [
         237,
@@ -50,15 +51,15 @@
         46
       ],
       "cover": "/apps/2048/cover.jpg",
-      "bytes": 309483,
+      "bytes": 319562,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-25"
       },
-      "sha256": "d83a69d342942707333cb7d2085263ceca3e7d6f6d6da8f97c04c340bb877030"
+      "sha256": "54334e2085b4b21440196c5e01b83cf06b09484ece46b9c8e294ae00155c9a92"
     },
     {
       "slug": "aim-and-shoot",
