@@ -12,6 +12,8 @@ You can type a name (`white`, `black`, `rebeccapurple`), a hex (`#333` or `333`)
 
 The **⇆** button between the two boxes flips the pair.
 
+**Best** in either box fills that box with the colour that has the most contrast against the *other* one. The answer is always **black or white**: contrast only grows as two colours move apart, so the most there can ever be sits at one end of the scale. Which end wins is measured rather than guessed — on a mid grey it is black, by a whisker.
+
 The panel below the verdict is painted in those two colours, at large size and at ordinary reading size, so you can *see* the answer as well as read it.
 
 ## What the circle means

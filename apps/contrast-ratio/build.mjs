@@ -138,6 +138,9 @@ if (!html.includes('id="background"') || !html.includes('id="foreground"')) {
 if (!html.includes('id="contrast"') || !html.includes('id="swap"')) {
   throw new Error('index.html must have the contrast circle and swap');
 }
+if (!html.includes('id="backgroundBest"') || !html.includes('id="foregroundBest"')) {
+  throw new Error('index.html must have a Best button on each side');
+}
 if (/gtag\(|googletagmanager|google-analytics|buttons\.github/i.test(html + files['app.js'])) {
   throw new Error('tracking leaked into the port — strip it');
 }
@@ -147,6 +150,9 @@ if (!files['app.js'].includes("db('save')") || !files['app.js'].includes("id: 'l
 }
 if (!files['app.js'].includes('.contrast(')) {
   throw new Error('app.js must call Color.contrast');
+}
+if (!/bestAgainst: bestAgainst/.test(files['app.js'])) {
+  throw new Error('app.js must export bestAgainst — test/unit/contrast-ratio.js asserts the pick');
 }
 
 for (const [n, s] of Object.entries(files)) {
