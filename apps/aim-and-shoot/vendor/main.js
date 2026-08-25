@@ -267,6 +267,18 @@ function coopBridge(){
 		if (i >= 0) guestBodies.splice(i, 1);
 		regroup();
 	};
+	/* A line over the frozen field. A guest whose host has gone quiet is
+	   looking at a still photograph, and a still photograph that says nothing
+	   is indistinguishable from a game that broke. */
+	AAS.notice = function (text) {
+		if (!c || !text) return;
+		c.fillStyle = 'rgba(0,0,0,.55)';
+		c.fillRect(0, h2 - 34, w, 68);
+		c.fillStyle = '#fff';
+		c.textAlign = 'center';
+		c.fillText(text, w2, h2 + 8);
+		c.textAlign = 'start';
+	};
 	AAS.showRemote = function (bodies, shots, gen) {
 		players = bodies;
 		bullets = shots;
@@ -340,9 +352,13 @@ const update = function(){
 	   draws the host's arena — one fight, one set of bots, one truth. */
 	if( coop && coop.guest() ){
 
-		if( coop.guestFrame() ) draw();
+		if( coop.guestFrame() ){
 
-		else joiningScreen();
+			draw();
+
+			if( coop.quiet() ) AAS.notice("Waiting for the host\u2026");
+
+		}else joiningScreen();
 
 		prevTime = nextTime;
 
