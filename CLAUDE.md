@@ -178,6 +178,17 @@ to bypass once). There are two, and they are not redundant:
 A clone without `core.hooksPath` set is the hole. The rewrite cost a full
 force-push over every clone on the box; the config command costs one line.
 
+**THE THREE SANCTIONED EXCEPTIONS.** GitHub pins every pull request's head under
+`refs/pull/<n>/head` — a ref GitHub owns, that no force-push rewrites and no API
+deletes. PR #3 (closed 2026-07-22, branch long gone) pins three commits that name
+a machine and sit on no branch: `153835b0`, `0c46e6b1`, `8abc71ca`. Nothing short
+of asking GitHub to delete the pull request reaches them, and that is not worth
+doing for three commits nobody navigates to. **These three are the ONLY permitted
+exceptions to the no-topology rule.** Like `test/batteries/known-unfixed.sh`, the
+list may only ever SHRINK — never add to it to get out of a scrub. The gate stays
+green because it walks `--branches --tags`, and PR refs are neither; if you fetch
+`refs/pull/*` into a clone, keep it out of a namespace the gate walks.
+
 The harnesses already exist — `test/swarm/meet.js` for meetings/topology, and
 `test/tools/approom-host.js` + `test/tools/approom-join.js` for app-room join
 latency (the latter prints a per-leg `TRACE snap@… ask@… app-frame@… mounted@…`
