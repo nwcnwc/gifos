@@ -136,19 +136,25 @@
     // Vanguard's dynamic spending (Jaconetti et al. 2020): aim at a percentage
     // of the balance, but cap how far the PAYCHECK may move against last year.
     //
-    // Ceiling +5%, floor -1.5%. Not -2.5%: Vanguard's own document is
-    // internally inconsistent — the body text and the figures every published
-    // success rate is computed from use -1.5%, while an appendix and the
-    // consumer flyer say -2.5%, which is the number most secondary sources
-    // repeat. The figures win. And the asymmetry is deliberate: their footnote
-    // notes a higher ceiling than floor suits loss aversion.
+    // Ceiling +5%, floor -2.5%.
+    //
+    // Vanguard has published this rule twice with two different floors, and it
+    // is worth being explicit about which one this is. The 2020 paper's body
+    // text and the figures its success rates are computed from use -1.5%; an
+    // appendix of the same paper, the consumer flyer, and the 2023 white paper
+    // all say -2.5%. Morningstar's 2025 implementation uses -2.5%. So -2.5% is
+    // the current published spec and the one a reader comparing against another
+    // tool will meet, and it is what this uses.
+    //
+    // The asymmetry is deliberate either way — Vanguard's own footnote observes
+    // that a ceiling higher than the floor suits loss aversion.
     dynamic: {
       label: 'Smoothed',
-      blurb: 'Follow the portfolio, but cap any raise at 5% and any cut at 1.5% a year. Vanguard\'s ceiling-and-floor method.',
+      blurb: 'Follow the portfolio, but cap any raise at 5% and any cut at 2.5% a year. Vanguard\'s ceiling-and-floor method.',
       step: function (st, ctx) {
         var target = ctx.balance * (ctx.plan.percentRate || 0.04);
         if (st.w === undefined) { st.w = ctx.base; return st.w; }
-        st.w = clamp(target, st.w * 0.985, st.w * 1.05);
+        st.w = clamp(target, st.w * 0.975, st.w * 1.05);
         return st.w;
       }
     },
