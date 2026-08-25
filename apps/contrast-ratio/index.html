@@ -9,7 +9,10 @@
 <body>
   <header id="bar">
     <div class="field">
-      <label for="background">Background</label>
+      <div class="field-head">
+        <label for="background">Background</label>
+        <output class="hex" id="backgroundHex" for="background" aria-live="polite"></output>
+      </div>
       <span class="entry">
         <span class="swatch">
           <span class="swatch-color" id="backgroundSwatch"></span>
@@ -23,7 +26,10 @@
     <button type="button" id="swap" title="Swap the two colours" aria-label="Swap the two colours">&#8646;</button>
 
     <div class="field">
-      <label for="foreground">Text</label>
+      <div class="field-head">
+        <label for="foreground">Text</label>
+        <output class="hex" id="foregroundHex" for="foreground" aria-live="polite"></output>
+      </div>
       <span class="entry">
         <span class="swatch">
           <span class="swatch-color" id="foregroundSwatch"></span>
