@@ -36,14 +36,19 @@ const OUT = path.resolve(val('--out', COVER
   ? path.join(__dirname, '..', 'screenshot.png')
   : path.join('/tmp', 'retirement' + (PHONE ? '-phone' : '') + (USE_GIF ? '-gif' : '') + '.png')));
 
-const VIEW = PHONE ? { width: 390, height: 844 } : { width: 1280, height: 860 };
+// The cover is resized to 1200 wide by the catalog, so shoot 1400 at 1x: wide
+// enough for the two-column layout, and it lands just above the target rather
+// than being blown up.
+const VIEW = PHONE ? { width: 390, height: 844 }
+  : COVER ? { width: 1400, height: 900 }
+    : { width: 1280, height: 860 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext({
     viewport: VIEW,
-    deviceScaleFactor: COVER ? 2 : 1,
+    deviceScaleFactor: 1,
     isMobile: PHONE,
     hasTouch: PHONE
   });
@@ -101,14 +106,31 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
 
   if (COVER) {
-    // Catch the app mid-use, not at a cold first boot: open the panel that
-    // shows the app has depth, and park the crosshair on a real year.
-    await frame.evaluate(() => {
-      const d = document.getElementById('secIncome');
-      if (d) d.open = true;
-      window.scrollTo(0, 0);
+    // The store master has to catch the app MID-USE. A cold first boot is a
+    // wall of default UI and sells nothing; what sells this app is the verdict,
+    // the fan of every retirement in the record, and the fact that it ends with
+    // something to do about it — all on screen at once, with a live readout
+    // hanging off the chart so it reads as a thing being used.
+    await frame.waitForFunction(
+      () => document.querySelectorAll('#adviceList .advice').length > 0,
+      null, { timeout: 60000 }
+    ).catch(() => {});
+    await frame.evaluate(() => window.scrollTo(0, 0));
+    await sleep(400);
+
+    // Park the crosshair on a real age so the tooltip is up in the shot.
+    const box = await (USE_GIF ? page.locator('#appmount iframe') : page).boundingBox();
+    const svg = await frame.evaluate(() => {
+      const s = document.querySelector('#chartFan svg.chart');
+      if (!s) return null;
+      const r = s.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
     });
-    await sleep(500);
+    if (svg) {
+      await page.mouse.move((box ? box.x : 0) + svg.x + svg.w * 0.72,
+                            (box ? box.y : 0) + svg.y + svg.h * 0.45);
+      await sleep(500);
+    }
   }
 
   const state = await frame.evaluate(() => {

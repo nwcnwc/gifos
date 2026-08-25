@@ -5432,6 +5432,47 @@
       "sha256": "7f895c4f920f61d6fd95106c218d7aed3b5f1fec326d371d0e54bcd24bde45bd"
     },
     {
+      "slug": "retirement",
+      "appId": "retirement",
+      "name": "Retirement Calculator",
+      "shortName": "Retirement",
+      "version": "1.0",
+      "tagline": "Will your money last? Tested against every real retirement since 1871.",
+      "author": {
+        "name": "GifOS",
+        "url": "https://gifos.app"
+      },
+      "minBuild": 947,
+      "offline": true,
+      "releaseDate": "2026-08-25",
+      "updated": "2026-08-25",
+      "categories": [
+        "Productivity",
+        "Utilities"
+      ],
+      "tags": [
+        "retirement",
+        "money",
+        "savings",
+        "pension",
+        "fire",
+        "planning",
+        "investing",
+        "offline"
+      ],
+      "accent": [
+        57,
+        135,
+        229
+      ],
+      "cover": "/apps/retirement/cover.jpg",
+      "bytes": 380375,
+      "download": 0,
+      "provides": null,
+      "signature": null,
+      "sha256": "3c1fd7d00a06b41a08029b13815c54bbf6608157a0b8e7382893fba988dcbfc6"
+    },
+    {
       "slug": "reversi",
       "appId": "reversi",
       "name": "Reversi",
