@@ -8,6 +8,7 @@
 //
 // Run:  node apps/retirement/build.mjs
 import { retirementIcon } from './icon.mjs';
+import { creditsJson, CREDITS_PATH } from '../../scripts/app-credits.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -112,6 +113,13 @@ const files = {
 for (const s of SCRIPTS) files[s] = read(s);
 
 if (files['help.md'].trim().length < 800) throw new Error('help.md is too thin');
+
+// CREDITS UNDER THE SEAL. The Help screen's credit has to be signed bytes rather
+// than a store record, so who-made-this travels with a stolen copy and a Save.
+// Deriving it here, from the same helper sign-apps.mjs uses, means the GIF is
+// already correct when it is signed and the signer leaves it byte-identical
+// instead of repacking it.
+files[CREDITS_PATH] = creditsJson(listing, 'retirement');
 
 const html = files['index.html'];
 for (const s of SCRIPTS) {

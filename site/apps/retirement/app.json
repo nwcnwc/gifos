@@ -43,9 +43,9 @@
   "cover": "/apps/retirement/cover.jpg",
   "screenshots": [],
   "gif": "/apps/retirement/retirement.gif",
-  "bytes": 379279,
+  "bytes": 380375,
   "download": 0,
   "provides": null,
-  "sha256": "b4a86e217aad13bbadda7bc97a180dd30014267a270c976d1cb57d34dca51c7f",
+  "sha256": "3c1fd7d00a06b41a08029b13815c54bbf6608157a0b8e7382893fba988dcbfc6",
   "signature": null
 }
