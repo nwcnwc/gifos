@@ -71,11 +71,65 @@ under 30, a grunt on the hit, and a red arc that POINTS at whatever bit you.
 
 | # | piece | state |
 | - | ----- | ----- |
-| P1 | the corridor — DDA, wall/floor/ceiling textures, lights, fog | |
-| P2 | the things — sprite figures, walk, hurt, death | |
-| P3 | the shotgun — sprite, bob, pump, muzzle flash | |
-| P4 | feel + HUD — status bar, damage, shake, sound | |
-| P5 | the icon (icon.mjs) | |
-| P6 | the store art (screenshot.png) | |
-| P7 | the listing copy | |
-| P8 | platform: save, invite, offline | |
+| P1 | the corridor — DDA, wall/floor/ceiling textures, lights, fog | done |
+| P2 | the things — sprite figures, walk, hurt, death, corpses | done |
+| P3 | the shotgun — sprite, bob, pump, muzzle flash | done |
+| P4 | feel + HUD — status bar, damage direction, shake, sound | done |
+| P5 | the icon (icon.mjs) — its own raycaster | done |
+| P6 | the store art — a REAL captured frame | done |
+| P7 | the listing copy | done |
+| P8 | platform: save, invite, offline, sandbox boot | done |
+
+## Round 2 — the critics
+
+Three sub-agents with fresh context, none of which read the code's reasoning.
+
+**Phone (real touch, 390x844 and 844x390).** Its headline was right and it was
+structural: six runs, no input, dead at 7.3/7.4/7.4/7.4/7.4/7.4 seconds — the
+same ladder to the tick. Playing perfectly bought 13 seconds and one kill.
+Also: the look surface began at 40% of the width so the whole left side of the
+screen was dead to both looking and moving; the stick was a fixed pad a thumb
+could not find by feel; FIRE did not repeat; and `max(14px, env(safe-area))`
+lands the HUD exactly ON the home indicator rather than clear of it. All fixed.
+What it could not fault: 59.8 fps portrait / 59.2 landscape, clean mid-game
+rotation, every hit target over 44x44.
+
+**Visual, against DOOM (1993).** Called the monster and the weapon losses
+against the 1993 bar, and the corridor and the lighting wins. Its single
+biggest gap was the level, and it proved it with a number: on a 70x70 scan the
+longest run of open floor with a wall on both sides was SIX tiles, in either
+axis, anywhere. Six is the block width — with crossings every seven cells the
+perpendicular hall cuts the wall open at every junction, so an endless hall
+was structurally impossible. Fixed by a twelve-cell lattice period; measured
+ten now, on every seed. It also caught that NOTHING MOVED when you stood
+still — two frames 120 ms apart were byte-identical, in a game whose setting
+is famous for a stuttering fluorescent tube.
+
+One claim from that report was investigated and REJECTED: "sprites are lit on
+a third of the falloff curve of the walls". Both go through the same `fog()`
+with the same perpendicular distance. The measurement was a mean over a
+bounding box, which at range is mostly the wall behind the sprite plus its own
+eye-glow texels.
+
+## Measurements that decided things
+
+| question | answer |
+| --- | --- |
+| longest fully-walled corridor, before / after | 6 tiles / 10 tiles |
+| passive run (no input at all) | dead at 10.2 s |
+| skilled play, before the balance work | 13 s, 1 kill |
+| skilled play, after | 35 s, 31 kills |
+| frame rate on a phone viewport | 59.8 fps portrait, 59.2 landscape |
+| App GIF size | ~257 KB |
+
+## Still open
+
+- The monster is ONE front-facing billboard used for all 360 degrees. DOOM gave
+  its imps eight rotations, so their facing told you whether they had seen you.
+  This is the largest remaining gap against bar ONE.
+- There is one floor texture and one ceiling texture (walls have three). The
+  halls still have no second kind of object in them — no sign, no door, no
+  vent, nothing to remember a place by, in a game about being lost.
+- Portrait keeps a sane horizontal field of view now, but pays for it in
+  ceiling. The start card says to turn the phone; a letterboxed portrait
+  layout with the controls below the view would be better.
