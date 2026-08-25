@@ -209,7 +209,7 @@
 
       /* DOOM's fake contrast, then sector light, then diminishing */
       var shade = (side === 1 ? 0.655 : 1) * sector(mapX, mapY) * fog(perp);
-      if (flashAmt > 0) shade += flashAmt * 1.5 * fog(perp * 1.5);
+      if (flashAmt > 0) shade += flashAmt * 0.72 * fog(perp * 2.2);
       if (shade <= 0.004) {
         for (y = y0; y < y1; y++) buf32[y * W + i] = 0xff000000;
         continue;
@@ -249,7 +249,7 @@
        */
       var rowDist = pp < 1 ? 1e9 : (isFloor ? EH : CH) * H / pp;
       var base = rowDist >= FAR ? 0 : fog(rowDist);
-      if (flashAmt > 0 && rowDist < FAR) base += flashAmt * 1.5 * fog(rowDist * 1.5);
+      if (flashAmt > 0 && rowDist < FAR) base += flashAmt * 0.72 * fog(rowDist * 2.2);
       if (base <= 0.004) {
         for (i = 0; i < W; i++) {
           if (y < spanTop[i] || y > spanBot[i]) buf32[rowOff0 + i] = 0xff000000;
@@ -397,10 +397,16 @@
       if (y1 <= y0) continue;
 
       var shade = sector(Math.floor(e.x), Math.floor(e.y)) * f;
-      if (flashAmt > 0) shade += flashAmt * 1.7 * fog(tY * 1.4);
-      /* hit feedback: it goes WHITE for a beat, the way DOOM's did */
-      var hurtK = e.hurt > 0 ? Math.min(1, e.hurt) : 0;
-      if (shade > 2.2) shade = 2.2;
+      if (flashAmt > 0) shade += flashAmt * 0.66 * fog(tY * 2.0);
+      /*
+       * Hit feedback, capped. At full strength it overwrote every pixel of the
+       * body with one flat colour, so a thing you just shot stopped being a
+       * thing — it became two or three disconnected salmon blobs where the
+       * opaque parts of the sprite were. Six-tenths of the way to a warm white
+       * still reads as a hit and leaves the silhouette and the shading intact.
+       */
+      var hurtK = e.hurt > 0 ? Math.min(0.62, e.hurt * 0.62) : 0;
+      if (shade > 1.5) shade = 1.5;
 
       for (var x = Math.max(0, x0); x < Math.min(W, x1); x++) {
         if (tY >= zbuf[x]) continue;
@@ -416,7 +422,7 @@
           var k = shade * vx * vigY[y];
           var r = spr.px[so] * k, g = spr.px[so + 1] * k, b = spr.px[so + 2] * k;
           if (hurtK) {
-            r += (255 - r) * hurtK; g += (200 - g) * hurtK * 0.8; b += (190 - b) * hurtK * 0.8;
+            r += (255 - r) * hurtK; g += (246 - g) * hurtK; b += (236 - b) * hurtK;
           }
           var d = (y * W + x) * 4;
           if (al > 235) {
@@ -472,7 +478,7 @@
 
     if (s.flash > 0.02) {
       var fc = flashCan[s.flashId % flashCan.length];
-      var fs = gw * (0.30 + 0.16 * s.flash);
+      var fs = gw * (0.34 + 0.30 * s.flash);
       var mx = gx + gw * (68 / A.gunW), my = gy + gh * (10 / A.gunH);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
