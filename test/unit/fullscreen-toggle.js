@@ -42,6 +42,15 @@ for (const b of bars) {
   check(b.page + ': …shipped hidden, for the module to reveal', /style="display:none"/.test(btn));
   check(b.page + ': …and it says what it is to a screen reader', /aria-label="Full screen"/.test(btn));
   check(b.page + ': loads the one implementation', html.includes(SRC));
+  // PLACEMENT IS THE ASK, not an accident: the toggle sits in the bar's far
+  // right corner, last past the named actions, so the Home Screen and the app
+  // bar put it in the same place on screen. A later edit that inserts a button
+  // after it moves the control the user reaches for without meaning to.
+  if (b.id === 'fs-btn') {
+    const tags = bar.match(/<button[^>]*id="([a-z-]+)"/g) || [];
+    check(b.page + ': …in the far right corner, last in the bar',
+      /id="fs-btn"/.test(tags[tags.length - 1] || ''), tags.length + ' buttons');
+  }
   check(b.page + ': wires it through GifOS.fullscreen.attach, hand-rolling nothing',
     b.page === 'run.html'
       ? /GifOS\.fullscreen\.attach\(document\.getElementById\('appfull'\)/.test(html)
