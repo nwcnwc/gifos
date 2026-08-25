@@ -337,6 +337,10 @@ check('lost pointer lock pauses and offers click to look',
   boot.includes('pointerlockchange') && boot.includes('setPaused') && boot.includes('Click to look') === false
     ? html.includes('Click to look') : true);
 check('html says Click to look', html.includes('Click to look'));
+// Upstream prints GAME OVER. The port had invented 'You fell', which is not
+// the original's word AND describes a thing this game does not have — there
+// is nothing to fall off; every death is something clawing you.
+check('the death card uses the original\'s word', /GAME OVER/.test(html) && !/You fell/i.test(html));
 check('Back backs out of a run, then lets the OS close',
   boot.includes('onBack') && boot.includes('toGate') && boot.includes('return false'));
 // The claim is "a still tap on the look surface fires". Pinning the literal
