@@ -119,7 +119,8 @@ eye-glow texels.
 | passive run (no input at all) | dead at 10.2 s |
 | skilled play, before the balance work | 13 s, 1 kill |
 | skilled play, after | survives a 180 s cap, 23 kills, ends on 0 shells |
-| frame rate on a phone viewport | 59.8 fps portrait, 59.2 landscape |
+| frame rate, phone landscape (506x234) | 60 fps median, p99 16.8 ms, 1 frame >33 ms in 295 |
+| frame rate, desktop 1440x900 (435x272) | 60 fps median, p99 16.8 ms, 1 frame >33 ms in 295 |
 | App GIF size | ~257 KB |
 
 ## Round 3 — the thing a bot found that no critic did
@@ -137,6 +138,16 @@ moved.
 Worth writing down as a method note: two harsh critics with fresh context
 missed this, because it does not show up in a screenshot and it does not show
 up in twenty seconds of play. It took leaving something running.
+
+## One more for CLAUDE.md's "one box cannot tell a bug from a busy kernel"
+
+The desktop frame-rate leg first measured 96 dropped frames out of 295 and
+looked like a real regression from the renderer work. It was not. `nproc` said
+6, `/proc/loadavg` said 3.2, and eleven Chromium processes were alive — a
+fresh-eyes sub-agent was playing the game in another browser at the time. The
+phone leg, rendering the SAME 118k-pixel budget, measured clean in the same
+conditions, which is the tell. Re-run on a quieter box: 1 dropped frame in 295
+on both. Check the load before believing the red.
 
 ## Still open
 
