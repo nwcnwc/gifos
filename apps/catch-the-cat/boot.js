@@ -4,7 +4,8 @@
  * Upstream is a Phaser.Game. This file sizes the honeycomb for the phone,
  * hides the in-canvas chrome, and talks to net.js. Solo is the original game.
  * A room is a race: the same seed, each player on their own board, fewest taps
- * to wall the cat in.
+ * to wall the cat in. net.js scores each round; this file draws the standings,
+ * calls the result, and keeps the series in front of the players.
  */
 (function (root) {
   'use strict';
@@ -12,14 +13,47 @@
   var game = null;
   var racing = false;
   var seed = 1;
+  var round = 0;
   var statusEl = document.getElementById('status');
   var clicksEl = document.getElementById('clicks');
   var rosterEl = document.getElementById('roster');
   var boardEl = document.getElementById('board');
+  var stageEl = document.getElementById('stage');
+  var flashEl = document.getElementById('flash');
   var undoBtn = document.getElementById('undo');
   var againBtn = document.getElementById('again');
+  var flashAt = 0;
+  var over = false;
 
   function taps(n) { return n === 1 ? '1 tap' : n + ' taps'; }
+
+  function names(list) {
+    var n = list.map(function (p) { return p.mine ? 'You' : (p.name || 'Player'); });
+    if (n.length < 3) return n.join(' and ');
+    return n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1];
+  }
+
+  // A short shout over the board. Never over the dots you are about to tap:
+  // it clears itself, and it never eats a pointer (pointer-events: none).
+  function flash(msg, kind) {
+    flashEl.textContent = msg;
+    flashEl.className = kind || '';
+    flashEl.hidden = false;
+    clearTimeout(flashAt);
+    flashAt = setTimeout(function () { flashEl.hidden = true; }, 2800);
+  }
+
+  // Upstream starts a fresh chase when you tap a finished board. That is the
+  // solo game and it stays; in a race it would hand you a private board and
+  // flip your row back to 'playing' after everyone had already stopped, so the
+  // board stops taking taps until the next round starts. Pinch still zooms.
+  function done() { stageEl.classList.add('done'); }
+
+  function armAgain(next) {
+    over = !!next;
+    againBtn.textContent = next ? 'Next round' : 'New board';
+    againBtn.classList.toggle('ready', !!next);
+  }
 
   function setStatus(msg, kind) {
     statusEl.textContent = msg;
@@ -56,14 +90,14 @@
     game.events.on('ctc-win', function (ev) {
       var n = ev && ev.clicks || 0;
       setClicks(n);
-      setStatus('The cat is walled in — ' + taps(n) + '.', 'win');
-      if (racing) root.CTCNet.report(n, 'win');
+      setStatus('The cat is walled in — ' + taps(n) + '.' + (racing ? ' Waiting on the others.' : ''), 'win');
+      if (racing) { done(); root.CTCNet.report(n, 'win'); }
     });
     game.events.on('ctc-lose', function (ev) {
       var n = ev && ev.clicks || 0;
       setClicks(n);
-      setStatus('The cat reached the edge.', 'lose');
-      if (racing) root.CTCNet.report(n, 'lose');
+      setStatus('The cat reached the edge.' + (racing ? ' Waiting on the others.' : ''), 'lose');
+      if (racing) { done(); root.CTCNet.report(n, 'lose'); }
     });
   }
 
@@ -103,30 +137,78 @@
     })(game);
     bind();
     setClicks(0);
-    setStatus(racing
-      ? 'Same board. Fewest taps to wall the cat in.'
-      : 'Tap the dots. Wall the cat in.');
+    flashEl.hidden = true;
+    stageEl.classList.remove('done');
+    armAgain(false);
+    setStatus(!racing ? 'Tap the dots. Wall the cat in.'
+      : round ? 'Round ' + round + '. Same board for everyone — fewest taps takes it.'
+      : 'Same board for everyone — fewest taps takes it.');
     if (racing) root.CTCNet.report(0, 'playing');
   }
 
+  // The standings are the SERIES, not this board: wins first, this board second.
+  // net.js has already sorted them; this only paints.
   function drawRoster(list) {
     if (!racing) { rosterEl.hidden = true; return; }
     list = list || [];
+    rosterEl.hidden = false;
     if (list.length < 2) {
-      rosterEl.hidden = false;
-      rosterEl.innerHTML = 'Waiting for someone else — they get this same board.';
+      rosterEl.innerHTML = '<div class="wait">Waiting for someone else — they get this same board.</div>';
       return;
     }
-    rosterEl.hidden = false;
-    var best = Infinity;
-    list.forEach(function (p) { if (p.status === 'win' && p.clicks < best) best = p.clicks; });
-    rosterEl.innerHTML = list.map(function (p) {
-      var cls = 'row' + (p.mine ? ' me' : '') + (p.status === 'win' && p.clicks === best ? ' lead' : '') +
+    var lead = 0;
+    list.forEach(function (p) { if (p.wins > lead) lead = p.wins; });
+    var chasing = list.filter(function (p) { return p.status === 'playing'; });
+    var head = round ? 'Round ' + round : 'This board';
+    if (!chasing.length) head += ' · over';
+    else if (chasing.length === 1) head += ' · waiting on ' + (chasing[0].mine ? 'you' : chasing[0].name);
+    else head += ' · ' + chasing.length + ' still chasing';
+
+    var rows = list.map(function (p) {
+      var cls = 'row' + (p.mine ? ' me' : '') +
         (p.status === 'win' ? ' win' : p.status === 'lose' ? ' lose' : '');
-      var label = p.status === 'win' ? taps(p.clicks) : p.status === 'lose' ? 'got away' : taps(p.clicks);
-      return '<div class="' + cls + '"><span>' + escapeHtml(p.name || 'Player') +
-        (p.mine ? ' (you)' : '') + '</span><span>' + label + '</span></div>';
+      var crown = (lead > 0 && p.wins === lead) ? '<b class="crown" title="Leading the room">\u265b</b>' : '';
+      var streak = p.streak > 1 ? '<b class="streak" title="' + p.streak + ' rounds in a row">\ud83d\udd25' + p.streak + '</b>' : '';
+      var board = p.status === 'win' ? taps(p.clicks)
+        : p.status === 'lose' ? 'got away'
+        : taps(p.clicks) + '\u2026';
+      return '<div class="' + cls + '">' +
+        '<span class="who">' + crown + escapeHtml(p.name || 'Player') +
+        (p.mine ? ' (you)' : '') + streak + '</span>' +
+        '<b class="wins' + (p.wins ? '' : ' zero') + '">' + p.wins + '</b>' +
+        '<span class="taps">' + board + '</span></div>';
     }).join('');
+
+    rosterEl.innerHTML =
+      '<div class="head"><span class="who">' + escapeHtml(head) + '</span>' +
+      '<b class="wins">wins</b><span class="taps">this board</span></div>' + rows;
+  }
+
+  // Every client scores the round off the same rows, so this fires once, here
+  // and on every other screen in the room, with the same answer.
+  function showResult(r) {
+    armAgain(true);
+    if (r.abandoned) {
+      flash('Everyone else left the round.');
+      setStatus('Everyone else left. Nothing to score — start a new board.');
+      return;
+    }
+    if (r.escaped) {
+      flash('The cat got away from everyone.', 'lose');
+      setStatus('Nobody penned it. Next round?', 'lose');
+      return;
+    }
+    var who = names(r.winners);
+    if (r.mine && !r.shared) {
+      flash('Round ' + r.n + ' is yours \u2014 ' + taps(r.clicks) + '!', 'win');
+      setStatus('You take round ' + r.n + ' with ' + taps(r.clicks) + '.', 'win');
+    } else if (r.shared) {
+      flash('Split at ' + taps(r.clicks) + ' \u2014 ' + who + '.', r.mine ? 'win' : '');
+      setStatus(who + ' tie for round ' + r.n + ' at ' + taps(r.clicks) + '.', r.mine ? 'win' : '');
+    } else {
+      flash(who + ' takes it \u2014 ' + taps(r.clicks) + '.', 'lose');
+      setStatus(who + ' wins round ' + r.n + ' with ' + taps(r.clicks) + '.', 'lose');
+    }
   }
 
   function escapeHtml(s) {
@@ -160,10 +242,11 @@
         start(((Math.random() * 0x7fffffff) | 1));
         return;
       }
-      root.CTCNet.onRound = function (r) { start(r.seed); };
+      root.CTCNet.onRound = function (r) { round = r.n || 0; start(r.seed); };
       root.CTCNet.onRoster = drawRoster;
+      root.CTCNet.onResult = showResult;
       var r = root.CTCNet.round();
-      if (r && r.id) start(r.seed);
+      if (r && r.id) { round = r.n || 0; start(r.seed); }
       else {
         // First snapshot can be empty while the host's row is still in flight.
         // Put a board up now; only mint a round if nobody else has one shortly.
