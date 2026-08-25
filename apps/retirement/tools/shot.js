@@ -36,11 +36,28 @@ const OUT = path.resolve(val('--out', COVER
   ? path.join(__dirname, '..', 'screenshot.png')
   : path.join('/tmp', 'retirement' + (PHONE ? '-phone' : '') + (USE_GIF ? '-gif' : '') + '.png')));
 
-// The cover is resized to 1200 wide by the catalog, so shoot 1400 at 1x: wide
-// enough for the two-column layout, and it lands just above the target rather
-// than being blown up.
+/* The cover is shot NARROW on purpose.
+ *
+ * The store card is 248px wide with `aspect-ratio: 16/10; object-fit: cover;
+ * object-position: top center`. A full 1400px-wide desktop screenshot squeezed
+ * into that is a 5.6x reduction: every piece of type falls under 4px and the
+ * card is grey mush. Rendering the catalog's existing covers at 248px shows
+ * exactly which ones survive — the ones with LARGE elements (jspaint's house,
+ * civiclock's city, contrast-ratio's big figure) — and which do not (any dense
+ * full-screen shot).
+ *
+ * What decides legibility is the ratio of CSS pixels to card pixels, and
+ * deviceScaleFactor cannot help with that — it only adds sharpness. So the app
+ * is shot at 840 CSS px, BELOW its two-column breakpoint, where it lays out in
+ * one column: no input rail eating half the frame, the chart at full width, and
+ * type ~3.4x rather than 5.6x down at card size.
+ *
+ * The frame is then clipped to the verdict plus the fan chart, which comes out
+ * at 1.61:1 against the card's 1.60 — so the card crops essentially nothing and
+ * the listing hero shows the same picture whole.
+ */
 const VIEW = PHONE ? { width: 390, height: 844 }
-  : COVER ? { width: 1400, height: 900 }
+  : COVER ? { width: 840, height: 700 }
     : { width: 1280, height: 860 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -48,7 +65,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const browser = await chromium.launch({ executablePath: CHROME });
   const context = await browser.newContext({
     viewport: VIEW,
-    deviceScaleFactor: 1,
+    deviceScaleFactor: COVER ? 2 : 1,
     isMobile: PHONE,
     hasTouch: PHONE
   });
@@ -127,9 +144,30 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       return { x: r.x, y: r.y, w: r.width, h: r.height };
     });
     if (svg) {
-      await page.mouse.move((box ? box.x : 0) + svg.x + svg.w * 0.72,
+      await page.mouse.move((box ? box.x : 0) + svg.x + svg.w * 0.74,
                             (box ? box.y : 0) + svg.y + svg.h * 0.45);
       await sleep(500);
+    }
+
+    // Clip to the verdict and the fan. The reading paragraph below is the first
+    // thing the card would crop anyway, and leaving it in only shrinks
+    // everything that matters.
+    const clip = await frame.evaluate(() => {
+      const a = document.getElementById('verdict');
+      const b = document.getElementById('legFan');
+      if (!a || !b) return null;
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      return { x: ra.left, y: ra.top, w: rb.right - ra.left, h: rb.bottom - ra.top };
+    });
+    if (clip && box) {
+      await page.screenshot({
+        path: OUT,
+        clip: { x: box.x + clip.x, y: box.y + clip.y, width: clip.w, height: clip.h }
+      });
+      await browser.close();
+      console.log('wrote ' + OUT + '  (' + Math.round(clip.w) + 'x' + Math.round(clip.h)
+        + ' css, ' + (clip.w / clip.h).toFixed(2) + ':1 — the card is 1.60:1)');
+      process.exit(0);
     }
   }
 
