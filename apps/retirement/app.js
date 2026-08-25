@@ -18,7 +18,7 @@
 (function () {
   'use strict';
 
-  var S = window.RetireSim, C = window.Charts;
+  var S = window.RetireSim, C = window.Charts, A = window.Advice;
   var $ = function (id) { return document.getElementById(id); };
 
   // ---- defaults --------------------------------------------------------------
@@ -57,6 +57,7 @@
     dirty: false,
     result: null,
     compareResult: null,
+    advice: null,
     db: null, prefsDb: null,
     ready: false
   };
@@ -332,7 +333,8 @@
 
   // ---- the compute cycle -----------------------------------------------------
 
-  var mainTimer = null, extrasTimer = null, dragging = false;
+  var mainTimer = null, extrasTimer = null, adviceTimer = null, adviceToken = 0;
+  var dragging = false;
 
   function touched() {
     state.dirty = true;
@@ -346,6 +348,9 @@
   function schedule() {
     if (mainTimer) clearTimeout(mainTimer);
     if (extrasTimer) { clearTimeout(extrasTimer); extrasTimer = null; }
+    if (adviceTimer) { clearTimeout(adviceTimer); adviceTimer = null; }
+    adviceToken++;
+    state.advice = null;
     markPending();
     mainTimer = setTimeout(computeMain, dragging ? 16 : 70);
   }
@@ -353,6 +358,7 @@
   function markPending() {
     $('statRetire').classList.add('pending');
     $('statSpend').classList.add('pending');
+    $('adviceSub').textContent = 'Working through the options…';
   }
 
   function computeMain() {
@@ -404,7 +410,28 @@
         : 'The earliest age that clears ' + Math.round(p.target * 100) + '% of the runs.';
       state.solvedAge = age;
       renderCurve();
+      adviceTimer = setTimeout(computeAdvice, 30);
     }, 0);
+  }
+
+  /* The advice pass is the most expensive thing here — every suggestion is a
+   * fresh sweep of history — so it runs dead last, after the reader already has
+   * the picture and both solved numbers, and it is abandoned the moment an
+   * input changes. */
+  function computeAdvice() {
+    adviceTimer = null;
+    var r = state.result, p = state.plan;
+    if (!r || !r.cycles) return;
+    var token = ++adviceToken;
+    var list;
+    try {
+      list = A.suggest(p, r.successRate, p.target, { step: 3 });
+    } catch (e) {
+      list = [];
+    }
+    if (token !== adviceToken) return;
+    state.advice = list;
+    renderAdvice();
   }
 
   function renderTooShort() {
@@ -668,6 +695,100 @@
       rows.push([String(p.currentAge + y0 + y)].concat(series.map(function (s) { return money(s.values[y] || 0); })));
     }
     C.table($('tblStack'), ['Age'].concat(series.map(function (s) { return s.label; })), rows);
+  }
+
+  var ADVICE_MARK = { fix: '✓', help: '↑', room: '+', note: 'i' };
+
+  function renderAdvice() {
+    var host = $('adviceList');
+    host.textContent = '';
+    var list = state.advice;
+    var r = state.result, p = state.plan;
+    if (!list) return;
+    var short = r && r.successRate < p.target;
+    var strat = S.STRATEGIES[p.strategy] || S.STRATEGIES.constant;
+
+    $('adviceHead').textContent = short ? 'What would fix it' : 'What this buys you';
+    if (strat.selfLimiting) {
+      $('adviceSub').textContent = 'This method cannot run out, so there is nothing here to shore up — '
+        + 'the question becomes how big the paycheck is, not whether it arrives.';
+    } else if (!list.length) {
+      $('adviceSub').textContent = short
+        ? 'Nothing single-handedly closes this gap. It will take more than one change.'
+        : 'Nothing worth changing — the plan clears the bar with room to spare.';
+    } else if (short) {
+      $('adviceSub').textContent = list.clears
+        ? 'Each of these was measured by re-running your plan against all of history. '
+          + 'The cheapest change that clears ' + pctWord(p.target) + ' is first.'
+        : 'No single change gets you to ' + pctWord(p.target) + ', so these are ranked by how far '
+          + 'each one moves you. Two of them together usually will — press Try it and watch.';
+    } else {
+      $('adviceSub').textContent = 'Room you have not spent. Each was measured the same way the verdict was.';
+    }
+    if (!list.length) {
+      var e = document.createElement('p');
+      e.className = 'advice-empty';
+      e.textContent = strat.selfLimiting
+        ? 'Switch to Steady paycheck above to see what a fixed budget would take.'
+        : '';
+      if (e.textContent) host.appendChild(e);
+      return;
+    }
+
+    list.slice(0, 5).forEach(function (a) {
+      var d = document.createElement('div');
+      d.className = 'advice ' + a.kind;
+      var mk = document.createElement('span');
+      mk.className = 'advice-mark';
+      mk.setAttribute('aria-hidden', 'true');
+      mk.textContent = ADVICE_MARK[a.kind] || '·';
+      var t = document.createElement('b');
+      t.textContent = a.title;
+      var pp = document.createElement('p');
+      pp.textContent = a.detail;
+      d.appendChild(mk); d.appendChild(t); d.appendChild(pp);
+
+      // Anything the app can just DO, it offers to do — a suggestion you have
+      // to retype by hand is a suggestion most people never test.
+      var apply = applier(a);
+      if (apply) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'advice-apply';
+        b.textContent = 'Try it';
+        b.addEventListener('click', function () { apply(); writeForm(); touched(); });
+        d.appendChild(b);
+      }
+      host.appendChild(d);
+    });
+  }
+
+  function applier(a) {
+    var p = state.plan;
+    if (a.id === 'spend') return function () { p.annualSpend = Math.max(0, p.annualSpend + (a.kind === 'room' ? a.cost : -a.cost)); };
+    if (a.id === 'age') {
+      var m2 = /at (\d+)/.exec(a.detail);
+      if (m2) return function () { p.retireAge = clamp(+m2[1], p.currentAge, p.endAge - 1); };
+      return null;
+    }
+    if (a.id === 'save') return function () { p.annualSavings = p.annualSavings + a.cost; };
+    if (a.id === 'mix') {
+      var m3 = /Hold (\d+)%/.exec(a.title);
+      if (m3) return function () { p.stocks = clamp(+m3[1] / 100, 0, 1); };
+      return null;
+    }
+    if (a.id === 'flex') return function () { p.strategy = 'guardrails'; };
+    if (a.id === 'fees') return function () { p.fees = 0.0005; };
+    if (a.id === 'defer') return function () {
+      var k = -1;
+      for (var i = 0; i < p.incomes.length; i++) {
+        if (p.incomes[i] && p.incomes[i].cola !== false && /social|security|state pension/i.test(p.incomes[i].label || '')) { k = i; break; }
+      }
+      if (k < 0) return;
+      p.incomes[k].amount = Math.round(p.incomes[k].amount * A.deferFactor(p.incomes[k].from, 70));
+      p.incomes[k].from = 70;
+    };
+    return null;
   }
 
   function renderWorst() {

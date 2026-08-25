@@ -385,6 +385,45 @@ svg.chart { display: block; width: 100%; overflow: visible; }
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .table-scroll { max-height: 15rem; overflow: auto; }
 
+/* ------------------------------------------------------------ what to do */
+
+.advice-list { display: grid; gap: .5rem; }
+.advice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .1rem .55rem;
+  padding: .6rem .7rem;
+  background: var(--surface-2);
+  border-radius: 10px;
+  border-left: 3px solid var(--muted);
+}
+.advice.fix  { border-left-color: var(--good); }
+.advice.help { border-left-color: var(--s1); }
+.advice.room { border-left-color: var(--good); }
+.advice.note { border-left-color: var(--muted); }
+.advice-mark {
+  grid-row: 1 / span 2;
+  width: 22px; height: 22px; margin-top: .12rem;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-size: .74rem; font-weight: 700;
+  background: rgba(57,135,229,.16); color: #9ec5f4;
+}
+.advice.fix .advice-mark,
+.advice.room .advice-mark { background: rgba(12,163,12,.16); color: #7fd47f; }
+.advice.note .advice-mark { background: rgba(255,255,255,.07); color: var(--muted); }
+.advice b { font-size: .94rem; font-weight: 650; }
+.advice p { margin: .15rem 0 0; color: var(--ink-2); font-size: .82rem; line-height: 1.45; }
+.advice-apply {
+  grid-column: 2; justify-self: start; margin-top: .4rem;
+  min-height: 30px; padding: .2rem .6rem;
+  border: 1px solid var(--line); border-radius: 7px;
+  background: transparent; color: var(--ink-2);
+  font: inherit; font-size: .78rem; cursor: pointer;
+}
+.advice-apply:hover { background: rgba(255,255,255,.07); color: var(--ink); }
+.advice-empty { color: var(--muted); font-size: .85rem; }
+
 /* ------------------------------------------------------- the worst-case card */
 
 .worst-body { display: grid; gap: .5rem; }
