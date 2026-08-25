@@ -65,8 +65,8 @@
       "appId": "aim-and-shoot",
       "name": "Aim and Shoot",
       "shortName": "Aim",
-      "version": "1.1.0",
-      "tagline": "You aim. The robots learn. Don't touch the walls.",
+      "version": "1.2.0",
+      "tagline": "You aim. The robots learn. One arena, with your friends.",
       "author": {
         "name": "Victor Ribeiro",
         "url": "https://github.com/victorqribeiro/aimAndShoot"
@@ -98,15 +98,15 @@
         40
       ],
       "cover": "/apps/aim-and-shoot/cover.jpg",
-      "bytes": 244299,
+      "bytes": 257250,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-25"
       },
-      "sha256": "060cfc86900000a4e080b382a095951497e3cc99eef2300072c56266ac3b4290"
+      "sha256": "87ad0f81c0a62acdf1a11dd4d32efac333dad0164b1348737f86d85ed21cc3b0"
     },
     {
       "slug": "air-hockey",
