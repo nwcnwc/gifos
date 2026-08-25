@@ -215,19 +215,21 @@ body.friend .heading { margin-bottom: 8px; }
   padding: 2px;
   box-sizing: border-box;
 }
+/* Both selectors have to carry `.prev`: a bare `.pv-16` loses to `.prev .pv`
+   on specificity, and every preview paints as an empty board. */
 .prev .pv { display: block; border-radius: 1px; background: rgba(238, 228, 218, 0.35); }
-.pv-2 { background: #eee4da; }
-.pv-4 { background: #ede0c8; }
-.pv-8 { background: #f2b179; }
-.pv-16 { background: #f59563; }
-.pv-32 { background: #f67c5f; }
-.pv-64 { background: #f65e3b; }
-.pv-128 { background: #edcf72; }
-.pv-256 { background: #edcc61; }
-.pv-512 { background: #edc850; }
-.pv-1024 { background: #edc53f; }
-.pv-2048 { background: #edc22e; }
-.pv-super { background: #3c3a32; }
+.prev .pv-2 { background: #eee4da; }
+.prev .pv-4 { background: #ede0c8; }
+.prev .pv-8 { background: #f2b179; }
+.prev .pv-16 { background: #f59563; }
+.prev .pv-32 { background: #f67c5f; }
+.prev .pv-64 { background: #f65e3b; }
+.prev .pv-128 { background: #edcf72; }
+.prev .pv-256 { background: #edcc61; }
+.prev .pv-512 { background: #edc850; }
+.prev .pv-1024 { background: #edc53f; }
+.prev .pv-2048 { background: #edc22e; }
+.prev .pv-super { background: #3c3a32; }
 .hg-meta { min-width: 0; flex: 1; display: block; }
 .hg-top { display: flex; align-items: center; gap: 8px; }
 .hg-score { font-weight: bold; font-variant-numeric: tabular-nums; }
