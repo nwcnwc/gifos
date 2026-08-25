@@ -75,6 +75,21 @@ parameter you can paste into a chat, a QR code, a slide, or a README badge.
 ?run=<slug>              a certified app from the store, e.g. ?run=anyroad
 ```
 
+**A GIF in a GitHub repo** is the common case, and the link you copy from the
+address bar is the `blob` page *about* the file, not the file — GitHub serves
+HTML there, with no CORS, so a fetch cannot read it. Both of these work:
+
+```
+?run=https://raw.githubusercontent.com/<owner>/<repo>/<branch>/<path>/my-app.gif
+?run=https://github.com/<owner>/<repo>/blob/<branch>/<path>/my-app.gif
+```
+
+The first is the direct bytes (`raw.githubusercontent.com` sends
+`access-control-allow-origin: *`) and works on every GifOS build today. The
+second is rewritten to the first on the fly — the edge build does it now, and
+the next release will carry it to everyone else; until then a `blob` link on a
+released build says "couldn't load that link" and names the raw one.
+
 **Open it *on* something.** If your app declares a `launch` block in its
 manifest, a link can also say what to do once it is up:
 
