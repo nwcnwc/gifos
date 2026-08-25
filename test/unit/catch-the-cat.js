@@ -19,6 +19,14 @@
 //      writer's own id, because the moment one client can bump another's wins
 //      the whole self-scored design is a lie.
 //
+// From 1.2.0 a round also has a MODE, and co-op is scored by a different rule
+// that is deliberately asymmetric: every live cat penned CLEARS the round, but
+// a single escape LOSES it at once, without waiting for the rest of the field.
+// Waiting would be waiting to be told something already decided. Both halves
+// are pinned here, on both screens, because a co-op verdict that two clients
+// disagreed about would be worse than a race one — there is only one outcome to
+// get wrong and everybody is looking at it.
+//
 // The fake room applies a put and notifies subscribers SYNCHRONOUSLY, which
 // the real db does not; that only makes the interleaving tighter than reality,
 // and the rule under test is about rows, not timing. Time is a fake clock so
@@ -290,6 +298,98 @@ const wait = () => new Promise((r) => setImmediate(r));
     await wait();
     check('reopening the app does not reset the series', again.tally().wins === 1, again.tally());
     check('...and keeps the best board too', again.tally().best === 10, again.tally());
+  }
+
+  // -------------------------------------------------- co-op: every cat penned
+  {
+    const clock = makeClock(), room = makeRoom();
+    const a = await join(room, clock, 'a', 'Ana');
+    a.net.startRound(0x1234, 'coop');
+    const b = await join(room, clock, 'b', 'Bo');
+    await wait();
+    check('the mode rides on the round, so a guest cannot be in the other game',
+      b.net.mode() === 'coop' && a.net.mode() === 'coop', [a.net.mode(), b.net.mode()]);
+    check('...and a seat is picked per player, not handed out',
+      a.net.seat() !== b.net.seat(), [a.net.seat(), b.net.seat()]);
+
+    a.net.reportCoop({ clicks: 9, walls: [305, 406], i: 4, j: 4, dir: 0, state: 'caught' });
+    clock.advance(50);
+    check('one cat penned is not a verdict — the room waits for the rest',
+      a.results.length === 0 && b.results.length === 0, [a.results, b.results]);
+    b.net.reportCoop({ clicks: 7, walls: [211], i: 3, j: 6, dir: 3, state: 'caught' });
+    await wait();
+    check('every cat penned clears the round', a.results.length === 1 && a.results[0].cleared === true, a.results);
+    check('...on the other screen too', b.results.length === 1 && b.results[0].cleared === true, b.results);
+    check('...counting the whole room\'s taps, not one player\'s',
+      a.results[0].taps === 16 && b.results[0].taps === 16, [a.results[0].taps, b.results[0].taps]);
+    check('...and nobody beat anybody, so no wins are handed out',
+      a.tally().wins === 0 && b.tally().wins === 0, [a.tally(), b.tally()]);
+    check('...but the room keeps a count of what it cleared',
+      a.tally().cleared === 1 && b.tally().cleared === 1, [a.tally().cleared, b.tally().cleared]);
+  }
+
+  // ------------------------------------------------- co-op: one out loses it
+  {
+    const clock = makeClock(), room = makeRoom();
+    const a = await join(room, clock, 'a', 'Ana');
+    a.net.startRound(0x1234, 'coop');
+    const b = await join(room, clock, 'b', 'Bo');
+    const c = await join(room, clock, 'c', 'Cy');
+    await wait();
+    b.net.reportCoop({ clicks: 4, walls: [], i: 0, j: 5, dir: 0, state: 'gone' });
+    await wait();
+    check('one cat out loses the round for everybody',
+      a.results.length === 1 && a.results[0].cleared === false, a.results);
+    check('...on every screen at once', b.results.length === 1 && c.results.length === 1 &&
+      b.results[0].cleared === false && c.results[0].cleared === false, [b.results, c.results]);
+    check('...naming who lost it', a.results[0].escapees.length === 1 && a.results[0].escapees[0].id === 'b',
+      a.results[0].escapees);
+    check('...and it knows whose cat it was', b.results[0].escapees[0].mine === true &&
+      a.results[0].escapees[0].mine === false, [a.results[0].escapees[0], b.results[0].escapees[0]]);
+    check('...without waiting for the cats still being chased',
+      a.net.roster().filter((p) => p.cstate === 'chasing').length === 2,
+      a.net.roster().map((p) => p.id + ':' + p.cstate));
+    check('...and it does not count as cleared', a.tally().cleared === 0, a.tally());
+  }
+
+  // -------------------------------------- co-op: a quiet player is not a hostage
+  {
+    const clock = makeClock(), room = makeRoom();
+    const a = await join(room, clock, 'a', 'Ana');
+    a.net.startRound(0x1234, 'coop');
+    const b = await join(room, clock, 'b', 'Bo');
+    await wait();
+    a.net.reportCoop({ clicks: 5, walls: [], i: 4, j: 4, dir: 0, state: 'caught' });
+    clock.advance(500);
+    check('the round waits while the other cat is still loose', a.results.length === 0, a.results);
+    b.quit();
+    clock.advance(20000);
+    await wait();
+    check('a player who walked away stops holding the round open',
+      a.results.length === 1 && a.results[0].cleared === true, a.results);
+  }
+
+  // ------------------------------------- the two shapes do not score each other
+  {
+    const clock = makeClock(), room = makeRoom();
+    const a = await join(room, clock, 'a', 'Ana');
+    const b = await join(room, clock, 'b', 'Bo');
+    a.net.startRound(0x1234, 'coop');
+    await wait();
+    a.net.reportCoop({ clicks: 3, walls: [], i: 4, j: 4, dir: 0, state: 'caught' });
+    b.net.reportCoop({ clicks: 8, walls: [], i: 6, j: 6, dir: 0, state: 'caught' });
+    await wait();
+    check('a co-op clear is not a race win for the fewest taps',
+      a.results[0].mode === 'coop' && a.tally().wins === 0 && b.tally().wins === 0, a.results[0]);
+    a.net.startRound(0x99, 'race');
+    await wait();
+    check('and switching back to a race takes the whole room with it',
+      a.net.mode() === 'race' && b.net.mode() === 'race', [a.net.mode(), b.net.mode()]);
+    a.net.report(6, 'win');
+    b.net.report(9, 'win');
+    await wait();
+    check('...where fewest taps does take it again',
+      a.tally().wins === 1 && b.tally().wins === 0, [a.tally().wins, b.tally().wins]);
   }
 
   // ------------------------------------------------------------ the source rule
