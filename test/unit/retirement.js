@@ -258,8 +258,9 @@ const base = (o) => Object.assign({
   check('guardrails really do cut, and deeply, in the worst runs',
     leanest < 55000 * 0.75, Math.round(leanest));
 
-  // Vanguard: ceiling +5%, floor -1.5%. Year on year the paycheck may not move
-  // further than that in real terms.
+  // Vanguard: ceiling +5%, floor -2.5% (the 2023 spec, and the one Morningstar
+  // implements; the 2020 paper's own figures used -1.5%). Year on year the
+  // paycheck may not move further than that in real terms.
   const v = S.runCycle(base({ strategy: 'dynamic', annualSpend: 50000, percentRate: 0.05 }), (1929 - 1871) * 12);
   let worstDrop = 0, biggestRise = 0;
   for (let y = v.retireYear + 1; y < v.spends.length; y++) {
@@ -269,8 +270,8 @@ const base = (o) => Object.assign({
     if (ch < worstDrop) worstDrop = ch;
     if (ch > biggestRise) biggestRise = ch;
   }
-  check('Vanguard smoothing never cuts more than 1.5% in a year',
-    worstDrop > -0.0151, (worstDrop * 100).toFixed(2));
+  check('Vanguard smoothing never cuts more than 2.5% in a year',
+    worstDrop > -0.0251, (worstDrop * 100).toFixed(2));
   check('...nor raises more than 5%', biggestRise < 0.0501, (biggestRise * 100).toFixed(2));
 }
 
