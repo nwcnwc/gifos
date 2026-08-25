@@ -468,6 +468,82 @@
     renderStack();
     renderWorst();
     renderCurve();
+    renderCompare();
+  }
+
+  /* Two plans against the same history. The point of a comparison table is the
+   * DIFFERENCE, so every row says which way it went rather than leaving the
+   * reader to subtract two numbers in their head — and "better" is marked only
+   * where better is unambiguous. More money at the end is not better if it was
+   * bought by spending less for thirty years, so that row is never marked. */
+  function renderCompare() {
+    var card = $('cardCompare');
+    var a = state.result, b = state.compareResult;
+    if (!state.comparing || !b || !b.cycles || !a || !a.cycles) { card.hidden = true; return; }
+    card.hidden = false;
+    var pa = state.plan, pb = (byId(state.compareId) || {}).plan || {};
+    $('cmpSub').textContent = 'Both run against the same ' + a.cycles.toLocaleString()
+      + ' stretches of history.';
+
+    var rows = [
+      ['Chance it lasts', pctWord(a.successRate), pctWord(b.successRate),
+        a.successRate - b.successRate, 'up'],
+      ['Spending a year', money(pa.annualSpend), money(pb.annualSpend || 0), 0, null],
+      ['Retires at', String(pa.retireAge), String(pb.retireAge || '—'),
+        (pb.retireAge || 0) - pa.retireAge, 'up'],
+      ['Typical money left', money(a.medianFinal), money(b.medianFinal), 0, null],
+      ['Worst run ran out', a.worst && a.worst.failed ? 'age ' + Math.floor(a.worst.failAge) : 'never',
+        b.worst && b.worst.failed ? 'age ' + Math.floor(b.worst.failAge) : 'never',
+        (a.worst && a.worst.failed ? 0 : 1) - (b.worst && b.worst.failed ? 0 : 1), 'up']
+    ];
+
+    var host = $('cmpBody');
+    host.textContent = '';
+    var t = document.createElement('table');
+    t.className = 'cmp-table';
+    var head = document.createElement('tr');
+    head.appendChild(th(''));
+    head.appendChild(th(activeName(), COL.s1));
+    head.appendChild(th(cmpName(), COL.s2));
+    var thead = document.createElement('thead');
+    thead.appendChild(head);
+    t.appendChild(thead);
+    var tb = document.createElement('tbody');
+    rows.forEach(function (r) {
+      var tr = document.createElement('tr');
+      var lab = document.createElement('th');
+      lab.textContent = r[0];
+      tr.appendChild(lab);
+      tr.appendChild(td(r[1], r[4] && r[3] > 1e-9));
+      tr.appendChild(td(r[2], r[4] && r[3] < -1e-9));
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    host.appendChild(t);
+  }
+
+  function th(text, colour) {
+    var e = document.createElement('th');
+    if (colour) {
+      var w = document.createElement('span');
+      w.className = 'cmp-name';
+      var k = document.createElement('i');
+      k.className = 'cmp-key';
+      k.style.background = colour;
+      var n = document.createElement('span');
+      n.textContent = text;                 // a plan name is user text
+      w.appendChild(k); w.appendChild(n);
+      e.appendChild(w);
+    } else {
+      e.textContent = text;
+    }
+    return e;
+  }
+  function td(text, win) {
+    var e = document.createElement('td');
+    e.className = 'num' + (win ? ' win' : '');
+    e.textContent = text;
+    return e;
   }
 
   function renderVerdict() {
