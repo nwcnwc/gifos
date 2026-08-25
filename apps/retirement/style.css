@@ -254,6 +254,15 @@ input.range::-moz-range-thumb {
   background: var(--surface-2); color: var(--ink-2);
   font: inherit; font-size: .84rem; cursor: pointer;
 }
+.btn-row { display: flex; gap: .4rem; margin-top: .5rem; }
+.btn-row .btn { flex: 1 1 0; }
+.segmented.tiny button { min-height: 32px; font-size: .78rem; }
+.row-sum {
+  grid-column: 1 / -1;
+  margin: .35rem 0 0; padding-top: .35rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink-2); font-size: .78rem;
+}
 .segmented.small { margin-top: .45rem; }
 .segmented.small button { flex: 0 0 auto; min-height: 30px; font-size: .78rem; padding: .2rem .6rem; }
 .segmented button[aria-checked="true"] {

@@ -793,7 +793,7 @@
         90
       ],
       "cover": "/apps/catch-the-cat/cover.jpg",
-      "bytes": 613053,
+      "bytes": 613059,
       "download": 0,
       "provides": null,
       "signature": {
@@ -801,7 +801,7 @@
         "id": "gifos.app",
         "ts": "2026-08-25"
       },
-      "sha256": "21eafa157857cefba46061a72f22c12b96dcbf8fe543c370a97c9c3a212c0ef1"
+      "sha256": "bf7d514b2549a3c3328a51dfc8bd33e2a15b5bcda58f0cbae20fb749fe06ee19"
     },
     {
       "slug": "checkers",
@@ -5466,11 +5466,11 @@
         229
       ],
       "cover": "/apps/retirement/cover.jpg",
-      "bytes": 380375,
+      "bytes": 382796,
       "download": 0,
       "provides": null,
       "signature": null,
-      "sha256": "3c1fd7d00a06b41a08029b13815c54bbf6608157a0b8e7382893fba988dcbfc6"
+      "sha256": "2097ce06765f97f9776f33aee5549c242644dfb97b6b8a47508f75cbc499dd77"
     },
     {
       "slug": "reversi",

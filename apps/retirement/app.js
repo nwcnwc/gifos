@@ -168,7 +168,13 @@
       ? inc.map(function (i) { return money(i.amount) + ' from ' + i.from; }).join(' · ')
       : 'none';
     var ev = p.events.filter(function (e) { return e.amount; });
-    $('sumEvents').textContent = ev.length ? ev.length + (ev.length === 1 ? ' event' : ' events') : 'none';
+    $('sumEvents').textContent = ev.length
+      ? ev.map(function (e) {
+        var yrs = Math.max(1, Math.round(e.years || 1));
+        return (e.label || 'Event') + ' ' + money(Math.abs(e.amount))
+          + (yrs > 1 ? '/yr ×' + yrs : '');
+      }).join(' · ')
+      : 'none';
 
     var st = S.STRATEGIES[p.strategy] || S.STRATEGIES.constant;
     $('sumStrategy').textContent = st.label;
@@ -291,6 +297,15 @@
     });
   }
 
+  /* An event is a SPAN with a DIRECTION.
+   *
+   * Two things were wrong with the first version. It could only do one year, so
+   * the most common thing anybody actually needs to model — four years of
+   * college — could not be expressed at all. And it asked people to type a
+   * minus sign to mean "money going out", which is a convention half of readers
+   * will miss and the other half will resent. Out and In are buttons now, and
+   * the sign is the app's problem.
+   */
   function renderEvents() {
     var host = $('eventList');
     host.textContent = '';
@@ -300,23 +315,69 @@
         renderEvents(); touched();
       });
       var name = mkInput('text', esc(ev.label), 'r-name');
-      name.placeholder = 'What happens?';
+      name.placeholder = 'What is it?';
       name.addEventListener('input', function () { ev.label = name.value; touched(); });
       d.appendChild(name);
 
       var grid = document.createElement('div');
       grid.className = 'r-grid';
-      var amt = mkInput('text', fmtMoneyInput(ev.amount), 'money');
-      amt.addEventListener('input', function () { ev.amount = parseMoney(amt.value); touched(); });
-      amt.addEventListener('blur', function () { amt.value = fmtMoneyInput(ev.amount); });
-      grid.appendChild(labelled('Amount', amt));
+
+      var dir = document.createElement('div');
+      dir.className = 'segmented tiny';
+      dir.setAttribute('role', 'radiogroup');
+      dir.setAttribute('aria-label', 'Money in or out');
+      [['out', 'Paying out'], ['in', 'Coming in']].forEach(function (opt) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'radio');
+        b.textContent = opt[1];
+        b.setAttribute('aria-checked', (ev.amount < 0 ? 'out' : 'in') === opt[0] ? 'true' : 'false');
+        b.addEventListener('click', function () {
+          ev.amount = Math.abs(ev.amount) * (opt[0] === 'out' ? -1 : 1);
+          renderEvents(); touched();
+        });
+        dir.appendChild(b);
+      });
+      var dirWrap = document.createElement('label');
+      var dirSpan = document.createElement('span');
+      dirSpan.textContent = 'Direction';
+      dirWrap.appendChild(dirSpan); dirWrap.appendChild(dir);
+      dirWrap.style.flex = '1 1 100%';
+      grid.appendChild(dirWrap);
+
+      var amt = mkInput('text', fmtMoneyInput(Math.abs(ev.amount)), 'money');
+      var sign = function () { return ev.amount < 0 ? -1 : 1; };
+      amt.addEventListener('input', function () {
+        ev.amount = Math.abs(parseMoney(amt.value)) * sign();
+        touched();
+      });
+      amt.addEventListener('blur', function () { amt.value = fmtMoneyInput(Math.abs(ev.amount)); });
+      grid.appendChild(labelled(ev.years > 1 ? 'A year' : 'Amount', amt));
 
       var at = mkInput('number', ev.at, '');
       at.min = 18; at.max = 120;
       at.addEventListener('input', function () { ev.at = clamp(num(at.value, 65), 0, 130); touched(); });
-      grid.appendChild(labelled('At age', at));
+      grid.appendChild(labelled('From age', at));
+
+      var yrs = mkInput('number', Math.max(1, Math.round(ev.years || 1)), '');
+      yrs.min = 1; yrs.max = 60;
+      yrs.addEventListener('input', function () {
+        ev.years = clamp(Math.round(num(yrs.value, 1)), 1, 60);
+        renderEvents(); touched();
+      });
+      grid.appendChild(labelled('For how many years', yrs));
 
       d.appendChild(grid);
+
+      var sum = document.createElement('p');
+      sum.className = 'row-sum';
+      var span = Math.max(1, Math.round(ev.years || 1));
+      sum.textContent = (ev.amount < 0 ? 'Paying out ' : 'Coming in ')
+        + money(Math.abs(ev.amount)) + (span > 1
+          ? ' a year from ' + ev.at + ' to ' + (ev.at + span - 1) + ' — ' + money(Math.abs(ev.amount) * span) + ' in all'
+          : ' at ' + ev.at);
+      d.appendChild(sum);
+
       host.appendChild(d);
     });
   }
@@ -1374,11 +1435,25 @@
       var rows = $('incomeList').querySelectorAll('.r-name');
       if (rows.length) rows[rows.length - 1].focus();
     });
-    $('btnAddEvent').addEventListener('click', function () {
-      state.plan.events.push({ label: '', amount: 25000, at: state.plan.retireAge });
+    function addEvent(ev) {
+      state.plan.events.push(ev);
+      $('secEvents').open = true;
       renderEvents(); touched();
       var rows = $('eventList').querySelectorAll('.r-name');
       if (rows.length) rows[rows.length - 1].focus();
+    }
+    $('btnAddEvent').addEventListener('click', function () {
+      addEvent({ label: '', amount: -25000, at: state.plan.retireAge, years: 1 });
+    });
+    // College is the one nearly everybody needs and nearly nobody models: a big
+    // outflow, several years long, landing in the decade before retirement —
+    // which is exactly the decade the plan can least afford it.
+    $('btnAddCollege').addEventListener('click', function () {
+      addEvent({
+        label: 'College', amount: -30000,
+        at: clamp(state.plan.currentAge + 10, state.plan.currentAge, state.plan.endAge - 1),
+        years: 4
+      });
     });
 
     $('btnReset').addEventListener('click', function () {

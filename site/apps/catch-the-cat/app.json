@@ -41,10 +41,10 @@
   "cover": "/apps/catch-the-cat/cover.jpg",
   "screenshots": [],
   "gif": "/apps/catch-the-cat/catch-the-cat.gif",
-  "bytes": 613053,
+  "bytes": 613059,
   "download": 0,
   "provides": null,
-  "sha256": "21eafa157857cefba46061a72f22c12b96dcbf8fe543c370a97c9c3a212c0ef1",
+  "sha256": "bf7d514b2549a3c3328a51dfc8bd33e2a15b5bcda58f0cbae20fb749fe06ee19",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
