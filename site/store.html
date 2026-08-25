@@ -77,11 +77,15 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   .card { border: 1px solid var(--border, #2a2a3f); border-radius: .9rem; overflow: hidden; cursor: pointer;
           background: var(--surface, #14141f); text-align: left; font: inherit; color: inherit; padding: 0; display: flex; flex-direction: column; }
   .card:hover, .card:focus-visible { border-color: var(--accent, #7b5cff); outline: none; }
-  .card .cardact { display: flex; align-items: center; gap: .6rem; padding: 0 .85rem .8rem; }
-  .card .act { padding: .42rem .95rem; border-radius: .55rem; font-size: .86rem; text-decoration: none; }
+  /* The action lives in the title row, top-right of the card body — not on its
+     own line at the bottom, where it read as a loose end under the pills. */
+  .card .cardhead { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .card .cardhead h3 { flex: 1; min-width: 0; }
+  .card .act { margin-left: auto; flex-shrink: 0; padding: .38rem .85rem; border-radius: .55rem; font-size: .84rem; text-decoration: none; }
   .card .cnote { font-size: .76rem; color: var(--muted, #8888aa); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .cnote:empty { display: none; }
   .card .cnote.err { color: #ff6b6b; white-space: normal; }
-  .card .cprog { margin: 0 .85rem .8rem; height: 4px; width: auto; }
+  .card .cprog { margin: 0; height: 4px; width: auto; }
   .pill.offline { border-color: #3ecf8e; color: #3ecf8e; }
   /* The cover is a JPEG. NEVER the App GIF — see js/store.js. */
   .card .shot { width: 100%; aspect-ratio: 16/10; object-fit: cover; object-position: top center; display: block;

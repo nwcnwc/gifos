@@ -413,7 +413,9 @@
         // loading="lazy": below-the-fold covers don't even fetch until scrolled to.
         '<img class="shot" src="' + esc(a.cover) + '" alt="" loading="lazy" decoding="async">' +
         '<div class="body">' +
-          '<h3>' + esc(a.name) + '</h3>' +
+          // The action sits in the title row, top-right — off the reading path
+          // of the tagline and pills instead of dangling under them.
+          '<div class="cardhead"><h3>' + esc(a.name) + '</h3>' + act + '</div>' +
           '<div class="tag">' + esc(a.tagline) + '</div>' +
           (a.basedOn ? '<div class="portof">port of ' + esc(a.basedOn.name) + '</div>' : '') +
           (a.inspiredBy ? '<div class="portof">inspired by ' + esc(a.inspiredBy.name) + '</div>' : '') +
@@ -438,7 +440,7 @@
             // catalog builder into the index as `offline`, never guessed here.
             (a.offline ? '<span class="pill offline" title="Declares no network access — runs entirely on this device">Works offline</span>' : '') +
           '</div>' +
-          '<div class="cardact">' + act + '<span class="cnote"></span></div>' +
+          '<span class="cnote"></span>' +
           '<div class="prog cprog" style="display:none"><i></i></div>' +
         '</div></div>';
     }).join('');
