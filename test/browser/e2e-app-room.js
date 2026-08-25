@@ -154,7 +154,17 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
   check('the guest turns their mic on themselves — audio only',
     await c.evaluate(() => !!window.__gumLast && window.__gumLast.audio === true && !window.__gumLast.video));
   await c.waitForFunction(() => document.body.classList.contains('call-on'), null, { timeout: 15000 });
-  check('joining reveals the grid for the client', true);
+  check('joining opens the call layer for the client', true);
+  // AUDIO-ONLY means no tiles: with Talk on and both mics live, the grid and
+  // the filmstrip stay hidden on BOTH ends. 0.9.12 showed a row of blank
+  // camera-off boxes under the app the moment call-on flipped — dead pixels
+  // for a room that will never carry video.
+  const noTiles = (pg) => pg.evaluate(() => {
+    const hid = (id) => { const el = document.getElementById(id); return !el || getComputedStyle(el).display === 'none'; };
+    return hid('grid') && hid('feed');
+  });
+  check('Talk on: no grid and no filmstrip for the host — audio only, no wasted strip', await noTiles(h));
+  check('Talk on: no grid and no filmstrip for the guest either', await noTiles(c));
   // Host turns the room quiet: every mic goes with it, and a guest cannot unmute.
   await h.click('#appaudio');
   await c.waitForFunction(() => !document.body.classList.contains('audio-on') && document.getElementById('mic').classList.contains('off'), null, { timeout: 20000 });

@@ -444,11 +444,11 @@
   // therefore clear BOTH copies, and it does (inviteFromSolo, far below) —
   // clearing only the body one left this mirror hiding the meeting bar, the
   // grid and the feed forever, so a call in such a room showed nothing. The
-  // app-room rules are NOT mirrored at all: they read
-  // `body.app-room:not(.call-on)`, and `call-on` is only ever added to <body> —
-  // an <html>.app-room copy would have no such exception and would keep the grid
-  // hidden FOREVER once an app-room call started. A launch from the desktop is
-  // #id=, which is the solo case and the one that flashes.
+  // app-room rules are NOT mirrored at all: an app-pinned room is audio-only
+  // (0.9.13: its grid and filmstrip never show, call-on or not — the tiles
+  // would be blank camera-off boxes under the app), so there is nothing to
+  // un-hide and no reason to touch <html> for them. A launch from the desktop
+  // is #id=, which is the solo case and the one that flashes.
   // Read the HASH only: the channel loader carries pathname + hash and DROPS the
   // query, so #id= is the only form that survives a version redirect.
   var p=new URLSearchParams((location.hash||'').replace(/^#/,''));
@@ -913,15 +913,19 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
      GifOS home link stays. (docs/one-runtime.md, engineering step 1.) */
   body.solo-app .bar { display: none !important; }
   body.solo-app #grid { display: none; }
-  /* App ROOM (one-runtime steps 2+4): the app is pinned front-and-center; the
-     media plane exists but stays dark until someone opts into the call layer.
-     The grid only appears once this browser joins the call (call-on). */
-  body.app-room:not(.call-on) #grid { display: none !important; }
+  /* App ROOM (one-runtime steps 2+4): the app is pinned front-and-center and
+     the grid NEVER shows. The room is audio-only (Talk, below): every tile
+     would be a blank camera-off box, and a row of those under the app was
+     exactly the "wasted strip at the bottom" Talk shipped with in 0.9.12.
+     Remote audio does not live in the tiles — it plays through a detached
+     Audio element (see the fader/_aud code) — so hiding them costs nothing. */
+  body.app-room #grid { display: none !important; }
   /* MAX REAL ESTATE for a pinned app: until a call exists there is exactly ONE
      bar on screen — the thin app bar (which grows a GifOS brand link, below).
      The meeting bar and the 132px call filmstrip (#feed) both cost dead pixels
      when nobody is on camera; the filmstrip's reserved strip was the "white
-     band under the app" on phones. Both return the moment the call layer is on. */
+     band under the app" on phones. The bar returns with Talk; the filmstrip
+     never does (audio-only). */
   /* An app-PINNED room is AUDIO-ONLY in 0.9.12. The app host flips room audio
      with #appaudio; the flag rides the host's app ad (myStatus.app.audio), so
      guests learn it from the ad that won. While it is on, the meeting bar
@@ -933,7 +937,7 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   body.app-room #cam, body.app-room #flipcam, body.app-room .blurctl, body.app-room #bartoggle,
   body.app-room #barmore, body.app-room #callbanner { display: none !important; }
   body.app-room #appaudio.on { border-color: var(--accent, #7b5cff); color: var(--accent, #7b5cff); }
-  body.solo-app #feed, body.app-room:not(.call-on) #feed { display: none !important; }
+  body.solo-app #feed, body.app-room #feed { display: none !important; }
   body.app-room #appbtn { display: none !important; }  /* the app IS the room — no picker */
   /* …AND NO SCREEN SHARE, for the same reason and more strongly. In an
      app-pinned room every participant is already running this app locally, in
