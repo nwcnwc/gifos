@@ -10,9 +10,19 @@
  * can only tell you what it is now too expensive to fix. This runs while the
  * message is still a draft, where the fix is deleting a word.
  *
- * Same trick as the guard: it never learns the names. It reads them from the
- * LOCAL, never-committed ~/.gifos-behavior-hosts.json and looks for those. On a
- * box without that file there is nothing to check and it says nothing.
+ * IT CHECKS THE SAME FIVE THINGS THE GATE DOES, and that is the whole point —
+ * it shipped checking one of them, and a peer caught it: names, plus the four
+ * SHAPES from test/lib/topology-shapes.js (tailnet address, magic-dns name,
+ * telegram bot token, adb device serial). The shapes matter MORE here, not
+ * less: a bot token is a live credential, and "adb -s <serial> on the
+ * <gpu-box>" is written by somebody doing exactly what the rule asked and still
+ * lands a serial on the public web.
+ *
+ * Names use the same trick as the guard: it never learns them, it reads them
+ * from the LOCAL, never-committed ~/.gifos-behavior-hosts.json. The four shapes
+ * are patterns and need no hosts file — so on a box without one this hook now
+ * still checks four of five things, where it used to exit immediately and check
+ * nothing.
  *
  * HOW TO CHECK IT ACTUALLY FIRES — and there is a trap here that produced a
  * confident false alarm the first time somebody tried (2026-08-25). The obvious
@@ -25,7 +35,8 @@
  *   node scripts/hooks/commit-msg <(printf 'test\n\nmeasured on <a-name-with-ssh>\n')
  *   # exit 1 and a "line N: …xx…" diagnostic = working. exit 0 = look again.
  *
- * Shred the probe file afterwards; it holds a real hostname.
+ * (Process substitution means there is no probe file to clean up. If you write
+ * the draft to a real file instead, shred it — it holds a real hostname.)
  *
  * INSTALL (per clone, once):
  *   git config core.hooksPath scripts/hooks
@@ -46,15 +57,27 @@ const HOSTS = process.env.GIFOS_FLEET || process.env.BEHAVIOR_HOSTS
 
 let fleet = null;
 try { fleet = JSON.parse(fs.readFileSync(HOSTS, 'utf8')); } catch (e) {}
-if (!fleet) process.exit(0);          // no topology here to leak
 
 const names = new Set();
-for (const h of (fleet.hosts || [])) {
+for (const h of ((fleet && fleet.hosts) || [])) {
   for (const k of ['name', 'ssh']) if (h && h[k]) names.add(String(h[k]));
 }
+// The hosts file's own words for "no ssh, run it here" — not machine names.
+// THIS IS THE LINE THAT MAKES THE OBVIOUS PROBE LIE (see the header): entry 0
+// is usually the local one, so probing with hosts[0].name passes correctly and
+// reads like a dead hook.
 for (const generic of ['local', 'localhost']) names.delete(generic);
 const hostish = [...names].filter((n) => n.length >= 4);
-if (!hostish.length) process.exit(0);
+
+// The four patterns, shared with test/unit/no-topology.js so the two can never
+// disagree. A broken require must not block every commit in the repo, but it
+// must not be silent either — the one thing worse than a noisy guard is one
+// that quietly stopped guarding.
+let shapes = null;
+try { shapes = require(path.join(__dirname, '..', '..', 'test', 'lib', 'topology-shapes.js')); }
+catch (e) { process.stderr.write('commit-msg: WARNING — topology-shapes.js did not load; shape checks skipped.\n'); }
+
+if (!hostish.length && !shapes) process.exit(0);   // nothing to check with
 
 let msg = '';
 try { msg = fs.readFileSync(file, 'utf8'); } catch (e) { process.exit(0); }
@@ -68,16 +91,21 @@ lines.forEach((line, i) => {
     if (line.toLowerCase().includes(n.toLowerCase())) {
       // WHERE, never WHAT — the same rule the guard follows, so that this
       // output is safe to paste into an issue or a transcript.
-      hits.push('  line ' + (i + 1) + ': …' + n.slice(0, 2) + '…');
+      hits.push('  line ' + (i + 1) + ': a machine name (…' + n.slice(0, 2) + '…)');
       break;
     }
   }
 });
+// A shape names ITSELF safely — "a telegram bot token" gives away nothing, and
+// the author needs to know which of the four it is to fix it.
+if (shapes) {
+  for (const h of shapes.scanLines(lines)) hits.push('  line ' + h.line + ': ' + h.what);
+}
 if (!hits.length) process.exit(0);
 
 process.stderr.write([
   '',
-  'COMMIT REFUSED — this message names a fleet machine, and this repo is PUBLIC.',
+  'COMMIT REFUSED — this message carries a private identifier, and this repo is PUBLIC.',
   'GitHub renders every commit message on the open web, and a pushed message can',
   'only be fixed by rewriting history. Right now it costs one word.',
   '',
