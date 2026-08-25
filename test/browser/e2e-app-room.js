@@ -321,6 +321,44 @@ const check = (n, c, d) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + n + (
     await g2.evaluate(() => !window.__gifosVideo.appIsHost() && /paused/.test(document.getElementById('appwho').textContent)));
   check('…and the frozen app is still mounted (reads keep working)', await g2.evaluate(() => !!document.querySelector('#appmount iframe')));
 
+  // ---- the link is a possession: reused by default, retired by choice ------
+  // Re-inviting reuses the stored fileId::room so a day-old invite revives —
+  // and that same stability means the ONLY way to revoke a leaked link is
+  // here, deliberately: an app room has no door to ban through. The dialog
+  // must offer both, default to continuity, and a fresh mint must actually
+  // kill the old link (its guests meet the not-live explainer, not the app).
+  await g2.close(); // the old room must really empty, or the explainer half below reads 'host away' instead
+  const o2 = await oCtx.newPage();
+  await o2.goto(BASE + '/run.html#id=' + appId2);
+  await o2.waitForSelector('#appmount iframe', { timeout: 30000 });
+  await o2.evaluate(() => document.getElementById('appinvite').click());
+  await o2.waitForSelector('input[name="rmlink"]', { timeout: 10000 });
+  check('re-inviting an already-linked app offers keep-or-retire', true);
+  check('…defaulting to continuity, with the saved room\'s own class preselected', await o2.evaluate(() =>
+    document.querySelector('input[name="rmlink"][value="same"]').checked
+    && document.querySelector('input[name="rmcls"][value="owned"]').checked));
+  await o2.evaluate(() => document.getElementById('inv-go').click());
+  await o2.waitForFunction(() => window.__gifosVideo.appIsHost && window.__gifosVideo.appIsHost(), null, { timeout: 30000 });
+  const link3 = await o2.evaluate(() => document.getElementById('share-url').value);
+  check('KEEP reuses the very same link — a day-old invite revives', link3 === link2, link3);
+  await o2.close();
+  const o3 = await oCtx.newPage();
+  await o3.goto(BASE + '/run.html#id=' + appId2);
+  await o3.waitForSelector('#appmount iframe', { timeout: 30000 });
+  await o3.evaluate(() => document.getElementById('appinvite').click());
+  await o3.waitForSelector('input[name="rmlink"]', { timeout: 10000 });
+  await o3.evaluate(() => {
+    document.querySelector('input[name="rmlink"][value="fresh"]').checked = true;
+    document.getElementById('inv-go').click();
+  });
+  await o3.waitForFunction(() => window.__gifosVideo.appIsHost && window.__gifosVideo.appIsHost(), null, { timeout: 30000 });
+  const link4 = await o3.evaluate(() => document.getElementById('share-url').value);
+  check('FRESH mints a different link of the same shape', link4 !== link2 && /#s=.+\.[a-f0-9]{16,}&k=|\/join\/[a-z0-9-]+\/[a-f0-9]{16,}\//.test(link4), link4);
+  const g3 = await (await mkCtx('Late')).newPage();
+  await g3.goto(link2);
+  await g3.waitForFunction(() => { const t = document.getElementById('aw-t'); return t && /isn’t live/.test(t.textContent); }, null, { timeout: 40000 });
+  check('the RETIRED link is dead while the app is LIVE on the fresh one — its guest meets the explainer, not the app', true);
+
   await browser.close();
   console.log(failures ? ('\n' + failures + ' FAILED') : '\nALL PASS');
   process.exit(failures ? 1 : 0);
