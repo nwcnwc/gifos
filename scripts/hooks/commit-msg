@@ -1,0 +1,85 @@
+#!/usr/bin/env node
+/*
+ * commit-msg — the last cheap moment to catch a machine name.
+ *
+ * THIS REPO IS PUBLIC, AND GITHUB RENDERS COMMIT MESSAGES. A hostname in a
+ * message is the same exposure as one in a tracked file, with one difference
+ * that decides where this file lives: a file can be fixed with an edit, a
+ * pushed message can only be fixed by rewriting history and force-pushing over
+ * everyone. So the gate (test/unit/no-topology.js) is too late by design — it
+ * can only tell you what it is now too expensive to fix. This runs while the
+ * message is still a draft, where the fix is deleting a word.
+ *
+ * Same trick as the guard: it never learns the names. It reads them from the
+ * LOCAL, never-committed ~/.gifos-behavior-hosts.json and looks for those. On a
+ * box without that file there is nothing to check and it says nothing.
+ *
+ * INSTALL (per clone, once):
+ *   git config core.hooksPath scripts/hooks
+ * REMOVE:
+ *   git config --unset core.hooksPath
+ * BYPASS, if you genuinely must: git commit --no-verify
+ */
+'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const file = process.argv[2];
+if (!file) process.exit(0);
+
+const HOSTS = process.env.GIFOS_FLEET || process.env.BEHAVIOR_HOSTS
+  || path.join(os.homedir(), '.gifos-behavior-hosts.json');
+
+let fleet = null;
+try { fleet = JSON.parse(fs.readFileSync(HOSTS, 'utf8')); } catch (e) {}
+if (!fleet) process.exit(0);          // no topology here to leak
+
+const names = new Set();
+for (const h of (fleet.hosts || [])) {
+  for (const k of ['name', 'ssh']) if (h && h[k]) names.add(String(h[k]));
+}
+for (const generic of ['local', 'localhost']) names.delete(generic);
+const hostish = [...names].filter((n) => n.length >= 4);
+if (!hostish.length) process.exit(0);
+
+let msg = '';
+try { msg = fs.readFileSync(file, 'utf8'); } catch (e) { process.exit(0); }
+
+// Comment lines are stripped by git before the message is stored, so a name in
+// the `# Changes to be committed:` block is not a leak and must not block.
+const lines = msg.split('\n').filter((l) => !/^\s*#/.test(l));
+const hits = [];
+lines.forEach((line, i) => {
+  for (const n of hostish) {
+    if (line.toLowerCase().includes(n.toLowerCase())) {
+      // WHERE, never WHAT — the same rule the guard follows, so that this
+      // output is safe to paste into an issue or a transcript.
+      hits.push('  line ' + (i + 1) + ': …' + n.slice(0, 2) + '…');
+      break;
+    }
+  }
+});
+if (!hits.length) process.exit(0);
+
+process.stderr.write([
+  '',
+  'COMMIT REFUSED — this message names a fleet machine, and this repo is PUBLIC.',
+  'GitHub renders every commit message on the open web, and a pushed message can',
+  'only be fixed by rewriting history. Right now it costs one word.',
+  '',
+  hits.join('\n'),
+  '',
+  'Write the ROLE instead:',
+  '  <behavior-box>  <gate-host>  <orchestrator>  <gpu-box>  <llm-box>',
+  '  <monitor-pi>  <resident-model>  <orchestrator-tailnet-addr>',
+  '',
+  '"red every run on the <gpu-box> and green on every slower box" says all of it.',
+  'Core counts, architectures, chromium revisions and measurements are hardware',
+  'FACTS, not identities — keep those.',
+  '',
+  'Your message is kept at .git/COMMIT_EDITMSG. See CLAUDE.md and',
+  'test/unit/no-topology.js.',
+  '',
+].join('\n'));
+process.exit(1);

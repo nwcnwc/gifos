@@ -149,6 +149,57 @@ if (!fleet) {
   }
   check('no tracked file names a machine from the fleet (use a <role> placeholder)',
     dirty.length === 0, dirty.length ? offenders : undefined);
+
+  // ---- 1b. the COMMIT MESSAGES, which a tree scan cannot see ---------------
+  //
+  // Found 2026-08-25 by a peer session reading `git log`, and the tree scan was
+  // blind to it by construction: a scrubbed file still has the hostname in the
+  // message of the commit that scrubbed it, and GitHub renders every commit
+  // message on the public web. Same exposure as a name in a frozen
+  // site/versions/ snapshot, different surface.
+  //
+  // WHY THIS IS BOUNDED, and the number is printed rather than swallowed. 70
+  // commits between 2026-07-16 and 2026-08-24 already carry names. Those cannot
+  // be fixed by editing anything — only by rewriting pushed history, which is
+  // the user's decision and nobody's to make mid-session. A red with no action
+  // behind it is the "known red" this repo does not have, so the ASSERTION
+  // covers BASELINE..HEAD (everything still being written) and the backlog is
+  // REPORTED on every run so it cannot quietly become normal.
+  //
+  // Moving BASELINE forward is only ever correct after a rewrite actually
+  // happened. It is not a way to make a new red go away — that red is a message
+  // you have not pushed yet, and amending it costs nothing.
+  const BASELINE = '08d3e2b7';
+  const git = (args) => execFileSync('git', ['-C', ROOT].concat(args), { maxBuffer: 1 << 28 }).toString();
+  let reach = true;
+  try { execFileSync('git', ['-C', ROOT, 'merge-base', '--is-ancestor', BASELINE, 'HEAD'], { stdio: 'ignore' }); }
+  catch (e) { reach = false; }
+  if (!reach) {
+    // A release clone at a freeze tag, or a shallow clone, legitimately cannot
+    // see the baseline. Say so; do not pass by guessing.
+    console.log('SKIP-NOTE — ' + BASELINE + ' is not an ancestor of HEAD (shallow clone, or a tag');
+    console.log('  older than the baseline), so the COMMIT-MESSAGE check could not run here.');
+  } else {
+    const msgs = git(['log', '--format=%H%x1f%B%x1e', BASELINE + '..HEAD']).split('\x1e').filter((r) => r.trim());
+    const guilty = [];
+    for (const rec of msgs) {
+      const [sha, body] = rec.replace(/^\n/, '').split('\x1f');
+      for (const n of hostish) {
+        if ((body || '').toLowerCase().includes(n.toLowerCase())) { guilty.push(sha.slice(0, 8)); break; }
+      }
+    }
+    check('no commit message since the baseline names a machine (' + msgs.length + ' scanned)',
+      guilty.length === 0, guilty.length ? guilty : undefined);
+    // The backlog, counted every run. Not a failure — a standing bill.
+    let old = 0;
+    for (const rec of git(['log', '--format=%H%x1f%B%x1e', BASELINE]).split('\x1e').filter((r) => r.trim())) {
+      const body = rec.replace(/^\n/, '').split('\x1f')[1] || '';
+      if (hostish.some((n) => body.toLowerCase().includes(n.toLowerCase()))) old++;
+    }
+    console.log('NOTE — ' + old + ' commit message(s) at or before ' + BASELINE + ' still name a machine.');
+    console.log('  Public on GitHub. Only a history rewrite + force-push fixes them, which is the');
+    console.log('  repo owner\'s call, not a suite\'s. Move BASELINE forward only once that happened.');
+  }
 }
 
 // ---- 2. the shapes, which need no hosts file -------------------------------
