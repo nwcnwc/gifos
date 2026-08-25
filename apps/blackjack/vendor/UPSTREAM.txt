@@ -6,5 +6,5 @@ MIT, Copyright (c) 2018 - Modesta Naciute
 Player vs dealer blackjack in vanilla JS (casino / blackjack / cards
 modules) with session save over AJAX to a sample API. The server is
 gone. The dealer runs in the host browser. Invite is extra seats: each
-person has a hand; the host deals. Toy chips, no cash. Cards are drawn
+person has a hand; the host deals. Cards are drawn
 in CSS — the PNG deck and the Bootstrap/jQuery/CDN stack stay behind.

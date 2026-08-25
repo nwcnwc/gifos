@@ -1,12 +1,12 @@
 # Blackjack
 
-Beat the dealer to 21 without going over. **Toy chips. No cash. Ever.** Nothing is wagered and nothing is paid out.
+Beat the dealer to 21 without going over.
 
 Face cards are 10. Aces count 11 until that would bust, then 1. The dealer hits a 16 and **stands on 17**, including a soft 17. A natural 21 on the first two cards is blackjack and pays **3:2**. A 21 after a hit, double, or split is even money.
 
 Stake is **10** chips. A fresh pile is **200**. Bust, lose, or a dealer blackjack costs the stake. A win pays even money. A push returns the stake. **Double** (first two cards) takes one more card and doubles the stake. **Split** a pair once; each half is its own hand. Split aces get one card each and stand.
 
-If the pile cannot cover the stake, the table says so. **Restock 200** adds toy chips. Still not cash.
+If the pile cannot cover the stake, the table says so. **Restock 200** deals you a fresh pile.
 
 ## Controls
 

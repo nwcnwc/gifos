@@ -216,7 +216,7 @@ export function screenshotPng() {
     }
   }
   drawText(put, 64, 44, 'BLACKJACK', 7, 247, 243, 234);
-  drawText(put, 64, 110, 'TOY CHIPS  NO CASH', 3, 232, 196, 96);
+  drawText(put, 64, 110, 'STANDS ON 17   BLACKJACK PAYS 3:2', 3, 232, 196, 96);
   drawText(put, 860, 50, 'CHIPS 215', 4, 232, 196, 96);
 
   function cardFace(x, y, w, h, rank, suitRed, pip) {

@@ -1,5 +1,5 @@
 // Destack of hanhaechi/blackjack casino.js + blackjack.js (MIT).
-// One 52-card shoe. Toy chips, never cash. Dealer stands on 17 (S17).
+// One 52-card shoe. Dealer stands on 17 (S17).
 (function (g) {
   'use strict';
   var SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];

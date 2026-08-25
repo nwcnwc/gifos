@@ -1,5 +1,5 @@
 // Blackjack table. Dealer in the host browser. Invite is extra seats.
-// Toy chips, no cash. The sample API stays behind.
+// Chips live in the file. The sample API stays behind.
 (function () {
   'use strict';
   var BJ = window.BJ;
@@ -191,7 +191,7 @@
     var msg = $('msg');
     if (!tab) {
       if (mp.on && people.length && !amHost(people)) msg.textContent = 'Waiting for the host to deal.';
-      else if (!BJ.canDeal(chips, BJ.STAKE)) msg.textContent = 'You are out of chips. They are toys — restock 200.';
+      else if (!BJ.canDeal(chips, BJ.STAKE)) msg.textContent = 'You are out of chips. Restock 200 and deal again.';
       else msg.textContent = 'Deal when you are ready.';
     } else if (tab.phase === 'play') {
       var mine = BJ.activeHand(tab, me.id);
@@ -220,7 +220,7 @@
 
   function startLocal() {
     if (!BJ.canDeal(chips, BJ.STAKE)) {
-      $('msg').textContent = 'You are out of chips. They are toys — restock 200.';
+      $('msg').textContent = 'You are out of chips. Restock 200 and deal again.';
       render();
       return;
     }
@@ -324,7 +324,7 @@
     chips = chips + BJ.REFILL;
     showChips();
     persistChips();
-    $('msg').textContent = '200 toy chips. Nothing is paid out.';
+    $('msg').textContent = 'Fresh pile. 200 chips.';
     render();
   };
 
