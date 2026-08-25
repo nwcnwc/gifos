@@ -213,6 +213,24 @@
     </section>
 
     <!-- Two plans, the same history, side by side. Filled only in Compare. -->
+    <!-- The chart that puts the two risks on one axis. Running out is not the
+         only way a plan ends. -->
+    <section class="card chart-card" id="cardStates">
+      <div class="card-head">
+        <h2>Rich, broke, or gone</h2>
+        <p class="sub">Every year of the plan, split by where you actually end up &mdash; including not being here.</p>
+        <div class="segmented small" id="whoPick" role="radiogroup" aria-label="Whose odds of living">
+          <button type="button" data-v="couple" role="radio" aria-checked="true">A couple</button>
+          <button type="button" data-v="f" role="radio" aria-checked="false">A woman</button>
+          <button type="button" data-v="m" role="radio" aria-checked="false">A man</button>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chartStates"></div>
+      <div class="legend" id="legStates"></div>
+      <p class="read" id="statesRead"></p>
+      <details class="tabledrop"><summary>See the numbers</summary><div id="tblStates"></div></details>
+    </section>
+
     <section class="card" id="cardCompare" hidden>
       <div class="card-head">
         <h2>Side by side</h2>
@@ -251,6 +269,7 @@
 </div>
 
 <script src="data/market.js"></script>
+<script src="data/mortality.js"></script>
 <script src="sim.js"></script>
 <script src="chart.js"></script>
 <script src="advice.js"></script>

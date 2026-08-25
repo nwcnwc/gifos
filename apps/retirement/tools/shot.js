@@ -92,6 +92,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ).catch(() => problems.push('[stuck] the verdict never resolved'));
   await sleep(COVER ? 1800 : 900);
 
+  if (process.env.SCROLL) {
+    await frame.evaluate((sel) => {
+      const e = document.querySelector(sel);
+      if (e) e.scrollIntoView({ block: 'start' });
+    }, process.env.SCROLL);
+    await sleep(700);
+  }
+
   if (COVER) {
     // Catch the app mid-use, not at a cold first boot: open the panel that
     // shows the app has depth, and park the crosshair on a real year.
@@ -111,6 +119,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       fanRead: t('fanRead'), curveRead: t('curveRead'),
       stackRead: t('stackRead'), worstHead: t('worstHead'),
       adviceHead: t('adviceHead'), adviceSub: t('adviceSub'),
+      statesRead: t('statesRead'),
       advice: Array.prototype.map.call(document.querySelectorAll('#adviceList .advice'),
         (e) => e.querySelector('b').textContent + ' — ' + e.querySelector('p').textContent),
       charts: document.querySelectorAll('svg.chart').length,

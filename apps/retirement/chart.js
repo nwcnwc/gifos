@@ -18,14 +18,17 @@
   // ---- formatting -----------------------------------------------------------
 
   function money(n) {
+    n = Math.round(n);
+    // Round BEFORE testing the sign, or a balance of -$0.40 prints as "-$0".
     var s = n < 0 ? '-' : '';
-    n = Math.abs(Math.round(n));
+    n = Math.abs(n);
     return s + '$' + n.toLocaleString('en-US');
   }
 
   // Axis ticks and hero figures get the short form; tables and tooltips get the
   // whole number. A reader comparing two rows needs the digits.
   function compact(n) {
+    if (Math.abs(n) < 0.5) n = 0;
     var s = n < 0 ? '-' : '';
     n = Math.abs(n);
     if (n >= 1e9) return s + '$' + trim(n / 1e9) + 'B';
@@ -43,11 +46,18 @@
 
   // ---- scales ---------------------------------------------------------------
 
-  // Round to numbers a person reads without effort: 1, 2, 5 and their decades.
+  /* Round to numbers a person reads without effort: 1, 2, 2.5, 5 and their
+   * decades.
+   *
+   * 2.5 is not decoration. Without it the ladder jumps 2 -> 5, so a range of
+   * 81,000 asking for four intervals rounds its step up to 50,000 and the chart
+   * draws exactly two gridlines — $0 and $50k — for a plot that reaches $75k.
+   * The axis then carries almost none of the values it exists to carry.
+   */
   function niceStep(raw) {
     var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
     var norm = raw / mag;
-    var step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    var step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
     return step * mag;
   }
   function ticks(lo, hi, count) {
@@ -369,15 +379,17 @@
       totals[i] = 0;
       for (s = 0; s < series.length; s++) totals[i] += series[s].values[i] || 0;
     }
+    var share = !!spec.share;      // the layers sum to 1: label the axis as %
     var hi = 0;
     for (i = 0; i < n; i++) if (totals[i] > hi) hi = totals[i];
     f.xlo = age0; f.xhi = age0 + n - 1;
-    f.ylo = 0; f.yhi = hi > 0 ? hi * 1.08 : 1;
+    f.ylo = 0; f.yhi = share ? 1 : (hi > 0 ? hi * 1.08 : 1);
     f.xAt = function (i) { return age0 + i; };
     f.nearest = function (v) { return Math.max(0, Math.min(n - 1, Math.round(v - age0))); };
-    var yt = ticks(0, f.yhi, 4);
-    f.yhi = Math.max(f.yhi, yt[yt.length - 1]);
-    f.grid(ticks(f.xlo, f.xhi, 6), yt, function (v) { return Math.round(v); }, compact);
+    var yt = share ? [0, 0.25, 0.5, 0.75, 1] : ticks(0, f.yhi, 4);
+    if (!share) f.yhi = Math.max(f.yhi, yt[yt.length - 1]);
+    f.grid(ticks(f.xlo, f.xhi, 6), yt, function (v) { return Math.round(v); },
+      share ? function (v) { return pct(v); } : compact);
 
     // Draw top-down so the 2px surface gap between layers is cut by the layer
     // above it — white doing the separating, no borders anywhere.
@@ -394,7 +406,12 @@
       layers.push({ d: path(up.concat(lo), true), fill: series[s].colour });
     }
     for (s = layers.length - 1; s >= 0; s--) {
-      f.svg.appendChild(el('path', { d: layers[s].d, fill: layers[s].fill, class: 'stack-layer' }));
+      f.svg.appendChild(el('path', {
+        d: layers[s].d, fill: layers[s].fill,
+        // A share chart is read as one solid column, so the 2px surface gap
+        // that separates money layers would read as four bands of nothing.
+        class: share ? 'stack-layer flush' : 'stack-layer'
+      }));
     }
     if (spec.line) {
       var ln = [];
@@ -402,13 +419,14 @@
       f.svg.appendChild(el('path', { d: path(ln), class: 'line line-over' }));
     }
 
+    var fmtV = share ? function (v) { return pct(v, 0); } : money;
     f.hover(n, function (i) {
       var t = tipBox('Age ' + (age0 + i));
       for (var s2 = series.length - 1; s2 >= 0; s2--) {
-        if (!series[s2].values[i]) continue;
-        t.appendChild(row(series[s2].label, money(series[s2].values[i]), series[s2].colour));
+        if (series[s2].values[i] < (share ? 0.005 : 1)) continue;
+        t.appendChild(row(series[s2].label, fmtV(series[s2].values[i]), series[s2].colour));
       }
-      t.appendChild(row('Total', money(totals[i]), null, true));
+      if (!share) t.appendChild(row('Total', money(totals[i]), null, true));
       return t;
     });
     return f;
