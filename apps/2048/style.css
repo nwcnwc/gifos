@@ -29,6 +29,11 @@ body.friend .game-intro { display: none; }
 body.friend .above-game { display: none; }
 body.friend .game-explanation,
 body.friend .foot { display: none; }
+/* The friend bar IS the scoreboard in a race: it carries your score AND
+   theirs, side by side and ranked. The heading's Score/Best pair would print
+   your number a second time an inch above it (and Best is a solo statistic),
+   so it stands down for the duration. */
+body.friend .scores-container { display: none; }
 body.friend { margin: 10px 0 16px; }
 body.friend .game-container { margin-top: 12px; }
 body.friend .heading { margin-bottom: 8px; }
