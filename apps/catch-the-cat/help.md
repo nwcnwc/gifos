@@ -8,7 +8,7 @@ A black cat sits in the middle of a honeycomb. You turn dots into walls. After e
 
 ## Controls
 
-**Phone, mouse, or finger:** tap an open dot. That is the whole game. There is no keyboard, no zoom, and no pan.
+**Phone, mouse, or finger:** tap an open dot. That is the whole game. There is no keyboard. On a phone, **pinch with two fingers** to zoom the board if the dots run small; one finger always stays a tap.
 
 - **Undo** takes back your last wall and the cat’s last step. You cannot undo after the cat is caught or has run.
 - **New board** scatters a new set of starting walls.
