@@ -1,6 +1,6 @@
 {
-  "tagline": "The hexagonal kind, with three bishops. Computer on this device — or a friend from one link.",
-  "description": "Hexagonal chess on this device. The computer thinks here, or you send one link and a friend sits the other colour. There is no account, and no game server.\n\nNinety-one hexes, three colours, three bishops. Tap a piece, then a hex — legal hexes light up. White sits at the near side. Close the tab and the game is still in the icon: the file is the save.\n\nOn your own, a computer looks a little way ahead right on the phone. Pass the device for two people in the same room, or press Play a friend and send the invite.\n\nThere is no castling. A pawn that steps two hexes can still be taken in passing. This is the hexagonal kind, not the square board.",
+  "tagline": "Chess on hexagons, with three bishops. Play the computer or a friend.",
+  "description": "Hexagonal chess. The computer thinks here on this device, or you send one link and a friend sits the other colour.\n\nNinety-one hexes, three colours, three bishops. Tap a piece, then a hex — legal hexes light up. White sits at the near side. Close the tab and the game is still there when you come back.\n\nOn your own, a computer looks a little way ahead right on the phone. Pass the device for two people in the same room, or press Play a friend and send the invite.\n\nThere is no castling. A pawn that steps two hexes can still be taken in passing. This is the hexagonal kind, not the square board.",
   "author": {
     "name": "GifOS",
     "url": "https://gifos.app"

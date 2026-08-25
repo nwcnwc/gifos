@@ -238,7 +238,7 @@ function scan() {
     manifest.data.room.visibility === 'read-write' &&
     manifest.data.boards.visibility === 'read-write');
   const tag = JSON.parse(listing).tagline;
-  check('listing leads with the file is the world', /^The file is the world/i.test(tag), tag);
+  check('listing leads with the pour', /^Pour sand/i.test(tag), tag);
   check('listing/help do not say gifos.db / WASM / sandbox',
     !/gifos\.db|WASM|sandbox|localStorage|WebRTC/.test(listing) &&
     !/gifos\.db|WASM|sandbox|localStorage|WebRTC/.test(help));

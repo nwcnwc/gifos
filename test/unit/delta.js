@@ -211,8 +211,8 @@ check('mute is not forced on every boot (isMute from storage)',
 check('shoot/explode hook DeltaSfx, never a SID path',
   /DeltaSfx/.test(deltaSrc) && !/sounds\/title/.test(deltaSrc) && /DeltaSfx/.test(sfx));
 check('no in-app Invite/Share button', !/<button[^>]*>\s*Invite/i.test(html));
-check('listing leads with offline / file is the save',
-  /offline/i.test(listing.description) && /saved inside this GIF/i.test(listing.description));
+check('listing says the best score is saved in the GIF',
+  /saved inside the GIF/i.test(listing.description));
 check('listing does not claim a SID tune we do not ship', !/SID recording and is in this/i.test(listing.description));
 check('help.md names D-pad, FIRE, best score, mute',
   /D-pad/.test(help) && /FIRE/.test(help) && /best/i.test(help) && /mute/i.test(help));

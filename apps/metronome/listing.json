@@ -1,6 +1,6 @@
 {
-  "tagline": "A click that keeps time. Tempo lives in this file. No microphone.",
-  "description": "Works offline. No account, no install, no microphone. Set a tempo, press Start, and the click holds — the same lookahead Web Audio scheduling as Chris Wilson's metronome, with a pendulum and a wood click so it feels like the box on the piano.\n\nThe last tempo, signature and subdivision come back the next time you open the app, because they live in this file. Hand someone the GIF and they open it already at your rehearsal speed.\n\nPress Invite in the bar above the app to show the same numbers in a meeting. Each device plays its own click; there is no shared speaker.\n\nUnofficial port of the Web Audio metronome by Chris Wilson (cwilso). Bugs go to GifOS, not upstream.",
+  "tagline": "A metronome. Set the tempo, it keeps the click.",
+  "description": "Set a tempo, press Start, and the click holds — the same lookahead Web Audio scheduling as Chris Wilson's metronome, with a pendulum and a wood click so it feels like the box on the piano.\n\nThe last tempo, signature and subdivision come back the next time you open the app. Hand someone the GIF and they open it already at your rehearsal speed.\n\nPress Invite in the bar above the app to show the same numbers in a meeting. Each device plays its own click; there is no shared speaker.\n\nUnofficial port of the Web Audio metronome by Chris Wilson (cwilso). Bugs go to GifOS, not upstream.",
   "author": {
     "name": "cwilso",
     "url": "https://github.com/cwilso/metronome"

@@ -7,7 +7,7 @@
   "version": "1.0",
   "minBuild": 947,
   "tagline": "Minesweeper with emoji. Race a friend on the same board.",
-  "description": "A minesweeper board made of emoji — chicks, cake, flowers, storms, whichever set you pick. Tap a square to step on it. Hold (or right-click) to plant a flag. Double-tap a number to open the squares around it. Change the size and how many mines before you start.\n\nOn your own it is the original game. Send the invite and you both get the same board: first to clear it wins, and you can see each other's times as you go. There is no account and no game server. The room is the link.\n\nYour last board size stays on this device, inside the app.\n\nAn unofficial port of emoji-minesweeper by muan. This copy adds the race, and a long-press so a phone can plant a flag.",
+  "description": "A minesweeper board made of emoji — chicks, cake, flowers, storms, whichever set you pick. Tap a square to step on it. Hold (or right-click) to plant a flag. Double-tap a number to open the squares around it. Change the size and how many mines before you start.\n\nOn your own it is the original game. Send the invite and you both get the same board: first to clear it wins, and you can see each other's times as you go.\n\nYour last board size is remembered.\n\nAn unofficial port of emoji-minesweeper by muan. This copy adds the race, and a long-press so a phone can plant a flag.",
   "author": {
     "name": "muan",
     "url": "https://github.com/muan/emoji-minesweeper"

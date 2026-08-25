@@ -1,6 +1,6 @@
 {
-  "tagline": "Read a code from a still photo. Nothing is uploaded.",
-  "description": "Take a still photo or choose a picture already on this device. The words inside the code appear on the screen. There is no live camera — one picture at a time, on this device. Nothing is sent anywhere, and there is no account.\n\nA short history of what you have read stays in this file. It never leaves this device. A friend who opens the same app in a meeting keeps their own history.\n\nUnofficial port of jsQR by cozmo. For making a code, use QR Code. For a Wi-Fi fridge card, use WiFi Card.",
+  "tagline": "Read a QR code from a photo.",
+  "description": "Take a still photo or choose a picture already on this device. The words inside the code appear on the screen. There is no live camera — one picture at a time.\n\nA short history of what you have read is kept on this device. A friend who opens the same app in a meeting keeps their own history.\n\nUnofficial port of jsQR by cozmo. For making a code, use QR Code. For a Wi-Fi fridge card, use WiFi Card.",
   "author": {
     "name": "cozmo",
     "url": "https://github.com/cozmo/jsQR"

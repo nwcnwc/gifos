@@ -1,6 +1,6 @@
 {
-  "tagline": "Play the computer on this device, or a friend from one link. No server.",
-  "description": "The computer thinks on this device. There is no game server. Pass the phone, or press Play a friend and send the invite: the same board, live, on two devices. The game lives in the file, so sharing the GIF shares the board.\n\nA ten-by-ten board. White and black take turns. Men step one square forward on the diagonal. You must jump when you can, and a jump can chain. Reach the far side and the man becomes a king, who may go any way. Take all of the other side, or leave them with nowhere to go, and you win. White goes first. Tap a piece, then tap where it goes.\n\nAn unofficial port of Checkers by stroibot. The computer is the same one that shipped with that game.",
+  "tagline": "Play the computer, or send a link and a friend takes the other colour.",
+  "description": "The computer thinks on this device. Pass the phone, or press Play a friend and send the invite: the same board, live, on two devices. Close it mid-game and the board keeps.\n\nA ten-by-ten board. White and black take turns. Men step one square forward on the diagonal. You must jump when you can, and a jump can chain. Reach the far side and the man becomes a king, who may go any way. Take all of the other side, or leave them with nowhere to go, and you win. White goes first. Tap a piece, then tap where it goes.\n\nAn unofficial port of Checkers by stroibot. The computer is the same one that shipped with that game.",
   "author": {
     "name": "stroibot",
     "url": "https://github.com/stroibot/Checkers"

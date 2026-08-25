@@ -154,8 +154,8 @@ check('speed starts at 2500 and floors at 550', R.speedFor(1) === 2500 && R.spee
   check('best score is written to gifos.db', /db\('save'\)/.test(src));
   check('Invite is OS chrome', !/id=["']invite["']/.test(html));
   check('no second How-to-play button', !/how to play/i.test(html));
-  check('listing leads with why this version',
-    /offline/i.test(listing.description) && /file/i.test(listing.description) && /Invite/.test(listing.description));
+  check('listing says the best is saved, and a friend races the same sequence',
+    /saved/i.test(listing.description) && /Invite/.test(listing.description));
   check('listing does not mention internals',
     !/gifos\.db|WASM|sandbox|localStorage/.test(JSON.stringify(listing)));
   check('unofficial Mnimi, author is Sepand',

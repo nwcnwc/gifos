@@ -6,8 +6,8 @@
   "shortName": "Type",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Practice on this device. History lives in the file. Race a friend from one link.",
-  "description": "A passage appears. Type it. Speed is the letters you got right, not the ones you mashed; accuracy sits quietly beside it. Finish a run and it stays in the file, on this device — no account, nothing to sign in to, nothing in the cloud.\n\nLessons start on the home row, then the other rows, then punctuation. Switch between plain English and programmer lines whenever you like.\n\nPress Play a friend, then Invite in the bar above the app, and send the link. You both get the same passage and start together. First to finish wins; if you both finish, the higher speed takes it.\n\nAn unofficial port of Programmer's Typing Practice by climech. The original is a stream of random characters with no score. This version adds passages, lessons, a live result, and a race — and it works with the real keyboard on a phone.",
+  "tagline": "Typing practice that keeps your history — and lets you race a friend.",
+  "description": "A passage appears. Type it. Speed is the letters you got right, not the ones you mashed; accuracy sits quietly beside it. Finish a run and it goes into your history.\n\nLessons start on the home row, then the other rows, then punctuation. Switch between plain English and programmer lines whenever you like.\n\nPress Play a friend, then Invite in the bar above the app, and send the link. You both get the same passage and start together. First to finish wins; if you both finish, the higher speed takes it.\n\nAn unofficial port of Programmer's Typing Practice by climech. The original is a stream of random characters with no score. This version adds passages, lessons, a live result, and a race — and it works with the real keyboard on a phone.",
   "author": {
     "name": "climech",
     "url": "https://github.com/climech/typing-practice"
@@ -39,14 +39,14 @@
   "cover": "/apps/typing/cover.jpg",
   "screenshots": [],
   "gif": "/apps/typing/typing.gif",
-  "bytes": 202047,
+  "bytes": 202277,
   "download": 0,
   "provides": null,
-  "sha256": "80b6b7a5c885f024bd0b0033df05d520584d6be51a18aa2056164cd093d3aa25",
+  "sha256": "960c61d10cc07dbf853bb3d721c6f694ad80dfcaefd911359499bd9c2b9fdd8f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

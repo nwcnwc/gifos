@@ -6,8 +6,8 @@
   "shortName": "Q1K3",
   "version": "1.0.1",
   "minBuild": 1314,
-  "tagline": "A shotgun, two torch-lit halls, in a GIF. No server.",
-  "description": "This is Q1K3 in a GIF. There is no jam page, no install, and no server. Open the file and you are in the halls. Close it, come back — how the look feels, and which map you reached, live in the file.\n\nYou wake up in a brown stone hall with a shotgun in your hands and something waiting around the corner. Grunts, ogres, a hound that runs at you. Doors that need a key. A nailgun and a handful of grenades if you live long enough to pick them up. Two maps, then the end.\n\nOn a phone the left thumb walks and the right thumb looks; tap to shoot, jump with the button. On a computer it is WASD, the mouse, and a click.\n\nSend the invite and extra people appear in the same halls. The room is the link.\n\nAn unofficial port of Q1K3 by phoboslab. Music by Andy Lösch.",
+  "tagline": "Quake in 13 kB: a shotgun and two torch-lit halls.",
+  "description": "This is Q1K3 in a GIF. Open the file and you are in the halls. Close it, come back — your settings and the map you reached are saved.\n\nYou wake up in a brown stone hall with a shotgun in your hands and something waiting around the corner. Grunts, ogres, a hound that runs at you. Doors that need a key. A nailgun and a handful of grenades if you live long enough to pick them up. Two maps, then the end.\n\nOn a phone the left thumb walks and the right thumb looks; tap to shoot, jump with the button. On a computer it is WASD, the mouse, and a click.\n\nSend the invite and extra people appear in the same halls.\n\nAn unofficial port of Q1K3 by phoboslab. Music by Andy Lösch.",
   "author": {
     "name": "phoboslab",
     "url": "https://github.com/phoboslab"
@@ -42,14 +42,14 @@
   "cover": "/apps/q1k3/cover.jpg",
   "screenshots": [],
   "gif": "/apps/q1k3/q1k3.gif",
-  "bytes": 234378,
+  "bytes": 234624,
   "download": 0,
   "provides": null,
-  "sha256": "c87a427dffb36760328c4da3d278122d00289c5db34d9f8357db7f5a0c8fdf6f",
+  "sha256": "e409ee6c1d4e2a6f01e770312d25e0f619c704ae83026312753b952929431317",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

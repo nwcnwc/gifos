@@ -6,8 +6,8 @@
   "shortName": "Mermaid",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Type a diagram. See it live. The file is the save.",
-  "description": "A box on the left, a picture on the right. Type a flowchart, a sequence, a class diagram — mermaid's own language — and the picture updates as you type. There is no account and nothing is uploaded. The last diagram stays on this device, inside the app.\n\nOn a phone, Recipe and Picture swap so the keyboard does not cover the chart. A bad line shows a short error; the last good picture stays until you fix it. Sample drops in a starter. Copy SVG takes the picture with you.\n\nWant a friend looking at the same chart? Press Play together, then Invite (in the GifOS menu) and send the link. When you type, they see it.\n\nAn unofficial wrap of the mermaid engine, not the mermaid live editor website.",
+  "tagline": "Type a Mermaid diagram, see it render live.",
+  "description": "A box on the left, a picture on the right. Type a flowchart, a sequence, a class diagram — mermaid's own language — and the picture updates as you type. The last diagram is saved on this device.\n\nOn a phone, Recipe and Picture swap so the keyboard does not cover the chart. A bad line shows a short error; the last good picture stays until you fix it. Sample drops in a starter. Copy SVG takes the picture with you.\n\nWant a friend looking at the same chart? Press Play together, then Invite (in the GifOS menu) and send the link. When you type, they see it.\n\nAn unofficial wrap of the mermaid engine, not the mermaid live editor website.",
   "author": {
     "name": "mermaid-js",
     "url": "https://github.com/mermaid-js/mermaid"
@@ -39,14 +39,14 @@
   "cover": "/apps/mermaid/cover.jpg",
   "screenshots": [],
   "gif": "/apps/mermaid/mermaid.gif",
-  "bytes": 1686805,
+  "bytes": 1691622,
   "download": 0,
   "provides": null,
-  "sha256": "26c21372bc5f1fed44929ba6c7e095e071b4f74a99394b7701591223ccea1d2d",
+  "sha256": "2c620e66d0f670dfe19f42058dc3a5d6470617a10888283701483ce71098114b",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

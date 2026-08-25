@@ -6,8 +6,8 @@
   "shortName": "glTF",
   "version": "1.1.0",
   "minBuild": 947,
-  "tagline": "Open a 3D model on this device. Orbit it, inspect the scene.",
-  "description": "The last model stays in the file, so you can close the app and come back still looking at it. Nothing is uploaded, and there is no account.\n\nOpen a .glb or .gltf. Drag to orbit, pinch or scroll to zoom, two fingers to pan. The panel lists meshes, materials, cameras and clips — tap a row to flash that object. Play a clip if the file has one. Switch wireframe, a floor grid, skeleton, or a slow auto-rotate. Lighting is a local studio; no sky is fetched from anywhere.\n\nOn a phone the inspect sheet folds under the view so the model keeps the screen. One finger orbits, a pinch zooms.\n\nPress Invite in the bar above and a friend sits with you. Each of you opens a file on your own device; the model is not sent.\n\nAn unofficial port of Don McCurdy's glTF Viewer. Same job: open a model, look at it. This copy keeps the file here and leaves the remote sky maps behind.",
+  "tagline": "Open a 3D model. Orbit it, inspect the scene.",
+  "description": "The last model is saved, so you can close the app and come back still looking at it.\n\nOpen a .glb or .gltf. Drag to orbit, pinch or scroll to zoom, two fingers to pan. The panel lists meshes, materials, cameras and clips — tap a row to flash that object. Play a clip if the file has one. Switch wireframe, a floor grid, skeleton, or a slow auto-rotate. Lighting is a built-in studio.\n\nOn a phone the inspect sheet folds under the view so the model keeps the screen. One finger orbits, a pinch zooms.\n\nPress Invite in the bar above and a friend sits with you. Each of you opens a file on your own device; the model is not sent.\n\nAn unofficial port of Don McCurdy's glTF Viewer. Same job: open a model, look at it.",
   "author": {
     "name": "Don McCurdy",
     "url": "https://github.com/donmccurdy/three-gltf-viewer"
@@ -41,14 +41,14 @@
   "cover": "/apps/gltf-viewer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/gltf-viewer/gltf-viewer.gif",
-  "bytes": 503591,
+  "bytes": 504912,
   "download": 0,
   "provides": null,
-  "sha256": "394ce8cbd9c4fc001d5a3326c9672ec96ef8f2261aae9a0da41881b940425e29",
+  "sha256": "d5e5a8cba805c36b902ddac2869ac594766665149bc246f2d98ae974fdbc6bbf",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

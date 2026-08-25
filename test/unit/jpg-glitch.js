@@ -119,10 +119,10 @@ check('buttons are 44px tall', css.includes('min-height: 44px'));
 check('stage is flex-first so the picture is on screen', css.includes('flex: 1 1 auto') && css.includes('min-height: 180px'));
 check('hidden wins over canvas display:block (phone empty state)', css.includes('[hidden] { display: none !important; }') || css.includes('[hidden]{display:none!important;}'));
 
-check('listing leads with on-device, no upload',
-  /on this device/i.test(listing.tagline) && /nothing is uploaded/i.test(listing.tagline));
+check('listing keeps the photo on the device',
+  /on your device/i.test(listing.tagline) && /never leaves the device/i.test(listing.description));
 check('listing does not say drop', !/drop /i.test(listing.tagline) && !/drop a/i.test(listing.description));
-check('listing says the file is the save', /app file/i.test(listing.description));
+check('listing says the last picture is remembered', /are remembered/i.test(listing.description));
 check('listing is an unofficial port of jpg-glitch', listing.basedOn && listing.basedOn.name === 'jpg-glitch' && listing.basedOn.blessed === false);
 check('author is snorpey, never GifOS', listing.author.name === 'snorpey' && listing.porter.name === 'GifOS');
 check('manifest camera + db, no network, minBuild 947',

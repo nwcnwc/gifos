@@ -6,8 +6,8 @@
   "shortName": "Hangman",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Race a friend or share the rope — one invite, on this device. No account.",
-  "description": "One invite, two phones, the same word. Race, and the first to finish it wins — each of you has your own rope, and you never see the other person's letters, only how many wrong guesses they have used. Or share the rope: every letter anyone tries is on the same gallows, so you sink or swim together. No account.\n\nOn your own it is that game, on this device. A programming language is hiding. Pick a letter. Right ones fill in; six wrong ones and the drawing is finished. Close it and come back: a game in progress is still there, inside the file.\n\nThe words are the original fourteen — Python, Ruby, Java, and the rest.\n\nAn unofficial port of Vanilla Javascript Hangman Game by simonjsuh.",
+  "tagline": "Hangman for two: race a friend, or share the rope on one phone.",
+  "description": "One invite, two phones, the same word. Race, and the first to finish it wins — each of you has your own rope, and you never see the other person's letters, only how many wrong guesses they have used. Or share the rope: every letter anyone tries is on the same gallows, so you sink or swim together.\n\nOn your own it is that game, on this device. A programming language is hiding. Pick a letter. Right ones fill in; six wrong ones and the drawing is finished. Close it and come back: a game in progress is still there.\n\nThe words are the original fourteen — Python, Ruby, Java, and the rest.\n\nAn unofficial port of Vanilla Javascript Hangman Game by simonjsuh.",
   "author": {
     "name": "simonjsuh",
     "url": "https://github.com/simonjsuh/Vanilla-Javascript-Hangman-Game"
@@ -39,14 +39,14 @@
   "cover": "/apps/hangman/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hangman/hangman.gif",
-  "bytes": 172228,
+  "bytes": 172123,
   "download": 0,
   "provides": null,
-  "sha256": "9c1ad78d77e1c90914486caa324f1ab9dfe75603a4e77a49a63ef07bbe4a6539",
+  "sha256": "c02a8b748804fb0988855a614518f2f0d98cbfaed0e0ce9977b611e2855fcb39",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

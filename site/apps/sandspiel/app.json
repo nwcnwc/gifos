@@ -6,8 +6,8 @@
   "shortName": "Sand",
   "version": "1.1.0",
   "minBuild": 947,
-  "tagline": "The file is the world. Pour sand, water, fire and plants — no account.",
-  "description": "This copy of the app is the world: close it, keep the GIF, the dunes go with it. Nothing is uploaded. Nobody needs an account.\n\nPick an element and paint with a finger or a mouse. Sand piles. Water finds a way down. Lava turns water to stone. Fire eats wood. Plants drink. Pause, undo, reset. Five brush sizes, from a dot to a splash.\n\nName a board to keep an extra copy on this device. Playing with friends is a wall of worlds: press Play together, then Invite in the bar above the app, and send the link. Friends land on the wall, pin a board as a card, tap a card to open it.\n\nAn unofficial port of Sandspiel by Max Bittker. The original is a web toy with a public gallery. This copy is the pour, the file, and a meeting wall instead.",
+  "tagline": "Pour sand, water, fire and plants. Watch them react.",
+  "description": "Close it, keep the GIF, and the dunes go with it.\n\nPick an element and paint with a finger or a mouse. Sand piles. Water finds a way down. Lava turns water to stone. Fire eats wood. Plants drink. Pause, undo, reset. Five brush sizes, from a dot to a splash.\n\nName a board to keep an extra copy on this device. Playing with friends is a wall of worlds: press Play together, then Invite in the bar above the app, and send the link. Friends land on the wall, pin a board as a card, tap a card to open it.\n\nAn unofficial port of Sandspiel by Max Bittker. This copy swaps the public gallery for a meeting wall.",
   "author": {
     "name": "Max Bittker",
     "url": "https://github.com/MaxBittker/sandspiel"
@@ -43,14 +43,14 @@
   "cover": "/apps/sandspiel/cover.jpg",
   "screenshots": [],
   "gif": "/apps/sandspiel/sandspiel.gif",
-  "bytes": 283453,
+  "bytes": 283712,
   "download": 0,
   "provides": null,
-  "sha256": "42a7d428db4541fcdc715f9c725a793ea92ef8d92b82305bf8a8634d671989d9",
+  "sha256": "5871e2a212d51d27d34df3a1f65985dab162b6ad61b3012e448cd699dcf933e2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

@@ -6,8 +6,8 @@
   "shortName": "TexGen",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Procedural textures, live. The file holds the recipe.",
-  "description": "Upstream texgen.js is a library. This is an editor: stack XOR, sines, noise, checkers, twirls; combine with add, multiply, xor; tint each layer; download a PNG. It runs fully offline. There is no account, and nothing is sent anywhere.\n\nThe stack is the save. Name a recipe, keep it, close the app — it is still there. Share the GIF and the recipe travels with it. Presets from the original examples are one tap, including the classic XOR look.\n\nUnofficial port of texgen.js by mrdoob. Bugs go to GifOS, not upstream.",
+  "tagline": "Procedural textures, live — tweak the recipe, watch it redraw.",
+  "description": "Upstream texgen.js is a library. This is an editor: stack XOR, sines, noise, checkers, twirls; combine with add, multiply, xor; tint each layer; download a PNG.\n\nName a recipe, keep it, close the app — it is still there. Share the GIF and the recipe travels with it. Presets from the original examples are one tap, including the classic XOR look.\n\nUnofficial port of texgen.js by mrdoob. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "mrdoob",
     "url": "https://github.com/mrdoob/texgen.js"
@@ -39,14 +39,14 @@
   "cover": "/apps/texgen/cover.jpg",
   "screenshots": [],
   "gif": "/apps/texgen/texgen.gif",
-  "bytes": 197600,
+  "bytes": 197769,
   "download": 0,
   "provides": null,
-  "sha256": "032d2b4fa0955b992cf7439c3d23285c744a20d87389d0f5b9dd66dc580229cf",
+  "sha256": "601df83cb9c211a68fc7d012293ebf855b4f0bc9cb2a20de2a36ccf8fb3abbf9",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

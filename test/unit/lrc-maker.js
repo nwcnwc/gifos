@@ -119,7 +119,7 @@ check('no microphone capability (clips are not required)', !src.manifest.capabil
 check('no network capability', !src.manifest.capabilities.network);
 check('help.md covers Stamp, seek, and the song in the file',
   /Stamp/.test(src.help) && /seek/i.test(src.help) && /8 MB/.test(src.help) && src.help.trim().length > 400);
-check('listing leads with the song living in the file', /live in the file|stays in this file/i.test(src.listing.description));
+check('listing says the song and lyrics are saved', /song and the lyrics are saved/i.test(src.listing.description));
 check('listing does not say Drop', !/\bDrop\b/.test(src.listing.tagline + src.listing.description));
 check('listing names Stamp and the unofficial port',
   /Stamp/.test(src.listing.description) && /unofficial port/i.test(src.listing.description));

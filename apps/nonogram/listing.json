@@ -1,6 +1,6 @@
 {
   "tagline": "Picross. Paint the squares from the numbers. Race a friend on the same puzzle.",
-  "description": "Numbers along the edge tell you how the filled squares run in each row and column. Paint a square, or mark it empty with a cross, until the picture appears. Drag to paint a whole line. Start small and work up to a fifteen-by-fifteen.\n\nOn your own it is that game, saved on this device inside the app. Close it and pick up where you left off. Send the invite and you both get the same puzzle: first to finish wins, and you can see each other's times as you go. There is no account and no game server. The room is the link.\n\nAn unofficial port of Nonogram by HandsomeOne. This copy adds the race, and a finger can paint.",
+  "description": "Numbers along the edge tell you how the filled squares run in each row and column. Paint a square, or mark it empty with a cross, until the picture appears. Drag to paint a whole line. Start small and work up to a fifteen-by-fifteen.\n\nOn your own it is that game, saved on this device inside the app. Close it and pick up where you left off. Send the invite and you both get the same puzzle: first to finish wins, and you can see each other's times as you go.\n\nAn unofficial port of Nonogram by HandsomeOne. This copy adds the race, and a finger can paint.",
   "author": {
     "name": "HandsomeOne",
     "url": "https://github.com/HandsomeOne/Nonogram"

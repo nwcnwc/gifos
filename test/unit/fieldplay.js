@@ -161,8 +161,8 @@ check('empty recipe does not wipe the field', /recipe box is empty/.test(src.app
 check('no fetch/XHR/WebSocket/eval in app chrome',
   !['fetch(', 'XMLHttpRequest', 'WebSocket', 'eval(', 'new Function('].some((b) => src.app.includes(b) || src.mp.includes(b)));
 check('help.md covers tap-to-pour and pinch', /pour/.test(src.help) && /Pinch/.test(src.help));
-check('listing leads with the file-is-the-save reason',
-  /file is the save/i.test(src.listing) && /unofficial port of Field Play/i.test(src.listing));
+check('listing says the knobs are saved, and credits the port',
+  /saved with the app/i.test(src.listing) && /unofficial port of Field Play/i.test(src.listing));
 check('listing does not mention gifos.db / WASM / sandbox',
   !/gifos\.db|WASM|sandbox|localStorage|CDN/.test(src.listing));
 check('manifest launch.field is declared', !!(src.manifest.launch && src.manifest.launch.field));

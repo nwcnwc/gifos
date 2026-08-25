@@ -6,8 +6,8 @@
   "shortName": "Ludo",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Four seats fill as people open the invite. No lobby, no server.",
-  "description": "Send the invite. The people who open it sit Red, Green, Yellow, and Blue — you only roll on your colour. There is no account, no lobby code, and no game server. The room is the link.\n\nEach colour has four tokens. Roll a six to leave the yard. Race them clockwise around the board and up your own home stretch. Land on someone who is not on a start square and they go back to the yard. You stay. A six is another roll, unless you throw three in a row. An exact count takes a token home. First to get all four home wins.\n\nOn your own, pass the phone — two, three, or four colours, all on this device. A game in progress lives in the file; close it and Continue picks it up.\n\nAn unofficial port of Ludo by chukwumaijem. The original is a desktop app with a lobby. This copy is the same race without the lobby.",
+  "tagline": "Ludo. Four seats fill as friends open your invite.",
+  "description": "Send the invite. The people who open it sit Red, Green, Yellow, and Blue — you only roll on your colour.\n\nEach colour has four tokens. Roll a six to leave the yard. Race them clockwise around the board and up your own home stretch. Land on someone who is not on a start square and they go back to the yard. You stay. A six is another roll, unless you throw three in a row. An exact count takes a token home. First to get all four home wins.\n\nOn your own, pass the phone — two, three, or four colours, all on this device. A game in progress is saved; close it and Continue picks it up.\n\nAn unofficial port of Ludo by chukwumaijem.",
   "author": {
     "name": "chukwumaijem",
     "url": "https://github.com/chukwumaijem/ludo-game"
@@ -38,14 +38,14 @@
   "cover": "/apps/ludo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/ludo/ludo.gif",
-  "bytes": 191882,
+  "bytes": 192068,
   "download": 0,
   "provides": null,
-  "sha256": "c2d94790f056897fd1bcb8edeb7999aa9c15087a3cc2bc3ee39b001bd3fcb53d",
+  "sha256": "5af9639c28350d2a1b4db0cb1f5bacfe04057d1452222adba2f3d5cf6bd05639",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

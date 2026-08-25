@@ -231,8 +231,8 @@ check('save is private, room is shared',
 check('listing is a port of Zane Helton, not GifOS',
   listing.author.name === 'Zane Helton' && listing.porter.name === 'GifOS' && listing.basedOn.name === 'Piano Trainer' && listing.basedOn.blessed === false);
 check('tagline fits a card', listing.tagline.length > 8 && listing.tagline.length < 80);
-check('description leads with no-account / the file',
-  /no account/i.test(listing.description) && /file/.test(listing.description) && /unofficial port/i.test(listing.description));
+check('description says the score is saved, and credits the port',
+  /quiz score and finished rounds are saved/i.test(listing.description) && /unofficial port/i.test(listing.description));
 check('listing does not name internals',
   !/gifos\.db|WASM|sandbox|localStorage|WebRTC/.test(JSON.stringify(listing)));
 check('help.md is a real help page', help.length >= 400 && /home row/i.test(help) && /Quiz/.test(help));

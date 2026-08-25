@@ -6,8 +6,8 @@
   "shortName": "Sprint",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Mash on your phone. A friend in the next lane from one link. No race server.",
-  "description": "Mash the pad on your phone. Your sticker sprints. First across the tape wins. A friend sits in the next lane from one invite — there is no race server.\n\nJump the countdown and everyone sees it: you lurch, you go back, you wait. The last second of the race loops so you can see whose nose broke the tape.\n\nOn your own, race a ghost of your best run, or a computer with a fair cadence — beatable if you mash, not asleep if you don't. Close the app: your best time is still there.\n\nThe pad is most of the lower half of the phone. On a laptop, hit space.",
+  "tagline": "Mash your thumb to sprint. A friend races the next lane from one link.",
+  "description": "Mash the pad on your phone. Your sticker sprints. First across the tape wins. A friend sits in the next lane from one invite.\n\nJump the countdown and everyone sees it: you lurch, you go back, you wait. The last second of the race loops so you can see whose nose broke the tape.\n\nOn your own, race a ghost of your best run, or a computer with a fair cadence — beatable if you mash, not asleep if you don't. Close the app: your best time is still there.\n\nThe pad is most of the lower half of the phone. On a laptop, hit space.",
   "author": {
     "name": "GifOS",
     "url": "https://gifos.app"
@@ -39,13 +39,13 @@
   "cover": "/apps/thumb-sprint/cover.jpg",
   "screenshots": [],
   "gif": "/apps/thumb-sprint/thumb-sprint.gif",
-  "bytes": 225801,
+  "bytes": 225790,
   "download": 0,
   "provides": null,
-  "sha256": "f0f7c70401e26d77062efcc6fb4a7042c7f5e258bd6986dd97a738f8120dbbad",
+  "sha256": "0861b0fa929b1365e3b69e36be1869b1c784d50af332a13de7f73d4a319395a2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   }
 }

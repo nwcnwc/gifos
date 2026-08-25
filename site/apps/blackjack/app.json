@@ -6,8 +6,8 @@
   "shortName": "Blackjack",
   "version": "1.1.0",
   "minBuild": 947,
-  "tagline": "Beat the dealer to 21. The file holds your chips. Invite is extra seats.",
-  "description": "Hit, stand, or double. Split a pair. Aces are soft until they have to be one. The dealer stands on 17. A natural 21 pays 3:2. Go broke and the table says so; restock deals you a fresh pile.\n\nYour pile lives in the file, so sharing the GIF shares the table and the chips. One link sits friends at the same table. The host deals. The dealer plays in the host's browser.\n\nAn unofficial port of blackjack by hanhaechi. The original saved the hand on a server. This copy does not.",
+  "tagline": "Beat the dealer to 21. Friends who open your invite play their own hands.",
+  "description": "Hit, stand, or double. Split a pair. Aces are soft until they have to be one. The dealer stands on 17. A natural 21 pays 3:2. Go broke and the table says so; restock deals you a fresh pile.\n\nYour chips are saved with your copy of the app — share the file and the table goes with it. One link sits friends at the same table. The host deals. The dealer plays in the host's browser.\n\nAn unofficial port of blackjack by hanhaechi.",
   "author": {
     "name": "hanhaechi",
     "url": "https://github.com/hanhaechi/blackjack"
@@ -39,10 +39,10 @@
   "cover": "/apps/blackjack/cover.jpg",
   "screenshots": [],
   "gif": "/apps/blackjack/blackjack.gif",
-  "bytes": 192951,
+  "bytes": 192959,
   "download": 0,
   "provides": null,
-  "sha256": "15f26afd64e0a063a100048b04731d04d677f9abf7cc4c7cdc2efda53ebe5294",
+  "sha256": "bac0ec66717f59a3417f58967c8bab051092a93b6ff111b63a2cd789bf80265f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",

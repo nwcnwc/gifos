@@ -168,7 +168,7 @@ check('Record is 52px tall and full width', /min-height: 52px/.test(css) && /#re
 check('string chips are thumb-sized', /min-height: 44px/.test(css));
 check('no in-app Invite button', !/<button\b[^>]*>\s*Invite\s*</i.test(html));
 check('help names too-quiet and not-a-live-tuner', help.length >= 400 && /too quiet/i.test(help) && /Not a live tuner/.test(help));
-check('listing leads with offline / no live microphone', /Works offline/.test(listing.description) && /no live microphone/.test(listing.description));
+check('listing says it is a take, not a live needle', /a take, not a live needle/i.test(listing.description));
 check('listing credits Chris Wilson', listing.author && listing.author.name === 'Chris Wilson');
 check('listing is an unofficial port', listing.basedOn && listing.basedOn.name === 'PitchDetect' && listing.basedOn.blessed === false);
 check('microphone capability is declared (clips, not a stream)', manifest.capabilities.microphone === true);

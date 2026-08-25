@@ -138,7 +138,7 @@ function flush() {
   check('help.md teaches the loop and the phone tabs', help.includes('Recipe') && help.includes('Picture') && help.includes('flowchart TD'));
   check('help.md does not document Invite/Save', !/\bInvite\b/.test(help) && !/\bSave\b/.test(help));
   check('listing is an unofficial wrap of the engine', /unofficial wrap/i.test(listing.description) && listing.basedOn.name === 'mermaid');
-  check('listing leads with the file as the save', /file is the save/i.test(listing.tagline));
+  check('tagline says it renders live', /render live/i.test(listing.tagline));
   check('listing mentions the phone swap', /Recipe and Picture/i.test(listing.description));
 
   const vendor = fs.readFileSync(path.join(APP, 'vendor', 'mermaid.min.js'), 'utf8');

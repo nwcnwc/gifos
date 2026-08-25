@@ -6,8 +6,8 @@
   "shortName": "Metro",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "A click that keeps time. Tempo lives in this file. No microphone.",
-  "description": "Works offline. No account, no install, no microphone. Set a tempo, press Start, and the click holds — the same lookahead Web Audio scheduling as Chris Wilson's metronome, with a pendulum and a wood click so it feels like the box on the piano.\n\nThe last tempo, signature and subdivision come back the next time you open the app, because they live in this file. Hand someone the GIF and they open it already at your rehearsal speed.\n\nPress Invite in the bar above the app to show the same numbers in a meeting. Each device plays its own click; there is no shared speaker.\n\nUnofficial port of the Web Audio metronome by Chris Wilson (cwilso). Bugs go to GifOS, not upstream.",
+  "tagline": "A metronome. Set the tempo, it keeps the click.",
+  "description": "Set a tempo, press Start, and the click holds — the same lookahead Web Audio scheduling as Chris Wilson's metronome, with a pendulum and a wood click so it feels like the box on the piano.\n\nThe last tempo, signature and subdivision come back the next time you open the app. Hand someone the GIF and they open it already at your rehearsal speed.\n\nPress Invite in the bar above the app to show the same numbers in a meeting. Each device plays its own click; there is no shared speaker.\n\nUnofficial port of the Web Audio metronome by Chris Wilson (cwilso). Bugs go to GifOS, not upstream.",
   "author": {
     "name": "cwilso",
     "url": "https://github.com/cwilso/metronome"
@@ -40,14 +40,14 @@
   "cover": "/apps/metronome/cover.jpg",
   "screenshots": [],
   "gif": "/apps/metronome/metronome.gif",
-  "bytes": 195339,
+  "bytes": 195486,
   "download": 0,
   "provides": null,
-  "sha256": "a35eb05a8620d556fa63055d437443081d841304e1a35c30fdbd2f8cb973c514",
+  "sha256": "bcd04ce82796369223250a11fb717565a649e9d2e64b51e38809ec3566f5420c",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

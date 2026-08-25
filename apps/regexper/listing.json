@@ -1,6 +1,6 @@
 {
-  "tagline": "Type a regular expression. See a railroad diagram. On this device.",
-  "description": "Type a regular expression and press Display. You get a picture of what it matches: a railroad diagram, with boxes for the letters, loops for things that repeat, and branches where there is a choice. That is often easier to read than the punctuation.\n\nThe picture is drawn on this device. Nothing is uploaded, and nothing is sent anywhere. You can save it as an SVG or a PNG.\n\nAn unofficial port of Regexper by javallone. He did not endorse this listing. Same diagrams. There is no path out to the internet.",
+  "tagline": "Type a regular expression, see it as a railroad diagram.",
+  "description": "Type a regular expression and press Display. You get a picture of what it matches: a railroad diagram, with boxes for the letters, loops for things that repeat, and branches where there is a choice. That is often easier to read than the punctuation.\n\nYou can save it as an SVG or a PNG.\n\nAn unofficial port of Regexper by javallone. He did not endorse this listing. Same diagrams.",
   "author": {
     "name": "javallone",
     "url": "https://github.com/javallone/regexper-static"

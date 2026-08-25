@@ -165,7 +165,7 @@ MAIN.push(async () => {
   check('manifest has no network', !manifest.capabilities.network);
   check('room is read-write, save is private',
     manifest.data.room.visibility === 'read-write' && manifest.data.save.visibility === 'private');
-  check('listing leads with no-server', /^Nothing is uploaded/i.test(JSON.parse(listing).tagline));
+  check('tagline says device to device', /device to device/i.test(JSON.parse(listing).tagline));
   check('listing does not mention gifos.db / WASM / sandbox',
     !/gifos\.db|WASM|sandbox|localStorage|WebRTC/.test(listing));
   check('help.md does not document Save/Steal', !/\bSave\b/.test(help) && !/\bSteal\b/.test(help));

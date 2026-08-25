@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "minBuild": 947,
   "tagline": "Ten pins at the end of the lane. Aim, flick, take turns.",
-  "description": "A bowling alley. Ten pins stand in a triangle, a red ball at your end. Slide the ball left or right to line it up, then flick up the lane to throw. Knock them all on the first ball and that is a strike. Leave a few and pick them up for a spare. Ten frames, and the score adds itself.\n\nOn your own you bowl a full game. Two of you can pass the same screen. Or press Invite and a friend takes the next turn on their own phone or computer — there is no game server, no account, and no lobby. The room is the link. Each person keeps their own score.\n\nAn unofficial port of bowling by tincoats. This copy adds a score sheet, and a friend on a second device.",
+  "description": "A bowling alley. Ten pins stand in a triangle, a red ball at your end. Slide the ball left or right to line it up, then flick up the lane to throw. Knock them all on the first ball and that is a strike. Leave a few and pick them up for a spare. Ten frames, and the score adds itself.\n\nOn your own you bowl a full game. Two of you can pass the same screen. Or press Invite and a friend takes the next turn on their own phone or computer. Each person keeps their own score.\n\nAn unofficial port of bowling by tincoats. This copy adds a score sheet, and a friend on a second device.",
   "author": {
     "name": "tincoats",
     "url": "https://github.com/tincoats/bowling"

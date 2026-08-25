@@ -6,8 +6,8 @@
   "shortName": "Cron",
   "version": "1.1.0",
   "minBuild": 947,
-  "tagline": "A cron expression, said in English. Nothing is uploaded.",
-  "description": "Type a five-field schedule. The app says it in English, names each field, and lists the next times it fires — on this device, with no account and nothing sent anywhere.\n\nThe last expression you typed comes back the next time you open the app. Press Invite (the GifOS bar) and the same sentence shows up, read-only, for everyone in a meeting.\n\nAn unofficial port of cRonstrue by bradymholt. English only.",
+  "tagline": "Paste a cron expression, read it back in plain English.",
+  "description": "Type a five-field schedule. The app says it in English, names each field, and lists the next times it fires.\n\nThe last expression you typed comes back the next time you open the app. Press Invite (the GifOS bar) and the same sentence shows up, read-only, for everyone in a meeting.\n\nAn unofficial port of cRonstrue by bradymholt. English only.",
   "author": {
     "name": "bradymholt",
     "url": "https://github.com/bradymholt/cRonstrue"
@@ -39,14 +39,14 @@
   "cover": "/apps/cron-speak/cover.jpg",
   "screenshots": [],
   "gif": "/apps/cron-speak/cron-speak.gif",
-  "bytes": 207483,
+  "bytes": 207670,
   "download": 0,
   "provides": null,
-  "sha256": "0fb78b8b54973d85bf2d44c22b40c8f13d837babf873807cc9a2e1cfcc8e6050",
+  "sha256": "bc0845edce51f14437eb4d5ca5beda3bf244c2a1e53af75510db9418c3191c55",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

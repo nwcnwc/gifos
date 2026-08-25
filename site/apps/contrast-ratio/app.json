@@ -6,8 +6,8 @@
   "shortName": "Contrast",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Check text contrast. Nothing is uploaded.",
-  "description": "Type a colour for the page and a colour for the words. A number appears in the circle: the bigger it is, the easier the words are to read. The circle turns red if the pair is too close, amber if it is only good enough for large type, and green if ordinary text is fine.\n\nThe last pair you typed comes back the next time you open the app, still only on this device. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of contrast-ratio by siege-media, from the checker Lea Verou first wrote. Same two boxes, same circle, same yes-or-no for whether the words can be read.",
+  "tagline": "Pick two colours, see the contrast ratio and the WCAG verdict.",
+  "description": "Type a colour for the page and a colour for the words. A number appears in the circle: the bigger it is, the easier the words are to read. The circle turns red if the pair is too close, amber if it is only good enough for large type, and green if ordinary text is fine.\n\nThe last pair you typed comes back the next time you open the app.\n\nAn unofficial port of contrast-ratio by siege-media, from the checker Lea Verou first wrote. Same two boxes, same circle, same yes-or-no for whether the words can be read.",
   "author": {
     "name": "siege-media",
     "url": "https://github.com/siege-media/contrast-ratio"
@@ -39,14 +39,14 @@
   "cover": "/apps/contrast-ratio/cover.jpg",
   "screenshots": [],
   "gif": "/apps/contrast-ratio/contrast-ratio.gif",
-  "bytes": 189586,
+  "bytes": 189769,
   "download": 0,
   "provides": null,
-  "sha256": "23c547365bd3257f52c5e4510cde8c412eff0f76ca3d69a5591a85ae5b8b7650",
+  "sha256": "b81939cb733aa3adb0ffd13d6a39fca5d80c10dafb41f0dccad5a8ce54def29d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

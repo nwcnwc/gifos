@@ -1,6 +1,6 @@
 {
-  "tagline": "Drag the green cube. Thirty jam levels. Your best lives in the file.",
-  "description": "Works offline, no account, no install. Close it on level 18 and it opens on level 18 — this file keeps the level you reached and your best moves.\n\nYou are the green cube. Pink blocks are up, blue are down, beige are broken. Step onto a neighbour and it toggles. Push every pink down before you run out of moves. Drag the cube on a phone and it slides along the isometric faces; tap a neighbour; arrows work on a laptop. Undo if you step wrong.\n\nEasy, medium, and hard — ten Global Game Jam levels each. Finish one and the next is waiting.\n\nAn unofficial port of Hexahedral by mminer. Same thirty puzzles; the Redux shell stays behind.",
+  "tagline": "Drag the green cube through thirty puzzle levels.",
+  "description": "Close it on level 18 and it opens on level 18 — the level you reached and your best moves are saved.\n\nYou are the green cube. Pink blocks are up, blue are down, beige are broken. Step onto a neighbour and it toggles. Push every pink down before you run out of moves. Drag the cube on a phone and it slides along the isometric faces; tap a neighbour; arrows work on a laptop. Undo if you step wrong.\n\nEasy, medium, and hard — ten Global Game Jam levels each. Finish one and the next is waiting.\n\nAn unofficial port of Hexahedral by mminer. Same thirty puzzles.",
   "author": {
     "name": "mminer",
     "url": "https://github.com/mminer/hexahedral"

@@ -197,8 +197,8 @@ check('no in-app Invite button', !html.includes('id="invite"') && !/>\s*Invite\s
 check('gifos.db save is wired', appJs.includes("db('save')"));
 check('onBack is registered', appJs.includes('onBack'));
 check('Help names the phone keyboard', /phone keyboard/i.test(help));
-check('listing leads with the file / offline reason',
-  /file|offline|no account/i.test(listing.description) && listing.tagline.length <= 120);
+check('listing says the letters keep',
+  /every letter is still there/i.test(listing.description) && listing.tagline.length <= 120);
 check('listing does not mention gifos.db', !JSON.stringify(listing).includes('gifos.db'));
 check('Help is a real how-to, not a stub', help.trim().length >= 400);
 

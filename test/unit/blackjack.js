@@ -258,9 +258,9 @@ check('restock adds REFILL chips',
 check('help says 3:2, stands on 17, double, split, restock',
   /3:2/.test(help) && /stands on 17/.test(help) &&
   /Double/.test(help) && /Split/.test(help) && /Restock/.test(help));
-check('listing leads with the game / file / invite',
-  /21/.test(listing.tagline) && /file/i.test(listing.tagline) && /Invite/i.test(listing.tagline) &&
-  /3:2/.test(listing.description) && /file/i.test(listing.description) && /link/i.test(listing.description));
+check('listing leads with the game / friends from the invite',
+  /21/.test(listing.tagline) && /invite/i.test(listing.tagline) &&
+  /3:2/.test(listing.description) && /saved/i.test(listing.description) && /link/i.test(listing.description));
 check('listing tagline fits a card', listing.tagline.length <= 80);
 check('author is hanhaechi, not GifOS', listing.author.name === 'hanhaechi' && listing.porter.name === 'GifOS');
 check('minBuild stays 947', manifest.minBuild === 947);

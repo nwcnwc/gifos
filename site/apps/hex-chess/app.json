@@ -6,8 +6,8 @@
   "shortName": "HexChess",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "The hexagonal kind, with three bishops. Computer on this device — or a friend from one link.",
-  "description": "Hexagonal chess on this device. The computer thinks here, or you send one link and a friend sits the other colour. There is no account, and no game server.\n\nNinety-one hexes, three colours, three bishops. Tap a piece, then a hex — legal hexes light up. White sits at the near side. Close the tab and the game is still in the icon: the file is the save.\n\nOn your own, a computer looks a little way ahead right on the phone. Pass the device for two people in the same room, or press Play a friend and send the invite.\n\nThere is no castling. A pawn that steps two hexes can still be taken in passing. This is the hexagonal kind, not the square board.",
+  "tagline": "Chess on hexagons, with three bishops. Play the computer or a friend.",
+  "description": "Hexagonal chess. The computer thinks here on this device, or you send one link and a friend sits the other colour.\n\nNinety-one hexes, three colours, three bishops. Tap a piece, then a hex — legal hexes light up. White sits at the near side. Close the tab and the game is still there when you come back.\n\nOn your own, a computer looks a little way ahead right on the phone. Pass the device for two people in the same room, or press Play a friend and send the invite.\n\nThere is no castling. A pawn that steps two hexes can still be taken in passing. This is the hexagonal kind, not the square board.",
   "author": {
     "name": "GifOS",
     "url": "https://gifos.app"
@@ -39,13 +39,13 @@
   "cover": "/apps/hex-chess/cover.jpg",
   "screenshots": [],
   "gif": "/apps/hex-chess/hex-chess.gif",
-  "bytes": 204447,
+  "bytes": 204421,
   "download": 0,
   "provides": null,
-  "sha256": "f69dba02875a3b16900179f12965f26b9b509b9b46b7877a698ba6ead39fea19",
+  "sha256": "d219ec4e59cb796b26d6bfa3faa5281faca044e6fec775a90a7fdc83028f42d3",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   }
 }

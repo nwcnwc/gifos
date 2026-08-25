@@ -1,6 +1,6 @@
 {
-  "tagline": "The file is the world. Pour sand, water, fire and plants — no account.",
-  "description": "This copy of the app is the world: close it, keep the GIF, the dunes go with it. Nothing is uploaded. Nobody needs an account.\n\nPick an element and paint with a finger or a mouse. Sand piles. Water finds a way down. Lava turns water to stone. Fire eats wood. Plants drink. Pause, undo, reset. Five brush sizes, from a dot to a splash.\n\nName a board to keep an extra copy on this device. Playing with friends is a wall of worlds: press Play together, then Invite in the bar above the app, and send the link. Friends land on the wall, pin a board as a card, tap a card to open it.\n\nAn unofficial port of Sandspiel by Max Bittker. The original is a web toy with a public gallery. This copy is the pour, the file, and a meeting wall instead.",
+  "tagline": "Pour sand, water, fire and plants. Watch them react.",
+  "description": "Close it, keep the GIF, and the dunes go with it.\n\nPick an element and paint with a finger or a mouse. Sand piles. Water finds a way down. Lava turns water to stone. Fire eats wood. Plants drink. Pause, undo, reset. Five brush sizes, from a dot to a splash.\n\nName a board to keep an extra copy on this device. Playing with friends is a wall of worlds: press Play together, then Invite in the bar above the app, and send the link. Friends land on the wall, pin a board as a card, tap a card to open it.\n\nAn unofficial port of Sandspiel by Max Bittker. This copy swaps the public gallery for a meeting wall.",
   "author": {
     "name": "Max Bittker",
     "url": "https://github.com/MaxBittker/sandspiel"

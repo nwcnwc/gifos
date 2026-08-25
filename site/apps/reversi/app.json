@@ -6,8 +6,8 @@
   "shortName": "Reversi",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Play the computer on this device, or a friend from one link. No server.",
-  "description": "The computer thinks on this device. There is no game server. Pass the phone, or press Play a friend and send the invite: the same board, live, on two devices. The game lives in the file, so sharing the GIF shares the board.\n\nAn eight-by-eight green board. Black and white take turns putting a disc down. Any of the other colour trapped in a straight line between two of yours flip to you. Black goes first. Dots show where you can go. When neither of you can place, the one with more discs wins.\n\nAn unofficial port of Reversi by Alexander Berson. The computer is the same one that shipped with that game.",
+  "tagline": "Othello. The computer plays here, or a friend joins from one link.",
+  "description": "The computer thinks on this device. Pass the phone, or press Play a friend and send the invite: the same board, live, on two devices. Close it mid-game and the board keeps.\n\nAn eight-by-eight green board. Black and white take turns putting a disc down. Any of the other colour trapped in a straight line between two of yours flip to you. Black goes first. Dots show where you can go. When neither of you can place, the one with more discs wins.\n\nAn unofficial port of Reversi by Alexander Berson. The computer is the same one that shipped with that game.",
   "author": {
     "name": "alex-berson",
     "url": "https://github.com/alex-berson/reversi"
@@ -39,14 +39,14 @@
   "cover": "/apps/reversi/cover.jpg",
   "screenshots": [],
   "gif": "/apps/reversi/reversi.gif",
-  "bytes": 256595,
+  "bytes": 256799,
   "download": 0,
   "provides": null,
-  "sha256": "4d6386a1d069e2da13d00e80ce465898c1050d662d924eee10dcd1f0122f7043",
+  "sha256": "3b5616ebb1560e77231e08482c3b4935d05b57e669e6262032e7ad53d9d1459d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

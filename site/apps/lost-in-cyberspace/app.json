@@ -6,8 +6,8 @@
   "shortName": "Cyberspace",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Two devices, one maze. Access codes are the map. No jam server.",
-  "description": "Send the invite — the other person is in the same room, no jam server, no account. One of you is a HACKER lost in an 8×8 corporate network. The other is a NAVIGATOR at a terminal. Walk the maze, read the access codes, type them into nmap together, find the TARGET, and hack it before the locator catches you. The codes ARE the maze — colours, walls, traps, the target.\n\nThe original connection is your voice. You can still shout the codes in a meeting, or the hacker taps Send code and the navigator’s map fills in, layer by layer. On one device you switch seats without losing the maze.\n\nA trap costs you time. Hacking the wrong node costs you more. Time runs out and you are lost in CYBERSPACE. Top scores live in this file.\n\nAn unofficial port of Lost in CYBERSPACE by Bartek Szopka and Zofia Korcz (js13kGames 2017). The A-Frame VR headset scene stays behind; the maze and the terminal are the game.",
+  "tagline": "One of you is lost in the network; the other reads the codes. Talk fast.",
+  "description": "Send the invite and the other person is in the same room. One of you is a HACKER lost in an 8×8 corporate network. The other is a NAVIGATOR at a terminal. Walk the maze, read the access codes, type them into nmap together, find the TARGET, and hack it before the locator catches you. The codes ARE the maze — colours, walls, traps, the target.\n\nThe original connection is your voice. You can still shout the codes in a meeting, or the hacker taps Send code and the navigator’s map fills in, layer by layer. On one device you switch seats without losing the maze.\n\nA trap costs you time. Hacking the wrong node costs you more. Time runs out and you are lost in CYBERSPACE. Top scores are saved.\n\nAn unofficial port of Lost in CYBERSPACE by Bartek Szopka and Zofia Korcz (js13kGames 2017). The maze and the terminal are the game.",
   "author": {
     "name": "Bartek Szopka & Zofia Korcz",
     "url": "https://github.com/bartaz/lost-in-cyberspace"
@@ -40,14 +40,14 @@
   "cover": "/apps/lost-in-cyberspace/cover.jpg",
   "screenshots": [],
   "gif": "/apps/lost-in-cyberspace/lost-in-cyberspace.gif",
-  "bytes": 209548,
+  "bytes": 209721,
   "download": 0,
   "provides": null,
-  "sha256": "db843eee3f13126ade2d1a669b74e6608973d185c9c90059bdc31f021320889d",
+  "sha256": "a73d8f9a8db0ba26cc3aa5b6b48305e377896ee7ad18f73fedd0a3a3b209c3d1",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

@@ -1,6 +1,6 @@
 {
-  "tagline": "Share the map from one invite. The city lives in the file.",
-  "description": "Press Share the map, then Invite in the bar above the app, and send the link. Everyone paints on the same city. No account, no server — the room is the invite, and the city you built lives in the file.\n\nOn your own it is IsoCity, on a city sixteen tiles on a side. Pick a tile — a road, a tree, a house, a tower — and tap to put it down. Drag to pan, pinch to zoom. There is no budget and no score. Close it, come back, the streets are where you left them.\n\nPress Compare cities and each of you keeps your own, and you can peek at the others.\n\nAn unofficial port of IsoCity by victorqribeiro. The pictures are Kenney's. Bugs go to GifOS, not upstream.",
+  "tagline": "Build an isometric city, and invite a friend to build on the same map.",
+  "description": "Press Share the map, then Invite in the bar above the app, and send the link. Everyone paints on the same city. The city you built is saved with the app.\n\nOn your own it is IsoCity, on a city sixteen tiles on a side. Pick a tile — a road, a tree, a house, a tower — and tap to put it down. Drag to pan, pinch to zoom. There is no budget and no score. Close it, come back, the streets are where you left them.\n\nPress Compare cities and each of you keeps your own, and you can peek at the others.\n\nAn unofficial port of IsoCity by victorqribeiro. The pictures are Kenney's. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "victorqribeiro",
     "url": "https://github.com/victorqribeiro/isocity"

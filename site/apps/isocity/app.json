@@ -6,8 +6,8 @@
   "shortName": "IsoCity",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Share the map from one invite. The city lives in the file.",
-  "description": "Press Share the map, then Invite in the bar above the app, and send the link. Everyone paints on the same city. No account, no server — the room is the invite, and the city you built lives in the file.\n\nOn your own it is IsoCity, on a city sixteen tiles on a side. Pick a tile — a road, a tree, a house, a tower — and tap to put it down. Drag to pan, pinch to zoom. There is no budget and no score. Close it, come back, the streets are where you left them.\n\nPress Compare cities and each of you keeps your own, and you can peek at the others.\n\nAn unofficial port of IsoCity by victorqribeiro. The pictures are Kenney's. Bugs go to GifOS, not upstream.",
+  "tagline": "Build an isometric city, and invite a friend to build on the same map.",
+  "description": "Press Share the map, then Invite in the bar above the app, and send the link. Everyone paints on the same city. The city you built is saved with the app.\n\nOn your own it is IsoCity, on a city sixteen tiles on a side. Pick a tile — a road, a tree, a house, a tower — and tap to put it down. Drag to pan, pinch to zoom. There is no budget and no score. Close it, come back, the streets are where you left them.\n\nPress Compare cities and each of you keeps your own, and you can peek at the others.\n\nAn unofficial port of IsoCity by victorqribeiro. The pictures are Kenney's. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "victorqribeiro",
     "url": "https://github.com/victorqribeiro/isocity"
@@ -40,14 +40,14 @@
   "cover": "/apps/isocity/cover.jpg",
   "screenshots": [],
   "gif": "/apps/isocity/isocity.gif",
-  "bytes": 651657,
+  "bytes": 649095,
   "download": 0,
   "provides": null,
-  "sha256": "24d92895acc4c0e6d80f14b96583827b15491ddb9c9f1be9fe26176f37b03e0d",
+  "sha256": "db55876d97a9962db144d92402ef7071acc2184bb0b00f6837f0f92fa0fc6726",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

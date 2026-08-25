@@ -218,7 +218,7 @@ check('no Namco / Bandai in the running product',
   !/Namco|NAMCO|Bandai/.test(gameJs + indexJs + boot + html));
 check('no CDN font / remote fetch in the engine',
   !/FontFace|PressStart2P|https?:/.test(indexJs.replace(/https:\/\/(passer-by\.com|github\.com)[^\s"']*/g, '')));
-check('listing leads with offline / the file', /plane|file/.test(listing) && /no account/i.test(listing));
+check('listing says the best score is saved', /best score and furthest maze are saved/i.test(listing));
 check('help says what is saved', /best score/i.test(help) && /furthest maze/i.test(help));
 check('help does not claim 10 points per pellet', !/Pellets are 10 points/.test(help));
 

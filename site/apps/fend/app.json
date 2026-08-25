@@ -6,8 +6,8 @@
   "shortName": "fend",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Type 1 ft to cm. The pad stays in this file. Nothing is uploaded.",
-  "description": "Works offline. No account, no install, no website. Type a line, press Enter: 1 ft to cm, 5 kg in lb, 100 C to F. The last pad comes back the next time you open the app, because it lives in this file.\n\nOn a phone the keypad has digits and units so you can convert without a keyboard. A line that does not calculate says why. Variables stick: a = 3 then a * 2.\n\nUnofficial port of fend by printfn. Same engine as their calculator. Their website is not in this app.",
+  "tagline": "A calculator that speaks units: type 1 ft to cm, get the answer.",
+  "description": "Type a line, press Enter: 1 ft to cm, 5 kg in lb, 100 C to F. The last pad comes back the next time you open the app.\n\nOn a phone the keypad has digits and units so you can convert without a keyboard. A line that does not calculate says why. Variables stick: a = 3 then a * 2.\n\nUnofficial port of fend by printfn. Same engine as their calculator.",
   "author": {
     "name": "printfn",
     "url": "https://github.com/printfn/fend"
@@ -39,14 +39,14 @@
   "cover": "/apps/fend/cover.jpg",
   "screenshots": [],
   "gif": "/apps/fend/fend.gif",
-  "bytes": 597083,
+  "bytes": 594059,
   "download": 0,
   "provides": null,
-  "sha256": "bcb8fda898343b7be401b6c812a29f44d12f5eea607da185ded55f64aa89bb22",
+  "sha256": "3107b1af247710f50c4c2d3aa1d31f985a73d68526f6fe732e9b9f05930d9a54",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

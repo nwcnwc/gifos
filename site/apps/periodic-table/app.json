@@ -6,8 +6,8 @@
   "shortName": "Table",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "All 118 on this phone. Quiz a friend from one link — no account.",
-  "description": "All 118 live on this device. Tap a cell: the table stays put, a card fills with the name, number, mass, family and electrons. Filter alkali metals, noble gases, the rest. Make the cells bigger and pan if you want to read the map itself. Nothing is downloaded; the table is in the file.\n\nTest yourself: what is the symbol for Gold? Which of these is a noble gas? Four choices, one right. Misses show up at the end. Your best score stays on this device.\n\nQuiz a friend from one link: open A friend, then Invite in the bar above the app, and send it. You both get the same questions and race to ten right. No account. No site to host.\n\nAn unofficial port of Periodic Table by calebephrem. The original is a static site you have to host. This one is the table, the quiz, and a race from one invite.",
+  "tagline": "All 118 elements, and a quiz you can race a friend on.",
+  "description": "All 118 live on this device. Tap a cell: the table stays put, a card fills with the name, number, mass, family and electrons. Filter alkali metals, noble gases, the rest. Make the cells bigger and pan if you want to read the map itself.\n\nTest yourself: what is the symbol for Gold? Which of these is a noble gas? Four choices, one right. Misses show up at the end. Your best score is saved.\n\nQuiz a friend from one link: open A friend, then Invite in the bar above the app, and send it. You both get the same questions and race to ten right.\n\nAn unofficial port of Periodic Table by calebephrem. This copy adds the race from one invite.",
   "author": {
     "name": "calebephrem",
     "url": "https://github.com/calebephrem/periodic-table"
@@ -40,14 +40,14 @@
   "cover": "/apps/periodic-table/cover.jpg",
   "screenshots": [],
   "gif": "/apps/periodic-table/periodic-table.gif",
-  "bytes": 176702,
+  "bytes": 176945,
   "download": 0,
   "provides": null,
-  "sha256": "83841e064cd1c85aed50d2347f87f6a5d44a7b2826ca16da75c37865a59f904e",
+  "sha256": "a85037a9e63a2b18ae288549bd2ef181b4be76046f762a6025f4fb77fb04b3b0",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

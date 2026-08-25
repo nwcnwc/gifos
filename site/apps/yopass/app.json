@@ -6,8 +6,8 @@
   "shortName": "Yopass",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Nothing is uploaded. The invite is the room. Works on a plane.",
-  "description": "Type a password, a note, an API token. It is encrypted in this tab. Nothing is uploaded — there is no Yopass website in the middle, no Redis, no Go server, and no account. Press Invite in the bar above the app: whoever opens the link is in the one-time room and can read it. Optionally burn it after the first look, optionally a passphrase they still have to type, optionally a 1 hour / 1 day / 1 week timer.\n\nThe ciphertext lives in this file on this device, and in the room while people are connected. It works on a plane.\n\nAn unofficial port of Yopass by Johan Haals. Same job — share a secret without putting it in a chat in the clear. Not their backend, and not their OpenPGP bytes.",
+  "tagline": "Share a secret face to face: it goes device to device, never a server.",
+  "description": "Type a password, a note, an API token. It is encrypted on this device and never touches a server in the clear. Press Invite in the bar above the app: whoever opens the link is in the one-time room and can read it. Optionally burn it after the first look, optionally a passphrase they still have to type, optionally a 1 hour / 1 day / 1 week timer.\n\nThe encrypted text stays in your copy of the app, and in the room only while people are connected.\n\nAn unofficial port of Yopass by Johan Haals. Same job — share a secret without putting it in a chat in the clear. Not their backend, and not their OpenPGP bytes.",
   "author": {
     "name": "Johan Haals",
     "url": "https://github.com/jhaals/yopass"
@@ -40,14 +40,14 @@
   "cover": "/apps/yopass/cover.jpg",
   "screenshots": [],
   "gif": "/apps/yopass/yopass.gif",
-  "bytes": 256854,
+  "bytes": 256885,
   "download": 0,
   "provides": null,
-  "sha256": "5a1e2345e8dc422fec7f7546166f4466902eaa4811f9d0a159a002f4d06b1106",
+  "sha256": "c957c4c76821c8dad605b9451d4135ca932979842349971da41f7ba34bc3193f",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

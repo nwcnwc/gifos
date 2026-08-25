@@ -6,8 +6,8 @@
   "shortName": "Star Battle",
   "version": "1.0.1",
   "minBuild": 947,
-  "tagline": "Send the link. Extra ships in the same sky. No server.",
-  "description": "Send the invite and extra ships appear in the same sky, each person flying their own. Everyone is shooting the same wave. There is no lobby, no account, and no game server. The room is the link.\n\nYou fly a little yellow ship across a field of stars. Red saucers come in from the right. Rocks take two hits. Friends look like you — do not shoot them. Fuel leaks away one point a second; catch a falling bottle or the run is over.\n\nOn a phone the stick is under your left thumb and fire is under your right — hold fire to keep shooting. On a computer it is W A S D and the space bar, the way it always was. P pauses. M mutes.\n\nAn unofficial port of Star Battle by gd4Ark, MIT-licensed. This copy adds the extra ships over a meeting.",
+  "tagline": "Friends who open your link fly extra ships in the same sky.",
+  "description": "Send the invite and extra ships appear in the same sky, each person flying their own. Everyone is shooting the same wave.\n\nYou fly a little yellow ship across a field of stars. Red saucers come in from the right. Rocks take two hits. Friends look like you — do not shoot them. Fuel leaks away one point a second; catch a falling bottle or the run is over.\n\nOn a phone the stick is under your left thumb and fire is under your right — hold fire to keep shooting. On a computer it is W A S D and the space bar, the way it always was. P pauses. M mutes.\n\nAn unofficial port of Star Battle by gd4Ark, MIT-licensed. This copy adds the extra ships over a meeting.",
   "author": {
     "name": "gd4Ark",
     "url": "https://github.com/gd4Ark/star-battle"
@@ -39,14 +39,14 @@
   "cover": "/apps/star-battle/cover.jpg",
   "screenshots": [],
   "gif": "/apps/star-battle/star-battle.gif",
-  "bytes": 797228,
+  "bytes": 789391,
   "download": 0,
   "provides": null,
-  "sha256": "38d90b5d9b844062c2163e4586dbe6237932dfd9a3d88c8e477eaa918961c337",
+  "sha256": "5b57561addc27d9752be9455a5c93382b2cbd0d5d8a043db7252d4dd7a97d7f7",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

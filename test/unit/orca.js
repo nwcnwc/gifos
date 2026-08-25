@@ -117,7 +117,7 @@ check('style.css shows the pad on coarse pointers / phone width', css.includes('
 check('no CDN / no type=module in index.html', !/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, '')) && !/type=["']module["']/.test(html));
 check('help.md teaches D / bang / :04C first', help.includes(':04C') && help.includes('Hear'));
 check('help.md does not document Invite/Save (OS chrome)', !/\bInvite\b/.test(help) && !/\bSave\b/.test(help));
-check('listing leads with the file as the save', /file is the save/i.test(listing.tagline) || /stays in the file/i.test(listing.description));
+check('listing says the grid keeps running', /same cells are still running/i.test(listing.description));
 check('listing says MIDI is optional and you still hear it', /MIDI hardware is optional/i.test(listing.description) && /hear/i.test(listing.description));
 check('listing is an unofficial port of Hundredrabbits', listing.basedOn && listing.basedOn.name === 'Orca' && listing.author.name === 'Hundredrabbits');
 check('clock.js has no blob Worker', !fs.readFileSync(path.join(APP, 'vendor', 'clock.js'), 'utf8').includes('new Worker'));

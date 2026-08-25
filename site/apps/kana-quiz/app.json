@@ -6,8 +6,8 @@
   "shortName": "Kana",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Hiragana and katakana on this device — no account, race a friend from one link.",
-  "description": "Hiragana and katakana live on this device. No account, no install. Tap the rows you know — you see the actual あ か さ, not a list of names — then a kana, four sounds. Or flip it: the sound first, pick the kana. Right or wrong lands at once.\n\nMiss one and it comes back until it sticks. Close the app and come back: your place is still there, inside the icon.\n\nPress Play a friend, then Invite in the bar above. You both get the same shuffled deck. First to ten right wins, or whoever has more when the cards run out.\n\nAn unofficial port of Kana Quiz by anzzstuff. The tables are the ones that shipped with that quiz.",
+  "tagline": "Learn hiragana and katakana. Quiz yourself, or race a friend.",
+  "description": "Tap the rows you know — you see the actual あ か さ, not a list of names — then a kana, four sounds. Or flip it: the sound first, pick the kana. Right or wrong lands at once.\n\nMiss one and it comes back until it sticks. Close the app and come back: your place is still there.\n\nPress Play a friend, then Invite in the bar above. You both get the same shuffled deck. First to ten right wins, or whoever has more when the cards run out.\n\nAn unofficial port of Kana Quiz by anzzstuff. The tables are the ones that shipped with that quiz.",
   "author": {
     "name": "anzzstuff",
     "url": "https://github.com/anzzstuff/kanaquiz"
@@ -41,14 +41,14 @@
   "cover": "/apps/kana-quiz/cover.jpg",
   "screenshots": [],
   "gif": "/apps/kana-quiz/kana-quiz.gif",
-  "bytes": 202243,
+  "bytes": 202414,
   "download": 0,
   "provides": null,
-  "sha256": "bb946f7c15bb4b23ec6f7d440ff61a0b2e8a186a451a0f462c497b383c1edd0b",
+  "sha256": "760b1dbc55a6218e6b61ed47484fe6fc20d704914479aed98c137326b46420ff",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

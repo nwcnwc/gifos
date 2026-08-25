@@ -107,7 +107,7 @@ check('no wasm capability (loaders never fetch decoders)', !src.manifest.capabil
 check('save collection is private', src.manifest.data.save.visibility === 'private');
 check('help.md explains orbit / pinch / inspect',
   /pinch/i.test(src.help) && /Inspect/i.test(src.help) && src.help.trim().length > 400);
-check('listing leads with the file staying here', /stays in the file|never leaves|nothing is uploaded/i.test(src.listing.description));
+check('listing says the last model is saved and never shared', /last model is saved/i.test(src.listing.description) && /model is not sent/i.test(src.listing.description));
 check('listing does not say Drop', !/\bDrop\b/.test(src.listing.tagline + src.listing.description));
 check('listing names the unofficial port', /unofficial port/i.test(src.listing.description));
 check('author is Don McCurdy, porter is GifOS',

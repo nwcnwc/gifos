@@ -6,8 +6,8 @@
   "shortName": "Cubes",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Race a friend from one link. Line up the cubes. Progress lives in the file.",
-  "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You both get the same picture. First to match it wins. No account, no install — the race is the invite, and your progress lives in the file.\n\nOn your own it is Cube Composer. You have a row of coloured cubes and a picture of how they should look. Tap a function to add it, tap it again to take it out, drag to change the order. Watch the cubes change with each step. Six short chapters; skip around if you like.\n\nYou never see each other's functions — only who finished, and how many steps they used.\n\nAn unofficial port of Cube Composer by David Peter. The puzzles, the cubes and the functions are his.",
+  "tagline": "Stack and transform the cubes. Race a friend on the same puzzles.",
+  "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You both get the same picture. First to match it wins. Your progress is saved.\n\nOn your own it is Cube Composer. You have a row of coloured cubes and a picture of how they should look. Tap a function to add it, tap it again to take it out, drag to change the order. Watch the cubes change with each step. Six short chapters; skip around if you like.\n\nYou never see each other's functions — only who finished, and how many steps they used.\n\nAn unofficial port of Cube Composer by David Peter. The puzzles, the cubes and the functions are his.",
   "author": {
     "name": "sharkdp",
     "url": "https://github.com/sharkdp/cube-composer"
@@ -40,14 +40,14 @@
   "cover": "/apps/cube-composer/cover.jpg",
   "screenshots": [],
   "gif": "/apps/cube-composer/cube-composer.gif",
-  "bytes": 171976,
+  "bytes": 172170,
   "download": 0,
   "provides": null,
-  "sha256": "e0b96cb85c535804f9d2743914759ef4470a60b9772d86afb90f7097e5a749ab",
+  "sha256": "ddc8ceb94d4416158623f2ea15a175b488c70eea8da1b5a73e6301205825e913",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

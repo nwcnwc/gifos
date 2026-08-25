@@ -1,6 +1,6 @@
 {
-  "tagline": "Race a friend from one link. Line up the cubes. Progress lives in the file.",
-  "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You both get the same picture. First to match it wins. No account, no install — the race is the invite, and your progress lives in the file.\n\nOn your own it is Cube Composer. You have a row of coloured cubes and a picture of how they should look. Tap a function to add it, tap it again to take it out, drag to change the order. Watch the cubes change with each step. Six short chapters; skip around if you like.\n\nYou never see each other's functions — only who finished, and how many steps they used.\n\nAn unofficial port of Cube Composer by David Peter. The puzzles, the cubes and the functions are his.",
+  "tagline": "Stack and transform the cubes. Race a friend on the same puzzles.",
+  "description": "Press Play a friend, then Invite in the bar above the app, and send the link. You both get the same picture. First to match it wins. Your progress is saved.\n\nOn your own it is Cube Composer. You have a row of coloured cubes and a picture of how they should look. Tap a function to add it, tap it again to take it out, drag to change the order. Watch the cubes change with each step. Six short chapters; skip around if you like.\n\nYou never see each other's functions — only who finished, and how many steps they used.\n\nAn unofficial port of Cube Composer by David Peter. The puzzles, the cubes and the functions are his.",
   "author": {
     "name": "sharkdp",
     "url": "https://github.com/sharkdp/cube-composer"

@@ -6,8 +6,8 @@
   "shortName": "Asteroids",
   "version": "1.0.0",
   "minBuild": 947,
-  "tagline": "Extra ships from one invite. Same rocks, no server.",
-  "description": "Send the Invite in the bar above. Extra ships appear in the same field — everyone flies their own, everyone shoots the same rocks. There is no game server, no account, and no lobby. The room is the link. Your high score lives in the file you keep.\n\nOn your own it is the original: a triangle against rocks. Turn, thrust, shoot. A big one breaks into medium ones, those into pebbles, and a saucer will wander through if you linger. Three lives, a score in the corner, the next wave one rock heavier.\n\nOn a phone the buttons sit under your thumbs — turn, thrust, fire. On a computer it is the arrows and the space bar, the way it always was. Friendly fire stays off unless the host turns it on.\n\nAn unofficial port of HTML5 Asteroids by Doug McInnes, MIT-licensed. This copy adds the extra ships.",
+  "tagline": "Asteroids with friends — everyone who opens your invite flies another ship.",
+  "description": "Send the Invite in the bar above. Extra ships appear in the same field — everyone flies their own, everyone shoots the same rocks. Your high score is saved.\n\nOn your own it is the original: a triangle against rocks. Turn, thrust, shoot. A big one breaks into medium ones, those into pebbles, and a saucer will wander through if you linger. Three lives, a score in the corner, the next wave one rock heavier.\n\nOn a phone the buttons sit under your thumbs — turn, thrust, fire. On a computer it is the arrows and the space bar, the way it always was. Friendly fire stays off unless the host turns it on.\n\nAn unofficial port of HTML5 Asteroids by Doug McInnes, MIT-licensed. This copy adds the extra ships.",
   "author": {
     "name": "dmcinnes",
     "url": "https://github.com/dmcinnes/HTML5-Asteroids"
@@ -40,14 +40,14 @@
   "cover": "/apps/asteroids/cover.jpg",
   "screenshots": [],
   "gif": "/apps/asteroids/asteroids.gif",
-  "bytes": 263263,
+  "bytes": 263361,
   "download": 0,
   "provides": null,
-  "sha256": "c9ab7b7b024cdd3f2f001ca107e54dd8ccdbc8362550e348df40233b139b1d5b",
+  "sha256": "034beb33b60ad891c2dd62af7da519b6fe1be8108b022ab60d0d7fe2b7694e38",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

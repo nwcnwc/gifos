@@ -1,6 +1,6 @@
 {
-  "tagline": "Send the invite. Extra cannons on the same ground. No server.",
-  "description": "Send the invite and extra cannons appear on the same ground — each person aiming their own, everyone shooting the same wave. There is no lobby, no account, and no game server. The room is the link.\n\nOn your own it is InvaderZ: the invaders change shape as you play. Each body is how it moves. Miss one and it teaches the next wave. You get one shot at a time. Five through the line and the sky is lost.\n\nOn a phone the buttons sit under the board — left, right, fire. On a computer it is the arrows (or A and D) and the space bar.\n\nAn unofficial port of InvaderZ by victorqribeiro, MIT-licensed. This copy adds the extra cannons over a meeting.",
+  "tagline": "Space Invaders where every friend who joins gets another cannon.",
+  "description": "Send the invite and extra cannons appear on the same ground — each person aiming their own, everyone shooting the same wave.\n\nOn your own it is InvaderZ: the invaders change shape as you play. Each body is how it moves. Miss one and it teaches the next wave. You get one shot at a time. Five through the line and the sky is lost.\n\nOn a phone the buttons sit under the board — left, right, fire. On a computer it is the arrows (or A and D) and the space bar.\n\nAn unofficial port of InvaderZ by victorqribeiro, MIT-licensed. This copy adds the extra cannons over a meeting.",
   "author": {
     "name": "victorqribeiro",
     "url": "https://github.com/victorqribeiro/invaderz"

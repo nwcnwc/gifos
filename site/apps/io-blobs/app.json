@@ -6,8 +6,8 @@
   "shortName": "Blobs",
   "version": "1.1",
   "minBuild": 947,
-  "tagline": "Send the link. Same arena. No server.",
-  "description": "Press Invite in the bar above the game and send the link. Everyone who opens it drops into the same arena — no game server, no account, no lobby. The room is the link.\n\nYou are a small coloured blob. Steer, swallow the dots, grow. Bigger blobs swallow smaller ones, and a spiked ball knocks a chunk off you if you get greedy. On your own, a few wandering blobs keep you company; they scatter the moment another person arrives.\n\nOn a computer, point the mouse, or use WASD or the arrows. Space is a burst of speed that costs a little size. On a phone, put a thumb down and drag; Boost is the same burst.\n\nAn unofficial port of example-.io-game by vzhou842, MIT-licensed. The original needs a game server. This copy does not.",
+  "tagline": "An agar-style arena. Everyone who opens your link swims in it with you.",
+  "description": "Press Invite in the bar above the game and send the link. Everyone who opens it drops into the same arena.\n\nYou are a small coloured blob. Steer, swallow the dots, grow. Bigger blobs swallow smaller ones, and a spiked ball knocks a chunk off you if you get greedy. On your own, a few wandering blobs keep you company; they scatter the moment another person arrives.\n\nOn a computer, point the mouse, or use WASD or the arrows. Space is a burst of speed that costs a little size. On a phone, put a thumb down and drag; Boost is the same burst.\n\nAn unofficial port of example-.io-game by vzhou842, MIT-licensed.",
   "author": {
     "name": "vzhou842",
     "url": "https://github.com/vzhou842/example-.io-game"
@@ -39,14 +39,14 @@
   "cover": "/apps/io-blobs/cover.jpg",
   "screenshots": [],
   "gif": "/apps/io-blobs/io-blobs.gif",
-  "bytes": 202545,
+  "bytes": 202749,
   "download": 0,
   "provides": null,
-  "sha256": "8259047302f06ebd94cbe6613f3d6814759ebe49f7c8f78509413fc4bb7ed328",
+  "sha256": "9dc9a73270d520c3d6b4464106a3d206b1f6beba3f5ffa0094a4fe0ad53dae83",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",

@@ -6,8 +6,8 @@
   "shortName": "Scanned PDF Tables",
   "version": "1.0",
   "minBuild": 1250,
-  "tagline": "Scanned or text, its tables come out as Excel — read on your own device, nothing uploaded.",
-  "description": "Scanned PDF Tables → Excel turns a PDF's tables into a real Excel file — one sheet per page — entirely on your own device. Nothing is ever uploaded, and nothing is sent anywhere.\n\nIT READS PHOTOCOPIES. A scanned page is just a picture: there is no text in it to extract. This app renders the page and actually reads it — finding the words, reading them, and recovering the row-and-column grid rather than a wall of text. It runs on your graphics chip when you have one, and on the processor where you don't. It tells you which one ran.\n\nIT STILL READS TEXT PDFs EXACTLY. Page by page, it checks whether there is real text. If there is, it reads the numbers instead of guessing at them. That matters for SERFF insurance rate and rule filings, which is what this was built for: they arrive as digital rate tables with scanned exhibits bound in, and you want each page handled the right way. Sheets are labelled, so a reading of a picture is never mistaken for an exact one later.\n\nHONEST ABOUT LIMITS. Reading a picture is a reading, not a transcript: a faint, skewed or handwritten page will come back imperfect, and you should check the numbers that matter. Where it cannot see a table, the app lays the text out by position instead and says so.\n\nEverything needed to read a page is packed inside the app. There is no download after install and no server anywhere. The filing you drop in, and the spreadsheet that comes out, never leave this device.\n\nIts smaller sibling, PDF Tables → Excel, stays the tiny text-only option if you never touch scans.",
+  "tagline": "Scanned or text, a PDF's tables come out as Excel — OCR runs on your device.",
+  "description": "Scanned PDF Tables → Excel turns a PDF's tables into a real Excel file — one sheet per page — entirely on your own device.\n\nIT READS PHOTOCOPIES. A scanned page is just a picture: there is no text in it to extract. This app renders the page and actually reads it — finding the words, reading them, and recovering the row-and-column grid rather than a wall of text. It runs on your graphics chip when you have one, and on the processor where you don't. It tells you which one ran.\n\nIT STILL READS TEXT PDFs EXACTLY. Page by page, it checks whether there is real text. If there is, it reads the numbers instead of guessing at them. That matters for SERFF insurance rate and rule filings, which is what this was built for: they arrive as digital rate tables with scanned exhibits bound in, and you want each page handled the right way. Sheets are labelled, so a reading of a picture is never mistaken for an exact one later.\n\nHONEST ABOUT LIMITS. Reading a picture is a reading, not a transcript: a faint, skewed or handwritten page will come back imperfect, and you should check the numbers that matter. Where it cannot see a table, the app lays the text out by position instead and says so.\n\nEverything needed to read a page is packed inside the app. There is no download after install. The filing you drop in, and the spreadsheet that comes out, never leave this device.\n\nIts smaller sibling, PDF Tables → Excel, stays the tiny text-only option if you never touch scans.",
   "author": {
     "name": "GifOS",
     "url": "https://gifos.app"
@@ -45,13 +45,13 @@
   "cover": "/apps/pdf-tables-ocr/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pdf-tables-ocr/pdf-tables-ocr.gif",
-  "bytes": 28169167,
+  "bytes": 27920800,
   "download": 0,
   "provides": null,
-  "sha256": "6a573faf26f6f951b4b5dac2727849f2f8e2415c15017898b30ec3e86003fb8e",
+  "sha256": "ae2baf0d466c0bfcd76968c3fc1dcca7a564115a08362b11da7cef86c5569e8d",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   }
 }

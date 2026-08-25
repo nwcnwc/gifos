@@ -1,6 +1,6 @@
 {
-  "tagline": "Race a friend from one link. Tap to drop each floor. No server.",
-  "description": "Press Invite in the bar above the app and send the link. You each build your own tower. Live heights as you go, tallest when the hearts run out wins. No account, no install — the race is the invite, and your best score lives in the file.\n\nOn your own it is the original game. A crane swings a floor out. Tap to drop it. Land it on the floor below and you climb. Miss three times and it is over. A perfect stack scores more, and a streak of perfects more still. The crane gets meaner the higher you go. A thumb on a phone works the same as a click.\n\nAn unofficial port of Tower Building Game by iamkun. This copy adds the race. Bugs go to GifOS, not upstream.",
+  "tagline": "Tap to drop each floor. Race a friend to the tallest tower.",
+  "description": "Press Invite in the bar above the app and send the link. You each build your own tower. Live heights as you go, tallest when the hearts run out wins. Your best score is saved.\n\nOn your own it is the original game. A crane swings a floor out. Tap to drop it. Land it on the floor below and you climb. Miss three times and it is over. A perfect stack scores more, and a streak of perfects more still. The crane gets meaner the higher you go. A thumb on a phone works the same as a click.\n\nAn unofficial port of Tower Building Game by iamkun. This copy adds the race. Bugs go to GifOS, not upstream.",
   "author": {
     "name": "iamkun",
     "url": "https://github.com/iamkun/tower_game"

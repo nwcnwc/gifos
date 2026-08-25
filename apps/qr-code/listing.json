@@ -1,6 +1,6 @@
 {
-  "tagline": "Type a link or any text. A code appears. Nothing is uploaded.",
-  "description": "Works offline, with no account: type a link, a phone number, a message, or a contact, and a code appears on this screen. Nothing is sent anywhere — the words never leave this device.\n\nThe last code you made comes back the next time you open the app, still inside this file. A shared link can open the app already filled in. Press Invite in the GifOS bar to put the same code on everyone else's screen in a meeting.\n\nUnofficial port of qrcodejs by davidshimjs. A general maker — not only Wi-Fi. For a fridge card with the network name and password, use WiFi Card instead.",
+  "tagline": "Type a link or any text. A QR code appears.",
+  "description": "Type a link, a phone number, a message, or a contact, and a code appears on this screen.\n\nThe last code you made comes back the next time you open the app. A shared link can open the app already filled in. Press Invite in the GifOS bar to put the same code on everyone else's screen in a meeting.\n\nUnofficial port of qrcodejs by davidshimjs. A general maker — not only Wi-Fi. For a fridge card with the network name and password, use WiFi Card instead.",
   "author": {
     "name": "davidshimjs",
     "url": "https://github.com/davidshimjs/qrcodejs"

@@ -6,7 +6,7 @@
   "shortName": "PDF Tables",
   "version": "1.1",
   "minBuild": 1205,
-  "tagline": "Turn a text-based PDF's tables into an Excel workbook — on your device, nothing uploaded.",
+  "tagline": "Turn a PDF's tables into an Excel workbook, without the PDF leaving your device.",
   "description": "PDF Tables → Excel pulls the tables out of a PDF that already has real text in it and hands you back a real Excel file — one sheet per page — entirely on your own device. Nothing is ever uploaded.\n\nIt was built for SERFF insurance rate and rule filings, which are almost always exported from actuarial software rather than scanned. That means the numbers are real text sitting in real places on the page, so the tool reconstructs the row-and-column grid EXACTLY — no reading of pictures, no guessing.\n\nHONEST ABOUT LIMITS. A scanned PDF is just a picture of a page — there is no text to read. The tool says so plainly rather than handing you an empty sheet, and names the sibling app that CAN read it: Scanned PDF Tables → Excel. And it reconstructs aligned grids, not merged or nested cells. For the rate tables SERFF exports, that is exactly the shape.\n\nThe PDF you drop in, and the Excel file that comes out, never leave this device.",
   "author": {
     "name": "GifOS",
@@ -42,13 +42,13 @@
   "cover": "/apps/pdf-tables/cover.jpg",
   "screenshots": [],
   "gif": "/apps/pdf-tables/pdf-tables.gif",
-  "bytes": 1248778,
+  "bytes": 1248795,
   "download": 0,
   "provides": null,
-  "sha256": "ba7a5a598a8008b79adff31a18eec2bf04d081ca336eee3b955edf3acbaa1c92",
+  "sha256": "57e06b72687715e9663eae15fabcc1012816de06b8a3d3509e7ab3852885cef2",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   }
 }

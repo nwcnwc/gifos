@@ -1,6 +1,6 @@
 {
-  "tagline": "A pivot table that lives in the file. Nothing is uploaded.",
-  "description": "Choose a CSV or paste comma-separated text. Put fields on rows and columns — drag them on a computer, tap a role on a phone. Count, sum, or list unique values. Close the app and come back: the last table and the last arrangement come back with it. There is no account, and nothing is sent anywhere.\n\nAn unofficial port of PivotTable.js by Nicolas Kruchten. Same drag-and-drop grid. Charts that need extra libraries are not in this app.",
+  "tagline": "Drop in a CSV, drag fields, get a pivot table.",
+  "description": "Choose a CSV or paste comma-separated text. Put fields on rows and columns — drag them on a computer, tap a role on a phone. Count, sum, or list unique values. Close the app and come back: the last table and the last arrangement come back with it. Your data stays on your device.\n\nAn unofficial port of PivotTable.js by Nicolas Kruchten. Same drag-and-drop grid. Charts that need extra libraries are not in this app.",
   "author": {
     "name": "Nicolas Kruchten",
     "url": "https://github.com/nicolaskruchten/pivottable"

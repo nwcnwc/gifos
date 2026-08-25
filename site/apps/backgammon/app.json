@@ -6,8 +6,8 @@
   "shortName": "Backgammon",
   "version": "1.0",
   "minBuild": 947,
-  "tagline": "Play the computer on this device, or a friend from one link. No server.",
-  "description": "The computer thinks on this device. There is no game server. Pass the phone, or press Play a friend and send the invite: the same table, live, on two devices. The game lives in the file, so sharing the GIF shares the board.\n\nA table of twenty-four points. White and black take turns rolling two dice and moving their fifteen checkers toward home. Hit a blot, it goes to the bar. Bear them all off and you win. Doubles are four moves. There is no doubling cube. White goes first. Roll, tap a checker, tap where it goes, confirm the turn.\n\nAn unofficial port of backgammonjs by quasoft. The rules are the same general table that shipped with that game.",
+  "tagline": "Play the computer, or send a link and a friend sits across the board.",
+  "description": "The computer thinks on this device. Pass the phone, or press Play a friend and send the invite: the same table, live, on two devices. Close it mid-game and the board keeps.\n\nA table of twenty-four points. White and black take turns rolling two dice and moving their fifteen checkers toward home. Hit a blot, it goes to the bar. Bear them all off and you win. Doubles are four moves. There is no doubling cube. White goes first. Roll, tap a checker, tap where it goes, confirm the turn.\n\nAn unofficial port of backgammonjs by quasoft. The rules are the same general table that shipped with that game.",
   "author": {
     "name": "quasoft",
     "url": "https://github.com/quasoft/backgammonjs"
@@ -39,14 +39,14 @@
   "cover": "/apps/backgammon/cover.jpg",
   "screenshots": [],
   "gif": "/apps/backgammon/backgammon.gif",
-  "bytes": 227810,
+  "bytes": 228136,
   "download": 0,
   "provides": null,
-  "sha256": "ffea8fc7541c5bce414c67e4992b584517d753acca554cf2ef23f2c6fa5c6afe",
+  "sha256": "0cb96d237afbbd9c78bda5a433155c5342d6155f6e96d05f750f6722ac0a6910",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",
