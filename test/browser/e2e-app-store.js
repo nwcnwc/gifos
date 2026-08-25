@@ -320,12 +320,30 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const shareBtn = page.locator('#share');
   check('a listing offers a Share button', await shareBtn.count() === 1);
   check('…and Share is not gated by the build floor', !(await shareBtn.isDisabled()));
+  // Share ASKS which link first: the direct run link (one tap opens the app)
+  // or the store listing. Neither is copied until a choice is made.
   await shareBtn.click();
+  await sleep(200);
+  check('Share asks which link to send', await page.locator('#sharepick').isVisible());
+  check('…and copies nothing until a choice is made', !/copied/i.test((await shareBtn.textContent()) || ''));
+  await page.locator('#share-app').click();
+  await sleep(300);
+  const copiedRun = await page.evaluate(() => navigator.clipboard.readText());
+  const ur = new URL(copiedRun);
+  check('"Open the app" copies the one-tap /?run=<slug> link (desktop.js handleRunParam)',
+    ur.pathname === '/' && ur.searchParams.get('run') === target.slug, copiedRun);
+  check('…the run link is in the QUERY, which snapshots read and the loader carries', /\?run=/.test(copiedRun) && !/#.*run=/.test(copiedRun));
+  check('…with no alternate-database suffix and no frozen /versions/ prefix',
+    !/[?#&]db=/.test(copiedRun) && !/\/versions\//.test(copiedRun), copiedRun);
+  check('…the picker closes once picked', !(await page.locator('#sharepick').isVisible()));
+  await shareBtn.click();
+  await sleep(200);
+  await page.locator('#share-store').click();
   await sleep(300);
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   const shown = await page.locator('#shareurl').inputValue();
   const u = new URL(copied);
-  check('Share copies the pretty /store/<slug> link', u.pathname === '/store/' + target.slug, copied);
+  check('"Store listing" copies the pretty /store/<slug> link', u.pathname === '/store/' + target.slug, copied);
   check('…absolute, so it still works once pasted somewhere', /^https?:\/\//.test(copied) && !!u.host);
   check('…with no alternate-database suffix and no frozen /versions/ prefix',
     !/[?#&]db=/.test(copied) && !/\/versions\//.test(copied), copied);

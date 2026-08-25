@@ -464,6 +464,12 @@
   // Absolute, because a relative path is useless once it is pasted somewhere.
   // Origin-relative rather than hard-coded, so a custom deployment shares itself.
   const shareUrl = (slug) => new URL('/store/' + encodeURIComponent(slug), location.href).href;
+  // The DIRECT link: gifos.app/?run=<slug> (desktop.js handleRunParam) fetches
+  // the App GIF, files it in Stolen Apps and runs it — one tap for someone who
+  // has never seen GifOS, instead of listing → Install → Home Screen → Open.
+  // In the QUERY, deliberately: released snapshots read ?run= from
+  // location.search and the channel loader carries the query for exactly this.
+  const runUrl = (slug) => new URL('/?run=' + encodeURIComponent(slug), location.href).href;
 
   // Optional cash path (site/js/gifos-cash.js). Empty when pay.js was not
   // baked with a Payment Link — then the bar stays hidden and a listing
@@ -547,7 +553,7 @@
         // Share is NEVER gated by the build floor. A listing this computer
         // cannot install from is still worth sending to someone whose computer
         // can — that is most of the point of having a link.
-        '<button class="btn ghost" id="share" data-url="' + esc(shareUrl(app.slug)) + '">Share</button>' +
+        '<button class="btn ghost" id="share" data-url="' + esc(shareUrl(app.slug)) + '" data-run="' + esc(runUrl(app.slug)) + '">Share</button>' +
         // Feature is optional cash, never a gate. A listing you cannot pay
         // for is the normal state; a listing you can still installs free.
         (feature
@@ -571,6 +577,14 @@
       // What got copied, shown rather than promised. A button that says "copied"
       // and nothing else is unverifiable, and on the browsers with no clipboard
       // API at all this row IS the share: the link, selectable, ready to copy.
+      // WHICH link? A store link is a listing to read; a run link opens the app
+      // in one tap. Sending the listing to someone who just wants to play is
+      // four screens of clicks — so Share asks, with the direct link first.
+      '<div class="sharepick" id="sharepick" style="display:none">' +
+        '<span class="note">Share which link?</span>' +
+        '<button class="btn" id="share-app">Open the app — one tap</button>' +
+        '<button class="btn ghost" id="share-store">Store listing</button>' +
+      '</div>' +
       '<div class="sharebox" id="sharebox" style="display:none">' +
         '<label class="note" for="shareurl">Send this link:</label>' +
         '<input id="shareurl" readonly value="' + esc(shareUrl(app.slug)) + '">' +
@@ -645,7 +659,7 @@
   function wireShare(app) {
     const btn = $('share');
     if (!btn) return;
-    const url = btn.dataset.url;
+    const pick = $('sharepick');
     const box = $('sharebox');
     const field = $('shareurl');
     const reveal = (select) => {
@@ -656,12 +670,19 @@
       btn.textContent = msg;
       setTimeout(() => { btn.textContent = 'Share'; }, 2400);
     };
-    btn.onclick = async () => {
+    // Share opens the question; picking an answer is what shares. Each pick
+    // is its own click, so navigator.share still runs inside a user gesture.
+    btn.onclick = () => {
+      pick.style.display = pick.style.display === 'none' ? '' : 'none';
+    };
+    const share = (url, what) => async () => {
+      pick.style.display = 'none';
+      field.value = url;
       // The share sheet wants a real title and text — a bare URL in a message
       // thread says nothing about what it is.
       if (navigator.share) {
         try {
-          await navigator.share({ title: app.name, text: app.tagline || app.name, url });
+          await navigator.share({ title: app.name, text: what + ': ' + (app.tagline || app.name), url });
           return;
         } catch (e) {
           // AbortError is the person closing the sheet, which is not a failure
@@ -681,6 +702,8 @@
       reveal(true);
       said('Copy this link');
     };
+    $('share-app').onclick = share(btn.dataset.run, 'Open ' + app.name);
+    $('share-store').onclick = share(btn.dataset.url, app.name + ' on the GifOS App Store');
   }
   const fact = (k, v) => '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>';
 
