@@ -296,7 +296,7 @@
         36
       ],
       "cover": "/apps/backdooms/cover.jpg",
-      "bytes": 265340,
+      "bytes": 266359,
       "download": 0,
       "provides": null,
       "signature": {
@@ -304,7 +304,7 @@
         "id": "gifos.app",
         "ts": "2026-08-25"
       },
-      "sha256": "fccb66d6115aa092df027f45e7b52c7dc821f0c39702c01f5815ef46d3542a49"
+      "sha256": "1d7b10a5f74af47a4b03943de778d963105c9a7aa1d6ac2c6bef867a82a96a4d"
     },
     {
       "slug": "backgammon",

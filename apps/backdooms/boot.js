@@ -58,7 +58,7 @@
     for (var i = 0; i < SHELLS; i++) shellsEl.appendChild(document.createElement('i'));
   })();
 
-  var painT = 0, growlT = 0;
+  var painT = 0, growlT = 0, bumped = 0;
 
   var Hud = {
     paint: function () {
@@ -92,7 +92,10 @@
           kids[i].classList.toggle('spent', i >= s.ammo);
         }
         var low = document.getElementById('lowammo');
-        if (low) low.hidden = s.ammo > 0;
+        if (low) {
+          low.hidden = s.ammo > 4;
+          low.textContent = s.ammo > 0 ? 'LOW ON SHELLS — KEEP MOVING' : 'OUT OF SHELLS — KEEP MOVING';
+        }
         if (was > s.ammo) Sfx.shot();
       }
       if (s.score !== last.score) {
@@ -105,6 +108,9 @@
         last.best = best;
         document.getElementById('best-val').textContent = best ? ('BEST ' + best) : '';
       }
+      if (view && view.bump > 0.7 && !bumped) { bumped = 1; Sfx.thud(); }
+      if (view && view.bump < 0.2) bumped = 0;
+
       /* Something is close, and you should know before you can see it. */
       growlT -= 16;
       if (growlT <= 0 && view && !s.paused) {
@@ -294,6 +300,26 @@
           });
         } catch (e) {}
       },
+      /* You walked into a wall. Without this there is no signal at all: a
+         fresh-eyes player died three or four times pressed against wallpaper,
+         holding W, watching a flat yellow rectangle, with no idea they were
+         stuck or that anything was behind them. */
+      thud: function () {
+        var a = ctxOk();
+        if (!a) return;
+        try {
+          var t = a.currentTime;
+          var o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(96, t);
+          o.frequency.exponentialRampToValueAtTime(46, t + 0.10);
+          lp.type = 'lowpass'; lp.frequency.value = 420;
+          g.gain.setValueAtTime(0.055, t);
+          g.gain.exponentialRampToValueAtTime(0.0004, t + 0.13);
+          o.connect(lp); lp.connect(g); g.connect(a.destination);
+          o.start(t); o.stop(t + 0.15);
+        } catch (e) {}
+      },
       ow: function () {
         var a = ctxOk();
         if (!a) return;
@@ -395,9 +421,19 @@
     over.hidden = false;
     document.getElementById('over-score').textContent =
       score + (score === 1 ? ' down' : ' down') + (prefs.best ? (' · best ' + prefs.best) : '');
-    document.getElementById('over-note').textContent = beat && score > 0
-      ? 'A new best. It is saved in this file — close the tab, it stays.'
-      : 'Your best is saved in this file, not on a server.';
+    /*
+     * Only promise the save when there IS one. Opened as a plain URL there is
+     * no gifos.db to write to and nothing persists — a fresh-eyes player set a
+     * best of 21, reloaded, and found it gone while this card was telling them
+     * 'close the tab, it stays'. Same class of lie as promising an Invite
+     * button in a bar that is not there.
+     */
+    var hosted = !!(root.gifos && root.gifos.db);
+    document.getElementById('over-note').textContent = !hosted
+      ? 'Open this file in GifOS and your best is kept inside the GIF itself.'
+      : beat && score > 0
+        ? 'A new best. It is saved in this file — close the tab, it stays.'
+        : 'Your best is saved in this file, not on a server.';
   }
 
   go.addEventListener('click', begin);

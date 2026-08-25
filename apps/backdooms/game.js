@@ -36,7 +36,7 @@
   var M = Math.cos, N = Math.sin, P = Math.hypot, T = Math.atan2;
   var x, y, a, hp, ammo, score, seed, seedI;
   var enemies, keys, running, paused, raf, ready;
-  var mflash, flashId, kick, pain, painFrom, pumpT, bob, graceT;
+  var mflash, flashId, kick, pain, painFrom, pumpT, bob, graceT, bump, clockBump;
   var lookGain = 0.0022;
   var remotes = [], remotePhase = {};
   var lastT = 0, STEP = 16, clock = 0;
@@ -137,6 +137,7 @@
     seedI = (seed * 4096) | 0;
     x = 4; y = 4; a = 0; hp = 100; ammo = 25; score = 0;
     mflash = 0; flashId = 0; kick = 0; pain = 0; painFrom = 0; pumpT = -1; bob = 0;
+    bump = 0; clockBump = 0;
     graceT = GRACE;
     enemies = [
       /* ACROSS THE ROOM, and the room is 0..8 — you wake at (4,4), so these
@@ -277,9 +278,12 @@
   /* Per axis, with a body radius, so a wall stops you at arm's length and you
      slide along it instead of catching on the corner. */
   function tryMove(nx, ny) {
-    var dx = nx - x, dy = ny - y;
-    if (dx !== 0 && !solid(nx + (dx > 0 ? R : -R), y)) x = nx;
-    if (dy !== 0 && !solid(x, ny + (dy > 0 ? R : -R))) y = ny;
+    var dx = nx - x, dy = ny - y, moved = 0;
+    if (dx !== 0) { if (!solid(nx + (dx > 0 ? R : -R), y)) { x = nx; moved = 1; } else bump = 1; }
+    if (dy !== 0) { if (!solid(x, ny + (dy > 0 ? R : -R))) { y = ny; moved = 1; } else bump = 1; }
+    if (moved) return;
+    /* pressed flat against it, going nowhere */
+    bump = 1;
   }
 
   function applyInput(frames) {
@@ -460,6 +464,8 @@
     kick = Math.max(0, kick - 0.09 * frames);
     mflash = Math.max(0, mflash - 0.30 * frames);
     pain = Math.max(0, pain - 0.10 * frames);
+    bump = Math.max(0, bump - 0.16 * frames);
+    clockBump += dt;
     if (pumpT >= 0) { pumpT += dt; if (pumpT > 460) pumpT = -1; }
     if (graceT > 0) graceT -= dt;
     clock += dt;
@@ -494,9 +500,11 @@
     }
     return {
       x: x, y: y, a: a,
-      pitch: -kick * 0.055 + N(bob * 2) * 0.006,
+      /* a quick judder when you shoulder a wall — the only cue there was
+         that you are stuck is that nothing happens, which is not a cue */
+      pitch: -kick * 0.055 + N(bob * 2) * 0.006 + bump * N(clockBump * 0.055) * 0.011,
       bob: bob, kick: kick, pump: pump, t: clock,
-      flash: mflash, flashId: flashId, pain: pain, painFrom: painFrom,
+      flash: mflash, flashId: flashId, pain: pain, painFrom: painFrom, bump: bump,
       grace: graceT > 0,
       sprites: list, cell: cell, light: light
     };
