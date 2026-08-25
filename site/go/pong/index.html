@@ -20,9 +20,9 @@
 <meta name="twitter:description" content="Two devices, one link, no server. First to nine.">
 <meta name="twitter:image" content="https://gifos.app/apps/pong/cover.jpg">
 <meta name="twitter:image:alt" content="Pong on GifOS">
-<script>location.replace("https://gifos.app/?run=pong");</script>
+<script>location.replace(/(^|[?&])store([=&]|$)/.test(location.search) ? "https://gifos.app/store/pong" : "https://gifos.app/?run=pong");</script>
 </head>
 <body>
-<p>Opening <a href="https://gifos.app/?run=pong">Pong on GifOS</a>…</p>
+<p>Opening <a href="https://gifos.app/?run=pong">Pong on GifOS</a>… (or the <a href="https://gifos.app/store/pong">store listing</a>)</p>
 </body>
 </html>
