@@ -426,54 +426,111 @@
    * and the trigger hand; PUMP is the forestock and the hand riding it. The
    * whole reason DOOM's shotgun feels good is that you SEE the action cycle.
    */
-  var GW = 168, GH = 130;
+  var GW = 160, GH = 128;
+
+  /*
+   * MOSTLY GUN, and OUTLINED.
+   *
+   * Two rewrites got this here. The first drew a long thin tube running up the
+   * frame — not a gun you are aiming, a gun you are holding up to look at,
+   * pointed at the ceiling. DOOM's shotgun is seen almost directly from
+   * BEHIND: receiver and pump near the eye taking most of the sprite, barrel
+   * receding so it is SHORT on screen and TAPERS, muzzle a small dark ellipse
+   * below the crosshair rather than a pipe pointing at it.
+   *
+   * The second drew the hands as long horizontal capsules for fingers, which
+   * at this size is not a hand, it is a striped mitten. Fingers wrapped round
+   * a forestock are seen END-ON — they are knuckles, so they are blobs. And
+   * you see far LESS hand than you think: the arms are cropped by the bottom
+   * and left edges, and what is left is three knuckles over the wood.
+   *
+   * Everything then gets a one-pixel dark outline. Over a busy mustard
+   * corridor that outline is the difference between a weapon and a smudge; it
+   * is why every sprite in DOOM has dark edge pixels.
+   */
+  function knuckles(s, x0, y0, dx, dy, n, r, col) {
+    for (var i = 0; i < n; i++) {
+      blob(s, x0 + dx * i, y0 + dy * i, r, r * 0.86, col, { shade: 0.40 });
+    }
+  }
+
+  /* A dark rim on every transparent pixel touching an opaque one. */
+  function outline(s, col, a) {
+    var w = s.w, h = s.h, src = new Uint8ClampedArray(s.px);
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var o = (y * w + x) * 4;
+        /* ONE threshold for both tests. Using two (transparent < 40, solid >
+           120) leaves the anti-aliased ring in between belonging to neither,
+           so the outline came out DOTTED — it read as dithered noise around
+           the hand rather than an edge. */
+        if (src[o + 3] >= 128) continue;
+        var near = 0;
+        if (x > 0 && src[o - 4 + 3] >= 128) near = 1;
+        else if (x < w - 1 && src[o + 4 + 3] >= 128) near = 1;
+        else if (y > 0 && src[o - w * 4 + 3] >= 128) near = 1;
+        else if (y < h - 1 && src[o + w * 4 + 3] >= 128) near = 1;
+        if (!near) continue;
+        s.px[o] = col[0]; s.px[o + 1] = col[1]; s.px[o + 2] = col[2]; s.px[o + 3] = a;
+      }
+    }
+  }
+
+  var GUN_EDGE = [15, 12, 10];
 
   function gunBody() {
     var s = sprite(GW, GH);
-    var steel = [78, 81, 90], dsteel = [42, 44, 51], wood = [104, 63, 30];
-    /* magazine tube, sitting under and behind the barrel */
-    capsule(s, 70, 26, 80, 82, 6.0, 6.4, dsteel, { shade: 0.34, rim: 0.42 });
-    /* barrel */
-    capsule(s, 76, 2, 87, 84, 8.2, 8.8, steel, { shade: 0.22, rim: 0.72 });
-    /* the muzzle ring, so the barrel has an opening and not a dome */
-    blob(s, 76, 3, 8.0, 3.6, [126, 130, 138], { shade: 0.6 });
-    blob(s, 76, 3, 4.6, 2.0, [16, 16, 18], { shade: 1 });
-    /* a bead front sight */
-    blob(s, 76, 7, 1.8, 1.6, [190, 190, 196], { shade: 0.7 });
-    /* receiver */
-    capsule(s, 86, 84, 100, 104, 12.0, 11.0, dsteel, { shade: 0.36, rim: 0.4 });
-    capsule(s, 84, 82, 102, 88, 3.0, 3.0, [128, 132, 142], { shade: 0.7, rim: 0.2 });
-    /* ejection port */
-    capsule(s, 96, 88, 104, 94, 3.2, 3.0, [22, 22, 24], { shade: 0.9, rim: 0 });
-    /* stock, running off the bottom-right corner */
-    capsule(s, 100, 100, 140, 130, 11.0, 15.0, wood, { shade: 0.34, rim: 0.42 });
-    /* trigger guard + trigger hand */
-    capsule(s, 92, 104, 104, 110, 2.0, 2.0, dsteel, { shade: 0.6 });
-    capsule(s, 96, 100, 112, 116, 7.2, 8.2, [162, 126, 98], { shade: 0.34, rim: 0.38 });
-    for (var i = 0; i < 3; i++) {
-      capsule(s, 98 + i * 1.2, 104 + i * 4, 108 + i * 1.2, 106 + i * 4, 2.2, 2.0,
-        [184, 148, 118], { shade: 0.6, rim: 0.2 });
-    }
+    var steel = [76, 79, 88], dsteel = [41, 43, 50], wood = [88, 52, 24];
+    var glove = [70, 50, 33], gloveHi = [104, 78, 52];
+
+    /* magazine tube under the barrel */
+    capsule(s, 64, 26, 73, 70, 4.6, 7.0, dsteel, { shade: 0.28, rim: 0.42 });
+    /* the barrel — widening toward the eye. That taper IS the perspective. */
+    capsule(s, 68, 10, 78, 74, 7.0, 11.0, steel, { shade: 0.18, rim: 0.80 });
+    blob(s, 68, 10, 7.0, 3.4, [108, 112, 122], { shade: 0.60 });   /* muzzle ring */
+    blob(s, 68, 10.2, 3.7, 1.7, [13, 13, 15], { shade: 1 });        /* the hole */
+    blob(s, 67, 13, 1.2, 1.0, [180, 182, 190], { shade: 0.82 });    /* bead sight */
+
+    /* receiver: nearest, biggest, with a lit top edge to cut it from the wood */
+    capsule(s, 82, 84, 92, 106, 13.4, 12.8, dsteel, { shade: 0.28, rim: 0.46 });
+    capsule(s, 78, 81, 97, 86, 3.0, 3.0, [128, 132, 142], { shade: 0.76, rim: 0.18 });
+    capsule(s, 91, 88, 100, 95, 3.2, 3.0, [19, 19, 21], { shade: 0.92, rim: 0 });
+    capsule(s, 85, 104, 97, 110, 1.9, 1.9, dsteel, { shade: 0.52 });
+
+    /*
+     * The stock leaves the frame almost at once, and it is DARK. Drawn long
+     * and warm it was a thick brown diagonal running to the corner — which,
+     * beside the support arm on the other side, made a V of two bare forearms
+     * with a small object between them. In DOOM the stock is against your
+     * shoulder and you barely see it. Neither should you.
+     */
+    capsule(s, 95, 108, 118, 128, 10.0, 13.0, wood, { shade: 0.22, rim: 0.34 });
+
+    /* trigger hand: a wrist and three knuckles, the rest below the frame */
+    capsule(s, 100, 128, 93, 110, 8.0, 7.0, glove, { shade: 0.26, rim: 0.32 });
+    knuckles(s, 86, 110, 1.0, 4.6, 3, 2.6, gloveHi);
+
+    outline(s, GUN_EDGE, 235);
     return s;
   }
+
   function gunPump() {
     var s = sprite(GW, GH);
-    var wood = [112, 68, 32];
-    /* forestock */
-    capsule(s, 80, 46, 88, 76, 11.5, 11.5, wood, { shade: 0.34, rim: 0.44 });
-    /* the grooves are what say "pump" at a glance */
-    for (var i = 0; i < 5; i++) {
-      capsule(s, 71, 52 + i * 5, 97, 53.5 + i * 5, 1.15, 1.15, [56, 32, 14], { shade: 0.9, rim: 0 });
+    var wood = [112, 68, 32], glove = [72, 52, 34], gloveHi = [106, 80, 54];
+    /* forestock: fat, close, unmistakably a pump */
+    capsule(s, 72, 48, 80, 84, 11.0, 13.4, wood, { shade: 0.26, rim: 0.48 });
+    for (var i = 0; i < 6; i++) {
+      capsule(s, 61, 54 + i * 5, 91, 55.3 + i * 5, 1.2, 1.2, [48, 26, 10], { shade: 0.92, rim: 0 });
     }
-    /* the hand on it */
-    capsule(s, 67, 56, 86, 70, 8.0, 7.2, [156, 121, 94], { shade: 0.32, rim: 0.40 });
-    capsule(s, 69, 52, 84, 56, 3.8, 3.6, [178, 142, 112], { shade: 0.55, rim: 0.24 });
-    for (var k = 0; k < 3; k++) {
-      capsule(s, 70 + k * 1.0, 58 + k * 4.4, 88, 59 + k * 4.4, 2.6, 2.2,
-        [172, 136, 106], { shade: 0.6, rim: 0.2 });
-    }
+    /* a wrist out of the bottom-left corner, and four knuckles over the wood.
+       That is the whole hand — anything more and the arm competes with the
+       gun for the middle of the screen. */
+    capsule(s, 48, 128, 66, 88, 6.4, 7.6, glove, { shade: 0.24, rim: 0.36 });
+    knuckles(s, 66, 58, 1.5, 5.6, 4, 3.1, gloveHi);
+    outline(s, GUN_EDGE, 235);
     return s;
   }
+
   /* Muzzle flash: a hot core with irregular petals, so two shots never look
      like the same rubber stamp. */
   function flash(seed) {

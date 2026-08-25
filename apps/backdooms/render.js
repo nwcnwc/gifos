@@ -317,7 +317,12 @@
     drawSprites(s, posX, posY, dirX, dirY, planeX, planeY, horizon, flashAmt);
 
     /* ---- damage ------------------------------------------------------- */
-    if (s.pain > 0) tint(Math.min(0.5, s.pain), 190, 24, 18);
+    /* A FLASH, not a filter. At half strength over the whole frame this was a
+       red wash that never lifted once the things could actually reach you —
+       the mustard halls came out orange and the ceiling came out pink. The
+       sustained 'you are hurt' signal is the CSS vignette in style.css, which
+       only darkens the edges; this is just the hit. */
+    if (s.pain > 0.28) tint(s.pain * s.pain * s.pain * 0.22, 200, 28, 18);
 
     ctx.putImageData(img, 0, 0);
 
@@ -453,22 +458,22 @@
     /* Sized off the HEIGHT, not the width: a wide monitor must not grow the
        gun until it eats the room, and the muzzle has to sit BELOW the
        crosshair or the thing you are aiming at is behind your own barrel. */
-    var gh = H * 0.46, gw = gh * (A.gunW / A.gunH);
+    var gh = H * 0.52, gw = gh * (A.gunW / A.gunH);
     var bobX = Math.sin(s.bob) * W * 0.012;
     var bobY = Math.abs(Math.cos(s.bob)) * H * 0.015;
-    var gx = W * 0.555 - gw * (79 / A.gunW) + bobX;
+    var gx = W * 0.540 - gw * (78 / A.gunW) + bobX;
     var gy = H - gh + bobY + s.kick * H * 0.085;
 
     ctx.imageSmoothingEnabled = false;
     /* the pump rides forward and back along the barrel */
     ctx.drawImage(gunCan, gx, gy, gw, gh);
-    var slide = s.pump * gh * 0.11;
+    var slide = s.pump * gh * 0.13;
     ctx.drawImage(pumpCan, gx, gy + slide, gw, gh);
 
     if (s.flash > 0.02) {
       var fc = flashCan[s.flashId % flashCan.length];
       var fs = gw * (0.30 + 0.16 * s.flash);
-      var mx = gx + gw * (76 / A.gunW), my = gy + gh * (4 / A.gunH);
+      var mx = gx + gw * (68 / A.gunW), my = gy + gh * (10 / A.gunH);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = Math.min(1, s.flash * 1.5);
