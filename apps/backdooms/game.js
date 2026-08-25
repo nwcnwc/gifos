@@ -166,7 +166,7 @@
         if (Math.abs(t.rel - off) < half && t.d < bestD) { best = t; bestD = t.d; }
       }
       if (!best) continue;
-      dmg = (k === 0 ? 21 : 16) * (best.d > 6 ? Math.max(0.35, 1 - (best.d - 6) / 8) : 1);
+      dmg = (k === 0 ? 21 : 16) * (best.d > 8 ? Math.max(0.32, 1 - (best.d - 8) / 8) : 1);
       var o = best.o;
       o.h = Math.max(0, (o.h == null ? 100 : o.h) - dmg);
       o.hurt = 1;
@@ -288,7 +288,12 @@
           for (i = 0; i < n; i++) spawnNear();
         }
       }
-      if (Math.random() < 0.005 && ammo < 25) ammo++;
+      /* Shells come back, and they come back FASTER WHILE YOU MOVE. Upstream
+         trickled at a flat 0.005 a frame — about one shell every three
+         seconds no matter what you did — and playing a full run through it
+         ends the same way every time: empty gun, nothing to do, walk. help.md
+         already promised the ammo was tied to moving; now it is. */
+      if (ammo < 25 && Math.random() < (moving ? 0.011 : 0.0028)) ammo++;
     }
     for (i = 0; i < enemies.length; i++) {
       o = enemies[i];
@@ -296,20 +301,46 @@
       if (o.dying != null) { o.dying += dt / 420; continue; }
       dx = x - o.x; dy = y - o.y; di = P(dx, dy);
       if (di > 0.2) {
-        var sp = (0.0015 + 0.003 / di) * frames;
+        /* Upstream's closing speed is 0.0015 + 0.003/di per 16 ms frame — at
+           five metres that is THIRTEEN CENTIMETRES A SECOND against a player
+           who moves at six metres a second. They can never reach you, so
+           nothing in the halls is a threat and there is no reason to shoot
+           anything. About a third of the player's pace, quickening as it
+           closes, is a monster. */
+        var sp = (0.020 + 0.016 / Math.max(0.6, di)) * frames;
         nx = o.x + dx / di * sp;
         ny = o.y + dy / di * sp;
         if (!solid(nx, o.y)) o.x = nx;
+        else if (!solid(nx, o.y + dy / di * sp)) o.x = nx;
         if (!solid(o.x, ny)) o.y = ny;
-        o.phase += sp * 46;
+        o.phase += sp * 5.2;
       }
       o.cool -= dt;
-      if (di < 0.72 && o.cool <= 0) {
-        o.cool = 620;
+      if (di < 0.80 && o.cool <= 0) {
+        o.cool = 850;
         hp -= 7;
         pain = 1;
       }
     }
+    /* Keep them out of each other. Without this they converge on the player's
+       exact position and stack into ONE point, which is invisible (you see one
+       sprite) and lethal (you take every one of their hits at once) — the run
+       that found this went 93 to 1 in under three seconds against what looked
+       like a single thing. */
+    for (i = 0; i < enemies.length; i++) {
+      o = enemies[i];
+      if (o.dying != null) continue;
+      for (var j = i + 1; j < enemies.length; j++) {
+        var q = enemies[j];
+        if (q.dying != null) continue;
+        var sx = o.x - q.x, sy = o.y - q.y, sd = P(sx, sy);
+        if (sd > 0.62 || sd < 1e-4) continue;
+        var push = (0.62 - sd) * 0.22 * frames / sd;
+        if (!solid(o.x + sx * push, o.y + sy * push)) { o.x += sx * push; o.y += sy * push; }
+        if (!solid(q.x - sx * push, q.y - sy * push)) { q.x -= sx * push; q.y -= sy * push; }
+      }
+    }
+
     /* Let go of the ones you walked away from. Upstream never did, so a long
        run accumulated a mob it was still stepping every frame — invisible when
        nothing is drawn per enemy, expensive now that each one is a sprite. */
@@ -328,7 +359,7 @@
     var frames = dt / STEP;
     kick = Math.max(0, kick - 0.09 * frames);
     mflash = Math.max(0, mflash - 0.30 * frames);
-    pain = Math.max(0, pain - 0.055 * frames);
+    pain = Math.max(0, pain - 0.10 * frames);
     if (pumpT >= 0) { pumpT += dt; if (pumpT > 460) pumpT = -1; }
     var moving = applyInput(frames);
     tickEnemies(moving, frames, dt);
