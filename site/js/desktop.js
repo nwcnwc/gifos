@@ -3294,7 +3294,7 @@
       buf = new Uint8Array(await r.arrayBuffer());
     } catch (e) {
       // Almost always a CORS block: the host won’t let another page read its file.
-      return { error: 'Couldn’t load that link. Save the GIF to your device, then use ＋ Add file(s).' };
+      return { error: 'Couldn’t load that link — the site it’s on won’t let another page read the file (no CORS). Use a direct link to the GIF bytes (for GitHub, the raw.githubusercontent.com link works), or save the GIF to your device and use ＋ Add file(s).' };
     }
     if (!(buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46)) return { error: 'That link isn’t a GIF file.' };
     let name = '';
@@ -3320,10 +3320,20 @@
   // resolves rather than invents — and it is what makes a run-link something a
   // person can type and read: /?run=anyroad&go.at=Grand%20Canyon&go.fly=1.
   // Anything with a scheme, a dot, or a slash is left alone as a plain URL.
+  // A GitHub "blob" link is the page ABOUT the file — HTML, and served with
+  // no CORS header, so the fetch below fails and the person who copied the
+  // link from their address bar is told "couldn't load that link" for a GIF
+  // that is right there. raw.githubusercontent.com serves the bytes, with
+  // access-control-allow-origin: *, so the blob form is rewritten to it.
+  // (github.com/<owner>/<repo>/raw/<ref>/<path> redirects there itself but
+  // the redirect hop is what loses CORS; it is rewritten for the same reason.)
   function resolveRunTarget(raw) {
-    return /^[a-z0-9][a-z0-9-]{0,63}$/i.test(raw)
-      ? location.origin + '/apps/' + raw.toLowerCase() + '/' + raw.toLowerCase() + '.gif'
-      : raw;
+    if (/^[a-z0-9][a-z0-9-]{0,63}$/i.test(raw)) {
+      return location.origin + '/apps/' + raw.toLowerCase() + '/' + raw.toLowerCase() + '.gif';
+    }
+    const gh = /^https?:\/\/(?:www\.)?github\.com\/([^\/?#]+)\/([^\/?#]+)\/(?:blob|raw)\/([^?#]+)$/i.exec(raw);
+    if (gh) return 'https://raw.githubusercontent.com/' + gh[1] + '/' + gh[2] + '/' + gh[3];
+    return raw;
   }
 
   async function handleRunParam() {
