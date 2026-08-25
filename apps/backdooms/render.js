@@ -158,7 +158,25 @@
     var dirX = Math.cos(ang), dirY = Math.sin(ang);
     /* Horizontal FOV follows the screen's real shape, capped near 100 deg so a
        very wide window does not smear the edges into taffy. */
-    var P = Math.min(1.19, (W / H) * 0.75);
+    /*
+     * ONE projection constant for BOTH axes, or the pixels are not square.
+     *
+     * The wall height was H/perp — i.e. the vertical projection was pinned to
+     * the buffer's height — while the horizontal came from a camera plane
+     * derived from the aspect ratio. Those only agree at one shape of window;
+     * everywhere else the world is quietly stretched. And in PORTRAIT it fell
+     * apart completely: 156x340 gave a plane length of 0.34, which is a
+     * THIRTY-TWO DEGREE horizontal field of view — a tunnel, with the things
+     * walking in from off-screen left and right where you could never see them.
+     *
+     * So: pick the horizontal field of view (clamped, so a very tall or very
+     * wide window cannot destroy it), then DERIVE the pixels-per-world-unit
+     * from it. Square pixels at every aspect, and portrait trades vertical
+     * field of view — which costs you ceiling tiles — instead of horizontal,
+     * which costs you the monsters.
+     */
+    var P = Math.max(0.78, Math.min(1.15, (W / H) * 0.62));
+    var VP = W / (2 * P);
     var planeX = -dirY * P, planeY = dirX * P;
     var horizon = (H * 0.5 + s.pitch * H) | 0;
     var flashAmt = s.flash;
@@ -192,8 +210,8 @@
 
       if (!hit || perp >= FAR) { spanTop[i] = horizon; spanBot[i] = horizon - 1; continue; }
 
-      var dStart = Math.round(horizon - H * CH / perp);
-      var dEnd = Math.round(horizon + H * EH / perp);
+      var dStart = Math.round(horizon - VP * CH / perp);
+      var dEnd = Math.round(horizon + VP * EH / perp);
       var lineH = dEnd - dStart;
       var y0 = dStart < 0 ? 0 : dStart;
       var y1 = dEnd > H ? H : dEnd;
@@ -247,7 +265,7 @@
        * of stale smear across the middle of the screen, which caught a
        * monster's white hit-flash and held it there like a scar.
        */
-      var rowDist = pp < 1 ? 1e9 : (isFloor ? EH : CH) * H / pp;
+      var rowDist = pp < 1 ? 1e9 : (isFloor ? EH : CH) * VP / pp;
       var base = rowDist >= FAR ? 0 : fog(rowDist);
       if (flashAmt > 0 && rowDist < FAR) base += flashAmt * 0.72 * fog(rowDist * 2.2);
       if (base <= 0.004) {
@@ -314,7 +332,7 @@
     }
 
     /* ---- sprites ------------------------------------------------------ */
-    drawSprites(s, posX, posY, dirX, dirY, planeX, planeY, horizon, flashAmt);
+    drawSprites(s, posX, posY, dirX, dirY, planeX, planeY, horizon, flashAmt, VP);
 
     /* ---- damage ------------------------------------------------------- */
     /* A FLASH, not a filter. At half strength over the whole frame this was a
@@ -354,7 +372,7 @@
 
   var order = [];
 
-  function drawSprites(s, posX, posY, dirX, dirY, planeX, planeY, horizon, flashAmt) {
+  function drawSprites(s, posX, posY, dirX, dirY, planeX, planeY, horizon, flashAmt, VP) {
     var list = s.sprites;
     if (!list || !list.length) return;
     order.length = 0;
@@ -387,9 +405,9 @@
       /* a figure is 1.15 world units tall and stands ON the carpet, so its
          feet land where the floor is at that distance — not floating at the
          screen's centre line, which is what the old rectangle did */
-      var hgt = Math.abs(H / tY) * FIGH * (e.size || 1);
+      var hgt = Math.abs(VP / tY) * FIGH * (e.size || 1);
       var wid = hgt * (sw / sh);
-      var bottom = (horizon + (EH * H) / tY) | 0;
+      var bottom = (horizon + (EH * VP) / tY) | 0;
       var top = bottom - hgt;
       var x0 = Math.floor(screenX - wid / 2), x1 = Math.ceil(screenX + wid / 2);
       if (x1 < 0 || x0 >= W) continue;

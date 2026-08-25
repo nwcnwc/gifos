@@ -185,6 +185,11 @@ body.hurt #painarc { opacity: 1; transition: opacity .04s; }
 #gate-keys-phone { display: none; }
 body.phone #gate-keys { display: none; }
 body.phone #gate-keys-phone { display: block; }
+/* The halls are wide. Portrait now keeps a sane horizontal field of view, but
+   it pays for it in ceiling — say so rather than let a first-timer play a
+   letterbox of tiles and carpet. */
+#gate-keys-phone .turn { display: none; color: #f0c93a; }
+@media (orientation: portrait) { #gate-keys-phone .turn { display: block; margin-top: 8px; } }
 .opts { margin-top: 16px; font-size: .78rem; color: #a89870; }
 .opts input { vertical-align: middle; accent-color: #e8bb2e; width: 140px; }
 .best { margin-top: 12px; color: #f0c93a; font-size: .85rem; letter-spacing: .06em; }
