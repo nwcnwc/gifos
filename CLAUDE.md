@@ -140,6 +140,18 @@ answer is unambiguous. Which machine is which lives in the LOCAL, never-committe
 hosts file (`~/.gifos-behavior-hosts.json`), not here: this repo is public and
 machine names, addresses and chat ids do not belong in it.
 
+**`test/unit/no-topology.js` ENFORCES that, and it has caught the names growing
+back twice** (96 references in 2026-08-12, eight more in 2026-08-25 — including
+one inside a frozen `site/versions/` snapshot, which gifos.app serves, so it was
+live on the internet). Write the ROLE, never the nameplate: `<behavior-box>`,
+`<gate-host>`, `<orchestrator>`, `<gpu-box>`, `<llm-box>`, `<monitor-pi>`,
+`<resident-model>`, `<orchestrator-tailnet-addr>`. "Red every run on the
+`<gpu-box>` and green on every slower box" says everything the hostname did.
+Core counts, architectures, chromium revisions and every measurement are
+hardware FACTS, not identities — keep writing those. Run `node
+test/unit/no-topology.js` before pushing a comment that says where a
+measurement came from; it only checks names on a box that has the hosts file.
+
 The harnesses already exist — `test/swarm/meet.js` for meetings/topology, and
 `test/tools/approom-host.js` + `test/tools/approom-join.js` for app-room join
 latency (the latter prints a per-leg `TRACE snap@… ask@… app-frame@… mounted@…`
