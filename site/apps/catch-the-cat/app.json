@@ -4,7 +4,7 @@
   "appId": "catch-the-cat",
   "name": "Catch the Cat",
   "shortName": "Cat",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minBuild": 947,
   "tagline": "Tap the dots. Wall the cat in before it reaches the edge.",
   "description": "A black cat sits in the middle of a honeycomb of dots. Each tap turns a dot into a wall; after every tap the cat takes a step, always toward the way out. Wall it in and you win. Let it reach the rim and it runs.\n\nOn a phone it is just a finger: tap a dot, the cat moves, tap again. Undo if you slipped. A new board scatters a handful of walls so the first move is never the same.\n\nSend the invite and everyone who opens it gets the same board. You each play your own copy — same start, same cat, same walls — and the one who pens it in with the fewest taps wins. If the cat gets away, you are out of that round. Start another whenever you like; everyone jumps to the new board together.\n\nAn unofficial port of Catch The Cat by ganlvtech. The cat, the honeycomb and the chase are theirs. Racing a friend over the invite is ours.",
@@ -13,7 +13,7 @@
     "url": "https://github.com/ganlvtech/phaser-catch-the-cat"
   },
   "releaseDate": "2026-08-23",
-  "updated": "2026-08-23",
+  "updated": "2026-08-25",
   "categories": [
     "Games"
   ],
