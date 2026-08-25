@@ -20,9 +20,9 @@
 <meta name="twitter:description" content="A photo or a page in, the words out. On your device, nothing uploaded.">
 <meta name="twitter:image" content="https://gifos.app/apps/tesseract/cover.jpg">
 <meta name="twitter:image:alt" content="Tesseract OCR on GifOS">
-<script>location.replace("https://gifos.app/?run=tesseract");</script>
+<script>location.replace(/(^|[?&])store([=&]|$)/.test(location.search) ? "https://gifos.app/store/tesseract" : "https://gifos.app/?run=tesseract");</script>
 </head>
 <body>
-<p>Opening <a href="https://gifos.app/?run=tesseract">Tesseract OCR on GifOS</a>…</p>
+<p>Opening <a href="https://gifos.app/?run=tesseract">Tesseract OCR on GifOS</a>… (or the <a href="https://gifos.app/store/tesseract">store listing</a>)</p>
 </body>
 </html>

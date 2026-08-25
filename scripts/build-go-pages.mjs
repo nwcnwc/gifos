@@ -66,6 +66,12 @@ export function goPageHtml(rec) {
   const title = name + ' on GifOS';
   const desc = ogDescription(rec);
   const run = 'https://gifos.app/?run=' + encodeURIComponent(slug);
+  // ?store on the go page: same card for the crawler (the cover), but a human
+  // lands on the store LISTING instead of straight in the app. Share hands
+  // out both forms (site/js/store.js) — before this, Share gave the raw
+  // /?run= and /store/ links, which unfurl the generic og.png, so the go
+  // pages existed and nothing ever used them.
+  const listing = 'https://gifos.app/store/' + encodeURIComponent(slug);
   const page = 'https://gifos.app/go/' + encodeURIComponent(slug) + '/';
   const img = 'https://gifos.app/apps/' + encodeURIComponent(slug) + '/cover.jpg';
   const sz = jpegSize(path.join(OUT_APPS, slug, 'cover.jpg'));
@@ -92,10 +98,10 @@ export function goPageHtml(rec) {
 <meta name="twitter:description" content="${escHtml(desc)}">
 <meta name="twitter:image" content="${escHtml(img)}">
 <meta name="twitter:image:alt" content="${escHtml(title)}">
-<script>location.replace(${JSON.stringify(run)});</script>
+<script>location.replace(/(^|[?&])store([=&]|$)/.test(location.search) ? ${JSON.stringify(listing)} : ${JSON.stringify(run)});</script>
 </head>
 <body>
-<p>Opening <a href="${escHtml(run)}">${escHtml(name)} on GifOS</a>…</p>
+<p>Opening <a href="${escHtml(run)}">${escHtml(name)} on GifOS</a>… (or the <a href="${escHtml(listing)}">store listing</a>)</p>
 </body>
 </html>
 `;
