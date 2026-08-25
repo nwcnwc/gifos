@@ -92,13 +92,19 @@
         last.best = best;
         document.getElementById('best-val').textContent = best ? ('BEST ' + best) : '';
       }
-      /* the damage flash is CSS, not a repaint of the world */
+      /* The damage flash is CSS, not a repaint of the world — and it POINTS.
+         A vignette that glows evenly all round tells you only that you are
+         being eaten; it does not tell you to turn left. */
       var view = Backdooms.view ? Backdooms.view() : null;
       var hurt = view && view.pain > 0.55;
       if (hurt !== painT) {
         painT = hurt;
         document.body.classList.toggle('hurt', !!hurt);
-        if (hurt) Sfx.ow();
+        if (hurt) {
+          var arc = document.getElementById('painarc');
+          if (arc) arc.style.setProperty('--pain-dir', (view.painFrom * 180 / Math.PI) + 'deg');
+          Sfx.ow();
+        }
       }
     },
     room: function (n) {
@@ -109,9 +115,16 @@
       }
       var room = document.getElementById('gate-room');
       if (room) {
-        room.textContent = n < 2
-          ? 'Press Invite in the bar above to send the link. Whoever opens it walks the same halls — no account, no server.'
-          : n + ' in the halls, walking the same maze. They show up pale. They can be shot.';
+        /* Only promise the Invite button when there IS one. Opened at its own
+           URL there is no bar above this app, and 'press Invite in the bar
+           above' is then a dead instruction on the first screen a new player
+           reads. */
+        var hosted = !!(root.gifos && root.gifos.db);
+        room.textContent = n > 1
+          ? n + ' in the halls, walking the same maze. They show up pale. They can be shot.'
+          : hosted
+            ? 'Press Invite in the bar above to send the link. Whoever opens it walks the same halls — no account, no server.'
+            : 'Open this file in GifOS and one invite link puts a friend in the same halls.';
       }
     }
   };

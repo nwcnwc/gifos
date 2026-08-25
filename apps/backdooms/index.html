@@ -31,6 +31,7 @@
 </div>
 <div id="vig"></div>
 <div id="pain"></div>
+<div id="painarc"><i></i></div>
 
 <div id="gate">
   <div class="gate-box">
@@ -70,9 +71,11 @@
   </div>
 </div>
 
+<!-- ORDER IS THE HIT TEST: the look surface is the whole screen and must sit
+     UNDER the stick and FIRE. It routes a touch by where it started. -->
 <div id="touch" hidden>
-  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
   <div id="t-look"></div>
+  <div id="t-move" class="t-stick"><div class="t-knob"></div></div>
   <button class="t-btn" id="t-fire" type="button">FIRE</button>
 </div>
 
