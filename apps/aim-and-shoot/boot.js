@@ -87,6 +87,78 @@
     paintRoster();
   };
 
+  /* THE GUN RELOADS EVEN WHILE THE TRIGGER IS HELD.
+     Upstream only refills the magazine on the frames a player is NOT
+     shooting (Player.js: `coolDown < coolDownInit && !isShooting`). A bot
+     whose net says "fire" every frame therefore empties its magazine once
+     and is dry for the rest of its life — and on a phone the player joined
+     it, because the pad below used to raise isShooting and had no way to
+     lower it again. Trickle the magazine back under fire too: hold and the
+     gun slows to the trickle rate instead of dying, release and upstream's
+     0.25/frame still snaps it back. Player.js is sha256-pinned by
+     build.mjs, so the rule lands on the prototype from here. */
+  var RELOAD_UNDER_FIRE = 0.1;
+  if (typeof Player !== 'undefined' && Player.prototype && !Player.prototype._aasReload) {
+    var baseUpdate = Player.prototype.update;
+    Player.prototype.update = function (input) {
+      baseUpdate.call(this, input);
+      if (this.isDead || !this.isShooting) return;
+      if (this.coolDown < this.coolDownInit) {
+        this.coolDown = Math.min(this.coolDownInit, this.coolDown + RELOAD_UNDER_FIRE);
+      }
+    };
+    Player.prototype._aasReload = true;
+  }
+
+  /* A 5-unit dot crossing a 620-unit room is not something you can dodge,
+     and in a crowd you could not tell which black circle was you. Paint
+     only — the hit test in the pinned Bullet.js is untouched. */
+  if (typeof Bullet !== 'undefined' && Bullet.prototype && !Bullet.prototype._aasShow) {
+    Bullet.prototype.show = function () {
+      var col = (this.owner && this.owner.color) || [0, 0, 0];
+      c.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',.30)';
+      c.beginPath();
+      c.arc(this.pos.x - Math.cos(this.angle) * 11, this.pos.y - Math.sin(this.angle) * 11, this.size * 1.2, 0, TWOPI);
+      c.fill();
+      c.fillStyle = '#0d0d0d';
+      c.beginPath();
+      c.arc(this.pos.x, this.pos.y, this.size * 1.5, 0, TWOPI);
+      c.fill();
+    };
+    Bullet.prototype._aasShow = true;
+  }
+  if (typeof Player !== 'undefined' && Player.prototype && !Player.prototype._aasShow) {
+    /* Bars are 100 wide and drawn from pos.x - 50, so anything against a
+       wall had half its health hidden off the floor. Keep them inside. */
+    var barX = function (x) { return Math.max(2, Math.min(w - 102, x - 50)); };
+    Player.prototype.showHealthBar = function () {
+      c.fillStyle = 'red';
+      c.fillRect(barX(this.pos.x), this.pos.y - 60, this.health * 10, 10);
+      c.strokeRect(barX(this.pos.x), this.pos.y - 60, 100, 10);
+    };
+    Player.prototype.showCooldownBar = function () {
+      c.fillStyle = 'green';
+      c.fillRect(barX(this.pos.x), this.pos.y - 45, Math.max(0, this.coolDown / this.coolDownInit * 100), 10);
+      c.strokeRect(barX(this.pos.x), this.pos.y - 45, 100, 10);
+    };
+    var baseShow = Player.prototype.show;
+    Player.prototype.show = function () {
+      if (!this.ai && !this.isDead) {
+        c.strokeStyle = 'rgba(24,92,208,.95)';
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(this.pos.x, this.pos.y, this.size + 7, 0, TWOPI);
+        c.stroke();
+        c.lineWidth = 1;
+        c.strokeStyle = 'black';
+      }
+      baseShow.call(this);
+    };
+    Player.prototype._aasShow = true;
+  }
+
+  var padFiring = false;
+
   AAS.applyPad = function (player) {
     var p = AAS.pad;
     if (!p || !player || player.ai) return;
@@ -97,7 +169,10 @@
     if (p.aiming) {
       player.lookAt(player.pos.x + p.ax, player.pos.y + p.ay);
     }
-    if (p.fire) player.isShooting = true;
+    /* Release has to travel too. The pad clears only what the pad set, so a
+       mouse held down on a touchscreen laptop is left alone. */
+    if (p.fire) { player.isShooting = true; padFiring = true; }
+    else if (padFiring) { player.isShooting = false; padFiring = false; }
   };
 
   function capture(node, id) { try { node.setPointerCapture(id); } catch (e) {} }
@@ -180,19 +255,39 @@
       AAS.pad.aiming = true;
     }
 
+    var fireId = null;
+
     function fireOn(ev) {
       ev.preventDefault();
+      /* Without capture, a thumb that slides a millimetre off the button
+         delivers pointerup somewhere else and FIRE is held down forever —
+         which is how one tap emptied the magazine and left the gun dry. */
+      fireId = ev.pointerId;
+      capture(fire, ev.pointerId);
       AAS.pad.fire = true;
       if (AAS.isGameover && AAS.retry) AAS.retry();
       else if (AAS.isStarting && AAS.startPlay) AAS.startPlay();
     }
     function fireOff(ev) {
-      ev.preventDefault();
+      if (ev && ev.pointerId != null && fireId != null && ev.pointerId !== fireId) return;
+      if (ev && ev.preventDefault && ev.type !== 'pointerup') ev.preventDefault();
+      fireId = null;
       AAS.pad.fire = false;
     }
     fire.addEventListener('pointerdown', fireOn);
     fire.addEventListener('pointerup', fireOff);
     fire.addEventListener('pointercancel', fireOff);
+    fire.addEventListener('lostpointercapture', fireOff);
+    /* Belt and braces: the trigger pointer dying anywhere — off the button,
+       off the page, on an incoming call — lets go. Other fingers (the
+       stick, the aim drag) carry other ids and are left alone. */
+    root.addEventListener('pointerup', fireOff);
+    root.addEventListener('pointercancel', fireOff);
+    root.addEventListener('blur', function () {
+      fireId = null; moveId = null; lookId = null;
+      AAS.pad.fire = false; AAS.pad.mx = 0; AAS.pad.my = 0; AAS.pad.aiming = false;
+      knob.style.transform = 'translate(-50%,-50%)';
+    });
   };
 
   document.addEventListener('touchstart', function reveal() {

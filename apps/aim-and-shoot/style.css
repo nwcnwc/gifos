@@ -1,6 +1,6 @@
 html, body {
   margin: 0; padding: 0; height: 100%;
-  background: #ececec;
+  background: #191b20;
   color: #111;
   font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif;
   overflow: hidden;
@@ -11,11 +11,30 @@ html, body {
 }
 #game {
   display: block;
+  object-fit: contain;
   width: 100%;
   height: 100%;
-  object-fit: contain;
   touch-action: none;
   background: #ececec;
+}
+/* THE WALLS HURT, SO THE WALLS ARE ON SCREEN. The band is the frame around
+   the canvas, not paint inside it: a tank's rim stops exactly at the canvas
+   edge, so the hazard stripes start precisely where the damage does. The
+   field is inset — on a phone the thumbs sit on the chrome BELOW the arena,
+   so nothing you are shooting at hides under your own hand. */
+#arena {
+  position: fixed;
+  top: 26px; right: 10px; bottom: 10px; left: 10px;
+  padding: 9px;
+  box-sizing: border-box;
+  background:
+    repeating-linear-gradient(45deg, #b8443c 0 11px, #24272e 11px 22px);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px #0d0e11, 0 6px 24px rgba(0,0,0,.45);
+}
+body.touch #arena {
+  top: max(30px, env(safe-area-inset-top));
+  bottom: calc(168px + env(safe-area-inset-bottom));
 }
 header {
   position: fixed; top: 0; left: 0; right: 0; z-index: 5;
@@ -49,12 +68,12 @@ header {
 }
 .p-stick {
   border-radius: 50%;
-  background: rgba(0,0,0,.12);
-  border: 2px solid rgba(0,0,0,.28);
+  background: rgba(255,255,255,.07);
+  border: 2px solid rgba(255,255,255,.30);
 }
 .p-knob {
   width: 52px; height: 52px; border-radius: 50%;
-  background: rgba(0,0,0,.4);
+  background: rgba(255,255,255,.42);
   position: absolute; left: 50%; top: 50%;
   transform: translate(-50%, -50%);
 }
@@ -68,10 +87,11 @@ header {
   bottom: max(22px, env(safe-area-inset-bottom));
   width: 80px; height: 80px; border-radius: 50%;
   border: 0; pointer-events: auto;
-  background: #222; color: #fff;
-  font: 700 13px/1 system-ui, sans-serif;
-  box-shadow: 0 0 16px rgba(0,0,0,.25);
+  background: #b8443c; color: #fff;
+  font: 700 15px/1 system-ui, sans-serif;
+  letter-spacing: .06em;
+  box-shadow: 0 2px 10px rgba(0,0,0,.5);
 }
-#p-fire:active { transform: scale(.95); background: #000; }
+#p-fire:active { transform: scale(.95); background: #8f322c; }
 
 body.touch #status { display: none; }
