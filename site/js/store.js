@@ -463,13 +463,19 @@
   //     the canonical root path.
   // Absolute, because a relative path is useless once it is pasted somewhere.
   // Origin-relative rather than hard-coded, so a custom deployment shares itself.
-  const shareUrl = (slug) => new URL('/store/' + encodeURIComponent(slug), location.href).href;
+  // BOTH shared links go through the app's static go page (site/go/<slug>/,
+  // scripts/build-go-pages.mjs): its og:image is the LISTING COVER, so X and
+  // every other unfurler shows the app's own picture. Neither /store/<slug>
+  // nor /?run=<slug> can do that — crawlers run no JS and read index.html's
+  // generic og.png. The go page then sends a human on: ?store → the listing,
+  // otherwise straight into the app.
+  const shareUrl = (slug) => new URL('/go/' + encodeURIComponent(slug) + '/?store', location.href).href;
   // The DIRECT link: gifos.app/?run=<slug> (desktop.js handleRunParam) fetches
   // the App GIF, files it in Stolen Apps and runs it — one tap for someone who
   // has never seen GifOS, instead of listing → Install → Home Screen → Open.
   // In the QUERY, deliberately: released snapshots read ?run= from
   // location.search and the channel loader carries the query for exactly this.
-  const runUrl = (slug) => new URL('/?run=' + encodeURIComponent(slug), location.href).href;
+  const runUrl = (slug) => new URL('/go/' + encodeURIComponent(slug) + '/', location.href).href;
 
   // Optional cash path (site/js/gifos-cash.js). Empty when pay.js was not
   // baked with a Payment Link — then the bar stays hidden and a listing

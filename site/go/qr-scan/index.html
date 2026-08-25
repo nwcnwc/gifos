@@ -20,9 +20,9 @@
 <meta name="twitter:description" content="Read a code from a still photo. Nothing is uploaded.">
 <meta name="twitter:image" content="https://gifos.app/apps/qr-scan/cover.jpg">
 <meta name="twitter:image:alt" content="QR Scan on GifOS">
-<script>location.replace("https://gifos.app/?run=qr-scan");</script>
+<script>location.replace(/(^|[?&])store([=&]|$)/.test(location.search) ? "https://gifos.app/store/qr-scan" : "https://gifos.app/?run=qr-scan");</script>
 </head>
 <body>
-<p>Opening <a href="https://gifos.app/?run=qr-scan">QR Scan on GifOS</a>…</p>
+<p>Opening <a href="https://gifos.app/?run=qr-scan">QR Scan on GifOS</a>… (or the <a href="https://gifos.app/store/qr-scan">store listing</a>)</p>
 </body>
 </html>
