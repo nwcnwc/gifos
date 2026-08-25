@@ -58,7 +58,7 @@ async function until(fn, ms) {
   check('…which spins while an arrival is still plausible', !!(looking && looking.spin));
   const dead = await until(async () => { const s = await read(A); return s && /isn’t live right now/.test(s.t) ? s : null; }, 25000);
   check('alone past the gossip horizon it says the INVITE isn\'t live', !!dead, dead && dead.t);
-  check('…explains the app comes from the friend\'s device and the link revives', !!(dead && /friend who shared it has the app open/.test(dead.p) && /comes back to life/.test(dead.p)), dead && dead.p.slice(0, 60));
+  check('…explains the app comes from the friend\'s device and revives when they SHARE again (opening alone joins no room)', !!(dead && /friend who shared it has the app open/.test(dead.p) && /open the app and share it again/.test(dead.p)), dead && dead.p.slice(0, 60));
   check('…drops the spinner (nothing is spinning) and offers GifOS itself', !!(dead && !dead.spin && dead.home));
 
   // ---- a second stranded guest flips the story to the missing host ----------
