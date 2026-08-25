@@ -35,9 +35,16 @@ header {
 #board {
   flex: 1; min-height: 0;
   display: flex; align-items: center; justify-content: center;
-  touch-action: none;
+  /* pinch-zoom, NOT none: two fingers zoom the page (small dots are an eyes
+     problem, and the eyes win), while single-finger taps stay the game's —
+     pinch-zoom permits no single-finger pan and no double-tap zoom, so play
+     is untouched. Pairs with boot.js turning off Phaser's touch capture:
+     either half alone leaves pinch dead. */
+  touch-action: pinch-zoom;
 }
-#board canvas { display: block; max-width: 100%; max-height: 100%; }
+/* Phaser stamps touch-action:none INLINE on its canvas at boot; the canvas is
+   where every pinch actually starts, so this must out-rank an inline style. */
+#board canvas { display: block; max-width: 100%; max-height: 100%; touch-action: pinch-zoom !important; }
 #roster {
   margin: .35rem 0 .45rem; padding: .45rem .6rem;
   background: var(--surface); border: 1px solid var(--border); border-radius: .7rem;

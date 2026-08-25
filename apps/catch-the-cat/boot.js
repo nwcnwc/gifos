@@ -89,6 +89,18 @@
       hideChrome: true,
       credit: ''
     });
+    // Let a two-finger pinch through to the browser (style.css opens
+    // touch-action for it): Phaser's TouchManager preventDefault()s every
+    // touch on the canvas while `capture` is set, and it consults the flag
+    // per event — so clearing it once the input system is up is enough.
+    // Taps are unaffected: Phaser reads the touches either way.
+    (function (g) {
+      var uncapture = function () {
+        try { if (g.input && g.input.touch) g.input.touch.capture = false; } catch (e) {}
+      };
+      uncapture();
+      if (g.events) g.events.once('ready', uncapture);
+    })(game);
     bind();
     setClicks(0);
     setStatus(racing
