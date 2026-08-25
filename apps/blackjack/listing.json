@@ -1,6 +1,6 @@
 {
-  "tagline": "No cash. The file holds your chips. Invite is extra seats.",
-  "description": "Toy chips, never cash — no account, nothing is paid out. Your pile lives in the file, so sharing the GIF shares the table and the bankroll. One link sits friends at the same table. The host deals. The dealer plays in the host's browser.\n\nHit, stand, or double. Split a pair. Aces are soft until they have to be one. The dealer stands on 17. A natural 21 pays 3:2. Go broke and the table says so; restock is still toy chips.\n\nAn unofficial port of blackjack by hanhaechi. The original saved the hand on a server. This copy does not.",
+  "tagline": "Beat the dealer to 21. The file holds your chips. Invite is extra seats.",
+  "description": "Hit, stand, or double. Split a pair. Aces are soft until they have to be one. The dealer stands on 17. A natural 21 pays 3:2. Go broke and the table says so; restock deals you a fresh pile.\n\nYour pile lives in the file, so sharing the GIF shares the table and the chips. One link sits friends at the same table. The host deals. The dealer plays in the host's browser.\n\nAn unofficial port of blackjack by hanhaechi. The original saved the hand on a server. This copy does not.",
   "author": {
     "name": "hanhaechi",
     "url": "https://github.com/hanhaechi/blackjack"

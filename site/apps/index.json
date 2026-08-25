@@ -659,7 +659,7 @@
       "name": "Blackjack",
       "shortName": "Blackjack",
       "version": "1.1.0",
-      "tagline": "No cash. The file holds your chips. Invite is extra seats.",
+      "tagline": "Beat the dealer to 21. The file holds your chips. Invite is extra seats.",
       "author": {
         "name": "hanhaechi",
         "url": "https://github.com/hanhaechi/blackjack"
@@ -692,15 +692,15 @@
         58
       ],
       "cover": "/apps/blackjack/cover.jpg",
-      "bytes": 192830,
+      "bytes": 192951,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-25"
       },
-      "sha256": "442d22a583d3a8979be33eda3f3019619346940cf866982005c0a5c2f2ca9a84"
+      "sha256": "15f26afd64e0a063a100048b04731d04d677f9abf7cc4c7cdc2efda53ebe5294"
     },
     {
       "slug": "bowling",

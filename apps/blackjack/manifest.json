@@ -5,7 +5,7 @@
   "shortName": "Blackjack",
   "version": "1.1.0",
   "minBuild": 947,
-  "description": "Toy chips, never cash. The file holds your pile. Invite is extra seats.",
+  "description": "Beat the dealer to 21. The file holds your pile. Invite is extra seats.",
   "entry": "index.html",
   "accent": [26, 122, 58],
   "capabilities": {

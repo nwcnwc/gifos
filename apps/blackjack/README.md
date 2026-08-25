@@ -1,8 +1,8 @@
 # Blackjack
 
-Beat the dealer to 21. Invite is extra seats. No cash.
+Beat the dealer to 21. Invite is extra seats.
 
-An unofficial port of **[blackjack](https://github.com/hanhaechi/blackjack)** by hanhaechi (MIT). Upstream is vanilla JS plus jQuery, Bootstrap, a PNG deck, and AJAX to a sample API. **The server is gone.** The dealer runs in the host browser. Cards are CSS. Toy chips live in the file.
+An unofficial port of **[blackjack](https://github.com/hanhaechi/blackjack)** by hanhaechi (MIT). Upstream is vanilla JS plus jQuery, Bootstrap, a PNG deck, and AJAX to a sample API. **The server is gone.** The dealer runs in the host browser. Cards are CSS. Your chips live in the file.
 
 ```
 index.html          felt, dealer, seats, deal / hit / stand / double / split

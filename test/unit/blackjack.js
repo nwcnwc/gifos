@@ -99,7 +99,7 @@ check('8-8 is a pair, 10-K is not', BJ.isPair([eight, eightH]) && !BJ.isPair([te
 check('broke table: 0 chips cannot cover a 10 stake', BJ.canDeal(0, 10) === false);
 check('9 chips still cannot deal', BJ.canDeal(9, 10) === false);
 check('10 chips can deal', BJ.canDeal(10, 10) === true);
-check('a refill is 200 toy chips', BJ.REFILL === 200 && BJ.START === 200 && BJ.STAKE === 10);
+check('a refill is 200 chips', BJ.REFILL === 200 && BJ.START === 200 && BJ.STAKE === 10);
 
 // PLAY a natural from a known shoe. Deal order: P, D, P, D.
 {
@@ -135,7 +135,7 @@ check('a refill is 200 toy chips', BJ.REFILL === 200 && BJ.START === 200 && BJ.S
   const live = p <= 21;
   check('S17: a live player leaves the dealer at 17+', !live || d >= 17, { d: d, p: p });
   const net = sand.BJ.netFor(tab, 'p');
-  check('the payout is a legal toy delta', net === -10 || net === 0 || net === 10 || net === 15, net);
+  check('the payout is a legal chip delta', net === -10 || net === 0 || net === 10 || net === 15, net);
   let chips = 200;
   chips = sand.BJ.applyDeltas(chips, [net]);
   check('bankroll moves and never goes negative', chips >= 0 && chips === 200 + net, chips);
@@ -253,14 +253,14 @@ check('H/S/D tap-or-key hit, stand, double',
   /k === 'h'/.test(app) && /k === 's'/.test(app) && /k === 'd'/.test(app));
 check('the prompt drops Double after a hit (does not keep the deal-time msg)',
   /canSplit\(tab, me\.id, chips\)/.test(app) && /Hit or stand\./.test(app));
-check('restock adds REFILL toy chips',
+check('restock adds REFILL chips',
   /chips\s*=\s*chips\s*\+\s*BJ\.REFILL/.test(app) && /id="refill"/.test(html));
-check('help says toy / no cash, 3:2, stands on 17, double, split, restock',
-  /no cash/i.test(help) && /3:2/.test(help) && /stands on 17/.test(help) &&
+check('help says 3:2, stands on 17, double, split, restock',
+  /3:2/.test(help) && /stands on 17/.test(help) &&
   /Double/.test(help) && /Split/.test(help) && /Restock/.test(help));
-check('listing leads with no cash / file / invite',
-  /no cash/i.test(listing.tagline) && /file/i.test(listing.tagline) && /Invite/i.test(listing.tagline) &&
-  /never cash/i.test(listing.description) && /file/i.test(listing.description) && /link/i.test(listing.description));
+check('listing leads with the game / file / invite',
+  /21/.test(listing.tagline) && /file/i.test(listing.tagline) && /Invite/i.test(listing.tagline) &&
+  /3:2/.test(listing.description) && /file/i.test(listing.description) && /link/i.test(listing.description));
 check('listing tagline fits a card', listing.tagline.length <= 80);
 check('author is hanhaechi, not GifOS', listing.author.name === 'hanhaechi' && listing.porter.name === 'GifOS');
 check('minBuild stays 947', manifest.minBuild === 947);
@@ -270,7 +270,10 @@ check('no CDN / webfont / remote at load',
   !/https?:\/\//i.test(html.replace(/<!--[\s\S]*?-->/g, '')) &&
   !/@import|fonts\.google/i.test(css));
 check('classic scripts only', !/type=["']module["']/.test(html));
-check('no cash-as-real-money copy in the listing',
+// The app is a computer game; it does not protest that it is one. No "toy
+// chips", no "no cash, ever" — that copy read as nervous and is gone for good.
+check('no cash disclaimers, and no cash-as-real-money copy either',
+  !/no cash|toy chip|never cash|nothing is paid|not cash/i.test(listing.description + ' ' + listing.tagline + ' ' + help + ' ' + html + ' ' + app) &&
   !/real money|payout to|withdraw|deposit/i.test(listing.description));
 
 if (failures) {

@@ -11,9 +11,9 @@
   <div class="brand"><span class="logo" aria-hidden="true"></span> Blackjack</div>
   <div class="chips">Chips <span id="chips">200</span></div>
 </header>
-<p class="toy">Toy chips. No cash. Ever.</p>
+<p class="rules">Dealer stands on 17 &middot; Blackjack pays 3:2</p>
 <div class="felt">
-  <p class="felt-idle" id="feltIdle">Beat the dealer to 21. Toy chips. No cash.</p>
+  <p class="felt-idle" id="feltIdle">Beat the dealer to 21 without going over.</p>
   <section class="dealer" id="dealer">
     <h2>Dealer <span id="dTotal">~</span></h2>
     <div class="cards" id="dCards"></div>
@@ -29,7 +29,7 @@
   <button type="button" id="stand" hidden aria-label="Stand">Stand</button>
   <button type="button" id="double" hidden aria-label="Double">Double</button>
   <button type="button" id="split" hidden aria-label="Split">Split</button>
-  <button type="button" id="refill" hidden aria-label="Restock toy chips">Restock 200</button>
+  <button type="button" id="refill" hidden aria-label="Restock chips">Restock 200</button>
 </div>
 <p class="hint">Hit, stand, double, or split a pair. Extra seats join this table. Stake 10.</p>
 <script src="bj.js"></script>
