@@ -180,5 +180,15 @@ if (fs.existsSync(listingPath)) {
         !claimed || +claimed === catalog.layers.length, claimed + ' vs ' + catalog.layers.length);
 }
 
+// A parameterised close handler bound straight to addEventListener receives
+// the click EVENT as its first argument. UI.closeSheets(keepScrim) bound that
+// way hid the sheet and kept the scrim: a blurred, unclickable map after Done
+// (2026-08-24). Every listener must call it with no arguments.
+const ui = fs.readFileSync(path.join(APP, 'wv-ui.js'), 'utf8');
+check('closeSheets is never bound as a raw listener (the event would be keepScrim)',
+      !ui.split('\n').some((l) => !/^\s*\/\//.test(l) && /addEventListener\([^)]*UI\.closeSheets\s*\)/.test(l)));
+check('closeSheets keeps the scrim only for a literal true',
+      /if \(keepScrim !== true\)/.test(ui));
+
 console.log(failures === 0 ? 'ALL PASS' : failures + ' FAILED');
 process.exit(failures === 0 ? 0 : 1);

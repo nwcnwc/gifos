@@ -7457,15 +7457,15 @@
         255
       ],
       "cover": "/apps/worldview/cover.jpg",
-      "bytes": 1095771,
+      "bytes": 1086279,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-25"
       },
-      "sha256": "da2da35c0d447fa23d0b4791e861ae038b84f3b436704acfe6ae98eb73c6fc93"
+      "sha256": "9ea2423995e39086fde4fb230517347db11dd884bd179ec5831a08c8956f695e"
     },
     {
       "slug": "yahtzee",
