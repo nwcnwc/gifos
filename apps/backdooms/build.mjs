@@ -1,5 +1,5 @@
 // Pack apps/backdooms/ into site/apps/backdooms/backdooms.gif
-import { backdoomsIcon, screenshotPng } from './icon.mjs';
+import { backdoomsIcon } from './icon.mjs';
 import { deflateRawSync } from 'node:zlib';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -124,9 +124,21 @@ for (const [n, s] of Object.entries(files)) {
   if (/\bfetch\s*\(/.test(s)) throw new Error(n + ' uses fetch(');
 }
 
-const shot = screenshotPng();
-if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot is not a PNG');
-writeFileSync(join(dir, 'screenshot.png'), shot);
+// The cover is a REAL captured frame of the running game, committed — not a
+// drawing of it generated here. A hand-drawn cover cannot be better than
+// whoever drew it, and it drifts from the app without anything noticing.
+// This only checks it is present and the right shape.
+{
+  const shotPath = join(dir, 'screenshot.png');
+  if (!existsSync(shotPath)) throw new Error('screenshot.png is missing — capture a real frame of the game');
+  const shot = readFileSync(shotPath);
+  if (shot[0] !== 0x89 || shot[1] !== 0x50) throw new Error('screenshot.png is not a PNG');
+  const w = shot.readUInt32BE(16), h = shot.readUInt32BE(20);
+  if (w !== 1200 || h !== 720) throw new Error('screenshot.png must be 1200x720, got ' + w + 'x' + h);
+  if (shot.length < 40000) {
+    throw new Error('screenshot.png is ' + shot.length + ' bytes — that is a flat drawing, not a frame of the game');
+  }
+}
 
 const bytes = await gif.encode(files, { preview: backdoomsIcon(), accent: manifest.accent });
 const out = join(dir, '..', '..', 'site', 'apps', 'backdooms', 'backdooms.gif');
