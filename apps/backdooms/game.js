@@ -39,8 +39,8 @@
   var mflash, flashId, kick, pain, painFrom, pumpT, bob, graceT;
   var lookGain = 0.0022;
   var remotes = [], remotePhase = {};
-  var lastT = 0, STEP = 16;
-  var HALL = 7, R = 0.26;
+  var lastT = 0, STEP = 16, clock = 0;
+  var HALL = 12, R = 0.26;
   /* You wake up, and for two seconds nothing can touch you. Without it the
      opening is not a game: a phone review of the previous build died at 7.4
      seconds on six runs out of six, to the tick, having pressed nothing —
@@ -60,17 +60,39 @@
     return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
   }
 
+  /*
+   * TWO-WIDE HALLS, AND ENOUGH SOLID MASS TO HAVE SIDES.
+   *
+   * The first cut of this generator ran one-wide halls between blocks that
+   * were open rooms 40% of the time. A critic scanned 70x70 tiles of it and
+   * found that the longest run of open floor with a wall on BOTH sides,
+   * anywhere on the map, in either axis, was six tiles — so the defining
+   * Backrooms image, a hall receding past the point you can resolve it, was
+   * structurally impossible. It read as a warehouse of shipping crates.
+   *
+   * Solid mass is now the commonest block by a distance, and the lattice
+   * period is TWELVE rather than seven. That second number is the one that
+   * mattered: with crossings every eight cells no corridor can be walled for
+   * more than six, because the perpendicular hall cuts the wall open at every
+   * junction — the measurement came out as exactly six on every seed, which
+   * is the block width, not a coincidence. A twelve-cell period gives ten,
+   * which at this fog range is a hall you cannot see the end of.
+   *
+   * Two-wide halls, because one-wide at a ninety-degree field of view is a
+   * wall in each eye and no vanishing point between them.
+   */
   function cell(i, j) {
     i = i | 0; j = j | 0;
     /* the room you wake in is always clear */
     if (i > -1 && i < 9 && j > -1 && j < 9) return '0';
     var hi = mod(i, HALL), hj = mod(j, HALL);
-    if (hi === 0 || hj === 0) return '0';            /* the hallway lattice */
+    if (hi < 2 || hj < 2) return '0';                 /* the hallway lattice */
     var r = h2(Math.floor(i / HALL), Math.floor(j / HALL));
-    if (r < 0.40) return '0';                         /* an open room */
-    if (r < 0.56) return (hi % 2 === 0 && hj % 2 === 0) ? '1' : '0';  /* pillars */
-    if (r < 0.70) return hi === 3 ? '1' : '0';        /* a partition */
-    return '1';                                       /* solid mass */
+    if (r < 0.26) return '0';                         /* an open room */
+    if (r < 0.45) return (hi % 3 === 0 && hj % 3 === 0) ? '1' : '0';  /* pillars */
+    /* solid mass — with one doorway, so it is a place and not just a block */
+    if (hi > 4 && hi < 7 && hj === 2) return '0';
+    return '1';
   }
 
   /* Where the fluorescents are. Halls always get a line of them — a corridor
@@ -79,7 +101,12 @@
     i = i | 0; j = j | 0;
     if (i > -1 && i < 9 && j > -1 && j < 9) return mod(i, 3) === 1 && mod(j, 3) === 1;
     var hi = mod(i, HALL), hj = mod(j, HALL);
-    if (hi === 0 || hj === 0) return mod(i + j, 3) === 0;
+    var inH = hj < 2, inV = hi < 2;
+    if (inH && inV) return true;             /* every crossing is lit */
+    /* a line of troffers down each lane of the hall — the receding line is
+       the strongest depth cue the game has */
+    if (inH) return mod(i, 3) === 1;
+    if (inV) return mod(j, 3) === 1;
     return mod(i, 3) === 1 && mod(j, 3) === 1;
   }
 
@@ -100,7 +127,7 @@
     ];
     keys = keys || {};
     keys._jx = 0; keys._jy = 0;
-    running = true; paused = false; lastT = 0;
+    running = true; paused = false; lastT = 0; clock = 0;
   }
 
   function angDiff(from, to) {
@@ -261,6 +288,12 @@
 
   /* ---- the things ------------------------------------------------------- */
 
+  function livingCount() {
+    var n = 0, i;
+    for (i = 0; i < enemies.length; i++) if (enemies[i].dying == null) n++;
+    return n;
+  }
+
   function spawnNear(frames) {
     /* Prefer to put them BEHIND you or out to the side. A thing that blinks
        into existence in the middle of the corridor you are looking at reads as
@@ -293,7 +326,7 @@
         /* A hard ceiling as well as a local one: without it a long run turns
            into a mob and the halls stop being lonely, which is the only thing
            the Backrooms has going for it. */
-        if (local < 5 && enemies.length < 22 && Math.random() < 0.02) {
+        if (local < 5 && livingCount() < 22 && Math.random() < 0.02) {
           n = 1 + (Math.random() * 3 | 0);
           for (i = 0; i < n; i++) spawnNear();
         }
@@ -308,7 +341,7 @@
     for (i = 0; i < enemies.length; i++) {
       o = enemies[i];
       o.hurt = Math.max(0, o.hurt - 0.09 * frames);
-      if (o.dying != null) { o.dying += dt / 420; continue; }
+      if (o.dying != null) { o.dying += dt / 420; continue; }   /* and it STAYS: see the filter */
       dx = x - o.x; dy = y - o.y; di = P(dx, dy);
       if (di > 0.2) {
         /* Upstream's closing speed is 0.0015 + 0.003/di per 16 ms frame — at
@@ -358,8 +391,13 @@
     /* Let go of the ones you walked away from. Upstream never did, so a long
        run accumulated a mob it was still stepping every frame — invisible when
        nothing is drawn per enemy, expensive now that each one is a sprite. */
+    /* A body stays on the carpet. Kill twenty things under the old filter and
+       the room was spotless thirty seconds later, which is the opposite of
+       what a shooter wants you to feel walking back through a hall you
+       cleared. The death animation is over at dying=1; everything after that
+       is the last frame lying there. */
     enemies = enemies.filter(function (e) {
-      if (e.dying != null) return e.dying < 1;
+      if (e.dying != null) return e.dying < 58;
       return P(e.x - x, e.y - y) < 26;
     });
   }
@@ -376,6 +414,7 @@
     pain = Math.max(0, pain - 0.10 * frames);
     if (pumpT >= 0) { pumpT += dt; if (pumpT > 460) pumpT = -1; }
     if (graceT > 0) graceT -= dt;
+    clock += dt;
     var moving = applyInput(frames);
     tickEnemies(moving, frames, dt);
     if (hp <= 0) {
@@ -408,7 +447,7 @@
     return {
       x: x, y: y, a: a,
       pitch: -kick * 0.055 + N(bob * 2) * 0.006,
-      bob: bob, kick: kick, pump: pump,
+      bob: bob, kick: kick, pump: pump, t: clock,
       flash: mflash, flashId: flashId, pain: pain, painFrom: painFrom,
       grace: graceT > 0,
       sprites: list, cell: cell, light: light

@@ -56,11 +56,12 @@
   var EH = 0.72;           /* floor to eye */
   var CH = WH - EH;        /* eye to ceiling */
   var FIGH = 1.12;         /* how tall a thing stands */
-  var FAR = 30;            /* nothing is drawn past this; fog reaches black */
+  var FAR = 38;            /* nothing is drawn past this; fog reaches black */
 
   /* the level asks these; cached because the floor cast hits the same cell
      for a long run of pixels and a call per pixel is a call too many */
   var lightFn = null, cacheCi = 1e9, cacheCj = 1e9, cacheLit = 0;
+  var clockT = 0;
 
   function mod(n, m) { return ((n % m) + m) % m; }
 
@@ -134,9 +135,26 @@
    */
   function fog(d) {
     if (d >= FAR) return 0;
-    var f = 1 / (1 + d * 0.060 + d * d * 0.0055);
-    if (d > FAR - 13) { var t = (FAR - d) / 13; f *= t * t; }
+    var f = 1 / (1 + d * 0.055 + d * d * 0.0034);
+    if (d > FAR - 16) { var t = (FAR - d) / 16; f *= t * t; }
     return f;
+  }
+
+  /*
+   * A FAILING TUBE. Standing still in the previous build produced two
+   * byte-identical frames 120 ms apart — nothing in the world moved at all,
+   * and the buzzing, stuttering fluorescent is the single most famous thing
+   * about the Backrooms. About one fixture in seven is dying; the rest are
+   * steady, because a room where everything flickers reads as a fault.
+   */
+  function flicker(ci, cj, t) {
+    var h = (Math.imul(ci | 0, 2246822519) ^ Math.imul(cj | 0, 3266489917)) >>> 0;
+    if ((h >>> 8 & 255) > 36) return 1;
+    var p = (h & 255) * 0.37;
+    var n = Math.sin(t * 0.0091 + p) * Math.sin(t * 0.0027 + p * 1.7) + Math.sin(t * 0.031 + p) * 0.35;
+    if (n > 0.72) return 0.14;
+    if (n > 0.62) return 1.42;
+    return 1;
   }
 
   function litCell(ci, cj) {
@@ -180,7 +198,9 @@
     var planeX = -dirY * P, planeY = dirX * P;
     var horizon = (H * 0.5 + s.pitch * H) | 0;
     var flashAmt = s.flash;
-    var wallTex = A.wall, floorTex = A.carpet, ceilTex = A.ceil;
+    clockT = s.t || 0;
+    var walls = A.walls, floorTex = A.carpet, ceilTex = A.ceil;
+    var carpetAvg = A.carpetAvg, ceilAvg = A.ceilAvg;
     var cellFn = s.cell;
     lightFn = s.light;
     cacheCi = 1e9; cacheCj = 1e9;
@@ -199,7 +219,7 @@
       if (rdy < 0) { stepY = -1; sdy = (posY - mapY) * ddy; }
       else { stepY = 1; sdy = (mapY + 1 - posY) * ddy; }
       var side = 0, hit = 0, guard = 0;
-      while (!hit && guard++ < 64) {
+      while (!hit && guard++ < 110) {
         if (sdx < sdy) { sdx += ddx; mapX += stepX; side = 0; }
         else { sdy += ddy; mapY += stepY; side = 1; }
         if (cellFn(mapX, mapY) === '1') hit = 1;
@@ -232,6 +252,9 @@
         for (y = y0; y < y1; y++) buf32[y * W + i] = 0xff000000;
         continue;
       }
+      /* Not every hall is papered the same. One texture for an endless
+         building is what made the halls literally undifferentiated. */
+      var wallTex = walls[((Math.imul(mapX | 0, 0x9E3779B1) ^ Math.imul(mapY | 0, 0x85EBCA6B)) >>> 29) % 3];
       var step = TEX / lineH;
       var texPos = (y0 - dStart) * step;
       var vx = vigX[i];
@@ -278,6 +301,12 @@
       var sx = rowDist * dRayX, sy = rowDist * dRayY;
       var vy = vigY[y];
       var tex = isFloor ? floorTex : ceilTex;
+      var avg = isFloor ? carpetAvg : ceilAvg;
+      /* poor-man's mip: past five metres, fade the texel toward the texture's
+         own mean. Constant per row, so it costs one lerp per pixel and it is
+         the difference between acoustic tile and moving chevrons. */
+      var mip = rowDist > 5 ? Math.min(0.82, (rowDist - 5) / 11) : 0;
+      var imip = 1 - mip;
       var rowOff = y * W;
 
       for (i = 0; i < W; i++) {
@@ -309,7 +338,8 @@
           var tube = alongT < 0.40 ? alongT / 0.40 : alongT > 0.60 ? (1 - alongT) / 0.40 : 0.10;
           if (tube > 1) tube = 1;
           /* blown out in the middle, warm at the edges of the diffuser */
-          var lum = 96 + 248 * tube * across;
+          var fk = flicker(ci, cj, clockT);
+          var lum = (96 + 248 * tube * across) * fk;
           var lk = (0.46 + 0.54 * base) * vigX[i] * vy;
           r2 = lum * lk + 34 * base; g2 = lum * lk * 0.97 + 31 * base; b2 = lum * lk * 0.83 + 20 * base;
         } else {
@@ -321,9 +351,11 @@
                spill across the tile it is set into */
             var du = u - 0.5, dv = v - 0.5;
             var pool = Math.max(0, 1 - (du * du + dv * dv) * 3.2);
-            kk += base * (isFloor ? 0.70 : 0.42) * pool;
+            kk += base * (isFloor ? 0.70 : 0.42) * pool * flicker(ci, cj, clockT);
           }
-          r2 = tex[o2] * kk; g2 = tex[o2 + 1] * kk; b2 = tex[o2 + 2] * kk;
+          r2 = (tex[o2] * imip + avg[0] * mip) * kk;
+          g2 = (tex[o2 + 1] * imip + avg[1] * mip) * kk;
+          b2 = (tex[o2 + 2] * imip + avg[2] * mip) * kk;
         }
         buf32[rowOff + i] = 0xff000000 |
           ((b2 > 255 ? 255 : b2) << 16) | ((g2 > 255 ? 255 : g2) << 8) | (r2 > 255 ? 255 : r2);
@@ -483,8 +515,11 @@
        gun until it eats the room, and the muzzle has to sit BELOW the
        crosshair or the thing you are aiming at is behind your own barrel. */
     var gh = H * 0.52, gw = gh * (A.gunW / A.gunH);
-    var bobX = Math.sin(s.bob) * W * 0.012;
-    var bobY = Math.abs(Math.cos(s.bob)) * H * 0.015;
+    var t = s.t || 0;
+    /* idle sway on top of the walk bob — a weapon that is perfectly still is
+       the loudest way a first-person game says 'this is a screenshot' */
+    var bobX = Math.sin(s.bob) * W * 0.012 + Math.sin(t * 0.00092) * W * 0.007;
+    var bobY = Math.abs(Math.cos(s.bob)) * H * 0.015 + Math.sin(t * 0.00147 + 1.1) * H * 0.006;
     var gx = W * 0.540 - gw * (78 / A.gunW) + bobX;
     var gy = H - gh + bobY + s.kick * H * 0.085;
 

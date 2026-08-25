@@ -67,9 +67,11 @@
    * only depth cue was brightness — and our port then spent that cue on a
    * floor the same colour as the wall.
    */
-  function makeWall() {
+  var W_PERIOD = 16;
+  function makeWall(seed, hue) {
     var t = new Uint8Array(TEX * TEX * 3);
-    var grain = field(TEX, 0x51A2), f8 = field(8, 0x9E11), f16 = field(16, 0x3C77);
+    var grain = field(TEX, 0x51A2 ^ seed), f8 = field(8, 0x9E11 ^ seed), f16 = field(16, 0x3C77 ^ seed);
+    hue = hue || 1;
     /* The baseboard is the load-bearing detail. A 3-texel chair rail is
        sub-pixel by four metres and stops paying; a 14-texel dark skirting
        survives to the end of the hall, and it is the line that actually draws
@@ -94,17 +96,21 @@
           var lit = v === RAIL ? 1.52 : v === RAIL + 1 ? 1.10 : 0.48;
           r = 190 * lit; g = 160 * lit; b = 68 * lit;
         } else {
-          /* wallpaper field: a wide stripe with a hairline seam */
-          var stripe = ((u % 16) < 8) ? 1.0 : 0.955;
-          if ((u % 16) === 0) stripe = 0.83;
-          if ((u % 16) === 15) stripe = 1.06;
+          /* Wallpaper field. The seams used to be single texels at 0.83 and
+             1.06 — a hard dark notch and a hard hot stripe — and at a wall
+             CORNER, where the texture wraps, the two landed next to each other
+             and read as a strip of lit trim that does not exist. Soft, wider,
+             and never brighter than the paper. */
+          var su = u % W_PERIOD;
+          var stripe = 1 - 0.055 * Math.abs(Math.cos(su / W_PERIOD * Math.PI * 2));
+          if (su < 2) stripe *= 0.94 + 0.03 * su;
           /* Lit from ABOVE, because that is where the fluorescents are. The
              first cut had this backwards — the top of the wall darker than the
              bottom — and it made every wall meet the ceiling in a muddy join
              instead of a bright one. */
           var band = v < RAIL ? (1.12 - 0.22 * (v / RAIL)) : 0.84;
           var kk = stripe * band;
-          r = 201 * kk; g = 172 * kk; b = 68 * kk;
+          r = 201 * kk * hue; g = 172 * kk; b = 68 * kk / hue;
           /* damp bleeding up from the skirting and down from the ceiling */
           var bleed = Math.max(0, (v - 30) / 22) * 0.55 + Math.max(0, (5 - v) / 5) * 0.4;
           var stain = clamp(damp * 1.5 - 0.55, 0, 1) * (0.35 + bleed);
@@ -554,6 +560,15 @@
     return s;
   }
 
+  /* The average colour of a texture. Sampling a 64x64 speckle at eight metres
+     aliases into moving chevrons — a real renderer would mip; this one fades
+     the texel toward this mean with distance, which costs one lerp per ROW. */
+  function meanOf(t) {
+    var r = 0, g = 0, b = 0, n = t.length / 3, i;
+    for (i = 0; i < t.length; i += 3) { r += t[i]; g += t[i + 1]; b += t[i + 2]; }
+    return [r / n, g / n, b / n];
+  }
+
   /* ---- build once ---------------------------------------------------- */
 
   var built = null;
@@ -565,7 +580,7 @@
     for (i = 0; i < 8; i++) pale.push(figure(PAL_PALE, (i / 8) * 6.283, { lean: 1.0 }));
     built = {
       TEX: TEX,
-      wall: makeWall(),
+      walls: [makeWall(0, 1), makeWall(0x5C3A, 1.06), makeWall(0x9911, 0.95)],
       carpet: makeCarpet(),
       ceil: makeCeiling(),
       walk: walk,
@@ -577,6 +592,8 @@
       gunW: GW, gunH: GH,
       flashes: [flash(0x11), flash(0x57), flash(0xA3)]
     };
+    built.carpetAvg = meanOf(built.carpet);
+    built.ceilAvg = meanOf(built.ceil);
     return built;
   }
 
