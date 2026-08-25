@@ -506,7 +506,7 @@
       "appId": "bingo",
       "name": "Bingo",
       "shortName": "Bingo",
-      "version": "1.0",
+      "version": "1.1.0",
       "tagline": "Call bingo over a meeting. One invite is the hall — no server.",
       "author": {
         "name": "mihailgaberov",
@@ -540,15 +540,15 @@
         48
       ],
       "cover": "/apps/bingo/cover.jpg",
-      "bytes": 202347,
+      "bytes": 204472,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-25"
       },
-      "sha256": "131073859b7d461732b628ca13fa8a33c3e6b1031082f30ac0fa63424cdc9415"
+      "sha256": "f4f3f8beb742988cd31b7568a11fc6a5a0d5189b85631d1ecd3347f29bfd35fe"
     },
     {
       "slug": "bip39",

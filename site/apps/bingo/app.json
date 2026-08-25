@@ -4,10 +4,10 @@
   "appId": "bingo",
   "name": "Bingo",
   "shortName": "Bingo",
-  "version": "1.0",
+  "version": "1.1.0",
   "minBuild": 947,
   "tagline": "Call bingo over a meeting. One invite is the hall — no server.",
-  "description": "Call the numbers from one phone. Everyone else daubs a card on theirs. One invite is the room: no account, no game server, no lobby code. Open it in a GifOS meeting and you already have the voice.\n\nOn your own, you call and daub on this device. The card lives in the file, so the game you started is the game you hand someone.\n\nA line, a column, a diagonal, or the four corners is bingo. The first honest line takes the round.\n\nAn unofficial port of bingo by mihailgaberov. The original needs a login and a game server. This copy does not.",
+  "description": "Call the numbers from one phone. Everyone else daubs a card on theirs. One invite is the room: no account, no game server, no lobby code. Whoever sent the invite calls — and can hand the ball to anyone in the room, or take it back. Open it in a GifOS meeting and you already have the voice.\n\nOn your own, you call and daub on this device. The card lives in the file, so the game you started is the game you hand someone.\n\nA line, a column, a diagonal, or the four corners is bingo. The first honest line takes the round.\n\nAn unofficial port of bingo by mihailgaberov. The original needs a login and a game server. This copy does not.",
   "author": {
     "name": "mihailgaberov",
     "url": "https://github.com/mihailgaberov/bingo"
@@ -39,14 +39,14 @@
   "cover": "/apps/bingo/cover.jpg",
   "screenshots": [],
   "gif": "/apps/bingo/bingo.gif",
-  "bytes": 202347,
+  "bytes": 204472,
   "download": 0,
   "provides": null,
-  "sha256": "131073859b7d461732b628ca13fa8a33c3e6b1031082f30ac0fa63424cdc9415",
+  "sha256": "f4f3f8beb742988cd31b7568a11fc6a5a0d5189b85631d1ecd3347f29bfd35fe",
   "signature": {
     "type": "domain",
     "id": "gifos.app",
-    "ts": "2026-08-24"
+    "ts": "2026-08-25"
   },
   "porter": {
     "name": "GifOS",
