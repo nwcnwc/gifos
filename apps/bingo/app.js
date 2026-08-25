@@ -11,6 +11,8 @@
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch];
     });
   };
+  // Peers write their own rows, so an id lands in an attribute quote-escaped.
+  var escAttr = function (s) { return esc(s).replace(/"/g, '&quot;'); };
 
   var PRES_TTL = 9000, HB_MS = 3000, AUTO_MS = 5000;
   var view = 'home';
@@ -365,8 +367,17 @@
   // ---- multiplayer ----
   var mp = {
     on: false, id: null, name: 'You', row: null, people: [], hb: 0, sub: false,
-    adopted: null, marked: emptyMarks(), auto: false
+    adopted: null, marked: emptyMarks(), auto: false,
+    // Am I the app owner — the person whose link this is? A lone player owns
+    // their own room, so a runtime that cannot say defaults to yes.
+    owner: true
   };
+  function askOwner() {
+    if (!(window.gifos && gifos.info)) return Promise.resolve(true);
+    return gifos.info().then(function (i) {
+      return !!(i && i.owner);
+    }).catch(function () { return true; });
+  }
   var _items = [];
 
   function livePeople(items, t) {
@@ -380,11 +391,44 @@
     }
     return out;
   }
+  // WHO CALLS. The room belongs to whoever sent the link, so the app OWNER
+  // calls. This used to be "the lowest id in the room", and an id is a random
+  // string minted once per browser and left in localStorage — so the ball fell
+  // to whichever of you happened to sort first, it was never the person who
+  // invited anybody, and it never changed its mind: the same guest took the
+  // ball off the same host every single round.
+  //
+  // The owner may hand the ball to anyone standing in the lobby. That choice
+  // rides in the OWNER'S OWN ROW (`caller`), because a row is the only thing
+  // its writer can be trusted for — a guest cannot deal itself the ball by
+  // writing its own row, the way it could if any row could name the caller.
+  function callerId(people) {
+    var i, p, own = null;
+    for (i = 0; i < people.length; i++) {
+      p = people[i];
+      if (p && p.own && (!own || p.id < own.id)) own = p;
+    }
+    if (own) {
+      // A handover only stands while the person it named is still here;
+      // otherwise the ball falls back to the owner rather than to nobody.
+      if (own.caller && own.caller !== own.id) {
+        for (i = 0; i < people.length; i++) {
+          if (people[i].id === own.caller) return own.caller;
+        }
+      }
+      return own.id;
+    }
+    // Nobody claims the room (a copy of the app older than this rule, or a
+    // runtime that would not say): the old lowest-id rule, so a mixed room
+    // still agrees on ONE caller instead of two people drawing balls.
+    var m = people.length ? people[0].id : null;
+    for (i = 1; i < people.length; i++) if (people[i].id < m) m = people[i].id;
+    return m;
+  }
   function isHost(people) {
     if (!people.length) return true;
-    var m = people[0].id, i;
-    for (i = 1; i < people.length; i++) if (people[i].id < m) m = people[i].id;
-    return mp.id === m;
+    var c = callerId(people);
+    return c == null || mp.id === c;
   }
   function adoptedRound(people) {
     var maxR = 0, i, p, cand = [];
@@ -436,12 +480,13 @@
       name: mp.name,
       at: nowMs(),
       ready: true,
+      own: !!mp.owner,   // "this is my room" — only the owner's row says so
       bingo: false,
       pattern: null,
       marked: null
     };
     if (mp.row) {
-      ['round', 'seed', 'called', 'phase', 'bingo', 'pattern', 'marked'].forEach(function (k) {
+      ['round', 'seed', 'called', 'phase', 'bingo', 'pattern', 'marked', 'caller'].forEach(function (k) {
         if (mp.row[k] !== undefined) row[k] = mp.row[k];
       });
     }
@@ -460,7 +505,12 @@
       setChip('', 'No room');
       return;
     }
-    (window.gifos && gifos.me ? gifos.me() : Promise.resolve({ id: 'local', name: 'You' })).then(function (me) {
+    Promise.all([
+      window.gifos && gifos.me ? gifos.me() : Promise.resolve({ id: 'local', name: 'You' }),
+      askOwner()
+    ]).then(function (pair) {
+      var me = pair[0];
+      mp.owner = !!pair[1];
       mp.id = (me && me.id) || 'local';
       mp.name = (me && me.name) || 'You';
       mp.on = true;
@@ -582,13 +632,25 @@
   }
 
   function renderLobby(people) {
-    var html = '', i, p, host = isHost(people);
+    var html = '', i, p, mine, calls;
+    var cid = callerId(people), host = cid == null || cid === mp.id;
+    var callerName = 'The host';
     people.sort(function (a, b) { return a.id < b.id ? -1 : 1; });
     for (i = 0; i < people.length; i++) {
       p = people[i];
-      html += '<li class="' + (p.id === mp.id ? 'me' : '') + '"><span class="name">' +
-        esc(p.id === mp.id ? 'You' : (p.name || 'Player')) + '</span>' +
-        (host && p.id === mp.id ? '<span class="meta">calls</span>' : '') + '</li>';
+      mine = p.id === mp.id;
+      calls = p.id === cid;
+      if (calls && !mine) callerName = p.name || 'Player';
+      html += '<li class="' + (mine ? 'me' : '') + '"><span class="name">' +
+        esc(mine ? 'You' : (p.name || 'Player')) + '</span>';
+      if (calls) html += '<span class="meta">calls</span>';
+      // Only the owner may move the ball, and only their row is believed —
+      // so nobody else is offered a button that would do nothing.
+      else if (mp.owner) {
+        html += '<button class="pass" type="button" data-pass="' + escAttr(p.id) + '">' +
+          (mine ? 'take the ball back' : 'give the ball') + '</button>';
+      }
+      html += '</li>';
     }
     $('lobbyList').innerHTML = html || '<li><span class="name">Just you so far</span></li>';
     $('dealBtn').hidden = !host;
@@ -598,10 +660,25 @@
     } else if (host) {
       $('lobbyStatus').textContent = people.length + ' here. Start calling when you are ready.';
     } else {
-      $('lobbyStatus').textContent = people.length + ' here. Waiting for the host to call.';
+      $('lobbyStatus').textContent = people.length + ' here. ' + callerName + ' calls.';
     }
     setChip('ready', people.length + ' here');
   }
+
+  // Handing the ball over. The owner writes it into their own row; every
+  // device reads the same row, so the change needs no agreement round.
+  $('lobbyList').addEventListener('click', function (e) {
+    var el = e.target, id;
+    while (el && el !== this) {
+      if (el.getAttribute && el.getAttribute('data-pass')) break;
+      el = el.parentNode;
+    }
+    if (!el || el === this) return;
+    id = el.getAttribute('data-pass');
+    if (!mp.on || !mp.owner || !id) return;
+    putMe({ caller: id === mp.id ? null : id });
+    mpRefresh();
+  });
 
   function openPlay() {
     show('play');

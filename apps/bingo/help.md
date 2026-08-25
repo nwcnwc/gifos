@@ -22,7 +22,9 @@ If the bag empties with no bingo, the round is over.
 
 Press **Play with friends**, then **Invite** in the bar above the app. One invite is the hall. There is no account and no game server.
 
-You need **two people** before **Start calling** works. The host (the first person in the room) calls. Everyone else gets a phone-sized card. The host has a card too, plus a full flashboard of 1–75.
+You need **two people** before **Start calling** works. **Whoever sent the invite calls** — it is their room. Everyone else gets a phone-sized card; the caller has a card too, plus a full flashboard of 1–75.
+
+If you would rather someone else called, tap **give the ball** beside their name in the room. They call from then on, and **take the ball back** on your own name returns it. Only the person who sent the invite can move the ball, and only between rounds — nobody can take it off you mid-round. If the person holding it leaves, it comes back to you.
 
 Each phone derives its own card from the round. **Your daubs stay on this device.** A bingo claim is checked against your card and the numbers that were actually called — the claimed line must be fully called, so you cannot fake a line, though a stray mis-daub elsewhere on your card will not spoil an honest one. A verified bingo sets off fireworks on **every** screen.
 

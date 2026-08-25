@@ -3,9 +3,9 @@
   "appId": "bingo",
   "name": "Bingo",
   "shortName": "Bingo",
-  "version": "1.0",
+  "version": "1.1.0",
   "minBuild": 947,
-  "description": "The host calls numbers. You have a card. Mark the ones that come up. A line is bingo.",
+  "description": "Whoever invites you calls the numbers. You have a card. Mark the ones that come up. A line is bingo.",
   "entry": "index.html",
   "accent": [196, 40, 48],
   "capabilities": {
