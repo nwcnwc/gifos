@@ -171,6 +171,22 @@ const GLYPHS = {
   'S': [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
   'T': [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
   'W': [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001],
+  // The cover writes real sentences now, so the alphabet has to be a real
+  // alphabet — a missing glyph fell through to a space and silently deleted a
+  // letter out of the middle of a word.
+  'G': [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
+  'J': [0b00111, 0b00010, 0b00010, 0b00010, 0b00010, 0b10010, 0b01100],
+  'K': [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
+  'M': [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
+  'Q': [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101],
+  'R': [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
+  'U': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
+  'V': [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100],
+  'X': [0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001],
+  'Y': [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
+  'Z': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111],
+  '.': [0, 0, 0, 0, 0, 0b00110, 0b00110],
+  ',': [0, 0, 0, 0, 0b00110, 0b00110, 0b01100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
 };
 function drawText(put, x, y, str, s, r, g, b) {
@@ -188,52 +204,158 @@ function drawText(put, x, y, str, s, r, g, b) {
   }
 }
 
+// The store cover. It is a DRAWING of the app, not a capture of it, so it has
+// to be redrawn whenever the app stops looking like it — and in 1.2.0 the board
+// stopped being flat. So this projects the same way view.js does: rotateX by
+// TILT, then divide by the perspective term, painting back row to front row so
+// a wall column can stand in front of the dot behind it. A cover still showing
+// a flat grid would be advertising a different game.
 export function screenshotPng() {
-  const W = 1200, H = 720;
-  const rgba = Buffer.alloc(W * H * 4, 0);
-  const put = (x, y, r, g, b, a) => {
-    if (x < 0 || y < 0 || x >= W || y >= H) return;
-    const o = (y * W + x) * 4;
-    rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a == null ? 255 : a;
-  };
-  const fill = (x0, y0, x1, y1, r, g, b) => {
-    x0 = Math.max(0, x0 | 0); y0 = Math.max(0, y0 | 0);
-    x1 = Math.min(W, x1 | 0); y1 = Math.min(H, y1 | 0);
-    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) put(x, y, r, g, b);
-  };
+  const W = 1200, H = 720, SS = 2;
+  const RW = W * SS, RH = H * SS;
+  const buf = Buffer.alloc(RW * RH * 3);
 
-  fill(0, 0, W, H, 11, 16, 32);
-  drawText(put, 72, 42, 'CATCH THE CAT', 8, 232, 176, 90);
-  drawText(put, 72, 114, 'WALL IT IN', 4, 154, 166, 195);
+  const set = (x, y, c) => {
+    x |= 0; y |= 0;
+    if (x < 0 || y < 0 || x >= RW || y >= RH) return;
+    const o = (y * RW + x) * 3;
+    buf[o] = c[0]; buf[o + 1] = c[1]; buf[o + 2] = c[2];
+  };
+  const bg = [11, 16, 32];
+  for (let i = 0; i < RW * RH; i++) { buf[i * 3] = bg[0]; buf[i * 3 + 1] = bg[1]; buf[i * 3 + 2] = bg[2]; }
 
-  // The game itself is circles on a hex lattice, not hex tiles.
-  const cols = 11, rows = 7;
-  const dx = 78, dy = 68;
-  const ox = 140, oy = 210;
-  const dotR = 24;
-  const catI = 5, catJ = 3;
-  const walls = new Set(['2,2', '8,2', '3,4', '7,4', '1,6', '9,6', '4,1', '6,1', '5,7', '0,4', '10,4', '2,5', '8,5']);
-  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-    const cx = ox + i * dx + ((j & 1) ? dx / 2 : 0);
-    const cy = oy + j * dy;
-    const isWall = walls.has(i + ',' + j);
-    const isCat = i === catI && j === catJ;
-    const r = isCat ? 28 : dotR;
-    for (let y = (cy - r - 8) | 0; y <= (cy + r + 8) | 0; y++) {
-      for (let x = (cx - r - 8) | 0; x <= (cx + r + 8) | 0; x++) {
-        if (isCat) {
-          const part = catBlob(x, y, cx, cy + 2, 34, 1);
-          if (part === 'body') put(x, y, 12, 10, 14);
-          else if (part === 'eye') put(x, y, 232, 176, 90);
-        } else if (inDot(x, y, cx, cy, r)) {
-          if (isWall) put(x, y, 61, 143, 122);
-          else put(x, y, 36, 48, 68);
-        }
-      }
+  // A pool of light under the table — the same vignette style.css puts there.
+  const gx = RW * 0.5, gy = RH * 0.6, gw = RW * 0.62, gh = RH * 0.44;
+  for (let y = 0; y < RH; y++) {
+    for (let x = 0; x < RW; x++) {
+      const u = (x - gx) / gw, v = (y - gy) / gh;
+      const d = Math.sqrt(u * u + v * v);
+      if (d >= 1) continue;
+      const t = (1 - d) * (1 - d) * 0.16;
+      const o = (y * RW + x) * 3;
+      buf[o] = Math.round(bg[0] + (90 - bg[0]) * t);
+      buf[o + 1] = Math.round(bg[1] + (120 - bg[1]) * t);
+      buf[o + 2] = Math.round(bg[2] + (190 - bg[2]) * t);
     }
   }
 
-  drawText(put, 72, 678, 'TAP THE DOTS', 4, 154, 166, 195);
+  // ---- the projection, matching view.js ------------------------------------
+  const TILT = 36 * Math.PI / 180, PERSP = 1150 * SS;
+  const CX = RW * 0.5, CY = RH * 0.545;
+  const project = (bx, by, bz) => {
+    const Y = by * Math.cos(TILT) - (bz || 0) * Math.sin(TILT);
+    const Z = by * Math.sin(TILT) + (bz || 0) * Math.cos(TILT);
+    const w = 1 - Z / PERSP;
+    return { x: CX + bx / w, y: CY + Y / w, k: 1 / w };
+  };
+
+  const COLS = 11, ROWS = 11, R = 26 * SS;
+  const DX = 2 * R, DY = R * Math.sqrt(3);
+  const boardW = (COLS - 1) * DX + R, boardH = (ROWS - 1) * DY;
+  const cell = (i, j) => ({
+    bx: i * DX + ((j & 1) ? R : 0) - boardW / 2,
+    by: j * DY - boardH / 2,
+  });
+
+  const disc = (px, py, rx, ry, c) => {
+    for (let y = Math.floor(py - ry); y <= Math.ceil(py + ry); y++) {
+      for (let x = Math.floor(px - rx); x <= Math.ceil(px + rx); x++) {
+        const u = (x - px) / rx, v = (y - py) / ry;
+        if (u * u + v * v <= 1) set(x, y, c);
+      }
+    }
+  };
+  const shade = (c, t) => (t >= 0
+    ? [c[0] + (255 - c[0]) * t, c[1] + (255 - c[1]) * t, c[2] + (255 - c[2]) * t]
+    : [c[0] * (1 + t), c[1] * (1 + t), c[2] * (1 + t)]).map((v) => Math.max(0, Math.min(255, Math.round(v))));
+
+  const SOCKET = [30, 39, 64], RIMSOCK = [27, 33, 54], RIMRING = [96, 54, 58];
+  const CAP = [79, 174, 147], SIDE = [35, 90, 76];
+  const WALL_LIFT = R * 1.0;
+
+  const walls = new Set(['2,1', '7,1', '5,2', '1,3', '9,3', '3,4', '6,4', '8,5', '2,6', '4,7', '7,7', '9,8', '3,9', '6,9']);
+  const cats = [[4, 5, [232, 176, 90], 'YOU'], [7, 6, [125, 206, 154], 'ANA']];
+
+  // Back row to front row: a column must be able to stand in front of the
+  // socket behind it, and a cat in front of both.
+  const late = [];
+  for (let j = 0; j < ROWS; j++) {
+    for (let i = 0; i < COLS; i++) {
+      const { bx, by } = cell(i, j);
+      const p = project(bx, by, 0);
+      // The rim is where a cat gets away, so it is marked — a thin red ring
+      // round the socket, the way the app marks it, not a red dot.
+      const rim = i === 0 || i === COLS - 1 || j === 0 || j === ROWS - 1;
+      if (rim) disc(p.x, p.y, R * 0.86 * p.k, R * 0.86 * Math.cos(TILT) * p.k, RIMRING);
+      disc(p.x, p.y, R * (rim ? 0.76 : 0.84) * p.k, R * (rim ? 0.76 : 0.84) * Math.cos(TILT) * p.k,
+           rim ? RIMSOCK : SOCKET);
+      if (walls.has(i + ',' + j)) {
+        for (let s = 0; s <= 6; s++) {
+          const z = (WALL_LIFT * s) / 6;
+          const q = project(bx, by, z);
+          const c = s === 6 ? CAP : shade(SIDE, -0.4 + 0.4 * (s / 6));
+          disc(q.x, q.y, R * 0.72 * q.k, R * 0.72 * Math.cos(TILT) * q.k, c);
+        }
+        const top = project(bx, by, WALL_LIFT);
+        disc(top.x - R * 0.2 * top.k, top.y - R * 0.24 * top.k, R * 0.28 * top.k, R * 0.28 * Math.cos(TILT) * top.k,
+             shade(CAP, 0.3));
+      }
+      for (const c of cats) if (c[0] === i && c[1] === j) late.push({ p, tone: c[2], tag: c[3] });
+    }
+    // Cats on this row go down after the row's dots and before the next row's,
+    // so a nearer wall still overlaps them.
+    while (late.length) drawCat(late.shift());
+  }
+
+  function drawCat(c) {
+    const p = c.p, sc = R * 1.7 * p.k;
+    const bodyAt = (x, y) => catBlob(x, y, p.x, p.y - sc * 0.78, sc * 1.25, -1);
+    disc(p.x, p.y, sc * 0.62, sc * 0.24, [4, 6, 12]);
+    // A rim first, then the silhouette over it — the way the app lights a black
+    // cat on a black table.
+    const glow = shade(c.tone, -0.3);
+    for (let y = Math.floor(p.y - sc * 2.8); y <= Math.ceil(p.y + sc * 0.6); y++) {
+      for (let x = Math.floor(p.x - sc * 1.9); x <= Math.ceil(p.x + sc * 1.9); x++) {
+        if (bodyAt(x, y)) continue;
+        let near = false;
+        for (let a = 0; a < 12 && !near; a++) {
+          const dx = Math.cos(a * Math.PI / 6) * SS * 2.2, dy = Math.sin(a * Math.PI / 6) * SS * 2.2;
+          if (bodyAt(x + dx, y + dy) === 'body') near = true;
+        }
+        if (near) set(x, y, glow);
+      }
+    }
+    for (let y = Math.floor(p.y - sc * 2.6); y <= Math.ceil(p.y + sc * 0.4); y++) {
+      for (let x = Math.floor(p.x - sc * 1.7); x <= Math.ceil(p.x + sc * 1.7); x++) {
+        const part = bodyAt(x, y);
+        if (part === 'body') set(x, y, [12, 10, 14]);
+        else if (part === 'eye') set(x, y, c.tone);
+      }
+    }
+    drawText(rgb(set), Math.round(p.x - c.tag.length * 3 * SS), Math.round(p.y - sc * 3.2), c.tag, 2 * SS,
+             c.tone[0], c.tone[1], c.tone[2]);
+  }
+
+  drawText(rgb(set), 58 * SS, 40 * SS, 'CATCH THE CAT', 8 * SS, 232, 176, 90);
+  drawText(rgb(set), 58 * SS, 112 * SS, 'WALL IT IN. TURN THE TABLE.', 4 * SS, 154, 166, 195);
+  drawText(rgb(set), 58 * SS, 656 * SS, 'RACE A FRIEND, OR PEN EVERY CAT TOGETHER', 4 * SS, 154, 166, 195);
+
+  // ---- box-downsample -----------------------------------------------------
+  const rgba = Buffer.alloc(W * H * 4);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let r = 0, g = 0, b = 0;
+      for (let sy = 0; sy < SS; sy++) {
+        for (let sx = 0; sx < SS; sx++) {
+          const o = ((y * SS + sy) * RW + (x * SS + sx)) * 3;
+          r += buf[o]; g += buf[o + 1]; b += buf[o + 2];
+        }
+      }
+      const n = SS * SS, o = (y * W + x) * 4;
+      rgba[o] = Math.round(r / n); rgba[o + 1] = Math.round(g / n);
+      rgba[o + 2] = Math.round(b / n); rgba[o + 3] = 255;
+    }
+  }
 
   const raw = Buffer.alloc((W * 4 + 1) * H);
   for (let y = 0; y < H; y++) {
@@ -250,3 +372,7 @@ export function screenshotPng() {
     pngChunk('IEND', Buffer.alloc(0)),
   ]);
 }
+
+// drawText was written against a put(x, y, r, g, b) signature; the cover paints
+// into an RGB buffer through set(x, y, [r, g, b]).
+function rgb(set) { return (x, y, r, g, b) => set(x, y, [r, g, b]); }

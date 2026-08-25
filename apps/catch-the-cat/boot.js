@@ -212,7 +212,7 @@
     var out = list.filter(function (p) { return p.cstate === 'gone'; });
     var total = 0;
     list.forEach(function (p) { total += p.clicks || 0; });
-    var head = (round ? 'Round ' + round : 'Together') + ' · ' + taps(total);
+    var head = round ? 'Round ' + round : 'Together';
     if (out.length) head += ' · one got out';
     else if (!chasing.length) head += ' · all penned';
     else head += ' · ' + chasing.length + ' loose';
@@ -230,7 +230,8 @@
 
     rosterEl.innerHTML =
       '<div class="head"><i class="pip" style="--tone:transparent"></i>' +
-      '<span class="who">' + escapeHtml(head) + '</span><span class="taps">cat</span></div>' + rows;
+      '<span class="who">' + escapeHtml(head) + '</span>' +
+      '<span class="taps">' + taps(total) + '</span></div>' + rows;
   }
 
   // ---------------------------------------------------------------- verdicts

@@ -757,8 +757,8 @@
       "appId": "catch-the-cat",
       "name": "Catch the Cat",
       "shortName": "Cat",
-      "version": "1.1.0",
-      "tagline": "Tap the dots. Wall the cat in before it reaches the edge.",
+      "version": "1.2.0",
+      "tagline": "Tap the dots. Wall the cat in — alone, against a friend, or together.",
       "author": {
         "name": "ganlvtech",
         "url": "https://github.com/ganlvtech/phaser-catch-the-cat"
@@ -783,6 +783,8 @@
         "cat",
         "hex",
         "multiplayer",
+        "co-op",
+        "3d",
         "offline"
       ],
       "accent": [
@@ -791,7 +793,7 @@
         90
       ],
       "cover": "/apps/catch-the-cat/cover.jpg",
-      "bytes": 584845,
+      "bytes": 611949,
       "download": 0,
       "provides": null,
       "signature": {
@@ -799,7 +801,7 @@
         "id": "gifos.app",
         "ts": "2026-08-25"
       },
-      "sha256": "0242519b7bd51754a6cfe2e825b91857ce342d2d02b5d509fda1f3732371f21a"
+      "sha256": "d26fe79475684bfaa8b71d85195fadff36e0af7b66de0f5a39263df6204769ef"
     },
     {
       "slug": "checkers",

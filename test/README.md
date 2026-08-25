@@ -808,7 +808,17 @@ Roughly three families in one directory:
   `e2e-wasm`, `e2e-irl`,
   `e2e-sound-it-out-share` (what a shared app shares: the sight-word list is
   CURRICULUM and must reach a guest both ways, while private prefs must never
-  appear in the mirror — it lived in private prefs and silently did not cross).
+  appear in the mirror — it lived in private prefs and silently did not cross),
+  `e2e-catch-the-cat-room` (TWO copies of one app, in two same-origin iframes,
+  over one shared fake `gifos.db` — the only way to see the failures that need
+  a second client: a race board must be PRIVATE, a co-op wall must cross to
+  everybody, a tap must move only the tapper's cat, and one escape must lose
+  the round on BOTH screens without waiting for the other cat. It spawns its
+  own server on an ephemeral port and needs neither the site nor the relay.
+  The co-op CLEAR verdict is deliberately NOT here — penning a cat is the game,
+  there is no short scripted line that wins, and a drill good enough to win
+  would be testing its own heuristic; that arithmetic is pinned on two real
+  net.js clients in `unit/catch-the-cat.js` instead).
 - **meeting** — `e2e-meet-lobby`, `e2e-meet-invite`, `e2e-meet-prettyurl`,
   `e2e-meet-quiet`, `e2e-meet-record-app`, `e2e-meet-mod` (blur/mute/undo,
   stage, vote, admin rooms — 48 checks), `e2e-meet-password`, `e2e-video`,
