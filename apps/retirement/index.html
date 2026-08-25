@@ -116,11 +116,16 @@
     </details>
 
     <details class="card" id="secEvents">
-      <summary><span class="sum-title">One-off events</span><span class="sum-value" id="sumEvents"></span></summary>
+      <summary><span class="sum-title">Big one-offs and college</span><span class="sum-value" id="sumEvents"></span></summary>
       <div id="eventList" class="rows"></div>
-      <button type="button" class="btn ghost wide" id="btnAddEvent">Add an event</button>
-      <p class="hint">Selling a house, an inheritance, a new roof, a wedding.
-        Use a minus sign for money going out.</p>
+      <div class="btn-row">
+        <button type="button" class="btn ghost" id="btnAddCollege">Add college</button>
+        <button type="button" class="btn ghost" id="btnAddEvent">Add something else</button>
+      </div>
+      <p class="hint">Anything big that lands on one year or runs for several:
+        <em>college</em>, a wedding, a new roof, a few years of helping a parent,
+        selling a house, an inheritance. Set <em>for how many years</em> to 4 and
+        it bills every year for four years &mdash; one child, one row.</p>
     </details>
 
     <details class="card" id="secPortfolio">

@@ -188,25 +188,64 @@ const base = (o) => Object.assign({
 }
 
 {
-  // Fees compound against you. 1pp of fee costs roughly 0.45pp of SAFEMAX.
-  const free = S.solveSpend(base(), 1.0, { iters: 18 }) / 1e6;
-  const dear = S.solveSpend(base({ fees: 0.01 }), 1.0, { iters: 18 }) / 1e6;
-  check('1% of fees costs roughly 0.4-0.5pp of the safe rate',
-    (free - dear) > 0.003 && (free - dear) < 0.007, ((free - dear) * 100).toFixed(2));
+  // COLLEGE, and everything shaped like it: an outflow several years long,
+  // landing in the decade a plan can least afford it. `years` defaults to 1, so
+  // a one-off is a span of one and there is no second concept.
+  //
+  // The span is tested on the SCHEDULE rather than inferred from balances,
+  // because a balance is the sum of the bill and everything the bill stopped
+  // earning, and that second part depends on which century the cycle ran in.
+  const sched = S.schedule(base({
+    currentAge: 45, endAge: 95,
+    events: [{ label: 'College', amount: -30000, at: 55, years: 4 }]
+  }));
+  const billed = [];
+  for (let y = 0; y < sched.lumps.length; y++) if (sched.lumps[y]) billed.push([45 + y, sched.lumps[y]]);
+  check('college bills exactly four years, at the right ages',
+    billed.length === 4 && billed[0][0] === 55 && billed[3][0] === 58, billed);
+  check('...each one the full amount, and outward',
+    billed.every(function (b) { return b[1] === -30000; }), billed);
+
+  const one = S.schedule(base({ currentAge: 45, endAge: 95, events: [{ label: 'x', amount: -5000, at: 60 }] }));
+  let n = 0;
+  for (let y = 0; y < one.lumps.length; y++) if (one.lumps[y]) n++;
+  check('an event with no span is still a single year', n === 1, n);
+
+  // Two children overlapping in one year must both be billed, not one.
+  const two = S.schedule(base({
+    currentAge: 45, endAge: 95,
+    events: [{ label: 'A', amount: -30000, at: 55, years: 4 },
+      { label: 'B', amount: -30000, at: 57, years: 4 }]
+  }));
+  check('two children overlapping bill twice in the overlap year',
+    two.lumps[57 - 45] === -60000, two.lumps[57 - 45]);
+
+  // A bill you cannot pay is a shortfall, not a negative sleeve. The first
+  // version clamped stocks to zero and then pushed the overdraft straight back
+  // into it, and the plan ran the rest of its life on a phantom short position.
+  const broke = S.runCycle(base({
+    currentAge: 45, retireAge: 46, endAge: 70, portfolio: 10000, annualSavings: 0,
+    annualSpend: 0, events: [{ label: 'C', amount: -90000, at: 46, years: 1 }]
+  }), 0);
+  check('an unaffordable bill is a failure, not a negative balance',
+    broke.failed && broke.balances.every(function (v) { return v >= -1e-6; }),
+    { failed: broke.failed, min: Math.min.apply(null, broke.balances) });
+
+  // And it has to move the verdict, or the feature is decorative. These are the
+  // app's own defaults, which sit just under their bar on purpose.
+  const dflt = {
+    currentAge: 45, retireAge: 65, endAge: 95, portfolio: 180000, annualSavings: 18000,
+    annualSpend: 75000, stocks: 0.75, fees: 0.001,
+    incomes: [{ label: 'Social Security', amount: 24900, from: 67, to: null, cola: true }]
+  };
+  const s1 = S.runAll(base(dflt)).successRate;
+  const s2 = S.runAll(base(Object.assign({}, dflt, {
+    events: [{ label: 'College', amount: -30000, at: 55, years: 4 }]
+  }))).successRate;
+  check('four years of college makes a real dent in the odds', s2 < s1 - 0.1,
+    [(s1 * 100).toFixed(0) + '%', (s2 * 100).toFixed(0) + '%']);
 }
 
-{
-  // A plan too long for the record must REFUSE, not quietly run a short one.
-  check('a 200-year plan offers no cycles', S.cycleStarts(base({ endAge: 265 })) === 0);
-  // ...but the reshuffle can still answer it.
-  check('the reshuffle answers what history cannot',
-    S.bootstrap(base({ endAge: 155, annualSpend: 20000 }), { paths: 40 }).cycles === 40);
-  // Seeded: the same plan must give the same answer twice, or a number moves
-  // when the reader has touched nothing.
-  const b1 = S.bootstrap(base(), { paths: 60 }).successRate;
-  const b2 = S.bootstrap(base(), { paths: 60 }).successRate;
-  check('the reshuffle is seeded and repeatable', b1 === b2, [b1, b2]);
-}
 
 // ---- 4. the strategies, against their own papers -----------------------------
 

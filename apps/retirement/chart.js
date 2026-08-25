@@ -87,6 +87,13 @@
     this.opts = opts || {};
     this.pad = this.opts.pad || { t: 14, r: 14, b: 26, l: 52 };
     host.classList.add('chart-host');
+    // EMPTY THE HOST FIRST. Every chart here is redrawn on every keystroke, and
+    // appending without clearing stacks a fresh SVG and a fresh tooltip on top
+    // of the last one — the app grew a second copy of its own hero chart the
+    // first time anybody changed an input, and a third on the next change. The
+    // old svg.clear() only emptied the SVG's own children, which is not the
+    // same thing and looked identical in source.
+    while (host.firstChild) host.removeChild(host.firstChild);
     this.svg = el('svg', { class: 'chart', role: 'img', tabindex: '0' });
     this.tip = document.createElement('div');
     this.tip.className = 'chart-tip';

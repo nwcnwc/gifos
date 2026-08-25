@@ -95,6 +95,29 @@ const txt = (fr, id) => fr.evaluate((i) => {
   const charts = await fr.evaluate(() => document.querySelectorAll('svg.chart path').length);
   check('the charts actually drew something', charts > 6, charts);
 
+  {
+    // A chart is redrawn on every keystroke. If a redraw APPENDS instead of
+    // replacing, the app quietly grows a second copy of its own hero chart on
+    // the first edit and a third on the next — which is exactly what it did.
+    const before = await fr.evaluate(() => document.querySelectorAll('#chartFan svg.chart').length);
+    for (const v of [70, 80, 90]) {
+      await fr.evaluate((x) => {
+        const e = document.getElementById('fStocks');
+        e.value = String(x);
+        e.dispatchEvent(new Event('input', { bubbles: true }));
+      }, v);
+      await sleep(900);
+    }
+    const after = await fr.evaluate(() => ({
+      fan: document.querySelectorAll('#chartFan svg.chart').length,
+      tips: document.querySelectorAll('#chartFan .chart-tip').length,
+      all: document.querySelectorAll('svg.chart').length
+    }));
+    check('redrawing replaces the chart, it does not stack another one',
+      before === 1 && after.fan === 1 && after.tips === 1, { before, after });
+    check('...and the app still has exactly one chart per card', after.all <= 6, after);
+  }
+
   // Every chart ships a table twin — no value is reachable only by hovering.
   const twins = await fr.evaluate(() => document.querySelectorAll('.tabledrop table.data-table, .tabledrop').length);
   check('each chart has a table twin', twins >= 3, twins);

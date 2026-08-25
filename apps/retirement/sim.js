@@ -229,12 +229,22 @@
       }
       cola[m] = t / 12;
     }
+    /* An event is a SPAN, not a single year.
+     *
+     * The thing people actually need to model is four years of college, or six
+     * years of a mortgage, or a decade of helping a parent — not a single lump
+     * on one birthday. `years` defaults to 1, so a one-off is just a span of
+     * one, and the same field covers both without a second concept.
+     */
     var ev = plan.events || [];
     for (i = 0; i < ev.length; i++) {
       var e = ev[i];
       if (!e || !isFinite(e.amount) || !e.amount) continue;
-      var y = Math.floor(e.at - plan.currentAge + 1e-9);
-      if (y >= 0 && y < years) lumps[y] += e.amount;
+      var span = Math.max(1, Math.round(e.years || 1));
+      for (var k = 0; k < span; k++) {
+        var y = Math.floor(e.at - plan.currentAge + k + 1e-9);
+        if (y >= 0 && y < years) lumps[y] += e.amount;
+      }
     }
     return { cola: cola, lumps: lumps, nominal: nominal, months: months, years: years };
   }
@@ -310,13 +320,27 @@
       var inc = 0, spent = 0, taken = 0;
       var need = w / 12;
 
-      // A one-off lands at the start of its year: a house sale, a new roof.
+      // Money in or out at the start of the year: a house sale, a new roof, a
+      // year of somebody's tuition.
       var lump = lumps[y];
       if (lump) {
-        var a0 = s + b > 0 ? s / (s + b) : stocksAt(plan, age);
-        s += lump * a0; b += lump * (1 - a0);
-        if (s < 0) { b += s; s = 0; }
-        if (b < 0) { s += b; b = 0; }
+        var tot0 = s + b;
+        if (lump < 0 && -lump > tot0) {
+          // You cannot pay a bill with money you do not have. Clamping the
+          // sleeves and moving on used to leave the STOCK sleeve negative — the
+          // second clamp pushed the overdraft back into it — and the plan then
+          // ran the rest of its life on a phantom short position.
+          if (!selfLimiting) {
+            shortfall += -lump - tot0;
+            if (failedAt < 0) failedAt = age;
+          }
+          s = 0; b = 0;
+        } else {
+          var a0 = tot0 > 0 ? s / tot0 : stocksAt(plan, age);
+          s += lump * a0; b += lump * (1 - a0);
+          if (s < 0) { b += s; s = 0; }
+          if (b < 0) { s += b; b = 0; }
+        }
       }
 
       var tgtNow = glide ? stocksAt(plan, age) : alloc;
