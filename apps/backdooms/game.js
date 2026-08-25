@@ -87,11 +87,28 @@
     if (i > -1 && i < 9 && j > -1 && j < 9) return '0';
     var hi = mod(i, HALL), hj = mod(j, HALL);
     if (hi < 2 || hj < 2) return '0';                 /* the hallway lattice */
-    var r = h2(Math.floor(i / HALL), Math.floor(j / HALL));
+    var bi = Math.floor(i / HALL), bj = Math.floor(j / HALL);
+    var r = h2(bi, bj);
     if (r < 0.26) return '0';                         /* an open room */
     if (r < 0.45) return (hi % 3 === 0 && hj % 3 === 0) ? '1' : '0';  /* pillars */
-    /* solid mass — with one doorway, so it is a place and not just a block */
-    if (hi > 4 && hi < 7 && hj === 2) return '0';
+    /*
+     * Solid mass, sometimes with ONE doorway so it is a place and not just a
+     * block. The doorway's edge is chosen by its own hash, and only about
+     * half of these blocks get one at all. Both details are load-bearing: the
+     * first cut always punched it on the hj === 2 edge, which is the edge that
+     * faces a HORIZONTAL hall — so every horizontal corridor in the world had
+     * its wall opened once per block and the longest one measured five tiles,
+     * while vertical corridors ran to ten. A level should not be better in one
+     * compass direction than the other.
+     */
+    var r2 = h2(bi + 7919, bj + 104729);
+    if (r2 < 0.45) {
+      var side = (r2 * 8) | 0;
+      if (side === 0 && hj === 2 && hi > 4 && hi < 7) return '0';
+      if (side === 1 && hj === HALL - 1 && hi > 4 && hi < 7) return '0';
+      if (side === 2 && hi === 2 && hj > 4 && hj < 7) return '0';
+      if (side === 3 && hi === HALL - 1 && hj > 4 && hj < 7) return '0';
+    }
     return '1';
   }
 
