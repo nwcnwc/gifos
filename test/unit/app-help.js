@@ -85,10 +85,37 @@ check('withOsFooter appends Invite / Save / Steal / Abilities',
 check('withOsFooter plugs remix: save the GIF, ask an AI, add it back',
   /remix/i.test(footed) && /AI chat/i.test(footed)
   && /Home Screen/.test(footed) && /do not need to know how to code/i.test(footed));
+// REPORT A PROBLEM — the very last section of every Help, a GitHub new-issue
+// link whose ?title=&body= already carry the app, its apps/<slug> source, the
+// store page, the page, the build and the browser. The URL is fully encoded:
+// a ')' or a space inside it would end the markdown link early.
+{
+  const ctx = { name: 'Worldview', version: '1.0.0', slug: 'worldview', appId: 'worldview', from: 'app Help window', page: 'https://gifos.app/run.html#id=x', build: 'edge build 1', browser: 'UA (x)' };
+  const u = help.issueUrl(ctx);
+  check('issueUrl targets the repo new-issue form', /^https:\/\/github\.com\/nwcnwc\/gifos\/issues\/new\?title=/.test(u));
+  check('issueUrl has no raw ")" or whitespace (the markdown link parser would stop there)', !/[\s)]/.test(u));
+  const body = new URL(u).searchParams.get('body');
+  check('the pre-filled body names the app, apps/<slug>, the store page, the page, build and browser',
+    /Worldview 1\.0\.0/.test(body) && /github\.com\/nwcnwc\/gifos\/tree\/main\/apps\/worldview/.test(body)
+    && /gifos\.app\/store\/worldview/.test(body) && /run\.html#id=x/.test(body) && /edge build 1/.test(body) && /UA \(x\)/.test(body)
+    && /app Help window/.test(body));
+  check('a slug that is not a slug never becomes a repo path', !/tree\/main\/apps/.test(new URL(help.issueUrl({ slug: '../x' })).searchParams.get('body')));
+  const md = help.withOsFooter('# Hi', { name: 'Worldview', version: '1.0.0', slug: 'worldview' }, { from: 'app Help window' });
+  check('the report link is the LAST section of the Help, under the credits',
+    md.lastIndexOf('## Something wrong?') > md.lastIndexOf('## Credits') && /\]\(https:\/\/github\.com\/nwcnwc\/gifos\/issues\/new\?title=[^)]*\)/.test(md));
+  check('the report link renders as an href', /<a href="https:\/\/github\.com\/nwcnwc\/gifos\/issues\/new\?title=[^"]*"/.test(help.render(md)));
+  check('run.html hands installFactsOf the store slug so the link can point at apps/<slug>', /slug: sm\.slug/.test(run));
+  const about = fs.readFileSync(path.join(ROOT, 'site', 'about.html'), 'utf8');
+  const desktop = fs.readFileSync(path.join(ROOT, 'site', 'js', 'desktop.js'), 'utf8');
+  const index = fs.readFileSync(path.join(ROOT, 'site', 'index.html'), 'utf8');
+  check('about.html pre-fills its issue link through the one builder', /GifOS\.help\.issueUrl\(\{ from: 'About page' \}\)/.test(about) && /gifos-help\.js/.test(about));
+  check('the desktop About modal carries the pre-filled issue link, and index.html loads the builder before desktop.js',
+    /issueUrl\('About GifOS/.test(desktop) && index.indexOf('js/gifos-help.js') !== -1 && index.indexOf('js/gifos-help.js') < index.indexOf('js/desktop.js'));
+}
 check('an empty help.md still gets the OS footer (and a title)',
   /^# Help/.test(help.withOsFooter('')) && /\*\*Invite\*\*/.test(help.withOsFooter('')));
 check('run.html opens Help through withOsFooter, so every screen gets the footer',
-  /withOsFooter\(currentAppHelpMd\(\), currentAppCredits\(\)\)/.test(run));
+  /withOsFooter\(currentAppHelpMd\(\), currentAppCredits\(\), \{/.test(run));
 
 // CREDITS — UNDER THE SEAL, at the VERY BOTTOM. Who made an app is read from
 // credits.json INSIDE the GIF (packed + signed by scripts/sign-apps.mjs), never
@@ -147,7 +174,7 @@ check('the store stamps the record on BOTH install paths (fresh install and Upda
 check('runtime ctl exposes credits() from the sealed files at BOTH mounts (host/solo and guest)',
   (runtime.match(/credits: \(\) => \(GifOS\.help && GifOS\.help\.readCredits\)/g) || []).length === 2);
 check('run.html credits from ctl.credits() plus local install facts; a guest gets no local facts',
-  /withOsFooter\(currentAppHelpMd\(\), currentAppCredits\(\)\)/.test(run) && /ctl\.credits\(\)/.test(run)
+  /withOsFooter\(currentAppHelpMd\(\), currentAppCredits\(\), \{/.test(run) && /ctl\.credits\(\)/.test(run)
   && (run.match(/appInstall = installFactsOf\(rec\)/g) || []).length === 2 && /appInstall = null;/.test(run)
   && !/storeMeta\.author/.test(run));
 check('scripts derive the packed credits from ONE module (signer and catalog check cannot disagree)',
