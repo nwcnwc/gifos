@@ -14,6 +14,19 @@
  * LOCAL, never-committed ~/.gifos-behavior-hosts.json and looks for those. On a
  * box without that file there is nothing to check and it says nothing.
  *
+ * HOW TO CHECK IT ACTUALLY FIRES — and there is a trap here that produced a
+ * confident false alarm the first time somebody tried (2026-08-25). The obvious
+ * probe is to take `hosts[0].name` out of the hosts file and put it in a draft.
+ * That PASSES, and the naive reading is "the hook is dead". It is not: entry 0
+ * is the generic local entry (name "local"), which the scan deletes on purpose
+ * two blocks below, exactly so that "run it here" is not treated as a machine.
+ * PROBE WITH AN ENTRY THAT HAS AN `ssh` KEY — those are the real remote boxes.
+ *
+ *   node scripts/hooks/commit-msg <(printf 'test\n\nmeasured on <a-name-with-ssh>\n')
+ *   # exit 1 and a "line N: …xx…" diagnostic = working. exit 0 = look again.
+ *
+ * Shred the probe file afterwards; it holds a real hostname.
+ *
  * INSTALL (per clone, once):
  *   git config core.hooksPath scripts/hooks
  * REMOVE:
