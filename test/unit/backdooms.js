@@ -172,6 +172,26 @@ check('game.js loads and attaches Backdooms',
     BD.cell(BD.state().x | 0, BD.state().y | 0) === '0', BD.state());
 }
 
+{
+  // Other people arrive as SNAPSHOTS, not a stream — net.js only writes a row
+  // when something actually changed, because every write is an owner-signed
+  // room-wide flood of the WHOLE collection (docs/app-services.md 4). The
+  // drawn figure has to ease toward what lands, or a friend teleports.
+  const B = load().Backdooms;
+  B.start({ seed: 7, headless: true });
+  const paleX = () => { const p = B.view().sprites.filter((sp) => sp.pale)[0]; return p ? p.x : null; };
+  B.setRemotes([{ id: 'sam', x: 6, y: 4, h: 100 }]);
+  check('a first sighting appears where they are', paleX() === 6, paleX());
+  B.setRemotes([{ id: 'sam', x: 6.9, y: 4, h: 100 }]);
+  B.step(16);
+  const eased = paleX();
+  check('a moved friend is eased toward, not teleported', eased > 6 && eased < 6.5, eased);
+  B.setRemotes([{ id: 'sam', x: 19, y: 4, h: 100 }]);
+  B.step(16);
+  check('but a lost row snaps instead of gliding across the room', paleX() === 19, paleX());
+  B.setRemotes([]);
+}
+
 // --- what the 1.2 gauntlet run bought, so none of it can rot back ---------
 //
 // Every one of these is a bug that SHIPPED, and every one was found by running
