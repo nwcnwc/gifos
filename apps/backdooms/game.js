@@ -38,7 +38,7 @@
   var enemies, keys, running, paused, raf, ready;
   var mflash, flashId, kick, pain, painFrom, pumpT, bob, graceT, bump, clockBump;
   var lookGain = 0.0022;
-  var remotes = [], remotePhase = {};
+  var remotes = [], remoteAt = {};
   var lastT = 0, STEP = 16, clock = 0;
   var HALL = 12, R = 0.26;
   /* You wake up, and for two seconds nothing can touch you. Without it the
@@ -256,21 +256,52 @@
 
   function setLookSpeed(v) { lookGain = 0.0004 + (v | 0) * 0.00022; }
 
+  /*
+   * Other people arrive as SNAPSHOTS, not as a stream — a row lands whenever
+   * its author's state changed enough to be worth a write (net.js). Dropping
+   * them straight into the world makes a friend teleport between the places
+   * they were, so what lands is a TARGET and the drawn figure eases toward it.
+   * The smoothed position is the one you see AND the one you shoot, because a
+   * friend you cannot hit where they appear to be is worse than a slightly
+   * stale friend.
+   */
   function setRemotes(list) {
-    remotes = list || [];
-    var seen = {}, i;
-    for (i = 0; i < remotes.length; i++) {
-      var r = remotes[i];
+    var incoming = list || [];
+    var seen = {}, i, r, prev;
+    for (i = 0; i < incoming.length; i++) {
+      r = incoming[i];
       if (!r || !r.id) continue;
       seen[r.id] = 1;
-      var p = remotePhase[r.id];
-      if (!p) p = remotePhase[r.id] = { ph: 0, x: r.x, y: r.y };
-      var moved = P(r.x - p.x, r.y - p.y);
-      p.ph += moved * 2.6;
-      p.x = r.x; p.y = r.y;
-      r.phase = p.ph;
+      prev = remoteAt[r.id];
+      r.tx = r.x; r.ty = r.y;
+      if (prev) {
+        /* keep where they are being DRAWN; only the target moved */
+        r.x = prev.x; r.y = prev.y;
+        r.phase = prev.phase;
+      } else {
+        r.phase = 0;                       /* first sighting: no easing */
+      }
+      remoteAt[r.id] = r;
     }
-    for (var id in remotePhase) if (!seen[id]) delete remotePhase[id];
+    for (var id in remoteAt) if (!seen[id]) delete remoteAt[id];
+    remotes = incoming;
+  }
+
+  function easeRemotes(frames) {
+    var i, r, dx, dy, d, k;
+    for (i = 0; i < remotes.length; i++) {
+      r = remotes[i];
+      if (!r || r.tx == null) continue;
+      dx = r.tx - r.x; dy = r.ty - r.y;
+      d = P(dx, dy);
+      if (d < 0.0005) continue;
+      /* a long way behind means the row was lost, not that they sprinted —
+         snap rather than glide across the room */
+      if (d > 3) { r.x = r.tx; r.y = r.ty; continue; }
+      k = Math.min(1, 0.22 * frames);
+      r.x += dx * k; r.y += dy * k;
+      r.phase += d * k * 2.6;
+    }
   }
 
   /* ---- movement --------------------------------------------------------- */
@@ -470,6 +501,7 @@
     if (graceT > 0) graceT -= dt;
     clock += dt;
     var moving = applyInput(frames);
+    easeRemotes(frames);
     tickEnemies(moving, frames, dt);
     if (hp <= 0) {
       hp = 0;

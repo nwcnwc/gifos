@@ -149,6 +149,37 @@ phone leg, rendering the SAME 118k-pixel budget, measured clean in the same
 conditions, which is the tell. Re-run on a quieter box: 1 dropped frame in 295
 on both. Check the load before believing the red.
 
+## Round 4 — asked "how does the invite work?", and found the answer was expensive
+
+Tracing it turned up a defect nobody had flagged. `net.js` published the
+player's row every 80 ms unconditionally: measured **11.8 writes a second while
+standing perfectly still**, 12 while walking. It never asked whether anything
+had changed.
+
+That is not free. `docs/app-services.md` 4: a guest write is a PROPOSAL that
+floods to the owner, which validates it against the manifest's visibility
+rules, Ed25519-signs the whole collection and floods the result; every client
+then re-reads all N rows, because `runtime.js`'s `subscribe` does a full
+`getAll` on every `db-change`. That document names Anyroad's `players`
+collection doing exactly this at **5N writes/sec** as what puts "a ceiling of a
+few dozen players" on the mesh, and records the measured approom ceiling of
+~20 sequential guests. Backdooms was doing it at **12N**.
+
+Now: a 120 ms floor, nothing sent unless the player moved, turned, took
+damage, fired or scored, and a keepalive every 2.5 s (rows are dropped after
+8 s). Remote figures are interpolated toward the last row that landed, with a
+snap if they are more than three metres behind, so the lower rate looks
+BETTER rather than worse.
+
+| | before | after |
+| --- | --- | --- |
+| writes/sec standing still | 11.8 | 0.8 |
+| writes/sec actually moving | 12 | 8 |
+
+This is a MITIGATION, not the fix. Player positions are service-3 traffic
+riding service 4, and service 3 is an open problem — neither built nor
+designed. The right answer is the one app-services.md already argues for.
+
 ## Still open
 
 - The monster is ONE front-facing billboard used for all 360 degrees. DOOM gave
@@ -160,6 +191,12 @@ on both. Check the load before believing the red.
 - Portrait keeps a sane horizontal field of view now, but pays for it in
   ceiling. The start card says to turn the phone; a letterboxed portrait
   layout with the controls below the view would be better.
+- Multiplayer has never been driven end to end through a real relay in this
+  run. What IS verified: the invite path is OS chrome (the app draws no
+  button), a remote is visually unmistakable from a monster, shots at a friend
+  register, seeds are shared so everyone walks one maze, and the write rate is
+  the numbers above. Two browsers through one link over `relay-local.js` is
+  still owed.
 - You can outrun everything. The player moves 6.25 units a second and the
   things about 1.9, so a player who only retreats is never caught — the run
   ends when the shells do, not when they reach you. Spawning happens behind a
