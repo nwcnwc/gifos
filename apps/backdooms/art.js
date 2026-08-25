@@ -380,38 +380,49 @@
     }
   }
 
-  /* Death: it folds forward onto the carpet. It does not fade out standing up,
-     and it does not leave a floating slab behind — the stain is drawn flat at
-     the sprite's feet, which is where the floor is. */
+  /*
+   * Death: it FALLS OVER. The first cut squashed the standing billboard
+   * vertically, which meant the middle of the animation was an upright,
+   * headless maroon column — a critic called it a missing-texture
+   * placeholder and that is exactly what it looked like. A body pivots at the
+   * feet, so this does too: one axis from the feet to the head, swinging from
+   * vertical to almost flat, with the head riding the end of it. The last
+   * frame is what the corpse looks like for the next half a minute, so it has
+   * to be a body lying on the carpet and not just a stain.
+   */
   function figureDie(pal, t) {
     var s = sprite(FW, FH);
     var cx = FW / 2;
-    var fall = t * t;
     var body = pal.body, dark = pal.dark, skin = pal.skin;
+    var th = t * 1.42;                       /* radians off vertical */
+    var L = 34 * (1 - t * 0.12);
+    var footY = FH - 5;
+    var hx = cx + Math.sin(th) * L * 0.54;
+    var hy = footY - Math.cos(th) * L;
 
-    /* the stain, first, so everything else lands on it */
-    var stain = [52, 14, 11];
-    for (var x = -15; x <= 15; x++) {
-      var hw = Math.sqrt(Math.max(0, 225 - x * x)) * 0.24 * t;
-      for (var yy = -hw; yy <= hw; yy++) put(s, cx + x, FH - 3 + yy, stain[0], stain[1], stain[2], 210 * t);
+    /* the stain first, so the body lands on it */
+    var stain = [56, 15, 12];
+    for (var x = -16; x <= 16; x++) {
+      var hw = Math.sqrt(Math.max(0, 256 - x * x)) * 0.22 * t;
+      for (var yy = -hw; yy <= hw; yy++) put(s, cx + x, FH - 3 + yy, stain[0], stain[1], stain[2], 205 * t);
     }
-    if (t >= 0.97) return s;
 
-    var topY = 20 + fall * 44;
-    var spread = 1 + t * 1.05;
-    /* the mass, going down and out */
-    capsule(s, cx - 8 * spread, FH - 7 - (1 - fall) * 8, cx + 8 * spread, FH - 5,
-      6.2 - t * 1.8, 5.2 - t * 1.4, body, { shade: 0.28, rim: 0.34 });
-    /* limbs thrown out sideways */
-    capsule(s, cx - 4, FH - 9, cx - 12 * spread, FH - 4, 2.6, 1.6, dark, { shade: 0.3 });
-    capsule(s, cx + 4, FH - 9, cx + 13 * spread, FH - 4, 2.6, 1.6, dark, { shade: 0.3 });
-    if (t < 0.82) {
-      capsule(s, cx + 1, topY + 14, cx + 2, FH - 10, 5.0, 5.4, body, { shade: 0.28, rim: 0.34 });
-      blob(s, cx + 1.4, topY, 5.8 - t * 1.2, 5.0 - t * 1.8, skin, { shade: 0.26 });
-      var f = 1 - t / 0.82;
+    /* legs stay where it was standing and fold under it */
+    capsule(s, cx - 3, footY - 8 * (1 - t), cx - 5 - t * 6, footY, 4.4 - t, 3.0, dark, { shade: 0.26 });
+    capsule(s, cx + 3, footY - 8 * (1 - t), cx + 6 + t * 7, footY, 4.6 - t, 3.0, body, { shade: 0.30 });
+
+    /* the trunk, pivoting at the feet */
+    capsule(s, cx, footY, hx, hy + 9, 6.2 - t * 1.4, 5.0 - t * 0.9, body, { shade: 0.28, rim: 0.36 });
+    /* the arm thrown out ahead of it */
+    capsule(s, hx * 0.5 + cx * 0.5, (hy + footY) / 2, hx + 5 + t * 5, hy + 12 + t * 6,
+      3.0, 2.0, dark, { shade: 0.28 });
+    /* and the head at the end of it */
+    blob(s, hx, hy, 5.9 - t * 0.9, 5.1 - t * 1.1, skin, { shade: 0.26 });
+    var f = Math.max(0, 1 - t * 1.6);
+    if (f > 0.02) {
       var dim = [pal.eye[0] * f, pal.eye[1] * f, pal.eye[2] * f];
-      blob(s, cx - 1.4, topY + 0.8, 1.5, 1.2, dim, { shade: 1 });
-      blob(s, cx + 4.4, topY + 0.8, 1.5, 1.2, dim, { shade: 1 });
+      blob(s, hx - 1.6, hy - 0.2, 1.4, 1.2, dim, { shade: 1 });
+      blob(s, hx + 2.4, hy + 0.2, 1.4, 1.2, dim, { shade: 1 });
     }
     return s;
   }
@@ -546,10 +557,13 @@
       var ang = (i / petals) * 6.283 + r() * 0.6;
       var len = 14 + r() * 24;
       capsule(s, c, c, c + Math.cos(ang) * len, c + Math.sin(ang) * len,
-        7 + r() * 4, 1.5, [255, 214, 128], { shade: 0.9, rim: 0 });
+        7 + r() * 4, 1.5, [255, 158, 46], { shade: 0.9, rim: 0 });
     }
-    blob(s, c, c, 16, 15, [255, 236, 190], { shade: 0.95 });
-    blob(s, c, c, 9, 8.5, [255, 255, 244], { shade: 1 });
+    /* orange out, white in. A flash that is white all through desaturates
+       whatever it lights and the target goes grey-mauve. */
+    blob(s, c, c, 17, 16, [255, 190, 84], { shade: 0.95 });
+    blob(s, c, c, 11, 10, [255, 232, 168], { shade: 0.98 });
+    blob(s, c, c, 6, 5.5, [255, 252, 236], { shade: 1 });
     /* soften it into a real flare rather than a sticker */
     for (y = 0; y < FS; y++) for (x = 0; x < FS; x++) {
       var o = (y * FS + x) * 4;
@@ -576,7 +590,7 @@
     if (built) return built;
     var walk = [], die = [], pale = [], i;
     for (i = 0; i < 8; i++) walk.push(figure(PAL_THING, (i / 8) * 6.283));
-    for (i = 0; i < 6; i++) die.push(figureDie(PAL_THING, i / 5));
+    for (i = 0; i < 8; i++) die.push(figureDie(PAL_THING, i / 7));
     for (i = 0; i < 8; i++) pale.push(figure(PAL_PALE, (i / 8) * 6.283, { lean: 1.0 }));
     built = {
       TEX: TEX,
