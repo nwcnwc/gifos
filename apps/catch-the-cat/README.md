@@ -2,12 +2,12 @@
 
 Tap the dots. Wall the cat in before it reaches the edge.
 
-An unofficial port of **[Catch The Cat](https://github.com/ganlvtech/phaser-catch-the-cat)** by ganlvtech (MIT, Phaser 3). Solo it is the original honeycomb chase; send the invite and everyone plays the same starting board — fewest taps to pen the cat wins.
+An unofficial port of **[Catch The Cat](https://github.com/ganlvtech/phaser-catch-the-cat)** by ganlvtech (MIT, Phaser 3). Solo it is the original honeycomb chase; send the invite and everyone plays the same starting board — fewest taps to pen the cat takes the round, and the room keeps a running score.
 
 ```
 index.html        shell: board, status, roster, undo / new board
 style.css         dark, phone-first, tap targets
-net.js            presence + the shared round, each player writes only their row
+net.js            presence, the shared round, and the series — each player writes only their row
 boot.js           sizes the board, starts Phaser, talks to net.js
 icon.mjs          procedural hex+cat icon and 1200×720 cover
 vendor.mjs        rebuilds vendor/phaser.js + vendor/game.js from the pins
@@ -27,7 +27,11 @@ GifOS inlines every `<script src>` and drops `type="module"`, and the sandbox ha
 | `db` | Player rows for the race. |
 | `multiplayer` | The room. The invite is OS chrome — this app never draws an Invite button. |
 
-No `network`. Nobody writes anybody else's row: each player owns one record in `players` (clicks, whether they won or the cat ran, which round they are on). The shared board is a seed on those rows, so everyone who opens the link rebuilds the same starting walls locally.
+No `network`. Nobody writes anybody else's row: each player owns one record in `players` — clicks, whether they won or the cat ran, which round they are on, and their running tally (wins, rounds played, best board, streak). The shared board is a seed on those rows, so everyone who opens the link rebuilds the same starting walls locally.
+
+The series is therefore **self-scored**, and that holds because the rule is deterministic: when every live player on the current round has finished, the fewest taps takes it, ties share it, and each client increments only its OWN row. Two screens cannot disagree unless they saw different rows. Rows heartbeat, because the collection is the host's stored state and a closed tab leaves its row behind forever — a player who goes quiet ages out of the roster instead of hanging the round. The last player standing scores nothing: a win by attrition would make quitting worth a point.
+
+Guarded by `test/unit/catch-the-cat.js` (two real clients, one collection, the scoring rule) and `test/browser/e2e-ctc-race.js` (the standings, the finished-board lock, the verdict, and name escaping).
 
 ## Building
 

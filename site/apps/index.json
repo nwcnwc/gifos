@@ -757,7 +757,7 @@
       "appId": "catch-the-cat",
       "name": "Catch the Cat",
       "shortName": "Cat",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "tagline": "Tap the dots. Wall the cat in before it reaches the edge.",
       "author": {
         "name": "ganlvtech",
@@ -791,7 +791,7 @@
         90
       ],
       "cover": "/apps/catch-the-cat/cover.jpg",
-      "bytes": 578885,
+      "bytes": 584845,
       "download": 0,
       "provides": null,
       "signature": {
@@ -799,7 +799,7 @@
         "id": "gifos.app",
         "ts": "2026-08-25"
       },
-      "sha256": "16b347b2508ecfb675471582cf4fc54dad598269324c83ce32fcff83be0ac0a7"
+      "sha256": "0242519b7bd51754a6cfe2e825b91857ce342d2d02b5d509fda1f3732371f21a"
     },
     {
       "slug": "checkers",
