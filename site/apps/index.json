@@ -17,7 +17,7 @@
       "appId": "2048",
       "name": "2048",
       "shortName": "2048",
-      "version": "1.1",
+      "version": "1.2",
       "tagline": "Race a friend to 2048 — and never lose a board again.",
       "author": {
         "name": "Gabriele Cirulli",
@@ -51,7 +51,7 @@
         46
       ],
       "cover": "/apps/2048/cover.jpg",
-      "bytes": 319676,
+      "bytes": 320342,
       "download": 0,
       "provides": null,
       "signature": {
@@ -59,7 +59,7 @@
         "id": "gifos.app",
         "ts": "2026-08-25"
       },
-      "sha256": "2a08afb85df53fd2b9c2649a477c41100ae770d8eef0947bb38a1b0045407d26"
+      "sha256": "76dfe9cffe3fd00cc959cc80e1aa409935f5762c588aa9edc81bab2e6b5ad09c"
     },
     {
       "slug": "aim-and-shoot",
