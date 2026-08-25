@@ -7278,20 +7278,38 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
         return GifOS.store.getFile(ROOM.fileId);
       }).then((rec) => {
         if (!rec) return;
+        // The saved room decides what this dialog even offers: re-inviting
+        // deliberately reuses the same link (a day-old invite must revive),
+        // which also means the link can only be RETIRED here, deliberately —
+        // once it reaches someone it shouldn't have, nothing else revokes it
+        // (an app room has no door to ban through).
+        return GifOS.store.getState(ROOM.fileId + '::room').then((saved) => {
+          if (!(saved && saved.k)) return { rec, saved: null };
+          return { rec, saved };
+        });
+      }).then((got) => {
+        if (!got) return;
+        const rec = got.rec, saved = got.saved;
         const nm = ((rec && rec.name) || 'App').replace(/\.gif$/i, '');
         const bg = document.createElement('div'); bg.className = 'name-modal';
         bg.innerHTML = '<div class="name-box" style="max-width:440px;text-align:left"><h3>Share ' + esc(nm) + ' live</h3>' +
           '<p>Friends join you with one link. If you drop off (close the tab, lose battery)…</p>' +
-          '<label class="perm-row"><input type="radio" name="rmcls" value="owned" checked><span><b>Only I can host it</b> — the app pauses for everyone until I return. Safest for private data.</span></label>' +
-          '<label class="perm-row"><input type="radio" name="rmcls" value="heal"><span><b>Let a friend keep it going</b> — someone still connected takes over hosting. Best for casual shared apps and games.</span></label>' +
+          '<label class="perm-row"><input type="radio" name="rmcls" value="owned"' + (!saved || saved.owned ? ' checked' : '') + '><span><b>Only I can host it</b> — the app pauses for everyone until I return. Safest for private data.</span></label>' +
+          '<label class="perm-row"><input type="radio" name="rmcls" value="heal"' + (saved && !saved.owned ? ' checked' : '') + '><span><b>Let a friend keep it going</b> — someone still connected takes over hosting. Best for casual shared apps and games.</span></label>' +
+          (saved
+            ? '<p style="margin-top:.9rem"><b>This app already has a link</b> — friends you invited before may still hold it.</p>' +
+              '<label class="perm-row"><input type="radio" name="rmlink" value="same" checked><span><b>Keep the same link</b> — everyone you already invited can come right back.</span></label>' +
+              '<label class="perm-row"><input type="radio" name="rmlink" value="fresh"><span><b>Start a fresh link</b> — the old link goes dead for good. For when it reached someone it shouldn’t have.</span></label>'
+            : '') +
           '<div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem"><button id="inv-cancel">Cancel</button><button id="inv-go">Create link</button></div></div>';
         document.body.appendChild(bg);
         bg.querySelector('#inv-cancel').onclick = () => bg.remove();
         bg.querySelector('#inv-go').onclick = () => {
           const owned = bg.querySelector('input[name="rmcls"]:checked').value === 'owned';
+          const fresh = !!(saved && bg.querySelector('input[name="rmlink"][value="fresh"]').checked);
           bg.remove();
-          GifOS.store.getState(ROOM.fileId + '::room').then((saved) => {
-            if (saved && saved.owned === owned && saved.k) return saved;
+          GifOS.store.getState(ROOM.fileId + '::room').then((saved2) => {
+            if (!fresh && saved2 && saved2.owned === owned && saved2.k) return saved2;
             const mint = owned
               ? (() => { const sec = net.randHex(24); return sha256hex(sec).then((h) => {
                   const signed = !!(GifOS.sign && GifOS.sign.readSig && GifOS.sign.readSig(rec.bytes));
