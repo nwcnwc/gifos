@@ -142,15 +142,30 @@ function raceNetwork(req, cache, ms) {
 // back in the cache for offline. Resolves null on non-OK, error, or timeout so
 // the caller falls back to the cache — a stalled socket must never hang a parser-
 // blocking <script>, and a transient 5xx should serve the last good build.
-// `pass404` — a NAVIGATION whose server answer is 404 must be delivered as-is,
-// never papered over. On GitHub Pages the 404 body IS 404.html: the pretty-link
-// router that turns /meet/<room> and /join/<code> into a real
-// page. Resolving null for it sent the caller to the cached shell instead, whose
-// channel loader then rewrote the pretty path to /versions/<v>/meet/<room> —
-// a path that exists nowhere — and every invite link landed on the desktop with
-// the meeting silently dropped. Only 404 passes through, so a transient 5xx
-// still falls back to the last good build as intended.
-function revalidate(req, cache, ms, pass404) {
+// `passRouted` — a NAVIGATION whose server answer is not 200 but IS still the
+// answer must be delivered as-is, never papered over. Two shapes qualify, and
+// falling back to the cached shell for either one breaks a pretty link:
+//
+//  - 404. On GitHub Pages the 404 body IS 404.html: the pretty-link router that
+//    turns /meet/<room> and /join/<code> into a real page. Resolving null for it
+//    sent the caller to the cached shell instead, whose channel loader then
+//    rewrote the pretty path to /versions/<v>/meet/<room> — a path that exists
+//    nowhere — and every invite link landed on the desktop with the meeting
+//    silently dropped.
+//  - A REDIRECT. Pages 301s every directory URL typed without its trailing slash
+//    (/go/<slug> → /go/<slug>/, and likewise /store, /themes/<x>). A navigation
+//    Request carries redirect:'manual', which the clone below PRESERVES, so that
+//    301 arrives here as an OPAQUEREDIRECT: type 'opaqueredirect', status 0, ok
+//    false. It reads as a failure and is not one. Swallowing it walked the exact
+//    same path as the 404 bug — cached shell → /versions/<v>/go/<slug> → nowhere
+//    → bare desktop, app silently dropped — while the slashed form worked, which
+//    is what made it look like the LINK was broken. Handing the opaqueredirect
+//    back lets the browser follow it (that is what manual redirects are for);
+//    respondWith accepts one precisely because this is a navigation.
+//
+// Only those pass through, so a transient 5xx still falls back to the last good
+// build as intended.
+function revalidate(req, cache, ms, passRouted) {
   return new Promise(function (resolve) {
     var settled = false;
     var t = setTimeout(function () { if (!settled) { settled = true; resolve(null); } }, ms);
@@ -159,7 +174,8 @@ function revalidate(req, cache, ms, pass404) {
     fetch(rr).then(function (res) {
       var ok = res && res.ok && (res.type === 'basic' || res.type === 'default');
       if (ok) cache.put(req, res.clone()).catch(function () {});
-      var routed = !ok && pass404 && res && res.status === 404;
+      var redirected = res && (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400));
+      var routed = !ok && passRouted && res && (res.status === 404 || redirected);
       if (!settled) { settled = true; clearTimeout(t); resolve(ok || routed ? res : null); }
     }, function () { if (!settled) { settled = true; clearTimeout(t); resolve(null); } });
   });
