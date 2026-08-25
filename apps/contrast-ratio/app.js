@@ -62,6 +62,33 @@
     return names.slice(0, -1).join(', ') + ', or ' + names[names.length - 1];
   }
 
+  // The MOST contrast a colour can have against a fixed one is always pure
+  // black or pure white. Contrast is a ratio of luminances, so it only grows
+  // as the two move apart — the ceiling is an endpoint of the scale, never a
+  // mid tone. Which endpoint wins has to be MEASURED, not guessed: against
+  // #777 black wins by 4.69 to 4.48, and the crossover is not at 50% grey.
+  //
+  // `asBackground` says which side is being replaced, because alpha is not
+  // symmetric — the text is composited ON the background. When the other
+  // colour is see-through the answer is a range, so the pick is judged on the
+  // WORST case (`min`): it stays the right choice whatever ends up underneath.
+  function bestAgainst(other, asBackground) {
+    if (!other || typeof Color === 'undefined') return null;
+    var candidates = [
+      { value: 'black', color: Color.BLACK },
+      { value: 'white', color: Color.WHITE }
+    ];
+    var best = null;
+    for (var i = 0; i < candidates.length; i++) {
+      var c = asBackground ? candidates[i].color.contrast(other) : other.contrast(candidates[i].color);
+      var worst = typeof c.min === 'number' ? c.min : c.ratio;
+      if (!best || worst > best.worst) {
+        best = { value: candidates[i].value, worst: worst, ratio: c.ratio };
+      }
+    }
+    return best;
+  }
+
   function persist(immediate) {
     if (applying || !saveDb) return;
     var bg = $('background');
@@ -213,6 +240,20 @@
     };
   }
 
+  function pickBest(which) {
+    return function () {
+      var input = $(which);
+      var other = $(which === 'foreground' ? 'background' : 'foreground');
+      if (!input || !other || !other.color) return;
+      var best = bestAgainst(other.color, which === 'background');
+      if (!best) return;
+      input.value = best.value;
+      colorChanged(input);
+      update();
+      syncPicker(which);
+    };
+  }
+
   function swap() {
     var bg = $('background');
     var fg = $('foreground');
@@ -257,6 +298,8 @@
     $('backgroundColorPicker').addEventListener('input', onPicker('background'));
     $('foregroundColorPicker').addEventListener('input', onPicker('foreground'));
     $('swap').addEventListener('click', swap);
+    $('backgroundBest').addEventListener('click', pickBest('background'));
+    $('foregroundBest').addEventListener('click', pickBest('foreground'));
     applyPair(DEFAULT_BG, DEFAULT_FG);
     loadSave();
   }
@@ -268,5 +311,5 @@
     persist(true);
   });
 
-  root.ContrastRatio = { floor: floor, verdicts: verdicts };
+  root.ContrastRatio = { floor: floor, verdicts: verdicts, bestAgainst: bestAgainst };
 })(window);

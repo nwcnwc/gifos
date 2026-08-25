@@ -9,7 +9,7 @@ wrote. Same two colours, same circle, same WCAG number.
 ```
 index.html              one column: the two colour fields, the verdict, the preview
 style.css               the column, the swatches, the checkerboard under alpha
-app.js                  parse colours, paint the verdict, private last pair
+app.js                  parse colours, paint the verdict, Best pick, private last pair
 icon.mjs                procedural split-card icon and the 1200×720 cover
 build.mjs               packs the GIF into site/apps/contrast-ratio/contrast-ratio.gif
 vendor/color.js         siege-media/contrast-ratio color.js, MIT, pinned

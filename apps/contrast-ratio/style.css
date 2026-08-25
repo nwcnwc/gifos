@@ -100,6 +100,23 @@ body {
 }
 .text-input:focus { outline: none; }
 
+/* The ceiling, in one tap: the most contrast this side can have against the
+ * other. Sits at the far end of the box, mirroring the swatch. */
+.best {
+  flex: 0 0 auto;
+  padding: 0 .55rem;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  font: 600 .72rem/1 system-ui, sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.best:hover,
+.best:focus { background: #f0f0f2; color: var(--ink); }
+
 #swap {
   flex: 0 0 auto;
   width: 2.2rem;
