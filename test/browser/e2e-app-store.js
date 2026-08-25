@@ -330,9 +330,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(300);
   const copiedRun = await page.evaluate(() => navigator.clipboard.readText());
   const ur = new URL(copiedRun);
-  check('"Open the app" copies the one-tap /?run=<slug> link (desktop.js handleRunParam)',
-    ur.pathname === '/' && ur.searchParams.get('run') === target.slug, copiedRun);
-  check('…the run link is in the QUERY, which snapshots read and the loader carries', /\?run=/.test(copiedRun) && !/#.*run=/.test(copiedRun));
+  // Both shared links are the app's static GO PAGE (site/go/<slug>/): a
+  // crawler that runs no JS (X, Slack, iMessage…) reads its og:image — the
+  // LISTING COVER — where /?run= and /store/ would have shown the generic
+  // og.png. The page then sends a human on: straight into the app, or with
+  // ?store to the listing. Guarded by FETCHING the shared URL and reading
+  // the card, not by trusting the path: a go page that unfurls the wrong
+  // picture is exactly the regression this exists to catch.
+  check('"Open the app" copies the app\'s go page — /go/<slug>/',
+    ur.pathname === '/go/' + target.slug + '/' && !ur.search, copiedRun);
+  const goCard = async (url) => {
+    const html = await (await fetch(url)).text();
+    const og = (html.match(/property="og:image" content="([^"]+)"/) || [])[1] || '';
+    const tw = (html.match(/name="twitter:card" content="([^"]+)"/) || [])[1] || '';
+    const dest = (html.match(/location\.replace\(([^;]*)\);/) || [])[1] || '';
+    return { og, tw, dest, redirectHeader: false };
+  };
+  const runCard = await goCard(copiedRun);
+  check('…and that page unfurls the LISTING COVER, not the generic card',
+    runCard.og.endsWith('/apps/' + target.slug + '/cover.jpg') && runCard.tw === 'summary_large_image', runCard);
+  check('…then sends a human straight into the app via /?run=<slug> — in the QUERY, which snapshots read and the loader carries',
+    runCard.dest.includes('/?run=' + encodeURIComponent(target.slug)) && !/#.*run=/.test(runCard.dest), runCard.dest);
   check('…with no alternate-database suffix and no frozen /versions/ prefix',
     !/[?#&]db=/.test(copiedRun) && !/\/versions\//.test(copiedRun), copiedRun);
   check('…the picker closes once picked', !(await page.locator('#sharepick').isVisible()));
@@ -343,7 +361,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   const shown = await page.locator('#shareurl').inputValue();
   const u = new URL(copied);
-  check('"Store listing" copies the pretty /store/<slug> link', u.pathname === '/store/' + target.slug, copied);
+  check('"Store listing" copies the go page with ?store — same cover card, human lands on the listing',
+    u.pathname === '/go/' + target.slug + '/' && u.searchParams.has('store'), copied);
+  const storeCard = await goCard(copied);
+  check('…which unfurls the listing cover too',
+    storeCard.og.endsWith('/apps/' + target.slug + '/cover.jpg'), storeCard);
+  check('…and its human destination is the pretty /store/<slug> listing',
+    storeCard.dest.includes('/store/' + encodeURIComponent(target.slug)) && storeCard.dest.includes('store'), storeCard.dest);
   check('…absolute, so it still works once pasted somewhere', /^https?:\/\//.test(copied) && !!u.host);
   check('…with no alternate-database suffix and no frozen /versions/ prefix',
     !/[?#&]db=/.test(copied) && !/\/versions\//.test(copied), copied);
