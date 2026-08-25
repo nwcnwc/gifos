@@ -812,6 +812,23 @@ requestAnimationFrame(chk);setTimeout(show,1500);})();</script>
   /* FULLSCREEN VIEW: one feed big + every other live feed as floating thumbs
      (right edge in landscape, bottom edge in portrait) — tap a thumb to swap
      it into the big view. Standard call UX. */
+  /* Z-INDEX 60 IS ABOVE THE MODAL TIER ON PURPOSE, AND SO IS THE SELF-FULLSCREEN
+     BELOW IT. Someone who has zoomed into a face in a live call is not to be
+     interrupted — that is the product decision, not an oversight, and it is
+     written here because it looks EXACTLY like the bug that was fixed on the
+     app bar: #fsview calls requestFullscreen() on ITSELF, which puts it in the
+     top layer and buries every page-level modal, which is precisely why
+     #apppane stopped doing that (see `#appbar .fs-btn`).
+
+     The difference is what it costs. The app pane is a mode you live in while
+     reaching for Help and Abilities, and burying those left no way out but
+     leaving full screen. This is a transient look-at-them-big view whose ✕
+     (#fsclose) is INSIDE the fullscreen element, so it is always reachable.
+
+     So do not "fix" this to match. Making a popup show over the zoomed video
+     needs BOTH halves changed — root fullscreen AND a z-index under the tier
+     you want above it — and that second half is a decision about who gets
+     interrupted, not a mechanism. Asked and answered: nobody. */
   #fsview { display: none; position: fixed; inset: 0; background: #000; z-index: 60; }
   #fsview.on { display: block; }
   #fsmain { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
