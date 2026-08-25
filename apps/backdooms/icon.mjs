@@ -555,116 +555,17 @@ export function backdoomsIcon() {
   };
 }
 
-function crc(buf) {
-  let c = ~0;
-  for (let i = 0; i < buf.length; i++) {
-    c ^= buf[i];
-    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
-  }
-  return (~c) >>> 0;
-}
-function pngChunk(tag, data) {
-  const t = Buffer.from(tag);
-  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-  const body = Buffer.concat([t, data]);
-  const c = Buffer.alloc(4); c.writeUInt32BE(crc(body));
-  return Buffer.concat([len, body, c]);
-}
-const GLYPHS = {
-  A: [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
-  C: [0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110],
-  D: [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110],
-  E: [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111],
-  G: [0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110],
-  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
-  I: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111],
-  K: [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001],
-  L: [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111],
-  M: [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001],
-  N: [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001],
-  O: [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  R: [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001],
-  S: [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110],
-  T: [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100],
-  U: [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110],
-  Y: [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100],
-  ' ': [0, 0, 0, 0, 0, 0, 0],
-  0: [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
-  1: [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
-  2: [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
-};
-function drawText(put, x, y, str, s, r, g, b) {
-  let cx = x;
-  for (const ch of str.toUpperCase()) {
-    const gph = GLYPHS[ch];
-    if (!gph) { cx += 6 * s; continue; }
-    for (let row = 0; row < 7; row++) for (let col = 0; col < 5; col++) {
-      if (gph[row] & (1 << (4 - col))) {
-        for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) put(cx + col * s + dx, y + row * s + dy, r, g, b);
-      }
-    }
-    cx += 6 * s;
-  }
-}
-export function screenshotPng() {
-  const W = 1200, H = 720;
-  const rgba = Buffer.alloc(W * H * 4, 0);
-  const put = (x, y, r, g, b, a) => {
-    x = x | 0; y = y | 0;
-    if (x < 0 || y < 0 || x >= W || y >= H) return;
-    const o = (y * W + x) * 4;
-    rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = a == null ? 255 : a;
-  };
-  const HORIZON = 300, VPX = W / 2;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const dx = x - VPX;
-    if (y < HORIZON) {
-      const wall = Math.abs(dx) / Math.max(8, (HORIZON - y) * 1.4 + 40);
-      if (wall > 0.48) put(x, y, dx < 0 ? 210 : 168, dx < 0 ? 176 : 132, dx < 0 ? 52 : 32);
-      else put(x, y, 228, 206, 92);
-    } else {
-      const d = (y - HORIZON) / (H - HORIZON);
-      put(x, y, 138 + d * 36, 108 + d * 18, 28);
-      const wall = Math.abs(dx) / Math.max(8, (y - HORIZON) * 1.2 + 20);
-      if (wall > 0.68) put(x, y, dx < 0 ? 186 : 140, dx < 0 ? 150 : 108, dx < 0 ? 40 : 24);
-    }
-  }
-  function fig(cx, cy, s) {
-    for (let y = cy; y < cy + s; y++) for (let x = cx - s * 0.22; x < cx + s * 0.22; x++) put(x, y, 52, 18, 12);
-    for (let y = cy - s * 0.28; y < cy; y++) for (let x = cx - s * 0.16; x < cx + s * 0.16; x++) put(x, y, 40, 14, 10);
-    put(cx - s * 0.06, cy - s * 0.16, 220, 36, 24);
-    put(cx + s * 0.06, cy - s * 0.16, 220, 36, 24);
-    const barW = s * 0.4;
-    for (let x = cx - barW; x < cx + barW; x++) put(x, cy - s * 0.36, 20, 80, 20);
-  }
-  fig(VPX + 20, 310, 160);
-  fig(VPX - 140, 280, 70);
-  fig(VPX + 220, 295, 90);
-  for (let y = 430; y < 700; y++) {
-    const w = 14 + (y - 430) * 0.1;
-    for (let x = VPX - w; x < VPX + w; x++) put(x, y, 78, 74, 66);
-  }
-  for (let i = 0; i < 180; i++) {
-    const ang = (i * 2.399) % (Math.PI * 2), rad = (i * 17 % 40);
-    put(VPX + Math.cos(ang) * rad, 340 + Math.sin(ang) * rad * 0.6, 255, 220, 120);
-  }
-  for (let x = 36; x < 36 + 220; x++) for (let y = 28; y < 42; y++) put(x, y, 200, 24, 24);
-  for (let x = 36; x < 36 + 90; x++) for (let y = 48; y < 56; y++) put(x, y, 240, 210, 40);
-  drawText(put, 36, H - 64, 'BACKDOOMS', 5, 240, 220, 140);
-  drawText(put, 36, 64, 'SCORE 12', 4, 255, 255, 255);
-  const raw = Buffer.alloc((W * 4 + 1) * H);
-  for (let y = 0; y < H; y++) {
-    raw[y * (W * 4 + 1)] = 0;
-    rgba.copy(raw, y * (W * 4 + 1) + 1, y * W * 4, (y + 1) * W * 4);
-  }
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4);
-  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk('IHDR', ihdr),
-    pngChunk('IDAT', deflateSync(raw, { level: 9 })),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
-}
+/*
+ * screenshotPng() USED TO LIVE HERE, and it drew the store cover by hand: flat
+ * mustard wedges, brown lozenges for the monsters, a grey trapezoid for the
+ * gun, and pixel-font lettering. Two things were wrong with that. It was a
+ * DRAWING OF the game rather than the game, so it could not be better than
+ * whoever drew it — and it could drift from what the app actually looks like
+ * without anything noticing, which is exactly what happened: the committed
+ * cover was still showing a renderer that had been replaced.
+ *
+ * apps/backdooms/screenshot.png is now a REAL captured frame of the running
+ * build, taken with Playwright and committed. build.mjs checks it is there and
+ * the right size; it does not generate it. Retaking it is part of the work
+ * whenever the game changes how it looks.
+ */
