@@ -2268,6 +2268,13 @@
   const sysBtn = document.getElementById('sys-menu-btn');
   const addBtn = document.getElementById('add-btn');
 
+  // FULL SCREEN — the whole document, so the Home Screen takes the entire glass
+  // and the browser's own chrome steps out of the way. The toggle stays hidden
+  // where there is no element fullscreen to ask for (iPhone Safari);
+  // gifos-fullscreen.js owns that judgement, and the same button is in the app
+  // bar in run.html.
+  if (GifOS.fullscreen) GifOS.fullscreen.attach(document.getElementById('fs-btn'), document.documentElement);
+
   sysBtn.addEventListener('click', () => menuUnder(sysBtn, [
     { label: 'About GifOS', fn: () => showModal('GifOS v' + VERSION,
       'Your GIF-powered computer, right in your browser. Apps are GIFs. Data is GIFs.<br><br>' +
