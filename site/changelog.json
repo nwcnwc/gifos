@@ -2,6 +2,28 @@
  "note": "Release notes shown in Settings → Advanced → Version. Newest first. SHORT, PLAIN bullets under \"features\" and \"fixes\" — a line or two each, no jargon, no filler; anyone who wants the long story can read the repo. Every release needs at least one bullet. Set \"critical\": true on a release that fixes data loss, a security issue, or a breaking sync change so the desktop calls it out.",
  "entries": [
   {
+   "version": "0.9.13",
+   "date": "2026-08-25",
+   "headline": "Every game and tool on the Home Screen got a play-test on a phone — and a dozen new ports",
+   "features": [
+    "New apps: Worldview (NASA satellite layers, a timeline, compare two days — with a Blue Marble that works offline), The House (a playable assembled house that makes sound), Sandspiel (a falling-sand world in the file), Bingo (a real hall — every phone speaks, fireworks on a verified win), plus Piano Trainer, Vintage Poker, fend, My Mind, JSON Editor, JSON Crack, Hexahedral, Blackjack, Server Survival and Backdooms as unofficial ports.",
+    "Over sixty existing apps were play-tested on a phone and fixed one by one: thumb pads and D-pads where a finger needs them, boards that fit the screen, empty states that say what to do, best scores and drafts kept in the file, and Invite that actually seats your friends (Ludo, Tanks, Aim, Coil, Crossword, Solitaire, Spider, Slots, Duck Hunt, Pac-Man, Queens, Memory, Tiny Yurts, Metronome, Tuner, QR, and more).",
+    "Share from a store card asks which link you mean: open the app in one tap, or the store listing. A ?run= link on a GitHub page opens the GIF — a blob link is rewritten to the raw file.",
+    "An app invite link is reused by default, so a day-old invite still works — and you can retire it and mint a fresh one. An empty app room explains itself instead of showing a blank page.",
+    "Opening an app is never a blank pane: the app's own animation and name show from the first second, the wait belongs to the app, and a light app fades in over the dark stage.",
+    "Help → About has a Report a problem link that pre-fills the GitHub issue with where you clicked it. Every page carries a static list of links for AI agents (llms.txt first).",
+    "The 0.8.x releases are retired. A computer still pinned to one is moved to the current release once, keeps everything, and is told why."
+   ],
+   "fixes": [
+    "Turning Talk on in an app room showed a row of blank camera boxes under the app. The room is audio-only, so they are gone — the app keeps the whole screen.",
+    "The launch splash could swallow the first tap on a fast phone: the app was already running under it. It stops taking taps the moment the app appears.",
+    "A computer pinned to a retired build looped between the loader and a 404 forever, with its desktop unreachable. It now bounces home once.",
+    "Worldview: closing the layer browser left a blurred, unclickable map; the tablet bottom bar pushed its own controls off the screen; offline warnings had gone quiet.",
+    "The app-update popup's link was unreadable on some pages; the store card's action button sat in the wrong place.",
+    "Catch the Cat: two fingers zoom the board and one finger is still a tap."
+   ]
+  },
+  {
    "version": "0.9.12",
    "date": "2026-08-24",
    "headline": "The Home Screen games and tools are finished apps now — Ping Pong first",
