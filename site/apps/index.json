@@ -5417,15 +5417,15 @@
         213
       ],
       "cover": "/apps/restfox/cover.jpg",
-      "bytes": 200602,
+      "bytes": 200809,
       "download": 0,
       "provides": null,
       "signature": {
         "type": "domain",
         "id": "gifos.app",
-        "ts": "2026-08-24"
+        "ts": "2026-08-25"
       },
-      "sha256": "aa121a7970a812fda08d57273ff9f31fbe84055ea98f185518787549aa047ffa"
+      "sha256": "7f895c4f920f61d6fd95106c218d7aed3b5f1fec326d371d0e54bcd24bde45bd"
     },
     {
       "slug": "reversi",
