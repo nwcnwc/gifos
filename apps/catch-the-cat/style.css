@@ -68,7 +68,7 @@ header {
   margin: .35rem 0 .45rem; padding: .45rem .6rem;
   background: var(--surface); border: 1px solid var(--border); border-radius: .7rem;
   font-size: .82rem; color: var(--muted);
-  max-height: 6.4rem; overflow: auto;
+  max-height: 8.6rem; overflow: auto;
 }
 #roster[hidden] { display: none; }
 #roster .wait { padding: .18rem 0; }
