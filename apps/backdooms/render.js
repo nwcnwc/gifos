@@ -63,8 +63,6 @@
   var lightFn = null, cacheCi = 1e9, cacheCj = 1e9, cacheLit = 0;
   var clockT = 0;
 
-  function mod(n, m) { return ((n % m) + m) % m; }
-
   /* ---- sizing --------------------------------------------------------- */
 
   function resize() {
@@ -521,7 +519,11 @@
     var bobX = Math.sin(s.bob) * W * 0.012 + Math.sin(t * 0.00092) * W * 0.007;
     var bobY = Math.abs(Math.cos(s.bob)) * H * 0.015 + Math.sin(t * 0.00147 + 1.1) * H * 0.006;
     var gx = W * 0.540 - gw * (78 / A.gunW) + bobX;
-    var gy = H - gh + bobY + s.kick * H * 0.085;
+    /* Pushed DOWN so the muzzle sits clearly below the crosshair. It used to
+       land within 2% of screen height of it, so you were aiming through your
+       own barrel; DOOM anchors the shotgun to the bottom edge precisely so it
+       never does that. */
+    var gy = H - gh + H * 0.055 + bobY + s.kick * H * 0.085;
 
     ctx.imageSmoothingEnabled = false;
     /* the pump rides forward and back along the barrel */
