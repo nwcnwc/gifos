@@ -191,12 +191,28 @@ designed. The right answer is the one app-services.md already argues for.
 - Portrait keeps a sane horizontal field of view now, but pays for it in
   ceiling. The start card says to turn the phone; a letterboxed portrait
   layout with the controls below the view would be better.
-- Multiplayer has never been driven end to end through a real relay in this
-  run. What IS verified: the invite path is OS chrome (the app draws no
-  button), a remote is visually unmistakable from a monster, shots at a friend
-  register, seeds are shared so everyone walks one maze, and the write rate is
-  the numbers above. Two browsers through one link over `relay-local.js` is
-  still owed.
+- Multiplayer has never been driven end to end through a real relay. The
+  suite that would do it now EXISTS — `test/browser/e2e-backdooms-mp.js`, four
+  friends on four machines, reached from the behaviour battery as scenario
+  `27a-friends-backdooms` — but it has never completed a run, for two reasons
+  that are both environmental and both outside this app:
+    1. The hosts file on this box weights only THREE machines above zero, so
+       `needFleet(4)` can never be satisfied by it. Two capable boxes
+       (`nvidia-laptop`, `raspberrypi`) sit at weight 0 and one of the three
+       (`jetson3`) is the orchestrator, which must not run browsers.
+    2. This development box cannot form a relay room AT ALL. `run.html` shows
+       "reconnecting to the room…" and never opens a WebSocket — measured with
+       a listener on `page.on('websocket')`: zero attempts. Not a dead relay
+       (a raw socket to it from the same page returns OPEN) and not this
+       suite's sequence, because a PLAIN MEETING (`#lob-open`, the path
+       e2e-anyroad-mp already gates on) fails identically here.
+  What IS verified: the suite refuses correctly (exit 3, NEEDS-FLEET, 0 passed
+  0 failed) and the battery front door propagates that; and twelve of the
+  fourteen hooks it drives were exercised against the real packed GIF inside
+  the real sandbox — install, the capability sheet, `#appinvite`, the room
+  form, `appActive`/`appIsHost`, the camera counter, the app frame, `state()`,
+  `cell()`, `view().sprites`, `keys()`/`look()`/`shoot()`, and the roster
+  traffic meter. The two it could not exercise are the two blocked above.
 - You can outrun everything. The player moves 6.25 units a second and the
   things about 1.9, so a player who only retreats is never caught — the run
   ends when the shells do, not when they reach you. Spawning happens behind a
