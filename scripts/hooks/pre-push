@@ -1,0 +1,197 @@
+#!/usr/bin/env node
+/*
+ * pre-push — the ONLY moment that actually decides what becomes public.
+ *
+ * WHY THIS EXISTS, and it is not redundant with commit-msg. On 2026-08-25 this
+ * repo force-pushed a rewrite of 2374 commits to scrub machine names out of 73
+ * commit messages that were already on the public web. They got there even
+ * though a rule existed, because every guard was in the wrong place:
+ *
+ *   - test/unit/no-topology.js scans the TREE. A scrubbed file still carries
+ *     the hostname in the MESSAGE of the commit that scrubbed it.
+ *   - scripts/hooks/commit-msg scans a draft message, which is the cheapest
+ *     moment — but it only ever sees a commit MADE HERE, THROUGH `git commit`.
+ *     It is blind to `--no-verify`, to `rebase`/`cherry-pick`/`commit --amend
+ *     --no-edit`, to `filter-branch`, to a branch fetched from a box whose
+ *     clone never installed hooks, and to a clone that simply never ran
+ *     `git config core.hooksPath scripts/hooks`.
+ *
+ * Every one of those paths ends at exactly one place: `git push`. So this hook
+ * scans the actual commits about to leave the machine — whatever produced them
+ * — and that is the difference between a rule and a guarantee.
+ *
+ * IT REFUSES ON THE SAME FIVE THINGS as the gate and commit-msg: machine names
+ * read from the LOCAL, never-committed ~/.gifos-behavior-hosts.json (the repo
+ * must never learn them — see test/unit/no-topology.js), plus the four SHAPES
+ * in test/lib/topology-shapes.js, which need no hosts file and so still work on
+ * a box that has none.
+ *
+ * IT ALSO READS TAG MESSAGES. An annotated tag is an object with a message of
+ * its own, `git log` does not show it, and `git push --tags` publishes it.
+ *
+ * INSTALL (per clone, once — same switch as commit-msg):
+ *   git config core.hooksPath scripts/hooks
+ * PROBE IT (safe, writes nothing):
+ *   node scripts/hooks/pre-push --self-test
+ * BYPASS, if you genuinely must: git push --no-verify
+ */
+'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
+
+const ROOT = path.join(__dirname, '..', '..');
+const ZERO = /^0+$/;
+
+const HOSTS = process.env.GIFOS_FLEET || process.env.BEHAVIOR_HOSTS
+  || path.join(os.homedir(), '.gifos-behavior-hosts.json');
+
+let fleet = null;
+try { fleet = JSON.parse(fs.readFileSync(HOSTS, 'utf8')); } catch (e) {}
+
+const names = new Set();
+for (const h of ((fleet && fleet.hosts) || [])) {
+  for (const k of ['name', 'ssh']) if (h && h[k]) names.add(String(h[k]));
+}
+// The hosts file's own words for "no ssh, run it here" — not machine names.
+for (const generic of ['local', 'localhost']) names.delete(generic);
+const hostish = [...names].filter((n) => n.length >= 4);
+
+let shapes = null;
+try { shapes = require(path.join(ROOT, 'test', 'lib', 'topology-shapes.js')); }
+catch (e) { process.stderr.write('pre-push: WARNING — topology-shapes.js did not load; shape checks skipped.\n'); }
+
+// A guard that can check nothing must SAY so. Silence here reads as "clean",
+// and that is the exact failure that let 73 messages onto the public web.
+if (!hostish.length && !shapes) {
+  process.stderr.write('pre-push: WARNING — no hosts file and no shapes; NOTHING was checked.\n');
+  process.exit(0);
+}
+
+const git = (args) => execFileSync('git', ['-C', ROOT].concat(args), { maxBuffer: 1 << 28 }).toString();
+
+function scanText(text) {
+  const lines = String(text || '').split('\n');
+  const hits = [];
+  lines.forEach((line, i) => {
+    for (const n of hostish) {
+      // WHERE, never WHAT — this output is safe to paste into an issue.
+      if (line.toLowerCase().includes(n.toLowerCase())) {
+        hits.push('line ' + (i + 1) + ': a machine name (…' + n.slice(0, 2) + '…)');
+        return;
+      }
+    }
+    if (shapes) {
+      for (const [what, re] of shapes.SHAPES) {
+        if (new RegExp(re, 'i').test(line)) { hits.push('line ' + (i + 1) + ': ' + what); return; }
+      }
+    }
+  });
+  return hits;
+}
+
+// ---- self-test: prove it fires, without writing or pushing anything --------
+if (process.argv[2] === '--self-test') {
+  const probe = hostish.length ? hostish.slice().sort((a, b) => b.length - a.length)[0] : null;
+  let ok = true;
+  if (probe) {
+    const hit = scanText('subject\n\nmeasured on ' + probe + '\n');
+    console.log((hit.length ? 'PASS' : 'FAIL') + ' — a real machine name is refused');
+    if (!hit.length) ok = false;
+  } else {
+    console.log('SKIP — no hosts file here, so the NAME check cannot be probed.');
+  }
+  if (shapes) {
+    const hit = scanText('subject\n\nrelay at 100.101.102.103 was quiet\n');
+    console.log((hit.length ? 'PASS' : 'FAIL') + ' — a tailnet address is refused');
+    if (!hit.length) ok = false;
+  }
+  const clean = scanText('subject\n\nred every run on the <gpu-box>, green on every slower box\n');
+  console.log((clean.length === 0 ? 'PASS' : 'FAIL') + ' — a <role> placeholder is allowed');
+  if (clean.length) ok = false;
+  console.log(ok ? 'ALL PASSED' : 'FAILED');
+  process.exit(ok ? 0 : 1);
+}
+
+// ---- the refs actually being pushed, read from stdin -----------------------
+let stdin = '';
+try { stdin = fs.readFileSync(0, 'utf8'); } catch (e) {}
+const updates = stdin.split('\n').map((l) => l.trim()).filter(Boolean)
+  .map((l) => l.split(/\s+/)).filter((f) => f.length >= 4);
+if (!updates.length) process.exit(0);
+
+const offenders = [];
+let scannedCommits = 0, scannedTags = 0;
+
+for (const [localRef, localSha, remoteRef] of updates) {
+  if (ZERO.test(localSha)) continue;            // a deletion publishes nothing
+
+  // An annotated tag carries its own message, which `git log` never shows.
+  if (/^refs\/tags\//.test(remoteRef)) {
+    scannedTags++;
+    let body = '';
+    try {
+      if (git(['cat-file', '-t', localSha]).trim() === 'tag') {
+        body = git(['for-each-ref', '--format=%(contents)', localRef]) || git(['cat-file', 'tag', localSha]);
+      }
+    } catch (e) {}
+    for (const h of scanText(body)) offenders.push(remoteRef + '  ' + h);
+  }
+
+  // WHY THE RANGE IS COMPUTED THIS WAY. On a normal push the remote's tip is an
+  // ancestor and `remote..local` is exactly the new work. On a FORCE-push after
+  // a rewrite it is not an ancestor, so that range degrades to the whole local
+  // history — which is the correct answer, because after a rewrite every commit
+  // really is new to the remote. `--not --remotes` keeps a brand-new branch from
+  // re-scanning everything already published.
+  let range;
+  try {
+    const remoteSha = updates.find((u) => u[2] === remoteRef)[3];
+    if (ZERO.test(remoteSha)) range = [localSha, '--not', '--remotes'];
+    else {
+      let ancestor = true;
+      try { execFileSync('git', ['-C', ROOT, 'merge-base', '--is-ancestor', remoteSha, localSha], { stdio: 'ignore' }); }
+      catch (e) { ancestor = false; }
+      range = ancestor ? [remoteSha + '..' + localSha] : [localSha, '--not', remoteSha];
+    }
+  } catch (e) { range = [localSha, '--not', '--remotes']; }
+
+  let log = '';
+  try { log = git(['log', '--format=%H%x1f%B%x1e'].concat(range)); } catch (e) { continue; }
+  for (const rec of log.split('\x1e')) {
+    if (!rec.trim()) continue;
+    const [sha, body] = rec.replace(/^\n/, '').split('\x1f');
+    scannedCommits++;
+    for (const h of scanText(body)) offenders.push(sha.slice(0, 8) + '  ' + h);
+  }
+}
+
+if (!offenders.length) {
+  process.stderr.write('pre-push: clean — ' + scannedCommits + ' commit message(s)'
+    + (scannedTags ? ' and ' + scannedTags + ' tag(s)' : '') + ' carry no private identifier.\n');
+  process.exit(0);
+}
+
+process.stderr.write([
+  '',
+  'PUSH REFUSED — ' + offenders.length + ' message(s) carry a private identifier, and this repo is PUBLIC.',
+  '',
+  'This is the last moment it is cheap. Once these are on GitHub the ONLY fix is a',
+  'history rewrite and a force-push over every clone — that has been paid for once',
+  'already (2026-08-25, 2374 commits).',
+  '',
+  offenders.slice(0, 25).map((o) => '  ' + o).join('\n'),
+  offenders.length > 25 ? '  … and ' + (offenders.length - 25) + ' more' : '',
+  '',
+  'Write the ROLE instead:',
+  '  <behavior-box>  <gate-host>  <orchestrator>  <gpu-box>  <llm-box>',
+  '  <monitor-pi>  <resident-model>  <orchestrator-tailnet-addr>',
+  '',
+  'To fix the most recent message:   git commit --amend',
+  'Further back:                     git rebase -i <sha>^   (reword)',
+  '',
+  'See CLAUDE.md and test/unit/no-topology.js.',
+  '',
+].filter((l) => l !== '').join('\n') + '\n');
+process.exit(1);

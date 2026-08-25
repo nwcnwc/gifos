@@ -153,13 +153,30 @@ test/unit/no-topology.js` before pushing a comment that says where a
 measurement came from; it only checks names on a box that has the hosts file.
 
 The same rule covers COMMIT MESSAGES — GitHub renders them on the open web, and
-unlike a file, a pushed message can only be fixed by rewriting history. So there
-is a hook, and it is worth the one command per clone:
-`git config core.hooksPath scripts/hooks` (`--unset` to remove, `--no-verify` to
-bypass once). The gate checks messages too, but only from a baseline forward:
-70 commits between 2026-07-16 and 2026-08-24 already carry names, and that
-backlog is a force-push decision for the repo owner, not something a suite can
-fix — `no-topology.js` prints the count on every run so it stays visible.
+unlike a file, a pushed message can only be fixed by rewriting history. **That
+backlog is now PAID: on 2026-08-25 the 73 messages that named machines were
+rewritten and force-pushed** — 2374 commits across 42 branches and 11 tags,
+every tree byte-identical, authors/dates/topology untouched. The count is zero
+and `no-topology.js` now asserts over ALL history; there is no baseline any
+more, and re-introducing one to make a red go away is how the 73 accumulated in
+the first place.
+
+**INSTALL THE HOOKS IN EVERY CLONE — one command, and it is the whole guard:**
+`git config core.hooksPath scripts/hooks` (`--unset` to remove, `--no-verify`
+to bypass once). There are two, and they are not redundant:
+
+- `commit-msg` is the cheap moment — it refuses a draft message that names a
+  machine or carries one of the four shapes, while the fix is deleting a word.
+  It only ever sees a commit made HERE, through `git commit`.
+- `pre-push` is the moment that actually decides what becomes public. It scans
+  the commits (and annotated tag messages) about to leave the machine, whatever
+  produced them — so `--no-verify`, `rebase`, `cherry-pick`, `filter-branch`, a
+  branch fetched from a clone with no hooks, and a clone that never ran the
+  config command all still get caught. Probe it with
+  `node scripts/hooks/pre-push --self-test`.
+
+A clone without `core.hooksPath` set is the hole. The rewrite cost a full
+force-push over every clone on the box; the config command costs one line.
 
 The harnesses already exist — `test/swarm/meet.js` for meetings/topology, and
 `test/tools/approom-host.js` + `test/tools/approom-join.js` for app-room join
