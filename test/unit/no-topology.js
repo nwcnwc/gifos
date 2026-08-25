@@ -203,19 +203,12 @@ if (!fleet) {
 }
 
 // ---- 2. the shapes, which need no hosts file -------------------------------
-// A tailnet address, an adb device serial, a bot token. These are patterns, so
-// they are safe to write down.
-const SHAPES = [
-  ['a tailnet address (100.64/10)', '(^|[^0-9.])100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.[0-9]{1,3}\\.[0-9]{1,3}([^0-9]|$)'],
-  ['a tailscale magic-dns name', '[a-z0-9-]+\\.[a-z0-9-]+\\.ts\\.net'],
-  ['a telegram bot token', '[0-9]{8,10}:[A-Za-z0-9_-]{30,}'],
-  // A serial is matched WHERE IT IS USED, not by its shape: a bare
-  // `[A-Z]{2}[0-9][0-9A-Z]{6,}` also describes half the identifiers in a
-  // minified bundle, and it flagged 29 vendored libraries on its first run.
-  // `adb -s <serial>` cannot be a false positive, and a placeholder
-  // (`adb -s <phone-a-serial>`) does not match because `<` is not in the class.
-  ['a device serial handed to adb', 'adb +(-[a-z] +)*-s +[A-Za-z0-9]{6,}'],
-];
+// A tailnet address, a magic-dns name, an adb device serial, a bot token. These
+// are patterns, so they are safe to write down — and they live in
+// test/lib/topology-shapes.js because scripts/hooks/commit-msg checks the SAME
+// four against a draft commit message. A shape this gate rejects and that hook
+// waves through would be the worst of both, so there is one copy.
+const { SHAPES } = require(path.join(ROOT, 'test', 'lib', 'topology-shapes.js'));
 const shapeDirty = scan(SHAPES.map(([, re]) => re));
 for (const [what, re] of SHAPES) {
   const hits = shapeDirty.length ? scan([re]) : [];
