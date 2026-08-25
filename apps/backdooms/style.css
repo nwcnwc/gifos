@@ -77,8 +77,9 @@ body.lowhp .pod-l .pod-v { color: #ff6a52; animation: throb .7s steps(2) infinit
 .shells i.spent { opacity: .18; }
 
 #score-pod {
-  position: absolute; top: calc(env(safe-area-inset-top) + 14px); left: 50%;
-  transform: translateX(-50%); text-align: center;
+  position: absolute; top: calc(env(safe-area-inset-top) + 14px);
+  left: calc(env(safe-area-inset-left) + 18px);
+  text-align: left;
   text-shadow: 0 2px 6px rgba(0, 0, 0, .9);
 }
 #score-pod .pod-v { font-size: 26px; color: #ffe07a; }
@@ -126,7 +127,7 @@ body.hurt #pain { opacity: 1; transition: opacity .05s; }
   display: block; width: 160%; height: 160%;
   transform: rotate(var(--pain-dir, 0deg));
   background: radial-gradient(ellipse 42% 20% at 50% 6%,
-    rgba(255, 70, 40, .85), rgba(210, 26, 14, .45) 45%, transparent 72%);
+    rgba(255, 74, 42, .55), rgba(205, 26, 14, .26) 45%, transparent 74%);
 }
 body.hurt #painarc { opacity: 1; transition: opacity .04s; }
 
@@ -163,6 +164,7 @@ body.hurt #painarc { opacity: 1; transition: opacity .04s; }
 .mark span:nth-child(3) { height: 11px; }
 
 .gate-box h1 {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 2.05rem; line-height: 1; letter-spacing: .10em;
   color: #f0c93a; margin-bottom: 10px;
   text-shadow: 0 0 22px rgba(240, 201, 58, .35);
@@ -193,7 +195,11 @@ body.phone #gate-keys-phone { display: block; }
 .opts { margin-top: 16px; font-size: .78rem; color: #a89870; }
 .opts input { vertical-align: middle; accent-color: #e8bb2e; width: 140px; }
 .best { margin-top: 12px; color: #f0c93a; font-size: .85rem; letter-spacing: .06em; }
-#over-score { font-size: 1.05rem; color: #f0e6c8; margin-bottom: 4px; }
+#over-score {
+  font: 800 1.6rem/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: #f6ecd0; margin-bottom: 8px;
+}
 #over-note { font-size: .82rem; color: #a89870; margin-bottom: 16px; min-height: 1em; }
 #gate-room { margin-top: 12px; font-size: .78rem; color: #8a7a52; line-height: 1.5; }
 
