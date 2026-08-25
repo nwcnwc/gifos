@@ -198,8 +198,9 @@ designed. The right answer is the one app-services.md already argues for.
   that are both environmental and both outside this app:
     1. The hosts file on this box weights only THREE machines above zero, so
        `needFleet(4)` can never be satisfied by it. Two capable boxes
-       (`nvidia-laptop`, `raspberrypi`) sit at weight 0 and one of the three
-       (`jetson3`) is the orchestrator, which must not run browsers.
+       (`<gpu-box>`, `<monitor-pi>`) sit at weight 0 — one drives the gate,
+       the other runs MonitorBot — and one of the three is the
+       `<orchestrator>`, which must not run browsers.
     2. This development box cannot form a relay room AT ALL. `run.html` shows
        "reconnecting to the room…" and never opens a WebSocket — measured with
        a listener on `page.on('websocket')`: zero attempts. Not a dead relay

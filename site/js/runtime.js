@@ -3114,7 +3114,7 @@
         // for the 250 ms before its removal, and then cut away. On a fast box
         // that is a live, title-screened game under a pane that EATS the
         // first tap (e2e-battle-city's "a touch reveals the pad" was red
-        // every run on nvidia-laptop and green on every slower box). From
+        // every run on the <gpu-box> and green on every slower box). From
         // the moment the app is revealed the app owns the input: the splash
         // goes pointer-transparent NOW and fades out over the same 0.2 s the
         // frame fades in — the dark-stage cross-fade this always meant.

@@ -213,7 +213,7 @@ async function toPlay(frame, label) {
     await run.touchscreen.tap(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2);
     // A claim, not a deadline: wait for the pad, then assert it. reveal() is
     // synchronous on touchstart, but the tap's delivery into the app frame is
-    // not — 200 ms of sleep was red twice in a row on nvidia-laptop (0.9.13).
+    // not — 200 ms of sleep was red twice in a row on the <gpu-box> (0.9.13).
     const revealed = await frame.waitForFunction(() => document.getElementById('touch').hidden === false, null, { timeout: 10000 })
       .then(() => true).catch(() => false);
     check('a touch reveals the pad', revealed);
